@@ -1,0 +1,89 @@
+/**
+ * @file    NetworkManager.h
+ * @brief   WiFi connectivity, NTP synchronization, and Virtual RTC management.
+ * @details Handles the complete network lifecycle: WiFi STA/AP modes, exponential
+ *          backoff reconnection, NTP time sync, mDNS, and a Virtual RTC that
+ *          provides provisional timestamps from the last flash-stored epoch
+ *          until real NTP synchronization completes.
+ *
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @license MIT License
+ */
+
+#pragma once
+#include <Arduino.h>
+#include <WiFi.h>
+#include <time.h>
+#include <LEAmDNS.h>
+#include <DNSServer.h>
+#include "SystemDefs.h"
+#include "LogManager.h"
+
+
+typedef void (*TimeSyncCallback)(uint32_t bootProvisionalTs, int32_t deltaSeconds);
+
+class NetworkManager {
+public:
+    NetworkManager();
+
+    void begin(const SystemConfig &cfg);
+    void beginAP(const char* deviceName);
+    void update();
+
+
+    void setProvisionalTime(uint32_t lastTs);
+    void setTimeSyncCallback(TimeSyncCallback cb);
+
+
+    bool isConnected();
+    bool isTimeSynced();
+    int32_t getRssi();
+
+
+    String getIpAddress();
+    String getMacAddress();
+    String getSubnetMask();
+    String getGateway();
+    String getDns();
+
+
+    String getFormattedTime();
+    String getFormattedDate();
+    time_t getEpoch();
+
+private:
+    enum NetState {
+        NET_OFFLINE,
+        NET_CONNECTING,
+        NET_CONNECTED_WAIT_IP,
+        NET_CONNECTED_WAIT_NTP,
+        NET_READY,
+        NET_AP_CONFIG,
+        NET_SCANNING_RETRY,
+        NET_DISCONNECT_PENDING
+    };
+
+    NetState _state;
+    DNSServer _dnsServer;
+
+    char _ssid[32];
+    char _pass[32];
+    char _deviceName[32];
+    int8_t _tzOffset;
+
+    uint32_t _stateTimer;
+    uint32_t _retryTimer;
+    uint32_t _reconnectTimer;
+    uint32_t _reconnectDelay = 5000;
+    static const uint32_t MAX_RECONNECT_DELAY = 120000;
+
+
+    TimeSyncCallback _timeSyncCb = nullptr;
+    uint32_t _provisionalBase = 0;
+    uint32_t _provisionalBootMillis = 0;
+    bool _provisionalActive = false;
+
+    void handleConnecting();
+    void syncNtp();
+};
