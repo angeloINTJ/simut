@@ -2,11 +2,12 @@
  * @file    TelemetryManager.h
  * @brief   Telemetry uploader supporting HTTP POST and MQTT publish with exponential backoff.
  * @details Manages periodic and manual data uploads via configurable transport
- *          (HTTP or MQTT). Supports JSON, CSV, and custom payload templates
- *          with TLS/SSL, batch collection from history CSVs, and a pending
- *          count estimator for dashboard display.
+ * (HTTP or MQTT). Supports JSON, CSV, and custom payload templates
+ * with TLS/SSL, batch collection from history CSVs, and a pending
+ * count estimator for dashboard display.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -71,24 +72,32 @@ private:
     uint32_t jitter(uint32_t base);
 
 
-    bool collectBatch(std::vector<String>& batch, uint32_t& newCursor);
+    bool collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& newCursor);
 
 
-    bool attemptHttpUpload(std::vector<String>& batch, uint32_t newCursor);
+    bool attemptHttpUpload(String& payload, uint32_t newCursor);
 
+    /* HTTP TLS — cliente reutilizável (evita realocar ~16KB a cada upload) */
+    WiFiClientSecure* _httpSecurePtr  = nullptr;
+    uint32_t          _httpSecureLastUse = 0;
 
-    WiFiClient      _mqttWifiClient;
-    WiFiClientSecure _mqttWifiClientSecure;
-    PubSubClient    _mqttClient;
-    bool            _mqttInitialized;
-    uint32_t        _lastMqttReconnect;
+    WiFiClient       _mqttWifiClient;
+    WiFiClientSecure* _mqttSecurePtr = nullptr; /**< Alocado sob demanda (só MQTT+TLS) ~16KB */
+    PubSubClient     _mqttClient;
+    bool             _mqttInitialized;
+    uint32_t         _lastMqttReconnect;
 
     bool mqttEnsureConnected();
-    bool attemptMqttPublish(std::vector<String>& batch, uint32_t newCursor);
+    bool attemptMqttPublish(String& payload, std::vector<BinaryHistoryRecord>& batch, uint32_t newCursor);
     String buildMqttClientId();
+    uint8_t safeBatchLimit(uint8_t configured);
+
+    /** @brief Libera WiFiClientSecure e cert após inatividade (economia ~16-34KB). */
+    void releaseIdleResources();
 
 
-    String buildPayload(std::vector<String>& csvLines);
-    String formatLineJson(String& csvLine, const SystemConfig& cfg);
-    String formatLineCustom(String& csvLine, const SystemConfig& cfg);
+    String buildPayload(std::vector<BinaryHistoryRecord>& batch);
+    int    formatLineJsonBuf(const BinaryHistoryRecord& rec, const SystemConfig& cfg, char* dest, size_t maxLen);
+    String formatLineJson(const BinaryHistoryRecord& rec, const SystemConfig& cfg);
+    String formatLineCustom(const BinaryHistoryRecord& rec, const SystemConfig& cfg);
 };

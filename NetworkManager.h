@@ -2,11 +2,12 @@
  * @file    NetworkManager.h
  * @brief   WiFi connectivity, NTP synchronization, and Virtual RTC management.
  * @details Handles the complete network lifecycle: WiFi STA/AP modes, exponential
- *          backoff reconnection, NTP time sync, mDNS, and a Virtual RTC that
- *          provides provisional timestamps from the last flash-stored epoch
- *          until real NTP synchronization completes.
+ * backoff reconnection, NTP time sync, mDNS, and a Virtual RTC that
+ * provides provisional timestamps from the last flash-stored epoch
+ * until real NTP synchronization completes.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -40,6 +41,17 @@ public:
     bool isTimeSynced();
     int32_t getRssi();
 
+    /**
+     * @brief Verifica se a rede está saudável para operações pesadas.
+     *
+     * Combina estado de conexão WiFi com qualidade de sinal (RSSI).
+     * Operações leves (NTP, mDNS) usam isConnected().
+     * Operações pesadas (telemetria, uploads) devem usar isNetworkHealthy().
+     *
+     * @return true se conectado E sinal acima de RSSI_MIN_THRESHOLD.
+     */
+    bool isNetworkHealthy();
+
 
     String getIpAddress();
     String getMacAddress();
@@ -51,6 +63,16 @@ public:
     String getFormattedTime();
     String getFormattedDate();
     time_t getEpoch();
+
+    /**
+     * @brief Aplica o fuso horário globalmente via setenv("TZ", ...).
+     *
+     * Após chamada, todo localtime_r() retorna hora local automaticamente.
+     * Deve ser chamado no boot e sempre que o timezone for alterado.
+     *
+     * @param offset  Offset em horas relativo a UTC (ex: -3 para Brasil).
+     */
+    static void applyTimezone(int8_t offset);
 
 private:
     enum NetState {
@@ -70,6 +92,7 @@ private:
     char _ssid[32];
     char _pass[32];
     char _deviceName[32];
+    char _ntpServer[32];
     int8_t _tzOffset;
 
     uint32_t _stateTimer;
@@ -86,4 +109,7 @@ private:
 
     void handleConnecting();
     void syncNtp();
+
+    uint32_t _lastMdnsUpdate = 0;       /**< Throttle para MDNS.update()         */
+    uint8_t  _connectCycles  = 0;        /**< Ciclos de reconexão consecutivos    */
 };

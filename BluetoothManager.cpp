@@ -2,10 +2,11 @@
  * @file    BluetoothManager.cpp
  * @brief   Implementation of BluetoothManager — authentication state machine and I/O.
  * @details Handles the full authentication flow: prompt display, password masking,
- *          validator callback invocation, and automatic session expiration.
- *          All output methods are gated by authentication status.
+ * validator callback invocation, and automatic session expiration.
+ * All output methods are gated by authentication status.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -44,7 +45,7 @@ void BluetoothManager::update() {
 
     if (_authenticated) {
         if (millis() - _lastActivityTime > _timeoutMs) {
-            SerialBT.println("\n\r[SECURITY ALERT] Session terminated due to inactivity (5 min).");
+            SerialBT.println("\n\r[ALERTA DE SEGURANCA] Sessao encerrada por inatividade (5 min).");
             _authenticated = false;
             _promptSent = false;
             _authBuffer = "";
@@ -59,7 +60,7 @@ void BluetoothManager::update() {
 
 
         if (!_promptSent) {
-            SerialBT.println("\n\r--- BLUETOOTH CONNECTION ESTABLISHED ---");
+            SerialBT.println("\n\r--- CONEXAO BLUETOOTH ESTABELECIDA ---");
             SerialBT.print("Admin Password: ");
             _promptSent = true;
             _authBuffer = "";
@@ -79,10 +80,10 @@ void BluetoothManager::update() {
                 if (valid) {
                     _authenticated = true;
                     _lastActivityTime = millis();
-                    SerialBT.println("Access Granted! Welcome to SIMUT CLI.");
+                    SerialBT.println("Acesso Concedido! Bem-vindo ao SIMUT CLI.");
                     SerialBT.print("SIMUT> ");
                 } else {
-                    SerialBT.println("Access Denied.");
+                    SerialBT.println("Acesso Negado.");
                     _promptSent = false;
                 }
                 _authBuffer = "";

@@ -2,12 +2,13 @@
  * @file    SoundManager.h
  * @brief   Sound event manager using BuzzerPIO_RP2040 library for PIO-driven audio.
  * @details Manages sound events (touch click, confirmation, error, alarm) with
- *          6 melody variants per type, independent system/alarm volume control,
- *          event queue, mute/unmute, and persistent configuration stored in
- *          SystemConfig::reserved[10..15]. Uses dual-SM PIO architecture
- *          (PWM amplitude + frequency gate) via the BuzzerPIO_RP2040 library.
+ * 6 melody variants per type, independent system/alarm volume control,
+ * event queue, mute/unmute, and persistent configuration stored in
+ * SystemConfig::reserved[10..15]. Uses dual-SM PIO architecture
+ * (PWM amplitude + frequency gate) via the BuzzerPIO_RP2040 library.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */

@@ -2,13 +2,14 @@
  * @file    WebManager.h
  * @brief   Embedded web server with multi-user sessions, RBAC, and brute-force protection.
  * @details Provides a full web interface on the Pico W using the Arduino WebServer
- *          library. Features multi-session authentication (3 simultaneous users),
- *          role-based access control via permission bitmasks, challenge-response
- *          login with HMAC nonces, per-IP rate limiting, SendGuard (hardware
- *          timer for WDT during long sends), RAII guards for rendering and
- *          flash access, and gzip-compressed asset delivery.
+ * library. Features multi-session authentication (3 simultaneous users),
+ * role-based access control via permission bitmasks, challenge-response
+ * login with HMAC nonces, per-IP rate limiting, SendGuard (hardware
+ * timer for WDT during long sends), RAII guards for rendering and
+ * flash access, and gzip-compressed asset delivery.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -39,6 +40,8 @@ public:
     void update();
     void setYieldCallback(YieldCallback cb) { _yieldCb = cb; }
     void setLightYieldCallback(LightYieldCallback cb) { _lightYieldCb = cb; }
+    uint32_t getCachedFlashUsed()  const { return _cachedFsUsedBytes; }
+    uint32_t getCachedFlashTotal() const { return _cachedFsTotalBytes; }
 
 
     void setTouchPriorityChecker(bool (*fn)()) { _isTouchPriorityFn = fn; }
@@ -178,6 +181,7 @@ private:
 
     void handleSaveSystem();
     void handleSaveNetwork();
+    void handleResetTouchCal();
     void handleApiStatus();
     void handleApiHistoryData();
     void handleApiLogs();
@@ -205,7 +209,6 @@ private:
     String getForceChpassHtml(bool isError);
 
     String getHistoryFileName(time_t date);
-    String extractCsvToken(String& line, int index);
     String rgb565ToHex(uint16_t color);
     void feedWatchdog();
     bool isHandlerOvertime();

@@ -2,13 +2,14 @@
  * @file    SensorManager.h
  * @brief   Sensor driver layer with PIO-based DS18B20 and DHT22 support.
  * @details Manages runtime sensor instances with static ring buffers for
- *          moving average calculation (trimmed mean), asynchronous reading
- *          state machines, hardware scan across GPIO pins, ROM verification,
- *          calibration offset application, and hardware mismatch detection.
- *          All PIO operations use custom libraries: OneWirePIO_RP2040 and
- *          DHT22PIO_RP2040.
+ * moving average calculation (trimmed mean), asynchronous reading
+ * state machines, hardware scan across GPIO pins, ROM verification,
+ * calibration offset application, and hardware mismatch detection.
+ * All PIO operations use custom libraries: OneWirePIO_RP2040 and
+ * DHT22PIO_RP2040.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */

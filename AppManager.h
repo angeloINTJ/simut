@@ -2,11 +2,12 @@
  * @file    AppManager.h
  * @brief   Application orchestrator — top-level coordinator for all subsystems.
  * @details Owns all manager instances (Sensor, Storage, Command, Display,
- *          Network, Web, Telemetry, Sound) and coordinates their lifecycle.
- *          Handles boot sequence, main loop scheduling, UI event dispatch,
- *          alarm monitoring, sensor calibration, and NTP time correction.
+ * Network, Web, Telemetry, Sound) and coordinates their lifecycle.
+ * Handles boot sequence, main loop scheduling, UI event dispatch,
+ * alarm monitoring, sensor calibration, and NTP time correction.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -58,23 +59,28 @@ private:
     uint32_t _timeSyncBootTs = 0;
     int32_t _timeSyncDelta = 0;
 
-    float _cachedMin[11];
-    float _cachedMax[11];
+    float _cachedMin[MINMAX_SLOT_COUNT];
+    float _cachedMax[MINMAX_SLOT_COUNT];
     float _cachedHumMin;
     float _cachedHumMax;
 
-    /* Min/max values from preload only (daily CSV snapshot) */
-    float _preloadMin[11];
-    float _preloadMax[11];
+    /* Min/max vindos exclusivamente do preload (CSV do dia) */
+    float _preloadMin[MINMAX_SLOT_COUNT];
+    float _preloadMax[MINMAX_SLOT_COUNT];
     float _preloadHumMin;
     float _preloadHumMax;
+
+    /* Estado de scan de sensores (antes eram static globals no .cpp) */
+    bool _waitingScan       = false;
+    int  _currentSensorIdx  = 0;
+    bool _isApMode          = false;
 
     void preloadMinMax();
     void openStatsScreen(int sensorId);
 
     void updateLiveDisplay();
     void refreshSelectedSlot();
-    void renderGraphOptimized(int sensorId, int range);
+    void renderGraphOptimized(int sensorId, int range, bool showAfterLoad = true, int navOffset = 0, time_t forceEndEpoch = 0);
 
     void processHistoryLogging();
     void processBackgroundScan();
@@ -86,8 +92,43 @@ private:
     void handleTimeSync(uint32_t bootTs, int32_t delta);
     void checkAlarmConditions();
 
+    /* ── Cache de gráficos 7d pré-carregados ── */
+    /**
+     * Cada entrada armazena um GraphDataPackage completo para o range 7d.
+     * Slots: [0-9] = sensores DS18B20, [10] = board temp, [11] = ambient.
+     * Carregado no boot e atualizado a cada 6 horas em background.
+     */
+    struct GraphCacheEntry {
+        GraphDataPackage pkg;
+        float humMin, humMax;
+        time_t lastRefresh;
+        bool valid;
+    };
+
+    GraphCacheEntry _graphCache[MAX_SENSORS + 2];
+    uint32_t _lastGraphCacheRefresh = 0;
+    int  _bgCacheNextSensor = -2;   /**< -2 = idle, -1 = ambient, 0-9 = sensors, 10 = board */
+    bool _bgCacheRunning    = false;
+
+    /**
+     * Cache de todos os 5 ranges do sensor atualmente visualizado.
+     * Quando o usuário abre um sensor, todos os ranges são carregados
+     * para que a troca entre 1H/6H/12H/24H/7D seja instantânea.
+     * Ao abrir outro sensor, o cache é invalidado e recarregado.
+     */
+    GraphCacheEntry _sensorCache[5];  /**< [0]=1H [1]=6H [2]=12H [3]=24H [4]=7D */
+    int _sensorCacheId = -99;         /**< sensorId cacheado (-99 = nenhum)      */
+    int _graphNavOffset = 0;          /**< Offset de navegação temporal (≤ 0)    */
+    int _lastGraphRange = 3;          /**< Último range renderizado (para nav)   */
+    time_t _graphAnchorEnd = 0;       /**< Âncora do fim da janela (0 = usar now) */
+
+    void preloadGraphCaches();
+    void preloadSensorRanges(int sensorId, int skipRange);
+    int  graphCacheIdx(int sensorId);
+    bool appendToGraphCache(GraphCacheEntry& entry, int sensorId);
+
 
     bool _pendingAlarmDeactivate = false;
 
-    static constexpr uint32_t TOUCH_PRIORITY_MS = 2000;
+    static constexpr uint32_t TOUCH_PRIORITY_MS = 5000;
 };

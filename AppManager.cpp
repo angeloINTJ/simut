@@ -2,11 +2,12 @@
  * @file    AppManager.cpp
  * @brief   Implementation of AppManager — boot sequence, main loop, and event dispatch.
  * @details Contains the complete boot flow (filesystem, sensors, network, web server),
- *          the main loop with priority-based task scheduling, CLI command execution,
- *          graph rendering from CSV history, alarm condition checking, and
- *          provisional timestamp correction via NTP synchronization.
+ * the main loop with priority-based task scheduling, CLI command execution,
+ * graph rendering from CSV history, alarm condition checking, and
+ * provisional timestamp correction via NTP synchronization.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -17,18 +18,16 @@
 #include "Themes.h"
 #include <LittleFS.h>
 #include <time.h>
+#include <math.h>
 #include <hardware/watchdog.h>
 #include <string.h>
 
 extern AppManager app;
 
-static bool _appWaitingScan = false;
-static int _currentSensorIndex = 0;
-static bool _isApMode = false;
 
 
 AppManager::AppManager() {
-    for(int i = 0; i < 11; i++) {
+    for(int i = 0; i < MINMAX_SLOT_COUNT; i++) {
         _cachedMin[i] = 1000.0f;
         _cachedMax[i] = -1000.0f;
         _preloadMin[i] = 1000.0f;
@@ -67,15 +66,15 @@ void AppManager::setup() {
 
     _displayMgr.begin();
     _displayMgr.startCore1();
-    LOG_INF("APP", "Display UI Launched on Core 1.");
+    LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, "Display UI Launched on Core 1.");
 
-    delay(800);
+    delay(BOOT_STEP_DELAY_MS);
 
     bool forceAP = false;
     _displayMgr.setBootStatus("Hold screen for AP Mode...");
     unsigned long waitStart = millis();
 
-    while (millis() - waitStart < 3500) {
+    while (millis() - waitStart < AP_DETECT_WINDOW_MS) {
         TRACE_BEAT(0);
 
         if (_displayMgr.isScreenTouched()) {
@@ -83,11 +82,11 @@ void AppManager::setup() {
             bool held = true;
             int missedTouches = 0;
 
-            while (millis() - holdStart < 3000) {
+            while (millis() - holdStart < AP_HOLD_DURATION_MS) {
                 TRACE_BEAT(0);
                 if (!_displayMgr.isScreenTouched()) {
                     missedTouches++;
-                    if (missedTouches > 5) {
+                    if (missedTouches > AP_HOLD_MAX_MISSED) {
                         held = false;
                         _displayMgr.setApProgress(-1);
                         _displayMgr.setBootStatus("AP Mode Cancelled.", false);
@@ -97,7 +96,7 @@ void AppManager::setup() {
                 } else {
                     missedTouches = 0;
                 }
-                int pct = map(millis() - holdStart, 0, 3000, 0, 100);
+                int pct = map(millis() - holdStart, 0, AP_HOLD_DURATION_MS, 0, 100);
                 _displayMgr.setApProgress(pct);
                 delay(50);
             }
@@ -145,7 +144,7 @@ void AppManager::setup() {
         return (hashed == String(cfg.users[0].password));
     });
 
-    if (!fsOk) LOG_ERR("APP", "Storage Critical Failure! Check Flash FS.");
+    if (!fsOk) LOG_CODE(LOG_ERROR, "APP", APP_STORAGE_CRITICAL, 0, "Storage Critical Failure!");
 
     uint32_t lastTs = _storageMgr.getLastRecordedTimestamp();
     _netMgr.setProvisionalTime(lastTs);
@@ -154,6 +153,7 @@ void AppManager::setup() {
 
         app._timeSyncBootTs = bootTs;
         app._timeSyncDelta = delta;
+        __dmb();  /* Memory barrier: garante que bootTs/delta são visíveis antes da flag */
         app._pendingTimeSync = true;
     });
 
@@ -176,7 +176,7 @@ void AppManager::setup() {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
         _displayMgr.loadTouchCalibration(cal);
         if (!_displayMgr.isTouchCalibrated()) {
-            LOG_WRN("APP", "No touch calibration found — launching calibration screen.");
+            LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0, "Touch calibration required.");
             _displayMgr.setBootStatus("Touch calibration required...");
             delay(600);
             _displayMgr.showTouchCalibration();
@@ -191,7 +191,7 @@ void AppManager::setup() {
                         TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
                         _displayMgr.fillCalData(calOut);
                         _storageMgr.saveConfiguration();
-                        LOG_INF("APP", "Initial touch calibration saved.");
+                        LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_INITIAL, 0, "Initial touch calibration saved.");
                     }
                 }
                 delay(50);
@@ -205,7 +205,7 @@ void AppManager::setup() {
     _sensorMgr.setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 
     if (forceAP) {
-        LOG_WRN("APP", "User triggered CONFIG MODE (AP)");
+        LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, "User triggered AP mode.");
         _displayMgr.setBootStatus("Starting Access Point (AP)...");
         _displayMgr.setBootStatus("Connect to network SIMUT_SETUP");
         _displayMgr.setBootStatus("Access on mobile: 192.168.4.1");
@@ -303,14 +303,13 @@ void AppManager::setup() {
     if (forceAP) {
         _isApMode = true;
         _displayMgr.setBootStatus("AP Active! Reboot board to exit.", false);
-        LOG_INF("APP", "System Ready in Config Mode.");
+        LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, "System ready (AP mode).");
     } else {
 
-
+        /* Carrega min/max do dia a partir do arquivo de histórico */
         _displayMgr.setBootStatus("Loading daily Min/Max cache...");
         delay(80);
         preloadMinMax();
-
 
         _displayMgr.setBootStatus("Warming up sensors...");
         {
@@ -339,10 +338,10 @@ void AppManager::setup() {
             delay(80);
             handleTimeSync(_timeSyncBootTs, _timeSyncDelta);
 
-
+            /* Recarrega min/max com timestamps corrigidos */
             _displayMgr.setBootStatus("Reloading Min/Max cache...");
             delay(80);
-            for (int i = 0; i < 11; i++) {
+            for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
                 _cachedMin[i] = 1000.0f; _cachedMax[i] = -1000.0f;
                 _preloadMin[i] = 1000.0f; _preloadMax[i] = -1000.0f;
             }
@@ -360,13 +359,21 @@ void AppManager::setup() {
         _displayMgr.setBootStatus("All subsystems initialized.");
         _displayMgr.setBootStatus("System Ready! Entering Dashboard.");
         delay(800);
-        LOG_INF("APP", "System Ready.");
+        LOG_CODE(LOG_INFO, "APP", APP_READY, 0, "System ready.");
         _displayMgr.endBoot();
         _bootCompletedAt = millis();
 
 
         _soundMgr.play(SND_CONFIRM);
     }
+
+    /*
+     * Habilita monitoramento cross-core APÓS boot completo.
+     * Força refresh de heartbeats de ambos os cores para evitar
+     * detecção falsa de heartbeat estagnado durante o boot.
+     * O grace period de 5s começa a contar a partir daqui.
+     */
+    LogManager::instance().enableHealthCheck();
 
     TRACE_MOD(0, MOD_IDLE);
     _cmdMgr.printPrompt();
@@ -391,13 +398,15 @@ void AppManager::setup() {
  */
 void AppManager::loop() {
     TRACE_BEAT(0);
+    watchdog_update();
+
     LogManager::instance().checkCrossCoreHealth();
 
 
     {
         uint32_t pauseTs = _displayMgr.getPauseStartTime();
         if (pauseTs > 0 && (millis() - pauseTs > 5000)) {
-            LOG_ERR("APP", "SAFETY: Display pause stuck >5s! Forcing unlock.");
+            LOG_CODE(LOG_ERROR, "APP", APP_DISPLAY_PAUSE_STUCK, 0, "Display pause stuck >5s!");
             _displayMgr.forceUnpause();
         }
     }
@@ -405,12 +414,13 @@ void AppManager::loop() {
 
     {
         static uint32_t _lastCore1RestartCheck = 0;
+        if (_lastCore1RestartCheck == 0) _lastCore1RestartCheck = millis(); /* Boot guard */
         if (millis() - _lastCore1RestartCheck > 5000) {
             _lastCore1RestartCheck = millis();
             if (_displayMgr.isCore1Ready() && _displayMgr.getPauseStartTime() == 0) {
                 uint32_t beat = _displayMgr.getHeartbeat();
                 if (beat > 0 && (millis() - beat > 10000)) {
-                    LOG_ERR("APP", "CRITICAL: Core 1 heartbeat dead >10s. Restarting display core.");
+                    LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD, 0, "Core 1 dead >10s. Restarting.");
                     _displayMgr.restartCore1();
                 }
             }
@@ -421,12 +431,15 @@ void AppManager::loop() {
     TRACE_MOD(0, MOD_CLI);
     if (_cmdMgr.processInput(cmd)) {
         if (cmd.type != CMD_UNKNOWN) executeCommand(cmd);
-        if (!_appWaitingScan) _cmdMgr.printPrompt();
+        if (!_waitingScan) _cmdMgr.printPrompt();
     }
 
+    watchdog_update();
 
     TRACE_MOD(0, MOD_WIFI);
     _netMgr.update();
+
+    watchdog_update();
 
     bool heavyRendering = _displayMgr.isHeavyRendering();
 
@@ -434,10 +447,28 @@ void AppManager::loop() {
     TRACE_MOD(0, MOD_WEB_SERVER);
     _webMgr.update();
 
+    watchdog_update();
+
+    /*
+     * Processa som de toque ANTES de tarefas pesadas (telemetria, storage).
+     * Garante que o bip toca em <10ms após o toque em vez de esperar
+     * o final do loop (~100-500ms com telemetria/TLS ativa).
+     */
+    if (_displayMgr.consumeTouchSound()) {
+        _soundMgr.play(SND_TOUCH_CLICK);
+        _soundMgr.update();
+    }
+    if (_displayMgr.consumeErrorSound()) {
+        _soundMgr.play(SND_ERROR);
+        _soundMgr.update();
+    }
+
     bool menuActive = _displayMgr.isMenuActive();
 
     TRACE_MOD(0, MOD_STORAGE_WRITE);
     _storageMgr.update();
+
+    watchdog_update();
 
     if (_isApMode) {
         TRACE_MOD(0, MOD_IDLE);
@@ -447,15 +478,27 @@ void AppManager::loop() {
     if (!menuActive) {
         TRACE_MOD(0, MOD_TELEMETRY);
         if (!heavyRendering && !isUserInteracting()) {
+            /*
+             * Invalida cache de ranges do sensor antes da telemetria.
+             * Libera ~11KB de heap para o payload + TLS. Será reconstruído
+             * automaticamente na próxima abertura de gráfico.
+             */
+            if (_sensorCacheId != -99) {
+                for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
+                _sensorCacheId = -99;
+            }
+
             _telemetryMgr.update();
 
-            /* Notify display about the last telemetry send result */
+            /* Notificar o display sobre o resultado do último envio */
             bool telSuccess;
             if (_telemetryMgr.consumeLastSendResult(telSuccess)) {
                 _displayMgr.setTelemetrySendStatus(telSuccess);
             }
         }
     }
+
+    watchdog_update();
 
     TRACE_MOD(0, MOD_SENSOR_READ);
     if (millis() - _lastSensorCheck > 3000) {
@@ -465,12 +508,15 @@ void AppManager::loop() {
         }
     }
 
+    watchdog_update();
 
     if (_pendingTimeSync && !isUserInteracting()) {
         handleTimeSync(_timeSyncBootTs, _timeSyncDelta);
     }
 
     TRACE_MOD(0, MOD_STORAGE_WRITE);
+
+    watchdog_update();
 
 
     if (millis() - _lastHistoryTime >= 60000) {
@@ -479,11 +525,83 @@ void AppManager::loop() {
         }
     }
 
-    if (_appWaitingScan && !isUserInteracting()) {
+    watchdog_update();
+
+    /* ── Status do sistema: atualiza dados a cada 1s quando tela ativa ── */
+    {
+        static uint32_t lastStatusPush = 0;
+        if (_displayMgr.getUiMode() == MODE_SETTINGS_STATUS
+            && millis() - lastStatusPush >= 1000) {
+            lastStatusPush = millis();
+
+            static SystemStatusData sd;
+            memset(&sd, 0, sizeof(sd));
+
+            /* Sistema */
+            sd.uptimeSec  = millis() / 1000;
+            sd.heapFree   = rp2040.getFreeHeap();
+            sd.heapTotal  = rp2040.getTotalHeap();
+            sd.boardTemp  = analogReadTemp();
+
+            /* Flash: usa cache do WebManager (atualizado a cada 10s) */
+            sd.flashUsed  = _webMgr.getCachedFlashUsed();
+            sd.flashTotal = _webMgr.getCachedFlashTotal();
+
+            SystemConfig& cfg = _storageMgr.getConfig();
+            safeCopy(sd.deviceName, cfg.deviceName, sizeof(sd.deviceName));
+            snprintf(sd.fwVersion, sizeof(sd.fwVersion), "%s", SIMUT_VERSION);
+            sd.timezone = cfg.timezoneOffset;
+
+            /* Rede */
+            sd.wifiConnected = _netMgr.isConnected();
+            sd.rssi          = _netMgr.getRssi();
+            sd.ntpSynced     = _netMgr.isTimeSynced();
+            safeCopy(sd.ip, _netMgr.getIpAddress().c_str(), sizeof(sd.ip));
+            safeCopy(sd.mac, _netMgr.getMacAddress().c_str(), sizeof(sd.mac));
+            safeCopy(sd.ssid, cfg.wifiSsid, sizeof(sd.ssid));
+            safeCopy(sd.ntpServer, cfg.ntpServer, sizeof(sd.ntpServer));
+
+            /* Telemetria */
+            sd.telPending    = _telemetryMgr.getPendingEstimate();
+            sd.mqttConnected = _telemetryMgr.isMqttConnected();
+            sd.telTransport  = cfg.telTransport;
+            sd.telInterval   = cfg.telInterval;
+            safeCopy(sd.telServer, cfg.telServer, sizeof(sd.telServer));
+
+            /* Sensores */
+            sd.activeSensors = 0;
+            for (int i = 0; i < MAX_SENSORS; i++) {
+                if (cfg.sensors[i].active) sd.activeSensors++;
+            }
+            /* Ambient: lê do runtime dos sensores */
+            sd.ambientValid = false;
+            const auto& sensors = _sensorMgr.getRuntimeSensors();
+            for (const auto& s : sensors) {
+                if (s.config.gpio == 10 && !s.inErrorState) {
+                    sd.ambientTemp  = s.avgValue1;
+                    sd.ambientHum   = s.avgValue2;
+                    sd.ambientValid = true;
+                    break;
+                }
+            }
+
+            _displayMgr.updateSystemStatus(sd);
+        }
+    }
+
+    watchdog_update();
+
+    watchdog_update();
+
+    if (_waitingScan && !isUserInteracting()) {
         processBackgroundScan();
     }
 
+    watchdog_update();
+
     core0Yield();
+
+    watchdog_update();
 
     TRACE_MOD(0, MOD_IDLE);
 }
@@ -516,8 +634,8 @@ void AppManager::executeCommand(CliDemand cmd) {
                 loadTheme(idx);
                 _displayMgr.refreshTheme();
                 changed = true;
-                LOG_INF("CFG", "Theme applied: " + String(availableThemes[idx].displayName));
-            } else { LOG_WRN("CFG", "Theme not found."); }
+                LOG_CODE(LOG_INFO, "CFG", CFG_THEME_APPLIED, idx, String(availableThemes[idx].displayName));
+            } else { LOG_CODE(LOG_WARN, "CFG", CFG_THEME_NOT_FOUND, 0, ""); }
             break;
         }
 
@@ -553,9 +671,9 @@ void AppManager::executeCommand(CliDemand cmd) {
         }
 
         case CMD_SHOW_SENSORS: _cmdMgr.renderSensorTable(cfg.sensors, MAX_SENSORS); break;
-        case CMD_SHOW_STORAGE: LOG_INF("STO", _storageMgr.getStatsReport()); break;
+        case CMD_SHOW_STORAGE: LOG_CODE(LOG_INFO, "STO", STO_STATS_REPORT, 0, _storageMgr.getStatsReport()); break;
         case CMD_SHOW_SYSINFO: _cmdMgr.renderSystemInfo(cfg); break;
-        case CMD_SHOW_NET: LOG_INF("NET", "IP: " + _netMgr.getIpAddress()); break;
+        case CMD_SHOW_NET: LOG_CODE(LOG_INFO, "NET", NET_SHOW_IP, 0, _netMgr.getIpAddress()); break;
 
         case CMD_SET_DS_RES:
             if (cmd.intVal1 >= 9 && cmd.intVal1 <= 12 && _sensorMgr.setDs18Resolution((DS18B20PIO::Resolution)cmd.intVal1)) {
@@ -563,14 +681,24 @@ void AppManager::executeCommand(CliDemand cmd) {
             }
             break;
 
-        case CMD_SET_SYS_NAME: strncpy(cfg.deviceName, cmd.strVal1.c_str(), 31); changed = true; break;
-        case CMD_SET_WIFI_SSID: strncpy(cfg.wifiSsid, cmd.strVal1.c_str(), 31); changed = true; break;
-        case CMD_SET_WIFI_PASS: strncpy(cfg.wifiPass, cmd.strVal1.c_str(), 31); changed = true; break;
-        case CMD_SET_TIMEZONE: cfg.timezoneOffset = (int8_t)cmd.intVal1; changed = true; break;
+        case CMD_SET_SYS_NAME: safeCopy(cfg.deviceName, cmd.strVal1.c_str(), sizeof(cfg.deviceName)); changed = true; break;
+        case CMD_SET_WIFI_SSID: safeCopy(cfg.wifiSsid, cmd.strVal1.c_str(), sizeof(cfg.wifiSsid)); changed = true; break;
+        case CMD_SET_WIFI_PASS: safeCopy(cfg.wifiPass, cmd.strVal1.c_str(), sizeof(cfg.wifiPass)); changed = true; break;
+        case CMD_SET_TIMEZONE:
+            cfg.timezoneOffset = (int8_t)cmd.intVal1;
+            NetworkManager::applyTimezone(cfg.timezoneOffset);
+            changed = true;
+            break;
 
-        case CMD_SET_TEL_SERVER: strncpy(cfg.telServer, cmd.strVal1.c_str(), 63); changed = true; break;
+        case CMD_SET_NTP:
+            safeCopy(cfg.ntpServer, cmd.strVal1.c_str(), sizeof(cfg.ntpServer));
+            cfg.ntpServer[sizeof(cfg.ntpServer) - 1] = '\0';
+            changed = true;
+            break;
+
+        case CMD_SET_TEL_SERVER: safeCopy(cfg.telServer, cmd.strVal1.c_str(), sizeof(cfg.telServer)); changed = true; break;
         case CMD_SET_TEL_PORT: cfg.telPort = cmd.intVal1; changed = true; break;
-        case CMD_SET_TEL_PATH: strncpy(cfg.telPath, cmd.strVal1.c_str(), 31); changed = true; break;
+        case CMD_SET_TEL_PATH: safeCopy(cfg.telPath, cmd.strVal1.c_str(), sizeof(cfg.telPath)); changed = true; break;
         case CMD_SET_TEL_BATCH: cfg.telBatchSize = cmd.intVal1; changed = true; break;
         case CMD_SET_TEL_INTERVAL: cfg.telInterval = cmd.intVal1; changed = true; break;
         case CMD_SET_TEL_CRYPTO: cfg.telEncryption = cmd.boolVal; changed = true; break;
@@ -578,10 +706,20 @@ void AppManager::executeCommand(CliDemand cmd) {
 
         case CMD_RESET_ADMIN: {
             String hashed = _storageMgr.hashPassword("admin", "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918");
-            strncpy(cfg.users[0].password, hashed.c_str(), 31);
+            safeCopy(cfg.users[0].password, hashed.c_str(), sizeof(cfg.users[0].password));
             cfg.users[0].password[31] = '\0';
             cfg.users[0].mustChangePassword = true;
             _cmdMgr.printInfo("Admin Password reset. Use 'simut' via web.");
+            changed = true;
+            break;
+        }
+
+        case CMD_RESET_TOUCH_CAL: {
+            /* Limpa calibração do touch na config (invalida magic) */
+            TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
+            memset(cal, 0, sizeof(TouchCalData));
+            _displayMgr.resetTouchCalibration();
+            _cmdMgr.printInfo("Touch calibration reset to factory defaults.");
             changed = true;
             break;
         }
@@ -592,8 +730,8 @@ void AppManager::executeCommand(CliDemand cmd) {
                 r.active = true;
                 r.gpio = cmd.intVal1;
                 memcpy(r.rom, cmd.rom, 8);
-                strncpy(r.hwId, cmd.strVal1.c_str(), 15);
-                strncpy(r.friendlyName, cmd.strVal2.c_str(), 31);
+                safeCopy(r.hwId, cmd.strVal1.c_str(), sizeof(r.hwId));
+                safeCopy(r.friendlyName, cmd.strVal2.c_str(), sizeof(r.friendlyName));
                 _cmdMgr.printSuccess("Sensor mapped in RAM.");
             }
             break;
@@ -623,11 +761,11 @@ void AppManager::executeCommand(CliDemand cmd) {
                         cfg.sensors[gpio].gpio = gpio;
                         memcpy(cfg.sensors[gpio].rom, foundRom, 8);
 
-                        if (dbId.length() > 0) { strncpy(cfg.sensors[gpio].hwId, dbId.c_str(), 15); cfg.sensors[gpio].hwId[15] = '\0'; }
-                        else { strncpy(cfg.sensors[gpio].hwId, "LIB_SENS", 15); }
+                        if (dbId.length() > 0) { safeCopy(cfg.sensors[gpio].hwId, dbId.c_str(), sizeof(cfg.sensors[gpio].hwId)); }
+                        else { safeCopy(cfg.sensors[gpio].hwId, "LIB_SENS", sizeof(cfg.sensors[gpio].hwId)); }
 
-                        if (dbName.length() > 0) { strncpy(cfg.sensors[gpio].friendlyName, dbName.c_str(), 31); }
-                        else { strncpy(cfg.sensors[gpio].friendlyName, "Recognized Sensor", 31); }
+                        if (dbName.length() > 0) { safeCopy(cfg.sensors[gpio].friendlyName, dbName.c_str(), sizeof(cfg.sensors[gpio].friendlyName)); }
+                        else { safeCopy(cfg.sensors[gpio].friendlyName, "Sensor Reconhecido", sizeof(cfg.sensors[gpio].friendlyName)); }
                         cfg.sensors[gpio].friendlyName[31] = '\0';
 
                         if (currentId != String(cfg.sensors[gpio].hwId)) {
@@ -647,7 +785,7 @@ void AppManager::executeCommand(CliDemand cmd) {
         }
 
         case CMD_SCAN_SENSORS:
-            if (!_sensorMgr.isScanning()) { _sensorMgr.startScan(); _appWaitingScan = true; }
+            if (!_sensorMgr.isScanning()) { _sensorMgr.startScan(); _waitingScan = true; }
             break;
 
         case CMD_WRITE_MEMORY:
@@ -667,11 +805,15 @@ void AppManager::executeCommand(CliDemand cmd) {
             _cmdMgr.printSuccess("Logs cleared.");
             break;
 
-        case CMD_RELOAD: rp2040.reboot(); break;
+        case CMD_RELOAD:
+            LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, "Reboot via CLI");
+            delay(100);     /* Garante flush do log para flash */
+            rp2040.reboot();
+            break;
         case CMD_TEL_SYNC: _telemetryMgr.forceSync(); _cmdMgr.printSuccess("Telemetry sync triggered."); break;
 
         case CMD_UNKNOWN:
-        default: LOG_WRN("CLI", "Unknown command."); break;
+        default: LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, ""); break;
     }
 
     if (changed) _cmdMgr.printInfo("Settings updated in RAM. Use 'write memory' to persist.");
@@ -688,32 +830,223 @@ void AppManager::executeCommand(CliDemand cmd) {
 void AppManager::core0Yield() {
     static bool _isRenderingGraph = false;
     static bool _inYield = false;
+    static uint32_t _yieldEntryTime = 0;
+
+    /* Safety: reseta guard se preso há >10s (crash parcial) */
+    if (_inYield && (millis() - _yieldEntryTime > 10000)) {
+        _inYield = false;
+        _isRenderingGraph = false;
+        LOG_CODE(LOG_WARN, "APP", APP_YIELD_STUCK, 0, "Yield stuck >10s, force reset.");
+    }
 
     if (_inYield) return;
     _inYield = true;
+    _yieldEntryTime = millis();
+
+    /*
+     * Prioridade máxima: processa som de toque ANTES de qualquer
+     * outro processamento. Reduz latência do bip de ~50ms para ~5ms.
+     */
+    if (_displayMgr.consumeTouchSound()) {
+        _soundMgr.play(SND_TOUCH_CLICK);
+        _soundMgr.update();  /* Executa imediatamente, sem esperar fim do yield */
+    }
+    if (_displayMgr.consumeErrorSound()) {
+        _soundMgr.play(SND_ERROR);
+        _soundMgr.update();
+    }
 
     UiEvent uiEv;
     if (!_isRenderingGraph) {
         while (_displayMgr.getUiEvent(uiEv)) {
-            if (uiEv.type == UiEvent::EVT_SLOT_SELECT) { _currentSensorIndex = uiEv.id; refreshSelectedSlot(); }
+            if (uiEv.type == UiEvent::EVT_SLOT_SELECT) { _currentSensorIdx = uiEv.id; refreshSelectedSlot(); }
             else if (uiEv.type == UiEvent::EVT_OPEN_GRAPH) {
                 if (uiEv.param == 99) openStatsScreen(uiEv.id);
                 else {
+                    int sensorId = uiEv.id;
+                    int range    = uiEv.param;
 
-                    _displayMgr.requestLoadingScreen();
+                    /*
+                     * Preserva a âncora se já estamos navegando no passado.
+                     * Zoom muda o intervalo mas mantém o ponto final fixo.
+                     * Ex: dia 2 em 24H → zoom para 12H → mostra 12:00-23:59 do dia 2.
+                     *
+                     * Reseta apenas se abrindo um gráfico novo do dashboard
+                     * (sensor diferente ou sem âncora prévia).
+                     */
+                    bool hasAnchor = (_graphAnchorEnd != 0);
 
-
-                    uint32_t waitStart = millis();
-                    while (!_displayMgr.isLoadingDrawn() && (millis() - waitStart < 500)) {
-                        watchdog_update();
-                        TRACE_BEAT(0);
-                        delay(5);
+                    if (!hasAnchor) {
+                        _graphNavOffset = 0;
+                        _displayMgr.setGraphNavOffset(0);
                     }
 
-                    _isRenderingGraph = true;
-                    renderGraphOptimized(uiEv.id, uiEv.param);
-                    _isRenderingGraph = false;
+                    /* Sensor diferente do cacheado: invalida cache de ranges */
+                    if (_sensorCacheId != sensorId) {
+                        for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
+                        _sensorCacheId = sensorId;
+                        /* Sensor novo = reset âncora */
+                        _graphAnchorEnd = 0;
+                        hasAnchor = false;
+                        _graphNavOffset = 0;
+                        _displayMgr.setGraphNavOffset(0);
+                    }
+
+                    _lastGraphRange = range;
+
+                    if (hasAnchor) {
+                        /*
+                         * Zoom com âncora ativa: usa forceEndEpoch para manter
+                         * o fim da janela no mesmo ponto. Não usa cache.
+                         */
+                        for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
+
+                        _isRenderingGraph = true;
+                        renderGraphOptimized(sensorId, range, true, 0, _graphAnchorEnd);
+                        _isRenderingGraph = false;
+                    }
+                    else if (_sensorCache[range].valid) {
+                        /*
+                         * Cache hit (sem âncora = visualização "agora").
+                         * Verifica staleness para 7D.
+                         */
+                        bool stale = false;
+                        if (range == 4) {
+                            time_t age = time(nullptr) - _sensorCache[4].lastRefresh;
+                            if (age > 1800) stale = true;
+                        }
+
+                        if (!stale) {
+                            _displayMgr.showGraphPlot(
+                                _sensorCache[range].pkg,
+                                _sensorCache[range].humMin,
+                                _sensorCache[range].humMax);
+                        } else {
+                            appendToGraphCache(_sensorCache[4], sensorId);
+                            _displayMgr.showGraphPlot(
+                                _sensorCache[4].pkg,
+                                _sensorCache[4].humMin,
+                                _sensorCache[4].humMax);
+                        }
+                    } else {
+                        /*
+                         * Cache miss: carrega do flash.
+                         */
+                        if (range == 4 && !_graphCache[graphCacheIdx(sensorId)].valid) {
+                            _displayMgr.requestLoadingScreen();
+                            uint32_t waitStart = millis();
+                            while (!_displayMgr.isLoadingDrawn() && (millis() - waitStart < 500)) {
+                                watchdog_update();
+                                TRACE_BEAT(0);
+                                delay(5);
+                            }
+                        }
+
+                        _isRenderingGraph = true;
+                        renderGraphOptimized(sensorId, range, true, 0);
+                        _isRenderingGraph = false;
+
+                        /*
+                         * Pré-carrega ranges restantes apenas sem âncora.
+                         */
+                        if (_graphNavOffset == 0) {
+                            _isRenderingGraph = true;
+                            preloadSensorRanges(sensorId, range);
+                            _isRenderingGraph = false;
+                        }
+                    }
                 }
+            }
+            /* ── Navegação temporal do gráfico (setas ◀▶) ── */
+            else if (uiEv.type == UiEvent::EVT_GRAPH_NAV) {
+                static const time_t rangeDur[] = { 3600, 21600, 43200, 86400, 604800 };
+                time_t step = (_lastGraphRange >= 0 && _lastGraphRange <= 4)
+                              ? rangeDur[_lastGraphRange] : 86400;
+
+                /*
+                 * Se não há âncora (gráfico aberto sem calendário),
+                 * ancora no now arredondado para o fim do step atual.
+                 */
+                if (_graphAnchorEnd == 0) {
+                    _graphAnchorEnd = time(nullptr);
+                }
+
+                /* Desloca a âncora por exatamente 1 step */
+                _graphAnchorEnd += (time_t)uiEv.param * step;
+
+                /* Não permite ver o futuro */
+                time_t now = time(nullptr);
+                if (_graphAnchorEnd > now) _graphAnchorEnd = now;
+
+                /* Offset derivado da posição: negativo = passado (▶ habilitado) */
+                _graphNavOffset = (_graphAnchorEnd < now) ? -1 : 0;
+                _displayMgr.setGraphNavOffset(_graphNavOffset);
+
+                /* Invalida cache de ranges (dados com offset são únicos) */
+                for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
+
+                _isRenderingGraph = true;
+                renderGraphOptimized(uiEv.id, _lastGraphRange, true, 0, _graphAnchorEnd);
+                _isRenderingGraph = false;
+            }
+            /* ── Abertura do calendário ── */
+            else if (uiEv.type == UiEvent::EVT_OPEN_CALENDAR) {
+                time_t now = _netMgr.getEpoch();
+                struct tm nowTm;
+                localtime_r(&now, &nowTm);
+                int year  = nowTm.tm_year + 1900;
+                int month = nowTm.tm_mon + 1;
+
+                uint32_t mask = _storageMgr.getHistoryDaysMask(year, month);
+                _displayMgr.showCalendar(year, month, mask);
+            }
+            /* ── Seleção de dia no calendário ── */
+            else if (uiEv.type == UiEvent::EVT_CALENDAR_DAY) {
+                int sensorId = uiEv.id;
+                int dayNum   = uiEv.param;
+
+                /* Meia-noite do dia selecionado */
+                struct tm selTm = {};
+                selTm.tm_year = _displayMgr.getCalYear() - 1900;
+                selTm.tm_mon  = _displayMgr.getCalMonth() - 1;
+                selTm.tm_mday = dayNum;
+                time_t selMidnight = mktime(&selTm);
+
+                /*
+                 * Âncora = meia-noite do dia seguinte.
+                 * Janela 24H será exatamente [00:00, 23:59] do dia selecionado.
+                 * Navegação ◀▶ desloca a partir desta âncora, não de now.
+                 */
+                _graphAnchorEnd = selMidnight + 86400;
+
+                /*
+                 * Offset para controle do botão ▶:
+                 * negativo = estamos no passado (▶ habilitado),
+                 * zero = presente (▶ desabilitado).
+                 */
+                time_t now = time(nullptr);
+                _graphNavOffset = (_graphAnchorEnd < now) ? -1 : 0;
+                _displayMgr.setGraphNavOffset(_graphNavOffset);
+
+                /* Invalida cache e carrega gráfico 24H com janela fixa */
+                for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
+                _sensorCacheId = sensorId;
+                _lastGraphRange = RANGE_24H;
+
+                _isRenderingGraph = true;
+                renderGraphOptimized(sensorId, RANGE_24H, true, 0, _graphAnchorEnd);
+                _isRenderingGraph = false;
+            }
+            /* ── Mudança de mês no calendário ── */
+            else if (uiEv.type == UiEvent::EVT_CALENDAR_MONTH) {
+                int newMonth = _displayMgr.getCalMonth() + uiEv.param;
+                int newYear  = _displayMgr.getCalYear();
+
+                if (newMonth < 1)  { newMonth = 12; newYear--; }
+                if (newMonth > 12) { newMonth = 1;  newYear++; }
+
+                uint32_t mask = _storageMgr.getHistoryDaysMask(newYear, newMonth);
+                _displayMgr.showCalendar(newYear, newMonth, mask);
             }
             else if (uiEv.type == UiEvent::EVT_OPEN_SETTINGS) {
                 SystemConfig &cfg = _storageMgr.getConfig();
@@ -739,7 +1072,7 @@ void AppManager::core0Yield() {
                     _displayMgr.setAlarmSilenced(false, 0);
                     _displayMgr.setAlarmDeactivated(true);
                     _displayMgr.forceDashboard();
-                    LOG_WRN("APP", "All alarms DEACTIVATED via UI (RAM only, reboot restores).");
+                    LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, 0, "");
                 } else {
                     _displayMgr.showSettingsMain();
                 }
@@ -767,6 +1100,9 @@ void AppManager::core0Yield() {
                 else if (uiEv.id == 6) {
                     _displayMgr.showSettingsLicense();
                 }
+                else if (uiEv.id == 7) {
+                    _displayMgr.showSystemStatus();
+                }
             }
             else if (uiEv.type == UiEvent::EVT_APPLY_THEME) {
                 SystemConfig &cfg = _storageMgr.getConfig();
@@ -775,7 +1111,7 @@ void AppManager::core0Yield() {
                 _storageMgr.saveConfiguration();
                 _displayMgr.refreshTheme();
                 _soundMgr.play(SND_CONFIRM);
-                LOG_INF("APP", "Theme changed via Dashboard UI.");
+                LOG_CODE(LOG_INFO, "APP", APP_UI_THEME_CHANGED, 0, "");
             }
             else if (uiEv.type == UiEvent::EVT_APPLY_LANG) {
                 SystemConfig &cfg = _storageMgr.getConfig();
@@ -784,7 +1120,7 @@ void AppManager::core0Yield() {
                 _storageMgr.saveConfiguration();
                 _soundMgr.play(SND_CONFIRM);
                 _displayMgr.forceDashboard();
-                LOG_INF("APP", "System language changed via UI.");
+                LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, 0, "");
             }
             else if (uiEv.type == UiEvent::EVT_SAVE_ALARMS) {
                 _storageMgr.saveConfiguration();
@@ -794,7 +1130,7 @@ void AppManager::core0Yield() {
                 checkAlarmConditions();
                 _soundMgr.play(SND_CONFIRM);
                 _displayMgr.showSettingsAlarms(&_storageMgr.getConfig());
-                LOG_INF("APP", "Alarm limits saved via UI.");
+                LOG_CODE(LOG_INFO, "APP", APP_UI_ALARM_SAVED, 0, "");
             }
 
             else if (uiEv.type == UiEvent::EVT_APPLY_TOUCH_CAL) {
@@ -803,7 +1139,17 @@ void AppManager::core0Yield() {
                 _displayMgr.fillCalData(cal);
                 _storageMgr.saveConfiguration();
                 _soundMgr.play(SND_CONFIRM);
-                LOG_INF("APP", "Touch calibration saved to flash.");
+                LOG_CODE(LOG_INFO, "APP", APP_UI_TOUCH_CAL_SAVED, 0, "");
+            }
+
+            else if (uiEv.type == UiEvent::EVT_SAVE_TOUCH_CAL) {
+                /* Salva threshold de sensibilidade calibrado */
+                SystemConfig &cfg = _storageMgr.getConfig();
+                TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
+                _displayMgr.fillCalData(cal);
+                _storageMgr.saveConfiguration();
+                _soundMgr.play(SND_CONFIRM);
+                LOG_CODE(LOG_INFO, "APP", APP_UI_TOUCH_SENS_SAVED, 0, "");
             }
 
             else if (uiEv.type == UiEvent::EVT_SAVE_PASSWORD) {
@@ -811,11 +1157,11 @@ void AppManager::core0Yield() {
                 char newPwd[9];
                 _displayMgr.getNewPassword(newPwd, sizeof(newPwd));
                 if (strlen(newPwd) >= 4 && strlen(newPwd) <= 7) {
-                    strncpy(cfg.displayPin, newPwd, 7);
+                    safeCopy(cfg.displayPin, newPwd, sizeof(cfg.displayPin));
                     cfg.displayPin[7] = '\0';
                     _storageMgr.saveConfiguration();
                     _soundMgr.play(SND_CONFIRM);
-                    LOG_INF("APP", "Display PIN changed via UI.");
+                    LOG_CODE(LOG_INFO, "APP", APP_UI_PIN_CHANGED, 0, "");
                 } else {
                     _soundMgr.play(SND_ERROR);
                 }
@@ -833,7 +1179,7 @@ void AppManager::core0Yield() {
 
                 _soundMgr.play(SND_CONFIRM);
                 _displayMgr.showSettingsMain();
-                LOG_INF("APP", "Sound settings saved via UI.");
+                LOG_CODE(LOG_INFO, "APP", APP_UI_SOUND_SAVED, 0, "");
             }
 
 
@@ -842,7 +1188,7 @@ void AppManager::core0Yield() {
                 _soundMgr.stopAlarm();
                 _displayMgr.setAlarmSilenced(true, millis() + (silenceSec * 1000));
                 _displayMgr.forceDashboard();
-                LOG_WRN("APP", "Alarm silenced for 120s via UI.");
+                LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_SILENCED, 120, "");
             }
 
 
@@ -909,7 +1255,7 @@ void AppManager::core0Yield() {
             uint32_t silEnd = _displayMgr.getAlarmSilenceEnd();
             if (silEnd > 0 && millis() >= silEnd) {
                 _displayMgr.setAlarmSilenced(false, 0);
-                LOG_INF("APP", "Alarm silence expired — re-evaluating conditions.");
+                LOG_CODE(LOG_INFO, "APP", APP_UI_ALARM_SILENCE_EXP, 0, "");
             }
         }
 
@@ -929,21 +1275,21 @@ void AppManager::refreshSelectedSlot() {
     const auto& sensors = _sensorMgr.getRuntimeSensors();
     bool found = false;
 
-    if (_currentSensorIndex < 10) {
-        if (cfg.sensors[_currentSensorIndex].active) {
-            uint8_t targetGpio = cfg.sensors[_currentSensorIndex].gpio;
+    if (_currentSensorIdx < 10) {
+        if (cfg.sensors[_currentSensorIdx].active) {
+            uint8_t targetGpio = cfg.sensors[_currentSensorIdx].gpio;
             for (const auto &s : sensors) {
                 if (s.config.gpio != 10 && s.config.gpio == targetGpio) {
-                    _displayMgr.setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIndex, String(s.config.friendlyName));
+                    _displayMgr.setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
                     found = true; break;
                 }
             }
         }
-    } else if (_currentSensorIndex == 10) {
+    } else if (_currentSensorIdx == 10) {
         _displayMgr.setSlotData(analogReadTemp(), true, 10, "Board (Internal)"); found = true;
     }
 
-    if (!found) _displayMgr.setSlotData(NAN, false, _currentSensorIndex, "Empty / Inactive");
+    if (!found) _displayMgr.setSlotData(NAN, false, _currentSensorIdx, "Empty / Inactive");
 }
 
 /**
@@ -968,7 +1314,7 @@ void AppManager::updateLiveDisplay() {
         }
         _displayMgr.setTelemetryPending(_telemetryMgr.getPendingEstimate());
 
-        /* Daily min/max (preload CSV + accumulated real-time readings) */
+        /* Min/max do dia (preload CSV + leituras acumuladas em tempo real) */
         float ambMinT = (_cachedMin[10] < 999.0f)  ? _cachedMin[10] : NAN;
         float ambMaxT = (_cachedMax[10] > -999.0f)  ? _cachedMax[10] : NAN;
         float ambMinH = (_cachedHumMin  < 999.0f)   ? _cachedHumMin  : NAN;
@@ -976,7 +1322,7 @@ void AppManager::updateLiveDisplay() {
         _displayMgr.setAmbientMinMax(ambMinT, ambMaxT, ambMinH, ambMaxH);
 
         /* Min/max do slot ativo */
-        int slotIdx = _currentSensorIndex;
+        int slotIdx = _currentSensorIdx;
         if (slotIdx >= 0 && slotIdx < 10) {
             float sMinT = (_cachedMin[slotIdx] < 999.0f)  ? _cachedMin[slotIdx] : NAN;
             float sMaxT = (_cachedMax[slotIdx] > -999.0f)  ? _cachedMax[slotIdx] : NAN;
@@ -991,17 +1337,17 @@ void AppManager::updateLiveDisplay() {
 
         for (const auto &s : sensors) {
             if (s.config.gpio == 10) _displayMgr.setAmbientData(s.avgValue1, s.avgValue2, !s.inErrorState);
-            else if (_currentSensorIndex < 10 && cfg.sensors[_currentSensorIndex].active && cfg.sensors[_currentSensorIndex].gpio == s.config.gpio) {
-                _displayMgr.setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIndex, String(s.config.friendlyName));
+            else if (_currentSensorIdx < 10 && cfg.sensors[_currentSensorIdx].active && cfg.sensors[_currentSensorIdx].gpio == s.config.gpio) {
+                _displayMgr.setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
             }
         }
 
-        if (_currentSensorIndex == 10) _displayMgr.setSlotData(analogReadTemp(), true, 10, "Board (Internal)");
+        if (_currentSensorIdx == 10) _displayMgr.setSlotData(analogReadTemp(), true, 10, "Board (Internal)");
     }
 }
 
 /**
- * @brief Pre-load daily Min/Max values from history CSV for fast display.
+ * @brief Pre-load daily Min/Max values from binary history for fast display.
  * Runs during boot to avoid flash I/O competition with the dashboard.
  * Uses ReadLock (no Core 1 pause) with 5-second budget limit.
  */
@@ -1011,8 +1357,8 @@ void AppManager::preloadMinMax() {
     localtime_r(&now, &timeinfo);
 
     char path[40];
-    snprintf(path, sizeof(path), "/history/%04d%02d%02d.csv", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-
+    snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
+             timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
     File f;
     _storageMgr.enterFlashReadLock();
@@ -1021,60 +1367,57 @@ void AppManager::preloadMinMax() {
     _storageMgr.exitFlashReadLock();
 
     if (fileExists && f) {
-        char lineBuffer[256];
         uint32_t _preloadBudget = millis();
         bool hasMore = true;
 
         while (hasMore) {
             if (millis() - _preloadBudget > 5000) {
-                LOG_WRN("APP", "preloadMinMax aborted — 5s budget exceeded.");
+                LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
                 _storageMgr.enterFlashReadLock();
                 f.close();
                 _storageMgr.exitFlashReadLock();
-                LOG_INF("APP", "Min/Max cache loaded (partial).");
+                LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, 0, "");
                 return;
             }
 
-
+            /* Lê batch de 20 registros binários */
             _storageMgr.enterFlashReadLock();
-            int linesInBatch = 0;
-            while (f.available() && linesInBatch < 20) {
-                size_t len = f.readBytesUntil('\n', lineBuffer, sizeof(lineBuffer) - 1);
-                if (len == 0) continue;
-                lineBuffer[len] = '\0';
-                if (len > 0 && lineBuffer[len - 1] == '\r') lineBuffer[len - 1] = '\0';
-                linesInBatch++;
-
-                const char* ptr = lineBuffer; char* endPtr;
-                strtoul(ptr, &endPtr, 10);
-                if (*endPtr == ';') ptr = endPtr + 1; else ptr = nullptr;
-
-                int token = 1;
-                while (ptr && *ptr) {
-                    float val = strtof(ptr, &endPtr);
-                    if (ptr != endPtr && !isnan(val)) {
-                        if (token == 1) {
-                            if (val < _cachedMin[10]) _cachedMin[10] = val;
-                            if (val > _cachedMax[10]) _cachedMax[10] = val;
-                        } else if (token == 2) {
-                            if (val < _cachedHumMin) _cachedHumMin = val;
-                            if (val > _cachedHumMax) _cachedHumMax = val;
-                        } else {
-                            int idx = token - 3;
-                            if (idx >= 0 && idx < 10) {
-                                if (val < _cachedMin[idx]) _cachedMin[idx] = val;
-                                if (val > _cachedMax[idx]) _cachedMax[idx] = val;
-                            }
-                        }
-                    }
-                    ptr = strchr(endPtr, ';');
-                    if (ptr) ptr++;
-                    token++;
+            BinaryHistoryRecord batch[20];
+            int count = 0;
+            while (f.available() >= HISTORY_RECORD_SIZE && count < 20) {
+                if (f.read((uint8_t*)&batch[count], HISTORY_RECORD_SIZE)
+                    == HISTORY_RECORD_SIZE)
+                {
+                    count++;
                 }
             }
-            hasMore = f.available();
+            hasMore = (f.available() >= HISTORY_RECORD_SIZE);
             _storageMgr.exitFlashReadLock();
 
+            /* Processa batch fora do lock */
+            for (int b = 0; b < count; b++) {
+                const BinaryHistoryRecord& rec = batch[b];
+
+                float ambT = BinaryHistoryRecord::i16ToFloat(rec.ambientTemp);
+                if (!isnan(ambT)) {
+                    if (ambT < _cachedMin[10]) _cachedMin[10] = ambT;
+                    if (ambT > _cachedMax[10]) _cachedMax[10] = ambT;
+                }
+
+                float ambH = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+                if (!isnan(ambH)) {
+                    if (ambH < _cachedHumMin) _cachedHumMin = ambH;
+                    if (ambH > _cachedHumMax) _cachedHumMax = ambH;
+                }
+
+                for (int i = 0; i < MAX_SENSORS; i++) {
+                    float v = BinaryHistoryRecord::i16ToFloat(rec.sensors[i]);
+                    if (!isnan(v)) {
+                        if (v < _cachedMin[i]) _cachedMin[i] = v;
+                        if (v > _cachedMax[i]) _cachedMax[i] = v;
+                    }
+                }
+            }
 
             watchdog_update();
             TRACE_BEAT(0);
@@ -1086,15 +1429,15 @@ void AppManager::preloadMinMax() {
         _storageMgr.exitFlashReadLock();
     }
 
-    /* Save preload snapshot (CSV data only, no real-time readings) */
-    for (int i = 0; i < 11; i++) {
+    /* Salvar snapshot do preload (somente dados do CSV, sem leitura em tempo real) */
+    for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
         _preloadMin[i] = _cachedMin[i];
         _preloadMax[i] = _cachedMax[i];
     }
     _preloadHumMin = _cachedHumMin;
     _preloadHumMax = _cachedHumMax;
 
-    LOG_INF("APP", "Min/Max Cache Loaded for Fast Display.");
+    LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_FULL, 0, "");
 }
 
 void AppManager::processHistoryLogging() {
@@ -1105,13 +1448,18 @@ void AppManager::processHistoryLogging() {
         const auto& sensors = _sensorMgr.getRuntimeSensors();
         SystemConfig &cfg = _storageMgr.getConfig();
 
-        char logBuffer[256];
-        snprintf(logBuffer, sizeof(logBuffer), "%lu", (unsigned long)now);
+        /* ── Monta registro binário ── */
+        BinaryHistoryRecord rec;
+        rec.clear();
+        rec.epoch = (uint32_t)now;
 
+        /* Sensor ambiente (DHT22 no GPIO 10) */
         float ambT = NAN, ambH = NAN;
         for (const auto &s : sensors) {
             if (s.config.gpio == 10 && !s.inErrorState) {
-                ambT = s.avgValue1; ambH = s.avgValue2;
+                ambT = s.avgValue1;
+                ambH = s.avgValue2;
+
                 if (!isnan(ambT)) {
                     if (ambT < _cachedMin[10]) _cachedMin[10] = ambT;
                     if (ambT > _cachedMax[10]) _cachedMax[10] = ambT;
@@ -1128,24 +1476,17 @@ void AppManager::processHistoryLogging() {
             }
         }
 
-        char tempStr[16];
-        if (!isnan(ambT)) snprintf(tempStr, sizeof(tempStr), ";%.2f", ambT);
-        else snprintf(tempStr, sizeof(tempStr), ";");
-        strcat(logBuffer, tempStr);
+        rec.ambientTemp = BinaryHistoryRecord::floatToI16(ambT);
+        rec.ambientHum  = BinaryHistoryRecord::floatToI16(ambH);
 
-        if (!isnan(ambH)) snprintf(tempStr, sizeof(tempStr), ";%.1f", ambH);
-        else snprintf(tempStr, sizeof(tempStr), ";");
-        strcat(logBuffer, tempStr);
-
+        /* Sensores DS18B20 (slots 0..9) */
         for (int i = 0; i < MAX_SENSORS; i++) {
-            strcat(logBuffer, ";");
             if (cfg.sensors[i].active) {
                 for (const auto &s : sensors) {
                     if (s.config.gpio == cfg.sensors[i].gpio && !s.inErrorState) {
                         float v = s.avgValue1;
                         if (!isnan(v)) {
-                            snprintf(tempStr, sizeof(tempStr), "%.2f", v);
-                            strcat(logBuffer, tempStr);
+                            rec.sensors[i] = BinaryHistoryRecord::floatToI16(v);
                             if (v < _cachedMin[i]) _cachedMin[i] = v;
                             if (v > _cachedMax[i]) _cachedMax[i] = v;
                             if (v < _preloadMin[i]) _preloadMin[i] = v;
@@ -1157,15 +1498,44 @@ void AppManager::processHistoryLogging() {
             }
         }
 
-        if (_storageMgr.writeHistoryEntry(String(logBuffer))) LOG_INF("HIST", "Saved periodic log.");
+        if (_storageMgr.writeHistoryEntry(rec)) LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
+    }
+
+    /* #10: Log periódico de heap para diagnóstico de memória */
+    {
+        uint32_t heapFree = rp2040.getFreeHeap();
+        char heapMsg[48];
+        snprintf(heapMsg, sizeof(heapMsg), "Heap: %lu free / %lu total",
+                 (unsigned long)heapFree,
+                 (unsigned long)rp2040.getTotalHeap());
+        LOG_CODE(LOG_INFO, "SYS", APP_HEAP_REPORT, (int)(heapFree/1024), heapMsg);
+
+        /* Alerta quando heap cai abaixo de 16KB (margem para WiFi+TLS) */
+        if (heapFree < 16384) {
+            LOG_CODE(LOG_WARN, "SYS", SYS_HEAP_LOW, (int)(heapFree/1024), "");
+        }
     }
 }
 
 void AppManager::openStatsScreen(int sensorId) {
-    GraphDataPackage pkg;
+    /**
+     * IMPORTANTE: pkg deve ser static para evitar stack overflow.
+     * GraphDataPackage tem ~3.2KB — excede a stack do RP2040 (~4KB).
+     * Mesmo padrão usado em renderGraphOptimized().
+     */
+    static GraphDataPackage pkg;
+    memset(&pkg, 0, sizeof(GraphDataPackage));
     pkg.sensorIdx = sensorId;
     pkg.timeRange = 3;
     pkg.count = 0;
+    pkg.idxMinTemp = -1;
+    pkg.idxMaxTemp = -1;
+    pkg.avgTemp  = NAN;
+    pkg.stdTemp  = NAN;
+    pkg.deltaTemp = NAN;
+    pkg.avgHum   = NAN;
+    pkg.stdHum   = NAN;
+    pkg.deltaHum = NAN;
 
     int cacheIdx = (sensorId == -1) ? 10 : sensorId;
     if (cacheIdx < 0 || cacheIdx > 10) cacheIdx = 10;
@@ -1185,7 +1555,7 @@ void AppManager::openStatsScreen(int sensorId) {
     pkg.hasHumidity = (sensorId == -1);
 
     if (sensorId == -1) {
-        snprintf(pkg.title, sizeof(pkg.title), "Ambient");
+        snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr.tr(TR_AMBIENT));
         snprintf(pkg.hwId, sizeof(pkg.hwId), "AMB");
         snprintf(pkg.rom, sizeof(pkg.rom), "INTERNAL-DHT");
     } else if (sensorId == 10) {
@@ -1194,8 +1564,8 @@ void AppManager::openStatsScreen(int sensorId) {
         snprintf(pkg.rom, sizeof(pkg.rom), "RP2040-ADC");
     } else {
         if (cfg.sensors[sensorId].active) {
-            strncpy(pkg.title, cfg.sensors[sensorId].friendlyName, 31);
-            strncpy(pkg.hwId, cfg.sensors[sensorId].hwId, 15);
+            safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
+            safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
             snprintf(pkg.rom, sizeof(pkg.rom), "%02X%02X%02X%02X%02X%02X%02X%02X",
                 cfg.sensors[sensorId].rom[0], cfg.sensors[sensorId].rom[1],
                 cfg.sensors[sensorId].rom[2], cfg.sensors[sensorId].rom[3],
@@ -1213,27 +1583,55 @@ void AppManager::openStatsScreen(int sensorId) {
 }
 
 /* =========================================================================== */
-/*                     GRAPH RENDERING FROM CSV HISTORY                      */
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*  readRecordValue() — helper para extrair valor de um registro binário      */
+/* ─────────────────────────────────────────────────────────────────────────── */
+/**
+ * @brief  Extrai o valor de temperatura/umidade de um registro binário
+ *         conforme o sensor selecionado.
+ *
+ * @param  rec        Registro binário.
+ * @param  sensorId   -1 = ambiente, 0..9 = slot DS18B20.
+ * @param  humOut     [out] Se sensorId == -1, recebe a umidade ambiente.
+ * @return Temperatura como float, ou NAN se inválida.
+ */
+static inline float readRecordValue(const BinaryHistoryRecord& rec,
+                                     int sensorId, float& humOut)
+{
+    humOut = NAN;
+
+    if (sensorId == -1) {
+        humOut = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+        return BinaryHistoryRecord::i16ToFloat(rec.ambientTemp);
+    }
+
+    if (sensorId >= 0 && sensorId < MAX_SENSORS) {
+        return BinaryHistoryRecord::i16ToFloat(rec.sensors[sensorId]);
+    }
+
+    return NAN;
+}
+
+/*                     GRAPH RENDERING FROM BINARY HISTORY                   */
 /* =========================================================================== */
 /**
- * @brief Load and render a temperature/humidity graph from CSV history files.
+ * @brief Load and render a temperature/humidity graph from binary history.
  *
- * Uses a static GraphDataPackage to avoid stack overflow (~2.1KB).
- * Reads CSV files with lightweight ReadLock (Core 1 continues rendering).
- * Supports 5 time ranges with decimation for longer periods.
+ * Uses fixed-size records for exact seek (offset = recordIndex * 28).
+ * Eliminates CSV parsing, seek fallback, and line realignment.
  * 6-second budget limit prevents watchdog timeout.
  */
-void AppManager::renderGraphOptimized(int sensorId, int range) {
+void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoad, int navOffset, time_t forceEndEpoch) {
     if (!_storageMgr.lockHeavyTask()) {
-        LOG_WRN("APP", "Task collision: Web server is using Flash storage.");
+        LOG_CODE(LOG_WARN, "APP", APP_FLASH_BUSY, 0, "");
         _displayMgr.forceDashboard();
         return;
     }
-    LOG_INF("APP", "Optimized Graph Loading...");
+    LOG_CODE(LOG_INFO, "APP", APP_GRAPH_LOADING, 0, "");
 
     uint32_t _graphBudgetStart = millis();
     const uint32_t GRAPH_BUDGET_MS = 6000;
-
 
     static GraphDataPackage pkg;
     memset(&pkg, 0, sizeof(GraphDataPackage));
@@ -1243,6 +1641,10 @@ void AppManager::renderGraphOptimized(int sensorId, int range) {
 
     pkg.minVal = 1000.0f;
     pkg.maxVal = -1000.0f;
+    pkg.idxMinTemp = -1;
+    pkg.idxMaxTemp = -1;
+    pkg.tsMaxHum = 0;
+    pkg.tsMinHum = 0;
     float localHumMin = 1000.0f;
     float localHumMax = -1000.0f;
 
@@ -1252,7 +1654,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range) {
     uint32_t epochLimit = 0;
 
     if (sensorId == -1) {
-        snprintf(pkg.title, sizeof(pkg.title), "Ambient");
+        snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr.tr(TR_AMBIENT));
         snprintf(pkg.hwId, sizeof(pkg.hwId), "AMB");
         snprintf(pkg.rom, sizeof(pkg.rom), "INTERNAL-DHT");
     } else if (sensorId == 10) {
@@ -1261,8 +1663,8 @@ void AppManager::renderGraphOptimized(int sensorId, int range) {
         snprintf(pkg.rom, sizeof(pkg.rom), "RP2040-ADC");
     } else {
         if (sensorId < 10 && cfg.sensors[sensorId].active) {
-            strncpy(pkg.title, cfg.sensors[sensorId].friendlyName, 31);
-            strncpy(pkg.hwId, cfg.sensors[sensorId].hwId, 15);
+            safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
+            safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
             epochLimit = cfg.sensors[sensorId].provisionEpoch;
             snprintf(pkg.rom, sizeof(pkg.rom), "%02X%02X%02X%02X%02X%02X%02X%02X",
                 cfg.sensors[sensorId].rom[0], cfg.sensors[sensorId].rom[1],
@@ -1282,108 +1684,247 @@ void AppManager::renderGraphOptimized(int sensorId, int range) {
     int daysToLoad = 1;
     int decimation = 1;
 
-    if (range == 0) { cutoff = now - 3600; decimation = 1; }
-    else if (range == 1) { cutoff = now - 21600; decimation = 1; }
-    else if (range == 2) { cutoff = now - 43200; decimation = 3; }
-    else if (range == 3) { cutoff = now - 86400; decimation = 5; }
-    else if (range == 4) { cutoff = now - 604800; decimation = 35; daysToLoad = 7; }
+    /*
+     * Tabela de duração e passo por range:
+     *   1H  → 3600s     6H  → 21600s    12H → 43200s
+     *   24H → 86400s    7D  → 604800s
+     *
+     * navOffset desloca a janela temporal em passos do range.
+     * ex: range=24H, navOffset=-2 → mostra 2 dias atrás.
+     */
+    static const time_t rangeDuration[] = { 3600, 21600, 43200, 86400, 604800 };
+    time_t step = (range >= 0 && range <= 4) ? rangeDuration[range] : 86400;
+    time_t effectiveEnd;
 
-    if (range <= 3) daysToLoad = 2;
+    if (forceEndEpoch > 0) {
+        /* Modo calendário: janela fixa meia-noite a meia-noite */
+        effectiveEnd = forceEndEpoch;
+    } else {
+        effectiveEnd = now + (time_t)navOffset * step;
+        if (effectiveEnd > now) effectiveEnd = now; /* Não permite ver o futuro */
+    }
 
-    char lineBuffer[256];
+    if (range == 0) { cutoff = effectiveEnd - 3600;   decimation = 1;  }
+    else if (range == 1) { cutoff = effectiveEnd - 21600;  decimation = 2;  }
+    else if (range == 2) { cutoff = effectiveEnd - 43200;  decimation = 4;  }
+    else if (range == 3) { cutoff = effectiveEnd - 86400;  decimation = 8;  }
+    else if (range == 4) { cutoff = effectiveEnd - 604800; decimation = 51; daysToLoad = 7; }
+
+    if (range <= 3) {
+        struct tm todayTm;
+        localtime_r(&effectiveEnd, &todayTm);
+        todayTm.tm_hour = 0; todayTm.tm_min = 0; todayTm.tm_sec = 0;
+        time_t todayMidnight = mktime(&todayTm);
+        daysToLoad = (cutoff < todayMidnight) ? 2 : 1;
+    }
+
+    int lineIdx = decimation - 1;
+
+    /*
+     * Armazena a janela temporal no pacote para que o renderer
+     * posicione os pontos proporcionalmente ao tempo (não ao índice).
+     */
+    pkg.tsCutoff = cutoff;
+    pkg.tsEnd    = effectiveEnd;
+
+    /* Pré-popula timestamps para header (mostra período mesmo sem dados) */
+    pkg.tsFirst = cutoff;
+    pkg.tsLast  = effectiveEnd;
+    pkg.tsMid   = cutoff + (effectiveEnd - cutoff) / 2;
+
+    /* Min/max reais: rastreados de TODOS os registros, não apenas decimados */
+    pkg.realMinVal = 1000.0f;
+    pkg.realMaxVal = -1000.0f;
+    pkg.tsRealMin  = 0;
+    pkg.tsRealMax  = 0;
 
     for (int d = daysToLoad - 1; d >= 0; d--) {
         if (pkg.count >= GRAPH_WIDTH) break;
 
-        time_t targetDay = now - (d * 86400);
+        time_t targetDay = effectiveEnd - (d * 86400);
         struct tm timeinfo;
         localtime_r(&targetDay, &timeinfo);
 
         char path[40];
-        snprintf(path, sizeof(path), "/history/%04d%02d%02d.csv", timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+        snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
+                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
         File f;
-
-
         _storageMgr.enterFlashReadLock();
         bool fileExists = LittleFS.exists(path);
         if (fileExists) f = LittleFS.open(path, "r");
         _storageMgr.exitFlashReadLock();
 
         if (fileExists && f) {
-            int lineIdx = 0;
+            size_t fileSize = f.size();
+            size_t totalRecords = fileSize / HISTORY_RECORD_SIZE;
+
+            /* Seek otimizado para o cutoff */
+            if (totalRecords > 50 && cutoff > 0) {
+                struct tm fileTm = timeinfo;
+                fileTm.tm_hour = 0; fileTm.tm_min = 0; fileTm.tm_sec = 0;
+                time_t fileMidnight = mktime(&fileTm);
+
+                /*
+                 * Seek só quando o cutoff está DENTRO do dia deste arquivo.
+                 * Se cutoff < fileMidnight, precisamos do arquivo inteiro
+                 * (ex: 24H lendo arquivo de hoje, cutoff é ontem).
+                 */
+                if (cutoff > fileMidnight) {
+                    /*
+                     * Duas estratégias — usa a mais avançada:
+                     *
+                     * 1) Midnight-based: assume ~1 registro/minuto desde 00:00.
+                     *    Preciso se o arquivo não tem lacunas.
+                     *
+                     * 2) End-based: recua N registros do fim do arquivo.
+                     *    Robusto contra lacunas (reboots, boot loops).
+                     */
+                    int seekFromMidnight = max(0, (int)((cutoff - fileMidnight) / 60) - 10);
+
+                    /*
+                     * Registros BRUTOS necessários por range (pré-decimação).
+                     * duração_em_minutos + margem de 20.
+                     * 1H=80, 6H=380, 12H=740, 24H=1460, 7D=1460
+                     * Para 24H/7D, seekFromEnd será 0 (arquivo inteiro).
+                     */
+                    static const int maxRecordsNeeded[] = { 80, 380, 740, 1460, 1460 };
+                    int needed = (range >= 0 && range <= 4) ? maxRecordsNeeded[range] : 200;
+                    int seekFromEnd = max(0, (int)totalRecords - needed);
+
+                    /*
+                     * Usa o MENOR dos dois (mais conservador = mais longe do fim).
+                     * Se o arquivo tem lacunas, midnight-based pode overshoot.
+                     * min() garante que nunca pulamos dados válidos.
+                     */
+                    int seekRecord;
+                    if (seekFromMidnight < (int)totalRecords) {
+                        seekRecord = min(seekFromMidnight, seekFromEnd);
+                    } else {
+                        seekRecord = seekFromEnd;
+                    }
+
+                    if (seekRecord > 0 && seekRecord < (int)totalRecords) {
+                        _storageMgr.enterFlashReadLock();
+                        f.seek((size_t)seekRecord * HISTORY_RECORD_SIZE);
+                        _storageMgr.exitFlashReadLock();
+                    }
+                }
+                /* Se cutoff <= fileMidnight: sem seek, lê o arquivo inteiro */
+            }
+
             bool hasMore = true;
             bool budgetExceeded = false;
 
             while (hasMore && pkg.count < GRAPH_WIDTH && !budgetExceeded) {
-
                 if (millis() - _graphBudgetStart > GRAPH_BUDGET_MS) {
-                    LOG_WRN("APP", "renderGraph aborted — 6s budget exceeded.");
+                    LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 0, "");
                     budgetExceeded = true;
                     break;
                 }
 
-
                 _storageMgr.enterFlashReadLock();
-                int linesInBatch = 0;
-                int emptyLines = 0;
-                while (f.available() && linesInBatch < 20 && pkg.count < GRAPH_WIDTH) {
-                    size_t len = f.readBytesUntil('\n', lineBuffer, sizeof(lineBuffer) - 1);
-                    if (len == 0) {
-                        emptyLines++;
-                        if (emptyLines >= 40) break;
-                        continue;
+                BinaryHistoryRecord batch[20];
+                int batchCount = 0;
+                while (f.available() >= HISTORY_RECORD_SIZE
+                       && batchCount < 20
+                       && pkg.count < GRAPH_WIDTH)
+                {
+                    if (f.read((uint8_t*)&batch[batchCount], HISTORY_RECORD_SIZE)
+                        == HISTORY_RECORD_SIZE)
+                    {
+                        batchCount++;
                     }
-                    emptyLines = 0;
-                    lineBuffer[len] = '\0';
-                    linesInBatch++;
+                }
+                hasMore = (f.available() >= HISTORY_RECORD_SIZE);
+                _storageMgr.exitFlashReadLock();
 
+                bool pastWindow = false;
+
+                for (int bi = 0; bi < batchCount && pkg.count < GRAPH_WIDTH; bi++) {
+                    const BinaryHistoryRecord& rec = batch[bi];
+
+                    time_t ts = (time_t)rec.epoch;
+                    if (ts < cutoff) continue;
+
+                    /*
+                     * Registros são cronológicos: se este ultrapassou effectiveEnd,
+                     * todos os seguintes também ultrapassarão. Break imediato
+                     * em vez de continue evita ler o resto do arquivo inutilmente.
+                     * Crítico para 1H: sem isso, lê ~1380 registros a mais num
+                     * arquivo de 1440 → estoura budget de 6s.
+                     */
+                    if (ts > effectiveEnd) { pastWindow = true; break; }
+
+                    float humRead = NAN;
+                    float valRead = readRecordValue(rec, sensorId, humRead);
+                    if (ts < epochLimit) valRead = NAN;
+
+                    /*
+                     * Min/max REAIS: rastreados de CADA registro na janela,
+                     * independente da decimação. Garante que o eixo Y e os
+                     * badges mostrem os valores extremos verdadeiros.
+                     */
+                    if (!isnan(valRead)) {
+                        if (valRead < pkg.realMinVal) { pkg.realMinVal = valRead; pkg.tsRealMin = ts; }
+                        if (valRead > pkg.realMaxVal) { pkg.realMaxVal = valRead; pkg.tsRealMax = ts; }
+                    }
+
+                    /* Decimação: pula registros intermediários para caber na tela */
                     lineIdx++;
                     if (lineIdx % decimation != 0) continue;
 
-                    const char* ptr = lineBuffer;
-                    char* endPtr;
-                    time_t ts = strtoul(ptr, &endPtr, 10);
+                    /*
+                     * SEMPRE adiciona o ponto ao array, mesmo se NAN.
+                     * Pontos NAN preservam a posição temporal no eixo X,
+                     * criando buracos visíveis no gráfico onde o sensor
+                     * estava em erro. O renderer pula segmentos com NAN.
+                     */
+                    pkg.pointsV1[pkg.count] = valRead;
+                    pkg.tsPoints[pkg.count] = (uint32_t)ts;
 
-                    if (ts < cutoff) continue;
-                    if (*endPtr == ';') ptr = endPtr + 1; else ptr = nullptr;
-
-                    int targetToken = (sensorId == -1) ? 1 : (3 + sensorId);
-                    int currentToken = 1;
-                    float valRead = NAN, humRead = NAN;
-
-                    while (ptr && *ptr) {
-                        if (currentToken == targetToken) {
-                            valRead = strtof(ptr, &endPtr);
-                            if (ts < epochLimit) valRead = NAN;
-                        }
-                        if (sensorId == -1 && currentToken == 2) humRead = strtof(ptr, &endPtr);
-                        ptr = strchr(ptr, ';'); if (ptr) ptr++;
-                        currentToken++;
-                        if (sensorId != -1 && currentToken > targetToken) break;
+                    if (pkg.hasHumidity) {
+                        pkg.pointsV2[pkg.count] = humRead;
                     }
 
+                    if (pkg.count == 0) pkg.tsFirst = ts;
+
+                    /* Estatísticas dos pontos exibidos (para marcadores no gráfico) */
                     if (!isnan(valRead)) {
-                        pkg.pointsV1[pkg.count] = valRead;
-                        if (valRead < pkg.minVal) pkg.minVal = valRead;
-                        if (valRead > pkg.maxVal) pkg.maxVal = valRead;
-                        if (pkg.hasHumidity && !isnan(humRead)) {
-                            pkg.pointsV2[pkg.count] = humRead;
-                            if (humRead < localHumMin) localHumMin = humRead;
-                            if (humRead > localHumMax) localHumMax = humRead;
+                        if (valRead < pkg.minVal) {
+                            pkg.minVal = valRead;
+                            pkg.idxMinTemp = pkg.count;
+                            pkg.tsMinTemp = ts;
                         }
-                        pkg.count++;
+                        if (valRead > pkg.maxVal) {
+                            pkg.maxVal = valRead;
+                            pkg.idxMaxTemp = pkg.count;
+                            pkg.tsMaxTemp = ts;
+                        }
                     }
-                }
-                hasMore = f.available();
-                _storageMgr.exitFlashReadLock();
 
+                    if (pkg.hasHumidity && !isnan(humRead)) {
+                        if (humRead < localHumMin) {
+                            localHumMin = humRead;
+                            pkg.tsMinHum = ts;
+                        }
+                        if (humRead > localHumMax) {
+                            localHumMax = humRead;
+                            pkg.tsMaxHum = ts;
+                        }
+                    }
+
+                    pkg.tsLast = ts;
+                    pkg.count++;
+                }
+
+                /* Saiu da janela temporal: interrompe leitura deste arquivo */
+                if (pastWindow) break;
 
                 watchdog_update();
                 TRACE_BEAT(0);
-                delay(1);
+                yield();
             }
-
 
             _storageMgr.enterFlashReadLock();
             f.close();
@@ -1396,29 +1937,65 @@ void AppManager::renderGraphOptimized(int sensorId, int range) {
             }
         }
 
-        watchdog_update();
+        watchdog_update(); TRACE_BEAT(0);
         yield();
     }
 
     if (pkg.count > 0) {
-        if (pkg.maxVal - pkg.minVal < 1.0f) {
-            pkg.maxVal += 0.5f;
-            pkg.minVal -= 0.5f;
-        } else {
-            float rangeDelta = pkg.maxVal - pkg.minVal;
-            pkg.maxVal += rangeDelta * 0.10f;
-            pkg.minVal -= rangeDelta * 0.10f;
+        pkg.tsMid = pkg.tsFirst + (pkg.tsLast - pkg.tsFirst) / 2;
+
+        {
+            float sumT = 0.0f;
+            float sumH = 0.0f;
+            int   tempCount = 0;
+            int   humCount = 0;
+
+            for (int i = 0; i < pkg.count; i++) {
+                if (!isnan(pkg.pointsV1[i])) {
+                    sumT += pkg.pointsV1[i];
+                    tempCount++;
+                }
+                if (pkg.hasHumidity && !isnan(pkg.pointsV2[i])) {
+                    sumH += pkg.pointsV2[i];
+                    humCount++;
+                }
+            }
+            pkg.avgTemp = (tempCount > 0) ? (sumT / (float)tempCount) : NAN;
+            pkg.avgHum  = (humCount > 0) ? (sumH / (float)humCount) : NAN;
+
+            float sqSumT = 0.0f;
+            float sqSumH = 0.0f;
+            for (int i = 0; i < pkg.count; i++) {
+                if (!isnan(pkg.pointsV1[i]) && !isnan(pkg.avgTemp)) {
+                    float diffT = pkg.pointsV1[i] - pkg.avgTemp;
+                    sqSumT += diffT * diffT;
+                }
+                if (pkg.hasHumidity && !isnan(pkg.pointsV2[i]) && !isnan(pkg.avgHum)) {
+                    float diffH = pkg.pointsV2[i] - pkg.avgHum;
+                    sqSumH += diffH * diffH;
+                }
+            }
+            pkg.stdTemp = (tempCount > 1) ? sqrtf(sqSumT / (float)(tempCount - 1)) : 0.0f;
+            pkg.stdHum  = (humCount > 2) ? sqrtf(sqSumH / (float)(humCount - 1)) : NAN;
+
+            /* Delta: busca primeiro e último valores VÁLIDOS */
+            float firstValid = NAN, lastValid = NAN;
+            float firstValidH = NAN, lastValidH = NAN;
+            for (int i = 0; i < pkg.count; i++) {
+                if (!isnan(pkg.pointsV1[i])) {
+                    if (isnan(firstValid)) firstValid = pkg.pointsV1[i];
+                    lastValid = pkg.pointsV1[i];
+                }
+                if (pkg.hasHumidity && !isnan(pkg.pointsV2[i])) {
+                    if (isnan(firstValidH)) firstValidH = pkg.pointsV2[i];
+                    lastValidH = pkg.pointsV2[i];
+                }
+            }
+            pkg.deltaTemp = (!isnan(firstValid) && !isnan(lastValid)) ? (lastValid - firstValid) : NAN;
+            pkg.deltaHum  = (!isnan(firstValidH) && !isnan(lastValidH)) ? (lastValidH - firstValidH) : NAN;
         }
 
         if (pkg.hasHumidity && localHumMax > -1000.0f) {
-            if (localHumMax - localHumMin < 5.0f) {
-                localHumMax += 2.5f;
-                localHumMin -= 2.5f;
-            } else {
-                float humRange = localHumMax - localHumMin;
-                localHumMax += humRange * 0.10f;
-                localHumMin -= humRange * 0.10f;
-            }
             if (localHumMax > 100.0f) localHumMax = 100.0f;
             if (localHumMin < 0.0f) localHumMin = 0.0f;
         } else {
@@ -1428,13 +2005,396 @@ void AppManager::renderGraphOptimized(int sensorId, int range) {
     } else {
         pkg.minVal = 0.0f;
         pkg.maxVal = 40.0f;
+        pkg.realMinVal = 0.0f;
+        pkg.realMaxVal = 40.0f;
+        pkg.avgTemp = NAN;
+        pkg.stdTemp = NAN;
+        pkg.deltaTemp = NAN;
+        pkg.avgHum = NAN;
+        pkg.stdHum = NAN;
+        pkg.deltaHum = NAN;
         localHumMin = 0.0f;
         localHumMax = 100.0f;
+
+        /*
+         * Mesmo sem dados, preenche tsFirst/tsLast com a janela temporal
+         * solicitada para que o header exiba o período de referência.
+         */
+        pkg.tsFirst = cutoff;
+        pkg.tsLast  = effectiveEnd;
+        pkg.tsMid   = cutoff + (effectiveEnd - cutoff) / 2;
+    }
+
+    /*
+     * Modo calendário (forceEndEpoch > 0): o header e eixo X devem
+     * sempre mostrar o período COMPLETO do dia selecionado (00:00–23:59),
+     * independente de onde os dados reais começam/terminam.
+     * Ajusta tsLast para 23:59 (effectiveEnd - 60s) para evitar que
+     * o display mostre "08/04 00:00" (meia-noite do dia seguinte).
+     */
+    if (forceEndEpoch > 0) {
+        pkg.tsFirst = cutoff;                                /* 00:00 do dia */
+        pkg.tsLast  = forceEndEpoch - 60;                   /* 23:59 do dia */
+        pkg.tsMid   = cutoff + (forceEndEpoch - cutoff) / 2; /* ~12:00      */
+    }
+
+    /* ── Salva no cache 7d de background se aplicável ── */
+    if (range == 4 && pkg.count > 0) {
+        int ci = graphCacheIdx(sensorId);
+        _graphCache[ci].pkg         = pkg;
+        _graphCache[ci].humMin      = localHumMin;
+        _graphCache[ci].humMax      = localHumMax;
+        _graphCache[ci].lastRefresh = time(nullptr);
+        _graphCache[ci].valid       = true;
+    }
+
+    /* ── Salva no cache do sensor ativo (todos os ranges) ── */
+    if (sensorId == _sensorCacheId && range >= 0 && range < 5) {
+        _sensorCache[range].pkg         = pkg;
+        _sensorCache[range].humMin      = localHumMin;
+        _sensorCache[range].humMax      = localHumMax;
+        _sensorCache[range].lastRefresh = time(nullptr);
+        _sensorCache[range].valid       = true;
     }
 
     _storageMgr.unlockHeavyTask();
 
-    _displayMgr.showGraphPlot(pkg, localHumMin, localHumMax);
+    if (showAfterLoad) {
+        _displayMgr.showGraphPlot(pkg, localHumMin, localHumMax);
+    }
+}
+
+/* =========================================================================== */
+/*                      GRAPH CACHE — PRE-LOADING SYSTEM                     */
+/* =========================================================================== */
+
+/**
+ * @brief Converte sensorId para índice no array _graphCache[].
+ *
+ * Mapeamento:
+ *   sensorId -1      → slot 11 (ambient/DHT)
+ *   sensorId 0..9    → slot 0..9 (DS18B20)
+ *   sensorId 10      → slot 10 (board temp / RP2040 ADC)
+ */
+int AppManager::graphCacheIdx(int sensorId) {
+    if (sensorId == -1) return MAX_SENSORS + 1;  /* 11 = ambient */
+    if (sensorId == 10) return MAX_SENSORS;       /* 10 = board   */
+    if (sensorId >= 0 && sensorId < MAX_SENSORS) return sensorId;
+    return 0;
+}
+
+/**
+ * @brief Pré-carrega o cache 7d de todos os sensores ativos.
+ *
+ * Chamado durante o boot e pode ser re-chamado periodicamente.
+ * Cada sensor usa lockHeavyTask (exclusão mútua com o web server),
+ * liberando entre sensores para não bloquear watchdog e WiFi.
+ */
+void AppManager::preloadGraphCaches() {
+    SystemConfig &cfg = _storageMgr.getConfig();
+
+    /* Ambient (sempre presente) */
+    LOG_CODE(LOG_INFO, "APP", APP_CACHE_GRAPH_AMBIENT, 0, "");
+    renderGraphOptimized(-1, 4, false);
+    watchdog_update(); TRACE_BEAT(0);
+
+    /* Board temp */
+    LOG_CODE(LOG_INFO, "APP", APP_CACHE_GRAPH_BOARD, 0, "");
+    renderGraphOptimized(10, 4, false);
+    watchdog_update(); TRACE_BEAT(0);
+
+    /* DS18B20 ativos */
+    for (int i = 0; i < MAX_SENSORS; i++) {
+        if (cfg.sensors[i].active) {
+            char _logBuf[40];
+            snprintf(_logBuf, sizeof(_logBuf), "Graph cache: loading sensor %d...", i);
+            LOG_CODE(LOG_INFO, "APP", APP_GRAPH_LOADING, 0, String(_logBuf));
+            renderGraphOptimized(i, 4, false);
+            watchdog_update(); TRACE_BEAT(0);
+        }
+    }
+
+    _lastGraphCacheRefresh = millis();
+    LOG_CODE(LOG_INFO, "APP", APP_CACHE_PRELOAD_DONE, 0, "");
+}
+
+/**
+ * @brief Pré-carrega todos os ranges restantes do sensor ativo.
+ *
+ * Chamado imediatamente após exibir o gráfico solicitado pelo usuário.
+ * Para o range 7D, copia do cache de background se disponível (zero I/O).
+ * Para os demais, usa renderGraphOptimized com seek otimizado (~10-150ms cada).
+ *
+ * @param sensorId  ID do sensor (-1 = ambient, 0-9 = DS18B20, 10 = board).
+ * @param skipRange Range que já foi carregado e exibido (não recarregar).
+ */
+void AppManager::preloadSensorRanges(int sensorId, int skipRange) {
+    for (int r = 0; r < 5; r++) {
+        if (r == skipRange || _sensorCache[r].valid) continue;
+
+        /* 7D: usa cache de background com atualização incremental */
+        if (r == 4) {
+            int ci = graphCacheIdx(sensorId);
+            if (_graphCache[ci].valid) {
+                _sensorCache[4] = _graphCache[ci];
+                /* Se stale, faz append incremental (sem loading screen) */
+                time_t age = time(nullptr) - _sensorCache[4].lastRefresh;
+                if (age >= 1800) {
+                    appendToGraphCache(_sensorCache[4], sensorId);
+                }
+                continue;
+            }
+        }
+
+        /* Carrega do flash com seek otimizado */
+        renderGraphOptimized(sensorId, r, false);
+        watchdog_update(); TRACE_BEAT(0);
+    }
+}
+
+
+/**
+ * @brief Atualiza incrementalmente o cache 7D de um sensor.
+ *
+ * Em vez de recarregar todos os 7 dias do flash (~2-4s + loading screen),
+ * lê APENAS os registros novos desde entry.pkg.tsLast e os anexa ao array
+ * existente, removendo pontos antigos que saíram da janela de 7 dias.
+ *
+ * Fluxo:
+ * 1. Calcula quantos pontos novos existem desde tsLast (com decimation=51)
+ * 2. Remove pontos antigos que ultrapassaram a janela de 7 dias
+ * 3. Lê novos registros do CSV (seek direto para tsLast)
+ * 4. Anexa ao array e recalcula estatísticas
+ *
+ * @return true se o cache foi atualizado, false se não há dados novos.
+ */
+bool AppManager::appendToGraphCache(GraphCacheEntry& entry, int sensorId) {
+    GraphDataPackage& pkg = entry.pkg;
+    time_t now = time(nullptr);
+
+    if (now - pkg.tsLast < 120) return true;
+
+    time_t cutoff = now - 604800;
+    const int decimation = 51;
+
+    /* ── Fase 1: Remover pontos antigos que saíram da janela ── */
+    if (pkg.count >= 2 && pkg.tsFirst < cutoff) {
+        float dtPerPoint = (float)(pkg.tsLast - pkg.tsFirst) / (float)(pkg.count - 1);
+        if (dtPerPoint < 1.0f) dtPerPoint = 51.0f * 60.0f;
+
+        int discard = (int)((float)(cutoff - pkg.tsFirst) / dtPerPoint);
+        if (discard < 0) discard = 0;
+        if (discard > pkg.count) discard = pkg.count;
+
+        if (discard > 0) {
+            int remaining = pkg.count - discard;
+            if (remaining > 0) {
+                memmove(pkg.pointsV1, pkg.pointsV1 + discard, remaining * sizeof(float));
+                memmove(pkg.tsPoints, pkg.tsPoints + discard, remaining * sizeof(uint32_t));
+                if (pkg.hasHumidity) {
+                    memmove(pkg.pointsV2, pkg.pointsV2 + discard, remaining * sizeof(float));
+                }
+            }
+            pkg.count = remaining;
+            pkg.tsFirst = pkg.tsFirst + (time_t)(discard * dtPerPoint);
+        }
+    }
+
+    /* ── Fase 2: Ler novos registros do arquivo binário ── */
+    if (!_storageMgr.lockHeavyTask()) return false;
+
+    SystemConfig& cfg = _storageMgr.getConfig();
+    uint32_t epochLimit = 0;
+    if (sensorId >= 0 && sensorId < MAX_SENSORS && cfg.sensors[sensorId].active) {
+        epochLimit = cfg.sensors[sensorId].provisionEpoch;
+    }
+
+    struct tm todayTm;
+    localtime_r(&now, &todayTm);
+    todayTm.tm_hour = 0; todayTm.tm_min = 0; todayTm.tm_sec = 0;
+    time_t todayMidnight = mktime(&todayTm);
+    int daysToLoad = (pkg.tsLast < todayMidnight) ? 2 : 1;
+
+    int lineIdx = decimation - 1;
+    int newPoints = 0;
+    float localHumMin = entry.humMin;
+    float localHumMax = entry.humMax;
+
+    for (int d = daysToLoad - 1; d >= 0; d--) {
+        if (pkg.count >= GRAPH_WIDTH) break;
+
+        time_t targetDay = now - (d * 86400);
+        struct tm ti;
+        localtime_r(&targetDay, &ti);
+
+        char path[40];
+        snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
+                 ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday);
+
+        _storageMgr.enterFlashReadLock();
+        bool exists = LittleFS.exists(path);
+        File f;
+        if (exists) f = LittleFS.open(path, "r");
+        _storageMgr.exitFlashReadLock();
+
+        if (!exists || !f) continue;
+
+        /* Seek exato para tsLast */
+        size_t fileSize = f.size();
+        size_t totalRecords = fileSize / HISTORY_RECORD_SIZE;
+        if (totalRecords > 20 && pkg.tsLast > 0) {
+            struct tm fileTm = ti;
+            fileTm.tm_hour = 0; fileTm.tm_min = 0; fileTm.tm_sec = 0;
+            time_t fileMidnight = mktime(&fileTm);
+
+            if (pkg.tsLast > fileMidnight) {
+                int minPast = (int)((pkg.tsLast - fileMidnight) / 60);
+                int seekRecord = max(0, minPast - 5);
+                if (seekRecord < (int)totalRecords) {
+                    _storageMgr.enterFlashReadLock();
+                    f.seek((size_t)seekRecord * HISTORY_RECORD_SIZE);
+                    _storageMgr.exitFlashReadLock();
+                }
+            }
+        }
+
+        bool hasMore = true;
+        while (hasMore && pkg.count < GRAPH_WIDTH) {
+            _storageMgr.enterFlashReadLock();
+            BinaryHistoryRecord batch[20];
+            int batchCount = 0;
+            while (f.available() >= HISTORY_RECORD_SIZE
+                   && batchCount < 20
+                   && pkg.count < GRAPH_WIDTH)
+            {
+                if (f.read((uint8_t*)&batch[batchCount], HISTORY_RECORD_SIZE)
+                    == HISTORY_RECORD_SIZE)
+                {
+                    batchCount++;
+                }
+            }
+            hasMore = (f.available() >= HISTORY_RECORD_SIZE);
+            _storageMgr.exitFlashReadLock();
+
+            for (int bi = 0; bi < batchCount && pkg.count < GRAPH_WIDTH; bi++) {
+                const BinaryHistoryRecord& rec = batch[bi];
+
+                time_t ts = (time_t)rec.epoch;
+                if (ts <= pkg.tsLast) continue;
+
+                float humRead = NAN;
+                float valRead = readRecordValue(rec, sensorId, humRead);
+                if (ts < epochLimit) valRead = NAN;
+
+                /* Real min/max de todos os registros (pré-decimação) */
+                if (!isnan(valRead)) {
+                    if (valRead < pkg.realMinVal) { pkg.realMinVal = valRead; pkg.tsRealMin = ts; }
+                    if (valRead > pkg.realMaxVal) { pkg.realMaxVal = valRead; pkg.tsRealMax = ts; }
+                }
+
+                lineIdx++;
+                if (lineIdx % decimation != 0) continue;
+
+                /* Inclui NAN para preservar buracos no gráfico */
+                pkg.pointsV1[pkg.count] = valRead;
+                pkg.tsPoints[pkg.count] = (uint32_t)ts;
+                if (pkg.hasHumidity) {
+                    pkg.pointsV2[pkg.count] = humRead;
+                    if (!isnan(humRead)) {
+                        if (humRead < localHumMin) localHumMin = humRead;
+                        if (humRead > localHumMax) localHumMax = humRead;
+                    }
+                }
+                pkg.tsLast = ts;
+                pkg.count++;
+                newPoints++;
+            }
+
+            watchdog_update(); TRACE_BEAT(0); yield();
+        }
+
+        _storageMgr.enterFlashReadLock();
+        f.close();
+        _storageMgr.exitFlashReadLock();
+    }
+
+    _storageMgr.unlockHeavyTask();
+
+    /* ── Fase 3: Recalcular estatísticas (ignorando NANs) ── */
+    if (newPoints > 0 && pkg.count >= 2) {
+        pkg.tsMid = pkg.tsFirst + (pkg.tsLast - pkg.tsFirst) / 2;
+
+        pkg.minVal = 1000.0f; pkg.maxVal = -1000.0f;
+        pkg.idxMinTemp = -1;  pkg.idxMaxTemp = -1;
+        float sumT = 0, sqSumT = 0;
+        float sumH = 0, sqSumH = 0;
+        int tempCount = 0;
+        int humCount = 0;
+
+        for (int i = 0; i < pkg.count; i++) {
+            float v = pkg.pointsV1[i];
+            if (!isnan(v)) {
+                sumT += v;
+                tempCount++;
+                if (v < pkg.minVal) { pkg.minVal = v; pkg.idxMinTemp = i; }
+                if (v > pkg.maxVal) { pkg.maxVal = v; pkg.idxMaxTemp = i; }
+            }
+            if (pkg.hasHumidity && !isnan(pkg.pointsV2[i])) {
+                sumH += pkg.pointsV2[i]; humCount++;
+            }
+        }
+        pkg.avgTemp = (tempCount > 0) ? (sumT / (float)tempCount) : NAN;
+        pkg.avgHum  = (humCount > 0) ? (sumH / (float)humCount) : NAN;
+
+        for (int i = 0; i < pkg.count; i++) {
+            if (!isnan(pkg.pointsV1[i]) && !isnan(pkg.avgTemp)) {
+                float dT = pkg.pointsV1[i] - pkg.avgTemp;
+                sqSumT += dT * dT;
+            }
+            if (pkg.hasHumidity && !isnan(pkg.pointsV2[i]) && !isnan(pkg.avgHum)) {
+                float dH = pkg.pointsV2[i] - pkg.avgHum;
+                sqSumH += dH * dH;
+            }
+        }
+        pkg.stdTemp = (tempCount > 1) ? sqrtf(sqSumT / (float)(tempCount - 1)) : 0.0f;
+        pkg.stdHum  = (humCount > 2) ? sqrtf(sqSumH / (float)(humCount - 1)) : NAN;
+
+        /* Delta: primeiro e último valores VÁLIDOS */
+        float firstValid = NAN, lastValid = NAN;
+        float firstValidH = NAN, lastValidH = NAN;
+        for (int i = 0; i < pkg.count; i++) {
+            if (!isnan(pkg.pointsV1[i])) {
+                if (isnan(firstValid)) firstValid = pkg.pointsV1[i];
+                lastValid = pkg.pointsV1[i];
+            }
+            if (pkg.hasHumidity && !isnan(pkg.pointsV2[i])) {
+                if (isnan(firstValidH)) firstValidH = pkg.pointsV2[i];
+                lastValidH = pkg.pointsV2[i];
+            }
+        }
+        pkg.deltaTemp = (!isnan(firstValid) && !isnan(lastValid)) ? (lastValid - firstValid) : NAN;
+        pkg.deltaHum  = (!isnan(firstValidH) && !isnan(lastValidH)) ? (lastValidH - firstValidH) : NAN;
+
+        /* Timestamps de extremos: usa tsPoints real em vez de interpolação linear */
+        if (pkg.idxMinTemp >= 0) pkg.tsMinTemp = (time_t)pkg.tsPoints[pkg.idxMinTemp];
+        if (pkg.idxMaxTemp >= 0) pkg.tsMaxTemp = (time_t)pkg.tsPoints[pkg.idxMaxTemp];
+
+        /*
+         * Cache 7D: sincroniza realMinVal/realMaxVal com os pontos no array.
+         * Após descartar pontos antigos + recalcular, os extremos anteriores
+         * podem ser de registros que já saíram da janela.
+         */
+        pkg.realMinVal = pkg.minVal;
+        pkg.realMaxVal = pkg.maxVal;
+        pkg.tsRealMin  = pkg.tsMinTemp;
+        pkg.tsRealMax  = pkg.tsMaxTemp;
+
+        entry.humMin = localHumMin;
+        entry.humMax = localHumMax;
+        entry.lastRefresh = now;
+    }
+
+    return (newPoints > 0);
 }
 
 void AppManager::checkAndAutoHealSensors() {
@@ -1453,6 +2413,14 @@ void AppManager::checkAndAutoHealSensors() {
             } else {
                 _sensorMgr.setHardwareMismatch(gpio, false);
             }
+        } else {
+            /* Sensor configurado mas não encontrado no barramento físico */
+            static uint32_t lastMissingLog[10] = {0};
+            if (millis() - lastMissingLog[gpio] > 60000) {
+                lastMissingLog[gpio] = millis();
+                LOG_CODE(LOG_WARN, "SENSOR", ERR_SENSOR_MISSING, gpio,
+                    String(cfg.sensors[gpio].friendlyName));
+            }
         }
     }
 }
@@ -1460,7 +2428,7 @@ void AppManager::checkAndAutoHealSensors() {
 void AppManager::processBackgroundScan() {
     std::vector<ScanResult> results;
     if (_sensorMgr.getScanResults(results)) {
-        _appWaitingScan = false;
+        _waitingScan = false;
         _cmdMgr.renderScanResults(results);
         loadAndCalibrateSensors();
         _cmdMgr.printPrompt();
@@ -1489,10 +2457,25 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
         return;
     }
     _pendingTimeSync = false;
-    LOG_INF("APP", "NTP Correction: Adjusting offline records by " + String(delta) + "s...");
+    LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTING, delta, "NTP correction: " + String(delta) + "s");
     _storageMgr.correctProvisionalTimestamps(bootTs, delta);
-    LOG_INF("APP", "History successfully corrected!");
+    LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTED, 0, "");
     _storageMgr.unlockHeavyTask();
+
+    /*
+     * Invalida todo o cache de gráficos 7d pré-carregado no boot.
+     * Os timestamps dos registros foram corrigidos pelo delta NTP,
+     * mas os gráficos em cache ainda usam os dados antigos.
+     * Serão recarregados sob demanda ou no próximo refresh de 6h.
+     */
+    for (int i = 0; i < MAX_SENSORS + 2; i++) {
+        _graphCache[i].valid = false;
+    }
+    for (int r = 0; r < 5; r++) {
+        _sensorCache[r].valid = false;
+    }
+    _sensorCacheId = -99;
+    LOG_CODE(LOG_INFO, "APP", APP_CACHE_INVALIDATED, 0, "");
 }
 
 void AppManager::loadAndCalibrateSensors() {
@@ -1504,12 +2487,12 @@ void AppManager::loadAndCalibrateSensors() {
             String dbId; float dbOffset = 0.0f; String dbName;
             if (_storageMgr.getCalibrationData(cfg.sensors[i].rom, dbId, dbOffset, dbName)) {
                 _sensorMgr.applyCalibration(cfg.sensors[i].gpio, dbId, dbOffset, dbName);
-                if (dbId.length() > 0) { strncpy(cfg.sensors[i].hwId, dbId.c_str(), 15); cfg.sensors[i].hwId[15] = '\0'; }
-                if (dbName.length() > 0) { strncpy(cfg.sensors[i].friendlyName, dbName.c_str(), 31); cfg.sensors[i].friendlyName[31] = '\0'; }
+                if (dbId.length() > 0) { safeCopy(cfg.sensors[i].hwId, dbId.c_str(), sizeof(cfg.sensors[i].hwId)); }
+                if (dbName.length() > 0) { safeCopy(cfg.sensors[i].friendlyName, dbName.c_str(), sizeof(cfg.sensors[i].friendlyName)); }
             }
         }
     }
-    LOG_INF("APP", "Sensors aligned with calibration table.");
+    LOG_CODE(LOG_INFO, "APP", APP_SENSORS_CALIBRATED, 0, "");
 }
 
 
@@ -1594,11 +2577,11 @@ void AppManager::checkAlarmConditions() {
 
         _soundMgr.startAlarm();
         if (firstSlot >= 0) {
-            _currentSensorIndex = firstSlot;
+            _currentSensorIdx = firstSlot;
             refreshSelectedSlot();
         }
         _displayMgr.setAlarmState(mask, firstSlot, ambTempAlarm, ambHumAlarm);
-        LOG_WRN("APP", "Alarm triggered: sensor value out of range.");
+        LOG_CODE(LOG_WARN, "APP", APP_ALARM_TRIGGERED, 0, "");
     } else if (anyAlarm && (_soundMgr.isAlarming() || silenced)) {
 
         _displayMgr.setAlarmState(mask, -1, ambTempAlarm, ambHumAlarm);
@@ -1609,9 +2592,9 @@ void AppManager::checkAlarmConditions() {
 
         if (silenced) {
             _displayMgr.setAlarmSilenced(false, 0);
-            LOG_INF("APP", "Alarm silence cancelled — conditions cleared.");
+            LOG_CODE(LOG_INFO, "APP", APP_ALARM_SILENCE_CANCEL, 0, "");
         }
-        LOG_INF("APP", "Alarm cleared: all sensors within range.");
+        LOG_CODE(LOG_INFO, "APP", APP_ALARM_CLEARED, 0, "");
     }
 }
 
