@@ -7,7 +7,7 @@
  * and calibration CSV parsing.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
- * @version 3.4.7
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
