@@ -2,10 +2,11 @@
  * @file    CommandManager.cpp
  * @brief   Implementation of CommandManager — command parsing, rendering, and I/O routing.
  * @details Implements the CLI parser that converts text input into CliDemand
- *          structs, along with formatted output for sensor tables, scan results,
- *          system info, and log entries. Supports dual-buffer USB/BT processing.
+ * structs, along with formatted output for sensor tables, scan results,
+ * system info, and log entries. Supports dual-buffer USB/BT processing.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -137,6 +138,9 @@ CliDemand CommandManager::parseCommand(String input) {
     String t3 = count > 3 ? parts[3] : ""; t3.toLowerCase();
     String t4 = count > 4 ? parts[4] : "";
 
+    /* Valores originais (preservam maiúsculas) para SSID, senha, nome, NTP, etc. */
+    String v3 = count > 3 ? parts[3] : "";
+
     if (t0 == "help") { cmd.type = CMD_HELP; return cmd; }
     if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
 
@@ -151,20 +155,22 @@ CliDemand CommandManager::parseCommand(String input) {
 
     if (t0 == "conf" || t0 == "configure") {
         if (t1 == "system") {
-            if (t2 == "theme") { cmd.type = CMD_SET_THEME; cmd.strVal1 = t3; return cmd; }
-            if (t2 == "name") { cmd.type = CMD_SET_SYS_NAME; cmd.strVal1 = t3; return cmd; }
-            if (t2 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.strVal1 = t3; return cmd; }
-            if (t2 == "pass") { cmd.type = CMD_SET_WIFI_PASS; cmd.strVal1 = t3; return cmd; }
+            if (t2 == "theme") { cmd.type = CMD_SET_THEME; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "name") { cmd.type = CMD_SET_SYS_NAME; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "pass") { cmd.type = CMD_SET_WIFI_PASS; cmd.strVal1 = v3; return cmd; }
             if (t2 == "timezone") { cmd.type = CMD_SET_TIMEZONE; cmd.intVal1 = t3.toInt(); return cmd; }
+            if (t2 == "ntp") { cmd.type = CMD_SET_NTP; cmd.strVal1 = v3; return cmd; }
             if (t2 == "admin" && t3 == "reset") { cmd.type = CMD_RESET_ADMIN; return cmd; }
+            if (t2 == "touch" && t3 == "reset") { cmd.type = CMD_RESET_TOUCH_CAL; return cmd; }
         }
         if (t1 == "sensor" && t2 == "ds18b20" && t3 == "resolution") {
             cmd.type = CMD_SET_DS_RES; cmd.intVal1 = t4.toInt(); return cmd;
         }
         if (t1 == "tel") {
-            if (t2 == "server") { cmd.type = CMD_SET_TEL_SERVER; cmd.strVal1 = t3; return cmd; }
+            if (t2 == "server") { cmd.type = CMD_SET_TEL_SERVER; cmd.strVal1 = v3; return cmd; }
             if (t2 == "port") { cmd.type = CMD_SET_TEL_PORT; cmd.intVal1 = t3.toInt(); return cmd; }
-            if (t2 == "path") { cmd.type = CMD_SET_TEL_PATH; cmd.strVal1 = t3; return cmd; }
+            if (t2 == "path") { cmd.type = CMD_SET_TEL_PATH; cmd.strVal1 = v3; return cmd; }
             if (t2 == "batch") { cmd.type = CMD_SET_TEL_BATCH; cmd.intVal1 = t3.toInt(); return cmd; }
             if (t2 == "interval") { cmd.type = CMD_SET_TEL_INTERVAL; cmd.intVal1 = t3.toInt(); return cmd; }
             if (t2 == "crypto") { cmd.type = CMD_SET_TEL_CRYPTO; cmd.boolVal = (t3 == "on"); return cmd; }
@@ -269,7 +275,7 @@ void CommandManager::printLogEntry(String line) {
 void CommandManager::printWelcome() {
     consolePrintln("\n");
     consolePrintln("************************************************");
-    consolePrintln("* SIMUT CLI — Command Line Interface      *");
+    consolePrintln("* SIMUT IoT MODULAR CLI v2.6 (Log Viewer)      *");
     consolePrintln("* Type 'help' for command list                 *");
     consolePrintln("************************************************");
 }
@@ -329,7 +335,8 @@ void CommandManager::renderSystemInfo(const SystemConfig &cfg) {
     consolePrintf(" DS18 Precision: %d-bit\n", cfg.ds18Resolution);
     consolePrintln(" [CONNECTIVITY]");
     consolePrintf(" WiFi SSID:      %s\n", (strlen(cfg.wifiSsid) > 0 ? cfg.wifiSsid : "<Not Configured>"));
-    consolePrintf(" Timezone:       %d (GMT%s%d)\n", cfg.timezoneOffset, (cfg.timezoneOffset > 0 ? "-" : "+"), abs(cfg.timezoneOffset));
+    consolePrintf(" Timezone:       GMT%s%d\n", (cfg.timezoneOffset >= 0 ? "+" : ""), cfg.timezoneOffset);
+    consolePrintf(" NTP Server:     %s\n", (strlen(cfg.ntpServer) > 0 ? cfg.ntpServer : "pool.ntp.org (default)"));
     consolePrintf(" Logging:        %s\n", cfg.loggingEnabled ? "ENABLED" : "DISABLED");
     printDivider();
 }
@@ -361,8 +368,10 @@ void CommandManager::printHelp() {
     consolePrintln(" conf system ssid <name>    : Set WiFi SSID (Case sensitive)");
     consolePrintln(" conf system pass <pass>    : Set WiFi Password");
     consolePrintln(" conf system timezone <val> : Set Offset (e.g., -3 for Brazil)");
+    consolePrintln(" conf system ntp <server>   : Set NTP server (empty = pool.ntp.org)");
     consolePrintln(" conf system theme <id>     : Set UI Theme (use ID name or index)");
     consolePrintln(" conf system admin reset    : Resets the Admin account password to default");
+    consolePrintln(" conf system touch reset    : Reset touch calibration to factory defaults");
     consolePrintln(" conf sensor ds18b20 resolution <9-12> : Set global DS18 resolution");
     consolePrintln(" -- Telemetry Configuration --");
     consolePrintln(" conf tel server <url>      : Set server address (e.g., api.mysite.com)");

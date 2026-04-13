@@ -2,13 +2,14 @@
  * @file    DisplayManager.cpp
  * @brief   Implementation of DisplayManager — Core 1 render loop, touch handling, and all UI screens.
  * @details Contains the complete rendering engine: Core 1 entry point, snapshot-
- *          based dirty rendering, dashboard with ambient/slot panels, graph
- *          plotting with dual Y-axis, settings menus (themes, alarms, sounds,
- *          language, password, calibration, license), authentication keypad with
- *          scrambled layout and lockout, alarm flash animation with per-slot
- *          masking, and the i18n dictionary for 8 languages.
+ * based dirty rendering, dashboard with ambient/slot panels, graph
+ * plotting with dual Y-axis, settings menus (themes, alarms, sounds,
+ * language, password, calibration, license), authentication keypad with
+ * scrambled layout and lockout, alarm flash animation with per-slot
+ * masking, and the i18n dictionary for 8 languages.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -42,165 +43,159 @@ static const char* const LANG_FLAGS[TOTAL_LANGS] = {
 const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
 
     {
-        "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language",
-        "EXIT", "APPLY", "CANCEL", "Security Authentication", "ACCESS BLOCKED",
-        "Reboot required", "Attempts Exceeded", "Wait %ld seconds...",
-        "Invalid Password!", "Loading...", "Reading History...", "No Data",
-        "MAXIMUM", "MINIMUM", "Temperature", "Humidity", "PLOT CHART",
-        "1. Visual Themes", "2. Alarm Limits", "3. Alarm Sounds", "4. System Language",
-        "Applying Theme...", "SAVE", "Alarm Limits", "Temp Min", "Temp Max", "Hum Min", "Hum Max", "ENTER", "SKIP", "5. Change Password", "New Password",
-        "6. Touch Calibration", "Touch Calibration", "Touch the crosshair", "Calibration Done!",
-        "Imprecise touches! Try again.",
-        "Confirm Password", "Password too short! (min 4)", "Passwords don't match!", "Password saved!", "UNDERSTOOD",
-        "Sound Settings", "Touch Click", "Confirmation", "Error Sound", "Alarm Sound",
-        "Mute All", "Sys Volume", "Alarm Vol", "ON", "OFF",
-        "Web Access", "Melody",
-        "7. License", "MIT License",
-        "ACTIVE",
-        "Silence 120s", "Deactivate", "Min/Max", "Silenced",
-        "%RH"
+        "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language", "EXIT",
+        "APPLY", "CANCEL", "Security Authentication", "ACCESS BLOCKED", "Reboot required",
+        "Attempts Exceeded", "Wait %ld seconds...", "Invalid Password!", "Loading...", "Reading History...",
+        "No Data", "MAXIMUM", "MINIMUM", "Temperature", "Humidity",
+        "PLOT CHART", "1. Visual Themes", "2. Alarm Limits", "3. Alarm Sounds", "4. System Language",
+        "Applying Theme...", "SAVE", "Alarm Limits", "Temp Min", "Temp Max",
+        "Hum Min", "Hum Max", "ENTER", "SKIP", "5. Change Password",
+        "New Password", "6. Touch Calibration", "Touch Calibration", "Touch the crosshair", "Calibration Done!",
+        "Imprecise touches! Try again.", "Confirm Password", "Password too short! (min 4)", "Passwords don't match!", "Password saved!",
+        "UNDERSTOOD", "Sound Settings", "Touch Click", "Confirmation", "Error Sound",
+        "Alarm Sound", "Mute All", "Sys Volume", "Alarm Vol", "ON",
+        "OFF", "Web Access", "Melody", "7. License", "MIT License",
+        "ACTIVE", "Silence 120s", "Deactivate", "Min/Max", "Silenced",
+        "%RH", "7. Touch Sensitivity", "Touch Sensitivity", "Tap %d/%d", "Calibration Done!",
+        "AVERAGE", "STD DEV", "Error", "Configuration Mode", "8. System Status",
+        "System Status"
     },
 
     {
-        "AMBIENTE", "Configuracoes > Principal", "Configuracoes > Temas", "Configuracoes > Idioma",
-        "SAIR", "APLICAR", "CANCELAR", "Autenticacao de Seguranca", "ACESSO BLOQUEADO",
-        "Reinicializacao requerida", "Tentativas Excedidas", "Aguarde %ld segundos...",
-        "Senha Invalida!", "Carregando...", "Lendo Historico...", "Sem Dados",
-        "MAXIMO", "MINIMO", "Temperatura", "Umidade", "GERAR GRAFICO",
-        "1. Temas Visuais", "2. Limites de Alarme", "3. Sons de Alarme", "4. Idioma do Sistema",
-        "Aplicando Tema...", "SALVAR", "Limites de Alarme", "Temp Min", "Temp Max", "Umid Min", "Umid Max", "ENTRAR", "PULAR", "5. Alterar Senha", "Nova Senha",
-        "6. Calibrar Touch", "Calibracao do Touch", "Toque na mira", "Calibracao Concluida!",
-        "Toques imprecisos! Tente novamente.",
-        "Confirmar Senha", "Senha muito curta! (min 4)", "Senhas nao coincidem!", "Senha salva!", "ENTENDI",
-        "Config. de Sons", "Toque na Tela", "Confirmacao", "Som de Erro", "Som de Alarme",
-        "Silenciar Tudo", "Vol. Sistema", "Vol. Alarme", "SIM", "NAO",
-        "Acesso Web", "Melodia",
-        "7. Licenca", "Licenca MIT",
-        "ATIVO",
-        "Silenciar 120s", "Desativar", "Min/Max", "Silenciado",
-        "%UR"
+        "AMBIENTE", "Configuracoes > Principal", "Configuracoes > Temas", "Configuracoes > Idioma", "SAIR",
+        "APLICAR", "CANCELAR", "Autenticacao de Seguranca", "ACESSO BLOQUEADO", "Reinicializacao requerida",
+        "Tentativas Excedidas", "Aguarde %ld segundos...", "Senha Invalida!", "Carregando...", "Lendo Historico...",
+        "Sem Dados", "MAXIMO", "MINIMO", "Temperatura", "Umidade",
+        "GERAR GRAFICO", "1. Temas Visuais", "2. Limites de Alarme", "3. Sons de Alarme", "4. Idioma do Sistema",
+        "Aplicando Tema...", "SALVAR", "Limites de Alarme", "Temp Min", "Temp Max",
+        "Umid Min", "Umid Max", "ENTRAR", "PULAR", "5. Alterar Senha",
+        "Nova Senha", "6. Calibrar Touch", "Calibracao do Touch", "Toque na mira", "Calibracao Concluida!",
+        "Toques imprecisos! Tente novamente.", "Confirmar Senha", "Senha muito curta! (min 4)", "Senhas nao coincidem!", "Senha salva!",
+        "ENTENDI", "Config. de Sons", "Toque na Tela", "Confirmacao", "Som de Erro",
+        "Som de Alarme", "Silenciar Tudo", "Vol. Sistema", "Vol. Alarme", "SIM",
+        "NAO", "Acesso Web", "Melodia", "7. Licenca", "Licenca MIT",
+        "ATIVO", "Silenciar 120s", "Desativar", "Min/Max", "Silenciado",
+        "%UR", "7. Sensibilidade do Toque", "Sensibilidade do Toque", "Toque %d/%d", "Calibracao Concluida!",
+        "MEDIA", "DESVIO", "Erro", "Modo de Configuracao", "8. Status do Sistema",
+        "Status do Sistema"
     },
 
     {
-        "AMBIENTE", "Ajustes > Principal", "Ajustes > Temas", "Ajustes > Idioma",
-        "SALIR", "APLICAR", "CANCELAR", "Autenticacion de Seguridad", "ACCESO BLOQUEADO",
-        "Reinicio requerido", "Intentos Excedidos", "Espere %ld segundos...",
-        "Clave Invalida!", "Cargando...", "Leyendo Historial...", "Sin Datos",
-        "MAXIMO", "MINIMO", "Temperatura", "Humedad", "GENERAR GRAFICO",
-        "1. Temas Visuales", "2. Limites de Alarma", "3. Sonidos de Alarma", "4. Idioma del Sistema",
-        "Aplicando Tema...", "GUARDAR", "Limites de Alarma", "Temp Min", "Temp Max", "Humed Min", "Humed Max", "ENTRAR", "OMITIR", "5. Cambiar Clave", "Nueva Clave",
-        "6. Calibrar Touch", "Calibracion del Touch", "Toque la mira", "Calibracion Completa!",
-        "Toques imprecisos! Intente de nuevo.",
-        "Confirmar Clave", "Clave muy corta! (min 4)", "Claves no coinciden!", "Clave guardada!", "ENTENDIDO",
-        "Config. de Sonidos", "Toque en Pantalla", "Confirmacion", "Sonido de Error", "Sonido de Alarma",
-        "Silenciar Todo", "Vol. Sistema", "Vol. Alarma", "SI", "NO",
-        "Acceso Web", "Melodia",
-        "7. Licencia", "Licencia MIT",
-        "ACTIVO",
-        "Silenciar 120s", "Desactivar", "Min/Max", "Silenciado",
-        "%HR"
+        "AMBIENTE", "Ajustes > Principal", "Ajustes > Temas", "Ajustes > Idioma", "SALIR",
+        "APLICAR", "CANCELAR", "Autenticacion de Seguridad", "ACCESO BLOQUEADO", "Reinicio requerido",
+        "Intentos Excedidos", "Espere %ld segundos...", "Clave Invalida!", "Cargando...", "Leyendo Historial...",
+        "Sin Datos", "MAXIMO", "MINIMO", "Temperatura", "Humedad",
+        "GENERAR GRAFICO", "1. Temas Visuales", "2. Limites de Alarma", "3. Sonidos de Alarma", "4. Idioma del Sistema",
+        "Aplicando Tema...", "GUARDAR", "Limites de Alarma", "Temp Min", "Temp Max",
+        "Humed Min", "Humed Max", "ENTRAR", "OMITIR", "5. Cambiar Clave",
+        "Nueva Clave", "6. Calibrar Touch", "Calibracion del Touch", "Toque la mira", "Calibracion Completa!",
+        "Toques imprecisos! Intente de nuevo.", "Confirmar Clave", "Clave muy corta! (min 4)", "Claves no coinciden!", "Clave guardada!",
+        "ENTENDIDO", "Config. de Sonidos", "Toque en Pantalla", "Confirmacion", "Sonido de Error",
+        "Sonido de Alarma", "Silenciar Todo", "Vol. Sistema", "Vol. Alarma", "SI",
+        "NO", "Acceso Web", "Melodia", "7. Licencia", "Licencia MIT",
+        "ACTIVO", "Silenciar 120s", "Desactivar", "Min/Max", "Silenciado",
+        "%RH", "7. Sensibilidad Tactil", "Sensibilidad Tactil", "Toque %d/%d", "Calibracion Completa!",
+        "PROMEDIO", "DESVIACION", "Error", "Modo Configuracion", "8. Estado del Sistema",
+        "Estado del Sistema"
     },
 
     {
-        "AMBIANCE", "Reglages > Principal", "Reglages > Themes", "Reglages > Langue",
-        "QUITTER", "APPLIQUER", "ANNULER", "Authentification de Securite", "ACCES BLOQUE",
-        "Redemarrage requis", "Tentatives Depassees", "Patientez %ld secondes...",
-        "Mot de passe invalide!", "Chargement...", "Lecture Historique...", "Aucune Donnee",
-        "MAXIMUM", "MINIMUM", "Temperature", "Humidite", "TRACER GRAPHIQUE",
-        "1. Themes Visuels", "2. Limites d'Alarme", "3. Sons d'Alarme", "4. Langue du Systeme",
-        "Application du Theme...", "ENREGISTRER", "Limites d'Alarme", "Temp Min", "Temp Max", "Hum Min", "Hum Max", "ENTRER", "PASSER", "5. Changer Mot de Passe", "Nouveau Mot de Passe",
-        "6. Calibrer le Tactile", "Calibration Tactile", "Touchez la cible", "Calibration Terminee!",
-        "Touches imprecis! Reessayez.",
-        "Confirmer Mot de Passe", "Mot de passe trop court! (min 4)", "Mots de passe differents!", "Mot de passe enregistre!", "COMPRIS",
-        "Reglages des Sons", "Toucher Ecran", "Confirmation", "Son d'Erreur", "Son d'Alarme",
-        "Tout Couper", "Vol. Systeme", "Vol. Alarme", "OUI", "NON",
-        "Acces Web", "Melodie",
-        "7. Licence", "Licence MIT",
-        "ACTIF",
-        "Silencer 120s", "Desactiver", "Min/Max", "En Silence",
-        "%HR"
+        "AMBIANCE", "Reglages > Principal", "Reglages > Themes", "Reglages > Langue", "QUITTER",
+        "APPLIQUER", "ANNULER", "Authentification de Securite", "ACCES BLOQUE", "Redemarrage requis",
+        "Tentatives Depassees", "Patientez %ld secondes...", "Mot de passe invalide!", "Chargement...", "Lecture Historique...",
+        "Aucune Donnee", "MAXIMUM", "MINIMUM", "Temperature", "Humidite",
+        "TRACER GRAPHIQUE", "1. Themes Visuels", "2. Limites d'Alarme", "3. Sons d'Alarme", "4. Langue du Systeme",
+        "Application du Theme...", "ENREGISTRER", "Limites d'Alarme", "Temp Min", "Temp Max",
+        "Hum Min", "Hum Max", "ENTRER", "PASSER", "5. Changer Mot de Passe",
+        "Nouveau Mot de Passe", "6. Calibrer le Tactile", "Calibration Tactile", "Touchez la cible", "Calibration Terminee!",
+        "Touches imprecis! Reessayez.", "Confirmer Mot de Passe", "Mot de passe trop court! (min 4)", "Mots de passe differents!", "Mot de passe enregistre!",
+        "COMPRIS", "Reglages des Sons", "Toucher Ecran", "Confirmation", "Son d'Erreur",
+        "Son d'Alarme", "Tout Couper", "Vol. Systeme", "Vol. Alarme", "OUI",
+        "NON", "Acces Web", "Melodie", "7. Licence", "Licence MIT",
+        "ACTIF", "Silencer 120s", "Desactiver", "Min/Max", "En Silence",
+        "%RH", "7. Sensibilite Tactile", "Sensibilite Tactile", "Touchez %d/%d", "Calibration Terminee!",
+        "MOYENNE", "ECART-TYPE", "Erreur", "Mode Configuration", "8. Etat du Systeme",
+        "Etat du Systeme"
     },
 
     {
-        "UMGEBUNG", "Einstellungen > Haupt", "Einstellungen > Themen", "Einstellungen > Sprache",
-        "BEENDEN", "ANWENDEN", "ABBRECHEN", "Sicherheitsauthentifizierung", "ZUGANG GESPERRT",
-        "Neustart erforderlich", "Versuche Ueberschritten", "Warten Sie %ld Sekunden...",
-        "Ungultiges Passwort!", "Laden...", "Verlauf Lesen...", "Keine Daten",
-        "MAXIMUM", "MINIMUM", "Temperatur", "Feuchtigkeit", "DIAGRAMM ERSTELLEN",
-        "1. Visuelle Themen", "2. Alarmgrenzen", "3. Alarmtone", "4. Systemsprache",
-        "Thema Anwenden...", "SPEICHERN", "Alarmgrenzen", "Temp Min", "Temp Max", "Feuch Min", "Feuch Max", "EINGABE", "WEITER", "5. Passwort Aendern", "Neues Passwort",
-        "6. Touch Kalibrieren", "Touch-Kalibrierung", "Fadenkreuz beruehren", "Kalibrierung Fertig!",
-        "Ungenaue Beruehrungen! Erneut versuchen.",
-        "Passwort Bestaetigen", "Passwort zu kurz! (min 4)", "Passwoerter stimmen nicht!", "Passwort gespeichert!", "VERSTANDEN",
-        "Toneinstellungen", "Bildschirmberuehrung", "Bestaetigung", "Fehlerton", "Alarmton",
-        "Alles Stumm", "Sys-Lautst.", "Alarm-Lautst.", "EIN", "AUS",
-        "Web-Zugriff", "Melodie",
-        "7. Lizenz", "MIT-Lizenz",
-        "AKTIV",
-        "Stumm 120s", "Deaktivieren", "Min/Max", "Stummgeschaltet",
-        "%RH"
+        "UMGEBUNG", "Einstellungen > Haupt", "Einstellungen > Themen", "Einstellungen > Sprache", "BEENDEN",
+        "ANWENDEN", "ABBRECHEN", "Sicherheitsauthentifizierung", "ZUGANG GESPERRT", "Neustart erforderlich",
+        "Versuche Ueberschritten", "Warten Sie %ld Sekunden...", "Ungultiges Passwort!", "Laden...", "Verlauf Lesen...",
+        "Keine Daten", "MAXIMUM", "MINIMUM", "Temperatur", "Feuchtigkeit",
+        "DIAGRAMM ERSTELLEN", "1. Visuelle Themen", "2. Alarmgrenzen", "3. Alarmtone", "4. Systemsprache",
+        "Thema Anwenden...", "SPEICHERN", "Alarmgrenzen", "Temp Min", "Temp Max",
+        "Feuch Min", "Feuch Max", "EINGABE", "WEITER", "5. Passwort Aendern",
+        "Neues Passwort", "6. Touch Kalibrieren", "Touch-Kalibrierung", "Fadenkreuz beruehren", "Kalibrierung Fertig!",
+        "Ungenaue Beruehrungen! Erneut versuchen.", "Passwort Bestaetigen", "Passwort zu kurz! (min 4)", "Passwoerter stimmen nicht!", "Passwort gespeichert!",
+        "VERSTANDEN", "Toneinstellungen", "Bildschirmberuehrung", "Bestaetigung", "Fehlerton",
+        "Alarmton", "Alles Stumm", "Sys-Lautst.", "Alarm-Lautst.", "EIN",
+        "AUS", "Web-Zugriff", "Melodie", "7. Lizenz", "MIT-Lizenz",
+        "AKTIV", "Stumm 120s", "Deaktivieren", "Min/Max", "Stummgeschaltet",
+        "%RH", "7. Touch-Empfindlichkeit", "Touch-Empfindlichkeit", "Tippen %d/%d", "Kalibrierung Abgeschlossen!",
+        "MITTELWERT", "STABW.", "Fehler", "Konfigurationsmodus", "8. Systemstatus",
+        "Systemstatus"
     },
 
     {
-        "AMBIENTE", "Impostazioni > Principale", "Impostazioni > Temi", "Impostazioni > Lingua",
-        "ESCI", "APPLICA", "ANNULLA", "Autenticazione di Sicurezza", "ACCESSO BLOCCATO",
-        "Riavvio necessario", "Tentativi Superati", "Attendere %ld secondi...",
-        "Password non valida!", "Caricamento...", "Lettura Cronologia...", "Nessun Dato",
-        "MASSIMO", "MINIMO", "Temperatura", "Umidita", "GENERA GRAFICO",
-        "1. Temi Visivi", "2. Limiti di Allarme", "3. Suoni di Allarme", "4. Lingua del Sistema",
-        "Applicazione Tema...", "SALVA", "Limiti di Allarme", "Temp Min", "Temp Max", "Umid Min", "Umid Max", "INVIO", "SALTA", "5. Cambia Password", "Nuova Password",
-        "6. Calibra Touch", "Calibrazione Touch", "Tocca il mirino", "Calibrazione Completata!",
-        "Tocchi imprecisi! Riprova.",
-        "Conferma Password", "Password troppo corta! (min 4)", "Password non corrispondono!", "Password salvata!", "CAPITO",
-        "Impostaz. Suoni", "Tocco Schermo", "Conferma", "Suono Errore", "Suono Allarme",
-        "Silenzia Tutto", "Vol. Sistema", "Vol. Allarme", "SI", "NO",
-        "Accesso Web", "Melodia",
-        "7. Licenza", "Licenza MIT",
-        "ATTIVO",
-        "Silenzia 120s", "Disattiva", "Min/Max", "Silenziato",
-        "%UR"
+        "AMBIENTE", "Impostazioni > Principale", "Impostazioni > Temi", "Impostazioni > Lingua", "ESCI",
+        "APPLICA", "ANNULLA", "Autenticazione di Sicurezza", "ACCESSO BLOCCATO", "Riavvio necessario",
+        "Tentativi Superati", "Attendere %ld secondi...", "Password non valida!", "Caricamento...", "Lettura Cronologia...",
+        "Nessun Dato", "MASSIMO", "MINIMO", "Temperatura", "Umidita",
+        "GENERA GRAFICO", "1. Temi Visivi", "2. Limiti di Allarme", "3. Suoni di Allarme", "4. Lingua del Sistema",
+        "Applicazione Tema...", "SALVA", "Limiti di Allarme", "Temp Min", "Temp Max",
+        "Umid Min", "Umid Max", "INVIO", "SALTA", "5. Cambia Password",
+        "Nuova Password", "6. Calibra Touch", "Calibrazione Touch", "Tocca il mirino", "Calibrazione Completata!",
+        "Tocchi imprecisi! Riprova.", "Conferma Password", "Password troppo corta! (min 4)", "Password non corrispondono!", "Password salvata!",
+        "CAPITO", "Impostaz. Suoni", "Tocco Schermo", "Conferma", "Suono Errore",
+        "Suono Allarme", "Silenzia Tutto", "Vol. Sistema", "Vol. Allarme", "SI",
+        "NO", "Accesso Web", "Melodia", "7. Licenza", "Licenza MIT",
+        "ATTIVO", "Silenzia 120s", "Disattiva", "Min/Max", "Silenziato",
+        "%RH", "7. Sensibilita Touch", "Sensibilita Touch", "Tocca %d/%d", "Calibrazione Completata!",
+        "MEDIA", "DEV. STD.", "Errore", "Modalita Configurazione", "8. Stato del Sistema",
+        "Stato del Sistema"
     },
 
     {
-        "OKRUZHENIE", "Nastroyki > Glavnaya", "Nastroyki > Temy", "Nastroyki > Yazyk",
-        "VYKHOD", "PRIMENIT", "OTMENA", "Autentifikaciya Bezopasnosti", "DOSTUP ZABLOKIROVAN",
-        "Trebuetsya perezagruzka", "Popytki Prevysheny", "Zhdite %ld sekund...",
-        "Nevernyy parol!", "Zagruzka...", "Chtenie Istorii...", "Net Dannykh",
-        "MAKSIMUM", "MINIMUM", "Temperatura", "Vlazhnost", "POSTROIT GRAFIK",
-        "1. Vizualnye Temy", "2. Predely Signalizacii", "3. Zvuki Signalizacii", "4. Yazyk Sistemy",
-        "Primenenie Temy...", "SOKHRANIT", "Predely Signalizacii", "Temp Min", "Temp Maks", "Vlazh Min", "Vlazh Maks", "VVOD", "PROPUSTIT", "5. Smena Parolya", "Novyy Parol",
-        "6. Kalibrovka Tachskrina", "Kalibrovka Tachskrina", "Kosnityes perekrestiya", "Kalibrovka Zavershena!",
-        "Netochnyye kasaniya! Povtorite.",
-        "Podtverdite Parol", "Parol slishkom korotkiy! (min 4)", "Paroli ne sovpadayut!", "Parol sokhranyon!", "PONYATNO",
-        "Nastroyki Zvukov", "Kasanie Ekrana", "Podtverzhdenie", "Zvuk Oshibki", "Zvuk Signalizacii",
-        "Vykl. Vse Zvuki", "Sis. Gromk.", "Alarm Gromk.", "VKL", "VYKL",
-        "Veb Dostup", "Melodiya",
-        "7. Licenziya", "Licenziya MIT",
-        "AKTIVNO",
-        "Tishina 120s", "Otklyuchit", "Min/Maks", "Otklyucheno",
-        "%RH"
+        "OKRUZHENIE", "Nastroyki > Glavnaya", "Nastroyki > Temy", "Nastroyki > Yazyk", "VYKHOD",
+        "PRIMENIT", "OTMENA", "Autentifikaciya Bezopasnosti", "DOSTUP ZABLOKIROVAN", "Trebuetsya perezagruzka",
+        "Popytki Prevysheny", "Zhdite %ld sekund...", "Nevernyy parol!", "Zagruzka...", "Chtenie Istorii...",
+        "Net Dannykh", "MAKSIMUM", "MINIMUM", "Temperatura", "Vlazhnost",
+        "POSTROIT GRAFIK", "1. Vizualnye Temy", "2. Predely Signalizacii", "3. Zvuki Signalizacii", "4. Yazyk Sistemy",
+        "Primenenie Temy...", "SOKHRANIT", "Predely Signalizacii", "Temp Min", "Temp Maks",
+        "Vlazh Min", "Vlazh Maks", "VVOD", "PROPUSTIT", "5. Smena Parolya",
+        "Novyy Parol", "6. Kalibrovka Tachskrina", "Kalibrovka Tachskrina", "Kosnityes perekrestiya", "Kalibrovka Zavershena!",
+        "Netochnyye kasaniya! Povtorite.", "Podtverdite Parol", "Parol slishkom korotkiy! (min 4)", "Paroli ne sovpadayut!", "Parol sokhranyon!",
+        "PONYATNO", "Nastroyki Zvukov", "Kasanie Ekrana", "Podtverzhdenie", "Zvuk Oshibki",
+        "Zvuk Signalizacii", "Vykl. Vse Zvuki", "Sis. Gromk.", "Alarm Gromk.", "VKL",
+        "VYKL", "Veb Dostup", "Melodiya", "7. Licenziya", "Licenziya MIT",
+        "AKTIVNO", "Tishina 120s", "Otklyuchit", "Min/Maks", "Otklyucheno",
+        "%RH", "7. Chuvstvitelnost", "Chuvstvitelnost Kasaniya", "Kasanie %d/%d", "Kalibrovka Zavershena!",
+        "SREDNEE", "STD. OTKL.", "Oshibka", "Rezhim Nastroyki", "8. Sostoyanie Sistemy",
+        "Sostoyanie Sistemy"
     },
 
     {
-        "HUANJING", "Shezhi > Zhuyao", "Shezhi > Zhuti", "Shezhi > Yuyan",
-        "TUICHU", "YINGYONG", "QUXIAO", "Anquan Yanzheng", "FANGWEN BEISUODING",
-        "Xuyao Chongqi", "Changshi Chaoguo", "Qing Dengdai %ld Miao...",
-        "Mima Wuxiao!", "Jiazai Zhong...", "Duqu Lishi...", "Wu Shuju",
-        "ZUIDA", "ZUIXIAO", "Wendu", "Shidu", "SHENGCHENG TUBIAO",
-        "1. Shijue Zhuti", "2. Baojing Xianzhi", "3. Baojing Shengyin", "4. Xitong Yuyan",
-        "Yingyong Zhuti...", "BAOCUN", "Baojing Xianzhi", "Wen Min", "Wen Zui", "Shi Min", "Shi Zui", "QUEREN", "TIAOGUO", "5. Xiugai Mima", "Xin Mima",
-        "6. Chuping Jiaozhun", "Chuping Jiaozhun", "Qing Chumu Shizi", "Jiaozhun Wancheng!",
-        "Chumu Bu Jingque! Qing Chongshi.",
-        "Queren Mima", "Mima Tai Duan! (min 4)", "Mima Bu Yizhi!", "Mima Yi Baocun!", "MINGBAI",
-        "Shengyin Shezhi", "Chuping Chumu", "Queren Shengyin", "Cuowu Shengyin", "Baojing Shengyin",
-        "Jingyin Quanbu", "Xit. Yinliang", "Baoj. Yinliang", "KAI", "GUAN",
-        "Web Fangwen", "Xuanlv",
-        "7. Xuke Zheng", "MIT Xukezheng",
-        "QIYONG",
-        "Jingyin 120m", "Tingzhi", "Min/Max", "Yi Jingyin",
-        "%RH"
+        "HUANJING", "Shezhi > Zhuyao", "Shezhi > Zhuti", "Shezhi > Yuyan", "TUICHU",
+        "YINGYONG", "QUXIAO", "Anquan Yanzheng", "FANGWEN BEISUODING", "Xuyao Chongqi",
+        "Changshi Chaoguo", "Qing Dengdai %ld Miao...", "Mima Wuxiao!", "Jiazai Zhong...", "Duqu Lishi...",
+        "Wu Shuju", "ZUIDA", "ZUIXIAO", "Wendu", "Shidu",
+        "SHENGCHENG TUBIAO", "1. Shijue Zhuti", "2. Baojing Xianzhi", "3. Baojing Shengyin", "4. Xitong Yuyan",
+        "Yingyong Zhuti...", "BAOCUN", "Baojing Xianzhi", "Wen Min", "Wen Zui",
+        "Shi Min", "Shi Zui", "QUEREN", "TIAOGUO", "5. Xiugai Mima",
+        "Xin Mima", "6. Chuping Jiaozhun", "Chuping Jiaozhun", "Qing Chumu Shizi", "Jiaozhun Wancheng!",
+        "Chumu Bu Jingque! Qing Chongshi.", "Queren Mima", "Mima Tai Duan! (min 4)", "Mima Bu Yizhi!", "Mima Yi Baocun!",
+        "MINGBAI", "Shengyin Shezhi", "Chuping Chumu", "Queren Shengyin", "Cuowu Shengyin",
+        "Baojing Shengyin", "Jingyin Quanbu", "Xit. Yinliang", "Baoj. Yinliang", "KAI",
+        "GUAN", "Web Fangwen", "Xuanlv", "7. Xuke Zheng", "MIT Xukezheng",
+        "QIYONG", "Jingyin 120m", "Tingzhi", "Min/Max", "Yi Jingyin",
+        "%RH", "7. Chuping Lingmindu", "Chuping Lingmindu", "Dianji %d/%d", "Jiaozhun Wancheng!",
+        "PINGJUN", "BIAOZHUN", "Cuowu", "Peizhimoshi", "8. Xitong Zhuangtai",
+        "Xitong Zhuangtai"
     }
 };
+
+
 
 
 static const char LICENSE_EN[] =
@@ -688,9 +683,9 @@ const char* DisplayManager::tr(LangKey key) { return DICTIONARY[_currentLangIdx]
 /**
  * @brief Trunca um texto para caber em maxPixelW pixels na fonte atual do GFX.
  *
- * If the original text fits, it is copied entirely to out.
- * Otherwise, removes trailing characters and appends "..." de modo
- * the result fits within the maximum width. The font must already be set
+ * Se o texto original já cabe, é copiado integralmente para out.
+ * Caso contrário, remove caracteres do final e acrescenta "..." de modo
+ * que o resultado caiba na largura máxima. A fonte já deve estar setada
  * no contexto GFX antes da chamada.
  */
 void DisplayManager::truncateText(Adafruit_GFX* gfx, const char* src,
@@ -712,13 +707,13 @@ void DisplayManager::truncateText(Adafruit_GFX* gfx, const char* src,
         return;
     }
 
-    /* Measure ellipsis width */
+    /* Medir largura das reticências */
     uint16_t ellW, ellH;
     gfx->getTextBounds("...", 0, 0, &bx, &by, &ellW, &ellH);
     int16_t targetW = maxPixelW - (int16_t)ellW;
     if (targetW < 0) targetW = 0;
 
-    /* Binary search for maximum fitting length */
+    /* Busca binária do comprimento máximo que cabe */
     int srcLen = (int)strlen(src);
     int lo = 0, hi = srcLen;
     int best = 0;
@@ -742,7 +737,7 @@ void DisplayManager::truncateText(Adafruit_GFX* gfx, const char* src,
         }
     }
 
-    /* Remove trailing spaces before ellipsis */
+    /* Remove espaços finais antes das reticências */
     while (best > 0 && out[best - 1] == ' ') best--;
 
     /* Monta resultado final */
@@ -771,7 +766,8 @@ bool DisplayManager::isDisplayBusy() {
 
 bool DisplayManager::isHeavyRendering() {
     mutex_enter_blocking(&_stateMutex);
-    bool heavy = (_uiMode == MODE_GRAPH_LOADING || _uiMode == MODE_GRAPH_VIEW);
+    bool heavy = (_uiMode == MODE_GRAPH_LOADING || _uiMode == MODE_GRAPH_VIEW
+                  || _uiMode == MODE_GRAPH_DETAIL);
     mutex_exit(&_stateMutex);
     return heavy;
 }
@@ -803,7 +799,7 @@ void DisplayManager::pauseRendering(bool pause) {
 void DisplayManager::forceUnpause() {
     int32_t prev = __atomic_load_n(&_pauseRefCount, __ATOMIC_ACQUIRE);
     if (prev > 0) {
-        LOG_ERR("DSP", "forceUnpause: refCount was " + String(prev));
+        LOG_CODE(LOG_ERROR, "DSP", DSP_FORCE_UNPAUSE, prev, "forceUnpause: refCount=" + String(prev));
         __atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
         _pauseStartTime = 0;
         multicore_lockout_end_blocking();
@@ -832,8 +828,39 @@ void DisplayManager::showGraphPlot(const GraphDataPackage& data, float minHum, f
     mutex_enter_blocking(&_stateMutex);
     _graphData = data; _currentMinHum = minHum; _currentMaxHum = maxHum;
     _uiMode = MODE_GRAPH_VIEW;
+    _headerShowName = false;
+    _headerNameTimer = 0;
     __dmb();
     _repaintGraph = true;
+    mutex_exit(&_stateMutex);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*                        CALENDÁRIO DE HISTÓRICO                            */
+/* ─────────────────────────────────────────────────────────────────────────── */
+
+void DisplayManager::showCalendar(int year, int month, uint32_t daysMask) {
+    mutex_enter_blocking(&_stateMutex);
+    _calYear = year;
+    _calMonth = month;
+    _calDaysMask = daysMask;
+    _uiMode = MODE_CALENDAR;
+    __dmb();
+    _repaintCalendar = true;
+    mutex_exit(&_stateMutex);
+}
+
+void DisplayManager::setCalendarDays(uint32_t daysMask) {
+    mutex_enter_blocking(&_stateMutex);
+    _calDaysMask = daysMask;
+    _repaintCalendar = true;
+    mutex_exit(&_stateMutex);
+}
+
+void DisplayManager::setGraphNavOffset(int offset) {
+    mutex_enter_blocking(&_stateMutex);
+    _graphNavOffset = offset;
     mutex_exit(&_stateMutex);
 }
 
@@ -841,7 +868,7 @@ void DisplayManager::setBootStatus(String msg, bool showSkip) {
     mutex_enter_blocking(&_stateMutex);
     if (msg.length() > 0) {
         for (int i = 0; i < 4; i++) strcpy(_sharedState.bootLogs[i], _sharedState.bootLogs[i+1]);
-        strncpy(_sharedState.bootLogs[4], msg.c_str(), 39); _sharedState.bootLogs[4][39] = '\0';
+        safeCopy(_sharedState.bootLogs[4], msg.c_str(), sizeof(_sharedState.bootLogs[4]));
     }
     _sharedState.showSkipButton = showSkip; _sharedState.isBooting = true; _isDirty = true;
     mutex_exit(&_stateMutex);
@@ -850,7 +877,7 @@ void DisplayManager::setBootStatus(String msg, bool showSkip) {
 void DisplayManager::replaceBootStatus(String msg, bool showSkip) {
     mutex_enter_blocking(&_stateMutex);
     if (msg.length() > 0) {
-        strncpy(_sharedState.bootLogs[4], msg.c_str(), 39); _sharedState.bootLogs[4][39] = '\0';
+        safeCopy(_sharedState.bootLogs[4], msg.c_str(), sizeof(_sharedState.bootLogs[4]));
     }
     _sharedState.showSkipButton = showSkip; _sharedState.isBooting = true; _isDirty = true;
     mutex_exit(&_stateMutex);
@@ -885,9 +912,8 @@ bool DisplayManager::isScreenTouched() { return _rawTouchState; }
 void DisplayManager::setWebBusy(bool busy, const char* username) {
     mutex_enter_blocking(&_stateMutex);
     if (busy) {
-        if (username) strncpy(_webBusyUser, username, 23);
-        else strncpy(_webBusyUser, "web", 23);
-        _webBusyUser[23] = '\0';
+        if (username) safeCopy(_webBusyUser, username, sizeof(_webBusyUser));
+        else safeCopy(_webBusyUser, "web", sizeof(_webBusyUser));
         _webBusy = true;
     } else {
         _webBusy = false;
@@ -911,7 +937,7 @@ void DisplayManager::setAmbientMinMax(float minT, float maxT, float minH, float 
 void DisplayManager::setSlotData(float t, bool isValid, int slotIdx, String name) {
     mutex_enter_blocking(&_stateMutex);
     _sharedState.slotTemp = t; _sharedState.slotValid = isValid; _sharedState.selectedSlotIdx = slotIdx;
-    strncpy(_sharedState.slotName, name.c_str(), 31); _sharedState.slotName[31] = '\0'; _isDirty = true;
+    safeCopy(_sharedState.slotName, name.c_str(), sizeof(_sharedState.slotName)); _isDirty = true;
     mutex_exit(&_stateMutex);
 }
 
@@ -923,7 +949,7 @@ void DisplayManager::setSlotMinMax(float minT, float maxT) {
 void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
     mutex_enter_blocking(&_stateMutex);
     _sharedState.wifiRssi = rssi; _sharedState.btActive = bt;
-    strncpy(_sharedState.timeString, timeStr.c_str(), 23); _sharedState.timeString[23] = '\0'; _isDirty = true;
+    safeCopy(_sharedState.timeString, timeStr.c_str(), sizeof(_sharedState.timeString)); _isDirty = true;
     mutex_exit(&_stateMutex);
 }
 
@@ -975,11 +1001,10 @@ void DisplayManager::drawAlarmAction() {
     if (_alarmActionSlot < 0) {
         snprintf(headerBuf, sizeof(headerBuf), "! %s", tr(TR_AMBIENT));
     } else {
-        /* Use sensor friendly name (from sharedState) */
+        /* Usar nome amigável do sensor (do sharedState) */
         mutex_enter_blocking(&_stateMutex);
         char friendlyName[32];
-        strncpy(friendlyName, _sharedState.slotName, 31);
-        friendlyName[31] = '\0';
+        safeCopy(friendlyName, _sharedState.slotName, sizeof(friendlyName));
         mutex_exit(&_stateMutex);
         if (strlen(friendlyName) > 0) {
             snprintf(headerBuf, sizeof(headerBuf), "! %s", friendlyName);
@@ -1213,6 +1238,9 @@ void DisplayManager::loopCore1() {
         _lastHeartbeat = millis();
         _rawTouchState = _ts->touched();
 
+        /* Processa toque ANTES da renderização para resposta no mesmo frame */
+        handleTouch();
+
         if (_themeChanged) {
             SystemState snap;
             mutex_enter_blocking(&_stateMutex);
@@ -1228,7 +1256,7 @@ void DisplayManager::loopCore1() {
                 _tft->getTextBounds(msg, 0, 0, &x1, &y1, &w, &h);
                 _tft->setCursor(160 - (w/2), 127);
                 _tft->print(msg);
-                delay(400);
+                delay(200);
 
                 mutex_enter_blocking(&_stateMutex);
                 snap = _sharedState;
@@ -1342,6 +1370,21 @@ void DisplayManager::loopCore1() {
         else if (_uiMode == MODE_GRAPH_VIEW) {
             if (_repaintGraph) { drawGraphScreen(); _repaintGraph = false; }
         }
+        else if (_uiMode == MODE_GRAPH_DETAIL) {
+            if (_repaintGraph) { drawGraphDetailScreen(); _repaintGraph = false; }
+        }
+        else if (_uiMode == MODE_CALENDAR) {
+            if (_repaintCalendar) { drawCalendarScreen(); _repaintCalendar = false; }
+        }
+
+        /* ── Reverte header para data/hora após 3s de exibição do nome ── */
+        if ((_uiMode == MODE_GRAPH_VIEW || _uiMode == MODE_GRAPH_DETAIL)
+            && _headerShowName
+            && (millis() - _headerNameTimer >= 3000))
+        {
+            _headerShowName = false;
+            drawGraphHeaderBar();
+        }
         else if (_uiMode == MODE_SETTINGS_THEMES) {
             if (_repaintSettings) { drawSettingsThemes(); _repaintSettings = false; }
         }
@@ -1372,11 +1415,29 @@ void DisplayManager::loopCore1() {
         else if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
             if (_repaintSettings) { drawTouchCalibration(); _repaintSettings = false; }
         }
+        else if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
+            if (_repaintSettings) { drawTouchSensitivity(); _repaintSettings = false; }
+            /* Após 1.5s da conclusão, avança para calibração de posição */
+            if (_sensDone && (millis() - _sensDoneTime > 1500)) {
+                _uiMode = MODE_SETTINGS_TOUCH_CAL;
+                _calStep = 0;
+                _calPhase = 0;
+                _forceSettingsRedraw = true;
+                _repaintSettings = true;
+            }
+        }
         else if (_uiMode == MODE_SETTINGS_SOUNDS) {
 
             if (_repaintSettings) {
                 if (_inMelodySelect) drawMelodySelect();
                 else                 drawSettingsSounds();
+                _repaintSettings = false;
+            }
+        }
+        else if (_uiMode == MODE_SETTINGS_STATUS) {
+            /* Renderiza a cada 1 segundo ou quando forçado */
+            if (_repaintSettings || (millis() - _statusLastDraw >= 1000)) {
+                drawSystemStatus();
                 _repaintSettings = false;
             }
         }
@@ -1387,8 +1448,15 @@ void DisplayManager::loopCore1() {
 
             if (_repaintSettings) { drawAlarmAction(); _repaintSettings = false; }
         }
-        handleTouch();
-        delay(5);
+
+        /*
+         * Delay adaptativo: mínimo durante interação, maior quando ocioso.
+         * - Toque ativo ou repaint pendente: 1ms (máxima responsividade)
+         * - Idle: 5ms (economia de CPU para Core 0)
+         */
+        bool touchActive = _rawTouchState;
+        bool repaintPending = _isDirty || _repaintGraph || _repaintSettings || _repaintLoading;
+        delay(touchActive || repaintPending ? 1 : 2);
     }
 }
 
@@ -1413,7 +1481,7 @@ void DisplayManager::render(const SystemState& state) {
         if (state.apProgressPct >= 0) {
             if (fullRedraw) _tft->fillScreen(C_BG_MAIN);
             _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
-            _tft->setCursor(55, 120); _tft->print("Configuration Mode");
+            _tft->setCursor(55, 120); _tft->print(tr(TR_AP_MODE));
             _tft->drawRoundRect(40, 140, 240, 20, 6, C_TEXT_SUB);
             int wBar = map(state.apProgressPct, 0, 100, 0, 236);
             if (wBar > 0) {
@@ -1504,7 +1572,7 @@ void DisplayManager::render(const SystemState& state) {
         }
     }
 
-    /* Return panels to normal mode after 30s without touch */
+    /* Retornar painéis ao modo normal após 30s sem toque */
     if ((_ambientShowMinMax || _slotShowMinMax) &&
         (millis() - _lastTouchTime > 30000)) {
         if (_ambientShowMinMax) {
@@ -1530,7 +1598,7 @@ void DisplayManager::render(const SystemState& state) {
         drawSlotPanel(state.slotTemp, state.slotValid, state.selectedSlotIdx, state.slotName, (slotChanged || nameChanged));
     }
 
-    /* Detect alarm state change and redraw buttons + panels */
+    /* Detectar mudança de estado de alarme e redesenhar botões + painéis */
     if (_alarmSlotMask != _prevAlarmSlotMask ||
         _alarmAmbientTemp != _prevAlarmAmbTemp ||
         _alarmAmbientHum  != _prevAlarmAmbHum) {
@@ -1619,11 +1687,11 @@ void DisplayManager::drawTopBar(const SystemState& state) {
 
     if (!showingSilence && !showingNotify) {
         /*
-         * Date and time centered in the available area.
+         * Data e hora centralizadas na área disponível.
          * Formato: "dd/mm/yy - HH:MM"
          * O separador " - " fica fixo no centro; a data cresce para
          * a esquerda e a hora cresce para a direita, garantindo que
-         * prevents text from jumping when digits change.
+         * o texto não pule ao trocar dígitos.
          */
         _canvasWide->setTextSize(1);
         _canvasWide->setFont(&FreeSansBold9pt7b);
@@ -1671,7 +1739,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
 
     if (state.pendingPkts > 0 || _pktArrowState > 0) {
         /*
-         * NUMBER color: based on last send result.
+         * Cor do NÚMERO: baseada no último resultado de envio.
          *   estado 1 ou 3 → azul (sucesso / flash de sucesso)
          *   estado 2       → vermelho (falha)
          *   estado 0       → azul (idle, nunca enviou)
@@ -1679,7 +1747,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
         uint16_t numColor = (_pktArrowState == 2) ? C_TEMP_HOT : C_ACCENT_HIGH;
 
         /*
-         * ARROW color: same as number, except during flash (state 3)
+         * Cor da SETA: igual ao número, exceto durante flash (estado 3)
          * onde alterna azul/branco a cada 300ms por 1 segundo.
          */
         uint16_t arrowColor = numColor;
@@ -1708,30 +1776,30 @@ void DisplayManager::drawTopBar(const SystemState& state) {
             _canvasWide->getTextBounds(pktBuf, 0, 0, &tx1, &ty1, &tw, &th);
 
             /*
-             * Layout: [number][gapNum][arrow][gapWifi][wifi]
-             * Arrow: 12px. Gap between number and arrow: 4px.
+             * Layout: [número][gapNum][seta][gapWifi][wifi]
+             * Seta: 12px. Gap entre número e seta: 4px.
              * Gap entre seta e wifi: 3px.
-             * When the number is wide (>=3 digits), xIcon shifts back 1 character.
+             * Quando o número é largo (>=3 dígitos), o xIcon recua 1 caractere.
              */
             const int arrowTotalW = 12;
             const int gapToWifi   = 3;
             const int gapNumArrow = 4;
             int effectiveXIcon = xIcon;
-            if ((int)tw > 24) effectiveXIcon -= 8;  /* shift back for large numbers */
+            if ((int)tw > 24) effectiveXIcon -= 8;  /* recua para números grandes */
 
             int arrowRight = effectiveXIcon - gapToWifi;
             int arrowLeft  = arrowRight - arrowTotalW;
             int textX      = arrowLeft - gapNumArrow - (int)tw;
 
-            /* Number — fixed color based on status */
+            /* Número — cor fixa baseada no status */
             _canvasWide->setTextColor(numColor);
             _canvasWide->setCursor(textX, 20);
             _canvasWide->print(pktBuf);
 
             /*
              * Seta para a direita:
-             *   - Rectangular stem (6×3 px) at vertical center
-             *   - Triangular tip (6×8 px) on the right
+             *   - Haste retangular (6×3 px) no centro vertical
+             *   - Ponta triangular (6×8 px) à direita
              */
             int ay     = 13;
             int shaftX = arrowLeft;
@@ -1745,7 +1813,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
                                       tipX + tipW, ay,
                                       arrowColor);
 
-            /* Reposition wifi icon if necessary */
+            /* Reposicionar wifi se necessário */
             if ((int)tw > 24) xIcon = effectiveXIcon;
         }
     }
@@ -1782,7 +1850,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
     uint16_t cardBg = isRed ? RGB565(180, 30, 30) : C_CARD_BG;
 
     if (_ambientShowMinMax) {
-        /* Track mode transition (no prior clear — blits cover 100%) */
+        /* Rastrear transição de modo (sem limpeza prévia — blits cobrem 100%) */
         _ambientLastMinMax = true;
 
         /* =============================================================
@@ -1796,7 +1864,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
         uint16_t dropCol = isRed ? RGB565(220, 200, 200) : C_HUMIDITY;
         uint16_t humCol  = isRed ? RGB565(255, 255, 255) : C_HUMIDITY;
 
-        /* Dynamically calculated positions */
+        /* Posições calculadas dinamicamente */
         _canvasWide->setFont(&FreeSansBold9pt7b);
         uint16_t minLblW, maxLblW;
         _canvasWide->getTextBounds(tr(TR_MIN_LBL), 0, 0, &x1, &y1, &minLblW, &h_bound);
@@ -1811,13 +1879,13 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
         uint16_t sufW;
         _canvasWide->getTextBounds(tr(TR_HUM_SUFFIX), 0, 0, &x1, &y1, &sufW, &h_bound);
 
-        /* Fixed drop position: worst case "100" + 3px gap + sufixo, at 8px from button */
+        /* Posição fixa da gota: pior caso "100" + 3px gap + sufixo, a 8px do botão */
         uint16_t numMaxW;
         _canvasWide->getTextBounds("100", 0, 0, &x1, &y1, &numMaxW, &h_bound);
         int worstNumX = BTN_X - 8 - (int)sufW - 3 - (int)numMaxW;
         const int DROP_FIX = worstNumX - 6;
 
-        /* Blit 1: Title (20px) — with top corners + borders */
+        /* Blit 1: Título (20px) — com cantos superiores + bordas */
         {
             _canvasWide->fillScreen(cardBg);
             _canvasWide->setFont(&FreeSansBold9pt7b);
@@ -1831,25 +1899,25 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
             blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
         }
 
-        /* Blit 2: Min + Max together (43px) */
+        /* Blit 2: Mín + Máx juntas (43px) */
         {
             _canvasWide->fillScreen(cardBg);
 
-            /* ---- Min line (y=0..20) ---- */
+            /* ---- Linha Mín (y=0..20) ---- */
             {
                 _canvasWide->setFont(&FreeSansBold9pt7b);
                 _canvasWide->setTextColor(txtSub);
                 _canvasWide->setCursor(8, 15);
                 _canvasWide->print(tr(TR_MIN_LBL));
 
-                /* Improved mini thermometer (proportional to normal scale) */
+                /* Termômetro mini melhorado (escala proporcional do normal) */
                 int tx = THERM_X, ty = 0;
                 _canvasWide->fillCircle(tx + 4, ty + 15, 5, icCol);       /* base (contorno) */
                 _canvasWide->fillRoundRect(tx + 1, ty, 7, 14, 3, icCol);  /* haste (contorno) */
                 _canvasWide->fillRoundRect(tx + 2, ty + 1, 5, 12, 2, cardBg); /* haste (vazio) */
                 _canvasWide->fillCircle(tx + 4, ty + 15, 4, cardBg);      /* base (vazio) */
-                _canvasWide->fillRect(tx + 3, ty + 8, 3, 6, mercCol);     /* mercury (column) */
-                _canvasWide->fillCircle(tx + 4, ty + 15, 3, mercCol);     /* mercury (bulb) */
+                _canvasWide->fillRect(tx + 3, ty + 8, 3, 6, mercCol);     /* mercúrio (coluna) */
+                _canvasWide->fillCircle(tx + 4, ty + 15, 3, mercCol);     /* mercúrio (bolha) */
                 _canvasWide->fillCircle(tx + 4, ty + 2, 2, icCol);        /* topo arredondado */
 
                 uint16_t tCol = isRed ? RGB565(255, 255, 255) : C_TEMP_OK;
@@ -1884,7 +1952,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 else                   snprintf(hnum, sizeof(hnum), "%d", (int)_ambMinHum);
                 uint16_t hnW;
                 _canvasWide->getTextBounds(hnum, 0, 0, &x1, &y1, &hnW, &h_bound);
-                /* Position back-to-front: suffix ends at 8px from button */
+                /* Posicionar de trás para frente: sufixo termina a 8px do botão */
                 int sufX = BTN_X - 8 - (int)sufW;
                 int numX = sufX - 3 - (int)hnW;
                 _canvasWide->setTextColor(humCol);
@@ -1901,14 +1969,14 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 _canvasWide->drawPixel(DROP_FIX + 3, 8, shine);
             }
 
-            /* ---- Max line (y=22..42) ---- */
+            /* ---- Linha Máx (y=22..42) ---- */
             {
                 _canvasWide->setFont(&FreeSansBold9pt7b);
                 _canvasWide->setTextColor(txtSub);
                 _canvasWide->setCursor(8, 37);
                 _canvasWide->print(tr(TR_MAX_LBL));
 
-                /* Improved mini thermometer */
+                /* Termômetro mini melhorado */
                 int tx = THERM_X, ty = 22;
                 _canvasWide->fillCircle(tx + 4, ty + 15, 5, icCol);
                 _canvasWide->fillRoundRect(tx + 1, ty, 7, 14, 3, icCol);
@@ -1966,12 +2034,12 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 _canvasWide->drawPixel(DROP_FIX + 3, 30, shine);
             }
 
-            /* Graph button — full height of both lines */
+            /* Botão de gráfico — altura total das duas linhas */
             _canvasWide->fillRoundRect(BTN_X, 1, BTN_W, 42, 8, C_ACCENT);
             {
                 int cx = BTN_X + BTN_W / 2;
                 int cy = 22;
-                /* Rounded graph bars */
+                /* Barras arredondadas do gráfico */
                 _canvasWide->fillRoundRect(cx - 11, cy,     4, 8, 1, C_BG_MAIN);
                 _canvasWide->fillRoundRect(cx - 5,  cy - 6, 4, 14, 1, C_BG_MAIN);
                 _canvasWide->fillRoundRect(cx + 1,  cy - 3, 4, 11, 1, C_BG_MAIN);
@@ -1983,7 +2051,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                                           cx + 17, cy, C_BG_MAIN);
             }
 
-            /* Side borders (middle strip, no corners) */
+            /* Bordas laterais (strip intermediária, sem cantos) */
             {
                 uint16_t* buf = _canvasWide->getBuffer();
                 int stride = _canvasWide->width();
@@ -2005,16 +2073,16 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
         }
 
     } else {
-        /* Track mode transition */
+        /* Rastrear transição de modo */
         _ambientLastMinMax = false;
 
         /* =============================================================
-         * NORMAL MODE — layout with large icons
+         * MODO NORMAL — layout com ícones grandes
          * ============================================================= */
         uint16_t leftBg  = leftRed  ? RGB565(180, 30, 30) : C_CARD_BG;
         uint16_t rightBg = rightRed ? RGB565(180, 30, 30) : C_CARD_BG;
 
-        /* Strip 1: Centered name (20px) — same position as min/max */
+        /* Strip 1: Nome centralizado (20px) — mesma posição do min/max */
         {
             _canvasWide->fillRect(0, 0, 160, 20, leftBg);
             _canvasWide->fillRect(160, 0, 160, 20, rightBg);
@@ -2030,7 +2098,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
             blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
         }
 
-        /* Strip 2: Gap to center content (8px) */
+        /* Strip 2: Gap para centralizar conteúdo (8px) */
         {
             _canvasWide->fillRect(0, 0, 160, 8, leftBg);
             _canvasWide->fillRect(160, 0, 160, 8, rightBg);
@@ -2055,7 +2123,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 _canvasWide->setTextSize(1);
                 _canvasWide->setTextColor(leftRed ? RGB565(255,255,255) : C_TEMP_HOT);
                 _canvasWide->setCursor(25, 28);
-                _canvasWide->print("Error");
+                _canvasWide->print(tr(TR_ERROR_LBL));
             } else {
                 _canvasWide->setFont(&FreeSansBold24pt7b);
                 _canvasWide->setTextSize(1);
@@ -2102,7 +2170,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 _canvasWide->setFont(&FreeSansBold12pt7b);
                 _canvasWide->setCursor(unitX + 8, 35);
                 _canvasWide->print("C");
-                /* Thermometer icon — rendered last */
+                /* Ícone de termômetro — por último */
                 {
                     uint16_t ic   = leftRed ? RGB565(220, 200, 200) : C_TEXT_SUB;
                     uint16_t merc = leftRed ? RGB565(255, 255, 255) : C_TEMP_HOT;
@@ -2123,7 +2191,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 _canvasWide->setTextSize(1);
                 _canvasWide->setTextColor(rightRed ? RGB565(255,255,255) : C_TEMP_HOT);
                 _canvasWide->setCursor(185, 28);
-                _canvasWide->print("Error");
+                _canvasWide->print(tr(TR_ERROR_LBL));
             } else {
                 _canvasWide->setFont(&FreeSansBold12pt7b);
                 int16_t px1, py1; uint16_t pctW, pctH;
@@ -2145,7 +2213,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 _canvasWide->setTextColor(pctCol);
                 _canvasWide->setCursor(pctX, 34);
                 _canvasWide->print(tr(TR_HUM_SUFFIX));
-                /* Drop icon */
+                /* Ícone de gota */
                 {
                     int dropRight = humAnchor - (int)w - 6;
                     int ix = dropRight - 14;
@@ -2198,12 +2266,12 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
     uint16_t borderColor = slotAlarm ? RGB565(255, 60, 60) : C_ACCENT_HIGH;
 
     if (_slotShowMinMax) {
-        /* Track mode transition */
+        /* Rastrear transição de modo */
         _slotLastMinMax = true;
 
         /* =============================================================
          * MODO MIN/MAX — 3 blits com moldura incorporada
-         * Slot has no humidity.
+         * Slot não tem umidade.
          * ============================================================= */
 
         uint16_t txtSub  = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_MAIN;
@@ -2242,18 +2310,18 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
             blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
         }
 
-        /* Blit 2: Min + Max together (43px) */
+        /* Blit 2: Mín + Máx juntas (43px) */
         {
             _canvasWide->fillScreen(panelBg);
 
-            /* ---- Min line (y=0..20) ---- */
+            /* ---- Linha Mín (y=0..20) ---- */
             {
                 _canvasWide->setFont(&FreeSansBold9pt7b);
                 _canvasWide->setTextColor(txtSub);
                 _canvasWide->setCursor(8, 15);
                 _canvasWide->print(tr(TR_MIN_LBL));
 
-                /* Improved mini thermometer */
+                /* Termômetro mini melhorado */
                 int tx = THERM_X, ty = 0;
                 _canvasWide->fillCircle(tx + 4, ty + 15, 5, icCol);
                 _canvasWide->fillRoundRect(tx + 1, ty, 7, 14, 3, icCol);
@@ -2290,14 +2358,14 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
                 _canvasWide->setCursor(endT + 6, 15); _canvasWide->print("C");
             }
 
-            /* ---- Max line (y=22..42) ---- */
+            /* ---- Linha Máx (y=22..42) ---- */
             {
                 _canvasWide->setFont(&FreeSansBold9pt7b);
                 _canvasWide->setTextColor(txtSub);
                 _canvasWide->setCursor(8, 37);
                 _canvasWide->print(tr(TR_MAX_LBL));
 
-                /* Improved mini thermometer */
+                /* Termômetro mini melhorado */
                 int tx = THERM_X, ty = 22;
                 _canvasWide->fillCircle(tx + 4, ty + 15, 5, icCol);
                 _canvasWide->fillRoundRect(tx + 1, ty, 7, 14, 3, icCol);
@@ -2334,12 +2402,12 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
                 _canvasWide->setCursor(endT + 6, 37); _canvasWide->print("C");
             }
 
-            /* Graph button */
+            /* Botão de gráfico */
             _canvasWide->fillRoundRect(BTN_X, 1, BTN_W, 42, 8, C_ACCENT);
             {
                 int cx = BTN_X + BTN_W / 2;
                 int cy = 22;
-                /* Rounded graph bars */
+                /* Barras arredondadas do gráfico */
                 _canvasWide->fillRoundRect(cx - 11, cy,     4, 8, 1, C_BG_MAIN);
                 _canvasWide->fillRoundRect(cx - 5,  cy - 6, 4, 14, 1, C_BG_MAIN);
                 _canvasWide->fillRoundRect(cx + 1,  cy - 3, 4, 11, 1, C_BG_MAIN);
@@ -2351,7 +2419,7 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
                                           cx + 17, cy, C_BG_MAIN);
             }
 
-            /* Side borders (middle strip, no corners) */
+            /* Bordas laterais (strip intermediária, sem cantos) */
             {
                 uint16_t* buf = _canvasWide->getBuffer();
                 int stride = _canvasWide->width();
@@ -2373,12 +2441,12 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
         }
 
     } else {
-        /* Force name redraw on min/max → normal transition */
+        /* Forçar redraw do nome na transição min/max → normal */
         if (_slotLastMinMax) forceNameRedraw = true;
         _slotLastMinMax = false;
 
         /* =============================================================
-         * NORMAL MODE — centered temperature with large icon
+         * MODO NORMAL — temperatura centralizada com ícone grande
          * ============================================================= */
 
         if (forceNameRedraw) {
@@ -2399,7 +2467,7 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
             blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
         }
 
-        /* Gap strip to center content (8px) */
+        /* Strip de gap para centralizar conteúdo (8px) */
         {
             _canvasWide->fillScreen(panelBg);
             uint16_t* buf = _canvasWide->getBuffer();
@@ -2417,9 +2485,9 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
             _canvasWide->setFont(&FreeSansBold12pt7b); _canvasWide->setTextSize(1);
             _canvasWide->setTextColor(isRedPhase ? RGB565(255,255,255) : C_TEMP_HOT);
             int16_t ex1, ey1; uint16_t ew, eh;
-            _canvasWide->getTextBounds("Error", 0, 0, &ex1, &ey1, &ew, &eh);
+            _canvasWide->getTextBounds(tr(TR_ERROR_LBL), 0, 0, &ex1, &ey1, &ew, &eh);
             _canvasWide->setCursor((CARD_W - (int)ew) / 2, 28);
-            _canvasWide->print("Error");
+            _canvasWide->print(tr(TR_ERROR_LBL));
         } else {
             const int iconW     = 20;
             const int iconGap   = 8;
@@ -2488,7 +2556,7 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
             _canvasWide->setFont(&FreeSansBold12pt7b);
             _canvasWide->setCursor(unitX + 8, 35); _canvasWide->print("C");
 
-            /* Thermometer icon — rendered last */
+            /* Ícone de termômetro — por último */
             {
                 uint16_t ic   = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_SUB;
                 uint16_t merc = isRedPhase ? RGB565(255, 255, 255) : C_TEMP_HOT;
@@ -2640,33 +2708,435 @@ void DisplayManager::requestLoadingScreen() {
 
 void DisplayManager::drawPeriodButtons() {
     if (!_canvasWide) return;
+
+    /*
+     * Layout: 5 botões com ícones pixel-art (60×40 cada, gap=4)
+     *   [◀ Past] [▶ Future] [📅 Cal] [🔍+ ZoomIn] [🔍- ZoomOut]
+     * Total: 5×60 + 4×4 = 316px, startX=2.
+     */
+    const int btnW = 60, btnH = 40, btnR = 12, gap = 4, startX = 2;
     const char* ranges[] = {"1H", "6H", "12H", "24H", "7D"};
-    int btnW = 58, btnH = 40, gap = 5, startX = 5;
 
-    _canvasWide->fillScreen(C_BG_MAIN);
+    bool canFwd     = (_graphNavOffset < 0);
+    bool canZoomIn  = (_graphData.timeRange > 0);   /* 0=1H é max zoom   */
+    bool canZoomOut = (_graphData.timeRange < 4);   /* 4=7D é min zoom   */
 
-    for (int i = 0; i < 5; i++) {
-        int x = startX + (i * (btnW + gap));
-        bool active = (i == _graphData.timeRange);
-        uint16_t bg  = active ? C_ACCENT : C_CARD_BG;
-        uint16_t txt = active ? C_BG_MAIN : C_TEXT_SUB;
+    GFXcanvas16* cv = _canvasWide;
+    cv->fillScreen(C_BG_MAIN);
 
-        _canvasWide->fillRoundRect(x, 0, btnW, btnH, 12, bg);
-        if (!active) _canvasWide->drawRoundRect(x, 0, btnW, btnH, 12, C_TEXT_SUB);
+    /* Helper: desenha fundo do botão e retorna X */
+    auto btnBase = [&](int idx, bool enabled) -> int {
+        int x = startX + idx * (btnW + gap);
+        uint16_t bg = enabled ? C_CARD_BG : C_BG_MAIN;
+        cv->fillRoundRect(x, 0, btnW, btnH, btnR, bg);
+        if (!enabled) cv->drawRoundRect(x, 0, btnW, btnH, btnR, C_TEXT_OFF);
+        return x;
+    };
 
-        _canvasWide->setFont(&FreeSansBold12pt7b);
-        _canvasWide->setTextSize(1);
-        _canvasWide->setTextColor(txt);
-        int16_t tx1, ty1; uint16_t tw, th;
-        _canvasWide->getTextBounds(ranges[i], 0, 0, &tx1, &ty1, &tw, &th);
-        /* Precise horizontal and vertical centering */
-        int curX = x + (btnW - tw) / 2 - tx1;
-        int curY = (btnH - th) / 2 - ty1;
-        _canvasWide->setCursor(curX, curY);
-        _canvasWide->print(ranges[i]);
+    int cx, cy;
+
+    /* ════ 0: Passado (◀◀) ════ */
+    {
+        int x = btnBase(0, true);
+        cx = x + btnW / 2; cy = btnH / 2;
+        uint16_t ic = C_ACCENT_HIGH;
+
+        /* Chevron duplo esquerdo */
+        cv->drawLine(cx + 2, cy - 7, cx - 5, cy, ic);
+        cv->drawLine(cx - 5, cy, cx + 2, cy + 7, ic);
+        cv->drawLine(cx + 3, cy - 7, cx - 4, cy, ic);
+        cv->drawLine(cx - 4, cy, cx + 3, cy + 7, ic);
+
+        cv->drawLine(cx + 8, cy - 7, cx + 1, cy, ic);
+        cv->drawLine(cx + 1, cy, cx + 8, cy + 7, ic);
+        cv->drawLine(cx + 9, cy - 7, cx + 2, cy, ic);
+        cv->drawLine(cx + 2, cy, cx + 9, cy + 7, ic);
+    }
+
+    /* ════ 1: Futuro (▶▶) ════ */
+    {
+        int x = btnBase(1, canFwd);
+        cx = x + btnW / 2; cy = btnH / 2;
+        uint16_t ic = canFwd ? C_ACCENT_HIGH : C_TEXT_OFF;
+
+        /* Chevron duplo direito */
+        cv->drawLine(cx - 8, cy - 7, cx - 1, cy, ic);
+        cv->drawLine(cx - 1, cy, cx - 8, cy + 7, ic);
+        cv->drawLine(cx - 9, cy - 7, cx - 2, cy, ic);
+        cv->drawLine(cx - 2, cy, cx - 9, cy + 7, ic);
+
+        cv->drawLine(cx - 2, cy - 7, cx + 5, cy, ic);
+        cv->drawLine(cx + 5, cy, cx - 2, cy + 7, ic);
+        cv->drawLine(cx - 3, cy - 7, cx + 4, cy, ic);
+        cv->drawLine(cx + 4, cy, cx - 3, cy + 7, ic);
+    }
+
+    /* ════ 2: Calendário (📅) ════ */
+    {
+        int x = btnBase(2, true);
+        cx = x + btnW / 2; cy = btnH / 2;
+        uint16_t ic = C_ACCENT;
+        int gx = cx - 8, gy = cy - 8;
+
+        /* Corpo do calendário 16×16 */
+        cv->drawRoundRect(gx, gy + 2, 16, 14, 2, ic);
+
+        /* Barra de título preenchida */
+        cv->fillRect(gx + 1, gy + 3, 14, 4, ic);
+
+        /* Alças superiores */
+        cv->drawFastVLine(gx + 4,  gy, 4, ic);
+        cv->drawFastVLine(gx + 11, gy, 4, ic);
+
+        /* Grade interna: 3 colunas × 2 linhas de pontos */
+        for (int r = 0; r < 2; r++) {
+            for (int c = 0; c < 3; c++) {
+                cv->fillRect(gx + 2 + c * 5, gy + 9 + r * 4, 3, 2, ic);
+            }
+        }
+    }
+
+    /* ════ 3: Zoom In (🔍+) ════ */
+    {
+        int x = btnBase(3, canZoomIn);
+        cx = x + btnW / 2; cy = btnH / 2;
+        uint16_t ic = canZoomIn ? C_TEMP_OK : C_TEXT_OFF;
+
+        /* Lupa */
+        int lx = cx - 3, ly = cy - 3, lr = 8;
+        cv->drawCircle(lx, ly, lr, ic);
+        cv->drawCircle(lx, ly, lr - 1, ic);
+
+        /* Haste diagonal */
+        cv->drawLine(lx + 6, ly + 5, lx + 11, ly + 10, ic);
+        cv->drawLine(lx + 5, ly + 6, lx + 10, ly + 11, ic);
+
+        /* Símbolo + */
+        cv->drawFastHLine(lx - 4, ly, 9, ic);
+        cv->drawFastVLine(lx, ly - 4, 9, ic);
+
+        /* Label do próximo range (zoom in = range-1) */
+        if (canZoomIn) {
+            cv->setFont(NULL); cv->setTextSize(1);
+            cv->setTextColor(ic);
+            const char* lbl = ranges[_graphData.timeRange - 1];
+            int lblW = strlen(lbl) * 6;  /* NULL font: 6px/char */
+            cv->setCursor(x + (btnW - lblW) / 2, btnH - 9);
+            cv->print(lbl);
+        }
+    }
+
+    /* ════ 4: Zoom Out (🔍−) ════ */
+    {
+        int x = btnBase(4, canZoomOut);
+        cx = x + btnW / 2; cy = btnH / 2;
+        uint16_t ic = canZoomOut ? C_TEMP_WARM : C_TEXT_OFF;
+
+        /* Lupa (mesmo formato) */
+        int lx = cx - 3, ly = cy - 3, lr = 8;
+        cv->drawCircle(lx, ly, lr, ic);
+        cv->drawCircle(lx, ly, lr - 1, ic);
+
+        /* Haste */
+        cv->drawLine(lx + 6, ly + 5, lx + 11, ly + 10, ic);
+        cv->drawLine(lx + 5, ly + 6, lx + 10, ly + 11, ic);
+
+        /* Símbolo − */
+        cv->drawFastHLine(lx - 4, ly, 9, ic);
+
+        /* Label do próximo range (zoom out = range+1) */
+        if (canZoomOut) {
+            cv->setFont(NULL); cv->setTextSize(1);
+            cv->setTextColor(ic);
+            const char* lbl = ranges[_graphData.timeRange + 1];
+            int lblW = strlen(lbl) * 6;
+            cv->setCursor(x + (btnW - lblW) / 2, btnH - 9);
+            cv->print(lbl);
+        }
     }
 
     blitCanvas(_canvasWide, 0, 195, 320, btnH);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*                   HEADER DO GRÁFICO (alternância nome/data)               */
+/* ─────────────────────────────────────────────────────────────────────────── */
+/**
+ * @brief  Desenha apenas a barra superior (28px) do gráfico.
+ *
+ * Alterna a cada 3 segundos entre:
+ *   - Nome do sensor (ex: "Ambiente")
+ *   - Intervalo de datas/horas do gráfico (ex: "06/04 14:00 - 15:00")
+ *
+ * Chamada pelo strip rendering no sTop==0 e pelo timer periódico no Core 1.
+ * Blita diretamente em y=0, sem repintar o corpo do gráfico.
+ */
+void DisplayManager::drawGraphHeaderBar() {
+    if (!_canvasWide) return;
+
+    GFXcanvas16* cv = _canvasWide;
+    cv->fillRect(0, 0, 320, 28, C_CARD_BG);
+    cv->setFont(&FreeSansBold9pt7b);
+
+    /* ── Pill do range atual no canto esquerdo ── */
+    int contentStartX = 4;
+    {
+        const char* ranges[] = {"1H", "6H", "12H", "24H", "7D"};
+        const char* rLabel = ranges[_graphData.timeRange];
+        int16_t rx, ry; uint16_t rw, rh;
+        cv->getTextBounds(rLabel, 0, 0, &rx, &ry, &rw, &rh);
+        int pillW = rw + 12;
+        cv->fillRoundRect(4, 4, pillW, 20, 8, C_ACCENT);
+        cv->setTextColor(C_BG_MAIN);
+        cv->setCursor(10 - rx, 19);
+        cv->print(rLabel);
+        contentStartX = 4 + pillW + 4;  /* Espaço após o pill */
+    }
+
+    /* Área útil para texto central: contentStartX .. 280 */
+    int centerZone = 280 - contentStartX;
+
+    if (_headerShowName) {
+        /* ── Toque no header: nome do sensor por 3 segundos ── */
+        cv->setTextColor(C_TEXT_MAIN);
+        int16_t bx, by; uint16_t bw, bh;
+        cv->getTextBounds(_graphData.title, 0, 0, &bx, &by, &bw, &bh);
+        int tx = contentStartX + (centerZone - (int)bw) / 2 - bx;
+        if (tx < contentStartX) tx = contentStartX;
+        cv->setCursor(tx, 20);
+        cv->print(_graphData.title);
+    } else if (_graphData.tsCutoff > 0 && _graphData.tsEnd > 0) {
+        /*
+         * Intervalo de datas centralizado.
+         * Mostra a janela temporal completa (tsCutoff..tsEnd),
+         * não apenas o range dos dados disponíveis.
+         */
+        char dateBuf[32];
+        struct tm tmFirst, tmLast;
+        localtime_r(&_graphData.tsCutoff, &tmFirst);
+        localtime_r(&_graphData.tsEnd,    &tmLast);
+
+        bool sameDay = (tmFirst.tm_mday == tmLast.tm_mday
+                     && tmFirst.tm_mon  == tmLast.tm_mon);
+
+        if (sameDay) {
+            snprintf(dateBuf, sizeof(dateBuf), "%02d/%02d  %02d:%02d - %02d:%02d",
+                     tmFirst.tm_mday, tmFirst.tm_mon + 1,
+                     tmFirst.tm_hour, tmFirst.tm_min,
+                     tmLast.tm_hour,  tmLast.tm_min);
+        } else {
+            snprintf(dateBuf, sizeof(dateBuf), "%02d/%02d %02d:%02d - %02d/%02d %02d:%02d",
+                     tmFirst.tm_mday, tmFirst.tm_mon + 1,
+                     tmFirst.tm_hour, tmFirst.tm_min,
+                     tmLast.tm_mday,  tmLast.tm_mon + 1,
+                     tmLast.tm_hour,  tmLast.tm_min);
+        }
+
+        uint16_t dateColor = (_graphData.count >= 2) ? C_ACCENT_HIGH : C_TEXT_SUB;
+        cv->setTextColor(dateColor);
+        int16_t bx, by; uint16_t bw, bh;
+        cv->getTextBounds(dateBuf, 0, 0, &bx, &by, &bw, &bh);
+        int tx = contentStartX + (centerZone - (int)bw) / 2 - bx;
+        if (tx < contentStartX) tx = contentStartX;
+        cv->setCursor(tx, 20);
+        cv->print(dateBuf);
+    } else {
+        /* Sem dados e sem timestamps de referência */
+        cv->setTextColor(C_TEXT_SUB);
+        cv->setCursor(contentStartX, 20);
+        cv->print(_graphData.title);
+    }
+
+    /* Botão X (fechar) — sempre presente */
+    cv->fillRoundRect(284, 2, 32, 24, 6, C_TEMP_WARM);
+    cv->setFont(&FreeSansBold9pt7b);
+    cv->setTextColor(C_BG_MAIN);
+    cv->setCursor(293, 19);
+    cv->print("X");
+
+    blitCanvas(cv, 0, 0, 320, 28);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────── */
+/*                     TELA DE CALENDÁRIO DE HISTÓRICO                       */
+/* ─────────────────────────────────────────────────────────────────────────── */
+/**
+ * @brief  Desenha o calendário mensal com indicadores de dias com dados.
+ *
+ * Layout (320×240):
+ *   Header (0..27):  [◀ Mês]  "Abr 2026"  [Mês ▶]
+ *   Grid (28..194):  Cabeçalho D S T Q Q S S + grade 6×7
+ *   Bottom (195..239): [◀ Mês] [Hoje] [Mês ▶]
+ *
+ * Dias com dados recebem bolinha azul (C_ACCENT).
+ * Dia atual destacado com fundo semitransparente.
+ * Toque num dia com dados envia EVT_CALENDAR_DAY.
+ */
+void DisplayManager::drawCalendarScreen() {
+    if (!_canvasWide) return;
+
+    const char* monthNames[] = {
+        "Jan","Fev","Mar","Abr","Mai","Jun",
+        "Jul","Ago","Set","Out","Nov","Dez"
+    };
+    const char* dowHeaders[] = {"D","S","T","Q","Q","S","S"};
+
+    /* Calcula primeiro dia da semana e total de dias */
+    struct tm firstTm = {};
+    firstTm.tm_year = _calYear - 1900;
+    firstTm.tm_mon  = _calMonth - 1;
+    firstTm.tm_mday = 1;
+    mktime(&firstTm);
+    int firstDow = firstTm.tm_wday;  /* 0 = Domingo */
+
+    /* Dias no mês */
+    struct tm lastTm = {};
+    lastTm.tm_year = _calYear - 1900;
+    lastTm.tm_mon  = _calMonth;  /* mês seguinte */
+    lastTm.tm_mday = 0;          /* dia 0 do mês seguinte = último do atual */
+    mktime(&lastTm);
+    int daysInMonth = lastTm.tm_mday;
+
+    /* Dia de hoje (para highlight) */
+    time_t now = time(nullptr);
+    struct tm nowTm;
+    localtime_r(&now, &nowTm);
+    int todayDay = (nowTm.tm_year + 1900 == _calYear &&
+                    nowTm.tm_mon + 1 == _calMonth) ? nowTm.tm_mday : -1;
+
+    /* ═══ STRIP RENDERING ═══ */
+    GFXcanvas16* cv = _canvasWide;
+    const int sH = 45;
+
+    for (int s = 0; s * sH < 195; s++) {
+        int sTop = s * sH;
+        int h = sH;
+        if (sTop + h > 195) h = 195 - sTop;
+
+        cv->fillScreen(C_BG_MAIN);
+
+        /* ── Header (y=0..27) ── */
+        if (sTop == 0) {
+            cv->fillRect(0, 0, 320, 28, C_CARD_BG);
+
+            /* Botão ◀ mês */
+            cv->setFont(&FreeSansBold12pt7b);
+            cv->setTextColor(C_ACCENT_HIGH);
+            cv->setCursor(8, 22);
+            cv->print("<");
+
+            /* Título "Abr 2026" */
+            char titleBuf[16];
+            snprintf(titleBuf, sizeof(titleBuf), "%s %d",
+                     monthNames[_calMonth - 1], _calYear);
+            cv->setFont(&FreeSansBold9pt7b);
+            cv->setTextColor(C_TEXT_MAIN);
+            int16_t bx, by; uint16_t bw, bh;
+            cv->getTextBounds(titleBuf, 0, 0, &bx, &by, &bw, &bh);
+            cv->setCursor(160 - bw / 2 - bx, 20);
+            cv->print(titleBuf);
+
+            /* Botão ▶ mês */
+            cv->setFont(&FreeSansBold12pt7b);
+            cv->setTextColor(C_ACCENT_HIGH);
+            cv->setCursor(298, 22);
+            cv->print(">");
+
+            /* Botão X (voltar ao gráfico) */
+            cv->fillRoundRect(270, 2, 24, 24, 6, C_TEMP_WARM);
+            cv->setFont(&FreeSansBold9pt7b);
+            cv->setTextColor(C_BG_MAIN);
+            cv->setCursor(277, 19);
+            cv->print("X");
+        }
+
+        /* ── Cabeçalho dos dias da semana (y=30..42) ── */
+        if (sTop <= 30 && sTop + h > 30) {
+            int ry = 34 - sTop;
+            cv->setFont(NULL);
+            cv->setTextSize(1);
+            cv->setTextColor(C_TEXT_OFF);
+            for (int d = 0; d < 7; d++) {
+                cv->setCursor(10 + d * 44, ry);
+                cv->print(dowHeaders[d]);
+            }
+        }
+
+        /* ── Grade de dias (y=44..190) ── */
+        const int gridStartY = 46;
+        const int cellW = 44, cellH = 24;
+
+        for (int cell = 0; cell < 42; cell++) {
+            int dayNum = cell - firstDow + 1;
+            if (dayNum < 1 || dayNum > daysInMonth) continue;
+
+            int row = cell / 7;
+            int col = cell % 7;
+            int cx = 10 + col * cellW + cellW / 2;
+            int cy = gridStartY + row * cellH + cellH / 2;
+
+            /* Verifica se este dia está na strip atual */
+            if (cy - 8 >= sTop + h || cy + 12 < sTop) continue;
+
+            int ry = cy - sTop;  /* Coordenada relativa ao canvas */
+
+            bool hasData = (_calDaysMask & (1UL << dayNum)) != 0;
+            bool isToday = (dayNum == todayDay);
+
+            /* Highlight de hoje */
+            if (isToday) {
+                cv->fillRoundRect(cx - 16, ry - 9, 32, 20, 5, C_ACCENT);
+                cv->setTextColor(C_BG_MAIN);
+            } else {
+                cv->setTextColor(hasData ? C_TEXT_MAIN : C_TEXT_OFF);
+            }
+
+            /* Número do dia */
+            cv->setFont(&FreeSansBold9pt7b);
+            cv->setTextSize(1);
+            char dayStr[4];
+            snprintf(dayStr, sizeof(dayStr), "%d", dayNum);
+            int16_t bx, by; uint16_t bw, bh;
+            cv->getTextBounds(dayStr, 0, 0, &bx, &by, &bw, &bh);
+            cv->setCursor(cx - bw / 2 - bx, ry + bh / 2 - by - bh);
+            cv->print(dayStr);
+
+            /* Bolinha de indicador de dados */
+            if (hasData && !isToday) {
+                cv->fillCircle(cx, ry + 10, 2, C_ACCENT);
+            }
+        }
+
+        blitCanvas(cv, 0, sTop, 320, h);
+    }
+
+    /* ── Bottom bar: [◀ Mês] [Hoje] [Mês ▶] ── */
+    cv->fillScreen(C_BG_MAIN);
+
+    /* Botão ◀ Mês */
+    cv->fillRoundRect(5, 3, 98, 36, 10, C_CARD_BG);
+    cv->setFont(&FreeSansBold9pt7b);
+    cv->setTextColor(C_TEXT_SUB);
+    cv->setCursor(20, 26);
+    cv->print("< Mes");
+
+    /* Botão Hoje */
+    cv->fillRoundRect(108, 3, 104, 36, 10, C_ACCENT);
+    cv->setTextColor(C_BG_MAIN);
+    int16_t bx2, by2; uint16_t bw2, bh2;
+    cv->getTextBounds("Hoje", 0, 0, &bx2, &by2, &bw2, &bh2);
+    cv->setCursor(160 - bw2 / 2 - bx2, 26);
+    cv->print("Hoje");
+
+    /* Botão Mês ▶ */
+    cv->fillRoundRect(217, 3, 98, 36, 10, C_CARD_BG);
+    cv->setTextColor(C_TEXT_SUB);
+    cv->setCursor(237, 26);
+    cv->print("Mes >");
+
+    blitCanvas(cv, 0, 195, 320, 45);
 }
 
 void DisplayManager::drawGraphIcon(int16_t x, int16_t y, uint16_t color) {
@@ -2677,19 +3147,32 @@ void DisplayManager::drawGraphIcon(int16_t x, int16_t y, uint16_t color) {
 }
 
 void DisplayManager::drawStatsScreen() {
-    _tft->fillScreen(C_BG_MAIN);
     int16_t x1, y1; uint16_t w, h_bound;
 
+    /* Header via canvas — aparece instantâneo */
+    if (_canvasWide) {
+        GFXcanvas16* cv = _canvasWide;
+        cv->fillScreen(C_BG_MAIN);
+        cv->fillRect(0, 0, 320, 32, C_CARD_BG);
+        cv->setFont(&FreeSansBold9pt7b); cv->setTextColor(C_TEXT_MAIN);
+        cv->setCursor(14, 23); cv->print(_graphData.title);
+        cv->fillRoundRect(280, 4, 36, 24, 6, C_TEMP_WARM);
+        cv->setFont(&FreeSansBold9pt7b); cv->setTextColor(C_BG_MAIN);
+        cv->getTextBounds("X", 0, 0, &x1, &y1, &w, &h_bound);
+        cv->setCursor(298 - w / 2, 23); cv->print("X");
+        blitCanvas(cv, 0, 0, 320, 45);
+    } else {
+        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
+        _tft->setCursor(14, 23); _tft->print(_graphData.title);
+        _tft->fillRoundRect(280, 4, 36, 24, 6, C_TEMP_WARM);
+        _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_BG_MAIN);
+        _tft->getTextBounds("X", 0, 0, &x1, &y1, &w, &h_bound);
+        _tft->setCursor(298 - w / 2, 23); _tft->print("X");
+    }
 
-    _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
-    _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
-    _tft->setCursor(14, 23); _tft->print(_graphData.title);
-
-
-    _tft->fillRoundRect(280, 4, 36, 24, 6, C_TEMP_WARM);
-    _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_BG_MAIN);
-    _tft->getTextBounds("X", 0, 0, &x1, &y1, &w, &h_bound);
-    _tft->setCursor(298 - w / 2, 23); _tft->print("X");
+    /* Limpa zona abaixo do header/canvas (y=45..239) */
+    _tft->fillRect(0, 45, 320, 195, C_BG_MAIN);
 
 
     _tft->setFont(NULL); _tft->setTextSize(1); _tft->setTextColor(C_TEXT_SUB);
@@ -2755,7 +3238,7 @@ void DisplayManager::drawStatsScreen() {
         _tft->setCursor(leftX + (cardW - w) / 2, cardY + 18); _tft->print(tr(TR_MAX_LBL));
 
 
-        drawTemp(_graphData.maxVal, leftX + 68, cardY + 52, C_TEMP_HOT, false);
+        drawTemp(_graphData.realMaxVal, leftX + 68, cardY + 52, C_TEMP_HOT, false);
 
 
         _tft->fillCircle(leftX + 25, cardY + 74, 3, C_HUMIDITY);
@@ -2769,7 +3252,7 @@ void DisplayManager::drawStatsScreen() {
         _tft->getTextBounds(tr(TR_MIN_LBL), 0, 0, &x1, &y1, &w, &h_bound);
         _tft->setCursor(rightX + (cardW - w) / 2, cardY + 18); _tft->print(tr(TR_MIN_LBL));
 
-        drawTemp(_graphData.minVal, rightX + 68, cardY + 52, C_TEMP_OK, false);
+        drawTemp(_graphData.realMinVal, rightX + 68, cardY + 52, C_TEMP_OK, false);
 
         _tft->fillCircle(rightX + 25, cardY + 74, 3, C_HUMIDITY);
         drawHum(_currentMinHum, rightX + 80, cardY + 80, C_HUMIDITY);
@@ -2789,7 +3272,7 @@ void DisplayManager::drawStatsScreen() {
         _tft->getTextBounds(tr(TR_MAX_LBL), 0, 0, &x1, &y1, &w, &h_bound);
         _tft->setCursor(leftX + (cardW - w) / 2, cardY + 18); _tft->print(tr(TR_MAX_LBL));
 
-        drawTemp(_graphData.maxVal, leftX + 55, cardY + 68, C_TEMP_HOT, true);
+        drawTemp(_graphData.realMaxVal, leftX + 55, cardY + 68, C_TEMP_HOT, true);
 
 
         _tft->fillRoundRect(rightX, cardY, cardW, cardH, cardR, C_CARD_BG);
@@ -2799,7 +3282,7 @@ void DisplayManager::drawStatsScreen() {
         _tft->getTextBounds(tr(TR_MIN_LBL), 0, 0, &x1, &y1, &w, &h_bound);
         _tft->setCursor(rightX + (cardW - w) / 2, cardY + 18); _tft->print(tr(TR_MIN_LBL));
 
-        drawTemp(_graphData.minVal, rightX + 55, cardY + 68, C_TEMP_OK, true);
+        drawTemp(_graphData.realMinVal, rightX + 55, cardY + 68, C_TEMP_OK, true);
     }
 
 
@@ -2832,124 +3315,793 @@ void DisplayManager::drawStatsScreen() {
     _tft->print(btnTxt);
 }
 
-void DisplayManager::drawGraphScreen() {
-    _tft->fillScreen(C_BG_MAIN);
-    _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
-    _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
-    _tft->setCursor(10, 22); _tft->print(_graphData.title);
-    _tft->fillRoundRect(280, 4, 36, 24, 6, C_TEMP_WARM);
-    _tft->setCursor(291, 21); _tft->setTextColor(C_BG_MAIN); _tft->print("X");
 
-    _tft->setFont(NULL); _tft->setTextSize(1);
+/* =========================================================================== */
+/*               HELPERS PARA GRÁFICO MELHORADO                              */
+/* =========================================================================== */
 
-    if (_graphData.hasHumidity && !isnan(_currentMinHum)) {
-        _tft->fillCircle(14, 39, 3, C_TEMP_HOT);
-        _tft->setTextColor(C_TEMP_HOT); _tft->setCursor(20, 36);
-        _tft->print("Temp ");
-        _tft->setTextColor(C_TEXT_SUB); _tft->print(_graphData.minVal, 1);
-        _tft->print("~"); _tft->print(_graphData.maxVal, 1);
-        _tft->setTextColor(C_TEMP_HOT); _tft->print(" C");
+/**
+ * @brief Formata float com 1 casa decimal em buffer, sem usar snprintf %f.
+ *
+ * O snprintf com %f no newlib-nano (RP2040) consome ~400 bytes de stack
+ * internamente para conversão float→string, causando stack overflow no
+ * Core 1 que tem apenas ~2KB de stack.
+ * Esta função usa apenas aritmética inteira — zero consumo de stack extra.
+ *
+ * @param buf   Buffer de saída (mínimo 10 bytes).
+ * @param size  Tamanho do buffer.
+ * @param val   Valor float a formatar.
+ * @return      Ponteiro para buf (para encadear).
+ */
+static char* fmtFloat1(char* buf, size_t size, float val) {
+    if (isnan(val)) { snprintf(buf, size, "--.-"); return buf; }
+    int neg = (val < 0.0f);
+    if (neg) val = -val;
+    int intPart = (int)val;
+    int decPart = (int)((val - (float)intPart) * 10.0f + 0.5f);
+    if (decPart >= 10) { intPart++; decPart = 0; }
+    if (neg) snprintf(buf, size, "-%d.%d", intPart, decPart);
+    else     snprintf(buf, size, "%d.%d", intPart, decPart);
+    return buf;
+}
 
-        _tft->fillCircle(180, 39, 3, C_HUMIDITY);
-        _tft->setTextColor(C_HUMIDITY); _tft->setCursor(186, 36);
-        _tft->print("Umid ");
-        _tft->setTextColor(C_TEXT_SUB); _tft->print((int)_currentMinHum);
-        _tft->print("~"); _tft->print((int)_currentMaxHum);
-        _tft->setTextColor(C_HUMIDITY); _tft->print(" %");
+/**
+ * @brief Formata float com 2 casas decimais em buffer, sem usar snprintf %f.
+ * @param buf   Buffer de saída (mínimo 12 bytes).
+ * @param size  Tamanho do buffer.
+ * @param val   Valor float a formatar.
+ * @return      Ponteiro para buf.
+ */
+static char* fmtFloat2(char* buf, size_t size, float val) {
+    if (isnan(val)) { snprintf(buf, size, "--"); return buf; }
+    int neg = (val < 0.0f);
+    if (neg) val = -val;
+    int intPart = (int)val;
+    int decPart = (int)((val - (float)intPart) * 100.0f + 0.5f);
+    if (decPart >= 100) { intPart++; decPart = 0; }
+    if (neg) snprintf(buf, size, "-%d.%02d", intPart, decPart);
+    else     snprintf(buf, size, "%d.%02d", intPart, decPart);
+    return buf;
+}
+
+/**
+ * @brief Formata timestamp para labels do eixo X do gráfico.
+ *
+ * Para ranges curtos (1H, 6H, 12H) mostra apenas HH:MM.
+ * Para ranges longos (24H, 7D) mostra DD/MM HHh.
+ *
+ * @param epoch      Timestamp Unix do ponto.
+ * @param buf        Buffer de saída (mínimo 12 bytes).
+ * @param shortRange true para formato curto (HH:MM), false para longo (DD/MM HHh).
+ */
+void DisplayManager::formatGraphTime(time_t epoch, char* buf, bool shortRange) {
+    struct tm ti;
+    localtime_r(&epoch, &ti);
+    /* Sempre exibe data e hora completas, independente do intervalo */
+    (void)shortRange;
+    snprintf(buf, 12, "%02d/%02d %02d:%02d", ti.tm_mday, ti.tm_mon + 1, ti.tm_hour, ti.tm_min);
+}
+
+/**
+ * @brief Desenha marcador de diamante (losango) com label de valor flutuante.
+ *
+ * O diamante tem ~4px de raio. O label é posicionado acima ou abaixo
+ * conforme o parâmetro 'above', com flip automático se ultrapassar
+ * os limites verticais da área do gráfico.
+ *
+ * @param cx        Coordenada X do centro do diamante.
+ * @param cy        Coordenada Y do centro do diamante.
+ * @param color     Cor do marcador e do label.
+ * @param value     Valor numérico para exibir no label.
+ * @param above     true = label acima do ponto, false = abaixo.
+ * @param unit      Sufixo da unidade (ex: "C", "%").
+ * @param graphTop  Limite superior da área do gráfico (clip).
+ * @param graphBot  Limite inferior da área do gráfico (clip).
+ */
+void DisplayManager::drawPeakMarker(int16_t cx, int16_t cy, uint16_t color,
+                                     float value, bool above, const char* unit,
+                                     int16_t graphTop, int16_t graphBot) {
+    /* Clamp vertical para não sair da área do gráfico */
+    if (cy < graphTop + 3) cy = graphTop + 3;
+    if (cy > graphBot - 3) cy = graphBot - 3;
+
+    /* Diamante preenchido (losango 4px de raio) */
+    const int r = 4;
+    for (int dy = -r; dy <= r; dy++) {
+        int span = r - abs(dy);
+        _tft->drawFastHLine(cx - span, cy + dy, span * 2 + 1, color);
+    }
+    /* Pixel central para contraste */
+    _tft->drawPixel(cx, cy, C_BG_MAIN);
+
+    /* Formata label de valor */
+    static char valBuf[16];
+    static char fBuf[10];
+    fmtFloat1(fBuf, sizeof(fBuf), value);
+    snprintf(valBuf, sizeof(valBuf), "%s%s", fBuf, unit);
+
+    _tft->setFont(NULL);
+    _tft->setTextSize(1);
+    int16_t bx, by;
+    uint16_t bw, bh;
+    _tft->getTextBounds(valBuf, 0, 0, &bx, &by, &bw, &bh);
+
+    /* Posicionamento vertical com flip automático */
+    int16_t labelX = cx - (int16_t)(bw / 2);
+    int16_t labelY;
+    if (above) {
+        labelY = cy - r - (int16_t)bh - 3;
+        if (labelY < graphTop) labelY = cy + r + 3;    /* Flip para baixo */
     } else {
-        _tft->fillCircle(54, 39, 3, C_TEMP_HOT);
-        _tft->setTextColor(C_TEXT_SUB); _tft->setCursor(60, 36);
-        _tft->print("Max: ");
-        _tft->setTextColor(C_TEMP_HOT); _tft->print(_graphData.maxVal, 1);
-        _tft->print(" C");
-        _tft->fillCircle(174, 39, 3, C_TEMP_OK);
-        _tft->setTextColor(C_TEXT_SUB); _tft->setCursor(180, 36);
-        _tft->print("Min: ");
-        _tft->setTextColor(C_TEMP_OK); _tft->print(_graphData.minVal, 1);
-        _tft->print(" C");
-    }
-    _tft->drawFastHLine(0, 48, 320, C_CARD_BG);
-
-    int gx = 35, gy = 55, gw = 275, gh = 135;
-
-    if (_graphData.hasHumidity && !isnan(_currentMinHum)) {
-        gw = 245;
+        labelY = cy + r + 3;
+        if (labelY + (int16_t)bh > graphBot) labelY = cy - r - (int16_t)bh - 3; /* Flip para cima */
     }
 
-    _tft->drawFastVLine(gx, gy, gh, C_AXIS);
-    _tft->drawFastHLine(gx, gy + gh, gw, C_AXIS);
-    for (int y = gy; y < gy + gh; y += (gh / 4)) {
-        for (int x = gx + 2; x < gx + gw; x += 6) {
-            _tft->drawPixel(x, y, C_GRID);
-            _tft->drawPixel(x + 1, y, C_GRID);
+    /* Clamp horizontal para não sair da tela */
+    if (labelX < 2) labelX = 2;
+    if (labelX + (int16_t)bw > 318) labelX = 318 - (int16_t)bw;
+
+    /* Fundo opaco para legibilidade sobre a curva */
+    _tft->fillRect(labelX - 1, labelY - 1, bw + 2, bh + 2, C_BG_MAIN);
+    _tft->setTextColor(color);
+    _tft->setCursor(labelX, labelY);
+    _tft->print(valBuf);
+}
+
+
+/* =========================================================================== */
+/*                    TELA DE GRÁFICO DE HISTÓRICO (MELHORADA)               */
+/* =========================================================================== */
+/**
+ * @brief Desenha a tela completa do gráfico de histórico com melhorias visuais.
+ *
+ * Melhorias sobre a versão anterior:
+ * - Barra de info superior com badges MAX/MIN contendo valor + horário
+ * - Se houver umidade, badges H.MAX e H.MIN adicionais
+ * - Eixo X com 3 labels de tempo (início, meio, fim do período)
+ * - Formato adaptativo: HH:MM para ≤12H, DD/MM HHh para 24H e 7D
+ * - Marcadores de diamante nos pontos de pico e vale da curva
+ * - Labels flutuantes nos extremos com flip automático se fora da área
+ * - Eixo Y com 5 divisões e valores decimais
+ * - Eixo Y da umidade com valor intermediário (topo, meio, base)
+ * - Linha do gráfico com 2px de espessura
+ */
+void DisplayManager::drawGraphScreen() {
+    __dmb();
+    if (!_canvasWide) return;
+
+    if (_graphData.count < 0 || _graphData.count > GRAPH_WIDTH) {
+        _tft->fillScreen(C_BG_MAIN);
+        _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_SUB);
+        _tft->setCursor(60, 120); _tft->print(tr(TR_ERROR_LBL));
+        drawPeriodButtons();
+        return;
+    }
+
+    bool shortRange = (_graphData.timeRange <= 3); /* 1H..24H = HH:MM, 7D = DD/MM */
+    bool hasHum = _graphData.hasHumidity && !isnan(_currentMinHum);
+    bool hasData = (_graphData.count >= 2 && _graphData.idxMaxTemp >= 0);
+
+    /*
+     * Layout maximizado: gráfico ocupa header(28)..botões(195).
+     * Margem Y interna de 2px — curva toca quase as bordas.
+     * Labels Y: apenas MAX (topo) e MIN (base).
+     */
+    const int gx = 30;                  /* Margem esquerda (labels Y)   */
+    const int gy = 30;                  /* Topo da grade                */
+    const int gw = hasHum ? 250 : 285;  /* Largura da grade             */
+    const int gh = 155;                 /* Altura da grade              */
+    const int margin = 2;               /* Folga interna do gráfico     */
+    const int timeAxisY = gy + gh + 2;  /* Labels eixo X                */
+
+    float tempRange = 2.0f;
+    float humMin = 0, humMax = 100, humRange = 5.0f;
+
+    /*
+     * Escala Y: usa realMinVal/realMaxVal calculados de TODOS os registros
+     * na janela temporal, não apenas dos pontos decimados para exibição.
+     * Garante que o eixo Y represente os valores extremos verdadeiros.
+     */
+    if (hasData) {
+        tempRange = _graphData.realMaxVal - _graphData.realMinVal;
+        if (tempRange < 0.001f) tempRange = 1.0f; /* Valor constante → linha no meio */
+        if (hasHum) {
+            humMin = _currentMinHum; humMax = _currentMaxHum;
+            humRange = humMax - humMin;
+            if (humRange < 0.001f) humRange = 1.0f;
         }
     }
-    for (int x = gx; x < gx + gw; x += 40) _tft->drawFastVLine(x, gy, gh, C_GRID);
 
-    if (_graphData.count >= 2) {
-        float tempRange = _graphData.maxVal - _graphData.minVal;
-        if (tempRange < 2.0f) tempRange = 2.0f;
-        _tft->setFont(NULL);
-        _tft->setTextColor(C_TEMP_HOT);
-        _tft->setCursor(2, gy); _tft->print((int)_graphData.maxVal);
-        _tft->setTextColor(C_TEMP_OK);
-        _tft->setCursor(2, gy + gh - 8); _tft->print((int)_graphData.minVal);
-        float tempMid = (_graphData.maxVal + _graphData.minVal) / 2.0f;
-        _tft->setTextColor(C_TEXT_SUB);
-        _tft->setCursor(2, gy + gh / 2 - 4); _tft->print((int)tempMid);
+    /* ── Pré-calcular coordenadas da curva ── */
+    static int16_t pxV1[GRAPH_WIDTH], pyV1[GRAPH_WIDTH], pyV2[GRAPH_WIDTH];
+    if (hasData) {
+        /*
+         * Posição X por índice: dados sempre preenchem toda a largura da grade.
+         * Posição Y por realMinVal/realMaxVal: escala real de todos os registros.
+         * Header e labels X usam tsCutoff/tsEnd para mostrar a janela temporal.
+         */
+        for (int i = 0; i < _graphData.count; i++) {
+            pxV1[i] = gx + (int)((long)i * gw / max(1, _graphData.count - 1));
 
-        for (int i = 0; i < _graphData.count - 1; i++) {
-            int x1 = gx + map(i, 0, _graphData.count - 1, 0, gw);
-            int x2 = gx + map(i + 1, 0, _graphData.count - 1, 0, gw);
-            int y1 = gy + gh - (int)((_graphData.pointsV1[i] - _graphData.minVal) / tempRange * gh);
-            int y2 = gy + gh - (int)((_graphData.pointsV1[i+1] - _graphData.minVal) / tempRange * gh);
-            if(y1 < gy) y1 = gy; if(y1 > gy+gh) y1 = gy+gh;
-            if(y2 < gy) y2 = gy; if(y2 > gy+gh) y2 = gy+gh;
-            _tft->drawLine(x1, y1, x2, y2, C_TEMP_HOT);
-            _tft->drawLine(x1, y1+1, x2, y2+1, C_TEMP_HOT);
-        }
+            /* Pontos NAN (sensor em erro) → pyV1 = -1 para criar buraco visível */
+            if (isnan(_graphData.pointsV1[i])) {
+                pyV1[i] = -1;
+            } else {
+                int y = gy + margin + (int)((_graphData.realMaxVal - _graphData.pointsV1[i]) / tempRange * (gh - 2 * margin));
+                if (y < gy) y = gy; if (y > gy + gh) y = gy + gh;
+                pyV1[i] = y;
+            }
 
-        if (_graphData.hasHumidity && !isnan(_currentMinHum)) {
-            float humMin = _currentMinHum;
-            float humMax = _currentMaxHum;
-            float humRange = humMax - humMin;
-            if (humRange < 5.0f) humRange = 5.0f;
-
-            int rxAxis = gx + gw;
-            _tft->drawFastVLine(rxAxis, gy, gh, C_AXIS);
-            _tft->setFont(NULL);
-            _tft->setTextColor(C_HUMIDITY);
-            char humLabel[8];
-            snprintf(humLabel, sizeof(humLabel), "%d%%", (int)humMax);
-            _tft->setCursor(rxAxis + 3, gy); _tft->print(humLabel);
-            snprintf(humLabel, sizeof(humLabel), "%d%%", (int)humMin);
-            _tft->setCursor(rxAxis + 3, gy + gh - 8); _tft->print(humLabel);
-
-            for (int i = 0; i < _graphData.count - 1; i++) {
-                int x1 = gx + map(i, 0, _graphData.count - 1, 0, gw);
-                int x2 = gx + map(i + 1, 0, _graphData.count - 1, 0, gw);
-                float v1 = _graphData.pointsV2[i];
-                float v2 = _graphData.pointsV2[i+1];
-                if (isnan(v1) || isnan(v2)) continue;
-                int y1 = gy + gh - (int)((v1 - humMin) / humRange * gh);
-                int y2 = gy + gh - (int)((v2 - humMin) / humRange * gh);
-                if(y1 < gy) y1 = gy; if(y1 > gy+gh) y1 = gy+gh;
-                if(y2 < gy) y2 = gy; if(y2 > gy+gh) y2 = gy+gh;
-                _tft->drawLine(x1, y1, x2, y2, C_HUMIDITY);
+            if (hasHum && !isnan(_graphData.pointsV2[i])) {
+                int yh = gy + margin + (int)((humMax - _graphData.pointsV2[i]) / humRange * (gh - 2 * margin));
+                if (yh < gy) yh = gy; if (yh > gy + gh) yh = gy + gh;
+                pyV2[i] = yh;
+            } else {
+                pyV2[i] = -1;
             }
         }
-    } else {
-        int16_t bx, by; uint16_t bw, bh;
-        _tft->setFont(&FreeSansBold12pt7b); _tft->setTextColor(C_TEXT_SUB);
-        String nd = tr(TR_NO_DATA);
-        _tft->getTextBounds(nd, 0, 0, &bx, &by, &bw, &bh);
-        _tft->setCursor(160 - (bw/2), 125); _tft->print(nd);
     }
+
+    /* ── Pré-formatar textos ── */
+    static char maxLbl[10], minLbl[10];
+    static char humMaxLbl[8], humMinLbl[8];
+    static char tBuf[12];
+
+    if (hasData) {
+        fmtFloat1(maxLbl, sizeof(maxLbl), _graphData.realMaxVal);
+        fmtFloat1(minLbl, sizeof(minLbl), _graphData.realMinVal);
+        if (hasHum) {
+            snprintf(humMaxLbl, sizeof(humMaxLbl), "%d%%", (int)humMax);
+            snprintf(humMinLbl, sizeof(humMinLbl), "%d%%", (int)humMin);
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════ */
+    /*  STRIP RENDERING: tudo no canvas 320×45                       */
+    /* ═══════════════════════════════════════════════════════════════ */
+    GFXcanvas16* cv = _canvasWide;
+    const int sH = 45;
+
+    for (int s = 0; s * sH < 195; s++) {
+        int sTop = s * sH;
+        int h = sH;
+        if (sTop + h > 195) h = 195 - sTop;
+        int sBot = sTop + h;
+
+        cv->fillScreen(C_BG_MAIN);
+
+        /* ── Header (y=0..27) — alternância nome/data via drawGraphHeaderBar ── */
+        if (sTop == 0) {
+            drawGraphHeaderBar();  /* Desenha header diretamente via blit y=0 */
+        }
+
+        if (hasData) {
+            /* ── Eixos ── */
+            if (gy < sBot && gy + gh > sTop) {
+                int at = (gy > sTop) ? gy - sTop : 0;
+                int ab = (gy + gh < sBot) ? gy + gh - sTop : h;
+                cv->drawFastVLine(gx, at, ab - at, C_AXIS);
+                if (gy + gh >= sTop && gy + gh < sBot)
+                    cv->drawFastHLine(gx, gy + gh - sTop, gw, C_AXIS);
+                if (hasHum)
+                    cv->drawFastVLine(gx + gw, at, ab - at, C_AXIS);
+            }
+
+            /* ── Grade pontilhada horizontal (4 divisões) ── */
+            for (int gi = 0; gi <= 4; gi++) {
+                int lineY = gy + (gh * gi / 4);
+                if (lineY >= sTop && lineY < sBot) {
+                    int ry = lineY - sTop;
+                    for (int x = gx + 2; x < gx + gw; x += 6) {
+                        cv->drawPixel(x, ry, C_GRID);
+                        cv->drawPixel(x + 1, ry, C_GRID);
+                    }
+                }
+            }
+
+            /* ── Grade vertical ── */
+            if (gy < sBot && gy + gh > sTop) {
+                int gt = (gy > sTop) ? gy - sTop : 0;
+                int gb = (gy + gh < sBot) ? gy + gh - sTop : h;
+                for (int x = gx; x < gx + gw; x += 40)
+                    cv->drawFastVLine(x, gt, gb - gt, C_GRID);
+            }
+
+            /* ── Labels eixo Y: MAX alinhado ao topo, MIN à base da grade ── */
+            cv->setFont(NULL); cv->setTextSize(1);
+            int lyMax = gy;              /* Topo da grade = pico do gráfico */
+            int lyMin = gy + gh - 8;     /* Base da grade = vale do gráfico */
+            /* Condição de interseção: label visível se qualquer parte cruza a strip */
+            if (lyMax < sBot && lyMax + 8 > sTop) {
+                cv->setTextColor(C_TEMP_HOT);
+                cv->setCursor(1, lyMax - sTop);
+                cv->print(maxLbl);
+            }
+            if (lyMin < sBot && lyMin + 8 > sTop) {
+                cv->setTextColor(C_TEMP_OK);
+                cv->setCursor(1, lyMin - sTop);
+                cv->print(minLbl);
+            }
+
+            /* ── Labels eixo Y umidade (lado direito) ── */
+            if (hasHum) {
+                int rxAxis = gx + gw;
+                cv->setTextColor(C_HUMIDITY);
+                if (lyMax < sBot && lyMax + 8 > sTop) {
+                    cv->setCursor(rxAxis + 3, lyMax - sTop);
+                    cv->print(humMaxLbl);
+                }
+                if (lyMin < sBot && lyMin + 8 > sTop) {
+                    cv->setCursor(rxAxis + 3, lyMin - sTop);
+                    cv->print(humMinLbl);
+                }
+            }
+
+            /* ── Curva de temperatura (2px) — pula buracos (pyV1 == -1) ── */
+            for (int i = 0; i < _graphData.count - 1; i++) {
+                if (pyV1[i] < 0 || pyV1[i + 1] < 0) continue;  /* Buraco: sensor em erro */
+                int y1 = pyV1[i], y2 = pyV1[i + 1];
+                int yMn = (y1 < y2) ? y1 : y2;
+                int yMx = (y1 > y2) ? y1 : y2;
+                if (yMx < sTop || yMn >= sBot) continue;
+                cv->drawLine(pxV1[i], y1 - sTop, pxV1[i+1], y2 - sTop, C_TEMP_HOT);
+                cv->drawLine(pxV1[i], y1 - sTop + 1, pxV1[i+1], y2 - sTop + 1, C_TEMP_HOT);
+            }
+
+            /* ── Curva de umidade (1px) ── */
+            if (hasHum) {
+                for (int i = 0; i < _graphData.count - 1; i++) {
+                    if (pyV2[i] < 0 || pyV2[i+1] < 0) continue;
+                    int y1 = pyV2[i], y2 = pyV2[i + 1];
+                    int yMn = (y1 < y2) ? y1 : y2;
+                    int yMx = (y1 > y2) ? y1 : y2;
+                    if (yMx < sTop || yMn >= sBot) continue;
+                    cv->drawLine(pxV1[i], y1 - sTop, pxV1[i+1], y2 - sTop, C_HUMIDITY);
+                }
+            }
+
+            /* ── Marcador último valor válido ── */
+            {
+                /* Busca o último ponto válido (não-NAN) para o marcador */
+                int lastValidIdx = -1;
+                for (int i = _graphData.count - 1; i >= 0; i--) {
+                    if (pyV1[i] >= 0) { lastValidIdx = i; break; }
+                }
+                if (lastValidIdx >= 0) {
+                    int ly = pyV1[lastValidIdx];
+                    if (ly - 3 < sBot && ly + 3 >= sTop) {
+                        cv->fillCircle(gx + gw, ly - sTop, 3, C_TEXT_MAIN);
+                        cv->fillCircle(gx + gw, ly - sTop, 1, C_BG_MAIN);
+                    }
+                }
+            }
+
+            /* ── Marcadores pico/vale (diamante) — pula se ponto é NAN ── */
+            auto drawDiamond = [&](int dx, int dy, uint16_t color) {
+                if (dy < 0) return;  /* Ponto NAN: sem marcador */
+                if (dy - 3 >= sBot || dy + 3 < sTop) return;
+                int ry = dy - sTop;
+                for (int dd = -3; dd <= 3; dd++) {
+                    int span = 3 - abs(dd);
+                    if (ry + dd >= 0 && ry + dd < h)
+                        cv->drawFastHLine(dx - span, ry + dd, span * 2 + 1, color);
+                }
+                if (ry >= 0 && ry < h) cv->drawPixel(dx, ry, C_BG_MAIN);
+            };
+
+            if (_graphData.idxMaxTemp >= 0 && _graphData.idxMaxTemp < _graphData.count)
+                drawDiamond(pxV1[_graphData.idxMaxTemp], pyV1[_graphData.idxMaxTemp], C_TEMP_HOT);
+            if (_graphData.idxMinTemp >= 0 && _graphData.idxMinTemp < _graphData.count)
+                drawDiamond(pxV1[_graphData.idxMinTemp], pyV1[_graphData.idxMinTemp], C_TEMP_OK);
+
+        } else {
+            /* Sem dados */
+            if (120 >= sTop && 130 < sBot) {
+                cv->setFont(&FreeSansBold12pt7b); cv->setTextColor(C_TEXT_SUB);
+                String nd = tr(TR_NO_DATA);
+                int16_t nbx, nby; uint16_t nw, nh;
+                cv->getTextBounds(nd, 0, 0, &nbx, &nby, &nw, &nh);
+                cv->setCursor(160 - nw / 2, 125 - sTop); cv->print(nd);
+            }
+        }
+
+        /*
+         * Labels eixo X (3 timestamps) — correspondem aos extremos da linha
+         * desenhada (tsFirst..tsLast). O header mostra a janela completa
+         * (tsCutoff..tsEnd) para contexto do zoom.
+         */
+        if (timeAxisY < sBot && timeAxisY + 8 > sTop && _graphData.tsFirst > 0) {
+            int ry = timeAxisY - sTop;
+            cv->setFont(NULL); cv->setTextSize(1); cv->setTextColor(C_TEXT_SUB);
+
+            static char xL[6], xM[6], xR[6];
+            struct tm ti;
+
+            time_t tMid = _graphData.tsFirst + (_graphData.tsLast - _graphData.tsFirst) / 2;
+
+            /* Primeiro ponto */
+            localtime_r(&_graphData.tsFirst, &ti);
+            if (shortRange) snprintf(xL, sizeof(xL), "%02d:%02d", ti.tm_hour, ti.tm_min);
+            else            snprintf(xL, sizeof(xL), "%02d/%02d", ti.tm_mday, ti.tm_mon + 1);
+            cv->setCursor(gx, ry); cv->print(xL);
+
+            /* Ponto médio */
+            localtime_r(&tMid, &ti);
+            if (shortRange) snprintf(xM, sizeof(xM), "%02d:%02d", ti.tm_hour, ti.tm_min);
+            else            snprintf(xM, sizeof(xM), "%02d/%02d", ti.tm_mday, ti.tm_mon + 1);
+            int16_t tbx, tby; uint16_t tw, th;
+            cv->getTextBounds(xM, 0, 0, &tbx, &tby, &tw, &th);
+            cv->setCursor(gx + gw / 2 - (int)tw / 2, ry); cv->print(xM);
+
+            /* Último ponto */
+            localtime_r(&_graphData.tsLast, &ti);
+            if (shortRange) snprintf(xR, sizeof(xR), "%02d:%02d", ti.tm_hour, ti.tm_min);
+            else            snprintf(xR, sizeof(xR), "%02d/%02d", ti.tm_mday, ti.tm_mon + 1);
+            cv->getTextBounds(xR, 0, 0, &tbx, &tby, &tw, &th);
+            cv->setCursor(gx + gw - (int)tw, ry); cv->print(xR);
+        }
+
+        blitCanvas(cv, 0, sTop, 320, h);
+    }
+
     drawPeriodButtons();
 }
 
+
+/* =========================================================================== */
+/*              TELA NUMÉRICA DE DETALHES DO PERÍODO                         */
+/* =========================================================================== */
+/**
+ * @brief Desenha tela com dados numéricos legíveis do período selecionado.
+ *
+ * Exibe em cards grandes: MAX, MIN, AVG, σ, e período.
+ * Mantém header com título/botão X e botões de período na base.
+ * Toque na zona central retorna ao gráfico.
+ * Todos os floats formatados via fmtFloat1/fmtFloat2 (sem snprintf %f).
+ */
+void DisplayManager::drawGraphDetailScreen() {
+    __dmb();
+    if (!_canvasWide) return;
+
+    bool shortRange = (_graphData.timeRange <= 3); /* 1H..24H = HH:MM, 7D = DD/MM */
+    bool hasHum = _graphData.hasHumidity && !isnan(_currentMinHum);
+    bool isHumPage = (_detailPage == 1 && hasHum);
+    uint16_t pageColor = isHumPage ? C_HUMIDITY : C_TEMP_OK;
+
+    int16_t bx, by; uint16_t bw, bh;
+
+    struct CardData {
+        const char* label;
+        char num[14];
+        bool isTempUnit;  /* true = oC com circulozinho, false = tr(TR_HUM_SUFFIX) */
+        char sub[12];
+        uint16_t numColor;
+        int icon;
+    };
+    static CardData cards[4];
+
+    if (_graphData.count < 2) {
+        _tft->fillRect(0, 0, 320, 195, C_BG_MAIN);
+        drawGraphHeaderBar();  /* Mostra período de referência no header */
+        _tft->setFont(&FreeSansBold12pt7b); _tft->setTextColor(C_TEXT_SUB);
+        String nd = tr(TR_NO_DATA);
+        _tft->getTextBounds(nd, 0, 0, &bx, &by, &bw, &bh);
+        _tft->setCursor(160 - bw / 2, 120); _tft->print(nd);
+        drawPeriodButtons();
+        return;
+    }
+
+    /* ── Popular cards ── */
+    if (!isHumPage) {
+        cards[0] = { tr(TR_MAX_LBL), {0}, true, {0}, C_TEMP_OK, 0 };
+        fmtFloat1(cards[0].num, sizeof(cards[0].num), _graphData.realMaxVal);
+        if (_graphData.tsRealMax > 0) formatGraphTime(_graphData.tsRealMax, cards[0].sub, shortRange);
+
+        cards[1] = { tr(TR_MIN_LBL), {0}, true, {0}, C_TEMP_OK, 1 };
+        fmtFloat1(cards[1].num, sizeof(cards[1].num), _graphData.realMinVal);
+        if (_graphData.tsRealMin > 0) formatGraphTime(_graphData.tsRealMin, cards[1].sub, shortRange);
+
+        cards[2] = { tr(TR_AVG_LBL), {0}, true, {0}, C_TEMP_OK, 2 };
+        fmtFloat1(cards[2].num, sizeof(cards[2].num), _graphData.avgTemp);
+
+        cards[3] = { tr(TR_STD_LBL), {0}, true, {0}, C_TEMP_OK, 3 };
+        fmtFloat2(cards[3].num, sizeof(cards[3].num), _graphData.stdTemp);
+    } else {
+        cards[0] = { tr(TR_MAX_LBL), {0}, false, {0}, C_HUMIDITY, 0 };
+        snprintf(cards[0].num, sizeof(cards[0].num), "%d", (int)_currentMaxHum);
+        if (_graphData.tsMaxHum > 0) formatGraphTime(_graphData.tsMaxHum, cards[0].sub, shortRange);
+
+        cards[1] = { tr(TR_MIN_LBL), {0}, false, {0}, C_HUMIDITY, 1 };
+        snprintf(cards[1].num, sizeof(cards[1].num), "%d", (int)_currentMinHum);
+        if (_graphData.tsMinHum > 0) formatGraphTime(_graphData.tsMinHum, cards[1].sub, shortRange);
+
+        cards[2] = { tr(TR_AVG_LBL), {0}, false, {0}, C_HUMIDITY, 2 };
+        if (!isnan(_graphData.avgHum)) snprintf(cards[2].num, sizeof(cards[2].num), "%d", (int)_graphData.avgHum);
+        else snprintf(cards[2].num, sizeof(cards[2].num), "--");
+
+        cards[3] = { tr(TR_STD_LBL), {0}, false, {0}, C_HUMIDITY, 3 };
+        if (!isnan(_graphData.stdHum)) fmtFloat2(cards[3].num, sizeof(cards[3].num), _graphData.stdHum);
+        else snprintf(cards[3].num, sizeof(cards[3].num), "--");
+    }
+
+    /* ── Layout: 2 linhas × 2 colunas, cards maiores ── */
+    const int cardW = 152, cardH = 76, cardR = 8;
+    const int colL = 4, colR = 164, gapY = 4;
+    const int totalH = 2 * cardH + gapY;
+    const int startY = 28 + (167 - totalH) / 2;
+    int rowY[2] = { startY, startY + cardH + gapY };
+
+    /**
+     * Desenha card no canvas (versão expandida).
+     * - Ícone 18×18 refinado
+     * - Label em FreeSansBold9pt7b, cor C_TEXT_SUB (cinza claro)
+     * - Valor grande colorido (verde temp / azul hum)
+     * - Unidade: temp = circulozinho "o" (NULL font) + "C" (9pt) branco
+     *            hum  = tr(TR_HUM_SUFFIX) (9pt) branco
+     * - Data/hora do evento na base do card (FreeSansBold9pt7b, amarelo suave)
+     */
+    auto drawCardOn = [&](GFXcanvas16* cv, int cx, int cy, int stripTop, int idx) {
+        int ry = cy - stripTop;
+        CardData& d = cards[idx];
+
+        cv->fillRoundRect(cx, ry, cardW, cardH, cardR, C_CARD_BG);
+
+        /* Amarelo suave para data/hora dos eventos */
+        const uint16_t C_DATETIME = RGB565(190, 170, 60);
+
+        /* ── Ícone 18×18 ── */
+        int ix = cx + 6, iy = ry + 2;
+        uint16_t ic = d.numColor;
+        switch (d.icon) {
+            case 0: { /* ▲ MAX — triângulo ascendente com contorno interno */
+                cv->fillTriangle(ix, iy+16, ix+9, iy+1, ix+17, iy+16, ic);
+                cv->drawTriangle(ix+2, iy+15, ix+9, iy+4, ix+15, iy+15, C_CARD_BG);
+                break;
+            }
+            case 1: { /* ▼ MIN — triângulo descendente com contorno interno */
+                cv->fillTriangle(ix, iy+1, ix+9, iy+16, ix+17, iy+1, ic);
+                cv->drawTriangle(ix+2, iy+2, ix+9, iy+13, ix+15, iy+2, C_CARD_BG);
+                break;
+            }
+            case 2: { /* ≈ MEDIA — três barras horizontais proporcionais */
+                cv->fillRect(ix, iy+1,  17, 3, ic);
+                cv->fillRect(ix, iy+7,  17, 3, ic);
+                cv->fillRect(ix, iy+13, 17, 3, ic);
+                break;
+            }
+            case 3: { /* σ DESVIO — curva sino refinada 18×18 */
+                /* Topo da curva */
+                cv->drawPixel(ix+8, iy+1, ic); cv->drawPixel(ix+9, iy+1, ic);
+                cv->drawPixel(ix+7, iy+2, ic); cv->drawPixel(ix+10, iy+2, ic);
+                cv->drawPixel(ix+6, iy+3, ic); cv->drawPixel(ix+11, iy+3, ic);
+                /* Ombros */
+                cv->drawPixel(ix+5, iy+4, ic); cv->drawPixel(ix+12, iy+4, ic);
+                cv->drawPixel(ix+5, iy+5, ic); cv->drawPixel(ix+12, iy+5, ic);
+                cv->drawPixel(ix+4, iy+6, ic); cv->drawPixel(ix+13, iy+6, ic);
+                cv->drawPixel(ix+4, iy+7, ic); cv->drawPixel(ix+13, iy+7, ic);
+                /* Corpo */
+                cv->drawPixel(ix+3, iy+8, ic);  cv->drawPixel(ix+14, iy+8, ic);
+                cv->drawPixel(ix+3, iy+9, ic);  cv->drawPixel(ix+14, iy+9, ic);
+                cv->drawPixel(ix+2, iy+10, ic); cv->drawPixel(ix+15, iy+10, ic);
+                cv->drawPixel(ix+2, iy+11, ic); cv->drawPixel(ix+15, iy+11, ic);
+                /* Base larga */
+                cv->drawPixel(ix+1, iy+12, ic); cv->drawPixel(ix+16, iy+12, ic);
+                cv->drawPixel(ix+1, iy+13, ic); cv->drawPixel(ix+16, iy+13, ic);
+                cv->drawPixel(ix,   iy+14, ic); cv->drawPixel(ix+17, iy+14, ic);
+                /* Linha de base sólida */
+                cv->fillRect(ix, iy+15, 18, 2, ic);
+                break;
+            }
+        }
+
+        /* ── Label (FreeSansBold9pt7b, cinza claro, à direita do ícone) ── */
+        cv->setFont(&FreeSansBold9pt7b);
+        cv->setTextColor(C_TEXT_SUB);
+        cv->setCursor(ix + 22, iy + 14);
+        cv->print(d.label);
+
+        /* ── Valor + Unidade (centro vertical do card) ── */
+        int vy = ry + 48;
+
+        /* Medir largura do número */
+        int16_t nb, ny2; uint16_t nw, nh;
+        cv->setFont(&FreeSansBold12pt7b);
+        cv->getTextBounds(d.num, 0, 0, &nb, &ny2, &nw, &nh);
+
+        if (d.isTempUnit) {
+            /*
+             * Temperatura: número + "o" (circulozinho, NULL font acima) + "C" (9pt)
+             * Padrão idêntico à tela principal (drawTemp).
+             */
+            int16_t ub2, uy3; uint16_t cw2, ch2;
+            cv->setFont(&FreeSansBold9pt7b);
+            cv->getTextBounds("C", 0, 0, &ub2, &uy3, &cw2, &ch2);
+
+            /* "o" em NULL font é ~6px wide */
+            int unitW = 6 + 1 + (int)cw2; /* "o" + gap + "C" */
+            int totalW = (int)nw + 2 + unitW;
+            int vx = cx + (cardW - totalW) / 2;
+
+            /* Número (colorido) */
+            cv->setFont(&FreeSansBold12pt7b);
+            cv->setTextColor(d.numColor);
+            cv->setCursor(vx, vy);
+            cv->print(d.num);
+
+            /* Circulozinho "o" (NULL font, branco, posicionado acima do baseline) */
+            int oX = vx + (int)nw + 2;
+            cv->setFont(NULL); cv->setTextSize(1);
+            cv->setTextColor(C_TEXT_MAIN);
+            cv->setCursor(oX, vy - 16);
+            cv->print("o");
+
+            /* "C" (FreeSansBold9pt7b, branco) */
+            cv->setFont(&FreeSansBold9pt7b);
+            cv->setTextColor(C_TEXT_MAIN);
+            cv->setCursor(oX + 7, vy);
+            cv->print("C");
+
+        } else {
+            /*
+             * Umidade: número + tr(TR_HUM_SUFFIX) (9pt, branco)
+             */
+            int16_t ub2, uy3; uint16_t uw2, uh2;
+            cv->setFont(&FreeSansBold9pt7b);
+            cv->getTextBounds(tr(TR_HUM_SUFFIX), 0, 0, &ub2, &uy3, &uw2, &uh2);
+
+            int totalW = (int)nw + 3 + (int)uw2;
+            int vx = cx + (cardW - totalW) / 2;
+
+            /* Número (colorido) */
+            cv->setFont(&FreeSansBold12pt7b);
+            cv->setTextColor(d.numColor);
+            cv->setCursor(vx, vy);
+            cv->print(d.num);
+
+            /* Sufixo de umidade (branco) */
+            cv->setFont(&FreeSansBold9pt7b);
+            cv->setTextColor(C_TEXT_MAIN);
+            cv->setCursor(vx + (int)nw + 3, vy);
+            cv->print(tr(TR_HUM_SUFFIX));
+        }
+
+        /* ── Data/hora do evento (base do card, centralizado, amarelo suave) ── */
+        if (d.sub[0]) {
+            int16_t sx, sy; uint16_t sw, sh;
+            cv->setFont(&FreeSansBold9pt7b);
+            cv->setTextColor(C_DATETIME);
+            cv->getTextBounds(d.sub, 0, 0, &sx, &sy, &sw, &sh);
+            cv->setCursor(cx + (cardW - (int)sw) / 2, ry + cardH - 6);
+            cv->print(d.sub);
+        }
+    };
+
+    /* ═══════════════════════════════════════════════════════════════ */
+    /*  STRIP RENDERING                                              */
+    /* ═══════════════════════════════════════════════════════════════ */
+    GFXcanvas16* cv = _canvasWide;
+    const int sH = 45;
+
+    for (int s = 0; s * sH < 195; s++) {
+        int sTop = s * sH;
+        int h = sH;
+        if (sTop + h > 195) h = 195 - sTop;
+
+        cv->fillScreen(C_BG_MAIN);
+
+        if (sTop == 0) {
+            drawGraphHeaderBar();
+        }
+
+        /* Apenas 2 linhas de cards */
+        for (int r = 0; r < 2; r++) {
+            int cy = rowY[r];
+            if (cy < sTop + h && cy + cardH > sTop) {
+                drawCardOn(cv, colL, cy, sTop, r * 2);
+                drawCardOn(cv, colR, cy, sTop, r * 2 + 1);
+            }
+        }
+
+        blitCanvas(cv, 0, sTop, 320, h);
+    }
+
+    drawPeriodButtons();
+}
+
+
+
+
 void DisplayManager::handleTouch() {
     if (!_ts->touched()) {
+        /* Finger released — habilita próximo toque único */
+        _touchReleased = true;
+
+        /*
+         * Detecção de release durante calibração hold-and-release.
+         * Se o usuário segurou o ponto pelo tempo mínimo, registra a média
+         * das amostras acumuladas ao soltar.
+         */
+        if (_uiMode == MODE_SETTINGS_TOUCH_CAL && _calHolding) {
+            if (_calHoldReady && _calHoldSamples > 0 && _calStep < 8) {
+                /* Registra ponto: média das amostras acumuladas durante o hold */
+                _calRawX[_calStep] = (int16_t)(_calHoldSumX / _calHoldSamples);
+                _calRawY[_calStep] = (int16_t)(_calHoldSumY / _calHoldSamples);
+                _calStep++;
+
+                if (_calStep < 8) {
+                    /* Próximo ponto */
+                    _repaintSettings = true;
+                } else {
+                    /* Todos os 8 pontos capturados — validar e calcular */
+                    const int16_t TOLERANCE = 200;
+                    bool rejected = false;
+
+                    for (int i = 0; i < 4; i++) {
+                        int16_t dx = abs(_calRawX[i] - _calRawX[i + 4]);
+                        int16_t dy = abs(_calRawY[i] - _calRawY[i + 4]);
+                        if (dx > TOLERANCE || dy > TOLERANCE) {
+                            rejected = true;
+                            break;
+                        }
+                    }
+
+                    if (rejected) {
+                        _calPhase = 1;
+                        _forceSettingsRedraw = true;
+                        _repaintSettings = true;
+                    } else {
+                        float avgRawX[4], avgRawY[4];
+                        for (int i = 0; i < 4; i++) {
+                            avgRawX[i] = (_calRawX[i] + _calRawX[i + 4]) / 2.0f;
+                            avgRawY[i] = (_calRawY[i] + _calRawY[i + 4]) / 2.0f;
+                        }
+
+                        float rawLeft_X  = (avgRawX[0] + avgRawX[2]) / 2.0f;
+                        float rawRight_X = (avgRawX[1] + avgRawX[3]) / 2.0f;
+                        float rawTop_Y   = (avgRawY[0] + avgRawY[1]) / 2.0f;
+                        float rawBot_Y   = (avgRawY[2] + avgRawY[3]) / 2.0f;
+
+                        float rawLeft_Y  = (avgRawY[0] + avgRawY[2]) / 2.0f;
+                        float rawRight_Y = (avgRawY[1] + avgRawY[3]) / 2.0f;
+                        float rawTop_X   = (avgRawX[0] + avgRawX[1]) / 2.0f;
+                        float rawBot_X   = (avgRawX[2] + avgRawX[3]) / 2.0f;
+
+                        float dxInRawX = fabsf(rawRight_X - rawLeft_X);
+                        float dxInRawY = fabsf(rawRight_Y - rawLeft_Y);
+                        _calSwapXY = (dxInRawY > dxInRawX);
+
+                        if (_calSwapXY) {
+                            float spanX = rawRight_Y - rawLeft_Y;
+                            _calXMin = (int16_t)(rawLeft_Y  - 20.0f * spanX / 280.0f);
+                            _calXMax = (int16_t)(rawRight_Y + 20.0f * spanX / 280.0f);
+                            float spanY = rawBot_X - rawTop_X;
+                            _calYMin = (int16_t)(rawTop_X   - 20.0f * spanY / 200.0f);
+                            _calYMax = (int16_t)(rawBot_X   + 20.0f * spanY / 200.0f);
+                        } else {
+                            float spanX = rawRight_X - rawLeft_X;
+                            _calXMin = (int16_t)(rawLeft_X  - 20.0f * spanX / 280.0f);
+                            _calXMax = (int16_t)(rawRight_X + 20.0f * spanX / 280.0f);
+                            float spanY = rawBot_Y - rawTop_Y;
+                            _calYMin = (int16_t)(rawTop_Y   - 20.0f * spanY / 200.0f);
+                            _calYMax = (int16_t)(rawBot_Y   + 20.0f * spanY / 200.0f);
+                        }
+
+                        _calValid = true;
+                        UiEvent ev;
+                        ev.type = UiEvent::EVT_APPLY_TOUCH_CAL;
+                        queue_try_add(&_eventQueue, &ev);
+
+                        _calPhase = 2;
+                        _forceSettingsRedraw = true;
+                        _repaintSettings = true;
+                    }
+                }
+            }
+            _calHolding    = false;
+            _calHoldReady  = false;
+            _calHoldSamples = 0;
+        }
+
         _btnHoldStartTime = 0;
         _lastPressedBtn = -1;
         if (_uiMode != MODE_DASHBOARD && !_sharedState.isBooting) {
@@ -2959,9 +4111,121 @@ void DisplayManager::handleTouch() {
     }
 
 
-    if (millis() - _lastTouchTime < 50) return;
+    if (millis() - _lastTouchTime < 15) return;
     TS_Point p = _ts->getPoint();
-    if (p.z < 400) return;
+
+    /* ── Modo de calibração de sensibilidade: threshold mínimo ──
+     * Usa p.z > 50 (ruído do ADC) em vez do threshold calibrado,
+     * para capturar toda a faixa de pressão do usuário.            */
+    if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
+        /*
+         * Calibração de sensibilidade baseada em HOLD contínuo.
+         *
+         * O usuário pressiona e segura o crosshair. O sistema amostra
+         * p.z continuamente e calcula a estabilidade rolante. Quando
+         * encontra a menor pressão com leitura estável (sem oscilar),
+         * define o threshold e salva.
+         *
+         * _sensCount       — total de amostras coletadas
+         * _sensSamples[30] — buffer circular de amostras recentes
+         * _sensStability   — progresso visual da barra (0..1)
+         * _sensThreshold   — menor p.z estável encontrado
+         */
+
+        /* Botão CANCEL: aceita toque em qualquer pressão */
+        if (p.z >= 50) {
+            int16_t sx, sy;
+            mapTouchPoint(p, sx, sy);
+            if (sy > 195 && sx < 125) {
+                if (acceptTouch(0)) { showSettingsMain(); return; }
+            }
+        }
+
+        /* Após concluído, ignora toques até auto-retorno */
+        if (_sensDone) return;
+
+        /* Precisa de pressão mínima para coletar (acima do ruído do ADC) */
+        if (p.z < 30) return;
+
+        /* Amostra contínua: coleta sem exigir release */
+        uint8_t idx = _sensCount % 30;
+        _sensSamples[idx] = p.z;
+        _sensCount++;
+
+        /* Precisa de pelo menos 10 amostras para análise */
+        if (_sensCount < 10) {
+            _sensStability = (float)_sensCount / 10.0f * 0.3f;
+            _repaintSettings = true;
+            return;
+        }
+
+        /*
+         * Análise de estabilidade rolante (últimas 10 amostras).
+         * Calcula stddev/mean dos últimos 10 valores. Se < 15%,
+         * a pressão atual está estável.
+         */
+        int startIdx = (_sensCount >= 30) ? (_sensCount % 30) : 0;
+        int n = (_sensCount < 30) ? _sensCount : 30;
+        if (n > 10) n = 10; /* Análise dos últimos 10 */
+
+        float sum = 0;
+        uint16_t minZ = 65535, maxZ = 0;
+        int base = (int)((_sensCount - n) % 30);
+        for (int i = 0; i < n; i++) {
+            uint16_t v = _sensSamples[(base + i) % 30];
+            sum += v;
+            if (v < minZ) minZ = v;
+            if (v > maxZ) maxZ = v;
+        }
+        float mean = sum / n;
+
+        float varSum = 0;
+        for (int i = 0; i < n; i++) {
+            float d = _sensSamples[(base + i) % 30] - mean;
+            varSum += d * d;
+        }
+        float stddev = sqrtf(varSum / n);
+        float cv = (mean > 0) ? (stddev / mean) : 1.0f; /* coef. variação */
+
+        /* Atualiza o threshold quando encontra zona estável */
+        bool isStable = (cv < 0.15f) && (_sensCount >= 10);
+
+        if (isStable) {
+            /* Encontrou zona estável: threshold = menor valor estável × 0.8 */
+            uint16_t candidate = (uint16_t)(minZ * 0.8f);
+            if (candidate < 50) candidate = 50;
+
+            /* Aceita se for melhor (menor) que o anterior, ou primeiro achado */
+            if (_sensThreshold == 0 || candidate < _sensThreshold) {
+                _sensThreshold = candidate;
+            }
+
+            /* Progresso: avança conforme tempo em zona estável */
+            _sensStability += 0.02f;
+            if (_sensStability > 1.0f) _sensStability = 1.0f;
+
+            /* Após barra cheia (~2s estável): salva e conclui */
+            if (_sensStability >= 1.0f) {
+                _sensZThreshold = _sensThreshold;
+                _sensDone = true;
+                _sensDoneTime = millis();
+
+                UiEvent ev;
+                ev.type = UiEvent::EVT_SAVE_TOUCH_CAL;
+                queue_try_add(&_eventQueue, &ev);
+                _touchSoundPending = false;
+            }
+        } else {
+            /* Zona instável: barra recua lentamente */
+            if (_sensStability > 0.0f) _sensStability -= 0.005f;
+            if (_sensStability < 0.0f) _sensStability = 0.0f;
+        }
+
+        _repaintSettings = true;
+        return;
+    }
+
+    if (p.z < _sensZThreshold) return;
 
 
     if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
@@ -2996,85 +4260,25 @@ void DisplayManager::handleTouch() {
 
 
         if (_calStep < 8) {
-            _calRawX[_calStep] = p.x;
-            _calRawY[_calStep] = p.y;
-            _calStep++;
+            if (!_calHolding) {
+                /* Início do hold: zera acumuladores */
+                _calHolding     = true;
+                _calHoldReady   = false;
+                _calHoldStart   = millis();
+                _calHoldSumX    = 0;
+                _calHoldSumY    = 0;
+                _calHoldSamples = 0;
+            }
 
-            if (_calStep < 8) {
+            /* Acumula amostras enquanto segura */
+            _calHoldSumX += p.x;
+            _calHoldSumY += p.y;
+            _calHoldSamples++;
 
-                _repaintSettings = true;
-            } else {
-
-
-                const int16_t TOLERANCE = 200;
-                bool rejected = false;
-
-                for (int i = 0; i < 4; i++) {
-                    int16_t dx = abs(_calRawX[i] - _calRawX[i + 4]);
-                    int16_t dy = abs(_calRawY[i] - _calRawY[i + 4]);
-                    if (dx > TOLERANCE || dy > TOLERANCE) {
-                        rejected = true;
-                        break;
-                    }
-                }
-
-                if (rejected) {
-
-                    _calPhase = 1;
-                    _forceSettingsRedraw = true;
-                    _repaintSettings = true;
-                } else {
-
-
-                    float avgRawX[4], avgRawY[4];
-                    for (int i = 0; i < 4; i++) {
-                        avgRawX[i] = (_calRawX[i] + _calRawX[i + 4]) / 2.0f;
-                        avgRawY[i] = (_calRawY[i] + _calRawY[i + 4]) / 2.0f;
-                    }
-
-
-                    float rawLeft_X  = (avgRawX[0] + avgRawX[2]) / 2.0f;
-                    float rawRight_X = (avgRawX[1] + avgRawX[3]) / 2.0f;
-                    float rawTop_Y   = (avgRawY[0] + avgRawY[1]) / 2.0f;
-                    float rawBot_Y   = (avgRawY[2] + avgRawY[3]) / 2.0f;
-
-                    float rawLeft_Y  = (avgRawY[0] + avgRawY[2]) / 2.0f;
-                    float rawRight_Y = (avgRawY[1] + avgRawY[3]) / 2.0f;
-                    float rawTop_X   = (avgRawX[0] + avgRawX[1]) / 2.0f;
-                    float rawBot_X   = (avgRawX[2] + avgRawX[3]) / 2.0f;
-
-
-                    float dxInRawX = fabsf(rawRight_X - rawLeft_X);
-                    float dxInRawY = fabsf(rawRight_Y - rawLeft_Y);
-                    _calSwapXY = (dxInRawY > dxInRawX);
-
-                    if (_calSwapXY) {
-                        float spanX = rawRight_Y - rawLeft_Y;
-                        _calXMin = (int16_t)(rawLeft_Y  - 20.0f * spanX / 280.0f);
-                        _calXMax = (int16_t)(rawRight_Y + 20.0f * spanX / 280.0f);
-                        float spanY = rawBot_X - rawTop_X;
-                        _calYMin = (int16_t)(rawTop_X   - 20.0f * spanY / 200.0f);
-                        _calYMax = (int16_t)(rawBot_X   + 20.0f * spanY / 200.0f);
-                    } else {
-                        float spanX = rawRight_X - rawLeft_X;
-                        _calXMin = (int16_t)(rawLeft_X  - 20.0f * spanX / 280.0f);
-                        _calXMax = (int16_t)(rawRight_X + 20.0f * spanX / 280.0f);
-                        float spanY = rawBot_Y - rawTop_Y;
-                        _calYMin = (int16_t)(rawTop_Y   - 20.0f * spanY / 200.0f);
-                        _calYMax = (int16_t)(rawBot_Y   + 20.0f * spanY / 200.0f);
-                    }
-
-                    _calValid = true;
-
-
-                    UiEvent ev;
-                    ev.type = UiEvent::EVT_APPLY_TOUCH_CAL;
-                    queue_try_add(&_eventQueue, &ev);
-
-                    _calPhase = 2;
-                    _forceSettingsRedraw = true;
-                    _repaintSettings = true;
-                }
+            /* Após tempo mínimo de hold, sinaliza que pode soltar */
+            if (!_calHoldReady && (millis() - _calHoldStart >= CAL_HOLD_MS)) {
+                _calHoldReady = true;
+                _repaintSettings = true; /* Redesenha crosshair verde */
             }
         }
         return;
@@ -3115,7 +4319,7 @@ void DisplayManager::handleTouch() {
         if (y > 35 && y < 110) {
             if (!acceptTouch(0)) return;
 
-            /* Right corner: graph button (priority over alarm) */
+            /* Canto direito: botão de gráfico (prioridade sobre alarme) */
             if (_ambientShowMinMax && x > 266) {
                 _ambientShowMinMax = false;
                 UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = -1; ev.param = 0;
@@ -3144,7 +4348,7 @@ void DisplayManager::handleTouch() {
             int sensorIdToGraph = -1;
             if (_sharedState.selectedSlotIdx >= 0 && _sharedState.selectedSlotIdx <= 10) sensorIdToGraph = _sharedState.selectedSlotIdx;
 
-            /* Right corner: graph button (priority over alarm) */
+            /* Canto direito: botão de gráfico (prioridade sobre alarme) */
             if (_slotShowMinMax && x > 266) {
                 _slotShowMinMax = false;
                 if (sensorIdToGraph != -1) {
@@ -3180,7 +4384,7 @@ void DisplayManager::handleTouch() {
                 drawBottomButtons(_sharedState.selectedSlotIdx, true); return;
             }
             if (btnIdx >= 0 && btnIdx <= 3) {
-                if (!acceptTouch(10 + btnIdx)) return;
+                if (!acceptSlideTouch(10 + btnIdx)) return;
                 if (_currentPage == 2 && btnIdx == 2) {
                     UiEvent ev; ev.type = UiEvent::EVT_OPEN_SETTINGS;
                     queue_try_add(&_eventQueue, &ev); return;
@@ -3210,13 +4414,200 @@ void DisplayManager::handleTouch() {
         }
     }
     else if (_uiMode == MODE_GRAPH_VIEW) {
-        if (y < 40 && x > 270) { if (!acceptTouch(0)) return; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
+        /* Botão X (fechar) — canto superior direito */
+        if (y < 40 && x > 284) { if (!acceptTouch(0)) return; _graphNavOffset = 0; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
+        /* Toque no header — mostra nome do sensor por 3s */
+        if (y < 28 && x < 284) {
+            if (!acceptTouch(0)) return;
+            _headerShowName = true;
+            _headerNameTimer = millis();
+            drawGraphHeaderBar();
+            return;
+        }
+        /* ── Barra inferior: [◀Past][▶Fut][📅Cal][🔍+ZoomIn][🔍-ZoomOut] ── */
         if (y >= 195) {
-            int btnW = 58; int gap = 5; int startX = 5; int clickedBtn = -1;
-            for(int i=0; i<5; i++) { int bx = startX + (i * (btnW + gap)); if (x >= bx && x <= bx + btnW) { clickedBtn = i; break; } }
-            if (clickedBtn != -1 && clickedBtn != _graphData.timeRange) {
-                if (!acceptTouch(1 + clickedBtn)) return;
-                UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = clickedBtn;
+            const int btnW = 60, gap = 4, startX = 2;
+            int btn = -1;
+            for (int i = 0; i < 5; i++) {
+                int bx = startX + i * (btnW + gap);
+                if (x >= bx && x <= bx + btnW) { btn = i; break; }
+            }
+
+            if (btn == 0) {
+                /* Passado (◀) */
+                if (!acceptHoldTouch(10)) return;
+                UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = -1;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+            if (btn == 1 && _graphNavOffset < 0) {
+                /* Futuro (▶) — só se offset < 0 */
+                if (!acceptHoldTouch(11)) return;
+                UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = +1;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+            if (btn == 2) {
+                /* Calendário (📅) */
+                if (!acceptTouch(0)) return;
+                UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = _graphData.sensorIdx; ev.param = 0;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+            if (btn == 3 && _graphData.timeRange > 0) {
+                /* Zoom In — range mais curto (mais detalhe) */
+                if (!acceptHoldTouch(12)) return;
+                int newRange = _graphData.timeRange - 1;
+                UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+            if (btn == 4 && _graphData.timeRange < 4) {
+                /* Zoom Out — range mais longo (menos detalhe) */
+                if (!acceptHoldTouch(13)) return;
+                int newRange = _graphData.timeRange + 1;
+                UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+        }
+        /* Toque na zona central → detalhes de temperatura (página 0) */
+        if (y >= 40 && y < 195) {
+            if (!acceptTouch(10)) return;
+            _detailPage = 0;
+            _uiMode = MODE_GRAPH_DETAIL;
+            _repaintGraph = true;
+        }
+    }
+    else if (_uiMode == MODE_GRAPH_DETAIL) {
+        /* Botão X — fechar para dashboard */
+        if (y < 40 && x > 284) { if (!acceptTouch(0)) return; _graphNavOffset = 0; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
+        /* Toque no header — mostra nome do sensor por 3s */
+        if (y < 28 && x < 284) {
+            if (!acceptTouch(0)) return;
+            _headerShowName = true;
+            _headerNameTimer = millis();
+            drawGraphHeaderBar();
+            return;
+        }
+        /* Barra inferior — mesma lógica do graph view */
+        if (y >= 195) {
+            const int btnW = 60, gap = 4, startX = 2;
+            int btn = -1;
+            for (int i = 0; i < 5; i++) {
+                int bx = startX + i * (btnW + gap);
+                if (x >= bx && x <= bx + btnW) { btn = i; break; }
+            }
+
+            if (btn == 0) {
+                /* Passado (◀) */
+                if (!acceptHoldTouch(10)) return;
+                UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = -1;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+            if (btn == 1 && _graphNavOffset < 0) {
+                /* Futuro (▶) — só se offset < 0 */
+                if (!acceptHoldTouch(11)) return;
+                UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = +1;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+            if (btn == 2) {
+                /* Calendário (📅) */
+                if (!acceptTouch(0)) return;
+                UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = _graphData.sensorIdx; ev.param = 0;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+            if (btn == 3 && _graphData.timeRange > 0) {
+                /* Zoom In — range mais curto (mais detalhe) */
+                if (!acceptHoldTouch(12)) return;
+                int newRange = _graphData.timeRange - 1;
+                UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+            if (btn == 4 && _graphData.timeRange < 4) {
+                /* Zoom Out — range mais longo (menos detalhe) */
+                if (!acceptHoldTouch(13)) return;
+                int newRange = _graphData.timeRange + 1;
+                UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
+                queue_try_add(&_eventQueue, &ev); return;
+            }
+        }
+        /* Toque na zona central → próxima página ou voltar ao gráfico */
+        if (y >= 40 && y < 195) {
+            if (!acceptTouch(10)) return;
+            bool hasHumNow = _graphData.hasHumidity && !isnan(_currentMinHum);
+            if (_detailPage == 0 && hasHumNow) {
+                /* Temperatura → Umidade */
+                _detailPage = 1;
+                _repaintGraph = true;
+            } else {
+                /* Umidade (ou temp sem hum) → voltar ao gráfico */
+                _detailPage = 0;
+                _uiMode = MODE_GRAPH_VIEW;
+                _repaintGraph = true;
+            }
+        }
+    }
+    /* ── CALENDÁRIO ── */
+    else if (_uiMode == MODE_CALENDAR) {
+        /* Botão X (voltar ao gráfico) — canto superior direito */
+        if (y < 28 && x >= 270) {
+            if (!acceptTouch(0)) return;
+            _uiMode = MODE_GRAPH_VIEW;
+            _repaintGraph = true;
+            return;
+        }
+        /* Seta ◀ mês — header esquerdo */
+        if (y < 28 && x < 30) {
+            if (!acceptSlideTouch(20)) return;
+            UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = -1;
+            queue_try_add(&_eventQueue, &ev); return;
+        }
+        /* Seta ▶ mês — header direito */
+        if (y < 28 && x > 290) {
+            if (!acceptSlideTouch(21)) return;
+            UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = +1;
+            queue_try_add(&_eventQueue, &ev); return;
+        }
+        /* ── Grade de dias (y=44..190) ── */
+        if (y >= 44 && y < 190) {
+            const int gridStartY = 46, cellW = 44, cellH = 24;
+            int row = (y - gridStartY) / cellH;
+            int col = x / cellW;
+            if (col >= 0 && col < 7 && row >= 0 && row < 6) {
+                /* Calcula primeiro dia da semana */
+                struct tm firstTm = {};
+                firstTm.tm_year = _calYear - 1900;
+                firstTm.tm_mon  = _calMonth - 1;
+                firstTm.tm_mday = 1;
+                mktime(&firstTm);
+                int firstDow = firstTm.tm_wday;
+
+                int cell = row * 7 + col;
+                int dayNum = cell - firstDow + 1;
+
+                /* Verifica se é dia válido com dados */
+                if (dayNum >= 1 && dayNum <= 31 && (_calDaysMask & (1UL << dayNum))) {
+                    if (!acceptTouch(0)) return;
+                    UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_DAY;
+                    ev.id = _graphData.sensorIdx;
+                    ev.param = dayNum;
+                    queue_try_add(&_eventQueue, &ev);
+                }
+            }
+        }
+        /* ── Barra inferior: [◀ Mês] [Hoje] [Mês ▶] ── */
+        if (y >= 195) {
+            if (x < 106) {
+                /* ◀ Mês */
+                if (!acceptSlideTouch(20)) return;
+                UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = -1;
+                queue_try_add(&_eventQueue, &ev);
+            } else if (x >= 108 && x < 212) {
+                /* Hoje — volta ao gráfico com offset 0 */
+                if (!acceptTouch(0)) return;
+                _graphNavOffset = 0;
+                UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = _graphData.timeRange;
+                queue_try_add(&_eventQueue, &ev);
+            } else if (x >= 217) {
+                /* Mês ▶ */
+                if (!acceptSlideTouch(21)) return;
+                UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = +1;
                 queue_try_add(&_eventQueue, &ev);
             }
         }
@@ -3227,17 +4618,17 @@ void DisplayManager::handleTouch() {
             if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
             int actualIndex = (_themePage * 4) + clickedIndex;
             if (actualIndex < getThemeCount() && actualIndex != _previewThemeIdx) {
-                if (!acceptTouch(clickedIndex)) return;
+                if (!acceptSlideTouch(clickedIndex)) return;
                 _previewThemeIdx = actualIndex; _themePage = _previewThemeIdx / 4; _repaintSettings = true;
             }
         }
         else if (y > 185) {
             if (x < 70) {
-                if (!acceptTouch(10)) return;
+                if (!acceptHoldTouch(10)) return;
                 if (_previewThemeIdx > 0) _previewThemeIdx--; else _previewThemeIdx = getThemeCount() - 1;
                 _themePage = _previewThemeIdx / 4; _repaintSettings = true;
             } else if (x < 138) {
-                if (!acceptTouch(11)) return;
+                if (!acceptHoldTouch(11)) return;
                 if (_previewThemeIdx < getThemeCount() - 1) _previewThemeIdx++; else _previewThemeIdx = 0;
                 _themePage = _previewThemeIdx / 4; _repaintSettings = true;
             } else if (x < 219) {
@@ -3263,7 +4654,7 @@ void DisplayManager::handleTouch() {
                 bool touchOnStatus = (x >= 230);
 
                 if (touchOnStatus && mapIdx == _alarmSelection) {
-                    /* Touch on YES/NO of selected item: toggle or edit */
+                    /* Toque no SIM/NAO do item selecionado: toggle ou edição */
                     if (!acceptTouch(clickedIndex + 4)) return;
                     int actualSensorId = _activeSensorsMap[_alarmSelection];
                     SensorRecord* rec = (actualSensorId == -1)
@@ -3278,23 +4669,23 @@ void DisplayManager::handleTouch() {
                         queue_try_add(&_eventQueue, &ev);
                         _repaintSettings = true;
                     } else {
-                        /* NO → enters the limit editing screen */
+                        /* NAO → entra na tela de edição de limites */
                         showAlarmEdit(actualSensorId);
                     }
                 } else if (mapIdx != _alarmSelection) {
                     /* Toque no nome/barra: seleciona o item */
-                    if (!acceptTouch(clickedIndex)) return;
+                    if (!acceptSlideTouch(clickedIndex)) return;
                     _alarmSelection = mapIdx; _alarmPage = _alarmSelection / 4; _repaintSettings = true;
                 }
             }
         }
         else if (y > 185) {
             if (x < 70) {
-                if (!acceptTouch(10)) return;
+                if (!acceptHoldTouch(10)) return;
                 if (_alarmSelection > 0) _alarmSelection--; else _alarmSelection = _activeSensorCount - 1;
                 _alarmPage = _alarmSelection / 4; _repaintSettings = true;
             } else if (x < 138) {
-                if (!acceptTouch(11)) return;
+                if (!acceptHoldTouch(11)) return;
                 if (_alarmSelection < _activeSensorCount - 1) _alarmSelection++; else _alarmSelection = 0;
                 _alarmPage = _alarmSelection / 4; _repaintSettings = true;
             } else {
@@ -3349,8 +4740,9 @@ void DisplayManager::handleTouch() {
             };
 
             if (x < 70) {
-
-                if (_lastPressedBtn != 0) { _btnHoldStartTime = millis(); _lastPressedBtn = 0; acceptTouch(10); }
+                /* Decremento com hold-repeat (300ms) e aceleração */
+                if (!acceptHoldTouch(10)) return;
+                if (_lastPressedBtn != 0) { _btnHoldStartTime = millis(); _lastPressedBtn = 0; }
                 uint32_t holdTime = millis() - _btnHoldStartTime;
                 float step = -0.1f; if (holdTime > 6000) step = -10.0f; else if (holdTime > 4000) step = -1.0f; else if (holdTime > 2000) step = -0.5f;
                 if (_editFieldFocus == 0) _tempAlarmConfig.tempMin = adjustVal(_tempAlarmConfig.tempMin, step, -50.0f, 150.0f);
@@ -3361,8 +4753,9 @@ void DisplayManager::handleTouch() {
                 _repaintSettings = true;
             }
             else if (x < 138) {
-
-                if (_lastPressedBtn != 1) { _btnHoldStartTime = millis(); _lastPressedBtn = 1; acceptTouch(11); }
+                /* Incremento com hold-repeat (300ms) e aceleração */
+                if (!acceptHoldTouch(11)) return;
+                if (_lastPressedBtn != 1) { _btnHoldStartTime = millis(); _lastPressedBtn = 1; }
                 uint32_t holdTime = millis() - _btnHoldStartTime;
                 float step = 0.1f; if (holdTime > 6000) step = 10.0f; else if (holdTime > 4000) step = 1.0f; else if (holdTime > 2000) step = 0.5f;
                 if (_editFieldFocus == 0) _tempAlarmConfig.tempMin = adjustVal(_tempAlarmConfig.tempMin, step, -50.0f, 150.0f);
@@ -3398,7 +4791,7 @@ void DisplayManager::handleTouch() {
     }
     else if (_uiMode == MODE_AUTH) {
         if (y > 200 && x < 120) { if (!acceptTouch(0)) return; forceDashboard(); return; }
-        /* License button — accessible even during lockout */
+        /* Botão de licença — acessível mesmo em lockout */
         if (y > 200 && x > 195) { if (!acceptTouch(5)) return; _licenseFromAuth = true; showSettingsLicense(); return; }
         if (_permanentLockout || millis() < _lockoutUntil) return;
         if (y >= 80 && y <= 185) {
@@ -3429,20 +4822,20 @@ void DisplayManager::handleTouch() {
             int clickedIndex = 0;
             if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
             int mapIdx = (_mainMenuPage * 4) + clickedIndex;
-            if (mapIdx < 7 && mapIdx != _menuSelection) {
-                if (!acceptTouch(clickedIndex)) return;
+            if (mapIdx < 8 && mapIdx != _menuSelection) {
+                if (!acceptSlideTouch(clickedIndex)) return;
                 _menuSelection = mapIdx; _mainMenuPage = _menuSelection / 4; _repaintSettings = true;
             }
         }
         else if (y > 185) {
             if (x < 70) {
-                if (!acceptTouch(10)) return;
-                if (_menuSelection > 0) _menuSelection--; else _menuSelection = 6;
+                if (!acceptHoldTouch(10)) return;
+                if (_menuSelection > 0) _menuSelection--; else _menuSelection = 7;
                 _mainMenuPage = _menuSelection / 4; _repaintSettings = true;
             }
             else if (x < 138) {
-                if (!acceptTouch(11)) return;
-                if (_menuSelection < 6) _menuSelection++; else _menuSelection = 0;
+                if (!acceptHoldTouch(11)) return;
+                if (_menuSelection < 7) _menuSelection++; else _menuSelection = 0;
                 _mainMenuPage = _menuSelection / 4; _repaintSettings = true;
             }
             else if (x < 219) {
@@ -3461,7 +4854,7 @@ void DisplayManager::handleTouch() {
             if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
             int actualIndex = (_langPage * 4) + clickedIndex;
             if (actualIndex < TOTAL_LANGS && actualIndex != _previewLangIdx) {
-                if (!acceptTouch(clickedIndex)) return;
+                if (!acceptSlideTouch(clickedIndex)) return;
                 _previewLangIdx = actualIndex;
                 _langPage = _previewLangIdx / 4;
                 _repaintSettings = true;
@@ -3469,13 +4862,13 @@ void DisplayManager::handleTouch() {
         }
         else if (y > 185) {
             if (x < 70) {
-                if (!acceptTouch(10)) return;
+                if (!acceptHoldTouch(10)) return;
                 if (_previewLangIdx > 0) _previewLangIdx--; else _previewLangIdx = TOTAL_LANGS - 1;
                 _langPage = _previewLangIdx / 4;
                 _repaintSettings = true;
             }
             else if (x < 138) {
-                if (!acceptTouch(11)) return;
+                if (!acceptHoldTouch(11)) return;
                 if (_previewLangIdx < TOTAL_LANGS - 1) _previewLangIdx++; else _previewLangIdx = 0;
                 _langPage = _previewLangIdx / 4;
                 _repaintSettings = true;
@@ -3539,7 +4932,7 @@ void DisplayManager::handleTouch() {
 
             if (!acceptTouch((uint8_t)(row * 10 + col + 10))) return;
 
-            /* Update visual selection cursor */
+            /* Atualizar cursor de seleção visual */
             _kbSelRow = row;
             _kbSelCol = col;
 
@@ -3574,7 +4967,7 @@ void DisplayManager::handleTouch() {
 
 
         if (y >= 170 && y < 195) {
-            /* Positions: Shift=1..49, 123=51..99, Space=101..219, Bksp=221..269, OK=271..319 */
+            /* Novas posições: Shift=1..49, 123=51..99, Espaço=101..219, Bksp=221..269, OK=271..319 */
             if (x < 49) {
                 /* Shift */
                 if (!acceptTouch(50)) return;
@@ -3595,7 +4988,7 @@ void DisplayManager::handleTouch() {
                 _repaintSettings = true;
             }
             else if (x < 219) {
-                /* Space */
+                /* Espaço */
                 if (!acceptTouch(52)) return;
                 if (_kbCursor < 7) {
                     activeBuf[_kbCursor++] = ' ';
@@ -3612,7 +5005,7 @@ void DisplayManager::handleTouch() {
                 _repaintSettings = true;
             }
             else {
-                /* OK — same confirmation logic */
+                /* OK — mesma lógica de confirmação */
                 if (!acceptTouch(54)) return;
                 if (_kbPhase == 0) {
                     if (_kbCursor < 4) {
@@ -3625,7 +5018,7 @@ void DisplayManager::handleTouch() {
                         _kbCursor = 0;
                         _kbShowRaw = false;
                         memset(_kbConfirmBuf, 0, sizeof(_kbConfirmBuf));
-                        /* Partial redraw: title and boxes change, keys do not */
+                        /* Redesenho parcial: título e boxes mudam, teclas não */
                         _repaintSettings = true;
                     }
                 }
@@ -3665,11 +5058,11 @@ void DisplayManager::handleTouch() {
             int btnIdx = (x - bStartX) / (btnW + bGap);
             if (btnIdx < 0) btnIdx = 0;
             if (btnIdx > 4) btnIdx = 4;
-            /* Check if touch is inside button (not in gap) */
+            /* Verificar se o toque está dentro do botão (não no gap) */
             int btnX = bStartX + btnIdx * (btnW + bGap);
             if (x < btnX || x > btnX + btnW) return;
 
-            /* Column limits: row 3 (bar) has 5 items, rows 0-2 have 10 */
+            /* Limites de coluna: fila 3 (barra) tem 5 itens, filas 0-2 têm 10 */
             int maxCol = (_kbSelRow == 3) ? 4 : 9;
 
             if (btnIdx == 0) {
@@ -3680,7 +5073,7 @@ void DisplayManager::handleTouch() {
                 _repaintSettings = true;
             }
             else if (btnIdx == 1) {
-                /* ► Right */
+                /* ► Direita */
                 if (!acceptTouch(61)) return;
                 _kbSelCol++;
                 if (_kbSelCol > maxCol) _kbSelCol = 0;
@@ -3705,13 +5098,13 @@ void DisplayManager::handleTouch() {
                 _repaintSettings = true;
             }
             else if (btnIdx == 4) {
-                /* ✓ Confirm selection */
+                /* ✓ Confirma seleção */
                 if (!acceptTouch(64)) return;
 
                 if (_kbSelRow == 3) {
                     /*
-                     * Action bar: execute the action of the selected item.
-                     * 0=Shift, 1=123, 2=Space, 3=Backspace, 4=OK
+                     * Barra de ações: executar a ação do item selecionado.
+                     * 0=Shift, 1=123, 2=Espaço, 3=Backspace, 4=OK
                      */
                     if (_kbSelCol == 0) {
                         /* Shift */
@@ -3729,7 +5122,7 @@ void DisplayManager::handleTouch() {
                         _kbShiftLock = false;
                     }
                     else if (_kbSelCol == 2) {
-                        /* Space */
+                        /* Espaço */
                         if (_kbCursor < 7) {
                             activeBuf[_kbCursor++] = ' ';
                             activeBuf[_kbCursor] = '\0';
@@ -3742,7 +5135,7 @@ void DisplayManager::handleTouch() {
                         }
                     }
                     else if (_kbSelCol == 4) {
-                        /* OK — password confirmation */
+                        /* OK — confirmação da senha */
                         if (_kbPhase == 0) {
                             if (_kbCursor < 4) {
                                 _kbPhase = 2;
@@ -3823,7 +5216,7 @@ void DisplayManager::handleTouch() {
                 else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
                 int mapIdx = (melPage * 4) + clickedIndex;
                 if (mapIdx >= TOTAL_VARIANTS) return;
-                if (!acceptTouch(0x80 + clickedIndex)) return;
+                if (!acceptSlideTouch(0x80 + clickedIndex)) return;
 
                 _melSelectIdx = (uint8_t)mapIdx;
                 SoundEvent evType = SND_NONE;
@@ -3923,7 +5316,7 @@ void DisplayManager::handleTouch() {
             else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
             int mapIdx = (soundPage * 4) + clickedIndex;
             if (mapIdx >= TOTAL_SOUND_ITEMS) return;
-            if (!acceptTouch(clickedIndex)) return;
+            if (!acceptSlideTouch(clickedIndex)) return;
 
             if (mapIdx != _soundSelection) {
                 _soundSelection = mapIdx;
@@ -3964,6 +5357,7 @@ void DisplayManager::handleTouch() {
                     _repaintSettings = true;
                 }
                 else if (mapIdx == 6) {
+                    if (!acceptHoldTouch(20)) return;
                     if (x < 160) { if (_soundSettings.volume >= 10) _soundSettings.volume -= 10; }
                     else          { if (_soundSettings.volume <= 90) _soundSettings.volume += 10; }
                     _touchSoundPending       = false;
@@ -3972,6 +5366,7 @@ void DisplayManager::handleTouch() {
                     _repaintSettings = true;
                 }
                 else if (mapIdx == 7) {
+                    if (!acceptHoldTouch(21)) return;
                     if (x < 160) { if (_soundSettings.alarmVolume >= 10) _soundSettings.alarmVolume -= 10; }
                     else          { if (_soundSettings.alarmVolume <= 90) _soundSettings.alarmVolume += 10; }
                     _touchSoundPending          = false;
@@ -3983,12 +5378,12 @@ void DisplayManager::handleTouch() {
         }
         else if (y > 185) {
             if (x < 70) {
-                if (!acceptTouch(10)) return;
+                if (!acceptHoldTouch(10)) return;
                 if (_soundSelection > 0) _soundSelection--; else _soundSelection = TOTAL_SOUND_ITEMS - 1;
                 _repaintSettings = true;
             }
             else if (x < 138) {
-                if (!acceptTouch(11)) return;
+                if (!acceptHoldTouch(11)) return;
                 if (_soundSelection < TOTAL_SOUND_ITEMS - 1) _soundSelection++; else _soundSelection = 0;
                 _repaintSettings = true;
             }
@@ -4005,10 +5400,29 @@ void DisplayManager::handleTouch() {
     }
 
 
+    else if (_uiMode == MODE_SETTINGS_STATUS) {
+        if (y > 185) {
+            if (x < 70) {
+                if (!acceptHoldTouch(10)) return;
+                if (_statusPage > 0) _statusPage--; else _statusPage = STATUS_PAGES - 1;
+                _forceSettingsRedraw = true; _repaintSettings = true;
+            }
+            else if (x < 138) {
+                if (!acceptHoldTouch(11)) return;
+                if (_statusPage < STATUS_PAGES - 1) _statusPage++; else _statusPage = 0;
+                _forceSettingsRedraw = true; _repaintSettings = true;
+            }
+            else if (x < 219) {
+                if (!acceptTouch(12)) return;
+                showSettingsMain();
+            }
+        }
+    }
+
     else if (_uiMode == MODE_SETTINGS_LICENSE) {
 
         if (y >= 32 && y <= 189) {
-            /* Touch on text area: upper half = previous page, lower = next page */
+            /* Toque na área de texto: metade superior = pág anterior, inferior = próxima */
             if (y < 110) {
                 if (!acceptTouch(0)) return;
                 if (_licensePage > 0) _licensePage--;
@@ -4020,12 +5434,12 @@ void DisplayManager::handleTouch() {
         }
         else if (y > 190) {
             if (x < 107) {
-                if (!acceptTouch(10)) return;
+                if (!acceptHoldTouch(10)) return;
                 if (_licensePage > 0) _licensePage--;
                 _repaintSettings = true;
             }
             else if (x < 213) {
-                if (!acceptTouch(11)) return;
+                if (!acceptHoldTouch(11)) return;
                 if (_licensePage < _licenseTotalPages - 1) _licensePage++;
                 _repaintSettings = true;
             }
@@ -4179,7 +5593,7 @@ void DisplayManager::drawSettingsAlarms() {
         _tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
         _tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
         _tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
-        /* EXIT button occupies full remaining width */
+        /* Botão SAIR ocupa toda a largura restante */
         _tft->fillRoundRect(141, btnY, 174, btnH, 8, C_ACCENT);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_BG_MAIN);
         String backTxt = tr(TR_BACK);
@@ -4200,7 +5614,7 @@ void DisplayManager::drawSettingsAlarms() {
     for (int i = 0; i < 4; i++) {
         int y = yBase + (i * 38); int mapIdx = startIdx + i;
 
-        /* Only redraws items that changed selection state or on fullRedraw/pageChanged */
+        /* Só redesenha itens que mudaram de estado de seleção ou em fullRedraw/pageChanged */
         if (!fullRedraw && !pageChanged) {
             if (mapIdx != _alarmSelection && mapIdx != _lastAlarmSelection) continue;
         }
@@ -4215,14 +5629,14 @@ void DisplayManager::drawSettingsAlarms() {
             _canvasWide->fillRoundRect(0, 0, itemW, 34, 8, bg);
             if (!isSelected) _canvasWide->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
 
-            /* Measure YES/NO indicator width to reserve space */
+            /* Medir a largura do indicador SIM/NAO para reservar espaço */
             const char* statusTxt = rec->alarmsActive ? tr(TR_ON) : tr(TR_OFF);
             _canvasWide->setFont(&FreeSansBold9pt7b);
             int16_t sx1, sy1; uint16_t sw, sh;
             _canvasWide->getTextBounds(statusTxt, 0, 0, &sx1, &sy1, &sw, &sh);
             int statusAreaW = (int)sw + 20;  /* margem de 10px de cada lado */
 
-            /* Sensor name — truncated if needed to avoid collision */
+            /* Nome do sensor — truncado se necessário para não colidir */
             int maxNameW = itemW - statusAreaW - 15;
             char nameBuf[40];
             truncateText(_canvasWide, rec->friendlyName, nameBuf, sizeof(nameBuf), maxNameW);
@@ -4230,7 +5644,7 @@ void DisplayManager::drawSettingsAlarms() {
             _canvasWide->setCursor(10, 24);
             _canvasWide->print(nameBuf);
 
-            /* Indicador SIM/NAO alinhado on the right */
+            /* Indicador SIM/NAO alinhado à direita */
             uint16_t statusColor;
             if (isSelected) {
                 statusColor = C_BG_MAIN;
@@ -4334,7 +5748,7 @@ void DisplayManager::showSettingsMain() {
 void DisplayManager::drawSettingsMain() {
     if(!_canvasWide) return;
     bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_mainMenuPage != _lastMainMenuPage);
-    const int TOTAL_ITEMS = 7; LangKey menuItems[] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE};
+    const int TOTAL_ITEMS = 8; LangKey menuItems[] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS};
     int totalPages = (TOTAL_ITEMS + 3) / 4; if (totalPages == 0) totalPages = 1;
     if (_mainMenuPage >= totalPages) _mainMenuPage = totalPages - 1; if (_mainMenuPage < 0) _mainMenuPage = 0;
 
@@ -4374,6 +5788,7 @@ void DisplayManager::drawSettingsMain() {
     for (int i = 0; i < 4; i++) {
         int y = yBase + (i * 38); int mapIdx = startIdx + i;
         _canvasWide->fillScreen(C_BG_MAIN);
+        _canvasWide->setTextSize(1); /* Garante reset após tela de status */
         if (mapIdx < TOTAL_ITEMS) {
             bool isSelected = (mapIdx == _menuSelection);
             uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
@@ -4625,7 +6040,7 @@ void DisplayManager::drawSettingsPassword() {
         _tft->fillScreen(C_BG_MAIN);
     }
 
-    /* Title — always redrawn via canvas (changes between phases) */
+    /* Título — redesenha sempre via canvas (muda entre fases) */
     {
         /* Barra de ponta a ponta sem cantos arredondados */
         _canvasWide->fillScreen(C_CARD_BG);
@@ -4633,7 +6048,7 @@ void DisplayManager::drawSettingsPassword() {
         _canvasWide->setCursor(14, 18);
         _canvasWide->print((_kbPhase == 0) ? tr(TR_NEW_PASSWORD) : tr(TR_CONFIRM_PASSWORD));
 
-        /* X button overlaid on bar */
+        /* Botão X sobreposto à barra */
         _canvasWide->fillRoundRect(282, 2, 30, 22, 4, C_TEMP_WARM);
         _canvasWide->setFont(&FreeSansBold9pt7b); _canvasWide->setTextColor(C_BG_MAIN);
         _canvasWide->getTextBounds("X", 0, 0, &x1, &y1, &w, &h_bound);
@@ -4651,10 +6066,10 @@ void DisplayManager::drawSettingsPassword() {
         const int stripH = boxH + 10;
 
         /*
-         * Visible boxes count: in phase 0 (typing), shows maximum
-         * between MIN_BOXES and (cursor + 1), up to MAX_BOXES.
-         * In phase 1 (confirmation), shows exactly the password length
-         * already defined in _kbBuffer.
+         * Número de boxes visíveis: na fase 0 (digitação), mostra o máximo
+         * entre MIN_BOXES e (cursor + 1), até MAX_BOXES.
+         * Na fase 1 (confirmação), mostra exatamente o tamanho da senha
+         * já definida em _kbBuffer.
          */
         int visibleBoxes;
         if (_kbPhase == 1) {
@@ -4772,24 +6187,24 @@ void DisplayManager::drawSettingsPassword() {
 
     {
         /*
-         * Action bar: Shift, 123, Space, Backspace, OK.
+         * Barra de ações: Shift, 123, Espaço, Backspace, OK.
          * Mesma largura total das filas de teclas (x=1..319).
-         * Shift=48, 123=48, Space=118, Backspace=48, OK=48, gap=2.
+         * Shift=48, 123=48, Espaço=118, Backspace=48, OK=48, gap=2.
          */
         const int barY = 170, barH = 22;
         const int bx0 = 1;       /* Shift */
         const int bx1 = 51;      /* 123 */
-        const int bx2 = 101;     /* Space */
+        const int bx2 = 101;     /* Espaço */
         const int bx3 = 221;     /* Backspace */
         const int bx4 = 271;     /* OK */
         const int bw01 = 48;     /* Shift e 123 */
-        const int bw2 = 118;     /* Space */
+        const int bw2 = 118;     /* Espaço */
         const int bw34 = 48;     /* Backspace e OK */
         bool barActive = (_kbSelRow == 3);
 
         _canvasWide->fillScreen(C_BG_MAIN);
 
-        /* Shift button (col 0) */
+        /* Botão Shift (col 0) */
         {
             bool layerActive = (_kbLayer == 1) || _kbShiftLock;
             bool sel = barActive && (_kbSelCol == 0);
@@ -4806,7 +6221,7 @@ void DisplayManager::drawSettingsPassword() {
             }
         }
 
-        /* 123 button (col 1) */
+        /* Botão 123 (col 1) */
         {
             bool layerActive = (_kbLayer == 2);
             bool sel = barActive && (_kbSelCol == 1);
@@ -4823,7 +6238,7 @@ void DisplayManager::drawSettingsPassword() {
             _canvasWide->print("123");
         }
 
-        /* Space bar (col 2) */
+        /* Barra de espaço (col 2) */
         {
             bool sel = barActive && (_kbSelCol == 2);
             uint16_t bg = sel ? C_ACCENT_HIGH : C_CARD_BG;
@@ -4836,7 +6251,7 @@ void DisplayManager::drawSettingsPassword() {
             _canvasWide->drawFastHLine(lineX, 14, lineW, lineCol);
         }
 
-        /* Backspace button (col 3) */
+        /* Botão Backspace (col 3) */
         {
             bool sel = barActive && (_kbSelCol == 3);
             uint16_t bg = sel ? C_ACCENT_HIGH : C_CARD_BG;
@@ -4849,7 +6264,7 @@ void DisplayManager::drawSettingsPassword() {
             _canvasWide->fillRect(cx - 2, cy - 3, 10, 6, fg);
         }
 
-        /* OK button (col 4) */
+        /* Botão OK (col 4) */
         {
             bool sel = barActive && (_kbSelCol == 4);
             uint16_t bg = sel ? C_ACCENT_HIGH : C_ACCENT;
@@ -4870,8 +6285,8 @@ void DisplayManager::drawSettingsPassword() {
 
     {
         /*
-         * 5 dashboard-style navigation buttons (58x40, radius 12).
-         * ▲  ▼  ◄  ►  ✓(confirm character)
+         * 5 botões de navegação no estilo dashboard (58x40, raio 12).
+         * ▲  ▼  ◄  ►  ✓(confirma caractere)
          * Posicionados na parte inferior da tela (Y=195).
          */
         const int btnW = 58, btnH = 40, gap = 5, startX = 5;
@@ -4879,14 +6294,14 @@ void DisplayManager::drawSettingsPassword() {
 
         _canvasWide->fillScreen(C_BG_MAIN);
 
-        /* ◄ button (left) */
+        /* Botão ◄ (esquerda) */
         {
             _canvasWide->fillRoundRect(startX, 0, btnW, btnH, 12, C_CARD_BG);
             int cx = startX + btnW / 2, cy = btnH / 2;
             _canvasWide->fillTriangle(cx + 6, cy - 8, cx + 6, cy + 8, cx - 8, cy, C_TEXT_MAIN);
         }
 
-        /* ► button (right) */
+        /* Botão ► (direita) */
         {
             int bx = startX + (btnW + gap);
             _canvasWide->fillRoundRect(bx, 0, btnW, btnH, 12, C_CARD_BG);
@@ -4894,7 +6309,7 @@ void DisplayManager::drawSettingsPassword() {
             _canvasWide->fillTriangle(cx - 6, cy - 8, cx - 6, cy + 8, cx + 8, cy, C_TEXT_MAIN);
         }
 
-        /* ▲ button (up) */
+        /* Botão ▲ (cima) */
         {
             int bx = startX + 2 * (btnW + gap);
             _canvasWide->fillRoundRect(bx, 0, btnW, btnH, 12, C_CARD_BG);
@@ -4902,7 +6317,7 @@ void DisplayManager::drawSettingsPassword() {
             _canvasWide->fillTriangle(cx - 8, cy + 6, cx + 8, cy + 6, cx, cy - 8, C_TEXT_MAIN);
         }
 
-        /* ▼ button (down) */
+        /* Botão ▼ (baixo) */
         {
             int bx = startX + 3 * (btnW + gap);
             _canvasWide->fillRoundRect(bx, 0, btnW, btnH, 12, C_CARD_BG);
@@ -4910,12 +6325,12 @@ void DisplayManager::drawSettingsPassword() {
             _canvasWide->fillTriangle(cx - 8, cy - 6, cx + 8, cy - 6, cx, cy + 8, C_TEXT_MAIN);
         }
 
-        /* ✓ button (confirm selected character) */
+        /* Botão ✓ (confirma caractere selecionado) */
         {
             int bx = startX + 4 * (btnW + gap);
             _canvasWide->fillRoundRect(bx, 0, btnW, btnH, 12, C_ACCENT);
             int cx = bx + btnW / 2, cy = btnH / 2;
-            /* Check icon */
+            /* Ícone de check */
             _canvasWide->drawLine(cx - 8, cy, cx - 3, cy + 6, C_BG_MAIN);
             _canvasWide->drawLine(cx - 7, cy, cx - 2, cy + 6, C_BG_MAIN);
             _canvasWide->drawLine(cx - 3, cy + 6, cx + 8, cy - 6, C_BG_MAIN);
@@ -5022,7 +6437,7 @@ void DisplayManager::drawAuthScreen() {
             _tft->getTextBounds(msg2, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 140); _tft->print(msg2);
             _tft->fillRoundRect(10, 202, 110, 32, 8, C_CARD_BG); _tft->setTextColor(C_TEXT_MAIN);
             _tft->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor(10 + (110 - bw) / 2, 224); _tft->print(cancelTxt);
-            /* License button */
+            /* Botão de licença */
             _tft->fillRoundRect(200, 202, 110, 32, 8, C_CARD_BG);
             _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_SUB);
             String licTxt = tr(TR_LICENSE_TITLE);
@@ -5040,7 +6455,7 @@ void DisplayManager::drawAuthScreen() {
             _tft->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 22); _tft->print(titleTxt);
             _tft->fillRoundRect(10, 202, 110, 32, 8, C_CARD_BG);
             _tft->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor(10 + (110 - bw) / 2, 224); _tft->print(cancelTxt);
-            /* License button */
+            /* Botão de licença */
             _tft->fillRoundRect(200, 202, 110, 32, 8, C_CARD_BG);
             _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_SUB);
             String licTxt = tr(TR_LICENSE_TITLE);
@@ -5067,7 +6482,7 @@ void DisplayManager::drawAuthScreen() {
         _tft->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 22); _tft->print(titleTxt);
         _tft->fillRoundRect(10, 202, 110, 32, 8, C_CARD_BG); _tft->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh);
         _tft->setCursor(10 + (110 - bw) / 2, 224); _tft->print(cancelTxt);
-        /* License button no canto inferior direito */
+        /* Botão de licença no canto inferior direito */
         _tft->fillRoundRect(200, 202, 110, 32, 8, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_SUB);
         String licTxt = tr(TR_LICENSE_TITLE);
@@ -5076,7 +6491,7 @@ void DisplayManager::drawAuthScreen() {
         _forceSettingsRedraw = false;
     }
 
-    /* Authentication status via canvas — avoids flicker */
+    /* Status da autenticação via canvas — evita flicker */
     _canvasWide->fillScreen(C_BG_MAIN);
     if (_authFailed) {
         _canvasWide->setFont(&FreeSansBold9pt7b);
@@ -5097,7 +6512,7 @@ void DisplayManager::drawAuthScreen() {
     }
     blitCanvas(_canvasWide, 0, 35, 320, 30);
 
-    /* Keypad buttons via canvas — 2 buttons per row, 2 rows */
+    /* Botões do keypad via canvas — 2 botões por fila, 2 filas */
     for (int row = 0; row < 2; row++) {
         int rowY = 80 + (row * 60);
         _canvasWide->fillScreen(C_BG_MAIN);
@@ -5107,11 +6522,11 @@ void DisplayManager::drawAuthScreen() {
             int btnIdx = (row * 2) + col;
             int bx0 = (col == 0) ? 15 : 165;
 
-            /* Button with polished rounded borders */
+            /* Botão com bordas arredondadas bem acabadas */
             _canvasWide->fillRoundRect(bx0, 0, 140, 45, 10, C_CARD_BG);
             _canvasWide->drawRoundRect(bx0, 0, 140, 45, 10, C_TEXT_SUB);
 
-            /* Characters distributed across button */
+            /* Caracteres distribuídos no botão */
             _canvasWide->setTextColor(C_TEXT_MAIN);
             String chars = String(_keypadChars[btnIdx]);
             int slotWidth = 35;
@@ -5135,9 +6550,9 @@ void DisplayManager::setTelemetryPending(uint16_t count) {
 
 
 /**
- * @brief Reports the result of the last telemetry send attempt.
+ * @brief Informa o resultado do último envio de telemetria.
  *
- * Success: starts flash animation (blue/white for 1s), then
+ * Sucesso: inicia animação de flash (azul/branco por 1s), depois
  *          estabiliza em azul fixo.
  * Falha:   vermelho fixo imediatamente.
  */
@@ -5154,12 +6569,24 @@ void DisplayManager::setTelemetrySendStatus(bool success) {
 
 
 void DisplayManager::showTouchCalibration() {
-    mutex_enter_blocking(&_stateMutex);
-    _uiMode = MODE_SETTINGS_TOUCH_CAL;
+    /*
+     * Fluxo integrado: sensibilidade primeiro, depois posição.
+     * 1. MODE_SETTINGS_TOUCH_SENS — taps para calibrar threshold de pressão
+     * 2. MODE_SETTINGS_TOUCH_CAL  — crosshairs para calibrar posição
+     * A transição 1→2 é automática após conclusão da sensibilidade.
+     */
+    _sensCount     = 0;
+    _sensStability = 0.0f;
+    _sensThreshold = 0;
+    _sensDone      = false;
+    _sensDoneTime  = 0;
     _calStep = 0;
     _calPhase = 0;
     memset(_calRawX, 0, sizeof(_calRawX));
     memset(_calRawY, 0, sizeof(_calRawY));
+
+    mutex_enter_blocking(&_stateMutex);
+    _uiMode = MODE_SETTINGS_TOUCH_SENS;
     _forceSettingsRedraw = true;
     _repaintSettings = true;
     mutex_exit(&_stateMutex);
@@ -5177,6 +6604,9 @@ void DisplayManager::loadTouchCalibration(const TouchCalData* cal) {
     _calYMin   = cal->yMin;
     _calYMax   = cal->yMax;
     _calValid  = true;
+
+    /* Threshold de sensibilidade: usa valor salvo, fallback 400 se zero */
+    _sensZThreshold = (cal->zThreshold > 0) ? cal->zThreshold : 400;
 }
 
 
@@ -5188,6 +6618,135 @@ void DisplayManager::fillCalData(TouchCalData* cal) const {
     cal->xMax  = _calXMax;
     cal->yMin  = _calYMin;
     cal->yMax  = _calYMax;
+    cal->zThreshold = _sensZThreshold;
+}
+
+/**
+ * @brief Reseta a calibração do touch para os valores padrão de fábrica.
+ *
+ * Restaura os limites raw genéricos (200..3800) e invalida a flag.
+ * A próxima interação usará mapeamento estimado até nova calibração.
+ */
+void DisplayManager::resetTouchCalibration() {
+    _calValid  = false;
+    _calSwapXY = false;
+    _calXMin   = 200;
+    _calXMax   = 3800;
+    _calYMin   = 200;
+    _calYMax   = 3800;
+    _sensZThreshold = 400;
+}
+
+
+/* =========================================================================== */
+/*               CALIBRAÇÃO DE SENSIBILIDADE DO TOUCH                        */
+/* =========================================================================== */
+
+/**
+ * @brief Inicia a tela de calibração de sensibilidade.
+ * Reseta contadores e entra no modo de coleta de amostras.
+ */
+void DisplayManager::showTouchSensitivity() {
+    _sensCount     = 0;
+    _sensStability = 0.0f;
+    _sensThreshold = 0;
+    _sensDone      = false;
+    _sensDoneTime  = 0;
+    _uiMode = MODE_SETTINGS_TOUCH_SENS;
+    _forceSettingsRedraw = true;
+    _repaintSettings = true;
+}
+
+/**
+ * @brief Desenha a tela de calibração de sensibilidade.
+ *
+ * Layout:
+ * - Título na barra superior
+ * - Crosshair alvo no centro
+ * - Texto de progresso "Tap N/20"
+ * - Barra vertical à direita mostrando estabilidade (0..100%)
+ * - Valor numérico do threshold
+ */
+void DisplayManager::drawTouchSensitivity() {
+    bool fullRedraw = _forceSettingsRedraw;
+    _forceSettingsRedraw = false;
+
+    if (fullRedraw) {
+        _tft->fillScreen(C_BG_MAIN);
+
+        /* Barra de título */
+        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->setFont(&FreeSansBold9pt7b);
+        _tft->setTextColor(C_TEXT_MAIN);
+        _tft->setCursor(10, 22);
+        _tft->print(tr(TR_SENS_TITLE));
+
+        /* Botão CANCEL (canto inferior esquerdo) */
+        _tft->fillRoundRect(5, 195, 120, 40, 8, C_CARD_BG);
+        int16_t bx, by; uint16_t bw, bh;
+        String backTxt = tr(TR_CANCEL);
+        _tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
+        _tft->setTextColor(C_TEXT_MAIN);
+        _tft->setCursor(5 + (120 - bw) / 2, 220);
+        _tft->print(backTxt);
+
+        /* Moldura da barra vertical (direita) */
+        _tft->drawRect(289, 38, 26, 154, C_TEXT_OFF);
+    }
+
+    /* Crosshair central */
+    int cx = 140, cy = 115;
+    uint16_t crossColor = _sensDone ? C_TEMP_OK : C_ACCENT;
+    _tft->fillRect(cx - 30, cy - 1, 60, 3, C_BG_MAIN);
+    _tft->fillRect(cx - 1, cy - 30, 3, 60, C_BG_MAIN);
+    _tft->drawLine(cx - 15, cy, cx + 15, cy, crossColor);
+    _tft->drawLine(cx, cy - 15, cx, cy + 15, crossColor);
+    _tft->drawCircle(cx, cy, 12, crossColor);
+
+    /* Texto de progresso */
+    _tft->fillRect(80, 150, 140, 30, C_BG_MAIN);
+    _tft->setFont(&FreeSansBold9pt7b);
+    _tft->setTextColor(C_TEXT_MAIN);
+
+    if (_sensDone) {
+        int16_t bx2, by2; uint16_t bw2, bh2;
+        String doneMsg = tr(TR_SENS_DONE);
+        _tft->getTextBounds(doneMsg, 0, 0, &bx2, &by2, &bw2, &bh2);
+        _tft->setCursor(140 - bw2 / 2, 168);
+        _tft->print(doneMsg);
+    } else {
+        /* Instrução: reutiliza "Toque na mira" da calibração de posição */
+        int16_t bx2, by2; uint16_t bw2, bh2;
+        String holdMsg = tr(TR_CAL_TOUCH_POINT);
+        _tft->getTextBounds(holdMsg, 0, 0, &bx2, &by2, &bw2, &bh2);
+        _tft->setCursor(140 - bw2 / 2, 168);
+        _tft->print(holdMsg);
+    }
+
+    /* Barra vertical de estabilidade (dentro da moldura) */
+    int barX = 290, barY = 39, barW = 24, barH = 152;
+    int fillH = (int)(barH * _sensStability);
+    if (fillH > barH) fillH = barH;
+
+    /* Fundo (parte não preenchida) */
+    if (fillH < barH) {
+        _tft->fillRect(barX, barY, barW, barH - fillH, C_BG_MAIN);
+    }
+    /* Preenchimento (de baixo para cima) */
+    uint16_t barColor = (_sensStability >= 0.85f) ? C_TEMP_OK : C_ACCENT;
+    if (fillH > 0) {
+        _tft->fillRect(barX, barY + barH - fillH, barW, fillH, barColor);
+    }
+
+    /* Valor numérico abaixo da barra */
+    _tft->fillRect(280, 195, 40, 20, C_BG_MAIN);
+    _tft->setFont(NULL);
+    _tft->setTextSize(1);
+    _tft->setTextColor(C_TEXT_OFF);
+    char valBuf[8];
+    snprintf(valBuf, sizeof(valBuf), "%d", _sensThreshold);
+    _tft->setCursor(295, 198);
+    _tft->print(valBuf);
 }
 
 
@@ -5285,7 +6844,8 @@ void DisplayManager::drawTouchCalibration() {
         }
 
 
-        drawCrosshair(CAL_SCR_X[pointIdx], CAL_SCR_Y[pointIdx], C_ACCENT);
+        drawCrosshair(CAL_SCR_X[pointIdx], CAL_SCR_Y[pointIdx],
+                      _calHoldReady ? C_TEMP_OK : C_ACCENT);
 
 
         _tft->fillRect(20, 85, 280, 65, C_BG_MAIN);
@@ -5584,16 +7144,74 @@ bool DisplayManager::consumeVolumePreview(uint8_t& outLevel) {
 }
 
 
+/**
+ * @brief Aceita toque único — exige que o dedo tenha sido levantado
+ *        desde o último toque aceito. Impede repetição por segurar.
+ */
 bool DisplayManager::acceptTouch(uint8_t zoneId) {
-    uint32_t now = millis();
-    if (zoneId == _lastTouchRegion && (now - _lastRegionTouchTime) < 250) {
-        return false;
-    }
+    if (!_touchReleased) return false;
+
+    _touchReleased       = false;
     _lastTouchRegion     = zoneId;
-    _lastRegionTouchTime = now;
-    _lastTouchTimestamp  = now;
+    _lastRegionTouchTime = millis();
+    _lastTouchTimestamp  = millis();
     _touchSoundPending   = true;
     return true;
+}
+
+/**
+ * @brief Aceita toque com repetição por segurar (hold-repeat).
+ *
+ * Primeiro toque: aceita imediatamente e toca o bip.
+ * Enquanto segura: repete a cada HOLD_REPEAT_MS (300ms) com bip.
+ * Usado para botões de navegação de lista e incremento/decremento.
+ */
+bool DisplayManager::acceptHoldTouch(uint8_t zoneId) {
+    uint32_t now = millis();
+
+    if (_touchReleased) {
+        /* Primeiro toque: aceita e toca bip */
+        _touchReleased       = false;
+        _lastTouchRegion     = zoneId;
+        _lastRegionTouchTime = now;
+        _lastTouchTimestamp  = now;
+        _holdRepeatLastFire  = now;
+        _touchSoundPending   = true;
+        return true;
+    }
+
+    /* Segurar: repete a cada 300ms com bip */
+    if (zoneId == _lastTouchRegion && (now - _holdRepeatLastFire >= HOLD_REPEAT_MS)) {
+        _holdRepeatLastFire = now;
+        _lastTouchTimestamp = now;
+        _touchSoundPending  = true;
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * @brief Aceita toque com deslizamento entre zonas.
+ *
+ * Primeiro toque: aceita imediatamente com bip.
+ * Deslizar para zona diferente: aceita com bip (sem exigir release).
+ * Manter na mesma zona: não repete.
+ * Usado para slots, períodos de gráfico e listas de seleção.
+ */
+bool DisplayManager::acceptSlideTouch(uint8_t zoneId) {
+    /* Primeiro toque ou deslizou para zona diferente */
+    if (_touchReleased || zoneId != _lastTouchRegion) {
+        _touchReleased       = false;
+        _lastTouchRegion     = zoneId;
+        _lastRegionTouchTime = millis();
+        _lastTouchTimestamp  = millis();
+        _touchSoundPending   = true;
+        return true;
+    }
+
+    /* Mesma zona, segurando: não repete */
+    return false;
 }
 
 
@@ -5609,10 +7227,203 @@ bool DisplayManager::consumeAlarmVolumePreview(uint8_t& outLevel) {
 
 void DisplayManager::setWebNotification(const char* username) {
     if (!username) return;
-    strncpy(_webNotifyUser, username, sizeof(_webNotifyUser) - 1);
+    safeCopy(_webNotifyUser, username, sizeof(_webNotifyUser));
     _webNotifyUser[sizeof(_webNotifyUser) - 1] = '\0';
     _webNotifyStartMs = millis();
     if (_webNotifyStartMs == 0) _webNotifyStartMs = 1;
+}
+
+
+/* =========================================================================== */
+/*                   STATUS DO SISTEMA EM TEMPO REAL                         */
+/* =========================================================================== */
+
+void DisplayManager::showSystemStatus() {
+    mutex_enter_blocking(&_stateMutex);
+    _uiMode = MODE_SETTINGS_STATUS;
+    _statusPage = 0;
+    _statusLastDraw = 0;
+    _forceSettingsRedraw = true;
+    _repaintSettings = true;
+    mutex_exit(&_stateMutex);
+}
+
+void DisplayManager::updateSystemStatus(const SystemStatusData& data) {
+    _statusData = data;
+}
+
+/**
+ * @brief Desenha a tela de status do sistema com flicker zero.
+ *
+ * Usa canvas (strip rendering) para toda a área de conteúdo.
+ * 4 páginas: Sistema, Rede, Sensores, Telemetria.
+ * Auto-refresh a cada 1 segundo via timer no render loop.
+ */
+void DisplayManager::drawSystemStatus() {
+    bool fullRedraw = _forceSettingsRedraw;
+    _forceSettingsRedraw = false;
+
+    GFXcanvas16* cv = _canvasWide;
+    if (!cv) return;
+
+    const SystemStatusData& d = _statusData;
+
+    /* ── Header + Botões (somente no fullRedraw) ── */
+    if (fullRedraw) {
+        cv->fillScreen(C_CARD_BG);
+        cv->setFont(&FreeSansBold9pt7b);
+        cv->setTextColor(C_TEXT_MAIN);
+        cv->setCursor(10, 20); cv->print(tr(TR_STATUS_TITLE));
+
+        /* Dots de página */
+        cv->setFont(NULL); cv->setTextSize(1);
+        for (int p = 0; p < STATUS_PAGES; p++) {
+            int dx = 280 + p * 10;
+            if (p == _statusPage) cv->fillCircle(dx, 14, 3, C_ACCENT);
+            else                  cv->drawCircle(dx, 14, 2, C_TEXT_OFF);
+        }
+        blitCanvas(cv, 0, 0, 320, 28);
+
+        /* Botões ← → BACK */
+        _tft->fillRoundRect(5, 195, 62, 40, 8, C_CARD_BG);
+        _tft->fillTriangle(36, 207, 26, 221, 46, 221, C_TEXT_MAIN);
+        _tft->fillRoundRect(73, 195, 62, 40, 8, C_CARD_BG);
+        _tft->fillTriangle(104, 221, 94, 207, 114, 207, C_TEXT_MAIN);
+        _tft->fillRoundRect(141, 195, 75, 40, 8, C_CARD_BG);
+        _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
+        int16_t bx, by; uint16_t bw, bh;
+        const char* bt = tr(TR_BACK);
+        _tft->getTextBounds(bt, 0, 0, &bx, &by, &bw, &bh);
+        _tft->setCursor(141 + (75 - bw) / 2, 220); _tft->print(bt);
+    }
+
+    /*
+     * Tabela simples: font NULL size 2 (12×16px).
+     * Cada linha: 20px (16px texto + 4px gap).
+     * Área útil: y=28..194 = 166px → 8 linhas por página.
+     * Label à esquerda, valor à direita, separados por linha pontilhada.
+     */
+
+    static char buf[64];
+    static char fbuf[12];
+
+    /* Monta array de linhas para a página atual */
+    struct Row { const char* lbl; char val[28]; uint16_t color; };
+    static Row rows[8];
+    int nRows = 0;
+
+    auto addRow = [&](const char* lbl, const char* val, uint16_t c = 0) {
+        if (nRows >= 8) return;
+        rows[nRows].lbl = lbl;
+        safeCopy(rows[nRows].val, val, sizeof(rows[nRows].val));
+        rows[nRows].color = c ? c : C_TEXT_MAIN;
+        nRows++;
+    };
+
+    if (_statusPage == 0) {
+        addRow("Device", d.deviceName);
+        addRow("Firmware", d.fwVersion);
+        unsigned long s = (unsigned long)d.uptimeSec;
+        snprintf(buf, sizeof(buf), "%lud %02lu:%02lu:%02lu",
+                 s/86400, (s%86400)/3600, (s%3600)/60, s%60);
+        addRow("Uptime", buf);
+        snprintf(buf, sizeof(buf), "%lu", (unsigned long)d.heapFree);
+        addRow("Heap Free", buf, d.heapFree < 20000 ? C_TEMP_HOT : C_TEMP_OK);
+        snprintf(buf, sizeof(buf), "%lu", (unsigned long)d.flashUsed);
+        addRow("Flash Used", buf);
+        fmtFloat1(fbuf, sizeof(fbuf), d.boardTemp);
+        snprintf(buf, sizeof(buf), "%s oC", fbuf);
+        addRow("Board Temp", buf);
+        snprintf(buf, sizeof(buf), "GMT%+d", (int)d.timezone);
+        addRow("Timezone", buf);
+    }
+    else if (_statusPage == 1) {
+        addRow("WiFi", d.wifiConnected ? "Connected" : "Disconnected",
+               d.wifiConnected ? C_TEMP_OK : C_TEMP_HOT);
+        addRow("SSID", d.ssid);
+        addRow("IP", d.ip);
+        addRow("MAC", d.mac);
+        snprintf(buf, sizeof(buf), "%ld dBm", (long)d.rssi);
+        uint16_t rc = (d.rssi > -60) ? C_TEMP_OK : (d.rssi > -80) ? C_ACCENT : C_TEMP_HOT;
+        addRow("RSSI", buf, rc);
+        addRow("NTP", d.ntpSynced ? "Synced" : "Not synced",
+               d.ntpSynced ? C_TEMP_OK : C_TEMP_HOT);
+        addRow("NTP Server", d.ntpServer);
+    }
+    else if (_statusPage == 2) {
+        snprintf(buf, sizeof(buf), "%d", d.activeSensors);
+        addRow("Active", buf);
+        if (d.ambientValid) {
+            fmtFloat1(fbuf, sizeof(fbuf), d.ambientTemp);
+            snprintf(buf, sizeof(buf), "%s oC", fbuf);
+            addRow("Ambient T", buf);
+            snprintf(buf, sizeof(buf), "%d%%", (int)d.ambientHum);
+            addRow("Ambient H", buf);
+        } else {
+            addRow("Ambient T", "--", C_TEXT_OFF);
+            addRow("Ambient H", "--", C_TEXT_OFF);
+        }
+    }
+    else if (_statusPage == 3) {
+        addRow("Transport", d.telTransport == 1 ? "MQTT" : "HTTP");
+        addRow("Server", d.telServer);
+        snprintf(buf, sizeof(buf), "%u", (unsigned)d.telPending);
+        addRow("Pending", buf, d.telPending > 50 ? C_TEMP_HOT : C_TEMP_OK);
+        snprintf(buf, sizeof(buf), "%u", (unsigned)d.telFails);
+        addRow("Fails", buf, d.telFails > 0 ? C_TEMP_HOT : C_TEMP_OK);
+        snprintf(buf, sizeof(buf), "%lu ms", (unsigned long)d.telInterval);
+        addRow("Interval", buf);
+        if (d.telTransport == 1) {
+            addRow("MQTT", d.mqttConnected ? "Connected" : "Disconnected",
+                   d.mqttConnected ? C_TEMP_OK : C_TEMP_HOT);
+        }
+    }
+
+    /* ── Renderiza tabela em strips de 42px ── */
+    const int rowH = 20;
+    const int valX  = 150; /* Coluna dos valores */
+
+    for (int strip = 0; strip < 4; strip++) {
+        int sTop = 28 + strip * 42;
+        int sH = 42;
+        if (sTop + sH > 195) sH = 195 - sTop;
+        if (sH <= 0) break;
+
+        cv->fillScreen(C_BG_MAIN);
+
+        for (int r = 0; r < 2; r++) {
+            int ri = strip * 2 + r; /* Índice absoluto da linha */
+            if (ri >= nRows) break;
+
+            int ly = r * rowH + 2;
+
+            /* Label */
+            cv->setFont(NULL); cv->setTextSize(2);
+            cv->setTextColor(C_TEXT_SUB);
+            cv->setCursor(4, ly);
+            cv->print(rows[ri].lbl);
+
+            /* Valor */
+            cv->setTextColor(rows[ri].color);
+            cv->setCursor(valX, ly);
+            cv->print(rows[ri].val);
+
+            /* Separador pontilhado */
+            int sepY = ly + 17;
+            if (sepY < sH) {
+                for (int dx = 4; dx < 316; dx += 4)
+                    cv->drawPixel(dx, sepY, C_GRID);
+            }
+        }
+
+        blitCanvas(cv, 0, sTop, 320, sH);
+    }
+
+    _statusLastDraw = millis();
+
+    /* Restaura textSize para não contaminar outras telas */
+    cv->setTextSize(1);
+    cv->setFont(NULL);
 }
 
 
@@ -5638,10 +7449,10 @@ void DisplayManager::drawSettingsLicense() {
     const int TEXT_Y0    = 36;
     const int MAX_VIS    = 17;
 
-    /* Count total lines (license + acknowledgments already integrated) */
+    /* Contar linhas totais (licença + acknowledgments já integrados) */
     int totalLines = wrapLineCount(licText, MAX_COLS);
 
-    /* Calculate total pages */
+    /* Calcular total de páginas */
     _licenseTotalPages = (totalLines + MAX_VIS - 1) / MAX_VIS;
     if (_licenseTotalPages < 1) _licenseTotalPages = 1;
     if (_licensePage >= _licenseTotalPages) _licensePage = _licenseTotalPages - 1;
@@ -5650,7 +7461,7 @@ void DisplayManager::drawSettingsLicense() {
     if (fullRedraw) {
         _tft->fillScreen(C_BG_MAIN);
 
-        /* Header with title and page counter */
+        /* Header com título e contador de páginas */
         _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(10, 22); _tft->print(tr(TR_LICENSE_TITLE));
@@ -5662,7 +7473,7 @@ void DisplayManager::drawSettingsLicense() {
         _tft->setTextColor(C_TEXT_SUB);
         _tft->setCursor(310 - (int)pw, 22); _tft->print(pgBuf);
 
-        /* Bottom buttons */
+        /* Botões inferiores */
         int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
 
         _tft->fillRoundRect(5, btnY, 100, btnH, 8, C_CARD_BG);
@@ -5678,17 +7489,17 @@ void DisplayManager::drawSettingsLicense() {
         _tft->setCursor(215 + (100 - bw) / 2, btnY + 25); _tft->print(backTxt);
     }
 
-    /* Clear text area */
+    /* Limpar área de texto */
     _tft->fillRect(0, TEXT_Y0, 320, MAX_VIS * LINE_H, C_BG_MAIN);
     _tft->setFont(NULL); _tft->setTextSize(1);
     _tft->setTextColor(C_TEXT_SUB);
 
-    /* Render current page */
+    /* Renderizar página atual */
     int startLine = _licensePage * MAX_VIS;
     renderWrapped(_tft, licText, 10, TEXT_Y0, MAX_COLS, LINE_H,
                   startLine, MAX_VIS);
 
-    /* Page indicators (dots) */
+    /* Indicador de páginas (dots) */
     {
         int dotY = TEXT_Y0 + MAX_VIS * LINE_H + 2;
         int dotSpacing = 10;

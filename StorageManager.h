@@ -2,11 +2,12 @@
  * @file    StorageManager.h
  * @brief   LittleFS storage layer with dual-bank CRC32 configuration and flash safety.
  * @details Manages all persistent data: system configuration (binary with CRC32
- *          and backup), CSV history files, telemetry cursor, and calibration
- *          data. Provides two-tier flash locking: lightweight mutex for reads
- *          and multicore_lockout for writes (protects XIP during erase/program).
+ * and backup), CSV history files, telemetry cursor, and calibration
+ * data. Provides two-tier flash locking: lightweight mutex for reads
+ * and multicore_lockout for writes (protects XIP during erase/program).
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -51,10 +52,11 @@ public:
     String getStatsReport();
     bool canWriteHistory(size_t sizeToWrite);
 
-    bool writeHistoryEntry(String line);
+    bool writeHistoryEntry(const BinaryHistoryRecord& rec);
     String getHistoryFileName();
 
     uint32_t getLastRecordedTimestamp();
+    uint32_t getHistoryDaysMask(int year, int month);
     void correctProvisionalTimestamps(uint32_t bootTs, int32_t delta);
 
     uint32_t getLastSentTimestamp();

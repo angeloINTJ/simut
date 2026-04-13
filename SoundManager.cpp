@@ -2,12 +2,13 @@
  * @file    SoundManager.cpp
  * @brief   Implementation of SoundManager — melody playback, alarm control, and persistence.
  * @details Contains 24 melody definitions (4 types x 6 variants), event queue
- *          consumer with alarm suspend/resume for system sounds, preview
- *          playback, bitfield-packed config serialization, and UI state
- *          snapshot exchange. Alarm sounds use looping playback while system
- *          sounds use one-shot with automatic alarm resumption.
+ * consumer with alarm suspend/resume for system sounds, preview
+ * playback, bitfield-packed config serialization, and UI state
+ * snapshot exchange. Alarm sounds use looping playback while system
+ * sounds use one-shot with automatic alarm resumption.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */

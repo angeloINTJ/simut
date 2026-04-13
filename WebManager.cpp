@@ -2,12 +2,13 @@
  * @file    WebManager.cpp
  * @brief   Implementation of WebManager — HTTP handlers, session management, and API endpoints.
  * @details Implements all web routes: login/logout, dashboard, history viewer,
- *          file manager (upload/download/delete/mkdir), system/network/user
- *          configuration, alarm/sound settings, log viewer, screenshot capture,
- *          and JSON API endpoints. Uses SafeStream for client disconnect
- *          detection and automatic gzip content negotiation.
+ * file manager (upload/download/delete/mkdir), system/network/user
+ * configuration, alarm/sound settings, log viewer, screenshot capture,
+ * and JSON API endpoints. Uses SafeStream for client disconnect
+ * detection and automatic gzip content negotiation.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.8
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -84,6 +85,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
 
     _server.on("/api/save_sys", HTTP_POST, std::bind(&WebManager::handleSaveSystem, this));
     _server.on("/api/save_net", HTTP_POST, std::bind(&WebManager::handleSaveNetwork, this));
+    _server.on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
     _server.on("/api/user_add", HTTP_POST, std::bind(&WebManager::handleApiUserAdd, this));
     _server.on("/api/user_del", HTTP_POST, std::bind(&WebManager::handleApiUserDel, this));
     _server.on("/api/user_rst", HTTP_POST, std::bind(&WebManager::handleApiUserReset, this));
@@ -109,7 +111,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/apple-touch-icon.png", HTTP_GET, [this]() { _server.send(204, "image/png", ""); });
 
     _server.begin();
-    LOG_INF("WEB", "HTTP Web Server started on port 80");
+    LOG_CODE(LOG_INFO, "WEB", WEB_SERVER_STARTED, 80, "");
 }
 
 bool WebManager::isRateLimited(uint32_t minIntervalMs) {
@@ -273,7 +275,7 @@ void WebManager::safeStreamFile(File& f, const String& contentType) {
     bool hasMore = true;
     while (hasMore) {
         if (isClientGone() || isHandlerOvertime()) {
-            LOG_WRN("WEB", "Client disconnected during file stream");
+            LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_FILE, 0, "");
             return;
         }
 
@@ -291,7 +293,6 @@ void WebManager::safeStreamFile(File& f, const String& contentType) {
 
 void WebManager::update() {
     _clientAcceptsGzip = false;
-
 
     uint32_t handlerStart = millis();
     _handlerDeadline = handlerStart + 6000;
@@ -366,6 +367,7 @@ bool WebManager::serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_dat
         return false;
     }
     if (!(perms & requiredPerm)) {
+        LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, _currentUserName);
         _server.send(403, "text/html", "<h2>Access Denied</h2>");
         return false;
     }
@@ -426,22 +428,22 @@ void WebManager::handleApiNetwork() {
 
     SystemConfig& cfg = _storageRef->getConfig();
 
-    String json;
-    json.reserve(512);
-    json += "{";
-    json += "\"connected\":" + String(_netRef->isConnected() ? "true" : "false") + ",";
-    json += "\"ip\":\"" + _netRef->getIpAddress() + "\",";
-    json += "\"mask\":\"" + _netRef->getSubnetMask() + "\",";
-    json += "\"gw\":\"" + _netRef->getGateway() + "\",";
-    json += "\"dns\":\"" + _netRef->getDns() + "\",";
-    json += "\"mac\":\"" + _netRef->getMacAddress() + "\",";
-    json += "\"ssid\":\"" + String(cfg.wifiSsid) + "\",";
-    json += "\"use_dhcp\":" + String(cfg.useDhcp ? "true" : "false") + ",";
-    json += "\"static_ip\":\"" + String(cfg.staticIp) + "\",";
-    json += "\"static_mask\":\"" + String(cfg.staticMask) + "\",";
-    json += "\"static_gw\":\"" + String(cfg.staticGateway) + "\",";
-    json += "\"static_dns\":\"" + String(cfg.staticDns) + "\"";
-    json += "}";
+    char json[512];
+    snprintf(json, sizeof(json),
+        "{\"connected\":%s,\"ip\":\"%s\",\"mask\":\"%s\",\"gw\":\"%s\","
+        "\"dns\":\"%s\",\"mac\":\"%s\",\"ssid\":\"%s\",\"use_dhcp\":%s,"
+        "\"static_ip\":\"%s\",\"static_mask\":\"%s\",\"static_gw\":\"%s\","
+        "\"static_dns\":\"%s\",\"ntp_server\":\"%s\"}",
+        _netRef->isConnected() ? "true" : "false",
+        _netRef->getIpAddress().c_str(),
+        _netRef->getSubnetMask().c_str(),
+        _netRef->getGateway().c_str(),
+        _netRef->getDns().c_str(),
+        _netRef->getMacAddress().c_str(),
+        cfg.wifiSsid,
+        cfg.useDhcp ? "true" : "false",
+        cfg.staticIp, cfg.staticMask, cfg.staticGateway, cfg.staticDns,
+        cfg.ntpServer);
 
     _server.send(200, "application/json", json);
 }
@@ -507,20 +509,21 @@ void WebManager::handleApiUsers() {
 
     SystemConfig& cfg = _storageRef->getConfig();
 
-    String json = "[";
+    char json[512];
+    int pos = 0;
+    json[pos++] = '[';
+
     bool first = true;
     for (int i = 0; i < MAX_USERS; i++) {
         if (!cfg.users[i].active) continue;
-        if (!first) json += ",";
+        if (!first) json[pos++] = ',';
         first = false;
-
-        json += "{";
-        json += "\"id\":" + String(i) + ",";
-        json += "\"name\":\"" + String(cfg.users[i].username) + "\",";
-        json += "\"perms\":" + String(cfg.users[i].permissions);
-        json += "}";
+        pos += snprintf(json + pos, sizeof(json) - pos,
+            "{\"id\":%d,\"name\":\"%s\",\"perms\":%u}",
+            i, cfg.users[i].username, cfg.users[i].permissions);
     }
-    json += "]";
+    json[pos++] = ']';
+    json[pos] = '\0';
 
     _server.send(200, "application/json", json);
 }
@@ -822,11 +825,8 @@ String WebManager::getDynamicExpectedHash(String username) {
     }
 
     time_t now = _netRef->getEpoch();
-    if (now >= 1600000000) {
-        now += (_storageRef->getConfig().timezoneOffset * 3600);
-    }
     struct tm timeinfo;
-    gmtime_r(&now, &timeinfo);
+    localtime_r(&now, &timeinfo);
 
     char dateBuf[16];
     snprintf(dateBuf, sizeof(dateBuf), "%02d%02d%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
@@ -1101,8 +1101,7 @@ void WebManager::handleApiForceChpass() {
 
     String hashedNewPass = _storageRef->hashPassword(_currentUserName, p1);
 
-    strncpy(cfg.users[_currentUserId].password, hashedNewPass.c_str(), 31);
-    cfg.users[_currentUserId].password[31] = '\0';
+    safeCopy(cfg.users[_currentUserId].password, hashedNewPass.c_str(), sizeof(cfg.users[_currentUserId].password));
     cfg.users[_currentUserId].mustChangePassword = false;
     _storageRef->saveConfiguration();
 
@@ -1132,36 +1131,39 @@ void WebManager::handleSaveSystem() {
         String n = _server.arg("name"); n.trim();
 
         if (n.length() > 0 && isValidName(n.c_str())) {
-            strncpy(cfg.deviceName, n.c_str(), 31); cfg.deviceName[31] = '\0';
+            safeCopy(cfg.deviceName, n.c_str(), sizeof(cfg.deviceName));
         }
     }
-    if (_server.hasArg("tz")) cfg.timezoneOffset = (int8_t)_server.arg("tz").toInt();
+    if (_server.hasArg("tz")) {
+        cfg.timezoneOffset = (int8_t)_server.arg("tz").toInt();
+        NetworkManager::applyTimezone(cfg.timezoneOffset);
+    }
 
 
     if (_server.hasArg("log")) cfg.loggingEnabled = (_server.arg("log") != "0");
     if (_server.hasArg("t_sec")) cfg.telEncryption = (_server.arg("t_sec") != "0");
-    if (_server.hasArg("t_key")) { strncpy(cfg.telApiKey, _server.arg("t_key").c_str(), 63); cfg.telApiKey[63] = '\0'; }
+    if (_server.hasArg("t_key")) { safeCopy(cfg.telApiKey, _server.arg("t_key").c_str(), sizeof(cfg.telApiKey)); }
 
     if (_server.hasArg("res")) { int r = _server.arg("res").toInt(); if (r >= 9 && r <= 12) cfg.ds18Resolution = (uint8_t)r; }
     if (_server.hasArg("s_int")) cfg.sampleIntervalMs = _server.arg("s_int").toInt();
 
-    if (_server.hasArg("t_srv")) { strncpy(cfg.telServer, _server.arg("t_srv").c_str(), 63); cfg.telServer[63] = '\0'; }
+    if (_server.hasArg("t_srv")) { safeCopy(cfg.telServer, _server.arg("t_srv").c_str(), sizeof(cfg.telServer)); }
     if (_server.hasArg("t_port")) {
         int p = _server.arg("t_port").toInt();
         if (isInRange(p, 1, 65535)) cfg.telPort = (uint16_t)p;
     }
-    if (_server.hasArg("t_path")) { strncpy(cfg.telPath, _server.arg("t_path").c_str(), 31); cfg.telPath[31] = '\0'; }
+    if (_server.hasArg("t_path")) { safeCopy(cfg.telPath, _server.arg("t_path").c_str(), sizeof(cfg.telPath)); }
     if (_server.hasArg("t_int")) cfg.telInterval = _server.arg("t_int").toInt();
     if (_server.hasArg("t_bat")) cfg.telBatchSize = (uint8_t)_server.arg("t_bat").toInt();
     if (_server.hasArg("t_mode")) cfg.telMode = (uint8_t)_server.arg("t_mode").toInt();
 
     if (_server.hasArg("t_transport")) cfg.telTransport = (uint8_t)_server.arg("t_transport").toInt();
-    if (_server.hasArg("m_topic")) { strncpy(cfg.mqttTopic, _server.arg("m_topic").c_str(), 63); cfg.mqttTopic[63] = '\0'; }
-    if (_server.hasArg("m_cid")) { strncpy(cfg.mqttClientId, _server.arg("m_cid").c_str(), 23); cfg.mqttClientId[23] = '\0'; }
-    if (_server.hasArg("m_user")) { strncpy(cfg.mqttUser, _server.arg("m_user").c_str(), 31); cfg.mqttUser[31] = '\0'; }
+    if (_server.hasArg("m_topic")) { safeCopy(cfg.mqttTopic, _server.arg("m_topic").c_str(), sizeof(cfg.mqttTopic)); }
+    if (_server.hasArg("m_cid")) { safeCopy(cfg.mqttClientId, _server.arg("m_cid").c_str(), sizeof(cfg.mqttClientId)); }
+    if (_server.hasArg("m_user")) { safeCopy(cfg.mqttUser, _server.arg("m_user").c_str(), sizeof(cfg.mqttUser)); }
     if (_server.hasArg("m_pass")) {
         String mp = _server.arg("m_pass"); mp.trim();
-        if (mp.length() > 0) { strncpy(cfg.mqttPass, mp.c_str(), 31); cfg.mqttPass[31] = '\0'; }
+        if (mp.length() > 0) { safeCopy(cfg.mqttPass, mp.c_str(), sizeof(cfg.mqttPass)); }
     }
     if (_server.hasArg("m_qos")) cfg.mqttQos = (uint8_t)_server.arg("m_qos").toInt();
 
@@ -1171,9 +1173,9 @@ void WebManager::handleSaveSystem() {
         if (isInRange(ka, 5, 600)) cfg.mqttKeepAlive = (uint16_t)ka;
     }
 
-    if (_server.hasArg("t_glob")) { strncpy(cfg.telGlobalTemplate, _server.arg("t_glob").c_str(), 255); cfg.telGlobalTemplate[255] = '\0'; }
-    if (_server.hasArg("t_line")) { strncpy(cfg.telLineTemplate, _server.arg("t_line").c_str(), 511); cfg.telLineTemplate[511] = '\0'; }
-    if (_server.hasArg("t_sep")) { strncpy(cfg.telLineSeparator, _server.arg("t_sep").c_str(), 7); cfg.telLineSeparator[7] = '\0'; }
+    if (_server.hasArg("t_glob")) { safeCopy(cfg.telGlobalTemplate, _server.arg("t_glob").c_str(), sizeof(cfg.telGlobalTemplate)); }
+    if (_server.hasArg("t_line")) { safeCopy(cfg.telLineTemplate, _server.arg("t_line").c_str(), sizeof(cfg.telLineTemplate)); }
+    if (_server.hasArg("t_sep")) { safeCopy(cfg.telLineSeparator, _server.arg("t_sep").c_str(), sizeof(cfg.telLineSeparator)); }
 
     bool saved = _storageRef->saveConfiguration();
     if (themeChanged && _displayRef) _displayRef->refreshTheme();
@@ -1191,8 +1193,8 @@ void WebManager::handleSaveNetwork() {
 
     SystemConfig& cfg = _storageRef->getConfig();
 
-    if (_server.hasArg("ssid")) { String s = _server.arg("ssid"); s.trim(); if (s.length() > 0) { strncpy(cfg.wifiSsid, s.c_str(), 31); cfg.wifiSsid[31] = '\0'; } }
-    if (_server.hasArg("pass")) { String p = _server.arg("pass"); p.trim(); if (p.length() > 0) { strncpy(cfg.wifiPass, p.c_str(), 31); cfg.wifiPass[31] = '\0'; } }
+    if (_server.hasArg("ssid")) { String s = _server.arg("ssid"); s.trim(); if (s.length() > 0) { safeCopy(cfg.wifiSsid, s.c_str(), sizeof(cfg.wifiSsid)); } }
+    if (_server.hasArg("pass")) { String p = _server.arg("pass"); p.trim(); if (p.length() > 0) { safeCopy(cfg.wifiPass, p.c_str(), sizeof(cfg.wifiPass)); } }
 
 
     if (_server.hasArg("use_dhcp")) cfg.useDhcp = (_server.arg("use_dhcp") != "0");
@@ -1200,17 +1202,24 @@ void WebManager::handleSaveNetwork() {
     if (!cfg.useDhcp) {
 
         if (_server.hasArg("ip") && isValidIpv4(_server.arg("ip").c_str())) {
-            strncpy(cfg.staticIp, _server.arg("ip").c_str(), 15); cfg.staticIp[15] = '\0';
+            safeCopy(cfg.staticIp, _server.arg("ip").c_str(), sizeof(cfg.staticIp));
         }
         if (_server.hasArg("mask") && isValidIpv4(_server.arg("mask").c_str())) {
-            strncpy(cfg.staticMask, _server.arg("mask").c_str(), 15); cfg.staticMask[15] = '\0';
+            safeCopy(cfg.staticMask, _server.arg("mask").c_str(), sizeof(cfg.staticMask));
         }
         if (_server.hasArg("gw") && isValidIpv4(_server.arg("gw").c_str())) {
-            strncpy(cfg.staticGateway, _server.arg("gw").c_str(), 15); cfg.staticGateway[15] = '\0';
+            safeCopy(cfg.staticGateway, _server.arg("gw").c_str(), sizeof(cfg.staticGateway));
         }
         if (_server.hasArg("dns") && isValidIpv4(_server.arg("dns").c_str())) {
-            strncpy(cfg.staticDns, _server.arg("dns").c_str(), 15); cfg.staticDns[15] = '\0';
+            safeCopy(cfg.staticDns, _server.arg("dns").c_str(), sizeof(cfg.staticDns));
         }
+    }
+
+    /* Servidor NTP customizado (vazio = pool.ntp.org) */
+    if (_server.hasArg("ntp_server")) {
+        String ntp = _server.arg("ntp_server"); ntp.trim();
+        safeCopy(cfg.ntpServer, ntp.c_str(), sizeof(cfg.ntpServer));
+        cfg.ntpServer[sizeof(cfg.ntpServer) - 1] = '\0';
     }
 
     bool saved = _storageRef->saveConfiguration();
@@ -1219,7 +1228,33 @@ void WebManager::handleSaveNetwork() {
 
     _server.send(200, "application/json", "{\"status\":\"ok\",\"reboot\":true}");
 
-    if (saved) { delay(1000); rp2040.reboot(); }
+    if (saved) {
+        LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, _currentUserId, "Reboot via web (network save)");
+        delay(1000);
+        rp2040.reboot();
+    }
+}
+
+/**
+ * @brief Reseta calibração do touch via API web.
+ *
+ * Limpa TouchCalData no config (invalida magic), reseta parâmetros
+ * no DisplayManager e salva no flash.
+ */
+void WebManager::handleResetTouchCal() {
+    uint16_t perms = getAuthPerms();
+    if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+
+    SystemConfig& cfg = _storageRef->getConfig();
+    TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
+    memset(cal, 0, sizeof(TouchCalData));
+    _displayRef->resetTouchCalibration();
+    _storageRef->saveConfiguration();
+
+    if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Touch calibration reset via web");
+
+    _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void WebManager::handleApiUserAdd() {
@@ -1236,8 +1271,7 @@ void WebManager::handleApiUserAdd() {
         return;
     }
 
-    strncpy(cfg.users[slot].username, _server.arg("u_name").c_str(), 15);
-    cfg.users[slot].username[15] = '\0';
+    safeCopy(cfg.users[slot].username, _server.arg("u_name").c_str(), sizeof(cfg.users[slot].username));
 
 
     String uName = String(cfg.users[slot].username);
@@ -1256,8 +1290,7 @@ void WebManager::handleApiUserAdd() {
         }
     }
 
-    strncpy(cfg.users[slot].password, "*PENDING*", 31);
-    cfg.users[slot].password[31] = '\0';
+    safeCopy(cfg.users[slot].password, "*PENDING*", sizeof(cfg.users[slot].password));
     cfg.users[slot].mustChangePassword = true;
 
     uint16_t newPerms = 0;
@@ -1305,9 +1338,9 @@ void WebManager::handleApiUserReset() {
     if (id == 0 || String(cfg.users[id].username) == "admin") {
 
         String resetHash = _storageRef->hashPassword("admin", "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918");
-        strncpy(cfg.users[id].password, resetHash.c_str(), 31);
+        safeCopy(cfg.users[id].password, resetHash.c_str(), sizeof(cfg.users[id].password));
     } else {
-        strncpy(cfg.users[id].password, "*PENDING*", 31);
+        safeCopy(cfg.users[id].password, "*PENDING*", sizeof(cfg.users[id].password));
     }
     cfg.users[id].password[31] = '\0';
     cfg.users[id].mustChangePassword = true;
@@ -1358,7 +1391,7 @@ void WebManager::handleDelete() {
         RenderGuard rg(_displayRef);
         if (LittleFS.exists(path)) {
             LittleFS.remove(path);
-            LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Admin deleted: " + path);
+            LOG_CODE(LOG_WARN, "SEC", SEC_FILE_DELETE, _currentUserId, path);
         }
     }
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
@@ -1557,7 +1590,8 @@ void WebManager::handleUploadData() {
 
         if (finalPath == "/calib.csv") finalPath = "/calib.tmp";
 
-        LOG_INF("WEB", "Upload: " + finalPath);
+        LOG_CODE(LOG_INFO, "WEB", WEB_UPLOAD, 0, finalPath);
+        LOG_CODE(LOG_INFO, "SEC", SEC_FILE_UPLOAD, _currentUserId, finalPath);
         { RenderGuard rg(_displayRef); _uploadFile = LittleFS.open(finalPath, "w"); }
 
     } else if (upload.status == UPLOAD_FILE_WRITE) {
@@ -1693,56 +1727,100 @@ void WebManager::handleApiHistoryData() {
     int sensorIdx = _server.arg("sensor").toInt();
     String reqDate = _server.arg("date");
     String reqRange = _server.arg("range");
+    String reqEnd   = _server.arg("end");
 
     uint32_t epochLimit = 0;
     if (sensorIdx >= 0 && sensorIdx < MAX_SENSORS) {
         epochLimit = _storageRef->getConfig().sensors[sensorIdx].provisionEpoch;
     }
 
-    std::vector<String> filesToRead;
+    /*
+     * Calcula janela temporal — mesma lógica do display.
+     * Parâmetros: range=0..4, end=epoch (âncora), date=YYYYMMDD
+     */
+    time_t now = _netRef->getEpoch();
+    static const time_t rangeDuration[] = { 3600, 21600, 43200, 86400, 604800 };
+    static const int rangeDecimation[]  = { 1, 1, 2, 3, 15 };
+    static const int rangeDays[]        = { 1, 1, 1, 2, 7 };
+
+    time_t effectiveEnd = now;
     time_t cutoff = 0;
     int decimation = 1;
-
-    time_t now = _netRef->getEpoch();
-    time_t localNow = now + (_storageRef->getConfig().timezoneOffset * 3600);
+    int daysToLoad = 1;
 
     if (reqRange.length() > 0) {
         int r = reqRange.toInt();
-        int days = 1;
-        if (r == 0) { cutoff = now - 3600; decimation = 1; }
-        else if (r == 1) { cutoff = now - 21600; decimation = 1; }
-        else if (r == 2) { cutoff = now - 43200; decimation = 2; }
-        else if (r == 3) { cutoff = now - 86400; decimation = 3; days = 2; }
-        else if (r == 4) { cutoff = now - 604800; decimation = 15; days = 7; }
+        if (r < 0) r = 0; if (r > 4) r = 4;
 
-        for (int d = days - 1; d >= 0; d--) {
-            time_t targetDay = localNow - (d * 86400);
-            struct tm timeinfo; gmtime_r(&targetDay, &timeinfo);
-            char defPath[40];
-            snprintf(defPath, sizeof(defPath), "/history/%04d%02d%02d.csv",
-                     timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-            filesToRead.push_back(String(defPath));
+        /* Âncora: se 'end' especificado, usa como fim da janela */
+        if (reqEnd.length() > 0) {
+            effectiveEnd = (time_t)reqEnd.toInt();
+            if (effectiveEnd > now) effectiveEnd = now;
+        }
+
+        cutoff = effectiveEnd - rangeDuration[r];
+        decimation = rangeDecimation[r];
+        daysToLoad = rangeDays[r];
+
+        /* Para ranges ≤24H, verifica se cruza meia-noite */
+        if (r <= 3) {
+            struct tm etm;
+            localtime_r(&effectiveEnd, &etm);
+            etm.tm_hour = 0; etm.tm_min = 0; etm.tm_sec = 0;
+            time_t eMidnight = mktime(&etm);
+            if (cutoff < eMidnight) daysToLoad = 2;
         }
     } else if (reqDate.length() == 8) {
-        filesToRead.push_back("/history/" + reqDate + ".csv");
+        /* Modo data: dia inteiro (00:00–23:59) */
+        int y = reqDate.substring(0,4).toInt();
+        int m = reqDate.substring(4,6).toInt();
+        int d = reqDate.substring(6,8).toInt();
+        struct tm dtm = {};
+        dtm.tm_year = y - 1900; dtm.tm_mon = m - 1; dtm.tm_mday = d;
+        cutoff = mktime(&dtm);
+        effectiveEnd = cutoff + 86400;
         decimation = 3;
+        daysToLoad = 1;
     }
+
+    /* Monta lista de arquivos a ler */
+    std::vector<String> filesToRead;
+    for (int d = daysToLoad - 1; d >= 0; d--) {
+        time_t targetDay = effectiveEnd - (d * 86400);
+        struct tm timeinfo; localtime_r(&targetDay, &timeinfo);
+        char defPath[40];
+        snprintf(defPath, sizeof(defPath), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
+                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+        filesToRead.push_back(String(defPath));
+    }
+
+    /* Metadados para o frontend: min/max reais, janela temporal */
+    float realMinT = 1000.0f, realMaxT = -1000.0f;
+    time_t tsRealMinT = 0, tsRealMaxT = 0;
+    float realMinH = 1000.0f, realMaxH = -1000.0f;
 
     _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     _server.send(200, "application/json", "");
-    safeSend("{\"data\":[");
+
+    /* Envia header com metadados da janela temporal */
+    {
+        char metaBuf[128];
+        snprintf(metaBuf, sizeof(metaBuf),
+            "{\"cutoff\":%lu,\"end\":%lu,\"now\":%lu,\"data\":[",
+            (unsigned long)cutoff, (unsigned long)effectiveEnd, (unsigned long)now);
+        safeSend(metaBuf);
+    }
 
     bool first = true;
-
-
     static char chunkBuf[2048];
     chunkBuf[0] = '\0';
     int chunkLen = 0;
     bool aborted = false;
+    int lineIdx = 0;
 
-    for (String path : filesToRead) {
+    for (size_t fi = 0; fi < filesToRead.size(); fi++) {
         if (aborted) break;
-
+        String path = filesToRead[fi];
 
         File f;
         bool fileOk = false;
@@ -1755,68 +1833,91 @@ void WebManager::handleApiHistoryData() {
         }
 
         if (fileOk) {
-            int lineIdx = 0;
-            bool fileHasMore = true;
+            size_t fileSize = f.size();
+            size_t totalRecords = fileSize / HISTORY_RECORD_SIZE;
 
+            /* Seek otimizado — mesma lógica do display */
+            if (totalRecords > 50 && cutoff > 0) {
+                struct tm fileTm;
+                {
+                    time_t targetDay = effectiveEnd - (int)(filesToRead.size() - 1 - fi) * 86400;
+                    localtime_r(&targetDay, &fileTm);
+                }
+                fileTm.tm_hour = 0; fileTm.tm_min = 0; fileTm.tm_sec = 0;
+                time_t fileMidnight = mktime(&fileTm);
+
+                if (cutoff > fileMidnight) {
+                    int seekFromMidnight = max(0, (int)((cutoff - fileMidnight) / 60) - 10);
+                    static const int maxRec[] = { 80, 380, 740, 1460, 1460 };
+                    int rIdx = (reqRange.length() > 0) ? constrain(reqRange.toInt(), 0, 4) : 3;
+                    int seekFromEnd = max(0, (int)totalRecords - maxRec[rIdx]);
+                    int seekRecord = (seekFromMidnight < (int)totalRecords)
+                                     ? min(seekFromMidnight, seekFromEnd) : seekFromEnd;
+                    if (seekRecord > 0 && seekRecord < (int)totalRecords) {
+                        ReadGuard rg(_storageRef);
+                        f.seek((size_t)seekRecord * HISTORY_RECORD_SIZE);
+                    }
+                }
+            }
+
+            bool fileHasMore = true;
             while (fileHasMore) {
                 if (isClientGone() || isHandlerOvertime()) {
-                    LOG_WRN("WEB", "Client disconnected during history stream");
+                    LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_HISTORY, 0, "");
                     { ReadGuard rg(_storageRef); f.close(); }
                     aborted = true;
                     break;
                 }
 
-
-                static char readBatch[50][128];
+                BinaryHistoryRecord readBatch[20];
                 int batchCount = 0;
 
                 {
-
                     ReadGuard rg(_storageRef);
-                    while (f.available() && batchCount < 50) {
-                        size_t len = f.readBytesUntil('\n', readBatch[batchCount], 127);
-                        if (len == 0) continue;
-                        readBatch[batchCount][len] = '\0';
-                        if (len > 0 && readBatch[batchCount][len - 1] == '\r') readBatch[batchCount][len - 1] = '\0';
-                        batchCount++;
+                    while (f.available() >= HISTORY_RECORD_SIZE && batchCount < 20) {
+                        if (f.read((uint8_t*)&readBatch[batchCount], HISTORY_RECORD_SIZE)
+                            == HISTORY_RECORD_SIZE)
+                        {
+                            batchCount++;
+                        }
                     }
-                    fileHasMore = f.available();
+                    fileHasMore = (f.available() >= HISTORY_RECORD_SIZE);
                 }
 
-
+                bool pastWindow = false;
                 for (int bi = 0; bi < batchCount && !aborted; bi++) {
-                    const char* ptr = readBatch[bi]; char* endPtr;
-                    time_t ts = strtoul(ptr, &endPtr, 10);
+                    const BinaryHistoryRecord& rec = readBatch[bi];
+                    time_t ts = (time_t)rec.epoch;
 
                     if (ts < cutoff && cutoff > 0) continue;
+                    if (ts > effectiveEnd) { pastWindow = true; break; }
+
+                    /* Rastreia min/max reais de TODOS os registros (pré-decimação) */
+                    float preValT = NAN;
+                    if (sensorIdx == -1) preValT = BinaryHistoryRecord::i16ToFloat(rec.ambientTemp);
+                    else if (sensorIdx >= 0 && sensorIdx < MAX_SENSORS) preValT = BinaryHistoryRecord::i16ToFloat(rec.sensors[sensorIdx]);
+                    if (ts < epochLimit) preValT = NAN;
+
+                    if (!isnan(preValT)) {
+                        if (preValT < realMinT) { realMinT = preValT; tsRealMinT = ts; }
+                        if (preValT > realMaxT) { realMaxT = preValT; tsRealMaxT = ts; }
+                    }
 
                     lineIdx++;
                     if (lineIdx % decimation != 0) continue;
 
-                    if (*endPtr == ';') ptr = endPtr + 1; else ptr = nullptr;
+                    float valT = preValT;
+                    float valH = NAN;
+                    if (sensorIdx == -1) valH = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
 
-                    int targetToken = (sensorIdx == -1) ? 1 : (3 + sensorIdx);
-                    int currentToken = 1;
-                    float valT = NAN, valH = NAN;
-
-                    while (ptr && *ptr) {
-                        if (currentToken == targetToken) {
-                            valT = strtof(ptr, &endPtr);
-                            if (ptr == endPtr) valT = NAN;
-                            if (ts < epochLimit) valT = NAN;
-                        }
-                        if (sensorIdx == -1 && currentToken == 2) {
-                            valH = strtof(ptr, &endPtr);
-                            if (ptr == endPtr) valH = NAN;
-                        }
-                        ptr = strchr(ptr, ';');
-                        if (ptr) ptr++;
-                        currentToken++;
-                        if (sensorIdx != -1 && currentToken > targetToken) break;
+                    if (!isnan(valH)) {
+                        if (valH < realMinH) realMinH = valH;
+                        if (valH > realMaxH) realMaxH = valH;
                     }
 
+                    /* Emite ponto: NAN como null para o Chart.js criar buracos */
+                    char pointBuf[96];
                     if (!isnan(valT) && valT > -50.0f && valT < 150.0f) {
-                        char pointBuf[96];
                         const char* signT = (valT < 0.0f) ? "-" : "";
                         int tInt = abs((int)valT);
                         int tDec = abs((int)(valT * 100.0f) % 100);
@@ -1830,39 +1931,42 @@ void WebManager::handleApiHistoryData() {
                             snprintf(pointBuf, sizeof(pointBuf), "%s{\"t\":%lu,\"v1\":%s%d.%02d}",
                                      first ? "" : ",", (unsigned long)ts, signT, tInt, tDec);
                         }
+                    } else {
+                        /* Ponto NAN: emite com v1:null para buraco visível no Chart.js */
+                        snprintf(pointBuf, sizeof(pointBuf), "%s{\"t\":%lu,\"v1\":null}",
+                                 first ? "" : ",", (unsigned long)ts);
+                    }
 
-
-                        int pLen = strlen(pointBuf);
-                        if (chunkLen + pLen >= (int)sizeof(chunkBuf) - 1) {
-                            if (!safeSend(chunkBuf)) {
-                                { ReadGuard rg(_storageRef); f.close(); }
-                                aborted = true;
-                                break;
-                            }
-                            chunkBuf[0] = '\0';
-                            chunkLen = 0;
-                            delay(5);
-                            watchdog_update();
+                    int pLen = strlen(pointBuf);
+                    if (chunkLen + pLen >= (int)sizeof(chunkBuf) - 1) {
+                        if (!safeSend(chunkBuf)) {
+                            { ReadGuard rg(_storageRef); f.close(); }
+                            aborted = true;
+                            break;
                         }
-                        memcpy(chunkBuf + chunkLen, pointBuf, pLen + 1);
-                        chunkLen += pLen;
-                        first = false;
+                        chunkBuf[0] = '\0';
+                        chunkLen = 0;
+                        delay(5);
+                        watchdog_update();
+                    }
+                    memcpy(chunkBuf + chunkLen, pointBuf, pLen + 1);
+                    chunkLen += pLen;
+                    first = false;
 
-
-                        if (chunkLen > 1500) {
-                            if (!safeSend(chunkBuf)) {
-                                { ReadGuard rg(_storageRef); f.close(); }
-                                aborted = true;
-                                break;
-                            }
-                            chunkBuf[0] = '\0';
-                            chunkLen = 0;
-                            delay(5);
-                            watchdog_update();
+                    if (chunkLen > 1500) {
+                        if (!safeSend(chunkBuf)) {
+                            { ReadGuard rg(_storageRef); f.close(); }
+                            aborted = true;
+                            break;
                         }
+                        chunkBuf[0] = '\0';
+                        chunkLen = 0;
+                        delay(5);
+                        watchdog_update();
                     }
                 }
 
+                if (pastWindow) break;
                 if (aborted) break;
                 if (_lightYieldCb) _lightYieldCb();
                 delay(5);
@@ -1874,7 +1978,21 @@ void WebManager::handleApiHistoryData() {
 
     if (!aborted) {
         if (chunkLen > 0) safeSend(chunkBuf);
-        safeSend("]}");
+
+        /* Fecha array e emite metadados de min/max reais */
+        char metaEnd[192];
+        if (realMaxT > -999.0f) {
+            const char* sMin = (realMinT < 0) ? "-" : "";
+            const char* sMax = (realMaxT < 0) ? "-" : "";
+            snprintf(metaEnd, sizeof(metaEnd),
+                "],\"minT\":%s%d.%02d,\"maxT\":%s%d.%02d,\"tsMinT\":%lu,\"tsMaxT\":%lu}",
+                sMin, abs((int)realMinT), abs((int)(realMinT*100)%100),
+                sMax, abs((int)realMaxT), abs((int)(realMaxT*100)%100),
+                (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT);
+        } else {
+            snprintf(metaEnd, sizeof(metaEnd), "]}");
+        }
+        safeSend(metaEnd);
         safeSend("");
     }
     _handlerDeadline = savedDeadline;
@@ -1905,67 +2023,61 @@ void WebManager::handleApiLogs() {
     _handlerDeadline = millis() + 30000;
     if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str());
 
+    /*
+     * Envia logs binários brutos (12 bytes/registro) para máxima
+     * eficiência de transferência. A tradução acontece no browser.
+     * Formato: application/octet-stream, N × CompactLogRecord(12 bytes).
+     * ~10x menor que o CSV traduzido anterior.
+     */
     _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-    _server.send(200, "text/plain", "");
+    _server.send(200, "application/octet-stream", "");
 
-    auto streamLog = [&](const char* path) -> bool {
+    auto streamRawLog = [&](const char* path) -> bool {
         File f;
         {
-
             ReadGuard rg(_storageRef);
             if (!LittleFS.exists(path)) return true;
             f = LittleFS.open(path, "r");
         }
 
-        if (f) {
-            int count = 0;
+        if (!f) return true;
 
-            while (f.available()) {
-                if (count > 0 && count % 40 == 0) {
-                    if (isClientGone() || isHandlerOvertime()) {
-                        f.close();
-                        return false;
-                    }
+        int count = 0;
+        while (f.available() >= LOG_RECORD_SIZE) {
+            if (count > 0 && count % 80 == 0) {
+                if (isClientGone() || isHandlerOvertime()) {
+                    f.close();
+                    return false;
                 }
-
-
-                static char batchBuf[10][128];
-                int batchCount = 0;
-                {
-
-                    ReadGuard rg(_storageRef);
-                    while (f.available() && batchCount < 10) {
-                        size_t len = f.readBytesUntil('\n', batchBuf[batchCount], 127);
-                        if (len == 0) continue;
-                        batchBuf[batchCount][len] = '\0';
-                        batchCount++;
-                    }
-                }
-
-
-                for (int i = 0; i < batchCount; i++) {
-
-                    size_t slen = strlen(batchBuf[i]);
-                    batchBuf[i][slen] = '\n';
-                    batchBuf[i][slen + 1] = '\0';
-                    if (!safeSend(batchBuf[i])) {
-                        f.close();
-                        return false;
-                    }
-                    count++;
-                }
-
-                if (_lightYieldCb) _lightYieldCb();
-                delay(5);
-                watchdog_update();
             }
-            f.close();
+
+            /* Lê batch de até 40 registros (480 bytes) e envia de uma vez */
+            uint8_t buf[480];
+            int bytesRead = 0;
+            {
+                ReadGuard rg(_storageRef);
+                while (f.available() >= LOG_RECORD_SIZE && bytesRead + LOG_RECORD_SIZE <= (int)sizeof(buf)) {
+                    if (f.read(buf + bytesRead, LOG_RECORD_SIZE) == LOG_RECORD_SIZE) {
+                        bytesRead += LOG_RECORD_SIZE;
+                    }
+                }
+            }
+
+            if (bytesRead > 0) {
+                _server.sendContent((const char*)buf, bytesRead);
+                count += bytesRead / LOG_RECORD_SIZE;
+            }
+
+            if (_lightYieldCb) _lightYieldCb();
+            delay(2);
+            watchdog_update();
         }
+        f.close();
         return true;
     };
 
-    if (streamLog("/system.old")) {
-        streamLog("/system.log");
+    if (streamRawLog(LOG_FILE_OLD)) {
+        streamRawLog(LOG_FILE_CURRENT);
     }
 
     safeSend("");
@@ -1980,6 +2092,9 @@ void WebManager::handleApiClearLogs() {
 
     {
         RenderGuard rg(_displayRef);
+        LittleFS.remove(LOG_FILE_CURRENT);
+        LittleFS.remove(LOG_FILE_OLD);
+        /* Remove também logs CSV legados (pré-v3.4.7) */
         LittleFS.remove("/system.log");
         LittleFS.remove("/system.old");
         LogManager::instance().begin(true, LOG_DEBUG);
@@ -2072,7 +2187,7 @@ void WebManager::handleApiScreenshot() {
 
     __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
     _handlerDeadline = savedDeadline;
-    if (clientDisconnected) LOG_WRN("WEB", "Screenshot transmission aborted by client.");
+    if (clientDisconnected) LOG_CODE(LOG_WARN, "WEB", WEB_SCREENSHOT_ABORTED, 0, "");
 }
 
 void WebManager::handleApiHistoryDays() {
@@ -2089,7 +2204,7 @@ void WebManager::handleApiHistoryDays() {
         Dir dir = LittleFS.openDir(DIR_HISTORY);
         while (dir.next()) {
             feedWatchdog();
-            if (dir.fileName().endsWith(".csv")) {
+            if (dir.fileName().endsWith(HISTORY_FILE_EXT)) {
                 files.push_back(dir.fileName());
             }
         }
@@ -2101,7 +2216,7 @@ void WebManager::handleApiHistoryDays() {
     _server.send(200, "application/json", "");
     safeSend("[");
     for (size_t i = 0; i < files.size(); i++) {
-        files[i].replace(".csv", "");
+        files[i].replace(HISTORY_FILE_EXT, "");
         String entry = (i > 0 ? ",\"" : "\"") + files[i] + "\"";
         safeSend(entry);
     }
@@ -2110,22 +2225,12 @@ void WebManager::handleApiHistoryDays() {
 }
 
 String WebManager::getHistoryFileName(time_t date) {
-    SystemConfig& cfg = _storageRef->getConfig();
-    date += (cfg.timezoneOffset * 3600);
-    struct tm timeinfo; gmtime_r(&date, &timeinfo);
-    char buff[32]; snprintf(buff, sizeof(buff), "%s/%04d%02d%02d.csv", DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+    struct tm timeinfo; localtime_r(&date, &timeinfo);
+    char buff[32]; snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
     return String(buff);
 }
 
-String WebManager::extractCsvToken(String& line, int index) {
-    int found = 0; int strIndex[] = {0, -1}; int maxIndex = line.length() - 1;
-    for (int i = 0; i <= maxIndex && found <= index; i++) {
-        if (line.charAt(i) == ';' || i == maxIndex) {
-            found++; strIndex[0] = strIndex[1] + 1; strIndex[1] = (i == maxIndex) ? i + 1 : i;
-        }
-    }
-    return found > index ? line.substring(strIndex[0], strIndex[1]) : "";
-}
+/* extractCsvToken removida — não é necessária com formato binário */
 
 String WebManager::rgb565ToHex(uint16_t color) {
     uint8_t r = (color >> 11) * 255 / 31;
