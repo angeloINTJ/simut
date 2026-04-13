@@ -1,4 +1,4 @@
-# SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+# SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 
 > Integrated Universal Temperature Monitoring System for Raspberry Pi Pico W
 
