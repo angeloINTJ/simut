@@ -2,11 +2,12 @@
  * @file    NetworkManager.cpp
  * @brief   Implementation of NetworkManager — WiFi state machine, NTP, and time utilities.
  * @details Implements a multi-state WiFi connection manager with async scan,
- *          exponential backoff, non-blocking disconnect, NTP sync with
- *          provisional time correction callback, and timezone-aware
- *          date/time formatting.
+ * exponential backoff, non-blocking disconnect, NTP sync with
+ * provisional time correction callback, and timezone-aware
+ * date/time formatting.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -25,10 +26,21 @@ NetworkManager::NetworkManager() {
  * Starts the connection process; actual connection completes in update().
  */
 void NetworkManager::begin(const SystemConfig &cfg) {
-    strncpy(_ssid, cfg.wifiSsid, 31);
-    strncpy(_pass, cfg.wifiPass, 31);
-    strncpy(_deviceName, cfg.deviceName, 31);
+    safeCopy(_ssid, cfg.wifiSsid, sizeof(_ssid));
+    safeCopy(_pass, cfg.wifiPass, sizeof(_pass));
+    safeCopy(_deviceName, cfg.deviceName, sizeof(_deviceName));
     _tzOffset = cfg.timezoneOffset;
+
+    /* Servidor NTP configurável (fallback para pool.ntp.org se vazio) */
+    if (cfg.ntpServer[0] != '\0') {
+        safeCopy(_ntpServer, cfg.ntpServer, sizeof(_ntpServer));
+        _ntpServer[sizeof(_ntpServer) - 1] = '\0';
+    } else {
+        safeCopy(_ntpServer, "pool.ntp.org", sizeof(_ntpServer));
+    }
+
+    /* Aplica fuso horário globalmente para que localtime_r funcione */
+    applyTimezone(_tzOffset);
 
     WiFi.mode(WIFI_STA);
 
@@ -37,17 +49,17 @@ void NetworkManager::begin(const SystemConfig &cfg) {
         ip.fromString(cfg.staticIp); mask.fromString(cfg.staticMask);
         gw.fromString(cfg.staticGateway); dns.fromString(cfg.staticDns);
         WiFi.config(ip, gw, mask, dns);
-        LOG_INF("NET", "Static IP Mode Enabled.");
+        LOG_CODE(LOG_INFO, "NET", NET_STATIC_MODE, 0, "");
     } else {
         WiFi.config(IPAddress(), IPAddress(), IPAddress(), IPAddress());
-        LOG_INF("NET", "DHCP Mode Enabled.");
+        LOG_CODE(LOG_INFO, "NET", NET_DHCP_MODE, 0, "");
     }
 
     if (strlen(_ssid) == 0) {
-        LOG_WRN("NET", "WiFi SSID not configured.");
+        LOG_CODE(LOG_WARN, "NET", NET_SSID_MISSING, 0, "");
         _state = NET_OFFLINE;
     } else {
-        LOG_INF("NET", "Starting WiFi Manager...");
+        LOG_CODE(LOG_INFO, "NET", NET_STARTING, 0, "");
         WiFi.begin(_ssid, _pass);
         _state = NET_CONNECTING;
         _stateTimer = millis();
@@ -79,7 +91,7 @@ void NetworkManager::setProvisionalTime(uint32_t lastTs) {
         _provisionalBase = lastTs + 60;
         _provisionalBootMillis = millis();
         _provisionalActive = true;
-        LOG_INF("NET", "Provisional time set from Flash: " + getFormattedDate() + " " + getFormattedTime());
+        LOG_CODE(LOG_INFO, "NET", NET_PROVISIONAL_TIME, 0, "Provisional: " + getFormattedDate() + " " + getFormattedTime());
     }
 }
 
@@ -91,7 +103,15 @@ void NetworkManager::setTimeSyncCallback(TimeSyncCallback cb) { _timeSyncCb = cb
  */
 void NetworkManager::update() {
     if (_state == NET_AP_CONFIG) { _dnsServer.processNextRequest(); return; }
-    MDNS.update();
+
+    /* mDNS: atualiza apenas quando conectado e com throttle de 2s */
+    if (_state == NET_READY) {
+        uint32_t now = millis();
+        if (now - _lastMdnsUpdate >= MDNS_UPDATE_INTERVAL_MS) {
+            _lastMdnsUpdate = now;
+            MDNS.update();
+        }
+    }
 
     switch (_state) {
         case NET_OFFLINE:
@@ -154,6 +174,7 @@ void NetworkManager::update() {
 
                 _state = NET_READY;
                 _reconnectDelay = 5000;
+                _connectCycles = 0;     /* Conexão completa: reseta ciclos */
             }
             else if (millis() - _stateTimer > 20000) {
                  syncNtp(); _stateTimer = millis();
@@ -184,29 +205,58 @@ void NetworkManager::update() {
     }
 }
 
-/** @brief Handle WiFi connection timeout with async disconnect and backoff. */
+/** @brief Handle WiFi connection timeout with async disconnect, backoff, and dormant mode. */
 void NetworkManager::handleConnecting() {
-    if (WiFi.status() == WL_CONNECTED) { _state = NET_CONNECTED_WAIT_IP; }
+    if (WiFi.status() == WL_CONNECTED) {
+        _state = NET_CONNECTED_WAIT_IP;
+        _connectCycles = 0;     /* Sucesso: reseta contador de ciclos */
+    }
     else if (millis() - _stateTimer > 20000) {
 
         WiFi.disconnect(false);
 
-        _reconnectDelay = min(_reconnectDelay * 2, MAX_RECONNECT_DELAY);
-        LOG_WRN("NET", "Connect timeout. Next retry in " + String(_reconnectDelay/1000) + "s");
+        _connectCycles++;
+
+        if (_connectCycles >= WIFI_MAX_CONNECT_CYCLES) {
+            /* Dormência longa: evita drenar bateria/CPU com reconexões inúteis */
+            _reconnectDelay = WIFI_DORMANT_DELAY_MS;
+            LOG_CODE(LOG_WARN, "NET", NET_DORMANT_MODE, _connectCycles, "Dormant: retry in " + String(_reconnectDelay / 1000) + "s");
+        } else {
+            _reconnectDelay = min(_reconnectDelay * 2, MAX_RECONNECT_DELAY);
+            LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, _connectCycles, "Retry in " + String(_reconnectDelay / 1000) + "s");
+        }
+
         _state = NET_DISCONNECT_PENDING;
         _stateTimer = millis();
     }
 }
 
 /**
- * @brief Configure NTP client in strict UTC mode.
- * Timezone offset is applied at display time, not at the RTC level,
- * ensuring telemetry timestamps are always universal.
+ * @brief Configura NTP com servidor customizável e timezone do sistema.
+ *
+ * O RTC interno permanece em UTC (configTime com offset 0).
+ * O fuso horário é aplicado via setenv("TZ")/tzset() para que
+ * localtime_r() retorne hora local em todo o sistema.
  */
 void NetworkManager::syncNtp() {
+    applyTimezone(_tzOffset);
+    configTime(0, 0, _ntpServer, "time.nist.gov");
+}
 
-
-    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+/**
+ * @brief Aplica fuso horário globalmente via variável de ambiente POSIX.
+ *
+ * Notação POSIX: sinal invertido — UTC3 = GMT-3 (Brasil).
+ * Após chamada, toda localtime_r() retorna hora local corretamente.
+ *
+ * @param offset  Offset em horas (ex: -3 para Brasil, +9 para Japão).
+ */
+void NetworkManager::applyTimezone(int8_t offset) {
+    char tzStr[16];
+    /* POSIX TZ: sinal invertido. offset=-3 → "UTC3" (3h a oeste) */
+    snprintf(tzStr, sizeof(tzStr), "UTC%d", (int)(-offset));
+    setenv("TZ", tzStr, 1);
+    tzset();
 }
 
 /**
@@ -223,6 +273,10 @@ time_t NetworkManager::getEpoch() {
 bool NetworkManager::isConnected() { return (_state == NET_READY); }
 bool NetworkManager::isTimeSynced() { return (getEpoch() > 1600000000); }
 
+bool NetworkManager::isNetworkHealthy() {
+    return isConnected() && getRssi() > RSSI_MIN_THRESHOLD;
+}
+
 String NetworkManager::getIpAddress() { return (_state == NET_AP_CONFIG) ? WiFi.softAPIP().toString() : WiFi.localIP().toString(); }
 String NetworkManager::getMacAddress() { return WiFi.macAddress(); }
 String NetworkManager::getSubnetMask() { return WiFi.subnetMask().toString(); }
@@ -234,9 +288,8 @@ String NetworkManager::getFormattedTime() {
     time_t now = getEpoch();
     if (now < 1600000000) return String(millis());
 
-    now += (_tzOffset * 3600);
     struct tm timeinfo;
-    gmtime_r(&now, &timeinfo);
+    localtime_r(&now, &timeinfo);
 
     char buff[12];
     snprintf(buff, sizeof(buff), "%02d:%02d:%02d", timeinfo.tm_hour, timeinfo.tm_min, timeinfo.tm_sec);
@@ -247,9 +300,8 @@ String NetworkManager::getFormattedDate() {
     time_t now = getEpoch();
     if (now < 1600000000) return "01/01/1970";
 
-    now += (_tzOffset * 3600);
     struct tm timeinfo;
-    gmtime_r(&now, &timeinfo);
+    localtime_r(&now, &timeinfo);
 
     char buff[16];
     snprintf(buff, sizeof(buff), "%02d/%02d/%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);

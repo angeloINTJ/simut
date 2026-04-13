@@ -2,9 +2,10 @@
  * @file    SystemUtils.cpp
  * @brief   Shared utility functions used across multiple modules.
  * @details Implements CRC8 Dallas/Maxim for 1-Wire ROM validation and
- *          history filename format validation (YYYYMMDD.csv).
+ * history filename format validation (YYYYMMDD.csv).
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -42,22 +43,26 @@ uint8_t dallasCrc8(const uint8_t *addr, uint8_t len) {
  * Validate history filename format: YYYYMMDD.csv (exactly 12 chars).
  * Prevents spurious files from being deleted by enforceStorageLimit().
  */
+/**
+ * @brief  Valida nome de arquivo de histórico binário.
+ * Formato esperado: "YYYYMMDD.bin" (12 caracteres).
+ */
 bool isValidHistoryFileName(const char* name) {
     if (!name) return false;
 
-
+    /* Verifica tamanho exato: YYYYMMDD.bin = 12 chars */
     int len = 0;
     const char* p = name;
     while (*p) { len++; p++; }
     if (len != 12) return false;
 
-
+    /* Primeiros 8 caracteres devem ser dígitos (YYYYMMDD) */
     for (int i = 0; i < 8; i++) {
         if (!isdigit((unsigned char)name[i])) return false;
     }
 
-
-    if (name[8] != '.' || name[9] != 'c' || name[10] != 's' || name[11] != 'v') {
+    /* Extensão deve ser .bin */
+    if (name[8] != '.' || name[9] != 'b' || name[10] != 'i' || name[11] != 'n') {
         return false;
     }
 

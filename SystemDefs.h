@@ -2,42 +2,140 @@
  * @file    SystemDefs.h
  * @brief   Global type definitions, enumerations, structs, and shared utilities.
  * @details Central header shared by all modules. Defines hardware limits,
- *          permission bitmasks, sensor/config/UI structures, CSV parser,
- *          input validation helpers, and the CLI command architecture.
- *          All packed structs use __attribute__((packed)) for binary storage.
+ * permission bitmasks, sensor/config/UI structures, CSV parser,
+ * input validation helpers, and the CLI command architecture.
+ * All packed structs use __attribute__((packed)) for binary storage.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
 
 #pragma once
 #include <Arduino.h>
+#include <string.h>
+
+/* Hardware and system limits */
+#define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
+#define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
+#define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
+#define SIMUT_VERSION "v3.4.8"          /* Firmware version string */
+
+#define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
+
+/**
+ * @brief Índices nomeados para o array de cache min/max (sensores + board temp).
+ *
+ * Os slots 0–9 correspondem aos sensores configuráveis (MAX_SENSORS).
+ * O slot 10 é reservado para a temperatura interna da placa (board temp).
+ * MINMAX_SLOT_COUNT define o tamanho total dos arrays de cache.
+ */
+enum MinMaxSlot {
+    MINMAX_SLOT_BOARD_TEMP = MAX_SENSORS,   /**< Índice da board temp no cache   */
+    MINMAX_SLOT_COUNT      = MAX_SENSORS + 1 /**< Tamanho total do array de cache */
+};
 
 /* =========================================================================== */
-/*                        HARDWARE AND SYSTEM LIMITS                         */
+/*                          BOOT TIMING CONSTANTS                            */
 /* =========================================================================== */
 
-#define MAX_SENSORS         10      /* Maximum number of configurable sensor slots      */
-#define MAX_USERS           5       /* Maximum user accounts (Flash/RAM budget)          */
-#define MOVING_AVG_WINDOW   10      /* Samples in the trimmed-mean sliding window        */
-#define SIMUT_VERSION       "v3.3.10" /* Firmware version string                         */
-#define GRAPH_WIDTH         260     /* Maximum data points on the TFT graph              */
+/** Tempo que o usuário precisa manter o toque para entrar em AP Mode (ms). */
+constexpr uint32_t AP_HOLD_DURATION_MS      = 3000;
+
+/** Janela de espera para detectar início do toque no boot (ms). */
+constexpr uint32_t AP_DETECT_WINDOW_MS      = 3500;
+
+/** Delay entre etapas do boot para feedback visual (ms). */
+constexpr uint32_t BOOT_STEP_DELAY_MS       = 800;
+
+/** Delay de polling durante loops de espera no boot (ms). */
+constexpr uint32_t BOOT_POLL_INTERVAL_MS    = 50;
+
+/**
+ * Timeout do hardware watchdog em milissegundos.
+ * Dimensionado para cobrir o pior caso de write em Flash + scan WiFi
+ * sem disparar falso reset durante operações legítimas de I/O.
+ */
+constexpr uint32_t WATCHDOG_TIMEOUT_MS      = 8300;
+
+/** Toques perdidos tolerados antes de cancelar AP hold. */
+constexpr int      AP_HOLD_MAX_MISSED       = 5;
+
 
 /* =========================================================================== */
-/*                     ROLE-BASED ACCESS CONTROL (RBAC)                      */
+/*                     NETWORK RESILIENCE CONSTANTS                          */
 /* =========================================================================== */
 
-#define PERM_DASHBOARD      0x0001
-#define PERM_HISTORY        0x0002
-#define PERM_LOGS           0x0004
-#define PERM_SYS_CONFIG     0x0008
-#define PERM_NET_CONFIG     0x0010
-#define PERM_FILE_READ      0x0020
-#define PERM_FILE_UPLOAD    0x0040
-#define PERM_FILE_DELETE    0x0080
-#define PERM_USER_MGR       0x0100
-#define PERM_FULL_ADMIN     0xFFFF
+/**
+ * Timeout de socket para operações TCP/TLS (ms).
+ * Garante que nenhuma chamada bloqueante de rede ultrapasse o watchdog.
+ * Deve ser significativamente menor que WATCHDOG_TIMEOUT_MS.
+ */
+constexpr uint32_t NET_SOCKET_TIMEOUT_MS    = 4000;
+
+/**
+ * RSSI mínimo aceitável para operações de rede pesadas (dBm).
+ * Abaixo desse limiar, telemetria e uploads são adiados para evitar
+ * timeouts que congelam o main loop. Dashboard e sensores continuam.
+ */
+constexpr int32_t  RSSI_MIN_THRESHOLD       = -78;
+
+/**
+ * Intervalo mínimo entre chamadas a MDNS.update() (ms).
+ * mDNS não precisa de polling a cada loop — throttle evita overhead
+ * desnecessário em rede degradada.
+ */
+constexpr uint32_t MDNS_UPDATE_INTERVAL_MS  = 2000;
+
+/**
+ * Máximo de ciclos de reconexão WiFi consecutivos antes de entrar
+ * em dormência longa (backoff de 10 minutos). Resetado após sucesso.
+ */
+constexpr uint8_t  WIFI_MAX_CONNECT_CYCLES  = 5;
+
+/** Backoff de dormência longa após esgotar tentativas WiFi (ms). */
+constexpr uint32_t WIFI_DORMANT_DELAY_MS    = 600000;
+
+
+/* =========================================================================== */
+/*                       SAFE STRING COPY UTILITY                            */
+/* =========================================================================== */
+
+/**
+ * @brief  Copia uma string para um buffer de tamanho fixo com null-termination garantida.
+ *
+ * Substitui o padrão inseguro de strncpy sem terminador.
+ * Uso típico: safeCopy(cfg.deviceName, source, sizeof(cfg.deviceName));
+ *
+ * @param  dst      Buffer de destino.
+ * @param  src      String de origem (pode ser nullptr — resulta em string vazia).
+ * @param  dstSize  Tamanho total do buffer de destino (incluindo o '\0').
+ */
+inline void safeCopy(char* dst, const char* src, size_t dstSize) {
+    if (dstSize == 0) return;
+    if (!src) {
+        dst[0] = '\0';
+        return;
+    }
+    strncpy(dst, src, dstSize - 1);
+    dst[dstSize - 1] = '\0';
+}
+
+
+/* Permission bitmasks for role-based access control (RBAC) */
+#define PERM_DASHBOARD   0x0001
+#define PERM_HISTORY     0x0002
+#define PERM_LOGS        0x0004
+#define PERM_SYS_CONFIG  0x0008
+#define PERM_NET_CONFIG  0x0010
+#define PERM_FILE_READ   0x0020
+#define PERM_FILE_UPLOAD 0x0040
+#define PERM_FILE_DELETE 0x0080
+#define PERM_USER_MGR    0x0100
+
+#define PERM_FULL_ADMIN  0xFFFF
+
 
 /* =========================================================================== */
 /*                   BLACK BOX PROFILER — MODULE TRACKING                    */
@@ -45,21 +143,17 @@
 
 /** Identifiers for the per-core module profiler (crash forensics). */
 enum TraceModule {
-    MOD_BOOT            = 0,
-    MOD_IDLE            = 1,
-    MOD_WIFI            = 2,
-    MOD_WEB_SERVER      = 3,
-    MOD_STORAGE_READ    = 4,
-    MOD_STORAGE_WRITE   = 5,
-    MOD_SENSOR_READ     = 6,
-    MOD_TELEMETRY       = 7,
-    MOD_DISPLAY         = 8,
-    MOD_CLI             = 9
+    MOD_BOOT = 0,
+    MOD_IDLE = 1,
+    MOD_WIFI = 2,
+    MOD_WEB_SERVER = 3,
+    MOD_STORAGE_READ = 4,
+    MOD_STORAGE_WRITE = 5,
+    MOD_SENSOR_READ = 6,
+    MOD_TELEMETRY = 7,
+    MOD_DISPLAY = 8,
+    MOD_CLI = 9
 };
-
-/* =========================================================================== */
-/*                            SYSTEM ENUMERATIONS                            */
-/* =========================================================================== */
 
 /** Physical sensor type detected during hardware scan. */
 enum SensorType {
@@ -71,8 +165,8 @@ enum SensorType {
 
 /** Payload format for telemetry uploads. */
 enum TelemetryMode {
-    TEL_MODE_JSON   = 0,
-    TEL_MODE_CSV    = 1,
+    TEL_MODE_JSON = 0,
+    TEL_MODE_CSV  = 1,
     TEL_MODE_CUSTOM = 2
 };
 
@@ -139,6 +233,107 @@ enum LogCode {
     SEC_FILE_UPLOAD     = 305,
     SEC_FILE_DELETE     = 306,
 
+
+    /* ── Application lifecycle (400–439) ── */
+    APP_DISPLAY_LAUNCHED    = 400,
+    APP_TOUCH_CAL_INITIAL   = 401,
+    APP_TOUCH_CAL_REQUIRED  = 402,
+    APP_AP_MODE_TRIGGERED   = 403,
+    APP_READY               = 404,
+    APP_READY_AP            = 405,
+    APP_STORAGE_CRITICAL    = 406,
+    APP_SENSORS_CALIBRATED  = 407,
+    APP_NTP_CORRECTING      = 408,
+    APP_NTP_CORRECTED       = 409,
+    APP_CACHE_INVALIDATED   = 410,
+
+    /* ── Application UI events (440–469) ── */
+    APP_UI_THEME_CHANGED    = 440,
+    APP_UI_LANG_CHANGED     = 441,
+    APP_UI_ALARM_SAVED      = 442,
+    APP_UI_TOUCH_CAL_SAVED  = 443,
+    APP_UI_TOUCH_SENS_SAVED = 444,
+    APP_UI_PIN_CHANGED      = 445,
+    APP_UI_SOUND_SAVED      = 446,
+    APP_UI_ALARM_SILENCED   = 447,
+    APP_UI_ALARM_SILENCE_EXP= 448,
+    APP_UI_ALARM_DEACTIVATED= 449,
+
+    /* ── Alarm state (470–479) ── */
+    APP_ALARM_TRIGGERED     = 470,
+    APP_ALARM_CLEARED       = 471,
+    APP_ALARM_SILENCE_CANCEL= 472,
+
+    /* ── Cache/graph (480–499) ── */
+    APP_CACHE_MINMAX_FULL   = 480,
+    APP_CACHE_MINMAX_PARTIAL= 481,
+    APP_CACHE_GRAPH_STARTED = 482,
+    APP_CACHE_GRAPH_DONE    = 483,
+    APP_CACHE_GRAPH_AMBIENT = 484,
+    APP_CACHE_GRAPH_BOARD   = 485,
+    APP_CACHE_PRELOAD_DONE  = 486,
+    APP_GRAPH_LOADING       = 487,
+    APP_GRAPH_BUDGET        = 488,
+    APP_PRELOAD_BUDGET      = 489,
+
+    /* ── Safety watchdogs (500–509) ── */
+    APP_DISPLAY_PAUSE_STUCK = 500,
+    APP_YIELD_STUCK         = 501,
+    APP_CORE1_DEAD          = 502,
+    APP_FLASH_BUSY          = 503,
+
+    /* ── History (510–514) ── */
+    APP_HISTORY_SAVED       = 510,
+    APP_HEAP_REPORT         = 511,
+
+    /* ── Network extended (520–539) ── */
+    NET_DHCP_MODE           = 520,
+    NET_STATIC_MODE         = 521,
+    NET_STARTING            = 522,
+    NET_SSID_MISSING        = 523,
+    NET_PROVISIONAL_TIME    = 524,
+    NET_CONNECT_TIMEOUT     = 525,
+    NET_DORMANT_MODE        = 526,
+    NET_SHOW_IP             = 527,
+
+    /* ── Telemetry extended (540–559) ── */
+    TEL_HTTP_INIT           = 540,
+    TEL_MQTT_INIT           = 541,
+    TEL_MQTT_CONNECTING     = 542,
+    TEL_CERT_EMPTY          = 543,
+    TEL_CERT_READ_ERR       = 544,
+    TEL_CERT_MISSING        = 545,
+    TEL_FORCE_SYNC          = 546,
+    TEL_BACKOFF_SUPPRESSED  = 547,
+
+    /* ── Storage extended (560–569) ── */
+    STO_WRITE_FAILED        = 560,
+    STO_CORRECT_BUDGET      = 561,
+    STO_ENFORCE_BUDGET      = 562,
+    STO_ENFORCE_SKIP_ACTIVE = 563,
+    STO_STATS_REPORT        = 564,
+    STO_CONFIG_REPORT       = 565,
+
+    /* ── Web server (570–579) ── */
+    WEB_SERVER_STARTED      = 570,
+    WEB_DISCONNECT_FILE     = 571,
+    WEB_DISCONNECT_HISTORY  = 572,
+    WEB_SCREENSHOT_ABORTED  = 573,
+    WEB_UPLOAD              = 574,
+
+    /* ── Config (580–584) ── */
+    CFG_THEME_APPLIED       = 580,
+    CFG_THEME_NOT_FOUND     = 581,
+
+    /* ── CLI (585–589) ── */
+    CLI_UNKNOWN_CMD         = 585,
+
+    /* ── Sensors extended (590–599) ── */
+    SENSOR_RUNTIME_LOADED   = 590,
+
+    /* ── Display (600–604) ── */
+    DSP_FORCE_UNPAUSE       = 600,
+
     ERR_UNKNOWN         = 999
 };
 
@@ -148,6 +343,7 @@ enum UiMode {
     MODE_STATS_VIEW,
     MODE_GRAPH_LOADING,
     MODE_GRAPH_VIEW,
+    MODE_GRAPH_DETAIL,          /**< Tela numérica de detalhes do gráfico   */
     MODE_AUTH,
     MODE_SETTINGS_MAIN,
     MODE_SETTINGS_THEMES,
@@ -156,9 +352,12 @@ enum UiMode {
     MODE_SETTINGS_LANG,
     MODE_SETTINGS_PASSWORD,
     MODE_SETTINGS_TOUCH_CAL,
+    MODE_SETTINGS_TOUCH_SENS,   /**< Calibração de sensibilidade do touch */
     MODE_SETTINGS_SOUNDS,
     MODE_SETTINGS_LICENSE,
-    MODE_ALARM_ACTION
+    MODE_SETTINGS_STATUS,       /**< Tela de status do sistema em tempo real */
+    MODE_ALARM_ACTION,
+    MODE_CALENDAR               /**< Calendário de histórico                */
 };
 
 /** Time range selection for graph rendering. */
@@ -170,33 +369,32 @@ enum GraphRange {
     RANGE_1W
 };
 
-/* =========================================================================== */
-/*                        PERSISTENT DATA STRUCTURES                         */
-/* =========================================================================== */
-
 /** Persistent sensor configuration stored in Flash (binary, packed). */
 struct __attribute__((packed)) SensorRecord {
-    bool     active;
-    uint8_t  gpio;
-    uint8_t  rom[8];
-    char     hwId[16];
-    char     friendlyName[32];
+    bool active;
+    uint8_t gpio;
+    uint8_t rom[8];
+    char hwId[16];
+    char friendlyName[32];
     uint32_t provisionEpoch;
-    float    tempMin;
-    float    tempMax;
-    float    humMin;
-    float    humMax;
-    bool     alarmsActive;
+
+
+    float tempMin;
+    float tempMax;
+    float humMin;
+    float humMax;
+    bool alarmsActive;
 };
 
 /** User account for web interface authentication (packed for Flash storage). */
 struct __attribute__((packed)) UserAccount {
-    bool     active;
-    char     username[16];
-    char     password[32];
+    bool active;
+    char username[16];
+    char password[32];
     uint16_t permissions;
-    bool     mustChangePassword;
+    bool mustChangePassword;
 };
+
 
 /**
  * Touchscreen calibration data stored in SystemConfig::reserved[0..9].
@@ -209,72 +407,68 @@ struct __attribute__((packed)) TouchCalData {
     int16_t  xMax;
     int16_t  yMin;
     int16_t  yMax;
+    uint16_t zThreshold;   /**< Limiar de pressão (default 400, calibrável) */
 };
-static_assert(sizeof(TouchCalData) <= 56, "TouchCalData exceeds reserved[]!");
+static_assert(sizeof(TouchCalData) <= 24, "TouchCalData excede reserved[]!");
 
 /**
  * Master system configuration — persisted to Flash as a binary blob
  * with CRC32 integrity check and dual-bank backup.
  */
 struct __attribute__((packed)) SystemConfig {
-    uint32_t    magic;
-    uint16_t    version;
-    char        deviceName[32];
+    uint32_t magic;
+    uint16_t version;
+    char deviceName[32];
 
-    /* WiFi settings */
-    char        wifiSsid[32];
-    char        wifiPass[32];
-    bool        useDhcp;
-    char        staticIp[16];
-    char        staticMask[16];
-    char        staticGateway[16];
-    char        staticDns[16];
+    char wifiSsid[32];
+    char wifiPass[32];
+    bool useDhcp;
+    char staticIp[16];
+    char staticMask[16];
+    char staticGateway[16];
+    char staticDns[16];
 
-    /* Web server */
-    bool        useHttps;
+    bool useHttps;
     UserAccount users[MAX_USERS];
 
-    /* Telemetry — HTTP */
-    char        telServer[64];
-    uint16_t    telPort;
-    char        telPath[32];
-    char        telApiKey[64];
-    uint32_t    telInterval;
-    uint8_t     telBatchSize;
-    bool        telEncryption;
-    uint8_t     telMode;
-    char        telGlobalTemplate[256];
-    char        telLineTemplate[512];
-    char        telLineSeparator[8];
+    char telServer[64];
+    uint16_t telPort;
+    char telPath[32];
+    char telApiKey[64];
+    uint32_t telInterval;
+    uint8_t telBatchSize;
+    bool telEncryption;
+    uint8_t telMode;
+    char telGlobalTemplate[256];
+    char telLineTemplate[512];
+    char telLineSeparator[8];
 
-    /* Telemetry — MQTT */
-    uint8_t     telTransport;
-    char        mqttTopic[64];
-    char        mqttUser[32];
-    char        mqttPass[32];
-    uint8_t     mqttQos;
-    bool        mqttRetain;
-    char        mqttClientId[24];
-    uint16_t    mqttKeepAlive;
 
-    /* General settings */
-    int8_t      timezoneOffset;
-    uint32_t    sampleIntervalMs;
-    bool        loggingEnabled;
-    uint8_t     ds18Resolution;
+    uint8_t telTransport;
+    char mqttTopic[64];
+    char mqttUser[32];
+    char mqttPass[32];
+    uint8_t mqttQos;
+    bool mqttRetain;
+    char mqttClientId[24];
+    uint16_t mqttKeepAlive;
 
-    /* Sensor slots + ambient sensor */
+    int8_t timezoneOffset;
+    uint32_t sampleIntervalMs;
+    bool loggingEnabled;
+    uint8_t ds18Resolution;
+
     SensorRecord sensors[MAX_SENSORS];
     SensorRecord ambientSensor;
 
-    /* Display settings */
-    int8_t      themeIndex;
-    char        displayPin[8];
-    uint8_t     displayLang;
+    int8_t themeIndex;
+    char displayPin[8];
+    uint8_t displayLang;
 
-    /* Reserved bytes for TouchCalData + SoundConfigData */
-    uint8_t     reserved[56];
+    char ntpServer[32];             /**< Servidor NTP configurável (default: pool.ntp.org) */
+    uint8_t reserved[24];           /**< TouchCalData(10) + SoundConfigData(6) + spare(8) */
 };
+
 
 /* =========================================================================== */
 /*                             SHARED UTILITIES                              */
@@ -283,22 +477,23 @@ struct __attribute__((packed)) SystemConfig {
 /** Compute CRC8 Dallas/Maxim checksum for 1-Wire ROM validation. */
 uint8_t dallasCrc8(const uint8_t *addr, uint8_t len);
 
+
 /** Validate history filename format (YYYYMMDD.csv, 12 chars). */
 bool isValidHistoryFileName(const char* name);
 
 /** Result of a hardware sensor scan on a GPIO pin. */
 struct ScanResult {
-    uint8_t    pin;
+    uint8_t pin;
     SensorType type;
-    uint8_t    rom[8];
+    uint8_t rom[8];
 };
 
 /** Single sensor reading result (temperature and optional humidity). */
 struct SensorReading {
-    float   value1;
-    float   value2;
-    bool    isValid;
-    char    typeName[10];
+    float value1;
+    float value2;
+    bool isValid;
+    char typeName[10];
 };
 
 /** UI event passed from Core 1 (display) to Core 0 (app logic) via queue. */
@@ -320,27 +515,202 @@ struct UiEvent {
         EVT_SAVE_SOUNDS,
         EVT_ALARM_SILENCE,
         EVT_ALARM_DEACTIVATE,
-        EVT_ALARM_OPEN_MINMAX
+        EVT_ALARM_OPEN_MINMAX,
+        EVT_SAVE_TOUCH_CAL,
+        EVT_OPEN_CALENDAR,          /**< Solicita abertura do calendário        */
+        EVT_GRAPH_NAV,              /**< Navega gráfico: param = -1 (◀) ou +1 (▶) */
+        EVT_CALENDAR_DAY,           /**< Dia selecionado: param = dia (1-31)    */
+        EVT_CALENDAR_MONTH          /**< Mudança de mês: param = -1 ou +1       */
     };
     EventType type;
-    int       id;
-    int       param;
+    int id;
+    int param;
 };
 
 /** Data package for rendering a temperature/humidity graph on the TFT. */
 struct GraphDataPackage {
-    int     sensorIdx;
-    int     timeRange;
-    char    title[32];
-    char    hwId[16];
-    char    rom[24];
-    float   pointsV1[GRAPH_WIDTH];
-    float   pointsV2[GRAPH_WIDTH];
-    int     count;
-    float   minVal;
-    float   maxVal;
-    bool    hasHumidity;
+    int sensorIdx;
+    int timeRange;
+    char title[32];
+    char hwId[16];
+    char rom[24];
+    float pointsV1[GRAPH_WIDTH];
+    float pointsV2[GRAPH_WIDTH];
+    uint32_t tsPoints[GRAPH_WIDTH];     /**< Epoch de cada ponto (posição temporal no eixo X) */
+    int count;
+    float minVal;                       /**< Min dos pontos exibidos (decimados)   */
+    float maxVal;                       /**< Max dos pontos exibidos (decimados)   */
+    bool hasHumidity;
+
+    /* Min/max REAIS — calculados de TODOS os registros na janela,
+     * não apenas dos pontos decimados para exibição no display.
+     * Usados para escala do eixo Y e badges de extremos. */
+    float realMinVal;                   /**< Temperatura mínima real na janela     */
+    float realMaxVal;                   /**< Temperatura máxima real na janela     */
+    time_t tsRealMin;                   /**< Epoch da temperatura mínima real      */
+    time_t tsRealMax;                   /**< Epoch da temperatura máxima real      */
+
+    /* Índices dos pontos extremos EXIBIDOS para marcadores no gráfico */
+    int idxMinTemp;                     /**< Índice do ponto de temperatura mínima */
+    int idxMaxTemp;                     /**< Índice do ponto de temperatura máxima */
+
+    /* Janela temporal solicitada — define a largura total do eixo X */
+    time_t tsCutoff;                    /**< Epoch do início da janela (cutoff)    */
+    time_t tsEnd;                       /**< Epoch do fim da janela (effectiveEnd) */
+
+    /**
+     * Timestamps pontuais para display.
+     * tsFirst/tsLast agora são derivados de tsPoints[0] e tsPoints[count-1].
+     */
+    time_t tsFirst;                     /**< Epoch do primeiro ponto              */
+    time_t tsMid;                       /**< Epoch do ponto central               */
+    time_t tsLast;                      /**< Epoch do último ponto                */
+    time_t tsMaxTemp;                   /**< Epoch da temperatura máxima exibida  */
+    time_t tsMinTemp;                   /**< Epoch da temperatura mínima exibida  */
+    time_t tsMaxHum;                    /**< Epoch da umidade máxima              */
+    time_t tsMinHum;                    /**< Epoch da umidade mínima              */
+
+    /* Estatísticas calculadas durante o parsing dos dados */
+    float avgTemp;                      /**< Média aritmética da temperatura       */
+    float stdTemp;                      /**< Desvio padrão da temperatura          */
+    float deltaTemp;                    /**< Variação (último - primeiro ponto)    */
+    float avgHum;                       /**< Média aritmética da umidade           */
+    float stdHum;                       /**< Desvio padrão da umidade              */
+    float deltaHum;                     /**< Variação da umidade                   */
 };
+
+
+/** Dados de status do sistema para exibição em tempo real no display. */
+struct SystemStatusData {
+    /* Sistema */
+    uint32_t uptimeSec;
+    uint32_t heapFree;
+    uint32_t heapTotal;
+    float    boardTemp;
+    uint32_t flashUsed;
+    uint32_t flashTotal;
+    char     fwVersion[16];
+    char     deviceName[32];
+
+    /* Rede */
+    bool     wifiConnected;
+    int32_t  rssi;
+    char     ip[16];
+    char     mac[18];
+    char     ssid[33];
+    bool     ntpSynced;
+    char     ntpServer[48];
+    int8_t   timezone;
+
+    /* Telemetria */
+    uint16_t telPending;
+    bool     mqttConnected;
+    uint8_t  telTransport;
+    uint8_t  telFails;
+    uint32_t telInterval;
+    char     telServer[64];
+
+    /* Sensores */
+    uint8_t  activeSensors;
+    float    ambientTemp;
+    float    ambientHum;
+    bool     ambientValid;
+};
+
+
+/* =========================================================================== */
+/*                     COMPACT BINARY LOG RECORD — 12 bytes                  */
+/* =========================================================================== */
+
+/**
+ * @brief Identificadores de módulo/tag para log compacto (4 bits, max 16).
+ *
+ * Cada tag de log ("APP", "NET", etc.) é mapeada para um ID numérico
+ * armazenado no campo flags do CompactLogRecord.
+ */
+enum LogTagId : uint8_t {
+    TAG_APP    = 0,
+    TAG_NET    = 1,
+    TAG_TEL    = 2,
+    TAG_STO    = 3,
+    TAG_WEB    = 4,
+    TAG_CFG    = 5,
+    TAG_CLI    = 6,
+    TAG_SENSOR = 7,
+    TAG_HIST   = 8,
+    TAG_SYS    = 9,
+    TAG_DSP    = 10,
+    TAG_SEC    = 11,
+    TAG_UNKNOWN= 15
+};
+
+/** @brief Converte string de tag para LogTagId. */
+inline LogTagId tagStringToId(const char* tag) {
+    if (!tag) return TAG_UNKNOWN;
+    switch (tag[0]) {
+        case 'A': return TAG_APP;
+        case 'N': return TAG_NET;
+        case 'T': return TAG_TEL;
+        case 'W': return TAG_WEB;
+        case 'C': return (tag[1] == 'F') ? TAG_CFG : TAG_CLI;
+        case 'S': return (tag[1] == 'T') ? TAG_STO :
+                         (tag[1] == 'E') ? TAG_SENSOR :
+                         (tag[1] == 'Y') ? TAG_SYS : TAG_SEC;
+        case 'H': return TAG_HIST;
+        case 'D': return TAG_DSP;
+        default:  return TAG_UNKNOWN;
+    }
+}
+
+/** @brief Converte LogTagId de volta para string (para display). */
+inline const char* tagIdToString(uint8_t id) {
+    static const char* const TAG_NAMES[] = {
+        "APP", "NET", "TEL", "STO", "WEB", "CFG", "CLI",
+        "SENSOR", "HIST", "SYS", "DSP", "SEC",
+        "?", "?", "?", "?"
+    };
+    return (id < 16) ? TAG_NAMES[id] : "?";
+}
+
+/**
+ * @brief  Registro binário de log — 12 bytes, packed.
+ *
+ * Substitui as linhas CSV (~100-200 bytes cada) por um formato fixo
+ * que armazena apenas código estruturado + contexto numérico.
+ * A mensagem legível é reconstruída sob demanda via tabela de tradução.
+ *
+ * Layout:
+ *   [0..3]   epoch      uint32_t   Timestamp Unix
+ *   [4..5]   uptimeMin  uint16_t   Uptime em minutos (cobre ~45 dias)
+ *   [6..7]   code       uint16_t   LogCode enum
+ *   [8..9]   context    int16_t    Valor contextual (GPIO, delta, count...)
+ *   [10]     flags      uint8_t    [level:3 | core:1 | tagId:4]
+ *   [11]     reserved   uint8_t    Reservado (padding)
+ *
+ * Economia: ~90-95% vs formato CSV anterior.
+ */
+struct __attribute__((packed)) CompactLogRecord {
+    uint32_t epoch;
+    uint16_t uptimeMin;
+    uint16_t code;
+    int16_t  context;
+    uint8_t  flags;
+    uint8_t  reserved;
+
+    /** @brief Empacota level, core e tagId no campo flags. */
+    static inline uint8_t packFlags(uint8_t level, uint8_t core, uint8_t tagId) {
+        return ((level & 0x07) << 5) | ((core & 0x01) << 4) | (tagId & 0x0F);
+    }
+
+    inline uint8_t getLevel() const { return (flags >> 5) & 0x07; }
+    inline uint8_t getCore()  const { return (flags >> 4) & 0x01; }
+    inline uint8_t getTagId() const { return  flags       & 0x0F; }
+};
+static_assert(sizeof(CompactLogRecord) == 12, "CompactLogRecord must be 12 bytes!");
+
+/** @brief Tamanho de cada registro de log no flash (bytes). */
+#define LOG_RECORD_SIZE  12
+
 
 /* =========================================================================== */
 /*                         CLI COMMAND ARCHITECTURE                          */
@@ -363,6 +733,7 @@ enum DemandType {
     CMD_SET_WIFI_SSID,
     CMD_SET_WIFI_PASS,
     CMD_SET_TIMEZONE,
+    CMD_SET_NTP,
     CMD_SET_TEL_SERVER,
     CMD_SET_TEL_PORT,
     CMD_SET_TEL_PATH,
@@ -371,6 +742,7 @@ enum DemandType {
     CMD_SET_TEL_CRYPTO,
     CMD_SET_TEL_MODE,
     CMD_RESET_ADMIN,
+    CMD_RESET_TOUCH_CAL,
     CMD_DEFINE_SENSOR,
     CMD_WIPE_SENSOR,
     CMD_ACCEPT_SENSOR,
@@ -384,78 +756,119 @@ enum DemandType {
 /** Parsed CLI command with typed payload fields. */
 struct CliDemand {
     DemandType type;
-    String     strVal1;
-    String     strVal2;
-    int        intVal1;
-    bool       boolVal;
-    uint8_t    rom[8];
+    String strVal1;
+    String strVal2;
+    int intVal1;
+    bool boolVal;
+    uint8_t rom[8];
 };
 
+
 /* =========================================================================== */
-/*                          CENTRALIZED CSV PARSER                           */
+/*          BINARY HISTORY RECORD — 28 bytes por registro, packed             */
 /* =========================================================================== */
+
+/** @brief Tamanho fixo de cada registro binário de histórico (28 bytes). */
+#define HISTORY_RECORD_SIZE   28
+
+/** @brief Sentinela para campos sem leitura válida (equivale a NAN no float). */
+#define HIST_NAN_SENTINEL     INT16_MIN   /* -32768 */
+
+/** @brief Extensão dos arquivos de histórico binário. */
+#define HISTORY_FILE_EXT      ".bin"
 
 /**
- * Centralized CSV history line parser.
- * Eliminates duplication between AppManager, WebManager, and TelemetryManager.
- * Format: epoch;ambT;ambH;s0;s1;...;s9
+ * @brief  Registro binário de histórico — 28 bytes, packed.
+ *
+ * Layout fixo por registro:
+ *   [0..3]   epoch        uint32_t    timestamp Unix
+ *   [4..5]   ambientTemp  int16_t     ×100 (ex: 2345 = 23.45°C)
+ *   [6..7]   ambientHum   int16_t     ×100 (ex: 6120 = 61.20%)
+ *   [8..27]  sensors[10]  int16_t×10  ×100 (ex: -1850 = -18.50°C)
+ *
+ * Valores inválidos (sem leitura) usam HIST_NAN_SENTINEL (-32768).
+ * Range suportado: -327.67 a +327.67 — cobre DS18B20 e DHT22.
  */
-struct CsvHistoryLine {
-    time_t   timestamp;
-    float    ambientTemp;
-    float    ambientHum;
-    float    sensorValues[MAX_SENSORS];
-    bool     valid;
+struct __attribute__((packed)) BinaryHistoryRecord {
+    uint32_t epoch;                       /* Timestamp Unix (segundos)       */
+    int16_t  ambientTemp;                 /* Temperatura ambiente × 100      */
+    int16_t  ambientHum;                  /* Umidade ambiente × 100          */
+    int16_t  sensors[MAX_SENSORS];        /* Temperaturas dos slots × 100    */
 
-    /** Parse a single CSV history line into structured data. */
-    static CsvHistoryLine parse(const char* line) {
-        CsvHistoryLine out;
-        out.valid       = false;
-        out.ambientTemp = NAN;
-        out.ambientHum  = NAN;
-        for (int i = 0; i < MAX_SENSORS; i++) out.sensorValues[i] = NAN;
+    /* ── Helpers de conversão ── */
 
-        if (!line || *line == '\0') return out;
+    /**
+     * @brief  Converte float → int16 com escala ×100.
+     * @param  v  Valor float (NAN retorna HIST_NAN_SENTINEL).
+     * @return Valor escalado, clampado no range do int16.
+     */
+    static inline int16_t floatToI16(float v) {
+        if (isnan(v)) return HIST_NAN_SENTINEL;
+        float scaled = v * 100.0f;
+        if (scaled >  32767.0f) return  32767;
+        if (scaled < -32767.0f) return -32767;  /* -32768 reservado para NAN */
+        return (int16_t)roundf(scaled);
+    }
 
-        const char* ptr = line;
-        char* endPtr;
+    /**
+     * @brief  Converte int16 escalado → float.
+     * @param  v  Valor int16 (HIST_NAN_SENTINEL retorna NAN).
+     * @return Valor float com 2 casas decimais de precisão.
+     */
+    static inline float i16ToFloat(int16_t v) {
+        if (v == HIST_NAN_SENTINEL) return NAN;
+        return (float)v / 100.0f;
+    }
 
-        /* Token 0: timestamp (epoch) */
-        out.timestamp = strtoul(ptr, &endPtr, 10);
-        if (ptr == endPtr || out.timestamp == 0) return out;
-        if (*endPtr == ';') ptr = endPtr + 1; else return out;
-
-        /* Token 1: ambient temperature */
-        if (*ptr && *ptr != ';') {
-            out.ambientTemp = strtof(ptr, &endPtr);
-            if (ptr == endPtr) out.ambientTemp = NAN;
-            ptr = endPtr;
-        }
-        if (*ptr == ';') ptr++; else if (*ptr != '\0') return out;
-
-        /* Token 2: ambient humidity */
-        if (*ptr && *ptr != ';') {
-            out.ambientHum = strtof(ptr, &endPtr);
-            if (ptr == endPtr) out.ambientHum = NAN;
-            ptr = endPtr;
-        }
-        if (*ptr == ';') ptr++; else if (*ptr == '\0') { out.valid = true; return out; }
-
-        /* Tokens 3..12: sensor slot values */
+    /** @brief Inicializa todos os campos com valores inválidos. */
+    void clear() {
+        epoch       = 0;
+        ambientTemp = HIST_NAN_SENTINEL;
+        ambientHum  = HIST_NAN_SENTINEL;
         for (int i = 0; i < MAX_SENSORS; i++) {
-            if (*ptr == '\0') break;
-            if (*ptr != ';') {
-                out.sensorValues[i] = strtof(ptr, &endPtr);
-                if (ptr == endPtr) out.sensorValues[i] = NAN;
-                ptr = endPtr;
+            sensors[i] = HIST_NAN_SENTINEL;
+        }
+    }
+
+    /**
+     * @brief  Converte o registro para uma linha CSV legível (para telemetria).
+     *
+     * Formato: "epoch;ambT;ambH;s0;s1;...;s9"
+     * Campos inválidos ficam vazios (compatível com o formato de upload).
+     *
+     * @param  buf      Buffer de destino.
+     * @param  bufSize  Tamanho do buffer.
+     * @return Ponteiro para buf (conveniência para encadeamento).
+     */
+    char* toCsvLine(char* buf, size_t bufSize) const {
+        if (bufSize == 0) return buf;
+
+        int pos = snprintf(buf, bufSize, "%lu", (unsigned long)epoch);
+        if ((size_t)pos >= bufSize) return buf;     /* Buffer esgotado */
+
+        auto appendField = [&](bool valid, const char* fmt, float val) {
+            if ((size_t)pos >= bufSize) return;
+            if (valid) {
+                pos += snprintf(buf + pos, bufSize - (size_t)pos, fmt, val);
+            } else {
+                pos += snprintf(buf + pos, bufSize - (size_t)pos, ";");
             }
-            if (*ptr == ';') ptr++;
+        };
+
+        appendField(ambientTemp != HIST_NAN_SENTINEL,
+                     ";%.2f", (float)ambientTemp / 100.0f);
+        appendField(ambientHum  != HIST_NAN_SENTINEL,
+                     ";%.1f", (float)ambientHum  / 100.0f);
+
+        for (int i = 0; i < MAX_SENSORS; i++) {
+            appendField(sensors[i] != HIST_NAN_SENTINEL,
+                         ";%.2f", (float)sensors[i] / 100.0f);
         }
 
-        out.valid = true;
-        return out;
+        return buf;
     }
 };
+
 
 /* =========================================================================== */
 /*                         INPUT VALIDATION HELPERS                          */
@@ -471,6 +884,7 @@ inline bool isValidName(const char* name, size_t maxLen = 31) {
     }
     return true;
 }
+
 
 /** Validate IPv4 address format (e.g., "192.168.1.100"). */
 inline bool isValidIpv4(const char* ip) {
@@ -495,6 +909,7 @@ inline bool isValidIpv4(const char* ip) {
     }
     return (parts == 4);
 }
+
 
 /** Check if a numeric value falls within [minVal, maxVal]. */
 inline bool isInRange(int value, int minVal, int maxVal) {

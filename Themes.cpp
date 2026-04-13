@@ -2,12 +2,13 @@
  * @file    Themes.cpp
  * @brief   Theme palette definitions — 50+ color themes for the TFT display.
  * @details Contains the complete palette array covering health awareness months
- *          (Janeiro Branco through Dezembro Laranja), professional themes
- *          (Dark Pro, Clinical, Corporate), retro themes (Matrix, Cyberpunk,
- *          GameBoy, 8-Bit), healthcare themes (ICU, Surgical Blue, X-Ray),
- *          and utility functions for theme lookup by name or index.
+ * (Janeiro Branco through Dezembro Laranja), professional themes
+ * (Dark Pro, Clinical, Corporate), retro themes (Matrix, Cyberpunk,
+ * GameBoy, 8-Bit), healthcare themes (ICU, Surgical Blue, X-Ray),
+ * and utility functions for theme lookup by name or index.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
