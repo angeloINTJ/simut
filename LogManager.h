@@ -2,12 +2,13 @@
  * @file    LogManager.h
  * @brief   System logger with flash persistence, ring buffer, and cross-core watchdog.
  * @details Singleton logger supporting multiple severity levels with both serial
- *          and LittleFS CSV output. Features a pending-log ring buffer for
- *          heavy task periods, touch-priority-aware buffering, and a black-box
- *          profiler that tracks per-core module execution and performs crash
- *          autopsies via watchdog scratch registers.
+ * and LittleFS CSV output. Features a pending-log ring buffer for
+ * heavy task periods, touch-priority-aware buffering, and a black-box
+ * profiler that tracks per-core module execution and performs crash
+ * autopsies via watchdog scratch registers.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -17,9 +18,9 @@
 #include "pico/mutex.h"
 #include "SystemDefs.h"
 
-#define LOG_FILE_CURRENT "/system.log"
-#define LOG_FILE_OLD     "/system.old"
-#define MAX_LINES_PER_FILE 500
+#define LOG_FILE_CURRENT "/system.blog"
+#define LOG_FILE_OLD     "/system.old.blog"
+#define MAX_RECORDS_PER_FILE 800
 
 typedef void (*FlashLockCallback)(bool);
 
@@ -57,6 +58,7 @@ public:
     void setMinSerialLevel(LogLevel level);
 
     const char* getLevelString(LogLevel level);
+    static const char* translateCode(uint16_t code);
 
 
     void setEpochSource(time_t (*fn)());
@@ -68,6 +70,7 @@ public:
     void setModule(int core, uint8_t mod);
     void heartbeat(int core);
     void checkCrossCoreHealth();
+    void enableHealthCheck();        /**< Habilita o monitoramento cross-core (chamar após boot) */
     void performCrashAutopsy();
     void setCorePaused(int core, bool paused);
 
@@ -84,7 +87,7 @@ private:
 
 
     static const int LOG_PENDING_MAX = 8;
-    char _pendingLogs[LOG_PENDING_MAX][256];
+    CompactLogRecord _pendingLogs[LOG_PENDING_MAX];
     volatile int _pendingCount = 0;
     bool _heavyTaskCheckEnabled = false;
 
@@ -94,11 +97,11 @@ private:
 
     bool (*_isTouchPriorityFn)() = nullptr;
 
-    void writeToFlash(const char* csvLine);
+    void writeCompactToFlash(const CompactLogRecord& rec);
     void flushPendingLogs();
     int getCoreID();
 
-    uint16_t countFileLines(const char* filename);
+    uint16_t countFileRecords(const char* filename);
 
     time_t (*_epochFn)() = nullptr;
     time_t getEpochNow();

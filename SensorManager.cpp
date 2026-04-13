@@ -2,12 +2,13 @@
  * @file    SensorManager.cpp
  * @brief   Implementation of SensorManager — async sensor reads, scan, and data processing.
  * @details Implements parallel DS18B20 conversion with ROM verification,
- *          fully asynchronous DHT22 reading via PIO state machine,
- *          hardware scan across GPIO 0-16, error hysteresis (3 consecutive
- *          failures to flag, 5 successes to recover), zero-trust hardware
- *          mismatch blocking, and trimmed mean filtering.
+ * fully asynchronous DHT22 reading via PIO state machine,
+ * hardware scan across GPIO 0-16, error hysteresis (3 consecutive
+ * failures to flag, 5 successes to recover), zero-trust hardware
+ * mismatch blocking, and trimmed mean filtering.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -84,7 +85,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
     ambient.config.active = true;
     ambient.config.gpio = PIN_DHT_DEFAULT;
     memset(ambient.config.rom, 0, 8);
-    strcpy(ambient.config.friendlyName, "Ambient_Fixed");
+    strcpy(ambient.config.friendlyName, "Ambiente_Fixo");
     strcpy(ambient.config.hwId, "AMB001");
     ambient.type = TYPE_DHT22;
     ambient.readInterval = 2000;
@@ -137,7 +138,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
             _runtimeSensors.push_back(rs);
         }
     }
-    LOG_INF("SENSOR", "Runtime Sensors Loaded: " + String(_runtimeSensors.size()));
+    LOG_CODE(LOG_INFO, "SENSOR", SENSOR_RUNTIME_LOADED, _runtimeSensors.size(), "");
 }
 
 
@@ -191,8 +192,12 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
     LogCode code = SYS_OK;
 
     if (!success) {
-        if (strstr(errorMsg, "Timeout") != nullptr) code = ERR_SENSOR_TIMEOUT;
-        else if (strstr(errorMsg, "Mismatch") != nullptr) code = ERR_SENSOR_MISMATCH;
+        if (strstr(errorMsg, "Timeout") != nullptr)       code = ERR_SENSOR_TIMEOUT;
+        else if (strstr(errorMsg, "Checksum") != nullptr)  code = ERR_SENSOR_CHECKSUM;
+        else if (strstr(errorMsg, "CRC") != nullptr)       code = ERR_SENSOR_CRC;
+        else if (strstr(errorMsg, "Range") != nullptr)     code = ERR_SENSOR_RANGE;
+        else if (strstr(errorMsg, "Missing") != nullptr)   code = ERR_SENSOR_MISSING;
+        else if (strstr(errorMsg, "Mismatch") != nullptr)  code = ERR_SENSOR_MISMATCH;
         else code = ERR_UNKNOWN;
     }
 
@@ -551,12 +556,10 @@ void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset,
     for (auto &s : _runtimeSensors) {
         if (s.config.gpio == gpio) {
             if (newHwId.length() > 0) {
-                strncpy(s.config.hwId, newHwId.c_str(), 15);
-                s.config.hwId[15] = '\0';
+                safeCopy(s.config.hwId, newHwId.c_str(), sizeof(s.config.hwId));
             }
             if (newName.length() > 0) {
-                strncpy(s.config.friendlyName, newName.c_str(), 31);
-                s.config.friendlyName[31] = '\0';
+                safeCopy(s.config.friendlyName, newName.c_str(), sizeof(s.config.friendlyName));
             }
             s.calibrationOffset = offset;
             break;

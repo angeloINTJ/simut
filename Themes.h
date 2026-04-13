@@ -2,10 +2,11 @@
  * @file    Themes.h
  * @brief   Theme system with RGB565 color palettes for the TFT display.
  * @details Defines the ThemePalette struct and convenience macros for accessing
- *          the current theme colors. Supports dynamic theme switching with
- *          persistent selection stored in SystemConfig.
+ * the current theme colors. Supports dynamic theme switching with
+ * persistent selection stored in SystemConfig.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */

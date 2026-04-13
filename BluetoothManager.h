@@ -2,9 +2,10 @@
  * @file    BluetoothManager.h
  * @brief   Bluetooth Serial interface with password authentication and auto-logout.
  * @details Manages BLE serial communication on the Pico W, providing a
- *          password-protected CLI session with 5-minute inactivity timeout.
+ * password-protected CLI session with 5-minute inactivity timeout.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */

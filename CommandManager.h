@@ -2,10 +2,11 @@
  * @file    CommandManager.h
  * @brief   CLI command parser and dual-channel console output (USB + Bluetooth).
  * @details Provides the text-based command interface for system configuration,
- *          sensor diagnostics, and maintenance. All output is mirrored to
- *          both USB Serial and authenticated Bluetooth sessions.
+ * sensor diagnostics, and maintenance. All output is mirrored to
+ * both USB Serial and authenticated Bluetooth sessions.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */

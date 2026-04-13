@@ -2,13 +2,14 @@
  * @file    DisplayManager.h
  * @brief   TFT display manager running on Core 1 with touchscreen input and multi-screen UI.
  * @details Drives an ILI9341 320x240 TFT via SPI with XPT2046 resistive touch.
- *          Runs entirely on Core 1 with cross-core communication via mutex-
- *          protected shared state and a lock-free event queue. Supports
- *          dashboard, graph, stats, settings, authentication, alarm action,
- *          and calibration screens. Features i18n (8 languages), theme system,
- *          alarm flash animation, web-busy overlay, and sound event signaling.
+ * Runs entirely on Core 1 with cross-core communication via mutex-
+ * protected shared state and a lock-free event queue. Supports
+ * dashboard, graph, stats, settings, authentication, alarm action,
+ * and calibration screens. Features i18n (8 languages), theme system,
+ * alarm flash animation, web-busy overlay, and sound event signaling.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
+ * @version 3.4.7
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -59,6 +60,13 @@ enum LangKey {
 
     TR_SILENCE_120S, TR_DEACTIVATE, TR_MINMAX, TR_SILENCED,
     TR_HUM_SUFFIX,
+
+    TR_MENU_TOUCH_SENS, TR_SENS_TITLE, TR_SENS_TAP, TR_SENS_DONE,
+
+    TR_AVG_LBL, TR_STD_LBL, TR_ERROR_LBL, TR_AP_MODE,
+
+    TR_MENU_STATUS, TR_STATUS_TITLE,
+
     TR_KEYS_COUNT
 };
 
@@ -122,6 +130,12 @@ public:
     void showStats(const GraphDataPackage& data, float minHum, float maxHum);
     void showGraphPlot(const GraphDataPackage& data, float minHum, float maxHum);
 
+    void showCalendar(int year, int month, uint32_t daysMask);
+    void setCalendarDays(uint32_t daysMask);
+    void setGraphNavOffset(int offset);  /**< Informa offset de navegação para label */
+    int  getCalYear()  const { return _calYear; }
+    int  getCalMonth() const { return _calMonth; }
+
 
     void requestLoadingScreen();
     bool isLoadingDrawn() { return _loadingDrawn; }
@@ -139,8 +153,14 @@ public:
     void showSettingsPassword();
     void getNewPassword(char* out, size_t maxLen) const;
     void showTouchCalibration();
+    void showTouchSensitivity();
+
+    void showSystemStatus();
+    void updateSystemStatus(const SystemStatusData& data);
+    void drawSystemStatus();
     void loadTouchCalibration(const TouchCalData* cal);
     void fillCalData(TouchCalData* cal) const;
+    void resetTouchCalibration();
     bool isTouchCalibrated() const { return _calValid; }
     void setLanguage(int langId);
 
@@ -168,7 +188,7 @@ public:
     void setTelemetryPending(uint16_t count);
 
     /**
-     * @brief Reports the result of the last telemetry send attempt.
+     * @brief Informa o resultado do último envio de telemetria.
      * @param success  true = envio OK (seta azul), false = falha (seta vermelha).
      *
      * Ao chamar com success=true ou false, a seta pisca brevemente (azul/branco)
@@ -176,16 +196,18 @@ public:
      */
     void setTelemetrySendStatus(bool success);
 
-private:
     const char* tr(LangKey key);
+    UiMode getUiMode() const { return _uiMode; }
+
+private:
 
     /**
      * @brief Trunca um texto para caber em maxPixelW pixels na fonte atual do canvas.
-     * @param gfx      Pointer to the GFX context (canvas or tft) with font already set.
+     * @param gfx      Ponteiro para o contexto GFX (canvas ou tft) com fonte já setada.
      * @param src      String original.
-     * @param out      Output buffer (must have at least outSize bytes).
-     * @param outSize  Size of the output buffer.
-     * @param maxPixelW Maximum allowed width in pixels.
+     * @param out      Buffer de saída (deve ter pelo menos outSize bytes).
+     * @param outSize  Tamanho do buffer de saída.
+     * @param maxPixelW Largura máxima em pixels permitida.
      */
     void truncateText(Adafruit_GFX* gfx, const char* src,
                       char* out, size_t outSize, int16_t maxPixelW);
@@ -236,7 +258,7 @@ private:
     bool     _alarmFlashPhase   = false;
     uint32_t _alarmFlashTimer   = 0;
     uint32_t _alarmRotateTimer  = 0;
-    uint16_t _prevAlarmSlotMask = 0;     /* tracks changes to trigger button redraw */
+    uint16_t _prevAlarmSlotMask = 0;     /* rastreia mudanças para redesenhar botões */
     bool     _prevAlarmAmbTemp  = false;
     bool     _prevAlarmAmbHum   = false;
 
@@ -254,6 +276,16 @@ private:
     GraphDataPackage _graphData;
     float _currentMinHum;
     float _currentMaxHum;
+    uint8_t _detailPage = 0;            /**< 0 = temperatura, 1 = umidade        */
+
+    /* ── Estado do calendário ── */
+    int      _calYear  = 2026;          /**< Ano exibido no calendário            */
+    int      _calMonth = 1;             /**< Mês exibido (1-12)                   */
+    uint32_t _calDaysMask = 0;          /**< Bitmask: bit N = dia N tem dados     */
+    bool     _repaintCalendar = false;  /**< Flag de repintura do calendário      */
+    int      _graphNavOffset = 0;       /**< Offset de navegação temporal (≤ 0)   */
+    bool     _headerShowName = false;   /**< true = mostra nome do sensor (3s)     */
+    uint32_t _headerNameTimer = 0;      /**< Timestamp do toque no header          */
 
     static void core1Entry();
     void loopCore1();
@@ -267,11 +299,22 @@ private:
     void drawBottomButtons(int selectedIdx, bool forceRedraw);
     void drawLoadingScreen();
     void drawGraphScreen();
+    void drawGraphDetailScreen();   /**< Tela numérica de detalhes do período */
     void drawStatsScreen();
     void drawPeriodButtons();
+    void drawCalendarScreen();          /**< Tela de calendário com dias de dados */
+    void drawGraphHeaderBar();          /**< Redesenha apenas o header do gráfico */
     void drawGraphIcon(int16_t x, int16_t y, uint16_t color);
     void drawWebBusyOverlay();
     void blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w, int16_t h);
+
+    /** Formata epoch para label do eixo X (HH:MM ou DD/MM HHh). */
+    void formatGraphTime(time_t epoch, char* buf, bool shortRange);
+
+    /** Desenha marcador de diamante com label de valor no ponto extremo. */
+    void drawPeakMarker(int16_t cx, int16_t cy, uint16_t color,
+                        float value, bool above, const char* unit,
+                        int16_t graphTop, int16_t graphBot);
 
 
     bool     isSlotAlarming(int slotIdx) const;
@@ -303,7 +346,20 @@ private:
 
     uint8_t  _lastTouchRegion     = 0xFF;
     uint32_t _lastRegionTouchTime = 0;
+
+    /**
+     * Flag de release: true quando o dedo foi levantado desde o último
+     * acceptTouch(). Garante que cada toque seja único — o próximo
+     * só é aceito após o dedo ser retirado.
+     */
+    bool     _touchReleased       = true;
+
+    /** Cooldown para botões com hold-repeat (incremento/decremento). */
+    uint32_t _holdRepeatLastFire  = 0;
+    static constexpr uint32_t HOLD_REPEAT_MS = 300;
     bool acceptTouch(uint8_t zoneId);
+    bool acceptHoldTouch(uint8_t zoneId);
+    bool acceptSlideTouch(uint8_t zoneId);
 
     void drawSettingsThemes();
     int _themePage = 0;
@@ -428,6 +484,33 @@ private:
     int     _calPhase   = 0;
     int16_t _calRawX[8];
     int16_t _calRawY[8];
+
+    /* Hold-and-release: acumula amostras enquanto o usuário segura */
+    bool     _calHolding    = false;  /**< true enquanto dedo pressionado no ponto */
+    bool     _calHoldReady  = false;  /**< true após tempo mínimo de hold          */
+    uint32_t _calHoldStart  = 0;      /**< millis() do início do hold              */
+    int32_t  _calHoldSumX   = 0;      /**< Soma das leituras X para média          */
+    int32_t  _calHoldSumY   = 0;      /**< Soma das leituras Y para média          */
+    int      _calHoldSamples = 0;     /**< Número de amostras acumuladas           */
+    static constexpr uint32_t CAL_HOLD_MS = 400; /**< Tempo mínimo de hold (ms)    */
+
+    /* ── Calibração de sensibilidade do touch ── */
+    static constexpr uint8_t SENS_TARGET_TAPS = 20;
+    uint16_t _sensSamples[30];       /**< Amostras de p.z coletadas           */
+    uint8_t  _sensCount      = 0;    /**< Total de amostras coletadas         */
+    float    _sensStability   = 0.0f; /**< Índice de estabilidade (0.0..1.0)   */
+    uint16_t _sensThreshold   = 400;  /**< Threshold calculado                 */
+    bool     _sensDone        = false;/**< true quando calibração concluída    */
+    uint32_t _sensDoneTime    = 0;   /**< millis() do momento da conclusão    */
+    uint16_t _sensZThreshold  = 400; /**< Threshold ativo (carregado da config)*/
+
+    void drawTouchSensitivity();
+
+    /* ── Status do sistema em tempo real ── */
+    SystemStatusData _statusData;
+    int              _statusPage     = 0;
+    static constexpr int STATUS_PAGES = 4;
+    uint32_t         _statusLastDraw = 0;
 
     static constexpr int16_t CAL_SCR_X[4] = {  20, 300,  20, 300 };
     static constexpr int16_t CAL_SCR_Y[4] = {  20,  20, 220, 220 };
