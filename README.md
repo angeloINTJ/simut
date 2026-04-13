@@ -23,7 +23,7 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 - **NTP time sync** — Virtual RTC with provisional timestamps and automatic correction
 - **Flash storage** — LittleFS with CRC32 dual-bank config, history CSV, and log rotation
 - **Crash forensics** — Black-box profiler with watchdog scratch register autopsy
-- **i18n** — English, Portuguese, and Spanish display languages
+- **i18n** — 8 display languages (English, Portuguese, Spanish, French, German, Italian, Russian, Chinese)
 
 ## Hardware Requirements
 
