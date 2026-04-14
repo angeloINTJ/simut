@@ -123,6 +123,49 @@ inline void safeCopy(char* dst, const char* src, size_t dstSize) {
 }
 
 
+/* =========================================================================== */
+/*                      WRAP-SAFE MILLIS() COMPARISON                        */
+/* =========================================================================== */
+
+/**
+ * @brief  Verifica de forma segura se um deadline (baseado em millis()) foi atingido.
+ *
+ * SEMPRE usar esta função em vez de `millis() > deadline` ou `millis() < deadline`.
+ * O contador millis() é um uint32_t que sofre wraparound a cada ~49,7 dias; a
+ * comparação direta inverte o resultado após o wrap, causando timeouts eternos
+ * (lockouts que nunca expiram, handlers que travam, etc.).
+ *
+ * A subtração em aritmética signed trata o wraparound corretamente:
+ *   - retorna >= 0 quando now já atingiu/passou deadline
+ *   - retorna  < 0 quando ainda não chegou
+ *
+ * Uso típico:
+ *   if (timeReached(_lockoutUntil))   forceDashboard();   // destrava
+ *   if (!timeReached(_deadline))      _pending = true;    // ainda esperando
+ *
+ * @param  deadline  Valor absoluto de millis() a comparar com o "agora".
+ * @return true se millis() já atingiu ou passou deadline (wrap-safe).
+ */
+inline bool timeReached(uint32_t deadline) {
+    return (int32_t)(millis() - deadline) >= 0;
+}
+
+/**
+ * @brief  Tempo restante até deadline, em milissegundos. Wrap-safe.
+ *
+ * Retorna 0 se o deadline já passou. Substitui o padrão inseguro
+ * `deadline - millis()`, que sofre underflow (retorna valor enorme) após
+ * o wrap de millis() e produz "segundos restantes" absurdos no UI.
+ *
+ * @param  deadline  Valor absoluto de millis() a comparar com o "agora".
+ * @return millissegundos até deadline, ou 0 se já atingido.
+ */
+inline uint32_t timeRemaining(uint32_t deadline) {
+    int32_t diff = (int32_t)(deadline - millis());
+    return (diff > 0) ? (uint32_t)diff : 0;
+}
+
+
 /* Permission bitmasks for role-based access control (RBAC) */
 #define PERM_DASHBOARD   0x0001
 #define PERM_HISTORY     0x0002
@@ -681,7 +724,7 @@ inline const char* tagIdToString(uint8_t id) {
  *
  * Layout:
  *   [0..3]   epoch      uint32_t   Timestamp Unix
- *   [4..5]   uptimeMin  uint16_t   Uptime em minutos (cobre ~45 dias)
+ *   [4..5]   uptimeHr   uint16_t   Uptime em horas (cobre ~7,5 anos — wrap-safe)
  *   [6..7]   code       uint16_t   LogCode enum
  *   [8..9]   context    int16_t    Valor contextual (GPIO, delta, count...)
  *   [10]     flags      uint8_t    [level:3 | core:1 | tagId:4]
@@ -691,7 +734,7 @@ inline const char* tagIdToString(uint8_t id) {
  */
 struct __attribute__((packed)) CompactLogRecord {
     uint32_t epoch;
-    uint16_t uptimeMin;
+    uint16_t uptimeHr;   /**< Uptime em horas (millis()/3600000); 65535h ≈ 7,5 anos. */
     uint16_t code;
     int16_t  context;
     uint8_t  flags;

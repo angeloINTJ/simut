@@ -150,7 +150,7 @@ void LogManager::logCode(LogLevel level, const char* tag, LogCode code, int cont
     if (_saveToFile) {
         CompactLogRecord rec;
         rec.epoch     = (uint32_t)epoch;
-        rec.uptimeMin = (uint16_t)(millis() / 60000);
+        rec.uptimeHr  = (uint16_t)(millis() / 3600000UL);
         rec.code      = (uint16_t)code;
         rec.context   = (int16_t)constrain(contextVal, -32767, 32767);
         rec.flags     = CompactLogRecord::packFlags((uint8_t)level, (uint8_t)core, tagStringToId(tag));
@@ -180,7 +180,7 @@ void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) 
     if (_saveToFile && level >= LOG_INFO) {
         CompactLogRecord rec;
         rec.epoch     = (uint32_t)epoch;
-        rec.uptimeMin = (uint16_t)(millis() / 60000);
+        rec.uptimeHr  = (uint16_t)(millis() / 3600000UL);
         rec.code      = (uint16_t)code;
         rec.context   = 0;
         rec.flags     = CompactLogRecord::packFlags((uint8_t)level, (uint8_t)core, tagStringToId(tag));
@@ -233,7 +233,7 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
         Serial.println("[LOG] Log file rotated.");
         CompactLogRecord rotRec;
         rotRec.epoch     = (uint32_t)getEpochNow();
-        rotRec.uptimeMin = (uint16_t)(millis() / 60000);
+        rotRec.uptimeHr  = (uint16_t)(millis() / 3600000UL);
         rotRec.code      = SYS_STORAGE_ROTATE;
         rotRec.context   = MAX_RECORDS_PER_FILE;
         rotRec.flags     = CompactLogRecord::packFlags(LOG_INFO, get_core_num(), TAG_STO);
@@ -270,7 +270,7 @@ void LogManager::flushPendingLogs() {
             /* Registra rotação como primeiro entry do novo arquivo */
             CompactLogRecord rotRec;
             rotRec.epoch     = (uint32_t)getEpochNow();
-            rotRec.uptimeMin = (uint16_t)(millis() / 60000);
+            rotRec.uptimeHr  = (uint16_t)(millis() / 3600000UL);
             rotRec.code      = SYS_STORAGE_ROTATE;
             rotRec.context   = MAX_RECORDS_PER_FILE;
             rotRec.flags     = CompactLogRecord::packFlags(LOG_INFO, get_core_num(), TAG_STO);
