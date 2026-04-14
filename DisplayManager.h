@@ -20,6 +20,7 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
+#include "TftWithOffset.h"
 #include <XPT2046_Touchscreen.h>
 #include "pico/mutex.h"
 #include "pico/multicore.h"
@@ -66,6 +67,8 @@ enum LangKey {
     TR_AVG_LBL, TR_STD_LBL, TR_ERROR_LBL, TR_AP_MODE,
 
     TR_MENU_STATUS, TR_STATUS_TITLE,
+
+    TR_MENU_DISPLAY_OFFSET, TR_DISPLAY_OFFSET_TITLE, TR_DISPLAY_OFFSET_HINT,
 
     TR_KEYS_COUNT
 };
@@ -163,6 +166,13 @@ public:
     void resetTouchCalibration();
     bool isTouchCalibrated() const { return _calValid; }
     void setLanguage(int langId);
+
+    /* ── Display alignment offset (±4H / ±4V) ── */
+    void showSettingsDisplayOffset();
+    void loadDisplayOffset(const DisplayOffsetData* data);
+    void fillDisplayOffsetData(DisplayOffsetData* data) const;
+    int8_t getDisplayOffsetX() const;
+    int8_t getDisplayOffsetY() const;
 
 
     void showSettingsSounds(const SoundSettingsState& state);
@@ -332,7 +342,7 @@ private:
     void     restoreNormalDashboard();
     void handleTouch();
 
-    Adafruit_ILI9341* _tft;
+    TftWithOffset* _tft;
     XPT2046_Touchscreen* _ts;
     GFXcanvas16* _canvasWide = nullptr;
     GFXcanvas16* _canvasSmall = nullptr;

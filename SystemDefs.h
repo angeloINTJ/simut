@@ -20,7 +20,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.4.8"          /* Firmware version string */
+#define SIMUT_VERSION "v3.4.9"          /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -399,6 +399,7 @@ enum UiMode {
     MODE_SETTINGS_SOUNDS,
     MODE_SETTINGS_LICENSE,
     MODE_SETTINGS_STATUS,       /**< Tela de status do sistema em tempo real */
+    MODE_SETTINGS_DISPLAY_OFFSET, /**< Ajuste de posicionamento do LCD (±4H/±4V) */
     MODE_ALARM_ACTION,
     MODE_CALENDAR               /**< Calendário de histórico                */
 };
@@ -455,6 +456,20 @@ struct __attribute__((packed)) TouchCalData {
 static_assert(sizeof(TouchCalData) <= 24, "TouchCalData excede reserved[]!");
 
 /**
+ * Display alignment offset persistido em SystemConfig::reserved[sizeof(TouchCalData)+sizeof(SoundConfigData) .. +3].
+ * magic == 0xD0 indica offset salvo; caso contrário, usa default (0,0).
+ * Cada eixo é limitado a [-4, +4] pixels — compensa pequenos desalinhamentos
+ * do viewing window do TFT ILI9341 sem exigir recorte significativo de conteúdo.
+ */
+struct __attribute__((packed)) DisplayOffsetData {
+    uint8_t magic;       /**< 0xD0 = válido; outro valor = default */
+    int8_t  offsetX;     /**< -4..+4 pixels (horizontal)            */
+    int8_t  offsetY;     /**< -4..+4 pixels (vertical)              */
+    uint8_t reserved;    /**< padding; reservado p/ extensão futura */
+};
+static_assert(sizeof(DisplayOffsetData) == 4, "DisplayOffsetData deve ter 4 bytes!");
+
+/**
  * Master system configuration — persisted to Flash as a binary blob
  * with CRC32 integrity check and dual-bank backup.
  */
@@ -509,7 +524,7 @@ struct __attribute__((packed)) SystemConfig {
     uint8_t displayLang;
 
     char ntpServer[32];             /**< Servidor NTP configurável (default: pool.ntp.org) */
-    uint8_t reserved[24];           /**< TouchCalData(10) + SoundConfigData(6) + spare(8) */
+    uint8_t reserved[24];           /**< TouchCalData + SoundConfigData + DisplayOffsetData + spare */
 };
 
 
@@ -560,6 +575,7 @@ struct UiEvent {
         EVT_ALARM_DEACTIVATE,
         EVT_ALARM_OPEN_MINMAX,
         EVT_SAVE_TOUCH_CAL,
+        EVT_APPLY_DISPLAY_OFFSET,   /**< Aplica ajuste de posição do LCD e reinicia calibração do touch */
         EVT_OPEN_CALENDAR,          /**< Solicita abertura do calendário        */
         EVT_GRAPH_NAV,              /**< Navega gráfico: param = -1 (◀) ou +1 (▶) */
         EVT_CALENDAR_DAY,           /**< Dia selecionado: param = dia (1-31)    */

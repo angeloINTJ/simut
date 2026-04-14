@@ -58,7 +58,8 @@ const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
         "ACTIVE", "Silence 120s", "Deactivate", "Min/Max", "Silenced",
         "%RH", "7. Touch Sensitivity", "Touch Sensitivity", "Tap %d/%d", "Calibration Done!",
         "AVERAGE", "STD DEV", "Error", "Configuration Mode", "8. System Status",
-        "System Status"
+        "System Status",
+        "9. Display Alignment", "Display Alignment", "Adjust +/-4 px. Saving clears touch calibration."
     },
 
     {
@@ -77,7 +78,8 @@ const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
         "ATIVO", "Silenciar 120s", "Desativar", "Min/Max", "Silenciado",
         "%UR", "7. Sensibilidade do Toque", "Sensibilidade do Toque", "Toque %d/%d", "Calibracao Concluida!",
         "MEDIA", "DESVIO", "Erro", "Modo de Configuracao", "8. Status do Sistema",
-        "Status do Sistema"
+        "Status do Sistema",
+        "9. Alinhamento da Tela", "Alinhamento da Tela", "Ajuste +/-4 px. Salvar reinicia calibracao do touch."
     },
 
     {
@@ -96,7 +98,8 @@ const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
         "ACTIVO", "Silenciar 120s", "Desactivar", "Min/Max", "Silenciado",
         "%RH", "7. Sensibilidad Tactil", "Sensibilidad Tactil", "Toque %d/%d", "Calibracion Completa!",
         "PROMEDIO", "DESVIACION", "Error", "Modo Configuracion", "8. Estado del Sistema",
-        "Estado del Sistema"
+        "Estado del Sistema",
+        "9. Alineacion Pantalla", "Alineacion de Pantalla", "Ajuste +/-4 px. Guardar reinicia calibracion tactil."
     },
 
     {
@@ -115,7 +118,8 @@ const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
         "ACTIF", "Silencer 120s", "Desactiver", "Min/Max", "En Silence",
         "%RH", "7. Sensibilite Tactile", "Sensibilite Tactile", "Touchez %d/%d", "Calibration Terminee!",
         "MOYENNE", "ECART-TYPE", "Erreur", "Mode Configuration", "8. Etat du Systeme",
-        "Etat du Systeme"
+        "Etat du Systeme",
+        "9. Alignement Ecran", "Alignement de l'Ecran", "Ajustez +/-4 px. Sauver reinitialise le tactile."
     },
 
     {
@@ -134,7 +138,8 @@ const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
         "AKTIV", "Stumm 120s", "Deaktivieren", "Min/Max", "Stummgeschaltet",
         "%RH", "7. Touch-Empfindlichkeit", "Touch-Empfindlichkeit", "Tippen %d/%d", "Kalibrierung Abgeschlossen!",
         "MITTELWERT", "STABW.", "Fehler", "Konfigurationsmodus", "8. Systemstatus",
-        "Systemstatus"
+        "Systemstatus",
+        "9. Bildausrichtung", "Bildausrichtung", "+/-4 px justieren. Speichern setzt Touch-Kalib. zurueck."
     },
 
     {
@@ -153,7 +158,8 @@ const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
         "ATTIVO", "Silenzia 120s", "Disattiva", "Min/Max", "Silenziato",
         "%RH", "7. Sensibilita Touch", "Sensibilita Touch", "Tocca %d/%d", "Calibrazione Completata!",
         "MEDIA", "DEV. STD.", "Errore", "Modalita Configurazione", "8. Stato del Sistema",
-        "Stato del Sistema"
+        "Stato del Sistema",
+        "9. Allineamento Schermo", "Allineamento Schermo", "Regola +/-4 px. Salvando si resetta il tocco."
     },
 
     {
@@ -172,7 +178,8 @@ const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
         "AKTIVNO", "Tishina 120s", "Otklyuchit", "Min/Maks", "Otklyucheno",
         "%RH", "7. Chuvstvitelnost", "Chuvstvitelnost Kasaniya", "Kasanie %d/%d", "Kalibrovka Zavershena!",
         "SREDNEE", "STD. OTKL.", "Oshibka", "Rezhim Nastroyki", "8. Sostoyanie Sistemy",
-        "Sostoyanie Sistemy"
+        "Sostoyanie Sistemy",
+        "9. Vyravnivanie Ekrana", "Vyravnivanie Ekrana", "Nastroyka +/-4 px. Sohranenie sbrosit kalibrovku."
     },
 
     {
@@ -191,7 +198,8 @@ const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
         "QIYONG", "Jingyin 120m", "Tingzhi", "Min/Max", "Yi Jingyin",
         "%RH", "7. Chuping Lingmindu", "Chuping Lingmindu", "Dianji %d/%d", "Jiaozhun Wancheng!",
         "PINGJUN", "BIAOZHUN", "Cuowu", "Peizhimoshi", "8. Xitong Zhuangtai",
-        "Xitong Zhuangtai"
+        "Xitong Zhuangtai",
+        "9. Pingmu Duiqi", "Pingmu Duiqi", "Tiaozheng +/-4 px. Baocun hou xu chongxin jiaozhun."
     }
 };
 
@@ -1219,7 +1227,7 @@ void DisplayManager::loopCore1() {
     multicore_lockout_victim_init();
     _core1Ready = true;
 
-    if (!_tft) _tft = new Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST);
+    if (!_tft) _tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
     if (!_ts) _ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
     _tft->begin(); _tft->setRotation(3); _tft->fillScreen(C_BG_MAIN);
     _ts->begin(); _ts->setRotation(3);
