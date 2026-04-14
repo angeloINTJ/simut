@@ -1396,9 +1396,10 @@ void DisplayManager::loopCore1() {
         }
         else if (_uiMode == MODE_AUTH) {
             if (_permanentLockout) {
-                if (millis() > _lockoutUntil) forceDashboard();
+                /* Wrap-safe: comparação direta com millis() falha no wrap a cada ~49,7d. */
+                if (timeReached(_lockoutUntil)) forceDashboard();
             } else if (_lockoutUntil > 0) {
-                if (millis() < _lockoutUntil) _repaintSettings = true;
+                if (!timeReached(_lockoutUntil)) _repaintSettings = true;
                 else { _lockoutUntil = 0; _forceSettingsRedraw = true; _repaintSettings = true; }
             }
             if (_repaintSettings) { drawAuthScreen(); _repaintSettings = false; }
@@ -4793,7 +4794,7 @@ void DisplayManager::handleTouch() {
         if (y > 200 && x < 120) { if (!acceptTouch(0)) return; forceDashboard(); return; }
         /* Botão de licença — acessível mesmo em lockout */
         if (y > 200 && x > 195) { if (!acceptTouch(5)) return; _licenseFromAuth = true; showSettingsLicense(); return; }
-        if (_permanentLockout || millis() < _lockoutUntil) return;
+        if (_permanentLockout || !timeReached(_lockoutUntil)) return;
         if (y >= 80 && y <= 185) {
             int row = (y < 135) ? 0 : 1; int col = (x > 160) ? 1 : 0; int btnIdx = (row * 2) + col;
             if (!acceptTouch(1 + btnIdx)) return;
@@ -6448,7 +6449,7 @@ void DisplayManager::drawAuthScreen() {
         return;
     }
 
-    if (_lockoutUntil > 0 && _lockoutUntil > millis()) {
+    if (_lockoutUntil > 0 && !timeReached(_lockoutUntil)) {
         static long lastSec = -1;
         if (_forceSettingsRedraw) {
             _tft->fillScreen(C_BG_MAIN); _tft->fillRect(0, 0, 320, 32, C_CARD_BG); _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
@@ -6463,7 +6464,7 @@ void DisplayManager::drawAuthScreen() {
             _tft->setCursor(200 + (110 - bw) / 2, 224); _tft->print(licTxt);
             _forceSettingsRedraw = false; lastSec = -1;
         }
-        long secondsLeft = (_lockoutUntil - millis()) / 1000 + 1;
+        long secondsLeft = (long)(timeRemaining(_lockoutUntil) / 1000) + 1;
         if (secondsLeft != lastSec) {
             lastSec = secondsLeft;
             _canvasWide->fillScreen(C_BG_MAIN); _canvasWide->setFont(&FreeSansBold12pt7b); _canvasWide->setTextColor(C_TEMP_WARM);
