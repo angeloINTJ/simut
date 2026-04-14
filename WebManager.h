@@ -100,7 +100,8 @@ private:
 
 
     inline bool isClientGone() {
-        if (_handlerDeadline > 0 && millis() > _handlerDeadline) {
+        /* Wrap-safe: millis() wrap a cada ~49,7d quebraria este timeout. */
+        if (_handlerDeadline > 0 && timeReached(_handlerDeadline)) {
             return true;
         }
         return !_server.client().connected();
