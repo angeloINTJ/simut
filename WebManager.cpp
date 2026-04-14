@@ -142,7 +142,8 @@ void WebManager::feedWatchdog() {
 }
 
 bool WebManager::isHandlerOvertime() {
-    return (_handlerDeadline > 0 && millis() > _handlerDeadline);
+    /* Wrap-safe: veja comentário em timeReached() (SystemDefs.h). */
+    return (_handlerDeadline > 0 && timeReached(_handlerDeadline));
 }
 
 
@@ -903,8 +904,9 @@ void WebManager::handleApiLoginInit() {
 
     uint32_t lockSec = 0;
     bool locked = false;
-    if (_loginStates[slot].lockoutUntil > 0 && millis() < _loginStates[slot].lockoutUntil) {
-        lockSec = (_loginStates[slot].lockoutUntil - millis()) / 1000;
+    /* Wrap-safe: millis() sofre wrap a cada ~49,7d; comparações diretas invertem. */
+    if (_loginStates[slot].lockoutUntil > 0 && !timeReached(_loginStates[slot].lockoutUntil)) {
+        lockSec = timeRemaining(_loginStates[slot].lockoutUntil) / 1000;
         locked = true;
     }
 
@@ -924,8 +926,8 @@ void WebManager::handleApiLogin() {
         if (_loginStates[i].ip == clientIP) { ls = i; break; }
     }
 
-    if (ls >= 0 && _loginStates[ls].lockoutUntil > 0 && millis() < _loginStates[ls].lockoutUntil) {
-        uint32_t rem = (_loginStates[ls].lockoutUntil - millis()) / 1000;
+    if (ls >= 0 && _loginStates[ls].lockoutUntil > 0 && !timeReached(_loginStates[ls].lockoutUntil)) {
+        uint32_t rem = timeRemaining(_loginStates[ls].lockoutUntil) / 1000;
         char buf[64];
         snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)rem);
         _server.send(403, "application/json", buf);
