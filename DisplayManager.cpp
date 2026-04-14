@@ -1871,8 +1871,13 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
     bool rightRed = _alarmAmbientHum  && _alarmFlashPhase && !_alarmSilenced;
     bool isRed    = leftRed || rightRed;
 
-    static constexpr int16_t CARD_X = 0, CARD_Y = 35;
-    static constexpr int16_t CARD_W = 320, CARD_H = 75, CARD_R = 12;
+    /* Card do ambiente (painel com dupla moldura) — insetado em 4 px para
+     * manter 4 px de margem em cada lado horizontal do display, absorvendo
+     * o offset de alinhamento de até ±4H sem perda de borda. A altura e
+     * posição vertical ficam inalteradas: o topo em y=35 e a altura de 75
+     * já terminam em y=110 (bem dentro de y≤236). */
+    static constexpr int16_t CARD_X = 4, CARD_Y = 35;
+    static constexpr int16_t CARD_W = 312, CARD_H = 75, CARD_R = 12;
 
     bool ambAlarm = (_alarmAmbientTemp || _alarmAmbientHum) && _alarmFlashPhase;
     uint16_t borderColor = ambAlarm ? RGB565(255, 60, 60) : C_ACCENT_HIGH;
@@ -2287,8 +2292,11 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
     if (isSlotAlarming(slotIdx)) forceNameRedraw = true;
 
 
-    static constexpr int16_t CARD_X = 0, CARD_Y = 115;
-    static constexpr int16_t CARD_W = 320, CARD_H = 75, CARD_R = 12;
+    /* Card do slot selecionado (segundo painel com dupla moldura do dashboard),
+     * posicionado abaixo do card do ambiente. Mesmo inset horizontal de 4 px
+     * para garantir 4 px de margem em cada lado. */
+    static constexpr int16_t CARD_X = 4, CARD_Y = 115;
+    static constexpr int16_t CARD_W = 312, CARD_H = 75, CARD_R = 12;
 
 
     bool slotAlarm = isSlotAlarming(slotIdx) && _alarmFlashPhase;
@@ -2905,7 +2913,9 @@ void DisplayManager::drawGraphHeaderBar() {
     if (!_canvasWide) return;
 
     GFXcanvas16* cv = _canvasWide;
-    cv->fillRect(4, 4, 312, 28, C_CARD_BG);
+    /* Fundo do header cobre o canvas inteiro da blit (0..27). A margem de
+     * 4 px no topo é obtida via deslocamento do destino da blit (ver fim). */
+    cv->fillRect(0, 0, 320, 28, C_CARD_BG);
     cv->setFont(&FreeSansBold9pt7b);
 
     /* ── Pill do range atual no canto esquerdo ── */
@@ -2977,14 +2987,17 @@ void DisplayManager::drawGraphHeaderBar() {
         cv->print(_graphData.title);
     }
 
-    /* Botão X (fechar) — sempre presente */
+    /* Botão X (fechar) — posição original (284, 2, 32, 24). x+w=316 já está na
+     * fronteira segura de 4 px à direita; o y=2 é absorvido pela blit abaixo. */
     cv->fillRoundRect(284, 2, 32, 24, 6, C_TEMP_WARM);
     cv->setFont(&FreeSansBold9pt7b);
     cv->setTextColor(C_BG_MAIN);
     cv->setCursor(293, 19);
     cv->print("X");
 
-    blitCanvas(cv, 0, 0, 320, 28);
+    /* dstY=4 afasta o header 4 px do topo físico — suporta offset de display
+     * -4V sem clip do conteúdo. */
+    blitCanvas(cv, 0, 4, 320, 28);
 }
 
 
@@ -3073,11 +3086,11 @@ void DisplayManager::drawCalendarScreen() {
             cv->setCursor(298, 22);
             cv->print(">");
 
-            /* Botão X (voltar ao gráfico) */
-            cv->fillRoundRect(270, 2, 24, 24, 6, C_TEMP_WARM);
+            /* Botão X (voltar ao gráfico) — y=4 garante 4 px de margem no topo */
+            cv->fillRoundRect(270, 4, 24, 24, 6, C_TEMP_WARM);
             cv->setFont(&FreeSansBold9pt7b);
             cv->setTextColor(C_BG_MAIN);
-            cv->setCursor(277, 19);
+            cv->setCursor(277, 21);
             cv->print("X");
         }
 
