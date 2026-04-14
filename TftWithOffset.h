@@ -42,14 +42,32 @@ public:
     int8_t getOffsetY() const { return _offsetY; }
 
     /**
-     * @brief Override wrap-safe de setAddrWindow.
+     * @brief Temporariamente desliga o offset automático em setAddrWindow.
+     *
+     * Usado por rotas que já aplicam o offset explicitamente nas coordenadas
+     * (ex.: DisplayManager::blitCanvas após resolver drawRGBBitmap que
+     * possivelmente devirtualiza a chamada interna de setAddrWindow). Evita
+     * que um eventual virtual-dispatch efetivo cause offset duplo.
+     */
+    void setOffsetBypass(bool bypass) { _bypass = bypass; }
+    bool isOffsetBypass() const { return _bypass; }
+
+    /**
+     * @brief Override de setAddrWindow.
      *
      * Soma o offset e satura em 0 para evitar underflow no cast para uint16_t,
      * o que produziria um endereço enorme (quase 64k) e corromperia o frame.
      * O limite superior não é verificado — coordenadas além do display são
      * descartadas pela própria lógica interna do controlador ILI9341.
+     *
+     * Quando _bypass == true, chama a base sem modificar — o chamador já
+     * aplicou o offset externamente.
      */
     void setAddrWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h) override {
+        if (_bypass) {
+            Adafruit_ILI9341::setAddrWindow(x, y, w, h);
+            return;
+        }
         int32_t px = (int32_t)x + _offsetX;
         int32_t py = (int32_t)y + _offsetY;
         if (px < 0) px = 0;
@@ -60,4 +78,5 @@ public:
 private:
     int8_t _offsetX = 0;
     int8_t _offsetY = 0;
+    bool   _bypass  = false;
 };
