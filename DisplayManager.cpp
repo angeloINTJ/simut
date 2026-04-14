@@ -1001,7 +1001,7 @@ void DisplayManager::drawAlarmAction() {
     _tft->fillScreen(C_BG_MAIN);
 
 
-    _tft->fillRect(0, 0, 320, 48, RGB565(180, 30, 30));
+    _tft->fillRect(4, 4, 312, 48, RGB565(180, 30, 30));
     _tft->setFont(&FreeSansBold12pt7b);
     _tft->setTextColor(RGB565(255, 255, 255));
 
@@ -2905,7 +2905,7 @@ void DisplayManager::drawGraphHeaderBar() {
     if (!_canvasWide) return;
 
     GFXcanvas16* cv = _canvasWide;
-    cv->fillRect(0, 0, 320, 28, C_CARD_BG);
+    cv->fillRect(4, 4, 312, 28, C_CARD_BG);
     cv->setFont(&FreeSansBold9pt7b);
 
     /* ── Pill do range atual no canto esquerdo ── */
@@ -3048,7 +3048,7 @@ void DisplayManager::drawCalendarScreen() {
 
         /* ── Header (y=0..27) ── */
         if (sTop == 0) {
-            cv->fillRect(0, 0, 320, 28, C_CARD_BG);
+            cv->fillRect(4, 4, 312, 28, C_CARD_BG);
 
             /* Botão ◀ mês */
             cv->setFont(&FreeSansBold12pt7b);
@@ -3182,7 +3182,7 @@ void DisplayManager::drawStatsScreen() {
     if (_canvasWide) {
         GFXcanvas16* cv = _canvasWide;
         cv->fillScreen(C_BG_MAIN);
-        cv->fillRect(0, 0, 320, 32, C_CARD_BG);
+        cv->fillRect(4, 4, 312, 32, C_CARD_BG);
         cv->setFont(&FreeSansBold9pt7b); cv->setTextColor(C_TEXT_MAIN);
         cv->setCursor(14, 23); cv->print(_graphData.title);
         cv->fillRoundRect(280, 4, 36, 24, 6, C_TEMP_WARM);
@@ -3191,7 +3191,7 @@ void DisplayManager::drawStatsScreen() {
         cv->setCursor(298 - w / 2, 23); cv->print("X");
         blitCanvas(cv, 0, 0, 320, 45);
     } else {
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(14, 23); _tft->print(_graphData.title);
         _tft->fillRoundRect(280, 4, 36, 24, 6, C_TEMP_WARM);
@@ -3200,8 +3200,8 @@ void DisplayManager::drawStatsScreen() {
         _tft->setCursor(298 - w / 2, 23); _tft->print("X");
     }
 
-    /* Limpa zona abaixo do header/canvas (y=45..239) */
-    _tft->fillRect(0, 45, 320, 195, C_BG_MAIN);
+    /* Limpa zona abaixo do header/canvas (y=45..235) — 4px de margem inferior */
+    _tft->fillRect(4, 45, 312, 191, C_BG_MAIN);
 
 
     _tft->setFont(NULL); _tft->setTextSize(1); _tft->setTextColor(C_TEXT_SUB);
@@ -3810,7 +3810,7 @@ void DisplayManager::drawGraphDetailScreen() {
     static CardData cards[4];
 
     if (_graphData.count < 2) {
-        _tft->fillRect(0, 0, 320, 195, C_BG_MAIN);
+        _tft->fillRect(4, 4, 312, 191, C_BG_MAIN);
         drawGraphHeaderBar();  /* Mostra período de referência no header */
         _tft->setFont(&FreeSansBold12pt7b); _tft->setTextColor(C_TEXT_SUB);
         String nd = tr(TR_NO_DATA);
@@ -5612,7 +5612,7 @@ void DisplayManager::drawSettingsThemes() {
 
     if (fullRedraw) {
         _tft->fillScreen(C_BG_MAIN);
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(10, 22); _tft->print(tr(TR_CONFIG_THEMES));
 
@@ -5684,7 +5684,7 @@ void DisplayManager::drawSettingsAlarms() {
 
     if (fullRedraw) {
         _tft->fillScreen(C_BG_MAIN);
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(10, 22); _tft->print(tr(TR_ALARMS_TITLE));
 
@@ -5787,7 +5787,7 @@ void DisplayManager::drawAlarmEdit() {
 
     if (_forceSettingsRedraw) {
         _tft->fillScreen(C_BG_MAIN);
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
         int16_t tx1, ty1; uint16_t tw, th;
         String titleTxt = String(_tempAlarmConfig.friendlyName);
@@ -5854,7 +5854,7 @@ void DisplayManager::drawSettingsMain() {
 
     if (fullRedraw) {
         _tft->fillScreen(C_BG_MAIN);
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(10, 22); _tft->print(tr(TR_CONFIG_MAIN));
 
@@ -5931,7 +5931,7 @@ void DisplayManager::drawSettingsLang() {
         _tft->fillScreen(C_BG_MAIN);
 
 
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b);
         _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(10, 22);
@@ -6529,7 +6529,7 @@ void DisplayManager::drawAuthScreen() {
 
     if (_permanentLockout) {
         if (_forceSettingsRedraw) {
-            _tft->fillScreen(C_TEMP_HOT); _tft->fillRect(0, 0, 320, 32, C_CARD_BG); _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
+            _tft->fillScreen(C_TEMP_HOT); _tft->fillRect(4, 4, 312, 32, C_CARD_BG); _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
             _tft->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 22); _tft->print(titleTxt);
             _tft->setFont(&FreeSansBold12pt7b); _tft->setTextColor(C_BG_MAIN); String msg1 = tr(TR_ACCESS_BLOCKED);
             _tft->getTextBounds(msg1, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 110); _tft->print(msg1);
@@ -6551,7 +6551,7 @@ void DisplayManager::drawAuthScreen() {
     if (_lockoutUntil > 0 && !timeReached(_lockoutUntil)) {
         static long lastSec = -1;
         if (_forceSettingsRedraw) {
-            _tft->fillScreen(C_BG_MAIN); _tft->fillRect(0, 0, 320, 32, C_CARD_BG); _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
+            _tft->fillScreen(C_BG_MAIN); _tft->fillRect(4, 4, 312, 32, C_CARD_BG); _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
             _tft->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 22); _tft->print(titleTxt);
             _tft->fillRoundRect(10, 202, 110, 32, 8, C_CARD_BG);
             _tft->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor(10 + (110 - bw) / 2, 224); _tft->print(cancelTxt);
@@ -6578,7 +6578,7 @@ void DisplayManager::drawAuthScreen() {
     }
 
     if (_forceSettingsRedraw) {
-        _tft->fillScreen(C_BG_MAIN); _tft->fillRect(0, 0, 320, 32, C_CARD_BG); _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
+        _tft->fillScreen(C_BG_MAIN); _tft->fillRect(4, 4, 312, 32, C_CARD_BG); _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
         _tft->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 22); _tft->print(titleTxt);
         _tft->fillRoundRect(10, 202, 110, 32, 8, C_CARD_BG); _tft->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh);
         _tft->setCursor(10 + (110 - bw) / 2, 224); _tft->print(cancelTxt);
@@ -6772,7 +6772,7 @@ void DisplayManager::drawSettingsDisplayOffset() {
         _tft->fillScreen(C_BG_MAIN);
 
         /* Barra superior — título. */
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b);
         _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(10, 22);
@@ -6950,7 +6950,7 @@ void DisplayManager::drawTouchSensitivity() {
         _tft->fillScreen(C_BG_MAIN);
 
         /* Barra de título */
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b);
         _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(10, 22);
@@ -7182,7 +7182,7 @@ void DisplayManager::drawSettingsSounds() {
 
     if (fullRedraw) {
         _tft->fillScreen(C_BG_MAIN);
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(10, 22); _tft->print(tr(TR_SOUNDS_TITLE));
 
@@ -7322,7 +7322,7 @@ void DisplayManager::drawMelodySelect() {
         _tft->fillScreen(C_BG_MAIN);
 
 
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_ACCENT);
         _tft->setCursor(10, 22);
         _tft->print(tr(TYPE_LABELS[typeIdx]));
@@ -7737,7 +7737,7 @@ void DisplayManager::drawSettingsLicense() {
         _tft->fillScreen(C_BG_MAIN);
 
         /* Header com título e contador de páginas */
-        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&FreeSansBold9pt7b); _tft->setTextColor(C_TEXT_MAIN);
         _tft->setCursor(10, 22); _tft->print(tr(TR_LICENSE_TITLE));
 
