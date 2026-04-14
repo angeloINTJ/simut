@@ -1638,7 +1638,23 @@ void DisplayManager::drawInterfaceFixed() {
 
 void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w, int16_t h) {
     if (!canvas || !_tft) return;
+
+    /*
+     * Aplica offset de alinhamento do LCD explicitamente aqui porque a rotina
+     * drawRGBBitmap do Adafruit_SPITFT pode devirtualizar (ou inlinar) a chamada
+     * interna de setAddrWindow dependendo da versão/toolchain, bypassando o
+     * override de TftWithOffset. Aplicamos o offset nas coordenadas de destino
+     * e ligamos o flag de bypass no _tft para garantir que, se o override FOR
+     * chamado virtualmente, ele não aplique o offset novamente (sem bypass
+     * ocorreria offset duplo em bibliotecas em que o dispatch funciona).
+     */
+    const int8_t ox = _tft->getOffsetX();
+    const int8_t oy = _tft->getOffsetY();
+    dstX += ox;
+    dstY += oy;
+
     int16_t cw = canvas->width();
+    _tft->setOffsetBypass(true);
     if (w == cw) {
         _tft->drawRGBBitmap(dstX, dstY, canvas->getBuffer(), w, h);
     } else {
@@ -1647,6 +1663,7 @@ void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
             _tft->drawRGBBitmap(dstX, dstY + row, buf + (row * cw), w, 1);
         }
     }
+    _tft->setOffsetBypass(false);
 }
 
 void DisplayManager::drawTopBar(const SystemState& state) {
