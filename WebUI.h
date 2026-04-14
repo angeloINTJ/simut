@@ -872,7 +872,8 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('logProgStatus').innerText = window.t('hist_done', 'Complete');
                 setTimeout(() => pWrap.style.display = 'none', 600);
 
-                /* Parseia registros binários de 12 bytes — little-endian (ARM Cortex-M0+) */
+                /* Parseia registros binários de 12 bytes — little-endian (ARM Cortex-M0+).
+                 * Offset [4..5] é uptime em HORAS (uint16_t, cobre ~7,5 anos — wrap-safe). */
                 const dv = new DataView(buf.buffer);
                 const recSize = 12;
                 const numRecs = Math.floor(totalLen / recSize);
@@ -881,7 +882,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 for (let i = 0; i < numRecs; i++) {
                     const off = i * recSize;
                     const epoch    = dv.getUint32(off, true);
-                    const upMin    = dv.getUint16(off + 4, true);
+                    const upHr     = dv.getUint16(off + 4, true);
                     const code     = dv.getUint16(off + 6, true);
                     const ctx      = dv.getInt16(off + 8, true);
                     const flags    = dv.getUint8(off + 10);
@@ -895,9 +896,9 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         let dt = new Date(epoch * 1000);
                         dateStr = fmt(dt.getDate())+'/'+fmt(dt.getMonth()+1)+'/'+dt.getFullYear()+' '+fmt(dt.getHours())+':'+fmt(dt.getMinutes())+':'+fmt(dt.getSeconds());
                     } else {
-                        dateStr = 'Boot +' + (upMin) + 'm';
+                        dateStr = 'Boot +' + (upHr) + 'h';
                     }
-                    let upStr = fmtUptime(upMin * 60000);
+                    let upStr = fmtUptime(upHr * 3600000);
                     let lvlLabel = LVL_LABELS[lvl] || 'UNK';
                     let lvlCls = LVL_CLASS[lvl] || '';
                     let tag = TAG_NAMES[tagId] || '?';
