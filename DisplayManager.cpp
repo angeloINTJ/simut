@@ -2691,7 +2691,10 @@ void DisplayManager::drawBottomButtons(int selectedIdx, bool forceRedraw) {
     _canvasWide->setFont(&FreeSansBold12pt7b); _canvasWide->setTextColor(pagTxtCol);
     _canvasWide->setCursor(xPag + 15, 28); _canvasWide->print(pageStr);
     _canvasWide->setFont(NULL); _canvasWide->setCursor(xPag + 35, 8); _canvasWide->print("/3");
-    blitCanvas(_canvasWide, 0, 195, 320, 45);
+    /* h=41 em vez de 45 garante 4 px de margem inferior (y+h=236 ≤ 236). Os
+     * botões ocupam apenas linhas 0..39 do canvas, então as linhas 41..44 não
+     * blitadas estavam vazias. */
+    blitCanvas(_canvasWide, 0, 195, 320, 41);
 }
 
 void DisplayManager::drawLoadingScreen() {
@@ -2892,7 +2895,10 @@ void DisplayManager::drawPeriodButtons() {
         }
     }
 
-    blitCanvas(_canvasWide, 0, 195, 320, btnH);
+    /* y=195 + h=btnH; evita chegar a y=240 (ver nota acima). Se btnH for 45
+     * (altura do rodapé padrão), limita a 41. */
+    int16_t footerH = (btnH > 41) ? 41 : (int16_t)btnH;
+    blitCanvas(_canvasWide, 0, 195, 320, footerH);
 }
 
 
@@ -3178,7 +3184,8 @@ void DisplayManager::drawCalendarScreen() {
     cv->setCursor(237, 26);
     cv->print("Mes >");
 
-    blitCanvas(cv, 0, 195, 320, 45);
+    /* 4 px de margem inferior: y=195 + h=41 = 236 ≤ 236 */
+    blitCanvas(cv, 0, 195, 320, 41);
 }
 
 void DisplayManager::drawGraphIcon(int16_t x, int16_t y, uint16_t color) {
@@ -6161,13 +6168,17 @@ void DisplayManager::drawSettingsPassword() {
         _canvasWide->setCursor(14, 18);
         _canvasWide->print((_kbPhase == 0) ? tr(TR_NEW_PASSWORD) : tr(TR_CONFIRM_PASSWORD));
 
-        /* Botão X sobreposto à barra */
-        _canvasWide->fillRoundRect(282, 2, 30, 22, 4, C_TEMP_WARM);
+        /* Botão X sobreposto à barra — y=4 mantém 4 px de margem no topo,
+         * resistindo ao offset de display -4V sem clip das linhas superiores. */
+        _canvasWide->fillRoundRect(282, 4, 30, 22, 4, C_TEMP_WARM);
         _canvasWide->setFont(&FreeSansBold9pt7b); _canvasWide->setTextColor(C_BG_MAIN);
         _canvasWide->getTextBounds("X", 0, 0, &x1, &y1, &w, &h_bound);
-        _canvasWide->setCursor(297 - w / 2, 18); _canvasWide->print("X");
+        _canvasWide->setCursor(297 - w / 2, 20); _canvasWide->print("X");
 
-        blitCanvas(_canvasWide, 0, 0, 320, 26);
+        /* Blit com dstY=4 empurra o header 4 px para baixo na tela — evita
+         * clip do topo a offset -4V. h sobe para 30 para acompanhar a
+         * extensão vertical do conteúdo (título + botão X até y=26). */
+        blitCanvas(_canvasWide, 0, 4, 320, 30);
     }
 
 
