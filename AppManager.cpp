@@ -171,6 +171,14 @@ void AppManager::setup() {
         _soundMgr.loadConfig(sndCfg);
     }
 
+    /* Offset de posicionamento do display — aplicado antes de qualquer tela
+     * subsequente para que boot statuses já reflitam o alinhamento salvo. */
+    {
+        const DisplayOffsetData* ofs = reinterpret_cast<const DisplayOffsetData*>(
+            cfg.reserved + sizeof(TouchCalData) + sizeof(SoundConfigData));
+        _displayMgr.loadDisplayOffset(ofs);
+    }
+
 
     {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
@@ -1103,6 +1111,9 @@ void AppManager::core0Yield() {
                 else if (uiEv.id == 7) {
                     _displayMgr.showSystemStatus();
                 }
+                else if (uiEv.id == 8) {
+                    _displayMgr.showSettingsDisplayOffset();
+                }
             }
             else if (uiEv.type == UiEvent::EVT_APPLY_THEME) {
                 SystemConfig &cfg = _storageMgr.getConfig();
@@ -1150,6 +1161,42 @@ void AppManager::core0Yield() {
                 _storageMgr.saveConfiguration();
                 _soundMgr.play(SND_CONFIRM);
                 LOG_CODE(LOG_INFO, "APP", APP_UI_TOUCH_SENS_SAVED, 0, "");
+            }
+
+            else if (uiEv.type == UiEvent::EVT_APPLY_DISPLAY_OFFSET) {
+                /*
+                 * Aplica o novo offset ao TFT (já foi aplicado pela tela em preview,
+                 * mas os valores vêm do evento para garantir consistência), persiste
+                 * em reserved[] e reinicia a calibração do touch: o mapeamento
+                 * raw→pixel depende diretamente da posição da imagem no LCD, então
+                 * não faz sentido manter a calibração antiga após o deslocamento.
+                 */
+                SystemConfig &cfg = _storageMgr.getConfig();
+
+                int8_t ox = (int8_t)uiEv.id;
+                int8_t oy = (int8_t)uiEv.param;
+                DisplayOffsetData* ofs = reinterpret_cast<DisplayOffsetData*>(
+                    cfg.reserved + sizeof(TouchCalData) + sizeof(SoundConfigData));
+                ofs->magic    = 0xD0;
+                ofs->offsetX  = ox;
+                ofs->offsetY  = oy;
+                ofs->reserved = 0;
+
+                /* Invalida calibração de touch: magic=0 força recalibração; o restante
+                 * do bloco pode permanecer como lixo — o magic é o único critério de
+                 * validade em loadTouchCalibration(). */
+                TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
+                cal->magic = 0;
+
+                _storageMgr.saveConfiguration();
+                _displayMgr.resetTouchCalibration();
+                _soundMgr.play(SND_CONFIRM);
+                LOG_CODE(LOG_INFO, "APP", APP_UI_TOUCH_CAL_SAVED, 0,
+                         "Display offset applied; touch calibration reset.");
+
+                /* Abre imediatamente a calibração do touch para o usuário remapear
+                 * o toque com a nova posição da imagem do LCD. */
+                _displayMgr.showTouchCalibration();
             }
 
             else if (uiEv.type == UiEvent::EVT_SAVE_PASSWORD) {
