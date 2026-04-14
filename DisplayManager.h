@@ -516,6 +516,15 @@ private:
 
     void drawTouchSensitivity();
 
+    /* ── Ajuste de posicionamento do display (±4H / ±4V) ── */
+    int8_t _offsetPreviewX = 0;   /**< Valor sendo editado (aplicado live ao _tft) */
+    int8_t _offsetPreviewY = 0;
+    int8_t _offsetSavedX   = 0;   /**< Snapshot do valor salvo (para BACK restaurar) */
+    int8_t _offsetSavedY   = 0;
+    int8_t _lastOffsetDrawX = 99; /**< Sentinel: força primeiro redraw              */
+    int8_t _lastOffsetDrawY = 99;
+    void drawSettingsDisplayOffset();
+
     /* ── Status do sistema em tempo real ── */
     SystemStatusData _statusData;
     int              _statusPage     = 0;

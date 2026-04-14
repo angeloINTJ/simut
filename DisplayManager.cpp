@@ -1453,6 +1453,9 @@ void DisplayManager::loopCore1() {
         else if (_uiMode == MODE_SETTINGS_LICENSE) {
             if (_repaintSettings) { drawSettingsLicense(); _repaintSettings = false; }
         }
+        else if (_uiMode == MODE_SETTINGS_DISPLAY_OFFSET) {
+            if (_repaintSettings) { drawSettingsDisplayOffset(); _repaintSettings = false; }
+        }
         else if (_uiMode == MODE_ALARM_ACTION) {
 
             if (_repaintSettings) { drawAlarmAction(); _repaintSettings = false; }
@@ -4831,7 +4834,7 @@ void DisplayManager::handleTouch() {
             int clickedIndex = 0;
             if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
             int mapIdx = (_mainMenuPage * 4) + clickedIndex;
-            if (mapIdx < 8 && mapIdx != _menuSelection) {
+            if (mapIdx < 9 && mapIdx != _menuSelection) {
                 if (!acceptSlideTouch(clickedIndex)) return;
                 _menuSelection = mapIdx; _mainMenuPage = _menuSelection / 4; _repaintSettings = true;
             }
@@ -4839,12 +4842,12 @@ void DisplayManager::handleTouch() {
         else if (y > 185) {
             if (x < 70) {
                 if (!acceptHoldTouch(10)) return;
-                if (_menuSelection > 0) _menuSelection--; else _menuSelection = 7;
+                if (_menuSelection > 0) _menuSelection--; else _menuSelection = 8;
                 _mainMenuPage = _menuSelection / 4; _repaintSettings = true;
             }
             else if (x < 138) {
                 if (!acceptHoldTouch(11)) return;
-                if (_menuSelection < 7) _menuSelection++; else _menuSelection = 0;
+                if (_menuSelection < 8) _menuSelection++; else _menuSelection = 0;
                 _mainMenuPage = _menuSelection / 4; _repaintSettings = true;
             }
             else if (x < 219) {
@@ -4855,6 +4858,77 @@ void DisplayManager::handleTouch() {
                 if (!acceptTouch(13)) return;
                 UiEvent ev; ev.type = UiEvent::EVT_MENU_SELECT; ev.id = _menuSelection; queue_try_add(&_eventQueue, &ev);
             }
+        }
+    }
+    else if (_uiMode == MODE_SETTINGS_DISPLAY_OFFSET) {
+        /*
+         * Layout dos controles (coordenadas lógicas — o próprio offset aplicado
+         * ao TFT ja desloca a imagem):
+         *   Pad direcional centrado em (160, 120):
+         *     ▲  (130..190, 55..95)   → Y -= 1
+         *     ▼  (130..190, 145..185) → Y += 1
+         *     ◀  (80..140, 100..140)  → X -= 1
+         *     ▶  (180..240, 100..140) → X += 1
+         *   Botão de reset central (148..172, 108..132) → zera ambos
+         *   Rodapé:
+         *     BACK  (10..130, 200..240)   → descarta e volta
+         *     APPLY (190..310, 200..240)  → dispara EVT_APPLY_DISPLAY_OFFSET
+         */
+        /*
+         * Cada ajuste é aplicado ao TFT em tempo real via setDisplayOffset(),
+         * permitindo calibração visual imediata. BACK reverte ao offset salvo;
+         * APPLY dispara EVT_APPLY_DISPLAY_OFFSET (Core 0 persiste + reseta touch).
+         * Toda mudança força redraw completo para evitar artefatos do conteúdo
+         * desenhado com o offset anterior na tela anterior.
+         */
+        bool changed = false;
+        if (y >= 55 && y <= 95 && x >= 130 && x <= 190) {
+            if (!acceptHoldTouch(20)) return;
+            if (_offsetPreviewY > -4) { _offsetPreviewY--; changed = true; }
+        }
+        else if (y >= 145 && y <= 185 && x >= 130 && x <= 190) {
+            if (!acceptHoldTouch(21)) return;
+            if (_offsetPreviewY <  4) { _offsetPreviewY++; changed = true; }
+        }
+        else if (y >= 100 && y <= 140 && x >= 80 && x <= 140) {
+            if (!acceptHoldTouch(22)) return;
+            if (_offsetPreviewX > -4) { _offsetPreviewX--; changed = true; }
+        }
+        else if (y >= 100 && y <= 140 && x >= 180 && x <= 240) {
+            if (!acceptHoldTouch(23)) return;
+            if (_offsetPreviewX <  4) { _offsetPreviewX++; changed = true; }
+        }
+        else if (y >= 108 && y <= 132 && x >= 148 && x <= 172) {
+            if (!acceptTouch(24)) return;
+            if (_offsetPreviewX != 0 || _offsetPreviewY != 0) {
+                _offsetPreviewX = 0; _offsetPreviewY = 0; changed = true;
+            }
+        }
+        else if (y >= 200 && x <= 130) {
+            if (!acceptTouch(25)) return;
+            /* Descarta ajuste em preview: restaura offset salvo antes de sair. */
+            _offsetPreviewX = _offsetSavedX;
+            _offsetPreviewY = _offsetSavedY;
+            if (_tft) _tft->setDisplayOffset(_offsetSavedX, _offsetSavedY);
+            showSettingsMain();
+            return;
+        }
+        else if (y >= 200 && x >= 190) {
+            if (!acceptTouch(26)) return;
+            UiEvent ev;
+            ev.type  = UiEvent::EVT_APPLY_DISPLAY_OFFSET;
+            ev.id    = _offsetPreviewX;
+            ev.param = _offsetPreviewY;
+            queue_try_add(&_eventQueue, &ev);
+            return;
+        }
+
+        if (changed) {
+            if (_tft) _tft->setDisplayOffset(_offsetPreviewX, _offsetPreviewY);
+            /* Redraw completo: frame anterior foi desenhado com offset diferente,
+             * pixels antigos permanecem fora da nova área e precisam ser limpos. */
+            _forceSettingsRedraw = true;
+            _repaintSettings = true;
         }
     }
     else if (_uiMode == MODE_SETTINGS_LANG) {
@@ -5757,7 +5831,7 @@ void DisplayManager::showSettingsMain() {
 void DisplayManager::drawSettingsMain() {
     if(!_canvasWide) return;
     bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_mainMenuPage != _lastMainMenuPage);
-    const int TOTAL_ITEMS = 8; LangKey menuItems[] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS};
+    const int TOTAL_ITEMS = 9; LangKey menuItems[] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET};
     int totalPages = (TOTAL_ITEMS + 3) / 4; if (totalPages == 0) totalPages = 1;
     if (_mainMenuPage >= totalPages) _mainMenuPage = totalPages - 1; if (_mainMenuPage < 0) _mainMenuPage = 0;
 
@@ -6629,6 +6703,181 @@ void DisplayManager::fillCalData(TouchCalData* cal) const {
     cal->yMax  = _calYMax;
     cal->zThreshold = _sensZThreshold;
 }
+
+
+/* =========================================================================== */
+/*              TELA DE AJUSTE DE POSICIONAMENTO DO DISPLAY                  */
+/* =========================================================================== */
+
+/**
+ * @brief Entra na tela de ajuste de offset; snapshot do estado salvo para BACK.
+ *
+ * O estado "preview" é inicializado com o offset atualmente aplicado ao TFT
+ * (que corresponde ao valor persistido, carregado via loadDisplayOffset() no
+ * boot). Qualquer alteração via setas é aplicada live ao _tft, e BACK restaura
+ * o snapshot caso o usuário desista.
+ */
+void DisplayManager::showSettingsDisplayOffset() {
+    mutex_enter_blocking(&_stateMutex);
+    _uiMode = MODE_SETTINGS_DISPLAY_OFFSET;
+    _offsetSavedX  = _tft ? _tft->getOffsetX() : 0;
+    _offsetSavedY  = _tft ? _tft->getOffsetY() : 0;
+    _offsetPreviewX = _offsetSavedX;
+    _offsetPreviewY = _offsetSavedY;
+    _lastOffsetDrawX = 99;  /* sentinel força redraw dos valores numéricos */
+    _lastOffsetDrawY = 99;
+    _forceSettingsRedraw = true;
+    _repaintSettings     = true;
+    mutex_exit(&_stateMutex);
+}
+
+
+/**
+ * @brief Renderiza a tela de ajuste de offset seguindo o padrão das demais
+ *        telas de configuração (barra superior com título + rodapé de botões).
+ *
+ * Layout:
+ *   [TÍTULO]     (0..320, 0..32)
+ *   Pad direcional centralizado em (160,120):
+ *       ▲ (130..190, 55..95)
+ *     ◀ (80..140, 100..140)   ● (148..172, 108..132)   ▶ (180..240, 100..140)
+ *       ▼ (130..190, 145..185)
+ *   Indicador numérico       (190..310, 60..180) — "X:+2  Y:-1"
+ *   Hint de uso              (y ≈ 175..195) — pequena legenda da tela
+ *   Rodapé: [BACK] [APPLY]   (y >= 200)
+ */
+void DisplayManager::drawSettingsDisplayOffset() {
+    if (!_tft) return;
+    bool full = _forceSettingsRedraw;
+    int16_t bx, by; uint16_t bw, bh;
+
+    if (full) {
+        _tft->fillScreen(C_BG_MAIN);
+
+        /* Barra superior — título. */
+        _tft->fillRect(0, 0, 320, 32, C_CARD_BG);
+        _tft->setFont(&FreeSansBold9pt7b);
+        _tft->setTextColor(C_TEXT_MAIN);
+        _tft->setCursor(10, 22);
+        _tft->print(tr(TR_DISPLAY_OFFSET_TITLE));
+
+        /* Pad direcional — desenha os 4 cursos como cápsulas com seta. */
+        const int cx = 160, cy = 120;
+        /* UP */
+        _tft->fillRoundRect(130, 55, 60, 40, 8, C_CARD_BG);
+        _tft->fillTriangle(cx, 62, cx - 10, 86, cx + 10, 86, C_TEXT_MAIN);
+        /* DOWN */
+        _tft->fillRoundRect(130, 145, 60, 40, 8, C_CARD_BG);
+        _tft->fillTriangle(cx - 10, 154, cx + 10, 154, cx, 178, C_TEXT_MAIN);
+        /* LEFT */
+        _tft->fillRoundRect(80, 100, 60, 40, 8, C_CARD_BG);
+        _tft->fillTriangle(90, cy, 120, cy - 10, 120, cy + 10, C_TEXT_MAIN);
+        /* RIGHT */
+        _tft->fillRoundRect(180, 100, 60, 40, 8, C_CARD_BG);
+        _tft->fillTriangle(230, cy, 200, cy - 10, 200, cy + 10, C_TEXT_MAIN);
+        /* Botão central de reset (círculo pequeno). */
+        _tft->fillRoundRect(148, 108, 24, 24, 4, C_ACCENT);
+        _tft->drawCircle(cx, cy, 4, C_BG_MAIN);
+
+        /* Hint curto abaixo do pad. */
+        _tft->setFont(&FreeSansBold9pt7b);
+        _tft->setTextColor(C_TEXT_SUB);
+        {
+            const char* hint = tr(TR_DISPLAY_OFFSET_HINT);
+            _tft->getTextBounds(hint, 0, 0, &bx, &by, &bw, &bh);
+            int hx = (320 - (int)bw) / 2;
+            if (hx < 4) hx = 4;
+            _tft->setCursor(hx, 198);
+            _tft->print(hint);
+        }
+
+        /* Rodapé — BACK (esq) e APPLY (dir). */
+        _tft->fillRoundRect(10, 204, 120, 32, 8, C_CARD_BG);
+        _tft->setTextColor(C_TEXT_MAIN);
+        {
+            String back = tr(TR_BACK);
+            _tft->getTextBounds(back, 0, 0, &bx, &by, &bw, &bh);
+            _tft->setCursor(10 + (120 - (int)bw) / 2, 226);
+            _tft->print(back);
+        }
+        _tft->fillRoundRect(190, 204, 120, 32, 8, C_ACCENT);
+        _tft->setTextColor(C_BG_MAIN);
+        {
+            String apply = tr(TR_APPLY);
+            _tft->getTextBounds(apply, 0, 0, &bx, &by, &bw, &bh);
+            _tft->setCursor(190 + (120 - (int)bw) / 2, 226);
+            _tft->print(apply);
+        }
+
+        _forceSettingsRedraw = false;
+        _lastOffsetDrawX = 99;  /* força redraw numérico abaixo */
+    }
+
+    /* Valores numéricos do offset — repintados só quando mudam. */
+    if (_offsetPreviewX != _lastOffsetDrawX || _offsetPreviewY != _lastOffsetDrawY) {
+        _tft->fillRect(245, 60, 70, 90, C_BG_MAIN);
+        _tft->setFont(&FreeSansBold12pt7b);
+        _tft->setTextColor(C_TEXT_MAIN);
+        char buf[16];
+        snprintf(buf, sizeof(buf), "X %c%d",
+                 _offsetPreviewX >= 0 ? '+' : '-',
+                 abs((int)_offsetPreviewX));
+        _tft->setCursor(250, 90);
+        _tft->print(buf);
+        snprintf(buf, sizeof(buf), "Y %c%d",
+                 _offsetPreviewY >= 0 ? '+' : '-',
+                 abs((int)_offsetPreviewY));
+        _tft->setCursor(250, 130);
+        _tft->print(buf);
+        _lastOffsetDrawX = _offsetPreviewX;
+        _lastOffsetDrawY = _offsetPreviewY;
+    }
+}
+
+
+/* =========================================================================== */
+/*          PERSISTÊNCIA DO OFFSET DE DISPLAY (API pública)                  */
+/* =========================================================================== */
+
+/**
+ * @brief Carrega o offset de posicionamento do bloco de config persistida e
+ *        aplica imediatamente ao TFT. Invocado no boot por AppManager.
+ */
+void DisplayManager::loadDisplayOffset(const DisplayOffsetData* data) {
+    if (!data || data->magic != 0xD0) {
+        if (_tft) _tft->setDisplayOffset(0, 0);
+        _offsetSavedX = 0;
+        _offsetSavedY = 0;
+        return;
+    }
+    int8_t ox = constrain((int)data->offsetX, -4, 4);
+    int8_t oy = constrain((int)data->offsetY, -4, 4);
+    if (_tft) _tft->setDisplayOffset(ox, oy);
+    _offsetSavedX = ox;
+    _offsetSavedY = oy;
+}
+
+
+/**
+ * @brief Preenche o struct com o offset atualmente aplicado, para persistência.
+ */
+void DisplayManager::fillDisplayOffsetData(DisplayOffsetData* data) const {
+    if (!data) return;
+    data->magic    = 0xD0;
+    data->offsetX  = _tft ? _tft->getOffsetX() : 0;
+    data->offsetY  = _tft ? _tft->getOffsetY() : 0;
+    data->reserved = 0;
+}
+
+
+int8_t DisplayManager::getDisplayOffsetX() const {
+    return _tft ? _tft->getOffsetX() : 0;
+}
+
+int8_t DisplayManager::getDisplayOffsetY() const {
+    return _tft ? _tft->getOffsetY() : 0;
+}
+
 
 /**
  * @brief Reseta a calibração do touch para os valores padrão de fábrica.
