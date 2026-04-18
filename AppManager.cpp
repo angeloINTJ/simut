@@ -190,6 +190,11 @@ void AppManager::setup() {
         _cmdMgr.setDebugMode(debugOn);
     }
 
+    /* #2: idioma da CLI reutiliza cfg.displayLang (single source of truth).
+     *     Propaga também para LogManager (labels de translateCode). */
+    _cmdMgr.setCliLang(cfg.displayLang);
+    LogManager::instance().setLanguage(cfg.displayLang);
+
 
     {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
@@ -656,10 +661,13 @@ void AppManager::executeCommand(CliDemand cmd) {
                 _displayMgr.refreshTheme();
                 changed = true;
                 LOG_CODE(LOG_INFO, "CFG", CFG_THEME_APPLIED, idx, String(availableThemes[idx].displayName));
-                _cmdMgr.printSuccess(String("Theme: ") + availableThemes[idx].displayName);
+                _cmdMgr.printSuccess(String(_cmdMgr.isPt() ? "Tema: " : "Theme: ")
+                                     + availableThemes[idx].displayName);
             } else {
                 LOG_CODE(LOG_WARN, "CFG", CFG_THEME_NOT_FOUND, 0, "");
-                _cmdMgr.printError("Theme not found. Try 'show themes'.");
+                _cmdMgr.printError(_cmdMgr.isPt()
+                    ? "Tema nao encontrado. Veja 'show themes'."
+                    : "Theme not found. Try 'show themes'.");
             }
             break;
         }
@@ -702,7 +710,9 @@ void AppManager::executeCommand(CliDemand cmd) {
             String rep = _storageMgr.getStatsReport();
             LOG_CODE(LOG_INFO, "STO", STO_STATS_REPORT, 0, rep);
             _cmdMgr.consolePrintln("");
-            _cmdMgr.consolePrintln("--- Storage Stats ---");
+            _cmdMgr.consolePrintln(_cmdMgr.isPt()
+                ? "--- Estatisticas do Flash ---"
+                : "--- Storage Stats ---");
             _cmdMgr.consolePrintln(rep);
             _cmdMgr.printDivider();
             break;
@@ -712,7 +722,9 @@ void AppManager::executeCommand(CliDemand cmd) {
             String ip = _netMgr.getIpAddress();
             LOG_CODE(LOG_INFO, "NET", NET_SHOW_IP, 0, ip);
             _cmdMgr.consolePrintln("");
-            _cmdMgr.consolePrintln("--- Network Status ---");
+            _cmdMgr.consolePrintln(_cmdMgr.isPt()
+                ? "--- Status da Rede ---"
+                : "--- Network Status ---");
             _cmdMgr.consolePrintf (" IP:   %s\n", ip.c_str());
             _cmdMgr.consolePrintf (" RSSI: %ld dBm\n", (long)_netMgr.getRssi());
             _cmdMgr.printDivider();
@@ -750,30 +762,40 @@ void AppManager::executeCommand(CliDemand cmd) {
 
         case CMD_RESET_ADMIN: {
             if (!cmd.confirmed) {
-                _cmdMgr.printInfo("WARN: resets admin password to 'simut'.");
-                _cmdMgr.printInfo("Run 'conf system admin reset confirm'.");
+                const bool pt = _cmdMgr.isPt();
+                _cmdMgr.printInfo(pt ? "ATENCAO: reseta senha do admin p/ 'simut'."
+                                     : "WARN: resets admin password to 'simut'.");
+                _cmdMgr.printInfo(pt ? "Use 'conf system admin reset confirm'."
+                                     : "Run 'conf system admin reset confirm'.");
                 break;
             }
             String hashed = _storageMgr.hashPassword("admin", "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918");
             safeCopy(cfg.users[0].password, hashed.c_str(), sizeof(cfg.users[0].password));
             cfg.users[0].password[31] = '\0';
             cfg.users[0].mustChangePassword = true;
-            _cmdMgr.printInfo("Admin Password reset. Use 'simut' via web.");
+            _cmdMgr.printInfo(_cmdMgr.isPt()
+                ? "Senha do admin resetada. Use 'simut'."
+                : "Admin Password reset. Use 'simut' via web.");
             changed = true;
             break;
         }
 
         case CMD_RESET_TOUCH_CAL: {
             if (!cmd.confirmed) {
-                _cmdMgr.printInfo("WARN: resets touch calibration.");
-                _cmdMgr.printInfo("Run 'conf system touch reset confirm'.");
+                const bool pt = _cmdMgr.isPt();
+                _cmdMgr.printInfo(pt ? "ATENCAO: reseta calibracao do touch."
+                                     : "WARN: resets touch calibration.");
+                _cmdMgr.printInfo(pt ? "Use 'conf system touch reset confirm'."
+                                     : "Run 'conf system touch reset confirm'.");
                 break;
             }
             /* Limpa calibração do touch na config (invalida magic) */
             TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
             memset(cal, 0, sizeof(TouchCalData));
             _displayMgr.resetTouchCalibration();
-            _cmdMgr.printInfo("Touch calibration reset to factory defaults.");
+            _cmdMgr.printInfo(_cmdMgr.isPt()
+                ? "Calibracao do touch resetada p/ default."
+                : "Touch calibration reset to factory defaults.");
             changed = true;
             break;
         }
@@ -786,30 +808,39 @@ void AppManager::executeCommand(CliDemand cmd) {
                 memcpy(r.rom, cmd.rom, 8);
                 safeCopy(r.hwId, cmd.strVal1.c_str(), sizeof(r.hwId));
                 safeCopy(r.friendlyName, cmd.strVal2.c_str(), sizeof(r.friendlyName));
-                _cmdMgr.printSuccess("Sensor mapped in RAM.");
+                _cmdMgr.printSuccess(_cmdMgr.isPt()
+                    ? "Sensor mapeado em RAM."
+                    : "Sensor mapped in RAM.");
             }
             break;
 
         case CMD_WIPE_SENSOR:
             if (!cmd.confirmed) {
-                _cmdMgr.printInfo("WARN: resets sensor history epoch.");
-                _cmdMgr.printInfo("Run 'sensor wipe <gpio> confirm'.");
+                const bool pt = _cmdMgr.isPt();
+                _cmdMgr.printInfo(pt ? "ATENCAO: reseta historico do sensor."
+                                     : "WARN: resets sensor history epoch.");
+                _cmdMgr.printInfo(pt ? "Use 'sensor wipe <gpio> confirm'."
+                                     : "Run 'sensor wipe <gpio> confirm'.");
                 break;
             }
             if (cmd.intVal1 >= 0 && cmd.intVal1 < MAX_SENSORS) {
                 cfg.sensors[cmd.intVal1].provisionEpoch = _netMgr.getEpoch();
                 changed = true;
-                _cmdMgr.printSuccess("Sensor history context wiped for Slot " + String(cmd.intVal1));
+                _cmdMgr.printSuccess((_cmdMgr.isPt()
+                    ? "Historico resetado no Slot "
+                    : "Sensor history wiped for Slot ") + String(cmd.intVal1));
             }
             break;
 
         case CMD_ACCEPT_SENSOR: {
             uint8_t gpio = cmd.intVal1;
+            const bool pt = _cmdMgr.isPt();
             if (gpio < MAX_SENSORS) {
                 uint8_t foundRom[8];
                 if (_sensorMgr.identifyPhysicalSensor(gpio, foundRom)) {
                     if (foundRom[0] == 0x00 || dallasCrc8(foundRom, 7) != foundRom[7]) {
-                        _cmdMgr.printError("Invalid physical sensor on GPIO " + String(gpio));
+                        _cmdMgr.printError((pt ? "Sensor invalido no GPIO "
+                                               : "Invalid physical sensor on GPIO ") + String(gpio));
                     } else {
                         String dbId; float dbOffset = 0.0f; String dbName;
                         _storageMgr.getCalibrationData(foundRom, dbId, dbOffset, dbName);
@@ -824,20 +855,24 @@ void AppManager::executeCommand(CliDemand cmd) {
                         else { safeCopy(cfg.sensors[gpio].hwId, "LIB_SENS", sizeof(cfg.sensors[gpio].hwId)); }
 
                         if (dbName.length() > 0) { safeCopy(cfg.sensors[gpio].friendlyName, dbName.c_str(), sizeof(cfg.sensors[gpio].friendlyName)); }
-                        else { safeCopy(cfg.sensors[gpio].friendlyName, "Sensor Reconhecido", sizeof(cfg.sensors[gpio].friendlyName)); }
+                        else { safeCopy(cfg.sensors[gpio].friendlyName, pt ? "Sensor Reconhecido" : "Recognized Sensor",
+                                        sizeof(cfg.sensors[gpio].friendlyName)); }
                         cfg.sensors[gpio].friendlyName[31] = '\0';
 
                         if (currentId != String(cfg.sensors[gpio].hwId)) {
                             cfg.sensors[gpio].provisionEpoch = _netMgr.getEpoch();
-                            _cmdMgr.printInfo("New Hardware Context Detected. Epoch updated.");
+                            _cmdMgr.printInfo(pt ? "Novo hardware detectado. Epoch atualizado."
+                                                 : "New Hardware Context Detected. Epoch updated.");
                         }
 
                         _storageMgr.saveConfiguration();
                         loadAndCalibrateSensors();
-                        _cmdMgr.printSuccess("Sensor accepted and bound to Slot " + String(gpio));
+                        _cmdMgr.printSuccess((pt ? "Sensor aceito e vinculado ao Slot "
+                                                 : "Sensor accepted and bound to Slot ") + String(gpio));
                     }
                 } else {
-                    _cmdMgr.printError("No physical sensor detected on GPIO " + String(gpio));
+                    _cmdMgr.printError((pt ? "Nenhum sensor no GPIO "
+                                           : "No physical sensor detected on GPIO ") + String(gpio));
                 }
             }
             break;
@@ -850,48 +885,83 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_WRITE_MEMORY:
             if (_storageMgr.saveConfiguration()) {
                 loadAndCalibrateSensors();
-                _cmdMgr.printSuccess("Config saved to Flash!");
+                _cmdMgr.printSuccess(_cmdMgr.isPt()
+                    ? "Config salva no Flash!"
+                    : "Config saved to Flash!");
             }
             break;
 
         case CMD_CLEAR_LOGS:
             if (!cmd.confirmed) {
-                _cmdMgr.printInfo("WARN: deletes all system logs.");
-                _cmdMgr.printInfo("Run 'clear log confirm' to proceed.");
+                const bool pt = _cmdMgr.isPt();
+                _cmdMgr.printInfo(pt ? "ATENCAO: apaga todos os logs."
+                                     : "WARN: deletes all system logs.");
+                _cmdMgr.printInfo(pt ? "Use 'clear log confirm' para prosseguir."
+                                     : "Run 'clear log confirm' to proceed.");
                 break;
             }
             _storageMgr.enterFlashSafeMode();
             LittleFS.remove("/system.log"); LittleFS.remove("/system.old");
             _storageMgr.exitFlashSafeMode();
             LogManager::instance().begin(true, LOG_DEBUG);
-            _cmdMgr.printSuccess("Logs cleared.");
+            _cmdMgr.printSuccess(_cmdMgr.isPt() ? "Logs apagados." : "Logs cleared.");
             break;
 
         case CMD_RELOAD:
             if (!cmd.confirmed) {
-                _cmdMgr.printInfo("WARN: will reboot the device.");
-                _cmdMgr.printInfo("Run 'reload confirm' to proceed.");
+                const bool pt = _cmdMgr.isPt();
+                _cmdMgr.printInfo(pt ? "ATENCAO: vai reiniciar o dispositivo."
+                                     : "WARN: will reboot the device.");
+                _cmdMgr.printInfo(pt ? "Use 'reload confirm' para prosseguir."
+                                     : "Run 'reload confirm' to proceed.");
                 break;
             }
             LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, "Reboot via CLI");
             delay(100);     /* Garante flush do log para flash */
             rp2040.reboot();
             break;
-        case CMD_TEL_SYNC: _telemetryMgr.forceSync(); _cmdMgr.printSuccess("Telemetry sync triggered."); break;
+        case CMD_TEL_SYNC: _telemetryMgr.forceSync();
+            _cmdMgr.printSuccess(_cmdMgr.isPt()
+                ? "Sync de telemetria iniciada."
+                : "Telemetry sync triggered.");
+            break;
 
         case CMD_DEBUG: {
             CliConfigData* cli = reinterpret_cast<CliConfigData*>(
                 cfg.reserved + CLI_CONFIG_OFFSET);
+            const bool pt = _cmdMgr.isPt();
             if (cmd.intVal1 == 1 || cmd.intVal1 == 0) {
                 bool on = (cmd.intVal1 == 1);
                 cli->magic = CLI_CONFIG_MAGIC;
                 cli->debugMode = on ? 1 : 0;
                 LogManager::instance().setConsoleStream(on);
                 _cmdMgr.setDebugMode(on);
-                _cmdMgr.printSuccess(on ? "Debug: ON" : "Debug: OFF");
+                _cmdMgr.printSuccess(on ? (pt ? "Debug: LIGADO" : "Debug: ON")
+                                        : (pt ? "Debug: DESLIGADO" : "Debug: OFF"));
                 changed = true;
             } else {
-                _cmdMgr.printInfo(_cmdMgr.isDebugMode() ? "Debug: ON" : "Debug: OFF");
+                _cmdMgr.printInfo(_cmdMgr.isDebugMode()
+                    ? (pt ? "Debug: LIGADO" : "Debug: ON")
+                    : (pt ? "Debug: DESLIGADO" : "Debug: OFF"));
+            }
+            break;
+        }
+
+        case CMD_LANGUAGE: {
+            if (cmd.intVal1 == LANG_PT || cmd.intVal1 == LANG_EN) {
+                cfg.displayLang = (uint8_t)cmd.intVal1;
+                _displayMgr.setLanguage(cfg.displayLang);
+                _cmdMgr.setCliLang(cfg.displayLang);
+                LogManager::instance().setLanguage(cfg.displayLang);
+                LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, cmd.intVal1, "");
+                _cmdMgr.printSuccess(cmd.intVal1 == LANG_PT
+                    ? "Idioma: Portugues (BR)"
+                    : "Language: English");
+                changed = true;
+            } else {
+                _cmdMgr.printInfo(_cmdMgr.isPt()
+                    ? "Idioma atual: Portugues (BR)"
+                    : "Current language: English");
             }
             break;
         }
@@ -899,11 +969,15 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_UNKNOWN:
         default:
             LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
-            _cmdMgr.printError("Unknown command. Type 'help'.");
+            _cmdMgr.printError(_cmdMgr.isPt()
+                ? "Comando desconhecido. Digite 'help'."
+                : "Unknown command. Type 'help'.");
             break;
     }
 
-    if (changed) _cmdMgr.printInfo("RAM updated. Run 'write memory' to persist.");
+    if (changed) _cmdMgr.printInfo(_cmdMgr.isPt()
+        ? "RAM OK. Use 'write memory' para salvar."
+        : "RAM updated. Run 'write memory' to persist.");
 }
 
 /* =========================================================================== */

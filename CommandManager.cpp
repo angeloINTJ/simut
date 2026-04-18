@@ -160,8 +160,16 @@ CliDemand CommandManager::parseCommand(String input) {
     /* Valores originais (preservam maiúsculas) para SSID, senha, nome, NTP, etc. */
     String v3 = count > 3 ? parts[3] : "";
 
-    if (t0 == "help") { cmd.type = CMD_HELP; return cmd; }
+    if (t0 == "help" || t0 == "ajuda" || t0 == "?") { cmd.type = CMD_HELP; return cmd; }
     if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
+
+    if (t0 == "language") {
+        cmd.type = CMD_LANGUAGE;
+        if      (t1 == "pt" || t1 == "pt-br" || t1 == "ptbr") cmd.intVal1 = LANG_PT;
+        else if (t1 == "en")                                  cmd.intVal1 = LANG_EN;
+        else                                                  cmd.intVal1 = -1;  /* query */
+        return cmd;
+    }
 
     if (t0 == "show") {
         if (t1 == "themes") { cmd.type = CMD_SHOW_THEMES; return cmd; }
@@ -304,7 +312,13 @@ void CommandManager::printWelcome() {
     consolePrintln("");
     consolePrintln("===========================================");
     consolePrintf("   SIMUT IoT CLI %s\n", SIMUT_VERSION);
-    consolePrintln("   Type 'help' for commands");
+    if (isPt()) {
+        consolePrintln("   Digite 'help' (ou 'ajuda', '?')");
+        consolePrintln("   For English: 'language en'");
+    } else {
+        consolePrintln("   Type 'help' for commands");
+        consolePrintln("   Para Portugues: 'language pt'");
+    }
     consolePrintln("===========================================");
 }
 
@@ -319,7 +333,8 @@ String CommandManager::formatRom(const uint8_t* rom) {
 
 void CommandManager::renderSensorTable(const SensorRecord* sensors, int maxSensors) {
     consolePrintln("");
-    consolePrintln("--- Configured Sensors ---");
+    consolePrintln(isPt() ? "--- Sensores Configurados ---"
+                          : "--- Configured Sensors ---");
     bool found = false;
     for(int i=0; i<maxSensors; i++) {
         if (sensors[i].active) {
@@ -329,52 +344,74 @@ void CommandManager::renderSensorTable(const SensorRecord* sensors, int maxSenso
             snprintf(line, sizeof(line), " [Slot %02d] %s", sensors[i].gpio, sensors[i].hwId);
             consolePrintln(line);
             consolePrintf("   ROM:  %s\n", romStr.c_str());
-            consolePrintf("   Name: %s\n", sensors[i].friendlyName);
+            consolePrintf(isPt() ? "   Nome: %s\n" : "   Name: %s\n",
+                          sensors[i].friendlyName);
         }
     }
-    if (!found) consolePrintln(" (database is empty)");
+    if (!found) consolePrintln(isPt() ? " (banco vazio)" : " (database is empty)");
     printDivider();
 }
 
 void CommandManager::renderScanResults(const std::vector<ScanResult> &results) {
     consolePrintln("");
-    consolePrintln("--- Hardware Scan Results ---");
-    if (results.empty()) { consolePrintln(" (no physical sensors detected)"); }
-    else {
+    consolePrintln(isPt() ? "--- Varredura de Hardware ---"
+                          : "--- Hardware Scan Results ---");
+    if (results.empty()) {
+        consolePrintln(isPt() ? " (nenhum sensor fisico detectado)"
+                              : " (no physical sensors detected)");
+    } else {
         for (const auto &res : results) {
             const char* typeStr;
             String details;
             if (res.type == TYPE_DS18B20) { typeStr = "DS18B20"; details = formatRom(res.rom); }
-            else if (res.type == TYPE_DHT22) { typeStr = "DHT22";   details = "(Temp/Hum capable)"; }
-            else                             { typeStr = "UNKNOWN"; details = "Signal detected"; }
+            else if (res.type == TYPE_DHT22) {
+                typeStr = "DHT22";
+                details = isPt() ? "(Temp/Umid capaz)" : "(Temp/Hum capable)";
+            }
+            else {
+                typeStr = "UNKNOWN";
+                details = isPt() ? "Sinal detectado" : "Signal detected";
+            }
             consolePrintf(" [Pin %02d] %s\n", res.pin, typeStr);
             consolePrintf("   %s\n", details.c_str());
         }
     }
-    printInfo(" Tip: use 'sensor define' to map.");
+    printInfo(isPt() ? " Dica: use 'sensor define' para mapear."
+                     : " Tip: use 'sensor define' to map.");
     printDivider();
 }
 
 void CommandManager::renderSystemInfo(const SystemConfig &cfg) {
+    const bool pt = isPt();
     printDivider();
-    consolePrintln(" [SYSTEM]");
-    consolePrintln(" Device:");
+    consolePrintln(pt ? " [SISTEMA]" : " [SYSTEM]");
+    consolePrintln(pt ? " Dispositivo:" : " Device:");
     consolePrintf ("   %s\n", cfg.deviceName);
     consolePrintf (" Firmware:  %s\n", SIMUT_VERSION);
-    consolePrintln(" [SENSORS]");
-    consolePrintf (" DS18 Precision: %d-bit\n", cfg.ds18Resolution);
-    consolePrintln(" [CONNECTIVITY]");
+    consolePrintln(pt ? " [SENSORES]" : " [SENSORS]");
+    consolePrintf (pt ? " Precisao DS18: %d-bit\n" : " DS18 Precision: %d-bit\n",
+                   cfg.ds18Resolution);
+    consolePrintln(pt ? " [CONECTIVIDADE]" : " [CONNECTIVITY]");
     consolePrintln(" WiFi SSID:");
-    consolePrintf ("   %s\n", (strlen(cfg.wifiSsid) > 0 ? cfg.wifiSsid : "<not configured>"));
-    consolePrintf (" Timezone:  GMT%s%d\n", (cfg.timezoneOffset >= 0 ? "+" : ""), cfg.timezoneOffset);
-    consolePrintln(" NTP Server:");
+    consolePrintf ("   %s\n", (strlen(cfg.wifiSsid) > 0 ? cfg.wifiSsid
+                                                       : (pt ? "<nao configurado>" : "<not configured>")));
+    consolePrintf (pt ? " Fuso:      GMT%s%d\n" : " Timezone:  GMT%s%d\n",
+                   (cfg.timezoneOffset >= 0 ? "+" : ""), cfg.timezoneOffset);
+    consolePrintln(pt ? " Servidor NTP:" : " NTP Server:");
     consolePrintf ("   %s\n", (strlen(cfg.ntpServer) > 0 ? cfg.ntpServer : "pool.ntp.org (default)"));
-    consolePrintf (" Logging:   %s\n", cfg.loggingEnabled ? "ENABLED" : "DISABLED");
+    consolePrintf (pt ? " Logging:   %s\n" : " Logging:   %s\n",
+                   cfg.loggingEnabled ? (pt ? "ATIVO" : "ENABLED")
+                                      : (pt ? "INATIVO" : "DISABLED"));
     printDivider();
 }
 
 void CommandManager::renderSensorReading(const SensorReading &reading) {
-    if (!reading.isValid) { consolePrintf("[%s] Read/Checksum Error\n", reading.typeName); return; }
+    if (!reading.isValid) {
+        consolePrintf(isPt() ? "[%s] Erro de leitura/checksum\n"
+                             : "[%s] Read/Checksum Error\n",
+                      reading.typeName);
+        return;
+    }
     if (strcmp(reading.typeName, "DHT22") == 0) { consolePrintf("[DHT] T:%.2fC H:%.2f%%\n", reading.value1, reading.value2); }
     else if (strcmp(reading.typeName, "DS18B20") == 0) { consolePrintf("[DS18] T:%.4fC\n", reading.value1); }
     else { consolePrintf("[%s] %.2f\n", reading.typeName, reading.value1); }
@@ -385,12 +422,137 @@ void CommandManager::printError(String msg) { consolePrint("ERROR: "); consolePr
 void CommandManager::printInfo(String msg) { consolePrintln(msg); }
 
 void CommandManager::printHelp() {
+    if (isPt()) {
+        consolePrintln("");
+        consolePrintln("===========================================");
+        consolePrintln("      SIMUT - AJUDA DE COMANDOS");
+        consolePrintln("===========================================");
+        consolePrintln(" Comandos destrutivos exigem sufixo");
+        consolePrintln(" 'confirm' (ex.: 'reload confirm').");
+        consolePrintln(" Comandos sao sempre em ingles.");
+
+        consolePrintln("");
+        consolePrintln("-- IDIOMA / LANGUAGE --");
+        consolePrintln("language pt");
+        consolePrintln("  Usar Portugues (Brasil)");
+        consolePrintln("language en");
+        consolePrintln("  Use English");
+        consolePrintln("language");
+        consolePrintln("  Ver idioma atual");
+        consolePrintln("  Nota: 'write memory' para persistir");
+
+        consolePrintln("");
+        consolePrintln("-- 1. MONITORAMENTO --");
+        consolePrintln("show system info");
+        consolePrintln("  Nome, versao e config do device");
+        consolePrintln("show system log");
+        consolePrintln("  Despeja o log do flash");
+        consolePrintln("show storage stats");
+        consolePrintln("  Estatisticas de uso do flash");
+        consolePrintln("show net status");
+        consolePrintln("  IP, RSSI, hora sincronizada");
+        consolePrintln("show themes");
+        consolePrintln("  Lista temas de UI disponiveis");
+
+        consolePrintln("");
+        consolePrintln("-- 2. DIAGNOSTICO DE SENSORES --");
+        consolePrintln("show sensors");
+        consolePrintln("  Lista sensores mapeados (banco)");
+        consolePrintln("sensor scan");
+        consolePrintln("  Varre hardware por novos sensores");
+
+        consolePrintln("");
+        consolePrintln("-- 3. CONFIGURACAO --");
+        consolePrintln("  (exige 'write memory' + 'reload')");
+        consolePrintln("conf system name <valor>");
+        consolePrintln("  Nome amigavel do device");
+        consolePrintln("conf system ssid <nome>");
+        consolePrintln("  SSID do WiFi (case sensitive)");
+        consolePrintln("conf system pass <senha>");
+        consolePrintln("  Senha do WiFi");
+        consolePrintln("conf system timezone <offset>");
+        consolePrintln("  Offset UTC (ex.: -3)");
+        consolePrintln("conf system ntp <servidor>");
+        consolePrintln("  Servidor NTP (vazio = default)");
+        consolePrintln("conf system theme <id|indice>");
+        consolePrintln("  Define o tema da UI");
+        consolePrintln("conf system admin reset [confirm]");
+        consolePrintln("  Reseta senha do admin");
+        consolePrintln("conf system touch reset [confirm]");
+        consolePrintln("  Reseta calibracao do touch");
+        consolePrintln("conf sensor ds18b20 resolution <9-12>");
+        consolePrintln("  Resolucao global dos DS18B20");
+
+        consolePrintln("");
+        consolePrintln("-- Telemetria --");
+        consolePrintln("conf tel server <url>");
+        consolePrintln("  Endereco do servidor");
+        consolePrintln("conf tel port <porta>");
+        consolePrintln("  Porta do servidor (80, 443, ...)");
+        consolePrintln("conf tel path <caminho>");
+        consolePrintln("  Path do endpoint (/api/v1/data)");
+        consolePrintln("conf tel batch <n>");
+        consolePrintln("  Registros por upload (max 50)");
+        consolePrintln("conf tel interval <ms>");
+        consolePrintln("  Intervalo de upload (0=off)");
+        consolePrintln("conf tel crypto <on|off>");
+        consolePrintln("  Habilita SSL/HTTPS");
+        consolePrintln("conf tel mode <json|csv|custom>");
+        consolePrintln("  Formato do payload");
+
+        consolePrintln("");
+        consolePrintln("-- 4. MAPEAMENTO DE SENSORES --");
+        consolePrintln("sensor define <gpio> <rom> <hwid> \"<nome>\"");
+        consolePrintln("  Ex.:");
+        consolePrintln("  sensor define 0 28AA.. S1 \"Forno_Topo\"");
+        consolePrintln("  Nota: GPIO 10 = Sensor Ambiente");
+
+        consolePrintln("");
+        consolePrintln("-- 5. MANUTENCAO --");
+        consolePrintln("sensor accept <gpio>");
+        consolePrintln("  Autoriza novo sensor fisico");
+        consolePrintln("sensor wipe <gpio> [confirm]");
+        consolePrintln("  Reseta historico do slot");
+        consolePrintln("tel sync");
+        consolePrintln("  Forca upload de telemetria");
+        consolePrintln("clear log [confirm]");
+        consolePrintln("  Apaga arquivo de log");
+        consolePrintln("write memory");
+        consolePrintln("  Persiste config da RAM no flash");
+        consolePrintln("reload [confirm]");
+        consolePrintln("  Reinicia o sistema");
+
+        consolePrintln("");
+        consolePrintln("-- 6. MODO DE SESSAO --");
+        consolePrintln("debug on");
+        consolePrintln("  Stream de logs no console (SIMUT#)");
+        consolePrintln("debug off");
+        consolePrintln("  Console silencioso (SIMUT>)");
+        consolePrintln("debug");
+        consolePrintln("  Mostra modo atual");
+        consolePrintln("  Nota: 'write memory' para persistir");
+        consolePrintln("===========================================");
+        return;
+    }
+
+    /* English */
     consolePrintln("");
     consolePrintln("===========================================");
     consolePrintln("        SIMUT - COMMAND HELP");
     consolePrintln("===========================================");
     consolePrintln(" Destructive cmds need ' confirm' suffix");
     consolePrintln(" (e.g., 'reload confirm').");
+    consolePrintln(" Commands themselves stay in English.");
+
+    consolePrintln("");
+    consolePrintln("-- LANGUAGE / IDIOMA --");
+    consolePrintln("language pt");
+    consolePrintln("  Use Portuguese (Brazil)");
+    consolePrintln("language en");
+    consolePrintln("  Use English");
+    consolePrintln("language");
+    consolePrintln("  Show current language");
+    consolePrintln("  Note: 'write memory' to persist");
 
     consolePrintln("");
     consolePrintln("-- 1. MONITORING --");

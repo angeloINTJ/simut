@@ -64,7 +64,10 @@ public:
     void setMinSerialLevel(LogLevel level);
 
     const char* getLevelString(LogLevel level);
-    static const char* translateCode(uint16_t code);
+    const char* translateCode(uint16_t code);
+
+    /** Idioma dos labels dos códigos de log. Sincronizado com cfg.displayLang. */
+    void setLanguage(uint8_t lang) { _language = lang; }
 
 
     void setEpochSource(time_t (*fn)());
@@ -91,6 +94,7 @@ private:
     FlashLockCallback _lockCb = nullptr;
     ConsoleSink _consoleSink = nullptr;
     bool _consoleStreamEnabled = true;     /**< true durante boot; AppManager aplica preferência do user após load */
+    uint8_t _language = LANG_EN;           /**< idioma dos labels de log (translateCode) */
     void emitLine(const char* line);
     void requestFsLock(bool lock);
 

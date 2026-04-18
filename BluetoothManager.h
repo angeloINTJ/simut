@@ -29,6 +29,9 @@ public:
 
     void setValidator(BtAuthValidator validator);
 
+    /** Idioma do banner pós-auth. Sincronizado com CommandManager::setCliLang. */
+    void setLanguage(uint8_t lang) { _language = lang; }
+
     /** Process authentication state machine and inactivity timeout. */
     void update();
     bool isAuthenticated();
@@ -47,6 +50,7 @@ private:
     bool _promptSent;
     String _authBuffer;
     BtAuthValidator _validator;
+    uint8_t _language = LANG_EN; /* Default until CommandManager aplica preferência */
 
 
     uint32_t _lastActivityTime;

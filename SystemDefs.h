@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.8.1"          /* Firmware version string */
+#define SIMUT_VERSION "v3.9.0"          /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -902,7 +902,8 @@ enum DemandType {
     CMD_CLEAR_LOGS,
     CMD_RELOAD,
     CMD_TEL_SYNC,
-    CMD_DEBUG
+    CMD_DEBUG,
+    CMD_LANGUAGE
 };
 
 /** Parsed CLI command with typed payload fields. */
