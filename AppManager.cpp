@@ -631,11 +631,12 @@ void AppManager::executeCommand(CliDemand cmd) {
             _cmdMgr.printHelp(); break;
 
         case CMD_SHOW_THEMES:
-            _cmdMgr.consolePrintln("\n--- Available Themes ---");
+            _cmdMgr.consolePrintln("");
+            _cmdMgr.consolePrintln("--- Available Themes ---");
             for(int i=0; i<getThemeCount(); i++) {
-                _cmdMgr.consolePrintf(" %2d | %-15s | %s\n", i, getThemeId(i).c_str(), availableThemes[i].displayName);
+                _cmdMgr.consolePrintf(" %2d %-12s %s\n", i, getThemeId(i).c_str(), availableThemes[i].displayName);
             }
-            _cmdMgr.consolePrintln("------------------------");
+            _cmdMgr.consolePrintln("-------------------------------------------");
             break;
 
         case CMD_SET_THEME: {
@@ -652,7 +653,8 @@ void AppManager::executeCommand(CliDemand cmd) {
         }
 
         case CMD_SHOW_LOGS: {
-            _cmdMgr.consolePrintln("\n--- SYSTEM LOG START ---");
+            _cmdMgr.consolePrintln("");
+            _cmdMgr.consolePrintln("--- SYSTEM LOG START ---");
             int logCount = 0;
             auto streamLogFile = [&](const char* path) {
 
@@ -678,7 +680,8 @@ void AppManager::executeCommand(CliDemand cmd) {
             };
             streamLogFile("/system.old");
             streamLogFile("/system.log");
-            _cmdMgr.consolePrintln("--- SYSTEM LOG END ---\n");
+            _cmdMgr.consolePrintln("--- SYSTEM LOG END ---");
+            _cmdMgr.consolePrintln("");
             break;
         }
 
@@ -828,7 +831,7 @@ void AppManager::executeCommand(CliDemand cmd) {
         default: LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, ""); break;
     }
 
-    if (changed) _cmdMgr.printInfo("Settings updated in RAM. Use 'write memory' to persist.");
+    if (changed) _cmdMgr.printInfo("RAM updated. Run 'write memory' to persist.");
 }
 
 /* =========================================================================== */
