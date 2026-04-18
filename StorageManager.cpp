@@ -14,6 +14,7 @@
 
 #include "StorageManager.h"
 #include <time.h>
+#include <algorithm>
 #include "LogManager.h"
 #include "pico/unique_id.h"
 #include <hardware/watchdog.h>
@@ -503,6 +504,13 @@ uint32_t StorageManager::getHistoryDaysMask(int year, int month) {
  */
 void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta) {
     if (delta == 0) return;
+
+    /* U10: reset watermark se delta mudou (nova correção NTP) */
+    if (delta != _correctLastDelta) {
+        _correctWatermark = "";
+        _correctLastDelta = delta;
+    }
+
     _currentLogFileName = "";
     std::vector<String> files;
 
@@ -514,12 +522,18 @@ void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta
     }
     exitFlashSafeMode();
 
+    std::sort(files.begin(), files.end());
+
     uint32_t _budgetStart = millis();
     bool budgetExceeded = false;
     int totalCorrected = 0;
 
     for (const String& fn : files) {
         if (budgetExceeded) break;
+
+        /* U10: pular arquivos já processados na chamada anterior */
+        if (_correctWatermark.length() > 0 && fn <= _correctWatermark) continue;
+
         if (millis() - _budgetStart > 6000) {
             LOG_CODE(LOG_WARN, "STO", STO_CORRECT_BUDGET, 0, "");
             break;
@@ -575,6 +589,7 @@ void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta
         if (!budgetExceeded) {
             f.close();
             exitFlashSafeMode();
+            _correctWatermark = fn;  /* U10: marcar arquivo como completo */
         }
 
         watchdog_update(); TRACE_BEAT(0);

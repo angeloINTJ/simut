@@ -294,6 +294,14 @@ uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
 bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& newCursor) {
     SystemConfig &cfg = _storageRef->getConfig();
     uint32_t lastCursor = _storageRef->getLastSentTimestamp();
+
+    /* U8: fallback quando cursor é 0 (sem NTP / nunca enviou) —
+     * usar último timestamp gravado - 30 dias para limitar varredura. */
+    if (lastCursor == 0) {
+        uint32_t lastRecorded = _storageRef->getLastRecordedTimestamp();
+        if (lastRecorded > 86400UL * 30) lastCursor = lastRecorded - 86400UL * 30;
+    }
+
     newCursor = lastCursor;
 
 
@@ -688,6 +696,12 @@ void TelemetryManager::escalateBackoff() {
         LOG_CODE(LOG_WARN, "TEL", SYS_TEL_RETRY, _consecutiveFails, "Upload failed (#" + String(_consecutiveFails) + "). Retry in " + String(_currentBackoff / 1000) + "s");
     } else if (_consecutiveFails == BACKOFF_MAX_STREAK + 1) {
         LOG_CODE(LOG_WARN, "TEL", TEL_BACKOFF_SUPPRESSED, 0, "");
+        _lastSuppressedLog = millis();
+    } else if (millis() - _lastSuppressedLog >= 3600000) {
+        /* U11: heartbeat 1x/hora após supressão */
+        LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, _consecutiveFails,
+            "Still failing (#" + String(_consecutiveFails) + ")");
+        _lastSuppressedLog = millis();
     }
 
     _currentBackoff = min(_currentBackoff * 2, BACKOFF_MAX_MS);

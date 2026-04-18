@@ -72,6 +72,7 @@ void NetworkManager::begin(const SystemConfig &cfg) {
  */
 void NetworkManager::beginAP(const char* deviceName) {
     _state = NET_AP_CONFIG;
+    _apStartTime = millis();
     WiFi.mode(WIFI_AP);
     IPAddress apIP(192, 168, 4, 1); IPAddress gateway(192, 168, 4, 1); IPAddress subnet(255, 255, 255, 0);
     WiFi.softAPConfig(apIP, gateway, subnet);
@@ -102,7 +103,16 @@ void NetworkManager::setTimeSyncCallback(TimeSyncCallback cb) { _timeSyncCb = cb
  * Must be called frequently from the main loop.
  */
 void NetworkManager::update() {
-    if (_state == NET_AP_CONFIG) { _dnsServer.processNextRequest(); return; }
+    if (_state == NET_AP_CONFIG) {
+        _dnsServer.processNextRequest();
+        /* N5: timeout AP mode — reboot para STA se SSID configurado */
+        if (millis() - _apStartTime > AP_MODE_TIMEOUT_MS && strlen(_ssid) > 0) {
+            LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, 0, "AP mode timeout, rebooting to STA");
+            watchdog_update();
+            rp2040.reboot();
+        }
+        return;
+    }
 
     /* mDNS: atualiza apenas quando conectado e com throttle de 2s */
     if (_state == NET_READY) {

@@ -118,4 +118,7 @@ private:
     uint32_t _ntpRetryDelay = 20000;    /**< Delay atual entre retentativas (ms) */
     uint8_t  _ntpFailCount  = 0;        /**< Falhas consecutivas (reset em sync) */
     bool     _ntpFallbackDone = false;  /**< True após fallback p/ pool.ntp.org  */
+
+    /* ── AP mode timeout ── */
+    uint32_t _apStartTime = 0;          /**< millis() ao entrar em AP mode      */
 };

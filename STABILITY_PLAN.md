@@ -244,7 +244,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F3 — Handlers & Concorrência** | 🟡 Em andamento | `stability-fixes-tier1` | — | — |
 | **F4 — Logging & Flash Wear** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.4` | 2026-04-18 |
 | **F5 — Heap & String** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.5` | 2026-04-18 |
-| F6 — Long-term & Edge Cases | ⚪ Pendente | — | — | — |
+| **F6 — Long-term & Edge Cases** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.6` | 2026-04-18 |
 | F7 — Hardening & Polish | ⚪ Pendente | — | — | — |
 
 ### Legenda de Status
@@ -264,9 +264,9 @@ Atualize esta tabela conforme cada fase for concluída.
 | N2 | 🔴 | F1 | ✅ | Backoff exponencial + fallback pool.ntp.org (`NetworkManager.cpp`). |
 | N3 | 🔴 | F1 | ✅ | `TelemetryGuard` estendido para `WDT_FEED_MAX_WINDOW_MS` (60 s). |
 | N4 | 🔴 | F1 | ✅ | `SendGuard` + flag `_sendGuardExpired` → aborto limpo em `isClientGone()`. |
-| N5 | 🟠 | F6 | ⚪ | |
+| N5 | 🟠 | F6 | ✅ | AP mode timeout 15 min → reboot para STA se SSID configurado. |
 | N6 | 🟠 | F1 | ✅ | Já mitigado em prod (throttle 5 s interno). |
-| N7 | 🟠 | F6 | ⚪ | |
+| N7 | 🟠 | F6 | ⚠️ | PubSubClient não suporta QoS>0 por publish; cursor parcial mitiga. |
 | N8 | 🟠 | F7 | ⚪ | |
 | N9 | 🟡 | F7 | ⚪ | |
 | N10 | 🟡 | F2 | ✅ | `_authBuffer` limitado a `BT_AUTH_BUFFER_MAX` (64 chars). |
@@ -290,10 +290,10 @@ Atualize esta tabela conforme cada fase for concluída.
 | U4 | 🔴 | F7 | ⚪ | |
 | U5 | 🟠 | F7 | ⚪ | |
 | U6 | 🟠 | F7 | ⚪ | |
-| U7 | 🟠 | F6 | ⚪ | |
-| U8 | 🟠 | F6 | ⚪ | |
+| U7 | 🟠 | F6 | ✅ | `invalidateOldestFileCache()` em upload + criação de arquivo. |
+| U8 | 🟠 | F6 | ✅ | `collectBatch` fallback: `lastRecordedTs - 30d` quando cursor=0. |
 | U9 | 🟡 | F7 | ⚪ | |
-| U10 | 🟡 | F6 | ⚪ | |
-| U11 | 🟡 | F6 | ⚪ | |
+| U10 | 🟡 | F6 | ✅ | Watermark persistente em `correctProvisionalTimestamps`. |
+| U11 | 🟡 | F6 | ✅ | Heartbeat 1x/hora após supressão de logs de telemetria. |
 | U12 | 🟢 | F5 | ✅ | `maxlength` em t_glob (255), t_line (511), t_sep (7). |
 | U13 | 🟢 | F7 | ⚪ | |

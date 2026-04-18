@@ -20,7 +20,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.5.5"          /* Firmware version string */
+#define SIMUT_VERSION "v3.5.6"          /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -153,6 +153,11 @@ constexpr uint8_t  BT_AUTH_BUFFER_MAX        = 64;
 
 /** Deadline para handlers longos (history, logs, screenshot) em ms. */
 constexpr uint32_t WEB_LONG_HANDLER_DEADLINE_MS = 10000;
+
+/* ── AP mode ── */
+
+/** Timeout do AP mode sem clientes antes de reboot para STA (ms). */
+constexpr uint32_t AP_MODE_TIMEOUT_MS           = 900000;
 
 /* ── Telemetry cursor ── */
 
