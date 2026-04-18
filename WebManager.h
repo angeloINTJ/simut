@@ -104,6 +104,12 @@ private:
         if (_handlerDeadline > 0 && timeReached(_handlerDeadline)) {
             return true;
         }
+        /* SendGuard atingiu o teto de alimentação do watchdog:
+         * aborta handler limpa em vez de deixar o WDT disparar. */
+        extern volatile bool _sendGuardExpired;
+        if (_sendGuardExpired) {
+            return true;
+        }
         return !_server.client().connected();
     }
 

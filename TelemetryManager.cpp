@@ -23,10 +23,16 @@
 /**
  * @brief Alimenta o watchdog durante operações bloqueantes de rede (TLS/HTTP/MQTT).
  *
- * O http.POST() com TLS pode bloquear por 4-8s (handshake + transfer).
- * Sem alimentação, o watchdog (8.3s) dispara durante um POST normal.
+ * O http.POST() com TLS pode bloquear por 4-8s em rede saudável. Em rede
+ * degradada (RSSI baixo, 2G, roaming), handshake + transferência pode
+ * legitimamente estender até dezenas de segundos. Sem alimentação, o
+ * watchdog (8.3s) dispara durante uma operação normal.
+ *
  * O timer roda a cada 2s e alimenta enquanto o guard está ativo.
- * Safety: para de alimentar após 30s para evitar mascarar deadlocks reais.
+ * Safety: para de alimentar após WDT_FEED_MAX_WINDOW_MS (60s) para
+ * evitar mascarar deadlocks reais — nesse ponto, o watchdog toma ação
+ * como *safety net* final. HTTP/MQTT internos já têm
+ * NET_SOCKET_TIMEOUT_MS=4s, então operações saudáveis não chegam a 60s.
  */
 static volatile bool _telGuardActive = false;
 static volatile uint32_t _telGuardStartMs = 0;
@@ -37,7 +43,7 @@ static bool _telGuardCallback(struct repeating_timer *t) {
     (void)t;
     if (_telGuardActive) {
         uint32_t elapsed = millis() - _telGuardStartMs;
-        if (elapsed < 30000) {
+        if (elapsed < WDT_FEED_MAX_WINDOW_MS) {
             watchdog_update();
         }
     }

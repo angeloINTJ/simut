@@ -149,20 +149,34 @@ bool WebManager::isHandlerOvertime() {
 
 #include <pico/time.h>
 
+/*
+ * SendGuard — alimenta o watchdog durante chamadas bloqueantes de envio.
+ *
+ * Enquanto _sendGuardActive=true, o timer alimenta o watchdog a cada 2 s
+ * (até WDT_FEED_MAX_WINDOW_MS). Se esse teto é atingido, sinaliza aborto
+ * limpo via _sendGuardExpired — consultado por isClientGone(), fazendo
+ * com que safeSend() retorne false e o handler encerre graciosamente
+ * em vez de ser morto pelo watchdog.
+ *
+ * _sendGuardExpired tem ligação externa para que isClientGone() (inline
+ * no header) possa consultá-lo sem indirection adicional.
+ */
 static volatile bool _sendGuardActive = false;
+volatile bool _sendGuardExpired = false;    /* extern — consumido por WebManager.h */
 static volatile uint32_t _sendGuardStartMs = 0;
 static struct repeating_timer _sendGuardTimer;
 
 static bool _sendGuardTimerCallback(struct repeating_timer *t) {
     (void)t;
     if (_sendGuardActive) {
-
-
         uint32_t elapsed = millis() - _sendGuardStartMs;
-        if (elapsed < 35000) {
+        if (elapsed < WDT_FEED_MAX_WINDOW_MS) {
             watchdog_update();
+        } else {
+            /* Cap atingido: para de alimentar (safety net contra deadlock)
+             * e sinaliza aborto limpo para o handler próximo safeSend(). */
+            _sendGuardExpired = true;
         }
-
     }
     return true;
 }
@@ -174,7 +188,11 @@ void WebManager::initSendGuardTimer() {
 
 
 struct SendGuard {
-    SendGuard()  { _sendGuardStartMs = millis(); _sendGuardActive = true;  }
+    SendGuard()  {
+        _sendGuardStartMs = millis();
+        _sendGuardExpired = false;  /* reset por transferência */
+        _sendGuardActive = true;
+    }
     ~SendGuard() { _sendGuardActive = false; }
 };
 
