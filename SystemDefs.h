@@ -20,7 +20,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.6.2"          /* Firmware version string */
+#define SIMUT_VERSION "v3.7.0"          /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -537,6 +537,19 @@ struct __attribute__((packed)) DisplayOffsetData {
 static_assert(sizeof(DisplayOffsetData) == 4, "DisplayOffsetData deve ter 4 bytes!");
 
 /**
+ * CLI session config persistido em SystemConfig::reserved[22..23].
+ * magic == 0xDB indica dado válido; outro valor = default (debug OFF).
+ * Fica após TouchCalData(12) + SoundConfigData(6) + DisplayOffsetData(4) = offset 22.
+ */
+struct __attribute__((packed)) CliConfigData {
+    uint8_t magic;       /**< 0xDB = válido; outro valor = default (debug OFF) */
+    uint8_t debugMode;   /**< 0 = CONFIG (silencioso), 1 = DEBUG (log stream) */
+};
+static_assert(sizeof(CliConfigData) == 2, "CliConfigData deve ter 2 bytes!");
+#define CLI_CONFIG_MAGIC    0xDB
+#define CLI_CONFIG_OFFSET   22  /* sizeof(TouchCalData)+sizeof(SoundConfigData)+sizeof(DisplayOffsetData) */
+
+/**
  * Master system configuration — persisted to Flash as a binary blob
  * with CRC32 integrity check and dual-bank backup.
  */
@@ -876,7 +889,8 @@ enum DemandType {
     CMD_WRITE_MEMORY,
     CMD_CLEAR_LOGS,
     CMD_RELOAD,
-    CMD_TEL_SYNC
+    CMD_TEL_SYNC,
+    CMD_DEBUG
 };
 
 /** Parsed CLI command with typed payload fields. */

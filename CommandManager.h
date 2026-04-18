@@ -50,8 +50,13 @@ public:
 
     void printDivider();
 
+    /** Modo de sessão — afeta prompt ('>' vs '#') e estado apresentado ao user. */
+    void setDebugMode(bool enabled) { _debugMode = enabled; }
+    bool isDebugMode() const        { return _debugMode; }
+
 private:
     BluetoothManager _btMgr;
+    bool _debugMode = false;
 
 
     String _usbBuffer;

@@ -48,6 +48,8 @@ public:
     void setHeavyTaskChecker(bool (*fn)());
     void setTouchPriorityChecker(bool (*fn)());
     void setConsoleSink(ConsoleSink sink);
+    void setConsoleStream(bool enabled);   /**< false = modo CONFIG (console silencioso) */
+    bool isConsoleStream() const { return _consoleStreamEnabled; }
     void begin(bool saveToFile = false, LogLevel minSerialLevel = LOG_INFO);
 
 
@@ -89,6 +91,7 @@ private:
 
     FlashLockCallback _lockCb = nullptr;
     ConsoleSink _consoleSink = nullptr;
+    bool _consoleStreamEnabled = true;     /**< true durante boot; AppManager aplica preferência do user após load */
     void emitLine(const char* line);
     void requestFsLock(bool lock);
 

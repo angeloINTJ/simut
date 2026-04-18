@@ -40,10 +40,14 @@ void LogManager::setLockCallback(FlashLockCallback cb) { _lockCb = cb; }
 
 void LogManager::setConsoleSink(ConsoleSink sink) { _consoleSink = sink; }
 
+void LogManager::setConsoleStream(bool enabled) { _consoleStreamEnabled = enabled; }
+
 /* Emite uma linha no console.
+ * Se modo CONFIG (stream OFF): silencioso, flash continua gravando normalmente.
  * Se sink instalado (CommandManager): espelha USB+BT via consolePrintln.
  * Caso contrário: fallback em Serial direto (pré-boot, antes de _cmdMgr.begin()). */
 void LogManager::emitLine(const char* line) {
+    if (!_consoleStreamEnabled) return;
     if (_consoleSink) _consoleSink(line);
     else Serial.println(line);
 }
