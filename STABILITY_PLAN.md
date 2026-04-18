@@ -241,7 +241,7 @@ Atualize esta tabela conforme cada fase for concluída.
 |---|---|---|---|---|
 | **F1 — Watchdog & Timeouts** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.0` | 2026-04-18 |
 | **F2 — Autenticação & Rate Limit** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.1` | 2026-04-18 |
-| F3 — Handlers & Concorrência | ⚪ Pendente | — | — | — |
+| **F3 — Handlers & Concorrência** | 🟡 Em andamento | `stability-fixes-tier1` | — | — |
 | F4 — Logging & Flash Wear | ⚪ Pendente | — | — | — |
 | F5 — Heap & String | ⚪ Pendente | — | — | — |
 | F6 — Long-term & Edge Cases | ⚪ Pendente | — | — | — |
@@ -272,19 +272,19 @@ Atualize esta tabela conforme cada fase for concluída.
 | N10 | 🟡 | F2 | ✅ | `_authBuffer` limitado a `BT_AUTH_BUFFER_MAX` (64 chars). |
 | D1 | 🔴 | F2 | ✅ | Rate-limiter 16 slots com TTL 15 min (`WebManager.cpp`). |
 | D2 | 🔴 | F2 | ✅ | `failCount++` em nonce expirado + lockout exponencial. |
-| D3 | 🔴 | F3 | ⚪ | Mitigação parcial; solução completa exige async. |
-| D4 | 🔴 | F3 | ⚪ | |
+| D3 | 🔴 | F3 | ✅ | Deadline 30s→10s; mitigação parcial (async exige rewrite). |
+| D4 | 🔴 | F3 | ✅ | `refreshPendingCount` com dirty flag + `notifyNewRecord` incremental. |
 | D5 | 🔴 | F4 | ⚪ | |
 | D6 | 🟠 | F5 | ⚪ | |
-| D7 | 🟠 | F3 | ⚪ | |
-| D8 | 🟠 | F3 | ⚪ | |
+| D7 | 🟠 | F3 | ✅ | `WEB_LONG_HANDLER_DEADLINE_MS = 10000` (era 30s). |
+| D8 | 🟠 | F3 | ✅ | `_isSending` com `__atomic_compare_exchange_n` (CAS). |
 | D9 | 🟠 | F4 | ⚪ | |
 | D10 | 🟠 | F4 | ⚪ | |
 | D11 | 🟡 | F7 | ⚪ | |
-| D12 | 🟡 | F3 | ⚪ | |
+| D12 | 🟡 | F3 | ✅ | `_cancelScreenshot` flag + 409 Conflict em request concorrente. |
 | D13 | 🟡 | F2 | ✅ | Validação `isValidName(u,31)` + `password<=128` antes de `hashPassword`. |
 | D14 | 🟢 | F7 | ⚪ | |
-| U1 | 🔴 | F3 | ⚪ | |
+| U1 | 🔴 | F3 | ✅ | Ver D4 — dirty flag elimina scan contínuo. |
 | U2 | 🔴 | F4 | ⚪ | |
 | U3 | 🔴 | F5 | ⚪ | |
 | U4 | 🔴 | F7 | ⚪ | |

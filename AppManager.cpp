@@ -1548,7 +1548,10 @@ void AppManager::processHistoryLogging() {
             }
         }
 
-        if (_storageMgr.writeHistoryEntry(rec)) LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
+        if (_storageMgr.writeHistoryEntry(rec)) {
+            LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
+            _telemetryMgr.notifyNewRecord();
+        }
     }
 
     /* #10: Log periódico de heap para diagnóstico de memória */
