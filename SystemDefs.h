@@ -97,6 +97,40 @@ constexpr uint8_t  WIFI_MAX_CONNECT_CYCLES  = 5;
 /** Backoff de dormência longa após esgotar tentativas WiFi (ms). */
 constexpr uint32_t WIFI_DORMANT_DELAY_MS    = 600000;
 
+/**
+ * Teto para alimentação do watchdog em guards de operações longas (ms).
+ *
+ * Aplica-se aos *repeating timers* `SendGuard` (WebManager) e
+ * `TelemetryGuard` (TelemetryManager). Enquanto uma operação bloqueante
+ * está em curso (POST TLS, envio de payload grande), o guard alimenta o
+ * watchdog a cada 2 s — até este teto. Se ultrapassado, para de alimentar
+ * (watchdog age como *safety net* contra deadlocks reais) E sinaliza
+ * *aborto limpo* via flag compartilhada, para que o handler retorne
+ * com erro em vez de ser morto pelo watchdog.
+ *
+ * Dimensionamento: valor deve cobrir o pior caso de operação legítima
+ * (TLS handshake + envio de 230 KB em link 2G) — 60 s com folga.
+ * Deve ser muito maior que NET_SOCKET_TIMEOUT_MS para evitar falso
+ * positivo e muito menor que uptime-ms-wrap (~49 d) por definição.
+ */
+constexpr uint32_t WDT_FEED_MAX_WINDOW_MS   = 60000;
+
+/**
+ * Teto do backoff exponencial de retry do NTP (ms).
+ *
+ * Sequência aplicada em NET_CONNECTED_WAIT_NTP: 20 s → 60 s → 5 min → 15 min.
+ * Após 3 falhas consecutivas, faz-se fallback automático para pool.ntp.org.
+ * Reset a zero (volta para 20 s) após primeira sincronização bem-sucedida.
+ */
+constexpr uint32_t NTP_MAX_RETRY_DELAY_MS   = 900000;
+
+/**
+ * Número de falhas consecutivas no NTP antes de acionar fallback para
+ * pool.ntp.org. Se o servidor configurado já for pool.ntp.org, o fallback
+ * é silenciosamente ignorado.
+ */
+constexpr uint8_t  NTP_FAILS_BEFORE_FALLBACK = 3;
+
 
 /* =========================================================================== */
 /*                       SAFE STRING COPY UTILITY                            */

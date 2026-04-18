@@ -175,9 +175,27 @@ void NetworkManager::update() {
                 _state = NET_READY;
                 _reconnectDelay = 5000;
                 _connectCycles = 0;     /* Conexão completa: reseta ciclos */
+                resetNtpBackoff();      /* Sync NTP bem-sucedido: reseta backoff  */
             }
-            else if (millis() - _stateTimer > 20000) {
-                 syncNtp(); _stateTimer = millis();
+            else if (millis() - _stateTimer > _ntpRetryDelay) {
+                _ntpFailCount++;
+
+                /* Fallback para pool.ntp.org após N falhas, se ainda não feito
+                 * e o servidor configurado não for já o pool.ntp.org. */
+                if (_ntpFailCount >= NTP_FAILS_BEFORE_FALLBACK &&
+                    !_ntpFallbackDone &&
+                    strcmp(_ntpServer, "pool.ntp.org") != 0) {
+                    LOG_CODE(LOG_WARN, "NET", SYS_NTP_SYNC, _ntpFailCount,
+                        "NTP fallback: " + String(_ntpServer) + " -> pool.ntp.org");
+                    safeCopy(_ntpServer, "pool.ntp.org", sizeof(_ntpServer));
+                    _ntpFallbackDone = true;
+                }
+
+                /* Backoff exponencial: 20s -> 60s -> 5min -> 15min (cap). */
+                _ntpRetryDelay = min(_ntpRetryDelay * 3, NTP_MAX_RETRY_DELAY_MS);
+
+                syncNtp();
+                _stateTimer = millis();
             }
             break;
 
@@ -188,6 +206,7 @@ void NetworkManager::update() {
 
                 WiFi.disconnect(false);
                 _reconnectDelay = 5000;
+                resetNtpBackoff();  /* Próxima reconexão parte do delay inicial */
                 _state = NET_DISCONNECT_PENDING;
                 _stateTimer = millis();
             }
@@ -203,6 +222,20 @@ void NetworkManager::update() {
             break;
         default: break;
     }
+}
+
+/**
+ * @brief Reseta o estado de backoff de retry do NTP.
+ *
+ * Chamado quando o NTP sincroniza com sucesso e quando o WiFi é perdido
+ * (para que a próxima reconexão parta do delay inicial).
+ * NÃO reverte o _ntpFallbackDone — uma vez que o fallback para pool.ntp.org
+ * foi feito, o servidor customizado é considerado falho até próximo boot
+ * ou alteração manual pelo usuário.
+ */
+void NetworkManager::resetNtpBackoff() {
+    _ntpRetryDelay = 20000;
+    _ntpFailCount  = 0;
 }
 
 /** @brief Handle WiFi connection timeout with async disconnect, backoff, and dormant mode. */

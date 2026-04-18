@@ -109,7 +109,13 @@ private:
 
     void handleConnecting();
     void syncNtp();
+    void resetNtpBackoff();             /**< Reseta backoff após sucesso/reconnect */
 
     uint32_t _lastMdnsUpdate = 0;       /**< Throttle para MDNS.update()         */
     uint8_t  _connectCycles  = 0;        /**< Ciclos de reconexão consecutivos    */
+
+    /* ── NTP retry com backoff exponencial + fallback ── */
+    uint32_t _ntpRetryDelay = 20000;    /**< Delay atual entre retentativas (ms) */
+    uint8_t  _ntpFailCount  = 0;        /**< Falhas consecutivas (reset em sync) */
+    bool     _ntpFallbackDone = false;  /**< True após fallback p/ pool.ntp.org  */
 };
