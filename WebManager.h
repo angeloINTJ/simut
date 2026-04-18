@@ -58,8 +58,8 @@ private:
     DisplayManager* _displayRef;
 
 
-    struct RateEntry { uint32_t ip = 0; uint32_t lastReq = 0; };
-    RateEntry _rateLimits[3];
+    struct RateEntry { uint32_t ip = 0; uint32_t lastReq = 0; uint8_t hits = 0; };
+    RateEntry _rateLimits[RATE_LIMIT_SLOTS];
     File _uploadFile;
 
 
@@ -92,7 +92,7 @@ private:
         uint32_t lastActivity = 0;
     };
     static const uint32_t NONCE_LIFETIME_MS = 60000;
-    LoginState _loginStates[3];
+    LoginState _loginStates[LOGIN_STATE_SLOTS];
 
 
     volatile bool _isProcessingScreenshot = false;
@@ -228,6 +228,7 @@ private:
     String getDynamicExpectedHash(String username);
     String jsonEscape(const char* src);
     void handleApiHistoryDays();
+    void handleApiSecStatus();
 
 
     String generateSecureToken();

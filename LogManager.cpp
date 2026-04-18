@@ -136,14 +136,16 @@ void LogManager::logCode(LogLevel level, const char* tag, LogCode code, int cont
 
     if (epoch > 1600000000) {
         struct tm ti; localtime_r(&epoch, &ti);
-        Serial.printf("[%04d-%02d-%02d %02d:%02d:%02d]", ti.tm_year+1900, ti.tm_mon+1, ti.tm_mday, ti.tm_hour, ti.tm_min, ti.tm_sec);
+        Serial.printf("[%02d:%02d:%02d]", ti.tm_hour, ti.tm_min, ti.tm_sec);
     } else {
         Serial.printf("[BOOT+%lus]", millis()/1000);
     }
-    Serial.printf("[UP %s][C%d][%s][%s] [%d] %s",
-        uptimeString().c_str(), core, getLevelString(level), tag, (int)code,
-        extraMsg.length() > 0 ? extraMsg.c_str() : "");
-    if (contextVal != 0) Serial.printf(" (ctx:%d)", contextVal);
+
+    const char* desc = translateCode((uint16_t)code);
+    Serial.printf("[UP %s][C%d][%s][%s] %s",
+        uptimeString().c_str(), core, getLevelString(level), tag, desc);
+    if (extraMsg.length() > 0) Serial.printf(": %s", extraMsg.c_str());
+    if (contextVal != 0) Serial.printf(" (%d)", contextVal);
     Serial.println();
 
 
@@ -170,7 +172,7 @@ void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) 
 
     if (epoch > 1600000000) {
         struct tm ti; localtime_r(&epoch, &ti);
-        Serial.printf("[%04d-%02d-%02d %02d:%02d:%02d]", ti.tm_year+1900, ti.tm_mon+1, ti.tm_mday, ti.tm_hour, ti.tm_min, ti.tm_sec);
+        Serial.printf("[%02d:%02d:%02d]", ti.tm_hour, ti.tm_min, ti.tm_sec);
     } else {
         Serial.printf("[BOOT+%lus]", millis()/1000);
     }

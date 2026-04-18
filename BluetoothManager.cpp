@@ -93,8 +93,10 @@ void BluetoothManager::update() {
                 _authBuffer.remove(_authBuffer.length() - 1);
             }
         } else {
-            _authBuffer += c;
-            SerialBT.print("*");
+            if (_authBuffer.length() < BT_AUTH_BUFFER_MAX) {
+                _authBuffer += c;
+                SerialBT.print("*");
+            }
         }
     }
 }

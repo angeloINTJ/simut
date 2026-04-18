@@ -101,7 +101,7 @@ void SoundManager::begin() {
         return;
     }
 
-    Serial.print(F("[SND] BuzzerPIO ready on pio"));
+    Serial.println(F("[SND] BuzzerPIO ready."));
 
 
     _buzzer.setVolume(_volume);

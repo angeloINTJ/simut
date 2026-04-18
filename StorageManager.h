@@ -72,6 +72,7 @@ public:
     bool isHeavyTaskLocked() const;
 
     String hashPassword(const String& username, const String& plainPassword);
+    String sha256Hex(const String& input);
 
 private:
     SystemConfig _currentConfig;

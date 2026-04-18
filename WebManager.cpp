@@ -94,6 +94,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/api/logs", HTTP_GET, std::bind(&WebManager::handleApiLogs, this));
     _server.on("/api/clear_logs", HTTP_POST, std::bind(&WebManager::handleApiClearLogs, this));
     _server.on("/api/screenshot", HTTP_GET, std::bind(&WebManager::handleApiScreenshot, this));
+    _server.on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));
 
 
     _server.on("/download", HTTP_GET, std::bind(&WebManager::handleDownload, this));
@@ -119,15 +120,24 @@ bool WebManager::isRateLimited(uint32_t minIntervalMs) {
     uint32_t now = millis();
     int slot = -1;
     int oldest = 0;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < RATE_LIMIT_SLOTS; i++) {
+        /* Expirar entradas antigas (TTL) — tratá-las como livres */
+        if (_rateLimits[i].ip != 0 && (now - _rateLimits[i].lastReq > RATE_LIMIT_TTL_MS)) {
+            _rateLimits[i].ip = 0;
+            _rateLimits[i].lastReq = 0;
+            _rateLimits[i].hits = 0;
+        }
         if (_rateLimits[i].ip == clientIP) { slot = i; break; }
         if (_rateLimits[i].lastReq < _rateLimits[oldest].lastReq) oldest = i;
     }
     if (slot == -1) {
-        for (int i = 0; i < 3; i++) { if (_rateLimits[i].ip == 0) { slot = i; break; } }
+        for (int i = 0; i < RATE_LIMIT_SLOTS; i++) {
+            if (_rateLimits[i].ip == 0) { slot = i; break; }
+        }
         if (slot == -1) slot = oldest;
         _rateLimits[slot].ip = clientIP;
         _rateLimits[slot].lastReq = 0;
+        _rateLimits[slot].hits = 0;
     }
     if (now - _rateLimits[slot].lastReq < minIntervalMs) return true;
     _rateLimits[slot].lastReq = now;
@@ -901,12 +911,12 @@ void WebManager::handleApiLoginInit() {
 
     int slot = -1;
     int oldest = 0;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
         if (_loginStates[i].ip == clientIP) { slot = i; break; }
         if (_loginStates[i].lastActivity < _loginStates[oldest].lastActivity) oldest = i;
     }
     if (slot == -1) {
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
             if (_loginStates[i].ip == 0) { slot = i; break; }
         }
         if (slot == -1) slot = oldest;
@@ -940,7 +950,7 @@ void WebManager::handleApiLogin() {
     uint32_t clientIP = (uint32_t)_server.client().remoteIP();
 
     int ls = -1;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
         if (_loginStates[i].ip == clientIP) { ls = i; break; }
     }
 
@@ -959,10 +969,25 @@ void WebManager::handleApiLogin() {
                         (millis() - _loginStates[ls].nonceCreatedAt > NONCE_LIFETIME_MS);
 
     if (!_server.hasArg("nonce") || _server.arg("nonce") != expectedNonce || expectedNonce == "" || nonceExpired) {
-        if (ls >= 0) _loginStates[ls].nonce = "";
+        if (ls >= 0) {
+            _loginStates[ls].nonce = "";
+            if (nonceExpired) {
+                _loginStates[ls].failCount++;
+                uint32_t penaltyMs = (1 << _loginStates[ls].failCount) * 1000;
+                if (penaltyMs > 300000) penaltyMs = 300000;
+                _loginStates[ls].lockoutUntil = millis() + penaltyMs;
+            }
+        }
         LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
                  nonceExpired ? "Login Rejected: Nonce Expired" : "Login Rejected: Invalid Nonce");
-        _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+        if (ls >= 0 && _loginStates[ls].lockoutUntil > 0 && !timeReached(_loginStates[ls].lockoutUntil)) {
+            uint32_t rem = timeRemaining(_loginStates[ls].lockoutUntil) / 1000;
+            char buf[64];
+            snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)rem);
+            _server.send(401, "application/json", buf);
+        } else {
+            _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+        }
         return;
     }
     if (ls >= 0) _loginStates[ls].nonce = "";
@@ -974,6 +999,21 @@ void WebManager::handleApiLogin() {
 
     String u = _server.arg("user");
     String p = _server.arg("pass");
+
+    /* D13: Validar tamanho antes de passar para hashPassword (2500 rounds).
+     * Username > 31 ou password > 128 → rejeitar imediatamente. */
+    if (!isValidName(u.c_str(), 31) || p.length() > 128) {
+        if (ls >= 0) {
+            _loginStates[ls].failCount++;
+            uint32_t penaltyMs = (1 << _loginStates[ls].failCount) * 1000;
+            if (penaltyMs > 300000) penaltyMs = 300000;
+            _loginStates[ls].lockoutUntil = millis() + penaltyMs;
+        }
+        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, "Login Rejected: Invalid Input Size");
+        _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+        return;
+    }
+
     SystemConfig& cfg = _storageRef->getConfig();
 
     int foundId = -1;
@@ -1103,6 +1143,43 @@ void WebManager::handleLogout() {
     _server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     _server.sendHeader("Location", "/login", true);
     _server.send(302, "text/plain", "");
+}
+
+void WebManager::handleApiSecStatus() {
+    if (!(getAuthPerms() & PERM_USER_MGR)) {
+        _server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+        return;
+    }
+
+    uint32_t now = millis();
+    char buf[512];
+    int pos = 0;
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "{\"slots\":[");
+
+    bool first = true;
+    for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
+        if (_loginStates[i].ip == 0) continue;
+        if (!first) buf[pos++] = ',';
+        first = false;
+
+        uint32_t ip = _loginStates[i].ip;
+        uint32_t lockSec = 0;
+        bool locked = (_loginStates[i].lockoutUntil > 0 && !timeReached(_loginStates[i].lockoutUntil));
+        if (locked) lockSec = timeRemaining(_loginStates[i].lockoutUntil) / 1000;
+        uint32_t ageSec = (now - _loginStates[i].lastActivity) / 1000;
+
+        pos += snprintf(buf + pos, sizeof(buf) - pos,
+            "{\"ip\":\"%lu.%lu.%lu.%lu\",\"fails\":%u,\"lockSec\":%lu,\"ageSec\":%lu}",
+            (unsigned long)(ip & 0xFF), (unsigned long)((ip >> 8) & 0xFF),
+            (unsigned long)((ip >> 16) & 0xFF), (unsigned long)((ip >> 24) & 0xFF),
+            _loginStates[i].failCount, (unsigned long)lockSec, (unsigned long)ageSec);
+
+        if (pos >= (int)sizeof(buf) - 2) break;
+    }
+
+    pos += snprintf(buf + pos, sizeof(buf) - pos, "]}");
+    _server.sendHeader("Cache-Control", "no-store");
+    _server.send(200, "application/json", buf);
 }
 
 void WebManager::handleApiForceChpass() {

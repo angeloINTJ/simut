@@ -638,6 +638,48 @@ bool StorageManager::processCalibrationUpload() {
 }
 
 /**
+ * @brief SHA256 simples — retorna hex digest de 64 chars.
+ *
+ * Espelha o comportamento do JavaScript SHA256 do frontend:
+ * cada caractere é tratado como 1 byte pelo seu code point Unicode
+ * (Latin-1), não pela codificação UTF-8. Isso é relevante para
+ * caracteres como ç (U+00E7): JS processa como byte 0xE7,
+ * mas UTF-8 codifica como 0xC3 0xA7 (2 bytes).
+ */
+String StorageManager::sha256Hex(const String& input) {
+    br_sha256_context ctx;
+    br_sha256_init(&ctx);
+
+    /* Decodificar UTF-8 → code points → bytes Latin-1 (como JS charCodeAt). */
+    const uint8_t* s = (const uint8_t*)input.c_str();
+    size_t len = input.length();
+    for (size_t i = 0; i < len; ) {
+        uint8_t c = s[i];
+        uint8_t byte;
+        if (c < 0x80) {
+            byte = c;
+            i += 1;
+        } else if ((c & 0xE0) == 0xC0 && i + 1 < len) {
+            /* 2-byte UTF-8 → code point 0x80–0x7FF (Latin-1 cobre até 0xFF) */
+            byte = (uint8_t)(((c & 0x1F) << 6) | (s[i + 1] & 0x3F));
+            i += 2;
+        } else {
+            /* 3+ byte UTF-8 ou byte inválido → skip (JS retorna undefined p/ >255) */
+            i += (c >= 0xF0) ? 4 : (c >= 0xE0) ? 3 : 1;
+            continue;
+        }
+        br_sha256_update(&ctx, &byte, 1);
+    }
+
+    unsigned char hash[32];
+    br_sha256_out(&ctx, hash);
+    char hex[65];
+    for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", hash[i]);
+    hex[64] = '\0';
+    return String(hex);
+}
+
+/**
  * @brief HMAC-SHA256 password hashing with board serial pepper and 2500 rounds.
  * Salt: lowercase username. Pepper: unique board serial number.
  * Output: 30 hex chars (120 bits of effective entropy).
