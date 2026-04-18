@@ -501,35 +501,46 @@ void WebManager::handleApiConfig() {
 
     SystemConfig& cfg = _storageRef->getConfig();
 
-    String json;
-    json.reserve(2048);
-    json += "{";
-    json += "\"name\":\"" + jsonEscape(cfg.deviceName) + "\",";
-    json += "\"tz\":" + String(cfg.timezoneOffset) + ",";
-    json += "\"log\":" + String(cfg.loggingEnabled ? "true" : "false") + ",";
-    json += "\"res\":" + String(cfg.ds18Resolution) + ",";
-    json += "\"s_int\":" + String(cfg.sampleIntervalMs) + ",";
-    json += "\"t_transport\":" + String(cfg.telTransport) + ",";
-    json += "\"t_sec\":" + String(cfg.telEncryption ? "true" : "false") + ",";
-    json += "\"t_srv\":\"" + jsonEscape(cfg.telServer) + "\",";
-    json += "\"t_port\":" + String(cfg.telPort) + ",";
-    json += "\"t_path\":\"" + jsonEscape(cfg.telPath) + "\",";
-    json += "\"t_key\":\"" + jsonEscape(cfg.telApiKey) + "\",";
-    json += "\"m_topic\":\"" + jsonEscape(cfg.mqttTopic) + "\",";
-    json += "\"m_cid\":\"" + jsonEscape(cfg.mqttClientId) + "\",";
-    json += "\"m_user\":\"" + jsonEscape(cfg.mqttUser) + "\",";
-    json += "\"m_qos\":" + String(cfg.mqttQos) + ",";
-    json += "\"m_retain\":" + String(cfg.mqttRetain ? "true" : "false") + ",";
-    json += "\"m_ka\":" + String(cfg.mqttKeepAlive) + ",";
-    json += "\"t_int\":" + String(cfg.telInterval) + ",";
-    json += "\"t_bat\":" + String(cfg.telBatchSize) + ",";
-    json += "\"t_mode\":" + String(cfg.telMode) + ",";
-    json += "\"t_glob\":\"" + jsonEscape(cfg.telGlobalTemplate) + "\",";
-    json += "\"t_line\":\"" + jsonEscape(cfg.telLineTemplate) + "\",";
-    json += "\"t_sep\":\"" + jsonEscape(cfg.telLineSeparator) + "\"";
-    json += "}";
+    _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    _server.send(200, "application/json", "");
 
-    _server.send(200, "application/json", json);
+    char buf[256];
+
+    snprintf(buf, sizeof(buf),
+        "{\"name\":\"%s\",\"tz\":%d,\"log\":%s,\"res\":%d,\"s_int\":%lu,"
+        "\"t_transport\":%d,\"t_sec\":%s,",
+        jsonEscape(cfg.deviceName).c_str(), cfg.timezoneOffset,
+        cfg.loggingEnabled ? "true" : "false", cfg.ds18Resolution,
+        (unsigned long)cfg.sampleIntervalMs, cfg.telTransport,
+        cfg.telEncryption ? "true" : "false");
+    if (!safeSend(buf)) return;
+
+    snprintf(buf, sizeof(buf),
+        "\"t_srv\":\"%s\",\"t_port\":%u,\"t_path\":\"%s\",\"t_key\":\"%s\",",
+        jsonEscape(cfg.telServer).c_str(), cfg.telPort,
+        jsonEscape(cfg.telPath).c_str(), jsonEscape(cfg.telApiKey).c_str());
+    if (!safeSend(buf)) return;
+
+    snprintf(buf, sizeof(buf),
+        "\"m_topic\":\"%s\",\"m_cid\":\"%s\",\"m_user\":\"%s\","
+        "\"m_qos\":%d,\"m_retain\":%s,\"m_ka\":%u,",
+        jsonEscape(cfg.mqttTopic).c_str(), jsonEscape(cfg.mqttClientId).c_str(),
+        jsonEscape(cfg.mqttUser).c_str(), cfg.mqttQos,
+        cfg.mqttRetain ? "true" : "false", cfg.mqttKeepAlive);
+    if (!safeSend(buf)) return;
+
+    snprintf(buf, sizeof(buf),
+        "\"t_int\":%lu,\"t_bat\":%d,\"t_mode\":%d,",
+        (unsigned long)cfg.telInterval, cfg.telBatchSize, cfg.telMode);
+    if (!safeSend(buf)) return;
+
+    safeSend("\"t_glob\":\"");
+    if (!safeSend(jsonEscape(cfg.telGlobalTemplate).c_str())) return;
+    safeSend("\",\"t_line\":\"");
+    if (!safeSend(jsonEscape(cfg.telLineTemplate).c_str())) return;
+    safeSend("\",\"t_sep\":\"");
+    if (!safeSend(jsonEscape(cfg.telLineSeparator).c_str())) return;
+    safeSend("\"}");
 }
 
 void WebManager::handleApiUsers() {
@@ -565,40 +576,31 @@ void WebManager::handleApiThemes() {
     }
 
     _server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    _server.send(200, "application/json", "");
 
-    String json;
-    json.reserve(256);
-    json += "[";
+    safeSend("[");
+    char entry[64];
 
-    for(int i = 0; i < getThemeCount(); i++) {
-        if(i > 0) json += ",";
-
-
-        String cleanName = "";
+    for (int i = 0; i < getThemeCount(); i++) {
+        char cleanName[32];
+        int cn = 0;
         const char* p = availableThemes[i].displayName;
-        if (p != nullptr) {
-            while (*p) {
+        if (p) {
+            while (*p && cn < (int)sizeof(cleanName) - 1) {
                 unsigned char c = (unsigned char)(*p);
-
-
-                if (c >= 32 && c != '\"' && c != '\\') {
-                    cleanName += (char)c;
-                }
+                if (c >= 32 && c != '\"' && c != '\\') cleanName[cn++] = (char)c;
                 p++;
             }
-        } else {
-            cleanName = "Tema " + String(i);
         }
+        if (cn == 0) cn = snprintf(cleanName, sizeof(cleanName), "Tema %d", i);
+        cleanName[cn] = '\0';
 
-        json += "{\"id\":";
-        json += String(i);
-        json += ",\"name\":\"";
-        json += cleanName;
-        json += "\"}";
+        snprintf(entry, sizeof(entry), "%s{\"id\":%d,\"name\":\"%s\"}", i > 0 ? "," : "", i, cleanName);
+        if (!safeSend(entry)) return;
     }
-    json += "]";
 
-    _server.send(200, "application/json", json);
+    safeSend("]");
 }
 
 
@@ -1754,7 +1756,8 @@ void WebManager::handleApiStatus() {
 
     snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d},",
         devName.c_str(), millis(), _netRef->getRssi(), ipStr.c_str(), cfg.themeIndex,
-        (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
+        (unsigned long)heapFree, (unsigned long)heapTot,
+        (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
         (unsigned long)now, ntp ? 1 : 0, pending);
 
     if (!safeSend(buffer)) return;

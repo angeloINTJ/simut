@@ -231,9 +231,6 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
     requestFsLock(true);
 
     if (_currentLineCount >= MAX_RECORDS_PER_FILE) {
-        /* Fechar handle antes de rotacionar */
-        if (_logFile) _logFile.close();
-
         if (LittleFS.exists(LOG_FILE_OLD)) LittleFS.remove(LOG_FILE_OLD);
         if (LittleFS.exists(LOG_FILE_CURRENT)) LittleFS.rename(LOG_FILE_CURRENT, LOG_FILE_OLD);
         _currentLineCount = 0;
@@ -248,14 +245,14 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
         rotRec.flags     = CompactLogRecord::packFlags(LOG_INFO, get_core_num(), TAG_STO);
         rotRec.reserved  = 0;
 
-        _logFile = LittleFS.open(LOG_FILE_CURRENT, "a");
-        if (_logFile) { _logFile.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); _currentLineCount++; }
+        File rf = LittleFS.open(LOG_FILE_CURRENT, "a");
+        if (rf) { rf.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); rf.close(); _currentLineCount++; }
     }
 
-    /* Handle persistente: abrir 1x, manter aberto entre writes */
-    if (!_logFile) _logFile = LittleFS.open(LOG_FILE_CURRENT, "a");
-    if (_logFile) {
-        _logFile.write((const uint8_t*)&rec, LOG_RECORD_SIZE);
+    File f = LittleFS.open(LOG_FILE_CURRENT, "a");
+    if (f) {
+        f.write((const uint8_t*)&rec, LOG_RECORD_SIZE);
+        f.close();
         _currentLineCount++;
     }
 
@@ -270,9 +267,12 @@ void LogManager::flushPendingLogs() {
 
     requestFsLock(true);
 
+    /* Batch write: abrir 1x, escrever N entries, fechar — tudo dentro do lock */
+    File f = LittleFS.open(LOG_FILE_CURRENT, "a");
+
     for (int i = 0; i < count; i++) {
         if (_currentLineCount >= MAX_RECORDS_PER_FILE) {
-            if (_logFile) _logFile.close();
+            if (f) f.close();
             if (LittleFS.exists(LOG_FILE_OLD)) LittleFS.remove(LOG_FILE_OLD);
             if (LittleFS.exists(LOG_FILE_CURRENT)) LittleFS.rename(LOG_FILE_CURRENT, LOG_FILE_OLD);
             _currentLineCount = 0;
@@ -285,16 +285,18 @@ void LogManager::flushPendingLogs() {
             rotRec.flags     = CompactLogRecord::packFlags(LOG_INFO, get_core_num(), TAG_STO);
             rotRec.reserved  = 0;
 
-            _logFile = LittleFS.open(LOG_FILE_CURRENT, "a");
-            if (_logFile) { _logFile.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); _currentLineCount++; }
+            f = LittleFS.open(LOG_FILE_CURRENT, "a");
+            if (f) { f.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); _currentLineCount++; }
         }
 
-        if (!_logFile) _logFile = LittleFS.open(LOG_FILE_CURRENT, "a");
-        if (_logFile) {
-            _logFile.write((const uint8_t*)&_pendingLogs[i], LOG_RECORD_SIZE);
+        if (!f) f = LittleFS.open(LOG_FILE_CURRENT, "a");
+        if (f) {
+            f.write((const uint8_t*)&_pendingLogs[i], LOG_RECORD_SIZE);
             _currentLineCount++;
         }
     }
+
+    if (f) f.close();
 
     /* Registrar overflow se houve perda de entries */
     if (_pendingOverflow > 0) {

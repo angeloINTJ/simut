@@ -1281,13 +1281,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
 
                         <label data-i18n="cfg_tpl1">1. Global Template (The Envelope)</label>
-                        <input type="text" id="t_glob" name="t_glob" placeholder='{"device":"{DEV}", "payload":[{DATA}]}' oninput="renderPreview()">
+                        <input type="text" id="t_glob" name="t_glob" maxlength="255" placeholder='{"device":"{DEV}", "payload":[{DATA}]}' oninput="renderPreview()">
 
                         <label data-i18n="cfg_tpl2">2. Row Template (Single Reading)</label>
-                        <input type="text" id="t_line" name="t_line" placeholder='{"time":{TS}, "tAMB_ID":{tAMB}, "uAMB_ID":{uAMB}, "t0_ID":{t0}, "t1_ID":{t1}}' oninput="renderPreview()">
+                        <input type="text" id="t_line" name="t_line" maxlength="511" placeholder='{"time":{TS}, "tAMB_ID":{tAMB}, "uAMB_ID":{uAMB}, "t0_ID":{t0}, "t1_ID":{t1}}' oninput="renderPreview()">
 
                         <label data-i18n="cfg_tpl3">3. Separator</label>
-                        <input type="text" id="t_sep" name="t_sep" placeholder="," oninput="renderPreview()">
+                        <input type="text" id="t_sep" name="t_sep" maxlength="7" placeholder="," oninput="renderPreview()">
                     </div>
 
                     <div style="margin-top:15px;">
