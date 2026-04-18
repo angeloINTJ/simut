@@ -266,25 +266,23 @@ void CommandManager::printLogEntry(String line) {
     else       snprintf(upBuf, sizeof(upBuf), "%02lu:%02lu:%02lu", h, m, sec);
 
     const char* lvlStr = LogManager::instance().getLevelString(lvl);
-    consolePrintf("[%s][UP %s][C%d][%s][%s] Code:%d", dateBuf, upBuf, core, lvlStr, tag.c_str(), code);
-    if (extra.length() > 0) consolePrintf(" %s", extra.c_str());
+    consolePrintf("%s C%d/%s [%s]\n", dateBuf, core, lvlStr, tag.c_str());
+    consolePrintf(" UP %s  Code:%d", upBuf, code);
     if (ctx != 0) consolePrintf(" (ctx:%d)", ctx);
     consolePrintln("");
+    if (extra.length() > 0) consolePrintf("  %s\n", extra.c_str());
 }
 
 void CommandManager::printWelcome() {
-    consolePrintln("\n");
-    consolePrintln("************************************************");
-    char banner[52];
-    snprintf(banner, sizeof(banner), "* SIMUT IoT MODULAR CLI %s%*s*", SIMUT_VERSION,
-             (int)(38 - strlen(SIMUT_VERSION)), "");
-    consolePrintln(banner);
-    consolePrintln("* Type 'help' for command list                 *");
-    consolePrintln("************************************************");
+    consolePrintln("");
+    consolePrintln("===========================================");
+    consolePrintf("   SIMUT IoT CLI %s\n", SIMUT_VERSION);
+    consolePrintln("   Type 'help' for commands");
+    consolePrintln("===========================================");
 }
 
 void CommandManager::printPrompt() { consolePrint("SIMUT> "); }
-void CommandManager::printDivider() { consolePrintln("-----------------------------------------"); }
+void CommandManager::printDivider() { consolePrintln("-------------------------------------------"); }
 
 String CommandManager::formatRom(const uint8_t* rom) {
     char buff[18];
@@ -293,62 +291,66 @@ String CommandManager::formatRom(const uint8_t* rom) {
 }
 
 void CommandManager::renderSensorTable(const SensorRecord* sensors, int maxSensors) {
-    consolePrintln("\n--- Configured Sensors Database ---");
-    consolePrintln("GPIO | HW_ID     | ROM              | NAME");
-    consolePrintln("-----|-----------|------------------|--------------------");
+    consolePrintln("");
+    consolePrintln("--- Configured Sensors ---");
     bool found = false;
     for(int i=0; i<maxSensors; i++) {
         if (sensors[i].active) {
             found = true;
-            char line[128];
+            char line[64];
             String romStr = formatRom(sensors[i].rom);
-            snprintf(line, sizeof(line), " %02d  | %-9s | %s | %s", sensors[i].gpio, sensors[i].hwId, romStr.c_str(), sensors[i].friendlyName);
+            snprintf(line, sizeof(line), " [Slot %02d] %s", sensors[i].gpio, sensors[i].hwId);
             consolePrintln(line);
+            consolePrintf("   ROM:  %s\n", romStr.c_str());
+            consolePrintf("   Name: %s\n", sensors[i].friendlyName);
         }
     }
-    if (!found) consolePrintln("(Database is empty)");
+    if (!found) consolePrintln(" (database is empty)");
     printDivider();
 }
 
 void CommandManager::renderScanResults(const std::vector<ScanResult> &results) {
-    consolePrintln("\n--- Hardware Scan Results ---");
-    consolePrintln("PIN | TYPE       | DETAILS");
-    consolePrintln("----|------------|-------------------------");
-    if (results.empty()) { consolePrintln("(No physical sensors detected)"); }
+    consolePrintln("");
+    consolePrintln("--- Hardware Scan Results ---");
+    if (results.empty()) { consolePrintln(" (no physical sensors detected)"); }
     else {
         for (const auto &res : results) {
-            char line[128]; char typeStr[12]; String details;
-            if (res.type == TYPE_DS18B20) { strcpy(typeStr, "DS18B20"); details = formatRom(res.rom); }
-            else if (res.type == TYPE_DHT22) { strcpy(typeStr, "DHT22"); details = "(Temp/Hum Capable)"; }
-            else { strcpy(typeStr, "UNKNOWN"); details = "Signal detected"; }
-            snprintf(line, sizeof(line), " %02d | %-10s | %s", res.pin, typeStr, details.c_str());
-            consolePrintln(line);
+            const char* typeStr;
+            String details;
+            if (res.type == TYPE_DS18B20) { typeStr = "DS18B20"; details = formatRom(res.rom); }
+            else if (res.type == TYPE_DHT22) { typeStr = "DHT22";   details = "(Temp/Hum capable)"; }
+            else                             { typeStr = "UNKNOWN"; details = "Signal detected"; }
+            consolePrintf(" [Pin %02d] %s\n", res.pin, typeStr);
+            consolePrintf("   %s\n", details.c_str());
         }
     }
-    printInfo("Tip: Use 'sensor define' to map these to logic IDs.");
+    printInfo(" Tip: use 'sensor define' to map.");
     printDivider();
 }
 
 void CommandManager::renderSystemInfo(const SystemConfig &cfg) {
     printDivider();
-    consolePrintln(" [SYSTEM INFO]");
-    consolePrintf(" Device Name:    %s\n", cfg.deviceName);
-    consolePrintf(" Firmware Ver:   %s\n", SIMUT_VERSION);
+    consolePrintln(" [SYSTEM]");
+    consolePrintln(" Device:");
+    consolePrintf ("   %s\n", cfg.deviceName);
+    consolePrintf (" Firmware:  %s\n", SIMUT_VERSION);
     consolePrintln(" [SENSORS]");
-    consolePrintf(" DS18 Precision: %d-bit\n", cfg.ds18Resolution);
+    consolePrintf (" DS18 Precision: %d-bit\n", cfg.ds18Resolution);
     consolePrintln(" [CONNECTIVITY]");
-    consolePrintf(" WiFi SSID:      %s\n", (strlen(cfg.wifiSsid) > 0 ? cfg.wifiSsid : "<Not Configured>"));
-    consolePrintf(" Timezone:       GMT%s%d\n", (cfg.timezoneOffset >= 0 ? "+" : ""), cfg.timezoneOffset);
-    consolePrintf(" NTP Server:     %s\n", (strlen(cfg.ntpServer) > 0 ? cfg.ntpServer : "pool.ntp.org (default)"));
-    consolePrintf(" Logging:        %s\n", cfg.loggingEnabled ? "ENABLED" : "DISABLED");
+    consolePrintln(" WiFi SSID:");
+    consolePrintf ("   %s\n", (strlen(cfg.wifiSsid) > 0 ? cfg.wifiSsid : "<not configured>"));
+    consolePrintf (" Timezone:  GMT%s%d\n", (cfg.timezoneOffset >= 0 ? "+" : ""), cfg.timezoneOffset);
+    consolePrintln(" NTP Server:");
+    consolePrintf ("   %s\n", (strlen(cfg.ntpServer) > 0 ? cfg.ntpServer : "pool.ntp.org (default)"));
+    consolePrintf (" Logging:   %s\n", cfg.loggingEnabled ? "ENABLED" : "DISABLED");
     printDivider();
 }
 
 void CommandManager::renderSensorReading(const SensorReading &reading) {
-    if (!reading.isValid) { consolePrintf("[%s] Error: Read Failed or Checksum Error\n", reading.typeName); return; }
-    if (strcmp(reading.typeName, "DHT22") == 0) { consolePrintf("[DHT] Temp: %.2f C | Hum: %.2f %%\n", reading.value1, reading.value2); }
-    else if (strcmp(reading.typeName, "DS18B20") == 0) { consolePrintf("[DS18] Temp: %.4f C\n", reading.value1); }
-    else { consolePrintf("[%s] Value: %.2f\n", reading.typeName, reading.value1); }
+    if (!reading.isValid) { consolePrintf("[%s] Read/Checksum Error\n", reading.typeName); return; }
+    if (strcmp(reading.typeName, "DHT22") == 0) { consolePrintf("[DHT] T:%.2fC H:%.2f%%\n", reading.value1, reading.value2); }
+    else if (strcmp(reading.typeName, "DS18B20") == 0) { consolePrintf("[DS18] T:%.4fC\n", reading.value1); }
+    else { consolePrintf("[%s] %.2f\n", reading.typeName, reading.value1); }
 }
 
 void CommandManager::printSuccess(String msg) { consolePrint("OK: "); consolePrintln(msg); }
@@ -356,44 +358,90 @@ void CommandManager::printError(String msg) { consolePrint("ERROR: "); consolePr
 void CommandManager::printInfo(String msg) { consolePrintln(msg); }
 
 void CommandManager::printHelp() {
-    consolePrintln("\n====================== [ SIMUT HELP MENU ] ======================");
-    consolePrintln("\n--- 1. SYSTEM MONITORING ---");
-    consolePrintln(" show system info           : View device name, version and config");
-    consolePrintln(" show system log            : Dump system event log from Flash");
-    consolePrintln(" show storage stats         : Flash usage statistics");
-    consolePrintln(" show net status            : View IP, RSSI, and Sync Time");
-    consolePrintln(" show themes                : List available UI color themes");
-    consolePrintln("\n--- 2. SENSOR DIAGNOSTICS ---");
-    consolePrintln(" show sensors               : List mapped sensors (Database)");
-    consolePrintln(" sensor scan                : Hardware scan for connected sensors");
-    consolePrintln("\n--- 3. CONFIGURATION (Requires 'write memory' + 'reload') ---");
-    consolePrintln(" conf system name <value>   : Set device friendly name");
-    consolePrintln(" conf system ssid <name>    : Set WiFi SSID (Case sensitive)");
-    consolePrintln(" conf system pass <pass>    : Set WiFi Password");
-    consolePrintln(" conf system timezone <val> : Set Offset (e.g., -3 for Brazil)");
-    consolePrintln(" conf system ntp <server>   : Set NTP server (empty = pool.ntp.org)");
-    consolePrintln(" conf system theme <id>     : Set UI Theme (use ID name or index)");
-    consolePrintln(" conf system admin reset    : Resets the Admin account password to default");
-    consolePrintln(" conf system touch reset    : Reset touch calibration to factory defaults");
-    consolePrintln(" conf sensor ds18b20 resolution <9-12> : Set global DS18 resolution");
-    consolePrintln(" -- Telemetry Configuration --");
-    consolePrintln(" conf tel server <url>      : Set server address (e.g., api.mysite.com)");
-    consolePrintln(" conf tel port <port>       : Set server port (e.g., 80, 443)");
-    consolePrintln(" conf tel path <path>       : Set endpoint path (e.g., /api/v1/data)");
-    consolePrintln(" conf tel batch <size>      : Records per upload (Max 50)");
-    consolePrintln(" conf tel interval <ms>     : Auto-upload interval (0 = Disabled)");
-    consolePrintln(" conf tel crypto <on/off>   : Enable SSL/HTTPS connection");
-    consolePrintln(" conf tel mode <mode>       : Payload format (json, csv, custom)");
-    consolePrintln("\n--- 4. SENSOR MAPPING ---");
-    consolePrintln(" sensor define <gpio> <rom> <hwid> \"<name>\"");
-    consolePrintln("    Ex: sensor define 0 28AA.. S1 \"Oven_Top\"");
-    consolePrintln("    Note: GPIO 10 is reserved for Ambient Sensor");
-    consolePrintln("\n--- 5. MAINTENANCE & ACTIONS ---");
-    consolePrintln(" sensor accept <gpio>       : Authorize new physical sensor on a slot");
-    consolePrintln(" sensor wipe <gpio>         : Reset graph history context for a slot");
-    consolePrintln(" tel sync                   : Force manual telemetry upload");
-    consolePrintln(" clear log                  : Delete system log file");
-    consolePrintln(" write memory               : Persist RAM config to Flash");
-    consolePrintln(" reload                     : Reboot system");
-    consolePrintln("=================================================================");
+    consolePrintln("");
+    consolePrintln("===========================================");
+    consolePrintln("        SIMUT - COMMAND HELP");
+    consolePrintln("===========================================");
+
+    consolePrintln("");
+    consolePrintln("-- 1. MONITORING --");
+    consolePrintln("show system info");
+    consolePrintln("  Device name, version, config");
+    consolePrintln("show system log");
+    consolePrintln("  Dump event log from flash");
+    consolePrintln("show storage stats");
+    consolePrintln("  Flash usage statistics");
+    consolePrintln("show net status");
+    consolePrintln("  IP, RSSI, time sync");
+    consolePrintln("show themes");
+    consolePrintln("  List available UI themes");
+
+    consolePrintln("");
+    consolePrintln("-- 2. SENSOR DIAGNOSTICS --");
+    consolePrintln("show sensors");
+    consolePrintln("  List mapped sensors (database)");
+    consolePrintln("sensor scan");
+    consolePrintln("  Hardware scan for new sensors");
+
+    consolePrintln("");
+    consolePrintln("-- 3. CONFIGURATION --");
+    consolePrintln("  (needs 'write memory' + 'reload')");
+    consolePrintln("conf system name <value>");
+    consolePrintln("  Set device friendly name");
+    consolePrintln("conf system ssid <name>");
+    consolePrintln("  WiFi SSID (case sensitive)");
+    consolePrintln("conf system pass <pass>");
+    consolePrintln("  WiFi password");
+    consolePrintln("conf system timezone <offset>");
+    consolePrintln("  UTC offset (e.g., -3)");
+    consolePrintln("conf system ntp <server>");
+    consolePrintln("  NTP server (empty = default)");
+    consolePrintln("conf system theme <id|index>");
+    consolePrintln("  Set UI theme");
+    consolePrintln("conf system admin reset");
+    consolePrintln("  Reset admin password to default");
+    consolePrintln("conf system touch reset");
+    consolePrintln("  Reset touch calibration");
+    consolePrintln("conf sensor ds18b20 resolution <9-12>");
+    consolePrintln("  DS18B20 global resolution");
+
+    consolePrintln("");
+    consolePrintln("-- Telemetry --");
+    consolePrintln("conf tel server <url>");
+    consolePrintln("  Server address");
+    consolePrintln("conf tel port <port>");
+    consolePrintln("  Server port (80, 443, ...)");
+    consolePrintln("conf tel path <path>");
+    consolePrintln("  Endpoint path (/api/v1/data)");
+    consolePrintln("conf tel batch <n>");
+    consolePrintln("  Records per upload (max 50)");
+    consolePrintln("conf tel interval <ms>");
+    consolePrintln("  Auto-upload interval (0=off)");
+    consolePrintln("conf tel crypto <on|off>");
+    consolePrintln("  Enable SSL/HTTPS");
+    consolePrintln("conf tel mode <json|csv|custom>");
+    consolePrintln("  Payload format");
+
+    consolePrintln("");
+    consolePrintln("-- 4. SENSOR MAPPING --");
+    consolePrintln("sensor define <gpio> <rom> <hwid> \"<name>\"");
+    consolePrintln("  Ex:");
+    consolePrintln("  sensor define 0 28AA.. S1 \"Oven_Top\"");
+    consolePrintln("  Note: GPIO 10 = Ambient Sensor");
+
+    consolePrintln("");
+    consolePrintln("-- 5. MAINTENANCE --");
+    consolePrintln("sensor accept <gpio>");
+    consolePrintln("  Authorize new physical sensor");
+    consolePrintln("sensor wipe <gpio>");
+    consolePrintln("  Reset graph history for slot");
+    consolePrintln("tel sync");
+    consolePrintln("  Force telemetry upload");
+    consolePrintln("clear log");
+    consolePrintln("  Delete system log file");
+    consolePrintln("write memory");
+    consolePrintln("  Persist RAM config to flash");
+    consolePrintln("reload");
+    consolePrintln("  Reboot system");
+    consolePrintln("===========================================");
 }
