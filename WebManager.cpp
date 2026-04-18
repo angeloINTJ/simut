@@ -1329,7 +1329,9 @@ void WebManager::handleSaveNetwork() {
 
     if (saved) {
         LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, _currentUserId, "Reboot via web (network save)");
-        delay(1000);
+        /* N1: spin + watchdog feed em vez de delay() que starva o WDT */
+        uint32_t waitEnd = millis() + 1000;
+        while (!timeReached(waitEnd)) { watchdog_update(); delay(10); }
         rp2040.reboot();
     }
 }
@@ -1668,6 +1670,23 @@ void WebManager::handleUploadData() {
     if (upload.status == UPLOAD_FILE_START) {
         String filename = upload.filename;
         if (!filename.startsWith("/")) filename = "/" + filename;
+
+        /* D14: validar espaço livre antes de aceitar upload */
+        {
+            FSInfo fsi;
+            _storageRef->enterFlashReadLock();
+            LittleFS.info(fsi);
+            _storageRef->exitFlashReadLock();
+            uint32_t freeBytes = fsi.totalBytes - fsi.usedBytes;
+            if (_server.hasHeader("Content-Length")) {
+                uint32_t cl = _server.header("Content-Length").toInt();
+                if (cl > freeBytes) {
+                    LOG_CODE(LOG_WARN, "WEB", WEB_UPLOAD, (int)cl, "Upload rejected: no space");
+                    _server.send(413, "application/json", "{\"error\":\"Payload Too Large\"}");
+                    return;
+                }
+            }
+        }
 
         String targetDir = "/";
         if (_server.hasArg("uploadDir")) {

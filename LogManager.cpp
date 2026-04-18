@@ -128,26 +128,28 @@ const char* LogManager::getLevelString(LogLevel level) {
  */
 void LogManager::logCode(LogLevel level, const char* tag, LogCode code, int contextVal, String extraMsg) {
     if (level < _minSerialLevel && level < LOG_WARN) return;
-    mutex_enter_blocking(&_logMutex);
 
+    /* D11: formatar em buffer dentro do mutex, Serial I/O fora */
+    char serialBuf[192];
+    int spos = 0;
+
+    mutex_enter_blocking(&_logMutex);
 
     time_t epoch = getEpochNow();
     int core = get_core_num();
 
     if (epoch > 1600000000) {
         struct tm ti; localtime_r(&epoch, &ti);
-        Serial.printf("[%02d:%02d:%02d]", ti.tm_hour, ti.tm_min, ti.tm_sec);
+        spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, "[%02d:%02d:%02d]", ti.tm_hour, ti.tm_min, ti.tm_sec);
     } else {
-        Serial.printf("[BOOT+%lus]", millis()/1000);
+        spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, "[BOOT+%lus]", millis()/1000);
     }
 
     const char* desc = translateCode((uint16_t)code);
-    Serial.printf("[UP %s][C%d][%s][%s] %s",
+    spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, "[UP %s][C%d][%s][%s] %s",
         uptimeString().c_str(), core, getLevelString(level), tag, desc);
-    if (extraMsg.length() > 0) Serial.printf(": %s", extraMsg.c_str());
-    if (contextVal != 0) Serial.printf(" (%d)", contextVal);
-    Serial.println();
-
+    if (extraMsg.length() > 0) spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, ": %s", extraMsg.c_str());
+    if (contextVal != 0) spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, " (%d)", contextVal);
 
     if (_saveToFile) {
         CompactLogRecord rec;
@@ -160,11 +162,17 @@ void LogManager::logCode(LogLevel level, const char* tag, LogCode code, int cont
         writeCompactToFlash(rec);
     }
     mutex_exit(&_logMutex);
+
+    Serial.println(serialBuf);
 }
 
 
 void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) {
     if (level < _minSerialLevel && level < LOG_WARN) return;
+
+    char serialBuf[192];
+    int spos = 0;
+
     mutex_enter_blocking(&_logMutex);
 
     time_t epoch = getEpochNow();
@@ -172,11 +180,11 @@ void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) 
 
     if (epoch > 1600000000) {
         struct tm ti; localtime_r(&epoch, &ti);
-        Serial.printf("[%02d:%02d:%02d]", ti.tm_hour, ti.tm_min, ti.tm_sec);
+        spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, "[%02d:%02d:%02d]", ti.tm_hour, ti.tm_min, ti.tm_sec);
     } else {
-        Serial.printf("[BOOT+%lus]", millis()/1000);
+        spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, "[BOOT+%lus]", millis()/1000);
     }
-    Serial.printf("[UP %s][C%d][%s][%s] %s\n",
+    spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, "[UP %s][C%d][%s][%s] %s",
         uptimeString().c_str(), core, getLevelString(level), tag, msg.c_str());
 
     if (_saveToFile && level >= LOG_INFO) {
@@ -190,6 +198,8 @@ void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) 
         writeCompactToFlash(rec);
     }
     mutex_exit(&_logMutex);
+
+    Serial.println(serialBuf);
 }
 
 
@@ -382,9 +392,9 @@ void LogManager::checkCrossCoreHealth() {
 
     uint32_t lastBeat = _coreHeartbeat[otherCore];
 
-    if (now >= lastBeat) {
+    /* U6: subtração unsigned é wrap-safe; guard removido */
+    {
         uint32_t elapsed = now - lastBeat;
-
 
         if (elapsed > 8000) {
             watchdog_hw->scratch[5] = 0xCA11B007;

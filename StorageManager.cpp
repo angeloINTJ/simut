@@ -725,7 +725,7 @@ String StorageManager::hashPassword(const String& username, const String& plainP
     unsigned char currentHash[32];
     br_hmac_init(&ctx, &kc, 0); br_hmac_update(&ctx, salt.c_str(), salt.length()); br_hmac_out(&ctx, currentHash);
     for (int r = 0; r < 2500; r++) {
-        if (r % 100 == 0) watchdog_update();
+        if (r % 50 == 0) watchdog_update();  /* U5: feed mais frequente */
         br_hmac_init(&ctx, &kc, 0); br_hmac_update(&ctx, currentHash, 32); br_hmac_out(&ctx, currentHash);
     }
 
