@@ -91,13 +91,19 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
         if (LittleFS.exists("/cert.pem")) {
             File certFile = LittleFS.open("/cert.pem", "r");
             if (certFile) {
-                _cachedCert = certFile.readString();
-                certFile.close();
-                if (_cachedCert.length() > 0) {
-                    _hasCert = true;
-                    LOG_CODE(LOG_INFO, "TEL", SYS_TEL_SSL, _cachedCert.length(), "SSL cert.pem loaded (" + String(_cachedCert.length()) + " bytes)");
+                /* N9: rejeitar cert > 16 KB para evitar OOM no boot */
+                if (certFile.size() > 16384) {
+                    LOG_CODE(LOG_WARN, "TEL", TEL_CERT_READ_ERR, (int)certFile.size(), "cert.pem too large");
+                    certFile.close();
                 } else {
-                    LOG_CODE(LOG_WARN, "TEL", TEL_CERT_EMPTY, 0, "");
+                    _cachedCert = certFile.readString();
+                    certFile.close();
+                    if (_cachedCert.length() > 0) {
+                        _hasCert = true;
+                        LOG_CODE(LOG_INFO, "TEL", SYS_TEL_SSL, _cachedCert.length(), "SSL cert.pem loaded (" + String(_cachedCert.length()) + " bytes)");
+                    } else {
+                        LOG_CODE(LOG_WARN, "TEL", TEL_CERT_EMPTY, 0, "");
+                    }
                 }
             } else {
                 LOG_CODE(LOG_WARN, "TEL", TEL_CERT_READ_ERR, 0, "");
@@ -140,8 +146,9 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
          * HTTP: pré-aloca WiFiClientSecure no boot para evitar fragmentação.
          * Se alocado tardiamente, a heap pode estar fragmentada demais para
          * o bloco contíguo de ~16KB que o TLS precisa.
+         * U13: só aloca se telemetria está ativa (telInterval > 0).
          */
-        if (cfg.telEncryption) {
+        if (cfg.telEncryption && cfg.telInterval > 0) {
             _httpSecurePtr = new WiFiClientSecure();
             if (_httpSecurePtr) {
                 _httpSecurePtr->setTimeout(NET_SOCKET_TIMEOUT_MS);

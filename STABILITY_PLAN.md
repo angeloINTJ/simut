@@ -245,7 +245,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F4 — Logging & Flash Wear** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.4` | 2026-04-18 |
 | **F5 — Heap & String** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.5` | 2026-04-18 |
 | **F6 — Long-term & Edge Cases** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.6` | 2026-04-18 |
-| F7 — Hardening & Polish | ⚪ Pendente | — | — | — |
+| **F7 — Hardening & Polish** | ✅ Concluída | `stability-fixes-tier1` | `v3.6.0` | 2026-04-18 |
 
 ### Legenda de Status
 
@@ -260,15 +260,15 @@ Atualize esta tabela conforme cada fase for concluída.
 
 | ID | Sev | Fase | Status | Observação |
 |---|---|---|---|---|
-| N1 | 🔴 | F7 | ⚪ | |
+| N1 | 🔴 | F7 | ✅ | `delay(1000)` → spin + `watchdog_update()` antes de reboot. |
 | N2 | 🔴 | F1 | ✅ | Backoff exponencial + fallback pool.ntp.org (`NetworkManager.cpp`). |
 | N3 | 🔴 | F1 | ✅ | `TelemetryGuard` estendido para `WDT_FEED_MAX_WINDOW_MS` (60 s). |
 | N4 | 🔴 | F1 | ✅ | `SendGuard` + flag `_sendGuardExpired` → aborto limpo em `isClientGone()`. |
 | N5 | 🟠 | F6 | ✅ | AP mode timeout 15 min → reboot para STA se SSID configurado. |
 | N6 | 🟠 | F1 | ✅ | Já mitigado em prod (throttle 5 s interno). |
 | N7 | 🟠 | F6 | ⚠️ | PubSubClient não suporta QoS>0 por publish; cursor parcial mitiga. |
-| N8 | 🟠 | F7 | ⚪ | |
-| N9 | 🟡 | F7 | ⚪ | |
+| N8 | 🟠 | F7 | ⚠️ | TCP keepalive via LwIP — risco de regressão; adiado. |
+| N9 | 🟡 | F7 | ✅ | `cert.pem` validado `<= 16 KB` antes de `readString()`. |
 | N10 | 🟡 | F2 | ✅ | `_authBuffer` limitado a `BT_AUTH_BUFFER_MAX` (64 chars). |
 | D1 | 🔴 | F2 | ✅ | Rate-limiter 16 slots com TTL 15 min (`WebManager.cpp`). |
 | D2 | 🔴 | F2 | ✅ | `failCount++` em nonce expirado + lockout exponencial. |
@@ -280,20 +280,20 @@ Atualize esta tabela conforme cada fase for concluída.
 | D8 | 🟠 | F3 | ✅ | `_isSending` com `__atomic_compare_exchange_n` (CAS). |
 | D9 | 🟠 | F4 | ✅ | `LOG_PENDING_MAX` 8→32 + overflow counter logado. |
 | D10 | 🟠 | F4 | ✅ | `setLastSentTimestamp` com coalesce 5s (~5x menos writes). |
-| D11 | 🟡 | F7 | ⚪ | |
+| D11 | 🟡 | F7 | ✅ | `Serial.println` movido para fora do mutex em `logCode`/`log`. |
 | D12 | 🟡 | F3 | ✅ | `_cancelScreenshot` flag + 409 Conflict em request concorrente. |
 | D13 | 🟡 | F2 | ✅ | Validação `isValidName(u,31)` + `password<=128` antes de `hashPassword`. |
-| D14 | 🟢 | F7 | ⚪ | |
+| D14 | 🟢 | F7 | ✅ | Upload valida `Content-Length` vs espaço livre; 413 se excede. |
 | U1 | 🔴 | F3 | ✅ | Ver D4 — dirty flag elimina scan contínuo. |
 | U2 | 🔴 | F4 | ✅ | `APP_HEAP_REPORT` só quando heap < 32 KB ou 1x/hora. |
 | U3 | 🔴 | F5 | ⚪ | |
-| U4 | 🔴 | F7 | ⚪ | |
-| U5 | 🟠 | F7 | ⚪ | |
-| U6 | 🟠 | F7 | ⚪ | |
+| U4 | 🔴 | F7 | ⚠️ | `uptimeHr` em CompactLogRecord — mudar exige migração de formato. |
+| U5 | 🟠 | F7 | ✅ | `hashPassword` feed a cada 50 rounds (era 100). |
+| U6 | 🟠 | F7 | ✅ | Guard `now >= lastBeat` removido; subtração wrap-safe. |
 | U7 | 🟠 | F6 | ✅ | `invalidateOldestFileCache()` em upload + criação de arquivo. |
 | U8 | 🟠 | F6 | ✅ | `collectBatch` fallback: `lastRecordedTs - 30d` quando cursor=0. |
-| U9 | 🟡 | F7 | ⚪ | |
+| U9 | 🟡 | F7 | ✅ | Documentado como wrap-safe (unsigned subtraction). |
 | U10 | 🟡 | F6 | ✅ | Watermark persistente em `correctProvisionalTimestamps`. |
 | U11 | 🟡 | F6 | ✅ | Heartbeat 1x/hora após supressão de logs de telemetria. |
 | U12 | 🟢 | F5 | ✅ | `maxlength` em t_glob (255), t_line (511), t_sep (7). |
-| U13 | 🟢 | F7 | ⚪ | |
+| U13 | 🟢 | F7 | ✅ | TLS client só alocado se `telInterval > 0`. |
