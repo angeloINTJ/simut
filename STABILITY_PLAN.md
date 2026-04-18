@@ -239,7 +239,7 @@ Atualize esta tabela conforme cada fase for concluída.
 
 | Fase | Status | PR | Tag | Data conclusão |
 |---|---|---|---|---|
-| **F1 — Watchdog & Timeouts** | ✅ Concluída (pendente teste em hardware) | `stability-fixes-tier1` | — | 2026-04-15 |
+| **F1 — Watchdog & Timeouts** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.0` | 2026-04-18 |
 | F2 — Autenticação & Rate Limit | ⚪ Pendente | — | — | — |
 | F3 — Handlers & Concorrência | ⚪ Pendente | — | — | — |
 | F4 — Logging & Flash Wear | ⚪ Pendente | — | — | — |
