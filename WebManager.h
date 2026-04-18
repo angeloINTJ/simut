@@ -96,6 +96,7 @@ private:
 
 
     volatile bool _isProcessingScreenshot = false;
+    volatile bool _cancelScreenshot = false;
     volatile bool _inHistoryHandler = false;
 
 

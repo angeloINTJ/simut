@@ -1816,7 +1816,7 @@ void WebManager::handleApiHistoryData() {
 
 
     uint32_t savedDeadline = _handlerDeadline;
-    _handlerDeadline = millis() + 30000;
+    _handlerDeadline = millis() + WEB_LONG_HANDLER_DEADLINE_MS;
 
 
     if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str());
@@ -2117,7 +2117,7 @@ void WebManager::handleApiLogs() {
 
 
     uint32_t savedDeadline = _handlerDeadline;
-    _handlerDeadline = millis() + 30000;
+    _handlerDeadline = millis() + WEB_LONG_HANDLER_DEADLINE_MS;
     if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str());
 
     /*
@@ -2214,8 +2214,12 @@ void WebManager::handleApiScreenshot() {
 
 
     if (__atomic_exchange_n(&_isProcessingScreenshot, true, __ATOMIC_ACQ_REL)) {
-        _server.send(429, "text/plain", "Too Many Requests."); return;
+        /* Screenshot em andamento: sinalizar cancelamento e retornar 409 */
+        _cancelScreenshot = true;
+        _server.send(409, "application/json", "{\"error\":\"Screenshot in progress, cancelling.\"}");
+        return;
     }
+    _cancelScreenshot = false;
 
     if (!_displayRef) {
         __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
@@ -2225,7 +2229,7 @@ void WebManager::handleApiScreenshot() {
 
 
     uint32_t savedDeadline = _handlerDeadline;
-    _handlerDeadline = millis() + 30000;
+    _handlerDeadline = millis() + WEB_LONG_HANDLER_DEADLINE_MS;
 
     uint32_t w = 320;
     uint32_t h = 240;
@@ -2267,7 +2271,7 @@ void WebManager::handleApiScreenshot() {
             rowBuffer[x*3 + 2] = ((color & 0xF800) >> 11) << 3;
         }
 
-        if (!_server.client().connected() || isHandlerOvertime()) {
+        if (!_server.client().connected() || isHandlerOvertime() || _cancelScreenshot) {
             clientDisconnected = true;
             break;
         }

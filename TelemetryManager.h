@@ -34,6 +34,7 @@ public:
 
     uint16_t getPendingEstimate() const;
     void     refreshPendingCount();
+    void     notifyNewRecord();
 
     /**
      * @brief Consome o resultado do último envio (se houver).
@@ -47,13 +48,14 @@ private:
     NetworkManager* _netRef;
 
     uint32_t _lastCheckTime;
-    bool _isSending;
+    volatile bool _isSending = false;
 
 
     String _cachedCert;
     bool   _hasCert;
 
     volatile uint16_t _pendingEstimate = 0;
+    volatile bool     _pendingDirty    = true;
 
     volatile bool _hasSendResult    = false;
     volatile bool _lastSendSuccess  = false;

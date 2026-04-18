@@ -66,7 +66,6 @@ TelemetryManager::TelemetryManager()
     : _mqttClient(_mqttWifiClient)
 {
     _lastCheckTime = 0;
-    _isSending = false;
     _hasCert = false;
     _currentBackoff = BACKOFF_MIN_MS;
     _backoffUntil = 0;
@@ -191,25 +190,26 @@ void TelemetryManager::update() {
     _lastCheckTime = now;
 
 
-    if (_isSending) return;
-    if (!_netRef->isNetworkHealthy()) return;
-    if (!_storageRef->lockHeavyTask()) return;
+    /* CAS atômico: impede race entre update() periódico e forceSync() CLI */
+    bool expected = false;
+    if (!__atomic_compare_exchange_n(&_isSending, &expected, true,
+                                     false, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) return;
+    if (!_netRef->isNetworkHealthy()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return; }
+    if (!_storageRef->lockHeavyTask()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return; }
 
     /* Aborta se heap está criticamente baixa para evitar hard fault */
     if (rp2040.getFreeHeap() < 20480) {
         _storageRef->unlockHeavyTask();
+        __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
         escalateBackoff();
         return;
     }
-
-    _isSending = true;
 
     std::vector<BinaryHistoryRecord> batch;
     uint32_t newCursor = 0;
 
     if (!collectBatch(batch, newCursor)) {
-
-        _isSending = false;
+        __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
         _storageRef->unlockHeavyTask();
         resetBackoff();
         return;
@@ -241,8 +241,9 @@ void TelemetryManager::update() {
         success = attemptHttpUpload(payload, newCursor);
     }
 
-    _isSending = false;
+    __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
     _storageRef->unlockHeavyTask();
+    _pendingDirty = true;  /* Recalibrar após envio */
 
     if (success) {
         resetBackoff();
@@ -719,16 +720,17 @@ bool TelemetryManager::forceSync() {
     LOG_CODE(LOG_INFO, "TEL", TEL_FORCE_SYNC, 0, "");
     resetBackoff();
 
-    if (!_netRef->isNetworkHealthy()) return false;
-    if (!_storageRef->lockHeavyTask()) return false;
-
-    _isSending = true;
+    bool expected = false;
+    if (!__atomic_compare_exchange_n(&_isSending, &expected, true,
+                                     false, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) return false;
+    if (!_netRef->isNetworkHealthy()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return false; }
+    if (!_storageRef->lockHeavyTask()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return false; }
 
     std::vector<BinaryHistoryRecord> batch;
     uint32_t newCursor = 0;
 
     if (!collectBatch(batch, newCursor)) {
-        _isSending = false;
+        __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
         _storageRef->unlockHeavyTask();
         return true;
     }
@@ -747,8 +749,9 @@ bool TelemetryManager::forceSync() {
         ok = attemptHttpUpload(payload, newCursor);
     }
 
-    _isSending = false;
+    __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
     _storageRef->unlockHeavyTask();
+    _pendingDirty = true;  /* Recalibrar após envio */
 
     if (!ok) escalateBackoff();
     return ok;
@@ -946,6 +949,8 @@ String TelemetryManager::formatLineCustom(const BinaryHistoryRecord& rec, const 
  * Called periodically (~10s) by AppManager for dashboard display.
  */
 void TelemetryManager::refreshPendingCount() {
+    if (!_pendingDirty) return;
+
     SystemConfig& cfg = _storageRef->getConfig();
     uint32_t lastCursor = _storageRef->getLastSentTimestamp();
 
@@ -1004,11 +1009,16 @@ void TelemetryManager::refreshPendingCount() {
     }
 
     _pendingEstimate = total;
+    _pendingDirty = false;
 }
 
 
 uint16_t TelemetryManager::getPendingEstimate() const {
     return _pendingEstimate;
+}
+
+void TelemetryManager::notifyNewRecord() {
+    __atomic_fetch_add(&_pendingEstimate, 1, __ATOMIC_RELAXED);
 }
 
 

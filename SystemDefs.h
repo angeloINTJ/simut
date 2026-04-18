@@ -149,6 +149,11 @@ constexpr uint8_t  LOGIN_STATE_SLOTS         = 8;
 /** Tamanho máximo do buffer de entrada de senha via Bluetooth. */
 constexpr uint8_t  BT_AUTH_BUFFER_MAX        = 64;
 
+/* ── Web handlers ── */
+
+/** Deadline para handlers longos (history, logs, screenshot) em ms. */
+constexpr uint32_t WEB_LONG_HANDLER_DEADLINE_MS = 10000;
+
 /* =========================================================================== */
 /*                       SAFE STRING COPY UTILITY                            */
 /* =========================================================================== */
