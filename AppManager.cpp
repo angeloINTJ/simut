@@ -182,6 +182,15 @@ void AppManager::setup() {
         _displayMgr.loadDisplayOffset(ofs);
     }
 
+    /* B4: modo CLI (debug/config). Default = CONFIG (debug OFF) se magic inválido. */
+    {
+        const CliConfigData* cli = reinterpret_cast<const CliConfigData*>(
+            cfg.reserved + CLI_CONFIG_OFFSET);
+        bool debugOn = (cli->magic == CLI_CONFIG_MAGIC) && (cli->debugMode != 0);
+        LogManager::instance().setConsoleStream(debugOn);
+        _cmdMgr.setDebugMode(debugOn);
+    }
+
 
     {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
@@ -847,6 +856,23 @@ void AppManager::executeCommand(CliDemand cmd) {
             rp2040.reboot();
             break;
         case CMD_TEL_SYNC: _telemetryMgr.forceSync(); _cmdMgr.printSuccess("Telemetry sync triggered."); break;
+
+        case CMD_DEBUG: {
+            CliConfigData* cli = reinterpret_cast<CliConfigData*>(
+                cfg.reserved + CLI_CONFIG_OFFSET);
+            if (cmd.intVal1 == 1 || cmd.intVal1 == 0) {
+                bool on = (cmd.intVal1 == 1);
+                cli->magic = CLI_CONFIG_MAGIC;
+                cli->debugMode = on ? 1 : 0;
+                LogManager::instance().setConsoleStream(on);
+                _cmdMgr.setDebugMode(on);
+                _cmdMgr.printSuccess(on ? "Debug: ON" : "Debug: OFF");
+                changed = true;
+            } else {
+                _cmdMgr.printInfo(_cmdMgr.isDebugMode() ? "Debug: ON" : "Debug: OFF");
+            }
+            break;
+        }
 
         case CMD_UNKNOWN:
         default:

@@ -237,6 +237,14 @@ CliDemand CommandManager::parseCommand(String input) {
     if (t0 == "clear" && t1 == "log") { cmd.type = CMD_CLEAR_LOGS; return cmd; }
     if (t0 == "tel" && t1 == "sync") { cmd.type = CMD_TEL_SYNC; return cmd; }
 
+    if (t0 == "debug") {
+        cmd.type = CMD_DEBUG;
+        if      (t1 == "on")  cmd.intVal1 = 1;
+        else if (t1 == "off") cmd.intVal1 = 0;
+        else                  cmd.intVal1 = -1;   /* query sem argumento */
+        return cmd;
+    }
+
     return cmd;
 }
 
@@ -288,7 +296,7 @@ void CommandManager::printWelcome() {
     consolePrintln("===========================================");
 }
 
-void CommandManager::printPrompt() { consolePrint("SIMUT> "); }
+void CommandManager::printPrompt() { consolePrint(_debugMode ? "SIMUT# " : "SIMUT> "); }
 void CommandManager::printDivider() { consolePrintln("-------------------------------------------"); }
 
 String CommandManager::formatRom(const uint8_t* rom) {
@@ -450,5 +458,15 @@ void CommandManager::printHelp() {
     consolePrintln("  Persist RAM config to flash");
     consolePrintln("reload");
     consolePrintln("  Reboot system");
+
+    consolePrintln("");
+    consolePrintln("-- 6. SESSION MODE --");
+    consolePrintln("debug on");
+    consolePrintln("  Stream logs to console (SIMUT#)");
+    consolePrintln("debug off");
+    consolePrintln("  Quiet console, cmds only (SIMUT>)");
+    consolePrintln("debug");
+    consolePrintln("  Show current mode");
+    consolePrintln("  Note: 'write memory' to persist");
     consolePrintln("===========================================");
 }
