@@ -15,6 +15,7 @@
 
 #pragma once
 #include <Arduino.h>
+#include <functional>
 #include "pico/mutex.h"
 #include "SystemDefs.h"
 
@@ -23,6 +24,9 @@
 #define MAX_RECORDS_PER_FILE 800
 
 typedef void (*FlashLockCallback)(bool);
+
+/** Sink de saída de log no console (USB+BT) — uma linha por chamada, sem '\n'. */
+typedef std::function<void(const char*)> ConsoleSink;
 
 enum LogLevel {
     LOG_DEBUG = 0,
@@ -43,6 +47,7 @@ public:
     void setLockCallback(FlashLockCallback cb);
     void setHeavyTaskChecker(bool (*fn)());
     void setTouchPriorityChecker(bool (*fn)());
+    void setConsoleSink(ConsoleSink sink);
     void begin(bool saveToFile = false, LogLevel minSerialLevel = LOG_INFO);
 
 
@@ -83,6 +88,8 @@ private:
     uint16_t _currentLineCount;
 
     FlashLockCallback _lockCb = nullptr;
+    ConsoleSink _consoleSink = nullptr;
+    void emitLine(const char* line);
     void requestFsLock(bool lock);
 
 

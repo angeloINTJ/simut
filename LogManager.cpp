@@ -38,6 +38,16 @@ LogManager::LogManager() {
 
 void LogManager::setLockCallback(FlashLockCallback cb) { _lockCb = cb; }
 
+void LogManager::setConsoleSink(ConsoleSink sink) { _consoleSink = sink; }
+
+/* Emite uma linha no console.
+ * Se sink instalado (CommandManager): espelha USB+BT via consolePrintln.
+ * Caso contrário: fallback em Serial direto (pré-boot, antes de _cmdMgr.begin()). */
+void LogManager::emitLine(const char* line) {
+    if (_consoleSink) _consoleSink(line);
+    else Serial.println(line);
+}
+
 
 void LogManager::setHeavyTaskChecker(bool (*fn)()) {
     _isHeavyTaskFn = fn;
@@ -163,7 +173,7 @@ void LogManager::logCode(LogLevel level, const char* tag, LogCode code, int cont
     }
     mutex_exit(&_logMutex);
 
-    Serial.println(serialBuf);
+    emitLine(serialBuf);
 }
 
 
@@ -199,7 +209,7 @@ void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) 
     }
     mutex_exit(&_logMutex);
 
-    Serial.println(serialBuf);
+    emitLine(serialBuf);
 }
 
 
@@ -245,8 +255,8 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
         if (LittleFS.exists(LOG_FILE_CURRENT)) LittleFS.rename(LOG_FILE_CURRENT, LOG_FILE_OLD);
         _currentLineCount = 0;
 
-        /* Registra a rotação como primeiro entry do novo arquivo (serial + flash) */
-        Serial.println("[LOG] Log file rotated.");
+        /* Registra a rotação como primeiro entry do novo arquivo (console + flash) */
+        emitLine("[LOG] Log file rotated.");
         CompactLogRecord rotRec;
         rotRec.epoch     = (uint32_t)getEpochNow();
         rotRec.uptimeHr  = (uint16_t)(millis() / 3600000UL);
@@ -310,7 +320,9 @@ void LogManager::flushPendingLogs() {
 
     /* Registrar overflow se houve perda de entries */
     if (_pendingOverflow > 0) {
-        Serial.printf("[LOG] WARN: %u log entries dropped (buffer full)\n", _pendingOverflow);
+        char buf[64];
+        snprintf(buf, sizeof(buf), "[LOG] WARN: %u log entries dropped (buffer full)", _pendingOverflow);
+        emitLine(buf);
         _pendingOverflow = 0;
     }
 
