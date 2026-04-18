@@ -131,6 +131,23 @@ constexpr uint32_t NTP_MAX_RETRY_DELAY_MS   = 900000;
  */
 constexpr uint8_t  NTP_FAILS_BEFORE_FALLBACK = 3;
 
+/* ── Rate-limiter (WebManager) ── */
+
+/** Número de slots no rate-limiter por IP. */
+constexpr uint8_t  RATE_LIMIT_SLOTS          = 16;
+
+/** TTL de uma entrada no rate-limiter (ms). Slot expirado é tratado como livre. */
+constexpr uint32_t RATE_LIMIT_TTL_MS         = 900000;
+
+/* ── Login state ── */
+
+/** Número de slots para rastreamento de estado de login (IP → failCount). */
+constexpr uint8_t  LOGIN_STATE_SLOTS         = 8;
+
+/* ── Bluetooth auth ── */
+
+/** Tamanho máximo do buffer de entrada de senha via Bluetooth. */
+constexpr uint8_t  BT_AUTH_BUFFER_MAX        = 64;
 
 /* =========================================================================== */
 /*                       SAFE STRING COPY UTILITY                            */

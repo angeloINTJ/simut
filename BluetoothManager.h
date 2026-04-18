@@ -14,6 +14,7 @@
 #include <Arduino.h>
 #include <functional>
 #include <SerialBT.h>
+#include "SystemDefs.h"
 
 
 /** Callback type for password validation — returns true if credentials match. */

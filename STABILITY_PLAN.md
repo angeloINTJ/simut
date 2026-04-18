@@ -240,7 +240,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | Fase | Status | PR | Tag | Data conclusão |
 |---|---|---|---|---|
 | **F1 — Watchdog & Timeouts** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.0` | 2026-04-18 |
-| F2 — Autenticação & Rate Limit | ⚪ Pendente | — | — | — |
+| **F2 — Autenticação & Rate Limit** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.1` | 2026-04-18 |
 | F3 — Handlers & Concorrência | ⚪ Pendente | — | — | — |
 | F4 — Logging & Flash Wear | ⚪ Pendente | — | — | — |
 | F5 — Heap & String | ⚪ Pendente | — | — | — |
@@ -269,9 +269,9 @@ Atualize esta tabela conforme cada fase for concluída.
 | N7 | 🟠 | F6 | ⚪ | |
 | N8 | 🟠 | F7 | ⚪ | |
 | N9 | 🟡 | F7 | ⚪ | |
-| N10 | 🟡 | F2 | ⚪ | |
-| D1 | 🔴 | F2 | ⚪ | |
-| D2 | 🔴 | F2 | ⚪ | |
+| N10 | 🟡 | F2 | ✅ | `_authBuffer` limitado a `BT_AUTH_BUFFER_MAX` (64 chars). |
+| D1 | 🔴 | F2 | ✅ | Rate-limiter 16 slots com TTL 15 min (`WebManager.cpp`). |
+| D2 | 🔴 | F2 | ✅ | `failCount++` em nonce expirado + lockout exponencial. |
 | D3 | 🔴 | F3 | ⚪ | Mitigação parcial; solução completa exige async. |
 | D4 | 🔴 | F3 | ⚪ | |
 | D5 | 🔴 | F4 | ⚪ | |
@@ -282,7 +282,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | D10 | 🟠 | F4 | ⚪ | |
 | D11 | 🟡 | F7 | ⚪ | |
 | D12 | 🟡 | F3 | ⚪ | |
-| D13 | 🟡 | F2 | ⚪ | |
+| D13 | 🟡 | F2 | ✅ | Validação `isValidName(u,31)` + `password<=128` antes de `hashPassword`. |
 | D14 | 🟢 | F7 | ⚪ | |
 | U1 | 🔴 | F3 | ⚪ | |
 | U2 | 🔴 | F4 | ⚪ | |

@@ -139,8 +139,11 @@ void AppManager::setup() {
     _cmdMgr.setBtValidator([this](String attempt) -> bool {
         SystemConfig &cfg = _storageMgr.getConfig();
         if (!cfg.users[0].active) return false;
+        /* Frontend envia SHA256(plaintext) antes do hashPassword;
+         * sha256Hex espelha esse comportamento (UTF-8 → Latin-1). */
+        String preHash = _storageMgr.sha256Hex(attempt);
         String hashed = _storageMgr.hashPassword(
-            String(cfg.users[0].username), attempt);
+            String(cfg.users[0].username), preHash);
         return (hashed == String(cfg.users[0].password));
     });
 
