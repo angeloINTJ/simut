@@ -20,7 +20,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.7.0"          /* Firmware version string */
+#define SIMUT_VERSION "v3.8.0"          /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -313,6 +313,7 @@ enum LogCode {
     SYS_STORAGE_ROTATE  = 22,
     SYS_STORAGE_FORMAT  = 23,
     SYS_STORAGE_RECOVER = 24,
+    SYS_STORAGE_MIGRATED = 25,
 
     SYS_TEL_SENT        = 30,
     SYS_TEL_FAIL        = 31,
@@ -604,8 +605,20 @@ struct __attribute__((packed)) SystemConfig {
     uint8_t displayLang;
 
     char ntpServer[32];             /**< Servidor NTP configurável (default: pool.ntp.org) */
-    uint8_t reserved[24];           /**< TouchCalData + SoundConfigData + DisplayOffsetData + spare */
+    /* reserved[] layout:
+     *  [ 0..11] TouchCalData        (12 B)
+     *  [12..17] SoundConfigData     (6 B)
+     *  [18..21] DisplayOffsetData   (4 B)
+     *  [22..23] CliConfigData       (2 B, Fase B v3.7.0)
+     *  [24..63] livre para expansão futura
+     * Expandido de 24→64 em CONFIG_VERSION 13 (v3.8.0) com migração transparente
+     * de v12 via StorageManager::attemptLoad.
+     */
+    uint8_t reserved[64];
 };
+
+/** Tamanho do campo reserved[] nas configs v12 (pré v3.8.0) — usado na migração. */
+#define CONFIG_V12_RESERVED_SIZE 24
 
 
 /* =========================================================================== */

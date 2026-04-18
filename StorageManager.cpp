@@ -23,7 +23,14 @@
 #include <bearssl/bearssl_hmac.h>
 
 const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
-const uint16_t CONFIG_VERSION = 12;
+const uint16_t CONFIG_VERSION = 13;
+
+/* Tamanho do blob de config no formato v12 (pré v3.8.0):
+ * layout bit-idêntico ao v13 exceto por reserved[24] em vez de reserved[64].
+ * Como reserved fica no fim do struct, CONFIG_V12_BLOB_SIZE = sizeof(SystemConfig) - 40.
+ * Usado para detectar pelo tamanho do arquivo qual formato está no flash. */
+static constexpr size_t CONFIG_V12_BLOB_SIZE =
+    sizeof(SystemConfig) - (64 - CONFIG_V12_RESERVED_SIZE);
 
 StorageManager::StorageManager() {
     mutex_init(&_fsReadMutex);
@@ -195,13 +202,11 @@ uint32_t StorageManager::calculateCRC32(const uint8_t *data, size_t length) {
     return ~crc;
 }
 
-bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
-    File f = LittleFS.open(path, "r");
-    if (!f) return false;
+/* Lê config no formato atual (v13). CRC calculado sobre sizeof(SystemConfig). */
+bool StorageManager::loadAsV13(File& f, SystemConfig& outCfg) {
     size_t bytesRead = f.read((uint8_t*)&outCfg, sizeof(SystemConfig));
     uint32_t readCrc = 0;
     size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
-    f.close();
     if (bytesRead != sizeof(SystemConfig)) return false;
     if (outCfg.magic != CONFIG_MAGIC || outCfg.version != CONFIG_VERSION) return false;
     if (crcRead == sizeof(readCrc)) {
@@ -211,26 +216,87 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
     return true;
 }
 
+/* Lê config no formato legado (v12, 24 bytes reserved) e migra para v13 em memória.
+ * Layout é bit-idêntico até o início do reserved — basta ler CONFIG_V12_BLOB_SIZE
+ * bytes, zerar o tail reserved[24..63] e promover version=13.
+ * CRC do v12 foi calculado sobre CONFIG_V12_BLOB_SIZE bytes. */
+bool StorageManager::loadAndMigrateV12(File& f, SystemConfig& outCfg) {
+    memset(&outCfg, 0, sizeof(outCfg));
+    size_t bytesRead = f.read((uint8_t*)&outCfg, CONFIG_V12_BLOB_SIZE);
+    uint32_t readCrc = 0;
+    size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
+    if (bytesRead != CONFIG_V12_BLOB_SIZE) return false;
+    if (outCfg.magic != CONFIG_MAGIC || outCfg.version != 12) return false;
+    if (crcRead == sizeof(readCrc)) {
+        uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, CONFIG_V12_BLOB_SIZE);
+        if (calcCrc != readCrc) return false;
+    }
+    /* Promove para v13 — reserved[24..63] já zerado pelo memset inicial. */
+    outCfg.version = CONFIG_VERSION;
+    return true;
+}
+
+bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
+    File f = LittleFS.open(path, "r");
+    if (!f) return false;
+    size_t fileSize = f.size();
+
+    /* Tenta v13 (formato atual) primeiro — caso típico pós-upgrade. */
+    if (fileSize == sizeof(SystemConfig) + sizeof(uint32_t)) {
+        bool ok = loadAsV13(f, outCfg);
+        f.close();
+        return ok;
+    }
+
+    /* Fallback: arquivo tem tamanho v12 → lê, valida e migra. */
+    if (fileSize == CONFIG_V12_BLOB_SIZE + sizeof(uint32_t)) {
+        bool ok = loadAndMigrateV12(f, outCfg);
+        f.close();
+        if (ok) _didMigrate = true;
+        return ok;
+    }
+
+    f.close();
+    return false;
+}
+
 bool StorageManager::loadConfiguration() {
 
+    _didMigrate = false;
 
     enterFlashReadLock();
     SystemConfig tempConfig;
+    bool loaded = false;
+    bool fromBackup = false;
     if (LittleFS.exists(FILE_CONFIG) && attemptLoad(FILE_CONFIG, tempConfig)) {
         _currentConfig = tempConfig;
-        exitFlashReadLock();
-        return true;
-    }
-    if (LittleFS.exists(FILE_BACKUP) && attemptLoad(FILE_BACKUP, tempConfig)) {
+        loaded = true;
+    } else if (LittleFS.exists(FILE_BACKUP) && attemptLoad(FILE_BACKUP, tempConfig)) {
         _currentConfig = tempConfig;
-        exitFlashReadLock();
-        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, "Primary config corrupt, recovered from backup");
-        saveConfiguration();
-        return true;
+        loaded = true;
+        fromBackup = true;
     }
     exitFlashReadLock();
-    loadDefaults();
-    return false;
+
+    if (!loaded) {
+        loadDefaults();
+        return false;
+    }
+
+    if (fromBackup) {
+        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, "Primary config corrupt, recovered from backup");
+    }
+
+    /* Migração v12→v13: persistir no novo formato antes de entregar o controle.
+     * saveConfiguration() já marca magic/version e escreve via tmp→rename atômico. */
+    if (_didMigrate) {
+        _didMigrate = false;
+        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, 12, "Config v12→v13 migrated");
+        saveConfiguration();
+    } else if (fromBackup) {
+        saveConfiguration();
+    }
+    return true;
 }
 
 /**
