@@ -15,7 +15,6 @@
 
 #pragma once
 #include <Arduino.h>
-#include <FS.h>
 #include "pico/mutex.h"
 #include "SystemDefs.h"
 
@@ -91,8 +90,6 @@ private:
     CompactLogRecord _pendingLogs[LOG_PENDING_MAX];
     volatile int _pendingCount = 0;
     uint16_t _pendingOverflow = 0;
-
-    File _logFile;  /* Handle persistente — aberto 1x, fechado só na rotação */
     bool _heavyTaskCheckEnabled = false;
 
 

@@ -275,7 +275,10 @@ void CommandManager::printLogEntry(String line) {
 void CommandManager::printWelcome() {
     consolePrintln("\n");
     consolePrintln("************************************************");
-    consolePrintln("* SIMUT IoT MODULAR CLI v2.6 (Log Viewer)      *");
+    char banner[52];
+    snprintf(banner, sizeof(banner), "* SIMUT IoT MODULAR CLI %s%*s*", SIMUT_VERSION,
+             (int)(38 - strlen(SIMUT_VERSION)), "");
+    consolePrintln(banner);
     consolePrintln("* Type 'help' for command list                 *");
     consolePrintln("************************************************");
 }
@@ -330,7 +333,7 @@ void CommandManager::renderSystemInfo(const SystemConfig &cfg) {
     printDivider();
     consolePrintln(" [SYSTEM INFO]");
     consolePrintf(" Device Name:    %s\n", cfg.deviceName);
-    consolePrintf(" Firmware Ver:   %d\n", cfg.version);
+    consolePrintf(" Firmware Ver:   %s\n", SIMUT_VERSION);
     consolePrintln(" [SENSORS]");
     consolePrintf(" DS18 Precision: %d-bit\n", cfg.ds18Resolution);
     consolePrintln(" [CONNECTIVITY]");

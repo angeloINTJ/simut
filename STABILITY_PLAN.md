@@ -242,8 +242,8 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F1 — Watchdog & Timeouts** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.0` | 2026-04-18 |
 | **F2 — Autenticação & Rate Limit** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.1` | 2026-04-18 |
 | **F3 — Handlers & Concorrência** | 🟡 Em andamento | `stability-fixes-tier1` | — | — |
-| **F4 — Logging & Flash Wear** | 🟡 Em andamento | `stability-fixes-tier1` | — | — |
-| F5 — Heap & String | ⚪ Pendente | — | — | — |
+| **F4 — Logging & Flash Wear** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.4` | 2026-04-18 |
+| **F5 — Heap & String** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.5` | 2026-04-18 |
 | F6 — Long-term & Edge Cases | ⚪ Pendente | — | — | — |
 | F7 — Hardening & Polish | ⚪ Pendente | — | — | — |
 
@@ -275,7 +275,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | D3 | 🔴 | F3 | ✅ | Deadline 30s→10s; mitigação parcial (async exige rewrite). |
 | D4 | 🔴 | F3 | ✅ | `refreshPendingCount` com dirty flag + `notifyNewRecord` incremental. |
 | D5 | 🔴 | F4 | ✅ | File handle persistente — 1 open no boot, close só na rotação. |
-| D6 | 🟠 | F5 | ⚪ | |
+| D6 | 🟠 | F5 | ✅ | `handleApiConfig` e `handleApiThemes` refatorados para snprintf stack. |
 | D7 | 🟠 | F3 | ✅ | `WEB_LONG_HANDLER_DEADLINE_MS = 10000` (era 30s). |
 | D8 | 🟠 | F3 | ✅ | `_isSending` com `__atomic_compare_exchange_n` (CAS). |
 | D9 | 🟠 | F4 | ✅ | `LOG_PENDING_MAX` 8→32 + overflow counter logado. |
@@ -295,5 +295,5 @@ Atualize esta tabela conforme cada fase for concluída.
 | U9 | 🟡 | F7 | ⚪ | |
 | U10 | 🟡 | F6 | ⚪ | |
 | U11 | 🟡 | F6 | ⚪ | |
-| U12 | 🟢 | F5 | ⚪ | |
+| U12 | 🟢 | F5 | ✅ | `maxlength` em t_glob (255), t_line (511), t_sep (7). |
 | U13 | 🟢 | F7 | ⚪ | |
