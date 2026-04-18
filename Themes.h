@@ -6,7 +6,6 @@
  * persistent selection stored in SystemConfig.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
- * @version 3.8.0
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
