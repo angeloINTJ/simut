@@ -7,7 +7,7 @@
  * and calibration CSV parsing.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
- * @version 3.4.8
+ * @version 3.8.0
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @license MIT License
  */
@@ -132,7 +132,7 @@ void StorageManager::loadDefaults() {
     String defaultViewerHash = hashPassword("viewer", "0b58331da2913b41e21b7b04938632e1858a729e28cf6914b4334380f339b6f1");
     safeCopy(_currentConfig.users[1].password, defaultViewerHash.c_str(), sizeof(_currentConfig.users[1].password));
     _currentConfig.users[1].permissions = (PERM_DASHBOARD | PERM_HISTORY);
-    _currentConfig.users[1].mustChangePassword = false;
+    _currentConfig.users[1].mustChangePassword = true;
 
     safeCopy(_currentConfig.telServer, "", sizeof(_currentConfig.telServer));
     _currentConfig.telPort = 80;
