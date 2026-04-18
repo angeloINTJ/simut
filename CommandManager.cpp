@@ -121,6 +121,19 @@ CliDemand CommandManager::parseCommand(String input) {
     cmd.type = CMD_UNKNOWN;
     input.trim();
 
+    /* #4: detecta sufixo 'confirm' (case-insensitive) e remove antes do parse.
+     * Seguro: nenhum comando destrutivo aceita argumentos entre aspas, então
+     * 'confirm' bare só pode aparecer no final como intent explícito do user. */
+    {
+        String tail = input;
+        tail.toLowerCase();
+        if (tail.endsWith(" confirm")) {
+            cmd.confirmed = true;
+            input = input.substring(0, input.length() - 8);
+            input.trim();
+        }
+    }
+
     int spaceIndex;
     String parts[5];
     int count = 0;
@@ -376,6 +389,8 @@ void CommandManager::printHelp() {
     consolePrintln("===========================================");
     consolePrintln("        SIMUT - COMMAND HELP");
     consolePrintln("===========================================");
+    consolePrintln(" Destructive cmds need ' confirm' suffix");
+    consolePrintln(" (e.g., 'reload confirm').");
 
     consolePrintln("");
     consolePrintln("-- 1. MONITORING --");
@@ -412,9 +427,9 @@ void CommandManager::printHelp() {
     consolePrintln("  NTP server (empty = default)");
     consolePrintln("conf system theme <id|index>");
     consolePrintln("  Set UI theme");
-    consolePrintln("conf system admin reset");
+    consolePrintln("conf system admin reset [confirm]");
     consolePrintln("  Reset admin password to default");
-    consolePrintln("conf system touch reset");
+    consolePrintln("conf system touch reset [confirm]");
     consolePrintln("  Reset touch calibration");
     consolePrintln("conf sensor ds18b20 resolution <9-12>");
     consolePrintln("  DS18B20 global resolution");
@@ -447,15 +462,15 @@ void CommandManager::printHelp() {
     consolePrintln("-- 5. MAINTENANCE --");
     consolePrintln("sensor accept <gpio>");
     consolePrintln("  Authorize new physical sensor");
-    consolePrintln("sensor wipe <gpio>");
+    consolePrintln("sensor wipe <gpio> [confirm]");
     consolePrintln("  Reset graph history for slot");
     consolePrintln("tel sync");
     consolePrintln("  Force telemetry upload");
-    consolePrintln("clear log");
+    consolePrintln("clear log [confirm]");
     consolePrintln("  Delete system log file");
     consolePrintln("write memory");
     consolePrintln("  Persist RAM config to flash");
-    consolePrintln("reload");
+    consolePrintln("reload [confirm]");
     consolePrintln("  Reboot system");
 
     consolePrintln("");

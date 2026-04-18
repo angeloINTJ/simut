@@ -749,6 +749,11 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_SET_TEL_MODE: cfg.telMode = cmd.intVal1; changed = true; break;
 
         case CMD_RESET_ADMIN: {
+            if (!cmd.confirmed) {
+                _cmdMgr.printInfo("WARN: resets admin password to 'simut'.");
+                _cmdMgr.printInfo("Run 'conf system admin reset confirm'.");
+                break;
+            }
             String hashed = _storageMgr.hashPassword("admin", "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918");
             safeCopy(cfg.users[0].password, hashed.c_str(), sizeof(cfg.users[0].password));
             cfg.users[0].password[31] = '\0';
@@ -759,6 +764,11 @@ void AppManager::executeCommand(CliDemand cmd) {
         }
 
         case CMD_RESET_TOUCH_CAL: {
+            if (!cmd.confirmed) {
+                _cmdMgr.printInfo("WARN: resets touch calibration.");
+                _cmdMgr.printInfo("Run 'conf system touch reset confirm'.");
+                break;
+            }
             /* Limpa calibração do touch na config (invalida magic) */
             TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
             memset(cal, 0, sizeof(TouchCalData));
@@ -781,6 +791,11 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
 
         case CMD_WIPE_SENSOR:
+            if (!cmd.confirmed) {
+                _cmdMgr.printInfo("WARN: resets sensor history epoch.");
+                _cmdMgr.printInfo("Run 'sensor wipe <gpio> confirm'.");
+                break;
+            }
             if (cmd.intVal1 >= 0 && cmd.intVal1 < MAX_SENSORS) {
                 cfg.sensors[cmd.intVal1].provisionEpoch = _netMgr.getEpoch();
                 changed = true;
@@ -840,8 +855,11 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
 
         case CMD_CLEAR_LOGS:
-
-
+            if (!cmd.confirmed) {
+                _cmdMgr.printInfo("WARN: deletes all system logs.");
+                _cmdMgr.printInfo("Run 'clear log confirm' to proceed.");
+                break;
+            }
             _storageMgr.enterFlashSafeMode();
             LittleFS.remove("/system.log"); LittleFS.remove("/system.old");
             _storageMgr.exitFlashSafeMode();
@@ -850,6 +868,11 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
 
         case CMD_RELOAD:
+            if (!cmd.confirmed) {
+                _cmdMgr.printInfo("WARN: will reboot the device.");
+                _cmdMgr.printInfo("Run 'reload confirm' to proceed.");
+                break;
+            }
             LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, "Reboot via CLI");
             delay(100);     /* Garante flush do log para flash */
             rp2040.reboot();
