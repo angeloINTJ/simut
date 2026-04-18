@@ -208,6 +208,8 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
         if (idx < LOG_PENDING_MAX) {
             _pendingLogs[idx] = rec;
             __atomic_store_n(&_pendingCount, idx + 1, __ATOMIC_RELEASE);
+        } else {
+            _pendingOverflow++;
         }
         return;
     }
@@ -218,6 +220,8 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
         if (idx < LOG_PENDING_MAX) {
             _pendingLogs[idx] = rec;
             __atomic_store_n(&_pendingCount, idx + 1, __ATOMIC_RELEASE);
+        } else {
+            _pendingOverflow++;
         }
         return;
     }
@@ -227,6 +231,9 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
     requestFsLock(true);
 
     if (_currentLineCount >= MAX_RECORDS_PER_FILE) {
+        /* Fechar handle antes de rotacionar */
+        if (_logFile) _logFile.close();
+
         if (LittleFS.exists(LOG_FILE_OLD)) LittleFS.remove(LOG_FILE_OLD);
         if (LittleFS.exists(LOG_FILE_CURRENT)) LittleFS.rename(LOG_FILE_CURRENT, LOG_FILE_OLD);
         _currentLineCount = 0;
@@ -241,14 +248,14 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
         rotRec.flags     = CompactLogRecord::packFlags(LOG_INFO, get_core_num(), TAG_STO);
         rotRec.reserved  = 0;
 
-        File rf = LittleFS.open(LOG_FILE_CURRENT, "a");
-        if (rf) { rf.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); rf.close(); _currentLineCount++; }
+        _logFile = LittleFS.open(LOG_FILE_CURRENT, "a");
+        if (_logFile) { _logFile.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); _currentLineCount++; }
     }
 
-    File f = LittleFS.open(LOG_FILE_CURRENT, "a");
-    if (f) {
-        f.write((const uint8_t*)&rec, LOG_RECORD_SIZE);
-        f.close();
+    /* Handle persistente: abrir 1x, manter aberto entre writes */
+    if (!_logFile) _logFile = LittleFS.open(LOG_FILE_CURRENT, "a");
+    if (_logFile) {
+        _logFile.write((const uint8_t*)&rec, LOG_RECORD_SIZE);
         _currentLineCount++;
     }
 
@@ -259,17 +266,17 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
 /** @brief Flush buffered log entries that accumulated during heavy tasks. */
 void LogManager::flushPendingLogs() {
     int count = __atomic_load_n(&_pendingCount, __ATOMIC_ACQUIRE);
-    if (count == 0) return;
+    if (count == 0 && _pendingOverflow == 0) return;
 
     requestFsLock(true);
 
     for (int i = 0; i < count; i++) {
         if (_currentLineCount >= MAX_RECORDS_PER_FILE) {
+            if (_logFile) _logFile.close();
             if (LittleFS.exists(LOG_FILE_OLD)) LittleFS.remove(LOG_FILE_OLD);
             if (LittleFS.exists(LOG_FILE_CURRENT)) LittleFS.rename(LOG_FILE_CURRENT, LOG_FILE_OLD);
             _currentLineCount = 0;
 
-            /* Registra rotação como primeiro entry do novo arquivo */
             CompactLogRecord rotRec;
             rotRec.epoch     = (uint32_t)getEpochNow();
             rotRec.uptimeHr  = (uint16_t)(millis() / 3600000UL);
@@ -278,16 +285,21 @@ void LogManager::flushPendingLogs() {
             rotRec.flags     = CompactLogRecord::packFlags(LOG_INFO, get_core_num(), TAG_STO);
             rotRec.reserved  = 0;
 
-            File rf = LittleFS.open(LOG_FILE_CURRENT, "a");
-            if (rf) { rf.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); rf.close(); _currentLineCount++; }
+            _logFile = LittleFS.open(LOG_FILE_CURRENT, "a");
+            if (_logFile) { _logFile.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); _currentLineCount++; }
         }
 
-        File f = LittleFS.open(LOG_FILE_CURRENT, "a");
-        if (f) {
-            f.write((const uint8_t*)&_pendingLogs[i], LOG_RECORD_SIZE);
-            f.close();
+        if (!_logFile) _logFile = LittleFS.open(LOG_FILE_CURRENT, "a");
+        if (_logFile) {
+            _logFile.write((const uint8_t*)&_pendingLogs[i], LOG_RECORD_SIZE);
             _currentLineCount++;
         }
+    }
+
+    /* Registrar overflow se houve perda de entries */
+    if (_pendingOverflow > 0) {
+        Serial.printf("[LOG] WARN: %u log entries dropped (buffer full)\n", _pendingOverflow);
+        _pendingOverflow = 0;
     }
 
     requestFsLock(false);

@@ -478,6 +478,7 @@ void AppManager::loop() {
 
     TRACE_MOD(0, MOD_STORAGE_WRITE);
     _storageMgr.update();
+    _storageMgr.flushCursorIfDirty();
 
     watchdog_update();
 
@@ -1554,14 +1555,19 @@ void AppManager::processHistoryLogging() {
         }
     }
 
-    /* #10: Log periódico de heap para diagnóstico de memória */
+    /* #10: Log periódico de heap — só quando baixa ou 1x/hora (evita rotação prematura) */
     {
         uint32_t heapFree = rp2040.getFreeHeap();
-        char heapMsg[48];
-        snprintf(heapMsg, sizeof(heapMsg), "Heap: %lu free / %lu total",
-                 (unsigned long)heapFree,
-                 (unsigned long)rp2040.getTotalHeap());
-        LOG_CODE(LOG_INFO, "SYS", APP_HEAP_REPORT, (int)(heapFree/1024), heapMsg);
+        static uint32_t lastFullHeapLog = 0;
+
+        if (heapFree < 32768 || millis() - lastFullHeapLog >= 3600000) {
+            char heapMsg[48];
+            snprintf(heapMsg, sizeof(heapMsg), "Heap: %lu free / %lu total",
+                     (unsigned long)heapFree,
+                     (unsigned long)rp2040.getTotalHeap());
+            LOG_CODE(LOG_INFO, "SYS", APP_HEAP_REPORT, (int)(heapFree/1024), heapMsg);
+            lastFullHeapLog = millis();
+        }
 
         /* Alerta quando heap cai abaixo de 16KB (margem para WiFi+TLS) */
         if (heapFree < 16384) {

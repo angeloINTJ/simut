@@ -73,6 +73,7 @@ public:
 
     String hashPassword(const String& username, const String& plainPassword);
     String sha256Hex(const String& input);
+    void   flushCursorIfDirty();
 
 private:
     SystemConfig _currentConfig;
@@ -82,6 +83,8 @@ private:
 
     bool _heavyTaskLocked = false;
     uint32_t _cachedLastSent = 0;
+    bool     _cursorDirty = false;
+    uint32_t _cursorCoalesceTime = 0;
 
 
     String _cachedOldestFile = "";
