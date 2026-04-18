@@ -74,6 +74,7 @@ public:
     String hashPassword(const String& username, const String& plainPassword);
     String sha256Hex(const String& input);
     void   flushCursorIfDirty();
+    void   invalidateOldestFileCache() { _cachedOldestFile = ""; }
 
 private:
     SystemConfig _currentConfig;
@@ -89,6 +90,8 @@ private:
 
     String _cachedOldestFile = "";
     bool _storageDirty = true;
+    String _correctWatermark = "";       /**< Último arquivo corrigido (retomada) */
+    int32_t _correctLastDelta = 0;       /**< Delta da última correção (reset)    */
 
     File _currentLogFile;
     String _currentLogFileName = "";

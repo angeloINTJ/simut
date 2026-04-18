@@ -1655,6 +1655,7 @@ void WebManager::handleApiMkdir() {
 void WebManager::handleUploadComplete() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_FILE_UPLOAD)) { _server.send(403, "text/plain", "Forbidden"); return; }
+    _storageRef->invalidateOldestFileCache();  /* U7: arquivo restaurado pode ser mais antigo */
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 

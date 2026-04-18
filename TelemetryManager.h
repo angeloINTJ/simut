@@ -68,6 +68,7 @@ private:
     uint32_t _currentBackoff;
     uint32_t _backoffUntil;
     uint8_t  _consecutiveFails;
+    uint32_t _lastSuppressedLog = 0;    /**< millis() do último heartbeat suprimido */
 
     void     resetBackoff();
     void     escalateBackoff();
