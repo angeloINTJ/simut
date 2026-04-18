@@ -238,10 +238,19 @@ bool StorageManager::loadConfiguration() {
  * CRC32 appended after the binary blob for integrity verification.
  */
 bool StorageManager::saveConfiguration() {
+    /* Flush cursor pendente antes de salvar config — garante consistência */
+    if (_cursorDirty) { _cursorDirty = false; /* forçar flush abaixo */ }
+
     _currentConfig.magic = CONFIG_MAGIC;
     _currentConfig.version = CONFIG_VERSION;
 
     enterFlashSafeMode();
+
+    /* Flush cursor para flash dentro do safe mode (Core 1 já pausado) */
+    if (_cachedLastSent > 0) {
+        File cf = LittleFS.open(FILE_TCURSOR, "w");
+        if (cf) { cf.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent)); cf.close(); }
+    }
     File f = LittleFS.open(FILE_TMP, "w");
     if (!f) { exitFlashSafeMode(); return false; }
 
@@ -380,9 +389,17 @@ uint32_t StorageManager::getLastSentTimestamp() {
 
 void StorageManager::setLastSentTimestamp(uint32_t ts) {
     _cachedLastSent = ts;
+    _cursorDirty = true;
+    _cursorCoalesceTime = millis();
+}
+
+void StorageManager::flushCursorIfDirty() {
+    if (!_cursorDirty) return;
+    if (millis() - _cursorCoalesceTime < CURSOR_COALESCE_MS) return;
+    _cursorDirty = false;
     enterFlashSafeMode();
     File f = LittleFS.open(FILE_TCURSOR, "w");
-    if (f) { f.write((uint8_t*)&ts, sizeof(ts)); f.close(); }
+    if (f) { f.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent)); f.close(); }
     exitFlashSafeMode();
 }
 

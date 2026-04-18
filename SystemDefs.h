@@ -154,6 +154,12 @@ constexpr uint8_t  BT_AUTH_BUFFER_MAX        = 64;
 /** Deadline para handlers longos (history, logs, screenshot) em ms. */
 constexpr uint32_t WEB_LONG_HANDLER_DEADLINE_MS = 10000;
 
+/* ── Telemetry cursor ── */
+
+/** Tempo mínimo entre writes do cursor de telemetria no flash (ms).
+ *  Múltiplos setLastSentTimestamp dentro dessa janela consolidam em 1 write. */
+constexpr uint32_t CURSOR_COALESCE_MS           = 5000;
+
 /* =========================================================================== */
 /*                       SAFE STRING COPY UTILITY                            */
 /* =========================================================================== */
