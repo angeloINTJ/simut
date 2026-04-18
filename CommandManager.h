@@ -53,9 +53,16 @@ public:
     void setDebugMode(bool enabled) { _debugMode = enabled; }
     bool isDebugMode() const        { return _debugMode; }
 
+    /** Idioma da CLI — EN (default) ou PT. Reutiliza cfg.displayLang.
+     *  Propaga também para BluetoothManager (banner pós-auth). */
+    void setCliLang(uint8_t lang)   { _cliLang = lang; _btMgr.setLanguage(lang); }
+    uint8_t cliLang() const         { return _cliLang; }
+    bool isPt() const               { return _cliLang == LANG_PT; }
+
 private:
     BluetoothManager _btMgr;
     bool _debugMode = false;
+    uint8_t _cliLang = LANG_EN;
 
 
     String _usbBuffer;

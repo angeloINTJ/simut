@@ -42,9 +42,13 @@ void BluetoothManager::setValidator(BtAuthValidator validator) {
  */
 void BluetoothManager::update() {
 
+    const bool pt = (_language == LANG_PT);
+
     if (_authenticated) {
         if (millis() - _lastActivityTime > _timeoutMs) {
-            SerialBT.println("\n\r[ALERTA DE SEGURANCA] Sessao encerrada por inatividade (5 min).");
+            SerialBT.println(pt
+                ? "\n\r[SEGURANCA] Sessao encerrada (5 min inativo)."
+                : "\n\r[SECURITY] Session ended (5 min idle).");
             _authenticated = false;
             _promptSent = false;
             _authBuffer = "";
@@ -59,8 +63,10 @@ void BluetoothManager::update() {
 
 
         if (!_promptSent) {
-            SerialBT.println("\n\r--- CONEXAO BLUETOOTH ESTABELECIDA ---");
-            SerialBT.print("Admin Password: ");
+            SerialBT.println(pt
+                ? "\n\r--- Conexao Bluetooth estabelecida ---"
+                : "\n\r--- Bluetooth connection established ---");
+            SerialBT.print(pt ? "Senha do admin: " : "Admin password: ");
             _promptSent = true;
             _authBuffer = "";
             /* A3: NÃO descartar o char — cai para o processamento abaixo.
@@ -88,11 +94,17 @@ void BluetoothManager::update() {
                     SerialBT.println("===========================================");
                     SerialBT.print  ("   SIMUT IoT CLI ");
                     SerialBT.println(SIMUT_VERSION);
-                    SerialBT.println("   Acesso concedido. Type 'help'.");
+                    if (pt) {
+                        SerialBT.println("   Acesso concedido. Digite 'help'.");
+                        SerialBT.println("   (For English: 'language en')");
+                    } else {
+                        SerialBT.println("   Access granted. Type 'help'.");
+                        SerialBT.println("   (Para Portugues: 'language pt')");
+                    }
                     SerialBT.println("===========================================");
                     SerialBT.print("SIMUT> ");
                 } else {
-                    SerialBT.println("Acesso Negado.");
+                    SerialBT.println(pt ? "Acesso negado." : "Access denied.");
                     _promptSent = false;
                 }
                 _authBuffer = "";
