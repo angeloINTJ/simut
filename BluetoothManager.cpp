@@ -64,7 +64,10 @@ void BluetoothManager::update() {
             SerialBT.print("Admin Password: ");
             _promptSent = true;
             _authBuffer = "";
-            continue;
+            /* A3: NÃO descartar o char — cai para o processamento abaixo.
+             * Se o primeiro byte for \r/\n (enter do terminal ao conectar),
+             * o branch de buffer vazio trata como no-op. Se for imprimível,
+             * vira o primeiro char da senha — comportamento esperado. */
         }
 
 
@@ -80,7 +83,14 @@ void BluetoothManager::update() {
                 if (valid) {
                     _authenticated = true;
                     _lastActivityTime = millis();
-                    SerialBT.println("Acesso Concedido! Bem-vindo ao SIMUT CLI.");
+                    /* A1: banner de boas-vindas completo para o cliente BT
+                     * (o printWelcome() do CommandManager só sai no boot USB). */
+                    SerialBT.println();
+                    SerialBT.println("===========================================");
+                    SerialBT.print  ("   SIMUT IoT CLI ");
+                    SerialBT.println(SIMUT_VERSION);
+                    SerialBT.println("   Acesso concedido. Type 'help'.");
+                    SerialBT.println("===========================================");
                     SerialBT.print("SIMUT> ");
                 } else {
                     SerialBT.println("Acesso Negado.");

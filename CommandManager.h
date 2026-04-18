@@ -48,6 +48,8 @@ public:
     void renderSystemInfo(const SystemConfig &cfg);
     void renderSensorReading(const SensorReading &reading);
 
+    void printDivider();
+
 private:
     BluetoothManager _btMgr;
 
@@ -59,7 +61,6 @@ private:
 
     CliDemand parseCommand(String input);
 
-    void printDivider();
     String formatRom(const uint8_t* rom);
     void hexStringToBytes(String hex, uint8_t* out);
 };

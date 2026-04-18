@@ -648,7 +648,11 @@ void AppManager::executeCommand(CliDemand cmd) {
                 _displayMgr.refreshTheme();
                 changed = true;
                 LOG_CODE(LOG_INFO, "CFG", CFG_THEME_APPLIED, idx, String(availableThemes[idx].displayName));
-            } else { LOG_CODE(LOG_WARN, "CFG", CFG_THEME_NOT_FOUND, 0, ""); }
+                _cmdMgr.printSuccess(String("Theme: ") + availableThemes[idx].displayName);
+            } else {
+                LOG_CODE(LOG_WARN, "CFG", CFG_THEME_NOT_FOUND, 0, "");
+                _cmdMgr.printError("Theme not found. Try 'show themes'.");
+            }
             break;
         }
 
@@ -686,9 +690,26 @@ void AppManager::executeCommand(CliDemand cmd) {
         }
 
         case CMD_SHOW_SENSORS: _cmdMgr.renderSensorTable(cfg.sensors, MAX_SENSORS); break;
-        case CMD_SHOW_STORAGE: LOG_CODE(LOG_INFO, "STO", STO_STATS_REPORT, 0, _storageMgr.getStatsReport()); break;
+        case CMD_SHOW_STORAGE: {
+            String rep = _storageMgr.getStatsReport();
+            LOG_CODE(LOG_INFO, "STO", STO_STATS_REPORT, 0, rep);
+            _cmdMgr.consolePrintln("");
+            _cmdMgr.consolePrintln("--- Storage Stats ---");
+            _cmdMgr.consolePrintln(rep);
+            _cmdMgr.printDivider();
+            break;
+        }
         case CMD_SHOW_SYSINFO: _cmdMgr.renderSystemInfo(cfg); break;
-        case CMD_SHOW_NET: LOG_CODE(LOG_INFO, "NET", NET_SHOW_IP, 0, _netMgr.getIpAddress()); break;
+        case CMD_SHOW_NET: {
+            String ip = _netMgr.getIpAddress();
+            LOG_CODE(LOG_INFO, "NET", NET_SHOW_IP, 0, ip);
+            _cmdMgr.consolePrintln("");
+            _cmdMgr.consolePrintln("--- Network Status ---");
+            _cmdMgr.consolePrintf (" IP:   %s\n", ip.c_str());
+            _cmdMgr.consolePrintf (" RSSI: %ld dBm\n", (long)_netMgr.getRssi());
+            _cmdMgr.printDivider();
+            break;
+        }
 
         case CMD_SET_DS_RES:
             if (cmd.intVal1 >= 9 && cmd.intVal1 <= 12 && _sensorMgr.setDs18Resolution((DS18B20PIO::Resolution)cmd.intVal1)) {
@@ -828,7 +849,10 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_TEL_SYNC: _telemetryMgr.forceSync(); _cmdMgr.printSuccess("Telemetry sync triggered."); break;
 
         case CMD_UNKNOWN:
-        default: LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, ""); break;
+        default:
+            LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
+            _cmdMgr.printError("Unknown command. Type 'help'.");
+            break;
     }
 
     if (changed) _cmdMgr.printInfo("RAM updated. Run 'write memory' to persist.");

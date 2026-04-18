@@ -23,6 +23,13 @@ CommandManager::CommandManager() {
 
 void CommandManager::begin() {
     _btMgr.begin("SIMUT_CLI");
+
+    /* A4: instala sink do LogManager para espelhar logs USB+BT.
+     * Sem o sink, LogManager cai no fallback Serial.println (compat de boot pré-CLI). */
+    LogManager::instance().setConsoleSink([this](const char* line) {
+        this->consolePrintln(String(line));
+    });
+
     printWelcome();
     printPrompt();
 }
