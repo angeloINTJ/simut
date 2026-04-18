@@ -92,6 +92,7 @@ private:
     bool _storageDirty = true;
     String _correctWatermark = "";       /**< Último arquivo corrigido (retomada) */
     int32_t _correctLastDelta = 0;       /**< Delta da última correção (reset)    */
+    bool _didMigrate = false;            /**< Set por attemptLoad quando migrou v12→v13 */
 
     File _currentLogFile;
     String _currentLogFileName = "";
@@ -100,6 +101,8 @@ private:
     void loadDefaults();
     void enforceStorageLimit();
 
-    uint32_t calculateCRC32(const uint8_t *data, size_t length);
+    static uint32_t calculateCRC32(const uint8_t *data, size_t length);
+    static bool loadAsV13(File& f, SystemConfig& outCfg);
+    static bool loadAndMigrateV12(File& f, SystemConfig& outCfg);
     bool attemptLoad(const char* path, SystemConfig& outCfg);
 };

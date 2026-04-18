@@ -480,12 +480,13 @@ const char* LogManager::translateCode(uint16_t code) {
         case SYS_IP_ACQUIRED:     return "IP acquired";
         case SYS_AP_START:        return "AP mode started";
 
-        /* ── Storage (20–24) ── */
+        /* ── Storage (20–25) ── */
         case SYS_STORAGE_FAIL:    return "Storage failure";
         case SYS_STORAGE_SAVE:    return "Config saved";
         case SYS_STORAGE_ROTATE:  return "Storage rotated";
         case SYS_STORAGE_FORMAT:  return "Flash formatting";
         case SYS_STORAGE_RECOVER: return "Storage recovered";
+        case SYS_STORAGE_MIGRATED:return "Config migrated";
 
         /* ── Telemetry (30–37) ── */
         case SYS_TEL_SENT:        return "Telemetry sent";
