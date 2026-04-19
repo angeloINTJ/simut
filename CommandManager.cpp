@@ -183,6 +183,48 @@ CliDemand CommandManager::parseCommand(String input) {
     }
 
     if (t0 == "conf" || t0 == "configure") {
+        /* #7: IP estático — conf ip <dhcp|static|addr|mask|gateway|dns> [valor] */
+        if (t1 == "ip") {
+            if (t2 == "dhcp")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 0; return cmd; }
+            if (t2 == "static")  { cmd.type = CMD_IP_CFG; cmd.intVal1 = 1; return cmd; }
+            if (t2 == "addr")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 2; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "mask")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 3; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "gateway") { cmd.type = CMD_IP_CFG; cmd.intVal1 = 4; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "dns")     { cmd.type = CMD_IP_CFG; cmd.intVal1 = 5; cmd.strVal1 = v3; return cmd; }
+        }
+
+        /* #7: Limites/alarme/calibração por sensor — conf sensor <campo> <gpio> <valor>
+         * campos: tmin, tmax, hmin, hmax, alarm (on/off), calib (offset float). */
+        if (t1 == "sensor") {
+            bool isField = (t2 == "tmin" || t2 == "tmax" || t2 == "hmin" ||
+                            t2 == "hmax" || t2 == "alarm");
+            if (isField) {
+                cmd.type = CMD_SENSOR_FIELD;
+                cmd.strVal1 = t2;
+                cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);   /* gpio */
+                cmd.strVal2 = t4;                                      /* valor como string */
+                return cmd;
+            }
+        }
+
+        /* #7: User management — conf user <add|del|pass> <username> [pass] */
+        if (t1 == "user") {
+            if (t2 == "add"  && v3.length() > 0) {
+                cmd.type = CMD_USER_ADD;
+                cmd.strVal1 = v3;
+                cmd.strVal2 = (count > 4) ? parts[4] : "";
+                return cmd;
+            }
+            if (t2 == "del"  && v3.length() > 0) {
+                cmd.type = CMD_USER_DEL;  cmd.strVal1 = v3;  return cmd;
+            }
+            if (t2 == "pass" && v3.length() > 0) {
+                cmd.type = CMD_USER_PASS; cmd.strVal1 = v3;
+                cmd.strVal2 = (count > 4) ? parts[4] : "";
+                return cmd;
+            }
+        }
+
         if (t1 == "system") {
             if (t2 == "theme") { cmd.type = CMD_SET_THEME; cmd.strVal1 = v3; return cmd; }
             if (t2 == "name") { cmd.type = CMD_SET_SYS_NAME; cmd.strVal1 = v3; return cmd; }
@@ -623,6 +665,7 @@ void CommandManager::printHelp() {
         consolePrintln("debug");
         consolePrintln("  Mostra modo atual");
         consolePrintln("  Nota: 'write memory' para persistir");
+        printHelpExtras();
         consolePrintln("===========================================");
         return;
     }
@@ -738,5 +781,20 @@ void CommandManager::printHelp() {
     consolePrintln("debug");
     consolePrintln("  Show current mode");
     consolePrintln("  Note: 'write memory' to persist");
+    printHelpExtras();
     consolePrintln("===========================================");
+}
+
+/* Lista compartilhada (EN-oriented syntax, language-neutral) dos comandos
+ * adicionados em #7. Sem descrições — economia de flash. Apenas sintaxe. */
+void CommandManager::printHelpExtras() {
+    consolePrintln("");
+    consolePrintln("-- 7. IP / SENSOR LIMITS / USERS --");
+    consolePrintln("conf ip <dhcp|static>");
+    consolePrintln("conf ip <addr|mask|gateway|dns> <ipv4>");
+    consolePrintln("conf sensor <tmin|tmax|hmin|hmax> <gpio> <n>");
+    consolePrintln("conf sensor alarm <gpio> <on|off>");
+    consolePrintln("conf user add <name> <pass>");
+    consolePrintln("conf user del <name>");
+    consolePrintln("conf user pass <name> <newpass>");
 }
