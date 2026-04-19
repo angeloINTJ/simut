@@ -478,8 +478,37 @@ void AppManager::loop() {
 
     CliDemand cmd;
     TRACE_MOD(0, MOD_CLI);
+
+    /* Fase 4: drain de 1 comando enfileirado por loop quando touch livre.
+     * Executamos antes do processInput pra não atrasar o prompt caso o
+     * user acabe de digitar. */
+    if (_cliQueueCount > 0 && !isUserInteracting()) {
+        CliDemand queued = _cliQueue[_cliQueueHead];
+        _cliQueue[_cliQueueHead] = CliDemand();  /* limpa Strings — libera heap */
+        _cliQueueHead = (_cliQueueHead + 1) % CLI_QUEUE_CAP;
+        _cliQueueCount--;
+        if (queued.type != CMD_UNKNOWN) executeCommand(queued);
+        if (!_waitingScan) _cmdMgr.printPrompt();
+        _cliDropNotified = false;
+    }
+
     if (_cmdMgr.processInput(cmd)) {
-        if (cmd.type != CMD_UNKNOWN) executeCommand(cmd);
+        if (cmd.type != CMD_UNKNOWN) {
+            if (isUserInteracting()) {
+                if (_cliQueueCount < CLI_QUEUE_CAP) {
+                    uint8_t tail = (_cliQueueHead + _cliQueueCount) % CLI_QUEUE_CAP;
+                    _cliQueue[tail] = cmd;
+                    _cliQueueCount++;
+                } else if (!_cliDropNotified) {
+                    _cmdMgr.printError(_cmdMgr.isPt()
+                        ? String("CLI ocupada (display em uso). Comando descartado.")
+                        : String("CLI busy (display in use). Command dropped."));
+                    _cliDropNotified = true;
+                }
+            } else {
+                executeCommand(cmd);
+            }
+        }
         if (!_waitingScan) _cmdMgr.printPrompt();
     }
 
