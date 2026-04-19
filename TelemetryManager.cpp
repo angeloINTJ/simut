@@ -211,7 +211,7 @@ void TelemetryManager::update() {
      * exceder 8.3s. Restaurado ao final (normal ou early return). Gated
      * por isWdtActive() pra não afetar setup.
      */
-    if (LogManager::isWdtActive()) watchdog_enable(60000, 1);
+    if (LogManager::isWdtActive()) watchdog_enable(120000, 1);
 
     /* Aborta se heap está criticamente baixa para evitar hard fault */
     if (rp2040.getFreeHeap() < 20480) {
@@ -778,7 +778,7 @@ bool TelemetryManager::forceSync() {
     if (!_storageRef->lockHeavyTask()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return false; }
 
     /* WDT 60s para cobrir handshake TLS + POST grande + cleanup (igual update()). */
-    if (LogManager::isWdtActive()) watchdog_enable(60000, 1);
+    if (LogManager::isWdtActive()) watchdog_enable(120000, 1);
 
     std::vector<BinaryHistoryRecord> batch;
     uint32_t newCursor = 0;
