@@ -43,6 +43,8 @@ struct SystemMetrics {
     /* System — atualizados por sampleHeap() */
     uint32_t heapFreeNow      = 0;
     uint32_t heapMinSeen      = 0xFFFFFFFF;  /**< HWM inverso: menor livre observado */
+    uint32_t heapLargestBlock = 0;            /**< Maior bloco contíguo alocável (indicador de fragmentação) */
+    uint32_t heapLargestMin   = 0xFFFFFFFF;   /**< Menor valor observado de heapLargestBlock */
 };
 
 class MetricsManager {
@@ -56,6 +58,11 @@ public:
 
     /** Amostra heap livre atual e atualiza min seen. Chamar periodicamente. */
     void sampleHeap();
+
+    /** Mede o maior bloco contíguo alocável via binary-search probe (malloc/free).
+     *  Custo: ~16 malloc+free. Chamar com baixa frequência (ex.: junto a sampleHeap,
+     *  ou on-demand via /api/status). Não chamar sob pressão de memória. */
+    void sampleLargestBlock();
 
     /** Observa um valor de RSSI e atualiza now/min/max. */
     void observeRssi(int32_t rssi);

@@ -434,12 +434,14 @@ void AppManager::loop() {
 
     LogManager::instance().checkCrossCoreHealth();
 
-    /* #8: sample de heap/HWM a cada 10s — barato, atualiza heapFreeNow/Min. */
+    /* #8 + U3/5.5: heap/HWM + largest contiguous block a cada 10s.
+     * sampleLargestBlock faz ~16 malloc/free (imediatamente freed). */
     {
         static uint32_t _lastHeapSample = 0;
         if ((int32_t)(millis() - _lastHeapSample) > 10000) {
             _lastHeapSample = millis();
             MetricsManager::instance().sampleHeap();
+            MetricsManager::instance().sampleLargestBlock();
         }
     }
 
