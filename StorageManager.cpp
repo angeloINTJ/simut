@@ -490,6 +490,27 @@ String StorageManager::getHistoryFileName() {
 
 bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
     if (!_isMounted) return false;
+
+    /* Touch priority: se user está interagindo, bufferiza e retorna. Só o
+     * record mais recente sobrevive (slot único) — aceitável já que é
+     * amostragem 1x/min e interação típica é <15 s. */
+    if (_isTouchPriorityFn && _isTouchPriorityFn()) {
+        _pendingHistRec = rec;
+        _pendingHistValid = true;
+        return true;
+    }
+
+    /* Flush pendente (se existir) antes de gravar o current */
+    if (_pendingHistValid) {
+        _pendingHistValid = false;
+        writeHistoryEntryFlash(_pendingHistRec);
+    }
+
+    return writeHistoryEntryFlash(rec);
+}
+
+bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
+    if (!_isMounted) return false;
     String path = getHistoryFileName();
 
     /* RAII context-aware igual saveConfiguration. */
@@ -607,6 +628,11 @@ void StorageManager::setLastSentTimestamp(uint32_t ts) {
 void StorageManager::flushCursorIfDirty() {
     if (!_cursorDirty) return;
     if (millis() - _cursorCoalesceTime < CURSOR_COALESCE_MS) return;
+
+    /* Touch priority: se user está interagindo, cursor fica dirty e flush
+     * acontece na próxima call após interaction terminar. */
+    if (_isTouchPriorityFn && _isTouchPriorityFn()) return;
+
     _cursorDirty = false;
     LogManager::WdtWindow _wdt(30000);  /* context-aware */
     enterFlashSafeMode();
