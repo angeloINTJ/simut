@@ -1384,6 +1384,26 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
         }
 
+        case CMD_SET_WEB_PORT: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid || cmd.intVal1 < 1 || cmd.intVal1 > 65535) {
+                _cmdMgr.printError(pt ? "Porta invalida (1..65535)"
+                                      : "Invalid port (1..65535)");
+                break;
+            }
+            WebConfigData* w = reinterpret_cast<WebConfigData*>(
+                cfg.reserved + WEB_CONFIG_OFFSET);
+            w->port = (uint16_t)cmd.intVal1;
+            char buf[64];
+            snprintf(buf, sizeof(buf),
+                pt ? "Porta web: %d (aplica apos reload)"
+                   : "Web port: %d (applies after reload)",
+                cmd.intVal1);
+            _cmdMgr.printSuccess(buf);
+            changed = true;
+            break;
+        }
+
         case CMD_UNKNOWN:
         default:
             LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");

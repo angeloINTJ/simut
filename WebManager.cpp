@@ -48,6 +48,20 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _telemetryRef = telemetry;
     _soundRef   = sound;
 
+    /*
+     * Porta configurável via WebConfigData (reserved[24..25]). Reconstrói
+     * o servidor via placement new se !=80 — _server foi default-initializado
+     * com porta 80 no construtor mas ainda não chamou .begin() nem .on(),
+     * então descarte/recriação é seguro.
+     */
+    WebConfigData* w = reinterpret_cast<WebConfigData*>(
+        storage->getConfig().reserved + WEB_CONFIG_OFFSET);
+    uint16_t webPort = (w->port > 0) ? w->port : WEB_DEFAULT_PORT;
+    if (webPort != WEB_DEFAULT_PORT) {
+        _server.~WebServer();
+        new (&_server) WebServer(webPort);
+    }
+
     const char * headerkeys[] = {"Cookie", "Accept-Encoding"};
     size_t headerkeyssize = sizeof(headerkeys)/sizeof(char*);
     _server.collectHeaders(headerkeys, headerkeyssize);
@@ -112,7 +126,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/apple-touch-icon.png", HTTP_GET, [this]() { _server.send(204, "image/png", ""); });
 
     _server.begin();
-    LOG_CODE(LOG_INFO, "WEB", WEB_SERVER_STARTED, 80, "");
+    LOG_CODE(LOG_INFO, "WEB", WEB_SERVER_STARTED, webPort, "");
 }
 
 bool WebManager::isRateLimited(uint32_t minIntervalMs) {
@@ -457,12 +471,16 @@ void WebManager::handleApiNetwork() {
 
     SystemConfig& cfg = _storageRef->getConfig();
 
+    WebConfigData* w = reinterpret_cast<WebConfigData*>(
+        cfg.reserved + WEB_CONFIG_OFFSET);
+    uint16_t currentPort = (w->port > 0) ? w->port : WEB_DEFAULT_PORT;
+
     char json[512];
     snprintf(json, sizeof(json),
         "{\"connected\":%s,\"ip\":\"%s\",\"mask\":\"%s\",\"gw\":\"%s\","
         "\"dns\":\"%s\",\"mac\":\"%s\",\"ssid\":\"%s\",\"use_dhcp\":%s,"
         "\"static_ip\":\"%s\",\"static_mask\":\"%s\",\"static_gw\":\"%s\","
-        "\"static_dns\":\"%s\",\"ntp_server\":\"%s\"}",
+        "\"static_dns\":\"%s\",\"ntp_server\":\"%s\",\"web_port\":%u}",
         _netRef->isConnected() ? "true" : "false",
         _netRef->getIpAddress().c_str(),
         _netRef->getSubnetMask().c_str(),
@@ -472,7 +490,7 @@ void WebManager::handleApiNetwork() {
         cfg.wifiSsid,
         cfg.useDhcp ? "true" : "false",
         cfg.staticIp, cfg.staticMask, cfg.staticGateway, cfg.staticDns,
-        cfg.ntpServer);
+        cfg.ntpServer, (unsigned)currentPort);
 
     _server.send(200, "application/json", json);
 }
@@ -1353,13 +1371,23 @@ void WebManager::handleSaveNetwork() {
         cfg.ntpServer[sizeof(cfg.ntpServer) - 1] = '\0';
     }
 
+    /* Porta do servidor web (aplica após reboot). Validação: 1..65535. */
+    WebConfigData* w = reinterpret_cast<WebConfigData*>(cfg.reserved + WEB_CONFIG_OFFSET);
+    if (_server.hasArg("web_port")) {
+        int p = _server.arg("web_port").toInt();
+        if (p >= 1 && p <= 65535) w->port = (uint16_t)p;
+    }
+    uint16_t newPort = (w->port > 0) ? w->port : WEB_DEFAULT_PORT;
+
     bool saved = _storageRef->saveConfiguration();
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
     if (saved && !_storageRef->lastSaveWasNoOp()) {
         LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin updated Network Settings", "Admin atualizou config de rede"));
     }
 
-    _server.send(200, "application/json", "{\"status\":\"ok\",\"reboot\":true}");
+    char resp[64];
+    snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"reboot\":true,\"newPort\":%u}", (unsigned)newPort);
+    _server.send(200, "application/json", resp);
 
     if (saved) {
         LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, _currentUserId, TRL("Reboot via web (network save)", "Reboot via web (save de rede)"));

@@ -609,12 +609,20 @@ struct __attribute__((packed)) SystemConfig {
      *  [12..17] SoundConfigData     (6 B)
      *  [18..21] DisplayOffsetData   (4 B)
      *  [22..23] CliConfigData       (2 B, Fase B v3.7.0)
-     *  [24..63] livre para expansão futura
+     *  [24..25] WebConfigData       (2 B, U3+ — porta do servidor web)
+     *  [26..63] livre para expansão futura
      * Expandido de 24→64 em CONFIG_VERSION 13 (v3.8.0) com migração transparente
      * de v12 via StorageManager::attemptLoad.
      */
     uint8_t reserved[64];
 };
+
+/** Overlay em reserved[24..25]: configuração do servidor web. */
+struct __attribute__((packed)) WebConfigData {
+    uint16_t port;  /**< Porta TCP do web server. 0 = usar default (80). */
+};
+constexpr size_t WEB_CONFIG_OFFSET = 24;
+constexpr uint16_t WEB_DEFAULT_PORT = 80;
 
 /** Tamanho do campo reserved[] nas configs v12 (pré v3.8.0) — usado na migração. */
 #define CONFIG_V12_RESERVED_SIZE 24
@@ -911,7 +919,8 @@ enum DemandType {
     CMD_SENSOR_FIELD, /**< Limites/calib: intVal1 = gpio; strVal1 = field (tmin/tmax/hmin/hmax/alarm/calib); strVal2 = valor */
     CMD_USER_ADD,     /**< strVal1 = username; strVal2 = senha */
     CMD_USER_DEL,     /**< strVal1 = username (protege admin) */
-    CMD_USER_PASS     /**< strVal1 = username; strVal2 = nova senha */
+    CMD_USER_PASS,    /**< strVal1 = username; strVal2 = nova senha */
+    CMD_SET_WEB_PORT  /**< intVal1 = porta (1..65535) */
 };
 
 /** Parsed CLI command with typed payload fields. */
