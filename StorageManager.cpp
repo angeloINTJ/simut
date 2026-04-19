@@ -488,6 +488,13 @@ String StorageManager::getHistoryFileName() {
     return String(buff);
 }
 
+bool StorageManager::flushPendingHist() {
+    if (!_isMounted || !_pendingHistValid) return false;
+    BinaryHistoryRecord rec = _pendingHistRec;
+    _pendingHistValid = false;
+    return writeHistoryEntryFlash(rec);
+}
+
 bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
     if (!_isMounted) return false;
 

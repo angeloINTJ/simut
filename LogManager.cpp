@@ -332,6 +332,14 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
 }
 
 
+/** @brief Public wrapper: flush pending logs on demand (Fase 5). */
+void LogManager::flushPendingIfAny() {
+    int count = __atomic_load_n(&_pendingCount, __ATOMIC_ACQUIRE);
+    if (count == 0 && _pendingOverflow == 0) return;
+    flushPendingLogs();
+}
+
+
 /** @brief Flush buffered log entries that accumulated during heavy tasks. */
 void LogManager::flushPendingLogs() {
     int count = __atomic_load_n(&_pendingCount, __ATOMIC_ACQUIRE);

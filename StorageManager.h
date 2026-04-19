@@ -65,6 +65,11 @@ public:
      *  AppManager pode chamar após interação terminar para forçar flush. */
     bool hasPendingHist() const { return _pendingHistValid; }
 
+    /** Fase 5: força flush do record HIST pendente bufferizado durante touch
+     *  priority. Chamado por AppManager na transição touch-active→touch-free.
+     *  No-op se não há pendente; bypassa o checker de touch pra não re-deferir. */
+    bool flushPendingHist();
+
     SystemConfig& getConfig();
     SensorRecord* getSensorByGpio(uint8_t gpio);
 

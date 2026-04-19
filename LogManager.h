@@ -135,6 +135,12 @@ public:
     void setCorePaused(int core, bool paused);
     void markCleanReboot();          /**< Chamar ANTES de rp2040.reboot() para não disparar autópsia HW WDT */
 
+    /** Fase 5: flush imediato de logs pendentes bufferizados durante touch
+     *  priority. AppManager chama logo após `isUserInteracting()` transicionar
+     *  para false, pra fechar a janela "dado em RAM, não em flash". No-op
+     *  se não há logs pendentes. */
+    void flushPendingIfAny();
+
 private:
     LogManager();
 
