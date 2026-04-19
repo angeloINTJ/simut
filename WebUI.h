@@ -46,12 +46,24 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script>
     const dictLog = {
         pt: { "log_usr": "Usuário", "log_pas": "Senha", "log_show": "Mostrar senha", "log_btn": "Entrar", "log_err": "Usuário ou senha incorretos.", "log_full": "Limite de sessões atingido. Tente mais tarde.", "log_lock": "Bloqueado por {s}s. Tentativas excessivas." },
+        // @LANG_BEGIN:es
         es: { "log_usr": "Usuario", "log_pas": "Contraseña", "log_show": "Mostrar contraseña", "log_btn": "Entrar", "log_err": "Credenciales inválidas.", "log_full": "Máximo de sesiones alcanzado.", "log_lock": "Bloqueado por {s}s. Demasiados intentos." },
+        // @LANG_END:es
+        // @LANG_BEGIN:de
         de: { "log_usr": "Benutzername", "log_pas": "Passwort", "log_show": "Passwort anzeigen", "log_btn": "Anmelden", "log_err": "Ungültige Anmeldedaten.", "log_full": "System ausgelastet. Versuchen Sie es später.", "log_lock": "Gesperrt für {s}s. Zu viele Versuche." },
+        // @LANG_END:de
+        // @LANG_BEGIN:fr
         fr: { "log_usr": "Identifiant", "log_pas": "Mot de passe", "log_show": "Afficher", "log_btn": "Connexion", "log_err": "Identifiants invalides.", "log_full": "Système saturé. Réessayez plus tard.", "log_lock": "Bloqué pour {s}s. Trop de tentatives." },
+        // @LANG_END:fr
+        // @LANG_BEGIN:it
         it: { "log_usr": "Utente", "log_pas": "Password", "log_show": "Mostra password", "log_btn": "Accedi", "log_err": "Credenziali non valide.", "log_full": "Sistema pieno. Riprova più tardi.", "log_lock": "Bloccato per {s}s. Troppi tentativi." },
+        // @LANG_END:it
+        // @LANG_BEGIN:ru
         ru: { "log_usr": "Логин", "log_pas": "Пароль", "log_show": "Показать пароль", "log_btn": "Войти", "log_err": "Неверные учётные данные.", "log_full": "Система занята. Попробуйте позже.", "log_lock": "Заблокировано на {s}с. Слишком много попыток." },
+        // @LANG_END:ru
+        // @LANG_BEGIN:zh
         zh: { "log_usr": "用户名", "log_pas": "密码", "log_show": "显示密码", "log_btn": "登录", "log_err": "凭据无效。", "log_full": "系统已满。请稍后再试。", "log_lock": "已锁定 {s}秒。尝试次数过多。" },
+        // @LANG_END:zh
         en: { "log_usr": "Username", "log_pas": "Password", "log_show": "Show password", "log_btn": "Sign In", "log_err": "Invalid credentials.", "log_full": "System is full. Try again later.", "log_lock": "Locked for {s}s. Too many attempts." }
     };
     function t(key, fallback, vars) { let l = localStorage.getItem('simut_lang') || 'en'; let s = (l !== 'en' && dictLog[l] && dictLog[l][key]) ? dictLog[l][key] : fallback; if (vars) for (let k in vars) s = s.replace('{'+k+'}', vars[k]); return s; }
@@ -96,7 +108,26 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         <div class="lang-box">
             <span style="font-size:1.2rem;">🌐</span>
             <select class="lang-select" onchange="setLang(this.value)">
-                <option value="en">🇺🇸 English</option><option value="pt">🇧🇷 Português</option><option value="es">🇪🇸 Español</option><option value="de">🇩🇪 Deutsch</option><option value="fr">🇫🇷 Français</option><option value="it">🇮🇹 Italiano</option><option value="ru">🇷🇺 Русский</option><option value="zh">🇨🇳 中文</option>
+                <option value="en">🇺🇸 English</option>
+                <option value="pt">🇧🇷 Português</option>
+                <!-- @LANG_BEGIN:es -->
+                <option value="es">🇪🇸 Español</option>
+                <!-- @LANG_END:es -->
+                <!-- @LANG_BEGIN:de -->
+                <option value="de">🇩🇪 Deutsch</option>
+                <!-- @LANG_END:de -->
+                <!-- @LANG_BEGIN:fr -->
+                <option value="fr">🇫🇷 Français</option>
+                <!-- @LANG_END:fr -->
+                <!-- @LANG_BEGIN:it -->
+                <option value="it">🇮🇹 Italiano</option>
+                <!-- @LANG_END:it -->
+                <!-- @LANG_BEGIN:ru -->
+                <option value="ru">🇷🇺 Русский</option>
+                <!-- @LANG_END:ru -->
+                <!-- @LANG_BEGIN:zh -->
+                <option value="zh">🇨🇳 中文</option>
+                <!-- @LANG_END:zh -->
             </select>
         </div>
     </div>
@@ -135,7 +166,28 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
     </style>
     <script>
-    const dictFcp = { pt: { "fcp_btn": "Salvar e Entrar" }, es: { "fcp_btn": "Guardar y Entrar" }, de: { "fcp_btn": "Speichern & Anmelden" }, fr: { "fcp_btn": "Enregistrer & Connexion" }, it: { "fcp_btn": "Salva & Accedi" }, ru: { "fcp_btn": "Сохранить и войти" }, zh: { "fcp_btn": "保存并登录" }, en: { "fcp_btn": "Save & Login" } };
+    const dictFcp = {
+        pt: { "fcp_btn": "Salvar e Entrar" },
+        // @LANG_BEGIN:es
+        es: { "fcp_btn": "Guardar y Entrar" },
+        // @LANG_END:es
+        // @LANG_BEGIN:de
+        de: { "fcp_btn": "Speichern & Anmelden" },
+        // @LANG_END:de
+        // @LANG_BEGIN:fr
+        fr: { "fcp_btn": "Enregistrer & Connexion" },
+        // @LANG_END:fr
+        // @LANG_BEGIN:it
+        it: { "fcp_btn": "Salva & Accedi" },
+        // @LANG_END:it
+        // @LANG_BEGIN:ru
+        ru: { "fcp_btn": "Сохранить и войти" },
+        // @LANG_END:ru
+        // @LANG_BEGIN:zh
+        zh: { "fcp_btn": "保存并登录" },
+        // @LANG_END:zh
+        en: { "fcp_btn": "Save & Login" }
+    };
     function setLang(l) { localStorage.setItem('simut_lang', l); applyLang(); }
     function applyLang() { let l = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = l); document.querySelectorAll('[data-i18n]').forEach(el => { let k = el.getAttribute('data-i18n'); if(!el.hasAttribute('data-en')) el.setAttribute('data-en', el.placeholder || el.innerHTML); let t = (l === 'en' || !dictFcp[l] || !dictFcp[l][k]) ? el.getAttribute('data-en') : dictFcp[l][k]; if(el.tagName === 'INPUT') el.placeholder = t; else el.innerHTML = t; }); }
     document.addEventListener('DOMContentLoaded', applyLang);
@@ -323,7 +375,26 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
                     <div style="margin-top:4px">
                         <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option><option value="es">🇪🇸 ES</option><option value="de">🇩🇪 DE</option><option value="fr">🇫🇷 FR</option><option value="it">🇮🇹 IT</option><option value="ru">🇷🇺 RU</option><option value="zh">🇨🇳 ZH</option>
+                            <option value="en">🇺🇸 EN</option>
+                            <option value="pt">🇧🇷 PT</option>
+                            <!-- @LANG_BEGIN:es -->
+                            <option value="es">🇪🇸 ES</option>
+                            <!-- @LANG_END:es -->
+                            <!-- @LANG_BEGIN:de -->
+                            <option value="de">🇩🇪 DE</option>
+                            <!-- @LANG_END:de -->
+                            <!-- @LANG_BEGIN:fr -->
+                            <option value="fr">🇫🇷 FR</option>
+                            <!-- @LANG_END:fr -->
+                            <!-- @LANG_BEGIN:it -->
+                            <option value="it">🇮🇹 IT</option>
+                            <!-- @LANG_END:it -->
+                            <!-- @LANG_BEGIN:ru -->
+                            <option value="ru">🇷🇺 RU</option>
+                            <!-- @LANG_END:ru -->
+                            <!-- @LANG_BEGIN:zh -->
+                            <option value="zh">🇨🇳 ZH</option>
+                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -646,7 +717,26 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
                     <div style="margin-top:4px">
                         <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option><option value="es">🇪🇸 ES</option><option value="de">🇩🇪 DE</option><option value="fr">🇫🇷 FR</option><option value="it">🇮🇹 IT</option><option value="ru">🇷🇺 RU</option><option value="zh">🇨🇳 ZH</option>
+                            <option value="en">🇺🇸 EN</option>
+                            <option value="pt">🇧🇷 PT</option>
+                            <!-- @LANG_BEGIN:es -->
+                            <option value="es">🇪🇸 ES</option>
+                            <!-- @LANG_END:es -->
+                            <!-- @LANG_BEGIN:de -->
+                            <option value="de">🇩🇪 DE</option>
+                            <!-- @LANG_END:de -->
+                            <!-- @LANG_BEGIN:fr -->
+                            <option value="fr">🇫🇷 FR</option>
+                            <!-- @LANG_END:fr -->
+                            <!-- @LANG_BEGIN:it -->
+                            <option value="it">🇮🇹 IT</option>
+                            <!-- @LANG_END:it -->
+                            <!-- @LANG_BEGIN:ru -->
+                            <option value="ru">🇷🇺 RU</option>
+                            <!-- @LANG_END:ru -->
+                            <!-- @LANG_BEGIN:zh -->
+                            <option value="zh">🇨🇳 ZH</option>
+                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -1101,7 +1191,26 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
                     <div style="margin-top:4px">
                         <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option><option value="es">🇪🇸 ES</option><option value="de">🇩🇪 DE</option><option value="fr">🇫🇷 FR</option><option value="it">🇮🇹 IT</option><option value="ru">🇷🇺 RU</option><option value="zh">🇨🇳 ZH</option>
+                            <option value="en">🇺🇸 EN</option>
+                            <option value="pt">🇧🇷 PT</option>
+                            <!-- @LANG_BEGIN:es -->
+                            <option value="es">🇪🇸 ES</option>
+                            <!-- @LANG_END:es -->
+                            <!-- @LANG_BEGIN:de -->
+                            <option value="de">🇩🇪 DE</option>
+                            <!-- @LANG_END:de -->
+                            <!-- @LANG_BEGIN:fr -->
+                            <option value="fr">🇫🇷 FR</option>
+                            <!-- @LANG_END:fr -->
+                            <!-- @LANG_BEGIN:it -->
+                            <option value="it">🇮🇹 IT</option>
+                            <!-- @LANG_END:it -->
+                            <!-- @LANG_BEGIN:ru -->
+                            <option value="ru">🇷🇺 RU</option>
+                            <!-- @LANG_END:ru -->
+                            <!-- @LANG_BEGIN:zh -->
+                            <option value="zh">🇨🇳 ZH</option>
+                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -1537,7 +1646,26 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
                     <div style="margin-top:4px">
                         <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option><option value="es">🇪🇸 ES</option><option value="de">🇩🇪 DE</option><option value="fr">🇫🇷 FR</option><option value="it">🇮🇹 IT</option><option value="ru">🇷🇺 RU</option><option value="zh">🇨🇳 ZH</option>
+                            <option value="en">🇺🇸 EN</option>
+                            <option value="pt">🇧🇷 PT</option>
+                            <!-- @LANG_BEGIN:es -->
+                            <option value="es">🇪🇸 ES</option>
+                            <!-- @LANG_END:es -->
+                            <!-- @LANG_BEGIN:de -->
+                            <option value="de">🇩🇪 DE</option>
+                            <!-- @LANG_END:de -->
+                            <!-- @LANG_BEGIN:fr -->
+                            <option value="fr">🇫🇷 FR</option>
+                            <!-- @LANG_END:fr -->
+                            <!-- @LANG_BEGIN:it -->
+                            <option value="it">🇮🇹 IT</option>
+                            <!-- @LANG_END:it -->
+                            <!-- @LANG_BEGIN:ru -->
+                            <option value="ru">🇷🇺 RU</option>
+                            <!-- @LANG_END:ru -->
+                            <!-- @LANG_BEGIN:zh -->
+                            <option value="zh">🇨🇳 ZH</option>
+                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -1827,7 +1955,26 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
                     <div style="margin-top:4px">
                         <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option><option value="es">🇪🇸 ES</option><option value="de">🇩🇪 DE</option><option value="fr">🇫🇷 FR</option><option value="it">🇮🇹 IT</option><option value="ru">🇷🇺 RU</option><option value="zh">🇨🇳 ZH</option>
+                            <option value="en">🇺🇸 EN</option>
+                            <option value="pt">🇧🇷 PT</option>
+                            <!-- @LANG_BEGIN:es -->
+                            <option value="es">🇪🇸 ES</option>
+                            <!-- @LANG_END:es -->
+                            <!-- @LANG_BEGIN:de -->
+                            <option value="de">🇩🇪 DE</option>
+                            <!-- @LANG_END:de -->
+                            <!-- @LANG_BEGIN:fr -->
+                            <option value="fr">🇫🇷 FR</option>
+                            <!-- @LANG_END:fr -->
+                            <!-- @LANG_BEGIN:it -->
+                            <option value="it">🇮🇹 IT</option>
+                            <!-- @LANG_END:it -->
+                            <!-- @LANG_BEGIN:ru -->
+                            <option value="ru">🇷🇺 RU</option>
+                            <!-- @LANG_END:ru -->
+                            <!-- @LANG_BEGIN:zh -->
+                            <option value="zh">🇨🇳 ZH</option>
+                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -2093,7 +2240,26 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
                     <div style="margin-top:4px">
                         <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option><option value="es">🇪🇸 ES</option><option value="de">🇩🇪 DE</option><option value="fr">🇫🇷 FR</option><option value="it">🇮🇹 IT</option><option value="ru">🇷🇺 RU</option><option value="zh">🇨🇳 ZH</option>
+                            <option value="en">🇺🇸 EN</option>
+                            <option value="pt">🇧🇷 PT</option>
+                            <!-- @LANG_BEGIN:es -->
+                            <option value="es">🇪🇸 ES</option>
+                            <!-- @LANG_END:es -->
+                            <!-- @LANG_BEGIN:de -->
+                            <option value="de">🇩🇪 DE</option>
+                            <!-- @LANG_END:de -->
+                            <!-- @LANG_BEGIN:fr -->
+                            <option value="fr">🇫🇷 FR</option>
+                            <!-- @LANG_END:fr -->
+                            <!-- @LANG_BEGIN:it -->
+                            <option value="it">🇮🇹 IT</option>
+                            <!-- @LANG_END:it -->
+                            <!-- @LANG_BEGIN:ru -->
+                            <option value="ru">🇷🇺 RU</option>
+                            <!-- @LANG_END:ru -->
+                            <!-- @LANG_BEGIN:zh -->
+                            <option value="zh">🇨🇳 ZH</option>
+                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -2384,7 +2550,26 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
                     <div style="margin-top:4px">
                         <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option><option value="es">🇪🇸 ES</option><option value="de">🇩🇪 DE</option><option value="fr">🇫🇷 FR</option><option value="it">🇮🇹 IT</option><option value="ru">🇷🇺 RU</option><option value="zh">🇨🇳 ZH</option>
+                            <option value="en">🇺🇸 EN</option>
+                            <option value="pt">🇧🇷 PT</option>
+                            <!-- @LANG_BEGIN:es -->
+                            <option value="es">🇪🇸 ES</option>
+                            <!-- @LANG_END:es -->
+                            <!-- @LANG_BEGIN:de -->
+                            <option value="de">🇩🇪 DE</option>
+                            <!-- @LANG_END:de -->
+                            <!-- @LANG_BEGIN:fr -->
+                            <option value="fr">🇫🇷 FR</option>
+                            <!-- @LANG_END:fr -->
+                            <!-- @LANG_BEGIN:it -->
+                            <option value="it">🇮🇹 IT</option>
+                            <!-- @LANG_END:it -->
+                            <!-- @LANG_BEGIN:ru -->
+                            <option value="ru">🇷🇺 RU</option>
+                            <!-- @LANG_END:ru -->
+                            <!-- @LANG_BEGIN:zh -->
+                            <option value="zh">🇨🇳 ZH</option>
+                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -2952,7 +3137,26 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
                     <div style="margin-top:4px">
                         <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option><option value="es">🇪🇸 ES</option><option value="de">🇩🇪 DE</option><option value="fr">🇫🇷 FR</option><option value="it">🇮🇹 IT</option><option value="ru">🇷🇺 RU</option><option value="zh">🇨🇳 ZH</option>
+                            <option value="en">🇺🇸 EN</option>
+                            <option value="pt">🇧🇷 PT</option>
+                            <!-- @LANG_BEGIN:es -->
+                            <option value="es">🇪🇸 ES</option>
+                            <!-- @LANG_END:es -->
+                            <!-- @LANG_BEGIN:de -->
+                            <option value="de">🇩🇪 DE</option>
+                            <!-- @LANG_END:de -->
+                            <!-- @LANG_BEGIN:fr -->
+                            <option value="fr">🇫🇷 FR</option>
+                            <!-- @LANG_END:fr -->
+                            <!-- @LANG_BEGIN:it -->
+                            <option value="it">🇮🇹 IT</option>
+                            <!-- @LANG_END:it -->
+                            <!-- @LANG_BEGIN:ru -->
+                            <option value="ru">🇷🇺 RU</option>
+                            <!-- @LANG_END:ru -->
+                            <!-- @LANG_BEGIN:zh -->
+                            <option value="zh">🇨🇳 ZH</option>
+                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -3166,6 +3370,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "alm_title": "Alarmes e Sons", "alm_limits": "Limites de Alarme", "alm_sounds": "Configuração de Sons", "alm_tmin": "Temp. Mín.", "alm_tmax": "Temp. Máx.", "alm_hmin": "Umid. Mín.", "alm_hmax": "Umid. Máx.", "alm_active": "Alarme Ativo", "alm_save": "Salvar", "alm_saved": "Salvo com sucesso!", "alm_err": "Erro ao salvar.", "alm_none": "Nenhum sensor configurado.", "alm_touch": "Toque", "alm_confirm": "Confirmação", "alm_error": "Erro", "alm_alarm": "Alarme", "alm_web": "Sons Web", "alm_mute": "Mudo Global", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Alarme", "alm_on": "Ligado", "alm_off": "Desligado", "alm_ambient": "Sensor Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Descendente", "alm_mel_siren": "Sirene",
             "nav_lic": "📜 Licença", "lic_title": "Licença de Software", "lic_mit": "Licença MIT", "lic_notice": "Avisos de Terceiros"
         },
+        // @LANG_BEGIN:es
         es: {
             "nav_dash": "Panel de Control", "nav_hist": "Historial", "nav_cfg": "Ajustes", "nav_net": "Red", "nav_usr": "Usuarios", "nav_file": "Archivos", "nav_alm": "Alarmas y Sonidos", "nav_exit": "Salir",
             "greet_morning": "Buenos días", "greet_afternoon": "Buenas tardes", "greet_evening": "Buenas noches", "greet_hello": "Hola", "greet_logout": "Salir",
@@ -3187,6 +3392,8 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "alm_title": "Alarmas y Sonidos", "alm_limits": "Límites de Alarma", "alm_sounds": "Configuración de Sonidos", "alm_tmin": "Temp. Mín.", "alm_tmax": "Temp. Máx.", "alm_hmin": "Hum. Mín.", "alm_hmax": "Hum. Máx.", "alm_active": "Alarma Activa", "alm_save": "Guardar", "alm_saved": "¡Guardado!", "alm_err": "Error al guardar.", "alm_none": "Ningún sensor configurado.", "alm_touch": "Toque", "alm_confirm": "Confirmación", "alm_error": "Error", "alm_alarm": "Alarma", "alm_web": "Sonidos Web", "alm_mute": "Silencio Global", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Alarma", "alm_on": "Activado", "alm_off": "Desactivado", "alm_ambient": "Sensor Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Descendente", "alm_mel_siren": "Sirena",
             "nav_lic": "📜 Licencia", "lic_title": "Licencia de Software", "lic_mit": "Licencia MIT", "lic_notice": "Avisos de Terceros"
         },
+        // @LANG_END:es
+        // @LANG_BEGIN:de
         de: {
             "nav_dash": "Dashboard", "nav_hist": "Verlauf & Logs", "nav_cfg": "Einstellungen", "nav_net": "Netzwerk", "nav_usr": "Benutzer", "nav_file": "Dateien", "nav_alm": "Alarme & Töne", "nav_exit": "Abmelden",
             "greet_morning": "Guten Morgen", "greet_afternoon": "Guten Tag", "greet_evening": "Guten Abend", "greet_hello": "Hallo", "greet_logout": "Abmelden",
@@ -3208,6 +3415,8 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "alm_title": "Alarme & Töne", "alm_limits": "Alarmgrenzen", "alm_sounds": "Tonkonfiguration", "alm_tmin": "Temp. Min.", "alm_tmax": "Temp. Max.", "alm_hmin": "Feuchte Min.", "alm_hmax": "Feuchte Max.", "alm_active": "Alarm Aktiv", "alm_save": "Speichern", "alm_saved": "Gespeichert!", "alm_err": "Fehler.", "alm_none": "Keine Sensoren.", "alm_touch": "Berührung", "alm_confirm": "Bestätigung", "alm_error": "Fehler", "alm_alarm": "Alarm", "alm_web": "Web-Töne", "alm_mute": "Stumm", "alm_volume": "Sys-Lautst.", "alm_alarm_vol": "Alarm-Lautst.", "alm_on": "Ein", "alm_off": "Aus", "alm_ambient": "Umgebungssensor", "alm_mel_asc": "Aufsteigend", "alm_mel_desc": "Absteigend", "alm_mel_siren": "Sirene",
             "nav_lic": "📜 Lizenz", "lic_title": "Softwarelizenz", "lic_mit": "MIT-Lizenz", "lic_notice": "Drittanbieter-Hinweise"
         },
+        // @LANG_END:de
+        // @LANG_BEGIN:fr
         fr: {
             "nav_dash": "Tableau de bord", "nav_hist": "Historique & Logs", "nav_cfg": "Configuration", "nav_net": "Réseau", "nav_usr": "Utilisateurs", "nav_file": "Fichiers", "nav_alm": "Alarmes & Sons", "nav_exit": "Déconnexion",
             "greet_morning": "Bonjour", "greet_afternoon": "Bon après-midi", "greet_evening": "Bonsoir", "greet_hello": "Bonjour", "greet_logout": "Déconnexion",
@@ -3229,6 +3438,8 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "alm_title": "Alarmes & Sons", "alm_limits": "Limites d'alarme", "alm_sounds": "Configuration des sons", "alm_tmin": "Temp. Min.", "alm_tmax": "Temp. Max.", "alm_hmin": "Hum. Min.", "alm_hmax": "Hum. Max.", "alm_active": "Alarme Active", "alm_save": "Enregistrer", "alm_saved": "Enregistré !", "alm_err": "Erreur.", "alm_none": "Aucun capteur.", "alm_touch": "Toucher", "alm_confirm": "Confirmation", "alm_error": "Erreur", "alm_alarm": "Alarme", "alm_web": "Sons Web", "alm_mute": "Muet", "alm_volume": "Vol. Système", "alm_alarm_vol": "Vol. Alarme", "alm_on": "Activé", "alm_off": "Désactivé", "alm_ambient": "Capteur Ambiant", "alm_mel_asc": "Ascendant", "alm_mel_desc": "Descendant", "alm_mel_siren": "Sirène",
             "nav_lic": "📜 Licence", "lic_title": "Licence Logicielle", "lic_mit": "Licence MIT", "lic_notice": "Avis Tiers"
         },
+        // @LANG_END:fr
+        // @LANG_BEGIN:it
         it: {
             "nav_dash": "Pannello", "nav_hist": "Cronologia & Log", "nav_cfg": "Impostazioni", "nav_net": "Rete", "nav_usr": "Utenti", "nav_file": "File", "nav_alm": "Allarmi & Suoni", "nav_exit": "Esci",
             "greet_morning": "Buongiorno", "greet_afternoon": "Buon pomeriggio", "greet_evening": "Buonasera", "greet_hello": "Ciao", "greet_logout": "Esci",
@@ -3250,6 +3461,8 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "alm_title": "Allarmi & Suoni", "alm_limits": "Limiti di Allarme", "alm_sounds": "Configurazione Suoni", "alm_tmin": "Temp. Min.", "alm_tmax": "Temp. Max.", "alm_hmin": "Umid. Min.", "alm_hmax": "Umid. Max.", "alm_active": "Allarme Attivo", "alm_save": "Salva", "alm_saved": "Salvato!", "alm_err": "Errore.", "alm_none": "Nessun sensore.", "alm_touch": "Tocco", "alm_confirm": "Conferma", "alm_error": "Errore", "alm_alarm": "Allarme", "alm_web": "Suoni Web", "alm_mute": "Muto", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Allarme", "alm_on": "Attivo", "alm_off": "Disattivo", "alm_ambient": "Sensore Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Discendente", "alm_mel_siren": "Sirena",
             "nav_lic": "📜 Licenza", "lic_title": "Licenza Software", "lic_mit": "Licenza MIT", "lic_notice": "Avvisi di Terze Parti"
         },
+        // @LANG_END:it
+        // @LANG_BEGIN:ru
         ru: {
             "nav_dash": "Панель", "nav_hist": "История и логи", "nav_cfg": "Настройки", "nav_net": "Сеть", "nav_usr": "Пользователи", "nav_file": "Файлы", "nav_alm": "Тревоги и звуки", "nav_exit": "Выход",
             "greet_morning": "Доброе утро", "greet_afternoon": "Добрый день", "greet_evening": "Добрый вечер", "greet_hello": "Привет", "greet_logout": "Выход",
@@ -3271,6 +3484,8 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "alm_title": "Тревоги и звуки", "alm_limits": "Пределы тревоги", "alm_sounds": "Настройка звуков", "alm_tmin": "Темп. мин.", "alm_tmax": "Темп. макс.", "alm_hmin": "Влажн. мин.", "alm_hmax": "Влажн. макс.", "alm_active": "Тревога вкл.", "alm_save": "Сохранить", "alm_saved": "Сохранено!", "alm_err": "Ошибка.", "alm_none": "Нет датчиков.", "alm_touch": "Касание", "alm_confirm": "Подтверждение", "alm_error": "Ошибка", "alm_alarm": "Тревога", "alm_web": "Veb Zvuki", "alm_mute": "Без звука", "alm_volume": "Сис. Громк.", "alm_alarm_vol": "Тревога Громк.", "alm_on": "Вкл", "alm_off": "Выкл", "alm_ambient": "Датчик среды", "alm_mel_asc": "Восходящий", "alm_mel_desc": "Нисходящий", "alm_mel_siren": "Сирена",
             "nav_lic": "📜 Лицензия", "lic_title": "Лицензия ПО", "lic_mit": "Лицензия MIT", "lic_notice": "Уведомления третьих сторон"
         },
+        // @LANG_END:ru
+        // @LANG_BEGIN:zh
         zh: {
             "nav_dash": "控制面板", "nav_hist": "历史与日志", "nav_cfg": "配置", "nav_net": "网络", "nav_usr": "用户", "nav_file": "文件", "nav_alm": "警报与声音", "nav_exit": "退出",
             "greet_morning": "早上好", "greet_afternoon": "下午好", "greet_evening": "晚上好", "greet_hello": "你好", "greet_logout": "退出",
@@ -3292,6 +3507,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "alm_title": "警报与声音", "alm_limits": "警报限值", "alm_sounds": "声音配置", "alm_tmin": "温度下限", "alm_tmax": "温度上限", "alm_hmin": "湿度下限", "alm_hmax": "湿度上限", "alm_active": "警报启用", "alm_save": "保存", "alm_saved": "已保存！", "alm_err": "保存失败。", "alm_none": "无传感器。", "alm_touch": "触摸", "alm_confirm": "确认", "alm_error": "错误", "alm_alarm": "警报", "alm_web": "Wang Ye Yin Xiao", "alm_mute": "全局静音", "alm_volume": "系统音量", "alm_alarm_vol": "警报音量", "alm_on": "开", "alm_off": "关", "alm_ambient": "环境传感器", "alm_mel_asc": "上升", "alm_mel_desc": "下降", "alm_mel_siren": "警笛",
             "nav_lic": "📜 许可证", "lic_title": "软件许可证", "lic_mit": "MIT 许可证", "lic_notice": "第三方通知"
         },
+        // @LANG_END:zh
         en: {
             "hist_load_btn": "Load", "hist_prompt": "Click 'Load' to view system logs.",
             "greet_morning": "Good morning", "greet_afternoon": "Good afternoon", "greet_evening": "Good evening", "greet_hello": "Hello", "greet_logout": "Logout"
