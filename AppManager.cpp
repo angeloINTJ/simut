@@ -1162,6 +1162,207 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
         }
 
+        case CMD_IP_CFG: {
+            const bool pt = _cmdMgr.isPt();
+            switch (cmd.intVal1) {
+                case 0:  /* dhcp */
+                    cfg.useDhcp = true;
+                    _cmdMgr.printSuccess(pt ? "Modo IP: DHCP" : "IP mode: DHCP");
+                    changed = true;
+                    break;
+                case 1:  /* static */
+                    cfg.useDhcp = false;
+                    _cmdMgr.printSuccess(pt ? "Modo IP: estatico" : "IP mode: static");
+                    changed = true;
+                    break;
+                case 2: case 3: case 4: case 5: {
+                    if (!isValidIpv4(cmd.strVal1.c_str())) {
+                        _cmdMgr.printError(pt ? "IPv4 invalido (ex: 192.168.1.100)"
+                                              : "Invalid IPv4 (e.g. 192.168.1.100)");
+                        break;
+                    }
+                    char* dst = nullptr; size_t dstSize = 0;
+                    const char* label = "";
+                    if (cmd.intVal1 == 2) { dst = cfg.staticIp;      dstSize = sizeof(cfg.staticIp);      label = "addr"; }
+                    else if (cmd.intVal1 == 3) { dst = cfg.staticMask;  dstSize = sizeof(cfg.staticMask);  label = "mask"; }
+                    else if (cmd.intVal1 == 4) { dst = cfg.staticGateway; dstSize = sizeof(cfg.staticGateway); label = "gateway"; }
+                    else                       { dst = cfg.staticDns;     dstSize = sizeof(cfg.staticDns);     label = "dns"; }
+                    safeCopy(dst, cmd.strVal1.c_str(), dstSize);
+                    _cmdMgr.printSuccess((pt ? "IP " : "IP ") + String(label) + ": " + cmd.strVal1);
+                    changed = true;
+                    break;
+                }
+                default:
+                    _cmdMgr.printError(pt ? "Subcomando IP invalido" : "Invalid IP subcommand");
+                    break;
+            }
+            break;
+        }
+
+        case CMD_SENSOR_FIELD: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para GPIO" : "Invalid number for GPIO");
+                break;
+            }
+            if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
+                _cmdMgr.printError(pt ? "Slot fora de range (0-9)" : "Slot out of range (0-9)");
+                break;
+            }
+            if (cmd.strVal2.length() == 0) {
+                _cmdMgr.printError(pt ? "Valor ausente" : "Missing value");
+                break;
+            }
+            SensorRecord &r = cfg.sensors[cmd.intVal1];
+            const String& field = cmd.strVal1;
+            if (field == "alarm") {
+                String v = cmd.strVal2; v.toLowerCase();
+                if (v != "on" && v != "off") {
+                    _cmdMgr.printError(pt ? "Use 'on' ou 'off'" : "Use 'on' or 'off'");
+                    break;
+                }
+                r.alarmsActive = (v == "on");
+                _cmdMgr.printSuccess((pt ? "Alarme slot " : "Alarm slot ") + String(cmd.intVal1) + ": " + v);
+                changed = true;
+            } else {
+                /* Valores numéricos (float) com range sensato para temperaturas/umidade. */
+                float val = cmd.strVal2.toFloat();
+                /* toFloat retorna 0.0 para input inválido — distinguir "0.0" legítimo. */
+                if (val == 0.0f && cmd.strVal2 != "0" && cmd.strVal2 != "0.0"
+                                 && cmd.strVal2 != "-0" && cmd.strVal2 != "-0.0") {
+                    _cmdMgr.printError(pt ? "Valor numerico invalido" : "Invalid numeric value");
+                    break;
+                }
+                if (field == "tmin" || field == "tmax") {
+                    if (val < -50.0f || val > 150.0f) {
+                        _cmdMgr.printError(pt ? "Temp fora de range (-50 a 150)"
+                                              : "Temp out of range (-50 to 150)");
+                        break;
+                    }
+                    if (field == "tmin") r.tempMin = val; else r.tempMax = val;
+                } else if (field == "hmin" || field == "hmax") {
+                    if (val < 0.0f || val > 100.0f) {
+                        _cmdMgr.printError(pt ? "Umid fora de range (0-100)"
+                                              : "Hum out of range (0-100)");
+                        break;
+                    }
+                    if (field == "hmin") r.humMin = val; else r.humMax = val;
+                } else {
+                    _cmdMgr.printError(pt ? "Campo desconhecido" : "Unknown field");
+                    break;
+                }
+                _cmdMgr.printSuccess((pt ? "Slot " : "Slot ") + String(cmd.intVal1)
+                                      + " " + field + "=" + cmd.strVal2);
+                changed = true;
+            }
+            break;
+        }
+
+        case CMD_USER_ADD: {
+            const bool pt = _cmdMgr.isPt();
+            if (!isValidName(cmd.strVal1.c_str(), 31)) {
+                _cmdMgr.printError(pt ? "Username invalido (1-31, sem ctrl chars)"
+                                      : "Invalid username (1-31, no ctrl chars)");
+                break;
+            }
+            if (cmd.strVal2.length() == 0 || cmd.strVal2.length() > 64) {
+                _cmdMgr.printError(pt ? "Senha ausente ou muito longa (1-64)"
+                                      : "Password missing or too long (1-64)");
+                break;
+            }
+            if (!isValidCfgString(cmd.strVal2.c_str(), 64)) {
+                _cmdMgr.printError(pt ? "Senha tem chars de controle"
+                                      : "Password has control chars");
+                break;
+            }
+            /* Nome não pode colidir com usuário existente. */
+            bool exists = false;
+            int freeSlot = -1;
+            for (int i = 0; i < MAX_USERS; i++) {
+                if (cfg.users[i].active) {
+                    if (cmd.strVal1.equalsIgnoreCase(String(cfg.users[i].username))) {
+                        exists = true; break;
+                    }
+                } else if (freeSlot < 0 && i >= 1) {  /* slot 0 = admin, protegido */
+                    freeSlot = i;
+                }
+            }
+            if (exists) {
+                _cmdMgr.printError(pt ? "Usuario ja existe" : "User already exists");
+                break;
+            }
+            if (freeSlot < 0) {
+                _cmdMgr.printError(pt ? "Sem slot livre (max usuarios)"
+                                      : "No free slot (max users)");
+                break;
+            }
+            safeCopy(cfg.users[freeSlot].username, cmd.strVal1.c_str(), sizeof(cfg.users[freeSlot].username));
+            {
+                String preHash = _storageMgr.sha256Hex(cmd.strVal2);
+                String hashed = _storageMgr.hashPassword(cmd.strVal1, preHash);
+                safeCopy(cfg.users[freeSlot].password, hashed.c_str(), sizeof(cfg.users[freeSlot].password));
+            }
+            cfg.users[freeSlot].active = true;
+            cfg.users[freeSlot].permissions = (PERM_DASHBOARD | PERM_HISTORY);
+            cfg.users[freeSlot].mustChangePassword = false;
+            _cmdMgr.printSuccess((pt ? "Usuario criado: " : "User created: ") + cmd.strVal1);
+            LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, freeSlot,
+                     String(TRL("CLI created user: ", "CLI criou usuario: ")) + cmd.strVal1);
+            changed = true;
+            break;
+        }
+
+        case CMD_USER_DEL: {
+            const bool pt = _cmdMgr.isPt();
+            if (cmd.strVal1.equalsIgnoreCase("admin")) {
+                _cmdMgr.printError(pt ? "Nao e permitido deletar 'admin'"
+                                      : "Cannot delete 'admin'");
+                break;
+            }
+            bool found = false;
+            for (int i = 1; i < MAX_USERS; i++) {
+                if (cfg.users[i].active && cmd.strVal1.equalsIgnoreCase(String(cfg.users[i].username))) {
+                    cfg.users[i].active = false;
+                    memset(cfg.users[i].password, 0, sizeof(cfg.users[i].password));
+                    _cmdMgr.printSuccess((pt ? "Usuario removido: " : "User deleted: ") + cmd.strVal1);
+                    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,
+                             String(TRL("CLI deleted user: ", "CLI apagou usuario: ")) + cmd.strVal1);
+                    changed = true;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) _cmdMgr.printError(pt ? "Usuario nao encontrado" : "User not found");
+            break;
+        }
+
+        case CMD_USER_PASS: {
+            const bool pt = _cmdMgr.isPt();
+            if (cmd.strVal2.length() == 0 || cmd.strVal2.length() > 64
+                || !isValidCfgString(cmd.strVal2.c_str(), 64)) {
+                _cmdMgr.printError(pt ? "Nova senha invalida (1-64, sem ctrl chars)"
+                                      : "Invalid new password (1-64, no ctrl chars)");
+                break;
+            }
+            bool found = false;
+            for (int i = 0; i < MAX_USERS; i++) {
+                if (cfg.users[i].active && cmd.strVal1.equalsIgnoreCase(String(cfg.users[i].username))) {
+                    String preHash = _storageMgr.sha256Hex(cmd.strVal2);
+                    String hashed = _storageMgr.hashPassword(String(cfg.users[i].username), preHash);
+                    safeCopy(cfg.users[i].password, hashed.c_str(), sizeof(cfg.users[i].password));
+                    cfg.users[i].mustChangePassword = false;
+                    _cmdMgr.printSuccess((pt ? "Senha atualizada: " : "Password updated: ") + cmd.strVal1);
+                    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,
+                             String(TRL("CLI reset password: ", "CLI resetou senha: ")) + cmd.strVal1);
+                    changed = true;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) _cmdMgr.printError(pt ? "Usuario nao encontrado" : "User not found");
+            break;
+        }
+
         case CMD_UNKNOWN:
         default:
             LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");

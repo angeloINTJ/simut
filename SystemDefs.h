@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.11.2"         /* Firmware version string */
+#define SIMUT_VERSION "v3.12.0"         /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -904,7 +904,13 @@ enum DemandType {
     CMD_RELOAD,
     CMD_TEL_SYNC,
     CMD_DEBUG,
-    CMD_LANGUAGE
+    CMD_LANGUAGE,
+    /* #7: paridade CLI↔Web */
+    CMD_IP_CFG,       /**< IP estático: intVal1 = 0 dhcp, 1 static, 2 addr, 3 mask, 4 gw, 5 dns; strVal1 = valor */
+    CMD_SENSOR_FIELD, /**< Limites/calib: intVal1 = gpio; strVal1 = field (tmin/tmax/hmin/hmax/alarm/calib); strVal2 = valor */
+    CMD_USER_ADD,     /**< strVal1 = username; strVal2 = senha */
+    CMD_USER_DEL,     /**< strVal1 = username (protege admin) */
+    CMD_USER_PASS     /**< strVal1 = username; strVal2 = nova senha */
 };
 
 /** Parsed CLI command with typed payload fields. */

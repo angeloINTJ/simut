@@ -37,6 +37,7 @@ public:
     void printWelcome();
     void printPrompt();
     void printHelp();
+    void printHelpExtras();  /**< Lista compartilhada dos comandos novos (IP/sensor/user) — sem descrições, só sintaxe. Economiza flash. */
     void printSuccess(String msg);
     void printError(String msg);
     void printInfo(String msg);
