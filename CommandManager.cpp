@@ -480,8 +480,9 @@ void CommandManager::renderMetrics() {
     const bool pt = isPt();
     const SystemMetrics& m = MetricsManager::instance().data();
 
-    /* Força amostragem fresca de heap para o snapshot atual. */
+    /* Força amostragem fresca de heap + largest block para o snapshot atual. */
     MetricsManager::instance().sampleHeap();
+    MetricsManager::instance().sampleLargestBlock();
 
     uint32_t upSec = millis() / 1000;
     uint32_t d = upSec / 86400; upSec %= 86400;
@@ -500,6 +501,10 @@ void CommandManager::renderMetrics() {
                       : " Heap:     %lu B (min: %lu B)\n",
                    (unsigned long)m.heapFreeNow,
                    (unsigned long)(m.heapMinSeen == 0xFFFFFFFF ? 0 : m.heapMinSeen));
+    consolePrintf (pt ? " Maior bloco: %lu B (min: %lu B)\n"
+                      : " Largest blk: %lu B (min: %lu B)\n",
+                   (unsigned long)m.heapLargestBlock,
+                   (unsigned long)(m.heapLargestMin == 0xFFFFFFFF ? 0 : m.heapLargestMin));
 
     consolePrintln(pt ? " [REDE]" : " [NETWORK]");
     consolePrintf (pt ? " WiFi conns:    %lu\n" : " WiFi conns:    %lu\n",

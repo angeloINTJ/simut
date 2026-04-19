@@ -16,6 +16,7 @@
 
 #include "WebUI_GZ.h"
 #include "LogManager.h"
+#include "MetricsManager.h"
 #include "Themes.h"
 #include <LittleFS.h>
 #include <time.h>
@@ -1821,9 +1822,10 @@ void WebManager::handleApiStatus() {
     String devName = cfg.deviceName;
     devName.replace("\"", "\\\"");
 
-    snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d},",
+    uint32_t heapLargest = MetricsManager::instance().data().heapLargestBlock;
+    snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d},",
         devName.c_str(), millis(), _netRef->getRssi(), ipStr.c_str(), cfg.themeIndex,
-        (unsigned long)heapFree, (unsigned long)heapTot,
+        (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
         (unsigned long)now, ntp ? 1 : 0, pending);
 
