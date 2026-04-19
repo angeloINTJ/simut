@@ -759,7 +759,7 @@ static const char* translateCodeEn(uint16_t code) {
         case STO_CONFIG_REPORT:       return "Config report";
 
         /* ── Web (570–574) ── */
-        case WEB_SERVER_STARTED:      return "Web server started on port 80";
+        case WEB_SERVER_STARTED:      return "Web server started";
         case WEB_DISCONNECT_FILE:     return "Client disconnected (file)";
         case WEB_DISCONNECT_HISTORY:  return "Client disconnected (history)";
         case WEB_SCREENSHOT_ABORTED:  return "Screenshot aborted by client";
@@ -922,7 +922,7 @@ static const char* translateCodePt(uint16_t code) {
         case STO_CONFIG_REPORT:       return "Relatorio de config";
 
         /* ── Web (570–574) ── */
-        case WEB_SERVER_STARTED:      return "Servidor web iniciado (porta 80)";
+        case WEB_SERVER_STARTED:      return "Servidor web iniciado";
         case WEB_DISCONNECT_FILE:     return "Cliente desconectado (arquivo)";
         case WEB_DISCONNECT_HISTORY:  return "Cliente desconectado (historico)";
         case WEB_SCREENSHOT_ABORTED:  return "Screenshot abortado pelo cliente";

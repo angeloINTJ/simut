@@ -244,6 +244,13 @@ CliDemand CommandManager::parseCommand(String input) {
             cmd.intVal1Valid = parseIntStrict(t4, cmd.intVal1);
             return cmd;
         }
+        /* Porta do servidor web: conf web port <n> */
+        if (t1 == "web" && t2 == "port") {
+            cmd.type = CMD_SET_WEB_PORT;
+            cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+            return cmd;
+        }
+
         if (t1 == "tel") {
             if (t2 == "server") { cmd.type = CMD_SET_TEL_SERVER; cmd.strVal1 = v3; return cmd; }
             if (t2 == "port") {
@@ -799,7 +806,7 @@ void CommandManager::printHelp() {
  * adicionados em #7. Sem descrições — economia de flash. Apenas sintaxe. */
 void CommandManager::printHelpExtras() {
     consolePrintln("");
-    consolePrintln("-- 7. IP / SENSOR LIMITS / USERS --");
+    consolePrintln("-- 7. IP / SENSOR LIMITS / USERS / WEB --");
     consolePrintln("conf ip <dhcp|static>");
     consolePrintln("conf ip <addr|mask|gateway|dns> <ipv4>");
     consolePrintln("conf sensor <tmin|tmax|hmin|hmax> <gpio> <n>");
@@ -807,4 +814,5 @@ void CommandManager::printHelpExtras() {
     consolePrintln("conf user add <name> <pass>");
     consolePrintln("conf user del <name>");
     consolePrintln("conf user pass <name> <newpass>");
+    consolePrintln("conf web port <1..65535>");
 }

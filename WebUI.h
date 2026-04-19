@@ -1883,6 +1883,13 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_ntp_hint">Leave empty to use default (pool.ntp.org)</div>
                         </div>
 
+                        <h3 data-i18n="net_web_title">Web Server</h3>
+                        <div class="grp">
+                            <label data-i18n="net_web_port">HTTP Port</label>
+                            <input type="number" id="web_port" name="web_port" min="1" max="65535" value="80" required>
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_web_port_hint">Default: 80. After saving, browser auto-redirects to new port.</div>
+                        </div>
+
                         <button type="submit" data-i18n="net_save">Save & Reboot Device</button>
                     </form>
                 </div>
@@ -1926,6 +1933,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('gw').value = data.static_gw || '';
                 document.getElementById('dns').value = data.static_dns || '';
                 document.getElementById('ntp_server').value = data.ntp_server || '';
+                document.getElementById('web_port').value = data.web_port || 80;
                 toggleIpFields();
                 /* Dirty tracker: Save habilitado só quando há alteração. */
                 const _btn = document.querySelector('#netForm button[type="submit"]');
@@ -1949,7 +1957,25 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                 let r = await fetchSafe('/api/save_net', { method: 'POST', body: fd });
                 let j = await r.json();
-                if(j.reboot) { rebooting = true; showToast(window.t('net_saved','Saved. Rebooting system...'), 'ok', 5000); setTimeout(()=>{window.location.reload();}, 5000); }
+                if(j.reboot) {
+                    rebooting = true;
+                    /* Se a porta web mudou, redireciona para o novo host:porta após reboot.
+                     * Caso contrário, apenas recarrega. Delay de 15s cobre boot completo. */
+                    const currentPort = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80);
+                    const newPort = j.newPort || currentPort;
+                    if (newPort !== currentPort) {
+                        showToast(window.t('net_saved_port','Saved. Redirecting to new port ' + newPort + '...'), 'ok', 15000);
+                        setTimeout(() => {
+                            const proto = window.location.protocol;
+                            const host = window.location.hostname;
+                            const portStr = (newPort === 80 && proto === 'http:') || (newPort === 443 && proto === 'https:') ? '' : ':' + newPort;
+                            window.location.href = proto + '//' + host + portStr + '/network';
+                        }, 15000);
+                    } else {
+                        showToast(window.t('net_saved','Saved. Rebooting system...'), 'ok', 5000);
+                        setTimeout(() => { window.location.reload(); }, 5000);
+                    }
+                }
                 else showToast(window.t('net_save_err','Error saving.'), 'err');
             } catch(ex) { rebooting = true; showToast(window.t('net_reconnect','Network updated, reconnecting...'), 'warn', 5000); setTimeout(()=>{window.location.reload();}, 5000); }
             btn.innerText = orig;
@@ -3531,7 +3557,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "m_jan":"Jan", "m_feb":"Fev", "m_mar":"Mar", "m_apr":"Abr", "m_may":"Mai", "m_jun":"Jun", "m_jul":"Jul", "m_aug":"Ago", "m_sep":"Set", "m_oct":"Out", "m_nov":"Nov", "m_dec":"Dez",
             "cfg_title": "Configurações", "cfg_gen": "Identidade", "cfg_dev": "Nome", "cfg_tz": "Fuso Horário", "cfg_log": "Registro Local", "cfg_hw": "Hardware", "cfg_res": "Resolução DS18B20", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Amostra (ms)", "cfg_tel": "Telemetria", "cfg_srv": "IP Servidor", "cfg_port": "Porta", "cfg_path": "Endpoint", "cfg_key": "API Key", "cfg_tint": "Upload (ms)", "cfg_bat": "Lote", "cfg_fmt": "Formato", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Dinâmico", "cfg_sec": "Usar TLS / SSL", "cfg_sec_mqtt": "Usar MQTTS (TLS)", "cfg_vis": "Construtor", "cfg_leg": "Tags", "cfg_leg1": "Globais:", "cfg_leg2": "Dados:", "cfg_leg3": "Chaves Inteligentes:", "cfg_leg4": "Formatos:", "cfg_leg5": "Série T", "cfg_leg6": "Série H", "cfg_leg7": "ID Sensor", "cfg_tpl1": "1. Global", "cfg_tpl2": "2. Linha", "cfg_tpl3": "3. Separador", "cfg_prev": "Live Preview:", "cfg_save": "Salvar", "cfg_touch_title": "Calibração do Touch", "cfg_touch_reset": "Resetar Calibração", "cfg_touch_hint": "Restaura padrão de fábrica. Recalibre pelo menu do display.", "cfg_touch_confirm": "Resetar calibração do touch para padrão de fábrica?", "cfg_touch_done": "Calibração resetada. Recalibre pelo display.",
             "cfg_transport": "Transporte", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Tópico", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Usuário", "cfg_mq_pass": "Senha", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Reter", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)",
+            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)", "net_web_title": "Servidor Web", "net_web_port": "Porta HTTP", "net_web_port_hint": "Padrão: 80. Após salvar, o navegador redireciona automaticamente para a nova porta.",
             "usr_mgt": "Gestão de Acessos", "usr_usr": "Usuário", "usr_perm": "Permissões", "usr_act": "Ações", "usr_add": "Adicionar", "usr_name": "Nome", "usr_pdash": "Painel", "usr_phist": "Histórico", "usr_plog": "Logs", "usr_psys": "Sistema", "usr_pnet": "Rede", "usr_pfr": "Leitura", "usr_pfu": "Upload", "usr_pfd": "Excluir", "usr_pusr": "Usuários", "usr_btn": "Criar", "usr_warn": "Login via: Nome@DDMMAAAA", "usr_prot": "Protegido", "usr_del": "Excluir", "usr_rst": "Reset", "usr_sup": "Super",
             "fil_title": "Sistema de Arquivos", "fil_down": "Baixar", "fil_del": "Excluir", "fil_up": "Enviar", "fil_uphere": "Enviar", "fil_name": "Nome", "fil_sz": "Tamanho", "fil_mkdir": "Nova Pasta", "fil_mkname": "nome", "fil_create": "Criar", "fil_cancel": "Cancelar", "fil_loading": "Carregando...", "fil_parent": "Subir", "fil_folder": "Pasta", "fil_empty": "Vazio", "fil_inv_name": "Inválido", "fil_sel_del": "Selecione", "fil_conf_del": "Excluir N?", "fil_sel_down": "Selecione", "fil_conf_down": "Baixar N?", "usr_del_msg": "Excluir?", "usr_rst_msg": "Forçar reset?", "hist_clear_msg": "Limpar logs?",
             "alm_title": "Alarmes e Sons", "alm_limits": "Limites de Alarme", "alm_sounds": "Configuração de Sons", "alm_tmin": "Temp. Mín.", "alm_tmax": "Temp. Máx.", "alm_hmin": "Umid. Mín.", "alm_hmax": "Umid. Máx.", "alm_active": "Alarme Ativo", "alm_save": "Salvar", "alm_saved": "Salvo com sucesso!", "alm_err": "Erro ao salvar.", "alm_none": "Nenhum sensor configurado.", "alm_touch": "Toque", "alm_confirm": "Confirmação", "alm_error": "Erro", "alm_alarm": "Alarme", "alm_web": "Sons Web", "alm_mute": "Mudo Global", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Alarme", "alm_on": "Ligado", "alm_off": "Desligado", "alm_ambient": "Sensor Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Descendente", "alm_mel_siren": "Sirene",
