@@ -205,19 +205,17 @@ void TelemetryManager::update() {
     if (!_storageRef->lockHeavyTask()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return; }
 
     /*
-     * Estende WDT para 60s durante o ciclo de envio. TelemetryGuard só cobre
-     * http.POST — handshake TLS (http.begin) e cleanup (http.end) ficavam
-     * expostos e, com batch grande (ex: 50 pkts) ou rede lenta, podiam
-     * exceder 8.3s. Restaurado ao final (normal ou early return). Gated
-     * por isWdtActive() pra não afetar setup.
+     * RAII: estende WDT ctx para 120s durante o ciclo. TelemetryGuard só
+     * cobre http.POST (handshake/cleanup ficavam expostos). Context-aware:
+     * saves/logs aninhados não reduzem a janela pra 8.3s durante telemetria.
+     * Auto-restore em qualquer exit path (normal ou early return).
      */
-    if (LogManager::isWdtActive()) watchdog_enable(120000, 1);
+    LogManager::WdtWindow _wdt(120000);
 
     /* Aborta se heap está criticamente baixa para evitar hard fault */
     if (rp2040.getFreeHeap() < 20480) {
         _storageRef->unlockHeavyTask();
         __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
-        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
         escalateBackoff();
         return;
     }
@@ -228,7 +226,6 @@ void TelemetryManager::update() {
     if (!collectBatch(batch, newCursor)) {
         __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
         _storageRef->unlockHeavyTask();
-        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
         resetBackoff();
         return;
     }
@@ -269,7 +266,6 @@ void TelemetryManager::update() {
 
     __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
     _storageRef->unlockHeavyTask();
-    if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
     _pendingDirty = true;  /* Recalibrar após envio */
 
     if (success) {
@@ -284,6 +280,7 @@ void TelemetryManager::update() {
 
     /* Libera recursos TLS ociosos para recuperar heap */
     releaseIdleResources();
+    /* WdtWindow destrutor auto-restaura WDT aqui */
 }
 
 
@@ -783,8 +780,8 @@ bool TelemetryManager::forceSync() {
     if (!_netRef->isNetworkHealthy()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return false; }
     if (!_storageRef->lockHeavyTask()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return false; }
 
-    /* WDT 60s para cobrir handshake TLS + POST grande + cleanup (igual update()). */
-    if (LogManager::isWdtActive()) watchdog_enable(120000, 1);
+    /* RAII: estende ctx WDT 120s, context-aware igual update(). */
+    LogManager::WdtWindow _wdt(120000);
 
     std::vector<BinaryHistoryRecord> batch;
     uint32_t newCursor = 0;
@@ -792,7 +789,6 @@ bool TelemetryManager::forceSync() {
     if (!collectBatch(batch, newCursor)) {
         __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
         _storageRef->unlockHeavyTask();
-        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
         return true;
     }
 
@@ -816,11 +812,11 @@ bool TelemetryManager::forceSync() {
 
     __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
     _storageRef->unlockHeavyTask();
-    if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
     _pendingDirty = true;  /* Recalibrar após envio */
 
     if (!ok) escalateBackoff();
     return ok;
+    /* WdtWindow destrutor auto-restaura WDT */
 }
 
 

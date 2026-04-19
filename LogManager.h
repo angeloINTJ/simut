@@ -16,6 +16,7 @@
 #include <Arduino.h>
 #include <functional>
 #include "pico/mutex.h"
+#include <hardware/watchdog.h>
 #include "SystemDefs.h"
 
 #define LOG_FILE_CURRENT "/system.blog"
@@ -59,6 +60,40 @@ public:
      *  a janela WDT — NÃO estender durante setup evita WDT armado cedo demais. */
     static void markWdtActive() { _wdtActive = true; }
     static bool isWdtActive() { return _wdtActive; }
+
+    /*
+     * Contexto de WDT aninhado: o outer caller (ex: TelemetryManager::update
+     * com 120s) define o timeout de contexto. Inner callers (writeCompactToFlash
+     * com 30s durante LOG_CODE do audit) chamam setWdtCtxMs para estender,
+     * depois restoreWdtCtx pra voltar ao timeout do outer — não ao default
+     * curto (8.3s), que destruiria a janela do outer.
+     */
+    static void setWdtCtxMs(uint32_t ms)  { _wdtCtxMs = ms; }
+    static uint32_t getWdtCtxMs()          { return _wdtCtxMs; }
+
+    /*
+     * RAII: estende a janela WDT para `ms` no scope de construção,
+     * restaura o contexto outer no destrutor. max(outerCtx, ms) para
+     * nunca reduzir janela quando aninhado dentro de outer já maior.
+     * No-op se _wdtActive=false (setup).
+     */
+    class WdtWindow {
+    public:
+        explicit WdtWindow(uint32_t ms) {
+            _saved = LogManager::getWdtCtxMs();
+            uint32_t target = (ms > _saved) ? ms : _saved;
+            LogManager::setWdtCtxMs(target);
+            if (LogManager::isWdtActive()) watchdog_enable(target, 1);
+        }
+        ~WdtWindow() {
+            LogManager::setWdtCtxMs(_saved);
+            if (LogManager::isWdtActive()) watchdog_enable(_saved, 1);
+        }
+        WdtWindow(const WdtWindow&) = delete;
+        WdtWindow& operator=(const WdtWindow&) = delete;
+    private:
+        uint32_t _saved;
+    };
     bool isConsoleStream() const { return _consoleStreamEnabled; }
     void begin(bool saveToFile = false, LogLevel minSerialLevel = LOG_INFO);
 
@@ -104,6 +139,7 @@ private:
     LogManager();
 
     static volatile bool _wdtActive;
+    static volatile uint32_t _wdtCtxMs;
 
     mutex_t _logMutex;
     bool _saveToFile;

@@ -35,6 +35,7 @@ static volatile bool     _preBootSnapshotTaken = false;
 const char* MOD_NAMES[] = {"BOOT", "IDLE", "WIFI", "WEB_SERVER", "STORAGE_RD", "STORAGE_WR", "SENSOR", "TELEMETRY", "DISPLAY", "CLI"};
 
 volatile bool LogManager::_wdtActive = false;
+volatile uint32_t LogManager::_wdtCtxMs = WATCHDOG_TIMEOUT_MS;
 
 LogManager::LogManager() {
     mutex_init(&_logMutex);
@@ -287,13 +288,10 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
 
     flushPendingLogs();
 
-    /* U15/U16: estende WDT para 30s ANTES do requestFsLock. O lock via
-     * multicore_lockout_start_blocking pode aguardar Core 1 acknowledge,
-     * e qualquer LittleFS.open/write/close/rename/remove pode disparar GC
-     * interno e bloquear segundos. Feeds entre ops não ajudam se uma
-     * única chamada excede a janela atual. Restauramos WATCHDOG_TIMEOUT_MS
-     * ao final. */
-    if (_wdtActive) watchdog_enable(30000, 1);
+    /* RAII context-aware: estende ctx WDT para 30s (ou mantém outer se maior).
+     * Cobre requestFsLock (multicore_lockout wait) + flash ops sob GC.
+     * Auto-restaura no destrutor. */
+    WdtWindow _wdt(30000);
     requestFsLock(true);
     watchdog_update();
 
@@ -330,7 +328,7 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
     watchdog_update();
 
     requestFsLock(false);
-    if (_wdtActive) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);  /* Restaura janela normal */
+    /* WdtWindow destrutor auto-restaura ctx WDT */
 }
 
 
@@ -339,9 +337,8 @@ void LogManager::flushPendingLogs() {
     int count = __atomic_load_n(&_pendingCount, __ATOMIC_ACQUIRE);
     if (count == 0 && _pendingOverflow == 0) return;
 
-    /* U15/U16: estende WDT ANTES do requestFsLock para cobrir lockout wait
-     * + todo o batch de flash ops. */
-    if (_wdtActive) watchdog_enable(30000, 1);
+    /* RAII context-aware (igual writeCompactToFlash). */
+    WdtWindow _wdt(30000);
     requestFsLock(true);
     watchdog_update();
 
@@ -392,8 +389,8 @@ void LogManager::flushPendingLogs() {
     }
 
     requestFsLock(false);
-    if (_wdtActive) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);  /* Restaura janela normal */
     __atomic_store_n(&_pendingCount, 0, __ATOMIC_RELEASE);
+    /* WdtWindow auto-restaura ctx WDT */
 }
 
 

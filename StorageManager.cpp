@@ -389,11 +389,11 @@ bool StorageManager::saveConfiguration() {
     _lastSaveWasNoOp = false;
 
     /*
-     * Estende WDT ANTES de enterFlashSafeMode: o multicore_lockout_start_blocking
-     * interno pode aguardar Core 1 acknowledge. Qualquer LittleFS op subsequente
-     * pode bloquear sob GC. 30s cobre lockout wait + flash ops.
+     * RAII context-aware: estende WDT para 30s (ou mantém outer se maior,
+     * ex: telemetria em 120s). Auto-restore no destrutor cobre todos os
+     * exit paths. Cobre enterFlashSafeMode lockout wait + flash ops.
      */
-    if (LogManager::isWdtActive()) watchdog_enable(30000, 1);
+    LogManager::WdtWindow _wdt(30000);
     enterFlashSafeMode();
 
     /*
@@ -416,7 +416,7 @@ bool StorageManager::saveConfiguration() {
     File f = LittleFS.open(FILE_TMP, "w");
     watchdog_update();
     if (!f) {
-        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+        /* WdtWindow auto-restaura */
         exitFlashSafeMode();
         return false;
     }
@@ -444,7 +444,7 @@ bool StorageManager::saveConfiguration() {
         }
         LittleFS.rename(FILE_TMP, FILE_CONFIG);
         watchdog_update();
-        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+        /* WdtWindow auto-restaura */
         exitFlashSafeMode();
         MetricsManager::instance().data().configSaves++;
         _lastSavedCrc = currentCrc;  /* Marca conteúdo persistido para skip no-op futuro */
@@ -454,7 +454,7 @@ bool StorageManager::saveConfiguration() {
     } else {
         LittleFS.remove(FILE_TMP);
         watchdog_update();
-        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+        /* WdtWindow auto-restaura */
         exitFlashSafeMode();
         LOG_CODE(LOG_ERROR, "STO", SYS_STORAGE_FAIL, (int)bytesWritten, "Config save failed");
         return false;
@@ -494,8 +494,8 @@ bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
     if (!_isMounted) return false;
     String path = getHistoryFileName();
 
-    /* Estende WDT ANTES de enterFlashSafeMode: cobre lockout wait + op. */
-    if (LogManager::isWdtActive()) watchdog_enable(30000, 1);
+    /* RAII context-aware igual saveConfiguration. */
+    LogManager::WdtWindow _wdt(30000);
     enterFlashSafeMode();
     if (path != _currentLogFileName) { enforceStorageLimit(); _currentLogFileName = path; }
     watchdog_update();
@@ -505,7 +505,7 @@ bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
         f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
         f.close();
         watchdog_update();
-        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+        /* WdtWindow auto-restaura */
         exitFlashSafeMode();
         _storageDirty = true;
         return true;
@@ -522,14 +522,14 @@ bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
         f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
         f.close();
         watchdog_update();
-        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+        /* WdtWindow auto-restaura */
         exitFlashSafeMode();
         return true;
     }
 
-    if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
     exitFlashSafeMode();
     return false;
+    /* WdtWindow destrutor auto-restaura */
 }
 
 /**
@@ -610,8 +610,7 @@ void StorageManager::flushCursorIfDirty() {
     if (!_cursorDirty) return;
     if (millis() - _cursorCoalesceTime < CURSOR_COALESCE_MS) return;
     _cursorDirty = false;
-    /* Estende WDT ANTES de enterFlashSafeMode: cobre lockout wait + op. */
-    if (LogManager::isWdtActive()) watchdog_enable(30000, 1);
+    LogManager::WdtWindow _wdt(30000);  /* context-aware */
     enterFlashSafeMode();
     watchdog_update();
     File f = LittleFS.open(FILE_TCURSOR, "w");
@@ -622,7 +621,7 @@ void StorageManager::flushCursorIfDirty() {
         watchdog_update();
     }
     exitFlashSafeMode();
-    if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+    /* WdtWindow auto-restaura */
 }
 
 String StorageManager::getStatsReport() {
