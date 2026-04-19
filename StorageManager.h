@@ -91,7 +91,8 @@ private:
     bool _storageDirty = true;
     String _correctWatermark = "";       /**< Último arquivo corrigido (retomada) */
     int32_t _correctLastDelta = 0;       /**< Delta da última correção (reset)    */
-    bool _didMigrate = false;            /**< Set por attemptLoad quando migrou v12→v13 */
+    bool _didMigrate = false;            /**< Set por attemptLoad quando detectou schema antigo */
+    uint16_t _migrationFromVersion = 0;  /**< Versão do blob original antes da migração */
 
     File _currentLogFile;
     String _currentLogFileName = "";
@@ -101,7 +102,12 @@ private:
     void enforceStorageLimit();
 
     static uint32_t calculateCRC32(const uint8_t *data, size_t length);
-    static bool loadAsV13(File& f, SystemConfig& outCfg);
+    static bool loadCurrentBlob(File& f, SystemConfig& outCfg);
     static bool loadAndMigrateV12(File& f, SystemConfig& outCfg);
     bool attemptLoad(const char* path, SystemConfig& outCfg);
+
+    /** #5: ofusca/desofusca os 3 campos sensíveis da config com keystream
+     *  derivado de SHA-256(chip_id + domain). XOR é simétrico — a mesma
+     *  chamada criptografa (save) ou descriptografa (load). */
+    static void obfuscateSensitiveFields(SystemConfig& cfg);
 };

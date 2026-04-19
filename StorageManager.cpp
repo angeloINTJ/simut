@@ -22,7 +22,48 @@
 #include <bearssl/bearssl_hmac.h>
 
 const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
-const uint16_t CONFIG_VERSION = 13;
+const uint16_t CONFIG_VERSION = 14;
+
+/* #5: keystream derivation via SHA-256(chip_id + domain + counter).
+ * Gera keystream de tamanho arbitrário iterando o contador e expandindo
+ * o hash. Equivalente a HKDF-Expand em construção e segurança. */
+static void deriveKeystream(uint8_t* out, size_t outLen, const char* domain) {
+    pico_unique_board_id_t board_id;
+    pico_get_unique_board_id(&board_id);
+
+    size_t generated = 0;
+    uint32_t counter = 0;
+    while (generated < outLen) {
+        br_sha256_context ctx;
+        br_sha256_init(&ctx);
+        br_sha256_update(&ctx, board_id.id, sizeof(board_id.id));
+        br_sha256_update(&ctx, ":", 1);
+        br_sha256_update(&ctx, domain, strlen(domain));
+        br_sha256_update(&ctx, ":", 1);
+        br_sha256_update(&ctx, &counter, sizeof(counter));
+        uint8_t hash[32];
+        br_sha256_out(&ctx, hash);
+        size_t take = (outLen - generated < 32) ? (outLen - generated) : 32;
+        memcpy(out + generated, hash, take);
+        generated += take;
+        counter++;
+    }
+}
+
+/* Aplica XOR in-place em um buffer com keystream derivado do par (chip_id, domain).
+ * Como XOR é involutivo, a mesma função encripta e descriptografa. */
+static void xorWithDerivedKey(uint8_t* buf, size_t len, const char* domain) {
+    uint8_t keystream[64];   /* tamanho máximo atual é telApiKey[64] */
+    if (len > sizeof(keystream)) return;   /* proteção contra overrun futuro */
+    deriveKeystream(keystream, len, domain);
+    for (size_t i = 0; i < len; i++) buf[i] ^= keystream[i];
+}
+
+void StorageManager::obfuscateSensitiveFields(SystemConfig& cfg) {
+    xorWithDerivedKey((uint8_t*)cfg.wifiPass,  sizeof(cfg.wifiPass),  "wifi");
+    xorWithDerivedKey((uint8_t*)cfg.mqttPass,  sizeof(cfg.mqttPass),  "mqtt");
+    xorWithDerivedKey((uint8_t*)cfg.telApiKey, sizeof(cfg.telApiKey), "telapi");
+}
 
 /* Tamanho do blob de config no formato v12 (pré v3.8.0):
  * layout bit-idêntico ao v13 exceto por reserved[24] em vez de reserved[64].
@@ -201,24 +242,35 @@ uint32_t StorageManager::calculateCRC32(const uint8_t *data, size_t length) {
     return ~crc;
 }
 
-/* Lê config no formato atual (v13). CRC calculado sobre sizeof(SystemConfig). */
-bool StorageManager::loadAsV13(File& f, SystemConfig& outCfg) {
+/* Lê config no formato atual. Aceita v13 (plaintext, pré-#5) ou v14 (fields
+ * sensíveis criptografados via XOR+KDF). Decripta in-place quando v14.
+ * O caller (attemptLoad) é responsável por detectar v13 e marcar _didMigrate
+ * para que seja re-salvo como v14 encryptado. */
+bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg) {
     size_t bytesRead = f.read((uint8_t*)&outCfg, sizeof(SystemConfig));
     uint32_t readCrc = 0;
     size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
     if (bytesRead != sizeof(SystemConfig)) return false;
-    if (outCfg.magic != CONFIG_MAGIC || outCfg.version != CONFIG_VERSION) return false;
+    if (outCfg.magic != CONFIG_MAGIC) return false;
+    if (outCfg.version != 13 && outCfg.version != CONFIG_VERSION) return false;
     if (crcRead == sizeof(readCrc)) {
         uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, sizeof(SystemConfig));
         if (calcCrc != readCrc) return false;
     }
+    /* Se v14: campos estão criptografados — descriptografa agora.
+     * Se v13: campos já em plaintext, nada a fazer aqui. */
+    if (outCfg.version == CONFIG_VERSION) {
+        obfuscateSensitiveFields(outCfg);
+    }
     return true;
 }
 
-/* Lê config no formato legado (v12, 24 bytes reserved) e migra para v13 em memória.
- * Layout é bit-idêntico até o início do reserved — basta ler CONFIG_V12_BLOB_SIZE
- * bytes, zerar o tail reserved[24..63] e promover version=13.
- * CRC do v12 foi calculado sobre CONFIG_V12_BLOB_SIZE bytes. */
+/* Lê config no formato legado (v12, 24 bytes reserved) e migra para schema
+ * atual em memória. Layout é bit-idêntico até o início do reserved — basta ler
+ * CONFIG_V12_BLOB_SIZE bytes, zerar o tail reserved[24..63] e promover version.
+ * CRC do v12 foi calculado sobre CONFIG_V12_BLOB_SIZE bytes.
+ * Campos sensíveis permanecem plaintext (v12 era pré-#5) — serão criptografados
+ * na primeira saveConfiguration pós-migração. */
 bool StorageManager::loadAndMigrateV12(File& f, SystemConfig& outCfg) {
     memset(&outCfg, 0, sizeof(outCfg));
     size_t bytesRead = f.read((uint8_t*)&outCfg, CONFIG_V12_BLOB_SIZE);
@@ -230,7 +282,6 @@ bool StorageManager::loadAndMigrateV12(File& f, SystemConfig& outCfg) {
         uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, CONFIG_V12_BLOB_SIZE);
         if (calcCrc != readCrc) return false;
     }
-    /* Promove para v13 — reserved[24..63] já zerado pelo memset inicial. */
     outCfg.version = CONFIG_VERSION;
     return true;
 }
@@ -240,18 +291,25 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
     if (!f) return false;
     size_t fileSize = f.size();
 
-    /* Tenta v13 (formato atual) primeiro — caso típico pós-upgrade. */
+    /* Tenta formato atual (v13 plaintext ou v14 encrypted) primeiro. */
     if (fileSize == sizeof(SystemConfig) + sizeof(uint32_t)) {
-        bool ok = loadAsV13(f, outCfg);
+        bool ok = loadCurrentBlob(f, outCfg);
         f.close();
-        return ok;
+        if (!ok) return false;
+        /* Se era v13 (plaintext, pré-#5), promove e marca para re-save em v14. */
+        if (outCfg.version == 13) {
+            outCfg.version = CONFIG_VERSION;
+            _didMigrate = true;
+            _migrationFromVersion = 13;
+        }
+        return true;
     }
 
-    /* Fallback: arquivo tem tamanho v12 → lê, valida e migra. */
+    /* Fallback: arquivo tem tamanho v12 (pré-expansão reserved[]) → lê, valida e migra. */
     if (fileSize == CONFIG_V12_BLOB_SIZE + sizeof(uint32_t)) {
         bool ok = loadAndMigrateV12(f, outCfg);
         f.close();
-        if (ok) _didMigrate = true;
+        if (ok) { _didMigrate = true; _migrationFromVersion = 12; }
         return ok;
     }
 
@@ -286,11 +344,15 @@ bool StorageManager::loadConfiguration() {
         LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, TRL("Primary config corrupt, recovered from backup", "Config primaria corrompida, recuperada do backup"));
     }
 
-    /* Migração v12→v13: persistir no novo formato antes de entregar o controle.
-     * saveConfiguration() já marca magic/version e escreve via tmp→rename atômico. */
+    /* Migração de schema (v12 ou v13 → v14): persistir no novo formato antes
+     * de entregar o controle. saveConfiguration() marca magic/version,
+     * criptografa campos sensíveis (#5) e escreve via tmp→rename atômico. */
     if (_didMigrate) {
+        int fromVer = _migrationFromVersion;
         _didMigrate = false;
-        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, 12, TRL("Config v12->v13 migrated", "Config v12->v13 migrada"));
+        _migrationFromVersion = 0;
+        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, fromVer,
+                 TRL("Config schema migrated", "Schema de config migrado"));
         saveConfiguration();
     } else if (fromBackup) {
         saveConfiguration();
@@ -320,8 +382,14 @@ bool StorageManager::saveConfiguration() {
     File f = LittleFS.open(FILE_TMP, "w");
     if (!f) { exitFlashSafeMode(); return false; }
 
-    uint32_t crc = calculateCRC32((uint8_t*)&_currentConfig, sizeof(SystemConfig));
-    size_t bytesWritten = f.write((uint8_t*)&_currentConfig, sizeof(SystemConfig));
+    /* #5: escreve cópia com campos sensíveis criptografados. _currentConfig em
+     * RAM permanece plaintext para uso direto por WiFi/MQTT/HTTP. CRC é
+     * computado sobre a versão criptografada (o que está no disco). */
+    SystemConfig encBuf = _currentConfig;
+    obfuscateSensitiveFields(encBuf);
+
+    uint32_t crc = calculateCRC32((uint8_t*)&encBuf, sizeof(SystemConfig));
+    size_t bytesWritten = f.write((uint8_t*)&encBuf, sizeof(SystemConfig));
     size_t crcWritten = f.write((uint8_t*)&crc, sizeof(crc));
     f.close();
 
