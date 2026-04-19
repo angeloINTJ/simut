@@ -1796,7 +1796,12 @@ void DisplayManager::drawTopBar(const SystemState& state) {
 
         if (state.pendingPkts > 0) {
             char pktBuf[10];
-            snprintf(pktBuf, sizeof(pktBuf), "%u", state.pendingPkts);
+            /* >=1000 abrevia como "Nk" para caber na barra superior. */
+            if (state.pendingPkts >= 1000) {
+                snprintf(pktBuf, sizeof(pktBuf), "%uk", state.pendingPkts / 1000);
+            } else {
+                snprintf(pktBuf, sizeof(pktBuf), "%u", state.pendingPkts);
+            }
 
             _canvasWide->setFont(&FreeSansBold9pt7b);
 
