@@ -61,7 +61,11 @@ void AppManager::setup() {
     Serial.begin(115200);
     delay(1000);
 
-    TRACE_MOD(0, MOD_BOOT);
+    /*
+     * NÃO chamar TRACE_MOD aqui — scratch[4] precisa conter o módulo do
+     * crash anterior até a autópsia ler (em LogManager::begin abaixo).
+     * TRACE_BEAT(0) é OK: só mexe em RAM (_coreHeartbeat), não no scratch.
+     */
     TRACE_BEAT(0);
 
     _displayMgr.begin();
@@ -122,6 +126,9 @@ void AppManager::setup() {
     _displayMgr.setBootStatus("Starting Log Manager...");
     LogManager::instance().begin(fsOk, LOG_DEBUG);
 
+    /* Autópsia já leu scratch[4]. Agora pode setar MOD_BOOT para rastrear
+     * estalls que aconteçam durante o restante do setup. */
+    TRACE_MOD(0, MOD_BOOT);
 
     LogManager::instance().setHeavyTaskChecker([]() -> bool {
         return app._storageMgr.isHeavyTaskLocked();
@@ -1116,10 +1123,22 @@ void AppManager::executeCommand(CliDemand cmd) {
             LogManager::instance().markCleanReboot();
             rp2040.reboot();
             break;
-        case CMD_TEL_SYNC: _telemetryMgr.forceSync();
-            _cmdMgr.printSuccess(_cmdMgr.isPt()
-                ? "Sync de telemetria iniciada."
-                : "Telemetry sync triggered.");
+        case CMD_TEL_SYNC:
+            /* Silencioso por design: usuario ve o log natural
+             * "Telemetria enviada: ..." quando ha dados para enviar. */
+            _telemetryMgr.forceSync();
+            break;
+
+        case CMD_TEL_DUMP:
+            _telemetryMgr.armPayloadDump();
+            _telemetryMgr.forceSync();
+            /* Se tinha dados, _dumpPayloadNext foi consumido (dump ja saiu).
+             * Se nao tinha, a flag esta armada e dispara no proximo sync. */
+            if (_telemetryMgr.isPayloadDumpArmed()) {
+                _cmdMgr.printSuccess(_cmdMgr.isPt()
+                    ? "Sem dados pendentes; dump armado para o proximo sync."
+                    : "No pending data; dump armed for next sync.");
+            }
             break;
 
         case CMD_DEBUG: {

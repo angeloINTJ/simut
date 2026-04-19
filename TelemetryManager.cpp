@@ -231,6 +231,10 @@ void TelemetryManager::update() {
          * Para batches maiores, buildPayload + free batch.
          */
         String payload = buildPayload(batch);
+        if (_dumpPayloadNext) {
+            _dumpPayload(payload.c_str(), payload.length(), "MQTT");
+            _dumpPayloadNext = false;
+        }
         success = attemptMqttPublish(payload, batch, newCursor);
         /* batch e payload saem de escopo aqui e liberam memória */
     } else {
@@ -240,6 +244,10 @@ void TelemetryManager::update() {
          * coexistam em RAM simultaneamente.
          */
         String payload = buildPayload(batch);
+        if (_dumpPayloadNext) {
+            _dumpPayload(payload.c_str(), payload.length(), "HTTP");
+            _dumpPayloadNext = false;
+        }
 
         /* Libera batch para reduzir pico de RAM antes do TLS handshake */
         batch.clear();
@@ -749,7 +757,6 @@ void TelemetryManager::releaseIdleResources() {
 }
 
 bool TelemetryManager::forceSync() {
-    LOG_CODE(LOG_INFO, "TEL", TEL_FORCE_SYNC, 0, "");
     resetBackoff();
 
     bool expected = false;
@@ -771,6 +778,10 @@ bool TelemetryManager::forceSync() {
 
     /* Constrói payload e libera batch para reduzir pico de RAM */
     String payload = buildPayload(batch);
+    if (_dumpPayloadNext) {
+        _dumpPayload(payload.c_str(), payload.length(), "SYNC");
+        _dumpPayloadNext = false;
+    }
 
     bool ok;
     if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
@@ -851,22 +862,57 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
             if (i % 10 == 9) { watchdog_update(); yield(); }
         }
     } else if (cfg.telMode == 2) {
-        /* Custom: usa formatLineCustom existente (menos comum) */
-        String separator = String(cfg.telLineSeparator);
-        if (separator == "\\n") separator = "\n";
-        String dataBlocks;
-        dataBlocks.reserve(batch.size() * perLine);
-        for (size_t i = 0; i < batch.size(); i++) {
-            if (i > 0) dataBlocks += separator;
-            dataBlocks += formatLineCustom(batch[i], cfg);
-            if (i % 10 == 9) { watchdog_update(); yield(); }
+        /*
+         * Custom: walk global template char-by-char, emit per-line content
+         * into `s` directly on {DATA}. Zero intermediate String.
+         */
+        char sep[16];
+        strlcpy(sep, cfg.telLineSeparator, sizeof(sep));
+        if (sep[0] == '\\' && sep[1] == 'n' && sep[2] == '\0') { sep[0] = '\n'; sep[1] = '\0'; }
+        size_t sepLen = strlen(sep);
+
+        String macStr = _netRef->getMacAddress();
+        const char* gt = cfg.telGlobalTemplate;
+        const size_t gtLen = strnlen(gt, sizeof(cfg.telGlobalTemplate));
+
+        char lineBuf[1024];
+        size_t gi = 0;
+        size_t spanStart = 0;
+
+        while (gi < gtLen) {
+            if (gt[gi] != '{') { gi++; continue; }
+
+            /* Match known token prefixes at '{'. Advance 1 char on miss
+             * so nested braces in JSON templates are handled correctly. */
+            const size_t remaining = gtLen - gi;
+            size_t tokLen = 0;
+            int tokKind = 0;  /* 1=DEV, 2=MAC, 3=DATA */
+            if (remaining >= 5 && memcmp(gt + gi, "{DEV}", 5) == 0) { tokKind = 1; tokLen = 5; }
+            else if (remaining >= 5 && memcmp(gt + gi, "{MAC}", 5) == 0) { tokKind = 2; tokLen = 5; }
+            else if (remaining >= 6 && memcmp(gt + gi, "{DATA}", 6) == 0) { tokKind = 3; tokLen = 6; }
+
+            if (tokKind == 0) { gi++; continue; }
+
+            /* Flush literal span before token */
+            if (gi > spanStart) s.concat(gt + spanStart, gi - spanStart);
+
+            if (tokKind == 1) {
+                s.concat(cfg.deviceName);
+            } else if (tokKind == 2) {
+                s.concat(macStr);
+            } else {  /* DATA */
+                for (size_t i = 0; i < batch.size(); i++) {
+                    if (i > 0 && sepLen > 0) s.concat(sep, sepLen);
+                    int len = formatLineCustomBuf(batch[i], cfg, lineBuf, sizeof(lineBuf));
+                    if (len > 0) s.concat(lineBuf, len);
+                    if (i % 10 == 9) { watchdog_update(); yield(); }
+                }
+            }
+
+            gi += tokLen;
+            spanStart = gi;
         }
-        String devName = String(cfg.deviceName);
-        String macAddr = _netRef->getMacAddress();
-        s = String(cfg.telGlobalTemplate);
-        s.replace("{DEV}", devName);
-        s.replace("{MAC}", macAddr);
-        s.replace("{DATA}", dataBlocks);
+        if (gtLen > spanStart) s.concat(gt + spanStart, gtLen - spanStart);
     }
     return s;
 }
@@ -912,66 +958,216 @@ String TelemetryManager::formatLineJson(const BinaryHistoryRecord& rec, const Sy
     return String(buf);
 }
 
-String TelemetryManager::formatLineCustom(const BinaryHistoryRecord& rec, const SystemConfig& cfg) {
+/**
+ * Walk template once, emit into dest. Zero String allocations.
+ * Tokens: {TS} {DHT_ID} {tAMB} {uAMB} {t0}..{t9}
+ * Compound forms "<key>_ID":{<tok>} and "<key>":{<tok>} trigger key rewrite/removal.
+ */
+int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
+                                          const SystemConfig& cfg,
+                                          char* dest, size_t cap) {
+    if (cap == 0) return 0;
+    dest[0] = '\0';
+
     char tsBuf[16];
     snprintf(tsBuf, sizeof(tsBuf), "%lu", (unsigned long)rec.epoch);
 
-    String ambT = (rec.ambientTemp != HIST_NAN_SENTINEL)
-                  ? String(BinaryHistoryRecord::i16ToFloat(rec.ambientTemp), 2) : "";
-    String ambH = (rec.ambientHum != HIST_NAN_SENTINEL)
-                  ? String(BinaryHistoryRecord::i16ToFloat(rec.ambientHum), 1) : "";
+    char boardSerial[20] = {0};
+    {
+        String bs = _storageRef->getBoardSerialNumber();
+        strlcpy(boardSerial, bs.c_str(), sizeof(boardSerial));
+    }
 
-    String slotVals[MAX_SENSORS];
+    char ambTBuf[16] = {0};
+    char ambHBuf[16] = {0};
+    const bool hasAmbT = (rec.ambientTemp != HIST_NAN_SENTINEL);
+    const bool hasAmbH = (rec.ambientHum != HIST_NAN_SENTINEL);
+    if (hasAmbT) snprintf(ambTBuf, sizeof(ambTBuf), "%.2f", BinaryHistoryRecord::i16ToFloat(rec.ambientTemp));
+    if (hasAmbH) snprintf(ambHBuf, sizeof(ambHBuf), "%.1f", BinaryHistoryRecord::i16ToFloat(rec.ambientHum));
+
+    char slotVal[MAX_SENSORS][16];
+    bool slotHas[MAX_SENSORS];
     for (int i = 0; i < MAX_SENSORS; i++) {
-        if (rec.sensors[i] != HIST_NAN_SENTINEL) {
-            slotVals[i] = String(BinaryHistoryRecord::i16ToFloat(rec.sensors[i]), 2);
+        slotHas[i] = (cfg.sensors[i].active && rec.sensors[i] != HIST_NAN_SENTINEL);
+        if (slotHas[i]) snprintf(slotVal[i], sizeof(slotVal[i]), "%.2f", BinaryHistoryRecord::i16ToFloat(rec.sensors[i]));
+        else slotVal[i][0] = '\0';
+    }
+
+    const char* tpl = cfg.telLineTemplate;
+    const size_t tplLen = strnlen(tpl, sizeof(cfg.telLineTemplate));
+    size_t di = 0;   /* dest cursor */
+    size_t ti = 0;   /* template cursor */
+
+    while (ti < tplLen && di + 1 < cap) {
+        char c = tpl[ti];
+        if (c != '{') { dest[di++] = c; ti++; continue; }
+
+        /*
+         * At '{': try to match a known token prefix.
+         * Do NOT scan for a generic '}' — JSON templates like {"ts":{TS}}
+         * have nested braces, so the outer '{' must be emitted literally
+         * and the scan must continue one char forward.
+         */
+        const size_t remaining = tplLen - ti;
+        const char* val = nullptr;   /* resolved value (NULL = absent) */
+        const char* hwid = nullptr;  /* hwid for compound key rewrite */
+        char compKey[8] = {0};
+        size_t compKeyLen = 0;
+        size_t tokenChars = 0;       /* total chars to advance in template */
+        bool tokenValid = false;
+
+        if (remaining >= 4 && memcmp(tpl + ti, "{TS}", 4) == 0) {
+            val = tsBuf; tokenChars = 4; tokenValid = true;
+        } else if (remaining >= 8 && memcmp(tpl + ti, "{DHT_ID}", 8) == 0) {
+            val = boardSerial; tokenChars = 8; tokenValid = true;
+        } else if (remaining >= 6 && memcmp(tpl + ti, "{tAMB}", 6) == 0) {
+            val = hasAmbT ? ambTBuf : nullptr;
+            hwid = boardSerial;
+            memcpy(compKey, "tAMB", 4); compKeyLen = 4;
+            tokenChars = 6; tokenValid = true;
+        } else if (remaining >= 6 && memcmp(tpl + ti, "{uAMB}", 6) == 0) {
+            val = hasAmbH ? ambHBuf : nullptr;
+            hwid = boardSerial;
+            memcpy(compKey, "uAMB", 4); compKeyLen = 4;
+            tokenChars = 6; tokenValid = true;
+        } else if (remaining >= 4 && tpl[ti+1] == 't' &&
+                   tpl[ti+2] >= '0' && tpl[ti+2] <= '9' && tpl[ti+3] == '}') {
+            /* {t0}..{t9} — MAX_SENSORS=10 means single digit */
+            int idx = tpl[ti+2] - '0';
+            if (idx < MAX_SENSORS) {
+                val = slotHas[idx] ? slotVal[idx] : nullptr;
+                hwid = cfg.sensors[idx].hwId;
+                compKeyLen = snprintf(compKey, sizeof(compKey), "t%d", idx);
+                tokenChars = 4; tokenValid = true;
+            }
         }
-    }
 
-    String boardSerial = _storageRef->getBoardSerialNumber();
-    String out = String(cfg.telLineTemplate);
-    out.replace("{TS}", String(tsBuf));
-    out.replace("{DHT_ID}", boardSerial);
+        if (!tokenValid) {
+            /* '{' not followed by a known token — emit literally, advance 1 */
+            dest[di++] = c;
+            ti++;
+            continue;
+        }
 
-    if (ambT.length() > 0) {
-        out.replace("\"tAMB_ID\":{tAMB}", "\"t" + boardSerial + "\":" + ambT);
-        out.replace("\"tAMB\":{tAMB}", "\"tAMB\":" + ambT);
-        out.replace("{tAMB}", ambT);
-    } else {
-        out.replace("\"tAMB_ID\":{tAMB}", "");
-        out.replace("\"tAMB\":{tAMB}", "");
-        out.replace("{tAMB}", "null");
-    }
+        /* Check compound context by looking back in template:
+         *   "<compKey>_ID":{<tok>}  → pattern1
+         *   "<compKey>":{<tok>}     → pattern2
+         */
+        bool matchedFull = false, matchedBare = false;
+        if (compKeyLen > 0) {
+            const size_t p1 = compKeyLen + 6;  /* "<k>_ID": */
+            if (ti >= p1) {
+                const char* p = tpl + ti - p1;
+                if (p[0] == '"' &&
+                    memcmp(p + 1, compKey, compKeyLen) == 0 &&
+                    memcmp(p + 1 + compKeyLen, "_ID\":", 5) == 0) {
+                    matchedFull = true;
+                }
+            }
+            if (!matchedFull) {
+                const size_t p2 = compKeyLen + 3;  /* "<k>": */
+                if (ti >= p2) {
+                    const char* p = tpl + ti - p2;
+                    if (p[0] == '"' &&
+                        memcmp(p + 1, compKey, compKeyLen) == 0 &&
+                        memcmp(p + 1 + compKeyLen, "\":", 2) == 0) {
+                        matchedBare = true;
+                    }
+                }
+            }
+        }
 
-    if (ambH.length() > 0) {
-        out.replace("\"uAMB_ID\":{uAMB}", "\"u" + boardSerial + "\":" + ambH);
-        out.replace("\"uAMB\":{uAMB}", "\"uAMB\":" + ambH);
-        out.replace("{uAMB}", ambH);
-    } else {
-        out.replace("\"uAMB_ID\":{uAMB}", "");
-        out.replace("\"uAMB\":{uAMB}", "");
-        out.replace("{uAMB}", "null");
-    }
-
-    for (int i = 0; i < MAX_SENSORS; i++) {
-        String val = slotVals[i]; val.trim();
-        String tagVal = "{t" + String(i) + "}";
-        String tagKeyFull = "\"t" + String(i) + "\":" + tagVal;
-        if (cfg.sensors[i].active && val.length() > 0) {
-            String hwid = String(cfg.sensors[i].hwId); hwid.trim();
-            out.replace(tagKeyFull, "\"t" + hwid + "\":" + val);
-            out.replace(tagVal, val);
+        if (matchedFull) {
+            /* Undo "<compKey>_ID": already emitted */
+            const size_t undo = compKeyLen + 6;
+            if (di >= undo) di -= undo;
+            if (val) {
+                /* Emit "t<hwid>":<val>, trimming hwid whitespace */
+                char hwidTrim[20] = {0};
+                const char* h = hwid ? hwid : "";
+                while (*h == ' ' || *h == '\t') h++;
+                size_t hlen = strnlen(h, sizeof(hwidTrim) - 1);
+                while (hlen > 0 && (h[hlen-1] == ' ' || h[hlen-1] == '\t')) hlen--;
+                memcpy(hwidTrim, h, hlen); hwidTrim[hlen] = '\0';
+                const char* prefix = (compKey[0] == 'u') ? "\"u" : "\"t";
+                int w = snprintf(dest + di, cap - di, "%s%s\":%s", prefix, hwidTrim, val);
+                if (w > 0) { di += ((size_t)w < cap - di) ? (size_t)w : (cap - di - 1); }
+            }
+            /* else: nothing emitted (span removed) */
+        } else if (matchedBare) {
+            if (val) {
+                /* Key already in dest; append value */
+                size_t vl = strlen(val);
+                if (di + vl >= cap) vl = cap - 1 - di;
+                memcpy(dest + di, val, vl);
+                di += vl;
+            } else {
+                /* Undo key emission */
+                const size_t undo = compKeyLen + 3;
+                if (di >= undo) di -= undo;
+            }
         } else {
-            out.replace(tagKeyFull, "");
-            out.replace(tagVal, "null");
+            /* Bare {tok}: emit value or "null" */
+            const char* emit = val ? val : "null";
+            size_t el = strlen(emit);
+            if (di + el >= cap) el = cap - 1 - di;
+            memcpy(dest + di, emit, el);
+            di += el;
         }
+
+        ti += tokenChars;
     }
 
-    while (out.indexOf(",,") != -1) { out.replace(",,", ","); }
-    out.replace("{,", "{"); out.replace(",}", "}");
-    out.replace("[,", "["); out.replace(",]", "]");
+    /* In-place cleanup: collapse ",," runs; drop "{," "[," ","}" ","]" */
+    size_t r = 0, w = 0;
+    while (r < di) {
+        char c = dest[r++];
+        if (c == ',') {
+            if (w == 0) continue;
+            char prev = dest[w-1];
+            if (prev == ',' || prev == '{' || prev == '[') continue;
+        } else if ((c == '}' || c == ']') && w > 0 && dest[w-1] == ',') {
+            w--;
+        }
+        dest[w++] = c;
+    }
+    dest[w] = '\0';
+    return (int)w;
+}
 
-    return out;
+/** Thin wrapper: preserves String-returning API for MQTT per-item publish. */
+String TelemetryManager::formatLineCustom(const BinaryHistoryRecord& rec, const SystemConfig& cfg) {
+    char buf[1024];
+    formatLineCustomBuf(rec, cfg, buf, sizeof(buf));
+    return String(buf);
+}
+
+void TelemetryManager::_dumpPayload(const char* payload, size_t len, const char* label) {
+    char hdr[48];
+    snprintf(hdr, sizeof(hdr), "=== PAYLOAD %s (%u B) ===", label, (unsigned)len);
+    LogManager::instance().writeConsole(hdr);
+
+    char buf[256];
+    size_t start = 0;
+    for (size_t i = 0; i < len; i++) {
+        if (payload[i] == ',') {
+            size_t n = i - start + 1;  /* inclui a vírgula */
+            if (n >= sizeof(buf)) n = sizeof(buf) - 1;
+            memcpy(buf, payload + start, n);
+            buf[n] = '\0';
+            LogManager::instance().writeConsole(buf);
+            start = i + 1;
+        }
+    }
+    if (start < len) {
+        size_t n = len - start;
+        if (n >= sizeof(buf)) n = sizeof(buf) - 1;
+        memcpy(buf, payload + start, n);
+        buf[n] = '\0';
+        LogManager::instance().writeConsole(buf);
+    }
+
+    LogManager::instance().writeConsole("=== END ===");
 }
 
 

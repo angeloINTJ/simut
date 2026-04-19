@@ -45,6 +45,17 @@ public:
     bool saveConfiguration();
     void resetToFactory();
 
+    /** @return true se a última chamada a `saveConfiguration()` pulou a
+     *  gravação por CRC idêntico ao último salvo. Callers usam pra evitar
+     *  audit logs redundantes após rajadas de clicks "Save" sem mudança. */
+    bool lastSaveWasNoOp() const { return _lastSaveWasNoOp; }
+
+    /** @return true se já passou tempo suficiente desde o último save real
+     *  para permitir outro. Rate-limit server-side contra rajadas de saves
+     *  que sobrecarregam LittleFS GC. Handlers devem rejeitar com 429 se
+     *  retornar false. Default: 1 save / 1s. */
+    bool canSaveNow() const;
+
     SystemConfig& getConfig();
     SensorRecord* getSensorByGpio(uint8_t gpio);
 
@@ -85,6 +96,8 @@ private:
     uint32_t _cachedLastSent = 0;
     bool     _cursorDirty = false;
     uint32_t _cursorCoalesceTime = 0;
+    bool     _lastSaveWasNoOp = false;  /**< True se saveConfiguration pulou por CRC idêntico */
+    volatile uint32_t _lastSaveMs = 0;  /**< millis() do último save real (0 = nunca) */
 
 
     String _cachedOldestFile = "";

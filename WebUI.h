@@ -1378,6 +1378,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <div class="col">
                                 <b style="color:var(--txt);" data-i18n="cfg_leg2">Data Row Tags:</b><br>
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
+                                <span class="highlight">{DHT_ID}</span> - Board Serial<br>
                                 <span class="highlight">{tAMB}</span> / <span class="highlight">{uAMB}</span> - Internal DHT22<br>
                                 <span class="highlight">{t0}</span> to <span class="highlight">{t9}</span> - Temp Sensors<br>
                             </div>
@@ -1386,8 +1387,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <b data-i18n="cfg_leg3">Smart Keys:</b> <span data-i18n="cfg_leg4">Use exact formats to inject ID and omit off sensors:</span><br>
                             <span class="highlight">"t0_ID":{t0}</span> &rarr; <span class="highlight">"t28FF31...":24.5</span><br>
                             <span class="highlight">"tAMB_ID":{tAMB}</span> &rarr; <span class="highlight" data-i18n="cfg_leg5">Board Serial on Temp.</span><br>
-                            <span class="highlight">"uAMB_ID":{uAMB}</span> &rarr; <span class="highlight" data-i18n="cfg_leg6">Board Serial on Hum.</span><br>
-                            <span class="highlight">{id0}</span> to <span class="highlight">{id9}</span> &rarr; <span class="highlight" data-i18n="cfg_leg7">Injects Sensor ID</span>
+                            <span class="highlight">"uAMB_ID":{uAMB}</span> &rarr; <span class="highlight" data-i18n="cfg_leg6">Board Serial on Hum.</span>
                         </div>
 
                         <label data-i18n="cfg_tpl1">1. Global Template (The Envelope)</label>
@@ -1420,20 +1420,137 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script>
         function toggleTransport() { let tr = document.getElementById('t_transport').value; document.getElementById('http_fields').style.display = (tr == '0') ? 'block' : 'none'; document.getElementById('mqtt_fields').style.display = (tr == '1') ? 'block' : 'none'; let secSpan = document.querySelector('#t_sec + span'); if (secSpan) secSpan.textContent = (tr == '1') ? window.t('cfg_sec_mqtt', 'Use MQTTS (TLS)') : window.t('cfg_sec', 'Use HTTPS (SSL)'); }
         function toggleBuilder() { let mode = document.getElementById('t_mode').value; document.getElementById('custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderPreview(); }
-        function renderPreview() {
-            let mode = document.getElementById('t_mode').value; let pre = document.getElementById('preview');
-            if (mode == '0') { pre.innerText = '[\n  {"ts":1700000000,"tAMB":25.3,"uAMB":60.1,"tSTM0001":-10.5,"tSTM0002":10.1,"tSTM0003":22.4},\n  {"ts":1700000005,"tAMB":25.4,"uAMB":60.0,"tSTM0001":-10.4,"tSTM0002":10.2,"tSTM0003":22.5}\n]'; }
-            else if (mode == '1') { pre.innerText = 'timestamp;ambT;ambH;s0_STM0001;s1_STM0002;s2_STM0003;...;s9_STM0010\n1700000000;25.3;60.1;-10.5;10.1;22.4;;;;;;;\n1700000005;25.4;60.0;-10.4;10.2;22.5;;;;;;;'; }
-            else if (mode == '2') {
-                let glob = document.getElementById('t_glob').value; let line = document.getElementById('t_line').value; let sep = document.getElementById('t_sep').value; if(sep === '\\n') sep = '\n';
-                let f1 = line.replace(/{TS}/g, '1700000000').replace(/"tAMB_ID":{tAMB}/g, '"tRP2040_A1B2":25.3').replace(/"tAMB":{tAMB}/g, '"tAMB":25.3').replace(/"uAMB_ID":{uAMB}/g, '"uRP2040_A1B2":60.1').replace(/"uAMB":{uAMB}/g, '"uAMB":60.1').replace(/{tAMB}/g, '25.3').replace(/{uAMB}/g, '60.1');
-                let f2 = line.replace(/{TS}/g, '1700000005').replace(/"tAMB_ID":{tAMB}/g, '"tRP2040_A1B2":25.4').replace(/"tAMB":{tAMB}/g, '"tAMB":25.4').replace(/"uAMB_ID":{uAMB}/g, '"uRP2040_A1B2":60.0').replace(/"uAMB":{uAMB}/g, '"uAMB":60.0').replace(/{tAMB}/g, '25.4').replace(/{uAMB}/g, '60.0');
-                for(let i=0; i<=9; i++) {
-                    let rK = new RegExp(`"t${i}_ID":{t${i}}`, 'g'); let rV = new RegExp(`{t${i}}`, 'g'); let rI = new RegExp(`{id${i}}`, 'g'); let id = String(i+1).padStart(4, '0'); let t1 = (20.0+i+0.1).toFixed(1); let t2 = (20.0+i+0.2).toFixed(1);
-                    f1 = f1.replace(rK, `"tSTM${id}":${t1}`).replace(rV, t1).replace(rI, `STM${id}`); f2 = f2.replace(rK, `"tSTM${id}":${t2}`).replace(rV, t2).replace(rI, `STM${id}`);
+
+        /* Device metadata populated by loadConfig (real serial + per-slot hwid/active).
+         * Defaults used until /api/config resolves. */
+        let _devSerial = 'RP2040_A1B2';
+        let _devSensors = Array.from({length:10}, (_,i) => ({
+            hwid: 'STM' + String(i+1).padStart(4,'0'),
+            active: true
+        }));
+
+        /* Demo scenario: real serial + real per-slot hwid/active state, 2-record batch.
+         * Value formatting mirrors firmware (%.2f for tAMB/slots, %.1f for uAMB). */
+        function _previewDemoBatch() {
+            const mk = (tBase) => _devSensors.map((s, i) => ({
+                hwid: s.hwid,
+                val: (20 + i + tBase).toFixed(2),
+                active: s.active
+            }));
+            return [
+                { ts: 1700000000, serial: _devSerial, ambT: '25.30', ambH: '60.1', slots: mk(0.1) },
+                { ts: 1700000005, serial: _devSerial, ambT: '25.40', ambH: '60.0', slots: mk(0.2) }
+            ];
+        }
+
+        /* Mirror of firmware formatLineCustomBuf: single-pass token matching
+         * with compound look-back `"<k>_ID":{<k>}` and `"<k>":{<k>}`. */
+        function _previewCustomLine(tpl, rec) {
+            let out = '', ti = 0;
+            while (ti < tpl.length) {
+                const c = tpl[ti];
+                if (c !== '{') { out += c; ti++; continue; }
+                let val = null, hwid = null, compKey = '', tc = 0;
+                if (tpl.substr(ti, 4) === '{TS}') { val = String(rec.ts); tc = 4; }
+                else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.serial; tc = 8; }
+                else if (tpl.substr(ti, 6) === '{tAMB}') { val = rec.ambT; hwid = rec.serial; compKey = 'tAMB'; tc = 6; }
+                else if (tpl.substr(ti, 6) === '{uAMB}') { val = rec.ambH; hwid = rec.serial; compKey = 'uAMB'; tc = 6; }
+                else if (tpl.length - ti >= 4 && tpl[ti+1] === 't' && tpl[ti+2] >= '0' && tpl[ti+2] <= '9' && tpl[ti+3] === '}') {
+                    const idx = parseInt(tpl[ti+2]);
+                    const s = rec.slots[idx];
+                    val = (s && s.active) ? s.val : null;
+                    hwid = s ? s.hwid : '';
+                    compKey = 't' + idx; tc = 4;
                 }
-                let clean = (str) => str.replace(/,,+/g, ',').replace(/{,/g, '{').replace(/,}/g, '}');
-                pre.innerText = glob.replace(/{DEV}/g, 'SIMUT_Demo').replace(/{MAC}/g, 'AA:BB:CC:DD:EE:FF').replace(/{DATA}/g, clean(f1) + sep + clean(f2));
+                if (tc === 0) { out += c; ti++; continue; }
+
+                let mFull = false, mBare = false;
+                if (compKey) {
+                    const p1 = compKey.length + 6;
+                    if (ti >= p1 && tpl.substr(ti - p1, p1) === '"' + compKey + '_ID":') mFull = true;
+                    else {
+                        const p2 = compKey.length + 3;
+                        if (ti >= p2 && tpl.substr(ti - p2, p2) === '"' + compKey + '":') mBare = true;
+                    }
+                }
+
+                if (mFull) {
+                    out = out.substr(0, out.length - (compKey.length + 6));
+                    if (val !== null) {
+                        const letter = compKey[0] === 'u' ? 'u' : 't';
+                        out += '"' + letter + (hwid || '').trim() + '":' + val;
+                    }
+                } else if (mBare) {
+                    if (val !== null) out += val;
+                    else out = out.substr(0, out.length - (compKey.length + 3));
+                } else {
+                    out += (val !== null ? val : 'null');
+                }
+                ti += tc;
+            }
+
+            /* In-place cleanup: collapse ",,", drop "{,", "[,", ",}", ",]" */
+            let w = '';
+            for (let i = 0; i < out.length; i++) {
+                const ch = out[i];
+                if (ch === ',') {
+                    if (!w) continue;
+                    const p = w[w.length-1];
+                    if (p === ',' || p === '{' || p === '[') continue;
+                } else if ((ch === '}' || ch === ']') && w && w[w.length-1] === ',') {
+                    w = w.slice(0, -1);
+                }
+                w += ch;
+            }
+            return w;
+        }
+
+        /* Mirror of firmware buildPayload global-template walker. */
+        function _previewGlobal(gt, dev, mac, data) {
+            let out = '', gi = 0;
+            while (gi < gt.length) {
+                if (gt[gi] !== '{') { out += gt[gi]; gi++; continue; }
+                if (gt.substr(gi, 5) === '{DEV}') { out += dev; gi += 5; }
+                else if (gt.substr(gi, 5) === '{MAC}') { out += mac; gi += 5; }
+                else if (gt.substr(gi, 6) === '{DATA}') { out += data; gi += 6; }
+                else { out += gt[gi]; gi++; }
+            }
+            return out;
+        }
+
+        function renderPreview() {
+            const mode = document.getElementById('t_mode').value;
+            const pre = document.getElementById('preview');
+            const batch = _previewDemoBatch();
+
+            if (mode == '0') {
+                /* JSON: [{"ts":T,"tAMB":A,"uAMB":H,"t<hwid|idx>":V,...},{...}]
+                 * Empty hwid falls back to slot index (mirrors firmware formatLineJsonBuf). */
+                const lines = batch.map(r => {
+                    let s = '{"ts":' + r.ts + ',"tAMB":' + r.ambT + ',"uAMB":' + r.ambH;
+                    r.slots.forEach((sl, i) => {
+                        if (sl.active) s += ',"t' + (sl.hwid ? sl.hwid : i) + '":' + sl.val;
+                    });
+                    return s + '}';
+                });
+                pre.innerText = '[' + lines.join(',') + ']';
+            } else if (mode == '1') {
+                /* CSV: header only active; each line emits all 10 slot columns (empty if NaN) */
+                let hdr = 'timestamp;ambT;ambH';
+                batch[0].slots.forEach((sl, i) => { if (sl.active) hdr += ';s' + i + '_' + sl.hwid; });
+                const lines = batch.map(r => {
+                    let s = r.ts + ';' + r.ambT + ';' + r.ambH;
+                    r.slots.forEach(sl => { s += ';' + (sl.active ? sl.val : ''); });
+                    return s;
+                });
+                pre.innerText = hdr + '\n' + lines.join('\n') + '\n';
+            } else if (mode == '2') {
+                const glob = document.getElementById('t_glob').value;
+                const line = document.getElementById('t_line').value;
+                let sep = document.getElementById('t_sep').value;
+                if (sep === '\\n') sep = '\n';
+                const data = batch.map(r => _previewCustomLine(line, r)).join(sep);
+                pre.innerText = _previewGlobal(glob, 'SIMUT_Demo', 'AA:BB:CC:DD:EE:FF', data);
             }
         }
 
@@ -1464,13 +1581,35 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('t_glob').value = d.t_glob || '';
                 document.getElementById('t_line').value = d.t_line || '';
                 document.getElementById('t_sep').value = d.t_sep || '';
+                if (d.serial) _devSerial = d.serial;
+                if (Array.isArray(d.sensors)) {
+                    for (let i = 0; i < 10 && i < d.sensors.length; i++) {
+                        _devSensors[i] = {
+                            hwid: d.sensors[i].hwid || '',
+                            active: !!d.sensors[i].active
+                        };
+                    }
+                }
                 toggleTransport(); toggleBuilder();
+                /* Dirty tracker: Save habilitado só quando há alteração.
+                 * Evita envio duplicado por clicks repetidos. Listeners
+                 * escutam input/change do usuario (settings programaticos
+                 * acima nao disparam esses eventos). */
+                const _btn = document.querySelector('#sysForm button[type="submit"]');
+                if (_btn && !_btn._dirtyWired) {
+                    _btn.disabled = true;
+                    const _mark = () => { _btn.disabled = false; };
+                    document.getElementById('sysForm').addEventListener('input', _mark);
+                    document.getElementById('sysForm').addEventListener('change', _mark);
+                    _btn._dirtyWired = true;
+                }
             } catch(e) {}
         }
 
         async function saveConfig(e) {
             e.preventDefault();
             let btn = document.querySelector('button[type="submit"]'); let orig = btn.innerText; btn.innerText = "..."; btn.disabled = true;
+            let ok = false;
             try {
                 let fd = new URLSearchParams(new FormData(e.target));
                 if (!document.getElementById('log').checked) fd.set('log', '0'); else fd.set('log', '1');
@@ -1478,9 +1617,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (!document.getElementById('m_retain').checked) fd.set('m_retain', '0'); else fd.set('m_retain', '1');
 
                 let r = await fetchSafe('/api/save_sys', { method: 'POST', body: fd });
-                if(r.ok) { showToast(window.t('cfg_saved','Saved!'), 'ok'); } else { showToast(window.t('cfg_save_err','Failed to save.'), 'err'); }
+                ok = r.ok;
+                if(ok) { showToast(window.t('cfg_saved','Saved!'), 'ok'); } else { showToast(window.t('cfg_save_err','Failed to save.'), 'err'); }
             } catch(ex) {}
-            btn.innerText = orig; btn.disabled = false;
+            btn.innerText = orig;
+            /* Sucesso → mantém disabled (estado limpo). Erro → reabilita pra retry. */
+            btn.disabled = ok;
         }
 
         async function resetTouchCal() {
@@ -1785,22 +1927,34 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('dns').value = data.static_dns || '';
                 document.getElementById('ntp_server').value = data.ntp_server || '';
                 toggleIpFields();
+                /* Dirty tracker: Save habilitado só quando há alteração. */
+                const _btn = document.querySelector('#netForm button[type="submit"]');
+                if (_btn && !_btn._dirtyWired) {
+                    _btn.disabled = true;
+                    const _mark = () => { _btn.disabled = false; };
+                    document.getElementById('netForm').addEventListener('input', _mark);
+                    document.getElementById('netForm').addEventListener('change', _mark);
+                    _btn._dirtyWired = true;
+                }
             } catch(e) {}
         }
 
         async function saveNet(e) {
             e.preventDefault();
             let btn = document.querySelector('button[type="submit"]'); let orig = btn.innerText; btn.innerText = "..."; btn.disabled = true;
+            let rebooting = false;
             try {
                 let fd = new URLSearchParams(new FormData(e.target));
                 if (!document.getElementById('dhcp').checked) fd.set('use_dhcp', '0'); else fd.set('use_dhcp', '1');
 
                 let r = await fetchSafe('/api/save_net', { method: 'POST', body: fd });
                 let j = await r.json();
-                if(j.reboot) { showToast(window.t('net_saved','Saved. Rebooting system...'), 'ok', 5000); setTimeout(()=>{window.location.reload();}, 5000); }
+                if(j.reboot) { rebooting = true; showToast(window.t('net_saved','Saved. Rebooting system...'), 'ok', 5000); setTimeout(()=>{window.location.reload();}, 5000); }
                 else showToast(window.t('net_save_err','Error saving.'), 'err');
-            } catch(ex) { showToast(window.t('net_reconnect','Network updated, reconnecting...'), 'warn', 5000); setTimeout(()=>{window.location.reload();}, 5000); }
-            btn.innerText = orig; btn.disabled = false;
+            } catch(ex) { rebooting = true; showToast(window.t('net_reconnect','Network updated, reconnecting...'), 'warn', 5000); setTimeout(()=>{window.location.reload();}, 5000); }
+            btn.innerText = orig;
+            /* Reboot/sucesso → mantém disabled; erro → reabilita. */
+            btn.disabled = rebooting;
         }
 
         function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
@@ -2794,6 +2948,16 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('mel_alarm').value   = snd.melAlarm   || 0;
 
                 applyLang();
+                /* Dirty tracker: Save habilitado só após alteração. Listener
+                 * no body captura input/change dos cards e controles de som. */
+                const _btn = document.querySelector('.btn-save');
+                if (_btn && !_btn._dirtyWired) {
+                    _btn.disabled = true;
+                    const _mark = () => { _btn.disabled = false; };
+                    document.body.addEventListener('input', _mark);
+                    document.body.addEventListener('change', _mark);
+                    _btn._dirtyWired = true;
+                }
             } catch(e) {
                 showToast('Connection error', 'err');
             }
@@ -2805,6 +2969,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function saveAll() {
             let btn = document.querySelector('.btn-save');
             btn.disabled = true;
+            let ok = false;
 
             // ── Coleta limites de alarme de cada card ─────────────────
             let sensorData = [];
@@ -2850,6 +3015,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 });
                 let j = await r.json();
                 if (j.status === 'ok') {
+                    ok = true;
                     showToast(window.t('alm_saved', 'Saved!'), 'ok');
                 } else {
                     showToast(window.t('alm_err', 'Error saving.'), 'err');
@@ -2857,7 +3023,8 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             } catch(e) {
                 showToast(window.t('alm_err', 'Error saving.'), 'err');
             }
-            btn.disabled = false;
+            /* Sucesso → mantém disabled (estado limpo). Erro → reabilita. */
+            btn.disabled = ok;
         }
 
         // ═══════════════════════════════════════════════════════════════

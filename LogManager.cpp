@@ -25,7 +25,16 @@ volatile uint32_t _moduleStartTime[2] = {0, 0};
 volatile bool _corePaused[2] = {false, false};
 volatile uint32_t _healthCheckEnabledAt = 0;
 
+/* Snapshot de scratch[3] do boot anterior, capturado na primeira chamada
+ * de setModule (antes de sobrescrever). Usado pela autópsia para recuperar
+ * o módulo ativo no momento do HW WATCHDOG mesmo após AppManager::setup
+ * ter chamado `TRACE_MOD(0, MOD_BOOT)` no início. */
+static volatile uint32_t _preBootScratch4 = 0;
+static volatile bool     _preBootSnapshotTaken = false;
+
 const char* MOD_NAMES[] = {"BOOT", "IDLE", "WIFI", "WEB_SERVER", "STORAGE_RD", "STORAGE_WR", "SENSOR", "TELEMETRY", "DISPLAY", "CLI"};
+
+volatile bool LogManager::_wdtActive = false;
 
 LogManager::LogManager() {
     mutex_init(&_logMutex);
@@ -49,6 +58,33 @@ void LogManager::emitLine(const char* line) {
     if (!_consoleStreamEnabled) return;
     if (_consoleSink) _consoleSink(line);
     else Serial.println(line);
+}
+
+void LogManager::writeConsole(const char* line) {
+    /* BT streams silenciosamente descartam writes grandes (buffer ~256 B).
+     * Chunka linhas longas em pedaços que cabem na janela de transmissão BT.
+     * Cada chunk sai como sua própria linha — output longo vira múltiplas linhas
+     * no receptor, mas nenhum byte é perdido. */
+    constexpr size_t MAX_CHUNK = 200;
+    const size_t len = strlen(line);
+    if (len <= MAX_CHUNK) {
+        if (_consoleSink) _consoleSink(line);
+        else Serial.println(line);
+        return;
+    }
+
+    char buf[MAX_CHUNK + 1];
+    size_t off = 0;
+    while (off < len) {
+        const size_t n = (len - off > MAX_CHUNK) ? MAX_CHUNK : (len - off);
+        memcpy(buf, line + off, n);
+        buf[n] = '\0';
+        if (_consoleSink) _consoleSink(buf);
+        else Serial.println(buf);
+        off += n;
+        /* Pausa curta pra dar tempo do BT tx buffer drenar. */
+        delay(2);
+    }
 }
 
 
@@ -251,12 +287,14 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
 
     flushPendingLogs();
 
+    /* U15/U16: estende WDT para 30s ANTES do requestFsLock. O lock via
+     * multicore_lockout_start_blocking pode aguardar Core 1 acknowledge,
+     * e qualquer LittleFS.open/write/close/rename/remove pode disparar GC
+     * interno e bloquear segundos. Feeds entre ops não ajudam se uma
+     * única chamada excede a janela atual. Restauramos WATCHDOG_TIMEOUT_MS
+     * ao final. */
+    if (_wdtActive) watchdog_enable(30000, 1);
     requestFsLock(true);
-
-    /* U15: feeds de watchdog cercam cada I/O do LittleFS. Sob LittleFS >70%,
-     * uma chamada individual (open/write/close) pode disparar GC interno e
-     * bloquear por segundos. Sem feeds, uma LOG_CODE dentro de caminho
-     * interno (ex.: BluetoothManager::update no login) estoura o WDT de 8.3s. */
     watchdog_update();
 
     if (_currentLineCount >= MAX_RECORDS_PER_FILE) {
@@ -292,6 +330,7 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
     watchdog_update();
 
     requestFsLock(false);
+    if (_wdtActive) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);  /* Restaura janela normal */
 }
 
 
@@ -300,9 +339,10 @@ void LogManager::flushPendingLogs() {
     int count = __atomic_load_n(&_pendingCount, __ATOMIC_ACQUIRE);
     if (count == 0 && _pendingOverflow == 0) return;
 
+    /* U15/U16: estende WDT ANTES do requestFsLock para cobrir lockout wait
+     * + todo o batch de flash ops. */
+    if (_wdtActive) watchdog_enable(30000, 1);
     requestFsLock(true);
-
-    /* U15: feed no entry e entre lotes grandes para sobreviver a GC do LittleFS. */
     watchdog_update();
 
     /* Batch write: abrir 1x, escrever N entries, fechar — tudo dentro do lock */
@@ -313,6 +353,7 @@ void LogManager::flushPendingLogs() {
         if (_currentLineCount >= MAX_RECORDS_PER_FILE) {
             if (f) f.close();
             if (LittleFS.exists(LOG_FILE_OLD)) LittleFS.remove(LOG_FILE_OLD);
+            watchdog_update();
             if (LittleFS.exists(LOG_FILE_CURRENT)) LittleFS.rename(LOG_FILE_CURRENT, LOG_FILE_OLD);
             watchdog_update();
             _currentLineCount = 0;
@@ -351,6 +392,7 @@ void LogManager::flushPendingLogs() {
     }
 
     requestFsLock(false);
+    if (_wdtActive) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);  /* Restaura janela normal */
     __atomic_store_n(&_pendingCount, 0, __ATOMIC_RELEASE);
 }
 
@@ -369,9 +411,37 @@ void LogManager::setMinSerialLevel(LogLevel level) { _minSerialLevel = level; }
 /* =========================================================================== */
 /** @brief Set the currently executing module for crash forensics. */
 void LogManager::setModule(int core, uint8_t mod) {
+    /*
+     * Snapshot ONE-SHOT do scratch[3] antes da primeira sobrescrita.
+     * AppManager::setup chama TRACE_MOD(0, MOD_BOOT) logo no início, mas
+     * a autópsia só roda depois (em LogManager::begin). Sem este snapshot,
+     * o scratch do crash anterior seria apagado antes da autópsia lê-lo.
+     */
+    if (!_preBootSnapshotTaken) {
+        _preBootScratch4 = watchdog_hw->scratch[3];
+        _preBootSnapshotTaken = true;
+    }
+
     _coreModule[core] = mod;
     _moduleStartTime[core] = millis();
     _coreHeartbeat[core] = millis();
+    /*
+     * Persiste no scratch[3] do watchdog para autópsia pós-HW WDT.
+     * ATENÇÃO: NÃO usar scratch[4] ou scratch[5] — são reservados pelo
+     * SDK Pico para `watchdog_reboot(pc, sp, delay)` passar PC/SP.
+     * scratch[3] é de uso livre para aplicação.
+     * RAM é zerada no reset, mas scratch sobrevive. Packing:
+     *   bits  0..7  = Core 0 mod atual
+     *   bits  8..15 = 0x80 (magic "valid") se Core 0 ja foi setado
+     *   bits 16..23 = Core 1 mod atual
+     *   bits 24..31 = 0x80 (magic "valid") se Core 1 ja foi setado
+     * Magic byte evita false-positive de scratch zerado (power cycle).
+     */
+    if (core == 0) {
+        watchdog_hw->scratch[3] = (watchdog_hw->scratch[3] & 0xFFFF0000u) | 0x8000u | (mod & 0xFFu);
+    } else if (core == 1) {
+        watchdog_hw->scratch[3] = (watchdog_hw->scratch[3] & 0x0000FFFFu) | 0x80000000u | (((uint32_t)mod & 0xFFu) << 16);
+    }
 }
 
 void LogManager::heartbeat(int core) {
@@ -436,7 +506,11 @@ void LogManager::checkCrossCoreHealth() {
      * negativo pequeno, que não entra no branch do pânico. */
     int32_t elapsed = (int32_t)(now - lastBeat);
 
-    if (elapsed > 8000) {
+    /* Threshold 15s: maior que o WDT normal (8.3s) e tolera rajadas onde
+     * saveConfiguration estende WDT para 30s + multicore_lockout bloqueia
+     * Core 1 por vários segundos cumulativos entre saves consecutivos.
+     * HW WDT no Core 0 continua sendo o backstop para travas reais. */
+    if (elapsed > 15000) {
         watchdog_hw->scratch[5] = 0xCA11B007;
         watchdog_hw->scratch[6] = (otherCore << 24) | (_coreModule[0] << 16) | (_coreModule[1] << 8);
 
@@ -494,11 +568,42 @@ void LogManager::performCrashAutopsy() {
         watchdog_hw->scratch[5] = 0;
     } else if (wdReset) {
         /* Hardware watchdog estourou (8.3s) sem nosso soft panic ter disparado
-         * e sem marca de reboot limpo. Indica que Core 0 não chamou
-         * watchdog_update() — loop travado no Core 0. Não temos contexto de
-         * módulo pois RAM foi zerada no reset. */
-        logCode(LOG_FATAL, "SYS", SYS_BOOT, 0,
-                String("HW WATCHDOG: Core 0 loop stalled (no feed in 8.3s)"));
+         * e sem marca de reboot limpo. Core 0 não chamou watchdog_update()
+         * — loop travado no Core 0. RAM foi zerada; contexto vem do scratch[4]
+         * que setModule() atualiza em tempo real.
+         * Usa o snapshot pré-boot (capturado antes de TRACE_MOD(0, MOD_BOOT)
+         * da setup() sobrescrever) para ver o módulo do crash ANTERIOR. */
+        uint32_t modTrace = _preBootSnapshotTaken ? _preBootScratch4
+                                                  : watchdog_hw->scratch[3];
+        uint8_t c0Valid = (modTrace >> 8)  & 0xFF;
+        uint8_t c0Mod   = (modTrace >> 0)  & 0xFF;
+        uint8_t c1Valid = (modTrace >> 24) & 0xFF;
+        uint8_t c1Mod   = (modTrace >> 16) & 0xFF;
+
+        char msg[200];
+        if (c0Valid == 0x80) {
+            const char* c0Name = (c0Mod <= 9) ? MOD_NAMES[c0Mod] : "UNK";
+            if (c1Valid == 0x80) {
+                const char* c1Name = (c1Mod <= 9) ? MOD_NAMES[c1Mod] : "UNK";
+                snprintf(msg, sizeof(msg),
+                         "HW WATCHDOG: Core 0 loop stalled (no feed in 8.3s). C0=[%s] C1=[%s] sc3=0x%08lx",
+                         c0Name, c1Name, (unsigned long)modTrace);
+            } else {
+                snprintf(msg, sizeof(msg),
+                         "HW WATCHDOG: Core 0 loop stalled (no feed in 8.3s). C0=[%s] sc3=0x%08lx",
+                         c0Name, (unsigned long)modTrace);
+            }
+        } else {
+            snprintf(msg, sizeof(msg),
+                     "HW WATCHDOG: Core 0 loop stalled (no feed in 8.3s). (sem trace; sc3=0x%08lx)",
+                     (unsigned long)modTrace);
+        }
+        logCode(LOG_FATAL, "SYS", SYS_BOOT, 0, String(msg));
+        watchdog_hw->scratch[3] = 0;  /* Limpa pra proxima autopsia */
+    } else {
+        /* Power cycle / reset fisico: limpa scratch[4] para nao contaminar
+         * autopsia subsequente caso o registrador tenha lixo inicial. */
+        watchdog_hw->scratch[3] = 0;
     }
 }
 

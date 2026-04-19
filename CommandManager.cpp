@@ -326,6 +326,7 @@ CliDemand CommandManager::parseCommand(String input) {
     if (t0 == "write" && t1 == "memory") { cmd.type = CMD_WRITE_MEMORY; return cmd; }
     if (t0 == "clear" && t1 == "log") { cmd.type = CMD_CLEAR_LOGS; return cmd; }
     if (t0 == "tel" && t1 == "sync") { cmd.type = CMD_TEL_SYNC; return cmd; }
+    if (t0 == "tel" && t1 == "dump") { cmd.type = CMD_TEL_DUMP; return cmd; }
 
     if (t0 == "debug") {
         cmd.type = CMD_DEBUG;
@@ -649,6 +650,8 @@ void CommandManager::printHelp() {
         consolePrintln("  Reseta historico do slot");
         consolePrintln("tel sync");
         consolePrintln("  Forca upload de telemetria");
+        consolePrintln("tel dump");
+        consolePrintln("  Arma dump one-shot do proximo payload na console (USB+BT)");
         consolePrintln("clear log [confirm]");
         consolePrintln("  Apaga arquivo de log");
         consolePrintln("write memory");
@@ -765,6 +768,8 @@ void CommandManager::printHelp() {
     consolePrintln("  Reset graph history for slot");
     consolePrintln("tel sync");
     consolePrintln("  Force telemetry upload");
+    consolePrintln("tel dump");
+    consolePrintln("  Arm one-shot dump of next payload to console (USB+BT)");
     consolePrintln("clear log [confirm]");
     consolePrintln("  Delete system log file");
     consolePrintln("write memory");
