@@ -330,12 +330,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
         document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); setTimeout(() => { let activeTab = document.querySelector('.nav a.active'); if (activeTab) { activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } }, 100); }); window.updateLang = applyLang;
+        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
 
         window.fetchSafe = function(url, options) {
             options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2;
             function attempt(n) {
                 const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout);
-                return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500) throw new Error('Server error'); return resp; })
+                return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; })
                 .catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; });
             } return attempt(0);
         };
@@ -675,16 +676,23 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .progress-fill { height:100%; width:0%; background: linear-gradient(90deg, var(--acc), #22d3ee); transition: width 0.3s; }
         @keyframes pulse-bg { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
         .pulse { animation: pulse-bg 1.5s infinite; }
+        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
+        #net-toast.show { transform:translateY(0);opacity:1; }
+        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
+        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
+        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
+        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
         document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); });
     </script>
 </head>
 <body>
+    <div id="net-toast"></div>
     <div class="topbar">
         <div style="display:flex;align-items:center;gap:12px">
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
@@ -1040,7 +1048,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 row.style.display = (lvlOk && textOk) ? '' : 'none';
             });
         }
-        async function clearLogs() { if(!confirm(window.t('hist_clear_msg', 'Clear all?'))) return; try { await fetchSafe('/api/clear_logs', {method: 'POST'}); if(logsLoadedOnce) loadLogs(); } catch(e) {} }
+        async function clearLogs() { if(!confirm(window.t('hist_clear_msg', 'Clear all?'))) return; try { let r = await fetchSafe('/api/clear_logs', {method: 'POST'}); if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); return; } if (!r.ok) { showToast(window.t('hist_clear_err','Failed to clear logs.'), 'err'); return; } showToast(window.t('hist_cleared','Logs cleared.'), 'ok'); if(logsLoadedOnce) loadLogs(); } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); } }
 
         window.onLangChange = function() { renderCalendar(); if(logsLoadedOnce) { loadLogs(); } else { let btn = document.getElementById('btnLoadLogs'); btn.innerText = window.t(btn.getAttribute('data-i18n'), 'Load'); } };
 
@@ -1154,7 +1162,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
     </script>
 </head>
 <body>
@@ -1621,7 +1629,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if(ok) { showToast(window.t('cfg_saved','Saved!'), 'ok'); }
                 else if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); }
                 else { showToast(window.t('cfg_save_err','Failed to save.'), 'err'); }
-            } catch(ex) {}
+            } catch(ex) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
             btn.innerText = orig;
             /* Sucesso → mantém disabled (estado limpo). Erro → reabilita pra retry. */
             btn.disabled = ok;
@@ -1632,6 +1640,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (!confirm(msg)) return;
             try {
                 let r = await fetchSafe('/api/reset_touch_cal', { method: 'POST' });
+                if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); return; }
                 let j = await r.json();
                 if (j.status === 'ok') showToast(window.t('cfg_touch_done', 'Touch calibration reset. Recalibrate via display.'), 'ok');
                 else showToast('Error', 'err');
@@ -1753,7 +1762,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
     </script>
 </head>
 <body>
@@ -2106,7 +2115,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
     </script>
 </head>
 <body>
@@ -2248,18 +2257,28 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             try {
                 let fd = new URLSearchParams(new FormData(e.target));
                 let r = await fetchSafe('/api/user_add', { method: 'POST', body: fd });
-                if(r.ok) { document.getElementById('u_name').value = ''; loadUsers(); showToast(window.t('usr_added','User added.'), 'ok'); } else { showToast(window.t('usr_add_err','Failed or limits reached.'), 'err'); }
-            } catch(ex) {}
+                if(r.ok) { document.getElementById('u_name').value = ''; loadUsers(); showToast(window.t('usr_added','User added.'), 'ok'); }
+                else if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); }
+                else { showToast(window.t('usr_add_err','Failed or limits reached.'), 'err'); }
+            } catch(ex) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
             btn.innerText = orig; btn.disabled = false;
         }
 
         async function delUsr(id) {
             if(!confirm(window.t('usr_del_msg', 'Permanently delete user?'))) return;
-            try { await fetchSafe('/api/user_del', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'id='+id }); loadUsers(); showToast(window.t('usr_deleted','User deleted.'), 'ok'); } catch(e) {}
+            try {
+                let r = await fetchSafe('/api/user_del', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'id='+id });
+                if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); return; }
+                loadUsers(); showToast(window.t('usr_deleted','User deleted.'), 'ok');
+            } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
         }
         async function rstUsr(id) {
             if(!confirm(window.t('usr_rst_msg', 'Force user to reset password on next login?'))) return;
-            try { await fetchSafe('/api/user_rst', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'id='+id }); loadUsers(); showToast(window.t('usr_reset','Password reset forced.'), 'ok'); } catch(e) {}
+            try {
+                let r = await fetchSafe('/api/user_rst', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'id='+id });
+                if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); return; }
+                loadUsers(); showToast(window.t('usr_reset','Password reset forced.'), 'ok');
+            } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
         }
 
         window.onLangChange = function() { loadUsers(); };
@@ -2391,7 +2410,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
     </script>
 </head>
 <body>
@@ -2545,12 +2564,19 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function fmMkdir() {
             let name = document.getElementById('mkdirName').value.trim(); if (!name) return; name = name.replace(/[\/\\\.{}"'<>:]/g, ''); if (!name) { showToast(window.t('fil_inv_name','Invalid folder name'), 'warn'); return; }
             let fullPath = (currentDir === '/' ? '/' : currentDir + '/') + name;
-            try { let res = await fetchSafe('/api/mkdir?dir=' + encodeURIComponent(fullPath), {method:'POST'}); if (res.ok) { document.getElementById('mkdirRow').style.display = 'none'; fmNavigate(currentDir); } } catch (e) {}
+            try { let res = await fetchSafe('/api/mkdir?dir=' + encodeURIComponent(fullPath), {method:'POST'}); if (res.ok) { document.getElementById('mkdirRow').style.display = 'none'; fmNavigate(currentDir); showToast(window.t('fil_mkdir_ok','Folder created.'), 'ok'); } else if (res.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); } else { showToast(window.t('fil_mkdir_err','Failed to create folder.'), 'err'); } } catch (e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
         }
         async function fmDelete() {
             let sel = document.querySelectorAll('.item-chk:checked'); if (sel.length === 0) { showToast(window.t('fil_sel_del', 'Select files to delete.'), 'warn'); return; }
             let msg = window.t('fil_conf_del', 'Are you sure you want to delete N files?').replace('N', sel.length); if (!confirm(msg)) return;
-            for (let i = 0; i < sel.length; i++) { await fetchSafe('/api/delete?file=' + encodeURIComponent(sel[i].value), {method:'POST'}); } fmNavigate(currentDir);
+            let busy = false, failed = 0, done = 0;
+            try {
+                for (let i = 0; i < sel.length; i++) { let r = await fetchSafe('/api/delete?file=' + encodeURIComponent(sel[i].value), {method:'POST'}); if (r.status === 503) { busy = true; break; } if (r.ok) done++; else failed++; }
+            } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); fmNavigate(currentDir); return; }
+            if (busy) showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn');
+            else if (failed > 0) showToast(window.t('fil_del_err','Some files could not be deleted.'), 'err');
+            else if (done > 0) showToast(window.t('fil_deleted','Files deleted.'), 'ok');
+            fmNavigate(currentDir);
         }
         async function fmDownload() {
             let sel = document.querySelectorAll('.item-chk:checked'); if (sel.length === 0) { showToast(window.t('fil_sel_down', 'Select files.'), 'warn'); return; }
@@ -2701,7 +2727,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
     </script>
 </head>
 <body>
@@ -3268,12 +3294,18 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
         h3 { color: var(--acc); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; font-size: 1.05rem; }
         pre { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 16px; color: var(--sub); font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace; font-size: 0.78rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
+        #net-toast.show { transform:translateY(0);opacity:1; }
+        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
+        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
+        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); }
         function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
+        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -3569,7 +3601,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "m_jan":"Jan", "m_feb":"Fev", "m_mar":"Mar", "m_apr":"Abr", "m_may":"Mai", "m_jun":"Jun", "m_jul":"Jul", "m_aug":"Ago", "m_sep":"Set", "m_oct":"Out", "m_nov":"Nov", "m_dec":"Dez",
             "cfg_title": "Configurações", "cfg_gen": "Identidade", "cfg_dev": "Nome", "cfg_tz": "Fuso Horário", "cfg_log": "Registro Local", "cfg_hw": "Hardware", "cfg_res": "Resolução DS18B20", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Amostra (ms)", "cfg_tel": "Telemetria", "cfg_srv": "IP Servidor", "cfg_port": "Porta", "cfg_path": "Endpoint", "cfg_key": "API Key", "cfg_tint": "Upload (ms)", "cfg_bat": "Lote", "cfg_fmt": "Formato", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Dinâmico", "cfg_sec": "Usar TLS / SSL", "cfg_sec_mqtt": "Usar MQTTS (TLS)", "cfg_vis": "Construtor", "cfg_leg": "Tags", "cfg_leg1": "Globais:", "cfg_leg2": "Dados:", "cfg_leg3": "Chaves Inteligentes:", "cfg_leg4": "Formatos:", "cfg_leg5": "Série T", "cfg_leg6": "Série H", "cfg_leg7": "ID Sensor", "cfg_tpl1": "1. Global", "cfg_tpl2": "2. Linha", "cfg_tpl3": "3. Separador", "cfg_prev": "Live Preview:", "cfg_save": "Salvar", "cfg_touch_title": "Calibração do Touch", "cfg_touch_reset": "Resetar Calibração", "cfg_touch_hint": "Restaura padrão de fábrica. Recalibre pelo menu do display.", "cfg_touch_confirm": "Resetar calibração do touch para padrão de fábrica?", "cfg_touch_done": "Calibração resetada. Recalibre pelo display.",
             "cfg_transport": "Transporte", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Tópico", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Usuário", "cfg_mq_pass": "Senha", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Reter", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)", "net_web_title": "Servidor Web", "net_web_port": "Porta HTTP", "net_web_port_hint": "Padrão: 80. Após salvar, o navegador redireciona automaticamente para a nova porta.", "display_busy": "Display em uso. Tente novamente em alguns segundos.",
+            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)", "net_web_title": "Servidor Web", "net_web_port": "Porta HTTP", "net_web_port_hint": "Padrão: 80. Após salvar, o navegador redireciona automaticamente para a nova porta.", "display_busy": "Display em uso. Tente novamente em alguns segundos.", "net_conn_err": "Erro de conexão.", "hist_clear_err": "Falha ao limpar logs.", "hist_cleared": "Logs limpos.", "fil_mkdir_ok": "Pasta criada.", "fil_mkdir_err": "Falha ao criar pasta.", "fil_del_err": "Alguns arquivos não puderam ser excluídos.", "fil_deleted": "Arquivos excluídos.",
             "usr_mgt": "Gestão de Acessos", "usr_usr": "Usuário", "usr_perm": "Permissões", "usr_act": "Ações", "usr_add": "Adicionar", "usr_name": "Nome", "usr_pdash": "Painel", "usr_phist": "Histórico", "usr_plog": "Logs", "usr_psys": "Sistema", "usr_pnet": "Rede", "usr_pfr": "Leitura", "usr_pfu": "Upload", "usr_pfd": "Excluir", "usr_pusr": "Usuários", "usr_btn": "Criar", "usr_warn": "Login via: Nome@DDMMAAAA", "usr_prot": "Protegido", "usr_del": "Excluir", "usr_rst": "Reset", "usr_sup": "Super",
             "fil_title": "Sistema de Arquivos", "fil_down": "Baixar", "fil_del": "Excluir", "fil_up": "Enviar", "fil_uphere": "Enviar", "fil_name": "Nome", "fil_sz": "Tamanho", "fil_mkdir": "Nova Pasta", "fil_mkname": "nome", "fil_create": "Criar", "fil_cancel": "Cancelar", "fil_loading": "Carregando...", "fil_parent": "Subir", "fil_folder": "Pasta", "fil_empty": "Vazio", "fil_inv_name": "Inválido", "fil_sel_del": "Selecione", "fil_conf_del": "Excluir N?", "fil_sel_down": "Selecione", "fil_conf_down": "Baixar N?", "usr_del_msg": "Excluir?", "usr_rst_msg": "Forçar reset?", "hist_clear_msg": "Limpar logs?",
             "alm_title": "Alarmes e Sons", "alm_limits": "Limites de Alarme", "alm_sounds": "Configuração de Sons", "alm_tmin": "Temp. Mín.", "alm_tmax": "Temp. Máx.", "alm_hmin": "Umid. Mín.", "alm_hmax": "Umid. Máx.", "alm_active": "Alarme Ativo", "alm_save": "Salvar", "alm_saved": "Salvo com sucesso!", "alm_err": "Erro ao salvar.", "alm_none": "Nenhum sensor configurado.", "alm_touch": "Toque", "alm_confirm": "Confirmação", "alm_error": "Erro", "alm_alarm": "Alarme", "alm_web": "Sons Web", "alm_mute": "Mudo Global", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Alarme", "alm_on": "Ligado", "alm_off": "Desligado", "alm_ambient": "Sensor Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Descendente", "alm_mel_siren": "Sirene",
