@@ -165,6 +165,15 @@ void WebManager::feedWatchdog() {
 
 }
 
+bool WebManager::rejectIfTouchPriority() {
+    if (_isTouchPriorityFn && _isTouchPriorityFn()) {
+        _server.sendHeader("Retry-After", "5");
+        _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
+        return true;
+    }
+    return false;
+}
+
 bool WebManager::isHandlerOvertime() {
     /* Wrap-safe: veja comentário em timeReached() (SystemDefs.h). */
     return (_handlerDeadline > 0 && timeReached(_handlerDeadline));
@@ -724,6 +733,7 @@ void WebManager::handleApiSaveAlarms() {
         return;
     }
     if (isPasswordChangeRequired()) return;
+    if (rejectIfTouchPriority()) return;
 
     if (!_storageRef->canSaveNow()) {
         _server.sendHeader("Retry-After", "1");
@@ -1221,6 +1231,7 @@ void WebManager::handleApiSecStatus() {
 
 void WebManager::handleApiForceChpass() {
     if (getAuthPerms() == 0 || !isPasswordChangeRequired()) { _server.send(403, "text/plain", "Forbidden"); return; }
+    if (rejectIfTouchPriority()) return;
 
     String p1 = _server.arg("p1");
     String p2 = _server.arg("p2");
@@ -1250,6 +1261,7 @@ void WebManager::handleSaveSystem() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
     if (isPasswordChangeRequired()) return;
+    if (rejectIfTouchPriority()) return;
 
     if (!_storageRef->canSaveNow()) {
         _server.sendHeader("Retry-After", "1");
@@ -1331,6 +1343,7 @@ void WebManager::handleSaveSystem() {
 }
 
 void WebManager::handleSaveNetwork() {
+    if (rejectIfTouchPriority()) return;
     if (!_storageRef->canSaveNow()) {
         _server.sendHeader("Retry-After", "1");
         _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
@@ -1408,6 +1421,7 @@ void WebManager::handleSaveNetwork() {
 void WebManager::handleResetTouchCal() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+    if (rejectIfTouchPriority()) return;
 
     SystemConfig& cfg = _storageRef->getConfig();
     TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
@@ -1423,6 +1437,7 @@ void WebManager::handleResetTouchCal() {
 
 void WebManager::handleApiUserAdd() {
     if (!(getAuthPerms() & PERM_USER_MGR)) { _server.send(403, "text/plain", "Forbidden"); return; }
+    if (rejectIfTouchPriority()) return;
     if (!_storageRef->canSaveNow()) {
         _server.sendHeader("Retry-After", "1");
         _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
@@ -1485,6 +1500,7 @@ void WebManager::handleApiUserAdd() {
 
 void WebManager::handleApiUserDel() {
     if (!(getAuthPerms() & PERM_USER_MGR)) { _server.send(403, "text/plain", "Forbidden"); return; }
+    if (rejectIfTouchPriority()) return;
     if (!_storageRef->canSaveNow()) {
         _server.sendHeader("Retry-After", "1");
         _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
@@ -1504,6 +1520,7 @@ void WebManager::handleApiUserDel() {
 
 void WebManager::handleApiUserReset() {
     if (!(getAuthPerms() & PERM_USER_MGR)) { _server.send(403, "text/plain", "Forbidden"); return; }
+    if (rejectIfTouchPriority()) return;
     if (!_storageRef->canSaveNow()) {
         _server.sendHeader("Retry-After", "1");
         _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
@@ -1563,6 +1580,7 @@ void WebManager::handleDelete() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_FILE_DELETE)) { _server.send(403, "text/plain", "Forbidden"); return; }
     if (!_server.hasArg("file")) { _server.send(400, "text/plain", "Bad Request"); return; }
+    if (rejectIfTouchPriority()) return;
 
     String path = _server.arg("file");
 
@@ -1704,6 +1722,7 @@ void WebManager::handleApiMkdir() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_FILE_UPLOAD)) { _server.send(403, "text/plain", "Forbidden"); return; }
     if (!_server.hasArg("dir")) { _server.send(400, "text/plain", "Missing dir"); return; }
+    if (rejectIfTouchPriority()) return;
 
     String dirPath = _server.arg("dir");
     dirPath.trim();
@@ -2286,6 +2305,7 @@ void WebManager::handleApiClearLogs() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_LOGS) || !(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
     if (isPasswordChangeRequired()) return;
+    if (rejectIfTouchPriority()) return;
 
     {
         RenderGuard rg(_displayRef);

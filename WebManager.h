@@ -46,6 +46,10 @@ public:
     void setTouchPriorityChecker(bool (*fn)()) { _isTouchPriorityFn = fn; }
 
 private:
+    /** Responde 503 com Retry-After se user está interagindo com o display.
+     *  @return true se 503 foi enviado (caller deve fazer early return). */
+    bool rejectIfTouchPriority();
+
     WebServer _server;
     YieldCallback _yieldCb = nullptr;
     LightYieldCallback _lightYieldCb = nullptr;
