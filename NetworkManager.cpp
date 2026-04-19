@@ -78,7 +78,7 @@ void NetworkManager::beginAP(const char* deviceName) {
     String apName = String(deviceName) + "_SETUP";
     WiFi.softAP(apName.c_str());
     _dnsServer.start(53, "*", apIP);
-    LOG_CODE(LOG_INFO, "NET", SYS_AP_START, 0, "Access Point: " + apName);
+    LOG_CODE(LOG_INFO, "NET", SYS_AP_START, 0, String(TRL("Access Point: ", "Ponto de Acesso: ")) + apName);
 }
 
 
@@ -91,7 +91,7 @@ void NetworkManager::setProvisionalTime(uint32_t lastTs) {
         _provisionalBase = lastTs + 60;
         _provisionalBootMillis = millis();
         _provisionalActive = true;
-        LOG_CODE(LOG_INFO, "NET", NET_PROVISIONAL_TIME, 0, "Provisional: " + getFormattedDate() + " " + getFormattedTime());
+        LOG_CODE(LOG_INFO, "NET", NET_PROVISIONAL_TIME, 0, String(TRL("Provisional: ", "Provisoria: ")) + getFormattedDate() + " " + getFormattedTime());
     }
 }
 
@@ -106,7 +106,7 @@ void NetworkManager::update() {
         _dnsServer.processNextRequest();
         /* N5: timeout AP mode — reboot para STA se SSID configurado */
         if (millis() - _apStartTime > AP_MODE_TIMEOUT_MS && strlen(_ssid) > 0) {
-            LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, 0, "AP mode timeout, rebooting to STA");
+            LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, 0, TRL("AP mode timeout, rebooting to STA", "Timeout do AP, reiniciando para STA"));
             watchdog_update();
             rp2040.reboot();
         }
@@ -127,7 +127,7 @@ void NetworkManager::update() {
 
             if (millis() - _reconnectTimer > _reconnectDelay) {
                 if (strlen(_ssid) > 0) {
-                    LOG_CODE(LOG_INFO, "NET", SYS_WIFI_SCAN, 0, "Scanning for SSID (backoff=" + String(_reconnectDelay/1000) + "s)");
+                    LOG_CODE(LOG_INFO, "NET", SYS_WIFI_SCAN, 0, String(TRL("Scanning for SSID (backoff=", "Procurando SSID (backoff=")) + (_reconnectDelay/1000) + "s)");
                     WiFi.scanNetworks(true);
                     _state = NET_SCANNING_RETRY;
                 } else { _reconnectTimer = millis(); }
@@ -146,7 +146,7 @@ void NetworkManager::update() {
             WiFi.scanDelete();
 
             if (found) {
-                LOG_CODE(LOG_INFO, "NET", SYS_WIFI_CONNECT, 0, "SSID found, connecting...");
+                LOG_CODE(LOG_INFO, "NET", SYS_WIFI_CONNECT, 0, TRL("SSID found, connecting...", "SSID encontrado, conectando..."));
                 WiFi.begin(_ssid, _pass);
                 _state = NET_CONNECTING; _stateTimer = millis();
             } else { _state = NET_OFFLINE; _reconnectTimer = millis(); }
@@ -158,7 +158,7 @@ void NetworkManager::update() {
         case NET_CONNECTED_WAIT_IP:
             if (WiFi.localIP().toString() != "0.0.0.0") {
                 LOG_CODE(LOG_INFO, "NET", SYS_IP_ACQUIRED, 0, "IP: " + WiFi.localIP().toString());
-                if (!MDNS.begin(_deviceName)) LOG_CODE(LOG_ERROR, "NET", SYS_OK, 0, "mDNS failed to start");
+                if (!MDNS.begin(_deviceName)) LOG_CODE(LOG_ERROR, "NET", SYS_OK, 0, TRL("mDNS failed to start", "mDNS falhou ao iniciar"));
                 syncNtp();
                 _state = NET_CONNECTED_WAIT_NTP; _stateTimer = millis();
             }
@@ -210,7 +210,7 @@ void NetworkManager::update() {
 
         case NET_READY:
             if (WiFi.status() != WL_CONNECTED) {
-                LOG_CODE(LOG_WARN, "NET", SYS_WIFI_DISCONNECT, 0, "WiFi signal lost, entering stealth scan");
+                LOG_CODE(LOG_WARN, "NET", SYS_WIFI_DISCONNECT, 0, TRL("WiFi signal lost, entering stealth scan", "Sinal WiFi perdido, entrando em stealth scan"));
 
 
                 WiFi.disconnect(false);
@@ -262,10 +262,10 @@ void NetworkManager::handleConnecting() {
         if (_connectCycles >= WIFI_MAX_CONNECT_CYCLES) {
             /* Dormência longa: evita drenar bateria/CPU com reconexões inúteis */
             _reconnectDelay = WIFI_DORMANT_DELAY_MS;
-            LOG_CODE(LOG_WARN, "NET", NET_DORMANT_MODE, _connectCycles, "Dormant: retry in " + String(_reconnectDelay / 1000) + "s");
+            LOG_CODE(LOG_WARN, "NET", NET_DORMANT_MODE, _connectCycles, String(TRL("Dormant: retry in ", "Dormente: retry em ")) + (_reconnectDelay / 1000) + "s");
         } else {
             _reconnectDelay = min(_reconnectDelay * 2, MAX_RECONNECT_DELAY);
-            LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, _connectCycles, "Retry in " + String(_reconnectDelay / 1000) + "s");
+            LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, _connectCycles, String(TRL("Retry in ", "Retry em ")) + (_reconnectDelay / 1000) + "s");
         }
 
         _state = NET_DISCONNECT_PENDING;

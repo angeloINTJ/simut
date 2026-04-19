@@ -806,7 +806,7 @@ void DisplayManager::pauseRendering(bool pause) {
 void DisplayManager::forceUnpause() {
     int32_t prev = __atomic_load_n(&_pauseRefCount, __ATOMIC_ACQUIRE);
     if (prev > 0) {
-        LOG_CODE(LOG_ERROR, "DSP", DSP_FORCE_UNPAUSE, prev, "forceUnpause: refCount=" + String(prev));
+        LOG_CODE(LOG_ERROR, "DSP", DSP_FORCE_UNPAUSE, prev, String(TRL("forceUnpause: refCount=", "forceUnpause: refCount=")) + prev);
         __atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
         _pauseStartTime = 0;
         multicore_lockout_end_blocking();

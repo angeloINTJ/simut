@@ -69,6 +69,11 @@ public:
     /** Idioma dos labels dos códigos de log. Sincronizado com cfg.displayLang. */
     void setLanguage(uint8_t lang) { _language = lang; }
 
+    /** Seleciona string por idioma corrente — para extras de LOG_CODE. */
+    const char* tr(const char* en, const char* pt) const {
+        return (_language == LANG_PT) ? pt : en;
+    }
+
 
     void setEpochSource(time_t (*fn)());
 
@@ -127,6 +132,9 @@ private:
 #define LOG_WRN(tag, msg) LogManager::instance().warn(tag, msg)
 #define LOG_ERR(tag, msg) LogManager::instance().error(tag, msg)
 #define LOG_CODE(lvl, tag, code, ctx, msg) LogManager::instance().logCode(lvl, tag, code, ctx, msg)
+
+/** Seleciona string EN/PT conforme idioma corrente — açúcar sintático p/ extras. */
+#define TRL(en, pt) (LogManager::instance().tr(en, pt))
 
 #define TRACE_MOD(core, mod) LogManager::instance().setModule(core, mod)
 #define TRACE_BEAT(core) LogManager::instance().heartbeat(core)

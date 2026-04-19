@@ -347,7 +347,7 @@ void WebManager::clearStaleSessions() {
     for (int i = 0; i < 3; i++) {
         if (_activeSessions[i].token != "") {
             if (now - _activeSessions[i].lastActivity > 900000) {
-                LOG_CODE(LOG_INFO, "SEC", SEC_SESSION_EXPIRE, i, "Session expired: " + _activeSessions[i].username);
+                LOG_CODE(LOG_INFO, "SEC", SEC_SESSION_EXPIRE, i, String(TRL("Session expired: ", "Sessao expirada: ")) + _activeSessions[i].username);
 
                 memset((void*)_activeSessions[i].token.begin(), 0, _activeSessions[i].token.length());
                 _activeSessions[i].token = "";
@@ -1010,7 +1010,7 @@ void WebManager::handleApiLogin() {
             if (penaltyMs > 300000) penaltyMs = 300000;
             _loginStates[ls].lockoutUntil = millis() + penaltyMs;
         }
-        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, "Login Rejected: Invalid Input Size");
+        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Invalid Input Size", "Login rejeitado: tamanho invalido"));
         _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
         return;
     }
@@ -1067,7 +1067,7 @@ void WebManager::handleApiLogin() {
         }
 
         if (slot == -1) {
-            LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, "Login Rejected: Max Sessions Reached");
+            LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Max Sessions Reached", "Login rejeitado: limite de sessoes"));
             _server.send(403, "application/json", "{\"ok\":false,\"err\":3}");
             return;
         }
@@ -1090,7 +1090,7 @@ void WebManager::handleApiLogin() {
         _currentUserName = u;
         _currentUserPerms = _activeSessions[slot].perms;
 
-        LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, foundId, "Login OK: " + u);
+        LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, foundId, String(TRL("Login OK: ", "Login OK: ")) + u);
         if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
 
 
@@ -1110,7 +1110,7 @@ void WebManager::handleApiLogin() {
             uint32_t penaltyMs = (1 << _loginStates[ls].failCount) * 1000;
             if (penaltyMs > 300000) penaltyMs = 300000;
             _loginStates[ls].lockoutUntil = millis() + penaltyMs;
-            LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, "Login Failed: " + u);
+            LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, String(TRL("Login Failed: ", "Login falhou: ")) + u);
             if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_ERROR);
 
             char buf[64];
@@ -1127,7 +1127,7 @@ void WebManager::handleLogout() {
         String cookie = _server.header("Cookie");
         for (int i = 0; i < 3; i++) {
             if (_activeSessions[i].token != "" && cookie.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
-                LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0, "Logout: " + _activeSessions[i].username);
+                LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0, String(TRL("Logout: ", "Logout: ")) + _activeSessions[i].username);
 
                 memset((void*)_activeSessions[i].token.begin(), 0, _activeSessions[i].token.length());
                 _activeSessions[i].token = "";
@@ -1204,7 +1204,7 @@ void WebManager::handleApiForceChpass() {
     _storageRef->saveConfiguration();
 
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Password Reset Success: " + _currentUserName);
+    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Password Reset Success: ", "Reset de senha bem-sucedido: ")) + _currentUserName);
 
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
@@ -1279,7 +1279,7 @@ void WebManager::handleSaveSystem() {
     if (themeChanged && _displayRef) _displayRef->refreshTheme();
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(saved ? SND_CONFIRM : SND_ERROR);
 
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Admin updated System Settings");
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin updated System Settings", "Admin atualizou config do sistema"));
 
     _server.send(200, "application/json", saved ? "{\"status\":\"ok\"}" : "{\"status\":\"error\"}");
 }
@@ -1322,12 +1322,12 @@ void WebManager::handleSaveNetwork() {
 
     bool saved = _storageRef->saveConfiguration();
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Admin updated Network Settings");
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin updated Network Settings", "Admin atualizou config de rede"));
 
     _server.send(200, "application/json", "{\"status\":\"ok\",\"reboot\":true}");
 
     if (saved) {
-        LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, _currentUserId, "Reboot via web (network save)");
+        LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, _currentUserId, TRL("Reboot via web (network save)", "Reboot via web (save de rede)"));
         /* N1: spin + watchdog feed em vez de delay() que starva o WDT */
         uint32_t waitEnd = millis() + 1000;
         while (!timeReached(waitEnd)) { watchdog_update(); delay(10); }
@@ -1352,7 +1352,7 @@ void WebManager::handleResetTouchCal() {
     _storageRef->saveConfiguration();
 
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Touch calibration reset via web");
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Touch calibration reset via web", "Calibracao do touch resetada via web"));
 
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
@@ -1409,7 +1409,7 @@ void WebManager::handleApiUserAdd() {
 
     _storageRef->saveConfiguration();
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Admin Created User: " + String(cfg.users[slot].username));
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Admin Created User: ", "Admin criou usuario: ")) + cfg.users[slot].username);
 
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
@@ -1423,7 +1423,7 @@ void WebManager::handleApiUserDel() {
     cfg.users[id].active = false;
     _storageRef->saveConfiguration();
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Admin Deleted User Slot " + String(id));
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Admin Deleted User Slot ", "Admin apagou usuario no slot ")) + id);
 
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
@@ -1447,7 +1447,7 @@ void WebManager::handleApiUserReset() {
 
     _storageRef->saveConfiguration();
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Admin Reset Password Slot " + String(id));
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Admin Reset Password Slot ", "Admin resetou senha no slot ")) + id);
 
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
@@ -1477,7 +1477,7 @@ void WebManager::handleDownload() {
     _server.sendHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
     safeStreamFile(f, "application/octet-stream");
     f.close();
-    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "User downloaded: " + fileName);
+    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("User downloaded: ", "Usuario baixou: ")) + fileName);
 }
 
 void WebManager::handleDelete() {
@@ -1646,7 +1646,7 @@ void WebManager::handleApiMkdir() {
     }
 
     if (ok) {
-        LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Created folder: " + dirPath);
+        LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Created folder: ", "Pasta criada: ")) + dirPath);
         _server.send(200, "application/json", "{\"status\":\"ok\"}");
     } else {
         _server.send(500, "application/json", "{\"error\":\"Failed\"}");
@@ -1723,10 +1723,10 @@ void WebManager::handleUploadData() {
 
             if (upload.filename == "calib.csv" || upload.filename == "/calib.csv") {
                 if (_storageRef->processCalibrationUpload()) {
-                    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Universal Calibration Updated.");
+                    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Universal Calibration Updated.", "Calibracao universal atualizada."));
                 }
             } else {
-                LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "File Uploaded.");
+                LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("File Uploaded.", "Arquivo enviado."));
             }
         }
     }
@@ -2219,7 +2219,7 @@ void WebManager::handleApiClearLogs() {
         LogManager::instance().begin(true, LOG_DEBUG);
     }
 
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, "Admin erased System Logs");
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin erased System Logs", "Admin apagou logs do sistema"));
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
