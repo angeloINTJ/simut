@@ -188,26 +188,52 @@ CliDemand CommandManager::parseCommand(String input) {
             if (t2 == "name") { cmd.type = CMD_SET_SYS_NAME; cmd.strVal1 = v3; return cmd; }
             if (t2 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.strVal1 = v3; return cmd; }
             if (t2 == "pass") { cmd.type = CMD_SET_WIFI_PASS; cmd.strVal1 = v3; return cmd; }
-            if (t2 == "timezone") { cmd.type = CMD_SET_TIMEZONE; cmd.intVal1 = t3.toInt(); return cmd; }
+            if (t2 == "timezone") {
+                cmd.type = CMD_SET_TIMEZONE;
+                cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+                return cmd;
+            }
             if (t2 == "ntp") { cmd.type = CMD_SET_NTP; cmd.strVal1 = v3; return cmd; }
             if (t2 == "admin" && t3 == "reset") { cmd.type = CMD_RESET_ADMIN; return cmd; }
             if (t2 == "touch" && t3 == "reset") { cmd.type = CMD_RESET_TOUCH_CAL; return cmd; }
         }
         if (t1 == "sensor" && t2 == "ds18b20" && t3 == "resolution") {
-            cmd.type = CMD_SET_DS_RES; cmd.intVal1 = t4.toInt(); return cmd;
+            cmd.type = CMD_SET_DS_RES;
+            cmd.intVal1Valid = parseIntStrict(t4, cmd.intVal1);
+            return cmd;
         }
         if (t1 == "tel") {
             if (t2 == "server") { cmd.type = CMD_SET_TEL_SERVER; cmd.strVal1 = v3; return cmd; }
-            if (t2 == "port") { cmd.type = CMD_SET_TEL_PORT; cmd.intVal1 = t3.toInt(); return cmd; }
+            if (t2 == "port") {
+                cmd.type = CMD_SET_TEL_PORT;
+                cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+                return cmd;
+            }
             if (t2 == "path") { cmd.type = CMD_SET_TEL_PATH; cmd.strVal1 = v3; return cmd; }
-            if (t2 == "batch") { cmd.type = CMD_SET_TEL_BATCH; cmd.intVal1 = t3.toInt(); return cmd; }
-            if (t2 == "interval") { cmd.type = CMD_SET_TEL_INTERVAL; cmd.intVal1 = t3.toInt(); return cmd; }
-            if (t2 == "crypto") { cmd.type = CMD_SET_TEL_CRYPTO; cmd.boolVal = (t3 == "on"); return cmd; }
+            if (t2 == "batch") {
+                cmd.type = CMD_SET_TEL_BATCH;
+                cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+                return cmd;
+            }
+            if (t2 == "interval") {
+                cmd.type = CMD_SET_TEL_INTERVAL;
+                cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+                return cmd;
+            }
+            if (t2 == "crypto") {
+                cmd.type = CMD_SET_TEL_CRYPTO;
+                /* strVal1 preserva o token original p/ validação no executor. */
+                cmd.strVal1 = t3;
+                cmd.boolVal = (t3 == "on");
+                return cmd;
+            }
             if (t2 == "mode") {
                 cmd.type = CMD_SET_TEL_MODE;
+                cmd.strVal1 = t3;    /* preserva p/ validação */
                 if(t3 == "json") cmd.intVal1 = TEL_MODE_JSON;
                 else if(t3 == "csv") cmd.intVal1 = TEL_MODE_CSV;
-                else cmd.intVal1 = TEL_MODE_CUSTOM;
+                else if(t3 == "custom") cmd.intVal1 = TEL_MODE_CUSTOM;
+                else cmd.intVal1 = -1;   /* sinaliza modo desconhecido */
                 return cmd;
             }
         }
@@ -221,7 +247,7 @@ CliDemand CommandManager::parseCommand(String input) {
 
             int sp1 = args.indexOf(' ');
             if (sp1 != -1) {
-                cmd.intVal1 = args.substring(0, sp1).toInt();
+                cmd.intVal1Valid = parseIntStrict(args.substring(0, sp1), cmd.intVal1);
                 args = args.substring(sp1 + 1); args.trim();
 
                 int sp2 = args.indexOf(' ');
@@ -245,13 +271,13 @@ CliDemand CommandManager::parseCommand(String input) {
 
     if (t0 == "sensor" && t1 == "wipe") {
         cmd.type = CMD_WIPE_SENSOR;
-        cmd.intVal1 = t2.toInt();
+        cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
         return cmd;
     }
 
     if (t0 == "sensor" && t1 == "accept") {
         cmd.type = CMD_ACCEPT_SENSOR;
-        cmd.intVal1 = t2.toInt();
+        cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
         return cmd;
     }
 

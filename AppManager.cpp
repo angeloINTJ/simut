@@ -666,7 +666,13 @@ void AppManager::executeCommand(CliDemand cmd) {
 
         case CMD_SET_THEME: {
             int idx = getThemeIndexByName(cmd.strVal1);
-            if (idx == -1) idx = cmd.strVal1.toInt();
+            if (idx == -1) {
+                /* Não bateu como nome — tenta como índice numérico, mas só se
+                 * for número bem-formado (evita "abc".toInt()==0 aplicar tema 0). */
+                int numericIdx = 0;
+                if (!parseIntStrict(cmd.strVal1, numericIdx)) idx = -1;
+                else idx = numericIdx;
+            }
             if (idx >= 0 && idx < getThemeCount()) {
                 cfg.themeIndex = idx;
                 loadTheme(idx);
@@ -744,34 +750,183 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
         }
 
-        case CMD_SET_DS_RES:
-            if (cmd.intVal1 >= 9 && cmd.intVal1 <= 12 && _sensorMgr.setDs18Resolution((DS18B20PIO::Resolution)cmd.intVal1)) {
-                cfg.ds18Resolution = cmd.intVal1; changed = true;
+        case CMD_SET_DS_RES: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para resolucao"
+                                      : "Invalid number for resolution");
+                break;
             }
+            if (cmd.intVal1 < 9 || cmd.intVal1 > 12) {
+                _cmdMgr.printError(pt ? "Resolucao fora de range (9-12)"
+                                      : "Resolution out of range (9-12)");
+                break;
+            }
+            if (!_sensorMgr.setDs18Resolution((DS18B20PIO::Resolution)cmd.intVal1)) {
+                _cmdMgr.printError(pt ? "Falha ao aplicar resolucao no sensor"
+                                      : "Failed to apply resolution");
+                break;
+            }
+            cfg.ds18Resolution = cmd.intVal1;
+            changed = true;
             break;
+        }
 
-        case CMD_SET_SYS_NAME: safeCopy(cfg.deviceName, cmd.strVal1.c_str(), sizeof(cfg.deviceName)); changed = true; break;
-        case CMD_SET_WIFI_SSID: safeCopy(cfg.wifiSsid, cmd.strVal1.c_str(), sizeof(cfg.wifiSsid)); changed = true; break;
-        case CMD_SET_WIFI_PASS: safeCopy(cfg.wifiPass, cmd.strVal1.c_str(), sizeof(cfg.wifiPass)); changed = true; break;
-        case CMD_SET_TIMEZONE:
+        case CMD_SET_SYS_NAME: {
+            const bool pt = _cmdMgr.isPt();
+            if (!isValidName(cmd.strVal1.c_str(), sizeof(cfg.deviceName) - 1)) {
+                _cmdMgr.printError(pt ? "Nome invalido (1-31 chars, sem ctrl chars)"
+                                      : "Invalid name (1-31 chars, no ctrl chars)");
+                break;
+            }
+            safeCopy(cfg.deviceName, cmd.strVal1.c_str(), sizeof(cfg.deviceName));
+            changed = true;
+            break;
+        }
+        case CMD_SET_WIFI_SSID: {
+            const bool pt = _cmdMgr.isPt();
+            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.wifiSsid) - 1)) {
+                _cmdMgr.printError(pt ? "SSID invalido (max 31, sem ctrl chars)"
+                                      : "Invalid SSID (max 31, no ctrl chars)");
+                break;
+            }
+            safeCopy(cfg.wifiSsid, cmd.strVal1.c_str(), sizeof(cfg.wifiSsid));
+            changed = true;
+            break;
+        }
+        case CMD_SET_WIFI_PASS: {
+            const bool pt = _cmdMgr.isPt();
+            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.wifiPass) - 1)) {
+                _cmdMgr.printError(pt ? "Senha invalida (max 31, sem ctrl chars)"
+                                      : "Invalid pass (max 31, no ctrl chars)");
+                break;
+            }
+            safeCopy(cfg.wifiPass, cmd.strVal1.c_str(), sizeof(cfg.wifiPass));
+            changed = true;
+            break;
+        }
+        case CMD_SET_TIMEZONE: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para timezone"
+                                      : "Invalid number for timezone");
+                break;
+            }
+            if (cmd.intVal1 < -12 || cmd.intVal1 > 14) {
+                _cmdMgr.printError(pt ? "Timezone fora de range (-12 a +14)"
+                                      : "Timezone out of range (-12 to +14)");
+                break;
+            }
             cfg.timezoneOffset = (int8_t)cmd.intVal1;
             NetworkManager::applyTimezone(cfg.timezoneOffset);
             changed = true;
             break;
+        }
 
-        case CMD_SET_NTP:
+        case CMD_SET_NTP: {
+            const bool pt = _cmdMgr.isPt();
+            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.ntpServer) - 1)) {
+                _cmdMgr.printError(pt ? "NTP invalido (max 31, sem ctrl chars)"
+                                      : "Invalid NTP (max 31, no ctrl chars)");
+                break;
+            }
             safeCopy(cfg.ntpServer, cmd.strVal1.c_str(), sizeof(cfg.ntpServer));
             cfg.ntpServer[sizeof(cfg.ntpServer) - 1] = '\0';
             changed = true;
             break;
+        }
 
-        case CMD_SET_TEL_SERVER: safeCopy(cfg.telServer, cmd.strVal1.c_str(), sizeof(cfg.telServer)); changed = true; break;
-        case CMD_SET_TEL_PORT: cfg.telPort = cmd.intVal1; changed = true; break;
-        case CMD_SET_TEL_PATH: safeCopy(cfg.telPath, cmd.strVal1.c_str(), sizeof(cfg.telPath)); changed = true; break;
-        case CMD_SET_TEL_BATCH: cfg.telBatchSize = cmd.intVal1; changed = true; break;
-        case CMD_SET_TEL_INTERVAL: cfg.telInterval = cmd.intVal1; changed = true; break;
-        case CMD_SET_TEL_CRYPTO: cfg.telEncryption = cmd.boolVal; changed = true; break;
-        case CMD_SET_TEL_MODE: cfg.telMode = cmd.intVal1; changed = true; break;
+        case CMD_SET_TEL_SERVER: {
+            const bool pt = _cmdMgr.isPt();
+            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.telServer) - 1)) {
+                _cmdMgr.printError(pt ? "URL invalida (max 63, sem ctrl chars)"
+                                      : "Invalid URL (max 63, no ctrl chars)");
+                break;
+            }
+            safeCopy(cfg.telServer, cmd.strVal1.c_str(), sizeof(cfg.telServer));
+            changed = true;
+            break;
+        }
+        case CMD_SET_TEL_PORT: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para porta"
+                                      : "Invalid number for port");
+                break;
+            }
+            if (cmd.intVal1 < 1 || cmd.intVal1 > 65535) {
+                _cmdMgr.printError(pt ? "Porta fora de range (1-65535)"
+                                      : "Port out of range (1-65535)");
+                break;
+            }
+            cfg.telPort = (uint16_t)cmd.intVal1;
+            changed = true;
+            break;
+        }
+        case CMD_SET_TEL_PATH: {
+            const bool pt = _cmdMgr.isPt();
+            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.telPath) - 1)) {
+                _cmdMgr.printError(pt ? "Path invalido (max 31, sem ctrl chars)"
+                                      : "Invalid path (max 31, no ctrl chars)");
+                break;
+            }
+            safeCopy(cfg.telPath, cmd.strVal1.c_str(), sizeof(cfg.telPath));
+            changed = true;
+            break;
+        }
+        case CMD_SET_TEL_BATCH: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para batch"
+                                      : "Invalid number for batch");
+                break;
+            }
+            if (cmd.intVal1 < 1 || cmd.intVal1 > 50) {
+                _cmdMgr.printError(pt ? "Batch fora de range (1-50)"
+                                      : "Batch out of range (1-50)");
+                break;
+            }
+            cfg.telBatchSize = (uint8_t)cmd.intVal1;
+            changed = true;
+            break;
+        }
+        case CMD_SET_TEL_INTERVAL: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para intervalo"
+                                      : "Invalid number for interval");
+                break;
+            }
+            if (cmd.intVal1 < 0) {
+                _cmdMgr.printError(pt ? "Intervalo deve ser >= 0 (0 = off)"
+                                      : "Interval must be >= 0 (0 = off)");
+                break;
+            }
+            cfg.telInterval = (uint32_t)cmd.intVal1;
+            changed = true;
+            break;
+        }
+        case CMD_SET_TEL_CRYPTO: {
+            const bool pt = _cmdMgr.isPt();
+            if (cmd.strVal1 != "on" && cmd.strVal1 != "off") {
+                _cmdMgr.printError(pt ? "Use 'on' ou 'off'" : "Use 'on' or 'off'");
+                break;
+            }
+            cfg.telEncryption = cmd.boolVal;
+            changed = true;
+            break;
+        }
+        case CMD_SET_TEL_MODE: {
+            const bool pt = _cmdMgr.isPt();
+            if (cmd.intVal1 < 0) {
+                _cmdMgr.printError(pt ? "Modo desconhecido (use json|csv|custom)"
+                                      : "Unknown mode (use json|csv|custom)");
+                break;
+            }
+            cfg.telMode = cmd.intVal1;
+            changed = true;
+            break;
+        }
 
         case CMD_RESET_ADMIN: {
             if (!cmd.confirmed) {
@@ -813,41 +968,68 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
         }
 
-        case CMD_DEFINE_SENSOR:
-            if (cmd.intVal1 < MAX_SENSORS) {
-                SensorRecord &r = cfg.sensors[cmd.intVal1];
-                r.active = true;
-                r.gpio = cmd.intVal1;
-                memcpy(r.rom, cmd.rom, 8);
-                safeCopy(r.hwId, cmd.strVal1.c_str(), sizeof(r.hwId));
-                safeCopy(r.friendlyName, cmd.strVal2.c_str(), sizeof(r.friendlyName));
-                _cmdMgr.printSuccess(_cmdMgr.isPt()
-                    ? "Sensor mapeado em RAM."
-                    : "Sensor mapped in RAM.");
+        case CMD_DEFINE_SENSOR: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para GPIO"
+                                      : "Invalid number for GPIO");
+                break;
             }
+            if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
+                _cmdMgr.printError(pt ? "Slot fora de range (0-9)"
+                                      : "Slot out of range (0-9)");
+                break;
+            }
+            SensorRecord &r = cfg.sensors[cmd.intVal1];
+            r.active = true;
+            r.gpio = cmd.intVal1;
+            memcpy(r.rom, cmd.rom, 8);
+            safeCopy(r.hwId, cmd.strVal1.c_str(), sizeof(r.hwId));
+            safeCopy(r.friendlyName, cmd.strVal2.c_str(), sizeof(r.friendlyName));
+            _cmdMgr.printSuccess(pt ? "Sensor mapeado em RAM."
+                                    : "Sensor mapped in RAM.");
             break;
+        }
 
-        case CMD_WIPE_SENSOR:
+        case CMD_WIPE_SENSOR: {
+            const bool pt = _cmdMgr.isPt();
             if (!cmd.confirmed) {
-                const bool pt = _cmdMgr.isPt();
                 _cmdMgr.printInfo(pt ? "ATENCAO: reseta historico do sensor."
                                      : "WARN: resets sensor history epoch.");
                 _cmdMgr.printInfo(pt ? "Use 'sensor wipe <gpio> confirm'."
                                      : "Run 'sensor wipe <gpio> confirm'.");
                 break;
             }
-            if (cmd.intVal1 >= 0 && cmd.intVal1 < MAX_SENSORS) {
-                cfg.sensors[cmd.intVal1].provisionEpoch = _netMgr.getEpoch();
-                changed = true;
-                _cmdMgr.printSuccess((_cmdMgr.isPt()
-                    ? "Historico resetado no Slot "
-                    : "Sensor history wiped for Slot ") + String(cmd.intVal1));
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para GPIO"
+                                      : "Invalid number for GPIO");
+                break;
             }
+            if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
+                _cmdMgr.printError(pt ? "Slot fora de range (0-9)"
+                                      : "Slot out of range (0-9)");
+                break;
+            }
+            cfg.sensors[cmd.intVal1].provisionEpoch = _netMgr.getEpoch();
+            changed = true;
+            _cmdMgr.printSuccess((pt ? "Historico resetado no Slot "
+                                     : "Sensor history wiped for Slot ") + String(cmd.intVal1));
             break;
+        }
 
         case CMD_ACCEPT_SENSOR: {
-            uint8_t gpio = cmd.intVal1;
             const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para GPIO"
+                                      : "Invalid number for GPIO");
+                break;
+            }
+            if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
+                _cmdMgr.printError(pt ? "Slot fora de range (0-9)"
+                                      : "Slot out of range (0-9)");
+                break;
+            }
+            uint8_t gpio = (uint8_t)cmd.intVal1;
             if (gpio < MAX_SENSORS) {
                 uint8_t foundRom[8];
                 if (_sensorMgr.identifyPhysicalSensor(gpio, foundRom)) {
