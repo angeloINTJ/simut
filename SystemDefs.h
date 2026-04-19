@@ -56,7 +56,7 @@ constexpr uint32_t BOOT_POLL_INTERVAL_MS    = 50;
  * Dimensionado para cobrir o pior caso de write em Flash + scan WiFi
  * sem disparar falso reset durante operações legítimas de I/O.
  */
-constexpr uint32_t WATCHDOG_TIMEOUT_MS      = 8300;
+constexpr uint32_t WATCHDOG_TIMEOUT_MS      = 15000;
 
 /** Toques perdidos tolerados antes de cancelar AP hold. */
 constexpr int      AP_HOLD_MAX_MISSED       = 5;
