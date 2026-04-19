@@ -1443,6 +1443,15 @@ void AppManager::core0Yield() {
     _yieldEntryTime = millis();
 
     /*
+     * WdtWindow context-aware: core0Yield pode ser chamado de dentro de
+     * web handlers (via _lightYieldCb). Processa UI events que podem
+     * disparar graph preloads (5x renderGraphOptimized, cada um 6s budget).
+     * Sem janela aqui, cumulativo cabe só em 15s default — insuficiente
+     * para rajadas. 30s cobre sessão típica.
+     */
+    LogManager::WdtWindow _wdtYield(30000);
+
+    /*
      * Prioridade máxima: processa som de toque ANTES de qualquer
      * outro processamento. Reduz latência do bip de ~50ms para ~5ms.
      */
