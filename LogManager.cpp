@@ -253,9 +253,17 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
 
     requestFsLock(true);
 
+    /* U15: feeds de watchdog cercam cada I/O do LittleFS. Sob LittleFS >70%,
+     * uma chamada individual (open/write/close) pode disparar GC interno e
+     * bloquear por segundos. Sem feeds, uma LOG_CODE dentro de caminho
+     * interno (ex.: BluetoothManager::update no login) estoura o WDT de 8.3s. */
+    watchdog_update();
+
     if (_currentLineCount >= MAX_RECORDS_PER_FILE) {
         if (LittleFS.exists(LOG_FILE_OLD)) LittleFS.remove(LOG_FILE_OLD);
+        watchdog_update();
         if (LittleFS.exists(LOG_FILE_CURRENT)) LittleFS.rename(LOG_FILE_CURRENT, LOG_FILE_OLD);
+        watchdog_update();
         _currentLineCount = 0;
 
         /* Registra a rotação como primeiro entry do novo arquivo (console + flash) */
@@ -269,15 +277,19 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
         rotRec.reserved  = 0;
 
         File rf = LittleFS.open(LOG_FILE_CURRENT, "a");
+        watchdog_update();
         if (rf) { rf.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); rf.close(); _currentLineCount++; }
+        watchdog_update();
     }
 
     File f = LittleFS.open(LOG_FILE_CURRENT, "a");
+    watchdog_update();
     if (f) {
         f.write((const uint8_t*)&rec, LOG_RECORD_SIZE);
         f.close();
         _currentLineCount++;
     }
+    watchdog_update();
 
     requestFsLock(false);
 }
@@ -290,14 +302,19 @@ void LogManager::flushPendingLogs() {
 
     requestFsLock(true);
 
+    /* U15: feed no entry e entre lotes grandes para sobreviver a GC do LittleFS. */
+    watchdog_update();
+
     /* Batch write: abrir 1x, escrever N entries, fechar — tudo dentro do lock */
     File f = LittleFS.open(LOG_FILE_CURRENT, "a");
+    watchdog_update();
 
     for (int i = 0; i < count; i++) {
         if (_currentLineCount >= MAX_RECORDS_PER_FILE) {
             if (f) f.close();
             if (LittleFS.exists(LOG_FILE_OLD)) LittleFS.remove(LOG_FILE_OLD);
             if (LittleFS.exists(LOG_FILE_CURRENT)) LittleFS.rename(LOG_FILE_CURRENT, LOG_FILE_OLD);
+            watchdog_update();
             _currentLineCount = 0;
 
             CompactLogRecord rotRec;
@@ -310,6 +327,7 @@ void LogManager::flushPendingLogs() {
 
             f = LittleFS.open(LOG_FILE_CURRENT, "a");
             if (f) { f.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); _currentLineCount++; }
+            watchdog_update();
         }
 
         if (!f) f = LittleFS.open(LOG_FILE_CURRENT, "a");
@@ -317,9 +335,12 @@ void LogManager::flushPendingLogs() {
             f.write((const uint8_t*)&_pendingLogs[i], LOG_RECORD_SIZE);
             _currentLineCount++;
         }
+        /* Feed a cada 8 entries para lote grande (pending max 32). */
+        if ((i & 7) == 7) watchdog_update();
     }
 
     if (f) f.close();
+    watchdog_update();
 
     /* Registrar overflow se houve perda de entries */
     if (_pendingOverflow > 0) {

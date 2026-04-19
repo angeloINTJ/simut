@@ -11,6 +11,7 @@
  */
 
 #include "BluetoothManager.h"
+#include "LogManager.h"
 
 BluetoothManager::BluetoothManager() {
     _authenticated = false;
@@ -49,6 +50,9 @@ void BluetoothManager::update() {
             SerialBT.println(pt
                 ? "\n\r[SEGURANCA] Sessao encerrada (5 min inativo)."
                 : "\n\r[SECURITY] Session ended (5 min idle).");
+            LOG_CODE(LOG_INFO, "SEC", SEC_SESSION_EXPIRE, 0,
+                     TRL("BT session timeout (5 min idle)",
+                         "Sessao BT encerrada (5 min inativo)"));
             _authenticated = false;
             _promptSent = false;
             _authBuffer = "";
@@ -88,6 +92,8 @@ void BluetoothManager::update() {
                 if (valid) {
                     _authenticated = true;
                     _lastActivityTime = millis();
+                    LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0,
+                             TRL("BT admin login", "Login BT admin"));
                     /* A1: banner de boas-vindas completo para o cliente BT
                      * (o printWelcome() do CommandManager só sai no boot USB). */
                     SerialBT.println();
@@ -105,6 +111,9 @@ void BluetoothManager::update() {
                     SerialBT.print("SIMUT> ");
                 } else {
                     SerialBT.println(pt ? "Acesso negado." : "Access denied.");
+                    LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
+                             TRL("BT admin password rejected",
+                                 "Senha BT admin rejeitada"));
                     _promptSent = false;
                 }
                 _authBuffer = "";
