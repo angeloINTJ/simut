@@ -56,6 +56,15 @@ public:
      *  retornar false. Default: 1 save / 1s. */
     bool canSaveNow() const;
 
+    /** Registra callback que retorna true quando usuário está interagindo
+     *  com display (touch priority). Flash writes não-urgentes são deferidos
+     *  (buffer em RAM) para manter display/touch responsivos. */
+    void setTouchPriorityChecker(bool (*fn)()) { _isTouchPriorityFn = fn; }
+
+    /** @return true se há record HIST pendente esperando flush.
+     *  AppManager pode chamar após interação terminar para forçar flush. */
+    bool hasPendingHist() const { return _pendingHistValid; }
+
     SystemConfig& getConfig();
     SensorRecord* getSensorByGpio(uint8_t gpio);
 
@@ -98,6 +107,14 @@ private:
     uint32_t _cursorCoalesceTime = 0;
     bool     _lastSaveWasNoOp = false;  /**< True se saveConfiguration pulou por CRC idêntico */
     volatile uint32_t _lastSaveMs = 0;  /**< millis() do último save real (0 = nunca) */
+
+    bool (*_isTouchPriorityFn)() = nullptr;  /**< Callback: user interagindo? */
+    BinaryHistoryRecord _pendingHistRec;     /**< Record HIST deferido durante touch */
+    volatile bool _pendingHistValid = false; /**< True se _pendingHistRec tem dados */
+
+    /** Worker interno: grava UM record HIST direto em flash (sem checar touch
+     *  nem flush pending). Chamado por writeHistoryEntry no path não-deferido. */
+    bool writeHistoryEntryFlash(const BinaryHistoryRecord& rec);
 
 
     String _cachedOldestFile = "";

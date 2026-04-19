@@ -139,6 +139,10 @@ void AppManager::setup() {
         return app.isUserInteracting();
     });
 
+    _storageMgr.setTouchPriorityChecker([]() -> bool {
+        return app.isUserInteracting();
+    });
+
     _displayMgr.setBootStatus("Starting Command Interface...");
     _cmdMgr.begin();
 
@@ -3263,8 +3267,13 @@ void AppManager::checkAlarmConditions() {
 
 /**
  * @brief Check if the user recently touched the display.
- * Returns true if last touch was within TOUCH_PRIORITY_MS (2s).
- * During this window, flash I/O that would pause Core 1 is deferred.
+ * Returns true if last touch was within TOUCH_PRIORITY_MS (5s).
+ * Durante essa janela, flash I/O não urgente é deferido (buffer em RAM)
+ * para manter display + touch fluidos. Afeta:
+ *   - TelemetryManager::update (já) — skip ciclo
+ *   - StorageManager::writeHistoryEntry — bufferiza em _pendingHistRec
+ *   - StorageManager::flushCursorIfDirty — skip, cursor fica dirty
+ *   - LogManager::writeCompactToFlash — bufferiza em _pendingLogs
  */
 bool AppManager::isUserInteracting() const {
     uint32_t lastTouch = _displayMgr.getLastTouchTimestamp();
