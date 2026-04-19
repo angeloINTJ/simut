@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.11.1"         /* Firmware version string */
+#define SIMUT_VERSION "v3.11.2"         /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -915,7 +915,8 @@ struct CliDemand {
     int intVal1;
     bool boolVal;
     uint8_t rom[8];
-    bool confirmed = false;  /**< true se sufixo 'confirm' presente — gate p/ comandos destrutivos */
+    bool confirmed = false;      /**< true se sufixo 'confirm' presente — gate p/ comandos destrutivos */
+    bool intVal1Valid = true;    /**< #11: false se o token numérico não era um int bem-formado */
 };
 
 
@@ -1028,6 +1029,38 @@ struct __attribute__((packed)) BinaryHistoryRecord {
 /* =========================================================================== */
 /*                         INPUT VALIDATION HELPERS                          */
 /* =========================================================================== */
+
+/** Parse uma String como int estrito (opcional '+' ou '-' + só dígitos).
+ *  Retorna true se bem-formado; false se vazio, contém espaços/letras, ou só tem sinal.
+ *  Diferencia "0" legítimo de entrada não-numérica (que String::toInt() silenciosamente mapeia para 0). */
+inline bool parseIntStrict(const String& s, int& out) {
+    if (s.length() == 0) return false;
+    size_t start = 0;
+    if (s[0] == '-' || s[0] == '+') {
+        if (s.length() == 1) return false;  /* só sinal, inválido */
+        start = 1;
+    }
+    for (size_t i = start; i < s.length(); i++) {
+        if (s[i] < '0' || s[i] > '9') return false;
+    }
+    out = s.toInt();
+    return true;
+}
+
+/** Valida string de config genérica: permite vazio, rejeita control chars (<32).
+ *  Aceita qualquer char imprimível (incluindo " e \) porque senhas WPA2, URLs e
+ *  paths legítimos podem conter esses. O parser CLI não usa escape de aspas
+ *  neste contexto — o valor é lido como raw até o fim da linha.
+ *  maxLen é o tamanho útil (sem contar o '\0' final do buffer de destino). */
+inline bool isValidCfgString(const char* s, size_t maxLen) {
+    if (!s) return false;
+    size_t len = strlen(s);
+    if (len > maxLen) return false;
+    for (size_t i = 0; i < len; i++) {
+        if ((unsigned char)s[i] < 32) return false;
+    }
+    return true;
+}
 
 /** Validate names (device, username): no control chars, no quotes/backslash, 1-31 chars. */
 inline bool isValidName(const char* name, size_t maxLen = 31) {
