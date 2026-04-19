@@ -130,4 +130,16 @@ private:
     bool _pendingAlarmDeactivate = false;
 
     static constexpr uint32_t TOUCH_PRIORITY_MS = 5000;
+
+    /* ── Fase 4: CLI deferral durante touch priority ─────────────────────
+     * Comandos CLI (USB+BT) executados durante isUserInteracting() podem
+     * tocar flash/heap e competir pelo WDT. Enfileiramos até 2 comandos e
+     * drenamos após o touch liberar. Overflow (3º+) é descartado com
+     * aviso pelo console. `processInput` continua rodando — só a execução
+     * é deferida, então echo e acumulação de bytes seguem normais. */
+    static constexpr uint8_t CLI_QUEUE_CAP = 2;
+    CliDemand _cliQueue[CLI_QUEUE_CAP];
+    uint8_t   _cliQueueHead  = 0;
+    uint8_t   _cliQueueCount = 0;
+    bool      _cliDropNotified = false;  /**< Evita spam de "CLI busy" em rajada */
 };
