@@ -307,9 +307,15 @@ void TelemetryManager::update() {
  */
 uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
     uint32_t freeHeap = rp2040.getFreeHeap();
-    const uint32_t HEAP_RESERVE   = 28672; /* 28KB para WiFi + TLS + stack */
+    /*
+     * HEAP_RESERVE = 36KB: WiFi driver (~4KB) + TLS client (16KB) +
+     * LwIP stacks (~6KB) + String temporários durante send (~4KB) +
+     * margem anti-fragmentação (~6KB). Empiricamente testado com
+     * batch=25 em link degradado sem OOM/WDT.
+     */
+    const uint32_t HEAP_RESERVE   = 36864; /* 36KB */
     const uint32_t BYTES_PER_ENTRY = 600;  /* ~28 batch + ~250 payload + ~300 String temporários */
-    const uint8_t  HARD_CAP       = 50;    /* Máximo absoluto por envio */
+    const uint8_t  HARD_CAP       = 25;    /* Máximo absoluto por envio (batch grande causa stall em http.POST) */
 
     if (freeHeap <= HEAP_RESERVE) return 1;
 
