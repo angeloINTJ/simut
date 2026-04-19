@@ -204,10 +204,20 @@ void TelemetryManager::update() {
     if (!_netRef->isNetworkHealthy()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return; }
     if (!_storageRef->lockHeavyTask()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return; }
 
+    /*
+     * Estende WDT para 60s durante o ciclo de envio. TelemetryGuard só cobre
+     * http.POST — handshake TLS (http.begin) e cleanup (http.end) ficavam
+     * expostos e, com batch grande (ex: 50 pkts) ou rede lenta, podiam
+     * exceder 8.3s. Restaurado ao final (normal ou early return). Gated
+     * por isWdtActive() pra não afetar setup.
+     */
+    if (LogManager::isWdtActive()) watchdog_enable(60000, 1);
+
     /* Aborta se heap está criticamente baixa para evitar hard fault */
     if (rp2040.getFreeHeap() < 20480) {
         _storageRef->unlockHeavyTask();
         __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
+        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
         escalateBackoff();
         return;
     }
@@ -218,6 +228,7 @@ void TelemetryManager::update() {
     if (!collectBatch(batch, newCursor)) {
         __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
         _storageRef->unlockHeavyTask();
+        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
         resetBackoff();
         return;
     }
@@ -258,6 +269,7 @@ void TelemetryManager::update() {
 
     __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
     _storageRef->unlockHeavyTask();
+    if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
     _pendingDirty = true;  /* Recalibrar após envio */
 
     if (success) {
@@ -765,12 +777,16 @@ bool TelemetryManager::forceSync() {
     if (!_netRef->isNetworkHealthy()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return false; }
     if (!_storageRef->lockHeavyTask()) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return false; }
 
+    /* WDT 60s para cobrir handshake TLS + POST grande + cleanup (igual update()). */
+    if (LogManager::isWdtActive()) watchdog_enable(60000, 1);
+
     std::vector<BinaryHistoryRecord> batch;
     uint32_t newCursor = 0;
 
     if (!collectBatch(batch, newCursor)) {
         __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
         _storageRef->unlockHeavyTask();
+        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
         return true;
     }
 
@@ -794,6 +810,7 @@ bool TelemetryManager::forceSync() {
 
     __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
     _storageRef->unlockHeavyTask();
+    if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
     _pendingDirty = true;  /* Recalibrar após envio */
 
     if (!ok) escalateBackoff();
