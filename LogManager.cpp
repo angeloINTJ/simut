@@ -583,16 +583,16 @@ void LogManager::performCrashAutopsy() {
             if (c1Valid == 0x80) {
                 const char* c1Name = (c1Mod <= 9) ? MOD_NAMES[c1Mod] : "UNK";
                 snprintf(msg, sizeof(msg),
-                         "HW WATCHDOG: Core 0 loop stalled (no feed in 8.3s). C0=[%s] C1=[%s] sc3=0x%08lx",
+                         "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] C1=[%s] sc3=0x%08lx",
                          c0Name, c1Name, (unsigned long)modTrace);
             } else {
                 snprintf(msg, sizeof(msg),
-                         "HW WATCHDOG: Core 0 loop stalled (no feed in 8.3s). C0=[%s] sc3=0x%08lx",
+                         "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] sc3=0x%08lx",
                          c0Name, (unsigned long)modTrace);
             }
         } else {
             snprintf(msg, sizeof(msg),
-                     "HW WATCHDOG: Core 0 loop stalled (no feed in 8.3s). (sem trace; sc3=0x%08lx)",
+                     "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). (sem trace; sc3=0x%08lx)",
                      (unsigned long)modTrace);
         }
         logCode(LOG_FATAL, "SYS", SYS_BOOT, 0, String(msg));
