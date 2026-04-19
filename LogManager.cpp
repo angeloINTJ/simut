@@ -407,21 +407,34 @@ void LogManager::checkCrossCoreHealth() {
 
     uint32_t lastBeat = _coreHeartbeat[otherCore];
 
-    /* U6: subtração unsigned é wrap-safe; guard removido */
-    {
-        uint32_t elapsed = now - lastBeat;
+    /* Patch C: cast signed para evitar falso-positivo em cross-core race.
+     * Cenário: Core 0 lê now=T, Core 1 escreve heartbeat=T+δ (δ>0, race
+     * entre os dois loads), Core 0 lê lastBeat=T+δ. Com unsigned subtract,
+     * elapsed = T - (T+δ) = UINT32_MAX - δ + 1 ≈ 4e9 ms — dispara pânico falso.
+     * Signed subtract (wrap-safe até 24 dias) trata δ pequeno como elapsed
+     * negativo pequeno, que não entra no branch do pânico. */
+    int32_t elapsed = (int32_t)(now - lastBeat);
 
-        if (elapsed > 8000) {
-            watchdog_hw->scratch[5] = 0xCA11B007;
-            watchdog_hw->scratch[6] = (otherCore << 24) | (_coreModule[0] << 16) | (_coreModule[1] << 8);
+    if (elapsed > 8000) {
+        watchdog_hw->scratch[5] = 0xCA11B007;
+        watchdog_hw->scratch[6] = (otherCore << 24) | (_coreModule[0] << 16) | (_coreModule[1] << 8);
 
-            uint32_t startT = _moduleStartTime[otherCore];
-            watchdog_hw->scratch[7] = (now >= startT) ? (now - startT) : 0;
+        /* Patch A: guarda o elapsed real (tempo desde o último heartbeat). */
+        watchdog_hw->scratch[7] = (uint32_t)elapsed;
 
-            watchdog_reboot(0, 0, 0);
-            while(1);
-        }
+        watchdog_reboot(0, 0, 0);
+        while(1);
     }
+}
+
+void LogManager::markCleanReboot() {
+    /* Arduino-Pico implementa rp2040.reboot() via watchdog_reboot, então
+     * watchdog_caused_reboot() retorna true mesmo em reboot intencional.
+     * Marcamos scratch[5] com magic distinto do soft panic para a autópsia
+     * diferenciar e pular a emissão de FATAL. Usamos scratch[5] em vez de
+     * scratch[4] porque scratch[5] comprovadamente persiste (o path do soft
+     * panic sempre chega ao autopsy com o valor correto). */
+    watchdog_hw->scratch[5] = 0xC1EA8007;
 }
 
 /**
@@ -429,7 +442,16 @@ void LogManager::checkCrossCoreHealth() {
  * Logs the dead core, module, and duration of the freeze.
  */
 void LogManager::performCrashAutopsy() {
-    if (watchdog_hw->scratch[5] == 0xCA11B007) {
+    /* Cenários possíveis:
+     *  (1) scratch[5] == 0xCA11B007: soft panic nosso (Core 1 travou).
+     *  (2) scratch[5] == 0xC1EA8007: reboot limpo (markCleanReboot foi chamado).
+     *  (3) watchdog_caused_reboot() && nenhum magic: HW watchdog real (Core 0).
+     *  (4) nenhum dos acima: power cycle / botão reset. */
+
+    bool wdReset = watchdog_caused_reboot();
+    uint32_t mark = watchdog_hw->scratch[5];
+
+    if (mark == 0xCA11B007) {
         uint32_t data = watchdog_hw->scratch[6];
         uint32_t stuckTime = watchdog_hw->scratch[7];
         int deadCore = (data >> 24) & 0xFF;
@@ -437,7 +459,7 @@ void LogManager::performCrashAutopsy() {
         int mod1 = (data >> 8) & 0xFF;
 
         char msg[200];
-        snprintf(msg, sizeof(msg), "WATCHDOG PANIC! Core %d frozen in [%s] for %lums. C0=[%s] C1=[%s]",
+        snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s]",
                  deadCore,
                  deadCore == 0 ? (mod0 <= 9 ? MOD_NAMES[mod0] : "UNK") : (mod1 <= 9 ? MOD_NAMES[mod1] : "UNK"),
                  stuckTime,
@@ -446,6 +468,16 @@ void LogManager::performCrashAutopsy() {
 
         logCode(LOG_FATAL, "SYS", SYS_BOOT, deadCore, String(msg));
         watchdog_hw->scratch[5] = 0;
+    } else if (wdReset && mark == 0xC1EA8007) {
+        /* Reboot intencional via markCleanReboot(). Silencioso. */
+        watchdog_hw->scratch[5] = 0;
+    } else if (wdReset) {
+        /* Hardware watchdog estourou (8.3s) sem nosso soft panic ter disparado
+         * e sem marca de reboot limpo. Indica que Core 0 não chamou
+         * watchdog_update() — loop travado no Core 0. Não temos contexto de
+         * módulo pois RAM foi zerada no reset. */
+        logCode(LOG_FATAL, "SYS", SYS_BOOT, 0,
+                String("HW WATCHDOG: Core 0 loop stalled (no feed in 8.3s)"));
     }
 }
 

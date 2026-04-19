@@ -108,6 +108,7 @@ void NetworkManager::update() {
         if (millis() - _apStartTime > AP_MODE_TIMEOUT_MS && strlen(_ssid) > 0) {
             LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, 0, TRL("AP mode timeout, rebooting to STA", "Timeout do AP, reiniciando para STA"));
             watchdog_update();
+            LogManager::instance().markCleanReboot();
             rp2040.reboot();
         }
         return;

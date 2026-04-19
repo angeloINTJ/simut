@@ -443,7 +443,9 @@ void AppManager::loop() {
             _lastCore1RestartCheck = millis();
             if (_displayMgr.isCore1Ready() && _displayMgr.getPauseStartTime() == 0) {
                 uint32_t beat = _displayMgr.getHeartbeat();
-                if (beat > 0 && (millis() - beat > 10000)) {
+                /* Patch C: signed cast para tolerar cross-core race (beat
+                 * levemente adiantado em relacao a millis() local). */
+                if (beat > 0 && (int32_t)(millis() - beat) > 10000) {
                     LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD, 0, TRL("Core 1 dead >10s. Restarting.", "Core 1 travado >10s. Reiniciando."));
                     _displayMgr.restartCore1();
                 }
@@ -918,6 +920,7 @@ void AppManager::executeCommand(CliDemand cmd) {
             }
             LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI", "Reboot via CLI"));
             delay(100);     /* Garante flush do log para flash */
+            LogManager::instance().markCleanReboot();
             rp2040.reboot();
             break;
         case CMD_TEL_SYNC: _telemetryMgr.forceSync();

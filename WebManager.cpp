@@ -1331,6 +1331,7 @@ void WebManager::handleSaveNetwork() {
         /* N1: spin + watchdog feed em vez de delay() que starva o WDT */
         uint32_t waitEnd = millis() + 1000;
         while (!timeReached(waitEnd)) { watchdog_update(); delay(10); }
+        LogManager::instance().markCleanReboot();
         rp2040.reboot();
     }
 }
