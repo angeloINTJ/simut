@@ -250,6 +250,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F7 — Hardening & Polish** | ✅ Concluída | `stability-fixes-tier1` | `v3.6.0` | 2026-04-18 |
 | **F8 — Watchdog panic false-positive** | ✅ Concluída | `stability-fixes-tier1` | `v3.9.2` | 2026-04-18 |
 | **F9 — WDT feeds no path de flash + audit BT** | ✅ Concluída | `stability-fixes-tier1` | `v3.11.1` | 2026-04-19 |
+| **F10 — Estabilidade em rajadas de save (U16)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-19 |
 
 ### Legenda de Status
 
@@ -290,7 +291,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | D14 | 🟢 | F7 | ✅ | Upload valida `Content-Length` vs espaço livre; 413 se excede. |
 | U1 | 🔴 | F3 | ✅ | Ver D4 — dirty flag elimina scan contínuo. |
 | U2 | 🔴 | F4 | ✅ | `APP_HEAP_REPORT` só quando heap < 32 KB ou 1x/hora. |
-| U3 | 🔴 | F5 | ⚪ | |
+| U3 | 🔴 | F5 | 🟡 | **5.3a ✅ validado em HW (2026-04-19):** `formatLineCustomBuf` char-buffer single-pass elimina ~20 `String::replace()` por registro; `buildPayload` Custom branch emite linhas direto em `s` via `concat(buf, len)`, sem intermediário. Preview JS (`WebUI.h` `_previewCustomLine` + `_previewGlobal`) reescrito como espelho byte-fiel do firmware; `/api/config` passou a expor `serial` + `sensors[].{hwid,active}` para o preview usar dados reais. CLI `tel dump` (em `AppManager`/`CommandManager`) arma dump one-shot via `LogManager::writeConsole` (USB+BT, chunked, quebrado em vírgula). **5.2 (handlers `handleApiLs` feito; `handleApiHistoryData`/`handleApiLogs` pendentes)** — 🟡 segue. |
 | U4 | 🔴 | F7 | ⚠️ | `uptimeHr` em CompactLogRecord — mudar exige migração de formato. |
 | U5 | 🟠 | F7 | ✅ | `hashPassword` feed a cada 50 rounds (era 100). |
 | U6 | 🟠 | F7 | ⚠️ | Guard `now >= lastBeat` removido; wrap-safe vs millis()-wrap mas **regressão em cross-core race** — ver U14. |
@@ -303,3 +304,4 @@ Atualize esta tabela conforme cada fase for concluída.
 | U13 | 🟢 | F7 | ✅ | TLS client só alocado se `telInterval > 0`. |
 | U14 | 🔴 | F8 | ✅ | **Post-audit**: `(int32_t)(now - lastBeat)` em `checkCrossCoreHealth` e `AppManager:446`. `markCleanReboot()` via `scratch[5] = 0xC1EA8007` antes de `rp2040.reboot()` (CLI, WebManager save de rede, NetworkManager AP timeout). Autópsia distingue SOFT PANIC / HW WATCHDOG / reboot limpo. Scratch[7] passa a guardar `elapsed` real (era `now - moduleStartTime`, mascarava como 0ms). |
 | U15 | 🔴 | F9 | ✅ | **Post-audit**: feeds de `watchdog_update()` entre cada LittleFS open/write/close/rename em `writeCompactToFlash` e `flushPendingLogs`. Descoberto após add de `LOG_CODE` no `BluetoothManager::update()` (audit BT, #12) disparar HW WATCHDOG sob LittleFS 82%. |
+| U16 | 🔴 | F10 | ✅ | **Post-audit (2026-04-19):** rajadas de save web travavam HW WDT mesmo com feeds de U15. Fixes em camadas: (a) `watchdog_enable(30000)` em 5 paths críticos (saveConfiguration, writeHistoryEntry, flushCursorIfDirty, writeCompactToFlash, flushPendingLogs) antes do `enterFlashSafeMode`/`requestFsLock` — cobre lockout wait + flash ops; gated por `LogManager::isWdtActive()` pra não armar WDT no setup. (b) CRC skip em `saveConfiguration` — rajadas de clicks sem mudança pulam gravação. (c) audit `LOG_CODE` só em save real via `lastSaveWasNoOp()`. (d) rate-limit server-side 1s (HTTP 429) em 6 handlers. (e) soft panic threshold 8s→15s (cobre multicore_lockout cumulativo). (f) autópsia migrada de scratch[4] (reservado SDK watchdog_reboot) para scratch[3]; TRACE_MOD(0, MOD_BOOT) movido pra depois de LogManager::begin pra não sobrescrever. (g) dirty tracker client-side em /config, /network, /alarms — Save button disabled até mudança real. Validado em HW com ≥14 saves consecutivos sob graph preload. |

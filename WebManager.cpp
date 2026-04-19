@@ -539,7 +539,17 @@ void WebManager::handleApiConfig() {
     if (!safeSend(jsonEscape(cfg.telLineTemplate).c_str())) return;
     safeSend("\",\"t_sep\":\"");
     if (!safeSend(jsonEscape(cfg.telLineSeparator).c_str())) return;
-    safeSend("\"}");
+    safeSend("\",\"serial\":\"");
+    if (!safeSend(jsonEscape(_storageRef->getBoardSerialNumber().c_str()).c_str())) return;
+    safeSend("\",\"sensors\":[");
+    for (int i = 0; i < MAX_SENSORS; i++) {
+        snprintf(buf, sizeof(buf), "%s{\"hwid\":\"%s\",\"active\":%s}",
+                 i == 0 ? "" : ",",
+                 jsonEscape(cfg.sensors[i].hwId).c_str(),
+                 cfg.sensors[i].active ? "true" : "false");
+        if (!safeSend(buf)) return;
+    }
+    safeSend("]}");
 }
 
 void WebManager::handleApiUsers() {
@@ -696,6 +706,11 @@ void WebManager::handleApiSaveAlarms() {
     }
     if (isPasswordChangeRequired()) return;
 
+    if (!_storageRef->canSaveNow()) {
+        _server.sendHeader("Retry-After", "1");
+        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
+        return;
+    }
 
     String body = _server.arg("plain");
     if (body.length() == 0 || body.length() > 4096) {
@@ -839,8 +854,10 @@ void WebManager::handleApiSaveAlarms() {
 
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(saved ? SND_CONFIRM : SND_ERROR);
 
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
-             "Admin updated Alarms & Sounds via web");
+    if (saved && !_storageRef->lastSaveWasNoOp()) {
+        LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
+                 "Admin updated Alarms & Sounds via web");
+    }
 
     _server.send(200, "application/json",
                  saved ? "{\"status\":\"ok\"}" : "{\"status\":\"error\"}");
@@ -1215,6 +1232,12 @@ void WebManager::handleSaveSystem() {
     if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
     if (isPasswordChangeRequired()) return;
 
+    if (!_storageRef->canSaveNow()) {
+        _server.sendHeader("Retry-After", "1");
+        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
+        return;
+    }
+
     SystemConfig& cfg = _storageRef->getConfig();
     bool themeChanged = false;
 
@@ -1279,12 +1302,21 @@ void WebManager::handleSaveSystem() {
     if (themeChanged && _displayRef) _displayRef->refreshTheme();
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(saved ? SND_CONFIRM : SND_ERROR);
 
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin updated System Settings", "Admin atualizou config do sistema"));
+    /* Audit log só quando houve mudança real. Rajadas de clicks sem alteração
+     * (CRC idêntico ao último salvo) pulam a gravação — não tem o que auditar. */
+    if (saved && !_storageRef->lastSaveWasNoOp()) {
+        LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin updated System Settings", "Admin atualizou config do sistema"));
+    }
 
     _server.send(200, "application/json", saved ? "{\"status\":\"ok\"}" : "{\"status\":\"error\"}");
 }
 
 void WebManager::handleSaveNetwork() {
+    if (!_storageRef->canSaveNow()) {
+        _server.sendHeader("Retry-After", "1");
+        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
+        return;
+    }
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_NET_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
     if (isPasswordChangeRequired()) return;
@@ -1322,7 +1354,9 @@ void WebManager::handleSaveNetwork() {
 
     bool saved = _storageRef->saveConfiguration();
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin updated Network Settings", "Admin atualizou config de rede"));
+    if (saved && !_storageRef->lastSaveWasNoOp()) {
+        LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin updated Network Settings", "Admin atualizou config de rede"));
+    }
 
     _server.send(200, "application/json", "{\"status\":\"ok\",\"reboot\":true}");
 
@@ -1360,6 +1394,11 @@ void WebManager::handleResetTouchCal() {
 
 void WebManager::handleApiUserAdd() {
     if (!(getAuthPerms() & PERM_USER_MGR)) { _server.send(403, "text/plain", "Forbidden"); return; }
+    if (!_storageRef->canSaveNow()) {
+        _server.sendHeader("Retry-After", "1");
+        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
+        return;
+    }
     SystemConfig& cfg = _storageRef->getConfig();
 
     int slot = -1;
@@ -1417,6 +1456,11 @@ void WebManager::handleApiUserAdd() {
 
 void WebManager::handleApiUserDel() {
     if (!(getAuthPerms() & PERM_USER_MGR)) { _server.send(403, "text/plain", "Forbidden"); return; }
+    if (!_storageRef->canSaveNow()) {
+        _server.sendHeader("Retry-After", "1");
+        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
+        return;
+    }
     int id = _server.arg("id").toInt();
     if (id <= 0 || id >= MAX_USERS) { _server.send(400, "text/plain", "Invalid Slot"); return; }
 
@@ -1431,6 +1475,11 @@ void WebManager::handleApiUserDel() {
 
 void WebManager::handleApiUserReset() {
     if (!(getAuthPerms() & PERM_USER_MGR)) { _server.send(403, "text/plain", "Forbidden"); return; }
+    if (!_storageRef->canSaveNow()) {
+        _server.sendHeader("Retry-After", "1");
+        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
+        return;
+    }
     int id = _server.arg("id").toInt();
     if (id <= 0 || id >= MAX_USERS) { _server.send(400, "text/plain", "Invalid Slot"); return; }
 
@@ -1526,38 +1575,37 @@ void WebManager::handleApiLs() {
     HeavyTaskGuard htg(_storageRef);
     if (!htg.isLocked()) { _server.send(503, "application/json", "{\"error\":\"System Busy\"}"); return; }
 
-    String json;
-    json.reserve(2048);
-    json = "{\"path\":\"" + dirPath + "\",\"entries\":[";
+    _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    _server.send(200, "application/json", "");
+
+    char buf[256];
+    snprintf(buf, sizeof(buf), "{\"path\":\"%s\",\"entries\":[", dirPath.c_str());
+    if (!safeSend(buf)) return;
+
     bool first = true;
 
     if (dirPath == "/") {
-        String foundDirs[10];
-        int numDirs = 0;
-
         const char* sysDirs[] = {"/config", "/history"};
         for (auto sd : sysDirs) {
             feedWatchdog();
 
-            ReadGuard rg(_storageRef);
-            Dir testDir = LittleFS.openDir(sd);
-            bool hasContent = testDir.next();
-            if (hasContent || LittleFS.exists(String(sd) + "/")) {
-                if (numDirs < 10) foundDirs[numDirs++] = String(sd + 1);
+            bool hasContent;
+            {
+                ReadGuard rg(_storageRef);
+                Dir testDir = LittleFS.openDir(sd);
+                hasContent = testDir.next();
+                if (!hasContent) hasContent = LittleFS.exists(String(sd) + "/");
             }
-        }
-
-        for (int i = 0; i < numDirs; i++) {
-            if (!first) json += ",";
-            first = false;
-            json += "{\"n\":\"" + foundDirs[i] + "\",\"t\":\"d\",\"s\":0}";
+            if (hasContent) {
+                snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"d\",\"s\":0}",
+                         first ? "" : ",", sd + 1);
+                if (!safeSend(buf)) return;
+                first = false;
+            }
         }
     }
 
-
     bool dirDone = false;
-    int totalCount = 0;
-
 
     Dir dir;
     {
@@ -1568,13 +1616,11 @@ void WebManager::handleApiLs() {
     while (!dirDone) {
         if (isHandlerOvertime()) break;
 
-
         struct DirEntry { String name; size_t size; bool isDir; };
         DirEntry batch[20];
         int batchCount = 0;
 
         {
-
             ReadGuard rg(_storageRef);
             while (dir.next() && batchCount < 20) {
                 feedWatchdog();
@@ -1586,42 +1632,43 @@ void WebManager::handleApiLs() {
             dirDone = (batchCount < 20);
         }
 
-
         for (int i = 0; i < batchCount; i++) {
             if (batch[i].isDir) {
-                if (dirPath != "/") {
-                    String dName = batch[i].name;
-                    if (dName.length() > 0 && dName != "." && dName != "..") {
-                        if (!first) json += ",";
-                        first = false;
-                        json += "{\"n\":\"" + dName + "\",\"t\":\"d\",\"s\":0}";
-                    }
-                }
+                if (dirPath == "/") continue;
+                const char* dName = batch[i].name.c_str();
+                if (dName[0] == '\0') continue;
+                if (strcmp(dName, ".") == 0 || strcmp(dName, "..") == 0) continue;
+                snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"d\",\"s\":0}",
+                         first ? "" : ",", dName);
+                if (!safeSend(buf)) return;
+                first = false;
                 continue;
             }
 
-            String fnStr = batch[i].name;
-            size_t sz = batch[i].size;
-
-            fnStr.replace("\\", "\\\\");
-            fnStr.replace("\"", "\\\"");
-
+            const String& fnStr = batch[i].name;
             if (fnStr.length() == 0) continue;
 
-            if (!first) json += ",";
-            first = false;
+            /* Escape on-the-fly em stack buffer: \ → \\ , " → \" */
+            char escaped[128];
+            size_t ei = 0;
+            const size_t flen = fnStr.length();
+            for (size_t k = 0; k < flen && ei + 2 < sizeof(escaped); k++) {
+                char c = fnStr[k];
+                if (c == '\\' || c == '"') escaped[ei++] = '\\';
+                escaped[ei++] = c;
+            }
+            escaped[ei] = '\0';
 
-            char entry[192];
-            snprintf(entry, sizeof(entry), "{\"n\":\"%s\",\"t\":\"f\",\"s\":%u}", fnStr.c_str(), (unsigned)sz);
-            json += entry;
-            totalCount++;
+            snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"f\",\"s\":%u}",
+                     first ? "" : ",", escaped, (unsigned)batch[i].size);
+            if (!safeSend(buf)) return;
+            first = false;
         }
 
         feedWatchdog();
     }
 
-    json += "]}";
-    _server.send(200, "application/json", json);
+    safeSend("]}");
 }
 
 void WebManager::handleApiMkdir() {

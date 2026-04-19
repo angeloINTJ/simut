@@ -28,6 +28,14 @@ public:
     void update();
     bool forceSync();
 
+    /** Arma dump one-shot do próximo payload construído (via USB+BT).
+     *  Flag é consumida na primeira chamada de buildPayload após este. */
+    void armPayloadDump() { _dumpPayloadNext = true; }
+
+    /** True se o dump está armado mas ainda não foi consumido (ex: forceSync
+     *  rodou sem dados pendentes, o dump vai esperar o próximo buildPayload). */
+    bool isPayloadDumpArmed() const { return _dumpPayloadNext; }
+
 
     bool isMqttConnected();
 
@@ -58,6 +66,13 @@ private:
 
     volatile bool _hasSendResult    = false;
     volatile bool _lastSendSuccess  = false;
+
+    volatile bool _dumpPayloadNext  = false;  /**< One-shot flag set por `tel dump` (CLI/BT). */
+
+    /** Dump do payload: header + corpo (quebrado a cada ',') + footer.
+     *  Quebra por vírgula melhora legibilidade e evita drop no BT (cada linha
+     *  cabe na janela TX). Segmento >= sizeof(buf) é truncado defensivamente. */
+    void _dumpPayload(const char* payload, size_t len, const char* label);
 
 
     static const uint32_t BACKOFF_MIN_MS     = 5000;
@@ -101,5 +116,6 @@ private:
     String buildPayload(std::vector<BinaryHistoryRecord>& batch);
     int    formatLineJsonBuf(const BinaryHistoryRecord& rec, const SystemConfig& cfg, char* dest, size_t maxLen);
     String formatLineJson(const BinaryHistoryRecord& rec, const SystemConfig& cfg);
+    int    formatLineCustomBuf(const BinaryHistoryRecord& rec, const SystemConfig& cfg, char* dest, size_t cap);
     String formatLineCustom(const BinaryHistoryRecord& rec, const SystemConfig& cfg);
 };

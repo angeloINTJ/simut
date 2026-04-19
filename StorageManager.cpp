@@ -373,15 +373,53 @@ bool StorageManager::saveConfiguration() {
     _currentConfig.magic = CONFIG_MAGIC;
     _currentConfig.version = CONFIG_VERSION;
 
+    /*
+     * Skip no-op: usuário clica em "Save" várias vezes sem mudar campos →
+     * rajada de saves idênticos que pressiona o LittleFS GC sem ganho real.
+     * Se o conteúdo em RAM bate com o último salvo, pula a gravação.
+     */
+    static uint32_t _lastSavedCrc = 0;
+    uint32_t currentCrc = calculateCRC32((uint8_t*)&_currentConfig, sizeof(SystemConfig));
+    if (currentCrc == _lastSavedCrc && _lastSavedCrc != 0) {
+        _lastSaveWasNoOp = true;
+        MetricsManager::instance().data().configSaves++;  /* ainda conta como save solicitado */
+        /* Sem LOG_CODE aqui: log file write pressiona GC em rajadas de clicks. */
+        return true;
+    }
+    _lastSaveWasNoOp = false;
+
+    /*
+     * Estende WDT ANTES de enterFlashSafeMode: o multicore_lockout_start_blocking
+     * interno pode aguardar Core 1 acknowledge. Qualquer LittleFS op subsequente
+     * pode bloquear sob GC. 30s cobre lockout wait + flash ops.
+     */
+    if (LogManager::isWdtActive()) watchdog_enable(30000, 1);
     enterFlashSafeMode();
+
+    /*
+     * WDT feeds entre cada operação LittleFS. Sob FS >70% ou GC ativo, cada
+     * open/write/close/remove/rename pode bloquear segundos. Sem feeds, a
+     * cadeia completa excede 8.3s → HW WATCHDOG. Mesma classe de U15/F9
+     * (write path de logs), aplicada aqui ao path de config.
+     */
 
     /* Flush cursor para flash dentro do safe mode (Core 1 já pausado) */
     if (_cachedLastSent > 0) {
+        watchdog_update();
         File cf = LittleFS.open(FILE_TCURSOR, "w");
+        watchdog_update();
         if (cf) { cf.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent)); cf.close(); }
+        watchdog_update();
     }
+
+    watchdog_update();
     File f = LittleFS.open(FILE_TMP, "w");
-    if (!f) { exitFlashSafeMode(); return false; }
+    watchdog_update();
+    if (!f) {
+        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+        exitFlashSafeMode();
+        return false;
+    }
 
     /* #5: escreve cópia com campos sensíveis criptografados. _currentConfig em
      * RAM permanece plaintext para uso direto por WiFi/MQTT/HTTP. CRC é
@@ -391,25 +429,42 @@ bool StorageManager::saveConfiguration() {
 
     uint32_t crc = calculateCRC32((uint8_t*)&encBuf, sizeof(SystemConfig));
     size_t bytesWritten = f.write((uint8_t*)&encBuf, sizeof(SystemConfig));
+    watchdog_update();
     size_t crcWritten = f.write((uint8_t*)&crc, sizeof(crc));
     f.close();
+    watchdog_update();
 
     if (bytesWritten == sizeof(SystemConfig) && crcWritten == sizeof(crc)) {
         if (LittleFS.exists(FILE_CONFIG)) {
+            watchdog_update();
             LittleFS.remove(FILE_BACKUP);
+            watchdog_update();
             LittleFS.rename(FILE_CONFIG, FILE_BACKUP);
+            watchdog_update();
         }
         LittleFS.rename(FILE_TMP, FILE_CONFIG);
+        watchdog_update();
+        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
         exitFlashSafeMode();
         MetricsManager::instance().data().configSaves++;
+        _lastSavedCrc = currentCrc;  /* Marca conteúdo persistido para skip no-op futuro */
+        _lastSaveMs = millis();       /* Timestamp para rate-limit server-side */
         LOG_CODE(LOG_INFO, "STO", SYS_STORAGE_SAVE, (int)(sizeof(SystemConfig)), "");
         return true;
     } else {
         LittleFS.remove(FILE_TMP);
+        watchdog_update();
+        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
         exitFlashSafeMode();
         LOG_CODE(LOG_ERROR, "STO", SYS_STORAGE_FAIL, (int)bytesWritten, "Config save failed");
         return false;
     }
+}
+
+bool StorageManager::canSaveNow() const {
+    constexpr uint32_t MIN_SAVE_INTERVAL_MS = 1000;
+    if (_lastSaveMs == 0) return true;
+    return ((int32_t)(millis() - _lastSaveMs)) >= (int32_t)MIN_SAVE_INTERVAL_MS;
 }
 
 void StorageManager::resetToFactory() { loadDefaults(); saveConfiguration(); }
@@ -439,18 +494,40 @@ bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
     if (!_isMounted) return false;
     String path = getHistoryFileName();
 
+    /* Estende WDT ANTES de enterFlashSafeMode: cobre lockout wait + op. */
+    if (LogManager::isWdtActive()) watchdog_enable(30000, 1);
     enterFlashSafeMode();
     if (path != _currentLogFileName) { enforceStorageLimit(); _currentLogFileName = path; }
+    watchdog_update();
     File f = LittleFS.open(path, "a");
-    if (f) { f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE); f.close(); exitFlashSafeMode(); _storageDirty = true; return true; }
+    watchdog_update();
+    if (f) {
+        f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
+        f.close();
+        watchdog_update();
+        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+        exitFlashSafeMode();
+        _storageDirty = true;
+        return true;
+    }
 
 
     LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "");
     _storageDirty = true;
     enforceStorageLimit();
+    watchdog_update();
     f = LittleFS.open(path, "a");
-    if (f) { f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE); f.close(); exitFlashSafeMode(); return true; }
+    watchdog_update();
+    if (f) {
+        f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
+        f.close();
+        watchdog_update();
+        if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+        exitFlashSafeMode();
+        return true;
+    }
 
+    if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
     exitFlashSafeMode();
     return false;
 }
@@ -533,10 +610,19 @@ void StorageManager::flushCursorIfDirty() {
     if (!_cursorDirty) return;
     if (millis() - _cursorCoalesceTime < CURSOR_COALESCE_MS) return;
     _cursorDirty = false;
+    /* Estende WDT ANTES de enterFlashSafeMode: cobre lockout wait + op. */
+    if (LogManager::isWdtActive()) watchdog_enable(30000, 1);
     enterFlashSafeMode();
+    watchdog_update();
     File f = LittleFS.open(FILE_TCURSOR, "w");
-    if (f) { f.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent)); f.close(); }
+    watchdog_update();
+    if (f) {
+        f.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent));
+        f.close();
+        watchdog_update();
+    }
     exitFlashSafeMode();
+    if (LogManager::isWdtActive()) watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
 }
 
 String StorageManager::getStatsReport() {

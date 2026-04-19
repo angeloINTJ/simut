@@ -903,6 +903,7 @@ enum DemandType {
     CMD_CLEAR_LOGS,
     CMD_RELOAD,
     CMD_TEL_SYNC,
+    CMD_TEL_DUMP,
     CMD_DEBUG,
     CMD_LANGUAGE,
     /* #7: paridade CLI↔Web */

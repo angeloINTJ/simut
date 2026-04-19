@@ -14,6 +14,7 @@
 #include <Arduino.h>
 #include "AppManager.h"
 #include "SystemDefs.h"
+#include "LogManager.h"
 #include <hardware/watchdog.h>
 
 /** Global application manager instance — orchestrates all subsystems. */
@@ -38,6 +39,7 @@ void loop() {
     static bool _wdtStarted = false;
     if (!_wdtStarted) {
         watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
+        LogManager::markWdtActive();  /* Paths de flash podem estender WDT a partir daqui */
         _wdtStarted = true;
     }
 

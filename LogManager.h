@@ -48,6 +48,17 @@ public:
     void setTouchPriorityChecker(bool (*fn)());
     void setConsoleSink(ConsoleSink sink);
     void setConsoleStream(bool enabled);   /**< false = modo CONFIG (console silencioso) */
+
+    /** Escreve uma linha diretamente no console (USB+BT via sink; fallback Serial).
+     *  Ignora `setConsoleStream(false)` — destinado a output solicitado pelo usuário
+     *  (ex: dump de payload via `tel dump`), não logs automáticos. */
+    void writeConsole(const char* line);
+
+    /** Marcar que o WDT do sistema está ativo (chamado pelo SIMUT.ino no primeiro
+     *  loop). Paths de flash write usam esse flag para decidir se podem estender
+     *  a janela WDT — NÃO estender durante setup evita WDT armado cedo demais. */
+    static void markWdtActive() { _wdtActive = true; }
+    static bool isWdtActive() { return _wdtActive; }
     bool isConsoleStream() const { return _consoleStreamEnabled; }
     void begin(bool saveToFile = false, LogLevel minSerialLevel = LOG_INFO);
 
@@ -91,6 +102,8 @@ public:
 
 private:
     LogManager();
+
+    static volatile bool _wdtActive;
 
     mutex_t _logMutex;
     bool _saveToFile;
