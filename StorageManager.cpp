@@ -389,76 +389,74 @@ bool StorageManager::saveConfiguration() {
     _lastSaveWasNoOp = false;
 
     /*
-     * RAII context-aware: estende WDT para 30s (ou mantém outer se maior,
-     * ex: telemetria em 120s). Auto-restore no destrutor cobre todos os
-     * exit paths. Cobre enterFlashSafeMode lockout wait + flash ops.
+     * RAII context-aware: estende WDT ctx para 30s (ou mantém outer se maior,
+     * ex: telemetria em 120s). Auto-restore em qualquer exit path.
      */
     LogManager::WdtWindow _wdt(30000);
-    enterFlashSafeMode();
 
     /*
-     * WDT feeds entre cada operação LittleFS. Sob FS >70% ou GC ativo, cada
-     * open/write/close/remove/rename pode bloquear segundos. Sem feeds, a
-     * cadeia completa excede 8.3s → HW WATCHDOG. Mesma classe de U15/F9
-     * (write path de logs), aplicada aqui ao path de config.
+     * Chunked lockout: cada op LittleFS tem seu próprio enterFlashSafeMode /
+     * exitFlashSafeMode. Entre ops, Core 1 sai do multicore_lockout e renderiza
+     * 1 frame. Display/touch ficam responsivos mesmo sob GC lento.
+     * Helper macro para feed + flash op + feed.
      */
+    #define FLASH_OP(BLOCK) do { \
+        enterFlashSafeMode(); \
+        watchdog_update(); \
+        BLOCK; \
+        watchdog_update(); \
+        exitFlashSafeMode(); \
+    } while (0)
 
-    /* Flush cursor para flash dentro do safe mode (Core 1 já pausado) */
+    /* Flush cursor para flash (se pendente) */
     if (_cachedLastSent > 0) {
-        watchdog_update();
-        File cf = LittleFS.open(FILE_TCURSOR, "w");
-        watchdog_update();
-        if (cf) { cf.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent)); cf.close(); }
-        watchdog_update();
+        FLASH_OP({
+            File cf = LittleFS.open(FILE_TCURSOR, "w");
+            if (cf) { cf.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent)); cf.close(); }
+        });
     }
 
-    watchdog_update();
-    File f = LittleFS.open(FILE_TMP, "w");
-    watchdog_update();
+    /* Abre TMP e escreve config criptografado + CRC */
+    File f;
+    FLASH_OP(f = LittleFS.open(FILE_TMP, "w"));
     if (!f) {
-        /* WdtWindow auto-restaura */
-        exitFlashSafeMode();
+        LOG_CODE(LOG_ERROR, "STO", SYS_STORAGE_FAIL, 0, "open FILE_TMP failed");
         return false;
     }
 
-    /* #5: escreve cópia com campos sensíveis criptografados. _currentConfig em
-     * RAM permanece plaintext para uso direto por WiFi/MQTT/HTTP. CRC é
-     * computado sobre a versão criptografada (o que está no disco). */
+    /* #5: cópia com campos sensíveis criptografados. _currentConfig em
+     * RAM permanece plaintext. CRC sobre a versão criptografada. */
     SystemConfig encBuf = _currentConfig;
     obfuscateSensitiveFields(encBuf);
-
     uint32_t crc = calculateCRC32((uint8_t*)&encBuf, sizeof(SystemConfig));
-    size_t bytesWritten = f.write((uint8_t*)&encBuf, sizeof(SystemConfig));
-    watchdog_update();
-    size_t crcWritten = f.write((uint8_t*)&crc, sizeof(crc));
-    f.close();
-    watchdog_update();
 
-    if (bytesWritten == sizeof(SystemConfig) && crcWritten == sizeof(crc)) {
-        if (LittleFS.exists(FILE_CONFIG)) {
-            watchdog_update();
-            LittleFS.remove(FILE_BACKUP);
-            watchdog_update();
-            LittleFS.rename(FILE_CONFIG, FILE_BACKUP);
-            watchdog_update();
-        }
-        LittleFS.rename(FILE_TMP, FILE_CONFIG);
-        watchdog_update();
-        /* WdtWindow auto-restaura */
-        exitFlashSafeMode();
-        MetricsManager::instance().data().configSaves++;
-        _lastSavedCrc = currentCrc;  /* Marca conteúdo persistido para skip no-op futuro */
-        _lastSaveMs = millis();       /* Timestamp para rate-limit server-side */
-        LOG_CODE(LOG_INFO, "STO", SYS_STORAGE_SAVE, (int)(sizeof(SystemConfig)), "");
-        return true;
-    } else {
-        LittleFS.remove(FILE_TMP);
-        watchdog_update();
-        /* WdtWindow auto-restaura */
-        exitFlashSafeMode();
+    size_t bytesWritten, crcWritten;
+    FLASH_OP({
+        bytesWritten = f.write((uint8_t*)&encBuf, sizeof(SystemConfig));
+        crcWritten = f.write((uint8_t*)&crc, sizeof(crc));
+        f.close();
+    });
+
+    if (bytesWritten != sizeof(SystemConfig) || crcWritten != sizeof(crc)) {
+        FLASH_OP(LittleFS.remove(FILE_TMP));
         LOG_CODE(LOG_ERROR, "STO", SYS_STORAGE_FAIL, (int)bytesWritten, "Config save failed");
         return false;
     }
+
+    /* Rename atômico: backup, rename, rename. Cada um em seu próprio lockout. */
+    if (LittleFS.exists(FILE_CONFIG)) {
+        FLASH_OP(LittleFS.remove(FILE_BACKUP));
+        FLASH_OP(LittleFS.rename(FILE_CONFIG, FILE_BACKUP));
+    }
+    FLASH_OP(LittleFS.rename(FILE_TMP, FILE_CONFIG));
+
+    MetricsManager::instance().data().configSaves++;
+    _lastSavedCrc = currentCrc;  /* Marca conteúdo persistido para skip no-op futuro */
+    _lastSaveMs = millis();       /* Timestamp para rate-limit server-side */
+    LOG_CODE(LOG_INFO, "STO", SYS_STORAGE_SAVE, (int)(sizeof(SystemConfig)), "");
+    return true;
+
+    #undef FLASH_OP
 }
 
 bool StorageManager::canSaveNow() const {
