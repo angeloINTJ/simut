@@ -1886,7 +1886,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <h3 data-i18n="net_web_title">Web Server</h3>
                         <div class="grp">
                             <label data-i18n="net_web_port">HTTP Port</label>
-                            <input type="number" id="web_port" name="web_port" min="1" max="65535" value="80" required>
+                            <input type="text" id="web_port" name="web_port" maxlength="5" inputmode="numeric" placeholder="80">
                             <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_web_port_hint">Default: 80. After saving, browser auto-redirects to new port.</div>
                         </div>
 
