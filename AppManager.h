@@ -142,4 +142,15 @@ private:
     uint8_t   _cliQueueHead  = 0;
     uint8_t   _cliQueueCount = 0;
     bool      _cliDropNotified = false;  /**< Evita spam de "CLI busy" em rajada */
+
+    /* ── Fase 5: orquestração de flush pós-interação ────────────────────
+     * Detecta a transição `isUserInteracting() true → false` e dispara
+     * flush explícito de todos os buffers que deferiram durante o touch:
+     *   1. Log pendentes (_pendingLogs em LogManager)
+     *   2. Histórico pendente (_pendingHistRec em StorageManager)
+     *   3. Cursor dirty (flushCursorIfDirty)
+     * CLI queue já drena 1-por-loop (Fase 4), então não precisa de chamada
+     * explícita aqui. */
+    bool _wasInteracting = false;
+    void onTouchReleased();
 };

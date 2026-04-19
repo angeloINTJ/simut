@@ -436,6 +436,13 @@ void AppManager::loop() {
     TRACE_BEAT(0);
     watchdog_update();
 
+    /* Fase 5: edge detection touch-released → orchestrated flush. */
+    bool isNow = isUserInteracting();
+    if (_wasInteracting && !isNow) {
+        onTouchReleased();
+    }
+    _wasInteracting = isNow;
+
     LogManager::instance().checkCrossCoreHealth();
 
     /* #8 + U3/5.5: heap/HWM + largest contiguous block a cada 10s.
@@ -3308,4 +3315,20 @@ bool AppManager::isUserInteracting() const {
     uint32_t lastTouch = _displayMgr.getLastTouchTimestamp();
     if (lastTouch == 0) return false;
     return (millis() - lastTouch) < TOUCH_PRIORITY_MS;
+}
+
+/**
+ * Fase 5: Chamado uma vez na transição touch-active→touch-free. Fecha a
+ * janela de exposição dos buffers em RAM (log/hist/cursor) disparando um
+ * flush coordenado. Ordem importa: logs primeiro (menor, mais crítico
+ * para auditoria), depois hist, depois cursor (coalesce de telemetria).
+ * Um WDT window estendido cobre os 3 writes em série.
+ */
+void AppManager::onTouchReleased() {
+    LogManager::WdtWindow _wdt(30000);
+    LogManager::instance().flushPendingIfAny();
+    watchdog_update();
+    _storageMgr.flushPendingHist();
+    watchdog_update();
+    _storageMgr.flushCursorIfDirty();
 }
