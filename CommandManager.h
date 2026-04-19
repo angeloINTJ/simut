@@ -46,6 +46,7 @@ public:
     void renderScanResults(const std::vector<ScanResult> &results);
     void renderSystemInfo(const SystemConfig &cfg);
     void renderSensorReading(const SensorReading &reading);
+    void renderMetrics();
 
     void printDivider();
 

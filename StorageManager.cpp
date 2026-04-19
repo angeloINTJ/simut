@@ -15,6 +15,7 @@
 #include <time.h>
 #include <algorithm>
 #include "LogManager.h"
+#include "MetricsManager.h"
 #include "pico/unique_id.h"
 #include <hardware/watchdog.h>
 #include <stdio.h>
@@ -400,6 +401,7 @@ bool StorageManager::saveConfiguration() {
         }
         LittleFS.rename(FILE_TMP, FILE_CONFIG);
         exitFlashSafeMode();
+        MetricsManager::instance().data().configSaves++;
         LOG_CODE(LOG_INFO, "STO", SYS_STORAGE_SAVE, (int)(sizeof(SystemConfig)), "");
         return true;
     } else {

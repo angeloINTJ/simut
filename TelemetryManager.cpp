@@ -13,6 +13,7 @@
  */
 
 #include "TelemetryManager.h"
+#include "MetricsManager.h"
 #include <LittleFS.h>
 #include <algorithm>
 #include <string.h>
@@ -456,11 +457,13 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
         watchdog_update();
         TRACE_BEAT(0);
 
+        uint32_t postStart = millis();
         int code;
         {
             TelemetryGuard tg;  /* Alimenta watchdog durante POST bloqueante */
             code = http.POST(payload);
         }
+        uint32_t postLatency = millis() - postStart;
         watchdog_update();
 
         if (code > 0) {
@@ -468,9 +471,14 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
             if (code >= 200 && code < 300) {
                 _storageRef->setLastSentTimestamp(newCursor);
                 success = true;
+                auto& m = MetricsManager::instance().data();
+                m.telSent++;
+                m.telTotalBytes += (uint32_t)payload.length();
+                m.telLastLatencyMs = postLatency;
             }
         } else {
             LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, code, String(TRL("HTTP error: ", "Erro HTTP: ")) + http.errorToString(code));
+            MetricsManager::instance().data().telFailed++;
         }
         http.end();
     }
@@ -562,6 +570,7 @@ bool TelemetryManager::mqttEnsureConnected() {
 
     if (connected) {
         LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_CONN, 0, String(TRL("MQTT connected to ", "MQTT conectado a ")) + cfg.telServer);
+        MetricsManager::instance().data().mqttReconnects++;
 
 
         String onlinePayload = "{\"device\":\"" + devName + "\",\"status\":\"online\",\"ip\":\"" + _netRef->getIpAddress() + "\"}";
@@ -696,6 +705,7 @@ void TelemetryManager::resetBackoff() {
 
 void TelemetryManager::escalateBackoff() {
     _consecutiveFails++;
+    MetricsManager::instance().data().telRetries++;
     _backoffUntil = millis() + jitter(_currentBackoff);
 
     if (_consecutiveFails <= BACKOFF_MAX_STREAK) {

@@ -12,6 +12,7 @@
  */
 
 #include "NetworkManager.h"
+#include "MetricsManager.h"
 #include <stdlib.h>
 
 NetworkManager::NetworkManager() {
@@ -159,6 +160,7 @@ void NetworkManager::update() {
         case NET_CONNECTED_WAIT_IP:
             if (WiFi.localIP().toString() != "0.0.0.0") {
                 LOG_CODE(LOG_INFO, "NET", SYS_IP_ACQUIRED, 0, "IP: " + WiFi.localIP().toString());
+                MetricsManager::instance().data().wifiReconnects++;
                 if (!MDNS.begin(_deviceName)) LOG_CODE(LOG_ERROR, "NET", SYS_OK, 0, TRL("mDNS failed to start", "mDNS falhou ao iniciar"));
                 syncNtp();
                 _state = NET_CONNECTED_WAIT_NTP; _stateTimer = millis();
@@ -219,6 +221,13 @@ void NetworkManager::update() {
                 resetNtpBackoff();  /* Próxima reconexão parte do delay inicial */
                 _state = NET_DISCONNECT_PENDING;
                 _stateTimer = millis();
+            } else {
+                /* Amostra RSSI uma vez por minuto quando conectado. */
+                static uint32_t _rssiSampleAt = 0;
+                if (millis() - _rssiSampleAt > 60000) {
+                    _rssiSampleAt = millis();
+                    MetricsManager::instance().observeRssi(WiFi.RSSI());
+                }
             }
             break;
 
