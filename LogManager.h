@@ -87,6 +87,7 @@ public:
     void enableHealthCheck();        /**< Habilita o monitoramento cross-core (chamar após boot) */
     void performCrashAutopsy();
     void setCorePaused(int core, bool paused);
+    void markCleanReboot();          /**< Chamar ANTES de rp2040.reboot() para não disparar autópsia HW WDT */
 
 private:
     LogManager();

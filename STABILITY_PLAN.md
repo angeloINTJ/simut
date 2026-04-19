@@ -85,6 +85,7 @@ Legenda: 🔴 **Crítica** · 🟠 **Alta** · 🟡 **Média** · 🟢 **Baixa**
 | **U11** | 🟡 | `TelemetryManager.cpp:677` | Logs suprimidos após 10 falhas — operador sem visibilidade. | Diagnóstico difícil. |
 | **U12** | 🟢 | Geral | Inputs de config sem limite de tamanho. | Fragmentação em escrita. |
 | **U13** | 🟢 | `TelemetryManager.cpp:701` | TLS client (~16 KB) sempre alocado mesmo com `telInterval=0`. | Heap ocupada. |
+| **U14** | 🔴 | `LogManager.cpp:412` | `elapsed = now - lastBeat` unsigned subtract dispara soft panic falso em cross-core race (lastBeat levemente adiantado → underflow ≈ UINT32_MAX > 8000). Mesmo bug na checagem `millis() - beat` de Core 1 dead em `AppManager.cpp:446`. Autópsia confundia `rp2040.reboot()` com HW watchdog. | Reboots fantasma não reprodutíveis desde F7 (2026-04-18). |
 
 ---
 
@@ -246,6 +247,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F5 — Heap & String** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.5` | 2026-04-18 |
 | **F6 — Long-term & Edge Cases** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.6` | 2026-04-18 |
 | **F7 — Hardening & Polish** | ✅ Concluída | `stability-fixes-tier1` | `v3.6.0` | 2026-04-18 |
+| **F8 — Watchdog panic false-positive** | ✅ Concluída | `stability-fixes-tier1` | `v3.9.2` | 2026-04-18 |
 
 ### Legenda de Status
 
@@ -289,7 +291,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | U3 | 🔴 | F5 | ⚪ | |
 | U4 | 🔴 | F7 | ⚠️ | `uptimeHr` em CompactLogRecord — mudar exige migração de formato. |
 | U5 | 🟠 | F7 | ✅ | `hashPassword` feed a cada 50 rounds (era 100). |
-| U6 | 🟠 | F7 | ✅ | Guard `now >= lastBeat` removido; subtração wrap-safe. |
+| U6 | 🟠 | F7 | ⚠️ | Guard `now >= lastBeat` removido; wrap-safe vs millis()-wrap mas **regressão em cross-core race** — ver U14. |
 | U7 | 🟠 | F6 | ✅ | `invalidateOldestFileCache()` em upload + criação de arquivo. |
 | U8 | 🟠 | F6 | ✅ | `collectBatch` fallback: `lastRecordedTs - 30d` quando cursor=0. |
 | U9 | 🟡 | F7 | ✅ | Documentado como wrap-safe (unsigned subtraction). |
@@ -297,3 +299,4 @@ Atualize esta tabela conforme cada fase for concluída.
 | U11 | 🟡 | F6 | ✅ | Heartbeat 1x/hora após supressão de logs de telemetria. |
 | U12 | 🟢 | F5 | ✅ | `maxlength` em t_glob (255), t_line (511), t_sep (7). |
 | U13 | 🟢 | F7 | ✅ | TLS client só alocado se `telInterval > 0`. |
+| U14 | 🔴 | F8 | ✅ | **Post-audit**: `(int32_t)(now - lastBeat)` em `checkCrossCoreHealth` e `AppManager:446`. `markCleanReboot()` via `scratch[5] = 0xC1EA8007` antes de `rp2040.reboot()` (CLI, WebManager save de rede, NetworkManager AP timeout). Autópsia distingue SOFT PANIC / HW WATCHDOG / reboot limpo. Scratch[7] passa a guardar `elapsed` real (era `now - moduleStartTime`, mascarava como 0ms). |
