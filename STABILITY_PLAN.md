@@ -251,6 +251,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F8 — Watchdog panic false-positive** | ✅ Concluída | `stability-fixes-tier1` | `v3.9.2` | 2026-04-18 |
 | **F9 — WDT feeds no path de flash + audit BT** | ✅ Concluída | `stability-fixes-tier1` | `v3.11.1` | 2026-04-19 |
 | **F10 — Estabilidade em rajadas de save (U16)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-19 |
+| **F11 — Touch Priority (U17/U18/U19)** | ✅ Concluída | `stability-fixes-tier1` | `v3.14.0` | 2026-04-19 |
 
 ### Legenda de Status
 
