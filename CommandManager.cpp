@@ -12,6 +12,7 @@
 
 #include "CommandManager.h"
 #include "LogManager.h"
+#include "MetricsManager.h"
 #include <time.h>
 #include <stdarg.h>
 
@@ -178,6 +179,7 @@ CliDemand CommandManager::parseCommand(String input) {
         if (t1 == "storage" && t2 == "stats") { cmd.type = CMD_SHOW_STORAGE; return cmd; }
         if (t1 == "system" && t2 == "info") { cmd.type = CMD_SHOW_SYSINFO; return cmd; }
         if (t1 == "net" && t2 == "status") { cmd.type = CMD_SHOW_NET; return cmd; }
+        if (t1 == "metrics") { cmd.type = CMD_SHOW_METRICS; return cmd; }
     }
 
     if (t0 == "conf" || t0 == "configure") {
@@ -405,6 +407,68 @@ void CommandManager::renderSystemInfo(const SystemConfig &cfg) {
     printDivider();
 }
 
+void CommandManager::renderMetrics() {
+    const bool pt = isPt();
+    const SystemMetrics& m = MetricsManager::instance().data();
+
+    /* Força amostragem fresca de heap para o snapshot atual. */
+    MetricsManager::instance().sampleHeap();
+
+    uint32_t upSec = millis() / 1000;
+    uint32_t d = upSec / 86400; upSec %= 86400;
+    uint32_t h = upSec / 3600;  upSec %= 3600;
+    uint32_t mn = upSec / 60;   upSec %= 60;
+
+    printDivider();
+    consolePrintln(pt ? " [METRICAS OPERACIONAIS]" : " [OPERATIONAL METRICS]");
+    if (d > 0) consolePrintf (pt ? " Uptime:   %lud %02lu:%02lu:%02lu\n"
+                                 : " Uptime:   %lud %02lu:%02lu:%02lu\n",
+                              d, h, mn, upSec);
+    else       consolePrintf (pt ? " Uptime:   %02lu:%02lu:%02lu\n"
+                                 : " Uptime:   %02lu:%02lu:%02lu\n",
+                              h, mn, upSec);
+    consolePrintf (pt ? " Heap:     %lu B (min: %lu B)\n"
+                      : " Heap:     %lu B (min: %lu B)\n",
+                   (unsigned long)m.heapFreeNow,
+                   (unsigned long)(m.heapMinSeen == 0xFFFFFFFF ? 0 : m.heapMinSeen));
+
+    consolePrintln(pt ? " [REDE]" : " [NETWORK]");
+    consolePrintf (pt ? " WiFi conns:    %lu\n" : " WiFi conns:    %lu\n",
+                   (unsigned long)m.wifiReconnects);
+    consolePrintf (pt ? " MQTT conns:    %lu\n" : " MQTT conns:    %lu\n",
+                   (unsigned long)m.mqttReconnects);
+    if (m.rssiMax > -127) {
+        consolePrintf(pt ? " RSSI:     %ld dBm (min:%ld max:%ld)\n"
+                         : " RSSI:     %ld dBm (min:%ld max:%ld)\n",
+                      (long)m.rssiNow, (long)m.rssiMin, (long)m.rssiMax);
+    } else {
+        consolePrintln(pt ? " RSSI:     (nao amostrado)" : " RSSI:     (not sampled yet)");
+    }
+
+    consolePrintln(pt ? " [TELEMETRIA]" : " [TELEMETRY]");
+    consolePrintf (pt ? " Enviadas:      %lu\n" : " Sent OK:       %lu\n",
+                   (unsigned long)m.telSent);
+    consolePrintf (pt ? " Falhas:        %lu\n" : " Failed:        %lu\n",
+                   (unsigned long)m.telFailed);
+    consolePrintf (pt ? " Retries:       %lu\n" : " Retries:       %lu\n",
+                   (unsigned long)m.telRetries);
+    consolePrintf (pt ? " Bytes:         %lu\n" : " Bytes:         %lu\n",
+                   (unsigned long)m.telTotalBytes);
+    consolePrintf (pt ? " Ult. lat:      %lu ms\n" : " Last lat:      %lu ms\n",
+                   (unsigned long)m.telLastLatencyMs);
+
+    consolePrintln(pt ? " [SENSORES]" : " [SENSORS]");
+    consolePrintf (pt ? " Leituras OK:   %lu\n" : " Reads OK:      %lu\n",
+                   (unsigned long)m.sensorReadsOk);
+    consolePrintf (pt ? " Leituras erro: %lu\n" : " Reads error:   %lu\n",
+                   (unsigned long)m.sensorReadsErr);
+
+    consolePrintln(pt ? " [STORAGE]" : " [STORAGE]");
+    consolePrintf (pt ? " Config saves:  %lu\n" : " Config saves:  %lu\n",
+                   (unsigned long)m.configSaves);
+    printDivider();
+}
+
 void CommandManager::renderSensorReading(const SensorReading &reading) {
     if (!reading.isValid) {
         consolePrintf(isPt() ? "[%s] Erro de leitura/checksum\n"
@@ -453,6 +517,8 @@ void CommandManager::printHelp() {
         consolePrintln("  IP, RSSI, hora sincronizada");
         consolePrintln("show themes");
         consolePrintln("  Lista temas de UI disponiveis");
+        consolePrintln("show metrics");
+        consolePrintln("  Metricas operacionais (heap, rede, tel, sensores)");
 
         consolePrintln("");
         consolePrintln("-- 2. DIAGNOSTICO DE SENSORES --");
@@ -566,6 +632,8 @@ void CommandManager::printHelp() {
     consolePrintln("  IP, RSSI, time sync");
     consolePrintln("show themes");
     consolePrintln("  List available UI themes");
+    consolePrintln("show metrics");
+    consolePrintln("  Operational metrics (heap, net, tel, sensors)");
 
     consolePrintln("");
     consolePrintln("-- 2. SENSOR DIAGNOSTICS --");

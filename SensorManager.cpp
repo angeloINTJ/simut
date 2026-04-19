@@ -13,6 +13,7 @@
  */
 
 #include "SensorManager.h"
+#include "MetricsManager.h"
 #include <algorithm>
 #include <vector>
 #include <cstring>
@@ -201,6 +202,7 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
     }
 
     if (success) {
+        MetricsManager::instance().data().sensorReadsOk++;
         s.consecutiveErrors = 0;
         s.consecutiveSuccess++;
 
@@ -215,6 +217,7 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
         }
     }
     else {
+        MetricsManager::instance().data().sensorReadsErr++;
         s.consecutiveSuccess = 0;
         s.consecutiveErrors++;
 

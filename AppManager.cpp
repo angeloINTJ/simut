@@ -13,6 +13,7 @@
 
 #include "AppManager.h"
 #include "LogManager.h"
+#include "MetricsManager.h"
 #include "SystemDefs.h"
 #include "Themes.h"
 #include <LittleFS.h>
@@ -426,6 +427,15 @@ void AppManager::loop() {
 
     LogManager::instance().checkCrossCoreHealth();
 
+    /* #8: sample de heap/HWM a cada 10s — barato, atualiza heapFreeNow/Min. */
+    {
+        static uint32_t _lastHeapSample = 0;
+        if ((int32_t)(millis() - _lastHeapSample) > 10000) {
+            _lastHeapSample = millis();
+            MetricsManager::instance().sampleHeap();
+        }
+    }
+
 
     {
         uint32_t pauseTs = _displayMgr.getPauseStartTime();
@@ -708,6 +718,7 @@ void AppManager::executeCommand(CliDemand cmd) {
         }
 
         case CMD_SHOW_SENSORS: _cmdMgr.renderSensorTable(cfg.sensors, MAX_SENSORS); break;
+        case CMD_SHOW_METRICS: _cmdMgr.renderMetrics(); break;
         case CMD_SHOW_STORAGE: {
             String rep = _storageMgr.getStatsReport();
             LOG_CODE(LOG_INFO, "STO", STO_STATS_REPORT, 0, rep);
