@@ -91,7 +91,7 @@ bool StorageManager::begin() {
 
 bool StorageManager::mountFS() {
     if (LittleFS.begin()) { _isMounted = true; return true; }
-    LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_FORMAT, 0, "Formatting Flash FS...");
+    LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_FORMAT, 0, TRL("Formatting Flash FS...", "Formatando FS do flash..."));
     enterFlashSafeMode();
     bool formatted = LittleFS.format();
     if (formatted) { bool mounted = LittleFS.begin(); exitFlashSafeMode(); _isMounted = mounted; return mounted; }
@@ -283,14 +283,14 @@ bool StorageManager::loadConfiguration() {
     }
 
     if (fromBackup) {
-        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, "Primary config corrupt, recovered from backup");
+        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, TRL("Primary config corrupt, recovered from backup", "Config primaria corrompida, recuperada do backup"));
     }
 
     /* Migração v12→v13: persistir no novo formato antes de entregar o controle.
      * saveConfiguration() já marca magic/version e escreve via tmp→rename atômico. */
     if (_didMigrate) {
         _didMigrate = false;
-        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, 12, "Config v12→v13 migrated");
+        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, 12, TRL("Config v12->v13 migrated", "Config v12->v13 migrada"));
         saveConfiguration();
     } else if (fromBackup) {
         saveConfiguration();

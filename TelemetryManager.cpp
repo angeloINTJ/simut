@@ -414,7 +414,7 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
         if (!_httpSecurePtr) {
             _httpSecurePtr = new WiFiClientSecure();
             if (!_httpSecurePtr) {
-                LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, 0, "OOM: WiFiClientSecure");
+                LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, 0, TRL("OOM: WiFiClientSecure", "OOM: WiFiClientSecure"));
                 return false;
             }
             _httpSecurePtr->setTimeout(NET_SOCKET_TIMEOUT_MS);
@@ -470,7 +470,7 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
                 success = true;
             }
         } else {
-            LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, code, "HTTP error: " + http.errorToString(code));
+            LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, code, String(TRL("HTTP error: ", "Erro HTTP: ")) + http.errorToString(code));
         }
         http.end();
     }
@@ -561,7 +561,7 @@ bool TelemetryManager::mqttEnsureConnected() {
     watchdog_update();
 
     if (connected) {
-        LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_CONN, 0, "MQTT connected to " + String(cfg.telServer));
+        LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_CONN, 0, String(TRL("MQTT connected to ", "MQTT conectado a ")) + cfg.telServer);
 
 
         String onlinePayload = "{\"device\":\"" + devName + "\",\"status\":\"online\",\"ip\":\"" + _netRef->getIpAddress() + "\"}";
@@ -583,7 +583,7 @@ bool TelemetryManager::mqttEnsureConnected() {
             case  5: reason = "Not authorized"; break;
             default: reason = "Unknown (" + String(state) + ")"; break;
         }
-        LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_MQTT_DISC, state, "MQTT failed: " + reason);
+        LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_MQTT_DISC, state, String(TRL("MQTT failed: ", "MQTT falhou: ")) + reason);
         return false;
     }
 }
@@ -699,7 +699,9 @@ void TelemetryManager::escalateBackoff() {
     _backoffUntil = millis() + jitter(_currentBackoff);
 
     if (_consecutiveFails <= BACKOFF_MAX_STREAK) {
-        LOG_CODE(LOG_WARN, "TEL", SYS_TEL_RETRY, _consecutiveFails, "Upload failed (#" + String(_consecutiveFails) + "). Retry in " + String(_currentBackoff / 1000) + "s");
+        LOG_CODE(LOG_WARN, "TEL", SYS_TEL_RETRY, _consecutiveFails,
+            String(TRL("Upload failed (#", "Upload falhou (#")) + _consecutiveFails +
+            TRL("). Retry in ", "). Retry em ") + (_currentBackoff / 1000) + "s");
     } else if (_consecutiveFails == BACKOFF_MAX_STREAK + 1) {
         LOG_CODE(LOG_WARN, "TEL", TEL_BACKOFF_SUPPRESSED, 0, "");
         _lastSuppressedLog = millis();

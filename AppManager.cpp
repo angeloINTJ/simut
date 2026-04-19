@@ -65,7 +65,7 @@ void AppManager::setup() {
 
     _displayMgr.begin();
     _displayMgr.startCore1();
-    LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, "Display UI Launched on Core 1.");
+    LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, TRL("Display UI Launched on Core 1.", "UI do display iniciada no Core 1."));
 
     delay(BOOT_STEP_DELAY_MS);
 
@@ -146,7 +146,7 @@ void AppManager::setup() {
         return (hashed == String(cfg.users[0].password));
     });
 
-    if (!fsOk) LOG_CODE(LOG_ERROR, "APP", APP_STORAGE_CRITICAL, 0, "Storage Critical Failure!");
+    if (!fsOk) LOG_CODE(LOG_ERROR, "APP", APP_STORAGE_CRITICAL, 0, TRL("Storage Critical Failure!", "Falha critica de storage!"));
 
     uint32_t lastTs = _storageMgr.getLastRecordedTimestamp();
     _netMgr.setProvisionalTime(lastTs);
@@ -200,7 +200,7 @@ void AppManager::setup() {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
         _displayMgr.loadTouchCalibration(cal);
         if (!_displayMgr.isTouchCalibrated()) {
-            LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0, "Touch calibration required.");
+            LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0, TRL("Touch calibration required.", "Calibracao do touch necessaria."));
             _displayMgr.setBootStatus("Touch calibration required...");
             delay(600);
             _displayMgr.showTouchCalibration();
@@ -215,7 +215,7 @@ void AppManager::setup() {
                         TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
                         _displayMgr.fillCalData(calOut);
                         _storageMgr.saveConfiguration();
-                        LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_INITIAL, 0, "Initial touch calibration saved.");
+                        LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_INITIAL, 0, TRL("Initial touch calibration saved.", "Calibracao inicial do touch salva."));
                     }
                 }
                 delay(50);
@@ -229,7 +229,7 @@ void AppManager::setup() {
     _sensorMgr.setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 
     if (forceAP) {
-        LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, "User triggered AP mode.");
+        LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode.", "Usuario ativou modo AP."));
         _displayMgr.setBootStatus("Starting Access Point (AP)...");
         _displayMgr.setBootStatus("Connect to network SIMUT_SETUP");
         _displayMgr.setBootStatus("Access on mobile: 192.168.4.1");
@@ -327,7 +327,7 @@ void AppManager::setup() {
     if (forceAP) {
         _isApMode = true;
         _displayMgr.setBootStatus("AP Active! Reboot board to exit.", false);
-        LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, "System ready (AP mode).");
+        LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode).", "Sistema pronto (modo AP)."));
     } else {
 
         /* Carrega min/max do dia a partir do arquivo de histórico */
@@ -383,7 +383,7 @@ void AppManager::setup() {
         _displayMgr.setBootStatus("All subsystems initialized.");
         _displayMgr.setBootStatus("System Ready! Entering Dashboard.");
         delay(800);
-        LOG_CODE(LOG_INFO, "APP", APP_READY, 0, "System ready.");
+        LOG_CODE(LOG_INFO, "APP", APP_READY, 0, TRL("System ready.", "Sistema pronto."));
         _displayMgr.endBoot();
         _bootCompletedAt = millis();
 
@@ -430,7 +430,7 @@ void AppManager::loop() {
     {
         uint32_t pauseTs = _displayMgr.getPauseStartTime();
         if (pauseTs > 0 && (millis() - pauseTs > 5000)) {
-            LOG_CODE(LOG_ERROR, "APP", APP_DISPLAY_PAUSE_STUCK, 0, "Display pause stuck >5s!");
+            LOG_CODE(LOG_ERROR, "APP", APP_DISPLAY_PAUSE_STUCK, 0, TRL("Display pause stuck >5s!", "Pause do display preso >5s!"));
             _displayMgr.forceUnpause();
         }
     }
@@ -444,7 +444,7 @@ void AppManager::loop() {
             if (_displayMgr.isCore1Ready() && _displayMgr.getPauseStartTime() == 0) {
                 uint32_t beat = _displayMgr.getHeartbeat();
                 if (beat > 0 && (millis() - beat > 10000)) {
-                    LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD, 0, "Core 1 dead >10s. Restarting.");
+                    LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD, 0, TRL("Core 1 dead >10s. Restarting.", "Core 1 travado >10s. Reiniciando."));
                     _displayMgr.restartCore1();
                 }
             }
@@ -916,7 +916,7 @@ void AppManager::executeCommand(CliDemand cmd) {
                                      : "Run 'reload confirm' to proceed.");
                 break;
             }
-            LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, "Reboot via CLI");
+            LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI", "Reboot via CLI"));
             delay(100);     /* Garante flush do log para flash */
             rp2040.reboot();
             break;
@@ -997,7 +997,7 @@ void AppManager::core0Yield() {
     if (_inYield && (millis() - _yieldEntryTime > 10000)) {
         _inYield = false;
         _isRenderingGraph = false;
-        LOG_CODE(LOG_WARN, "APP", APP_YIELD_STUCK, 0, "Yield stuck >10s, force reset.");
+        LOG_CODE(LOG_WARN, "APP", APP_YIELD_STUCK, 0, TRL("Yield stuck >10s, force reset.", "Yield preso >10s, reset forcado."));
     }
 
     if (_inYield) return;
@@ -2665,7 +2665,7 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
         return;
     }
     _pendingTimeSync = false;
-    LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTING, delta, "NTP correction: " + String(delta) + "s");
+    LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTING, delta, String(TRL("NTP correction: ", "Correcao NTP: ")) + delta + "s");
     _storageMgr.correctProvisionalTimestamps(bootTs, delta);
     LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTED, 0, "");
     _storageMgr.unlockHeavyTask();

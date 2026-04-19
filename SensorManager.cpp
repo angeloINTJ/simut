@@ -207,7 +207,7 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
 
         if (s.inErrorState && s.consecutiveSuccess >= 5) {
             s.inErrorState = false;
-            LOG_CODE(LOG_INFO, "SENSOR", LOG_SENSOR_REC, s.config.gpio, "Sensor Recuperado");
+            LOG_CODE(LOG_INFO, "SENSOR", LOG_SENSOR_REC, s.config.gpio, TRL("Sensor recovered", "Sensor recuperado"));
         }
 
         if (!s.inErrorState) {
@@ -343,7 +343,7 @@ void SensorManager::processPeriodicReads() {
 
                     if (s.hardwareMismatch) {
                         if (!s.inErrorState) {
-                            LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISMATCH, s.config.gpio, "Hardware Mismatch (Access Denied)");
+                            LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISMATCH, s.config.gpio, TRL("Hardware Mismatch (Access Denied)", "Divergencia de hardware (Acesso Negado)"));
                         }
                         s.inErrorState = true;
                         s.buffer1.clear();
