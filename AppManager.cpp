@@ -2274,6 +2274,13 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
         _displayMgr.forceDashboard();
         return;
     }
+    /*
+     * WdtWindow context-aware: renderGraph pode ser chamado de UI event
+     * (main loop), de core0Yield (dentro de web handler), ou de
+     * preloadSensorRanges (5x por 6s = até 30s). 30s cobre qualquer caso.
+     * Aninhado dentro de telemetria (120s) ou web handler, mantém o outer.
+     */
+    LogManager::WdtWindow _wdt(30000);
     LOG_CODE(LOG_INFO, "APP", APP_GRAPH_LOADING, 0, "");
 
     uint32_t _graphBudgetStart = millis();
