@@ -112,7 +112,7 @@ constexpr uint32_t WIFI_DORMANT_DELAY_MS    = 600000;
  * Deve ser muito maior que NET_SOCKET_TIMEOUT_MS para evitar falso
  * positivo e muito menor que uptime-ms-wrap (~49 d) por definição.
  */
-constexpr uint32_t WDT_FEED_MAX_WINDOW_MS   = 60000;
+constexpr uint32_t WDT_FEED_MAX_WINDOW_MS   = 120000;
 
 /**
  * Teto do backoff exponencial de retry do NTP (ms).
