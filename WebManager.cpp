@@ -94,7 +94,6 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/api/users", HTTP_GET, std::bind(&WebManager::handleApiUsers, this));
     _server.on("/api/themes", HTTP_GET, std::bind(&WebManager::handleApiThemes, this));
     _server.on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));
-    _server.on("/api/save_alarms", HTTP_POST, std::bind(&WebManager::handleApiSaveAlarms, this));
 
 
     _server.on("/api/save_sys", HTTP_POST, std::bind(&WebManager::handleSaveSystem, this));
@@ -727,171 +726,7 @@ void WebManager::handleApiAlarms() {
     safeSend("");
 }
 
-void WebManager::handleApiSaveAlarms() {
-    uint16_t perms = getAuthPerms();
-    if (!(perms & PERM_SYS_CONFIG)) {
-        _server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
-        return;
-    }
-    if (isPasswordChangeRequired()) return;
-    if (rejectIfTouchPriority()) return;
-
-    if (!_storageRef->canSaveNow()) {
-        _server.sendHeader("Retry-After", "1");
-        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
-        return;
-    }
-
-    String body = _server.arg("plain");
-    if (body.length() == 0 || body.length() > 4096) {
-        _server.send(400, "application/json", "{\"error\":\"Bad request\"}");
-        return;
-    }
-
-    SystemConfig& cfg = _storageRef->getConfig();
-
-
-    int searchPos = 0;
-    int sensorsStart = body.indexOf("\"sensors\"", searchPos);
-    if (sensorsStart >= 0) {
-        int arrStart = body.indexOf('[', sensorsStart);
-        int arrEnd   = body.indexOf(']', arrStart);
-        if (arrStart >= 0 && arrEnd > arrStart) {
-            String arrStr = body.substring(arrStart, arrEnd + 1);
-
-
-            int objStart = 0;
-            while ((objStart = arrStr.indexOf('{', objStart)) >= 0) {
-                int objEnd = arrStr.indexOf('}', objStart);
-                if (objEnd < 0) break;
-                String obj = arrStr.substring(objStart, objEnd + 1);
-
-
-                int idxPos = obj.indexOf("\"idx\"");
-                if (idxPos < 0) { objStart = objEnd + 1; continue; }
-                int idxColon = obj.indexOf(':', idxPos);
-                int idx = obj.substring(idxColon + 1).toInt();
-
-
-                SensorRecord* rec = nullptr;
-                if (idx == -1) {
-                    rec = &cfg.ambientSensor;
-                } else if (idx >= 0 && idx < MAX_SENSORS && cfg.sensors[idx].active) {
-                    rec = &cfg.sensors[idx];
-                }
-
-                if (rec) {
-
-                    auto extractFloat = [&](const char* key) -> float {
-                        int kp = obj.indexOf(key);
-                        if (kp < 0) return NAN;
-                        int cp = obj.indexOf(':', kp + strlen(key));
-                        if (cp < 0) return NAN;
-                        return obj.substring(cp + 1).toFloat();
-                    };
-
-                    float tmin = extractFloat("\"tmin\"");
-                    float tmax = extractFloat("\"tmax\"");
-                    float hmin = extractFloat("\"hmin\"");
-                    float hmax = extractFloat("\"hmax\"");
-
-                    if (!isnan(tmin)) rec->tempMin = tmin;
-                    if (!isnan(tmax)) rec->tempMax = tmax;
-                    if (!isnan(hmin)) rec->humMin  = hmin;
-                    if (!isnan(hmax)) rec->humMax  = hmax;
-
-
-                    if (rec->tempMin >= rec->tempMax) {
-                        rec->tempMax = roundf((rec->tempMin + 0.1f) * 10.0f) / 10.0f;
-                    }
-                    if (rec->humMin >= rec->humMax) {
-                        rec->humMax = roundf((rec->humMin + 0.1f) * 10.0f) / 10.0f;
-                        if (rec->humMax > 100.0f) { rec->humMax = 100.0f; rec->humMin = 99.9f; }
-                    }
-
-
-                    rec->alarmsActive = (obj.indexOf("\"active\":true") >= 0);
-                }
-
-                objStart = objEnd + 1;
-            }
-        }
-    }
-
-
-    int soundsStart = body.indexOf("\"sounds\"");
-    if (soundsStart >= 0) {
-        int sObjStart = body.indexOf('{', soundsStart);
-        int sObjEnd   = body.indexOf('}', sObjStart);
-        if (sObjStart >= 0 && sObjEnd > sObjStart) {
-            String sObj = body.substring(sObjStart, sObjEnd + 1);
-
-            SoundSettingsState snd;
-            snd.touchEnabled   = (sObj.indexOf("\"touch\":true")   >= 0);
-            snd.confirmEnabled = (sObj.indexOf("\"confirm\":true") >= 0);
-            snd.errorEnabled   = (sObj.indexOf("\"error\":true")   >= 0);
-            snd.alarmEnabled   = (sObj.indexOf("\"alarm\":true")   >= 0);
-            snd.webEnabled     = (sObj.indexOf("\"web\":true")     >= 0);
-            snd.muted          = (sObj.indexOf("\"mute\":true")    >= 0);
-
-
-            int volPos = sObj.indexOf("\"volume\"");
-            if (volPos >= 0) {
-                int vc = sObj.indexOf(':', volPos);
-                snd.volume = (uint8_t)constrain(sObj.substring(vc + 1).toInt(), 0, 100);
-            } else {
-                snd.volume = 70;
-            }
-
-
-            int aVolPos = sObj.indexOf("\"alarmVolume\"");
-            if (aVolPos >= 0) {
-                int avc = sObj.indexOf(':', aVolPos);
-                snd.alarmVolume = (uint8_t)constrain(sObj.substring(avc + 1).toInt(), 0, 100);
-            } else {
-                snd.alarmVolume = 70;
-            }
-
-
-            auto extractMelIdx = [&](const char* key) -> uint8_t {
-                int kp = sObj.indexOf(key);
-                if (kp < 0) return 0;
-                int cp = sObj.indexOf(':', kp);
-                if (cp < 0) return 0;
-                int val = sObj.substring(cp + 1).toInt();
-                return (uint8_t)constrain(val, 0, 5);
-            };
-            snd.touchMelody   = extractMelIdx("\"melTouch\"");
-            snd.confirmMelody = extractMelIdx("\"melConfirm\"");
-            snd.errorMelody   = extractMelIdx("\"melError\"");
-            snd.alarmMelody   = extractMelIdx("\"melAlarm\"");
-
-
-            _soundRef->applySettingsState(snd);
-
-
-            SoundConfigData* sndCfg = reinterpret_cast<SoundConfigData*>(
-                cfg.reserved + sizeof(TouchCalData));
-            _soundRef->fillConfig(sndCfg);
-        }
-    }
-
-
-    bool saved = _storageRef->saveConfiguration();
-
-
-    _sensorRef->syncAlarmLimits(cfg);
-
-    if (_soundRef->isWebSoundsEnabled()) _soundRef->play(saved ? SND_CONFIRM : SND_ERROR);
-
-    if (saved && !_storageRef->lastSaveWasNoOp()) {
-        LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
-                 "Admin updated Alarms & Sounds via web");
-    }
-
-    _server.send(200, "application/json",
-                 saved ? "{\"status\":\"ok\"}" : "{\"status\":\"error\"}");
-}
+/* handleApiSaveAlarms removido em U24 Phase A.2 — substituido por handleApiCommitAll. */
 
 
 String WebManager::getDynamicExpectedHash(String username) {
@@ -1258,89 +1093,25 @@ void WebManager::handleApiForceChpass() {
 }
 
 
+/*
+ * handleSaveSystem — versao minimal pos-U24.
+ * Versao pre-U24 foi substituida por handleApiCommitAll. Mantida apenas
+ * pra dashboard trocar tema (aplicacao imediata, sem reboot).
+ */
 void WebManager::handleSaveSystem() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
-    if (isPasswordChangeRequired()) return;
-    if (rejectIfTouchPriority()) return;
-
-    if (!_storageRef->canSaveNow()) {
-        _server.sendHeader("Retry-After", "1");
-        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
-        return;
-    }
-
     SystemConfig& cfg = _storageRef->getConfig();
-    bool themeChanged = false;
-
     if (_server.hasArg("theme")) {
         int t = _server.arg("theme").toInt();
         if (t >= 0 && t < getThemeCount() && cfg.themeIndex != t) {
-            cfg.themeIndex = t; loadTheme(t); themeChanged = true;
+            cfg.themeIndex = t;
+            loadTheme(t);
+            _storageRef->saveConfiguration();
+            if (_displayRef) _displayRef->refreshTheme();
         }
     }
-
-    if (_server.hasArg("name")) {
-        String n = _server.arg("name"); n.trim();
-
-        if (n.length() > 0 && isValidName(n.c_str())) {
-            safeCopy(cfg.deviceName, n.c_str(), sizeof(cfg.deviceName));
-        }
-    }
-    if (_server.hasArg("tz")) {
-        cfg.timezoneOffset = (int8_t)_server.arg("tz").toInt();
-        NetworkManager::applyTimezone(cfg.timezoneOffset);
-    }
-
-
-    if (_server.hasArg("log")) cfg.loggingEnabled = (_server.arg("log") != "0");
-    if (_server.hasArg("t_sec")) cfg.telEncryption = (_server.arg("t_sec") != "0");
-    if (_server.hasArg("t_key")) { safeCopy(cfg.telApiKey, _server.arg("t_key").c_str(), sizeof(cfg.telApiKey)); }
-
-    if (_server.hasArg("res")) { int r = _server.arg("res").toInt(); if (r >= 9 && r <= 12) cfg.ds18Resolution = (uint8_t)r; }
-    if (_server.hasArg("s_int")) cfg.sampleIntervalMs = _server.arg("s_int").toInt();
-
-    if (_server.hasArg("t_srv")) { safeCopy(cfg.telServer, _server.arg("t_srv").c_str(), sizeof(cfg.telServer)); }
-    if (_server.hasArg("t_port")) {
-        int p = _server.arg("t_port").toInt();
-        if (isInRange(p, 1, 65535)) cfg.telPort = (uint16_t)p;
-    }
-    if (_server.hasArg("t_path")) { safeCopy(cfg.telPath, _server.arg("t_path").c_str(), sizeof(cfg.telPath)); }
-    if (_server.hasArg("t_int")) cfg.telInterval = _server.arg("t_int").toInt();
-    if (_server.hasArg("t_bat")) cfg.telBatchSize = (uint8_t)_server.arg("t_bat").toInt();
-    if (_server.hasArg("t_mode")) cfg.telMode = (uint8_t)_server.arg("t_mode").toInt();
-
-    if (_server.hasArg("t_transport")) cfg.telTransport = (uint8_t)_server.arg("t_transport").toInt();
-    if (_server.hasArg("m_topic")) { safeCopy(cfg.mqttTopic, _server.arg("m_topic").c_str(), sizeof(cfg.mqttTopic)); }
-    if (_server.hasArg("m_cid")) { safeCopy(cfg.mqttClientId, _server.arg("m_cid").c_str(), sizeof(cfg.mqttClientId)); }
-    if (_server.hasArg("m_user")) { safeCopy(cfg.mqttUser, _server.arg("m_user").c_str(), sizeof(cfg.mqttUser)); }
-    if (_server.hasArg("m_pass")) {
-        String mp = _server.arg("m_pass"); mp.trim();
-        if (mp.length() > 0) { safeCopy(cfg.mqttPass, mp.c_str(), sizeof(cfg.mqttPass)); }
-    }
-    if (_server.hasArg("m_qos")) cfg.mqttQos = (uint8_t)_server.arg("m_qos").toInt();
-
-    if (_server.hasArg("m_retain")) cfg.mqttRetain = (_server.arg("m_retain") != "0");
-    if (_server.hasArg("m_ka")) {
-        int ka = _server.arg("m_ka").toInt();
-        if (isInRange(ka, 5, 600)) cfg.mqttKeepAlive = (uint16_t)ka;
-    }
-
-    if (_server.hasArg("t_glob")) { safeCopy(cfg.telGlobalTemplate, _server.arg("t_glob").c_str(), sizeof(cfg.telGlobalTemplate)); }
-    if (_server.hasArg("t_line")) { safeCopy(cfg.telLineTemplate, _server.arg("t_line").c_str(), sizeof(cfg.telLineTemplate)); }
-    if (_server.hasArg("t_sep")) { safeCopy(cfg.telLineSeparator, _server.arg("t_sep").c_str(), sizeof(cfg.telLineSeparator)); }
-
-    bool saved = _storageRef->saveConfiguration();
-    if (themeChanged && _displayRef) _displayRef->refreshTheme();
-    if (_soundRef->isWebSoundsEnabled()) _soundRef->play(saved ? SND_CONFIRM : SND_ERROR);
-
-    /* Audit log só quando houve mudança real. Rajadas de clicks sem alteração
-     * (CRC idêntico ao último salvo) pulam a gravação — não tem o que auditar. */
-    if (saved && !_storageRef->lastSaveWasNoOp()) {
-        LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin updated System Settings", "Admin atualizou config do sistema"));
-    }
-
-    _server.send(200, "application/json", saved ? "{\"status\":\"ok\"}" : "{\"status\":\"error\"}");
+    _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 
@@ -1467,6 +1238,106 @@ void WebManager::handleApiCommitAll() {
             if (has("t_glob"))    safeCopy(cfg.telGlobalTemplate, getStr("t_glob").c_str(), sizeof(cfg.telGlobalTemplate));
             if (has("t_line"))    safeCopy(cfg.telLineTemplate, getStr("t_line").c_str(), sizeof(cfg.telLineTemplate));
             if (has("t_sep"))     safeCopy(cfg.telLineSeparator, getStr("t_sep").c_str(), sizeof(cfg.telLineSeparator));
+        }
+    }
+
+    /* ── Seção alarms: formato {sensors:[{idx,active,tmin,tmax,hmin,hmax}],
+     * sounds:{...}}. Mesmo parsing manual usado em handleApiSaveAlarms. */
+    int almStart = body.indexOf("\"alarms\"");
+    if (almStart >= 0) {
+        /* Sensors array */
+        int sensorsStart = body.indexOf("\"sensors\"", almStart);
+        int arrStart = (sensorsStart >= 0) ? body.indexOf('[', sensorsStart) : -1;
+        int arrEnd = (arrStart >= 0) ? body.indexOf(']', arrStart) : -1;
+        if (arrStart >= 0 && arrEnd > arrStart) {
+            String arrStr = body.substring(arrStart, arrEnd + 1);
+            int objStart = 0;
+            while ((objStart = arrStr.indexOf('{', objStart)) >= 0) {
+                int objEnd = arrStr.indexOf('}', objStart);
+                if (objEnd < 0) break;
+                String obj = arrStr.substring(objStart, objEnd + 1);
+
+                int idxPos = obj.indexOf("\"idx\"");
+                if (idxPos < 0) { objStart = objEnd + 1; continue; }
+                int idxColon = obj.indexOf(':', idxPos);
+                int idx = obj.substring(idxColon + 1).toInt();
+
+                SensorRecord* rec = nullptr;
+                if (idx == -1) rec = &cfg.ambientSensor;
+                else if (idx >= 0 && idx < MAX_SENSORS && cfg.sensors[idx].active) rec = &cfg.sensors[idx];
+
+                if (rec) {
+                    auto extractFloat = [&](const char* key) -> float {
+                        int kp = obj.indexOf(key);
+                        if (kp < 0) return NAN;
+                        int cp = obj.indexOf(':', kp + strlen(key));
+                        if (cp < 0) return NAN;
+                        return obj.substring(cp + 1).toFloat();
+                    };
+                    float tmin = extractFloat("\"tmin\"");
+                    float tmax = extractFloat("\"tmax\"");
+                    float hmin = extractFloat("\"hmin\"");
+                    float hmax = extractFloat("\"hmax\"");
+                    if (!isnan(tmin)) rec->tempMin = tmin;
+                    if (!isnan(tmax)) rec->tempMax = tmax;
+                    if (!isnan(hmin)) rec->humMin  = hmin;
+                    if (!isnan(hmax)) rec->humMax  = hmax;
+                    if (rec->tempMin >= rec->tempMax) {
+                        rec->tempMax = roundf((rec->tempMin + 0.1f) * 10.0f) / 10.0f;
+                    }
+                    if (rec->humMin >= rec->humMax) {
+                        rec->humMax = roundf((rec->humMin + 0.1f) * 10.0f) / 10.0f;
+                        if (rec->humMax > 100.0f) { rec->humMax = 100.0f; rec->humMin = 99.9f; }
+                    }
+                    rec->alarmsActive = (obj.indexOf("\"active\":true") >= 0);
+                }
+                objStart = objEnd + 1;
+            }
+        }
+
+        /* Sounds: mesmo parsing de handleApiSaveAlarms, aplica via
+         * SoundSettingsState + fillConfig pra escrever no packed layout. */
+        int soundsStart = body.indexOf("\"sounds\"", almStart);
+        if (soundsStart >= 0) {
+            int sObjStart = body.indexOf('{', soundsStart);
+            int sObjEnd   = body.indexOf('}', sObjStart);
+            if (sObjStart >= 0 && sObjEnd > sObjStart) {
+                String sObj = body.substring(sObjStart, sObjEnd + 1);
+                SoundSettingsState snd;
+                snd.touchEnabled   = (sObj.indexOf("\"touch\":true")   >= 0);
+                snd.confirmEnabled = (sObj.indexOf("\"confirm\":true") >= 0);
+                snd.errorEnabled   = (sObj.indexOf("\"error\":true")   >= 0);
+                snd.alarmEnabled   = (sObj.indexOf("\"alarm\":true")   >= 0);
+                snd.webEnabled     = (sObj.indexOf("\"web\":true")     >= 0);
+                snd.muted          = (sObj.indexOf("\"mute\":true")    >= 0);
+
+                int volPos = sObj.indexOf("\"volume\"");
+                if (volPos >= 0) { int vc = sObj.indexOf(':', volPos); snd.volume = (uint8_t)constrain(sObj.substring(vc + 1).toInt(), 0, 100); }
+                else snd.volume = 70;
+
+                int aVolPos = sObj.indexOf("\"alarmVolume\"");
+                if (aVolPos >= 0) { int avc = sObj.indexOf(':', aVolPos); snd.alarmVolume = (uint8_t)constrain(sObj.substring(avc + 1).toInt(), 0, 100); }
+                else snd.alarmVolume = 70;
+
+                auto extractMelIdx = [&](const char* key) -> uint8_t {
+                    int kp = sObj.indexOf(key);
+                    if (kp < 0) return 0;
+                    int cp = sObj.indexOf(':', kp);
+                    if (cp < 0) return 0;
+                    return (uint8_t)constrain(sObj.substring(cp + 1).toInt(), 0, 5);
+                };
+                snd.touchMelody   = extractMelIdx("\"melTouch\"");
+                snd.confirmMelody = extractMelIdx("\"melConfirm\"");
+                snd.errorMelody   = extractMelIdx("\"melError\"");
+                snd.alarmMelody   = extractMelIdx("\"melAlarm\"");
+
+                if (_soundRef) {
+                    _soundRef->applySettingsState(snd);
+                    SoundConfigData* sndCfg = reinterpret_cast<SoundConfigData*>(
+                        cfg.reserved + sizeof(TouchCalData));
+                    _soundRef->fillConfig(sndCfg);
+                }
+            }
         }
     }
 
