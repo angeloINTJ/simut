@@ -466,9 +466,10 @@ void WebManager::handleApiPerms() {
 
     bool ntpOk = _netRef->isTimeSynced();
     time_t now = time(nullptr);
-    char json[192];
-    snprintf(json, sizeof(json), "{\"user\":\"%s\",\"perms\":%u,\"ntp\":%d,\"time\":%lu}",
-             _currentUserName.c_str(), perms, ntpOk ? 1 : 0, (unsigned long)now);
+    char json[224];
+    snprintf(json, sizeof(json),
+             "{\"user\":\"%s\",\"perms\":%u,\"ntp\":%d,\"time\":%lu,\"version\":\"%s\"}",
+             _currentUserName.c_str(), perms, ntpOk ? 1 : 0, (unsigned long)now, SIMUT_VERSION);
     _server.send(200, "application/json", json);
 }
 
