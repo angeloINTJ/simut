@@ -788,7 +788,46 @@ void DisplayManager::pauseRendering(bool pause) {
         if (prev == 0) {
             _pauseStartTime = millis();
             LogManager::instance().setCorePaused(1, true);
-            multicore_lockout_start_blocking();
+
+            /*
+             * U23 (2026-04-19): timeout-based lockout em vez de blocking
+             * eterno. Autópsia consistente mostrava C0=[CORE1_LOCK] — Core 0
+             * preso em `multicore_lockout_start_blocking` sem feed de WDT.
+             * Possível causa: lockout_mutex do SDK ficou preso de um
+             * start/end desbalanceado (ex: restartCore1 mid-lockout).
+             *
+             * Fix: loop com `start_timeout_us(500ms)` + `watchdog_update`
+             * entre tentativas. Se 5s passou sem sucesso, chama
+             * `end_blocking` pra limpar estado interno (incrementa
+             * lockout_request_id, libera mutex se travado) e reinicia.
+             * Retry forever — prefiro sistema "lento" visivelmente a
+             * reboot com autópsia truncada.
+             */
+            uint32_t retryStart = millis();
+            uint32_t lastCleanup = retryStart;
+            while (!multicore_lockout_start_timeout_us(500000)) {
+                watchdog_update();
+                if ((int32_t)(millis() - lastCleanup) > 2000) {
+                    /* Lockout state possivelmente corrompido: limpa antes
+                     * de nova tentativa. end_blocking é idempotente se
+                     * mutex já foi liberado. */
+                    multicore_lockout_end_blocking();
+                    lastCleanup = millis();
+                    watchdog_update();
+                }
+                /* Reduzido de 60s → 10s: user não deve esperar mais que
+                 * isso por um save. Após 10s sem sucesso, assume Core 1
+                 * morto e reinicia ele antes de seguir. */
+                if ((int32_t)(millis() - retryStart) > 10000) {
+                    Serial.println("[DSP] Lockout stuck >10s, restarting Core 1");
+                    __atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+                    LogManager::instance().setCorePaused(1, false);
+                    multicore_reset_core1();
+                    delay(50);
+                    multicore_launch_core1(core1Entry);
+                    return;
+                }
+            }
         }
     } else {
         int32_t prev = __atomic_fetch_sub(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);

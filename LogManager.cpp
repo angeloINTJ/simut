@@ -32,7 +32,9 @@ volatile uint32_t _healthCheckEnabledAt = 0;
 static volatile uint32_t _preBootScratch4 = 0;
 static volatile bool     _preBootSnapshotTaken = false;
 
-const char* MOD_NAMES[] = {"BOOT", "IDLE", "WIFI", "WEB_SERVER", "STORAGE_RD", "STORAGE_WR", "SENSOR", "TELEMETRY", "DISPLAY", "CLI"};
+const char* MOD_NAMES[] = {"BOOT", "IDLE", "WIFI", "WEB_SERVER", "STORAGE_RD", "STORAGE_WR", "SENSOR", "TELEMETRY", "DISPLAY", "CLI",
+                            "SAVE_CFG", "LOG_FLASH", "HIST_FLASH", "CORE1_LOCK"};
+static constexpr uint8_t MOD_NAMES_MAX = 13;  /* último índice válido */
 
 volatile bool LogManager::_wdtActive = false;
 volatile uint32_t LogManager::_wdtCtxMs = WATCHDOG_TIMEOUT_MS;
@@ -264,6 +266,7 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
 
     /* Durante interação de toque: bufferiza em RAM */
     if (_isTouchPriorityFn && _isTouchPriorityFn()) {
+        /* (buffer em RAM — não toca flash, sem TraceScope) */
         int idx = __atomic_load_n(&_pendingCount, __ATOMIC_ACQUIRE);
         if (idx < LOG_PENDING_MAX) {
             _pendingLogs[idx] = rec;
@@ -288,11 +291,18 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
 
     flushPendingLogs();
 
+    /* U23: instrumentação autópsia. Se travar aqui ficamos em LOG_FLASH.
+     * Se travar esperando Core 1 ackear o lockout, ficamos em CORE1_LOCK. */
+    TraceScope _tr(0, MOD_LOG_FLASH);
+
     /* RAII context-aware: estende ctx WDT para 30s (ou mantém outer se maior).
      * Cobre requestFsLock (multicore_lockout wait) + flash ops sob GC.
      * Auto-restaura no destrutor. */
     WdtWindow _wdt(30000);
-    requestFsLock(true);
+    {
+        TraceScope _trLock(0, MOD_CORE1_LOCK);
+        requestFsLock(true);
+    }
     watchdog_update();
 
     if (_currentLineCount >= MAX_RECORDS_PER_FILE) {
@@ -345,9 +355,14 @@ void LogManager::flushPendingLogs() {
     int count = __atomic_load_n(&_pendingCount, __ATOMIC_ACQUIRE);
     if (count == 0 && _pendingOverflow == 0) return;
 
+    TraceScope _tr(0, MOD_LOG_FLASH);
+
     /* RAII context-aware (igual writeCompactToFlash). */
     WdtWindow _wdt(30000);
-    requestFsLock(true);
+    {
+        TraceScope _trLock(0, MOD_CORE1_LOCK);
+        requestFsLock(true);
+    }
     watchdog_update();
 
     /* Batch write: abrir 1x, escrever N entries, fechar — tudo dentro do lock */
@@ -447,6 +462,11 @@ void LogManager::setModule(int core, uint8_t mod) {
     } else if (core == 1) {
         watchdog_hw->scratch[3] = (watchdog_hw->scratch[3] & 0x0000FFFFu) | 0x80000000u | (((uint32_t)mod & 0xFFu) << 16);
     }
+}
+
+uint8_t LogManager::getModule(int core) {
+    if (core < 0 || core > 1) return 0;
+    return _coreModule[core];
 }
 
 void LogManager::heartbeat(int core) {
@@ -561,10 +581,10 @@ void LogManager::performCrashAutopsy() {
         char msg[200];
         snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s]",
                  deadCore,
-                 deadCore == 0 ? (mod0 <= 9 ? MOD_NAMES[mod0] : "UNK") : (mod1 <= 9 ? MOD_NAMES[mod1] : "UNK"),
+                 deadCore == 0 ? (mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK") : (mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK"),
                  stuckTime,
-                 mod0 <= 9 ? MOD_NAMES[mod0] : "UNK",
-                 mod1 <= 9 ? MOD_NAMES[mod1] : "UNK");
+                 mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK",
+                 mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK");
 
         logCode(LOG_FATAL, "SYS", SYS_BOOT, deadCore, String(msg));
         watchdog_hw->scratch[5] = 0;
@@ -587,9 +607,9 @@ void LogManager::performCrashAutopsy() {
 
         char msg[200];
         if (c0Valid == 0x80) {
-            const char* c0Name = (c0Mod <= 9) ? MOD_NAMES[c0Mod] : "UNK";
+            const char* c0Name = (c0Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c0Mod] : "UNK";
             if (c1Valid == 0x80) {
-                const char* c1Name = (c1Mod <= 9) ? MOD_NAMES[c1Mod] : "UNK";
+                const char* c1Name = (c1Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c1Mod] : "UNK";
                 snprintf(msg, sizeof(msg),
                          "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] C1=[%s] sc3=0x%08lx",
                          c0Name, c1Name, (unsigned long)modTrace);

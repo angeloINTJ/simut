@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.13.0"         /* Firmware version string */
+#define SIMUT_VERSION "v3.15.0"         /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -261,7 +261,16 @@ enum TraceModule {
     MOD_SENSOR_READ = 6,
     MOD_TELEMETRY = 7,
     MOD_DISPLAY = 8,
-    MOD_CLI = 9
+    MOD_CLI = 9,
+    /* Fine-grained flash-path trace (U23) — autópsia de travamentos
+     * durante save. Setados dentro das funções; restore automático via
+     * TraceScope RAII. Permitem distinguir onde exatamente Core 0 parou:
+     * no save do config, na escrita do log de audit, no hist, ou no
+     * lockout do Core 1. */
+    MOD_SAVE_CONFIG = 10,   /**< dentro de StorageManager::saveConfiguration */
+    MOD_LOG_FLASH   = 11,   /**< dentro de LogManager::writeCompactToFlash / flushPendingLogs */
+    MOD_HIST_FLASH  = 12,   /**< dentro de StorageManager::writeHistoryEntryFlash */
+    MOD_CORE1_LOCK  = 13    /**< esperando multicore_lockout ackear (Core 1 responder) */
 };
 
 /** Physical sensor type detected during hardware scan. */
