@@ -199,9 +199,7 @@ private:
     void handleApiLogs();
     void handleApiClearLogs();
 
-    void handleApiUserAdd();
-    void handleApiUserDel();
-    void handleApiUserReset();
+    /* U24 Phase B: handleApiUserAdd/Del/Reset substituidos por handleApiCommitAll */
 
     void handleNotFound();
     void handleLangJs();

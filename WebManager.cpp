@@ -100,9 +100,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/api/commit_all", HTTP_POST, std::bind(&WebManager::handleApiCommitAll, this));
     _server.on("/api/save_net", HTTP_POST, std::bind(&WebManager::handleSaveNetwork, this));
     _server.on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
-    _server.on("/api/user_add", HTTP_POST, std::bind(&WebManager::handleApiUserAdd, this));
-    _server.on("/api/user_del", HTTP_POST, std::bind(&WebManager::handleApiUserDel, this));
-    _server.on("/api/user_rst", HTTP_POST, std::bind(&WebManager::handleApiUserReset, this));
+    /* U24 Phase B: user_add/del/rst substituidos por /api/commit_all */
     _server.on("/api/history", HTTP_GET, std::bind(&WebManager::handleApiHistoryData, this));
     _server.on("/api/history_days", HTTP_GET, std::bind(&WebManager::handleApiHistoryDays, this));
     _server.on("/api/logs", HTTP_GET, std::bind(&WebManager::handleApiLogs, this));
@@ -1341,6 +1339,87 @@ void WebManager::handleApiCommitAll() {
         }
     }
 
+    /* ── Seção users.actions: processa add/del/reset em ordem ───────────
+     * Formato: {"users":{"actions":[{"type":"add","name":"x","perms":511},
+     *                                 {"type":"del","id":3},
+     *                                 {"type":"reset","id":5}]}} */
+    int usrStart = body.indexOf("\"users\"");
+    if (usrStart >= 0) {
+        int actionsPos = body.indexOf("\"actions\"", usrStart);
+        int arrStart = (actionsPos >= 0) ? body.indexOf('[', actionsPos) : -1;
+        int arrEnd = (arrStart >= 0) ? body.indexOf(']', arrStart) : -1;
+        if (arrStart >= 0 && arrEnd > arrStart) {
+            String arr = body.substring(arrStart, arrEnd + 1);
+            int objStart = 0;
+            while ((objStart = arr.indexOf('{', objStart)) >= 0) {
+                int objEnd = arr.indexOf('}', objStart);
+                if (objEnd < 0) break;
+                String obj = arr.substring(objStart, objEnd + 1);
+                String type;
+                int tp = obj.indexOf("\"type\":\"");
+                if (tp >= 0) {
+                    int vs = tp + 8;
+                    int ve = obj.indexOf('"', vs);
+                    if (ve > vs) type = obj.substring(vs, ve);
+                }
+
+                if (type == "add") {
+                    /* find first inactive slot (skip slot 0 — admin) */
+                    int slot = -1;
+                    for (int i = 1; i < MAX_USERS; i++) {
+                        if (!cfg.users[i].active) { slot = i; break; }
+                    }
+                    if (slot < 0) { objStart = objEnd + 1; continue; }
+
+                    /* name */
+                    String name;
+                    int np = obj.indexOf("\"name\":\"");
+                    if (np >= 0) {
+                        int vs = np + 8;
+                        int ve = obj.indexOf('"', vs);
+                        if (ve > vs) name = obj.substring(vs, ve);
+                    }
+                    name.trim();
+                    if (name.length() == 0 || !isValidName(name.c_str(), 15) || name.equalsIgnoreCase("admin")) {
+                        objStart = objEnd + 1; continue;
+                    }
+                    /* dup check */
+                    bool dup = false;
+                    for (int i = 0; i < MAX_USERS; i++) {
+                        if (cfg.users[i].active && name.equalsIgnoreCase(String(cfg.users[i].username))) { dup = true; break; }
+                    }
+                    if (dup) { objStart = objEnd + 1; continue; }
+
+                    int perms = 0;
+                    int pp = obj.indexOf("\"perms\":");
+                    if (pp >= 0) perms = obj.substring(pp + 8).toInt();
+
+                    safeCopy(cfg.users[slot].username, name.c_str(), sizeof(cfg.users[slot].username));
+                    safeCopy(cfg.users[slot].password, "*PENDING*", sizeof(cfg.users[slot].password));
+                    cfg.users[slot].permissions = (uint16_t)perms;
+                    cfg.users[slot].mustChangePassword = true;
+                    cfg.users[slot].active = true;
+                }
+                else if (type == "del" || type == "reset") {
+                    int ip = obj.indexOf("\"id\":");
+                    int id = (ip >= 0) ? obj.substring(ip + 5).toInt() : -1;
+                    if (id > 0 && id < MAX_USERS && cfg.users[id].active) {
+                        if (type == "del") {
+                            cfg.users[id].active = false;
+                            memset(cfg.users[id].username, 0, sizeof(cfg.users[id].username));
+                            memset(cfg.users[id].password, 0, sizeof(cfg.users[id].password));
+                            cfg.users[id].permissions = 0;
+                        } else { /* reset */
+                            safeCopy(cfg.users[id].password, "*PENDING*", sizeof(cfg.users[id].password));
+                            cfg.users[id].mustChangePassword = true;
+                        }
+                    }
+                }
+                objStart = objEnd + 1;
+            }
+        }
+    }
+
     if (themeChanged && _displayRef) _displayRef->refreshTheme();
 
     /* U24: mostra mensagem no display ANTES de qualquer flash I/O.
@@ -1488,118 +1567,7 @@ void WebManager::handleResetTouchCal() {
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
-void WebManager::handleApiUserAdd() {
-    if (!(getAuthPerms() & PERM_USER_MGR)) { _server.send(403, "text/plain", "Forbidden"); return; }
-    if (rejectIfTouchPriority()) return;
-    if (!_storageRef->canSaveNow()) {
-        _server.sendHeader("Retry-After", "1");
-        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
-        return;
-    }
-    SystemConfig& cfg = _storageRef->getConfig();
-
-    int slot = -1;
-    for(int i = 1; i < MAX_USERS; i++) {
-        if(!cfg.users[i].active) { slot = i; break; }
-    }
-
-    if(slot == -1) {
-        _server.send(400, "application/json", "{\"error\":\"Users list full\"}");
-        return;
-    }
-
-    safeCopy(cfg.users[slot].username, _server.arg("u_name").c_str(), sizeof(cfg.users[slot].username));
-
-
-    String uName = String(cfg.users[slot].username);
-    uName.trim();
-    if (!isValidName(uName.c_str(), 15) || uName.equalsIgnoreCase("admin")) {
-        cfg.users[slot].active = false;
-        _server.send(400, "application/json", "{\"error\":\"Invalid username\"}");
-        return;
-    }
-
-    for (int i = 0; i < MAX_USERS; i++) {
-        if (i != slot && cfg.users[i].active && uName.equalsIgnoreCase(String(cfg.users[i].username))) {
-            cfg.users[slot].active = false;
-            _server.send(400, "application/json", "{\"error\":\"Username already exists\"}");
-            return;
-        }
-    }
-
-    safeCopy(cfg.users[slot].password, "*PENDING*", sizeof(cfg.users[slot].password));
-    cfg.users[slot].mustChangePassword = true;
-
-    uint16_t newPerms = 0;
-    if(_server.hasArg("p_dash")) newPerms |= PERM_DASHBOARD;
-    if(_server.hasArg("p_hist")) newPerms |= PERM_HISTORY;
-    if(_server.hasArg("p_logs")) newPerms |= PERM_LOGS;
-    if(_server.hasArg("p_sys"))  newPerms |= PERM_SYS_CONFIG;
-    if(_server.hasArg("p_net"))  newPerms |= PERM_NET_CONFIG;
-    if(_server.hasArg("p_fread")) newPerms |= PERM_FILE_READ;
-    if(_server.hasArg("p_fupl"))  newPerms |= PERM_FILE_UPLOAD;
-    if(_server.hasArg("p_fdel"))  newPerms |= PERM_FILE_DELETE;
-    if(_server.hasArg("p_usr"))   newPerms |= PERM_USER_MGR;
-
-    cfg.users[slot].permissions = newPerms;
-    cfg.users[slot].active = true;
-
-    _storageRef->saveConfiguration();
-    if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Admin Created User: ", "Admin criou usuario: ")) + cfg.users[slot].username);
-
-    _server.send(200, "application/json", "{\"status\":\"ok\"}");
-}
-
-void WebManager::handleApiUserDel() {
-    if (!(getAuthPerms() & PERM_USER_MGR)) { _server.send(403, "text/plain", "Forbidden"); return; }
-    if (rejectIfTouchPriority()) return;
-    if (!_storageRef->canSaveNow()) {
-        _server.sendHeader("Retry-After", "1");
-        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
-        return;
-    }
-    int id = _server.arg("id").toInt();
-    if (id <= 0 || id >= MAX_USERS) { _server.send(400, "text/plain", "Invalid Slot"); return; }
-
-    SystemConfig& cfg = _storageRef->getConfig();
-    cfg.users[id].active = false;
-    _storageRef->saveConfiguration();
-    if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Admin Deleted User Slot ", "Admin apagou usuario no slot ")) + id);
-
-    _server.send(200, "application/json", "{\"status\":\"ok\"}");
-}
-
-void WebManager::handleApiUserReset() {
-    if (!(getAuthPerms() & PERM_USER_MGR)) { _server.send(403, "text/plain", "Forbidden"); return; }
-    if (rejectIfTouchPriority()) return;
-    if (!_storageRef->canSaveNow()) {
-        _server.sendHeader("Retry-After", "1");
-        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
-        return;
-    }
-    int id = _server.arg("id").toInt();
-    if (id <= 0 || id >= MAX_USERS) { _server.send(400, "text/plain", "Invalid Slot"); return; }
-
-    SystemConfig& cfg = _storageRef->getConfig();
-
-    if (id == 0 || String(cfg.users[id].username) == "admin") {
-
-        String resetHash = _storageRef->hashPassword("admin", "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918");
-        safeCopy(cfg.users[id].password, resetHash.c_str(), sizeof(cfg.users[id].password));
-    } else {
-        safeCopy(cfg.users[id].password, "*PENDING*", sizeof(cfg.users[id].password));
-    }
-    cfg.users[id].password[31] = '\0';
-    cfg.users[id].mustChangePassword = true;
-
-    _storageRef->saveConfiguration();
-    if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Admin Reset Password Slot ", "Admin resetou senha no slot ")) + id);
-
-    _server.send(200, "application/json", "{\"status\":\"ok\"}");
-}
+/* handleApiUserAdd/Del/Reset removidos em U24 Phase B — substituidos por handleApiCommitAll. */
 
 
 void WebManager::handleDownload() {
