@@ -1822,12 +1822,104 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .net-stat:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .net-stat .lbl { font-size: 0.8rem; color: var(--sub); text-transform: uppercase; font-weight: bold; }
         .net-stat .val { font-size: 1.1rem; color: var(--txt); font-family: monospace; margin-top: 4px; }
+        #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
+        #commit-btn:hover { background: #15803d; }
+        #commit-btn:disabled { opacity: 0.6; cursor: wait; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
         window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+
+        /* U24 Phase C — Pending Changes Manager (duplicado, mesmo padrão). */
+        window.Pending = {
+            data: {},
+            init() {
+                try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
+                this.refreshUI();
+            },
+            setField(section, field, value) {
+                if (!this.data[section]) this.data[section] = {};
+                this.data[section][field] = value;
+                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
+                this.refreshUI();
+                if (!sessionStorage.getItem('simut_pending_notified')) {
+                    sessionStorage.setItem('simut_pending_notified', '1');
+                    if (typeof showToast === 'function') {
+                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
+                    }
+                }
+            },
+            getSection(section) { return this.data[section] || {}; },
+            clear() {
+                this.data = {};
+                sessionStorage.removeItem('simut_pending');
+                sessionStorage.removeItem('simut_pending_notified');
+                this.refreshUI();
+            },
+            hasAny() { return Object.keys(this.data).some(k => { const s = this.data[k]; return s && (Array.isArray(s) ? s.length > 0 : Object.keys(s).length > 0); }); },
+            refreshUI() {
+                const btn = document.getElementById('commit-btn');
+                if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
+            }
+        };
+
+        async function commitAll() {
+            const msg = window.t('commit_confirm',
+                'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
+                '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
+                'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
+                'Continuar?');
+            if (!confirm(msg)) return;
+            const btn = document.getElementById('commit-btn');
+            if (btn) { btn.disabled = true; btn.innerText = '...'; }
+            /* Captura o novo web_port, se houver, pra possível redirect. */
+            const pendingNet = Pending.getSection('net') || {};
+            const newPort = pendingNet.web_port ? parseInt(pendingNet.web_port) : 0;
+            const currentPort = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80);
+            try {
+                const fd = new URLSearchParams();
+                fd.set('_payload', JSON.stringify(Pending.data));
+                const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
+                if (r.ok) {
+                    let j = {}; try { j = await r.json(); } catch(e) {}
+                    const serverNewPort = j.newPort || newPort || 0;
+                    Pending.clear();
+                    if (serverNewPort > 0 && serverNewPort !== currentPort) {
+                        showToast(window.t('net_saved_port', 'Salvo. Redirecionando para nova porta ' + serverNewPort + '...'), 'ok', 18000);
+                        setTimeout(() => {
+                            const proto = window.location.protocol;
+                            const host = window.location.hostname;
+                            const portStr = (serverNewPort === 80 && proto === 'http:') || (serverNewPort === 443 && proto === 'https:') ? '' : ':' + serverNewPort;
+                            window.location.href = proto + '//' + host + portStr + '/';
+                        }, 15000);
+                    } else {
+                        showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
+                        setTimeout(() => { window.location.reload(); }, 12000);
+                    }
+                } else {
+                    showToast(window.t('commit_err', 'Falha ao salvar.'), 'err');
+                    if (btn) { btn.disabled = false; btn.innerText = window.t('commit_btn', 'Salvar e Reiniciar'); }
+                }
+            } catch(e) {
+                Pending.clear();
+                if (newPort > 0 && newPort !== currentPort) {
+                    showToast(window.t('net_saved_port', 'Salvo. Redirecionando para nova porta ' + newPort + '...'), 'ok', 18000);
+                    setTimeout(() => {
+                        const proto = window.location.protocol;
+                        const host = window.location.hostname;
+                        const portStr = (newPort === 80 && proto === 'http:') || (newPort === 443 && proto === 'https:') ? '' : ':' + newPort;
+                        window.location.href = proto + '//' + host + portStr + '/';
+                    }, 15000);
+                } else {
+                    showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
+                    setTimeout(() => { window.location.reload(); }, 12000);
+                }
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { if (window.Pending) Pending.init(); });
     </script>
 </head>
 <body>
@@ -1837,9 +1929,12 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
-            <span id="status-ip">--</span>
+        <div style="display:flex;align-items:center;gap:12px">
+            <button id="commit-btn" onclick="commitAll()" data-i18n="commit_btn">💾 Salvar e Reiniciar</button>
+            <div class="status-pill">
+                <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+                <span id="status-ip">--</span>
+            </div>
         </div>
     </div>
     <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
@@ -1910,7 +2005,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="main-content">
                 <div class="card">
                     <h2 class="page-title" data-i18n="net_cfg">Network Configuration</h2>
-                    <form id="netForm" onsubmit="saveNet(event)">
+                    <form id="netForm" onsubmit="event.preventDefault()">
 
                         <h3 data-i18n="net_wifi">Wireless Network (Wi-Fi)</h3>
                         <div class="grp">
@@ -1966,7 +2061,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_web_port_hint">Default: 80. After saving, browser auto-redirects to new port.</div>
                         </div>
 
-                        <button type="submit" data-i18n="net_save">Save & Reboot Device</button>
+                        <!-- U24 Phase C: save button removido. Use "Salvar e Reiniciar" no topbar. -->
                     </form>
                 </div>
             </div>
@@ -2002,67 +2097,36 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if(data.connected) { s.innerText = window.t('net_conn', 'Connected'); s.style.color = "var(--acc)"; }
                 else { s.innerText = window.t('net_off', 'Disconnected'); s.style.color = "var(--dang)"; }
 
-                document.getElementById('ssid').value = data.ssid || '';
-                document.getElementById('dhcp').checked = data.use_dhcp || false;
-                document.getElementById('ip').value = data.static_ip || '';
-                document.getElementById('mask').value = data.static_mask || '';
-                document.getElementById('gw').value = data.static_gw || '';
-                document.getElementById('dns').value = data.static_dns || '';
-                document.getElementById('ntp_server').value = data.ntp_server || '';
-                document.getElementById('web_port').value = data.web_port || 80;
+                /* U24 Phase C: aplica valores do flash; sobrepõe pendentes. */
+                const p = Pending.getSection('net');
+                const val = (k, def) => (p[k] !== undefined ? p[k] : def);
+                document.getElementById('ssid').value = val('ssid', data.ssid || '');
+                document.getElementById('dhcp').checked = (p.use_dhcp !== undefined) ? (p.use_dhcp !== '0') : !!data.use_dhcp;
+                document.getElementById('ip').value = val('ip', data.static_ip || '');
+                document.getElementById('mask').value = val('mask', data.static_mask || '');
+                document.getElementById('gw').value = val('gw', data.static_gw || '');
+                document.getElementById('dns').value = val('dns', data.static_dns || '');
+                document.getElementById('ntp_server').value = val('ntp_server', data.ntp_server || '');
+                document.getElementById('web_port').value = val('web_port', data.web_port || 80);
                 toggleIpFields();
-                /* Dirty tracker: Save habilitado só quando há alteração. */
-                const _btn = document.querySelector('#netForm button[type="submit"]');
-                if (_btn && !_btn._dirtyWired) {
-                    _btn.disabled = true;
-                    const _mark = () => { _btn.disabled = false; };
-                    document.getElementById('netForm').addEventListener('input', _mark);
-                    document.getElementById('netForm').addEventListener('change', _mark);
-                    _btn._dirtyWired = true;
-                }
+                wireNetPendingListeners();
             } catch(e) {}
         }
 
-        async function saveNet(e) {
-            e.preventDefault();
-            let btn = document.querySelector('button[type="submit"]'); let orig = btn.innerText; btn.innerText = "..."; btn.disabled = true;
-            let rebooting = false;
-            try {
-                let fd = new URLSearchParams(new FormData(e.target));
-                if (!document.getElementById('dhcp').checked) fd.set('use_dhcp', '0'); else fd.set('use_dhcp', '1');
-
-                let r = await fetchSafe('/api/save_net', { method: 'POST', body: fd });
-                if (r.status === 503) {
-                    showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn');
-                    btn.innerText = orig;
-                    btn.disabled = false;
-                    return;
-                }
-                let j = await r.json();
-                if(j.reboot) {
-                    rebooting = true;
-                    /* Se a porta web mudou, redireciona para o novo host:porta após reboot.
-                     * Caso contrário, apenas recarrega. Delay de 15s cobre boot completo. */
-                    const currentPort = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80);
-                    const newPort = j.newPort || currentPort;
-                    if (newPort !== currentPort) {
-                        showToast(window.t('net_saved_port','Saved. Redirecting to new port ' + newPort + '...'), 'ok', 15000);
-                        setTimeout(() => {
-                            const proto = window.location.protocol;
-                            const host = window.location.hostname;
-                            const portStr = (newPort === 80 && proto === 'http:') || (newPort === 443 && proto === 'https:') ? '' : ':' + newPort;
-                            window.location.href = proto + '//' + host + portStr + '/network';
-                        }, 15000);
-                    } else {
-                        showToast(window.t('net_saved','Saved. Rebooting system...'), 'ok', 5000);
-                        setTimeout(() => { window.location.reload(); }, 5000);
-                    }
-                }
-                else showToast(window.t('net_save_err','Error saving.'), 'err');
-            } catch(ex) { rebooting = true; showToast(window.t('net_reconnect','Network updated, reconnecting...'), 'warn', 5000); setTimeout(()=>{window.location.reload();}, 5000); }
-            btn.innerText = orig;
-            /* Reboot/sucesso → mantém disabled; erro → reabilita. */
-            btn.disabled = rebooting;
+        function wireNetPendingListeners() {
+            const form = document.getElementById('netForm');
+            if (!form || form._pendingWired) return;
+            form._pendingWired = true;
+            const handler = (ev) => {
+                const el = ev.target;
+                if (!el.id) return;
+                let v;
+                if (el.type === 'checkbox') v = el.checked ? '1' : '0';
+                else v = el.value;
+                Pending.setField('net', el.id === 'dhcp' ? 'use_dhcp' : el.id, v);
+            };
+            form.addEventListener('input', handler);
+            form.addEventListener('change', handler);
         }
 
         function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }

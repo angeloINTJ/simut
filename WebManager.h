@@ -192,7 +192,7 @@ private:
 
     void handleSaveSystem();    /**< U24: minimal — so theme-switch do dashboard */
     void handleApiCommitAll();  /**< U24: save-all + reboot */
-    void handleSaveNetwork();
+    /* U24 Phase C: handleSaveNetwork substituido por handleApiCommitAll */
     void handleResetTouchCal();
     void handleApiStatus();
     void handleApiHistoryData();

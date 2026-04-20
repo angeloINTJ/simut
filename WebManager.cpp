@@ -98,7 +98,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
 
     _server.on("/api/save_sys", HTTP_POST, std::bind(&WebManager::handleSaveSystem, this));
     _server.on("/api/commit_all", HTTP_POST, std::bind(&WebManager::handleApiCommitAll, this));
-    _server.on("/api/save_net", HTTP_POST, std::bind(&WebManager::handleSaveNetwork, this));
+    /* U24 Phase C: /api/save_net substituido por /api/commit_all */
     _server.on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
     /* U24 Phase B: user_add/del/rst substituidos por /api/commit_all */
     _server.on("/api/history", HTTP_GET, std::bind(&WebManager::handleApiHistoryData, this));
@@ -1420,6 +1420,74 @@ void WebManager::handleApiCommitAll() {
         }
     }
 
+    /* ── Seção net: {ssid,pass,use_dhcp,ip,mask,gw,dns,ntp_server,web_port} ─ */
+    uint16_t commitNewPort = 0;  /* 0 = sem mudança; != 0 = informa cliente */
+    int netStart = body.indexOf("\"net\"");
+    if (netStart >= 0) {
+        int objStart = body.indexOf('{', netStart);
+        int objEnd = -1;
+        if (objStart >= 0) {
+            int depth = 0;
+            for (int i = objStart; i < (int)body.length(); i++) {
+                char c = body.charAt(i);
+                if (c == '{') depth++;
+                else if (c == '}') { depth--; if (depth == 0) { objEnd = i; break; } }
+            }
+        }
+        if (objStart >= 0 && objEnd > objStart) {
+            String net = body.substring(objStart, objEnd + 1);
+            auto getS = [&](const char* key) -> String {
+                String pat = String("\"") + key + "\":\"";
+                int p = net.indexOf(pat);
+                if (p < 0) return String();
+                int vs = p + pat.length();
+                int ve = net.indexOf('"', vs);
+                if (ve < 0) return String();
+                return net.substring(vs, ve);
+            };
+            auto getN = [&](const char* key) -> String {
+                String pat = String("\"") + key + "\":";
+                int p = net.indexOf(pat);
+                if (p < 0) return String();
+                int vs = p + pat.length();
+                if (net.charAt(vs) == '"') {
+                    int ve = net.indexOf('"', vs + 1);
+                    if (ve < 0) return String();
+                    return net.substring(vs + 1, ve);
+                }
+                int ve = vs;
+                while (ve < (int)net.length() && net.charAt(ve) != ',' && net.charAt(ve) != '}') ve++;
+                return net.substring(vs, ve);
+            };
+            auto has = [&](const char* key) -> bool {
+                return net.indexOf(String("\"") + key + "\":") >= 0;
+            };
+
+            if (has("ssid")) { String s = getS("ssid"); s.trim(); if (s.length() > 0) safeCopy(cfg.wifiSsid, s.c_str(), sizeof(cfg.wifiSsid)); }
+            if (has("pass")) { String p = getS("pass"); p.trim(); if (p.length() > 0) safeCopy(cfg.wifiPass, p.c_str(), sizeof(cfg.wifiPass)); }
+            if (has("use_dhcp")) cfg.useDhcp = (getN("use_dhcp") != "0");
+            if (!cfg.useDhcp) {
+                if (has("ip"))   { String s = getS("ip");   if (isValidIpv4(s.c_str())) safeCopy(cfg.staticIp, s.c_str(), sizeof(cfg.staticIp)); }
+                if (has("mask")) { String s = getS("mask"); if (isValidIpv4(s.c_str())) safeCopy(cfg.staticMask, s.c_str(), sizeof(cfg.staticMask)); }
+                if (has("gw"))   { String s = getS("gw");   if (isValidIpv4(s.c_str())) safeCopy(cfg.staticGateway, s.c_str(), sizeof(cfg.staticGateway)); }
+                if (has("dns"))  { String s = getS("dns");  if (isValidIpv4(s.c_str())) safeCopy(cfg.staticDns, s.c_str(), sizeof(cfg.staticDns)); }
+            }
+            if (has("ntp_server")) {
+                String ntp = getS("ntp_server"); ntp.trim();
+                safeCopy(cfg.ntpServer, ntp.c_str(), sizeof(cfg.ntpServer));
+                cfg.ntpServer[sizeof(cfg.ntpServer) - 1] = '\0';
+            }
+            if (has("web_port")) {
+                WebConfigData* w = reinterpret_cast<WebConfigData*>(cfg.reserved + WEB_CONFIG_OFFSET);
+                int p = getN("web_port").toInt();
+                if (p >= 1 && p <= 65535) {
+                    if (w->port != (uint16_t)p) commitNewPort = (uint16_t)p;
+                    w->port = (uint16_t)p;
+                }
+            }
+        }
+    }
+
     if (themeChanged && _displayRef) _displayRef->refreshTheme();
 
     /* U24: mostra mensagem no display ANTES de qualquer flash I/O.
@@ -1454,8 +1522,15 @@ void WebManager::handleApiCommitAll() {
         return;
     }
 
-    /* Resposta ao cliente antes do reboot */
-    _server.send(200, "application/json", "{\"status\":\"ok\"}");
+    /* Resposta ao cliente antes do reboot. Inclui newPort se porta web
+     * mudou — cliente usa pra redirecionar ao novo host:porta. */
+    char resp[64];
+    if (commitNewPort != 0) {
+        snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"newPort\":%u}", (unsigned)commitNewPort);
+    } else {
+        snprintf(resp, sizeof(resp), "{\"status\":\"ok\"}");
+    }
+    _server.send(200, "application/json", resp);
     _server.client().stop();
 
     /*
@@ -1474,75 +1549,7 @@ void WebManager::handleApiCommitAll() {
     while (1) { tight_loop_contents(); }
 }
 
-void WebManager::handleSaveNetwork() {
-    if (rejectIfTouchPriority()) return;
-    if (!_storageRef->canSaveNow()) {
-        _server.sendHeader("Retry-After", "1");
-        _server.send(429, "application/json", "{\"error\":\"Too fast — wait 1s\"}");
-        return;
-    }
-    uint16_t perms = getAuthPerms();
-    if (!(perms & PERM_NET_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
-    if (isPasswordChangeRequired()) return;
-
-    SystemConfig& cfg = _storageRef->getConfig();
-
-    if (_server.hasArg("ssid")) { String s = _server.arg("ssid"); s.trim(); if (s.length() > 0) { safeCopy(cfg.wifiSsid, s.c_str(), sizeof(cfg.wifiSsid)); } }
-    if (_server.hasArg("pass")) { String p = _server.arg("pass"); p.trim(); if (p.length() > 0) { safeCopy(cfg.wifiPass, p.c_str(), sizeof(cfg.wifiPass)); } }
-
-
-    if (_server.hasArg("use_dhcp")) cfg.useDhcp = (_server.arg("use_dhcp") != "0");
-
-    if (!cfg.useDhcp) {
-
-        if (_server.hasArg("ip") && isValidIpv4(_server.arg("ip").c_str())) {
-            safeCopy(cfg.staticIp, _server.arg("ip").c_str(), sizeof(cfg.staticIp));
-        }
-        if (_server.hasArg("mask") && isValidIpv4(_server.arg("mask").c_str())) {
-            safeCopy(cfg.staticMask, _server.arg("mask").c_str(), sizeof(cfg.staticMask));
-        }
-        if (_server.hasArg("gw") && isValidIpv4(_server.arg("gw").c_str())) {
-            safeCopy(cfg.staticGateway, _server.arg("gw").c_str(), sizeof(cfg.staticGateway));
-        }
-        if (_server.hasArg("dns") && isValidIpv4(_server.arg("dns").c_str())) {
-            safeCopy(cfg.staticDns, _server.arg("dns").c_str(), sizeof(cfg.staticDns));
-        }
-    }
-
-    /* Servidor NTP customizado (vazio = pool.ntp.org) */
-    if (_server.hasArg("ntp_server")) {
-        String ntp = _server.arg("ntp_server"); ntp.trim();
-        safeCopy(cfg.ntpServer, ntp.c_str(), sizeof(cfg.ntpServer));
-        cfg.ntpServer[sizeof(cfg.ntpServer) - 1] = '\0';
-    }
-
-    /* Porta do servidor web (aplica após reboot). Validação: 1..65535. */
-    WebConfigData* w = reinterpret_cast<WebConfigData*>(cfg.reserved + WEB_CONFIG_OFFSET);
-    if (_server.hasArg("web_port")) {
-        int p = _server.arg("web_port").toInt();
-        if (p >= 1 && p <= 65535) w->port = (uint16_t)p;
-    }
-    uint16_t newPort = (w->port > 0) ? w->port : WEB_DEFAULT_PORT;
-
-    bool saved = _storageRef->saveConfiguration();
-    if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    if (saved && !_storageRef->lastSaveWasNoOp()) {
-        LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin updated Network Settings", "Admin atualizou config de rede"));
-    }
-
-    char resp[64];
-    snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"reboot\":true,\"newPort\":%u}", (unsigned)newPort);
-    _server.send(200, "application/json", resp);
-
-    if (saved) {
-        LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, _currentUserId, TRL("Reboot via web (network save)", "Reboot via web (save de rede)"));
-        /* N1: spin + watchdog feed em vez de delay() que starva o WDT */
-        uint32_t waitEnd = millis() + 1000;
-        while (!timeReached(waitEnd)) { watchdog_update(); delay(10); }
-        LogManager::instance().markCleanReboot();
-        rp2040.reboot();
-    }
-}
+/* handleSaveNetwork removido em U24 Phase C — substituido por handleApiCommitAll. */
 
 /**
  * @brief Reseta calibração do touch via API web.
