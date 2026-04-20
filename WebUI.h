@@ -2787,12 +2787,90 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .btn-save:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-save:disabled { background: #3f3f46; color: #a1a1aa; cursor: not-allowed; transform: none; }
         .empty-msg { text-align: center; color: var(--sub); padding: 40px 0; font-size: 1rem; }
+        #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
+        #commit-btn:hover { background: #15803d; }
+        #commit-btn:disabled { opacity: 0.6; cursor: wait; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); }
         window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+
+        /* U24 Phase A.2 — Pending Changes Manager (duplicado de /config;
+         * idealmente extrair pra arquivo comum no futuro). */
+        window.Pending = {
+            data: {},
+            init() {
+                try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
+                this.refreshUI();
+            },
+            setField(section, field, value) {
+                if (!this.data[section]) this.data[section] = {};
+                this.data[section][field] = value;
+                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
+                this.refreshUI();
+                if (!sessionStorage.getItem('simut_pending_notified')) {
+                    sessionStorage.setItem('simut_pending_notified', '1');
+                    if (typeof showToast === 'function') {
+                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
+                    }
+                }
+            },
+            setSection(section, obj) {
+                this.data[section] = obj;
+                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
+                this.refreshUI();
+                if (!sessionStorage.getItem('simut_pending_notified')) {
+                    sessionStorage.setItem('simut_pending_notified', '1');
+                    if (typeof showToast === 'function') {
+                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
+                    }
+                }
+            },
+            getSection(section) { return this.data[section] || null; },
+            clear() {
+                this.data = {};
+                sessionStorage.removeItem('simut_pending');
+                sessionStorage.removeItem('simut_pending_notified');
+                this.refreshUI();
+            },
+            hasAny() { return Object.keys(this.data).some(k => Object.keys(this.data[k] || {}).length > 0 || (Array.isArray(this.data[k]) && this.data[k].length > 0)); },
+            refreshUI() {
+                const btn = document.getElementById('commit-btn');
+                if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
+            }
+        };
+
+        async function commitAll() {
+            const msg = window.t('commit_confirm',
+                'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
+                '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
+                'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
+                'Continuar?');
+            if (!confirm(msg)) return;
+            const btn = document.getElementById('commit-btn');
+            if (btn) { btn.disabled = true; btn.innerText = '...'; }
+            try {
+                const fd = new URLSearchParams();
+                fd.set('_payload', JSON.stringify(Pending.data));
+                const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
+                if (r.ok) {
+                    Pending.clear();
+                    showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
+                    setTimeout(() => { window.location.reload(); }, 12000);
+                } else {
+                    showToast(window.t('commit_err', 'Falha ao salvar.'), 'err');
+                    if (btn) { btn.disabled = false; btn.innerText = window.t('commit_btn', 'Salvar e Reiniciar'); }
+                }
+            } catch(e) {
+                Pending.clear();
+                showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
+                setTimeout(() => { window.location.reload(); }, 12000);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { if (window.Pending) Pending.init(); });
     </script>
 </head>
 <body>
@@ -2802,9 +2880,12 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
-            <span id="status-ip">--</span>
+        <div style="display:flex;align-items:center;gap:12px">
+            <button id="commit-btn" onclick="commitAll()" data-i18n="commit_btn">💾 Salvar e Reiniciar</button>
+            <div class="status-pill">
+                <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+                <span id="status-ip">--</span>
+            </div>
         </div>
     </div>
     <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
@@ -2951,7 +3032,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <input type="range" id="snd_alarm_volume" min="0" max="100" step="5" value="70">
                 <span class="vol-val" id="alarm-vol-display">70%</span>
             </div>
-            <button class="btn-save" style="margin-top:20px;" onclick="saveAll()" data-i18n="alm_save">Save</button>
+            <!-- U24: Save button removido. Use "Salvar e Reiniciar" no topbar. -->
         </div>
     </div>
 
@@ -3073,30 +3154,20 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('mel_alarm').value   = snd.melAlarm   || 0;
 
                 applyLang();
-                /* Dirty tracker: Save habilitado só após alteração. Listener
-                 * no body captura input/change dos cards e controles de som. */
-                const _btn = document.querySelector('.btn-save');
-                if (_btn && !_btn._dirtyWired) {
-                    _btn.disabled = true;
-                    const _mark = () => { _btn.disabled = false; };
-                    document.body.addEventListener('input', _mark);
-                    document.body.addEventListener('change', _mark);
-                    _btn._dirtyWired = true;
-                }
+
+                /* U24 Phase A.2: se há alarms pendentes no sessionStorage,
+                 * aplicar overlay em cima do que veio do server. */
+                const pAlm = Pending.getSection('alarms');
+                if (pAlm) applyPendingToForm(pAlm);
+
+                wireAlarmsPendingListeners();
             } catch(e) {
                 showToast('Connection error', 'err');
             }
         }
 
-        // ═══════════════════════════════════════════════════════════════
-        // SALVA ALARMES + SONS EM UMA ÚNICA REQUISIÇÃO
-        // ═══════════════════════════════════════════════════════════════
-        async function saveAll() {
-            let btn = document.querySelector('.btn-save');
-            btn.disabled = true;
-            let ok = false;
-
-            // ── Coleta limites de alarme de cada card ─────────────────
+        /* U24: reconstrói estado atual do form e grava em Pending.alarms. */
+        function collectAlarmsState() {
             let sensorData = [];
             document.querySelectorAll('.sensor-card').forEach(card => {
                 let idx = parseInt(card.getAttribute('data-idx'));
@@ -3104,19 +3175,15 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 card.querySelectorAll('.alm-input').forEach(inp => {
                     obj[inp.getAttribute('data-key')] = parseFloat(inp.value) || 0;
                 });
-
-                // [v3.2.46] Validação final de intertravamento antes de enviar
+                /* Validação de intertravamento (mantida do fluxo antigo) */
                 if (obj.tmin !== undefined && obj.tmax !== undefined && obj.tmin >= obj.tmax) {
                     obj.tmax = Math.round((obj.tmin + 0.1) * 10) / 10;
                 }
                 if (obj.hmin !== undefined && obj.hmax !== undefined && obj.hmin >= obj.hmax) {
                     obj.hmax = Math.min(100, Math.round((obj.hmin + 0.1) * 10) / 10);
                 }
-
                 sensorData.push(obj);
             });
-
-            // ── Coleta configuração de sons ──────────────────────────
             let soundData = {
                 touch:   document.getElementById('snd_touch').checked,
                 confirm: document.getElementById('snd_confirm').checked,
@@ -3131,29 +3198,46 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 melError:   parseInt(document.getElementById('mel_error').value),
                 melAlarm:   parseInt(document.getElementById('mel_alarm').value)
             };
+            return { sensors: sensorData, sounds: soundData };
+        }
 
-            try {
-                let r = await fetchSafe('/api/save_alarms', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sensors: sensorData, sounds: soundData })
+        /* U24: aplica valores pendentes do sessionStorage aos campos do form. */
+        function applyPendingToForm(pAlm) {
+            if (pAlm.sensors && Array.isArray(pAlm.sensors)) {
+                pAlm.sensors.forEach(s => {
+                    const card = document.querySelector('.sensor-card[data-idx="' + s.idx + '"]');
+                    if (!card) return;
+                    if (s.active !== undefined) card.querySelector('.alm-active').checked = !!s.active;
+                    card.querySelectorAll('.alm-input').forEach(inp => {
+                        const k = inp.getAttribute('data-key');
+                        if (s[k] !== undefined) inp.value = s[k];
+                    });
                 });
-                if (r.status === 503) {
-                    showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn');
-                } else {
-                    let j = await r.json();
-                    if (j.status === 'ok') {
-                        ok = true;
-                        showToast(window.t('alm_saved', 'Saved!'), 'ok');
-                    } else {
-                        showToast(window.t('alm_err', 'Error saving.'), 'err');
-                    }
-                }
-            } catch(e) {
-                showToast(window.t('alm_err', 'Error saving.'), 'err');
             }
-            /* Sucesso → mantém disabled (estado limpo). Erro → reabilita. */
-            btn.disabled = ok;
+            if (pAlm.sounds) {
+                const snd = pAlm.sounds;
+                if (snd.touch !== undefined)   document.getElementById('snd_touch').checked   = !!snd.touch;
+                if (snd.confirm !== undefined) document.getElementById('snd_confirm').checked = !!snd.confirm;
+                if (snd.error !== undefined)   document.getElementById('snd_error').checked   = !!snd.error;
+                if (snd.alarm !== undefined)   document.getElementById('snd_alarm').checked   = !!snd.alarm;
+                if (snd.web !== undefined)     document.getElementById('snd_web').checked     = !!snd.web;
+                if (snd.mute !== undefined)    document.getElementById('snd_mute').checked    = !!snd.mute;
+                if (snd.volume !== undefined)      { document.getElementById('snd_volume').value = snd.volume; document.getElementById('vol-display').textContent = snd.volume + '%'; }
+                if (snd.alarmVolume !== undefined) { document.getElementById('snd_alarm_volume').value = snd.alarmVolume; document.getElementById('alarm-vol-display').textContent = snd.alarmVolume + '%'; }
+                if (snd.melTouch !== undefined)   document.getElementById('mel_touch').value   = snd.melTouch;
+                if (snd.melConfirm !== undefined) document.getElementById('mel_confirm').value = snd.melConfirm;
+                if (snd.melError !== undefined)   document.getElementById('mel_error').value   = snd.melError;
+                if (snd.melAlarm !== undefined)   document.getElementById('mel_alarm').value   = snd.melAlarm;
+            }
+        }
+
+        /* U24: wires all form inputs to update Pending.alarms on change. */
+        function wireAlarmsPendingListeners() {
+            if (document.body._almPendingWired) return;
+            document.body._almPendingWired = true;
+            const handler = () => { Pending.setSection('alarms', collectAlarmsState()); };
+            document.body.addEventListener('input', handler);
+            document.body.addEventListener('change', handler);
         }
 
         // ═══════════════════════════════════════════════════════════════

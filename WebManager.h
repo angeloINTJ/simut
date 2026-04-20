@@ -190,7 +190,7 @@ private:
     void handleUploadComplete();
     void handleUploadData();
 
-    void handleSaveSystem();
+    void handleSaveSystem();    /**< U24: minimal — so theme-switch do dashboard */
     void handleApiCommitAll();  /**< U24: save-all + reboot */
     void handleSaveNetwork();
     void handleResetTouchCal();
@@ -216,7 +216,6 @@ private:
     void handleAlarms();
     void handleLicense();
     void handleApiAlarms();
-    void handleApiSaveAlarms();
 
     String getForceChpassHtml(bool isError);
 
