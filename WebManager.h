@@ -191,6 +191,7 @@ private:
     void handleUploadData();
 
     void handleSaveSystem();
+    void handleApiCommitAll();  /**< U24: save-all + reboot */
     void handleSaveNetwork();
     void handleResetTouchCal();
     void handleApiStatus();

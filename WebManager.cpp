@@ -98,6 +98,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
 
 
     _server.on("/api/save_sys", HTTP_POST, std::bind(&WebManager::handleSaveSystem, this));
+    _server.on("/api/commit_all", HTTP_POST, std::bind(&WebManager::handleApiCommitAll, this));
     _server.on("/api/save_net", HTTP_POST, std::bind(&WebManager::handleSaveNetwork, this));
     _server.on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
     _server.on("/api/user_add", HTTP_POST, std::bind(&WebManager::handleApiUserAdd, this));
@@ -1340,6 +1341,187 @@ void WebManager::handleSaveSystem() {
     }
 
     _server.send(200, "application/json", saved ? "{\"status\":\"ok\"}" : "{\"status\":\"error\"}");
+}
+
+
+/*
+ * U24 — Commit-all + reboot (save-and-restart pattern).
+ *
+ * Recebe POST com `_payload` = JSON contendo seções `sys` e/ou `alarms`.
+ * Aplica todas as mudanças em memória, faz um único saveConfiguration(),
+ * responde ao cliente, e agenda reboot. A rajada de saves concorrentes que
+ * triggerava deadlocks de lockout em multicore deixa de existir — a escrita
+ * acontece 1x e o sistema reinicia limpo.
+ *
+ * Cliente envia `_payload` urlencoded. Exemplo:
+ *   _payload={"sys":{"name":"SIMUT","tz":"-3","log":"1",...}}
+ *
+ * Phase A.1: suporta apenas a seção `sys`. Extensão para `alarms` vem a
+ * seguir (mesma abordagem de parsing usada em handleApiSaveAlarms).
+ */
+void WebManager::handleApiCommitAll() {
+    uint16_t perms = getAuthPerms();
+    if (!(perms & PERM_SYS_CONFIG)) {
+        _server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+        return;
+    }
+    if (isPasswordChangeRequired()) return;
+    if (rejectIfTouchPriority()) return;
+
+    if (!_server.hasArg("_payload")) {
+        _server.send(400, "application/json", "{\"error\":\"Missing _payload\"}");
+        return;
+    }
+
+    String body = _server.arg("_payload");
+    if (body.length() == 0 || body.length() > 6144) {
+        _server.send(400, "application/json", "{\"error\":\"Bad payload\"}");
+        return;
+    }
+
+    SystemConfig& cfg = _storageRef->getConfig();
+    bool themeChanged = false;
+
+    /* ── Seção sys: extrai o sub-objeto e aplica cada campo ───────────────
+     * Parser manual por simplicidade. Formato esperado:
+     *   "sys":{"name":"...","tz":"-3","log":"1",...}
+     * Cada campo pode vir como string entre aspas ou número bruto. */
+    int sysStart = body.indexOf("\"sys\"");
+    if (sysStart >= 0) {
+        int objStart = body.indexOf('{', sysStart);
+        int objEnd = -1;
+        if (objStart >= 0) {
+            /* Busca o '}' pareado levando em conta nesting. */
+            int depth = 0;
+            for (int i = objStart; i < (int)body.length(); i++) {
+                char c = body.charAt(i);
+                if (c == '{') depth++;
+                else if (c == '}') { depth--; if (depth == 0) { objEnd = i; break; } }
+            }
+        }
+        if (objStart >= 0 && objEnd > objStart) {
+            String sys = body.substring(objStart, objEnd + 1);
+
+            /* Helper: extrai valor string entre aspas de "key":"value". */
+            auto getStr = [&](const char* key) -> String {
+                String pat = String("\"") + key + "\":\"";
+                int p = sys.indexOf(pat);
+                if (p < 0) return String();
+                int vStart = p + pat.length();
+                int vEnd = sys.indexOf('"', vStart);
+                if (vEnd < 0) return String();
+                return sys.substring(vStart, vEnd);
+            };
+            /* Helper: extrai número bruto (não quoted) de "key":NNN.
+             * Usado quando cliente envia int/float sem aspas. */
+            auto getNum = [&](const char* key) -> String {
+                String pat = String("\"") + key + "\":";
+                int p = sys.indexOf(pat);
+                if (p < 0) return String();
+                int vStart = p + pat.length();
+                /* Pula aspas se houver */
+                if (sys.charAt(vStart) == '"') {
+                    int vEnd = sys.indexOf('"', vStart + 1);
+                    if (vEnd < 0) return String();
+                    return sys.substring(vStart + 1, vEnd);
+                }
+                /* Lê até vírgula ou } */
+                int vEnd = vStart;
+                while (vEnd < (int)sys.length() && sys.charAt(vEnd) != ',' && sys.charAt(vEnd) != '}') vEnd++;
+                return sys.substring(vStart, vEnd);
+            };
+            auto has = [&](const char* key) -> bool {
+                String pat = String("\"") + key + "\":";
+                return sys.indexOf(pat) >= 0;
+            };
+
+            /* Aplica cada campo (mirror of handleSaveSystem) */
+            if (has("name")) {
+                String n = getStr("name"); n.trim();
+                if (n.length() > 0 && isValidName(n.c_str())) {
+                    safeCopy(cfg.deviceName, n.c_str(), sizeof(cfg.deviceName));
+                }
+            }
+            if (has("tz")) {
+                cfg.timezoneOffset = (int8_t)getNum("tz").toInt();
+                NetworkManager::applyTimezone(cfg.timezoneOffset);
+            }
+            if (has("log"))       cfg.loggingEnabled = (getNum("log") != "0");
+            if (has("t_sec"))     cfg.telEncryption = (getNum("t_sec") != "0");
+            if (has("t_key"))     safeCopy(cfg.telApiKey, getStr("t_key").c_str(), sizeof(cfg.telApiKey));
+            if (has("res"))       { int r = getNum("res").toInt(); if (r >= 9 && r <= 12) cfg.ds18Resolution = (uint8_t)r; }
+            if (has("s_int"))     cfg.sampleIntervalMs = getNum("s_int").toInt();
+            if (has("t_srv"))     safeCopy(cfg.telServer, getStr("t_srv").c_str(), sizeof(cfg.telServer));
+            if (has("t_port"))    { int p = getNum("t_port").toInt(); if (isInRange(p, 1, 65535)) cfg.telPort = (uint16_t)p; }
+            if (has("t_path"))    safeCopy(cfg.telPath, getStr("t_path").c_str(), sizeof(cfg.telPath));
+            if (has("t_int"))     cfg.telInterval = getNum("t_int").toInt();
+            if (has("t_bat"))     cfg.telBatchSize = (uint8_t)getNum("t_bat").toInt();
+            if (has("t_mode"))    cfg.telMode = (uint8_t)getNum("t_mode").toInt();
+            if (has("t_transport")) cfg.telTransport = (uint8_t)getNum("t_transport").toInt();
+            if (has("m_topic"))   safeCopy(cfg.mqttTopic, getStr("m_topic").c_str(), sizeof(cfg.mqttTopic));
+            if (has("m_cid"))     safeCopy(cfg.mqttClientId, getStr("m_cid").c_str(), sizeof(cfg.mqttClientId));
+            if (has("m_user"))    safeCopy(cfg.mqttUser, getStr("m_user").c_str(), sizeof(cfg.mqttUser));
+            if (has("m_qos"))     cfg.mqttQos = (uint8_t)getNum("m_qos").toInt();
+            if (has("m_retain"))  cfg.mqttRetain = (getNum("m_retain") != "0");
+            if (has("m_ka"))      { int ka = getNum("m_ka").toInt(); if (isInRange(ka, 5, 600)) cfg.mqttKeepAlive = (uint16_t)ka; }
+            if (has("t_glob"))    safeCopy(cfg.telGlobalTemplate, getStr("t_glob").c_str(), sizeof(cfg.telGlobalTemplate));
+            if (has("t_line"))    safeCopy(cfg.telLineTemplate, getStr("t_line").c_str(), sizeof(cfg.telLineTemplate));
+            if (has("t_sep"))     safeCopy(cfg.telLineSeparator, getStr("t_sep").c_str(), sizeof(cfg.telLineSeparator));
+        }
+    }
+
+    if (themeChanged && _displayRef) _displayRef->refreshTheme();
+
+    /* U24: mostra mensagem no display ANTES de qualquer flash I/O.
+     * Core 1 vai pra tela de boot e renderiza, dando feedback visual
+     * ao usuário de que o reinício está iminente.
+     *
+     * Tempos: ~1.5s em cada mensagem pra user ler com calma antes do
+     * reboot. Alimentamos WDT em chunks pra não disparar durante o hold. */
+    if (_displayRef) {
+        _displayRef->setBootStatus("Aplicando configuracoes...");
+        for (int i = 0; i < 15; i++) { delay(100); watchdog_update(); }
+        _displayRef->setBootStatus("Reiniciando o sistema...");
+        for (int i = 0; i < 15; i++) { delay(100); watchdog_update(); }
+    }
+
+    /* Bufferiza o audit log — heavy task gate faz writeCompactToFlash
+     * empilhar em _pendingLogs em vez de gravar direto. Evita um flash
+     * write extra antes do save; saveConfiguration drena o buffer. */
+    _storageRef->lockHeavyTask();
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
+             TRL("Admin committed changes — rebooting", "Admin aplicou alteracoes — reiniciando"));
+    _storageRef->unlockHeavyTask();
+
+    /* Single atomic save — drena pending logs + escreve config */
+    bool saved = _storageRef->saveConfiguration();
+
+    if (!saved) {
+        /* Save falhou: desfaz o boot screen e devolve erro ao cliente.
+         * Sistema continua vivo, user pode tentar novamente. */
+        if (_displayRef) _displayRef->endBoot();
+        _server.send(500, "application/json", "{\"error\":\"save failed\"}");
+        return;
+    }
+
+    /* Resposta ao cliente antes do reboot */
+    _server.send(200, "application/json", "{\"status\":\"ok\"}");
+    _server.client().stop();
+
+    /*
+     * Hard reboot garantido via watchdog curto (500ms).
+     * Depois de `watchdog_enable(500, 1)` e `while(1)`:
+     *   - Não importa o que travar (lockout, multicore, flash GC),
+     *     o WDT dispara em 500ms e reinicia o chip.
+     *   - Elimina o espaço onde U21 (display congelado) ocorria entre
+     *     save completo e rp2040.reboot().
+     *   - Marca scratch pra autópsia NÃO reportar como HW_WATCHDOG —
+     *     isso foi um reboot intencional, não um travamento.
+     */
+    LogManager::instance().markCleanReboot();
+    delay(50);  /* último flush do Serial */
+    watchdog_enable(500, 1);
+    while (1) { tight_loop_contents(); }
 }
 
 void WebManager::handleSaveNetwork() {

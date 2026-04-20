@@ -367,6 +367,10 @@ bool StorageManager::loadConfiguration() {
  * CRC32 appended after the binary blob for integrity verification.
  */
 bool StorageManager::saveConfiguration() {
+    /* U23: instrumentação granular — autópsia distingue se travou aqui
+     * vs no LOG_CODE de audit ou no webMgr handler. */
+    LogManager::TraceScope _tr(0, MOD_SAVE_CONFIG);
+
     /* Flush cursor pendente antes de salvar config — garante consistência */
     if (_cursorDirty) { _cursorDirty = false; /* forçar flush abaixo */ }
 
@@ -400,8 +404,11 @@ bool StorageManager::saveConfiguration() {
      * 1 frame. Display/touch ficam responsivos mesmo sob GC lento.
      * Helper macro para feed + flash op + feed.
      */
+    /* U23: MOD_CORE1_LOCK só durante o espera do lockout (breve).
+     * Após lockout, volta pra MOD_SAVE_CONFIG via destructor do scope. */
     #define FLASH_OP(BLOCK) do { \
-        enterFlashSafeMode(); \
+        { LogManager::TraceScope _trLock(0, MOD_CORE1_LOCK); \
+          enterFlashSafeMode(); } \
         watchdog_update(); \
         BLOCK; \
         watchdog_update(); \
@@ -520,9 +527,13 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
     if (!_isMounted) return false;
     String path = getHistoryFileName();
 
+    LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
     /* RAII context-aware igual saveConfiguration. */
     LogManager::WdtWindow _wdt(30000);
-    enterFlashSafeMode();
+    {
+        LogManager::TraceScope _trLock(0, MOD_CORE1_LOCK);
+        enterFlashSafeMode();
+    }
     if (path != _currentLogFileName) { enforceStorageLimit(); _currentLogFileName = path; }
     watchdog_update();
     File f = LittleFS.open(path, "a");

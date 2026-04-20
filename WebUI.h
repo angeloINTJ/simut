@@ -1157,12 +1157,84 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .builder-box { background: #000; border: 1px solid #3f3f46; border-radius: 8px; padding: 15px; margin-top: 15px; }
         #preview { background: #18181b; color: #a1a1aa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; overflow-x: auto; border: 1px dashed #3f3f46; white-space: pre-wrap; word-break: break-all; }
         .highlight { color: #22c55e; font-weight: bold; }
+        #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
+        #commit-btn:hover { background: #15803d; }
+        #commit-btn:disabled { opacity: 0.6; cursor: wait; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
         window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+
+        /* ── Pending Changes Manager (U24 — save-and-restart pattern) ──
+         * Acumula alterações em sessionStorage. Fechar browser/tab descarta.
+         * Botão "Salvar e Reiniciar" no topbar aparece quando há pendentes.
+         * Primeiro toast notifica user; subsequentes alterações só atualizam
+         * silenciosamente o indicador (botão). */
+        window.Pending = {
+            data: {},
+            init() {
+                try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
+                this.refreshUI();
+            },
+            setField(section, field, value) {
+                if (!this.data[section]) this.data[section] = {};
+                this.data[section][field] = value;
+                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
+                this.refreshUI();
+                if (!sessionStorage.getItem('simut_pending_notified')) {
+                    sessionStorage.setItem('simut_pending_notified', '1');
+                    if (typeof showToast === 'function') {
+                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
+                    }
+                }
+            },
+            getSection(section) { return this.data[section] || {}; },
+            clear() {
+                this.data = {};
+                sessionStorage.removeItem('simut_pending');
+                sessionStorage.removeItem('simut_pending_notified');
+                this.refreshUI();
+            },
+            hasAny() { return Object.keys(this.data).some(k => Object.keys(this.data[k] || {}).length > 0); },
+            refreshUI() {
+                const btn = document.getElementById('commit-btn');
+                if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
+            }
+        };
+
+        async function commitAll() {
+            const msg = window.t('commit_confirm',
+                'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
+                '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
+                'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
+                'Continuar?');
+            if (!confirm(msg)) return;
+            const btn = document.getElementById('commit-btn');
+            if (btn) { btn.disabled = true; btn.innerText = '...'; }
+            try {
+                const fd = new URLSearchParams();
+                fd.set('_payload', JSON.stringify(Pending.data));
+                const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
+                if (r.ok) {
+                    Pending.clear();
+                    showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
+                    setTimeout(() => { window.location.reload(); }, 12000);
+                } else {
+                    showToast(window.t('commit_err', 'Falha ao salvar.'), 'err');
+                    if (btn) { btn.disabled = false; btn.innerText = window.t('commit_btn', 'Salvar e Reiniciar'); }
+                }
+            } catch(e) {
+                /* Em caso de timeout/erro de conexão pós-POST, é provável que o
+                 * reboot tenha começado. Assume sucesso e aguarda reload. */
+                Pending.clear();
+                showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
+                setTimeout(() => { window.location.reload(); }, 12000);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { if (window.Pending) Pending.init(); });
     </script>
 </head>
 <body>
@@ -1172,9 +1244,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
-            <span id="status-ip">--</span>
+        <div style="display:flex;align-items:center;gap:12px">
+            <button id="commit-btn" onclick="commitAll()" data-i18n="commit_btn">💾 Salvar e Reiniciar</button>
+            <div class="status-pill">
+                <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+                <span id="status-ip">--</span>
+            </div>
         </div>
     </div>
     <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
@@ -1231,7 +1306,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <div class="container">
         <div class="card">
             <h2 class="page-title" data-i18n="cfg_title">System Settings</h2>
-            <form id="sysForm" onsubmit="saveConfig(event)">
+            <form id="sysForm" onsubmit="event.preventDefault()">
                 <h3 data-i18n="cfg_gen" style="margin-top:0;">General Identity</h3>
                 <div class="grp">
                     <div class="row">
@@ -1414,7 +1489,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </div>
                 </div>
 
-                <button type="submit" data-i18n="cfg_save">Save Configuration</button>
+                <!-- U24: save button removido. Use "Salvar e Reiniciar" no topbar. -->
             </form>
 
             <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--brd)">
@@ -1566,73 +1641,63 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             try {
                 let r = await fetchSafe('/api/config'); let d = await r.json();
                 if(d.error) return;
-                document.getElementById('name').value = d.name || '';
-                document.getElementById('tz').value = d.tz || 0;
-                document.getElementById('log').checked = d.log || false;
-                document.getElementById('res').value = d.res || 9;
-                document.getElementById('s_int').value = d.s_int || 5000;
-                document.getElementById('t_transport').value = d.t_transport || 0;
-                document.getElementById('t_sec').checked = d.t_sec || false;
-                document.getElementById('t_srv').value = d.t_srv || '';
-                document.getElementById('t_port').value = d.t_port || 80;
-                document.getElementById('t_path').value = d.t_path || '';
-                document.getElementById('t_key').value = d.t_key || '';
-                document.getElementById('m_topic').value = d.m_topic || '';
-                document.getElementById('m_cid').value = d.m_cid || '';
-                document.getElementById('m_user').value = d.m_user || '';
-                document.getElementById('m_qos').value = d.m_qos || 0;
-                document.getElementById('m_retain').checked = d.m_retain || false;
-                document.getElementById('m_ka').value = d.m_ka || 60;
-                document.getElementById('t_int').value = d.t_int || 300000;
-                document.getElementById('t_bat').value = d.t_bat || 10;
-                document.getElementById('t_mode').value = d.t_mode || 0;
-                document.getElementById('t_glob').value = d.t_glob || '';
-                document.getElementById('t_line').value = d.t_line || '';
-                document.getElementById('t_sep').value = d.t_sep || '';
+                /* U24: aplica valores da flash, depois sobrepõe pendentes
+                 * do sessionStorage. Usuário vê o estado "provisório" que
+                 * será aplicado no commit. */
+                const p = Pending.getSection('sys');
+                const val = (key, def) => (p[key] !== undefined ? p[key] : (d[key] !== undefined ? d[key] : def));
+                document.getElementById('name').value = val('name', '');
+                document.getElementById('tz').value = val('tz', 0);
+                document.getElementById('log').checked = !!val('log', false);
+                document.getElementById('res').value = val('res', 9);
+                document.getElementById('s_int').value = val('s_int', 5000);
+                document.getElementById('t_transport').value = val('t_transport', 0);
+                document.getElementById('t_sec').checked = !!val('t_sec', false);
+                document.getElementById('t_srv').value = val('t_srv', '');
+                document.getElementById('t_port').value = val('t_port', 80);
+                document.getElementById('t_path').value = val('t_path', '');
+                document.getElementById('t_key').value = val('t_key', '');
+                document.getElementById('m_topic').value = val('m_topic', '');
+                document.getElementById('m_cid').value = val('m_cid', '');
+                document.getElementById('m_user').value = val('m_user', '');
+                document.getElementById('m_qos').value = val('m_qos', 0);
+                document.getElementById('m_retain').checked = !!val('m_retain', false);
+                document.getElementById('m_ka').value = val('m_ka', 60);
+                document.getElementById('t_int').value = val('t_int', 300000);
+                document.getElementById('t_bat').value = val('t_bat', 10);
+                document.getElementById('t_mode').value = val('t_mode', 0);
+                document.getElementById('t_glob').value = val('t_glob', '');
+                document.getElementById('t_line').value = val('t_line', '');
+                document.getElementById('t_sep').value = val('t_sep', '');
                 if (d.serial) _devSerial = d.serial;
                 if (Array.isArray(d.sensors)) {
                     for (let i = 0; i < 10 && i < d.sensors.length; i++) {
-                        _devSensors[i] = {
-                            hwid: d.sensors[i].hwid || '',
-                            active: !!d.sensors[i].active
-                        };
+                        _devSensors[i] = { hwid: d.sensors[i].hwid || '', active: !!d.sensors[i].active };
                     }
                 }
                 toggleTransport(); toggleBuilder();
-                /* Dirty tracker: Save habilitado só quando há alteração.
-                 * Evita envio duplicado por clicks repetidos. Listeners
-                 * escutam input/change do usuario (settings programaticos
-                 * acima nao disparam esses eventos). */
-                const _btn = document.querySelector('#sysForm button[type="submit"]');
-                if (_btn && !_btn._dirtyWired) {
-                    _btn.disabled = true;
-                    const _mark = () => { _btn.disabled = false; };
-                    document.getElementById('sysForm').addEventListener('input', _mark);
-                    document.getElementById('sysForm').addEventListener('change', _mark);
-                    _btn._dirtyWired = true;
-                }
+                wirePendingListeners();
             } catch(e) {}
         }
 
-        async function saveConfig(e) {
-            e.preventDefault();
-            let btn = document.querySelector('button[type="submit"]'); let orig = btn.innerText; btn.innerText = "..."; btn.disabled = true;
-            let ok = false;
-            try {
-                let fd = new URLSearchParams(new FormData(e.target));
-                if (!document.getElementById('log').checked) fd.set('log', '0'); else fd.set('log', '1');
-                if (!document.getElementById('t_sec').checked) fd.set('t_sec', '0'); else fd.set('t_sec', '1');
-                if (!document.getElementById('m_retain').checked) fd.set('m_retain', '0'); else fd.set('m_retain', '1');
-
-                let r = await fetchSafe('/api/save_sys', { method: 'POST', body: fd });
-                ok = r.ok;
-                if(ok) { showToast(window.t('cfg_saved','Saved!'), 'ok'); }
-                else if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); }
-                else { showToast(window.t('cfg_save_err','Failed to save.'), 'err'); }
-            } catch(ex) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
-            btn.innerText = orig;
-            /* Sucesso → mantém disabled (estado limpo). Erro → reabilita pra retry. */
-            btn.disabled = ok;
+        /* U24: cada input/change acumula no sessionStorage via Pending.
+         * Fields com checkbox são normalizados para '0'/'1' pra espelhar
+         * o que o endpoint /api/save_sys esperava (compat com parser do
+         * server). */
+        function wirePendingListeners() {
+            const form = document.getElementById('sysForm');
+            if (!form || form._pendingWired) return;
+            form._pendingWired = true;
+            const handler = (ev) => {
+                const el = ev.target;
+                if (!el.id) return;
+                let v;
+                if (el.type === 'checkbox') v = el.checked ? '1' : '0';
+                else v = el.value;
+                Pending.setField('sys', el.id, v);
+            };
+            form.addEventListener('input', handler);
+            form.addEventListener('change', handler);
         }
 
         async function resetTouchCal() {
@@ -3601,7 +3666,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "m_jan":"Jan", "m_feb":"Fev", "m_mar":"Mar", "m_apr":"Abr", "m_may":"Mai", "m_jun":"Jun", "m_jul":"Jul", "m_aug":"Ago", "m_sep":"Set", "m_oct":"Out", "m_nov":"Nov", "m_dec":"Dez",
             "cfg_title": "Configurações", "cfg_gen": "Identidade", "cfg_dev": "Nome", "cfg_tz": "Fuso Horário", "cfg_log": "Registro Local", "cfg_hw": "Hardware", "cfg_res": "Resolução DS18B20", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Amostra (ms)", "cfg_tel": "Telemetria", "cfg_srv": "IP Servidor", "cfg_port": "Porta", "cfg_path": "Endpoint", "cfg_key": "API Key", "cfg_tint": "Upload (ms)", "cfg_bat": "Lote", "cfg_fmt": "Formato", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Dinâmico", "cfg_sec": "Usar TLS / SSL", "cfg_sec_mqtt": "Usar MQTTS (TLS)", "cfg_vis": "Construtor", "cfg_leg": "Tags", "cfg_leg1": "Globais:", "cfg_leg2": "Dados:", "cfg_leg3": "Chaves Inteligentes:", "cfg_leg4": "Formatos:", "cfg_leg5": "Série T", "cfg_leg6": "Série H", "cfg_leg7": "ID Sensor", "cfg_tpl1": "1. Global", "cfg_tpl2": "2. Linha", "cfg_tpl3": "3. Separador", "cfg_prev": "Live Preview:", "cfg_save": "Salvar", "cfg_touch_title": "Calibração do Touch", "cfg_touch_reset": "Resetar Calibração", "cfg_touch_hint": "Restaura padrão de fábrica. Recalibre pelo menu do display.", "cfg_touch_confirm": "Resetar calibração do touch para padrão de fábrica?", "cfg_touch_done": "Calibração resetada. Recalibre pelo display.",
             "cfg_transport": "Transporte", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Tópico", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Usuário", "cfg_mq_pass": "Senha", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Reter", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)", "net_web_title": "Servidor Web", "net_web_port": "Porta HTTP", "net_web_port_hint": "Padrão: 80. Após salvar, o navegador redireciona automaticamente para a nova porta.", "display_busy": "Display em uso. Tente novamente em alguns segundos.", "net_conn_err": "Erro de conexão.", "hist_clear_err": "Falha ao limpar logs.", "hist_cleared": "Logs limpos.", "fil_mkdir_ok": "Pasta criada.", "fil_mkdir_err": "Falha ao criar pasta.", "fil_del_err": "Alguns arquivos não puderam ser excluídos.", "fil_deleted": "Arquivos excluídos.",
+            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)", "net_web_title": "Servidor Web", "net_web_port": "Porta HTTP", "net_web_port_hint": "Padrão: 80. Após salvar, o navegador redireciona automaticamente para a nova porta.", "display_busy": "Display em uso. Tente novamente em alguns segundos.", "net_conn_err": "Erro de conexão.", "hist_clear_err": "Falha ao limpar logs.", "hist_cleared": "Logs limpos.", "fil_mkdir_ok": "Pasta criada.", "fil_mkdir_err": "Falha ao criar pasta.", "fil_del_err": "Alguns arquivos não puderam ser excluídos.", "fil_deleted": "Arquivos excluídos.", "commit_btn": "💾 Salvar e Reiniciar", "commit_confirm": "Isto salvará todas as alterações e reiniciará o sistema.\n\n⚠️ O dispositivo ficará offline por ~10 segundos.\nQualquer gravação de histórico/log em andamento será interrompida.\n\nContinuar?", "commit_saved": "Salvo! Reiniciando sistema...", "commit_err": "Falha ao salvar.", "pending_notice": "Clique em \"Salvar e Reiniciar\" no topo para aplicar as alterações.",
             "usr_mgt": "Gestão de Acessos", "usr_usr": "Usuário", "usr_perm": "Permissões", "usr_act": "Ações", "usr_add": "Adicionar", "usr_name": "Nome", "usr_pdash": "Painel", "usr_phist": "Histórico", "usr_plog": "Logs", "usr_psys": "Sistema", "usr_pnet": "Rede", "usr_pfr": "Leitura", "usr_pfu": "Upload", "usr_pfd": "Excluir", "usr_pusr": "Usuários", "usr_btn": "Criar", "usr_warn": "Login via: Nome@DDMMAAAA", "usr_prot": "Protegido", "usr_del": "Excluir", "usr_rst": "Reset", "usr_sup": "Super",
             "fil_title": "Sistema de Arquivos", "fil_down": "Baixar", "fil_del": "Excluir", "fil_up": "Enviar", "fil_uphere": "Enviar", "fil_name": "Nome", "fil_sz": "Tamanho", "fil_mkdir": "Nova Pasta", "fil_mkname": "nome", "fil_create": "Criar", "fil_cancel": "Cancelar", "fil_loading": "Carregando...", "fil_parent": "Subir", "fil_folder": "Pasta", "fil_empty": "Vazio", "fil_inv_name": "Inválido", "fil_sel_del": "Selecione", "fil_conf_del": "Excluir N?", "fil_sel_down": "Selecione", "fil_conf_down": "Baixar N?", "usr_del_msg": "Excluir?", "usr_rst_msg": "Forçar reset?", "hist_clear_msg": "Limpar logs?",
             "alm_title": "Alarmes e Sons", "alm_limits": "Limites de Alarme", "alm_sounds": "Configuração de Sons", "alm_tmin": "Temp. Mín.", "alm_tmax": "Temp. Máx.", "alm_hmin": "Umid. Mín.", "alm_hmax": "Umid. Máx.", "alm_active": "Alarme Ativo", "alm_save": "Salvar", "alm_saved": "Salvo com sucesso!", "alm_err": "Erro ao salvar.", "alm_none": "Nenhum sensor configurado.", "alm_touch": "Toque", "alm_confirm": "Confirmação", "alm_error": "Erro", "alm_alarm": "Alarme", "alm_web": "Sons Web", "alm_mute": "Mudo Global", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Alarme", "alm_on": "Ligado", "alm_off": "Desligado", "alm_ambient": "Sensor Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Descendente", "alm_mel_siren": "Sirene",

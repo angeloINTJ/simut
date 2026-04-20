@@ -128,7 +128,26 @@ public:
 
 
     void setModule(int core, uint8_t mod);
+    uint8_t getModule(int core);
     void heartbeat(int core);
+
+    /** U23: RAII para TRACE_MOD — salva mod atual na construção, aplica
+     *  novo mod; no destructor restaura o anterior. Permite instrumentar
+     *  funções internas (saveConfiguration, writeCompactToFlash) sem
+     *  "vazar" o módulo pro resto do handler caller. */
+    class TraceScope {
+    public:
+        explicit TraceScope(int core, uint8_t newMod) : _core(core) {
+            _saved = LogManager::instance().getModule(core);
+            LogManager::instance().setModule(core, newMod);
+        }
+        ~TraceScope() { LogManager::instance().setModule(_core, _saved); }
+        TraceScope(const TraceScope&) = delete;
+        TraceScope& operator=(const TraceScope&) = delete;
+    private:
+        int _core;
+        uint8_t _saved;
+    };
     void checkCrossCoreHealth();
     void enableHealthCheck();        /**< Habilita o monitoramento cross-core (chamar após boot) */
     void performCrashAutopsy();
