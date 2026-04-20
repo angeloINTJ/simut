@@ -1157,9 +1157,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .builder-box { background: #000; border: 1px solid #3f3f46; border-radius: 8px; padding: 15px; margin-top: 15px; }
         #preview { background: #18181b; color: #a1a1aa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; overflow-x: auto; border: 1px dashed #3f3f46; white-space: pre-wrap; word-break: break-all; }
         .highlight { color: #22c55e; font-weight: bold; }
-        #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
-        #commit-btn:hover { background: #15803d; }
-        #commit-btn:disabled { opacity: 0.6; cursor: wait; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
@@ -1167,74 +1164,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
         window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
 
-        /* ── Pending Changes Manager (U24 — save-and-restart pattern) ──
-         * Acumula alterações em sessionStorage. Fechar browser/tab descarta.
-         * Botão "Salvar e Reiniciar" no topbar aparece quando há pendentes.
-         * Primeiro toast notifica user; subsequentes alterações só atualizam
-         * silenciosamente o indicador (botão). */
-        window.Pending = {
-            data: {},
-            init() {
-                try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
-                this.refreshUI();
-            },
-            setField(section, field, value) {
-                if (!this.data[section]) this.data[section] = {};
-                this.data[section][field] = value;
-                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
-                this.refreshUI();
-                if (!sessionStorage.getItem('simut_pending_notified')) {
-                    sessionStorage.setItem('simut_pending_notified', '1');
-                    if (typeof showToast === 'function') {
-                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
-                    }
-                }
-            },
-            getSection(section) { return this.data[section] || {}; },
-            clear() {
-                this.data = {};
-                sessionStorage.removeItem('simut_pending');
-                sessionStorage.removeItem('simut_pending_notified');
-                this.refreshUI();
-            },
-            hasAny() { return Object.keys(this.data).some(k => Object.keys(this.data[k] || {}).length > 0); },
-            refreshUI() {
-                const btn = document.getElementById('commit-btn');
-                if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
-            }
-        };
-
-        async function commitAll() {
-            const msg = window.t('commit_confirm',
-                'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
-                '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
-                'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
-                'Continuar?');
-            if (!confirm(msg)) return;
-            const btn = document.getElementById('commit-btn');
-            if (btn) { btn.disabled = true; btn.innerText = '...'; }
-            try {
-                const fd = new URLSearchParams();
-                fd.set('_payload', JSON.stringify(Pending.data));
-                const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
-                if (r.ok) {
-                    Pending.clear();
-                    showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
-                    setTimeout(() => { window.location.reload(); }, 12000);
-                } else {
-                    showToast(window.t('commit_err', 'Falha ao salvar.'), 'err');
-                    if (btn) { btn.disabled = false; btn.innerText = window.t('commit_btn', 'Salvar e Reiniciar'); }
-                }
-            } catch(e) {
-                /* Em caso de timeout/erro de conexão pós-POST, é provável que o
-                 * reboot tenha começado. Assume sucesso e aguarda reload. */
-                Pending.clear();
-                showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
-                setTimeout(() => { window.location.reload(); }, 12000);
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => { if (window.Pending) Pending.init(); });
+        /* U24 Phase D: Pending + commitAll centralizados em /lang.js. */
     </script>
 </head>
 <body>
@@ -1244,12 +1174,9 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px">
-            <button id="commit-btn" onclick="commitAll()" data-i18n="commit_btn">💾 Salvar e Reiniciar</button>
-            <div class="status-pill">
-                <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
-                <span id="status-ip">--</span>
-            </div>
+        <div class="status-pill">
+            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <span id="status-ip">--</span>
         </div>
     </div>
     <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
@@ -1451,7 +1378,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                     <div id="custom_tools" class="builder-box">
                         <div style="font-size:0.85rem; color:var(--sub); margin-bottom:15px;" data-i18n="cfg_leg">Payload Tag Reference:</div>
-                        <div class="row" style="margin-bottom:15px; font-size:0.8rem; background:#18181b; padding:10px; border-radius:6px; border:1px solid var(--border);">
+                        <div class="row tag-ref" style="margin-bottom:15px; font-size:0.8rem; padding:10px; border-radius:6px; border:1px solid var(--border);">
                             <div class="col">
                                 <b style="color:var(--txt);" data-i18n="cfg_leg1">Global Tags:</b><br>
                                 <span class="highlight">{DEV}</span> - Device Name<br>
@@ -1822,9 +1749,6 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .net-stat:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
         .net-stat .lbl { font-size: 0.8rem; color: var(--sub); text-transform: uppercase; font-weight: bold; }
         .net-stat .val { font-size: 1.1rem; color: var(--txt); font-family: monospace; margin-top: 4px; }
-        #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
-        #commit-btn:hover { background: #15803d; }
-        #commit-btn:disabled { opacity: 0.6; cursor: wait; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
@@ -1832,94 +1756,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
         window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
 
-        /* U24 Phase C — Pending Changes Manager (duplicado, mesmo padrão). */
-        window.Pending = {
-            data: {},
-            init() {
-                try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
-                this.refreshUI();
-            },
-            setField(section, field, value) {
-                if (!this.data[section]) this.data[section] = {};
-                this.data[section][field] = value;
-                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
-                this.refreshUI();
-                if (!sessionStorage.getItem('simut_pending_notified')) {
-                    sessionStorage.setItem('simut_pending_notified', '1');
-                    if (typeof showToast === 'function') {
-                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
-                    }
-                }
-            },
-            getSection(section) { return this.data[section] || {}; },
-            clear() {
-                this.data = {};
-                sessionStorage.removeItem('simut_pending');
-                sessionStorage.removeItem('simut_pending_notified');
-                this.refreshUI();
-            },
-            hasAny() { return Object.keys(this.data).some(k => { const s = this.data[k]; return s && (Array.isArray(s) ? s.length > 0 : Object.keys(s).length > 0); }); },
-            refreshUI() {
-                const btn = document.getElementById('commit-btn');
-                if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
-            }
-        };
-
-        async function commitAll() {
-            const msg = window.t('commit_confirm',
-                'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
-                '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
-                'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
-                'Continuar?');
-            if (!confirm(msg)) return;
-            const btn = document.getElementById('commit-btn');
-            if (btn) { btn.disabled = true; btn.innerText = '...'; }
-            /* Captura o novo web_port, se houver, pra possível redirect. */
-            const pendingNet = Pending.getSection('net') || {};
-            const newPort = pendingNet.web_port ? parseInt(pendingNet.web_port) : 0;
-            const currentPort = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80);
-            try {
-                const fd = new URLSearchParams();
-                fd.set('_payload', JSON.stringify(Pending.data));
-                const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
-                if (r.ok) {
-                    let j = {}; try { j = await r.json(); } catch(e) {}
-                    const serverNewPort = j.newPort || newPort || 0;
-                    Pending.clear();
-                    if (serverNewPort > 0 && serverNewPort !== currentPort) {
-                        showToast(window.t('net_saved_port', 'Salvo. Redirecionando para nova porta ' + serverNewPort + '...'), 'ok', 18000);
-                        setTimeout(() => {
-                            const proto = window.location.protocol;
-                            const host = window.location.hostname;
-                            const portStr = (serverNewPort === 80 && proto === 'http:') || (serverNewPort === 443 && proto === 'https:') ? '' : ':' + serverNewPort;
-                            window.location.href = proto + '//' + host + portStr + '/';
-                        }, 15000);
-                    } else {
-                        showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
-                        setTimeout(() => { window.location.reload(); }, 12000);
-                    }
-                } else {
-                    showToast(window.t('commit_err', 'Falha ao salvar.'), 'err');
-                    if (btn) { btn.disabled = false; btn.innerText = window.t('commit_btn', 'Salvar e Reiniciar'); }
-                }
-            } catch(e) {
-                Pending.clear();
-                if (newPort > 0 && newPort !== currentPort) {
-                    showToast(window.t('net_saved_port', 'Salvo. Redirecionando para nova porta ' + newPort + '...'), 'ok', 18000);
-                    setTimeout(() => {
-                        const proto = window.location.protocol;
-                        const host = window.location.hostname;
-                        const portStr = (newPort === 80 && proto === 'http:') || (newPort === 443 && proto === 'https:') ? '' : ':' + newPort;
-                        window.location.href = proto + '//' + host + portStr + '/';
-                    }, 15000);
-                } else {
-                    showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
-                    setTimeout(() => { window.location.reload(); }, 12000);
-                }
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => { if (window.Pending) Pending.init(); });
+        /* U24 Phase D: Pending + commitAll centralizados em /lang.js. */
     </script>
 </head>
 <body>
@@ -1929,12 +1766,9 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px">
-            <button id="commit-btn" onclick="commitAll()" data-i18n="commit_btn">💾 Salvar e Reiniciar</button>
-            <div class="status-pill">
-                <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
-                <span id="status-ip">--</span>
-            </div>
+        <div class="status-pill">
+            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <span id="status-ip">--</span>
         </div>
     </div>
     <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
@@ -2242,9 +2076,6 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
         #commit-btn:hover { background: #15803d; }
         #commit-btn:disabled { opacity: 0.6; cursor: wait; }
-        tr.pending-del { opacity: 0.5; text-decoration: line-through; }
-        tr.pending-add { background: rgba(22,163,74,0.1); }
-        .badge.pending { background: #f59e0b; color: #000; font-weight: bold; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
@@ -2252,84 +2083,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
         window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
 
-        /* U24 Phase B — Pending Changes Manager (duplicado de /config e /alarms). */
-        window.Pending = {
-            data: {},
-            init() {
-                try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
-                this.refreshUI();
-            },
-            setSection(section, obj) {
-                this.data[section] = obj;
-                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
-                this.refreshUI();
-                this.maybeNotify();
-            },
-            getSection(section) { return this.data[section] || null; },
-            pushUserAction(action) {
-                if (!this.data.users) this.data.users = { actions: [] };
-                this.data.users.actions.push(action);
-                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
-                this.refreshUI();
-                this.maybeNotify();
-            },
-            popUserAction() {
-                if (!this.data.users || !this.data.users.actions || this.data.users.actions.length === 0) return;
-                this.data.users.actions.pop();
-                if (this.data.users.actions.length === 0) delete this.data.users;
-                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
-                this.refreshUI();
-            },
-            maybeNotify() {
-                if (!sessionStorage.getItem('simut_pending_notified')) {
-                    sessionStorage.setItem('simut_pending_notified', '1');
-                    if (typeof showToast === 'function') {
-                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
-                    }
-                }
-            },
-            clear() {
-                this.data = {};
-                sessionStorage.removeItem('simut_pending');
-                sessionStorage.removeItem('simut_pending_notified');
-                this.refreshUI();
-            },
-            hasAny() { return Object.keys(this.data).some(k => { const s = this.data[k]; return s && (Array.isArray(s) ? s.length > 0 : Object.keys(s).length > 0); }); },
-            refreshUI() {
-                const btn = document.getElementById('commit-btn');
-                if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
-            }
-        };
-
-        async function commitAll() {
-            const msg = window.t('commit_confirm',
-                'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
-                '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
-                'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
-                'Continuar?');
-            if (!confirm(msg)) return;
-            const btn = document.getElementById('commit-btn');
-            if (btn) { btn.disabled = true; btn.innerText = '...'; }
-            try {
-                const fd = new URLSearchParams();
-                fd.set('_payload', JSON.stringify(Pending.data));
-                const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
-                if (r.ok) {
-                    Pending.clear();
-                    showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
-                    setTimeout(() => { window.location.reload(); }, 12000);
-                } else {
-                    showToast(window.t('commit_err', 'Falha ao salvar.'), 'err');
-                    if (btn) { btn.disabled = false; btn.innerText = window.t('commit_btn', 'Salvar e Reiniciar'); }
-                }
-            } catch(e) {
-                Pending.clear();
-                showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
-                setTimeout(() => { window.location.reload(); }, 12000);
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => { if (window.Pending) Pending.init(); });
+        /* U24 Phase D: Pending + commitAll centralizados em /lang.js. */
     </script>
 </head>
 <body>
@@ -2339,12 +2093,9 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px">
-            <button id="commit-btn" onclick="commitAll()" data-i18n="commit_btn">💾 Salvar e Reiniciar</button>
-            <div class="status-pill">
-                <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
-                <span id="status-ip">--</span>
-            </div>
+        <div class="status-pill">
+            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <span id="status-ip">--</span>
         </div>
     </div>
     <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
@@ -2964,9 +2715,6 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .btn-save:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-save:disabled { background: #3f3f46; color: #a1a1aa; cursor: not-allowed; transform: none; }
         .empty-msg { text-align: center; color: var(--sub); padding: 40px 0; font-size: 1rem; }
-        #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
-        #commit-btn:hover { background: #15803d; }
-        #commit-btn:disabled { opacity: 0.6; cursor: wait; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
@@ -2975,79 +2723,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
 
         /* U24 Phase A.2 — Pending Changes Manager (duplicado de /config;
-         * idealmente extrair pra arquivo comum no futuro). */
-        window.Pending = {
-            data: {},
-            init() {
-                try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
-                this.refreshUI();
-            },
-            setField(section, field, value) {
-                if (!this.data[section]) this.data[section] = {};
-                this.data[section][field] = value;
-                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
-                this.refreshUI();
-                if (!sessionStorage.getItem('simut_pending_notified')) {
-                    sessionStorage.setItem('simut_pending_notified', '1');
-                    if (typeof showToast === 'function') {
-                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
-                    }
-                }
-            },
-            setSection(section, obj) {
-                this.data[section] = obj;
-                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
-                this.refreshUI();
-                if (!sessionStorage.getItem('simut_pending_notified')) {
-                    sessionStorage.setItem('simut_pending_notified', '1');
-                    if (typeof showToast === 'function') {
-                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
-                    }
-                }
-            },
-            getSection(section) { return this.data[section] || null; },
-            clear() {
-                this.data = {};
-                sessionStorage.removeItem('simut_pending');
-                sessionStorage.removeItem('simut_pending_notified');
-                this.refreshUI();
-            },
-            hasAny() { return Object.keys(this.data).some(k => Object.keys(this.data[k] || {}).length > 0 || (Array.isArray(this.data[k]) && this.data[k].length > 0)); },
-            refreshUI() {
-                const btn = document.getElementById('commit-btn');
-                if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
-            }
-        };
-
-        async function commitAll() {
-            const msg = window.t('commit_confirm',
-                'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
-                '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
-                'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
-                'Continuar?');
-            if (!confirm(msg)) return;
-            const btn = document.getElementById('commit-btn');
-            if (btn) { btn.disabled = true; btn.innerText = '...'; }
-            try {
-                const fd = new URLSearchParams();
-                fd.set('_payload', JSON.stringify(Pending.data));
-                const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
-                if (r.ok) {
-                    Pending.clear();
-                    showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
-                    setTimeout(() => { window.location.reload(); }, 12000);
-                } else {
-                    showToast(window.t('commit_err', 'Falha ao salvar.'), 'err');
-                    if (btn) { btn.disabled = false; btn.innerText = window.t('commit_btn', 'Salvar e Reiniciar'); }
-                }
-            } catch(e) {
-                Pending.clear();
-                showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
-                setTimeout(() => { window.location.reload(); }, 12000);
-            }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => { if (window.Pending) Pending.init(); });
+         * U24 Phase D: centralizado em /lang.js. */
     </script>
 </head>
 <body>
@@ -3057,12 +2733,9 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
-        <div style="display:flex;align-items:center;gap:12px">
-            <button id="commit-btn" onclick="commitAll()" data-i18n="commit_btn">💾 Salvar e Reiniciar</button>
-            <div class="status-pill">
-                <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
-                <span id="status-ip">--</span>
-            </div>
+        <div class="status-pill">
+            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <span id="status-ip">--</span>
         </div>
     </div>
     <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
@@ -4076,6 +3749,285 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "greet_morning": "Good morning", "greet_afternoon": "Good afternoon", "greet_evening": "Good evening", "greet_hello": "Hello", "greet_logout": "Logout"
         }
     };
+
+    /* =========================================================================
+     * U24 Phase D — Pending Changes Manager + commit-all (shared across pages)
+     * =========================================================================
+     * Antes: cada página (config/alarms/users/network) tinha uma cópia local
+     * deste módulo (~3KB × 4 = ~12KB). Agora centralizado em lang.js (1 cópia
+     * carregada por todas as páginas). Páginas read-only (dash/hist/file/lic)
+     * herdam o botão automaticamente via installCommitInfra(). */
+    window.Pending = {
+        data: {},
+        init() {
+            try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
+            this.refreshUI();
+        },
+        _persist() { sessionStorage.setItem('simut_pending', JSON.stringify(this.data)); this.refreshUI(); this._maybeNotify(); },
+        setField(section, field, value) {
+            if (!this.data[section]) this.data[section] = {};
+            this.data[section][field] = value;
+            this._persist();
+        },
+        setSection(section, obj) { this.data[section] = obj; this._persist(); },
+        getSection(section) { return this.data[section] || {}; },
+        pushUserAction(action) {
+            if (!this.data.users) this.data.users = { actions: [] };
+            this.data.users.actions.push(action);
+            this._persist();
+        },
+        popUserAction() {
+            if (!this.data.users || !this.data.users.actions || this.data.users.actions.length === 0) return;
+            this.data.users.actions.pop();
+            if (this.data.users.actions.length === 0) delete this.data.users;
+            sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
+            this.refreshUI();
+        },
+        _maybeNotify() {
+            if (!sessionStorage.getItem('simut_pending_notified')) {
+                sessionStorage.setItem('simut_pending_notified', '1');
+                if (typeof showToast === 'function') {
+                    showToast((window.t ? window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.') : 'Clique em "Salvar e Reiniciar"'), 'warn', 5000);
+                }
+            }
+        },
+        clear() {
+            this.data = {};
+            sessionStorage.removeItem('simut_pending');
+            sessionStorage.removeItem('simut_pending_notified');
+            this.refreshUI();
+        },
+        hasAny() { return Object.keys(this.data).some(k => { const s = this.data[k]; return s && (Array.isArray(s) ? s.length > 0 : Object.keys(s).length > 0); }); },
+        refreshUI() {
+            const btn = document.getElementById('commit-btn');
+            if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
+        }
+    };
+
+    window.commitAll = async function() {
+        const msg = (window.t ? window.t('commit_confirm',
+            'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
+            '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
+            'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
+            'Continuar?') : 'Save and restart?');
+        if (!confirm(msg)) return;
+        const btn = document.getElementById('commit-btn');
+        if (btn) { btn.disabled = true; btn.innerText = '...'; }
+        const currentPort = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80);
+        const pendingNet = Pending.getSection('net') || {};
+        const localNewPort = pendingNet.web_port ? parseInt(pendingNet.web_port) : 0;
+        const redirectPort = (port) => {
+            if (!port || port === currentPort) return false;
+            showToast((window.t ? window.t('net_saved_port', 'Salvo. Redirecionando para nova porta ' + port + '...') : 'Salvo. Nova porta: ' + port), 'ok', 18000);
+            setTimeout(() => {
+                const proto = window.location.protocol;
+                const host = window.location.hostname;
+                const portStr = (port === 80 && proto === 'http:') || (port === 443 && proto === 'https:') ? '' : ':' + port;
+                window.location.href = proto + '//' + host + portStr + '/';
+            }, 15000);
+            return true;
+        };
+        try {
+            const fd = new URLSearchParams();
+            fd.set('_payload', JSON.stringify(Pending.data));
+            const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
+            if (r.ok) {
+                let j = {}; try { j = await r.json(); } catch(e) {}
+                Pending.clear();
+                if (!redirectPort(j.newPort || localNewPort)) {
+                    showToast((window.t ? window.t('commit_saved', 'Salvo! Reiniciando sistema...') : 'Saved! Restarting...'), 'ok', 20000);
+                    setTimeout(() => { window.location.reload(); }, 12000);
+                }
+            } else {
+                showToast((window.t ? window.t('commit_err', 'Falha ao salvar.') : 'Save failed.'), 'err');
+                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn', '💾 Salvar e Reiniciar') : '💾 Save & Restart'); }
+            }
+        } catch(e) {
+            /* Conexão caiu — assume que reboot começou, limpa e redireciona/reload */
+            Pending.clear();
+            if (!redirectPort(localNewPort)) {
+                showToast((window.t ? window.t('commit_saved', 'Salvo! Reiniciando sistema...') : 'Saved! Restarting...'), 'ok', 20000);
+                setTimeout(() => { window.location.reload(); }, 12000);
+            }
+        }
+    };
+
+    /* Injeta CSS e botão na topbar. Idempotente; chamado por cada página. */
+    window.installCommitInfra = function() {
+        if (!document.getElementById('commit-btn-css')) {
+            const s = document.createElement('style');
+            s.id = 'commit-btn-css';
+            s.textContent =
+                '#commit-btn{background:#16a34a;color:#fff;border:none;padding:7px 14px;border-radius:6px;font-weight:700;font-size:0.82rem;cursor:pointer;display:none}' +
+                '#commit-btn:hover{background:#15803d}' +
+                '#commit-btn:disabled{opacity:0.6;cursor:wait}' +
+                'tr.pending-del{opacity:0.5;text-decoration:line-through}' +
+                'tr.pending-add{background:rgba(22,163,74,0.1)}' +
+                '.badge.pending{background:#f59e0b;color:#000;font-weight:bold}' +
+                '#theme-toggle{background:transparent;border:1px solid var(--border,#27272a);color:var(--sub,#a1a1aa);width:30px;height:30px;border-radius:50%;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:0.95rem;line-height:1;padding:0;transition:all 0.18s}' +
+                '#theme-toggle:hover{color:var(--txt,#f4f4f5);border-color:var(--acc,#06b6d4);transform:scale(1.05)}' +
+                /* Version label (span dentro de .brand): fonte menor, peso leve */
+                '.brand > span{font-size:0.7rem;font-weight:500;letter-spacing:0.02em;opacity:0.7;margin-left:4px}' +
+                /* Tag reference panel em /config — usa var em vez de #18181b */
+                '.tag-ref{background:var(--card)}' +
+                /* ── Light theme — paleta slate + cyan-700 p/ contraste AA ── */
+                ':root.theme-light{--bg:#f1f5f9;--card:#ffffff;--txt:#0f172a;--sub:#475569;--border:#cbd5e1;--acc:#0e7490;--dang:#b91c1c}' +
+                'html.theme-light{background:#f1f5f9}' +
+                'html.theme-light body{background:var(--bg);color:var(--txt)}' +
+                'html.theme-light .topbar{background:#ffffff;border-bottom-color:var(--border)}' +
+                'html.theme-light .drawer{background:#ffffff;border-right-color:var(--border)}' +
+                'html.theme-light .drawer nav a{color:var(--sub)}' +
+                'html.theme-light .drawer nav a:hover{background:rgba(15,23,42,0.05);color:var(--txt)}' +
+                'html.theme-light .drawer nav a.active{background:#e0f2fe;color:var(--acc)}' +
+                'html.theme-light .drawer-bottom .lic-link{color:var(--sub)}' +
+                'html.theme-light .drawer-bottom .lic-link:hover{background:rgba(15,23,42,0.05);color:var(--txt)}' +
+                'html.theme-light .drawer-bottom .lic-link.active{background:#e0f2fe;color:var(--acc)}' +
+                'html.theme-light .brand{color:var(--txt)}' +
+                'html.theme-light .brand span{color:var(--acc)}' +
+                'html.theme-light .hamburger{color:var(--sub)}' +
+                'html.theme-light .status-pill{color:var(--sub)}' +
+                'html.theme-light .card{background:var(--card);color:var(--txt);box-shadow:0 1px 3px rgba(15,23,42,0.06)}' +
+                'html.theme-light h2.page-title,html.theme-light h3,html.theme-light label{color:var(--txt)}' +
+                'html.theme-light .bc-root{color:#94a3b8}' +
+                'html.theme-light .bc-page{color:var(--sub)}' +
+                /* Inputs, selects, textareas */
+                'html.theme-light input[type=text],html.theme-light input[type=password],html.theme-light input[type=number],html.theme-light input[type=search],html.theme-light select,html.theme-light textarea{background:#ffffff;color:var(--txt);border-color:var(--border)}' +
+                'html.theme-light input:focus,html.theme-light select:focus,html.theme-light textarea:focus{border-color:var(--acc);outline:none}' +
+                'html.theme-light input::placeholder{color:#94a3b8}' +
+                /* Containers de form/grp/cards */
+                'html.theme-light .frm-box,html.theme-light .grp,html.theme-light .sensor-card,html.theme-light .builder-box,html.theme-light .stats-inline,html.theme-light .sound-item,html.theme-light .vol-row{background:#f8fafc;border-color:var(--border)}' +
+                /* Code / pre / preview */
+                'html.theme-light pre,html.theme-light #preview{background:#f1f5f9;color:#334155;border-color:var(--border)}' +
+                'html.theme-light .highlight{color:#0e7490}' +
+                /* Logs / tabelas */
+                'html.theme-light .log-box{background:#ffffff;border-color:var(--border)}' +
+                'html.theme-light .log-table th{background:#f8fafc;color:var(--sub);border-bottom-color:var(--border)}' +
+                'html.theme-light .log-table td{border-bottom-color:var(--border);color:var(--txt)}' +
+                'html.theme-light table th,html.theme-light table td{border-bottom-color:var(--border)}' +
+                'html.theme-light .log-inf{color:var(--acc)}' +
+                /* Chart */
+                'html.theme-light .chart-box{background:#ffffff;border-color:var(--border)}' +
+                'html.theme-light .chart-overlay{background:rgba(255,255,255,0.88);color:var(--sub)}' +
+                /* Buttons / badges */
+                'html.theme-light .btn-action{background:#e2e8f0;color:var(--txt)}' +
+                'html.theme-light .btn-action:hover{background:#cbd5e1}' +
+                'html.theme-light .btn-dang{background:transparent;color:var(--dang);border-color:var(--dang)}' +
+                'html.theme-light .btn-dang:hover{background:var(--dang);color:#ffffff}' +
+                'html.theme-light .bottom-controls button{background:#ffffff;color:var(--txt);border-color:var(--border)}' +
+                'html.theme-light .bottom-controls button.active{background:var(--acc);color:#ffffff;border-color:var(--acc)}' +
+                'html.theme-light .cal-header-row button{background:#ffffff;color:var(--txt);border-color:var(--border)}' +
+                'html.theme-light .badge{background:#e2e8f0;color:var(--txt)}' +
+                'html.theme-light .badge.full{background:var(--acc);color:#ffffff}' +
+                /* Form submit primário */
+                'html.theme-light button[type=submit],html.theme-light .frm-box button[type=submit]{background:var(--acc);color:#ffffff}' +
+                'html.theme-light button[type=submit]:disabled{background:#cbd5e1;color:#94a3b8}' +
+                /* Calendar */
+                'html.theme-light .cal-cell{color:#94a3b8}' +
+                'html.theme-light .cal-cell.has-data{background:rgba(14,116,144,0.1);color:var(--acc);border-color:rgba(14,116,144,0.3)}' +
+                'html.theme-light .cal-cell.selected{background:var(--acc);color:#ffffff;border-color:var(--acc)}' +
+                'html.theme-light .cal-dow{color:var(--sub)}' +
+                /* Sound toggle */
+                'html.theme-light .toggle .slider{background:#cbd5e1}' +
+                'html.theme-light .mel-sel{background:#ffffff;color:var(--txt);border-color:var(--border)}' +
+                'html.theme-light .btn-test{background:transparent;color:var(--sub);border-color:var(--border)}' +
+                'html.theme-light .btn-test:hover{color:var(--acc);border-color:var(--acc)}' +
+                /* Progress bars */
+                'html.theme-light .progress-track{background:#ffffff;border-color:var(--border)}' +
+                /* Theme toggle button no light mode */
+                'html.theme-light #theme-toggle{color:var(--sub);border-color:var(--border)}' +
+                'html.theme-light #theme-toggle:hover{color:var(--acc);border-color:var(--acc)}' +
+                /* License page pre com scroll */
+                'html.theme-light .lic-link{color:var(--sub)}';
+            document.head.appendChild(s);
+        }
+
+        const pill = document.querySelector('.topbar .status-pill');
+        if (!pill) return;
+
+        /* Ensure flex wrapper around pill so extras (commit btn, theme toggle)
+         * align cleanly to the right of status. */
+        let wrap = pill.parentNode;
+        if (!(wrap.style && wrap.style.display === 'flex')) {
+            const w = document.createElement('div');
+            w.style.cssText = 'display:flex;align-items:center;gap:12px';
+            wrap.replaceChild(w, pill);
+            w.appendChild(pill);
+            wrap = w;
+        }
+
+        /* Commit button (só cria uma vez) */
+        if (!document.getElementById('commit-btn')) {
+            const btn = document.createElement('button');
+            btn.id = 'commit-btn';
+            btn.type = 'button';
+            btn.onclick = commitAll;
+            btn.innerText = (window.t ? window.t('commit_btn', '💾 Salvar e Reiniciar') : '💾 Save & Restart');
+            btn.setAttribute('data-i18n', 'commit_btn');
+            wrap.insertBefore(btn, pill);
+        }
+
+        /* Theme toggle (só cria uma vez) */
+        if (!document.getElementById('theme-toggle')) {
+            const tbtn = document.createElement('button');
+            tbtn.id = 'theme-toggle';
+            tbtn.type = 'button';
+            tbtn.onclick = toggleTheme;
+            tbtn.setAttribute('aria-label', 'Toggle theme');
+            tbtn.setAttribute('title', 'Alternar tema claro/escuro');
+            wrap.insertBefore(tbtn, pill);
+            /* Atualiza ícone conforme tema corrente */
+            _refreshThemeIcon();
+        }
+
+        if (window.Pending) Pending.refreshUI();
+    };
+
+    /* Tema claro/escuro — preferência do user (localStorage, por browser).
+     * applyTheme é chamado cedo (antes de DOMContentLoaded) pra evitar
+     * flash de tema errado. Fallback: dark. */
+    function _refreshThemeIcon() {
+        const btn = document.getElementById('theme-toggle');
+        if (!btn) return;
+        const isLight = document.documentElement.classList.contains('theme-light');
+        /* Mostra o ícone do DESTINO (clique alterna pra este). */
+        btn.innerText = isLight ? '🌙' : '☀';
+    }
+    window.applyTheme = function(t) {
+        const root = document.documentElement;
+        if (t === 'light') root.classList.add('theme-light');
+        else root.classList.remove('theme-light');
+        _refreshThemeIcon();
+    };
+    window.toggleTheme = function() {
+        const cur = localStorage.getItem('simut_ui_theme') || 'dark';
+        const next = (cur === 'dark') ? 'light' : 'dark';
+        localStorage.setItem('simut_ui_theme', next);
+        applyTheme(next);
+    };
+    /* Apply saved theme ASAP (antes de DOMContentLoaded) */
+    applyTheme(localStorage.getItem('simut_ui_theme') || 'dark');
+
+    /* Versão: lê do /api/perms e coloca ao lado de "SIMUT" na topbar.
+     * Rola sempre que a página carrega; se endpoint falhar, mantém " IoT". */
+    window.applyVersion = function(v) {
+        if (!v) return;
+        document.querySelectorAll('.brand > span').forEach(s => {
+            s.textContent = ' ' + v;
+        });
+    };
+
+    /* Ordem importa: install PRIMEIRO (cria botões), depois init
+     * (Pending.refreshUI encontra o botão e mostra/esconde). */
+    document.addEventListener('DOMContentLoaded', () => {
+        if (window.installCommitInfra) installCommitInfra();
+        if (window.Pending) Pending.init();
+        /* Busca versão e aplica no brand. Usa perms que todas as páginas
+         * já chamam; essa chamada é barata e cacheável se quisermos depois. */
+        fetch('/api/perms', { credentials: 'same-origin' })
+            .then(r => r.ok ? r.json() : null)
+            .then(d => { if (d && d.version) applyVersion(d.version); })
+            .catch(() => {});
+    });
 )raw";
 
 
