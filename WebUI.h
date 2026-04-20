@@ -2175,12 +2175,97 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .chk-lbl input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--acc); cursor: pointer; }
         .frm-box button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; font-size:1rem; transition:0.2s;}
         .frm-box button[type=submit]:hover { opacity:0.9; }
+        #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
+        #commit-btn:hover { background: #15803d; }
+        #commit-btn:disabled { opacity: 0.6; cursor: wait; }
+        tr.pending-del { opacity: 0.5; text-decoration: line-through; }
+        tr.pending-add { background: rgba(22,163,74,0.1); }
+        .badge.pending { background: #f59e0b; color: #000; font-weight: bold; }
     </style>
     <script>
         window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
         function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
         function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
         window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+
+        /* U24 Phase B — Pending Changes Manager (duplicado de /config e /alarms). */
+        window.Pending = {
+            data: {},
+            init() {
+                try { this.data = JSON.parse(sessionStorage.getItem('simut_pending') || '{}'); } catch(e) { this.data = {}; }
+                this.refreshUI();
+            },
+            setSection(section, obj) {
+                this.data[section] = obj;
+                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
+                this.refreshUI();
+                this.maybeNotify();
+            },
+            getSection(section) { return this.data[section] || null; },
+            pushUserAction(action) {
+                if (!this.data.users) this.data.users = { actions: [] };
+                this.data.users.actions.push(action);
+                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
+                this.refreshUI();
+                this.maybeNotify();
+            },
+            popUserAction() {
+                if (!this.data.users || !this.data.users.actions || this.data.users.actions.length === 0) return;
+                this.data.users.actions.pop();
+                if (this.data.users.actions.length === 0) delete this.data.users;
+                sessionStorage.setItem('simut_pending', JSON.stringify(this.data));
+                this.refreshUI();
+            },
+            maybeNotify() {
+                if (!sessionStorage.getItem('simut_pending_notified')) {
+                    sessionStorage.setItem('simut_pending_notified', '1');
+                    if (typeof showToast === 'function') {
+                        showToast(window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.'), 'warn', 5000);
+                    }
+                }
+            },
+            clear() {
+                this.data = {};
+                sessionStorage.removeItem('simut_pending');
+                sessionStorage.removeItem('simut_pending_notified');
+                this.refreshUI();
+            },
+            hasAny() { return Object.keys(this.data).some(k => { const s = this.data[k]; return s && (Array.isArray(s) ? s.length > 0 : Object.keys(s).length > 0); }); },
+            refreshUI() {
+                const btn = document.getElementById('commit-btn');
+                if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
+            }
+        };
+
+        async function commitAll() {
+            const msg = window.t('commit_confirm',
+                'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
+                '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
+                'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
+                'Continuar?');
+            if (!confirm(msg)) return;
+            const btn = document.getElementById('commit-btn');
+            if (btn) { btn.disabled = true; btn.innerText = '...'; }
+            try {
+                const fd = new URLSearchParams();
+                fd.set('_payload', JSON.stringify(Pending.data));
+                const r = await fetchSafe('/api/commit_all', { method: 'POST', body: fd, retries: 0, timeout: 20000 });
+                if (r.ok) {
+                    Pending.clear();
+                    showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
+                    setTimeout(() => { window.location.reload(); }, 12000);
+                } else {
+                    showToast(window.t('commit_err', 'Falha ao salvar.'), 'err');
+                    if (btn) { btn.disabled = false; btn.innerText = window.t('commit_btn', 'Salvar e Reiniciar'); }
+                }
+            } catch(e) {
+                Pending.clear();
+                showToast(window.t('commit_saved', 'Salvo! Reiniciando sistema...'), 'ok', 20000);
+                setTimeout(() => { window.location.reload(); }, 12000);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { if (window.Pending) Pending.init(); });
     </script>
 </head>
 <body>
@@ -2190,9 +2275,12 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
-            <span id="status-ip">--</span>
+        <div style="display:flex;align-items:center;gap:12px">
+            <button id="commit-btn" onclick="commitAll()" data-i18n="commit_btn">💾 Salvar e Reiniciar</button>
+            <div class="status-pill">
+                <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+                <span id="status-ip">--</span>
+            </div>
         </div>
     </div>
     <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
@@ -2288,62 +2376,87 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </div>
 
     <script>
+        /* U24 Phase B: ações de usuário viram pending actions (add/del/reset).
+         * loadUsers renderiza estado do server + overlay dos pendings como
+         * linhas novas (add), strikethrough (del) ou badge (reset). */
+        function renderPermsBadges(perms, isSuper) {
+            if (isSuper) return `<span class="badge full" data-i18n="usr_sup">${window.t('usr_sup','Super Admin')}</span>`;
+            let arr = [];
+            const map = [[1,'usr_pdash','Dashboard'],[2,'usr_phist','History'],[4,'usr_plog','Logs'],[8,'usr_psys','Sys Config'],[16,'usr_pnet','Net Config'],[32,'usr_pfr','Files Read'],[64,'usr_pfu','Files Up'],[128,'usr_pfd','Files Del'],[256,'usr_pusr','Users']];
+            map.forEach(([bit, key, def]) => { if (perms & bit) arr.push(`<span class="badge full" data-i18n="${key}">${window.t(key, def)}</span>`); });
+            return arr.join('');
+        }
+
         async function loadUsers() {
             try {
                 let res = await fetchSafe('/api/users');
                 let data = await res.json();
+                const pending = (Pending.getSection('users') || {}).actions || [];
+                const pendingDels = new Set(pending.filter(a => a.type === 'del').map(a => a.id));
+                const pendingRsts = new Set(pending.filter(a => a.type === 'reset').map(a => a.id));
+                const pendingAdds = pending.filter(a => a.type === 'add');
+
                 let tbody = document.getElementById('usrBody');
                 let html = '';
+                /* Usuários existentes do server */
                 data.forEach(u => {
-                    let perms = [];
-                    if(u.perms & 1) perms.push(`<span class="badge full" data-i18n="usr_pdash">${window.t('usr_pdash','Dashboard')}</span>`);
-                    if(u.perms & 2) perms.push(`<span class="badge full" data-i18n="usr_phist">${window.t('usr_phist','History')}</span>`);
-                    if(u.perms & 4) perms.push(`<span class="badge full" data-i18n="usr_plog">${window.t('usr_plog','Logs')}</span>`);
-                    if(u.perms & 8) perms.push(`<span class="badge full" data-i18n="usr_psys">${window.t('usr_psys','Sys Config')}</span>`);
-                    if(u.perms & 16) perms.push(`<span class="badge full" data-i18n="usr_pnet">${window.t('usr_pnet','Net Config')}</span>`);
-                    if(u.perms & 32) perms.push(`<span class="badge full" data-i18n="usr_pfr">${window.t('usr_pfr','Files Read')}</span>`);
-                    if(u.perms & 64) perms.push(`<span class="badge full" data-i18n="usr_pfu">${window.t('usr_pfu','Files Up')}</span>`);
-                    if(u.perms & 128) perms.push(`<span class="badge full" data-i18n="usr_pfd">${window.t('usr_pfd','Files Del')}</span>`);
-                    if(u.perms & 256) perms.push(`<span class="badge full" data-i18n="usr_pusr">${window.t('usr_pusr','Users')}</span>`);
-                    if(u.id === 0) perms = [`<span class="badge full" data-i18n="usr_sup">${window.t('usr_sup','Super Admin')}</span>`];
-
-                    let actions = (u.id === 0) ? `<span class="badge" data-i18n="usr_prot">${window.t('usr_prot','Protected')}</span>` :
-                        `<button class="btn-action" onclick="rstUsr(${u.id})" data-i18n="usr_rst">${window.t('usr_rst','Reset')}</button> <button class="btn-dang" onclick="delUsr(${u.id})" data-i18n="usr_del">${window.t('usr_del','Del')}</button>`;
-
-                    html += `<tr><td>${u.id}</td><td style="font-weight:bold;color:var(--txt)">${u.name}</td><td>${perms.join('')}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
+                    const isSuper = (u.id === 0);
+                    const isDel = pendingDels.has(u.id);
+                    const isRst = pendingRsts.has(u.id);
+                    const rowCls = isDel ? 'pending-del' : '';
+                    let actions;
+                    if (isSuper) {
+                        actions = `<span class="badge" data-i18n="usr_prot">${window.t('usr_prot','Protected')}</span>`;
+                    } else if (isDel) {
+                        actions = `<span class="badge pending">${window.t('usr_pend_del','Pendente: Excluir')}</span>`;
+                    } else {
+                        let rstBtn = isRst
+                            ? `<span class="badge pending">${window.t('usr_pend_rst','Pendente: Reset')}</span>`
+                            : `<button class="btn-action" onclick="rstUsr(${u.id})" data-i18n="usr_rst">${window.t('usr_rst','Reset')}</button>`;
+                        actions = `${rstBtn} <button class="btn-dang" onclick="delUsr(${u.id})" data-i18n="usr_del">${window.t('usr_del','Del')}</button>`;
+                    }
+                    html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--txt)">${u.name}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
+                });
+                /* Usuários pendentes de criação */
+                pendingAdds.forEach((a, i) => {
+                    html += `<tr class="pending-add"><td>—</td><td style="font-weight:bold;color:var(--txt)">${a.name} <span class="badge pending">${window.t('usr_pend_add','Pendente: Novo')}</span></td><td>${renderPermsBadges(a.perms, false)}</td><td style="text-align:center; white-space:nowrap;"><button class="btn-dang" onclick="undoLastAdd()">↶</button></td></tr>`;
                 });
                 tbody.innerHTML = html;
+                applyLang();
             } catch(e) {}
         }
 
-        async function addUser(e) {
+        function addUser(e) {
             e.preventDefault();
-            let btn = document.getElementById('btnUser'); let orig = btn.innerText; btn.innerText = "..."; btn.disabled = true;
-            try {
-                let fd = new URLSearchParams(new FormData(e.target));
-                let r = await fetchSafe('/api/user_add', { method: 'POST', body: fd });
-                if(r.ok) { document.getElementById('u_name').value = ''; loadUsers(); showToast(window.t('usr_added','User added.'), 'ok'); }
-                else if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); }
-                else { showToast(window.t('usr_add_err','Failed or limits reached.'), 'err'); }
-            } catch(ex) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
-            btn.innerText = orig; btn.disabled = false;
+            const name = document.getElementById('u_name').value.trim();
+            if (!name) return;
+            let perms = 0;
+            const bits = {p_dash:1, p_hist:2, p_logs:4, p_sys:8, p_net:16, p_fread:32, p_fupl:64, p_fdel:128, p_usr:256};
+            document.querySelectorAll('#u_name').forEach(() => {});
+            Object.keys(bits).forEach(k => { const el = document.querySelector(`input[name="${k}"]`); if (el && el.checked) perms |= bits[k]; });
+            Pending.pushUserAction({ type: 'add', name: name, perms: perms });
+            document.getElementById('u_name').value = '';
+            document.querySelectorAll('.chk-grid input[type=checkbox]').forEach(c => c.checked = false);
+            loadUsers();
         }
 
-        async function delUsr(id) {
-            if(!confirm(window.t('usr_del_msg', 'Permanently delete user?'))) return;
-            try {
-                let r = await fetchSafe('/api/user_del', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'id='+id });
-                if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); return; }
-                loadUsers(); showToast(window.t('usr_deleted','User deleted.'), 'ok');
-            } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
+        function delUsr(id) {
+            if (!confirm(window.t('usr_del_msg', 'Excluir este usuário? Será aplicado ao clicar em Salvar e Reiniciar.'))) return;
+            Pending.pushUserAction({ type: 'del', id: id });
+            loadUsers();
         }
-        async function rstUsr(id) {
-            if(!confirm(window.t('usr_rst_msg', 'Force user to reset password on next login?'))) return;
-            try {
-                let r = await fetchSafe('/api/user_rst', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: 'id='+id });
-                if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); return; }
-                loadUsers(); showToast(window.t('usr_reset','Password reset forced.'), 'ok');
-            } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
+
+        function rstUsr(id) {
+            if (!confirm(window.t('usr_rst_msg', 'Forçar reset de senha no próximo login? Será aplicado ao clicar em Salvar e Reiniciar.'))) return;
+            Pending.pushUserAction({ type: 'reset', id: id });
+            loadUsers();
+        }
+
+        /* Undo da última ação (só do tipo 'add' via botão ↶; desfaz última
+         * ação qualquer). */
+        function undoLastAdd() {
+            Pending.popUserAction();
+            loadUsers();
         }
 
         window.onLangChange = function() { loadUsers(); };
