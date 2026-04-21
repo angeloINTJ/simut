@@ -1061,6 +1061,22 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
         }
 
+        case CMD_FACTORY_RESET: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.confirmed) {
+                _cmdMgr.printInfo(pt ? "ATENCAO: factory reset APAGA TODA config + reboot."
+                                     : "WARN: factory reset WIPES ALL config + reboots.");
+                _cmdMgr.printInfo(pt ? "Use 'conf system factory confirm'."
+                                     : "Run 'conf system factory confirm'.");
+                break;
+            }
+            LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Factory reset", "Factory reset"));
+            _storageMgr.resetToFactory();
+            delay(100);
+            LogManager::instance().markCleanReboot();
+            rp2040.reboot();
+        }
+
         case CMD_DEFINE_SENSOR: {
             const bool pt = _cmdMgr.isPt();
             if (!cmd.intVal1Valid) {

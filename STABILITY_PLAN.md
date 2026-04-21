@@ -436,10 +436,13 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F13.1 BUG-005 | ✅ Concluída (HW validada) | `ea799f5` | — | 2026-04-21 |
 |   · F13.2 BUG-004 | ✅ Concluída (HW validada) | `04b5515` | — | 2026-04-21 |
 |   · F13.3 BUG-002 | ✅ Concluída (HW validada) | `1dee6ca` | — | 2026-04-21 |
-|   · F13.4 BUG-003 | ✅ Concluída (HW validada, exceto teste 3 rolagem diária — depende de feature manual time, a ser adicionada pós-v3.21.0) | — | — | 2026-04-21 |
-| **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.22.0) | — |
-| **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.23.0) | — |
-| **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.24.0) | — |
+|   · F13.4 BUG-003 | ✅ Concluída (HW validada, exceto teste 3 rolagem diária — habilitado por feature manual time em v3.22.0+) | `b7161d2` | — | 2026-04-21 |
+|   · F13.4b revert template→macro (flash economy) | ✅ HW validada | em v3.22.0 | — | 2026-04-21 |
+| **F-I18N-TRIM.1 (feature fora da auditoria)** | ✅ Concluída (HW validada) | em v3.22.0 | `v3.22.0` | 2026-04-21 |
+| **F-NET-TIME.1 + 1b (feature fora da auditoria)** | ✅ Concluída (HW validada) | em v3.22.0 | `v3.22.0` | 2026-04-21 |
+| **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
+| **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
+| **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 
 ### Legenda de Status
