@@ -456,7 +456,8 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · CON-004 — `_lastSavedCrc` → membro privado de `StorageManager` | ✅ HW validada | `8537feb` | — | 2026-04-21 |
 |   · CON-006 — `DS18B20_CONVERSION_TIME_MS` + `DHT22_READ_TIMEOUT_MS` em `SystemDefs.h` | ✅ HW validada | `9690a90` | — | 2026-04-21 |
 |   · CON-005a — `LoginState.nonce` → `char[65]` | ✅ HW validada | `40795d2` | — | 2026-04-21 |
-|   · CON-005b — `CliDemand.strVal1/2` → `char[64]` | ✅ HW validada | em v3.23.8 | — | 2026-04-21 |
+|   · CON-005b — `CliDemand.strVal1/2` → `char[64]` | ✅ HW validada | `2e98a3e` | — | 2026-04-21 |
+|   · DOC-003 — `SECURITY.md` raiz (threat model + defesas + operações) | ✅ Doc puro | em v3.23.9 | — | 2026-04-21 |
 
 **Débitos técnicos descobertos em CON-005b (pré-existentes, fora de escopo):**
 - **F-LOCKOUT-STUCK** — primeiro `write memory` com mudança real após longo idle pode disparar `[DSP] Lockout stuck >10s, restarting Core 1` (2×). Saves subsequentes OK. Não afeta integridade (config grava corretamente). Provável fragmentação de heap pós-telemetria ou GC do LittleFS. Investigar em ciclo futuro.
