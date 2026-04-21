@@ -449,7 +449,7 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F-NET-TIME.5b — fechamento (regressão acumulada ao longo do path) | ✅ | em v3.23.0 | — | 2026-04-21 |
 | **F-IP-FIX (fora da auditoria)** | ✅ HW validada | `0860d21` | — | 2026-04-21 |
 |   Ordem de args em `WiFi.config` corrigida para padrão arduino-pico (ip, dns, gw, mask). Bug pré-existente desde v3.4.8 que impedia modo IP static de associar. | — | — | — | — |
-| **F14 (auditoria — em andamento)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.24.0) | — |
+| **F14 (auditoria)** | ✅ Concluída | `stability-fixes-tier1` | v3.24.0 | 2026-04-21 |
 |   · WEB-001 — escape JSON em `/api/ls` (filename+dirname) + auto-test shell | ✅ HW validada via `tools/test_web001.sh` | `1826a85` | — | 2026-04-21 |
 |   · REF-004 — `TouchPriority` singleton (remove 3 setters + 3 membros + 3 lambdas duplicadas) | ✅ HW validada (503 pós-touch em commit_all) | `b8b9314` | — | 2026-04-21 |
 |   · CON-002 — `LanguageCode` enum + `LANG_COUNT` + `static_assert` | ✅ HW validada | `62bfa0c` | — | 2026-04-21 |
@@ -466,7 +466,7 @@ Atualize esta tabela conforme cada fase for concluída.
 **Débitos técnicos descobertos em CON-005b (pré-existentes, fora de escopo):**
 - **F-LOCKOUT-STUCK** — primeiro `write memory` com mudança real após longo idle pode disparar `[DSP] Lockout stuck >10s, restarting Core 1` (2×). Saves subsequentes OK. Não afeta integridade (config grava corretamente). Provável fragmentação de heap pós-telemetria ou GC do LittleFS. Investigar em ciclo futuro.
 - **Tokenizer não strip aspas** — `conf system ssid "X"` salva com aspas literais. Também `isValidName` rejeita hífen em nome. Polish de UX para futuro.
-| **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
+| **F14 — Inconsistências + docs + CON/DOC** | ✅ Concluída | `stability-fixes-tier1` | v3.24.0 | 2026-04-21 |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
