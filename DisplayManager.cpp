@@ -973,7 +973,7 @@ void DisplayManager::loopCore1() {
                 int alarmCount = 0;
                 while (m) { alarmCount += (m & 1); m >>= 1; }
 
-                if (alarmCount >= 2 && (millis() - _alarmRotateTimer >= 3000)) {
+                if (alarmCount >= 2 && (millis() - _alarmRotateTimer >= ALARM_ROTATE_INTERVAL_MS)) {
                     _alarmRotateTimer = millis();
                     int current = _lastRenderedState.selectedSlotIdx;
                     for (int i = 1; i <= 10; i++) {
@@ -995,7 +995,7 @@ void DisplayManager::loopCore1() {
 
             if (isAnyAlarmActive()) {
                 uint32_t now = millis();
-                if (now - _alarmFlashTimer >= 600) {
+                if (now - _alarmFlashTimer >= ALARM_FLASH_INTERVAL_MS) {
                     _alarmFlashTimer = now;
                     _alarmFlashPhase = !_alarmFlashPhase;
                     if (!_webOverlayShown) {
@@ -1358,7 +1358,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
     bool showingNotify = false;
     if (!showingSilence && _webNotifyStartMs > 0) {
         uint32_t elapsed = millis() - _webNotifyStartMs;
-        if (elapsed < 5000) {
+        if (elapsed < WEB_NOTIFY_DURATION_MS) {
             showingNotify = true;
             _canvasWide->setFont(&FreeSansBold9pt7b);
             _canvasWide->setTextColor(C_ACCENT_HIGH);
