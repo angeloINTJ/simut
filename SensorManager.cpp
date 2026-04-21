@@ -437,7 +437,7 @@ void SensorManager::processPeriodicReads() {
                 _dhtState = DHT_IDLE;
             }
 
-            else if (millis() - _dhtTimer > 100) {
+            else if (millis() - _dhtTimer > DHT22_READ_TIMEOUT_MS) {
                 handleSensorResult(s, false, 0, 0, "Sensor Timeout");
                 _dhtSensor.reset();
                 s.lastReadTime = millis();

@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.23.10"        /* Firmware version string */
+#define SIMUT_VERSION "v3.23.11"        /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -87,6 +87,29 @@ constexpr uint32_t DS18B20_CONVERSION_TIME_MS = 750;
  * ausente ou com problema.
  */
 constexpr uint32_t DHT22_READ_TIMEOUT_MS      = 150;
+
+
+/* =========================================================================== */
+/*                         BOOT & UI TIMING (DOC-002)                          */
+/* =========================================================================== */
+
+/** Intervalo entre incrementos da animação "..." na tela de espera de boot
+ *  (AppManager aguardando WiFi/NTP). Um dot a cada 800 ms dá feedback visual
+ *  sem ruído de redraw. */
+constexpr uint32_t BOOT_WAIT_DOT_INTERVAL_MS = 800;
+
+/** Intervalo de rotação automática de slot no dashboard quando há 2+ alarmes
+ *  ativos simultâneos. 3 s dá tempo de o usuário ler cada slot. */
+constexpr uint32_t ALARM_ROTATE_INTERVAL_MS  = 3000;
+
+/** Meia-período do flash de alarme no dashboard (ms). Ciclo completo = 2×
+ *  este valor (on→off→on). 600 ms resulta em ~0.83 Hz — visível mas não
+ *  agressivo. */
+constexpr uint32_t ALARM_FLASH_INTERVAL_MS   = 600;
+
+/** Duração do toast "Web: <user>" no header do dashboard após um login web
+ *  bem-sucedido (ms). */
+constexpr uint32_t WEB_NOTIFY_DURATION_MS    = 5000;
 
 
 /* =========================================================================== */

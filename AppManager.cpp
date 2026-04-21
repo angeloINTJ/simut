@@ -297,7 +297,7 @@ void AppManager::setup() {
                 break;
             }
 
-            if (millis() - lastMsg > 800) {
+            if (millis() - lastMsg > BOOT_WAIT_DOT_INTERVAL_MS) {
                 dotCount++;
                 if (dotCount > 4) dotCount = 0;
                 String dots = "";
