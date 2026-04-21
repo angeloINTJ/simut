@@ -64,6 +64,9 @@ private:
     struct RateEntry { uint32_t ip = 0; uint32_t lastReq = 0; uint8_t hits = 0; };
     RateEntry _rateLimits[RATE_LIMIT_SLOTS];
     File _uploadFile;
+    /* SEC-001/F12.1: marca upload rejeitado no START para que WRITE/END
+     * virem no-op e `handleUploadComplete` responda 400 em vez de 200. */
+    bool _uploadRejected = false;
 
 
     uint32_t _cachedFsTotalBytes = 0;

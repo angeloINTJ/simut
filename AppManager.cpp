@@ -160,6 +160,31 @@ void AppManager::setup() {
 
     if (!fsOk) LOG_CODE(LOG_ERROR, "APP", APP_STORAGE_CRITICAL, 0, TRL("Storage Critical Failure!", "Falha critica de storage!"));
 
+    /* SEC-003/F12.3: se o dispositivo subiu em factory defaults (config
+     * inexistente ou corrompida nos dois bancos), exibe a senha inicial
+     * aleatória no Serial — exige acesso físico USB. Também loga no FS via
+     * LOG_CODE pra trilha de auditoria. Plaintext nunca persiste em flash. */
+    if (_storageMgr.isFactoryDefaults()) {
+        const char* pw = _storageMgr.getInitialAdminPassword();
+        if (pw && pw[0] != '\0') {
+            Serial.println(F("\n=============================================="));
+            Serial.println(F("  SEC-003: FACTORY DEFAULTS ATIVADO"));
+            Serial.print  (F("  Senha ADMIN inicial: "));
+            Serial.println(pw);
+            Serial.println(F("  Trocar no primeiro login (forcado)."));
+            Serial.println(F("=============================================="));
+            LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, 0,
+                     TRL("Factory defaults active; initial admin pass on USB/serial.",
+                         "Factory defaults ativos; senha admin via USB/serial."));
+        } else {
+            /* Caso raro: factory detectado mas plaintext não está em RAM
+             * (loadConfiguration limpou após fallback). Avisa sem vazar. */
+            LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, 0,
+                     TRL("Factory defaults active; password regen required.",
+                         "Factory defaults ativos; reset admin para gerar senha."));
+        }
+    }
+
     uint32_t lastTs = _storageMgr.getLastRecordedTimestamp();
     _netMgr.setProvisionalTime(lastTs);
     _netMgr.setTimeSyncCallback([](uint32_t bootTs, int32_t delta) {
@@ -980,19 +1005,38 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_RESET_ADMIN: {
             if (!cmd.confirmed) {
                 const bool pt = _cmdMgr.isPt();
-                _cmdMgr.printInfo(pt ? "ATENCAO: reseta senha do admin p/ 'simut'."
-                                     : "WARN: resets admin password to 'simut'.");
+                _cmdMgr.printInfo(pt ? "ATENCAO: reseta senha do admin p/ aleatoria."
+                                     : "WARN: resets admin password to random 8-char.");
                 _cmdMgr.printInfo(pt ? "Use 'conf system admin reset confirm'."
                                      : "Run 'conf system admin reset confirm'.");
                 break;
             }
-            String hashed = _storageMgr.hashPassword("admin", "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918");
+            /* SEC-003/F12.3: gera senha random no reset CLI também (em vez de "simut"
+             * hardcoded, que era tão vulnerável quanto o "admin" pré-patch). Mostra
+             * no próprio CLI — quem pode rodar o comando já tem acesso USB. */
+            char newPlain[9];
+            _storageMgr.generateInitialAdminPassword(newPlain, sizeof(newPlain));
+            String preHash = _storageMgr.sha256Hex(String(newPlain));
+            String hashed = _storageMgr.hashPassword("admin", preHash);
             safeCopy(cfg.users[0].password, hashed.c_str(), sizeof(cfg.users[0].password));
             cfg.users[0].password[31] = '\0';
             cfg.users[0].mustChangePassword = true;
-            _cmdMgr.printInfo(_cmdMgr.isPt()
-                ? "Senha do admin resetada. Use 'simut'."
-                : "Admin Password reset. Use 'simut' via web.");
+            const bool pt = _cmdMgr.isPt();
+            _cmdMgr.printInfo(pt ? "Senha admin resetada. Nova senha (unica vez):"
+                                 : "Admin password reset. New password (shown once):");
+            _cmdMgr.printInfo(String("  ") + newPlain);
+            _cmdMgr.printInfo(pt ? "Trocar no 1o login via web (forcado)."
+                                 : "Change on 1st web login (forced).");
+            /* Zera plaintext local após log; storage mantém seu próprio buffer RAM
+             * também atualizado para que o banner do Serial/isFactoryDefaults
+             * reflita a senha atual. */
+            // Atualiza o buffer interno do storage (se getter exposto, usa):
+            // Como não há setter público, cria via loadDefaults seria destrutivo.
+            // Alternativa: expor setter, ou deixar que o próximo boot mostre nada.
+            // Decisão: só mostrar no CLI aqui e não persistir em RAM. Admin que
+            // rodou o comando pode anotar; se perdeu, roda de novo (é idempotente).
+            volatile char* v = newPlain;
+            for (size_t i = 0; i < sizeof(newPlain); i++) v[i] = 0;
             changed = true;
             break;
         }
@@ -1721,6 +1765,13 @@ void AppManager::core0Yield() {
                     _displayMgr.setAlarmDeactivated(true);
                     _displayMgr.forceDashboard();
                     LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, 0, "");
+                } else if (_storageMgr.mustChangePin()) {
+                    /* SEC-004/F12.4: PIN ainda é o default factory "1234";
+                     * força a tela de troca antes de permitir menu principal. */
+                    _displayMgr.showSettingsPassword();
+                    LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, 0,
+                             TRL("Default PIN detected; forcing change.",
+                                 "PIN padrao detectado; forcando troca."));
                 } else {
                     _displayMgr.showSettingsMain();
                 }
@@ -1844,8 +1895,16 @@ void AppManager::core0Yield() {
                 char newPwd[9];
                 _displayMgr.getNewPassword(newPwd, sizeof(newPwd));
                 if (strlen(newPwd) >= 4 && strlen(newPwd) <= 7) {
+                    /* SEC-004/F12.4: só limpa mustChangePin se o usuário
+                     * escolheu PIN != default "1234". Se setou "1234" de novo,
+                     * mantém flag ativa — não resolve nada trocar para o mesmo.
+                     * Note: "1234" ainda é aceito como valor; a política só
+                     * impede que conte como "troca real". */
                     safeCopy(cfg.displayPin, newPwd, sizeof(cfg.displayPin));
                     cfg.displayPin[7] = '\0';
+                    if (strcmp(newPwd, "1234") != 0) {
+                        _storageMgr.clearMustChangePin();
+                    }
                     _storageMgr.saveConfiguration();
                     _soundMgr.play(SND_CONFIRM);
                     LOG_CODE(LOG_INFO, "APP", APP_UI_PIN_CHANGED, 0, "");

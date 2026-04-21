@@ -88,6 +88,72 @@ Legenda: 🔴 **Crítica** · 🟠 **Alta** · 🟡 **Média** · 🟢 **Baixa**
 | **U14** | 🔴 | `LogManager.cpp:412` | `elapsed = now - lastBeat` unsigned subtract dispara soft panic falso em cross-core race (lastBeat levemente adiantado → underflow ≈ UINT32_MAX > 8000). Mesmo bug na checagem `millis() - beat` de Core 1 dead em `AppManager.cpp:446`. Autópsia confundia `rp2040.reboot()` com HW watchdog. | Reboots fantasma não reprodutíveis desde F7 (2026-04-18). |
 | **U15** | 🔴 | `LogManager.cpp:252` | `writeCompactToFlash` / `flushPendingLogs` sem feeds de watchdog entre LittleFS open/write/close. Sob LittleFS >70%, GC interno bloqueia por segundos. `LOG_CODE` chamado dentro de rotas internas (ex.: `BluetoothManager::update` no login) excede WDT de 8.3s. | HW WATCHDOG em login BT. |
 
+### 2.4 Auditoria técnica v3.19.0 (2026-04-20)
+
+Achados da auditoria externa documentada em `SIMUT_Audit_Report.md`. IDs herdam o prefixo do relatório original (`SEC-`, `BUG-`, `CON-`, `MEM-`, `PER-`, `REF-`, `DOC-`) para rastreabilidade cruzada.
+
+#### Segurança (SEC)
+
+| ID | Sev | Arquivo:linha | Problema | Impacto |
+|----|----|---|---|---|
+| **SEC-001** | 🔴 | `WebManager.cpp:1795` | `upload.filename` usado sem sanitização; path traversal via `../config/system.bin`. | Sobrescrita de config/users por usuário com `PERM_FILE_UPLOAD`. |
+| **SEC-002** | 🟠 | `WebManager.cpp:1819` | `targetDir.replace("..","")` não-recursivo bypassa com `"...."` ou `%2e%2e`. | Escape do diretório de upload. |
+| **SEC-003** | 🟠 | `StorageManager.cpp:165` | `admin/admin` e `viewer/viewer` hardcoded (hash SHA-256 conhecido). | Janela de setup + pós factory reset vulnerável. |
+| **SEC-004** | 🟠 | `StorageManager.cpp:206` | PIN `"1234"` no display sem flag `mustChangePin`. | Acesso físico não exige troca. |
+| **SEC-005** | 🟠 | `CommandManager.cpp:84,105` | `_usbBuffer += c` e `_btBuffer += c` sem bound-check. | DoS de heap via stream USB sem `\n`. |
+| **SEC-006** | 🟡 | `WebManager.cpp:794` | LRU evict de `_loginStates[8]` zera `failCount`/`lockoutUntil` da vítima. | Bypass de rate-limit via IPs rotativos (gap remanescente pós-D1). |
+| **SEC-007** | 🟢 | `StorageManager.cpp:995` | `hashPassword` trunca para 30 chars hex = 120 bits (NIST recomenda ≥128). | Compliance; 120 bits ainda seguro na prática. |
+| **SEC-008** | 🟢 | `StorageManager.cpp:989` | 2500 rounds HMAC-SHA256 (OWASP 2023: ≥600k; NIST: ≥10k). | Força bruta offline se flash vazar. |
+| **SEC-009** | 🟢 | `StorageManager.cpp:983` | Salt = username lowercase (determinístico). | Rainbow table por pepper viável. |
+
+#### Bugs (BUG)
+
+| ID | Sev | Arquivo:linha | Problema | Impacto |
+|----|----|---|---|---|
+| **BUG-001** | 🟢 | múltiplos (26 ocorrências) | `millis() - X > Y` vs `timeReached(X+Y)` — técnicamente wrap-safe por unsigned, mas inconsistente com helpers do projeto. | **Reclassificado como legibilidade**; ver nota abaixo. |
+| **BUG-002** | 🟡 | `DisplayManager.h:453-476` | Pares `(data,flag)` cross-core com `volatile` sem `__dmb()`. | Core 1 pode ler flag antes dos dados (race µs). |
+| **BUG-003** | 🟡 | `StorageManager.cpp:526-570` | `FLASH_OP` macro em `saveConfiguration` mas `writeHistoryEntryFlash` duplica o padrão manualmente sem chunking. | Core 1 bloqueado além do necessário no write de histórico. |
+| **BUG-004** | 🟢 | `DisplayManager.cpp:1333` | `mutex_try_enter` em `_webBusy` → flicker do overlay. | UX apenas. |
+| **BUG-005** | 🟢 | `LogManager.cpp:440,601` | `_preBootSnapshotTaken` oportunista em `setModule` vs leitura em `performCrashAutopsy` — ordem frágil. | Autópsia lê módulo errado se setup for refatorado. |
+
+> **Nota BUG-001**: relatório classificou como 🟠 mas tecnicamente `millis() - X > Y` é wrap-safe por aritmética modular em `uint32_t` (idiom Arduino). A migração para `timeReached()` fica como **item de legibilidade/consistência** (F14), não bloqueante.
+
+#### Inconsistências e Documentação (CON / DOC)
+
+| ID | Sev | Local | Problema |
+|----|----|---|---|
+| **CON-001** | 🟢 | `LogManager.cpp:450 vs 554` | Comentários contraditórios sobre `scratch[4]/scratch[5]`. |
+| **CON-002** | 🟢 | `SystemDefs.h:298` | `enum LanguageCode` só EN/PT/ES mas `DICTIONARY` tem 8. |
+| **CON-003** | ⚪ | vários headers | Docstrings "3 idiomas / EN/PT/ES". |
+| **CON-004** | 🟢 | `StorageManager.cpp:385` | `_lastSavedCrc` como `static` local em vez de membro. |
+| **CON-005** | 🟢 | `SystemDefs.h:936`, `WebManager.h:89` | Mistura `String` + `char[]` em `CliDemand`/`LoginState`. |
+| **CON-006** | ⚪ | `SensorManager.h:136` | `DS_CONVERSION_TIME = 750` local em vez de `SystemDefs.h`. |
+| **DOC-002** | 🟢 | vários | Magic numbers (`100ms` DHT, `800ms` dots, `3000ms` alarm rotate) sem nome. |
+| **DOC-003** | ⚪ | ausente | Falta `SECURITY.md` com threat model + rotação + resposta a incidente. |
+
+#### Memória e Performance (MEM / PER)
+
+| ID | Sev | Local | Problema |
+|----|----|---|---|
+| **MEM-001** | 🟡 | hot paths | `String` em `getHistoryFileName`, `getIpAddress`, mensagens de log. |
+| **MEM-002** | 🟡 | `CliDemand` | 2× `String` na fila de 2 slots → 4 allocs por enqueue. |
+| **MEM-003** | ⚪ | `WebUI.h` | 333 KB raw possivelmente redundante com `WebUI_GZ.h`. |
+| **PER-001** | 🟢 | `AppManager::loop` | 14× `watchdog_update()` + `TRACE_BEAT(0)` → extrair `feedWdt()`. |
+| **PER-002** | 🟢 | `WebManager.cpp:1842` | `RenderGuard` por chunk causa 50-100 pauses em upload 100 KB. |
+| **PER-003** | ⚪ | `StorageManager.cpp:604` | `isValidHistoryFileName` por iteração sem fast-path. |
+
+#### Refatoração (REF)
+
+| ID | Sev | Local | Escopo |
+|----|----|---|---|
+| **REF-001** | 🟡 | `DisplayManager.cpp` (7.872 L) | Split em `_Dashboard.cpp`, `_Graph.cpp`, `_Settings.cpp`, `_Auth.cpp`, `_i18n.cpp`, etc. |
+| **REF-002** | 🟡 | `AppManager.cpp` (3.334 L) | Split em `_Boot.cpp`, `_Commands.cpp`, `_Graph.cpp`, `_Events.cpp`, `_Sensors.cpp`, etc. |
+| **REF-003** | 🟢 | `WebManager.cpp` (2.515 L) | Split em `_Auth.cpp`, `_Files.cpp`, `_Api.cpp`, `_Pages.cpp`, `_Commit.cpp`. |
+| **REF-004** | 🟢 | 5 managers | 5× `setTouchPriorityChecker` → singleton `TouchPriority::setProvider`. |
+| **REF-007** | 🟢 | `WebManager.cpp:831` | `handleApiLogin` ~130 linhas — extrair `findLoginStateForIp`, `checkLockout`, etc. |
+
+> Deduplicações internas: `REF-005` ↔ `PER-001`, `REF-006` ↔ `BUG-003`, `DOC-001` ↔ `CON-003`.
+
 ---
 
 ## 3. Plano de Execução em 7 Fases
@@ -214,6 +280,117 @@ Cada fase é *stand-alone*, testável isoladamente, e pode ser revertida. Branch
 
 ---
 
+### 🔴 FASE 12 — SEC Críticas/Altas (bloqueia exposição pública)
+
+**Escopo:** SEC-001..005 · **Arquivos:** `SystemDefs.h`, `WebManager.cpp`, `StorageManager.cpp/h`, `CommandManager.cpp/h`, `AppManager.cpp`, `DisplayManager.cpp`.
+
+| Tarefa | Resolve |
+|---|---|
+| 12.1 Helper `isSafeUploadFilename(const char*)` em `SystemDefs.h`; aplicar em `handleUploadData` antes de montar `finalPath`; rejeita `..`, controle, `\`, `:`, `<`, `>`, `|`, `?`, `*`, len>64. HTTP 400 + `LOG_CODE(SEC_UNAUTHORIZED)`. | SEC-001 |
+| 12.2 Substituir `targetDir.replace("..","")` por rejeição via `indexOf("..")>=0` com HTTP 400 + log. | SEC-002 |
+| 12.3 `generateInitialAdminPassword(char*, size_t)` em `StorageManager` — 8 chars `[A-Z2-9]` via `rp2040.hwrand32()`; exibe no display TFT por 5 min ou até 1º login; flag `_factoryDefaults` bloqueia ops sensíveis enquanto ativa. Viewer recebe `"viewer"` + `mustChangePassword` (não tem display). | SEC-003 |
+| 12.4 Overlay `SetupFlagsData` em `SystemConfig.reserved[26..27]` com `FLAG_MUST_CHANGE_PIN`; aviso persistente no display; menu de config bloqueia saída até troca do PIN. Factory reset reseta flag. | SEC-004 |
+| 12.5 `CLI_LINE_MAX=256` em `SystemDefs.h`; helper `appendCharWithLimit(String&, char, const char*)` em `CommandManager.cpp`; aplicar em `_usbBuffer` e `_btBuffer`. Log warning uma vez por rajada (flag anti-spam). | SEC-005 |
+
+**Validação (gate humano):**
+- Upload `curl -F "file=@x.bin;filename=../config/system.bin"` retorna 400.
+- Boot pós factory reset mostra senha random no display; login funciona; após troca, senha zerada em RAM.
+- PIN `1234` exibe aviso + bloqueia saída do menu.
+- `yes | head -c 10000 > /dev/ttyUSB0` não trava dispositivo; heap estável.
+
+**Saída esperada:** `v3.20.0`.
+
+---
+
+### 🟠 FASE 13 — Bugs latentes
+
+**Escopo:** BUG-002..005 · **Arquivos:** `DisplayManager.h/cpp`, `StorageManager.cpp/h`, `LogManager.h/cpp`.
+
+| Tarefa | Resolve |
+|---|---|
+| 13.1 `__dmb()` nos pares `(data,flag)` de preview de som / volume / packet arrow (producer em Core 0, consumer em Core 1). Helpers `requestPreviewSound`/`consumePreviewSound`. | BUG-002 |
+| 13.2 Template method `StorageManager::flashOp<F>(F&&)` substituindo macro local `FLASH_OP`; `writeHistoryEntryFlash` refatorado para usar o helper com chunks granulares. | BUG-003 |
+| 13.3 `_lastWebBusy` sticky no consumer de `_webBusy` em `DisplayManager::loopCore1`. | BUG-004 |
+| 13.4 `LogManager::captureBootSnapshot()` público explícito; chamado na 1ª linha de `begin()`; remover captura oportunista em `setModule`. | BUG-005 |
+
+**Saída esperada:** `v3.21.0`.
+
+---
+
+### 🟢 FASE 14 — Inconsistências + docs + consistência de tempo
+
+**Escopo:** CON-001..006, DOC-002, DOC-003, REF-004, BUG-001 (migração mecânica opcional).
+
+| Tarefa | Resolve |
+|---|---|
+| 14.1 Consolidar comentário autoritativo sobre `scratch[0..7]` em `LogManager.cpp:450`; remover duplicata em `:554`. | CON-001 |
+| 14.2 Completar `enum LanguageCode` (LANG_EN..LANG_ZH + `LANG_COUNT`); `static_assert` contra `LANG_NAMES`. | CON-002 |
+| 14.3 Grep `"3 idiomas\|3 languages\|EN/PT/ES"` e atualizar comentários. | CON-003 |
+| 14.4 `_lastSavedCrc` → membro privado de `StorageManager`. | CON-004 |
+| 14.5 `CliDemand.strVal1/2` e `LoginState.nonce` → `char[]` fixo; atualizar parser/handlers com `safeCopy`. | CON-005 |
+| 14.6 `DS18B20_CONVERSION_TIME_MS` e `DHT22_READ_TIMEOUT_MS` em `SystemDefs.h`. | CON-006 |
+| 14.7 Nomear magic numbers (`BOOT_DOTS_INTERVAL_MS=800`, `ALARM_ROTATE_INTERVAL_MS=3000`, etc.). | DOC-002 |
+| 14.8 Criar `SECURITY.md` na raiz (threat model, rotação, incidente, factory reset, auditoria). | DOC-003 |
+| 14.9 Classe `TouchPriority` com `setProvider`/`isActive` singleton; remover `setTouchPriorityChecker` de 5 managers. | REF-004 |
+| 14.10 *(Opcional)* Migração mecânica de 26 `millis() - X > Y` para `timeReached()`. Substituição automática via script + revisão. | BUG-001 |
+
+**Saída esperada:** `v3.22.0`.
+
+---
+
+### 🟢 FASE 15 — Hash migration (risco alto — migra auth)
+
+**Escopo:** SEC-006..009. **Requer migração transparente**: schema bump + compatibilidade com hashes antigos.
+
+| Tarefa | Resolve |
+|---|---|
+| 15.1 LRU evict preserva `failCount`/`lockoutUntil` se lockout ativo não-expirado; só sobrescreve `ip`. | SEC-006 |
+| 15.2 `hashPassword` emite 32 hex chars (128 bits); `handleApiLogin` detecta `stored.length()==30`, valida com truncate e re-hash silencioso. | SEC-007 |
+| 15.3 `PASSWORD_HMAC_ROUNDS=5000` (ou benchmark para definir), documentar o trade-off. | SEC-008 |
+| 15.4 `UserAccount.salt[8]` random via `hwrand32`; bump `CONFIG_VERSION` com rotina de migração; reset admin regera salt. | SEC-009 |
+
+**Validação:** logar com senha antiga → hash migrado para 32 chars; 2 SIMUTs com mesma senha geram hashes diferentes; reset admin via CLI regera salt. Login <1s no Pico W.
+
+**Saída esperada:** `v3.23.0` (bump CONFIG_VERSION).
+
+---
+
+### 🟢 FASE 16 — Performance + String em hot paths
+
+**Escopo:** PER-001..003, MEM-001, MEM-002.
+
+| Tarefa | Resolve |
+|---|---|
+| 16.1 Helper `feedWdt()` em `SystemDefs.h` (`watchdog_update()+TRACE_BEAT(0)`); substituir as 14+ ocorrências em Core 0. | PER-001 |
+| 16.2 Buffer `_uploadBatchBuf[8192]` em `WebManager`; `RenderGuard` apenas no flush de 8 KB; flush final em `UPLOAD_FILE_END`. | PER-002 |
+| 16.3 Fast-path em `isValidHistoryFileName` via `length()==12 && endsWith(EXT)`. | PER-003 |
+| 16.4 `getHistoryFileNameC()` com buffer de membro `_historyFnBuf[40]`; `NetworkManager::getIpAddress(char*, size_t)`; `getMacAddress(char*, size_t)`; ajustar call-sites. | MEM-001 |
+| 16.5 `CliDemand.strVal1/2` → `char[64]` (coberto parcialmente por 14.5 se ainda pendente). | MEM-002 |
+
+**Validação:** upload 100 KB causa ≤15 pauses Core 1; `largestBlock` após 24h ≥70% do total; heap estável após 100 comandos CLI.
+
+**Saída esperada:** `v3.24.0`.
+
+---
+
+### 🟢 FASE 17 — Refatorações grandes (file split)
+
+**Escopo:** REF-001..003, REF-007, MEM-003. **Risco alto — refatoração organizacional pura**.
+
+| Tarefa | Resolve |
+|---|---|
+| 17.1 Split `DisplayManager.cpp` em 9 arquivos (`_Dashboard/_Graph/_Settings/_Auth/_Calibration/_Alarm/_i18n/_Calendar/.cpp`); core ≤1500 linhas. | REF-001 |
+| 17.2 Split `AppManager.cpp` em 8 arquivos (`_Boot/_Commands/_Graph/_Events/_Sensors/_History/_Alarm/.cpp`); core ≤800. | REF-002 |
+| 17.3 Split `WebManager.cpp` em 8 arquivos (`_Auth/_Files/_Api/_Pages/_History/_Commit/_Util/.cpp`); nenhum >800. | REF-003 |
+| 17.4 Decompor `handleApiLogin` em `findLoginStateForIp`, `checkLockout`, `validateNonce`, `verifyPasswordFor`, `allocSessionSlot`, `completeLogin`. | REF-007 |
+| 17.5 Auditar usos de `WebUI::` vs `WebUI_GZ::`; remover raw se viável (~333 KB); ou manter só para páginas sem gzip. | MEM-003 |
+
+**Validação:** build incremental <50% do full-build; navegação completa do site testada; binário `.uf2` reduzido em ≥200 KB (17.5).
+
+**Saída esperada:** `v4.0.0` (major bump por mudança estrutural).
+
+---
+
 ## 4. Disciplina de Execução
 
 1. **Uma fase por PR**, descrição listando IDs resolvidos.
@@ -252,6 +429,12 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F9 — WDT feeds no path de flash + audit BT** | ✅ Concluída | `stability-fixes-tier1` | `v3.11.1` | 2026-04-19 |
 | **F10 — Estabilidade em rajadas de save (U16)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-19 |
 | **F11 — Touch Priority (U17/U18/U19)** | ✅ Concluída | `stability-fixes-tier1` | `v3.14.0` | 2026-04-19 |
+| **F12 — SEC Críticas/Altas (audit v3.19.0)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.20.0) | — |
+| **F13 — Bugs latentes (BUG-002..005)** | ⚪ Pendente | — | (v3.21.0) | — |
+| **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.22.0) | — |
+| **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.23.0) | — |
+| **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.24.0) | — |
+| **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 
 ### Legenda de Status
 
@@ -310,4 +493,38 @@ Atualize esta tabela conforme cada fase for concluída.
 | U18 | 🟠 | F10 | ✅ | **Touch Priority Fase 4 (2026-04-19):** comandos CLI (USB+BT) executados durante `isUserInteracting()` competem com touch pelo WDT/heap/flash (ex: `show history`, `conf save`). Fix: ring buffer de 2 `CliDemand` em `AppManager`; `processInput` continua rodando normal (cheap — só lê UART+acumula String), mas quando linha completa chega e touch está ativo, comando é enfileirado em vez de executado. Drain 1-por-loop no topo de `update()` após touch liberar. Overflow (3º+) descarta com mensagem `"CLI busy"` única por rajada. Heap: ~+200 B. Zero regressão em estado normal. |
 | U19 | 🟡 | F10 | ✅ | **Touch Priority Fase 5 (2026-04-19):** buffers deferidos durante touch (logs, hist record, cursor) ficavam em RAM até a próxima chamada natural — janela de exposição até ~60s se user não interagisse com nada depois. Fix: edge detection em `AppManager::loop()` na transição `isUserInteracting()` true→false dispara `onTouchReleased()` que orquestra flush em série: (1) `LogManager::flushPendingIfAny()` — público novo; (2) `StorageManager::flushPendingHist()` — novo, bypassa touch checker usando `writeHistoryEntryFlash` direto; (3) `StorageManager::flushCursorIfDirty()` — já existente. WdtWindow de 30s cobre os 3 writes. Fecha a janela "dado em RAM não em flash" de minutos para <100ms após touch liberar. |
 | U23 | 🔴 | F10 | ✅ | **Instrumentação + timeout no lockout (2026-04-19):** autópsia consistente mostrava `C0=[WEB_SERVER]` mas não distinguia onde exatamente travava. Fix parte 1 (instrumentação): novos módulos `MOD_SAVE_CONFIG`, `MOD_LOG_FLASH`, `MOD_HIST_FLASH`, `MOD_CORE1_LOCK` + `TraceScope` RAII aplicado nos paths críticos. Autópsia seguinte revelou `C0=[CORE1_LOCK]` — Core 0 preso no `multicore_lockout_start_blocking()` esperando Core 1 ackear. Fix parte 2 (robustez): `pauseRendering(true)` troca `start_blocking` (timeout infinito) por loop com `start_timeout_us(500ms)` + `watchdog_update`; a cada 2s limpa state via `end_blocking` idempotente; se 10s sem sucesso, restart Core 1 via `multicore_reset_core1()` + `multicore_launch_core1()`. Elimina HW WATCHDOG em travamentos de lockout — pior caso vira "save lento" em vez de reboot. |
+| SEC-001 | 🔴 | F12 | ✅ | **F12.1 (2026-04-20):** helper `isSafeUploadFilename` em `SystemDefs.h` (blocklist `.. \ " : < > \| ? * % control`, len>64, vazio); `_uploadRejected` flag em `WebManager.h` ganha START→WRITE/END no-op + HTTP 400 em `handleUploadComplete`. Script `tools/test_f12_1_sec001.sh` + `hw_test_lib.sh` (challenge-response com SHA256 Latin-1 compat com frontend JS). Validado em HW v3.19.0+patch: 28/28 casos (incl. traversal literal, percent-encoding `%2e%2e%2f`, chars `" < > \ \| ? * :`, controle 0x01, len>64, vazio, regressões, stress heap estável). Log: `SEC_UNAUTHORIZED Upload rejeitado: filename invalido '<nome>'`. |
+| SEC-002 | 🟠 | F12 | ✅ | **F12.2 (2026-04-20):** `handleUploadData` rejeita `uploadDir` contendo `..` OU `%` em vez do antigo `replace("..","")` não-recursivo (bypass com `"...."` ou `%2e%2e`). `_uploadRejected=true` → HTTP 400 + `SEC_UNAUTHORIZED`. Script `tools/test_f12_2_sec002.sh` cobre `/history/..`, `....`, `%2e%2e/config`, paths compostos, + regressões para `/`, `/history`, `/history/`. |
+| SEC-003 | 🟠 | F12 | ✅ | **F12.3 (2026-04-20, Variante B):** `loadDefaults` gera senha admin aleatória 8 chars `[A-Z2-9]` (exclui `O/0/I/1`) via `rp2040.hwrand32()`, hash salvo com mesma lógica `hashPassword(u, SHA256(plain))` que frontend. Plaintext em RAM (`_initialAdminPassword[9]`) — nunca persistido em flash; zerado quando `mustChangePassword` flip false OU `loadConfiguration` carrega config válida do flash. Anúncio via Serial USB com banner `SEC-003: FACTORY DEFAULTS ATIVADO` + LOG_CODE audit trail. CLI `conf system admin reset` também migrado para gerar random (era `simut` hardcoded). Viewer mantido como decisão do audit (mustChangePassword forçado, perms mínimas). Script `tools/test_f12_3_sec003.sh` valida: admin/admin rejeitado, login real funciona, viewer cai em /force_chpass. Teste destrutivo factory reset é manual. |
+| SEC-004 | 🟠 | F12 | ✅ | **F12.4 (2026-04-20):** `SetupFlagsData` overlay em `reserved[26..27]` (magic=0xBE, `FLAG_MUST_CHANGE_PIN`). `StorageManager::mustChangePin/clear/set`. `loadDefaults` seta flag; `AppManager::EVT_AUTH_SUCCESS` redireciona para `showSettingsPassword()` em vez de main se flag ativa; `EVT_SAVE_PASSWORD` limpa flag só se novo PIN != "1234". Configs legadas sem magic retornam `mustChangePin=false` (compat com upgrade). Teste manual HW-only (touch UI). |
+| SEC-005 | 🟠 | F12 | 🟡 | DoS CLI — `CLI_LINE_MAX=256` + `appendCharWithLimit`. |
+| SEC-006 | 🟡 | F15 | ⚪ | LRU evict preserva lockout ativo. |
+| SEC-007 | 🟢 | F15 | ⚪ | Hash 120→128 bits com migração transparente. |
+| SEC-008 | 🟢 | F15 | ⚪ | `PASSWORD_HMAC_ROUNDS` 2500→5000. |
+| SEC-009 | 🟢 | F15 | ⚪ | Salt random por usuário (schema bump). |
+| BUG-001 | 🟢 | F14 | ⚪ | **Reclassificado**: `millis()-X>Y` tecnicamente wrap-safe; migração opcional para consistência. |
+| BUG-002 | 🟡 | F13 | ⚪ | `__dmb()` em pares `(data,flag)` cross-core. |
+| BUG-003 | 🟡 | F13 | ⚪ | Template `flashOp<F>()` substitui macro + aplica em `writeHistoryEntryFlash`. |
+| BUG-004 | 🟢 | F13 | ⚪ | `_lastWebBusy` sticky para evitar flicker do overlay. |
+| BUG-005 | 🟢 | F13 | ⚪ | `captureBootSnapshot()` explícito em `LogManager::begin`. |
+| CON-001 | 🟢 | F14 | ⚪ | Consolidar comentário sobre `scratch[0..7]`. |
+| CON-002 | 🟢 | F14 | ⚪ | `enum LanguageCode` EN..ZH + `LANG_COUNT`. |
+| CON-003 | ⚪ | F14 | ⚪ | Atualizar docstrings "3 idiomas" → 8. |
+| CON-004 | 🟢 | F14 | ⚪ | `_lastSavedCrc` → membro de classe. |
+| CON-005 | 🟢 | F14 | ⚪ | `String` → `char[]` em `CliDemand`/`LoginState`. |
+| CON-006 | ⚪ | F14 | ⚪ | `DS_CONVERSION_TIME` → `SystemDefs.h`. |
+| MEM-001 | 🟡 | F16 | ⚪ | `String` em hot paths → buffer estático. |
+| MEM-002 | 🟡 | F14/F16 | ⚪ | Coberto por CON-005. |
+| MEM-003 | ⚪ | F17 | ⚪ | Avaliar remoção de `WebUI.h` raw. |
+| PER-001 | 🟢 | F16 | ⚪ | Helper `feedWdt()` consolidando `watchdog_update+TRACE_BEAT(0)`. |
+| PER-002 | 🟢 | F16 | ⚪ | Upload batching 8 KB para reduzir pauses Core 1. |
+| PER-003 | ⚪ | F16 | ⚪ | Fast-path em `isValidHistoryFileName`. |
+| REF-001 | 🟡 | F17 | ⚪ | Split `DisplayManager.cpp` em 9 arquivos. |
+| REF-002 | 🟡 | F17 | ⚪ | Split `AppManager.cpp` em 8 arquivos. |
+| REF-003 | 🟢 | F17 | ⚪ | Split `WebManager.cpp` em 8 arquivos. |
+| REF-004 | 🟢 | F14 | ⚪ | Singleton `TouchPriority`. |
+| REF-007 | 🟢 | F17 | ⚪ | Decompor `handleApiLogin` em 6 helpers. |
+| DOC-002 | 🟢 | F14 | ⚪ | Magic numbers nomeados. |
+| DOC-003 | ⚪ | F14 | ⚪ | Criar `SECURITY.md` na raiz. |
+| WEB-001 | 🟢 | F14 | ⚪ | **Post-audit F12.1 (2026-04-20):** `handleApiLs` emite JSON sem escapar bytes de controle (0x00-0x1F/0x7F) nos `name` — 1 arquivo com byte ruim quebra todo o listing (observado com `/x␁y.txt` criado por teste pré-patch). F12.1 impede upload via HTTP, mas não cobre entrada por outros canais. Fix: `jsonEscape()` ou skip de entries com chars inválidos no `handleApiLs`. |
 | U24 | 🔴 | F11 | ✅ | **Commit-all + reboot pattern (2026-04-19):** rajadas de saves consecutivos eram a fonte original de todos os bugs de concorrência (U16/U21/U23). Mudança arquitetural do modelo UX: interface web acumula mudanças no `sessionStorage` client-side; botão único "Salvar e Reiniciar" no topbar (só aparece se há pendentes). Ao clicar: confirmação com aviso de risco → POST `/api/commit_all` com JSON → server aplica tudo em 1 save → reboot limpo. **Phase A.1** (v3.15.0): migrado `/config`. **Phase A.2** (v3.16.0): migrado `/alarms`; `handleApiSaveAlarms` e `handleSaveSystem` grande removidos. **Phase B** (v3.17.0): migrado `/users` como queue de ações (`add`/`del`/`reset`) com overlay visual + botão ↶ de desfazer; `handleApiUserAdd/Del/Reset` removidos. **Phase C** (v3.18.0): migrado `/network` (ssid, pass, dhcp, ip, mask, gw, dns, ntp_server, web_port); detecção de mudança de porta → redirect automático pro novo host:porta após reboot; `handleSaveNetwork` removido. **Phase D** (v3.19.0): `Pending` + `commitAll` + CSS + botão injeção centralizados em `/lang.js` (removidas ~8KB de código duplicado); botão "Salvar e Reiniciar" agora aparece em TODAS as páginas (dash/hist/file/license/cfg/alarms/users/net); versão do firmware exibida ao lado de "SIMUT" (endpoint `/api/perms` extendido com `version`); botão de toggle tema claro/escuro (`#theme-toggle`) com preferência em `localStorage`; paleta de tema claro refinada (slate + cyan-700 AA-contrast) com overrides cobrindo topbar/drawer/cards/inputs/tabelas/chart/badges/calendar/sounds. Todas as 4 páginas de configuração agora compartilham o mesmo padrão; economia total de ~18KB de flash. |

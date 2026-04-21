@@ -633,6 +633,26 @@ struct __attribute__((packed)) WebConfigData {
 constexpr size_t WEB_CONFIG_OFFSET = 24;
 constexpr uint16_t WEB_DEFAULT_PORT = 80;
 
+/**
+ * @brief SEC-004/F12.3: Overlay em `reserved[26..27]` com flags de setup.
+ *
+ * Atualmente usado só para `FLAG_MUST_CHANGE_PIN`, que força o usuário a trocar
+ * o PIN padrão `1234` do display ao primeiro acesso ao menu de configurações.
+ * `magic == SETUP_FLAGS_MAGIC` valida que o overlay foi inicializado (distinto
+ * de bytes zerados legados).
+ *
+ * Bits livres em `flags` para futuras flags de setup (ex: mustChangeBtPin).
+ */
+struct __attribute__((packed)) SetupFlagsData {
+    uint8_t magic;          /**< 0xBE = inicializado; 0x00/outro = legado. */
+    uint8_t flags;          /**< bitmask de FLAG_MUST_* */
+};
+constexpr size_t SETUP_FLAGS_OFFSET = 26;
+constexpr uint8_t SETUP_FLAGS_MAGIC = 0xBE;
+constexpr uint8_t FLAG_MUST_CHANGE_PIN = 0x01;
+
+static_assert(sizeof(SetupFlagsData) == 2, "SetupFlagsData deve ser 2 bytes");
+
 /** Tamanho do campo reserved[] nas configs v12 (pré v3.8.0) — usado na migração. */
 #define CONFIG_V12_RESERVED_SIZE 24
 
@@ -1094,6 +1114,44 @@ inline bool isValidName(const char* name, size_t maxLen = 31) {
     if (len == 0 || len > maxLen) return false;
     for (size_t i = 0; i < len; i++) {
         if ((unsigned char)name[i] < 32 || name[i] == '"' || name[i] == '\\') return false;
+    }
+    return true;
+}
+
+
+/**
+ * @brief Valida um nome de arquivo para operações de upload/download HTTP.
+ *
+ * Regras (rejeita ataques de path traversal em `handleUploadData`):
+ *   - Não-vazio e len ≤ UPLOAD_FILENAME_MAX (64) chars (após strip de '/' inicial).
+ *   - Sem sequência ".." em qualquer posição (escape de diretório).
+ *   - Sem bytes de controle (<32, 127).
+ *   - Sem caracteres problemáticos em paths LittleFS/URL: '\' '"' ':' '<' '>' '|' '?' '*'.
+ *   - Sem '%' (bloqueia bypass via percent-encoding: `%2e%2e%2f` → "../").
+ *     O parser multipart do Arduino-Pico não faz URL-decode do filename, então
+ *     chars encoded pelo cliente chegam literais — sem '%' na blocklist, um
+ *     atacante escaparia qualquer filtro de chars simples.
+ *
+ * Complementa a sanitização do `uploadDir` (rejeita `..` por `indexOf`).
+ * O `upload.filename` vem direto do cliente HTTP multipart, sem qualquer
+ * garantia — SEMPRE validar antes de montar `finalPath`.
+ *
+ * @param  name  Nome vindo do cliente (pode começar com '/'; stripped internamente).
+ * @return true se seguro para uso em LittleFS path; false caso contrário.
+ */
+constexpr size_t UPLOAD_FILENAME_MAX = 64;
+inline bool isSafeUploadFilename(const char* name) {
+    if (!name) return false;
+    if (name[0] == '/') name++;                       /* strip leading slash */
+    const size_t len = strlen(name);
+    if (len == 0 || len > UPLOAD_FILENAME_MAX) return false;
+    if (strstr(name, "..") != nullptr) return false;  /* traversal guard */
+    for (size_t i = 0; i < len; i++) {
+        const unsigned char c = (unsigned char)name[i];
+        if (c < 32 || c == 127) return false;
+        if (c == '\\' || c == '"' || c == ':' || c == '<'
+            || c == '>'  || c == '|' || c == '?' || c == '*'
+            || c == '%') return false;                /* bloqueia percent-encoding */
     }
     return true;
 }

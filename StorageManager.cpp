@@ -163,7 +163,18 @@ void StorageManager::loadDefaults() {
 
     _currentConfig.users[0].active = true;
     safeCopy(_currentConfig.users[0].username, "admin", sizeof(_currentConfig.users[0].username));
-    String defaultAdminHash = hashPassword("admin", "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918");
+
+    /* SEC-003/F12.3: gera senha admin random em vez de "admin" hardcoded.
+     * Hash SHA-256 de "admin" (`8c6976e5...a918`) é público em rainbow tables,
+     * expondo janela entre boot em factory e troca obrigatória de senha.
+     * Plaintext vai pra RAM apenas; Serial+display mostram pra quem tem
+     * acesso físico; `mustChangePassword=true` força troca no 1º login web. */
+    generateInitialAdminPassword(_initialAdminPassword, sizeof(_initialAdminPassword));
+
+    /* Frontend JS envia SHA256(plaintext) como `pass`, então o hash persistido
+     * deve ser `hashPassword(user, SHA256(plaintext))`. */
+    String preHash = sha256Hex(String(_initialAdminPassword));
+    String defaultAdminHash = hashPassword("admin", preHash);
     safeCopy(_currentConfig.users[0].password, defaultAdminHash.c_str(), sizeof(_currentConfig.users[0].password));
     _currentConfig.users[0].permissions = PERM_FULL_ADMIN;
     _currentConfig.users[0].mustChangePassword = true;
@@ -204,6 +215,10 @@ void StorageManager::loadDefaults() {
     _currentConfig.themeIndex = 0;
 
     safeCopy(_currentConfig.displayPin, "1234", sizeof(_currentConfig.displayPin));
+    /* SEC-004/F12.4: força troca do PIN padrão "1234" no primeiro acesso ao
+     * menu de config. Overlay em reserved[26..27] — limpo quando usuário
+     * salva um PIN != "1234". Setado aqui (loadDefaults = factory reset). */
+    setMustChangePin();
     _currentConfig.displayLang = LANG_PT;
 
     for (int i = 0; i < MAX_SENSORS; i++) {
@@ -341,6 +356,13 @@ bool StorageManager::loadConfiguration() {
         return false;
     }
 
+    /* SEC-003/F12.3: config válida foi carregada do flash — o random gerado
+     * pelo constructor (via loadDefaults) é lixo agora. Zera pra não vazar
+     * via logs/display. Se a config carregada AINDA tem mustChangePassword,
+     * significa factory anterior que nunca foi trocada; mas o plaintext
+     * original perdeu-se em algum reboot — não dá pra recuperar. */
+    clearInitialAdminPassword();
+
     if (fromBackup) {
         LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, TRL("Primary config corrupt, recovered from backup", "Config primaria corrompida, recuperada do backup"));
     }
@@ -376,6 +398,13 @@ bool StorageManager::saveConfiguration() {
 
     _currentConfig.magic = CONFIG_MAGIC;
     _currentConfig.version = CONFIG_VERSION;
+
+    /* SEC-003/F12.3: se admin trocou a senha (mustChangePassword = false),
+     * a senha inicial em RAM perdeu valor — zera antes do save pra garantir
+     * que não vaze em logs/display/CLI a partir daqui. */
+    if (_initialAdminPassword[0] != '\0' && !_currentConfig.users[0].mustChangePassword) {
+        clearInitialAdminPassword();
+    }
 
     /*
      * Skip no-op: usuário clica em "Save" várias vezes sem mudar campos →
@@ -474,6 +503,58 @@ bool StorageManager::canSaveNow() const {
 
 void StorageManager::resetToFactory() { loadDefaults(); saveConfiguration(); }
 SystemConfig& StorageManager::getConfig() { return _currentConfig; }
+
+/* SEC-003/F12.3 — helpers para senha admin aleatória inicial. */
+void StorageManager::generateInitialAdminPassword(char* outPlain, size_t bufSize) {
+    static const char alphabet[] = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; /* 32 chars, sem O/0/I/1 */
+    const size_t alphabetLen = sizeof(alphabet) - 1;                    /* -1 por '\0' */
+    const size_t len = (bufSize > 9) ? 8 : (bufSize > 0 ? bufSize - 1 : 0);
+    for (size_t i = 0; i < len; i++) {
+        outPlain[i] = alphabet[rp2040.hwrand32() % alphabetLen];
+    }
+    if (bufSize > 0) outPlain[len] = '\0';
+}
+
+bool StorageManager::isFactoryDefaults() const {
+    if (!_currentConfig.users[0].active) return false;
+    if (strcmp(_currentConfig.users[0].username, "admin") != 0) return false;
+    return _currentConfig.users[0].mustChangePassword;
+}
+
+void StorageManager::clearInitialAdminPassword() {
+    /* volatile para evitar que otimizador elimine memset "morto". */
+    volatile char* p = _initialAdminPassword;
+    for (size_t i = 0; i < sizeof(_initialAdminPassword); i++) p[i] = 0;
+}
+
+/* SEC-004/F12.4 — flag mustChangePin em reserved[26..27]. */
+bool StorageManager::mustChangePin() const {
+    const SetupFlagsData* sf = reinterpret_cast<const SetupFlagsData*>(
+        _currentConfig.reserved + SETUP_FLAGS_OFFSET);
+    /* Overlay sem magic = config legada (v13/v14 sem setup flags) — não força
+     * troca para não quebrar upgrades de firmware de usuários existentes. */
+    if (sf->magic != SETUP_FLAGS_MAGIC) return false;
+    return (sf->flags & FLAG_MUST_CHANGE_PIN) != 0;
+}
+
+void StorageManager::clearMustChangePin() {
+    SetupFlagsData* sf = reinterpret_cast<SetupFlagsData*>(
+        _currentConfig.reserved + SETUP_FLAGS_OFFSET);
+    if (sf->magic != SETUP_FLAGS_MAGIC) {
+        /* Inicializa overlay se ainda não foi. */
+        sf->magic = SETUP_FLAGS_MAGIC;
+        sf->flags = 0;
+    } else {
+        sf->flags &= ~FLAG_MUST_CHANGE_PIN;
+    }
+}
+
+void StorageManager::setMustChangePin() {
+    SetupFlagsData* sf = reinterpret_cast<SetupFlagsData*>(
+        _currentConfig.reserved + SETUP_FLAGS_OFFSET);
+    sf->magic = SETUP_FLAGS_MAGIC;
+    sf->flags |= FLAG_MUST_CHANGE_PIN;
+}
 
 SensorRecord* StorageManager::getSensorByGpio(uint8_t gpio) {
     if (gpio == 10) return &_currentConfig.ambientSensor;
