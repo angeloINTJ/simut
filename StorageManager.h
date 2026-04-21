@@ -16,7 +16,9 @@
 #include <LittleFS.h>
 #include <vector>
 #include "pico/mutex.h"
+#include <hardware/watchdog.h>
 #include "SystemDefs.h"
+#include "LogManager.h"
 
 #define DIR_CONFIG      "/config"
 #define FILE_CONFIG     "/config/system.bin"
@@ -186,6 +188,21 @@ private:
     bool mountFS();
     void loadDefaults();
     void enforceStorageLimit();
+
+    /* F13.4/BUG-003: chunk de flash safe mode. Trace MOD_CORE1_LOCK só no
+     * enter, enterFlashSafeMode, watchdog feed, invoke op, watchdog feed,
+     * exitFlashSafeMode. Entre chunks, Core 1 pode sair do multicore_lockout
+     * e renderizar 1 frame. Substitui a macro local FLASH_OP antiga de
+     * saveConfiguration e habilita chunking granular em writeHistoryEntryFlash. */
+    template <typename F>
+    void flashOp(F&& op) {
+        { LogManager::TraceScope _trLock(0, MOD_CORE1_LOCK);
+          enterFlashSafeMode(); }
+        watchdog_update();
+        op();
+        watchdog_update();
+        exitFlashSafeMode();
+    }
 
     static uint32_t calculateCRC32(const uint8_t *data, size_t length);
     static bool loadCurrentBlob(File& f, SystemConfig& outCfg);
