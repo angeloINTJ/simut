@@ -14,6 +14,7 @@
 #include "NetworkManager.h"
 #include "MetricsManager.h"
 #include <stdlib.h>
+#include <sys/time.h>        /* F-NET-TIME.3a: settimeofday para manual RTC */
 #include <lwip/dns.h>        /* F-NET-TIME.2: dns_setserver para DNS manual */
 #include <lwip/ip_addr.h>
 
@@ -107,6 +108,25 @@ void NetworkManager::setProvisionalTime(uint32_t lastTs) {
 }
 
 void NetworkManager::setTimeSyncCallback(TimeSyncCallback cb) { _timeSyncCb = cb; }
+
+/**
+ * @brief F-NET-TIME.3a: set manual de RTC via settimeofday.
+ *
+ * Usado quando `isNtpEnabled()=false` e o user setou data/hora pela web/CLI.
+ * epoch deve ser UTC — conversão de hora local para epoch é responsabilidade
+ * do cliente (JS/CLI já tem acesso ao timezone via cfg.timezoneOffset).
+ * Limpa `_provisionalActive` porque agora temos hora "real" (manual).
+ */
+void NetworkManager::setManualTime(time_t epoch) {
+    if (epoch <= 1600000000) return;  /* Rejeita valor obviamente inválido. */
+    struct timeval tv;
+    tv.tv_sec = epoch;
+    tv.tv_usec = 0;
+    settimeofday(&tv, nullptr);
+    _provisionalActive = false;
+    LOG_CODE(LOG_INFO, "NET", SYS_NTP_SYNC, 0,
+             TRL("RTC set manually", "RTC setado manualmente"));
+}
 
 /**
  * @brief Network state machine — handles all connection states.

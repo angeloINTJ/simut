@@ -441,6 +441,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F-I18N-TRIM.1 (feature fora da auditoria)** | ✅ Concluída (HW validada) | em v3.22.0 | `v3.22.0` | 2026-04-21 |
 | **F-NET-TIME.1 + 1b (feature fora da auditoria)** | ✅ Concluída (HW validada) | em v3.22.0 | `v3.22.0` | 2026-04-21 |
 |   · F-NET-TIME.2 — consumer NetworkManager (flags DNS/NTP) | ✅ Path default validado (DHCP) | em v3.22.1 | — | 2026-04-21 |
+|   · F-NET-TIME.3a — back-end web (GET/POST + /api/set_time + setManualTime) | ⚪ Código pronto | em v3.22.2 | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
