@@ -447,8 +447,10 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F-NET-TIME.4 — CLI (`conf ntp`, `conf time`, `conf net dns`) + tokenizer 5→6 slots | ✅ HW | `cc39e06` | — | 2026-04-21 |
 |   · F-NET-TIME.5a — cursor-no-futuro auto-reset + hint t_int=0 na UI | ✅ HW | `95ea5e4` | — | 2026-04-21 |
 |   · F-NET-TIME.5b — fechamento (regressão acumulada ao longo do path) | ✅ | em v3.23.0 | — | 2026-04-21 |
-| **F-IP-FIX (fora da auditoria)** | ✅ HW validada | em v3.23.1 | — | 2026-04-21 |
+| **F-IP-FIX (fora da auditoria)** | ✅ HW validada | `0860d21` | — | 2026-04-21 |
 |   Ordem de args em `WiFi.config` corrigida para padrão arduino-pico (ip, dns, gw, mask). Bug pré-existente desde v3.4.8 que impedia modo IP static de associar. | — | — | — | — |
+| **F14 (auditoria — em andamento)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.24.0) | — |
+|   · WEB-001 — escape JSON em `/api/ls` (filename+dirname) + auto-test shell | ✅ HW validada via `tools/test_web001.sh` | em v3.23.2 | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
