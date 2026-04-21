@@ -120,12 +120,19 @@ ou domótica); não é hardened contra rede pública adversária.
 ### Login web
 
 - Estado por **IP client** em `_loginStates[LOGIN_STATE_SLOTS=8]`
-  (LRU evict por `lastActivity`).
+  (LRU evict por `lastActivity`, mas **apenas entre slots evictáveis** —
+  ver SEC-006 abaixo).
 - **Backoff exponencial**: `(1 << failCount) × 1s`, cap 300s. Reseta a 0
   após login bem-sucedido.
 - **Nonce expirado** conta como falha (mesmo backoff).
 - **Log de falha**: `LOG_WARN SEC SEC_LOGIN_FAIL` com motivo (nonce
   inválido, nonce expirado, credencial inválida).
+- **SEC-006/F15.1**: o algoritmo de LRU evict ignora slots sob lockout
+  ativo (`lockoutUntil > now`). Slots trancados ficam "sticky" até a
+  penalidade expirar — impede atacante de escapar do backoff cyclando
+  por 8+ IPs diferentes até o slot lockado virar LRU. Se os 8 slots
+  estiverem trancados simultaneamente (edge case), `/api/login_init`
+  responde **HTTP 429** com `Retry-After` em segundos.
 
 ### CLI
 
@@ -302,5 +309,8 @@ Commits/sub-fases relevantes:
   silent drop pós manual time).
 - **F14/WEB-001** (`1826a85`) — Escape JSON em `/api/ls`.
 - **F14/CON-005a** (`40795d2`) — `LoginState.nonce` sem heap alloc.
+- **F15.1/SEC-006** (v3.24.3) — LRU evict de `_loginStates` ignora slots
+  sob lockout ativo; `/api/login_init` responde 429 se os 8 slots
+  estiverem trancados.
 
 Para detalhes técnicos, ver `STABILITY_PLAN.md` e commits individuais.
