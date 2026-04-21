@@ -1080,6 +1080,86 @@ void AppManager::executeCommand(CliDemand cmd) {
             rp2040.reboot();
         }
 
+        case CMD_SET_NTP_ENABLED: {
+            const bool pt = _cmdMgr.isPt();
+            bool en = (cmd.intVal1 != 0);
+            _storageMgr.setNtpEnabled(en);
+            _cmdMgr.printSuccess(en ? (pt ? "NTP: habilitado" : "NTP: enabled")
+                                    : (pt ? "NTP: desabilitado" : "NTP: disabled"));
+            changed = true;
+            break;
+        }
+
+        case CMD_SET_DNS_CFG: {
+            const bool pt = _cmdMgr.isPt();
+            if (cmd.intVal1 == 0) {  /* auto */
+                _storageMgr.setDnsAuto(true);
+                _cmdMgr.printSuccess(pt ? "DNS: automatico (DHCP)" : "DNS: auto (DHCP)");
+                changed = true;
+            } else {  /* manual */
+                if (!isValidIpv4(cmd.strVal1.c_str())) {
+                    _cmdMgr.printError(pt ? "IPv4 invalido para DNS primario"
+                                          : "Invalid IPv4 for primary DNS");
+                    break;
+                }
+                /* Secundário opcional: "" aceito (limpa o secundário). */
+                if (cmd.strVal2.length() > 0 && !isValidIpv4(cmd.strVal2.c_str())) {
+                    _cmdMgr.printError(pt ? "IPv4 invalido para DNS secundario"
+                                          : "Invalid IPv4 for secondary DNS");
+                    break;
+                }
+                _storageMgr.setDnsAuto(false);
+                safeCopy(cfg.staticDns, cmd.strVal1.c_str(), sizeof(cfg.staticDns));
+                _storageMgr.setSecondaryDns(cmd.strVal2.c_str());
+                if (cmd.strVal2.length() > 0) {
+                    _cmdMgr.printSuccess(String(pt ? "DNS: manual; dns1=" : "DNS: manual; dns1=")
+                                         + cmd.strVal1 + ", dns2=" + cmd.strVal2);
+                } else {
+                    _cmdMgr.printSuccess(String(pt ? "DNS: manual; dns1=" : "DNS: manual; dns1=")
+                                         + cmd.strVal1);
+                }
+                changed = true;
+            }
+            break;
+        }
+
+        case CMD_SET_TIME: {
+            const bool pt = _cmdMgr.isPt();
+            int y, mo, d, h, mi, s;
+            if (sscanf(cmd.strVal1.c_str(), "%4d-%2d-%2d", &y, &mo, &d) != 3
+                || sscanf(cmd.strVal2.c_str(), "%2d:%2d:%2d", &h, &mi, &s) != 3) {
+                _cmdMgr.printError(pt ? "Formato invalido. Use: conf time AAAA-MM-DD HH:MM:SS"
+                                      : "Invalid format. Use: conf time YYYY-MM-DD HH:MM:SS");
+                break;
+            }
+            if (y < 2026 || y > 2099 || mo < 1 || mo > 12 || d < 1 || d > 31
+                || h < 0 || h > 23 || mi < 0 || mi > 59 || s < 0 || s > 59) {
+                _cmdMgr.printError(pt ? "Valores fora de range (ano >= 2026)"
+                                      : "Values out of range (year >= 2026)");
+                break;
+            }
+            struct tm tmLocal = {0};
+            tmLocal.tm_year = y - 1900;
+            tmLocal.tm_mon  = mo - 1;
+            tmLocal.tm_mday = d;
+            tmLocal.tm_hour = h;
+            tmLocal.tm_min  = mi;
+            tmLocal.tm_sec  = s;
+            /* mktime() usa TZ env var (setado em applyTimezone no boot) para
+             * converter local time → epoch UTC. */
+            time_t epoch = mktime(&tmLocal);
+            if (epoch <= 1600000000) {
+                _cmdMgr.printError(pt ? "Falha na conversao de tempo"
+                                      : "Time conversion failed");
+                break;
+            }
+            _netMgr.setManualTime(epoch);
+            _cmdMgr.printSuccess(pt ? "Hora aplicada (imediato, nao persiste em reboot)"
+                                    : "Time applied (immediate; not persisted across reboot)");
+            /* Sem changed=true: ação imediata, não vai pro flash. */
+            break;
+        }
+
         case CMD_DEFINE_SENSOR: {
             const bool pt = _cmdMgr.isPt();
             if (!cmd.intVal1Valid) {

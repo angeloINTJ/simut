@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.22.6"         /* Firmware version string */
+#define SIMUT_VERSION "v3.22.8"         /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -968,6 +968,9 @@ enum DemandType {
     CMD_RESET_ADMIN,
     CMD_RESET_TOUCH_CAL,
     CMD_FACTORY_RESET,
+    CMD_SET_NTP_ENABLED,   /**< F-NET-TIME.4: intVal1 = 0 off, 1 on */
+    CMD_SET_DNS_CFG,       /**< F-NET-TIME.4: intVal1 = 0 auto, 1 manual; strVal1=ip1, strVal2=ip2 */
+    CMD_SET_TIME,          /**< F-NET-TIME.4: strVal1="YYYY-MM-DD", strVal2="HH:MM:SS" */
     CMD_DEFINE_SENSOR,
     CMD_WIPE_SENSOR,
     CMD_ACCEPT_SENSOR,

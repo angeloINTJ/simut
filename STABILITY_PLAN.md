@@ -442,7 +442,8 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F-NET-TIME.1 + 1b (feature fora da auditoria)** | ✅ Concluída (HW validada) | em v3.22.0 | `v3.22.0` | 2026-04-21 |
 |   · F-NET-TIME.2 — consumer NetworkManager (flags DNS/NTP) | ✅ Path default validado (DHCP) | em v3.22.1 | — | 2026-04-21 |
 |   · F-NET-TIME.3a — back-end web (GET/POST + /api/set_time + setManualTime) | ✅ Código pronto (validação junto com 3b) | `436248f` | — | 2026-04-21 |
-|   · F-NET-TIME.3b — front-end /network (DNS separado) + /config (data/hora) + i18n PT | ✅ HW validada (v3.22.3 + estética v3.22.4 + CSS v3.22.5) | em v3.22.5 | — | 2026-04-21 |
+|   · F-NET-TIME.3b — front-end /network (DNS separado) + /config (data/hora) + i18n PT | ✅ HW validada (estética iterada até v3.22.6) | `ed9b21e` | — | 2026-04-21 |
+|   · F-NET-TIME.4 — CLI (`conf ntp`, `conf time`, `conf net dns`) + tokenizer 5→6 slots | ✅ HW validada | em v3.22.8 | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
