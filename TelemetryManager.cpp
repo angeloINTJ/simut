@@ -325,6 +325,21 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
     SystemConfig &cfg = _storageRef->getConfig();
     uint32_t lastCursor = _storageRef->getLastSentTimestamp();
 
+    /* F-NET-TIME.5: detecção cursor-no-futuro. Se lastCursor > now + 1 dia,
+     * é artefato de set manual de hora futura + volta ao NTP. Sem reset,
+     * collectBatch rejeita todos os records novos (rec.epoch > lastCursor
+     * sempre falso) e telemetria fica muda sem pista nos logs. Reseta o
+     * cursor → cai no fallback de 30d abaixo. Threshold de 1 dia tolera
+     * drift pequeno (timezone). */
+    uint32_t nowEpoch = (uint32_t)time(nullptr);
+    if (nowEpoch > 1600000000UL && lastCursor > nowEpoch + 86400UL) {
+        LOG_CODE(LOG_WARN, "TEL", SYS_OK, 0,
+                 TRL("Telemetry cursor in future — reset to 0",
+                     "Cursor de telemetria no futuro — reset para 0"));
+        _storageRef->setLastSentTimestamp(0);
+        lastCursor = 0;
+    }
+
     /* U8: fallback quando cursor é 0 (sem NTP / nunca enviou) —
      * usar último timestamp gravado - 30 dias para limitar varredura. */
     if (lastCursor == 0) {

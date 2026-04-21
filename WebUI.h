@@ -1381,13 +1381,15 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
                         <div class="col">
                             <label data-i18n="cfg_tint">Upload Interval (ms)</label>
-                            <input type="number" id="t_int" name="t_int" min="10000" max="86400000">
+                            <input type="number" id="t_int" name="t_int" min="0" max="86400000">
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_tint_hint">Set 0 to disable telemetry. Minimum recommended: 10000 (10s).</div>
                         </div>
                         <div class="col">
                             <label data-i18n="cfg_bat">Batch Limit</label>
                             <input type="number" id="t_bat" name="t_bat" min="1" max="100">
                         </div>
                     </div>
+                    <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (Upload Interval = 0). Set a value to enable.</div>
                 </div>
 
                 <h3 data-i18n="cfg_vis">Payload Builder</h3>
@@ -1587,6 +1589,16 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
         }
 
+        /* F-NET-TIME.5: banner de telemetria desabilitada quando t_int=0.
+         * Chamado em loadConfig e a cada input no campo t_int. */
+        function updateTelDisabledWarn() {
+            const inp = document.getElementById('t_int');
+            const warn = document.getElementById('tel_disabled_warn');
+            if (!inp || !warn) return;
+            const v = parseInt(inp.value, 10);
+            warn.style.display = (!v || v === 0) ? '' : 'none';
+        }
+
         /* F-NET-TIME.3b: Date & Time helpers. */
         function toggleManualTime() {
             const ntpOn = document.getElementById('ntp_enabled').checked;
@@ -1674,6 +1686,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('m_retain').checked = !!val('m_retain', false);
                 document.getElementById('m_ka').value = val('m_ka', 60);
                 document.getElementById('t_int').value = val('t_int', 300000);
+                updateTelDisabledWarn();
                 document.getElementById('t_bat').value = val('t_bat', 10);
                 document.getElementById('t_mode').value = val('t_mode', 0);
                 document.getElementById('t_glob').value = val('t_glob', '');
@@ -1705,6 +1718,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (el.type === 'checkbox') v = el.checked ? '1' : '0';
                 else v = el.value;
                 Pending.setField('sys', el.id, v);
+                /* F-NET-TIME.5: refresh hint quando user digita em t_int. */
+                if (el.id === 't_int') updateTelDisabledWarn();
             };
             form.addEventListener('input', handler);
             form.addEventListener('change', handler);
@@ -3713,7 +3728,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "m_jan":"Jan", "m_feb":"Fev", "m_mar":"Mar", "m_apr":"Abr", "m_may":"Mai", "m_jun":"Jun", "m_jul":"Jul", "m_aug":"Ago", "m_sep":"Set", "m_oct":"Out", "m_nov":"Nov", "m_dec":"Dez",
             "cfg_title": "Configurações", "cfg_gen": "Identidade", "cfg_dev": "Nome", "cfg_tz": "Fuso Horário", "cfg_log": "Registro Local", "cfg_hw": "Hardware", "cfg_res": "Resolução DS18B20", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Amostra (ms)", "cfg_tel": "Telemetria", "cfg_srv": "IP Servidor", "cfg_port": "Porta", "cfg_path": "Endpoint", "cfg_key": "API Key", "cfg_tint": "Upload (ms)", "cfg_bat": "Lote", "cfg_fmt": "Formato", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Dinâmico", "cfg_sec": "Usar TLS / SSL", "cfg_sec_mqtt": "Usar MQTTS (TLS)", "cfg_vis": "Construtor", "cfg_leg": "Tags", "cfg_leg1": "Globais:", "cfg_leg2": "Dados:", "cfg_leg3": "Chaves Inteligentes:", "cfg_leg4": "Formatos:", "cfg_leg5": "Série T", "cfg_leg6": "Série H", "cfg_leg7": "ID Sensor", "cfg_tpl1": "1. Global", "cfg_tpl2": "2. Linha", "cfg_tpl3": "3. Separador", "cfg_prev": "Live Preview:", "cfg_save": "Salvar", "cfg_touch_title": "Calibração do Touch", "cfg_touch_reset": "Resetar Calibração", "cfg_touch_hint": "Restaura padrão de fábrica. Recalibre pelo menu do display.", "cfg_touch_confirm": "Resetar calibração do touch para padrão de fábrica?", "cfg_touch_done": "Calibração resetada. Recalibre pelo display.",
             "cfg_transport": "Transporte", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Tópico", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Usuário", "cfg_mq_pass": "Senha", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Reter", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)", "net_web_title": "Servidor Web", "net_web_port": "Porta HTTP", "net_web_port_hint": "Padrão: 80. Após salvar, o navegador redireciona automaticamente para a nova porta.", "net_dns_title": "Configuração de DNS", "net_dns_auto": "Obter DNS automaticamente (DHCP)", "net_dns1": "DNS Primário", "net_dns2": "DNS Secundário", "net_ntp_disabled": "NTP está desabilitado.", "net_ntp_goto_cfg": "Habilite em Configurações do Sistema →", "cfg_datetime": "Data e Hora", "cfg_ntp_auto": "Sincronizar automaticamente via NTP", "cfg_date": "Data", "cfg_time": "Hora", "cfg_apply_now": "Aplicar Agora", "cfg_manual_hint": "Usa fuso horário do dispositivo. Salve e Reinicie para persistir o toggle do NTP.", "cfg_time_need": "Preencha data e hora.", "cfg_time_ok": "Hora aplicada.", "cfg_time_fail": "Falhou ao aplicar.", "display_busy": "Display em uso. Tente novamente em alguns segundos.", "net_conn_err": "Erro de conexão.", "hist_clear_err": "Falha ao limpar logs.", "hist_cleared": "Logs limpos.", "fil_mkdir_ok": "Pasta criada.", "fil_mkdir_err": "Falha ao criar pasta.", "fil_del_err": "Alguns arquivos não puderam ser excluídos.", "fil_deleted": "Arquivos excluídos.", "commit_btn": "💾 Salvar e Reiniciar", "commit_confirm": "Isto salvará todas as alterações e reiniciará o sistema.\n\n⚠️ O dispositivo ficará offline por ~10 segundos.\nQualquer gravação de histórico/log em andamento será interrompida.\n\nContinuar?", "commit_saved": "Salvo! Reiniciando sistema...", "commit_err": "Falha ao salvar.", "pending_notice": "Clique em \"Salvar e Reiniciar\" no topo para aplicar as alterações.",
+            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)", "net_web_title": "Servidor Web", "net_web_port": "Porta HTTP", "net_web_port_hint": "Padrão: 80. Após salvar, o navegador redireciona automaticamente para a nova porta.", "net_dns_title": "Configuração de DNS", "net_dns_auto": "Obter DNS automaticamente (DHCP)", "net_dns1": "DNS Primário", "net_dns2": "DNS Secundário", "net_ntp_disabled": "NTP está desabilitado.", "net_ntp_goto_cfg": "Habilite em Configurações do Sistema →", "cfg_datetime": "Data e Hora", "cfg_ntp_auto": "Sincronizar automaticamente via NTP", "cfg_date": "Data", "cfg_time": "Hora", "cfg_apply_now": "Aplicar Agora", "cfg_manual_hint": "Usa fuso horário do dispositivo. Salve e Reinicie para persistir o toggle do NTP.", "cfg_time_need": "Preencha data e hora.", "cfg_time_ok": "Hora aplicada.", "cfg_time_fail": "Falhou ao aplicar.", "cfg_tint_hint": "Defina 0 para desabilitar a telemetria. Mínimo recomendado: 10000 (10s).", "cfg_tel_disabled": "⚠ Telemetria desabilitada (Intervalo de Upload = 0). Defina um valor para ativar.", "display_busy": "Display em uso. Tente novamente em alguns segundos.", "net_conn_err": "Erro de conexão.", "hist_clear_err": "Falha ao limpar logs.", "hist_cleared": "Logs limpos.", "fil_mkdir_ok": "Pasta criada.", "fil_mkdir_err": "Falha ao criar pasta.", "fil_del_err": "Alguns arquivos não puderam ser excluídos.", "fil_deleted": "Arquivos excluídos.", "commit_btn": "💾 Salvar e Reiniciar", "commit_confirm": "Isto salvará todas as alterações e reiniciará o sistema.\n\n⚠️ O dispositivo ficará offline por ~10 segundos.\nQualquer gravação de histórico/log em andamento será interrompida.\n\nContinuar?", "commit_saved": "Salvo! Reiniciando sistema...", "commit_err": "Falha ao salvar.", "pending_notice": "Clique em \"Salvar e Reiniciar\" no topo para aplicar as alterações.",
             "usr_mgt": "Gestão de Acessos", "usr_usr": "Usuário", "usr_perm": "Permissões", "usr_act": "Ações", "usr_add": "Adicionar", "usr_name": "Nome", "usr_pdash": "Painel", "usr_phist": "Histórico", "usr_plog": "Logs", "usr_psys": "Sistema", "usr_pnet": "Rede", "usr_pfr": "Leitura", "usr_pfu": "Upload", "usr_pfd": "Excluir", "usr_pusr": "Usuários", "usr_btn": "Criar", "usr_warn": "Login via: Nome@DDMMAAAA", "usr_prot": "Protegido", "usr_del": "Excluir", "usr_rst": "Reset", "usr_sup": "Super",
             "fil_title": "Sistema de Arquivos", "fil_down": "Baixar", "fil_del": "Excluir", "fil_up": "Enviar", "fil_uphere": "Enviar", "fil_name": "Nome", "fil_sz": "Tamanho", "fil_mkdir": "Nova Pasta", "fil_mkname": "nome", "fil_create": "Criar", "fil_cancel": "Cancelar", "fil_loading": "Carregando...", "fil_parent": "Subir", "fil_folder": "Pasta", "fil_empty": "Vazio", "fil_inv_name": "Inválido", "fil_sel_del": "Selecione", "fil_conf_del": "Excluir N?", "fil_sel_down": "Selecione", "fil_conf_down": "Baixar N?", "usr_del_msg": "Excluir?", "usr_rst_msg": "Forçar reset?", "hist_clear_msg": "Limpar logs?",
             "alm_title": "Alarmes e Sons", "alm_limits": "Limites de Alarme", "alm_sounds": "Configuração de Sons", "alm_tmin": "Temp. Mín.", "alm_tmax": "Temp. Máx.", "alm_hmin": "Umid. Mín.", "alm_hmax": "Umid. Máx.", "alm_active": "Alarme Ativo", "alm_save": "Salvar", "alm_saved": "Salvo com sucesso!", "alm_err": "Erro ao salvar.", "alm_none": "Nenhum sensor configurado.", "alm_touch": "Toque", "alm_confirm": "Confirmação", "alm_error": "Erro", "alm_alarm": "Alarme", "alm_web": "Sons Web", "alm_mute": "Mudo Global", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Alarme", "alm_on": "Ligado", "alm_off": "Desligado", "alm_ambient": "Sensor Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Descendente", "alm_mel_siren": "Sirene",
