@@ -100,6 +100,51 @@ public:
     void   flushCursorIfDirty();
     void   invalidateOldestFileCache() { _cachedOldestFile = ""; }
 
+    /**
+     * @brief SEC-003/F12.3: Gera senha admin inicial aleatória.
+     *
+     * Alfabeto [A-Z2-9] de 32 chars (exclui O/0/I/1 para não confundir).
+     * Entropia: 32^8 ≈ 1.1 × 10^12 combinações. Usa `rp2040.hwrand32()`,
+     * que no RP2040 é backed pelo ROSC (ring oscillator) — entropia de hw.
+     *
+     * @param  outPlain  Buffer de saída (null-terminated).
+     * @param  bufSize   Tamanho do buffer (precisa ≥ 9 para 8 chars + '\0').
+     */
+    void generateInitialAdminPassword(char* outPlain, size_t bufSize);
+
+    /** @return true se a config atual está em factory defaults —
+     *  i.e., admin[0] ativo com `mustChangePassword=true`. Calculado em tempo real. */
+    bool isFactoryDefaults() const;
+
+    /** @return plaintext da senha admin random gerada por `loadDefaults()`
+     *  nesta sessão. String vazia se já trocada OU se loadDefaults não rodou
+     *  (config válida carregada do flash). NUNCA persistida. */
+    const char* getInitialAdminPassword() const { return _initialAdminPassword; }
+
+    /** Zera `_initialAdminPassword` em RAM. Chamado automaticamente por
+     *  `saveConfiguration()` quando `admin.mustChangePassword` vira false,
+     *  e por `loadConfiguration()` ao carregar config válida do flash. */
+    void clearInitialAdminPassword();
+
+    /**
+     * @brief SEC-004/F12.4: True se o PIN do display ainda é o default
+     *  (factory defaults) e precisa ser trocado antes do usuário operar
+     *  livremente o menu de configurações.
+     *
+     * Overlay em `reserved[26..27]` (SetupFlagsData). Configs v13-v14 legadas
+     * sem magic retornam false (assume que já estão configuradas — evita
+     * forçar troca para quem só fez upgrade de firmware).
+     */
+    bool mustChangePin() const;
+
+    /** Limpa `FLAG_MUST_CHANGE_PIN` no overlay SetupFlagsData.
+     *  Chamado quando o usuário salva um PIN != "1234". */
+    void clearMustChangePin();
+
+    /** Seta `FLAG_MUST_CHANGE_PIN` no overlay SetupFlagsData.
+     *  Chamado em `loadDefaults()` (factory reset). */
+    void setMustChangePin();
+
 private:
     SystemConfig _currentConfig;
     bool _isMounted = false;
@@ -114,6 +159,12 @@ private:
     volatile uint32_t _lastSaveMs = 0;  /**< millis() do último save real (0 = nunca) */
 
     bool (*_isTouchPriorityFn)() = nullptr;  /**< Callback: user interagindo? */
+
+    /** SEC-003/F12.3: senha admin plaintext em RAM (NUNCA persistida em flash).
+     *  Populada por `generateInitialAdminPassword` durante `loadDefaults()`.
+     *  Zerada por `clearInitialAdminPassword()` quando admin troca senha OU
+     *  quando config válida é carregada do flash (i.e., não factory). */
+    char _initialAdminPassword[9] = {0};
     BinaryHistoryRecord _pendingHistRec;     /**< Record HIST deferido durante touch */
     volatile bool _pendingHistValid = false; /**< True se _pendingHistRec tem dados */
 

@@ -1781,6 +1781,14 @@ void WebManager::handleApiMkdir() {
 void WebManager::handleUploadComplete() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_FILE_UPLOAD)) { _server.send(403, "text/plain", "Forbidden"); return; }
+    /* SEC-001/F12.1: se o START marcou rejeição (nome inválido, uploadDir ruim,
+     * sem espaço), responde 400 aqui — a resposta não pode ser enviada de dentro
+     * do upload handler do Arduino WebServer. */
+    if (_uploadRejected) {
+        _uploadRejected = false;
+        _server.send(400, "application/json", "{\"error\":\"Invalid upload\"}");
+        return;
+    }
     _storageRef->invalidateOldestFileCache();  /* U7: arquivo restaurado pode ser mais antigo */
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
@@ -1792,6 +1800,18 @@ void WebManager::handleUploadData() {
     HTTPUpload& upload = _server.upload();
 
     if (upload.status == UPLOAD_FILE_START) {
+        /* SEC-001/F12.1: reset de estado de rejeição (novo upload). */
+        _uploadRejected = false;
+
+        /* SEC-001/F12.1: sanitização do filename ANTES de qualquer uso.
+         * upload.filename vem direto do cliente multipart HTTP — trata como hostil. */
+        if (!isSafeUploadFilename(upload.filename.c_str())) {
+            LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId,
+                     String("Upload rejeitado: filename invalido '") + upload.filename + "'");
+            _uploadRejected = true;
+            return;
+        }
+
         String filename = upload.filename;
         if (!filename.startsWith("/")) filename = "/" + filename;
 
@@ -1806,7 +1826,9 @@ void WebManager::handleUploadData() {
                 uint32_t cl = _server.header("Content-Length").toInt();
                 if (cl > freeBytes) {
                     LOG_CODE(LOG_WARN, "WEB", WEB_UPLOAD, (int)cl, "Upload rejected: no space");
-                    _server.send(413, "application/json", "{\"error\":\"Payload Too Large\"}");
+                    /* Não podemos enviar 413 daqui (upload handler). Marca rejeição
+                     * — handleUploadComplete retorna 400 (genérico). */
+                    _uploadRejected = true;
                     return;
                 }
             }
@@ -1816,7 +1838,19 @@ void WebManager::handleUploadData() {
         if (_server.hasArg("uploadDir")) {
             targetDir = _server.arg("uploadDir");
             targetDir.trim();
-            targetDir.replace("..", "");
+
+            /* SEC-002/F12.2: rejeita em vez de tentar limpar.
+             * `String::replace("..","")` é não-recursivo — `"...."` passa a `".."`
+             * após uma passada, e variantes percent-encoded (`%2e%2e`) também
+             * escapam. Rejeita literal `..` e `%` (que habilita encoding).
+             * Paths legítimos nunca contêm nenhum dos dois. */
+            if (targetDir.indexOf("..") >= 0 || targetDir.indexOf('%') >= 0) {
+                LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId,
+                         String("uploadDir rejeitado: ") + targetDir);
+                _uploadRejected = true;
+                return;
+            }
+
             if (!targetDir.startsWith("/")) targetDir = "/" + targetDir;
             while (targetDir.length() > 1 && targetDir.endsWith("/")) {
                 targetDir = targetDir.substring(0, targetDir.length() - 1);
@@ -1838,11 +1872,13 @@ void WebManager::handleUploadData() {
         { RenderGuard rg(_displayRef); _uploadFile = LittleFS.open(finalPath, "w"); }
 
     } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (_uploadRejected) return;
         if (_uploadFile) {
             { RenderGuard rg(_displayRef); _uploadFile.write(upload.buf, upload.currentSize); }
             feedWatchdog();
         }
     } else if (upload.status == UPLOAD_FILE_END) {
+        if (_uploadRejected) return;
         if (_uploadFile) {
             { RenderGuard rg(_displayRef); _uploadFile.close(); }
 
