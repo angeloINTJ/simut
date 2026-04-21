@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.23.3"         /* Firmware version string */
+#define SIMUT_VERSION "v3.23.4"         /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -300,11 +300,18 @@ enum TelemetryTransport {
     TEL_TRANSPORT_MQTT = 1
 };
 
-/** Display language selection (indexes into i18n dictionary). */
+/**
+ * Display language selection (indexes into i18n dictionary).
+ *
+ * CON-002: LANG_ES removido (F-I18N-TRIM.1 deletou DICTIONARY/LICENSE_ES
+ * em v3.22.0 — só EN e PT persistem). LANG_COUNT é sentinela que amarra
+ * o enum ao tamanho real dos arrays em DisplayManager.cpp via static_assert,
+ * forçando atualização conjunta se idiomas futuros voltarem.
+ */
 enum LanguageCode {
-    LANG_EN = 0,
-    LANG_PT = 1,
-    LANG_ES = 2
+    LANG_EN    = 0,
+    LANG_PT    = 1,
+    LANG_COUNT = 2   /**< Sentinela — total de idiomas suportados. */
 };
 
 /** Structured log event codes for machine-parseable system logging. */

@@ -29,19 +29,23 @@ extern "C" {
 }
 
 
-/* F-I18N-TRIM.1: reduzido de 8 para 2 idiomas (EN + PT) para economizar
- * flash. Os outros 6 idiomas ficaram no histórico git (pré-v3.22.0).
- * LangKey/TR_KEYS_COUNT em SystemDefs.h mantém as mesmas chaves. */
-static const int TOTAL_LANGS = 2;
+/* F-I18N-TRIM.1 (v3.22.0): reduzido de 8 para 2 idiomas (EN + PT) para
+ * economizar flash. Os outros 6 idiomas ficaram no histórico git.
+ * CON-002 (v3.23.4): TOTAL_LANGS local substituído por LANG_COUNT do enum
+ * em SystemDefs.h; static_assert amarra o tamanho dos arrays à sentinela. */
 
-static const char* const LANG_NAMES[TOTAL_LANGS] = {
+static const char* const LANG_NAMES[LANG_COUNT] = {
     "English", "Portugues"
 };
-static const char* const LANG_FLAGS[TOTAL_LANGS] = {
+static const char* const LANG_FLAGS[LANG_COUNT] = {
     "EN", "PT"
 };
+static_assert(sizeof(LANG_NAMES)/sizeof(LANG_NAMES[0]) == LANG_COUNT,
+              "LANG_NAMES count must match LanguageCode LANG_COUNT");
+static_assert(sizeof(LANG_FLAGS)/sizeof(LANG_FLAGS[0]) == LANG_COUNT,
+              "LANG_FLAGS count must match LanguageCode LANG_COUNT");
 
-const char* const DICTIONARY[TOTAL_LANGS][TR_KEYS_COUNT] = {
+const char* const DICTIONARY[LANG_COUNT][TR_KEYS_COUNT] = {
 
     {
         "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language", "EXIT",
@@ -178,9 +182,11 @@ static const char LICENSE_PT[] =
     "SIMUT v3 - Feito no Brasil";
 
 
-static const char* const LICENSE_TEXT[TOTAL_LANGS] = {
+static const char* const LICENSE_TEXT[LANG_COUNT] = {
     LICENSE_EN, LICENSE_PT
 };
+static_assert(sizeof(LICENSE_TEXT)/sizeof(LICENSE_TEXT[0]) == LANG_COUNT,
+              "LICENSE_TEXT count must match LanguageCode LANG_COUNT");
 
 static int wrapLineCount(const char* text, int maxCols) {
     int lines = 1;
@@ -290,7 +296,7 @@ void DisplayManager::restartCore1() {
 }
 
 void DisplayManager::setLanguage(int langId) {
-    if (langId >= 0 && langId < TOTAL_LANGS) _currentLangIdx = langId;
+    if (langId >= 0 && langId < LANG_COUNT) _currentLangIdx = langId;
     else _currentLangIdx = 1;
 }
 
@@ -4639,7 +4645,7 @@ void DisplayManager::handleTouch() {
             int clickedIndex = 0;
             if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
             int actualIndex = (_langPage * 4) + clickedIndex;
-            if (actualIndex < TOTAL_LANGS && actualIndex != _previewLangIdx) {
+            if (actualIndex < LANG_COUNT && actualIndex != _previewLangIdx) {
                 if (!acceptSlideTouch(clickedIndex)) return;
                 _previewLangIdx = actualIndex;
                 _langPage = _previewLangIdx / 4;
@@ -4649,13 +4655,13 @@ void DisplayManager::handleTouch() {
         else if (y > 185) {
             if (x < 70) {
                 if (!acceptHoldTouch(10)) return;
-                if (_previewLangIdx > 0) _previewLangIdx--; else _previewLangIdx = TOTAL_LANGS - 1;
+                if (_previewLangIdx > 0) _previewLangIdx--; else _previewLangIdx = LANG_COUNT - 1;
                 _langPage = _previewLangIdx / 4;
                 _repaintSettings = true;
             }
             else if (x < 138) {
                 if (!acceptHoldTouch(11)) return;
-                if (_previewLangIdx < TOTAL_LANGS - 1) _previewLangIdx++; else _previewLangIdx = 0;
+                if (_previewLangIdx < LANG_COUNT - 1) _previewLangIdx++; else _previewLangIdx = 0;
                 _langPage = _previewLangIdx / 4;
                 _repaintSettings = true;
             }
@@ -5602,7 +5608,7 @@ void DisplayManager::drawSettingsLang() {
     bool pageChanged = (_langPage != _lastLangPage);
 
 
-    int totalPages = (TOTAL_LANGS + 3) / 4;
+    int totalPages = (LANG_COUNT + 3) / 4;
     if (_langPage >= totalPages) _langPage = totalPages - 1;
     if (_langPage < 0) _langPage = 0;
 
@@ -5680,7 +5686,7 @@ void DisplayManager::drawSettingsLang() {
 
         _canvasWide->fillScreen(C_BG_MAIN);
 
-        if (actualIdx < TOTAL_LANGS) {
+        if (actualIdx < LANG_COUNT) {
             bool isSelected = (actualIdx == _previewLangIdx);
             uint16_t bg  = isSelected ? C_ACCENT  : C_CARD_BG;
             uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
@@ -7423,7 +7429,7 @@ void DisplayManager::drawSettingsLicense() {
     bool fullRedraw = _forceSettingsRedraw;
 
     int langIdx = _currentLangIdx;
-    if (langIdx < 0 || langIdx >= TOTAL_LANGS) langIdx = 0;
+    if (langIdx < 0 || langIdx >= LANG_COUNT) langIdx = 0;
     const char* licText = LICENSE_TEXT[langIdx];
 
     const int MAX_COLS  = 50;
