@@ -467,7 +467,8 @@ Atualize esta tabela conforme cada fase for concluída.
 - **F-LOCKOUT-STUCK** — primeiro `write memory` com mudança real após longo idle pode disparar `[DSP] Lockout stuck >10s, restarting Core 1` (2×). Saves subsequentes OK. Não afeta integridade (config grava corretamente). Provável fragmentação de heap pós-telemetria ou GC do LittleFS. Investigar em ciclo futuro.
 - **Tokenizer não strip aspas** — `conf system ssid "X"` salva com aspas literais. Também `isValidName` rejeita hífen em nome. Polish de UX para futuro.
 | **F14 — Inconsistências + docs + CON/DOC** | ✅ Concluída | `stability-fixes-tier1` | v3.24.0 | 2026-04-21 |
-| **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
+| **F15 — Hash migration (SEC-006..009)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.25.0) | — |
+|   · F15.1 — SEC-006: LRU evict pula slots com lockout ativo | ✅ HW validada via `tools/test_f15_1_sec006.sh` | em v3.24.3 | — | 2026-04-21 |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 
@@ -533,7 +534,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | SEC-003 | 🟠 | F12 | ✅ | **F12.3 (2026-04-20, Variante B):** `loadDefaults` gera senha admin aleatória 8 chars `[A-Z2-9]` (exclui `O/0/I/1`) via `rp2040.hwrand32()`, hash salvo com mesma lógica `hashPassword(u, SHA256(plain))` que frontend. Plaintext em RAM (`_initialAdminPassword[9]`) — nunca persistido em flash; zerado quando `mustChangePassword` flip false OU `loadConfiguration` carrega config válida do flash. Anúncio via Serial USB com banner `SEC-003: FACTORY DEFAULTS ATIVADO` + LOG_CODE audit trail. CLI `conf system admin reset` também migrado para gerar random (era `simut` hardcoded). Viewer mantido como decisão do audit (mustChangePassword forçado, perms mínimas). Script `tools/test_f12_3_sec003.sh` valida: admin/admin rejeitado, login real funciona, viewer cai em /force_chpass. Teste destrutivo factory reset é manual. |
 | SEC-004 | 🟠 | F12 | ✅ | **F12.4 (2026-04-20):** `SetupFlagsData` overlay em `reserved[26..27]` (magic=0xBE, `FLAG_MUST_CHANGE_PIN`). `StorageManager::mustChangePin/clear/set`. `loadDefaults` seta flag; `AppManager::EVT_AUTH_SUCCESS` redireciona para `showSettingsPassword()` em vez de main se flag ativa; `EVT_SAVE_PASSWORD` limpa flag só se novo PIN != "1234". Configs legadas sem magic retornam `mustChangePin=false` (compat com upgrade). Teste manual HW-only (touch UI). |
 | SEC-005 | 🟠 | F12 | ✅ | **F12.5 (2026-04-20):** `CLI_LINE_MAX=256` em `SystemDefs.h`; helper `CommandManager::appendCharWithLimit` com anti-spam (1 warning por rajada de overflow, flag resetada ao receber `\n`). Aplicado em `_usbBuffer` (USB) e `_btBuffer` (BT pós-auth). Sem guard, `yes \| cat > /dev/ttyACM0` reallocaria `String` até OOM. Log `CLI_UNKNOWN_CMD Linha > 256 descartada em USB\|BT`. Script `tools/test_f12_5_sec005.sh` envia 1KB + 10KB sem `\n`, valida device responsivo + heap estável + comando válido pós-overflow + log em `/api/logs`. |
-| SEC-006 | 🟡 | F15 | ⚪ | LRU evict preserva lockout ativo. |
+| SEC-006 | 🟡 | F15 | ✅ | LRU evict pula slots com lockout ativo + 429 se todos trancados (v3.24.3). |
 | SEC-007 | 🟢 | F15 | ⚪ | Hash 120→128 bits com migração transparente. |
 | SEC-008 | 🟢 | F15 | ⚪ | `PASSWORD_HMAC_ROUNDS` 2500→5000. |
 | SEC-009 | 🟢 | F15 | ⚪ | Salt random por usuário (schema bump). |

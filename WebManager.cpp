@@ -827,17 +827,48 @@ String WebManager::generateSecureToken() {
 void WebManager::handleApiLoginInit() {
     uint32_t clientIP = (uint32_t)_server.client().remoteIP();
 
+    /* SEC-006: busca slot do próprio IP primeiro; se não existe, escolhe LRU
+     * mas apenas entre slots "evictáveis" (livres OU sem lockout ativo). Um
+     * slot sob lockout não-expirado NÃO pode ser sobrescrito — isso evita
+     * bypass do rate-limit por rotação de IPs (atacante lockado em slot X
+     * não consegue evictar X cyclando por 8 IPs novos). */
     int slot = -1;
-    int oldest = 0;
+    int oldestEvictable = -1;
     for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
         if (_loginStates[i].ip == clientIP) { slot = i; break; }
-        if (_loginStates[i].lastActivity < _loginStates[oldest].lastActivity) oldest = i;
+        bool evictable = (_loginStates[i].ip == 0)
+                      || (_loginStates[i].lockoutUntil == 0)
+                      || timeReached(_loginStates[i].lockoutUntil);
+        if (evictable) {
+            if (oldestEvictable == -1 ||
+                _loginStates[i].lastActivity < _loginStates[oldestEvictable].lastActivity) {
+                oldestEvictable = i;
+            }
+        }
     }
     if (slot == -1) {
-        for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
-            if (_loginStates[i].ip == 0) { slot = i; break; }
+        if (oldestEvictable == -1) {
+            /* Todos os 8 slots sob lockout ativo — edge case extremo (em
+             * operação normal, lockouts máx 5 min expiram em sequência).
+             * Recusa o pedido com 429 + Retry-After sugerido. */
+            uint32_t minRem = UINT32_MAX;
+            for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
+                uint32_t rem = timeRemaining(_loginStates[i].lockoutUntil);
+                if (rem > 0 && rem < minRem) minRem = rem;
+            }
+            if (minRem == UINT32_MAX) minRem = 60000;
+            uint32_t retryAfterSec = (minRem + 999) / 1000;
+            LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
+                     "Login init rejected: all slots locked");
+            _server.sendHeader("Retry-After", String(retryAfterSec));
+            char buf[64];
+            snprintf(buf, sizeof(buf),
+                     "{\"ok\":false,\"err\":3,\"retryAfter\":%lu}",
+                     (unsigned long)retryAfterSec);
+            _server.send(429, "application/json", buf);
+            return;
         }
-        if (slot == -1) slot = oldest;
+        slot = oldestEvictable;
         _loginStates[slot].ip = clientIP;
         _loginStates[slot].failCount = 0;
         _loginStates[slot].lockoutUntil = 0;
