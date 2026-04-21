@@ -274,7 +274,10 @@ void AppManager::setup() {
         for (int i = 0; i < 35; i++) { delay(100); watchdog_update(); TRACE_BEAT(0); }
     } else {
         _displayMgr.setBootStatus("Starting Wi-Fi Interface...");
-        _netMgr.begin(cfg);
+        _netMgr.begin(cfg,
+                      _storageMgr.isDnsAuto(),
+                      _storageMgr.isNtpEnabled(),
+                      _storageMgr.getSecondaryDns());
 
         unsigned long netWait = millis();
         unsigned long lastMsg = 0;

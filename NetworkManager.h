@@ -27,7 +27,13 @@ class NetworkManager {
 public:
     NetworkManager();
 
-    void begin(const SystemConfig &cfg);
+    /* F-NET-TIME.2: flags adicionais lidas do overlay NetworkTimeData em
+     * StorageManager. Passadas explicitamente (em vez de referência ao
+     * StorageManager) para manter NetworkManager desacoplado. */
+    void begin(const SystemConfig &cfg,
+               bool dnsAuto = true,
+               bool ntpEnabled = true,
+               const char* dns2 = "");
     void beginAP(const char* deviceName);
     void update();
 
@@ -94,6 +100,13 @@ private:
     char _ntpServer[32];
     int8_t _tzOffset;
 
+    /* F-NET-TIME.2 — flags runtime aplicadas no boot. */
+    bool _dnsAuto     = true;
+    bool _ntpEnabled  = true;
+    bool _useDhcp     = true;
+    char _staticDns1[16] = {0};
+    char _staticDns2[16] = {0};
+
     uint32_t _stateTimer;
     uint32_t _retryTimer;
     uint32_t _reconnectTimer;
@@ -109,6 +122,10 @@ private:
     void handleConnecting();
     void syncNtp();
     void resetNtpBackoff();             /**< Reseta backoff após sucesso/reconnect */
+
+    /* F-NET-TIME.2: aplica DNS manual (primário e/ou secundário) via lwIP
+     * após IP adquirido. No-op quando dnsAuto=true e useDhcp=true. */
+    void applyManualDnsIfNeeded();
 
     uint32_t _lastMdnsUpdate = 0;       /**< Throttle para MDNS.update()         */
     uint8_t  _connectCycles  = 0;        /**< Ciclos de reconexão consecutivos    */
