@@ -235,6 +235,11 @@ private:
     void handleApiHistoryDays();
     void handleApiSecStatus();
 
+    /* F-NET-TIME.3a: POST /api/set_time — aplica manual RTC via
+     * NetworkManager::setManualTime. Ação imediata (não via commit-all),
+     * pois o user espera ver a hora atualizada na mesma resposta. */
+    void handleApiSetTime();
+
 
     String generateSecureToken();
 

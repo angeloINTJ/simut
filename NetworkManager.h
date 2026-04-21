@@ -41,6 +41,11 @@ public:
     void setProvisionalTime(uint32_t lastTs);
     void setTimeSyncCallback(TimeSyncCallback cb);
 
+    /* F-NET-TIME.3a: set manual de RTC (via settimeofday) para quando NTP
+     * está desabilitado. `epoch` é hora UTC em segundos (cliente converte
+     * hora local para epoch usando o TZ acordado). No-op se epoch <= 0. */
+    void setManualTime(time_t epoch);
+
 
     bool isConnected();
     bool isTimeSynced();

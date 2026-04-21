@@ -107,6 +107,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/api/clear_logs", HTTP_POST, std::bind(&WebManager::handleApiClearLogs, this));
     _server.on("/api/screenshot", HTTP_GET, std::bind(&WebManager::handleApiScreenshot, this));
     _server.on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));
+    _server.on("/api/set_time", HTTP_POST, std::bind(&WebManager::handleApiSetTime, this));
 
 
     _server.on("/download", HTTP_GET, std::bind(&WebManager::handleDownload, this));
@@ -483,12 +484,14 @@ void WebManager::handleApiNetwork() {
         cfg.reserved + WEB_CONFIG_OFFSET);
     uint16_t currentPort = (w->port > 0) ? w->port : WEB_DEFAULT_PORT;
 
-    char json[512];
+    /* F-NET-TIME.3a: expõe flags do overlay NetworkTimeData para a UI. */
+    char json[640];
     snprintf(json, sizeof(json),
         "{\"connected\":%s,\"ip\":\"%s\",\"mask\":\"%s\",\"gw\":\"%s\","
         "\"dns\":\"%s\",\"mac\":\"%s\",\"ssid\":\"%s\",\"use_dhcp\":%s,"
         "\"static_ip\":\"%s\",\"static_mask\":\"%s\",\"static_gw\":\"%s\","
-        "\"static_dns\":\"%s\",\"ntp_server\":\"%s\",\"web_port\":%u}",
+        "\"static_dns\":\"%s\",\"dns_auto\":%s,\"dns2\":\"%s\","
+        "\"ntp_server\":\"%s\",\"ntp_enabled\":%s,\"web_port\":%u}",
         _netRef->isConnected() ? "true" : "false",
         _netRef->getIpAddress().c_str(),
         _netRef->getSubnetMask().c_str(),
@@ -498,7 +501,11 @@ void WebManager::handleApiNetwork() {
         cfg.wifiSsid,
         cfg.useDhcp ? "true" : "false",
         cfg.staticIp, cfg.staticMask, cfg.staticGateway, cfg.staticDns,
-        cfg.ntpServer, (unsigned)currentPort);
+        _storageRef->isDnsAuto() ? "true" : "false",
+        _storageRef->getSecondaryDns(),
+        cfg.ntpServer,
+        _storageRef->isNtpEnabled() ? "true" : "false",
+        (unsigned)currentPort);
 
     _server.send(200, "application/json", json);
 }
@@ -534,11 +541,14 @@ void WebManager::handleApiConfig() {
 
     snprintf(buf, sizeof(buf),
         "{\"name\":\"%s\",\"tz\":%d,\"log\":%s,\"res\":%d,\"s_int\":%lu,"
-        "\"t_transport\":%d,\"t_sec\":%s,",
+        "\"t_transport\":%d,\"t_sec\":%s,"
+        "\"ntp_enabled\":%s,\"now_epoch\":%lu,",
         jsonEscape(cfg.deviceName).c_str(), cfg.timezoneOffset,
         cfg.loggingEnabled ? "true" : "false", cfg.ds18Resolution,
         (unsigned long)cfg.sampleIntervalMs, cfg.telTransport,
-        cfg.telEncryption ? "true" : "false");
+        cfg.telEncryption ? "true" : "false",
+        _storageRef->isNtpEnabled() ? "true" : "false",
+        (unsigned long)time(nullptr));
     if (!safeSend(buf)) return;
 
     snprintf(buf, sizeof(buf),
@@ -1237,6 +1247,8 @@ void WebManager::handleApiCommitAll() {
             if (has("t_glob"))    safeCopy(cfg.telGlobalTemplate, getStr("t_glob").c_str(), sizeof(cfg.telGlobalTemplate));
             if (has("t_line"))    safeCopy(cfg.telLineTemplate, getStr("t_line").c_str(), sizeof(cfg.telLineTemplate));
             if (has("t_sep"))     safeCopy(cfg.telLineSeparator, getStr("t_sep").c_str(), sizeof(cfg.telLineSeparator));
+            /* F-NET-TIME.3a: flag NTP enable/disable (overlay NetworkTimeData). */
+            if (has("ntp_enabled")) _storageRef->setNtpEnabled(getNum("ntp_enabled") != "0");
         }
     }
 
@@ -1473,6 +1485,16 @@ void WebManager::handleApiCommitAll() {
                 if (has("gw"))   { String s = getS("gw");   if (isValidIpv4(s.c_str())) safeCopy(cfg.staticGateway, s.c_str(), sizeof(cfg.staticGateway)); }
                 if (has("dns"))  { String s = getS("dns");  if (isValidIpv4(s.c_str())) safeCopy(cfg.staticDns, s.c_str(), sizeof(cfg.staticDns)); }
             }
+            /* F-NET-TIME.3a: dns_auto + dns2 (primário manual reusa cfg.staticDns).
+             * Aceita também `dns1` como atalho para `staticDns` quando user está
+             * no modo manual com DHCP=true (sem os outros campos staticIp/mask/gw). */
+            if (has("dns_auto")) _storageRef->setDnsAuto(getN("dns_auto") != "0");
+            if (has("dns1")) { String s = getS("dns1"); if (isValidIpv4(s.c_str())) safeCopy(cfg.staticDns, s.c_str(), sizeof(cfg.staticDns)); }
+            if (has("dns2")) {
+                String s = getS("dns2"); s.trim();
+                /* Vazio é válido (limpa secundário). Qualquer outro valor exige ser IPv4. */
+                if (s.length() == 0 || isValidIpv4(s.c_str())) _storageRef->setSecondaryDns(s.c_str());
+            }
             if (has("ntp_server")) {
                 String ntp = getS("ntp_server"); ntp.trim();
                 safeCopy(cfg.ntpServer, ntp.c_str(), sizeof(cfg.ntpServer));
@@ -1558,6 +1580,41 @@ void WebManager::handleApiCommitAll() {
  * Limpa TouchCalData no config (invalida magic), reseta parâmetros
  * no DisplayManager e salva no flash.
  */
+/**
+ * @brief F-NET-TIME.3a: POST /api/set_time — set manual RTC imediato.
+ *
+ * Body JSON: {"epoch": <uint32_t UTC seconds>}
+ * Resposta: {"ok":true,"now":<uint32_t epoch now>} ou {"error":"..."}.
+ *
+ * NÃO passa pelo commit-all nem exige reboot — aplica agora via
+ * NetworkManager::setManualTime(). Útil quando ntp_enabled=false;
+ * com ntp_enabled=true, o próximo sync NTP sobrescreve.
+ * Permissão: PERM_SYS_CONFIG.
+ */
+void WebManager::handleApiSetTime() {
+    uint16_t perms = getAuthPerms();
+    if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+
+    String body = _server.arg("plain");
+    int p = body.indexOf("\"epoch\"");
+    if (p < 0) { _server.send(400, "application/json", "{\"error\":\"missing epoch\"}"); return; }
+    int vs = body.indexOf(':', p);
+    if (vs < 0) { _server.send(400, "application/json", "{\"error\":\"bad format\"}"); return; }
+    vs++;
+    while (vs < (int)body.length() && (body.charAt(vs) == ' ' || body.charAt(vs) == '"')) vs++;
+    int ve = vs;
+    while (ve < (int)body.length() && isDigit(body.charAt(ve))) ve++;
+    if (ve == vs) { _server.send(400, "application/json", "{\"error\":\"bad epoch\"}"); return; }
+    uint32_t epoch = (uint32_t)body.substring(vs, ve).toInt();
+    if (epoch <= 1600000000UL) { _server.send(400, "application/json", "{\"error\":\"epoch too low\"}"); return; }
+
+    _netRef->setManualTime((time_t)epoch);
+
+    char json[64];
+    snprintf(json, sizeof(json), "{\"ok\":true,\"now\":%lu}", (unsigned long)time(nullptr));
+    _server.send(200, "application/json", json);
+}
+
 void WebManager::handleResetTouchCal() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
