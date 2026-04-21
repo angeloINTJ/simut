@@ -5,7 +5,7 @@
  * Runs entirely on Core 1 with cross-core communication via mutex-
  * protected shared state and a lock-free event queue. Supports
  * dashboard, graph, stats, settings, authentication, alarm action,
- * and calibration screens. Features i18n (8 languages), theme system,
+ * and calibration screens. Features i18n (2 languages — EN + PT), theme system,
  * alarm flash animation, web-busy overlay, and sound event signaling.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
