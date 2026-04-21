@@ -14,6 +14,8 @@
 #include "NetworkManager.h"
 #include "MetricsManager.h"
 #include <stdlib.h>
+#include <lwip/dns.h>        /* F-NET-TIME.2: dns_setserver para DNS manual */
+#include <lwip/ip_addr.h>
 
 NetworkManager::NetworkManager() {
     _state = NET_OFFLINE;
@@ -25,11 +27,19 @@ NetworkManager::NetworkManager() {
  * @brief Initialize WiFi in STA mode with optional static IP.
  * Starts the connection process; actual connection completes in update().
  */
-void NetworkManager::begin(const SystemConfig &cfg) {
+void NetworkManager::begin(const SystemConfig &cfg,
+                           bool dnsAuto, bool ntpEnabled, const char* dns2) {
     safeCopy(_ssid, cfg.wifiSsid, sizeof(_ssid));
     safeCopy(_pass, cfg.wifiPass, sizeof(_pass));
     safeCopy(_deviceName, cfg.deviceName, sizeof(_deviceName));
     _tzOffset = cfg.timezoneOffset;
+
+    /* F-NET-TIME.2: copia flags e strings de DNS para aplicar em NET_CONNECTED_WAIT_IP. */
+    _dnsAuto    = dnsAuto;
+    _ntpEnabled = ntpEnabled;
+    _useDhcp    = cfg.useDhcp;
+    safeCopy(_staticDns1, cfg.staticDns, sizeof(_staticDns1));
+    safeCopy(_staticDns2, dns2 ? dns2 : "", sizeof(_staticDns2));
 
     /* Servidor NTP configurável (fallback para pool.ntp.org se vazio) */
     if (cfg.ntpServer[0] != '\0') {
@@ -161,9 +171,21 @@ void NetworkManager::update() {
             if (WiFi.localIP().toString() != "0.0.0.0") {
                 LOG_CODE(LOG_INFO, "NET", SYS_IP_ACQUIRED, 0, "IP: " + WiFi.localIP().toString());
                 MetricsManager::instance().data().wifiReconnects++;
+                applyManualDnsIfNeeded();   /* F-NET-TIME.2: DNS manual pós-DHCP */
                 if (!MDNS.begin(_deviceName)) LOG_CODE(LOG_ERROR, "NET", SYS_OK, 0, TRL("mDNS failed to start", "mDNS falhou ao iniciar"));
-                syncNtp();
-                _state = NET_CONNECTED_WAIT_NTP; _stateTimer = millis();
+                if (_ntpEnabled) {
+                    syncNtp();
+                    _state = NET_CONNECTED_WAIT_NTP; _stateTimer = millis();
+                } else {
+                    /* F-NET-TIME.2: NTP desabilitado pelo user; RTC fica com
+                     * valor manual/provisional. Pula o estado de espera NTP. */
+                    LOG_CODE(LOG_INFO, "NET", SYS_NTP_SYNC, 0,
+                             TRL("NTP disabled — manual RTC mode",
+                                 "NTP desabilitado — modo RTC manual"));
+                    _state = NET_READY;
+                    _reconnectDelay = 5000;
+                    _connectCycles = 0;
+                }
             }
             break;
 
@@ -293,6 +315,41 @@ void NetworkManager::handleConnecting() {
 void NetworkManager::syncNtp() {
     applyTimezone(_tzOffset);
     configTime(0, 0, _ntpServer, "time.nist.gov");
+}
+
+/**
+ * @brief F-NET-TIME.2: aplica DNS manual via lwIP após IP adquirido.
+ *
+ * Chamado em NET_CONNECTED_WAIT_IP logo após o IP ser obtido (DHCP ou static).
+ * No-op se `_dnsAuto=true` e `_useDhcp=true` (caso em que o DHCP define o DNS
+ * e o user não quer override).
+ *
+ * Matriz de efeitos:
+ *   useDhcp=true,  dnsAuto=true  → no-op (DHCP dita).
+ *   useDhcp=true,  dnsAuto=false → sobrescreve dns[0] e dns[1] manuais.
+ *   useDhcp=false                → WiFi.config já setou dns[0]; aplica dns[1] se houver.
+ *                                  (dnsAuto ignorado sem servidor DHCP para prover DNS.)
+ */
+void NetworkManager::applyManualDnsIfNeeded() {
+    /* Caso 1: DHCP + DNS manual → overrides DNS primário. */
+    if (_useDhcp && !_dnsAuto) {
+        IPAddress d1;
+        if (_staticDns1[0] != '\0' && d1.fromString(_staticDns1) && (uint32_t)d1 != 0) {
+            ip_addr_t a; a.addr = (uint32_t)d1;
+            dns_setserver(0, &a);
+        }
+    }
+
+    /* Caso 2 (comum aos dois cenários de DNS manual): aplica secundário se houver.
+     * No modo static, WiFi.config já populou dns[0] — só falta dns[1].
+     * No modo DHCP com dnsAuto=false, o primário foi tratado acima. */
+    if (!_dnsAuto && _staticDns2[0] != '\0') {
+        IPAddress d2;
+        if (d2.fromString(_staticDns2) && (uint32_t)d2 != 0) {
+            ip_addr_t a; a.addr = (uint32_t)d2;
+            dns_setserver(1, &a);
+        }
+    }
 }
 
 /**
