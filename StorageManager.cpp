@@ -12,6 +12,7 @@
  */
 
 #include "StorageManager.h"
+#include "TouchPriority.h"
 #include <time.h>
 #include <algorithm>
 #include "LogManager.h"
@@ -654,7 +655,7 @@ bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
     /* Touch priority: se user está interagindo, bufferiza e retorna. Só o
      * record mais recente sobrevive (slot único) — aceitável já que é
      * amostragem 1x/min e interação típica é <15 s. */
-    if (_isTouchPriorityFn && _isTouchPriorityFn()) {
+    if (TouchPriority::isActive()) {
         _pendingHistRec = rec;
         _pendingHistValid = true;
         return true;
@@ -800,7 +801,7 @@ void StorageManager::flushCursorIfDirty() {
 
     /* Touch priority: se user está interagindo, cursor fica dirty e flush
      * acontece na próxima call após interaction terminar. */
-    if (_isTouchPriorityFn && _isTouchPriorityFn()) return;
+    if (TouchPriority::isActive()) return;
 
     _cursorDirty = false;
     LogManager::WdtWindow _wdt(30000);  /* context-aware */

@@ -56,10 +56,8 @@ public:
      *  retornar false. Default: 1 save / 1s. */
     bool canSaveNow() const;
 
-    /** Registra callback que retorna true quando usuário está interagindo
-     *  com display (touch priority). Flash writes não-urgentes são deferidos
-     *  (buffer em RAM) para manter display/touch responsivos. */
-    void setTouchPriorityChecker(bool (*fn)()) { _isTouchPriorityFn = fn; }
+    /* REF-004: setTouchPriorityChecker removido — usa TouchPriority::isActive()
+     * do header TouchPriority.h. */
 
     /** @return true se há record HIST pendente esperando flush.
      *  AppManager pode chamar após interação terminar para forçar flush. */
@@ -182,7 +180,7 @@ public:
     bool     _lastSaveWasNoOp = false;  /**< True se saveConfiguration pulou por CRC idêntico */
     volatile uint32_t _lastSaveMs = 0;  /**< millis() do último save real (0 = nunca) */
 
-    bool (*_isTouchPriorityFn)() = nullptr;  /**< Callback: user interagindo? */
+    /* REF-004: _isTouchPriorityFn removido — usa TouchPriority::isActive(). */
 
     /** SEC-003/F12.3: senha admin plaintext em RAM (NUNCA persistida em flash).
      *  Populada por `generateInitialAdminPassword` durante `loadDefaults()`.

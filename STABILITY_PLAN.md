@@ -450,7 +450,8 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F-IP-FIX (fora da auditoria)** | ✅ HW validada | `0860d21` | — | 2026-04-21 |
 |   Ordem de args em `WiFi.config` corrigida para padrão arduino-pico (ip, dns, gw, mask). Bug pré-existente desde v3.4.8 que impedia modo IP static de associar. | — | — | — | — |
 | **F14 (auditoria — em andamento)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.24.0) | — |
-|   · WEB-001 — escape JSON em `/api/ls` (filename+dirname) + auto-test shell | ✅ HW validada via `tools/test_web001.sh` | em v3.23.2 | — | 2026-04-21 |
+|   · WEB-001 — escape JSON em `/api/ls` (filename+dirname) + auto-test shell | ✅ HW validada via `tools/test_web001.sh` | `1826a85` | — | 2026-04-21 |
+|   · REF-004 — `TouchPriority` singleton (remove 3 setters + 3 membros + 3 lambdas duplicadas) | ✅ HW validada (503 pós-touch em commit_all) | em v3.23.3 | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |

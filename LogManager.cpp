@@ -12,6 +12,7 @@
  */
 
 #include "LogManager.h"
+#include "TouchPriority.h"
 #include <LittleFS.h>
 #include <time.h>
 #include "pico/multicore.h"
@@ -103,9 +104,7 @@ void LogManager::setHeavyTaskChecker(bool (*fn)()) {
 }
 
 
-void LogManager::setTouchPriorityChecker(bool (*fn)()) {
-    _isTouchPriorityFn = fn;
-}
+/* REF-004: setTouchPriorityChecker removido — provider agora via TouchPriority::setProvider. */
 
 void LogManager::setEpochSource(time_t (*fn)()) { _epochFn = fn; }
 
@@ -282,7 +281,7 @@ void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) 
 void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
 
     /* Durante interação de toque: bufferiza em RAM */
-    if (_isTouchPriorityFn && _isTouchPriorityFn()) {
+    if (TouchPriority::isActive()) {
         /* (buffer em RAM — não toca flash, sem TraceScope) */
         int idx = __atomic_load_n(&_pendingCount, __ATOMIC_ACQUIRE);
         if (idx < LOG_PENDING_MAX) {

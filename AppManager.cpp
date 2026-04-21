@@ -16,6 +16,7 @@
 #include "MetricsManager.h"
 #include "SystemDefs.h"
 #include "Themes.h"
+#include "TouchPriority.h"
 #include <LittleFS.h>
 #include <time.h>
 #include <math.h>
@@ -135,11 +136,10 @@ void AppManager::setup() {
     });
 
 
-    LogManager::instance().setTouchPriorityChecker([]() -> bool {
-        return app.isUserInteracting();
-    });
-
-    _storageMgr.setTouchPriorityChecker([]() -> bool {
+    /* REF-004: provider único em vez de 3 setters duplicados (Log/Storage/Web).
+     * Setado aqui, antes que qualquer manager possa consultar via
+     * TouchPriority::isActive() durante o boot. */
+    TouchPriority::setProvider([]() -> bool {
         return app.isUserInteracting();
     });
 
@@ -360,9 +360,7 @@ void AppManager::setup() {
     });
 
 
-    _webMgr.setTouchPriorityChecker([]() -> bool {
-        return app.isUserInteracting();
-    });
+    /* REF-004: _webMgr.setTouchPriorityChecker removido — usa TouchPriority singleton. */
 
     if (forceAP) {
         _isApMode = true;
