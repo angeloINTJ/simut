@@ -455,7 +455,12 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · CON-002 — `LanguageCode` enum + `LANG_COUNT` + `static_assert` | ✅ HW validada | `62bfa0c` | — | 2026-04-21 |
 |   · CON-004 — `_lastSavedCrc` → membro privado de `StorageManager` | ✅ HW validada | `8537feb` | — | 2026-04-21 |
 |   · CON-006 — `DS18B20_CONVERSION_TIME_MS` + `DHT22_READ_TIMEOUT_MS` em `SystemDefs.h` | ✅ HW validada | `9690a90` | — | 2026-04-21 |
-|   · CON-005a — `LoginState.nonce` → `char[65]` | ✅ HW validada | em v3.23.7 | — | 2026-04-21 |
+|   · CON-005a — `LoginState.nonce` → `char[65]` | ✅ HW validada | `40795d2` | — | 2026-04-21 |
+|   · CON-005b — `CliDemand.strVal1/2` → `char[64]` | ✅ HW validada | em v3.23.8 | — | 2026-04-21 |
+
+**Débitos técnicos descobertos em CON-005b (pré-existentes, fora de escopo):**
+- **F-LOCKOUT-STUCK** — primeiro `write memory` com mudança real após longo idle pode disparar `[DSP] Lockout stuck >10s, restarting Core 1` (2×). Saves subsequentes OK. Não afeta integridade (config grava corretamente). Provável fragmentação de heap pós-telemetria ou GC do LittleFS. Investigar em ciclo futuro.
+- **Tokenizer não strip aspas** — `conf system ssid "X"` salva com aspas literais. Também `isValidName` rejeita hífen em nome. Polish de UX para futuro.
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |

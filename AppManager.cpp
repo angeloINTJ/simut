@@ -740,12 +740,13 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
 
         case CMD_SET_THEME: {
-            int idx = getThemeIndexByName(cmd.strVal1);
+            /* CON-005b: funções aceitam String; envolve o char[] em temporário. */
+            int idx = getThemeIndexByName(String(cmd.strVal1));
             if (idx == -1) {
                 /* Não bateu como nome — tenta como índice numérico, mas só se
                  * for número bem-formado (evita "abc".toInt()==0 aplicar tema 0). */
                 int numericIdx = 0;
-                if (!parseIntStrict(cmd.strVal1, numericIdx)) idx = -1;
+                if (!parseIntStrict(String(cmd.strVal1), numericIdx)) idx = -1;
                 else idx = numericIdx;
             }
             if (idx >= 0 && idx < getThemeCount()) {
@@ -849,34 +850,34 @@ void AppManager::executeCommand(CliDemand cmd) {
 
         case CMD_SET_SYS_NAME: {
             const bool pt = _cmdMgr.isPt();
-            if (!isValidName(cmd.strVal1.c_str(), sizeof(cfg.deviceName) - 1)) {
+            if (!isValidName(cmd.strVal1, sizeof(cfg.deviceName) - 1)) {
                 _cmdMgr.printError(pt ? "Nome invalido (1-31 chars, sem ctrl chars)"
                                       : "Invalid name (1-31 chars, no ctrl chars)");
                 break;
             }
-            safeCopy(cfg.deviceName, cmd.strVal1.c_str(), sizeof(cfg.deviceName));
+            safeCopy(cfg.deviceName, cmd.strVal1, sizeof(cfg.deviceName));
             changed = true;
             break;
         }
         case CMD_SET_WIFI_SSID: {
             const bool pt = _cmdMgr.isPt();
-            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.wifiSsid) - 1)) {
+            if (!isValidCfgString(cmd.strVal1, sizeof(cfg.wifiSsid) - 1)) {
                 _cmdMgr.printError(pt ? "SSID invalido (max 31, sem ctrl chars)"
                                       : "Invalid SSID (max 31, no ctrl chars)");
                 break;
             }
-            safeCopy(cfg.wifiSsid, cmd.strVal1.c_str(), sizeof(cfg.wifiSsid));
+            safeCopy(cfg.wifiSsid, cmd.strVal1, sizeof(cfg.wifiSsid));
             changed = true;
             break;
         }
         case CMD_SET_WIFI_PASS: {
             const bool pt = _cmdMgr.isPt();
-            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.wifiPass) - 1)) {
+            if (!isValidCfgString(cmd.strVal1, sizeof(cfg.wifiPass) - 1)) {
                 _cmdMgr.printError(pt ? "Senha invalida (max 31, sem ctrl chars)"
                                       : "Invalid pass (max 31, no ctrl chars)");
                 break;
             }
-            safeCopy(cfg.wifiPass, cmd.strVal1.c_str(), sizeof(cfg.wifiPass));
+            safeCopy(cfg.wifiPass, cmd.strVal1, sizeof(cfg.wifiPass));
             changed = true;
             break;
         }
@@ -900,12 +901,12 @@ void AppManager::executeCommand(CliDemand cmd) {
 
         case CMD_SET_NTP: {
             const bool pt = _cmdMgr.isPt();
-            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.ntpServer) - 1)) {
+            if (!isValidCfgString(cmd.strVal1, sizeof(cfg.ntpServer) - 1)) {
                 _cmdMgr.printError(pt ? "NTP invalido (max 31, sem ctrl chars)"
                                       : "Invalid NTP (max 31, no ctrl chars)");
                 break;
             }
-            safeCopy(cfg.ntpServer, cmd.strVal1.c_str(), sizeof(cfg.ntpServer));
+            safeCopy(cfg.ntpServer, cmd.strVal1, sizeof(cfg.ntpServer));
             cfg.ntpServer[sizeof(cfg.ntpServer) - 1] = '\0';
             changed = true;
             break;
@@ -913,12 +914,12 @@ void AppManager::executeCommand(CliDemand cmd) {
 
         case CMD_SET_TEL_SERVER: {
             const bool pt = _cmdMgr.isPt();
-            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.telServer) - 1)) {
+            if (!isValidCfgString(cmd.strVal1, sizeof(cfg.telServer) - 1)) {
                 _cmdMgr.printError(pt ? "URL invalida (max 63, sem ctrl chars)"
                                       : "Invalid URL (max 63, no ctrl chars)");
                 break;
             }
-            safeCopy(cfg.telServer, cmd.strVal1.c_str(), sizeof(cfg.telServer));
+            safeCopy(cfg.telServer, cmd.strVal1, sizeof(cfg.telServer));
             changed = true;
             break;
         }
@@ -940,12 +941,12 @@ void AppManager::executeCommand(CliDemand cmd) {
         }
         case CMD_SET_TEL_PATH: {
             const bool pt = _cmdMgr.isPt();
-            if (!isValidCfgString(cmd.strVal1.c_str(), sizeof(cfg.telPath) - 1)) {
+            if (!isValidCfgString(cmd.strVal1, sizeof(cfg.telPath) - 1)) {
                 _cmdMgr.printError(pt ? "Path invalido (max 31, sem ctrl chars)"
                                       : "Invalid path (max 31, no ctrl chars)");
                 break;
             }
-            safeCopy(cfg.telPath, cmd.strVal1.c_str(), sizeof(cfg.telPath));
+            safeCopy(cfg.telPath, cmd.strVal1, sizeof(cfg.telPath));
             changed = true;
             break;
         }
@@ -983,7 +984,7 @@ void AppManager::executeCommand(CliDemand cmd) {
         }
         case CMD_SET_TEL_CRYPTO: {
             const bool pt = _cmdMgr.isPt();
-            if (cmd.strVal1 != "on" && cmd.strVal1 != "off") {
+            if (strcmp(cmd.strVal1, "on") != 0 && strcmp(cmd.strVal1, "off") != 0) {
                 _cmdMgr.printError(pt ? "Use 'on' ou 'off'" : "Use 'on' or 'off'");
                 break;
             }
@@ -1095,21 +1096,21 @@ void AppManager::executeCommand(CliDemand cmd) {
                 _cmdMgr.printSuccess(pt ? "DNS: automatico (DHCP)" : "DNS: auto (DHCP)");
                 changed = true;
             } else {  /* manual */
-                if (!isValidIpv4(cmd.strVal1.c_str())) {
+                if (!isValidIpv4(cmd.strVal1)) {
                     _cmdMgr.printError(pt ? "IPv4 invalido para DNS primario"
                                           : "Invalid IPv4 for primary DNS");
                     break;
                 }
                 /* Secundário opcional: "" aceito (limpa o secundário). */
-                if (cmd.strVal2.length() > 0 && !isValidIpv4(cmd.strVal2.c_str())) {
+                if (cmd.strVal2[0] != '\0' && !isValidIpv4(cmd.strVal2)) {
                     _cmdMgr.printError(pt ? "IPv4 invalido para DNS secundario"
                                           : "Invalid IPv4 for secondary DNS");
                     break;
                 }
                 _storageMgr.setDnsAuto(false);
-                safeCopy(cfg.staticDns, cmd.strVal1.c_str(), sizeof(cfg.staticDns));
-                _storageMgr.setSecondaryDns(cmd.strVal2.c_str());
-                if (cmd.strVal2.length() > 0) {
+                safeCopy(cfg.staticDns, cmd.strVal1, sizeof(cfg.staticDns));
+                _storageMgr.setSecondaryDns(cmd.strVal2);
+                if (cmd.strVal2[0] != '\0') {
                     _cmdMgr.printSuccess(String(pt ? "DNS: manual; dns1=" : "DNS: manual; dns1=")
                                          + cmd.strVal1 + ", dns2=" + cmd.strVal2);
                 } else {
@@ -1124,8 +1125,8 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_SET_TIME: {
             const bool pt = _cmdMgr.isPt();
             int y, mo, d, h, mi, s;
-            if (sscanf(cmd.strVal1.c_str(), "%4d-%2d-%2d", &y, &mo, &d) != 3
-                || sscanf(cmd.strVal2.c_str(), "%2d:%2d:%2d", &h, &mi, &s) != 3) {
+            if (sscanf(cmd.strVal1, "%4d-%2d-%2d", &y, &mo, &d) != 3
+                || sscanf(cmd.strVal2, "%2d:%2d:%2d", &h, &mi, &s) != 3) {
                 _cmdMgr.printError(pt ? "Formato invalido. Use: conf time AAAA-MM-DD HH:MM:SS"
                                       : "Invalid format. Use: conf time YYYY-MM-DD HH:MM:SS");
                 break;
@@ -1174,8 +1175,8 @@ void AppManager::executeCommand(CliDemand cmd) {
             r.active = true;
             r.gpio = cmd.intVal1;
             memcpy(r.rom, cmd.rom, 8);
-            safeCopy(r.hwId, cmd.strVal1.c_str(), sizeof(r.hwId));
-            safeCopy(r.friendlyName, cmd.strVal2.c_str(), sizeof(r.friendlyName));
+            safeCopy(r.hwId, cmd.strVal1, sizeof(r.hwId));
+            safeCopy(r.friendlyName, cmd.strVal2, sizeof(r.friendlyName));
             _cmdMgr.printSuccess(pt ? "Sensor mapeado em RAM."
                                     : "Sensor mapped in RAM.");
             break;
@@ -1378,7 +1379,7 @@ void AppManager::executeCommand(CliDemand cmd) {
                     changed = true;
                     break;
                 case 2: case 3: case 4: case 5: {
-                    if (!isValidIpv4(cmd.strVal1.c_str())) {
+                    if (!isValidIpv4(cmd.strVal1)) {
                         _cmdMgr.printError(pt ? "IPv4 invalido (ex: 192.168.1.100)"
                                               : "Invalid IPv4 (e.g. 192.168.1.100)");
                         break;
@@ -1389,7 +1390,7 @@ void AppManager::executeCommand(CliDemand cmd) {
                     else if (cmd.intVal1 == 3) { dst = cfg.staticMask;  dstSize = sizeof(cfg.staticMask);  label = "mask"; }
                     else if (cmd.intVal1 == 4) { dst = cfg.staticGateway; dstSize = sizeof(cfg.staticGateway); label = "gateway"; }
                     else                       { dst = cfg.staticDns;     dstSize = sizeof(cfg.staticDns);     label = "dns"; }
-                    safeCopy(dst, cmd.strVal1.c_str(), dstSize);
+                    safeCopy(dst, cmd.strVal1, dstSize);
                     _cmdMgr.printSuccess((pt ? "IP " : "IP ") + String(label) + ": " + cmd.strVal1);
                     changed = true;
                     break;
@@ -1411,13 +1412,13 @@ void AppManager::executeCommand(CliDemand cmd) {
                 _cmdMgr.printError(pt ? "Slot fora de range (0-9)" : "Slot out of range (0-9)");
                 break;
             }
-            if (cmd.strVal2.length() == 0) {
+            if (cmd.strVal2[0] == '\0') {
                 _cmdMgr.printError(pt ? "Valor ausente" : "Missing value");
                 break;
             }
             SensorRecord &r = cfg.sensors[cmd.intVal1];
-            const String& field = cmd.strVal1;
-            if (field == "alarm") {
+            const char* field = cmd.strVal1;   /* CON-005b: strVal1 agora char[] */
+            if (strcmp(field, "alarm") == 0) {
                 String v = cmd.strVal2; v.toLowerCase();
                 if (v != "on" && v != "off") {
                     _cmdMgr.printError(pt ? "Use 'on' ou 'off'" : "Use 'on' or 'off'");
@@ -1428,10 +1429,10 @@ void AppManager::executeCommand(CliDemand cmd) {
                 changed = true;
             } else {
                 /* Valores numéricos (float) com range sensato para temperaturas/umidade. */
-                float val = cmd.strVal2.toFloat();
+                float val = atof(cmd.strVal2);
                 /* toFloat retorna 0.0 para input inválido — distinguir "0.0" legítimo. */
-                if (val == 0.0f && cmd.strVal2 != "0" && cmd.strVal2 != "0.0"
-                                 && cmd.strVal2 != "-0" && cmd.strVal2 != "-0.0") {
+                if (val == 0.0f && strcmp(cmd.strVal2, "0") != 0 && strcmp(cmd.strVal2, "0.0") != 0
+                                 && strcmp(cmd.strVal2, "-0") != 0 && strcmp(cmd.strVal2, "-0.0") != 0) {
                     _cmdMgr.printError(pt ? "Valor numerico invalido" : "Invalid numeric value");
                     break;
                 }
@@ -1462,17 +1463,17 @@ void AppManager::executeCommand(CliDemand cmd) {
 
         case CMD_USER_ADD: {
             const bool pt = _cmdMgr.isPt();
-            if (!isValidName(cmd.strVal1.c_str(), 31)) {
+            if (!isValidName(cmd.strVal1, 31)) {
                 _cmdMgr.printError(pt ? "Username invalido (1-31, sem ctrl chars)"
                                       : "Invalid username (1-31, no ctrl chars)");
                 break;
             }
-            if (cmd.strVal2.length() == 0 || cmd.strVal2.length() > 64) {
+            if (cmd.strVal2[0] == '\0' || strlen(cmd.strVal2) > 64) {
                 _cmdMgr.printError(pt ? "Senha ausente ou muito longa (1-64)"
                                       : "Password missing or too long (1-64)");
                 break;
             }
-            if (!isValidCfgString(cmd.strVal2.c_str(), 64)) {
+            if (!isValidCfgString(cmd.strVal2, 64)) {
                 _cmdMgr.printError(pt ? "Senha tem chars de controle"
                                       : "Password has control chars");
                 break;
@@ -1482,7 +1483,7 @@ void AppManager::executeCommand(CliDemand cmd) {
             int freeSlot = -1;
             for (int i = 0; i < MAX_USERS; i++) {
                 if (cfg.users[i].active) {
-                    if (cmd.strVal1.equalsIgnoreCase(String(cfg.users[i].username))) {
+                    if (strcasecmp(cmd.strVal1, cfg.users[i].username) == 0) {
                         exists = true; break;
                     }
                 } else if (freeSlot < 0 && i >= 1) {  /* slot 0 = admin, protegido */
@@ -1498,16 +1499,17 @@ void AppManager::executeCommand(CliDemand cmd) {
                                       : "No free slot (max users)");
                 break;
             }
-            safeCopy(cfg.users[freeSlot].username, cmd.strVal1.c_str(), sizeof(cfg.users[freeSlot].username));
+            safeCopy(cfg.users[freeSlot].username, cmd.strVal1, sizeof(cfg.users[freeSlot].username));
             {
-                String preHash = _storageMgr.sha256Hex(cmd.strVal2);
-                String hashed = _storageMgr.hashPassword(cmd.strVal1, preHash);
+                /* CON-005b: sha256Hex/hashPassword aceitam String; wraps temporários. */
+                String preHash = _storageMgr.sha256Hex(String(cmd.strVal2));
+                String hashed = _storageMgr.hashPassword(String(cmd.strVal1), preHash);
                 safeCopy(cfg.users[freeSlot].password, hashed.c_str(), sizeof(cfg.users[freeSlot].password));
             }
             cfg.users[freeSlot].active = true;
             cfg.users[freeSlot].permissions = (PERM_DASHBOARD | PERM_HISTORY);
             cfg.users[freeSlot].mustChangePassword = false;
-            _cmdMgr.printSuccess((pt ? "Usuario criado: " : "User created: ") + cmd.strVal1);
+            _cmdMgr.printSuccess(String(pt ? "Usuario criado: " : "User created: ") + cmd.strVal1);
             LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, freeSlot,
                      String(TRL("CLI created user: ", "CLI criou usuario: ")) + cmd.strVal1);
             changed = true;
@@ -1516,17 +1518,17 @@ void AppManager::executeCommand(CliDemand cmd) {
 
         case CMD_USER_DEL: {
             const bool pt = _cmdMgr.isPt();
-            if (cmd.strVal1.equalsIgnoreCase("admin")) {
+            if (strcasecmp(cmd.strVal1, "admin") == 0) {
                 _cmdMgr.printError(pt ? "Nao e permitido deletar 'admin'"
                                       : "Cannot delete 'admin'");
                 break;
             }
             bool found = false;
             for (int i = 1; i < MAX_USERS; i++) {
-                if (cfg.users[i].active && cmd.strVal1.equalsIgnoreCase(String(cfg.users[i].username))) {
+                if (cfg.users[i].active && strcasecmp(cmd.strVal1, cfg.users[i].username) == 0) {
                     cfg.users[i].active = false;
                     memset(cfg.users[i].password, 0, sizeof(cfg.users[i].password));
-                    _cmdMgr.printSuccess((pt ? "Usuario removido: " : "User deleted: ") + cmd.strVal1);
+                    _cmdMgr.printSuccess(String(pt ? "Usuario removido: " : "User deleted: ") + cmd.strVal1);
                     LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,
                              String(TRL("CLI deleted user: ", "CLI apagou usuario: ")) + cmd.strVal1);
                     changed = true;
@@ -1540,20 +1542,21 @@ void AppManager::executeCommand(CliDemand cmd) {
 
         case CMD_USER_PASS: {
             const bool pt = _cmdMgr.isPt();
-            if (cmd.strVal2.length() == 0 || cmd.strVal2.length() > 64
-                || !isValidCfgString(cmd.strVal2.c_str(), 64)) {
+            if (cmd.strVal2[0] == '\0' || strlen(cmd.strVal2) > 64
+                || !isValidCfgString(cmd.strVal2, 64)) {
                 _cmdMgr.printError(pt ? "Nova senha invalida (1-64, sem ctrl chars)"
                                       : "Invalid new password (1-64, no ctrl chars)");
                 break;
             }
             bool found = false;
             for (int i = 0; i < MAX_USERS; i++) {
-                if (cfg.users[i].active && cmd.strVal1.equalsIgnoreCase(String(cfg.users[i].username))) {
-                    String preHash = _storageMgr.sha256Hex(cmd.strVal2);
+                if (cfg.users[i].active && strcasecmp(cmd.strVal1, cfg.users[i].username) == 0) {
+                    /* CON-005b: sha256Hex aceita String; wrap temporário. */
+                    String preHash = _storageMgr.sha256Hex(String(cmd.strVal2));
                     String hashed = _storageMgr.hashPassword(String(cfg.users[i].username), preHash);
                     safeCopy(cfg.users[i].password, hashed.c_str(), sizeof(cfg.users[i].password));
                     cfg.users[i].mustChangePassword = false;
-                    _cmdMgr.printSuccess((pt ? "Senha atualizada: " : "Password updated: ") + cmd.strVal1);
+                    _cmdMgr.printSuccess(String(pt ? "Senha atualizada: " : "Password updated: ") + cmd.strVal1);
                     LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,
                              String(TRL("CLI reset password: ", "CLI resetou senha: ")) + cmd.strVal1);
                     changed = true;

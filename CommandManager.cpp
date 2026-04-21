@@ -216,10 +216,10 @@ CliDemand CommandManager::parseCommand(String input) {
         if (t1 == "ip") {
             if (t2 == "dhcp")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 0; return cmd; }
             if (t2 == "static")  { cmd.type = CMD_IP_CFG; cmd.intVal1 = 1; return cmd; }
-            if (t2 == "addr")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 2; cmd.strVal1 = v3; return cmd; }
-            if (t2 == "mask")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 3; cmd.strVal1 = v3; return cmd; }
-            if (t2 == "gateway") { cmd.type = CMD_IP_CFG; cmd.intVal1 = 4; cmd.strVal1 = v3; return cmd; }
-            if (t2 == "dns")     { cmd.type = CMD_IP_CFG; cmd.intVal1 = 5; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "addr")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 2; cmd.setStrVal1(v3.c_str()); return cmd; }
+            if (t2 == "mask")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 3; cmd.setStrVal1(v3.c_str()); return cmd; }
+            if (t2 == "gateway") { cmd.type = CMD_IP_CFG; cmd.intVal1 = 4; cmd.setStrVal1(v3.c_str()); return cmd; }
+            if (t2 == "dns")     { cmd.type = CMD_IP_CFG; cmd.intVal1 = 5; cmd.setStrVal1(v3.c_str()); return cmd; }
         }
 
         /* F-NET-TIME.4 — conf ntp <on|off> */
@@ -231,8 +231,8 @@ CliDemand CommandManager::parseCommand(String input) {
         /* F-NET-TIME.4 — conf time <YYYY-MM-DD> <HH:MM:SS> */
         if (t1 == "time") {
             cmd.type = CMD_SET_TIME;
-            cmd.strVal1 = t2;  /* data (case não importa; só dígitos e '-') */
-            cmd.strVal2 = t3;  /* hora */
+            cmd.setStrVal1(t2.c_str());  /* data (case não importa; só dígitos e '-') */
+            cmd.setStrVal2(t3.c_str());  /* hora */
             return cmd;
         }
 
@@ -241,8 +241,8 @@ CliDemand CommandManager::parseCommand(String input) {
             if (t3 == "auto")   { cmd.type = CMD_SET_DNS_CFG; cmd.intVal1 = 0; return cmd; }
             if (t3 == "manual") {
                 cmd.type = CMD_SET_DNS_CFG; cmd.intVal1 = 1;
-                cmd.strVal1 = t4;  /* dns1 obrigatório */
-                cmd.strVal2 = t5;  /* dns2 opcional ("" = limpa secundário) */
+                cmd.setStrVal1(t4.c_str());  /* dns1 obrigatório */
+                cmd.setStrVal2(t5.c_str());  /* dns2 opcional ("" = limpa secundário) */
                 return cmd;
             }
         }
@@ -254,9 +254,9 @@ CliDemand CommandManager::parseCommand(String input) {
                             t2 == "hmax" || t2 == "alarm");
             if (isField) {
                 cmd.type = CMD_SENSOR_FIELD;
-                cmd.strVal1 = t2;
+                cmd.setStrVal1(t2.c_str());
                 cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);   /* gpio */
-                cmd.strVal2 = t4;                                      /* valor como string */
+                cmd.setStrVal2(t4.c_str());                                      /* valor como string */
                 return cmd;
             }
         }
@@ -265,31 +265,31 @@ CliDemand CommandManager::parseCommand(String input) {
         if (t1 == "user") {
             if (t2 == "add"  && v3.length() > 0) {
                 cmd.type = CMD_USER_ADD;
-                cmd.strVal1 = v3;
-                cmd.strVal2 = (count > 4) ? parts[4] : "";
+                cmd.setStrVal1(v3.c_str());
+                cmd.setStrVal2(count > 4 ? parts[4].c_str() : "");
                 return cmd;
             }
             if (t2 == "del"  && v3.length() > 0) {
-                cmd.type = CMD_USER_DEL;  cmd.strVal1 = v3;  return cmd;
+                cmd.type = CMD_USER_DEL;  cmd.setStrVal1(v3.c_str());  return cmd;
             }
             if (t2 == "pass" && v3.length() > 0) {
-                cmd.type = CMD_USER_PASS; cmd.strVal1 = v3;
-                cmd.strVal2 = (count > 4) ? parts[4] : "";
+                cmd.type = CMD_USER_PASS; cmd.setStrVal1(v3.c_str());
+                cmd.setStrVal2(count > 4 ? parts[4].c_str() : "");
                 return cmd;
             }
         }
 
         if (t1 == "system") {
-            if (t2 == "theme") { cmd.type = CMD_SET_THEME; cmd.strVal1 = v3; return cmd; }
-            if (t2 == "name") { cmd.type = CMD_SET_SYS_NAME; cmd.strVal1 = v3; return cmd; }
-            if (t2 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.strVal1 = v3; return cmd; }
-            if (t2 == "pass") { cmd.type = CMD_SET_WIFI_PASS; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "theme") { cmd.type = CMD_SET_THEME; cmd.setStrVal1(v3.c_str()); return cmd; }
+            if (t2 == "name") { cmd.type = CMD_SET_SYS_NAME; cmd.setStrVal1(v3.c_str()); return cmd; }
+            if (t2 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.setStrVal1(v3.c_str()); return cmd; }
+            if (t2 == "pass") { cmd.type = CMD_SET_WIFI_PASS; cmd.setStrVal1(v3.c_str()); return cmd; }
             if (t2 == "timezone") {
                 cmd.type = CMD_SET_TIMEZONE;
                 cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
                 return cmd;
             }
-            if (t2 == "ntp") { cmd.type = CMD_SET_NTP; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "ntp") { cmd.type = CMD_SET_NTP; cmd.setStrVal1(v3.c_str()); return cmd; }
             if (t2 == "admin" && t3 == "reset") { cmd.type = CMD_RESET_ADMIN; return cmd; }
             if (t2 == "touch" && t3 == "reset") { cmd.type = CMD_RESET_TOUCH_CAL; return cmd; }
             if (t2 == "factory") { cmd.type = CMD_FACTORY_RESET; return cmd; }
@@ -307,13 +307,13 @@ CliDemand CommandManager::parseCommand(String input) {
         }
 
         if (t1 == "tel") {
-            if (t2 == "server") { cmd.type = CMD_SET_TEL_SERVER; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "server") { cmd.type = CMD_SET_TEL_SERVER; cmd.setStrVal1(v3.c_str()); return cmd; }
             if (t2 == "port") {
                 cmd.type = CMD_SET_TEL_PORT;
                 cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
                 return cmd;
             }
-            if (t2 == "path") { cmd.type = CMD_SET_TEL_PATH; cmd.strVal1 = v3; return cmd; }
+            if (t2 == "path") { cmd.type = CMD_SET_TEL_PATH; cmd.setStrVal1(v3.c_str()); return cmd; }
             if (t2 == "batch") {
                 cmd.type = CMD_SET_TEL_BATCH;
                 cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
@@ -327,13 +327,13 @@ CliDemand CommandManager::parseCommand(String input) {
             if (t2 == "crypto") {
                 cmd.type = CMD_SET_TEL_CRYPTO;
                 /* strVal1 preserva o token original p/ validação no executor. */
-                cmd.strVal1 = t3;
+                cmd.setStrVal1(t3.c_str());
                 cmd.boolVal = (t3 == "on");
                 return cmd;
             }
             if (t2 == "mode") {
                 cmd.type = CMD_SET_TEL_MODE;
-                cmd.strVal1 = t3;    /* preserva p/ validação */
+                cmd.setStrVal1(t3.c_str());    /* preserva p/ validação */
                 if(t3 == "json") cmd.intVal1 = TEL_MODE_JSON;
                 else if(t3 == "csv") cmd.intVal1 = TEL_MODE_CSV;
                 else if(t3 == "custom") cmd.intVal1 = TEL_MODE_CUSTOM;
@@ -362,9 +362,12 @@ CliDemand CommandManager::parseCommand(String input) {
                     args = args.substring(sp2 + 1); args.trim();
                     int sp3 = args.indexOf(' ');
                     if (sp3 != -1) {
-                        cmd.strVal1 = args.substring(0, sp3);
-                        cmd.strVal2 = args.substring(sp3 + 1);
-                        cmd.strVal2.replace("\"", "");
+                        /* CON-005b: String temporária vive até o ; final — safeCopy copia dentro. */
+                        cmd.setStrVal1(args.substring(0, sp3).c_str());
+                        /* friendlyName pode ter aspas circundantes — strip antes do copy. */
+                        String fname = args.substring(sp3 + 1);
+                        fname.replace("\"", "");
+                        cmd.setStrVal2(fname.c_str());
                         cmd.type = CMD_DEFINE_SENSOR;
                         return cmd;
                     }
