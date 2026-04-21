@@ -443,7 +443,8 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F-NET-TIME.2 — consumer NetworkManager (flags DNS/NTP) | ✅ Path default validado (DHCP) | em v3.22.1 | — | 2026-04-21 |
 |   · F-NET-TIME.3a — back-end web (GET/POST + /api/set_time + setManualTime) | ✅ Código pronto (validação junto com 3b) | `436248f` | — | 2026-04-21 |
 |   · F-NET-TIME.3b — front-end /network (DNS separado) + /config (data/hora) + i18n PT | ✅ HW validada (estética iterada até v3.22.6) | `ed9b21e` | — | 2026-04-21 |
-|   · F-NET-TIME.4 — CLI (`conf ntp`, `conf time`, `conf net dns`) + tokenizer 5→6 slots | ✅ HW validada | em v3.22.8 | — | 2026-04-21 |
+|   · F-NET-TIME.4 — CLI (`conf ntp`, `conf time`, `conf net dns`) + tokenizer 5→6 slots | ✅ HW validada | `cc39e06` | — | 2026-04-21 |
+|   · F-NET-TIME.5a — cursor-no-futuro auto-reset + hint t_int=0 na UI | ✅ HW validada | em v3.22.9 | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
