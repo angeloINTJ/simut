@@ -311,6 +311,7 @@ Cada fase é *stand-alone*, testável isoladamente, e pode ser revertida. Branch
 | 13.1 `__dmb()` nos pares `(data,flag)` de preview de som / volume / packet arrow (producer em Core 0, consumer em Core 1). Helpers `requestPreviewSound`/`consumePreviewSound`. | BUG-002 |
 | 13.2 Template method `StorageManager::flashOp<F>(F&&)` substituindo macro local `FLASH_OP`; `writeHistoryEntryFlash` refatorado para usar o helper com chunks granulares. | BUG-003 |
 | 13.3 `_lastWebBusy` sticky no consumer de `_webBusy` em `DisplayManager::loopCore1`. | BUG-004 |
+| 13.3b UX fix no menu de Sons: `acceptSlideTouch` gate-único no topo seta `_lastTouchRegion=0..3`, causando mismatch em `acceptHoldTouch(20/21)` → inc/dec de Volume/AlarmVol não funcionava. Move os gates para dentro dos branches específicos. | corolário descoberto em teste HW de F13.3 |
 | 13.4 `LogManager::captureBootSnapshot()` público explícito; chamado na 1ª linha de `begin()`; remover captura oportunista em `setModule`. | BUG-005 |
 | 13.4b Guard `_autopsyPerformed` em `performCrashAutopsy()` — roda 1x por sessão; evita falsa `HW WATCHDOG` em chamadas subsequentes de `begin()` (`clear log`, web). | BUG-005 (corolário descoberto em teste HW) |
 
@@ -433,7 +434,8 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F12 — SEC Críticas/Altas (audit v3.19.0)** | ✅ Concluída | `stability-fixes-tier1` | `v3.20.0` | 2026-04-20 |
 | **F13 — Bugs latentes (BUG-002..005)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.21.0) | — |
 |   · F13.1 BUG-005 | ✅ Concluída (HW validada) | `ea799f5` | — | 2026-04-21 |
-|   · F13.2 BUG-004 | ✅ Concluída (HW validada) | — | — | 2026-04-21 |
+|   · F13.2 BUG-004 | ✅ Concluída (HW validada) | `04b5515` | — | 2026-04-21 |
+|   · F13.3 BUG-002 | ✅ Concluída (HW validada) | — | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.22.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.24.0) | — |
@@ -506,7 +508,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | SEC-008 | 🟢 | F15 | ⚪ | `PASSWORD_HMAC_ROUNDS` 2500→5000. |
 | SEC-009 | 🟢 | F15 | ⚪ | Salt random por usuário (schema bump). |
 | BUG-001 | 🟢 | F14 | ⚪ | **Reclassificado**: `millis()-X>Y` tecnicamente wrap-safe; migração opcional para consistência. |
-| BUG-002 | 🟡 | F13 | ⚪ | `__dmb()` em pares `(data,flag)` cross-core. |
+| BUG-002 | 🟡 | F13 | ✅ | Wrappers `requestPreviewSound/requestVolumePreview/requestAlarmVolumePreview` + `__dmb()` nos 3 pares cross-core Core 1 → Core 0. Barrier no producer (`setTelemetrySendStatus`) e readers (`render`/`drawTopBar`) do pack `_pktArrowState` Core 0 → Core 1. `_touchSoundPending`/`_errorSoundPending` fora do escopo (single-flag sem dado emparelhado). + UX fix (F13.3b): touch gates separados para volume no menu Sons. Validado HW. |
 | BUG-003 | 🟡 | F13 | ⚪ | Template `flashOp<F>()` substitui macro + aplica em `writeHistoryEntryFlash`. |
 | BUG-004 | 🟢 | F13 | ✅ | Membro `_lastWebBusy` sticky (Core 1 only) em `DisplayManager`. Consumers em `loopCore1` e `handleTouch` atualizam o sticky quando `mutex_try_enter` sucede; usam o sticky como fallback quando falha. Validado HW. |
 | BUG-005 | 🟢 | F13 | 🟡 | `captureBootSnapshot()` público + chamada explícita em `begin()`; `setModule` não captura mais oportunisticamente; assertion defensiva + guard `_autopsyPerformed` em `performCrashAutopsy` (fix de falsa autópsia em `clear log`). HW pendente. |

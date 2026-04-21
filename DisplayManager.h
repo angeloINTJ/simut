@@ -194,6 +194,14 @@ public:
     bool consumeVolumePreview(uint8_t& outLevel);
     bool consumeAlarmVolumePreview(uint8_t& outLevel);
 
+    /* BUG-002: producers dos pares (data, flag) cross-core. Encapsulam
+     * a escrita de dados + __dmb() + flag, substituindo writes inline
+     * espalhados por handleTouch. Chamados de Core 1; consumers (Core 0)
+     * leem flag + __dmb() + dados em `consume*`. */
+    void requestPreviewSound(SoundEvent ev, uint8_t melIdx);
+    void requestVolumePreview(uint8_t level);
+    void requestAlarmVolumePreview(uint8_t level);
+
     void setTelemetryPending(uint16_t count);
 
     /**
