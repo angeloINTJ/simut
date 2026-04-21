@@ -324,7 +324,10 @@ private:
     void drawStatsScreen();
     void drawPeriodButtons();
     void drawCalendarScreen();          /**< Tela de calendário com dias de dados */
-    void drawGraphHeaderBar();          /**< Redesenha apenas o header do gráfico */
+    void drawGraphHeaderBar(bool blitNow = true);  /**< Redesenha apenas o header do gráfico.
+                                         *   blitNow=false suprime o blit interno quando
+                                         *   chamado de dentro de um strip-render loop (o
+                                         *   blit externo do strip já cobre a região). */
     void drawGraphIcon(int16_t x, int16_t y, uint16_t color);
     void drawWebBusyOverlay();
     void blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w, int16_t h);

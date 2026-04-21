@@ -2583,13 +2583,17 @@ void DisplayManager::drawPeriodButtons() {
  * Chamada pelo strip rendering no sTop==0 e pelo timer periódico no Core 1.
  * Blita diretamente em y=0, sem repintar o corpo do gráfico.
  */
-void DisplayManager::drawGraphHeaderBar() {
+void DisplayManager::drawGraphHeaderBar(bool blitNow) {
     if (!_canvasWide) return;
 
     GFXcanvas16* cv = _canvasWide;
-    /* Fundo do header cobre o canvas inteiro da blit (0..27). A margem de
-     * 4 px no topo é obtida via deslocamento do destino da blit (ver fim). */
-    cv->fillRect(0, 0, 320, 28, C_CARD_BG);
+    /* Safe zone superior (canvas y=0..3) em BG + header propriamente dito em
+     * canvas y=4..31. Com este layout, callers standalone e callers de dentro
+     * de strip-render (cujo blit externo copia canvas y=0..44 → display
+     * y=0..44) produzem exatamente o mesmo resultado visual no display:
+     * header em y=4..31 com 4 px de safe zone acima. */
+    cv->fillRect(0, 0, 320, 4,  C_BG_MAIN);
+    cv->fillRect(0, 4, 320, 28, C_CARD_BG);
     cv->setFont(&FreeSansBold9pt7b);
 
     /* ── Pill do range atual no canto esquerdo ── */
@@ -2600,9 +2604,9 @@ void DisplayManager::drawGraphHeaderBar() {
         int16_t rx, ry; uint16_t rw, rh;
         cv->getTextBounds(rLabel, 0, 0, &rx, &ry, &rw, &rh);
         int pillW = rw + 12;
-        cv->fillRoundRect(4, 4, pillW, 20, 8, C_ACCENT);
+        cv->fillRoundRect(4, 8, pillW, 20, 8, C_ACCENT);
         cv->setTextColor(C_BG_MAIN);
-        cv->setCursor(10 - rx, 19);
+        cv->setCursor(10 - rx, 23);
         cv->print(rLabel);
         contentStartX = 4 + pillW + 4;  /* Espaço após o pill */
     }
@@ -2617,7 +2621,7 @@ void DisplayManager::drawGraphHeaderBar() {
         cv->getTextBounds(_graphData.title, 0, 0, &bx, &by, &bw, &bh);
         int tx = contentStartX + (centerZone - (int)bw) / 2 - bx;
         if (tx < contentStartX) tx = contentStartX;
-        cv->setCursor(tx, 20);
+        cv->setCursor(tx, 24);
         cv->print(_graphData.title);
     } else if (_graphData.tsCutoff > 0 && _graphData.tsEnd > 0) {
         /*
@@ -2652,26 +2656,26 @@ void DisplayManager::drawGraphHeaderBar() {
         cv->getTextBounds(dateBuf, 0, 0, &bx, &by, &bw, &bh);
         int tx = contentStartX + (centerZone - (int)bw) / 2 - bx;
         if (tx < contentStartX) tx = contentStartX;
-        cv->setCursor(tx, 20);
+        cv->setCursor(tx, 24);
         cv->print(dateBuf);
     } else {
         /* Sem dados e sem timestamps de referência */
         cv->setTextColor(C_TEXT_SUB);
-        cv->setCursor(contentStartX, 20);
+        cv->setCursor(contentStartX, 24);
         cv->print(_graphData.title);
     }
 
-    /* Botão X (fechar) — posição original (284, 2, 32, 24). x+w=316 já está na
-     * fronteira segura de 4 px à direita; o y=2 é absorvido pela blit abaixo. */
-    cv->fillRoundRect(284, 2, 32, 24, 6, C_TEMP_WARM);
+    /* Botão X (fechar) no canto superior direito (284, 6, 32, 24).
+     * x+w=316 fica dentro da safe zone direita de 4 px. */
+    cv->fillRoundRect(284, 6, 32, 24, 6, C_TEMP_WARM);
     cv->setFont(&FreeSansBold9pt7b);
     cv->setTextColor(C_BG_MAIN);
-    cv->setCursor(293, 19);
+    cv->setCursor(293, 23);
     cv->print("X");
 
-    /* dstY=4 afasta o header 4 px do topo físico — suporta offset de display
-     * -4V sem clip do conteúdo. */
-    blitCanvas(cv, 0, 4, 320, 28);
+    /* Blit do bloco inteiro (safe zone + header) direto pra display 1:1.
+     * Suprimido em strip-render: o blit externo do strip cobre essa região. */
+    if (blitNow) blitCanvas(cv, 0, 0, 320, 32);
 }
 
 
@@ -3287,11 +3291,6 @@ void DisplayManager::drawGraphScreen() {
 
         cv->fillScreen(C_BG_MAIN);
 
-        /* ── Header (y=0..27) — alternância nome/data via drawGraphHeaderBar ── */
-        if (sTop == 0) {
-            drawGraphHeaderBar();  /* Desenha header diretamente via blit y=0 */
-        }
-
         if (hasData) {
             /* ── Eixos ── */
             if (gy < sBot && gy + gh > sTop) {
@@ -3456,6 +3455,13 @@ void DisplayManager::drawGraphScreen() {
             else            snprintf(xR, sizeof(xR), "%02d/%02d", ti.tm_mday, ti.tm_mon + 1);
             cv->getTextBounds(xR, 0, 0, &tbx, &tby, &tw, &th);
             cv->setCursor(gx + gw - (int)tw, ry); cv->print(xR);
+        }
+
+        /* Header desenhado por ÚLTIMO no strip 0 — seu fillRect interno
+         * sobrescreve qualquer bleed de eixos/grid em canvas y=4..31. Blit
+         * externo do strip cobrirá a região inteira. */
+        if (sTop == 0) {
+            drawGraphHeaderBar(/*blitNow=*/false);
         }
 
         blitCanvas(cv, 0, sTop, 320, h);
@@ -3706,10 +3712,6 @@ void DisplayManager::drawGraphDetailScreen() {
 
         cv->fillScreen(C_BG_MAIN);
 
-        if (sTop == 0) {
-            drawGraphHeaderBar();
-        }
-
         /* Apenas 2 linhas de cards */
         for (int r = 0; r < 2; r++) {
             int cy = rowY[r];
@@ -3717,6 +3719,12 @@ void DisplayManager::drawGraphDetailScreen() {
                 drawCardOn(cv, colL, cy, sTop, r * 2);
                 drawCardOn(cv, colR, cy, sTop, r * 2 + 1);
             }
+        }
+
+        /* Header desenhado por ÚLTIMO no strip 0 — sobreescreve qualquer
+         * pixel de card que porventura entre na zona do header. */
+        if (sTop == 0) {
+            drawGraphHeaderBar(/*blitNow=*/false);
         }
 
         blitCanvas(cv, 0, sTop, 320, h);
