@@ -437,8 +437,9 @@ bool StorageManager::saveConfiguration() {
      * Skip no-op: usuário clica em "Save" várias vezes sem mudar campos →
      * rajada de saves idênticos que pressiona o LittleFS GC sem ganho real.
      * Se o conteúdo em RAM bate com o último salvo, pula a gravação.
+     * CON-004: _lastSavedCrc agora é membro privado da classe (antes era
+     * static local) — alinha com o padrão dos outros _last* fields.
      */
-    static uint32_t _lastSavedCrc = 0;
     uint32_t currentCrc = calculateCRC32((uint8_t*)&_currentConfig, sizeof(SystemConfig));
     if (currentCrc == _lastSavedCrc && _lastSavedCrc != 0) {
         _lastSaveWasNoOp = true;
