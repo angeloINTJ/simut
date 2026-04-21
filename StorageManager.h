@@ -179,6 +179,7 @@ public:
     uint32_t _cursorCoalesceTime = 0;
     bool     _lastSaveWasNoOp = false;  /**< True se saveConfiguration pulou por CRC idêntico */
     volatile uint32_t _lastSaveMs = 0;  /**< millis() do último save real (0 = nunca) */
+    uint32_t _lastSavedCrc = 0;         /**< CON-004: CRC32 do último save persistido; skip-no-op quando igual. */
 
     /* REF-004: _isTouchPriorityFn removido — usa TouchPriority::isActive(). */
 
