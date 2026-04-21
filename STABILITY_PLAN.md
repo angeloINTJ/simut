@@ -312,6 +312,7 @@ Cada fase é *stand-alone*, testável isoladamente, e pode ser revertida. Branch
 | 13.2 Template method `StorageManager::flashOp<F>(F&&)` substituindo macro local `FLASH_OP`; `writeHistoryEntryFlash` refatorado para usar o helper com chunks granulares. | BUG-003 |
 | 13.3 `_lastWebBusy` sticky no consumer de `_webBusy` em `DisplayManager::loopCore1`. | BUG-004 |
 | 13.4 `LogManager::captureBootSnapshot()` público explícito; chamado na 1ª linha de `begin()`; remover captura oportunista em `setModule`. | BUG-005 |
+| 13.4b Guard `_autopsyPerformed` em `performCrashAutopsy()` — roda 1x por sessão; evita falsa `HW WATCHDOG` em chamadas subsequentes de `begin()` (`clear log`, web). | BUG-005 (corolário descoberto em teste HW) |
 
 **Saída esperada:** `v3.21.0`.
 
@@ -430,7 +431,8 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F10 — Estabilidade em rajadas de save (U16)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-19 |
 | **F11 — Touch Priority (U17/U18/U19)** | ✅ Concluída | `stability-fixes-tier1` | `v3.14.0` | 2026-04-19 |
 | **F12 — SEC Críticas/Altas (audit v3.19.0)** | ✅ Concluída | `stability-fixes-tier1` | `v3.20.0` | 2026-04-20 |
-| **F13 — Bugs latentes (BUG-002..005)** | ⚪ Pendente | — | (v3.21.0) | — |
+| **F13 — Bugs latentes (BUG-002..005)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.21.0) | — |
+|   · F13.1 BUG-005 | ✅ Código pronto (HW pendente) | — | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.22.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.24.0) | — |
@@ -506,7 +508,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | BUG-002 | 🟡 | F13 | ⚪ | `__dmb()` em pares `(data,flag)` cross-core. |
 | BUG-003 | 🟡 | F13 | ⚪ | Template `flashOp<F>()` substitui macro + aplica em `writeHistoryEntryFlash`. |
 | BUG-004 | 🟢 | F13 | ⚪ | `_lastWebBusy` sticky para evitar flicker do overlay. |
-| BUG-005 | 🟢 | F13 | ⚪ | `captureBootSnapshot()` explícito em `LogManager::begin`. |
+| BUG-005 | 🟢 | F13 | 🟡 | `captureBootSnapshot()` público + chamada explícita em `begin()`; `setModule` não captura mais oportunisticamente; assertion defensiva + guard `_autopsyPerformed` em `performCrashAutopsy` (fix de falsa autópsia em `clear log`). HW pendente. |
 | CON-001 | 🟢 | F14 | ⚪ | Consolidar comentário sobre `scratch[0..7]`. |
 | CON-002 | 🟢 | F14 | ⚪ | `enum LanguageCode` EN..ZH + `LANG_COUNT`. |
 | CON-003 | ⚪ | F14 | ⚪ | Atualizar docstrings "3 idiomas" → 8. |

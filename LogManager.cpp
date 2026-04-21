@@ -32,6 +32,12 @@ volatile uint32_t _healthCheckEnabledAt = 0;
 static volatile uint32_t _preBootScratch4 = 0;
 static volatile bool     _preBootSnapshotTaken = false;
 
+/* Guard one-shot: performCrashAutopsy() roda uma única vez por sessão.
+ * begin() é chamado múltiplas vezes em runtime (clear log, web clear logs) —
+ * sem este guard, a 2ª autópsia re-dispararia HW WATCHDOG porque
+ * watchdog_caused_reboot() mantém true pela sessão inteira. */
+static volatile bool     _autopsyPerformed = false;
+
 const char* MOD_NAMES[] = {"BOOT", "IDLE", "WIFI", "WEB_SERVER", "STORAGE_RD", "STORAGE_WR", "SENSOR", "TELEMETRY", "DISPLAY", "CLI",
                             "SAVE_CFG", "LOG_FLASH", "HIST_FLASH", "CORE1_LOCK"};
 static constexpr uint8_t MOD_NAMES_MAX = 13;  /* último índice válido */
@@ -127,7 +133,18 @@ void LogManager::requestFsLock(bool lock) {
     if (lock) delay(1);
 }
 
+void LogManager::captureBootSnapshot() {
+    if (!_preBootSnapshotTaken) {
+        _preBootScratch4 = watchdog_hw->scratch[3];
+        _preBootSnapshotTaken = true;
+    }
+}
+
 void LogManager::begin(bool saveToFile, LogLevel minSerialLevel) {
+    /* Captura o módulo do boot anterior ANTES de qualquer TRACE_MOD sobrescrever
+     * scratch[3]. Idempotente: chamadas subsequentes (ex: CMD_CLEAR_LOGS) são no-op. */
+    captureBootSnapshot();
+
     _saveToFile = saveToFile;
     _minSerialLevel = minSerialLevel;
 
@@ -429,19 +446,10 @@ void LogManager::setMinSerialLevel(LogLevel level) { _minSerialLevel = level; }
 /* =========================================================================== */
 /*                            BLACK BOX PROFILER                             */
 /* =========================================================================== */
-/** @brief Set the currently executing module for crash forensics. */
+/** @brief Set the currently executing module for crash forensics.
+ *  Pré-condição: LogManager::begin() (ou captureBootSnapshot() explícito) já rodou —
+ *  caso contrário o scratch[3] do boot anterior é perdido antes da autópsia. */
 void LogManager::setModule(int core, uint8_t mod) {
-    /*
-     * Snapshot ONE-SHOT do scratch[3] antes da primeira sobrescrita.
-     * AppManager::setup chama TRACE_MOD(0, MOD_BOOT) logo no início, mas
-     * a autópsia só roda depois (em LogManager::begin). Sem este snapshot,
-     * o scratch do crash anterior seria apagado antes da autópsia lê-lo.
-     */
-    if (!_preBootSnapshotTaken) {
-        _preBootScratch4 = watchdog_hw->scratch[3];
-        _preBootSnapshotTaken = true;
-    }
-
     _coreModule[core] = mod;
     _moduleStartTime[core] = millis();
     _coreHeartbeat[core] = millis();
@@ -562,11 +570,26 @@ void LogManager::markCleanReboot() {
  * Logs the dead core, module, and duration of the freeze.
  */
 void LogManager::performCrashAutopsy() {
+    /* Idempotência: autópsia roda exatamente uma vez por sessão. Chamadas
+     * subsequentes (ex: begin() re-chamado por clear log) são no-op — evita
+     * falsa HW WATCHDOG, já que watchdog_caused_reboot() permanece true
+     * durante toda a sessão pós-reboot. */
+    if (_autopsyPerformed) return;
+    _autopsyPerformed = true;
+
     /* Cenários possíveis:
      *  (1) scratch[5] == 0xCA11B007: soft panic nosso (Core 1 travou).
      *  (2) scratch[5] == 0xC1EA8007: reboot limpo (markCleanReboot foi chamado).
      *  (3) watchdog_caused_reboot() && nenhum magic: HW watchdog real (Core 0).
      *  (4) nenhum dos acima: power cycle / botão reset. */
+
+    /* Rede de segurança para refactors: captureBootSnapshot() deveria ter
+     * rodado antes (via begin()). Se não rodou, o scratch[3] já pode ter sido
+     * sobrescrito por algum setModule prévio e o modTrace abaixo será o estado
+     * vivo, não o pré-boot. */
+    if (!_preBootSnapshotTaken) {
+        Serial.println("[LOG] performCrashAutopsy called before captureBootSnapshot!");
+    }
 
     bool wdReset = watchdog_caused_reboot();
     uint32_t mark = watchdog_hw->scratch[5];
@@ -596,8 +619,8 @@ void LogManager::performCrashAutopsy() {
          * e sem marca de reboot limpo. Core 0 não chamou watchdog_update()
          * — loop travado no Core 0. RAM foi zerada; contexto vem do scratch[4]
          * que setModule() atualiza em tempo real.
-         * Usa o snapshot pré-boot (capturado antes de TRACE_MOD(0, MOD_BOOT)
-         * da setup() sobrescrever) para ver o módulo do crash ANTERIOR. */
+         * Usa o snapshot pré-boot (capturado em captureBootSnapshot(), chamado
+         * por begin() antes do 1º TRACE_MOD) para ver o módulo do crash ANTERIOR. */
         uint32_t modTrace = _preBootSnapshotTaken ? _preBootScratch4
                                                   : watchdog_hw->scratch[3];
         uint8_t c0Valid = (modTrace >> 8)  & 0xFF;
