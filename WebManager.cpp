@@ -24,6 +24,31 @@
 #include <algorithm>
 #include <functional>
 
+/* WEB-001: escape seguro de filename/dirname para emissão em JSON.
+ * Cobre \n/\r/\t (escape curto) e filtra outros bytes de controle
+ * (0x00-0x1F, 0x7F) para '?' — arquivos com bytes ruins ficam visíveis
+ * no /files com '?' no nome, podendo ser deletados pelo user, sem
+ * quebrar o parse JSON do cliente. */
+static void jsonEscapeFilename(const char* src, char* dst, size_t dstSize) {
+    if (!src || !dst || dstSize == 0) {
+        if (dst && dstSize) dst[0] = '\0';
+        return;
+    }
+    size_t di = 0;
+    while (*src && di + 2 < dstSize) {
+        unsigned char c = (unsigned char)*src++;
+        if (c == '"' || c == '\\') {
+            dst[di++] = '\\';
+            dst[di++] = (char)c;
+        } else if (c == '\n') { dst[di++] = '\\'; dst[di++] = 'n'; }
+        else   if (c == '\r') { dst[di++] = '\\'; dst[di++] = 'r'; }
+        else   if (c == '\t') { dst[di++] = '\\'; dst[di++] = 't'; }
+        else   if (c < 0x20 || c == 0x7F) { dst[di++] = '?'; }
+        else   { dst[di++] = (char)c; }
+    }
+    dst[di] = '\0';
+}
+
 WebManager::WebManager() : _server(80) {
     _currentUserPerms = 0;
     _currentUserId = -1;
@@ -1771,8 +1796,11 @@ void WebManager::handleApiLs() {
                 const char* dName = batch[i].name.c_str();
                 if (dName[0] == '\0') continue;
                 if (strcmp(dName, ".") == 0 || strcmp(dName, "..") == 0) continue;
+                /* WEB-001: escape dirname (antes era emitido cru). */
+                char dEscaped[96];
+                jsonEscapeFilename(dName, dEscaped, sizeof(dEscaped));
                 snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"d\",\"s\":0}",
-                         first ? "" : ",", dName);
+                         first ? "" : ",", dEscaped);
                 if (!safeSend(buf)) return;
                 first = false;
                 continue;
@@ -1781,16 +1809,11 @@ void WebManager::handleApiLs() {
             const String& fnStr = batch[i].name;
             if (fnStr.length() == 0) continue;
 
-            /* Escape on-the-fly em stack buffer: \ → \\ , " → \" */
+            /* WEB-001: escape filename (antes cobria só \ e "). Bytes de
+             * controle viram '?' — arquivo fica visível no /files e
+             * deletável, sem quebrar JSON do cliente. */
             char escaped[128];
-            size_t ei = 0;
-            const size_t flen = fnStr.length();
-            for (size_t k = 0; k < flen && ei + 2 < sizeof(escaped); k++) {
-                char c = fnStr[k];
-                if (c == '\\' || c == '"') escaped[ei++] = '\\';
-                escaped[ei++] = c;
-            }
-            escaped[ei] = '\0';
+            jsonEscapeFilename(fnStr.c_str(), escaped, sizeof(escaped));
 
             snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"f\",\"s\":%u}",
                      first ? "" : ",", escaped, (unsigned)batch[i].size);
