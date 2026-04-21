@@ -436,12 +436,13 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F13.1 BUG-005 | ✅ Concluída (HW validada) | `ea799f5` | — | 2026-04-21 |
 |   · F13.2 BUG-004 | ✅ Concluída (HW validada) | `04b5515` | — | 2026-04-21 |
 |   · F13.3 BUG-002 | ✅ Concluída (HW validada) | `1dee6ca` | — | 2026-04-21 |
-|   · F13.4 BUG-003 | ✅ Concluída (HW validada, exceto teste 3 rolagem diária — habilitado por feature manual time em v3.22.0+) | `b7161d2` | — | 2026-04-21 |
+|   · F13.4 BUG-003 | ✅ Concluída (HW validada; teste 3 rolagem diária 23:59→00:00 validado em v3.22.4 via manual time) | `b7161d2` | — | 2026-04-21 |
 |   · F13.4b revert template→macro (flash economy) | ✅ HW validada | em v3.22.0 | — | 2026-04-21 |
 | **F-I18N-TRIM.1 (feature fora da auditoria)** | ✅ Concluída (HW validada) | em v3.22.0 | `v3.22.0` | 2026-04-21 |
 | **F-NET-TIME.1 + 1b (feature fora da auditoria)** | ✅ Concluída (HW validada) | em v3.22.0 | `v3.22.0` | 2026-04-21 |
 |   · F-NET-TIME.2 — consumer NetworkManager (flags DNS/NTP) | ✅ Path default validado (DHCP) | em v3.22.1 | — | 2026-04-21 |
-|   · F-NET-TIME.3a — back-end web (GET/POST + /api/set_time + setManualTime) | ⚪ Código pronto | em v3.22.2 | — | 2026-04-21 |
+|   · F-NET-TIME.3a — back-end web (GET/POST + /api/set_time + setManualTime) | ✅ Código pronto (validação junto com 3b) | `436248f` | — | 2026-04-21 |
+|   · F-NET-TIME.3b — front-end /network (DNS separado) + /config (data/hora) + i18n PT | ✅ HW validada (v3.22.3 + estética v3.22.4 + CSS v3.22.5) | em v3.22.5 | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |

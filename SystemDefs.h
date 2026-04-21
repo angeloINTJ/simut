@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.22.2"         /* Firmware version string */
+#define SIMUT_VERSION "v3.22.6"         /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
