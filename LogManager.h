@@ -95,6 +95,13 @@ public:
         uint32_t _saved;
     };
     bool isConsoleStream() const { return _consoleStreamEnabled; }
+
+    /** Captura snapshot one-shot de watchdog_hw->scratch[3] (módulo do boot anterior)
+     *  antes que setModule() o sobrescreva. Idempotente. begin() chama isto antes de
+     *  performCrashAutopsy(); chame explicitamente se precisar rodar autópsia em outro
+     *  fluxo sem passar por begin(). */
+    void captureBootSnapshot();
+
     void begin(bool saveToFile = false, LogLevel minSerialLevel = LOG_INFO);
 
 
