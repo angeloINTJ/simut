@@ -1145,7 +1145,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px; font-size: 1.1rem; }
         .grp { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
         label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.9rem; font-weight: 600; }
-        .card input[type=text], .card input[type=password], .card input[type=number], .card select { width: 100%; padding: 12px; background: #000; border: 1px solid #3f3f46; color: white; border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
+        .card input[type=text], .card input[type=password], .card input[type=number], .card input[type=date], .card input[type=time], .card select { width: 100%; padding: 12px; background: #000; border: 1px solid #3f3f46; color: white; border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
         .card input:focus, .card select:focus { border-color: var(--acc); outline: none; }
         .card button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-top: 20px; transition: 0.2s; }
         .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
@@ -1250,6 +1250,29 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <input type="checkbox" id="log" name="log" value="1">
                         <span data-i18n="cfg_log">Enable Local Logging</span>
                     </label>
+                </div>
+
+                <h3 data-i18n="cfg_datetime">Date &amp; Time</h3>
+                <div class="grp">
+                    <label class="chk">
+                        <input type="checkbox" id="ntp_enabled" name="ntp_enabled" value="1" onchange="toggleManualTime()">
+                        <span data-i18n="cfg_ntp_auto">Synchronize automatically via NTP</span>
+                    </label>
+                    <div id="manual_time_fields">
+                        <div class="row" style="margin-top:12px">
+                            <div class="col">
+                                <label data-i18n="cfg_date">Date</label>
+                                <input type="date" id="man_date" min="2026-01-01" style="color-scheme:light dark">
+                            </div>
+                            <div class="col">
+                                <label data-i18n="cfg_time">Time</label>
+                                <input type="time" id="man_time" step="1" style="color-scheme:light dark">
+                            </div>
+                        </div>
+                        <button type="button" onclick="applyManualTime()" style="background:var(--acc);color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:0.95em;font-weight:600;margin-top:12px" data-i18n="cfg_apply_now">Apply Now</button>
+                        <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_manual_hint">Uses device timezone (offset above). Save &amp; Reboot to persist the NTP toggle.</div>
+                        <div id="time_result" style="margin-top:8px;font-size:0.9em"></div>
+                    </div>
                 </div>
 
                 <h3 data-i18n="cfg_hw">Hardware & Sampling</h3>
@@ -1564,6 +1587,55 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
         }
 
+        /* F-NET-TIME.3b: Date & Time helpers. */
+        function toggleManualTime() {
+            const ntpOn = document.getElementById('ntp_enabled').checked;
+            document.getElementById('manual_time_fields').style.opacity = ntpOn ? '0.5' : '1';
+            /* Fields continuam habilitados mesmo com NTP on — user pode setar uma
+             * vez; próximo sync NTP vai sobrescrever. Apenas visual degradado. */
+        }
+
+        async function applyManualTime() {
+            const dateStr = document.getElementById('man_date').value;
+            const timeStr = document.getElementById('man_time').value;
+            const result = document.getElementById('time_result');
+            /* Validação client-side: input date tem min=2026-01-01, então o browser
+             * já rejeita anteriores — esta checagem cobre apenas "campo vazio". */
+            if (!dateStr || !timeStr) {
+                result.textContent = window.t('cfg_time_need', 'Fill date and time.');
+                result.style.color = 'var(--dang)';
+                return;
+            }
+            const tz = parseInt(document.getElementById('tz').value) || 0;
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const tp = timeStr.split(':').map(Number);
+            const h = tp[0] || 0, mi = tp[1] || 0, sec = tp[2] || 0;
+            /* Interpreta como hora local do device (offset tz): epoch UTC = local - tz. */
+            const utcMillis = Date.UTC(y, m - 1, d, h, mi, sec) - tz * 3600 * 1000;
+            const epoch = Math.floor(utcMillis / 1000);
+            try {
+                const r = await fetch('/api/set_time', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ epoch })
+                });
+                const resp = await r.json();
+                if (resp.ok) {
+                    result.textContent = window.t('cfg_time_ok', 'Time applied.');
+                    result.style.color = 'var(--acc)';
+                } else {
+                    /* Erros de validação do back-end (epoch baixo demais, formato ruim)
+                     * não devem ocorrer com min=2026-01-01 no input. Se aparecerem,
+                     * mensagem genérica traduzida em vez do string cru em inglês. */
+                    result.textContent = window.t('cfg_time_fail', 'Failed to apply.');
+                    result.style.color = 'var(--dang)';
+                }
+            } catch (e) {
+                result.textContent = window.t('cfg_time_fail', 'Failed to apply.');
+                result.style.color = 'var(--dang)';
+            }
+        }
+
         async function loadConfig() {
             try {
                 let r = await fetchSafe('/api/config'); let d = await r.json();
@@ -1573,9 +1645,20 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  * será aplicado no commit. */
                 const p = Pending.getSection('sys');
                 const val = (key, def) => (p[key] !== undefined ? p[key] : (d[key] !== undefined ? d[key] : def));
+                const boolVal = (key, def) => (p[key] !== undefined) ? (p[key] !== '0') : (d[key] !== undefined ? !!d[key] : !!def);
                 document.getElementById('name').value = val('name', '');
                 document.getElementById('tz').value = val('tz', 0);
                 document.getElementById('log').checked = !!val('log', false);
+                /* F-NET-TIME.3b: NTP enable + preenche inputs de manual time com agora. */
+                document.getElementById('ntp_enabled').checked = boolVal('ntp_enabled', true);
+                const nowEpoch = d.now_epoch || Math.floor(Date.now() / 1000);
+                const tzNow = parseInt(val('tz', 0)) || 0;
+                const localMs = (nowEpoch + tzNow * 3600) * 1000;
+                const nd = new Date(localMs);
+                const pad = n => String(n).padStart(2, '0');
+                document.getElementById('man_date').value = nd.getUTCFullYear() + '-' + pad(nd.getUTCMonth()+1) + '-' + pad(nd.getUTCDate());
+                document.getElementById('man_time').value = pad(nd.getUTCHours()) + ':' + pad(nd.getUTCMinutes()) + ':' + pad(nd.getUTCSeconds());
+                toggleManualTime();
                 document.getElementById('res').value = val('res', 9);
                 document.getElementById('s_int').value = val('s_int', 5000);
                 document.getElementById('t_transport').value = val('t_transport', 0);
@@ -1873,9 +1956,26 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                         <label data-i18n="net_gw">Gateway</label>
                                         <input type="text" id="gw" name="gw" maxlength="15" placeholder="192.168.1.1">
                                     </div>
+                                    <div class="col"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h3 data-i18n="net_dns_title">DNS Configuration</h3>
+                        <div class="grp">
+                            <label class="chk">
+                                <input type="checkbox" id="dns_auto" name="dns_auto" value="1" onchange="toggleDnsFields()">
+                                <span data-i18n="net_dns_auto">Obtain DNS automatically (DHCP)</span>
+                            </label>
+                            <div id="dns_fields">
+                                <div class="row">
                                     <div class="col">
-                                        <label data-i18n="net_sdns">Primary DNS</label>
-                                        <input type="text" id="dns" name="dns" maxlength="15" placeholder="8.8.8.8">
+                                        <label data-i18n="net_dns1">Primary DNS</label>
+                                        <input type="text" id="dns1" name="dns1" maxlength="15" placeholder="8.8.8.8">
+                                    </div>
+                                    <div class="col">
+                                        <label data-i18n="net_dns2">Secondary DNS</label>
+                                        <input type="text" id="dns2" name="dns2" maxlength="15" placeholder="8.8.4.4">
                                     </div>
                                 </div>
                             </div>
@@ -1883,6 +1983,10 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                         <h3 data-i18n="net_ntp_title">NTP Time Server</h3>
                         <div class="grp">
+                            <div id="ntp_disabled_hint" style="display:none;margin-bottom:8px;padding:8px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em">
+                                <span data-i18n="net_ntp_disabled">NTP is disabled.</span>
+                                <a href="/config" style="color:var(--acc);text-decoration:underline" data-i18n="net_ntp_goto_cfg">Enable in System Config &rarr;</a>
+                            </div>
                             <label data-i18n="net_ntp_lbl">Server Address</label>
                             <input type="text" id="ntp_server" name="ntp_server" maxlength="31" placeholder="pool.ntp.org">
                             <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_ntp_hint">Leave empty to use default (pool.ntp.org)</div>
@@ -1903,11 +2007,10 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </div>
 
     <script>
-        function toggleIpFields() {
-            let dhcp = document.getElementById('dhcp').checked;
-            let sf = document.getElementById('static_fields');
+        function _toggleGroup(containerId, disabled) {
+            let sf = document.getElementById(containerId);
             let inputs = sf.querySelectorAll('input');
-            if(dhcp) {
+            if(disabled) {
                 sf.style.opacity = '0.3';
                 inputs.forEach(i => { i.readOnly = true; i.style.pointerEvents = 'none'; });
             } else {
@@ -1915,6 +2018,8 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 inputs.forEach(i => { i.readOnly = false; i.style.pointerEvents = 'auto'; });
             }
         }
+        function toggleIpFields()  { _toggleGroup('static_fields', document.getElementById('dhcp').checked); }
+        function toggleDnsFields() { _toggleGroup('dns_fields',    document.getElementById('dns_auto').checked); }
 
         async function loadNet() {
             try {
@@ -1934,15 +2039,23 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 /* U24 Phase C: aplica valores do flash; sobrepõe pendentes. */
                 const p = Pending.getSection('net');
                 const val = (k, def) => (p[k] !== undefined ? p[k] : def);
+                const bool = (k, def) => (p[k] !== undefined) ? (p[k] !== '0') : !!def;
                 document.getElementById('ssid').value = val('ssid', data.ssid || '');
-                document.getElementById('dhcp').checked = (p.use_dhcp !== undefined) ? (p.use_dhcp !== '0') : !!data.use_dhcp;
+                document.getElementById('dhcp').checked = bool('use_dhcp', data.use_dhcp);
                 document.getElementById('ip').value = val('ip', data.static_ip || '');
                 document.getElementById('mask').value = val('mask', data.static_mask || '');
                 document.getElementById('gw').value = val('gw', data.static_gw || '');
-                document.getElementById('dns').value = val('dns', data.static_dns || '');
+                /* F-NET-TIME.3b: DNS em seção separada — independente de DHCP. */
+                document.getElementById('dns_auto').checked = bool('dns_auto', data.dns_auto);
+                document.getElementById('dns1').value = val('dns1', data.static_dns || '');
+                document.getElementById('dns2').value = val('dns2', data.dns2 || '');
                 document.getElementById('ntp_server').value = val('ntp_server', data.ntp_server || '');
                 document.getElementById('web_port').value = val('web_port', data.web_port || 80);
+                /* Hint visível se NTP está off em /config. */
+                const hint = document.getElementById('ntp_disabled_hint');
+                if (hint) hint.style.display = (data.ntp_enabled === false) ? '' : 'none';
                 toggleIpFields();
+                toggleDnsFields();
                 wireNetPendingListeners();
             } catch(e) {}
         }
@@ -3600,7 +3713,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "m_jan":"Jan", "m_feb":"Fev", "m_mar":"Mar", "m_apr":"Abr", "m_may":"Mai", "m_jun":"Jun", "m_jul":"Jul", "m_aug":"Ago", "m_sep":"Set", "m_oct":"Out", "m_nov":"Nov", "m_dec":"Dez",
             "cfg_title": "Configurações", "cfg_gen": "Identidade", "cfg_dev": "Nome", "cfg_tz": "Fuso Horário", "cfg_log": "Registro Local", "cfg_hw": "Hardware", "cfg_res": "Resolução DS18B20", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Amostra (ms)", "cfg_tel": "Telemetria", "cfg_srv": "IP Servidor", "cfg_port": "Porta", "cfg_path": "Endpoint", "cfg_key": "API Key", "cfg_tint": "Upload (ms)", "cfg_bat": "Lote", "cfg_fmt": "Formato", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Dinâmico", "cfg_sec": "Usar TLS / SSL", "cfg_sec_mqtt": "Usar MQTTS (TLS)", "cfg_vis": "Construtor", "cfg_leg": "Tags", "cfg_leg1": "Globais:", "cfg_leg2": "Dados:", "cfg_leg3": "Chaves Inteligentes:", "cfg_leg4": "Formatos:", "cfg_leg5": "Série T", "cfg_leg6": "Série H", "cfg_leg7": "ID Sensor", "cfg_tpl1": "1. Global", "cfg_tpl2": "2. Linha", "cfg_tpl3": "3. Separador", "cfg_prev": "Live Preview:", "cfg_save": "Salvar", "cfg_touch_title": "Calibração do Touch", "cfg_touch_reset": "Resetar Calibração", "cfg_touch_hint": "Restaura padrão de fábrica. Recalibre pelo menu do display.", "cfg_touch_confirm": "Resetar calibração do touch para padrão de fábrica?", "cfg_touch_done": "Calibração resetada. Recalibre pelo display.",
             "cfg_transport": "Transporte", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Tópico", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Usuário", "cfg_mq_pass": "Senha", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Reter", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)", "net_web_title": "Servidor Web", "net_web_port": "Porta HTTP", "net_web_port_hint": "Padrão: 80. Após salvar, o navegador redireciona automaticamente para a nova porta.", "display_busy": "Display em uso. Tente novamente em alguns segundos.", "net_conn_err": "Erro de conexão.", "hist_clear_err": "Falha ao limpar logs.", "hist_cleared": "Logs limpos.", "fil_mkdir_ok": "Pasta criada.", "fil_mkdir_err": "Falha ao criar pasta.", "fil_del_err": "Alguns arquivos não puderam ser excluídos.", "fil_deleted": "Arquivos excluídos.", "commit_btn": "💾 Salvar e Reiniciar", "commit_confirm": "Isto salvará todas as alterações e reiniciará o sistema.\n\n⚠️ O dispositivo ficará offline por ~10 segundos.\nQualquer gravação de histórico/log em andamento será interrompida.\n\nContinuar?", "commit_saved": "Salvo! Reiniciando sistema...", "commit_err": "Falha ao salvar.", "pending_notice": "Clique em \"Salvar e Reiniciar\" no topo para aplicar as alterações.",
+            "net_curr": "Status da Conexão", "net_stat": "Status", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuração", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Senha", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estático", "net_sdns": "DNS Primário", "net_save": "Salvar e Reiniciar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Endereço do Servidor", "net_ntp_hint": "Deixe vazio para usar o padrão (pool.ntp.org)", "net_web_title": "Servidor Web", "net_web_port": "Porta HTTP", "net_web_port_hint": "Padrão: 80. Após salvar, o navegador redireciona automaticamente para a nova porta.", "net_dns_title": "Configuração de DNS", "net_dns_auto": "Obter DNS automaticamente (DHCP)", "net_dns1": "DNS Primário", "net_dns2": "DNS Secundário", "net_ntp_disabled": "NTP está desabilitado.", "net_ntp_goto_cfg": "Habilite em Configurações do Sistema →", "cfg_datetime": "Data e Hora", "cfg_ntp_auto": "Sincronizar automaticamente via NTP", "cfg_date": "Data", "cfg_time": "Hora", "cfg_apply_now": "Aplicar Agora", "cfg_manual_hint": "Usa fuso horário do dispositivo. Salve e Reinicie para persistir o toggle do NTP.", "cfg_time_need": "Preencha data e hora.", "cfg_time_ok": "Hora aplicada.", "cfg_time_fail": "Falhou ao aplicar.", "display_busy": "Display em uso. Tente novamente em alguns segundos.", "net_conn_err": "Erro de conexão.", "hist_clear_err": "Falha ao limpar logs.", "hist_cleared": "Logs limpos.", "fil_mkdir_ok": "Pasta criada.", "fil_mkdir_err": "Falha ao criar pasta.", "fil_del_err": "Alguns arquivos não puderam ser excluídos.", "fil_deleted": "Arquivos excluídos.", "commit_btn": "💾 Salvar e Reiniciar", "commit_confirm": "Isto salvará todas as alterações e reiniciará o sistema.\n\n⚠️ O dispositivo ficará offline por ~10 segundos.\nQualquer gravação de histórico/log em andamento será interrompida.\n\nContinuar?", "commit_saved": "Salvo! Reiniciando sistema...", "commit_err": "Falha ao salvar.", "pending_notice": "Clique em \"Salvar e Reiniciar\" no topo para aplicar as alterações.",
             "usr_mgt": "Gestão de Acessos", "usr_usr": "Usuário", "usr_perm": "Permissões", "usr_act": "Ações", "usr_add": "Adicionar", "usr_name": "Nome", "usr_pdash": "Painel", "usr_phist": "Histórico", "usr_plog": "Logs", "usr_psys": "Sistema", "usr_pnet": "Rede", "usr_pfr": "Leitura", "usr_pfu": "Upload", "usr_pfd": "Excluir", "usr_pusr": "Usuários", "usr_btn": "Criar", "usr_warn": "Login via: Nome@DDMMAAAA", "usr_prot": "Protegido", "usr_del": "Excluir", "usr_rst": "Reset", "usr_sup": "Super",
             "fil_title": "Sistema de Arquivos", "fil_down": "Baixar", "fil_del": "Excluir", "fil_up": "Enviar", "fil_uphere": "Enviar", "fil_name": "Nome", "fil_sz": "Tamanho", "fil_mkdir": "Nova Pasta", "fil_mkname": "nome", "fil_create": "Criar", "fil_cancel": "Cancelar", "fil_loading": "Carregando...", "fil_parent": "Subir", "fil_folder": "Pasta", "fil_empty": "Vazio", "fil_inv_name": "Inválido", "fil_sel_del": "Selecione", "fil_conf_del": "Excluir N?", "fil_sel_down": "Selecione", "fil_conf_down": "Baixar N?", "usr_del_msg": "Excluir?", "usr_rst_msg": "Forçar reset?", "hist_clear_msg": "Limpar logs?",
             "alm_title": "Alarmes e Sons", "alm_limits": "Limites de Alarme", "alm_sounds": "Configuração de Sons", "alm_tmin": "Temp. Mín.", "alm_tmax": "Temp. Máx.", "alm_hmin": "Umid. Mín.", "alm_hmax": "Umid. Máx.", "alm_active": "Alarme Ativo", "alm_save": "Salvar", "alm_saved": "Salvo com sucesso!", "alm_err": "Erro ao salvar.", "alm_none": "Nenhum sensor configurado.", "alm_touch": "Toque", "alm_confirm": "Confirmação", "alm_error": "Erro", "alm_alarm": "Alarme", "alm_web": "Sons Web", "alm_mute": "Mudo Global", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Alarme", "alm_on": "Ligado", "alm_off": "Desligado", "alm_ambient": "Sensor Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Descendente", "alm_mel_siren": "Sirene",
@@ -3891,7 +4004,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 'html.theme-light .bc-root{color:#94a3b8}' +
                 'html.theme-light .bc-page{color:var(--sub)}' +
                 /* Inputs, selects, textareas */
-                'html.theme-light input[type=text],html.theme-light input[type=password],html.theme-light input[type=number],html.theme-light input[type=search],html.theme-light select,html.theme-light textarea{background:#ffffff;color:var(--txt);border-color:var(--border)}' +
+                'html.theme-light input[type=text],html.theme-light input[type=password],html.theme-light input[type=number],html.theme-light input[type=search],html.theme-light input[type=date],html.theme-light input[type=time],html.theme-light select,html.theme-light textarea{background:#ffffff;color:var(--txt);border-color:var(--border)}' +
                 'html.theme-light input:focus,html.theme-light select:focus,html.theme-light textarea:focus{border-color:var(--acc);outline:none}' +
                 'html.theme-light input::placeholder{color:#94a3b8}' +
                 /* Containers de form/grp/cards */
