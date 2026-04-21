@@ -92,7 +92,11 @@ private:
 
     struct LoginState {
         uint32_t ip = 0;
-        String nonce = "";
+        /* CON-005a: nonce como char[] fixo em vez de String — remove heap
+         * alloc em cada login_init (path sensível à latência) e zero
+         * fragmentação no array de slots. Tamanho 65 = 64 hex chars do
+         * SHA-256 de generateSecureToken + terminador. */
+        char nonce[65] = {0};
         uint32_t nonceCreatedAt = 0;
         uint8_t failCount = 0;
         uint32_t lockoutUntil = 0;
