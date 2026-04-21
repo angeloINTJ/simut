@@ -511,7 +511,7 @@ bool StorageManager::saveConfiguration() {
 bool StorageManager::canSaveNow() const {
     constexpr uint32_t MIN_SAVE_INTERVAL_MS = 1000;
     if (_lastSaveMs == 0) return true;
-    return ((int32_t)(millis() - _lastSaveMs)) >= (int32_t)MIN_SAVE_INTERVAL_MS;
+    return timeSince(_lastSaveMs, MIN_SAVE_INTERVAL_MS);
 }
 
 void StorageManager::resetToFactory() { loadDefaults(); saveConfiguration(); }
@@ -738,7 +738,7 @@ void StorageManager::enforceStorageLimit() {
     uint32_t _budgetStart = millis();
     while (maxIter-- > 0 && ((info.usedBytes * 100) / info.totalBytes) > 86) {
         watchdog_update(); TRACE_BEAT(0);
-        if (millis() - _budgetStart > 4000) {
+        if (timeSince(_budgetStart, 4000)) {
             LOG_CODE(LOG_WARN, "STO", STO_ENFORCE_BUDGET, 0, "");
             break;
         }
@@ -798,7 +798,7 @@ void StorageManager::setLastSentTimestamp(uint32_t ts) {
 
 void StorageManager::flushCursorIfDirty() {
     if (!_cursorDirty) return;
-    if (millis() - _cursorCoalesceTime < CURSOR_COALESCE_MS) return;
+    if (!timeSince(_cursorCoalesceTime, CURSOR_COALESCE_MS)) return;
 
     /* Touch priority: se user está interagindo, cursor fica dirty e flush
      * acontece na próxima call após interaction terminar. */
@@ -949,7 +949,7 @@ void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta
         /* U10: pular arquivos já processados na chamada anterior */
         if (_correctWatermark.length() > 0 && fn <= _correctWatermark) continue;
 
-        if (millis() - _budgetStart > 6000) {
+        if (timeSince(_budgetStart, 6000)) {
             LOG_CODE(LOG_WARN, "STO", STO_CORRECT_BUDGET, 0, "");
             break;
         }
@@ -974,7 +974,7 @@ void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta
                 watchdog_update();
                 TRACE_BEAT(0);
                 delay(2);
-                if (millis() - _budgetStart > 6000) {
+                if (timeSince(_budgetStart, 6000)) {
                     enterFlashSafeMode();
                     f.close();
                     exitFlashSafeMode();

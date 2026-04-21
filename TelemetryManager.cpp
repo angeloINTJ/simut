@@ -753,7 +753,7 @@ void TelemetryManager::escalateBackoff() {
     } else if (_consecutiveFails == BACKOFF_MAX_STREAK + 1) {
         LOG_CODE(LOG_WARN, "TEL", TEL_BACKOFF_SUPPRESSED, 0, "");
         _lastSuppressedLog = millis();
-    } else if (millis() - _lastSuppressedLog >= 3600000) {
+    } else if (timeSince(_lastSuppressedLog, 3600000)) {
         /* U11: heartbeat 1x/hora após supressão */
         LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, _consecutiveFails,
             "Still failing (#" + String(_consecutiveFails) + ")");

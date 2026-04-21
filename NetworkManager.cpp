@@ -142,7 +142,7 @@ void NetworkManager::update() {
     if (_state == NET_AP_CONFIG) {
         _dnsServer.processNextRequest();
         /* N5: timeout AP mode — reboot para STA se SSID configurado */
-        if (millis() - _apStartTime > AP_MODE_TIMEOUT_MS && strlen(_ssid) > 0) {
+        if (timeSince(_apStartTime, AP_MODE_TIMEOUT_MS) && strlen(_ssid) > 0) {
             LOG_CODE(LOG_WARN, "NET", NET_CONNECT_TIMEOUT, 0, TRL("AP mode timeout, rebooting to STA", "Timeout do AP, reiniciando para STA"));
             watchdog_update();
             LogManager::instance().markCleanReboot();
@@ -163,7 +163,7 @@ void NetworkManager::update() {
     switch (_state) {
         case NET_OFFLINE:
 
-            if (millis() - _reconnectTimer > _reconnectDelay) {
+            if (timeSince(_reconnectTimer, _reconnectDelay)) {
                 if (strlen(_ssid) > 0) {
                     LOG_CODE(LOG_INFO, "NET", SYS_WIFI_SCAN, 0, String(TRL("Scanning for SSID (backoff=", "Procurando SSID (backoff=")) + (_reconnectDelay/1000) + "s)");
                     WiFi.scanNetworks(true);
@@ -237,7 +237,7 @@ void NetworkManager::update() {
                 _connectCycles = 0;     /* Conexão completa: reseta ciclos */
                 resetNtpBackoff();      /* Sync NTP bem-sucedido: reseta backoff  */
             }
-            else if (millis() - _stateTimer > _ntpRetryDelay) {
+            else if (timeSince(_stateTimer, _ntpRetryDelay)) {
                 _ntpFailCount++;
 
                 /* Fallback para pool.ntp.org após N falhas, se ainda não feito
@@ -272,7 +272,7 @@ void NetworkManager::update() {
             } else {
                 /* Amostra RSSI uma vez por minuto quando conectado. */
                 static uint32_t _rssiSampleAt = 0;
-                if (millis() - _rssiSampleAt > 60000) {
+                if (timeSince(_rssiSampleAt, 60000)) {
                     _rssiSampleAt = millis();
                     MetricsManager::instance().observeRssi(WiFi.RSSI());
                 }
@@ -281,7 +281,7 @@ void NetworkManager::update() {
 
 
         case NET_DISCONNECT_PENDING:
-            if (millis() - _stateTimer > 200) {
+            if (timeSince(_stateTimer, 200)) {
                 WiFi.mode(WIFI_STA);
                 _state = NET_OFFLINE;
                 _reconnectTimer = millis();
@@ -311,7 +311,7 @@ void NetworkManager::handleConnecting() {
         _state = NET_CONNECTED_WAIT_IP;
         _connectCycles = 0;     /* Sucesso: reseta contador de ciclos */
     }
-    else if (millis() - _stateTimer > 20000) {
+    else if (timeSince(_stateTimer, 20000)) {
 
         WiFi.disconnect(false);
 

@@ -284,7 +284,7 @@ void SensorManager::update() {
                         memset(res.rom, 0, 8);
                         _scanResults.push_back(res);
                         _scanState = NEXT_PIN;
-                    } else if (s == DHT22PIO::ERROR_TIMEOUT || (millis() - _scanTimer > DHT22_READ_TIMEOUT_MS)) {
+                    } else if (s == DHT22PIO::ERROR_TIMEOUT || timeSince(_scanTimer, DHT22_READ_TIMEOUT_MS)) {
                         _scanState = NEXT_PIN;
                     }
                 }
@@ -437,7 +437,7 @@ void SensorManager::processPeriodicReads() {
                 _dhtState = DHT_IDLE;
             }
 
-            else if (millis() - _dhtTimer > DHT22_READ_TIMEOUT_MS) {
+            else if (timeSince(_dhtTimer, DHT22_READ_TIMEOUT_MS)) {
                 handleSensorResult(s, false, 0, 0, "Sensor Timeout");
                 _dhtSensor.reset();
                 s.lastReadTime = millis();
