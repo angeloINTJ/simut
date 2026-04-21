@@ -46,7 +46,7 @@ public:
 
     void setLockCallback(FlashLockCallback cb);
     void setHeavyTaskChecker(bool (*fn)());
-    void setTouchPriorityChecker(bool (*fn)());
+    /* REF-004: setTouchPriorityChecker removido — ver TouchPriority.h */
     void setConsoleSink(ConsoleSink sink);
     void setConsoleStream(bool enabled);   /**< false = modo CONFIG (console silencioso) */
 
@@ -195,8 +195,7 @@ private:
 
     bool (*_isHeavyTaskFn)() = nullptr;
 
-
-    bool (*_isTouchPriorityFn)() = nullptr;
+    /* REF-004: _isTouchPriorityFn removido — usa TouchPriority::isActive() */
 
     void writeCompactToFlash(const CompactLogRecord& rec);
     void flushPendingLogs();

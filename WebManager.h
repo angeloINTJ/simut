@@ -43,7 +43,8 @@ public:
     uint32_t getCachedFlashTotal() const { return _cachedFsTotalBytes; }
 
 
-    void setTouchPriorityChecker(bool (*fn)()) { _isTouchPriorityFn = fn; }
+    /* REF-004: setTouchPriorityChecker removido — usa TouchPriority::isActive()
+     * do header TouchPriority.h. */
 
 private:
     /** Responde 503 com Retry-After se user está interagindo com o display.
@@ -53,7 +54,7 @@ private:
     WebServer _server;
     YieldCallback _yieldCb = nullptr;
     LightYieldCallback _lightYieldCb = nullptr;
-    bool (*_isTouchPriorityFn)() = nullptr;
+    /* REF-004: _isTouchPriorityFn removido — usa TouchPriority::isActive(). */
 
     StorageManager* _storageRef;
     SensorManager* _sensorRef;

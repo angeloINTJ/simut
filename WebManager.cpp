@@ -18,6 +18,7 @@
 #include "LogManager.h"
 #include "MetricsManager.h"
 #include "Themes.h"
+#include "TouchPriority.h"
 #include <LittleFS.h>
 #include <time.h>
 #include <hardware/watchdog.h>
@@ -190,7 +191,7 @@ void WebManager::feedWatchdog() {
 }
 
 bool WebManager::rejectIfTouchPriority() {
-    if (_isTouchPriorityFn && _isTouchPriorityFn()) {
+    if (TouchPriority::isActive()) {
         _server.sendHeader("Retry-After", "5");
         _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
         return true;
@@ -2060,7 +2061,7 @@ void WebManager::handleApiHistoryData() {
     if (!_server.hasArg("sensor")) { _server.send(400, "application/json", "{\"error\":\"Missing sensor param\"}"); return; }
 
 
-    if (_isTouchPriorityFn && _isTouchPriorityFn()) {
+    if (TouchPriority::isActive()) {
         _server.sendHeader("Retry-After", "3");
         _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
         return;
@@ -2367,7 +2368,7 @@ void WebManager::handleApiLogs() {
     if (isRateLimited(200)) { _server.send(429, "text/plain", "Too Fast"); return; }
 
 
-    if (_isTouchPriorityFn && _isTouchPriorityFn()) {
+    if (TouchPriority::isActive()) {
         _server.sendHeader("Retry-After", "3");
         _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
         return;
@@ -2471,7 +2472,7 @@ void WebManager::handleApiScreenshot() {
     if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
 
 
-    if (_isTouchPriorityFn && _isTouchPriorityFn()) {
+    if (TouchPriority::isActive()) {
         _server.sendHeader("Retry-After", "3");
         _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
         return;
