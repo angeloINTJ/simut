@@ -23,6 +23,21 @@
 #include <bearssl/bearssl_hmac.h>
 
 const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
+
+/* F13.4/BUG-003 — chunk de flash safe mode, file-scope.
+ * Expansão inline: trace MOD_CORE1_LOCK no enter, enterFlashSafeMode,
+ * watchdog feed, BLOCK, watchdog feed, exitFlashSafeMode. Usada em
+ * saveConfiguration (7 sites) e writeHistoryEntryFlash (até 4 sites).
+ * Entre chunks, Core 1 sai do multicore_lockout e renderiza 1 frame. */
+#define FLASH_OP(BLOCK) do { \
+    { LogManager::TraceScope _trLock(0, MOD_CORE1_LOCK); \
+      enterFlashSafeMode(); } \
+    watchdog_update(); \
+    BLOCK; \
+    watchdog_update(); \
+    exitFlashSafeMode(); \
+} while (0)
+
 const uint16_t CONFIG_VERSION = 14;
 
 /* #5: keystream derivation via SHA-256(chip_id + domain + counter).
@@ -221,6 +236,10 @@ void StorageManager::loadDefaults() {
     setMustChangePin();
     _currentConfig.displayLang = LANG_PT;
 
+    /* F-NET-TIME.1: inicializa overlay NetworkTimeData via helper (magic
+     * ainda 0 após o memset inicial → helper popula defaults). */
+    (void)ensureNetworkTimeOverlay();
+
     for (int i = 0; i < MAX_SENSORS; i++) {
         _currentConfig.sensors[i].active = false;
         _currentConfig.sensors[i].gpio = 0;
@@ -363,6 +382,13 @@ bool StorageManager::loadConfiguration() {
      * original perdeu-se em algum reboot — não dá pra recuperar. */
     clearInitialAdminPassword();
 
+    /* F-I18N-TRIM.1: limitamos TOTAL_LANGS de 8 para 2 (EN+PT). Devices que
+     * tinham displayLang=ES..ZH no flash caem para PT (default) no próximo
+     * boot para evitar out-of-bounds em DICTIONARY[]/LICENSE_TEXT[]. */
+    if (_currentConfig.displayLang > LANG_PT) {
+        _currentConfig.displayLang = LANG_PT;
+    }
+
     if (fromBackup) {
         LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, TRL("Primary config corrupt, recovered from backup", "Config primaria corrompida, recuperada do backup"));
     }
@@ -427,17 +453,13 @@ bool StorageManager::saveConfiguration() {
      */
     LogManager::WdtWindow _wdt(30000);
 
-    /*
-     * Chunked lockout (F13.4/BUG-003): cada op LittleFS em seu próprio
-     * enterFlashSafeMode / exitFlashSafeMode via flashOp<F>(). Entre chunks,
-     * Core 1 sai do multicore_lockout e renderiza 1 frame. Display/touch
-     * ficam responsivos mesmo sob GC lento. Macro local FLASH_OP antiga
-     * substituída pelo template method privado.
-     */
+    /* Chunked lockout via macro FLASH_OP (file-scope): cada op LittleFS em
+     * seu próprio enterFlashSafeMode/exitFlashSafeMode. Entre chunks, Core 1
+     * sai do multicore_lockout e renderiza 1 frame. */
 
     /* Flush cursor para flash (se pendente) */
     if (_cachedLastSent > 0) {
-        flashOp([&] {
+        FLASH_OP({
             File cf = LittleFS.open(FILE_TCURSOR, "w");
             if (cf) { cf.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent)); cf.close(); }
         });
@@ -445,7 +467,7 @@ bool StorageManager::saveConfiguration() {
 
     /* Abre TMP e escreve config criptografado + CRC */
     File f;
-    flashOp([&] { f = LittleFS.open(FILE_TMP, "w"); });
+    FLASH_OP(f = LittleFS.open(FILE_TMP, "w"));
     if (!f) {
         LOG_CODE(LOG_ERROR, "STO", SYS_STORAGE_FAIL, 0, "open FILE_TMP failed");
         return false;
@@ -458,24 +480,24 @@ bool StorageManager::saveConfiguration() {
     uint32_t crc = calculateCRC32((uint8_t*)&encBuf, sizeof(SystemConfig));
 
     size_t bytesWritten = 0, crcWritten = 0;
-    flashOp([&] {
+    FLASH_OP({
         bytesWritten = f.write((uint8_t*)&encBuf, sizeof(SystemConfig));
         crcWritten = f.write((uint8_t*)&crc, sizeof(crc));
         f.close();
     });
 
     if (bytesWritten != sizeof(SystemConfig) || crcWritten != sizeof(crc)) {
-        flashOp([&] { LittleFS.remove(FILE_TMP); });
+        FLASH_OP(LittleFS.remove(FILE_TMP));
         LOG_CODE(LOG_ERROR, "STO", SYS_STORAGE_FAIL, (int)bytesWritten, "Config save failed");
         return false;
     }
 
     /* Rename atômico: backup, rename, rename. Cada um em seu próprio lockout. */
     if (LittleFS.exists(FILE_CONFIG)) {
-        flashOp([&] { LittleFS.remove(FILE_BACKUP); });
-        flashOp([&] { LittleFS.rename(FILE_CONFIG, FILE_BACKUP); });
+        FLASH_OP(LittleFS.remove(FILE_BACKUP));
+        FLASH_OP(LittleFS.rename(FILE_CONFIG, FILE_BACKUP));
     }
-    flashOp([&] { LittleFS.rename(FILE_TMP, FILE_CONFIG); });
+    FLASH_OP(LittleFS.rename(FILE_TMP, FILE_CONFIG));
 
     MetricsManager::instance().data().configSaves++;
     _lastSavedCrc = currentCrc;  /* Marca conteúdo persistido para skip no-op futuro */
@@ -545,6 +567,60 @@ void StorageManager::setMustChangePin() {
     sf->flags |= FLAG_MUST_CHANGE_PIN;
 }
 
+/* ===========================================================================
+ * F-NET-TIME.1 — overlay NetworkTimeData em reserved[28..47]
+ * =========================================================================== */
+
+NetworkTimeData* StorageManager::ensureNetworkTimeOverlay() {
+    NetworkTimeData* nt = reinterpret_cast<NetworkTimeData*>(
+        _currentConfig.reserved + NETTIME_OFFSET);
+    if (nt->magic != NETTIME_MAGIC) {
+        nt->magic = NETTIME_MAGIC;
+        nt->flags = FLAG_DNS_AUTO | FLAG_NTP_ENABLED;
+        nt->dns2[0] = '\0';
+        nt->pad[0] = nt->pad[1] = 0;
+    }
+    return nt;
+}
+
+bool StorageManager::isDnsAuto() const {
+    const NetworkTimeData* nt = reinterpret_cast<const NetworkTimeData*>(
+        _currentConfig.reserved + NETTIME_OFFSET);
+    if (nt->magic != NETTIME_MAGIC) return true;  /* legado = default AUTO */
+    return (nt->flags & FLAG_DNS_AUTO) != 0;
+}
+
+void StorageManager::setDnsAuto(bool auto_) {
+    NetworkTimeData* nt = ensureNetworkTimeOverlay();
+    if (auto_) nt->flags |= FLAG_DNS_AUTO;
+    else       nt->flags &= ~FLAG_DNS_AUTO;
+}
+
+bool StorageManager::isNtpEnabled() const {
+    const NetworkTimeData* nt = reinterpret_cast<const NetworkTimeData*>(
+        _currentConfig.reserved + NETTIME_OFFSET);
+    if (nt->magic != NETTIME_MAGIC) return true;
+    return (nt->flags & FLAG_NTP_ENABLED) != 0;
+}
+
+void StorageManager::setNtpEnabled(bool enabled) {
+    NetworkTimeData* nt = ensureNetworkTimeOverlay();
+    if (enabled) nt->flags |= FLAG_NTP_ENABLED;
+    else         nt->flags &= ~FLAG_NTP_ENABLED;
+}
+
+const char* StorageManager::getSecondaryDns() const {
+    const NetworkTimeData* nt = reinterpret_cast<const NetworkTimeData*>(
+        _currentConfig.reserved + NETTIME_OFFSET);
+    if (nt->magic != NETTIME_MAGIC) return "";
+    return nt->dns2;
+}
+
+void StorageManager::setSecondaryDns(const char* ip) {
+    NetworkTimeData* nt = ensureNetworkTimeOverlay();
+    safeCopy(nt->dns2, ip ? ip : "", sizeof(nt->dns2));
+}
+
 SensorRecord* StorageManager::getSensorByGpio(uint8_t gpio) {
     if (gpio == 10) return &_currentConfig.ambientSensor;
     for (int i = 0; i < MAX_SENSORS; i++) {
@@ -601,22 +677,20 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
     /* RAII context-aware igual saveConfiguration. */
     LogManager::WdtWindow _wdt(30000);
 
-    /* F13.4/BUG-003: chunks granulares via flashOp<F>(). Entre chunks
-     * Core 1 sai do multicore_lockout e renderiza 1 frame — antes todo
-     * o path (incluindo enforceStorageLimit até 4 s) rodava em 1 único
-     * lockout. File handle nunca sobrevive entre chunks (sempre criado
-     * e fechado no mesmo lambda). */
+    /* F13.4/BUG-003: chunks granulares via macro FLASH_OP (file-scope).
+     * Entre chunks Core 1 sai do multicore_lockout e renderiza 1 frame —
+     * antes todo o path (incluindo enforceStorageLimit até 4 s) rodava em
+     * 1 único lockout. File handle nunca sobrevive entre chunks. */
 
-    /* Chunk 1: enforce storage limit (apenas na rolagem diária). Fora do
-     * lockout de write para liberar Core 1 durante o budget de enforce. */
+    /* Chunk 1: enforce storage limit (apenas na rolagem diária). */
     if (path != _currentLogFileName) {
-        flashOp([&] { enforceStorageLimit(); });
+        FLASH_OP(enforceStorageLimit());
         _currentLogFileName = path;
     }
 
     /* Chunk 2: open + write + close atômicos (file handle curto). */
     bool ok = false;
-    flashOp([&] {
+    FLASH_OP({
         File f = LittleFS.open(path, "a");
         if (f) {
             f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
@@ -630,12 +704,11 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
         return true;
     }
 
-    /* Fallback: write falhou (storage cheio / FS em estado ruim). Force
-     * enforce em chunk dedicado e tenta gravar de novo. */
+    /* Fallback: write falhou → force enforce + retry. */
     LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "");
     _storageDirty = true;
-    flashOp([&] { enforceStorageLimit(); });
-    flashOp([&] {
+    FLASH_OP(enforceStorageLimit());
+    FLASH_OP({
         File f = LittleFS.open(path, "a");
         if (f) {
             f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);

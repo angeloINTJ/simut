@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.21.0"         /* Firmware version string */
+#define SIMUT_VERSION "v3.22.0"         /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -625,7 +625,9 @@ struct __attribute__((packed)) SystemConfig {
      *  [18..21] DisplayOffsetData   (4 B)
      *  [22..23] CliConfigData       (2 B, Fase B v3.7.0)
      *  [24..25] WebConfigData       (2 B, U3+ — porta do servidor web)
-     *  [26..63] livre para expansão futura
+     *  [26..27] SetupFlagsData      (2 B, F12.4 — mustChangePin)
+     *  [28..47] NetworkTimeData     (20 B, F-NET-TIME.1 — DNS auto/manual + NTP toggle + DNS secundário)
+     *  [48..63] livre para expansão futura
      * Expandido de 24→64 em CONFIG_VERSION 13 (v3.8.0) com migração transparente
      * de v12 via StorageManager::attemptLoad.
      */
@@ -658,6 +660,33 @@ constexpr uint8_t SETUP_FLAGS_MAGIC = 0xBE;
 constexpr uint8_t FLAG_MUST_CHANGE_PIN = 0x01;
 
 static_assert(sizeof(SetupFlagsData) == 2, "SetupFlagsData deve ser 2 bytes");
+
+/**
+ * @brief F-NET-TIME.1: Overlay em `reserved[28..47]` com flags de rede/tempo.
+ *
+ * Separa DNS do DHCP e habilita toggle de NTP sem precisar bump de
+ * CONFIG_VERSION. Configs legadas (magic ausente) retornam defaults
+ * retrocompatíveis (DNS auto + NTP ON) — comportamento idêntico ao anterior.
+ *
+ * `flags` usa o padrão "bit=1 significa AUTO/default": assim configs
+ * com bytes zerados (sem magic) caem no path do magic-check antes de ler
+ * flags, garantindo defaults corretos.
+ *
+ * `dns2[16]` guarda o DNS secundário manual (quando `DNS_AUTO=false`).
+ * `dns1` reaproveita o campo existente `SystemConfig::staticDns`.
+ */
+struct __attribute__((packed)) NetworkTimeData {
+    uint8_t magic;       /**< 0xCE = válido; outro = legado (retorna defaults). */
+    uint8_t flags;       /**< bitmask de FLAG_DNS_AUTO, FLAG_NTP_ENABLED. */
+    char    dns2[16];    /**< DNS secundário manual; "" se não configurado. */
+    uint8_t pad[2];      /**< Reservado para extensão futura. */
+};
+constexpr size_t  NETTIME_OFFSET      = 28;
+constexpr uint8_t NETTIME_MAGIC       = 0xCE;
+constexpr uint8_t FLAG_DNS_AUTO       = 0x01;  /**< 1 = DNS via DHCP (default). */
+constexpr uint8_t FLAG_NTP_ENABLED    = 0x02;  /**< 1 = NTP sync ativo (default). */
+
+static_assert(sizeof(NetworkTimeData) == 20, "NetworkTimeData deve ter 20 bytes");
 
 /** Tamanho do campo reserved[] nas configs v12 (pré v3.8.0) — usado na migração. */
 #define CONFIG_V12_RESERVED_SIZE 24
@@ -938,6 +967,7 @@ enum DemandType {
     CMD_SET_TEL_MODE,
     CMD_RESET_ADMIN,
     CMD_RESET_TOUCH_CAL,
+    CMD_FACTORY_RESET,
     CMD_DEFINE_SENSOR,
     CMD_WIPE_SENSOR,
     CMD_ACCEPT_SENSOR,

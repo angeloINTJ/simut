@@ -16,9 +16,7 @@
 #include <LittleFS.h>
 #include <vector>
 #include "pico/mutex.h"
-#include <hardware/watchdog.h>
 #include "SystemDefs.h"
-#include "LogManager.h"
 
 #define DIR_CONFIG      "/config"
 #define FILE_CONFIG     "/config/system.bin"
@@ -147,7 +145,31 @@ public:
      *  Chamado em `loadDefaults()` (factory reset). */
     void setMustChangePin();
 
-private:
+    /* =====================================================================
+     * F-NET-TIME.1 — overlay NetworkTimeData em reserved[28..47]
+     * =====================================================================
+     * Defaults retrocompatíveis: configs legadas sem magic retornam
+     * DNS auto + NTP habilitado (idêntico ao comportamento pré-feature).
+     * Qualquer set* popula o magic antes de atualizar as flags. */
+
+    /** @return true se DNS deve ser obtido via DHCP (default).
+     *  false = DNS primário em `staticDns` + secundário em overlay `dns2`. */
+    bool isDnsAuto() const;
+
+    /** Seta a flag DNS_AUTO no overlay. Popula magic se ainda não estava. */
+    void setDnsAuto(bool auto_);
+
+    /** @return true se NTP sync está habilitado (default). false = RTC manual. */
+    bool isNtpEnabled() const;
+
+    /** Seta a flag NTP_ENABLED no overlay. Popula magic se ainda não estava. */
+    void setNtpEnabled(bool enabled);
+
+    /** @return DNS secundário manual (string null-terminated). "" se não configurado. */
+    const char* getSecondaryDns() const;
+
+    /** Seta o DNS secundário no overlay (máx 15 chars + '\0'). Popula magic. */
+    void setSecondaryDns(const char* ip);
     SystemConfig _currentConfig;
     bool _isMounted = false;
     FlashLockCallback _lockCb = nullptr;
@@ -189,20 +211,18 @@ private:
     void loadDefaults();
     void enforceStorageLimit();
 
-    /* F13.4/BUG-003: chunk de flash safe mode. Trace MOD_CORE1_LOCK só no
-     * enter, enterFlashSafeMode, watchdog feed, invoke op, watchdog feed,
-     * exitFlashSafeMode. Entre chunks, Core 1 pode sair do multicore_lockout
-     * e renderizar 1 frame. Substitui a macro local FLASH_OP antiga de
-     * saveConfiguration e habilita chunking granular em writeHistoryEntryFlash. */
-    template <typename F>
-    void flashOp(F&& op) {
-        { LogManager::TraceScope _trLock(0, MOD_CORE1_LOCK);
-          enterFlashSafeMode(); }
-        watchdog_update();
-        op();
-        watchdog_update();
-        exitFlashSafeMode();
-    }
+    /** F-NET-TIME.1: retorna ponteiro ao overlay NetworkTimeData em
+     *  `reserved[28..47]`. Se magic ausente, inicializa com defaults
+     *  retrocompatíveis (DNS auto + NTP ON) antes de retornar. */
+    NetworkTimeData* ensureNetworkTimeOverlay();
+
+    /* F13.4/BUG-003 — chunking granular de flash safe mode.
+     * Implementado como macro file-scope em StorageManager.cpp (não
+     * template no header) para evitar que `#include "LogManager.h"` seja
+     * arrastado por todos os clientes de StorageManager.h, inchando várias
+     * unidades de tradução e estourando flash. Comportamento idêntico:
+     * cada op LittleFS tem seu próprio enterFlashSafeMode/exitFlashSafeMode;
+     * entre chunks Core 1 renderiza. */
 
     static uint32_t calculateCRC32(const uint8_t *data, size_t length);
     static bool loadCurrentBlob(File& f, SystemConfig& outCfg);

@@ -262,6 +262,7 @@ CliDemand CommandManager::parseCommand(String input) {
             if (t2 == "ntp") { cmd.type = CMD_SET_NTP; cmd.strVal1 = v3; return cmd; }
             if (t2 == "admin" && t3 == "reset") { cmd.type = CMD_RESET_ADMIN; return cmd; }
             if (t2 == "touch" && t3 == "reset") { cmd.type = CMD_RESET_TOUCH_CAL; return cmd; }
+            if (t2 == "factory") { cmd.type = CMD_FACTORY_RESET; return cmd; }
         }
         if (t1 == "sensor" && t2 == "ds18b20" && t3 == "resolution") {
             cmd.type = CMD_SET_DS_RES;
@@ -651,6 +652,8 @@ void CommandManager::printHelp() {
         consolePrintln("  Reseta senha do admin");
         consolePrintln("conf system touch reset [confirm]");
         consolePrintln("  Reseta calibracao do touch");
+        consolePrintln("conf system factory [confirm]");
+        consolePrintln("  Reset de fabrica (apaga TODA config) + reboot");
         consolePrintln("conf sensor ds18b20 resolution <9-12>");
         consolePrintln("  Resolucao global dos DS18B20");
 
@@ -769,6 +772,8 @@ void CommandManager::printHelp() {
     consolePrintln("  Reset admin password to default");
     consolePrintln("conf system touch reset [confirm]");
     consolePrintln("  Reset touch calibration");
+    consolePrintln("conf system factory [confirm]");
+    consolePrintln("  Factory reset (wipes ALL config) + reboot");
     consolePrintln("conf sensor ds18b20 resolution <9-12>");
     consolePrintln("  DS18B20 global resolution");
 
