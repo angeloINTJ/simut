@@ -432,7 +432,8 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F11 — Touch Priority (U17/U18/U19)** | ✅ Concluída | `stability-fixes-tier1` | `v3.14.0` | 2026-04-19 |
 | **F12 — SEC Críticas/Altas (audit v3.19.0)** | ✅ Concluída | `stability-fixes-tier1` | `v3.20.0` | 2026-04-20 |
 | **F13 — Bugs latentes (BUG-002..005)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.21.0) | — |
-|   · F13.1 BUG-005 | ✅ Código pronto (HW pendente) | — | — | 2026-04-21 |
+|   · F13.1 BUG-005 | ✅ Concluída (HW validada) | `ea799f5` | — | 2026-04-21 |
+|   · F13.2 BUG-004 | ✅ Concluída (HW validada) | — | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.22.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.24.0) | — |
@@ -507,7 +508,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | BUG-001 | 🟢 | F14 | ⚪ | **Reclassificado**: `millis()-X>Y` tecnicamente wrap-safe; migração opcional para consistência. |
 | BUG-002 | 🟡 | F13 | ⚪ | `__dmb()` em pares `(data,flag)` cross-core. |
 | BUG-003 | 🟡 | F13 | ⚪ | Template `flashOp<F>()` substitui macro + aplica em `writeHistoryEntryFlash`. |
-| BUG-004 | 🟢 | F13 | ⚪ | `_lastWebBusy` sticky para evitar flicker do overlay. |
+| BUG-004 | 🟢 | F13 | ✅ | Membro `_lastWebBusy` sticky (Core 1 only) em `DisplayManager`. Consumers em `loopCore1` e `handleTouch` atualizam o sticky quando `mutex_try_enter` sucede; usam o sticky como fallback quando falha. Validado HW. |
 | BUG-005 | 🟢 | F13 | 🟡 | `captureBootSnapshot()` público + chamada explícita em `begin()`; `setModule` não captura mais oportunisticamente; assertion defensiva + guard `_autopsyPerformed` em `performCrashAutopsy` (fix de falsa autópsia em `clear log`). HW pendente. |
 | CON-001 | 🟢 | F14 | ⚪ | Consolidar comentário sobre `scratch[0..7]`. |
 | CON-002 | 🟢 | F14 | ⚪ | `enum LanguageCode` EN..ZH + `LANG_COUNT`. |

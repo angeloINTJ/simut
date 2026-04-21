@@ -246,6 +246,10 @@ private:
     volatile bool _webOverlayShown = false;
     volatile bool _webOverlayPending = false;
     char _webBusyUser[24];
+    /* Sticky: último _webBusy lido com sucesso via mutex_try_enter. Core 1
+     * only (sem volatile); evita flicker do overlay quando o try_enter falha
+     * (lock ocupado pelo producer em Core 0 — ver BUG-004). */
+    bool _lastWebBusy = false;
 
 
     volatile uint16_t _alarmSlotMask     = 0;

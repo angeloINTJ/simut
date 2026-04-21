@@ -1329,9 +1329,12 @@ void DisplayManager::loopCore1() {
 
         if (_uiMode == MODE_DASHBOARD) {
 
-            bool webBusyNow = false;
+            /* BUG-004: fallback para _lastWebBusy em vez de false quando
+             * mutex_try_enter falha — evita flicker do overlay. */
+            bool webBusyNow = _lastWebBusy;
             if (mutex_try_enter(&_stateMutex, NULL)) {
                 webBusyNow = _webBusy;
+                _lastWebBusy = webBusyNow;
                 mutex_exit(&_stateMutex);
             }
 
@@ -4391,9 +4394,13 @@ void DisplayManager::handleTouch() {
     _lastTouchTime = millis();
 
 
-    bool webBusyNow = false;
+    /* BUG-004: fallback para _lastWebBusy em vez de false quando
+     * mutex_try_enter falha — evita processar toque como se não houvesse
+     * overlay ativo (bypass visual do bloqueio). */
+    bool webBusyNow = _lastWebBusy;
     if (mutex_try_enter(&_stateMutex, NULL)) {
         webBusyNow = _webBusy;
+        _lastWebBusy = webBusyNow;
         mutex_exit(&_stateMutex);
     }
 
