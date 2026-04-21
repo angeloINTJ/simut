@@ -70,6 +70,17 @@ private:
     String _usbBuffer;
     String _btBuffer;
     String _lastRawInput;
+    /* SEC-005/F12.5: anti-spam — emite 1 warning por rajada de overflow
+     *  em cada canal; resetado ao receber `\n` válido. */
+    bool   _usbOverflowWarned = false;
+    bool   _btOverflowWarned  = false;
+
+    /** Acumula `c` em `buffer` com bound-check (CLI_LINE_MAX).
+     *  Se buffer cheio: descarta linha, emite warning anti-spam no canal,
+     *  protege heap de DoS via stream sem `\n`.
+     *  `warnedFlag` é resetada em nova linha para permitir próximo warning. */
+    void appendCharWithLimit(String& buffer, char c, bool& warnedFlag,
+                             const char* channelName);
 
 
     CliDemand parseCommand(String input);
