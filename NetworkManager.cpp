@@ -59,7 +59,13 @@ void NetworkManager::begin(const SystemConfig &cfg,
         IPAddress ip, gw, mask, dns;
         ip.fromString(cfg.staticIp); mask.fromString(cfg.staticMask);
         gw.fromString(cfg.staticGateway); dns.fromString(cfg.staticDns);
-        WiFi.config(ip, gw, mask, dns);
+        /* F-IP-FIX: arduino-pico WiFi.config tem assinatura
+         * (ip, dns_server, gateway, subnet) — diferente do ESP32/ESP8266
+         * que é (ip, gw, mask, dns). Passar na ordem ESP faz a netmask
+         * receber o IP do DNS (ex: 8.8.8.8 como netmask é inválida),
+         * lwIP não consegue calcular rotas e WiFi.begin() nunca associa.
+         * Ref: WiFiClass.h:219 em rp2040/hardware/rp2040/5.5.1. */
+        WiFi.config(ip, dns, gw, mask);
         LOG_CODE(LOG_INFO, "NET", NET_STATIC_MODE, 0, "");
     } else {
         WiFi.config(IPAddress(), IPAddress(), IPAddress(), IPAddress());
