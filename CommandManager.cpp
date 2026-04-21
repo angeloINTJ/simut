@@ -71,6 +71,7 @@ bool CommandManager::processInput(CliDemand &demandOut) {
         consolePrint(String(c));
         if (c == '\n' || c == '\r') {
             consolePrintln("");
+            _usbOverflowWarned = false;           /* reset anti-spam por rajada */
             if (_usbBuffer.length() > 0) {
                 _lastRawInput = _usbBuffer;
                 demandOut = parseCommand(_usbBuffer);
@@ -81,7 +82,7 @@ bool CommandManager::processInput(CliDemand &demandOut) {
         } else if (c == 8 || c == 127) {
             if (_usbBuffer.length() > 0) _usbBuffer.remove(_usbBuffer.length() - 1);
         } else {
-            _usbBuffer += c;
+            appendCharWithLimit(_usbBuffer, c, _usbOverflowWarned, "USB");
         }
     }
 
@@ -92,6 +93,7 @@ bool CommandManager::processInput(CliDemand &demandOut) {
             consolePrint(String(c));
             if (c == '\n' || c == '\r') {
                 consolePrintln("");
+                _btOverflowWarned = false;        /* reset anti-spam por rajada */
                 if (_btBuffer.length() > 0) {
                     _lastRawInput = _btBuffer;
                     demandOut = parseCommand(_btBuffer);
@@ -102,12 +104,34 @@ bool CommandManager::processInput(CliDemand &demandOut) {
             } else if (c == 8 || c == 127) {
                 if (_btBuffer.length() > 0) _btBuffer.remove(_btBuffer.length() - 1);
             } else {
-                _btBuffer += c;
+                appendCharWithLimit(_btBuffer, c, _btOverflowWarned, "BT");
             }
         }
     }
 
     return false;
+}
+
+void CommandManager::appendCharWithLimit(String& buffer, char c,
+                                         bool& warnedFlag,
+                                         const char* channelName) {
+    if (buffer.length() >= CLI_LINE_MAX) {
+        /* SEC-005/F12.5: linha maior que o limite — descarta para evitar
+         * DoS de heap por stream sem '\n'. Pico W tem ~264KB; sem este
+         * guard, `yes | cat > /dev/ttyACM0` reallocaria `String` até OOM
+         * e potencialmente comprometeria ops paralelas (telemetria TLS,
+         * saveConfiguration). O warning é emitido 1x por rajada para não
+         * spammar o log; `warnedFlag` é resetada quando linha válida chega. */
+        buffer = "";
+        if (!warnedFlag) {
+            warnedFlag = true;
+            LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, (int)CLI_LINE_MAX,
+                     String("Linha > ") + (uint32_t)CLI_LINE_MAX +
+                     " descartada em " + channelName);
+        }
+        return;
+    }
+    buffer += c;
 }
 
 void CommandManager::hexStringToBytes(String hex, uint8_t* out) {
