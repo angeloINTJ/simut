@@ -423,7 +423,7 @@ void DisplayManager::pauseRendering(bool pause) {
             uint32_t lastCleanup = retryStart;
             while (!multicore_lockout_start_timeout_us(500000)) {
                 watchdog_update();
-                if ((int32_t)(millis() - lastCleanup) > 2000) {
+                if (timeSince(lastCleanup, 2000)) {
                     /* Lockout state possivelmente corrompido: limpa antes
                      * de nova tentativa. end_blocking é idempotente se
                      * mutex já foi liberado. */
@@ -434,7 +434,7 @@ void DisplayManager::pauseRendering(bool pause) {
                 /* Reduzido de 60s → 10s: user não deve esperar mais que
                  * isso por um save. Após 10s sem sucesso, assume Core 1
                  * morto e reinicia ele antes de seguir. */
-                if ((int32_t)(millis() - retryStart) > 10000) {
+                if (timeSince(retryStart, 10000)) {
                     Serial.println("[DSP] Lockout stuck >10s, restarting Core 1");
                     __atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
                     LogManager::instance().setCorePaused(1, false);
@@ -973,7 +973,7 @@ void DisplayManager::loopCore1() {
                 int alarmCount = 0;
                 while (m) { alarmCount += (m & 1); m >>= 1; }
 
-                if (alarmCount >= 2 && (millis() - _alarmRotateTimer >= ALARM_ROTATE_INTERVAL_MS)) {
+                if (alarmCount >= 2 && timeSince(_alarmRotateTimer, ALARM_ROTATE_INTERVAL_MS)) {
                     _alarmRotateTimer = millis();
                     int current = _lastRenderedState.selectedSlotIdx;
                     for (int i = 1; i <= 10; i++) {
@@ -1045,7 +1045,7 @@ void DisplayManager::loopCore1() {
         /* ── Reverte header para data/hora após 3s de exibição do nome ── */
         if ((_uiMode == MODE_GRAPH_VIEW || _uiMode == MODE_GRAPH_DETAIL)
             && _headerShowName
-            && (millis() - _headerNameTimer >= 3000))
+            && timeSince(_headerNameTimer, 3000))
         {
             _headerShowName = false;
             drawGraphHeaderBar();
@@ -1084,7 +1084,7 @@ void DisplayManager::loopCore1() {
         else if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
             if (_repaintSettings) { drawTouchSensitivity(); _repaintSettings = false; }
             /* Após 1.5s da conclusão, avança para calibração de posição */
-            if (_sensDone && (millis() - _sensDoneTime > 1500)) {
+            if (_sensDone && timeSince(_sensDoneTime, 1500)) {
                 _uiMode = MODE_SETTINGS_TOUCH_CAL;
                 _calStep = 0;
                 _calPhase = 0;
@@ -1102,7 +1102,7 @@ void DisplayManager::loopCore1() {
         }
         else if (_uiMode == MODE_SETTINGS_STATUS) {
             /* Renderiza a cada 1 segundo ou quando forçado */
-            if (_repaintSettings || (millis() - _statusLastDraw >= 1000)) {
+            if (_repaintSettings || timeSince(_statusLastDraw, 1000)) {
                 drawSystemStatus();
                 _repaintSettings = false;
             }
@@ -1246,7 +1246,7 @@ void DisplayManager::render(const SystemState& state) {
 
     /* Retornar painéis ao modo normal após 30s sem toque */
     if ((_ambientShowMinMax || _slotShowMinMax) &&
-        (millis() - _lastTouchTime > 30000)) {
+        timeSince(_lastTouchTime, 30000)) {
         if (_ambientShowMinMax) {
             _ambientShowMinMax = false;
             drawAmbientPanel(state.ambientTemp, state.ambientHum, state.ambientValid);
@@ -3822,13 +3822,13 @@ void DisplayManager::handleTouch() {
         _btnHoldStartTime = 0;
         _lastPressedBtn = -1;
         if (_uiMode != MODE_DASHBOARD && !_sharedState.isBooting) {
-            if (millis() - _lastTouchTime > 30000)forceDashboard();
+            if (timeSince(_lastTouchTime, 30000)) forceDashboard();
         }
         return;
     }
 
 
-    if (millis() - _lastTouchTime < 15) return;
+    if (!timeSince(_lastTouchTime, 15)) return;
     TS_Point p = _ts->getPoint();
 
     /* ── Modo de calibração de sensibilidade: threshold mínimo ──
@@ -3993,7 +3993,7 @@ void DisplayManager::handleTouch() {
             _calHoldSamples++;
 
             /* Após tempo mínimo de hold, sinaliza que pode soltar */
-            if (!_calHoldReady && (millis() - _calHoldStart >= CAL_HOLD_MS)) {
+            if (!_calHoldReady && timeSince(_calHoldStart, CAL_HOLD_MS)) {
                 _calHoldReady = true;
                 _repaintSettings = true; /* Redesenha crosshair verde */
             }

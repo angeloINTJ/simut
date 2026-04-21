@@ -461,6 +461,7 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · CON-001 — bloco autoritativo `SCRATCH REGISTER MAP` em `LogManager.cpp` + dedup comentários | ✅ Doc/comment | em v3.23.10 | — | 2026-04-21 |
 |   · CON-003 — `DisplayManager.{h,cpp}` headers "8 languages" → "2 languages (EN + PT)" | ✅ Doc/comment | em v3.23.10 | — | 2026-04-21 |
 |   · DOC-002 — magic numbers `800/3000/600/5000` nomeados em `SystemDefs.h` + unificação DHT22 (100→150ms) | ✅ HW validada | em v3.23.11 | — | 2026-04-21 |
+|   · BUG-001 — `timeSince()` helper + 45 sites migrados (unsigned / signed-cast / negated) | ✅ HW validada | em v3.23.12 | — | 2026-04-21 |
 
 **Débitos técnicos descobertos em CON-005b (pré-existentes, fora de escopo):**
 - **F-LOCKOUT-STUCK** — primeiro `write memory` com mudança real após longo idle pode disparar `[DSP] Lockout stuck >10s, restarting Core 1` (2×). Saves subsequentes OK. Não afeta integridade (config grava corretamente). Provável fragmentação de heap pós-telemetria ou GC do LittleFS. Investigar em ciclo futuro.
@@ -536,7 +537,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | SEC-007 | 🟢 | F15 | ⚪ | Hash 120→128 bits com migração transparente. |
 | SEC-008 | 🟢 | F15 | ⚪ | `PASSWORD_HMAC_ROUNDS` 2500→5000. |
 | SEC-009 | 🟢 | F15 | ⚪ | Salt random por usuário (schema bump). |
-| BUG-001 | 🟢 | F14 | ⚪ | **Reclassificado**: `millis()-X>Y` tecnicamente wrap-safe; migração opcional para consistência. |
+| BUG-001 | 🟢 | F14 | ✅ | `timeSince(start, duration)` helper em SystemDefs.h; 45 sites migrados em 8 arquivos (v3.23.12). |
 | BUG-002 | 🟡 | F13 | ✅ | Wrappers `requestPreviewSound/requestVolumePreview/requestAlarmVolumePreview` + `__dmb()` nos 3 pares cross-core Core 1 → Core 0. Barrier no producer (`setTelemetrySendStatus`) e readers (`render`/`drawTopBar`) do pack `_pktArrowState` Core 0 → Core 1. `_touchSoundPending`/`_errorSoundPending` fora do escopo (single-flag sem dado emparelhado). + UX fix (F13.3b): touch gates separados para volume no menu Sons. Validado HW. |
 | BUG-003 | 🟡 | F13 | ✅ | Template `StorageManager::flashOp<F>()` (private no header) substitui macro local `FLASH_OP` de `saveConfiguration`. `writeHistoryEntryFlash` refatorado em chunks granulares: enforceStorageLimit (se rolagem), open+write+close, fallback enforce+open+write+close — cada um em seu próprio lockout. File handle nunca sobrevive entre chunks. HW validado (testes 1/2/4/5; teste 3 rolagem diária pendente até feature manual time). |
 | BUG-004 | 🟢 | F13 | ✅ | Membro `_lastWebBusy` sticky (Core 1 only) em `DisplayManager`. Consumers em `loopCore1` e `handleTouch` atualizam o sticky quando `mutex_try_enter` sucede; usam o sticky como fallback quando falha. Validado HW. |

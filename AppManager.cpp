@@ -297,7 +297,7 @@ void AppManager::setup() {
                 break;
             }
 
-            if (millis() - lastMsg > BOOT_WAIT_DOT_INTERVAL_MS) {
+            if (timeSince(lastMsg, BOOT_WAIT_DOT_INTERVAL_MS)) {
                 dotCount++;
                 if (dotCount > 4) dotCount = 0;
                 String dots = "";
@@ -321,7 +321,7 @@ void AppManager::setup() {
                 lastMsg = millis();
             }
 
-            if (millis() - netWait > 30000) {
+            if (timeSince(netWait, 30000)) {
                  _displayMgr.setBootStatus("Network timeout. Starting Offline...");
                  delay(1000);
                  break;
@@ -384,7 +384,7 @@ void AppManager::setup() {
                 _sensorMgr.update();
 
 
-                if (millis() - warmStart >= 900) break;
+                if (timeSince(warmStart, 900)) break;
 
                 delay(10);
             }
@@ -475,7 +475,7 @@ void AppManager::loop() {
      * sampleLargestBlock faz ~16 malloc/free (imediatamente freed). */
     {
         static uint32_t _lastHeapSample = 0;
-        if ((int32_t)(millis() - _lastHeapSample) > 10000) {
+        if (timeSince(_lastHeapSample, 10000)) {
             _lastHeapSample = millis();
             MetricsManager::instance().sampleHeap();
             MetricsManager::instance().sampleLargestBlock();
@@ -485,7 +485,7 @@ void AppManager::loop() {
 
     {
         uint32_t pauseTs = _displayMgr.getPauseStartTime();
-        if (pauseTs > 0 && (millis() - pauseTs > 5000)) {
+        if (pauseTs > 0 && timeSince(pauseTs, 5000)) {
             LOG_CODE(LOG_ERROR, "APP", APP_DISPLAY_PAUSE_STUCK, 0, TRL("Display pause stuck >5s!", "Pause do display preso >5s!"));
             _displayMgr.forceUnpause();
         }
@@ -495,13 +495,13 @@ void AppManager::loop() {
     {
         static uint32_t _lastCore1RestartCheck = 0;
         if (_lastCore1RestartCheck == 0) _lastCore1RestartCheck = millis(); /* Boot guard */
-        if (millis() - _lastCore1RestartCheck > 5000) {
+        if (timeSince(_lastCore1RestartCheck, 5000)) {
             _lastCore1RestartCheck = millis();
             if (_displayMgr.isCore1Ready() && _displayMgr.getPauseStartTime() == 0) {
                 uint32_t beat = _displayMgr.getHeartbeat();
                 /* Patch C: signed cast para tolerar cross-core race (beat
                  * levemente adiantado em relacao a millis() local). */
-                if (beat > 0 && (int32_t)(millis() - beat) > 10000) {
+                if (beat > 0 && timeSince(beat, 10000)) {
                     LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD, 0, TRL("Core 1 dead >10s. Restarting.", "Core 1 travado >10s. Reiniciando."));
                     _displayMgr.restartCore1();
                 }
@@ -613,7 +613,7 @@ void AppManager::loop() {
     watchdog_update();
 
     TRACE_MOD(0, MOD_SENSOR_READ);
-    if (millis() - _lastSensorCheck > 3000) {
+    if (timeSince(_lastSensorCheck, 3000)) {
         if (!isUserInteracting()) {
             _lastSensorCheck = millis();
             checkAndAutoHealSensors();
@@ -631,7 +631,7 @@ void AppManager::loop() {
     watchdog_update();
 
 
-    if (millis() - _lastHistoryTime >= 60000) {
+    if (timeSince(_lastHistoryTime, 60000)) {
         if (!_storageMgr.isHeavyTaskLocked() && !isUserInteracting()) {
             processHistoryLogging();
         }
@@ -643,7 +643,7 @@ void AppManager::loop() {
     {
         static uint32_t lastStatusPush = 0;
         if (_displayMgr.getUiMode() == MODE_SETTINGS_STATUS
-            && millis() - lastStatusPush >= 1000) {
+            && timeSince(lastStatusPush, 1000)) {
             lastStatusPush = millis();
 
             static SystemStatusData sd;
@@ -1616,7 +1616,7 @@ void AppManager::core0Yield() {
     static uint32_t _yieldEntryTime = 0;
 
     /* Safety: reseta guard se preso há >10s (crash parcial) */
-    if (_inYield && (millis() - _yieldEntryTime > 10000)) {
+    if (_inYield && timeSince(_yieldEntryTime, 10000)) {
         _inYield = false;
         _isRenderingGraph = false;
         LOG_CODE(LOG_WARN, "APP", APP_YIELD_STUCK, 0, TRL("Yield stuck >10s, force reset.", "Yield preso >10s, reset forcado."));
@@ -2094,7 +2094,7 @@ void AppManager::core0Yield() {
     updateLiveDisplay();
 
 
-    if (_bootCompletedAt > 0 && (millis() - _bootCompletedAt > 5000)) {
+    if (_bootCompletedAt > 0 && timeSince(_bootCompletedAt, 5000)) {
 
 
         if (_displayMgr.isAlarmSilenced()) {
@@ -2154,7 +2154,7 @@ void AppManager::updateLiveDisplay() {
 
 
         static uint32_t lastPendingRefresh = 0;
-        if (millis() - lastPendingRefresh > 10000) {
+        if (timeSince(lastPendingRefresh, 10000)) {
             _telemetryMgr.refreshPendingCount();
             lastPendingRefresh = millis();
         }
@@ -2217,7 +2217,7 @@ void AppManager::preloadMinMax() {
         bool hasMore = true;
 
         while (hasMore) {
-            if (millis() - _preloadBudget > 5000) {
+            if (timeSince(_preloadBudget, 5000)) {
                 LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
                 _storageMgr.enterFlashReadLock();
                 f.close();
@@ -2355,7 +2355,7 @@ void AppManager::processHistoryLogging() {
         uint32_t heapFree = rp2040.getFreeHeap();
         static uint32_t lastFullHeapLog = 0;
 
-        if (heapFree < 32768 || millis() - lastFullHeapLog >= 3600000) {
+        if (heapFree < 32768 || timeSince(lastFullHeapLog, 3600000)) {
             char heapMsg[48];
             snprintf(heapMsg, sizeof(heapMsg), "Heap: %lu free / %lu total",
                      (unsigned long)heapFree,
@@ -2678,7 +2678,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
             bool budgetExceeded = false;
 
             while (hasMore && pkg.count < GRAPH_WIDTH && !budgetExceeded) {
-                if (millis() - _graphBudgetStart > GRAPH_BUDGET_MS) {
+                if (timeSince(_graphBudgetStart, GRAPH_BUDGET_MS)) {
                     LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 0, "");
                     budgetExceeded = true;
                     break;
@@ -3277,7 +3277,7 @@ void AppManager::checkAndAutoHealSensors() {
         } else {
             /* Sensor configurado mas não encontrado no barramento físico */
             static uint32_t lastMissingLog[10] = {0};
-            if (millis() - lastMissingLog[gpio] > 60000) {
+            if (timeSince(lastMissingLog[gpio], 60000)) {
                 lastMissingLog[gpio] = millis();
                 LOG_CODE(LOG_WARN, "SENSOR", ERR_SENSOR_MISSING, gpio,
                     String(cfg.sensors[gpio].friendlyName));
@@ -3473,7 +3473,7 @@ void AppManager::checkAlarmConditions() {
 bool AppManager::isUserInteracting() const {
     uint32_t lastTouch = _displayMgr.getLastTouchTimestamp();
     if (lastTouch == 0) return false;
-    return (millis() - lastTouch) < TOUCH_PRIORITY_MS;
+    return !timeSince(lastTouch, TOUCH_PRIORITY_MS);
 }
 
 /**

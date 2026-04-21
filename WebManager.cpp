@@ -888,7 +888,7 @@ void WebManager::handleApiLogin() {
 
 
     bool nonceExpired = (ls >= 0) && (_loginStates[ls].nonceCreatedAt > 0) &&
-                        (millis() - _loginStates[ls].nonceCreatedAt > NONCE_LIFETIME_MS);
+                        timeSince(_loginStates[ls].nonceCreatedAt, NONCE_LIFETIME_MS);
 
     if (!_server.hasArg("nonce") || _server.arg("nonce") != expectedNonce || expectedNonce[0] == '\0' || nonceExpired) {
         if (ls >= 0) {
@@ -1991,7 +1991,7 @@ void WebManager::handleApiStatus() {
     uint32_t heapTot = rp2040.getTotalHeap();
     uint32_t heapFree = rp2040.getFreeHeap();
 
-    if (millis() - _lastFsInfoRefresh > 10000 || _cachedFsTotalBytes == 0) {
+    if (timeSince(_lastFsInfoRefresh, 10000) || _cachedFsTotalBytes == 0) {
 
         ReadGuard rg(_storageRef);
         FSInfo fs_info;

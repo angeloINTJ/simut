@@ -46,7 +46,7 @@ void BluetoothManager::update() {
     const bool pt = (_language == LANG_PT);
 
     if (_authenticated) {
-        if (millis() - _lastActivityTime > _timeoutMs) {
+        if (timeSince(_lastActivityTime, _timeoutMs)) {
             SerialBT.println(pt
                 ? "\n\r[SEGURANCA] Sessao encerrada (5 min inativo)."
                 : "\n\r[SECURITY] Session ended (5 min idle).");

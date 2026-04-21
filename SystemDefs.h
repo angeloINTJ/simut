@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.23.11"        /* Firmware version string */
+#define SIMUT_VERSION "v3.23.12"        /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -270,6 +270,28 @@ inline void safeCopy(char* dst, const char* src, size_t dstSize) {
  */
 inline bool timeReached(uint32_t deadline) {
     return (int32_t)(millis() - deadline) >= 0;
+}
+
+/**
+ * @brief  Verifica se um intervalo decorreu desde um timestamp de início.
+ *
+ * Wrap-safe equivalente a `millis() - start >= duration` — usa subtração em
+ * `int32_t` para tratar corretamente o wraparound de millis() (~49,7 dias).
+ *
+ * Uso típico:
+ *   if (timeSince(_lastPoll, 1000))       doPoll();      // 1s desde poll
+ *   if (!timeSince(_lastTouch, 30000))    return;        // < 30s desde touch
+ *
+ * Diferença em relação a `timeReached()`: este helper é para comparar
+ * intervalos decorridos desde um evento; `timeReached()` é para deadlines
+ * absolutos (ex: `_lockoutUntil`).
+ *
+ * @param  start     millis() do evento inicial.
+ * @param  duration  Intervalo (ms) após o qual retorna true.
+ * @return true se `millis() - start` já atingiu ou passou `duration`.
+ */
+inline bool timeSince(uint32_t start, uint32_t duration) {
+    return (int32_t)(millis() - start) >= (int32_t)duration;
 }
 
 /**
