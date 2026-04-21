@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.23.5"         /* Firmware version string */
+#define SIMUT_VERSION "v3.23.6"         /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -60,6 +60,33 @@ constexpr uint32_t WATCHDOG_TIMEOUT_MS      = 15000;
 
 /** Toques perdidos tolerados antes de cancelar AP hold. */
 constexpr int      AP_HOLD_MAX_MISSED       = 5;
+
+
+/* =========================================================================== */
+/*                          SENSOR TIMEOUTS (CON-006)                         */
+/* =========================================================================== */
+
+/**
+ * Tempo de conversão DS18B20 antes de ler o resultado (ms).
+ *
+ * Datasheet: pior caso 12-bit = 750ms. Resoluções menores completam antes
+ * (9-bit=94ms, 10-bit=188ms, 11-bit=375ms). Como `cfg.ds18Resolution` é
+ * configurável (9..12), usamos o pior caso como safe fallback — custo é
+ * até ~600ms extras no path crítico quando 9-bit está selecionado, mas
+ * simplifica o state machine (único timer fixo) e tolera qualquer
+ * variância de GC de flash/interrupção.
+ */
+constexpr uint32_t DS18B20_CONVERSION_TIME_MS = 750;
+
+/**
+ * Timeout de leitura single-shot DHT22 (ms).
+ *
+ * Datasheet: ciclo completo ~20ms. O valor de 150ms dá folga contra
+ * atrasos de scheduling do PIO state machine, sem alongar o scan
+ * desnecessariamente. Se o sensor não respondeu em 150ms é considerado
+ * ausente ou com problema.
+ */
+constexpr uint32_t DHT22_READ_TIMEOUT_MS      = 150;
 
 
 /* =========================================================================== */

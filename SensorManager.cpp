@@ -284,7 +284,7 @@ void SensorManager::update() {
                         memset(res.rom, 0, 8);
                         _scanResults.push_back(res);
                         _scanState = NEXT_PIN;
-                    } else if (s == DHT22PIO::ERROR_TIMEOUT || (millis()-_scanTimer > 150)) {
+                    } else if (s == DHT22PIO::ERROR_TIMEOUT || (millis() - _scanTimer > DHT22_READ_TIMEOUT_MS)) {
                         _scanState = NEXT_PIN;
                     }
                 }
@@ -339,7 +339,7 @@ void SensorManager::processPeriodicReads() {
         }
     }
     else if (_dsState == DS_WAITING) {
-        if (now - _dsTimer >= DS_CONVERSION_TIME) {
+        if (now - _dsTimer >= DS18B20_CONVERSION_TIME_MS) {
             for (auto &s : _runtimeSensors) {
                 if (s.type == TYPE_DS18B20) {
 

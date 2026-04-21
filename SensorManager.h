@@ -133,7 +133,8 @@ private:
     };
     Ds18State _dsState = DS_IDLE;
     uint32_t _dsTimer = 0;
-    const uint32_t DS_CONVERSION_TIME = 750;
+    /* CON-006: DS_CONVERSION_TIME movido para SystemDefs.h como
+     * DS18B20_CONVERSION_TIME_MS. */
 
 
     enum DhtState {
