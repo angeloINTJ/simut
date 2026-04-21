@@ -457,7 +457,9 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · CON-006 — `DS18B20_CONVERSION_TIME_MS` + `DHT22_READ_TIMEOUT_MS` em `SystemDefs.h` | ✅ HW validada | `9690a90` | — | 2026-04-21 |
 |   · CON-005a — `LoginState.nonce` → `char[65]` | ✅ HW validada | `40795d2` | — | 2026-04-21 |
 |   · CON-005b — `CliDemand.strVal1/2` → `char[64]` | ✅ HW validada | `2e98a3e` | — | 2026-04-21 |
-|   · DOC-003 — `SECURITY.md` raiz (threat model + defesas + operações) | ✅ Doc puro | em v3.23.9 | — | 2026-04-21 |
+|   · DOC-003 — `SECURITY.md` raiz (threat model + defesas + operações) | ✅ Doc puro | `26ac277` | — | 2026-04-21 |
+|   · CON-001 — bloco autoritativo `SCRATCH REGISTER MAP` em `LogManager.cpp` + dedup comentários | ✅ Doc/comment | em v3.23.10 | — | 2026-04-21 |
+|   · CON-003 — `DisplayManager.{h,cpp}` headers "8 languages" → "2 languages (EN + PT)" | ✅ Doc/comment | em v3.23.10 | — | 2026-04-21 |
 
 **Débitos técnicos descobertos em CON-005b (pré-existentes, fora de escopo):**
 - **F-LOCKOUT-STUCK** — primeiro `write memory` com mudança real após longo idle pode disparar `[DSP] Lockout stuck >10s, restarting Core 1` (2×). Saves subsequentes OK. Não afeta integridade (config grava corretamente). Provável fragmentação de heap pós-telemetria ou GC do LittleFS. Investigar em ciclo futuro.
@@ -538,9 +540,9 @@ Atualize esta tabela conforme cada fase for concluída.
 | BUG-003 | 🟡 | F13 | ✅ | Template `StorageManager::flashOp<F>()` (private no header) substitui macro local `FLASH_OP` de `saveConfiguration`. `writeHistoryEntryFlash` refatorado em chunks granulares: enforceStorageLimit (se rolagem), open+write+close, fallback enforce+open+write+close — cada um em seu próprio lockout. File handle nunca sobrevive entre chunks. HW validado (testes 1/2/4/5; teste 3 rolagem diária pendente até feature manual time). |
 | BUG-004 | 🟢 | F13 | ✅ | Membro `_lastWebBusy` sticky (Core 1 only) em `DisplayManager`. Consumers em `loopCore1` e `handleTouch` atualizam o sticky quando `mutex_try_enter` sucede; usam o sticky como fallback quando falha. Validado HW. |
 | BUG-005 | 🟢 | F13 | 🟡 | `captureBootSnapshot()` público + chamada explícita em `begin()`; `setModule` não captura mais oportunisticamente; assertion defensiva + guard `_autopsyPerformed` em `performCrashAutopsy` (fix de falsa autópsia em `clear log`). HW pendente. |
-| CON-001 | 🟢 | F14 | ⚪ | Consolidar comentário sobre `scratch[0..7]`. |
-| CON-002 | 🟢 | F14 | ⚪ | `enum LanguageCode` EN..ZH + `LANG_COUNT`. |
-| CON-003 | ⚪ | F14 | ⚪ | Atualizar docstrings "3 idiomas" → 8. |
+| CON-001 | 🟢 | F14 | ✅ | Bloco `SCRATCH REGISTER MAP` em `LogManager.cpp` + dedup (v3.23.10). |
+| CON-002 | 🟢 | F14 | ✅ | `enum LanguageCode` EN+PT + `LANG_COUNT` sentinela (v3.23.4). |
+| CON-003 | ⚪ | F14 | ✅ | `DisplayManager.{h,cpp}` "8 languages" → "2 (EN + PT)" (v3.23.10). |
 | CON-004 | 🟢 | F14 | ⚪ | `_lastSavedCrc` → membro de classe. |
 | CON-005 | 🟢 | F14 | ⚪ | `String` → `char[]` em `CliDemand`/`LoginState`. |
 | CON-006 | ⚪ | F14 | ⚪ | `DS_CONVERSION_TIME` → `SystemDefs.h`. |

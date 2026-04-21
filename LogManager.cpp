@@ -443,8 +443,39 @@ void LogManager::setMinSerialLevel(LogLevel level) { _minSerialLevel = level; }
 
 
 /* =========================================================================== */
-/*                            BLACK BOX PROFILER                             */
-/* =========================================================================== */
+/*                            BLACK BOX PROFILER                               */
+/* ===========================================================================
+ * SCRATCH REGISTER MAP (watchdog_hw->scratch[0..7])
+ * ---------------------------------------------------------------------------
+ * Os scratch registers do watchdog sobrevivem a reset por WDT e a reboot via
+ * `watchdog_reboot()`, mas são zerados em power cycle / reset físico. São o
+ * canal forense pós-crash deste firmware (ver performCrashAutopsy).
+ *
+ *   scratch[0..2] — reservados pelo SDK Pico (boot/runtime). Não tocar.
+ *   scratch[3]   — trace de módulo (Core 0 + Core 1) via TRACE_MOD/setModule.
+ *                  Packing:
+ *                    bits  0..7  = Core 0 mod atual
+ *                    bits  8..15 = 0x80 (magic "valid") se Core 0 já setou
+ *                    bits 16..23 = Core 1 mod atual
+ *                    bits 24..31 = 0x80 (magic "valid") se Core 1 já setou
+ *                  Magic byte evita false-positive de scratch zerado.
+ *   scratch[4]   — DOCUMENTADO pelo SDK como sobrescrito por
+ *                  `watchdog_reboot(pc, ...)` passando PC. NÃO usar como
+ *                  canal de dado — o valor passado a watchdog_reboot aparece
+ *                  aqui pós-reset.
+ *   scratch[5]   — DOCUMENTADO pelo SDK como sobrescrito por
+ *                  `watchdog_reboot(, sp, )` passando SP, porém
+ *                  empiricamente persiste através de `watchdog_reboot(0,0,0)`.
+ *                  Usado como magic discriminador pela autópsia:
+ *                    0xCA11B007 → SOFT PANIC (Core 1 heartbeat stuck).
+ *                    0xC1EA8007 → reboot limpo (markCleanReboot).
+ *                  Se uma SDK futura parar de preservar scratch[5], migrar
+ *                  o magic para scratch[3] (compartilhar com trace via
+ *                  reserva de um bitfield adicional).
+ *   scratch[6]   — payload SOFT PANIC: (deadCore<<24)|(mod0<<16)|(mod1<<8).
+ *   scratch[7]   — payload SOFT PANIC: elapsed_ms desde último heartbeat.
+ * ========================================================================= */
+
 /** @brief Set the currently executing module for crash forensics.
  *  Pré-condição: LogManager::begin() (ou captureBootSnapshot() explícito) já rodou —
  *  caso contrário o scratch[3] do boot anterior é perdido antes da autópsia. */
@@ -452,18 +483,8 @@ void LogManager::setModule(int core, uint8_t mod) {
     _coreModule[core] = mod;
     _moduleStartTime[core] = millis();
     _coreHeartbeat[core] = millis();
-    /*
-     * Persiste no scratch[3] do watchdog para autópsia pós-HW WDT.
-     * ATENÇÃO: NÃO usar scratch[4] ou scratch[5] — são reservados pelo
-     * SDK Pico para `watchdog_reboot(pc, sp, delay)` passar PC/SP.
-     * scratch[3] é de uso livre para aplicação.
-     * RAM é zerada no reset, mas scratch sobrevive. Packing:
-     *   bits  0..7  = Core 0 mod atual
-     *   bits  8..15 = 0x80 (magic "valid") se Core 0 ja foi setado
-     *   bits 16..23 = Core 1 mod atual
-     *   bits 24..31 = 0x80 (magic "valid") se Core 1 ja foi setado
-     * Magic byte evita false-positive de scratch zerado (power cycle).
-     */
+    /* Persiste o módulo corrente em scratch[3] (ver SCRATCH REGISTER MAP acima
+     * para packing e uso na autópsia pós-HW WDT). */
     if (core == 0) {
         watchdog_hw->scratch[3] = (watchdog_hw->scratch[3] & 0xFFFF0000u) | 0x8000u | (mod & 0xFFu);
     } else if (core == 1) {
@@ -557,10 +578,8 @@ void LogManager::checkCrossCoreHealth() {
 void LogManager::markCleanReboot() {
     /* Arduino-Pico implementa rp2040.reboot() via watchdog_reboot, então
      * watchdog_caused_reboot() retorna true mesmo em reboot intencional.
-     * Marcamos scratch[5] com magic distinto do soft panic para a autópsia
-     * diferenciar e pular a emissão de FATAL. Usamos scratch[5] em vez de
-     * scratch[4] porque scratch[5] comprovadamente persiste (o path do soft
-     * panic sempre chega ao autopsy com o valor correto). */
+     * Marcamos scratch[5] com magic distinto do soft panic — autópsia lê,
+     * reconhece e pula a emissão de FATAL (ver SCRATCH REGISTER MAP acima). */
     watchdog_hw->scratch[5] = 0xC1EA8007;
 }
 

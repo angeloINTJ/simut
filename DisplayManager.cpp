@@ -6,7 +6,7 @@
  * plotting with dual Y-axis, settings menus (themes, alarms, sounds,
  * language, password, calibration, license), authentication keypad with
  * scrambled layout and lockout, alarm flash animation with per-slot
- * masking, and the i18n dictionary for 8 languages.
+ * masking, and the i18n dictionary for 2 languages (EN + PT).
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
