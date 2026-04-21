@@ -439,12 +439,14 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F13.4 BUG-003 | ✅ Concluída (HW validada; teste 3 rolagem diária 23:59→00:00 validado em v3.22.4 via manual time) | `b7161d2` | — | 2026-04-21 |
 |   · F13.4b revert template→macro (flash economy) | ✅ HW validada | em v3.22.0 | — | 2026-04-21 |
 | **F-I18N-TRIM.1 (feature fora da auditoria)** | ✅ Concluída (HW validada) | em v3.22.0 | `v3.22.0` | 2026-04-21 |
-| **F-NET-TIME.1 + 1b (feature fora da auditoria)** | ✅ Concluída (HW validada) | em v3.22.0 | `v3.22.0` | 2026-04-21 |
-|   · F-NET-TIME.2 — consumer NetworkManager (flags DNS/NTP) | ✅ Path default validado (DHCP) | em v3.22.1 | — | 2026-04-21 |
-|   · F-NET-TIME.3a — back-end web (GET/POST + /api/set_time + setManualTime) | ✅ Código pronto (validação junto com 3b) | `436248f` | — | 2026-04-21 |
-|   · F-NET-TIME.3b — front-end /network (DNS separado) + /config (data/hora) + i18n PT | ✅ HW validada (estética iterada até v3.22.6) | `ed9b21e` | — | 2026-04-21 |
-|   · F-NET-TIME.4 — CLI (`conf ntp`, `conf time`, `conf net dns`) + tokenizer 5→6 slots | ✅ HW validada | `cc39e06` | — | 2026-04-21 |
-|   · F-NET-TIME.5a — cursor-no-futuro auto-reset + hint t_int=0 na UI | ✅ HW validada | em v3.22.9 | — | 2026-04-21 |
+| **F-NET-TIME (feature fora da auditoria)** | ✅ Concluída | `stability-fixes-tier1` | `v3.23.0` | 2026-04-21 |
+|   · F-NET-TIME.1 + 1b — overlay NetworkTimeData + CLI `conf system factory` | ✅ HW | `6e239f1` | — | 2026-04-21 |
+|   · F-NET-TIME.2 — consumer NetworkManager (flags DNS/NTP) | ✅ HW | `8a85796` | — | 2026-04-21 |
+|   · F-NET-TIME.3a — back-end web (GET/POST + /api/set_time + setManualTime) | ✅ HW | `436248f` | — | 2026-04-21 |
+|   · F-NET-TIME.3b — front-end /network (DNS separado) + /config (data/hora) + i18n PT | ✅ HW | `ed9b21e` | — | 2026-04-21 |
+|   · F-NET-TIME.4 — CLI (`conf ntp`, `conf time`, `conf net dns`) + tokenizer 5→6 slots | ✅ HW | `cc39e06` | — | 2026-04-21 |
+|   · F-NET-TIME.5a — cursor-no-futuro auto-reset + hint t_int=0 na UI | ✅ HW | `95ea5e4` | — | 2026-04-21 |
+|   · F-NET-TIME.5b — fechamento (regressão acumulada ao longo do path) | ✅ | em v3.23.0 | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.24.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
