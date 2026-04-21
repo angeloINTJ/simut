@@ -160,11 +160,15 @@ CliDemand CommandManager::parseCommand(String input) {
     }
 
     int spaceIndex;
-    String parts[5];
+    /* F-NET-TIME.4: expandido de 5→6 slots para acomodar `conf net dns
+     * manual <ip1> <ip2>` (6 tokens). O quoted-string catch-all permanece
+     * em count==4 (5º slot) — comandos pré-existentes com 5 tokens não
+     * afetados. */
+    String parts[6];
     int count = 0;
     String tempInput = input;
 
-    while (count < 5 && tempInput.length() > 0) {
+    while (count < 6 && tempInput.length() > 0) {
         if (count == 4 && tempInput.startsWith("\"")) {
             parts[count++] = tempInput;
             break;
@@ -181,6 +185,7 @@ CliDemand CommandManager::parseCommand(String input) {
     String t2 = count > 2 ? parts[2] : ""; t2.toLowerCase();
     String t3 = count > 3 ? parts[3] : ""; t3.toLowerCase();
     String t4 = count > 4 ? parts[4] : "";
+    String t5 = count > 5 ? parts[5] : "";  /* F-NET-TIME.4: dns2 em `conf net dns manual ip1 ip2` */
 
     /* Valores originais (preservam maiúsculas) para SSID, senha, nome, NTP, etc. */
     String v3 = count > 3 ? parts[3] : "";
@@ -215,6 +220,31 @@ CliDemand CommandManager::parseCommand(String input) {
             if (t2 == "mask")    { cmd.type = CMD_IP_CFG; cmd.intVal1 = 3; cmd.strVal1 = v3; return cmd; }
             if (t2 == "gateway") { cmd.type = CMD_IP_CFG; cmd.intVal1 = 4; cmd.strVal1 = v3; return cmd; }
             if (t2 == "dns")     { cmd.type = CMD_IP_CFG; cmd.intVal1 = 5; cmd.strVal1 = v3; return cmd; }
+        }
+
+        /* F-NET-TIME.4 — conf ntp <on|off> */
+        if (t1 == "ntp") {
+            if (t2 == "on")  { cmd.type = CMD_SET_NTP_ENABLED; cmd.intVal1 = 1; return cmd; }
+            if (t2 == "off") { cmd.type = CMD_SET_NTP_ENABLED; cmd.intVal1 = 0; return cmd; }
+        }
+
+        /* F-NET-TIME.4 — conf time <YYYY-MM-DD> <HH:MM:SS> */
+        if (t1 == "time") {
+            cmd.type = CMD_SET_TIME;
+            cmd.strVal1 = t2;  /* data (case não importa; só dígitos e '-') */
+            cmd.strVal2 = t3;  /* hora */
+            return cmd;
+        }
+
+        /* F-NET-TIME.4 — conf net dns <auto | manual <ip1> [ip2]> */
+        if (t1 == "net" && t2 == "dns") {
+            if (t3 == "auto")   { cmd.type = CMD_SET_DNS_CFG; cmd.intVal1 = 0; return cmd; }
+            if (t3 == "manual") {
+                cmd.type = CMD_SET_DNS_CFG; cmd.intVal1 = 1;
+                cmd.strVal1 = t4;  /* dns1 obrigatório */
+                cmd.strVal2 = t5;  /* dns2 opcional ("" = limpa secundário) */
+                return cmd;
+            }
         }
 
         /* #7: Limites/alarme/calibração por sensor — conf sensor <campo> <gpio> <valor>
@@ -654,6 +684,14 @@ void CommandManager::printHelp() {
         consolePrintln("  Reseta calibracao do touch");
         consolePrintln("conf system factory [confirm]");
         consolePrintln("  Reset de fabrica (apaga TODA config) + reboot");
+        consolePrintln("conf ntp <on|off>");
+        consolePrintln("  Habilita/desabilita sincronizacao NTP");
+        consolePrintln("conf time <AAAA-MM-DD> <HH:MM:SS>");
+        consolePrintln("  Seta RTC manual (imediato; hora local)");
+        consolePrintln("conf net dns auto");
+        consolePrintln("  DNS via DHCP (padrao)");
+        consolePrintln("conf net dns manual <ip1> [ip2]");
+        consolePrintln("  DNS manual: primario e secundario (opcional)");
         consolePrintln("conf sensor ds18b20 resolution <9-12>");
         consolePrintln("  Resolucao global dos DS18B20");
 
@@ -774,6 +812,14 @@ void CommandManager::printHelp() {
     consolePrintln("  Reset touch calibration");
     consolePrintln("conf system factory [confirm]");
     consolePrintln("  Factory reset (wipes ALL config) + reboot");
+    consolePrintln("conf ntp <on|off>");
+    consolePrintln("  Enable/disable NTP sync");
+    consolePrintln("conf time <YYYY-MM-DD> <HH:MM:SS>");
+    consolePrintln("  Set RTC manually (immediate; local time)");
+    consolePrintln("conf net dns auto");
+    consolePrintln("  DNS via DHCP (default)");
+    consolePrintln("conf net dns manual <ip1> [ip2]");
+    consolePrintln("  Manual DNS: primary and secondary (optional)");
     consolePrintln("conf sensor ds18b20 resolution <9-12>");
     consolePrintln("  DS18B20 global resolution");
 
