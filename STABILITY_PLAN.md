@@ -432,10 +432,11 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F10 — Estabilidade em rajadas de save (U16)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-19 |
 | **F11 — Touch Priority (U17/U18/U19)** | ✅ Concluída | `stability-fixes-tier1` | `v3.14.0` | 2026-04-19 |
 | **F12 — SEC Críticas/Altas (audit v3.19.0)** | ✅ Concluída | `stability-fixes-tier1` | `v3.20.0` | 2026-04-20 |
-| **F13 — Bugs latentes (BUG-002..005)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.21.0) | — |
+| **F13 — Bugs latentes (BUG-002..005)** | ✅ Concluída | `stability-fixes-tier1` | `v3.21.0` | 2026-04-21 |
 |   · F13.1 BUG-005 | ✅ Concluída (HW validada) | `ea799f5` | — | 2026-04-21 |
 |   · F13.2 BUG-004 | ✅ Concluída (HW validada) | `04b5515` | — | 2026-04-21 |
-|   · F13.3 BUG-002 | ✅ Concluída (HW validada) | — | — | 2026-04-21 |
+|   · F13.3 BUG-002 | ✅ Concluída (HW validada) | `1dee6ca` | — | 2026-04-21 |
+|   · F13.4 BUG-003 | ✅ Concluída (HW validada, exceto teste 3 rolagem diária — depende de feature manual time, a ser adicionada pós-v3.21.0) | — | — | 2026-04-21 |
 | **F14 — Inconsistências + docs + CON/DOC** | ⚪ Pendente | — | (v3.22.0) | — |
 | **F15 — Hash migration (SEC-006..009)** | ⚪ Pendente | — | (v3.23.0) | — |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.24.0) | — |
@@ -509,7 +510,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | SEC-009 | 🟢 | F15 | ⚪ | Salt random por usuário (schema bump). |
 | BUG-001 | 🟢 | F14 | ⚪ | **Reclassificado**: `millis()-X>Y` tecnicamente wrap-safe; migração opcional para consistência. |
 | BUG-002 | 🟡 | F13 | ✅ | Wrappers `requestPreviewSound/requestVolumePreview/requestAlarmVolumePreview` + `__dmb()` nos 3 pares cross-core Core 1 → Core 0. Barrier no producer (`setTelemetrySendStatus`) e readers (`render`/`drawTopBar`) do pack `_pktArrowState` Core 0 → Core 1. `_touchSoundPending`/`_errorSoundPending` fora do escopo (single-flag sem dado emparelhado). + UX fix (F13.3b): touch gates separados para volume no menu Sons. Validado HW. |
-| BUG-003 | 🟡 | F13 | ⚪ | Template `flashOp<F>()` substitui macro + aplica em `writeHistoryEntryFlash`. |
+| BUG-003 | 🟡 | F13 | ✅ | Template `StorageManager::flashOp<F>()` (private no header) substitui macro local `FLASH_OP` de `saveConfiguration`. `writeHistoryEntryFlash` refatorado em chunks granulares: enforceStorageLimit (se rolagem), open+write+close, fallback enforce+open+write+close — cada um em seu próprio lockout. File handle nunca sobrevive entre chunks. HW validado (testes 1/2/4/5; teste 3 rolagem diária pendente até feature manual time). |
 | BUG-004 | 🟢 | F13 | ✅ | Membro `_lastWebBusy` sticky (Core 1 only) em `DisplayManager`. Consumers em `loopCore1` e `handleTouch` atualizam o sticky quando `mutex_try_enter` sucede; usam o sticky como fallback quando falha. Validado HW. |
 | BUG-005 | 🟢 | F13 | 🟡 | `captureBootSnapshot()` público + chamada explícita em `begin()`; `setModule` não captura mais oportunisticamente; assertion defensiva + guard `_autopsyPerformed` em `performCrashAutopsy` (fix de falsa autópsia em `clear log`). HW pendente. |
 | CON-001 | 🟢 | F14 | ⚪ | Consolidar comentário sobre `scratch[0..7]`. |

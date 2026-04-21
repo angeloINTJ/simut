@@ -428,25 +428,16 @@ bool StorageManager::saveConfiguration() {
     LogManager::WdtWindow _wdt(30000);
 
     /*
-     * Chunked lockout: cada op LittleFS tem seu próprio enterFlashSafeMode /
-     * exitFlashSafeMode. Entre ops, Core 1 sai do multicore_lockout e renderiza
-     * 1 frame. Display/touch ficam responsivos mesmo sob GC lento.
-     * Helper macro para feed + flash op + feed.
+     * Chunked lockout (F13.4/BUG-003): cada op LittleFS em seu próprio
+     * enterFlashSafeMode / exitFlashSafeMode via flashOp<F>(). Entre chunks,
+     * Core 1 sai do multicore_lockout e renderiza 1 frame. Display/touch
+     * ficam responsivos mesmo sob GC lento. Macro local FLASH_OP antiga
+     * substituída pelo template method privado.
      */
-    /* U23: MOD_CORE1_LOCK só durante o espera do lockout (breve).
-     * Após lockout, volta pra MOD_SAVE_CONFIG via destructor do scope. */
-    #define FLASH_OP(BLOCK) do { \
-        { LogManager::TraceScope _trLock(0, MOD_CORE1_LOCK); \
-          enterFlashSafeMode(); } \
-        watchdog_update(); \
-        BLOCK; \
-        watchdog_update(); \
-        exitFlashSafeMode(); \
-    } while (0)
 
     /* Flush cursor para flash (se pendente) */
     if (_cachedLastSent > 0) {
-        FLASH_OP({
+        flashOp([&] {
             File cf = LittleFS.open(FILE_TCURSOR, "w");
             if (cf) { cf.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent)); cf.close(); }
         });
@@ -454,7 +445,7 @@ bool StorageManager::saveConfiguration() {
 
     /* Abre TMP e escreve config criptografado + CRC */
     File f;
-    FLASH_OP(f = LittleFS.open(FILE_TMP, "w"));
+    flashOp([&] { f = LittleFS.open(FILE_TMP, "w"); });
     if (!f) {
         LOG_CODE(LOG_ERROR, "STO", SYS_STORAGE_FAIL, 0, "open FILE_TMP failed");
         return false;
@@ -466,33 +457,31 @@ bool StorageManager::saveConfiguration() {
     obfuscateSensitiveFields(encBuf);
     uint32_t crc = calculateCRC32((uint8_t*)&encBuf, sizeof(SystemConfig));
 
-    size_t bytesWritten, crcWritten;
-    FLASH_OP({
+    size_t bytesWritten = 0, crcWritten = 0;
+    flashOp([&] {
         bytesWritten = f.write((uint8_t*)&encBuf, sizeof(SystemConfig));
         crcWritten = f.write((uint8_t*)&crc, sizeof(crc));
         f.close();
     });
 
     if (bytesWritten != sizeof(SystemConfig) || crcWritten != sizeof(crc)) {
-        FLASH_OP(LittleFS.remove(FILE_TMP));
+        flashOp([&] { LittleFS.remove(FILE_TMP); });
         LOG_CODE(LOG_ERROR, "STO", SYS_STORAGE_FAIL, (int)bytesWritten, "Config save failed");
         return false;
     }
 
     /* Rename atômico: backup, rename, rename. Cada um em seu próprio lockout. */
     if (LittleFS.exists(FILE_CONFIG)) {
-        FLASH_OP(LittleFS.remove(FILE_BACKUP));
-        FLASH_OP(LittleFS.rename(FILE_CONFIG, FILE_BACKUP));
+        flashOp([&] { LittleFS.remove(FILE_BACKUP); });
+        flashOp([&] { LittleFS.rename(FILE_CONFIG, FILE_BACKUP); });
     }
-    FLASH_OP(LittleFS.rename(FILE_TMP, FILE_CONFIG));
+    flashOp([&] { LittleFS.rename(FILE_TMP, FILE_CONFIG); });
 
     MetricsManager::instance().data().configSaves++;
     _lastSavedCrc = currentCrc;  /* Marca conteúdo persistido para skip no-op futuro */
     _lastSaveMs = millis();       /* Timestamp para rate-limit server-side */
     LOG_CODE(LOG_INFO, "STO", SYS_STORAGE_SAVE, (int)(sizeof(SystemConfig)), "");
     return true;
-
-    #undef FLASH_OP
 }
 
 bool StorageManager::canSaveNow() const {
@@ -611,42 +600,50 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
     LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
     /* RAII context-aware igual saveConfiguration. */
     LogManager::WdtWindow _wdt(30000);
-    {
-        LogManager::TraceScope _trLock(0, MOD_CORE1_LOCK);
-        enterFlashSafeMode();
+
+    /* F13.4/BUG-003: chunks granulares via flashOp<F>(). Entre chunks
+     * Core 1 sai do multicore_lockout e renderiza 1 frame — antes todo
+     * o path (incluindo enforceStorageLimit até 4 s) rodava em 1 único
+     * lockout. File handle nunca sobrevive entre chunks (sempre criado
+     * e fechado no mesmo lambda). */
+
+    /* Chunk 1: enforce storage limit (apenas na rolagem diária). Fora do
+     * lockout de write para liberar Core 1 durante o budget de enforce. */
+    if (path != _currentLogFileName) {
+        flashOp([&] { enforceStorageLimit(); });
+        _currentLogFileName = path;
     }
-    if (path != _currentLogFileName) { enforceStorageLimit(); _currentLogFileName = path; }
-    watchdog_update();
-    File f = LittleFS.open(path, "a");
-    watchdog_update();
-    if (f) {
-        f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
-        f.close();
-        watchdog_update();
-        /* WdtWindow auto-restaura */
-        exitFlashSafeMode();
+
+    /* Chunk 2: open + write + close atômicos (file handle curto). */
+    bool ok = false;
+    flashOp([&] {
+        File f = LittleFS.open(path, "a");
+        if (f) {
+            f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
+            f.close();
+            ok = true;
+        }
+    });
+
+    if (ok) {
         _storageDirty = true;
         return true;
     }
 
-
+    /* Fallback: write falhou (storage cheio / FS em estado ruim). Force
+     * enforce em chunk dedicado e tenta gravar de novo. */
     LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "");
     _storageDirty = true;
-    enforceStorageLimit();
-    watchdog_update();
-    f = LittleFS.open(path, "a");
-    watchdog_update();
-    if (f) {
-        f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
-        f.close();
-        watchdog_update();
-        /* WdtWindow auto-restaura */
-        exitFlashSafeMode();
-        return true;
-    }
-
-    exitFlashSafeMode();
-    return false;
+    flashOp([&] { enforceStorageLimit(); });
+    flashOp([&] {
+        File f = LittleFS.open(path, "a");
+        if (f) {
+            f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
+            f.close();
+            ok = true;
+        }
+    });
+    return ok;
     /* WdtWindow destrutor auto-restaura */
 }
 
