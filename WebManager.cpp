@@ -844,7 +844,9 @@ void WebManager::handleApiLoginInit() {
     }
 
 
-    _loginStates[slot].nonce = generateSecureToken();
+    /* CON-005a: String temporária destruída após safeCopy — sem heap residual. */
+    safeCopy(_loginStates[slot].nonce, generateSecureToken().c_str(),
+             sizeof(_loginStates[slot].nonce));
     _loginStates[slot].nonceCreatedAt = millis();
     _loginStates[slot].lastActivity = millis();
 
@@ -858,7 +860,7 @@ void WebManager::handleApiLoginInit() {
 
     char json[128];
     snprintf(json, sizeof(json), "{\"nonce\":\"%s\",\"locked\":%s,\"lockSec\":%lu}",
-             _loginStates[slot].nonce.c_str(), locked ? "true" : "false", (unsigned long)lockSec);
+             _loginStates[slot].nonce, locked ? "true" : "false", (unsigned long)lockSec);
 
     _server.sendHeader("Cache-Control", "no-store");
     _server.send(200, "application/json", json);
@@ -880,15 +882,17 @@ void WebManager::handleApiLogin() {
         return;
     }
 
-    String expectedNonce = (ls >= 0) ? _loginStates[ls].nonce : "";
+    /* CON-005a: expectedNonce é pointer pro buffer fixo do slot (ou string vazia
+     * se não há slot). Comparação via strcmp em vez de operator!=. */
+    const char* expectedNonce = (ls >= 0) ? _loginStates[ls].nonce : "";
 
 
     bool nonceExpired = (ls >= 0) && (_loginStates[ls].nonceCreatedAt > 0) &&
                         (millis() - _loginStates[ls].nonceCreatedAt > NONCE_LIFETIME_MS);
 
-    if (!_server.hasArg("nonce") || _server.arg("nonce") != expectedNonce || expectedNonce == "" || nonceExpired) {
+    if (!_server.hasArg("nonce") || _server.arg("nonce") != expectedNonce || expectedNonce[0] == '\0' || nonceExpired) {
         if (ls >= 0) {
-            _loginStates[ls].nonce = "";
+            _loginStates[ls].nonce[0] = '\0';
             if (nonceExpired) {
                 _loginStates[ls].failCount++;
                 uint32_t penaltyMs = (1 << _loginStates[ls].failCount) * 1000;
@@ -908,7 +912,7 @@ void WebManager::handleApiLogin() {
         }
         return;
     }
-    if (ls >= 0) _loginStates[ls].nonce = "";
+    if (ls >= 0) _loginStates[ls].nonce[0] = '\0';
 
     if (!_server.hasArg("user") || !_server.hasArg("pass")) {
         _server.send(400, "application/json", "{\"ok\":false,\"err\":1}");
