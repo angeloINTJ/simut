@@ -1608,6 +1608,9 @@ void DisplayManager::render(const SystemState& state) {
         return;
     }
 
+    /* BUG-002: barrier antes de ler _pktArrowState (publicado por Core 0
+     * junto com as vars de flash em setTelemetrySendStatus). */
+    __dmb();
     if (state.wifiRssi != _lastRenderedState.wifiRssi ||
         state.btActive != _lastRenderedState.btActive ||
         strcmp(state.timeString, _lastRenderedState.timeString) != 0 ||
@@ -1807,6 +1810,9 @@ void DisplayManager::drawTopBar(const SystemState& state) {
 
     int xIcon = 305;
 
+    /* BUG-002: barrier antes de ler _pktArrowState + vars de flash
+     * publicadas por Core 0 em setTelemetrySendStatus. */
+    __dmb();
     if (state.pendingPkts > 0 || _pktArrowState > 0) {
         /*
          * Cor do NÚMERO: baseada no último resultado de envio.
@@ -5396,11 +5402,7 @@ void DisplayManager::handleTouch() {
                     case 2: evType = SND_ERROR;        break;
                     case 3: evType = SND_ALARM_START;  break;
                 }
-                if (evType != SND_NONE) {
-                    _previewType    = (uint8_t)evType;
-                    _previewMelIdx  = _melSelectIdx;
-                    _previewPending = true;
-                }
+                if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
                 _repaintSettings = true;
             }
             else if (y > 185) {
@@ -5414,11 +5416,7 @@ void DisplayManager::handleTouch() {
                         case 2: evType = SND_ERROR;        break;
                         case 3: evType = SND_ALARM_START;  break;
                     }
-                    if (evType != SND_NONE) {
-                        _previewType = (uint8_t)evType;
-                        _previewMelIdx = _melSelectIdx;
-                        _previewPending = true;
-                    }
+                    if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
                     _repaintSettings = true;
                 }
                 else if (x < 138) {
@@ -5431,11 +5429,7 @@ void DisplayManager::handleTouch() {
                         case 2: evType = SND_ERROR;        break;
                         case 3: evType = SND_ALARM_START;  break;
                     }
-                    if (evType != SND_NONE) {
-                        _previewType = (uint8_t)evType;
-                        _previewMelIdx = _melSelectIdx;
-                        _previewPending = true;
-                    }
+                    if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
                     _repaintSettings = true;
                 }
                 else if (x < 219) {
@@ -5464,9 +5458,7 @@ void DisplayManager::handleTouch() {
                             _soundSettings.alarmMelody   = _melSelectIdx;
                             break;
                     }
-                    _previewType    = (uint8_t)SND_CONFIRM;
-                    _previewMelIdx  = _soundSettings.confirmMelody;
-                    _previewPending = true;
+                    requestPreviewSound(SND_CONFIRM, _soundSettings.confirmMelody);
 
                     _inMelodySelect = false;
                     _forceSettingsRedraw = true;
@@ -5486,13 +5478,21 @@ void DisplayManager::handleTouch() {
             else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
             int mapIdx = (soundPage * 4) + clickedIndex;
             if (mapIdx >= TOTAL_SOUND_ITEMS) return;
-            if (!acceptSlideTouch(clickedIndex)) return;
+
+            /* F13.3b: gate de toque MOVIDO para dentro dos branches.
+             * O gate único no topo (acceptSlideTouch) seta _lastTouchRegion
+             * para clickedIndex (0-3); o acceptHoldTouch(20/21) dos branches
+             * de volume via a seguir falhava por mismatch de zoneId quando o
+             * dedo continuava pressionado — bloqueava inc/dec. Agora cada
+             * branch usa o accept apropriado ao seu modo de interação. */
 
             if (mapIdx != _soundSelection) {
+                if (!acceptSlideTouch(clickedIndex)) return;
                 _soundSelection = mapIdx;
                 _repaintSettings = true;
             } else {
                 if (mapIdx <= 3) {
+                    if (!acceptSlideTouch(clickedIndex)) return;
                     bool* enablePtr = nullptr;
                     uint8_t melType = 0;
                     uint8_t curMel  = 0;
@@ -5519,29 +5519,29 @@ void DisplayManager::handleTouch() {
                     }
                 }
                 else if (mapIdx == 4) {
+                    if (!acceptSlideTouch(clickedIndex)) return;
                     _soundSettings.webEnabled = !_soundSettings.webEnabled;
                     _repaintSettings = true;
                 }
                 else if (mapIdx == 5) {
+                    if (!acceptSlideTouch(clickedIndex)) return;
                     _soundSettings.muted = !_soundSettings.muted;
                     _repaintSettings = true;
                 }
                 else if (mapIdx == 6) {
-                    if (!acceptHoldTouch(20)) return;
+                    if (!acceptHoldTouch(20)) return;   /* único accept do caminho */
                     if (x < 160) { if (_soundSettings.volume >= 10) _soundSettings.volume -= 10; }
                     else          { if (_soundSettings.volume <= 90) _soundSettings.volume += 10; }
-                    _touchSoundPending       = false;
-                    _volumePreviewPending    = true;
-                    _volumePreviewLevel      = _soundSettings.volume;
+                    _touchSoundPending = false;   /* cancela bip para não sobrepor preview */
+                    requestVolumePreview(_soundSettings.volume);
                     _repaintSettings = true;
                 }
                 else if (mapIdx == 7) {
                     if (!acceptHoldTouch(21)) return;
                     if (x < 160) { if (_soundSettings.alarmVolume >= 10) _soundSettings.alarmVolume -= 10; }
                     else          { if (_soundSettings.alarmVolume <= 90) _soundSettings.alarmVolume += 10; }
-                    _touchSoundPending          = false;
-                    _alarmVolPreviewPending      = true;
-                    _alarmVolPreviewLevel        = _soundSettings.alarmVolume;
+                    _touchSoundPending = false;
+                    requestAlarmVolumePreview(_soundSettings.alarmVolume);
                     _repaintSettings = true;
                 }
             }
@@ -6732,10 +6732,13 @@ void DisplayManager::setTelemetryPending(uint16_t count) {
  */
 void DisplayManager::setTelemetrySendStatus(bool success) {
     if (success) {
-        _pktArrowState     = 3;  /* flash de envio */
+        /* BUG-002: publica vars auxiliares ANTES do state (a flag que
+         * dispara o ramo de flash no render em Core 1). */
         _pktArrowFlashOn   = false;
         _pktArrowFlashTime = millis();
         _pktArrowFlashEnd  = millis() + 1000;
+        __dmb();
+        _pktArrowState = 3;  /* flash de envio */
     } else {
         _pktArrowState = 2;  /* vermelho fixo */
     }
@@ -7472,24 +7475,45 @@ bool DisplayManager::consumeErrorSound() {
 }
 
 
+/* BUG-002: producers cross-core publicam dado ANTES da flag com __dmb().
+ * Sem a barreira, Core 0 pode ver a flag true antes dos campos de dado
+ * estarem visíveis (reordering visível no RP2040 entre cores). */
+void DisplayManager::requestPreviewSound(SoundEvent ev, uint8_t melIdx) {
+    _previewType   = (uint8_t)ev;
+    _previewMelIdx = melIdx;
+    __dmb();
+    _previewPending = true;
+}
+
+void DisplayManager::requestVolumePreview(uint8_t level) {
+    _volumePreviewLevel = level;
+    __dmb();
+    _volumePreviewPending = true;
+}
+
+void DisplayManager::requestAlarmVolumePreview(uint8_t level) {
+    _alarmVolPreviewLevel = level;
+    __dmb();
+    _alarmVolPreviewPending = true;
+}
+
+
 bool DisplayManager::consumePreviewSound(SoundEvent& outEvent, uint8_t& outIdx) {
-    if (_previewPending) {
-        outEvent = (SoundEvent)_previewType;
-        outIdx   = _previewMelIdx;
-        _previewPending = false;
-        return true;
-    }
-    return false;
+    if (!_previewPending) return false;
+    __dmb();                       /* BUG-002: lê dados APÓS a flag */
+    outEvent = (SoundEvent)_previewType;
+    outIdx   = _previewMelIdx;
+    _previewPending = false;
+    return true;
 }
 
 
 bool DisplayManager::consumeVolumePreview(uint8_t& outLevel) {
-    if (_volumePreviewPending) {
-        outLevel = _volumePreviewLevel;
-        _volumePreviewPending = false;
-        return true;
-    }
-    return false;
+    if (!_volumePreviewPending) return false;
+    __dmb();                       /* BUG-002 */
+    outLevel = _volumePreviewLevel;
+    _volumePreviewPending = false;
+    return true;
 }
 
 
@@ -7565,12 +7589,11 @@ bool DisplayManager::acceptSlideTouch(uint8_t zoneId) {
 
 
 bool DisplayManager::consumeAlarmVolumePreview(uint8_t& outLevel) {
-    if (_alarmVolPreviewPending) {
-        outLevel = _alarmVolPreviewLevel;
-        _alarmVolPreviewPending = false;
-        return true;
-    }
-    return false;
+    if (!_alarmVolPreviewPending) return false;
+    __dmb();                       /* BUG-002 */
+    outLevel = _alarmVolPreviewLevel;
+    _alarmVolPreviewPending = false;
+    return true;
 }
 
 
