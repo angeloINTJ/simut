@@ -1259,8 +1259,11 @@ void AppManager::executeCommand(CliDemand cmd) {
                                                  : "New Hardware Context Detected. Epoch updated.");
                         }
 
+                        /* F-LOCKOUT-STUCK: wrappa save+reload no mesmo quiet mode (idem CMD_WRITE_MEMORY). */
+                        _displayMgr.requestQuietMode(5000);
                         _storageMgr.saveConfiguration();
                         loadAndCalibrateSensors();
+                        _displayMgr.releaseQuietMode();
                         _cmdMgr.printSuccess((pt ? "Sensor aceito e vinculado ao Slot "
                                                  : "Sensor accepted and bound to Slot ") + String(gpio));
                     }
@@ -1276,14 +1279,24 @@ void AppManager::executeCommand(CliDemand cmd) {
             if (!_sensorMgr.isScanning()) { _sensorMgr.startScan(); _waitingScan = true; }
             break;
 
-        case CMD_WRITE_MEMORY:
-            if (_storageMgr.saveConfiguration()) {
+        case CMD_WRITE_MEMORY: {
+            /* F-LOCKOUT-STUCK: wrappa save + reload de sensores no mesmo
+             * quiet mode (re-entrant). loadAndCalibrateSensors emite
+             * APP_SENSORS_CALIBRATED via LOG_CODE → LogManager.requestFsLock
+             * que, fora de quiet mode, caía em lockout IRQ-based e stuck. */
+            _displayMgr.requestQuietMode(5000);
+            bool saved = _storageMgr.saveConfiguration();
+            if (saved) {
                 loadAndCalibrateSensors();
+            }
+            _displayMgr.releaseQuietMode();
+            if (saved) {
                 _cmdMgr.printSuccess(_cmdMgr.isPt()
                     ? "Config salva no Flash!"
                     : "Config saved to Flash!");
             }
             break;
+        }
 
         case CMD_CLEAR_LOGS:
             if (!cmd.confirmed) {

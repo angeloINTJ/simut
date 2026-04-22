@@ -254,9 +254,12 @@ private:
 
     /* F-LOCKOUT-STUCK: flags cooperativas de quiet mode (ver requestQuietMode).
      * _quietModeRequested: Core 0 escreve, Core 1 lê em cada iteração do loopCore1.
-     * _quietModeActive:    Core 1 escreve (ACK), Core 0 aguarda como handshake. */
-    volatile bool _quietModeRequested = false;
-    volatile bool _quietModeActive    = false;
+     * _quietModeActive:    Core 1 escreve (ACK), Core 0 aguarda como handshake.
+     * _quietModeRefCount:  permite chamadas re-entrantes (ex: CLI handler wrapa
+     *                      save+reload, saveConfiguration interno chama de novo). */
+    volatile bool    _quietModeRequested = false;
+    volatile bool    _quietModeActive    = false;
+    volatile int32_t _quietModeRefCount  = 0;
 
     /* RAM-resident quiet loop — chamado em loopCore1 quando _quietModeRequested. */
     void _runQuietLoop();
