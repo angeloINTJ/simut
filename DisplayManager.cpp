@@ -952,17 +952,30 @@ void DisplayManager::loopCore1() {
     multicore_lockout_victim_init();
     _core1Ready = true;
 
-    if (!_tft) _tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
-    if (!_ts) _ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
-    _tft->begin(); _tft->setRotation(3); _tft->fillScreen(C_BG_MAIN);
-    _ts->begin(); _ts->setRotation(3);
+    /* F-LOCKOUT-STUCK v3.24.10: alocações e init TFT só na 1ª launch. Em
+     * launches subsequentes (pós `multicore_reset_core1` do quiet mode),
+     * pula HW reset do ILI9341 — evita o flash branco e mantém a última
+     * frame na tela até Core 1 renderizar o próximo delta. */
+    if (_tftFirstInit) {
+        if (!_tft) _tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
+        if (!_ts) _ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
+        _tft->begin(); _tft->setRotation(3); _tft->fillScreen(C_BG_MAIN);
+        _ts->begin(); _ts->setRotation(3);
 
-    if (!_canvasWide) _canvasWide = new GFXcanvas16(320, 45);
-    if (!_canvasSmall) _canvasSmall = new GFXcanvas16(140, 40);
+        if (!_canvasWide) _canvasWide = new GFXcanvas16(320, 45);
+        if (!_canvasSmall) _canvasSmall = new GFXcanvas16(140, 40);
 
-    SystemState currentSnapshot;
-    if (!_sharedState.isBooting) drawInterfaceFixed();
-    _lastRenderedState.selectedSlotIdx = -1;
+        if (!_sharedState.isBooting) drawInterfaceFixed();
+        _lastRenderedState.selectedSlotIdx = -1;
+        _tftFirstInit = false;
+    } else {
+        /* Post-reset resume: TFT retém última frame; apenas força um delta
+         * render na próxima iteração para cobrir qualquer mudança em shared
+         * state que Core 0 tenha feito durante o flash work. */
+        mutex_enter_blocking(&_stateMutex);
+        _isDirty = true;
+        mutex_exit(&_stateMutex);
+    }
 
     while (true) {
         /* F-LOCKOUT-STUCK v3.24.9: abordagem cooperativa removida (não era

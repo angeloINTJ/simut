@@ -252,6 +252,13 @@ private:
     volatile bool _isPausedForFlash = false;
     volatile bool _core1Ready = false;
 
+    /* F-LOCKOUT-STUCK v3.24.10: marcador "TFT já foi inicializada alguma vez".
+     * Sobrevive aos multicore_reset_core1 (membro de DisplayManager, não var
+     * local de loopCore1). Na 1ª launch, faz init full (HW reset ILI9341 +
+     * SPI setup + fillScreen). Em launches subsequentes (pós reset por save),
+     * pula a re-inicialização — TFT retém última frame, evita flash branco. */
+    bool _tftFirstInit = true;
+
     /* F-LOCKOUT-STUCK: flags cooperativas de quiet mode (ver requestQuietMode).
      * _quietModeRequested: Core 0 escreve, Core 1 lê em cada iteração do loopCore1.
      * _quietModeActive:    Core 1 escreve (ACK), Core 0 aguarda como handshake.

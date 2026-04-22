@@ -479,7 +479,8 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F-LOCKOUT-STUCK fix (v3.24.6) — quiet mode re-entrant (refcount); `CMD_WRITE_MEMORY` e `sensor accept` agora wrappam save + `loadAndCalibrateSensors` no mesmo quiet mode (elimina stuck residual no log `APP_SENSORS_CALIBRATED`). | 🟡 Parcial (stuck residual no 2º save consecutivo) | `b57c6af` | — | 2026-04-21 |
 |   · F-LOCKOUT-STUCK fix (v3.24.7) — timeout do `requestQuietMode` 5s→15s; log warning em timeout. | 🟡 Parcial (timeout ainda disparava em 2º save consecutivo) | `4259483` | — | 2026-04-21 |
 |   · F-LOCKOUT-STUCK fix (v3.24.8) — removido `_forceFullRedraw=true` do post-quiet; Core 1 ainda ficava unresponsive >15s no 2º save. | 🔴 Não resolveu | `dab353f` | — | 2026-04-21 |
-|   · F-LOCKOUT-STUCK fix (v3.24.9) — **PIVOT**: abordagem cooperativa descartada. `requestQuietMode` agora faz **HARD-RESET** do Core 1 via `multicore_reset_core1` (determinístico, sem handshake, sem timeout). `releaseQuietMode` re-inicializa mutex e chama `multicore_launch_core1`. Match exato com descrição do user: "Core 1 congela, Core 0 faz trabalho, libera e reinicia toda a tela". | ⚪ Pendente HW | em v3.24.9 | — | 2026-04-21 |
+|   · F-LOCKOUT-STUCK fix (v3.24.9) — **PIVOT**: abordagem cooperativa descartada. `requestQuietMode` agora faz **HARD-RESET** do Core 1 via `multicore_reset_core1`. | 🟡 Parcial (flash branco entre reset e re-init do ILI9341) | `d116445` | — | 2026-04-21 |
+|   · F-LOCKOUT-STUCK fix (v3.24.10) — `_tftFirstInit` flag: `_tft->begin()` (que faz HW reset do ILI9341 e causa flash branco) só roda na 1ª launch do Core 1. Em launches subsequentes, TFT retém a última frame; Core 1 só força `_isDirty=true` para delta-render do que mudou. | ⚪ Pendente HW | em v3.24.10 | — | 2026-04-21 |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 
