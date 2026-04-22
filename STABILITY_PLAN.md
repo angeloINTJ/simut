@@ -476,7 +476,8 @@ Atualize esta tabela conforme cada fase for concluída.
 - **Factory defaults auto-triggered**: em algum reboot após migração inicial, `loadConfiguration` falhou em ambos `FILE_CONFIG` e `FILE_BACKUP`, caindo em `loadDefaults`. Causa provável: save anterior interrompido por WDT no meio do atomic rename (`FILE_CONFIG` → `FILE_BACKUP`). Não reproduzível em steady state após device estabilizar.
 
 |   · F-LOCKOUT-STUCK fix (v3.24.5) — quiet mode cooperativo em `saveConfiguration`: Core 1 congela em loop RAM-only (IRQs off) via handshake `_quietModeRequested`/`_quietModeActive`, Core 0 faz todas as flash ops sem `multicore_lockout` IRQ-based a cada chunk. Elimina cascata de stucks. | ✅ HW validada (commit_all web) | `9a55ef2` | — | 2026-04-21 |
-|   · F-LOCKOUT-STUCK fix (v3.24.6) — quiet mode re-entrant (refcount); `CMD_WRITE_MEMORY` e `sensor accept` agora wrappam save + `loadAndCalibrateSensors` no mesmo quiet mode (elimina stuck residual no log `APP_SENSORS_CALIBRATED`). | ⚪ Pendente HW | em v3.24.6 | — | 2026-04-21 |
+|   · F-LOCKOUT-STUCK fix (v3.24.6) — quiet mode re-entrant (refcount); `CMD_WRITE_MEMORY` e `sensor accept` agora wrappam save + `loadAndCalibrateSensors` no mesmo quiet mode (elimina stuck residual no log `APP_SENSORS_CALIBRATED`). | 🟡 Parcial (stuck residual no 2º save consecutivo) | `b57c6af` | — | 2026-04-21 |
+|   · F-LOCKOUT-STUCK fix (v3.24.7) — timeout do `requestQuietMode` 5s→15s (cobre render pesado pós quiet mode anterior); removido `_forceFullRedraw` duplicado de `releaseQuietMode` (Core 1 já seta internamente). Log warning em timeout para diagnóstico. | ⚪ Pendente HW | em v3.24.7 | — | 2026-04-21 |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 

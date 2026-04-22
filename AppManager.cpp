@@ -1260,7 +1260,7 @@ void AppManager::executeCommand(CliDemand cmd) {
                         }
 
                         /* F-LOCKOUT-STUCK: wrappa save+reload no mesmo quiet mode (idem CMD_WRITE_MEMORY). */
-                        _displayMgr.requestQuietMode(5000);
+                        _displayMgr.requestQuietMode();   /* default 15s timeout */
                         _storageMgr.saveConfiguration();
                         loadAndCalibrateSensors();
                         _displayMgr.releaseQuietMode();
@@ -1284,7 +1284,7 @@ void AppManager::executeCommand(CliDemand cmd) {
              * quiet mode (re-entrant). loadAndCalibrateSensors emite
              * APP_SENSORS_CALIBRATED via LOG_CODE → LogManager.requestFsLock
              * que, fora de quiet mode, caía em lockout IRQ-based e stuck. */
-            _displayMgr.requestQuietMode(5000);
+            _displayMgr.requestQuietMode();   /* default 15s timeout */
             bool saved = _storageMgr.saveConfiguration();
             if (saved) {
                 loadAndCalibrateSensors();
@@ -2147,7 +2147,7 @@ void AppManager::pauseDisplayForFlash(bool lock) {
 }
 
 bool AppManager::requestDisplayQuietMode(bool enable) {
-    if (enable) return _displayMgr.requestQuietMode(5000);
+    if (enable) return _displayMgr.requestQuietMode();   /* default 15s */
     _displayMgr.releaseQuietMode();
     return true;
 }
