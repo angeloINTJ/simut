@@ -480,7 +480,9 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F-LOCKOUT-STUCK fix (v3.24.7) — timeout do `requestQuietMode` 5s→15s; log warning em timeout. | 🟡 Parcial (timeout ainda disparava em 2º save consecutivo) | `4259483` | — | 2026-04-21 |
 |   · F-LOCKOUT-STUCK fix (v3.24.8) — removido `_forceFullRedraw=true` do post-quiet; Core 1 ainda ficava unresponsive >15s no 2º save. | 🔴 Não resolveu | `dab353f` | — | 2026-04-21 |
 |   · F-LOCKOUT-STUCK fix (v3.24.9) — **PIVOT**: abordagem cooperativa descartada. `requestQuietMode` agora faz **HARD-RESET** do Core 1 via `multicore_reset_core1`. | 🟡 Parcial (flash branco entre reset e re-init do ILI9341) | `d116445` | — | 2026-04-21 |
-|   · F-LOCKOUT-STUCK fix (v3.24.10) — `_tftFirstInit` flag: `_tft->begin()` (que faz HW reset do ILI9341 e causa flash branco) só roda na 1ª launch do Core 1. Em launches subsequentes, TFT retém a última frame; Core 1 só força `_isDirty=true` para delta-render do que mudou. | ⚪ Pendente HW | em v3.24.10 | — | 2026-04-21 |
+|   · F-LOCKOUT-STUCK fix (v3.24.10) — `_tftFirstInit` flag: `_tft->begin()` (que faz HW reset do ILI9341 e causa flash branco) só roda na 1ª launch do Core 1. | 🟡 Parcial (touch quebrou pós-save) | `37c3c9d` | — | 2026-04-21 |
+|   · F-LOCKOUT-STUCK fix (v3.24.11) — `_ts->begin()` (attach IRQ do touch na NVIC de Core 1) restaurado em TODA launch; `_tft->begin()` continua only-on-first. Touch volta a responder pós-save. | ✅ HW validada (save sem stucks, touch OK, display sem flash branco) | `295f564` | — | 2026-04-22 |
+|   · TEST-ONLY: `conf sensor <N> history all` — comando oculto para recuperar visualização de histórico pós factory reset (zera `provisionEpoch`). **REMOVER ANTES DE PRODUÇÃO** (marcadores `TEST-ONLY` em SystemDefs.h, CommandManager.cpp, AppManager.cpp). | ✅ HW validada | `8806273` | — | 2026-04-22 |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 
