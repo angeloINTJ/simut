@@ -50,6 +50,49 @@ static void jsonEscapeFilename(const char* src, char* dst, size_t dstSize) {
     dst[di] = '\0';
 }
 
+/* Extrai valor de string JSON "key":"..." com handling correto de escapes.
+ *
+ * Anterior (bug): indexOf('"', vStart) retornava na PRIMEIRA aspa após a
+ * abertura, mas JSON.stringify no frontend emite \" para aspas internas
+ * dos templates de payload (`{"dev":"{DEV}"}` → `"{\"dev\":\"{DEV}\"}"`).
+ * Resultado: o valor extraído era truncado em `{\` — templates salvos como
+ * 2 chars de lixo. Sintoma reportado: "construtor de payload não salva".
+ *
+ * Fix: anda char a char a partir do `"` de abertura; consome sequências
+ * \" \\ \/ \n \t \r \b \f corretamente; para na PRIMEIRA aspa NÃO escapada.
+ * Escapes desconhecidos (\x) são preservados lenientemente. */
+static String jsonExtractStringValue(const String& src, const char* key) {
+    String pat = String("\"") + key + "\":\"";
+    int p = src.indexOf(pat);
+    if (p < 0) return String();
+    int i = p + pat.length();
+    const int n = src.length();
+    String out;
+    while (i < n) {
+        char c = src.charAt(i);
+        if (c == '\\' && i + 1 < n) {
+            char e = src.charAt(i + 1);
+            switch (e) {
+                case '"':  out += '"';  break;
+                case '\\': out += '\\'; break;
+                case '/':  out += '/';  break;
+                case 'n':  out += '\n'; break;
+                case 't':  out += '\t'; break;
+                case 'r':  out += '\r'; break;
+                case 'b':  out += '\b'; break;
+                case 'f':  out += '\f'; break;
+                default:   out += c; out += e; break;   /* lenient */
+            }
+            i += 2;
+            continue;
+        }
+        if (c == '"') return out;
+        out += c;
+        i++;
+    }
+    return String();   /* unterminated — drop silenciosamente */
+}
+
 WebManager::WebManager() : _server(80) {
     _currentUserPerms = 0;
     _currentUserId = -1;
@@ -1243,15 +1286,10 @@ void WebManager::handleApiCommitAll() {
         if (objStart >= 0 && objEnd > objStart) {
             String sys = body.substring(objStart, objEnd + 1);
 
-            /* Helper: extrai valor string entre aspas de "key":"value". */
+            /* Helper: extrai valor string "key":"..." com unescape correto
+             * de \" \\ \/ \n \t \r \b \f (via jsonExtractStringValue). */
             auto getStr = [&](const char* key) -> String {
-                String pat = String("\"") + key + "\":\"";
-                int p = sys.indexOf(pat);
-                if (p < 0) return String();
-                int vStart = p + pat.length();
-                int vEnd = sys.indexOf('"', vStart);
-                if (vEnd < 0) return String();
-                return sys.substring(vStart, vEnd);
+                return jsonExtractStringValue(sys, key);
             };
             /* Helper: extrai número bruto (não quoted) de "key":NNN.
              * Usado quando cliente envia int/float sem aspas. */
@@ -1511,13 +1549,7 @@ void WebManager::handleApiCommitAll() {
         if (objStart >= 0 && objEnd > objStart) {
             String net = body.substring(objStart, objEnd + 1);
             auto getS = [&](const char* key) -> String {
-                String pat = String("\"") + key + "\":\"";
-                int p = net.indexOf(pat);
-                if (p < 0) return String();
-                int vs = p + pat.length();
-                int ve = net.indexOf('"', vs);
-                if (ve < 0) return String();
-                return net.substring(vs, ve);
+                return jsonExtractStringValue(net, key);
             };
             auto getN = [&](const char* key) -> String {
                 String pat = String("\"") + key + "\":";

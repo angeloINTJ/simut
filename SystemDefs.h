@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.24.3"         /* Firmware version string */
+#define SIMUT_VERSION "v3.24.4"         /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -591,14 +591,27 @@ struct __attribute__((packed)) SensorRecord {
     bool alarmsActive;
 };
 
-/** User account for web interface authentication (packed for Flash storage). */
+/**
+ * User account for web interface authentication (packed for Flash storage).
+ *
+ * Layout v15 (F15.2.a / CONFIG_VERSION 15):
+ *   Adicionados `salt[8]` e `hashVersion` para suportar o esquema de
+ *   hashing novo (SEC-007..009) com migração transparente. Configs v14 e
+ *   anteriores são migradas via `StorageManager::loadAndMigrateV14`: users
+ *   ficam em modo legado (`salt = {0}`, `hashVersion = 0`), mantendo o
+ *   hash armazenado válido. `password` cresceu de [32] para [33] para
+ *   caber 32 hex chars + null (128 bits) do esquema v1.
+ */
 struct __attribute__((packed)) UserAccount {
     bool active;
     char username[16];
-    char password[32];
+    char password[33];           /**< Hex string do hash; ≤32 chars + null. */
     uint16_t permissions;
     bool mustChangePassword;
+    uint8_t salt[8];             /**< SEC-009: salt random por usuário. {0} = modo legado. */
+    uint8_t hashVersion;         /**< SEC-008: 0=legacy (2500r/120b/username-salt), 1=v1 (5000r/128b/random-salt). */
 };
+static_assert(sizeof(UserAccount) == 62, "UserAccount v15 deve ter 62 bytes (packed)");
 
 
 /**

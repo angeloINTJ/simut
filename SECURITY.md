@@ -97,10 +97,21 @@ ou domótica); não é hardened contra rede pública adversária.
 
 ## 3. Armazenamento de secretos
 
-- **Hashes de senha**: HMAC-SHA256 iterado (`PASSWORD_HMAC_ROUNDS`), com
-  **salt por usuário** (8 bytes) + **pepper derivado do board serial**
-  (único por device). Mesma senha em 2 dispositivos gera hashes
-  diferentes.
+- **Hashes de senha** — atualmente em transição (F15):
+  - **Legado** (`hashVersion=0`, v14 e anteriores): HMAC-SHA256 × 2500
+    rounds com **salt = username.toLowerCase()** (determinístico) +
+    pepper derivado do board serial. Output truncado a 30 hex chars
+    (120 bits). Dois devices com mesmo user+pass geram hashes diferentes
+    via pepper, mas dentro de um device o salt é previsível.
+  - **v1** (`hashVersion=1`, F15.2.c em diante): HMAC-SHA256 × 5000
+    rounds com **salt random por usuário** (8 bytes via `hwrand32`) +
+    mesmo pepper. Output 32 hex chars (128 bits, atende NIST mínimo).
+    Gerado ao criar/mudar senha ou em factory reset.
+  - **Schema v15** (F15.2.a, v3.24.4): `UserAccount` ganhou campos
+    `salt[8]` e `hashVersion` para suportar os dois esquemas em
+    paralelo. Migração transparente: configs v13/v14 são lidas,
+    users ficam marcados `hashVersion=0` (legado), e serão
+    auto-upgradados para v1 no próximo login válido (F15.2.c).
 - **Campos sensíveis em flash** (WiFi pass, telemetry API key):
   ofuscação XOR com keystream SHA-256(chipID + domain) antes da
   gravação. **Não é criptografia forte** — é defesa em profundidade
@@ -312,5 +323,9 @@ Commits/sub-fases relevantes:
 - **F15.1/SEC-006** (v3.24.3) — LRU evict de `_loginStates` ignora slots
   sob lockout ativo; `/api/login_init` responde 429 se os 8 slots
   estiverem trancados.
+- **F15.2.a/SEC-007..009** (v3.24.4) — schema bump v14→v15: `UserAccount`
+  ganhou `salt[8]` e `hashVersion` (zero impacto comportamental; prepara
+  F15.2.c). Migrações v13→v15 e v12→v15 expandem `UserAccount` de 52→62
+  bytes transparentemente.
 
 Para detalhes técnicos, ver `STABILITY_PLAN.md` e commits individuais.

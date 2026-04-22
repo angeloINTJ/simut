@@ -1021,7 +1021,8 @@ void AppManager::executeCommand(CliDemand cmd) {
             String preHash = _storageMgr.sha256Hex(String(newPlain));
             String hashed = _storageMgr.hashPassword("admin", preHash);
             safeCopy(cfg.users[0].password, hashed.c_str(), sizeof(cfg.users[0].password));
-            cfg.users[0].password[31] = '\0';
+            /* Nota: safeCopy já null-termina; removido `password[31]='\0'` antigo
+             * que assumia buffer[32] e truncaria hashes de 32 hex (v1). */
             cfg.users[0].mustChangePassword = true;
             const bool pt = _cmdMgr.isPt();
             _cmdMgr.printInfo(pt ? "Senha admin resetada. Nova senha (unica vez):"

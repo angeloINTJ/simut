@@ -39,7 +39,20 @@ const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
     exitFlashSafeMode(); \
 } while (0)
 
-const uint16_t CONFIG_VERSION = 14;
+const uint16_t CONFIG_VERSION = 15;
+
+/* -------------------------------------------------------------------------- */
+/*  Layout legado de UserAccount (v14 e anteriores) — usado APENAS pelo      */
+/*  migrador loadAndMigrateV14. Não confundir com UserAccount (v15, 62 B).   */
+/* -------------------------------------------------------------------------- */
+struct __attribute__((packed)) UserAccount_v14 {
+    bool active;
+    char username[16];
+    char password[32];
+    uint16_t permissions;
+    bool mustChangePassword;
+};
+static_assert(sizeof(UserAccount_v14) == 52, "UserAccount_v14 deve ter 52 bytes");
 
 /* #5: keystream derivation via SHA-256(chip_id + domain + counter).
  * Gera keystream de tamanho arbitrário iterando o contador e expandindo
@@ -82,12 +95,21 @@ void StorageManager::obfuscateSensitiveFields(SystemConfig& cfg) {
     xorWithDerivedKey((uint8_t*)cfg.telApiKey, sizeof(cfg.telApiKey), "telapi");
 }
 
-/* Tamanho do blob de config no formato v12 (pré v3.8.0):
- * layout bit-idêntico ao v13 exceto por reserved[24] em vez de reserved[64].
- * Como reserved fica no fim do struct, CONFIG_V12_BLOB_SIZE = sizeof(SystemConfig) - 40.
- * Usado para detectar pelo tamanho do arquivo qual formato está no flash. */
+/* Tamanhos de blob por versão histórica, derivados do sizeof(SystemConfig)
+ * atual (v15) subtraindo os deltas conhecidos. Usados para dispatch baseado
+ * em file size em attemptLoad.
+ *
+ *  v15: sizeof(SystemConfig)                                     — atual
+ *  v14: sizeof(SystemConfig) - MAX_USERS*(62-52)                 — user growth
+ *  v13: mesmo tamanho de v14 (só muda obfuscação, não layout)
+ *  v12: v14 - (64-24)                                            — reserved growth
+ */
+static constexpr size_t CONFIG_V14_USER_DELTA =
+    MAX_USERS * (sizeof(UserAccount) - sizeof(UserAccount_v14));   /* 50 bytes */
+static constexpr size_t CONFIG_V14_BLOB_SIZE =
+    sizeof(SystemConfig) - CONFIG_V14_USER_DELTA;
 static constexpr size_t CONFIG_V12_BLOB_SIZE =
-    sizeof(SystemConfig) - (64 - CONFIG_V12_RESERVED_SIZE);
+    CONFIG_V14_BLOB_SIZE - (64 - CONFIG_V12_RESERVED_SIZE);
 
 StorageManager::StorageManager() {
     mutex_init(&_fsReadMutex);
@@ -288,37 +310,157 @@ bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg) {
     size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
     if (bytesRead != sizeof(SystemConfig)) return false;
     if (outCfg.magic != CONFIG_MAGIC) return false;
-    if (outCfg.version != 13 && outCfg.version != CONFIG_VERSION) return false;
+    /* v15 é o único formato nativo aceito aqui — v13/v14 caem em loadAndMigrateV14
+     * (file size menor por UserAccount[52] em vez de [62]). */
+    if (outCfg.version != CONFIG_VERSION) return false;
     if (crcRead == sizeof(readCrc)) {
         uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, sizeof(SystemConfig));
         if (calcCrc != readCrc) return false;
     }
-    /* Se v14: campos estão criptografados — descriptografa agora.
-     * Se v13: campos já em plaintext, nada a fazer aqui. */
-    if (outCfg.version == CONFIG_VERSION) {
-        obfuscateSensitiveFields(outCfg);
-    }
+    /* v15 sempre grava com campos sensíveis obfuscated (XOR keystream). */
+    obfuscateSensitiveFields(outCfg);
     return true;
 }
 
-/* Lê config no formato legado (v12, 24 bytes reserved) e migra para schema
- * atual em memória. Layout é bit-idêntico até o início do reserved — basta ler
- * CONFIG_V12_BLOB_SIZE bytes, zerar o tail reserved[24..63] e promover version.
- * CRC do v12 foi calculado sobre CONFIG_V12_BLOB_SIZE bytes.
- * Campos sensíveis permanecem plaintext (v12 era pré-#5) — serão criptografados
- * na primeira saveConfiguration pós-migração. */
+/* Lê config no formato legado v12 (reserved[24], UserAccount_v14[52]) e migra
+ * para v15 (reserved[64], UserAccount[62]). Campos sensíveis em v12 são
+ * plaintext — sem deobfuscação necessária; serão criptografados na primeira
+ * saveConfiguration pós-migração.
+ *
+ * Em F15.2.a: além da expansão de reserved[24]→[64] (delta 40 ao final),
+ * também expande UserAccount de 52→62 no meio do blob (delta 50) — requer
+ * leitura em buffer e reconstrução por seção. */
 bool StorageManager::loadAndMigrateV12(File& f, SystemConfig& outCfg) {
-    memset(&outCfg, 0, sizeof(outCfg));
-    size_t bytesRead = f.read((uint8_t*)&outCfg, CONFIG_V12_BLOB_SIZE);
+    constexpr size_t HEAD_SIZE           = offsetof(SystemConfig, users);
+    constexpr size_t V14_USER_BLOCK      = MAX_USERS * sizeof(UserAccount_v14);
+    constexpr size_t V15_USER_BLOCK      = MAX_USERS * sizeof(UserAccount);
+    constexpr size_t MIDDLE_SIZE         = offsetof(SystemConfig, reserved) -
+                                           (HEAD_SIZE + V15_USER_BLOCK);
+    constexpr size_t V12_MIDDLE_START    = HEAD_SIZE + V14_USER_BLOCK;
+    constexpr size_t V12_RESERVED_START  = V12_MIDDLE_START + MIDDLE_SIZE;
+    constexpr size_t V12_RESERVED_BYTES  = CONFIG_V12_RESERVED_SIZE;   /* 24 */
+
+    uint8_t buf[CONFIG_V12_BLOB_SIZE];
     uint32_t readCrc = 0;
-    size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
+
+    size_t bytesRead = f.read(buf, CONFIG_V12_BLOB_SIZE);
+    size_t crcRead   = f.read((uint8_t*)&readCrc, sizeof(readCrc));
+
     if (bytesRead != CONFIG_V12_BLOB_SIZE) return false;
-    if (outCfg.magic != CONFIG_MAGIC || outCfg.version != 12) return false;
+
+    uint32_t fileMagic = 0;
+    uint16_t fileVersion = 0;
+    memcpy(&fileMagic,   buf + 0,                 sizeof(fileMagic));
+    memcpy(&fileVersion, buf + sizeof(fileMagic), sizeof(fileVersion));
+    if (fileMagic != CONFIG_MAGIC || fileVersion != 12) return false;
+
     if (crcRead == sizeof(readCrc)) {
-        uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, CONFIG_V12_BLOB_SIZE);
+        uint32_t calcCrc = calculateCRC32(buf, CONFIG_V12_BLOB_SIZE);
         if (calcCrc != readCrc) return false;
     }
+
+    memset(&outCfg, 0, sizeof(SystemConfig));
+
+    /* Head (magic..useHttps). */
+    memcpy(&outCfg, buf, HEAD_SIZE);
+
+    /* users_v14 → users_v15 (salt={0}, hashVersion=0 → modo legado). */
+    for (size_t i = 0; i < MAX_USERS; i++) {
+        UserAccount_v14 u;
+        memcpy(&u, buf + HEAD_SIZE + i * sizeof(UserAccount_v14), sizeof(UserAccount_v14));
+        outCfg.users[i].active             = u.active;
+        memcpy(outCfg.users[i].username, u.username, sizeof(u.username));
+        memcpy(outCfg.users[i].password, u.password, sizeof(u.password));
+        outCfg.users[i].password[sizeof(u.password)] = '\0';
+        outCfg.users[i].permissions        = u.permissions;
+        outCfg.users[i].mustChangePassword = u.mustChangePassword;
+        memset(outCfg.users[i].salt, 0, sizeof(outCfg.users[i].salt));
+        outCfg.users[i].hashVersion = 0;
+    }
+
+    /* Middle (telServer..ntpServer) — layout inalterado, só shifted. */
+    memcpy(((uint8_t*)&outCfg) + HEAD_SIZE + V15_USER_BLOCK,
+           buf + V12_MIDDLE_START,
+           MIDDLE_SIZE);
+
+    /* reserved[0..23] do v12; reserved[24..63] permanece zero do memset. */
+    memcpy(outCfg.reserved, buf + V12_RESERVED_START, V12_RESERVED_BYTES);
+
     outCfg.version = CONFIG_VERSION;
+    return true;
+}
+
+/* F15.2.a: lê config em formato v13 (plaintext) ou v14 (obfuscated) — ambos
+ * com UserAccount_v14[52] — e promove para o schema v15 (UserAccount[62] com
+ * salt={0}/hashVersion=0, indicando modo legado). O hash stored continua
+ * válido e verificável via hashPassword() (algoritmo inalterado em F15.2.a).
+ *
+ * Layout v14: [head (até users)] [5 × UserAccount_v14] [tail (telServer..reserved)]
+ * Layout v15: [head (igual)]     [5 × UserAccount_v15] [tail shifted por +50]
+ *
+ * srcVersion (out): versão original lida do arquivo (13 ou 14) para telemetria. */
+bool StorageManager::loadAndMigrateV14(File& f, SystemConfig& outCfg, uint16_t& srcVersion) {
+    constexpr size_t HEAD_SIZE        = offsetof(SystemConfig, users);
+    constexpr size_t V14_USER_BLOCK   = MAX_USERS * sizeof(UserAccount_v14);
+    constexpr size_t V15_USER_BLOCK   = MAX_USERS * sizeof(UserAccount);
+    constexpr size_t V14_TAIL_OFFSET  = HEAD_SIZE + V14_USER_BLOCK;
+    constexpr size_t V15_TAIL_OFFSET  = HEAD_SIZE + V15_USER_BLOCK;
+    constexpr size_t TAIL_SIZE        = CONFIG_V14_BLOB_SIZE - V14_TAIL_OFFSET;
+
+    uint8_t buf[CONFIG_V14_BLOB_SIZE];
+    uint32_t readCrc = 0;
+
+    size_t bytesRead = f.read(buf, CONFIG_V14_BLOB_SIZE);
+    size_t crcRead   = f.read((uint8_t*)&readCrc, sizeof(readCrc));
+
+    if (bytesRead != CONFIG_V14_BLOB_SIZE) return false;
+
+    /* Magic + version via aliasing (SystemConfig começa com uint32_t magic
+     * + uint16_t version em todas as versões desde v12). */
+    uint32_t fileMagic = 0;
+    uint16_t fileVersion = 0;
+    memcpy(&fileMagic,   buf + 0,                  sizeof(fileMagic));
+    memcpy(&fileVersion, buf + sizeof(fileMagic),  sizeof(fileVersion));
+
+    if (fileMagic != CONFIG_MAGIC) return false;
+    if (fileVersion != 13 && fileVersion != 14) return false;
+
+    /* CRC32 calculado sobre o blob v14 gravado. */
+    if (crcRead == sizeof(readCrc)) {
+        uint32_t calcCrc = calculateCRC32(buf, CONFIG_V14_BLOB_SIZE);
+        if (calcCrc != readCrc) return false;
+    }
+
+    /* Zera outCfg e copia head (campos antes de users[]). */
+    memset(&outCfg, 0, sizeof(SystemConfig));
+    memcpy(&outCfg, buf, HEAD_SIZE);
+
+    /* Expande cada UserAccount_v14 → UserAccount v15. */
+    for (size_t i = 0; i < MAX_USERS; i++) {
+        UserAccount_v14 u14;
+        memcpy(&u14, buf + HEAD_SIZE + i * sizeof(UserAccount_v14), sizeof(UserAccount_v14));
+        outCfg.users[i].active             = u14.active;
+        memcpy(outCfg.users[i].username, u14.username, sizeof(u14.username));
+        memcpy(outCfg.users[i].password, u14.password, sizeof(u14.password));
+        outCfg.users[i].password[sizeof(u14.password)] = '\0';   /* null-term no novo [33] */
+        outCfg.users[i].permissions        = u14.permissions;
+        outCfg.users[i].mustChangePassword = u14.mustChangePassword;
+        memset(outCfg.users[i].salt, 0, sizeof(outCfg.users[i].salt));
+        outCfg.users[i].hashVersion = 0;   /* legacy */
+    }
+
+    /* Copia tail (campos após users[]) para offset shifted em outCfg. */
+    memcpy(((uint8_t*)&outCfg) + V15_TAIL_OFFSET,
+           buf + V14_TAIL_OFFSET,
+           TAIL_SIZE);
+
+    /* v14 tem campos sensíveis obfuscated — desofusca. v13 é plaintext. */
+    if (fileVersion == 14) {
+        obfuscateSensitiveFields(outCfg);
+    }
+
+    srcVersion = fileVersion;
+    outCfg.version = CONFIG_VERSION;   /* promove para v15 */
     return true;
 }
 
@@ -327,21 +469,27 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
     if (!f) return false;
     size_t fileSize = f.size();
 
-    /* Tenta formato atual (v13 plaintext ou v14 encrypted) primeiro. */
+    /* Formato atual (v15 — UserAccount[62], obfuscated). */
     if (fileSize == sizeof(SystemConfig) + sizeof(uint32_t)) {
         bool ok = loadCurrentBlob(f, outCfg);
         f.close();
-        if (!ok) return false;
-        /* Se era v13 (plaintext, pré-#5), promove e marca para re-save em v14. */
-        if (outCfg.version == 13) {
-            outCfg.version = CONFIG_VERSION;
-            _didMigrate = true;
-            _migrationFromVersion = 13;
-        }
-        return true;
+        return ok;
     }
 
-    /* Fallback: arquivo tem tamanho v12 (pré-expansão reserved[]) → lê, valida e migra. */
+    /* v13 plaintext ou v14 obfuscated (mesmo tamanho, layout com
+     * UserAccount_v14[52]) → migra para v15. */
+    if (fileSize == CONFIG_V14_BLOB_SIZE + sizeof(uint32_t)) {
+        uint16_t srcVersion = 0;
+        bool ok = loadAndMigrateV14(f, outCfg, srcVersion);
+        f.close();
+        if (ok) {
+            _didMigrate = true;
+            _migrationFromVersion = srcVersion;   /* 13 ou 14 */
+        }
+        return ok;
+    }
+
+    /* v12 (pré-expansão reserved[]) → migra via path dedicado. */
     if (fileSize == CONFIG_V12_BLOB_SIZE + sizeof(uint32_t)) {
         bool ok = loadAndMigrateV12(f, outCfg);
         f.close();
@@ -394,7 +542,7 @@ bool StorageManager::loadConfiguration() {
         LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, TRL("Primary config corrupt, recovered from backup", "Config primaria corrompida, recuperada do backup"));
     }
 
-    /* Migração de schema (v12 ou v13 → v14): persistir no novo formato antes
+    /* Migração de schema (v12/v13/v14 → v15): persistir no novo formato antes
      * de entregar o controle. saveConfiguration() marca magic/version,
      * criptografa campos sensíveis (#5) e escreve via tmp→rename atômico. */
     if (_didMigrate) {
