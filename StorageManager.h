@@ -27,6 +27,12 @@
 
 typedef void (*FlashLockCallback)(bool);
 
+/** F-LOCKOUT-STUCK: callback para o modo "quiet cooperativo" em saves grandes.
+ *  enable=true: Core 0 pede Core 1 congelar em loop RAM-only (IRQs off).
+ *              Retorna true se Core 1 ACKed, false se Core 1 não respondeu.
+ *  enable=false: libera Core 1 do quiet mode. Retorno ignorado. */
+typedef bool (*BigSaveQuietCallback)(bool);
+
 class StorageManager {
 public:
     StorageManager();
@@ -34,6 +40,10 @@ public:
     void update();
 
     void setLockCallback(FlashLockCallback cb) { _lockCb = cb; }
+    /** F-LOCKOUT-STUCK: quando setado, saveConfiguration substitui a
+     *  sequência de multicore_lockout IRQ-based por um único quiet mode
+     *  cooperativo, evitando cascatas de lockout stuck. */
+    void setBigSaveQuietCallback(BigSaveQuietCallback cb) { _bigSaveQuietCb = cb; }
 
 
     void enterFlashReadLock();
@@ -170,7 +180,11 @@ public:
     void setSecondaryDns(const char* ip);
     SystemConfig _currentConfig;
     bool _isMounted = false;
-    FlashLockCallback _lockCb = nullptr;
+    FlashLockCallback    _lockCb          = nullptr;
+    BigSaveQuietCallback _bigSaveQuietCb  = nullptr;
+    /* F-LOCKOUT-STUCK: true durante saveConfiguration com quiet mode ativo;
+     * enterFlashSafeMode/exitFlashSafeMode pulam o lockCb quando setado. */
+    bool _inBigSave = false;
     mutex_t _fsReadMutex;
 
     bool _heavyTaskLocked = false;

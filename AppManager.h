@@ -34,6 +34,8 @@ public:
     bool isDisplayAlive();
     void restartDisplayCore();
     void pauseDisplayForFlash(bool lock);
+    /** F-LOCKOUT-STUCK: bridges StorageManager BigSaveQuietCallback → DisplayManager. */
+    bool requestDisplayQuietMode(bool enable);
     void core0Yield();
 
 

@@ -876,6 +876,54 @@ void DisplayManager::restoreNormalDashboard() {
 bool DisplayManager::getUiEvent(UiEvent& ev) { return queue_try_remove(&_eventQueue, &ev); }
 void DisplayManager::core1Entry() { if (_instance) _instance->loopCore1(); }
 
+/* F-LOCKOUT-STUCK: quiet loop RAM-only. Executa exclusivamente fora da flash
+ * (__not_in_flash_func) com IRQs desabilitados no Core 1 — garante que
+ * nenhum handler em .flash.text seja disparado e que Core 1 não faça XIP
+ * reads enquanto Core 0 está programando flash. Sai quando Core 0 limpa
+ * _quietModeRequested. IRQs do Core 1 são restauradas ao sair. */
+void __not_in_flash_func(DisplayManager::_runQuietLoop)() {
+    uint32_t savedInts = save_and_disable_interrupts();
+    _quietModeActive = true;
+    __dmb();
+    while (_quietModeRequested) {
+        tight_loop_contents();
+    }
+    __dmb();
+    _quietModeActive = false;
+    restore_interrupts(savedInts);
+}
+
+/* Core 0 API: sinaliza Core 1 p/ entrar em quiet mode e aguarda ACK. */
+bool DisplayManager::requestQuietMode(uint32_t timeoutMs) {
+    if (!_core1Ready) return false;
+    _quietModeRequested = true;
+    __dmb();
+    uint32_t t0 = millis();
+    while (!_quietModeActive && !timeSince(t0, timeoutMs)) {
+        watchdog_update();
+        delay(1);
+    }
+    if (!_quietModeActive) {
+        /* Core 1 não respondeu — aborta, limpa request pra não ficar pendente. */
+        _quietModeRequested = false;
+        return false;
+    }
+    return true;
+}
+
+/* Core 0 API: libera Core 1 do quiet mode e aguarda saída limpa.
+ * Seta _forceFullRedraw para que Core 1 redesenhe tudo no próximo frame. */
+void DisplayManager::releaseQuietMode() {
+    _quietModeRequested = false;
+    __dmb();
+    uint32_t t0 = millis();
+    while (_quietModeActive && !timeSince(t0, 2000)) {
+        watchdog_update();
+        delay(1);
+    }
+    _forceFullRedraw = true;
+}
+
 void DisplayManager::loopCore1() {
 
     multicore_lockout_victim_init();
@@ -894,6 +942,18 @@ void DisplayManager::loopCore1() {
     _lastRenderedState.selectedSlotIdx = -1;
 
     while (true) {
+        /* F-LOCKOUT-STUCK: se Core 0 pediu quiet mode, entra no loop RAM-only
+         * (IRQs off). Ao sair, força full redraw. Checado AQUI (topo da
+         * iteração) pra garantir que nenhum mutex esteja preso ao congelar. */
+        if (_quietModeRequested) {
+            _runQuietLoop();
+            _forceFullRedraw = true;
+            mutex_enter_blocking(&_stateMutex);
+            _isDirty = true;
+            mutex_exit(&_stateMutex);
+            continue;
+        }
+
         TRACE_MOD(1, MOD_DISPLAY);
         TRACE_BEAT(1);
 

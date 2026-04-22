@@ -93,6 +93,18 @@ public:
     void forceUnpause();
     void restartCore1();
 
+    /** F-LOCKOUT-STUCK fix: modo "quiet" cooperativo para saves grandes.
+     *  Core 0 sinaliza, Core 1 (em loopCore1) entra em loop RAM-only com
+     *  IRQs desabilitados, Core 0 faz todas as flash ops sem tentar
+     *  multicore_lockout IRQ-based, depois libera e Core 1 redesenha tudo.
+     *  requestQuietMode bloqueia aguardando ACK do Core 1 (até timeout).
+     *  Retorna true se Core 1 confirmou; false se timeout ou Core 1 não ready. */
+    bool requestQuietMode(uint32_t timeoutMs = 5000);
+    void releaseQuietMode();
+    /** Core 1 em quiet mode (ou transicionando). Lockout IRQ-based é impossível
+     *  aqui (Core 1 com IRQs off) e desnecessário (Core 1 não toca flash). */
+    bool isInQuietMode() const { return _quietModeRequested || _quietModeActive; }
+
     void setAmbientData(float t, float h, bool isValid = true);
     void setAmbientMinMax(float minT, float maxT, float minH, float maxH);
     void setSlotData(float t, bool isValid, int slotIdx, String name);
@@ -239,6 +251,15 @@ private:
     volatile uint32_t _pauseStartTime = 0;
     volatile bool _isPausedForFlash = false;
     volatile bool _core1Ready = false;
+
+    /* F-LOCKOUT-STUCK: flags cooperativas de quiet mode (ver requestQuietMode).
+     * _quietModeRequested: Core 0 escreve, Core 1 lê em cada iteração do loopCore1.
+     * _quietModeActive:    Core 1 escreve (ACK), Core 0 aguarda como handshake. */
+    volatile bool _quietModeRequested = false;
+    volatile bool _quietModeActive    = false;
+
+    /* RAM-resident quiet loop — chamado em loopCore1 quando _quietModeRequested. */
+    void _runQuietLoop();
 
     volatile bool _repaintGraph = false;
     volatile bool _repaintLoading = false;

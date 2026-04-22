@@ -121,6 +121,13 @@ void AppManager::setup() {
         app.pauseDisplayForFlash(lock);
     });
 
+    /* F-LOCKOUT-STUCK: wire quiet mode cooperativo para saveConfiguration.
+     * Core 0 sinaliza, Core 1 congela em loop RAM-only, Core 0 faz flash
+     * ops sem cascatas de lockout IRQ stuck. Retorna true só se Core 1 ACKed. */
+    _storageMgr.setBigSaveQuietCallback([](bool enable) -> bool {
+        return app.requestDisplayQuietMode(enable);
+    });
+
     _displayMgr.setBootStatus("Mounting File System...");
     bool fsOk = _storageMgr.begin();
 
@@ -2115,7 +2122,22 @@ void AppManager::core0Yield() {
     _inYield = false;
 }
 
-void AppManager::pauseDisplayForFlash(bool lock) { _displayMgr.pauseRendering(lock); }
+void AppManager::pauseDisplayForFlash(bool lock) {
+    /* F-LOCKOUT-STUCK: durante quiet mode cooperativo, Core 1 está congelado
+     * em loop RAM-only com IRQs OFF. Tentar multicore_lockout IRQ-based aqui
+     * trava para sempre (IRQ nunca é handled) até WDT matar Core 0.
+     * Lockout é desnecessário neste cenário porque Core 1 já não toca flash.
+     * Early-return torna requestFsLock (LogManager) e enterFlashSafeMode
+     * (StorageManager) no-ops quando já estamos dentro do quiet mode. */
+    if (_displayMgr.isInQuietMode()) return;
+    _displayMgr.pauseRendering(lock);
+}
+
+bool AppManager::requestDisplayQuietMode(bool enable) {
+    if (enable) return _displayMgr.requestQuietMode(5000);
+    _displayMgr.releaseQuietMode();
+    return true;
+}
 
 void AppManager::refreshSelectedSlot() {
     SystemConfig &cfg = _storageMgr.getConfig();

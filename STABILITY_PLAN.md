@@ -472,8 +472,10 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F15.2.a — schema bump v14→v15: UserAccount +salt+hashVersion + fix parser JSON `\"` em /api/commit_all (payload builder não salvava) | ✅ HW validada (parser fix confirmado via payload builder salvo com escapes; telemetria 200) | `816eb4d` | — | 2026-04-21 |
 
 **Débitos técnicos observados durante teste HW de F15.2.a (v3.24.4, 2026-04-21):**
-- **F-LOCKOUT-STUCK exacerbado**: 3× "Lockout stuck >10s" consecutivos durante `/api/commit_all` pós-migração. Confirma o débito técnico de F14 mas em severidade maior no cenário "first save após migração v14→v15". Investigar em ciclo futuro (provável F16 ou dedicado).
+- **F-LOCKOUT-STUCK exacerbado**: 3× "Lockout stuck >10s" consecutivos durante `/api/commit_all` pós-migração. Confirma o débito técnico de F14 mas em severidade maior no cenário "first save após migração v14→v15". **Tratado em v3.24.5 via quiet mode cooperativo** (ver abaixo).
 - **Factory defaults auto-triggered**: em algum reboot após migração inicial, `loadConfiguration` falhou em ambos `FILE_CONFIG` e `FILE_BACKUP`, caindo em `loadDefaults`. Causa provável: save anterior interrompido por WDT no meio do atomic rename (`FILE_CONFIG` → `FILE_BACKUP`). Não reproduzível em steady state após device estabilizar.
+
+|   · F-LOCKOUT-STUCK fix (v3.24.5) — quiet mode cooperativo em `saveConfiguration`: Core 1 congela em loop RAM-only (IRQs off) via handshake `_quietModeRequested`/`_quietModeActive`, Core 0 faz todas as flash ops sem `multicore_lockout` IRQ-based a cada chunk. Elimina cascata de stucks. | ⚪ Pendente HW | em v3.24.5 | — | 2026-04-21 |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 
