@@ -226,6 +226,9 @@ public:
     static uint32_t calculateCRC32(const uint8_t *data, size_t length);
     static bool loadCurrentBlob(File& f, SystemConfig& outCfg);
     static bool loadAndMigrateV12(File& f, SystemConfig& outCfg);
+    /** F15.2.a: migra v13 (plaintext) ou v14 (obfuscated) para v15
+     *  (UserAccount expandido com salt+hashVersion). srcVersion sai com 13 ou 14. */
+    static bool loadAndMigrateV14(File& f, SystemConfig& outCfg, uint16_t& srcVersion);
     bool attemptLoad(const char* path, SystemConfig& outCfg);
 
     /** #5: ofusca/desofusca os 3 campos sensíveis da config com keystream
