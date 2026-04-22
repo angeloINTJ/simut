@@ -977,6 +977,8 @@ void DisplayManager::loopCore1() {
         mutex_exit(&_stateMutex);
     }
 
+    SystemState currentSnapshot;
+
     while (true) {
         /* F-LOCKOUT-STUCK v3.24.9: abordagem cooperativa removida (não era
          * confiável — Core 1 ficava não-responsivo por >15s em cenários de
