@@ -144,11 +144,16 @@ void StorageManager::exitFlashReadLock() {
  * NEVER use for read-only operations — use enterFlashReadLock() instead.
  */
 void StorageManager::enterFlashSafeMode() {
+    /* F-LOCKOUT-STUCK: se estamos dentro de saveConfiguration com quiet mode
+     * ativo, Core 1 já está congelado em loop RAM-only — pular o lockout
+     * IRQ-based para evitar stucks/cascatas. */
+    if (_inBigSave) return;
     if (_lockCb) _lockCb(true);
 }
 
 
 void StorageManager::exitFlashSafeMode() {
+    if (_inBigSave) return;
     if (_lockCb) _lockCb(false);
 }
 
@@ -603,9 +608,30 @@ bool StorageManager::saveConfiguration() {
      */
     LogManager::WdtWindow _wdt(30000);
 
-    /* Chunked lockout via macro FLASH_OP (file-scope): cada op LittleFS em
-     * seu próprio enterFlashSafeMode/exitFlashSafeMode. Entre chunks, Core 1
-     * sai do multicore_lockout e renderiza 1 frame. */
+    /* F-LOCKOUT-STUCK: entra em quiet mode cooperativo. Core 1 é sinalizado
+     * a congelar num loop RAM-only com IRQs off; Core 0 então faz todas as
+     * flash ops sem tentar multicore_lockout IRQ-based a cada chunk (que
+     * poderia fazer stuck e cascatear). RAII libera em qualquer return path. */
+    struct BigSaveGuard {
+        bool& inBigSaveRef;
+        BigSaveQuietCallback cb;
+        bool entered;
+        BigSaveGuard(bool& r, BigSaveQuietCallback c) : inBigSaveRef(r), cb(c), entered(false) {
+            if (cb) {
+                entered = cb(true);
+                inBigSaveRef = entered;
+            }
+        }
+        ~BigSaveGuard() {
+            if (entered && cb) cb(false);
+            inBigSaveRef = false;
+        }
+    } _bigSave(_inBigSave, _bigSaveQuietCb);
+
+    /* Com _inBigSave ativo, enterFlashSafeMode/exitFlashSafeMode pulam o
+     * lockCb IRQ-based (ver método em StorageManager.cpp), então cada
+     * FLASH_OP vira só watchdog_update + BLOCK + watchdog_update — sem
+     * pausar Core 1 por op (Core 1 já está congelado no quiet loop). */
 
     /* Flush cursor para flash (se pendente) */
     if (_cachedLastSent > 0) {
