@@ -915,9 +915,14 @@ bool DisplayManager::requestQuietMode(uint32_t timeoutMs) {
         delay(1);
     }
     if (!_quietModeActive) {
-        /* Core 1 não respondeu — aborta, limpa request pra não ficar pendente. */
+        /* Core 1 não respondeu — aborta, limpa request pra não ficar pendente.
+         * Log pra diagnosticar se isso está acontecendo repetidamente (indica
+         * render loop de Core 1 legitimamente preso em op >timeout). */
         _quietModeRequested = false;
         __atomic_fetch_sub(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
+        Serial.print("[DSP] requestQuietMode timeout after ");
+        Serial.print(timeoutMs);
+        Serial.println("ms — fallback to IRQ lockout");
         return false;
     }
     return true;
@@ -925,7 +930,7 @@ bool DisplayManager::requestQuietMode(uint32_t timeoutMs) {
 
 /* Core 0 API: libera Core 1 do quiet mode e aguarda saída limpa. Só o ÚLTIMO
  * release (refcount → 0) faz o teardown; nested releases apenas decrementam.
- * No teardown final seta _forceFullRedraw para Core 1 redesenhar tudo. */
+ * Core 1 já seta _forceFullRedraw pós-quiet internamente (ver loopCore1). */
 void DisplayManager::releaseQuietMode() {
     int32_t prev = __atomic_fetch_sub(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
     if (prev > 1) {
@@ -944,7 +949,6 @@ void DisplayManager::releaseQuietMode() {
         watchdog_update();
         delay(1);
     }
-    _forceFullRedraw = true;
 }
 
 void DisplayManager::loopCore1() {

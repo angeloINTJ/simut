@@ -99,7 +99,7 @@ public:
      *  multicore_lockout IRQ-based, depois libera e Core 1 redesenha tudo.
      *  requestQuietMode bloqueia aguardando ACK do Core 1 (até timeout).
      *  Retorna true se Core 1 confirmou; false se timeout ou Core 1 não ready. */
-    bool requestQuietMode(uint32_t timeoutMs = 5000);
+    bool requestQuietMode(uint32_t timeoutMs = 15000);
     void releaseQuietMode();
     /** Core 1 em quiet mode (ou transicionando). Lockout IRQ-based é impossível
      *  aqui (Core 1 com IRQs off) e desnecessário (Core 1 não toca flash). */
