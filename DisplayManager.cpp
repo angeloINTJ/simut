@@ -952,26 +952,31 @@ void DisplayManager::loopCore1() {
     multicore_lockout_victim_init();
     _core1Ready = true;
 
-    /* F-LOCKOUT-STUCK v3.24.10: alocações e init TFT só na 1ª launch. Em
-     * launches subsequentes (pós `multicore_reset_core1` do quiet mode),
-     * pula HW reset do ILI9341 — evita o flash branco e mantém a última
-     * frame na tela até Core 1 renderizar o próximo delta. */
+    /* F-LOCKOUT-STUCK v3.24.10-11: alocações de heap preservadas entre resets.
+     * Touch DEVE ser re-inicializado a cada launch — attachInterrupt liga
+     * handler na NVIC de Core 1, que é zerada no multicore_reset. Sem
+     * re-init, touch para de responder após o 1º save.
+     * TFT begin() faz HW reset do ILI9341 (flash branco visível); pulado
+     * em launches subsequentes. */
+    if (!_tft) _tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
+    if (!_ts)  _ts  = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
+    if (!_canvasWide)  _canvasWide  = new GFXcanvas16(320, 45);
+    if (!_canvasSmall) _canvasSmall = new GFXcanvas16(140, 40);
+
+    /* Touch: re-atacha IRQ a cada launch (NVIC de Core 1 foi zerada). */
+    _ts->begin();
+    _ts->setRotation(3);
+
     if (_tftFirstInit) {
-        if (!_tft) _tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
-        if (!_ts) _ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
-        _tft->begin(); _tft->setRotation(3); _tft->fillScreen(C_BG_MAIN);
-        _ts->begin(); _ts->setRotation(3);
-
-        if (!_canvasWide) _canvasWide = new GFXcanvas16(320, 45);
-        if (!_canvasSmall) _canvasSmall = new GFXcanvas16(140, 40);
-
+        _tft->begin();
+        _tft->setRotation(3);
+        _tft->fillScreen(C_BG_MAIN);
         if (!_sharedState.isBooting) drawInterfaceFixed();
         _lastRenderedState.selectedSlotIdx = -1;
         _tftFirstInit = false;
     } else {
-        /* Post-reset resume: TFT retém última frame; apenas força um delta
-         * render na próxima iteração para cobrir qualquer mudança em shared
-         * state que Core 0 tenha feito durante o flash work. */
+        /* Post-reset resume: TFT retém última frame (memória do ILI9341).
+         * Força delta render na próxima iteração para atualizar dados. */
         mutex_enter_blocking(&_stateMutex);
         _isDirty = true;
         mutex_exit(&_stateMutex);
