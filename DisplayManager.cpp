@@ -876,79 +876,75 @@ void DisplayManager::restoreNormalDashboard() {
 bool DisplayManager::getUiEvent(UiEvent& ev) { return queue_try_remove(&_eventQueue, &ev); }
 void DisplayManager::core1Entry() { if (_instance) _instance->loopCore1(); }
 
-/* F-LOCKOUT-STUCK: quiet loop RAM-only. Executa exclusivamente fora da flash
- * (__not_in_flash_func) com IRQs desabilitados no Core 1 — garante que
- * nenhum handler em .flash.text seja disparado e que Core 1 não faça XIP
- * reads enquanto Core 0 está programando flash. Sai quando Core 0 limpa
- * _quietModeRequested. IRQs do Core 1 são restauradas ao sair. */
+/* F-LOCKOUT-STUCK fix v3.24.9: abordagem HARD-RESET (substitui a cooperativa
+ * cujo handshake falhava com Core 1 em estados inesperados).
+ *
+ * Fluxo: Core 0 faz `multicore_reset_core1()` → Core 1 para imediatamente
+ * (instrução parada, SPI em idle, IRQs mortas). Core 0 faz todas as flash
+ * ops sem conflito porque Core 1 está LITERALMENTE desligado. Ao fim,
+ * Core 0 re-inicia via `multicore_launch_core1` → Core 1 executa core1Entry
+ * fresh, re-inicializa TFT/canvases e redesenha a tela inteira.
+ *
+ * Vantagem: determinístico, sem timeout, sem handshake, sem dependência do
+ * estado de Core 1. Match exato com a descrição do user: "core 1 congela,
+ * core 0 faz trabalho, libera e reinicia toda a tela".
+ *
+ * Trade-off: Core 1 leva ~500ms-2s para re-inicializar TFT e desenhar a
+ * primeira frame pós-resume. Aceitável — durante o reset, o TFT retém a
+ * última frame (memória do controlador ILI9341), então o user vê o último
+ * estado (normalmente "Aplicando configuração...") até o novo render.
+ *
+ * _runQuietLoop não é mais usado (mantido como stub em caso de referência
+ * orfã; será removido em bump futuro). */
 void __not_in_flash_func(DisplayManager::_runQuietLoop)() {
-    uint32_t savedInts = save_and_disable_interrupts();
-    _quietModeActive = true;
-    __dmb();
-    while (_quietModeRequested) {
-        tight_loop_contents();
-    }
-    __dmb();
-    _quietModeActive = false;
-    restore_interrupts(savedInts);
+    /* Não chamado mais — hard reset substitui. */
 }
 
-/* Core 0 API: sinaliza Core 1 p/ entrar em quiet mode e aguarda ACK.
- * RE-ENTRANT via refcount: chamadas aninhadas (ex: CLI handler wrap +
- * saveConfiguration interno) incrementam o refcount; só a primeira entrada
- * faz o handshake efetivo, apenas o último release faz o teardown. */
-bool DisplayManager::requestQuietMode(uint32_t timeoutMs) {
+/* Core 0 API: HARD-RESET de Core 1. RE-ENTRANT via refcount. Apenas o
+ * primeiro caller (refcount 0→1) executa o reset efetivo; chamadas aninhadas
+ * incrementam e retornam true imediatamente. */
+bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
     int32_t prev = __atomic_fetch_add(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
     if (prev > 0) {
-        /* Já dentro de quiet mode estabelecido por caller externo — no-op. */
+        /* Já em quiet mode — caller externo segura. */
         return true;
     }
-    if (!_core1Ready) {
-        __atomic_fetch_sub(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
-        return false;
-    }
-    _quietModeRequested = true;
-    __dmb();
-    uint32_t t0 = millis();
-    while (!_quietModeActive && !timeSince(t0, timeoutMs)) {
-        watchdog_update();
-        delay(1);
-    }
-    if (!_quietModeActive) {
-        /* Core 1 não respondeu — aborta, limpa request pra não ficar pendente.
-         * Log pra diagnosticar se isso está acontecendo repetidamente (indica
-         * render loop de Core 1 legitimamente preso em op >timeout). */
-        _quietModeRequested = false;
-        __atomic_fetch_sub(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
-        Serial.print("[DSP] requestQuietMode timeout after ");
-        Serial.print(timeoutMs);
-        Serial.println("ms — fallback to IRQ lockout");
-        return false;
-    }
+    /* First level: hard-reset Core 1. Para imediatamente; flash work seguro. */
+    multicore_reset_core1();
+    delay(50);  /* Pequena pausa para SSI/SPI estabilizarem. */
+    /* Core 1 agora está morto. Marca flags para consumers:
+     *  - _core1Ready = false: pauseRendering vira no-op (sem lockout IRQ).
+     *  - _quietModeActive = true: isInQuietMode() retorna true. */
+    __atomic_store_n(&_core1Ready,       false, __ATOMIC_RELEASE);
+    __atomic_store_n(&_quietModeActive,  true,  __ATOMIC_RELEASE);
+    __atomic_store_n(&_pauseRefCount,    0,     __ATOMIC_RELEASE);
+    _isPausedForFlash = false;
+    LogManager::instance().setCorePaused(1, true);
     return true;
 }
 
-/* Core 0 API: libera Core 1 do quiet mode e aguarda saída limpa. Só o ÚLTIMO
- * release (refcount → 0) faz o teardown; nested releases apenas decrementam.
- * Core 1 já seta _forceFullRedraw pós-quiet internamente (ver loopCore1). */
+/* Core 0 API: re-launch Core 1 após o trabalho em flash. Apenas o último
+ * release (refcount → 0) faz o launch efetivo. */
 void DisplayManager::releaseQuietMode() {
     int32_t prev = __atomic_fetch_sub(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
     if (prev > 1) {
-        /* Ainda há caller externo segurando o quiet mode — não desarma. */
+        /* Outro caller externo ainda segura — não re-lança. */
         return;
     }
     if (prev <= 0) {
-        /* Release não pareado — restaura clamp e sai. */
         __atomic_store_n(&_quietModeRefCount, 0, __ATOMIC_RELEASE);
         return;
     }
-    _quietModeRequested = false;
-    __dmb();
-    uint32_t t0 = millis();
-    while (_quietModeActive && !timeSince(t0, 2000)) {
-        watchdog_update();
-        delay(1);
-    }
+    /* Re-inicializa mutex (Core 1 pode ter sido resetado segurando-o) e
+     * zera flags de pausa. Core 1 novo redesenhará tudo no core1Entry. */
+    mutex_init(&_stateMutex);
+    __atomic_store_n(&_pauseRefCount,   0,     __ATOMIC_RELEASE);
+    _isPausedForFlash = false;
+    _lastHeartbeat = millis();
+    __atomic_store_n(&_quietModeActive, false, __ATOMIC_RELEASE);
+    LogManager::instance().setCorePaused(1, false);
+    multicore_launch_core1(core1Entry);
+    /* Core 1 setará _core1Ready=true após victim_init em loopCore1. */
 }
 
 void DisplayManager::loopCore1() {
@@ -969,19 +965,11 @@ void DisplayManager::loopCore1() {
     _lastRenderedState.selectedSlotIdx = -1;
 
     while (true) {
-        /* F-LOCKOUT-STUCK: se Core 0 pediu quiet mode, entra no loop RAM-only
-         * (IRQs off). Ao sair, marca _isDirty (delta-render incremental do que
-         * mudou) em vez de _forceFullRedraw (redraw completo de 2-5s que
-         * prendia Core 1 fora do loop por tempo suficiente pra o próximo
-         * requestQuietMode timeoutar). TFT não foi tocada durante quiet mode,
-         * então o conteúdo já está correto; só repinta seções dirty. */
-        if (_quietModeRequested) {
-            _runQuietLoop();
-            mutex_enter_blocking(&_stateMutex);
-            _isDirty = true;
-            mutex_exit(&_stateMutex);
-            continue;
-        }
+        /* F-LOCKOUT-STUCK v3.24.9: abordagem cooperativa removida (não era
+         * confiável — Core 1 ficava não-responsivo por >15s em cenários de
+         * flash GC + render pesado). Agora Core 0 usa `multicore_reset_core1`
+         * para HARD-RESETAR Core 1 antes de flash writes. Este loop só
+         * executa se Core 1 estiver ativo. */
 
         TRACE_MOD(1, MOD_DISPLAY);
         TRACE_BEAT(1);
