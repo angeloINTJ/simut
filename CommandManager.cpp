@@ -388,6 +388,25 @@ CliDemand CommandManager::parseCommand(String input) {
         return cmd;
     }
 
+    /* =======================================================================
+     * TEST-ONLY — REMOVE BEFORE PRODUCTION
+     * Comandos ocultos (não listados no help) para recuperar visualização do
+     * histórico após factory reset (zera provisionEpoch). Formato:
+     *   conf sensor <N> history all   -> slot N (0..9)
+     *   conf sensor all history all   -> todos os slots
+     * Para remover: excluir este bloco + enum CMD_DBG_SENSOR_HISTORY_ALL +
+     * handler em AppManager.cpp.
+     * ===================================================================== */
+    if (t0 == "conf" && t1 == "sensor" && t3 == "history") {
+        String t4low = t4; t4low.toLowerCase();
+        if (t4low == "all") {
+            cmd.type = CMD_DBG_SENSOR_HISTORY_ALL;
+            if (t2 == "all") { cmd.intVal1 = -1; cmd.intVal1Valid = true; }
+            else             { cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1); }
+            return cmd;
+        }
+    }
+
     if (t0 == "write" && t1 == "memory") { cmd.type = CMD_WRITE_MEMORY; return cmd; }
     if (t0 == "clear" && t1 == "log") { cmd.type = CMD_CLEAR_LOGS; return cmd; }
     if (t0 == "tel" && t1 == "sync") { cmd.type = CMD_TEL_SYNC; return cmd; }
