@@ -469,7 +469,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F14 — Inconsistências + docs + CON/DOC** | ✅ Concluída | `stability-fixes-tier1` | v3.24.0 | 2026-04-21 |
 | **F15 — Hash migration (SEC-006..009)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.25.0) | — |
 |   · F15.1 — SEC-006: LRU evict pula slots com lockout ativo | ✅ HW validada via `tools/test_f15_1_sec006.sh` | em v3.24.3 | — | 2026-04-21 |
-|   · F15.2.a — schema bump v14→v15: UserAccount +salt+hashVersion + fix parser JSON `\"` em /api/commit_all (payload builder não salvava) | ⚪ Pendente HW | em v3.24.4 | — | 2026-04-21 |
+|   · F15.2.a — schema bump v14→v15: UserAccount +salt+hashVersion + fix parser JSON `\"` em /api/commit_all (payload builder não salvava) | ✅ HW validada (parser fix confirmado via payload builder salvo com escapes; telemetria 200) | `816eb4d` | — | 2026-04-21 |
 
 **Débitos técnicos observados durante teste HW de F15.2.a (v3.24.4, 2026-04-21):**
 - **F-LOCKOUT-STUCK exacerbado**: 3× "Lockout stuck >10s" consecutivos durante `/api/commit_all` pós-migração. Confirma o débito técnico de F14 mas em severidade maior no cenário "first save após migração v14→v15". Investigar em ciclo futuro (provável F16 ou dedicado).
