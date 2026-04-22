@@ -893,9 +893,20 @@ void __not_in_flash_func(DisplayManager::_runQuietLoop)() {
     restore_interrupts(savedInts);
 }
 
-/* Core 0 API: sinaliza Core 1 p/ entrar em quiet mode e aguarda ACK. */
+/* Core 0 API: sinaliza Core 1 p/ entrar em quiet mode e aguarda ACK.
+ * RE-ENTRANT via refcount: chamadas aninhadas (ex: CLI handler wrap +
+ * saveConfiguration interno) incrementam o refcount; só a primeira entrada
+ * faz o handshake efetivo, apenas o último release faz o teardown. */
 bool DisplayManager::requestQuietMode(uint32_t timeoutMs) {
-    if (!_core1Ready) return false;
+    int32_t prev = __atomic_fetch_add(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
+    if (prev > 0) {
+        /* Já dentro de quiet mode estabelecido por caller externo — no-op. */
+        return true;
+    }
+    if (!_core1Ready) {
+        __atomic_fetch_sub(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
+        return false;
+    }
     _quietModeRequested = true;
     __dmb();
     uint32_t t0 = millis();
@@ -906,14 +917,26 @@ bool DisplayManager::requestQuietMode(uint32_t timeoutMs) {
     if (!_quietModeActive) {
         /* Core 1 não respondeu — aborta, limpa request pra não ficar pendente. */
         _quietModeRequested = false;
+        __atomic_fetch_sub(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
         return false;
     }
     return true;
 }
 
-/* Core 0 API: libera Core 1 do quiet mode e aguarda saída limpa.
- * Seta _forceFullRedraw para que Core 1 redesenhe tudo no próximo frame. */
+/* Core 0 API: libera Core 1 do quiet mode e aguarda saída limpa. Só o ÚLTIMO
+ * release (refcount → 0) faz o teardown; nested releases apenas decrementam.
+ * No teardown final seta _forceFullRedraw para Core 1 redesenhar tudo. */
 void DisplayManager::releaseQuietMode() {
+    int32_t prev = __atomic_fetch_sub(&_quietModeRefCount, 1, __ATOMIC_ACQ_REL);
+    if (prev > 1) {
+        /* Ainda há caller externo segurando o quiet mode — não desarma. */
+        return;
+    }
+    if (prev <= 0) {
+        /* Release não pareado — restaura clamp e sai. */
+        __atomic_store_n(&_quietModeRefCount, 0, __ATOMIC_RELEASE);
+        return;
+    }
     _quietModeRequested = false;
     __dmb();
     uint32_t t0 = millis();
