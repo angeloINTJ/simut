@@ -477,7 +477,8 @@ Atualize esta tabela conforme cada fase for concluída.
 
 |   · F-LOCKOUT-STUCK fix (v3.24.5) — quiet mode cooperativo em `saveConfiguration`: Core 1 congela em loop RAM-only (IRQs off) via handshake `_quietModeRequested`/`_quietModeActive`, Core 0 faz todas as flash ops sem `multicore_lockout` IRQ-based a cada chunk. Elimina cascata de stucks. | ✅ HW validada (commit_all web) | `9a55ef2` | — | 2026-04-21 |
 |   · F-LOCKOUT-STUCK fix (v3.24.6) — quiet mode re-entrant (refcount); `CMD_WRITE_MEMORY` e `sensor accept` agora wrappam save + `loadAndCalibrateSensors` no mesmo quiet mode (elimina stuck residual no log `APP_SENSORS_CALIBRATED`). | 🟡 Parcial (stuck residual no 2º save consecutivo) | `b57c6af` | — | 2026-04-21 |
-|   · F-LOCKOUT-STUCK fix (v3.24.7) — timeout do `requestQuietMode` 5s→15s (cobre render pesado pós quiet mode anterior); removido `_forceFullRedraw` duplicado de `releaseQuietMode` (Core 1 já seta internamente). Log warning em timeout para diagnóstico. | ⚪ Pendente HW | em v3.24.7 | — | 2026-04-21 |
+|   · F-LOCKOUT-STUCK fix (v3.24.7) — timeout do `requestQuietMode` 5s→15s; log warning em timeout. | 🟡 Parcial (timeout ainda disparava em 2º save consecutivo) | `4259483` | — | 2026-04-21 |
+|   · F-LOCKOUT-STUCK fix (v3.24.8) — removido `_forceFullRedraw=true` do post-quiet em Core 1; mantém só `_isDirty=true` (delta-render incremental ~100ms em vez de full redraw 2-5s). Elimina o travamento de 25s (15s quiet timeout + 10s lockout stuck) no 2º save consecutivo. | ⚪ Pendente HW | em v3.24.8 | — | 2026-04-21 |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 

@@ -970,11 +970,13 @@ void DisplayManager::loopCore1() {
 
     while (true) {
         /* F-LOCKOUT-STUCK: se Core 0 pediu quiet mode, entra no loop RAM-only
-         * (IRQs off). Ao sair, força full redraw. Checado AQUI (topo da
-         * iteração) pra garantir que nenhum mutex esteja preso ao congelar. */
+         * (IRQs off). Ao sair, marca _isDirty (delta-render incremental do que
+         * mudou) em vez de _forceFullRedraw (redraw completo de 2-5s que
+         * prendia Core 1 fora do loop por tempo suficiente pra o próximo
+         * requestQuietMode timeoutar). TFT não foi tocada durante quiet mode,
+         * então o conteúdo já está correto; só repinta seções dirty. */
         if (_quietModeRequested) {
             _runQuietLoop();
-            _forceFullRedraw = true;
             mutex_enter_blocking(&_stateMutex);
             _isDirty = true;
             mutex_exit(&_stateMutex);
