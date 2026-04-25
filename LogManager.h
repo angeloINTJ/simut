@@ -110,6 +110,12 @@ public:
 
     void begin(bool saveToFile = false, LogLevel minSerialLevel = LOG_INFO);
 
+    /** Reseta estado do logger após wipe externo dos arquivos de log
+     *  (ex: handleApiClearLogs). Re-conta registros sem re-inicializar
+     *  todo o sistema de log. Não re-captura boot snapshot nem re-roda
+     *  autópsia — apenas zera contadores e reabre handles se necessário. */
+    void resetAfterExternalWipe();
+
 
     void log(LogLevel level, const char* tag, LogCode code, String msg);
     void logCode(LogLevel level, const char* tag, LogCode code, int contextVal = 0, String extraMsg = "");
@@ -226,3 +232,7 @@ private:
 
 #define TRACE_MOD(core, mod) LogManager::instance().setModule(core, mod)
 #define TRACE_BEAT(core) LogManager::instance().heartbeat(core)
+
+/** Feed hardware watchdog + trace heartbeat on Core 0 (PER-001).
+ *  Substitui a dupla watchdog_update(); TRACE_BEAT(0); em paths críticos. */
+inline void feedWdt() { watchdog_update(); TRACE_BEAT(0); }

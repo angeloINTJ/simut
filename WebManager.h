@@ -65,6 +65,8 @@ private:
     struct RateEntry { uint32_t ip = 0; uint32_t lastReq = 0; uint8_t hits = 0; };
     RateEntry _rateLimits[RATE_LIMIT_SLOTS];
     File _uploadFile;
+    uint8_t _uploadBatchBuf[8192];  /**< Batch buffer upload (PER-002). */
+    uint16_t _uploadBatchLen = 0;   /**< Bytes acumulados no batch. */
     /* SEC-001/F12.1: marca upload rejeitado no START para que WRITE/END
      * virem no-op e `handleUploadComplete` responda 400 em vez de 200. */
     bool _uploadRejected = false;
@@ -150,12 +152,7 @@ private:
     };
 
 
-    struct ReadGuard {
-        StorageManager* _sto;
-        ReadGuard(StorageManager* s) : _sto(s) { if (_sto) _sto->enterFlashReadLock(); }
-        ~ReadGuard() { if (_sto) _sto->exitFlashReadLock(); }
-    };
-
+    // ReadGuard movido para StorageManager.h (EXT-010) — agora público.
 
     struct HeavyTaskGuard {
         StorageManager* _sto;
@@ -197,6 +194,7 @@ private:
     void handleApiMkdir();
     void handleUploadComplete();
     void handleUploadData();
+    void _flushUploadBatch();  /**< Flush batch buffer para LittleFS (PER-002). */
 
     void handleSaveSystem();    /**< U24: minimal — so theme-switch do dashboard */
     void handleApiCommitAll();  /**< U24: save-all + reboot */
@@ -226,6 +224,7 @@ private:
     String getForceChpassHtml(bool isError);
 
     String getHistoryFileName(time_t date);
+    const char* getHistoryFileNameC(time_t date);  /**< Buffer version (MEM-001). */
     String rgb565ToHex(uint16_t color);
     void feedWatchdog();
     bool isHandlerOvertime();
@@ -233,6 +232,7 @@ private:
 
 
     uint32_t _handlerDeadline = 0;
+    char _historyFnBuf[40];     /**< Buffer reutilizável para getHistoryFileNameC (MEM-001). */
     void safeStreamFile(File& f, const String& contentType);
     void handleApiScreenshot();
     String getDynamicExpectedHash(String username);

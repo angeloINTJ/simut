@@ -168,6 +168,18 @@ void LogManager::begin(bool saveToFile, LogLevel minSerialLevel) {
     performCrashAutopsy();
 }
 
+void LogManager::resetAfterExternalWipe() {
+    if (_saveToFile) {
+        requestFsLock(true);
+        if (LittleFS.exists(LOG_FILE_CURRENT)) {
+            _currentLineCount = countFileRecords(LOG_FILE_CURRENT);
+        } else {
+            _currentLineCount = 0;
+        }
+        requestFsLock(false);
+    }
+}
+
 int LogManager::getCoreID() { return get_core_num(); }
 
 uint16_t LogManager::countFileRecords(const char* filename) {

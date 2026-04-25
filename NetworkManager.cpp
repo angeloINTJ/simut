@@ -413,7 +413,16 @@ bool NetworkManager::isNetworkHealthy() {
 }
 
 String NetworkManager::getIpAddress() { return (_state == NET_AP_CONFIG) ? WiFi.softAPIP().toString() : WiFi.localIP().toString(); }
+void NetworkManager::getIpAddress(char* buf, size_t len) {
+    IPAddress ip = (_state == NET_AP_CONFIG) ? WiFi.softAPIP() : WiFi.localIP();
+    snprintf(buf, len, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+}
 String NetworkManager::getMacAddress() { return WiFi.macAddress(); }
+void NetworkManager::getMacAddress(char* buf, size_t len) {
+    String mac = WiFi.macAddress();
+    strncpy(buf, mac.c_str(), len - 1);
+    buf[len - 1] = '\0';
+}
 String NetworkManager::getSubnetMask() { return WiFi.subnetMask().toString(); }
 String NetworkManager::getGateway() { return WiFi.gatewayIP().toString(); }
 String NetworkManager::getDns() { return WiFi.dnsIP().toString(); }

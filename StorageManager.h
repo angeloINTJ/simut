@@ -51,6 +51,14 @@ public:
     void enterFlashSafeMode();
     void exitFlashSafeMode();
 
+    /** RAII guard para flash read lock. Uso:
+     *  { ReadGuard rg(&storageMgr); ... } // lock liberado no scope exit. */
+    struct ReadGuard {
+        StorageManager* _sto;
+        ReadGuard(StorageManager* s) : _sto(s) { if (_sto) _sto->enterFlashReadLock(); }
+        ~ReadGuard() { if (_sto) _sto->exitFlashReadLock(); }
+    };
+
     bool loadConfiguration();
     bool saveConfiguration();
     void resetToFactory();
@@ -86,6 +94,7 @@ public:
 
     bool writeHistoryEntry(const BinaryHistoryRecord& rec);
     String getHistoryFileName();
+    void   getHistoryFileName(char* buf, size_t len);  /**< Buffer version (MEM-001). */
 
     uint32_t getLastRecordedTimestamp();
     uint32_t getHistoryDaysMask(int year, int month);

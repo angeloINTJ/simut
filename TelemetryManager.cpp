@@ -413,8 +413,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 
             if (hasMore && batch.size() < limit) {
                 _storageRef->exitFlashReadLock();
-                watchdog_update();
-                TRACE_BEAT(0);
+                feedWdt();
                 yield();
                 _storageRef->enterFlashReadLock();
             }
@@ -423,8 +422,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
         _storageRef->exitFlashReadLock();
 
 
-        watchdog_update();
-        TRACE_BEAT(0);
+        feedWdt();
     }
 
     return !batch.empty();
@@ -438,8 +436,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
     SystemConfig &cfg = _storageRef->getConfig();
 
-    watchdog_update();
-    TRACE_BEAT(0);
+    feedWdt();
 
     HTTPClient http;
     WiFiClient client;
@@ -492,8 +489,7 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
         }
 
         http.setTimeout(NET_SOCKET_TIMEOUT_MS);
-        watchdog_update();
-        TRACE_BEAT(0);
+        feedWdt();
 
         uint32_t postStart = millis();
         int code;
@@ -570,8 +566,7 @@ bool TelemetryManager::mqttEnsureConnected() {
     String willPayload = "{\"device\":\"" + devName + "\",\"status\":\"offline\"}";
 
     LOG_CODE(LOG_INFO, "TEL", TEL_MQTT_CONNECTING, 0, clientId);
-    watchdog_update();
-    TRACE_BEAT(0);
+    feedWdt();
 
     bool connected = false;
     String user = String(cfg.mqttUser);
@@ -656,8 +651,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
         /* Lote pequeno: publica cada linha individualmente */
         int published = 0;
         for (size_t i = 0; i < batch.size(); i++) {
-            watchdog_update();
-            TRACE_BEAT(0);
+            feedWdt();
 
             String linePayload;
             if (cfg.telMode == TEL_MODE_JSON) {
@@ -697,8 +691,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
         }
     } else {
         /* Lote grande: usa payload pré-construído pelo caller */
-        watchdog_update();
-        TRACE_BEAT(0);
+        feedWdt();
 
         if (payload.length() > _mqttClient.getBufferSize()) {
             uint16_t needed = min((size_t)8192, payload.length() + 64);
@@ -1266,8 +1259,7 @@ void TelemetryManager::refreshPendingCount() {
         f.close();
         _storageRef->exitFlashReadLock();
 
-        watchdog_update();
-        TRACE_BEAT(0);
+        feedWdt();
     }
 
     _pendingEstimate = total;

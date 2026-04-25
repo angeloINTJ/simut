@@ -278,7 +278,7 @@ void AppManager::setup() {
         _displayMgr.setBootStatus("Connect to network SIMUT_SETUP");
         _displayMgr.setBootStatus("Access on mobile: 192.168.4.1");
         _netMgr.beginAP(cfg.deviceName);
-        for (int i = 0; i < 35; i++) { delay(100); watchdog_update(); TRACE_BEAT(0); }
+        for (int i = 0; i < 35; i++) { delay(100); feedWdt(); }
     } else {
         _displayMgr.setBootStatus("Starting Wi-Fi Interface...");
         _netMgr.begin(cfg,
@@ -353,8 +353,7 @@ void AppManager::setup() {
     _displayMgr.setBootStatus("Registering Callbacks...");
     _webMgr.setYieldCallback([this]() { this->core0Yield(); });
     _webMgr.setLightYieldCallback([this]() {
-        watchdog_update();
-        TRACE_BEAT(0);
+        feedWdt();
 
 
         static uint32_t lastLiveUpdate = 0;
@@ -386,8 +385,7 @@ void AppManager::setup() {
 
 
             while (millis() - warmStart < 2000) {
-                watchdog_update();
-                TRACE_BEAT(0);
+                feedWdt();
                 _sensorMgr.update();
 
 
@@ -675,8 +673,8 @@ void AppManager::loop() {
             sd.wifiConnected = _netMgr.isConnected();
             sd.rssi          = _netMgr.getRssi();
             sd.ntpSynced     = _netMgr.isTimeSynced();
-            safeCopy(sd.ip, _netMgr.getIpAddress().c_str(), sizeof(sd.ip));
-            safeCopy(sd.mac, _netMgr.getMacAddress().c_str(), sizeof(sd.mac));
+            { char _b[16]; _netMgr.getIpAddress(_b, sizeof(_b)); safeCopy(sd.ip, _b, sizeof(sd.ip)); }
+            { char _b[18]; _netMgr.getMacAddress(_b, sizeof(_b)); safeCopy(sd.mac, _b, sizeof(sd.mac)); }
             safeCopy(sd.ssid, cfg.wifiSsid, sizeof(sd.ssid));
             safeCopy(sd.ntpServer, cfg.ntpServer, sizeof(sd.ntpServer));
 
@@ -786,8 +784,7 @@ void AppManager::executeCommand(CliDemand cmd) {
 
                     char lineBuf[256];
                     while (f.available() && logCount < 2000) {
-                        watchdog_update();
-                        TRACE_BEAT(0);
+                        feedWdt();
                         size_t len = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
                         if (len == 0) continue;
                         lineBuf[len] = '\0';
@@ -1747,8 +1744,7 @@ void AppManager::core0Yield() {
                             _displayMgr.requestLoadingScreen();
                             uint32_t waitStart = millis();
                             while (!_displayMgr.isLoadingDrawn() && (millis() - waitStart < 500)) {
-                                watchdog_update();
-                                TRACE_BEAT(0);
+                                feedWdt();
                                 delay(5);
                             }
                         }
@@ -2253,9 +2249,7 @@ void AppManager::preloadMinMax() {
         while (hasMore) {
             if (timeSince(_preloadBudget, 5000)) {
                 LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
-                _storageMgr.enterFlashReadLock();
-                f.close();
-                _storageMgr.exitFlashReadLock();
+                { StorageManager::ReadGuard rg(&_storageMgr); f.close(); }
                 LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, 0, "");
                 return;
             }
@@ -2299,8 +2293,7 @@ void AppManager::preloadMinMax() {
                 }
             }
 
-            watchdog_update();
-            TRACE_BEAT(0);
+            feedWdt();
             delay(2);
         }
 
@@ -2700,9 +2693,8 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                     }
 
                     if (seekRecord > 0 && seekRecord < (int)totalRecords) {
-                        _storageMgr.enterFlashReadLock();
-                        f.seek((size_t)seekRecord * HISTORY_RECORD_SIZE);
-                        _storageMgr.exitFlashReadLock();
+                        { StorageManager::ReadGuard rg(&_storageMgr);
+                          f.seek((size_t)seekRecord * HISTORY_RECORD_SIZE); }
                     }
                 }
                 /* Se cutoff <= fileMidnight: sem seek, lê o arquivo inteiro */
@@ -2816,8 +2808,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                 /* Saiu da janela temporal: interrompe leitura deste arquivo */
                 if (pastWindow) break;
 
-                watchdog_update();
-                TRACE_BEAT(0);
+                feedWdt();
                 yield();
             }
 
@@ -2832,7 +2823,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
             }
         }
 
-        watchdog_update(); TRACE_BEAT(0);
+        feedWdt();
         yield();
     }
 
@@ -2991,12 +2982,12 @@ void AppManager::preloadGraphCaches() {
     /* Ambient (sempre presente) */
     LOG_CODE(LOG_INFO, "APP", APP_CACHE_GRAPH_AMBIENT, 0, "");
     renderGraphOptimized(-1, 4, false);
-    watchdog_update(); TRACE_BEAT(0);
+    feedWdt();
 
     /* Board temp */
     LOG_CODE(LOG_INFO, "APP", APP_CACHE_GRAPH_BOARD, 0, "");
     renderGraphOptimized(10, 4, false);
-    watchdog_update(); TRACE_BEAT(0);
+    feedWdt();
 
     /* DS18B20 ativos */
     for (int i = 0; i < MAX_SENSORS; i++) {
@@ -3005,7 +2996,7 @@ void AppManager::preloadGraphCaches() {
             snprintf(_logBuf, sizeof(_logBuf), "Graph cache: loading sensor %d...", i);
             LOG_CODE(LOG_INFO, "APP", APP_GRAPH_LOADING, 0, String(_logBuf));
             renderGraphOptimized(i, 4, false);
-            watchdog_update(); TRACE_BEAT(0);
+            feedWdt();
         }
     }
 
@@ -3043,7 +3034,7 @@ void AppManager::preloadSensorRanges(int sensorId, int skipRange) {
 
         /* Carrega do flash com seek otimizado */
         renderGraphOptimized(sensorId, r, false);
-        watchdog_update(); TRACE_BEAT(0);
+        feedWdt();
     }
 }
 
@@ -3205,7 +3196,7 @@ bool AppManager::appendToGraphCache(GraphCacheEntry& entry, int sensorId) {
                 newPoints++;
             }
 
-            watchdog_update(); TRACE_BEAT(0); yield();
+            feedWdt(); yield();
         }
 
         _storageMgr.enterFlashReadLock();
