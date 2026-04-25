@@ -526,12 +526,12 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · Inclui EXT-006 (`LogManager::resetAfterExternalWipe`) + EXT-010 (`ReadGuard` público). | ⚪ Pendente | — | — | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 |   · Inclui EXT-003 (split `SystemDefs.h`) + EXT-005 (`AppManager.h` decoupling). Protocolo `symbols_inventory_before/after` obrigatório (ver §2.5 referências externas §10/§11). | ⚪ Pendente | — | — | — |
-| **F-CLEANUP — Polish puntual de baixo risco** | ⚪ Pendente | — | (v3.24.x patch) | — |
-|   · EXT-002 — remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY) **antes de qualquer release público**. | ⚪ Pendente | — | — | — |
-|   · EXT-007 — apagar docblock obsoleto em `SystemUtils.cpp:41-44` (referência a `.csv`). | ⚪ Pendente | — | — | — |
-|   · EXT-011a — remover `watchdog_update()` duplicado em `AppManager.cpp:711-713`. | ⚪ Pendente | — | — | — |
-|   · EXT-011b — validar e remover `extern "C"` em `DisplayManager.cpp:27` (provável paranoia histórica do SDK Pico). | ⚪ Pendente | — | — | — |
-|   · EXT-011c — renomear/documentar `TelemetryManager::releaseIdleResources()` para refletir decisão consciente de no-op. | ⚪ Pendente | — | — | — |
+| **F-CLEANUP — Polish puntual de baixo risco** | ✅ Concluída | `stability-fixes-tier1` | v3.24.15 | 2026-04-25 |
+|   · EXT-002 — remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY) **antes de qualquer release público**. | ✅ Enum + parser + handler removidos | — | — | — |
+|   · EXT-007 — apagar docblock obsoleto em `SystemUtils.cpp:41-44` (referência a `.csv`). | ✅ + `.csv` → `.bin` no header do arquivo | — | — | — |
+|   · EXT-011a — remover `watchdog_update()` duplicado em `AppManager.cpp:711-713`. | ✅ | — | — | — |
+|   · EXT-011b — validar e remover `extern "C"` em `DisplayManager.cpp:27` (provável paranoia histórica do SDK Pico). | ✅ SDK Pico já inclui guards `extern "C"` | — | — | — |
+|   · EXT-011c — renomear/documentar `TelemetryManager::releaseIdleResources()` para refletir decisão consciente de no-op. | ✅ Docblock atualizado no .h | — | — | — |
 | **F-I18N-TRIM.2 (feature fora da auditoria)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-25 |
 |   · EXT-004 — remover blocos `@LANG_BEGIN:es\|de\|fr\|it\|ru\|zh` de `WebUI.h` (consistência com F-I18N-TRIM.1 do firmware). Reduz manutenção de strings da UI; impacto em flash desprezível (gzip já colapsa). | ✅ 336 linhas removidas (72 blocos) | — | — | — |
 | **F-DOC-EXT — Documentação externa cooperativa** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-25 |
@@ -633,16 +633,16 @@ Atualize esta tabela conforme cada fase for concluída.
 | DOC-003 | ⚪ | F14 | ⚪ | Criar `SECURITY.md` na raiz. |
 | WEB-001 | 🟢 | F14 | ⚪ | **Post-audit F12.1 (2026-04-20):** `handleApiLs` emite JSON sem escapar bytes de controle (0x00-0x1F/0x7F) nos `name` — 1 arquivo com byte ruim quebra todo o listing (observado com `/x␁y.txt` criado por teste pré-patch). F12.1 impede upload via HTTP, mas não cobre entrada por outros canais. Fix: `jsonEscape()` ou skip de entries com chars inválidos no `handleApiLs`. |
 | EXT-001 | 🟡 | F-BUILD | ⚪ | `platformio.ini` reproduzível + lib pins + `-Wall -Wextra`. Bloqueia EXT-009. |
-| EXT-002 | 🟠 | F-CLEANUP | ⚪ | Remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY introduzido em v3.24.12). **Pré-release obrigatório.** |
+| EXT-002 | 🟠 | F-CLEANUP | ✅ | Remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY introduzido em v3.24.12). **Pré-release obrigatório.** |
 | EXT-003 | 🟡 | F17 | ⚪ | Split `SystemDefs.h` (1342 L) em headers temáticos com facade. |
 | EXT-004 | 🟡 | F-I18N-TRIM.2 | ✅ | Remover 6 idiomas mortos em `WebUI.h` (72 markers `@LANG_BEGIN`). |
 | EXT-005 | 🟢 | F17 | ⚪ | `AppManager.h` forward decl + `unique_ptr` (rebuild churn). |
 | EXT-006 | 🟢 | F16 | ⚪ | `LogManager::resetAfterExternalWipe()` substitui `begin()` em runtime. |
-| EXT-007 | 🟢 | F-CLEANUP | ⚪ | Apagar docblock obsoleto `.csv` em `SystemUtils.cpp:41-44`. |
+| EXT-007 | 🟢 | F-CLEANUP | ✅ | Apagar docblock obsoleto `.csv` em `SystemUtils.cpp`. |
 | EXT-008 | 🟢 | F-DOC-EXT | ✅ | `docs/GLOSSARY.md` in-tree para tags do projeto. |
 | EXT-009 | 🟢 | F-BUILD | ⚪ | Host-side unit tests (Unity / `pio test -e native`). Depende de EXT-001. |
 | EXT-010 | 🟢 | F16 | ⚪ | Promover `ReadGuard` para `StorageManager.h`; aplicar em ~8 sites de `AppManager.cpp`. |
-| EXT-011 | 🟢 | F-CLEANUP | ⚪ | Polish: dup `watchdog_update()`, `extern "C"` redundante, `releaseIdleResources()` no-op. |
+| EXT-011 | 🟢 | F-CLEANUP | ✅ | Polish: dup `watchdog_update()`, `extern "C"` redundante, `releaseIdleResources()` no-op. |
 | EXT-012 | 🟢 | F-DOC-EXT | ✅ | Atualizar README ("8 languages" → "EN + PT" pós F-I18N-TRIM.1). |
 | U25 | 🔴 | F-BT-LOGIN | ✅ | **Defer flash no login BT (2026-04-25):** `LOG_CODE` dentro de `BluetoothManager::update()` disparava `writeCompactToFlash` síncrono com duplo lockout do Core 1. Sob LittleFS >70%, GC + lockout causavam travamento e possível WDT reset. Fix: `LogManager::setForceBuffer(true/false)` wrappando `_btMgr.update()` em `CommandManager::processInput`. Banner de boas-vindas reordenado antes do `LOG_CODE`. Zero novas alocações de heap. |
 | U24 | 🔴 | F11 | ✅ | **Commit-all + reboot pattern (2026-04-19):** rajadas de saves consecutivos eram a fonte original de todos os bugs de concorrência (U16/U21/U23). Mudança arquitetural do modelo UX: interface web acumula mudanças no `sessionStorage` client-side; botão único "Salvar e Reiniciar" no topbar (só aparece se há pendentes). Ao clicar: confirmação com aviso de risco → POST `/api/commit_all` com JSON → server aplica tudo em 1 save → reboot limpo. **Phase A.1** (v3.15.0): migrado `/config`. **Phase A.2** (v3.16.0): migrado `/alarms`; `handleApiSaveAlarms` e `handleSaveSystem` grande removidos. **Phase B** (v3.17.0): migrado `/users` como queue de ações (`add`/`del`/`reset`) com overlay visual + botão ↶ de desfazer; `handleApiUserAdd/Del/Reset` removidos. **Phase C** (v3.18.0): migrado `/network` (ssid, pass, dhcp, ip, mask, gw, dns, ntp_server, web_port); detecção de mudança de porta → redirect automático pro novo host:porta após reboot; `handleSaveNetwork` removido. **Phase D** (v3.19.0): `Pending` + `commitAll` + CSS + botão injeção centralizados em `/lang.js` (removidas ~8KB de código duplicado); botão "Salvar e Reiniciar" agora aparece em TODAS as páginas (dash/hist/file/license/cfg/alarms/users/net); versão do firmware exibida ao lado de "SIMUT" (endpoint `/api/perms` extendido com `version`); botão de toggle tema claro/escuro (`#theme-toggle`) com preferência em `localStorage`; paleta de tema claro refinada (slate + cyan-700 AA-contrast) com overrides cobrindo topbar/drawer/cards/inputs/tabelas/chart/badges/calendar/sounds. Todas as 4 páginas de configuração agora compartilham o mesmo padrão; economia total de ~18KB de flash. |

@@ -24,9 +24,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-extern "C" {
 #include "pico/multicore.h"
-}
 
 
 /* F-I18N-TRIM.1 (v3.22.0): reduzido de 8 para 2 idiomas (EN + PT) para

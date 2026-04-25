@@ -710,8 +710,6 @@ void AppManager::loop() {
 
     watchdog_update();
 
-    watchdog_update();
-
     if (_waitingScan && !isUserInteracting()) {
         processBackgroundScan();
     }
@@ -1187,49 +1185,6 @@ void AppManager::executeCommand(CliDemand cmd) {
             safeCopy(r.friendlyName, cmd.strVal2, sizeof(r.friendlyName));
             _cmdMgr.printSuccess(pt ? "Sensor mapeado em RAM."
                                     : "Sensor mapped in RAM.");
-            break;
-        }
-
-        /* ===================================================================
-         * TEST-ONLY — REMOVE BEFORE PRODUCTION
-         * Zera `provisionEpoch` do(s) sensor(es) para recuperar visualização
-         * do histórico pré factory reset. Uso:
-         *   conf sensor <N> history all
-         *   conf sensor all history all
-         * Para remover: excluir este case + enum CMD_DBG_SENSOR_HISTORY_ALL
-         * em SystemDefs.h + parser em CommandManager.cpp.
-         * ================================================================= */
-        case CMD_DBG_SENSOR_HISTORY_ALL: {
-            const bool pt = _cmdMgr.isPt();
-            if (cmd.intVal1 == -1) {
-                /* Todos os slots ativos. */
-                int n = 0;
-                for (int i = 0; i < MAX_SENSORS; i++) {
-                    if (cfg.sensors[i].active) {
-                        cfg.sensors[i].provisionEpoch = 0;
-                        n++;
-                    }
-                }
-                cfg.ambientSensor.provisionEpoch = 0;
-                changed = true;
-                _cmdMgr.printSuccess((pt ? "provisionEpoch zerado em "
-                                         : "provisionEpoch zeroed for ") +
-                                     String(n) + (pt ? " slots + ambient. Use 'write memory'."
-                                                     : " slots + ambient. Run 'write memory'."));
-            } else {
-                if (!cmd.intVal1Valid || cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
-                    _cmdMgr.printError(pt ? "Slot fora de range (0-9) ou 'all'"
-                                          : "Slot out of range (0-9) or 'all'");
-                    break;
-                }
-                cfg.sensors[cmd.intVal1].provisionEpoch = 0;
-                changed = true;
-                _cmdMgr.printSuccess((pt ? "provisionEpoch zerado no Slot "
-                                         : "provisionEpoch zeroed for Slot ") +
-                                     String(cmd.intVal1) +
-                                     (pt ? ". Use 'write memory' e reload."
-                                         : ". Run 'write memory' and reload."));
-            }
             break;
         }
 

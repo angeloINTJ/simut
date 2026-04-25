@@ -109,7 +109,7 @@ private:
     String buildMqttClientId();
     uint8_t safeBatchLimit(uint8_t configured);
 
-    /** @brief Libera WiFiClientSecure e cert após inatividade (economia ~16-34KB). */
+    /** @brief No-op intencional — liberar TLS clients causaria fragmentação de heap. */
     void releaseIdleResources();
 
 
