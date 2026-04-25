@@ -50,6 +50,12 @@ public:
     void setConsoleSink(ConsoleSink sink);
     void setConsoleStream(bool enabled);   /**< false = modo CONFIG (console silencioso) */
 
+    /** Força bufferização em RAM para todos os writes de log (writeCompactToFlash).
+     *  Usado para deferir flash durante operações sensíveis (ex: login BT)
+     *  sem competir com multicore_lockout. Flush acontece no próximo write
+     *  normal ou via flushPendingIfAny(). */
+    void setForceBuffer(bool force);
+
     /** Escreve uma linha diretamente no console (USB+BT via sink; fallback Serial).
      *  Ignora `setConsoleStream(false)` — destinado a output solicitado pelo usuário
      *  (ex: dump de payload via `tel dump`), não logs automáticos. */
@@ -191,6 +197,7 @@ private:
     volatile int _pendingCount = 0;
     uint16_t _pendingOverflow = 0;
     bool _heavyTaskCheckEnabled = false;
+    bool _forceBuffer = false;  /**< Buffer forçado temporário (ex: login BT) */
 
 
     bool (*_isHeavyTaskFn)() = nullptr;
