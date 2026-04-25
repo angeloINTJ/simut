@@ -63,7 +63,14 @@ void CommandManager::consolePrintf(const char* format, ...) {
 String CommandManager::getLastRawInput() { return _lastRawInput; }
 
 bool CommandManager::processInput(CliDemand &demandOut) {
+    /* Defer LOG_CODE flash writes durante BT update: evita que
+     * writeCompactToFlash dispare lockout do Core 1 enquanto o
+     * BluetoothManager está processando auth + banner I/O.
+     * Logs ficam em RAM (_pendingLogs) e são flushed no próximo
+     * write normal ou via flushPendingIfAny no loop principal. */
+    LogManager::instance().setForceBuffer(true);
     _btMgr.update();
+    LogManager::instance().setForceBuffer(false);
 
 
     while (Serial.available()) {

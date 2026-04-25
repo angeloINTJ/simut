@@ -92,10 +92,9 @@ void BluetoothManager::update() {
                 if (valid) {
                     _authenticated = true;
                     _lastActivityTime = millis();
-                    LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0,
-                             TRL("BT admin login", "Login BT admin"));
-                    /* A1: banner de boas-vindas completo para o cliente BT
-                     * (o printWelcome() do CommandManager só sai no boot USB). */
+                    /* Banner PRIMEIRO: resposta imediata ao usuário.
+                     * LOG_CODE depois — flash write é bufferizado em RAM
+                     * via setForceBuffer e flushed assincronamente. */
                     SerialBT.println();
                     SerialBT.println("===========================================");
                     SerialBT.print  ("   SIMUT IoT CLI ");
@@ -109,6 +108,8 @@ void BluetoothManager::update() {
                     }
                     SerialBT.println("===========================================");
                     SerialBT.print("SIMUT> ");
+                    LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0,
+                             TRL("BT admin login", "Login BT admin"));
                 } else {
                     SerialBT.println(pt ? "Acesso negado." : "Access denied.");
                     LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,

@@ -132,6 +132,10 @@ void LogManager::requestFsLock(bool lock) {
     if (lock) delay(1);
 }
 
+void LogManager::setForceBuffer(bool force) {
+    _forceBuffer = force;
+}
+
 void LogManager::captureBootSnapshot() {
     if (!_preBootSnapshotTaken) {
         _preBootScratch4 = watchdog_hw->scratch[3];
@@ -279,6 +283,19 @@ void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) 
  * is flushed automatically on the next non-critical write.
  */
 void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
+
+    /* Buffer forçado temporário (ex: login BT): evita flash + lockout
+     * síncrono em paths sensíveis que não toleram latência de GC. */
+    if (_forceBuffer) {
+        int idx = __atomic_load_n(&_pendingCount, __ATOMIC_ACQUIRE);
+        if (idx < LOG_PENDING_MAX) {
+            _pendingLogs[idx] = rec;
+            __atomic_store_n(&_pendingCount, idx + 1, __ATOMIC_RELEASE);
+        } else {
+            _pendingOverflow++;
+        }
+        return;
+    }
 
     /* Durante interação de toque: bufferiza em RAM */
     if (TouchPriority::isActive()) {

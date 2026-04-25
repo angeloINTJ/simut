@@ -87,6 +87,7 @@ Legenda: 🔴 **Crítica** · 🟠 **Alta** · 🟡 **Média** · 🟢 **Baixa**
 | **U13** | 🟢 | `TelemetryManager.cpp:701` | TLS client (~16 KB) sempre alocado mesmo com `telInterval=0`. | Heap ocupada. |
 | **U14** | 🔴 | `LogManager.cpp:412` | `elapsed = now - lastBeat` unsigned subtract dispara soft panic falso em cross-core race (lastBeat levemente adiantado → underflow ≈ UINT32_MAX > 8000). Mesmo bug na checagem `millis() - beat` de Core 1 dead em `AppManager.cpp:446`. Autópsia confundia `rp2040.reboot()` com HW watchdog. | Reboots fantasma não reprodutíveis desde F7 (2026-04-18). |
 | **U15** | 🔴 | `LogManager.cpp:252` | `writeCompactToFlash` / `flushPendingLogs` sem feeds de watchdog entre LittleFS open/write/close. Sob LittleFS >70%, GC interno bloqueia por segundos. `LOG_CODE` chamado dentro de rotas internas (ex.: `BluetoothManager::update` no login) excede WDT de 8.3s. | HW WATCHDOG em login BT. |
+| **U25** | 🔴 | `BluetoothManager.cpp:95,114` | `LOG_CODE` dentro de `BluetoothManager::update()` dispara `writeCompactToFlash` síncrono durante o login BT. O path completo envolve: (1) `_btMgr.update()` → validação HMAC-SHA256 → `LOG_CODE` → (2) `flushPendingLogs()` com lockout do Core 1 + flash ops → (3) segundo lockout em `writeCompactToFlash` para o registro da auth. Cada lockout faz `pauseRendering(true)` que espera até 10s pelo ACK do Core 1 antes de hard-reset. Sob LittleFS fragmentado (>70%), o GC interno no `open("a")` amplifica a latência. O banner de boas-vindas também era impresso DEPOIS do `LOG_CODE`, deixando o usuário sem feedback durante o bloqueio. | Travamento + possível WDT reset durante login BT. |
 
 ### 2.4 Auditoria técnica v3.19.0 (2026-04-20)
 
@@ -153,6 +154,42 @@ Achados da auditoria externa documentada em `SIMUT_Audit_Report.md`. IDs herdam 
 | **REF-007** | 🟢 | `WebManager.cpp:831` | `handleApiLogin` ~130 linhas — extrair `findLoginStateForIp`, `checkLockout`, etc. |
 
 > Deduplicações internas: `REF-005` ↔ `PER-001`, `REF-006` ↔ `BUG-003`, `DOC-001` ↔ `CON-003`.
+
+---
+
+### 2.5 Revisão técnica externa cooperativa (v1, 2026-04-22)
+
+Achados de uma revisão externa documentada em `audits/SIMUT_ANALISE_TECNICA_v1.md` (Claude
+externo, sob brief de revisor cooperativo). IDs com prefixo `EXT-` para rastreabilidade.
+
+> **Nota sobre invalidações**: o revisor recebeu zip incompleto. Achados §4.2
+> (`WebUI_GZ.h`/`compressor.py` ausentes) e §6.3 (README ausente) **são inválidos** — todos
+> os artefatos existem em `/`, `/tools/`, e `/README.md`. Esses dois itens foram descartados
+> e não geram entrada `EXT-`.
+
+| ID | Sev | Local | Problema | Origem |
+|----|----|---|---|---|
+| **EXT-001** | 🟡 | repo root | Sem `platformio.ini`/`arduino-cli.yaml`/`CMakeLists.txt`. Build hoje é Arduino IDE only (cache em `build/rp2040.rp2040.rpipicow`). Versões de libs externas (`OneWirePIO_RP2040`, `DS18B20PIO`, `DHT22PIO`, `BuzzerPIO_RP2040`) não pinned. Sem flags `-Wall -Wextra` configuráveis. | §4.1 + §4.4 |
+| **EXT-002** | 🟠 | múltiplos | Comando `CMD_DBG_SENSOR_HISTORY_ALL` (`SystemDefs.h:1085`, `CommandManager.cpp:392`, `AppManager.cpp:1193`) marcado `TEST-ONLY — REMOVE BEFORE PRODUCTION` foi enviado em release. Permite zerar `provisionEpoch` de todos os sensores via CLI USB/BT. | §4.3 |
+| **EXT-003** | 🟡 | `SystemDefs.h` (1342 L) | Catch-all com macros, enums, structs, helpers, parser CLI, validators inline. Edição em qualquer seção invalida cache de build do projeto inteiro. | §5.1 |
+| **EXT-004** | 🟡 | `WebUI.h` | 72 ocorrências de `@LANG_BEGIN:<es\|de\|fr\|it\|ru\|zh>` para idiomas removidos do firmware em F-I18N-TRIM.1 (`v3.22.0`). Cada edição de string da UI obriga editar 8 blocos repetidos. | §5.3 |
+| **EXT-005** | 🟢 | `AppManager.h:16-26` | Header inclui 10 managers (`SensorManager`, `StorageManager`, `CommandManager`, `DisplayManager`, etc.) por valor → edição em qualquer `<Manager>.h` recompila TU inteira. | §5.4 |
+| **EXT-006** | 🟢 | `WebManager.cpp:2530` | `LogManager::instance().begin(true, LOG_DEBUG)` chamado em `handleApiClearLogs` (não-boot). Funcional via guard `_autopsyPerformed`, mas acoplamento estranho. Propor `LogManager::resetAfterExternalWipe(bool)`. | §5.6 |
+| **EXT-007** | 🟢 | `SystemUtils.cpp:41-48` | Dois docblocks empilhados em `isValidHistoryFileName`. O primeiro cita `.csv` (formato abandonado em v3.11+; histórico hoje é `.bin`). Doxygen pega o primeiro. | §5.7 |
+| **EXT-008** | 🟢 | `docs/` ausente | Tags de comentário no código (`F-LOCKOUT-STUCK`, `BUG-002`, `CON-005a/b`, `Patch C`, `Fase 4/5`, `#4/5/7/8/11`, etc.) não têm dicionário in-tree. Revisores externos ficam sem decoder. | §6.2 |
+| **EXT-009** | 🟢 | sem `test/` | Helpers puros (`parseIntStrict`, `isValidIpv4`, `isSafeUploadFilename`, `dallasCrc8`, `floatToI16`/`i16ToFloat`, `timeReached`) podem rodar host-side via `pio test -e native` + Unity. Hoje só há scripts HW em `tools/test_*`. **Depende de EXT-001.** | §6.4 |
+| **EXT-010** | 🟢 | `AppManager.cpp` (8+ sites) | `enterFlashReadLock()` / `exitFlashReadLock()` não-RAII em pares manuais (linhas 782/786, 2289/2292, 2301/2303, 2309/2320, 2352/2354, 2693/2696, 2748/2750, 2766/...). `ReadGuard` RAII existe em `WebManager.h:153` mas não está exposto publicamente. | §6.6 |
+| **EXT-011** | 🟢 | múltiplos | Polish: (a) `AppManager.cpp:711-713` tem `watchdog_update();` duas vezes seguidas; (b) `DisplayManager.cpp:27` envolve `pico/multicore.h` em `extern "C"` — provavelmente redundante no SDK Pico atual; (c) `TelemetryManager::releaseIdleResources()` é no-op intencional, mas o nome esconde a decisão. | §7 |
+| **EXT-012** | 🟢 | `README.md:24` | Cita "8 display languages (English, Portuguese, Spanish, French, German, Italian, Russian, Chinese)" — stale após F-I18N-TRIM.1 (`v3.22.0` reduziu para EN+PT). Achado descoberto durante validação da revisão (não está no documento original). | bonus |
+
+> **Achados opinativos descartados**: §4.4 (warnings) coberto por EXT-001; §5.5 (`String` count)
+> coberto por F16/MEM-001; §6.1 (idioma de logs) sem ganho mensurável; §6.5 (macro
+> `WDT_FEED_BARRIER()`) coberto por F16/PER-001 (`feedWdt()`); §7 itens sobre `MAX_USERS`
+> comment, `handleApiScreenshot` pause — cosméticos sem evidência de problema real.
+
+> **Adoções não-finding**: padrão de PR (§10) e protocolo `symbols_inventory_before/after`
+> (§11) viram *guideline obrigatório* para fases F17 (split de arquivos grandes). Glossário
+> (§3) é a base de conteúdo para EXT-008.
 
 ---
 
@@ -483,8 +520,26 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · F-LOCKOUT-STUCK fix (v3.24.10) — `_tftFirstInit` flag: `_tft->begin()` (que faz HW reset do ILI9341 e causa flash branco) só roda na 1ª launch do Core 1. | 🟡 Parcial (touch quebrou pós-save) | `37c3c9d` | — | 2026-04-21 |
 |   · F-LOCKOUT-STUCK fix (v3.24.11) — `_ts->begin()` (attach IRQ do touch na NVIC de Core 1) restaurado em TODA launch; `_tft->begin()` continua only-on-first. Touch volta a responder pós-save. | ✅ HW validada (save sem stucks, touch OK, display sem flash branco) | `295f564` | — | 2026-04-22 |
 |   · TEST-ONLY: `conf sensor <N> history all` — comando oculto para recuperar visualização de histórico pós factory reset (zera `provisionEpoch`). **REMOVER ANTES DE PRODUÇÃO** (marcadores `TEST-ONLY` em SystemDefs.h, CommandManager.cpp, AppManager.cpp). | ✅ HW validada | `8806273` | — | 2026-04-22 |
+| **F-BT-LOGIN — Defer flash no login Bluetooth (U25)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-25 |
+|   · U25 — `LogManager::setForceBuffer(true/false)` wrappando `_btMgr.update()` em `CommandManager::processInput`. Todos os `LOG_CODE` durante o update BT vão para buffer RAM `_pendingLogs[]` (32 slots) em vez de disparar flash síncrono. Banner de boas-vindas reordenado antes do `LOG_CODE` para resposta imediata. Sem alocações novas de heap. | ✅ Implementado (HW pendente) | — | — | 2026-04-25 |
 | **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
+|   · Inclui EXT-006 (`LogManager::resetAfterExternalWipe`) + EXT-010 (`ReadGuard` público). | ⚪ Pendente | — | — | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
+|   · Inclui EXT-003 (split `SystemDefs.h`) + EXT-005 (`AppManager.h` decoupling). Protocolo `symbols_inventory_before/after` obrigatório (ver §2.5 referências externas §10/§11). | ⚪ Pendente | — | — | — |
+| **F-CLEANUP — Polish puntual de baixo risco** | ⚪ Pendente | — | (v3.24.x patch) | — |
+|   · EXT-002 — remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY) **antes de qualquer release público**. | ⚪ Pendente | — | — | — |
+|   · EXT-007 — apagar docblock obsoleto em `SystemUtils.cpp:41-44` (referência a `.csv`). | ⚪ Pendente | — | — | — |
+|   · EXT-011a — remover `watchdog_update()` duplicado em `AppManager.cpp:711-713`. | ⚪ Pendente | — | — | — |
+|   · EXT-011b — validar e remover `extern "C"` em `DisplayManager.cpp:27` (provável paranoia histórica do SDK Pico). | ⚪ Pendente | — | — | — |
+|   · EXT-011c — renomear/documentar `TelemetryManager::releaseIdleResources()` para refletir decisão consciente de no-op. | ⚪ Pendente | — | — | — |
+| **F-I18N-TRIM.2 (feature fora da auditoria)** | ⚪ Pendente | — | — | — |
+|   · EXT-004 — remover blocos `@LANG_BEGIN:es\|de\|fr\|it\|ru\|zh` de `WebUI.h` (consistência com F-I18N-TRIM.1 do firmware). Reduz manutenção de strings da UI; impacto em flash desprezível (gzip já colapsa). | ⚪ Pendente | — | — | — |
+| **F-DOC-EXT — Documentação externa cooperativa** | ⚪ Pendente | — | — | — |
+|   · EXT-008 — `docs/GLOSSARY.md` in-tree (tags BUG/SEC/CON/DOC/F-/Patch/#N), reaproveita §3 do `audits/SIMUT_ANALISE_TECNICA_v1.md`. | ⚪ Pendente | — | — | — |
+|   · EXT-012 — atualizar `README.md` ("8 display languages" → "EN + PT" pós F-I18N-TRIM.1). | ⚪ Pendente | — | — | — |
+| **F-BUILD (deferida, opcional)** | ⚪ Pendente | — | — | — |
+|   · EXT-001 — `platformio.ini` (ou `arduino-cli.yaml`) reproduzível com lib pins explícitos + `-Wall -Wextra`. Pré-requisito de EXT-009. Decisão depende de quanto valor há em build CI vs. workflow Arduino IDE atual. | ⚪ Pendente | — | — | — |
+|   · EXT-009 — host-side unit tests via `pio test -e native` + Unity para validators puros (`parseIntStrict`, `isValidIpv4`, `isSafeUploadFilename`, `dallasCrc8`, `floatToI16`/`i16ToFloat`, `timeReached`). Bloqueado por EXT-001. | ⚪ Pendente | — | — | — |
 
 ### Legenda de Status
 
@@ -577,4 +632,17 @@ Atualize esta tabela conforme cada fase for concluída.
 | DOC-002 | 🟢 | F14 | ✅ | `BOOT_WAIT_DOT/ALARM_ROTATE/ALARM_FLASH/WEB_NOTIFY` nomeados + DHT22 unificado (v3.23.11). |
 | DOC-003 | ⚪ | F14 | ⚪ | Criar `SECURITY.md` na raiz. |
 | WEB-001 | 🟢 | F14 | ⚪ | **Post-audit F12.1 (2026-04-20):** `handleApiLs` emite JSON sem escapar bytes de controle (0x00-0x1F/0x7F) nos `name` — 1 arquivo com byte ruim quebra todo o listing (observado com `/x␁y.txt` criado por teste pré-patch). F12.1 impede upload via HTTP, mas não cobre entrada por outros canais. Fix: `jsonEscape()` ou skip de entries com chars inválidos no `handleApiLs`. |
+| EXT-001 | 🟡 | F-BUILD | ⚪ | `platformio.ini` reproduzível + lib pins + `-Wall -Wextra`. Bloqueia EXT-009. |
+| EXT-002 | 🟠 | F-CLEANUP | ⚪ | Remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY introduzido em v3.24.12). **Pré-release obrigatório.** |
+| EXT-003 | 🟡 | F17 | ⚪ | Split `SystemDefs.h` (1342 L) em headers temáticos com facade. |
+| EXT-004 | 🟡 | F-I18N-TRIM.2 | ⚪ | Remover 6 idiomas mortos em `WebUI.h` (72 markers `@LANG_BEGIN`). |
+| EXT-005 | 🟢 | F17 | ⚪ | `AppManager.h` forward decl + `unique_ptr` (rebuild churn). |
+| EXT-006 | 🟢 | F16 | ⚪ | `LogManager::resetAfterExternalWipe()` substitui `begin()` em runtime. |
+| EXT-007 | 🟢 | F-CLEANUP | ⚪ | Apagar docblock obsoleto `.csv` em `SystemUtils.cpp:41-44`. |
+| EXT-008 | 🟢 | F-DOC-EXT | ⚪ | `docs/GLOSSARY.md` in-tree para tags do projeto. |
+| EXT-009 | 🟢 | F-BUILD | ⚪ | Host-side unit tests (Unity / `pio test -e native`). Depende de EXT-001. |
+| EXT-010 | 🟢 | F16 | ⚪ | Promover `ReadGuard` para `StorageManager.h`; aplicar em ~8 sites de `AppManager.cpp`. |
+| EXT-011 | 🟢 | F-CLEANUP | ⚪ | Polish: dup `watchdog_update()`, `extern "C"` redundante, `releaseIdleResources()` no-op. |
+| EXT-012 | 🟢 | F-DOC-EXT | ⚪ | Atualizar README ("8 languages" → "EN + PT" pós F-I18N-TRIM.1). |
+| U25 | 🔴 | F-BT-LOGIN | ✅ | **Defer flash no login BT (2026-04-25):** `LOG_CODE` dentro de `BluetoothManager::update()` disparava `writeCompactToFlash` síncrono com duplo lockout do Core 1. Sob LittleFS >70%, GC + lockout causavam travamento e possível WDT reset. Fix: `LogManager::setForceBuffer(true/false)` wrappando `_btMgr.update()` em `CommandManager::processInput`. Banner de boas-vindas reordenado antes do `LOG_CODE`. Zero novas alocações de heap. |
 | U24 | 🔴 | F11 | ✅ | **Commit-all + reboot pattern (2026-04-19):** rajadas de saves consecutivos eram a fonte original de todos os bugs de concorrência (U16/U21/U23). Mudança arquitetural do modelo UX: interface web acumula mudanças no `sessionStorage` client-side; botão único "Salvar e Reiniciar" no topbar (só aparece se há pendentes). Ao clicar: confirmação com aviso de risco → POST `/api/commit_all` com JSON → server aplica tudo em 1 save → reboot limpo. **Phase A.1** (v3.15.0): migrado `/config`. **Phase A.2** (v3.16.0): migrado `/alarms`; `handleApiSaveAlarms` e `handleSaveSystem` grande removidos. **Phase B** (v3.17.0): migrado `/users` como queue de ações (`add`/`del`/`reset`) com overlay visual + botão ↶ de desfazer; `handleApiUserAdd/Del/Reset` removidos. **Phase C** (v3.18.0): migrado `/network` (ssid, pass, dhcp, ip, mask, gw, dns, ntp_server, web_port); detecção de mudança de porta → redirect automático pro novo host:porta após reboot; `handleSaveNetwork` removido. **Phase D** (v3.19.0): `Pending` + `commitAll` + CSS + botão injeção centralizados em `/lang.js` (removidas ~8KB de código duplicado); botão "Salvar e Reiniciar" agora aparece em TODAS as páginas (dash/hist/file/license/cfg/alarms/users/net); versão do firmware exibida ao lado de "SIMUT" (endpoint `/api/perms` extendido com `version`); botão de toggle tema claro/escuro (`#theme-toggle`) com preferência em `localStorage`; paleta de tema claro refinada (slate + cyan-700 AA-contrast) com overrides cobrindo topbar/drawer/cards/inputs/tabelas/chart/badges/calendar/sounds. Todas as 4 páginas de configuração agora compartilham o mesmo padrão; economia total de ~18KB de flash. |
