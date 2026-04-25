@@ -23,7 +23,7 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 - **NTP time sync** — Virtual RTC with provisional timestamps and automatic correction
 - **Flash storage** — LittleFS with CRC32 dual-bank config, history CSV, and log rotation
 - **Crash forensics** — Black-box profiler with watchdog scratch register autopsy
-- **i18n** — 8 display languages (English, Portuguese, Spanish, French, German, Italian, Russian, Chinese)
+- **i18n** — 2 display languages (English, Portuguese)
 
 ## Hardware Requirements
 
@@ -109,7 +109,7 @@ python3 compressor.py
 
 ```
 SIMUT/
-├── SIMUT.ino              # Main entry point (setup + loop)
+├── SIMUT_Versa.ino        # Main entry point (setup + loop)
 ├── SystemDefs.h           # Global types, enums, structs, constants
 ├── SystemUtils.cpp        # CRC8, filename validation utilities
 ├── AppManager.h/.cpp      # Application orchestrator (boot, loop, events)
@@ -127,6 +127,9 @@ SIMUT/
 ├── WebUI.h                # Embedded HTML/CSS/JS (PROGMEM)
 ├── tools/
 │   └── compressor.py      # WebUI.h → WebUI_GZ.h generator
+├── docs/
+│   └── GLOSSARY.md        # Tag dictionary for inline code comments
+├── audits/                # External audit reports
 ├── LICENSE
 ├── .gitignore
 └── README.md
