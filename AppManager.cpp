@@ -160,9 +160,17 @@ void AppManager::setup() {
         /* Frontend envia SHA256(plaintext) antes do hashPassword;
          * sha256Hex espelha esse comportamento (UTF-8 → Latin-1). */
         String preHash = _storageMgr.sha256Hex(attempt);
-        String hashed = _storageMgr.hashPassword(
-            String(cfg.users[0].username), preHash);
-        return (hashed == String(cfg.users[0].password));
+        String storedHash = String(cfg.users[0].password);
+        /* SEC-007: suporta tanto legacy (30 chars) quanto v1 (32 chars). */
+        if (cfg.users[0].hashVersion == 0 && storedHash.length() == 30) {
+            String legacyHash = _storageMgr.hashPasswordLegacy(
+                String(cfg.users[0].username), preHash);
+            return (legacyHash == storedHash);
+        } else {
+            String hashed = _storageMgr.hashPasswordV1(
+                String(cfg.users[0].username), preHash, cfg.users[0].salt);
+            return (hashed == storedHash);
+        }
     });
 
     if (!fsOk) LOG_CODE(LOG_ERROR, "APP", APP_STORAGE_CRITICAL, 0, TRL("Storage Critical Failure!", "Falha critica de storage!"));
@@ -1017,14 +1025,15 @@ void AppManager::executeCommand(CliDemand cmd) {
             }
             /* SEC-003/F12.3: gera senha random no reset CLI também (em vez de "simut"
              * hardcoded, que era tão vulnerável quanto o "admin" pré-patch). Mostra
-             * no próprio CLI — quem pode rodar o comando já tem acesso USB. */
+             * no próprio CLI — quem pode rodar o comando já tem acesso USB.
+             * SEC-007/009 (F15): salt random + hashVersion=1 (formato v1). */
             char newPlain[9];
             _storageMgr.generateInitialAdminPassword(newPlain, sizeof(newPlain));
+            _storageMgr.generateSalt(cfg.users[0].salt);
             String preHash = _storageMgr.sha256Hex(String(newPlain));
-            String hashed = _storageMgr.hashPassword("admin", preHash);
+            String hashed = _storageMgr.hashPasswordV1("admin", preHash, cfg.users[0].salt);
             safeCopy(cfg.users[0].password, hashed.c_str(), sizeof(cfg.users[0].password));
-            /* Nota: safeCopy já null-termina; removido `password[31]='\0'` antigo
-             * que assumia buffer[32] e truncaria hashes de 32 hex (v1). */
+            cfg.users[0].hashVersion = 1;
             cfg.users[0].mustChangePassword = true;
             const bool pt = _cmdMgr.isPt();
             _cmdMgr.printInfo(pt ? "Senha admin resetada. Nova senha (unica vez):"
@@ -1567,10 +1576,13 @@ void AppManager::executeCommand(CliDemand cmd) {
             bool found = false;
             for (int i = 0; i < MAX_USERS; i++) {
                 if (cfg.users[i].active && strcasecmp(cmd.strVal1, cfg.users[i].username) == 0) {
-                    /* CON-005b: sha256Hex aceita String; wrap temporário. */
+                    /* CON-005b: sha256Hex aceita String; wrap temporário.
+                     * SEC-007/009 (F15): salt random + hashVersion=1. */
+                    _storageMgr.generateSalt(cfg.users[i].salt);
                     String preHash = _storageMgr.sha256Hex(String(cmd.strVal2));
-                    String hashed = _storageMgr.hashPassword(String(cfg.users[i].username), preHash);
+                    String hashed = _storageMgr.hashPasswordV1(String(cfg.users[i].username), preHash, cfg.users[i].salt);
                     safeCopy(cfg.users[i].password, hashed.c_str(), sizeof(cfg.users[i].password));
+                    cfg.users[i].hashVersion = 1;
                     cfg.users[i].mustChangePassword = false;
                     _cmdMgr.printSuccess(String(pt ? "Senha atualizada: " : "Password updated: ") + cmd.strVal1);
                     LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,

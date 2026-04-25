@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.24.17"        /* Firmware version string */
+#define SIMUT_VERSION "v3.24.18"        /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -192,6 +192,12 @@ constexpr uint32_t RATE_LIMIT_TTL_MS         = 900000;
 
 /** Número de slots para rastreamento de estado de login (IP → failCount). */
 constexpr uint8_t  LOGIN_STATE_SLOTS         = 8;
+
+/** PASSWORD_HMAC_ROUNDS — Número de iterações HMAC-SHA256 para hashing
+ *  de senhas. OWASP 2023 recomenda ≥600k; NIST recomenda ≥10k. O RP2040
+ *  (Cortex-M0+ @133MHz) com 5000 rounds consome ~400ms por operação —
+ *  aceitável para login (infrequente). A cada 50 rounds alimenta o WDT. */
+constexpr uint16_t PASSWORD_HMAC_ROUNDS      = 5000;
 
 /* ── Bluetooth auth ── */
 
@@ -609,7 +615,7 @@ struct __attribute__((packed)) UserAccount {
     uint16_t permissions;
     bool mustChangePassword;
     uint8_t salt[8];             /**< SEC-009: salt random por usuário. {0} = modo legado. */
-    uint8_t hashVersion;         /**< SEC-008: 0=legacy (2500r/120b/username-salt), 1=v1 (5000r/128b/random-salt). */
+    uint8_t hashVersion;         /**< SEC-008: 0=legacy (2500r/120b/username-salt), 1=v1 (PASSWORD_HMAC_ROUNDS/128b/random-salt). */
 };
 static_assert(sizeof(UserAccount) == 62, "UserAccount v15 deve ter 62 bytes (packed)");
 

@@ -215,19 +215,25 @@ void StorageManager::loadDefaults() {
     generateInitialAdminPassword(_initialAdminPassword, sizeof(_initialAdminPassword));
 
     /* Frontend JS envia SHA256(plaintext) como `pass`, então o hash persistido
-     * deve ser `hashPassword(user, SHA256(plaintext))`. */
+     * deve ser `hashPassword(user, SHA256(plaintext))`.
+     * SEC-007/008/009 (F15): factory defaults usam formato v1 (salt random,
+     * PASSWORD_HMAC_ROUNDS rounds, 32 hex chars / 128 bits). */
     String preHash = sha256Hex(String(_initialAdminPassword));
-    String defaultAdminHash = hashPassword("admin", preHash);
+    generateSalt(_currentConfig.users[0].salt);
+    String defaultAdminHash = hashPasswordV1("admin", preHash, _currentConfig.users[0].salt);
     safeCopy(_currentConfig.users[0].password, defaultAdminHash.c_str(), sizeof(_currentConfig.users[0].password));
     _currentConfig.users[0].permissions = PERM_FULL_ADMIN;
     _currentConfig.users[0].mustChangePassword = true;
+    _currentConfig.users[0].hashVersion = 1;
 
     _currentConfig.users[1].active = true;
     safeCopy(_currentConfig.users[1].username, "viewer", sizeof(_currentConfig.users[1].username));
-    String defaultViewerHash = hashPassword("viewer", "0b58331da2913b41e21b7b04938632e1858a729e28cf6914b4334380f339b6f1");
+    generateSalt(_currentConfig.users[1].salt);
+    String defaultViewerHash = hashPasswordV1("viewer", "0b58331da2913b41e21b7b04938632e1858a729e28cf6914b4334380f339b6f1", _currentConfig.users[1].salt);
     safeCopy(_currentConfig.users[1].password, defaultViewerHash.c_str(), sizeof(_currentConfig.users[1].password));
     _currentConfig.users[1].permissions = (PERM_DASHBOARD | PERM_HISTORY);
     _currentConfig.users[1].mustChangePassword = true;
+    _currentConfig.users[1].hashVersion = 1;
 
     safeCopy(_currentConfig.telServer, "", sizeof(_currentConfig.telServer));
     _currentConfig.telPort = 80;
@@ -1307,26 +1313,59 @@ String StorageManager::sha256Hex(const String& input) {
 }
 
 /**
- * @brief HMAC-SHA256 password hashing with board serial pepper and 2500 rounds.
- * Salt: lowercase username. Pepper: unique board serial number.
- * Output: 30 hex chars (120 bits of effective entropy).
+ * @brief Core HMAC-SHA256 password hashing — parâmetros explícitos (SEC-007/008/009).
+ *
+ * @param username      Username (usado como salt se salt==nullptr).
+ * @param plainPassword  SHA-256 hex da senha (64 chars, do frontend).
+ * @param salt          Buffer com salt bytes (nullptr → deriva de username).
+ * @param saltLen       Comprimento do salt em bytes.
+ * @param rounds        Número de iterações HMAC-SHA256.
+ * @param outputBytes   Bytes do hash a emitir em hex (15 → 30 chars, 16 → 32 chars).
+ * @return              Hash hex string (outputBytes*2 chars).
  */
-String StorageManager::hashPassword(const String& username, const String& plainPassword) {
+static String hashPasswordCore(const String& username, const String& plainPassword,
+                               const uint8_t* salt, size_t saltLen,
+                               uint16_t rounds, int outputBytes) {
     String pepper = getBoardSerialNumber();
-    String salt = username; salt.toLowerCase();
     String keyData = plainPassword + pepper;
     br_hmac_key_context kc; br_hmac_context ctx;
     br_hmac_key_init(&kc, &br_sha256_vtable, keyData.c_str(), keyData.length());
     unsigned char currentHash[32];
-    br_hmac_init(&ctx, &kc, 0); br_hmac_update(&ctx, salt.c_str(), salt.length()); br_hmac_out(&ctx, currentHash);
-    for (int r = 0; r < 2500; r++) {
-        if (r % 50 == 0) watchdog_update();  /* U5: feed mais frequente */
+    br_hmac_init(&ctx, &kc, 0); br_hmac_update(&ctx, salt, saltLen); br_hmac_out(&ctx, currentHash);
+    for (int r = 0; r < rounds; r++) {
+        if (r % 50 == 0) watchdog_update();
         br_hmac_init(&ctx, &kc, 0); br_hmac_update(&ctx, currentHash, 32); br_hmac_out(&ctx, currentHash);
     }
 
-
-    char hashHex[32];
-    for (int i = 0; i < 15; i++) snprintf(hashHex + (i * 2), 3, "%02x", currentHash[i]);
-    hashHex[30] = '\0';
+    char hashHex[65];
+    for (int i = 0; i < outputBytes; i++) snprintf(hashHex + (i * 2), 3, "%02x", currentHash[i]);
+    hashHex[outputBytes * 2] = '\0';
     return String(hashHex);
+}
+
+String StorageManager::hashPassword(const String& username, const String& plainPassword) {
+    String saltStr = username; saltStr.toLowerCase();
+    return hashPasswordCore(username, plainPassword,
+        (const uint8_t*)saltStr.c_str(), saltStr.length(),
+        PASSWORD_HMAC_ROUNDS, 16);
+}
+
+String StorageManager::hashPasswordLegacy(const String& username, const String& plainPassword) {
+    String saltStr = username; saltStr.toLowerCase();
+    return hashPasswordCore(username, plainPassword,
+        (const uint8_t*)saltStr.c_str(), saltStr.length(),
+        2500, 15);
+}
+
+String StorageManager::hashPasswordV1(const String& username, const String& plainPassword,
+                                      const uint8_t* userSalt) {
+    return hashPasswordCore(username, plainPassword,
+        userSalt, 8, PASSWORD_HMAC_ROUNDS, 16);
+}
+
+void StorageManager::generateSalt(uint8_t* buf) {
+    for (int i = 0; i < 8; i += 4) {
+        uint32_t r = rp2040.hwrand32();
+        memcpy(buf + i, &r, (8 - i >= 4) ? 4 : (8 - i));
+    }
 }

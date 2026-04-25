@@ -1018,32 +1018,46 @@ void WebManager::handleApiLogin() {
 
     int foundId = -1;
 
-    String inputHash = _storageRef->hashPassword(u, p);
-
     for (int i = 0; i < MAX_USERS; i++) {
-        if (cfg.users[i].active && String(cfg.users[i].username) == u) {
-            bool passValid = false;
+        if (!cfg.users[i].active || String(cfg.users[i].username) != u) continue;
 
-            if (String(cfg.users[i].username) == "admin") {
+        String storedHash = String(cfg.users[i].password);
+        bool passValid = false;
+        bool needsMigration = false;
 
-                if (secureCompare(String(cfg.users[i].password), inputHash)) passValid = true;
-            } else {
-                if (cfg.users[i].mustChangePassword && String(cfg.users[i].password) == "*PENDING*") {
-                    String expectedFrontendHash = getDynamicExpectedHash(u);
-
-                    String expectedFinalHash = _storageRef->hashPassword(u, expectedFrontendHash);
-
-                    if (secureCompare(inputHash, expectedFinalHash)) passValid = true;
-                } else {
-
-                    if (secureCompare(String(cfg.users[i].password), inputHash)) passValid = true;
-                }
+        /* *PENDING*: senha temporária time-based (primeiro login após criação/reset).
+         * Ambos os lados computam fresh com o mesmo algoritmo — sem migração. */
+        if (cfg.users[i].mustChangePassword && storedHash == "*PENDING*") {
+            String expectedFrontendHash = getDynamicExpectedHash(u);
+            String expectedFinalHash = _storageRef->hashPassword(u, expectedFrontendHash);
+            String inputHash = _storageRef->hashPassword(u, p);
+            if (secureCompare(inputHash, expectedFinalHash)) passValid = true;
+        }
+        /* Legado: hashVersion==0, 30 chars (120 bits), username-salt, 2500 rounds. */
+        else if (cfg.users[i].hashVersion == 0 && storedHash.length() == 30) {
+            String legacyHash = _storageRef->hashPasswordLegacy(u, p);
+            if (secureCompare(storedHash, legacyHash)) {
+                passValid = true;
+                needsMigration = true;
             }
+        }
+        /* V1: hashVersion>=1, 32 chars (128 bits), salt random, PASSWORD_HMAC_ROUNDS. */
+        else {
+            String inputHash = _storageRef->hashPasswordV1(u, p, cfg.users[i].salt);
+            if (secureCompare(storedHash, inputHash)) passValid = true;
+        }
 
-            if (passValid) {
-                foundId = i;
-                break;
+        if (passValid) {
+            /* Migração transparente (SEC-007): re-hash com salt random + 32 chars. */
+            if (needsMigration) {
+                _storageRef->generateSalt(cfg.users[i].salt);
+                String newHash = _storageRef->hashPasswordV1(u, p, cfg.users[i].salt);
+                safeCopy(cfg.users[i].password, newHash.c_str(), sizeof(cfg.users[i].password));
+                cfg.users[i].hashVersion = 1;
+                _storageRef->saveConfiguration();
             }
+            foundId = i;
+            break;
         }
     }
 
@@ -1197,9 +1211,11 @@ void WebManager::handleApiForceChpass() {
 
     SystemConfig& cfg = _storageRef->getConfig();
 
-    String hashedNewPass = _storageRef->hashPassword(_currentUserName, p1);
-
+    _storageRef->generateSalt(cfg.users[_currentUserId].salt);
+    String hashedNewPass = _storageRef->hashPasswordV1(
+        _currentUserName, p1, cfg.users[_currentUserId].salt);
     safeCopy(cfg.users[_currentUserId].password, hashedNewPass.c_str(), sizeof(cfg.users[_currentUserId].password));
+    cfg.users[_currentUserId].hashVersion = 1;
     cfg.users[_currentUserId].mustChangePassword = false;
     _storageRef->saveConfiguration();
 
