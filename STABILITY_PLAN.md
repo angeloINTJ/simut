@@ -532,8 +532,8 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · EXT-011a — remover `watchdog_update()` duplicado em `AppManager.cpp:711-713`. | ⚪ Pendente | — | — | — |
 |   · EXT-011b — validar e remover `extern "C"` em `DisplayManager.cpp:27` (provável paranoia histórica do SDK Pico). | ⚪ Pendente | — | — | — |
 |   · EXT-011c — renomear/documentar `TelemetryManager::releaseIdleResources()` para refletir decisão consciente de no-op. | ⚪ Pendente | — | — | — |
-| **F-I18N-TRIM.2 (feature fora da auditoria)** | ⚪ Pendente | — | — | — |
-|   · EXT-004 — remover blocos `@LANG_BEGIN:es\|de\|fr\|it\|ru\|zh` de `WebUI.h` (consistência com F-I18N-TRIM.1 do firmware). Reduz manutenção de strings da UI; impacto em flash desprezível (gzip já colapsa). | ⚪ Pendente | — | — | — |
+| **F-I18N-TRIM.2 (feature fora da auditoria)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-25 |
+|   · EXT-004 — remover blocos `@LANG_BEGIN:es\|de\|fr\|it\|ru\|zh` de `WebUI.h` (consistência com F-I18N-TRIM.1 do firmware). Reduz manutenção de strings da UI; impacto em flash desprezível (gzip já colapsa). | ✅ 336 linhas removidas (72 blocos) | — | — | — |
 | **F-DOC-EXT — Documentação externa cooperativa** | ⚪ Pendente | — | — | — |
 |   · EXT-008 — `docs/GLOSSARY.md` in-tree (tags BUG/SEC/CON/DOC/F-/Patch/#N), reaproveita §3 do `audits/SIMUT_ANALISE_TECNICA_v1.md`. | ⚪ Pendente | — | — | — |
 |   · EXT-012 — atualizar `README.md` ("8 display languages" → "EN + PT" pós F-I18N-TRIM.1). | ⚪ Pendente | — | — | — |
@@ -635,7 +635,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | EXT-001 | 🟡 | F-BUILD | ⚪ | `platformio.ini` reproduzível + lib pins + `-Wall -Wextra`. Bloqueia EXT-009. |
 | EXT-002 | 🟠 | F-CLEANUP | ⚪ | Remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY introduzido em v3.24.12). **Pré-release obrigatório.** |
 | EXT-003 | 🟡 | F17 | ⚪ | Split `SystemDefs.h` (1342 L) em headers temáticos com facade. |
-| EXT-004 | 🟡 | F-I18N-TRIM.2 | ⚪ | Remover 6 idiomas mortos em `WebUI.h` (72 markers `@LANG_BEGIN`). |
+| EXT-004 | 🟡 | F-I18N-TRIM.2 | ✅ | Remover 6 idiomas mortos em `WebUI.h` (72 markers `@LANG_BEGIN`). |
 | EXT-005 | 🟢 | F17 | ⚪ | `AppManager.h` forward decl + `unique_ptr` (rebuild churn). |
 | EXT-006 | 🟢 | F16 | ⚪ | `LogManager::resetAfterExternalWipe()` substitui `begin()` em runtime. |
 | EXT-007 | 🟢 | F-CLEANUP | ⚪ | Apagar docblock obsoleto `.csv` em `SystemUtils.cpp:41-44`. |
