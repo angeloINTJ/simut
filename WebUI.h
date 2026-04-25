@@ -46,24 +46,6 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script>
     const dictLog = {
         pt: { "log_usr": "Usuário", "log_pas": "Senha", "log_show": "Mostrar senha", "log_btn": "Entrar", "log_err": "Usuário ou senha incorretos.", "log_full": "Limite de sessões atingido. Tente mais tarde.", "log_lock": "Bloqueado por {s}s. Tentativas excessivas." },
-        // @LANG_BEGIN:es
-        es: { "log_usr": "Usuario", "log_pas": "Contraseña", "log_show": "Mostrar contraseña", "log_btn": "Entrar", "log_err": "Credenciales inválidas.", "log_full": "Máximo de sesiones alcanzado.", "log_lock": "Bloqueado por {s}s. Demasiados intentos." },
-        // @LANG_END:es
-        // @LANG_BEGIN:de
-        de: { "log_usr": "Benutzername", "log_pas": "Passwort", "log_show": "Passwort anzeigen", "log_btn": "Anmelden", "log_err": "Ungültige Anmeldedaten.", "log_full": "System ausgelastet. Versuchen Sie es später.", "log_lock": "Gesperrt für {s}s. Zu viele Versuche." },
-        // @LANG_END:de
-        // @LANG_BEGIN:fr
-        fr: { "log_usr": "Identifiant", "log_pas": "Mot de passe", "log_show": "Afficher", "log_btn": "Connexion", "log_err": "Identifiants invalides.", "log_full": "Système saturé. Réessayez plus tard.", "log_lock": "Bloqué pour {s}s. Trop de tentatives." },
-        // @LANG_END:fr
-        // @LANG_BEGIN:it
-        it: { "log_usr": "Utente", "log_pas": "Password", "log_show": "Mostra password", "log_btn": "Accedi", "log_err": "Credenziali non valide.", "log_full": "Sistema pieno. Riprova più tardi.", "log_lock": "Bloccato per {s}s. Troppi tentativi." },
-        // @LANG_END:it
-        // @LANG_BEGIN:ru
-        ru: { "log_usr": "Логин", "log_pas": "Пароль", "log_show": "Показать пароль", "log_btn": "Войти", "log_err": "Неверные учётные данные.", "log_full": "Система занята. Попробуйте позже.", "log_lock": "Заблокировано на {s}с. Слишком много попыток." },
-        // @LANG_END:ru
-        // @LANG_BEGIN:zh
-        zh: { "log_usr": "用户名", "log_pas": "密码", "log_show": "显示密码", "log_btn": "登录", "log_err": "凭据无效。", "log_full": "系统已满。请稍后再试。", "log_lock": "已锁定 {s}秒。尝试次数过多。" },
-        // @LANG_END:zh
         en: { "log_usr": "Username", "log_pas": "Password", "log_show": "Show password", "log_btn": "Sign In", "log_err": "Invalid credentials.", "log_full": "System is full. Try again later.", "log_lock": "Locked for {s}s. Too many attempts." }
     };
     function t(key, fallback, vars) { let l = localStorage.getItem('simut_lang') || 'en'; let s = (l !== 'en' && dictLog[l] && dictLog[l][key]) ? dictLog[l][key] : fallback; if (vars) for (let k in vars) s = s.replace('{'+k+'}', vars[k]); return s; }
@@ -110,24 +92,6 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <select class="lang-select" onchange="setLang(this.value)">
                 <option value="en">🇺🇸 English</option>
                 <option value="pt">🇧🇷 Português</option>
-                <!-- @LANG_BEGIN:es -->
-                <option value="es">🇪🇸 Español</option>
-                <!-- @LANG_END:es -->
-                <!-- @LANG_BEGIN:de -->
-                <option value="de">🇩🇪 Deutsch</option>
-                <!-- @LANG_END:de -->
-                <!-- @LANG_BEGIN:fr -->
-                <option value="fr">🇫🇷 Français</option>
-                <!-- @LANG_END:fr -->
-                <!-- @LANG_BEGIN:it -->
-                <option value="it">🇮🇹 Italiano</option>
-                <!-- @LANG_END:it -->
-                <!-- @LANG_BEGIN:ru -->
-                <option value="ru">🇷🇺 Русский</option>
-                <!-- @LANG_END:ru -->
-                <!-- @LANG_BEGIN:zh -->
-                <option value="zh">🇨🇳 中文</option>
-                <!-- @LANG_END:zh -->
             </select>
         </div>
     </div>
@@ -168,24 +132,6 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script>
     const dictFcp = {
         pt: { "fcp_btn": "Salvar e Entrar" },
-        // @LANG_BEGIN:es
-        es: { "fcp_btn": "Guardar y Entrar" },
-        // @LANG_END:es
-        // @LANG_BEGIN:de
-        de: { "fcp_btn": "Speichern & Anmelden" },
-        // @LANG_END:de
-        // @LANG_BEGIN:fr
-        fr: { "fcp_btn": "Enregistrer & Connexion" },
-        // @LANG_END:fr
-        // @LANG_BEGIN:it
-        it: { "fcp_btn": "Salva & Accedi" },
-        // @LANG_END:it
-        // @LANG_BEGIN:ru
-        ru: { "fcp_btn": "Сохранить и войти" },
-        // @LANG_END:ru
-        // @LANG_BEGIN:zh
-        zh: { "fcp_btn": "保存并登录" },
-        // @LANG_END:zh
         en: { "fcp_btn": "Save & Login" }
     };
     function setLang(l) { localStorage.setItem('simut_lang', l); applyLang(); }
@@ -378,24 +324,6 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <select class="lang-select" onchange="setLang(this.value)">
                             <option value="en">🇺🇸 EN</option>
                             <option value="pt">🇧🇷 PT</option>
-                            <!-- @LANG_BEGIN:es -->
-                            <option value="es">🇪🇸 ES</option>
-                            <!-- @LANG_END:es -->
-                            <!-- @LANG_BEGIN:de -->
-                            <option value="de">🇩🇪 DE</option>
-                            <!-- @LANG_END:de -->
-                            <!-- @LANG_BEGIN:fr -->
-                            <option value="fr">🇫🇷 FR</option>
-                            <!-- @LANG_END:fr -->
-                            <!-- @LANG_BEGIN:it -->
-                            <option value="it">🇮🇹 IT</option>
-                            <!-- @LANG_END:it -->
-                            <!-- @LANG_BEGIN:ru -->
-                            <option value="ru">🇷🇺 RU</option>
-                            <!-- @LANG_END:ru -->
-                            <!-- @LANG_BEGIN:zh -->
-                            <option value="zh">🇨🇳 ZH</option>
-                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -727,24 +655,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <select class="lang-select" onchange="setLang(this.value)">
                             <option value="en">🇺🇸 EN</option>
                             <option value="pt">🇧🇷 PT</option>
-                            <!-- @LANG_BEGIN:es -->
-                            <option value="es">🇪🇸 ES</option>
-                            <!-- @LANG_END:es -->
-                            <!-- @LANG_BEGIN:de -->
-                            <option value="de">🇩🇪 DE</option>
-                            <!-- @LANG_END:de -->
-                            <!-- @LANG_BEGIN:fr -->
-                            <option value="fr">🇫🇷 FR</option>
-                            <!-- @LANG_END:fr -->
-                            <!-- @LANG_BEGIN:it -->
-                            <option value="it">🇮🇹 IT</option>
-                            <!-- @LANG_END:it -->
-                            <!-- @LANG_BEGIN:ru -->
-                            <option value="ru">🇷🇺 RU</option>
-                            <!-- @LANG_END:ru -->
-                            <!-- @LANG_BEGIN:zh -->
-                            <option value="zh">🇨🇳 ZH</option>
-                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -1203,24 +1113,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <select class="lang-select" onchange="setLang(this.value)">
                             <option value="en">🇺🇸 EN</option>
                             <option value="pt">🇧🇷 PT</option>
-                            <!-- @LANG_BEGIN:es -->
-                            <option value="es">🇪🇸 ES</option>
-                            <!-- @LANG_END:es -->
-                            <!-- @LANG_BEGIN:de -->
-                            <option value="de">🇩🇪 DE</option>
-                            <!-- @LANG_END:de -->
-                            <!-- @LANG_BEGIN:fr -->
-                            <option value="fr">🇫🇷 FR</option>
-                            <!-- @LANG_END:fr -->
-                            <!-- @LANG_BEGIN:it -->
-                            <option value="it">🇮🇹 IT</option>
-                            <!-- @LANG_END:it -->
-                            <!-- @LANG_BEGIN:ru -->
-                            <option value="ru">🇷🇺 RU</option>
-                            <!-- @LANG_END:ru -->
-                            <!-- @LANG_BEGIN:zh -->
-                            <option value="zh">🇨🇳 ZH</option>
-                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -1893,24 +1785,6 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <select class="lang-select" onchange="setLang(this.value)">
                             <option value="en">🇺🇸 EN</option>
                             <option value="pt">🇧🇷 PT</option>
-                            <!-- @LANG_BEGIN:es -->
-                            <option value="es">🇪🇸 ES</option>
-                            <!-- @LANG_END:es -->
-                            <!-- @LANG_BEGIN:de -->
-                            <option value="de">🇩🇪 DE</option>
-                            <!-- @LANG_END:de -->
-                            <!-- @LANG_BEGIN:fr -->
-                            <option value="fr">🇫🇷 FR</option>
-                            <!-- @LANG_END:fr -->
-                            <!-- @LANG_BEGIN:it -->
-                            <option value="it">🇮🇹 IT</option>
-                            <!-- @LANG_END:it -->
-                            <!-- @LANG_BEGIN:ru -->
-                            <option value="ru">🇷🇺 RU</option>
-                            <!-- @LANG_END:ru -->
-                            <!-- @LANG_BEGIN:zh -->
-                            <option value="zh">🇨🇳 ZH</option>
-                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -2250,24 +2124,6 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <select class="lang-select" onchange="setLang(this.value)">
                             <option value="en">🇺🇸 EN</option>
                             <option value="pt">🇧🇷 PT</option>
-                            <!-- @LANG_BEGIN:es -->
-                            <option value="es">🇪🇸 ES</option>
-                            <!-- @LANG_END:es -->
-                            <!-- @LANG_BEGIN:de -->
-                            <option value="de">🇩🇪 DE</option>
-                            <!-- @LANG_END:de -->
-                            <!-- @LANG_BEGIN:fr -->
-                            <option value="fr">🇫🇷 FR</option>
-                            <!-- @LANG_END:fr -->
-                            <!-- @LANG_BEGIN:it -->
-                            <option value="it">🇮🇹 IT</option>
-                            <!-- @LANG_END:it -->
-                            <!-- @LANG_BEGIN:ru -->
-                            <option value="ru">🇷🇺 RU</option>
-                            <!-- @LANG_END:ru -->
-                            <!-- @LANG_BEGIN:zh -->
-                            <option value="zh">🇨🇳 ZH</option>
-                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -2570,24 +2426,6 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <select class="lang-select" onchange="setLang(this.value)">
                             <option value="en">🇺🇸 EN</option>
                             <option value="pt">🇧🇷 PT</option>
-                            <!-- @LANG_BEGIN:es -->
-                            <option value="es">🇪🇸 ES</option>
-                            <!-- @LANG_END:es -->
-                            <!-- @LANG_BEGIN:de -->
-                            <option value="de">🇩🇪 DE</option>
-                            <!-- @LANG_END:de -->
-                            <!-- @LANG_BEGIN:fr -->
-                            <option value="fr">🇫🇷 FR</option>
-                            <!-- @LANG_END:fr -->
-                            <!-- @LANG_BEGIN:it -->
-                            <option value="it">🇮🇹 IT</option>
-                            <!-- @LANG_END:it -->
-                            <!-- @LANG_BEGIN:ru -->
-                            <option value="ru">🇷🇺 RU</option>
-                            <!-- @LANG_END:ru -->
-                            <!-- @LANG_BEGIN:zh -->
-                            <option value="zh">🇨🇳 ZH</option>
-                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -2890,24 +2728,6 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <select class="lang-select" onchange="setLang(this.value)">
                             <option value="en">🇺🇸 EN</option>
                             <option value="pt">🇧🇷 PT</option>
-                            <!-- @LANG_BEGIN:es -->
-                            <option value="es">🇪🇸 ES</option>
-                            <!-- @LANG_END:es -->
-                            <!-- @LANG_BEGIN:de -->
-                            <option value="de">🇩🇪 DE</option>
-                            <!-- @LANG_END:de -->
-                            <!-- @LANG_BEGIN:fr -->
-                            <option value="fr">🇫🇷 FR</option>
-                            <!-- @LANG_END:fr -->
-                            <!-- @LANG_BEGIN:it -->
-                            <option value="it">🇮🇹 IT</option>
-                            <!-- @LANG_END:it -->
-                            <!-- @LANG_BEGIN:ru -->
-                            <option value="ru">🇷🇺 RU</option>
-                            <!-- @LANG_END:ru -->
-                            <!-- @LANG_BEGIN:zh -->
-                            <option value="zh">🇨🇳 ZH</option>
-                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -3503,24 +3323,6 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <select class="lang-select" onchange="setLang(this.value)">
                             <option value="en">🇺🇸 EN</option>
                             <option value="pt">🇧🇷 PT</option>
-                            <!-- @LANG_BEGIN:es -->
-                            <option value="es">🇪🇸 ES</option>
-                            <!-- @LANG_END:es -->
-                            <!-- @LANG_BEGIN:de -->
-                            <option value="de">🇩🇪 DE</option>
-                            <!-- @LANG_END:de -->
-                            <!-- @LANG_BEGIN:fr -->
-                            <option value="fr">🇫🇷 FR</option>
-                            <!-- @LANG_END:fr -->
-                            <!-- @LANG_BEGIN:it -->
-                            <option value="it">🇮🇹 IT</option>
-                            <!-- @LANG_END:it -->
-                            <!-- @LANG_BEGIN:ru -->
-                            <option value="ru">🇷🇺 RU</option>
-                            <!-- @LANG_END:ru -->
-                            <!-- @LANG_BEGIN:zh -->
-                            <option value="zh">🇨🇳 ZH</option>
-                            <!-- @LANG_END:zh -->
                         </select>
                     </div>
                 </div>
@@ -3734,144 +3536,6 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "alm_title": "Alarmes e Sons", "alm_limits": "Limites de Alarme", "alm_sounds": "Configuração de Sons", "alm_tmin": "Temp. Mín.", "alm_tmax": "Temp. Máx.", "alm_hmin": "Umid. Mín.", "alm_hmax": "Umid. Máx.", "alm_active": "Alarme Ativo", "alm_save": "Salvar", "alm_saved": "Salvo com sucesso!", "alm_err": "Erro ao salvar.", "alm_none": "Nenhum sensor configurado.", "alm_touch": "Toque", "alm_confirm": "Confirmação", "alm_error": "Erro", "alm_alarm": "Alarme", "alm_web": "Sons Web", "alm_mute": "Mudo Global", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Alarme", "alm_on": "Ligado", "alm_off": "Desligado", "alm_ambient": "Sensor Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Descendente", "alm_mel_siren": "Sirene",
             "nav_lic": "📜 Licença", "lic_title": "Licença de Software", "lic_mit": "Licença MIT", "lic_notice": "Avisos de Terceiros"
         },
-        // @LANG_BEGIN:es
-        es: {
-            "nav_dash": "Panel de Control", "nav_hist": "Historial", "nav_cfg": "Ajustes", "nav_net": "Red", "nav_usr": "Usuarios", "nav_file": "Archivos", "nav_alm": "Alarmas y Sonidos", "nav_exit": "Salir",
-            "greet_morning": "Buenos días", "greet_afternoon": "Buenas tardes", "greet_evening": "Buenas noches", "greet_hello": "Hola", "greet_logout": "Salir",
-            "dash_dt": "Fecha y Hora", "dash_up": "Tiempo Activo", "dash_wifi": "Señal", "dash_pend": "Pendientes", "dash_ram": "Uso RAM", "dash_fs": "Almacenamiento",
-            "dash_stat": "Estado", "dash_gpio": "GPIO", "dash_id": "ID", "dash_read": "Lectura", "dash_name": "Nombre", "dash_load": "Cargando...", "dash_none": "Ninguno.",
-            "dash_ntp_wait": "Esperando...", "dash_tel_wait": "Esperando sinc.", "dash_disp": "Pantalla", "dash_disp_msg": "Clic para capturar", "dash_disp_cap": "Capturando...", "dash_disp_btn": "📷 Capturar",
-            "dash_ntp_ok": "Sincronizado", "dash_ntp_fail": "Fallo NTP", "dash_ntp_conn": "Conectando...", "dash_eval": "Evaluando...", "dash_free": "Libre", "dash_tot": "Total", "dash_conn_err": "Error",
-            "hist_title": "Telemetría", "hist_src": "Origen:", "hist_amb": "Ambiente", "hist_1h": "1 Hora", "hist_6h": "6 Horas", "hist_12h": "12 Horas", "hist_24h": "24 Horas", "hist_7d": "7 Días", "hist_cal": "Calendario",
-            "hist_maxt": "MAX T:", "hist_mint": "MIN T:", "hist_maxh": "MAX H:", "hist_minh": "MIN H:", "hist_sel_msg": "Seleccione una fecha.",
-            "hist_down_msg": "Cargando...", "hist_err_json": "Error.", "hist_no_data": "Sin datos.", "hist_conn_lost": "Conexión perdida.",
-            "hist_logs": "Eventos", "hist_filt": "Filtrar...", "hist_load_btn": "Cargar", "hist_ref": "Actualizar", "hist_clear": "Limpiar", "hist_prompt": "Haga clic en 'Cargar' para ver los registros.", "hist_load": "Cargando...", "hist_none": "Sin eventos.", "hist_dtlog": "Fecha", "hist_uptime": "Tiempo", "hist_lvl": "Nivel", "hist_module": "Módulo", "hist_desc": "Descripción", "hist_loading": "Cargando...", "hist_done": "Listo",
-            "cal_su": "Do", "cal_mo": "Lu", "cal_tu": "Ma", "cal_we": "Mi", "cal_th": "Ju", "cal_fr": "Vi", "cal_sa": "Sa",
-            "m_jan":"Ene", "m_feb":"Feb", "m_mar":"Mar", "m_apr":"Abr", "m_may":"May", "m_jun":"Jun", "m_jul":"Jul", "m_aug":"Ago", "m_sep":"Sep", "m_oct":"Oct", "m_nov":"Nov", "m_dec":"Dic",
-            "cfg_title": "Ajustes", "cfg_gen": "Identidad", "cfg_dev": "Nombre", "cfg_tz": "Zona Horaria", "cfg_log": "Registro", "cfg_hw": "Hardware", "cfg_res": "Resolución", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Muestra (ms)", "cfg_tel": "Telemetría", "cfg_srv": "IP Servidor", "cfg_port": "Puerto", "cfg_path": "Ruta", "cfg_key": "API Key", "cfg_tint": "Subida (ms)", "cfg_bat": "Lote", "cfg_fmt": "Formato", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Dinámico", "cfg_sec": "TLS / SSL", "cfg_sec_mqtt": "MQTTS (TLS)", "cfg_vis": "Constructor", "cfg_leg": "Tags", "cfg_leg1": "Globales:", "cfg_leg2": "Datos:", "cfg_leg3": "Claves:", "cfg_leg4": "Formatos:", "cfg_leg5": "Serie T", "cfg_leg6": "Serie H", "cfg_leg7": "ID Sensor", "cfg_tpl1": "1. Global", "cfg_tpl2": "2. Línea", "cfg_tpl3": "3. Separador", "cfg_prev": "Preview:", "cfg_save": "Guardar", "cfg_touch_title": "Calibración Táctil", "cfg_touch_reset": "Resetear Calibración", "cfg_touch_hint": "Restaura valores de fábrica. Recalibre desde el menú.", "cfg_touch_confirm": "¿Resetear calibración táctil?", "cfg_touch_done": "Calibración reseteada. Recalibre desde la pantalla.",
-            "cfg_transport": "Transporte", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Tema", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Usuario", "cfg_mq_pass": "Contraseña", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Retener", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "Estado Conexión", "net_stat": "Estado", "net_conn": "Conectado", "net_off": "Desconectado", "net_ip": "IP", "net_mask": "Máscara", "net_gw": "Puerta", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuración", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Contraseña", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Estática", "net_sdns": "DNS Primario", "net_save": "Guardar", "net_ntp_title": "Servidor de Hora (NTP)", "net_ntp_lbl": "Dirección del Servidor", "net_ntp_hint": "Dejar vacío para usar predeterminado (pool.ntp.org)",
-            "usr_mgt": "Accesos", "usr_usr": "Usuario", "usr_perm": "Permisos", "usr_act": "Acciones", "usr_add": "Añadir", "usr_name": "Nombre", "usr_pdash": "Panel", "usr_phist": "Historial", "usr_plog": "Logs", "usr_psys": "Sistema", "usr_pnet": "Red", "usr_pfr": "Leer", "usr_pfu": "Subir", "usr_pfd": "Borrar", "usr_pusr": "Usuarios", "usr_btn": "Crear", "usr_warn": "Login: Nombre@DDMMAAAA", "usr_prot": "Protegido", "usr_del": "Borrar", "usr_rst": "Reset", "usr_sup": "Super",
-            "fil_title": "Archivos", "fil_down": "Descargar", "fil_del": "Borrar", "fil_up": "Subir", "fil_uphere": "Subir", "fil_name": "Nombre", "fil_sz": "Tamaño", "fil_mkdir": "Carpeta", "fil_mkname": "nombre", "fil_create": "Crear", "fil_cancel": "Cancelar", "fil_loading": "Cargando...", "fil_parent": "Subir", "fil_folder": "Carpeta", "fil_empty": "Vacío", "fil_inv_name": "Inválido", "fil_sel_del": "Selecione", "fil_conf_del": "Borrar N?", "fil_sel_down": "Seleccione", "fil_conf_down": "Descargar N?", "usr_del_msg": "Borrar?", "usr_rst_msg": "Forzar reset?", "hist_clear_msg": "Borrar logs?",
-            "alm_title": "Alarmas y Sonidos", "alm_limits": "Límites de Alarma", "alm_sounds": "Configuración de Sonidos", "alm_tmin": "Temp. Mín.", "alm_tmax": "Temp. Máx.", "alm_hmin": "Hum. Mín.", "alm_hmax": "Hum. Máx.", "alm_active": "Alarma Activa", "alm_save": "Guardar", "alm_saved": "¡Guardado!", "alm_err": "Error al guardar.", "alm_none": "Ningún sensor configurado.", "alm_touch": "Toque", "alm_confirm": "Confirmación", "alm_error": "Error", "alm_alarm": "Alarma", "alm_web": "Sonidos Web", "alm_mute": "Silencio Global", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Alarma", "alm_on": "Activado", "alm_off": "Desactivado", "alm_ambient": "Sensor Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Descendente", "alm_mel_siren": "Sirena",
-            "nav_lic": "📜 Licencia", "lic_title": "Licencia de Software", "lic_mit": "Licencia MIT", "lic_notice": "Avisos de Terceros"
-        },
-        // @LANG_END:es
-        // @LANG_BEGIN:de
-        de: {
-            "nav_dash": "Dashboard", "nav_hist": "Verlauf & Logs", "nav_cfg": "Einstellungen", "nav_net": "Netzwerk", "nav_usr": "Benutzer", "nav_file": "Dateien", "nav_alm": "Alarme & Töne", "nav_exit": "Abmelden",
-            "greet_morning": "Guten Morgen", "greet_afternoon": "Guten Tag", "greet_evening": "Guten Abend", "greet_hello": "Hallo", "greet_logout": "Abmelden",
-            "dash_dt": "Datum & Uhrzeit", "dash_up": "Betriebszeit", "dash_wifi": "WLAN-Signal", "dash_pend": "Ausstehende Einträge", "dash_ram": "RAM-Auslastung", "dash_fs": "Speicher",
-            "dash_stat": "Status", "dash_gpio": "GPIO", "dash_id": "ID", "dash_read": "Messwert", "dash_name": "Name", "dash_load": "Sensoren laden...", "dash_none": "Keine Sensoren.",
-            "dash_ntp_wait": "Warten...", "dash_tel_wait": "Warte auf Sync.", "dash_disp": "Display", "dash_disp_msg": "Klicken zum Erfassen", "dash_disp_cap": "Erfasse...", "dash_disp_btn": "📷 Erfassen",
-            "dash_ntp_ok": "Synchronisiert", "dash_ntp_fail": "NTP-Fehler", "dash_ntp_conn": "Verbinde...", "dash_eval": "Auswertung...", "dash_free": "Frei", "dash_tot": "Gesamt", "dash_conn_err": "Fehler",
-            "hist_title": "Telemetrie", "hist_src": "Quelle:", "hist_amb": "Umgebung", "hist_1h": "1 Stunde", "hist_6h": "6 Stunden", "hist_12h": "12 Stunden", "hist_24h": "24 Stunden", "hist_7d": "7 Tage", "hist_cal": "Kalender",
-            "hist_maxt": "MAX T:", "hist_mint": "MIN T:", "hist_maxh": "MAX H:", "hist_minh": "MIN H:", "hist_sel_msg": "Datum auswählen, um Diagramm zu laden.",
-            "hist_down_msg": "Laden...", "hist_err_json": "Fehler.", "hist_no_data": "Keine Daten.", "hist_conn_lost": "Verbindung verloren.",
-            "hist_logs": "Systemereignisse", "hist_filt": "Filtern...", "hist_load_btn": "Laden", "hist_ref": "Aktualisieren", "hist_clear": "Löschen", "hist_prompt": "Klicken Sie auf 'Laden', um die Logs anzuzeigen.", "hist_load": "Laden...", "hist_none": "Keine Ereignisse.", "hist_dtlog": "Datum", "hist_uptime": "Zeit", "hist_lvl": "Stufe", "hist_module": "Modul", "hist_desc": "Beschreibung", "hist_loading": "Laden...", "hist_done": "Fertig",
-            "cal_su": "So", "cal_mo": "Mo", "cal_tu": "Di", "cal_we": "Mi", "cal_th": "Do", "cal_fr": "Fr", "cal_sa": "Sa",
-            "m_jan":"Jan", "m_feb":"Feb", "m_mar":"Mär", "m_apr":"Apr", "m_may":"Mai", "m_jun":"Jun", "m_jul":"Jul", "m_aug":"Aug", "m_sep":"Sep", "m_oct":"Okt", "m_nov":"Nov", "m_dec":"Dez",
-            "cfg_title": "Einstellungen", "cfg_gen": "Identität", "cfg_dev": "Name", "cfg_tz": "Zeitzone", "cfg_log": "Lokaler Log", "cfg_hw": "Hardware", "cfg_res": "Auflösung DS18B20", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Abtastung (ms)", "cfg_tel": "Telemetrie", "cfg_srv": "Server-IP", "cfg_port": "Port", "cfg_path": "Endpunkt", "cfg_key": "API Key", "cfg_tint": "Upload (ms)", "cfg_bat": "Batch", "cfg_fmt": "Format", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Dynamisch", "cfg_sec": "TLS / SSL", "cfg_sec_mqtt": "MQTTS (TLS)", "cfg_vis": "Baukasten", "cfg_leg": "Tags", "cfg_leg1": "Global:", "cfg_leg2": "Daten:", "cfg_leg3": "Smart-Keys:", "cfg_leg4": "Formate:", "cfg_leg5": "Serie T", "cfg_leg6": "Serie H", "cfg_leg7": "Sensor-ID", "cfg_tpl1": "1. Global", "cfg_tpl2": "2. Zeile", "cfg_tpl3": "3. Trennzeichen", "cfg_prev": "Live-Vorschau:", "cfg_save": "Speichern", "cfg_touch_title": "Touch-Kalibrierung", "cfg_touch_reset": "Kalibrierung zurücksetzen", "cfg_touch_hint": "Setzt Werkseinstellungen zurück. Neu kalibrieren über Display.", "cfg_touch_confirm": "Touch-Kalibrierung auf Werkseinstellungen zurücksetzen?", "cfg_touch_done": "Kalibrierung zurückgesetzt. Bitte über Display neu kalibrieren.",
-            "cfg_transport": "Transport", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Topic", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Benutzer", "cfg_mq_pass": "Passwort", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Beibehalten", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "Verbindungsstatus", "net_stat": "Status", "net_conn": "Verbunden", "net_off": "Getrennt", "net_ip": "IP", "net_mask": "Maske", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Konfiguration", "net_wifi": "WLAN", "net_ssid": "SSID", "net_pass": "Passwort", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "Statische IP", "net_sdns": "Primärer DNS", "net_save": "Speichern & Neustart", "net_ntp_title": "NTP-Zeitserver", "net_ntp_lbl": "Serveradresse", "net_ntp_hint": "Leer lassen für Standard (pool.ntp.org)",
-            "usr_mgt": "Zugriffsverwaltung", "usr_usr": "Benutzer", "usr_perm": "Berechtigungen", "usr_act": "Aktionen", "usr_add": "Hinzufügen", "usr_name": "Name", "usr_pdash": "Dashboard", "usr_phist": "Verlauf", "usr_plog": "Logs", "usr_psys": "System", "usr_pnet": "Netzwerk", "usr_pfr": "Lesen", "usr_pfu": "Hochladen", "usr_pfd": "Löschen", "usr_pusr": "Benutzer", "usr_btn": "Erstellen", "usr_warn": "Login: Name@TTMMJJJJ", "usr_prot": "Geschützt", "usr_del": "Löschen", "usr_rst": "Reset", "usr_sup": "Super",
-            "fil_title": "Dateisystem", "fil_down": "Herunterladen", "fil_del": "Löschen", "fil_up": "Hochladen", "fil_uphere": "Hochladen", "fil_name": "Name", "fil_sz": "Größe", "fil_mkdir": "Neuer Ordner", "fil_mkname": "Name", "fil_create": "Erstellen", "fil_cancel": "Abbrechen", "fil_loading": "Laden...", "fil_parent": "Hoch", "fil_folder": "Ordner", "fil_empty": "Leer", "fil_inv_name": "Ungültig", "fil_sel_del": "Auswählen", "fil_conf_del": "N löschen?", "fil_sel_down": "Auswählen", "fil_conf_down": "N herunterladen?", "usr_del_msg": "Löschen?", "usr_rst_msg": "Reset erzwingen?", "hist_clear_msg": "Logs löschen?",
-            "alm_title": "Alarme & Töne", "alm_limits": "Alarmgrenzen", "alm_sounds": "Tonkonfiguration", "alm_tmin": "Temp. Min.", "alm_tmax": "Temp. Max.", "alm_hmin": "Feuchte Min.", "alm_hmax": "Feuchte Max.", "alm_active": "Alarm Aktiv", "alm_save": "Speichern", "alm_saved": "Gespeichert!", "alm_err": "Fehler.", "alm_none": "Keine Sensoren.", "alm_touch": "Berührung", "alm_confirm": "Bestätigung", "alm_error": "Fehler", "alm_alarm": "Alarm", "alm_web": "Web-Töne", "alm_mute": "Stumm", "alm_volume": "Sys-Lautst.", "alm_alarm_vol": "Alarm-Lautst.", "alm_on": "Ein", "alm_off": "Aus", "alm_ambient": "Umgebungssensor", "alm_mel_asc": "Aufsteigend", "alm_mel_desc": "Absteigend", "alm_mel_siren": "Sirene",
-            "nav_lic": "📜 Lizenz", "lic_title": "Softwarelizenz", "lic_mit": "MIT-Lizenz", "lic_notice": "Drittanbieter-Hinweise"
-        },
-        // @LANG_END:de
-        // @LANG_BEGIN:fr
-        fr: {
-            "nav_dash": "Tableau de bord", "nav_hist": "Historique & Logs", "nav_cfg": "Configuration", "nav_net": "Réseau", "nav_usr": "Utilisateurs", "nav_file": "Fichiers", "nav_alm": "Alarmes & Sons", "nav_exit": "Déconnexion",
-            "greet_morning": "Bonjour", "greet_afternoon": "Bon après-midi", "greet_evening": "Bonsoir", "greet_hello": "Bonjour", "greet_logout": "Déconnexion",
-            "dash_dt": "Date et heure", "dash_up": "Temps actif", "dash_wifi": "Signal Wi-Fi", "dash_pend": "Entrées en attente", "dash_ram": "Utilisation RAM", "dash_fs": "Stockage",
-            "dash_stat": "État", "dash_gpio": "GPIO", "dash_id": "ID", "dash_read": "Mesure", "dash_name": "Nom", "dash_load": "Chargement capteurs...", "dash_none": "Aucun capteur.",
-            "dash_ntp_wait": "En attente...", "dash_tel_wait": "Attente sync.", "dash_disp": "Écran", "dash_disp_msg": "Cliquer pour capturer", "dash_disp_cap": "Capture...", "dash_disp_btn": "📷 Capturer",
-            "dash_ntp_ok": "Synchronisé", "dash_ntp_fail": "Échec NTP", "dash_ntp_conn": "Connexion...", "dash_eval": "Évaluation...", "dash_free": "Libre", "dash_tot": "Total", "dash_conn_err": "Erreur",
-            "hist_title": "Télémétrie", "hist_src": "Source :", "hist_amb": "Ambiance", "hist_1h": "1 Heure", "hist_6h": "6 Heures", "hist_12h": "12 Heures", "hist_24h": "24 Heures", "hist_7d": "7 Jours", "hist_cal": "Calendrier",
-            "hist_maxt": "MAX T :", "hist_mint": "MIN T :", "hist_maxh": "MAX H :", "hist_minh": "MIN H :", "hist_sel_msg": "Sélectionnez une date pour charger le graphique.",
-            "hist_down_msg": "Chargement...", "hist_err_json": "Erreur.", "hist_no_data": "Aucune donnée.", "hist_conn_lost": "Connexion perdue.",
-            "hist_logs": "Événements système", "hist_filt": "Filtrer...", "hist_load_btn": "Charger", "hist_ref": "Actualiser", "hist_clear": "Effacer", "hist_prompt": "Cliquez sur 'Charger' pour afficher les logs.", "hist_load": "Chargement...", "hist_none": "Aucun événement.", "hist_dtlog": "Date", "hist_uptime": "Temps", "hist_lvl": "Niveau", "hist_module": "Module", "hist_desc": "Description", "hist_loading": "Chargement...", "hist_done": "Terminé",
-            "cal_su": "Di", "cal_mo": "Lu", "cal_tu": "Ma", "cal_we": "Me", "cal_th": "Je", "cal_fr": "Ve", "cal_sa": "Sa",
-            "m_jan":"Jan", "m_feb":"Fév", "m_mar":"Mar", "m_apr":"Avr", "m_may":"Mai", "m_jun":"Jui", "m_jul":"Jul", "m_aug":"Aoû", "m_sep":"Sep", "m_oct":"Oct", "m_nov":"Nov", "m_dec":"Déc",
-            "cfg_title": "Configuration", "cfg_gen": "Identité", "cfg_dev": "Nom", "cfg_tz": "Fuseau horaire", "cfg_log": "Journal local", "cfg_hw": "Matériel", "cfg_res": "Résolution DS18B20", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Échantillon (ms)", "cfg_tel": "Télémétrie", "cfg_srv": "IP Serveur", "cfg_port": "Port", "cfg_path": "Endpoint", "cfg_key": "Clé API", "cfg_tint": "Upload (ms)", "cfg_bat": "Lot", "cfg_fmt": "Format", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Dynamique", "cfg_sec": "TLS / SSL", "cfg_sec_mqtt": "MQTTS (TLS)", "cfg_vis": "Constructeur", "cfg_leg": "Tags", "cfg_leg1": "Globaux :", "cfg_leg2": "Données :", "cfg_leg3": "Clés :", "cfg_leg4": "Formats :", "cfg_leg5": "Série T", "cfg_leg6": "Série H", "cfg_leg7": "ID Capteur", "cfg_tpl1": "1. Global", "cfg_tpl2": "2. Ligne", "cfg_tpl3": "3. Séparateur", "cfg_prev": "Aperçu :", "cfg_save": "Enregistrer", "cfg_touch_title": "Calibration Tactile", "cfg_touch_reset": "Réinitialiser Calibration", "cfg_touch_hint": "Restaure les valeurs d'usine. Recalibrez via le menu écran.", "cfg_touch_confirm": "Réinitialiser la calibration tactile?", "cfg_touch_done": "Calibration réinitialisée. Recalibrez via l'écran.",
-            "cfg_transport": "Transport", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Sujet", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Utilisateur", "cfg_mq_pass": "Mot de passe", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Conserver", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "État connexion", "net_stat": "État", "net_conn": "Connecté", "net_off": "Déconnecté", "net_ip": "IP", "net_mask": "Masque", "net_gw": "Passerelle", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configuration", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Mot de passe", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Statique", "net_sdns": "DNS Primaire", "net_save": "Enregistrer & Redémarrer", "net_ntp_title": "Serveur de Temps (NTP)", "net_ntp_lbl": "Adresse du Serveur", "net_ntp_hint": "Laisser vide pour utiliser le défaut (pool.ntp.org)",
-            "usr_mgt": "Gestion des accès", "usr_usr": "Utilisateur", "usr_perm": "Permissions", "usr_act": "Actions", "usr_add": "Ajouter", "usr_name": "Nom", "usr_pdash": "Tableau", "usr_phist": "Historique", "usr_plog": "Logs", "usr_psys": "Système", "usr_pnet": "Réseau", "usr_pfr": "Lecture", "usr_pfu": "Upload", "usr_pfd": "Supprimer", "usr_pusr": "Utilisateurs", "usr_btn": "Créer", "usr_warn": "Login : Nom@JJMMAAAA", "usr_prot": "Protégé", "usr_del": "Supprimer", "usr_rst": "Reset", "usr_sup": "Super",
-            "fil_title": "Système de fichiers", "fil_down": "Télécharger", "fil_del": "Supprimer", "fil_up": "Envoyer", "fil_uphere": "Envoyer", "fil_name": "Nom", "fil_sz": "Taille", "fil_mkdir": "Nouveau dossier", "fil_mkname": "nom", "fil_create": "Créer", "fil_cancel": "Annuler", "fil_loading": "Chargement...", "fil_parent": "Remonter", "fil_folder": "Dossier", "fil_empty": "Vide", "fil_inv_name": "Invalide", "fil_sel_del": "Sélectionner", "fil_conf_del": "Supprimer N ?", "fil_sel_down": "Sélectionner", "fil_conf_down": "Télécharger N ?", "usr_del_msg": "Supprimer ?", "usr_rst_msg": "Forcer reset ?", "hist_clear_msg": "Effacer les logs ?",
-            "alm_title": "Alarmes & Sons", "alm_limits": "Limites d'alarme", "alm_sounds": "Configuration des sons", "alm_tmin": "Temp. Min.", "alm_tmax": "Temp. Max.", "alm_hmin": "Hum. Min.", "alm_hmax": "Hum. Max.", "alm_active": "Alarme Active", "alm_save": "Enregistrer", "alm_saved": "Enregistré !", "alm_err": "Erreur.", "alm_none": "Aucun capteur.", "alm_touch": "Toucher", "alm_confirm": "Confirmation", "alm_error": "Erreur", "alm_alarm": "Alarme", "alm_web": "Sons Web", "alm_mute": "Muet", "alm_volume": "Vol. Système", "alm_alarm_vol": "Vol. Alarme", "alm_on": "Activé", "alm_off": "Désactivé", "alm_ambient": "Capteur Ambiant", "alm_mel_asc": "Ascendant", "alm_mel_desc": "Descendant", "alm_mel_siren": "Sirène",
-            "nav_lic": "📜 Licence", "lic_title": "Licence Logicielle", "lic_mit": "Licence MIT", "lic_notice": "Avis Tiers"
-        },
-        // @LANG_END:fr
-        // @LANG_BEGIN:it
-        it: {
-            "nav_dash": "Pannello", "nav_hist": "Cronologia & Log", "nav_cfg": "Impostazioni", "nav_net": "Rete", "nav_usr": "Utenti", "nav_file": "File", "nav_alm": "Allarmi & Suoni", "nav_exit": "Esci",
-            "greet_morning": "Buongiorno", "greet_afternoon": "Buon pomeriggio", "greet_evening": "Buonasera", "greet_hello": "Ciao", "greet_logout": "Esci",
-            "dash_dt": "Data e ora", "dash_up": "Tempo attivo", "dash_wifi": "Segnale Wi-Fi", "dash_pend": "Registri in attesa", "dash_ram": "Uso RAM", "dash_fs": "Archiviazione",
-            "dash_stat": "Stato", "dash_gpio": "GPIO", "dash_id": "ID", "dash_read": "Lettura", "dash_name": "Nome", "dash_load": "Caricamento sensori...", "dash_none": "Nessun sensore.",
-            "dash_ntp_wait": "In attesa...", "dash_tel_wait": "Attesa sync.", "dash_disp": "Display", "dash_disp_msg": "Clicca per catturare", "dash_disp_cap": "Cattura...", "dash_disp_btn": "📷 Cattura",
-            "dash_ntp_ok": "Sincronizzato", "dash_ntp_fail": "Errore NTP", "dash_ntp_conn": "Connessione...", "dash_eval": "Valutazione...", "dash_free": "Libero", "dash_tot": "Totale", "dash_conn_err": "Errore",
-            "hist_title": "Telemetria", "hist_src": "Origine:", "hist_amb": "Ambiente", "hist_1h": "1 Ora", "hist_6h": "6 Ore", "hist_12h": "12 Ore", "hist_24h": "24 Ore", "hist_7d": "7 Giorni", "hist_cal": "Calendario",
-            "hist_maxt": "MAX T:", "hist_mint": "MIN T:", "hist_maxh": "MAX H:", "hist_minh": "MIN H:", "hist_sel_msg": "Seleziona una data per caricare il grafico.",
-            "hist_down_msg": "Caricamento...", "hist_err_json": "Errore.", "hist_no_data": "Nessun dato.", "hist_conn_lost": "Connessione persa.",
-            "hist_logs": "Eventi di sistema", "hist_filt": "Filtra...", "hist_load_btn": "Carica", "hist_ref": "Aggiorna", "hist_clear": "Cancella", "hist_prompt": "Clicca 'Carica' per visualizzare i log.", "hist_load": "Caricamento...", "hist_none": "Nessun evento.", "hist_dtlog": "Data", "hist_uptime": "Tempo", "hist_lvl": "Livello", "hist_module": "Modulo", "hist_desc": "Descrizione", "hist_loading": "Caricamento...", "hist_done": "Completato",
-            "cal_su": "Do", "cal_mo": "Lu", "cal_tu": "Ma", "cal_we": "Me", "cal_th": "Gi", "cal_fr": "Ve", "cal_sa": "Sa",
-            "m_jan":"Gen", "m_feb":"Feb", "m_mar":"Mar", "m_apr":"Apr", "m_may":"Mag", "m_jun":"Giu", "m_jul":"Lug", "m_aug":"Ago", "m_sep":"Set", "m_oct":"Ott", "m_nov":"Nov", "m_dec":"Dic",
-            "cfg_title": "Impostazioni", "cfg_gen": "Identità", "cfg_dev": "Nome", "cfg_tz": "Fuso orario", "cfg_log": "Log locale", "cfg_hw": "Hardware", "cfg_res": "Risoluzione DS18B20", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Campione (ms)", "cfg_tel": "Telemetria", "cfg_srv": "IP Server", "cfg_port": "Porta", "cfg_path": "Endpoint", "cfg_key": "Chiave API", "cfg_tint": "Upload (ms)", "cfg_bat": "Lotto", "cfg_fmt": "Formato", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Dinamico", "cfg_sec": "TLS / SSL", "cfg_sec_mqtt": "MQTTS (TLS)", "cfg_vis": "Costruttore", "cfg_leg": "Tag", "cfg_leg1": "Globali:", "cfg_leg2": "Dati:", "cfg_leg3": "Chiavi:", "cfg_leg4": "Formati:", "cfg_leg5": "Serie T", "cfg_leg6": "Serie H", "cfg_leg7": "ID Sensore", "cfg_tpl1": "1. Globale", "cfg_tpl2": "2. Riga", "cfg_tpl3": "3. Separatore", "cfg_prev": "Anteprima:", "cfg_save": "Salva", "cfg_touch_title": "Calibrazione Touch", "cfg_touch_reset": "Reset Calibrazione", "cfg_touch_hint": "Ripristina impostazioni di fabbrica. Ricalibrare dal menu display.", "cfg_touch_confirm": "Resettare la calibrazione touch?", "cfg_touch_done": "Calibrazione resettata. Ricalibrare dal display.",
-            "cfg_transport": "Trasporto", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Topic", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Utente", "cfg_mq_pass": "Password", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Conserva", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "Stato connessione", "net_stat": "Stato", "net_conn": "Connesso", "net_off": "Disconnesso", "net_ip": "IP", "net_mask": "Maschera", "net_gw": "Gateway", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Configurazione", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Password", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "IP Statico", "net_sdns": "DNS Primario", "net_save": "Salva & Riavvia", "net_ntp_title": "Server Orario (NTP)", "net_ntp_lbl": "Indirizzo Server", "net_ntp_hint": "Lasciare vuoto per usare predefinito (pool.ntp.org)",
-            "usr_mgt": "Gestione accessi", "usr_usr": "Utente", "usr_perm": "Permessi", "usr_act": "Azioni", "usr_add": "Aggiungi", "usr_name": "Nome", "usr_pdash": "Pannello", "usr_phist": "Cronologia", "usr_plog": "Log", "usr_psys": "Sistema", "usr_pnet": "Rete", "usr_pfr": "Lettura", "usr_pfu": "Upload", "usr_pfd": "Elimina", "usr_pusr": "Utenti", "usr_btn": "Crea", "usr_warn": "Login: Nome@GGMMAAAA", "usr_prot": "Protetto", "usr_del": "Elimina", "usr_rst": "Reset", "usr_sup": "Super",
-            "fil_title": "File system", "fil_down": "Scarica", "fil_del": "Elimina", "fil_up": "Carica", "fil_uphere": "Carica", "fil_name": "Nome", "fil_sz": "Dimensione", "fil_mkdir": "Nuova cartella", "fil_mkname": "nome", "fil_create": "Crea", "fil_cancel": "Annulla", "fil_loading": "Caricamento...", "fil_parent": "Su", "fil_folder": "Cartella", "fil_empty": "Vuoto", "fil_inv_name": "Non valido", "fil_sel_del": "Seleziona", "fil_conf_del": "Eliminare N?", "fil_sel_down": "Seleziona", "fil_conf_down": "Scaricare N?", "usr_del_msg": "Eliminare?", "usr_rst_msg": "Forzare reset?", "hist_clear_msg": "Cancellare log?",
-            "alm_title": "Allarmi & Suoni", "alm_limits": "Limiti di Allarme", "alm_sounds": "Configurazione Suoni", "alm_tmin": "Temp. Min.", "alm_tmax": "Temp. Max.", "alm_hmin": "Umid. Min.", "alm_hmax": "Umid. Max.", "alm_active": "Allarme Attivo", "alm_save": "Salva", "alm_saved": "Salvato!", "alm_err": "Errore.", "alm_none": "Nessun sensore.", "alm_touch": "Tocco", "alm_confirm": "Conferma", "alm_error": "Errore", "alm_alarm": "Allarme", "alm_web": "Suoni Web", "alm_mute": "Muto", "alm_volume": "Vol. Sistema", "alm_alarm_vol": "Vol. Allarme", "alm_on": "Attivo", "alm_off": "Disattivo", "alm_ambient": "Sensore Ambiente", "alm_mel_asc": "Ascendente", "alm_mel_desc": "Discendente", "alm_mel_siren": "Sirena",
-            "nav_lic": "📜 Licenza", "lic_title": "Licenza Software", "lic_mit": "Licenza MIT", "lic_notice": "Avvisi di Terze Parti"
-        },
-        // @LANG_END:it
-        // @LANG_BEGIN:ru
-        ru: {
-            "nav_dash": "Панель", "nav_hist": "История и логи", "nav_cfg": "Настройки", "nav_net": "Сеть", "nav_usr": "Пользователи", "nav_file": "Файлы", "nav_alm": "Тревоги и звуки", "nav_exit": "Выход",
-            "greet_morning": "Доброе утро", "greet_afternoon": "Добрый день", "greet_evening": "Добрый вечер", "greet_hello": "Привет", "greet_logout": "Выход",
-            "dash_dt": "Дата и время", "dash_up": "Время работы", "dash_wifi": "Сигнал Wi-Fi", "dash_pend": "Ожидающие записи", "dash_ram": "Исп. RAM", "dash_fs": "Хранилище",
-            "dash_stat": "Статус", "dash_gpio": "GPIO", "dash_id": "ID", "dash_read": "Показание", "dash_name": "Имя", "dash_load": "Загрузка датчиков...", "dash_none": "Нет датчиков.",
-            "dash_ntp_wait": "Ожидание...", "dash_tel_wait": "Ожид. синхр.", "dash_disp": "Дисплей", "dash_disp_msg": "Нажмите для захвата", "dash_disp_cap": "Захват...", "dash_disp_btn": "📷 Захват",
-            "dash_ntp_ok": "Синхронизирован", "dash_ntp_fail": "Ошибка NTP", "dash_ntp_conn": "Подключение...", "dash_eval": "Оценка...", "dash_free": "Свободно", "dash_tot": "Всего", "dash_conn_err": "Ошибка",
-            "hist_title": "Телеметрия", "hist_src": "Источник:", "hist_amb": "Среда", "hist_1h": "1 Час", "hist_6h": "6 Часов", "hist_12h": "12 Часов", "hist_24h": "24 Часа", "hist_7d": "7 Дней", "hist_cal": "Календарь",
-            "hist_maxt": "МАКС Т:", "hist_mint": "МИН Т:", "hist_maxh": "МАКС В:", "hist_minh": "МИН В:", "hist_sel_msg": "Выберите дату для загрузки графика.",
-            "hist_down_msg": "Загрузка...", "hist_err_json": "Ошибка.", "hist_no_data": "Нет данных.", "hist_conn_lost": "Соединение потеряно.",
-            "hist_logs": "Системные события", "hist_filt": "Фильтр...", "hist_load_btn": "Загрузить", "hist_ref": "Обновить", "hist_clear": "Очистить", "hist_prompt": "Нажмите 'Загрузить' для просмотра логов.", "hist_load": "Загрузка...", "hist_none": "Нет событий.", "hist_dtlog": "Дата", "hist_uptime": "Время", "hist_lvl": "Уровень", "hist_module": "Модуль", "hist_desc": "Описание", "hist_loading": "Загрузка...", "hist_done": "Готово",
-            "cal_su": "Вс", "cal_mo": "Пн", "cal_tu": "Вт", "cal_we": "Ср", "cal_th": "Чт", "cal_fr": "Пт", "cal_sa": "Сб",
-            "m_jan":"Янв", "m_feb":"Фев", "m_mar":"Мар", "m_apr":"Апр", "m_may":"Май", "m_jun":"Июн", "m_jul":"Июл", "m_aug":"Авг", "m_sep":"Сен", "m_oct":"Окт", "m_nov":"Ноя", "m_dec":"Дек",
-            "cfg_title": "Настройки", "cfg_gen": "Идентификация", "cfg_dev": "Имя", "cfg_tz": "Часовой пояс", "cfg_log": "Локальный лог", "cfg_hw": "Оборудование", "cfg_res": "Разрешение DS18B20", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "Выборка (мс)", "cfg_tel": "Телеметрия", "cfg_srv": "IP Сервера", "cfg_port": "Порт", "cfg_path": "Endpoint", "cfg_key": "API Key", "cfg_tint": "Загрузка (мс)", "cfg_bat": "Пакет", "cfg_fmt": "Формат", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "Динамический", "cfg_sec": "TLS / SSL", "cfg_sec_mqtt": "MQTTS (TLS)", "cfg_vis": "Конструктор", "cfg_leg": "Теги", "cfg_leg1": "Глобальные:", "cfg_leg2": "Данные:", "cfg_leg3": "Ключи:", "cfg_leg4": "Форматы:", "cfg_leg5": "Серия Т", "cfg_leg6": "Серия В", "cfg_leg7": "ID Датчика", "cfg_tpl1": "1. Глобальный", "cfg_tpl2": "2. Строка", "cfg_tpl3": "3. Разделитель", "cfg_prev": "Предпросмотр:", "cfg_save": "Сохранить", "cfg_touch_title": "Калибровка тач-скрина", "cfg_touch_reset": "Сбросить калибровку", "cfg_touch_hint": "Восстановить заводские настройки. Перекалибруйте через меню дисплея.", "cfg_touch_confirm": "Сбросить калибровку тач-скрина?", "cfg_touch_done": "Калибровка сброшена. Перекалибруйте через дисплей.",
-            "cfg_transport": "Транспорт", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "Топик", "cfg_mq_cid": "Client ID", "cfg_mq_user": "Пользователь", "cfg_mq_pass": "Пароль", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "Сохранять", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "Состояние соединения", "net_stat": "Статус", "net_conn": "Подключён", "net_off": "Отключён", "net_ip": "IP", "net_mask": "Маска", "net_gw": "Шлюз", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "Конфигурация", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "Пароль", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "Статич. IP", "net_sdns": "Основной DNS", "net_save": "Сохранить и перезагрузить", "net_ntp_title": "Сервер времени (NTP)", "net_ntp_lbl": "Адрес сервера", "net_ntp_hint": "Оставьте пустым для стандартного (pool.ntp.org)",
-            "usr_mgt": "Управление доступом", "usr_usr": "Пользователь", "usr_perm": "Права", "usr_act": "Действия", "usr_add": "Добавить", "usr_name": "Имя", "usr_pdash": "Панель", "usr_phist": "История", "usr_plog": "Логи", "usr_psys": "Система", "usr_pnet": "Сеть", "usr_pfr": "Чтение", "usr_pfu": "Загрузка", "usr_pfd": "Удаление", "usr_pusr": "Пользователи", "usr_btn": "Создать", "usr_warn": "Вход: Имя@ДДММГГГГ", "usr_prot": "Защищён", "usr_del": "Удалить", "usr_rst": "Сброс", "usr_sup": "Супер",
-            "fil_title": "Файловая система", "fil_down": "Скачать", "fil_del": "Удалить", "fil_up": "Загрузить", "fil_uphere": "Загрузить", "fil_name": "Имя", "fil_sz": "Размер", "fil_mkdir": "Новая папка", "fil_mkname": "имя", "fil_create": "Создать", "fil_cancel": "Отмена", "fil_loading": "Загрузка...", "fil_parent": "Вверх", "fil_folder": "Папка", "fil_empty": "Пусто", "fil_inv_name": "Недопустимо", "fil_sel_del": "Выберите", "fil_conf_del": "Удалить N?", "fil_sel_down": "Выберите", "fil_conf_down": "Скачать N?", "usr_del_msg": "Удалить?", "usr_rst_msg": "Сбросить?", "hist_clear_msg": "Очистить логи?",
-            "alm_title": "Тревоги и звуки", "alm_limits": "Пределы тревоги", "alm_sounds": "Настройка звуков", "alm_tmin": "Темп. мин.", "alm_tmax": "Темп. макс.", "alm_hmin": "Влажн. мин.", "alm_hmax": "Влажн. макс.", "alm_active": "Тревога вкл.", "alm_save": "Сохранить", "alm_saved": "Сохранено!", "alm_err": "Ошибка.", "alm_none": "Нет датчиков.", "alm_touch": "Касание", "alm_confirm": "Подтверждение", "alm_error": "Ошибка", "alm_alarm": "Тревога", "alm_web": "Veb Zvuki", "alm_mute": "Без звука", "alm_volume": "Сис. Громк.", "alm_alarm_vol": "Тревога Громк.", "alm_on": "Вкл", "alm_off": "Выкл", "alm_ambient": "Датчик среды", "alm_mel_asc": "Восходящий", "alm_mel_desc": "Нисходящий", "alm_mel_siren": "Сирена",
-            "nav_lic": "📜 Лицензия", "lic_title": "Лицензия ПО", "lic_mit": "Лицензия MIT", "lic_notice": "Уведомления третьих сторон"
-        },
-        // @LANG_END:ru
-        // @LANG_BEGIN:zh
-        zh: {
-            "nav_dash": "控制面板", "nav_hist": "历史与日志", "nav_cfg": "配置", "nav_net": "网络", "nav_usr": "用户", "nav_file": "文件", "nav_alm": "警报与声音", "nav_exit": "退出",
-            "greet_morning": "早上好", "greet_afternoon": "下午好", "greet_evening": "晚上好", "greet_hello": "你好", "greet_logout": "退出",
-            "dash_dt": "日期和时间", "dash_up": "运行时间", "dash_wifi": "Wi-Fi 信号", "dash_pend": "待处理记录", "dash_ram": "RAM 使用", "dash_fs": "存储",
-            "dash_stat": "状态", "dash_gpio": "GPIO", "dash_id": "ID", "dash_read": "读数", "dash_name": "名称", "dash_load": "加载传感器...", "dash_none": "无传感器。",
-            "dash_ntp_wait": "等待中...", "dash_tel_wait": "等待同步", "dash_disp": "显示屏", "dash_disp_msg": "点击截屏", "dash_disp_cap": "截取中...", "dash_disp_btn": "📷 截屏",
-            "dash_ntp_ok": "已同步", "dash_ntp_fail": "NTP 失败", "dash_ntp_conn": "连接中...", "dash_eval": "评估中...", "dash_free": "可用", "dash_tot": "总计", "dash_conn_err": "错误",
-            "hist_title": "遥测", "hist_src": "来源：", "hist_amb": "环境", "hist_1h": "1 小时", "hist_6h": "6 小时", "hist_12h": "12 小时", "hist_24h": "24 小时", "hist_7d": "7 天", "hist_cal": "日历",
-            "hist_maxt": "最高温：", "hist_mint": "最低温：", "hist_maxh": "最高湿：", "hist_minh": "最低湿：", "hist_sel_msg": "选择日期以加载图表。",
-            "hist_down_msg": "加载中...", "hist_err_json": "错误。", "hist_no_data": "无数据。", "hist_conn_lost": "连接丢失。",
-            "hist_logs": "系统事件", "hist_filt": "筛选...", "hist_load_btn": "加载", "hist_ref": "刷新", "hist_clear": "清除", "hist_prompt": "点击「加载」查看日志。", "hist_load": "加载中...", "hist_none": "无事件。", "hist_dtlog": "日期", "hist_uptime": "时间", "hist_lvl": "级别", "hist_module": "模块", "hist_desc": "描述", "hist_loading": "加载中...", "hist_done": "完成",
-            "cal_su": "日", "cal_mo": "一", "cal_tu": "二", "cal_we": "三", "cal_th": "四", "cal_fr": "五", "cal_sa": "六",
-            "m_jan":"1月", "m_feb":"2月", "m_mar":"3月", "m_apr":"4月", "m_may":"5月", "m_jun":"6月", "m_jul":"7月", "m_aug":"8月", "m_sep":"9月", "m_oct":"10月", "m_nov":"11月", "m_dec":"12月",
-            "cfg_title": "配置", "cfg_gen": "身份", "cfg_dev": "名称", "cfg_tz": "时区", "cfg_log": "本地日志", "cfg_hw": "硬件", "cfg_res": "DS18B20 分辨率", "cfg_r9": "9-bit", "cfg_r12": "12-bit", "cfg_sint": "采样 (ms)", "cfg_tel": "遥测", "cfg_srv": "服务器 IP", "cfg_port": "端口", "cfg_path": "端点", "cfg_key": "API Key", "cfg_tint": "上传 (ms)", "cfg_bat": "批量", "cfg_fmt": "格式", "cfg_f0": "JSON", "cfg_f1": "CSV", "cfg_f2": "动态", "cfg_sec": "TLS / SSL", "cfg_sec_mqtt": "MQTTS (TLS)", "cfg_vis": "构建器", "cfg_leg": "标签", "cfg_leg1": "全局：", "cfg_leg2": "数据：", "cfg_leg3": "智能键：", "cfg_leg4": "格式：", "cfg_leg5": "T 系列", "cfg_leg6": "H 系列", "cfg_leg7": "传感器 ID", "cfg_tpl1": "1. 全局", "cfg_tpl2": "2. 行", "cfg_tpl3": "3. 分隔符", "cfg_prev": "实时预览：", "cfg_save": "保存", "cfg_touch_title": "触屏校准", "cfg_touch_reset": "重置校准", "cfg_touch_hint": "恢复出厂默认。请通过显示屏菜单重新校准。", "cfg_touch_confirm": "将触屏校准重置为出厂默认？", "cfg_touch_done": "校准已重置。请通过显示屏重新校准。",
-            "cfg_transport": "传输", "cfg_tr_http": "HTTP(S)", "cfg_tr_mqtt": "MQTT(S)", "cfg_mq_topic": "主题", "cfg_mq_cid": "Client ID", "cfg_mq_user": "用户", "cfg_mq_pass": "密码", "cfg_mq_qos": "QoS", "cfg_mq_q0": "0", "cfg_mq_q1": "1", "cfg_mq_q2": "2", "cfg_mq_retain": "保留", "cfg_mq_ka": "Keep-Alive",
-            "net_curr": "连接状态", "net_stat": "状态", "net_conn": "已连接", "net_off": "已断开", "net_ip": "IP", "net_mask": "掩码", "net_gw": "网关", "net_dns": "DNS", "net_mac": "MAC", "net_cfg": "配置", "net_wifi": "Wi-Fi", "net_ssid": "SSID", "net_pass": "密码", "net_ipv4": "IPv4", "net_dhcp": "DHCP", "net_sip": "静态 IP", "net_sdns": "首选 DNS", "net_save": "保存并重启", "net_ntp_title": "NTP 时间服务器", "net_ntp_lbl": "服务器地址", "net_ntp_hint": "留空使用默认 (pool.ntp.org)",
-            "usr_mgt": "访问管理", "usr_usr": "用户", "usr_perm": "权限", "usr_act": "操作", "usr_add": "添加", "usr_name": "名称", "usr_pdash": "面板", "usr_phist": "历史", "usr_plog": "日志", "usr_psys": "系统", "usr_pnet": "网络", "usr_pfr": "读取", "usr_pfu": "上传", "usr_pfd": "删除", "usr_pusr": "用户", "usr_btn": "创建", "usr_warn": "登录：名称@日日月月年年年年", "usr_prot": "受保护", "usr_del": "删除", "usr_rst": "重置", "usr_sup": "超级",
-            "fil_title": "文件系统", "fil_down": "下载", "fil_del": "删除", "fil_up": "上传", "fil_uphere": "上传", "fil_name": "名称", "fil_sz": "大小", "fil_mkdir": "新建文件夹", "fil_mkname": "名称", "fil_create": "创建", "fil_cancel": "取消", "fil_loading": "加载中...", "fil_parent": "上级", "fil_folder": "文件夹", "fil_empty": "空", "fil_inv_name": "无效", "fil_sel_del": "选择", "fil_conf_del": "删除 N？", "fil_sel_down": "选择", "fil_conf_down": "下载 N？", "usr_del_msg": "删除？", "usr_rst_msg": "强制重置？", "hist_clear_msg": "清除日志？",
-            "alm_title": "警报与声音", "alm_limits": "警报限值", "alm_sounds": "声音配置", "alm_tmin": "温度下限", "alm_tmax": "温度上限", "alm_hmin": "湿度下限", "alm_hmax": "湿度上限", "alm_active": "警报启用", "alm_save": "保存", "alm_saved": "已保存！", "alm_err": "保存失败。", "alm_none": "无传感器。", "alm_touch": "触摸", "alm_confirm": "确认", "alm_error": "错误", "alm_alarm": "警报", "alm_web": "Wang Ye Yin Xiao", "alm_mute": "全局静音", "alm_volume": "系统音量", "alm_alarm_vol": "警报音量", "alm_on": "开", "alm_off": "关", "alm_ambient": "环境传感器", "alm_mel_asc": "上升", "alm_mel_desc": "下降", "alm_mel_siren": "警笛",
-            "nav_lic": "📜 许可证", "lic_title": "软件许可证", "lic_mit": "MIT 许可证", "lic_notice": "第三方通知"
-        },
-        // @LANG_END:zh
         en: {
             "hist_load_btn": "Load", "hist_prompt": "Click 'Load' to view system logs.",
             "greet_morning": "Good morning", "greet_afternoon": "Good afternoon", "greet_evening": "Good evening", "greet_hello": "Hello", "greet_logout": "Logout"
