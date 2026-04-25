@@ -24,7 +24,7 @@
 #include <hardware/watchdog.h>
 #include <algorithm>
 #include <functional>
-using StorageManager::ReadGuard;
+using ReadGuard = StorageManager::ReadGuard;
 
 /* WEB-001: escape seguro de filename/dirname para emissão em JSON.
  * Cobre \n/\r/\t (escape curto) e filtra outros bytes de controle
