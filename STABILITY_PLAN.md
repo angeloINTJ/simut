@@ -534,9 +534,9 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · EXT-011c — renomear/documentar `TelemetryManager::releaseIdleResources()` para refletir decisão consciente de no-op. | ⚪ Pendente | — | — | — |
 | **F-I18N-TRIM.2 (feature fora da auditoria)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-25 |
 |   · EXT-004 — remover blocos `@LANG_BEGIN:es\|de\|fr\|it\|ru\|zh` de `WebUI.h` (consistência com F-I18N-TRIM.1 do firmware). Reduz manutenção de strings da UI; impacto em flash desprezível (gzip já colapsa). | ✅ 336 linhas removidas (72 blocos) | — | — | — |
-| **F-DOC-EXT — Documentação externa cooperativa** | ⚪ Pendente | — | — | — |
-|   · EXT-008 — `docs/GLOSSARY.md` in-tree (tags BUG/SEC/CON/DOC/F-/Patch/#N), reaproveita §3 do `audits/SIMUT_ANALISE_TECNICA_v1.md`. | ⚪ Pendente | — | — | — |
-|   · EXT-012 — atualizar `README.md` ("8 display languages" → "EN + PT" pós F-I18N-TRIM.1). | ⚪ Pendente | — | — | — |
+| **F-DOC-EXT — Documentação externa cooperativa** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-25 |
+|   · EXT-008 — `docs/GLOSSARY.md` in-tree (tags BUG/SEC/CON/DOC/F-/Patch/#N), reaproveita §3 do `audits/SIMUT_ANALISE_TECNICA_v1.md`. | ✅ 113 tags documentadas | — | — | — |
+|   · EXT-012 — atualizar `README.md` ("8 display languages" → "EN + PT" pós F-I18N-TRIM.1). | ✅ + SIMUT_Versa.ino + docs/ na estrutura | — | — | — |
 | **F-BUILD (deferida, opcional)** | ⚪ Pendente | — | — | — |
 |   · EXT-001 — `platformio.ini` (ou `arduino-cli.yaml`) reproduzível com lib pins explícitos + `-Wall -Wextra`. Pré-requisito de EXT-009. Decisão depende de quanto valor há em build CI vs. workflow Arduino IDE atual. | ⚪ Pendente | — | — | — |
 |   · EXT-009 — host-side unit tests via `pio test -e native` + Unity para validators puros (`parseIntStrict`, `isValidIpv4`, `isSafeUploadFilename`, `dallasCrc8`, `floatToI16`/`i16ToFloat`, `timeReached`). Bloqueado por EXT-001. | ⚪ Pendente | — | — | — |
@@ -639,10 +639,10 @@ Atualize esta tabela conforme cada fase for concluída.
 | EXT-005 | 🟢 | F17 | ⚪ | `AppManager.h` forward decl + `unique_ptr` (rebuild churn). |
 | EXT-006 | 🟢 | F16 | ⚪ | `LogManager::resetAfterExternalWipe()` substitui `begin()` em runtime. |
 | EXT-007 | 🟢 | F-CLEANUP | ⚪ | Apagar docblock obsoleto `.csv` em `SystemUtils.cpp:41-44`. |
-| EXT-008 | 🟢 | F-DOC-EXT | ⚪ | `docs/GLOSSARY.md` in-tree para tags do projeto. |
+| EXT-008 | 🟢 | F-DOC-EXT | ✅ | `docs/GLOSSARY.md` in-tree para tags do projeto. |
 | EXT-009 | 🟢 | F-BUILD | ⚪ | Host-side unit tests (Unity / `pio test -e native`). Depende de EXT-001. |
 | EXT-010 | 🟢 | F16 | ⚪ | Promover `ReadGuard` para `StorageManager.h`; aplicar em ~8 sites de `AppManager.cpp`. |
 | EXT-011 | 🟢 | F-CLEANUP | ⚪ | Polish: dup `watchdog_update()`, `extern "C"` redundante, `releaseIdleResources()` no-op. |
-| EXT-012 | 🟢 | F-DOC-EXT | ⚪ | Atualizar README ("8 languages" → "EN + PT" pós F-I18N-TRIM.1). |
+| EXT-012 | 🟢 | F-DOC-EXT | ✅ | Atualizar README ("8 languages" → "EN + PT" pós F-I18N-TRIM.1). |
 | U25 | 🔴 | F-BT-LOGIN | ✅ | **Defer flash no login BT (2026-04-25):** `LOG_CODE` dentro de `BluetoothManager::update()` disparava `writeCompactToFlash` síncrono com duplo lockout do Core 1. Sob LittleFS >70%, GC + lockout causavam travamento e possível WDT reset. Fix: `LogManager::setForceBuffer(true/false)` wrappando `_btMgr.update()` em `CommandManager::processInput`. Banner de boas-vindas reordenado antes do `LOG_CODE`. Zero novas alocações de heap. |
 | U24 | 🔴 | F11 | ✅ | **Commit-all + reboot pattern (2026-04-19):** rajadas de saves consecutivos eram a fonte original de todos os bugs de concorrência (U16/U21/U23). Mudança arquitetural do modelo UX: interface web acumula mudanças no `sessionStorage` client-side; botão único "Salvar e Reiniciar" no topbar (só aparece se há pendentes). Ao clicar: confirmação com aviso de risco → POST `/api/commit_all` com JSON → server aplica tudo em 1 save → reboot limpo. **Phase A.1** (v3.15.0): migrado `/config`. **Phase A.2** (v3.16.0): migrado `/alarms`; `handleApiSaveAlarms` e `handleSaveSystem` grande removidos. **Phase B** (v3.17.0): migrado `/users` como queue de ações (`add`/`del`/`reset`) com overlay visual + botão ↶ de desfazer; `handleApiUserAdd/Del/Reset` removidos. **Phase C** (v3.18.0): migrado `/network` (ssid, pass, dhcp, ip, mask, gw, dns, ntp_server, web_port); detecção de mudança de porta → redirect automático pro novo host:porta após reboot; `handleSaveNetwork` removido. **Phase D** (v3.19.0): `Pending` + `commitAll` + CSS + botão injeção centralizados em `/lang.js` (removidas ~8KB de código duplicado); botão "Salvar e Reiniciar" agora aparece em TODAS as páginas (dash/hist/file/license/cfg/alarms/users/net); versão do firmware exibida ao lado de "SIMUT" (endpoint `/api/perms` extendido com `version`); botão de toggle tema claro/escuro (`#theme-toggle`) com preferência em `localStorage`; paleta de tema claro refinada (slate + cyan-700 AA-contrast) com overrides cobrindo topbar/drawer/cards/inputs/tabelas/chart/badges/calendar/sounds. Todas as 4 páginas de configuração agora compartilham o mesmo padrão; economia total de ~18KB de flash. |
