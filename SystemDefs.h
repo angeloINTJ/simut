@@ -19,7 +19,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.24.14"        /* Firmware version string */
+#define SIMUT_VERSION "v3.24.15"        /* Firmware version string */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -1082,15 +1082,6 @@ enum DemandType {
     CMD_USER_PASS,    /**< strVal1 = username; strVal2 = nova senha */
     CMD_SET_WEB_PORT, /**< intVal1 = porta (1..65535) */
 
-    /* =======================================================================
-     * TEST-ONLY — REMOVE BEFORE PRODUCTION
-     * Usado para recuperar visualização de dados históricos após factory reset
-     * quando `provisionEpoch` filtra dados antigos. Não documentado no help.
-     * Ver CommandManager.cpp para parser (marcado TEST-ONLY) e AppManager.cpp
-     * para handler. Para remover: excluir este enum + parser + handler +
-     * chamadas relacionadas.
-     * ===================================================================== */
-    CMD_DBG_SENSOR_HISTORY_ALL  /**< intVal1 = slot (0..9) ou -1 para todos */
 };
 
 /** Parsed CLI command with typed payload fields.
