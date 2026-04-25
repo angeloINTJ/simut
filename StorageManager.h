@@ -112,7 +112,22 @@ public:
     void unlockHeavyTask();
     bool isHeavyTaskLocked() const;
 
+    /** Hash v1 (novo padrão): username-salt, PASSWORD_HMAC_ROUNDS rounds,
+     *  32 hex chars (128 bits). Usado para criar/alterar senhas. */
     String hashPassword(const String& username, const String& plainPassword);
+
+    /** Hash legacy: username-salt, 2500 rounds, 30 hex chars (120 bits).
+     *  Usado APENAS na migração transparente de login (SEC-007). */
+    String hashPasswordLegacy(const String& username, const String& plainPassword);
+
+    /** Hash v1 com salt random: userSalt[8], PASSWORD_HMAC_ROUNDS, 32 hex chars.
+     *  Usado na verificação de login com hashVersion >= 1 (SEC-007/009). */
+    String hashPasswordV1(const String& username, const String& plainPassword,
+                          const uint8_t* userSalt);
+
+    /** Preenche buf[8] com valores random do ROSC (rp2040.hwrand32). */
+    void generateSalt(uint8_t* buf);
+
     String sha256Hex(const String& input);
     void   flushCursorIfDirty();
     void   invalidateOldestFileCache() { _cachedOldestFile = ""; }

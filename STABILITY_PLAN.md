@@ -390,7 +390,7 @@ Cada fase é *stand-alone*, testável isoladamente, e pode ser revertida. Branch
 
 **Validação:** logar com senha antiga → hash migrado para 32 chars; 2 SIMUTs com mesma senha geram hashes diferentes; reset admin via CLI regera salt. Login <1s no Pico W.
 
-**Saída esperada:** `v3.23.0` (bump CONFIG_VERSION).
+**Saída:** `v3.24.18` (CONFIG_VERSION mantido em 15 — schema já criado em F15.2.a).
 
 ---
 
@@ -504,9 +504,10 @@ Atualize esta tabela conforme cada fase for concluída.
 - **F-LOCKOUT-STUCK** — primeiro `write memory` com mudança real após longo idle pode disparar `[DSP] Lockout stuck >10s, restarting Core 1` (2×). Saves subsequentes OK. Não afeta integridade (config grava corretamente). Provável fragmentação de heap pós-telemetria ou GC do LittleFS. Investigar em ciclo futuro.
 - **Tokenizer não strip aspas** — `conf system ssid "X"` salva com aspas literais. Também `isValidName` rejeita hífen em nome. Polish de UX para futuro.
 | **F14 — Inconsistências + docs + CON/DOC** | ✅ Concluída | `stability-fixes-tier1` | v3.24.0 | 2026-04-21 |
-| **F15 — Hash migration (SEC-006..009)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.25.0) | — |
+| **F15 — Hash migration (SEC-006..009)** | ✅ Concluída | `stability-fixes-tier1` | v3.24.18 | 2026-04-25 |
 |   · F15.1 — SEC-006: LRU evict pula slots com lockout ativo | ✅ HW validada via `tools/test_f15_1_sec006.sh` | em v3.24.3 | — | 2026-04-21 |
 |   · F15.2.a — schema bump v14→v15: UserAccount +salt+hashVersion + fix parser JSON `\"` em /api/commit_all (payload builder não salvava) | ✅ HW validada (parser fix confirmado via payload builder salvo com escapes; telemetria 200) | `816eb4d` | — | 2026-04-21 |
+|   · F15.2.b — SEC-007 hash 120→128 bits, SEC-008 PASSWORD_HMAC_ROUNDS=5000, SEC-009 salt random por usuário: `hashPasswordCore()` parameterizado + `hashPasswordLegacy()`/`hashPasswordV1()` wrappers + `generateSalt()` via hwrand32. Migração transparente no `handleApiLogin` (detecta stored.length()==30, valida com legacy, re-hash com salt random). BT validator, CLI handlers, force-chpass e factory defaults todos usam formato v1. | ✅ Implementado | — | — | 2026-04-25 |
 
 **Débitos técnicos observados durante teste HW de F15.2.a (v3.24.4, 2026-04-21):**
 - **F-LOCKOUT-STUCK exacerbado**: 3× "Lockout stuck >10s" consecutivos durante `/api/commit_all` pós-migração. Confirma o débito técnico de F14 mas em severidade maior no cenário "first save após migração v14→v15". **Tratado em v3.24.5 via quiet mode cooperativo** (ver abaixo).
@@ -604,9 +605,9 @@ Atualize esta tabela conforme cada fase for concluída.
 | SEC-004 | 🟠 | F12 | ✅ | **F12.4 (2026-04-20):** `SetupFlagsData` overlay em `reserved[26..27]` (magic=0xBE, `FLAG_MUST_CHANGE_PIN`). `StorageManager::mustChangePin/clear/set`. `loadDefaults` seta flag; `AppManager::EVT_AUTH_SUCCESS` redireciona para `showSettingsPassword()` em vez de main se flag ativa; `EVT_SAVE_PASSWORD` limpa flag só se novo PIN != "1234". Configs legadas sem magic retornam `mustChangePin=false` (compat com upgrade). Teste manual HW-only (touch UI). |
 | SEC-005 | 🟠 | F12 | ✅ | **F12.5 (2026-04-20):** `CLI_LINE_MAX=256` em `SystemDefs.h`; helper `CommandManager::appendCharWithLimit` com anti-spam (1 warning por rajada de overflow, flag resetada ao receber `\n`). Aplicado em `_usbBuffer` (USB) e `_btBuffer` (BT pós-auth). Sem guard, `yes \| cat > /dev/ttyACM0` reallocaria `String` até OOM. Log `CLI_UNKNOWN_CMD Linha > 256 descartada em USB\|BT`. Script `tools/test_f12_5_sec005.sh` envia 1KB + 10KB sem `\n`, valida device responsivo + heap estável + comando válido pós-overflow + log em `/api/logs`. |
 | SEC-006 | 🟡 | F15 | ✅ | LRU evict pula slots com lockout ativo + 429 se todos trancados (v3.24.3). |
-| SEC-007 | 🟢 | F15 | ⚪ | Hash 120→128 bits com migração transparente. |
-| SEC-008 | 🟢 | F15 | ⚪ | `PASSWORD_HMAC_ROUNDS` 2500→5000. |
-| SEC-009 | 🟢 | F15 | ⚪ | Salt random por usuário (schema bump). |
+| SEC-007 | 🟢 | F15 | ✅ | Hash 120→128 bits com migração transparente. |
+| SEC-008 | 🟢 | F15 | ✅ | `PASSWORD_HMAC_ROUNDS` 2500→5000. |
+| SEC-009 | 🟢 | F15 | ✅ | Salt random por usuário (schema bump). |
 | BUG-001 | 🟢 | F14 | ✅ | `timeSince(start, duration)` helper em SystemDefs.h; 45 sites migrados em 8 arquivos (v3.23.12). |
 | BUG-002 | 🟡 | F13 | ✅ | Wrappers `requestPreviewSound/requestVolumePreview/requestAlarmVolumePreview` + `__dmb()` nos 3 pares cross-core Core 1 → Core 0. Barrier no producer (`setTelemetrySendStatus`) e readers (`render`/`drawTopBar`) do pack `_pktArrowState` Core 0 → Core 1. `_touchSoundPending`/`_errorSoundPending` fora do escopo (single-flag sem dado emparelhado). + UX fix (F13.3b): touch gates separados para volume no menu Sons. Validado HW. |
 | BUG-003 | 🟡 | F13 | ✅ | Template `StorageManager::flashOp<F>()` (private no header) substitui macro local `FLASH_OP` de `saveConfiguration`. `writeHistoryEntryFlash` refatorado em chunks granulares: enforceStorageLimit (se rolagem), open+write+close, fallback enforce+open+write+close — cada um em seu próprio lockout. File handle nunca sobrevive entre chunks. HW validado (testes 1/2/4/5; teste 3 rolagem diária pendente até feature manual time). |
