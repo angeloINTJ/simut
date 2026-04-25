@@ -64,7 +64,9 @@ public:
 
 
     String getIpAddress();
+    void   getIpAddress(char* buf, size_t len);   /**< Buffer version (MEM-001). */
     String getMacAddress();
+    void   getMacAddress(char* buf, size_t len);  /**< Buffer version (MEM-001). */
     String getSubnetMask();
     String getGateway();
     String getDns();

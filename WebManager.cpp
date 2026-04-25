@@ -24,6 +24,7 @@
 #include <hardware/watchdog.h>
 #include <algorithm>
 #include <functional>
+using StorageManager::ReadGuard;
 
 /* WEB-001: escape seguro de filename/dirname para emissão em JSON.
  * Cobre \n/\r/\t (escape curto) e filtra outros bytes de controle
@@ -555,6 +556,9 @@ void WebManager::handleApiNetwork() {
 
     /* F-NET-TIME.3a: expõe flags do overlay NetworkTimeData para a UI. */
     char json[640];
+    char ipBuf[16], macBuf[18];
+    _netRef->getIpAddress(ipBuf, sizeof(ipBuf));
+    _netRef->getMacAddress(macBuf, sizeof(macBuf));
     snprintf(json, sizeof(json),
         "{\"connected\":%s,\"ip\":\"%s\",\"mask\":\"%s\",\"gw\":\"%s\","
         "\"dns\":\"%s\",\"mac\":\"%s\",\"ssid\":\"%s\",\"use_dhcp\":%s,"
@@ -562,11 +566,11 @@ void WebManager::handleApiNetwork() {
         "\"static_dns\":\"%s\",\"dns_auto\":%s,\"dns2\":\"%s\","
         "\"ntp_server\":\"%s\",\"ntp_enabled\":%s,\"web_port\":%u}",
         _netRef->isConnected() ? "true" : "false",
-        _netRef->getIpAddress().c_str(),
+        ipBuf,
         _netRef->getSubnetMask().c_str(),
         _netRef->getGateway().c_str(),
         _netRef->getDns().c_str(),
-        _netRef->getMacAddress().c_str(),
+        macBuf,
         cfg.wifiSsid,
         cfg.useDhcp ? "true" : "false",
         cfg.staticIp, cfg.staticMask, cfg.staticGateway, cfg.staticDns,
@@ -1950,6 +1954,7 @@ void WebManager::handleUploadData() {
     if (upload.status == UPLOAD_FILE_START) {
         /* SEC-001/F12.1: reset de estado de rejeição (novo upload). */
         _uploadRejected = false;
+        _uploadBatchLen = 0;
 
         /* SEC-001/F12.1: sanitização do filename ANTES de qualquer uso.
          * upload.filename vem direto do cliente multipart HTTP — trata como hostil. */
@@ -2022,12 +2027,28 @@ void WebManager::handleUploadData() {
     } else if (upload.status == UPLOAD_FILE_WRITE) {
         if (_uploadRejected) return;
         if (_uploadFile) {
-            { RenderGuard rg(_displayRef); _uploadFile.write(upload.buf, upload.currentSize); }
-            feedWatchdog();
+            /* PER-002: acumula chunks em _uploadBatchBuf.
+             * Flush (com RenderGuard) só a cada 8 KB — reduz pauses do Core 1
+             * de ~1 por chunk HTTP para ~1 a cada 8 KB. */
+            size_t remaining = upload.currentSize;
+            const uint8_t* src = upload.buf;
+            while (remaining > 0) {
+                uint16_t space = sizeof(_uploadBatchBuf) - _uploadBatchLen;
+                uint16_t take = (remaining <= space) ? (uint16_t)remaining : space;
+                memcpy(_uploadBatchBuf + _uploadBatchLen, src, take);
+                _uploadBatchLen += take;
+                src += take;
+                remaining -= take;
+                if (_uploadBatchLen >= sizeof(_uploadBatchBuf)) {
+                    _flushUploadBatch();
+                    feedWatchdog();
+                }
+            }
         }
     } else if (upload.status == UPLOAD_FILE_END) {
         if (_uploadRejected) return;
         if (_uploadFile) {
+            _flushUploadBatch();  /* PER-002: flush final dos bytes restantes. */
             { RenderGuard rg(_displayRef); _uploadFile.close(); }
 
             if (upload.filename == "calib.csv" || upload.filename == "/calib.csv") {
@@ -2041,6 +2062,12 @@ void WebManager::handleUploadData() {
     }
 }
 
+void WebManager::_flushUploadBatch() {
+    if (_uploadBatchLen > 0 && _uploadFile) {
+        { RenderGuard rg(_displayRef); _uploadFile.write(_uploadBatchBuf, _uploadBatchLen); }
+        _uploadBatchLen = 0;
+    }
+}
 
 void WebManager::handleApiStatus() {
     uint16_t perms = getAuthPerms();
@@ -2527,7 +2554,7 @@ void WebManager::handleApiClearLogs() {
         /* Remove também logs CSV legados (pré-v3.4.7) */
         LittleFS.remove("/system.log");
         LittleFS.remove("/system.old");
-        LogManager::instance().begin(true, LOG_DEBUG);
+        LogManager::instance().resetAfterExternalWipe();
     }
 
     LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin erased System Logs", "Admin apagou logs do sistema"));
@@ -2660,8 +2687,14 @@ void WebManager::handleApiHistoryDays() {
 
 String WebManager::getHistoryFileName(time_t date) {
     struct tm timeinfo; localtime_r(&date, &timeinfo);
-    char buff[32]; snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+    char buff[40]; snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
     return String(buff);
+}
+
+const char* WebManager::getHistoryFileNameC(time_t date) {
+    struct tm timeinfo; localtime_r(&date, &timeinfo);
+    snprintf(_historyFnBuf, sizeof(_historyFnBuf), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+    return _historyFnBuf;
 }
 
 /* extractCsvToken removida — não é necessária com formato binário */

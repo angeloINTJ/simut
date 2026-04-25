@@ -45,20 +45,15 @@ uint8_t dallasCrc8(const uint8_t *addr, uint8_t len) {
 bool isValidHistoryFileName(const char* name) {
     if (!name) return false;
 
-    /* Verifica tamanho exato: YYYYMMDD.bin = 12 chars */
-    int len = 0;
-    const char* p = name;
-    while (*p) { len++; p++; }
-    if (len != 12) return false;
+    /* Fast-path: length exactly 12 and extension .bin */
+    if (strlen(name) != 12) return false;
+    if (name[8] != '.' || name[9] != 'b' || name[10] != 'i' || name[11] != 'n') {
+        return false;
+    }
 
     /* Primeiros 8 caracteres devem ser dígitos (YYYYMMDD) */
     for (int i = 0; i < 8; i++) {
         if (!isdigit((unsigned char)name[i])) return false;
-    }
-
-    /* Extensão deve ser .bin */
-    if (name[8] != '.' || name[9] != 'b' || name[10] != 'i' || name[11] != 'n') {
-        return false;
     }
 
     return true;

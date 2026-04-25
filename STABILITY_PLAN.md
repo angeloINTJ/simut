@@ -522,8 +522,8 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · TEST-ONLY: `conf sensor <N> history all` — comando oculto para recuperar visualização de histórico pós factory reset (zera `provisionEpoch`). **REMOVER ANTES DE PRODUÇÃO** (marcadores `TEST-ONLY` em SystemDefs.h, CommandManager.cpp, AppManager.cpp). | ✅ HW validada | `8806273` | — | 2026-04-22 |
 | **F-BT-LOGIN — Defer flash no login Bluetooth (U25)** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-25 |
 |   · U25 — `LogManager::setForceBuffer(true/false)` wrappando `_btMgr.update()` em `CommandManager::processInput`. Todos os `LOG_CODE` durante o update BT vão para buffer RAM `_pendingLogs[]` (32 slots) em vez de disparar flash síncrono. Banner de boas-vindas reordenado antes do `LOG_CODE` para resposta imediata. Sem alocações novas de heap. | ✅ Implementado (HW pendente) | — | — | 2026-04-25 |
-| **F16 — Performance + String hot paths** | ⚪ Pendente | — | (v3.25.0) | — |
-|   · Inclui EXT-006 (`LogManager::resetAfterExternalWipe`) + EXT-010 (`ReadGuard` público). | ⚪ Pendente | — | — | — |
+| **F16 — Performance + String hot paths** | ✅ Concluída | `stability-fixes-tier1` | v3.24.16 | 2026-04-25 |
+|   · PER-001 feedWdt(), PER-002 upload batching 8KB, PER-003 fast-path, MEM-001 buffer IP/mac/hist, EXT-006 resetAfterExternalWipe, EXT-010 ReadGuard público. | ✅ | — | — | — |
 | **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
 |   · Inclui EXT-003 (split `SystemDefs.h`) + EXT-005 (`AppManager.h` decoupling). Protocolo `symbols_inventory_before/after` obrigatório (ver §2.5 referências externas §10/§11). | ⚪ Pendente | — | — | — |
 | **F-CLEANUP — Polish puntual de baixo risco** | ✅ Concluída | `stability-fixes-tier1` | v3.24.15 | 2026-04-25 |
@@ -618,12 +618,12 @@ Atualize esta tabela conforme cada fase for concluída.
 | CON-004 | 🟢 | F14 | ⚪ | `_lastSavedCrc` → membro de classe. |
 | CON-005 | 🟢 | F14 | ⚪ | `String` → `char[]` em `CliDemand`/`LoginState`. |
 | CON-006 | ⚪ | F14 | ⚪ | `DS_CONVERSION_TIME` → `SystemDefs.h`. |
-| MEM-001 | 🟡 | F16 | ⚪ | `String` em hot paths → buffer estático. |
+| MEM-001 | 🟡 | F16 | ✅ | `String` em hot paths → buffer estático (IP, MAC, hist). |
 | MEM-002 | 🟡 | F14/F16 | ⚪ | Coberto por CON-005. |
 | MEM-003 | ⚪ | F17 | ⚪ | Avaliar remoção de `WebUI.h` raw. |
-| PER-001 | 🟢 | F16 | ⚪ | Helper `feedWdt()` consolidando `watchdog_update+TRACE_BEAT(0)`. |
-| PER-002 | 🟢 | F16 | ⚪ | Upload batching 8 KB para reduzir pauses Core 1. |
-| PER-003 | ⚪ | F16 | ⚪ | Fast-path em `isValidHistoryFileName`. |
+| PER-001 | 🟢 | F16 | ✅ | Helper `feedWdt()` (29 substituições em 5 arquivos). |
+| PER-002 | 🟢 | F16 | ✅ | Upload batching 8 KB — RenderGuard a cada ~8KB vs cada chunk. |
+| PER-003 | ⚪ | F16 | ✅ | Fast-path strlen + check extensão early-return. |
 | REF-001 | 🟡 | F17 | ⚪ | Split `DisplayManager.cpp` em 9 arquivos. |
 | REF-002 | 🟡 | F17 | ⚪ | Split `AppManager.cpp` em 8 arquivos. |
 | REF-003 | 🟢 | F17 | ⚪ | Split `WebManager.cpp` em 8 arquivos. |
@@ -637,11 +637,11 @@ Atualize esta tabela conforme cada fase for concluída.
 | EXT-003 | 🟡 | F17 | ⚪ | Split `SystemDefs.h` (1342 L) em headers temáticos com facade. |
 | EXT-004 | 🟡 | F-I18N-TRIM.2 | ✅ | Remover 6 idiomas mortos em `WebUI.h` (72 markers `@LANG_BEGIN`). |
 | EXT-005 | 🟢 | F17 | ⚪ | `AppManager.h` forward decl + `unique_ptr` (rebuild churn). |
-| EXT-006 | 🟢 | F16 | ⚪ | `LogManager::resetAfterExternalWipe()` substitui `begin()` em runtime. |
+| EXT-006 | 🟢 | F16 | ✅ | `LogManager::resetAfterExternalWipe()` substitui `begin()` em runtime. |
 | EXT-007 | 🟢 | F-CLEANUP | ✅ | Apagar docblock obsoleto `.csv` em `SystemUtils.cpp`. |
 | EXT-008 | 🟢 | F-DOC-EXT | ✅ | `docs/GLOSSARY.md` in-tree para tags do projeto. |
 | EXT-009 | 🟢 | F-BUILD | ⚪ | Host-side unit tests (Unity / `pio test -e native`). Depende de EXT-001. |
-| EXT-010 | 🟢 | F16 | ⚪ | Promover `ReadGuard` para `StorageManager.h`; aplicar em ~8 sites de `AppManager.cpp`. |
+| EXT-010 | 🟢 | F16 | ✅ | Promover `ReadGuard` para `StorageManager.h`; aplicar em ~5 sites de `AppManager.cpp`. |
 | EXT-011 | 🟢 | F-CLEANUP | ✅ | Polish: dup `watchdog_update()`, `extern "C"` redundante, `releaseIdleResources()` no-op. |
 | EXT-012 | 🟢 | F-DOC-EXT | ✅ | Atualizar README ("8 languages" → "EN + PT" pós F-I18N-TRIM.1). |
 | U25 | 🔴 | F-BT-LOGIN | ✅ | **Defer flash no login BT (2026-04-25):** `LOG_CODE` dentro de `BluetoothManager::update()` disparava `writeCompactToFlash` síncrono com duplo lockout do Core 1. Sob LittleFS >70%, GC + lockout causavam travamento e possível WDT reset. Fix: `LogManager::setForceBuffer(true/false)` wrappando `_btMgr.update()` em `CommandManager::processInput`. Banner de boas-vindas reordenado antes do `LOG_CODE`. Zero novas alocações de heap. |

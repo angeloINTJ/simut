@@ -817,6 +817,13 @@ String StorageManager::getHistoryFileName() {
     return String(buff);
 }
 
+void StorageManager::getHistoryFileName(char* buf, size_t len) {
+    time_t now = time(nullptr);
+    struct tm timeinfo;
+    localtime_r(&now, &timeinfo);
+    snprintf(buf, len, "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+}
+
 bool StorageManager::flushPendingHist() {
     if (!_isMounted || !_pendingHistValid) return false;
     BinaryHistoryRecord rec = _pendingHistRec;
@@ -911,7 +918,7 @@ void StorageManager::enforceStorageLimit() {
     int maxIter = 30;
     uint32_t _budgetStart = millis();
     while (maxIter-- > 0 && ((info.usedBytes * 100) / info.totalBytes) > 86) {
-        watchdog_update(); TRACE_BEAT(0);
+        feedWdt();
         if (timeSince(_budgetStart, 4000)) {
             LOG_CODE(LOG_WARN, "STO", STO_ENFORCE_BUDGET, 0, "");
             break;
@@ -923,7 +930,7 @@ void StorageManager::enforceStorageLimit() {
             Dir dir = LittleFS.openDir(DIR_HISTORY);
             int dirCount = 0;
             while (dir.next()) {
-                watchdog_update(); TRACE_BEAT(0);
+                feedWdt();
                 if (++dirCount % 20 == 0) delay(1);
                 String fileName = dir.fileName();
 
@@ -1013,7 +1020,7 @@ uint32_t StorageManager::getLastRecordedTimestamp() {
     enterFlashReadLock();
     Dir dir = LittleFS.openDir(DIR_HISTORY); String newestFile = "";
     while (dir.next()) {
-        watchdog_update(); TRACE_BEAT(0);
+        feedWdt();
         String fn = dir.fileName();
         if (fn.endsWith(HISTORY_FILE_EXT) && fn > newestFile) newestFile = fn;
     }
@@ -1063,7 +1070,7 @@ uint32_t StorageManager::getHistoryDaysMask(int year, int month) {
     enterFlashReadLock();
     Dir dir = LittleFS.openDir(DIR_HISTORY);
     while (dir.next()) {
-        watchdog_update(); TRACE_BEAT(0);
+        feedWdt();
         String fn = dir.fileName();
         if (!fn.endsWith(HISTORY_FILE_EXT)) continue;
 
@@ -1106,7 +1113,7 @@ void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta
     enterFlashSafeMode();
     Dir dir = LittleFS.openDir(DIR_HISTORY);
     while (dir.next()) {
-        watchdog_update(); TRACE_BEAT(0);
+        feedWdt();
         if (dir.fileName().endsWith(HISTORY_FILE_EXT)) files.push_back(dir.fileName());
     }
     exitFlashSafeMode();
@@ -1145,8 +1152,7 @@ void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta
             /* Pausa periódica para watchdog e cooperação */
             if (++recCount % 50 == 0) {
                 exitFlashSafeMode();
-                watchdog_update();
-                TRACE_BEAT(0);
+                feedWdt();
                 delay(2);
                 if (timeSince(_budgetStart, 6000)) {
                     enterFlashSafeMode();
@@ -1181,7 +1187,7 @@ void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta
             _correctWatermark = fn;  /* U10: marcar arquivo como completo */
         }
 
-        watchdog_update(); TRACE_BEAT(0);
+        feedWdt();
     }
 
     if (totalCorrected > 0) {
@@ -1223,7 +1229,7 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
     if (f) {
         char lineBuf[256];
         while (f.available()) {
-            watchdog_update(); TRACE_BEAT(0);
+            feedWdt();
             size_t len = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
             if (len == 0) continue;
             lineBuf[len] = '\0'; if (len > 0 && lineBuf[len - 1] == '\r') lineBuf[len - 1] = '\0';
