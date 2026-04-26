@@ -193,6 +193,15 @@ private:
     void handleApiLogin();
     void handleLogout();
 
+    /* REF-007 / F17.4: handleApiLogin decomposto em helpers nomeados. */
+    int  findLoginStateForIp(uint32_t clientIP) const;
+    bool respondIfLockedOut(int ls, int httpCode);
+    bool validateNonceAndRespond(int ls);
+    int  verifyPasswordFor(const String& u, const String& p);
+    int  allocSessionSlot(int foundId);
+    void completeLogin(int slot, int foundId, int ls, const String& u);
+    uint32_t applyExponentialPenalty(int ls);
+
     void handleForceChpass();
     void handleApiForceChpass();
 
