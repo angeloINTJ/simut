@@ -11,6 +11,7 @@
 #include "MetricsManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
+#include "DisplayManager.h"   /* F-LANGPACK β: getActiveWebDict */
 #include <LittleFS.h>
 #include <time.h>
 
@@ -291,6 +292,17 @@ void WebManager::handleApiAlarms() {
     safeSend(sndBuf);
     safeSend("");
 }
+/* F-LANGPACK Etapa β: serve o blob @WEBDICT do .lng ativo (UTF-8 JSON).
+ * Aberto sem auth — login e force_chpass precisam fetch antes do session.
+ * Cacheable para a session: cliente faz fetch uma vez e usa o sessionStorage. */
+void WebManager::handleApiLang() {
+    const char* json = DisplayManager::getActiveWebDict();
+    /* Cache curto: traduções só mudam quando user troca o .lng + reboot,
+     * então 5 min é suficiente sem deixar stale demais. */
+    _server.sendHeader("Cache-Control", "public, max-age=300");
+    _server.send(200, "application/json", json ? json : "{}");
+}
+
 void WebManager::handleApiStatus() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_DASHBOARD)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }

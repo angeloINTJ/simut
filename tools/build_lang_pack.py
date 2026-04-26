@@ -12,6 +12,7 @@ Coleta material de:
 Computa FNV-1a 32-bit do EN para cada par TRL e emite o .lng final.
 Acentos são restaurados manualmente em PT_ACCENTS (post-processing).
 """
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -139,6 +140,62 @@ def load_trl_pairs(path: Path) -> list[tuple[str, str]]:
         en, pt = line.split("\t", 1)
         out.append((en, pt))
     return out
+
+
+def find_balanced_braces(text: str, start: int) -> int:
+    """Returns index of matching `}` for the `{` at `start`, accounting for
+       quoted strings (so `{s}` inside a JS string literal doesn't confuse
+       the depth counter). Returns -1 if unbalanced."""
+    assert text[start] == "{"
+    depth = 0
+    in_str = False
+    escape = False
+    for i in range(start, len(text)):
+        c = text[i]
+        if escape:
+            escape = False
+            continue
+        if in_str:
+            if c == "\\":
+                escape = True
+            elif c == '"':
+                in_str = False
+        else:
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    return i
+    return -1
+
+
+def extract_webui_pt_dicts(webui_text: str) -> dict[str, str]:
+    """Walks WebUI.h finding every `pt: {...}` block, parses as JSON, merges
+       into a single dict. Keys are unique across pages (prefix-namespaced)."""
+    merged: dict[str, str] = {}
+    pos = 0
+    while True:
+        idx = webui_text.find("pt: {", pos)
+        if idx < 0:
+            break
+        brace_open = webui_text.find("{", idx)
+        brace_close = find_balanced_braces(webui_text, brace_open)
+        if brace_close < 0:
+            raise RuntimeError(f"Unbalanced pt: block at offset {idx}")
+        block = webui_text[brace_open: brace_close + 1]
+        try:
+            d = json.loads(block)
+            for k, v in d.items():
+                if k in merged and merged[k] != v:
+                    print(f"  WARN: key '{k}' redefined in pt block")
+                merged[k] = v
+        except Exception as e:
+            raise RuntimeError(f"JSON parse failed at offset {idx}: {e}\nBlock: {block[:200]}")
+        pos = brace_close + 1
+    return merged
 
 
 # ── Acentuação manual: dicionário "ASCII PT atual → UTF-8 com acentos" ──
@@ -598,9 +655,14 @@ print(f"  translateCodePt: {len(pt_cases)} cases")
 trl_pairs = load_trl_pairs(Path("/tmp/trl_pairs.tsv"))
 print(f"  TRL pairs: {len(trl_pairs)}")
 
-# 6) HELP/LICENSE
-help_pt = (ROOT / "data" / "help_pt.txt").read_text(encoding="utf-8")
-license_pt = (ROOT / "data" / "license_pt.txt").read_text(encoding="utf-8")
+# 6) HELP/LICENSE — buscar do git@130d6de já que removemos os .txt PT
+help_pt = git_show("data/help_pt.txt")
+license_pt = git_show("data/license_pt.txt")
+
+# 7) WEBDICT — extrai blocos pt:{...} de WebUI.h
+webui_text = (ROOT / "WebUI.h").read_text(encoding="utf-8")
+webdict = extract_webui_pt_dicts(webui_text)
+print(f"  WEBDICT: {len(webdict)} keys extraídas de WebUI.h")
 
 # ──────────────────────────────────────────────────────────────────────────
 # Compose .lng
@@ -635,6 +697,10 @@ lines.append(apply_accents(help_pt.rstrip("\n")))
 lines.append("")
 lines.append("@LICENSE")
 lines.append(apply_accents(license_pt.rstrip("\n")))
+lines.append("")
+lines.append("@WEBDICT")
+# Web consome UTF-8 direto; sem unaccent. Já vem com acentos da WebUI.h.
+lines.append(json.dumps(webdict, ensure_ascii=False, separators=(",", ":")))
 
 content = "\n".join(lines) + "\n"
 OUT.write_text(content, encoding="utf-8")
