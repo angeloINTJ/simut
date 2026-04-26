@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.26.0-alpha6"  /* F-LANGPACK fix: /lang visivel no Web /files + mkdir idempotente */
+#define SIMUT_VERSION "v3.26.0-alpha7"  /* F-LANGPACK fix: /lang adicionado ao allowlist de Web /files (handleApiLs) */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
