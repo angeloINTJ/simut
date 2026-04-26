@@ -459,8 +459,8 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
         pkg.tsMid   = cutoff + (forceEndEpoch - cutoff) / 2; /* ~12:00      */
     }
 
-    /* ── Salva no cache 7d de background se aplicável ── */
-    if (range == 4 && pkg.count > 0) {
+    /* ── Salva no cache 7d de background se aplicável (e cache existe) ── */
+    if (_graphCachesAllocated && range == 4 && pkg.count > 0) {
         int ci = graphCacheIdx(sensorId);
         _graphCache[ci].pkg         = pkg;
         _graphCache[ci].humMin      = localHumMin;
@@ -470,7 +470,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
     }
 
     /* ── Salva no cache do sensor ativo (todos os ranges) ── */
-    if (sensorId == _sensorCacheId && range >= 0 && range < 5) {
+    if (_graphCachesAllocated && sensorId == _sensorCacheId && range >= 0 && range < 5) {
         _sensorCache[range].pkg         = pkg;
         _sensorCache[range].humMin      = localHumMin;
         _sensorCache[range].humMax      = localHumMax;
@@ -550,6 +550,8 @@ void AppManager::preloadGraphCaches() {
  * @param skipRange Range que já foi carregado e exibido (não recarregar).
  */
 void AppManager::preloadSensorRanges(int sensorId, int skipRange) {
+    /* F-MEM-LAZYGRAPH: sem cache, não há o que pré-carregar. */
+    if (!_graphCachesAllocated) return;
     for (int r = 0; r < 5; r++) {
         if (r == skipRange || _sensorCache[r].valid) continue;
 
