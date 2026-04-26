@@ -7,7 +7,9 @@
  */
 
 #include "AppManager.h"
+#include "DisplayManager.h"
 #include "LogManager.h"
+#include "StorageManager.h"
 #include "SystemDefs.h"
 #include <LittleFS.h>
 #include <time.h>
@@ -39,9 +41,9 @@ static inline float readRecordValue(const BinaryHistoryRecord& rec,
  * 6-second budget limit prevents watchdog timeout.
  */
 void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoad, int navOffset, time_t forceEndEpoch) {
-    if (!_storageMgr.lockHeavyTask()) {
+    if (!_storageMgr->lockHeavyTask()) {
         LOG_CODE(LOG_WARN, "APP", APP_FLASH_BUSY, 0, "");
-        _displayMgr.forceDashboard();
+        _displayMgr->forceDashboard();
         return;
     }
     /*
@@ -73,11 +75,11 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
 
     pkg.hasHumidity = (sensorId == -1);
 
-    SystemConfig &cfg = _storageMgr.getConfig();
+    SystemConfig &cfg = _storageMgr->getConfig();
     uint32_t epochLimit = 0;
 
     if (sensorId == -1) {
-        snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr.tr(TR_AMBIENT));
+        snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr->tr(TR_AMBIENT));
         snprintf(pkg.hwId, sizeof(pkg.hwId), "AMB");
         snprintf(pkg.rom, sizeof(pkg.rom), "INTERNAL-DHT");
     } else if (sensorId == 10) {
@@ -173,10 +175,10 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
         File f;
-        _storageMgr.enterFlashReadLock();
+        _storageMgr->enterFlashReadLock();
         bool fileExists = LittleFS.exists(path);
         if (fileExists) f = LittleFS.open(path, "r");
-        _storageMgr.exitFlashReadLock();
+        _storageMgr->exitFlashReadLock();
 
         if (fileExists && f) {
             size_t fileSize = f.size();
@@ -228,7 +230,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                     }
 
                     if (seekRecord > 0 && seekRecord < (int)totalRecords) {
-                        { StorageManager::ReadGuard rg(&_storageMgr);
+                        { StorageManager::ReadGuard rg(_storageMgr.get());
                           f.seek((size_t)seekRecord * HISTORY_RECORD_SIZE); }
                     }
                 }
@@ -245,7 +247,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                     break;
                 }
 
-                _storageMgr.enterFlashReadLock();
+                _storageMgr->enterFlashReadLock();
                 BinaryHistoryRecord batch[20];
                 int batchCount = 0;
                 while (f.available() >= HISTORY_RECORD_SIZE
@@ -259,7 +261,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                     }
                 }
                 hasMore = (f.available() >= HISTORY_RECORD_SIZE);
-                _storageMgr.exitFlashReadLock();
+                _storageMgr->exitFlashReadLock();
 
                 bool pastWindow = false;
 
@@ -347,13 +349,13 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                 yield();
             }
 
-            _storageMgr.enterFlashReadLock();
+            _storageMgr->enterFlashReadLock();
             f.close();
-            _storageMgr.exitFlashReadLock();
+            _storageMgr->exitFlashReadLock();
 
             if (budgetExceeded) {
-                _storageMgr.unlockHeavyTask();
-                _displayMgr.forceDashboard();
+                _storageMgr->unlockHeavyTask();
+                _displayMgr->forceDashboard();
                 return;
             }
         }
@@ -478,10 +480,10 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
         _sensorCache[range].valid       = true;
     }
 
-    _storageMgr.unlockHeavyTask();
+    _storageMgr->unlockHeavyTask();
 
     if (showAfterLoad) {
-        _displayMgr.showGraphPlot(pkg, localHumMin, localHumMax);
+        _displayMgr->showGraphPlot(pkg, localHumMin, localHumMax);
     }
 }
 
@@ -512,7 +514,7 @@ int AppManager::graphCacheIdx(int sensorId) {
  * liberando entre sensores para não bloquear watchdog e WiFi.
  */
 void AppManager::preloadGraphCaches() {
-    SystemConfig &cfg = _storageMgr.getConfig();
+    SystemConfig &cfg = _storageMgr->getConfig();
 
     /* Ambient (sempre presente) */
     LOG_CODE(LOG_INFO, "APP", APP_CACHE_GRAPH_AMBIENT, 0, "");
@@ -622,9 +624,9 @@ bool AppManager::appendToGraphCache(GraphCacheEntry& entry, int sensorId) {
     }
 
     /* ── Fase 2: Ler novos registros do arquivo binário ── */
-    if (!_storageMgr.lockHeavyTask()) return false;
+    if (!_storageMgr->lockHeavyTask()) return false;
 
-    SystemConfig& cfg = _storageMgr.getConfig();
+    SystemConfig& cfg = _storageMgr->getConfig();
     uint32_t epochLimit = 0;
     if (sensorId >= 0 && sensorId < MAX_SENSORS && cfg.sensors[sensorId].active) {
         epochLimit = cfg.sensors[sensorId].provisionEpoch;
@@ -652,11 +654,11 @@ bool AppManager::appendToGraphCache(GraphCacheEntry& entry, int sensorId) {
         snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
                  ti.tm_year + 1900, ti.tm_mon + 1, ti.tm_mday);
 
-        _storageMgr.enterFlashReadLock();
+        _storageMgr->enterFlashReadLock();
         bool exists = LittleFS.exists(path);
         File f;
         if (exists) f = LittleFS.open(path, "r");
-        _storageMgr.exitFlashReadLock();
+        _storageMgr->exitFlashReadLock();
 
         if (!exists || !f) continue;
 
@@ -672,16 +674,16 @@ bool AppManager::appendToGraphCache(GraphCacheEntry& entry, int sensorId) {
                 int minPast = (int)((pkg.tsLast - fileMidnight) / 60);
                 int seekRecord = max(0, minPast - 5);
                 if (seekRecord < (int)totalRecords) {
-                    _storageMgr.enterFlashReadLock();
+                    _storageMgr->enterFlashReadLock();
                     f.seek((size_t)seekRecord * HISTORY_RECORD_SIZE);
-                    _storageMgr.exitFlashReadLock();
+                    _storageMgr->exitFlashReadLock();
                 }
             }
         }
 
         bool hasMore = true;
         while (hasMore && pkg.count < GRAPH_WIDTH) {
-            _storageMgr.enterFlashReadLock();
+            _storageMgr->enterFlashReadLock();
             BinaryHistoryRecord batch[20];
             int batchCount = 0;
             while (f.available() >= HISTORY_RECORD_SIZE
@@ -695,7 +697,7 @@ bool AppManager::appendToGraphCache(GraphCacheEntry& entry, int sensorId) {
                 }
             }
             hasMore = (f.available() >= HISTORY_RECORD_SIZE);
-            _storageMgr.exitFlashReadLock();
+            _storageMgr->exitFlashReadLock();
 
             for (int bi = 0; bi < batchCount && pkg.count < GRAPH_WIDTH; bi++) {
                 const BinaryHistoryRecord& rec = batch[bi];
@@ -734,12 +736,12 @@ bool AppManager::appendToGraphCache(GraphCacheEntry& entry, int sensorId) {
             feedWdt(); yield();
         }
 
-        _storageMgr.enterFlashReadLock();
+        _storageMgr->enterFlashReadLock();
         f.close();
-        _storageMgr.exitFlashReadLock();
+        _storageMgr->exitFlashReadLock();
     }
 
-    _storageMgr.unlockHeavyTask();
+    _storageMgr->unlockHeavyTask();
 
     /* ── Fase 3: Recalcular estatísticas (ignorando NANs) ── */
     if (newPoints > 0 && pkg.count >= 2) {
