@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.26.0-alpha21" /* F-USB-REBOOT: safeReboot() centraliza Serial.flush+end+delay+wdt(500ms) — resolve /dev/ttyACM0 não reaparecer após reload */
+#define SIMUT_VERSION "v3.26.0-alpha22" /* Favicon /favicon.ico embedado em PROGMEM (Favicon.cpp, 11.5KB, 4 sizes 16/24/32/48), cache 7 dias — sobrevive a uploadfs */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

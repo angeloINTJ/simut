@@ -234,6 +234,7 @@ private:
 
     void handleNotFound();
     void handleLangJs();
+    void handleFavicon();   /**< Serve /favicon.ico do LittleFS com cache de 7 dias */
 
     void handleApiPerms();
     void handleApiNetwork();

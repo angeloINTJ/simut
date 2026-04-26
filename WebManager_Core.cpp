@@ -72,6 +72,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/license", HTTP_GET, std::bind(&WebManager::handleLicense, this));
     _server.on("/history", HTTP_GET, std::bind(&WebManager::handleHistory, this));
     _server.on("/lang.js", HTTP_GET, std::bind(&WebManager::handleLangJs, this));
+    _server.on("/favicon.ico", HTTP_GET, std::bind(&WebManager::handleFavicon, this));
 
 
     _server.on("/api/login_init", HTTP_GET, std::bind(&WebManager::handleApiLoginInit, this));
