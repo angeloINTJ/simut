@@ -609,6 +609,9 @@ public:
      *  Retorna nullptr se .lng não carregado ou seção ausente. */
     static const char* getActiveHelpText();
     static const char* getActiveLicenseText();
+    /** Etapa β (Web): JSON com traduções para a Web UI (UTF-8 direto;
+     *  o browser consome sem unaccent). Servido por GET /api/lang. */
+    static const char* getActiveWebDict();
     /** True se _activeLang está populado (qualquer lookup pode acertar). */
     static bool isLangLoaded();
 
@@ -619,6 +622,7 @@ private:
         char*  strings[TR_KEYS_COUNT];
         char*  helpText;
         char*  licenseText;
+        char*  webDict;               /**< Blob JSON do @WEBDICT (UTF-8) */
         LogCodeEntry* logcodes;
         uint16_t      logcodesCount;
         TrlEntry*     trls;

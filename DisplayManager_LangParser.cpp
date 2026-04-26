@@ -119,9 +119,9 @@ bool DisplayManager::loadLangFile(const char* path) {
     n++;
 
     /* Mapeia limites de cada seção. bodyStart=0 significa "ausente". */
-    enum SecIdx { S_DICT = 0, S_HELP, S_LICENSE, S_LOGCODES, S_TRL, S_COUNT };
-    size_t secStart[S_COUNT] = { 0, 0, 0, 0, 0 };
-    size_t secEnd[S_COUNT]   = { 0, 0, 0, 0, 0 };
+    enum SecIdx { S_DICT = 0, S_HELP, S_LICENSE, S_LOGCODES, S_TRL, S_WEBDICT, S_COUNT };
+    size_t secStart[S_COUNT] = { 0, 0, 0, 0, 0, 0 };
+    size_t secEnd[S_COUNT]   = { 0, 0, 0, 0, 0, 0 };
 
     int   curSec  = -1;
     size_t i      = 0;
@@ -182,6 +182,9 @@ bool DisplayManager::loadLangFile(const char* path) {
         } else if (dirLen == 3 && memcmp(buf + dirStart, "TRL", 3) == 0) {
             curSec = S_TRL;
             secStart[S_TRL] = bodyAfter;
+        } else if (dirLen == 7 && memcmp(buf + dirStart, "WEBDICT", 7) == 0) {
+            curSec = S_WEBDICT;
+            secStart[S_WEBDICT] = bodyAfter;
         } else {
             curSec = -1;     /* diretiva desconhecida — ignora */
         }
@@ -236,6 +239,13 @@ bool DisplayManager::loadLangFile(const char* path) {
     if (secEnd[S_LICENSE] > secStart[S_LICENSE]) {
         _activeLang.licenseText = buf + secStart[S_LICENSE];
         size_t e = secEnd[S_LICENSE];
+        if (e > 0 && buf[e-1] == '\n') buf[e-1] = '\0';
+        else if (e <= n) buf[e] = '\0';
+    }
+    /* @WEBDICT: blob JSON opaco, servido via GET /api/lang ao browser. */
+    if (secEnd[S_WEBDICT] > secStart[S_WEBDICT]) {
+        _activeLang.webDict = buf + secStart[S_WEBDICT];
+        size_t e = secEnd[S_WEBDICT];
         if (e > 0 && buf[e-1] == '\n') buf[e-1] = '\0';
         else if (e <= n) buf[e] = '\0';
     }
@@ -413,6 +423,9 @@ const char* DisplayManager::getActiveHelpText() {
 }
 const char* DisplayManager::getActiveLicenseText() {
     return _activeLangLoaded ? _activeLang.licenseText : nullptr;
+}
+const char* DisplayManager::getActiveWebDict() {
+    return _activeLangLoaded ? _activeLang.webDict : nullptr;
 }
 bool DisplayManager::isLangLoaded() { return _activeLangLoaded; }
 

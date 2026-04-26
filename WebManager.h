@@ -228,6 +228,7 @@ private:
     void handleApiHistoryData();
     void handleApiLogs();
     void handleApiClearLogs();
+    void handleApiLang();   /**< F-LANGPACK β: serve @WEBDICT do .lng como JSON */
 
     /* U24 Phase B: handleApiUserAdd/Del/Reset substituidos por handleApiCommitAll */
 
