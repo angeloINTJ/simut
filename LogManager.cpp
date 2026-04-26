@@ -613,6 +613,29 @@ void LogManager::markCleanReboot() {
     watchdog_hw->scratch[5] = 0xC1EA8007;
 }
 
+void LogManager::safeReboot() {
+    /* F-USB-REBOOT: rp2040.reboot() faz watchdog_reboot(0,0,10) — reset em
+     * 10ms. Sem flush/end do Serial USB, o host (Linux pio device monitor)
+     * vê IO error mas o /dev/ttyACM0 não reaparece porque a transição
+     * DETACH/ATTACH foi interrompida no meio. Sequência aqui:
+     *   1. markCleanReboot — autopsy não loga FATAL no próximo boot
+     *   2. Serial.flush — drena TX buffer USB CDC
+     *   3. delay 50ms — host processa o último frame
+     *   4. Serial.end — DETACH limpo no descritor USB
+     *   5. delay 100ms — host processa disconnect (typical 50-100ms no Linux)
+     *   6. watchdog_enable(500, 1) — reset com janela 50× maior que rp2040.reboot
+     *   7. while(1) tight_loop_contents — espera o reset chegar
+     * Mesmo pattern que WebManager_Commit usa há tempo (estável). */
+    markCleanReboot();
+    Serial.println("[SYS] Rebooting...");
+    Serial.flush();
+    delay(50);
+    Serial.end();
+    delay(100);
+    watchdog_enable(500, 1);
+    while (1) tight_loop_contents();
+}
+
 /**
  * @brief Analyze watchdog scratch registers after a crash-triggered reboot.
  * Logs the dead core, module, and duration of the freeze.
