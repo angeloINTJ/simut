@@ -180,80 +180,72 @@ void WebManager::handleApiLoginInit() {
     _server.send(200, "application/json", json);
 }
 
-void WebManager::handleApiLogin() {
-    uint32_t clientIP = (uint32_t)_server.client().remoteIP();
+/* ===========================================================================
+ * REF-007 / F17.4 — handleApiLogin decomposto
+ * ===========================================================================
+ * Orquestrador delega cada etapa a um helper privado nomeado. Cada helper
+ * é responsável pelo seu efeito colateral (penaliza/responde) quando isso
+ * mantém a etapa atômica; o orquestrador trata só o fluxo de saída antecipada.
+ */
 
-    int ls = -1;
+int WebManager::findLoginStateForIp(uint32_t clientIP) const {
     for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
-        if (_loginStates[i].ip == clientIP) { ls = i; break; }
+        if (_loginStates[i].ip == clientIP) return i;
     }
+    return -1;
+}
 
-    if (ls >= 0 && _loginStates[ls].lockoutUntil > 0 && !timeReached(_loginStates[ls].lockoutUntil)) {
-        uint32_t rem = timeRemaining(_loginStates[ls].lockoutUntil) / 1000;
-        char buf[64];
-        snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)rem);
-        _server.send(403, "application/json", buf);
-        return;
-    }
+uint32_t WebManager::applyExponentialPenalty(int ls) {
+    if (ls < 0) return 0;
+    _loginStates[ls].failCount++;
+    uint32_t penaltyMs = (1U << _loginStates[ls].failCount) * 1000U;
+    if (penaltyMs > 300000U) penaltyMs = 300000U;
+    _loginStates[ls].lockoutUntil = millis() + penaltyMs;
+    return penaltyMs;
+}
 
+bool WebManager::respondIfLockedOut(int ls, int httpCode) {
+    if (ls < 0) return false;
+    if (_loginStates[ls].lockoutUntil == 0) return false;
+    if (timeReached(_loginStates[ls].lockoutUntil)) return false;
+    uint32_t rem = timeRemaining(_loginStates[ls].lockoutUntil) / 1000;
+    char buf[64];
+    snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)rem);
+    _server.send(httpCode, "application/json", buf);
+    return true;
+}
+
+bool WebManager::validateNonceAndRespond(int ls) {
     /* CON-005a: expectedNonce é pointer pro buffer fixo do slot (ou string vazia
-     * se não há slot). Comparação via strcmp em vez de operator!=. */
+     * se não há slot). Comparação via operator==(String,const char*). */
     const char* expectedNonce = (ls >= 0) ? _loginStates[ls].nonce : "";
-
-
     bool nonceExpired = (ls >= 0) && (_loginStates[ls].nonceCreatedAt > 0) &&
                         timeSince(_loginStates[ls].nonceCreatedAt, NONCE_LIFETIME_MS);
 
-    if (!_server.hasArg("nonce") || _server.arg("nonce") != expectedNonce || expectedNonce[0] == '\0' || nonceExpired) {
-        if (ls >= 0) {
-            _loginStates[ls].nonce[0] = '\0';
-            if (nonceExpired) {
-                _loginStates[ls].failCount++;
-                uint32_t penaltyMs = (1 << _loginStates[ls].failCount) * 1000;
-                if (penaltyMs > 300000) penaltyMs = 300000;
-                _loginStates[ls].lockoutUntil = millis() + penaltyMs;
-            }
-        }
-        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
-                 nonceExpired ? "Login Rejected: Nonce Expired" : "Login Rejected: Invalid Nonce");
-        if (ls >= 0 && _loginStates[ls].lockoutUntil > 0 && !timeReached(_loginStates[ls].lockoutUntil)) {
-            uint32_t rem = timeRemaining(_loginStates[ls].lockoutUntil) / 1000;
-            char buf[64];
-            snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)rem);
-            _server.send(401, "application/json", buf);
-        } else {
-            _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
-        }
-        return;
-    }
-    if (ls >= 0) _loginStates[ls].nonce[0] = '\0';
-
-    if (!_server.hasArg("user") || !_server.hasArg("pass")) {
-        _server.send(400, "application/json", "{\"ok\":false,\"err\":1}");
-        return;
+    bool ok = _server.hasArg("nonce") &&
+              _server.arg("nonce") == expectedNonce &&
+              expectedNonce[0] != '\0' &&
+              !nonceExpired;
+    if (ok) {
+        if (ls >= 0) _loginStates[ls].nonce[0] = '\0';
+        return true;
     }
 
-    String u = _server.arg("user");
-    String p = _server.arg("pass");
-
-    /* D13: Validar tamanho antes de passar para hashPassword (2500 rounds).
-     * Username > 31 ou password > 128 → rejeitar imediatamente. */
-    if (!isValidName(u.c_str(), 31) || p.length() > 128) {
-        if (ls >= 0) {
-            _loginStates[ls].failCount++;
-            uint32_t penaltyMs = (1 << _loginStates[ls].failCount) * 1000;
-            if (penaltyMs > 300000) penaltyMs = 300000;
-            _loginStates[ls].lockoutUntil = millis() + penaltyMs;
-        }
-        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Invalid Input Size", "Login rejeitado: tamanho invalido"));
+    /* falha: invalida nonce + penaliza nonce expirado (não nonce inválido) */
+    if (ls >= 0) {
+        _loginStates[ls].nonce[0] = '\0';
+        if (nonceExpired) applyExponentialPenalty(ls);
+    }
+    LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
+             nonceExpired ? "Login Rejected: Nonce Expired" : "Login Rejected: Invalid Nonce");
+    if (!respondIfLockedOut(ls, 401)) {
         _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
-        return;
     }
+    return false;
+}
 
+int WebManager::verifyPasswordFor(const String& u, const String& p) {
     SystemConfig& cfg = _storageRef->getConfig();
-
-    int foundId = -1;
-
     for (int i = 0; i < MAX_USERS; i++) {
         if (!cfg.users[i].active || String(cfg.users[i].username) != u) continue;
 
@@ -292,83 +284,108 @@ void WebManager::handleApiLogin() {
                 cfg.users[i].hashVersion = 1;
                 _storageRef->saveConfiguration();
             }
-            foundId = i;
-            break;
+            return i;
         }
     }
+    return -1;
+}
 
-    if (foundId >= 0) {
-        clearStaleSessions();
-        int slot = -1;
+int WebManager::allocSessionSlot(int foundId) {
+    clearStaleSessions();
+    /* reaproveita slot do mesmo user (logins consecutivos do mesmo dispositivo) */
+    for (int i = 0; i < 3; i++) {
+        if (_activeSessions[i].token != "" && _activeSessions[i].userId == foundId) return i;
+    }
+    /* primeiro slot vazio */
+    for (int i = 0; i < 3; i++) {
+        if (_activeSessions[i].token == "") return i;
+    }
+    return -1;
+}
 
-        for (int i = 0; i < 3; i++) {
-            if (_activeSessions[i].token != "" && _activeSessions[i].userId == foundId) {
-                slot = i; break;
-            }
-        }
+void WebManager::completeLogin(int slot, int foundId, int ls, const String& u) {
+    if (ls >= 0) {
+        _loginStates[ls].failCount = 0;
+        _loginStates[ls].lockoutUntil = 0;
+    }
 
-        if (slot == -1) {
-            for (int i = 0; i < 3; i++) {
-                if (_activeSessions[i].token == "") {
-                    slot = i; break;
-                }
-            }
-        }
+    SystemConfig& cfg = _storageRef->getConfig();
+    String newToken = generateSecureToken();
 
-        if (slot == -1) {
-            LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Max Sessions Reached", "Login rejeitado: limite de sessoes"));
-            _server.send(403, "application/json", "{\"ok\":false,\"err\":3}");
-            return;
-        }
+    _activeSessions[slot].token = newToken;
+    _activeSessions[slot].userId = foundId;
+    _activeSessions[slot].username = u;
+    _activeSessions[slot].perms = cfg.users[foundId].permissions;
+    _activeSessions[slot].lastActivity = millis();
 
+    _currentUserId = foundId;
+    _currentUserName = u;
+    _currentUserPerms = _activeSessions[slot].perms;
+
+    LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, foundId, String(TRL("Login OK: ", "Login OK: ")) + u);
+    if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
+
+    if (_displayRef) _displayRef->setWebNotification(u.c_str());
+
+    String cookieFlags = "SIMUTSESS=" + newToken + "; Path=/; HttpOnly; SameSite=Strict";
+    if (cfg.useHttps) cookieFlags += "; Secure";
+    _server.sendHeader("Set-Cookie", cookieFlags);
+
+    const char* redirect = cfg.users[foundId].mustChangePassword ? "/force_chpass" : "/";
+    char resp[64];
+    snprintf(resp, sizeof(resp), "{\"ok\":true,\"redirect\":\"%s\"}", redirect);
+    _server.send(200, "application/json", resp);
+}
+
+void WebManager::handleApiLogin() {
+    uint32_t clientIP = (uint32_t)_server.client().remoteIP();
+    int ls = findLoginStateForIp(clientIP);
+
+    /* lockout ativo: 403 imediato (não consome nonce) */
+    if (respondIfLockedOut(ls, 403)) return;
+
+    /* nonce CSRF: valida + consome em sucesso, penaliza em expiração */
+    if (!validateNonceAndRespond(ls)) return;
+
+    if (!_server.hasArg("user") || !_server.hasArg("pass")) {
+        _server.send(400, "application/json", "{\"ok\":false,\"err\":1}");
+        return;
+    }
+
+    String u = _server.arg("user");
+    String p = _server.arg("pass");
+
+    /* D13: tamanhos sanos antes de invocar hashPassword (PASSWORD_HMAC_ROUNDS) */
+    if (!isValidName(u.c_str(), 31) || p.length() > 128) {
+        applyExponentialPenalty(ls);
+        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Invalid Input Size", "Login rejeitado: tamanho invalido"));
+        _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+        return;
+    }
+
+    int foundId = verifyPasswordFor(u, p);
+    if (foundId < 0) {
         if (ls >= 0) {
-            _loginStates[ls].failCount = 0;
-            _loginStates[ls].lockoutUntil = 0;
-        }
-
-
-        String newToken = generateSecureToken();
-
-        _activeSessions[slot].token = newToken;
-        _activeSessions[slot].userId = foundId;
-        _activeSessions[slot].username = u;
-        _activeSessions[slot].perms = cfg.users[foundId].permissions;
-        _activeSessions[slot].lastActivity = millis();
-
-        _currentUserId = foundId;
-        _currentUserName = u;
-        _currentUserPerms = _activeSessions[slot].perms;
-
-        LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, foundId, String(TRL("Login OK: ", "Login OK: ")) + u);
-        if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-
-
-        if (_displayRef) _displayRef->setWebNotification(u.c_str());
-
-        String cookieFlags = "SIMUTSESS=" + newToken + "; Path=/; HttpOnly; SameSite=Strict";
-        if (_storageRef->getConfig().useHttps) cookieFlags += "; Secure";
-        _server.sendHeader("Set-Cookie", cookieFlags);
-
-        const char* redirect = cfg.users[foundId].mustChangePassword ? "/force_chpass" : "/";
-        char resp[64];
-        snprintf(resp, sizeof(resp), "{\"ok\":true,\"redirect\":\"%s\"}", redirect);
-        _server.send(200, "application/json", resp);
-    } else {
-        if (ls >= 0) {
-            _loginStates[ls].failCount++;
-            uint32_t penaltyMs = (1 << _loginStates[ls].failCount) * 1000;
-            if (penaltyMs > 300000) penaltyMs = 300000;
-            _loginStates[ls].lockoutUntil = millis() + penaltyMs;
+            uint32_t penaltyMs = applyExponentialPenalty(ls);
             LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, String(TRL("Login Failed: ", "Login falhou: ")) + u);
             if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_ERROR);
-
             char buf[64];
             snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)(penaltyMs/1000));
             _server.send(401, "application/json", buf);
         } else {
             _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
         }
+        return;
     }
+
+    int slot = allocSessionSlot(foundId);
+    if (slot < 0) {
+        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Max Sessions Reached", "Login rejeitado: limite de sessoes"));
+        _server.send(403, "application/json", "{\"ok\":false,\"err\":3}");
+        return;
+    }
+
+    completeLogin(slot, foundId, ls, u);
 }
 
 void WebManager::handleLogout() {
