@@ -12,6 +12,7 @@
 
 #include "CommandManager.h"
 #include "LogManager.h"
+#include "DisplayManager.h"   /* F-LANGPACK Etapa 3: getActiveHelpText */
 #include "MetricsManager.h"
 #include <LittleFS.h>
 #include <time.h>
@@ -633,21 +634,40 @@ void CommandManager::printError(String msg) { consolePrint("ERROR: "); consolePr
 void CommandManager::printInfo(String msg) { consolePrintln(msg); }
 
 void CommandManager::printHelp() {
-    /* REF/F17 — texto movido para /help_{pt,en}.txt no LittleFS.
-     * Path em ROOT (não /system/) evita mkdir no /files.
-     * Upload direto via web UI em primeira instalação. */
-    const char* path = isPt() ? "/help_pt.txt" : "/help_en.txt";
+    /* F-LANGPACK Etapa 3: PT vem do @HELP do .lng (UTF-8 → unaccent
+     * para o terminal ASCII). EN sempre do /help_en.txt no FS. */
+    if (isPt()) {
+        const char* langHelp = DisplayManager::getActiveHelpText();
+        if (langHelp) {
+            const char* line = langHelp;
+            char asciiBuf[160];
+            char rawBuf[160];
+            while (*line) {
+                feedWdt();
+                size_t i = 0;
+                while (line[i] && line[i] != '\n' && i + 1 < sizeof(rawBuf)) {
+                    rawBuf[i] = line[i]; i++;
+                }
+                rawBuf[i] = '\0';
+                if (i > 0 && rawBuf[i-1] == '\r') rawBuf[i-1] = '\0';
+                DisplayManager::unaccent(rawBuf, asciiBuf, sizeof(asciiBuf));
+                consolePrintln(String(asciiBuf));
+                line += i;
+                if (*line == '\n') line++;
+            }
+            return;
+        }
+        /* PT pedido mas .lng não tem @HELP — cai pro EN abaixo. */
+    }
 
-    File f = LittleFS.open(path, "r");
+    File f = LittleFS.open("/help_en.txt", "r");
     if (!f) {
         consolePrintln("");
-        consolePrintln(String(isPt() ? "Ajuda nao instalada. Upload via web (/files):"
-                                      : "Help not installed. Upload via web (/files):"));
-        consolePrintln(String(path));
+        consolePrintln(String("Help not installed. Upload via web (/files):"));
+        consolePrintln(String("/help_en.txt"));
         consolePrintln("");
         return;
     }
-
     char buf[128];
     while (f.available()) {
         feedWdt();

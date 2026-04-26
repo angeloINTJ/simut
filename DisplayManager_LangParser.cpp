@@ -408,6 +408,14 @@ bool DisplayManager::findAndLoadLangFile() {
     return ok;
 }
 
+const char* DisplayManager::getActiveHelpText() {
+    return _activeLangLoaded ? _activeLang.helpText : nullptr;
+}
+const char* DisplayManager::getActiveLicenseText() {
+    return _activeLangLoaded ? _activeLang.licenseText : nullptr;
+}
+bool DisplayManager::isLangLoaded() { return _activeLangLoaded; }
+
 /* ─────────────────────────────────────────────────────────────────
  * unaccent: UTF-8 (Latin-1 subset) → ASCII 7-bit.
  *

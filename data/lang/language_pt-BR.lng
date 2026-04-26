@@ -1,0 +1,444 @@
+# SIMUT Versa — language pack pt-BR
+# Gerado por tools/build_lang_pack.py (Etapa 3)
+# Encoding: UTF-8. UI/CLI sofrem unaccent() em runtime.
+
+@NAME Portugues
+@CODE pt-BR
+
+@DICT
+AMBIENTE
+Configurações > Principal
+Configurações > Temas
+Configurações > Idioma
+SAIR
+APLICAR
+CANCELAR
+Autenticação de Segurança
+ACESSO BLOQUEADO
+Reinicialização requerida
+Tentativas Excedidas
+Aguarde %ld segundos...
+Senha Inválida!
+Carregando...
+Lendo Histórico...
+Sem Dados
+MÁXIMO
+MÍNIMO
+Temperatura
+Umidade
+GERAR GRÁFICO
+1. Temas Visuais
+2. Limites de Alarme
+3. Sons de Alarme
+4. Idioma do Sistema
+Aplicando Tema...
+SALVAR
+Limites de Alarme
+Temp Min
+Temp Max
+Umid Min
+Umid Max
+ENTRAR
+PULAR
+5. Alterar Senha
+Nova Senha
+6. Calibrar Touch
+Calibração do Touch
+Toque na mira
+Calibração Concluída!
+Toques imprecisos! Tente novamente.
+Confirmar Senha
+Senha muito curta! (min 4)
+Senhas não coincidem!
+Senha salva!
+ENTENDI
+Config. de Sons
+Toque na Tela
+Confirmação
+Som de Erro
+Som de Alarme
+Silenciar Tudo
+Vol. Sistema
+Vol. Alarme
+SIM
+NÃO
+Acesso Web
+Melodia
+7. Licença
+Licença MIT
+ATIVO
+Silenciar 120s
+Desativar
+Min/Max
+Silenciado
+%UR
+7. Sensibilidade do Toque
+Sensibilidade do Toque
+Toque %d/%d
+Calibração Concluída!
+MEDIA
+DESVIO
+Erro
+Modo de Configuração
+8. Status do Sistema
+Status do Sistema
+9. Alinhamento da Tela
+Alinhamento da Tela
+Ajuste +/-4 px. Salvar reinicia calibração do touch.
+
+@LOGCODES
+0 OK
+1 Boot do sistema
+2 Reboot solicitado pelo usuário
+3 Heap baixa
+4 Marco de uptime
+10 Conectando WiFi
+11 WiFi desconectado
+12 Varredura WiFi
+13 NTP sincronizado
+14 IP obtido
+15 AP iniciado
+20 Falha no storage
+21 Config salva
+22 Storage rotacionado
+23 Formatando flash
+24 Storage recuperado
+25 Config migrada
+30 Telemetria enviada
+31 Falha de telemetria
+32 Retry de telemetria
+33 Telemetria enfileirada
+34 Cert SSL carregado
+35 MQTT conectado
+36 MQTT desconectado
+37 MQTT publicado
+100 Sensor recuperado
+101 Timeout de sensor
+102 Erro de checksum
+103 Erro de CRC
+104 Sensor fora de range
+105 Divergência de hardware
+106 Sensor ausente
+200 Evento de toque
+201 Display reiniciado
+202 Gráfico renderizado
+300 Login bem-sucedido
+301 Falha de login
+302 Acesso não autorizado
+303 Config alterada
+304 Sessão expirada
+305 Arquivo enviado
+306 Arquivo apagado
+400 Display iniciado no Core 1
+401 Calibração inicial do touch salva
+402 Calibração do touch necessária
+403 AP ativado pelo usuário
+404 Sistema pronto
+405 Sistema pronto (modo AP)
+406 Falha crítica de storage
+407 Sensores calibrados
+408 NTP corrigindo timestamps
+409 Timestamps corrigidos
+410 Caches de gráfico invalidados
+440 Tema alterado via UI
+441 Idioma alterado via UI
+442 Limites de alarme salvos via UI
+443 Calibração do touch salva
+444 Sensibilidade do touch salva
+445 PIN do display alterado
+446 Config de som salva
+447 Alarme silenciado via UI
+448 Silenciamento de alarme expirou
+449 Todos alarmes desativados (RAM)
+470 Alarme disparado
+471 Alarme zerado
+472 Silenciamento cancelado
+480 Cache Min/Max carregado
+481 Cache Min/Max parcial
+482 Refresh de cache iniciado
+483 Refresh de cache concluído
+484 Cache de gráfico: ambiente
+485 Cache de gráfico: placa
+486 Pre-carga de cache concluída
+487 Carregando gráfico
+488 Budget de render excedido
+489 Budget de pre-carga excedido
+500 Pause do display preso >5s
+501 Yield preso >10s
+502 Core 1 travado >10s, reiniciando
+503 Colisão de flash ocupada
+510 Registro de histórico salvo
+511 Relatório de heap
+520 Modo DHCP ativado
+521 Modo IP estático ativado
+522 Gerenciador WiFi iniciando
+523 SSID WiFi não configurado
+524 Hora provisória do flash
+525 Timeout na conexao WiFi
+526 WiFi em modo dormente
+527 Mostrar IP
+540 Transporte HTTP inicializado
+541 Transporte MQTT inicializado
+542 MQTT conectando
+543 cert.pem vazio, modo inseguro
+544 Erro de leitura de cert.pem
+545 Sem cert.pem, modo inseguro
+546 Forçando sync de telemetria
+547 Logs de retry suprimidos
+560 Falha em escrever histórico
+561 Budget de correção de ts excedido
+562 Budget de limite de storage excedido
+563 Pulando arquivo de log ativo
+564 Relatório de estatísticas
+565 Relatório de config
+570 Servidor web iniciado
+571 Cliente desconectado (arquivo)
+572 Cliente desconectado (histórico)
+573 Screenshot abortado pelo cliente
+574 Arquivo enviado
+580 Tema aplicado
+581 Tema não encontrado
+585 Comando desconhecido
+590 Sensores em runtime carregados
+600 Forçar despausar
+999 Erro desconhecido
+
+@TRL
+4922ff94 UI do display iniciada no Core 1.
+508b2648 Falha crítica de storage!
+018a9730 Factory defaults ativos; senha admin via USB/serial.
+34731b0f Factory defaults ativos; reset admin para gerar senha.
+f199e6c9 Calibração do touch necessária.
+d9b8167f Calibração inicial do touch salva.
+c72bc4db Usuário ativou modo AP.
+f914ca06 Sistema pronto (modo AP).
+aeca57d7 Sistema pronto.
+2a5674b6 Factory reset
+5b298f0a Reboot via CLI
+9c97f07a CLI criou usuário:
+5c57efdf CLI apagou usuário:
+483847eb CLI resetou senha:
+22bb7927 Correção NTP:
+d62db850 Yield preso >10s, reset forçado.
+cc0a0d40 PIN padrão detectado; forçando troca.
+adb4b368 Pause do display preso >5s!
+728bf426 Core 1 travado >10s. Reiniciando.
+b5299c92 Sessão BT encerrada (5 min inativo)
+2dfd2825 Login BT admin
+79d951e9 Senha BT admin rejeitada
+f43dab3c forceUnpause: refCount=
+16274db5 Ponto de Acesso:
+2c4781f5 Provisória:
+9090b55d RTC setado manualmente
+b9d74daa Timeout do AP, reiniciando para STA
+c98bcdab Procurando SSID (backoff=
+e5ac1216 SSID encontrado, conectando...
+72706305 mDNS falhou ao iniciar
+9e61e5c1 NTP desabilitado — modo RTC manual
+6fb51ac0 Sinal WiFi perdido, entrando em stealth scan
+6fbf54f5 Dormente: retry em
+0c689f28 Retry em
+672a9c0e Sensor recuperado
+e45e023f Divergência de hardware (Acesso Negado)
+c1efa9ef Formatando FS do flash...
+58cf268b Config primária corrompida, recuperada do backup
+c5beb475 Schema de config migrado
+dabcafea Cursor de telemetria no futuro — reset para 0
+89a28b4b OOM: WiFiClientSecure
+0fd7942f Erro HTTP:
+62e0e71d MQTT conectado a
+2e47670e MQTT falhou:
+fa87bdae Upload falhou (#
+f8e07dd7 ). Retry em
+d759bfa8 Sessão expirada:
+6b0000de Login OK:
+5d4833ee Login rejeitado: tamanho inválido
+783bd157 Login falhou:
+c8d42c3f Login rejeitado: limite de sessões
+76b52b23 Logout:
+7468f5ee Reset de senha bem-sucedido:
+9f329bc2 Admin aplicou alterações — reiniciando
+fd0933a1 Calibração do touch resetada via web
+7c8db05f Usuário baixou:
+10fe78c1 Pasta criada:
+8dce6c6d Calibração universal atualizada.
+4e94b2fd Arquivo enviado.
+b358b19a Admin apagou logs do sistema
+
+@HELP
+
+===========================================
+      SIMUT - AJUDA DE COMANDOS
+===========================================
+ Comandos destrutivos exigem sufixo
+ 'confirm' (ex.: 'reload confirm').
+ Comandos são sempre em inglês.
+
+-- IDIOMA / LANGUAGE --
+language pt
+  Usar Português (Brasil)
+language en
+  Use English
+language
+  Ver idioma atual
+  Nota: 'write memory' para persistir
+
+-- 1. MONITORAMENTO --
+show system info
+  Nome, versão e config do device
+show system log
+  Despeja o log do flash
+show storage stats
+  Estatísticas de uso do flash
+show net status
+  IP, RSSI, hora sincronizada
+show themes
+  Lista temas de UI disponiveis
+show metrics
+  Metricas operacionais (heap, rede, tel, sensores)
+
+-- 2. DIAGNÓSTICO DE SENSORES --
+show sensors
+  Lista sensores mapeados (banco)
+sensor scan
+  Varre hardware por novos sensores
+
+-- 3. CONFIGURAÇÃO --
+  (exige 'write memory' + 'reload')
+conf system name <valor>
+  Nome amigável do device
+conf system ssid <nome>
+  SSID do WiFi (case sensitive)
+conf system pass <senha>
+  Senha do WiFi
+conf system timezone <offset>
+  Offset UTC (ex.: -3)
+conf system ntp <servidor>
+  Servidor NTP (vazio = default)
+conf system theme <id|indice>
+  Define o tema da UI
+conf system admin reset [confirm]
+  Reseta senha do admin
+conf system touch reset [confirm]
+  Reseta calibração do touch
+conf system factory [confirm]
+  Reset de fábrica (apaga TODA config) + reboot
+conf ntp <on|off>
+  Habilita/desabilita sincronização NTP
+conf time <AAAA-MM-DD> <HH:MM:SS>
+  Seta RTC manual (imediato; hora local)
+conf net dns auto
+  DNS via DHCP (padrão)
+conf net dns manual <ip1> [ip2]
+  DNS manual: primário e secundário (opcional)
+conf sensor ds18b20 resolution <9-12>
+  Resolução global dos DS18B20
+
+-- Telemetria --
+conf tel server <url>
+  Endereço do servidor
+conf tel port <porta>
+  Porta do servidor (80, 443, ...)
+conf tel path <caminho>
+  Path do endpoint (/api/v1/data)
+conf tel batch <n>
+  Registros por upload (max 50)
+conf tel interval <ms>
+  Intervalo de upload (0=off)
+conf tel crypto <on|off>
+  Habilita SSL/HTTPS
+conf tel mode <json|csv|custom>
+  Formato do payload
+
+-- 4. MAPEAMENTO DE SENSORES --
+sensor define <gpio> <rom> <hwid> \"<nome>\"
+  Ex.:
+  sensor define 0 28AA.. S1 \"Forno_Topo\"
+  Nota: GPIO 10 = Sensor Ambiente
+
+-- 5. MANUTENÇÃO --
+sensor accept <gpio>
+  Autoriza novo sensor físico
+sensor wipe <gpio> [confirm]
+  Reseta histórico do slot
+tel sync
+  Forca upload de telemetria
+tel dump
+  Arma dump one-shot do proximo payload na console (USB+BT)
+clear log [confirm]
+  Apaga arquivo de log
+write memory
+  Persiste config da RAM no flash
+reload [confirm]
+  Reinicia o sistema
+
+-- 6. MODO DE SESSÃO --
+debug on
+  Stream de logs no console (SIMUT#)
+debug off
+  Console silencioso (SIMUT>)
+debug
+  Mostra modo atual
+  Nota: 'write memory' para persistir
+
+-- 7. IP / SENSOR LIMITS / USERS / WEB --
+conf ip <dhcp|static>
+conf ip <addr|mask|gateway|dns> <ipv4>
+conf sensor <tmin|tmax|hmin|hmax> <gpio> <n>
+conf sensor alarm <gpio> <on|off>
+conf user add <name> <pass>
+conf user del <name>
+conf user pass <name> <newpass>
+conf web port <1..65535>
+===========================================
+
+@LICENSE
+Licença MIT
+
+Direitos Autorais (c) 2026 Angelo Moises Alves
+
+E concedida permissão, gratuitamente, a qualquer pessoa que obtenha uma copia deste software e dos arquivos de documentação associados (o "Software"), para lidar com o Software sem restrições, incluindo, sem limitação, os direitos de usar, copiar, modificar, fundir, publicar, distribuir, sublicenciar e/ou vender copias do Software, e permitir que as pessoas a quem o Software e fornecido o facam, sujeito as seguintes condições:
+
+O aviso de direitos autorais acima e este aviso de permissão devem ser incluidos em todas as copias ou partes substanciais do Software.
+
+O SOFTWARE E FORNECIDO "COMO ESTA", SEM GARANTIA DE QUALQUER TIPO, EXPRESSA OU IMPLICITA, INCLUINDO, MAS NÃO SE LIMITANDO AS GARANTIAS DE COMERCIALIZAÇÃO, ADEQUAÇÃO A UM PROPOSITO ESPECÍFICO E NÃO VIOLAÇÃO. EM NENHUM CASO OS AUTORES OU DETENTORES DE DIREITOS AUTORAIS SERÃO RESPONSAVEIS POR QUALQUER RECLAMAÇÃO, DANO OU OUTRA RESPONSABILIDADE, SEJA EM UMA AÇÃO DE CONTRATO, ATO ILICITO OU DE OUTRA FORMA, DECORRENTE DE, OU EM CONEXAO COM O SOFTWARE OU O USO OU OUTRAS NEGOCIAÇÕES NO SOFTWARE.
+
+--- Agradecimentos ---
+
+Arduino-Pico Core
+  Earle F. Philhower III - LGPL-2.1
+
+Raspberry Pi Pico SDK
+  Raspberry Pi Ltd - BSD-3
+
+Adafruit GFX Library
+  Adafruit Industries - BSD-2
+
+Adafruit ILI9341
+  Adafruit Industries - BSD-2
+
+XPT2046 Touchscreen
+  Paul Stoffregen - MIT
+
+LittleFS
+  ARM Ltd / C. Haster - BSD-3
+
+PubSubClient (MQTT)
+  Nick O'Leary - MIT
+
+BearSSL
+  Thomas Pornin - MIT
+
+GNU FreeFont (FreeSans)
+  GNU Project - GPL-3 + Font Exception
+
+OneWirePIO RP2040
+  Angelo M. Alves - MIT
+
+DHT22PIO RP2040
+  Angelo M. Alves - MIT
+
+BuzzerPIO RP2040
+  Angelo M. Alves - MIT
+
+SIMUT v3 - Feito no Brasil
