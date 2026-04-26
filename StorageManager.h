@@ -24,6 +24,7 @@
 #define FILE_TMP        "/config/system.tmp"
 #define FILE_TCURSOR    "/config/t_cursor.bin"
 #define DIR_HISTORY     "/history"
+#define DIR_LANG        "/lang"
 
 typedef void (*FlashLockCallback)(bool);
 

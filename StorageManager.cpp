@@ -169,6 +169,7 @@ bool StorageManager::begin() {
     enterFlashSafeMode();
     if (!LittleFS.exists(DIR_CONFIG)) LittleFS.mkdir(DIR_CONFIG);
     if (!LittleFS.exists(DIR_HISTORY)) LittleFS.mkdir(DIR_HISTORY);
+    if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
     exitFlashSafeMode();
     if (!loadConfiguration()) saveConfiguration();
     return true;

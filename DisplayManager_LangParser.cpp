@@ -32,6 +32,7 @@
  */
 
 #include "DisplayManager.h"
+#include "LogManager.h"
 #include <LittleFS.h>
 #include <stdlib.h>
 #include <string.h>
@@ -359,6 +360,52 @@ const char* DisplayManager::trlLookup(const char* en) {
         if (mh < h) lo = mid + 1; else hi = mid - 1;
     }
     return nullptr;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ * findAndLoadLangFile (Etapa 2): scan /lang/ por arquivos
+ * "language_*.lng", carrega o primeiro alfabeticamente. Loga warning
+ * se houver extras (mais de 1 arquivo encontrado). Apenas Core 0.
+ * ───────────────────────────────────────────────────────────────── */
+bool DisplayManager::findAndLoadLangFile() {
+    char firstName[40] = {0};
+    int  count = 0;
+
+    Dir dir = LittleFS.openDir("/lang");
+    while (dir.next()) {
+        String fn = dir.fileName();
+        /* Aceita "language_*.lng" exatamente; case-sensitive proposital. */
+        if (!fn.startsWith("language_") || !fn.endsWith(".lng")) continue;
+        count++;
+        if (count == 1) {
+            strncpy(firstName, fn.c_str(), sizeof(firstName) - 1);
+        } else {
+            /* Mantém o menor (alfabético). LittleFS::openDir não
+             * garante ordem; comparação manual cobre o caso. */
+            if (strcmp(fn.c_str(), firstName) < 0) {
+                strncpy(firstName, fn.c_str(), sizeof(firstName) - 1);
+                firstName[sizeof(firstName) - 1] = '\0';
+            }
+        }
+    }
+
+    if (count == 0) return false;
+    if (count > 1) {
+        LOG_CODE(LOG_WARN, "I18N", SYS_OK, count,
+                 TRL("Multiple .lng files in /lang/ — loading first alphabetically"));
+    }
+
+    char path[64];
+    snprintf(path, sizeof(path), "/lang/%s", firstName);
+    bool ok = loadLangFile(path);
+    if (ok) {
+        LOG_CODE(LOG_INFO, "I18N", APP_UI_LANG_CHANGED, _activeLang.trlsCount,
+                 String(TRL("Language pack loaded: ")) + _activeLang.name);
+    } else {
+        LOG_CODE(LOG_ERROR, "I18N", SYS_STORAGE_FAIL, 0,
+                 String(TRL("Failed to parse language pack: ")) + path);
+    }
+    return ok;
 }
 
 /* ─────────────────────────────────────────────────────────────────

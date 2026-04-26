@@ -1,15 +1,10 @@
 /**
  * @file    DisplayManager_i18n.cpp
  * @brief   i18n: DICTIONARY_EN (hardcoded), tr() dinâmico, settings screen.
- * @details F-LANGPACK Etapa 1 — DICTIONARY agora é 1D só EN. PT (e
- *          quaisquer outros idiomas) vêm do _activeLang carregado de
- *          /lang/language_<code>.lng (parser em DisplayManager_LangParser.cpp).
- *          tr() retorna do _activeLang quando _activeLangLoaded e
- *          _currentLangIdx != LANG_EN; senão cai pro DICTIONARY_EN.
- *
- *          drawSettingsLang fica aqui porque usa LANG_NAMES/LANG_FLAGS
- *          file-static. Em Etapa 1, slot 1 só é desenhado se um .lng
- *          já tiver sido carregado (sempre false em Etapa 1).
+ * @details F-LANGPACK Etapa 1+2 — DICTIONARY agora é 1D só EN. Slot 1
+ *          do menu mostra _activeLang.name/code dinamicamente (via
+ *          unaccent para ASCII no TFT). Sem .lng carregado, slot 1
+ *          fica oculto (gated por _activeLangLoaded).
  *
  * @project SIMUT
  * @license MIT License
@@ -18,17 +13,6 @@
 #include "DisplayManager.h"
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
-
-static const char* const LANG_NAMES[LANG_COUNT] = {
-    "English", "(install .lng)"
-};
-static const char* const LANG_FLAGS[LANG_COUNT] = {
-    "EN", "??"
-};
-static_assert(sizeof(LANG_NAMES)/sizeof(LANG_NAMES[0]) == LANG_COUNT,
-              "LANG_NAMES count must match LanguageCode LANG_COUNT");
-static_assert(sizeof(LANG_FLAGS)/sizeof(LANG_FLAGS[0]) == LANG_COUNT,
-              "LANG_FLAGS count must match LanguageCode LANG_COUNT");
 
 static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
     "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language", "EXIT",
@@ -76,9 +60,18 @@ void DisplayManager::drawSettingsLang() {
     bool pageChanged = (_langPage != _lastLangPage);
 
 
-    /* F-LANGPACK Etapa 1: slot 1 (.lng) só visível quando carregado.
-     * Sem .lng, UI mostra apenas "English". */
+    /* F-LANGPACK Etapa 2: slot 1 visível quando .lng carregado;
+     * mostra _activeLang.name/code transliterados (unaccent) para o
+     * TFT, que renderiza só ASCII na fonte atual. */
     int activeSlots = _activeLangLoaded ? LANG_COUNT : 1;
+    char slot1Name[40] = "(install .lng)";
+    char slot1Code[12] = "??";
+    if (_activeLangLoaded && _activeLang.name[0]) {
+        unaccent(_activeLang.name, slot1Name, sizeof(slot1Name));
+    }
+    if (_activeLangLoaded && _activeLang.code[0]) {
+        unaccent(_activeLang.code, slot1Code, sizeof(slot1Code));
+    }
     int totalPages = (activeSlots + 3) / 4;
     if (_langPage >= totalPages) _langPage = totalPages - 1;
     if (_langPage < 0) _langPage = 0;
@@ -170,11 +163,11 @@ void DisplayManager::drawSettingsLang() {
             _canvasWide->setFont(&simutFont9pt);
             _canvasWide->setTextColor(txt);
             _canvasWide->setCursor(10, 24);
-            _canvasWide->print(LANG_NAMES[actualIdx]);
+            _canvasWide->print(actualIdx == LANG_EN ? "English" : slot1Name);
 
 
             _canvasWide->setCursor(itemW - 35, 24);
-            _canvasWide->print(LANG_FLAGS[actualIdx]);
+            _canvasWide->print(actualIdx == LANG_EN ? "EN" : slot1Code);
         }
 
         blitCanvas(_canvasWide, 10, y, itemW, 34);
