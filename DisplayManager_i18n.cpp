@@ -37,7 +37,16 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
 const char* DisplayManager::tr(LangKey key) {
     if (_activeLangLoaded && _currentLangIdx != LANG_EN &&
         _activeLang.strings[key] != nullptr) {
-        return _activeLang.strings[key];
+        /* F-LANGPACK-ASCII: TFT renderiza só ASCII (fonte sem glifos
+         * Latin-1). Aplica unaccent em scratch rotativo de 4 slots —
+         * suporta até 4 chamadas concorrentes na mesma expressão (ex:
+         * snprintf("%s %s ...", tr(A), tr(B), ...)). */
+        static char scratch[4][96];
+        static uint8_t scratchIdx = 0;
+        char* buf = scratch[scratchIdx];
+        scratchIdx = (scratchIdx + 1) & 3;
+        unaccent(_activeLang.strings[key], buf, sizeof(scratch[0]));
+        return buf;
     }
     return DICTIONARY_EN[key];
 }
