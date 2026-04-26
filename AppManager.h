@@ -93,52 +93,16 @@ private:
     void handleTimeSync(uint32_t bootTs, int32_t delta);
     void checkAlarmConditions();
 
-    /* ── Cache de gráficos 7d pré-carregados ── */
-    /**
-     * Cada entrada armazena um GraphDataPackage completo para o range 7d.
-     * Slots: [0-9] = sensores DS18B20, [10] = board temp, [11] = ambient.
-     * Carregado no boot e atualizado a cada 6 horas em background.
-     */
-    struct GraphCacheEntry {
-        GraphDataPackage pkg;
-        float humMin, humMax;
-        time_t lastRefresh;
-        bool valid;
-    };
-
-    /* F-MEM-LAZYGRAPH: caches alocados em heap sob demanda em vez de BSS.
-     * Antes: arrays fixos consumiam ~44 KB BSS permanente (vide audit).
-     * Agora: bloco único alocado quando user abre stats/graph; liberado
-     * 5s após retornar à dashboard. Telemetria/web ganham heap quando
-     * dashboard está idle (touch pausado já libera a janela). */
-    GraphCacheEntry* _graphCache  = nullptr;  /**< [MAX_SENSORS+2] lazy */
-    GraphCacheEntry* _sensorCache = nullptr;  /**< [5] lazy             */
-    bool             _graphCachesAllocated = false;
-    uint32_t _lastGraphCacheRefresh = 0;
-
-    /**
-     * Cache de todos os 5 ranges do sensor atualmente visualizado.
-     * Quando o usuário abre um sensor, todos os ranges são carregados
-     * para que a troca entre 1H/6H/12H/24H/7D seja instantânea.
-     * Ao abrir outro sensor, o cache é invalidado e recarregado.
-     */
-    int _sensorCacheId = -99;         /**< sensorId cacheado (-99 = nenhum)      */
-
-    /** Aloca _graphCache e _sensorCache em bloco único no heap. Retorna
-     *  true se já alocado ou alocou agora; false se OOM. Caller deve
-     *  fallback para render direto sem cache. */
-    bool ensureGraphCachesAllocated();
-    /** Libera caches se MODE_DASHBOARD AND lastTouch > 5s atrás. No-op
-     *  caso contrário. Chamado periodicamente pelo loop principal. */
-    void freeGraphCachesIfIdle();
+    /* F-MEM-NOCACHE (alpha14): graph caches eliminados completamente para
+     * liberar heap permanentemente para telemetria.
+     *  • _graphCache[12] (cross-sensor 7D, ~31 KB): REMOVIDO
+     *  • _sensorCache[5] (per-sensor time ranges, ~13 KB): REMOVIDO
+     * Resultado: cada open de gráfico OU switch de range/sensor faz
+     * um read direto do flash (~500ms-2s). Heap permanentemente livre
+     * de ~45 KB de pressure. */
     int _graphNavOffset = 0;          /**< Offset de navegação temporal (≤ 0)    */
     int _lastGraphRange = 3;          /**< Último range renderizado (para nav)   */
     time_t _graphAnchorEnd = 0;       /**< Âncora do fim da janela (0 = usar now) */
-
-    void preloadGraphCaches();
-    void preloadSensorRanges(int sensorId, int skipRange);
-    int  graphCacheIdx(int sensorId);
-    bool appendToGraphCache(GraphCacheEntry& entry, int sensorId);
 
 
     bool _pendingAlarmDeactivate = false;

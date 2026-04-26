@@ -55,113 +55,37 @@ void AppManager::core0Yield() {
         while (_displayMgr.getUiEvent(uiEv)) {
             if (uiEv.type == UiEvent::EVT_SLOT_SELECT) { _currentSensorIdx = uiEv.id; refreshSelectedSlot(); }
             else if (uiEv.type == UiEvent::EVT_OPEN_GRAPH) {
-                /* F-MEM-LAZYGRAPH: aloca caches sob demanda. OOM cai
-                 * para render direto (sem cache, mais lento). */
-                ensureGraphCachesAllocated();
                 if (uiEv.param == 99) openStatsScreen(uiEv.id);
                 else {
                     int sensorId = uiEv.id;
                     int range    = uiEv.param;
-
-                    /*
-                     * Preserva a âncora se já estamos navegando no passado.
-                     * Zoom muda o intervalo mas mantém o ponto final fixo.
-                     * Ex: dia 2 em 24H → zoom para 12H → mostra 12:00-23:59 do dia 2.
-                     *
-                     * Reseta apenas se abrindo um gráfico novo do dashboard
-                     * (sensor diferente ou sem âncora prévia).
-                     */
                     bool hasAnchor = (_graphAnchorEnd != 0);
 
                     if (!hasAnchor) {
                         _graphNavOffset = 0;
                         _displayMgr.setGraphNavOffset(0);
                     }
-
-                    /* Sensor diferente do cacheado: invalida cache de ranges */
-                    if (_sensorCacheId != sensorId) {
-                        if (_graphCachesAllocated) {
-                            for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
-                        }
-                        _sensorCacheId = sensorId;
-                        /* Sensor novo = reset âncora */
-                        _graphAnchorEnd = 0;
-                        hasAnchor = false;
-                        _graphNavOffset = 0;
-                        _displayMgr.setGraphNavOffset(0);
-                    }
-
                     _lastGraphRange = range;
 
-                    if (hasAnchor) {
-                        /*
-                         * Zoom com âncora ativa: usa forceEndEpoch para manter
-                         * o fim da janela no mesmo ponto. Não usa cache.
-                         */
-                        if (_graphCachesAllocated) {
-                            for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
-                        }
-
-                        _isRenderingGraph = true;
-                        renderGraphOptimized(sensorId, range, true, 0, _graphAnchorEnd);
-                        _isRenderingGraph = false;
-                    }
-                    else if (_graphCachesAllocated && _sensorCache[range].valid) {
-                        /*
-                         * Cache hit (sem âncora = visualização "agora").
-                         * Verifica staleness para 7D.
-                         */
-                        bool stale = false;
-                        if (range == 4) {
-                            time_t age = time(nullptr) - _sensorCache[4].lastRefresh;
-                            if (age > 1800) stale = true;
-                        }
-
-                        if (!stale) {
-                            _displayMgr.showGraphPlot(
-                                _sensorCache[range].pkg,
-                                _sensorCache[range].humMin,
-                                _sensorCache[range].humMax);
-                        } else {
-                            appendToGraphCache(_sensorCache[4], sensorId);
-                            _displayMgr.showGraphPlot(
-                                _sensorCache[4].pkg,
-                                _sensorCache[4].humMin,
-                                _sensorCache[4].humMax);
-                        }
-                    } else {
-                        /*
-                         * Cache miss (ou caches não alocados): carrega do flash.
-                         */
-                        if (range == 4 && _graphCachesAllocated &&
-                            !_graphCache[graphCacheIdx(sensorId)].valid) {
-                            _displayMgr.requestLoadingScreen();
-                            uint32_t waitStart = millis();
-                            while (!_displayMgr.isLoadingDrawn() && (millis() - waitStart < 500)) {
-                                feedWdt();
-                                delay(5);
-                            }
-                        }
-
-                        _isRenderingGraph = true;
-                        renderGraphOptimized(sensorId, range, true, 0);
-                        _isRenderingGraph = false;
-
-                        /*
-                         * Pré-carrega ranges restantes apenas sem âncora.
-                         */
-                        if (_graphNavOffset == 0) {
-                            _isRenderingGraph = true;
-                            preloadSensorRanges(sensorId, range);
-                            _isRenderingGraph = false;
+                    /* F-MEM-NOCACHE: render direto do flash sempre.
+                     * Loading screen para 7D que pode demorar ~1-2s. */
+                    if (range == 4 && !hasAnchor) {
+                        _displayMgr.requestLoadingScreen();
+                        uint32_t waitStart = millis();
+                        while (!_displayMgr.isLoadingDrawn() && (millis() - waitStart < 500)) {
+                            feedWdt();
+                            delay(5);
                         }
                     }
+
+                    _isRenderingGraph = true;
+                    renderGraphOptimized(sensorId, range, true, 0,
+                                         hasAnchor ? _graphAnchorEnd : 0);
+                    _isRenderingGraph = false;
                 }
             }
             /* ── Navegação temporal do gráfico (setas ◀▶) ── */
             else if (uiEv.type == UiEvent::EVT_GRAPH_NAV) {
-                /* F-MEM-LAZYGRAPH: graph nav implica caches em uso. */
-                ensureGraphCachesAllocated();
                 static const time_t rangeDur[] = { 3600, 21600, 43200, 86400, 604800 };
                 time_t step = (_lastGraphRange >= 0 && _lastGraphRange <= 4)
                               ? rangeDur[_lastGraphRange] : 86400;
@@ -184,11 +108,6 @@ void AppManager::core0Yield() {
                 /* Offset derivado da posição: negativo = passado (▶ habilitado) */
                 _graphNavOffset = (_graphAnchorEnd < now) ? -1 : 0;
                 _displayMgr.setGraphNavOffset(_graphNavOffset);
-
-                /* Invalida cache de ranges (dados com offset são únicos) */
-                if (_graphCachesAllocated) {
-                    for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
-                }
 
                 _isRenderingGraph = true;
                 renderGraphOptimized(uiEv.id, _lastGraphRange, true, 0, _graphAnchorEnd);
@@ -233,12 +152,7 @@ void AppManager::core0Yield() {
                 _graphNavOffset = (_graphAnchorEnd < now) ? -1 : 0;
                 _displayMgr.setGraphNavOffset(_graphNavOffset);
 
-                /* Invalida cache e carrega gráfico 24H com janela fixa */
-                ensureGraphCachesAllocated();
-                if (_graphCachesAllocated) {
-                    for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
-                }
-                _sensorCacheId = sensorId;
+                /* F-MEM-NOCACHE: render direto, sem cache */
                 _lastGraphRange = RANGE_24H;
 
                 _isRenderingGraph = true;
