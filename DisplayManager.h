@@ -604,6 +604,13 @@ public:
      *  alfabeticamente. Loga warning se houver extras. Apenas Core 0
      *  (LittleFS). Retorna true se um .lng foi efetivamente carregado. */
     static bool findAndLoadLangFile();
+    /** Etapa 3: getters do bloco @HELP/@LICENSE do .lng ativo (UTF-8).
+     *  Caller faz unaccent() se for renderizar em UI/CLI ASCII.
+     *  Retorna nullptr se .lng não carregado ou seção ausente. */
+    static const char* getActiveHelpText();
+    static const char* getActiveLicenseText();
+    /** True se _activeLang está populado (qualquer lookup pode acertar). */
+    static bool isLangLoaded();
 
 private:
     struct ActiveLang {
