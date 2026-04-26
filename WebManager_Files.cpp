@@ -103,7 +103,11 @@ void WebManager::handleApiLs() {
             dirPath = dirPath.substring(0, dirPath.length() - 1);
         }
 
-        if (dirPath != "/" && !dirPath.startsWith("/history") && !dirPath.startsWith("/config")) {
+        /* F-LANGPACK: /lang adicionado ao allowlist de leitura. */
+        if (dirPath != "/" &&
+            !dirPath.startsWith("/history") &&
+            !dirPath.startsWith("/config") &&
+            !dirPath.startsWith("/lang")) {
             _server.send(403, "application/json", "{\"error\":\"Forbidden path\"}");
             return;
         }
