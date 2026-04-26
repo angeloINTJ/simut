@@ -95,12 +95,8 @@ bool DisplayManager::loadLangFile(const char* path) {
     unloadLang();
     if (!path) return false;
 
-    /* F-LANGPACK A+B: salva path para lazy-reads de @HELP/@LICENSE/@WEBDICT */
-    strncpy(_activeLang.filePath, path, sizeof(_activeLang.filePath) - 1);
-    _activeLang.filePath[sizeof(_activeLang.filePath) - 1] = '\0';
-
     File f = LittleFS.open(path, "r");
-    if (!f) { _activeLang.filePath[0] = '\0'; return false; }
+    if (!f) return false;
 
     size_t fsize = f.size();
     if (fsize < LANG_FILE_MIN || fsize > LANG_FILE_MAX) {
@@ -233,20 +229,15 @@ bool DisplayManager::loadLangFile(const char* path) {
         return false;
     }
 
-    /* HELP e LICENSE: preserva newlines, apenas null-termina no fim.
-     * F-LANGPACK A+B: também grava metadata para lazy-load do FS. */
+    /* HELP e LICENSE: preserva newlines, apenas null-termina no fim */
     if (secEnd[S_HELP] > secStart[S_HELP]) {
         _activeLang.helpText = buf + secStart[S_HELP];
-        _activeLang.helpFileOffset = (uint16_t)secStart[S_HELP];
-        _activeLang.helpFileLength = (uint16_t)(secEnd[S_HELP] - secStart[S_HELP]);
         size_t e = secEnd[S_HELP];
         if (e > 0 && buf[e-1] == '\n') buf[e-1] = '\0';
         else if (e <= n) buf[e] = '\0';
     }
     if (secEnd[S_LICENSE] > secStart[S_LICENSE]) {
         _activeLang.licenseText = buf + secStart[S_LICENSE];
-        _activeLang.licenseFileOffset = (uint16_t)secStart[S_LICENSE];
-        _activeLang.licenseFileLength = (uint16_t)(secEnd[S_LICENSE] - secStart[S_LICENSE]);
         size_t e = secEnd[S_LICENSE];
         if (e > 0 && buf[e-1] == '\n') buf[e-1] = '\0';
         else if (e <= n) buf[e] = '\0';
@@ -254,8 +245,6 @@ bool DisplayManager::loadLangFile(const char* path) {
     /* @WEBDICT: blob JSON opaco, servido via GET /api/lang ao browser. */
     if (secEnd[S_WEBDICT] > secStart[S_WEBDICT]) {
         _activeLang.webDict = buf + secStart[S_WEBDICT];
-        _activeLang.webDictFileOffset = (uint16_t)secStart[S_WEBDICT];
-        _activeLang.webDictFileLength = (uint16_t)(secEnd[S_WEBDICT] - secStart[S_WEBDICT]);
         size_t e = secEnd[S_WEBDICT];
         if (e > 0 && buf[e-1] == '\n') buf[e-1] = '\0';
         else if (e <= n) buf[e] = '\0';
@@ -343,50 +332,6 @@ bool DisplayManager::loadLangFile(const char* path) {
             } else {
                 free(arr);
             }
-        }
-    }
-
-    /* ── F-LANGPACK A+B: compacta buffer descartando @HELP/@LICENSE/@WEBDICT ──
-     * Calcula compactSize = max(end das seções não-lazy: DICT, LOGCODES, TRL).
-     * Aloca buffer menor, copia [0..compactSize), reescreve todos os
-     * pointers para a nova base, e nullifica os pointers das seções lazy.
-     * Falha de malloc não é fatal — mantém buffer original (zero ganho). */
-    size_t compactSize = 0;
-    if (secEnd[S_DICT]     > compactSize) compactSize = secEnd[S_DICT];
-    if (secEnd[S_LOGCODES] > compactSize) compactSize = secEnd[S_LOGCODES];
-    if (secEnd[S_TRL]      > compactSize) compactSize = secEnd[S_TRL];
-
-    if (compactSize > 0 && compactSize < n) {
-        char* compactBuf = (char*)malloc(compactSize + 1);
-        if (compactBuf) {
-            memcpy(compactBuf, buf, compactSize);
-            compactBuf[compactSize] = '\0';
-
-            /* Rebase pointer p de buf→compactBuf. Se p caía em região lazy
-             * descartada (>= compactSize), retorna nullptr. */
-            auto rebase = [&](char* p) -> char* {
-                if (!p) return nullptr;
-                size_t off = (size_t)(p - buf);
-                if (off >= compactSize) return nullptr;
-                return compactBuf + off;
-            };
-
-            for (int k = 0; k < TR_KEYS_COUNT; k++) {
-                _activeLang.strings[k] = rebase(_activeLang.strings[k]);
-            }
-            _activeLang.helpText    = rebase(_activeLang.helpText);
-            _activeLang.licenseText = rebase(_activeLang.licenseText);
-            _activeLang.webDict     = rebase(_activeLang.webDict);
-            for (uint16_t k = 0; k < _activeLang.logcodesCount; k++) {
-                _activeLang.logcodes[k].text = rebase((char*)_activeLang.logcodes[k].text);
-            }
-            for (uint16_t k = 0; k < _activeLang.trlsCount; k++) {
-                _activeLang.trls[k].text = rebase((char*)_activeLang.trls[k].text);
-            }
-
-            free(buf);
-            buf = compactBuf;
-            n = compactSize;
         }
     }
 
@@ -483,17 +428,6 @@ const char* DisplayManager::getActiveWebDict() {
     return _activeLangLoaded ? _activeLang.webDict : nullptr;
 }
 bool DisplayManager::isLangLoaded() { return _activeLangLoaded; }
-
-/* F-LANGPACK A+B: getters de metadata para lazy-load */
-const char* DisplayManager::getActiveLangFilePath() {
-    return _activeLangLoaded ? _activeLang.filePath : nullptr;
-}
-uint16_t DisplayManager::getHelpFileOffset()    { return _activeLangLoaded ? _activeLang.helpFileOffset : 0; }
-uint16_t DisplayManager::getHelpFileLength()    { return _activeLangLoaded ? _activeLang.helpFileLength : 0; }
-uint16_t DisplayManager::getLicenseFileOffset() { return _activeLangLoaded ? _activeLang.licenseFileOffset : 0; }
-uint16_t DisplayManager::getLicenseFileLength() { return _activeLangLoaded ? _activeLang.licenseFileLength : 0; }
-uint16_t DisplayManager::getWebDictFileOffset() { return _activeLangLoaded ? _activeLang.webDictFileOffset : 0; }
-uint16_t DisplayManager::getWebDictFileLength() { return _activeLangLoaded ? _activeLang.webDictFileLength : 0; }
 
 /* ─────────────────────────────────────────────────────────────────
  * unaccent: UTF-8 (Latin-1 subset) → ASCII 7-bit.
