@@ -308,19 +308,22 @@ void TelemetryManager::update() {
 uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
     uint32_t freeHeap = rp2040.getFreeHeap();
     /*
-     * HEAP_RESERVE = 16 KB (era 32 KB pré-alpha14): reserva pra TLS handshake
-     * transient (~10 KB), HTTPClient internals (~3 KB), margem (~3 KB).
-     * Heap consistente em alpha14 permite ser mais agressivo.
+     * HEAP_RESERVE = 24 KB (alpha16): batch=250 crashou em alpha15 com 16K
+     * por TLS reconnect scratch (~10K) + HTTPClient (~3K) + alocações
+     * eventuais somando ~16K — exatamente o tamanho do antigo reserve.
+     * Aumentado pra 24K para cobrir reconnect TLS + margem operacional.
      *
-     * BYTES_PER_ENTRY = 350: medido empiricamente — ~28 bytes batch struct +
-     * ~310 bytes JSON payload por record (com 11 sensores + ts + ambient).
+     * BYTES_PER_ENTRY = 350: medido empírico — ~28 batch struct +
+     * ~310 JSON payload (mais conservador que o real ~221 pra cobrir
+     * picos de tamanho com sensores de hwId longo).
      *
-     * HARD_CAP = 200 (era 25): limite absoluto pra evitar payload extremo
-     * (>60 KB). 200 entries ~= 62 KB → ~1-2s POST em WiFi típico (< 60s WDT).
+     * HARD_CAP = 100: cap empírico — payload de 100 entries ~= 35 KB,
+     * cabe confortável + TLS scratch. Pra batches maiores, preciso
+     * mais heap (eliminar canvases, lng, etc).
      */
-    const uint32_t HEAP_RESERVE    = 16384; /* 16 KB */
+    const uint32_t HEAP_RESERVE    = 24576; /* 24 KB */
     const uint32_t BYTES_PER_ENTRY = 350;
-    const uint8_t  HARD_CAP        = 200;
+    const uint8_t  HARD_CAP        = 100;
 
     if (freeHeap <= HEAP_RESERVE) return 1;
 
@@ -854,11 +857,17 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
     size_t perLine = (cfg.telMode == TEL_MODE_CSV) ? 120 : 300;
     size_t estimatedSize = batch.size() * perLine + 256;
 
-    /* Verifica heap e reduz batch se necessário */
+    /* Verifica heap e reduz batch se necessário.
+     * F-MEM-NOCACHE alpha16: reserva 12K (era 8K) para cobrir TLS reconnect
+     * scratch + HTTPClient internals durante o POST. shrink_to_fit() força
+     * a liberação real da capacity do vector (resize sozinho só muda size). */
     uint32_t freeHeap = rp2040.getFreeHeap();
-    if (freeHeap < estimatedSize + 8192) {
-        size_t safeCount = (freeHeap > 8192) ? (freeHeap - 8192) / perLine : 1;
-        if (safeCount < batch.size()) batch.resize(safeCount);
+    if (freeHeap < estimatedSize + 12288) {
+        size_t safeCount = (freeHeap > 12288) ? (freeHeap - 12288) / perLine : 1;
+        if (safeCount < batch.size()) {
+            batch.resize(safeCount);
+            batch.shrink_to_fit();   /* libera capacity efetiva */
+        }
         estimatedSize = batch.size() * perLine + 256;
     }
 
