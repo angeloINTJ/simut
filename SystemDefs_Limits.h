@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.26.0-alpha13" /* Revert do alpha12 (shared pool reduziu heap demais e quebrou telemetria). Funcional == alpha11. */
+#define SIMUT_VERSION "v3.26.0-alpha14" /* F-MEM-NOCACHE: graph caches eliminados; render direto do flash sempre (libera ~45 KB heap permanente) */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

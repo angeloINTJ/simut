@@ -144,15 +144,7 @@ void AppManager::loop() {
     if (!menuActive) {
         TRACE_MOD(0, MOD_TELEMETRY);
         if (!heavyRendering && !isUserInteracting()) {
-            /*
-             * Invalida cache de ranges do sensor antes da telemetria.
-             * F-MEM-LAZYGRAPH: caches podem nem estar alocados se user
-             * está só na dashboard — ainda assim resetamos _sensorCacheId
-             * para coerência ao próximo open. */
-            if (_graphCachesAllocated && _sensorCacheId != -99) {
-                for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
-            }
-            _sensorCacheId = -99;
+            /* F-MEM-NOCACHE: sem caches de gráfico, nada a invalidar. */
 
             _telemetryMgr.update();
 
@@ -192,15 +184,6 @@ void AppManager::loop() {
     }
 
     watchdog_update();
-
-    /* ── F-MEM-LAZYGRAPH: libera caches se dashboard idle 5s ── */
-    {
-        static uint32_t lastCacheFreeCheck = 0;
-        if (timeSince(lastCacheFreeCheck, 1000)) {
-            lastCacheFreeCheck = millis();
-            freeGraphCachesIfIdle();
-        }
-    }
 
     /* ── Status do sistema: atualiza dados a cada 1s quando tela ativa ── */
     {
