@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.25.12"        /* WebUI: revert minify_html agressivo (cor/tamanho de campos) */
+#define SIMUT_VERSION "v3.25.13"        /* F17 etapa 8 — REF-001: split DisplayManager.cpp em 9 sub-arquivos */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
