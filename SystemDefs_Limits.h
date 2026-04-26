@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.26.0-alpha15" /* Telemetry batch otimizado: HARD_CAP 25→200, HEAP_RESERVE 32→16 KB, BYTES_PER_ENTRY 600→350 */
+#define SIMUT_VERSION "v3.26.0-alpha16" /* Telemetry batch safety: HEAP_RESERVE 16→24 KB, HARD_CAP 200→100, shrink_to_fit pos-resize */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
