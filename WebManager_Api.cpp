@@ -292,42 +292,15 @@ void WebManager::handleApiAlarms() {
     safeSend(sndBuf);
     safeSend("");
 }
-/* F-LANGPACK A+B: serve o blob @WEBDICT do .lng ativo (UTF-8 JSON).
- * Lazy-load: lê do arquivo sob demanda em vez de manter em RAM.
- * Browser cacheia 5 min (Cache-Control max-age) — re-fetch raro. */
+/* F-LANGPACK Etapa β: serve o blob @WEBDICT do .lng ativo (UTF-8 JSON).
+ * Aberto sem auth — login e force_chpass precisam fetch antes do session.
+ * Cacheable para a session: cliente faz fetch uma vez e usa o sessionStorage. */
 void WebManager::handleApiLang() {
+    const char* json = DisplayManager::getActiveWebDict();
+    /* Cache curto: traduções só mudam quando user troca o .lng + reboot,
+     * então 5 min é suficiente sem deixar stale demais. */
     _server.sendHeader("Cache-Control", "public, max-age=300");
-
-    uint16_t wOff = DisplayManager::getWebDictFileOffset();
-    uint16_t wLen = DisplayManager::getWebDictFileLength();
-    const char* lngPath = DisplayManager::getActiveLangFilePath();
-
-    if (wLen == 0 || !lngPath) {
-        /* Fallback embedded (compat com .lng não-lazy) ou vazio. */
-        const char* json = DisplayManager::getActiveWebDict();
-        _server.send(200, "application/json", json ? json : "{}");
-        return;
-    }
-
-    File lf = LittleFS.open(lngPath, "r");
-    if (!lf) {
-        _server.send(200, "application/json", "{}");
-        return;
-    }
-    lf.seek(wOff);
-
-    _server.setContentLength(wLen);
-    _server.send(200, "application/json", "");
-    char chunk[256];
-    size_t remaining = wLen;
-    while (remaining > 0 && lf.available()) {
-        size_t toRead = (remaining < sizeof(chunk)) ? remaining : sizeof(chunk);
-        size_t n = lf.readBytes(chunk, toRead);
-        if (n == 0) break;
-        if (!safeSend(chunk, n)) break;
-        remaining -= n;
-    }
-    lf.close();
+    _server.send(200, "application/json", json ? json : "{}");
 }
 
 void WebManager::handleApiStatus() {
