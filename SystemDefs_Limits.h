@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.25.4"         /* F17 etapa 4: SystemDefs.h split → 7 sub-headers (EXT-003) */
+#define SIMUT_VERSION "v3.25.5"         /* F17 etapa 5: AppManager.h forward decl + unique_ptr (EXT-005) */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
