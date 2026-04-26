@@ -17,6 +17,7 @@
 #include "LogManager.h"
 #include "DisplayManager_Fonts.h"  /* REF-001: simutFont{9,12,24}pt — wrappers compartilhados */
 #include "DisplayManager_FmtFloat.h"
+#include "HelpLicenseEN.h"         /* alpha18: LICENSE_TEXT_EN inline em PROGMEM */
 #include <LittleFS.h>
 
 #include "hardware/structs/timer.h"
@@ -52,19 +53,14 @@ static void loadLicenseFromFs(int langIdx) {
             return;
         }
     }
-    /* EN (ou .lng sem @LICENSE): /license_en.txt no FS. */
-    const char* path = "/license_en.txt";
-    File f = LittleFS.open(path, "r");
-    if (f) {
-        size_t n = f.readBytes(_licenseBuf, sizeof(_licenseBuf) - 1);
-        _licenseBuf[n] = '\0';
-        f.close();
-    } else {
-        snprintf(_licenseBuf, sizeof(_licenseBuf),
-            "License file not installed.\n\n"
-            "Upload via web UI (/files):\n%s\n\n"
-            "MIT License - SIMUT v3", path);
+    /* alpha18: EN sempre do PROGMEM (LICENSE_TEXT_EN), sem dependência de FS. */
+    size_t i = 0;
+    char c;
+    while (i + 1 < sizeof(_licenseBuf) &&
+           (c = (char)pgm_read_byte(&LICENSE_TEXT_EN[i])) != '\0') {
+        _licenseBuf[i++] = c;
     }
+    _licenseBuf[i] = '\0';
 }
 
 static int wrapLineCount(const char* text, int maxCols) {

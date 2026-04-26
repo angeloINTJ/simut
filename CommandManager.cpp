@@ -14,6 +14,7 @@
 #include "LogManager.h"
 #include "DisplayManager.h"   /* F-LANGPACK Etapa 3: getActiveHelpText */
 #include "MetricsManager.h"
+#include "HelpLicenseEN.h"    /* alpha18: HELP_TEXT_EN inline em PROGMEM */
 #include <LittleFS.h>
 #include <time.h>
 #include <stdarg.h>
@@ -634,8 +635,9 @@ void CommandManager::printError(String msg) { consolePrint("ERROR: "); consolePr
 void CommandManager::printInfo(String msg) { consolePrintln(msg); }
 
 void CommandManager::printHelp() {
-    /* F-LANGPACK Etapa 3: PT vem do @HELP do .lng (UTF-8 → unaccent
-     * para o terminal ASCII). EN sempre do /help_en.txt no FS. */
+    /* F-LANGPACK alpha18: PT vem do @HELP do .lng (UTF-8 → unaccent
+     * para o terminal ASCII). EN agora sempre inline em PROGMEM
+     * (HELP_TEXT_EN), sem dependência de LittleFS. */
     if (isPt()) {
         const char* langHelp = DisplayManager::getActiveHelpText();
         if (langHelp) {
@@ -657,26 +659,26 @@ void CommandManager::printHelp() {
             }
             return;
         }
-        /* PT pedido mas .lng não tem @HELP — cai pro EN abaixo. */
+        /* PT pedido mas .lng não tem @HELP — cai pro EN PROGMEM abaixo. */
     }
 
-    File f = LittleFS.open("/help_en.txt", "r");
-    if (!f) {
-        consolePrintln("");
-        consolePrintln(String("Help not installed. Upload via web (/files):"));
-        consolePrintln(String("/help_en.txt"));
-        consolePrintln("");
-        return;
+    /* Itera linhas do PROGMEM: pgm_read_byte para acesso byte-a-byte */
+    char buf[160];
+    size_t bi = 0;
+    size_t i = 0;
+    char c;
+    while ((c = (char)pgm_read_byte(&HELP_TEXT_EN[i++])) != '\0') {
+        if (c == '\n') {
+            buf[bi] = '\0';
+            if (bi > 0 && buf[bi-1] == '\r') buf[bi-1] = '\0';
+            consolePrintln(String(buf));
+            bi = 0;
+            feedWdt();
+        } else if (bi + 1 < sizeof(buf)) {
+            buf[bi++] = c;
+        }
     }
-    char buf[128];
-    while (f.available()) {
-        feedWdt();
-        size_t n = f.readBytesUntil('\n', buf, sizeof(buf) - 1);
-        buf[n] = '\0';
-        if (n > 0 && buf[n-1] == '\r') buf[n-1] = '\0';
-        consolePrintln(String(buf));
-    }
-    f.close();
+    if (bi > 0) { buf[bi] = '\0'; consolePrintln(String(buf)); }
 }
 
 /* Stub — conteúdo de printHelpExtras agora vive em /help_{pt,en}.txt
