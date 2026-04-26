@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.25.6"         /* F17 etapa 6: WebUI.h #error guard (MEM-003 — raw já era 0 KB) */
+#define SIMUT_VERSION "v3.25.7"         /* HW recovery: revert EXT-005 (unique_ptr) — voltou aos managers por valor */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

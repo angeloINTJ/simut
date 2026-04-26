@@ -7,19 +7,11 @@
  */
 
 #include "AppManager.h"
-#include "CommandManager.h"
-#include "DisplayManager.h"
 #include "LogManager.h"
 #include "MetricsManager.h"
-#include "NetworkManager.h"
-#include "SensorManager.h"
-#include "SoundManager.h"
-#include "StorageManager.h"
 #include "SystemDefs.h"
-#include "TelemetryManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
-#include "WebManager.h"
 #include <LittleFS.h>
 #include <time.h>
 
@@ -29,6 +21,15 @@ void AppManager::setup() {
     Serial.begin(115200);
     delay(1000);
 
+    /* Log da versão ANTES de qualquer init que possa travar — garante que
+     * o user sempre saiba qual firmware está rodando, mesmo se o boot
+     * trancar logo depois. */
+    Serial.println();
+    Serial.println(F("=============================================="));
+    Serial.print  (F("  SIMUT firmware "));
+    Serial.println(SIMUT_VERSION);
+    Serial.println(F("=============================================="));
+
     /*
      * NÃO chamar TRACE_MOD aqui — scratch[4] precisa conter o módulo do
      * crash anterior até a autópsia ler (em LogManager::begin abaixo).
@@ -36,32 +37,32 @@ void AppManager::setup() {
      */
     TRACE_BEAT(0);
 
-    _displayMgr->begin();
-    _displayMgr->startCore1();
+    _displayMgr.begin();
+    _displayMgr.startCore1();
     LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, TRL("Display UI Launched on Core 1.", "UI do display iniciada no Core 1."));
 
     delay(BOOT_STEP_DELAY_MS);
 
     bool forceAP = false;
-    _displayMgr->setBootStatus("Hold screen for AP Mode...");
+    _displayMgr.setBootStatus("Hold screen for AP Mode...");
     unsigned long waitStart = millis();
 
     while (millis() - waitStart < AP_DETECT_WINDOW_MS) {
         TRACE_BEAT(0);
 
-        if (_displayMgr->isScreenTouched()) {
+        if (_displayMgr.isScreenTouched()) {
             unsigned long holdStart = millis();
             bool held = true;
             int missedTouches = 0;
 
             while (millis() - holdStart < AP_HOLD_DURATION_MS) {
                 TRACE_BEAT(0);
-                if (!_displayMgr->isScreenTouched()) {
+                if (!_displayMgr.isScreenTouched()) {
                     missedTouches++;
                     if (missedTouches > AP_HOLD_MAX_MISSED) {
                         held = false;
-                        _displayMgr->setApProgress(-1);
-                        _displayMgr->setBootStatus("AP Mode Cancelled.", false);
+                        _displayMgr.setApProgress(-1);
+                        _displayMgr.setBootStatus("AP Mode Cancelled.", false);
                         delay(800);
                         break;
                     }
@@ -69,7 +70,7 @@ void AppManager::setup() {
                     missedTouches = 0;
                 }
                 int pct = map(millis() - holdStart, 0, AP_HOLD_DURATION_MS, 0, 100);
-                _displayMgr->setApProgress(pct);
+                _displayMgr.setApProgress(pct);
                 delay(50);
             }
             if (held) forceAP = true;
@@ -78,9 +79,9 @@ void AppManager::setup() {
         delay(50);
     }
 
-    _displayMgr->setApProgress(-1);
+    _displayMgr.setApProgress(-1);
 
-    _storageMgr->setLockCallback([](bool lock) {
+    _storageMgr.setLockCallback([](bool lock) {
         app.pauseDisplayForFlash(lock);
     });
 
@@ -91,14 +92,14 @@ void AppManager::setup() {
     /* F-LOCKOUT-STUCK: wire quiet mode cooperativo para saveConfiguration.
      * Core 0 sinaliza, Core 1 congela em loop RAM-only, Core 0 faz flash
      * ops sem cascatas de lockout IRQ stuck. Retorna true só se Core 1 ACKed. */
-    _storageMgr->setBigSaveQuietCallback([](bool enable) -> bool {
+    _storageMgr.setBigSaveQuietCallback([](bool enable) -> bool {
         return app.requestDisplayQuietMode(enable);
     });
 
-    _displayMgr->setBootStatus("Mounting File System...");
-    bool fsOk = _storageMgr->begin();
+    _displayMgr.setBootStatus("Mounting File System...");
+    bool fsOk = _storageMgr.begin();
 
-    _displayMgr->setBootStatus("Starting Log Manager...");
+    _displayMgr.setBootStatus("Starting Log Manager...");
     LogManager::instance().begin(fsOk, LOG_DEBUG);
 
     /* Autópsia já leu scratch[4]. Agora pode setar MOD_BOOT para rastrear
@@ -106,7 +107,7 @@ void AppManager::setup() {
     TRACE_MOD(0, MOD_BOOT);
 
     LogManager::instance().setHeavyTaskChecker([]() -> bool {
-        return app._storageMgr->isHeavyTaskLocked();
+        return app._storageMgr.isHeavyTaskLocked();
     });
 
 
@@ -117,24 +118,24 @@ void AppManager::setup() {
         return app.isUserInteracting();
     });
 
-    _displayMgr->setBootStatus("Starting Command Interface...");
-    _cmdMgr->begin();
+    _displayMgr.setBootStatus("Starting Command Interface...");
+    _cmdMgr.begin();
 
 
-    _cmdMgr->setBtValidator([this](String attempt) -> bool {
-        SystemConfig &cfg = _storageMgr->getConfig();
+    _cmdMgr.setBtValidator([this](String attempt) -> bool {
+        SystemConfig &cfg = _storageMgr.getConfig();
         if (!cfg.users[0].active) return false;
         /* Frontend envia SHA256(plaintext) antes do hashPassword;
          * sha256Hex espelha esse comportamento (UTF-8 → Latin-1). */
-        String preHash = _storageMgr->sha256Hex(attempt);
+        String preHash = _storageMgr.sha256Hex(attempt);
         String storedHash = String(cfg.users[0].password);
         /* SEC-007: suporta tanto legacy (30 chars) quanto v1 (32 chars). */
         if (cfg.users[0].hashVersion == 0 && storedHash.length() == 30) {
-            String legacyHash = _storageMgr->hashPasswordLegacy(
+            String legacyHash = _storageMgr.hashPasswordLegacy(
                 String(cfg.users[0].username), preHash);
             return (legacyHash == storedHash);
         } else {
-            String hashed = _storageMgr->hashPasswordV1(
+            String hashed = _storageMgr.hashPasswordV1(
                 String(cfg.users[0].username), preHash, cfg.users[0].salt);
             return (hashed == storedHash);
         }
@@ -146,8 +147,8 @@ void AppManager::setup() {
      * inexistente ou corrompida nos dois bancos), exibe a senha inicial
      * aleatória no Serial — exige acesso físico USB. Também loga no FS via
      * LOG_CODE pra trilha de auditoria. Plaintext nunca persiste em flash. */
-    if (_storageMgr->isFactoryDefaults()) {
-        const char* pw = _storageMgr->getInitialAdminPassword();
+    if (_storageMgr.isFactoryDefaults()) {
+        const char* pw = _storageMgr.getInitialAdminPassword();
         if (pw && pw[0] != '\0') {
             Serial.println(F("\n=============================================="));
             Serial.println(F("  SEC-003: FACTORY DEFAULTS ATIVADO"));
@@ -167,9 +168,9 @@ void AppManager::setup() {
         }
     }
 
-    uint32_t lastTs = _storageMgr->getLastRecordedTimestamp();
-    _netMgr->setProvisionalTime(lastTs);
-    _netMgr->setTimeSyncCallback([](uint32_t bootTs, int32_t delta) {
+    uint32_t lastTs = _storageMgr.getLastRecordedTimestamp();
+    _netMgr.setProvisionalTime(lastTs);
+    _netMgr.setTimeSyncCallback([](uint32_t bootTs, int32_t delta) {
 
 
         app._timeSyncBootTs = bootTs;
@@ -178,18 +179,18 @@ void AppManager::setup() {
         app._pendingTimeSync = true;
     });
 
-    SystemConfig &cfg = _storageMgr->getConfig();
-    _displayMgr->setBootStatus("Loading Theme & Language...");
+    SystemConfig &cfg = _storageMgr.getConfig();
+    _displayMgr.setBootStatus("Loading Theme & Language...");
     loadTheme(cfg.themeIndex);
-    _displayMgr->refreshTheme();
-    _displayMgr->setLanguage(cfg.displayLang);
+    _displayMgr.refreshTheme();
+    _displayMgr.setLanguage(cfg.displayLang);
 
 
-    _soundMgr->begin();
+    _soundMgr.begin();
     {
         const SoundConfigData* sndCfg = reinterpret_cast<const SoundConfigData*>(
             cfg.reserved + sizeof(TouchCalData));
-        _soundMgr->loadConfig(sndCfg);
+        _soundMgr.loadConfig(sndCfg);
     }
 
     /* Offset de posicionamento do display — aplicado antes de qualquer tela
@@ -197,7 +198,7 @@ void AppManager::setup() {
     {
         const DisplayOffsetData* ofs = reinterpret_cast<const DisplayOffsetData*>(
             cfg.reserved + sizeof(TouchCalData) + sizeof(SoundConfigData));
-        _displayMgr->loadDisplayOffset(ofs);
+        _displayMgr.loadDisplayOffset(ofs);
     }
 
     /* B4: modo CLI (debug/config). Default = CONFIG (debug OFF) se magic inválido. */
@@ -206,34 +207,34 @@ void AppManager::setup() {
             cfg.reserved + CLI_CONFIG_OFFSET);
         bool debugOn = (cli->magic == CLI_CONFIG_MAGIC) && (cli->debugMode != 0);
         LogManager::instance().setConsoleStream(debugOn);
-        _cmdMgr->setDebugMode(debugOn);
+        _cmdMgr.setDebugMode(debugOn);
     }
 
     /* #2: idioma da CLI reutiliza cfg.displayLang (single source of truth).
      *     Propaga também para LogManager (labels de translateCode). */
-    _cmdMgr->setCliLang(cfg.displayLang);
+    _cmdMgr.setCliLang(cfg.displayLang);
     LogManager::instance().setLanguage(cfg.displayLang);
 
 
     {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
-        _displayMgr->loadTouchCalibration(cal);
-        if (!_displayMgr->isTouchCalibrated()) {
+        _displayMgr.loadTouchCalibration(cal);
+        if (!_displayMgr.isTouchCalibrated()) {
             LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0, TRL("Touch calibration required.", "Calibracao do touch necessaria."));
-            _displayMgr->setBootStatus("Touch calibration required...");
+            _displayMgr.setBootStatus("Touch calibration required...");
             delay(600);
-            _displayMgr->showTouchCalibration();
+            _displayMgr.showTouchCalibration();
 
 
-            while (!_displayMgr->isTouchCalibrated()) {
+            while (!_displayMgr.isTouchCalibrated()) {
                 TRACE_BEAT(0);
 
                 UiEvent calEv;
-                if (_displayMgr->getUiEvent(calEv)) {
+                if (_displayMgr.getUiEvent(calEv)) {
                     if (calEv.type == UiEvent::EVT_APPLY_TOUCH_CAL) {
                         TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
-                        _displayMgr->fillCalData(calOut);
-                        _storageMgr->saveConfiguration();
+                        _displayMgr.fillCalData(calOut);
+                        _storageMgr.saveConfiguration();
                         LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_INITIAL, 0, TRL("Initial touch calibration saved.", "Calibracao inicial do touch salva."));
                     }
                 }
@@ -242,24 +243,24 @@ void AppManager::setup() {
         }
     }
 
-    _displayMgr->setBootStatus("Loading Peripherals & Sensors...");
-    _sensorMgr->begin();
+    _displayMgr.setBootStatus("Loading Peripherals & Sensors...");
+    _sensorMgr.begin();
     loadAndCalibrateSensors();
-    _sensorMgr->setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
+    _sensorMgr.setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 
     if (forceAP) {
         LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode.", "Usuario ativou modo AP."));
-        _displayMgr->setBootStatus("Starting Access Point (AP)...");
-        _displayMgr->setBootStatus("Connect to network SIMUT_SETUP");
-        _displayMgr->setBootStatus("Access on mobile: 192.168.4.1");
-        _netMgr->beginAP(cfg.deviceName);
+        _displayMgr.setBootStatus("Starting Access Point (AP)...");
+        _displayMgr.setBootStatus("Connect to network SIMUT_SETUP");
+        _displayMgr.setBootStatus("Access on mobile: 192.168.4.1");
+        _netMgr.beginAP(cfg.deviceName);
         for (int i = 0; i < 35; i++) { delay(100); feedWdt(); }
     } else {
-        _displayMgr->setBootStatus("Starting Wi-Fi Interface...");
-        _netMgr->begin(cfg,
-                      _storageMgr->isDnsAuto(),
-                      _storageMgr->isNtpEnabled(),
-                      _storageMgr->getSecondaryDns());
+        _displayMgr.setBootStatus("Starting Wi-Fi Interface...");
+        _netMgr.begin(cfg,
+                      _storageMgr.isDnsAuto(),
+                      _storageMgr.isNtpEnabled(),
+                      _storageMgr.getSecondaryDns());
 
         unsigned long netWait = millis();
         unsigned long lastMsg = 0;
@@ -268,12 +269,12 @@ void AppManager::setup() {
         int dotCount = 0;
         int waitState = 0;
 
-        while (!_netMgr->isConnected() || !_netMgr->isTimeSynced()) {
+        while (!_netMgr.isConnected() || !_netMgr.isTimeSynced()) {
             TRACE_BEAT(0);
-            _netMgr->update();
+            _netMgr.update();
 
-            if (_displayMgr->isSkipPressed()) {
-                _displayMgr->setBootStatus("Connection Skipped by User.");
+            if (_displayMgr.isSkipPressed()) {
+                _displayMgr.setBootStatus("Connection Skipped by User.");
                 skipped = true;
                 delay(1000);
                 break;
@@ -285,49 +286,49 @@ void AppManager::setup() {
                 String dots = "";
                 for (int i = 0; i < dotCount; i++) dots += ".";
 
-                if (!_netMgr->isConnected()) {
+                if (!_netMgr.isConnected()) {
                     if (waitState != 1) {
                         waitState = 1; dotCount = 0;
-                        _displayMgr->setBootStatus("Waiting for router", true);
+                        _displayMgr.setBootStatus("Waiting for router", true);
                     } else {
-                        _displayMgr->replaceBootStatus("Waiting for router" + dots, true);
+                        _displayMgr.replaceBootStatus("Waiting for router" + dots, true);
                     }
-                } else if (!_netMgr->isTimeSynced()) {
+                } else if (!_netMgr.isTimeSynced()) {
                     if (waitState != 2) {
                         waitState = 2; dotCount = 0;
-                        _displayMgr->setBootStatus("Syncing Global Clock", true);
+                        _displayMgr.setBootStatus("Syncing Global Clock", true);
                     } else {
-                        _displayMgr->replaceBootStatus("Syncing Global Clock" + dots, true);
+                        _displayMgr.replaceBootStatus("Syncing Global Clock" + dots, true);
                     }
                 }
                 lastMsg = millis();
             }
 
             if (timeSince(netWait, 30000)) {
-                 _displayMgr->setBootStatus("Network timeout. Starting Offline...");
+                 _displayMgr.setBootStatus("Network timeout. Starting Offline...");
                  delay(1000);
                  break;
             }
             delay(50);
         }
 
-        if (!skipped && _netMgr->isConnected()) {
-            _displayMgr->setBootStatus("Network Connected & Synced!");
+        if (!skipped && _netMgr.isConnected()) {
+            _displayMgr.setBootStatus("Network Connected & Synced!");
             delay(500);
         }
     }
 
-    _displayMgr->setBootStatus("Starting Telemetry Server...");
-    _telemetryMgr->begin(_storageMgr.get(), _netMgr.get());
+    _displayMgr.setBootStatus("Starting Telemetry Server...");
+    _telemetryMgr.begin(&_storageMgr, &_netMgr);
 
     LogManager::instance().setEpochSource([]() -> time_t { return time(nullptr); });
 
-    _displayMgr->setBootStatus("Starting Web Server...");
-    _webMgr->begin(_storageMgr.get(), _sensorMgr.get(), _netMgr.get(), _displayMgr.get(), _telemetryMgr.get(), _soundMgr.get());
+    _displayMgr.setBootStatus("Starting Web Server...");
+    _webMgr.begin(&_storageMgr, &_sensorMgr, &_netMgr, &_displayMgr, &_telemetryMgr, &_soundMgr);
 
-    _displayMgr->setBootStatus("Registering Callbacks...");
-    _webMgr->setYieldCallback([this]() { this->core0Yield(); });
-    _webMgr->setLightYieldCallback([this]() {
+    _displayMgr.setBootStatus("Registering Callbacks...");
+    _webMgr.setYieldCallback([this]() { this->core0Yield(); });
+    _webMgr.setLightYieldCallback([this]() {
         feedWdt();
 
 
@@ -335,33 +336,33 @@ void AppManager::setup() {
         uint32_t now = millis();
         if (now - lastLiveUpdate > 3000) {
             lastLiveUpdate = now;
-            _sensorMgr->update();
+            _sensorMgr.update();
             updateLiveDisplay();
         }
     });
 
 
-    /* REF-004: _webMgr->setTouchPriorityChecker removido — usa TouchPriority singleton. */
+    /* REF-004: _webMgr.setTouchPriorityChecker removido — usa TouchPriority singleton. */
 
     if (forceAP) {
         _isApMode = true;
-        _displayMgr->setBootStatus("AP Active! Reboot board to exit.", false);
+        _displayMgr.setBootStatus("AP Active! Reboot board to exit.", false);
         LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode).", "Sistema pronto (modo AP)."));
     } else {
 
         /* Carrega min/max do dia a partir do arquivo de histórico */
-        _displayMgr->setBootStatus("Loading daily Min/Max cache...");
+        _displayMgr.setBootStatus("Loading daily Min/Max cache...");
         delay(80);
         preloadMinMax();
 
-        _displayMgr->setBootStatus("Warming up sensors...");
+        _displayMgr.setBootStatus("Warming up sensors...");
         {
             unsigned long warmStart = millis();
 
 
             while (millis() - warmStart < 2000) {
                 feedWdt();
-                _sensorMgr->update();
+                _sensorMgr.update();
 
 
                 if (timeSince(warmStart, 900)) break;
@@ -376,12 +377,12 @@ void AppManager::setup() {
 
 
         if (_pendingTimeSync) {
-            _displayMgr->setBootStatus("Correcting timestamps (NTP)...");
+            _displayMgr.setBootStatus("Correcting timestamps (NTP)...");
             delay(80);
             handleTimeSync(_timeSyncBootTs, _timeSyncDelta);
 
             /* Recarrega min/max com timestamps corrigidos */
-            _displayMgr->setBootStatus("Reloading Min/Max cache...");
+            _displayMgr.setBootStatus("Reloading Min/Max cache...");
             delay(80);
             for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
                 _cachedMin[i] = 1000.0f; _cachedMax[i] = -1000.0f;
@@ -393,20 +394,20 @@ void AppManager::setup() {
         }
 
 
-        _displayMgr->setBootStatus("Preparing dashboard data...");
-        _sensorMgr->update();
+        _displayMgr.setBootStatus("Preparing dashboard data...");
+        _sensorMgr.update();
         updateLiveDisplay();
         refreshSelectedSlot();
 
-        _displayMgr->setBootStatus("All subsystems initialized.");
-        _displayMgr->setBootStatus("System Ready! Entering Dashboard.");
+        _displayMgr.setBootStatus("All subsystems initialized.");
+        _displayMgr.setBootStatus("System Ready! Entering Dashboard.");
         delay(800);
         LOG_CODE(LOG_INFO, "APP", APP_READY, 0, TRL("System ready.", "Sistema pronto."));
-        _displayMgr->endBoot();
+        _displayMgr.endBoot();
         _bootCompletedAt = millis();
 
 
-        _soundMgr->play(SND_CONFIRM);
+        _soundMgr.play(SND_CONFIRM);
     }
 
     /*
@@ -418,7 +419,7 @@ void AppManager::setup() {
     LogManager::instance().enableHealthCheck();
 
     TRACE_MOD(0, MOD_IDLE);
-    _cmdMgr->printPrompt();
+    _cmdMgr.printPrompt();
 }
 
 /* =========================================================================== */
