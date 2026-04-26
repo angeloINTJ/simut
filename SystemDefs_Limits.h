@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.26.0-alpha12" /* F-MEM-SHAREDPOOL: 46 KB pool BSS compartilhado por graph caches OU telemetry payload */
+#define SIMUT_VERSION "v3.26.0-alpha11" /* F-MEM-LAZYGRAPH: graph caches lazy-allocated, free 5s pos-dashboard idle (-44 KB BSS) */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
