@@ -628,8 +628,15 @@ void LogManager::performCrashAutopsy() {
     /* Cenários possíveis:
      *  (1) scratch[5] == 0xCA11B007: soft panic nosso (Core 1 travou).
      *  (2) scratch[5] == 0xC1EA8007: reboot limpo (markCleanReboot foi chamado).
-     *  (3) watchdog_caused_reboot() && nenhum magic: HW watchdog real (Core 0).
-     *  (4) nenhum dos acima: power cycle / botão reset. */
+     *  (3) scratch[5] == 0xA11FA1E5: previous session was ALIVE (autopsy passed)
+     *      mas terminou com wdReset — causa EXTERNA (picotool upload, hard
+     *      fault, hardware reset). NÃO é crash de codigo aplicacional pois
+     *      SIMUT nunca habilita WDT em operação normal (markWdtActive nunca
+     *      chamado → WdtWindow é no-op). Demote para INFO.
+     *  (4) watchdog_caused_reboot() && nenhum magic: WDT REASON setada por
+     *      reset externo SEM passar pela autopsia anterior (raro: 1ª boot
+     *      pós-pio upload se previous session crashou antes do autopsy).
+     *  (5) nenhum dos acima: power cycle / botão reset. */
 
     /* Rede de segurança para refactors: captureBootSnapshot() deveria ter
      * rodado antes (via begin()). Se não rodou, o scratch[3] já pode ter sido
@@ -662,6 +669,25 @@ void LogManager::performCrashAutopsy() {
     } else if (wdReset && mark == 0xC1EA8007) {
         /* Reboot intencional via markCleanReboot(). Silencioso. */
         watchdog_hw->scratch[5] = 0;
+    } else if (wdReset && mark == 0xA11FA1E5) {
+        /* "Alive" magic setada no fim do autopsy anterior — significa que a
+         * sessao passada chegou a rodar normalmente. Como SIMUT nunca habilita
+         * WDT em operacao (markWdtActive nunca chamado, WdtWindow no-op),
+         * wdReset+alive = causa EXTERNA: picotool upload, hard fault, reset
+         * pin (que clearia REASON, mas se chega aqui via outra path), etc.
+         * NAO e crash de codigo aplicacional. */
+        uint32_t modTrace = _preBootSnapshotTaken ? _preBootScratch4
+                                                  : watchdog_hw->scratch[3];
+        uint8_t c0Mod = (modTrace >> 0)  & 0xFF;
+        uint8_t c1Mod = (modTrace >> 16) & 0xFF;
+        const char* c0Name = (c0Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c0Mod] : "UNK";
+        const char* c1Name = (c1Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c1Mod] : "UNK";
+        char msg[200];
+        snprintf(msg, sizeof(msg),
+                 "Boot after external reset (likely picotool upload). C0 last=[%s] C1 last=[%s]",
+                 c0Name, c1Name);
+        logCode(LOG_INFO, "SYS", SYS_BOOT, 0, String(msg));
+        /* Nao limpa scratch[5] aqui — o set abaixo (alive) sobrescreve. */
     } else if (wdReset) {
         /* Hardware watchdog estourou (8.3s) sem nosso soft panic ter disparado
          * e sem marca de reboot limpo. Core 0 não chamou watchdog_update()
@@ -703,9 +729,7 @@ void LogManager::performCrashAutopsy() {
                      "Boot after watchdog reset (no trace — likely post-flash by picotool; sc3=0x%08lx)",
                      (unsigned long)modTrace);
             logCode(LOG_INFO, "SYS", SYS_BOOT, 0, String(msg));
-            /* Suprime FTL/INFO em proximos boots ate proximo crash real ou
-             * power cycle. Magic de "clean reboot" cobre o caso. */
-            watchdog_hw->scratch[5] = 0xC1EA8007;
+            /* scratch[5] sera setada como ALIVE no fim do autopsy. */
         }
         watchdog_hw->scratch[3] = 0;  /* Limpa pra proxima autopsia */
     } else {
@@ -713,6 +737,14 @@ void LogManager::performCrashAutopsy() {
          * autopsia subsequente caso o registrador tenha lixo inicial. */
         watchdog_hw->scratch[3] = 0;
     }
+
+    /* F-WDT-ALIVE: marca a sessao corrente como "viva". No proximo boot,
+     * se wdReset for true E mark for este magic, sabemos que a sessao
+     * passada estava rodando normalmente quando foi interrompida — quase
+     * sempre causa externa (picotool upload, reset pin via certas paths,
+     * hard fault), nao crash de codigo aplicacional. markCleanReboot e
+     * soft panic sobrescrevem este magic com seus proprios. */
+    watchdog_hw->scratch[5] = 0xA11FA1E5;
 }
 
 
