@@ -1,0 +1,269 @@
+# SIMUT Versa — language pack es-ES (gerado por build_lang_pack_es.py)
+# Source: language_pt-BR.lng + PT->ES dict (best-effort).
+# @HELP e @LICENSE omitidos — fallback EN no firmware.
+
+@NAME Espanol
+@CODE es-ES
+
+@DICT
+AMBIENTE
+Configuración > Principal
+Configuración > Temas
+Configuración > Idioma
+SALIR
+APLICAR
+CANCELAR
+Autenticación de Seguridad
+ACCESO BLOQUEADO
+Reinicio requerido
+Intentos Excedidos
+Espere %ld segundos...
+Contraseña Inválida!
+Cargando...
+Leyendo Historial...
+Sin Datos
+MÁXIMO
+MÍNIMO
+Temperatura
+Humedad
+GENERAR GRÁFICO
+1. Temas Visuales
+2. Límites de Alarma
+3. Sonidos de Alarma
+4. Idioma del Sistema
+Aplicando Tema...
+SALVAR
+Límites de Alarma
+Temp Min
+Temp Max
+Umid Min
+Umid Max
+ENTRAR
+PULAR
+5. Cambiar Contraseña
+Nueva Contraseña
+6. Calibrar Touch
+Calibración del Touch
+Toque la mira
+¡Calibración Completada!
+Toques imprecisos! Intente nuevamente.
+Confirmar Contraseña
+Contraseña muy corta! (min 4)
+Contraseñas no coinciden!
+Contraseña guardada!
+ENTENDIDO
+Config. de Sonidos
+Toque en Pantalla
+Confirmación
+Sonido de Errorr
+Sonido de Alarma
+Silenciar Todo
+Vol. Sistema
+Vol. Alarma
+SIM
+NÃO
+Acceso Web
+Melodia
+7. Licencia
+Licencia MIT
+ACTIVO
+Silenciar 120s
+Desactivar
+Min/Max
+Silenciado
+%UR
+7. Sensibilidad del Toque
+Sensibilidad del Toque
+Toque %d/%d
+¡Calibración Completada!
+MEDIA
+DESV.
+Error
+Modo de Configuración
+8. Estado del Sistema
+Estado del Sistema
+9. Alineación de Pantalla
+Alineación de Pantalla
+Ajuste +/-4 px. Guardar reinicia calibración del touch.
+
+@LOGCODES
+0 OK
+1 Boot del sistema
+2 Reboot solicitado por usuário
+3 Heap baja
+4 Marca de uptime
+10 Conectando WiFi
+11 WiFi desconectado
+12 Escaneo WiFi
+13 NTP sincronizado
+14 IP obtenido
+15 AP iniciado
+20 Fallo no almacenamiento
+21 Config salva
+22 Almacenamiento rotado
+23 Formatando flash
+24 Almacenamiento recuperado
+25 Config migrada
+30 Telemetria enviada
+31 Fallo de telemetria
+32 Retry de telemetria
+33 Telemetria enfileirada
+34 Cert SSL carregado
+35 MQTT conectado
+36 MQTT desconectado
+37 MQTT publicado
+100 Sensor recuperado
+101 Timeout de sensor
+102 Error de checksum
+103 Error de CRC
+104 Sensor fora de range
+105 Divergência de hardware
+106 Sensor ausente
+200 Evento de toque
+201 Pantalla reiniciado
+202 Gráfico renderizado
+300 Login bem-sucedido
+301 Fallo de login
+302 Acceso não autorizado
+303 Config alterada
+304 Sesión expirada
+305 Archivo enviado
+306 Archivo apagado
+400 Pantalla iniciado no Core 1
+401 Calibración inicial del touch salva
+402 Calibración del touch necessária
+403 AP ativado por usuário
+404 Sistema pronto
+405 Sistema pronto (modo AP)
+406 Fallo crítica de almacenamiento
+407 Sensores calibrados
+408 NTP corrigindo timestamps
+409 Timestamps corrigidos
+410 Caches de gráfico invalidados
+440 Tema alterado via UI
+441 Idioma alterado via UI
+442 Límites de alarme salvos via UI
+443 Calibración del touch salva
+444 Sensibilidade del touch salva
+445 PIN del display alterado
+446 Config de som salva
+447 Alarma silenciado via UI
+448 Silenciamento de alarme expirou
+449 Todos alarmes desativados (RAM)
+470 Alarma disparado
+471 Alarma zerado
+472 Silenciamento cancelado
+480 Cache Min/Max carregado
+481 Cache Min/Max parcial
+482 Refresh de cache iniciado
+483 Refresh de cache concluído
+484 Cache de gráfico: ambiente
+485 Cache de gráfico: placa
+486 Pre-carga de cache concluída
+487 Cargando gráfico
+488 Budget de render excedido
+489 Budget de pre-carga excedido
+500 Pause del display preso >5s
+501 Yield preso >10s
+502 Core 1 travado >10s, reiniciando
+503 Colisão de flash ocupada
+510 Registro de histórico salvo
+511 Relatório de heap
+520 Modo DHCP ativado
+521 Modo IP estático ativado
+522 Gerenciador WiFi iniciando
+523 SSID WiFi não configurado
+524 Hora provisória del flash
+525 Timeout na conexao WiFi
+526 WiFi em modo dormente
+527 Mostrar IP
+540 Transporte HTTP inicializado
+541 Transporte MQTT inicializado
+542 MQTT conectando
+543 cert.pem vazio, modo inseguro
+544 Error de leitura de cert.pem
+545 Sem cert.pem, modo inseguro
+546 Forçando sync de telemetria
+547 Logs de retry suprimidos
+560 Fallo em escrever histórico
+561 Budget de correção de ts excedido
+562 Budget de limite de almacenamiento excedido
+563 Pulando arquivo de log ativo
+564 Relatório de estatísticas
+565 Relatório de config
+570 Servidor web iniciado
+571 Cliente desconectado (arquivo)
+572 Cliente desconectado (histórico)
+573 Screenshot abortado por cliente
+574 Archivo enviado
+580 Tema aplicado
+581 Tema não encontrado
+585 Comando desconhecido
+590 Sensores em runtime carregados
+600 Forçar despausar
+999 Error desconhecido
+
+@TRL
+4922ff94 UI del display iniciada no Core 1.
+508b2648 Fallo crítica de almacenamiento!
+018a9730 Factory defaults ativos; senha admin via USB/serial.
+34731b0f Factory defaults ativos; reset admin para gerar senha.
+f199e6c9 Calibración del touch necessária.
+d9b8167f Calibración inicial del touch salva.
+c72bc4db Usuario ativou modo AP.
+f914ca06 Sistema pronto (modo AP).
+aeca57d7 Sistema pronto.
+2a5674b6 Factory reset
+5b298f0a Reboot via CLI
+9c97f07a CLI criou usuário:
+5c57efdf CLI apagou usuário:
+483847eb CLI resetou senha:
+22bb7927 Correção NTP:
+d62db850 Yield preso >10s, reset forçado.
+cc0a0d40 PIN padrão detectado; forçando troca.
+adb4b368 Pause del display preso >5s!
+728bf426 Core 1 travado >10s. Reiniciando.
+b5299c92 Sesión BT encerrada (5 min inativo)
+2dfd2825 Login BT admin
+79d951e9 Contraseña BT admin rejeitada
+f43dab3c forceUnpause: refCount=
+16274db5 Ponto de Acceso:
+2c4781f5 Provisória:
+9090b55d RTC setado manualmente
+b9d74daa Timeout del AP, reiniciando para STA
+c98bcdab Buscando SSID (backoff=
+e5ac1216 SSID encontrado, conectando...
+72706305 mDNS falhou al iniciar
+9e61e5c1 NTP desabilitado — modo RTC manual
+6fb51ac0 Sinal WiFi perdido, entrando em stealth scan
+6fbf54f5 Dormente: retry em
+0c689f28 Retry em
+672a9c0e Sensor recuperado
+e45e023f Divergência de hardware (Acceso Negado)
+c1efa9ef Formatando FS del flash...
+58cf268b Config primária corrompida, recuperada del backup
+c5beb475 Schema de config migrado
+dabcafea Cursor de telemetria no futuro — reset para 0
+89a28b4b OOM: WiFiClientSecure
+0fd7942f Error HTTP:
+62e0e71d MQTT conectado a
+2e47670e MQTT falhou:
+fa87bdae Upload falhou (#
+f8e07dd7 ). Retry em
+d759bfa8 Sesión expirada:
+6b0000de Login OK:
+5d4833ee Login rejeitado: tamanho inválido
+783bd157 Login falhou:
+c8d42c3f Login rejeitado: limite de sessões
+76b52b23 Logout:
+7468f5ee Reset de senha bem-sucedido:
+9f329bc2 Admin aplicou alterações — reiniciando
+fd0933a1 Calibración del touch resetada via web
+7c8db05f Usuario baixou:
+10fe78c1 Carpeta criada:
+8dce6c6d Calibración universal atualizada.
+4e94b2fd Archivo enviado.
+b358b19a Admin apagou logs del sistema
+
+@WEBDICT
+{"log_usr":"Usuario","log_pas":"Contraseña","log_show":"Mostrar contraseña","log_btn":"Entrar","log_err":"Usuario o contraseña incorrectos.","log_full":"Límite de sesiones alcanzado. Intente más tarde.","log_lock":"Bloqueado por {s}s. Intentos excesivos.","fcp_btn":"Guardar e Iniciar Sesión","nav_dash":"Panel de Control","nav_hist":"Historial y Logs","nav_cfg":"Configuración","nav_net":"Red","nav_usr":"Usuarios","nav_file":"Archivos","nav_alm":"Alarmas y Sonidos","nav_exit":"Salir","greet_morning":"Buenos días","greet_afternoon":"Buenas tardes","greet_evening":"Buenas noches","greet_hello":"Hola","greet_logout":"Salir","dash_dt":"Fecha y Hora","dash_up":"Tiempo Activo","dash_wifi":"Señal Wi-Fi","dash_pend":"Registros Pendientes","dash_ram":"Uso de RAM","dash_fs":"Armazenamento","dash_stat":"Estado","dash_gpio":"GPIO","dash_id":"ID","dash_read":"Lectura","dash_name":"Nome","dash_load":"Cargando sensores...","dash_none":"Ningún sensor.","dash_ntp_wait":"Esperando...","dash_tel_wait":"Esperando sinc.","dash_disp":"Pantalla","dash_disp_msg":"Click para capturar","dash_disp_cap":"Capturando...","dash_disp_btn":"📷 Capturar","dash_ntp_ok":"Sincronizado","dash_ntp_fail":"Fallo NTP","dash_ntp_conn":"Conectando...","dash_eval":"Evaluando...","dash_free":"Livre","dash_tot":"Total","dash_conn_err":"Error","hist_title":"Telemetria","hist_src":"Origem:","hist_amb":"Ambiente","hist_1h":"1 Hora","hist_6h":"6 Horas","hist_12h":"12 Horas","hist_24h":"24 Horas","hist_7d":"7 Días","hist_cal":"Calendario","hist_maxt":"MAX T:","hist_mint":"MIN T:","hist_maxh":"MAX H:","hist_minh":"MIN H:","hist_sel_msg":"Seleccione una fecha para cargar el gráfico.","hist_down_msg":"Cargando...","hist_err_json":"Errorr.","hist_no_data":"Sin datos.","hist_conn_lost":"Conexión perdida.","hist_logs":"Eventos del Sistema","hist_filt":"Filtrar...","hist_load_btn":"Cargar","hist_ref":"Actualizar","hist_clear":"Borrar","hist_prompt":"Click en 'Cargar' para mostrar los logs.","hist_load":"Cargando...","hist_none":"Ningún evento.","hist_dtlog":"Fecha","hist_uptime":"Tiempo","hist_lvl":"Nível","hist_module":"Módulo","hist_desc":"Descrição","hist_loading":"Cargando...","hist_done":"Completado","cal_su":"Dom","cal_mo":"Lun","cal_tu":"Mar","cal_we":"Mié","cal_th":"Jue","cal_fr":"Vie","cal_sa":"Sáb","m_jan":"Ene","m_feb":"Feb","m_mar":"Mar","m_apr":"Abr","m_may":"May","m_jun":"Jun","m_jul":"Jul","m_aug":"Ago","m_sep":"Sep","m_oct":"Oct","m_nov":"Nov","m_dec":"Dic","cfg_title":"Configuración","cfg_gen":"Identidade","cfg_dev":"Nome","cfg_tz":"Fuso Horário","cfg_log":"Registro Local","cfg_hw":"Hardware","cfg_res":"Resolução DS18B20","cfg_r9":"9-bit","cfg_r12":"12-bit","cfg_sint":"Amostra (ms)","cfg_tel":"Telemetria","cfg_srv":"IP Servidor","cfg_port":"Porta","cfg_path":"Endpoint","cfg_key":"API Key","cfg_tint":"Upload (ms)","cfg_bat":"Lote","cfg_fmt":"Formato","cfg_f0":"JSON","cfg_f1":"CSV","cfg_f2":"Dinâmico","cfg_sec":"Usar TLS / SSL","cfg_sec_mqtt":"Usar MQTTS (TLS)","cfg_vis":"Construtor","cfg_leg":"Tags","cfg_leg1":"Globais:","cfg_leg2":"Dados:","cfg_leg3":"Chaves Inteligentes:","cfg_leg4":"Formatos:","cfg_leg5":"Série T","cfg_leg6":"Série H","cfg_leg7":"ID Sensor","cfg_tpl1":"1. Global","cfg_tpl2":"2. Linha","cfg_tpl3":"3. Separador","cfg_prev":"Live Preview:","cfg_save":"Guardar","cfg_touch_title":"Calibración del Touch","cfg_touch_reset":"Restablecer Calibración","cfg_touch_hint":"Restaura padrão de fábrica. Recalibre por menu del display.","cfg_touch_confirm":"Restablecer calibração del touch para padrão de fábrica?","cfg_touch_done":"Calibración resetada. Recalibre por display.","cfg_transport":"Transporte","cfg_tr_http":"HTTP(S)","cfg_tr_mqtt":"MQTT(S)","cfg_mq_topic":"Tópico","cfg_mq_cid":"Client ID","cfg_mq_user":"Usuario","cfg_mq_pass":"Contraseña","cfg_mq_qos":"QoS","cfg_mq_q0":"0","cfg_mq_q1":"1","cfg_mq_q2":"2","cfg_mq_retain":"Reter","cfg_mq_ka":"Keep-Alive","net_curr":"Estado de Conexión","net_stat":"Estado","net_conn":"Conectado","net_off":"Desconectado","net_ip":"IP","net_mask":"Máscara","net_gw":"Gateway","net_dns":"DNS","net_mac":"MAC","net_cfg":"Configuración","net_wifi":"Wi-Fi","net_ssid":"SSID","net_pass":"Contraseña","net_ipv4":"IPv4","net_dhcp":"DHCP","net_sip":"IP Estático","net_sdns":"DNS Primario","net_save":"Guardar y Reiniciar","net_ntp_title":"Servidor de Hora (NTP)","net_ntp_lbl":"Dirección del Servidor","net_ntp_hint":"Deje vacío para usar el predeterminado (pool.ntp.org)","net_web_title":"Servidor Web","net_web_port":"Puerto HTTP","net_web_port_hint":"Predeterminado: 80. Después de guardar, el navegador redirige automáticamente al nuevo puerto.","net_dns_title":"Configuración de DNS","net_dns_auto":"Obtener DNS automáticamente (DHCP)","net_dns1":"DNS Primario","net_dns2":"DNS Secundario","net_ntp_disabled":"NTP está deshabilitado.","net_ntp_goto_cfg":"Habilite en Configuración del Sistema →","cfg_datetime":"Fecha y Hora","cfg_ntp_auto":"Sincronizar automáticamente vía NTP","cfg_date":"Fecha","cfg_time":"Hora","cfg_apply_now":"Aplicar Ahora","cfg_manual_hint":"Usa zona horaria del dispositivo. Guarde y Reinicie para persistir el toggle del NTP.","cfg_time_need":"Complete fecha y hora.","cfg_time_ok":"Hora aplicada.","cfg_time_fail":"Fallo al aplicar.","cfg_tint_hint":"Defina 0 para deshabilitar la telemetría. Mínimo recomendado: 10000 (10s).","cfg_tel_disabled":"⚠ Telemetría deshabilitada (Intervalo de Upload = 0). Defina un valor para activar.","display_busy":"Pantalla en uso. Intente nuevamente en unos segundos.","net_conn_err":"Errorr de conexión.","hist_clear_err":"Fallo al borrar logs.","hist_cleared":"Logs borrados.","fil_mkdir_ok":"Carpeta creada.","fil_mkdir_err":"Fallo al crear carpeta.","fil_del_err":"Algunos archivos no pudieron ser eliminados.","fil_deleted":"Archivos eliminados.","commit_btn":"💾 Guardar y Reiniciar","commit_confirm":"Esto guardará todos los cambios y reiniciará el sistema.\n\n⚠️ El dispositivo quedará offline por ~10 segundos.\nCualquier grabación de historial/log en curso será interrumpida.\n\n¿Continuar?","commit_saved":"¡Guardado! Reiniciando sistema...","commit_err":"Fallo al guardar.","pending_notice":"Click en \"Guardar y Reiniciar\" arriba para aplicar los cambios.","usr_mgt":"Gestión de Accesos","usr_usr":"Usuario","usr_perm":"Permisos","usr_act":"Acciones","usr_add":"Agregar","usr_name":"Nome","usr_pdash":"Panel","usr_phist":"Historial","usr_plog":"Logs","usr_psys":"Sistema","usr_pnet":"Red","usr_pfr":"Lectura","usr_pfu":"Upload","usr_pfd":"Eliminar","usr_pusr":"Usuarios","usr_btn":"Crear","usr_warn":"Login vía: Nombre@DDMMAAAA","usr_prot":"Protegido","usr_del":"Eliminar","usr_rst":"Reset","usr_sup":"Super","fil_title":"Sistema de Archivos","fil_down":"Descargar","fil_del":"Eliminar","fil_up":"Enviar","fil_uphere":"Enviar","fil_name":"Nome","fil_sz":"Tamaño","fil_mkdir":"Nueva Carpeta","fil_mkname":"nombre","fil_create":"Crear","fil_cancel":"Cancelar","fil_loading":"Cargando...","fil_parent":"Subir","fil_folder":"Carpeta","fil_empty":"Vacío","fil_inv_name":"Inválido","fil_sel_del":"Seleccione","fil_conf_del":"¿Eliminar N?","fil_sel_down":"Seleccione","fil_conf_down":"¿Descargar N?","usr_del_msg":"¿Eliminar?","usr_rst_msg":"¿Forzar reset?","hist_clear_msg":"¿Borrar logs?","alm_title":"Alarmas y Sonidos","alm_limits":"Límites de Alarma","alm_sounds":"Configuración de Sonidos","alm_tmin":"Temp. Mín.","alm_tmax":"Temp. Máx.","alm_hmin":"Hum. Mín.","alm_hmax":"Hum. Máx.","alm_active":"Alarma Activa","alm_save":"Guardar","alm_saved":"Guardado con éxito!","alm_err":"Errorr al guardar.","alm_none":"Ningún sensor configurado.","alm_touch":"Toque","alm_confirm":"Confirmación","alm_error":"Error","alm_alarm":"Alarma","alm_web":"Sonidos Web","alm_mute":"Silencio Global","alm_volume":"Vol. Sistema","alm_alarm_vol":"Vol. Alarma","alm_on":"Encendido","alm_off":"Borrado","alm_ambient":"Sensor Ambiente","alm_mel_asc":"Ascendente","alm_mel_desc":"Descendente","alm_mel_siren":"Sirena","nav_lic":"📜 Licencia","lic_title":"Licencia de Software","lic_mit":"Licencia MIT","lic_notice":"Avisos de Terceros"}
