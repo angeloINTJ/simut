@@ -917,3 +917,4 @@ void AppManager::executeCommand(CliDemand cmd) {
  * @brief Process pending UI events, sound signals, and sensor readings.
  * Called from the main loop and from web server light-yield callbacks.
  * Protected against re-entrancy with a static guard flag.
+ */

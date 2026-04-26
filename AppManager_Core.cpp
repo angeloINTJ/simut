@@ -31,20 +31,6 @@ AppManager::AppManager() {
 /* =========================================================================== */
 /*                               BOOT SEQUENCE                               */
 /* =========================================================================== */
-/**
- * @brief Complete system initialization in deterministic order.
- *
- * Boot flow:
- *   1. Display + Core 1 launch
- *   2. AP mode hold detection (3.5s touch)
- *   3. Filesystem mount + log manager
- *   4. CLI + Bluetooth authentication
- *   5. Theme, language, sound, touch calibration
- *   6. Sensor initialization + calibration
- *   7. WiFi connection (or AP mode)
- *   8. Telemetry + web server
- *   9. Sensor warm-up + NTP correction
- *  10. Dashboard launch
 bool AppManager::isDisplayAlive() {
 
 

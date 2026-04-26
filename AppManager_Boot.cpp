@@ -15,6 +15,8 @@
 #include <LittleFS.h>
 #include <time.h>
 
+extern AppManager app;
+
 void AppManager::setup() {
     Serial.begin(115200);
     delay(1000);
@@ -427,3 +429,4 @@ void AppManager::setup() {
  *   7. NTP timestamp correction (if pending)
  *   8. History CSV logging (every 60s)
  *   9. UI event dispatch + sound processing
+ */

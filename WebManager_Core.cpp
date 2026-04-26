@@ -182,9 +182,9 @@ bool WebManager::isHandlerOvertime() {
  * _sendGuardExpired tem ligação externa para que isClientGone() (inline
  * no header) possa consultá-lo sem indirection adicional.
  */
-static volatile bool _sendGuardActive = false;
+volatile bool _sendGuardActive = false;
 volatile bool _sendGuardExpired = false;    /* extern — consumido por WebManager.h */
-static volatile uint32_t _sendGuardStartMs = 0;
+volatile uint32_t _sendGuardStartMs = 0;
 static struct repeating_timer _sendGuardTimer;
 
 static bool _sendGuardTimerCallback(struct repeating_timer *t) {
@@ -208,14 +208,6 @@ void WebManager::initSendGuardTimer() {
 }
 
 
-struct SendGuard {
-    SendGuard()  {
-        _sendGuardStartMs = millis();
-        _sendGuardExpired = false;  /* reset por transferência */
-        _sendGuardActive = true;
-    }
-    ~SendGuard() { _sendGuardActive = false; }
-};
 void WebManager::update() {
     _clientAcceptsGzip = false;
 

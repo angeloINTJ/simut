@@ -18,6 +18,20 @@
 #include <WebServer.h>
 #include <functional>
 #include "SystemDefs.h"
+
+/* SendGuard shared state — definido em WebManager_Core.cpp */
+extern volatile bool _sendGuardExpired;
+extern volatile bool _sendGuardActive;
+extern volatile uint32_t _sendGuardStartMs;
+
+struct SendGuard {
+    SendGuard()  {
+        _sendGuardStartMs = millis();
+        _sendGuardExpired = false;
+        _sendGuardActive = true;
+    }
+    ~SendGuard() { _sendGuardActive = false; }
+};
 #include "StorageManager.h"
 #include "SensorManager.h"
 #include "NetworkManager.h"
@@ -120,7 +134,6 @@ private:
         }
         /* SendGuard atingiu o teto de alimentação do watchdog:
          * aborta handler limpa em vez de deixar o WDT disparar. */
-        extern volatile bool _sendGuardExpired;
         if (_sendGuardExpired) {
             return true;
         }
@@ -129,6 +142,8 @@ private:
 
 
     void initSendGuardTimer();
+
+    friend struct SendGuard;
     bool safeSend(const char* content);
     bool safeSend(const char* data, size_t len);
     bool safeSend(const String& content);
