@@ -9,6 +9,7 @@
 #include "AppManager.h"
 #include "LogManager.h"
 #include "SystemDefs.h"
+#include "MemoryPool.h"   /* F-MEM-SHAREDPOOL */
 #include <hardware/watchdog.h>
 
 extern AppManager app;
@@ -71,27 +72,32 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
     LOG_CODE(LOG_INFO, "APP", APP_CACHE_INVALIDATED, 0, "");
 }
 
-/* F-MEM-LAZYGRAPH: aloca _graphCache + _sensorCache em bloco único.
- * Idempotente: se já alocado, retorna true imediatamente.
- * Em OOM: loga warning e retorna false; caller renderiza sem cache. */
+/* F-MEM-SHAREDPOOL: aloca graph caches no MemoryPool compartilhado
+ * (BSS, endereço fixo). Pool serve graph OU telemetry, mutuamente
+ * exclusivos. Sem fragmentação possível — alloc só falha se pool
+ * está sendo usado pela telemetria neste exato momento. */
 bool AppManager::ensureGraphCachesAllocated() {
     if (_graphCachesAllocated) return true;
 
     constexpr size_t TOTAL = (MAX_SENSORS + 2 + 5) * sizeof(GraphCacheEntry);
-    void* mem = calloc(1, TOTAL);
-    if (!mem) {
+    static_assert(TOTAL <= MemoryPool::SIZE, "graph caches > pool size");
+
+    uint8_t* buf = MemoryPool::tryClaim(MemoryPool::OWNER_GRAPH);
+    if (!buf) {
+        /* Pool busy com telemetria (POST in-flight). Render direto. */
         LOG_CODE(LOG_WARN, "APP", SYS_HEAP_LOW,
                  (int)(rp2040.getFreeHeap() / 1024),
-                 "OOM aloc graph caches; render direto");
+                 "Pool busy (telemetry); render direto");
         return false;
     }
-    _graphCache  = (GraphCacheEntry*)mem;
+    memset(buf, 0, TOTAL);
+    _graphCache  = (GraphCacheEntry*)buf;
     _sensorCache = _graphCache + (MAX_SENSORS + 2);
     _sensorCacheId = -99;
     _graphCachesAllocated = true;
     LOG_CODE(LOG_INFO, "APP", APP_CACHE_GRAPH_STARTED,
              (int)(rp2040.getFreeHeap() / 1024),
-             "Graph caches alocados");
+             "Graph caches no pool");
     return true;
 }
 
@@ -103,11 +109,11 @@ void AppManager::freeGraphCachesIfIdle() {
     /* lastTouch == 0 (boot, sem touch ainda) também conta como idle. */
     if (lastTouch != 0 && (millis() - lastTouch) < 5000) return;
 
-    free(_graphCache);  /* libera o bloco único; sensorCache aponta para dentro */
     _graphCache = nullptr;
     _sensorCache = nullptr;
     _sensorCacheId = -99;
     _graphCachesAllocated = false;
+    MemoryPool::release(MemoryPool::OWNER_GRAPH);
     LOG_CODE(LOG_INFO, "APP", APP_CACHE_GRAPH_DONE,
              (int)(rp2040.getFreeHeap() / 1024),
              "Graph caches liberados (dashboard idle)");

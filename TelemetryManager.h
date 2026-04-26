@@ -92,7 +92,9 @@ private:
     bool collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& newCursor);
 
 
-    bool attemptHttpUpload(String& payload, uint32_t newCursor);
+    /** F-MEM-SHAREDPOOL: payload pode vir do MemoryPool (char*) ou String
+     *  fallback. attemptHttpUpload internamente decide qual usar. */
+    bool attemptHttpUpload(const char* payload, size_t payloadLen, uint32_t newCursor);
 
     /* HTTP TLS — cliente reutilizável (evita realocar ~16KB a cada upload) */
     WiFiClientSecure* _httpSecurePtr  = nullptr;
@@ -114,6 +116,9 @@ private:
 
 
     String buildPayload(std::vector<BinaryHistoryRecord>& batch);
+    /** F-MEM-SHAREDPOOL: variante que escreve em char* (do pool ou stack)
+     *  em vez de heap String. Retorna bytes escritos (sem incluir \0). */
+    size_t buildPayloadInto(char* dest, size_t cap, std::vector<BinaryHistoryRecord>& batch);
     int    formatLineJsonBuf(const BinaryHistoryRecord& rec, const SystemConfig& cfg, char* dest, size_t maxLen);
     String formatLineJson(const BinaryHistoryRecord& rec, const SystemConfig& cfg);
     int    formatLineCustomBuf(const BinaryHistoryRecord& rec, const SystemConfig& cfg, char* dest, size_t cap);
