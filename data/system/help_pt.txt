@@ -1,0 +1,125 @@
+
+===========================================
+      SIMUT - AJUDA DE COMANDOS
+===========================================
+ Comandos destrutivos exigem sufixo
+ 'confirm' (ex.: 'reload confirm').
+ Comandos sao sempre em ingles.
+
+-- IDIOMA / LANGUAGE --
+language pt
+  Usar Portugues (Brasil)
+language en
+  Use English
+language
+  Ver idioma atual
+  Nota: 'write memory' para persistir
+
+-- 1. MONITORAMENTO --
+show system info
+  Nome, versao e config do device
+show system log
+  Despeja o log do flash
+show storage stats
+  Estatisticas de uso do flash
+show net status
+  IP, RSSI, hora sincronizada
+show themes
+  Lista temas de UI disponiveis
+show metrics
+  Metricas operacionais (heap, rede, tel, sensores)
+
+-- 2. DIAGNOSTICO DE SENSORES --
+show sensors
+  Lista sensores mapeados (banco)
+sensor scan
+  Varre hardware por novos sensores
+
+-- 3. CONFIGURACAO --
+  (exige 'write memory' + 'reload')
+conf system name <valor>
+  Nome amigavel do device
+conf system ssid <nome>
+  SSID do WiFi (case sensitive)
+conf system pass <senha>
+  Senha do WiFi
+conf system timezone <offset>
+  Offset UTC (ex.: -3)
+conf system ntp <servidor>
+  Servidor NTP (vazio = default)
+conf system theme <id|indice>
+  Define o tema da UI
+conf system admin reset [confirm]
+  Reseta senha do admin
+conf system touch reset [confirm]
+  Reseta calibracao do touch
+conf system factory [confirm]
+  Reset de fabrica (apaga TODA config) + reboot
+conf ntp <on|off>
+  Habilita/desabilita sincronizacao NTP
+conf time <AAAA-MM-DD> <HH:MM:SS>
+  Seta RTC manual (imediato; hora local)
+conf net dns auto
+  DNS via DHCP (padrao)
+conf net dns manual <ip1> [ip2]
+  DNS manual: primario e secundario (opcional)
+conf sensor ds18b20 resolution <9-12>
+  Resolucao global dos DS18B20
+
+-- Telemetria --
+conf tel server <url>
+  Endereco do servidor
+conf tel port <porta>
+  Porta do servidor (80, 443, ...)
+conf tel path <caminho>
+  Path do endpoint (/api/v1/data)
+conf tel batch <n>
+  Registros por upload (max 50)
+conf tel interval <ms>
+  Intervalo de upload (0=off)
+conf tel crypto <on|off>
+  Habilita SSL/HTTPS
+conf tel mode <json|csv|custom>
+  Formato do payload
+
+-- 4. MAPEAMENTO DE SENSORES --
+sensor define <gpio> <rom> <hwid> \"<nome>\"
+  Ex.:
+  sensor define 0 28AA.. S1 \"Forno_Topo\"
+  Nota: GPIO 10 = Sensor Ambiente
+
+-- 5. MANUTENCAO --
+sensor accept <gpio>
+  Autoriza novo sensor fisico
+sensor wipe <gpio> [confirm]
+  Reseta historico do slot
+tel sync
+  Forca upload de telemetria
+tel dump
+  Arma dump one-shot do proximo payload na console (USB+BT)
+clear log [confirm]
+  Apaga arquivo de log
+write memory
+  Persiste config da RAM no flash
+reload [confirm]
+  Reinicia o sistema
+
+-- 6. MODO DE SESSAO --
+debug on
+  Stream de logs no console (SIMUT#)
+debug off
+  Console silencioso (SIMUT>)
+debug
+  Mostra modo atual
+  Nota: 'write memory' para persistir
+
+-- 7. IP / SENSOR LIMITS / USERS / WEB --
+conf ip <dhcp|static>
+conf ip <addr|mask|gateway|dns> <ipv4>
+conf sensor <tmin|tmax|hmin|hmax> <gpio> <n>
+conf sensor alarm <gpio> <on|off>
+conf user add <name> <pass>
+conf user del <name>
+conf user pass <name> <newpass>
+conf web port <1..65535>
+===========================================
