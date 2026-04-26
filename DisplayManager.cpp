@@ -16,7 +16,11 @@
 #include "DisplayManager.h"
 #include "LogManager.h"
 #include <LittleFS.h>
-#include <Fonts/FreeSansBold24pt7b.h>
+/* REF/F17: 24pt7b subsetted to ~22 chars used (digits, '.', '-', ' ',
+ * 'C', 'I', 'M', 'S', 'T', 'U', 'o', 'v', 'c'). Saves ~6 KB de flash.
+ * Gerado por tools/subset_font.py — regenerar se a UI usar novos chars
+ * em 24pt (procure por setFont(&FreeSansBold24pt7b) seguido de print). */
+#include "FreeSansBold24pt7b_subset.h"
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSansBold9pt7b.h>
 
