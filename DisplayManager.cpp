@@ -15,6 +15,7 @@
 
 #include "DisplayManager.h"
 #include "LogManager.h"
+#include <LittleFS.h>
 #include <Fonts/FreeSansBold24pt7b.h>
 #include <Fonts/FreeSansBold12pt7b.h>
 #include <Fonts/FreeSansBold9pt7b.h>
@@ -89,102 +90,27 @@ const char* const DICTIONARY[LANG_COUNT][TR_KEYS_COUNT] = {
 
 
 
-static const char LICENSE_EN[] =
-    "MIT License\n\n"
-    "Copyright (c) 2026 Angelo Moises Alves\n\n"
-    "Permission is hereby granted, free of charge, to any person obtaining a copy "
-    "of this software and associated documentation files (the \"Software\"), to deal "
-    "in the Software without restriction, including without limitation the rights "
-    "to use, copy, modify, merge, publish, distribute, sublicense, and/or sell "
-    "copies of the Software, and to permit persons to whom the Software is "
-    "furnished to do so, subject to the following conditions:\n\n"
-    "The above copyright notice and this permission notice shall be included in all "
-    "copies or substantial portions of the Software.\n\n"
-    "THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR "
-    "IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, "
-    "FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE "
-    "AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER "
-    "LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, "
-    "OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE "
-    "SOFTWARE.\n\n"
-    "--- Acknowledgments ---\n\n"
-    "Arduino-Pico Core\n"
-    "  Earle F. Philhower III - LGPL-2.1\n\n"
-    "Raspberry Pi Pico SDK\n"
-    "  Raspberry Pi Ltd - BSD-3\n\n"
-    "Adafruit GFX Library\n"
-    "  Adafruit Industries - BSD-2\n\n"
-    "Adafruit ILI9341\n"
-    "  Adafruit Industries - BSD-2\n\n"
-    "XPT2046 Touchscreen\n"
-    "  Paul Stoffregen - MIT\n\n"
-    "LittleFS\n"
-    "  ARM Ltd / C. Haster - BSD-3\n\n"
-    "PubSubClient (MQTT)\n"
-    "  Nick O'Leary - MIT\n\n"
-    "BearSSL\n"
-    "  Thomas Pornin - MIT\n\n"
-    "GNU FreeFont (FreeSans)\n"
-    "  GNU Project - GPL-3 + Font Exception\n\n"
-    "OneWirePIO RP2040\n"
-    "  Angelo M. Alves - MIT\n\n"
-    "DHT22PIO RP2040\n"
-    "  Angelo M. Alves - MIT\n\n"
-    "BuzzerPIO RP2040\n"
-    "  Angelo M. Alves - MIT\n\n"
-    "SIMUT v3 - Made in Brazil";
+/* REF/F17: LICENSE moved to /system/license_{en,pt}.txt — economiza ~3.4 KB
+ * de flash. Carregado em RAM (_licenseBuf) quando o user troca de idioma.
+ * drawSettingsLicense (Core 1) lê do buffer. Se arquivo missing, mostra
+ * fallback. setLanguage é chamada apenas pelo Core 0 (boot e EVT_APPLY_LANG),
+ * então o LittleFS.open aqui é livre de race com Core 1. */
+static char _licenseBuf[2048];
 
-static const char LICENSE_PT[] =
-    "Licenca MIT\n\n"
-    "Direitos Autorais (c) 2026 Angelo Moises Alves\n\n"
-    "E concedida permissao, gratuitamente, a qualquer pessoa que obtenha uma copia "
-    "deste software e dos arquivos de documentacao associados (o \"Software\"), para "
-    "lidar com o Software sem restricoes, incluindo, sem limitacao, os direitos de "
-    "usar, copiar, modificar, fundir, publicar, distribuir, sublicenciar e/ou vender "
-    "copias do Software, e permitir que as pessoas a quem o Software e fornecido o "
-    "facam, sujeito as seguintes condicoes:\n\n"
-    "O aviso de direitos autorais acima e este aviso de permissao devem ser incluidos "
-    "em todas as copias ou partes substanciais do Software.\n\n"
-    "O SOFTWARE E FORNECIDO \"COMO ESTA\", SEM GARANTIA DE QUALQUER TIPO, EXPRESSA OU "
-    "IMPLICITA, INCLUINDO, MAS NAO SE LIMITANDO AS GARANTIAS DE COMERCIALIZACAO, "
-    "ADEQUACAO A UM PROPOSITO ESPECIFICO E NAO VIOLACAO. EM NENHUM CASO OS AUTORES OU "
-    "DETENTORES DE DIREITOS AUTORAIS SERAO RESPONSAVEIS POR QUALQUER RECLAMACAO, DANO "
-    "OU OUTRA RESPONSABILIDADE, SEJA EM UMA ACAO DE CONTRATO, ATO ILICITO OU DE OUTRA "
-    "FORMA, DECORRENTE DE, OU EM CONEXAO COM O SOFTWARE OU O USO OU OUTRAS NEGOCIACOES "
-    "NO SOFTWARE.\n\n"
-    "--- Agradecimentos ---\n\n"
-    "Arduino-Pico Core\n"
-    "  Earle F. Philhower III - LGPL-2.1\n\n"
-    "Raspberry Pi Pico SDK\n"
-    "  Raspberry Pi Ltd - BSD-3\n\n"
-    "Adafruit GFX Library\n"
-    "  Adafruit Industries - BSD-2\n\n"
-    "Adafruit ILI9341\n"
-    "  Adafruit Industries - BSD-2\n\n"
-    "XPT2046 Touchscreen\n"
-    "  Paul Stoffregen - MIT\n\n"
-    "LittleFS\n"
-    "  ARM Ltd / C. Haster - BSD-3\n\n"
-    "PubSubClient (MQTT)\n"
-    "  Nick O'Leary - MIT\n\n"
-    "BearSSL\n"
-    "  Thomas Pornin - MIT\n\n"
-    "GNU FreeFont (FreeSans)\n"
-    "  GNU Project - GPL-3 + Font Exception\n\n"
-    "OneWirePIO RP2040\n"
-    "  Angelo M. Alves - MIT\n\n"
-    "DHT22PIO RP2040\n"
-    "  Angelo M. Alves - MIT\n\n"
-    "BuzzerPIO RP2040\n"
-    "  Angelo M. Alves - MIT\n\n"
-    "SIMUT v3 - Feito no Brasil";
-
-
-static const char* const LICENSE_TEXT[LANG_COUNT] = {
-    LICENSE_EN, LICENSE_PT
-};
-static_assert(sizeof(LICENSE_TEXT)/sizeof(LICENSE_TEXT[0]) == LANG_COUNT,
-              "LICENSE_TEXT count must match LanguageCode LANG_COUNT");
+static void loadLicenseFromFs(int langIdx) {
+    const char* path = (langIdx == 1) ? "/system/license_pt.txt" : "/system/license_en.txt";
+    File f = LittleFS.open(path, "r");
+    if (f) {
+        size_t n = f.readBytes(_licenseBuf, sizeof(_licenseBuf) - 1);
+        _licenseBuf[n] = '\0';
+        f.close();
+    } else {
+        snprintf(_licenseBuf, sizeof(_licenseBuf),
+            "License file not installed.\n\n"
+            "Upload via web UI (/files):\n%s\n\n"
+            "MIT License - SIMUT v3", path);
+    }
+}
 
 static int wrapLineCount(const char* text, int maxCols) {
     int lines = 1;
@@ -296,6 +222,10 @@ void DisplayManager::restartCore1() {
 void DisplayManager::setLanguage(int langId) {
     if (langId >= 0 && langId < LANG_COUNT) _currentLangIdx = langId;
     else _currentLangIdx = 1;
+    /* REF/F17: carrega license do FS para _licenseBuf. Chamada apenas no
+     * Core 0 (boot via setup, ou EVT_APPLY_LANG via AppManager). LittleFS
+     * acesso seguro nesses contextos. */
+    loadLicenseFromFs(_currentLangIdx);
 }
 
 const char* DisplayManager::tr(LangKey key) { return DICTIONARY[_currentLangIdx][key]; }
@@ -7531,9 +7461,9 @@ void DisplayManager::showSettingsLicense() {
 void DisplayManager::drawSettingsLicense() {
     bool fullRedraw = _forceSettingsRedraw;
 
-    int langIdx = _currentLangIdx;
-    if (langIdx < 0 || langIdx >= LANG_COUNT) langIdx = 0;
-    const char* licText = LICENSE_TEXT[langIdx];
+    /* REF/F17: licText agora vem de _licenseBuf (carregado em setLanguage
+     * pelo Core 0). Fallback é gerado no próprio _licenseBuf se FS missing. */
+    const char* licText = _licenseBuf;
 
     const int MAX_COLS  = 50;
     const int LINE_H    = 9;
