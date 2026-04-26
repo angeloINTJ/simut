@@ -1,3 +1,16 @@
+/**
+ * @file    HelpLicenseEN.h
+ * @brief   Textos EN inline em PROGMEM — fallback default sem dependência de LittleFS.
+ * @details Antes em data/help_en.txt e data/license_en.txt (LittleFS),
+ *          agora embutidos no firmware. Não acessíveis ao user via /files.
+ *          Versões PT/ES vêm do /lang/language_<code>.lng (parser .lng).
+ * @project SIMUT
+ * @license MIT
+ */
+#pragma once
+#include <Arduino.h>
+
+static const char HELP_TEXT_EN[] PROGMEM = R"raw(
 
 ===========================================
         SIMUT - COMMAND HELP
@@ -124,3 +137,55 @@ conf user del <name>
 conf user pass <name> <newpass>
 conf web port <1..65535>
 ===========================================
+)raw";
+
+static const char LICENSE_TEXT_EN[] PROGMEM = R"raw(
+MIT License
+
+Copyright (c) 2026 Angelo Moises Alves
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+--- Acknowledgments ---
+
+Arduino-Pico Core
+  Earle F. Philhower III - LGPL-2.1
+
+Raspberry Pi Pico SDK
+  Raspberry Pi Ltd - BSD-3
+
+Adafruit GFX Library
+  Adafruit Industries - BSD-2
+
+Adafruit ILI9341
+  Adafruit Industries - BSD-2
+
+XPT2046 Touchscreen
+  Paul Stoffregen - MIT
+
+LittleFS
+  ARM Ltd / C. Haster - BSD-3
+
+PubSubClient (MQTT)
+  Nick O'Leary - MIT
+
+BearSSL
+  Thomas Pornin - MIT
+
+GNU FreeFont (FreeSans)
+  GNU Project - GPL-3 + Font Exception
+
+OneWirePIO RP2040
+  Angelo M. Alves - MIT
+
+DHT22PIO RP2040
+  Angelo M. Alves - MIT
+
+BuzzerPIO RP2040
+  Angelo M. Alves - MIT
+
+SIMUT v3 - Made in Brazil)raw";
