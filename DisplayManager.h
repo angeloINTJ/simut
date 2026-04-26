@@ -610,8 +610,21 @@ public:
     static const char* getActiveHelpText();
     static const char* getActiveLicenseText();
     /** Etapa β (Web): JSON com traduções para a Web UI (UTF-8 direto;
-     *  o browser consome sem unaccent). Servido por GET /api/lang. */
+     *  o browser consome sem unaccent). Servido por GET /api/lang.
+     *  ⚠ Após A+B, retorna nullptr — webDict é lazy-load. Use
+     *  getActiveLangFilePath/getWebDictFileOffset/getWebDictFileLength. */
     static const char* getActiveWebDict();
+
+    /** F-LANGPACK A+B: metadata para lazy-load de @HELP/@LICENSE/@WEBDICT.
+     *  Retornam (path, offset, length) do .lng ativo + posição da seção.
+     *  length == 0 indica seção ausente; caller faz fallback EN. */
+    static const char* getActiveLangFilePath();
+    static uint16_t    getHelpFileOffset();
+    static uint16_t    getHelpFileLength();
+    static uint16_t    getLicenseFileOffset();
+    static uint16_t    getLicenseFileLength();
+    static uint16_t    getWebDictFileOffset();
+    static uint16_t    getWebDictFileLength();
     /** True se _activeLang está populado (qualquer lookup pode acertar). */
     static bool isLangLoaded();
 
@@ -620,9 +633,17 @@ private:
         char   name[16];
         char   code[8];
         char*  strings[TR_KEYS_COUNT];
-        char*  helpText;
-        char*  licenseText;
-        char*  webDict;               /**< Blob JSON do @WEBDICT (UTF-8) */
+        /* F-LANGPACK A+B: @HELP/@LICENSE/@WEBDICT são lazy-load — parser
+         * não copia para RAM, só anota (filePath, fileOffset, fileLength).
+         * Leitura sob demanda em loadLicenseFromFs / printHelp / handleApiLang.
+         * Os 3 ponteiros abaixo ficam nullptr quando lazy (caso normal pós-A+B). */
+        char*  helpText;              /**< nullptr quando lazy */
+        char*  licenseText;           /**< nullptr quando lazy */
+        char*  webDict;               /**< nullptr quando lazy */
+        char     filePath[64];
+        uint16_t helpFileOffset, helpFileLength;
+        uint16_t licenseFileOffset, licenseFileLength;
+        uint16_t webDictFileOffset, webDictFileLength;
         LogCodeEntry* logcodes;
         uint16_t      logcodesCount;
         TrlEntry*     trls;
