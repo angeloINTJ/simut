@@ -480,7 +480,7 @@ void WebManager::handleApiCommitAll() {
      * write extra antes do save; saveConfiguration drena o buffer. */
     _storageRef->lockHeavyTask();
     LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
-             TRL("Admin committed changes — rebooting", "Admin aplicou alteracoes — reiniciando"));
+             TRL("Admin committed changes — rebooting"));
     _storageRef->unlockHeavyTask();
 
     /* Single atomic save — drena pending logs + escreve config */
@@ -576,7 +576,7 @@ void WebManager::handleResetTouchCal() {
     _storageRef->saveConfiguration();
 
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Touch calibration reset via web", "Calibracao do touch resetada via web"));
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Touch calibration reset via web"));
 
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }

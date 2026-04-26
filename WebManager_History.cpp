@@ -422,7 +422,7 @@ void WebManager::handleApiClearLogs() {
         LogManager::instance().resetAfterExternalWipe();
     }
 
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin erased System Logs", "Admin apagou logs do sistema"));
+    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin erased System Logs"));
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 

@@ -51,8 +51,7 @@ void BluetoothManager::update() {
                 ? "\n\r[SEGURANCA] Sessao encerrada (5 min inativo)."
                 : "\n\r[SECURITY] Session ended (5 min idle).");
             LOG_CODE(LOG_INFO, "SEC", SEC_SESSION_EXPIRE, 0,
-                     TRL("BT session timeout (5 min idle)",
-                         "Sessao BT encerrada (5 min inativo)"));
+                     TRL("BT session timeout (5 min idle)"));
             _authenticated = false;
             _promptSent = false;
             _authBuffer = "";
@@ -109,12 +108,11 @@ void BluetoothManager::update() {
                     SerialBT.println("===========================================");
                     SerialBT.print("SIMUT> ");
                     LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0,
-                             TRL("BT admin login", "Login BT admin"));
+                             TRL("BT admin login"));
                 } else {
                     SerialBT.println(pt ? "Acesso negado." : "Access denied.");
                     LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
-                             TRL("BT admin password rejected",
-                                 "Senha BT admin rejeitada"));
+                             TRL("BT admin password rejected"));
                     _promptSent = false;
                 }
                 _authBuffer = "";

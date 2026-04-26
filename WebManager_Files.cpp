@@ -64,7 +64,7 @@ void WebManager::handleDownload() {
     _server.sendHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
     safeStreamFile(f, "application/octet-stream");
     f.close();
-    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("User downloaded: ", "Usuario baixou: ")) + fileName);
+    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("User downloaded: ")) + fileName);
 }
 
 void WebManager::handleDelete() {
@@ -231,7 +231,7 @@ void WebManager::handleApiMkdir() {
     }
 
     if (ok) {
-        LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Created folder: ", "Pasta criada: ")) + dirPath);
+        LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Created folder: ")) + dirPath);
         _server.send(200, "application/json", "{\"status\":\"ok\"}");
     } else {
         _server.send(500, "application/json", "{\"error\":\"Failed\"}");
@@ -361,10 +361,10 @@ void WebManager::handleUploadData() {
 
             if (upload.filename == "calib.csv" || upload.filename == "/calib.csv") {
                 if (_storageRef->processCalibrationUpload()) {
-                    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Universal Calibration Updated.", "Calibracao universal atualizada."));
+                    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Universal Calibration Updated."));
                 }
             } else {
-                LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("File Uploaded.", "Arquivo enviado."));
+                LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("File Uploaded."));
             }
         }
     }

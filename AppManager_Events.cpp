@@ -21,7 +21,7 @@ void AppManager::core0Yield() {
     if (_inYield && timeSince(_yieldEntryTime, 10000)) {
         _inYield = false;
         _isRenderingGraph = false;
-        LOG_CODE(LOG_WARN, "APP", APP_YIELD_STUCK, 0, TRL("Yield stuck >10s, force reset.", "Yield preso >10s, reset forcado."));
+        LOG_CODE(LOG_WARN, "APP", APP_YIELD_STUCK, 0, TRL("Yield stuck >10s, force reset."));
     }
 
     if (_inYield) return;
@@ -271,8 +271,7 @@ void AppManager::core0Yield() {
                      * força a tela de troca antes de permitir menu principal. */
                     _displayMgr.showSettingsPassword();
                     LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, 0,
-                             TRL("Default PIN detected; forcing change.",
-                                 "PIN padrao detectado; forcando troca."));
+                             TRL("Default PIN detected; forcing change."));
                 } else {
                     _displayMgr.showSettingsMain();
                 }

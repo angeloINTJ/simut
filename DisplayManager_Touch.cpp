@@ -929,11 +929,14 @@ void DisplayManager::handleTouch() {
         }
     }
     else if (_uiMode == MODE_SETTINGS_LANG) {
+        /* F-LANGPACK Etapa 1: limita interação ao slot 0 quando nenhum
+         * .lng carregado. Bound dinâmico evita "fantasma" do slot 1. */
+        int activeSlots = _activeLangLoaded ? LANG_COUNT : 1;
         if (y >= 40 && y <= 185) {
             int clickedIndex = 0;
             if (y < 80) clickedIndex = 0; else if (y < 118) clickedIndex = 1; else if (y < 156) clickedIndex = 2; else clickedIndex = 3;
             int actualIndex = (_langPage * 4) + clickedIndex;
-            if (actualIndex < LANG_COUNT && actualIndex != _previewLangIdx) {
+            if (actualIndex < activeSlots && actualIndex != _previewLangIdx) {
                 if (!acceptSlideTouch(clickedIndex)) return;
                 _previewLangIdx = actualIndex;
                 _langPage = _previewLangIdx / 4;
@@ -943,13 +946,13 @@ void DisplayManager::handleTouch() {
         else if (y > 185) {
             if (x < 70) {
                 if (!acceptHoldTouch(10)) return;
-                if (_previewLangIdx > 0) _previewLangIdx--; else _previewLangIdx = LANG_COUNT - 1;
+                if (_previewLangIdx > 0) _previewLangIdx--; else _previewLangIdx = activeSlots - 1;
                 _langPage = _previewLangIdx / 4;
                 _repaintSettings = true;
             }
             else if (x < 138) {
                 if (!acceptHoldTouch(11)) return;
-                if (_previewLangIdx < LANG_COUNT - 1) _previewLangIdx++; else _previewLangIdx = 0;
+                if (_previewLangIdx < activeSlots - 1) _previewLangIdx++; else _previewLangIdx = 0;
                 _langPage = _previewLangIdx / 4;
                 _repaintSettings = true;
             }

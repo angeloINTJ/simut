@@ -578,4 +578,45 @@ private:
 
     static constexpr int16_t CAL_SCR_X[4] = {  20, 300,  20, 300 };
     static constexpr int16_t CAL_SCR_Y[4] = {  20,  20, 220, 220 };
+
+public:
+    /* ── F-LANGPACK (Etapa 1 + Option C): dynamic language pack ──
+     * EN é hardcoded no firmware (DICTIONARY_EN, translateCodeEn, e
+     * literais EN nos sítios TRL). Tudo que for non-EN vem do .lng:
+     *   @DICT      → strings[TR_KEYS_COUNT]   (UI do TFT)
+     *   @LOGCODES  → logcodes (sorted by code) (mensagens de LogCode)
+     *   @TRL       → trls (sorted by FNV-1a do EN) (mensagens TRL)
+     *   @HELP / @LICENSE → texto livre
+     * Lookup é binary search; fallback é o EN inline.
+     * Definidos em DisplayManager_LangParser.cpp. */
+    struct LogCodeEntry { uint16_t code; const char* text; };
+    struct TrlEntry     { uint32_t hash; const char* text; };
+
+    /** Transliteração UTF-8 → ASCII 7-bit (acentos latinos removidos). */
+    static void unaccent(const char* utf8, char* out, size_t outSize);
+    /** Lookup de código de log no .lng. Retorna nullptr se ausente. */
+    static const char* logcodeLookup(uint16_t code);
+    /** Lookup de string TRL via FNV-1a hash do EN. nullptr se ausente. */
+    static const char* trlLookup(const char* en);
+    /** FNV-1a 32-bit. Exposto para tooling Python que gera o .lng. */
+    static uint32_t fnv1a32(const char* s);
+
+private:
+    struct ActiveLang {
+        char   name[16];
+        char   code[8];
+        char*  strings[TR_KEYS_COUNT];
+        char*  helpText;
+        char*  licenseText;
+        LogCodeEntry* logcodes;
+        uint16_t      logcodesCount;
+        TrlEntry*     trls;
+        uint16_t      trlsCount;
+        char*  buffer;
+        size_t bufferSize;
+    };
+    static ActiveLang _activeLang;
+    static bool       _activeLangLoaded;
+    static bool loadLangFile(const char* path);
+    static void unloadLang();
 };
