@@ -293,9 +293,14 @@ void TelemetryManager::update() {
 /**
  * @brief Calcula limite seguro de batch baseado na heap disponível.
  *
- * Cada entrada consome ~450 bytes (200 batch + 250 payload).
- * Reserva 20KB de headroom para WiFi/HTTP/MQTT/TLS.
- * Nunca retorna mais que o valor configurado.
+ * F-MEM-NOCACHE (alpha14): heap permanece estável em ~50 KB sem
+ * caches de gráfico ocupando espaço. Limites afrouxados para permitir
+ * batches significativamente maiores quando configurado pelo user.
+ *
+ * Camadas de safety preservadas:
+ *  • update() preflight: aborta se heap < 20 KB
+ *  • buildPayload: faz resize dinâmico se estimativa exceder o disponível
+ *  • TelemetryGuard: alimenta WDT durante POST até 60s (cobre POSTs grandes)
  *
  * @param configured  Limite máximo configurado pelo usuário.
  * @return            Limite efetivo (≥1, ≤configured).
@@ -303,19 +308,24 @@ void TelemetryManager::update() {
 uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
     uint32_t freeHeap = rp2040.getFreeHeap();
     /*
-     * HEAP_RESERVE = 32KB: TLS client (16KB) + String temporários (4KB) +
-     * margem anti-fragmentação (12KB). getFreeHeap() reporta total, não
-     * contíguo — o bloco de 16KB do TLS pode falhar mesmo com total OK.
-     * Valor empírico: batch=25 seguro com ≥52KB livre, batch=13 com ≥40KB.
+     * HEAP_RESERVE = 16 KB (era 32 KB pré-alpha14): reserva pra TLS handshake
+     * transient (~10 KB), HTTPClient internals (~3 KB), margem (~3 KB).
+     * Heap consistente em alpha14 permite ser mais agressivo.
+     *
+     * BYTES_PER_ENTRY = 350: medido empiricamente — ~28 bytes batch struct +
+     * ~310 bytes JSON payload por record (com 11 sensores + ts + ambient).
+     *
+     * HARD_CAP = 200 (era 25): limite absoluto pra evitar payload extremo
+     * (>60 KB). 200 entries ~= 62 KB → ~1-2s POST em WiFi típico (< 60s WDT).
      */
-    const uint32_t HEAP_RESERVE   = 32768; /* 32KB */
-    const uint32_t BYTES_PER_ENTRY = 600;  /* ~28 batch + ~250 payload + ~300 String temporários */
-    const uint8_t  HARD_CAP       = 25;    /* Máximo absoluto por envio (batch grande causa stall em http.POST) */
+    const uint32_t HEAP_RESERVE    = 16384; /* 16 KB */
+    const uint32_t BYTES_PER_ENTRY = 350;
+    const uint8_t  HARD_CAP        = 200;
 
     if (freeHeap <= HEAP_RESERVE) return 1;
 
-    uint8_t heapLimit = (uint8_t)min((uint32_t)255,
-                                     (freeHeap - HEAP_RESERVE) / BYTES_PER_ENTRY);
+    uint32_t heapLimit32 = (freeHeap - HEAP_RESERVE) / BYTES_PER_ENTRY;
+    uint8_t heapLimit = (heapLimit32 > 255) ? 255 : (uint8_t)heapLimit32;
     return max((uint8_t)1, min(min(configured, HARD_CAP), heapLimit));
 }
 
