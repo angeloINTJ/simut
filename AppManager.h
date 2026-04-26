@@ -14,27 +14,20 @@
 #pragma once
 
 #include <Arduino.h>
-#include <memory>
+#include <vector>
+#include "SensorManager.h"
+#include "StorageManager.h"
+#include "CommandManager.h"
 #include "SystemDefs.h"
-
-/* EXT-005 / F17 etapa 5: forward decls + unique_ptr.
- * Manager headers só são incluídos pelos .cpp que realmente usam cada manager,
- * cortando a cascata de rebuild quando um header de manager muda.
- * Destrutor declarado (não = default) para que o compilador instancie o dtor
- * de cada std::unique_ptr<T> num TU onde T é completo (AppManager_Core.cpp). */
-class SensorManager;
-class StorageManager;
-class CommandManager;
-class DisplayManager;
-class NetworkManager;
-class WebManager;
-class TelemetryManager;
-class SoundManager;
+#include "DisplayManager.h"
+#include "NetworkManager.h"
+#include "WebManager.h"
+#include "TelemetryManager.h"
+#include "SoundManager.h"
 
 class AppManager {
 public:
     AppManager();
-    ~AppManager();
     void setup();
     void loop();
 
@@ -49,14 +42,14 @@ public:
     bool isUserInteracting() const;
 
 private:
-    std::unique_ptr<SensorManager>    _sensorMgr;
-    std::unique_ptr<StorageManager>   _storageMgr;
-    std::unique_ptr<CommandManager>   _cmdMgr;
-    std::unique_ptr<DisplayManager>   _displayMgr;
-    std::unique_ptr<NetworkManager>   _netMgr;
-    std::unique_ptr<WebManager>       _webMgr;
-    std::unique_ptr<TelemetryManager> _telemetryMgr;
-    std::unique_ptr<SoundManager>     _soundMgr;
+    SensorManager    _sensorMgr;
+    StorageManager   _storageMgr;
+    CommandManager   _cmdMgr;
+    DisplayManager   _displayMgr;
+    NetworkManager   _netMgr;
+    WebManager       _webMgr;
+    TelemetryManager _telemetryMgr;
+    SoundManager     _soundMgr;
 
     uint32_t _lastHistoryTime = 0;
     uint32_t _lastSensorCheck = 0;

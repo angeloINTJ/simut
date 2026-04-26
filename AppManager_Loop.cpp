@@ -7,17 +7,9 @@
  */
 
 #include "AppManager.h"
-#include "CommandManager.h"
-#include "DisplayManager.h"
 #include "LogManager.h"
 #include "MetricsManager.h"
-#include "NetworkManager.h"
-#include "SensorManager.h"
-#include "SoundManager.h"
-#include "StorageManager.h"
-#include "TelemetryManager.h"
 #include "TouchPriority.h"
-#include "WebManager.h"
 #include <hardware/watchdog.h>
 
 void AppManager::loop() {
@@ -46,10 +38,10 @@ void AppManager::loop() {
 
 
     {
-        uint32_t pauseTs = _displayMgr->getPauseStartTime();
+        uint32_t pauseTs = _displayMgr.getPauseStartTime();
         if (pauseTs > 0 && timeSince(pauseTs, 5000)) {
             LOG_CODE(LOG_ERROR, "APP", APP_DISPLAY_PAUSE_STUCK, 0, TRL("Display pause stuck >5s!", "Pause do display preso >5s!"));
-            _displayMgr->forceUnpause();
+            _displayMgr.forceUnpause();
         }
     }
 
@@ -59,13 +51,13 @@ void AppManager::loop() {
         if (_lastCore1RestartCheck == 0) _lastCore1RestartCheck = millis(); /* Boot guard */
         if (timeSince(_lastCore1RestartCheck, 5000)) {
             _lastCore1RestartCheck = millis();
-            if (_displayMgr->isCore1Ready() && _displayMgr->getPauseStartTime() == 0) {
-                uint32_t beat = _displayMgr->getHeartbeat();
+            if (_displayMgr.isCore1Ready() && _displayMgr.getPauseStartTime() == 0) {
+                uint32_t beat = _displayMgr.getHeartbeat();
                 /* Patch C: signed cast para tolerar cross-core race (beat
                  * levemente adiantado em relacao a millis() local). */
                 if (beat > 0 && timeSince(beat, 10000)) {
                     LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD, 0, TRL("Core 1 dead >10s. Restarting.", "Core 1 travado >10s. Reiniciando."));
-                    _displayMgr->restartCore1();
+                    _displayMgr.restartCore1();
                 }
             }
         }
@@ -83,11 +75,11 @@ void AppManager::loop() {
         _cliQueueHead = (_cliQueueHead + 1) % CLI_QUEUE_CAP;
         _cliQueueCount--;
         if (queued.type != CMD_UNKNOWN) executeCommand(queued);
-        if (!_waitingScan) _cmdMgr->printPrompt();
+        if (!_waitingScan) _cmdMgr.printPrompt();
         _cliDropNotified = false;
     }
 
-    if (_cmdMgr->processInput(cmd)) {
+    if (_cmdMgr.processInput(cmd)) {
         if (cmd.type != CMD_UNKNOWN) {
             if (isUserInteracting()) {
                 if (_cliQueueCount < CLI_QUEUE_CAP) {
@@ -95,7 +87,7 @@ void AppManager::loop() {
                     _cliQueue[tail] = cmd;
                     _cliQueueCount++;
                 } else if (!_cliDropNotified) {
-                    _cmdMgr->printError(_cmdMgr->isPt()
+                    _cmdMgr.printError(_cmdMgr.isPt()
                         ? String("CLI ocupada (display em uso). Comando descartado.")
                         : String("CLI busy (display in use). Command dropped."));
                     _cliDropNotified = true;
@@ -104,21 +96,21 @@ void AppManager::loop() {
                 executeCommand(cmd);
             }
         }
-        if (!_waitingScan) _cmdMgr->printPrompt();
+        if (!_waitingScan) _cmdMgr.printPrompt();
     }
 
     watchdog_update();
 
     TRACE_MOD(0, MOD_WIFI);
-    _netMgr->update();
+    _netMgr.update();
 
     watchdog_update();
 
-    bool heavyRendering = _displayMgr->isHeavyRendering();
+    bool heavyRendering = _displayMgr.isHeavyRendering();
 
 
     TRACE_MOD(0, MOD_WEB_SERVER);
-    _webMgr->update();
+    _webMgr.update();
 
     watchdog_update();
 
@@ -127,20 +119,20 @@ void AppManager::loop() {
      * Garante que o bip toca em <10ms após o toque em vez de esperar
      * o final do loop (~100-500ms com telemetria/TLS ativa).
      */
-    if (_displayMgr->consumeTouchSound()) {
-        _soundMgr->play(SND_TOUCH_CLICK);
-        _soundMgr->update();
+    if (_displayMgr.consumeTouchSound()) {
+        _soundMgr.play(SND_TOUCH_CLICK);
+        _soundMgr.update();
     }
-    if (_displayMgr->consumeErrorSound()) {
-        _soundMgr->play(SND_ERROR);
-        _soundMgr->update();
+    if (_displayMgr.consumeErrorSound()) {
+        _soundMgr.play(SND_ERROR);
+        _soundMgr.update();
     }
 
-    bool menuActive = _displayMgr->isMenuActive();
+    bool menuActive = _displayMgr.isMenuActive();
 
     TRACE_MOD(0, MOD_STORAGE_WRITE);
-    _storageMgr->update();
-    _storageMgr->flushCursorIfDirty();
+    _storageMgr.update();
+    _storageMgr.flushCursorIfDirty();
 
     watchdog_update();
 
@@ -162,12 +154,12 @@ void AppManager::loop() {
                 _sensorCacheId = -99;
             }
 
-            _telemetryMgr->update();
+            _telemetryMgr.update();
 
             /* Notificar o display sobre o resultado do último envio */
             bool telSuccess;
-            if (_telemetryMgr->consumeLastSendResult(telSuccess)) {
-                _displayMgr->setTelemetrySendStatus(telSuccess);
+            if (_telemetryMgr.consumeLastSendResult(telSuccess)) {
+                _displayMgr.setTelemetrySendStatus(telSuccess);
             }
         }
     }
@@ -194,7 +186,7 @@ void AppManager::loop() {
 
 
     if (timeSince(_lastHistoryTime, 60000)) {
-        if (!_storageMgr->isHeavyTaskLocked() && !isUserInteracting()) {
+        if (!_storageMgr.isHeavyTaskLocked() && !isUserInteracting()) {
             processHistoryLogging();
         }
     }
@@ -204,7 +196,7 @@ void AppManager::loop() {
     /* ── Status do sistema: atualiza dados a cada 1s quando tela ativa ── */
     {
         static uint32_t lastStatusPush = 0;
-        if (_displayMgr->getUiMode() == MODE_SETTINGS_STATUS
+        if (_displayMgr.getUiMode() == MODE_SETTINGS_STATUS
             && timeSince(lastStatusPush, 1000)) {
             lastStatusPush = millis();
 
@@ -218,26 +210,26 @@ void AppManager::loop() {
             sd.boardTemp  = analogReadTemp();
 
             /* Flash: usa cache do WebManager (atualizado a cada 10s) */
-            sd.flashUsed  = _webMgr->getCachedFlashUsed();
-            sd.flashTotal = _webMgr->getCachedFlashTotal();
+            sd.flashUsed  = _webMgr.getCachedFlashUsed();
+            sd.flashTotal = _webMgr.getCachedFlashTotal();
 
-            SystemConfig& cfg = _storageMgr->getConfig();
+            SystemConfig& cfg = _storageMgr.getConfig();
             safeCopy(sd.deviceName, cfg.deviceName, sizeof(sd.deviceName));
             snprintf(sd.fwVersion, sizeof(sd.fwVersion), "%s", SIMUT_VERSION);
             sd.timezone = cfg.timezoneOffset;
 
             /* Rede */
-            sd.wifiConnected = _netMgr->isConnected();
-            sd.rssi          = _netMgr->getRssi();
-            sd.ntpSynced     = _netMgr->isTimeSynced();
-            { char _b[16]; _netMgr->getIpAddress(_b, sizeof(_b)); safeCopy(sd.ip, _b, sizeof(sd.ip)); }
-            { char _b[18]; _netMgr->getMacAddress(_b, sizeof(_b)); safeCopy(sd.mac, _b, sizeof(sd.mac)); }
+            sd.wifiConnected = _netMgr.isConnected();
+            sd.rssi          = _netMgr.getRssi();
+            sd.ntpSynced     = _netMgr.isTimeSynced();
+            { char _b[16]; _netMgr.getIpAddress(_b, sizeof(_b)); safeCopy(sd.ip, _b, sizeof(sd.ip)); }
+            { char _b[18]; _netMgr.getMacAddress(_b, sizeof(_b)); safeCopy(sd.mac, _b, sizeof(sd.mac)); }
             safeCopy(sd.ssid, cfg.wifiSsid, sizeof(sd.ssid));
             safeCopy(sd.ntpServer, cfg.ntpServer, sizeof(sd.ntpServer));
 
             /* Telemetria */
-            sd.telPending    = _telemetryMgr->getPendingEstimate();
-            sd.mqttConnected = _telemetryMgr->isMqttConnected();
+            sd.telPending    = _telemetryMgr.getPendingEstimate();
+            sd.mqttConnected = _telemetryMgr.isMqttConnected();
             sd.telTransport  = cfg.telTransport;
             sd.telInterval   = cfg.telInterval;
             safeCopy(sd.telServer, cfg.telServer, sizeof(sd.telServer));
@@ -249,7 +241,7 @@ void AppManager::loop() {
             }
             /* Ambient: lê do runtime dos sensores */
             sd.ambientValid = false;
-            const auto& sensors = _sensorMgr->getRuntimeSensors();
+            const auto& sensors = _sensorMgr.getRuntimeSensors();
             for (const auto& s : sensors) {
                 if (s.config.gpio == 10 && !s.inErrorState) {
                     sd.ambientTemp  = s.avgValue1;
@@ -259,7 +251,7 @@ void AppManager::loop() {
                 }
             }
 
-            _displayMgr->updateSystemStatus(sd);
+            _displayMgr.updateSystemStatus(sd);
         }
     }
 
