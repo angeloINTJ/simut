@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.25.11"        /* 24pt7b font subset (~22 chars): -6KB flash adicional */
+#define SIMUT_VERSION "v3.25.12"        /* WebUI: revert minify_html agressivo (cor/tamanho de campos) */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
