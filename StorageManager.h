@@ -103,7 +103,7 @@ public:
     uint32_t getLastSentTimestamp();
     void setLastSentTimestamp(uint32_t ts);
 
-    String getBoardSerialNumber();
+    static String getBoardSerialNumber();
     bool getCalibrationData(const uint8_t* rom, String& outId, float& outOffset, String& outName);
     long getCalibrationVersion(String path);
     bool processCalibrationUpload();

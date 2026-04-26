@@ -1326,7 +1326,7 @@ String StorageManager::sha256Hex(const String& input) {
 static String hashPasswordCore(const String& username, const String& plainPassword,
                                const uint8_t* salt, size_t saltLen,
                                uint16_t rounds, int outputBytes) {
-    String pepper = getBoardSerialNumber();
+    String pepper = StorageManager::getBoardSerialNumber();
     String keyData = plainPassword + pepper;
     br_hmac_key_context kc; br_hmac_context ctx;
     br_hmac_key_init(&kc, &br_sha256_vtable, keyData.c_str(), keyData.length());

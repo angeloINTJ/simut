@@ -194,8 +194,6 @@ void TelemetryManager::update() {
     if (_consecutiveFails > 0 && now < _backoffUntil) return;
     if (_consecutiveFails == 0 && (now - _lastCheckTime < cfg.telInterval)) return;
 
-    _lastCheckTime = now;
-
 
     /* CAS atômico: impede race entre update() periódico e forceSync() CLI */
     bool expected = false;
@@ -305,12 +303,12 @@ void TelemetryManager::update() {
 uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
     uint32_t freeHeap = rp2040.getFreeHeap();
     /*
-     * HEAP_RESERVE = 36KB: WiFi driver (~4KB) + TLS client (16KB) +
-     * LwIP stacks (~6KB) + String temporários durante send (~4KB) +
-     * margem anti-fragmentação (~6KB). Empiricamente testado com
-     * batch=25 em link degradado sem OOM/WDT.
+     * HEAP_RESERVE = 32KB: TLS client (16KB) + String temporários (4KB) +
+     * margem anti-fragmentação (12KB). getFreeHeap() reporta total, não
+     * contíguo — o bloco de 16KB do TLS pode falhar mesmo com total OK.
+     * Valor empírico: batch=25 seguro com ≥52KB livre, batch=13 com ≥40KB.
      */
-    const uint32_t HEAP_RESERVE   = 36864; /* 36KB */
+    const uint32_t HEAP_RESERVE   = 32768; /* 32KB */
     const uint32_t BYTES_PER_ENTRY = 600;  /* ~28 batch + ~250 payload + ~300 String temporários */
     const uint8_t  HARD_CAP       = 25;    /* Máximo absoluto por envio (batch grande causa stall em http.POST) */
 
@@ -732,12 +730,14 @@ void TelemetryManager::resetBackoff() {
     _currentBackoff = BACKOFF_MIN_MS;
     _consecutiveFails = 0;
     _backoffUntil = 0;
+    _lastCheckTime = millis();  /* intervalo medido do fim do ciclo, não do início */
 }
 
 void TelemetryManager::escalateBackoff() {
     _consecutiveFails++;
     MetricsManager::instance().data().telRetries++;
     _backoffUntil = millis() + jitter(_currentBackoff);
+    _lastCheckTime = millis();  /* evita re-disparo imediato quando backoff expira */
 
     if (_consecutiveFails <= BACKOFF_MAX_STREAK) {
         LOG_CODE(LOG_WARN, "TEL", SYS_TEL_RETRY, _consecutiveFails,
