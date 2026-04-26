@@ -8,6 +8,7 @@
 
 #include "WebManager.h"
 #include "WebUI_GZ.h"
+#include "Favicon.h"
 #include <bearssl/bearssl_hash.h>
 
 using ReadGuard = StorageManager::ReadGuard;
@@ -99,6 +100,17 @@ void WebManager::handleLangJs() {
     _server.setContentLength(WebUI_GZ::LANG_JS_GZ_LEN);
     _server.send(200, "application/javascript", "");
     safeSend_GZ(WebUI_GZ::LANG_JS_GZ, WebUI_GZ::LANG_JS_GZ_LEN);
+}
+
+void WebManager::handleFavicon() {
+    /* Servido do PROGMEM (Favicon.cpp gerado por tools/build_favicon_header.py).
+     * Cache de 7 dias no browser. Em flash em vez de FS pra: (1) sobreviver a
+     * uploadfs, (2) tirar dependência do FS, (3) carregar mais rápido (sem
+     * lockout). Ver custo flash em SystemDefs_Limits.h. */
+    _server.sendHeader("Cache-Control", "public, max-age=604800");
+    _server.setContentLength(Favicon::LEN);
+    _server.send(200, "image/x-icon", "");
+    safeSend_GZ(Favicon::DATA, Favicon::LEN);
 }
 
 bool WebManager::secureCompare(const String& a, const String& b) {
