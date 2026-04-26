@@ -633,10 +633,10 @@ void CommandManager::printError(String msg) { consolePrint("ERROR: "); consolePr
 void CommandManager::printInfo(String msg) { consolePrintln(msg); }
 
 void CommandManager::printHelp() {
-    /* REF/F17 — texto movido para /system/help_{pt,en}.txt no LittleFS.
-     * Economiza ~5 KB de flash. User precisa fazer upload via web UI (/files)
-     * em primeira instalação; depois disso o comando funciona normal. */
-    const char* path = isPt() ? "/system/help_pt.txt" : "/system/help_en.txt";
+    /* REF/F17 — texto movido para /help_{pt,en}.txt no LittleFS.
+     * Path em ROOT (não /system/) evita mkdir no /files.
+     * Upload direto via web UI em primeira instalação. */
+    const char* path = isPt() ? "/help_pt.txt" : "/help_en.txt";
 
     File f = LittleFS.open(path, "r");
     if (!f) {
@@ -659,7 +659,7 @@ void CommandManager::printHelp() {
     f.close();
 }
 
-/* Stub — conteúdo de printHelpExtras agora vive em /system/help_{pt,en}.txt
+/* Stub — conteúdo de printHelpExtras agora vive em /help_{pt,en}.txt
  * (concatenado ao final do help principal). Mantido apenas para compat
  * com qualquer chamador externo que ainda referencie o símbolo. */
 void CommandManager::printHelpExtras() { /* no-op: text moved to FS */ }

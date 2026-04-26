@@ -37,15 +37,16 @@
 
 
 
-/* REF/F17: LICENSE moved to /system/license_{en,pt}.txt — economiza ~3.4 KB
- * de flash. Carregado em RAM (_licenseBuf) quando o user troca de idioma.
+/* REF/F17: LICENSE moved to /license_{en,pt}.txt — economiza ~3.4 KB
+ * de flash. Path em ROOT (não /system/) evita necessidade de mkdir no /files.
+ * Carregado em RAM (_licenseBuf) quando o user troca de idioma.
  * drawSettingsLicense (Core 1) lê do buffer. Se arquivo missing, mostra
  * fallback. setLanguage é chamada apenas pelo Core 0 (boot e EVT_APPLY_LANG),
  * então o LittleFS.open aqui é livre de race com Core 1. */
 static char _licenseBuf[2048];
 
 static void loadLicenseFromFs(int langIdx) {
-    const char* path = (langIdx == 1) ? "/system/license_pt.txt" : "/system/license_en.txt";
+    const char* path = (langIdx == 1) ? "/license_pt.txt" : "/license_en.txt";
     File f = LittleFS.open(path, "r");
     if (f) {
         size_t n = f.readBytes(_licenseBuf, sizeof(_licenseBuf) - 1);
