@@ -13,6 +13,7 @@
 #include "CommandManager.h"
 #include "LogManager.h"
 #include "MetricsManager.h"
+#include <LittleFS.h>
 #include <time.h>
 #include <stdarg.h>
 
@@ -632,272 +633,33 @@ void CommandManager::printError(String msg) { consolePrint("ERROR: "); consolePr
 void CommandManager::printInfo(String msg) { consolePrintln(msg); }
 
 void CommandManager::printHelp() {
-    if (isPt()) {
-        consolePrintln("");
-        consolePrintln("===========================================");
-        consolePrintln("      SIMUT - AJUDA DE COMANDOS");
-        consolePrintln("===========================================");
-        consolePrintln(" Comandos destrutivos exigem sufixo");
-        consolePrintln(" 'confirm' (ex.: 'reload confirm').");
-        consolePrintln(" Comandos sao sempre em ingles.");
+    /* REF/F17 — texto movido para /system/help_{pt,en}.txt no LittleFS.
+     * Economiza ~5 KB de flash. User precisa fazer upload via web UI (/files)
+     * em primeira instalação; depois disso o comando funciona normal. */
+    const char* path = isPt() ? "/system/help_pt.txt" : "/system/help_en.txt";
 
+    File f = LittleFS.open(path, "r");
+    if (!f) {
         consolePrintln("");
-        consolePrintln("-- IDIOMA / LANGUAGE --");
-        consolePrintln("language pt");
-        consolePrintln("  Usar Portugues (Brasil)");
-        consolePrintln("language en");
-        consolePrintln("  Use English");
-        consolePrintln("language");
-        consolePrintln("  Ver idioma atual");
-        consolePrintln("  Nota: 'write memory' para persistir");
-
+        consolePrintln(String(isPt() ? "Ajuda nao instalada. Upload via web (/files):"
+                                      : "Help not installed. Upload via web (/files):"));
+        consolePrintln(String(path));
         consolePrintln("");
-        consolePrintln("-- 1. MONITORAMENTO --");
-        consolePrintln("show system info");
-        consolePrintln("  Nome, versao e config do device");
-        consolePrintln("show system log");
-        consolePrintln("  Despeja o log do flash");
-        consolePrintln("show storage stats");
-        consolePrintln("  Estatisticas de uso do flash");
-        consolePrintln("show net status");
-        consolePrintln("  IP, RSSI, hora sincronizada");
-        consolePrintln("show themes");
-        consolePrintln("  Lista temas de UI disponiveis");
-        consolePrintln("show metrics");
-        consolePrintln("  Metricas operacionais (heap, rede, tel, sensores)");
-
-        consolePrintln("");
-        consolePrintln("-- 2. DIAGNOSTICO DE SENSORES --");
-        consolePrintln("show sensors");
-        consolePrintln("  Lista sensores mapeados (banco)");
-        consolePrintln("sensor scan");
-        consolePrintln("  Varre hardware por novos sensores");
-
-        consolePrintln("");
-        consolePrintln("-- 3. CONFIGURACAO --");
-        consolePrintln("  (exige 'write memory' + 'reload')");
-        consolePrintln("conf system name <valor>");
-        consolePrintln("  Nome amigavel do device");
-        consolePrintln("conf system ssid <nome>");
-        consolePrintln("  SSID do WiFi (case sensitive)");
-        consolePrintln("conf system pass <senha>");
-        consolePrintln("  Senha do WiFi");
-        consolePrintln("conf system timezone <offset>");
-        consolePrintln("  Offset UTC (ex.: -3)");
-        consolePrintln("conf system ntp <servidor>");
-        consolePrintln("  Servidor NTP (vazio = default)");
-        consolePrintln("conf system theme <id|indice>");
-        consolePrintln("  Define o tema da UI");
-        consolePrintln("conf system admin reset [confirm]");
-        consolePrintln("  Reseta senha do admin");
-        consolePrintln("conf system touch reset [confirm]");
-        consolePrintln("  Reseta calibracao do touch");
-        consolePrintln("conf system factory [confirm]");
-        consolePrintln("  Reset de fabrica (apaga TODA config) + reboot");
-        consolePrintln("conf ntp <on|off>");
-        consolePrintln("  Habilita/desabilita sincronizacao NTP");
-        consolePrintln("conf time <AAAA-MM-DD> <HH:MM:SS>");
-        consolePrintln("  Seta RTC manual (imediato; hora local)");
-        consolePrintln("conf net dns auto");
-        consolePrintln("  DNS via DHCP (padrao)");
-        consolePrintln("conf net dns manual <ip1> [ip2]");
-        consolePrintln("  DNS manual: primario e secundario (opcional)");
-        consolePrintln("conf sensor ds18b20 resolution <9-12>");
-        consolePrintln("  Resolucao global dos DS18B20");
-
-        consolePrintln("");
-        consolePrintln("-- Telemetria --");
-        consolePrintln("conf tel server <url>");
-        consolePrintln("  Endereco do servidor");
-        consolePrintln("conf tel port <porta>");
-        consolePrintln("  Porta do servidor (80, 443, ...)");
-        consolePrintln("conf tel path <caminho>");
-        consolePrintln("  Path do endpoint (/api/v1/data)");
-        consolePrintln("conf tel batch <n>");
-        consolePrintln("  Registros por upload (max 50)");
-        consolePrintln("conf tel interval <ms>");
-        consolePrintln("  Intervalo de upload (0=off)");
-        consolePrintln("conf tel crypto <on|off>");
-        consolePrintln("  Habilita SSL/HTTPS");
-        consolePrintln("conf tel mode <json|csv|custom>");
-        consolePrintln("  Formato do payload");
-
-        consolePrintln("");
-        consolePrintln("-- 4. MAPEAMENTO DE SENSORES --");
-        consolePrintln("sensor define <gpio> <rom> <hwid> \"<nome>\"");
-        consolePrintln("  Ex.:");
-        consolePrintln("  sensor define 0 28AA.. S1 \"Forno_Topo\"");
-        consolePrintln("  Nota: GPIO 10 = Sensor Ambiente");
-
-        consolePrintln("");
-        consolePrintln("-- 5. MANUTENCAO --");
-        consolePrintln("sensor accept <gpio>");
-        consolePrintln("  Autoriza novo sensor fisico");
-        consolePrintln("sensor wipe <gpio> [confirm]");
-        consolePrintln("  Reseta historico do slot");
-        consolePrintln("tel sync");
-        consolePrintln("  Forca upload de telemetria");
-        consolePrintln("tel dump");
-        consolePrintln("  Arma dump one-shot do proximo payload na console (USB+BT)");
-        consolePrintln("clear log [confirm]");
-        consolePrintln("  Apaga arquivo de log");
-        consolePrintln("write memory");
-        consolePrintln("  Persiste config da RAM no flash");
-        consolePrintln("reload [confirm]");
-        consolePrintln("  Reinicia o sistema");
-
-        consolePrintln("");
-        consolePrintln("-- 6. MODO DE SESSAO --");
-        consolePrintln("debug on");
-        consolePrintln("  Stream de logs no console (SIMUT#)");
-        consolePrintln("debug off");
-        consolePrintln("  Console silencioso (SIMUT>)");
-        consolePrintln("debug");
-        consolePrintln("  Mostra modo atual");
-        consolePrintln("  Nota: 'write memory' para persistir");
-        printHelpExtras();
-        consolePrintln("===========================================");
         return;
     }
 
-    /* English */
-    consolePrintln("");
-    consolePrintln("===========================================");
-    consolePrintln("        SIMUT - COMMAND HELP");
-    consolePrintln("===========================================");
-    consolePrintln(" Destructive cmds need ' confirm' suffix");
-    consolePrintln(" (e.g., 'reload confirm').");
-    consolePrintln(" Commands themselves stay in English.");
-
-    consolePrintln("");
-    consolePrintln("-- LANGUAGE / IDIOMA --");
-    consolePrintln("language pt");
-    consolePrintln("  Use Portuguese (Brazil)");
-    consolePrintln("language en");
-    consolePrintln("  Use English");
-    consolePrintln("language");
-    consolePrintln("  Show current language");
-    consolePrintln("  Note: 'write memory' to persist");
-
-    consolePrintln("");
-    consolePrintln("-- 1. MONITORING --");
-    consolePrintln("show system info");
-    consolePrintln("  Device name, version, config");
-    consolePrintln("show system log");
-    consolePrintln("  Dump event log from flash");
-    consolePrintln("show storage stats");
-    consolePrintln("  Flash usage statistics");
-    consolePrintln("show net status");
-    consolePrintln("  IP, RSSI, time sync");
-    consolePrintln("show themes");
-    consolePrintln("  List available UI themes");
-    consolePrintln("show metrics");
-    consolePrintln("  Operational metrics (heap, net, tel, sensors)");
-
-    consolePrintln("");
-    consolePrintln("-- 2. SENSOR DIAGNOSTICS --");
-    consolePrintln("show sensors");
-    consolePrintln("  List mapped sensors (database)");
-    consolePrintln("sensor scan");
-    consolePrintln("  Hardware scan for new sensors");
-
-    consolePrintln("");
-    consolePrintln("-- 3. CONFIGURATION --");
-    consolePrintln("  (needs 'write memory' + 'reload')");
-    consolePrintln("conf system name <value>");
-    consolePrintln("  Set device friendly name");
-    consolePrintln("conf system ssid <name>");
-    consolePrintln("  WiFi SSID (case sensitive)");
-    consolePrintln("conf system pass <pass>");
-    consolePrintln("  WiFi password");
-    consolePrintln("conf system timezone <offset>");
-    consolePrintln("  UTC offset (e.g., -3)");
-    consolePrintln("conf system ntp <server>");
-    consolePrintln("  NTP server (empty = default)");
-    consolePrintln("conf system theme <id|index>");
-    consolePrintln("  Set UI theme");
-    consolePrintln("conf system admin reset [confirm]");
-    consolePrintln("  Reset admin password to default");
-    consolePrintln("conf system touch reset [confirm]");
-    consolePrintln("  Reset touch calibration");
-    consolePrintln("conf system factory [confirm]");
-    consolePrintln("  Factory reset (wipes ALL config) + reboot");
-    consolePrintln("conf ntp <on|off>");
-    consolePrintln("  Enable/disable NTP sync");
-    consolePrintln("conf time <YYYY-MM-DD> <HH:MM:SS>");
-    consolePrintln("  Set RTC manually (immediate; local time)");
-    consolePrintln("conf net dns auto");
-    consolePrintln("  DNS via DHCP (default)");
-    consolePrintln("conf net dns manual <ip1> [ip2]");
-    consolePrintln("  Manual DNS: primary and secondary (optional)");
-    consolePrintln("conf sensor ds18b20 resolution <9-12>");
-    consolePrintln("  DS18B20 global resolution");
-
-    consolePrintln("");
-    consolePrintln("-- Telemetry --");
-    consolePrintln("conf tel server <url>");
-    consolePrintln("  Server address");
-    consolePrintln("conf tel port <port>");
-    consolePrintln("  Server port (80, 443, ...)");
-    consolePrintln("conf tel path <path>");
-    consolePrintln("  Endpoint path (/api/v1/data)");
-    consolePrintln("conf tel batch <n>");
-    consolePrintln("  Records per upload (max 50)");
-    consolePrintln("conf tel interval <ms>");
-    consolePrintln("  Auto-upload interval (0=off)");
-    consolePrintln("conf tel crypto <on|off>");
-    consolePrintln("  Enable SSL/HTTPS");
-    consolePrintln("conf tel mode <json|csv|custom>");
-    consolePrintln("  Payload format");
-
-    consolePrintln("");
-    consolePrintln("-- 4. SENSOR MAPPING --");
-    consolePrintln("sensor define <gpio> <rom> <hwid> \"<name>\"");
-    consolePrintln("  Ex:");
-    consolePrintln("  sensor define 0 28AA.. S1 \"Oven_Top\"");
-    consolePrintln("  Note: GPIO 10 = Ambient Sensor");
-
-    consolePrintln("");
-    consolePrintln("-- 5. MAINTENANCE --");
-    consolePrintln("sensor accept <gpio>");
-    consolePrintln("  Authorize new physical sensor");
-    consolePrintln("sensor wipe <gpio> [confirm]");
-    consolePrintln("  Reset graph history for slot");
-    consolePrintln("tel sync");
-    consolePrintln("  Force telemetry upload");
-    consolePrintln("tel dump");
-    consolePrintln("  Arm one-shot dump of next payload to console (USB+BT)");
-    consolePrintln("clear log [confirm]");
-    consolePrintln("  Delete system log file");
-    consolePrintln("write memory");
-    consolePrintln("  Persist RAM config to flash");
-    consolePrintln("reload [confirm]");
-    consolePrintln("  Reboot system");
-
-    consolePrintln("");
-    consolePrintln("-- 6. SESSION MODE --");
-    consolePrintln("debug on");
-    consolePrintln("  Stream logs to console (SIMUT#)");
-    consolePrintln("debug off");
-    consolePrintln("  Quiet console, cmds only (SIMUT>)");
-    consolePrintln("debug");
-    consolePrintln("  Show current mode");
-    consolePrintln("  Note: 'write memory' to persist");
-    printHelpExtras();
-    consolePrintln("===========================================");
+    char buf[128];
+    while (f.available()) {
+        feedWdt();
+        size_t n = f.readBytesUntil('\n', buf, sizeof(buf) - 1);
+        buf[n] = '\0';
+        if (n > 0 && buf[n-1] == '\r') buf[n-1] = '\0';
+        consolePrintln(String(buf));
+    }
+    f.close();
 }
 
-/* Lista compartilhada (EN-oriented syntax, language-neutral) dos comandos
- * adicionados em #7. Sem descrições — economia de flash. Apenas sintaxe. */
-void CommandManager::printHelpExtras() {
-    consolePrintln("");
-    consolePrintln("-- 7. IP / SENSOR LIMITS / USERS / WEB --");
-    consolePrintln("conf ip <dhcp|static>");
-    consolePrintln("conf ip <addr|mask|gateway|dns> <ipv4>");
-    consolePrintln("conf sensor <tmin|tmax|hmin|hmax> <gpio> <n>");
-    consolePrintln("conf sensor alarm <gpio> <on|off>");
-    consolePrintln("conf user add <name> <pass>");
-    consolePrintln("conf user del <name>");
-    consolePrintln("conf user pass <name> <newpass>");
-    consolePrintln("conf web port <1..65535>");
-}
+/* Stub — conteúdo de printHelpExtras agora vive em /system/help_{pt,en}.txt
+ * (concatenado ao final do help principal). Mantido apenas para compat
+ * com qualquer chamador externo que ainda referencie o símbolo. */
+void CommandManager::printHelpExtras() { /* no-op: text moved to FS */ }
