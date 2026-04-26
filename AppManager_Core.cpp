@@ -53,7 +53,7 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
         return;
     }
     _pendingTimeSync = false;
-    LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTING, delta, String(TRL("NTP correction: ", "Correcao NTP: ")) + delta + "s");
+    LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTING, delta, String(TRL("NTP correction: ")) + delta + "s");
     _storageMgr.correctProvisionalTimestamps(bootTs, delta);
     LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTED, 0, "");
     _storageMgr.unlockHeavyTask();

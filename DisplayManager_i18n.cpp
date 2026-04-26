@@ -1,10 +1,15 @@
 /**
  * @file    DisplayManager_i18n.cpp
- * @brief   i18n: DICTIONARY (EN+PT), tr(), language settings screen.
- * @details Sub-arquivo de DisplayManager.cpp (REF-001 / F17 etapa 8).
- *          DICTIONARY tem internal linkage (const namespace scope), então
- *          tr() precisa ficar no mesmo TU. drawSettingsLang() vem junto
- *          porque usa LANG_NAMES/LANG_FLAGS file-static.
+ * @brief   i18n: DICTIONARY_EN (hardcoded), tr() dinâmico, settings screen.
+ * @details F-LANGPACK Etapa 1 — DICTIONARY agora é 1D só EN. PT (e
+ *          quaisquer outros idiomas) vêm do _activeLang carregado de
+ *          /lang/language_<code>.lng (parser em DisplayManager_LangParser.cpp).
+ *          tr() retorna do _activeLang quando _activeLangLoaded e
+ *          _currentLangIdx != LANG_EN; senão cai pro DICTIONARY_EN.
+ *
+ *          drawSettingsLang fica aqui porque usa LANG_NAMES/LANG_FLAGS
+ *          file-static. Em Etapa 1, slot 1 só é desenhado se um .lng
+ *          já tiver sido carregado (sempre false em Etapa 1).
  *
  * @project SIMUT
  * @license MIT License
@@ -15,60 +20,43 @@
 #include "LogManager.h"
 
 static const char* const LANG_NAMES[LANG_COUNT] = {
-    "English", "Portugues"
+    "English", "(install .lng)"
 };
 static const char* const LANG_FLAGS[LANG_COUNT] = {
-    "EN", "PT"
+    "EN", "??"
 };
 static_assert(sizeof(LANG_NAMES)/sizeof(LANG_NAMES[0]) == LANG_COUNT,
               "LANG_NAMES count must match LanguageCode LANG_COUNT");
 static_assert(sizeof(LANG_FLAGS)/sizeof(LANG_FLAGS[0]) == LANG_COUNT,
               "LANG_FLAGS count must match LanguageCode LANG_COUNT");
 
-const char* const DICTIONARY[LANG_COUNT][TR_KEYS_COUNT] = {
-
-    {
-        "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language", "EXIT",
-        "APPLY", "CANCEL", "Security Authentication", "ACCESS BLOCKED", "Reboot required",
-        "Attempts Exceeded", "Wait %ld seconds...", "Invalid Password!", "Loading...", "Reading History...",
-        "No Data", "MAXIMUM", "MINIMUM", "Temperature", "Humidity",
-        "PLOT CHART", "1. Visual Themes", "2. Alarm Limits", "3. Alarm Sounds", "4. System Language",
-        "Applying Theme...", "SAVE", "Alarm Limits", "Temp Min", "Temp Max",
-        "Hum Min", "Hum Max", "ENTER", "SKIP", "5. Change Password",
-        "New Password", "6. Touch Calibration", "Touch Calibration", "Touch the crosshair", "Calibration Done!",
-        "Imprecise touches! Try again.", "Confirm Password", "Password too short! (min 4)", "Passwords don't match!", "Password saved!",
-        "UNDERSTOOD", "Sound Settings", "Touch Click", "Confirmation", "Error Sound",
-        "Alarm Sound", "Mute All", "Sys Volume", "Alarm Vol", "ON",
-        "OFF", "Web Access", "Melody", "7. License", "MIT License",
-        "ACTIVE", "Silence 120s", "Deactivate", "Min/Max", "Silenced",
-        "%RH", "7. Touch Sensitivity", "Touch Sensitivity", "Tap %d/%d", "Calibration Done!",
-        "AVERAGE", "STD DEV", "Error", "Configuration Mode", "8. System Status",
-        "System Status",
-        "9. Display Alignment", "Display Alignment", "Adjust +/-4 px. Saving clears touch calibration."
-    },
-
-    {
-        "AMBIENTE", "Configuracoes > Principal", "Configuracoes > Temas", "Configuracoes > Idioma", "SAIR",
-        "APLICAR", "CANCELAR", "Autenticacao de Seguranca", "ACESSO BLOQUEADO", "Reinicializacao requerida",
-        "Tentativas Excedidas", "Aguarde %ld segundos...", "Senha Invalida!", "Carregando...", "Lendo Historico...",
-        "Sem Dados", "MAXIMO", "MINIMO", "Temperatura", "Umidade",
-        "GERAR GRAFICO", "1. Temas Visuais", "2. Limites de Alarme", "3. Sons de Alarme", "4. Idioma do Sistema",
-        "Aplicando Tema...", "SALVAR", "Limites de Alarme", "Temp Min", "Temp Max",
-        "Umid Min", "Umid Max", "ENTRAR", "PULAR", "5. Alterar Senha",
-        "Nova Senha", "6. Calibrar Touch", "Calibracao do Touch", "Toque na mira", "Calibracao Concluida!",
-        "Toques imprecisos! Tente novamente.", "Confirmar Senha", "Senha muito curta! (min 4)", "Senhas nao coincidem!", "Senha salva!",
-        "ENTENDI", "Config. de Sons", "Toque na Tela", "Confirmacao", "Som de Erro",
-        "Som de Alarme", "Silenciar Tudo", "Vol. Sistema", "Vol. Alarme", "SIM",
-        "NAO", "Acesso Web", "Melodia", "7. Licenca", "Licenca MIT",
-        "ATIVO", "Silenciar 120s", "Desativar", "Min/Max", "Silenciado",
-        "%UR", "7. Sensibilidade do Toque", "Sensibilidade do Toque", "Toque %d/%d", "Calibracao Concluida!",
-        "MEDIA", "DESVIO", "Erro", "Modo de Configuracao", "8. Status do Sistema",
-        "Status do Sistema",
-        "9. Alinhamento da Tela", "Alinhamento da Tela", "Ajuste +/-4 px. Salvar reinicia calibracao do touch."
-    }
+static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
+    "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language", "EXIT",
+    "APPLY", "CANCEL", "Security Authentication", "ACCESS BLOCKED", "Reboot required",
+    "Attempts Exceeded", "Wait %ld seconds...", "Invalid Password!", "Loading...", "Reading History...",
+    "No Data", "MAXIMUM", "MINIMUM", "Temperature", "Humidity",
+    "PLOT CHART", "1. Visual Themes", "2. Alarm Limits", "3. Alarm Sounds", "4. System Language",
+    "Applying Theme...", "SAVE", "Alarm Limits", "Temp Min", "Temp Max",
+    "Hum Min", "Hum Max", "ENTER", "SKIP", "5. Change Password",
+    "New Password", "6. Touch Calibration", "Touch Calibration", "Touch the crosshair", "Calibration Done!",
+    "Imprecise touches! Try again.", "Confirm Password", "Password too short! (min 4)", "Passwords don't match!", "Password saved!",
+    "UNDERSTOOD", "Sound Settings", "Touch Click", "Confirmation", "Error Sound",
+    "Alarm Sound", "Mute All", "Sys Volume", "Alarm Vol", "ON",
+    "OFF", "Web Access", "Melody", "7. License", "MIT License",
+    "ACTIVE", "Silence 120s", "Deactivate", "Min/Max", "Silenced",
+    "%RH", "7. Touch Sensitivity", "Touch Sensitivity", "Tap %d/%d", "Calibration Done!",
+    "AVERAGE", "STD DEV", "Error", "Configuration Mode", "8. System Status",
+    "System Status",
+    "9. Display Alignment", "Display Alignment", "Adjust +/-4 px. Saving clears touch calibration."
 };
 
-const char* DisplayManager::tr(LangKey key) { return DICTIONARY[_currentLangIdx][key]; }
+const char* DisplayManager::tr(LangKey key) {
+    if (_activeLangLoaded && _currentLangIdx != LANG_EN &&
+        _activeLang.strings[key] != nullptr) {
+        return _activeLang.strings[key];
+    }
+    return DICTIONARY_EN[key];
+}
 
 void DisplayManager::showSettingsLang(int currentLang) {
     mutex_enter_blocking(&_stateMutex);
@@ -88,7 +76,10 @@ void DisplayManager::drawSettingsLang() {
     bool pageChanged = (_langPage != _lastLangPage);
 
 
-    int totalPages = (LANG_COUNT + 3) / 4;
+    /* F-LANGPACK Etapa 1: slot 1 (.lng) só visível quando carregado.
+     * Sem .lng, UI mostra apenas "English". */
+    int activeSlots = _activeLangLoaded ? LANG_COUNT : 1;
+    int totalPages = (activeSlots + 3) / 4;
     if (_langPage >= totalPages) _langPage = totalPages - 1;
     if (_langPage < 0) _langPage = 0;
 
@@ -166,7 +157,7 @@ void DisplayManager::drawSettingsLang() {
 
         _canvasWide->fillScreen(C_BG_MAIN);
 
-        if (actualIdx < LANG_COUNT) {
+        if (actualIdx < activeSlots) {
             bool isSelected = (actualIdx == _previewLangIdx);
             uint16_t bg  = isSelected ? C_ACCENT  : C_CARD_BG;
             uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;

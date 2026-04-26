@@ -12,6 +12,7 @@
  */
 
 #include "LogManager.h"
+#include "DisplayManager.h"   /* F-LANGPACK: logcodeLookup / trlLookup do .lng */
 #include "TouchPriority.h"
 #include <LittleFS.h>
 #include <time.h>
@@ -878,169 +879,23 @@ static const char* translateCodeEn(uint16_t code) {
     }
 }
 
-static const char* translateCodePt(uint16_t code) {
-    switch ((LogCode)code) {
-        /* ── Sistema (0–9) ── */
-        case SYS_OK:              return "OK";
-        case SYS_BOOT:            return "Boot do sistema";
-        case SYS_REBOOT_USER:     return "Reboot solicitado pelo usuario";
-        case SYS_HEAP_LOW:        return "Heap baixa";
-        case SYS_UPTIME_MARK:     return "Marco de uptime";
-
-        /* ── WiFi (10–15) ── */
-        case SYS_WIFI_CONNECT:    return "Conectando WiFi";
-        case SYS_WIFI_DISCONNECT: return "WiFi desconectado";
-        case SYS_WIFI_SCAN:       return "Varredura WiFi";
-        case SYS_NTP_SYNC:        return "NTP sincronizado";
-        case SYS_IP_ACQUIRED:     return "IP obtido";
-        case SYS_AP_START:        return "AP iniciado";
-
-        /* ── Storage (20–25) ── */
-        case SYS_STORAGE_FAIL:    return "Falha no storage";
-        case SYS_STORAGE_SAVE:    return "Config salva";
-        case SYS_STORAGE_ROTATE:  return "Storage rotacionado";
-        case SYS_STORAGE_FORMAT:  return "Formatando flash";
-        case SYS_STORAGE_RECOVER: return "Storage recuperado";
-        case SYS_STORAGE_MIGRATED:return "Config migrada";
-
-        /* ── Telemetria (30–37) ── */
-        case SYS_TEL_SENT:        return "Telemetria enviada";
-        case SYS_TEL_FAIL:        return "Falha de telemetria";
-        case SYS_TEL_RETRY:       return "Retry de telemetria";
-        case SYS_TEL_QUEUE:       return "Telemetria enfileirada";
-        case SYS_TEL_SSL:         return "Cert SSL carregado";
-        case SYS_TEL_MQTT_CONN:   return "MQTT conectado";
-        case SYS_TEL_MQTT_DISC:   return "MQTT desconectado";
-        case SYS_TEL_MQTT_PUB:    return "MQTT publicado";
-
-        /* ── Sensor (100–106) ── */
-        case LOG_SENSOR_REC:      return "Sensor recuperado";
-        case ERR_SENSOR_TIMEOUT:  return "Timeout de sensor";
-        case ERR_SENSOR_CHECKSUM: return "Erro de checksum";
-        case ERR_SENSOR_CRC:      return "Erro de CRC";
-        case ERR_SENSOR_RANGE:    return "Sensor fora de range";
-        case ERR_SENSOR_MISMATCH: return "Divergencia de hardware";
-        case ERR_SENSOR_MISSING:  return "Sensor ausente";
-
-        /* ── Eventos UI (200–202) ── */
-        case EVT_UI_TOUCH:        return "Evento de toque";
-        case EVT_DISPLAY_RESTART: return "Display reiniciado";
-        case EVT_GRAPH_RENDER:    return "Grafico renderizado";
-
-        /* ── Seguranca (300–306) ── */
-        case SEC_LOGIN_SUCCESS:   return "Login bem-sucedido";
-        case SEC_LOGIN_FAIL:      return "Falha de login";
-        case SEC_UNAUTHORIZED:    return "Acesso nao autorizado";
-        case SEC_CONFIG_CHANGED:  return "Config alterada";
-        case SEC_SESSION_EXPIRE:  return "Sessao expirada";
-        case SEC_FILE_UPLOAD:     return "Arquivo enviado";
-        case SEC_FILE_DELETE:     return "Arquivo apagado";
-
-        /* ── Ciclo do app (400–410) ── */
-        case APP_DISPLAY_LAUNCHED:    return "Display iniciado no Core 1";
-        case APP_TOUCH_CAL_INITIAL:   return "Calibracao inicial do touch salva";
-        case APP_TOUCH_CAL_REQUIRED:  return "Calibracao do touch necessaria";
-        case APP_AP_MODE_TRIGGERED:   return "AP ativado pelo usuario";
-        case APP_READY:               return "Sistema pronto";
-        case APP_READY_AP:            return "Sistema pronto (modo AP)";
-        case APP_STORAGE_CRITICAL:    return "Falha critica de storage";
-        case APP_SENSORS_CALIBRATED:  return "Sensores calibrados";
-        case APP_NTP_CORRECTING:      return "NTP corrigindo timestamps";
-        case APP_NTP_CORRECTED:       return "Timestamps corrigidos";
-        case APP_CACHE_INVALIDATED:   return "Caches de grafico invalidados";
-
-        /* ── UI do app (440–449) ── */
-        case APP_UI_THEME_CHANGED:    return "Tema alterado via UI";
-        case APP_UI_LANG_CHANGED:     return "Idioma alterado via UI";
-        case APP_UI_ALARM_SAVED:      return "Limites de alarme salvos via UI";
-        case APP_UI_TOUCH_CAL_SAVED:  return "Calibracao do touch salva";
-        case APP_UI_TOUCH_SENS_SAVED: return "Sensibilidade do touch salva";
-        case APP_UI_PIN_CHANGED:      return "PIN do display alterado";
-        case APP_UI_SOUND_SAVED:      return "Config de som salva";
-        case APP_UI_ALARM_SILENCED:   return "Alarme silenciado via UI";
-        case APP_UI_ALARM_SILENCE_EXP:return "Silenciamento de alarme expirou";
-        case APP_UI_ALARM_DEACTIVATED:return "Todos alarmes desativados (RAM)";
-
-        /* ── Estado do alarme (470–472) ── */
-        case APP_ALARM_TRIGGERED:     return "Alarme disparado";
-        case APP_ALARM_CLEARED:       return "Alarme zerado";
-        case APP_ALARM_SILENCE_CANCEL:return "Silenciamento cancelado";
-
-        /* ── Cache (480–489) ── */
-        case APP_CACHE_MINMAX_FULL:   return "Cache Min/Max carregado";
-        case APP_CACHE_MINMAX_PARTIAL:return "Cache Min/Max parcial";
-        case APP_CACHE_GRAPH_STARTED: return "Refresh de cache iniciado";
-        case APP_CACHE_GRAPH_DONE:    return "Refresh de cache concluido";
-        case APP_CACHE_GRAPH_AMBIENT: return "Cache de grafico: ambiente";
-        case APP_CACHE_GRAPH_BOARD:   return "Cache de grafico: placa";
-        case APP_CACHE_PRELOAD_DONE:  return "Pre-carga de cache concluida";
-        case APP_GRAPH_LOADING:       return "Carregando grafico";
-        case APP_GRAPH_BUDGET:        return "Budget de render excedido";
-        case APP_PRELOAD_BUDGET:      return "Budget de pre-carga excedido";
-
-        /* ── Seguranca (500–503) ── */
-        case APP_DISPLAY_PAUSE_STUCK: return "Pause do display preso >5s";
-        case APP_YIELD_STUCK:         return "Yield preso >10s";
-        case APP_CORE1_DEAD:          return "Core 1 travado >10s, reiniciando";
-        case APP_FLASH_BUSY:          return "Colisao de flash ocupada";
-
-        /* ── Historico (510–511) ── */
-        case APP_HISTORY_SAVED:       return "Registro de historico salvo";
-        case APP_HEAP_REPORT:         return "Relatorio de heap";
-
-        /* ── Rede extendida (520–527) ── */
-        case NET_DHCP_MODE:           return "Modo DHCP ativado";
-        case NET_STATIC_MODE:         return "Modo IP estatico ativado";
-        case NET_STARTING:            return "Gerenciador WiFi iniciando";
-        case NET_SSID_MISSING:        return "SSID WiFi nao configurado";
-        case NET_PROVISIONAL_TIME:    return "Hora provisoria do flash";
-        case NET_CONNECT_TIMEOUT:     return "Timeout na conexao WiFi";
-        case NET_DORMANT_MODE:        return "WiFi em modo dormente";
-        case NET_SHOW_IP:             return "Mostrar IP";
-
-        /* ── Telemetria extendida (540–547) ── */
-        case TEL_HTTP_INIT:           return "Transporte HTTP inicializado";
-        case TEL_MQTT_INIT:           return "Transporte MQTT inicializado";
-        case TEL_MQTT_CONNECTING:     return "MQTT conectando";
-        case TEL_CERT_EMPTY:          return "cert.pem vazio, modo inseguro";
-        case TEL_CERT_READ_ERR:       return "Erro de leitura de cert.pem";
-        case TEL_CERT_MISSING:        return "Sem cert.pem, modo inseguro";
-        case TEL_FORCE_SYNC:          return "Forcando sync de telemetria";
-        case TEL_BACKOFF_SUPPRESSED:  return "Logs de retry suprimidos";
-
-        /* ── Storage extendido (560–565) ── */
-        case STO_WRITE_FAILED:        return "Falha em escrever historico";
-        case STO_CORRECT_BUDGET:      return "Budget de correcao de ts excedido";
-        case STO_ENFORCE_BUDGET:      return "Budget de limite de storage excedido";
-        case STO_ENFORCE_SKIP_ACTIVE: return "Pulando arquivo de log ativo";
-        case STO_STATS_REPORT:        return "Relatorio de estatisticas";
-        case STO_CONFIG_REPORT:       return "Relatorio de config";
-
-        /* ── Web (570–574) ── */
-        case WEB_SERVER_STARTED:      return "Servidor web iniciado";
-        case WEB_DISCONNECT_FILE:     return "Cliente desconectado (arquivo)";
-        case WEB_DISCONNECT_HISTORY:  return "Cliente desconectado (historico)";
-        case WEB_SCREENSHOT_ABORTED:  return "Screenshot abortado pelo cliente";
-        case WEB_UPLOAD:              return "Arquivo enviado";
-
-        /* ── Config (580–581) ── */
-        case CFG_THEME_APPLIED:       return "Tema aplicado";
-        case CFG_THEME_NOT_FOUND:     return "Tema nao encontrado";
-
-        /* ── CLI (585) ── */
-        case CLI_UNKNOWN_CMD:         return "Comando desconhecido";
-
-        /* ── Sensor (590) ── */
-        case SENSOR_RUNTIME_LOADED:   return "Sensores em runtime carregados";
-
-        /* ── Display (600) ── */
-        case DSP_FORCE_UNPAUSE:       return "Forcar despausar";
-
-        case ERR_UNKNOWN:             return "Erro desconhecido";
-        default:                      return "?";
-    }
-}
 
 const char* LogManager::translateCode(uint16_t code) {
-    return (_language == LANG_PT) ? translateCodePt(code) : translateCodeEn(code);
+    /* F-LANGPACK: PT (e quaisquer outros) vêm do .lng via @LOGCODES.
+     * Sem .lng carregado ou em EN: usa translateCodeEn inline.
+     * Lookup miss (entrada não traduzida): também cai pro EN. */
+    if (_language != LANG_EN) {
+        const char* t = DisplayManager::logcodeLookup(code);
+        if (t) return t;
+    }
+    return translateCodeEn(code);
+}
+
+/* F-LANGPACK: TRL via hash. Em EN ou sem .lng, retorna o literal EN
+ * passado pelo caller (zero-cost). Em non-EN, faz binary search no
+ * @TRL do .lng pelo hash FNV-1a do EN; miss cai pro EN também. */
+const char* LogManager::tr(const char* en) const {
+    if (_language == LANG_EN || !en) return en;
+    const char* t = DisplayManager::trlLookup(en);
+    return t ? t : en;
 }

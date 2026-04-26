@@ -364,7 +364,7 @@ void AppManager::executeCommand(CliDemand cmd) {
                                      : "Run 'conf system factory confirm'.");
                 break;
             }
-            LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Factory reset", "Factory reset"));
+            LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Factory reset"));
             _storageMgr.resetToFactory();
             delay(100);
             LogManager::instance().markCleanReboot();
@@ -607,7 +607,7 @@ void AppManager::executeCommand(CliDemand cmd) {
                                      : "Run 'reload confirm' to proceed.");
                 break;
             }
-            LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI", "Reboot via CLI"));
+            LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI"));
             delay(100);     /* Garante flush do log para flash */
             LogManager::instance().markCleanReboot();
             rp2040.reboot();
@@ -816,7 +816,7 @@ void AppManager::executeCommand(CliDemand cmd) {
             cfg.users[freeSlot].mustChangePassword = false;
             _cmdMgr.printSuccess(String(pt ? "Usuario criado: " : "User created: ") + cmd.strVal1);
             LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, freeSlot,
-                     String(TRL("CLI created user: ", "CLI criou usuario: ")) + cmd.strVal1);
+                     String(TRL("CLI created user: ")) + cmd.strVal1);
             changed = true;
             break;
         }
@@ -835,7 +835,7 @@ void AppManager::executeCommand(CliDemand cmd) {
                     memset(cfg.users[i].password, 0, sizeof(cfg.users[i].password));
                     _cmdMgr.printSuccess(String(pt ? "Usuario removido: " : "User deleted: ") + cmd.strVal1);
                     LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,
-                             String(TRL("CLI deleted user: ", "CLI apagou usuario: ")) + cmd.strVal1);
+                             String(TRL("CLI deleted user: ")) + cmd.strVal1);
                     changed = true;
                     found = true;
                     break;
@@ -866,7 +866,7 @@ void AppManager::executeCommand(CliDemand cmd) {
                     cfg.users[i].mustChangePassword = false;
                     _cmdMgr.printSuccess(String(pt ? "Senha atualizada: " : "Password updated: ") + cmd.strVal1);
                     LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,
-                             String(TRL("CLI reset password: ", "CLI resetou senha: ")) + cmd.strVal1);
+                             String(TRL("CLI reset password: ")) + cmd.strVal1);
                     changed = true;
                     found = true;
                     break;

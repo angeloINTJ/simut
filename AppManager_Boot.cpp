@@ -39,7 +39,7 @@ void AppManager::setup() {
 
     _displayMgr.begin();
     _displayMgr.startCore1();
-    LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, TRL("Display UI Launched on Core 1.", "UI do display iniciada no Core 1."));
+    LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, TRL("Display UI Launched on Core 1."));
 
     delay(BOOT_STEP_DELAY_MS);
 
@@ -141,7 +141,7 @@ void AppManager::setup() {
         }
     });
 
-    if (!fsOk) LOG_CODE(LOG_ERROR, "APP", APP_STORAGE_CRITICAL, 0, TRL("Storage Critical Failure!", "Falha critica de storage!"));
+    if (!fsOk) LOG_CODE(LOG_ERROR, "APP", APP_STORAGE_CRITICAL, 0, TRL("Storage Critical Failure!"));
 
     /* SEC-003/F12.3: se o dispositivo subiu em factory defaults (config
      * inexistente ou corrompida nos dois bancos), exibe a senha inicial
@@ -157,14 +157,12 @@ void AppManager::setup() {
             Serial.println(F("  Trocar no primeiro login (forcado)."));
             Serial.println(F("=============================================="));
             LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, 0,
-                     TRL("Factory defaults active; initial admin pass on USB/serial.",
-                         "Factory defaults ativos; senha admin via USB/serial."));
+                     TRL("Factory defaults active; initial admin pass on USB/serial."));
         } else {
             /* Caso raro: factory detectado mas plaintext não está em RAM
              * (loadConfiguration limpou após fallback). Avisa sem vazar. */
             LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, 0,
-                     TRL("Factory defaults active; password regen required.",
-                         "Factory defaults ativos; reset admin para gerar senha."));
+                     TRL("Factory defaults active; password regen required."));
         }
     }
 
@@ -220,7 +218,7 @@ void AppManager::setup() {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
         _displayMgr.loadTouchCalibration(cal);
         if (!_displayMgr.isTouchCalibrated()) {
-            LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0, TRL("Touch calibration required.", "Calibracao do touch necessaria."));
+            LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0, TRL("Touch calibration required."));
             _displayMgr.setBootStatus("Touch calibration required...");
             delay(600);
             _displayMgr.showTouchCalibration();
@@ -235,7 +233,7 @@ void AppManager::setup() {
                         TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
                         _displayMgr.fillCalData(calOut);
                         _storageMgr.saveConfiguration();
-                        LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_INITIAL, 0, TRL("Initial touch calibration saved.", "Calibracao inicial do touch salva."));
+                        LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_INITIAL, 0, TRL("Initial touch calibration saved."));
                     }
                 }
                 delay(50);
@@ -249,7 +247,7 @@ void AppManager::setup() {
     _sensorMgr.setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 
     if (forceAP) {
-        LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode.", "Usuario ativou modo AP."));
+        LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
         _displayMgr.setBootStatus("Starting Access Point (AP)...");
         _displayMgr.setBootStatus("Connect to network SIMUT_SETUP");
         _displayMgr.setBootStatus("Access on mobile: 192.168.4.1");
@@ -347,7 +345,7 @@ void AppManager::setup() {
     if (forceAP) {
         _isApMode = true;
         _displayMgr.setBootStatus("AP Active! Reboot board to exit.", false);
-        LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode).", "Sistema pronto (modo AP)."));
+        LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode)."));
     } else {
 
         /* Carrega min/max do dia a partir do arquivo de histórico */
@@ -402,7 +400,7 @@ void AppManager::setup() {
         _displayMgr.setBootStatus("All subsystems initialized.");
         _displayMgr.setBootStatus("System Ready! Entering Dashboard.");
         delay(800);
-        LOG_CODE(LOG_INFO, "APP", APP_READY, 0, TRL("System ready.", "Sistema pronto."));
+        LOG_CODE(LOG_INFO, "APP", APP_READY, 0, TRL("System ready."));
         _displayMgr.endBoot();
         _bootCompletedAt = millis();
 

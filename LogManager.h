@@ -134,10 +134,11 @@ public:
     /** Idioma dos labels dos códigos de log. Sincronizado com cfg.displayLang. */
     void setLanguage(uint8_t lang) { _language = lang; }
 
-    /** Seleciona string por idioma corrente — para extras de LOG_CODE. */
-    const char* tr(const char* en, const char* pt) const {
-        return (_language == LANG_PT) ? pt : en;
-    }
+    /** F-LANGPACK: seleciona string conforme idioma corrente. EN é
+     *  inline; non-EN faz lookup em DisplayManager::trlLookup() via
+     *  hash FNV-1a do EN. Implementação out-of-line em LogManager.cpp
+     *  para evitar incluir DisplayManager.h aqui. */
+    const char* tr(const char* en) const;
 
 
     void setEpochSource(time_t (*fn)());
@@ -227,8 +228,8 @@ private:
 #define LOG_ERR(tag, msg) LogManager::instance().error(tag, msg)
 #define LOG_CODE(lvl, tag, code, ctx, msg) LogManager::instance().logCode(lvl, tag, code, ctx, msg)
 
-/** Seleciona string EN/PT conforme idioma corrente — açúcar sintático p/ extras. */
-#define TRL(en, pt) (LogManager::instance().tr(en, pt))
+/** F-LANGPACK: seleciona EN inline ou tradução do .lng (via hash). */
+#define TRL(en) (LogManager::instance().tr(en))
 
 #define TRACE_MOD(core, mod) LogManager::instance().setModule(core, mod)
 #define TRACE_BEAT(core) LogManager::instance().heartbeat(core)

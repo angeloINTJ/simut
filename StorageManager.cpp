@@ -176,7 +176,7 @@ bool StorageManager::begin() {
 
 bool StorageManager::mountFS() {
     if (LittleFS.begin()) { _isMounted = true; return true; }
-    LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_FORMAT, 0, TRL("Formatting Flash FS...", "Formatando FS do flash..."));
+    LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_FORMAT, 0, TRL("Formatting Flash FS..."));
     enterFlashSafeMode();
     bool formatted = LittleFS.format();
     if (formatted) { bool mounted = LittleFS.begin(); exitFlashSafeMode(); _isMounted = mounted; return mounted; }
@@ -550,7 +550,7 @@ bool StorageManager::loadConfiguration() {
     }
 
     if (fromBackup) {
-        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, TRL("Primary config corrupt, recovered from backup", "Config primaria corrompida, recuperada do backup"));
+        LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, TRL("Primary config corrupt, recovered from backup"));
     }
 
     /* Migração de schema (v12/v13/v14 → v15): persistir no novo formato antes
@@ -561,7 +561,7 @@ bool StorageManager::loadConfiguration() {
         _didMigrate = false;
         _migrationFromVersion = 0;
         LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, fromVer,
-                 TRL("Config schema migrated", "Schema de config migrado"));
+                 TRL("Config schema migrated"));
         saveConfiguration();
     } else if (fromBackup) {
         saveConfiguration();

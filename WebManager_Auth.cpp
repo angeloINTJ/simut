@@ -19,7 +19,7 @@ void WebManager::clearStaleSessions() {
     for (int i = 0; i < 3; i++) {
         if (_activeSessions[i].token != "") {
             if (now - _activeSessions[i].lastActivity > 900000) {
-                LOG_CODE(LOG_INFO, "SEC", SEC_SESSION_EXPIRE, i, String(TRL("Session expired: ", "Sessao expirada: ")) + _activeSessions[i].username);
+                LOG_CODE(LOG_INFO, "SEC", SEC_SESSION_EXPIRE, i, String(TRL("Session expired: ")) + _activeSessions[i].username);
 
                 memset((void*)_activeSessions[i].token.begin(), 0, _activeSessions[i].token.length());
                 _activeSessions[i].token = "";
@@ -322,7 +322,7 @@ void WebManager::completeLogin(int slot, int foundId, int ls, const String& u) {
     _currentUserName = u;
     _currentUserPerms = _activeSessions[slot].perms;
 
-    LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, foundId, String(TRL("Login OK: ", "Login OK: ")) + u);
+    LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, foundId, String(TRL("Login OK: ")) + u);
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
 
     if (_displayRef) _displayRef->setWebNotification(u.c_str());
@@ -358,7 +358,7 @@ void WebManager::handleApiLogin() {
     /* D13: tamanhos sanos antes de invocar hashPassword (PASSWORD_HMAC_ROUNDS) */
     if (!isValidName(u.c_str(), 31) || p.length() > 128) {
         applyExponentialPenalty(ls);
-        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Invalid Input Size", "Login rejeitado: tamanho invalido"));
+        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Invalid Input Size"));
         _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
         return;
     }
@@ -367,7 +367,7 @@ void WebManager::handleApiLogin() {
     if (foundId < 0) {
         if (ls >= 0) {
             uint32_t penaltyMs = applyExponentialPenalty(ls);
-            LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, String(TRL("Login Failed: ", "Login falhou: ")) + u);
+            LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, String(TRL("Login Failed: ")) + u);
             if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_ERROR);
             char buf[64];
             snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)(penaltyMs/1000));
@@ -380,7 +380,7 @@ void WebManager::handleApiLogin() {
 
     int slot = allocSessionSlot(foundId);
     if (slot < 0) {
-        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Max Sessions Reached", "Login rejeitado: limite de sessoes"));
+        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Max Sessions Reached"));
         _server.send(403, "application/json", "{\"ok\":false,\"err\":3}");
         return;
     }
@@ -393,7 +393,7 @@ void WebManager::handleLogout() {
         String cookie = _server.header("Cookie");
         for (int i = 0; i < 3; i++) {
             if (_activeSessions[i].token != "" && cookie.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
-                LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0, String(TRL("Logout: ", "Logout: ")) + _activeSessions[i].username);
+                LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0, String(TRL("Logout: ")) + _activeSessions[i].username);
 
                 memset((void*)_activeSessions[i].token.begin(), 0, _activeSessions[i].token.length());
                 _activeSessions[i].token = "";
@@ -473,7 +473,7 @@ void WebManager::handleApiForceChpass() {
     _storageRef->saveConfiguration();
 
     if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
-    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Password Reset Success: ", "Reset de senha bem-sucedido: ")) + _currentUserName);
+    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Password Reset Success: ")) + _currentUserName);
 
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }

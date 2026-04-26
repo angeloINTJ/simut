@@ -40,7 +40,7 @@ void AppManager::loop() {
     {
         uint32_t pauseTs = _displayMgr.getPauseStartTime();
         if (pauseTs > 0 && timeSince(pauseTs, 5000)) {
-            LOG_CODE(LOG_ERROR, "APP", APP_DISPLAY_PAUSE_STUCK, 0, TRL("Display pause stuck >5s!", "Pause do display preso >5s!"));
+            LOG_CODE(LOG_ERROR, "APP", APP_DISPLAY_PAUSE_STUCK, 0, TRL("Display pause stuck >5s!"));
             _displayMgr.forceUnpause();
         }
     }
@@ -56,7 +56,7 @@ void AppManager::loop() {
                 /* Patch C: signed cast para tolerar cross-core race (beat
                  * levemente adiantado em relacao a millis() local). */
                 if (beat > 0 && timeSince(beat, 10000)) {
-                    LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD, 0, TRL("Core 1 dead >10s. Restarting.", "Core 1 travado >10s. Reiniciando."));
+                    LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD, 0, TRL("Core 1 dead >10s. Restarting."));
                     _displayMgr.restartCore1();
                 }
             }
