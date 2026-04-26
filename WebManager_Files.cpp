@@ -123,7 +123,8 @@ void WebManager::handleApiLs() {
     bool first = true;
 
     if (dirPath == "/") {
-        const char* sysDirs[] = {"/config", "/history"};
+        /* F-LANGPACK: /lang adicionado para o Etapa 2/β. */
+        const char* sysDirs[] = {"/config", "/history", "/lang"};
         for (auto sd : sysDirs) {
             feedWatchdog();
 
@@ -225,13 +226,16 @@ void WebManager::handleApiMkdir() {
     if (slashCount > 2) { _server.send(400, "text/plain", "Max depth exceeded"); return; }
 
     bool ok;
+    bool alreadyExisted = LittleFS.exists(dirPath);
     {
         RenderGuard rg(_displayRef);
-        ok = LittleFS.mkdir(dirPath);
+        ok = alreadyExisted ? true : LittleFS.mkdir(dirPath);
     }
 
     if (ok) {
-        LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Created folder: ")) + dirPath);
+        if (!alreadyExisted) {
+            LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Created folder: ")) + dirPath);
+        }
         _server.send(200, "application/json", "{\"status\":\"ok\"}");
     } else {
         _server.send(500, "application/json", "{\"error\":\"Failed\"}");
