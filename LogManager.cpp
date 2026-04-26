@@ -678,6 +678,8 @@ void LogManager::performCrashAutopsy() {
 
         char msg[200];
         if (c0Valid == 0x80) {
+            /* Crash real: Core 0 estava ativo (chamou TRACE_MOD) e travou.
+             * Trace identifica módulo que estava executando no momento. */
             const char* c0Name = (c0Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c0Mod] : "UNK";
             if (c1Valid == 0x80) {
                 const char* c1Name = (c1Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c1Mod] : "UNK";
@@ -689,12 +691,22 @@ void LogManager::performCrashAutopsy() {
                          "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] sc3=0x%08lx",
                          c0Name, (unsigned long)modTrace);
             }
+            logCode(LOG_FATAL, "SYS", SYS_BOOT, 0, String(msg));
         } else {
+            /* Sem trace de Core 0 (c0Valid != 0x80) → boot anterior NUNCA chamou
+             * TRACE_MOD(0,...). Causa mais provavel: picotool restart pos-upload
+             * usa watchdog reset como mecanismo, deixando WATCHDOG.REASON setado
+             * (registro so limpa em POR/external reset, datasheet RP2040 §4.7.6).
+             * Crash real pre-TRACE_MOD existe mas e' raro. Demote para INFO
+             * para nao alarmar — repeats suprimidos via scratch[5] magic. */
             snprintf(msg, sizeof(msg),
-                     "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). (sem trace; sc3=0x%08lx)",
+                     "Boot after watchdog reset (no trace — likely post-flash by picotool; sc3=0x%08lx)",
                      (unsigned long)modTrace);
+            logCode(LOG_INFO, "SYS", SYS_BOOT, 0, String(msg));
+            /* Suprime FTL/INFO em proximos boots ate proximo crash real ou
+             * power cycle. Magic de "clean reboot" cobre o caso. */
+            watchdog_hw->scratch[5] = 0xC1EA8007;
         }
-        logCode(LOG_FATAL, "SYS", SYS_BOOT, 0, String(msg));
         watchdog_hw->scratch[3] = 0;  /* Limpa pra proxima autopsia */
     } else {
         /* Power cycle / reset fisico: limpa scratch[4] para nao contaminar
