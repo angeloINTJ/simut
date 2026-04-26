@@ -124,3 +124,4 @@ inline bool isValidIpv4(const char* ip) {
 /** Check if a numeric value falls within [minVal, maxVal]. */
 inline bool isInRange(int value, int minVal, int maxVal) {
     return (value >= minVal && value <= maxVal);
+}

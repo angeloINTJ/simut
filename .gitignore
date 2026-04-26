@@ -35,3 +35,4 @@ WebUI_GZ.h
 # Python
 __pycache__/
 *.pyc
+.venv/
