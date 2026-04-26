@@ -14,7 +14,6 @@
 
 #include "TelemetryManager.h"
 #include "MetricsManager.h"
-#include "MemoryPool.h"   /* F-MEM-SHAREDPOOL: payload vai pro pool quando livre */
 #include <LittleFS.h>
 #include <algorithm>
 #include <string.h>
@@ -247,30 +246,20 @@ void TelemetryManager::update() {
     } else {
         /*
          * HTTP: constrói payload, libera batch ANTES do POST.
-         * F-MEM-SHAREDPOOL: tenta usar o MemoryPool (BSS, sem fragmentação).
-         * Se pool ocupado por graph caches, fallback heap String.
+         * Isso evita que batch (~7KB) + payload (~13KB) + TLS (~16KB)
+         * coexistam em RAM simultaneamente.
          */
-        uint8_t* poolBuf = MemoryPool::tryClaim(MemoryPool::OWNER_TELEMETRY);
-        if (poolBuf) {
-            size_t payloadLen = buildPayloadInto((char*)poolBuf, MemoryPool::SIZE, batch);
-            if (_dumpPayloadNext) {
-                _dumpPayload((char*)poolBuf, payloadLen, "HTTP");
-                _dumpPayloadNext = false;
-            }
-            batch.clear();
-            batch.shrink_to_fit();
-            success = attemptHttpUpload((const char*)poolBuf, payloadLen, newCursor);
-            MemoryPool::release(MemoryPool::OWNER_TELEMETRY);
-        } else {
-            String payload = buildPayload(batch);
-            if (_dumpPayloadNext) {
-                _dumpPayload(payload.c_str(), payload.length(), "HTTP");
-                _dumpPayloadNext = false;
-            }
-            batch.clear();
-            batch.shrink_to_fit();
-            success = attemptHttpUpload(payload.c_str(), payload.length(), newCursor);
+        String payload = buildPayload(batch);
+        if (_dumpPayloadNext) {
+            _dumpPayload(payload.c_str(), payload.length(), "HTTP");
+            _dumpPayloadNext = false;
         }
+
+        /* Libera batch para reduzir pico de RAM antes do TLS handshake */
+        batch.clear();
+        batch.shrink_to_fit();
+
+        success = attemptHttpUpload(payload, newCursor);
     }
 
     __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
@@ -441,7 +430,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 /*                              HTTP TRANSPORT                               */
 /* =========================================================================== */
 /** @brief Upload a batch via HTTP POST with configurable auth headers. */
-bool TelemetryManager::attemptHttpUpload(const char* payload, size_t payloadLen, uint32_t newCursor) {
+bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
     SystemConfig &cfg = _storageRef->getConfig();
 
     feedWdt();
@@ -503,19 +492,19 @@ bool TelemetryManager::attemptHttpUpload(const char* payload, size_t payloadLen,
         int code;
         {
             TelemetryGuard tg;  /* Alimenta watchdog durante POST bloqueante */
-            code = http.POST((uint8_t*)payload, payloadLen);
+            code = http.POST(payload);
         }
         uint32_t postLatency = millis() - postStart;
         watchdog_update();
 
         if (code > 0) {
-            LOG_CODE(LOG_INFO, "TEL", SYS_TEL_SENT, code, "HTTP OK: " + String(payloadLen) + " bytes, code " + String(code));
+            LOG_CODE(LOG_INFO, "TEL", SYS_TEL_SENT, code, "HTTP OK: " + String(payload.length()) + " bytes, code " + String(code));
             if (code >= 200 && code < 300) {
                 _storageRef->setLastSentTimestamp(newCursor);
                 success = true;
                 auto& m = MetricsManager::instance().data();
                 m.telSent++;
-                m.telTotalBytes += (uint32_t)payloadLen;
+                m.telTotalBytes += (uint32_t)payload.length();
                 m.telLastLatencyMs = postLatency;
             }
         } else {
@@ -812,27 +801,20 @@ bool TelemetryManager::forceSync() {
 
     SystemConfig &cfg = _storageRef->getConfig();
 
-    /* F-MEM-SHAREDPOOL: HTTP usa pool quando disponível; MQTT mantém String
-     * (precisa do batch alive para per-item publish em lotes pequenos). */
+    /* Constrói payload e libera batch para reduzir pico de RAM */
+    String payload = buildPayload(batch);
+    if (_dumpPayloadNext) {
+        _dumpPayload(payload.c_str(), payload.length(), "SYNC");
+        _dumpPayloadNext = false;
+    }
+
     bool ok;
     if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
-        String payload = buildPayload(batch);
-        if (_dumpPayloadNext) { _dumpPayload(payload.c_str(), payload.length(), "SYNC"); _dumpPayloadNext = false; }
         ok = attemptMqttPublish(payload, batch, newCursor);
     } else {
-        uint8_t* poolBuf = MemoryPool::tryClaim(MemoryPool::OWNER_TELEMETRY);
-        if (poolBuf) {
-            size_t payloadLen = buildPayloadInto((char*)poolBuf, MemoryPool::SIZE, batch);
-            if (_dumpPayloadNext) { _dumpPayload((char*)poolBuf, payloadLen, "SYNC"); _dumpPayloadNext = false; }
-            batch.clear(); batch.shrink_to_fit();
-            ok = attemptHttpUpload((const char*)poolBuf, payloadLen, newCursor);
-            MemoryPool::release(MemoryPool::OWNER_TELEMETRY);
-        } else {
-            String payload = buildPayload(batch);
-            if (_dumpPayloadNext) { _dumpPayload(payload.c_str(), payload.length(), "SYNC"); _dumpPayloadNext = false; }
-            batch.clear(); batch.shrink_to_fit();
-            ok = attemptHttpUpload(payload.c_str(), payload.length(), newCursor);
-        }
+        batch.clear();
+        batch.shrink_to_fit();
+        ok = attemptHttpUpload(payload, newCursor);
     }
 
     __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
@@ -959,93 +941,6 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
         if (gtLen > spanStart) s.concat(gt + spanStart, gtLen - spanStart);
     }
     return s;
-}
-
-/* F-MEM-SHAREDPOOL: variante char* de buildPayload — escreve no buffer
- * fornecido (do MemoryPool tipicamente) em vez de allocar String em heap.
- * Retorna bytes escritos (sem incluir terminador). Truncates se cap baixo. */
-size_t TelemetryManager::buildPayloadInto(char* dest, size_t cap,
-                                           std::vector<BinaryHistoryRecord>& batch) {
-    if (cap < 4) { if (cap > 0) dest[0] = '\0'; return 0; }
-    SystemConfig &cfg = _storageRef->getConfig();
-    size_t pos = 0;
-
-    auto append = [&](const char* src, size_t n) {
-        if (pos + n + 1 > cap) n = (cap > pos + 1) ? cap - pos - 1 : 0;
-        if (n > 0) { memcpy(dest + pos, src, n); pos += n; }
-    };
-    auto putc1 = [&](char c) {
-        if (pos + 1 < cap) dest[pos++] = c;
-    };
-
-    if (cfg.telMode == TEL_MODE_JSON) {
-        putc1('[');
-        char lineBuf[512];
-        for (size_t i = 0; i < batch.size(); i++) {
-            if (i > 0) putc1(',');
-            int len = formatLineJsonBuf(batch[i], cfg, lineBuf, sizeof(lineBuf));
-            if (len > 0) append(lineBuf, (size_t)len);
-            if (i % 10 == 9) { watchdog_update(); yield(); }
-        }
-        putc1(']');
-    } else if (cfg.telMode == TEL_MODE_CSV) {
-        const char* hdr = "timestamp;ambT;ambH";
-        append(hdr, strlen(hdr));
-        char hdrBuf[32];
-        for (int i = 0; i < MAX_SENSORS; i++) {
-            if (cfg.sensors[i].active) {
-                int n = snprintf(hdrBuf, sizeof(hdrBuf), ";s%d_%s", i, cfg.sensors[i].hwId);
-                if (n > 0) append(hdrBuf, (size_t)n);
-            }
-        }
-        putc1('\n');
-        char csvBuf[256];
-        for (size_t i = 0; i < batch.size(); i++) {
-            batch[i].toCsvLine(csvBuf, sizeof(csvBuf));
-            append(csvBuf, strlen(csvBuf));
-            putc1('\n');
-            if (i % 10 == 9) { watchdog_update(); yield(); }
-        }
-    } else if (cfg.telMode == 2) {
-        char sep[16];
-        strlcpy(sep, cfg.telLineSeparator, sizeof(sep));
-        if (sep[0] == '\\' && sep[1] == 'n' && sep[2] == '\0') { sep[0] = '\n'; sep[1] = '\0'; }
-        size_t sepLen = strlen(sep);
-        String macStr = _netRef->getMacAddress();   /* String pequena, OK */
-        const char* gt = cfg.telGlobalTemplate;
-        const size_t gtLen = strnlen(gt, sizeof(cfg.telGlobalTemplate));
-        char lineBuf[1024];
-        size_t gi = 0, spanStart = 0;
-        while (gi < gtLen) {
-            if (gt[gi] != '{') { gi++; continue; }
-            const size_t remaining = gtLen - gi;
-            size_t tokLen = 0;
-            int tokKind = 0;
-            if (remaining >= 5 && memcmp(gt + gi, "{DEV}", 5) == 0) { tokKind = 1; tokLen = 5; }
-            else if (remaining >= 5 && memcmp(gt + gi, "{MAC}", 5) == 0) { tokKind = 2; tokLen = 5; }
-            else if (remaining >= 6 && memcmp(gt + gi, "{DATA}", 6) == 0) { tokKind = 3; tokLen = 6; }
-            if (tokKind == 0) { gi++; continue; }
-            if (gi > spanStart) append(gt + spanStart, gi - spanStart);
-            if (tokKind == 1) {
-                append(cfg.deviceName, strlen(cfg.deviceName));
-            } else if (tokKind == 2) {
-                append(macStr.c_str(), macStr.length());
-            } else {
-                for (size_t i = 0; i < batch.size(); i++) {
-                    if (i > 0 && sepLen > 0) append(sep, sepLen);
-                    int len = formatLineCustomBuf(batch[i], cfg, lineBuf, sizeof(lineBuf));
-                    if (len > 0) append(lineBuf, (size_t)len);
-                    if (i % 10 == 9) { watchdog_update(); yield(); }
-                }
-            }
-            gi += tokLen;
-            spanStart = gi;
-        }
-        if (gtLen > spanStart) append(gt + spanStart, gtLen - spanStart);
-    }
-    if (pos < cap) dest[pos] = '\0';
-    else dest[cap - 1] = '\0';
-    return pos;
 }
 
 /**
