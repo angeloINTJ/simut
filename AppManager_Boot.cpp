@@ -181,6 +181,9 @@ void AppManager::setup() {
     _displayMgr.setBootStatus("Loading Theme & Language...");
     loadTheme(cfg.themeIndex);
     _displayMgr.refreshTheme();
+    /* F-LANGPACK Etapa 2: scan /lang/ ANTES de setLanguage para que o
+     * lookup já esteja pronto quando tr() for chamado. Sem .lng, cai EN. */
+    DisplayManager::findAndLoadLangFile();
     _displayMgr.setLanguage(cfg.displayLang);
 
 

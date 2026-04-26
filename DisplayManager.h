@@ -600,6 +600,10 @@ public:
     static const char* trlLookup(const char* en);
     /** FNV-1a 32-bit. Exposto para tooling Python que gera o .lng. */
     static uint32_t fnv1a32(const char* s);
+    /** Etapa 2: scan /lang/ por language_*.lng, carrega o primeiro
+     *  alfabeticamente. Loga warning se houver extras. Apenas Core 0
+     *  (LittleFS). Retorna true se um .lng foi efetivamente carregado. */
+    static bool findAndLoadLangFile();
 
 private:
     struct ActiveLang {
