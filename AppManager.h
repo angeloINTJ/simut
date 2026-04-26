@@ -106,10 +106,15 @@ private:
         bool valid;
     };
 
-    GraphCacheEntry _graphCache[MAX_SENSORS + 2];
+    /* F-MEM-LAZYGRAPH: caches alocados em heap sob demanda em vez de BSS.
+     * Antes: arrays fixos consumiam ~44 KB BSS permanente (vide audit).
+     * Agora: bloco único alocado quando user abre stats/graph; liberado
+     * 5s após retornar à dashboard. Telemetria/web ganham heap quando
+     * dashboard está idle (touch pausado já libera a janela). */
+    GraphCacheEntry* _graphCache  = nullptr;  /**< [MAX_SENSORS+2] lazy */
+    GraphCacheEntry* _sensorCache = nullptr;  /**< [5] lazy             */
+    bool             _graphCachesAllocated = false;
     uint32_t _lastGraphCacheRefresh = 0;
-    int  _bgCacheNextSensor = -2;   /**< -2 = idle, -1 = ambient, 0-9 = sensors, 10 = board */
-    bool _bgCacheRunning    = false;
 
     /**
      * Cache de todos os 5 ranges do sensor atualmente visualizado.
@@ -117,8 +122,15 @@ private:
      * para que a troca entre 1H/6H/12H/24H/7D seja instantânea.
      * Ao abrir outro sensor, o cache é invalidado e recarregado.
      */
-    GraphCacheEntry _sensorCache[5];  /**< [0]=1H [1]=6H [2]=12H [3]=24H [4]=7D */
     int _sensorCacheId = -99;         /**< sensorId cacheado (-99 = nenhum)      */
+
+    /** Aloca _graphCache e _sensorCache em bloco único no heap. Retorna
+     *  true se já alocado ou alocou agora; false se OOM. Caller deve
+     *  fallback para render direto sem cache. */
+    bool ensureGraphCachesAllocated();
+    /** Libera caches se MODE_DASHBOARD AND lastTouch > 5s atrás. No-op
+     *  caso contrário. Chamado periodicamente pelo loop principal. */
+    void freeGraphCachesIfIdle();
     int _graphNavOffset = 0;          /**< Offset de navegação temporal (≤ 0)    */
     int _lastGraphRange = 3;          /**< Último range renderizado (para nav)   */
     time_t _graphAnchorEnd = 0;       /**< Âncora do fim da janela (0 = usar now) */

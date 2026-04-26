@@ -146,13 +146,13 @@ void AppManager::loop() {
         if (!heavyRendering && !isUserInteracting()) {
             /*
              * Invalida cache de ranges do sensor antes da telemetria.
-             * Libera ~11KB de heap para o payload + TLS. Será reconstruído
-             * automaticamente na próxima abertura de gráfico.
-             */
-            if (_sensorCacheId != -99) {
+             * F-MEM-LAZYGRAPH: caches podem nem estar alocados se user
+             * está só na dashboard — ainda assim resetamos _sensorCacheId
+             * para coerência ao próximo open. */
+            if (_graphCachesAllocated && _sensorCacheId != -99) {
                 for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
-                _sensorCacheId = -99;
             }
+            _sensorCacheId = -99;
 
             _telemetryMgr.update();
 
@@ -192,6 +192,15 @@ void AppManager::loop() {
     }
 
     watchdog_update();
+
+    /* ── F-MEM-LAZYGRAPH: libera caches se dashboard idle 5s ── */
+    {
+        static uint32_t lastCacheFreeCheck = 0;
+        if (timeSince(lastCacheFreeCheck, 1000)) {
+            lastCacheFreeCheck = millis();
+            freeGraphCachesIfIdle();
+        }
+    }
 
     /* ── Status do sistema: atualiza dados a cada 1s quando tela ativa ── */
     {

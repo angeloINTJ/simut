@@ -59,19 +59,58 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
     _storageMgr.unlockHeavyTask();
 
     /*
-     * Invalida todo o cache de gráficos 7d pré-carregado no boot.
-     * Os timestamps dos registros foram corrigidos pelo delta NTP,
-     * mas os gráficos em cache ainda usam os dados antigos.
-     * Serão recarregados sob demanda ou no próximo refresh de 6h.
+     * Invalida todo o cache de gráficos pós-correção NTP. Sob a nova
+     * arquitetura lazy, caches só existem se o user já abriu graph.
+     * Sem alocação: nada a invalidar, log no-op.
      */
-    for (int i = 0; i < MAX_SENSORS + 2; i++) {
-        _graphCache[i].valid = false;
+    if (_graphCachesAllocated) {
+        for (int i = 0; i < MAX_SENSORS + 2; i++) _graphCache[i].valid = false;
+        for (int r = 0; r < 5; r++) _sensorCache[r].valid = false;
+        _sensorCacheId = -99;
     }
-    for (int r = 0; r < 5; r++) {
-        _sensorCache[r].valid = false;
-    }
-    _sensorCacheId = -99;
     LOG_CODE(LOG_INFO, "APP", APP_CACHE_INVALIDATED, 0, "");
+}
+
+/* F-MEM-LAZYGRAPH: aloca _graphCache + _sensorCache em bloco único.
+ * Idempotente: se já alocado, retorna true imediatamente.
+ * Em OOM: loga warning e retorna false; caller renderiza sem cache. */
+bool AppManager::ensureGraphCachesAllocated() {
+    if (_graphCachesAllocated) return true;
+
+    constexpr size_t TOTAL = (MAX_SENSORS + 2 + 5) * sizeof(GraphCacheEntry);
+    void* mem = calloc(1, TOTAL);
+    if (!mem) {
+        LOG_CODE(LOG_WARN, "APP", SYS_HEAP_LOW,
+                 (int)(rp2040.getFreeHeap() / 1024),
+                 "OOM aloc graph caches; render direto");
+        return false;
+    }
+    _graphCache  = (GraphCacheEntry*)mem;
+    _sensorCache = _graphCache + (MAX_SENSORS + 2);
+    _sensorCacheId = -99;
+    _graphCachesAllocated = true;
+    LOG_CODE(LOG_INFO, "APP", APP_CACHE_GRAPH_STARTED,
+             (int)(rp2040.getFreeHeap() / 1024),
+             "Graph caches alocados");
+    return true;
+}
+
+/* Libera caches se em DASHBOARD AND lastTouch > 5s atrás. */
+void AppManager::freeGraphCachesIfIdle() {
+    if (!_graphCachesAllocated) return;
+    if (_displayMgr.getUiMode() != MODE_DASHBOARD) return;
+    uint32_t lastTouch = _displayMgr.getLastTouchTimestamp();
+    /* lastTouch == 0 (boot, sem touch ainda) também conta como idle. */
+    if (lastTouch != 0 && (millis() - lastTouch) < 5000) return;
+
+    free(_graphCache);  /* libera o bloco único; sensorCache aponta para dentro */
+    _graphCache = nullptr;
+    _sensorCache = nullptr;
+    _sensorCacheId = -99;
+    _graphCachesAllocated = false;
+    LOG_CODE(LOG_INFO, "APP", APP_CACHE_GRAPH_DONE,
+             (int)(rp2040.getFreeHeap() / 1024),
+             "Graph caches liberados (dashboard idle)");
 }
 bool AppManager::isUserInteracting() const {
     uint32_t lastTouch = _displayMgr.getLastTouchTimestamp();
