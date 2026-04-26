@@ -174,6 +174,13 @@ public:
     void setCorePaused(int core, bool paused);
     void markCleanReboot();          /**< Chamar ANTES de rp2040.reboot() para não disparar autópsia HW WDT */
 
+    /** F-USB-REBOOT: reboot defensivo que dá tempo do USB CDC desconectar
+     *  limpo no host. Resolve "ttyACM0 não reaparece após reload" no Linux,
+     *  causado por watchdog_reboot(0,0,10) interromper o USB no meio do
+     *  envio. Faz: markCleanReboot + Serial.flush + Serial.end + delays +
+     *  watchdog_enable(500ms). NÃO retorna. */
+    [[noreturn]] void safeReboot();
+
     /** Fase 5: flush imediato de logs pendentes bufferizados durante touch
      *  priority. AppManager chama logo após `isUserInteracting()` transicionar
      *  para false, pra fechar a janela "dado em RAM, não em flash". No-op

@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.26.0-alpha20" /* Autopsy WDT: alive magic 0xA11FA1E5 detecta external reset (picotool) com trace, demote FTL→INFO */
+#define SIMUT_VERSION "v3.26.0-alpha21" /* F-USB-REBOOT: safeReboot() centraliza Serial.flush+end+delay+wdt(500ms) — resolve /dev/ttyACM0 não reaparecer após reload */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

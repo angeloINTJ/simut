@@ -367,8 +367,7 @@ void AppManager::executeCommand(CliDemand cmd) {
             LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Factory reset"));
             _storageMgr.resetToFactory();
             delay(100);
-            LogManager::instance().markCleanReboot();
-            rp2040.reboot();
+            LogManager::instance().safeReboot();
         }
 
         case CMD_SET_NTP_ENABLED: {
@@ -609,8 +608,7 @@ void AppManager::executeCommand(CliDemand cmd) {
             }
             LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI"));
             delay(100);     /* Garante flush do log para flash */
-            LogManager::instance().markCleanReboot();
-            rp2040.reboot();
+            LogManager::instance().safeReboot();
             break;
         case CMD_TEL_SYNC:
             /* Silencioso por design: usuario ve o log natural

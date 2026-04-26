@@ -506,19 +506,15 @@ void WebManager::handleApiCommitAll() {
     _server.client().stop();
 
     /*
-     * Hard reboot garantido via watchdog curto (500ms).
-     * Depois de `watchdog_enable(500, 1)` e `while(1)`:
-     *   - Não importa o que travar (lockout, multicore, flash GC),
-     *     o WDT dispara em 500ms e reinicia o chip.
-     *   - Elimina o espaço onde U21 (display congelado) ocorria entre
-     *     save completo e rp2040.reboot().
-     *   - Marca scratch pra autópsia NÃO reportar como HW_WATCHDOG —
-     *     isso foi um reboot intencional, não um travamento.
+     * Hard reboot via LogManager::safeReboot() — sequência consolidada:
+     *   - markCleanReboot: autópsia NÃO reporta como HW_WATCHDOG (intencional)
+     *   - Serial.flush + Serial.end: USB CDC desconecta limpo no host (resolve
+     *     /dev/ttyACM0 não reaparecer após reboot — F-USB-REBOOT alpha21)
+     *   - watchdog_enable(500, 1): 500ms WDT garante reset mesmo se algo
+     *     travar (lockout, multicore, flash GC). Elimina o espaço onde U21
+     *     (display congelado) ocorria entre save completo e o reset.
      */
-    LogManager::instance().markCleanReboot();
-    delay(50);  /* último flush do Serial */
-    watchdog_enable(500, 1);
-    while (1) { tight_loop_contents(); }
+    LogManager::instance().safeReboot();
 }
 
 /* handleSaveNetwork removido em U24 Phase C — substituido por handleApiCommitAll. */
