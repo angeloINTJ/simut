@@ -634,14 +634,42 @@ void CommandManager::printError(String msg) { consolePrint("ERROR: "); consolePr
 void CommandManager::printInfo(String msg) { consolePrintln(msg); }
 
 void CommandManager::printHelp() {
-    /* F-LANGPACK Etapa 3: PT vem do @HELP do .lng (UTF-8 → unaccent
-     * para o terminal ASCII). EN sempre do /help_en.txt no FS. */
+    /* F-LANGPACK A+B: PT vem do @HELP do .lng — lazy-load via file
+     * read (não fica em RAM). Lê line-by-line direto do .lng, aplica
+     * unaccent e imprime. Fallback: helpText embedded (compat) ou
+     * /help_en.txt para EN. */
     if (isPt()) {
+        uint16_t hOff = DisplayManager::getHelpFileOffset();
+        uint16_t hLen = DisplayManager::getHelpFileLength();
+        const char* lngPath = DisplayManager::getActiveLangFilePath();
+        if (hLen > 0 && lngPath) {
+            File lf = LittleFS.open(lngPath, "r");
+            if (lf) {
+                lf.seek(hOff);
+                char rawBuf[160], asciiBuf[160];
+                size_t remaining = hLen;
+                while (remaining > 0 && lf.available()) {
+                    feedWdt();
+                    size_t toRead = (remaining < sizeof(rawBuf) - 1) ? remaining : sizeof(rawBuf) - 1;
+                    size_t n = lf.readBytesUntil('\n', rawBuf, toRead);
+                    rawBuf[n] = '\0';
+                    if (n > 0 && rawBuf[n-1] == '\r') rawBuf[n-1] = '\0';
+                    /* Conta os bytes consumidos: n chars + 1 (\n) se foi achado */
+                    size_t consumed = n + (lf.available() ? 1 : 0);
+                    if (consumed > remaining) consumed = remaining;
+                    remaining -= consumed;
+                    DisplayManager::unaccent(rawBuf, asciiBuf, sizeof(asciiBuf));
+                    consolePrintln(String(asciiBuf));
+                }
+                lf.close();
+                return;
+            }
+        }
+        /* Fallback antigo: helpText embedded (compat com .lng não-lazy). */
         const char* langHelp = DisplayManager::getActiveHelpText();
         if (langHelp) {
             const char* line = langHelp;
-            char asciiBuf[160];
-            char rawBuf[160];
+            char asciiBuf[160], rawBuf[160];
             while (*line) {
                 feedWdt();
                 size_t i = 0;
@@ -657,7 +685,6 @@ void CommandManager::printHelp() {
             }
             return;
         }
-        /* PT pedido mas .lng não tem @HELP — cai pro EN abaixo. */
     }
 
     File f = LittleFS.open("/help_en.txt", "r");

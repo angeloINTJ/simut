@@ -46,6 +46,31 @@ static char _licenseBuf[2048];
 static void loadLicenseFromFs(int langIdx) {
     /* PT (e qualquer non-EN): tenta o @LICENSE do .lng ativo. */
     if (langIdx != LANG_EN) {
+        /* F-LANGPACK A+B: @LICENSE é lazy-load — abre o .lng, seek+read.
+         * Se metadata existe (length > 0), usa; senão fallback EN abaixo. */
+        uint16_t licOff = DisplayManager::getLicenseFileOffset();
+        uint16_t licLen = DisplayManager::getLicenseFileLength();
+        const char* lngPath = DisplayManager::getActiveLangFilePath();
+        if (licLen > 0 && lngPath) {
+            File lf = LittleFS.open(lngPath, "r");
+            if (lf) {
+                lf.seek(licOff);
+                /* Buffer UTF-8 transitório no heap (não BSS) — alocado/liberado
+                 * só durante o load da license. Sem upload de hold permanente. */
+                size_t cap = (licLen < 2048) ? (licLen + 1) : 2048;
+                char* utf8tmp = (char*)malloc(cap);
+                if (utf8tmp) {
+                    size_t got = lf.readBytes(utf8tmp, cap - 1);
+                    utf8tmp[got] = '\0';
+                    lf.close();
+                    DisplayManager::unaccent(utf8tmp, _licenseBuf, sizeof(_licenseBuf));
+                    free(utf8tmp);
+                    return;
+                }
+                lf.close();
+            }
+        }
+        /* Fallback antigo: helpText/licenseText embedded (compat com .lng não-lazy). */
         const char* langLic = DisplayManager::getActiveLicenseText();
         if (langLic) {
             DisplayManager::unaccent(langLic, _licenseBuf, sizeof(_licenseBuf));
