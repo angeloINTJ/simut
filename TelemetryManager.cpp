@@ -306,22 +306,22 @@ void TelemetryManager::update() {
  * @return            Limite efetivo (≥1, ≤configured).
  */
 uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
+    SystemConfig& cfg = _storageRef->getConfig();
     uint32_t freeHeap = rp2040.getFreeHeap();
     /*
-     * HEAP_RESERVE = 24 KB (alpha16): batch=250 crashou em alpha15 com 16K
-     * por TLS reconnect scratch (~10K) + HTTPClient (~3K) + alocações
-     * eventuais somando ~16K — exatamente o tamanho do antigo reserve.
-     * Aumentado pra 24K para cobrir reconnect TLS + margem operacional.
+     * HEAP_RESERVE diferenciado por encryption (alpha17):
+     *  • HTTPS/MQTTS (cfg.telEncryption=true): 24 KB cobre TLS reconnect
+     *    scratch (~10K BearSSL) + HTTPClient (~3K) + transients (~3K) +
+     *    margem operacional (~8K).
+     *  • HTTP/MQTT plain (cfg.telEncryption=false): 12 KB — sem TLS,
+     *    só HTTPClient + lwIP + margem. Permite batches ~35% maiores.
      *
      * BYTES_PER_ENTRY = 350: medido empírico — ~28 batch struct +
-     * ~310 JSON payload (mais conservador que o real ~221 pra cobrir
-     * picos de tamanho com sensores de hwId longo).
+     * ~310 JSON payload (conservador vs real ~221 para sensores hwId longo).
      *
-     * HARD_CAP = 100: cap empírico — payload de 100 entries ~= 35 KB,
-     * cabe confortável + TLS scratch. Pra batches maiores, preciso
-     * mais heap (eliminar canvases, lng, etc).
+     * HARD_CAP = 100: payload 100 entries ~= 35 KB, cabe + TLS scratch.
      */
-    const uint32_t HEAP_RESERVE    = 24576; /* 24 KB */
+    const uint32_t HEAP_RESERVE    = cfg.telEncryption ? 24576 : 12288;
     const uint32_t BYTES_PER_ENTRY = 350;
     const uint8_t  HARD_CAP        = 100;
 
@@ -858,12 +858,13 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
     size_t estimatedSize = batch.size() * perLine + 256;
 
     /* Verifica heap e reduz batch se necessário.
-     * F-MEM-NOCACHE alpha16: reserva 12K (era 8K) para cobrir TLS reconnect
-     * scratch + HTTPClient internals durante o POST. shrink_to_fit() força
-     * a liberação real da capacity do vector (resize sozinho só muda size). */
+     * alpha17: reserve diferenciado por TLS — 12K com encryption,
+     * 6K sem (sem scratch BearSSL). shrink_to_fit() força liberação
+     * real da capacity do vector (resize só muda size, não capacity). */
     uint32_t freeHeap = rp2040.getFreeHeap();
-    if (freeHeap < estimatedSize + 12288) {
-        size_t safeCount = (freeHeap > 12288) ? (freeHeap - 12288) / perLine : 1;
+    const uint32_t SEC_RESERVE = cfg.telEncryption ? 12288 : 6144;
+    if (freeHeap < estimatedSize + SEC_RESERVE) {
+        size_t safeCount = (freeHeap > SEC_RESERVE) ? (freeHeap - SEC_RESERVE) / perLine : 1;
         if (safeCount < batch.size()) {
             batch.resize(safeCount);
             batch.shrink_to_fit();   /* libera capacity efetiva */
