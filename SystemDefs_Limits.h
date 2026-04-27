@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.26.0-alpha24" /* Custom themes /themes/*.thm: scan boot + hot-reload upload/delete + mkdir; +4 cores (btnText/btnTextActive/titleText/sensorName); simut_def ajustado (tempOk/humidity/btnTextActive); /themes/ allowlist */
+#define SIMUT_VERSION "v3.26.0-alpha25" /* WebUI light theme: bg branco mas elementos slate-azulados suaves (#eef2f7/#f4f7fa/#e8eef4) + accent #0096FF SIMUT (era cyan-700 #0e7490) */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
