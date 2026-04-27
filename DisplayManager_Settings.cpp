@@ -79,11 +79,12 @@ void DisplayManager::drawSettingsThemes() {
             _canvasWide->fillRoundRect(0, 0, itemW, 34, 8, bg);
             if (!isSelected) _canvasWide->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
             _canvasWide->setFont(&simutFont9pt); _canvasWide->setTextColor(txt);
-            _canvasWide->setCursor(10, 24); _canvasWide->print(availableThemes[actualIdx].displayName);
+            const ThemePalette* tp = getThemePalette(actualIdx);
+            _canvasWide->setCursor(10, 24); _canvasWide->print(tp->displayName);
             int pX = itemW - 55; int pY = 9;
-            _canvasWide->fillRect(pX, pY, 16, 16, availableThemes[actualIdx].bgMain);
-            _canvasWide->fillRect(pX + 16, pY, 16, 16, availableThemes[actualIdx].cardBg);
-            _canvasWide->fillRect(pX + 32, pY, 16, 16, availableThemes[actualIdx].accent);
+            _canvasWide->fillRect(pX, pY, 16, 16, tp->bgMain);
+            _canvasWide->fillRect(pX + 16, pY, 16, 16, tp->cardBg);
+            _canvasWide->fillRect(pX + 32, pY, 16, 16, tp->accent);
             if (isSelected) _canvasWide->drawRect(pX-1, pY-1, 49, 18, C_BG_MAIN); else _canvasWide->drawRect(pX-1, pY-1, 49, 18, C_TEXT_SUB);
         }
         blitCanvas(_canvasWide, 10, y, itemW, 34);

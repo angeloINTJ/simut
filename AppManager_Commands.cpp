@@ -25,7 +25,7 @@ void AppManager::executeCommand(CliDemand cmd) {
             _cmdMgr.consolePrintln("");
             _cmdMgr.consolePrintln("--- Available Themes ---");
             for(int i=0; i<getThemeCount(); i++) {
-                _cmdMgr.consolePrintf(" %2d %-12s %s\n", i, getThemeId(i).c_str(), availableThemes[i].displayName);
+                _cmdMgr.consolePrintf(" %2d %-12s %s\n", i, getThemeId(i).c_str(), getThemePalette(i)->displayName);
             }
             _cmdMgr.consolePrintln("-------------------------------------------");
             break;
@@ -45,9 +45,9 @@ void AppManager::executeCommand(CliDemand cmd) {
                 loadTheme(idx);
                 _displayMgr.refreshTheme();
                 changed = true;
-                LOG_CODE(LOG_INFO, "CFG", CFG_THEME_APPLIED, idx, String(availableThemes[idx].displayName));
+                LOG_CODE(LOG_INFO, "CFG", CFG_THEME_APPLIED, idx, String(getThemePalette(idx)->displayName));
                 _cmdMgr.printSuccess(String(_cmdMgr.isPt() ? "Tema: " : "Theme: ")
-                                     + availableThemes[idx].displayName);
+                                     + getThemePalette(idx)->displayName);
             } else {
                 LOG_CODE(LOG_WARN, "CFG", CFG_THEME_NOT_FOUND, 0, "");
                 _cmdMgr.printError(_cmdMgr.isPt()

@@ -14,6 +14,7 @@
 #include "DisplayManager.h"
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
+#include "StorageManager.h"
 
 void DisplayManager::fixCardCorners(int16_t x, int16_t y, int16_t w,
                                     int16_t h, int16_t r,
@@ -232,7 +233,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
          */
         _canvasWide->setTextSize(1);
         _canvasWide->setFont(&simutFont9pt);
-        _canvasWide->setTextColor(C_TEXT_MAIN);
+        _canvasWide->setTextColor(C_TITLE_TEXT);
 
         /* Separar data e hora pelo " - " */
         String fullTime = String(state.timeString);
@@ -266,7 +267,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
         _canvasWide->setTextColor(C_TEXT_SUB);
         _canvasWide->setCursor(sepX, 20);
         _canvasWide->print(" - ");
-        _canvasWide->setTextColor(C_TEXT_MAIN);
+        _canvasWide->setTextColor(C_TITLE_TEXT);
         _canvasWide->setCursor(timeX, 20);
         _canvasWide->print(timePart);
     }
@@ -803,7 +804,7 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
 
     uint16_t panelBg   = slotAlarmBg(slotIdx);
     bool isRedPhase    = _alarmFlashPhase && isSlotAlarming(slotIdx) && !_alarmSilenced;
-    uint16_t nameColor = isRedPhase ? RGB565(255, 255, 255) : C_TEXT_MAIN;
+    uint16_t nameColor = isRedPhase ? RGB565(255, 255, 255) : C_SENSOR_NAME;
     uint16_t unitColor = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_MAIN;
     if (isSlotAlarming(slotIdx)) forceNameRedraw = true;
 
@@ -1136,79 +1137,127 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
     }
 }
 
+int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPaging) {
+    /* Constrói layout de 5 slots fixos (esquerda→direita). kind=-1 = vazio.
+     * O botão de paginação fica SEMPRE na posição 4 (canto direito) quando
+     * existe; slots de uma página parcial deixam gaps em vez de empurrar
+     * o page button pra esquerda. */
+    for (int i = 0; i < 5; i++) { out[i].kind = -1; out[i].slotId = -1; }
+
+    if (!_sysConfigPtr) return 0;
+    SystemConfig &cfg = *_sysConfigPtr;
+    DashBtn all[11];
+    int total = 0;
+    for (int i = 0; i < MAX_SENSORS; i++) {
+        if (cfg.sensors[i].active) {
+            all[total].kind = 0;
+            all[total].slotId = (int8_t)i;
+            total++;
+        }
+    }
+    all[total].kind = 1;        /* CFG sempre presente */
+    all[total].slotId = -1;
+    total++;
+
+    const int LINE_CAP = 5;
+    bool paging = (total > LINE_CAP);
+    int perPage = paging ? 4 : LINE_CAP;   /* paging reserva pos 4 pro page btn */
+    int pages   = (total + perPage - 1) / perPage;
+    if (_currentPage >= pages) _currentPage = 0;   /* clamp pós mudança de config */
+
+    int firstIdx = _currentPage * perPage;
+    int lastIdx  = firstIdx + perPage;
+    if (lastIdx > total) lastIdx = total;
+
+    int pos = 0;
+    for (int i = firstIdx; i < lastIdx; i++) out[pos++] = all[i];
+    if (paging) { out[4].kind = 2; out[4].slotId = -1; }   /* sempre posição 4 */
+
+    if (totalPages) *totalPages = pages;
+    if (hasPaging)  *hasPaging  = paging;
+    return paging ? 5 : pos;
+}
+
 void DisplayManager::drawBottomButtons(int selectedIdx, bool forceRedraw) {
     if(!_canvasWide) return;
     _canvasWide->fillScreen(C_BG_MAIN);
-    int btnW = 58; int gap = 5; int xStart = 5;
-    char labels[4][8]; int slotsMap[4];
-    if (_currentPage == 0) { for(int i=0; i<4; i++) { slotsMap[i] = i; snprintf(labels[i], 8, "S%d", i); } }
-    else if (_currentPage == 1) { for(int i=0; i<4; i++) { slotsMap[i] = i+4; snprintf(labels[i], 8, "S%d", i+4); } }
-    else { slotsMap[0] = 8; strcpy(labels[0], "S8"); slotsMap[1] = 9; strcpy(labels[1], "S9"); slotsMap[2] = 10; strcpy(labels[2], "CFG"); slotsMap[3] = -1; strcpy(labels[3], ""); }
+    const int btnW = 58, gap = 5, xStart = 5, pitch = btnW + gap;
 
-    for (int i = 0; i < 4; i++) {
-        int realIdx = slotsMap[i]; if (realIdx == -1) continue;
-        int x = xStart + (i * (btnW + gap));
-        bool isActive = (realIdx == selectedIdx);
+    DashBtn btns[5];
+    int totalPages = 1;
+    bool paging = false;
+    int n = buildDashLayout(btns, &totalPages, &paging);
 
-
-        bool btnAlarm = _alarmFlashPhase && isSlotAlarming(realIdx);
-        uint16_t bgColor, txtColor;
-        if (btnAlarm) {
-            bgColor  = RGB565(180, 30, 30);
-            txtColor = RGB565(255, 255, 255);
-        } else if (isActive) {
-            bgColor  = C_ACCENT_HIGH;
-            txtColor = C_TEXT_MAIN;
-        } else {
-            bgColor  = C_CARD_BG;
-            txtColor = isSlotAlarming(realIdx) ? C_TEMP_HOT : C_TEXT_SUB;
-        }
-
-        _canvasWide->fillRoundRect(x, 0, btnW, 40, 12, bgColor);
-        _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextSize(1); _canvasWide->setTextColor(txtColor);
-        int16_t x1, y1; uint16_t w, h;
-        _canvasWide->getTextBounds(labels[i], 0, 0, &x1, &y1, &w, &h);
-        _canvasWide->setCursor(x + (btnW - w)/2, 28);
-        _canvasWide->print(labels[i]);
-    }
-    int xPag = xStart + (4 * (btnW + gap));
-
-
+    /* Detecta alarmes em slots ATIVOS de outras páginas (pra colorir o page btn) */
+    if (!_sysConfigPtr) { blitCanvas(_canvasWide, 0, 195, 320, 41); return; }
+    SystemConfig &cfg = *_sysConfigPtr;
     bool hasAlarmsOnOtherPages = false;
-    if (_alarmSlotMask != 0) {
-        for (int p = 0; p < 3; p++) {
-            if (p == _currentPage) continue;
-            int rs = p * 4;
-            int re = (p < 2) ? rs + 4 : 10;
-            for (int s = rs; s < re; s++) {
-                if (isSlotAlarming(s)) { hasAlarmsOnOtherPages = true; break; }
+    if (paging && _alarmSlotMask != 0) {
+        for (int s = 0; s < MAX_SENSORS; s++) {
+            if (!cfg.sensors[s].active) continue;
+            if (!isSlotAlarming(s)) continue;
+            bool inThisPage = false;
+            for (int i = 0; i < n; i++) {
+                if (btns[i].kind == 0 && btns[i].slotId == s) { inThisPage = true; break; }
             }
-            if (hasAlarmsOnOtherPages) break;
+            if (!inThisPage) { hasAlarmsOnOtherPages = true; break; }
         }
     }
 
+    for (int i = 0; i < 5; i++) {
+        const DashBtn &b = btns[i];
+        if (b.kind < 0) continue;   /* gap entre slots e page btn ancorado à direita */
+        int x = xStart + (i * pitch);
 
-    uint16_t pagTxtCol = C_TEXT_SUB;
-    if (hasAlarmsOnOtherPages && _alarmFlashPhase) {
+        if (b.kind == 0) {  /* SLOT */
+            int realIdx = b.slotId;
+            bool isActive = (realIdx == selectedIdx);
+            bool btnAlarm = _alarmFlashPhase && isSlotAlarming(realIdx);
+            uint16_t bgColor, txtColor;
+            if (btnAlarm) {
+                bgColor  = RGB565(180, 30, 30);
+                txtColor = RGB565(255, 255, 255);
+            } else if (isActive) {
+                bgColor  = C_ACCENT_HIGH;
+                txtColor = C_BTN_TEXT_ACTIVE;
+            } else {
+                bgColor  = C_CARD_BG;
+                txtColor = isSlotAlarming(realIdx) ? C_TEMP_HOT : C_BTN_TEXT;
+            }
+            _canvasWide->fillRoundRect(x, 0, btnW, 40, 12, bgColor);
+            _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextSize(1); _canvasWide->setTextColor(txtColor);
+            char label[8]; snprintf(label, sizeof(label), "S%d", realIdx);
+            int16_t x1, y1; uint16_t w, h;
+            _canvasWide->getTextBounds(label, 0, 0, &x1, &y1, &w, &h);
+            _canvasWide->setCursor(x + (btnW - w)/2, 28);
+            _canvasWide->print(label);
 
-        _canvasWide->fillRoundRect(xPag, 0, btnW, 40, 12, RGB565(180, 30, 30));
-        pagTxtCol = RGB565(255, 255, 255);
-    } else if (hasAlarmsOnOtherPages) {
+        } else if (b.kind == 1) {  /* CFG */
+            _canvasWide->fillRoundRect(x, 0, btnW, 40, 12, C_CARD_BG);
+            _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextSize(1); _canvasWide->setTextColor(C_BTN_TEXT);
+            int16_t x1, y1; uint16_t w, h;
+            _canvasWide->getTextBounds("CFG", 0, 0, &x1, &y1, &w, &h);
+            _canvasWide->setCursor(x + (btnW - w)/2, 28);
+            _canvasWide->print("CFG");
 
-        _canvasWide->fillRoundRect(xPag, 0, btnW, 40, 12, C_CARD_BG);
-        _canvasWide->drawRoundRect(xPag, 0, btnW, 40, 12, RGB565(255, 60, 60));
-    } else {
-
-        _canvasWide->drawRoundRect(xPag, 0, btnW, 40, 12, C_TEXT_SUB);
+        } else {  /* PAGE */
+            uint16_t pagTxtCol = C_BTN_TEXT;
+            if (hasAlarmsOnOtherPages && _alarmFlashPhase) {
+                _canvasWide->fillRoundRect(x, 0, btnW, 40, 12, RGB565(180, 30, 30));
+                pagTxtCol = RGB565(255, 255, 255);
+            } else if (hasAlarmsOnOtherPages) {
+                _canvasWide->fillRoundRect(x, 0, btnW, 40, 12, C_CARD_BG);
+                _canvasWide->drawRoundRect(x, 0, btnW, 40, 12, RGB565(255, 60, 60));
+            } else {
+                _canvasWide->drawRoundRect(x, 0, btnW, 40, 12, C_TEXT_SUB);
+            }
+            char pageStr[4]; snprintf(pageStr, sizeof(pageStr), "%d", _currentPage + 1);
+            char totStr[4];  snprintf(totStr, sizeof(totStr), "/%d", totalPages);
+            _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextColor(pagTxtCol);
+            _canvasWide->setCursor(x + 15, 28); _canvasWide->print(pageStr);
+            _canvasWide->setFont(NULL); _canvasWide->setCursor(x + 35, 8); _canvasWide->print(totStr);
+        }
     }
-
-    char pageStr[4];
-    snprintf(pageStr, sizeof(pageStr), "%d", _currentPage + 1);
-    _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextColor(pagTxtCol);
-    _canvasWide->setCursor(xPag + 15, 28); _canvasWide->print(pageStr);
-    _canvasWide->setFont(NULL); _canvasWide->setCursor(xPag + 35, 8); _canvasWide->print("/3");
-    /* h=41 em vez de 45 garante 4 px de margem inferior (y+h=236 ≤ 236). Os
-     * botões ocupam apenas linhas 0..39 do canvas, então as linhas 41..44 não
-     * blitadas estavam vazias. */
+    /* h=41 em vez de 45 garante 4 px de margem inferior (y+h=236 ≤ 236). */
     blitCanvas(_canvasWide, 0, 195, 320, 41);
 }

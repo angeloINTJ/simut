@@ -189,7 +189,7 @@ void WebManager::handleApiThemes() {
     for (int i = 0; i < getThemeCount(); i++) {
         char cleanName[32];
         int cn = 0;
-        const char* p = availableThemes[i].displayName;
+        const char* p = getThemePalette(i)->displayName;
         if (p) {
             while (*p && cn < (int)sizeof(cleanName) - 1) {
                 unsigned char c = (unsigned char)(*p);

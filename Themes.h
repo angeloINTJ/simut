@@ -36,6 +36,13 @@ struct ThemePalette {
     uint16_t tempOk;
     uint16_t tempCold;
     uint16_t humidity;
+
+    /* Cores adicionais (alpha24): separação de tipos de texto. Permite que
+     * temas custom diferenciem labels de botões, títulos e nome de sensor. */
+    uint16_t btnText;       /**< Texto de botões inativos (S0..S9, CFG, page) */
+    uint16_t titleText;     /**< Top bar (data/hora) e títulos de menu */
+    uint16_t sensorName;    /**< Nome do sensor no slot panel */
+    uint16_t btnTextActive; /**< Texto do botão de slot SELECIONADO (sobre accentHigh) */
 };
 
 extern ThemePalette currentTheme;
@@ -45,6 +52,14 @@ void loadTheme(int index);
 int getThemeCount();
 String getThemeId(int index);
 int getThemeIndexByName(String name);
+
+/** Retorna paleta (built-in PROGMEM ou custom RAM). NUNCA nullptr — fora do
+ *  range cai no tema 0 (simut_def). Use isso em vez de availableThemes[i]. */
+const ThemePalette* getThemePalette(int index);
+
+/** Faz scan de /themes/*.thm no LittleFS e popula o array de temas custom.
+ *  Chamar uma vez no boot (depois de FS mount) e em hot-reload pós upload. */
+void scanCustomThemes();
 
 /* Convenience macros — access current theme colors without struct prefix. */
 #define C_BG_MAIN      currentTheme.bgMain
@@ -61,6 +76,11 @@ int getThemeIndexByName(String name);
 #define C_TEMP_OK      currentTheme.tempOk
 #define C_TEMP_COLD    currentTheme.tempCold
 #define C_HUMIDITY     currentTheme.humidity
+
+#define C_BTN_TEXT         currentTheme.btnText
+#define C_TITLE_TEXT       currentTheme.titleText
+#define C_SENSOR_NAME      currentTheme.sensorName
+#define C_BTN_TEXT_ACTIVE  currentTheme.btnTextActive
 
 #define C_GRID         currentTheme.barBg
 #define C_AXIS         currentTheme.textOff

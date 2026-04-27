@@ -9,6 +9,7 @@
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "TouchPriority.h"
+#include "Themes.h"
 #include <LittleFS.h>
 
 using ReadGuard = StorageManager::ReadGuard;
@@ -82,6 +83,11 @@ void WebManager::handleDelete() {
             LOG_CODE(LOG_WARN, "SEC", SEC_FILE_DELETE, _currentUserId, path);
         }
     }
+    /* alpha24: hot-reload de tema custom em delete (mesmo padrão do upload) —
+     * evita resíduo na lista in-memory após o user remover um .thm. */
+    if (path.endsWith(".thm")) {
+        scanCustomThemes();
+    }
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
@@ -104,10 +110,12 @@ void WebManager::handleApiLs() {
         }
 
         /* F-LANGPACK: /lang adicionado ao allowlist de leitura. */
+        /* alpha24: /themes liberado p/ Files UI listar temas custom uploadados. */
         if (dirPath != "/" &&
             !dirPath.startsWith("/history") &&
             !dirPath.startsWith("/config") &&
-            !dirPath.startsWith("/lang")) {
+            !dirPath.startsWith("/lang") &&
+            !dirPath.startsWith("/themes")) {
             _server.send(403, "application/json", "{\"error\":\"Forbidden path\"}");
             return;
         }
@@ -128,7 +136,8 @@ void WebManager::handleApiLs() {
 
     if (dirPath == "/") {
         /* F-LANGPACK: /lang adicionado para o Etapa 2/β. */
-        const char* sysDirs[] = {"/config", "/history", "/lang"};
+        /* alpha24: /themes adicionado p/ Files UI listar temas custom. */
+        const char* sysDirs[] = {"/config", "/history", "/lang", "/themes"};
         for (auto sd : sysDirs) {
             feedWatchdog();
 
@@ -373,6 +382,14 @@ void WebManager::handleUploadData() {
                 }
             } else {
                 LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("File Uploaded."));
+                /* alpha24: hot-reload de tema custom — re-scan se .thm subiu
+                 * em qualquer caminho (Files UI permite uploadar pra subdir).
+                 * Tema novo aparece imediatamente em getThemeCount() e na
+                 * lista de seleção sem reboot. */
+                if (upload.filename.endsWith(".thm")) {
+                    scanCustomThemes();
+                    LOG_CODE(LOG_INFO, "CFG", CFG_THEME_APPLIED, getThemeCount(), TRL("Custom themes rescanned"));
+                }
             }
         }
     }

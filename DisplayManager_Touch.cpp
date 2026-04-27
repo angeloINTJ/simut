@@ -385,33 +385,31 @@ void DisplayManager::handleTouch() {
             return;
         }
         if (y > 195) {
-            int btnW = 58; int gap = 5; int pitch = btnW + gap; int btnIdx = (x - 5) / pitch;
-            if (btnIdx == 4) {
+            const int btnW = 58, gap = 5, pitch = btnW + gap;
+            int btnIdx = (x - 5) / pitch;
+            DashBtn btns[5];
+            int totalPages = 1; bool paging = false;
+            (void)buildDashLayout(btns, &totalPages, &paging);
+            if (btnIdx < 0 || btnIdx > 4) return;
+            const DashBtn &b = btns[btnIdx];
+            if (b.kind < 0) return;   /* toque em posição vazia (gap) — ignora */
+            if (b.kind == 2) {  /* PAGE */
                 if (!acceptTouch(14)) return;
                 _currentPage++;
-                if (_currentPage > 2) _currentPage = 0;
+                if (_currentPage >= totalPages) _currentPage = 0;
                 drawBottomButtons(_sharedState.selectedSlotIdx, true); return;
             }
-            if (btnIdx >= 0 && btnIdx <= 3) {
-                if (!acceptSlideTouch(10 + btnIdx)) return;
-                if (_currentPage == 2 && btnIdx == 2) {
-                    UiEvent ev; ev.type = UiEvent::EVT_OPEN_SETTINGS;
-                    queue_try_add(&_eventQueue, &ev); return;
-                }
-                int targetId = -1;
-                if (_currentPage == 0) targetId = btnIdx;
-                else if (_currentPage == 1) targetId = btnIdx + 4;
-                else if (_currentPage == 2) {
-                    if (btnIdx == 0) targetId = 8;
-                    if (btnIdx == 1) targetId = 9;
-                }
-                if (targetId != -1) {
-                    _slotShowMinMax = false;
-                    drawBottomButtons(targetId, false);
-                    UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = targetId;
-                    queue_try_add(&_eventQueue, &ev);
-                }
+            if (b.kind == 1) {  /* CFG */
+                if (!acceptSlideTouch(20)) return;
+                UiEvent ev; ev.type = UiEvent::EVT_OPEN_SETTINGS;
+                queue_try_add(&_eventQueue, &ev); return;
             }
+            /* SLOT */
+            if (!acceptSlideTouch(10 + b.slotId)) return;
+            _slotShowMinMax = false;
+            drawBottomButtons(b.slotId, false);
+            UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = b.slotId;
+            queue_try_add(&_eventQueue, &ev);
         }
     }
     else if (_uiMode == MODE_STATS_VIEW) {
