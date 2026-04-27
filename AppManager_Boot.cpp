@@ -99,6 +99,11 @@ void AppManager::setup() {
     _displayMgr.setBootStatus("Mounting File System...");
     bool fsOk = _storageMgr.begin();
 
+    /* DisplayManager precisa do ponteiro pra config pra renderizar o dashboard
+     * (buildDashLayout filtra slots inativos). Seta UMA vez no boot — o cfg
+     * vive em BSS (membro de StorageManager) e nunca é realocado. */
+    _displayMgr.setSysConfig(&_storageMgr.getConfig());
+
     _displayMgr.setBootStatus("Starting Log Manager...");
     LogManager::instance().begin(fsOk, LOG_DEBUG);
 
@@ -179,6 +184,9 @@ void AppManager::setup() {
 
     SystemConfig &cfg = _storageMgr.getConfig();
     _displayMgr.setBootStatus("Loading Theme & Language...");
+    /* Custom themes do FS aparecem como índices >= NUM_THEMES (built-ins).
+     * Scan ANTES do loadTheme pra cobrir caso themeIndex aponte pra custom. */
+    scanCustomThemes();
     loadTheme(cfg.themeIndex);
     _displayMgr.refreshTheme();
     /* F-LANGPACK Etapa 2: scan /lang/ ANTES de setLanguage para que o

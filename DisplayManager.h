@@ -228,6 +228,12 @@ public:
     const char* tr(LangKey key);
     UiMode getUiMode() const { return _uiMode; }
 
+    /** Setado uma vez no boot pelo AppManager. _sysConfigPtr precisa estar
+     *  válido antes do primeiro render do dashboard pra buildDashLayout
+     *  enxergar quais slots estão ativos. showSettingsAlarms também escreve
+     *  no mesmo ponteiro (override no-op com o mesmo valor). */
+    void setSysConfig(SystemConfig* cfg) { _sysConfigPtr = cfg; }
+
 private:
 
     /**
@@ -349,6 +355,19 @@ private:
     void drawAmbientPanel(float t, float h, bool isValid);
     void drawSlotPanel(float t, bool isValid, int slotIdx, const char* name, bool forceNameRedraw);
     void drawBottomButtons(int selectedIdx, bool forceRedraw);
+
+    /** Layout dinâmico do dashboard: omite slots inativos e o botão de
+     *  paginação quando todos os botões cabem em uma linha. Compartilhado
+     *  entre drawBottomButtons() e o touch handler. */
+    struct DashBtn {
+        int8_t kind;   /**< 0=slot, 1=cfg, 2=page */
+        int8_t slotId; /**< válido só para kind==0 (0..9) */
+    };
+    /** Preenche `out` com até 5 botões da página atual (esquerda→direita).
+     *  Retorna o número de botões. Atualiza `_currentPage` se ficou fora
+     *  do range após mudança de config. `hasPaging` true quando >5 botões
+     *  totais (slot+CFG); nesse caso o último botão de cada página é PAGE. */
+    int buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPaging);
     void drawLoadingScreen();
     void drawGraphScreen();
     void drawGraphDetailScreen();   /**< Tela numérica de detalhes do período */
