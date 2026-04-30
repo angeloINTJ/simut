@@ -126,6 +126,31 @@ void AppManager::preloadMinMax() {
     _storageMgr.exitFlashReadLock();
 
     if (fileExists && f) {
+        /* v2: valida header SIM2. */
+        HistoryFileHeaderV2 hdrP;
+        bool headerOkP = false;
+        {
+            StorageManager::ReadGuard rg(&_storageMgr);
+            if (f.size() >= HIST_V2_HEADER_SIZE) {
+                f.seek(0);
+                if (f.read((uint8_t*)&hdrP, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
+                    headerOkP = (memcmp(hdrP.magic, HIST_V2_MAGIC, 4) == 0 &&
+                                 hdrP.version == HIST_V2_VERSION &&
+                                 hdrP.anchorPeriod > 0);
+                }
+            }
+        }
+        if (!headerOkP) {
+            { StorageManager::ReadGuard rg(&_storageMgr); f.close(); }
+            return;
+        }
+
+        HistoryCodecState pState;
+        historyCodecReset(pState);
+        uint16_t pAnchorPeriod = hdrP.anchorPeriod;
+        uint8_t  pRdBuf[256];
+        size_t   pRdFilled = 0;
+
         uint32_t _preloadBudget = millis();
         bool hasMore = true;
 
@@ -137,18 +162,25 @@ void AppManager::preloadMinMax() {
                 return;
             }
 
-            /* Lê batch de 20 registros binários */
             _storageMgr.enterFlashReadLock();
             BinaryHistoryRecord batch[20];
             int count = 0;
-            while (f.available() >= HISTORY_RECORD_SIZE && count < 20) {
-                if (f.read((uint8_t*)&batch[count], HISTORY_RECORD_SIZE)
-                    == HISTORY_RECORD_SIZE)
-                {
-                    count++;
+            while (count < 20) {
+                if (pRdFilled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
+                    int rN = f.read(pRdBuf + pRdFilled, sizeof(pRdBuf) - pRdFilled);
+                    if (rN > 0) pRdFilled += (size_t)rN;
                 }
+                if (pRdFilled == 0) break;
+                bool isAnc = (pState.recordsSinceAnchor == 0) ||
+                             (pState.recordsSinceAnchor == pAnchorPeriod);
+                size_t consumed = historyDecodeRecord(pRdBuf, pRdFilled, pState,
+                                                       batch[count], isAnc);
+                if (consumed == 0) break;
+                memmove(pRdBuf, pRdBuf + consumed, pRdFilled - consumed);
+                pRdFilled -= consumed;
+                count++;
             }
-            hasMore = (f.available() >= HISTORY_RECORD_SIZE);
+            hasMore = (pRdFilled > 0 || f.available() > 0);
             _storageMgr.exitFlashReadLock();
 
             /* Processa batch fora do lock */
