@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.26.0-rc1" /* Sai de alpha apos 2d 15h soak estavel: heap delta 232 B, 1.4M leituras de sensor com 3 erros, telemetria recuperando via retry */
+#define SIMUT_VERSION "v3.26.0" /* Release final apos validacao do RC1 */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
