@@ -204,6 +204,7 @@ void WebManager::handleApiCommitAll() {
             if (has("t_sep"))     safeCopy(cfg.telLineSeparator, getStr("t_sep").c_str(), sizeof(cfg.telLineSeparator));
             /* F-NET-TIME.3a: flag NTP enable/disable (overlay NetworkTimeData). */
             if (has("ntp_enabled")) _storageRef->setNtpEnabled(getNum("ntp_enabled") != "0");
+            if (has("h_int"))      { int hi = getNum("h_int").toInt(); if (isInRange(hi, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)hi); }
         }
     }
 

@@ -68,6 +68,8 @@ conf system touch reset [confirm]
   Reset touch calibration
 conf system factory [confirm]
   Factory reset (wipes ALL config) + reboot
+conf system history_interval <min>
+  History recording interval (1..1440 min, default 1)
 conf ntp <on|off>
   Enable/disable NTP sync
 conf time <YYYY-MM-DD> <HH:MM:SS>

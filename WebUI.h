@@ -1322,6 +1322,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <input type="number" id="s_int" name="s_int" min="1000" max="60000" required>
                         </div>
                     </div>
+                    <div class="row" style="margin-top:15px;">
+                        <div class="col">
+                            <label data-i18n="cfg_hint">History Recording Interval (min)</label>
+                            <input type="number" id="h_int" name="h_int" min="1" max="1440" required>
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_hint_hint">1 to 1440 min (24h). Default: 1.</div>
+                        </div>
+                    </div>
                 </div>
 
                 <h3 data-i18n="cfg_tel">Telemetry Engine</h3>
@@ -1703,6 +1710,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 toggleManualTime();
                 document.getElementById('res').value = val('res', 9);
                 document.getElementById('s_int').value = val('s_int', 5000);
+                document.getElementById('h_int').value = val('h_int', 1);
                 document.getElementById('t_transport').value = val('t_transport', 0);
                 document.getElementById('t_sec').checked = !!val('t_sec', false);
                 document.getElementById('t_srv').value = val('t_srv', '');

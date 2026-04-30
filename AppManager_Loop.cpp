@@ -177,7 +177,7 @@ void AppManager::loop() {
     watchdog_update();
 
 
-    if (timeSince(_lastHistoryTime, 60000)) {
+    if (timeSince(_lastHistoryTime, _storageMgr.getHistoryIntervalMin() * 60000UL)) {
         if (!_storageMgr.isHeavyTaskLocked() && !isUserInteracting()) {
             processHistoryLogging();
         }

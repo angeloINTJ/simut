@@ -804,6 +804,26 @@ void StorageManager::setSecondaryDns(const char* ip) {
     safeCopy(nt->dns2, ip ? ip : "", sizeof(nt->dns2));
 }
 
+uint16_t StorageManager::getHistoryIntervalMin() const {
+    const HistoryConfigData* hc = reinterpret_cast<const HistoryConfigData*>(
+        _currentConfig.reserved + HISTORY_CONFIG_OFFSET);
+    if (hc->magic != HISTORY_CONFIG_MAGIC) return HISTORY_INTERVAL_DEFAULT_MIN;
+    uint16_t v = hc->intervalMin;
+    if (v < HISTORY_INTERVAL_MIN_MIN) return HISTORY_INTERVAL_DEFAULT_MIN;
+    if (v > HISTORY_INTERVAL_MAX_MIN) return HISTORY_INTERVAL_MAX_MIN;
+    return v;
+}
+
+void StorageManager::setHistoryIntervalMin(uint16_t minutes) {
+    if (minutes < HISTORY_INTERVAL_MIN_MIN) minutes = HISTORY_INTERVAL_MIN_MIN;
+    if (minutes > HISTORY_INTERVAL_MAX_MIN) minutes = HISTORY_INTERVAL_MAX_MIN;
+    HistoryConfigData* hc = reinterpret_cast<HistoryConfigData*>(
+        _currentConfig.reserved + HISTORY_CONFIG_OFFSET);
+    hc->magic = HISTORY_CONFIG_MAGIC;
+    hc->pad = 0;
+    hc->intervalMin = minutes;
+}
+
 SensorRecord* StorageManager::getSensorByGpio(uint8_t gpio) {
     if (gpio == 10) return &_currentConfig.ambientSensor;
     for (int i = 0; i < MAX_SENSORS; i++) {

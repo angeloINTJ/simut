@@ -293,6 +293,22 @@ void AppManager::executeCommand(CliDemand cmd) {
             changed = true;
             break;
         }
+        case CMD_SET_HISTORY_INTERVAL: {
+            const bool pt = _cmdMgr.isPt();
+            if (!cmd.intVal1Valid) {
+                _cmdMgr.printError(pt ? "Numero invalido para intervalo"
+                                      : "Invalid number for interval");
+                break;
+            }
+            if (cmd.intVal1 < HISTORY_INTERVAL_MIN_MIN || cmd.intVal1 > HISTORY_INTERVAL_MAX_MIN) {
+                _cmdMgr.printError(pt ? "Intervalo deve estar entre 1 e 1440 minutos (24h)"
+                                      : "Interval must be between 1 and 1440 minutes (24h)");
+                break;
+            }
+            _storageMgr.setHistoryIntervalMin((uint16_t)cmd.intVal1);
+            changed = true;
+            break;
+        }
 
         case CMD_RESET_ADMIN: {
             if (!cmd.confirmed) {

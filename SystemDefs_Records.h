@@ -292,6 +292,25 @@ constexpr uint8_t FLAG_NTP_ENABLED    = 0x02;  /**< 1 = NTP sync ativo (default)
 
 static_assert(sizeof(NetworkTimeData) == 20, "NetworkTimeData deve ter 20 bytes");
 
+/**
+ * @brief Overlay em `reserved[48..51]`: intervalo de gravacao de historico.
+ *
+ * Granularidade em minutos (1..1440 = 1 min..24 h). Configs legados sem
+ * magic retornam default 1 min — comportamento identico ao hardcoded
+ * anterior. uint16 cabe ate 65535 min (~45 dias) com folga.
+ */
+struct __attribute__((packed)) HistoryConfigData {
+    uint8_t  magic;        /**< 0xDC = inicializado; outro = legado (default 1 min). */
+    uint8_t  pad;
+    uint16_t intervalMin;  /**< 1..1440. */
+};
+constexpr size_t  HISTORY_CONFIG_OFFSET = 48;
+constexpr uint8_t HISTORY_CONFIG_MAGIC  = 0xDC;
+constexpr uint16_t HISTORY_INTERVAL_DEFAULT_MIN = 1;
+constexpr uint16_t HISTORY_INTERVAL_MIN_MIN     = 1;
+constexpr uint16_t HISTORY_INTERVAL_MAX_MIN     = 1440;
+static_assert(sizeof(HistoryConfigData) == 4, "HistoryConfigData deve ter 4 bytes");
+
 /** Tamanho do campo reserved[] nas configs v12 (pré v3.8.0) — usado na migração. */
 #define CONFIG_V12_RESERVED_SIZE 24
 
