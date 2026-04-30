@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>SIMUT Test Server</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>SIMUT Test Server</h1>
+  <span id="conn-status" class="badge bad">desconectado</span>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>Listeners</h2>
+    <table id="listeners-table">
+      <thead><tr><th>Tipo</th><th>Status</th><th>Detalhe</th><th>Ação</th></tr></thead>
+      <tbody>
+        <tr data-name="http"><td>HTTP</td><td><span class="state">—</span></td><td class="detail">—</td><td><button class="toggle">Iniciar</button></td></tr>
+        <tr data-name="https"><td>HTTPS</td><td><span class="state">—</span></td><td class="detail">—</td><td><button class="toggle">Iniciar</button></td></tr>
+        <tr data-name="mqtt"><td>MQTT</td><td><span class="state">—</span></td><td class="detail">—</td><td><button class="toggle">Iniciar</button></td></tr>
+        <tr data-name="mqtts"><td>MQTTS</td><td><span class="state">—</span></td><td class="detail">—</td><td><button class="toggle">Iniciar</button></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="panel">
+    <h2>Configuração (aplica em tempo real)</h2>
+    <form id="config-form">
+      <fieldset>
+        <legend>Decoder</legend>
+        <label>Modo
+          <select name="mode">
+            <option value="auto">auto (detecta JSON ou CSV)</option>
+            <option value="json">json</option>
+            <option value="csv">csv</option>
+            <option value="custom">custom (template)</option>
+          </select>
+        </label>
+        <label>Separador CSV
+          <input type="text" name="csv_separator" maxlength="3" size="3">
+        </label>
+        <label class="full">Template custom
+          <textarea name="custom_template" rows="3" placeholder='{"dev":"{DEV}","mac":"{MAC}","data":[{DATA}]}'></textarea>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>HTTP / HTTPS</legend>
+        <label>Porta HTTP
+          <input type="number" name="http_port" min="1" max="65535">
+        </label>
+        <label>Porta HTTPS
+          <input type="number" name="https_port" min="1" max="65535">
+        </label>
+        <label>Header de auth (nome)
+          <input type="text" name="auth_header_name" placeholder="Authorization">
+        </label>
+        <label>Header de auth (valor)
+          <input type="text" name="auth_header_value" placeholder="Bearer ...">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>MQTT / MQTTS</legend>
+        <label>Broker host
+          <input type="text" name="mqtt_broker_host">
+        </label>
+        <label>Broker porta (plain)
+          <input type="number" name="mqtt_broker_port" min="1" max="65535">
+        </label>
+        <label>Broker porta (TLS)
+          <input type="number" name="mqtt_broker_port_tls" min="1" max="65535">
+        </label>
+        <label>Topic
+          <input type="text" name="mqtt_topic">
+        </label>
+        <label>Username
+          <input type="text" name="mqtt_username" autocomplete="off">
+        </label>
+        <label>Password
+          <input type="password" name="mqtt_password" autocomplete="off">
+        </label>
+        <label>TLS insecure (sem verificar cert)
+          <input type="checkbox" name="mqtt_tls_insecure">
+        </label>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit">Aplicar configuração</button>
+        <span id="config-status"></span>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel terminal-panel">
+    <h2>Terminal — eventos em tempo real
+      <button id="clear-btn" class="small">Limpar samples</button>
+      <button id="terminal-clear-btn" class="small">Limpar terminal</button>
+      <label class="small inline"><input type="checkbox" id="autoscroll" checked> auto-scroll</label>
+    </h2>
+    <div id="terminal" class="terminal"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Samples recebidos
+      <label class="small inline"><input type="checkbox" id="keep-open"> manter todos abertos</label>
+      <span class="hint">— o mais recente abre automaticamente</span>
+    </h2>
+    <div id="samples"></div>
+  </section>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
