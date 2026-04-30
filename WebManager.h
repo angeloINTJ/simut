@@ -204,6 +204,7 @@ private:
 
     void handleForceChpass();
     void handleApiForceChpass();
+    void handleApiLoginChpass();
 
     void handleRoot();
     void handleHistory();

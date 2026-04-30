@@ -60,12 +60,22 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .lang-box { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--border); }
         .lang-box select { background: #000; color: var(--sub); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; outline: none; cursor: pointer; font-size: 0.9rem;}
         .lang-box select:focus { border-color: var(--acc); color: var(--txt); }
+        .toggle-link { color: var(--acc); text-decoration: none; font-size: 0.85rem; margin-top: 14px; display: inline-block; cursor: pointer; }
+        .toggle-link:hover { text-decoration: underline; }
+        .bar-bg { width: 100%; height: 6px; background: #3f3f46; border-radius: 4px; margin-top: 6px; overflow: hidden; }
+        .bar-fg { height: 100%; width: 0%; transition: 0.3s; background: #ef4444; }
+        .req-list { text-align: left; font-size: 0.78rem; color: var(--sub); margin-top: 6px; line-height: 1.5; }
+        .req-list span { display: block; }
+        .req-list span.ok { color: #22c55e; }
+        .req-list span.ok::before { content: "\2713 "; }
+        .req-list span:not(.ok)::before { content: "\2715 "; color: var(--dang); }
+        .ok-msg { color: #22c55e; font-size: 0.9rem; margin-top: 12px; min-height: 1.2em; }
     </style>
     <script>
     /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng). */
     const dictLog = {
         pt: {},
-        en: { "log_usr": "Username", "log_pas": "Password", "log_show": "Show password", "log_btn": "Sign In", "log_err": "Invalid credentials.", "log_full": "System is full. Try again later.", "log_lock": "Locked for {s}s. Too many attempts." }
+        en: { "log_usr": "Username", "log_pas": "Password", "log_show": "Show password", "log_btn": "Sign In", "log_err": "Invalid credentials.", "log_full": "System is full. Try again later.", "log_lock": "Locked for {s}s. Too many attempts.", "log_chpass_link": "Change password", "log_chpass_title": "Change Password", "log_oldpass": "Current Password", "log_newpass": "New Password", "log_newpass2": "Repeat New Password", "log_chpass_btn": "Save New Password", "log_chpass_back": "← Back to Login", "log_chpass_ok": "Password changed. Please sign in.", "log_chpass_same": "New password must differ from current.", "log_chpass_mismatch": "Passwords do not match.", "log_chpass_req_len": "At least 8 characters", "log_chpass_req_letter": "Letter", "log_chpass_req_digit": "Digit", "log_chpass_req_symbol": "Symbol" }
     };
     fetch('/api/lang').then(r=>r.json()).then(d=>{Object.assign(dictLog.pt,d);applyLang();}).catch(()=>{});
     function t(key, fallback, vars) { let l = localStorage.getItem('simut_lang') || 'en'; let s = (l !== 'en' && dictLog[l] && dictLog[l][key]) ? dictLog[l][key] : fallback; if (vars) for (let k in vars) s = s.replace('{'+k+'}', vars[k]); return s; }
@@ -94,6 +104,63 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         passEl.value = '';
     }
     function togglePass() { document.getElementById('passInput').type = document.getElementById('chkPass').checked ? 'text' : 'password'; }
+
+    function setMode(m) {
+        document.getElementById('loginForm').style.display = (m === 'login') ? '' : 'none';
+        document.getElementById('chpassForm').style.display = (m === 'chpass') ? '' : 'none';
+        document.getElementById('lnkChpass').style.display = (m === 'login') ? '' : 'none';
+        showError(''); document.getElementById('chErr').textContent = ''; document.getElementById('chOk').textContent = '';
+    }
+    function togglePass2() {
+        let t = document.getElementById('chkPass2').checked ? 'text' : 'password';
+        document.getElementById('opInput').type = t; document.getElementById('np1').type = t; document.getElementById('np2').type = t;
+    }
+    function chpassStrength() {
+        let p = document.getElementById('np1').value;
+        let p2 = document.getElementById('np2').value;
+        let len = p.length >= 8, letter = /[A-Za-z]/.test(p), digit = /[0-9]/.test(p), symbol = /[^A-Za-z0-9]/.test(p);
+        let score = (len?1:0) + (letter?1:0) + (digit?1:0) + (symbol?1:0);
+        let bar = document.getElementById('chBar'); bar.style.width = (score*25) + '%';
+        bar.style.background = score <= 1 ? '#ef4444' : score === 2 ? '#f59e0b' : score === 3 ? '#3b82f6' : '#22c55e';
+        document.getElementById('rqLen').classList.toggle('ok', len);
+        document.getElementById('rqLet').classList.toggle('ok', letter);
+        document.getElementById('rqDig').classList.toggle('ok', digit);
+        document.getElementById('rqSym').classList.toggle('ok', symbol);
+        let strong = (score === 4);
+        let match = (p.length > 0 && p === p2);
+        document.getElementById('btnChpass').disabled = !(strong && match);
+        let err = document.getElementById('chErr');
+        if (p2.length > 0 && p !== p2) err.textContent = t('log_chpass_mismatch','Passwords do not match.'); else err.textContent = '';
+    }
+    async function doChpass(e) {
+        e.preventDefault();
+        let btn = document.getElementById('btnChpass'); if (btn.disabled) return;
+        let user = document.querySelector('input[name="user2"]').value.trim();
+        let opEl = document.getElementById('opInput'), np1El = document.getElementById('np1'), np2El = document.getElementById('np2');
+        let op = opEl.value, np = np1El.value;
+        if (!user || !op || !np) return;
+        let opH = sha256(op), npH = sha256(np);
+        if (opH === npH) { document.getElementById('chErr').textContent = t('log_chpass_same','New password must differ from current.'); return; }
+        btn.disabled = true; document.getElementById('chErr').textContent = '';
+        try {
+            let fd = new URLSearchParams();
+            fd.append('user', user); fd.append('oldpass', opH); fd.append('newpass', npH); fd.append('nonce', _nonce);
+            let r = await fetch('/api/login_chpass', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: fd.toString(), credentials: 'same-origin' });
+            let j = await r.json();
+            await fetchNonce();
+            if (j.ok) {
+                opEl.value = ''; np1El.value = ''; np2El.value = '';
+                chpassStrength();
+                document.getElementById('chOk').textContent = t('log_chpass_ok','Password changed. Please sign in.');
+                setTimeout(() => { setMode('login'); document.querySelector('input[name="user"]').value = user; document.getElementById('passInput').focus(); }, 1500);
+            } else {
+                if (j.err === 2 && j.lockSec > 0) { setMode('login'); showLockout(j.lockSec); }
+                else if (j.err === 5) document.getElementById('chErr').textContent = t('log_chpass_same','New password must differ from current.');
+                else document.getElementById('chErr').textContent = t('log_err','Invalid credentials.');
+                btn.disabled = false;
+            }
+        } catch(ex) { document.getElementById('chErr').textContent = 'Connection error.'; btn.disabled = false; await fetchNonce(); }
+    }
     document.addEventListener('DOMContentLoaded', () => { applyLang(); fetchNonce(); });
     </script>
 </head>
@@ -106,6 +173,26 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="chk-row"><input type="checkbox" id="chkPass" onchange="togglePass()"><label for="chkPass" data-i18n="log_show">Show password</label></div>
             <button type="submit" id="btnLogin" data-i18n="log_btn">Sign In</button>
             <div class="err" id="errMsg"></div>
+            <a class="toggle-link" id="lnkChpass" onclick="setMode('chpass')" data-i18n="log_chpass_link">Change password</a>
+        </form>
+        <form id="chpassForm" style="display:none;" onsubmit="doChpass(event)">
+            <h3 style="margin:0 0 10px 0; font-size:1.1rem;" data-i18n="log_chpass_title">Change Password</h3>
+            <input type="text" name="user2" placeholder="Username" data-i18n="log_usr" required autocomplete="off">
+            <input type="password" id="opInput" placeholder="Current Password" data-i18n="log_oldpass" required>
+            <input type="password" id="np1" placeholder="New Password" data-i18n="log_newpass" required onkeyup="chpassStrength()">
+            <div class="bar-bg"><div class="bar-fg" id="chBar"></div></div>
+            <div class="req-list">
+                <span id="rqLen" data-i18n="log_chpass_req_len">At least 8 characters</span>
+                <span id="rqLet" data-i18n="log_chpass_req_letter">Letter</span>
+                <span id="rqDig" data-i18n="log_chpass_req_digit">Digit</span>
+                <span id="rqSym" data-i18n="log_chpass_req_symbol">Symbol</span>
+            </div>
+            <input type="password" id="np2" placeholder="Repeat New Password" data-i18n="log_newpass2" required onkeyup="chpassStrength()">
+            <div class="chk-row"><input type="checkbox" id="chkPass2" onchange="togglePass2()"><label for="chkPass2" data-i18n="log_show">Show password</label></div>
+            <button type="submit" id="btnChpass" data-i18n="log_chpass_btn" disabled>Save New Password</button>
+            <div class="err" id="chErr"></div>
+            <div class="ok-msg" id="chOk"></div>
+            <a class="toggle-link" onclick="setMode('login')" data-i18n="log_chpass_back">← Back to Login</a>
         </form>
         <div class="lang-box">
             <span style="font-size:1.2rem;">🌐</span>
