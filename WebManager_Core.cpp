@@ -78,6 +78,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/api/login_init", HTTP_GET, std::bind(&WebManager::handleApiLoginInit, this));
     _server.on("/api/login", HTTP_POST, std::bind(&WebManager::handleApiLogin, this));
     _server.on("/api/force_chpass", HTTP_POST, std::bind(&WebManager::handleApiForceChpass, this));
+    _server.on("/api/login_chpass", HTTP_POST, std::bind(&WebManager::handleApiLoginChpass, this));
     _server.on("/api/status", HTTP_GET, std::bind(&WebManager::handleApiStatus, this));
     _server.on("/api/perms", HTTP_GET, std::bind(&WebManager::handleApiPerms, this));
     _server.on("/api/network", HTTP_GET, std::bind(&WebManager::handleApiNetwork, this));

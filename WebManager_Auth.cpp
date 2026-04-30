@@ -477,3 +477,68 @@ void WebManager::handleApiForceChpass() {
 
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
+
+/* Self-service password change pre-auth (acessivel da tela de login).
+ * Reaproveita lockout/nonce/verifyPasswordFor do fluxo de login normal.
+ * Nao cria sessao — usuario faz login fresh com a senha nova. */
+void WebManager::handleApiLoginChpass() {
+    uint32_t clientIP = (uint32_t)_server.client().remoteIP();
+    int ls = findLoginStateForIp(clientIP);
+
+    if (respondIfLockedOut(ls, 403)) return;
+    if (!validateNonceAndRespond(ls)) return;
+
+    if (!_server.hasArg("user") || !_server.hasArg("oldpass") || !_server.hasArg("newpass")) {
+        _server.send(400, "application/json", "{\"ok\":false,\"err\":1}");
+        return;
+    }
+
+    String u  = _server.arg("user");
+    String op = _server.arg("oldpass");
+    String np = _server.arg("newpass");
+
+    /* Cliente envia sha256 (64 hex chars). Sanity de tamanho/forma. */
+    if (!isValidName(u.c_str(), 31) || op.length() != 64 || np.length() != 64) {
+        applyExponentialPenalty(ls);
+        LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Chpass Rejected: Invalid Input"));
+        _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+        return;
+    }
+
+    /* Bloqueia no-op (mesmo hash). Strength real e validada no client (UX);
+     * server confia que cliente honesto cumpre regra de complexidade. */
+    if (np == op) {
+        _server.send(400, "application/json", "{\"ok\":false,\"err\":5}");
+        return;
+    }
+
+    int foundId = verifyPasswordFor(u, op);
+    if (foundId < 0) {
+        if (ls >= 0) {
+            uint32_t penaltyMs = applyExponentialPenalty(ls);
+            LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, String(TRL("Chpass Failed: ")) + u);
+            if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_ERROR);
+            char buf[64];
+            snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)(penaltyMs/1000));
+            _server.send(401, "application/json", buf);
+        } else {
+            _server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+        }
+        return;
+    }
+
+    SystemConfig& cfg = _storageRef->getConfig();
+    _storageRef->generateSalt(cfg.users[foundId].salt);
+    String hashedNewPass = _storageRef->hashPasswordV1(u, np, cfg.users[foundId].salt);
+    safeCopy(cfg.users[foundId].password, hashedNewPass.c_str(), sizeof(cfg.users[foundId].password));
+    cfg.users[foundId].hashVersion = 1;
+    cfg.users[foundId].mustChangePassword = false;
+    _storageRef->saveConfiguration();
+
+    if (ls >= 0) { _loginStates[ls].failCount = 0; _loginStates[ls].lockoutUntil = 0; }
+
+    if (_soundRef->isWebSoundsEnabled()) _soundRef->play(SND_CONFIRM);
+    LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, foundId, String(TRL("Login Chpass OK: ")) + u);
+
+    _server.send(200, "application/json", "{\"ok\":true}");
+}
