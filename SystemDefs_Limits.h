@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.0-alpha4" /* Intervalo de gravacao do historico configuravel (1..1440 min) via WebUI Config + CLI 'conf system history_interval'. Overlay magic em reserved[48..51], sem schema bump. */
+#define SIMUT_VERSION "v3.27.0-alpha5" /* Historico v2 (delta + sensor-mask + anchor): ~45% reducao = ~2x capacidade. Sem retro-compat: arquivos v1 precisam ser convertidos via tools/history_v1_to_v2.py antes de upload */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
