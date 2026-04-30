@@ -343,12 +343,38 @@ void WebManager::handleApiStatus() {
     String devName = cfg.deviceName;
     devName.replace("\"", "\\\"");
 
-    uint32_t heapLargest = MetricsManager::instance().data().heapLargestBlock;
+    /* Refresca amostras heap antes de servir métricas (custo: ~16 malloc/free).
+     * Frequência limitada pelo polling do dashboard (3s). */
+    MetricsManager& mm = MetricsManager::instance();
+    mm.sampleHeap();
+    mm.sampleLargestBlock();
+    mm.observeRssi(_netRef->getRssi());
+    const SystemMetrics& mt = mm.data();
+
+    uint32_t heapLargest = mt.heapLargestBlock;
     snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d},",
         devName.c_str(), millis(), _netRef->getRssi(), ipStr.c_str(), cfg.themeIndex,
         (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
         (unsigned long)now, ntp ? 1 : 0, pending);
+
+    if (!safeSend(buffer)) return;
+
+    /* Sentinela "nunca amostrado" para min/max RSSI: serializa 0 quando inválido. */
+    int32_t rmn = (mt.rssiMin ==  127) ? 0 : mt.rssiMin;
+    int32_t rmx = (mt.rssiMax == -127) ? 0 : mt.rssiMax;
+    uint32_t hmin = (mt.heapMinSeen == 0xFFFFFFFFU) ? mt.heapFreeNow : mt.heapMinSeen;
+    uint32_t lbmin = (mt.heapLargestMin == 0xFFFFFFFFU) ? mt.heapLargestBlock : mt.heapLargestMin;
+
+    snprintf(buffer, sizeof(buffer),
+        "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,\"rmn\":%ld,\"rmx\":%ld,\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu},",
+        (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
+        (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
+        (long)rmn, (long)rmx,
+        (unsigned long)mt.telSent, (unsigned long)mt.telFailed, (unsigned long)mt.telRetries,
+        (unsigned long)mt.telTotalBytes, (unsigned long)mt.telLastLatencyMs,
+        (unsigned long)mt.sensorReadsOk, (unsigned long)mt.sensorReadsErr,
+        (unsigned long)mt.configSaves);
 
     if (!safeSend(buffer)) return;
     if (!safeSend("\"sensors\":[")) return;

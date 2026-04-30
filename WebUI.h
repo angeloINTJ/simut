@@ -361,7 +361,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <div class="compact-info">
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_dt">System Date & Time</div><div class="c-val" id="sys-time">--/--/---- --:--:--</div><div class="c-sub" id="ntp-stat" data-i18n="dash_ntp_wait">Waiting NTP...</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_up">System Uptime</div><div class="c-val" id="up">--d --h --m --s</div></div>
-                    <div class="c-item"><div class="c-lbl" data-i18n="dash_wifi">WiFi Signal</div><div class="c-val" id="rssi">-- dBm</div></div>
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_wifi">WiFi Signal</div><div class="c-val" id="rssi">-- dBm</div><div class="c-sub" id="rssi-mm">min --/-- max</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_pend">Pending Records</div><div class="c-val" id="pending">-- pkts</div><div class="c-sub" data-i18n="dash_tel_wait">Waiting telemetry sync</div></div>
                     <div class="c-item">
                         <div style="display:flex; justify-content:space-between;"><div class="c-lbl" data-i18n="dash_ram">RAM Usage</div><div class="c-val" style="font-size:0.85rem;" id="ram-pct">--%</div></div>
@@ -373,6 +373,15 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <div class="bar-bg"><div class="bar-fg" id="fs-bar" style="width: 0%"></div></div>
                         <div class="c-sub" id="fs-txt" style="text-align:right">-- KB / -- KB</div>
                     </div>
+                </div>
+                <div class="compact-info">
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_lblk">Largest Block</div><div class="c-val" id="m-lblk">-- KB</div><div class="c-sub" id="m-lblk-min" data-i18n-sub="dash_metr_min">min --</div></div>
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_hmin">Heap Min Seen</div><div class="c-val" id="m-hmin">-- KB</div><div class="c-sub" data-i18n="dash_metr_hmin_sub">lowest free</div></div>
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_net">Net Reconnects</div><div class="c-val" id="m-net">-- / --</div><div class="c-sub" data-i18n="dash_metr_net_sub">wifi / mqtt</div></div>
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_tel">Telemetry Sent</div><div class="c-val" id="m-tel">-- ok</div><div class="c-sub" id="m-tel-sub">-- fail · -- retry</div></div>
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_data">Telemetry Data</div><div class="c-val" id="m-data">-- KB</div><div class="c-sub" id="m-lat">last -- ms</div></div>
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_snr">Sensor Reads</div><div class="c-val" id="m-snr">-- ok</div><div class="c-sub" id="m-snr-err">-- err</div></div>
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_cfg">Config Saves</div><div class="c-val" id="m-cfg">--</div><div class="c-sub" data-i18n="dash_metr_cfg_sub">to flash</div></div>
                 </div>
                 <div class="card" style="padding:0; overflow-x:auto;">
                     <table>
@@ -441,6 +450,26 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('rssi').innerText = d.rssi + ' dBm';
                 let pend = document.getElementById('pending');
                 if (d.pending === -1) pend.innerText = window.t('dash_eval', "Evaluating..."); else pend.innerText = d.pending + " pkts";
+
+                const m = sysData.metr;
+                if (m) {
+                    let rmm = document.getElementById('rssi-mm');
+                    if (rmm && m.rmn !== undefined && m.rmx !== undefined) rmm.innerText = window.t('dash_metr_min','min') + ' ' + m.rmn + ' / ' + m.rmx + ' ' + window.t('dash_metr_max','max');
+                    const kb = (n) => (n / 1024).toFixed(1) + ' KB';
+                    const fmtN = (n) => { if (n >= 1e6) return (n/1e6).toFixed(2)+'M'; if (n >= 1e3) return (n/1e3).toFixed(1)+'k'; return String(n); };
+                    let el;
+                    if ((el=document.getElementById('m-lblk'))) el.innerText = kb(m.lb||0);
+                    if ((el=document.getElementById('m-lblk-min'))) el.innerText = window.t('dash_metr_min','min') + ' ' + kb(m.lbm||0);
+                    if ((el=document.getElementById('m-hmin'))) el.innerText = kb(m.hm||0);
+                    if ((el=document.getElementById('m-net'))) el.innerText = (m.wf||0) + ' / ' + (m.mq||0);
+                    if ((el=document.getElementById('m-tel'))) el.innerText = fmtN(m.ts||0) + ' ' + window.t('dash_metr_ok','ok');
+                    if ((el=document.getElementById('m-tel-sub'))) el.innerText = (m.tf||0) + ' ' + window.t('dash_metr_fail','fail') + ' · ' + (m.tr||0) + ' ' + window.t('dash_metr_retry','retry');
+                    if ((el=document.getElementById('m-data'))) el.innerText = kb(m.tb||0);
+                    if ((el=document.getElementById('m-lat'))) el.innerText = window.t('dash_metr_last','last') + ' ' + (m.tl||0) + ' ms';
+                    if ((el=document.getElementById('m-snr'))) el.innerText = fmtN(m.so||0) + ' ' + window.t('dash_metr_ok','ok');
+                    if ((el=document.getElementById('m-snr-err'))) el.innerText = (m.se||0) + ' ' + window.t('dash_metr_err','err');
+                    if ((el=document.getElementById('m-cfg'))) el.innerText = String(m.cs||0);
+                }
 
                 if (d.heap_t > 0) {
                     let ramPct = Math.round(((d.heap_t - d.heap_f) / d.heap_t) * 100);
