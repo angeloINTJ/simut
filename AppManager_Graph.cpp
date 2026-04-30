@@ -179,61 +179,27 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
         _storageMgr.exitFlashReadLock();
 
         if (fileExists && f) {
-            size_t fileSize = f.size();
-            size_t totalRecords = fileSize / HISTORY_RECORD_SIZE;
-
-            /* Seek otimizado para o cutoff */
-            if (totalRecords > 50 && cutoff > 0) {
-                struct tm fileTm = timeinfo;
-                fileTm.tm_hour = 0; fileTm.tm_min = 0; fileTm.tm_sec = 0;
-                time_t fileMidnight = mktime(&fileTm);
-
-                /*
-                 * Seek só quando o cutoff está DENTRO do dia deste arquivo.
-                 * Se cutoff < fileMidnight, precisamos do arquivo inteiro
-                 * (ex: 24H lendo arquivo de hoje, cutoff é ontem).
-                 */
-                if (cutoff > fileMidnight) {
-                    /*
-                     * Duas estratégias — usa a mais avançada:
-                     *
-                     * 1) Midnight-based: assume ~1 registro/minuto desde 00:00.
-                     *    Preciso se o arquivo não tem lacunas.
-                     *
-                     * 2) End-based: recua N registros do fim do arquivo.
-                     *    Robusto contra lacunas (reboots, boot loops).
-                     */
-                    int seekFromMidnight = max(0, (int)((cutoff - fileMidnight) / 60) - 10);
-
-                    /*
-                     * Registros BRUTOS necessários por range (pré-decimação).
-                     * duração_em_minutos + margem de 20.
-                     * 1H=80, 6H=380, 12H=740, 24H=1460, 7D=1460
-                     * Para 24H/7D, seekFromEnd será 0 (arquivo inteiro).
-                     */
-                    static const int maxRecordsNeeded[] = { 80, 380, 740, 1460, 1460 };
-                    int needed = (range >= 0 && range <= 4) ? maxRecordsNeeded[range] : 200;
-                    int seekFromEnd = max(0, (int)totalRecords - needed);
-
-                    /*
-                     * Usa o MENOR dos dois (mais conservador = mais longe do fim).
-                     * Se o arquivo tem lacunas, midnight-based pode overshoot.
-                     * min() garante que nunca pulamos dados válidos.
-                     */
-                    int seekRecord;
-                    if (seekFromMidnight < (int)totalRecords) {
-                        seekRecord = min(seekFromMidnight, seekFromEnd);
-                    } else {
-                        seekRecord = seekFromEnd;
-                    }
-
-                    if (seekRecord > 0 && seekRecord < (int)totalRecords) {
-                        { StorageManager::ReadGuard rg(&_storageMgr);
-                          f.seek((size_t)seekRecord * HISTORY_RECORD_SIZE); }
+            /* v2: valida header SIM2. Sem seek otimizado (records variaveis). */
+            HistoryFileHeaderV2 hdrG;
+            bool headerOkG = false;
+            {
+                StorageManager::ReadGuard rg(&_storageMgr);
+                if (f.size() >= HIST_V2_HEADER_SIZE) {
+                    f.seek(0);
+                    if (f.read((uint8_t*)&hdrG, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
+                        headerOkG = (memcmp(hdrG.magic, HIST_V2_MAGIC, 4) == 0 &&
+                                     hdrG.version == HIST_V2_VERSION &&
+                                     hdrG.anchorPeriod > 0);
                     }
                 }
-                /* Se cutoff <= fileMidnight: sem seek, lê o arquivo inteiro */
             }
+            if (!headerOkG) { _storageMgr.enterFlashReadLock(); f.close(); _storageMgr.exitFlashReadLock(); continue; }
+
+            HistoryCodecState gState;
+            historyCodecReset(gState);
+            uint16_t gAnchorPeriod = hdrG.anchorPeriod;
+            uint8_t  gRdBuf[256];
+            size_t   gRdFilled = 0;
 
             bool hasMore = true;
             bool budgetExceeded = false;
@@ -248,17 +214,22 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                 _storageMgr.enterFlashReadLock();
                 BinaryHistoryRecord batch[20];
                 int batchCount = 0;
-                while (f.available() >= HISTORY_RECORD_SIZE
-                       && batchCount < 20
-                       && pkg.count < GRAPH_WIDTH)
-                {
-                    if (f.read((uint8_t*)&batch[batchCount], HISTORY_RECORD_SIZE)
-                        == HISTORY_RECORD_SIZE)
-                    {
-                        batchCount++;
+                while (batchCount < 20 && pkg.count < GRAPH_WIDTH) {
+                    if (gRdFilled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
+                        int rN = f.read(gRdBuf + gRdFilled, sizeof(gRdBuf) - gRdFilled);
+                        if (rN > 0) gRdFilled += (size_t)rN;
                     }
+                    if (gRdFilled == 0) break;
+                    bool isAnc = (gState.recordsSinceAnchor == 0) ||
+                                 (gState.recordsSinceAnchor == gAnchorPeriod);
+                    size_t consumed = historyDecodeRecord(gRdBuf, gRdFilled, gState,
+                                                           batch[batchCount], isAnc);
+                    if (consumed == 0) break;
+                    memmove(gRdBuf, gRdBuf + consumed, gRdFilled - consumed);
+                    gRdFilled -= consumed;
+                    batchCount++;
                 }
-                hasMore = (f.available() >= HISTORY_RECORD_SIZE);
+                hasMore = (gRdFilled > 0 || f.available() > 0);
                 _storageMgr.exitFlashReadLock();
 
                 bool pastWindow = false;

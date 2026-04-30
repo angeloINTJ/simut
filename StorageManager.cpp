@@ -1128,16 +1128,34 @@ uint32_t StorageManager::getLastRecordedTimestamp() {
     if (newestFile != "") {
         File f = LittleFS.open(String(DIR_HISTORY) + "/" + newestFile, "r");
         if (f) {
-            size_t fSize = f.size();
-            /* Seek direto para o último registro completo (28 bytes) */
-            if (fSize >= HISTORY_RECORD_SIZE) {
-                size_t lastRecordOffset = fSize - HISTORY_RECORD_SIZE;
-                /* Se o arquivo não é múltiplo exato, alinha para baixo */
-                if (fSize % HISTORY_RECORD_SIZE != 0) {
-                    lastRecordOffset = (fSize / HISTORY_RECORD_SIZE - 1) * HISTORY_RECORD_SIZE;
+            /* v2: scan completo do arquivo via codec — records sao variaveis, nao
+             * podemos seek pro fim. Custo aceitavel (uma vez no boot). */
+            HistoryCodecState st;
+            HistoryFileHeaderV2 hdr;
+            if (f.size() >= HIST_V2_HEADER_SIZE) {
+                f.seek(0);
+                if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE &&
+                    memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
+                    hdr.version == HIST_V2_VERSION) {
+                    historyCodecReset(st);
+                    uint8_t buf[256];
+                    size_t  filled = 0;
+                    BinaryHistoryRecord rec;
+                    while (true) {
+                        if (filled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
+                            int rN = f.read(buf + filled, sizeof(buf) - filled);
+                            if (rN > 0) filled += (size_t)rN;
+                        }
+                        if (filled == 0) break;
+                        bool isAnc = (st.recordsSinceAnchor == 0) ||
+                                     (st.recordsSinceAnchor == hdr.anchorPeriod);
+                        size_t consumed = historyDecodeRecord(buf, filled, st, rec, isAnc);
+                        if (consumed == 0) break;
+                        lastTs = rec.epoch;
+                        memmove(buf, buf + consumed, filled - consumed);
+                        filled -= consumed;
+                    }
                 }
-                f.seek(lastRecordOffset);
-                f.read((uint8_t*)&lastTs, sizeof(lastTs));
             }
             f.close();
         }
@@ -1243,6 +1261,20 @@ void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta
             exitFlashSafeMode();
             continue;
         }
+
+        /* v2: arquivos com magic SIM2 nao podem ter epoch corrigido in-place
+         * (records sao variaveis com varint). Skip silenciosamente — records
+         * provisorios pre-NTP podem ter timestamp ligeiramente errado, mas o
+         * grafico ainda funciona (eixo X apenas deslocado). */
+        char hdrCheck[4] = {0};
+        f.seek(0);
+        if (f.read((uint8_t*)hdrCheck, 4) == 4 && memcmp(hdrCheck, HIST_V2_MAGIC, 4) == 0) {
+            f.close();
+            exitFlashSafeMode();
+            _correctWatermark = fn;
+            continue;
+        }
+        f.seek(0);
 
         size_t fSize = f.size();
         size_t totalRecords = fSize / HISTORY_RECORD_SIZE;

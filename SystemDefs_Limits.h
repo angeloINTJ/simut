@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.0-alpha5" /* Historico v2 (delta + sensor-mask + anchor): ~45% reducao = ~2x capacidade. Sem retro-compat: arquivos v1 precisam ser convertidos via tools/history_v1_to_v2.py antes de upload */
+#define SIMUT_VERSION "v3.27.0-alpha6" /* Hist v2: corrige readers do display TFT (Graph + preloadMinMax) + getLastRecordedTimestamp + bypass do epoch-correct loop pra arquivos v2 (records variaveis nao suportam rewrite in-place) */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
