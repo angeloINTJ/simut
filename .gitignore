@@ -36,3 +36,6 @@ WebUI_GZ.h
 __pycache__/
 *.pyc
 .venv/
+
+# Test server certs (self-signed, regenerate locally)
+tools/test-server/certs/
