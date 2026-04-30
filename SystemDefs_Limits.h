@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.0-alpha6" /* Hist v2: corrige readers do display TFT (Graph + preloadMinMax) + getLastRecordedTimestamp + bypass do epoch-correct loop pra arquivos v2 (records variaveis nao suportam rewrite in-place) */
+#define SIMUT_VERSION "v3.27.0" /* Release final apos validacao da serie alpha1-6: WebUI metricas em tempo real, i18n ES, chpass self-service na login, intervalo historico configuravel, codec v2 (delta + mask + anchor) com ~45% reducao */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
