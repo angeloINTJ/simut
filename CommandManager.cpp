@@ -303,6 +303,11 @@ CliDemand CommandManager::parseCommand(String input) {
             if (t2 == "admin" && t3 == "reset") { cmd.type = CMD_RESET_ADMIN; return cmd; }
             if (t2 == "touch" && t3 == "reset") { cmd.type = CMD_RESET_TOUCH_CAL; return cmd; }
             if (t2 == "factory") { cmd.type = CMD_FACTORY_RESET; return cmd; }
+            if (t2 == "history_interval") {
+                cmd.type = CMD_SET_HISTORY_INTERVAL;
+                cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+                return cmd;
+            }
         }
         if (t1 == "sensor" && t2 == "ds18b20" && t3 == "resolution") {
             cmd.type = CMD_SET_DS_RES;

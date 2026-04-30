@@ -203,6 +203,12 @@ public:
 
     /** Seta o DNS secundário no overlay (máx 15 chars + '\0'). Popula magic. */
     void setSecondaryDns(const char* ip);
+
+    /** @return Intervalo de gravacao de historico em minutos. Default 1 min se overlay legado. */
+    uint16_t getHistoryIntervalMin() const;
+
+    /** Seta o intervalo de historico (clampa em [HISTORY_INTERVAL_MIN_MIN, HISTORY_INTERVAL_MAX_MIN]). */
+    void setHistoryIntervalMin(uint16_t minutes);
     SystemConfig _currentConfig;
     bool _isMounted = false;
     FlashLockCallback    _lockCb          = nullptr;

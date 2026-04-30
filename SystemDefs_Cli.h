@@ -40,6 +40,7 @@ enum DemandType {
     CMD_SET_TEL_INTERVAL,
     CMD_SET_TEL_CRYPTO,
     CMD_SET_TEL_MODE,
+    CMD_SET_HISTORY_INTERVAL,  /**< intVal1 = minutos (1..1440). */
     CMD_RESET_ADMIN,
     CMD_RESET_TOUCH_CAL,
     CMD_FACTORY_RESET,

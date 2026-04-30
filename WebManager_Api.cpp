@@ -124,8 +124,9 @@ void WebManager::handleApiConfig() {
     if (!safeSend(buf)) return;
 
     snprintf(buf, sizeof(buf),
-        "\"t_int\":%lu,\"t_bat\":%d,\"t_mode\":%d,",
-        (unsigned long)cfg.telInterval, cfg.telBatchSize, cfg.telMode);
+        "\"t_int\":%lu,\"t_bat\":%d,\"t_mode\":%d,\"h_int\":%u,",
+        (unsigned long)cfg.telInterval, cfg.telBatchSize, cfg.telMode,
+        _storageRef->getHistoryIntervalMin());
     if (!safeSend(buf)) return;
 
     safeSend("\"t_glob\":\"");
