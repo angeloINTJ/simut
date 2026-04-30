@@ -17,6 +17,7 @@
 #include <vector>
 #include "pico/mutex.h"
 #include "SystemDefs.h"
+#include "HistoryCodec.h"
 
 #define DIR_CONFIG      "/config"
 #define FILE_CONFIG     "/config/system.bin"
@@ -250,6 +251,12 @@ public:
 
     File _currentLogFile;
     String _currentLogFileName = "";
+
+    /** Estado do codec v2 do arquivo ativo. Valido somente para o arquivo
+     *  cujo path == _currentLogFileName. Reconstruido por scan ao mudar de
+     *  arquivo (boot ou day rollover). */
+    HistoryCodecState _histCodec;
+    bool _histCodecValid = false;
 
     bool mountFS();
     void loadDefaults();

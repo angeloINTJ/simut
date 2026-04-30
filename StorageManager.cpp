@@ -879,55 +879,128 @@ bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
     return writeHistoryEntryFlash(rec);
 }
 
+/* Helper: scan arquivo v2 existente do inicio ao fim, reconstruindo o
+ * estado do codec. Retorna true se header valido + scan ok; false se
+ * header invalido (caller deve apagar e recriar). Deixa file pos no
+ * fim do ultimo record decodificado com sucesso. */
+static bool scanHistoryFileForState(File& f, HistoryCodecState& s) {
+    historyCodecReset(s);
+    if (f.size() < HIST_V2_HEADER_SIZE) return false;
+    f.seek(0);
+    HistoryFileHeaderV2 hdr;
+    if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) != HIST_V2_HEADER_SIZE) return false;
+    if (memcmp(hdr.magic, HIST_V2_MAGIC, 4) != 0 || hdr.version != HIST_V2_VERSION) return false;
+
+    uint8_t buf[256];
+    size_t  filled = 0;
+    BinaryHistoryRecord tmp;
+    size_t goodPos = HIST_V2_HEADER_SIZE;
+
+    while (true) {
+        /* Reabastece buffer */
+        if (filled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
+            int r = f.read(buf + filled, sizeof(buf) - filled);
+            if (r > 0) filled += (size_t)r;
+        }
+        if (filled == 0) break;
+        bool isAnchor = (s.recordsSinceAnchor == 0) ||
+                        (s.recordsSinceAnchor == HIST_V2_ANCHOR_PERIOD);
+        size_t consumed = historyDecodeRecord(buf, filled, s, tmp, isAnchor);
+        if (consumed == 0) break;  /* truncado / corrupto: para aqui */
+        goodPos += consumed;
+        memmove(buf, buf + consumed, filled - consumed);
+        filled -= consumed;
+    }
+
+    /* Posiciona no fim do ultimo record valido (descarta cauda corrompida). */
+    f.seek(goodPos);
+    return true;
+}
+
 bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
     if (!_isMounted) return false;
     String path = getHistoryFileName();
 
     LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
-    /* RAII context-aware igual saveConfiguration. */
     LogManager::WdtWindow _wdt(30000);
 
-    /* F13.4/BUG-003: chunks granulares via macro FLASH_OP (file-scope).
-     * Entre chunks Core 1 sai do multicore_lockout e renderiza 1 frame —
-     * antes todo o path (incluindo enforceStorageLimit até 4 s) rodava em
-     * 1 único lockout. File handle nunca sobrevive entre chunks. */
-
-    /* Chunk 1: enforce storage limit (apenas na rolagem diária). */
+    /* Chunk 1: enforce storage limit (apenas na rolagem diaria). */
     if (path != _currentLogFileName) {
         FLASH_OP(enforceStorageLimit());
         _currentLogFileName = path;
+        _histCodecValid = false;  /* forca reload do state ao mudar arquivo */
     }
 
-    /* Chunk 2: open + write + close atômicos (file handle curto). */
+    /* Chunk 2: prepara state se necessario (boot ou rollover). */
+    if (!_histCodecValid) {
+        FLASH_OP({
+            bool created = false;
+            if (LittleFS.exists(path)) {
+                File f = LittleFS.open(path, "r+");
+                if (f) {
+                    if (!scanHistoryFileForState(f, _histCodec)) {
+                        f.close();
+                        LittleFS.remove(path);
+                        created = true;
+                    } else {
+                        f.close();
+                    }
+                }
+            } else {
+                created = true;
+            }
+            if (created) {
+                File f = LittleFS.open(path, "w");
+                if (f) {
+                    HistoryFileHeaderV2 hdr;
+                    memcpy(hdr.magic, HIST_V2_MAGIC, 4);
+                    hdr.version = HIST_V2_VERSION;
+                    hdr.anchorPeriod = HIST_V2_ANCHOR_PERIOD;
+                    hdr.flags = 0;
+                    hdr.recordCount = 0;
+                    f.write((const uint8_t*)&hdr, HIST_V2_HEADER_SIZE);
+                    f.close();
+                }
+                historyCodecReset(_histCodec);
+            }
+        });
+        _histCodecValid = true;
+    }
+
+    /* Chunk 3: encode record (anchor ou delta) e append. */
+    uint8_t encBuf[64];
+    bool wasAnchor = false;
+    size_t encLen = historyEncodeRecord(rec, _histCodec, encBuf, sizeof(encBuf), &wasAnchor);
+    if (encLen == 0) {
+        LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "encode_fail");
+        return false;
+    }
+
     bool ok = false;
     FLASH_OP({
         File f = LittleFS.open(path, "a");
         if (f) {
-            f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
+            f.write(encBuf, encLen);
             f.close();
             ok = true;
         }
     });
 
-    if (ok) {
-        _storageDirty = true;
-        return true;
-    }
+    if (ok) { _storageDirty = true; return true; }
 
-    /* Fallback: write falhou → force enforce + retry. */
+    /* Fallback: forca enforce + retry. */
     LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "");
     _storageDirty = true;
     FLASH_OP(enforceStorageLimit());
     FLASH_OP({
         File f = LittleFS.open(path, "a");
         if (f) {
-            f.write((const uint8_t*)&rec, HISTORY_RECORD_SIZE);
+            f.write(encBuf, encLen);
             f.close();
             ok = true;
         }
     });
     return ok;
-    /* WdtWindow destrutor auto-restaura */
 }
 
 /**

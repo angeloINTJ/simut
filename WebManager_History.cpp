@@ -9,6 +9,7 @@
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "TouchPriority.h"
+#include "HistoryCodec.h"
 #include <LittleFS.h>
 #include <time.h>
 
@@ -154,32 +155,31 @@ void WebManager::handleApiHistoryData() {
         }
 
         if (fileOk) {
-            size_t fileSize = f.size();
-            size_t totalRecords = fileSize / HISTORY_RECORD_SIZE;
-
-            /* Seek otimizado — mesma lógica do display */
-            if (totalRecords > 50 && cutoff > 0) {
-                struct tm fileTm;
-                {
-                    time_t targetDay = effectiveEnd - (int)(filesToRead.size() - 1 - fi) * 86400;
-                    localtime_r(&targetDay, &fileTm);
-                }
-                fileTm.tm_hour = 0; fileTm.tm_min = 0; fileTm.tm_sec = 0;
-                time_t fileMidnight = mktime(&fileTm);
-
-                if (cutoff > fileMidnight) {
-                    int seekFromMidnight = max(0, (int)((cutoff - fileMidnight) / 60) - 10);
-                    static const int maxRec[] = { 80, 380, 740, 1460, 1460 };
-                    int rIdx = (reqRange.length() > 0) ? constrain(reqRange.toInt(), 0, 4) : 3;
-                    int seekFromEnd = max(0, (int)totalRecords - maxRec[rIdx]);
-                    int seekRecord = (seekFromMidnight < (int)totalRecords)
-                                     ? min(seekFromMidnight, seekFromEnd) : seekFromEnd;
-                    if (seekRecord > 0 && seekRecord < (int)totalRecords) {
-                        ReadGuard rg(_storageRef);
-                        f.seek((size_t)seekRecord * HISTORY_RECORD_SIZE);
+            /* v2: valida header. Sem retro-compat — arquivos v1 sao ignorados. */
+            HistoryFileHeaderV2 hdr;
+            bool headerOk = false;
+            {
+                ReadGuard rg(_storageRef);
+                if (f.size() >= HIST_V2_HEADER_SIZE) {
+                    f.seek(0);
+                    if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
+                        headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
+                                    hdr.version == HIST_V2_VERSION &&
+                                    hdr.anchorPeriod > 0);
                     }
                 }
             }
+            if (!headerOk) {
+                ReadGuard rg(_storageRef); f.close();
+                continue;  /* proximo arquivo */
+            }
+
+            HistoryCodecState rdState;
+            historyCodecReset(rdState);
+            uint16_t anchorPeriod = hdr.anchorPeriod;
+
+            uint8_t  rdBuf[256];
+            size_t   rdFilled = 0;
 
             bool fileHasMore = true;
             while (fileHasMore) {
@@ -195,14 +195,23 @@ void WebManager::handleApiHistoryData() {
 
                 {
                     ReadGuard rg(_storageRef);
-                    while (f.available() >= HISTORY_RECORD_SIZE && batchCount < 20) {
-                        if (f.read((uint8_t*)&readBatch[batchCount], HISTORY_RECORD_SIZE)
-                            == HISTORY_RECORD_SIZE)
-                        {
-                            batchCount++;
+                    while (batchCount < 20) {
+                        /* Reabastece buffer ate ter o pior caso de delta + folga. */
+                        if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
+                            int r = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
+                            if (r > 0) rdFilled += (size_t)r;
                         }
+                        if (rdFilled == 0) break;
+                        bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
+                                        (rdState.recordsSinceAnchor == anchorPeriod);
+                        size_t consumed = historyDecodeRecord(
+                            rdBuf, rdFilled, rdState, readBatch[batchCount], isAnchor);
+                        if (consumed == 0) break;
+                        memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
+                        rdFilled -= consumed;
+                        batchCount++;
                     }
-                    fileHasMore = (f.available() >= HISTORY_RECORD_SIZE);
+                    fileHasMore = (rdFilled > 0 || f.available() > 0);
                 }
 
                 bool pastWindow = false;
