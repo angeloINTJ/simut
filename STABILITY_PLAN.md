@@ -459,7 +459,7 @@ Atualize esta tabela conforme cada fase for concluída.
 |---|---|---|---|---|
 | **F1 — Watchdog & Timeouts** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.0` | 2026-04-18 |
 | **F2 — Autenticação & Rate Limit** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.1` | 2026-04-18 |
-| **F3 — Handlers & Concorrência** | 🟡 Em andamento | `stability-fixes-tier1` | — | — |
+| **F3 — Handlers & Concorrência** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.2` | 2026-04-18 |
 | **F4 — Logging & Flash Wear** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.4` | 2026-04-18 |
 | **F5 — Heap & String** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.5` | 2026-04-18 |
 | **F6 — Long-term & Edge Cases** | ✅ Concluída | `stability-fixes-tier1` | `v3.5.6` | 2026-04-18 |
@@ -537,7 +537,7 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · EXT-004 — remover blocos `@LANG_BEGIN:es\|de\|fr\|it\|ru\|zh` de `WebUI.h` (consistência com F-I18N-TRIM.1 do firmware). Reduz manutenção de strings da UI; impacto em flash desprezível (gzip já colapsa). | ✅ 336 linhas removidas (72 blocos) | — | — | — |
 | **F-DOC-EXT — Documentação externa cooperativa** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-25 |
 |   · EXT-008 — `docs/GLOSSARY.md` in-tree (tags BUG/SEC/CON/DOC/F-/Patch/#N), reaproveita §3 do `audits/SIMUT_ANALISE_TECNICA_v1.md`. | ✅ 113 tags documentadas | — | — | — |
-|   · EXT-012 — atualizar `README.md` ("8 display languages" → "EN + PT" pós F-I18N-TRIM.1). | ✅ + SIMUT_Versa.ino + docs/ na estrutura | — | — | — |
+|   · EXT-012 — atualizar `README.md` ("8 display languages" → "EN + PT" pós F-I18N-TRIM.1). | ✅ + SIMUT.ino + docs/ na estrutura | — | — | — |
 | **F-BUILD (deferida, opcional)** | ⚪ Pendente | — | — | — |
 |   · EXT-001 — `platformio.ini` (ou `arduino-cli.yaml`) reproduzível com lib pins explícitos + `-Wall -Wextra`. Pré-requisito de EXT-009. Decisão depende de quanto valor há em build CI vs. workflow Arduino IDE atual. | ⚪ Pendente | — | — | — |
 |   · EXT-009 — host-side unit tests via `pio test -e native` + Unity para validators puros (`parseIntStrict`, `isValidIpv4`, `isSafeUploadFilename`, `dallasCrc8`, `floatToI16`/`i16ToFloat`, `timeReached`). Bloqueado por EXT-001. | ⚪ Pendente | — | — | — |

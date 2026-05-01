@@ -109,7 +109,7 @@ python3 compressor.py
 
 ```
 SIMUT/
-├── SIMUT_Versa.ino        # Main entry point (setup + loop)
+├── SIMUT.ino              # Main entry point (setup + loop)
 ├── SystemDefs.h           # Global types, enums, structs, constants
 ├── SystemUtils.cpp        # CRC8, filename validation utilities
 ├── AppManager.h/.cpp      # Application orchestrator (boot, loop, events)
