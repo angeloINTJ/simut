@@ -113,8 +113,10 @@ constexpr size_t   CLI_LINE_MAX              = 256;
 
 /* ── Web handlers ── */
 
-/** Deadline para handlers longos (history, logs, screenshot) em ms. */
-constexpr uint32_t WEB_LONG_HANDLER_DEADLINE_MS = 10000;
+/** Deadline para handlers longos (history, logs, screenshot) em ms.
+ *  PERF: tools/test_perf.sh apontou export 3d media 10.5s (passava do limite
+ *  de 10s e gerava CRC fail). Margem +50% absorve concorrencia/burst. */
+constexpr uint32_t WEB_LONG_HANDLER_DEADLINE_MS = 15000;
 
 /* ── AP mode ── */
 

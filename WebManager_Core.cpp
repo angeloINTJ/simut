@@ -94,7 +94,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     /* U24 Phase C: /api/save_net substituido por /api/commit_all */
     _server.on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
     /* U24 Phase B: user_add/del/rst substituidos por /api/commit_all */
-    _server.on("/api/history", HTTP_GET, std::bind(&WebManager::handleApiHistoryData, this));
+    _server.on("/api/history_multi", HTTP_GET, std::bind(&WebManager::handleApiHistoryMulti, this));  /* F-GRAPH-REVAMP — substitui /api/history single-sensor */
     _server.on("/api/history_days", HTTP_GET, std::bind(&WebManager::handleApiHistoryDays, this));
     _server.on("/api/export/history.bin", HTTP_GET, std::bind(&WebManager::handleApiExportHistory, this));  /* F-CSV.2 */
     _server.on("/api/export/logs.bin", HTTP_GET, std::bind(&WebManager::handleApiExportLogs, this));  /* F-CSV.3 */
@@ -219,7 +219,15 @@ void WebManager::update() {
     uint32_t handlerStart = millis();
     _handlerDeadline = handlerStart + 6000;
 
-    _server.handleClient();
+    /* PERF: dreno multi-request por tick (até 4) com cap de tempo (50ms).
+     * Reduz latência sistemica de ~600ms (1 request por iteração de loop)
+     * para ~100-150ms quando o loop principal está ocupado com telemetria/
+     * sensores. Cap de 50ms preserva responsividade do display. */
+    const uint32_t budget = handlerStart + 50;
+    for (int i = 0; i < 4; i++) {
+        _server.handleClient();
+        if (millis() >= budget) break;
+    }
 
     _handlerDeadline = 0;
 }

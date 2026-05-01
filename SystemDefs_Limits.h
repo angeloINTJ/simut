@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.7" /* F-CSV.5: UI export logs em /history apos card de logs. Card com 2 pickers date+time + dropdown level (Todos|Erros|Infos) + botao "Exportar CSV". JS reusa _crcTab/crc32/_iterMonths/_isoLocal de F-CSV.4. _decodeSimxLogs() valida magic+version+kind=L+recordSize=12+CRC32; decodifica N x CompactLogRecord (12B) e gera CSV com 7 colunas (timestamp_iso, level, module, code, message, context, uptime_hr). Reusa evtName/TAG_NAMES/LVL_LABELS ja existentes para code->texto e tagId->modulo. CSS .exp-row/.exp-btn/.exp-status reaproveitado. Nome: simut_logs_<level>_<YYYY-MM>.csv. i18n keys novas: exp_logs_title, exp_level, exp_errors, exp_infos. */
+#define SIMUT_VERSION "v3.27.32" /* /network: campos de IP estatico (#static_fields) e DNS manual (#dns_fields) agora SOMEM totalmente quando os toggles correspondentes (DHCP, Auto DNS) estao ON, via CSS :has() — .grp:has(#dhcp:checked) #static_fields { display:none }, idem dns_auto. JS toggleIpFields/toggleDnsFields antigo (que so' mexia em opacity) continua rodando inofensivo. Mesma tecnica do .sensor-card em /alarms. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
