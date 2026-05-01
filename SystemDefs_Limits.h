@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.3" /* F-CSV.1: helper CRC32-IEEE incremental (init/update/final) em SystemUtils.cpp para streaming de export bundles. Forward decls em SystemDefs_Records.h. Mesma matematica de StorageManager::calculateCRC32 (poly 0xEDB88320). Pre-req de F-CSV.2/3. */
+#define SIMUT_VERSION "v3.27.4" /* F-CSV.2: GET /api/export/history.bin?from=&to= emite bundle .simx (HEADER 32B + SENSOR_TABLE + N x BinaryHistoryRecord 28B + CRC32 trailer). Cap hard 31 dias. Auth+RBAC herdados. Iteracao day-aligned dos arquivos data/history/YYYYMMDD.bin via historyDecodeRecord(). Browser decodifica e gera CSV. Build flash 97.5% (apertado). */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

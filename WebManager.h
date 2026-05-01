@@ -227,6 +227,7 @@ private:
     void handleResetTouchCal();
     void handleApiStatus();
     void handleApiHistoryData();
+    void handleApiExportHistory();  /**< F-CSV.2: export history como bundle .simx (CRC32 trailer). */
     void handleApiLogs();
     void handleApiClearLogs();
     void handleApiLang();   /**< F-LANGPACK β: serve @WEBDICT do .lng como JSON */

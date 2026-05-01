@@ -330,6 +330,228 @@ void WebManager::handleApiHistoryData() {
     __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
 }
 
+/* =========================================================================== */
+/*       F-CSV.2: GET /api/export/history.bin?from=<epoch>&to=<epoch>          */
+/* =========================================================================== */
+/* Emite bundle .simx kind='H' (CRC32 trailer) para o browser expandir em CSV
+ * localmente. Cap hard de 31 dias. PAYLOAD = N x BinaryHistoryRecord (28 B
+ * packed) cru, sem reformatar. Filtragem de sensores fica no client.
+ *
+ * Formato (todos LE):
+ *   HEADER (32 B): "SIMX" | ver=1 | kind='H' | rsv | recSize=28 | rsv |
+ *                  rangeFrom u32 | rangeTo u32 | sensorTblSize u32 | rsv x2
+ *   SENSOR_TABLE (variavel): per slot ativo: idx u8, hwidLen u8, hwid[],
+ *                            friendlyLen u8, friendly[]
+ *   PAYLOAD (variavel): N x BinaryHistoryRecord (28 B cada)
+ *   TRAILER (4 B): crc32 u32 (sobre HEADER+TABLE+PAYLOAD)
+ */
+namespace {
+constexpr uint32_t SIMX_MAX_RANGE_SECS = 31u * 86400u;  /* cap 31 dias */
+struct __attribute__((packed)) SimxHeader {
+    char     magic[4];          /* "SIMX" */
+    uint8_t  version;           /* 1 */
+    uint8_t  kind;              /* 'H' history, 'L' logs */
+    uint16_t reserved0;
+    uint16_t recordSize;        /* 28 (history) ou 12 (logs) */
+    uint16_t reserved1;
+    uint32_t rangeFrom;
+    uint32_t rangeTo;
+    uint32_t sensorTableSize;
+    uint32_t reserved2;
+    uint32_t reserved3;
+};
+static_assert(sizeof(SimxHeader) == 32, "SimxHeader deve ter 32 bytes");
+}
+
+void WebManager::handleApiExportHistory() {
+    uint16_t perms = getAuthPerms();
+    if (!(perms & PERM_HISTORY)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+
+    if (!_server.hasArg("from") || !_server.hasArg("to")) {
+        _server.send(400, "application/json", "{\"error\":\"Missing from/to params\"}"); return;
+    }
+    uint32_t rangeFrom = (uint32_t)strtoul(_server.arg("from").c_str(), nullptr, 10);
+    uint32_t rangeTo   = (uint32_t)strtoul(_server.arg("to").c_str(),   nullptr, 10);
+    if (rangeFrom == 0 || rangeTo == 0 || rangeFrom >= rangeTo) {
+        _server.send(400, "application/json", "{\"error\":\"Invalid range\"}"); return;
+    }
+    if (rangeTo - rangeFrom > SIMX_MAX_RANGE_SECS) {
+        _server.send(400, "application/json", "{\"error\":\"Range exceeds 31 days\"}"); return;
+    }
+
+    if (TouchPriority::isActive()) {
+        _server.sendHeader("Retry-After", "3");
+        _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}"); return;
+    }
+    if (__atomic_exchange_n(&_inHistoryHandler, true, __ATOMIC_ACQ_REL)) {
+        _server.send(503, "application/json", "{\"error\":\"Already processing\"}"); return;
+    }
+    HeavyTaskGuard htg(_storageRef);
+    if (!htg.isLocked()) {
+        __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
+        _server.send(503, "application/json", "{\"error\":\"System Busy.\"}"); return;
+    }
+
+    uint32_t savedDeadline = _handlerDeadline;
+    _handlerDeadline = millis() + WEB_LONG_HANDLER_DEADLINE_MS;
+    if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str());
+
+    /* Monta SENSOR_TABLE em buffer RAM (= soma de todos os slots ativos +
+     * ambient). Cap conservador: 11 slots x (1+1+16+1+32) = 561 B max. */
+    uint8_t  sensorTbl[640];
+    size_t   sensorTblLen = 0;
+    {
+        const SystemConfig& cfg = _storageRef->getConfig();
+        auto appendSensor = [&](uint8_t idx, const char* hwId, const char* friendly) {
+            size_t hwLen = hwId ? strnlen(hwId, 16) : 0;
+            size_t frLen = friendly ? strnlen(friendly, 32) : 0;
+            size_t need = 1 + 1 + hwLen + 1 + frLen;
+            if (sensorTblLen + need > sizeof(sensorTbl)) return;
+            sensorTbl[sensorTblLen++] = idx;
+            sensorTbl[sensorTblLen++] = (uint8_t)hwLen;
+            memcpy(sensorTbl + sensorTblLen, hwId, hwLen); sensorTblLen += hwLen;
+            sensorTbl[sensorTblLen++] = (uint8_t)frLen;
+            memcpy(sensorTbl + sensorTblLen, friendly, frLen); sensorTblLen += frLen;
+        };
+        for (int i = 0; i < MAX_SENSORS; i++) {
+            const SensorRecord& s = cfg.sensors[i];
+            if (!s.active) continue;
+            appendSensor((uint8_t)i, s.hwId, s.friendlyName);
+        }
+        /* Ambient: idx especial = 0xFE; usa hwId do ambient (em geral vazio) +
+         * friendlyName. So' emite se ambient ativo. */
+        if (cfg.ambientSensor.active) {
+            appendSensor(0xFE, cfg.ambientSensor.hwId, cfg.ambientSensor.friendlyName);
+        }
+    }
+
+    /* Acumulador de CRC32 streaming (cobre HEADER + TABLE + PAYLOAD; trailer e' o CRC). */
+    uint32_t crc = crc32_init();
+
+    _server.sendHeader("Content-Disposition", "attachment; filename=\"simut_history.simx\"");
+    _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    _server.send(200, "application/octet-stream", "");
+
+    /* Emite HEADER */
+    SimxHeader hdr = {};
+    memcpy(hdr.magic, "SIMX", 4);
+    hdr.version = 0x01;
+    hdr.kind = 'H';
+    hdr.recordSize = (uint16_t)sizeof(BinaryHistoryRecord);  /* 28 */
+    hdr.rangeFrom = rangeFrom;
+    hdr.rangeTo = rangeTo;
+    hdr.sensorTableSize = (uint32_t)sensorTblLen;
+    crc = crc32_update(crc, (const uint8_t*)&hdr, sizeof(hdr));
+    safeSend((const char*)&hdr, sizeof(hdr));
+
+    /* Emite SENSOR_TABLE */
+    if (sensorTblLen > 0) {
+        crc = crc32_update(crc, sensorTbl, sensorTblLen);
+        safeSend((const char*)sensorTbl, sensorTblLen);
+    }
+
+    /* Itera arquivos de history no range. Day-aligned: data/history/YYYYMMDD.bin */
+    bool aborted = false;
+    time_t fromDayStart = (time_t)rangeFrom - ((time_t)rangeFrom % 86400);
+    time_t toDayEnd     = (time_t)rangeTo;
+    for (time_t dayStart = fromDayStart; dayStart <= toDayEnd && !aborted; dayStart += 86400) {
+        struct tm dtm; localtime_r(&dayStart, &dtm);
+        char dayPath[40];
+        snprintf(dayPath, sizeof(dayPath), "%s/%04d%02d%02d%s",
+                 DIR_HISTORY,
+                 dtm.tm_year + 1900, dtm.tm_mon + 1, dtm.tm_mday,
+                 HISTORY_FILE_EXT);
+
+        File f;
+        bool fileOk = false;
+        {
+            ReadGuard rg(_storageRef);
+            if (LittleFS.exists(dayPath)) {
+                f = LittleFS.open(dayPath, "r");
+                fileOk = (bool)f;
+            }
+        }
+        if (!fileOk) continue;
+
+        /* Valida header v2 */
+        HistoryFileHeaderV2 hdrV2;
+        bool headerOk = false;
+        {
+            ReadGuard rg(_storageRef);
+            if (f.size() >= HIST_V2_HEADER_SIZE) {
+                f.seek(0);
+                if (f.read((uint8_t*)&hdrV2, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
+                    headerOk = (memcmp(hdrV2.magic, HIST_V2_MAGIC, 4) == 0 &&
+                                hdrV2.version == HIST_V2_VERSION &&
+                                hdrV2.anchorPeriod > 0);
+                }
+            }
+        }
+        if (!headerOk) { ReadGuard rg(_storageRef); f.close(); continue; }
+
+        HistoryCodecState rdState;
+        historyCodecReset(rdState);
+        uint16_t anchorPeriod = hdrV2.anchorPeriod;
+
+        uint8_t rdBuf[256];
+        size_t  rdFilled = 0;
+        bool fileHasMore = true;
+
+        while (fileHasMore && !aborted) {
+            if (isClientGone() || isHandlerOvertime()) {
+                LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_HISTORY, 0, "");
+                aborted = true; break;
+            }
+
+            BinaryHistoryRecord batch[20];
+            int batchCount = 0;
+            {
+                ReadGuard rg(_storageRef);
+                while (batchCount < 20) {
+                    if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
+                        int r = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
+                        if (r > 0) rdFilled += (size_t)r;
+                    }
+                    if (rdFilled == 0) break;
+                    bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
+                                    (rdState.recordsSinceAnchor == anchorPeriod);
+                    size_t consumed = historyDecodeRecord(rdBuf, rdFilled, rdState, batch[batchCount], isAnchor);
+                    if (consumed == 0) break;
+                    memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
+                    rdFilled -= consumed;
+                    batchCount++;
+                }
+                fileHasMore = (rdFilled > 0 || f.available() > 0);
+            }
+
+            for (int bi = 0; bi < batchCount && !aborted; bi++) {
+                const BinaryHistoryRecord& rec = batch[bi];
+                if (rec.epoch < rangeFrom) continue;
+                if (rec.epoch > rangeTo)   { fileHasMore = false; break; }
+
+                crc = crc32_update(crc, (const uint8_t*)&rec, sizeof(rec));
+                if (!safeSend((const char*)&rec, sizeof(rec))) { aborted = true; break; }
+            }
+
+            if (_lightYieldCb) _lightYieldCb();
+            delay(2);
+            watchdog_update();
+        }
+        { ReadGuard rg(_storageRef); f.close(); }
+    }
+
+    /* TRAILER: CRC32 final */
+    if (!aborted) {
+        uint32_t crcFinal = crc32_final(crc);
+        safeSend((const char*)&crcFinal, sizeof(crcFinal));
+        safeSend("");
+    }
+
+    _handlerDeadline = savedDeadline;
+    if (_displayRef) _displayRef->setWebBusy(false);
+    __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
+}
+
 void WebManager::handleApiLogs() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_LOGS)) { _server.send(403, "text/plain", "Forbidden"); return; }
