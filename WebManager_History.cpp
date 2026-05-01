@@ -15,137 +15,205 @@
 
 using ReadGuard = StorageManager::ReadGuard;
 
-void WebManager::handleApiHistoryData() {
+
+/* =========================================================================== */
+/*  F-GRAPH-REVAMP: GET /api/history_multi?sensors=<csv>&range=<0..6>&end=<ep> */
+/* =========================================================================== */
+/* Versao multi-sensor de handleApiHistoryData. Retorna 1 response com TODAS
+ * as series solicitadas, evitando overhead de N fetches sequenciais bloqueados
+ * pelo _inHistoryHandler atomic guard.
+ *
+ * Args:
+ *   sensors=-1,0,5    CSV de IDs (-1=ambient, 0..9=DS18B20). Default: -1.
+ *   range=0..6        Niveis: 1h, 6h, 24h, 7d, 1M, 1A, MAX (=todos arquivos).
+ *   end=<epoch>       Ancora (default: agora).
+ *
+ * JSON:
+ *   {"cutoff":..., "end":..., "now":...,
+ *    "sensors":[{"id":-1,"hwId":"AMB","name":"...","hasH":true}, ...],
+ *    "data":[{"t":epoch,"v":[float|null,...],"h":float}, ...],
+ *    "minT":..., "maxT":..., "tsMinT":..., "tsMaxT":...,
+ *    "rangeUsed":N}
+ *
+ * v[] e' alinhado por indice com sensors[]. h so' aparece se ambient esta
+ * incluso e tem leitura valida no record.
+ */
+void WebManager::handleApiHistoryMulti() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_HISTORY)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
-    if (!_server.hasArg("sensor")) { _server.send(400, "application/json", "{\"error\":\"Missing sensor param\"}"); return; }
-
 
     if (TouchPriority::isActive()) {
         _server.sendHeader("Retry-After", "3");
         _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
         return;
     }
-
-
     if (__atomic_exchange_n(&_inHistoryHandler, true, __ATOMIC_ACQ_REL)) {
         _server.send(503, "application/json", "{\"error\":\"Already processing\"}"); return;
     }
-
     HeavyTaskGuard htg(_storageRef);
     if (!htg.isLocked()) {
         __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
-        _server.send(503, "application/json", "{\"error\":\"System Busy.\"}");
-        return;
+        _server.send(503, "application/json", "{\"error\":\"System Busy.\"}"); return;
     }
-
 
     uint32_t savedDeadline = _handlerDeadline;
     _handlerDeadline = millis() + WEB_LONG_HANDLER_DEADLINE_MS;
-
-
     if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str());
 
-    int sensorIdx = _server.arg("sensor").toInt();
-    String reqDate = _server.arg("date");
+    /* ── Parse sensors=... (CSV de IDs) ─────────────────────────────────── */
+    int  sensorIds[11];           /* MAX_SENSORS + 1 (ambient) */
+    int  sensorCount = 0;
+    bool ambientIncluded = false;
+    int  ambientPos = -1;         /* indice dentro de sensorIds[] */
+    String sArg = _server.hasArg("sensors") ? _server.arg("sensors") : String("-1");
+    {
+        int start = 0;
+        while (start < (int)sArg.length() && sensorCount < 11) {
+            int comma = sArg.indexOf(',', start);
+            String tok = (comma < 0) ? sArg.substring(start) : sArg.substring(start, comma);
+            tok.trim();
+            if (tok.length() > 0) {
+                int id = tok.toInt();
+                /* Aceita -1 (ambient) ou 0..MAX_SENSORS-1. Filtra duplicados. */
+                if (id >= -1 && id < MAX_SENSORS) {
+                    bool dup = false;
+                    for (int i = 0; i < sensorCount; i++) if (sensorIds[i] == id) { dup = true; break; }
+                    if (!dup) {
+                        sensorIds[sensorCount] = id;
+                        if (id == -1) { ambientIncluded = true; ambientPos = sensorCount; }
+                        sensorCount++;
+                    }
+                }
+            }
+            if (comma < 0) break;
+            start = comma + 1;
+        }
+    }
+    if (sensorCount == 0) { sensorIds[0] = -1; sensorCount = 1; ambientIncluded = true; ambientPos = 0; }
+
+    /* ── Parse range/end ────────────────────────────────────────────────── */
     String reqRange = _server.arg("range");
     String reqEnd   = _server.arg("end");
 
-    uint32_t epochLimit = 0;
-    if (sensorIdx >= 0 && sensorIdx < MAX_SENSORS) {
-        epochLimit = _storageRef->getConfig().sensors[sensorIdx].provisionEpoch;
-    }
+    static const time_t rangeDuration[] = { 3600, 21600, 86400, 604800, 2592000, 31536000, 0 };
+    /* PERF (test_perf.sh): testei decimacao=480 p/ 1A/MAX mas tempo nao
+     * mudou — bottleneck e flash read, nao JSON emit. Mantido em 240
+     * pra fidelidade maior no grafico. */
+    static const int rangeDecimation[]  = { 1, 1, 3, 15, 60, 240, 240 };
 
-    /*
-     * Calcula janela temporal — mesma lógica do display.
-     * Parâmetros: range=0..4, end=epoch (âncora), date=YYYYMMDD
-     */
     time_t now = _netRef->getEpoch();
-    /* Ranges alinhados com o display TFT (DisplayManager_Graph.cpp:516):
-     * 1h, 6h, 24h, 3d, 7d. */
-    static const time_t rangeDuration[] = { 3600, 21600, 86400, 259200, 604800 };
-    static const int rangeDecimation[]  = { 1, 1, 3, 10, 15 };
-    static const int rangeDays[]        = { 1, 1, 1, 3, 7 };
-
     time_t effectiveEnd = now;
     time_t cutoff = 0;
     int decimation = 1;
-    int daysToLoad = 1;
+    int rangeIdx = 2;             /* Default: 24h */
 
     if (reqRange.length() > 0) {
-        int r = reqRange.toInt();
-        if (r < 0) r = 0; if (r > 4) r = 4;
+        rangeIdx = reqRange.toInt();
+        if (rangeIdx < 0) rangeIdx = 0;
+        if (rangeIdx > 6) rangeIdx = 6;
+    }
+    if (reqEnd.length() > 0) {
+        effectiveEnd = (time_t)reqEnd.toInt();
+        if (effectiveEnd > now) effectiveEnd = now;
+    }
+    decimation = rangeDecimation[rangeIdx];
+    cutoff = (rangeIdx == 6) ? 0 : (effectiveEnd - rangeDuration[rangeIdx]);
 
-        /* Âncora: se 'end' especificado, usa como fim da janela */
-        if (reqEnd.length() > 0) {
-            effectiveEnd = (time_t)reqEnd.toInt();
-            if (effectiveEnd > now) effectiveEnd = now;
+    /* ── Lista de arquivos a ler ────────────────────────────────────────── */
+    std::vector<String> filesToRead;
+    if (rangeIdx >= 4) {
+        /* 1M, 1A, MAX: lista TODOS os arquivos no diretorio (filtra por epoch
+         * depois). Evita iterar 365× exists() em vao. */
+        ReadGuard rg(_storageRef);
+        Dir dir = LittleFS.openDir(DIR_HISTORY);
+        while (dir.next()) {
+            if (dir.fileName().endsWith(HISTORY_FILE_EXT)) {
+                filesToRead.push_back(String(DIR_HISTORY) + "/" + dir.fileName());
+            }
         }
-
-        cutoff = effectiveEnd - rangeDuration[r];
-        decimation = rangeDecimation[r];
-        daysToLoad = rangeDays[r];
-
-        /* Para ranges ≤24H, verifica se cruza meia-noite */
-        if (r <= 3) {
-            struct tm etm;
-            localtime_r(&effectiveEnd, &etm);
+        std::sort(filesToRead.begin(), filesToRead.end());  /* YYYYMMDD ordena cronologico */
+    } else {
+        int daysToLoad = 1;
+        switch (rangeIdx) {
+            case 0: case 1: case 2: daysToLoad = 1; break;
+            case 3: daysToLoad = 7; break;
+        }
+        /* Cross-midnight: pode precisar de +1 dia */
+        if (rangeIdx <= 2) {
+            struct tm etm; localtime_r(&effectiveEnd, &etm);
             etm.tm_hour = 0; etm.tm_min = 0; etm.tm_sec = 0;
             time_t eMidnight = mktime(&etm);
-            if (cutoff < eMidnight) daysToLoad = 2;
+            if (cutoff < eMidnight) daysToLoad++;
         }
-    } else if (reqDate.length() == 8) {
-        /* Modo data: dia inteiro (00:00–23:59) */
-        int y = reqDate.substring(0,4).toInt();
-        int m = reqDate.substring(4,6).toInt();
-        int d = reqDate.substring(6,8).toInt();
-        struct tm dtm = {};
-        dtm.tm_year = y - 1900; dtm.tm_mon = m - 1; dtm.tm_mday = d;
-        cutoff = mktime(&dtm);
-        effectiveEnd = cutoff + 86400;
-        decimation = 3;
-        daysToLoad = 1;
+        for (int d = daysToLoad - 1; d >= 0; d--) {
+            time_t targetDay = effectiveEnd - (d * 86400);
+            struct tm timeinfo; localtime_r(&targetDay, &timeinfo);
+            char defPath[40];
+            snprintf(defPath, sizeof(defPath), "%s/%04d%02d%02d%s",
+                     DIR_HISTORY,
+                     timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+                     HISTORY_FILE_EXT);
+            filesToRead.push_back(String(defPath));
+        }
     }
 
-    /* Monta lista de arquivos a ler */
-    std::vector<String> filesToRead;
-    for (int d = daysToLoad - 1; d >= 0; d--) {
-        time_t targetDay = effectiveEnd - (d * 86400);
-        struct tm timeinfo; localtime_r(&targetDay, &timeinfo);
-        char defPath[40];
-        snprintf(defPath, sizeof(defPath), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
-                 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-        filesToRead.push_back(String(defPath));
-    }
-
-    /* Metadados para o frontend: min/max reais, janela temporal */
+    /* ── Stats acumulados (T do conjunto, H do ambient) ─────────────────── */
     float realMinT = 1000.0f, realMaxT = -1000.0f;
     time_t tsRealMinT = 0, tsRealMaxT = 0;
-    float realMinH = 1000.0f, realMaxH = -1000.0f;
 
+    /* ── Resposta: header + sensors[] + data[] streaming ────────────────── */
     _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     _server.send(200, "application/json", "");
 
-    /* Envia header com metadados da janela temporal */
     {
-        char metaBuf[128];
+        char metaBuf[160];
         snprintf(metaBuf, sizeof(metaBuf),
-            "{\"cutoff\":%lu,\"end\":%lu,\"now\":%lu,\"data\":[",
-            (unsigned long)cutoff, (unsigned long)effectiveEnd, (unsigned long)now);
+            "{\"cutoff\":%lu,\"end\":%lu,\"now\":%lu,\"rangeUsed\":%d,\"sensors\":[",
+            (unsigned long)cutoff, (unsigned long)effectiveEnd, (unsigned long)now, rangeIdx);
         safeSend(metaBuf);
     }
 
-    bool first = true;
+    /* sensors[] — emitir metadados */
+    {
+        const SystemConfig& cfg = _storageRef->getConfig();
+        for (int i = 0; i < sensorCount; i++) {
+            int id = sensorIds[i];
+            char b[160];
+            const char* hwId; const char* name; const char* type;
+            bool hasH;
+            if (id == -1) {
+                hwId = cfg.ambientSensor.hwId;
+                name = cfg.ambientSensor.friendlyName;
+                type = "ambient"; hasH = true;
+            } else {
+                hwId = cfg.sensors[id].hwId;
+                name = cfg.sensors[id].friendlyName;
+                type = "ds18b20"; hasH = false;
+            }
+            /* Escape minimo: aspas duplas viram \" */
+            char nameEsc[40]; size_t k = 0;
+            for (size_t j = 0; name[j] && k < sizeof(nameEsc) - 2; j++) {
+                if (name[j] == '"' || name[j] == '\\') { nameEsc[k++] = '\\'; }
+                nameEsc[k++] = name[j];
+            }
+            nameEsc[k] = '\0';
+            snprintf(b, sizeof(b),
+                "%s{\"id\":%d,\"hwId\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"hasH\":%s}",
+                (i == 0) ? "" : ",", id, hwId, nameEsc, type, hasH ? "true" : "false");
+            safeSend(b);
+        }
+    }
+    safeSend("],\"data\":[");
+
+    bool firstPoint = true;
     static char chunkBuf[2048];
     chunkBuf[0] = '\0';
     int chunkLen = 0;
     bool aborted = false;
     int lineIdx = 0;
 
-    for (size_t fi = 0; fi < filesToRead.size(); fi++) {
-        if (aborted) break;
+    for (size_t fi = 0; fi < filesToRead.size() && !aborted; fi++) {
         String path = filesToRead[fi];
-
         File f;
         bool fileOk = false;
         {
@@ -155,163 +223,135 @@ void WebManager::handleApiHistoryData() {
                 fileOk = (bool)f;
             }
         }
+        if (!fileOk) continue;
 
-        if (fileOk) {
-            /* v2: valida header. Sem retro-compat — arquivos v1 sao ignorados. */
-            HistoryFileHeaderV2 hdr;
-            bool headerOk = false;
+        HistoryFileHeaderV2 hdr;
+        bool headerOk = false;
+        {
+            ReadGuard rg(_storageRef);
+            if (f.size() >= HIST_V2_HEADER_SIZE) {
+                f.seek(0);
+                if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
+                    headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
+                                hdr.version == HIST_V2_VERSION &&
+                                hdr.anchorPeriod > 0);
+                }
+            }
+        }
+        if (!headerOk) { ReadGuard rg(_storageRef); f.close(); continue; }
+
+        HistoryCodecState rdState;
+        historyCodecReset(rdState);
+        uint16_t anchorPeriod = hdr.anchorPeriod;
+        uint8_t  rdBuf[256];
+        size_t   rdFilled = 0;
+        bool fileHasMore = true;
+
+        while (fileHasMore && !aborted) {
+            if (isClientGone() || isHandlerOvertime()) {
+                LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_HISTORY, 0, "");
+                aborted = true; break;
+            }
+
+            BinaryHistoryRecord batch[20];
+            int batchCount = 0;
             {
                 ReadGuard rg(_storageRef);
-                if (f.size() >= HIST_V2_HEADER_SIZE) {
-                    f.seek(0);
-                    if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
-                        headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
-                                    hdr.version == HIST_V2_VERSION &&
-                                    hdr.anchorPeriod > 0);
+                while (batchCount < 20) {
+                    if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
+                        int r = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
+                        if (r > 0) rdFilled += (size_t)r;
                     }
+                    if (rdFilled == 0) break;
+                    bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
+                                    (rdState.recordsSinceAnchor == anchorPeriod);
+                    size_t consumed = historyDecodeRecord(rdBuf, rdFilled, rdState, batch[batchCount], isAnchor);
+                    if (consumed == 0) break;
+                    memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
+                    rdFilled -= consumed;
+                    batchCount++;
                 }
+                fileHasMore = (rdFilled > 0 || f.available() > 0);
             }
-            if (!headerOk) {
-                ReadGuard rg(_storageRef); f.close();
-                continue;  /* proximo arquivo */
-            }
 
-            HistoryCodecState rdState;
-            historyCodecReset(rdState);
-            uint16_t anchorPeriod = hdr.anchorPeriod;
+            for (int bi = 0; bi < batchCount && !aborted; bi++) {
+                const BinaryHistoryRecord& rec = batch[bi];
+                time_t ts = (time_t)rec.epoch;
 
-            uint8_t  rdBuf[256];
-            size_t   rdFilled = 0;
+                if (cutoff > 0 && ts < cutoff) continue;
+                if (ts > effectiveEnd) { fileHasMore = false; break; }
 
-            bool fileHasMore = true;
-            while (fileHasMore) {
-                if (isClientGone() || isHandlerOvertime()) {
-                    LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_HISTORY, 0, "");
-                    { ReadGuard rg(_storageRef); f.close(); }
-                    aborted = true;
-                    break;
+                /* Stats T do conjunto (pre-decimacao) */
+                for (int s = 0; s < sensorCount; s++) {
+                    int id = sensorIds[s];
+                    int16_t raw = (id == -1) ? rec.ambientTemp : rec.sensors[id];
+                    if (raw == HIST_NAN_SENTINEL) continue;
+                    float v = BinaryHistoryRecord::i16ToFloat(raw);
+                    if (v < realMinT) { realMinT = v; tsRealMinT = ts; }
+                    if (v > realMaxT) { realMaxT = v; tsRealMaxT = ts; }
                 }
 
-                BinaryHistoryRecord readBatch[20];
-                int batchCount = 0;
+                lineIdx++;
+                if (lineIdx % decimation != 0) continue;
 
-                {
-                    ReadGuard rg(_storageRef);
-                    while (batchCount < 20) {
-                        /* Reabastece buffer ate ter o pior caso de delta + folga. */
-                        if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
-                            int r = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
-                            if (r > 0) rdFilled += (size_t)r;
-                        }
-                        if (rdFilled == 0) break;
-                        bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
-                                        (rdState.recordsSinceAnchor == anchorPeriod);
-                        size_t consumed = historyDecodeRecord(
-                            rdBuf, rdFilled, rdState, readBatch[batchCount], isAnchor);
-                        if (consumed == 0) break;
-                        memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
-                        rdFilled -= consumed;
-                        batchCount++;
-                    }
-                    fileHasMore = (rdFilled > 0 || f.available() > 0);
-                }
-
-                bool pastWindow = false;
-                for (int bi = 0; bi < batchCount && !aborted; bi++) {
-                    const BinaryHistoryRecord& rec = readBatch[bi];
-                    time_t ts = (time_t)rec.epoch;
-
-                    if (ts < cutoff && cutoff > 0) continue;
-                    if (ts > effectiveEnd) { pastWindow = true; break; }
-
-                    /* Rastreia min/max reais de TODOS os registros (pré-decimação) */
-                    float preValT = NAN;
-                    if (sensorIdx == -1) preValT = BinaryHistoryRecord::i16ToFloat(rec.ambientTemp);
-                    else if (sensorIdx >= 0 && sensorIdx < MAX_SENSORS) preValT = BinaryHistoryRecord::i16ToFloat(rec.sensors[sensorIdx]);
-                    if (ts < epochLimit) preValT = NAN;
-
-                    if (!isnan(preValT)) {
-                        if (preValT < realMinT) { realMinT = preValT; tsRealMinT = ts; }
-                        if (preValT > realMaxT) { realMaxT = preValT; tsRealMaxT = ts; }
-                    }
-
-                    lineIdx++;
-                    if (lineIdx % decimation != 0) continue;
-
-                    float valT = preValT;
-                    float valH = NAN;
-                    if (sensorIdx == -1) valH = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
-
-                    if (!isnan(valH)) {
-                        if (valH < realMinH) realMinH = valH;
-                        if (valH > realMaxH) realMaxH = valH;
-                    }
-
-                    /* Emite ponto: NAN como null para o Chart.js criar buracos */
-                    char pointBuf[96];
-                    if (!isnan(valT) && valT > -50.0f && valT < 150.0f) {
-                        const char* signT = (valT < 0.0f) ? "-" : "";
-                        int tInt = abs((int)valT);
-                        int tDec = abs((int)(valT * 100.0f) % 100);
-
-                        if (sensorIdx == -1 && !isnan(valH) && valH >= 0.0f && valH <= 100.0f) {
-                            int hInt = abs((int)valH);
-                            int hDec = abs((int)(valH * 10.0f) % 10);
-                            snprintf(pointBuf, sizeof(pointBuf), "%s{\"t\":%lu,\"v1\":%s%d.%02d,\"v2\":%d.%01d}",
-                                     first ? "" : ",", (unsigned long)ts, signT, tInt, tDec, hInt, hDec);
-                        } else {
-                            snprintf(pointBuf, sizeof(pointBuf), "%s{\"t\":%lu,\"v1\":%s%d.%02d}",
-                                     first ? "" : ",", (unsigned long)ts, signT, tInt, tDec);
-                        }
+                /* Emite ponto: {"t":epoch,"v":[v0,v1,...]} ou null para NAN. */
+                char pointBuf[256];
+                int pos = 0;
+                pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
+                                "%s{\"t\":%lu,\"v\":[", firstPoint ? "" : ",",
+                                (unsigned long)ts);
+                for (int s = 0; s < sensorCount; s++) {
+                    int id = sensorIds[s];
+                    int16_t raw = (id == -1) ? rec.ambientTemp : rec.sensors[id];
+                    if (s > 0) pointBuf[pos++] = ',';
+                    if (raw == HIST_NAN_SENTINEL) {
+                        pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos, "null");
                     } else {
-                        /* Ponto NAN: emite com v1:null para buraco visível no Chart.js */
-                        snprintf(pointBuf, sizeof(pointBuf), "%s{\"t\":%lu,\"v1\":null}",
-                                 first ? "" : ",", (unsigned long)ts);
-                    }
-
-                    int pLen = strlen(pointBuf);
-                    if (chunkLen + pLen >= (int)sizeof(chunkBuf) - 1) {
-                        if (!safeSend(chunkBuf)) {
-                            { ReadGuard rg(_storageRef); f.close(); }
-                            aborted = true;
-                            break;
-                        }
-                        chunkBuf[0] = '\0';
-                        chunkLen = 0;
-                        delay(5);
-                        watchdog_update();
-                    }
-                    memcpy(chunkBuf + chunkLen, pointBuf, pLen + 1);
-                    chunkLen += pLen;
-                    first = false;
-
-                    if (chunkLen > 1500) {
-                        if (!safeSend(chunkBuf)) {
-                            { ReadGuard rg(_storageRef); f.close(); }
-                            aborted = true;
-                            break;
-                        }
-                        chunkBuf[0] = '\0';
-                        chunkLen = 0;
-                        delay(5);
-                        watchdog_update();
+                        float v = BinaryHistoryRecord::i16ToFloat(raw);
+                        const char* sg = (v < 0) ? "-" : "";
+                        int vInt = abs((int)v);
+                        int vDec = abs((int)(v * 100.0f) % 100);
+                        pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
+                                        "%s%d.%02d", sg, vInt, vDec);
                     }
                 }
+                pointBuf[pos++] = ']';
+                /* h: ambient hum se incluso e valido */
+                if (ambientIncluded && rec.ambientHum != HIST_NAN_SENTINEL) {
+                    float h = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+                    int hInt = abs((int)h);
+                    int hDec = abs((int)(h * 10.0f) % 10);
+                    pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
+                                    ",\"h\":%d.%01d", hInt, hDec);
+                }
+                pointBuf[pos++] = '}';
+                pointBuf[pos] = '\0';
 
-                if (pastWindow) break;
-                if (aborted) break;
-                if (_lightYieldCb) _lightYieldCb();
-                delay(5);
-                watchdog_update();
+                int pLen = pos;
+                if (chunkLen + pLen >= (int)sizeof(chunkBuf) - 1) {
+                    if (!safeSend(chunkBuf)) { aborted = true; break; }
+                    chunkBuf[0] = '\0'; chunkLen = 0;
+                    delay(5); watchdog_update();
+                }
+                memcpy(chunkBuf + chunkLen, pointBuf, pLen + 1);
+                chunkLen += pLen;
+                firstPoint = false;
+
+                if (chunkLen > 1500) {
+                    if (!safeSend(chunkBuf)) { aborted = true; break; }
+                    chunkBuf[0] = '\0'; chunkLen = 0;
+                    delay(5); watchdog_update();
+                }
             }
-            if (!aborted) { ReadGuard rg(_storageRef); f.close(); }
+            if (_lightYieldCb) _lightYieldCb();
+            delay(5); watchdog_update();
         }
+        { ReadGuard rg(_storageRef); f.close(); }
+        (void)ambientPos;  /* reservado p/ uso futuro (front ja sabe a posicao) */
     }
 
     if (!aborted) {
         if (chunkLen > 0) safeSend(chunkBuf);
-
-        /* Fecha array e emite metadados de min/max reais */
         char metaEnd[192];
         if (realMaxT > -999.0f) {
             const char* sMin = (realMinT < 0) ? "-" : "";
@@ -331,6 +371,7 @@ void WebManager::handleApiHistoryData() {
     if (_displayRef) _displayRef->setWebBusy(false);
     __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
 }
+
 
 /* =========================================================================== */
 /*       F-CSV.2: GET /api/export/history.bin?from=<epoch>&to=<epoch>          */
@@ -452,12 +493,30 @@ void WebManager::handleApiExportHistory() {
         safeSend((const char*)sensorTbl, sensorTblLen);
     }
 
-    /* Itera arquivos de history no range. Day-aligned: data/history/YYYYMMDD.bin */
+    /* Itera arquivos de history no range. Day-aligned em LOCALTIME (arquivos
+     * sao nomeados YYYYMMDD pela data local, nao UTC) — fix para o bug em que
+     * o dia atual ficava de fora quando o usuario esta em fuso != UTC. */
     bool aborted = false;
-    time_t fromDayStart = (time_t)rangeFrom - ((time_t)rangeFrom % 86400);
-    time_t toDayEnd     = (time_t)rangeTo;
-    for (time_t dayStart = fromDayStart; dayStart <= toDayEnd && !aborted; dayStart += 86400) {
-        struct tm dtm; localtime_r(&dayStart, &dtm);
+    time_t fromT = (time_t)rangeFrom;
+    time_t toDayEnd = (time_t)rangeTo;
+    struct tm tFrom; localtime_r(&fromT, &tFrom);
+    tFrom.tm_hour = 0; tFrom.tm_min = 0; tFrom.tm_sec = 0;
+    time_t dayStart = mktime(&tFrom);
+    while (dayStart <= toDayEnd && !aborted) {
+        /* Calcula nextDay ANTES de qualquer continue — garantia contra loop
+         * infinito quando arquivo nao existe (caso do stress test reproduziu
+         * range 30d num flash com so' 21d → WDT 8s reboot). */
+        struct tm dtNext; localtime_r(&dayStart, &dtNext);
+        dtNext.tm_mday += 1;
+        dtNext.tm_hour = 0; dtNext.tm_min = 0; dtNext.tm_sec = 0;
+        time_t nextDay = mktime(&dtNext);
+        time_t curDay  = dayStart;
+        dayStart = nextDay;  /* avanca SEMPRE — proximos continues sao seguros */
+
+        /* Aborto cooperativo: client foi-se ou estouramos deadline */
+        if (isClientGone() || isHandlerOvertime()) { aborted = true; break; }
+
+        struct tm dtm; localtime_r(&curDay, &dtm);
         char dayPath[40];
         snprintf(dayPath, sizeof(dayPath), "%s/%04d%02d%02d%s",
                  DIR_HISTORY,
@@ -540,6 +599,7 @@ void WebManager::handleApiExportHistory() {
             watchdog_update();
         }
         { ReadGuard rg(_storageRef); f.close(); }
+        /* dayStart ja' foi avancado no topo do loop (proteção contra loop infinito) */
     }
 
     /* TRAILER: CRC32 final */

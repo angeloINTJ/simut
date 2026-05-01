@@ -43,7 +43,7 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Login</title>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; }
+        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
         body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .box { background: var(--card); padding: 40px; border-radius: 12px; border: 1px solid var(--border); width: 300px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .brand { font-size: 1.8rem; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 30px; }
@@ -215,7 +215,7 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Setup</title>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; }
+        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
         body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .box { background: var(--card); padding: 40px; border-radius: 12px; border: 1px solid var(--border); width: 350px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         h2 { margin-top: 0; font-size: 1.4rem; }
@@ -321,7 +321,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Dashboard</title>
     <script src="/lang.js"></script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; }
+        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
         /* ── Hamburger Nav (Proposta C) ────────────────────────── */
         .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
@@ -381,20 +381,9 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
     <script>
-        window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
-        function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
-        function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
+        /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
         document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); setTimeout(() => { let activeTab = document.querySelector('.nav a.active'); if (activeTab) { activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } }, 100); }); window.updateLang = applyLang;
-        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
 
-        window.fetchSafe = function(url, options) {
-            options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2;
-            function attempt(n) {
-                const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout);
-                return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; })
-                .catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; });
-            } return attempt(0);
-        };
     </script>
 </head>
 <body>
@@ -475,7 +464,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <thead>
                             <tr>
                                 <th style="width: 40px; text-align: center;" data-i18n="dash_stat">Status</th>
-                                <th style="width: 60px;" data-i18n="dash_gpio">GPIO</th>
+                                <th style="width: 60px;" data-i18n="dash_gpio">SLOT</th>
                                 <th data-i18n="dash_id">ID Sensor</th>
                                 <th data-i18n="dash_read">Reading</th>
                                 <th data-i18n="dash_name">Sensor Name</th>
@@ -670,7 +659,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; }
+        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
         /* ── Hamburger Nav (Proposta C) ────────────────────────── */
         .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
@@ -726,6 +715,8 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .bottom-controls { display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
         .bottom-controls button { background: var(--bg); color: var(--txt); border: 1px solid var(--border); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight:600;}
         .bottom-controls button.active { background: var(--acc); color: #000; border-color: var(--acc); }
+        /* O dropdown de range usa o helper global _makeCustomSelect (.csel)
+         * — sem CSS local pra economizar flash. */
         .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
         .log-header input { padding: 8px 12px; background: #000; color: var(--txt); border: 1px solid var(--border); border-radius: 6px; min-width: 200px; outline: none;}
         .log-header input:focus { border-color: var(--acc); }
@@ -742,6 +733,24 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .progress-fill { height:100%; width:0%; background: linear-gradient(90deg, var(--acc), #22d3ee); transition: width 0.3s; }
         @keyframes pulse-bg { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
         .pulse { animation: pulse-bg 1.5s infinite; }
+        /* F-GRAPH.3: progress overlay do export chunked */
+        .exp-overlay { position: fixed; inset: 0; background: rgba(9,9,11,0.85); z-index: 9000; display: flex; align-items: center; justify-content: center; }
+        .exp-overlay-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px 32px; min-width: 320px; max-width: 90vw; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
+        .exp-overlay-title { color: var(--txt); font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; }
+        .exp-overlay-bar { width: 100%; height: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
+        .exp-overlay-fill { height: 100%; background: linear-gradient(90deg, var(--acc), #22d3ee); width: 0%; transition: width 0.25s; }
+        .exp-overlay-stat { color: var(--sub); font-size: 0.82rem; font-weight: 600; display: flex; justify-content: space-between; }
+        .exp-overlay-stat .ok { color: #22c55e; }
+        .exp-overlay-stat .fail { color: var(--dang); }
+        /* F-GRAPH-REVAMP: multi-select dropdown */
+        .msel { position: relative; }
+        .msel-btn { width: 100%; padding: 8px 12px; background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; text-align: left; cursor: pointer; font-size: 0.9rem; outline: none; }
+        .msel-btn:hover { border-color: var(--acc); }
+        .msel-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: var(--card); border: 1px solid var(--border); border-radius: 6px; max-height: 280px; overflow-y: auto; z-index: 100; padding: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+        .msel-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 8px; cursor: pointer; color: var(--txt); font-size: 0.85rem; text-transform: none; font-weight: 500; margin: 0; border-radius: 4px; }
+        .msel-menu label:hover { background: var(--bg); }
+        .msel-menu input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--acc); margin: 0; }
+        .msel-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
         #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
         #net-toast.show { transform:translateY(0);opacity:1; }
         #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
@@ -749,11 +758,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
     </style>
     <script>
-        window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
-        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
-        function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
-        function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
         document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); });
     </script>
 </head>
@@ -807,15 +812,11 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         <div class="hist-layout">
             <div class="card" style="padding: 16px;">
                 <div class="grp">
-                    <label data-i18n="hist_src">Source / Sensor</label>
-                    <select id="sensorSel">
-                        <option value="-1" data-i18n="hist_amb">Ambient (Internal)</option>
-                        <option value="0">Slot 1</option><option value="1">Slot 2</option>
-                        <option value="2">Slot 3</option><option value="3">Slot 4</option>
-                        <option value="4">Slot 5</option><option value="5">Slot 6</option>
-                        <option value="6">Slot 7</option><option value="7">Slot 8</option>
-                        <option value="8">Slot 9</option><option value="9">Slot 10</option>
-                    </select>
+                    <label data-i18n="hist_src">Sensors</label>
+                    <div class="msel" id="sensorMsel">
+                        <button type="button" class="msel-btn" id="sensorMselBtn" onclick="_toggleSensorMenu(event)"><span id="sensorMselLbl" data-i18n="hist_loading">Loading...</span><span style="float:right;">▼</span></button>
+                        <div class="msel-menu" id="sensorMselMenu" style="display:none;"></div>
+                    </div>
                 </div>
                 <div class="grp" style="margin-bottom:0;">
                     <label data-i18n="hist_cal">Monthly Calendar</label>
@@ -856,12 +857,18 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <canvas id="myChart"></canvas>
                     </div>
                     <div class="bottom-controls">
-                        <button onclick="loadGraphRange(0)" id="btnR0" data-i18n="hist_1h">1h</button>
-                        <button onclick="loadGraphRange(1)" id="btnR1" data-i18n="hist_6h">6h</button>
-                        <button onclick="loadGraphRange(2)" id="btnR2" data-i18n="hist_24h">24h</button>
-                        <button onclick="loadGraphRange(3)" id="btnR3" data-i18n="hist_3d">3d</button>
-                        <button onclick="loadGraphRange(4)" id="btnR4" data-i18n="hist_7d">7 Days</button>
-                        <button onclick="exportHistoryCsv()" id="btnExpHist" title="Export CSV" data-i18n="exp_btn">⤓ CSV</button>
+                        <button onclick="navGraph(-1)" id="btnPrev" title="Anterior" style="font-size:1.1rem;">◀</button>
+                        <select id="rangeSel" title="Intervalo" onchange="loadGraphRange(parseInt(this.value,10))">
+                            <option value="0">1h</option>
+                            <option value="1">6h</option>
+                            <option value="2" selected>24h</option>
+                            <option value="3">7d</option>
+                            <option value="4">1M</option>
+                            <option value="5">1A</option>
+                            <option value="6">MAX</option>
+                        </select>
+                        <button onclick="navGraph(+1)" id="btnNext" title="Próximo" style="font-size:1.1rem;">▶</button>
+                        <button onclick="exportHistoryCsv()" id="btnExpHist" title="Export CSV">⤓ CSV</button>
                     </div>
                 </div>
             </div>
@@ -902,25 +909,117 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         let myChart = null; let availDates = []; let currentCalDate = new Date(); let logsLoadedOnce = false;
         let anchorEnd = 0; let currentRange = -1;
         let _lastChartCutoff = 0; let _lastChartEnd = 0; /* range visualizado — usado por exportHistoryCsv */
-        const rangeDurations = [3600, 21600, 86400, 259200, 604800]; /* 1h, 6h, 24h, 3d, 7d — alinhado com display TFT */
+        /* F-GRAPH-REVAMP: 7 niveis 1h, 6h, 24h, 7d, 1M, 1A, MAX (idx 6 = 0 = ilimitado) */
+        const rangeDurations = [3600, 21600, 86400, 604800, 2592000, 31536000, 0];
+        let _selectedSensors = [-1]; /* default: ambient */
+        let _currentRangeIdx = 2;    /* default: 24h */
+
+        /* Paleta para series. Cores quentes p/ T (variando por idx do sensor),
+         * azul fixo p/ umidade. */
+        const _hotColors = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#fb923c', '#fb7185', '#e11d48', '#dc2626', '#facc15', '#b91c1c', '#991b1b'];
+        const _humColor  = '#3b82f6';
+        function _seriesColor(serieIdx, isHum) { return isHum ? _humColor : _hotColors[serieIdx % _hotColors.length]; }
+
         async function loadAvailableDays() { try { const res = await fetchSafe('/api/history_days'); availDates = await res.json(); renderCalendar(); } catch(e) {} }
-        async function populateSensorDropdown() { try { const res = await fetchSafe('/api/status'); if(!res.ok) return; const data = await res.json(); if (data && data.sensors) { const sel = document.getElementById('sensorSel'); let activeSlots = []; data.sensors.forEach(s => { if (s.gpio < 10) { activeSlots.push(s.gpio.toString()); let opt = sel.querySelector(`option[value="${s.gpio}"]`); if (opt) opt.innerText = `${s.id} - ${s.name}`; } }); Array.from(sel.options).forEach(opt => { if (opt.value !== "-1" && !activeSlots.includes(opt.value)) opt.remove(); }); } } catch(e) {} }
+
+        async function populateSensorMsel() {
+            try {
+                const res = await fetchSafe('/api/status');
+                if (!res.ok) return;
+                const data = await res.json();
+                const menu = document.getElementById('sensorMselMenu');
+                if (!menu) return;
+                menu.innerHTML = '';
+                /* sensors[] tem gpio<10 (DS18B20) e gpio==10 (ambient DHT). */
+                const items = [];
+                if (data && data.sensors) {
+                    /* Ambient primeiro */
+                    data.sensors.forEach(s => { if (s.gpio === 10) items.push({ id: -1, name: s.name, hwId: s.id }); });
+                    /* DS18B20 depois */
+                    data.sensors.forEach(s => { if (s.gpio < 10) items.push({ id: s.gpio, name: s.name, hwId: s.id }); });
+                }
+                if (items.length === 0) items.push({ id: -1, name: 'Ambient', hwId: 'AMB' });
+                items.forEach(it => {
+                    const lbl = document.createElement('label');
+                    const chk = document.createElement('input');
+                    chk.type = 'checkbox';
+                    chk.value = String(it.id);
+                    chk.checked = (_selectedSensors.indexOf(it.id) >= 0);
+                    chk.onchange = _onSensorMselChange;
+                    const dot = document.createElement('span');
+                    dot.className = 'msel-dot';
+                    /* idx no items vira a cor da série quando montar o chart */
+                    const colorIdx = items.indexOf(it);
+                    dot.style.background = _seriesColor(colorIdx, false);
+                    const txt = document.createElement('span');
+                    txt.textContent = `${it.hwId} — ${it.name}`;
+                    lbl.appendChild(chk); lbl.appendChild(dot); lbl.appendChild(txt);
+                    menu.appendChild(lbl);
+                });
+                _updateSensorMselLabel();
+            } catch(e) {}
+        }
+
+        function _onSensorMselChange() {
+            const checks = document.querySelectorAll('#sensorMselMenu input[type=checkbox]');
+            const sel = [];
+            checks.forEach(c => { if (c.checked) sel.push(parseInt(c.value, 10)); });
+            if (sel.length === 0) {
+                /* impede deselecao total — mantem ao menos ambient */
+                const first = document.querySelector('#sensorMselMenu input[type=checkbox][value="-1"]');
+                if (first) first.checked = true;
+                _selectedSensors = [-1];
+            } else {
+                _selectedSensors = sel;
+            }
+            _updateSensorMselLabel();
+            /* Recarrega grafico */
+            loadGraphRange(_currentRangeIdx);
+        }
+
+        function _updateSensorMselLabel() {
+            const lbl = document.getElementById('sensorMselLbl');
+            if (!lbl) return;
+            const n = _selectedSensors.length;
+            if (n === 0) { lbl.textContent = window.t('hist_none_sel', 'None'); return; }
+            if (n === 1) {
+                const checks = document.querySelectorAll('#sensorMselMenu input[type=checkbox]:checked');
+                if (checks.length > 0) {
+                    const lblTxt = checks[0].parentNode.querySelector('span:last-child');
+                    if (lblTxt) { lbl.textContent = lblTxt.textContent; return; }
+                }
+            }
+            lbl.textContent = `${n} ${window.t('hist_n_sel', 'selected')}`;
+        }
+
+        function _toggleSensorMenu(ev) {
+            if (ev) ev.stopPropagation();
+            const menu = document.getElementById('sensorMselMenu');
+            if (!menu) return;
+            menu.style.display = (menu.style.display === 'block') ? 'none' : 'block';
+        }
+        document.addEventListener('click', e => {
+            const m = document.getElementById('sensorMselMenu');
+            const b = document.getElementById('sensorMselBtn');
+            if (!m || !b) return;
+            if (m.style.display === 'block' && !m.contains(e.target) && !b.contains(e.target)) m.style.display = 'none';
+        });
         function changeMonth(dir) { currentCalDate.setMonth(currentCalDate.getMonth() + dir); renderCalendar(); }
         function renderCalendar() { const y = currentCalDate.getFullYear(); const m = currentCalDate.getMonth(); const months = [window.t('m_jan','Jan'), window.t('m_feb','Feb'), window.t('m_mar','Mar'), window.t('m_apr','Apr'), window.t('m_may','May'), window.t('m_jun','Jun'), window.t('m_jul','Jul'), window.t('m_aug','Aug'), window.t('m_sep','Sep'), window.t('m_oct','Oct'), window.t('m_nov','Nov'), window.t('m_dec','Dec')]; document.getElementById('calMonthYear').innerText = months[m] + " " + y; const grid = document.getElementById('calGrid'); grid.innerHTML = ''; const firstDay = new Date(y, m, 1).getDay(); const daysInMonth = new Date(y, m + 1, 0).getDate(); for(let i=0; i<firstDay; i++) grid.innerHTML += `<div class="cal-cell"></div>`; for(let d=1; d<=daysInMonth; d++) { let ds = (d<10?'0':'') + d; let ms = ((m+1)<10?'0':'') + (m+1); let dateStr = `${y}${ms}${ds}`; let isAvail = availDates.includes(dateStr); let cls = isAvail ? 'cal-cell has-data' : 'cal-cell'; let onclick = isAvail ? `onclick="loadGraphDate('${dateStr}', this)"` : ''; grid.innerHTML += `<div class="${cls}" id="cal_${dateStr}" ${onclick}>${d}</div>`; } }
         function fmt(v){return v < 10 ? '0' + v : v;}
         async function loadGraphRange(range) {
             document.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('selected'));
-            document.querySelectorAll('.bottom-controls button').forEach(b => b.classList.remove('active'));
-            let btn = document.getElementById('btnR' + range);
-            if(btn) btn.classList.add('active');
+            _currentRangeIdx = range;
             currentRange = range;
-            /* Preserva âncora se existir (zoom muda, ponto final mantém) */
+            /* Sincroniza select (helper global _makeCustomSelect re-renderiza UI) */
+            const sel = document.getElementById('rangeSel');
+            if (sel && sel.value !== String(range)) sel.value = String(range);
+            /* Preserva âncora se existir */
             let q = `range=${range}`;
             if (anchorEnd > 0) q += `&end=${anchorEnd}`;
             await fetchAndDraw(q);
         }
         async function loadGraphDate(dateStr, cellElement) {
-            document.querySelectorAll('.bottom-controls button').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('selected'));
             cellElement.classList.add('selected');
             /* Ancora na meia-noite do dia seguinte → janela mostra dia inteiro */
@@ -928,19 +1027,204 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let m = parseInt(dateStr.substring(4,6)) - 1;
             let d = parseInt(dateStr.substring(6,8));
             anchorEnd = Math.floor(new Date(y, m, d + 1).getTime() / 1000);
-            currentRange = 2; /* 24H — agora idx 2 (era 3 antes) */
-            let btn = document.getElementById('btnR2');
-            if(btn) btn.classList.add('active');
-            await fetchAndDraw(`range=2&end=${anchorEnd}`);
+            await loadGraphRange(2); /* 24h */
         }
-        const estSizes = { '0':3000, '1':15000, '2':40000, '3':80000, '4':200000, 'date':50000 };
+        async function navGraph(dir) {
+            if (_currentRangeIdx < 0) return;
+            const step = rangeDurations[_currentRangeIdx] || 86400;
+            const nowEpoch = Math.floor(Date.now() / 1000);
+            if (anchorEnd === 0) anchorEnd = nowEpoch;
+            anchorEnd += dir * step;
+            if (anchorEnd > nowEpoch) anchorEnd = nowEpoch;
+            await fetchAndDraw(`range=${_currentRangeIdx}&end=${anchorEnd}`);
+        }
+        const estSizes = { '0':3000, '1':15000, '2':40000, '3':80000, '4':200000, '5':350000, '6':350000, 'date':50000 };
         function showOverlay(msg) { const ov = document.getElementById('chartOverlay'); const om = document.getElementById('overlayMsg'); ov.classList.remove('hidden'); om.innerText = msg || ''; }
         function hideOverlay() { document.getElementById('chartOverlay').classList.add('hidden'); }
         function showProgress(show) { const w = document.getElementById('progressWrap'); const f = document.getElementById('progFill'); if (show) { w.style.display='block'; f.style.width='0%'; f.classList.add('pulse'); } else { f.classList.remove('pulse'); setTimeout(()=>{ w.style.display='none'; }, 400); } }
         function updateProgress(received, estTotal) { const pct = Math.min(95, (received / estTotal) * 100); document.getElementById('progFill').style.width = pct + '%'; document.getElementById('progDetail').innerText = (received / 1024).toFixed(1) + ' KB'; }
         function finishProgress() { const f = document.getElementById('progFill'); f.classList.remove('pulse'); f.style.width = '100%'; document.getElementById('progStatus').innerText = window.t('hist_done', 'Complete'); }
-        async function fetchAndDraw(queryParam) { const sensor = document.getElementById('sensorSel').value; const gridBox = document.getElementById('statsGrid'); let estKey = 'date'; const rm = queryParam.match(/range=(\d)/); if (rm) estKey = rm[1]; const estTotal = estSizes[estKey] || 40000; try { gridBox.style.opacity = '0.3'; showOverlay(window.t('hist_down_msg', 'Downloading...')); showProgress(true); document.getElementById('progStatus').innerText = window.t('hist_loading', 'Loading...'); const response = await fetchSafe(`/api/history?sensor=${sensor}&${queryParam}`, {timeout: 30000, retries: 1}); if (!response.ok) throw new Error("HTTP " + response.status); const reader = response.body.getReader(); const decoder = new TextDecoder(); let received = 0; let chunks = []; while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); received += value.length; updateProgress(received, estTotal); } let text = ''; for (const chunk of chunks) text += decoder.decode(chunk, { stream: true }); text += decoder.decode(); finishProgress(); let json; try { json = JSON.parse(text); } catch(e) { showProgress(false); showOverlay(window.t('hist_err_json', 'Error')); return; } if (json.error) { showProgress(false); showOverlay(json.error); return; } let data = json.data || []; let validData = data.filter(d => d.v1 !== null && d.v1 !== undefined); if(validData.length === 0) { if(myChart) myChart.destroy(); showProgress(false); showOverlay(window.t('hist_no_data', 'No data for this period')); return; } setTimeout(()=> showProgress(false), 400); /* Usa min/max reais da API (pré-decimação) */ let maxT = (json.maxT !== undefined) ? json.maxT : -999; let minT = (json.minT !== undefined) ? json.minT : 999; let tsMaxT = json.tsMaxT || 0; let tsMinT = json.tsMinT || 0; let maxH = -999, minH = 999; data.forEach(d => { if (d.v2 !== undefined && d.v2 !== null) { if(d.v2 > maxH) maxH = d.v2; if(d.v2 < minH) minH = d.v2; } }); /* Header: mostra janela temporal da API */ let cutoffEpoch = json.cutoff || 0; let endEpoch = json.end || 0; _lastChartCutoff = cutoffEpoch; _lastChartEnd = endEpoch; if (cutoffEpoch > 0 && endEpoch > 0) { let dC = new Date(cutoffEpoch * 1000); let dE = new Date(endEpoch * 1000); let sameDay = (dC.getDate() === dE.getDate() && dC.getMonth() === dE.getMonth()); if (sameDay) { document.getElementById('chartTitle').innerText = `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)}  ${fmt(dC.getHours())}:${fmt(dC.getMinutes())} - ${fmt(dE.getHours())}:${fmt(dE.getMinutes())}`; } else { document.getElementById('chartTitle').innerText = `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)} ${fmt(dC.getHours())}:${fmt(dC.getMinutes())} - ${fmt(dE.getDate())}/${fmt(dE.getMonth()+1)} ${fmt(dE.getHours())}:${fmt(dE.getMinutes())}`; } } else { let dMin = new Date(data[0].t * 1000); let dMax = new Date(data[data.length-1].t * 1000); document.getElementById('chartTitle').innerText = `${fmt(dMin.getDate())}/${fmt(dMin.getMonth()+1)} a ${fmt(dMax.getDate())}/${fmt(dMax.getMonth()+1)}`; } let spanSecs = (endEpoch || data[data.length-1].t) - (cutoffEpoch || data[0].t); let onlyHours = (spanSecs <= 172800); let labels = []; let temps = []; let hums = []; data.forEach(d => { const dt = new Date(d.t * 1000); if (onlyHours) { labels.push(`${fmt(dt.getHours())}:${fmt(dt.getMinutes())}`); } else { labels.push(`${fmt(dt.getDate())}/${fmt(dt.getMonth()+1)} ${fmt(dt.getHours())}:${fmt(dt.getMinutes())}`); } temps.push(d.v1); /* null para NAN → Chart.js cria buraco */ if (d.v2 !== undefined) hums.push(d.v2); }); document.getElementById('statMaxT').innerText = (maxT === -999) ? '--' : maxT.toFixed(1) + '°C'; document.getElementById('statMinT').innerText = (minT === 999) ? '--' : minT.toFixed(1) + '°C'; if(hums.length > 0 && maxH > -999) { document.getElementById('statMaxH').innerText = maxH.toFixed(1) + '%'; document.getElementById('statMinH').innerText = minH.toFixed(1) + '%'; document.getElementById('humMaxCard').style.display = 'flex'; document.getElementById('humMinCard').style.display = 'flex'; } else { document.getElementById('humMaxCard').style.display = 'none'; document.getElementById('humMinCard').style.display = 'none'; } gridBox.style.opacity = '1'; renderChart(labels, temps, hums); hideOverlay(); } catch (error) { showProgress(false); showOverlay(window.t('hist_conn_lost', 'Connection lost.')); } }
-        function renderChart(labels, temp, hum) { const ctx = document.getElementById('myChart').getContext('2d'); if (myChart) myChart.destroy(); let datasets = [{ label: 'Temp (°C)', data: temp, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 2, tension: 0.3, pointRadius: 0, yAxisID: 'y', spanGaps: false }]; if (hum && hum.length > 0) { datasets.push({ label: 'Hum (%)', data: hum, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 2, tension: 0.3, pointRadius: 0, yAxisID: 'y1', spanGaps: false }); } myChart = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: datasets }, options: { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#a1a1aa', maxTicksLimit: 12 }, grid: { color: '#27272a' } }, y: { type: 'linear', display: true, position: 'left', ticks: { color: '#ef4444' }, grid: { color: '#27272a' } }, y1: { type: 'linear', display: (hum && hum.length > 0), position: 'right', ticks: { color: '#3b82f6' }, grid: { drawOnChartArea: false } } } } }); }
+        async function fetchAndDraw(queryParam) {
+            const gridBox = document.getElementById('statsGrid');
+            let estKey = 'date'; const rm = queryParam.match(/range=(\d)/); if (rm) estKey = rm[1];
+            const estTotal = estSizes[estKey] || 40000;
+            const sensorsCsv = _selectedSensors.join(',');
+            try {
+                gridBox.style.opacity = '0.3';
+                showOverlay(window.t('hist_down_msg','Downloading...'));
+                showProgress(true);
+                document.getElementById('progStatus').innerText = window.t('hist_loading','Loading...');
+                const url = `/api/history_multi?sensors=${encodeURIComponent(sensorsCsv)}&${queryParam}`;
+                const response = await fetchSafe(url, {timeout: 60000, retries: 1});
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const reader = response.body.getReader(); const decoder = new TextDecoder();
+                let received = 0; let chunks = [];
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    chunks.push(value); received += value.length;
+                    updateProgress(received, estTotal);
+                }
+                let text = '';
+                for (const c of chunks) text += decoder.decode(c, { stream: true });
+                text += decoder.decode();
+                finishProgress();
+                let json;
+                try { json = JSON.parse(text); }
+                catch(e) { showProgress(false); showOverlay(window.t('hist_err_json','Error')); return; }
+                if (json.error) { showProgress(false); showOverlay(json.error); return; }
+                const data = json.data || [];
+                if (data.length === 0) {
+                    if (myChart) myChart.destroy();
+                    showProgress(false);
+                    showOverlay(window.t('hist_no_data','No data for this period'));
+                    return;
+                }
+                setTimeout(() => showProgress(false), 400);
+                /* Janela temporal — quando MAX (range=6) o servidor envia
+                 * cutoff=0; usamos o epoch do primeiro record real para
+                 * que o export chunked nao itere desde 1970. */
+                const cutoffEpoch = json.cutoff || (data.length > 0 ? data[0].t : 0);
+                const endEpoch = json.end || data[data.length-1].t;
+                _lastChartCutoff = cutoffEpoch; _lastChartEnd = endEpoch;
+                /* Titulo */
+                if (cutoffEpoch > 0 && endEpoch > 0) {
+                    const dC = new Date(cutoffEpoch * 1000), dE = new Date(endEpoch * 1000);
+                    const sameDay = (dC.getDate() === dE.getDate() && dC.getMonth() === dE.getMonth());
+                    document.getElementById('chartTitle').innerText = sameDay
+                        ? `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)}  ${fmt(dC.getHours())}:${fmt(dC.getMinutes())} - ${fmt(dE.getHours())}:${fmt(dE.getMinutes())}`
+                        : `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)} - ${fmt(dE.getDate())}/${fmt(dE.getMonth()+1)}`;
+                } else {
+                    const dMin = new Date(data[0].t * 1000), dMax = new Date(data[data.length-1].t * 1000);
+                    document.getElementById('chartTitle').innerText = `${fmt(dMin.getDate())}/${fmt(dMin.getMonth()+1)} a ${fmt(dMax.getDate())}/${fmt(dMax.getMonth()+1)}`;
+                }
+                /* Series como pontos {x:epochMs, y:val} — eixo X linear no
+                 * tempo, ticks distribuidos pelo periodo (nao pelos samples) */
+                const sensors = json.sensors || [];
+                const datasets = [];
+                let hasAnyHum = false;
+                let maxH = -999, minH = 999;
+                sensors.forEach((s, idx) => {
+                    const tArr = data.map(d => ({ x: d.t * 1000, y: (d.v && idx < d.v.length) ? d.v[idx] : null }));
+                    datasets.push({
+                        label: `${s.hwId} T (°C)`,
+                        data: tArr,
+                        borderColor: _seriesColor(idx, false),
+                        backgroundColor: 'transparent',
+                        borderWidth: 1.6, tension: 0.25, pointRadius: 0,
+                        yAxisID: 'y', spanGaps: false
+                    });
+                    if (s.hasH) {
+                        hasAnyHum = true;
+                        const hArr = data.map(d => ({ x: d.t * 1000, y: (typeof d.h === 'number') ? d.h : null }));
+                        hArr.forEach(p => { if (p.y !== null) { if (p.y > maxH) maxH = p.y; if (p.y < minH) minH = p.y; } });
+                        datasets.push({
+                            label: `${s.hwId} H (%)`,
+                            data: hArr,
+                            borderColor: _humColor,
+                            backgroundColor: 'transparent',
+                            borderWidth: 1.6, borderDash: [6, 3],
+                            tension: 0.25, pointRadius: 0,
+                            yAxisID: 'y1', spanGaps: false
+                        });
+                    }
+                });
+                /* Stats */
+                const maxT = (json.maxT !== undefined) ? json.maxT : -999;
+                const minT = (json.minT !== undefined) ? json.minT : 999;
+                document.getElementById('statMaxT').innerText = (maxT === -999) ? '--' : maxT.toFixed(1) + '°C';
+                document.getElementById('statMinT').innerText = (minT === 999)  ? '--' : minT.toFixed(1) + '°C';
+                if (hasAnyHum) {
+                    document.getElementById('statMaxH').innerText = maxH.toFixed(1) + '%';
+                    document.getElementById('statMinH').innerText = minH.toFixed(1) + '%';
+                    document.getElementById('humMaxCard').style.display = 'flex';
+                    document.getElementById('humMinCard').style.display = 'flex';
+                } else {
+                    document.getElementById('humMaxCard').style.display = 'none';
+                    document.getElementById('humMinCard').style.display = 'none';
+                }
+                gridBox.style.opacity = '1';
+                renderChart(datasets, hasAnyHum, cutoffEpoch * 1000, endEpoch * 1000, _currentRangeIdx);
+                hideOverlay();
+            } catch (e) {
+                showProgress(false);
+                showOverlay(window.t('hist_conn_lost','Connection lost.'));
+            }
+        }
+        /* Step e formato dos ticks por range — define grade do eixo X. */
+        const _xStepMsByRange = [
+            10*60*1000,        /* 1h: 10min */
+            60*60*1000,        /* 6h: 1h */
+            4*60*60*1000,      /* 24h: 4h */
+            24*60*60*1000,     /* 7d: 1 dia */
+            5*24*60*60*1000,   /* 1M: 5 dias */
+            30*24*60*60*1000,  /* 1A: ~mês (12 ticks) */
+            null               /* MAX: auto */
+        ];
+        function _xTickLabel(ms, rangeIdx) {
+            const d = new Date(ms);
+            const p = n => String(n).padStart(2, '0');
+            if (rangeIdx <= 2) {
+                /* 1h, 6h, 24h: HH:MM */
+                return p(d.getHours()) + ':' + p(d.getMinutes());
+            }
+            if (rangeIdx === 3 || rangeIdx === 4) {
+                /* 7d, 1M: DD/MM */
+                return p(d.getDate()) + '/' + p(d.getMonth()+1);
+            }
+            if (rangeIdx === 5) {
+                /* 1A: mês abreviado */
+                const m = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+                return m[d.getMonth()] + '/' + String(d.getFullYear()).slice(2);
+            }
+            /* MAX */
+            return p(d.getDate()) + '/' + p(d.getMonth()+1) + '/' + String(d.getFullYear()).slice(2);
+        }
+
+        function renderChart(datasets, showHumAxis, xMin, xMax, rangeIdx) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            const step = _xStepMsByRange[rangeIdx] || undefined;
+            myChart = new Chart(ctx, {
+                type: 'line',
+                data: { datasets: datasets },
+                options: {
+                    animation: false, responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: datasets.length > 1, position: 'top', labels: { color: '#a1a1aa', font: { size: 11 } } },
+                        tooltip: {
+                            callbacks: {
+                                /* X agora e' epoch ms — formata como data/hora local. */
+                                title: function(items) {
+                                    if (!items || !items.length) return '';
+                                    const d = new Date(items[0].parsed.x);
+                                    const p = n => String(n).padStart(2, '0');
+                                    return p(d.getDate()) + '/' + p(d.getMonth()+1) + '/' + d.getFullYear() +
+                                           ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'linear',
+                            min: xMin, max: xMax,    /* largura = periodo pedido (mesmo sem dados) */
+                            ticks: {
+                                color: '#a1a1aa',
+                                stepSize: step,
+                                maxTicksLimit: 13,
+                                callback: function(value) { return _xTickLabel(value, rangeIdx); },
+                                autoSkip: true
+                            },
+                            grid: { color: '#27272a' }
+                        },
+                        y: { type: 'linear', display: true, position: 'left', ticks: { color: '#ef4444' }, grid: { color: '#27272a' }, title: { display:true, text:'°C', color:'#ef4444', font:{size:10} } },
+                        y1: { type: 'linear', display: showHumAxis, position: 'right', ticks: { color: _humColor }, grid: { drawOnChartArea: false }, title: { display:true, text:'%RH', color:_humColor, font:{size:10} } }
+                    }
+                }
+            });
+        }
 
         // Logs — binary parsing in browser. Tabelas sincronizadas com LogManager::translateCode (LogManager.cpp).
         const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '570':'Web server started on port 80', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
@@ -1171,13 +1455,16 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const payEnd = u8.length - 4;
             const lines = [];
             const NAN_S = -32768;
+            /* filterIdx aceita: 'all' (string), array de IDs [-1,0,5], ou int legacy */
             const wantAll = (filterIdx === 'all');
-            const wantIdx = wantAll ? -1 : parseInt(filterIdx, 10);
+            const filterSet = wantAll ? null : new Set(
+                Array.isArray(filterIdx) ? filterIdx.map(Number) : [parseInt(filterIdx, 10)]
+            );
+            const wantsAmb = wantAll || (filterSet && filterSet.has(-1));
             for (let p = payStart; p < payEnd; p += 28) {
                 const epoch = dv.getUint32(p, true);
                 const iso = _isoLocal(epoch);
-                /* ambient (idx 0xFE = 254) */
-                if (wantAll || wantIdx === -1) {
+                if (wantsAmb) {
                     const aT = dv.getInt16(p+4, true);
                     const aH = dv.getInt16(p+6, true);
                     const ambSensor = sensors[254];
@@ -1188,9 +1475,8 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         lines.push(`${iso},${ambSensor.hwId},"${ambSensor.friendly}",${(aH/100).toFixed(2)},%RH`);
                     }
                 }
-                /* sensores 0..9 em offsets 8,10,...,26 */
                 for (let i = 0; i < 10; i++) {
-                    if (!wantAll && wantIdx !== i) continue;
+                    if (!wantAll && !filterSet.has(i)) continue;
                     const v = dv.getInt16(p + 8 + i*2, true);
                     if (v === NAN_S) continue;
                     const s = sensors[i];
@@ -1201,44 +1487,226 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return lines;
         }
 
-        /* Exporta o intervalo atualmente exibido no grafico (sensor + range
-         * sao os ja selecionados). Single fetch — range maximo e' 7d. */
+        /* Export chunked com chunk_size adaptativo + cancelamento + retry.
+         *
+         * Calibragem (tools/test_chunk_perf.sh):
+         *   6h => 717ms  (5/5, 22s p/ 7d)
+         *   12h => 2183ms (5/5)
+         *   24h => 2635ms (5/5, 19s p/ 7d — sweet spot)
+         *   48h => 6278ms (5/5, mas perto do deadline 10s)
+         *
+         * Estrategia:
+         *  - Inicial: 24h (ou menos se heap_lb baixo)
+         *  - Em falha: divide chunk pela metade (split) e re-tenta o mesmo cursor.
+         *  - Apos N OK consecutivos: tenta aumentar de volta ate o teto.
+         *  - Cancelavel via AbortController + flag.
+         */
+        const EXP_CHUNK_INITIAL = 86400;      /* 24h sweet spot */
+        const EXP_CHUNK_MAX     = 86400;      /* nao passar de 24h (48h beira o limite) */
+        const EXP_CHUNK_MIN     =  3600;      /* 1h minimo */
+        const EXP_MAX_RETRIES   = 2;          /* por tamanho — split conta como retry mais agressivo */
+        const EXP_RECOVERY_WIN  = 5;          /* OK consecutivos antes de tentar aumentar */
+        let _expAbort = null;                 /* AbortController do fetch atual */
+        let _expCancelled = false;
+
+        function _fmtEta(ms) {
+            if (ms <= 0 || !isFinite(ms)) return '...';
+            const s = Math.ceil(ms / 1000);
+            if (s < 60) return '~' + s + 's';
+            if (s < 600) return '~' + (s/60|0) + 'm' + (s%60) + 's';
+            return '~' + Math.round(s/60) + 'm';
+        }
+        function _showExpProgress(state) {
+            let ov = document.getElementById('expOv');
+            if (!ov) {
+                ov = document.createElement('div');
+                ov.id = 'expOv'; ov.className = 'exp-overlay';
+                ov.innerHTML = '<div class="exp-overlay-box">'
+                    + '<div class="exp-overlay-title">Exporting...</div>'
+                    + '<div class="exp-overlay-bar"><div class="exp-overlay-fill" id="expF"></div></div>'
+                    + '<div class="exp-overlay-stat"><span id="expP">0%</span><span id="expE" style="color:var(--acc)">...</span></div>'
+                    + '<div class="exp-overlay-stat" style="margin-top:4px"><span class="ok" id="expK">0 OK</span><span id="expC" style="opacity:.7">--</span><span class="fail" id="expN">0</span></div>'
+                    + '<button type="button" id="expX" style="margin-top:14px;padding:8px;background:transparent;color:var(--dang);border:1px solid var(--dang);border-radius:6px;cursor:pointer;font-weight:600;width:100%">Cancelar</button>'
+                    + '</div>';
+                document.body.appendChild(ov);
+                document.getElementById('expX').onclick = () => {
+                    _expCancelled = true;
+                    if (_expAbort) try { _expAbort.abort(); } catch(e){}
+                    const x = document.getElementById('expX');
+                    x.textContent = '...'; x.disabled = true;
+                };
+            }
+            document.getElementById('expF').style.width = state.pct + '%';
+            document.getElementById('expP').textContent = state.pct + '%';
+            document.getElementById('expK').textContent = state.ok + ' OK';
+            document.getElementById('expN').textContent = state.fail + ' err';
+            document.getElementById('expC').textContent = (state.chunkSecs/3600) + 'h';
+            const e = document.getElementById('expE');
+            if (state.pct >= 100) e.textContent = 'OK';
+            else if (state.etaMs >= 0 && state.pct > 0) e.textContent = _fmtEta(state.etaMs);
+            else e.textContent = '...';
+        }
+        function _hideExpProgress() {
+            const ov = document.getElementById('expOv');
+            if (ov) ov.remove();
+        }
+
+        /* Lock/unlock dos controles do grafico durante export — impede que
+         * cliques acidentais (zoom/nav/sensores) recarreguem o grafico
+         * enquanto o overlay esta visivel. */
+        function _setGraphControlsEnabled(enabled) {
+            const ids = ['btnPrev','btnNext','rangeSel','sensorMselBtn'];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.disabled = !enabled;
+            });
+            document.querySelectorAll('#sensorMselMenu input[type=checkbox]').forEach(c => c.disabled = !enabled);
+            document.querySelectorAll('.cal-cell').forEach(c => c.style.pointerEvents = enabled ? '' : 'none');
+        }
+
         async function exportHistoryCsv() {
             const btn = document.getElementById('btnExpHist');
             if (!_lastChartCutoff || !_lastChartEnd) {
                 showToast(window.t('exp_no_chart', 'Load a chart range first.'), 'warn'); return;
             }
-            const sensorIdx = document.getElementById('sensorSel').value;
+            const filterArr = _selectedSensors.slice();
             const from = _lastChartCutoff, to = _lastChartEnd;
+            const totalSecs = to - from;
             const orig = btn.innerHTML;
             btn.disabled = true; btn.innerHTML = '⏳';
+            _expCancelled = false;
+
+            /* FEEDBACK IMEDIATO: overlay aparece ANTES de qualquer await.
+             * Antes era depois do /api/status (600ms) — parecia travado. */
+            _showExpProgress({ pct: 0, ok: 0, fail: 0, chunkSecs: EXP_CHUNK_INITIAL, etaMs: -1 });
+            _setGraphControlsEnabled(false);
+
+            /* Calibra chunk inicial pelo heap_lb do servidor */
+            let chunkSecs = EXP_CHUNK_INITIAL;
             try {
-                const r = await fetch('/api/export/history.bin?from=' + from + '&to=' + to, {credentials:'include'});
-                if (!r.ok) throw new Error('HTTP ' + r.status);
-                const buf = await r.arrayBuffer();
-                const lines = _decodeSimxHistory(buf, sensorIdx);
-                if (lines.length === 0) {
-                    showToast(window.t('exp_empty', 'No data in this range.'), 'warn');
-                } else {
-                    const csv = '﻿' + 'timestamp_iso,sensor_id,sensor_name,value,unit\n' + lines.join('\n') + '\n';
-                    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    const sufx = (sensorIdx === '-1') ? '_all' : ('_s' + sensorIdx);
-                    const dt = new Date(from * 1000);
-                    const stamp = dt.getFullYear() + String(dt.getMonth()+1).padStart(2,'0') + String(dt.getDate()).padStart(2,'0');
-                    a.download = 'simut_history' + sufx + '_' + stamp + '.csv';
-                    document.body.appendChild(a); a.click();
-                    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 100);
-                    showToast(lines.length + ' ' + window.t('exp_rows','rows'), 'ok');
+                const sr = await fetch('/api/status', {credentials:'include'});
+                if (sr.ok) {
+                    const sd = await sr.json();
+                    const lb = (sd.sys && sd.sys.heap_lb) ? sd.sys.heap_lb : 0;
+                    if (lb > 0 && lb < 20000)      chunkSecs = 21600;  /* 6h se heap fragmentado */
+                    else if (lb > 0 && lb < 30000) chunkSecs = 43200;  /* 12h */
+                    /* else: 24h default */
                 }
-            } catch (e) {
-                const msg = String(e.message || e);
-                if (msg.indexOf('CRC') >= 0) showToast(window.t('exp_err_crc','Integrity check failed.'), 'err');
-                else showToast(window.t('exp_err_net','Network error.') + ' ' + msg, 'err');
-            } finally {
-                btn.disabled = false; btn.innerHTML = orig;
+            } catch(e) { /* mantem default */ }
+
+            const allLines = [];
+            const failedRanges = [];
+            let okChunks = 0, failChunks = 0;
+            let consecutiveOk = 0;
+            let cursor = from;
+            /* ETA: media movel das ultimas N iteracoes em ms-por-progresso.
+             * Conta tempo real (incluindo retries/pausa) — falhas inflam ETA
+             * de forma honesta. */
+            const ETA_WIN = 5;
+            const etaSamples = [];  /* {ms, ratio} */
+
+            _showExpProgress({ pct: 0, ok: 0, fail: 0, chunkSecs, etaMs: -1 });
+
+            while (cursor < to && !_expCancelled) {
+                const iterStart = performance.now();
+                const cFrom = cursor;
+                const cTo   = Math.min(to, cFrom + chunkSecs);
+                let success = false; let lastErr = '';
+                const cursorBefore = cursor;
+
+                for (let attempt = 0; attempt < EXP_MAX_RETRIES && !success && !_expCancelled; attempt++) {
+                    try {
+                        _expAbort = new AbortController();
+                        const r = await fetch('/api/export/history.bin?from=' + cFrom + '&to=' + cTo,
+                            {credentials:'include', signal: _expAbort.signal});
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        const buf = await r.arrayBuffer();
+                        const lines = _decodeSimxHistory(buf, filterArr);
+                        for (const ln of lines) allLines.push(ln);
+                        success = true;
+                    } catch (e) {
+                        lastErr = String(e.message || e);
+                        if (e.name === 'AbortError') break;
+                        if (attempt < EXP_MAX_RETRIES - 1) {
+                            await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+                        }
+                    }
+                }
+                _expAbort = null;
+
+                if (_expCancelled) break;
+
+                if (success) {
+                    okChunks++;
+                    consecutiveOk++;
+                    cursor = cTo;
+                    if (consecutiveOk >= EXP_RECOVERY_WIN && chunkSecs < EXP_CHUNK_MAX) {
+                        chunkSecs = Math.min(chunkSecs * 2, EXP_CHUNK_MAX);
+                        consecutiveOk = 0;
+                    }
+                } else {
+                    if (chunkSecs > EXP_CHUNK_MIN) {
+                        chunkSecs = Math.max(Math.floor(chunkSecs / 2), EXP_CHUNK_MIN);
+                        consecutiveOk = 0;
+                    } else {
+                        failChunks++;
+                        failedRanges.push({ from: cFrom, to: cTo, err: lastErr });
+                        cursor = cTo;
+                        consecutiveOk = 0;
+                    }
+                }
+
+                /* Mede ms gastos vs progresso real (ratio=cursor avancado / total). */
+                const iterMs = performance.now() - iterStart + 50; /* + pausa */
+                const advanced = cursor - cursorBefore;
+                if (advanced > 0) {
+                    etaSamples.push({ ms: iterMs, ratio: advanced / totalSecs });
+                    if (etaSamples.length > ETA_WIN) etaSamples.shift();
+                }
+
+                /* Progresso e ETA */
+                const pct = Math.min(99, Math.round(((cursor - from) / totalSecs) * 100));
+                let etaMs = -1;
+                if (etaSamples.length >= 2) {
+                    const sumMs    = etaSamples.reduce((a, x) => a + x.ms, 0);
+                    const sumRatio = etaSamples.reduce((a, x) => a + x.ratio, 0);
+                    if (sumRatio > 0) {
+                        const remainingRatio = Math.max(0, 1 - (cursor - from) / totalSecs);
+                        etaMs = (sumMs / sumRatio) * remainingRatio;
+                    }
+                }
+                _showExpProgress({ pct, ok: okChunks, fail: failChunks, chunkSecs, etaMs });
+
+                if (!_expCancelled) await new Promise(r => setTimeout(r, 50));
             }
+
+            _hideExpProgress();
+            _setGraphControlsEnabled(true);
+            btn.disabled = false; btn.innerHTML = orig;
+
+            if (allLines.length === 0) {
+                if (_expCancelled) showToast(window.t('exp_cancelled','Cancelado.'), 'warn');
+                else showToast(window.t('exp_empty','No data recovered.'), 'err');
+                return;
+            }
+
+            const csv = '﻿' + 'timestamp_iso,sensor_id,sensor_name,value,unit\n' + allLines.join('\n') + '\n';
+            const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            const sufx = (filterArr.length === 1) ? ('_s' + filterArr[0]) : ('_n' + filterArr.length);
+            const dt = new Date(from * 1000);
+            const stamp = dt.getFullYear() + String(dt.getMonth()+1).padStart(2,'0') + String(dt.getDate()).padStart(2,'0');
+            const cancelMark = _expCancelled ? '_partial' : '';
+            a.download = 'simut_history' + sufx + cancelMark + '_' + stamp + '.csv';
+            document.body.appendChild(a); a.click();
+            setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 100);
+
+            const tag = _expCancelled ? '⚠ cancelado: ' : (failChunks > 0 ? '⚠ ' : '');
+            const stat = (_expCancelled || failChunks > 0) ? 'warn' : 'ok';
+            const summ = tag + allLines.length + ' linhas' + (failChunks > 0 ? ' (' + failChunks + ' chunks falhos)' : '');
+            showToast(summ, stat);
+            if (failChunks > 0) console.warn('Chunks falhos:', failedRanges);
         }
 
         /* Exporta o que esta visivel na lista de eventos (parsedLogRows
@@ -1281,7 +1749,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         /* ===================================================================== */
 
-        document.addEventListener('DOMContentLoaded', () => { initSession(); loadAvailableDays(); populateSensorDropdown(); loadGraphRange(3); });
+        document.addEventListener('DOMContentLoaded', () => { initSession(); loadAvailableDays(); populateSensorMsel().then(() => loadGraphRange(2)); });
     </script>
 </body>
 </html>
@@ -1297,7 +1765,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Config</title>
     <script src="/lang.js"></script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; }
+        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
         /* ── Hamburger Nav (Proposta C) ────────────────────────── */
         .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
@@ -1346,6 +1814,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
         .chk { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
         .chk input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--acc); cursor: pointer; }
+        .cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
@@ -1354,10 +1823,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .highlight { color: #22c55e; font-weight: bold; }
     </style>
     <script>
-        window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
-        function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
-        function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
 
         /* U24 Phase D: Pending + commitAll centralizados em /lang.js. */
     </script>
@@ -1423,16 +1889,16 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <input type="number" id="tz" name="tz" min="-12" max="14" step="1" required>
                         </div>
                     </div>
-                    <label class="chk">
-                        <input type="checkbox" id="log" name="log" value="1">
+                    <label class="cfg-tg">
+                        <span class="toggle"><input type="checkbox" id="log" name="log" value="1"><span class="slider"></span></span>
                         <span data-i18n="cfg_log">Enable Local Logging</span>
                     </label>
                 </div>
 
                 <h3 data-i18n="cfg_datetime">Date &amp; Time</h3>
                 <div class="grp">
-                    <label class="chk">
-                        <input type="checkbox" id="ntp_enabled" name="ntp_enabled" value="1" onchange="toggleManualTime()">
+                    <label class="cfg-tg">
+                        <span class="toggle"><input type="checkbox" id="ntp_enabled" name="ntp_enabled" value="1" onchange="toggleManualTime()"><span class="slider"></span></span>
                         <span data-i18n="cfg_ntp_auto">Synchronize automatically via NTP</span>
                     </label>
                     <div id="manual_time_fields">
@@ -1501,9 +1967,9 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <input type="number" id="t_port" name="t_port" min="1" max="65535">
                         </div>
                     </div>
-                    <label class="chk" style="margin-top:5px;">
-                        <input type="checkbox" id="t_sec" name="t_sec" value="1">
-                        <span data-i18n="cfg_sec">Use TLS / SSL</span>
+                    <label class="cfg-tg" style="margin-top:5px;">
+                        <span class="toggle"><input type="checkbox" id="t_sec" name="t_sec" value="1"><span class="slider"></span></span>
+                        <span id="t_sec_lbl" data-i18n="cfg_sec">Use TLS / SSL</span>
                     </label>
 
                     <!-- Campos exclusivos do transporte HTTP -->
@@ -1637,7 +2103,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </div>
 
     <script>
-        function toggleTransport() { let tr = document.getElementById('t_transport').value; document.getElementById('http_fields').style.display = (tr == '0') ? 'block' : 'none'; document.getElementById('mqtt_fields').style.display = (tr == '1') ? 'block' : 'none'; let secSpan = document.querySelector('#t_sec + span'); if (secSpan) secSpan.textContent = (tr == '1') ? window.t('cfg_sec_mqtt', 'Use MQTTS (TLS)') : window.t('cfg_sec', 'Use HTTPS (SSL)'); }
+        function toggleTransport() { let tr = document.getElementById('t_transport').value; document.getElementById('http_fields').style.display = (tr == '0') ? 'block' : 'none'; document.getElementById('mqtt_fields').style.display = (tr == '1') ? 'block' : 'none'; let secSpan = document.getElementById('t_sec_lbl'); if (secSpan) secSpan.textContent = (tr == '1') ? window.t('cfg_sec_mqtt', 'Use MQTTS (TLS)') : window.t('cfg_sec', 'Use HTTPS (SSL)'); }
         function toggleBuilder() { let mode = document.getElementById('t_mode').value; document.getElementById('custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderPreview(); }
 
         /* Device metadata populated by loadConfig (real serial + per-slot hwid/active).
@@ -1922,7 +2388,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             } catch(e) { showToast('Error', 'err'); }
         }
 
-        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
 
         function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
@@ -1974,7 +2439,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Network</title>
     <script src="/lang.js"></script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; }
+        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
         /* ── Hamburger Nav (Proposta C) ────────────────────────── */
         .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
@@ -2025,6 +2490,10 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
         .chk { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; background: rgba(6, 182, 212, 0.05); padding: 15px; border-radius: 6px; border: 1px solid var(--acc); }
         .chk input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--acc); cursor: pointer; }
+        .cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
+        /* Esconde campos estáticos quando DHCP/DNS auto está ON */
+        .grp:has(#dhcp:checked) #static_fields { display: none; }
+        .grp:has(#dns_auto:checked) #dns_fields { display: none; }
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
@@ -2034,10 +2503,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .net-stat .val { font-size: 1.1rem; color: var(--txt); font-family: monospace; margin-top: 4px; }
     </style>
     <script>
-        window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
-        function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
-        function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
 
         /* U24 Phase D: Pending + commitAll centralizados em /lang.js. */
     </script>
@@ -2117,8 +2583,8 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                         <h3 data-i18n="net_ipv4">IPv4 Configuration</h3>
                         <div class="grp">
-                            <label class="chk">
-                                <input type="checkbox" id="dhcp" name="use_dhcp" value="1" onchange="toggleIpFields()">
+                            <label class="cfg-tg">
+                                <span class="toggle"><input type="checkbox" id="dhcp" name="use_dhcp" value="1" onchange="toggleIpFields()"><span class="slider"></span></span>
                                 <span data-i18n="net_dhcp">Obtain IP automatically (DHCP)</span>
                             </label>
 
@@ -2145,8 +2611,8 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                         <h3 data-i18n="net_dns_title">DNS Configuration</h3>
                         <div class="grp">
-                            <label class="chk">
-                                <input type="checkbox" id="dns_auto" name="dns_auto" value="1" onchange="toggleDnsFields()">
+                            <label class="cfg-tg">
+                                <span class="toggle"><input type="checkbox" id="dns_auto" name="dns_auto" value="1" onchange="toggleDnsFields()"><span class="slider"></span></span>
                                 <span data-i18n="net_dns_auto">Obtain DNS automatically (DHCP)</span>
                             </label>
                             <div id="dns_fields">
@@ -2258,7 +2724,6 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             form.addEventListener('change', handler);
         }
 
-        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
 
         function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
@@ -2310,7 +2775,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Users</title>
     <script src="/lang.js"></script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; }
+        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
         /* ── Hamburger Nav (Proposta C) ────────────────────────── */
         .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
@@ -2373,10 +2838,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #commit-btn:disabled { opacity: 0.6; cursor: wait; }
     </style>
     <script>
-        window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
-        function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
-        function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
 
         /* U24 Phase D: Pending + commitAll centralizados em /lang.js. */
     </script>
@@ -2553,7 +3015,6 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         window.onLangChange = function() { loadUsers(); };
 
-        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
 
         function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
@@ -2605,7 +3066,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Files</title>
     <script src="/lang.js"></script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; }
+        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
         /* ── Hamburger Nav (Proposta C) ────────────────────────── */
         .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
@@ -2677,10 +3138,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .fm-mkdir-input:focus { border-color:var(--acc); }
     </style>
     <script>
-        window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
-        function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
-        function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
     </script>
 </head>
 <body>
@@ -2841,7 +3299,6 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         window.onLangChange = function() { fmNavigate(currentDir); };
 
-        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
 
         function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
@@ -2935,35 +3392,35 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         /* ── Sensor cards ───────────────────────────────────────────── */
         .sensor-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
-        .sensor-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+        .sensor-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+        .sensor-header .sensor-name { flex: 1; font-weight: 700; font-size: 1.05rem; color: var(--acc); }
         .sensor-name { font-weight: 700; font-size: 1.05rem; color: var(--acc); }
+        /* Limites de alarme só aparecem quando o toggle do card está ON */
+        .sensor-card:has(.alm-active:not(:checked)) .limit-grid { display: none; }
+        .sensor-card:has(.alm-active:not(:checked)) { opacity: 0.7; }
         .sensor-type { font-size: 0.8rem; color: var(--sub); background: rgba(255,255,255,0.05); padding: 3px 10px; border-radius: 12px; }
         .limit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media(max-width: 500px) { .limit-grid { grid-template-columns: 1fr; } }
         .limit-field label { display: block; color: var(--sub); margin-bottom: 4px; font-size: 0.82rem; font-weight: 600; }
         .limit-field input { width: 100%; padding: 10px; background: #000; border: 1px solid #3f3f46; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 0.95rem; transition: border-color 0.2s; }
         .limit-field input:focus { border-color: var(--acc); outline: none; }
-        .chk-alarm { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
-        .chk-alarm input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--acc); cursor: pointer; }
-        .chk-alarm span { color: var(--sub); font-size: 0.9rem; font-weight: 600; }
+        /* .alm-tg removida — toggle agora vive no .sensor-header */
+        /* Spinners de number removidos globalmente via LANG_JS */
 
         /* ── Sounds card ────────────────────────────────────────────── */
         .sound-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 24px; }
         @media(max-width: 500px) { .sound-grid { grid-template-columns: 1fr; } }
-        .sound-item { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+        .sound-item { display: flex; align-items: center; gap: 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+        .sound-item > .sound-label { flex: 1; min-width: 0; }   /* label cresce — mel-group e toggle ficam alinhados a' direita */
+        .sound-item > .mel-group { flex-shrink: 0; }
         .sound-label { font-weight: 600; font-size: 0.9rem; }
-        .toggle { position: relative; display: inline-block; width: 44px; height: 24px; }
-        .toggle input { opacity: 0; width: 0; height: 0; }
-        .toggle .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #3f3f46; border-radius: 24px; transition: 0.3s; }
-        .toggle .slider:before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
-        .toggle input:checked + .slider { background: var(--acc); }
-        .toggle input:checked + .slider:before { transform: translateX(20px); }
+        /* .toggle / .slider movido p/ LANG_JS (global em todas as paginas) */
         .vol-row { display: flex; align-items: center; gap: 14px; margin-top: 16px; padding: 14px 16px; background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 8px; }
         .vol-row .sound-label { min-width: 70px; }
         .vol-row input[type=range] { flex: 1; accent-color: var(--acc); cursor: pointer; }
         .vol-val { font-weight: 700; color: var(--acc); min-width: 42px; text-align: right; }
-        .mel-sel { background: #000; color: #fff; border: 1px solid #3f3f46; border-radius: 6px; padding: 6px 10px; font-size: 0.82rem; cursor: pointer; min-width: 100px; transition: border-color 0.2s; }
-        .mel-sel:focus { border-color: var(--acc); outline: none; }
+        /* Largura padronizada dos selects de som via wrapper .csel-mel */
+        .csel-mel { min-width: 140px; }
         .btn-test { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--sub); cursor: pointer; font-size: 0.9rem; padding: 4px 8px; transition: 0.2s; line-height: 1; }
         .btn-test:hover { border-color: var(--acc); color: var(--acc); }
         .btn-test:active { transform: scale(0.92); }
@@ -2976,10 +3433,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .empty-msg { text-align: center; color: var(--sub); padding: 40px 0; font-size: 1rem; }
     </style>
     <script>
-        window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
-        function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
-        function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); }
-        window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+        /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
 
         /* U24 Phase A.2 — Pending Changes Manager (duplicado de /config;
          * U24 Phase D: centralizado em /lang.js. */
@@ -3129,15 +3583,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
     <script>
         // ═══════════════════════════════════════════════════════════════
-        // TOAST DE FEEDBACK (reutilizado de outras páginas)
-        // ═══════════════════════════════════════════════════════════════
-        function showToast(msg, type, ms) {
-            var el = document.getElementById('net-toast');
-            el.textContent = msg;
-            el.className = type + ' show';
-            setTimeout(function() { el.className = ''; }, ms || 3000);
-        }
-
+        // showToast vem de /lang.js (window.showToast)
         // ═══════════════════════════════════════════════════════════════
         // INICIALIZAÇÃO DE SESSÃO E PERMISSÕES (padrão SPA do SIMUT)
         // ═══════════════════════════════════════════════════════════════
@@ -3205,8 +3651,9 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                     html += '<div class="sensor-card" data-idx="' + s.idx + '">';
                     html += '  <div class="sensor-header">';
+                    html += '    <label class="toggle" title="Alarm"><input type="checkbox" class="alm-active"' + (s.active ? ' checked' : '') + '><span class="slider"></span></label>';
                     html += '    <div class="sensor-name">' + nameLabel + '</div>';
-                    html += '    <div class="sensor-type">' + escHtml(s.type) + ' &middot; GPIO ' + s.gpio + '</div>';
+                    html += '    <div class="sensor-type">' + escHtml(s.type) + ' &middot; SLOT ' + s.gpio + '</div>';
                     html += '  </div>';
                     html += '  <div class="limit-grid">';
                     html += '    <div class="limit-field"><label data-i18n="alm_tmin">Temp Min</label><input type="number" step="0.1" class="alm-input" data-key="tmin" value="' + s.tmin.toFixed(1) + '"></div>';
@@ -3216,7 +3663,6 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         html += '    <div class="limit-field"><label data-i18n="alm_hmax">Hum Max</label><input type="number" step="0.1" class="alm-input" data-key="hmax" value="' + s.hmax.toFixed(1) + '"></div>';
                     }
                     html += '  </div>';
-                    html += '  <label class="chk-alarm"><input type="checkbox" class="alm-active"' + (s.active ? ' checked' : '') + '><span data-i18n="alm_active">Alarm Active</span></label>';
                     html += '</div>';
                 }
                 container.innerHTML = html;
@@ -3229,6 +3675,8 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('snd_alarm').checked   = !!snd.alarm;
                 document.getElementById('snd_web').checked     = !!snd.web;
                 document.getElementById('snd_mute').checked    = !!snd.mute;
+                /* Mudo Global: ativar mute desliga outros; ativar outro desliga mute */
+                {const M=document.getElementById('snd_mute'),O=['snd_touch','snd_confirm','snd_error','snd_alarm','snd_web'];if(!M.dataset.lk){M.dataset.lk='1';M.addEventListener('change',e=>{if(e.target.checked)O.forEach(i=>document.getElementById(i).checked=false)});O.forEach(i=>document.getElementById(i).addEventListener('change',e=>{if(e.target.checked)M.checked=false}))}}
                 let vol = (snd.volume !== undefined) ? snd.volume : 70;
                 document.getElementById('snd_volume').value = vol;
                 document.getElementById('vol-display').textContent = vol + '%';
@@ -3500,7 +3948,7 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - License</title>
     <script src="/lang.js"></script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; }
+        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
         /* ── Hamburger Nav (Proposta C) ────────────────────────── */
         .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
@@ -3541,11 +3989,8 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
     </style>
     <script>
-        window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
-        function applyLang() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); }
-        function setLang(lang) { localStorage.setItem('simut_lang', lang); applyLang(); }
+        /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
         function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
-        function showToast(msg, type, ms) { var el = document.getElementById('net-toast'); el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -3818,6 +4263,13 @@ static const char LANG_JS[] PROGMEM = R"raw(
     };
     fetch('/api/lang').then(r=>r.json()).then(d=>{Object.assign(dict.pt,d);if(typeof applyLang==='function')applyLang();}).catch(()=>{});
 
+    /* Infra compartilhada (movida das paginas autenticadas individuais p/ ca'). */
+    window.t = function(key, def) { let lang = localStorage.getItem('simut_lang') || 'en'; if (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) return def; return dict[lang][key]; };
+    window.applyLang = function() { let lang = localStorage.getItem('simut_lang') || 'en'; document.querySelectorAll('.lang-select').forEach(s => s.value = lang); document.querySelectorAll('[data-i18n]').forEach(el => { let key = el.getAttribute('data-i18n'); if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.getAttribute('placeholder')); } else { if (!el.hasAttribute('data-en')) el.setAttribute('data-en', el.innerHTML); } let text = (lang === 'en' || typeof dict === 'undefined' || !dict[lang] || !dict[lang][key]) ? el.getAttribute('data-en') : dict[lang][key]; if (text !== null && text !== undefined) { if (el.tagName === 'INPUT' && el.hasAttribute('placeholder')) el.setAttribute('placeholder', text); else el.innerHTML = text; } }); };
+    window.setLang = function(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); };
+    window.showToast = function(msg, type, ms) { var el = document.getElementById('net-toast'); if (!el) return; el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); };
+    window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+
     /* =========================================================================
      * U24 Phase D — Pending Changes Manager + commit-all (shared across pages)
      * =========================================================================
@@ -3941,7 +4393,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 /* ── Light theme — bg branco puro + elementos slate-azulados suaves
                  *    com accent SIMUT #0096FF. Evita branco-em-branco que cansa
                  *    a vista; cards/inputs ficam em tom levemente mais frio. ── */
-                ':root.theme-light{--bg:#ffffff;--card:#eef2f7;--txt:#1a2533;--sub:#5a6b7d;--border:#d8dfe6;--acc:#0096FF;--dang:#c93838}' +
+                ':root.theme-light{--bg:#ffffff;--card:#eef2f7;--txt:#1a2533;--sub:#5a6b7d;--border:#d8dfe6;--acc:#0096FF;--dang:#c93838;color-scheme:light}' +
                 'html.theme-light{background:#ffffff}' +
                 'html.theme-light body{background:var(--bg);color:var(--txt)}' +
                 'html.theme-light .topbar{background:#f4f7fa;border-bottom-color:var(--border)}' +
@@ -3998,7 +4450,6 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 'html.theme-light .cal-dow{color:var(--sub)}' +
                 /* Sound toggle */
                 'html.theme-light .toggle .slider{background:#c8d2dc}' +
-                'html.theme-light .mel-sel{background:#f4f7fa;color:var(--txt);border-color:var(--border)}' +
                 'html.theme-light .btn-test{background:transparent;color:var(--sub);border-color:var(--border)}' +
                 'html.theme-light .btn-test:hover{color:var(--acc);border-color:var(--acc)}' +
                 /* Progress bars */
@@ -4086,11 +4537,21 @@ static const char LANG_JS[] PROGMEM = R"raw(
         });
     };
 
+    /* CSS global: dropdown custom + toggle switch + sem spinners em number */
+    (function(){const c='.csel{position:relative;display:inline-block;vertical-align:middle}.csel-btn{background:var(--bg);color:var(--txt);border:1px solid var(--border);padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem;outline:none;width:100%;text-align:left;box-sizing:border-box;font-weight:500}.csel-btn:hover{border-color:var(--acc)}.csel-btn .csel-arr{float:right;opacity:0.7}.csel-menu{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:6px;max-height:260px;overflow-y:auto;z-index:300;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,0.5)}.csel-menu.up{top:auto;bottom:calc(100% + 4px)}.csel-item{padding:8px 12px;color:var(--txt);cursor:pointer;font-size:0.85rem;border-radius:4px}.csel-item:hover{background:var(--bg)}.csel-item.active{background:var(--acc);color:#000;font-weight:700}'
+      + '.toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}.toggle input{opacity:0;width:0;height:0}.toggle .slider{position:absolute;cursor:pointer;inset:0;background:#3f3f46;border-radius:24px;transition:.3s}.toggle .slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}.toggle input:checked+.slider{background:var(--acc)}.toggle input:checked+.slider:before{transform:translateX(20px)}'
+      + 'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield;appearance:textfield}';const s=document.createElement('style');s.textContent=c;document.head.appendChild(s);})();
+    document.addEventListener('click',e=>{if(!e.target.closest('.csel'))document.querySelectorAll('.csel-menu').forEach(m=>m.style.display='none');});
+    window._cselSync=function(sel){const w=sel._cw;if(!w)return;const m=w.querySelector('.csel-menu'),b=w.querySelector('.csel-btn');m.innerHTML='';let lbl='';Array.from(sel.options).forEach(o=>{const i=document.createElement('div');i.className='csel-item'+(o.selected?' active':'');i.textContent=o.text;i.onclick=()=>{if(sel.disabled)return;sel.value=o.value;m.querySelectorAll('.csel-item').forEach(x=>x.classList.remove('active'));i.classList.add('active');b.firstChild.textContent=o.text;m.style.display='none';sel.dispatchEvent(new Event('change',{bubbles:true}));};m.appendChild(i);if(o.selected)lbl=o.text;});if(!lbl&&sel.options.length)lbl=sel.options[0].text;b.firstChild.textContent=lbl;};
+    window._makeCustomSelect=function(sel){if(!sel||sel.dataset.cd==='1'||sel.multiple)return;sel.dataset.cd='1';const w=document.createElement('div');w.className='csel'+(sel.classList.contains('mel-sel')?' csel-mel':'');const b=document.createElement('button');b.type='button';b.className='csel-btn';const ln=document.createTextNode(''),an=document.createElement('span');an.className='csel-arr';an.textContent='▾';b.appendChild(ln);b.appendChild(an);const m=document.createElement('div');m.className='csel-menu';m.style.display='none';b.onclick=ev=>{ev.stopPropagation();if(sel.disabled||b.disabled)return;const op=m.style.display==='block';document.querySelectorAll('.csel-menu').forEach(x=>{if(x!==m)x.style.display='none';});if(op){m.style.display='none';return;}m.style.display='block';const r=b.getBoundingClientRect();m.classList.toggle('up',(window.innerHeight-r.bottom)<200&&r.top>(window.innerHeight-r.bottom));};sel._cw=w;sel.parentNode.insertBefore(w,sel);w.appendChild(b);w.appendChild(m);w.appendChild(sel);sel.style.display='none';_cselSync(sel);const d=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value');if(d&&d.set)Object.defineProperty(sel,'value',{get(){return d.get.call(this);},set(v){d.set.call(this,v);_cselSync(this);}});};
+
     /* Ordem importa: install PRIMEIRO (cria botões), depois init
      * (Pending.refreshUI encontra o botão e mostra/esconde). */
     document.addEventListener('DOMContentLoaded', () => {
         if (window.installCommitInfra) installCommitInfra();
         if (window.Pending) Pending.init();
+        /* Converte todos os <select> em dropdown custom (skipa multi-select). */
+        document.querySelectorAll('select').forEach(_makeCustomSelect);
         /* Busca versão e aplica no brand. Usa perms que todas as páginas
          * já chamam; essa chamada é barata e cacheável se quisermos depois. */
         fetch('/api/perms', { credentials: 'same-origin' })

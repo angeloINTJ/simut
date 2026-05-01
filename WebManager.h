@@ -227,7 +227,7 @@ private:
     /* U24 Phase C: handleSaveNetwork substituido por handleApiCommitAll */
     void handleResetTouchCal();
     void handleApiStatus();
-    void handleApiHistoryData();
+    void handleApiHistoryMulti();   /**< F-GRAPH-REVAMP: history streaming p/ multiplos sensores num response. */
     void handleApiExportHistory();  /**< F-CSV.2: export history como bundle .simx (CRC32 trailer). */
     void handleApiExportLogs();     /**< F-CSV.3: export logs como bundle .simx kind='L' (CRC32 trailer). */
     void handleApiLogs();
