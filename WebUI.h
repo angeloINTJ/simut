@@ -742,16 +742,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .progress-fill { height:100%; width:0%; background: linear-gradient(90deg, var(--acc), #22d3ee); transition: width 0.3s; }
         @keyframes pulse-bg { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
         .pulse { animation: pulse-bg 1.5s infinite; }
-        /* F-CSV.4/5: card de export — alinhado com .log-header */
-        .exp-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
-        .exp-row > div { display: flex; flex-direction: column; gap: 4px; }
-        .exp-row label { color: var(--sub); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
-        .exp-row input, .exp-row select { padding: 8px 12px; background: #000; color: var(--txt); border: 1px solid var(--border); border-radius: 6px; outline: none; font-size: 0.9rem; }
-        .exp-row input:focus, .exp-row select:focus { border-color: var(--acc); }
-        .exp-btn { padding: 10px 20px; margin-top: 14px; background: var(--acc); color: #000; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 700; }
-        .exp-btn:disabled { opacity: 0.5; cursor: wait; }
-        .exp-status { margin-top: 10px; font-size: 0.85rem; color: var(--sub); }
-        @media(max-width: 600px) { .exp-row > div { flex: 1 1 100%; } .exp-row input, .exp-row select { width: 100%; box-sizing: border-box; } }
         #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
         #net-toast.show { transform:translateY(0);opacity:1; }
         #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
@@ -866,34 +856,15 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <canvas id="myChart"></canvas>
                     </div>
                     <div class="bottom-controls">
-                        <button onclick="navGraph(-1)" id="btnPrev" title="Previous" style="font-size:1.1rem;">◀</button>
                         <button onclick="loadGraphRange(0)" id="btnR0" data-i18n="hist_1h">1h</button>
                         <button onclick="loadGraphRange(1)" id="btnR1" data-i18n="hist_6h">6h</button>
-                        <button onclick="loadGraphRange(2)" id="btnR2" data-i18n="hist_12h">12h</button>
-                        <button onclick="loadGraphRange(3)" id="btnR3" data-i18n="hist_24h">24h</button>
+                        <button onclick="loadGraphRange(2)" id="btnR2" data-i18n="hist_24h">24h</button>
+                        <button onclick="loadGraphRange(3)" id="btnR3" data-i18n="hist_3d">3d</button>
                         <button onclick="loadGraphRange(4)" id="btnR4" data-i18n="hist_7d">7 Days</button>
-                        <button onclick="navGraph(1)" id="btnNext" title="Next" style="font-size:1.1rem;">▶</button>
+                        <button onclick="exportHistoryCsv()" id="btnExpHist" title="Export CSV" data-i18n="exp_btn">⤓ CSV</button>
                     </div>
                 </div>
             </div>
-        </div>
-
-        <div class="card" style="margin-top: 20px;">
-            <h2 class="page-title" data-i18n="exp_hist_title">Export Sensor History (CSV)</h2>
-            <div class="exp-row">
-                <div><label data-i18n="exp_from">From</label>
-                    <input type="date" id="exp_h_d1" style="color-scheme:light dark"></div>
-                <div><label>&nbsp;</label>
-                    <input type="time" id="exp_h_t1" step="60" style="color-scheme:light dark"></div>
-                <div><label data-i18n="exp_to">To</label>
-                    <input type="date" id="exp_h_d2" style="color-scheme:light dark"></div>
-                <div><label>&nbsp;</label>
-                    <input type="time" id="exp_h_t2" step="60" style="color-scheme:light dark"></div>
-                <div><label data-i18n="exp_sensor">Sensor</label>
-                    <select id="exp_h_sel"><option value="all" data-i18n="exp_all">All</option></select></div>
-            </div>
-            <button type="button" onclick="exportHistoryCsv()" id="btnExpHist" class="exp-btn" data-i18n="exp_btn">Export CSV</button>
-            <div id="exp_h_status" class="exp-status" data-i18n="exp_idle">Pick a range and click Export.</div>
         </div>
 
         <div class="card" style="margin-top: 20px;">
@@ -905,6 +876,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--dang);cursor:pointer;"><input type="checkbox" id="chkErr" onchange="filterLogs()" checked> ERR</label>
                     <input type="text" id="logSearch" placeholder="Filter events..." data-i18n="hist_filt" onkeyup="filterLogs()">
                     <button id="btnLoadLogs" onclick="loadLogs()" data-i18n="hist_load_btn" style="color:var(--acc); border-color:var(--acc);">Load</button>
+                    <button id="btnExpLogs" onclick="exportLogsCsv()" title="Export CSV" data-i18n="exp_btn">⤓ CSV</button>
                     <button onclick="clearLogs()" style="border-color:var(--dang); color:var(--dang); background:transparent;" data-i18n="hist_clear">Clear</button>
                 </div>
             </div>
@@ -929,23 +901,13 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script>
         let myChart = null; let availDates = []; let currentCalDate = new Date(); let logsLoadedOnce = false;
         let anchorEnd = 0; let currentRange = -1;
-        const rangeDurations = [3600, 21600, 43200, 86400, 604800];
+        let _lastChartCutoff = 0; let _lastChartEnd = 0; /* range visualizado — usado por exportHistoryCsv */
+        const rangeDurations = [3600, 21600, 86400, 259200, 604800]; /* 1h, 6h, 24h, 3d, 7d — alinhado com display TFT */
         async function loadAvailableDays() { try { const res = await fetchSafe('/api/history_days'); availDates = await res.json(); renderCalendar(); } catch(e) {} }
         async function populateSensorDropdown() { try { const res = await fetchSafe('/api/status'); if(!res.ok) return; const data = await res.json(); if (data && data.sensors) { const sel = document.getElementById('sensorSel'); let activeSlots = []; data.sensors.forEach(s => { if (s.gpio < 10) { activeSlots.push(s.gpio.toString()); let opt = sel.querySelector(`option[value="${s.gpio}"]`); if (opt) opt.innerText = `${s.id} - ${s.name}`; } }); Array.from(sel.options).forEach(opt => { if (opt.value !== "-1" && !activeSlots.includes(opt.value)) opt.remove(); }); } } catch(e) {} }
         function changeMonth(dir) { currentCalDate.setMonth(currentCalDate.getMonth() + dir); renderCalendar(); }
         function renderCalendar() { const y = currentCalDate.getFullYear(); const m = currentCalDate.getMonth(); const months = [window.t('m_jan','Jan'), window.t('m_feb','Feb'), window.t('m_mar','Mar'), window.t('m_apr','Apr'), window.t('m_may','May'), window.t('m_jun','Jun'), window.t('m_jul','Jul'), window.t('m_aug','Aug'), window.t('m_sep','Sep'), window.t('m_oct','Oct'), window.t('m_nov','Nov'), window.t('m_dec','Dec')]; document.getElementById('calMonthYear').innerText = months[m] + " " + y; const grid = document.getElementById('calGrid'); grid.innerHTML = ''; const firstDay = new Date(y, m, 1).getDay(); const daysInMonth = new Date(y, m + 1, 0).getDate(); for(let i=0; i<firstDay; i++) grid.innerHTML += `<div class="cal-cell"></div>`; for(let d=1; d<=daysInMonth; d++) { let ds = (d<10?'0':'') + d; let ms = ((m+1)<10?'0':'') + (m+1); let dateStr = `${y}${ms}${ds}`; let isAvail = availDates.includes(dateStr); let cls = isAvail ? 'cal-cell has-data' : 'cal-cell'; let onclick = isAvail ? `onclick="loadGraphDate('${dateStr}', this)"` : ''; grid.innerHTML += `<div class="${cls}" id="cal_${dateStr}" ${onclick}>${d}</div>`; } }
         function fmt(v){return v < 10 ? '0' + v : v;}
-        function updateNavButtons() {
-            const prev = document.getElementById('btnPrev');
-            const next = document.getElementById('btnNext');
-            const nowEpoch = Math.floor(Date.now() / 1000);
-            prev.style.opacity = '1'; prev.disabled = false;
-            if (anchorEnd === 0 || anchorEnd >= nowEpoch) {
-                next.style.opacity = '0.3'; next.disabled = true;
-            } else {
-                next.style.opacity = '1'; next.disabled = false;
-            }
-        }
         async function loadGraphRange(range) {
             document.querySelectorAll('.cal-cell').forEach(c => c.classList.remove('selected'));
             document.querySelectorAll('.bottom-controls button').forEach(b => b.classList.remove('active'));
@@ -956,7 +918,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let q = `range=${range}`;
             if (anchorEnd > 0) q += `&end=${anchorEnd}`;
             await fetchAndDraw(q);
-            updateNavButtons();
         }
         async function loadGraphDate(dateStr, cellElement) {
             document.querySelectorAll('.bottom-controls button').forEach(b => b.classList.remove('active'));
@@ -967,30 +928,18 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let m = parseInt(dateStr.substring(4,6)) - 1;
             let d = parseInt(dateStr.substring(6,8));
             anchorEnd = Math.floor(new Date(y, m, d + 1).getTime() / 1000);
-            currentRange = 3; /* 24H */
-            let btn = document.getElementById('btnR3');
+            currentRange = 2; /* 24H — agora idx 2 (era 3 antes) */
+            let btn = document.getElementById('btnR2');
             if(btn) btn.classList.add('active');
-            await fetchAndDraw(`range=3&end=${anchorEnd}`);
-            updateNavButtons();
+            await fetchAndDraw(`range=2&end=${anchorEnd}`);
         }
-        async function navGraph(dir) {
-            if (currentRange < 0) return;
-            const step = rangeDurations[currentRange] || 86400;
-            const nowEpoch = Math.floor(Date.now() / 1000);
-            if (anchorEnd === 0) anchorEnd = nowEpoch;
-            anchorEnd += dir * step;
-            if (anchorEnd > nowEpoch) anchorEnd = nowEpoch;
-            let q = `range=${currentRange}&end=${anchorEnd}`;
-            await fetchAndDraw(q);
-            updateNavButtons();
-        }
-        const estSizes = { '0':3000, '1':15000, '2':25000, '3':40000, '4':80000, 'date':50000 };
+        const estSizes = { '0':3000, '1':15000, '2':40000, '3':80000, '4':200000, 'date':50000 };
         function showOverlay(msg) { const ov = document.getElementById('chartOverlay'); const om = document.getElementById('overlayMsg'); ov.classList.remove('hidden'); om.innerText = msg || ''; }
         function hideOverlay() { document.getElementById('chartOverlay').classList.add('hidden'); }
         function showProgress(show) { const w = document.getElementById('progressWrap'); const f = document.getElementById('progFill'); if (show) { w.style.display='block'; f.style.width='0%'; f.classList.add('pulse'); } else { f.classList.remove('pulse'); setTimeout(()=>{ w.style.display='none'; }, 400); } }
         function updateProgress(received, estTotal) { const pct = Math.min(95, (received / estTotal) * 100); document.getElementById('progFill').style.width = pct + '%'; document.getElementById('progDetail').innerText = (received / 1024).toFixed(1) + ' KB'; }
         function finishProgress() { const f = document.getElementById('progFill'); f.classList.remove('pulse'); f.style.width = '100%'; document.getElementById('progStatus').innerText = window.t('hist_done', 'Complete'); }
-        async function fetchAndDraw(queryParam) { const sensor = document.getElementById('sensorSel').value; const gridBox = document.getElementById('statsGrid'); let estKey = 'date'; const rm = queryParam.match(/range=(\d)/); if (rm) estKey = rm[1]; const estTotal = estSizes[estKey] || 40000; try { gridBox.style.opacity = '0.3'; showOverlay(window.t('hist_down_msg', 'Downloading...')); showProgress(true); document.getElementById('progStatus').innerText = window.t('hist_loading', 'Loading...'); const response = await fetchSafe(`/api/history?sensor=${sensor}&${queryParam}`, {timeout: 30000, retries: 1}); if (!response.ok) throw new Error("HTTP " + response.status); const reader = response.body.getReader(); const decoder = new TextDecoder(); let received = 0; let chunks = []; while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); received += value.length; updateProgress(received, estTotal); } let text = ''; for (const chunk of chunks) text += decoder.decode(chunk, { stream: true }); text += decoder.decode(); finishProgress(); let json; try { json = JSON.parse(text); } catch(e) { showProgress(false); showOverlay(window.t('hist_err_json', 'Error')); return; } if (json.error) { showProgress(false); showOverlay(json.error); return; } let data = json.data || []; let validData = data.filter(d => d.v1 !== null && d.v1 !== undefined); if(validData.length === 0) { if(myChart) myChart.destroy(); showProgress(false); showOverlay(window.t('hist_no_data', 'No data for this period')); updateNavButtons(); return; } setTimeout(()=> showProgress(false), 400); /* Usa min/max reais da API (pré-decimação) */ let maxT = (json.maxT !== undefined) ? json.maxT : -999; let minT = (json.minT !== undefined) ? json.minT : 999; let tsMaxT = json.tsMaxT || 0; let tsMinT = json.tsMinT || 0; let maxH = -999, minH = 999; data.forEach(d => { if (d.v2 !== undefined && d.v2 !== null) { if(d.v2 > maxH) maxH = d.v2; if(d.v2 < minH) minH = d.v2; } }); /* Header: mostra janela temporal da API */ let cutoffEpoch = json.cutoff || 0; let endEpoch = json.end || 0; if (cutoffEpoch > 0 && endEpoch > 0) { let dC = new Date(cutoffEpoch * 1000); let dE = new Date(endEpoch * 1000); let sameDay = (dC.getDate() === dE.getDate() && dC.getMonth() === dE.getMonth()); if (sameDay) { document.getElementById('chartTitle').innerText = `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)}  ${fmt(dC.getHours())}:${fmt(dC.getMinutes())} - ${fmt(dE.getHours())}:${fmt(dE.getMinutes())}`; } else { document.getElementById('chartTitle').innerText = `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)} ${fmt(dC.getHours())}:${fmt(dC.getMinutes())} - ${fmt(dE.getDate())}/${fmt(dE.getMonth()+1)} ${fmt(dE.getHours())}:${fmt(dE.getMinutes())}`; } } else { let dMin = new Date(data[0].t * 1000); let dMax = new Date(data[data.length-1].t * 1000); document.getElementById('chartTitle').innerText = `${fmt(dMin.getDate())}/${fmt(dMin.getMonth()+1)} a ${fmt(dMax.getDate())}/${fmt(dMax.getMonth()+1)}`; } let spanSecs = (endEpoch || data[data.length-1].t) - (cutoffEpoch || data[0].t); let onlyHours = (spanSecs <= 172800); let labels = []; let temps = []; let hums = []; data.forEach(d => { const dt = new Date(d.t * 1000); if (onlyHours) { labels.push(`${fmt(dt.getHours())}:${fmt(dt.getMinutes())}`); } else { labels.push(`${fmt(dt.getDate())}/${fmt(dt.getMonth()+1)} ${fmt(dt.getHours())}:${fmt(dt.getMinutes())}`); } temps.push(d.v1); /* null para NAN → Chart.js cria buraco */ if (d.v2 !== undefined) hums.push(d.v2); }); document.getElementById('statMaxT').innerText = (maxT === -999) ? '--' : maxT.toFixed(1) + '°C'; document.getElementById('statMinT').innerText = (minT === 999) ? '--' : minT.toFixed(1) + '°C'; if(hums.length > 0 && maxH > -999) { document.getElementById('statMaxH').innerText = maxH.toFixed(1) + '%'; document.getElementById('statMinH').innerText = minH.toFixed(1) + '%'; document.getElementById('humMaxCard').style.display = 'flex'; document.getElementById('humMinCard').style.display = 'flex'; } else { document.getElementById('humMaxCard').style.display = 'none'; document.getElementById('humMinCard').style.display = 'none'; } gridBox.style.opacity = '1'; renderChart(labels, temps, hums); hideOverlay(); } catch (error) { showProgress(false); showOverlay(window.t('hist_conn_lost', 'Connection lost.')); } }
+        async function fetchAndDraw(queryParam) { const sensor = document.getElementById('sensorSel').value; const gridBox = document.getElementById('statsGrid'); let estKey = 'date'; const rm = queryParam.match(/range=(\d)/); if (rm) estKey = rm[1]; const estTotal = estSizes[estKey] || 40000; try { gridBox.style.opacity = '0.3'; showOverlay(window.t('hist_down_msg', 'Downloading...')); showProgress(true); document.getElementById('progStatus').innerText = window.t('hist_loading', 'Loading...'); const response = await fetchSafe(`/api/history?sensor=${sensor}&${queryParam}`, {timeout: 30000, retries: 1}); if (!response.ok) throw new Error("HTTP " + response.status); const reader = response.body.getReader(); const decoder = new TextDecoder(); let received = 0; let chunks = []; while (true) { const { done, value } = await reader.read(); if (done) break; chunks.push(value); received += value.length; updateProgress(received, estTotal); } let text = ''; for (const chunk of chunks) text += decoder.decode(chunk, { stream: true }); text += decoder.decode(); finishProgress(); let json; try { json = JSON.parse(text); } catch(e) { showProgress(false); showOverlay(window.t('hist_err_json', 'Error')); return; } if (json.error) { showProgress(false); showOverlay(json.error); return; } let data = json.data || []; let validData = data.filter(d => d.v1 !== null && d.v1 !== undefined); if(validData.length === 0) { if(myChart) myChart.destroy(); showProgress(false); showOverlay(window.t('hist_no_data', 'No data for this period')); return; } setTimeout(()=> showProgress(false), 400); /* Usa min/max reais da API (pré-decimação) */ let maxT = (json.maxT !== undefined) ? json.maxT : -999; let minT = (json.minT !== undefined) ? json.minT : 999; let tsMaxT = json.tsMaxT || 0; let tsMinT = json.tsMinT || 0; let maxH = -999, minH = 999; data.forEach(d => { if (d.v2 !== undefined && d.v2 !== null) { if(d.v2 > maxH) maxH = d.v2; if(d.v2 < minH) minH = d.v2; } }); /* Header: mostra janela temporal da API */ let cutoffEpoch = json.cutoff || 0; let endEpoch = json.end || 0; _lastChartCutoff = cutoffEpoch; _lastChartEnd = endEpoch; if (cutoffEpoch > 0 && endEpoch > 0) { let dC = new Date(cutoffEpoch * 1000); let dE = new Date(endEpoch * 1000); let sameDay = (dC.getDate() === dE.getDate() && dC.getMonth() === dE.getMonth()); if (sameDay) { document.getElementById('chartTitle').innerText = `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)}  ${fmt(dC.getHours())}:${fmt(dC.getMinutes())} - ${fmt(dE.getHours())}:${fmt(dE.getMinutes())}`; } else { document.getElementById('chartTitle').innerText = `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)} ${fmt(dC.getHours())}:${fmt(dC.getMinutes())} - ${fmt(dE.getDate())}/${fmt(dE.getMonth()+1)} ${fmt(dE.getHours())}:${fmt(dE.getMinutes())}`; } } else { let dMin = new Date(data[0].t * 1000); let dMax = new Date(data[data.length-1].t * 1000); document.getElementById('chartTitle').innerText = `${fmt(dMin.getDate())}/${fmt(dMin.getMonth()+1)} a ${fmt(dMax.getDate())}/${fmt(dMax.getMonth()+1)}`; } let spanSecs = (endEpoch || data[data.length-1].t) - (cutoffEpoch || data[0].t); let onlyHours = (spanSecs <= 172800); let labels = []; let temps = []; let hums = []; data.forEach(d => { const dt = new Date(d.t * 1000); if (onlyHours) { labels.push(`${fmt(dt.getHours())}:${fmt(dt.getMinutes())}`); } else { labels.push(`${fmt(dt.getDate())}/${fmt(dt.getMonth()+1)} ${fmt(dt.getHours())}:${fmt(dt.getMinutes())}`); } temps.push(d.v1); /* null para NAN → Chart.js cria buraco */ if (d.v2 !== undefined) hums.push(d.v2); }); document.getElementById('statMaxT').innerText = (maxT === -999) ? '--' : maxT.toFixed(1) + '°C'; document.getElementById('statMinT').innerText = (minT === 999) ? '--' : minT.toFixed(1) + '°C'; if(hums.length > 0 && maxH > -999) { document.getElementById('statMaxH').innerText = maxH.toFixed(1) + '%'; document.getElementById('statMinH').innerText = minH.toFixed(1) + '%'; document.getElementById('humMaxCard').style.display = 'flex'; document.getElementById('humMinCard').style.display = 'flex'; } else { document.getElementById('humMaxCard').style.display = 'none'; document.getElementById('humMinCard').style.display = 'none'; } gridBox.style.opacity = '1'; renderChart(labels, temps, hums); hideOverlay(); } catch (error) { showProgress(false); showOverlay(window.t('hist_conn_lost', 'Connection lost.')); } }
         function renderChart(labels, temp, hum) { const ctx = document.getElementById('myChart').getContext('2d'); if (myChart) myChart.destroy(); let datasets = [{ label: 'Temp (°C)', data: temp, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 2, tension: 0.3, pointRadius: 0, yAxisID: 'y', spanGaps: false }]; if (hum && hum.length > 0) { datasets.push({ label: 'Hum (%)', data: hum, borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', borderWidth: 2, tension: 0.3, pointRadius: 0, yAxisID: 'y1', spanGaps: false }); } myChart = new Chart(ctx, { type: 'line', data: { labels: labels, datasets: datasets }, options: { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#a1a1aa', maxTicksLimit: 12 }, grid: { color: '#27272a' } }, y: { type: 'linear', display: true, position: 'left', ticks: { color: '#ef4444' }, grid: { color: '#27272a' } }, y1: { type: 'linear', display: (hum && hum.length > 0), position: 'right', ticks: { color: '#3b82f6' }, grid: { drawOnChartArea: false } } } } }); }
 
         // Logs — binary parsing in browser. Tabelas sincronizadas com LogManager::translateCode (LogManager.cpp).
@@ -1079,7 +1028,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     let tag = TAG_NAMES[tagId] || '?';
                     let desc = evtName(code) + (ctx !== 0 ? ' <span style="color:var(--sub)">[ctx: ' + ctx + ']</span>' : '');
 
-                    parsedLogRows.push({ lvl, dateStr, upStr, lvlLabel, lvlCls, tag, desc });
+                    parsedLogRows.push({ epoch, upHr, code, ctx, lvl, dateStr, upStr, lvlLabel, lvlCls, tag, desc });
                 }
 
                 renderLogTable();
@@ -1162,28 +1111,13 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
         }
 
-        /* ===================== F-CSV.4 export histórico ===================== */
-        /* Mini CRC32-IEEE com tabela 256 (gerada uma vez). Compatível com
-         * crc32_init/update/final do firmware (poly reverso 0xEDB88320). */
+        /* ============== F-CSV: export histórico + logs (UI simplificada) ============== */
+        /* Mini CRC32-IEEE com tabela 256. Compat com firmware crc32_*. */
         const _crcTab = (() => { const t = new Uint32Array(256);
             for (let i=0;i<256;i++){let c=i; for(let j=0;j<8;j++) c=(c&1)?((c>>>1)^0xEDB88320):(c>>>1); t[i]=c>>>0;} return t; })();
         function crc32(u8) { let c = 0xFFFFFFFF >>> 0;
             for (let i=0;i<u8.length;i++) c = (_crcTab[(c ^ u8[i]) & 0xFF] ^ (c >>> 8)) >>> 0;
             return (~c) >>> 0; }
-
-        function _expFillSensorDropdown() {
-            const src = document.getElementById('sensorSel');
-            const dst = document.getElementById('exp_h_sel');
-            if (!src || !dst) return;
-            /* preserva opção "all" */
-            while (dst.options.length > 1) dst.remove(1);
-            for (const o of src.options) {
-                if (o.value === '-1' || o.value === 'all') continue;
-                const opt = document.createElement('option');
-                opt.value = o.value; opt.textContent = o.textContent;
-                dst.appendChild(opt);
-            }
-        }
 
         function _isoLocal(epoch) {
             const d = new Date(epoch * 1000);
@@ -1195,21 +1129,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) +
                    'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) +
                    sgn + tzh + ':' + tzm;
-        }
-
-        /* Itera meses calendar entre two epochs. cb(monthStart, monthEnd, label) */
-        function _iterMonths(from, to, cb) {
-            const start = new Date(from * 1000);
-            const cur = new Date(start.getFullYear(), start.getMonth(), 1, 0, 0, 0);
-            const end = new Date(to * 1000);
-            while (cur.getTime() <= end.getTime()) {
-                const next = new Date(cur.getFullYear(), cur.getMonth()+1, 1, 0, 0, 0);
-                const mFrom = Math.max(from, Math.floor(cur.getTime()/1000));
-                const mTo   = Math.min(to,   Math.floor(next.getTime()/1000) - 1);
-                const label = cur.getFullYear() + '-' + String(cur.getMonth()+1).padStart(2,'0');
-                cb(mFrom, mTo, label);
-                cur.setTime(next.getTime());
-            }
         }
 
         function _readUtf8(u8, off, len) {
@@ -1282,63 +1201,87 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return lines;
         }
 
+        /* Exporta o intervalo atualmente exibido no grafico (sensor + range
+         * sao os ja selecionados). Single fetch — range maximo e' 7d. */
         async function exportHistoryCsv() {
             const btn = document.getElementById('btnExpHist');
-            const stat = document.getElementById('exp_h_status');
-            const setStatus = (k, fallback, cls) => {
-                stat.textContent = window.t(k, fallback);
-                stat.style.color = cls === 'err' ? 'var(--dang)' : (cls === 'ok' ? '#22c55e' : 'var(--sub)');
-            };
-            const d1 = document.getElementById('exp_h_d1').value;
-            const t1 = document.getElementById('exp_h_t1').value || '00:00';
-            const d2 = document.getElementById('exp_h_d2').value;
-            const t2 = document.getElementById('exp_h_t2').value || '23:59';
-            if (!d1 || !d2) { setStatus('exp_err_range', 'Invalid range', 'err'); return; }
-            const from = Math.floor(new Date(d1 + 'T' + t1).getTime() / 1000);
-            const to   = Math.floor(new Date(d2 + 'T' + t2).getTime() / 1000);
-            if (!(from > 0 && to > from)) { setStatus('exp_err_range', 'Invalid range', 'err'); return; }
-            const sensorIdx = document.getElementById('exp_h_sel').value;
-
-            btn.disabled = true;
+            if (!_lastChartCutoff || !_lastChartEnd) {
+                showToast(window.t('exp_no_chart', 'Load a chart range first.'), 'warn'); return;
+            }
+            const sensorIdx = document.getElementById('sensorSel').value;
+            const from = _lastChartCutoff, to = _lastChartEnd;
+            const orig = btn.innerHTML;
+            btn.disabled = true; btn.innerHTML = '⏳';
             try {
-                const months = [];
-                _iterMonths(from, to, (mF, mT, label) => months.push({mF,mT,label}));
-                let totalLines = 0;
-                for (let i = 0; i < months.length; i++) {
-                    const m = months[i];
-                    setStatus('exp_fetching', `Fetching ${m.label} (${i+1}/${months.length})...`, '');
-                    stat.textContent = `${window.t('exp_fetching','Fetching')} ${m.label} (${i+1}/${months.length})...`;
-                    const r = await fetch(`/api/export/history.bin?from=${m.mF}&to=${m.mT}`, {credentials:'include'});
-                    if (!r.ok) throw new Error('HTTP ' + r.status);
-                    const buf = await r.arrayBuffer();
-                    setStatus('exp_validating', 'Validating integrity...', '');
-                    stat.textContent = `${window.t('exp_validating','Validating integrity...')}`;
-                    const lines = _decodeSimxHistory(buf, sensorIdx);
-                    totalLines += lines.length;
-                    if (lines.length === 0) continue;
-                    /* Monta CSV: BOM UTF-8 + header + lines */
+                const r = await fetch('/api/export/history.bin?from=' + from + '&to=' + to, {credentials:'include'});
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const buf = await r.arrayBuffer();
+                const lines = _decodeSimxHistory(buf, sensorIdx);
+                if (lines.length === 0) {
+                    showToast(window.t('exp_empty', 'No data in this range.'), 'warn');
+                } else {
                     const csv = '﻿' + 'timestamp_iso,sensor_id,sensor_name,value,unit\n' + lines.join('\n') + '\n';
                     const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
                     const a = document.createElement('a');
                     a.href = URL.createObjectURL(blob);
-                    const sufx = (sensorIdx === 'all') ? '' : ('_s' + sensorIdx);
-                    a.download = `simut_history${sufx}_${m.label}.csv`;
+                    const sufx = (sensorIdx === '-1') ? '_all' : ('_s' + sensorIdx);
+                    const dt = new Date(from * 1000);
+                    const stamp = dt.getFullYear() + String(dt.getMonth()+1).padStart(2,'0') + String(dt.getDate()).padStart(2,'0');
+                    a.download = 'simut_history' + sufx + '_' + stamp + '.csv';
                     document.body.appendChild(a); a.click();
-                    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+                    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 100);
+                    showToast(lines.length + ' ' + window.t('exp_rows','rows'), 'ok');
                 }
-                setStatus('exp_done', `Done — ${totalLines} rows in ${months.length} file(s)`, 'ok');
-                stat.textContent = `${window.t('exp_done','Done')} — ${totalLines} ${window.t('exp_rows','rows in')} ${months.length} ${window.t('exp_files','file(s)')}`;
             } catch (e) {
                 const msg = String(e.message || e);
-                if (msg.includes('CRC')) setStatus('exp_err_crc', 'Integrity check failed — try again', 'err');
-                else setStatus('exp_err_net', 'Network error: ' + msg, 'err');
+                if (msg.indexOf('CRC') >= 0) showToast(window.t('exp_err_crc','Integrity check failed.'), 'err');
+                else showToast(window.t('exp_err_net','Network error.') + ' ' + msg, 'err');
             } finally {
-                btn.disabled = false;
+                btn.disabled = false; btn.innerHTML = orig;
             }
         }
-        /* =================================================================== */
 
-        document.addEventListener('DOMContentLoaded', () => { initSession(); loadAvailableDays(); populateSensorDropdown(); loadGraphRange(3); setTimeout(_expFillSensorDropdown, 600); });
+        /* Exporta o que esta visivel na lista de eventos (parsedLogRows
+         * com filtros do filterLogs replicados). Sem fetch novo. */
+        function exportLogsCsv() {
+            if (!parsedLogRows || parsedLogRows.length === 0) {
+                showToast(window.t('exp_logs_empty', "Click 'Load' first."), 'warn'); return;
+            }
+            const showInf = document.getElementById('chkInf').checked;
+            const showWrn = document.getElementById('chkWrn').checked;
+            const showErr = document.getElementById('chkErr').checked;
+            const search = document.getElementById('logSearch').value.toLowerCase();
+            const lines = [];
+            for (const r of parsedLogRows) {
+                let lvlOk = false;
+                if (r.lvl <= 1 && showInf) lvlOk = true;
+                if (r.lvl === 2 && showWrn) lvlOk = true;
+                if (r.lvl >= 3 && showErr) lvlOk = true;
+                if (!lvlOk) continue;
+                if (search.length > 0) {
+                    const hay = (r.dateStr + ' ' + r.upStr + ' ' + r.lvlLabel + ' ' + r.tag + ' ' + r.desc).toLowerCase();
+                    if (hay.indexOf(search) < 0) continue;
+                }
+                const iso = (r.epoch && r.epoch > 0) ? _isoLocal(r.epoch) : r.dateStr;
+                const msgRaw = (typeof evtName === 'function') ? evtName(r.code) : ('Event #' + r.code);
+                const msgEsc = msgRaw.replace(/"/g, '""');
+                lines.push(iso + ',' + r.lvlLabel + ',' + r.tag + ',' + r.code + ',"' + msgEsc + '",' + r.ctx + ',' + r.upHr);
+            }
+            if (lines.length === 0) { showToast(window.t('exp_empty','No data in this range.'), 'warn'); return; }
+            const csv = '﻿' + 'timestamp_iso,level,module,code,message,context,uptime_hr\n' + lines.join('\n') + '\n';
+            const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            const stamp = new Date().toISOString().slice(0,10).replace(/-/g,'');
+            a.download = 'simut_logs_' + stamp + '.csv';
+            document.body.appendChild(a); a.click();
+            setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 100);
+            showToast(lines.length + ' ' + window.t('exp_rows','rows'), 'ok');
+        }
+
+        /* ===================================================================== */
+
+        document.addEventListener('DOMContentLoaded', () => { initSession(); loadAvailableDays(); populateSensorDropdown(); loadGraphRange(3); });
     </script>
 </body>
 </html>
