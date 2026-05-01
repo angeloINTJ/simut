@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.5" /* F-CSV.3: GET /api/export/logs.bin?from=&to=&level=err|inf|all emite bundle .simx kind='L' (HEADER 32B + sensorTblSize=0 + N x CompactLogRecord 12B + CRC32 trailer). Cap hard 31 dias. Filtro server-side por epoch + level (rec->getLevel()). Itera /system.old.blog + /system.blog. Auth via PERM_LOGS. _inExportLogsHandler atomic guard separado (permite history+logs export concorrentes). Reusa SimxHeader/SIMX_MAX_RANGE_SECS do namespace anonimo de F-CSV.2. */
+#define SIMUT_VERSION "v3.27.6" /* F-CSV.4: UI export historico em /history apos #chartContainer. Card com 2 pickers date+time + dropdown sensor (Todos | sensor unico) + botao "Exportar CSV". JS: mini lib CRC32-IEEE com tabela 256 (compativel com firmware crc32_*); divisao do range em meses calendar via _iterMonths(); fetch sequencial /api/export/history.bin?from=&to=; valida magic SIMX, version, kind=H, recordSize=28, CRC32 trailer; decodifica .simx + sensor_table + payload; gera CSV (BOM UTF-8, ISO-8601 com tz local, colunas timestamp_iso/sensor_id/sensor_name/value/unit); trigger download Blob. Nome: simut_history_<YYYY-MM>.csv (com sufixo _sN se sensor unico). i18n keys: exp_hist_title, exp_from, exp_to, exp_sensor, exp_all, exp_btn, exp_idle, exp_fetching, exp_validating, exp_done, exp_err_*. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

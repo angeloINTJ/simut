@@ -742,6 +742,16 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .progress-fill { height:100%; width:0%; background: linear-gradient(90deg, var(--acc), #22d3ee); transition: width 0.3s; }
         @keyframes pulse-bg { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
         .pulse { animation: pulse-bg 1.5s infinite; }
+        /* F-CSV.4/5: card de export — alinhado com .log-header */
+        .exp-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+        .exp-row > div { display: flex; flex-direction: column; gap: 4px; }
+        .exp-row label { color: var(--sub); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+        .exp-row input, .exp-row select { padding: 8px 12px; background: #000; color: var(--txt); border: 1px solid var(--border); border-radius: 6px; outline: none; font-size: 0.9rem; }
+        .exp-row input:focus, .exp-row select:focus { border-color: var(--acc); }
+        .exp-btn { padding: 10px 20px; margin-top: 14px; background: var(--acc); color: #000; border: none; border-radius: 8px; cursor: pointer; font-size: 0.95rem; font-weight: 700; }
+        .exp-btn:disabled { opacity: 0.5; cursor: wait; }
+        .exp-status { margin-top: 10px; font-size: 0.85rem; color: var(--sub); }
+        @media(max-width: 600px) { .exp-row > div { flex: 1 1 100%; } .exp-row input, .exp-row select { width: 100%; box-sizing: border-box; } }
         #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
         #net-toast.show { transform:translateY(0);opacity:1; }
         #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
@@ -866,6 +876,24 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="card" style="margin-top: 20px;">
+            <h2 class="page-title" data-i18n="exp_hist_title">Export Sensor History (CSV)</h2>
+            <div class="exp-row">
+                <div><label data-i18n="exp_from">From</label>
+                    <input type="date" id="exp_h_d1" style="color-scheme:light dark"></div>
+                <div><label>&nbsp;</label>
+                    <input type="time" id="exp_h_t1" step="60" style="color-scheme:light dark"></div>
+                <div><label data-i18n="exp_to">To</label>
+                    <input type="date" id="exp_h_d2" style="color-scheme:light dark"></div>
+                <div><label>&nbsp;</label>
+                    <input type="time" id="exp_h_t2" step="60" style="color-scheme:light dark"></div>
+                <div><label data-i18n="exp_sensor">Sensor</label>
+                    <select id="exp_h_sel"><option value="all" data-i18n="exp_all">All</option></select></div>
+            </div>
+            <button type="button" onclick="exportHistoryCsv()" id="btnExpHist" class="exp-btn" data-i18n="exp_btn">Export CSV</button>
+            <div id="exp_h_status" class="exp-status" data-i18n="exp_idle">Pick a range and click Export.</div>
         </div>
 
         <div class="card" style="margin-top: 20px;">
@@ -1134,7 +1162,183 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
         }
 
-        document.addEventListener('DOMContentLoaded', () => { initSession(); loadAvailableDays(); populateSensorDropdown(); loadGraphRange(3); });
+        /* ===================== F-CSV.4 export histórico ===================== */
+        /* Mini CRC32-IEEE com tabela 256 (gerada uma vez). Compatível com
+         * crc32_init/update/final do firmware (poly reverso 0xEDB88320). */
+        const _crcTab = (() => { const t = new Uint32Array(256);
+            for (let i=0;i<256;i++){let c=i; for(let j=0;j<8;j++) c=(c&1)?((c>>>1)^0xEDB88320):(c>>>1); t[i]=c>>>0;} return t; })();
+        function crc32(u8) { let c = 0xFFFFFFFF >>> 0;
+            for (let i=0;i<u8.length;i++) c = (_crcTab[(c ^ u8[i]) & 0xFF] ^ (c >>> 8)) >>> 0;
+            return (~c) >>> 0; }
+
+        function _expFillSensorDropdown() {
+            const src = document.getElementById('sensorSel');
+            const dst = document.getElementById('exp_h_sel');
+            if (!src || !dst) return;
+            /* preserva opção "all" */
+            while (dst.options.length > 1) dst.remove(1);
+            for (const o of src.options) {
+                if (o.value === '-1' || o.value === 'all') continue;
+                const opt = document.createElement('option');
+                opt.value = o.value; opt.textContent = o.textContent;
+                dst.appendChild(opt);
+            }
+        }
+
+        function _isoLocal(epoch) {
+            const d = new Date(epoch * 1000);
+            const tz = -d.getTimezoneOffset();
+            const sgn = tz >= 0 ? '+' : '-';
+            const tzh = String(Math.floor(Math.abs(tz)/60)).padStart(2,'0');
+            const tzm = String(Math.abs(tz)%60).padStart(2,'0');
+            const p = n => String(n).padStart(2,'0');
+            return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) +
+                   'T' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds()) +
+                   sgn + tzh + ':' + tzm;
+        }
+
+        /* Itera meses calendar entre two epochs. cb(monthStart, monthEnd, label) */
+        function _iterMonths(from, to, cb) {
+            const start = new Date(from * 1000);
+            const cur = new Date(start.getFullYear(), start.getMonth(), 1, 0, 0, 0);
+            const end = new Date(to * 1000);
+            while (cur.getTime() <= end.getTime()) {
+                const next = new Date(cur.getFullYear(), cur.getMonth()+1, 1, 0, 0, 0);
+                const mFrom = Math.max(from, Math.floor(cur.getTime()/1000));
+                const mTo   = Math.min(to,   Math.floor(next.getTime()/1000) - 1);
+                const label = cur.getFullYear() + '-' + String(cur.getMonth()+1).padStart(2,'0');
+                cb(mFrom, mTo, label);
+                cur.setTime(next.getTime());
+            }
+        }
+
+        function _readUtf8(u8, off, len) {
+            try { return new TextDecoder('utf-8', {fatal:false}).decode(u8.subarray(off, off+len)); }
+            catch(e) { let s=''; for(let i=0;i<len;i++) s+=String.fromCharCode(u8[off+i]); return s; }
+        }
+
+        /* Decoder .simx kind='H' -> array de linhas CSV (sem header).
+         * Filtra por sensor selecionado (sensorIdx == 'all' ou string com idx). */
+        function _decodeSimxHistory(buf, filterIdx) {
+            const u8 = new Uint8Array(buf);
+            if (u8.length < 36) throw new Error('blob too small');
+            const dv = new DataView(buf);
+            const magic = String.fromCharCode(u8[0],u8[1],u8[2],u8[3]);
+            if (magic !== 'SIMX') throw new Error('bad magic');
+            if (u8[4] !== 1) throw new Error('bad version');
+            if (u8[5] !== 0x48 /*'H'*/) throw new Error('bad kind');
+            const recSize = dv.getUint16(8, true);
+            if (recSize !== 28) throw new Error('bad recordSize');
+            const tblSize = dv.getUint32(20, true);
+            /* CRC32: ultimos 4 bytes vs computado */
+            const crcExp = dv.getUint32(u8.length - 4, true);
+            const crcCalc = crc32(u8.subarray(0, u8.length - 4));
+            if (crcExp !== crcCalc) throw new Error('CRC32 mismatch');
+
+            /* Parse SENSOR_TABLE -> map idx -> {hwId, friendly} */
+            const sensors = {};
+            let off = 32, end = 32 + tblSize;
+            while (off < end) {
+                const idx = u8[off++]; const hwLen = u8[off++];
+                const hwId = _readUtf8(u8, off, hwLen); off += hwLen;
+                const frLen = u8[off++];
+                const friendly = _readUtf8(u8, off, frLen); off += frLen;
+                sensors[idx] = { hwId, friendly };
+            }
+
+            /* Itera PAYLOAD: N x BinaryHistoryRecord (28B):
+             *   epoch u32 + ambientTemp i16 + ambientHum i16 + sensors[10] i16. */
+            const payStart = 32 + tblSize;
+            const payEnd = u8.length - 4;
+            const lines = [];
+            const NAN_S = -32768;
+            const wantAll = (filterIdx === 'all');
+            const wantIdx = wantAll ? -1 : parseInt(filterIdx, 10);
+            for (let p = payStart; p < payEnd; p += 28) {
+                const epoch = dv.getUint32(p, true);
+                const iso = _isoLocal(epoch);
+                /* ambient (idx 0xFE = 254) */
+                if (wantAll || wantIdx === -1) {
+                    const aT = dv.getInt16(p+4, true);
+                    const aH = dv.getInt16(p+6, true);
+                    const ambSensor = sensors[254];
+                    if (ambSensor && aT !== NAN_S) {
+                        lines.push(`${iso},${ambSensor.hwId},"${ambSensor.friendly}",${(aT/100).toFixed(2)},°C`);
+                    }
+                    if (ambSensor && aH !== NAN_S) {
+                        lines.push(`${iso},${ambSensor.hwId},"${ambSensor.friendly}",${(aH/100).toFixed(2)},%RH`);
+                    }
+                }
+                /* sensores 0..9 em offsets 8,10,...,26 */
+                for (let i = 0; i < 10; i++) {
+                    if (!wantAll && wantIdx !== i) continue;
+                    const v = dv.getInt16(p + 8 + i*2, true);
+                    if (v === NAN_S) continue;
+                    const s = sensors[i];
+                    if (!s) continue;
+                    lines.push(`${iso},${s.hwId},"${s.friendly}",${(v/100).toFixed(2)},°C`);
+                }
+            }
+            return lines;
+        }
+
+        async function exportHistoryCsv() {
+            const btn = document.getElementById('btnExpHist');
+            const stat = document.getElementById('exp_h_status');
+            const setStatus = (k, fallback, cls) => {
+                stat.textContent = window.t(k, fallback);
+                stat.style.color = cls === 'err' ? 'var(--dang)' : (cls === 'ok' ? '#22c55e' : 'var(--sub)');
+            };
+            const d1 = document.getElementById('exp_h_d1').value;
+            const t1 = document.getElementById('exp_h_t1').value || '00:00';
+            const d2 = document.getElementById('exp_h_d2').value;
+            const t2 = document.getElementById('exp_h_t2').value || '23:59';
+            if (!d1 || !d2) { setStatus('exp_err_range', 'Invalid range', 'err'); return; }
+            const from = Math.floor(new Date(d1 + 'T' + t1).getTime() / 1000);
+            const to   = Math.floor(new Date(d2 + 'T' + t2).getTime() / 1000);
+            if (!(from > 0 && to > from)) { setStatus('exp_err_range', 'Invalid range', 'err'); return; }
+            const sensorIdx = document.getElementById('exp_h_sel').value;
+
+            btn.disabled = true;
+            try {
+                const months = [];
+                _iterMonths(from, to, (mF, mT, label) => months.push({mF,mT,label}));
+                let totalLines = 0;
+                for (let i = 0; i < months.length; i++) {
+                    const m = months[i];
+                    setStatus('exp_fetching', `Fetching ${m.label} (${i+1}/${months.length})...`, '');
+                    stat.textContent = `${window.t('exp_fetching','Fetching')} ${m.label} (${i+1}/${months.length})...`;
+                    const r = await fetch(`/api/export/history.bin?from=${m.mF}&to=${m.mT}`, {credentials:'include'});
+                    if (!r.ok) throw new Error('HTTP ' + r.status);
+                    const buf = await r.arrayBuffer();
+                    setStatus('exp_validating', 'Validating integrity...', '');
+                    stat.textContent = `${window.t('exp_validating','Validating integrity...')}`;
+                    const lines = _decodeSimxHistory(buf, sensorIdx);
+                    totalLines += lines.length;
+                    if (lines.length === 0) continue;
+                    /* Monta CSV: BOM UTF-8 + header + lines */
+                    const csv = '﻿' + 'timestamp_iso,sensor_id,sensor_name,value,unit\n' + lines.join('\n') + '\n';
+                    const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    const sufx = (sensorIdx === 'all') ? '' : ('_s' + sensorIdx);
+                    a.download = `simut_history${sufx}_${m.label}.csv`;
+                    document.body.appendChild(a); a.click();
+                    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 100);
+                }
+                setStatus('exp_done', `Done — ${totalLines} rows in ${months.length} file(s)`, 'ok');
+                stat.textContent = `${window.t('exp_done','Done')} — ${totalLines} ${window.t('exp_rows','rows in')} ${months.length} ${window.t('exp_files','file(s)')}`;
+            } catch (e) {
+                const msg = String(e.message || e);
+                if (msg.includes('CRC')) setStatus('exp_err_crc', 'Integrity check failed — try again', 'err');
+                else setStatus('exp_err_net', 'Network error: ' + msg, 'err');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+        /* =================================================================== */
+
+        document.addEventListener('DOMContentLoaded', () => { initSession(); loadAvailableDays(); populateSensorDropdown(); loadGraphRange(3); setTimeout(_expFillSensorDropdown, 600); });
     </script>
 </body>
 </html>
