@@ -125,6 +125,7 @@ private:
     volatile bool _isProcessingScreenshot = false;
     volatile bool _cancelScreenshot = false;
     volatile bool _inHistoryHandler = false;
+    volatile bool _inExportLogsHandler = false;  /**< F-CSV.3: guard separado para /api/export/logs.bin */
 
 
     inline bool isClientGone() {
@@ -228,6 +229,7 @@ private:
     void handleApiStatus();
     void handleApiHistoryData();
     void handleApiExportHistory();  /**< F-CSV.2: export history como bundle .simx (CRC32 trailer). */
+    void handleApiExportLogs();     /**< F-CSV.3: export logs como bundle .simx kind='L' (CRC32 trailer). */
     void handleApiLogs();
     void handleApiClearLogs();
     void handleApiLang();   /**< F-LANGPACK β: serve @WEBDICT do .lng como JSON */

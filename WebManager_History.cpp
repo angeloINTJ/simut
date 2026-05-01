@@ -552,6 +552,144 @@ void WebManager::handleApiExportHistory() {
     __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
 }
 
+/* =========================================================================== */
+/*    F-CSV.3: GET /api/export/logs.bin?from=<epoch>&to=<epoch>&level=...      */
+/* =========================================================================== */
+/* Emite bundle .simx kind='L' (CRC32 trailer). PAYLOAD = N x CompactLogRecord
+ * (12 B packed) cru, igual ao /api/logs existente, mas filtrado por epoch e
+ * level. Cap hard 31 dias. SENSOR_TABLE vazia (sensorTableSize=0).
+ *
+ *   level=err -> so' LOG_ERROR (3)
+ *   level=inf -> so' LOG_INFO  (1)
+ *   level=all -> tudo (default)
+ *
+ * Cliente decodifica records, faz lookup `code` -> texto via /api/lang e
+ * gera CSV no browser.
+ */
+void WebManager::handleApiExportLogs() {
+    uint16_t perms = getAuthPerms();
+    if (!(perms & PERM_LOGS)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+
+    if (!_server.hasArg("from") || !_server.hasArg("to")) {
+        _server.send(400, "application/json", "{\"error\":\"Missing from/to params\"}"); return;
+    }
+    uint32_t rangeFrom = (uint32_t)strtoul(_server.arg("from").c_str(), nullptr, 10);
+    uint32_t rangeTo   = (uint32_t)strtoul(_server.arg("to").c_str(),   nullptr, 10);
+    if (rangeFrom == 0 || rangeTo == 0 || rangeFrom >= rangeTo) {
+        _server.send(400, "application/json", "{\"error\":\"Invalid range\"}"); return;
+    }
+    if (rangeTo - rangeFrom > SIMX_MAX_RANGE_SECS) {
+        _server.send(400, "application/json", "{\"error\":\"Range exceeds 31 days\"}"); return;
+    }
+
+    /* Filtro de level: 0 = all, 1 = INFO only, 3 = ERROR only.
+     * Mantemos o codigo numerico do LogLevel para comparacao direta. */
+    String levelArg = _server.hasArg("level") ? _server.arg("level") : "all";
+    uint8_t levelFilter = 0xFF;  /* 0xFF = sem filtro */
+    if      (levelArg == "err") levelFilter = LOG_ERROR;
+    else if (levelArg == "inf") levelFilter = LOG_INFO;
+    else if (levelArg != "all") {
+        _server.send(400, "application/json", "{\"error\":\"Invalid level (use err|inf|all)\"}"); return;
+    }
+
+    if (TouchPriority::isActive()) {
+        _server.sendHeader("Retry-After", "3");
+        _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}"); return;
+    }
+    if (__atomic_exchange_n(&_inExportLogsHandler, true, __ATOMIC_ACQ_REL)) {
+        _server.send(503, "application/json", "{\"error\":\"Already processing\"}"); return;
+    }
+    HeavyTaskGuard htg(_storageRef);
+    if (!htg.isLocked()) {
+        __atomic_store_n(&_inExportLogsHandler, false, __ATOMIC_RELEASE);
+        _server.send(503, "application/json", "{\"error\":\"System Busy.\"}"); return;
+    }
+
+    uint32_t savedDeadline = _handlerDeadline;
+    _handlerDeadline = millis() + WEB_LONG_HANDLER_DEADLINE_MS;
+    if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str());
+
+    /* Acumulador de CRC32 streaming (cobre HEADER + PAYLOAD; sensorTblSize = 0). */
+    uint32_t crc = crc32_init();
+
+    _server.sendHeader("Content-Disposition", "attachment; filename=\"simut_logs.simx\"");
+    _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    _server.send(200, "application/octet-stream", "");
+
+    /* Emite HEADER */
+    SimxHeader hdr = {};
+    memcpy(hdr.magic, "SIMX", 4);
+    hdr.version = 0x01;
+    hdr.kind = 'L';
+    hdr.recordSize = (uint16_t)LOG_RECORD_SIZE;  /* 12 */
+    hdr.rangeFrom = rangeFrom;
+    hdr.rangeTo = rangeTo;
+    hdr.sensorTableSize = 0;
+    crc = crc32_update(crc, (const uint8_t*)&hdr, sizeof(hdr));
+    safeSend((const char*)&hdr, sizeof(hdr));
+
+    /* Itera /system.old.blog primeiro (mais antigo) depois /system.blog */
+    bool aborted = false;
+    auto streamFiltered = [&](const char* path) -> bool {
+        File f;
+        {
+            ReadGuard rg(_storageRef);
+            if (!LittleFS.exists(path)) return true;
+            f = LittleFS.open(path, "r");
+        }
+        if (!f) return true;
+
+        uint8_t batch[480];  /* 40 records x 12B */
+        while (f.available() >= LOG_RECORD_SIZE && !aborted) {
+            if (isClientGone() || isHandlerOvertime()) {
+                LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_HISTORY, 0, "");
+                aborted = true; break;
+            }
+
+            int bytesRead = 0;
+            {
+                ReadGuard rg(_storageRef);
+                while (f.available() >= LOG_RECORD_SIZE &&
+                       bytesRead + LOG_RECORD_SIZE <= (int)sizeof(batch)) {
+                    if (f.read(batch + bytesRead, LOG_RECORD_SIZE) == LOG_RECORD_SIZE) {
+                        bytesRead += LOG_RECORD_SIZE;
+                    }
+                }
+            }
+
+            for (int off = 0; off < bytesRead && !aborted; off += LOG_RECORD_SIZE) {
+                const CompactLogRecord* rec = (const CompactLogRecord*)(batch + off);
+                if (rec->epoch < rangeFrom || rec->epoch > rangeTo) continue;
+                if (levelFilter != 0xFF && rec->getLevel() != levelFilter) continue;
+
+                crc = crc32_update(crc, (const uint8_t*)rec, LOG_RECORD_SIZE);
+                if (!safeSend((const char*)rec, LOG_RECORD_SIZE)) { aborted = true; break; }
+            }
+
+            if (_lightYieldCb) _lightYieldCb();
+            delay(2);
+            watchdog_update();
+        }
+        { ReadGuard rg(_storageRef); f.close(); }
+        return !aborted;
+    };
+
+    if (streamFiltered(LOG_FILE_OLD)) {
+        streamFiltered(LOG_FILE_CURRENT);
+    }
+
+    /* TRAILER: CRC32 final */
+    if (!aborted) {
+        uint32_t crcFinal = crc32_final(crc);
+        safeSend((const char*)&crcFinal, sizeof(crcFinal));
+        safeSend("");
+    }
+
+    _handlerDeadline = savedDeadline;
+    if (_displayRef) _displayRef->setWebBusy(false);
+    __atomic_store_n(&_inExportLogsHandler, false, __ATOMIC_RELEASE);
+}
+
 void WebManager::handleApiLogs() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_LOGS)) { _server.send(403, "text/plain", "Forbidden"); return; }
