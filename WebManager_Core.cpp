@@ -96,6 +96,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     /* U24 Phase B: user_add/del/rst substituidos por /api/commit_all */
     _server.on("/api/history", HTTP_GET, std::bind(&WebManager::handleApiHistoryData, this));
     _server.on("/api/history_days", HTTP_GET, std::bind(&WebManager::handleApiHistoryDays, this));
+    _server.on("/api/export/history.bin", HTTP_GET, std::bind(&WebManager::handleApiExportHistory, this));  /* F-CSV.2 */
     _server.on("/api/logs", HTTP_GET, std::bind(&WebManager::handleApiLogs, this));
     _server.on("/api/clear_logs", HTTP_POST, std::bind(&WebManager::handleApiClearLogs, this));
     _server.on("/api/screenshot", HTTP_GET, std::bind(&WebManager::handleApiScreenshot, this));
