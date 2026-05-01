@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.2" /* Docs: README rescrito refletindo features ate v3.27.x (F-LANGPACK, custom themes .thm, dashboard live metrics, self-service chpass, intervalo historico configuravel, codec v2, F15 hash hardening, F17 file split, autopsy WDT, safeReboot); sem mudanca de codigo */
+#define SIMUT_VERSION "v3.27.3" /* F-CSV.1: helper CRC32-IEEE incremental (init/update/final) em SystemUtils.cpp para streaming de export bundles. Forward decls em SystemDefs_Records.h. Mesma matematica de StorageManager::calculateCRC32 (poly 0xEDB88320). Pre-req de F-CSV.2/3. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

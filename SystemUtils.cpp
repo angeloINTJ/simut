@@ -1,7 +1,8 @@
 /**
  * @file    SystemUtils.cpp
  * @brief   Shared utility functions used across multiple modules.
- * @details Implements CRC8 Dallas/Maxim for 1-Wire ROM validation and
+ * @details Implements CRC8 Dallas/Maxim for 1-Wire ROM validation,
+ * CRC32-IEEE-802.3 incremental for streaming export bundles, and
  * history filename format validation (YYYYMMDD.bin).
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal de Temperatura
@@ -32,6 +33,34 @@ uint8_t dallasCrc8(const uint8_t *addr, uint8_t len) {
         }
     }
     return crc;
+}
+
+
+/* =========================================================================== */
+/*                   CRC32-IEEE-802.3 INCREMENTAL (F-CSV-EXPORT)             */
+/* =========================================================================== */
+/* Bitwise (sem tabela) — economiza 1 KB de flash. RP2040 a 133 MHz processa
+ * ~250 KB em ~120 ms; aceitável para o caminho de export. Polinômio reverso
+ * 0xEDB88320, mesma matemática do StorageManager::calculateCRC32. Vetor de
+ * referência: crc32("123456789") == 0xCBF43926.
+ */
+uint32_t crc32_init() {
+    return 0xFFFFFFFFu;
+}
+
+uint32_t crc32_update(uint32_t crc, const uint8_t* data, size_t len) {
+    for (size_t i = 0; i < len; i++) {
+        crc ^= data[i];
+        for (int j = 0; j < 8; j++) {
+            if (crc & 1u) crc = (crc >> 1) ^ 0xEDB88320u;
+            else          crc >>= 1;
+        }
+    }
+    return crc;
+}
+
+uint32_t crc32_final(uint32_t crc) {
+    return ~crc;
 }
 
 

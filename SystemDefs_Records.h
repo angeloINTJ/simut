@@ -322,8 +322,20 @@ static_assert(sizeof(HistoryConfigData) == 4, "HistoryConfigData deve ter 4 byte
 uint8_t dallasCrc8(const uint8_t *addr, uint8_t len);
 
 
-/** Validate history filename format (YYYYMMDD.csv, 12 chars). */
+/** Validate history filename format (YYYYMMDD.bin, 12 chars). */
 bool isValidHistoryFileName(const char* name);
+
+/* CRC32-IEEE-802.3 incremental (poly reverso 0xEDB88320). Compatível com
+ * StorageManager::calculateCRC32 (mesma matemática) mas exposto em 3 fases
+ * para permitir streaming sem materializar o blob inteiro em RAM. Uso:
+ *   uint32_t c = crc32_init();
+ *   c = crc32_update(c, chunk1, len1);
+ *   c = crc32_update(c, chunk2, len2);
+ *   uint32_t final = crc32_final(c);
+ */
+uint32_t crc32_init();
+uint32_t crc32_update(uint32_t crc, const uint8_t* data, size_t len);
+uint32_t crc32_final(uint32_t crc);
 
 /** Result of a hardware sensor scan on a GPIO pin. */
 struct ScanResult {
