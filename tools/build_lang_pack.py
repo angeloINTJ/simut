@@ -17,7 +17,7 @@ import re
 import subprocess
 from pathlib import Path
 
-ROOT = Path("/home/angelo/Documentos/SIMUT_Versa")
+ROOT = Path("/home/angelo/Documentos/SIMUT")
 BASELINE_SHA = "130d6de"
 OUT = ROOT / "data" / "lang" / "language_pt-BR.lng"
 

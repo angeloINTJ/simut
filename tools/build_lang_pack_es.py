@@ -16,7 +16,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/angelo/Documentos/SIMUT_Versa")
+ROOT = Path("/home/angelo/Documentos/SIMUT")
 SRC = ROOT / "data" / "lang" / "language_pt-BR.lng"
 OUT = ROOT / "data" / "lang" / "language_es-ES.lng"
 

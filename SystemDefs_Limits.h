@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.0" /* Release final apos validacao da serie alpha1-6: WebUI metricas em tempo real, i18n ES, chpass self-service na login, intervalo historico configuravel, codec v2 (delta + mask + anchor) com ~45% reducao */
+#define SIMUT_VERSION "v3.27.1" /* Chore: rename do diretorio de projeto SIMUT_Versa -> SIMUT (paths em README, STABILITY_PLAN, build_lang_pack*.py); reconcilia status de F3 na tabela §5; sem mudanca funcional */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
