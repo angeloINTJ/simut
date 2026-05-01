@@ -61,9 +61,11 @@ void WebManager::handleApiHistoryData() {
      * Parâmetros: range=0..4, end=epoch (âncora), date=YYYYMMDD
      */
     time_t now = _netRef->getEpoch();
-    static const time_t rangeDuration[] = { 3600, 21600, 43200, 86400, 604800 };
-    static const int rangeDecimation[]  = { 1, 1, 2, 3, 15 };
-    static const int rangeDays[]        = { 1, 1, 1, 2, 7 };
+    /* Ranges alinhados com o display TFT (DisplayManager_Graph.cpp:516):
+     * 1h, 6h, 24h, 3d, 7d. */
+    static const time_t rangeDuration[] = { 3600, 21600, 86400, 259200, 604800 };
+    static const int rangeDecimation[]  = { 1, 1, 3, 10, 15 };
+    static const int rangeDays[]        = { 1, 1, 1, 3, 7 };
 
     time_t effectiveEnd = now;
     time_t cutoff = 0;
