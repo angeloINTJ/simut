@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.4" /* F-CSV.2: GET /api/export/history.bin?from=&to= emite bundle .simx (HEADER 32B + SENSOR_TABLE + N x BinaryHistoryRecord 28B + CRC32 trailer). Cap hard 31 dias. Auth+RBAC herdados. Iteracao day-aligned dos arquivos data/history/YYYYMMDD.bin via historyDecodeRecord(). Browser decodifica e gera CSV. Build flash 97.5% (apertado). */
+#define SIMUT_VERSION "v3.27.5" /* F-CSV.3: GET /api/export/logs.bin?from=&to=&level=err|inf|all emite bundle .simx kind='L' (HEADER 32B + sensorTblSize=0 + N x CompactLogRecord 12B + CRC32 trailer). Cap hard 31 dias. Filtro server-side por epoch + level (rec->getLevel()). Itera /system.old.blog + /system.blog. Auth via PERM_LOGS. _inExportLogsHandler atomic guard separado (permite history+logs export concorrentes). Reusa SimxHeader/SIMX_MAX_RANGE_SECS do namespace anonimo de F-CSV.2. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
