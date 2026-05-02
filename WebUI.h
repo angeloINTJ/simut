@@ -712,11 +712,14 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .chart-box { position: relative; height: 45vh; min-height: 280px; width: 100%; resize: vertical; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
         .chart-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(9,9,11,0.85); z-index: 5; transition: opacity 0.3s; pointer-events: none; }
         .chart-overlay.hidden { opacity: 0; }
-        .bottom-controls { display: flex; justify-content: center; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
-        .bottom-controls button { background: var(--bg); color: var(--txt); border: 1px solid var(--border); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight:600;}
-        .bottom-controls button.active { background: var(--acc); color: #000; border-color: var(--acc); }
-        /* O dropdown de range usa o helper global _makeCustomSelect (.csel)
-         * — sem CSS local pra economizar flash. */
+        .bottom-controls { display: flex; justify-content: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
+        /* Padronizado: todos os 5 controles tem mesma largura (72px) e altura (38px),
+         * texto centralizado, sem mudancas de tamanho/forma entre estados. */
+        .bottom-controls > button, .bottom-controls > .csel { width: 72px; height: 38px; box-sizing: border-box; flex-shrink: 0; }
+        .bottom-controls > button { background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+        .bottom-controls > button.active { background: var(--acc); color: #000; border-color: var(--acc); }
+        .bottom-controls > .csel .csel-btn { width: 100%; height: 100%; text-align: center; padding: 0; font-weight: 600; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; }
+        .bottom-controls > .csel .csel-arr { display: none; }
         .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
         .log-header input { padding: 8px 12px; background: #000; color: var(--txt); border: 1px solid var(--border); border-radius: 6px; min-width: 200px; outline: none;}
         .log-header input:focus { border-color: var(--acc); }
@@ -857,7 +860,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <canvas id="myChart"></canvas>
                     </div>
                     <div class="bottom-controls">
-                        <button onclick="navGraph(-1)" id="btnPrev" title="Anterior" style="font-size:1.1rem;">◀</button>
+                        <button onclick="navGraph(-1)" id="btnPrev" title="Anterior">◀</button>
                         <select id="rangeSel" title="Intervalo" onchange="loadGraphRange(parseInt(this.value,10))">
                             <option value="0">1h</option>
                             <option value="1">6h</option>
@@ -867,7 +870,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="5">1A</option>
                             <option value="6">MAX</option>
                         </select>
-                        <button onclick="navGraph(+1)" id="btnNext" title="Próximo" style="font-size:1.1rem;">▶</button>
+                        <button onclick="navGraph(+1)" id="btnNext" title="Próximo">▶</button>
                         <button onclick="exportHistoryCsv()" id="btnExpHist" title="Export CSV">⤓ CSV</button>
                     </div>
                 </div>
@@ -1581,6 +1584,11 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             _showExpProgress({ pct: 0, ok: 0, fail: 0, chunkSecs: EXP_CHUNK_INITIAL, etaMs: -1 });
             _setGraphControlsEnabled(false);
 
+            /* Wrapper try/finally para garantir que controles SEMPRE voltam
+             * a ser enabled mesmo em exceção inesperada (ex: decode lança,
+             * fetch lança fora do retry, etc). */
+            try {
+
             /* Calibra chunk inicial pelo heap_lb do servidor */
             let chunkSecs = EXP_CHUNK_INITIAL;
             try {
@@ -1680,10 +1688,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (!_expCancelled) await new Promise(r => setTimeout(r, 50));
             }
 
-            _hideExpProgress();
-            _setGraphControlsEnabled(true);
-            btn.disabled = false; btn.innerHTML = orig;
-
             if (allLines.length === 0) {
                 if (_expCancelled) showToast(window.t('exp_cancelled','Cancelado.'), 'warn');
                 else showToast(window.t('exp_empty','No data recovered.'), 'err');
@@ -1707,6 +1711,13 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const summ = tag + allLines.length + ' linhas' + (failChunks > 0 ? ' (' + failChunks + ' chunks falhos)' : '');
             showToast(summ, stat);
             if (failChunks > 0) console.warn('Chunks falhos:', failedRanges);
+
+            } finally {
+                /* Garante que controles voltam mesmo em exceção fatal */
+                _hideExpProgress();
+                _setGraphControlsEnabled(true);
+                btn.disabled = false; btn.innerHTML = orig;
+            }
         }
 
         /* Exporta o que esta visivel na lista de eventos (parsedLogRows
@@ -4538,12 +4549,14 @@ static const char LANG_JS[] PROGMEM = R"raw(
     };
 
     /* CSS global: dropdown custom + toggle switch + sem spinners em number */
-    (function(){const c='.csel{position:relative;display:inline-block;vertical-align:middle}.csel-btn{background:var(--bg);color:var(--txt);border:1px solid var(--border);padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem;outline:none;width:100%;text-align:left;box-sizing:border-box;font-weight:500}.csel-btn:hover{border-color:var(--acc)}.csel-btn .csel-arr{float:right;opacity:0.7}.csel-menu{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:6px;max-height:260px;overflow-y:auto;z-index:300;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,0.5)}.csel-menu.up{top:auto;bottom:calc(100% + 4px)}.csel-item{padding:8px 12px;color:var(--txt);cursor:pointer;font-size:0.85rem;border-radius:4px}.csel-item:hover{background:var(--bg)}.csel-item.active{background:var(--acc);color:#000;font-weight:700}'
+    (function(){const c='.csel{position:relative;display:inline-block;vertical-align:middle}.csel-btn{background:var(--bg);color:var(--txt);border:1px solid var(--border);padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem;outline:none;width:100%;text-align:left;box-sizing:border-box;font-weight:500}.csel-btn:hover{border-color:var(--acc)}.csel-btn .csel-arr{float:right;opacity:0.7}.csel-menu{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:6px;max-height:260px;overflow-y:auto;z-index:9999;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,0.5)}.csel-item{padding:8px 12px;color:var(--txt);cursor:pointer;font-size:0.85rem;border-radius:4px}.csel-item:hover{background:var(--bg)}.csel-item.active{background:var(--acc);color:#000;font-weight:700}'
       + '.toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}.toggle input{opacity:0;width:0;height:0}.toggle .slider{position:absolute;cursor:pointer;inset:0;background:#3f3f46;border-radius:24px;transition:.3s}.toggle .slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}.toggle input:checked+.slider{background:var(--acc)}.toggle input:checked+.slider:before{transform:translateX(20px)}'
       + 'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield;appearance:textfield}';const s=document.createElement('style');s.textContent=c;document.head.appendChild(s);})();
     document.addEventListener('click',e=>{if(!e.target.closest('.csel'))document.querySelectorAll('.csel-menu').forEach(m=>m.style.display='none');});
-    window._cselSync=function(sel){const w=sel._cw;if(!w)return;const m=w.querySelector('.csel-menu'),b=w.querySelector('.csel-btn');m.innerHTML='';let lbl='';Array.from(sel.options).forEach(o=>{const i=document.createElement('div');i.className='csel-item'+(o.selected?' active':'');i.textContent=o.text;i.onclick=()=>{if(sel.disabled)return;sel.value=o.value;m.querySelectorAll('.csel-item').forEach(x=>x.classList.remove('active'));i.classList.add('active');b.firstChild.textContent=o.text;m.style.display='none';sel.dispatchEvent(new Event('change',{bubbles:true}));};m.appendChild(i);if(o.selected)lbl=o.text;});if(!lbl&&sel.options.length)lbl=sel.options[0].text;b.firstChild.textContent=lbl;};
-    window._makeCustomSelect=function(sel){if(!sel||sel.dataset.cd==='1'||sel.multiple)return;sel.dataset.cd='1';const w=document.createElement('div');w.className='csel'+(sel.classList.contains('mel-sel')?' csel-mel':'');const b=document.createElement('button');b.type='button';b.className='csel-btn';const ln=document.createTextNode(''),an=document.createElement('span');an.className='csel-arr';an.textContent='▾';b.appendChild(ln);b.appendChild(an);const m=document.createElement('div');m.className='csel-menu';m.style.display='none';b.onclick=ev=>{ev.stopPropagation();if(sel.disabled||b.disabled)return;const op=m.style.display==='block';document.querySelectorAll('.csel-menu').forEach(x=>{if(x!==m)x.style.display='none';});if(op){m.style.display='none';return;}m.style.display='block';const r=b.getBoundingClientRect();m.classList.toggle('up',(window.innerHeight-r.bottom)<200&&r.top>(window.innerHeight-r.bottom));};sel._cw=w;sel.parentNode.insertBefore(w,sel);w.appendChild(b);w.appendChild(m);w.appendChild(sel);sel.style.display='none';_cselSync(sel);const d=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value');if(d&&d.set)Object.defineProperty(sel,'value',{get(){return d.get.call(this);},set(v){d.set.call(this,v);_cselSync(this);}});};
+    /* Setter prototypal capturado UMA vez — bypass do override para uso interno */
+    const _selProtoValSet=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;
+    window._cselSync=function(sel){const w=sel._cw;if(!w)return;const m=w.querySelector('.csel-menu'),b=w.querySelector('.csel-btn');m.innerHTML='';let lbl='';Array.from(sel.options).forEach(o=>{const i=document.createElement('div');i.className='csel-item'+(o.selected?' active':'');i.textContent=o.text;i.onclick=()=>{if(sel.disabled)return;/* bypass override: nao re-renderiza menu durante o handler (i nao vira orfao) */ _selProtoValSet.call(sel,o.value);m.querySelectorAll('.csel-item').forEach(x=>x.classList.remove('active'));i.classList.add('active');b.firstChild.textContent=o.text;m.style.display='none';sel.dispatchEvent(new Event('change',{bubbles:true}));};m.appendChild(i);if(o.selected)lbl=o.text;});if(!lbl&&sel.options.length)lbl=sel.options[0].text;b.firstChild.textContent=lbl;};
+    window._makeCustomSelect=function(sel){if(!sel||sel.dataset.cd==='1'||sel.multiple)return;sel.dataset.cd='1';const w=document.createElement('div');w.className='csel'+(sel.classList.contains('mel-sel')?' csel-mel':'');const b=document.createElement('button');b.type='button';b.className='csel-btn';const ln=document.createTextNode(''),an=document.createElement('span');an.className='csel-arr';an.textContent='▾';b.appendChild(ln);b.appendChild(an);const m=document.createElement('div');m.className='csel-menu';m.style.display='none';b.onclick=ev=>{ev.stopPropagation();if(sel.disabled||b.disabled)return;const op=m.style.display==='block';document.querySelectorAll('.csel-menu').forEach(x=>{if(x!==m)x.style.display='none';});if(op){m.style.display='none';return;}/* position:fixed: posiciona no viewport para escapar de overflow:hidden de cards parent */ const r=b.getBoundingClientRect();m.style.left=r.left+'px';m.style.minWidth=r.width+'px';const sb=window.innerHeight-r.bottom;if(sb>=200||sb>=r.top){m.style.top=(r.bottom+4)+'px';m.style.bottom='auto';}else{m.style.top='auto';m.style.bottom=(window.innerHeight-r.top+4)+'px';}m.style.display='block';};sel._cw=w;sel.parentNode.insertBefore(w,sel);w.appendChild(b);w.appendChild(m);w.appendChild(sel);sel.style.display='none';_cselSync(sel);const d=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value');if(d&&d.set)Object.defineProperty(sel,'value',{get(){return d.get.call(this);},set(v){d.set.call(this,v);_cselSync(this);}});};
 
     /* Ordem importa: install PRIMEIRO (cria botões), depois init
      * (Pending.refreshUI encontra o botão e mostra/esconde). */

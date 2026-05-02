@@ -71,7 +71,11 @@ bool WebManager::serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_dat
         _server.send(403, "text/html", "<h2>Access Denied</h2>");
         return false;
     }
-    _server.sendHeader("Cache-Control", "public, max-age=3600");
+    /* no-store: força bypass do bfcache do browser (back-forward cache).
+     * Antes era "public, max-age=3600" → ao voltar de outra pagina, o browser
+     * restaurava o snapshot do JS state (selects com data-cd="1", wrappers
+     * antigos, listeners obsoletos), travando dropdowns e controles. */
+    _server.sendHeader("Cache-Control", "no-store");
     _server.sendHeader("Content-Encoding", "gzip");
     _server.setContentLength(gz_len);
     _server.send(200, "text/html", "");

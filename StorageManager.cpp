@@ -861,6 +861,17 @@ bool StorageManager::flushPendingHist() {
 bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
     if (!_isMounted) return false;
 
+    /* Defensive: rejeita timestamps absurdos (epoch < 2023-11 ou no futuro).
+     * Evita criar arquivos como /history/19691231.bin quando o relogio ainda
+     * nao sincronizou via NTP — esses arquivos confundem o cursor de
+     * telemetria depois (epochs absurdos no payload). */
+    {
+        const uint32_t EPOCH_MIN = 1700000000UL;  /* 2023-11-14 */
+        uint32_t nowEpoch = (uint32_t)time(nullptr);
+        if (rec.epoch < EPOCH_MIN) return false;
+        if (nowEpoch > EPOCH_MIN && rec.epoch > nowEpoch + 86400UL) return false;
+    }
+
     /* Touch priority: se user está interagindo, bufferiza e retorna. Só o
      * record mais recente sobrevive (slot único) — aceitável já que é
      * amostragem 1x/min e interação típica é <15 s. */
