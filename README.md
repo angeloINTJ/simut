@@ -92,12 +92,13 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 - [PubSubClient](https://github.com/knolleary/pubsubclient) — MQTT client
 - LittleFS — built into arduino-pico
 
-### Custom PIO libraries
+### Custom PIO libraries (by Ângelo Moisés Alves, MIT, RP2040)
 
-- **OneWirePIO_RP2040** — PIO-based 1-Wire driver for DS18B20
-- **DS18B20PIO** — DS18B20 temperature sensor with ROM validation
-- **DHTBus / DHT22PIO** — PIO-based DHT22 driver
-- **BuzzerPIO_RP2040** — Dual-SM PIO buzzer with PWM amplitude control
+- [OneWirePIO_RP2040](https://github.com/angeloINTJ/OneWirePIO_RP2040) — PIO-based 1-Wire driver (components: `OneWirePIO`, `DS18B20PIO` with ROM validation)
+- [DHT22PIO_RP2040](https://github.com/angeloINTJ/DHT22PIO_RP2040) — PIO-based DHT22 driver (components: `DHT22PIO`, `DHTBus`)
+- [BuzzerPIO_RP2040](https://github.com/angeloINTJ/BuzzerPIO_RP2040) — Dual-SM PIO buzzer with PWM ultrasonic volume control
+
+Also available via Arduino IDE Library Manager (search by exact name).
 
 ## Building
 
@@ -111,21 +112,26 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 
 ### PlatformIO
 
+The repo ships with a complete [`platformio.ini`](platformio.ini) with three envs:
+
+```bash
+pio run  -e pico_w_release          # build firmware (release)
+pio run  -e pico_w_release -t upload # build + flash via picotool
+pio run  -e pico_w_debug             # build firmware (debug, extra logging)
+pio test -e native                   # run host-side unit tests via Unity
+```
+
+All library versions are pinned exactly (registry `@version` for upstream Adafruit/Knolleary, GitHub URL with full SHA for `PaulStoffregen/XPT2046_Touchscreen` and the three custom PIO libs). For a hand-rolled minimal config without pins, the `lib_deps` should include:
+
 ```ini
-; platformio.ini (example)
-[env:pico_w]
-platform = https://github.com/maxgerhardt/platform-raspberrypi.git
-board = rpipicow
-framework = arduino
-board_build.core = earlephilhower
-board_build.filesystem_size = 1m
 lib_deps =
     adafruit/Adafruit GFX Library
     adafruit/Adafruit ILI9341
-    paulstoffregen/XPT2046_Touchscreen
     knolleary/PubSubClient
-monitor_speed = 115200
-extra_scripts = pre:tools/build_webui_gz.py
+    https://github.com/PaulStoffregen/XPT2046_Touchscreen.git
+    https://github.com/angeloINTJ/OneWirePIO_RP2040.git
+    https://github.com/angeloINTJ/DHT22PIO_RP2040.git
+    https://github.com/angeloINTJ/BuzzerPIO_RP2040.git
 ```
 
 The pre-build hook `tools/build_webui_gz.py` regenerates `WebUI_GZ.h` from `WebUI.h` (HTML + CSS + JS minify, then gzip).
