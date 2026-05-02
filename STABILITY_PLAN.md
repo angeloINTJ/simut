@@ -545,9 +545,9 @@ Atualize esta tabela conforme cada fase for concluída.
 | **F-DOC-EXT — Documentação externa cooperativa** | ✅ Concluída | `stability-fixes-tier1` | — | 2026-04-25 |
 |   · EXT-008 — `docs/GLOSSARY.md` in-tree (tags BUG/SEC/CON/DOC/F-/Patch/#N), reaproveita §3 do `audits/SIMUT_ANALISE_TECNICA_v1.md`. | ✅ 113 tags documentadas | — | — | — |
 |   · EXT-012 — atualizar `README.md` ("8 display languages" → "EN + PT" pós F-I18N-TRIM.1). | ✅ + SIMUT.ino + docs/ na estrutura | — | — | — |
-| **F-BUILD (deferida, opcional)** | ⚪ Pendente | — | — | — |
-|   · EXT-001 — `platformio.ini` (ou `arduino-cli.yaml`) reproduzível com lib pins explícitos + `-Wall -Wextra`. Pré-requisito de EXT-009. Decisão depende de quanto valor há em build CI vs. workflow Arduino IDE atual. | ⚪ Pendente | — | — | — |
-|   · EXT-009 — host-side unit tests via `pio test -e native` + Unity para validators puros (`parseIntStrict`, `isValidIpv4`, `isSafeUploadFilename`, `dallasCrc8`, `floatToI16`/`i16ToFloat`, `timeReached`). Bloqueado por EXT-001. | ⚪ Pendente | — | — | — |
+| **F-BUILD (parcial)** | 🟡 EXT-001 ✅, EXT-009 pendente | `stability-fixes-tier1` | `v3.29.1` | 2026-05-02 |
+|   · EXT-001 — `platformio.ini` reprodutível com lib pins explícitos + `-Wall -Wextra` + pre-build script `build_webui_gz.py`. Estrutura criada na audit cooperativa v1 (2026-04-22, herdada de v3.26.0). Versões pinadas em v3.29.1: Adafruit GFX Library@1.12.6, Adafruit ILI9341@1.6.3, paulstoffregen/XPT2046_Touchscreen@1.3, knolleary/PubSubClient@2.8, OneWirePIO_RP2040#3f0251e..., DHT22PIO_RP2040#d500e4d..., BuzzerPIO_RP2040#ab8eab1... (SHA 40-char). Build reproduz byte-a-byte. | ✅ | — | `v3.29.1` | 2026-05-02 |
+|   · EXT-009 — host-side unit tests via `pio test -e native` + Unity para validators puros (`parseIntStrict`, `isValidIpv4`, `isSafeUploadFilename`, `dallasCrc8`, `floatToI16`/`i16ToFloat`, `timeReached`). Destrancada por EXT-001. Quando priorizar: criar `test/test_validators/test_validators.cpp` + Unity asserts + `[env:native]` no platformio.ini. | ⚪ Pendente | — | — | — |
 | **F-CSV-EXPORT (feature fora da auditoria)** | 🟡 Em andamento | `stability-fixes-tier1` | (v3.28.0) | — |
 |   · F-CSV.1 — helper `crc32_init/update/final` em `SystemUtils.cpp` (CRC32-IEEE bitwise, mesma matemática de `StorageManager::calculateCRC32` mas exposto incremental para streaming). Forward decls em `SystemDefs_Records.h`. | 🟡 Implementado, HW pendente | `42aac18` | — | 2026-05-01 |
 |   · F-CSV.2 — `GET /api/export/history.bin?from=&to=` (cap 31d, formato `.simx` kind='H': HEADER 32B packed + SENSOR_TABLE + N×`BinaryHistoryRecord` 28B + CRC32 trailer). Auth+RBAC herdados, `_inHistoryHandler` atomic guard, `HeavyTaskGuard`, deadline `WEB_LONG_HANDLER_DEADLINE_MS`. Day-aligned iteration via `historyDecodeRecord()`. Teste automatizado: `tools/test_f_csv_2.sh` (9 casos: auth, args, cap, struct, CRC32, concorrência, regressão). **Build flash 97.5%**. **HW validada (21/21 asserts; CRC32 0xB63C6FD8 bateu; sensor table 11 entries STM0001..STM0010+AMB).** | ✅ HW validada | — | — | 2026-05-01 |
@@ -677,7 +677,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | DOC-002 | 🟢 | F14 | ✅ | `BOOT_WAIT_DOT/ALARM_ROTATE/ALARM_FLASH/WEB_NOTIFY` nomeados + DHT22 unificado (v3.23.11). |
 | DOC-003 | ⚪ | F14 | ✅ | `SECURITY.md` raiz criado (v3.24.0, commit `26ac277`); seção CSV adicionada em v3.28.0. |
 | WEB-001 | 🟢 | F14 | ✅ | Escape JSON em `/api/ls` (filename+dirname) + auto-test shell `tools/test_web001.sh` (v3.24.0, commit `1826a85`). |
-| EXT-001 | 🟡 | F-BUILD | ⚪ | `platformio.ini` reproduzível + lib pins + `-Wall -Wextra`. Bloqueia EXT-009. |
+| EXT-001 | 🟡 | F-BUILD | ✅ | `platformio.ini` reproduzível com lib pins exatos (v3.29.1, herdado de v3.26.0). Destrancada EXT-009. |
 | EXT-002 | 🟠 | F-CLEANUP | ✅ | Remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY introduzido em v3.24.12). **Pré-release obrigatório.** |
 | EXT-003 | 🟡 | F17 | ✅ | Split `SystemDefs.h` (1342 L) em headers temáticos com facade (F17 etapa 4, v3.25.4, commit `ded4c0a`). |
 | EXT-004 | 🟡 | F-I18N-TRIM.2 | ✅ | Remover 6 idiomas mortos em `WebUI.h` (72 markers `@LANG_BEGIN`). |
@@ -685,7 +685,7 @@ Atualize esta tabela conforme cada fase for concluída.
 | EXT-006 | 🟢 | F16 | ✅ | `LogManager::resetAfterExternalWipe()` substitui `begin()` em runtime. |
 | EXT-007 | 🟢 | F-CLEANUP | ✅ | Apagar docblock obsoleto `.csv` em `SystemUtils.cpp`. |
 | EXT-008 | 🟢 | F-DOC-EXT | ✅ | `docs/GLOSSARY.md` in-tree para tags do projeto. |
-| EXT-009 | 🟢 | F-BUILD | ⚪ | Host-side unit tests (Unity / `pio test -e native`). Depende de EXT-001. |
+| EXT-009 | 🟢 | F-BUILD | ⚪ | Host-side unit tests (Unity / `pio test -e native`). EXT-001 ✅ destranca; pendente priorização. |
 | EXT-010 | 🟢 | F16 | ✅ | Promover `ReadGuard` para `StorageManager.h`; aplicar em ~5 sites de `AppManager.cpp`. |
 | EXT-011 | 🟢 | F-CLEANUP | ✅ | Polish: dup `watchdog_update()`, `extern "C"` redundante, `releaseIdleResources()` no-op. |
 | EXT-012 | 🟢 | F-DOC-EXT | ✅ | Atualizar README ("8 languages" → "EN + PT" pós F-I18N-TRIM.1). |

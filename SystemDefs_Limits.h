@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.29.0" /* F17 (file split refatoracao grande) FECHADA — bump minor que marca fim de fase. Todas as 7 etapas concluidas e HW-validadas: REF-003 (WebManager split), REF-002 (AppManager split), REF-007 (handleApiLogin helpers), EXT-003 (SystemDefs split + facade), EXT-005 (AppManager.h forward decl + unique_ptr — root cause de uninitialized ptr resolvido), MEM-003 (WebUI.h error guard), REF-001 (DisplayManager split em 9 arquivos). Tabela mestre §6 sincronizada com §5 (14 entradas stale ⚪->✅ atualizadas). Tag git v3.29.0 marca o milestone. F-BUILD (EXT-001/EXT-009) continua deferida/opcional. */
+#define SIMUT_VERSION "v3.29.1" /* EXT-001 (F-BUILD) — lib pins exatos em platformio.ini. Adafruit GFX Library@1.12.6, Adafruit ILI9341@1.6.3, paulstoffregen/XPT2046_Touchscreen@1.3, knolleary/PubSubClient@2.8 + 3 libs do user (OneWirePIO_RP2040, DHT22PIO_RP2040, BuzzerPIO_RP2040) com SHA exato (40 chars). Build agora reproduz byte-a-byte mesmo com novas versões publicadas das libs upstream. Adafruit BusIO transitivo continua puxado automaticamente pela GFX. Restante de F-BUILD (EXT-009 host-side unit tests via pio test -e native + Unity) destrancada — pode ser priorizada quando relevante. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
