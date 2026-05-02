@@ -32,6 +32,7 @@ void DisplayManager::showTouchCalibration() {
     memset(_calRawX, 0, sizeof(_calRawX));
     memset(_calRawY, 0, sizeof(_calRawY));
 
+
     mutex_enter_blocking(&_stateMutex);
     _uiMode = MODE_SETTINGS_TOUCH_SENS;
     _forceSettingsRedraw = true;
@@ -116,63 +117,71 @@ void DisplayManager::drawSettingsDisplayOffset() {
     int16_t bx, by; uint16_t bw, bh;
 
     if (full) {
-        _tft->fillScreen(C_BG_MAIN);
-
-        /* Barra superior — título. */
-        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
-        _tft->setFont(&simutFont9pt);
-        _tft->setTextColor(C_TEXT_MAIN);
-        _tft->setCursor(10, 22);
-        _tft->print(tr(TR_DISPLAY_OFFSET_TITLE));
-
-        /* Pad direcional — desenha os 4 cursos como cápsulas com seta. */
+        /* F-DISPLAY-ATOMIC Fase 2: full redraw via strips. Layout estático:
+         *   - title bar y=4..36
+         *   - direction pad (4 botões com setas) em y=55..185
+         *   - reset button center em y=108..132
+         *   - hint em y=198
+         *   - back/apply buttons em y=204..236 */
+        const String titleTxt = tr(TR_DISPLAY_OFFSET_TITLE);
+        const String hintTxt = tr(TR_DISPLAY_OFFSET_HINT);
+        const String backTxt = tr(TR_BACK);
+        const String applyTxt = tr(TR_APPLY);
         const int cx = 160, cy = 120;
-        /* UP */
-        _tft->fillRoundRect(130, 55, 60, 40, 8, C_CARD_BG);
-        _tft->fillTriangle(cx, 62, cx - 10, 86, cx + 10, 86, C_TEXT_MAIN);
-        /* DOWN */
-        _tft->fillRoundRect(130, 145, 60, 40, 8, C_CARD_BG);
-        _tft->fillTriangle(cx - 10, 154, cx + 10, 154, cx, 178, C_TEXT_MAIN);
-        /* LEFT */
-        _tft->fillRoundRect(80, 100, 60, 40, 8, C_CARD_BG);
-        _tft->fillTriangle(90, cy, 120, cy - 10, 120, cy + 10, C_TEXT_MAIN);
-        /* RIGHT */
-        _tft->fillRoundRect(180, 100, 60, 40, 8, C_CARD_BG);
-        _tft->fillTriangle(230, cy, 200, cy - 10, 200, cy + 10, C_TEXT_MAIN);
-        /* Botão central de reset (círculo pequeno). */
-        _tft->fillRoundRect(148, 108, 24, 24, 4, C_ACCENT);
-        _tft->drawCircle(cx, cy, 4, C_BG_MAIN);
+        GFXcanvas16* cv = beginScreenRender();
+        if (cv) {
+            for (int strip = 0; strip < 6; strip++) {
+                cv->fillScreen(C_BG_MAIN);
+                const int16_t yOff = -strip * RENDER_STRIP_H;
 
-        /* Hint curto abaixo do pad. */
-        _tft->setFont(&simutFont9pt);
-        _tft->setTextColor(C_TEXT_SUB);
-        {
-            const char* hint = tr(TR_DISPLAY_OFFSET_HINT);
-            _tft->getTextBounds(hint, 0, 0, &bx, &by, &bw, &bh);
-            int hx = (320 - (int)bw) / 2;
-            if (hx < 4) hx = 4;
-            _tft->setCursor(hx, 198);
-            _tft->print(hint);
-        }
+                /* Title bar */
+                cv->fillRect(4, 4 + yOff, 312, 32, C_CARD_BG);
+                cv->setFont(&simutFont9pt);
+                cv->setTextColor(C_TEXT_MAIN);
+                cv->setCursor(10, 22 + yOff);
+                cv->print(titleTxt);
 
-        /* Rodapé — BACK (esq) e APPLY (dir). */
-        _tft->fillRoundRect(10, 204, 120, 32, 8, C_CARD_BG);
-        _tft->setTextColor(C_TEXT_MAIN);
-        {
-            String back = tr(TR_BACK);
-            _tft->getTextBounds(back, 0, 0, &bx, &by, &bw, &bh);
-            _tft->setCursor(10 + (120 - (int)bw) / 2, 226);
-            _tft->print(back);
-        }
-        _tft->fillRoundRect(190, 204, 120, 32, 8, C_ACCENT);
-        _tft->setTextColor(C_BG_MAIN);
-        {
-            String apply = tr(TR_APPLY);
-            _tft->getTextBounds(apply, 0, 0, &bx, &by, &bw, &bh);
-            _tft->setCursor(190 + (120 - (int)bw) / 2, 226);
-            _tft->print(apply);
-        }
+                /* Direction pad — 4 cápsulas com setas */
+                cv->fillRoundRect(130, 55 + yOff, 60, 40, 8, C_CARD_BG);  /* UP */
+                cv->fillTriangle(cx, 62 + yOff, cx - 10, 86 + yOff, cx + 10, 86 + yOff, C_TEXT_MAIN);
+                cv->fillRoundRect(130, 145 + yOff, 60, 40, 8, C_CARD_BG); /* DOWN */
+                cv->fillTriangle(cx - 10, 154 + yOff, cx + 10, 154 + yOff, cx, 178 + yOff, C_TEXT_MAIN);
+                cv->fillRoundRect(80, 100 + yOff, 60, 40, 8, C_CARD_BG);  /* LEFT */
+                cv->fillTriangle(90, cy + yOff, 120, cy - 10 + yOff, 120, cy + 10 + yOff, C_TEXT_MAIN);
+                cv->fillRoundRect(180, 100 + yOff, 60, 40, 8, C_CARD_BG); /* RIGHT */
+                cv->fillTriangle(230, cy + yOff, 200, cy - 10 + yOff, 200, cy + 10 + yOff, C_TEXT_MAIN);
 
+                /* Reset center */
+                cv->fillRoundRect(148, 108 + yOff, 24, 24, 4, C_ACCENT);
+                cv->drawCircle(cx, cy + yOff, 4, C_BG_MAIN);
+
+                /* Hint */
+                cv->setFont(&simutFont9pt);
+                cv->setTextColor(C_TEXT_SUB);
+                cv->getTextBounds(hintTxt, 0, 0, &bx, &by, &bw, &bh);
+                int hx = (320 - (int)bw) / 2;
+                if (hx < 4) hx = 4;
+                cv->setCursor(hx, 198 + yOff);
+                cv->print(hintTxt);
+
+                /* Back button */
+                cv->fillRoundRect(10, 204 + yOff, 120, 32, 8, C_CARD_BG);
+                cv->setTextColor(C_TEXT_MAIN);
+                cv->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
+                cv->setCursor(10 + (120 - (int)bw) / 2, 226 + yOff);
+                cv->print(backTxt);
+
+                /* Apply button */
+                cv->fillRoundRect(190, 204 + yOff, 120, 32, 8, C_ACCENT);
+                cv->setTextColor(C_BG_MAIN);
+                cv->getTextBounds(applyTxt, 0, 0, &bx, &by, &bw, &bh);
+                cv->setCursor(190 + (120 - (int)bw) / 2, 226 + yOff);
+                cv->print(applyTxt);
+
+                commitScreenStrip(strip);
+            }
+            endScreenRender();
+        }
         _forceSettingsRedraw = false;
         _lastOffsetDrawX = 99;  /* força redraw numérico abaixo */
     }
@@ -294,26 +303,39 @@ void DisplayManager::drawTouchSensitivity() {
     _forceSettingsRedraw = false;
 
     if (fullRedraw) {
-        _tft->fillScreen(C_BG_MAIN);
+        /* F-DISPLAY-ATOMIC Fase 2: full redraw via strips. Layout estático:
+         *   - title bar y=4..36 (text em y=22)
+         *   - cancel button y=195..235 (text em y=220)
+         *   - bar frame em (289, 38..192). */
+        const String titleTxt = tr(TR_SENS_TITLE);
+        const String backTxt = tr(TR_CANCEL);
+        GFXcanvas16* cv = beginScreenRender();
+        if (cv) {
+            int16_t bx, by; uint16_t bw, bh;
+            for (int strip = 0; strip < 6; strip++) {
+                cv->fillScreen(C_BG_MAIN);
+                const int16_t yOff = -strip * RENDER_STRIP_H;
 
-        /* Barra de título */
-        _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
-        _tft->setFont(&simutFont9pt);
-        _tft->setTextColor(C_TEXT_MAIN);
-        _tft->setCursor(10, 22);
-        _tft->print(tr(TR_SENS_TITLE));
+                /* Title bar */
+                cv->fillRect(4, 4 + yOff, 312, 32, C_CARD_BG);
+                cv->setFont(&simutFont9pt);
+                cv->setTextColor(C_TEXT_MAIN);
+                cv->setCursor(10, 22 + yOff);
+                cv->print(titleTxt);
 
-        /* Botão CANCEL (canto inferior esquerdo) */
-        _tft->fillRoundRect(5, 195, 120, 40, 8, C_CARD_BG);
-        int16_t bx, by; uint16_t bw, bh;
-        String backTxt = tr(TR_CANCEL);
-        _tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
-        _tft->setTextColor(C_TEXT_MAIN);
-        _tft->setCursor(5 + (120 - bw) / 2, 220);
-        _tft->print(backTxt);
+                /* Cancel button */
+                cv->fillRoundRect(5, 195 + yOff, 120, 40, 8, C_CARD_BG);
+                cv->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
+                cv->setCursor(5 + (120 - bw) / 2, 220 + yOff);
+                cv->print(backTxt);
 
-        /* Moldura da barra vertical (direita) */
-        _tft->drawRect(289, 38, 26, 154, C_TEXT_OFF);
+                /* Bar frame (vertical à direita) */
+                cv->drawRect(289, 38 + yOff, 26, 154, C_TEXT_OFF);
+
+                commitScreenStrip(strip);
+            }
+            endScreenRender();
+        }
     }
 
     /* Crosshair central */
@@ -329,41 +351,25 @@ void DisplayManager::drawTouchSensitivity() {
     _tft->fillRect(80, 150, 140, 30, C_BG_MAIN);
     _tft->setFont(&simutFont9pt);
     _tft->setTextColor(C_TEXT_MAIN);
-
-    if (_sensDone) {
+    {
         int16_t bx2, by2; uint16_t bw2, bh2;
-        String doneMsg = tr(TR_SENS_DONE);
-        _tft->getTextBounds(doneMsg, 0, 0, &bx2, &by2, &bw2, &bh2);
+        String txt = _sensDone ? tr(TR_SENS_DONE) : tr(TR_CAL_TOUCH_POINT);
+        _tft->getTextBounds(txt, 0, 0, &bx2, &by2, &bw2, &bh2);
         _tft->setCursor(140 - bw2 / 2, 168);
-        _tft->print(doneMsg);
-    } else {
-        /* Instrução: reutiliza "Toque na mira" da calibração de posição */
-        int16_t bx2, by2; uint16_t bw2, bh2;
-        String holdMsg = tr(TR_CAL_TOUCH_POINT);
-        _tft->getTextBounds(holdMsg, 0, 0, &bx2, &by2, &bw2, &bh2);
-        _tft->setCursor(140 - bw2 / 2, 168);
-        _tft->print(holdMsg);
+        _tft->print(txt);
     }
 
     /* Barra vertical de estabilidade (dentro da moldura) */
     int barX = 290, barY = 39, barW = 24, barH = 152;
     int fillH = (int)(barH * _sensStability);
     if (fillH > barH) fillH = barH;
-
-    /* Fundo (parte não preenchida) */
-    if (fillH < barH) {
-        _tft->fillRect(barX, barY, barW, barH - fillH, C_BG_MAIN);
-    }
-    /* Preenchimento (de baixo para cima) */
+    if (fillH < barH) _tft->fillRect(barX, barY, barW, barH - fillH, C_BG_MAIN);
     uint16_t barColor = (_sensStability >= 0.85f) ? C_TEMP_OK : C_ACCENT;
-    if (fillH > 0) {
-        _tft->fillRect(barX, barY + barH - fillH, barW, fillH, barColor);
-    }
+    if (fillH > 0) _tft->fillRect(barX, barY + barH - fillH, barW, fillH, barColor);
 
     /* Valor numérico abaixo da barra */
     _tft->fillRect(280, 195, 40, 20, C_BG_MAIN);
-    _tft->setFont(NULL);
-    _tft->setTextSize(1);
+    _tft->setFont(NULL); _tft->setTextSize(1);
     _tft->setTextColor(C_TEXT_OFF);
     char valBuf[8];
     snprintf(valBuf, sizeof(valBuf), "%d", _sensThreshold);
@@ -395,51 +401,75 @@ void DisplayManager::drawCrosshair(int16_t cx, int16_t cy, uint16_t color) {
     _tft->drawCircle(cx, cy, sz - 2, color);
 }
 
-
-void DisplayManager::drawCalibrationMessage() {
-    if (!_tft) return;
-    int16_t x1, y1; uint16_t w, h_bound;
-
-    _tft->fillScreen(C_BG_MAIN);
-
-
-    bool isSuccess = (_calPhase == 2);
-    uint16_t iconColor = isSuccess ? C_TEMP_OK : C_TEMP_WARM;
-
-    if (isSuccess) {
-        _tft->drawLine(130, 90, 150, 110, iconColor);
-        _tft->drawLine(131, 90, 151, 110, iconColor);
-        _tft->drawLine(150, 110, 190, 70, iconColor);
-        _tft->drawLine(151, 110, 191, 70, iconColor);
-    } else {
-        _tft->drawLine(145, 70, 175, 100, iconColor);
-        _tft->drawLine(146, 70, 176, 100, iconColor);
-        _tft->drawLine(175, 70, 145, 100, iconColor);
-        _tft->drawLine(176, 70, 146, 100, iconColor);
-    }
-
-
-    const char* msg = isSuccess ? tr(TR_CAL_DONE) : tr(TR_CAL_REJECTED);
-    _tft->setFont(&simutFont9pt);
-    _tft->setTextColor(C_TEXT_MAIN);
-    _tft->getTextBounds(msg, 0, 0, &x1, &y1, &w, &h_bound);
-    _tft->setCursor((320 - w) / 2, 130);
-    _tft->print(msg);
-
-
-    _tft->fillRoundRect(60, 185, 200, 40, 12, C_ACCENT);
-    _tft->setFont(&simutFont12pt);
-    _tft->setTextColor(C_BG_MAIN);
-    const char* btnLabel = tr(TR_UNDERSTOOD);
-    _tft->getTextBounds(btnLabel, 0, 0, &x1, &y1, &w, &h_bound);
-    _tft->setCursor(160 - (w / 2), 212);
-    _tft->print(btnLabel);
+/* Versão canvas-aware do drawCrosshair pra strip-based rendering.
+ * Usado pelos blocos de full-screen redraw das 4 telas de calibração. */
+static inline void drawCrosshairOnCanvas(GFXcanvas16* cv, int16_t cx, int16_t cy, uint16_t color) {
+    const int16_t sz = 10;
+    cv->drawLine(cx - sz, cy, cx + sz, cy, color);
+    cv->drawLine(cx, cy - sz, cx, cy + sz, color);
+    cv->drawCircle(cx, cy, sz - 2, color);
 }
 
 
+/* F-DISPLAY-ATOMIC Fase 2: drawCalibrationMessage via strips.
+ * Layout: ícone success/fail (y=70..110) + mensagem (y=130) + botão (y=185..225). */
+void DisplayManager::drawCalibrationMessage() {
+    if (!_tft) return;
+
+    bool isSuccess = (_calPhase == 2);
+    uint16_t iconColor = isSuccess ? C_TEMP_OK : C_TEMP_WARM;
+    const char* msg = isSuccess ? tr(TR_CAL_DONE) : tr(TR_CAL_REJECTED);
+    const char* btnLabel = tr(TR_UNDERSTOOD);
+
+    GFXcanvas16* cv = beginScreenRender();
+    if (!cv) return;
+
+    int16_t x1, y1; uint16_t w, h_bound;
+
+    for (int strip = 0; strip < 6; strip++) {
+        cv->fillScreen(C_BG_MAIN);
+        const int16_t yOff = -strip * RENDER_STRIP_H;
+
+        /* Ícone (y_screen=70..110) */
+        if (isSuccess) {
+            cv->drawLine(130, 90 + yOff,  150, 110 + yOff, iconColor);
+            cv->drawLine(131, 90 + yOff,  151, 110 + yOff, iconColor);
+            cv->drawLine(150, 110 + yOff, 190, 70 + yOff,  iconColor);
+            cv->drawLine(151, 110 + yOff, 191, 70 + yOff,  iconColor);
+        } else {
+            cv->drawLine(145, 70 + yOff,  175, 100 + yOff, iconColor);
+            cv->drawLine(146, 70 + yOff,  176, 100 + yOff, iconColor);
+            cv->drawLine(175, 70 + yOff,  145, 100 + yOff, iconColor);
+            cv->drawLine(176, 70 + yOff,  146, 100 + yOff, iconColor);
+        }
+
+        /* Mensagem em y_screen=130 */
+        cv->setFont(&simutFont9pt);
+        cv->setTextColor(C_TEXT_MAIN);
+        cv->getTextBounds(msg, 0, 0, &x1, &y1, &w, &h_bound);
+        cv->setCursor((320 - w) / 2, 130 + yOff);
+        cv->print(msg);
+
+        /* Botão "Entendi" em y_screen=185..225 */
+        cv->fillRoundRect(60, 185 + yOff, 200, 40, 12, C_ACCENT);
+        cv->setFont(&simutFont12pt);
+        cv->setTextColor(C_BG_MAIN);
+        cv->getTextBounds(btnLabel, 0, 0, &x1, &y1, &w, &h_bound);
+        cv->setCursor(160 - (w / 2), 212 + yOff);
+        cv->print(btnLabel);
+
+        commitScreenStrip(strip);
+    }
+    endScreenRender();
+}
+
+
+/* F-DISPLAY-ATOMIC Fase 2: drawTouchCalibration. Full-screen redraw via
+ * strips (renderiza TODA a tela: crosshair atual + text labels). Atualizações
+ * incrementais (entre tap dos 8 pontos) ficam direto no _tft — áreas pequenas,
+ * top-down não-perceptível. */
 void DisplayManager::drawTouchCalibration() {
     bool fullRedraw = _forceSettingsRedraw;
-
 
     if (_calPhase >= 1) {
         drawCalibrationMessage();
@@ -447,57 +477,88 @@ void DisplayManager::drawTouchCalibration() {
         return;
     }
 
-
     int pointIdx = _calStep % 4;
     int cycleNum = (_calStep < 4) ? 1 : 2;
 
+    if (_calStep >= 8) {
+        _forceSettingsRedraw = false;
+        return;
+    }
+
+    /* Texts buffers (used em ambos paths). */
+    const char* title = tr(TR_CAL_TITLE);
+    char msg[48];
+    snprintf(msg, sizeof(msg), "%s (%d/4)", tr(TR_CAL_TOUCH_POINT), pointIdx + 1);
+    char cycleBuf[24];
+    snprintf(cycleBuf, sizeof(cycleBuf), "[ %d / 2 ]", cycleNum);
+
     if (fullRedraw) {
-        _tft->fillScreen(C_BG_MAIN);
+        /* Full-screen render via strips: crosshair atual + 3 linhas de texto. */
+        const int16_t cx = CAL_SCR_X[pointIdx];
+        const int16_t cy = CAL_SCR_Y[pointIdx];
+        const uint16_t crossColor = _calHoldReady ? C_TEMP_OK : C_ACCENT;
+
+        GFXcanvas16* cv = beginScreenRender();
+        if (cv) {
+            int16_t bx, by; uint16_t bw, bh;
+            for (int strip = 0; strip < 6; strip++) {
+                cv->fillScreen(C_BG_MAIN);
+                const int16_t yOff = -strip * RENDER_STRIP_H;
+
+                /* Crosshair em (cx, cy) — visível só na strip que contem cy */
+                drawCrosshairOnCanvas(cv, cx, cy + yOff, crossColor);
+
+                /* Title em y=100 (font 9pt accent) */
+                cv->setFont(&simutFont9pt);
+                cv->setTextColor(C_ACCENT);
+                cv->getTextBounds(title, 0, 0, &bx, &by, &bw, &bh);
+                cv->setCursor((320 - bw) / 2, 100 + yOff);
+                cv->print(title);
+
+                /* Msg em y=122 */
+                cv->setTextColor(C_TEXT_MAIN);
+                cv->getTextBounds(msg, 0, 0, &bx, &by, &bw, &bh);
+                cv->setCursor((320 - bw) / 2, 122 + yOff);
+                cv->print(msg);
+
+                /* Cycle em y=140 (default font, size 1) */
+                cv->setFont(NULL); cv->setTextSize(1);
+                cv->setTextColor(C_TEXT_OFF);
+                cv->getTextBounds(cycleBuf, 0, 0, &bx, &by, &bw, &bh);
+                cv->setCursor((320 - bw) / 2, 140 + yOff);
+                cv->print(cycleBuf);
+
+                commitScreenStrip(strip);
+            }
+            endScreenRender();
+        }
+        _forceSettingsRedraw = false;
+        return;
     }
 
-    if (_calStep < 8) {
-
-        if (!fullRedraw && pointIdx > 0) {
-            drawCrosshair(CAL_SCR_X[pointIdx - 1], CAL_SCR_Y[pointIdx - 1], C_BG_MAIN);
-        }
-
-        if (!fullRedraw && _calStep == 4) {
-            drawCrosshair(CAL_SCR_X[3], CAL_SCR_Y[3], C_BG_MAIN);
-        }
-
-
-        drawCrosshair(CAL_SCR_X[pointIdx], CAL_SCR_Y[pointIdx],
-                      _calHoldReady ? C_TEMP_OK : C_ACCENT);
-
-
-        _tft->fillRect(20, 85, 280, 65, C_BG_MAIN);
-
-
-        _tft->setFont(&simutFont9pt);
-        _tft->setTextColor(C_ACCENT);
-        int16_t bx, by; uint16_t bw, bh;
-        const char* title = tr(TR_CAL_TITLE);
-        _tft->getTextBounds(title, 0, 0, &bx, &by, &bw, &bh);
-        _tft->setCursor((320 - bw) / 2, 100);
-        _tft->print(title);
-
-
-        char msg[48];
-        snprintf(msg, sizeof(msg), "%s (%d/4)", tr(TR_CAL_TOUCH_POINT), pointIdx + 1);
-        _tft->setTextColor(C_TEXT_MAIN);
-        _tft->getTextBounds(msg, 0, 0, &bx, &by, &bw, &bh);
-        _tft->setCursor((320 - bw) / 2, 122);
-        _tft->print(msg);
-
-
-        char cycleBuf[24];
-        snprintf(cycleBuf, sizeof(cycleBuf), "[ %d / 2 ]", cycleNum);
-        _tft->setFont(NULL); _tft->setTextSize(1);
-        _tft->setTextColor(C_TEXT_OFF);
-        _tft->getTextBounds(cycleBuf, 0, 0, &bx, &by, &bw, &bh);
-        _tft->setCursor((320 - bw) / 2, 140);
-        _tft->print(cycleBuf);
+    /* Incremental update (entre taps): erase old crosshair + draw new + redraw text. */
+    if (pointIdx > 0) {
+        drawCrosshair(CAL_SCR_X[pointIdx - 1], CAL_SCR_Y[pointIdx - 1], C_BG_MAIN);
     }
+    if (_calStep == 4) {
+        drawCrosshair(CAL_SCR_X[3], CAL_SCR_Y[3], C_BG_MAIN);
+    }
+    drawCrosshair(CAL_SCR_X[pointIdx], CAL_SCR_Y[pointIdx],
+                  _calHoldReady ? C_TEMP_OK : C_ACCENT);
+
+    _tft->fillRect(20, 85, 280, 65, C_BG_MAIN);
+    _tft->setFont(&simutFont9pt);
+    _tft->setTextColor(C_ACCENT);
+    int16_t bx, by; uint16_t bw, bh;
+    _tft->getTextBounds(title, 0, 0, &bx, &by, &bw, &bh);
+    _tft->setCursor((320 - bw) / 2, 100); _tft->print(title);
+    _tft->setTextColor(C_TEXT_MAIN);
+    _tft->getTextBounds(msg, 0, 0, &bx, &by, &bw, &bh);
+    _tft->setCursor((320 - bw) / 2, 122); _tft->print(msg);
+    _tft->setFont(NULL); _tft->setTextSize(1);
+    _tft->setTextColor(C_TEXT_OFF);
+    _tft->getTextBounds(cycleBuf, 0, 0, &bx, &by, &bw, &bh);
+    _tft->setCursor((320 - bw) / 2, 140); _tft->print(cycleBuf);
 
     _forceSettingsRedraw = false;
 }

@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.30.8" /* F-DISPLAY-ATOMIC Fase 1 — drawAlarmAction (16 _tft calls → 6 strips de 40px). Padrão "draw-everything-with-offset-per-strip": cada strip desenha TODOS os elementos com Y offset = -stripIdx*40. Adafruit_GFX clipa automaticamente pixels fora da canvas. Header (y=4..52), silence (y=60..105), deactivate (y=115..160), main menu (y=170..215) — 3 dos 4 elementos cruzam fronteiras de strip, mas com clipping automático funciona transparente. ~5× mais CPU draws vs single-pass mas elimina top-down. Padrão validado pra reuso nas Fases 2-5 (Settings, Calibration, Graph, i18n). */
+#define SIMUT_VERSION "v3.30.11" /* F-DISPLAY-ATOMIC Fase 2 (sem state diffing) — revert do v3.30.10 que travava boot. Mantém v3.30.9 (strip refactor de drawCalibrationMessage, drawTouchCalibration, drawTouchSensitivity, drawSettingsDisplayOffset) que elimina top-down. Remove state diffing v3.30.10 que causava boot freeze: Core 1 lockout stuck >10s repetidamente durante init por ~2 min antes do "Sistema pronto". State diffing precisa ser redesenhado de outra forma na próxima iteração — flicker volta nesses 4 fns mas top-down fica eliminado. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
