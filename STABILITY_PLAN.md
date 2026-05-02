@@ -525,8 +525,15 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · U25 — `LogManager::setForceBuffer(true/false)` wrappando `_btMgr.update()` em `CommandManager::processInput`. Todos os `LOG_CODE` durante o update BT vão para buffer RAM `_pendingLogs[]` (32 slots) em vez de disparar flash síncrono. Banner de boas-vindas reordenado antes do `LOG_CODE` para resposta imediata. Sem alocações novas de heap. | ✅ Implementado (HW pendente) | — | — | 2026-04-25 |
 | **F16 — Performance + String hot paths** | ✅ Concluída | `stability-fixes-tier1` | v3.24.16 | 2026-04-25 |
 |   · PER-001 feedWdt(), PER-002 upload batching 8KB, PER-003 fast-path, MEM-001 buffer IP/mac/hist, EXT-006 resetAfterExternalWipe, EXT-010 ReadGuard público. | ✅ | — | — | — |
-| **F17 — File split (refatoração grande)** | ⚪ Pendente | — | (v4.0.0) | — |
-|   · Inclui EXT-003 (split `SystemDefs.h`) + EXT-005 (`AppManager.h` decoupling). Protocolo `symbols_inventory_before/after` obrigatório (ver §2.5 referências externas §10/§11). | ⚪ Pendente | — | — | — |
+| **F17 — File split (refatoração grande)** | ✅ Concluída | `stability-fixes-tier1` | `v3.29.0` | 2026-05-02 |
+|   · F17 etapa 1 — REF-003: split `WebManager.cpp` em 8 arquivos (v3.25.0, commit `61c221b`). | ✅ HW validada | — | `v3.25.0` | 2026-04-25 |
+|   · F17 etapa 2 — REF-002: split `AppManager.cpp` em 8 arquivos (v3.25.1, commit `5972b6b`). | ✅ HW validada | — | `v3.25.1` | 2026-04-25 |
+|   · F17 etapa 3 — REF-007: `handleApiLogin` em 7 helpers (v3.25.3, commit `e4d72c4`). | ✅ HW validada | — | `v3.25.3` | 2026-04-25 |
+|   · F17 etapa 4 — EXT-003: split `SystemDefs.h` em 7 sub-headers + facade (v3.25.4, commit `ded4c0a`). | ✅ HW validada | — | `v3.25.4` | 2026-04-25 |
+|   · F17 etapa 5 — EXT-005: `AppManager.h` forward decl + `unique_ptr` (v3.28.12, commit `e7a78d7`). Root cause de regressão histórica resolvido (`_tft`/`_ts` sem `= nullptr`). | ✅ HW validada | — | `v3.28.12` | 2026-05-02 |
+|   · F17 etapa 6 — MEM-003: `WebUI.h` `#error` guard (v3.25.6, commit `ce2becf`). | ✅ HW validada | — | `v3.25.6` | 2026-04-25 |
+|   · F17 etapa 8 — REF-001: split `DisplayManager.cpp` em 9 sub-arquivos (v3.25.13, commit `56b1a60`). | ✅ HW validada | — | `v3.25.13` | 2026-04-25 |
+|   · Tag `v3.29.0` marca o fechamento da fase. | — | — | `v3.29.0` | 2026-05-02 |
 | **F-CLEANUP — Polish puntual de baixo risco** | ✅ Concluída | `stability-fixes-tier1` | v3.24.15 | 2026-04-25 |
 |   · EXT-002 — remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY) **antes de qualquer release público**. | ✅ Enum + parser + handler removidos | — | — | — |
 |   · EXT-007 — apagar docblock obsoleto em `SystemUtils.cpp:41-44` (referência a `.csv`). | ✅ + `.csv` → `.bin` no header do arquivo | — | — | — |
@@ -649,32 +656,32 @@ Atualize esta tabela conforme cada fase for concluída.
 | BUG-002 | 🟡 | F13 | ✅ | Wrappers `requestPreviewSound/requestVolumePreview/requestAlarmVolumePreview` + `__dmb()` nos 3 pares cross-core Core 1 → Core 0. Barrier no producer (`setTelemetrySendStatus`) e readers (`render`/`drawTopBar`) do pack `_pktArrowState` Core 0 → Core 1. `_touchSoundPending`/`_errorSoundPending` fora do escopo (single-flag sem dado emparelhado). + UX fix (F13.3b): touch gates separados para volume no menu Sons. Validado HW. |
 | BUG-003 | 🟡 | F13 | ✅ | Template `StorageManager::flashOp<F>()` (private no header) substitui macro local `FLASH_OP` de `saveConfiguration`. `writeHistoryEntryFlash` refatorado em chunks granulares: enforceStorageLimit (se rolagem), open+write+close, fallback enforce+open+write+close — cada um em seu próprio lockout. File handle nunca sobrevive entre chunks. HW validado (testes 1/2/4/5; teste 3 rolagem diária pendente até feature manual time). |
 | BUG-004 | 🟢 | F13 | ✅ | Membro `_lastWebBusy` sticky (Core 1 only) em `DisplayManager`. Consumers em `loopCore1` e `handleTouch` atualizam o sticky quando `mutex_try_enter` sucede; usam o sticky como fallback quando falha. Validado HW. |
-| BUG-005 | 🟢 | F13 | 🟡 | `captureBootSnapshot()` público + chamada explícita em `begin()`; `setModule` não captura mais oportunisticamente; assertion defensiva + guard `_autopsyPerformed` em `performCrashAutopsy` (fix de falsa autópsia em `clear log`). HW pendente. |
+| BUG-005 | 🟢 | F13 | ✅ | `captureBootSnapshot()` público + chamada explícita em `begin()`; `setModule` não captura mais oportunisticamente; assertion defensiva + guard `_autopsyPerformed` em `performCrashAutopsy` (HW validada por F13.1 row). |
 | CON-001 | 🟢 | F14 | ✅ | Bloco `SCRATCH REGISTER MAP` em `LogManager.cpp` + dedup (v3.23.10). |
 | CON-002 | 🟢 | F14 | ✅ | `enum LanguageCode` EN+PT + `LANG_COUNT` sentinela (v3.23.4). |
 | CON-003 | ⚪ | F14 | ✅ | `DisplayManager.{h,cpp}` "8 languages" → "2 (EN + PT)" (v3.23.10). |
-| CON-004 | 🟢 | F14 | ⚪ | `_lastSavedCrc` → membro de classe. |
-| CON-005 | 🟢 | F14 | ⚪ | `String` → `char[]` em `CliDemand`/`LoginState`. |
-| CON-006 | ⚪ | F14 | ⚪ | `DS_CONVERSION_TIME` → `SystemDefs.h`. |
+| CON-004 | 🟢 | F14 | ✅ | `_lastSavedCrc` → membro privado de `StorageManager` (v3.24.0, commit `8537feb`). |
+| CON-005 | 🟢 | F14 | ✅ | `String` → `char[]` em `CliDemand`/`LoginState` (CON-005a `40795d2` + CON-005b `2e98a3e`, v3.24.0). |
+| CON-006 | ⚪ | F14 | ✅ | `DS18B20_CONVERSION_TIME_MS` + `DHT22_READ_TIMEOUT_MS` em `SystemDefs.h` (v3.24.0, commit `9690a90`). |
 | MEM-001 | 🟡 | F16 | ✅ | `String` em hot paths → buffer estático (IP, MAC, hist). |
-| MEM-002 | 🟡 | F14/F16 | ⚪ | Coberto por CON-005. |
-| MEM-003 | ⚪ | F17 | ⚪ | Avaliar remoção de `WebUI.h` raw. |
+| MEM-002 | 🟡 | F14/F16 | ✅ | Coberto por CON-005 (resolvido junto). |
+| MEM-003 | ⚪ | F17 | ✅ | `WebUI.h` `#error` guard adicionado em F17 etapa 6 (v3.25.6, commit `ce2becf`); avaliação de remoção descartada (raw layout preservado). |
 | PER-001 | 🟢 | F16 | ✅ | Helper `feedWdt()` (29 substituições em 5 arquivos). |
 | PER-002 | 🟢 | F16 | ✅ | Upload batching 8 KB — RenderGuard a cada ~8KB vs cada chunk. |
 | PER-003 | ⚪ | F16 | ✅ | Fast-path strlen + check extensão early-return. |
-| REF-001 | 🟡 | F17 | ⚪ | Split `DisplayManager.cpp` em 9 arquivos. |
-| REF-002 | 🟡 | F17 | ⚪ | Split `AppManager.cpp` em 8 arquivos. |
-| REF-003 | 🟢 | F17 | ⚪ | Split `WebManager.cpp` em 8 arquivos. |
-| REF-004 | 🟢 | F14 | ⚪ | Singleton `TouchPriority`. |
-| REF-007 | 🟢 | F17 | ⚪ | Decompor `handleApiLogin` em 6 helpers. |
+| REF-001 | 🟡 | F17 | ✅ | Split `DisplayManager.cpp` em 9 arquivos (F17 etapa 8, v3.25.13, commit `56b1a60`). |
+| REF-002 | 🟡 | F17 | ✅ | Split `AppManager.cpp` em 8 arquivos (F17 etapa 2, v3.25.1, commit `5972b6b`). |
+| REF-003 | 🟢 | F17 | ✅ | Split `WebManager.cpp` em 8 arquivos (F17 etapa 1, v3.25.0, commit `61c221b`). |
+| REF-004 | 🟢 | F14 | ✅ | Singleton `TouchPriority` (v3.24.0, commit `b8b9314`). |
+| REF-007 | 🟢 | F17 | ✅ | `handleApiLogin` decomposto em 7 helpers (F17 etapa 3, v3.25.3, commit `e4d72c4`). |
 | DOC-002 | 🟢 | F14 | ✅ | `BOOT_WAIT_DOT/ALARM_ROTATE/ALARM_FLASH/WEB_NOTIFY` nomeados + DHT22 unificado (v3.23.11). |
-| DOC-003 | ⚪ | F14 | ⚪ | Criar `SECURITY.md` na raiz. |
-| WEB-001 | 🟢 | F14 | ⚪ | **Post-audit F12.1 (2026-04-20):** `handleApiLs` emite JSON sem escapar bytes de controle (0x00-0x1F/0x7F) nos `name` — 1 arquivo com byte ruim quebra todo o listing (observado com `/x␁y.txt` criado por teste pré-patch). F12.1 impede upload via HTTP, mas não cobre entrada por outros canais. Fix: `jsonEscape()` ou skip de entries com chars inválidos no `handleApiLs`. |
+| DOC-003 | ⚪ | F14 | ✅ | `SECURITY.md` raiz criado (v3.24.0, commit `26ac277`); seção CSV adicionada em v3.28.0. |
+| WEB-001 | 🟢 | F14 | ✅ | Escape JSON em `/api/ls` (filename+dirname) + auto-test shell `tools/test_web001.sh` (v3.24.0, commit `1826a85`). |
 | EXT-001 | 🟡 | F-BUILD | ⚪ | `platformio.ini` reproduzível + lib pins + `-Wall -Wextra`. Bloqueia EXT-009. |
 | EXT-002 | 🟠 | F-CLEANUP | ✅ | Remover `CMD_DBG_SENSOR_HISTORY_ALL` (TEST-ONLY introduzido em v3.24.12). **Pré-release obrigatório.** |
-| EXT-003 | 🟡 | F17 | ⚪ | Split `SystemDefs.h` (1342 L) em headers temáticos com facade. |
+| EXT-003 | 🟡 | F17 | ✅ | Split `SystemDefs.h` (1342 L) em headers temáticos com facade (F17 etapa 4, v3.25.4, commit `ded4c0a`). |
 | EXT-004 | 🟡 | F-I18N-TRIM.2 | ✅ | Remover 6 idiomas mortos em `WebUI.h` (72 markers `@LANG_BEGIN`). |
-| EXT-005 | 🟢 | F17 | ⚪ | `AppManager.h` forward decl + `unique_ptr` (rebuild churn). |
+| EXT-005 | 🟢 | F17 | ✅ | `AppManager.h` forward decl + `unique_ptr` (F17 etapa 5 retry, v3.28.12, commit `e7a78d7`). Root cause de regressão histórica (v3.25.5) resolvido: `_tft`/`_ts` sem `= nullptr` em DisplayManager.h. |
 | EXT-006 | 🟢 | F16 | ✅ | `LogManager::resetAfterExternalWipe()` substitui `begin()` em runtime. |
 | EXT-007 | 🟢 | F-CLEANUP | ✅ | Apagar docblock obsoleto `.csv` em `SystemUtils.cpp`. |
 | EXT-008 | 🟢 | F-DOC-EXT | ✅ | `docs/GLOSSARY.md` in-tree para tags do projeto. |
