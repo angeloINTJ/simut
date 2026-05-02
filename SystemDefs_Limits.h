@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.30.2" /* F-TIME-GATE (hardening defensivo) — garante que arquivos de histórico não são criados sem referência de hora válida (NTP atualizado OU provisional ativo). (a) processHistoryLogging: gate `now > 1600000000` mantido (já existia), MAS agora com warn-once log via APP_HIST_NO_TIME_REF=512 quando entra no estado e APP_HIST_TIME_REF_RECOVERED=513 quando volta. Antes, save era silenciosamente skipado — em factory reset+sem WiFi+sem provisional, ficava minutos perdendo records sem nenhum aviso. (b) StorageManager::writeHistoryEntryFlash ganha defesa em profundidade: rejeita rec.epoch <= 1600000000UL early-return. Caso futuro caller esqueça o gate, dados ruins (epoch=0, files "19700101.bin") não entram. + Toolkit de stress test em tools/stress_test/ (lib_simut_api.sh, generate_history_v2.py, backup_fs.sh, restore_fs.sh, run_stress_test.sh, README.md) — gera/upload/drain/CSV/restore end-to-end. Validado HW: 30 dias × 1440 records, drain 9.37 MB em 340s @ telInterval=300ms. */
+#define SIMUT_VERSION "v3.30.3" /* F-TIME-GATE: status atualizado para ✅ HW validada após confirmação do user. Mesmo binário do v3.30.2 (mudança só no STABILITY_PLAN.md), bump patch por convenção (memória: bump patch por commit). */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
