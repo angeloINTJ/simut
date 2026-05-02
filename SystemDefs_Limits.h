@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.28.5" /* Metadata: @author headers em 68 arquivos (.cpp/.h/.ino) + git history rewrite via filter-repo (mailmap "Your Name <you@example.com>" -> "Angelo Moises Alves <117550822+angeloINTJ@users.noreply.github.com>") em 177 commits + 19 tags. Author/committer agora consistentes em todos os refs (main, stability-fixes-tier1). git config local atualizado. */
+#define SIMUT_VERSION "v3.28.12" /* F17 etapa 5 (EXT-005) FECHADA — release final apos bisect. AppManager.h: forward decl + std::unique_ptr<T> em 8 managers + ~AppManager() declarado. Cada AppManager_*.cpp tem per-file include dep map. Bulk transform: 549 sites .method() -> ->method() + 12 sites &_xxxMgr -> .get(). Root cause da regressao v3.25.5 / v3.28.6 (tela branca + lockout stuck) identificada via bisect instrumentado: DisplayManager.h tinha `TftWithOffset* _tft;` e `XPT2046_Touchscreen* _ts;` SEM in-class initializer. BSS zero-init implicito os zerava (regra C++); heap (make_unique) deixava lixo, fazendo `if (!_tft) _tft = new ...` pular a alocacao. Fix: `= nullptr` nas 2 declaracoes. Instrumentacao de stage removida. HW: boot completo em 821ms (Core 1 main loop ativo), zero Lockout stuck, 2 reboots limpos. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

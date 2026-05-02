@@ -8,8 +8,14 @@
  */
 
 #include "AppManager.h"
+#include "DisplayManager.h"
 #include "LogManager.h"
+#include "NetworkManager.h"
+#include "SensorManager.h"
+#include "SoundManager.h"
+#include "StorageManager.h"
 #include "SystemDefs.h"
+#include "TelemetryManager.h"
 #include <LittleFS.h>
 #include <time.h>
 
@@ -20,19 +26,19 @@ void AppManager::pauseDisplayForFlash(bool lock) {
      * Lockout é desnecessário neste cenário porque Core 1 já não toca flash.
      * Early-return torna requestFsLock (LogManager) e enterFlashSafeMode
      * (StorageManager) no-ops quando já estamos dentro do quiet mode. */
-    if (_displayMgr.isInQuietMode()) return;
-    _displayMgr.pauseRendering(lock);
+    if (_displayMgr->isInQuietMode()) return;
+    _displayMgr->pauseRendering(lock);
 }
 
 bool AppManager::requestDisplayQuietMode(bool enable) {
-    if (enable) return _displayMgr.requestQuietMode();   /* default 15s */
-    _displayMgr.releaseQuietMode();
+    if (enable) return _displayMgr->requestQuietMode();   /* default 15s */
+    _displayMgr->releaseQuietMode();
     return true;
 }
 
 void AppManager::refreshSelectedSlot() {
-    SystemConfig &cfg = _storageMgr.getConfig();
-    const auto& sensors = _sensorMgr.getRuntimeSensors();
+    SystemConfig &cfg = _storageMgr->getConfig();
+    const auto& sensors = _sensorMgr->getRuntimeSensors();
     bool found = false;
 
     if (_currentSensorIdx < 10) {
@@ -40,16 +46,16 @@ void AppManager::refreshSelectedSlot() {
             uint8_t targetGpio = cfg.sensors[_currentSensorIdx].gpio;
             for (const auto &s : sensors) {
                 if (s.config.gpio != 10 && s.config.gpio == targetGpio) {
-                    _displayMgr.setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+                    _displayMgr->setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
                     found = true; break;
                 }
             }
         }
     } else if (_currentSensorIdx == 10) {
-        _displayMgr.setSlotData(analogReadTemp(), true, 10, "Board (Internal)"); found = true;
+        _displayMgr->setSlotData(analogReadTemp(), true, 10, "Board (Internal)"); found = true;
     }
 
-    if (!found) _displayMgr.setSlotData(NAN, false, _currentSensorIdx, "Empty / Inactive");
+    if (!found) _displayMgr->setSlotData(NAN, false, _currentSensorIdx, "Empty / Inactive");
 }
 
 /**
@@ -61,48 +67,48 @@ void AppManager::updateLiveDisplay() {
 
 
     {
-        String dateStr = _netMgr.getFormattedDate();
+        String dateStr = _netMgr->getFormattedDate();
         dateStr.replace("/20", "/");
-        String fullStatus = dateStr + " - " + _netMgr.getFormattedTime();
-        _displayMgr.setSystemStatus(_netMgr.getRssi(), false, fullStatus);
+        String fullStatus = dateStr + " - " + _netMgr->getFormattedTime();
+        _displayMgr->setSystemStatus(_netMgr->getRssi(), false, fullStatus);
 
 
         static uint32_t lastPendingRefresh = 0;
         if (timeSince(lastPendingRefresh, 10000)) {
-            _telemetryMgr.refreshPendingCount();
+            _telemetryMgr->refreshPendingCount();
             lastPendingRefresh = millis();
         }
-        _displayMgr.setTelemetryPending(_telemetryMgr.getPendingEstimate());
+        _displayMgr->setTelemetryPending(_telemetryMgr->getPendingEstimate());
 
         /* Min/max do dia (preload CSV + leituras acumuladas em tempo real) */
         float ambMinT = (_cachedMin[10] < 999.0f)  ? _cachedMin[10] : NAN;
         float ambMaxT = (_cachedMax[10] > -999.0f)  ? _cachedMax[10] : NAN;
         float ambMinH = (_cachedHumMin  < 999.0f)   ? _cachedHumMin  : NAN;
         float ambMaxH = (_cachedHumMax  > -999.0f)   ? _cachedHumMax  : NAN;
-        _displayMgr.setAmbientMinMax(ambMinT, ambMaxT, ambMinH, ambMaxH);
+        _displayMgr->setAmbientMinMax(ambMinT, ambMaxT, ambMinH, ambMaxH);
 
         /* Min/max do slot ativo */
         int slotIdx = _currentSensorIdx;
         if (slotIdx >= 0 && slotIdx < 10) {
             float sMinT = (_cachedMin[slotIdx] < 999.0f)  ? _cachedMin[slotIdx] : NAN;
             float sMaxT = (_cachedMax[slotIdx] > -999.0f)  ? _cachedMax[slotIdx] : NAN;
-            _displayMgr.setSlotMinMax(sMinT, sMaxT);
+            _displayMgr->setSlotMinMax(sMinT, sMaxT);
         }
     }
 
 
-    if (_sensorMgr.hasNewReadings()) {
-        const auto& sensors = _sensorMgr.getRuntimeSensors();
-        SystemConfig &cfg = _storageMgr.getConfig();
+    if (_sensorMgr->hasNewReadings()) {
+        const auto& sensors = _sensorMgr->getRuntimeSensors();
+        SystemConfig &cfg = _storageMgr->getConfig();
 
         for (const auto &s : sensors) {
-            if (s.config.gpio == 10) _displayMgr.setAmbientData(s.avgValue1, s.avgValue2, !s.inErrorState);
+            if (s.config.gpio == 10) _displayMgr->setAmbientData(s.avgValue1, s.avgValue2, !s.inErrorState);
             else if (_currentSensorIdx < 10 && cfg.sensors[_currentSensorIdx].active && cfg.sensors[_currentSensorIdx].gpio == s.config.gpio) {
-                _displayMgr.setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+                _displayMgr->setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
             }
         }
 
-        if (_currentSensorIdx == 10) _displayMgr.setSlotData(analogReadTemp(), true, 10, "Board (Internal)");
+        if (_currentSensorIdx == 10) _displayMgr->setSlotData(analogReadTemp(), true, 10, "Board (Internal)");
     }
 }
 
@@ -112,7 +118,7 @@ void AppManager::updateLiveDisplay() {
  * Uses ReadLock (no Core 1 pause) with 5-second budget limit.
  */
 void AppManager::preloadMinMax() {
-    time_t now = _netMgr.getEpoch();
+    time_t now = _netMgr->getEpoch();
     struct tm timeinfo;
     localtime_r(&now, &timeinfo);
 
@@ -121,17 +127,17 @@ void AppManager::preloadMinMax() {
              timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
     File f;
-    _storageMgr.enterFlashReadLock();
+    _storageMgr->enterFlashReadLock();
     bool fileExists = LittleFS.exists(path);
     if (fileExists) f = LittleFS.open(path, "r");
-    _storageMgr.exitFlashReadLock();
+    _storageMgr->exitFlashReadLock();
 
     if (fileExists && f) {
         /* v2: valida header SIM2. */
         HistoryFileHeaderV2 hdrP;
         bool headerOkP = false;
         {
-            StorageManager::ReadGuard rg(&_storageMgr);
+            StorageManager::ReadGuard rg(_storageMgr.get());
             if (f.size() >= HIST_V2_HEADER_SIZE) {
                 f.seek(0);
                 if (f.read((uint8_t*)&hdrP, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
@@ -142,7 +148,7 @@ void AppManager::preloadMinMax() {
             }
         }
         if (!headerOkP) {
-            { StorageManager::ReadGuard rg(&_storageMgr); f.close(); }
+            { StorageManager::ReadGuard rg(_storageMgr.get()); f.close(); }
             return;
         }
 
@@ -158,12 +164,12 @@ void AppManager::preloadMinMax() {
         while (hasMore) {
             if (timeSince(_preloadBudget, 5000)) {
                 LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
-                { StorageManager::ReadGuard rg(&_storageMgr); f.close(); }
+                { StorageManager::ReadGuard rg(_storageMgr.get()); f.close(); }
                 LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, 0, "");
                 return;
             }
 
-            _storageMgr.enterFlashReadLock();
+            _storageMgr->enterFlashReadLock();
             BinaryHistoryRecord batch[20];
             int count = 0;
             while (count < 20) {
@@ -182,7 +188,7 @@ void AppManager::preloadMinMax() {
                 count++;
             }
             hasMore = (pRdFilled > 0 || f.available() > 0);
-            _storageMgr.exitFlashReadLock();
+            _storageMgr->exitFlashReadLock();
 
             /* Processa batch fora do lock */
             for (int b = 0; b < count; b++) {
@@ -213,9 +219,9 @@ void AppManager::preloadMinMax() {
             delay(2);
         }
 
-        _storageMgr.enterFlashReadLock();
+        _storageMgr->enterFlashReadLock();
         f.close();
-        _storageMgr.exitFlashReadLock();
+        _storageMgr->exitFlashReadLock();
     }
 
     /* Salvar snapshot do preload (somente dados do CSV, sem leitura em tempo real) */
@@ -231,11 +237,11 @@ void AppManager::preloadMinMax() {
 
 void AppManager::processHistoryLogging() {
     _lastHistoryTime = millis();
-    time_t now = _netMgr.getEpoch();
+    time_t now = _netMgr->getEpoch();
 
     if (now > 1600000000) {
-        const auto& sensors = _sensorMgr.getRuntimeSensors();
-        SystemConfig &cfg = _storageMgr.getConfig();
+        const auto& sensors = _sensorMgr->getRuntimeSensors();
+        SystemConfig &cfg = _storageMgr->getConfig();
 
         /* ── Monta registro binário ── */
         BinaryHistoryRecord rec;
@@ -287,9 +293,9 @@ void AppManager::processHistoryLogging() {
             }
         }
 
-        if (_storageMgr.writeHistoryEntry(rec)) {
+        if (_storageMgr->writeHistoryEntry(rec)) {
             LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
-            _telemetryMgr.notifyNewRecord();
+            _telemetryMgr->notifyNewRecord();
         }
     }
 
@@ -348,11 +354,11 @@ void AppManager::openStatsScreen(int sensorId) {
     if (humMin == 1000.0f) humMin = 0.0f;
     if (humMax == -1000.0f) humMax = 0.0f;
 
-    SystemConfig &cfg = _storageMgr.getConfig();
+    SystemConfig &cfg = _storageMgr->getConfig();
     pkg.hasHumidity = (sensorId == -1);
 
     if (sensorId == -1) {
-        snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr.tr(TR_AMBIENT));
+        snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr->tr(TR_AMBIENT));
         snprintf(pkg.hwId, sizeof(pkg.hwId), "AMB");
         snprintf(pkg.rom, sizeof(pkg.rom), "INTERNAL-DHT");
     } else if (sensorId == 10) {
@@ -376,11 +382,11 @@ void AppManager::openStatsScreen(int sensorId) {
     }
     pkg.title[31] = '\0'; pkg.hwId[15] = '\0'; pkg.rom[23] = '\0';
 
-    _displayMgr.showStats(pkg, humMin, humMax);
+    _displayMgr->showStats(pkg, humMin, humMax);
 }
 void AppManager::checkAlarmConditions() {
-    const auto& sensors = _sensorMgr.getRuntimeSensors();
-    SystemConfig &cfg = _storageMgr.getConfig();
+    const auto& sensors = _sensorMgr->getRuntimeSensors();
+    SystemConfig &cfg = _storageMgr->getConfig();
     bool anyAlarm    = false;
     uint16_t mask    = 0;
     int8_t firstSlot = -1;
@@ -443,27 +449,27 @@ void AppManager::checkAlarmConditions() {
     }
 
 
-    bool silenced = _displayMgr.isAlarmSilenced();
+    bool silenced = _displayMgr->isAlarmSilenced();
 
-    if (anyAlarm && !_soundMgr.isAlarming() && !silenced) {
+    if (anyAlarm && !_soundMgr->isAlarming() && !silenced) {
 
-        _soundMgr.startAlarm();
+        _soundMgr->startAlarm();
         if (firstSlot >= 0) {
             _currentSensorIdx = firstSlot;
             refreshSelectedSlot();
         }
-        _displayMgr.setAlarmState(mask, firstSlot, ambTempAlarm, ambHumAlarm);
+        _displayMgr->setAlarmState(mask, firstSlot, ambTempAlarm, ambHumAlarm);
         LOG_CODE(LOG_WARN, "APP", APP_ALARM_TRIGGERED, 0, "");
-    } else if (anyAlarm && (_soundMgr.isAlarming() || silenced)) {
+    } else if (anyAlarm && (_soundMgr->isAlarming() || silenced)) {
 
-        _displayMgr.setAlarmState(mask, -1, ambTempAlarm, ambHumAlarm);
-    } else if (!anyAlarm && (_soundMgr.isAlarming() || silenced)) {
+        _displayMgr->setAlarmState(mask, -1, ambTempAlarm, ambHumAlarm);
+    } else if (!anyAlarm && (_soundMgr->isAlarming() || silenced)) {
 
-        _soundMgr.stopAlarm();
-        _displayMgr.setAlarmState(0, -1, false, false);
+        _soundMgr->stopAlarm();
+        _displayMgr->setAlarmState(0, -1, false, false);
 
         if (silenced) {
-            _displayMgr.setAlarmSilenced(false, 0);
+            _displayMgr->setAlarmSilenced(false, 0);
             LOG_CODE(LOG_INFO, "APP", APP_ALARM_SILENCE_CANCEL, 0, "");
         }
         LOG_CODE(LOG_INFO, "APP", APP_ALARM_CLEARED, 0, "");

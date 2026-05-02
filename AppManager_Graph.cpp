@@ -8,7 +8,9 @@
  */
 
 #include "AppManager.h"
+#include "DisplayManager.h"
 #include "LogManager.h"
+#include "StorageManager.h"
 #include "SystemDefs.h"
 #include <LittleFS.h>
 #include <time.h>
@@ -40,9 +42,9 @@ static inline float readRecordValue(const BinaryHistoryRecord& rec,
  * 6-second budget limit prevents watchdog timeout.
  */
 void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoad, int navOffset, time_t forceEndEpoch) {
-    if (!_storageMgr.lockHeavyTask()) {
+    if (!_storageMgr->lockHeavyTask()) {
         LOG_CODE(LOG_WARN, "APP", APP_FLASH_BUSY, 0, "");
-        _displayMgr.forceDashboard();
+        _displayMgr->forceDashboard();
         return;
     }
     /*
@@ -74,11 +76,11 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
 
     pkg.hasHumidity = (sensorId == -1);
 
-    SystemConfig &cfg = _storageMgr.getConfig();
+    SystemConfig &cfg = _storageMgr->getConfig();
     uint32_t epochLimit = 0;
 
     if (sensorId == -1) {
-        snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr.tr(TR_AMBIENT));
+        snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr->tr(TR_AMBIENT));
         snprintf(pkg.hwId, sizeof(pkg.hwId), "AMB");
         snprintf(pkg.rom, sizeof(pkg.rom), "INTERNAL-DHT");
     } else if (sensorId == 10) {
@@ -174,17 +176,17 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
         File f;
-        _storageMgr.enterFlashReadLock();
+        _storageMgr->enterFlashReadLock();
         bool fileExists = LittleFS.exists(path);
         if (fileExists) f = LittleFS.open(path, "r");
-        _storageMgr.exitFlashReadLock();
+        _storageMgr->exitFlashReadLock();
 
         if (fileExists && f) {
             /* v2: valida header SIM2. Sem seek otimizado (records variaveis). */
             HistoryFileHeaderV2 hdrG;
             bool headerOkG = false;
             {
-                StorageManager::ReadGuard rg(&_storageMgr);
+                StorageManager::ReadGuard rg(_storageMgr.get());
                 if (f.size() >= HIST_V2_HEADER_SIZE) {
                     f.seek(0);
                     if (f.read((uint8_t*)&hdrG, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
@@ -194,7 +196,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                     }
                 }
             }
-            if (!headerOkG) { _storageMgr.enterFlashReadLock(); f.close(); _storageMgr.exitFlashReadLock(); continue; }
+            if (!headerOkG) { _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock(); continue; }
 
             HistoryCodecState gState;
             historyCodecReset(gState);
@@ -212,7 +214,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                     break;
                 }
 
-                _storageMgr.enterFlashReadLock();
+                _storageMgr->enterFlashReadLock();
                 BinaryHistoryRecord batch[20];
                 int batchCount = 0;
                 while (batchCount < 20 && pkg.count < GRAPH_WIDTH) {
@@ -231,7 +233,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                     batchCount++;
                 }
                 hasMore = (gRdFilled > 0 || f.available() > 0);
-                _storageMgr.exitFlashReadLock();
+                _storageMgr->exitFlashReadLock();
 
                 bool pastWindow = false;
 
@@ -319,13 +321,13 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
                 yield();
             }
 
-            _storageMgr.enterFlashReadLock();
+            _storageMgr->enterFlashReadLock();
             f.close();
-            _storageMgr.exitFlashReadLock();
+            _storageMgr->exitFlashReadLock();
 
             if (budgetExceeded) {
-                _storageMgr.unlockHeavyTask();
-                _displayMgr.forceDashboard();
+                _storageMgr->unlockHeavyTask();
+                _displayMgr->forceDashboard();
                 return;
             }
         }
@@ -433,9 +435,9 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
 
     /* F-MEM-NOCACHE: caches eliminados em alpha14 — sem writes. */
 
-    _storageMgr.unlockHeavyTask();
+    _storageMgr->unlockHeavyTask();
 
     if (showAfterLoad) {
-        _displayMgr.showGraphPlot(pkg, localHumMin, localHumMax);
+        _displayMgr->showGraphPlot(pkg, localHumMin, localHumMax);
     }
 }

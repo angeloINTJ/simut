@@ -407,8 +407,14 @@ private:
     void     restoreNormalDashboard();
     void handleTouch();
 
-    TftWithOffset* _tft;
-    XPT2046_Touchscreen* _ts;
+    /* EXT-005 root cause fix (v3.28.11): ponteiros DEVEM ter `= nullptr` explícito.
+     * Em BSS o zero-init implícito do C++ os zerava (DisplayManager como membro
+     * por valor de AppManager); em heap (via `make_unique<DisplayManager>`) eles
+     * ficavam com lixo, fazendo `if (!_tft) _tft = new ...` em loopCore1 pular
+     * a alocação (lixo geralmente avalia true). _tft/_ts ficavam apontando pra
+     * lixo e o primeiro `_ts->begin()` ou `_tft->begin()` travava Core 1. */
+    TftWithOffset* _tft = nullptr;
+    XPT2046_Touchscreen* _ts = nullptr;
     GFXcanvas16* _canvasWide = nullptr;
     GFXcanvas16* _canvasSmall = nullptr;
 

@@ -15,20 +15,25 @@
 #pragma once
 
 #include <Arduino.h>
-#include <vector>
-#include "SensorManager.h"
-#include "StorageManager.h"
-#include "CommandManager.h"
+#include <memory>
 #include "SystemDefs.h"
-#include "DisplayManager.h"
-#include "NetworkManager.h"
-#include "WebManager.h"
-#include "TelemetryManager.h"
-#include "SoundManager.h"
+
+/* EXT-005 / F17 etapa 5 (BISECT Plan C — INSTRUMENTAÇÃO): TODOS 8 managers em heap
+ * (igual Plan A v3.28.6 que reproduziu a regressão), MAS com stages de progresso
+ * em DisplayManager::loopCore1 pra mapear exatamente onde Core 1 trava. */
+class SensorManager;
+class StorageManager;
+class CommandManager;
+class DisplayManager;
+class NetworkManager;
+class WebManager;
+class TelemetryManager;
+class SoundManager;
 
 class AppManager {
 public:
     AppManager();
+    ~AppManager();
     void setup();
     void loop();
 
@@ -43,14 +48,14 @@ public:
     bool isUserInteracting() const;
 
 private:
-    SensorManager    _sensorMgr;
-    StorageManager   _storageMgr;
-    CommandManager   _cmdMgr;
-    DisplayManager   _displayMgr;
-    NetworkManager   _netMgr;
-    WebManager       _webMgr;
-    TelemetryManager _telemetryMgr;
-    SoundManager     _soundMgr;
+    std::unique_ptr<SensorManager>    _sensorMgr;
+    std::unique_ptr<StorageManager>   _storageMgr;
+    std::unique_ptr<CommandManager>   _cmdMgr;
+    std::unique_ptr<DisplayManager>   _displayMgr;
+    std::unique_ptr<NetworkManager>   _netMgr;
+    std::unique_ptr<WebManager>       _webMgr;
+    std::unique_ptr<TelemetryManager> _telemetryMgr;
+    std::unique_ptr<SoundManager>     _soundMgr;
 
     uint32_t _lastHistoryTime = 0;
     uint32_t _lastSensorCheck = 0;
