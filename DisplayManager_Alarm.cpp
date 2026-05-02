@@ -44,24 +44,22 @@ void DisplayManager::showAlarmAction(int8_t slotIdx) {
 }
 
 
+/* F-DISPLAY-ATOMIC Fase 1: drawAlarmAction via strips (header + 3 botões).
+ * Padrão "draw-everything-with-offset-per-strip" — cada strip desenha TODOS
+ * os elementos no canvas (320×40), com Y offset apropriado pra strip.
+ * Adafruit_GFX clipa automaticamente pixels fora da canvas → cada strip
+ * mostra só a porção correspondente. ~5× mais CPU vs single-pass mas elimina
+ * top-down visual (~80ms total render). */
 void DisplayManager::drawAlarmAction() {
     if (!_canvasWide) return;
-
     if (!_forceSettingsRedraw) return;
     _forceSettingsRedraw = false;
 
-    _tft->fillScreen(C_BG_MAIN);
-
-
-    _tft->fillRect(4, 4, 312, 48, RGB565(180, 30, 30));
-    _tft->setFont(&simutFont12pt);
-    _tft->setTextColor(RGB565(255, 255, 255));
-
+    /* Header text — calculado uma vez, usado em todas as strips. */
     char headerBuf[40];
     if (_alarmActionSlot < 0) {
         snprintf(headerBuf, sizeof(headerBuf), "! %s", tr(TR_AMBIENT));
     } else {
-        /* Usar nome amigável do sensor (do sharedState) */
         mutex_enter_blocking(&_stateMutex);
         char friendlyName[32];
         safeCopy(friendlyName, _sharedState.slotName, sizeof(friendlyName));
@@ -72,35 +70,53 @@ void DisplayManager::drawAlarmAction() {
             snprintf(headerBuf, sizeof(headerBuf), "! Sensor %d", _alarmActionSlot);
         }
     }
-    int16_t bx, by; uint16_t bw, bh;
-    _tft->getTextBounds(headerBuf, 0, 0, &bx, &by, &bw, &bh);
-    _tft->setCursor((320 - bw) / 2, 32);
-    _tft->print(headerBuf);
-
-
-    int btnX = 20, btnW = 280, btnH = 45, btnR = 10;
-    _tft->fillRoundRect(btnX, 60, btnW, btnH, btnR, RGB565(200, 100, 0));
-    _tft->setFont(&simutFont12pt);
-    _tft->setTextColor(RGB565(255, 255, 255));
     String silTxt = tr(TR_SILENCE_120S);
-    _tft->getTextBounds(silTxt, 0, 0, &bx, &by, &bw, &bh);
-    _tft->setCursor(btnX + (btnW - bw) / 2, 60 + 30);
-    _tft->print(silTxt);
-
-
-    _tft->fillRoundRect(btnX, 115, btnW, btnH, btnR, RGB565(180, 30, 30));
     String deactTxt = tr(TR_DEACTIVATE);
-    _tft->getTextBounds(deactTxt, 0, 0, &bx, &by, &bw, &bh);
-    _tft->setCursor(btnX + (btnW - bw) / 2, 115 + 30);
-    _tft->print(deactTxt);
-
-
-    _tft->fillRoundRect(btnX, 170, btnW, btnH, btnR, C_ACCENT);
-    _tft->setTextColor(C_BG_MAIN);
     String mmTxt = tr(TR_MINMAX);
-    _tft->getTextBounds(mmTxt, 0, 0, &bx, &by, &bw, &bh);
-    _tft->setCursor(btnX + (btnW - bw) / 2, 170 + 30);
-    _tft->print(mmTxt);
+
+    const int btnX = 20, btnW = 280, btnH = 45, btnR = 10;
+
+    GFXcanvas16* cv = beginScreenRender();
+    if (!cv) return;
+
+    int16_t bx, by; uint16_t bw, bh;
+
+    for (int strip = 0; strip < 6; strip++) {
+        cv->fillScreen(C_BG_MAIN);
+        const int16_t yOff = -strip * RENDER_STRIP_H;
+
+        /* Header (y_screen=4..52) — visível em strips 0 e 1 */
+        cv->fillRect(4, 4 + yOff, 312, 48, RGB565(180, 30, 30));
+        cv->setFont(&simutFont12pt);
+        cv->setTextColor(RGB565(255, 255, 255));
+        cv->getTextBounds(headerBuf, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 32 + yOff);
+        cv->print(headerBuf);
+
+        /* Silence button (y_screen=60..105) — visível em strips 1 e 2 */
+        cv->fillRoundRect(btnX, 60 + yOff, btnW, btnH, btnR, RGB565(200, 100, 0));
+        cv->setFont(&simutFont12pt);
+        cv->setTextColor(RGB565(255, 255, 255));
+        cv->getTextBounds(silTxt, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor(btnX + (btnW - bw) / 2, 90 + yOff);
+        cv->print(silTxt);
+
+        /* Deactivate button (y_screen=115..160) — visível em strips 2 e 3 */
+        cv->fillRoundRect(btnX, 115 + yOff, btnW, btnH, btnR, RGB565(180, 30, 30));
+        cv->getTextBounds(deactTxt, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor(btnX + (btnW - bw) / 2, 145 + yOff);
+        cv->print(deactTxt);
+
+        /* Main menu button (y_screen=170..215) — visível em strips 4 e 5 */
+        cv->fillRoundRect(btnX, 170 + yOff, btnW, btnH, btnR, C_ACCENT);
+        cv->setTextColor(C_BG_MAIN);
+        cv->getTextBounds(mmTxt, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor(btnX + (btnW - bw) / 2, 200 + yOff);
+        cv->print(mmTxt);
+
+        commitScreenStrip(strip);
+    }
+    endScreenRender();
 }
 
 bool DisplayManager::isSlotAlarming(int slotIdx) const {

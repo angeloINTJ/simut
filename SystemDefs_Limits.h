@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.30.7" /* F-DISPLAY-ATOMIC Fase 0 (refactor) — beginScreenRender/commitScreenStrip/endScreenRender agora REUSAM `_canvasWide` (320×45, alocado no boot pro dashboard) em vez de allocar dinamicamente. Durante full-screen renders (auth/settings/etc), o dashboard não está ativo → canvas livre. Blita só 40 das 45 rows do canvas por strip (5 sobrando ignoradas). Vantagens vs v3.30.5/6: (a) zero heap pressure transient, (b) zero risco de null-buffer crash (Adafruit_GFX::buffer uninitialized), (c) telemetria continua rodando durante render (free heap intacta), (d) sem fallback `_tft` direto necessário. drawAuthScreen simplificado em ~80 linhas. Pronto pra Fases 1-6 (Settings, Calibration, Graph, etc). */
+#define SIMUT_VERSION "v3.30.8" /* F-DISPLAY-ATOMIC Fase 1 — drawAlarmAction (16 _tft calls → 6 strips de 40px). Padrão "draw-everything-with-offset-per-strip": cada strip desenha TODOS os elementos com Y offset = -stripIdx*40. Adafruit_GFX clipa automaticamente pixels fora da canvas. Header (y=4..52), silence (y=60..105), deactivate (y=115..160), main menu (y=170..215) — 3 dos 4 elementos cruzam fronteiras de strip, mas com clipping automático funciona transparente. ~5× mais CPU draws vs single-pass mas elimina top-down. Padrão validado pra reuso nas Fases 2-5 (Settings, Calibration, Graph, i18n). */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
