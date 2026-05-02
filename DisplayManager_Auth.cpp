@@ -93,26 +93,88 @@ void DisplayManager::showAuthScreen(String expectedPin) {
     mutex_exit(&_stateMutex);
 }
 
+/* F-DISPLAY-ATOMIC helper: 6 strips de 40px (= 240px). Caller decide bgColor
+ * (red pra permanent lockout, BG_MAIN pra outros) e se precisa msgs centrais
+ * (permanent lockout only). Returns true se foi via canvas, false se OOM
+ * (caller continua com _tft direto).
+ *
+ * Mapa por strip (cada 40px de tela):
+ *   0 (y=0..39):    title bar (CARD_BG rect y=4..36, texto y=22)
+ *   1 (y=40..79):   bg vazio
+ *   2 (y=80..119):  msg1 opcional (TR_ACCESS_BLOCKED, font 12pt em y=110 → canvas y=30)
+ *   3 (y=120..159): msg2 opcional (TR_REBOOT_REQ, font 9pt em y=140 → canvas y=20)
+ *   4 (y=160..199): bg vazio
+ *   5 (y=200..239): cancel button (y=202..234 → canvas y=2..34) + license button */
+static inline bool drawAuthChromeViaStrips(DisplayManager* dm, GFXcanvas16* cv,
+                                            uint16_t bgColor,
+                                            const String& titleTxt,
+                                            const String& cancelTxt,
+                                            const String& licTxt,
+                                            const String* msg1, const String* msg2) {
+    if (!cv) return false;
+    int16_t bx, by; uint16_t bw, bh;
+
+    /* Strip 0 (y=0..39): title bar */
+    cv->fillScreen(bgColor);
+    cv->fillRect(4, 4, 312, 32, C_CARD_BG);
+    cv->setFont(&simutFont9pt); cv->setTextColor(C_TEXT_MAIN);
+    cv->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh);
+    cv->setCursor((320 - bw) / 2, 22); cv->print(titleTxt);
+    dm->commitScreenStrip(0);
+
+    /* Strip 1 (y=40..79): vazio */
+    cv->fillScreen(bgColor);
+    dm->commitScreenStrip(1);
+
+    /* Strip 2 (y=80..119): msg1 em y=110 (font 12pt) → canvas y=30 */
+    cv->fillScreen(bgColor);
+    if (msg1) {
+        cv->setFont(&simutFont12pt); cv->setTextColor(C_BG_MAIN);
+        cv->getTextBounds(*msg1, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 30); cv->print(*msg1);
+    }
+    dm->commitScreenStrip(2);
+
+    /* Strip 3 (y=120..159): msg2 em y=140 (font 9pt) → canvas y=20 */
+    cv->fillScreen(bgColor);
+    if (msg2) {
+        cv->setFont(&simutFont9pt); cv->setTextColor(C_BG_MAIN);
+        cv->getTextBounds(*msg2, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 20); cv->print(*msg2);
+    }
+    dm->commitScreenStrip(3);
+
+    /* Strip 4 (y=160..199): vazio */
+    cv->fillScreen(bgColor);
+    dm->commitScreenStrip(4);
+
+    /* Strip 5 (y=200..239): cancel + license buttons em y=202 → canvas y=2..34 */
+    cv->fillScreen(bgColor);
+    cv->fillRoundRect(10, 2, 110, 32, 8, C_CARD_BG);
+    cv->setFont(&simutFont9pt); cv->setTextColor(C_TEXT_MAIN);
+    cv->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh);
+    cv->setCursor(10 + (110 - bw) / 2, 24); cv->print(cancelTxt);
+    cv->fillRoundRect(200, 2, 110, 32, 8, C_CARD_BG);
+    cv->setTextColor(C_TEXT_SUB);
+    cv->getTextBounds(licTxt, 0, 0, &bx, &by, &bw, &bh);
+    cv->setCursor(200 + (110 - bw) / 2, 24); cv->print(licTxt);
+    dm->commitScreenStrip(5);
+
+    dm->endScreenRender();
+    return true;
+}
+
 void DisplayManager::drawAuthScreen() {
     int16_t bx, by; uint16_t bw, bh;
     String titleTxt = tr(TR_AUTH_TITLE); String cancelTxt = tr(TR_CANCEL);
+    String licTxt = tr(TR_LICENSE_TITLE);
 
     if (_permanentLockout) {
         if (_forceSettingsRedraw) {
-            _tft->fillScreen(C_TEMP_HOT); _tft->fillRect(4, 4, 312, 32, C_CARD_BG); _tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_MAIN);
-            _tft->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 22); _tft->print(titleTxt);
-            _tft->setFont(&simutFont12pt); _tft->setTextColor(C_BG_MAIN); String msg1 = tr(TR_ACCESS_BLOCKED);
-            _tft->getTextBounds(msg1, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 110); _tft->print(msg1);
-            _tft->setFont(&simutFont9pt); String msg2 = tr(TR_REBOOT_REQ);
-            _tft->getTextBounds(msg2, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 140); _tft->print(msg2);
-            _tft->fillRoundRect(10, 202, 110, 32, 8, C_CARD_BG); _tft->setTextColor(C_TEXT_MAIN);
-            _tft->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor(10 + (110 - bw) / 2, 224); _tft->print(cancelTxt);
-            /* Botão de licença */
-            _tft->fillRoundRect(200, 202, 110, 32, 8, C_CARD_BG);
-            _tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_SUB);
-            String licTxt = tr(TR_LICENSE_TITLE);
-            _tft->getTextBounds(licTxt, 0, 0, &bx, &by, &bw, &bh);
-            _tft->setCursor(200 + (110 - bw) / 2, 224); _tft->print(licTxt);
+            String msg1 = tr(TR_ACCESS_BLOCKED);
+            String msg2 = tr(TR_REBOOT_REQ);
+            drawAuthChromeViaStrips(this, beginScreenRender(),
+                                    C_TEMP_HOT, titleTxt, cancelTxt, licTxt, &msg1, &msg2);
             _forceSettingsRedraw = false;
         }
         return;
@@ -121,16 +183,8 @@ void DisplayManager::drawAuthScreen() {
     if (_lockoutUntil > 0 && !timeReached(_lockoutUntil)) {
         static long lastSec = -1;
         if (_forceSettingsRedraw) {
-            _tft->fillScreen(C_BG_MAIN); _tft->fillRect(4, 4, 312, 32, C_CARD_BG); _tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_MAIN);
-            _tft->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 22); _tft->print(titleTxt);
-            _tft->fillRoundRect(10, 202, 110, 32, 8, C_CARD_BG);
-            _tft->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor(10 + (110 - bw) / 2, 224); _tft->print(cancelTxt);
-            /* Botão de licença */
-            _tft->fillRoundRect(200, 202, 110, 32, 8, C_CARD_BG);
-            _tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_SUB);
-            String licTxt = tr(TR_LICENSE_TITLE);
-            _tft->getTextBounds(licTxt, 0, 0, &bx, &by, &bw, &bh);
-            _tft->setCursor(200 + (110 - bw) / 2, 224); _tft->print(licTxt);
+            drawAuthChromeViaStrips(this, beginScreenRender(),
+                                    C_BG_MAIN, titleTxt, cancelTxt, licTxt, nullptr, nullptr);
             _forceSettingsRedraw = false; lastSec = -1;
         }
         long secondsLeft = (long)(timeRemaining(_lockoutUntil) / 1000) + 1;
@@ -148,16 +202,8 @@ void DisplayManager::drawAuthScreen() {
     }
 
     if (_forceSettingsRedraw) {
-        _tft->fillScreen(C_BG_MAIN); _tft->fillRect(4, 4, 312, 32, C_CARD_BG); _tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_MAIN);
-        _tft->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh); _tft->setCursor((320 - bw) / 2, 22); _tft->print(titleTxt);
-        _tft->fillRoundRect(10, 202, 110, 32, 8, C_CARD_BG); _tft->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh);
-        _tft->setCursor(10 + (110 - bw) / 2, 224); _tft->print(cancelTxt);
-        /* Botão de licença no canto inferior direito */
-        _tft->fillRoundRect(200, 202, 110, 32, 8, C_CARD_BG);
-        _tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_SUB);
-        String licTxt = tr(TR_LICENSE_TITLE);
-        _tft->getTextBounds(licTxt, 0, 0, &bx, &by, &bw, &bh);
-        _tft->setCursor(200 + (110 - bw) / 2, 224); _tft->print(licTxt);
+        drawAuthChromeViaStrips(this, beginScreenRender(),
+                                C_BG_MAIN, titleTxt, cancelTxt, licTxt, nullptr, nullptr);
         _forceSettingsRedraw = false;
     }
 

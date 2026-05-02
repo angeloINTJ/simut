@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.30.4" /* CLI 'tel reset' — invalida cache RAM (_cachedLastSent=0) + apaga arquivo flash /config/t_cursor.bin num único call atômico, sem precisar reboot. Casos: ops (re-enviar dados após server outage prolongada), manutenção (mover dados pra outro destino), testes (tools/stress_test simplificou phase 3.5 — antes precisava /api/delete + Serial reload confirm). Adiciona CMD_TEL_RESET enum, parser 'tel reset', handler em AppManager_Commands.cpp, StorageManager::resetTelemetryCursor() público, help text EN. tools/stress_test/run_stress_test.sh phase 3.5 agora usa o novo command (mais rápido e confiável). */
+#define SIMUT_VERSION "v3.30.7" /* F-DISPLAY-ATOMIC Fase 0 (refactor) — beginScreenRender/commitScreenStrip/endScreenRender agora REUSAM `_canvasWide` (320×45, alocado no boot pro dashboard) em vez de allocar dinamicamente. Durante full-screen renders (auth/settings/etc), o dashboard não está ativo → canvas livre. Blita só 40 das 45 rows do canvas por strip (5 sobrando ignoradas). Vantagens vs v3.30.5/6: (a) zero heap pressure transient, (b) zero risco de null-buffer crash (Adafruit_GFX::buffer uninitialized), (c) telemetria continua rodando durante render (free heap intacta), (d) sem fallback `_tft` direto necessário. drawAuthScreen simplificado em ~80 linhas. Pronto pra Fases 1-6 (Settings, Calibration, Graph, etc). */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

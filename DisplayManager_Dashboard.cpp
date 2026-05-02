@@ -176,6 +176,34 @@ void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
     _tft->setOffsetBypass(false);
 }
 
+/* ─── F-DISPLAY-ATOMIC: full-screen render via strips de 40px ─────────────
+ * Reusa `_canvasWide` (320×45, alocado no boot do Core 1 pro dashboard top
+ * bar). Durante full-screen renders (auth/settings/etc), o dashboard não
+ * está ativo — canvas está livre pra reuse. Blita só 40 das 45 rows do
+ * canvas por strip; 5 rows extras são ignoradas no blit.
+ *
+ * Sem heap dinâmica = zero risco de OOM/null-buffer crash. Telemetria roda
+ * normalmente durante render (free heap intacta). */
+GFXcanvas16* DisplayManager::beginScreenRender() {
+    if (!_canvasWide) return nullptr;  /* Core 1 não inicializado — improvável durante render */
+    _canvasWide->fillScreen(C_BG_MAIN);
+    return _canvasWide;
+}
+
+void DisplayManager::commitScreenStrip(int16_t stripIdx) {
+    if (!_canvasWide || !_tft) return;
+    int16_t stripY = stripIdx * RENDER_STRIP_H;
+    /* Blita 40 das 45 rows do canvas (5 sobrando ignoradas). */
+    blitCanvas(_canvasWide, 0, stripY, 320, RENDER_STRIP_H);
+    /* Limpa pra próxima strip ser desenhada do zero. Caller pode overwrite. */
+    _canvasWide->fillScreen(C_BG_MAIN);
+}
+
+void DisplayManager::endScreenRender() {
+    /* No-op: _canvasWide é persistente, não há nada pra liberar.
+     * Mantido na API por consistência (caller ainda chama no final). */
+}
+
 void DisplayManager::drawTopBar(const SystemState& state) {
     if(!_canvasWide) return;
     const int W = 320, H = 29;

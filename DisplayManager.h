@@ -418,6 +418,19 @@ private:
     GFXcanvas16* _canvasWide = nullptr;
     GFXcanvas16* _canvasSmall = nullptr;
 
+    /* F-DISPLAY-ATOMIC (v3.30.7): full-screen render reusa `_canvasWide` (320×45)
+     * que já existe pro dashboard. Durante telas full-screen (auth/settings/etc),
+     * o dashboard não está renderizando, então `_canvasWide` está livre.
+     * Strip de 40px usa só 40 das 45 rows do canvas (5 rows extras ignoradas).
+     * 6 strips × 40px = 240 = altura total da tela.
+     *
+     * Vantagens vs alloc dinâmica (v3.30.5/6 — falhou ou flertou com OOM):
+     *   - Zero heap pressure (canvas já alocado no boot)
+     *   - Zero risco de null-buffer crash (Adafruit_GFX::buffer uninitialized)
+     *   - Telemetria continua rodando durante render (heap free intacta)
+     *   - Sem fallback necessário */
+    static constexpr int16_t RENDER_STRIP_H = 40;
+
     SystemState _lastRenderedState;
     int _currentPage = 0;
     uint32_t _lastTouchTime = 0;
@@ -606,6 +619,24 @@ private:
     static constexpr int16_t CAL_SCR_Y[4] = {  20,  20, 220, 220 };
 
 public:
+    /* ── F-DISPLAY-ATOMIC (v3.30.5): full-screen render via 3 strips de 80px ──
+     * Uso típico (no lugar de _tft->fillScreen + sequential draws):
+     *   GFXcanvas16* cv = beginScreenRender();
+     *   if (!cv) { fallback _tft->...; return; }
+     *   // Strip 0 (y=0..79): coordenadas iguais à tela
+     *   cv->fillRect(4, 4, 312, 32, ...); cv->setCursor(x, 22); cv->print(title);
+     *   commitScreenStrip(0);
+     *   // Strip 1 (y=80..159): subtrair 80 das coordenadas de tela
+     *   commitScreenStrip(1);
+     *   // Strip 2 (y=160..239): subtrair 160 das coordenadas
+     *   cv->fillRoundRect(10, 202-160, 110, 32, 8, ...);
+     *   commitScreenStrip(2);
+     *   endScreenRender();
+     * Alloc/free a cada render = libera heap pra telemetria entre renders. */
+    GFXcanvas16* beginScreenRender();
+    void commitScreenStrip(int16_t stripIdx);
+    void endScreenRender();
+
     /* ── F-LANGPACK (Etapa 1 + Option C): dynamic language pack ──
      * EN é hardcoded no firmware (DICTIONARY_EN, translateCodeEn, e
      * literais EN nos sítios TRL). Tudo que for non-EN vem do .lng:
