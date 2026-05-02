@@ -651,6 +651,17 @@ void AppManager::executeCommand(CliDemand cmd) {
             }
             break;
 
+        case CMD_TEL_RESET:
+            /* Reseta cursor de telemetria — invalida cache RAM + remove arquivo
+             * flash. Usado em ops (re-enviar dados após server outage prolongada)
+             * e em testes (tools/stress_test). Sem reboot. Próximo collectBatch
+             * cai no fallback "lastRecorded - 30 days". */
+            _storageMgr->resetTelemetryCursor();
+            _cmdMgr->printSuccess(_cmdMgr->isPt()
+                ? "Cursor de telemetria resetado. Proximos envios cobrem ate 30 dias atras."
+                : "Telemetry cursor reset. Next sends cover up to 30 days back.");
+            break;
+
         case CMD_DEBUG: {
             CliConfigData* cli = reinterpret_cast<CliConfigData*>(
                 cfg.reserved + CLI_CONFIG_OFFSET);

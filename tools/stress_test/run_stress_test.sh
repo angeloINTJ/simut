@@ -122,39 +122,20 @@ if [[ $SKIP_UPLOAD -eq 0 ]]; then
     echo ""
 fi
 
-# ─── Phase 3.5: Reset telemetry cursor + reboot pra invalidar cache RAM ──────
-# StorageManager::getLastSentTimestamp() retorna `_cachedLastSent` se >0, sem
-# ler do disco. Só delete do arquivo NÃO funciona — precisa reboot pra zerar
-# a cache RAM. Após reboot + arquivo ausente → fallback "lastRecorded - 30d".
+# ─── Phase 3.5: Reset telemetry cursor via CLI 'tel reset' ──────────────────
+# Desde v3.30.4, o CLI command 'tel reset' invalida cache RAM + apaga flash
+# file num único call atômico, sem precisar reboot. Mais rápido e confiável
+# que o approach antigo (api/delete + Serial reload confirm).
 if [[ $SKIP_UPLOAD -eq 0 && $SKIP_DRAIN -eq 0 ]]; then
-    _simut_log "PHASE 3.5/6: Reset cursor + reboot device"
-    simut_login || exit 1
-    if simut_delete "/config/t_cursor.bin"; then
-        _simut_log "  ✓ /config/t_cursor.bin deletado"
+    _simut_log "PHASE 3.5/6: Reset telemetry cursor via 'tel reset'"
+    out=$(simut_serial_cmd "tel reset" 3 2>/dev/null || true)
+    if echo "$out" | grep -qE "Cursor de telemetria resetado|Telemetry cursor reset"; then
+        _simut_log "  ✓ Cursor resetado (cache RAM + flash file)"
     else
-        _simut_warn "  cursor delete falhou (talvez já não exista)"
+        _simut_warn "  Resposta inesperada do 'tel reset': $(echo "$out" | tr -d '\r' | head -c 80)"
+        _simut_warn "  (Firmware < v3.30.4? Comando talvez não exista. Próximo drain pode pegar só dados novos.)"
     fi
-    simut_logout
-
-    # Reboot via Serial CLI 'reload confirm' (invalida cache RAM)
-    _simut_log "  Reboot via Serial (reload confirm)..."
-    simut_serial_cmd "reload confirm" 2 >/dev/null || _simut_warn "  Serial cmd falhou; tente liberar /dev/ttyACM0"
-
-    # Wait device voltar (poll /api/login_init até 200 OK)
-    _simut_log "  Aguardando device voltar..."
-    REBOOT_DEADLINE=$(( $(date +%s) + 60 ))
-    while [[ $(date +%s) -lt $REBOOT_DEADLINE ]]; do
-        sleep 3
-        code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 3 \
-                    "${SIMUT_BASE}/api/login_init?u=${SIMUT_USER}" 2>/dev/null || echo "000")
-        if [[ "$code" == "200" ]]; then
-            _simut_log "  ✓ Device respondeu (HTTP $code)"
-            break
-        fi
-        printf '  . waiting (%s)\n' "$code"
-    done
-    # Aguarda mais 5s pra NTP sync + telemetry begin
-    sleep 5
+    sleep 2
     echo ""
 fi
 

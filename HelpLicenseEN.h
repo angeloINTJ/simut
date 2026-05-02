@@ -113,6 +113,8 @@ tel sync
   Force telemetry upload
 tel dump
   Arm one-shot dump of next payload to console (USB+BT)
+tel reset
+  Reset telemetry cursor (cache RAM + flash file). Re-sends up to 30 days back.
 clear log [confirm]
   Delete system log file
 write memory

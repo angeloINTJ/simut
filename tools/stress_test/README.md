@@ -102,19 +102,19 @@ stress.log              # log completo via tee
 
 ## Limitações conhecidas
 
-- **Cache de cursor RAM-only**: `StorageManager::getLastSentTimestamp()`
-  cacheia o último valor enviado. Reset só via reboot (que o script faz).
-  Se Serial estiver ocupado e reboot falhar, drain não vai pegar os
-  records sintéticos do passado — só os novos do device.
 - **Telemetria fallback de 30 dias**: se gerar mais de 30 dias, só os
   últimos 30 entram no batch da telemetria. CSV exporta tudo
   (não usa cursor, vai por range).
 - **Rate limit no /api/upload e /api/delete**: 200ms server-side; o lib
   tem `SIMUT_API_RATE_DELAY=0.5` por padrão, ajustável via env var.
+- **Serial necessário pra reset cursor**: phase 3.5 chama `tel reset` via
+  Serial CLI. Se `/dev/ttyACM0` estiver ocupado (Arduino IDE Serial Monitor
+  aberto, etc), o reset falha e o drain só pega dados novos do device.
+  Libere o Serial antes de rodar.
 
 ## Próximos passos / melhorias futuras
 
-- `tel reset` CLI command no firmware: invalidaria cache RAM diretamente,
-  evitando a dependência de reboot via Serial. Ver discussão em F-TEL-V2READER.
 - Rodar via CI: precisa device físico ou emulador. Não é trivial.
 - Relatório HTML auto-gerado a partir do `drain.csv`.
+- Endpoint web `/api/tel/reset` (espelho do CLI `tel reset`): tornaria o
+  toolkit independente de Serial.

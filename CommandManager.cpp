@@ -406,8 +406,9 @@ CliDemand CommandManager::parseCommand(String input) {
 
     if (t0 == "write" && t1 == "memory") { cmd.type = CMD_WRITE_MEMORY; return cmd; }
     if (t0 == "clear" && t1 == "log") { cmd.type = CMD_CLEAR_LOGS; return cmd; }
-    if (t0 == "tel" && t1 == "sync") { cmd.type = CMD_TEL_SYNC; return cmd; }
-    if (t0 == "tel" && t1 == "dump") { cmd.type = CMD_TEL_DUMP; return cmd; }
+    if (t0 == "tel" && t1 == "sync")  { cmd.type = CMD_TEL_SYNC;  return cmd; }
+    if (t0 == "tel" && t1 == "dump")  { cmd.type = CMD_TEL_DUMP;  return cmd; }
+    if (t0 == "tel" && t1 == "reset") { cmd.type = CMD_TEL_RESET; return cmd; }
 
     if (t0 == "debug") {
         cmd.type = CMD_DEBUG;

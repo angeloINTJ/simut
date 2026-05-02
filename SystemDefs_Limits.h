@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.30.3" /* F-TIME-GATE: status atualizado para ✅ HW validada após confirmação do user. Mesmo binário do v3.30.2 (mudança só no STABILITY_PLAN.md), bump patch por convenção (memória: bump patch por commit). */
+#define SIMUT_VERSION "v3.30.4" /* CLI 'tel reset' — invalida cache RAM (_cachedLastSent=0) + apaga arquivo flash /config/t_cursor.bin num único call atômico, sem precisar reboot. Casos: ops (re-enviar dados após server outage prolongada), manutenção (mover dados pra outro destino), testes (tools/stress_test simplificou phase 3.5 — antes precisava /api/delete + Serial reload confirm). Adiciona CMD_TEL_RESET enum, parser 'tel reset', handler em AppManager_Commands.cpp, StorageManager::resetTelemetryCursor() público, help text EN. tools/stress_test/run_stress_test.sh phase 3.5 agora usa o novo command (mais rápido e confiável). */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

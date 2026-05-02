@@ -1099,6 +1099,35 @@ void StorageManager::setLastSentTimestamp(uint32_t ts) {
     _cursorCoalesceTime = millis();
 }
 
+/**
+ * @brief CMD_TEL_RESET: reseta cursor de telemetria sem precisar reboot.
+ * Invalida a cache RAM (_cachedLastSent=0), limpa o coalescer pendente,
+ * e remove o arquivo flash. Próximo getLastSentTimestamp retorna 0; próximo
+ * collectBatch aplica o fallback "lastRecorded - 30 days".
+ *
+ * Casos de uso:
+ *   - Operação: re-enviar dados após outage prolongada do servidor (cursor
+ *     ficou bem além do que o servidor tem).
+ *   - Manutenção: mover dados pra outro destino e quer re-enviar do zero.
+ *   - Testes: tools/stress_test/run_stress_test.sh chama esse path
+ *     (anteriormente usava /api/delete + reboot via Serial).
+ */
+void StorageManager::resetTelemetryCursor() {
+    _cachedLastSent = 0;
+    _cursorDirty = false;
+    _cursorCoalesceTime = 0;
+
+    LogManager::WdtWindow _wdt(15000);
+    enterFlashSafeMode();
+    if (LittleFS.exists(FILE_TCURSOR)) {
+        LittleFS.remove(FILE_TCURSOR);
+    }
+    exitFlashSafeMode();
+    /* TelemetryManager._pendingDirty é setado por update() pós-envio; não
+     * mexemos daqui pra evitar dependência circular. Próximo tick refaz a
+     * contagem com o cursor zerado. */
+}
+
 void StorageManager::flushCursorIfDirty() {
     if (!_cursorDirty) return;
     if (!timeSince(_cursorCoalesceTime, CURSOR_COALESCE_MS)) return;

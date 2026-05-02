@@ -105,6 +105,7 @@ public:
 
     uint32_t getLastSentTimestamp();
     void setLastSentTimestamp(uint32_t ts);
+    void resetTelemetryCursor();   /**< CMD_TEL_RESET: invalida cache RAM + apaga flash file. */
 
     static String getBoardSerialNumber();
     bool getCalibrationData(const uint8_t* rom, String& outId, float& outOffset, String& outName);

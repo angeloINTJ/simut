@@ -57,6 +57,7 @@ enum DemandType {
     CMD_RELOAD,
     CMD_TEL_SYNC,
     CMD_TEL_DUMP,
+    CMD_TEL_RESET,    /**< Reseta cursor de telemetria: cache RAM + flash file */
     CMD_DEBUG,
     CMD_LANGUAGE,
     /* #7: paridade CLI↔Web */
