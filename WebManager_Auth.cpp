@@ -3,6 +3,7 @@
  * @brief   Authentication: login/logout, sessions, rate limiting, nonces, password handling, RBAC.
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #include "WebManager.h"

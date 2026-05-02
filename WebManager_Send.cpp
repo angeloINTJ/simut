@@ -3,6 +3,7 @@
  * @brief   Send infrastructure: safeSend overloads, gzip delivery, safeStreamFile, client disconnect detection.
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #include "WebManager.h"

@@ -12,6 +12,7 @@
  *          REF-001 / F17 etapa 8.
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

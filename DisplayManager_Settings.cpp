@@ -8,6 +8,7 @@
  *          (acceptTouch/Hold/Slide) ficam em core junto com handleTouch.
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

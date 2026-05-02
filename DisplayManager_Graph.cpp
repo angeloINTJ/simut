@@ -7,6 +7,7 @@
  *          + period buttons (1H/6H/12H/24H/7D), formatGraphTime helper.
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

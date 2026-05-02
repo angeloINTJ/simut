@@ -3,6 +3,7 @@
  * @brief   Core infrastructure: constructor, display health, time sync, user interaction.
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

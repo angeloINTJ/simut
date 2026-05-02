@@ -15,6 +15,7 @@
  *          REF-001 / F17 etapa 8 (split DisplayManager.cpp).
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

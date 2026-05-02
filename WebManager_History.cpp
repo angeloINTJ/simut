@@ -3,6 +3,7 @@
  * @brief   History/log endpoints: binary history data, log viewer, screenshot, history days.
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #include "WebManager.h"

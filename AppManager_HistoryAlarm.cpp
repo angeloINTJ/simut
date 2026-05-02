@@ -3,6 +3,7 @@
  * @brief   History logging, min/max computation, alarm monitoring, live display updates.
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

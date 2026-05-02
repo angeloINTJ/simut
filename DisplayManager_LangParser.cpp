@@ -28,6 +28,7 @@
  *          modificando o buffer in-place.
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

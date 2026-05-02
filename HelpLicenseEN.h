@@ -5,6 +5,7 @@
  *          agora embutidos no firmware. Não acessíveis ao user via /files.
  *          Versões PT/ES vêm do /lang/language_<code>.lng (parser .lng).
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT
  */
 #pragma once

@@ -8,6 +8,7 @@
  *          o script, recompilar.
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #pragma once

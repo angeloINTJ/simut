@@ -7,6 +7,7 @@
  *          dessa config persistente para SystemConfig::reserved[].
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

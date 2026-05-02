@@ -7,6 +7,7 @@
  *          (facade). EXT-003 / F17 etapa 4.
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

@@ -6,6 +6,7 @@
  *          cross-file via this-> (member method).
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

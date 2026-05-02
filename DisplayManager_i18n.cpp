@@ -7,6 +7,7 @@
  *          fica oculto (gated por _activeLangLoaded).
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

@@ -3,6 +3,7 @@
  * @brief   REST API handlers: status, config, network, users, themes, alarms, set_time.
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #include "WebManager.h"

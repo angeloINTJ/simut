@@ -8,6 +8,7 @@
  *          são gates de debounce + repeat-on-hold usados por handleTouch.
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

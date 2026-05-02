@@ -3,6 +3,7 @@
  * @brief   File operations: download, delete, ls, mkdir, upload (batch-buffered).
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #include "WebManager.h"

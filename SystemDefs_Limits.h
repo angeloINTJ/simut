@@ -6,6 +6,7 @@
  *          Sub-header de SystemDefs.h (facade). EXT-003 / F17 etapa 4.
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 
@@ -16,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.28.4" /* UI polish /history: padronizado tamanho dos 5 botoes do grafico (◀ rangeSel ▶ ⤓CSV) — todos com width:72px, height:38px, texto centralizado, font-size:0.85rem. Setinha do dropdown rangeSel oculta (csel-arr display:none) ja que o select esta entre setinhas de navegacao. Removido inline font-size:1.1rem das setinhas. Sem mudanca de tamanho/forma entre estados (ex: ⏳ durante export ocupa o mesmo espaco que ⤓ CSV). */
+#define SIMUT_VERSION "v3.28.5" /* Metadata: @author headers em 68 arquivos (.cpp/.h/.ino) + git history rewrite via filter-repo (mailmap "Your Name <you@example.com>" -> "Angelo Moises Alves <117550822+angeloINTJ@users.noreply.github.com>") em 177 commits + 19 tags. Author/committer agora consistentes em todos os refs (main, stability-fixes-tier1). git config local atualizado. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

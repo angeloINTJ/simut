@@ -3,6 +3,7 @@
  * @brief   Sensor health: auto-heal, background scan, calibration.
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

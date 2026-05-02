@@ -8,6 +8,7 @@
  *          tudo depois de eventos modais (auth/license/alarm).
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

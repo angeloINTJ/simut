@@ -3,6 +3,7 @@
  * @brief   Utility functions: crypto tokens, file names, hex conversion, secure compare.
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

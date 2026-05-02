@@ -6,6 +6,7 @@
  *          local para scramble; scrambleKeys reorganiza layout do teclado.
  *
  * @project SIMUT
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

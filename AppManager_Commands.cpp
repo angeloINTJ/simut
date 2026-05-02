@@ -3,6 +3,7 @@
  * @brief   CLI command execution (40+ cases across config, sensors, network, users).
  * @project SIMUT
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 
