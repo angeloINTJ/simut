@@ -15,6 +15,7 @@
 
 #include "TelemetryManager.h"
 #include "MetricsManager.h"
+#include "HistoryCodec.h"
 #include <LittleFS.h>
 #include <algorithm>
 #include <string.h>
@@ -388,6 +389,13 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
         (cfg.telBatchSize > 0) ? cfg.telBatchSize : 10);
 
 
+    /* F-TEL-V2READER (v3.30.1): codec V2 (delta + anchor). Substitui o read
+     * raw de 28 bytes (formato V1) que ficou esquecido na migração v3.27.0-α5
+     * → telemetria silenciosamente quebrada por ~26 dias (collectBatch sempre
+     * vazia). Reader segue o padrão usado em StorageManager::getLastRecorded
+     * e WebManager::handleApiHistoryData. */
+    const uint32_t EPOCH_MIN = 1700000000UL;  /* 2023-11-14 */
+
     for (const String& fn : files) {
         if (batch.size() >= limit) break;
         if (minFileName.length() > 0 && fn < minFileName) continue;
@@ -398,37 +406,65 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
         File f = LittleFS.open(fullPath, "r");
         if (!f) { _storageRef->exitFlashReadLock(); continue; }
 
-        bool hasMore = true;
-        while (hasMore && batch.size() < limit) {
-
-            BinaryHistoryRecord tempBuf[10];
-            uint32_t tempCursors[10];
-            int tempCount = 0;
-
-            while (f.available() >= HISTORY_RECORD_SIZE && tempCount < 10) {
-                BinaryHistoryRecord rec;
-                if (f.read((uint8_t*)&rec, HISTORY_RECORD_SIZE) != HISTORY_RECORD_SIZE) continue;
-
-                /* Defensive: ignora records com epoch absurdo (lixo de boot
-                 * pre-NTP ou corrupção do codec v2). Evita propagar para o
-                 * cursor — bug do `19691231.bin` (v3.27.x). */
-                const uint32_t EPOCH_MIN = 1700000000UL;  /* 2023-11-14 */
-                bool epochValid = (rec.epoch >= EPOCH_MIN) &&
-                                  (nowEpoch < EPOCH_MIN || rec.epoch <= nowEpoch + 86400UL);
-                if (epochValid && rec.epoch > lastCursor) {
-                    tempBuf[tempCount] = rec;
-                    tempCursors[tempCount] = rec.epoch;
-                    tempCount++;
-                }
+        /* V2 header */
+        HistoryFileHeaderV2 hdr;
+        bool headerOk = false;
+        if (f.size() >= HIST_V2_HEADER_SIZE) {
+            f.seek(0);
+            if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
+                headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
+                            hdr.version == HIST_V2_VERSION &&
+                            hdr.anchorPeriod > 0);
             }
-            hasMore = (f.available() >= HISTORY_RECORD_SIZE);
+        }
+        if (!headerOk) {
+            /* Arquivo V1 legado ou corrompido: skip silencioso. Migração V1→V2
+             * é offline (tools/history_v1_to_v2.py). */
+            f.close();
+            _storageRef->exitFlashReadLock();
+            continue;
+        }
 
-            for (int i = 0; i < tempCount && batch.size() < limit; i++) {
-                batch.push_back(tempBuf[i]);
-                if (tempCursors[i] > newCursor) newCursor = tempCursors[i];
+        HistoryCodecState rdState;
+        historyCodecReset(rdState);
+        uint8_t  rdBuf[256];
+        size_t   rdFilled = 0;
+        uint32_t inFileCount = 0;
+        bool fileHasMore = true;
+
+        while (fileHasMore && batch.size() < limit) {
+            BinaryHistoryRecord rec;
+
+            if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
+                int rN = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
+                if (rN > 0) rdFilled += (size_t)rN;
+            }
+            if (rdFilled == 0) { fileHasMore = false; break; }
+
+            bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
+                            (rdState.recordsSinceAnchor == hdr.anchorPeriod);
+            size_t consumed = historyDecodeRecord(rdBuf, rdFilled, rdState, rec, isAnchor);
+            if (consumed == 0) {
+                /* Decode falhou: codec corrompido ou truncado. Skip resto do arquivo. */
+                fileHasMore = false;
+                break;
+            }
+            memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
+            rdFilled -= consumed;
+            inFileCount++;
+
+            /* Defensive: ignora records com epoch absurdo (anterior a 2023-11
+             * ou no futuro além de 1 dia). Mesma lógica do reader V1 antigo. */
+            bool epochValid = (rec.epoch >= EPOCH_MIN) &&
+                              (nowEpoch < EPOCH_MIN || rec.epoch <= nowEpoch + 86400UL);
+            if (epochValid && rec.epoch > lastCursor) {
+                batch.push_back(rec);
+                if (rec.epoch > newCursor) newCursor = rec.epoch;
             }
 
-            if (hasMore && batch.size() < limit) {
+            /* Periódico WDT feed + yield a cada 10 records decodados, evitando
+             * trancar o lock por muito tempo em arquivos grandes. */
+            if ((inFileCount % 10) == 0 && fileHasMore && batch.size() < limit) {
                 _storageRef->exitFlashReadLock();
                 feedWdt();
                 yield();
@@ -437,7 +473,6 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
         }
         f.close();
         _storageRef->exitFlashReadLock();
-
 
         feedWdt();
     }
@@ -1265,6 +1300,9 @@ void TelemetryManager::refreshPendingCount() {
     uint16_t total = 0;
 
 
+    /* F-TEL-V2READER (v3.30.1): mesmo motivo do collectBatch — lia 28 B raw
+     * em formato V2, contagem ficava errada (em geral inflada). Reader idêntico
+     * ao do collectBatch mas só conta records com epoch > lastCursor. */
     for (const String& fn : files) {
         if (minFileName.length() > 0 && fn < minFileName) continue;
 
@@ -1274,13 +1312,40 @@ void TelemetryManager::refreshPendingCount() {
         File f = LittleFS.open(fullPath, "r");
         if (!f) { _storageRef->exitFlashReadLock(); continue; }
 
-        /* Lê apenas o epoch (4 bytes) de cada registro e salta os 24 restantes */
-        while (f.available() >= HISTORY_RECORD_SIZE) {
-            uint32_t epoch;
-            if (f.read((uint8_t*)&epoch, sizeof(epoch)) == sizeof(epoch)) {
-                if (epoch > lastCursor) total++;
-                f.seek(f.position() + HISTORY_RECORD_SIZE - sizeof(epoch));
+        HistoryFileHeaderV2 hdr;
+        bool headerOk = false;
+        if (f.size() >= HIST_V2_HEADER_SIZE) {
+            f.seek(0);
+            if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
+                headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
+                            hdr.version == HIST_V2_VERSION &&
+                            hdr.anchorPeriod > 0);
             }
+        }
+        if (!headerOk) { f.close(); _storageRef->exitFlashReadLock(); continue; }
+
+        HistoryCodecState rdState;
+        historyCodecReset(rdState);
+        uint8_t  rdBuf[256];
+        size_t   rdFilled = 0;
+
+        while (true) {
+            BinaryHistoryRecord rec;
+
+            if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available() > 0) {
+                int rN = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
+                if (rN > 0) rdFilled += (size_t)rN;
+            }
+            if (rdFilled == 0) break;
+
+            bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
+                            (rdState.recordsSinceAnchor == hdr.anchorPeriod);
+            size_t consumed = historyDecodeRecord(rdBuf, rdFilled, rdState, rec, isAnchor);
+            if (consumed == 0) break;
+            memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
+            rdFilled -= consumed;
+
+            if (rec.epoch > lastCursor) total++;
         }
         f.close();
         _storageRef->exitFlashReadLock();

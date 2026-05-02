@@ -931,6 +931,16 @@ static bool scanHistoryFileForState(File& f, HistoryCodecState& s) {
 
 bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
     if (!_isMounted) return false;
+
+    /* F-TIME-GATE defesa em profundidade: rejeita epoch < 2020-09-13. O caller
+     * (processHistoryLogging) já tem o gate, mas o writeHistory é exposto via
+     * StorageManager.h e pode ser chamado por novos callers no futuro. Sem
+     * essa checagem, um caller esquecendo o gate poluiria o histórico com
+     * records de epoch=0 que quebram telemetria, codec V2 anchor logic, e
+     * geram nomes de arquivo "19700101.bin". Silent reject (já existe um
+     * warn-once no caller). */
+    if (rec.epoch <= 1600000000UL) return false;
+
     String path = getHistoryFileName();
 
     LogManager::TraceScope _tr(0, MOD_HIST_FLASH);

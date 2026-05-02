@@ -144,6 +144,8 @@ enum LogCode {
     /* ── History (510–514) ── */
     APP_HISTORY_SAVED       = 510,
     APP_HEAP_REPORT         = 511,
+    APP_HIST_NO_TIME_REF        = 512,  /* F-TIME-GATE: skip por falta de NTP/provisional */
+    APP_HIST_TIME_REF_RECOVERED = 513,  /* F-TIME-GATE: time ref voltou, retomando saves */
 
     /* ── Network extended (520–539) ── */
     NET_DHCP_MODE           = 520,

@@ -239,7 +239,29 @@ void AppManager::processHistoryLogging() {
     _lastHistoryTime = millis();
     time_t now = _netMgr->getEpoch();
 
-    if (now > 1600000000) {
+    /* F-TIME-GATE: history só salva com referência de hora válida (NTP
+     * sincronizado OU provisional ativo). Threshold 1600000000 = 2020-09-13;
+     * abaixo é fallback ~1970 sem time ref alguma. Sem o gate, records
+     * ficariam com epoch=0 ou bizarro, contaminando telemetria + UI.
+     *
+     * Warn-once: sem o aviso, podia ficar minutos/horas perdendo records sem
+     * nenhuma indicação. Loga 1× quando entra no estado, 1× quando sai. */
+    if (now <= 1600000000) {
+        if (!_histTimeRefWarned) {
+            LOG_CODE(LOG_WARN, "HIST", APP_HIST_NO_TIME_REF, 0,
+                     TRL("History skip: no time reference (NTP off + no provisional)"));
+            _histTimeRefWarned = true;
+        }
+        return;
+    }
+    /* Recuperou: log 1× quando volta a salvar após período sem time ref. */
+    if (_histTimeRefWarned) {
+        LOG_CODE(LOG_INFO, "HIST", APP_HIST_TIME_REF_RECOVERED, 0,
+                 TRL("History resumed: time reference acquired"));
+        _histTimeRefWarned = false;
+    }
+
+    {
         const auto& sensors = _sensorMgr->getRuntimeSensors();
         SystemConfig &cfg = _storageMgr->getConfig();
 

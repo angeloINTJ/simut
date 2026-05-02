@@ -890,9 +890,11 @@ static const char* translateCodeEn(uint16_t code) {
         case APP_CORE1_DEAD:          return "Core 1 dead >10s, restarting";
         case APP_FLASH_BUSY:          return "Flash busy collision";
 
-        /* ── History (510–511) ── */
+        /* ── History (510–513) ── */
         case APP_HISTORY_SAVED:       return "History record saved";
         case APP_HEAP_REPORT:         return "Heap status report";
+        case APP_HIST_NO_TIME_REF:        return "History skip: no time reference";
+        case APP_HIST_TIME_REF_RECOVERED: return "History resumed: time reference acquired";
 
         /* ── Network extended (520–527) ── */
         case NET_DHCP_MODE:           return "DHCP mode enabled";

@@ -113,6 +113,12 @@ private:
 
     bool _pendingAlarmDeactivate = false;
 
+    /* F-TIME-GATE (v3.30.2): warn-once quando processHistoryLogging tem que
+     * pular save por falta de time ref (sem NTP + sem provisional). Reseta
+     * automaticamente quando time ref volta. Sem isso, ficaria minutos/horas
+     * silenciosamente perdendo records pós-NTP-fail + factory-reset boot. */
+    bool _histTimeRefWarned = false;
+
     static constexpr uint32_t TOUCH_PRIORITY_MS = 5000;
 
     /* ── Fase 4: CLI deferral durante touch priority ─────────────────────
