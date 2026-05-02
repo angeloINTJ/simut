@@ -16,7 +16,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.27.32" /* /network: campos de IP estatico (#static_fields) e DNS manual (#dns_fields) agora SOMEM totalmente quando os toggles correspondentes (DHCP, Auto DNS) estao ON, via CSS :has() — .grp:has(#dhcp:checked) #static_fields { display:none }, idem dns_auto. JS toggleIpFields/toggleDnsFields antigo (que so' mexia em opacity) continua rodando inofensivo. Mesma tecnica do .sensor-card em /alarms. */
+#define SIMUT_VERSION "v3.28.4" /* UI polish /history: padronizado tamanho dos 5 botoes do grafico (◀ rangeSel ▶ ⤓CSV) — todos com width:72px, height:38px, texto centralizado, font-size:0.85rem. Setinha do dropdown rangeSel oculta (csel-arr display:none) ja que o select esta entre setinhas de navegacao. Removido inline font-size:1.1rem das setinhas. Sem mudanca de tamanho/forma entre estados (ex: ⏳ durante export ocupa o mesmo espaco que ⤓ CSV). */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

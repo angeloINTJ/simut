@@ -408,7 +408,13 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
                 BinaryHistoryRecord rec;
                 if (f.read((uint8_t*)&rec, HISTORY_RECORD_SIZE) != HISTORY_RECORD_SIZE) continue;
 
-                if (rec.epoch > lastCursor) {
+                /* Defensive: ignora records com epoch absurdo (lixo de boot
+                 * pre-NTP ou corrupção do codec v2). Evita propagar para o
+                 * cursor — bug do `19691231.bin` (v3.27.x). */
+                const uint32_t EPOCH_MIN = 1700000000UL;  /* 2023-11-14 */
+                bool epochValid = (rec.epoch >= EPOCH_MIN) &&
+                                  (nowEpoch < EPOCH_MIN || rec.epoch <= nowEpoch + 86400UL);
+                if (epochValid && rec.epoch > lastCursor) {
                     tempBuf[tempCount] = rec;
                     tempCursors[tempCount] = rec.epoch;
                     tempCount++;

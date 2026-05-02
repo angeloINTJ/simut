@@ -158,6 +158,39 @@ ou domótica); não é hardened contra rede pública adversária.
   Não é rate-limit, é prioridade de UX, mas também reduz janela para
   ataques de CPU-exaustion.
 
+### Export CSV — `/api/export/history.bin` e `/api/export/logs.bin`
+
+- **Auth**: ambos exigem login web válido + permissão `PERM_HISTORY` /
+  `PERM_LOGS` respectivamente. Sem cookie `SIMUTSESS` válido → HTTP 403.
+- **Atomic guard**: cada endpoint tem flag (`_inHistoryHandler`,
+  `_inExportLogsHandler`) que impede 2 exports concorrentes do mesmo
+  tipo — segundo recebe HTTP 503 `{"error":"Already processing"}`.
+  Permite 1 export de history + 1 export de logs simultâneos.
+- **HeavyTaskGuard**: serializa contra writes de flash (saves de
+  config, sensor accept). Concorrência → HTTP 503 `System Busy`.
+- **Cap de range hard**: 31 dias por request (rejeitado com HTTP 400
+  `Range exceeds 31 days`). Cliente JS divide ranges maiores em
+  chunks de 24h (~30 chunks p/ histórico completo).
+- **Deadline servidor**: `WEB_LONG_HANDLER_DEADLINE_MS = 15s`
+  (calibrado por `tools/test_perf.sh` — export 3d ~10s no caso típico).
+  Ao estourar, handler aborta limpo via `isHandlerOvertime()` e CRC32
+  trailer não é emitido — cliente detecta CRC inválido e re-tenta com
+  chunk menor.
+- **Integridade**: bundle `.simx` tem CRC32-IEEE-802.3 trailer. Cliente
+  valida byte-a-byte antes de gerar CSV — falha de rede/truncamento
+  detectada determinísticamente.
+- **Filtros server-side**: `/api/export/logs.bin?level=err|inf|all`
+  filtra no servidor (reduz bytes na rede e CPU no cliente). History
+  filtra por `from`/`to` (epoch UTC, hard cap 31d).
+
+### Backend hardening contra loops infinitos
+
+- `handleApiExportHistory` itera por dia em range. Caso o arquivo
+  do dia não exista (`LittleFS.exists() == false`), o `dayStart` é
+  sempre avançado **antes** de qualquer `continue` — previne loop
+  infinito que disparava WDT em ranges que cobriam datas sem dados
+  (incidente fixado em `v3.27.15`, validado por `tools/test_stress.sh`).
+
 ---
 
 ## 5. Auditoria
