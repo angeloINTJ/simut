@@ -712,6 +712,10 @@ public:
     static const char* getActiveWebDict();
     /** True se _activeLang está populado (qualquer lookup pode acertar). */
     static bool isLangLoaded();
+    /** v3.34.1: meta info do .lng ativo (name + code) p/ /api/perms popular
+     *  o seletor de idioma no drawer da web. Retorna "" se !isLangLoaded(). */
+    static const char* getActiveLangName();
+    static const char* getActiveLangCode();
 
 private:
     struct ActiveLang {

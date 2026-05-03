@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.34.0" /* F-CALIB-UI integrado no /dashboard (toggle "Modo Calibração" + inputs Nome/ID/Ref + botão Atualizar inline). Toggle só aparece se /web/calib.on existe no FS (opt-in). Backend: 2 endpoints — GET /api/calib (estado leve com leituras correntes), POST /api/calib (apply + reescrita atômica de calib.csv com VERSION=epoch, NTP-gated 503). Aceitação de sensor via CLI `sensor accept N`. F-WEB-DEDUP: CSS comum (drawer/topbar/breadcrumb/toast) extraído pra /style.css cacheável (8 páginas), drawer HTML extraído pra LANG_JS via installDrawer(). Favicon migrado de PROGMEM (11KB) pra LittleFS (/favicon.ico) — fallback 204 se ausente. Economia total absorve custo do patch + libera ~8.6KB. Flash final 97.7%. */
+#define SIMUT_VERSION "v3.34.1" /* Seletor de idioma dinâmico no drawer da web. /api/perms expõe langCode + langName lendo de DisplayManager::getActiveLangCode/Name (do header do .lng ativo). Frontend (LANG_JS installDrawer): mapa LANG_FLAGS (PT/ES/EN/FR/DE/IT/RU/ZH/JA/KO/etc.) atualiza label do 2º option com flag + abrev. real do .lng instalado (ex: 🇪🇸 ES quando .lng é es-ES). Se nenhum .lng está carregado, 2º option é removido (só EN visível) e localStorage simut_lang=pt é forçado pra 'en' (evita fallback quebrado em dict.pt vazio). Bonus: PERM_CALIB substituiu /web/calib.on no opt-in da feature de calibração. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

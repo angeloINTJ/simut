@@ -429,6 +429,9 @@ const char* DisplayManager::getActiveWebDict() {
     return _activeLangLoaded ? _activeLang.webDict : nullptr;
 }
 bool DisplayManager::isLangLoaded() { return _activeLangLoaded; }
+/* v3.34.1: meta do .lng ativo p/ seletor de idioma na web. */
+const char* DisplayManager::getActiveLangName() { return _activeLangLoaded ? _activeLang.name : ""; }
+const char* DisplayManager::getActiveLangCode() { return _activeLangLoaded ? _activeLang.code : ""; }
 
 /* ─────────────────────────────────────────────────────────────────
  * unaccent: UTF-8 (Latin-1 subset) → ASCII 7-bit.

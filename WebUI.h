@@ -3954,7 +3954,20 @@ static const char LANG_JS[] PROGMEM = R"raw(
         +'<div class="drawer-footer"><div><span id="greeting" style="color:var(--sub);font-size:0.78rem"></span><div style="margin-top:4px"><select class="lang-select" onchange="setLang(this.value)"><option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option></select></div></div>'
         +'<a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>'
         +'</div></div></div>';
-    window.installDrawer = function(){var h=document.getElementById('drawer-host');if(!h)return;h.outerHTML=DRAWER_HTML;var p=window.location.pathname;document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(function(a){if(a.getAttribute('href')===p)a.classList.add('active');});};
+    /* v3.34.1: mapeamento code → emoji bandeira pra seletor dinâmico. */
+    var LANG_FLAGS = {pt:'🇧🇷','pt-BR':'🇧🇷','pt-PT':'🇵🇹',es:'🇪🇸','es-ES':'🇪🇸','es-MX':'🇲🇽',en:'🇺🇸','en-US':'🇺🇸','en-GB':'🇬🇧',fr:'🇫🇷',de:'🇩🇪',it:'🇮🇹',ru:'🇷🇺',zh:'🇨🇳',ja:'🇯🇵',ko:'🇰🇷',nl:'🇳🇱',pl:'🇵🇱',sv:'🇸🇪',tr:'🇹🇷',ar:'🇸🇦'};
+    function langFlag(code){var c=(code||'').toLowerCase();return LANG_FLAGS[c]||LANG_FLAGS[c.split('-')[0]]||'🌐';}
+    function langShort(code){var c=(code||'').split('-')[0].toUpperCase();return c||'??';}
+    window.installDrawer = function(){var h=document.getElementById('drawer-host');if(!h)return;h.outerHTML=DRAWER_HTML;var p=window.location.pathname;document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(function(a){if(a.getAttribute('href')===p)a.classList.add('active');});
+        /* v3.34.1: atualiza seletor de idioma com base no .lng ativo (langCode/langName de /api/perms).
+         * Se nenhum .lng está carregado, remove o 2º option (mostra só EN) e força modo EN
+         * caso o user tivesse 'pt' no localStorage (evita applyLang falhar em dict.pt vazio). */
+        fetch('/api/perms',{credentials:'same-origin'}).then(function(r){return r.json();}).then(function(d){
+            var sel=document.querySelector('.drawer .lang-select');if(!sel)return;
+            var opts=sel.querySelectorAll('option');
+            if(!d||!d.langCode){if(opts.length>=2)opts[1].remove();if(localStorage.getItem('simut_lang')==='pt'){localStorage.setItem('simut_lang','en');if(typeof applyLang==='function')applyLang();}sel.value='en';return;}
+            if(opts.length>=2)opts[1].textContent=langFlag(d.langCode)+' '+langShort(d.langCode);
+        }).catch(function(){});};
     document.addEventListener('DOMContentLoaded',function(){if(typeof window.installDrawer==='function')window.installDrawer();});
 
     /* =========================================================================

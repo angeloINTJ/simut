@@ -24,10 +24,17 @@ void WebManager::handleApiPerms() {
 
     bool ntpOk = _netRef->isTimeSynced();
     time_t now = time(nullptr);
-    char json[224];
+    /* v3.34.1: expõe meta do .lng ativo (code+name) pra Web popular o seletor
+     * de idioma dinamicamente. Se nenhum .lng está carregado, retornam "".
+     * Web JS faz fallback "PT" quando code está vazio. */
+    const char* lc = DisplayManager::getActiveLangCode();
+    const char* ln = DisplayManager::getActiveLangName();
+    char json[336];
     snprintf(json, sizeof(json),
-             "{\"user\":\"%s\",\"perms\":%u,\"ntp\":%d,\"time\":%lu,\"version\":\"%s\"}",
-             _currentUserName.c_str(), perms, ntpOk ? 1 : 0, (unsigned long)now, SIMUT_VERSION);
+             "{\"user\":\"%s\",\"perms\":%u,\"ntp\":%d,\"time\":%lu,\"version\":\"%s\","
+             "\"langCode\":\"%s\",\"langName\":\"%s\"}",
+             _currentUserName.c_str(), perms, ntpOk ? 1 : 0, (unsigned long)now, SIMUT_VERSION,
+             lc ? lc : "", ln ? ln : "");
     _server.send(200, "application/json", json);
 }
 
