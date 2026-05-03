@@ -70,7 +70,35 @@ enum LangKey {
 
     TR_MENU_DISPLAY_OFFSET, TR_DISPLAY_OFFSET_TITLE, TR_DISPLAY_OFFSET_HINT,
 
+    /* v3.31.2 boot terminal i18n. Strings de boot resolvidas via tr() em
+     * runtime — quando setLanguage() carrega o .lng pós-FS-mount, _langChanged
+     * dispara re-render do boot screen e as linhas já mostradas re-aparecem
+     * traduzidas. As que rodam pré-mount entram em EN no display e mudam pra
+     * idioma ativo assim que o lang pack é carregado. */
+    TR_BOOT_HOLD_AP, TR_BOOT_AP_CANCELLED,
+    TR_BOOT_MOUNT_FS, TR_BOOT_START_LOG, TR_BOOT_START_CMD,
+    TR_BOOT_LOAD_THEME_LANG, TR_BOOT_TOUCH_CAL_REQ,
+    TR_BOOT_LOAD_PERIPH, TR_BOOT_START_AP, TR_BOOT_AP_NETWORK, TR_BOOT_AP_IP,
+    TR_BOOT_START_WIFI, TR_BOOT_WIFI_SKIPPED,
+    TR_BOOT_WAITING_ROUTER, TR_BOOT_SYNC_NTP,
+    TR_BOOT_NET_TIMEOUT, TR_BOOT_NET_CONNECTED,
+    TR_BOOT_START_TEL, TR_BOOT_START_WEB, TR_BOOT_REG_CALLBACKS,
+    TR_BOOT_AP_ACTIVE,
+    TR_BOOT_LOAD_MINMAX, TR_BOOT_WARMUP, TR_BOOT_CORRECT_TS,
+    TR_BOOT_RELOAD_MINMAX, TR_BOOT_PREP_DASH,
+    TR_BOOT_ALL_INIT, TR_BOOT_SYS_READY,
+    TR_BOOT_APPLYING_CFG, TR_BOOT_REBOOTING,
+
     TR_KEYS_COUNT
+};
+
+/** Entry no buffer de boot logs — armazena TR key (resolvida em render via
+ *  tr()) + sufixo opcional concatenado após (ex: dots animados). Quando o
+ *  caller passa raw string sem TR key (legacy), guarda key=TR_KEYS_COUNT
+ *  e o texto literal vai em suffix. */
+struct BootLogEntry {
+    int16_t key;       /**< TR_BOOT_* ou TR_KEYS_COUNT (= raw, não traduz) */
+    char    suffix[40];/**< concatenado após tr(key); ou texto raw se key==COUNT */
 };
 
 struct SystemState {
@@ -78,7 +106,7 @@ struct SystemState {
     float slotTemp; bool slotValid; int selectedSlotIdx; char slotName[32];
     int wifiRssi; bool btActive; char timeString[24];
     uint16_t pendingPkts;
-    bool isBooting; char bootLogs[5][40]; bool showSkipButton; int apProgressPct;
+    bool isBooting; BootLogEntry bootLogs[5]; bool showSkipButton; int apProgressPct;
     uint16_t alarmSlotMask;
 };
 class DisplayManager {
@@ -112,6 +140,15 @@ public:
     void setSlotMinMax(float minT, float maxT);
     void setSystemStatus(int rssi, bool bt, String timeStr);
 
+    /** Boot status: armazena uma TR key (resolvida em render via tr()) +
+     *  sufixo opcional. Use para mensagens que devem seguir o idioma ativo.
+     *  v3.31.2 — replace é o equivalente in-place (atualiza linha atual em
+     *  vez de fazer scroll). */
+    void setBootStatusKey(LangKey key, const char* suffix = nullptr, bool showSkip = false);
+    void replaceBootStatusKey(LangKey key, const char* suffix = nullptr, bool showSkip = false);
+
+    /** Legacy raw-string API: para mensagens já traduzidas externamente ou
+     *  sem chave TR. Não segue mudanças de idioma. */
     void setBootStatus(String msg, bool showSkip = false);
     void replaceBootStatus(String msg, bool showSkip = false);
     void setApProgress(int pct);
@@ -282,6 +319,8 @@ private:
     volatile bool _repaintLoading = false;
     volatile bool _loadingDrawn = false;
     volatile bool _themeChanged = false;
+    volatile bool _langChanged = false;  /**< v3.31.2: setLanguage() seta;
+                                           render() força fullRedraw em boot. */
     volatile bool _forceFullRedraw = false;
     volatile bool _rawTouchState = false;
     volatile bool _skipPressed = false;

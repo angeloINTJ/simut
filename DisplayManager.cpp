@@ -133,7 +133,10 @@ DisplayManager::DisplayManager() {
     _sharedState.isBooting = true;
     _sharedState.showSkipButton = false;
     _sharedState.apProgressPct = -1;
-    for(int i = 0; i < 5; i++) strcpy(_sharedState.bootLogs[i], "");
+    for(int i = 0; i < 5; i++) {
+        _sharedState.bootLogs[i].key = (int16_t)TR_KEYS_COUNT;
+        _sharedState.bootLogs[i].suffix[0] = '\0';
+    }
     strcpy(_sharedState.timeString, "--/-- --:--");
     strcpy(_sharedState.slotName, "Sensor 1");
     _lastRenderedState.isBooting = false;
@@ -178,6 +181,10 @@ void DisplayManager::setLanguage(int langId) {
      * Core 0 (boot via setup, ou EVT_APPLY_LANG via AppManager). LittleFS
      * acesso seguro nesses contextos. */
     loadLicenseFromFs(_currentLangIdx);
+    /* v3.31.2: força re-render do boot screen pra retraduzir bootLogs já
+     * mostrados em EN antes do .lng carregar. Render() boot path detecta
+     * o flag e setta fullRedraw. */
+    _langChanged = true;
 }
 
 
@@ -362,22 +369,58 @@ void DisplayManager::refreshTheme() { _themeChanged = true; }
 /*                        CALENDÁRIO DE HISTÓRICO                            */
 /* ─────────────────────────────────────────────────────────────────────────── */
 
+/* v3.31.5: durante reboot via web, garantir que o dispatcher do loopCore1
+ * entre no branch MODE_DASHBOARD (única branch que chama render(), que
+ * detecta isBooting=true e desenha boot screen). Sem isso, se o user
+ * estiver em qualquer settings screen quando o reboot é triggered,
+ * o boot screen não é renderizado e elementos da tela atual persistem. */
 void DisplayManager::setBootStatus(String msg, bool showSkip) {
     mutex_enter_blocking(&_stateMutex);
     if (msg.length() > 0) {
-        for (int i = 0; i < 4; i++) strcpy(_sharedState.bootLogs[i], _sharedState.bootLogs[i+1]);
-        safeCopy(_sharedState.bootLogs[4], msg.c_str(), sizeof(_sharedState.bootLogs[4]));
+        for (int i = 0; i < 4; i++) _sharedState.bootLogs[i] = _sharedState.bootLogs[i+1];
+        _sharedState.bootLogs[4].key = (int16_t)TR_KEYS_COUNT;  /* raw, sem tradução */
+        safeCopy(_sharedState.bootLogs[4].suffix, msg.c_str(), sizeof(_sharedState.bootLogs[4].suffix));
     }
     _sharedState.showSkipButton = showSkip; _sharedState.isBooting = true; _isDirty = true;
+    _uiMode = MODE_DASHBOARD; _forceFullRedraw = true;
     mutex_exit(&_stateMutex);
 }
 
 void DisplayManager::replaceBootStatus(String msg, bool showSkip) {
     mutex_enter_blocking(&_stateMutex);
     if (msg.length() > 0) {
-        safeCopy(_sharedState.bootLogs[4], msg.c_str(), sizeof(_sharedState.bootLogs[4]));
+        _sharedState.bootLogs[4].key = (int16_t)TR_KEYS_COUNT;
+        safeCopy(_sharedState.bootLogs[4].suffix, msg.c_str(), sizeof(_sharedState.bootLogs[4].suffix));
     }
     _sharedState.showSkipButton = showSkip; _sharedState.isBooting = true; _isDirty = true;
+    _uiMode = MODE_DASHBOARD; _forceFullRedraw = true;
+    mutex_exit(&_stateMutex);
+}
+
+void DisplayManager::setBootStatusKey(LangKey key, const char* suffix, bool showSkip) {
+    mutex_enter_blocking(&_stateMutex);
+    for (int i = 0; i < 4; i++) _sharedState.bootLogs[i] = _sharedState.bootLogs[i+1];
+    _sharedState.bootLogs[4].key = (int16_t)key;
+    if (suffix && suffix[0]) {
+        safeCopy(_sharedState.bootLogs[4].suffix, suffix, sizeof(_sharedState.bootLogs[4].suffix));
+    } else {
+        _sharedState.bootLogs[4].suffix[0] = '\0';
+    }
+    _sharedState.showSkipButton = showSkip; _sharedState.isBooting = true; _isDirty = true;
+    _uiMode = MODE_DASHBOARD; _forceFullRedraw = true;
+    mutex_exit(&_stateMutex);
+}
+
+void DisplayManager::replaceBootStatusKey(LangKey key, const char* suffix, bool showSkip) {
+    mutex_enter_blocking(&_stateMutex);
+    _sharedState.bootLogs[4].key = (int16_t)key;
+    if (suffix && suffix[0]) {
+        safeCopy(_sharedState.bootLogs[4].suffix, suffix, sizeof(_sharedState.bootLogs[4].suffix));
+    } else {
+        _sharedState.bootLogs[4].suffix[0] = '\0';
+    }
+    _sharedState.showSkipButton = showSkip; _sharedState.isBooting = true; _isDirty = true;
+    _uiMode = MODE_DASHBOARD; _forceFullRedraw = true;
     mutex_exit(&_stateMutex);
 }
 
@@ -671,7 +714,11 @@ void DisplayManager::loopCore1() {
             }
 
 
-            if (isAnyAlarmActive()) {
+            /* v3.31.5 guard: durante boot screen (state.isBooting=true após
+             * web reboot), redrawAlarmFlash sobreescreve o boot screen com
+             * cards de alarme — visualmente "fica alarme piscando por cima
+             * do Reiniciando o sistema...". Pulamos enquanto isBooting. */
+            if (isAnyAlarmActive() && !_lastRenderedState.isBooting) {
                 uint32_t now = millis();
                 if (now - _alarmFlashTimer >= ALARM_FLASH_INTERVAL_MS) {
                     _alarmFlashTimer = now;
@@ -680,7 +727,7 @@ void DisplayManager::loopCore1() {
                         redrawAlarmFlash();
                     }
                 }
-            } else if (_alarmFlashPhase) {
+            } else if (_alarmFlashPhase && !_lastRenderedState.isBooting) {
 
                 _alarmFlashPhase  = false;
                 _alarmFlashTimer  = 0;
@@ -824,7 +871,13 @@ bool DisplayManager::pullSnapshot(SystemState& localSnapshot) {
 
 void DisplayManager::render(const SystemState& state) {
     if (state.isBooting) {
-        bool fullRedraw = (_lastRenderedState.isBooting == false) || (_lastRenderedState.apProgressPct != state.apProgressPct);
+        /* v3.31.2: _langChanged força fullRedraw pra retraduzir bootLogs já
+         * mostrados em EN antes do .lng carregar. */
+        bool langJustChanged = _langChanged;
+        if (langJustChanged) _langChanged = false;
+        bool fullRedraw = (_lastRenderedState.isBooting == false) ||
+                          (_lastRenderedState.apProgressPct != state.apProgressPct) ||
+                          langJustChanged;
         if (state.apProgressPct >= 0) {
             if (fullRedraw) _tft->fillScreen(C_BG_MAIN);
             _tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_MAIN);
@@ -858,24 +911,41 @@ void DisplayManager::render(const SystemState& state) {
             _tft->setCursor(20, boxY + 8);
             _tft->print("> system_init()                       ");
         }
+        /* Diff por linha: só repinta linhas que mudaram. Boot logs são
+         * BootLogEntry (key + suffix). Em render, resolvemos tr(key) +
+         * suffix. v3.31.2: comparação inclui key, suffix E idioma ativo
+         * (langJustChanged → fullRedraw). */
         _tft->setFont(NULL);
         _tft->setTextSize(1);
         _tft->setTextColor(C_TEXT_SUB, C_CARD_BG);
         for(int i=0; i<5; i++) {
+            const BootLogEntry& cur  = state.bootLogs[i];
+            const BootLogEntry& prev = _lastRenderedState.bootLogs[i];
+            if (!fullRedraw && cur.key == prev.key &&
+                strncmp(cur.suffix, prev.suffix, sizeof(cur.suffix)) == 0) continue;
             _tft->setCursor(20, boxY + 22 + (i*10));
-            String logLine = state.bootLogs[i];
+            String logLine;
+            if (cur.key >= 0 && cur.key < (int16_t)TR_KEYS_COUNT) {
+                logLine = tr((LangKey)cur.key);
+                if (cur.suffix[0]) logLine += cur.suffix;
+            } else {
+                logLine = cur.suffix;  /* raw legacy */
+            }
             while(logLine.length() < 46) logLine += " ";
             _tft->print(logLine);
         }
 
-        if (state.showSkipButton) {
+        /* Skip button: paint só na transição off→on. Idempotente caso contrário. */
+        bool skipOn  = state.showSkipButton;
+        bool wasOn   = _lastRenderedState.showSkipButton;
+        if (skipOn && (fullRedraw || !wasOn)) {
             _tft->fillRoundRect(80, 195, 160, 35, 8, C_ACCENT_HIGH);
             _tft->setFont(&simutFont9pt); _tft->setTextColor(C_BG_MAIN);
             int16_t x1, y1; uint16_t w, h;
             const char* skipLabel = tr(TR_SKIP);
             _tft->getTextBounds(skipLabel, 0, 0, &x1, &y1, &w, &h);
             _tft->setCursor(80 + (160 - w)/2, 218); _tft->print(skipLabel);
-        } else if (fullRedraw) {
+        } else if (!skipOn && (fullRedraw || wasOn)) {
             _tft->fillRect(80, 195, 160, 35, C_BG_MAIN);
         }
 

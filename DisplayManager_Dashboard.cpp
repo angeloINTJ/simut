@@ -444,25 +444,30 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
         uint16_t dropCol = isRed ? RGB565(220, 200, 200) : C_HUMIDITY;
         uint16_t humCol  = isRed ? RGB565(255, 255, 255) : C_HUMIDITY;
 
-        /* Posições calculadas dinamicamente */
+        /* v3.31.6: layout absoluto pra centralizar conteúdo + BTN centralizado
+         * entre fim de %RH e borda direita. LABEL_X shifted de 8→18 (respiro
+         * à esquerda); HUM_END absoluto; BTN_W reduzido 44→40, BTN_X centrado.
+         * Antes BTN_X=268 fixo terminava em 312 = exato na borda. */
         _canvasWide->setFont(&simutFont9pt);
         uint16_t minLblW, maxLblW;
         _canvasWide->getTextBounds(tr(TR_MIN_LBL), 0, 0, &x1, &y1, &minLblW, &h_bound);
         _canvasWide->getTextBounds(tr(TR_MAX_LBL), 0, 0, &x1, &y1, &maxLblW, &h_bound);
         int biggestLbl = ((int)minLblW > (int)maxLblW) ? (int)minLblW : (int)maxLblW;
 
-        const int THERM_X = 8 + biggestLbl + 8;
+        const int LABEL_X = 18;
+        const int THERM_X = LABEL_X + biggestLbl + 8;
         const int DOT_X   = THERM_X + 36;
-        const int BTN_X   = 268;
-        const int BTN_W   = 44;
+        const int HUM_END = 230;            /* fim absoluto do %RH */
+        const int BTN_W   = 58;             /* idêntico ao slot button */
+        const int BTN_X   = HUM_END + ((CARD_W - 1) - HUM_END - BTN_W) / 2;
 
         uint16_t sufW;
         _canvasWide->getTextBounds(tr(TR_HUM_SUFFIX), 0, 0, &x1, &y1, &sufW, &h_bound);
 
-        /* Posição fixa da gota: pior caso "100" + 3px gap + sufixo, a 8px do botão */
+        /* Posição fixa da gota: relativa ao HUM_END (pior caso "100" + sufixo). */
         uint16_t numMaxW;
         _canvasWide->getTextBounds("100", 0, 0, &x1, &y1, &numMaxW, &h_bound);
-        int worstNumX = BTN_X - 8 - (int)sufW - 3 - (int)numMaxW;
+        int worstNumX = HUM_END - (int)sufW - 3 - (int)numMaxW;
         const int DROP_FIX = worstNumX - 6;
 
         /* Blit 1: Título (20px) — com cantos superiores + bordas */
@@ -487,7 +492,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
             {
                 _canvasWide->setFont(&simutFont9pt);
                 _canvasWide->setTextColor(txtSub);
-                _canvasWide->setCursor(8, 15);
+                _canvasWide->setCursor(LABEL_X, 15);
                 _canvasWide->print(tr(TR_MIN_LBL));
 
                 /* Termômetro mini melhorado (escala proporcional do normal) */
@@ -532,8 +537,8 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 else                   snprintf(hnum, sizeof(hnum), "%d", (int)_ambMinHum);
                 uint16_t hnW;
                 _canvasWide->getTextBounds(hnum, 0, 0, &x1, &y1, &hnW, &h_bound);
-                /* Posicionar de trás para frente: sufixo termina a 8px do botão */
-                int sufX = BTN_X - 8 - (int)sufW;
+                /* sufixo posicionado em HUM_END (absoluto, indep. do BTN). */
+                int sufX = HUM_END - (int)sufW;
                 int numX = sufX - 3 - (int)hnW;
                 _canvasWide->setTextColor(humCol);
                 _canvasWide->setCursor(numX, 15);
@@ -553,7 +558,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
             {
                 _canvasWide->setFont(&simutFont9pt);
                 _canvasWide->setTextColor(txtSub);
-                _canvasWide->setCursor(8, 37);
+                _canvasWide->setCursor(LABEL_X, 37);
                 _canvasWide->print(tr(TR_MAX_LBL));
 
                 /* Termômetro mini melhorado */
@@ -598,7 +603,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 else                   snprintf(hnum, sizeof(hnum), "%d", (int)_ambMaxHum);
                 uint16_t hnW;
                 _canvasWide->getTextBounds(hnum, 0, 0, &x1, &y1, &hnW, &h_bound);
-                int sufX = BTN_X - 8 - (int)sufW;
+                int sufX = HUM_END - (int)sufW;
                 int numX = sufX - 3 - (int)hnW;
                 _canvasWide->setTextColor(humCol);
                 _canvasWide->setCursor(numX, 37);
@@ -614,21 +619,23 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
                 _canvasWide->drawPixel(DROP_FIX + 3, 30, shine);
             }
 
-            /* Botão de gráfico — altura total das duas linhas */
-            _canvasWide->fillRoundRect(BTN_X, 1, BTN_W, 42, 8, C_ACCENT);
+            /* Botão de gráfico — dimensões/cor/formato idênticos ao slot button
+             * selecionado (58×40, radius 12, fill C_ACCENT_HIGH, fg C_BTN_TEXT_ACTIVE).
+             * y=2 centraliza o botão no strip de 43px. */
+            _canvasWide->fillRoundRect(BTN_X, 2, BTN_W, 40, 12, C_ACCENT_HIGH);
             {
                 int cx = BTN_X + BTN_W / 2;
-                int cy = 22;
+                int cy = 22;  /* = 2 + 40/2 — centro do botão */
                 /* Barras arredondadas do gráfico */
-                _canvasWide->fillRoundRect(cx - 11, cy,     4, 8, 1, C_BG_MAIN);
-                _canvasWide->fillRoundRect(cx - 5,  cy - 6, 4, 14, 1, C_BG_MAIN);
-                _canvasWide->fillRoundRect(cx + 1,  cy - 3, 4, 11, 1, C_BG_MAIN);
+                _canvasWide->fillRoundRect(cx - 11, cy,     4, 8, 1, C_BTN_TEXT_ACTIVE);
+                _canvasWide->fillRoundRect(cx - 5,  cy - 6, 4, 14, 1, C_BTN_TEXT_ACTIVE);
+                _canvasWide->fillRoundRect(cx + 1,  cy - 3, 4, 11, 1, C_BTN_TEXT_ACTIVE);
                 /* Eixo horizontal */
-                _canvasWide->drawFastHLine(cx - 12, cy + 9, 19, C_BG_MAIN);
+                _canvasWide->drawFastHLine(cx - 12, cy + 9, 19, C_BTN_TEXT_ACTIVE);
                 /* Seta play */
                 _canvasWide->fillTriangle(cx + 10, cy - 5,
                                           cx + 10, cy + 5,
-                                          cx + 17, cy, C_BG_MAIN);
+                                          cx + 17, cy, C_BTN_TEXT_ACTIVE);
             }
 
             /* Bordas laterais (strip intermediária, sem cantos) */
@@ -861,16 +868,22 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
         uint16_t icCol   = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_SUB;
         uint16_t mercCol = isRedPhase ? RGB565(255, 255, 255) : C_TEMP_HOT;
 
+        /* v3.31.6: layout absoluto pra centralizar conteúdo + BTN centralizado.
+         * Slot só tem temp (sem hum), então BTN fica centrado entre fim
+         * do °C (worst case) e borda direita. Mantém BTN_X alinhado com
+         * o do Ambient pra consistência visual entre os 2 painéis. */
         _canvasWide->setFont(&simutFont9pt);
         uint16_t minLblW, maxLblW;
         _canvasWide->getTextBounds(tr(TR_MIN_LBL), 0, 0, &x1, &y1, &minLblW, &h_bound);
         _canvasWide->getTextBounds(tr(TR_MAX_LBL), 0, 0, &x1, &y1, &maxLblW, &h_bound);
         int biggestLbl = ((int)minLblW > (int)maxLblW) ? (int)minLblW : (int)maxLblW;
 
-        const int THERM_X = 8 + biggestLbl + 8;
+        const int LABEL_X = 18;
+        const int THERM_X = LABEL_X + biggestLbl + 8;
         const int DOT_X   = THERM_X + 36;
-        const int BTN_X   = 268;
-        const int BTN_W   = 44;
+        const int CONTENT_RIGHT_X = 230;  /* mesmo HUM_END do Ambient pra alinhar BTN */
+        const int BTN_W   = 58;           /* idêntico ao slot button */
+        const int BTN_X   = CONTENT_RIGHT_X + ((CARD_W - 1) - CONTENT_RIGHT_X - BTN_W) / 2;
 
         /* Blit 1: Nome (20px) */
         {
@@ -901,7 +914,7 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
             {
                 _canvasWide->setFont(&simutFont9pt);
                 _canvasWide->setTextColor(txtSub);
-                _canvasWide->setCursor(8, 15);
+                _canvasWide->setCursor(LABEL_X, 15);
                 _canvasWide->print(tr(TR_MIN_LBL));
 
                 /* Termômetro mini melhorado */
@@ -945,7 +958,7 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
             {
                 _canvasWide->setFont(&simutFont9pt);
                 _canvasWide->setTextColor(txtSub);
-                _canvasWide->setCursor(8, 37);
+                _canvasWide->setCursor(LABEL_X, 37);
                 _canvasWide->print(tr(TR_MAX_LBL));
 
                 /* Termômetro mini melhorado */
@@ -985,21 +998,23 @@ void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const cha
                 _canvasWide->setCursor(endT + 6, 37); _canvasWide->print("C");
             }
 
-            /* Botão de gráfico */
-            _canvasWide->fillRoundRect(BTN_X, 1, BTN_W, 42, 8, C_ACCENT);
+            /* Botão de gráfico — dimensões/cor/formato idênticos ao slot button
+             * selecionado (58×40, radius 12, fill C_ACCENT_HIGH, fg C_BTN_TEXT_ACTIVE).
+             * y=2 centraliza o botão no strip de 43px. */
+            _canvasWide->fillRoundRect(BTN_X, 2, BTN_W, 40, 12, C_ACCENT_HIGH);
             {
                 int cx = BTN_X + BTN_W / 2;
-                int cy = 22;
+                int cy = 22;  /* = 2 + 40/2 — centro do botão */
                 /* Barras arredondadas do gráfico */
-                _canvasWide->fillRoundRect(cx - 11, cy,     4, 8, 1, C_BG_MAIN);
-                _canvasWide->fillRoundRect(cx - 5,  cy - 6, 4, 14, 1, C_BG_MAIN);
-                _canvasWide->fillRoundRect(cx + 1,  cy - 3, 4, 11, 1, C_BG_MAIN);
+                _canvasWide->fillRoundRect(cx - 11, cy,     4, 8, 1, C_BTN_TEXT_ACTIVE);
+                _canvasWide->fillRoundRect(cx - 5,  cy - 6, 4, 14, 1, C_BTN_TEXT_ACTIVE);
+                _canvasWide->fillRoundRect(cx + 1,  cy - 3, 4, 11, 1, C_BTN_TEXT_ACTIVE);
                 /* Eixo horizontal */
-                _canvasWide->drawFastHLine(cx - 12, cy + 9, 19, C_BG_MAIN);
+                _canvasWide->drawFastHLine(cx - 12, cy + 9, 19, C_BTN_TEXT_ACTIVE);
                 /* Seta play */
                 _canvasWide->fillTriangle(cx + 10, cy - 5,
                                           cx + 10, cy + 5,
-                                          cx + 17, cy, C_BG_MAIN);
+                                          cx + 17, cy, C_BTN_TEXT_ACTIVE);
             }
 
             /* Bordas laterais (strip intermediária, sem cantos) */

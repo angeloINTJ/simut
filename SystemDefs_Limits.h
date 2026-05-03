@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.31.0" /* F-DISPLAY-ATOMIC fechada — bump minor. Top-down eliminado em todas as telas refatoradas (auth, alarm action, touch sens, touch cal, display offset, calibration message) via strip render reusando _canvasWide. State diffing volatile em namespace anônimo (Auth.cpp + Calibration.cpp) elimina flicker em redraws redundantes. drawTouchCalibration text via canvas atômico 2-strip blit (substitui fillRect direto que flashava preto). Bisect D1 confirmou que mudanças individuais não disparam o boot freeze do v3.30.10/12 — provavelmente foi estado contaminado prévio + ausência de volatile (race cross-core). v3.31.0 valida HW: boot 33s, sem flicker, runtime estável. */
+#define SIMUT_VERSION "v3.31.9" /* Dashboard graph button: aplica fix do v3.31.8 também ao slot panel (estava com código antigo — radius 8, C_ACCENT, h=42 — porque replace_all não pegou pelo comentário diferente). Agora ambos painéis (Ambient + Slot MIN/MAX) têm botão idêntico. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

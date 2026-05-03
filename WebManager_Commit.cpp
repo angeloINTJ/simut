@@ -471,9 +471,9 @@ void WebManager::handleApiCommitAll() {
      * Tempos: ~1.5s em cada mensagem pra user ler com calma antes do
      * reboot. Alimentamos WDT em chunks pra não disparar durante o hold. */
     if (_displayRef) {
-        _displayRef->setBootStatus("Aplicando configuracoes...");
+        _displayRef->setBootStatusKey(TR_BOOT_APPLYING_CFG);
         for (int i = 0; i < 15; i++) { delay(100); watchdog_update(); }
-        _displayRef->setBootStatus("Reiniciando o sistema...");
+        _displayRef->setBootStatusKey(TR_BOOT_REBOOTING);
         for (int i = 0; i < 15; i++) { delay(100); watchdog_update(); }
     }
 

@@ -53,7 +53,7 @@ void AppManager::setup() {
     delay(BOOT_STEP_DELAY_MS);
 
     bool forceAP = false;
-    _displayMgr->setBootStatus("Hold screen for AP Mode...");
+    _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
     unsigned long waitStart = millis();
 
     while (millis() - waitStart < AP_DETECT_WINDOW_MS) {
@@ -71,7 +71,7 @@ void AppManager::setup() {
                     if (missedTouches > AP_HOLD_MAX_MISSED) {
                         held = false;
                         _displayMgr->setApProgress(-1);
-                        _displayMgr->setBootStatus("AP Mode Cancelled.", false);
+                        _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
                         delay(800);
                         break;
                     }
@@ -105,7 +105,7 @@ void AppManager::setup() {
         return app.requestDisplayQuietMode(enable);
     });
 
-    _displayMgr->setBootStatus("Mounting File System...");
+    _displayMgr->setBootStatusKey(TR_BOOT_MOUNT_FS);
     bool fsOk = _storageMgr->begin();
 
     /* DisplayManager precisa do ponteiro pra config pra renderizar o dashboard
@@ -113,7 +113,7 @@ void AppManager::setup() {
      * vive em BSS (membro de StorageManager) e nunca é realocado. */
     _displayMgr->setSysConfig(&_storageMgr->getConfig());
 
-    _displayMgr->setBootStatus("Starting Log Manager...");
+    _displayMgr->setBootStatusKey(TR_BOOT_START_LOG);
     LogManager::instance().begin(fsOk, LOG_DEBUG);
 
     /* Autópsia já leu scratch[4]. Agora pode setar MOD_BOOT para rastrear
@@ -132,7 +132,7 @@ void AppManager::setup() {
         return app.isUserInteracting();
     });
 
-    _displayMgr->setBootStatus("Starting Command Interface...");
+    _displayMgr->setBootStatusKey(TR_BOOT_START_CMD);
     _cmdMgr->begin();
 
 
@@ -192,7 +192,7 @@ void AppManager::setup() {
     });
 
     SystemConfig &cfg = _storageMgr->getConfig();
-    _displayMgr->setBootStatus("Loading Theme & Language...");
+    _displayMgr->setBootStatusKey(TR_BOOT_LOAD_THEME_LANG);
     /* Custom themes do FS aparecem como índices >= NUM_THEMES (built-ins).
      * Scan ANTES do loadTheme pra cobrir caso themeIndex aponte pra custom. */
     scanCustomThemes();
@@ -239,7 +239,7 @@ void AppManager::setup() {
         _displayMgr->loadTouchCalibration(cal);
         if (!_displayMgr->isTouchCalibrated()) {
             LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0, TRL("Touch calibration required."));
-            _displayMgr->setBootStatus("Touch calibration required...");
+            _displayMgr->setBootStatusKey(TR_BOOT_TOUCH_CAL_REQ);
             delay(600);
             _displayMgr->showTouchCalibration();
 
@@ -261,20 +261,20 @@ void AppManager::setup() {
         }
     }
 
-    _displayMgr->setBootStatus("Loading Peripherals & Sensors...");
+    _displayMgr->setBootStatusKey(TR_BOOT_LOAD_PERIPH);
     _sensorMgr->begin();
     loadAndCalibrateSensors();
     _sensorMgr->setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 
     if (forceAP) {
         LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
-        _displayMgr->setBootStatus("Starting Access Point (AP)...");
-        _displayMgr->setBootStatus("Connect to network SIMUT_SETUP");
-        _displayMgr->setBootStatus("Access on mobile: 192.168.4.1");
+        _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
+        _displayMgr->setBootStatusKey(TR_BOOT_AP_NETWORK);
+        _displayMgr->setBootStatusKey(TR_BOOT_AP_IP);
         _netMgr->beginAP(cfg.deviceName);
         for (int i = 0; i < 35; i++) { delay(100); feedWdt(); }
     } else {
-        _displayMgr->setBootStatus("Starting Wi-Fi Interface...");
+        _displayMgr->setBootStatusKey(TR_BOOT_START_WIFI);
         _netMgr->begin(cfg,
                       _storageMgr->isDnsAuto(),
                       _storageMgr->isNtpEnabled(),
@@ -292,7 +292,7 @@ void AppManager::setup() {
             _netMgr->update();
 
             if (_displayMgr->isSkipPressed()) {
-                _displayMgr->setBootStatus("Connection Skipped by User.");
+                _displayMgr->setBootStatusKey(TR_BOOT_WIFI_SKIPPED);
                 skipped = true;
                 delay(1000);
                 break;
@@ -307,23 +307,23 @@ void AppManager::setup() {
                 if (!_netMgr->isConnected()) {
                     if (waitState != 1) {
                         waitState = 1; dotCount = 0;
-                        _displayMgr->setBootStatus("Waiting for router", true);
+                        _displayMgr->setBootStatusKey(TR_BOOT_WAITING_ROUTER, nullptr, true);
                     } else {
-                        _displayMgr->replaceBootStatus("Waiting for router" + dots, true);
+                        _displayMgr->replaceBootStatusKey(TR_BOOT_WAITING_ROUTER, dots.c_str(), true);
                     }
                 } else if (!_netMgr->isTimeSynced()) {
                     if (waitState != 2) {
                         waitState = 2; dotCount = 0;
-                        _displayMgr->setBootStatus("Syncing Global Clock", true);
+                        _displayMgr->setBootStatusKey(TR_BOOT_SYNC_NTP, nullptr, true);
                     } else {
-                        _displayMgr->replaceBootStatus("Syncing Global Clock" + dots, true);
+                        _displayMgr->replaceBootStatusKey(TR_BOOT_SYNC_NTP, dots.c_str(), true);
                     }
                 }
                 lastMsg = millis();
             }
 
             if (timeSince(netWait, 30000)) {
-                 _displayMgr->setBootStatus("Network timeout. Starting Offline...");
+                 _displayMgr->setBootStatusKey(TR_BOOT_NET_TIMEOUT);
                  delay(1000);
                  break;
             }
@@ -331,20 +331,20 @@ void AppManager::setup() {
         }
 
         if (!skipped && _netMgr->isConnected()) {
-            _displayMgr->setBootStatus("Network Connected & Synced!");
+            _displayMgr->setBootStatusKey(TR_BOOT_NET_CONNECTED);
             delay(500);
         }
     }
 
-    _displayMgr->setBootStatus("Starting Telemetry Server...");
+    _displayMgr->setBootStatusKey(TR_BOOT_START_TEL);
     _telemetryMgr->begin(_storageMgr.get(), _netMgr.get());
 
     LogManager::instance().setEpochSource([]() -> time_t { return time(nullptr); });
 
-    _displayMgr->setBootStatus("Starting Web Server...");
+    _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
     _webMgr->begin(_storageMgr.get(), _sensorMgr.get(), _netMgr.get(), _displayMgr.get(), _telemetryMgr.get(), _soundMgr.get());
 
-    _displayMgr->setBootStatus("Registering Callbacks...");
+    _displayMgr->setBootStatusKey(TR_BOOT_REG_CALLBACKS);
     _webMgr->setYieldCallback([this]() { this->core0Yield(); });
     _webMgr->setLightYieldCallback([this]() {
         feedWdt();
@@ -364,16 +364,16 @@ void AppManager::setup() {
 
     if (forceAP) {
         _isApMode = true;
-        _displayMgr->setBootStatus("AP Active! Reboot board to exit.", false);
+        _displayMgr->setBootStatusKey(TR_BOOT_AP_ACTIVE, nullptr, false);
         LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode)."));
     } else {
 
         /* Carrega min/max do dia a partir do arquivo de histórico */
-        _displayMgr->setBootStatus("Loading daily Min/Max cache...");
+        _displayMgr->setBootStatusKey(TR_BOOT_LOAD_MINMAX);
         delay(80);
         preloadMinMax();
 
-        _displayMgr->setBootStatus("Warming up sensors...");
+        _displayMgr->setBootStatusKey(TR_BOOT_WARMUP);
         {
             unsigned long warmStart = millis();
 
@@ -395,12 +395,12 @@ void AppManager::setup() {
 
 
         if (_pendingTimeSync) {
-            _displayMgr->setBootStatus("Correcting timestamps (NTP)...");
+            _displayMgr->setBootStatusKey(TR_BOOT_CORRECT_TS);
             delay(80);
             handleTimeSync(_timeSyncBootTs, _timeSyncDelta);
 
             /* Recarrega min/max com timestamps corrigidos */
-            _displayMgr->setBootStatus("Reloading Min/Max cache...");
+            _displayMgr->setBootStatusKey(TR_BOOT_RELOAD_MINMAX);
             delay(80);
             for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
                 _cachedMin[i] = 1000.0f; _cachedMax[i] = -1000.0f;
@@ -412,13 +412,13 @@ void AppManager::setup() {
         }
 
 
-        _displayMgr->setBootStatus("Preparing dashboard data...");
+        _displayMgr->setBootStatusKey(TR_BOOT_PREP_DASH);
         _sensorMgr->update();
         updateLiveDisplay();
         refreshSelectedSlot();
 
-        _displayMgr->setBootStatus("All subsystems initialized.");
-        _displayMgr->setBootStatus("System Ready! Entering Dashboard.");
+        _displayMgr->setBootStatusKey(TR_BOOT_ALL_INIT);
+        _displayMgr->setBootStatusKey(TR_BOOT_SYS_READY);
         delay(800);
         LOG_CODE(LOG_INFO, "APP", APP_READY, 0, TRL("System ready."));
         _displayMgr->endBoot();
