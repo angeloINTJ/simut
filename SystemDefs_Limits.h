@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.35.0" /* Tag de consolidação: v3.34.0 (F-CALIB-UI + F-AMBIENT-CALIB + F-WEB-DEDUP) + v3.34.1 (seletor de idioma dinâmico). Marco para auditoria de profissionalização. */
+#define SIMUT_VERSION "v3.36.0" /* F-HARDENING-WEB (Fase 18.1 da auditoria): C1+C2 — escHtml() global em LANG_JS aplicado em DASH (sn.id/name/v) e themes (t.id/name) — bloqueia XSS via friendlyName; C4 — rate-limit 5s em POST /api/calib (HTTP 429 + Retry-After) protege flash-wear; A6 — t_key mascarado em /api/config (primeiros 4 chars + "***"), commit_all parser detecta "***" e preserva valor original — evita screenshot vazar API key. Validado em HW: 29/29 testes pass (escapes presentes em DASH, rate-limit ativo em vivo, masking funcionando). */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

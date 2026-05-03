@@ -188,6 +188,14 @@ void WebManager::handleApiCalibPost() {
         _server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
         return;
     }
+    /* v3.36.0 (C4): rate-limit 5s — operação flash-heavy (lê/reescreve calib.csv +
+     * saveConfiguration + reload). Protege contra bug de UI (loop) e ataque
+     * intencional de wear de flash por user com PERM_CALIB. */
+    if (isRateLimited(5000)) {
+        _server.sendHeader("Retry-After", "5");
+        _server.send(429, "application/json", "{\"error\":\"rate limited\"}");
+        return;
+    }
     if (!_netRef->isTimeSynced()) {
         _server.send(503, "application/json", "{\"error\":\"NTP not synced\"}");
         return;

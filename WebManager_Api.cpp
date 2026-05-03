@@ -117,10 +117,23 @@ void WebManager::handleApiConfig() {
         (unsigned long)time(nullptr));
     if (!safeSend(buf)) return;
 
+    /* v3.36.0 (A6): mascara t_key. Se length>4, expõe só os primeiros 4 chars
+     * + "***" — evita screenshot/sharing acidental expor a chave inteira.
+     * commit_all parser detecta o "***" e mantém valor atual (não sobrescreve)
+     * a menos que o user digite um valor novo sem o marker. */
+    char keyMask[16];
+    size_t klen = strnlen(cfg.telApiKey, sizeof(cfg.telApiKey));
+    if (klen == 0) {
+        keyMask[0] = '\0';
+    } else if (klen <= 4) {
+        snprintf(keyMask, sizeof(keyMask), "***");
+    } else {
+        snprintf(keyMask, sizeof(keyMask), "%.4s***", cfg.telApiKey);
+    }
     snprintf(buf, sizeof(buf),
         "\"t_srv\":\"%s\",\"t_port\":%u,\"t_path\":\"%s\",\"t_key\":\"%s\",",
         jsonEscape(cfg.telServer).c_str(), cfg.telPort,
-        jsonEscape(cfg.telPath).c_str(), jsonEscape(cfg.telApiKey).c_str());
+        jsonEscape(cfg.telPath).c_str(), jsonEscape(keyMask).c_str());
     if (!safeSend(buf)) return;
 
     snprintf(buf, sizeof(buf),

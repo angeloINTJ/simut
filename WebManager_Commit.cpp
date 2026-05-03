@@ -184,7 +184,12 @@ void WebManager::handleApiCommitAll() {
             }
             if (has("log"))       cfg.loggingEnabled = (getNum("log") != "0");
             if (has("t_sec"))     cfg.telEncryption = (getNum("t_sec") != "0");
-            if (has("t_key"))     safeCopy(cfg.telApiKey, getStr("t_key").c_str(), sizeof(cfg.telApiKey));
+            if (has("t_key")) {
+                /* v3.36.0 (A6): se valor contém "***" significa que veio do GET mascarado
+                 * e user não editou — manter cfg.telApiKey atual. Senão sobrescrever. */
+                String tk = getStr("t_key");
+                if (tk.indexOf("***") < 0) safeCopy(cfg.telApiKey, tk.c_str(), sizeof(cfg.telApiKey));
+            }
             if (has("res"))       { int r = getNum("res").toInt(); if (r >= 9 && r <= 12) cfg.ds18Resolution = (uint8_t)r; }
             if (has("s_int"))     cfg.sampleIntervalMs = getNum("s_int").toInt();
             if (has("t_srv"))     safeCopy(cfg.telServer, getStr("t_srv").c_str(), sizeof(cfg.telServer));

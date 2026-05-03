@@ -519,7 +519,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     sysData.sensors.forEach((sn) => {
                         let v = (sn.val === 'Error' || sn.val === '--') ? sn.val : parseFloat(sn.val).toFixed(2) + ' ºC';
                         if(sn.hum) v += ' | ' + parseFloat(sn.hum).toFixed(1) + '%';
-                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.gpio}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${sn.id}</td><td style="color:var(--txt); font-weight:600;">${v}</td><td style="font-weight:600; color:var(--sub)">${sn.name}</td></tr>`;
+                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.gpio}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--sub)">${escHtml(sn.name)}</td></tr>`;
                     });
                     document.getElementById('tab').innerHTML = tabHtml;
                 } else { document.getElementById('tab').innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--sub)">No active sensors.</td></tr>`; }
@@ -532,7 +532,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let text = await res.text(); // Lemos como texto primeiro para evitar falha silenciosa
                 let themes = JSON.parse(text); // Tentamos converter
                 let html = '';
-                themes.forEach(t => html += `<option value="${t.id}">${t.name}</option>`);
+                themes.forEach(t => html += `<option value="${escHtml(t.id)}">${escHtml(t.name)}</option>`);
                 document.getElementById('themeSel').innerHTML = html;
             } catch(e){
                 // Se o JSON vier quebrado do C++, o botão mostrará o erro na hora!
@@ -3931,6 +3931,11 @@ static const char LANG_JS[] PROGMEM = R"raw(
     window.setLang = function(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); };
     window.showToast = function(msg, type, ms) { var el = document.getElementById('net-toast'); if (!el) return; el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); };
     window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+
+    /* v3.36.0 (C1+C2): escape HTML para evitar XSS via dados do servidor (sensor name,
+     * theme name etc.) injetados em innerHTML. Usar em todo template literal que
+     * contenha valor controlável por user privilegiado. */
+    window.escHtml = function(s){var d=document.createElement('div');d.textContent=(s===null||s===undefined)?'':String(s);return d.innerHTML;};
 
     /* v3.34.0: F-WEB-DEDUP — drawer HTML único injetado em runtime.
      * Cada página tem só <div id="drawer-host"></div> em vez do drawer
