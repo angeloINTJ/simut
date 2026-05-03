@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.34.1" /* Seletor de idioma dinâmico no drawer da web. /api/perms expõe langCode + langName lendo de DisplayManager::getActiveLangCode/Name (do header do .lng ativo). Frontend (LANG_JS installDrawer): mapa LANG_FLAGS (PT/ES/EN/FR/DE/IT/RU/ZH/JA/KO/etc.) atualiza label do 2º option com flag + abrev. real do .lng instalado (ex: 🇪🇸 ES quando .lng é es-ES). Se nenhum .lng está carregado, 2º option é removido (só EN visível) e localStorage simut_lang=pt é forçado pra 'en' (evita fallback quebrado em dict.pt vazio). Bonus: PERM_CALIB substituiu /web/calib.on no opt-in da feature de calibração. */
+#define SIMUT_VERSION "v3.35.0" /* Tag de consolidação: v3.34.0 (F-CALIB-UI + F-AMBIENT-CALIB + F-WEB-DEDUP) + v3.34.1 (seletor de idioma dinâmico). Marco para auditoria de profissionalização. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
