@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.30.11" /* F-DISPLAY-ATOMIC Fase 2 (sem state diffing) — revert do v3.30.10 que travava boot. Mantém v3.30.9 (strip refactor de drawCalibrationMessage, drawTouchCalibration, drawTouchSensitivity, drawSettingsDisplayOffset) que elimina top-down. Remove state diffing v3.30.10 que causava boot freeze: Core 1 lockout stuck >10s repetidamente durante init por ~2 min antes do "Sistema pronto". State diffing precisa ser redesenhado de outra forma na próxima iteração — flicker volta nesses 4 fns mas top-down fica eliminado. */
+#define SIMUT_VERSION "v3.31.9" /* Dashboard graph button: aplica fix do v3.31.8 também ao slot panel (estava com código antigo — radius 8, C_ACCENT, h=42 — porque replace_all não pegou pelo comentário diferente). Agora ambos painéis (Ambient + Slot MIN/MAX) têm botão idêntico. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

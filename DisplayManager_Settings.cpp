@@ -870,20 +870,18 @@ void DisplayManager::drawSettingsSounds() {
             _canvasWide->setCursor(10, 24); _canvasWide->print(tr(itemLabels[actualIdx]));
 
             if (actualIdx == 6 || actualIdx == 7) {
-
+                /* Barra fixa right-aligned: posição/tamanho não dependem mais do
+                 * texto de percentual (que variava com 1-3 dígitos e desalinhava
+                 * Sys Vol vs Alarm Vol). Percentual removido — barra é o feedback
+                 * visual completo. Ambas as linhas usam o mesmo barX/barW/barY. */
                 uint8_t volVal = (actualIdx == 6)
                                ? _soundSettings.volume
                                : _soundSettings.alarmVolume;
-                char buf[8];
-                snprintf(buf, sizeof(buf), "%d%%", volVal);
-                int16_t bx, by; uint16_t bw, bh;
-                _canvasWide->getTextBounds(buf, 0, 0, &bx, &by, &bw, &bh);
-                _canvasWide->setCursor(itemW - 15 - bw, 24);
-                _canvasWide->print(buf);
 
-                int barW = 100;
-                int barX = itemW - 15 - bw - 10 - barW;
-                int barY = 11; int barH = 12;
+                const int barW = 130;
+                const int barX = itemW - 15 - barW;  /* margem fixa de 15 da direita */
+                const int barY = 11;
+                const int barH = 12;
                 int fillW = (int)((uint32_t)barW * volVal / 100);
 
                 uint16_t barBg   = isSelected ? C_ACCENT_HIGH : C_BAR_BG;

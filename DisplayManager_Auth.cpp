@@ -14,6 +14,15 @@
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 
+/* D1.A (bisect stage 1): globals POD volatile + writes em show*()/scrambleKeys.
+ * Draw functions NÃO leem ainda — drawAuthScreen igual ao v11_pure puro.
+ * Volatile força writes a permanecerem (impede DSE). */
+namespace {
+    volatile int  g_lastAuthStep    = -1;
+    volatile bool g_lastAuthFailed  = false;
+    volatile bool g_keypadDirty     = true;
+}
+
 uint16_t DisplayManager::readPixel(int16_t x, int16_t y) {
     if (!_tft) return 0;
     _tft->startWrite(); _tft->setAddrWindow(x, y, 1, 1); _tft->endWrite();
@@ -80,11 +89,13 @@ void DisplayManager::scrambleKeys() {
         for (int k = 3; k > 0; k--) { int j = fastRandom(k + 1); char temp = chars[k]; chars[k] = chars[j]; chars[j] = temp; }
         _keypadChars[i][0] = chars[0]; _keypadChars[i][1] = chars[1]; _keypadChars[i][2] = chars[2]; _keypadChars[i][3] = chars[3]; _keypadChars[i][4] = '\0';
     }
+    g_keypadDirty = true;  /* D1.A */
 }
 
 void DisplayManager::showAuthScreen(String expectedPin) {
     mutex_enter_blocking(&_stateMutex);
     _uiMode = MODE_AUTH; _forceSettingsRedraw = true; _repaintSettings = true;
+    g_lastAuthStep = -1; g_lastAuthFailed = false; g_keypadDirty = true;  /* D1.A */
     if (_permanentLockout) { _lockoutUntil = millis() + 10000; } else {
         _expectedPin = expectedPin; _authStep = 0; _authFailed = false; _isCurrentAttemptValid = true;
         _rngState = micros() ^ 0xA5A5A5A5; if (_rngState == 0) _rngState = 1;
@@ -207,26 +218,35 @@ void DisplayManager::drawAuthScreen() {
         _forceSettingsRedraw = false;
     }
 
-    /* Status da autenticação via canvas — evita flicker */
-    _canvasWide->fillScreen(C_BG_MAIN);
-    if (_authFailed) {
-        _canvasWide->setFont(&simutFont9pt);
-        _canvasWide->setTextColor(C_TEMP_HOT);
-        String invMsg = tr(TR_INVALID_PASSWORD);
-        _canvasWide->getTextBounds(invMsg, 0, 0, &bx, &by, &bw, &bh);
-        _canvasWide->setCursor((320 - bw) / 2, 20);
-        _canvasWide->print(invMsg);
-    } else {
-        int pinLen = (int)_expectedPin.length();
-        int dotSpacing = 20;
-        int dotsStartX = (320 - (pinLen * dotSpacing)) / 2 + dotSpacing / 2;
-        for (int i = 0; i < pinLen; i++) {
-            int cx = dotsStartX + (i * dotSpacing);
-            if (i < _authStep) _canvasWide->fillCircle(cx, 15, 6, C_ACCENT);
-            else               _canvasWide->drawCircle(cx, 15, 6, C_TEXT_SUB);
+    /* D1.B: dots só repintam quando _authStep ou _authFailed mudam. */
+    bool dotsChanged = (g_lastAuthStep != _authStep) || (g_lastAuthFailed != _authFailed);
+    if (dotsChanged) {
+        _canvasWide->fillScreen(C_BG_MAIN);
+        if (_authFailed) {
+            _canvasWide->setFont(&simutFont9pt);
+            _canvasWide->setTextColor(C_TEMP_HOT);
+            String invMsg = tr(TR_INVALID_PASSWORD);
+            _canvasWide->getTextBounds(invMsg, 0, 0, &bx, &by, &bw, &bh);
+            _canvasWide->setCursor((320 - bw) / 2, 20);
+            _canvasWide->print(invMsg);
+        } else {
+            int pinLen = (int)_expectedPin.length();
+            int dotSpacing = 20;
+            int dotsStartX = (320 - (pinLen * dotSpacing)) / 2 + dotSpacing / 2;
+            for (int i = 0; i < pinLen; i++) {
+                int cx = dotsStartX + (i * dotSpacing);
+                if (i < _authStep) _canvasWide->fillCircle(cx, 15, 6, C_ACCENT);
+                else               _canvasWide->drawCircle(cx, 15, 6, C_TEXT_SUB);
+            }
         }
+        blitCanvas(_canvasWide, 0, 35, 320, 30);
+        g_lastAuthStep = _authStep;
+        g_lastAuthFailed = _authFailed;
     }
-    blitCanvas(_canvasWide, 0, 35, 320, 30);
+
+    /* D1.B: keypad só repinta após scrambleKeys()/showAuthScreen()/fullRedraw. */
+    if (!g_keypadDirty) return;
+    g_keypadDirty = false;
 
     /* Botões do keypad via canvas — 2 botões por fila, 2 filas */
     for (int row = 0; row < 2; row++) {

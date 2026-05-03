@@ -19,7 +19,7 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
     "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language", "EXIT",
     "APPLY", "CANCEL", "Security Authentication", "ACCESS BLOCKED", "Reboot required",
     "Attempts Exceeded", "Wait %ld seconds...", "Invalid Password!", "Loading...", "Reading History...",
-    "No Data", "MAXIMUM", "MINIMUM", "Temperature", "Humidity",
+    "No Data", "MAX", "MIN", "Temperature", "Humidity",
     "PLOT CHART", "1. Visual Themes", "2. Alarm Limits", "3. Alarm Sounds", "4. System Language",
     "Applying Theme...", "SAVE", "Alarm Limits", "Temp Min", "Temp Max",
     "Hum Min", "Hum Max", "ENTER", "SKIP", "5. Change Password",
@@ -32,7 +32,22 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
     "%RH", "7. Touch Sensitivity", "Touch Sensitivity", "Tap %d/%d", "Calibration Done!",
     "AVERAGE", "STD DEV", "Error", "Configuration Mode", "8. System Status",
     "System Status",
-    "9. Display Alignment", "Display Alignment", "Adjust +/-4 px. Saving clears touch calibration."
+    "9. Display Alignment", "Display Alignment", "Adjust +/-4 px. Saving clears touch calibration.",
+    /* v3.31.2 boot terminal i18n */
+    "Hold screen for AP Mode...", "AP Mode Cancelled.",
+    "Mounting File System...", "Starting Log Manager...", "Starting Command Interface...",
+    "Loading Theme & Language...", "Touch calibration required...",
+    "Loading Peripherals & Sensors...", "Starting Access Point (AP)...",
+    "Connect to network SIMUT_SETUP", "Access on mobile: 192.168.4.1",
+    "Starting Wi-Fi Interface...", "Connection Skipped by User.",
+    "Waiting for router", "Syncing Global Clock",
+    "Network timeout. Starting Offline...", "Network Connected & Synced!",
+    "Starting Telemetry Server...", "Starting Web Server...", "Registering Callbacks...",
+    "AP Active! Reboot board to exit.",
+    "Loading daily Min/Max cache...", "Warming up sensors...", "Correcting timestamps (NTP)...",
+    "Reloading Min/Max cache...", "Preparing dashboard data...",
+    "All subsystems initialized.", "System Ready! Entering Dashboard.",
+    "Applying settings...", "Rebooting system..."
 };
 
 const char* DisplayManager::tr(LangKey key) {
@@ -175,9 +190,16 @@ void DisplayManager::drawSettingsLang() {
             _canvasWide->setCursor(10, 24);
             _canvasWide->print(actualIdx == LANG_EN ? "English" : slot1Name);
 
-
-            _canvasWide->setCursor(itemW - 35, 24);
-            _canvasWide->print(actualIdx == LANG_EN ? "EN" : slot1Code);
+            /* Code right-aligned: mede text width e posiciona cursor pra que
+             * a última letra fique a 10px da borda direita. Antes era cursor
+             * fixo em (itemW-35) → códigos longos como "pt-BR" saíam da tela. */
+            const char* code = (actualIdx == LANG_EN) ? "EN" : slot1Code;
+            int16_t cbx, cby; uint16_t cbw, cbh;
+            _canvasWide->getTextBounds(code, 0, 0, &cbx, &cby, &cbw, &cbh);
+            int codeX = itemW - (int)cbw - 10;
+            if (codeX < 100) codeX = 100;
+            _canvasWide->setCursor(codeX, 24);
+            _canvasWide->print(code);
         }
 
         blitCanvas(_canvasWide, 10, y, itemW, 34);
