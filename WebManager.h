@@ -152,6 +152,11 @@ private:
     bool safeSend_P(const char* content);
     bool safeSend_GZ(const uint8_t* gz_data, size_t gz_len);
 
+    /* v3.36.2 (A7): broken-pipe observability. Antes safeSend retornava false
+     * silenciosamente; agora maybeLogClientDisconnect() loga WEB_CLIENT_DISCONNECT
+     * 1×/5s (throttle anti-spam quando handler envia muitos chunks). */
+    uint32_t _lastDisconnectLogMs = 0;
+    void maybeLogClientDisconnect(const char* origin);
 
     bool _clientAcceptsGzip = false;
     void detectGzipSupport();

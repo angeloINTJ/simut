@@ -733,13 +733,15 @@ void DisplayManager::drawGraphScreen() {
                 pyV1[i] = -1;
             } else {
                 int y = gy + margin + (int)((_graphData.realMaxVal - _graphData.pointsV1[i]) / tempRange * (gh - 2 * margin));
-                if (y < gy) y = gy; if (y > gy + gh) y = gy + gh;
+                if (y < gy) y = gy;
+                if (y > gy + gh) y = gy + gh;
                 pyV1[i] = y;
             }
 
             if (hasHum && !isnan(_graphData.pointsV2[i])) {
                 int yh = gy + margin + (int)((humMax - _graphData.pointsV2[i]) / humRange * (gh - 2 * margin));
-                if (yh < gy) yh = gy; if (yh > gy + gh) yh = gy + gh;
+                if (yh < gy) yh = gy;
+                if (yh > gy + gh) yh = gy + gh;
                 pyV2[i] = yh;
             } else {
                 pyV2[i] = -1;
@@ -750,7 +752,6 @@ void DisplayManager::drawGraphScreen() {
     /* ── Pré-formatar textos ── */
     static char maxLbl[10], minLbl[10];
     static char humMaxLbl[8], humMinLbl[8];
-    static char tBuf[12];
 
     if (hasData) {
         fmtFloat1(maxLbl, sizeof(maxLbl), _graphData.realMaxVal);
@@ -973,7 +974,6 @@ void DisplayManager::drawGraphDetailScreen() {
     bool shortRange = (_graphData.timeRange <= 3); /* 1H..24H = HH:MM, 7D = DD/MM */
     bool hasHum = _graphData.hasHumidity && !isnan(_currentMinHum);
     bool isHumPage = (_detailPage == 1 && hasHum);
-    uint16_t pageColor = isHumPage ? C_HUMIDITY : C_TEMP_OK;
 
     int16_t bx, by; uint16_t bw, bh;
 

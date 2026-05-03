@@ -270,16 +270,14 @@ void DisplayManager::drawTopBar(const SystemState& state) {
         String datePart = (sepIdx >= 0) ? fullTime.substring(0, sepIdx) : fullTime;
         String timePart = (sepIdx >= 0) ? fullTime.substring(sepIdx + 3) : "";
 
-        /* Medir as 3 partes */
+        /* Medir só sep e date — timeX = sepX + sepW (não precisa medir timeW). */
         int16_t bx, by; uint16_t bw, bh;
-        uint16_t sepW, dateW, timeW;
+        uint16_t sepW, dateW;
 
         _canvasWide->getTextBounds(" - ", 0, 0, &bx, &by, &bw, &bh);
         sepW = bw;
         _canvasWide->getTextBounds(datePart, 0, 0, &bx, &by, &bw, &bh);
         dateW = bw;
-        _canvasWide->getTextBounds(timePart, 0, 0, &bx, &by, &bw, &bh);
-        timeW = bw;
 
         /*
          * Centro do separador fixo no meio do display (x=160).
@@ -835,7 +833,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
 
 void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const char* name, bool forceNameRedraw) {
     if(!_canvasWide) return;
-    int16_t x1, y1; uint16_t w, h_bound;
+    int16_t x1, y1; uint16_t h_bound;
 
 
     uint16_t panelBg   = slotAlarmBg(slotIdx);

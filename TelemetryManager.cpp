@@ -1266,14 +1266,12 @@ void TelemetryManager::_dumpPayload(const char* payload, size_t len, const char*
 
 
 /**
- * @brief Count pending telemetry records/**
  * @brief Count pending telemetry records by scanning history CSVs.
  * Called periodically (~10s) by AppManager for dashboard display.
  */
 void TelemetryManager::refreshPendingCount() {
     if (!_pendingDirty) return;
 
-    SystemConfig& cfg = _storageRef->getConfig();
     uint32_t lastCursor = _storageRef->getLastSentTimestamp();
 
 

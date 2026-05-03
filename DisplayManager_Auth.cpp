@@ -73,7 +73,7 @@ void DisplayManager::scrambleKeys() {
     const char poolUpper[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     const char poolLower[] = "abcdefghijklmnopqrstuvwxyz";
     const char poolSpec[] = "!@#$%^&*()_+-=[]{}|;':\",./<>?\\~";
-    char expected = '\0'; if (_authStep < _expectedPin.length()) { expected = _expectedPin[_authStep]; }
+    char expected = '\0'; if ((size_t)_authStep < _expectedPin.length()) { expected = _expectedPin[_authStep]; }
     int expectedType = -1;
     if (expected >= '0' && expected <= '9') expectedType = 0;
     else if (expected >= 'A' && expected <= 'Z') expectedType = 1;

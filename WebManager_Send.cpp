@@ -8,29 +8,40 @@
  */
 #include "WebManager.h"
 #include "WebUI_GZ.h"
+#include "LogManager.h"
 #include <hardware/watchdog.h>
 
 using ReadGuard = StorageManager::ReadGuard;
 
-bool WebManager::safeSend(const char* content) {
-    if (isClientGone()) return false;
+/* v3.36.2 (A7): single point pra observabilidade de broken pipe.
+ * Throttle 5s evita inundar log quando um handler envia N chunks após o
+ * cliente fechar. `origin` identifica overload (s/sP/sN/gz) — útil pra
+ * rastrear qual streaming morreu. Sem stack trace; só sinal binário. */
+void WebManager::maybeLogClientDisconnect(const char* origin) {
+    uint32_t now = millis();
+    if (now - _lastDisconnectLogMs < 5000) return;
+    _lastDisconnectLogMs = now;
+    LogManager::instance().log(LOG_WARN, "WEB", WEB_CLIENT_DISCONNECT, String(origin));
+}
 
+bool WebManager::safeSend(const char* content) {
+    if (isClientGone()) { maybeLogClientDisconnect("s/early"); return false; }
 
     _server.client().setTimeout(500);
-
     feedWatchdog();
     {
         SendGuard sg;
         _server.sendContent(content);
     }
-    return !isClientGone();
+    bool gone = isClientGone();
+    if (gone) maybeLogClientDisconnect("s/post");
+    return !gone;
 }
 
 bool WebManager::safeSend(const char* data, size_t len) {
-    if (isClientGone()) return false;
+    if (isClientGone()) { maybeLogClientDisconnect("sN/early"); return false; }
 
     _server.client().setTimeout(500);
-
     feedWatchdog();
     {
         SendGuard sg;
@@ -40,33 +51,37 @@ bool WebManager::safeSend(const char* data, size_t len) {
             _server.sendContent(data, len);
         }
     }
-    return !isClientGone();
+    bool gone = isClientGone();
+    if (gone) maybeLogClientDisconnect("sN/post");
+    return !gone;
 }
 
 bool WebManager::safeSend(const String& content) {
-    if (isClientGone()) return false;
+    if (isClientGone()) { maybeLogClientDisconnect("sStr/early"); return false; }
 
     _server.client().setTimeout(500);
-
     feedWatchdog();
     {
         SendGuard sg;
         _server.sendContent(content);
     }
-    return !isClientGone();
+    bool gone = isClientGone();
+    if (gone) maybeLogClientDisconnect("sStr/post");
+    return !gone;
 }
 
 bool WebManager::safeSend_P(const char* content) {
-    if (isClientGone()) return false;
+    if (isClientGone()) { maybeLogClientDisconnect("sP/early"); return false; }
 
     _server.client().setTimeout(500);
-
     feedWatchdog();
     {
         SendGuard sg;
         _server.sendContent_P(content);
     }
-    return !isClientGone();
+    bool gone = isClientGone();
+    if (gone) maybeLogClientDisconnect("sP/post");
+    return !gone;
 }
 
 

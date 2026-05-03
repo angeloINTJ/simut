@@ -29,5 +29,6 @@
 #include "SystemDefs_Network.h"
 #include "SystemDefs_Logging.h"
 #include "SystemDefs_Records.h"
+#include "SystemDefs_Reserved.h"
 #include "SystemDefs_Cli.h"
 #include "SystemDefs_Validate.h"

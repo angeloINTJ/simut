@@ -58,8 +58,8 @@ int getThemeIndexByName(String name);
  *  range cai no tema 0 (simut_def). Use isso em vez de availableThemes[i]. */
 const ThemePalette* getThemePalette(int index);
 
-/** Faz scan de /themes/*.thm no LittleFS e popula o array de temas custom.
- *  Chamar uma vez no boot (depois de FS mount) e em hot-reload pós upload. */
+/** Faz scan de arquivos .thm em /themes/ no LittleFS e popula o array de temas
+ *  custom. Chamar uma vez no boot (depois de FS mount) e em hot-reload pós upload. */
 void scanCustomThemes();
 
 /* Convenience macros — access current theme colors without struct prefix. */

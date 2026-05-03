@@ -170,7 +170,6 @@ void DisplayManager::handleTouch() {
          * Calcula stddev/mean dos últimos 10 valores. Se < 15%,
          * a pressão atual está estável.
          */
-        int startIdx = (_sensCount >= 30) ? (_sensCount % 30) : 0;
         int n = (_sensCount < 30) ? _sensCount : 30;
         if (n > 10) n = 10; /* Análise dos últimos 10 */
 
@@ -723,7 +722,9 @@ void DisplayManager::handleTouch() {
         else if (y >= 190) {
             auto adjustVal = [](float val, float step, float minV, float maxV) -> float {
                 val += step; val = round(val * 10.0f) / 10.0f;
-                if (val < minV) val = minV; if (val > maxV) val = maxV; return val;
+                if (val < minV) val = minV;
+                if (val > maxV) val = maxV;
+                return val;
             };
 
             auto enforceInterlock = [&]() {
@@ -808,7 +809,7 @@ void DisplayManager::handleTouch() {
             String clickedChars = String(_keypadChars[btnIdx]); char expected = _expectedPin[_authStep];
             if (clickedChars.indexOf(expected) < 0) _isCurrentAttemptValid = false;
             _authStep++; _authFailed = false;
-            if (_authStep >= _expectedPin.length()) {
+            if ((size_t)_authStep >= _expectedPin.length()) {
                 if (_isCurrentAttemptValid) {
                     _failedAttempts = 0; UiEvent ev; ev.type = UiEvent::EVT_AUTH_SUCCESS; queue_try_add(&_eventQueue, &ev); return;
                 } else {
@@ -1008,8 +1009,10 @@ void DisplayManager::handleTouch() {
         if (y >= 72 && y < 168) {
             int row = (y - 72) / 32;
             int col = (x - 1) / 32;
-            if (row < 0) row = 0; if (row > 2) row = 2;
-            if (col < 0) col = 0; if (col > 9) col = 9;
+            if (row < 0) row = 0;
+            if (row > 2) row = 2;
+            if (col < 0) col = 0;
+            if (col > 9) col = 9;
 
 
             if (!acceptTouch((uint8_t)(row * 10 + col + 10))) return;

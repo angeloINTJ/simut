@@ -382,7 +382,7 @@ void WebManager::handleApiStatus() {
 
     uint32_t heapLargest = mt.heapLargestBlock;
     snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d},",
-        devName.c_str(), millis(), _netRef->getRssi(), ipStr.c_str(), cfg.themeIndex,
+        devName.c_str(), millis(), (int)_netRef->getRssi(), ipStr.c_str(), cfg.themeIndex,
         (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
         (unsigned long)now, ntp ? 1 : 0, pending);

@@ -98,6 +98,19 @@ private:
 
     void executeCommand(CliDemand cmd);
 
+    /* v3.36.2 (A1): handlers extraídos dos cases mais longos do switch
+     * de executeCommand (>=30 linhas). Cada um recebe o cmd, o cfg em
+     * uso e o flag `changed` por referência (modificado se RAM mudou).
+     * Implementações em AppManager_CmdHandlers.cpp. */
+    void cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+    void cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+    void cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+    void cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+    void cmdHandleSetTime(const CliDemand& cmd);
+    void cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+    void cmdHandleDnsCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+    void cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+
     void checkAndAutoHealSensors();
     void handleTimeSync(uint32_t bootTs, int32_t delta);
     void checkAlarmConditions();

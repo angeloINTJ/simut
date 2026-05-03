@@ -107,7 +107,8 @@ void DisplayManager::drawSettingsAlarms() {
     if(!_canvasWide) return;
     bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_alarmPage != _lastAlarmPage);
     int totalPages = (_activeSensorCount + 3) / 4; if (totalPages == 0) totalPages = 1;
-    if (_alarmPage >= totalPages) _alarmPage = totalPages - 1; if (_alarmPage < 0) _alarmPage = 0;
+    if (_alarmPage >= totalPages) _alarmPage = totalPages - 1;
+    if (_alarmPage < 0) _alarmPage = 0;
 
     if (fullRedraw) {
         _tft->fillScreen(C_BG_MAIN);
@@ -277,7 +278,8 @@ void DisplayManager::drawSettingsMain() {
     bool fullRedraw = _forceSettingsRedraw; bool pageChanged = (_mainMenuPage != _lastMainMenuPage);
     const int TOTAL_ITEMS = 9; LangKey menuItems[] = {TR_MENU_THEMES, TR_MENU_ALARMS, TR_MENU_SOUNDS, TR_MENU_LANG, TR_MENU_PASSWORD, TR_MENU_TOUCH_CAL, TR_MENU_LICENSE, TR_MENU_STATUS, TR_MENU_DISPLAY_OFFSET};
     int totalPages = (TOTAL_ITEMS + 3) / 4; if (totalPages == 0) totalPages = 1;
-    if (_mainMenuPage >= totalPages) _mainMenuPage = totalPages - 1; if (_mainMenuPage < 0) _mainMenuPage = 0;
+    if (_mainMenuPage >= totalPages) _mainMenuPage = totalPages - 1;
+    if (_mainMenuPage < 0) _mainMenuPage = 0;
 
     if (fullRedraw) {
         _tft->fillScreen(C_BG_MAIN);

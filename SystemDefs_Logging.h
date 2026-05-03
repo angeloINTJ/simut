@@ -181,6 +181,7 @@ enum LogCode {
     WEB_DISCONNECT_HISTORY  = 572,
     WEB_SCREENSHOT_ABORTED  = 573,
     WEB_UPLOAD              = 574,
+    WEB_CLIENT_DISCONNECT   = 575,  /* v3.36.2 (A7): cliente fechou conexão durante safeSend — silent broken pipe agora visível */
 
     /* ── Config (580–584) ── */
     CFG_THEME_APPLIED       = 580,

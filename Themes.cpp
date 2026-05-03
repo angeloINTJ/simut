@@ -269,7 +269,7 @@ const ThemePalette availableThemes[] = {
 const int NUM_THEMES = sizeof(availableThemes) / sizeof(ThemePalette);
 
 /* ────────────────────────────────────────────────────────────────────────
- *  Custom themes carregados de /themes/*.thm no LittleFS.
+ *  Custom themes carregados de arquivos .thm em /themes/ no LittleFS.
  *  RAM-resident (até MAX_CUSTOM_THEMES * sizeof(CustomTheme)).
  *  Strings idName/displayName ficam embutidas no struct (sem heap).
  * ──────────────────────────────────────────────────────────────────────── */
