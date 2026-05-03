@@ -75,7 +75,8 @@ enum UiMode {
     MODE_SETTINGS_STATUS,       /**< Tela de status do sistema em tempo real */
     MODE_SETTINGS_DISPLAY_OFFSET, /**< Ajuste de posicionamento do LCD (±4H/±4V) */
     MODE_ALARM_ACTION,
-    MODE_CALENDAR               /**< Calendário de histórico                */
+    MODE_CALENDAR,              /**< Calendário de histórico                */
+    MODE_CONFIRM_MUTE_ALL       /**< Confirma ativação do Mudo Global       */
 };
 
 /** Time range selection for graph rendering. */

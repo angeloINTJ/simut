@@ -272,12 +272,13 @@ void WebManager::handleApiCommitAll() {
             if (sObjStart >= 0 && sObjEnd > sObjStart) {
                 String sObj = body.substring(sObjStart, sObjEnd + 1);
                 SoundSettingsState snd;
-                snd.touchEnabled   = (sObj.indexOf("\"touch\":true")   >= 0);
-                snd.confirmEnabled = (sObj.indexOf("\"confirm\":true") >= 0);
-                snd.errorEnabled   = (sObj.indexOf("\"error\":true")   >= 0);
-                snd.alarmEnabled   = (sObj.indexOf("\"alarm\":true")   >= 0);
-                snd.webEnabled     = (sObj.indexOf("\"web\":true")     >= 0);
-                snd.muted          = (sObj.indexOf("\"mute\":true")    >= 0);
+                snd.touchEnabled     = (sObj.indexOf("\"touch\":true")     >= 0);
+                snd.confirmEnabled   = (sObj.indexOf("\"confirm\":true")   >= 0);
+                snd.errorEnabled     = (sObj.indexOf("\"error\":true")     >= 0);
+                snd.alarmEnabled     = (sObj.indexOf("\"alarm\":true")     >= 0);
+                snd.webEnabled       = (sObj.indexOf("\"web\":true")       >= 0);
+                snd.attentionEnabled = (sObj.indexOf("\"attention\":true") >= 0);
+                snd.muted            = (sObj.indexOf("\"mute\":true")      >= 0);
 
                 int volPos = sObj.indexOf("\"volume\"");
                 if (volPos >= 0) { int vc = sObj.indexOf(':', volPos); snd.volume = (uint8_t)constrain(sObj.substring(vc + 1).toInt(), 0, 100); }
@@ -294,10 +295,11 @@ void WebManager::handleApiCommitAll() {
                     if (cp < 0) return 0;
                     return (uint8_t)constrain(sObj.substring(cp + 1).toInt(), 0, 5);
                 };
-                snd.touchMelody   = extractMelIdx("\"melTouch\"");
-                snd.confirmMelody = extractMelIdx("\"melConfirm\"");
-                snd.errorMelody   = extractMelIdx("\"melError\"");
-                snd.alarmMelody   = extractMelIdx("\"melAlarm\"");
+                snd.touchMelody     = extractMelIdx("\"melTouch\"");
+                snd.confirmMelody   = extractMelIdx("\"melConfirm\"");
+                snd.errorMelody     = extractMelIdx("\"melError\"");
+                snd.alarmMelody     = extractMelIdx("\"melAlarm\"");
+                snd.attentionMelody = extractMelIdx("\"melAttention\"");
 
                 if (_soundRef) {
                     _soundRef->applySettingsState(snd);

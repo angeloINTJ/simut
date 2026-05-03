@@ -36,7 +36,8 @@ enum SoundEvent {
     SND_CONFIRM,
     SND_ERROR,
     SND_ALARM_START,
-    SND_ALARM_STOP
+    SND_ALARM_STOP,
+    SND_ATTENTION   /**< Som para telas de atenção/confirmação (v3.32.3) */
 };
 
 
@@ -57,12 +58,13 @@ struct __attribute__((packed)) SoundConfigData {
 static_assert(sizeof(SoundConfigData) <= 6, "SoundConfigData excede os 6 bytes reservados!");
 
 
-#define SND_FLAG_TOUCH    0x01
-#define SND_FLAG_CONFIRM  0x02
-#define SND_FLAG_ERROR    0x04
-#define SND_FLAG_ALARM    0x08
-#define SND_FLAG_MUTE     0x10
-#define SND_FLAG_WEB      0x20
+#define SND_FLAG_TOUCH      0x01
+#define SND_FLAG_CONFIRM    0x02
+#define SND_FLAG_ERROR      0x04
+#define SND_FLAG_ALARM      0x08
+#define SND_FLAG_MUTE       0x10
+#define SND_FLAG_WEB        0x20
+#define SND_FLAG_ATTENTION  0x40   /* v3.32.3 */
 
 
 struct SoundSettingsState {
@@ -72,12 +74,14 @@ struct SoundSettingsState {
     bool alarmEnabled;
     bool webEnabled;
     bool muted;
+    bool attentionEnabled;     /* v3.32.3 */
     uint8_t volume;
     uint8_t alarmVolume;
     uint8_t touchMelody;
     uint8_t confirmMelody;
     uint8_t errorMelody;
     uint8_t alarmMelody;
+    uint8_t attentionMelody;   /* v3.32.3 */
 };
 
 
@@ -160,20 +164,22 @@ private:
     uint8_t _volume        = 70;
     uint8_t _alarmVolume   = 70;
     bool    _muted         = false;
-    bool    _enableTouch   = true;
-    bool    _enableConfirm = true;
-    bool    _enableError   = true;
-    bool    _enableAlarm   = true;
-    bool    _enableWeb     = true;
+    bool    _enableTouch     = true;
+    bool    _enableConfirm   = true;
+    bool    _enableError     = true;
+    bool    _enableAlarm     = true;
+    bool    _enableWeb       = true;
+    bool    _enableAttention = true;   /* v3.32.3 */
 
 
-    uint8_t _melTouch   = 0;
-    uint8_t _melConfirm = 0;
-    uint8_t _melError   = 0;
-    uint8_t _melAlarm   = 0;
+    uint8_t _melTouch     = 0;
+    uint8_t _melConfirm   = 0;
+    uint8_t _melError     = 0;
+    uint8_t _melAlarm     = 0;
+    uint8_t _melAttention = 0;         /* v3.32.3 */
 
 
-    static const MelodyDef MELODIES[4][SND_MELODY_VARIANTS];
+    static const MelodyDef MELODIES[5][SND_MELODY_VARIANTS];
 
 
     static const BuzzerNote MEL_TOUCH_0[], MEL_TOUCH_1[], MEL_TOUCH_2[];
@@ -184,4 +190,6 @@ private:
     static const BuzzerNote MEL_ERROR_3[], MEL_ERROR_4[], MEL_ERROR_5[];
     static const BuzzerNote MEL_ALARM_0[], MEL_ALARM_1[], MEL_ALARM_2[];
     static const BuzzerNote MEL_ALARM_3[], MEL_ALARM_4[], MEL_ALARM_5[];
+    static const BuzzerNote MEL_ATTENTION_0[], MEL_ATTENTION_1[], MEL_ATTENTION_2[];   /* v3.32.3 */
+    static const BuzzerNote MEL_ATTENTION_3[], MEL_ATTENTION_4[], MEL_ATTENTION_5[];   /* v3.32.3 */
 };

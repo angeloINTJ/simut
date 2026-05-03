@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.32.0" /* Consolidação: drawer i18n fix (v3.31.10/11) + breadcrumb /files (v3.31.12) + toolbar /files polish (v3.31.13). Drawer: <span class="ico"> separado de <span data-i18n> elimina perda de ícones em PT (lic-link mantém formato original por dependência do .lng do device). Breadcrumb: removido " /" inline do template do disquete. Toolbar: botão New Folder removido + classes CSS unificadas (btn-fm/-pri/-out/-dang). 3 fixes UI sem mexer no LittleFS. */
+#define SIMUT_VERSION "v3.33.0" /* Consolidação v3.32.1..5: paridade Mudo Global TFT vs web (v3.32.1) + tela de confirmação ao ativar mute (v3.32.2) + nova classe SND_ATTENTION com 6 melodias (v3.32.3) + reorganização menu Sons no TFT (v3.32.4) + i18n PT/ES 13 chaves (v3.32.5). Bump minor por feature observable. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

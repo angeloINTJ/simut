@@ -225,6 +225,7 @@ public:
 
 
     void showSettingsSounds(const SoundSettingsState& state);
+    void showMuteConfirm();
     SoundSettingsState getSoundSettings() const { return _soundSettings; }
 
 
@@ -565,6 +566,7 @@ private:
 
     void drawSettingsSounds();
     void drawMelodySelect();
+    void drawMuteConfirm();
     SoundSettingsState _soundSettings;
     int  _soundSelection = 0;
     bool _inMelodySelect = false;

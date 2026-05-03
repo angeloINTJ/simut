@@ -842,6 +842,10 @@ void DisplayManager::loopCore1() {
 
             if (_repaintSettings) { drawAlarmAction(); _repaintSettings = false; }
         }
+        else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {
+
+            if (_repaintSettings) { drawMuteConfirm(); _repaintSettings = false; }
+        }
 
         /*
          * Delay adaptativo: mínimo durante interação, maior quando ocioso.

@@ -793,6 +793,91 @@ void DisplayManager::showSettingsSounds(const SoundSettingsState& state) {
 }
 
 
+void DisplayManager::showMuteConfirm() {
+    mutex_enter_blocking(&_stateMutex);
+    _uiMode = MODE_CONFIRM_MUTE_ALL;
+    _forceSettingsRedraw = true;
+    _repaintSettings = true;
+    mutex_exit(&_stateMutex);
+    /* v3.32.3: dispara SND_ATTENTION ao entrar na tela de confirmação. */
+    requestPreviewSound(SND_ATTENTION, _soundSettings.attentionMelody);
+}
+
+
+/* Tela de confirmação de Mudo Global. Padrão visual: header vermelho
+ * (mesmo tom do drawAlarmAction), 3 linhas de mensagem central, 2
+ * botões na base (Voltar à esquerda, Confirmar à direita). Renderizado
+ * via strips (canvas atomic) para evitar efeito top-down.
+ *
+ * Strings hardcoded EN/PT — não mexe em DICTIONARY_EN nem nos .lng do
+ * device (TFT renderiza só ASCII pela política F-LANGPACK-ASCII; "Mudo"
+ * e "serao" já são compatíveis sem acentos). */
+void DisplayManager::drawMuteConfirm() {
+    if (!_canvasWide) return;
+    if (!_forceSettingsRedraw) return;
+    _forceSettingsRedraw = false;
+
+    bool isPt = (_currentLangIdx == LANG_PT);
+    const char* titleTxt   = isPt ? "Mudo Global" : "Mute All";
+    const char* msgL1      = isPt ? "Todos os sons serao"  : "All sounds will be";
+    const char* msgL2      = isPt ? "desabilitados."       : "disabled.";
+    const char* msgL3      = isPt ? "Tem certeza?"         : "Are you sure?";
+    const char* backTxt    = tr(TR_BACK);
+    const char* confirmTxt = isPt ? "Confirmar" : "Confirm";
+
+    GFXcanvas16* cv = beginScreenRender();
+    if (!cv) return;
+
+    int16_t bx, by; uint16_t bw, bh;
+
+    /* 6 strips × 40px = 240px (canvas atomic, sem top-down). */
+    for (int strip = 0; strip < 6; strip++) {
+        cv->fillScreen(C_BG_MAIN);
+        const int16_t yOff = -strip * RENDER_STRIP_H;
+
+        /* Header (y_screen=4..36) — fundo vermelho destacado, texto branco. */
+        cv->fillRect(4, 4 + yOff, 312, 32, RGB565(180, 30, 30));
+        cv->setFont(&simutFont12pt);
+        cv->setTextColor(RGB565(255, 255, 255));
+        cv->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 28 + yOff);
+        cv->print(titleTxt);
+
+        /* Mensagem (3 linhas centralizadas em y=80, 110, 140). */
+        cv->setFont(&simutFont9pt);
+        cv->setTextColor(C_TEXT_MAIN);
+        cv->getTextBounds(msgL1, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 80 + yOff);
+        cv->print(msgL1);
+        cv->getTextBounds(msgL2, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 108 + yOff);
+        cv->print(msgL2);
+        cv->getTextBounds(msgL3, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 148 + yOff);
+        cv->print(msgL3);
+
+        /* Botão Voltar (esquerda, x=20..150, y=190..230) — card_bg neutro. */
+        cv->fillRoundRect(20, 190 + yOff, 130, 40, 10, C_CARD_BG);
+        cv->drawRoundRect(20, 190 + yOff, 130, 40, 10, C_TEXT_SUB);
+        cv->setFont(&simutFont12pt);
+        cv->setTextColor(C_TEXT_MAIN);
+        cv->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor(20 + (130 - bw) / 2, 218 + yOff);
+        cv->print(backTxt);
+
+        /* Botão Confirmar (direita, x=170..300, y=190..230) — destaque vermelho. */
+        cv->fillRoundRect(170, 190 + yOff, 130, 40, 10, RGB565(180, 30, 30));
+        cv->setTextColor(RGB565(255, 255, 255));
+        cv->getTextBounds(confirmTxt, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor(170 + (130 - bw) / 2, 218 + yOff);
+        cv->print(confirmTxt);
+
+        commitScreenStrip(strip);
+    }
+    endScreenRender();
+}
+
+
 void DisplayManager::drawSettingsSounds() {
     if (!_canvasWide) return;
 
@@ -801,8 +886,10 @@ void DisplayManager::drawSettingsSounds() {
     bool fullRedraw = _forceSettingsRedraw;
     bool pageChanged = (soundPage != lastSoundPage);
 
-    const int TOTAL_ITEMS = 8;
+    /* v3.32.3: 9 items (acrescentado Attention entre Web e Mute). 3 páginas. */
+    const int TOTAL_ITEMS = 9;
     int totalPages = (TOTAL_ITEMS + 3) / 4;
+    bool isPt = (_currentLangIdx == LANG_PT);
 
 
     if (fullRedraw) {
@@ -844,10 +931,17 @@ void DisplayManager::drawSettingsSounds() {
     }
 
 
-    LangKey itemLabels[TOTAL_ITEMS] = {
-        TR_SND_TOUCH, TR_SND_CONFIRM, TR_SND_ERROR, TR_SND_ALARM,
-        TR_SND_WEB,   TR_SND_MUTE,    TR_SND_VOLUME, TR_SND_ALARM_VOL
-    };
+    /* v3.32.4: ordem reorganizada — volumes primeiro, mute por último.
+     *   0=Vol Sistema, 1=Vol Alarme, 2=Toque, 3=Confirm, 4=Erro, 5=Alarme,
+     *   6=Atenção, 7=Web, 8=Mudo Global.
+     * Labels hardcoded EN/PT em "Erro"/"Alarme"/"Atenção"/"Mudo Global" para
+     * (a) eliminar redundância "Som de erro"/"Som de alarme"; (b) renomear
+     * "Silenciar tudo" → "Mudo Global"; (c) Atenção sem TR key. Não mexe
+     * em DICTIONARY_EN nem `.lng` do device. */
+    const char* errorLabel     = isPt ? "Erro"        : "Error";
+    const char* alarmLabel     = isPt ? "Alarme"      : "Alarm";
+    const char* attentionLabel = isPt ? "Atencao"     : "Attention";
+    const char* muteLabel      = isPt ? "Mudo Global" : "Mute All";
 
     int startIdx = soundPage * 4;
     int yBase = 40; int itemW = 285;
@@ -867,14 +961,25 @@ void DisplayManager::drawSettingsSounds() {
             if (!isSelected) _canvasWide->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
 
             _canvasWide->setFont(&simutFont9pt); _canvasWide->setTextColor(txt);
-            _canvasWide->setCursor(10, 24); _canvasWide->print(tr(itemLabels[actualIdx]));
+            _canvasWide->setCursor(10, 24);
+            const char* label = nullptr;
+            switch (actualIdx) {
+                case 0: label = tr(TR_SND_VOLUME);    break;
+                case 1: label = tr(TR_SND_ALARM_VOL); break;
+                case 2: label = tr(TR_SND_TOUCH);     break;
+                case 3: label = tr(TR_SND_CONFIRM);   break;
+                case 4: label = errorLabel;           break;  /* hardcode */
+                case 5: label = alarmLabel;           break;  /* hardcode */
+                case 6: label = attentionLabel;       break;  /* hardcode */
+                case 7: label = tr(TR_SND_WEB);       break;
+                case 8: label = muteLabel;            break;  /* hardcode */
+            }
+            _canvasWide->print(label);
 
-            if (actualIdx == 6 || actualIdx == 7) {
-                /* Barra fixa right-aligned: posição/tamanho não dependem mais do
-                 * texto de percentual (que variava com 1-3 dígitos e desalinhava
-                 * Sys Vol vs Alarm Vol). Percentual removido — barra é o feedback
-                 * visual completo. Ambas as linhas usam o mesmo barX/barW/barY. */
-                uint8_t volVal = (actualIdx == 6)
+            if (actualIdx == 0 || actualIdx == 1) {
+                /* Barra fixa right-aligned para Vol Sistema (0) e Vol Alarme (1).
+                 * Percentual removido — barra é o feedback visual completo. */
+                uint8_t volVal = (actualIdx == 0)
                                ? _soundSettings.volume
                                : _soundSettings.alarmVolume;
 
@@ -894,12 +999,13 @@ void DisplayManager::drawSettingsSounds() {
 
                 bool val = false;
                 switch (actualIdx) {
-                    case 0: val = _soundSettings.touchEnabled;   break;
-                    case 1: val = _soundSettings.confirmEnabled; break;
-                    case 2: val = _soundSettings.errorEnabled;   break;
-                    case 3: val = _soundSettings.alarmEnabled;   break;
-                    case 4: val = _soundSettings.webEnabled;     break;
-                    case 5: val = _soundSettings.muted;          break;
+                    case 2: val = _soundSettings.touchEnabled;     break;
+                    case 3: val = _soundSettings.confirmEnabled;   break;
+                    case 4: val = _soundSettings.errorEnabled;     break;
+                    case 5: val = _soundSettings.alarmEnabled;     break;
+                    case 6: val = _soundSettings.attentionEnabled; break;
+                    case 7: val = _soundSettings.webEnabled;       break;
+                    case 8: val = _soundSettings.muted;            break;
                 }
                 const char* valStr = val ? tr(TR_ON) : tr(TR_OFF);
                 int16_t bx, by; uint16_t bw, bh;
@@ -920,7 +1026,7 @@ void DisplayManager::drawMelodySelect() {
     if (!_canvasWide) return;
 
 
-    static const char* MEL_NAMES[4][6] = {
+    static const char* MEL_NAMES[5][6] = {
         {"1. Click",      "2. Bubble",    "3. Tick",
          "4. Snap",       "5. Drop",      "6. Chirp"},
         {"1. Ascending",  "2. Fanfare",   "3. Chime",
@@ -928,14 +1034,19 @@ void DisplayManager::drawMelodySelect() {
         {"1. Descending", "2. Buzz",      "3. Low",
          "4. Harsh",      "5. Decline",   "6. Blip"},
         {"1. Dual Beep",  "2. Siren",     "3. Rapid",
-         "4. Pulse",      "5. Escalate",  "6. Staccato"}
+         "4. Pulse",      "5. Escalate",  "6. Staccato"},
+        /* v3.32.3: Attention. */
+        {"1. Notify",     "2. Bell",      "3. Pulse",
+         "4. Chime Low",  "5. Rise",      "6. Soft Ding"}
     };
+    /* v3.32.3: typeIdx==4 (Attention) usa label hardcoded condicional. */
     static const LangKey TYPE_LABELS[4] = {
         TR_SND_TOUCH, TR_SND_CONFIRM, TR_SND_ERROR, TR_SND_ALARM
     };
 
     uint8_t typeIdx = _melSelectType;
-    if (typeIdx > 3) typeIdx = 0;
+    if (typeIdx > 4) typeIdx = 0;
+    bool isPt = (_currentLangIdx == LANG_PT);
 
     const int TOTAL_VARIANTS = 6;
     bool fullRedraw = _forceSettingsRedraw;
@@ -948,7 +1059,11 @@ void DisplayManager::drawMelodySelect() {
         _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
         _tft->setFont(&simutFont9pt); _tft->setTextColor(C_ACCENT);
         _tft->setCursor(10, 22);
-        _tft->print(tr(TYPE_LABELS[typeIdx]));
+        if (typeIdx == 4) {
+            _tft->print(isPt ? "Atencao" : "Attention");
+        } else {
+            _tft->print(tr(TYPE_LABELS[typeIdx]));
+        }
 
 
         int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;

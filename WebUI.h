@@ -238,9 +238,17 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
     </style>
     <script>
-    /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng). */
+    /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng).
+     * v3.32.5: fallback inline pra chaves fcp_* faltantes no .lng do device. */
     const dictFcp = {
-        pt: {},
+        pt: {
+            "fcp_wel":  "Bem-vindo!",
+            "fcp_msg":  "Defina uma nova senha forte para acessar o sistema.",
+            "fcp_p1":   "Nova Senha",
+            "fcp_p2":   "Repetir Senha",
+            "fcp_req":  "Mínimo 8 caracteres, incluindo letras, números e símbolos.",
+            "fcp_show": "Mostrar senhas"
+        },
         en: { "fcp_btn": "Save & Login" }
     };
     fetch('/api/lang').then(r=>r.json()).then(d=>{Object.assign(dictFcp.pt,d);applyLang();}).catch(()=>{});
@@ -3560,6 +3568,21 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <label class="toggle"><input type="checkbox" id="snd_web"><span class="slider"></span></label>
                 </div>
                 <div class="sound-item">
+                    <span class="sound-label" data-i18n="alm_attention">Attention</span>
+                    <div class="mel-group">
+                        <select id="mel_attention" class="mel-sel">
+                            <option value="0">Notify</option>
+                            <option value="1">Bell</option>
+                            <option value="2">Pulse</option>
+                            <option value="3">Chime Low</option>
+                            <option value="4">Rise</option>
+                            <option value="5">Soft Ding</option>
+                        </select>
+                        <button type="button" class="btn-test" onclick="testSound('attention')">&#9835;</button>
+                    </div>
+                    <label class="toggle"><input type="checkbox" id="snd_attention"><span class="slider"></span></label>
+                </div>
+                <div class="sound-item">
                     <span class="sound-label" data-i18n="alm_mute">Global Mute</span>
                     <label class="toggle"><input type="checkbox" id="snd_mute"><span class="slider"></span></label>
                 </div>
@@ -3666,14 +3689,15 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                 // ── Popula configuração de sons ──────────────────────
                 let snd = data.sounds || {};
-                document.getElementById('snd_touch').checked   = !!snd.touch;
-                document.getElementById('snd_confirm').checked = !!snd.confirm;
-                document.getElementById('snd_error').checked   = !!snd.error;
-                document.getElementById('snd_alarm').checked   = !!snd.alarm;
-                document.getElementById('snd_web').checked     = !!snd.web;
-                document.getElementById('snd_mute').checked    = !!snd.mute;
-                /* Mudo Global: ativar mute desliga outros; ativar outro desliga mute */
-                {const M=document.getElementById('snd_mute'),O=['snd_touch','snd_confirm','snd_error','snd_alarm','snd_web'];if(!M.dataset.lk){M.dataset.lk='1';M.addEventListener('change',e=>{if(e.target.checked)O.forEach(i=>document.getElementById(i).checked=false)});O.forEach(i=>document.getElementById(i).addEventListener('change',e=>{if(e.target.checked)M.checked=false}))}}
+                document.getElementById('snd_touch').checked     = !!snd.touch;
+                document.getElementById('snd_confirm').checked   = !!snd.confirm;
+                document.getElementById('snd_error').checked     = !!snd.error;
+                document.getElementById('snd_alarm').checked     = !!snd.alarm;
+                document.getElementById('snd_web').checked       = !!snd.web;
+                document.getElementById('snd_attention').checked = (snd.attention === undefined) ? true : !!snd.attention;
+                document.getElementById('snd_mute').checked      = !!snd.mute;
+                /* Mudo Global: ativar mute desliga outros; ativar outro desliga mute (v3.32.3 inclui attention) */
+                {const M=document.getElementById('snd_mute'),O=['snd_touch','snd_confirm','snd_error','snd_alarm','snd_web','snd_attention'];if(!M.dataset.lk){M.dataset.lk='1';M.addEventListener('change',e=>{if(e.target.checked)O.forEach(i=>document.getElementById(i).checked=false)});O.forEach(i=>document.getElementById(i).addEventListener('change',e=>{if(e.target.checked)M.checked=false}))}}
                 let vol = (snd.volume !== undefined) ? snd.volume : 70;
                 document.getElementById('snd_volume').value = vol;
                 document.getElementById('vol-display').textContent = vol + '%';
@@ -3684,10 +3708,11 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('alarm-vol-display').textContent = aVol + '%';
 
                 // [v3.2.52] Popula seletores de melodia
-                document.getElementById('mel_touch').value   = snd.melTouch   || 0;
-                document.getElementById('mel_confirm').value = snd.melConfirm || 0;
-                document.getElementById('mel_error').value   = snd.melError   || 0;
-                document.getElementById('mel_alarm').value   = snd.melAlarm   || 0;
+                document.getElementById('mel_touch').value     = snd.melTouch     || 0;
+                document.getElementById('mel_confirm').value   = snd.melConfirm   || 0;
+                document.getElementById('mel_error').value     = snd.melError     || 0;
+                document.getElementById('mel_alarm').value     = snd.melAlarm     || 0;
+                document.getElementById('mel_attention').value = snd.melAttention || 0;
 
                 applyLang();
 
@@ -3721,18 +3746,20 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 sensorData.push(obj);
             });
             let soundData = {
-                touch:   document.getElementById('snd_touch').checked,
-                confirm: document.getElementById('snd_confirm').checked,
-                error:   document.getElementById('snd_error').checked,
-                alarm:   document.getElementById('snd_alarm').checked,
-                web:     document.getElementById('snd_web').checked,
-                mute:    document.getElementById('snd_mute').checked,
-                volume:      parseInt(document.getElementById('snd_volume').value),
-                alarmVolume: parseInt(document.getElementById('snd_alarm_volume').value),
-                melTouch:   parseInt(document.getElementById('mel_touch').value),
-                melConfirm: parseInt(document.getElementById('mel_confirm').value),
-                melError:   parseInt(document.getElementById('mel_error').value),
-                melAlarm:   parseInt(document.getElementById('mel_alarm').value)
+                touch:     document.getElementById('snd_touch').checked,
+                confirm:   document.getElementById('snd_confirm').checked,
+                error:     document.getElementById('snd_error').checked,
+                alarm:     document.getElementById('snd_alarm').checked,
+                web:       document.getElementById('snd_web').checked,
+                attention: document.getElementById('snd_attention').checked,
+                mute:      document.getElementById('snd_mute').checked,
+                volume:        parseInt(document.getElementById('snd_volume').value),
+                alarmVolume:   parseInt(document.getElementById('snd_alarm_volume').value),
+                melTouch:      parseInt(document.getElementById('mel_touch').value),
+                melConfirm:    parseInt(document.getElementById('mel_confirm').value),
+                melError:      parseInt(document.getElementById('mel_error').value),
+                melAlarm:      parseInt(document.getElementById('mel_alarm').value),
+                melAttention:  parseInt(document.getElementById('mel_attention').value)
             };
             return { sensors: sensorData, sounds: soundData };
         }
@@ -3752,18 +3779,20 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
             if (pAlm.sounds) {
                 const snd = pAlm.sounds;
-                if (snd.touch !== undefined)   document.getElementById('snd_touch').checked   = !!snd.touch;
-                if (snd.confirm !== undefined) document.getElementById('snd_confirm').checked = !!snd.confirm;
-                if (snd.error !== undefined)   document.getElementById('snd_error').checked   = !!snd.error;
-                if (snd.alarm !== undefined)   document.getElementById('snd_alarm').checked   = !!snd.alarm;
-                if (snd.web !== undefined)     document.getElementById('snd_web').checked     = !!snd.web;
-                if (snd.mute !== undefined)    document.getElementById('snd_mute').checked    = !!snd.mute;
+                if (snd.touch !== undefined)     document.getElementById('snd_touch').checked     = !!snd.touch;
+                if (snd.confirm !== undefined)   document.getElementById('snd_confirm').checked   = !!snd.confirm;
+                if (snd.error !== undefined)     document.getElementById('snd_error').checked     = !!snd.error;
+                if (snd.alarm !== undefined)     document.getElementById('snd_alarm').checked     = !!snd.alarm;
+                if (snd.web !== undefined)       document.getElementById('snd_web').checked       = !!snd.web;
+                if (snd.attention !== undefined) document.getElementById('snd_attention').checked = !!snd.attention;
+                if (snd.mute !== undefined)      document.getElementById('snd_mute').checked      = !!snd.mute;
                 if (snd.volume !== undefined)      { document.getElementById('snd_volume').value = snd.volume; document.getElementById('vol-display').textContent = snd.volume + '%'; }
                 if (snd.alarmVolume !== undefined) { document.getElementById('snd_alarm_volume').value = snd.alarmVolume; document.getElementById('alarm-vol-display').textContent = snd.alarmVolume + '%'; }
-                if (snd.melTouch !== undefined)   document.getElementById('mel_touch').value   = snd.melTouch;
-                if (snd.melConfirm !== undefined) document.getElementById('mel_confirm').value = snd.melConfirm;
-                if (snd.melError !== undefined)   document.getElementById('mel_error').value   = snd.melError;
-                if (snd.melAlarm !== undefined)   document.getElementById('mel_alarm').value   = snd.melAlarm;
+                if (snd.melTouch !== undefined)     document.getElementById('mel_touch').value     = snd.melTouch;
+                if (snd.melConfirm !== undefined)   document.getElementById('mel_confirm').value   = snd.melConfirm;
+                if (snd.melError !== undefined)     document.getElementById('mel_error').value     = snd.melError;
+                if (snd.melAlarm !== undefined)     document.getElementById('mel_alarm').value     = snd.melAlarm;
+                if (snd.melAttention !== undefined) document.getElementById('mel_attention').value = snd.melAttention;
             }
         }
 
@@ -3832,6 +3861,14 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 [{f:2600,d:300}],
                 [{f:1600,d:150},{f:2000,d:150},{f:2400,d:150}],
                 [{f:2800,d:60},{f:0,d:40},{f:2800,d:60},{f:0,d:40},{f:2800,d:60}]
+            ],
+            attention: [
+                [{f:1047,d:90},{f:0,d:50},{f:1319,d:180}],
+                [{f:1568,d:70},{f:1319,d:70},{f:1568,d:120}],
+                [{f:880,d:60},{f:0,d:30},{f:880,d:60},{f:0,d:30},{f:880,d:100}],
+                [{f:1318,d:130},{f:988,d:200}],
+                [{f:784,d:60},{f:1047,d:60},{f:1318,d:60},{f:1568,d:100}],
+                [{f:698,d:90},{f:0,d:70},{f:1047,d:180}]
             ]
         };
         var _audioCtx = null;
@@ -4252,7 +4289,14 @@ static const char LANG_JS[] PROGMEM = R"raw(
     /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng).
      * EN inline acima cobre overrides; data-en attrs no HTML cobrem o resto. */
     const dict = {
-        pt: {},
+        /* v3.32.5: fallback inline para chaves faltantes no .lng do device
+         * (sem uploadfs). Chaves vêm do /api/lang via Object.assign que
+         * sobrescreve por cima — se o .lng tiver, prevalece sobre estes. */
+        pt: {
+            "alm_attention": "Atenção",
+            "fil_uploaded": "Upload concluído.",
+            "fil_up_err": "Erro no upload."
+        },
         en: {
             "hist_load_btn": "Load", "hist_prompt": "Click 'Load' to view system logs.",
             "greet_morning": "Good morning", "greet_afternoon": "Good afternoon", "greet_evening": "Good evening", "greet_hello": "Hello", "greet_logout": "Logout"

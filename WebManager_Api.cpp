@@ -276,21 +276,24 @@ void WebManager::handleApiAlarms() {
 
 
     SoundSettingsState snd = _soundRef->getSettingsState();
-    char sndBuf[280];
+    char sndBuf[336];
     snprintf(sndBuf, sizeof(sndBuf),
         "\"sounds\":{\"touch\":%s,\"confirm\":%s,\"error\":%s,"
-        "\"alarm\":%s,\"web\":%s,\"mute\":%s,\"volume\":%d,\"alarmVolume\":%d,"
-        "\"melTouch\":%d,\"melConfirm\":%d,\"melError\":%d,\"melAlarm\":%d}}",
-        snd.touchEnabled   ? "true" : "false",
-        snd.confirmEnabled ? "true" : "false",
-        snd.errorEnabled   ? "true" : "false",
-        snd.alarmEnabled   ? "true" : "false",
-        snd.webEnabled     ? "true" : "false",
-        snd.muted          ? "true" : "false",
+        "\"alarm\":%s,\"web\":%s,\"attention\":%s,\"mute\":%s,"
+        "\"volume\":%d,\"alarmVolume\":%d,"
+        "\"melTouch\":%d,\"melConfirm\":%d,\"melError\":%d,"
+        "\"melAlarm\":%d,\"melAttention\":%d}}",
+        snd.touchEnabled     ? "true" : "false",
+        snd.confirmEnabled   ? "true" : "false",
+        snd.errorEnabled     ? "true" : "false",
+        snd.alarmEnabled     ? "true" : "false",
+        snd.webEnabled       ? "true" : "false",
+        snd.attentionEnabled ? "true" : "false",
+        snd.muted            ? "true" : "false",
         snd.volume,
         snd.alarmVolume,
         snd.touchMelody, snd.confirmMelody,
-        snd.errorMelody, snd.alarmMelody);
+        snd.errorMelody, snd.alarmMelody, snd.attentionMelody);
     safeSend(sndBuf);
     safeSend("");
 }

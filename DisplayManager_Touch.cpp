@@ -1305,8 +1305,9 @@ void DisplayManager::handleTouch() {
                 switch (_melSelectType) {
                     case 0: evType = SND_TOUCH_CLICK; break;
                     case 1: evType = SND_CONFIRM;     break;
-                    case 2: evType = SND_ERROR;        break;
-                    case 3: evType = SND_ALARM_START;  break;
+                    case 2: evType = SND_ERROR;       break;
+                    case 3: evType = SND_ALARM_START; break;
+                    case 4: evType = SND_ATTENTION;   break;
                 }
                 if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
                 _repaintSettings = true;
@@ -1320,7 +1321,8 @@ void DisplayManager::handleTouch() {
                         case 0: evType = SND_TOUCH_CLICK; break;
                         case 1: evType = SND_CONFIRM;     break;
                         case 2: evType = SND_ERROR;        break;
-                        case 3: evType = SND_ALARM_START;  break;
+                        case 3: evType = SND_ALARM_START; break;
+                        case 4: evType = SND_ATTENTION;   break;
                     }
                     if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
                     _repaintSettings = true;
@@ -1333,7 +1335,8 @@ void DisplayManager::handleTouch() {
                         case 0: evType = SND_TOUCH_CLICK; break;
                         case 1: evType = SND_CONFIRM;     break;
                         case 2: evType = SND_ERROR;        break;
-                        case 3: evType = SND_ALARM_START;  break;
+                        case 3: evType = SND_ALARM_START; break;
+                        case 4: evType = SND_ATTENTION;   break;
                     }
                     if (evType != SND_NONE) requestPreviewSound(evType, _melSelectIdx);
                     _repaintSettings = true;
@@ -1348,22 +1351,28 @@ void DisplayManager::handleTouch() {
                     if (!acceptTouch(0x93)) return;
                     switch (_melSelectType) {
                         case 0:
-                            _soundSettings.touchEnabled  = true;
-                            _soundSettings.touchMelody   = _melSelectIdx;
+                            _soundSettings.touchEnabled    = true;
+                            _soundSettings.touchMelody     = _melSelectIdx;
                             break;
                         case 1:
-                            _soundSettings.confirmEnabled = true;
-                            _soundSettings.confirmMelody  = _melSelectIdx;
+                            _soundSettings.confirmEnabled  = true;
+                            _soundSettings.confirmMelody   = _melSelectIdx;
                             break;
                         case 2:
-                            _soundSettings.errorEnabled  = true;
-                            _soundSettings.errorMelody   = _melSelectIdx;
+                            _soundSettings.errorEnabled    = true;
+                            _soundSettings.errorMelody     = _melSelectIdx;
                             break;
                         case 3:
-                            _soundSettings.alarmEnabled  = true;
-                            _soundSettings.alarmMelody   = _melSelectIdx;
+                            _soundSettings.alarmEnabled    = true;
+                            _soundSettings.alarmMelody     = _melSelectIdx;
+                            break;
+                        case 4:
+                            _soundSettings.attentionEnabled = true;
+                            _soundSettings.attentionMelody  = _melSelectIdx;
                             break;
                     }
+                    /* Paridade com web /alarms: ligar qualquer som individual desliga o mute global. */
+                    _soundSettings.muted = false;
                     requestPreviewSound(SND_CONFIRM, _soundSettings.confirmMelody);
 
                     _inMelodySelect = false;
@@ -1375,7 +1384,8 @@ void DisplayManager::handleTouch() {
         }
 
 
-        const int TOTAL_SOUND_ITEMS = 8;
+        /* v3.32.3: 9 itens (Attention adicionado entre Web (4) e Mute (agora 6)). */
+        const int TOTAL_SOUND_ITEMS = 9;
         int soundPage = _soundSelection / 4;
 
         if (y >= 40 && y <= 185) {
@@ -1397,20 +1407,42 @@ void DisplayManager::handleTouch() {
                 _soundSelection = mapIdx;
                 _repaintSettings = true;
             } else {
-                if (mapIdx <= 3) {
+                /* v3.32.4 layout: 0=volume, 1=alarmVol, 2=touch, 3=confirm,
+                 * 4=error, 5=alarm, 6=attention, 7=web, 8=mute. */
+                if (mapIdx == 0) {
+                    if (!acceptHoldTouch(20)) return;   /* único accept do caminho */
+                    if (x < 160) { if (_soundSettings.volume >= 10) _soundSettings.volume -= 10; }
+                    else          { if (_soundSettings.volume <= 90) _soundSettings.volume += 10; }
+                    _touchSoundPending = false;   /* cancela bip para não sobrepor preview */
+                    requestVolumePreview(_soundSettings.volume);
+                    _repaintSettings = true;
+                }
+                else if (mapIdx == 1) {
+                    if (!acceptHoldTouch(21)) return;
+                    if (x < 160) { if (_soundSettings.alarmVolume >= 10) _soundSettings.alarmVolume -= 10; }
+                    else          { if (_soundSettings.alarmVolume <= 90) _soundSettings.alarmVolume += 10; }
+                    _touchSoundPending = false;
+                    requestAlarmVolumePreview(_soundSettings.alarmVolume);
+                    _repaintSettings = true;
+                }
+                else if (mapIdx >= 2 && mapIdx <= 6) {
+                    /* Sons individuais com seleção de melodia: touch (2),
+                     * confirm (3), error (4), alarm (5), attention (6). */
                     if (!acceptSlideTouch(clickedIndex)) return;
                     bool* enablePtr = nullptr;
                     uint8_t melType = 0;
                     uint8_t curMel  = 0;
                     switch (mapIdx) {
-                        case 0: enablePtr = &_soundSettings.touchEnabled;
-                                melType = 0; curMel = _soundSettings.touchMelody;   break;
-                        case 1: enablePtr = &_soundSettings.confirmEnabled;
-                                melType = 1; curMel = _soundSettings.confirmMelody; break;
-                        case 2: enablePtr = &_soundSettings.errorEnabled;
-                                melType = 2; curMel = _soundSettings.errorMelody;   break;
-                        case 3: enablePtr = &_soundSettings.alarmEnabled;
-                                melType = 3; curMel = _soundSettings.alarmMelody;   break;
+                        case 2: enablePtr = &_soundSettings.touchEnabled;
+                                melType = 0; curMel = _soundSettings.touchMelody;     break;
+                        case 3: enablePtr = &_soundSettings.confirmEnabled;
+                                melType = 1; curMel = _soundSettings.confirmMelody;   break;
+                        case 4: enablePtr = &_soundSettings.errorEnabled;
+                                melType = 2; curMel = _soundSettings.errorMelody;     break;
+                        case 5: enablePtr = &_soundSettings.alarmEnabled;
+                                melType = 3; curMel = _soundSettings.alarmMelody;     break;
+                        case 6: enablePtr = &_soundSettings.attentionEnabled;
+                                melType = 4; curMel = _soundSettings.attentionMelody; break;
                     }
 
                     if (enablePtr && *enablePtr) {
@@ -1424,31 +1456,23 @@ void DisplayManager::handleTouch() {
                         _repaintSettings = true;
                     }
                 }
-                else if (mapIdx == 4) {
+                else if (mapIdx == 7) {
                     if (!acceptSlideTouch(clickedIndex)) return;
                     _soundSettings.webEnabled = !_soundSettings.webEnabled;
+                    /* Paridade com web /alarms: ligar Web desliga o mute global. */
+                    if (_soundSettings.webEnabled) _soundSettings.muted = false;
                     _repaintSettings = true;
                 }
-                else if (mapIdx == 5) {
+                else if (mapIdx == 8) {
                     if (!acceptSlideTouch(clickedIndex)) return;
-                    _soundSettings.muted = !_soundSettings.muted;
-                    _repaintSettings = true;
-                }
-                else if (mapIdx == 6) {
-                    if (!acceptHoldTouch(20)) return;   /* único accept do caminho */
-                    if (x < 160) { if (_soundSettings.volume >= 10) _soundSettings.volume -= 10; }
-                    else          { if (_soundSettings.volume <= 90) _soundSettings.volume += 10; }
-                    _touchSoundPending = false;   /* cancela bip para não sobrepor preview */
-                    requestVolumePreview(_soundSettings.volume);
-                    _repaintSettings = true;
-                }
-                else if (mapIdx == 7) {
-                    if (!acceptHoldTouch(21)) return;
-                    if (x < 160) { if (_soundSettings.alarmVolume >= 10) _soundSettings.alarmVolume -= 10; }
-                    else          { if (_soundSettings.alarmVolume <= 90) _soundSettings.alarmVolume += 10; }
-                    _touchSoundPending = false;
-                    requestAlarmVolumePreview(_soundSettings.alarmVolume);
-                    _repaintSettings = true;
+                    if (!_soundSettings.muted) {
+                        /* Vai LIGAR Mudo Global → tela de confirmação. */
+                        showMuteConfirm();
+                    } else {
+                        /* Desligar é direto, sem confirmação. */
+                        _soundSettings.muted = false;
+                        _repaintSettings = true;
+                    }
                 }
             }
         }
@@ -1564,6 +1588,43 @@ void DisplayManager::handleTouch() {
             mutex_enter_blocking(&_stateMutex);
             _isDirty = true;
             mutex_exit(&_stateMutex);
+        }
+    }
+    else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {
+        /* 2 botões em y=190..230. Voltar (x=20..150), Confirmar (x=170..300). */
+        if (y >= 190 && y <= 230) {
+            if (x >= 20 && x <= 150) {
+                if (!acceptTouch(0xC0)) return;
+                /* Voltar — cancela, retorna ao menu Sons sem alterar nada. */
+                _uiMode = MODE_SETTINGS_SOUNDS;
+                _forceSettingsRedraw = true;
+                _repaintSettings = true;
+            }
+            else if (x >= 170 && x <= 300) {
+                /* v3.32.3: gate de aceitação manual (sem acceptTouch que disparava
+                 * SND_TOUCH_CLICK). Tocamos SND_CONFIRM antes de aplicar mute para
+                 * dar feedback de "ação confirmada" — o som chega no Core 0 e é
+                 * processado antes do save. _muted no SoundManager só muda no save. */
+                if (!_touchReleased) return;
+                _touchReleased       = false;
+                _lastTouchRegion     = 0xC1;
+                _lastRegionTouchTime = millis();
+                _lastTouchTimestamp  = millis();
+                _touchSoundPending   = false;   /* sem bip de touch */
+                requestPreviewSound(SND_CONFIRM, _soundSettings.confirmMelody);
+
+                /* Confirmar — aplica mute=true e desliga todos os sons (paridade web). */
+                _soundSettings.muted            = true;
+                _soundSettings.touchEnabled     = false;
+                _soundSettings.confirmEnabled   = false;
+                _soundSettings.errorEnabled     = false;
+                _soundSettings.alarmEnabled     = false;
+                _soundSettings.webEnabled       = false;
+                _soundSettings.attentionEnabled = false;
+                _uiMode = MODE_SETTINGS_SOUNDS;
+                _forceSettingsRedraw = true;
+                _repaintSettings = true;
+            }
         }
     }
 }

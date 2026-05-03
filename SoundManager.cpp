@@ -58,12 +58,20 @@ const BuzzerNote SoundManager::MEL_ALARM_3[] = { { 2600, 300 }, { 0, 600 } };
 const BuzzerNote SoundManager::MEL_ALARM_4[] = { { 1600, 150 }, { 2000, 150 }, { 2400, 150 }, { 0, 450 } };
 const BuzzerNote SoundManager::MEL_ALARM_5[] = { { 2800, 60 }, { 0, 40 }, { 2800, 60 }, { 0, 40 }, { 2800, 60 }, { 0, 400 } };
 
+/* v3.32.3: melodias para SND_ATTENTION (telas de confirmação/atenção). */
+const BuzzerNote SoundManager::MEL_ATTENTION_0[] = { { 1047, 90 }, { 0, 50 }, { 1319, 180 } };
+const BuzzerNote SoundManager::MEL_ATTENTION_1[] = { { 1568, 70 }, { 1319, 70 }, { 1568, 120 } };
+const BuzzerNote SoundManager::MEL_ATTENTION_2[] = { { 880, 60 }, { 0, 30 }, { 880, 60 }, { 0, 30 }, { 880, 100 } };
+const BuzzerNote SoundManager::MEL_ATTENTION_3[] = { { 1318, 130 }, { 988, 200 } };
+const BuzzerNote SoundManager::MEL_ATTENTION_4[] = { { 784, 60 }, { 1047, 60 }, { 1318, 60 }, { 1568, 100 } };
+const BuzzerNote SoundManager::MEL_ATTENTION_5[] = { { 698, 90 }, { 0, 70 }, { 1047, 180 } };
+
 
 /* =========================================================================== */
-/*                MELODY LOOKUP TABLE — [4 TYPES][6 VARIANTS]                */
+/*                MELODY LOOKUP TABLE — [5 TYPES][6 VARIANTS]                */
 /* =========================================================================== */
 
-const MelodyDef SoundManager::MELODIES[4][SND_MELODY_VARIANTS] = {
+const MelodyDef SoundManager::MELODIES[5][SND_MELODY_VARIANTS] = {
 
     {
         { MEL_TOUCH_0, 1 }, { MEL_TOUCH_1, 2 }, { MEL_TOUCH_2, 1 },
@@ -83,6 +91,12 @@ const MelodyDef SoundManager::MELODIES[4][SND_MELODY_VARIANTS] = {
     {
         { MEL_ALARM_0, 4 }, { MEL_ALARM_1, 4 }, { MEL_ALARM_2, 4 },
         { MEL_ALARM_3, 2 }, { MEL_ALARM_4, 4 }, { MEL_ALARM_5, 6 }
+    },
+
+    /* v3.32.3: SND_ATTENTION — toques de notificação para telas de confirmação. */
+    {
+        { MEL_ATTENTION_0, 3 }, { MEL_ATTENTION_1, 3 }, { MEL_ATTENTION_2, 5 },
+        { MEL_ATTENTION_3, 2 }, { MEL_ATTENTION_4, 4 }, { MEL_ATTENTION_5, 3 }
     }
 };
 
@@ -113,10 +127,11 @@ const MelodyDef& SoundManager::resolveMelody(SoundEvent event) const {
     uint8_t varIdx  = 0;
 
     switch (event) {
-        case SND_TOUCH_CLICK: typeIdx = 0; varIdx = _melTouch;   break;
-        case SND_CONFIRM:     typeIdx = 1; varIdx = _melConfirm; break;
-        case SND_ERROR:       typeIdx = 2; varIdx = _melError;   break;
-        case SND_ALARM_START: typeIdx = 3; varIdx = _melAlarm;   break;
+        case SND_TOUCH_CLICK: typeIdx = 0; varIdx = _melTouch;     break;
+        case SND_CONFIRM:     typeIdx = 1; varIdx = _melConfirm;   break;
+        case SND_ERROR:       typeIdx = 2; varIdx = _melError;     break;
+        case SND_ALARM_START: typeIdx = 3; varIdx = _melAlarm;     break;
+        case SND_ATTENTION:   typeIdx = 4; varIdx = _melAttention; break;
         default:              break;
     }
 
@@ -171,6 +186,14 @@ void SoundManager::update() {
             case SND_ERROR:
 
                 if (_enableError && !_muted) {
+                    const MelodyDef& m = resolveMelody(ev);
+                    playSystemSound(m);
+                }
+                break;
+
+            case SND_ATTENTION:
+
+                if (_enableAttention && !_muted) {
                     const MelodyDef& m = resolveMelody(ev);
                     playSystemSound(m);
                 }
@@ -275,6 +298,7 @@ void SoundManager::playPreview(SoundEvent event, uint8_t melodyIdx) {
         case SND_CONFIRM:     typeIdx = 1; break;
         case SND_ERROR:       typeIdx = 2; break;
         case SND_ALARM_START: typeIdx = 3; break;
+        case SND_ATTENTION:   typeIdx = 4; break;
         default: return;
     }
 
@@ -324,10 +348,11 @@ void SoundManager::setMelodyIndex(SoundEvent event, uint8_t idx) {
     if (idx >= SND_MELODY_VARIANTS) idx = 0;
 
     switch (event) {
-        case SND_TOUCH_CLICK: _melTouch   = idx; break;
-        case SND_CONFIRM:     _melConfirm = idx; break;
-        case SND_ERROR:       _melError   = idx; break;
-        case SND_ALARM_START: _melAlarm   = idx; break;
+        case SND_TOUCH_CLICK: _melTouch     = idx; break;
+        case SND_CONFIRM:     _melConfirm   = idx; break;
+        case SND_ERROR:       _melError     = idx; break;
+        case SND_ALARM_START: _melAlarm     = idx; break;
+        case SND_ATTENTION:   _melAttention = idx; break;
         default: break;
     }
 }
@@ -338,6 +363,7 @@ uint8_t SoundManager::getMelodyIndex(SoundEvent event) const {
         case SND_CONFIRM:     return _melConfirm;
         case SND_ERROR:       return _melError;
         case SND_ALARM_START: return _melAlarm;
+        case SND_ATTENTION:   return _melAttention;
         default: return 0;
     }
 }
@@ -390,16 +416,20 @@ void SoundManager::setMuted(bool muted) {
  * Handles migration from older firmware versions (missing fields default to 70%).
  */
 void SoundManager::loadConfig(const SoundConfigData* data) {
-    if (!data || data->magic != 0xAB) {
-        _enableTouch   = true;
-        _enableConfirm = true;
-        _enableError   = true;
-        _enableAlarm   = true;
-        _enableWeb     = true;
-        _muted         = false;
-        _volume        = 70;
-        _alarmVolume   = 70;
-        _melTouch = _melConfirm = _melError = _melAlarm = 0;
+    /* Magic byte: 0xAB = legacy (v3.32.2-, sem campo Attention),
+     *             0xAC = current (v3.32.3+, com Attention).
+     * Outros valores → defaults completos (config corrompida ou primeira boot). */
+    if (!data || (data->magic != 0xAB && data->magic != 0xAC)) {
+        _enableTouch     = true;
+        _enableConfirm   = true;
+        _enableError     = true;
+        _enableAlarm     = true;
+        _enableWeb       = true;
+        _enableAttention = true;
+        _muted           = false;
+        _volume          = 70;
+        _alarmVolume     = 70;
+        _melTouch = _melConfirm = _melError = _melAlarm = _melAttention = 0;
         return;
     }
 
@@ -428,29 +458,45 @@ void SoundManager::loadConfig(const SoundConfigData* data) {
     if (_melError   >= SND_MELODY_VARIANTS) _melError   = 0;
     if (_melAlarm   >= SND_MELODY_VARIANTS) _melAlarm   = 0;
 
+    if (data->magic == 0xAB) {
+        /* Migração v3.32.2- → v3.32.3: campos Attention não existem na config
+         * antiga. Default = ON com primeira melodia para preservar UX (telas
+         * de confirmação tocam som imediatamente sem o user precisar habilitar). */
+        _enableAttention = true;
+        _melAttention    = 0;
+    } else {
+        _enableAttention = (data->flags & SND_FLAG_ATTENTION) != 0;
+        _melAttention    = (mp >> 12) & 0x07;
+        if (_melAttention >= SND_MELODY_VARIANTS) _melAttention = 0;
+    }
+
     _buzzer.setVolume(_volume);
 }
 
 void SoundManager::fillConfig(SoundConfigData* data) const {
     if (!data) return;
 
-    data->magic = 0xAB;
+    /* v3.32.3: schema ganhou bit ATTENTION (flags) + 3 bits melAttention
+     * (mp 12..14). Magic bumped 0xAB → 0xAC para distinguir layouts. */
+    data->magic = 0xAC;
 
     data->flags = 0;
-    if (_enableTouch)   data->flags |= SND_FLAG_TOUCH;
-    if (_enableConfirm) data->flags |= SND_FLAG_CONFIRM;
-    if (_enableError)   data->flags |= SND_FLAG_ERROR;
-    if (_enableAlarm)   data->flags |= SND_FLAG_ALARM;
-    if (_muted)         data->flags |= SND_FLAG_MUTE;
-    if (_enableWeb)     data->flags |= SND_FLAG_WEB;
+    if (_enableTouch)     data->flags |= SND_FLAG_TOUCH;
+    if (_enableConfirm)   data->flags |= SND_FLAG_CONFIRM;
+    if (_enableError)     data->flags |= SND_FLAG_ERROR;
+    if (_enableAlarm)     data->flags |= SND_FLAG_ALARM;
+    if (_muted)           data->flags |= SND_FLAG_MUTE;
+    if (_enableWeb)       data->flags |= SND_FLAG_WEB;
+    if (_enableAttention) data->flags |= SND_FLAG_ATTENTION;
 
     data->volume = _volume;
 
 
-    uint16_t mp = ((uint16_t)(_melTouch   & 0x07))
-                | ((uint16_t)(_melConfirm & 0x07) << 3)
-                | ((uint16_t)(_melError   & 0x07) << 6)
-                | ((uint16_t)(_melAlarm   & 0x07) << 9);
+    uint16_t mp = ((uint16_t)(_melTouch     & 0x07))
+                | ((uint16_t)(_melConfirm   & 0x07) << 3)
+                | ((uint16_t)(_melError     & 0x07) << 6)
+                | ((uint16_t)(_melAlarm     & 0x07) << 9)
+                | ((uint16_t)(_melAttention & 0x07) << 12);
     data->melLow  = (uint8_t)(mp & 0xFF);
     data->melHigh = (uint8_t)((mp >> 8) & 0xFF);
 
@@ -460,32 +506,36 @@ void SoundManager::fillConfig(SoundConfigData* data) const {
 
 SoundSettingsState SoundManager::getSettingsState() const {
     SoundSettingsState s;
-    s.touchEnabled   = _enableTouch;
-    s.confirmEnabled = _enableConfirm;
-    s.errorEnabled   = _enableError;
-    s.alarmEnabled   = _enableAlarm;
-    s.webEnabled     = _enableWeb;
-    s.muted          = _muted;
-    s.volume         = _volume;
-    s.alarmVolume    = _alarmVolume;
-    s.touchMelody    = _melTouch;
-    s.confirmMelody  = _melConfirm;
-    s.errorMelody    = _melError;
-    s.alarmMelody    = _melAlarm;
+    s.touchEnabled     = _enableTouch;
+    s.confirmEnabled   = _enableConfirm;
+    s.errorEnabled     = _enableError;
+    s.alarmEnabled     = _enableAlarm;
+    s.webEnabled       = _enableWeb;
+    s.muted            = _muted;
+    s.attentionEnabled = _enableAttention;
+    s.volume           = _volume;
+    s.alarmVolume      = _alarmVolume;
+    s.touchMelody      = _melTouch;
+    s.confirmMelody    = _melConfirm;
+    s.errorMelody      = _melError;
+    s.alarmMelody      = _melAlarm;
+    s.attentionMelody  = _melAttention;
     return s;
 }
 
 void SoundManager::applySettingsState(const SoundSettingsState& state) {
-    _enableTouch   = state.touchEnabled;
-    _enableConfirm = state.confirmEnabled;
-    _enableError   = state.errorEnabled;
-    _enableAlarm   = state.alarmEnabled;
-    _enableWeb     = state.webEnabled;
+    _enableTouch     = state.touchEnabled;
+    _enableConfirm   = state.confirmEnabled;
+    _enableError     = state.errorEnabled;
+    _enableAlarm     = state.alarmEnabled;
+    _enableWeb       = state.webEnabled;
+    _enableAttention = state.attentionEnabled;
 
-    _melTouch   = (state.touchMelody   < SND_MELODY_VARIANTS) ? state.touchMelody   : 0;
-    _melConfirm = (state.confirmMelody < SND_MELODY_VARIANTS) ? state.confirmMelody : 0;
-    _melError   = (state.errorMelody   < SND_MELODY_VARIANTS) ? state.errorMelody   : 0;
-    _melAlarm   = (state.alarmMelody   < SND_MELODY_VARIANTS) ? state.alarmMelody   : 0;
+    _melTouch     = (state.touchMelody     < SND_MELODY_VARIANTS) ? state.touchMelody     : 0;
+    _melConfirm   = (state.confirmMelody   < SND_MELODY_VARIANTS) ? state.confirmMelody   : 0;
+    _melError     = (state.errorMelody     < SND_MELODY_VARIANTS) ? state.errorMelody     : 0;
+    _melAlarm     = (state.alarmMelody     < SND_MELODY_VARIANTS) ? state.alarmMelody     : 0;
+    _melAttention = (state.attentionMelody < SND_MELODY_VARIANTS) ? state.attentionMelody : 0;
 
     setVolume(state.volume);
     setAlarmVolume(state.alarmVolume);
@@ -497,10 +547,11 @@ void SoundManager::applySettingsState(const SoundSettingsState& state) {
 
 void SoundManager::setEnabled(SoundEvent event, bool enabled) {
     switch (event) {
-        case SND_TOUCH_CLICK: _enableTouch   = enabled; break;
-        case SND_CONFIRM:     _enableConfirm = enabled; break;
-        case SND_ERROR:       _enableError   = enabled; break;
-        case SND_ALARM_START: _enableAlarm   = enabled; break;
+        case SND_TOUCH_CLICK: _enableTouch     = enabled; break;
+        case SND_CONFIRM:     _enableConfirm   = enabled; break;
+        case SND_ERROR:       _enableError     = enabled; break;
+        case SND_ALARM_START: _enableAlarm     = enabled; break;
+        case SND_ATTENTION:   _enableAttention = enabled; break;
         default: break;
     }
 }
@@ -511,6 +562,7 @@ bool SoundManager::isEnabled(SoundEvent event) const {
         case SND_CONFIRM:     return _enableConfirm;
         case SND_ERROR:       return _enableError;
         case SND_ALARM_START: return _enableAlarm;
+        case SND_ATTENTION:   return _enableAttention;
         default: return false;
     }
 }
