@@ -3860,7 +3860,7 @@ END OF THIRD-PARTY NOTICES</pre>
 /* v3.34.0: F-WEB-DEDUP — CSS comum extraído. Servido em /style.css
  * com Cache-Control max-age=86400 (browser cacheia entre páginas). */
 static const char STYLE_CSS[] PROGMEM = R"raw(body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-/* ── Hamburger Nav (Proposta C) ────────────────────────── */
+/* ── Hamburger Nav ──────────────────────────────────────── */
 .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
 .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
 .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }

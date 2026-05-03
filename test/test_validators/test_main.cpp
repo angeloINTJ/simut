@@ -36,6 +36,15 @@ namespace simut_native {
 /*  COPIAS LOCAIS (mantenha em sync com os originais — ver doc no topo)       */
 /* =========================================================================== */
 
+/* v3.36.4 (Fase 18.5 / M5): drift entre estas cópias e os originais é
+ * detectado pelos golden-vector tests abaixo (test_dallasCrc8_known_vectors
+ * + test_floatToI16_basic/clamp/nan + test_i16ToFloat_basic/nan). Se você
+ * alterou um destes algoritmos no firmware, os tests aqui devem refletir
+ * — caso contrário um dos lados está errado e o build host vai quebrar.
+ * Dedup completa via build_src_filter foi avaliada e descartada: SystemUtils
+ * .cpp inclui SystemDefs.h (heavy) que arrastra deps de hardware no env
+ * native. Manter cópias + golden vectors é mais simples e mais robusto. */
+
 /* dallasCrc8 — copiado byte-a-byte de SystemUtils.cpp:25 */
 static uint8_t dallasCrc8(const uint8_t *addr, uint8_t len) {
     uint8_t crc = 0;

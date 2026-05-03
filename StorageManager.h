@@ -51,6 +51,13 @@ public:
 
     void enterFlashReadLock();
     void exitFlashReadLock();
+    /** v3.36.4 (Fase 18.5 / M3): variant com timeout pra paths que podem
+     *  abandonar graciosamente em vez de bloquear indefinidamente. Retorna
+     *  true se adquiriu, false se timeout. Caller decide o que fazer.
+     *  Útil em handlers web/CLI quando Core 1 está em flash heavy op
+     *  longa — em vez de pendurar o request, retorna 503 Busy. */
+    bool enterFlashReadLockTimeout(uint32_t timeout_ms);
+
     void enterFlashSafeMode();
     void exitFlashSafeMode();
 

@@ -135,6 +135,11 @@ void StorageManager::exitFlashReadLock() {
     mutex_exit(&_fsReadMutex);
 }
 
+/* v3.36.4 (Fase 18.5 / M3): timeout variant — caller decide se aborta. */
+bool StorageManager::enterFlashReadLockTimeout(uint32_t timeout_ms) {
+    return mutex_enter_timeout_ms(&_fsReadMutex, timeout_ms);
+}
+
 
 /* =========================================================================== */
 /*                  FLASH SAFE MODE (HEAVY — PAUSES CORE 1)                  */
