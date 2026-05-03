@@ -329,44 +329,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Dashboard</title>
     <script src="/lang.js"></script>
+    <link rel="stylesheet" href="/style.css">
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-        /* ── Hamburger Nav (Proposta C) ────────────────────────── */
-        .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
-        .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
-        .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
-        .brand span { color: var(--acc); }
-        .status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
-        .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-        .drawer-bg.open { opacity: 1; pointer-events: auto; }
-        .drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
-        .drawer.open { transform: translateX(0); }
-        .drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .drawer-head .brand { font-size: 1.1rem; }
-        .drawer nav { padding: 10px 10px; flex: 1; }
-        .drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
-        .drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer nav a.active { color: var(--acc); background: var(--card); }
-        .drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
-        .drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
-        .drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
-        .drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
-        .drawer-footer { display: flex; justify-content: space-between; align-items: center; }
-        .drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
-        .bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
-        .bc-root { color: #3f3f46; }
-        .bc-page { color: var(--sub); font-weight: 600; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 
-        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-        #net-toast.show { transform:translateY(0);opacity:1; }
-        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
 
         /* Dashboard Styles */
         .layout-grid { display: grid; grid-template-columns: 1fr 360px; gap: 25px; align-items: start; }
@@ -407,38 +375,8 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <span id="status-ip">--</span>
         </div>
     </div>
-    <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div class="drawer-head">
-            <div class="brand">SIMUT<span> IoT</span></div>
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
-        </div>
-        <nav>
-                <a href="/" class="active" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
-                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
-                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
-                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
-                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
-                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
-                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
-        </nav>
-        <div class="drawer-bottom">
-            <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
-            <div class="drawer-footer">
-                <div>
-                    <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
-                    <div style="margin-top:4px">
-                        <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option>
-                            <option value="pt">🇧🇷 PT</option>
-                        </select>
-                    </div>
-                </div>
-                <a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>
-            </div>
-        </div>
-    </div>
-    <div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_dash">Dashboard</span></div>
+    <div id="drawer-host"></div>
+<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_dash">Dashboard</span></div>
 
     <div class="container">
         <div class="layout-grid">
@@ -468,6 +406,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_snr">Sensor Reads</div><div class="c-val" id="m-snr">-- ok</div><div class="c-sub" id="m-snr-err">-- err</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_cfg">Config Saves</div><div class="c-val" id="m-cfg">--</div><div class="c-sub" data-i18n="dash_metr_cfg_sub">to flash</div></div>
                 </div>
+                <div id="calib-bar" style="display:none;margin-bottom:12px;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.9rem;cursor:pointer">
+                        <input type="checkbox" id="calib-tog" onchange="onCalibTog()"><span>🎯 <span data-i18n="cal_mode">Calibration Mode</span></span>
+                    </label>
+                    <span id="calib-warn" style="display:none;color:var(--dang);font-size:0.82rem" data-i18n="cal_ntp_no">NTP not synced</span>
+                </div>
+                <div id="calib-form" style="display:none"></div>
                 <div class="card" style="padding:0; overflow-x:auto;">
                     <table>
                         <thead>
@@ -651,7 +596,63 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
         }
 
-        document.addEventListener('DOMContentLoaded', () => { initSession(); loadThemes(); fetchLoop(); setInterval(fetchLoop, 3000); });
+        /* v3.34.0: F-CALIB-UI integrado. Toggle aparece se user tem PERM_CALIB (0x200).
+         * Admin (perms=0xFFFF) sempre tem; admin atribui aos demais via /users. */
+        let _calS=null;
+        async function checkCalib(){try{const r=await fetch('/api/perms',{credentials:'same-origin'});const d=await r.json();if((d.perms||0)&0x200)document.getElementById('calib-bar').style.display='flex';}catch(e){}}
+        function escH(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/"/g,'&quot;');}
+        async function onCalibTog(){const on=document.getElementById('calib-tog').checked;document.getElementById('calib-form').style.display=on?'':'none';if(on)await loadCalib();}
+        async function loadCalib(){try{const r=await fetchSafe('/api/calib');const d=await r.json();_calS=d;document.getElementById('calib-warn').style.display=d.ntp?'none':'';
+            let h='<div class="card" style="padding:14px;margin-bottom:8px"><h3 style="margin:0 0 8px 0;font-size:0.95rem">🌡️ AMBIENTE</h3>';
+            const a=d.ambient;
+            h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+            h+='<input data-k="amb_id" placeholder="ID" maxlength="14" value="'+escH(a.hwId)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+            h+='<input data-k="amb_name" placeholder="Nome" maxlength="30" value="'+escH(a.name)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+            h+='<input data-k="amb_refT" type="number" step="0.01" placeholder="Ref T (°C)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+            h+='<input data-k="amb_refH" type="number" step="0.1" placeholder="Ref H (%)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+            h+='</div><div style="font-size:0.78rem;color:var(--sub);margin-top:6px">T='+(a.tempRead===null?'--':a.tempRead)+'°C off='+a.tempOffset+' | H='+(a.humRead===null?'--':a.humRead)+'% off='+a.humOffset+'</div></div>';
+            (d.sensors||[]).forEach(function(s){
+                h+='<div class="card" style="padding:14px;margin-bottom:8px"><h3 style="margin:0 0 8px 0;font-size:0.95rem">SLOT '+s.gpio+'</h3>';
+                h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+                h+='<input data-k="s'+s.gpio+'_id" placeholder="ID" maxlength="14" value="'+escH(s.hwId)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+                h+='<input data-k="s'+s.gpio+'_name" placeholder="Nome" maxlength="30" value="'+escH(s.name)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+                h+='<input data-k="s'+s.gpio+'_refT" type="number" step="0.01" placeholder="Ref T (°C)" style="grid-column:span 2;padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+                h+='</div><div style="font-size:0.78rem;color:var(--sub);margin-top:6px">T='+(s.tempRead===null?'--':s.tempRead)+'°C off='+s.tempOffset+' ROM '+s.rom+'</div></div>';
+            });
+            h+='<button class="btn-fm btn-fm-pri" onclick="applyCalib()"'+(d.ntp?'':' disabled')+' style="margin-top:6px">'+window.t('cal_apply','Atualizar')+'</button>';
+            document.getElementById('calib-form').innerHTML=h;
+        }catch(e){showToast(window.t('net_conn_err','Erro de conexão'),'err');}}
+        async function applyCalib(){if(!_calS)return;const p={};
+            const aId=(document.querySelector('[data-k="amb_id"]')||{}).value;
+            const aN=(document.querySelector('[data-k="amb_name"]')||{}).value;
+            const aT=(document.querySelector('[data-k="amb_refT"]')||{}).value;
+            const aH=(document.querySelector('[data-k="amb_refH"]')||{}).value;
+            const a={};
+            if(aId!==undefined&&aId!==_calS.ambient.hwId)a.hwId=aId.trim();
+            if(aN!==undefined&&aN!==_calS.ambient.name)a.name=aN.trim();
+            if(aT!=='')a.refTemp=parseFloat(aT);
+            if(aH!=='')a.refHum=parseFloat(aH);
+            if(Object.keys(a).length)p.ambient=a;
+            const arr=[];
+            (_calS.sensors||[]).forEach(function(s){
+                const id=(document.querySelector('[data-k="s'+s.gpio+'_id"]')||{}).value;
+                const n=(document.querySelector('[data-k="s'+s.gpio+'_name"]')||{}).value;
+                const t=(document.querySelector('[data-k="s'+s.gpio+'_refT"]')||{}).value;
+                const e={gpio:s.gpio};let dirty=false;
+                if(id!==undefined&&id!==s.hwId){e.hwId=id.trim();dirty=true;}
+                if(n!==undefined&&n!==s.name){e.name=n.trim();dirty=true;}
+                if(t!==''){e.refTemp=parseFloat(t);dirty=true;}
+                if(dirty)arr.push(e);
+            });
+            if(arr.length)p.sensors=arr;
+            if(!p.ambient&&!p.sensors){showToast(window.t('cal_no_changes','Nada a alterar.'),'warn');return;}
+            try{const r=await fetchSafe('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p),retries:0,timeout:20000});
+                if(r.ok){const j=await r.json();showToast(window.t('cal_apply_ok','Atualizado v')+(j.version||''),'ok');await loadCalib();}
+                else{const j=await r.json().catch(()=>({}));showToast(window.t('cal_apply_fail','Falha: ')+(j.error||r.status),'err');}
+            }catch(e){showToast(window.t('net_conn_err','Erro de conexão'),'err');}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initSession(); loadThemes(); fetchLoop(); setInterval(fetchLoop, 3000); checkCalib(); });
     </script>
 </body>
 </html>
@@ -666,37 +667,10 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - History</title>
     <script src="/lang.js"></script>
+    <link rel="stylesheet" href="/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-        /* ── Hamburger Nav (Proposta C) ────────────────────────── */
-        .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
-        .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
-        .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
-        .brand span { color: var(--acc); }
-        .status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
-        .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-        .drawer-bg.open { opacity: 1; pointer-events: auto; }
-        .drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
-        .drawer.open { transform: translateX(0); }
-        .drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .drawer-head .brand { font-size: 1.1rem; }
-        .drawer nav { padding: 10px 10px; flex: 1; }
-        .drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
-        .drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer nav a.active { color: var(--acc); background: var(--card); }
-        .drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
-        .drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
-        .drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
-        .drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
-        .drawer-footer { display: flex; justify-content: space-between; align-items: center; }
-        .drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
-        .bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
-        .bc-root { color: #3f3f46; }
-        .bc-page { color: var(--sub); font-weight: 600; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
@@ -763,11 +737,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .msel-menu label:hover { background: var(--bg); }
         .msel-menu input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--acc); margin: 0; }
         .msel-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-        #net-toast.show { transform:translateY(0);opacity:1; }
-        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -786,38 +755,8 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <span id="status-ip">--</span>
         </div>
     </div>
-    <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div class="drawer-head">
-            <div class="brand">SIMUT<span> IoT</span></div>
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
-        </div>
-        <nav>
-                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
-                <a href="/history" class="active" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
-                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
-                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
-                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
-                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
-                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
-        </nav>
-        <div class="drawer-bottom">
-            <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
-            <div class="drawer-footer">
-                <div>
-                    <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
-                    <div style="margin-top:4px">
-                        <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option>
-                            <option value="pt">🇧🇷 PT</option>
-                        </select>
-                    </div>
-                </div>
-                <a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>
-            </div>
-        </div>
-    </div>
-    <div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_hist">History &amp; Logs</span></div>
+    <div id="drawer-host"></div>
+<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_hist">History &amp; Logs</span></div>
 
     <div class="container">
         <h2 class="page-title" data-i18n="hist_title">Sensor Telemetry</h2>
@@ -1784,45 +1723,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Config</title>
     <script src="/lang.js"></script>
+    <link rel="stylesheet" href="/style.css">
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-        /* ── Hamburger Nav (Proposta C) ────────────────────────── */
-        .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
-        .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
-        .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
-        .brand span { color: var(--acc); }
-        .status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
-        .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-        .drawer-bg.open { opacity: 1; pointer-events: auto; }
-        .drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
-        .drawer.open { transform: translateX(0); }
-        .drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .drawer-head .brand { font-size: 1.1rem; }
-        .drawer nav { padding: 10px 10px; flex: 1; }
-        .drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
-        .drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer nav a.active { color: var(--acc); background: var(--card); }
-        .drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
-        .drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
-        .drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
-        .drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
-        .drawer-footer { display: flex; justify-content: space-between; align-items: center; }
-        .drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
-        .bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
-        .bc-root { color: #3f3f46; }
-        .bc-page { color: var(--sub); font-weight: 600; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
 
-        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-        #net-toast.show { transform:translateY(0);opacity:1; }
-        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
 
         /* Config Styles */
         h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px; font-size: 1.1rem; }
@@ -1860,38 +1767,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <span id="status-ip">--</span>
         </div>
     </div>
-    <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div class="drawer-head">
-            <div class="brand">SIMUT<span> IoT</span></div>
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
-        </div>
-        <nav>
-                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
-                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
-                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
-                <a href="/config" class="active" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
-                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
-                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
-                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
-        </nav>
-        <div class="drawer-bottom">
-            <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
-            <div class="drawer-footer">
-                <div>
-                    <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
-                    <div style="margin-top:4px">
-                        <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option>
-                            <option value="pt">🇧🇷 PT</option>
-                        </select>
-                    </div>
-                </div>
-                <a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>
-            </div>
-        </div>
-    </div>
-    <div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_cfg">System Config</span></div>
+    <div id="drawer-host"></div>
+<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_cfg">System Config</span></div>
 
     <div class="container">
         <div class="card">
@@ -2129,6 +2006,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         /* Device metadata populated by loadConfig (real serial + per-slot hwid/active).
          * Defaults used until /api/config resolves. */
         let _devSerial = 'RP2040_A1B2';
+        let _devAmbHwId = '';   /* v3.34.0: hwId customizado do ambient (do /api/config) */
         let _devSensors = Array.from({length:10}, (_,i) => ({
             hwid: 'STM' + String(i+1).padStart(4,'0'),
             active: true
@@ -2142,9 +2020,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 val: (20 + i + tBase).toFixed(2),
                 active: s.active
             }));
+            /* v3.34.0: ambient hwId espelha lógica do firmware — usa
+             * cfg.ambientSensor.hwId se != "AMB" (default), senão fallback serial. */
+            const ambId = (_devAmbHwId && _devAmbHwId !== 'AMB') ? _devAmbHwId : _devSerial;
             return [
-                { ts: 1700000000, serial: _devSerial, ambT: '25.30', ambH: '60.1', slots: mk(0.1) },
-                { ts: 1700000005, serial: _devSerial, ambT: '25.40', ambH: '60.0', slots: mk(0.2) }
+                { ts: 1700000000, ambHwId: ambId, ambT: '25.30', ambH: '60.1', slots: mk(0.1) },
+                { ts: 1700000005, ambHwId: ambId, ambT: '25.40', ambH: '60.0', slots: mk(0.2) }
             ];
         }
 
@@ -2157,9 +2038,9 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (c !== '{') { out += c; ti++; continue; }
                 let val = null, hwid = null, compKey = '', tc = 0;
                 if (tpl.substr(ti, 4) === '{TS}') { val = String(rec.ts); tc = 4; }
-                else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.serial; tc = 8; }
-                else if (tpl.substr(ti, 6) === '{tAMB}') { val = rec.ambT; hwid = rec.serial; compKey = 'tAMB'; tc = 6; }
-                else if (tpl.substr(ti, 6) === '{uAMB}') { val = rec.ambH; hwid = rec.serial; compKey = 'uAMB'; tc = 6; }
+                else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.ambHwId; tc = 8; }
+                else if (tpl.substr(ti, 6) === '{tAMB}') { val = rec.ambT; hwid = rec.ambHwId; compKey = 'tAMB'; tc = 6; }
+                else if (tpl.substr(ti, 6) === '{uAMB}') { val = rec.ambH; hwid = rec.ambHwId; compKey = 'uAMB'; tc = 6; }
                 else if (tpl.length - ti >= 4 && tpl[ti+1] === 't' && tpl[ti+2] >= '0' && tpl[ti+2] <= '9' && tpl[ti+3] === '}') {
                     const idx = parseInt(tpl[ti+2]);
                     const s = rec.slots[idx];
@@ -2364,6 +2245,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('t_line').value = val('t_line', '');
                 document.getElementById('t_sep').value = val('t_sep', '');
                 if (d.serial) _devSerial = d.serial;
+                if (d.ambHwId !== undefined) _devAmbHwId = d.ambHwId || '';
                 if (Array.isArray(d.sensors)) {
                     for (let i = 0; i < 10 && i < d.sensors.length; i++) {
                         _devSensors[i] = { hwid: d.sensors[i].hwid || '', active: !!d.sensors[i].active };
@@ -2458,45 +2340,13 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Network</title>
     <script src="/lang.js"></script>
+    <link rel="stylesheet" href="/style.css">
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-        /* ── Hamburger Nav (Proposta C) ────────────────────────── */
-        .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
-        .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
-        .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
-        .brand span { color: var(--acc); }
-        .status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
-        .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-        .drawer-bg.open { opacity: 1; pointer-events: auto; }
-        .drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
-        .drawer.open { transform: translateX(0); }
-        .drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .drawer-head .brand { font-size: 1.1rem; }
-        .drawer nav { padding: 10px 10px; flex: 1; }
-        .drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
-        .drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer nav a.active { color: var(--acc); background: var(--card); }
-        .drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
-        .drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
-        .drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
-        .drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
-        .drawer-footer { display: flex; justify-content: space-between; align-items: center; }
-        .drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
-        .bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
-        .bc-root { color: #3f3f46; }
-        .bc-page { color: var(--sub); font-weight: 600; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
 
-        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-        #net-toast.show { transform:translateY(0);opacity:1; }
-        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
 
         /* Network Styles */
         .layout-grid { display: grid; grid-template-columns: 320px 1fr; gap: 25px; align-items: start; }
@@ -2540,38 +2390,8 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <span id="status-ip">--</span>
         </div>
     </div>
-    <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div class="drawer-head">
-            <div class="brand">SIMUT<span> IoT</span></div>
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
-        </div>
-        <nav>
-                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
-                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
-                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
-                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
-                <a href="/network" class="active" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
-                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
-                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
-        </nav>
-        <div class="drawer-bottom">
-            <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
-            <div class="drawer-footer">
-                <div>
-                    <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
-                    <div style="margin-top:4px">
-                        <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option>
-                            <option value="pt">🇧🇷 PT</option>
-                        </select>
-                    </div>
-                </div>
-                <a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>
-            </div>
-        </div>
-    </div>
-    <div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_net">Network</span></div>
+    <div id="drawer-host"></div>
+<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_net">Network</span></div>
 
     <div class="container">
         <div class="layout-grid">
@@ -2794,45 +2614,13 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Users</title>
     <script src="/lang.js"></script>
+    <link rel="stylesheet" href="/style.css">
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-        /* ── Hamburger Nav (Proposta C) ────────────────────────── */
-        .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
-        .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
-        .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
-        .brand span { color: var(--acc); }
-        .status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
-        .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-        .drawer-bg.open { opacity: 1; pointer-events: auto; }
-        .drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
-        .drawer.open { transform: translateX(0); }
-        .drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .drawer-head .brand { font-size: 1.1rem; }
-        .drawer nav { padding: 10px 10px; flex: 1; }
-        .drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
-        .drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer nav a.active { color: var(--acc); background: var(--card); }
-        .drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
-        .drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
-        .drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
-        .drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
-        .drawer-footer { display: flex; justify-content: space-between; align-items: center; }
-        .drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
-        .bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
-        .bc-root { color: #3f3f46; }
-        .bc-page { color: var(--sub); font-weight: 600; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
 
-        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-        #net-toast.show { transform:translateY(0);opacity:1; }
-        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
 
         /* User Styles */
         table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
@@ -2875,38 +2663,8 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <span id="status-ip">--</span>
         </div>
     </div>
-    <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div class="drawer-head">
-            <div class="brand">SIMUT<span> IoT</span></div>
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
-        </div>
-        <nav>
-                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
-                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
-                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
-                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
-                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
-                <a href="/users" class="active" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
-                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
-        </nav>
-        <div class="drawer-bottom">
-            <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
-            <div class="drawer-footer">
-                <div>
-                    <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
-                    <div style="margin-top:4px">
-                        <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option>
-                            <option value="pt">🇧🇷 PT</option>
-                        </select>
-                    </div>
-                </div>
-                <a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>
-            </div>
-        </div>
-    </div>
-    <div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_usr">Users</span></div>
+    <div id="drawer-host"></div>
+<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_usr">Users</span></div>
 
     <div class="container">
         <div class="card" style="padding: 30px;">
@@ -2940,6 +2698,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <label class="chk-lbl"><input type="checkbox" name="p_fupl" value="1"> <span data-i18n="usr_pfu">Files (Upload)</span></label>
                     <label class="chk-lbl"><input type="checkbox" name="p_fdel" value="1"> <span data-i18n="usr_pfd">Files (Delete)</span></label>
                     <label class="chk-lbl"><input type="checkbox" name="p_usr" value="1"> <span data-i18n="usr_pusr">User Management</span></label>
+                    <label class="chk-lbl"><input type="checkbox" name="p_calib" value="1"> <span data-i18n="usr_pcal">Sensor Calibration</span></label>
                 </div>
                 <button type="submit" id="btnUser" data-i18n="usr_btn">Create User</button>
                 <p style="font-size:0.8rem; color:var(--sub); margin-top:15px; text-align:center;" data-i18n="usr_warn">
@@ -2956,7 +2715,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function renderPermsBadges(perms, isSuper) {
             if (isSuper) return `<span class="badge full" data-i18n="usr_sup">${window.t('usr_sup','Super Admin')}</span>`;
             let arr = [];
-            const map = [[1,'usr_pdash','Dashboard'],[2,'usr_phist','History'],[4,'usr_plog','Logs'],[8,'usr_psys','Sys Config'],[16,'usr_pnet','Net Config'],[32,'usr_pfr','Files Read'],[64,'usr_pfu','Files Up'],[128,'usr_pfd','Files Del'],[256,'usr_pusr','Users']];
+            const map = [[1,'usr_pdash','Dashboard'],[2,'usr_phist','History'],[4,'usr_plog','Logs'],[8,'usr_psys','Sys Config'],[16,'usr_pnet','Net Config'],[32,'usr_pfr','Files Read'],[64,'usr_pfu','Files Up'],[128,'usr_pfd','Files Del'],[256,'usr_pusr','Users'],[512,'usr_pcal','Calib']];
             map.forEach(([bit, key, def]) => { if (perms & bit) arr.push(`<span class="badge full" data-i18n="${key}">${window.t(key, def)}</span>`); });
             return arr.join('');
         }
@@ -3005,7 +2764,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const name = document.getElementById('u_name').value.trim();
             if (!name) return;
             let perms = 0;
-            const bits = {p_dash:1, p_hist:2, p_logs:4, p_sys:8, p_net:16, p_fread:32, p_fupl:64, p_fdel:128, p_usr:256};
+            const bits = {p_dash:1, p_hist:2, p_logs:4, p_sys:8, p_net:16, p_fread:32, p_fupl:64, p_fdel:128, p_usr:256, p_calib:512};
             document.querySelectorAll('#u_name').forEach(() => {});
             Object.keys(bits).forEach(k => { const el = document.querySelector(`input[name="${k}"]`); if (el && el.checked) perms |= bits[k]; });
             Pending.pushUserAction({ type: 'add', name: name, perms: perms });
@@ -3085,45 +2844,13 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Files</title>
     <script src="/lang.js"></script>
+    <link rel="stylesheet" href="/style.css">
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-        /* ── Hamburger Nav (Proposta C) ────────────────────────── */
-        .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
-        .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
-        .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
-        .brand span { color: var(--acc); }
-        .status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
-        .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-        .drawer-bg.open { opacity: 1; pointer-events: auto; }
-        .drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
-        .drawer.open { transform: translateX(0); }
-        .drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .drawer-head .brand { font-size: 1.1rem; }
-        .drawer nav { padding: 10px 10px; flex: 1; }
-        .drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
-        .drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer nav a.active { color: var(--acc); background: var(--card); }
-        .drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
-        .drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
-        .drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
-        .drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
-        .drawer-footer { display: flex; justify-content: space-between; align-items: center; }
-        .drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
-        .bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
-        .bc-root { color: #3f3f46; }
-        .bc-page { color: var(--sub); font-weight: 600; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 0; }
 
-        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-        #net-toast.show { transform:translateY(0);opacity:1; }
-        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
 
         /* Files Styles */
         .fm-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
@@ -3170,38 +2897,8 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <span id="status-ip">--</span>
         </div>
     </div>
-    <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div class="drawer-head">
-            <div class="brand">SIMUT<span> IoT</span></div>
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
-        </div>
-        <nav>
-                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
-                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
-                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
-                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
-                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
-                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
-                <a href="/files" class="active" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
-        </nav>
-        <div class="drawer-bottom">
-            <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
-            <div class="drawer-footer">
-                <div>
-                    <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
-                    <div style="margin-top:4px">
-                        <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option>
-                            <option value="pt">🇧🇷 PT</option>
-                        </select>
-                    </div>
-                </div>
-                <a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>
-            </div>
-        </div>
-    </div>
-    <div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_file">Files</span></div>
+    <div id="drawer-host"></div>
+<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_file">Files</span></div>
 
     <div class="container">
         <div class="card">
@@ -3354,46 +3051,14 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Alarms & Sounds</title>
     <script src="/lang.js"></script>
+    <link rel="stylesheet" href="/style.css">
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; --ok: #22c55e; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-        /* ── Hamburger Nav (Proposta C) ────────────────────────── */
-        .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
-        .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
-        .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
-        .brand span { color: var(--acc); }
-        .status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
-        .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-        .drawer-bg.open { opacity: 1; pointer-events: auto; }
-        .drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
-        .drawer.open { transform: translateX(0); }
-        .drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .drawer-head .brand { font-size: 1.1rem; }
-        .drawer nav { padding: 10px 10px; flex: 1; }
-        .drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
-        .drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer nav a.active { color: var(--acc); background: var(--card); }
-        .drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
-        .drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
-        .drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
-        .drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
-        .drawer-footer { display: flex; justify-content: space-between; align-items: center; }
-        .drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
-        .bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
-        .bc-root { color: #3f3f46; }
-        .bc-page { color: var(--sub); font-weight: 600; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 24px; }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
         h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px; font-size: 1.1rem; }
 
-        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-        #net-toast.show { transform:translateY(0);opacity:1; }
-        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
 
         /* ── Sensor cards ───────────────────────────────────────────── */
         .sensor-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
@@ -3456,38 +3121,8 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <span id="status-ip">--</span>
         </div>
     </div>
-    <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div class="drawer-head">
-            <div class="brand">SIMUT<span> IoT</span></div>
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
-        </div>
-        <nav>
-                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
-                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
-                <a href="/alarms" class="active" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
-                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
-                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
-                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
-                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
-        </nav>
-        <div class="drawer-bottom">
-            <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
-            <div class="drawer-footer">
-                <div>
-                    <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
-                    <div style="margin-top:4px">
-                        <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option>
-                            <option value="pt">🇧🇷 PT</option>
-                        </select>
-                    </div>
-                </div>
-                <a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>
-            </div>
-        </div>
-    </div>
-    <div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_alm">Alarms &amp; Sounds</span></div>
+    <div id="drawer-host"></div>
+<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_alm">Alarms &amp; Sounds</span></div>
 
     <div class="container">
         <!-- ═══════════ SEÇÃO: LIMITES DE ALARME POR SENSOR ═══════════ -->
@@ -3981,46 +3616,14 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - License</title>
     <script src="/lang.js"></script>
+    <link rel="stylesheet" href="/style.css">
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
-        /* ── Hamburger Nav (Proposta C) ────────────────────────── */
-        .topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
-        .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
-        .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
-        .brand span { color: var(--acc); }
-        .status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
-        .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-        .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
-        .drawer-bg.open { opacity: 1; pointer-events: auto; }
-        .drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
-        .drawer.open { transform: translateX(0); }
-        .drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
-        .drawer-head .brand { font-size: 1.1rem; }
-        .drawer nav { padding: 10px 10px; flex: 1; }
-        .drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
-        .drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer nav a.active { color: var(--acc); background: var(--card); }
-        .drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
-        .drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
-        .drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
-        .drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
-        .drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
-        .drawer-footer { display: flex; justify-content: space-between; align-items: center; }
-        .drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
-        .bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
-        .bc-root { color: #3f3f46; }
-        .bc-page { color: var(--sub); font-weight: 600; }
         .container { max-width: 1200px; margin: 20px auto; padding: 0 20px 40px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
         h3 { color: var(--acc); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; font-size: 1.05rem; }
         pre { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 16px; color: var(--sub); font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace; font-size: 0.78rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
-        #net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
-        #net-toast.show { transform:translateY(0);opacity:1; }
-        #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
-        #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
-        #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -4071,38 +3674,8 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <span id="status-ip">--</span>
         </div>
     </div>
-    <div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>
-    <div class="drawer" id="drawer">
-        <div class="drawer-head">
-            <div class="brand">SIMUT<span> IoT</span></div>
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
-        </div>
-        <nav>
-                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
-                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
-                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
-                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
-                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
-                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
-                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
-        </nav>
-        <div class="drawer-bottom">
-            <a href="/license" class="lic-link active" data-i18n="nav_lic">📜 License</a>
-            <div class="drawer-footer">
-                <div>
-                    <span id="greeting" style="color:var(--sub);font-size:0.78rem"></span>
-                    <div style="margin-top:4px">
-                        <select class="lang-select" onchange="setLang(this.value)">
-                            <option value="en">🇺🇸 EN</option>
-                            <option value="pt">🇧🇷 PT</option>
-                        </select>
-                    </div>
-                </div>
-                <a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>
-            </div>
-        </div>
-    </div>
-    <div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_lic">License</span></div>
+    <div id="drawer-host"></div>
+<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_lic">License</span></div>
 
     <div class="container">
         <div class="card">
@@ -4284,6 +3857,42 @@ END OF THIRD-PARTY NOTICES</pre>
 </body>
 </html>)raw";
 
+/* v3.34.0: F-WEB-DEDUP — CSS comum extraído. Servido em /style.css
+ * com Cache-Control max-age=86400 (browser cacheia entre páginas). */
+static const char STYLE_CSS[] PROGMEM = R"raw(body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
+/* ── Hamburger Nav (Proposta C) ────────────────────────── */
+.topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
+.hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
+.brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
+.brand span { color: var(--acc); }
+.status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
+.status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.drawer-bg.open { opacity: 1; pointer-events: auto; }
+.drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
+.drawer.open { transform: translateX(0); }
+.drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
+.drawer-head .brand { font-size: 1.1rem; }
+.drawer nav { padding: 10px 10px; flex: 1; }
+.drawer nav a { display: flex; align-items: center; gap: 10px; padding: 11px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.88rem; border-radius: 8px; margin-bottom: 2px; transition: background 0.15s, color 0.15s; }
+.drawer nav a:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
+.drawer nav a.active { color: var(--acc); background: var(--card); }
+.drawer nav a .ico { width: 18px; text-align: center; font-size: 1rem; flex-shrink: 0; }
+.drawer-bottom { border-top: 1px solid var(--border); padding: 12px 18px; }
+.drawer-bottom .lic-link { display: block; padding: 8px 14px; color: var(--sub); text-decoration: none; font-weight: 600; font-size: 0.82rem; border-radius: 8px; margin: -4px -14px 8px; transition: 0.15s; }
+.drawer-bottom .lic-link:hover { color: var(--txt); background: rgba(255,255,255,0.04); }
+.drawer-bottom .lic-link.active { color: var(--acc); background: var(--card); }
+.drawer-footer { display: flex; justify-content: space-between; align-items: center; }
+.drawer-footer select { background: transparent; color: var(--sub); border: none; outline: none; font-size: 0.82rem; cursor: pointer; }
+.bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
+.bc-root { color: #3f3f46; }
+.bc-page { color: var(--sub); font-weight: 600; }
+#net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
+#net-toast.show { transform:translateY(0);opacity:1; }
+#net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
+#net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
+#net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
+)raw";
 
 static const char LANG_JS[] PROGMEM = R"raw(
     /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng).
@@ -4295,7 +3904,19 @@ static const char LANG_JS[] PROGMEM = R"raw(
         pt: {
             "alm_attention": "Atenção",
             "fil_uploaded": "Upload concluído.",
-            "fil_up_err": "Erro no upload."
+            "fil_up_err": "Erro no upload.",
+            /* v3.34.0: F-CALIB-UI integrado no /dashboard (~10 chaves usadas inline) */
+            "usr_pcal": "Calibração",
+            "cal_mode": "Modo Calibração",
+            "cal_id": "ID",
+            "cal_name": "Nome",
+            "cal_ref_t": "Ref. (°C)",
+            "cal_ref_h": "Ref. (%)",
+            "cal_apply": "Atualizar",
+            "cal_apply_ok": "Atualizado v",
+            "cal_apply_fail": "Falha: ",
+            "cal_no_changes": "Nada a alterar.",
+            "cal_ntp_no": "NTP não sincronizado"
         },
         en: {
             "hist_load_btn": "Load", "hist_prompt": "Click 'Load' to view system logs.",
@@ -4310,6 +3931,31 @@ static const char LANG_JS[] PROGMEM = R"raw(
     window.setLang = function(lang) { localStorage.setItem('simut_lang', lang); applyLang(); if(typeof window.onLangChange === 'function') window.onLangChange(); };
     window.showToast = function(msg, type, ms) { var el = document.getElementById('net-toast'); if (!el) return; el.textContent = msg; el.className = type + ' show'; setTimeout(function() { el.className = ''; }, ms || 3000); };
     window.fetchSafe = function(url, options) { options = options || {}; const timeout = options.timeout || 15000; const retries = (options.retries !== undefined) ? options.retries : 2; function attempt(n) { const ctrl = new AbortController(); const timer = setTimeout(() => ctrl.abort(), timeout); return fetch(url, Object.assign({}, options, { signal: ctrl.signal })).then(function(resp) { clearTimeout(timer); if (!resp.ok && resp.status >= 500 && resp.status !== 503) throw new Error('Server error'); return resp; }).catch(function(err) { clearTimeout(timer); if (n < retries) { var delay = Math.min(1000 * Math.pow(2, n), 8000); return new Promise(resolve => setTimeout(() => resolve(attempt(n + 1)), delay)); } throw err; }); } return attempt(0); };
+
+    /* v3.34.0: F-WEB-DEDUP — drawer HTML único injetado em runtime.
+     * Cada página tem só <div id="drawer-host"></div> em vez do drawer
+     * inteiro hardcoded (que ocupava ~2.4KB raw × 8 páginas).
+     * Marca o link active baseado em window.location.pathname. */
+    window.toggleDrawer = function(){var d=document.getElementById('drawer'),b=document.getElementById('drawer-bg');if(d)d.classList.toggle('open');if(b)b.classList.toggle('open');};
+    var DRAWER_HTML = '<div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>'
+        +'<div class="drawer" id="drawer">'
+        +'<div class="drawer-head"><div class="brand">SIMUT<span> IoT</span></div><button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button></div>'
+        +'<nav>'
+        +'<a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>'
+        +'<a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>'
+        +'<a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>'
+        +'<a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>'
+        +'<a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>'
+        +'<a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>'
+        +'<a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>'
+        +'</nav>'
+        +'<div class="drawer-bottom">'
+        +'<a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>'
+        +'<div class="drawer-footer"><div><span id="greeting" style="color:var(--sub);font-size:0.78rem"></span><div style="margin-top:4px"><select class="lang-select" onchange="setLang(this.value)"><option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option></select></div></div>'
+        +'<a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>'
+        +'</div></div></div>';
+    window.installDrawer = function(){var h=document.getElementById('drawer-host');if(!h)return;h.outerHTML=DRAWER_HTML;var p=window.location.pathname;document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(function(a){if(a.getAttribute('href')===p)a.classList.add('active');});};
+    document.addEventListener('DOMContentLoaded',function(){if(typeof window.installDrawer==='function')window.installDrawer();});
 
     /* =========================================================================
      * U24 Phase D — Pending Changes Manager + commit-all (shared across pages)

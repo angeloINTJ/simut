@@ -138,6 +138,10 @@ void WebManager::handleApiConfig() {
     if (!safeSend(jsonEscape(cfg.telLineSeparator).c_str())) return;
     safeSend("\",\"serial\":\"");
     if (!safeSend(jsonEscape(_storageRef->getBoardSerialNumber().c_str()).c_str())) return;
+    /* v3.34.0: expõe hwId do ambient pra preview de telemetria refletir o ID
+     * customizado (calib.csv linha t<id>) em vez do serial. */
+    safeSend("\",\"ambHwId\":\"");
+    if (!safeSend(jsonEscape(cfg.ambientSensor.hwId).c_str())) return;
     safeSend("\",\"sensors\":[");
     for (int i = 0; i < MAX_SENSORS; i++) {
         snprintf(buf, sizeof(buf), "%s{\"hwid\":\"%s\",\"active\":%s}",

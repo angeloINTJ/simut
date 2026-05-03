@@ -9,7 +9,7 @@
 
 #include "WebManager.h"
 #include "WebUI_GZ.h"
-#include "Favicon.h"
+#include <LittleFS.h>   /* v3.34.0: favicon servido do FS */
 #include <bearssl/bearssl_hash.h>
 
 using ReadGuard = StorageManager::ReadGuard;
@@ -103,15 +103,33 @@ void WebManager::handleLangJs() {
     safeSend_GZ(WebUI_GZ::LANG_JS_GZ, WebUI_GZ::LANG_JS_GZ_LEN);
 }
 
-void WebManager::handleFavicon() {
-    /* Servido do PROGMEM (Favicon.cpp gerado por tools/build_favicon_header.py).
-     * Cache de 7 dias no browser. Em flash em vez de FS pra: (1) sobreviver a
-     * uploadfs, (2) tirar dependência do FS, (3) carregar mais rápido (sem
-     * lockout). Ver custo flash em SystemDefs_Limits.h. */
+/* v3.34.0: F-WEB-DEDUP — CSS comum (drawer/topbar/breadcrumb/toast) extraído
+ * das 8 páginas autenticadas para um asset único cacheável. */
+void WebManager::handleStyleCss() {
     _server.sendHeader("Cache-Control", "public, max-age=604800");
-    _server.setContentLength(Favicon::LEN);
+    _server.sendHeader("Content-Encoding", "gzip");
+    _server.setContentLength(WebUI_GZ::STYLE_CSS_GZ_LEN);
+    _server.send(200, "text/css", "");
+    safeSend_GZ(WebUI_GZ::STYLE_CSS_GZ, WebUI_GZ::STYLE_CSS_GZ_LEN);
+}
+
+/* v3.34.0: favicon movido pra LittleFS (`/favicon.ico`) para liberar 11KB
+ * de flash. data/favicon.ico vai pro FS via uploadfs. Sem o arquivo, retorna
+ * 204 (browsers tratam como ausência sem erro visual). */
+void WebManager::handleFavicon() {
+    if (!LittleFS.exists("/favicon.ico")) { _server.send(204, "image/x-icon", ""); return; }
+    File f = LittleFS.open("/favicon.ico", "r");
+    if (!f) { _server.send(204, "image/x-icon", ""); return; }
+    _server.sendHeader("Cache-Control", "public, max-age=604800");
+    _server.setContentLength(f.size());
     _server.send(200, "image/x-icon", "");
-    safeSend_GZ(Favicon::DATA, Favicon::LEN);
+    uint8_t buf[512];
+    while (f.available()) {
+        size_t r = f.read(buf, sizeof(buf));
+        if (r == 0) break;
+        _server.client().write(buf, r);
+    }
+    f.close();
 }
 
 bool WebManager::secureCompare(const String& a, const String& b) {

@@ -73,6 +73,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/license", HTTP_GET, std::bind(&WebManager::handleLicense, this));
     _server.on("/history", HTTP_GET, std::bind(&WebManager::handleHistory, this));
     _server.on("/lang.js", HTTP_GET, std::bind(&WebManager::handleLangJs, this));
+    _server.on("/style.css", HTTP_GET, std::bind(&WebManager::handleStyleCss, this));
     _server.on("/favicon.ico", HTTP_GET, std::bind(&WebManager::handleFavicon, this));
 
 
@@ -88,6 +89,8 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/api/themes", HTTP_GET, std::bind(&WebManager::handleApiThemes, this));
     _server.on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));
     _server.on("/api/lang", HTTP_GET, std::bind(&WebManager::handleApiLang, this));
+    _server.on("/api/calib", HTTP_GET, std::bind(&WebManager::handleApiCalibGet, this));
+    _server.on("/api/calib", HTTP_POST, std::bind(&WebManager::handleApiCalibPost, this));
 
 
     _server.on("/api/save_sys", HTTP_POST, std::bind(&WebManager::handleSaveSystem, this));

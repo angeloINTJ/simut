@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.33.1" /* BT device name: substituído o default "PicoW Serial XX:XX:..." da lib SerialBT (arduino-pico) pelo `cfg.deviceName` configurado em /config — mesma origem do AP, mDNS e prompt CLI. SerialBT.setName(...) chamado em BluetoothManager::begin() ANTES de SerialBT.begin() (lib só aceita setName quando _running==false). Se cfg.deviceName for vazio, mantém default da lib. CommandManager::begin() ganha parâmetro com default "SIMUT". Boot passa _storageMgr->getConfig().deviceName. Mudanças do nome via web exigem reboot — coerente com o fluxo "Salvar e Reiniciar". */
+#define SIMUT_VERSION "v3.34.0" /* F-CALIB-UI integrado no /dashboard (toggle "Modo Calibração" + inputs Nome/ID/Ref + botão Atualizar inline). Toggle só aparece se /web/calib.on existe no FS (opt-in). Backend: 2 endpoints — GET /api/calib (estado leve com leituras correntes), POST /api/calib (apply + reescrita atômica de calib.csv com VERSION=epoch, NTP-gated 503). Aceitação de sensor via CLI `sensor accept N`. F-WEB-DEDUP: CSS comum (drawer/topbar/breadcrumb/toast) extraído pra /style.css cacheável (8 páginas), drawer HTML extraído pra LANG_JS via installDrawer(). Favicon migrado de PROGMEM (11KB) pra LittleFS (/favicon.ico) — fallback 204 se ausente. Economia total absorve custo do patch + libera ~8.6KB. Flash final 97.7%. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
@@ -43,5 +43,6 @@ enum MinMaxSlot {
 #define PERM_FILE_UPLOAD 0x0040
 #define PERM_FILE_DELETE 0x0080
 #define PERM_USER_MGR    0x0100
+#define PERM_CALIB       0x0200   /* v3.34.0: calibração de sensores via /dashboard */
 
 #define PERM_FULL_ADMIN  0xFFFF

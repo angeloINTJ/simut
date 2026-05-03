@@ -86,12 +86,17 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
     ambient.config.active = true;
     ambient.config.gpio = PIN_DHT_DEFAULT;
     memset(ambient.config.rom, 0, 8);
-    strcpy(ambient.config.friendlyName, "Ambiente_Fixo");
-    strcpy(ambient.config.hwId, "AMB001");
+    /* v3.34.0: usa cfg.ambientSensor.hwId/friendlyName em vez de hardcoded
+     * "AMB001"/"Ambiente_Fixo". Se a calibração customizou (linha t<id> em
+     * calib.csv), o dashboard reflete o ID/nome corretos. Defaults do
+     * loadDefaults: hwId="AMB", friendlyName="Ambiente Central". */
+    safeCopy(ambient.config.hwId, cfg.ambientSensor.hwId, sizeof(ambient.config.hwId));
+    safeCopy(ambient.config.friendlyName, cfg.ambientSensor.friendlyName, sizeof(ambient.config.friendlyName));
     ambient.type = TYPE_DHT22;
     ambient.readInterval = 2000;
     ambient.bufferFull = false;
     ambient.calibrationOffset = 0.0f;
+    ambient.calibrationOffsetHum = 0.0f;
     ambient.inErrorState = false;
     ambient.lastReadTime = 0;
     ambient.totalReadings = 0;
@@ -108,6 +113,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
             RuntimeSensor rs;
             rs.config = cfg.sensors[i];
             rs.calibrationOffset = 0.0f;
+            rs.calibrationOffsetHum = 0.0f;   /* DS18B20 não usa, mas inicializa por higiene */
 
             rs.bufferFull = false;
             rs.avgValue1 = NAN;
@@ -214,7 +220,10 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
         }
 
         if (!s.inErrorState) {
-            addSample(s, v1 + s.calibrationOffset, v2);
+            /* v3.33.2: ambient (DHT22) aplica offset em ambas as grandezas;
+             * outros sensores (DS18B20) só temperatura — calibrationOffsetHum
+             * fica em 0 e a soma é no-op. */
+            addSample(s, v1 + s.calibrationOffset, v2 + s.calibrationOffsetHum);
         }
     }
     else {
@@ -565,6 +574,18 @@ void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset,
                 safeCopy(s.config.friendlyName, newName.c_str(), sizeof(s.config.friendlyName));
             }
             s.calibrationOffset = offset;
+            break;
+        }
+    }
+}
+
+/* v3.33.2: aplica os offsets do ambient (DHT22) em runtime. ID/nome são
+ * persistidos em cfg.ambientSensor via applyCalibration separadamente. */
+void SensorManager::applyAmbientCalibration(float offsetT, float offsetH) {
+    for (auto &s : _runtimeSensors) {
+        if (s.config.gpio == PIN_DHT_DEFAULT) {
+            s.calibrationOffset    = offsetT;
+            s.calibrationOffsetHum = offsetH;
             break;
         }
     }

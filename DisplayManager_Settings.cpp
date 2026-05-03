@@ -16,6 +16,7 @@
 #include "DisplayManager_Fonts.h"
 #include "DisplayManager_FmtFloat.h"
 #include "LogManager.h"
+#include "StorageManager.h"   /* v3.33.2: getBoardSerialNumber em System Status */
 
 void DisplayManager::showSettingsThemes(int currentThemeIdx) {
     mutex_enter_blocking(&_stateMutex);
@@ -1276,6 +1277,8 @@ void DisplayManager::drawSystemStatus() {
     if (_statusPage == 0) {
         addRow("Device", d.deviceName);
         addRow("Firmware", d.fwVersion);
+        /* v3.33.2: serial do Pico — chave do calib.csv pra ambient (DHT22). */
+        addRow("Serial", StorageManager::getBoardSerialNumber().c_str());
         unsigned long s = (unsigned long)d.uptimeSec;
         snprintf(buf, sizeof(buf), "%lud %02lu:%02lu:%02lu",
                  s/86400, (s%86400)/3600, (s%3600)/60, s%60);

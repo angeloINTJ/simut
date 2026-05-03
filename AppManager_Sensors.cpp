@@ -66,5 +66,24 @@ void AppManager::loadAndCalibrateSensors() {
             }
         }
     }
+
+    /* v3.33.2: ambient (DHT22) — calib via picoUID. Linha `t<id>` define
+     * ID, nome e offset de temperatura. Linha `u<id>` define apenas o
+     * offset de umidade (ID/nome dela são ignorados — opção B compartilhada).
+     * Se nenhuma linha bater, mantém defaults ("AMB"/"Ambiente Central"). */
+    if (cfg.ambientSensor.active) {
+        String dbIdT, dbNameT, dbIdU, dbNameU;
+        float dbOffsetT = 0.0f, dbOffsetU = 0.0f;
+        bool gotT = _storageMgr->getCalibrationDataAmbient('t', dbIdT, dbOffsetT, dbNameT);
+        bool gotU = _storageMgr->getCalibrationDataAmbient('u', dbIdU, dbOffsetU, dbNameU);
+        if (gotT) {
+            if (dbIdT.length() > 0)   { safeCopy(cfg.ambientSensor.hwId, dbIdT.c_str(), sizeof(cfg.ambientSensor.hwId)); }
+            if (dbNameT.length() > 0) { safeCopy(cfg.ambientSensor.friendlyName, dbNameT.c_str(), sizeof(cfg.ambientSensor.friendlyName)); }
+        }
+        if (gotT || gotU) {
+            _sensorMgr->applyAmbientCalibration(dbOffsetT, dbOffsetU);
+        }
+    }
+
     LOG_CODE(LOG_INFO, "APP", APP_SENSORS_CALIBRATED, 0, "");
 }

@@ -15,6 +15,7 @@
 #include "LogManager.h"
 #include "DisplayManager.h"   /* F-LANGPACK Etapa 3: getActiveHelpText */
 #include "MetricsManager.h"
+#include "StorageManager.h"   /* v3.33.2: getBoardSerialNumber em show system info */
 #include "HelpLicenseEN.h"    /* alpha18: HELP_TEXT_EN inline em PROGMEM */
 #include <LittleFS.h>
 #include <time.h>
@@ -541,6 +542,9 @@ void CommandManager::renderSystemInfo(const SystemConfig &cfg) {
     consolePrintln(pt ? " Dispositivo:" : " Device:");
     consolePrintf ("   %s\n", cfg.deviceName);
     consolePrintf (" Firmware:  %s\n", SIMUT_VERSION);
+    /* v3.33.2: serial do Pico (16 hex) — usado como chave em calib.csv
+     * para a calibração do sensor ambient (DHT22). */
+    consolePrintf (" Serial:    %s\n", StorageManager::getBoardSerialNumber().c_str());
     consolePrintln(pt ? " [SENSORES]" : " [SENSORS]");
     consolePrintf (pt ? " Precisao DS18: %d-bit\n" : " DS18 Precision: %d-bit\n",
                    cfg.ds18Resolution);

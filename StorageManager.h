@@ -109,6 +109,11 @@ public:
 
     static String getBoardSerialNumber();
     bool getCalibrationData(const uint8_t* rom, String& outId, float& outOffset, String& outName);
+    /* v3.33.2: lookup do ambient (DHT22) no calib.csv. Chave = picoUID 16 hex.
+     * `prefix` deve ser 't' (temperatura) ou 'u' (umidade) — o discriminador
+     * está no campo ID (segunda coluna), ex: `t01` ou `uA1`. outId é retornado
+     * SEM o prefixo (ex: `01` ou `A1`). */
+    bool getCalibrationDataAmbient(char prefix, String& outId, float& outOffset, String& outName);
     long getCalibrationVersion(String path);
     bool processCalibrationUpload();
 

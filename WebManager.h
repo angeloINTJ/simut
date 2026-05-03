@@ -239,6 +239,7 @@ private:
 
     void handleNotFound();
     void handleLangJs();
+    void handleStyleCss();  /**< v3.34.0: F-WEB-DEDUP — CSS comum cacheável */
     void handleFavicon();   /**< Serve /favicon.ico do LittleFS com cache de 7 dias */
 
     void handleApiPerms();
@@ -275,6 +276,13 @@ private:
      * NetworkManager::setManualTime. Ação imediata (não via commit-all),
      * pois o user espera ver a hora atualizada na mesma resposta. */
     void handleApiSetTime();
+
+    /* F-CALIB-UI (v3.34.0): integrado no /dashboard. 2 endpoints.
+     *  - GET  /api/calib  → estado: NTP, leituras correntes, offsets
+     *  - POST /api/calib  → aplica refs/IDs/nomes; calcula offsets; reescreve
+     *                       calib.csv com VERSION=epoch (NTP-gated) */
+    void handleApiCalibGet();
+    void handleApiCalibPost();
 
 
     String generateSecureToken();

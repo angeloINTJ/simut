@@ -67,6 +67,7 @@ struct RuntimeSensor {
     float avgValue2;
     bool bufferFull;
     float calibrationOffset;
+    float calibrationOffsetHum;   /* v3.33.2: offset de umidade (só ambient/DHT22). */
 
     uint32_t lastReadTime;
     uint32_t readInterval;
@@ -113,6 +114,10 @@ public:
     bool identifyPhysicalSensor(uint8_t gpio, uint8_t* romOut);
 
     void applyCalibration(uint8_t gpio, String newHwId, float offset, String newName);
+    /* v3.33.2: aplica offset de temp E hum no ambient (PIN_DHT_DEFAULT). hwId/name
+     * são tratados separadamente via applyCalibration (compartilham apenas linha 't'
+     * do calib.csv — opção B). */
+    void applyAmbientCalibration(float offsetT, float offsetH);
 
 
     void setHardwareMismatch(uint8_t gpio, bool isMismatch);

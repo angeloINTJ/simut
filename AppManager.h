@@ -47,6 +47,10 @@ public:
 
     bool isUserInteracting() const;
 
+    /* v3.34.0: F-CALIB-UI — público para WebManager_Calib chamar após
+     * /api/calib POST e /api/sensor_accept (mesmo padrão do CLI). */
+    void loadAndCalibrateSensors();
+
 private:
     std::unique_ptr<SensorManager>    _sensorMgr;
     std::unique_ptr<StorageManager>   _storageMgr;
@@ -95,7 +99,6 @@ private:
     void executeCommand(CliDemand cmd);
 
     void checkAndAutoHealSensors();
-    void loadAndCalibrateSensors();
     void handleTimeSync(uint32_t bootTs, int32_t delta);
     void checkAlarmConditions();
 

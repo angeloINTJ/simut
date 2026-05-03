@@ -1433,6 +1433,48 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
     return found;
 }
 
+/* v3.33.2: lookup do ambient (DHT22) no calib.csv. Chave = picoUID 16 hex
+ * (mesmo formato do ROM dos DS18B20). Discriminador entre as 2 linhas
+ * ambient está no prefixo do campo ID (coluna 2): `t<id>` para temperatura,
+ * `u<id>` para umidade. outId é retornado SEM o prefixo (ex: linha
+ * `<picoUID>,t01,-0.4,Sala` → outId = "01"). */
+bool StorageManager::getCalibrationDataAmbient(char prefix, String& outId, float& outOffset, String& outName) {
+    if (prefix != 't' && prefix != 'u') return false;
+    String picoUID = getBoardSerialNumber();   /* 16 hex sem separador */
+    if (!LittleFS.exists("/calib.csv")) return false;
+
+    enterFlashReadLock();
+    File f = LittleFS.open("/calib.csv", "r"); bool found = false;
+    if (f) {
+        char lineBuf[256];
+        while (f.available()) {
+            feedWdt();
+            size_t len = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
+            if (len == 0) continue;
+            lineBuf[len] = '\0'; if (len > 0 && lineBuf[len - 1] == '\r') lineBuf[len - 1] = '\0';
+            String line = String(lineBuf); line.trim();
+            if (line.length() < 16) continue;
+            if (!line.substring(0, 16).equalsIgnoreCase(picoUID)) continue;
+            int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1); int p3 = line.indexOf(',', p2 + 1);
+            if (p1 <= 0 || p2 <= p1) continue;
+            String idCol = line.substring(p1 + 1, p2); idCol.trim();
+            if (idCol.length() == 0 || idCol.charAt(0) != prefix) continue;
+            outId = idCol.substring(1);   /* strip prefix */
+            if (p3 > p2) {
+                outOffset = line.substring(p2 + 1, p3).toFloat();
+                outName = line.substring(p3 + 1); outName.replace("\"", "");
+            } else {
+                outOffset = line.substring(p2 + 1).toFloat();
+                outName = "";
+            }
+            found = true; break;
+        }
+        f.close();
+    }
+    exitFlashReadLock();
+    return found;
+}
+
 bool StorageManager::processCalibrationUpload() {
     if (!LittleFS.exists("/calib.tmp")) return false;
     long currentVer = getCalibrationVersion("/calib.csv");

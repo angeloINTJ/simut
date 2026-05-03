@@ -1110,12 +1110,18 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
             val = boardSerial; tokenChars = 8; tokenValid = true;
         } else if (remaining >= 6 && memcmp(tpl + ti, "{tAMB}", 6) == 0) {
             val = hasAmbT ? ambTBuf : nullptr;
-            hwid = boardSerial;
+            /* v3.33.2: ID customizado via calib.csv (linha `t<id>`) sobrescreve
+             * o picoUID default. Detectamos "customizado" como hwId != "AMB"
+             * (default de loadDefaults). Sem calib, fallback boardSerial preserva
+             * compat com dashboards já configurados. */
+            hwid = (cfg.ambientSensor.hwId[0] != '\0' && strcmp(cfg.ambientSensor.hwId, "AMB") != 0)
+                 ? cfg.ambientSensor.hwId : boardSerial;
             memcpy(compKey, "tAMB", 4); compKeyLen = 4;
             tokenChars = 6; tokenValid = true;
         } else if (remaining >= 6 && memcmp(tpl + ti, "{uAMB}", 6) == 0) {
             val = hasAmbH ? ambHBuf : nullptr;
-            hwid = boardSerial;
+            hwid = (cfg.ambientSensor.hwId[0] != '\0' && strcmp(cfg.ambientSensor.hwId, "AMB") != 0)
+                 ? cfg.ambientSensor.hwId : boardSerial;
             memcpy(compKey, "uAMB", 4); compKeyLen = 4;
             tokenChars = 6; tokenValid = true;
         } else if (remaining >= 4 && tpl[ti+1] == 't' &&

@@ -102,7 +102,6 @@ void WebManager::handleUsers()   { serveProtectedPage(PERM_USER_MGR, WebUI_GZ::U
 void WebManager::handleFiles()   { serveProtectedPage(PERM_FILE_READ, WebUI_GZ::FILE_PAGE_GZ, WebUI_GZ::FILE_PAGE_GZ_LEN); }
 void WebManager::handleAlarms()  { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ::ALARMS_PAGE_GZ, WebUI_GZ::ALARMS_PAGE_GZ_LEN); }
 void WebManager::handleLicense() { serveProtectedPage(PERM_DASHBOARD, WebUI_GZ::LICENSE_PAGE_GZ, WebUI_GZ::LICENSE_PAGE_GZ_LEN); }
-
 void WebManager::handleForceChpass() {
     if (getAuthPerms() == 0) { _server.sendHeader("Location", "/login", true); _server.send(302, "text/plain", ""); return; }
     if (!isPasswordChangeRequired()) { _server.sendHeader("Location", "/", true); _server.send(302, "text/plain", ""); return; }
