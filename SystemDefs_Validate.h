@@ -32,6 +32,35 @@ inline bool parseIntStrict(const String& s, int& out) {
     return true;
 }
 
+/** v3.36.1: Parse estrito de float. Aceita opcional '+'/'-' + dígitos com no
+ *  máximo 1 ponto decimal (sem expoentes). Diferencia "0" / "0.0" legítimos
+ *  de entrada não-numérica (que String::toFloat() silenciosamente mapeia → 0).
+ *  Não aceita espaços, vírgulas decimais (locale), nem notação científica. */
+inline bool parseFloatStrict(const String& s, float& out) {
+    if (s.length() == 0) return false;
+    size_t start = 0;
+    if (s[0] == '-' || s[0] == '+') {
+        if (s.length() == 1) return false;
+        start = 1;
+    }
+    bool seenDot = false;
+    bool seenDigit = false;
+    for (size_t i = start; i < s.length(); i++) {
+        char c = s[i];
+        if (c == '.') {
+            if (seenDot) return false;
+            seenDot = true;
+        } else if (c >= '0' && c <= '9') {
+            seenDigit = true;
+        } else {
+            return false;
+        }
+    }
+    if (!seenDigit) return false;
+    out = s.toFloat();
+    return true;
+}
+
 /** Valida string de config genérica: permite vazio, rejeita control chars (<32).
  *  Aceita qualquer char imprimível (incluindo " e \) porque senhas WPA2, URLs e
  *  paths legítimos podem conter esses. O parser CLI não usa escape de aspas

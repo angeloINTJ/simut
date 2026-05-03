@@ -269,7 +269,9 @@ void WebManager::handleApiCalibPost() {
         if (arrStart >= 0 && arrEnd > arrStart) {
             String arr = body.substring(arrStart, arrEnd + 1);
             int objStart = 0;
+            int safety = 0;  /* v3.36.1 (Fase 18.2 / M8): cap iterações em payloads adversariais */
             while ((objStart = arr.indexOf('{', objStart)) >= 0) {
+                if (++safety > MAX_SENSORS + 4) break;
                 int objEnd = arr.indexOf('}', objStart);
                 if (objEnd < 0) break;
                 String obj = arr.substring(objStart, objEnd + 1);

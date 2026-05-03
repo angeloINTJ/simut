@@ -178,9 +178,20 @@ void WebManager::handleApiCommitAll() {
                     safeCopy(cfg.deviceName, n.c_str(), sizeof(cfg.deviceName));
                 }
             }
+            /* v3.36.1 (Fase 18.2): parsing estrito de campos numéricos.
+             * String::toInt() retornaria 0 silenciosamente em entrada inválida
+             * ("abc" → 0) podendo zerar valores legítimos. parseIntStrict
+             * rejeita não-numéricos; em caso inválido, preserva valor atual. */
+            auto getInt = [&](const char* k, int& dst, int minV, int maxV) {
+                int v;
+                if (parseIntStrict(getNum(k), v) && v >= minV && v <= maxV) dst = v;
+            };
             if (has("tz")) {
-                cfg.timezoneOffset = (int8_t)getNum("tz").toInt();
-                NetworkManager::applyTimezone(cfg.timezoneOffset);
+                int v;
+                if (parseIntStrict(getNum("tz"), v) && v >= -12 && v <= 14) {
+                    cfg.timezoneOffset = (int8_t)v;
+                    NetworkManager::applyTimezone(cfg.timezoneOffset);
+                }
             }
             if (has("log"))       cfg.loggingEnabled = (getNum("log") != "0");
             if (has("t_sec"))     cfg.telEncryption = (getNum("t_sec") != "0");
@@ -190,27 +201,28 @@ void WebManager::handleApiCommitAll() {
                 String tk = getStr("t_key");
                 if (tk.indexOf("***") < 0) safeCopy(cfg.telApiKey, tk.c_str(), sizeof(cfg.telApiKey));
             }
-            if (has("res"))       { int r = getNum("res").toInt(); if (r >= 9 && r <= 12) cfg.ds18Resolution = (uint8_t)r; }
-            if (has("s_int"))     cfg.sampleIntervalMs = getNum("s_int").toInt();
+            if (has("res"))       { int v; if (parseIntStrict(getNum("res"), v) && v >= 9 && v <= 12) cfg.ds18Resolution = (uint8_t)v; }
+            if (has("s_int"))     { int v; if (parseIntStrict(getNum("s_int"), v) && v >= 100 && v <= 600000) cfg.sampleIntervalMs = (uint32_t)v; }
             if (has("t_srv"))     safeCopy(cfg.telServer, getStr("t_srv").c_str(), sizeof(cfg.telServer));
-            if (has("t_port"))    { int p = getNum("t_port").toInt(); if (isInRange(p, 1, 65535)) cfg.telPort = (uint16_t)p; }
+            if (has("t_port"))    { int v; if (parseIntStrict(getNum("t_port"), v) && isInRange(v, 1, 65535)) cfg.telPort = (uint16_t)v; }
             if (has("t_path"))    safeCopy(cfg.telPath, getStr("t_path").c_str(), sizeof(cfg.telPath));
-            if (has("t_int"))     cfg.telInterval = getNum("t_int").toInt();
-            if (has("t_bat"))     cfg.telBatchSize = (uint8_t)getNum("t_bat").toInt();
-            if (has("t_mode"))    cfg.telMode = (uint8_t)getNum("t_mode").toInt();
-            if (has("t_transport")) cfg.telTransport = (uint8_t)getNum("t_transport").toInt();
+            if (has("t_int"))     { int v; if (parseIntStrict(getNum("t_int"), v) && v >= 0 && v <= 86400000) cfg.telInterval = (uint32_t)v; }
+            if (has("t_bat"))     { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 200)) cfg.telBatchSize = (uint8_t)v; }
+            if (has("t_mode"))    { int v; if (parseIntStrict(getNum("t_mode"), v) && isInRange(v, 0, 2)) cfg.telMode = (uint8_t)v; }
+            if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && isInRange(v, 0, 1)) cfg.telTransport = (uint8_t)v; }
             if (has("m_topic"))   safeCopy(cfg.mqttTopic, getStr("m_topic").c_str(), sizeof(cfg.mqttTopic));
             if (has("m_cid"))     safeCopy(cfg.mqttClientId, getStr("m_cid").c_str(), sizeof(cfg.mqttClientId));
             if (has("m_user"))    safeCopy(cfg.mqttUser, getStr("m_user").c_str(), sizeof(cfg.mqttUser));
-            if (has("m_qos"))     cfg.mqttQos = (uint8_t)getNum("m_qos").toInt();
+            if (has("m_qos"))     { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; }
             if (has("m_retain"))  cfg.mqttRetain = (getNum("m_retain") != "0");
-            if (has("m_ka"))      { int ka = getNum("m_ka").toInt(); if (isInRange(ka, 5, 600)) cfg.mqttKeepAlive = (uint16_t)ka; }
+            if (has("m_ka"))      { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 5, 600)) cfg.mqttKeepAlive = (uint16_t)v; }
             if (has("t_glob"))    safeCopy(cfg.telGlobalTemplate, getStr("t_glob").c_str(), sizeof(cfg.telGlobalTemplate));
             if (has("t_line"))    safeCopy(cfg.telLineTemplate, getStr("t_line").c_str(), sizeof(cfg.telLineTemplate));
             if (has("t_sep"))     safeCopy(cfg.telLineSeparator, getStr("t_sep").c_str(), sizeof(cfg.telLineSeparator));
             /* F-NET-TIME.3a: flag NTP enable/disable (overlay NetworkTimeData). */
             if (has("ntp_enabled")) _storageRef->setNtpEnabled(getNum("ntp_enabled") != "0");
-            if (has("h_int"))      { int hi = getNum("h_int").toInt(); if (isInRange(hi, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)hi); }
+            if (has("h_int"))     { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); }
+            (void)getInt;  /* lambda kept for future fields, suppress -Wunused */
         }
     }
 
@@ -225,7 +237,9 @@ void WebManager::handleApiCommitAll() {
         if (arrStart >= 0 && arrEnd > arrStart) {
             String arrStr = body.substring(arrStart, arrEnd + 1);
             int objStart = 0;
+            int safety = 0;  /* v3.36.1: cap iterações em payloads adversariais */
             while ((objStart = arrStr.indexOf('{', objStart)) >= 0) {
+                if (++safety > MAX_SENSORS + 4) break;
                 int objEnd = arrStr.indexOf('}', objStart);
                 if (objEnd < 0) break;
                 String obj = arrStr.substring(objStart, objEnd + 1);
@@ -328,7 +342,9 @@ void WebManager::handleApiCommitAll() {
         if (arrStart >= 0 && arrEnd > arrStart) {
             String arr = body.substring(arrStart, arrEnd + 1);
             int objStart = 0;
+            int safety = 0;  /* v3.36.1: cap iterações (users actions: max 8) */
             while ((objStart = arr.indexOf('{', objStart)) >= 0) {
+                if (++safety > 16) break;
                 int objEnd = arr.indexOf('}', objStart);
                 if (objEnd < 0) break;
                 String obj = arr.substring(objStart, objEnd + 1);

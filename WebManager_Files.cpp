@@ -103,8 +103,26 @@ void WebManager::handleApiLs() {
         dirPath.trim();
         if (dirPath.length() == 0) dirPath = "/";
 
-        while (dirPath.indexOf("..") >= 0) dirPath.replace("..", "");
-        while (dirPath.indexOf("//") >= 0) dirPath.replace("//", "/");
+        /* v3.36.1 (Fase 18.2 / M2): rejeita early em vez de loop O(n²) com replace.
+         * Input adversarial tipo "...." ou "//../..//a" causaria múltiplas
+         * iterações de replace. Single-pass: se contém ".." → 400 imediato.
+         * "//" colapsado em single-pass. */
+        if (dirPath.indexOf("..") >= 0 || dirPath.indexOf('%') >= 0) {
+            _server.send(400, "application/json", "{\"error\":\"invalid path\"}");
+            return;
+        }
+        /* Colapsa // → / em single-pass O(n). */
+        {
+            String collapsed; collapsed.reserve(dirPath.length());
+            char prev = 0;
+            for (size_t i = 0; i < dirPath.length(); i++) {
+                char c = dirPath[i];
+                if (c == '/' && prev == '/') continue;
+                collapsed += c;
+                prev = c;
+            }
+            dirPath = collapsed;
+        }
         if (!dirPath.startsWith("/")) dirPath = "/" + dirPath;
         while (dirPath.length() > 1 && dirPath.endsWith("/")) {
             dirPath = dirPath.substring(0, dirPath.length() - 1);

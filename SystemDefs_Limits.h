@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.36.0" /* F-HARDENING-WEB (Fase 18.1 da auditoria): C1+C2 — escHtml() global em LANG_JS aplicado em DASH (sn.id/name/v) e themes (t.id/name) — bloqueia XSS via friendlyName; C4 — rate-limit 5s em POST /api/calib (HTTP 429 + Retry-After) protege flash-wear; A6 — t_key mascarado em /api/config (primeiros 4 chars + "***"), commit_all parser detecta "***" e preserva valor original — evita screenshot vazar API key. Validado em HW: 29/29 testes pass (escapes presentes em DASH, rate-limit ativo em vivo, masking funcionando). */
+#define SIMUT_VERSION "v3.36.1" /* Fase 18.2 — Parsing Robustness: A2 (parseIntStrict + isInRange aplicado a 14 campos numéricos do bloco system em commit_all; valores inválidos como "abc"/"NaN" agora preservam o valor anterior em vez de virar 0); M2 (path normalize O(n²) → reject-early HTTP 400 para ".." ou "%" + colapso single-pass O(n) de "//"); M8 (parseFloatStrict adicionado + safety counter em 3 loops while(indexOf '{') de WebManager_Commit/Calib — cap em MAX_SENSORS+4 ou 16 conforme contexto). Validado em HW: 12/12 testes pass (h_int/t_port/t_int preservados após payload inválido, traversal "/history/.." → HTTP 400, "//" colapsado em path normal, heap saudável 58KB). */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 
