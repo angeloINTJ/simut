@@ -241,6 +241,37 @@ void test_parseIntStrict_invalid(void) {
     TEST_ASSERT_FALSE(parseIntStrict(String("0x10"), out));  /* hex */
 }
 
+/* v3.36.3 (Fase 18.4 / M7): cobertura de parseFloatStrict adicionada na 18.2.
+ * Distingue "0.0" legítimo de input não-numérico (que toFloat() silencia → 0). */
+void test_parseFloatStrict_valid(void) {
+    float out;
+    TEST_ASSERT_TRUE(parseFloatStrict(String("0"), out));       TEST_ASSERT_EQUAL_FLOAT(0.0f, out);
+    TEST_ASSERT_TRUE(parseFloatStrict(String("0.0"), out));     TEST_ASSERT_EQUAL_FLOAT(0.0f, out);
+    TEST_ASSERT_TRUE(parseFloatStrict(String("3.14"), out));    TEST_ASSERT_FLOAT_WITHIN(0.001f, 3.14f, out);
+    TEST_ASSERT_TRUE(parseFloatStrict(String("-2.5"), out));    TEST_ASSERT_FLOAT_WITHIN(0.001f, -2.5f, out);
+    TEST_ASSERT_TRUE(parseFloatStrict(String("+100"), out));    TEST_ASSERT_FLOAT_WITHIN(0.001f, 100.0f, out);
+    TEST_ASSERT_TRUE(parseFloatStrict(String("999"), out));     TEST_ASSERT_FLOAT_WITHIN(0.001f, 999.0f, out);
+    TEST_ASSERT_TRUE(parseFloatStrict(String(".5"), out));      TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.5f, out);
+    TEST_ASSERT_TRUE(parseFloatStrict(String("-0.0"), out));    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, out);
+}
+
+void test_parseFloatStrict_invalid(void) {
+    float out;
+    TEST_ASSERT_FALSE(parseFloatStrict(String(""), out));       /* vazio */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("abc"), out));    /* não-numérico */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("NaN"), out));    /* NaN literal rejeitado */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("1.2.3"), out));  /* 2 pontos */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("3,14"), out));   /* vírgula decimal (locale) */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("1e5"), out));    /* notação científica */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("1.5f"), out));   /* sufixo */
+    TEST_ASSERT_FALSE(parseFloatStrict(String(" 1.5"), out));   /* leading space */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("1.5 "), out));   /* trailing space */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("-"), out));      /* só sinal */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("+"), out));      /* só sinal */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("."), out));      /* só ponto, sem dígito */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("-."), out));     /* sinal + ponto, sem dígito */
+}
+
 
 /* =========================================================================== */
 /*  timeReached / timeSince (millis() stubado)                                */
@@ -384,6 +415,8 @@ int main(int /*argc*/, char** /*argv*/) {
     /* parseIntStrict */
     RUN_TEST(test_parseIntStrict_valid);
     RUN_TEST(test_parseIntStrict_invalid);
+    RUN_TEST(test_parseFloatStrict_valid);    /* v3.36.3 (M7) */
+    RUN_TEST(test_parseFloatStrict_invalid);  /* v3.36.3 (M7) */
 
     /* timeReached / timeSince */
     RUN_TEST(test_timeReached_basic);

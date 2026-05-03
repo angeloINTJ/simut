@@ -322,6 +322,47 @@ Ação imediata (sem reboot): `/api/set_time` — seta RTC manual, requer
   sobrevive ao reflash se a imagem nova tiver o mesmo layout de flash;
   se mudar partição LittleFS, pode apagar tudo.
 
+### 9.1 Procedimento de update (re-flash USB)
+
+> v3.36.3 (Fase 18.4 / M9): documentação explícita do único caminho
+> suportado para update. Não tente OTA — não existe.
+
+**Pré-requisitos:**
+- Acesso físico ao Pico W (USB).
+- UF2 do canal oficial (releases do GitHub).
+
+**Passos:**
+1. **Backup do config**: via web `GET /api/export/config.bin` (se
+   `PERM_FILES`) ou copiar `/config/system.bin` via download de file
+   manager. Pular só se config-default for aceitável.
+2. **Backup do FS** (recomendado se mudou layout LittleFS): `GET
+   /api/fs/backup.tar` (se exposto) ou enumerar `/api/ls` + baixar
+   cada arquivo. Lição empírica: `uploadfs` em release nova já apagou
+   `system.bin` + `/history/` quando layout mudou.
+3. **Entrar em BOOTSEL**: pressionar BOOTSEL ao plugar USB *ou* via
+   1200-baud trick (`stty -F /dev/ttyACM0 1200`). O device aparece
+   como mass storage (`RPI-RP2`).
+4. **Copiar UF2** para a unidade montada. Pico reinicia automaticamente.
+5. **Verificar versão** após boot via `GET /api/perms` (campo
+   `version`) ou banner Serial: deve bater com a release publicada.
+6. **Restaurar config** se o passo 2 baixou backup: upload via
+   `POST /api/upload` para `/config/system.bin` (precisa
+   `PERM_FILES` + `PERM_SYS_CONFIG`).
+
+**Recovery de boot quebrado:**
+- BOOTSEL force: segurar botão BOOTSEL durante power-up; sempre entra
+  em modo recovery, mesmo se firmware travou.
+- Se config corromper, factory reset via CLI Serial: `factory reset
+  confirm` (regenera senhas random, mantém calib.csv).
+
+**Versionamento:**
+- Tags git seguem semver (`v<MAJOR>.<MINOR>.<PATCH>`).
+- Patch bump = bug fix sem schema change.
+- Minor bump = feature ou schema bump (CONFIG_VERSION incrementado;
+  `attemptLoad` migra de versões anteriores transparentemente — ver
+  `StorageManager.cpp:480`).
+- Major bump = quebra de compat (raro).
+
 ---
 
 ## 10. Disclosure policy

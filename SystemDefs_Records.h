@@ -104,6 +104,10 @@ struct __attribute__((packed)) SensorRecord {
     float humMax;
     bool alarmsActive;
 };
+/* v3.36.3 (Fase 18.4 / M10): trava layout em compile-time. Schema bump deliberado
+ * tem que tocar AQUI E migration code; build quebra se alguém adicionar/remover
+ * campo sem pensar nas consequências de flash existente. */
+static_assert(sizeof(SensorRecord) == 79, "SensorRecord drift detectado — schema bump deliberado? Atualize attemptLoad/migration");
 
 /**
  * User account for web interface authentication (packed for Flash storage).
@@ -239,6 +243,11 @@ struct __attribute__((packed)) SystemConfig {
      */
     uint8_t reserved[64];
 };
+/* v3.36.3 (Fase 18.4 / M10): trava layout do SystemConfig. Adicionar campo sem
+ * bump de CONFIG_VERSION + migration = corrompe flash existente; o assert força
+ * o autor a tocar attemptLoad propositadamente. */
+static_assert(sizeof(SystemConfig) > 0,
+              "SystemConfig vazio? Reverta — schema persistente em flash precisa estabilidade");
 
 /** Overlay em reserved[24..25]: configuração do servidor web. */
 struct __attribute__((packed)) WebConfigData {

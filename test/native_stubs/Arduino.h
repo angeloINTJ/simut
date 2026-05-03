@@ -52,6 +52,18 @@ public:
         }
     }
 
+    /* v3.36.3 (M7): Arduino String::toFloat() — também retorna 0.0 silenciosamente
+     * em string inválida; parseFloatStrict() usa pra obter o valor depois de validar
+     * o formato. Mesma semântica do firmware. */
+    float toFloat() const {
+        if (data_.empty()) return 0.0f;
+        try {
+            return std::stof(data_);
+        } catch (...) {
+            return 0.0f;
+        }
+    }
+
 private:
     std::string data_;
 };
