@@ -163,61 +163,116 @@ Upload the `data/` directory to LittleFS using **arduino-pico's "Upload Filesyst
 
 ```
 SIMUT/
-├── SIMUT.ino                    # Main entry point (setup + loop, watchdog feed)
+├── SIMUT.ino                       # Entry point (setup + loop, watchdog feed)
 │
-├── SystemDefs.h                 # Facade aggregating all sub-headers
-├── SystemDefs_Limits.h          # SIMUT_VERSION, MAX_*, perm bitmasks
-├── SystemDefs_Records.h         # SystemConfig, UserAccount, on-flash structs
-├── SystemDefs_Network.h         # NetworkTimeData, NetworkConfig overlays
-├── SystemDefs_Time.h            # timeReached/timeRemaining/timeSince helpers
-├── SystemDefs_Logging.h         # LOG_CODE macros, scratch register map
-├── SystemDefs_Cli.h             # CliDemand, CLI_LINE_MAX
-├── SystemDefs_Validate.h        # isValidName/Ip/UploadFilename helpers
+├── SystemDefs.h                    # Facade — agrega os 7 sub-headers abaixo
+├── SystemDefs_Limits.h             # SIMUT_VERSION, MAX_SENSORS, PERM_* bitmasks (+PERM_CALIB)
+├── SystemDefs_Records.h            # SystemConfig, UserAccount, BinaryHistoryRecord, UiMode
+├── SystemDefs_Network.h            # NetworkTimeData, WebConfigData, DisplayOffsetData overlays
+├── SystemDefs_Time.h               # timeReached/timeRemaining/timeSince + safeCopy
+├── SystemDefs_Logging.h            # LOG_CODE macros, scratch register map (autópsia WDT)
+├── SystemDefs_Cli.h                # CliDemand, CLI_LINE_MAX, CMD_* enum
+├── SystemDefs_Validate.h           # isValidName/Ip/UploadFilename/CfgString helpers
 │
-├── AppManager.h + 8 split .cpp  # Boot, Loop, Core, Events, Graph, Sensors, Commands, HistoryAlarm
-├── DisplayManager.h + 10 split  # Dashboard, Graph, Settings, Auth, Calibration, Alarm, Calendar, Touch, i18n, LangParser, Fonts
-├── WebManager.h + 9 split .cpp  # Core, Auth, Api, Calib, Files, History, Commit, Send, Util
+├── AppManager.h
+├── AppManager_Boot.cpp             # Sequência de boot do Core 0
+├── AppManager_Loop.cpp             # Main loop, dispatch
+├── AppManager_Core.cpp             # Construtor, getters, init
+├── AppManager_Events.cpp           # Fila de UiEvent + handlers
+├── AppManager_Graph.cpp            # Renderização de gráfico no TFT
+├── AppManager_Sensors.cpp          # loadAndCalibrateSensors (incl. ambient via picoUID)
+├── AppManager_Commands.cpp         # Dispatch de CliDemand
+├── AppManager_HistoryAlarm.cpp     # Histórico + checagem de alarmes
 │
-├── SensorManager.h/.cpp         # DS18B20/DHT22 driver with async reads
-├── StorageManager.h/.cpp        # LittleFS config, history v2, calibration, salt
-├── NetworkManager.h/.cpp        # WiFi STA/AP, NTP, DNS, virtual RTC, manual time
-├── TelemetryManager.h/.cpp      # HTTP/MQTT upload with backoff, batch sizing
-├── CommandManager.h/.cpp        # CLI parser + dual USB/BT output
-├── BluetoothManager.h/.cpp      # BLE serial with auth + auto-logout
-├── SoundManager.h/.cpp          # PIO buzzer, melodies, alarm system
-├── LogManager.h/.cpp            # Logger, crash forensics, ring buffer, deferred flush
-├── MetricsManager.h/.cpp        # Heap probe, metrics for /api/status
-├── Themes.h/.cpp                # 50 built-in palettes + .thm custom loader
-├── SystemUtils.cpp              # CRC8, filename validation utilities
-├── WebUI.h                      # Embedded HTML/CSS/JS source (PROGMEM, with @LANG/@WEBDICT markers)
-├── WebUI_GZ.h                   # Auto-generated gzip blob (do not edit; inclui STYLE_CSS_GZ compartilhado)
-├── SECURITY.md                  # Threat model + rotation + incident response
-├── STABILITY_PLAN.md            # Audit phases F1..F17 + master findings table
+├── DisplayManager.h
+├── DisplayManager.cpp              # Core: bootstrap Core 1, render loop, mutex
+├── DisplayManager_Dashboard.cpp    # Painel principal (slot panels, ambient, top bar)
+├── DisplayManager_Graph.cpp        # Tela de gráfico
+├── DisplayManager_Settings.cpp     # Menus de Configurações (Sons, Status, Display Offset, etc.)
+├── DisplayManager_Auth.cpp         # Tela de senha (numeric pad + lockout)
+├── DisplayManager_Calibration.cpp  # Tela calibração de touch + sensitivity
+├── DisplayManager_Alarm.cpp        # Tela MODE_ALARM_ACTION (silenciar/desativar)
+├── DisplayManager_Calendar.cpp     # Calendário do histórico
+├── DisplayManager_Touch.cpp        # Roteador de touch + helpers (acceptTouch, hold, slide)
+├── DisplayManager_i18n.cpp         # tr(), DICTIONARY_EN, helpers
+├── DisplayManager_LangParser.cpp   # Parser de .lng (DICT/LOGCODES/HELP/LICENSE/WEBDICT)
+├── DisplayManager_Fonts.cpp/.h     # Carregamento de fontes (subset 24pt + simutFont9pt/12pt)
+├── DisplayManager_FmtFloat.h       # fmtFloat1 helper inline
+├── FreeSansBold24pt7b_subset.h     # Fonte subset (~22 chars, -8KB)
 │
-├── data/                        # LittleFS image
-│   ├── favicon.ico             # v3.34.0: migrado de PROGMEM (-11KB flash)
-│   ├── lang/    # language_{pt-BR,es-ES}.lng
-│   ├── system/  # help_*.txt, license_*.txt
-│   ├── themes/  # custom *.thm (optional)
-│   └── history/ # daily YYYYMMDD.bin (codec v2)
+├── WebManager.h
+├── WebManager_Core.cpp             # Construtor, begin, rotas, update loop, rate limit
+├── WebManager_Auth.cpp             # Login, sessions, RBAC, password change, page handlers
+├── WebManager_Api.cpp              # /api/perms, /api/config, /api/status, /api/alarms, /api/lang
+├── WebManager_Calib.cpp            # /api/calib GET/POST (v3.34.0 — F-CALIB-UI)
+├── WebManager_Files.cpp            # /api/ls, /api/upload, /api/mkdir, /api/delete, /download
+├── WebManager_History.cpp          # /api/history_multi, /api/export/{history,logs}.bin
+├── WebManager_Commit.cpp           # /api/commit_all (atomic save-all + reboot)
+├── WebManager_Send.cpp             # safeSend* (gzip stream, SendGuard com WDT feed)
+├── WebManager_Util.cpp             # /lang.js, /style.css, /favicon.ico, helpers JSON
+│
+├── SensorManager.h/.cpp            # DS18B20 (ROM scan + leitura) + DHT22 (PIO async)
+├── StorageManager.h/.cpp           # LittleFS, SystemConfig CRC32 dual-bank, calib.csv, salt
+├── NetworkManager.h/.cpp           # WiFi STA/AP, NTP backoff, DNS independente, virtual RTC
+├── TelemetryManager.h/.cpp         # HTTP/MQTT upload, batch dinâmico, cursor persistente
+├── CommandManager.h/.cpp           # CLI parser + USB/BT output dual
+├── BluetoothManager.h/.cpp         # BT Serial com auth + nome customizável (cfg.deviceName)
+├── SoundManager.h/.cpp             # BuzzerPIO, 5 classes (Touch/Confirm/Error/Alarm/Attention)
+├── LogManager.h/.cpp               # CompactLogRecord 12B, autópsia WDT, sinks USB/BT, ring buf
+├── MetricsManager.h/.cpp           # Heap probes, sensorReads, metrics pra /api/status
+├── HistoryCodec.h/.cpp             # Codec v2: header SIM2 + delta/zigzag/varint encoding
+├── Themes.h/.cpp                   # 50 paletas built-in + scanner /themes/*.thm
+├── TftWithOffset.h                 # Wrapper Adafruit_ILI9341 com offset configurável
+├── TouchPriority.h                 # Singleton checker (UI input vence operações pesadas)
+├── HelpLicenseEN.h                 # Help text inline (PROGMEM, fallback EN)
+├── SystemUtils.cpp                 # dallasCrc8, validators, CRC32 incremental
+├── WebUI.h                         # Embedded HTML/CSS/JS (PROGMEM, @LANG/@WEBDICT markers)
+├── WebUI_GZ.h                      # Auto-gerado pelo build (gzip blobs + STYLE_CSS_GZ)
+├── SECURITY.md                     # Threat model + rotação + resposta a incidentes
+├── STABILITY_PLAN.md               # Fases F1..F17 + master findings + bonus features
+│
+├── data/                           # LittleFS image (uploadfs)
+│   ├── favicon.ico                 # v3.34.0: migrado de PROGMEM (-11KB flash)
+│   ├── lang/                       # language_{pt-BR,es-ES}.lng
+│   ├── system/                     # help_{pt,en}.txt, license_{pt,en}.txt (opcional)
+│   ├── themes/                     # custom *.thm (opcional, editor offline em tools/)
+│   └── history/                    # YYYYMMDD.bin (codec v2 + cursor t_cursor.bin)
 │
 ├── tools/
-│   ├── compressor.py             # Legacy WebUI.h → WebUI_GZ.h generator
-│   ├── build_webui_gz.py         # PlatformIO pre-build hook (minify + gzip)
-│   ├── build_lang_pack.py        # Build language_pt-BR.lng from WebUI.h + sources
-│   ├── build_lang_pack_es.py     # Build language_es-ES.lng (PT → ES via dict)
-│   ├── build_favicon_header.py   # PNG favicon → PROGMEM header
-│   ├── subset_font.py            # Subset 24pt7b font (~22 chars, -8 KB flash)
-│   ├── history_v1_to_v2.py       # Offline converter: history v1 → v2 (~45% smaller)
-│   ├── backup.sh                 # Snapshot tarball + git bundle
-│   ├── theme-editor/             # Offline .thm editor (HTML/JS)
-│   ├── test-server/              # Local HTTPS test server for telemetry
-│   └── test_*.sh / hw_test_lib.sh # HW validation scripts (SEC + WEB findings)
+│   ├── build_webui_gz.py           # PlatformIO pre-build: minify + gzip → WebUI_GZ.h
+│   ├── build_lang_pack.py          # Compila language_pt-BR.lng a partir do WebUI.h + sources
+│   ├── build_lang_pack_es.py       # PT → ES via dict de tradução (gera language_es-ES.lng)
+│   ├── build_favicon_header.py     # (legado) PNG favicon → header PROGMEM (substituído por FS)
+│   ├── compressor.py               # (legado) gerador alternativo do WebUI_GZ.h
+│   ├── subset_font.py              # Subset de 24pt7b (~22 chars usados, -8KB flash)
+│   ├── history_v1_to_v2.py         # Conversor offline: history v1 → v2 (~45% menor)
+│   ├── backup.sh                   # Snapshot tarball + git bundle
+│   ├── debug_ls_history.sh         # Listagem rápida de /history/ via /api/ls
+│   ├── theme-editor/               # Editor offline de .thm (HTML/JS standalone)
+│   ├── test-server/                # Mock HTTPS server para testes de telemetria
+│   ├── stress_test/                # Toolkit completo: gera history + drain + restore + run
+│   ├── favicon-source/             # PNG/ICO source para gerar data/favicon.ico
+│   ├── hw_test_lib.sh              # Helpers shell (login, fetch, asserts) para HW tests
+│   ├── test_f12_*.sh               # SEC findings (SEC-001/002/003/005)
+│   ├── test_f15_*.sh               # SEC-006 (LRU evict)
+│   ├── test_f_csv_*.sh             # F-CSV.2..5 export validation
+│   ├── test_chunk_*.sh             # Calibração empírica de chunk size do export
+│   ├── test_perf.sh                # 5-dimension perf audit
+│   ├── test_stress.sh              # Stress test do export (descobriu loop infinito)
+│   └── test_web001.sh              # WEB-001 (escape JSON em /api/ls)
+│
+├── test/                           # EXT-009: host-side unit tests (pio test -e native)
+│   ├── native_stubs/               # Arduino.h stub (String + millis()) p/ build host
+│   └── test_validators/            # Unity asserts (25/25 PASSED em 0.82s)
 │
 ├── docs/
-│   └── GLOSSARY.md               # Tag dictionary (BUG/SEC/CON/DOC/F-/Patch/#N)
-├── audits/                       # External audit reports
-├── LICENSE
+│   └── GLOSSARY.md                 # Dicionário de tags (BUG/SEC/CON/DOC/F-/Patch/#N)
+│
+├── audits/
+│   └── SIMUT_ANALISE_TECNICA_v1.md # Auditoria técnica externa cooperativa (2026-04-22)
+│
+├── platformio.ini                  # 3 envs: pico_w_release / pico_w_debug / native
+├── LICENSE                         # MIT
 ├── .gitignore
 └── README.md
 ```
