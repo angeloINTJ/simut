@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.31.9" /* Dashboard graph button: aplica fix do v3.31.8 também ao slot panel (estava com código antigo — radius 8, C_ACCENT, h=42 — porque replace_all não pegou pelo comentário diferente). Agora ambos painéis (Ambient + Slot MIN/MAX) têm botão idêntico. */
+#define SIMUT_VERSION "v3.32.0" /* Consolidação: drawer i18n fix (v3.31.10/11) + breadcrumb /files (v3.31.12) + toolbar /files polish (v3.31.13). Drawer: <span class="ico"> separado de <span data-i18n> elimina perda de ícones em PT (lic-link mantém formato original por dependência do .lng do device). Breadcrumb: removido " /" inline do template do disquete. Toolbar: botão New Folder removido + classes CSS unificadas (btn-fm/-pri/-out/-dang). 3 fixes UI sem mexer no LittleFS. */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

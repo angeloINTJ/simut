@@ -406,13 +406,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
         </div>
         <nav>
-                <a href="/" class="active" data-i18n="nav_dash"><span class="ico">📊</span>Dashboard</a>
-                <a href="/history" data-i18n="nav_hist"><span class="ico">📈</span>History &amp; Logs</a>
-                <a href="/alarms" data-i18n="nav_alm"><span class="ico">🔔</span>Alarms &amp; Sounds</a>
-                <a href="/config" data-i18n="nav_cfg"><span class="ico">⚙️</span>System Config</a>
-                <a href="/network" data-i18n="nav_net"><span class="ico">🌐</span>Network</a>
-                <a href="/users" data-i18n="nav_usr"><span class="ico">👤</span>Users</a>
-                <a href="/files" data-i18n="nav_file"><span class="ico">📁</span>Files</a>
+                <a href="/" class="active" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
+                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
+                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
+                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
+                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
+                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
+                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
         </nav>
         <div class="drawer-bottom">
             <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
@@ -785,13 +785,13 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
         </div>
         <nav>
-                <a href="/" data-i18n="nav_dash"><span class="ico">📊</span>Dashboard</a>
-                <a href="/history" class="active" data-i18n="nav_hist"><span class="ico">📈</span>History &amp; Logs</a>
-                <a href="/alarms" data-i18n="nav_alm"><span class="ico">🔔</span>Alarms &amp; Sounds</a>
-                <a href="/config" data-i18n="nav_cfg"><span class="ico">⚙️</span>System Config</a>
-                <a href="/network" data-i18n="nav_net"><span class="ico">🌐</span>Network</a>
-                <a href="/users" data-i18n="nav_usr"><span class="ico">👤</span>Users</a>
-                <a href="/files" data-i18n="nav_file"><span class="ico">📁</span>Files</a>
+                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
+                <a href="/history" class="active" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
+                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
+                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
+                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
+                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
+                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
         </nav>
         <div class="drawer-bottom">
             <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
@@ -1859,13 +1859,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
         </div>
         <nav>
-                <a href="/" data-i18n="nav_dash"><span class="ico">📊</span>Dashboard</a>
-                <a href="/history" data-i18n="nav_hist"><span class="ico">📈</span>History &amp; Logs</a>
-                <a href="/alarms" data-i18n="nav_alm"><span class="ico">🔔</span>Alarms &amp; Sounds</a>
-                <a href="/config" class="active" data-i18n="nav_cfg"><span class="ico">⚙️</span>System Config</a>
-                <a href="/network" data-i18n="nav_net"><span class="ico">🌐</span>Network</a>
-                <a href="/users" data-i18n="nav_usr"><span class="ico">👤</span>Users</a>
-                <a href="/files" data-i18n="nav_file"><span class="ico">📁</span>Files</a>
+                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
+                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
+                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
+                <a href="/config" class="active" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
+                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
+                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
+                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
         </nav>
         <div class="drawer-bottom">
             <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
@@ -2539,13 +2539,13 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
         </div>
         <nav>
-                <a href="/" data-i18n="nav_dash"><span class="ico">📊</span>Dashboard</a>
-                <a href="/history" data-i18n="nav_hist"><span class="ico">📈</span>History &amp; Logs</a>
-                <a href="/alarms" data-i18n="nav_alm"><span class="ico">🔔</span>Alarms &amp; Sounds</a>
-                <a href="/config" data-i18n="nav_cfg"><span class="ico">⚙️</span>System Config</a>
-                <a href="/network" class="active" data-i18n="nav_net"><span class="ico">🌐</span>Network</a>
-                <a href="/users" data-i18n="nav_usr"><span class="ico">👤</span>Users</a>
-                <a href="/files" data-i18n="nav_file"><span class="ico">📁</span>Files</a>
+                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
+                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
+                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
+                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
+                <a href="/network" class="active" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
+                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
+                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
         </nav>
         <div class="drawer-bottom">
             <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
@@ -2874,13 +2874,13 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
         </div>
         <nav>
-                <a href="/" data-i18n="nav_dash"><span class="ico">📊</span>Dashboard</a>
-                <a href="/history" data-i18n="nav_hist"><span class="ico">📈</span>History &amp; Logs</a>
-                <a href="/alarms" data-i18n="nav_alm"><span class="ico">🔔</span>Alarms &amp; Sounds</a>
-                <a href="/config" data-i18n="nav_cfg"><span class="ico">⚙️</span>System Config</a>
-                <a href="/network" data-i18n="nav_net"><span class="ico">🌐</span>Network</a>
-                <a href="/users" class="active" data-i18n="nav_usr"><span class="ico">👤</span>Users</a>
-                <a href="/files" data-i18n="nav_file"><span class="ico">📁</span>Files</a>
+                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
+                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
+                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
+                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
+                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
+                <a href="/users" class="active" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
+                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
         </nav>
         <div class="drawer-bottom">
             <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
@@ -3120,14 +3120,13 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         /* Files Styles */
         .fm-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
         .fm-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-        .btn-up { background: var(--acc); color: black; border: none; padding: 9px 16px; border-radius: 6px; font-size: 0.9rem; font-weight:bold; cursor: pointer; transition: 0.2s;}
-        .btn-up:hover { opacity:0.8; }
-        .btn-del { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 8px 16px; border-radius: 6px; font-size: 0.9rem; font-weight:bold; cursor: pointer; transition: 0.2s;}
-        .btn-del:hover { background: var(--dang); color: white; }
-        .btn-down { background: transparent; border: 1px solid var(--acc); color: var(--acc); padding: 8px 16px; border-radius: 6px; font-size: 0.9rem; font-weight:bold; cursor: pointer; transition: 0.2s;}
-        .btn-down:hover { background: var(--acc); color: black; }
-        .btn-sm { padding:6px 12px; font-size:0.82rem; border-radius:5px; cursor:pointer; font-weight:600; border:1px solid var(--border); background:var(--bg); color:var(--txt); transition:0.2s; }
-        .btn-sm:hover { background:#27272a; }
+        .btn-fm { padding: 7px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s; line-height: 1.2; }
+        .btn-fm-pri { background: var(--acc); color: #000; border: 1px solid var(--acc); }
+        .btn-fm-pri:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn-fm-out { background: transparent; border: 1px solid var(--acc); color: var(--acc); }
+        .btn-fm-out:hover { background: var(--acc); color: #000; }
+        .btn-fm-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); }
+        .btn-fm-dang:hover { background: var(--dang); color: #fff; }
         .f-chk { width: 18px; height: 18px; accent-color: var(--acc); cursor:pointer; }
         .breadcrumb { display:flex; align-items:center; gap:4px; margin-bottom:16px; padding:10px 14px; background:var(--bg); border:1px solid var(--border); border-radius:6px; font-size:0.9rem; flex-wrap:wrap; }
         .breadcrumb a { color:var(--acc); text-decoration:none; font-weight:600; cursor:pointer; transition:0.15s; }
@@ -3146,8 +3145,6 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .fm-name-dir { color:var(--acc); font-weight:700; }
         .fm-size { font-family:monospace; color:var(--sub); font-size:0.85rem; }
         .fm-empty, .fm-loading { text-align:center; padding:30px; color:var(--sub); }
-        .fm-mkdir-input { padding:7px 10px; background:var(--bg); border:1px solid var(--border); color:var(--txt); border-radius:5px; font-size:0.85rem; width:160px; outline:none; }
-        .fm-mkdir-input:focus { border-color:var(--acc); }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -3172,13 +3169,13 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
         </div>
         <nav>
-                <a href="/" data-i18n="nav_dash"><span class="ico">📊</span>Dashboard</a>
-                <a href="/history" data-i18n="nav_hist"><span class="ico">📈</span>History &amp; Logs</a>
-                <a href="/alarms" data-i18n="nav_alm"><span class="ico">🔔</span>Alarms &amp; Sounds</a>
-                <a href="/config" data-i18n="nav_cfg"><span class="ico">⚙️</span>System Config</a>
-                <a href="/network" data-i18n="nav_net"><span class="ico">🌐</span>Network</a>
-                <a href="/users" data-i18n="nav_usr"><span class="ico">👤</span>Users</a>
-                <a href="/files" class="active" data-i18n="nav_file"><span class="ico">📁</span>Files</a>
+                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
+                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
+                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
+                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
+                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
+                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
+                <a href="/files" class="active" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
         </nav>
         <div class="drawer-bottom">
             <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
@@ -3203,20 +3200,14 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="fm-toolbar">
                 <h2 class="page-title" data-i18n="fil_title">Flash Filesystem</h2>
                 <div class="fm-actions">
-                    <button class="btn-down" onclick="fmDownload()">&#x2B07;&#xFE0F; <span data-i18n="fil_down">Download</span></button>
-                    <button class="btn-del" id="btnDel" style="display:none" onclick="fmDelete()">&#x1F5D1;&#xFE0F; <span data-i18n="fil_del">Delete</span></button>
-                    <button class="btn-sm" id="btnMkdir" style="display:none" onclick="fmShowMkdir()">&#x1F4C1; <span data-i18n="fil_mkdir">New Folder</span></button>
-                    <button class="btn-up" id="btnUpload" style="display:none" onclick="fmUploadClick()">&#x1F4E4; <span data-i18n="fil_uphere">Upload Here</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmDownload()">&#x2B07;&#xFE0F; <span data-i18n="fil_down">Download</span></button>
+                    <button class="btn-fm btn-fm-dang" id="btnDel" style="display:none" onclick="fmDelete()">&#x1F5D1;&#xFE0F; <span data-i18n="fil_del">Delete</span></button>
+                    <button class="btn-fm btn-fm-pri" id="btnUpload" style="display:none" onclick="fmUploadClick()">&#x1F4E4; <span data-i18n="fil_uphere">Upload Here</span></button>
                     <form id="upForm" method="POST" action="/api/upload" enctype="multipart/form-data" style="display:none;">
                         <input type="hidden" name="uploadDir" id="uploadDir" value="/">
                         <input type="file" name="uploadFile" id="uploadFile" multiple onchange="doUpload()">
                     </form>
                 </div>
-            </div>
-            <div id="mkdirRow" style="display:none;margin-bottom:12px;">
-                <input type="text" id="mkdirName" class="fm-mkdir-input" placeholder="folder name" data-i18n="fil_mkname" maxlength="24" onkeydown="if(event.key==='Enter')fmMkdir()">
-                <button class="btn-sm" onclick="fmMkdir()" style="margin-left:6px;" data-i18n="fil_create">Create</button>
-                <button class="btn-sm" onclick="document.getElementById('mkdirRow').style.display='none'" style="margin-left:4px;" data-i18n="fil_cancel">Cancel</button>
             </div>
             <div id="breadcrumb" class="breadcrumb"></div>
             <div style="overflow-x:auto;">
@@ -3241,13 +3232,13 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function fetchPerms() {
             try { let r = await fetchSafe('/api/perms'); let d = await r.json(); permsVal = d.perms; } catch(e) { }
             if (permsVal & 128) document.getElementById('btnDel').style.display = '';
-            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; document.getElementById('btnMkdir').style.display = ''; }
+            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; }
         }
 
         function fmFormatSize(bytes) { if (bytes === 0) return '—'; if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / 1048576).toFixed(2) + ' MB'; }
 
         function fmBuildBreadcrumb(path) {
-            let bc = document.getElementById('breadcrumb'); let parts = path.split('/').filter(p => p.length > 0); let html = '<a onclick="fmNavigate(\'/\')">&#x1F4BE; /</a>'; let accum = '';
+            let bc = document.getElementById('breadcrumb'); let parts = path.split('/').filter(p => p.length > 0); let html = '<a onclick="fmNavigate(\'/\')">&#x1F4BE;</a>'; let accum = '';
             for (let i = 0; i < parts.length; i++) {
                 accum += '/' + parts[i]; html += '<span class="sep">/</span>';
                 if (i === parts.length - 1) html += '<span class="current">' + parts[i] + '</span>'; else html += '<a onclick="fmNavigate(\'' + accum + '\')">' + parts[i] + '</a>';
@@ -3281,12 +3272,6 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function doUpload() {
             let fData = new FormData(document.getElementById('upForm'));
             try { await fetchSafe('/api/upload', { method: 'POST', body: fData, timeout: 60000 }); fmNavigate(currentDir); showToast(window.t('fil_uploaded','Upload complete.'), 'ok'); } catch(e) { showToast(window.t('fil_up_err','Upload error'), 'err'); }
-        }
-        function fmShowMkdir() { let r = document.getElementById('mkdirRow'); r.style.display = r.style.display === 'none' ? '' : 'none'; if (r.style.display !== 'none') { let i = document.getElementById('mkdirName'); i.value = ''; i.focus(); } }
-        async function fmMkdir() {
-            let name = document.getElementById('mkdirName').value.trim(); if (!name) return; name = name.replace(/[\/\\\.{}"'<>:]/g, ''); if (!name) { showToast(window.t('fil_inv_name','Invalid folder name'), 'warn'); return; }
-            let fullPath = (currentDir === '/' ? '/' : currentDir + '/') + name;
-            try { let res = await fetchSafe('/api/mkdir?dir=' + encodeURIComponent(fullPath), {method:'POST'}); if (res.ok) { document.getElementById('mkdirRow').style.display = 'none'; fmNavigate(currentDir); showToast(window.t('fil_mkdir_ok','Folder created.'), 'ok'); } else if (res.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); } else { showToast(window.t('fil_mkdir_err','Failed to create folder.'), 'err'); } } catch (e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
         }
         async function fmDelete() {
             let sel = document.querySelectorAll('.item-chk:checked'); if (sel.length === 0) { showToast(window.t('fil_sel_del', 'Select files to delete.'), 'warn'); return; }
@@ -3470,13 +3455,13 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
         </div>
         <nav>
-                <a href="/" data-i18n="nav_dash"><span class="ico">📊</span>Dashboard</a>
-                <a href="/history" data-i18n="nav_hist"><span class="ico">📈</span>History &amp; Logs</a>
-                <a href="/alarms" class="active" data-i18n="nav_alm"><span class="ico">🔔</span>Alarms &amp; Sounds</a>
-                <a href="/config" data-i18n="nav_cfg"><span class="ico">⚙️</span>System Config</a>
-                <a href="/network" data-i18n="nav_net"><span class="ico">🌐</span>Network</a>
-                <a href="/users" data-i18n="nav_usr"><span class="ico">👤</span>Users</a>
-                <a href="/files" data-i18n="nav_file"><span class="ico">📁</span>Files</a>
+                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
+                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
+                <a href="/alarms" class="active" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
+                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
+                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
+                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
+                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
         </nav>
         <div class="drawer-bottom">
             <a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>
@@ -4056,13 +4041,13 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button>
         </div>
         <nav>
-                <a href="/" data-i18n="nav_dash"><span class="ico">📊</span>Dashboard</a>
-                <a href="/history" data-i18n="nav_hist"><span class="ico">📈</span>History &amp; Logs</a>
-                <a href="/alarms" data-i18n="nav_alm"><span class="ico">🔔</span>Alarms &amp; Sounds</a>
-                <a href="/config" data-i18n="nav_cfg"><span class="ico">⚙️</span>System Config</a>
-                <a href="/network" data-i18n="nav_net"><span class="ico">🌐</span>Network</a>
-                <a href="/users" data-i18n="nav_usr"><span class="ico">👤</span>Users</a>
-                <a href="/files" data-i18n="nav_file"><span class="ico">📁</span>Files</a>
+                <a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>
+                <a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>
+                <a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>
+                <a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>
+                <a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>
+                <a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>
+                <a href="/files" ><span class="ico">📁</span><span data-i18n="nav_file">Files</span></a>
         </nav>
         <div class="drawer-bottom">
             <a href="/license" class="lic-link active" data-i18n="nav_lic">📜 License</a>
