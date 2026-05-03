@@ -17,7 +17,7 @@
 #define MAX_SENSORS 10                  /* Maximum number of configurable sensor slots */
 #define MAX_USERS 5                     /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10            /* Samples in the trimmed-mean sliding window */
-#define SIMUT_VERSION "v3.33.0" /* Consolidação v3.32.1..5: paridade Mudo Global TFT vs web (v3.32.1) + tela de confirmação ao ativar mute (v3.32.2) + nova classe SND_ATTENTION com 6 melodias (v3.32.3) + reorganização menu Sons no TFT (v3.32.4) + i18n PT/ES 13 chaves (v3.32.5). Bump minor por feature observable. */
+#define SIMUT_VERSION "v3.33.1" /* BT device name: substituído o default "PicoW Serial XX:XX:..." da lib SerialBT (arduino-pico) pelo `cfg.deviceName` configurado em /config — mesma origem do AP, mDNS e prompt CLI. SerialBT.setName(...) chamado em BluetoothManager::begin() ANTES de SerialBT.begin() (lib só aceita setName quando _running==false). Se cfg.deviceName for vazio, mantém default da lib. CommandManager::begin() ganha parâmetro com default "SIMUT". Boot passa _storageMgr->getConfig().deviceName. Mudanças do nome via web exigem reboot — coerente com o fluxo "Salvar e Reiniciar". */
 
 #define GRAPH_WIDTH 200                 /* Maximum data points on the TFT graph */
 

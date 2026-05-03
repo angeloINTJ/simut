@@ -20,7 +20,10 @@
 class CommandManager {
 public:
     CommandManager();
-    void begin();
+    /* v3.33.1: btDeviceName define o nome BT visível ("PicoW Serial..." default
+     * é substituído). Caller deve passar `cfg.deviceName` (configurável na
+     * web em /config). Default "SIMUT" usado em fallback. */
+    void begin(const char* btDeviceName = "SIMUT");
 
 
     void setBtValidator(BtAuthValidator validator);

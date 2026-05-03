@@ -25,8 +25,8 @@ CommandManager::CommandManager() {
     _btBuffer.reserve(128);
 }
 
-void CommandManager::begin() {
-    _btMgr.begin("SIMUT_CLI");
+void CommandManager::begin(const char* btDeviceName) {
+    _btMgr.begin(btDeviceName);
 
     /* A4: instala sink do LogManager para espelhar logs USB+BT.
      * Sem o sink, LogManager cai no fallback Serial.println (compat de boot pré-CLI). */

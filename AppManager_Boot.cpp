@@ -133,7 +133,11 @@ void AppManager::setup() {
     });
 
     _displayMgr->setBootStatusKey(TR_BOOT_START_CMD);
-    _cmdMgr->begin();
+    /* v3.33.1: nome do BT visível na rede agora vem do `cfg.deviceName`
+     * (configurável em /config) em vez do default "PicoW Serial XX:XX:..."
+     * da lib SerialBT. Mudanças via web exigem reboot (já é o fluxo do
+     * "Salvar e Reiniciar"). */
+    _cmdMgr->begin(_storageMgr->getConfig().deviceName);
 
 
     _cmdMgr->setBtValidator([this](String attempt) -> bool {

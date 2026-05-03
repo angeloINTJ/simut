@@ -23,12 +23,17 @@ BluetoothManager::BluetoothManager() {
 
 /**
  * @brief Start Bluetooth Serial at 115200 baud.
- * On the Pico W, SerialBT requires a baud rate (not a device name).
- * The network-visible name is managed by the radio firmware.
+ *
+ * v3.33.1: o nome visível na rede BT (default da lib é "PicoW Serial XX:XX:...")
+ * agora é setado via SerialBT.setName() antes do begin(). A lib SerialBT
+ * (arduino-pico) só aceita setName() enquanto _running==false, então a
+ * ordem importa: setName → begin. Para alterar pós-boot é preciso reboot
+ * (consistente com o fluxo "Salvar e Reiniciar" da web).
  */
 void BluetoothManager::begin(const char* deviceName) {
-
-
+    if (deviceName && *deviceName) {
+        SerialBT.setName(deviceName);
+    }
     SerialBT.begin(115200);
 }
 
