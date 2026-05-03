@@ -1553,6 +1553,9 @@ void DisplayManager::handleTouch() {
                     _uiMode = MODE_AUTH;
                     _forceSettingsRedraw = true;
                     _repaintSettings = true;
+                    /* v3.37.7: licença cobriu o keypad com fillScreen — força
+                     * repintar sem resetar o PIN parcial nem o estado de auth. */
+                    requestAuthKeypadRedraw();
                 } else {
                     showSettingsMain();
                 }

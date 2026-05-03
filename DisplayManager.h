@@ -198,6 +198,11 @@ public:
 
     void showSettingsThemes(int currentThemeIdx);
     void showAuthScreen(String expectedPin);
+    /** v3.37.7: força repintar do keypad da tela MODE_AUTH no próximo
+     *  drawAuthScreen. Necessário quando outra tela (ex: licença) cobriu
+     *  o keypad e o user voltou pra Auth — sem isso, só chrome+dots
+     *  redesenham e o keypad fica em branco. */
+    void requestAuthKeypadRedraw();
     void showSettingsMain();
     void showSettingsAlarms(SystemConfig* cfg);
     void showAlarmEdit(int sensorIdx);

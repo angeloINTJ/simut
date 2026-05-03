@@ -810,7 +810,11 @@ void DisplayManager::drawGraphScreen() {
 
             /* ── Labels eixo Y: MAX alinhado ao topo, MIN à base da grade ── */
             cv->setFont(NULL); cv->setTextSize(1);
-            int lyMax = gy;              /* Topo da grade = pico do gráfico */
+            /* v3.37.1: header bar termina em y=31 (ver drawGraphHeaderBar:267).
+             * lyMax = gy (=30) ficava 2 px sob o header — fonte 5x7 começa em y
+             * e ocupa y..y+7, então as 2 primeiras linhas eram cortadas. +3 px
+             * coloca o label em y=33..40, totalmente abaixo do header. */
+            int lyMax = gy + 3;          /* Topo da grade + margem do header */
             int lyMin = gy + gh - 8;     /* Base da grade = vale do gráfico */
             /* Condição de interseção: label visível se qualquer parte cruza a strip */
             if (lyMax < sBot && lyMax + 8 > sTop) {

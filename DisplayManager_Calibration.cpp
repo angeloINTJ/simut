@@ -142,10 +142,10 @@ void DisplayManager::drawSettingsDisplayOffset() {
          *   - title bar y=4..36
          *   - direction pad (4 botões com setas) em y=55..185
          *   - reset button center em y=108..132
-         *   - hint em y=198
-         *   - back/apply buttons em y=204..236 */
+         *   - back/apply buttons em y=204..236
+         * v3.37.2: hint em y=198 removido a pedido do user — pad direcional
+         * + valores X/Y na lateral já comunicam a função; texto era ruído. */
         const String titleTxt = tr(TR_DISPLAY_OFFSET_TITLE);
-        const String hintTxt = tr(TR_DISPLAY_OFFSET_HINT);
         const String backTxt = tr(TR_BACK);
         const String applyTxt = tr(TR_APPLY);
         const int cx = 160, cy = 120;
@@ -176,15 +176,6 @@ void DisplayManager::drawSettingsDisplayOffset() {
                 cv->fillRoundRect(148, 108 + yOff, 24, 24, 4, C_ACCENT);
                 cv->drawCircle(cx, cy + yOff, 4, C_BG_MAIN);
 
-                /* Hint */
-                cv->setFont(&simutFont9pt);
-                cv->setTextColor(C_TEXT_SUB);
-                cv->getTextBounds(hintTxt, 0, 0, &bx, &by, &bw, &bh);
-                int hx = (320 - (int)bw) / 2;
-                if (hx < 4) hx = 4;
-                cv->setCursor(hx, 198 + yOff);
-                cv->print(hintTxt);
-
                 /* Back button */
                 cv->fillRoundRect(10, 204 + yOff, 120, 32, 8, C_CARD_BG);
                 cv->setTextColor(C_TEXT_MAIN);
@@ -198,6 +189,15 @@ void DisplayManager::drawSettingsDisplayOffset() {
                 cv->getTextBounds(applyTxt, 0, 0, &bx, &by, &bw, &bh);
                 cv->setCursor(190 + (120 - (int)bw) / 2, 226 + yOff);
                 cv->print(applyTxt);
+
+                /* v3.37.4: moldura verde brilhante na safe area (4..315, 4..235)
+                 * — exatamente o range de offset (-4..+4) que loadDisplayOffset
+                 * aceita (DisplayManager_Calibration.cpp:243). A moldura move
+                 * junto com toda a UI quando o offset é aplicado: usuário
+                 * ajusta até ela coincidir com a abertura física do gabinete.
+                 * Desenhada por último pra ficar visível por cima do title bar
+                 * e botões nas bordas. */
+                cv->drawRect(4, 4 + yOff, 312, 232, 0x07E0);  /* BRIGHT_GREEN */
 
                 commitScreenStrip(strip);
             }

@@ -1134,21 +1134,8 @@ void DisplayManager::drawSettingsLicense() {
     renderWrapped(_tft, licText, 10, TEXT_Y0, MAX_COLS, LINE_H,
                   startLine, MAX_VIS);
 
-    /* Indicador de páginas (dots) */
-    {
-        int dotY = TEXT_Y0 + MAX_VIS * LINE_H + 2;
-        int dotSpacing = 10;
-        int dotsWidth  = (_licenseTotalPages - 1) * dotSpacing;
-        int dotX0      = (320 - dotsWidth) / 2;
-        for (int i = 0; i < _licenseTotalPages; i++) {
-            int cx = dotX0 + i * dotSpacing;
-            if (i == _licensePage) {
-                _tft->fillCircle(cx, dotY, 3, C_ACCENT);
-            } else {
-                _tft->fillCircle(cx, dotY, 2, C_TEXT_OFF);
-            }
-        }
-    }
+    /* v3.37.7: dots de página removidos a pedido do user — contador "N/M"
+     * no canto superior direito (linha 1109) já indica página atual. */
 
     /* Atualizar contador no header (sem redesenhar tudo) */
     if (!fullRedraw) {

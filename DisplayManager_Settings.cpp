@@ -1337,44 +1337,64 @@ void DisplayManager::drawSystemStatus() {
         }
     }
 
-    /* ── Renderiza tabela em strips de 42px ── */
-    const int rowH = 20;
-    const int valX  = 150; /* Coluna dos valores */
+    /* ── Renderiza tabela com altura de row variável ──
+     * v3.37.6: valores longos (SSID até 32 chars, MAC 17 chars) que não cabem
+     * em valX..312 com font size 2 ganham 2 linhas (label top, valor com
+     * indent na linha de baixo) — ambas size 2 a pedido do user. RowH:
+     *   normal  = 20 px (texto size 2 = 16 px + 4 gap/separador)
+     *   wrapped = 32 px (16 + 16 = 2 linhas justas, gap zero)
+     * Render row-por-row via _canvasWide (320×45 cabe ambas alturas).
+     * Stop quando y acumulado excede yEnd — evita escrever sobre a barra
+     * inferior dos botões (em y=195). Página 2 (rede) com SSID/MAC/NTP
+     * Server longos chega perto do limite. */
+    const int valX  = 150;
+    const int yStart = 28;
+    const int yEnd   = 194;
+    int curY = yStart;
 
-    for (int strip = 0; strip < 4; strip++) {
-        int sTop = 28 + strip * 42;
-        int sH = 42;
-        if (sTop + sH > 195) sH = 195 - sTop;
-        if (sH <= 0) break;
+    for (int ri = 0; ri < nRows; ri++) {
+        cv->setFont(NULL);
+        cv->setTextSize(2);
+        int16_t bx, by; uint16_t bw, bh;
+        cv->getTextBounds(rows[ri].val, 0, 0, &bx, &by, &bw, &bh);
+        const bool wraps = (valX + (int)bw > 312);
+        const int rowH = wraps ? 32 : 20;
 
-        cv->fillScreen(C_BG_MAIN);
+        if (curY + rowH > yEnd) break;  /* sem espaço, drop tail */
 
-        for (int r = 0; r < 2; r++) {
-            int ri = strip * 2 + r; /* Índice absoluto da linha */
-            if (ri >= nRows) break;
+        /* Limpa a área da row no canvas + desenha conteúdo em y local. */
+        cv->fillRect(0, 0, 320, rowH, C_BG_MAIN);
 
-            int ly = r * rowH + 2;
-
-            /* Label */
-            cv->setFont(NULL); cv->setTextSize(2);
+        if (!wraps) {
             cv->setTextColor(C_TEXT_SUB);
-            cv->setCursor(4, ly);
+            cv->setCursor(4, 2);
             cv->print(rows[ri].lbl);
-
-            /* Valor */
             cv->setTextColor(rows[ri].color);
-            cv->setCursor(valX, ly);
+            cv->setCursor(valX, 2);
             cv->print(rows[ri].val);
-
-            /* Separador pontilhado */
-            int sepY = ly + 17;
-            if (sepY < sH) {
-                for (int dx = 4; dx < 316; dx += 4)
-                    cv->drawPixel(dx, sepY, C_GRID);
-            }
+        } else {
+            /* Linha 1: label size 2 em y=0 (topo). Linha 2: valor size 2
+             * em y=16 com indent 16 px. Total 32 px. */
+            cv->setTextColor(C_TEXT_SUB);
+            cv->setCursor(4, 0);
+            cv->print(rows[ri].lbl);
+            cv->setTextColor(rows[ri].color);
+            cv->setCursor(16, 16);
+            cv->print(rows[ri].val);
         }
 
-        blitCanvas(cv, 0, sTop, 320, sH);
+        /* Separador pontilhado na base da row. */
+        int sepY = rowH - 3;
+        for (int dx = 4; dx < 316; dx += 4)
+            cv->drawPixel(dx, sepY, C_GRID);
+
+        blitCanvas(cv, 0, curY, 320, rowH);
+        curY += rowH;
+    }
+
+    /* Limpa eventual resíduo de páginas anteriores que tinham mais rows. */
+    if (curY < yEnd) {
+        _tft->fillRect(0, curY, 320, yEnd - curY, C_BG_MAIN);
     }
 
     _statusLastDraw = millis();

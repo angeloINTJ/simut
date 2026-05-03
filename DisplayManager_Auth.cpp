@@ -92,6 +92,13 @@ void DisplayManager::scrambleKeys() {
     g_keypadDirty = true;  /* D1.A */
 }
 
+/* v3.37.7: setter público pra repintar keypad sem resetar PIN/state. */
+void DisplayManager::requestAuthKeypadRedraw() {
+    g_keypadDirty = true;
+    g_lastAuthStep = -1;     /* força redraw dos dots de PIN também */
+    g_lastAuthFailed = false;
+}
+
 void DisplayManager::showAuthScreen(String expectedPin) {
     mutex_enter_blocking(&_stateMutex);
     _uiMode = MODE_AUTH; _forceSettingsRedraw = true; _repaintSettings = true;
