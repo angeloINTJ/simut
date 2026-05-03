@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 [![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
-[![Version](https://img.shields.io/badge/Version-v3.27.1-blueviolet.svg)](https://github.com/angeloINTJ/SIMUT/releases)
+[![Version](https://img.shields.io/badge/Version-v3.34.0-blueviolet.svg)](https://github.com/angeloINTJ/SIMUT/releases)
 
 ## Overview
 
@@ -17,6 +17,8 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 - **Multi-sensor support** — Up to 10 DS18B20 (1-Wire/PIO) + 1 DHT22 ambient sensor
 - **Zero-trust sensor pipeline** — ROM verification every 5 readings, hardware mismatch detection, error hysteresis (3 failures to flag, 5 successes to recover)
 - **Per-sensor alarms** — Temperature/humidity thresholds with buzzer melodies and visual TFT feedback
+- **Web-based calibration UI** (v3.34.0) — Dashboard ganha toggle "Modo Calibração" (gated by `PERM_CALIB`); informa valor real medido pelo padrão de calibração e o sistema calcula `novo_offset = atual + (ref − leitura)`; reescreve `calib.csv` com `VERSION=epoch` (NTP obrigatório). Aplica-se ao DHT22 ambient e a cada DS18B20 ativo.
+- **Ambient calibration via picoUID** (v3.33.2) — `calib.csv` aceita linhas `<picoUID>,t<id>,<offT>,<name>` e `<picoUID>,u<id>,<offH>,<name>` para customizar ID, nome e offsets do DHT22; telemetria emite o ID custom em `{tAMB}`/`{uAMB}` (fallback `boardSerial` quando ausente).
 
 #### Display & UI
 - **320×240 ILI9341 TFT** — Dashboard, real-time graphs, statistics, settings (touch-driven via XPT2046)
@@ -24,16 +26,25 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 - **50 built-in themes** + up to **8 custom themes** loaded from `/themes/*.thm` on LittleFS (offline editor in `tools/theme-editor/`)
 - **Dynamic dashboard layout** — slot-based, theme-aware
 - **Light & dark themes** for the Web UI with `localStorage`-persisted toggle
+- **Atomic screen rendering** (v3.31) — telas refeitas via canvas off-screen + strips de 40px (zero efeito top-down em renders TFT)
+- **Sound system com 5 classes** (v3.32) — Touch / Confirmation / Error / Alarm / **Attention** (notificação para telas de confirmação) com 6 melodias cada, volume sistema/alarme separados, mute global com tela de confirmação dedicada
+- **Mute Global parity** (v3.32) — TFT e Web sincronizados: ligar Mudo Global desliga todos os sons individuais; ligar qualquer som desliga Mudo Global
 
 #### Connectivity & Web
-- **Embedded web server** — multi-user sessions, RBAC, file manager, live dashboard with operational metrics in real time
+- **Embedded web server** — multi-user sessions, RBAC (10 perms incluindo `PERM_CALIB`), file manager, live dashboard with operational metrics in real time
 - **Externalized WebUI** — gzip-compressed, minified, with shared "Save & Reboot" UX (`/api/commit_all`)
+- **CSS/JS dedup** (v3.34.0) — `/style.css` e drawer HTML compartilhados (extraídos de 8 páginas), browser cache 7d
 - **Self-service password change** on the login screen with strength meter (POST `/api/login_chpass`)
 - **Telemetry** — HTTP POST and MQTT with JSON / CSV / custom templates, TLS/SSL support, dynamic batch sizing keyed to free heap
+- **Telemetry Live Preview** — `/config` mostra a linha real (com hwId customizado do ambient)
+- **Multi-sensor history graph** (v3.27) — endpoint `/api/history_multi` retorna múltiplas séries em uma única resposta; range expandido (1h, 6h, 24h, 7d, 1M, 1A, MAX)
+- **CSV export `.simx`** (v3.28) — bundle binário com magic + version + kind ('H'/'L') + sensor table + records + CRC32 trailer; UI client-side decodifica e gera CSV (BOM UTF-8, ISO-8601). Endpoints: `/api/export/history.bin` e `/api/export/logs.bin` (cap 31 dias, server-side filter por epoch + level)
+- **Chunked export with adaptive retry** (v3.27) — split em falha (24h→12h→6h→3h→1h), recovery após 5 OK, AbortController + cancel parcial
 - **Configurable history recording interval** — 1 min … 24 h via Web UI or CLI
 
 #### CLI & Bluetooth
 - **CLI interface** — USB Serial + Bluetooth (BLE) with password-protected sessions and bounded line buffers (256 chars max)
+- **Custom BT device name** (v3.33.1) — nome BT visível na rede = `cfg.deviceName` (configurável via web/CLI), substitui o default `"PicoW Serial XX:XX:..."` da lib
 - **Deferred-flush logging during BT login** — eliminates flash contention on auth path
 
 #### Time & storage
@@ -59,6 +70,8 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 #### Internationalization
 - **2 display languages** — English (inline PROGMEM) + Portuguese / Spanish via external language packs (`data/lang/*.lng`)
 - **Hot-loadable language packs** — `GET /api/lang` exposes the active dictionary; help and license texts loaded from `data/system/help_*.txt` and `license_*.txt`
+- **Drawer i18n correto** (v3.31.10/11) — ícones do menu hamburguer preservados em PT/qualquer idioma (refator HTML separa `<span class="ico">` de `<span data-i18n>`)
+- **i18n inline fallback** — `LANG_JS dict.pt` com chaves não persistidas no `.lng` do device (visíveis sem `uploadfs`)
 
 ## Hardware Requirements
 
@@ -163,7 +176,7 @@ SIMUT/
 │
 ├── AppManager.h + 8 split .cpp  # Boot, Loop, Core, Events, Graph, Sensors, Commands, HistoryAlarm
 ├── DisplayManager.h + 10 split  # Dashboard, Graph, Settings, Auth, Calibration, Alarm, Calendar, Touch, i18n, LangParser, Fonts
-├── WebManager.h + 8 split .cpp  # Core, Auth, Api, Pages, Files, History, Commit, Send, Util
+├── WebManager.h + 9 split .cpp  # Core, Auth, Api, Calib, Files, History, Commit, Send, Util
 │
 ├── SensorManager.h/.cpp         # DS18B20/DHT22 driver with async reads
 ├── StorageManager.h/.cpp        # LittleFS config, history v2, calibration, salt
@@ -177,11 +190,12 @@ SIMUT/
 ├── Themes.h/.cpp                # 50 built-in palettes + .thm custom loader
 ├── SystemUtils.cpp              # CRC8, filename validation utilities
 ├── WebUI.h                      # Embedded HTML/CSS/JS source (PROGMEM, with @LANG/@WEBDICT markers)
-├── WebUI_GZ.h                   # Auto-generated gzip blob (do not edit)
+├── WebUI_GZ.h                   # Auto-generated gzip blob (do not edit; inclui STYLE_CSS_GZ compartilhado)
 ├── SECURITY.md                  # Threat model + rotation + incident response
 ├── STABILITY_PLAN.md            # Audit phases F1..F17 + master findings table
 │
 ├── data/                        # LittleFS image
+│   ├── favicon.ico             # v3.34.0: migrado de PROGMEM (-11KB flash)
 │   ├── lang/    # language_{pt-BR,es-ES}.lng
 │   ├── system/  # help_*.txt, license_*.txt
 │   ├── themes/  # custom *.thm (optional)
@@ -227,6 +241,7 @@ Connect via USB Serial (115200 baud) or Bluetooth.
 |---------|-------------|
 | `sensor scan` | Hardware scan for connected sensors |
 | `sensor accept <gpio>` | Authorize new sensor on a slot |
+| `sensor wipe <gpio>` | Remove sensor from slot |
 
 ### Configuration
 | Command | Description |
@@ -248,7 +263,9 @@ Connect via USB Serial (115200 baud) or Bluetooth.
 | Command | Description |
 |---------|-------------|
 | `write memory` | Persist RAM config to flash |
+| `tel sync` | Force telemetry sync now |
 | `tel dump` | Stream pending telemetry payload |
+| `tel reset` | Invalidate telemetry cursor (RAM + flash) sem reboot (v3.30.4) |
 | `clear log` | Wipe compact event log |
 | `reload` | Reboot system (uses `safeReboot` — USB-friendly) |
 
@@ -260,7 +277,9 @@ After joining WiFi, access the device at `http://<device-ip>/` (or the configure
 - **Admin** — username `admin`, password is **randomly generated** on first boot and shown on the TFT for 5 minutes (or until first login). The 8-char password uses `[A-Z2-9]` (no `O/0/I/1`). It is held only in RAM and zeroed after first login.
 - **Viewer** — `viewer` / `viewer` (read-only dashboard + history; forced to change password on first login).
 
-Pages: `/dash`, `/hist`, `/file`, `/cfg`, `/alarms`, `/users`, `/network`, `/license`. All four configuration pages share the same **"Save & Reboot"** UX — pending changes accumulate client-side and are committed in a single atomic `/api/commit_all` POST followed by a clean reboot.
+Pages: `/`, `/history`, `/files`, `/config`, `/alarms`, `/users`, `/network`, `/license`. All four configuration pages share the same **"Save & Reboot"** UX — pending changes accumulate client-side and are committed in a single atomic `/api/commit_all` POST followed by a clean reboot.
+
+**Calibration UI** (v3.34.0) — integrada ao `/dashboard`. Toggle "🎯 Modo Calibração" aparece se o usuário tem `PERM_CALIB`; abre inputs de Nome, ID e valor de referência por sensor (DHT22 ambient + DS18B20 ativos). Atualiza `calib.csv` via `/api/calib` (NTP-gated). Aceitação de novo DS18B20 via CLI `sensor accept N`.
 
 Themes: built-in dark themes + a refined **light theme** (slate + cyan-700 AA-contrast). Toggle persists in `localStorage`. Custom themes from `data/themes/*.thm` appear in the theme picker once uploaded.
 
