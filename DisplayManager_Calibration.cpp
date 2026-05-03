@@ -14,6 +14,19 @@
 #include "DisplayManager.h"
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
+#include <math.h>
+
+/* D1.A (bisect stage 1): globals POD volatile + writes em show*().
+ * Volatile força writes a permanecerem. */
+namespace {
+    volatile bool  g_sensFirstDraw     = true;
+    volatile bool  g_lastSensDone      = false;
+    volatile float g_lastSensStability = -1.0f;
+    volatile int   g_lastSensThreshold = -1;
+    volatile int   g_lastCalPointIdx   = -1;
+    volatile bool  g_lastCalHoldReady  = false;
+    volatile int   g_lastCalStep       = -1;
+}
 
 void DisplayManager::showTouchCalibration() {
     /*
@@ -32,6 +45,14 @@ void DisplayManager::showTouchCalibration() {
     memset(_calRawX, 0, sizeof(_calRawX));
     memset(_calRawY, 0, sizeof(_calRawY));
 
+    /* D1.A reset globals */
+    g_sensFirstDraw     = true;
+    g_lastSensDone      = false;
+    g_lastSensStability = -1.0f;
+    g_lastSensThreshold = -1;
+    g_lastCalPointIdx   = -1;
+    g_lastCalHoldReady  = false;
+    g_lastCalStep       = -1;
 
     mutex_enter_blocking(&_stateMutex);
     _uiMode = MODE_SETTINGS_TOUCH_SENS;
@@ -338,20 +359,22 @@ void DisplayManager::drawTouchSensitivity() {
         }
     }
 
-    /* Crosshair central */
+    /* D1.C: crosshair só repinta na 1ª vez ou quando _sensDone muda */
     int cx = 140, cy = 115;
-    uint16_t crossColor = _sensDone ? C_TEMP_OK : C_ACCENT;
-    _tft->fillRect(cx - 30, cy - 1, 60, 3, C_BG_MAIN);
-    _tft->fillRect(cx - 1, cy - 30, 3, 60, C_BG_MAIN);
-    _tft->drawLine(cx - 15, cy, cx + 15, cy, crossColor);
-    _tft->drawLine(cx, cy - 15, cx, cy + 15, crossColor);
-    _tft->drawCircle(cx, cy, 12, crossColor);
+    if (g_sensFirstDraw || g_lastSensDone != _sensDone) {
+        uint16_t crossColor = _sensDone ? C_TEMP_OK : C_ACCENT;
+        _tft->fillRect(cx - 30, cy - 1, 60, 3, C_BG_MAIN);
+        _tft->fillRect(cx - 1, cy - 30, 3, 60, C_BG_MAIN);
+        _tft->drawLine(cx - 15, cy, cx + 15, cy, crossColor);
+        _tft->drawLine(cx, cy - 15, cx, cy + 15, crossColor);
+        _tft->drawCircle(cx, cy, 12, crossColor);
+    }
 
-    /* Texto de progresso */
-    _tft->fillRect(80, 150, 140, 30, C_BG_MAIN);
-    _tft->setFont(&simutFont9pt);
-    _tft->setTextColor(C_TEXT_MAIN);
-    {
+    /* D1.C: texto de progresso só quando _sensDone muda ou no 1º draw */
+    if (g_sensFirstDraw || g_lastSensDone != _sensDone) {
+        _tft->fillRect(80, 150, 140, 30, C_BG_MAIN);
+        _tft->setFont(&simutFont9pt);
+        _tft->setTextColor(C_TEXT_MAIN);
         int16_t bx2, by2; uint16_t bw2, bh2;
         String txt = _sensDone ? tr(TR_SENS_DONE) : tr(TR_CAL_TOUCH_POINT);
         _tft->getTextBounds(txt, 0, 0, &bx2, &by2, &bw2, &bh2);
@@ -359,22 +382,31 @@ void DisplayManager::drawTouchSensitivity() {
         _tft->print(txt);
     }
 
-    /* Barra vertical de estabilidade (dentro da moldura) */
-    int barX = 290, barY = 39, barW = 24, barH = 152;
-    int fillH = (int)(barH * _sensStability);
-    if (fillH > barH) fillH = barH;
-    if (fillH < barH) _tft->fillRect(barX, barY, barW, barH - fillH, C_BG_MAIN);
-    uint16_t barColor = (_sensStability >= 0.85f) ? C_TEMP_OK : C_ACCENT;
-    if (fillH > 0) _tft->fillRect(barX, barY + barH - fillH, barW, fillH, barColor);
+    /* D1.C: barra só quando _sensStability muda */
+    if (g_sensFirstDraw || fabsf(g_lastSensStability - _sensStability) > 0.01f) {
+        int barX = 290, barY = 39, barW = 24, barH = 152;
+        int fillH = (int)(barH * _sensStability);
+        if (fillH > barH) fillH = barH;
+        if (fillH < barH) _tft->fillRect(barX, barY, barW, barH - fillH, C_BG_MAIN);
+        uint16_t barColor = (_sensStability >= 0.85f) ? C_TEMP_OK : C_ACCENT;
+        if (fillH > 0) _tft->fillRect(barX, barY + barH - fillH, barW, fillH, barColor);
+        g_lastSensStability = _sensStability;
+    }
 
-    /* Valor numérico abaixo da barra */
-    _tft->fillRect(280, 195, 40, 20, C_BG_MAIN);
-    _tft->setFont(NULL); _tft->setTextSize(1);
-    _tft->setTextColor(C_TEXT_OFF);
-    char valBuf[8];
-    snprintf(valBuf, sizeof(valBuf), "%d", _sensThreshold);
-    _tft->setCursor(295, 198);
-    _tft->print(valBuf);
+    /* D1.C: valor numérico só quando muda */
+    if (g_sensFirstDraw || g_lastSensThreshold != (int)_sensThreshold) {
+        _tft->fillRect(280, 195, 40, 20, C_BG_MAIN);
+        _tft->setFont(NULL); _tft->setTextSize(1);
+        _tft->setTextColor(C_TEXT_OFF);
+        char valBuf[8];
+        snprintf(valBuf, sizeof(valBuf), "%d", _sensThreshold);
+        _tft->setCursor(295, 198);
+        _tft->print(valBuf);
+        g_lastSensThreshold = (int)_sensThreshold;
+    }
+
+    g_lastSensDone = _sensDone;
+    g_sensFirstDraw = false;
 }
 
 
@@ -536,29 +568,51 @@ void DisplayManager::drawTouchCalibration() {
         return;
     }
 
-    /* Incremental update (entre taps): erase old crosshair + draw new + redraw text. */
-    if (pointIdx > 0) {
-        drawCrosshair(CAL_SCR_X[pointIdx - 1], CAL_SCR_Y[pointIdx - 1], C_BG_MAIN);
+    /* D1.D: crosshair só repinta quando pointIdx ou _calHoldReady mudam. */
+    bool crosshairChanged = (g_lastCalPointIdx != pointIdx) || (g_lastCalHoldReady != _calHoldReady);
+    if (crosshairChanged) {
+        if (pointIdx > 0) {
+            drawCrosshair(CAL_SCR_X[pointIdx - 1], CAL_SCR_Y[pointIdx - 1], C_BG_MAIN);
+        }
+        if (_calStep == 4) {
+            drawCrosshair(CAL_SCR_X[3], CAL_SCR_Y[3], C_BG_MAIN);
+        }
+        drawCrosshair(CAL_SCR_X[pointIdx], CAL_SCR_Y[pointIdx],
+                      _calHoldReady ? C_TEMP_OK : C_ACCENT);
+        g_lastCalPointIdx = pointIdx;
+        g_lastCalHoldReady = _calHoldReady;
     }
-    if (_calStep == 4) {
-        drawCrosshair(CAL_SCR_X[3], CAL_SCR_Y[3], C_BG_MAIN);
-    }
-    drawCrosshair(CAL_SCR_X[pointIdx], CAL_SCR_Y[pointIdx],
-                  _calHoldReady ? C_TEMP_OK : C_ACCENT);
 
-    _tft->fillRect(20, 85, 280, 65, C_BG_MAIN);
-    _tft->setFont(&simutFont9pt);
-    _tft->setTextColor(C_ACCENT);
-    int16_t bx, by; uint16_t bw, bh;
-    _tft->getTextBounds(title, 0, 0, &bx, &by, &bw, &bh);
-    _tft->setCursor((320 - bw) / 2, 100); _tft->print(title);
-    _tft->setTextColor(C_TEXT_MAIN);
-    _tft->getTextBounds(msg, 0, 0, &bx, &by, &bw, &bh);
-    _tft->setCursor((320 - bw) / 2, 122); _tft->print(msg);
-    _tft->setFont(NULL); _tft->setTextSize(1);
-    _tft->setTextColor(C_TEXT_OFF);
-    _tft->getTextBounds(cycleBuf, 0, 0, &bx, &by, &bw, &bh);
-    _tft->setCursor((320 - bw) / 2, 140); _tft->print(cycleBuf);
+    /* D1.E: texto via canvas atômico — sem fillRect direto no _tft (que
+     * causava flash preto visível antes do texto reaparecer).
+     * Layout cobre y=85..150 (65px). Como _canvasWide é 320×45, divido em
+     * 2 strips: strip 0 (y=85..130) cobre title+msg, strip 1 (y=130..150)
+     * cobre cycle. Cada blit é atômico (1 SPI burst). */
+    if (g_lastCalStep != _calStep && _canvasWide) {
+        GFXcanvas16* cv = _canvasWide;
+        int16_t bx, by; uint16_t bw, bh;
+
+        /* Strip 0: y_screen 85..130 (45px). Title (y=100) + msg (y=122). */
+        cv->fillScreen(C_BG_MAIN);
+        cv->setFont(&simutFont9pt);
+        cv->setTextColor(C_ACCENT);
+        cv->getTextBounds(title, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 100 - 85); cv->print(title);
+        cv->setTextColor(C_TEXT_MAIN);
+        cv->getTextBounds(msg, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 122 - 85); cv->print(msg);
+        blitCanvas(cv, 0, 85, 320, 45);
+
+        /* Strip 1: y_screen 130..150 (20px). Cycle (y=140 → canvas y=10). */
+        cv->fillScreen(C_BG_MAIN);
+        cv->setFont(NULL); cv->setTextSize(1);
+        cv->setTextColor(C_TEXT_OFF);
+        cv->getTextBounds(cycleBuf, 0, 0, &bx, &by, &bw, &bh);
+        cv->setCursor((320 - bw) / 2, 140 - 130); cv->print(cycleBuf);
+        blitCanvas(cv, 0, 130, 320, 20);
+
+        g_lastCalStep = _calStep;
+    }
 
     _forceSettingsRedraw = false;
 }
