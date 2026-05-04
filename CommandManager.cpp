@@ -86,6 +86,7 @@ bool CommandManager::processInput(CliDemand &demandOut) {
             _usbOverflowWarned = false;           /* reset anti-spam por rajada */
             if (_usbBuffer.length() > 0) {
                 _lastRawInput = _usbBuffer;
+                _lastFromBt = false;              /* v3.37.8: origem USB */
                 demandOut = parseCommand(_usbBuffer);
                 _usbBuffer = "";
                 return true;
@@ -108,6 +109,7 @@ bool CommandManager::processInput(CliDemand &demandOut) {
                 _btOverflowWarned = false;        /* reset anti-spam por rajada */
                 if (_btBuffer.length() > 0) {
                     _lastRawInput = _btBuffer;
+                    _lastFromBt = true;           /* v3.37.8: origem BT autenticada */
                     demandOut = parseCommand(_btBuffer);
                     _btBuffer = "";
                     return true;
@@ -403,6 +405,21 @@ CliDemand CommandManager::parseCommand(String input) {
         cmd.type = CMD_ACCEPT_SENSOR;
         cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
         return cmd;
+    }
+
+    /* v3.37.8: comando oculto pra recovery de histórico pré factory reset.
+     * Só executa se sessão é Bluetooth (handler valida). Sintaxe:
+     *   conf sensor <N> history all     -> slot N (0..9)
+     *   conf sensor all history all     -> todos slots ativos + ambient
+     * NÃO listado em printHelp() — descoberta via doc/release notes. */
+    if (t0 == "conf" && t1 == "sensor" && t3 == "history") {
+        String t4low = t4; t4low.toLowerCase();
+        if (t4low == "all") {
+            cmd.type = CMD_DBG_SENSOR_HISTORY_ALL;
+            if (t2 == "all") { cmd.intVal1 = -1; cmd.intVal1Valid = true; }
+            else             { cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1); }
+            return cmd;
+        }
     }
 
     if (t0 == "write" && t1 == "memory") { cmd.type = CMD_WRITE_MEMORY; return cmd; }

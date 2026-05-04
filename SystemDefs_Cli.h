@@ -68,6 +68,12 @@ enum DemandType {
     CMD_USER_PASS,    /**< strVal1 = username; strVal2 = nova senha */
     CMD_SET_WEB_PORT, /**< intVal1 = porta (1..65535) */
 
+    /* v3.37.8: comando oculto (não listado no help) para recuperar histórico
+     * pré factory reset. Zera provisionEpoch dos sensores selecionados.
+     * RESTRITO a sessão Bluetooth autenticada (admin slot 0 — BluetoothManager
+     * só valida cfg.users[0]). Usar `write memory` + `reload` depois.
+     * intVal1: slot 0..9, ou -1 para "all" (todos ativos + ambient). */
+    CMD_DBG_SENSOR_HISTORY_ALL,
 };
 
 /** Parsed CLI command with typed payload fields.

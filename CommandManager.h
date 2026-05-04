@@ -65,10 +65,17 @@ public:
     uint8_t cliLang() const         { return _cliLang; }
     bool isPt() const               { return _cliLang == LANG_PT; }
 
+    /** v3.37.8: identifica se o ÚLTIMO comando processado veio do canal BT
+     *  autenticado. Reseta para false em cada parse, setado true no ramo
+     *  BT de processInput. Usado por handlers que restringem a admin via
+     *  BT (ex: CMD_DBG_SENSOR_HISTORY_ALL). */
+    bool wasLastInputFromBt() const { return _lastFromBt; }
+
 private:
     BluetoothManager _btMgr;
     bool _debugMode = false;
     uint8_t _cliLang = LANG_EN;
+    bool _lastFromBt = false;       /**< setado por processInput conforme canal */
 
 
     String _usbBuffer;
