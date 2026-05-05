@@ -150,6 +150,12 @@ void WebManager::handleApiRestoreUploadData() {
             ota::restore_session_feed(_restoreSession, upload.buf, upload.currentSize);
         }
         feedWatchdog();
+    } else if (upload.status == UPLOAD_FILE_END) {
+        /* Stage precisa finalize explícito (pad da última página + xor-out CRC).
+         * Restore não tem finalize separado — o finish handler já gerencia tudo. */
+        if (is_stage) {
+            ota::stage_session_end(_stageSession);
+        }
     } else if (upload.status == UPLOAD_FILE_ABORTED) {
         if (is_stage) {
             ota::stage_session_abort(_stageSession);

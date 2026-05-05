@@ -276,26 +276,27 @@ void AppManager::setup() {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
         _displayMgr->loadTouchCalibration(cal);
         if (!_displayMgr->isTouchCalibrated()) {
-            LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0, TRL("Touch calibration required."));
-            _displayMgr->setBootStatusKey(TR_BOOT_TOUCH_CAL_REQ);
-            delay(600);
-            _displayMgr->showTouchCalibration();
-
-
-            while (!_displayMgr->isTouchCalibrated()) {
-                TRACE_BEAT(0);
-
-                UiEvent calEv;
-                if (_displayMgr->getUiEvent(calEv)) {
-                    if (calEv.type == UiEvent::EVT_APPLY_TOUCH_CAL) {
-                        TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
-                        _displayMgr->fillCalData(calOut);
-                        _storageMgr->saveConfiguration();
-                        LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_INITIAL, 0, TRL("Initial touch calibration saved."));
-                    }
-                }
-                delay(50);
-            }
+            /* Factory boot sem cal salva: aplica default seguro para destravar
+             * o boot. Sem isso, o cal-screen-loop ficaria preso à espera de
+             * 4 taps válidos — e em XPT2046 com touch stuck-true (este HW)
+             * o loop é infinito ou produz cal degenerada com coordenadas
+             * iguais. User recalibra depois via Settings → Touch Cal ou via
+             * CLI ('conf system touch reset' não recalibra mas reseta defaults).
+             * Default range 200..3900 cobre a maioria dos painéis XPT2046. */
+            Serial.printf("[BOOT] no touch cal saved (touch_settled=%d) — applying default\n",
+                          touch_settled ? 1 : 0);
+            TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
+            calOut->magic      = 0xCA;
+            calOut->flags      = 0;
+            calOut->xMin       = 200;
+            calOut->xMax       = 3900;
+            calOut->yMin       = 200;
+            calOut->yMax       = 3900;
+            calOut->zThreshold = 400;
+            _displayMgr->loadTouchCalibration(calOut);
+            _storageMgr->saveConfiguration();
+            LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0,
+                     TRL("Touch cal missing; default applied (recalibrate via Settings)"));
         }
     }
 
