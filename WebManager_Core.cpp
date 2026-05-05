@@ -127,6 +127,12 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
                std::bind(&WebManager::handleApiRestoreFinish, this),
                std::bind(&WebManager::handleApiRestoreUploadData, this));
 
+    /* Fase 4 OTA: endpoint smoke-test do staging POSTERGADO pra Fase 5 —
+     * adicionar uma rota nova com flash_range_* puxa ~3 KB do Pico SDK no
+     * primeiro consumidor. Vamos pagar esse custo quando a rota tiver
+     * função real (upload de firmware). Validação da Fase 4 é via reuso
+     * dentro do endpoint /api/firmware?op=begin da Fase 5. */
+
     _server.onNotFound(std::bind(&WebManager::handleNotFound, this));
 
 

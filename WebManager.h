@@ -299,6 +299,10 @@ private:
      * duplicação de std::function/std::bind no .text. */
     void handleApiRestoreFinish();
     void handleApiRestoreUploadData();
+
+    /* Fase 4 OTA: handler stub pra staging_test — postergado pra Fase 5
+     * (ver WebManager_Core.cpp). Mantido como declaração futura. */
+    void handleApiOtaStagingTest();
     ota::RestoreSession _restoreSession;
     /* Concurrency: assumimos 1 admin web por vez. HeavyTaskGuard no apply
      * cobre o caso patológico de 2 sessões competindo por LittleFS. */
