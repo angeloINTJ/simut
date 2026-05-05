@@ -210,11 +210,24 @@ void AppManager::cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bo
     changed = true;
 }
 
+/* Parse "NNNN-NN-NN" → 3 inteiros. Substituiu sscanf("%4d-%2d-%2d", ...)
+ * porque sscanf puxa __ssvfscanf_r/__ssvfiscanf_r (~12KB de flash).
+ * Retorna true se 3 valores extraídos com sucesso. */
+static bool parse_3ints(const char* s, char sep, int& a, int& b, int& c) {
+    char* end;
+    a = (int)strtol(s, &end, 10);
+    if (end == s || *end != sep) return false;
+    b = (int)strtol(end + 1, &end, 10);
+    if (*end != sep) return false;
+    c = (int)strtol(end + 1, &end, 10);
+    return (end > s + 1) && (*end == '\0' || *end == ' ');
+}
+
 void AppManager::cmdHandleSetTime(const CliDemand& cmd) {
     const bool pt = _cmdMgr->isPt();
     int y, mo, d, h, mi, s;
-    if (sscanf(cmd.strVal1, "%4d-%2d-%2d", &y, &mo, &d) != 3
-        || sscanf(cmd.strVal2, "%2d:%2d:%2d", &h, &mi, &s) != 3) {
+    if (!parse_3ints(cmd.strVal1, '-', y, mo, d)
+        || !parse_3ints(cmd.strVal2, ':', h, mi, s)) {
         _cmdMgr->printError(pt ? "Formato invalido. Use: conf time AAAA-MM-DD HH:MM:SS"
                               : "Invalid format. Use: conf time YYYY-MM-DD HH:MM:SS");
         return;
