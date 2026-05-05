@@ -54,39 +54,73 @@ void AppManager::setup() {
 
     bool forceAP = false;
     _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
-    unsigned long waitStart = millis();
 
-    while (millis() - waitStart < AP_DETECT_WINDOW_MS) {
-        TRACE_BEAT(0);
-
-        if (_displayMgr->isScreenTouched()) {
-            unsigned long holdStart = millis();
-            bool held = true;
-            int missedTouches = 0;
-
-            while (millis() - holdStart < AP_HOLD_DURATION_MS) {
-                TRACE_BEAT(0);
-                if (!_displayMgr->isScreenTouched()) {
-                    missedTouches++;
-                    if (missedTouches > AP_HOLD_MAX_MISSED) {
-                        held = false;
-                        _displayMgr->setApProgress(-1);
-                        _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
-                        delay(800);
-                        break;
-                    }
-                } else {
-                    missedTouches = 0;
-                }
-                int pct = map(millis() - holdStart, 0, AP_HOLD_DURATION_MS, 0, 100);
-                _displayMgr->setApProgress(pct);
-                delay(50);
+    /* Touch settle + sanity gate: alguns XPT2046 reportam touched()=true
+     * permanentemente logo após boot (controller em estado indeterminado
+     * antes do primeiro Z-axis sample, ou ruído elétrico no PENIRQ).
+     * Sem este gate, o boot detecta esse stale-true como gesture de AP-hold
+     * e o device cai em AP mode sozinho a cada reboot.
+     *
+     * Estratégia: aguardar 200ms de quiet consecutivo (até 1500ms cap).
+     * - Se viu quiet → touch funcional → janela AP detect normal.
+     * - Se NÃO viu quiet → touch stuck-true (bug HW/calib) → bypass janela.
+     *   AP por touch fica indisponível enquanto stuck; rota é fix touch
+     *   (`conf system touch reset` ou recalibrar) ou power cycle limpo. */
+    bool touch_settled = false;
+    {
+        unsigned long settle_start = millis();
+        unsigned long quiet_since = 0;
+        while (millis() - settle_start < 1500) {
+            TRACE_BEAT(0);
+            if (_displayMgr->isScreenTouched()) {
+                quiet_since = 0;
+            } else {
+                if (quiet_since == 0) quiet_since = millis();
+                if (millis() - quiet_since >= 200) { touch_settled = true; break; }
             }
-            if (held) forceAP = true;
-            break;
+            delay(20);
         }
-        delay(50);
+        Serial.printf("[BOOT] touch settle: quiet=%d ms=%lu\n",
+                      touch_settled ? 1 : 0,
+                      (unsigned long)(millis() - settle_start));
     }
+
+    if (touch_settled) {
+        unsigned long waitStart = millis();
+        while (millis() - waitStart < AP_DETECT_WINDOW_MS) {
+            TRACE_BEAT(0);
+
+            if (_displayMgr->isScreenTouched()) {
+                unsigned long holdStart = millis();
+                bool held = true;
+                int missedTouches = 0;
+
+                while (millis() - holdStart < AP_HOLD_DURATION_MS) {
+                    TRACE_BEAT(0);
+                    if (!_displayMgr->isScreenTouched()) {
+                        missedTouches++;
+                        if (missedTouches > AP_HOLD_MAX_MISSED) {
+                            held = false;
+                            _displayMgr->setApProgress(-1);
+                            _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
+                            delay(800);
+                            break;
+                        }
+                    } else {
+                        missedTouches = 0;
+                    }
+                    int pct = map(millis() - holdStart, 0, AP_HOLD_DURATION_MS, 0, 100);
+                    _displayMgr->setApProgress(pct);
+                    delay(50);
+                }
+                if (held) forceAP = true;
+                break;
+            }
+            delay(50);
+        }
+    }
+    Serial.printf("[BOOT] AP detect: forceAP=%d (touch_settled=%d)\n",
+                  forceAP ? 1 : 0, touch_settled ? 1 : 0);
 
     _displayMgr->setApProgress(-1);
 
