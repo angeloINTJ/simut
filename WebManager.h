@@ -39,6 +39,7 @@ struct SendGuard {
 #include "DisplayManager.h"
 #include "TelemetryManager.h"
 #include "SoundManager.h"
+#include "ota/restore.h"
 #include <bearssl/bearssl_hash.h>
 
 class WebManager {
@@ -292,6 +293,15 @@ private:
     /* Fase 1 OTA: backup completo da LittleFS atrelado ao chip_id (.bkp).
      * Implementação em WebManager_Ota.cpp; formato em src/ota/backup_format.h. */
     void handleApiBackup();
+
+    /* Fase 2 OTA: validação + restore de .bkp. Único handler para ambos os
+     * endpoints (validate vs apply distinguido pelo path da URI) — evita
+     * duplicação de std::function/std::bind no .text. */
+    void handleApiRestoreFinish();
+    void handleApiRestoreUploadData();
+    ota::RestoreSession _restoreSession;
+    /* Concurrency: assumimos 1 admin web por vez. HeavyTaskGuard no apply
+     * cobre o caso patológico de 2 sessões competindo por LittleFS. */
 
     String generateSecureToken();
 

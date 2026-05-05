@@ -13,6 +13,7 @@
 #include <Arduino.h>
 #include <LittleFS.h>
 #include <Print.h>
+#include <Stream.h>
 #include <hardware/flash.h>
 #include <hardware/watchdog.h>
 #include <pico/unique_id.h>
@@ -298,5 +299,8 @@ bool backup_emit(Print& out,
     if (!walk_dir(String("/"), emit_visitor, &ctx, 0)) return false;
     return ctx.io_ok;
 }
+
+/* backup_status_str removido (Fase 2): cliente mapeia o código numérico do enum
+ * para mensagens. Economiza ~600 B de flash em strings + switch table. */
 
 } /* namespace ota */

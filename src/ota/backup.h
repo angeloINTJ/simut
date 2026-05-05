@@ -19,6 +19,8 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <Print.h>
+#include <Stream.h>
+#include "backup_format.h"
 
 namespace ota {
 
@@ -63,6 +65,31 @@ struct BackupScanResult {
     uint32_t payload_crc32;     /**< CRC32 final do payload (já com xor-out aplicado). */
     uint16_t file_count;        /**< Quantidade de arquivos enumerados. */
 };
+
+/**
+ * @brief Códigos de status da validação de backup (Fase 2).
+ *
+ * Ordenados de forma que valores baixos correspondam a falhas detectadas
+ * mais cedo no parse — útil pra mensagens de erro hierárquicas.
+ */
+enum class BackupStatus : uint8_t {
+    OK = 0,
+    BAD_MAGIC = 1,
+    UNSUPPORTED_SCHEMA = 2,
+    HEADER_CRC_MISMATCH = 3,
+    PAYLOAD_TRUNCATED = 4,
+    PAYLOAD_CRC_MISMATCH = 5,
+    CHIP_ID_MISMATCH = 6,
+    PATH_INVALID = 7,
+    PATH_TOO_LONG = 8,
+    IO_ERROR = 9,
+    INTERNAL_ERROR = 10,
+};
+
+/* Validação de .bkp em produção é feita pelo state machine em ota::RestoreSession
+ * (modo VALIDATE) — ver src/ota/restore.h. backup_validate Stream-based foi
+ * removido para economizar flash; o pipeline de upload web já consome chunks e
+ * mantém estado, então a state machine cobre os dois cenários. */
 
 /**
  * @brief Pass 1: varre a LittleFS, computa tamanho total e CRC32 do payload.

@@ -120,6 +120,13 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     /* Fase 1 OTA: download de backup completo da LittleFS. */
     _server.on("/api/backup", HTTP_GET, std::bind(&WebManager::handleApiBackup, this));
 
+    /* Fase 2 OTA: rota única para validate/apply (modo no query param ?op=).
+     * Adicionar 2 rotas POST com upload callback custaria ~16 KB de flash
+     * (provável buffer interno do WebServer arduino-pico por rota). */
+    _server.on("/api/restore", HTTP_POST,
+               std::bind(&WebManager::handleApiRestoreFinish, this),
+               std::bind(&WebManager::handleApiRestoreUploadData, this));
+
     _server.onNotFound(std::bind(&WebManager::handleNotFound, this));
 
 

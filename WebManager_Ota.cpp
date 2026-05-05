@@ -16,6 +16,7 @@
 #include "TouchPriority.h"
 #include "ota/backup.h"
 #include "ota/backup_format.h"
+#include "ota/restore.h"
 #include <Print.h>
 #include <time.h>
 
@@ -113,4 +114,73 @@ void WebManager::handleApiBackup() {
 
     LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
              String("backup ") + scan.file_count + "f " + scan.payload_size + "B");
+}
+
+/* ===========================================================================
+ * Fase 2 — Validação e Restore
+ *
+ * Pipeline: HTTP upload (multipart) → handleApiRestoreUploadData (callback) →
+ * handleApiRestoreValidate ou handleApiRestoreApply (final). O callback é
+ * compartilhado: a URI da rota decide o modo (VALIDATE vs APPLY).
+ * ========================================================================= */
+
+void WebManager::handleApiRestoreUploadData() {
+    HTTPUpload& upload = _server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+        ota::RestoreMode mode = (_server.arg("op") == "apply")
+            ? ota::RestoreMode::APPLY : ota::RestoreMode::VALIDATE;
+        ota::restore_session_begin(_restoreSession, mode);
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        ota::restore_session_feed(_restoreSession, upload.buf, upload.currentSize);
+        feedWatchdog();
+    } else if (upload.status == UPLOAD_FILE_ABORTED) {
+        ota::restore_session_abort(_restoreSession);
+    }
+}
+
+/* Emite JSON do estado de restore. Códigos numéricos do enum BackupStatus
+ * são interpretados pelo cliente (mapeia status → mensagem). */
+static void emit_restore_json(WebServer& srv, const ota::RestoreSession& s,
+                              bool fs_modified) {
+    char buf[224];
+    int code = (s.status == ota::BackupStatus::OK) ? 200 :
+               (s.status == ota::BackupStatus::IO_ERROR ? 500 : 422);
+    if (s.header.magic == OTA_BACKUP_MAGIC) {
+        char chip_hex[17];
+        for (int i = 0; i < 8; i++) {
+            uint8_t b = s.header.chip_id[i];
+            uint8_t hi = (b >> 4) & 0xF, lo = b & 0xF;
+            chip_hex[i*2]     = (char)(hi < 10 ? '0' + hi : 'a' + hi - 10);
+            chip_hex[i*2 + 1] = (char)(lo < 10 ? '0' + lo : 'a' + lo - 10);
+        }
+        chip_hex[16] = '\0';
+        snprintf(buf, sizeof(buf),
+            "{\"st\":%u,\"chip\":\"%s\",\"fwv\":%lu,\"psz\":%lu,\"fc\":%u,\"fsm\":%u}",
+            (unsigned)s.status, chip_hex,
+            (unsigned long)s.header.firmware_version,
+            (unsigned long)s.header.payload_size,
+            (unsigned)s.file_count, fs_modified ? 1u : 0u);
+    } else {
+        snprintf(buf, sizeof(buf), "{\"st\":%u,\"fsm\":%u}",
+                 (unsigned)s.status, fs_modified ? 1u : 0u);
+    }
+    srv.send(code, "application/json", buf);
+}
+
+void WebManager::handleApiRestoreFinish() {
+    bool is_apply = (_server.arg("op") == "apply");
+    uint16_t need = is_apply ? PERM_FILE_UPLOAD : PERM_FILE_READ;
+    if (!(getAuthPerms() & need)) {
+        _server.send(403, "text/plain", "Forbidden");
+        return;
+    }
+    if (is_apply && rejectIfTouchPriority()) return;
+    bool fs_mod = false;
+    {
+        RenderGuard rg(is_apply ? _displayRef : nullptr);
+        ota::restore_session_finish(_restoreSession, &fs_mod);
+    }
+    LOG_CODE(is_apply ? LOG_WARN : LOG_INFO, "OTA", WEB_UPLOAD,
+             (int)_restoreSession.status, is_apply ? "rsta" : "rstv");
+    emit_restore_json(_server, _restoreSession, fs_mod);
 }
