@@ -19,6 +19,7 @@
 #include "ota/restore.h"
 #include "ota/staging.h"
 #include "ota/firmware_stage.h"
+#include "ota/validation.h"
 #include <Print.h>
 #include <time.h>
 
@@ -204,11 +205,21 @@ void WebManager::handleApiRestoreFinish() {
             _server.send(403, "text/plain", "Forbidden");
             return;
         }
-        /* Sucesso: stage_session_end já fechou CRC; nós remontamos LFS para
-         * deixar o sistema utilizável (Fase 5 não persiste o staging — Fases
-         * 6/7 vão manter LFS desmontada entre upload e apply).
-         * Falha: stage_session_abort remonta + reformata LFS. */
         bool ok_staged = (_stageSession.status == ota::StageStatus::STAGED);
+
+        /* Fase 6: dry-run validate ANTES de remontar LFS — depois do
+         * remount o LittleFS reformata a área e o conteúdo do staging
+         * vira lixo. Validação acessa staging via XIP read. */
+        ota::ValidationReport vr;
+        memset(&vr, 0, sizeof(vr));
+        bool valid = false;
+        if (ok_staged) {
+            valid = ota::ota_validate_staging(_stageSession, vr);
+        }
+
+        /* Sempre remonta/restaura LFS pra deixar sistema utilizável.
+         * Fase 5/6 não persiste staging — Fase 7 (apply) vai pular este
+         * remount e ir direto pro applier. */
         if (ok_staged) {
             RenderGuard rg(_displayRef);
             ota::staging_session_end(_storageRef);
@@ -218,15 +229,30 @@ void WebManager::handleApiRestoreFinish() {
             RenderGuard rg(_displayRef);
             ota::stage_session_abort(_stageSession);
         }
-        char buf[160];
-        snprintf(buf, sizeof(buf),
-            "{\"st\":%u,\"bytes\":%lu,\"crc32\":\"%08lX\"}",
-            (unsigned)_stageSession.status,
-            (unsigned long)_stageSession.bytes_written,
-            (unsigned long)_stageSession.crc32_running);
-        LOG_CODE(ok_staged ? LOG_INFO : LOG_WARN, "OTA", WEB_UPLOAD,
-                 (int)_stageSession.status, "stage");
-        _server.send(ok_staged ? 200 : 422, "application/json", buf);
+
+        char buf[256];
+        if (ok_staged) {
+            snprintf(buf, sizeof(buf),
+                "{\"st\":%u,\"bytes\":%lu,\"crc32\":\"%08lX\","
+                "\"v\":%u,\"dsize\":%lu,\"dcrc\":\"%08lX\"}",
+                (unsigned)_stageSession.status,
+                (unsigned long)_stageSession.bytes_written,
+                (unsigned long)_stageSession.crc32_running,
+                (unsigned)vr.status,
+                (unsigned long)vr.decompressed_size,
+                (unsigned long)vr.decompressed_crc);
+        } else {
+            snprintf(buf, sizeof(buf),
+                "{\"st\":%u,\"bytes\":%lu,\"crc32\":\"%08lX\"}",
+                (unsigned)_stageSession.status,
+                (unsigned long)_stageSession.bytes_written,
+                (unsigned long)_stageSession.crc32_running);
+        }
+        bool overall_ok = ok_staged && valid;
+        LOG_CODE(overall_ok ? LOG_INFO : LOG_WARN, "OTA", WEB_UPLOAD,
+                 (int)_stageSession.status,
+                 ok_staged ? (valid ? "stage+v_ok" : "stage_v_fail") : "stage_fail");
+        _server.send(overall_ok ? 200 : 422, "application/json", buf);
         return;
     }
 
