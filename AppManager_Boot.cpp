@@ -17,6 +17,7 @@
 #include "SoundManager.h"
 #include "StorageManager.h"
 #include "SystemDefs.h"
+#include "src/ota/metadata.h"
 #include "TelemetryManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
@@ -153,6 +154,36 @@ void AppManager::setup() {
     /* Autópsia já leu scratch[4]. Agora pode setar MOD_BOOT para rastrear
      * estalls que aconteçam durante o restante do setup. */
     TRACE_MOD(0, MOD_BOOT);
+
+    /* Fase 7 OTA: detecção pós-apply.
+     *
+     * Se metadata.state == APPLYING ou POST_BOOT, este boot ocorreu logo
+     * após o orchestrator ter disparado watchdog_reboot. Em 7a (no-op):
+     * nada precisa ser limpo no FS, só clear da metadata. Em 7b (real):
+     * Fase 8 vai reformatar LFS aqui antes de subir o web em modo
+     * "aguardando restore".
+     *
+     * Logamos via Serial + LOG_CODE pra rastreabilidade — esta linha só
+     * deve aparecer em boot pós-apply, qualquer outra ocasião é bug.
+     *
+     * ota_metadata_clear faz flash_range_erase — exige Core 1 pausado
+     * (já está rodando neste ponto via _displayMgr->startCore1). Wrap
+     * com enterFlashSafeMode/exit. */
+    {
+        ota::UpdateMetadata m;
+        if (ota::ota_metadata_read(m) &&
+            (m.state == ota::STATE_APPLYING || m.state == ota::STATE_POST_BOOT)) {
+            Serial.printf("[BOOT] OTA post-apply detected: state=%lu attempts=%lu\n",
+                          (unsigned long)m.state, (unsigned long)m.attempts);
+            LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, 0,
+                     String("post-apply boot, state=") + (int)m.state +
+                     " attempts=" + (int)m.attempts);
+            /* 7a: clear (sem mudança no FS, só limpa flag pendente). */
+            _storageMgr->enterFlashSafeMode();
+            ota::ota_metadata_clear();
+            _storageMgr->exitFlashSafeMode();
+        }
+    }
 
     LogManager::instance().setHeavyTaskChecker([]() -> bool {
         return app._storageMgr->isHeavyTaskLocked();

@@ -133,6 +133,11 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
      * função real (upload de firmware). Validação da Fase 4 é via reuso
      * dentro do endpoint /api/firmware?op=begin da Fase 5. */
 
+    /* Fase 7 OTA: dispara apply do update pendente (rota separada de
+     * /api/restore para distinguir restore de .bkp vs apply de firmware). */
+    _server.on("/api/ota/apply", HTTP_POST,
+               std::bind(&WebManager::handleApiOtaApply, this));
+
     _server.onNotFound(std::bind(&WebManager::handleNotFound, this));
 
 

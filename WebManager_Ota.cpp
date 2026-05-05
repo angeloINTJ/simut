@@ -20,6 +20,8 @@
 #include "ota/staging.h"
 #include "ota/firmware_stage.h"
 #include "ota/validation.h"
+#include "ota/metadata.h"
+#include "ota/orchestrator.h"
 #include <Print.h>
 #include <time.h>
 
@@ -324,4 +326,85 @@ void WebManager::handleApiOtaStagingTest() {
         ok_begin ? 1 : 0, ok_test ? 1 : 0, ok_end ? 1 : 0,
         diff, (unsigned long)dt);
     _server.send(200, "application/json", buf);
+}
+
+/* ===========================================================================
+ * Fase 7 — Apply orchestrator endpoint
+ * ===========================================================================
+ *
+ * POST /api/ota/apply  (admin / PERM_FILE_UPLOAD)
+ *
+ * Dispara o caminho destrutivo de update. Em 7a (no-op), aceita `?test=1`
+ * que injeta metadata stub (state=COMMITTED) e exercita a infra (tear down
+ * → IRQ off → SRAM applier → watchdog reboot) sem riscar o slot da app.
+ *
+ * Response:
+ *   - 202 Accepted ANTES do tear down (cliente perde conexão depois).
+ *   - Cliente espera ~1-2s e refaz request pra confirmar boot.
+ *
+ * 7b TODO:
+ *   - Sem ?test=1: requer metadata.state==COMMITTED legítimo (set após
+ *     stage+validate OK).
+ *   - Anti-loop por OTA_MAX_APPLY_ATTEMPTS (já no orchestrator).
+ *   - Retry guard: rejeita se outra apply foi disparada nos últimos 10s.
+ * ========================================================================= */
+void WebManager::handleApiOtaApply() {
+    if (!(getAuthPerms() & PERM_FILE_UPLOAD)) {
+        _server.send(403, "text/plain", "Forbidden");
+        return;
+    }
+    if (rejectIfTouchPriority()) return;
+
+    bool test_mode = (_server.arg("test") == "1");
+
+    if (test_mode) {
+        /* 7a: injeta metadata stub. enterFlashSafeMode pausa Core 1
+         * antes do flash_range_erase — sem isso, Core 1 (DisplayManager)
+         * lê via XIP durante o erase e dá hard fault. */
+        ota::UpdateMetadata m;
+        memset(&m, 0, sizeof(m));
+        m.magic    = ota::OTA_MAGIC_PENDING;
+        m.state    = ota::STATE_COMMITTED;
+        m.attempts = 0;
+        bool ok;
+        {
+            RenderGuard rg(_displayRef);
+            _storageRef->enterFlashSafeMode();
+            ok = ota::ota_metadata_write(m);
+            _storageRef->exitFlashSafeMode();
+        }
+        if (!ok) {
+            _server.send(500, "application/json",
+                         "{\"error\":\"metadata write failed\"}");
+            return;
+        }
+    } else {
+        /* 7b path: requer COMMITTED real. */
+        ota::UpdateMetadata m;
+        if (!ota::ota_metadata_read(m) || m.state != ota::STATE_COMMITTED) {
+            _server.send(409, "application/json",
+                         "{\"error\":\"no committed update pending\"}");
+            return;
+        }
+    }
+
+    LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, _currentUserId,
+             test_mode ? "apply_fw test" : "apply_fw real");
+
+    /* Responde ANTES de derrubar Wi-Fi. Cliente vai perder a conexão
+     * imediatamente após o reboot. */
+    _server.send(202, "application/json",
+                 test_mode ? "{\"accepted\":true,\"mode\":\"test\"}"
+                           : "{\"accepted\":true,\"mode\":\"apply\"}");
+    _server.client().flush();
+    delay(500);  /* TCP flush antes de WiFi.end. */
+
+    /* Tear down + jump SRAM applier — não retorna em sucesso. */
+    auto result = ota::ota_apply_pending_update(_storageRef);
+
+    /* Apenas alcançado em erro pré-destrutivo (raro). Não há resposta possível
+     * — Wi-Fi já foi derrubado. Loga e segue (próximo loop pode tentar
+     * recuperar Wi-Fi via reload, mas estado provavelmente está ruim). */
+    LOG_CODE(LOG_ERROR, "OTA", SEC_CONFIG_CHANGED, _currentUserId,
+             String("apply returned, result=") + (int)result);
 }

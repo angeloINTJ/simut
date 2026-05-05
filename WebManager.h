@@ -304,6 +304,12 @@ private:
     /* Fase 4 OTA: handler stub pra staging_test — postergado pra Fase 5
      * (ver WebManager_Core.cpp). Mantido como declaração futura. */
     void handleApiOtaStagingTest();
+
+    /* Fase 7 OTA: dispara apply do update pendente. Em 7a (no-op), aceita
+     * `?test=1` que injeta metadata stub e exercita o caminho infra
+     * (tear down → IRQ off → SRAM applier → watchdog reboot) sem destruir
+     * o slot da app. */
+    void handleApiOtaApply();
     ota::RestoreSession _restoreSession;
 
     /* Fase 5 OTA: upload do firmware .bin.gz pra staging via
