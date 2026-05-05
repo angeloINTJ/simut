@@ -18,6 +18,7 @@
 #include "ota/backup_format.h"
 #include "ota/restore.h"
 #include "ota/staging.h"
+#include "ota/firmware_stage.h"
 #include <Print.h>
 #include <time.h>
 
@@ -127,15 +128,34 @@ void WebManager::handleApiBackup() {
 
 void WebManager::handleApiRestoreUploadData() {
     HTTPUpload& upload = _server.upload();
+    bool is_stage = (_server.arg("op") == "stage");
     if (upload.status == UPLOAD_FILE_START) {
-        ota::RestoreMode mode = (_server.arg("op") == "apply")
-            ? ota::RestoreMode::APPLY : ota::RestoreMode::VALIDATE;
-        ota::restore_session_begin(_restoreSession, mode);
+        if (is_stage) {
+            /* Pre-check perm: sem ela, não desmonta LFS. _stageSession.status
+             * fica IDLE; feed/end ignoram silenciosamente; finish responde 403. */
+            if (getAuthPerms() & PERM_FILE_UPLOAD) {
+                ota::stage_session_begin(_stageSession, _storageRef);
+            } else {
+                _stageSession.status = ota::StageStatus::IDLE;
+            }
+        } else {
+            ota::RestoreMode mode = (_server.arg("op") == "apply")
+                ? ota::RestoreMode::APPLY : ota::RestoreMode::VALIDATE;
+            ota::restore_session_begin(_restoreSession, mode);
+        }
     } else if (upload.status == UPLOAD_FILE_WRITE) {
-        ota::restore_session_feed(_restoreSession, upload.buf, upload.currentSize);
+        if (is_stage) {
+            ota::stage_session_feed(_stageSession, upload.buf, upload.currentSize);
+        } else {
+            ota::restore_session_feed(_restoreSession, upload.buf, upload.currentSize);
+        }
         feedWatchdog();
     } else if (upload.status == UPLOAD_FILE_ABORTED) {
-        ota::restore_session_abort(_restoreSession);
+        if (is_stage) {
+            ota::stage_session_abort(_stageSession);
+        } else {
+            ota::restore_session_abort(_restoreSession);
+        }
     }
 }
 
@@ -169,7 +189,41 @@ static void emit_restore_json(WebServer& srv, const ota::RestoreSession& s,
 }
 
 void WebManager::handleApiRestoreFinish() {
-    bool is_apply = (_server.arg("op") == "apply");
+    String op = _server.arg("op");
+    bool is_stage = (op == "stage");
+    bool is_apply = (op == "apply");
+
+    if (is_stage) {
+        if (!(getAuthPerms() & PERM_FILE_UPLOAD)) {
+            _server.send(403, "text/plain", "Forbidden");
+            return;
+        }
+        /* Sucesso: stage_session_end já fechou CRC; nós remontamos LFS para
+         * deixar o sistema utilizável (Fase 5 não persiste o staging — Fases
+         * 6/7 vão manter LFS desmontada entre upload e apply).
+         * Falha: stage_session_abort remonta + reformata LFS. */
+        bool ok_staged = (_stageSession.status == ota::StageStatus::STAGED);
+        if (ok_staged) {
+            RenderGuard rg(_displayRef);
+            ota::staging_session_end(_storageRef);
+        } else if (_stageSession.status == ota::StageStatus::STAGING ||
+                   _stageSession.status == ota::StageStatus::OVERFLOW_ERR ||
+                   _stageSession.status == ota::StageStatus::WRITE_FAILED) {
+            RenderGuard rg(_displayRef);
+            ota::stage_session_abort(_stageSession);
+        }
+        char buf[160];
+        snprintf(buf, sizeof(buf),
+            "{\"st\":%u,\"bytes\":%lu,\"crc32\":\"%08lX\"}",
+            (unsigned)_stageSession.status,
+            (unsigned long)_stageSession.bytes_written,
+            (unsigned long)_stageSession.crc32_running);
+        LOG_CODE(ok_staged ? LOG_INFO : LOG_WARN, "OTA", WEB_UPLOAD,
+                 (int)_stageSession.status, "stage");
+        _server.send(ok_staged ? 200 : 422, "application/json", buf);
+        return;
+    }
+
     uint16_t need = is_apply ? PERM_FILE_UPLOAD : PERM_FILE_READ;
     if (!(getAuthPerms() & need)) {
         _server.send(403, "text/plain", "Forbidden");

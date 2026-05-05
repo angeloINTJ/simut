@@ -40,6 +40,7 @@ struct SendGuard {
 #include "TelemetryManager.h"
 #include "SoundManager.h"
 #include "ota/restore.h"
+#include "ota/firmware_stage.h"
 #include <bearssl/bearssl_hash.h>
 
 class WebManager {
@@ -304,6 +305,11 @@ private:
      * (ver WebManager_Core.cpp). Mantido como declaração futura. */
     void handleApiOtaStagingTest();
     ota::RestoreSession _restoreSession;
+
+    /* Fase 5 OTA: upload do firmware .bin.gz pra staging via
+     * /api/restore?op=stage. Sessão dedicada (mutuamente exclusiva com
+     * _restoreSession via gate de op= no upload callback). */
+    ota::StageSession   _stageSession;
     /* Concurrency: assumimos 1 admin web por vez. HeavyTaskGuard no apply
      * cobre o caso patológico de 2 sessões competindo por LittleFS. */
 
