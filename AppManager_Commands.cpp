@@ -603,6 +603,7 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_DBG_SENSOR_HISTORY_ALL:
             cmdHandleDbgSensorHistoryAll(cmd, cfg, changed); break;
 
+
         case CMD_UNKNOWN:
         default:
             LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");

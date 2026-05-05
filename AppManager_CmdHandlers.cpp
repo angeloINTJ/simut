@@ -396,3 +396,4 @@ void AppManager::cmdHandleDbgSensorHistoryAll(const CliDemand& cmd, SystemConfig
                           (pt ? ". Use 'write memory' e reload."
                               : ". Run 'write memory' and reload."));
 }
+
