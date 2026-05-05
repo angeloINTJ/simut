@@ -2906,6 +2906,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <h2 class="page-title" data-i18n="fil_title">Flash Filesystem</h2>
                 <div class="fm-actions">
                     <button class="btn-fm btn-fm-out" onclick="fmDownload()">&#x2B07;&#xFE0F; <span data-i18n="fil_down">Download</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp">&#x1F4BE; <span data-i18n="fil_backup">Backup</span></button>
                     <button class="btn-fm btn-fm-dang" id="btnDel" style="display:none" onclick="fmDelete()">&#x1F5D1;&#xFE0F; <span data-i18n="fil_del">Delete</span></button>
                     <button class="btn-fm btn-fm-pri" id="btnUpload" style="display:none" onclick="fmUploadClick()">&#x1F4E4; <span data-i18n="fil_uphere">Upload Here</span></button>
                     <form id="upForm" method="POST" action="/api/upload" enctype="multipart/form-data" style="display:none;">
@@ -2997,6 +2998,11 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let link = document.createElement('a'); link.href = '/download?file=' + encodeURIComponent(sel[i].value); link.setAttribute('download', '');
                 document.body.appendChild(link); link.click(); document.body.removeChild(link); await new Promise(r => setTimeout(r, 800));
             }
+        }
+        function fmBackup() {
+            let link = document.createElement('a'); link.href = '/api/backup'; link.setAttribute('download', '');
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            showToast(window.t('fil_backup_started','Backup download started.'), 'ok');
         }
 
         window.onLangChange = function() { fmNavigate(currentDir); };

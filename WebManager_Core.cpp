@@ -117,6 +117,9 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
                std::bind(&WebManager::handleUploadComplete, this),
                std::bind(&WebManager::handleUploadData, this));
 
+    /* Fase 1 OTA: download de backup completo da LittleFS. */
+    _server.on("/api/backup", HTTP_GET, std::bind(&WebManager::handleApiBackup, this));
+
     _server.onNotFound(std::bind(&WebManager::handleNotFound, this));
 
 

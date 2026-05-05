@@ -289,6 +289,9 @@ private:
     void handleApiCalibGet();
     void handleApiCalibPost();
 
+    /* Fase 1 OTA: backup completo da LittleFS atrelado ao chip_id (.bkp).
+     * Implementação em WebManager_Ota.cpp; formato em src/ota/backup_format.h. */
+    void handleApiBackup();
 
     String generateSecureToken();
 
@@ -297,4 +300,7 @@ private:
 
     TelemetryManager* _telemetryRef = nullptr;
     SoundManager*     _soundRef     = nullptr;
+
+    /* Fase 1 OTA: adapter que expõe safeSend para o ota::backup_emit (Print&). */
+    friend struct OtaBackupPrintAdapter;
 };
