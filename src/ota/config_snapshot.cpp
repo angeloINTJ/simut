@@ -43,22 +43,24 @@ static bool read_header_from_xip(ConfigSnapshotHeader& hdr) {
  * API pública
  * ------------------------------------------------------------------------- */
 
-bool ota_snapshot_capture() {
+uint16_t ota_snapshot_serialize() {
+    /* Read-only: lê LFS, monta `[hdr | payload | crc]` em s_applier_buf.
+     * NÃO chama flash_range_*. Pode ser chamada com Core 1 ativo. */
     File f = LittleFS.open(FILE_CONFIG, "r");
     if (!f) {
-        return false; /* sem config — nada a salvar (factory boot pendente) */
+        return 0; /* sem config — nada a salvar (factory boot pendente) */
     }
     const size_t fsize = f.size();
     if (fsize == 0 || fsize > CONFIG_SNAPSHOT_PAYLOAD_MAX) {
         f.close();
-        return false;
+        return 0;
     }
 
-    /* Monta diretamente em s_applier_buf:
+    /* Layout em s_applier_buf:
      *   [0..15]                   ConfigSnapshotHeader
      *   [16..16+payload_size]     system.bin raw
-     *   [last 4 B]                CRC32 sobre [magic..last payload byte]
-     * O scratch tem 4 KiB; cabe a região 1..15 inteira (3840 B). */
+     *   [tail 4 B]                CRC32 sobre [magic..last payload byte]
+     * Total <= CONFIG_SNAPSHOT_REGION_SIZE (3840 B). */
     uint8_t* region = s_applier_buf;
     ConfigSnapshotHeader& hdr = *reinterpret_cast<ConfigSnapshotHeader*>(region);
     hdr.magic          = CONFIG_SNAPSHOT_MAGIC;
@@ -70,17 +72,20 @@ bool ota_snapshot_capture() {
     uint8_t* payload = region + sizeof(ConfigSnapshotHeader);
     size_t bytes_read = f.read(payload, fsize);
     f.close();
-    if (bytes_read != fsize) return false;
+    if (bytes_read != fsize) return 0;
 
-    /* CRC32 sobre header + payload. */
     uint32_t crc = crc32_init();
     crc = crc32_update(crc, region, sizeof(ConfigSnapshotHeader) + fsize);
     crc = crc32_final(crc);
     uint8_t* crc_pos = region + sizeof(ConfigSnapshotHeader) + fsize;
     memcpy(crc_pos, &crc, sizeof(crc));
 
-    const uint16_t total_len = (uint16_t)(sizeof(ConfigSnapshotHeader) + fsize + sizeof(crc));
-    return ota_snapshot_write(region, total_len);
+    return (uint16_t)(sizeof(ConfigSnapshotHeader) + fsize + sizeof(crc));
+}
+
+bool ota_snapshot_commit(uint16_t total_len) {
+    if (total_len == 0 || total_len > CONFIG_SNAPSHOT_REGION_SIZE) return false;
+    return ota_snapshot_write(s_applier_buf, total_len);
 }
 
 bool ota_snapshot_present() {

@@ -102,18 +102,34 @@ void staging_read(uint32_t offset_in_staging, uint8_t* dst, size_t len) {
 
 bool staging_session_begin(StorageManager* storage) {
     if (!storage) return false;
+
+    /* Fase 9 — captura snapshot da config ANTES de qualquer flash safe mode.
+     *
+     * IMPORTANTE: serialize tem que rodar com Core 1 ATIVO. LittleFS.open/read
+     * usa mutexes internos que conflitam com `multicore_lockout` (Core 1
+     * congelado pelo enterFlashSafeMode), causando hang do display + stuck
+     * "Pause do display preso >5s" + Core 1 reset cascateado durante apply.
+     *
+     * Sequência:
+     *   1) serialize: lê system.bin via LFS, monta payload em s_applier_buf
+     *      (sem flash write). Sem lockout.
+     *   2) enterFlashSafeMode: Core 1 lockado, IRQs ainda ON.
+     *   3) commit: erase + program da metadata partition. Com lockout.
+     *   4) LittleFS.end + erase staging — flow normal.
+     *
+     * Falha em (1) é não-fatal: segue stage; user restaura `.bkp` manual. */
+    const uint16_t snap_len = ota_snapshot_serialize();
+    if (snap_len == 0) {
+        Serial.println("[OTA] WARN: config snapshot serialize failed; relying on .bkp");
+    }
+
     /* Pausa Core 1 + sinaliza heavy ops para outros subsystemas. */
     storage->enterFlashSafeMode();
 
-    /* Fase 9 — captura snapshot da config ANTES de desmontar a LFS.
-     * O snapshot vai pra metadata partition (sobrevive ao apply), permitindo
-     * restore de `/config/system.bin` no boot pós-apply. Falha aqui não
-     * aborta o stage: device sobe com factory defaults e user restaura
-     * o `.bkp` baixado pelo navegador via /files. Log dispara em LFS para
-     * auditoria. */
-    if (!ota_snapshot_capture()) {
-        /* Não-fatal — segue stage. Operador vê via show system log. */
-        Serial.println("[OTA] WARN: config snapshot capture failed; relying on .bkp");
+    if (snap_len > 0) {
+        if (!ota_snapshot_commit(snap_len)) {
+            Serial.println("[OTA] WARN: config snapshot commit failed; relying on .bkp");
+        }
     }
 
     /* Desmonta LittleFS — a partir daqui ninguém pode ler arquivos. */

@@ -50,19 +50,32 @@ struct __attribute__((packed)) ConfigSnapshotHeader {
 static_assert(sizeof(ConfigSnapshotHeader) == 16, "ConfigSnapshotHeader != 16 B");
 
 /**
- * @brief Serializa `/config/system.bin` no setor de metadata.
+ * @brief Serializa `/config/system.bin` em `ota::s_applier_buf` (read-only).
  *
- * Pré-condição: chamada com Core 1 já em flash safe mode (caller responsável
- * — `staging_session_begin` faz isso antes de chamar).
+ * **PRE-CONDIÇÃO crítica**: chamada com LittleFS montada e Core 1 ATIVO
+ * (NÃO em flash safe mode). LittleFS.open/read interage com mutexes que
+ * conflitam com `multicore_lockout` — causa hang.
  *
- * Lê o arquivo via LittleFS (que precisa estar montada), monta header +
- * payload + CRC32 em scratch (`s_applier_buf`), preserva a page 0 atual
- * e regrava o setor inteiro.
+ * Monta `[ConfigSnapshotHeader | system.bin raw | CRC32]` em `s_applier_buf`
+ * mas NÃO escreve em flash. O caller deve chamar `ota_snapshot_commit()`
+ * depois de entrar em flash safe mode para persistir.
  *
- * @return true se snapshot foi gravado; false em caso de erro (arquivo
- *         ausente, tamanho > MAX, ou falha de flash).
+ * @return Tamanho total (header + payload + CRC) em bytes, ou 0 em caso
+ *         de erro (arquivo ausente, > PAYLOAD_MAX, ou falha de leitura).
  */
-bool ota_snapshot_capture();
+uint16_t ota_snapshot_serialize();
+
+/**
+ * @brief Persiste o snapshot já serializado em `s_applier_buf` no flash.
+ *
+ * **PRE-CONDIÇÃO**: caller deve estar em flash safe mode (Core 1 lockado).
+ * `ota_snapshot_serialize()` deve ter sido chamado antes — `s_applier_buf`
+ * deve conter o snapshot pronto nos primeiros @p total_len bytes.
+ *
+ * @param total_len  Retorno de `ota_snapshot_serialize()`.
+ * @return true em sucesso.
+ */
+bool ota_snapshot_commit(uint16_t total_len);
 
 /**
  * @brief Verifica se há snapshot válido (magic + CRC) na metadata partition.
