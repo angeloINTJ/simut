@@ -1,36 +1,55 @@
 /**
  * @file    src/ota/applier.cpp
- * @brief   Aplicador SRAM-resident — Fase 7b real (modo RAW). WIP.
+ * @brief   Aplicador SRAM-resident — Fase 7b real (modo RAW). VALIDADO.
  *
- * @details ⚠️ STATUS: WIP — não validado em HW, com bugs conhecidos.
- *          Workaround atual: NÃO disparar /api/ota/apply (sem ?test=1).
- *          O stage + validate + commit continuam OK; só o apply destrutivo
- *          tem bugs.
+ * @details ✅ STATUS: Validado em HW (2026-05-06). v3.43.9 sector-0-fix +
+ *          v3.43.5 wdt-bit-fix juntos completam o caminho destrutivo.
+ *          Apply ciclo completo testado: stage upload → commit metadata →
+ *          /api/ota/apply → applier SRAM → reboot → boot OK em ~60s.
+ *          Resultado pós-apply: 236/237 sectors do app slot byte-perfect
+ *          (1 partial em sector 233 do __bluetooth_tlv, NÃO afeta boot).
  *
- *          Bug 1 (CRÍTICO, identificado v3.43.3, fix tentado v3.43.4):
- *           Apply quebra o boot. Diagnóstico via picotool save: app slot
- *           pós-apply tinha sectors 0..86 = 0xFF (erased, não programados)
- *           e sectors 87..254 com bytes ORIGINAIS do firmware antigo +
- *           dados de runtime do BTstack TLV. Padrão indica que o erase
- *           loop crashou em torno da iteração 86 — sector próximo ao
- *           endereço onde watchdog_update reside na flash atual.
+ *          BUGS RESOLVIDOS:
  *
- *           Root cause: pico-sdk `watchdog_update()` e `watchdog_reboot()`
- *           NÃO são marcados `__not_in_flash_func` — vivem em flash app
- *           slot. Quando o erase apaga a região onde watchdog_update
- *           reside, a próxima chamada faulta → hard fault → BootROM
- *           detecta boot2 inválido → BOOTSEL.
+ *          Bug 1 (v3.43.3 → fix v3.43.4 → fix completo v3.43.5):
+ *           Apply abortava no meio. Diagnóstico via picotool save mostrou
+ *           que erase loop morria após ~86 ou ~196 iterações.
+ *           Causa: pico-sdk watchdog_update()/watchdog_reboot() vivem em
+ *           flash app slot (não __not_in_flash_func). Quando erase apaga
+ *           a região onde residem, próxima chamada faulta → BOOTSEL.
+ *           Fix v3.43.4: substituí por inlines MMIO puros (applier_wdt_feed
+ *           + applier_reboot). Fix v3.43.5: corrigido bit do TRIGGER de
+ *           (1u<<30 ENABLE — errado) pra (1u<<31 TRIGGER — correto), que
+ *           fazia HW WDT firar aos 8 s default em vez de alimentar.
  *
- *          Bug 2 (em investigação, v3.43.4):
- *           Tentativa de fix do Bug 1 via inlines MMIO (applier_wdt_feed
- *           + applier_reboot abaixo) introduziu regressão de boot
- *           intermitente: boot às vezes hang em "[BOOT] touch settle"
- *           ou "[SND] BuzzerPIO ready", às vezes recuperando via
- *           "[DSP] Lockout stuck >10s, restarting Core 1". Causa raiz
- *           ainda não identificada — applier_run não é chamado no boot
- *           path, então a relação não é óbvia. Pode ser layout de memória
- *           pelo linker afetando timing/alinhamento de algo crítico
- *           no boot.
+ *          Bug "boot2 não programado" (v3.43.6 → 7 → 8 → fix v3.43.9):
+ *           Sector 0 ficava 0xFF mesmo após flash_range_program(0, ...).
+ *           Empiricamente: programar sector 0 APÓS bulk erase de 1..N-1
+ *           tem race interna com cache do boot2/QSPI ROM function.
+ *           Fix v3.43.9: programar sector 0 ISOLADO (erase + program 4 KiB)
+ *           ANTES do bulk erase. Validado: byte-perfect em sector 0.
+ *
+ *          Bug "boot intermitente" (mal-diagnosticado v3.43.4):
+ *           Era falso positivo — boot pós-apply realmente leva ~60 s
+ *           porque combina: (a) LFS auto-format ~13 s (LFS region
+ *           sobrescrita pelo stage upload, mountFS detecta superblock
+ *           inválido → format → begin), (b) Core 1 lockout stuck recovery
+ *           ~10 s (timeout do multicore_lockout pendente após reset),
+ *           (c) factory init: SEC-003 password regen + touch cal default
+ *           + WiFi disconnected (LFS perdeu config). CLI fica silencioso
+ *           durante o format mas booting normalmente. Validado capturando
+ *           Serial continuamente durante 120 s pós-apply: sequência
+ *           "[BOOT] AP detect" → "[DSP] Lockout stuck >10s" →
+ *           "[OTA post-apply detected]" → "SIMUT IoT CLI v3.43.9".
+ *
+ *          LIMITAÇÕES CONHECIDAS:
+ *           - LFS é reformatada (user data perdido) porque staging area
+ *             COMPARTILHA partição com LittleFS. Fase 8 vai integrar
+ *             backup automático pré-stage + restore pós-apply.
+ *           - Sector 233 (offset 0xE9000) preservado com BTstack runtime
+ *             TLV. É região reservada __bluetooth_tlv (8 KiB), não código.
+ *             BTstack init re-inicializa transparente.
+ *           - WiFi config + admin password + sensor mapping perdidos.
  *
  *          Pré-condições do applier (caller orchestrator garante):
  *           - WiFi/CYW43 desligado.
