@@ -106,10 +106,17 @@
 
 namespace ota {
 
-/* Buffer SRAM de 4 KiB pra cópia sector-by-sector. Static (BSS) — não
- * precisa de __not_in_flash porque BSS já vive em RAM (0x20xxxxxx) e é
- * acessível durante flash_range_erase/program (QSPI off, RAM intacta). */
-static uint8_t s_applier_buf[OTA_FLASH_SECTOR_SIZE];
+/* Buffer SRAM de 4 KiB pra cópia sector-by-sector. Em BSS (zero-init no
+ * boot) — não precisa de __not_in_flash porque BSS já vive em RAM
+ * (0x20xxxxxx) e é acessível durante flash_range_erase/program (QSPI off,
+ * RAM intacta).
+ *
+ * Fase 9: external linkage (sem `static`) — também é usado por
+ * `metadata.cpp::ota_metadata_write` e `ota_snapshot_write` para preservar
+ * o setor inteiro durante read-erase-program-all. Race-free: applier só
+ * roda após `state=APPLYING` persistido e termina via reboot, nunca
+ * concorrente com os outros callers. Declarado em `metadata.h`. */
+uint8_t s_applier_buf[OTA_FLASH_SECTOR_SIZE];
 
 /* CRC32 EDB88320 inline em SRAM (sem chamar tabelas em flash). */
 static inline uint32_t __not_in_flash_func(crc32_byte_sram)(uint32_t crc, uint8_t b) {

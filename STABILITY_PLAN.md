@@ -692,6 +692,23 @@ Atualize esta tabela conforme cada fase for concluída.
 |   · **G1/G2/G4 deliberadamente skip**: cosmético puro (ordem de includes, mix String/char[], `_Ref` naming) — sem ganho funcional, alto risco de regressão. Reabrir só se time grande de devs ingressar. | — | — | — | — |
 |   · Smoke tests automatizados: 12 asserts (perms/status/config/calib OK, heap 58KB, M2 ainda ativo, A1/A4/A7 não regrediram, /style.css OK, version exposta, M3 simbolo linkado, M5 drift active). Flash 98.2% (mesmo). | ✅ HW validada (12/12) | — | `v3.37.0` | 2026-05-03 |
 |   · **🎯 FECHAMENTO DA FASE 18**: 5 sub-fases entregues acumulando 76+ asserts de teste em HW + 27/27 host tests passam. v3.36.0 → v3.37.0 com tag git. Próximo ciclo: features ou backlog F17 (EXT-005), conforme orientação do user. | ✅ Concluída | — | `v3.37.0` | 2026-05-03 |
+| **F-OTA (trilha OTA self-flash)** | 🟡 Em andamento (branch `feature/ota-self-flash`) | `feature/ota-self-flash` | `v3.38.0..v3.43.14` | 2026-05-01..2026-05-06 |
+|   · Fases 1–8 entregues e validadas em HW; resumo no header de `SystemDefs_Limits.h::SIMUT_VERSION` (cada bump documenta a fase). Fase 7b OTA Apply destrutivo VALIDADO em HW em `v3.43.10`+`v3.43.11`; suite end-to-end 24/25 PASS em `v3.43.11`; UI web `v3.43.13`. | ✅ HW (até v3.43.13) | — | — | — |
+|   · **F-OTA-CFG-PRESERVE (Fase 9)** — snapshot de `/config/system.bin` em pages 1..15 do setor de metadata OTA (3840 B disponíveis), preservado através do apply destrutivo. Hook pré-stage em `staging_session_begin` (após `enterFlashSafeMode`, antes de `LittleFS.end()`). Hook pós-apply em `StorageManager::begin` (antes de `loadConfiguration`). `ota_metadata_write` e `ota_snapshot_write` agora preservam o setor inteiro via read-erase-program-all reusando `ota::s_applier_buf` (4 KiB BSS já alocado pelo applier — extern linkage). Header `ConfigSnapshotHeader` 16 B + payload + CRC32 EDB88320. Demais arquivos (history/lang/themes/calib) ficam pelo `.bkp` baixado pelo navegador automaticamente antes do upload do firmware (fallback A) — user usa o botão Restore manual depois pra reimportar. | 🟡 Implementado, HW pendente | — | `v3.43.14` | 2026-05-06 |
+|   · Custo: +720 B flash (98.6% → 98.6%, margem 14.0 KiB → 13.9 KiB), zero RAM nova (reuso `s_applier_buf`). | — | — | — | — |
+|   · **F-OTA-RAM** continua bloqueador de release público (uzlib `g_validate_ctx` 33 KiB BSS) — ver seção "BLOCKERS DE RELEASE PÚBLICO" abaixo. | 🚨 Pendente | — | — | — |
+
+---
+
+### 🚨 BLOCKERS DE RELEASE PÚBLICO (GitHub)
+
+> Pendências que NÃO podem entrar em release público sem mitigação. Reabrir antes de qualquer `git push` de tag de release no `main`.
+
+| ID | Sev | Descrição | Origem | Plano de mitigação |
+|---|---|---|---|---|
+| **F-OTA-RAM** | 🔴 | `ota::g_validate_ctx` ocupa **34 068 B (33 KiB) de BSS estática permanente** (uzlib LZ77 dict 32 KiB + state). Adicionado em `v3.43.0` (Fase 6 OTA). Singleton "1 instance por vida" — fica residente mesmo quando não há OTA em curso. Soma com `s_applier_buf` (4 KiB) + `s_tmp_pool` (2 KiB) = ~40 KiB BSS dedicado a OTA. Steady-state heap_lb hoje ≈ 11 KiB (medido em HW v3.43.13, uptime 11min: heap free 15 772 B / maior bloco 11 144 B). Margem perigosamente apertada para device em produção sob carga (telemetria+web+TLS+canvas TFT). | Auditoria de RAM em 2026-05-06 antes de continuar Fase 9 OTA. Diagnóstico via `arm-none-eabi-nm --size-sort` em `firmware.elf` + `show metrics` no device. | Mover `g_validate_ctx` para alocação heap on-demand: `unique_ptr<GunzipContext>` no entrypoint do `validate`, libera no fim. Pré-condição: 33 KiB > maior bloco contíguo livre (11 KiB) — exige liberar canvases TFT (`_canvasWide` 28 KiB + `_canvasSmall` 11 KiB) antes do `new` e reconstruí-los após o validate. Orquestração similar ao F-LOCKOUT-STUCK pivot (v3.24.9..11). Alternativa B: redimensionar janela LZ77 do uzlib (32 KiB→16 KiB) — testar empiricamente se firmwares reais comprimidos com `gzip -9` continuam decodificando (gzip default usa janela 32 KiB; reduzir quebra parte dos blobs). |
+
+---
 
 ### Legenda de Status
 

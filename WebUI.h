@@ -3036,6 +3036,21 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let inp = document.getElementById('fwFile'), f = inp.files[0]; inp.value = '';
             if (!f || !/\.bin$/i.test(f.name)) { showToast(window.t('fil_fw_bad','Need .bin file'), 'err'); return; }
             if (!confirm(window.t('fil_fw_confirm','Send firmware? Device reboots, LFS factory reset.'))) return;
+            /* Fase 9: backup automático do FS (.bkp) antes do OTA. Config
+             * crítica vai pelo snapshot da metadata partition; este .bkp
+             * cobre history/lang/themes/calib pra restore manual via /files. */
+            showToast(window.t('fil_fw_bk','Saving backup...'), 'ok');
+            try {
+                let br = await fetch('/api/backup');
+                if (br.ok) {
+                    let blob = await br.blob();
+                    let u = URL.createObjectURL(blob);
+                    let a = document.createElement('a');
+                    a.href = u; a.download = 'simut_pre-ota.bkp';
+                    document.body.appendChild(a); a.click(); a.remove();
+                    URL.revokeObjectURL(u);
+                }
+            } catch(e) { /* non-fatal */ }
             showToast(window.t('fil_fw_up','Uploading firmware...'), 'ok');
             try {
                 let fd = new FormData(); fd.append('file', f);

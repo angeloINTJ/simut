@@ -18,6 +18,7 @@
 #include "StorageManager.h"
 #include "SystemDefs.h"
 #include "src/ota/metadata.h"
+#include "src/ota/config_snapshot.h"
 #include "TelemetryManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
@@ -173,12 +174,17 @@ void AppManager::setup() {
         ota::UpdateMetadata m;
         if (ota::ota_metadata_read(m) &&
             (m.state == ota::STATE_APPLYING || m.state == ota::STATE_POST_BOOT)) {
-            Serial.printf("[BOOT] OTA post-apply detected: state=%lu attempts=%lu\n",
-                          (unsigned long)m.state, (unsigned long)m.attempts);
+            const bool snap_present = ota::ota_snapshot_present();
+            Serial.printf("[BOOT] OTA post-apply detected: state=%lu attempts=%lu snapshot=%s\n",
+                          (unsigned long)m.state, (unsigned long)m.attempts,
+                          snap_present ? "present" : "absent");
             LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, 0,
                      String("post-apply boot, state=") + (int)m.state +
-                     " attempts=" + (int)m.attempts);
-            /* 7a: clear (sem mudança no FS, só limpa flag pendente). */
+                     " attempts=" + (int)m.attempts +
+                     (snap_present ? " snap=ok" : " snap=absent"));
+            /* Snapshot já foi consumido pelo StorageManager::begin (restore
+             * pré-loadConfiguration). Limpamos a metadata partition agora —
+             * apaga UpdateMetadata + snapshot region juntos (factory state). */
             _storageMgr->enterFlashSafeMode();
             ota::ota_metadata_clear();
             _storageMgr->exitFlashSafeMode();

@@ -8,6 +8,7 @@
  * @license MIT License
  */
 #include "staging.h"
+#include "config_snapshot.h"
 #include "../../StorageManager.h"
 
 #include <Arduino.h>
@@ -103,6 +104,17 @@ bool staging_session_begin(StorageManager* storage) {
     if (!storage) return false;
     /* Pausa Core 1 + sinaliza heavy ops para outros subsystemas. */
     storage->enterFlashSafeMode();
+
+    /* Fase 9 — captura snapshot da config ANTES de desmontar a LFS.
+     * O snapshot vai pra metadata partition (sobrevive ao apply), permitindo
+     * restore de `/config/system.bin` no boot pós-apply. Falha aqui não
+     * aborta o stage: device sobe com factory defaults e user restaura
+     * o `.bkp` baixado pelo navegador via /files. Log dispara em LFS para
+     * auditoria. */
+    if (!ota_snapshot_capture()) {
+        /* Não-fatal — segue stage. Operador vê via show system log. */
+        Serial.println("[OTA] WARN: config snapshot capture failed; relying on .bkp");
+    }
 
     /* Desmonta LittleFS — a partir daqui ninguém pode ler arquivos. */
     LittleFS.end();

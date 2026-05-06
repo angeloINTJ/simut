@@ -14,6 +14,8 @@
 
 #include "StorageManager.h"
 #include "TouchPriority.h"
+#include "src/ota/metadata.h"
+#include "src/ota/config_snapshot.h"
 #include <time.h>
 #include <algorithm>
 #include "LogManager.h"
@@ -177,6 +179,30 @@ bool StorageManager::begin() {
     if (!LittleFS.exists(DIR_HISTORY)) LittleFS.mkdir(DIR_HISTORY);
     if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
     exitFlashSafeMode();
+
+    /* Fase 9 — restore da config após OTA apply.
+     *
+     * Se metadata.state == APPLYING (apply real, não 7a stub) e há um
+     * snapshot CRC-válido na metadata partition, restaura `system.bin`
+     * ANTES do loadConfiguration — assim a config de antes do apply
+     * é carregada normalmente em vez de cair em loadDefaults.
+     *
+     * Falha de restore é não-fatal: loadConfiguration vai falhar ao
+     * achar o arquivo, saveConfiguration grava defaults, device sobe
+     * em factory mode (user restaura via .bkp baixado pelo navegador).
+     *
+     * Limpeza da metadata partition continua em AppManager_Boot.cpp
+     * (path existente) — manter aqui idempotente.
+     */
+    {
+        ota::UpdateMetadata m;
+        if (ota::ota_metadata_read(m) &&
+            m.state == ota::STATE_APPLYING &&
+            ota::ota_snapshot_present()) {
+            (void)ota::ota_snapshot_restore_to_lfs();
+        }
+    }
+
     if (!loadConfiguration()) saveConfiguration();
     return true;
 }

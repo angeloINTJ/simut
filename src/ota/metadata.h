@@ -26,8 +26,26 @@
  */
 #pragma once
 #include <stdint.h>
+#include "ota_layout.h"
 
 namespace ota {
+
+/**
+ * Scratch buffer SRAM de 4 KiB compartilhado pelas operações de flash
+ * (apply sector copy + metadata read-erase-program-all preservando
+ * snapshot). Definido em `applier.cpp` (BSS estática, 0-init no boot).
+ *
+ * Usuários:
+ *  - `applier.cpp::ota_applier_run` (durante apply, IRQ off — uso exclusivo).
+ *  - `metadata.cpp::ota_metadata_write` (preserva snapshot region).
+ *  - `metadata.cpp::ota_snapshot_write` (preserva metadata page 0).
+ *  - `config_snapshot.cpp::ota_snapshot_capture` (monta payload pré-write).
+ *
+ * Race-free porque caller 1 (apply) só roda APÓS `state=APPLYING` persistido,
+ * e callers 2/3/4 nunca rodam concorrentemente com apply (apply só termina
+ * via reboot).
+ */
+extern uint8_t s_applier_buf[OTA_FLASH_SECTOR_SIZE];
 
 constexpr uint32_t OTA_MAGIC_PENDING = 0xA5C3F00Du;
 
@@ -85,7 +103,26 @@ bool ota_metadata_set_state(UpdateState st);
 
 /**
  * @brief Apaga setor metadata (todos 0xFF). Equivale a "no pending update".
+ *
+ * IMPORTANTE: também apaga o snapshot da configuração nas pages 1..15.
+ * Chamar somente após o restore ter sido bem-sucedido OU em factory init.
  */
 bool ota_metadata_clear();
+
+/**
+ * @brief Grava bytes brutos nas pages 1..15 do setor de metadata.
+ *
+ * Preserva a page 0 (UpdateMetadata) atual: lê via XIP, monta scratch
+ * [page0 | snapshot_data | 0xFF padding] em `s_applier_buf`, erase + program
+ * 4 KiB inteiros.
+ *
+ * **PRE-CONDIÇÃO**: caller deve garantir Core 1 pausado
+ * (`StorageManager::enterFlashSafeMode()`). Não é a função quem decide.
+ *
+ * @param data  Buffer com snapshot serializado (header + payload + CRC).
+ * @param len   Tamanho em bytes; <= 3840.
+ * @return true se gravado.
+ */
+bool ota_snapshot_write(const uint8_t* data, uint16_t len);
 
 } /* namespace ota */
