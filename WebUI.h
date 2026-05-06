@@ -2909,6 +2909,8 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp">&#x1F4BE; <span data-i18n="fil_backup">Backup</span></button>
                     <button class="btn-fm btn-fm-out" onclick="fmRestore()" title="Upload a .bkp to restore" id="btnRestore" style="display:none">&#x267B;&#xFE0F; <span data-i18n="fil_restore">Restore</span></button>
                     <input type="file" id="restoreFile" accept=".bkp" style="display:none" onchange="doRestore()">
+                    <button class="btn-fm btn-fm-out" onclick="fmFirmware()" title="Send new firmware (.bin) — OTA update" id="btnFw" style="display:none">&#x1F4BB; <span data-i18n="fil_fw">Firmware</span></button>
+                    <input type="file" id="fwFile" accept=".bin" style="display:none" onchange="doFirmware()">
                     <button class="btn-fm btn-fm-dang" id="btnDel" style="display:none" onclick="fmDelete()">&#x1F5D1;&#xFE0F; <span data-i18n="fil_del">Delete</span></button>
                     <button class="btn-fm btn-fm-pri" id="btnUpload" style="display:none" onclick="fmUploadClick()">&#x1F4E4; <span data-i18n="fil_uphere">Upload Here</span></button>
                     <form id="upForm" method="POST" action="/api/upload" enctype="multipart/form-data" style="display:none;">
@@ -2940,7 +2942,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function fetchPerms() {
             try { let r = await fetchSafe('/api/perms'); let d = await r.json(); permsVal = d.perms; } catch(e) { }
             if (permsVal & 128) document.getElementById('btnDel').style.display = '';
-            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; document.getElementById('btnRestore').style.display = ''; }
+            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; document.getElementById('btnRestore').style.display = ''; document.getElementById('btnFw').style.display = ''; }
         }
 
         function fmFormatSize(bytes) { if (bytes === 0) return '—'; if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / 1048576).toFixed(2) + ' MB'; }
@@ -3026,6 +3028,25 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (a.st === 0) { showToast(window.t('fil_rst_ok','Restored ')+a.fc+' files.', 'ok'); fmNavigate(currentDir); }
                 else showToast('Apply: ' + (RST_MSG[a.st] || ('st='+a.st)), 'err');
             } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
+        }
+
+        /* OTA Firmware Update — compact form to fit flash budget. */
+        function fmFirmware() { document.getElementById('fwFile').click(); }
+        async function doFirmware() {
+            let inp = document.getElementById('fwFile'), f = inp.files[0]; inp.value = '';
+            if (!f || !/\.bin$/i.test(f.name)) { showToast(window.t('fil_fw_bad','Need .bin file'), 'err'); return; }
+            if (!confirm(window.t('fil_fw_confirm','Send firmware? Device reboots, LFS factory reset.'))) return;
+            showToast(window.t('fil_fw_up','Uploading firmware...'), 'ok');
+            try {
+                let fd = new FormData(); fd.append('file', f);
+                let r = await fetch('/api/restore?op=stage&commit=1', {method:'POST', body:fd});
+                let v = await r.json();
+                if (r.status !== 200 || v.committed !== 1) { showToast('Stage fail: v='+v.v, 'err'); return; }
+                if (!confirm(window.t('fil_fw_apply','Apply now? Reboots in ~60s.'))) return;
+                showToast(window.t('fil_fw_app','Applying — wait 60s & re-login'), 'ok');
+                await fetch('/api/ota/apply', {method:'POST'});
+            } catch(e) { /* expected post-apply drop */ }
+            setTimeout(() => location.href = '/login', 5000);
         }
 
         window.onLangChange = function() { fmNavigate(currentDir); };
