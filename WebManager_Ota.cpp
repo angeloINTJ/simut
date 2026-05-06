@@ -208,6 +208,7 @@ void WebManager::handleApiRestoreFinish() {
             return;
         }
         bool ok_staged = (_stageSession.status == ota::StageStatus::STAGED);
+        bool commit   = (_server.arg("commit") == "1");
 
         /* Fase 6: dry-run validate ANTES de remontar LFS — depois do
          * remount o LittleFS reformata a área e o conteúdo do staging
@@ -219,10 +220,35 @@ void WebManager::handleApiRestoreFinish() {
             valid = ota::ota_validate_staging(_stageSession, vr);
         }
 
-        /* Sempre remonta/restaura LFS pra deixar sistema utilizável.
-         * Fase 5/6 não persiste staging — Fase 7 (apply) vai pular este
-         * remount e ir direto pro applier. */
-        if (ok_staged) {
+        /* Decisão de remount:
+         *   commit=1 + valid → persiste staging, escreve metadata
+         *                      COMMITTED, NÃO remonta LFS (próximo passo
+         *                      é POST /api/ota/apply). Device fica em
+         *                      modo "aguardando apply" — para abortar,
+         *                      reboota.
+         *   demais (default Fase 5/6 testing) → remonta LFS, sem
+         *                      metadata. */
+        bool committed = false;
+        if (ok_staged && valid && commit) {
+            ota::UpdateMetadata m;
+            memset(&m, 0, sizeof(m));
+            m.magic              = ota::OTA_MAGIC_PENDING;
+            m.state              = ota::STATE_COMMITTED;
+            m.compressed_size    = vr.compressed_size;
+            m.uncompressed_size  = vr.decompressed_size;
+            m.compressed_crc32   = vr.compressed_crc;
+            m.uncompressed_crc32 = vr.decompressed_crc;
+            m.attempts           = 0;
+            /* Já estamos com Core 1 ativo — wrap em flash safe mode. */
+            {
+                RenderGuard rg(_displayRef);
+                _storageRef->enterFlashSafeMode();
+                committed = ota::ota_metadata_write(m);
+                _storageRef->exitFlashSafeMode();
+            }
+            /* NÃO remonta LFS — staging fica preservado para o apply. */
+        } else if (ok_staged) {
+            /* Fase 5/6 testing: remonta. */
             RenderGuard rg(_displayRef);
             ota::staging_session_end(_storageRef);
         } else if (_stageSession.status == ota::StageStatus::STAGING ||
@@ -236,13 +262,14 @@ void WebManager::handleApiRestoreFinish() {
         if (ok_staged) {
             snprintf(buf, sizeof(buf),
                 "{\"st\":%u,\"bytes\":%lu,\"crc32\":\"%08lX\","
-                "\"v\":%u,\"dsize\":%lu,\"dcrc\":\"%08lX\"}",
+                "\"v\":%u,\"dsize\":%lu,\"dcrc\":\"%08lX\",\"committed\":%u}",
                 (unsigned)_stageSession.status,
                 (unsigned long)_stageSession.bytes_written,
                 (unsigned long)_stageSession.crc32_running,
                 (unsigned)vr.status,
                 (unsigned long)vr.decompressed_size,
-                (unsigned long)vr.decompressed_crc);
+                (unsigned long)vr.decompressed_crc,
+                committed ? 1u : 0u);
         } else {
             snprintf(buf, sizeof(buf),
                 "{\"st\":%u,\"bytes\":%lu,\"crc32\":\"%08lX\"}",

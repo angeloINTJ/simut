@@ -94,12 +94,45 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
         return false;
     }
 
-    /* (1) Magic gzip nos primeiros 2 B. */
+    /* (1) Detecta formato pelo magic. Gzip (0x1F 0x8B) → caminho de decompress
+     * dry-run. Senão → caminho RAW (sem decompress, valida só size + boot2).
+     *
+     * RAW é o formato usado pelo apply real (Fase 7b): uzlib seria destruída
+     * junto com a app slot durante o erase, e marcar uzlib em SRAM via
+     * __not_in_flash_func grew o binário em ~16 KiB (ld overflow). Raw é
+     * mais simples e seguro: stage_size limitado a OTA_APP_MAX_SIZE
+     * (1020 KiB) força sketches que caibam diretamente. */
     uint8_t magic[2] = {0, 0};
     staging_read(0, magic, 2);
-    if (magic[0] != 0x1Fu || magic[1] != 0x8Bu) {
-        report.status = ValidationStatus::NOT_GZIP;
-        return false;
+    bool is_gzip = (magic[0] == 0x1Fu && magic[1] == 0x8Bu);
+
+    if (!is_gzip) {
+        /* Raw path: pular gunzip; size sanity + boot2 CRC. */
+        report.decompressed_size = s.bytes_written;
+        report.decompressed_crc  = s.crc32_running;
+
+        if (s.bytes_written < 100u * 1024u) {
+            report.status = ValidationStatus::SIZE_TOO_SMALL;
+            return false;
+        }
+        if (s.bytes_written > OTA_APP_MAX_SIZE) {
+            report.status = ValidationStatus::SIZE_TOO_LARGE;
+            return false;
+        }
+
+        uint8_t boot2[256];
+        staging_read(0, boot2, 256);
+        uint32_t expected = boot2_crc32(boot2, 252);
+        uint32_t stored   = (uint32_t)boot2[252]
+                          | ((uint32_t)boot2[253] << 8)
+                          | ((uint32_t)boot2[254] << 16)
+                          | ((uint32_t)boot2[255] << 24);
+        if (expected != stored) {
+            report.status = ValidationStatus::BOOT2_BAD;
+            return false;
+        }
+        report.status = ValidationStatus::OK;
+        return true;
     }
 
     /* (2) Decompress dry-run. */
