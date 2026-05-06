@@ -8,9 +8,8 @@
  */
 
 #include "WebManager.h"
-#include "WebUI_FS.h"
-#include "LogManager.h"   /* feedWdt() */
-#include <LittleFS.h>     /* v3.34.0: favicon servido do FS */
+#include "WebUI_GZ.h"
+#include <LittleFS.h>   /* v3.34.0: favicon servido do FS */
 #include <bearssl/bearssl_hash.h>
 
 using ReadGuard = StorageManager::ReadGuard;
@@ -96,45 +95,22 @@ String WebManager::rgb565ToHex(uint16_t color) {
     return String(hex);
 }
 
-/* Helper member: abre + stream de gz de LittleFS com headers já enviados.
- * Reusa safeSend interno (private OK porque é membro). */
-void WebManager::servePageFromFS(const char* path, const char* ctype,
-                                 const char* cache_ctrl) {
-    File f;
-    { StorageManager::ReadGuard rg(_storageRef); f = LittleFS.open(path, "r"); }
-    if (!f) {
-        _server.send(503, "text/plain", "WebUI asset missing — run uploadfs");
-        return;
-    }
-    if (cache_ctrl) _server.sendHeader("Cache-Control", cache_ctrl);
-    _server.sendHeader("Content-Encoding", "gzip");
-    _server.setContentLength(f.size());
-    _server.send(200, ctype, "");
-    if (isClientGone()) { f.close(); return; }
-    _server.client().setTimeout(500);
-    const size_t CHUNK = 512;
-    uint8_t buf[CHUNK];
-    while (f.available()) {
-        if (isClientGone()) break;
-        feedWatchdog();
-        size_t n;
-        { StorageManager::ReadGuard rg(_storageRef); n = f.read(buf, CHUNK); }
-        if (n == 0) break;
-        if (!safeSend((const char*)buf, n)) break;
-    }
-    f.close();
-}
-
 void WebManager::handleLangJs() {
-    servePageFromFS(WebUI_FS::LANG_JS_PATH,
-                    "application/javascript", "public, max-age=604800");
+    _server.sendHeader("Cache-Control", "public, max-age=604800");
+    _server.sendHeader("Content-Encoding", "gzip");
+    _server.setContentLength(WebUI_GZ::LANG_JS_GZ_LEN);
+    _server.send(200, "application/javascript", "");
+    safeSend_GZ(WebUI_GZ::LANG_JS_GZ, WebUI_GZ::LANG_JS_GZ_LEN);
 }
 
 /* v3.34.0: F-WEB-DEDUP — CSS comum (drawer/topbar/breadcrumb/toast) extraído
  * das 8 páginas autenticadas para um asset único cacheável. */
 void WebManager::handleStyleCss() {
-    servePageFromFS(WebUI_FS::STYLE_CSS_PATH,
-                    "text/css", "public, max-age=604800");
+    _server.sendHeader("Cache-Control", "public, max-age=604800");
+    _server.sendHeader("Content-Encoding", "gzip");
+    _server.setContentLength(WebUI_GZ::STYLE_CSS_GZ_LEN);
+    _server.send(200, "text/css", "");
+    safeSend_GZ(WebUI_GZ::STYLE_CSS_GZ, WebUI_GZ::STYLE_CSS_GZ_LEN);
 }
 
 /* v3.34.0: favicon movido pra LittleFS (`/favicon.ico`) para liberar 11KB

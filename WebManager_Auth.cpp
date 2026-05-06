@@ -7,7 +7,7 @@
  * @license MIT License
  */
 #include "WebManager.h"
-#include "WebUI_FS.h"
+#include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
@@ -83,148 +83,33 @@ bool WebManager::serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_dat
     safeSend_GZ(gz_data, gz_len);
     return true;
 }
-
-/* Variante FS: serve página gzipada de LittleFS (data/web/*.gz).
- * Verifica perms igual ao serveProtectedPage; se arquivo ausente
- * (factory state pós uploadfs), responde 503 "WebUI assets missing"
- * com mensagem em texto plano (link pra uploadar via /api/upload). */
-bool WebManager::serveProtectedPageFS(uint16_t requiredPerm, const char* gz_path) {
-    uint16_t perms = getAuthPerms();
-    if (perms == 0) {
-        _server.sendHeader("Location", "/login", true);
-        _server.send(302, "text/plain", "");
-        return false;
-    }
-    if (isPasswordChangeRequired()) {
-        _server.sendHeader("Location", "/force_chpass", true);
-        _server.send(302, "text/plain", "");
-        return false;
-    }
-    if (!(perms & requiredPerm)) {
-        LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, _currentUserName);
-        _server.send(403, "text/html", "<h2>Access Denied</h2>");
-        return false;
-    }
-
-    /* Abre arquivo pra obter size + stream em sequência. */
-    File f;
-    {
-        StorageManager::ReadGuard rg(_storageRef);
-        f = LittleFS.open(gz_path, "r");
-    }
-    if (!f) {
-        LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_FILE, _currentUserId,
-                 String("WebUI miss: ") + gz_path);
-        _server.send(503, "text/html",
-            "<h2>WebUI assets missing</h2>"
-            "<p>Reupload via <a href=\"/files\">/files</a> or "
-            "<code>pio run -t uploadfs</code>.</p>");
-        return false;
-    }
-
-    size_t gz_len = f.size();
-    _server.sendHeader("Cache-Control", "no-store");
-    _server.sendHeader("Content-Encoding", "gzip");
-    _server.setContentLength(gz_len);
-    _server.send(200, "text/html", "");
-
-    /* Stream do file handle aberto. */
-    if (isClientGone()) { f.close(); return false; }
-    _server.client().setTimeout(500);
-    const size_t CHUNK = 512;
-    uint8_t buf[CHUNK];
-    while (f.available()) {
-        if (isClientGone()) break;
-        feedWatchdog();
-        size_t n;
-        {
-            StorageManager::ReadGuard rg(_storageRef);
-            n = f.read(buf, CHUNK);
-        }
-        if (n == 0) break;
-        if (!safeSend((const char*)buf, n)) break;
-    }
-    f.close();
-    return true;
-}
 void WebManager::handleLogin() {
     _server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     _server.sendHeader("Pragma", "no-cache");
     _server.sendHeader("Expires", "0");
 
-    /* Login page tem 2 paths possíveis dependendo do estado da LFS.
-     * Em factory state imediatamente pós-uploadfs ainda funciona (o
-     * arquivo está lá). Se LFS foi reformatada e /web/ não existe,
-     * 503 com mensagem (user precisa uploadfs). */
-    File f;
-    {
-        StorageManager::ReadGuard rg(_storageRef);
-        f = LittleFS.open(WebUI_FS::LOGIN_PAGE_PATH, "r");
-    }
-    if (!f) {
-        _server.send(503, "text/html",
-            "<h2>WebUI assets missing</h2>"
-            "<p>Re-upload via <code>pio run -t uploadfs</code>.</p>");
-        return;
-    }
-    size_t gz_len = f.size();
     _server.sendHeader("Content-Encoding", "gzip");
-    _server.setContentLength(gz_len);
+    _server.setContentLength(WebUI_GZ::LOGIN_PAGE_GZ_LEN);
     _server.send(200, "text/html", "");
-
-    if (isClientGone()) { f.close(); return; }
-    _server.client().setTimeout(500);
-    const size_t CHUNK = 512;
-    uint8_t buf[CHUNK];
-    while (f.available()) {
-        if (isClientGone()) break;
-        feedWatchdog();
-        size_t n;
-        { StorageManager::ReadGuard rg(_storageRef); n = f.read(buf, CHUNK); }
-        if (n == 0) break;
-        if (!safeSend((const char*)buf, n)) break;
-    }
-    f.close();
+    safeSend_GZ(WebUI_GZ::LOGIN_PAGE_GZ, WebUI_GZ::LOGIN_PAGE_GZ_LEN);
 }
 
-void WebManager::handleRoot()    { serveProtectedPageFS(PERM_DASHBOARD, WebUI_FS::DASH_PAGE_PATH); }
-void WebManager::handleHistory() { serveProtectedPageFS(PERM_HISTORY | PERM_LOGS, WebUI_FS::HIST_PAGE_PATH); }
-void WebManager::handleConfig()  { serveProtectedPageFS(PERM_SYS_CONFIG, WebUI_FS::CFG_PAGE_PATH); }
-void WebManager::handleNetwork() { serveProtectedPageFS(PERM_NET_CONFIG, WebUI_FS::NET_PAGE_PATH); }
-void WebManager::handleUsers()   { serveProtectedPageFS(PERM_USER_MGR, WebUI_FS::USR_PAGE_PATH); }
-void WebManager::handleFiles()   { serveProtectedPageFS(PERM_FILE_READ, WebUI_FS::FILE_PAGE_PATH); }
-void WebManager::handleAlarms()  { serveProtectedPageFS(PERM_SYS_CONFIG, WebUI_FS::ALARMS_PAGE_PATH); }
-void WebManager::handleLicense() { serveProtectedPageFS(PERM_DASHBOARD, WebUI_FS::LICENSE_PAGE_PATH); }
+void WebManager::handleRoot()    { serveProtectedPage(PERM_DASHBOARD, WebUI_GZ::DASH_PAGE_GZ, WebUI_GZ::DASH_PAGE_GZ_LEN); }
+void WebManager::handleHistory() { serveProtectedPage(PERM_HISTORY | PERM_LOGS, WebUI_GZ::HIST_PAGE_GZ, WebUI_GZ::HIST_PAGE_GZ_LEN); }
+void WebManager::handleConfig()  { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ::CFG_PAGE_GZ, WebUI_GZ::CFG_PAGE_GZ_LEN); }
+void WebManager::handleNetwork() { serveProtectedPage(PERM_NET_CONFIG, WebUI_GZ::NET_PAGE_GZ, WebUI_GZ::NET_PAGE_GZ_LEN); }
+void WebManager::handleUsers()   { serveProtectedPage(PERM_USER_MGR, WebUI_GZ::USR_PAGE_GZ, WebUI_GZ::USR_PAGE_GZ_LEN); }
+void WebManager::handleFiles()   { serveProtectedPage(PERM_FILE_READ, WebUI_GZ::FILE_PAGE_GZ, WebUI_GZ::FILE_PAGE_GZ_LEN); }
+void WebManager::handleAlarms()  { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ::ALARMS_PAGE_GZ, WebUI_GZ::ALARMS_PAGE_GZ_LEN); }
+void WebManager::handleLicense() { serveProtectedPage(PERM_DASHBOARD, WebUI_GZ::LICENSE_PAGE_GZ, WebUI_GZ::LICENSE_PAGE_GZ_LEN); }
 void WebManager::handleForceChpass() {
     if (getAuthPerms() == 0) { _server.sendHeader("Location", "/login", true); _server.send(302, "text/plain", ""); return; }
     if (!isPasswordChangeRequired()) { _server.sendHeader("Location", "/", true); _server.send(302, "text/plain", ""); return; }
 
-    File f;
-    { StorageManager::ReadGuard rg(_storageRef); f = LittleFS.open(WebUI_FS::FORCE_CHPASS_PAGE_PATH, "r"); }
-    if (!f) {
-        _server.send(503, "text/html",
-            "<h2>force_chpass page missing</h2>"
-            "<p>Re-upload via <code>pio run -t uploadfs</code>.</p>");
-        return;
-    }
-    size_t gz_len = f.size();
     _server.sendHeader("Content-Encoding", "gzip");
-    _server.setContentLength(gz_len);
+    _server.setContentLength(WebUI_GZ::FORCE_CHPASS_PAGE_GZ_LEN);
     _server.send(200, "text/html", "");
-
-    if (isClientGone()) { f.close(); return; }
-    _server.client().setTimeout(500);
-    const size_t CHUNK = 512;
-    uint8_t buf[CHUNK];
-    while (f.available()) {
-        if (isClientGone()) break;
-        feedWatchdog();
-        size_t n;
-        { StorageManager::ReadGuard rg(_storageRef); n = f.read(buf, CHUNK); }
-        if (n == 0) break;
-        if (!safeSend((const char*)buf, n)) break;
-    }
-    f.close();
+    safeSend_GZ(WebUI_GZ::FORCE_CHPASS_PAGE_GZ, WebUI_GZ::FORCE_CHPASS_PAGE_GZ_LEN);
 }
 void WebManager::handleApiLoginInit() {
     uint32_t clientIP = (uint32_t)_server.client().remoteIP();
