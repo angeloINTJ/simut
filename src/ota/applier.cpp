@@ -60,7 +60,7 @@
  * funções que possam estar em flash app slot apagada. */
 #define WATCHDOG_BASE_ADDR  0x40058000u
 #define WATCHDOG_SET_ALIAS  0x00002000u   /* RP2040 SET alias offset */
-#define WATCHDOG_CTRL_TRIG  (1u << 30)
+#define WATCHDOG_CTRL_TRIG  (1u << 31)    /* TRIGGER bit (1u<<30 é ENABLE — bug v3.43.4) */
 #define SCB_AIRCR_ADDR      0xE000ED0Cu
 #define SCB_AIRCR_KEY       (0x05FAu << 16)
 #define SCB_AIRCR_SYSRESET  (1u << 2)
