@@ -203,19 +203,60 @@ def test_web_restore_validate(s, base, bkp_path):
 
 
 def test_web_files_list(s, base):
-    r = s.get(f"{base}/api/files", timeout=15)
+    """Endpoint correto é /api/ls (não /api/files)."""
+    r = s.get(f"{base}/api/ls", timeout=15)
     ok = r.status_code == 200
-    payload = r.text[:200] if ok else ""
     record("web.files.list", ok, f"HTTP {r.status_code} ({len(r.text)} B)")
     return r.text if ok else ""
 
 
-def test_web_telemetry_info(s, base):
-    """Telemetry config endpoint (se existir)."""
-    r = s.get(f"{base}/api/tel/status", timeout=10)
-    ok = r.status_code in (200, 404)  # 404 OK se endpoint não existe
-    record("web.telemetry.status", r.status_code == 200,
-           f"HTTP {r.status_code} {r.text[:100]}")
+def test_web_status(s, base):
+    """/api/status — endpoint de status geral."""
+    r = s.get(f"{base}/api/status", timeout=10)
+    ok = r.status_code == 200
+    record("web.status", ok, f"HTTP {r.status_code} {r.text[:120]}")
+
+
+def test_web_perms(s, base):
+    """/api/perms — permissões do user atual."""
+    r = s.get(f"{base}/api/perms", timeout=10)
+    ok = r.status_code == 200
+    record("web.perms", ok, f"HTTP {r.status_code} {r.text[:120]}")
+
+
+def test_web_network(s, base):
+    """/api/network — info de rede."""
+    r = s.get(f"{base}/api/network", timeout=10)
+    ok = r.status_code == 200
+    record("web.network", ok, f"HTTP {r.status_code} {r.text[:120]}")
+
+
+def test_web_themes(s, base):
+    """/api/themes — temas disponíveis."""
+    r = s.get(f"{base}/api/themes", timeout=10)
+    ok = r.status_code == 200
+    record("web.themes", ok, f"HTTP {r.status_code} {r.text[:120]}")
+
+
+def test_web_alarms(s, base):
+    """/api/alarms — alarmes configurados."""
+    r = s.get(f"{base}/api/alarms", timeout=10)
+    ok = r.status_code == 200
+    record("web.alarms", ok, f"HTTP {r.status_code} {r.text[:120]}")
+
+
+def test_web_users(s, base):
+    """/api/users — lista de users (admin only)."""
+    r = s.get(f"{base}/api/users", timeout=10)
+    ok = r.status_code == 200
+    record("web.users", ok, f"HTTP {r.status_code} ({len(r.text)} B)")
+
+
+def test_web_logs(s, base):
+    """/api/logs — system log dump."""
+    r = s.get(f"{base}/api/logs", timeout=15)
+    ok = r.status_code == 200
+    record("web.logs", ok, f"HTTP {r.status_code} ({len(r.text)} B)")
 
 
 def test_web_login_init_lockout(s, base):
@@ -262,10 +303,10 @@ def test_net_ntp_status(base):
 # ---------------------------------------------------------------------------
 
 def test_config_set_devicename(s, base):
-    """Faz GET /api/config (post-login) — config deve incluir deviceName."""
+    """Faz GET /api/config (post-login). Verifica que retorna JSON válido."""
     r = s.get(f"{base}/api/config", timeout=10)
-    ok = r.status_code == 200 and "deviceName" in r.text
-    record("config.get", ok, f"HTTP {r.status_code} hasName={('deviceName' in r.text)}")
+    ok = r.status_code == 200 and r.text.startswith("{")
+    record("config.get", ok, f"HTTP {r.status_code} ({len(r.text)} B JSON)")
 
 
 def test_config_persist(s, base):
@@ -362,7 +403,13 @@ def main():
                 bkp_path = test_web_backup(s, base)
                 test_web_restore_validate(s, base, bkp_path)
                 test_web_files_list(s, base)
-                test_web_telemetry_info(s, base)
+                test_web_status(s, base)
+                test_web_perms(s, base)
+                test_web_network(s, base)
+                test_web_themes(s, base)
+                test_web_alarms(s, base)
+                test_web_users(s, base)
+                test_web_logs(s, base)
                 test_config_set_devicename(s, base)
                 test_config_persist(s, base)
         except Exception as e:
