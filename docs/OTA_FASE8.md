@@ -139,5 +139,95 @@ pendentes de captura automática da OTP. Exemplo:
 
 ---
 
+## Anexo A — Bug 2 boot intermitente (v3.43.4 → v3.43.11)
+
+Histórico do diagnóstico do bug "boot pós-apply intermitente":
+
+### Sintoma observado
+- Em ~70% dos applies, device USB enumera (`2e8a:f00a`) mas firmware
+  não responde por mais de 2 minutos. CLI silencioso, web não responde,
+  1200bps reset trick falha (USB CDC handler não responde).
+- Em ~30% dos applies, boot completa em ~60 s.
+- Padrão: "lucky" boots tendem a ser primeiros após picotool flash;
+  applies subsequentes mais propensos a hang.
+
+### Diagnósticos errados
+- v3.43.4: hipótese inicial era hard fault em flash app slot.
+  Fix: substituí pico-sdk watchdog_update/reboot por inlines MMIO.
+  Correto, mas insuficiente.
+- v3.43.5: hipótese era WDT bit errado (1u<<30 ENABLE em vez de
+  1u<<31 TRIGGER). Fix correto, mas só resolveu o erase loop crash,
+  não o boot intermitente.
+- v3.43.6-9: hipóteses sobre sector 0 (boot2) corruption. Fix correto,
+  mas independente do Bug 2.
+- v3.43.10: assumiu Bug 2 era "falso positivo" baseado em 1 boot OK.
+  Refutado: re-teste mostrou intermitência clara.
+
+### Diagnóstico final (v3.43.11)
+
+**Root cause**: `applier_reboot` usava SCB SYSRESETREQ via AIRCR
+(0xE000ED0C). SCB reset só atinge cores M0+ (CPU registers, NVIC,
+SysTick), **não** atinge peripherals SIO, RESETS, BUSCTRL, ou multicore
+mailbox. Esses ficam em estado pré-reset.
+
+Após reset, arduino-pico's `_displayMgr->startCore1()` chama
+`multicore_launch_core1()` que envia handshake via SIO mailbox para
+Core 1. Se mailbox tem dados stale do antes-do-reset, Core 1 boot ROM
+recebe input inesperado → diverge da sequência expected → core 1
+hang silencioso. Core 0 main loop espera Core 1 ready (ou worse, vê
+fake-ready) → hang.
+
+Verificado via análise de pico-sdk: a função `watchdog_reboot()` da
+SDK faz reset MUITO mais completo:
+1. Configura `psm_hw->wdsel` com bits para todos os peripherals
+   selecionáveis (incluindo SIO via PROC0/PROC1 bits).
+2. Habilita watchdog com TIME pequeno + TRIGGER imediato.
+3. Watchdog fire → PSM reset cycle → todos os peripherals voltam
+   pra estado pós-power-on.
+
+### Fix v3.43.11
+
+`applier_reboot` re-implementado inline replicando watchdog_reboot
+com MMIO puro (sem dependência de SDK em flash slot):
+
+```cpp
+static inline void __not_in_flash_func(applier_reboot)() {
+    /* PSM->wdsel = todos os bits → reset completo on watchdog fire */
+    *(volatile uint32_t*)(PSM_BASE_ADDR + PSM_WDSEL_OFFSET) = PSM_WDSEL_ALL;
+
+    /* Clear watchdog ENABLE (CLR alias atomic) */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_CLR_ALIAS +
+                          WATCHDOG_CTRL_OFFSET) = WATCHDOG_CTRL_ENABLE;
+
+    /* Clear scratch[4]: boot ROM checa este magic; 0 = normal boot */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_SCRATCH4_OFFSET) = 0;
+
+    /* LOAD = 10 ms × 2 ticks/μs (12 MHz/6) */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_LOAD_OFFSET) = 20000u;
+
+    /* SET ENABLE | TRIGGER atomic (SET alias) */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_SET_ALIAS +
+                          WATCHDOG_CTRL_OFFSET) =
+        WATCHDOG_CTRL_ENABLE | WATCHDOG_CTRL_TRIG;
+
+    __asm volatile("dsb");
+    while (1) { __asm volatile("nop"); }
+}
+```
+
+### Validação pendente
+
+A validação da v3.43.11 precisa de:
+1. Power cycle físico do device (atual está hung em estado de
+   v3.43.10, USB CDC não responde reset).
+2. Reflash v3.43.11 via picotool.
+3. Configurar WiFi via CLI.
+4. Rodar OTA apply pelo menos 5 vezes consecutivas.
+5. Verificar boot OK em 100% dos casos.
+6. Medir tempo médio de boot pós-apply (esperado: ~60 s, similar à
+   v3.43.10 mas determinístico em vez de probabilístico).
+
+---
+
 **Autor**: Ângelo Moisés Alves (com co-autoria Claude Opus 4.7).
 **Última atualização**: 2026-05-06.
