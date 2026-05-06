@@ -306,6 +306,17 @@ se user está no display): `/api/commit_all`, `/api/delete`,
 `/api/mkdir`, `/api/clear_logs`, `/api/reset_touch_cal`,
 `/api/force_chpass`.
 
+OTA endpoints (em construção — v3.42.0 fechou Fase 5/10):
+- `GET /api/backup` (`PERM_FILE_READ`) — gera `.bkp` da LFS atrelado ao
+  chip_id. Read-only mas expõe todo conteúdo do FS, então perm = leitura.
+- `POST /api/restore?op=validate|apply` (`PERM_FILE_READ` para validate,
+  `PERM_FILE_UPLOAD` para apply) — apply é destrutivo (sobrescreve
+  arquivos restaurados do `.bkp`); chip_id deve bater.
+- `POST /api/restore?op=stage` (`PERM_FILE_UPLOAD`) — destrutivo
+  (apaga 1 MB da LFS para receber `.bin.gz` do firmware). Só admin.
+  Pré-check de perm em `UPLOAD_FILE_START` antes da erasure. Apply real
+  do firmware staged virá na Fase 7 (atualmente, stage→remount→trash).
+
 Ação imediata (sem reboot): `/api/set_time` — seta RTC manual, requer
 `PERM_SYS_CONFIG`.
 

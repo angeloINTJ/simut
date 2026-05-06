@@ -2906,6 +2906,9 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <h2 class="page-title" data-i18n="fil_title">Flash Filesystem</h2>
                 <div class="fm-actions">
                     <button class="btn-fm btn-fm-out" onclick="fmDownload()">&#x2B07;&#xFE0F; <span data-i18n="fil_down">Download</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp">&#x1F4BE; <span data-i18n="fil_backup">Backup</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmRestore()" title="Upload a .bkp to restore" id="btnRestore" style="display:none">&#x267B;&#xFE0F; <span data-i18n="fil_restore">Restore</span></button>
+                    <input type="file" id="restoreFile" accept=".bkp" style="display:none" onchange="doRestore()">
                     <button class="btn-fm btn-fm-dang" id="btnDel" style="display:none" onclick="fmDelete()">&#x1F5D1;&#xFE0F; <span data-i18n="fil_del">Delete</span></button>
                     <button class="btn-fm btn-fm-pri" id="btnUpload" style="display:none" onclick="fmUploadClick()">&#x1F4E4; <span data-i18n="fil_uphere">Upload Here</span></button>
                     <form id="upForm" method="POST" action="/api/upload" enctype="multipart/form-data" style="display:none;">
@@ -2937,7 +2940,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function fetchPerms() {
             try { let r = await fetchSafe('/api/perms'); let d = await r.json(); permsVal = d.perms; } catch(e) { }
             if (permsVal & 128) document.getElementById('btnDel').style.display = '';
-            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; }
+            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; document.getElementById('btnRestore').style.display = ''; }
         }
 
         function fmFormatSize(bytes) { if (bytes === 0) return '—'; if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / 1048576).toFixed(2) + ' MB'; }
@@ -2997,6 +3000,32 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let link = document.createElement('a'); link.href = '/download?file=' + encodeURIComponent(sel[i].value); link.setAttribute('download', '');
                 document.body.appendChild(link); link.click(); document.body.removeChild(link); await new Promise(r => setTimeout(r, 800));
             }
+        }
+        function fmBackup() {
+            let link = document.createElement('a'); link.href = '/api/backup'; link.setAttribute('download', '');
+            document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            showToast(window.t('fil_backup_started','Backup download started.'), 'ok');
+        }
+        const RST_MSG = {0:'OK',1:'magic invalid',2:'unsupported schema',3:'header CRC mismatch',4:'payload truncated',5:'payload CRC mismatch',6:'chip ID mismatch (backup is from another device)',7:'invalid path',8:'path too long',9:'I/O error',10:'internal error'};
+        function fmRestore() { document.getElementById('restoreFile').click(); }
+        async function doRestore() {
+            let inp = document.getElementById('restoreFile');
+            if (!inp.files.length) return;
+            let file = inp.files[0];
+            inp.value = '';
+            try {
+                let fd = new FormData(); fd.append('bkp', file);
+                let r = await fetch('/api/restore?op=validate', { method:'POST', body: fd });
+                let v = await r.json();
+                if (v.st !== 0) { showToast('Validate: ' + (RST_MSG[v.st] || ('st='+v.st)), 'err'); return; }
+                let msg = window.t('fil_rst_confirm','Restore N files (X bytes)? This OVERWRITES current files.').replace('N', v.fc).replace('X', v.psz);
+                if (!confirm(msg)) return;
+                let fd2 = new FormData(); fd2.append('bkp', file);
+                let r2 = await fetch('/api/restore?op=apply', { method:'POST', body: fd2 });
+                let a = await r2.json();
+                if (a.st === 0) { showToast(window.t('fil_rst_ok','Restored ')+a.fc+' files.', 'ok'); fmNavigate(currentDir); }
+                else showToast('Apply: ' + (RST_MSG[a.st] || ('st='+a.st)), 'err');
+            } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
         }
 
         window.onLangChange = function() { fmNavigate(currentDir); };

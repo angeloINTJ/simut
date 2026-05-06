@@ -17,6 +17,7 @@
 #include "SoundManager.h"
 #include "StorageManager.h"
 #include "SystemDefs.h"
+#include "src/ota/metadata.h"
 #include "TelemetryManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
@@ -54,39 +55,73 @@ void AppManager::setup() {
 
     bool forceAP = false;
     _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
-    unsigned long waitStart = millis();
 
-    while (millis() - waitStart < AP_DETECT_WINDOW_MS) {
-        TRACE_BEAT(0);
-
-        if (_displayMgr->isScreenTouched()) {
-            unsigned long holdStart = millis();
-            bool held = true;
-            int missedTouches = 0;
-
-            while (millis() - holdStart < AP_HOLD_DURATION_MS) {
-                TRACE_BEAT(0);
-                if (!_displayMgr->isScreenTouched()) {
-                    missedTouches++;
-                    if (missedTouches > AP_HOLD_MAX_MISSED) {
-                        held = false;
-                        _displayMgr->setApProgress(-1);
-                        _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
-                        delay(800);
-                        break;
-                    }
-                } else {
-                    missedTouches = 0;
-                }
-                int pct = map(millis() - holdStart, 0, AP_HOLD_DURATION_MS, 0, 100);
-                _displayMgr->setApProgress(pct);
-                delay(50);
+    /* Touch settle + sanity gate: alguns XPT2046 reportam touched()=true
+     * permanentemente logo após boot (controller em estado indeterminado
+     * antes do primeiro Z-axis sample, ou ruído elétrico no PENIRQ).
+     * Sem este gate, o boot detecta esse stale-true como gesture de AP-hold
+     * e o device cai em AP mode sozinho a cada reboot.
+     *
+     * Estratégia: aguardar 200ms de quiet consecutivo (até 1500ms cap).
+     * - Se viu quiet → touch funcional → janela AP detect normal.
+     * - Se NÃO viu quiet → touch stuck-true (bug HW/calib) → bypass janela.
+     *   AP por touch fica indisponível enquanto stuck; rota é fix touch
+     *   (`conf system touch reset` ou recalibrar) ou power cycle limpo. */
+    bool touch_settled = false;
+    {
+        unsigned long settle_start = millis();
+        unsigned long quiet_since = 0;
+        while (millis() - settle_start < 1500) {
+            TRACE_BEAT(0);
+            if (_displayMgr->isScreenTouched()) {
+                quiet_since = 0;
+            } else {
+                if (quiet_since == 0) quiet_since = millis();
+                if (millis() - quiet_since >= 200) { touch_settled = true; break; }
             }
-            if (held) forceAP = true;
-            break;
+            delay(20);
         }
-        delay(50);
+        Serial.printf("[BOOT] touch settle: quiet=%d ms=%lu\n",
+                      touch_settled ? 1 : 0,
+                      (unsigned long)(millis() - settle_start));
     }
+
+    if (touch_settled) {
+        unsigned long waitStart = millis();
+        while (millis() - waitStart < AP_DETECT_WINDOW_MS) {
+            TRACE_BEAT(0);
+
+            if (_displayMgr->isScreenTouched()) {
+                unsigned long holdStart = millis();
+                bool held = true;
+                int missedTouches = 0;
+
+                while (millis() - holdStart < AP_HOLD_DURATION_MS) {
+                    TRACE_BEAT(0);
+                    if (!_displayMgr->isScreenTouched()) {
+                        missedTouches++;
+                        if (missedTouches > AP_HOLD_MAX_MISSED) {
+                            held = false;
+                            _displayMgr->setApProgress(-1);
+                            _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
+                            delay(800);
+                            break;
+                        }
+                    } else {
+                        missedTouches = 0;
+                    }
+                    int pct = map(millis() - holdStart, 0, AP_HOLD_DURATION_MS, 0, 100);
+                    _displayMgr->setApProgress(pct);
+                    delay(50);
+                }
+                if (held) forceAP = true;
+                break;
+            }
+            delay(50);
+        }
+    }
+    Serial.printf("[BOOT] AP detect: forceAP=%d (touch_settled=%d)\n",
+                  forceAP ? 1 : 0, touch_settled ? 1 : 0);
 
     _displayMgr->setApProgress(-1);
 
@@ -119,6 +154,36 @@ void AppManager::setup() {
     /* Autópsia já leu scratch[4]. Agora pode setar MOD_BOOT para rastrear
      * estalls que aconteçam durante o restante do setup. */
     TRACE_MOD(0, MOD_BOOT);
+
+    /* Fase 7 OTA: detecção pós-apply.
+     *
+     * Se metadata.state == APPLYING ou POST_BOOT, este boot ocorreu logo
+     * após o orchestrator ter disparado watchdog_reboot. Em 7a (no-op):
+     * nada precisa ser limpo no FS, só clear da metadata. Em 7b (real):
+     * Fase 8 vai reformatar LFS aqui antes de subir o web em modo
+     * "aguardando restore".
+     *
+     * Logamos via Serial + LOG_CODE pra rastreabilidade — esta linha só
+     * deve aparecer em boot pós-apply, qualquer outra ocasião é bug.
+     *
+     * ota_metadata_clear faz flash_range_erase — exige Core 1 pausado
+     * (já está rodando neste ponto via _displayMgr->startCore1). Wrap
+     * com enterFlashSafeMode/exit. */
+    {
+        ota::UpdateMetadata m;
+        if (ota::ota_metadata_read(m) &&
+            (m.state == ota::STATE_APPLYING || m.state == ota::STATE_POST_BOOT)) {
+            Serial.printf("[BOOT] OTA post-apply detected: state=%lu attempts=%lu\n",
+                          (unsigned long)m.state, (unsigned long)m.attempts);
+            LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, 0,
+                     String("post-apply boot, state=") + (int)m.state +
+                     " attempts=" + (int)m.attempts);
+            /* 7a: clear (sem mudança no FS, só limpa flag pendente). */
+            _storageMgr->enterFlashSafeMode();
+            ota::ota_metadata_clear();
+            _storageMgr->exitFlashSafeMode();
+        }
+    }
 
     LogManager::instance().setHeavyTaskChecker([]() -> bool {
         return app._storageMgr->isHeavyTaskLocked();
@@ -242,26 +307,27 @@ void AppManager::setup() {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
         _displayMgr->loadTouchCalibration(cal);
         if (!_displayMgr->isTouchCalibrated()) {
-            LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0, TRL("Touch calibration required."));
-            _displayMgr->setBootStatusKey(TR_BOOT_TOUCH_CAL_REQ);
-            delay(600);
-            _displayMgr->showTouchCalibration();
-
-
-            while (!_displayMgr->isTouchCalibrated()) {
-                TRACE_BEAT(0);
-
-                UiEvent calEv;
-                if (_displayMgr->getUiEvent(calEv)) {
-                    if (calEv.type == UiEvent::EVT_APPLY_TOUCH_CAL) {
-                        TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
-                        _displayMgr->fillCalData(calOut);
-                        _storageMgr->saveConfiguration();
-                        LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_INITIAL, 0, TRL("Initial touch calibration saved."));
-                    }
-                }
-                delay(50);
-            }
+            /* Factory boot sem cal salva: aplica default seguro para destravar
+             * o boot. Sem isso, o cal-screen-loop ficaria preso à espera de
+             * 4 taps válidos — e em XPT2046 com touch stuck-true (este HW)
+             * o loop é infinito ou produz cal degenerada com coordenadas
+             * iguais. User recalibra depois via Settings → Touch Cal ou via
+             * CLI ('conf system touch reset' não recalibra mas reseta defaults).
+             * Default range 200..3900 cobre a maioria dos painéis XPT2046. */
+            Serial.printf("[BOOT] no touch cal saved (touch_settled=%d) — applying default\n",
+                          touch_settled ? 1 : 0);
+            TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
+            calOut->magic      = 0xCA;
+            calOut->flags      = 0;
+            calOut->xMin       = 200;
+            calOut->xMax       = 3900;
+            calOut->yMin       = 200;
+            calOut->yMax       = 3900;
+            calOut->zThreshold = 400;
+            _displayMgr->loadTouchCalibration(calOut);
+            _storageMgr->saveConfiguration();
+            LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0,
+                     TRL("Touch cal missing; default applied (recalibrate via Settings)"));
         }
     }
 

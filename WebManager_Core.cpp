@@ -8,7 +8,7 @@
  */
 
 #include "WebManager.h"
-#include "WebUI_GZ.h"
+/* (WebUI_GZ.h removed v3.43.6 — pages servidas de LittleFS) */
 #include "LogManager.h"
 #include "TouchPriority.h"
 #include <hardware/watchdog.h>
@@ -116,6 +116,27 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
     _server.on("/api/upload", HTTP_POST,
                std::bind(&WebManager::handleUploadComplete, this),
                std::bind(&WebManager::handleUploadData, this));
+
+    /* Fase 1 OTA: download de backup completo da LittleFS. */
+    _server.on("/api/backup", HTTP_GET, std::bind(&WebManager::handleApiBackup, this));
+
+    /* Fase 2 OTA: rota única para validate/apply (modo no query param ?op=).
+     * Adicionar 2 rotas POST com upload callback custaria ~16 KB de flash
+     * (provável buffer interno do WebServer arduino-pico por rota). */
+    _server.on("/api/restore", HTTP_POST,
+               std::bind(&WebManager::handleApiRestoreFinish, this),
+               std::bind(&WebManager::handleApiRestoreUploadData, this));
+
+    /* Fase 4 OTA: endpoint smoke-test do staging POSTERGADO pra Fase 5 —
+     * adicionar uma rota nova com flash_range_* puxa ~3 KB do Pico SDK no
+     * primeiro consumidor. Vamos pagar esse custo quando a rota tiver
+     * função real (upload de firmware). Validação da Fase 4 é via reuso
+     * dentro do endpoint /api/firmware?op=begin da Fase 5. */
+
+    /* Fase 7 OTA: dispara apply do update pendente (rota separada de
+     * /api/restore para distinguir restore de .bkp vs apply de firmware). */
+    _server.on("/api/ota/apply", HTTP_POST,
+               std::bind(&WebManager::handleApiOtaApply, this));
 
     _server.onNotFound(std::bind(&WebManager::handleNotFound, this));
 

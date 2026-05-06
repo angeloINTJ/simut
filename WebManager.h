@@ -39,6 +39,8 @@ struct SendGuard {
 #include "DisplayManager.h"
 #include "TelemetryManager.h"
 #include "SoundManager.h"
+#include "ota/restore.h"
+#include "ota/firmware_stage.h"
 #include <bearssl/bearssl_hash.h>
 
 class WebManager {
@@ -151,6 +153,7 @@ private:
     bool safeSend(const String& content);
     bool safeSend_P(const char* content);
     bool safeSend_GZ(const uint8_t* gz_data, size_t gz_len);
+    bool safeSend_FS_GZ(const char* path);
 
     /* v3.36.2 (A7): broken-pipe observability. Antes safeSend retornava false
      * silenciosamente; agora maybeLogClientDisconnect() loga WEB_CLIENT_DISCONNECT
@@ -194,6 +197,11 @@ private:
 
 
     bool serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_data, size_t gz_len);
+    bool serveProtectedPageFS(uint16_t requiredPerm, const char* gz_path);
+    /* Serve gz file de LittleFS sem auth check (assets públicos: lang.js,
+     * style.css). Caller passa Content-Type e opcional Cache-Control. */
+    void servePageFromFS(const char* path, const char* content_type,
+                         const char* cache_control);
 
     void handleLogin();
     void handleApiLoginInit();
@@ -289,6 +297,33 @@ private:
     void handleApiCalibGet();
     void handleApiCalibPost();
 
+    /* Fase 1 OTA: backup completo da LittleFS atrelado ao chip_id (.bkp).
+     * Implementação em WebManager_Ota.cpp; formato em src/ota/backup_format.h. */
+    void handleApiBackup();
+
+    /* Fase 2 OTA: validação + restore de .bkp. Único handler para ambos os
+     * endpoints (validate vs apply distinguido pelo path da URI) — evita
+     * duplicação de std::function/std::bind no .text. */
+    void handleApiRestoreFinish();
+    void handleApiRestoreUploadData();
+
+    /* Fase 4 OTA: handler stub pra staging_test — postergado pra Fase 5
+     * (ver WebManager_Core.cpp). Mantido como declaração futura. */
+    void handleApiOtaStagingTest();
+
+    /* Fase 7 OTA: dispara apply do update pendente. Em 7a (no-op), aceita
+     * `?test=1` que injeta metadata stub e exercita o caminho infra
+     * (tear down → IRQ off → SRAM applier → watchdog reboot) sem destruir
+     * o slot da app. */
+    void handleApiOtaApply();
+    ota::RestoreSession _restoreSession;
+
+    /* Fase 5 OTA: upload do firmware .bin.gz pra staging via
+     * /api/restore?op=stage. Sessão dedicada (mutuamente exclusiva com
+     * _restoreSession via gate de op= no upload callback). */
+    ota::StageSession   _stageSession;
+    /* Concurrency: assumimos 1 admin web por vez. HeavyTaskGuard no apply
+     * cobre o caso patológico de 2 sessões competindo por LittleFS. */
 
     String generateSecureToken();
 
@@ -297,4 +332,7 @@ private:
 
     TelemetryManager* _telemetryRef = nullptr;
     SoundManager*     _soundRef     = nullptr;
+
+    /* Fase 1 OTA: adapter que expõe safeSend para o ota::backup_emit (Print&). */
+    friend struct OtaBackupPrintAdapter;
 };

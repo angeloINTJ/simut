@@ -1,0 +1,11 @@
+{
+  "name": "uzlib",
+  "version": "2.9.5",
+  "description": "uzlib — tiny gzip/zlib/deflate compression and decompression library. Vendored from pfalcon/uzlib for SIMUT OTA Phase 3 (decompressor only — compression sources NOT included).",
+  "license": "Zlib",
+  "homepage": "https://github.com/pfalcon/uzlib",
+  "build": {
+    "srcFilter": ["+<*.c>"],
+    "flags": ["-DUZLIB_CONF_PARANOID_CHECKS=1"]
+  }
+}
