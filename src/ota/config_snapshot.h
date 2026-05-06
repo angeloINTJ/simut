@@ -34,8 +34,8 @@ namespace ota {
 constexpr uint32_t CONFIG_SNAPSHOT_MAGIC   = 0x434D4953u; /* 'SIMC' little-endian */
 constexpr uint16_t CONFIG_SNAPSHOT_VERSION = 1u;
 
-/* Tamanho útil em pages 1..15 da metadata partition (4096 - 256). */
-constexpr uint16_t CONFIG_SNAPSHOT_REGION_SIZE = 3840u;
+/* Setor inteiro de 4 KiB no FIM da staging area (`OTA_SNAPSHOT_OFFSET`). */
+constexpr uint16_t CONFIG_SNAPSHOT_REGION_SIZE = 4096u;
 
 /* Header (16 B) + CRC32 trailer (4 B) = 20 B overhead. */
 constexpr uint16_t CONFIG_SNAPSHOT_PAYLOAD_MAX = CONFIG_SNAPSHOT_REGION_SIZE - 20u;

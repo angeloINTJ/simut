@@ -107,15 +107,14 @@ bool staging_session_begin(StorageManager* storage) {
      *
      * IMPORTANTE: serialize tem que rodar com Core 1 ATIVO. LittleFS.open/read
      * usa mutexes internos que conflitam com `multicore_lockout` (Core 1
-     * congelado pelo enterFlashSafeMode), causando hang do display + stuck
-     * "Pause do display preso >5s" + Core 1 reset cascateado durante apply.
+     * congelado pelo enterFlashSafeMode), causando hang do display.
      *
      * Sequência:
      *   1) serialize: lê system.bin via LFS, monta payload em s_applier_buf
      *      (sem flash write). Sem lockout.
-     *   2) enterFlashSafeMode: Core 1 lockado, IRQs ainda ON.
-     *   3) commit: erase + program da metadata partition. Com lockout.
-     *   4) LittleFS.end + erase staging — flow normal.
+     *   2) enterFlashSafeMode: Core 1 lockado.
+     *   3) LittleFS.end + erase staging (1 MiB, ~7-10 s).
+     *   4) commit: program no último setor da staging (já apagada).
      *
      * Falha em (1) é não-fatal: segue stage; user restaura `.bkp` manual. */
     const uint16_t snap_len = ota_snapshot_serialize();
@@ -126,17 +125,19 @@ bool staging_session_begin(StorageManager* storage) {
     /* Pausa Core 1 + sinaliza heavy ops para outros subsystemas. */
     storage->enterFlashSafeMode();
 
-    if (snap_len > 0) {
-        if (!ota_snapshot_commit(snap_len)) {
-            Serial.println("[OTA] WARN: config snapshot commit failed; relying on .bkp");
-        }
-    }
-
     /* Desmonta LittleFS — a partir daqui ninguém pode ler arquivos. */
     LittleFS.end();
 
     /* Apaga staging (1 MB). */
     bool ok = staging_erase_all();
+
+    if (ok && snap_len > 0) {
+        /* Snapshot vai no último setor da staging (já apagada). Falha aqui
+         * é não-fatal — stage segue e device sobe em factory pós-apply. */
+        if (!ota_snapshot_commit(snap_len)) {
+            Serial.println("[OTA] WARN: config snapshot commit failed; relying on .bkp");
+        }
+    }
 
     if (!ok) {
         /* Tenta remontar pra deixar o sistema utilizável. */

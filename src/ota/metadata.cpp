@@ -35,44 +35,49 @@ bool ota_metadata_read(UpdateMetadata& out) {
  * Não chamar com Core 1 ativo: caller tem que entrar em flash safe mode
  * antes (ou estar pós-IRQ-disable durante apply).
  *
- * Fase 9: pages 1..15 (3840 B após page 0) carregam o ConfigSnapshot.
- * O setor inteiro é apagado a cada write, então preservamos a região do
- * snapshot lendo via XIP antes do erase, recompondo o sector inteiro em
- * `s_applier_buf`, e regravando 4 KiB. Custo: ~30 ms a mais por write. */
+ * Fase 9 (corrigido v3.43.16): metadata partition continua sendo só
+ * UpdateMetadata (page 0). O snapshot da config foi movido para o
+ * último setor da staging area (`OTA_SNAPSHOT_OFFSET`) — write isolado,
+ * sem afetar o caminho do orchestrator. Mantém 256 B program (validado
+ * em HW desde v3.43.10/11). */
 bool __not_in_flash_func(ota_metadata_write)(const UpdateMetadata& in) {
-    /* Snapshot region atual (3840 B) — copia do XIP enquanto ainda é válido. */
-    const uint8_t* src = (const uint8_t*)(XIP_BASE + OTA_METADATA_OFFSET);
-    memcpy(s_applier_buf + OTA_FLASH_PAGE_SIZE, src + OTA_FLASH_PAGE_SIZE,
-           OTA_FLASH_SECTOR_SIZE - OTA_FLASH_PAGE_SIZE);
-
-    /* Page 0: novo UpdateMetadata. */
-    memcpy(s_applier_buf, &in, sizeof(in));
+    /* Setor inteiro vai a 0xFF; a página 0 recebe os 256 B do struct. */
+    uint8_t page[OTA_FLASH_PAGE_SIZE];
+    memcpy(page, &in, sizeof(in));
 
     uint32_t saved_irq = save_and_disable_interrupts();
     flash_range_erase(OTA_METADATA_OFFSET, OTA_METADATA_SIZE);
-    flash_range_program(OTA_METADATA_OFFSET, s_applier_buf, OTA_FLASH_SECTOR_SIZE);
+    flash_range_program(OTA_METADATA_OFFSET, page, OTA_FLASH_PAGE_SIZE);
     restore_interrupts(saved_irq);
     return true;
 }
 
-/* Análogo a ota_metadata_write mas operando sobre as pages 1..15:
- * preserva page 0 (UpdateMetadata) atual e regrava o sector com o
- * novo snapshot_data nas pages 1..15. */
+/* Snapshot da config: setor único (4 KiB) no FIM da staging area.
+ * Offset fixo: STAGING_OFFSET + (STAGING_SIZE - SECTOR_SIZE) = 0x1FE000.
+ *
+ * Por que aqui (e não na metadata partition):
+ *  - Metadata write é chamado pelo orchestrator durante apply, num path
+ *    crítico já validado em HW. Tocar lá em ota_metadata_write traz
+ *    risco de regressão no apply.
+ *  - Staging tem 1 MiB. Firmware atual ~1.004 KiB. Último setor (4 KiB)
+ *    raramente é tocado pelo apply (que copia só `staging[0..raw_size]`).
+ *  - O staging_erase_all apaga 1 MiB inteiro DEPOIS deste setor já ter
+ *    sido escrito? Não — o erase ocorre ANTES do write (via snapshot
+ *    state machine). Veja staging.cpp:staging_session_begin sequência.
+ *
+ * Pré-condição: caller em flash safe mode + setor já apagado (faz parte
+ * do staging_erase_all). Aqui só programamos. */
 bool __not_in_flash_func(ota_snapshot_write)(const uint8_t* data, uint16_t len) {
-    if (!data || len > (OTA_FLASH_SECTOR_SIZE - OTA_FLASH_PAGE_SIZE)) return false;
+    if (!data || len > OTA_FLASH_SECTOR_SIZE) return false;
 
-    /* Page 0: preserva UpdateMetadata atual. */
-    const uint8_t* src = (const uint8_t*)(XIP_BASE + OTA_METADATA_OFFSET);
-    memcpy(s_applier_buf, src, OTA_FLASH_PAGE_SIZE);
-
-    /* Pages 1..15: snapshot + 0xFF pad. */
-    memcpy(s_applier_buf + OTA_FLASH_PAGE_SIZE, data, len);
-    memset(s_applier_buf + OTA_FLASH_PAGE_SIZE + len, 0xFF,
-           OTA_FLASH_SECTOR_SIZE - OTA_FLASH_PAGE_SIZE - len);
+    /* Copia para s_applier_buf + padding 0xFF até 4 KiB (granularidade
+     * do erase, mesmo que o program seja por páginas de 256 B). */
+    memcpy(s_applier_buf, data, len);
+    memset(s_applier_buf + len, 0xFF, OTA_FLASH_SECTOR_SIZE - len);
 
     uint32_t saved_irq = save_and_disable_interrupts();
-    flash_range_erase(OTA_METADATA_OFFSET, OTA_METADATA_SIZE);
-    flash_range_program(OTA_METADATA_OFFSET, s_applier_buf, OTA_FLASH_SECTOR_SIZE);
+    /* Setor já foi apagado pelo staging_erase_all. Programamos direto. */
+    flash_range_program(OTA_SNAPSHOT_OFFSET, s_applier_buf, OTA_FLASH_SECTOR_SIZE);
     restore_interrupts(saved_irq);
     return true;
 }

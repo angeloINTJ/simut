@@ -28,7 +28,7 @@ namespace ota {
  * ------------------------------------------------------------------------- */
 
 static const uint8_t* snapshot_region_xip() {
-    return (const uint8_t*)(XIP_BASE + OTA_METADATA_OFFSET + OTA_FLASH_PAGE_SIZE);
+    return (const uint8_t*)(XIP_BASE + OTA_SNAPSHOT_OFFSET);
 }
 
 static bool read_header_from_xip(ConfigSnapshotHeader& hdr) {

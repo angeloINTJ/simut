@@ -50,6 +50,18 @@
 #define OTA_METADATA_OFFSET      (OTA_STAGING_OFFSET + OTA_STAGING_MAX_SIZE)  /* 0x1FF000 */
 #define OTA_METADATA_SIZE        (OTA_EEPROM_RESERVED)          /* 4 KB */
 
+/* Fase 9 (v3.43.16+): snapshot da config crítica no ÚLTIMO setor da
+ * staging area. O firmware típico ocupa ~1.004 KiB → último setor de
+ * 4 KiB intocado pelo apply. Persiste através do apply destrutivo;
+ * só é apagado pelo staging_erase_all do PRÓXIMO ciclo OTA, momento em
+ * que já não importa (snapshot da OTA atual já foi consumido no boot).
+ *
+ * Sketch máximo seguro mantendo snapshot intacto: 1.020 KiB - 4 KiB =
+ * 1.016 KiB. Atualmente em ~1.004 KiB → margem 12 KiB. */
+#define OTA_SNAPSHOT_OFFSET      (OTA_STAGING_OFFSET + OTA_STAGING_MAX_SIZE - OTA_FLASH_SECTOR_SIZE)
+                                                                /* 0x1FE000 */
+#define OTA_SNAPSHOT_SIZE        (OTA_FLASH_SECTOR_SIZE)        /* 4 KiB */
+
 /* Sanity check em compile-time. */
 #ifdef __cplusplus
 static_assert(OTA_APP_OFFSET == 0u, "App offset must be 0");
