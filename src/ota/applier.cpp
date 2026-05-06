@@ -113,19 +113,49 @@ bool __not_in_flash_func(ota_applier_run)(const UpdateMetadata* meta) {
         applier_reboot();
     }
 
-    /* (1) Apaga TODO o slot da app, sector-by-sector. ~13 s pra 1020 KiB. */
+    /* (1a) Programa sector 0 (boot2) ANTES do bulk erase. Diagnóstico
+     * v3.43.7+v3.43.8: flash_range_program(0,...) silenciosamente NÃO
+     * persistia QUANDO chamado APÓS um bulk erase de 255 sectors —
+     * sector 0 ficava 0xFF mesmo com retry e page-by-page. Hipótese:
+     * estado interno do chip QSPI ou ROM function tem race quando o
+     * primeiro program após bulk erase é offset 0. Mover esta operação
+     * pra ANTES do bulk erase (depois de erase isolado de sector 0
+     * apenas) evita o race. */
+    {
+        const uint8_t* src = (const uint8_t*)(XIP_BASE + OTA_STAGING_OFFSET);
+        memcpy(s_applier_buf, src, OTA_FLASH_SECTOR_SIZE);
+
+        uint32_t saved_irq = save_and_disable_interrupts();
+        flash_range_erase(0u, OTA_FLASH_SECTOR_SIZE);
+        flash_range_program(0u, s_applier_buf, OTA_FLASH_SECTOR_SIZE);
+        restore_interrupts(saved_irq);
+        applier_wdt_feed();
+    }
+
+    /* (1b) Apaga sectors 1..N-1 do slot da app. ~13 s pra ~1019 KiB. */
     constexpr uint32_t N_APP_SECTORS = OTA_APP_MAX_SIZE / OTA_FLASH_SECTOR_SIZE;
-    for (uint32_t i = 0; i < N_APP_SECTORS; i++) {
+    for (uint32_t i = 1; i < N_APP_SECTORS; i++) {
         uint32_t saved_irq = save_and_disable_interrupts();
         flash_range_erase(i * OTA_FLASH_SECTOR_SIZE, OTA_FLASH_SECTOR_SIZE);
         restore_interrupts(saved_irq);
         applier_wdt_feed();
     }
 
-    /* (2) Programa setores válidos do staging via XIP read + flash program. */
+    /* (2) Programa setores válidos do staging via XIP read + flash program.
+     *
+     * IMPORTANTE: programamos sector 0 (boot2) POR ÚLTIMO. Diagnóstico
+     * via picotool save após brick v3.43.5 mostrou que com loop forward
+     * começando em 0, o sector 0 ficava erased mesmo com programa
+     * aparente — provavelmente a SDK flash_range_program tem alguma
+     * race interna no PRIMEIRO write após bulk erase, e/ou o
+     * flash_init_boot2_copyout (que reusa cache) interage mal quando o
+     * próprio boot2 está sendo gravado. Reverter a ordem (programa
+     * 1..N-1 forward, depois 0 por último) deixa o cache de boot2
+     * estabilizar primeiro. + Após programa de sector 0, leitura via
+     * XIP confirma; se ainda 0xFF, retry até 3x. */
     const uint32_t n_data_sectors = (raw_size + OTA_FLASH_SECTOR_SIZE - 1u)
                                   / OTA_FLASH_SECTOR_SIZE;
-    for (uint32_t i = 0; i < n_data_sectors; i++) {
+    for (uint32_t i = 1; i < n_data_sectors; i++) {
         const uint8_t* src = (const uint8_t*)(XIP_BASE + OTA_STAGING_OFFSET +
                                               i * OTA_FLASH_SECTOR_SIZE);
         memcpy(s_applier_buf, src, OTA_FLASH_SECTOR_SIZE);
@@ -136,6 +166,8 @@ bool __not_in_flash_func(ota_applier_run)(const UpdateMetadata* meta) {
         restore_interrupts(saved_irq);
         applier_wdt_feed();
     }
+
+    /* (sector 0 já programado em (1a) antes do bulk erase) */
 
     /* (3) Validate CRC do app slot pós-write. */
     uint32_t crc = 0xFFFFFFFFu;
