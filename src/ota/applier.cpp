@@ -77,12 +77,32 @@
 
 /* Endereços hardcoded das HW peripherals — não dependem de includes ou
  * funções que possam estar em flash app slot apagada. */
-#define WATCHDOG_BASE_ADDR  0x40058000u
-#define WATCHDOG_SET_ALIAS  0x00002000u   /* RP2040 SET alias offset */
-#define WATCHDOG_CTRL_TRIG  (1u << 31)    /* TRIGGER bit (1u<<30 é ENABLE — bug v3.43.4) */
-#define SCB_AIRCR_ADDR      0xE000ED0Cu
-#define SCB_AIRCR_KEY       (0x05FAu << 16)
-#define SCB_AIRCR_SYSRESET  (1u << 2)
+#define WATCHDOG_BASE_ADDR     0x40058000u
+#define WATCHDOG_CTRL_OFFSET   0x00u
+#define WATCHDOG_LOAD_OFFSET   0x04u
+#define WATCHDOG_SCRATCH4_OFFSET 0x18u
+#define WATCHDOG_SET_ALIAS     0x00002000u   /* RP2040 SET alias offset */
+#define WATCHDOG_CLR_ALIAS     0x00003000u   /* RP2040 CLR alias offset */
+#define WATCHDOG_CTRL_TRIG     (1u << 31)    /* TRIGGER bit (1u<<30 é ENABLE — bug v3.43.4) */
+#define WATCHDOG_CTRL_ENABLE   (1u << 30)    /* ENABLE bit */
+
+/* PSM (Power Supply Monitor) — controla quais peripherals o watchdog reset
+ * derruba. Setar wdsel = todos os bits = reset completo de SIO, RESETS,
+ * BUSCTRL, ROSC*, XOSC*, etc. Sem isso, SCB SYSRESETREQ deixa SIO/mailbox
+ * em estado stale → arduino-pico Core 1 launch hang no próximo boot. */
+#define PSM_BASE_ADDR          0x40010000u
+#define PSM_WDSEL_OFFSET       0x08u
+/* PSM_WDSEL_BITS = todos os 17 bits low (peripheral selectors). Excluindo
+ * ROSC/XOSC pode causar instabilidade no clock pós-reset; em testes da
+ * SDK, incluí-los é OK e produz reset mais limpo. Setar 0xFFFFFFFF é
+ * idempotente — só os 17 bits válidos têm efeito, resto é reservado. */
+#define PSM_WDSEL_ALL          0xFFFFFFFFu
+
+/* SCB SYSRESETREQ (não usado mais — incompleto, deixa SIO stale).
+ * Mantido pra referência histórica do bug v3.43.4-9. */
+#define SCB_AIRCR_ADDR         0xE000ED0Cu
+#define SCB_AIRCR_KEY          (0x05FAu << 16)
+#define SCB_AIRCR_SYSRESET     (1u << 2)
 
 namespace ota {
 
@@ -108,11 +128,39 @@ static inline void __not_in_flash_func(applier_wdt_feed)() {
         WATCHDOG_CTRL_TRIG;
 }
 
-/* Reboot inline via ARM SYSRESETREQ — pico-sdk watchdog_reboot() também
- * vive em flash. Direct SCB->AIRCR write é puro MMIO, sem dependência de
- * código fora deste módulo SRAM. */
+/* Reboot inline via watchdog reset (PSM full reset). Substitui SCB
+ * SYSRESETREQ (v3.43.4-10) que era incompleto — só resetava M0+ cores,
+ * deixava SIO/multicore mailbox/RESETS em estado stale, fazendo
+ * arduino-pico Core 1 launch hangar intermitentemente no próximo boot
+ * (Bug 2 reproduzido em ~30% dos applies). Watchdog reset via PSM
+ * derruba TODOS os peripherals (SIO, RESETS, BUSCTRL etc), produzindo
+ * estado limpo equivalente a hard reset físico. Pico-sdk watchdog_reboot
+ * vive em flash slot — replicamos a sequência inline com MMIO puro:
+ *
+ *   1. Set PSM->wdsel = 0xFFFFFFFF (selector pra reset completo).
+ *   2. Clear watchdog ENABLE para limpar estado prévio.
+ *   3. Clear scratch[4] (boot mode = normal boot, não stage2).
+ *   4. Set LOAD pequeno (10 ms × 2 ticks/μs = 20000).
+ *   5. Set ENABLE | TRIGGER pra disparar imediato.
+ *   6. Spin esperando reset. */
 static inline void __not_in_flash_func(applier_reboot)() {
-    *(volatile uint32_t*)SCB_AIRCR_ADDR = SCB_AIRCR_KEY | SCB_AIRCR_SYSRESET;
+    /* (1) Configura PSM pra full reset on watchdog */
+    *(volatile uint32_t*)(PSM_BASE_ADDR + PSM_WDSEL_OFFSET) = PSM_WDSEL_ALL;
+
+    /* (2) Clear ENABLE no ctrl (via CLR alias) */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_CLR_ALIAS + WATCHDOG_CTRL_OFFSET) =
+        WATCHDOG_CTRL_ENABLE;
+
+    /* (3) Clear scratch[4] — boot ROM checa este magic; 0 = normal boot */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_SCRATCH4_OFFSET) = 0;
+
+    /* (4) LOAD = 10 ms × 2 ticks/μs (12 MHz clock div'd) — ajuste seguro */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_LOAD_OFFSET) = 20000u;
+
+    /* (5) Set ENABLE | TRIGGER (via SET alias) — dispara o reset imediato */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_SET_ALIAS + WATCHDOG_CTRL_OFFSET) =
+        WATCHDOG_CTRL_ENABLE | WATCHDOG_CTRL_TRIG;
+
     __asm volatile("dsb");
     while (1) { __asm volatile("nop"); }
 }
