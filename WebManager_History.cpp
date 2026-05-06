@@ -7,7 +7,7 @@
  * @license MIT License
  */
 #include "WebManager.h"
-#include "WebUI_GZ.h"
+/* (WebUI_GZ.h removed v3.43.6 — pages servidas de LittleFS) */
 #include "LogManager.h"
 #include "TouchPriority.h"
 #include "HistoryCodec.h"

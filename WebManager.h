@@ -153,6 +153,7 @@ private:
     bool safeSend(const String& content);
     bool safeSend_P(const char* content);
     bool safeSend_GZ(const uint8_t* gz_data, size_t gz_len);
+    bool safeSend_FS_GZ(const char* path);
 
     /* v3.36.2 (A7): broken-pipe observability. Antes safeSend retornava false
      * silenciosamente; agora maybeLogClientDisconnect() loga WEB_CLIENT_DISCONNECT
@@ -196,6 +197,11 @@ private:
 
 
     bool serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_data, size_t gz_len);
+    bool serveProtectedPageFS(uint16_t requiredPerm, const char* gz_path);
+    /* Serve gz file de LittleFS sem auth check (assets públicos: lang.js,
+     * style.css). Caller passa Content-Type e opcional Cache-Control. */
+    void servePageFromFS(const char* path, const char* content_type,
+                         const char* cache_control);
 
     void handleLogin();
     void handleApiLoginInit();

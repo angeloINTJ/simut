@@ -7,7 +7,7 @@
  * @license MIT License
  */
 #include "WebManager.h"
-#include "WebUI_GZ.h"
+/* (WebUI_GZ.h removed v3.43.6 — pages servidas de LittleFS) */
 #include "LogManager.h"
 #include <hardware/watchdog.h>
 
@@ -111,6 +111,43 @@ bool WebManager::safeSend_GZ(const uint8_t* gz_data, size_t gz_len) {
         sent += n;
     }
     return true;
+}
+
+/* Variante FS: lê gz pré-comprimido de LittleFS e stream com Content-Encoding:
+ * gzip. Caller já mandou os headers. Em ausência do arquivo (factory state pós
+ * uploadfs primeiro), responde 503 "WebUI assets missing". */
+bool WebManager::safeSend_FS_GZ(const char* path) {
+    File f;
+    {
+        ReadGuard rg(_storageRef);
+        f = LittleFS.open(path, "r");
+    }
+    if (!f) {
+        /* WebUI files ausentes — possível factory state pós uploadfs.
+         * Caller já enviou headers; só dá pra logar + abortar a stream. */
+        LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_FILE, 0,
+                 String("WebUI missing: ") + path);
+        return false;
+    }
+    if (isClientGone()) { f.close(); return false; }
+    _server.client().setTimeout(500);
+
+    const size_t CHUNK = 512;
+    uint8_t buf[CHUNK];
+    bool ok = true;
+    while (f.available()) {
+        if (isClientGone()) { ok = false; break; }
+        feedWatchdog();
+        size_t n;
+        {
+            ReadGuard rg(_storageRef);
+            n = f.read(buf, CHUNK);
+        }
+        if (n == 0) break;
+        if (!safeSend((const char*)buf, n)) { ok = false; break; }
+    }
+    f.close();
+    return ok;
 }
 
 void WebManager::safeStreamFile(File& f, const String& contentType) {
