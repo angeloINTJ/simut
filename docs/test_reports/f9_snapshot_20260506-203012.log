@@ -1,0 +1,61 @@
+[20:30:12] === F9 snapshot test — start 20260506-203012 ===
+[20:30:12] Device IP: 192.168.3.195   Port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00   Firmware: .pio/build/pico_w_release/firmware.bin
+[20:30:12] Pre-flight: /api/login_init OK
+[20:30:12] === Step 1: Reset admin via Serial CLI ===
+[20:30:19] OTP capturado: [U96U9HF2] (len=8)
+[20:30:21] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[20:30:24] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "192.168.3.206",
+  "t_port": 9080,
+  "t_path": "/api.php",
+  "t_int": 300,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[20:30:25] === Step 4: Iniciando captura Serial → /tmp/f9_serial_20260506-203012.log ===
+[20:30:25] Serial capture PID: 148854
+[20:30:26] === Step 5: Trigger OTA stage+commit+apply ===
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778110227.bkp
+[backup] wrote 432831 bytes (422.7 KiB)
+[stage] uploading firmware: 1043628 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (34.2s) {"st":5,"bytes":1043712,"crc32":"367FC5AB","v":0,"dsize":1043712,"dcrc":"367FC5AB","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 180s)…
+[wait] TIMEOUT após 180s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x75ea77019e80>, 'Connection to 192.168.3.195 timed out. (connect timeout=3)'))
+[20:34:08] ota_apply.py exit code: 7
+[20:34:08] === Step 6: Aguardando reboot + login com senha PRESERVADA ===
+[20:35:11]   tentativa 1: rc=ERR
+[20:35:19]   tentativa 2: rc=ERR
+[20:35:27]   tentativa 3: rc=ERR
+[20:35:35]   tentativa 4: rc=ERR
+[20:35:43]   tentativa 5: rc=ERR
+[20:35:52]   tentativa 6: rc=ERR
+[20:36:00]   tentativa 7: rc=ERR
+[20:36:08]   tentativa 8: rc=ERR
+[20:36:16]   tentativa 9: rc=ERR
+[20:36:24]   tentativa 10: rc=ERR
+[20:36:32]   tentativa 11: rc=ERR
+[20:36:40]   tentativa 12: rc=ERR
+[20:36:48]   tentativa 13: rc=ERR
+[20:36:56]   tentativa 14: rc=ERR
+[20:37:04]   tentativa 15: rc=ERR
+[20:37:12]   tentativa 16: rc=ERR
+[20:37:21]   tentativa 17: rc=ERR
+[20:37:29]   tentativa 18: rc=ERR
+[20:37:37]   tentativa 19: rc=ERR
+[20:37:45]   tentativa 20: rc=ERR
+[20:37:53]   tentativa 21: rc=ERR
+[20:38:01]   tentativa 22: rc=ERR
+[20:38:09]   tentativa 23: rc=ERR
+[20:38:17]   tentativa 24: rc=ERR

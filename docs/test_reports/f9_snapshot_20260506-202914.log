@@ -1,0 +1,7 @@
+[20:29:14] === F9 snapshot test — start 20260506-202914 ===
+[20:29:14] Device IP: 192.168.3.195   Port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00   Firmware: .pio/build/pico_w_release/firmware.bin
+[20:29:14] Pre-flight: /api/login_init OK
+[20:29:14] === Step 1: Reset admin via Serial CLI ===
+[20:29:21] OTP capturado: 23ZNZRHJ
+[20:29:23] === Step 2: chpass OTP → 'F9Test@2026' ===
+[20:29:23] ABORT: chpass falhou

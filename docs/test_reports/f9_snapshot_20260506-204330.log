@@ -1,0 +1,25 @@
+[20:43:30] === F9 snapshot test — start 20260506-204330 ===
+[20:43:30] Device IP: 192.168.3.195   Port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00   Firmware: .pio/build/pico_w_release/firmware.bin
+[20:43:30] Pre-flight: /api/login_init OK
+[20:43:30] === Step 1: Reset admin via Serial CLI ===
+[20:43:37] OTP capturado: [N9BYKXMX] (len=8)
+[20:43:39] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[20:43:42] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[20:43:42] === Step 4: Iniciando captura Serial → /tmp/f9_serial_20260506-204330.log ===
+[20:43:42] Serial capture PID: 150623
+[20:43:43] === Step 5: Trigger OTA stage+commit+apply ===

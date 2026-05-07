@@ -1,0 +1,24 @@
+[20:28:54] === F9 snapshot test — start 20260506-202854 ===
+[20:28:54] Device IP: 192.168.3.195   Port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00   Firmware: .pio/build/pico_w_release/firmware.bin
+[20:28:54] Pre-flight: /api/login_init OK
+[20:28:54] === Step 1: Reset admin via Serial CLI ===
+[20:29:01] OTP capture output:
+
+SIMUT# 
+
+SIMUT# conf system admin reset confirm
+Senha admin resetada. Nova senha (unica vez):
+  KMDNWU32
+Trocar no 1o login via web (forcado).
+RAM OK. Use 'write memory' para salvar.
+SIMUT# 
+
+SIMUT# write memory
+[20:28:55][UP 00:08:23][C0][INF][STO] Config salva (2562)
+[20:28:55][UP 00:08:23][C0][INF][SENSOR] Sensores em runtime carregados (11)
+[20:28:56][UP 00:08:23][C0][INF][APP] Sensores calibrados
+OK: Config salva no Flash!
+SIMUT# 
+
+SIMUT# 
+[20:29:01] ABORT: Não consegui capturar OTP do Serial após admin reset

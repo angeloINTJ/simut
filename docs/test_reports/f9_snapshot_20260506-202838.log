@@ -1,0 +1,4 @@
+[20:28:38] === F9 snapshot test — start 20260506-202838 ===
+[20:28:38] Device IP: 192.168.3.195   Port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00   Firmware: .pio/build/pico_w_release/firmware.bin
+[20:28:38] Pre-flight: device version reports ?
+[20:28:38] ABORT: Device não respondeu /api/perms — está vivo em 192.168.3.195?
