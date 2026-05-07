@@ -35,20 +35,26 @@ ok()   { echo "[$(date +%H:%M:%S)] PASS: $*" | tee -a "$LOG"; PASS_COUNT=$((PASS
 fail() { echo "[$(date +%H:%M:%S)] FAIL: $*" | tee -a "$LOG"; FAIL_COUNT=$((FAIL_COUNT+1)); }
 die()  { echo "[$(date +%H:%M:%S)] ABORT: $*" | tee -a "$LOG"; exit 1; }
 
-# Helpers da mão (FD persistente — wrapper original tem bug em USB CDC)
+# Helpers da mão. flock (-x exclusivo, -w 10 timeout) evita concorrência
+# se outro processo tentar usar a mão durante um comando.
+HAND_LOCK=/tmp/pico_hand.lock
 hand_cmd() {
     local cmd="$1"
-    $PYBIN -u <<PYEOF
-import serial, time, os
+    (
+        flock -x -w 10 200 || { echo "ERR: flock timeout"; exit 1; }
+        $PYBIN -u -c "
+import serial, time, os, sys
+cmd = sys.argv[1]
 try:
     s = serial.Serial(os.environ['HAND_PORT'], 115200, timeout=2)
     time.sleep(0.3); s.reset_input_buffer()
-    s.write(b'$cmd\n'); time.sleep(0.5)
+    s.write((cmd + '\n').encode()); time.sleep(0.5)
     print(s.read(256).decode(errors='replace').strip())
     s.close()
 except Exception as e:
     print(f'ERR: {e}')
-PYEOF
+" "$cmd"
+    ) 200>"$HAND_LOCK"
 }
 
 hand_long_reset() {
@@ -65,13 +71,16 @@ probe_http() {
 }
 
 probe_cli() {
-    $PYBIN -u <<'PYEOF' 2>/dev/null
+    # timeout strict shell-wrapped: serial open pode pendurar quando SIMUT
+    # está em estado ruim (USB CDC enumera mas não responde). Sem isso,
+    # probe_cli trava o probe_state inteiro e impede reset longo de sair.
+    timeout 5 $PYBIN -u <<'PYEOF' 2>/dev/null
 import serial, time, os, sys
 try:
-    s = serial.Serial(os.environ['SIMUT_PORT'], 115200, timeout=2)
-    time.sleep(0.3); s.reset_input_buffer()
-    s.write(b'\r\n'); time.sleep(0.8)
-    out = s.read(2048).decode(errors='replace')
+    s = serial.Serial(os.environ['SIMUT_PORT'], 115200, timeout=1)
+    time.sleep(0.2); s.reset_input_buffer()
+    s.write(b'\r\n'); time.sleep(0.5)
+    out = s.read(512).decode(errors='replace')
     s.close()
     sys.exit(0 if 'SIMUT' in out else 1)
 except Exception:
@@ -105,12 +114,14 @@ wait_http() {
     return 1
 }
 
-# Estratégia tolerante: até 4 ciclos com reset longo entre eles.
+# Estratégia tolerante: até 6 ciclos curtos (60s) com reset longo entre eles.
+# Cycle 1 mais curto: já sabemos que se trava, só reset longo recupera.
+# Cada timeout de probe_cli é 5s strict — não pendura.
 wait_post_apply_with_recovery() {
     local cycle
-    for cycle in 1 2 3 4; do
-        local timeout=300
-        [ $cycle -gt 1 ] && timeout=180
+    for cycle in 1 2 3 4 5 6; do
+        local timeout=60
+        [ $cycle -eq 1 ] && timeout=90  # primeira espera um pouco mais (boot inicial pode levar)
         log "Cycle $cycle: aguardando boot pós-apply (${timeout}s)..."
         probe_state
         if wait_http $timeout "cycle $cycle"; then
@@ -118,15 +129,14 @@ wait_post_apply_with_recovery() {
             probe_state
             return 0
         fi
-        log "Cycle $cycle falhou. Estado:"
-        probe_state
-        if [ $cycle -lt 4 ]; then
+        log "Cycle $cycle falhou."
+        if [ $cycle -lt 6 ]; then
             hand_long_reset
-            log "Aguardando 10 s para boot iniciar pós reset longo..."
-            sleep 10
+            log "Aguardando 12s para boot iniciar pós reset longo..."
+            sleep 12
         fi
     done
-    log "FAIL: device não voltou após 4 ciclos com 3 resets longos"
+    log "FAIL: device não voltou após 6 ciclos com 5 resets longos"
     return 1
 }
 

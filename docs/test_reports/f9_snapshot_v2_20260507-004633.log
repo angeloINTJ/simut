@@ -1,0 +1,51 @@
+[00:46:33] === F9 snapshot test v2 — start 20260507-004633 ===
+[00:46:33] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[00:46:33] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[00:46:33] 
+[00:46:36] Pre-flight mão: PONG
+[00:46:36] Pre-flight HTTP: OK
+[00:46:36] 
+[00:46:36] === Step 1: Reset admin via Serial CLI ===
+[00:46:43] OTP: J3J4H96X
+[00:46:45] 
+[00:46:45] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[00:46:48] 
+[00:46:48] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[00:46:49] 
+[00:46:49] === Step 4: Trigger OTA (stage+commit+apply) ===
+[00:46:49] Estado pré-OTA:
+[00:46:52]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[00:46:52] 
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778125613.bkp
+[backup] wrote 6083 bytes (5.9 KiB)
+[stage] uploading firmware: 1043564 bytes (1019.1 KiB)
+[stage+commit] HTTP 200 (31.5s) {"st":5,"bytes":1043712,"crc32":"F4138813","v":0,"dsize":1043712,"dcrc":"F4138813","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 180s)…
+[wait] TIMEOUT após 180s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x72334f6dd340>, 'Connection to 192.168.3.195 timed out. (connect timeout=3)'))
+[00:50:28] ota_apply.py terminou (exit=7 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[00:50:28] 
+[00:50:28] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[00:50:28] Cycle 1: aguardando boot pós-apply (300s)...
+[00:50:50]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=N CLI=N
+[00:50:50]   cycle 1: aguardando HTTP até 300s...
+[00:55:54]   cycle 1: TIMEOUT após 300s
+[00:55:54] Cycle 1 falhou. Estado:

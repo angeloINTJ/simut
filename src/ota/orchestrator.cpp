@@ -52,10 +52,11 @@ OrchestratorResult ota_apply_pending_update(StorageManager* storage) {
 
     /* (5) Tear down — ordem importa.
      *
-     * WiFi primeiro: cyw43 driver tem IRQs próprias que precisam ser
-     * desligadas antes do save_and_disable_interrupts global. WiFi.end()
-     * chama cyw43_arch_deinit internamente. Sem isso, IRQ pendente do
-     * CYW43 dispara após disable_interrupts e trava o sistema. */
+     * Fix #2 cyw43_arch_deinit() REVERTIDO em v3.43.19 — em v3.43.18 o
+     * deinit causou trava do boot inicial após USB flash limpo (USB CDC
+     * enumera mas CLI mudo). Hipótese: deinit deixa o chip CYW43 em
+     * estado que requer power cycle pra recuperar, mesmo no boot novo.
+     * Investigação continua. */
     WiFi.end();
 
     /* LittleFS desmontada — staging é acessível via XIP cru. */

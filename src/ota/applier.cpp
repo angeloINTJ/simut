@@ -87,16 +87,24 @@
 #define WATCHDOG_CTRL_ENABLE   (1u << 30)    /* ENABLE bit */
 
 /* PSM (Power Supply Monitor) — controla quais peripherals o watchdog reset
- * derruba. Setar wdsel = todos os bits = reset completo de SIO, RESETS,
- * BUSCTRL, ROSC*, XOSC*, etc. Sem isso, SCB SYSRESETREQ deixa SIO/mailbox
- * em estado stale → arduino-pico Core 1 launch hang no próximo boot. */
+ * derruba. SDK pico-sdk hardware_watchdog/watchdog.c::_watchdog_enable
+ * usa `PSM_WDSEL_BITS & ~(PSM_WDSEL_ROSC_BITS | PSM_WDSEL_XOSC_BITS)`,
+ * EXCLUINDO os oscillators físicos (ROSC e XOSC).
+ *
+ * Razão: resetar ROSC/XOSC força um re-startup que pode brevemente deixar
+ * PLLs derivados (PLL_SYS, PLL_USB) em estado instável. Se algum periférico
+ * começar a operar antes do `runtime_init_clocks` re-inicializar os clocks,
+ * pode ficar com state inválido — sintoma observado: USB CDC enumera mas
+ * host não recebe dados pós-watchdog reboot.
+ *
+ * F-OTA-BOOTLOOP fix v3.43.17: alinhar com SDK em vez de 0xFFFFFFFF. */
 #define PSM_BASE_ADDR          0x40010000u
 #define PSM_WDSEL_OFFSET       0x08u
-/* PSM_WDSEL_BITS = todos os 17 bits low (peripheral selectors). Excluindo
- * ROSC/XOSC pode causar instabilidade no clock pós-reset; em testes da
- * SDK, incluí-los é OK e produz reset mais limpo. Setar 0xFFFFFFFF é
- * idempotente — só os 17 bits válidos têm efeito, resto é reservado. */
-#define PSM_WDSEL_ALL          0xFFFFFFFFu
+#define PSM_WDSEL_ROSC_BIT     (1u << 0)
+#define PSM_WDSEL_XOSC_BIT     (1u << 1)
+#define PSM_WDSEL_BITS_ALL     0x0001FFFFu  /* 17 bits válidos */
+#define PSM_WDSEL_RESET_MASK   (PSM_WDSEL_BITS_ALL & ~(PSM_WDSEL_ROSC_BIT | PSM_WDSEL_XOSC_BIT))
+                                            /* = 0x0001FFFC (todos exceto ROSC/XOSC) */
 
 /* SCB SYSRESETREQ (não usado mais — incompleto, deixa SIO stale).
  * Mantido pra referência histórica do bug v3.43.4-9. */
@@ -151,8 +159,9 @@ static inline void __not_in_flash_func(applier_wdt_feed)() {
  *   5. Set ENABLE | TRIGGER pra disparar imediato.
  *   6. Spin esperando reset. */
 static inline void __not_in_flash_func(applier_reboot)() {
-    /* (1) Configura PSM pra full reset on watchdog */
-    *(volatile uint32_t*)(PSM_BASE_ADDR + PSM_WDSEL_OFFSET) = PSM_WDSEL_ALL;
+    /* (1) Configura PSM pra reset on watchdog — todos peripherals
+     * EXCETO ROSC/XOSC, alinhado com pico-sdk _watchdog_enable. */
+    *(volatile uint32_t*)(PSM_BASE_ADDR + PSM_WDSEL_OFFSET) = PSM_WDSEL_RESET_MASK;
 
     /* (2) Clear ENABLE no ctrl (via CLR alias) */
     *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_CLR_ALIAS + WATCHDOG_CTRL_OFFSET) =
