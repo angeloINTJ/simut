@@ -16,15 +16,6 @@
 #include <WiFi.h>
 #include <LittleFS.h>
 #include <hardware/sync.h>
-#include <hardware/gpio.h>
-
-/* CYW43 WL_REG_ON pin no Pico W = GPIO 23 (pin power gate do chip externo).
- * Drive LOW pra power-cycles o chip antes do watchdog_reboot — evita
- * acúmulo de estado entre OTAs consecutivos (Achado #4 docs/INVESTIGATION_BOOTLOOP.md).
- * Default vem de pico-sdk pico_w.h se não estiver definido. */
-#ifndef CYW43_DEFAULT_PIN_WL_REG_ON
-#define CYW43_DEFAULT_PIN_WL_REG_ON 23u
-#endif
 
 namespace ota {
 
@@ -71,19 +62,12 @@ OrchestratorResult ota_apply_pending_update(StorageManager* storage) {
     /* LittleFS desmontada — staging é acessível via XIP cru. */
     LittleFS.end();
 
-    /* Fix #4 (v3.44.0-alpha2): power-cycle CYW43 antes do watchdog reset.
-     * WiFi.end() não desliga o chip externo (apenas chama cyw43_wifi_leave).
-     * Watchdog reset reseta RP2040 mas NÃO o CYW43 (chip separado via SPI).
-     * Após N applies consecutivos, state interno do CYW43 acumula até
-     * cyw43_arch_init no próximo boot falhar silencioso → bootloop.
-     * Solução: drive WL_REG_ON LOW por 100ms — corta 3V3 do chip via load
-     * switch. RP2040 segue funcionando. Boot pós-reboot vai religar o
-     * pin (cyw43_arch_init drive HIGH) e o chip inicializa fresh.
-     * Hipótese principal pra bricks residuais ~24% (loop20 v3.43.21). */
-    gpio_init(CYW43_DEFAULT_PIN_WL_REG_ON);
-    gpio_set_dir(CYW43_DEFAULT_PIN_WL_REG_ON, GPIO_OUT);
-    gpio_put(CYW43_DEFAULT_PIN_WL_REG_ON, 0);
-    busy_wait_ms(100);
+    /* Fix #4 (v3.44.0-alpha2) REVERTIDO em alpha3 (2026-05-07): drive
+     * WL_REG_ON LOW antes do reboot REGRIDIU brick rate de 24% para 57%
+     * (validação 7 iters). Hipótese: power-cycle do CYW43 mid-tear-down
+     * deixa USB CDC / bus em estado mais frágil. Mantida apenas em modo
+     * experimental — possivelmente precisa ordem diferente (ex: matar
+     * CYW43 ANTES do WiFi.end). Investigar isolado. */
 
     /* (5) IRQs globais OFF + jump pra applier SRAM. */
     uint32_t saved_irq = save_and_disable_interrupts();
