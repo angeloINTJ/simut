@@ -274,3 +274,77 @@ C. **Aceitar Fase 9 como funcional**: snapshot+restore funciona;
    Versões 17/18/19 foram experimentos.
 
 
+
+---
+
+## Achado #4 — Bricks residuais pós fix #3 (~24%)
+
+Após fix #3 (TRIGGER-only watchdog) em v3.43.21, brick rate caiu de
+"100% reproduzível" pra **~24% residual** (4 bricks em 17 tentativas
+válidas no loop20).
+
+### Padrão observado (loop20 v3.43.21, 2026-05-07)
+
+```
+iter 1-4: PASS    (4 PASS)
+iter 5:   BRICK   ← 1º brick após 4 iters
+iter 6-12: PASS   (7 PASS — recuperou após picotool flash)
+iter 13:  BRICK   ← 2º brick após 7 iters
+iter 14:  FAIL falso (recovery script hung, não foi brick real)
+iter 15:  BRICK   ← 3º brick após picotool recovery
+iter 16-17: PASS  (2 PASS)
+iter 18:  BRICK   ← 4º brick após 2 iters
+iter 19-20: FAIL falsos (recovery hung)
+```
+
+Bricks reais: 5, 13, 15, 18. Espaçamento: 5, 8, 2, 3 iters.
+Pattern: **acúmulo de estado** entre apply consecutivos.
+
+### Hipóteses (ranqueadas)
+
+1. **CYW43 module residual state (mais provável)**: chip externo
+   conectado via SPI. Não é resetado por `watchdog_reboot` (não tem
+   power cycle). Após N applies, estado interno (timers, registros,
+   FSMs) acumula até init falhar silencioso na próxima vez. Fix
+   candidato: drive `WL_REG_ON` pin LOW por 100ms antes do
+   watchdog_reboot — power-cycles a CYW43 sem afetar RP2040. Requer
+   identificar o pino correto (provavelmente `CYW43_PIN_WL_REG_ON`).
+
+2. **LittleFS metadata accumulation**: cada format pós-apply pode
+   deixar estado de wear-leveling que eventualmente confunde mount.
+   Improvável (LittleFS é robusto a interrupções), mas possível.
+
+3. **BTstack TLV (sector 251 do app slot)**: dados de pairing
+   acumulam? Cada apply REWRITES isso (erase total do app slot pelo
+   applier). Improvável.
+
+4. **USB CDC enumeration drift**: cada watchdog_reboot dispara
+   re-enumeração. Host kernel pode reusar device numbers stale.
+   Improvável afetar firmware.
+
+5. **Timing edge case no PSM reset**: alguns periféricos tem reset
+   asíncrono. PSM_WDSEL_BITS reset em onda pode pegar peripheral
+   em ponto desfavorável raramente. Pode explicar o caráter random.
+
+### Próximo passo recomendado
+
+Implementar fix #4: power-cycle do CYW43 via `WL_REG_ON` pin antes
+do `watchdog_reboot`. Adicionar a `applier_reboot()` em
+`src/ota/applier.cpp`:
+
+```cpp
+// Power-cycle CYW43 antes do reset. WL_REG_ON é o gate que controla
+// 3V3 do chip externo via load switch. Drive low → chip desliga.
+// Mantém RP2040 funcionando — single chip self-reset não funciona
+// pra ele.
+gpio_init(CYW43_DEFAULT_PIN_WL_REG_ON);
+gpio_set_dir(CYW43_DEFAULT_PIN_WL_REG_ON, GPIO_OUT);
+gpio_put(CYW43_DEFAULT_PIN_WL_REG_ON, 0);
+busy_wait_ms(100);  // Tempo pra capacitores descarregarem
+// (não precisa religar — watchdog reboot vai re-init)
+// applier_reboot via watchdog/PSM ...
+```
+
+Validar com loop de 20 ciclos. Se brick rate cair pra <5%, fix
+candidato a v4.0.0.
+
