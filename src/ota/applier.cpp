@@ -159,23 +159,43 @@ static inline void __not_in_flash_func(applier_wdt_feed)() {
  *   5. Set ENABLE | TRIGGER pra disparar imediato.
  *   6. Spin esperando reset. */
 static inline void __not_in_flash_func(applier_reboot)() {
+    /* F-OTA-BOOTLOOP fix #3 (v3.43.21): SDK pico-sdk hardware_watchdog/
+     * watchdog.c::_watchdog_enable usa apenas TRIGGER quando delay_ms=0
+     * (reset imediato). Antes nós usávamos ENABLE|TRIGGER simultâneo,
+     * que após o reset deixava o watchdog ARMADO com LOAD pequeno
+     * (10ms). Watchdog HW NÃO é resetado pelo PSM (não está em
+     * PSM_WDSEL_BITS) — só é resetado por power cycle físico (3V3
+     * cycle). Resultado: pós-reset, watchdog continuava ENABLE com
+     * LOAD=10ms → disparava novo reset a cada 10ms → boot pós-OTA
+     * ficava em loop infinito de reset até power cycle.
+     *
+     * Sintoma autópsia: sc3=0x80088000 (bit 31 = HW WDT reason flag).
+     *
+     * Fix: TRIGGER apenas (reset imediato). Antes do TRIGGER, fazer
+     * watchdog_disable explícito (clear ENABLE) + LOAD = max para
+     * garantir que mesmo se algo der errado, o timer não vai disparar
+     * antes do firmware re-inicializar normalmente. */
+
     /* (1) Configura PSM pra reset on watchdog — todos peripherals
      * EXCETO ROSC/XOSC, alinhado com pico-sdk _watchdog_enable. */
     *(volatile uint32_t*)(PSM_BASE_ADDR + PSM_WDSEL_OFFSET) = PSM_WDSEL_RESET_MASK;
 
-    /* (2) Clear ENABLE no ctrl (via CLR alias) */
+    /* (2) Clear ENABLE no ctrl (via CLR alias) — desabilita o timer */
     *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_CLR_ALIAS + WATCHDOG_CTRL_OFFSET) =
         WATCHDOG_CTRL_ENABLE;
 
     /* (3) Clear scratch[4] — boot ROM checa este magic; 0 = normal boot */
     *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_SCRATCH4_OFFSET) = 0;
 
-    /* (4) LOAD = 10 ms × 2 ticks/μs (12 MHz clock div'd) — ajuste seguro */
-    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_LOAD_OFFSET) = 20000u;
+    /* (4) LOAD = max (24-bit max = 0xFFFFFF). Watchdog HW persiste pós-reset
+     * (não está em PSM_WDSEL); LOAD grande dá ao firmware tempo suficiente
+     * para chegar ao primeiro watchdog_update no loop(). */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_LOAD_OFFSET) = 0xFFFFFFu;
 
-    /* (5) Set ENABLE | TRIGGER (via SET alias) — dispara o reset imediato */
+    /* (5) Set TRIGGER apenas (NÃO ENABLE). TRIGGER força reset imediato.
+     * ENABLE não é necessário — armaria o timer pós-reset, criando loop. */
     *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_SET_ALIAS + WATCHDOG_CTRL_OFFSET) =
-        WATCHDOG_CTRL_ENABLE | WATCHDOG_CTRL_TRIG;
+        WATCHDOG_CTRL_TRIG;
 
     __asm volatile("dsb");
     while (1) { __asm volatile("nop"); }

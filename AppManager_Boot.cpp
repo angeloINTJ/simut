@@ -40,6 +40,11 @@ void AppManager::setup() {
     Serial.print  (F("  SIMUT firmware "));
     Serial.println(SIMUT_VERSION);
     Serial.println(F("=============================================="));
+    /* F-OTA-BOOTLOOP boot tracing: cada [BOOT step] tem Serial.flush()
+     * pra garantir que sai mesmo se a próxima linha travar. Permite
+     * localizar exatamente onde o boot pós-apply trava sem precisar
+     * de reflash. Logs entram só em paths críticos pré-LogManager. */
+    Serial.print(F("[BOOT step] 1: pos-banner @ ")); Serial.println(millis()); Serial.flush();
 
     /*
      * NÃO chamar TRACE_MOD aqui — scratch[4] precisa conter o módulo do
@@ -48,8 +53,11 @@ void AppManager::setup() {
      */
     TRACE_BEAT(0);
 
+    Serial.print(F("[BOOT step] 2: _displayMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
     _displayMgr->begin();
+    Serial.print(F("[BOOT step] 3: _displayMgr->startCore1() @ ")); Serial.println(millis()); Serial.flush();
     _displayMgr->startCore1();
+    Serial.print(F("[BOOT step] 4: pos-startCore1 @ ")); Serial.println(millis()); Serial.flush();
     LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, TRL("Display UI Launched on Core 1."));
 
     delay(BOOT_STEP_DELAY_MS);
@@ -141,8 +149,10 @@ void AppManager::setup() {
         return app.requestDisplayQuietMode(enable);
     });
 
+    Serial.print(F("[BOOT step] 5: pre _storageMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
     _displayMgr->setBootStatusKey(TR_BOOT_MOUNT_FS);
     bool fsOk = _storageMgr->begin();
+    Serial.print(F("[BOOT step] 6: pos _storageMgr->begin() fsOk=")); Serial.print(fsOk); Serial.print(F(" @ ")); Serial.println(millis()); Serial.flush();
 
     /* DisplayManager precisa do ponteiro pra config pra renderizar o dashboard
      * (buildDashLayout filtra slots inativos). Seta UMA vez no boot — o cfg
@@ -191,6 +201,8 @@ void AppManager::setup() {
         }
     }
 
+    Serial.print(F("[BOOT step] 7: pos OTA detect @ ")); Serial.println(millis()); Serial.flush();
+
     LogManager::instance().setHeavyTaskChecker([]() -> bool {
         return app._storageMgr->isHeavyTaskLocked();
     });
@@ -203,6 +215,7 @@ void AppManager::setup() {
         return app.isUserInteracting();
     });
 
+    Serial.print(F("[BOOT step] 8: pre _cmdMgr->begin @ ")); Serial.println(millis()); Serial.flush();
     _displayMgr->setBootStatusKey(TR_BOOT_START_CMD);
     /* v3.33.1: nome do BT visível na rede agora vem do `cfg.deviceName`
      * (configurável em /config) em vez do default "PicoW Serial XX:XX:..."
@@ -342,6 +355,7 @@ void AppManager::setup() {
     loadAndCalibrateSensors();
     _sensorMgr->setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 
+    Serial.print(F("[BOOT step] 9: pre _netMgr (forceAP=")); Serial.print(forceAP ? 1 : 0); Serial.print(F(") @ ")); Serial.println(millis()); Serial.flush();
     if (forceAP) {
         LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
         _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
@@ -351,10 +365,12 @@ void AppManager::setup() {
         for (int i = 0; i < 35; i++) { delay(100); feedWdt(); }
     } else {
         _displayMgr->setBootStatusKey(TR_BOOT_START_WIFI);
+        Serial.print(F("[BOOT step] 10: pre _netMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
         _netMgr->begin(cfg,
                       _storageMgr->isDnsAuto(),
                       _storageMgr->isNtpEnabled(),
                       _storageMgr->getSecondaryDns());
+        Serial.print(F("[BOOT step] 11: pos _netMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
 
         unsigned long netWait = millis();
         unsigned long lastMsg = 0;
@@ -417,8 +433,10 @@ void AppManager::setup() {
 
     LogManager::instance().setEpochSource([]() -> time_t { return time(nullptr); });
 
+    Serial.print(F("[BOOT step] 12: pre _webMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
     _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
     _webMgr->begin(_storageMgr.get(), _sensorMgr.get(), _netMgr.get(), _displayMgr.get(), _telemetryMgr.get(), _soundMgr.get());
+    Serial.print(F("[BOOT step] 13: pos _webMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
 
     _displayMgr->setBootStatusKey(TR_BOOT_REG_CALLBACKS);
     _webMgr->setYieldCallback([this]() { this->core0Yield(); });
@@ -499,6 +517,7 @@ void AppManager::setup() {
         LOG_CODE(LOG_INFO, "APP", APP_READY, 0, TRL("System ready."));
         _displayMgr->endBoot();
         _bootCompletedAt = millis();
+        Serial.print(F("[BOOT step] 14: SYS READY @ ")); Serial.println(millis()); Serial.flush();
 
 
         _soundMgr->play(SND_CONFIRM);
