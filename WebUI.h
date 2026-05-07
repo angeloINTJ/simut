@@ -3030,37 +3030,38 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
         }
 
-        /* OTA Firmware Update — compact form to fit flash budget. */
-        function fmFirmware() { document.getElementById('fwFile').click(); }
+        /* OTA Firmware Update — Alpha v3.44 safety flow (compact). */
+        function fmFirmware() {
+            if (!confirm(window.t('fil_fw_warn','OTA reformata LittleFS. Configs preservadas; history/themes/calib APAGADOS. ~24% bricks. Prosseguir?'))) return;
+            document.getElementById('fwFile').click();
+        }
         async function doFirmware() {
-            let inp = document.getElementById('fwFile'), f = inp.files[0]; inp.value = '';
-            if (!f || !/\.bin$/i.test(f.name)) { showToast(window.t('fil_fw_bad','Need .bin file'), 'err'); return; }
-            if (!confirm(window.t('fil_fw_confirm','Send firmware? Device reboots, LFS factory reset.'))) return;
-            /* Fase 9: backup automático do FS (.bkp) antes do OTA. Config
-             * crítica vai pelo snapshot da metadata partition; este .bkp
-             * cobre history/lang/themes/calib pra restore manual via /files. */
+            let f = document.getElementById('fwFile').files[0];
+            document.getElementById('fwFile').value = '';
+            if (!f || !/\.bin$/i.test(f.name)) { showToast('.bin necessario','err'); return; }
             showToast(window.t('fil_fw_bk','Saving backup...'), 'ok');
-            try {
-                let br = await fetch('/api/backup');
-                if (br.ok) {
-                    let blob = await br.blob();
-                    let u = URL.createObjectURL(blob);
-                    let a = document.createElement('a');
-                    a.href = u; a.download = 'simut_pre-ota.bkp';
-                    document.body.appendChild(a); a.click(); a.remove();
-                    URL.revokeObjectURL(u);
-                }
-            } catch(e) { /* non-fatal */ }
+            let r, bk;
+            try { r = await fetch('/api/backup'); if (!r.ok) throw 0; bk = await r.blob(); }
+            catch(e) { showToast('Backup fail','err'); return; }
+            let psz = +r.headers.get('X-Backup-PSize'), pcrc = +r.headers.get('X-Backup-PCrc');
+            let dv = new DataView(await bk.arrayBuffer());
+            if (dv.getUint32(0,true) !== 0x31504B42 || dv.getUint32(24,true) !== psz || dv.getUint32(28,true) !== pcrc) {
+                showToast('Backup mismatch','err'); return;
+            }
+            let u = URL.createObjectURL(bk);
+            let a = document.createElement('a'); a.href = u;
+            a.download = 'simut_pre-ota_'+Date.now()+'.bkp';
+            document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
+            if (!confirm(window.t('fil_fw_apply','Apply now? Reboots in ~60s.'))) return;
             showToast(window.t('fil_fw_up','Uploading firmware...'), 'ok');
             try {
                 let fd = new FormData(); fd.append('file', f);
-                let r = await fetch('/api/restore?op=stage&commit=1', {method:'POST', body:fd});
-                let v = await r.json();
-                if (r.status !== 200 || v.committed !== 1) { showToast('Stage fail: v='+v.v, 'err'); return; }
-                if (!confirm(window.t('fil_fw_apply','Apply now? Reboots in ~60s.'))) return;
-                showToast(window.t('fil_fw_app','Applying — wait 60s & re-login'), 'ok');
+                let r2 = await fetch('/api/restore?op=stage&commit=1', {method:'POST', body:fd});
+                let v = await r2.json();
+                if (r2.status !== 200 || v.committed !== 1) { showToast('Stage fail v='+v.v, 'err'); return; }
+                showToast(window.t('fil_fw_app','Applying...'), 'ok');
                 await fetch('/api/ota/apply', {method:'POST'});
-            } catch(e) { /* expected post-apply drop */ }
+            } catch(e) {}
             setTimeout(() => location.href = '/login', 5000);
         }
 

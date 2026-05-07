@@ -117,7 +117,9 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
                std::bind(&WebManager::handleUploadComplete, this),
                std::bind(&WebManager::handleUploadData, this));
 
-    /* Fase 1 OTA: download de backup completo da LittleFS. */
+    /* Fase 1 OTA: download de backup completo da LittleFS.
+     * Alpha v3.44.0: response também inclui X-Backup-PSize/X-Backup-PCrc
+     * pro browser verificar integridade antes de aceitar OTA. */
     _server.on("/api/backup", HTTP_GET, std::bind(&WebManager::handleApiBackup, this));
 
     /* Fase 2 OTA: rota única para validate/apply (modo no query param ?op=).

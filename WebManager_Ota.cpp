@@ -98,6 +98,10 @@ void WebManager::handleApiBackup() {
     _server.sendHeader("Content-Disposition", dispo);
     _server.sendHeader("X-Backup-Files", String(scan.file_count));
     _server.sendHeader("X-Backup-Schema", String((unsigned)OTA_BACKUP_SCHEMA));
+    /* Alpha v3.44.0: psz/pcrc no header pro browser verificar download íntegro
+     * antes do OTA (sem precisar de endpoint /api/fs/manifest separado). */
+    _server.sendHeader("X-Backup-PSize", String(scan.payload_size));
+    _server.sendHeader("X-Backup-PCrc", String(scan.payload_crc32));
     _server.setContentLength(total);
     _server.send(200, "application/octet-stream", "");
 
