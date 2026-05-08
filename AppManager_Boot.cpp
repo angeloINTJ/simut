@@ -30,6 +30,19 @@ extern AppManager app;
 
 void AppManager::setup() {
     Serial.begin(115200);
+
+    /* v3.44.0-alpha10: ignoreFlowControl(true) — Arduino-Pico SerialUSB::write
+     * silenciosamente DROPA writes se tud_cdc_connected() é false (host
+     * não open port + não raised DTR). Pós-watchdog reset do applier,
+     * USB CDC re-enumera mas host pode não conectar a tempo de capturar
+     * os primeiros prints — boot output perdido = "USB enumera mas
+     * serial mute" sintoma observado em residual OTA brick.
+     * Com ignoreFlowControl, writes tentam por até 1s (timeout interno do
+     * SerialUSB) — buffereados na FIFO TX da TinyUSB, host vê quando
+     * conecta. Trade-off: cada Serial.println adiciona até 1s se host
+     * não conectado. Aceitável pra debug; revisitar pós-v4 stable. */
+    Serial.ignoreFlowControl(true);
+
     delay(1000);
 
     /* Log da versão ANTES de qualquer init que possa travar — garante que
