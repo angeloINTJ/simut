@@ -70,6 +70,12 @@ static const uint32_t BOOTSEL_HOLD_POS_MS = 200;
 /** Periodo do heartbeat do LED. */
 static const uint32_t HEARTBEAT_MS        = 500;
 
+/** Debug: liga/desliga logs verbose de cada transicao de pino + timestamps.
+ *  Toggle via comando "DEBUG ON"/"DEBUG OFF" em runtime. Default OFF para
+ *  nao poluir output em automacao. Use "DEBUG ON" antes de comandos que
+ *  voce quer instrumentar. */
+static bool g_debug_enabled = false;
+
 /* =============================================================================
  *  Constantes do parser
  * ============================================================================= */
@@ -96,6 +102,20 @@ static void pin_init_released(uint8_t gpio)
 }
 
 /**
+ * Log debug de transicao de pino — formato:
+ *   [DBG t=<ms>] <action> GP<n>  read_back=<H|L>
+ * read_back amostra o estado real lido após a operação (sanity check).
+ */
+static void dbg_pin(uint32_t t, const char *action, uint8_t gpio)
+{
+    if (!g_debug_enabled) return;
+    int rb = digitalRead(gpio);
+    Serial.printf("[DBG t=%lu] %s GP%u read_back=%c\n",
+                  (unsigned long)t, action, (unsigned)gpio, rb ? 'H' : 'L');
+    Serial.flush();
+}
+
+/**
  * Pressiona o "botao": GPIO vira OUTPUT em LOW, puxando a linha do
  * Pico alvo para GND.
  *
@@ -103,8 +123,10 @@ static void pin_init_released(uint8_t gpio)
  */
 static void pin_press(uint8_t gpio)
 {
+    uint32_t t0 = millis();
     digitalWrite(gpio, LOW);
     pinMode(gpio, OUTPUT);
+    dbg_pin(t0, "PRESS", gpio);
 }
 
 /**
@@ -115,7 +137,9 @@ static void pin_press(uint8_t gpio)
  */
 static void pin_release(uint8_t gpio)
 {
+    uint32_t t0 = millis();
     pinMode(gpio, INPUT);
+    dbg_pin(t0, "RELEASE", gpio);
 }
 
 /**
@@ -135,15 +159,26 @@ static bool g_reset_pressed   = false;
 
 /**
  * Aplica um pulso de reset no Pico alvo.
+ *
+ * Mede tempo real do pulso e reporta em debug mode.
  */
 static void sequence_reset(void)
 {
+    uint32_t t_press = millis();
     pin_press(PIN_RESET);
     g_reset_pressed = true;
     delay(RESET_PULSE_MS);
 
+    uint32_t t_release = millis();
     pin_release(PIN_RESET);
     g_reset_pressed = false;
+
+    if (g_debug_enabled) {
+        Serial.printf("[DBG] RESET pulse: target=%lums actual=%lums\n",
+                      (unsigned long)RESET_PULSE_MS,
+                      (unsigned long)(t_release - t_press));
+        Serial.flush();
+    }
 }
 
 /**
@@ -153,24 +188,39 @@ static void sequence_reset(void)
  *   3. Mantem BOOTSEL pressionado por mais um instante para o bootrom
  *      amostrar o pino durante a inicializacao.
  *   4. Solta BOOTSEL.
+ *
+ * Mede tempo real de cada fase e reporta em debug mode.
  */
 static void sequence_bootsel(void)
 {
+    uint32_t t_bp = millis();
     pin_press(PIN_BOOTSEL);
     g_bootsel_pressed = true;
     delay(BOOTSEL_HOLD_PRE_MS);
 
+    uint32_t t_rp = millis();
     pin_press(PIN_RESET);
     g_reset_pressed = true;
     delay(RESET_PULSE_MS);
 
+    uint32_t t_rr = millis();
     pin_release(PIN_RESET);
     g_reset_pressed = false;
 
     delay(BOOTSEL_HOLD_POS_MS);
 
+    uint32_t t_br = millis();
     pin_release(PIN_BOOTSEL);
     g_bootsel_pressed = false;
+
+    if (g_debug_enabled) {
+        Serial.printf("[DBG] BOOTSEL seq: pre=%lums reset=%lums pos=%lums total=%lums\n",
+                      (unsigned long)(t_rp - t_bp),
+                      (unsigned long)(t_rr - t_rp),
+                      (unsigned long)(t_br - t_rr),
+                      (unsigned long)(t_br - t_bp));
+        Serial.flush();
+    }
 }
 
 /* =============================================================================
@@ -232,6 +282,8 @@ static void cmd_release(const char *args);
 static void cmd_status(const char *args);
 static void cmd_pinout(const char *args);
 static void cmd_self_bootsel(const char *args);
+static void cmd_debug(const char *args);
+static void cmd_pulse_test(const char *args);
 static void cmd_help(const char *args);
 
 /* Tabela de despacho ------------------------------------------------------- */
@@ -244,6 +296,8 @@ static const command_t COMMANDS[] = {
     { "STATUS",       "mostra o estado atual dos pinos de controle",       cmd_status       },
     { "PINOUT",       "mostra qual GPIO esta em qual funcao",              cmd_pinout       },
     { "SELF_BOOTSEL", "coloca esta MAO em BOOTSEL (para reflashar)",       cmd_self_bootsel },
+    { "DEBUG",        "DEBUG <ON|OFF|STATUS>: liga logs verbose",          cmd_debug        },
+    { "PULSE_TEST",   "PULSE_TEST <BOOTSEL|RESET> <ms> <count>: pulsos cronometrados", cmd_pulse_test },
     { "HELP",         "lista todos os comandos disponiveis",               cmd_help         },
 };
 
@@ -383,6 +437,92 @@ static void cmd_self_bootsel(const char *args)
     rp2040.rebootToBootloader();
 }
 
+static void cmd_debug(const char *args)
+{
+    char buf[ARG_BUFFER_SIZE];
+    if (args == NULL || *args == '\0') {
+        Serial.printf("DEBUG STATUS: %s\n", g_debug_enabled ? "ON" : "OFF");
+        return;
+    }
+    strncpy(buf, args, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    str_upper(buf);
+    if (strcmp(buf, "ON") == 0) {
+        g_debug_enabled = true;
+        Serial.println("OK DEBUG ON");
+    } else if (strcmp(buf, "OFF") == 0) {
+        g_debug_enabled = false;
+        Serial.println("OK DEBUG OFF");
+    } else if (strcmp(buf, "STATUS") == 0) {
+        Serial.printf("DEBUG STATUS: %s\n", g_debug_enabled ? "ON" : "OFF");
+    } else {
+        Serial.printf("ERR: DEBUG precisa ON, OFF ou STATUS (recebido '%s')\n", buf);
+    }
+}
+
+/**
+ * PULSE_TEST <BOOTSEL|RESET> <duration_ms> <count>
+ *
+ * Aplica N pulsos no pino especificado com duracao exata cronometrada.
+ * Util pra observar com osciloscópio/LEDs sem dispar uma sequence completa.
+ * Cada pulso reporta tempo real medido. Pausa de 200ms entre pulsos.
+ */
+static void cmd_pulse_test(const char *args)
+{
+    char target_str[ARG_BUFFER_SIZE];
+    char rest_buf[ARG_BUFFER_SIZE];
+    if (args == NULL || *args == '\0') {
+        Serial.println("ERR: uso PULSE_TEST <BOOTSEL|RESET> <ms> <count>");
+        return;
+    }
+    /* Parse "BOOTSEL 50 5" */
+    const char *sp1 = strchr(args, ' ');
+    if (!sp1) { Serial.println("ERR: faltam args"); return; }
+    size_t name_len = (size_t)(sp1 - args);
+    if (name_len >= sizeof(target_str)) { Serial.println("ERR: nome longo"); return; }
+    memcpy(target_str, args, name_len);
+    target_str[name_len] = '\0';
+    str_upper(target_str);
+
+    uint8_t gpio;
+    bool *flag;
+    if (!resolve_target(target_str, &gpio, &flag)) {
+        Serial.println("ERR: alvo deve ser BOOTSEL ou RESET");
+        return;
+    }
+
+    /* Resto: "<ms> <count>" */
+    const char *rest = sp1 + 1;
+    while (*rest == ' ') rest++;
+    const char *sp2 = strchr(rest, ' ');
+    if (!sp2) { Serial.println("ERR: faltam ms+count"); return; }
+    long ms_val = strtol(rest, NULL, 10);
+    long n_val = strtol(sp2 + 1, NULL, 10);
+    if (ms_val <= 0 || ms_val > 5000 || n_val <= 0 || n_val > 50) {
+        Serial.println("ERR: ms in 1..5000, count in 1..50");
+        return;
+    }
+
+    Serial.printf("OK PULSE_TEST GP%u %ld ms x %ld pulses\n",
+                  (unsigned)gpio, ms_val, n_val);
+    Serial.flush();
+
+    for (long i = 0; i < n_val; i++) {
+        uint32_t t0 = millis();
+        pin_press(gpio);
+        *flag = true;
+        delay((uint32_t)ms_val);
+        uint32_t t1 = millis();
+        pin_release(gpio);
+        *flag = false;
+        Serial.printf("  pulse %ld: target=%ldms actual=%lums (started t=%lu)\n",
+                      i + 1, ms_val, (unsigned long)(t1 - t0), (unsigned long)t0);
+        Serial.flush();
+        delay(200);
+    }
+    Serial.println("DONE PULSE_TEST");
+}
+
 static void cmd_help(const char *args)
 {
     (void)args;
@@ -407,6 +547,11 @@ static void process_line(char *line)
     line = str_trim(line);
     if (*line == '\0') {
         return;   /* linha em branco — nao e erro */
+    }
+
+    if (g_debug_enabled) {
+        Serial.printf("[DBG t=%lu] RX line: '%s'\n", (unsigned long)millis(), line);
+        Serial.flush();
     }
 
     /* Separa nome do comando e argumentos no primeiro espaco */
