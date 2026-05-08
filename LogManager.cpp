@@ -615,32 +615,80 @@ void LogManager::markCleanReboot() {
 }
 
 void LogManager::safeReboot() {
-    /* F-USB-REBOOT: rp2040.reboot() faz watchdog_reboot(0,0,10) — reset em
-     * 10ms. Sem flush/end do Serial USB, o host (Linux pio device monitor)
-     * vê IO error mas o /dev/ttyACM0 não reaparece porque a transição
-     * DETACH/ATTACH foi interrompida no meio. Sequência aqui:
-     *   1. markCleanReboot — autopsy não loga FATAL no próximo boot
-     *   2. Serial.flush — drena TX buffer USB CDC
-     *   3. delay 50ms — host processa o último frame
-     *   4. Serial.end — DETACH limpo no descritor USB
-     *   5. delay 100ms — host processa disconnect (typical 50-100ms no Linux)
-     *   6. watchdog_enable(500, 1) — reset com janela 50× maior que rp2040.reboot
-     *   7. while(1) tight_loop_contents — espera o reset chegar
-     * Mesmo pattern que WebManager_Commit usa há tempo (estável).
+    /* F-USB-REBOOT + Achado #5 v2 (v3.44.0-alpha9): aplica padrão fix #3
+     * v3.43.21 IDÊNTICO ao applier_reboot. Esta versão é a correta —
+     * alpha4 tentou mas omitiu Clear ENABLE + scratch[4]=0 (sequência
+     * incorreta: LOAD antes de PSM_WDSEL, sem CLR_ENABLE_alias). Resultado:
+     * regrediu loop20 pra 1/20 PASS. Análise + revert em alpha5.
      *
-     * NOTA v3.44.0-alpha5: Fix #5 (Achado #5) REVERTIDO — a versão MMIO
-     * TRIGGER-only causou regressão no apply OTA (1/20 PASS no loop20
-     * alpha4 vs 76% em v3.43.21). Voltamos ao pattern watchdog_enable
-     * que era estável. Achado #5 fica como hipótese a re-investigar
-     * (pode ser que safeReboot não estivesse no caminho do brick e o
-     * sintoma "reload confirm bricks" tenha outra causa). */
+     * Causa raiz "reload confirm bricks 100%" do Achado #5: watchdog_enable
+     * (500, 1) deixa ENABLE bit setado no watchdog ctrl. Após o reset disparar,
+     * watchdog HW NÃO é resetado pelo PSM (não está em PSM_WDSEL_BITS — só
+     * power cycle físico zera). LOAD=500ms persiste; ENABLE persiste. Boot
+     * pós-reset tem ~150ms BootROM + boot2 + arduino-pico init ≈ 500ms+
+     * — bem na janela do disparo. Watchdog fires antes de runtime chamar
+     * watchdog_update → reset loop infinito até power cycle.
+     *
+     * Mesmo bug que applier_reboot tinha pré-fix #3. Pattern correto (igual
+     * SDK pico-sdk hardware_watchdog/watchdog.c::_watchdog_enable com
+     * delay_ms=0):
+     *   1. PSM_WDSEL: todos peripherals exceto ROSC/XOSC (mantém PLLs)
+     *   2. Clear ENABLE explícito (via CLR alias)
+     *   3. scratch[4] = 0 (boot mode = normal, não stage2)
+     *   4. LOAD = 0xFFFFFF (24-bit max ≈ 8s) — tempo pro firmware chegar
+     *      ao primeiro watchdog_update no loop()
+     *   5. TRIGGER apenas (NÃO ENABLE) — força reset imediato sem armar
+     *      timer pós-reset
+     *
+     * Sequência completa:
+     *   1. markCleanReboot — autopsy não loga FATAL no próximo boot
+     *   2. Serial.flush + Serial.end — DETACH limpo USB CDC
+     *   3. delay 100ms — host processa disconnect
+     *   4-8. MMIO sequence acima
+     *   9. while(1) — aguarda reset chegar */
     markCleanReboot();
     Serial.println("[SYS] Rebooting...");
     Serial.flush();
     delay(50);
     Serial.end();
     delay(100);
-    watchdog_enable(500, 1);
+
+    /* Endereços MMIO RP2040 — prefixo LM_ pra evitar clash com #defines do
+     * pico-sdk (hardware/regs/watchdog.h define WATCHDOG_CTRL_OFFSET etc).
+     * Mesmos valores que src/ota/applier.cpp; padrão fix #3 v3.43.21. */
+    constexpr uint32_t LM_WD_BASE       = 0x40058000u;
+    constexpr uint32_t LM_WD_CTRL_OFF   = 0x00u;
+    constexpr uint32_t LM_WD_LOAD_OFF   = 0x04u;
+    constexpr uint32_t LM_WD_SCRATCH4   = 0x1Cu;
+    constexpr uint32_t LM_WD_SET_ALIAS  = 0x2000u;
+    constexpr uint32_t LM_WD_CLR_ALIAS  = 0x3000u;
+    constexpr uint32_t LM_WD_ENABLE_BIT = (1u << 30);
+    constexpr uint32_t LM_WD_TRIG_BIT   = (1u << 31);
+    constexpr uint32_t LM_PSM_BASE      = 0x40010000u;
+    constexpr uint32_t LM_PSM_WDSEL_OFF = 0x18u;
+    constexpr uint32_t LM_PSM_BITS_ALL  = 0x0001FFFFu;
+    constexpr uint32_t LM_PSM_ROSC_BIT  = 0x00000001u;
+    constexpr uint32_t LM_PSM_XOSC_BIT  = 0x00000002u;
+    constexpr uint32_t LM_PSM_RESET_MASK = LM_PSM_BITS_ALL & ~(LM_PSM_ROSC_BIT | LM_PSM_XOSC_BIT);
+
+    /* (1) PSM_WDSEL: todos peripherals exceto ROSC/XOSC. */
+    *(volatile uint32_t*)(LM_PSM_BASE + LM_PSM_WDSEL_OFF) = LM_PSM_RESET_MASK;
+
+    /* (2) Clear ENABLE explícito via CLR alias — desativa o timer
+     * antes do trigger pra que ele não persista pós-reset. */
+    *(volatile uint32_t*)(LM_WD_BASE + LM_WD_CLR_ALIAS + LM_WD_CTRL_OFF) = LM_WD_ENABLE_BIT;
+
+    /* (3) scratch[4] = 0 (boot mode = normal). */
+    *(volatile uint32_t*)(LM_WD_BASE + LM_WD_SCRATCH4) = 0;
+
+    /* (4) LOAD = max (24-bit = 0xFFFFFF ≈ 8s). Watchdog HW persiste pós-reset
+     * (não está em PSM_WDSEL); LOAD grande dá tempo de boot completar. */
+    *(volatile uint32_t*)(LM_WD_BASE + LM_WD_LOAD_OFF) = 0xFFFFFFu;
+
+    /* (5) TRIGGER via SET alias — só TRIGGER, NÃO ENABLE. Reset imediato. */
+    *(volatile uint32_t*)(LM_WD_BASE + LM_WD_SET_ALIAS + LM_WD_CTRL_OFF) = LM_WD_TRIG_BIT;
+
+    __asm volatile("dsb");
     while (1) tight_loop_contents();
 }
 
