@@ -96,9 +96,13 @@ static const size_t ARG_BUFFER_SIZE  = 16;
 static void pin_init_released(uint8_t gpio)
 {
     /* Pre-grava LOW no registrador de saida: assim, quando virarmos OUTPUT
-       em pin_press(), o nivel baixo ja estara pronto sem glitch. */
+       em pin_press(), o nivel baixo ja estara pronto sem glitch.
+       v3 fix: INPUT_PULLUP em vez de INPUT puro — empiricamente em
+       arduino-pico, `pinMode(INPUT)` apos um digitalWrite(LOW) nem sempre
+       libera a linha (read_back=L observado em HW 2026-05-08). Pull-up
+       interno (~50k) garante HIGH mesmo se OE register tiver glitch. */
     digitalWrite(gpio, LOW);
-    pinMode(gpio, INPUT);
+    pinMode(gpio, INPUT_PULLUP);
 }
 
 /**
@@ -137,8 +141,9 @@ static void pin_press(uint8_t gpio)
  */
 static void pin_release(uint8_t gpio)
 {
+    /* v3 fix: INPUT_PULLUP em vez de INPUT puro. Detalhes em pin_init_released. */
     uint32_t t0 = millis();
-    pinMode(gpio, INPUT);
+    pinMode(gpio, INPUT_PULLUP);
     dbg_pin(t0, "RELEASE", gpio);
 }
 

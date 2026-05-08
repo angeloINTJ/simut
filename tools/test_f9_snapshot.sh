@@ -114,29 +114,20 @@ wait_http() {
     return 1
 }
 
-# Estratégia tolerante: até 6 ciclos curtos (60s) com reset longo entre eles.
-# Cycle 1 mais curto: já sabemos que se trava, só reset longo recupera.
-# Cada timeout de probe_cli é 5s strict — não pendura.
+# Estratégia AGRESSIVA (user 2026-05-08): teste todo deve caber em ≤3 min.
+# OTA upload (32s) + apply (3s) + boot (~30-60s) + verify (5s) = ~100s no PASS.
+# No FAIL: declarar brick rápido — se não voltou em 90s pós-apply, não volta.
+# Total cycle 1 = 90s. Sem cycle 2 (long reset não recupera bricks reais que
+# já vimos; só consome tempo).
 wait_post_apply_with_recovery() {
-    local cycle
-    for cycle in 1 2 3 4 5 6; do
-        local timeout=60
-        [ $cycle -eq 1 ] && timeout=90  # primeira espera um pouco mais (boot inicial pode levar)
-        log "Cycle $cycle: aguardando boot pós-apply (${timeout}s)..."
+    log "Wait único: até 90s pra boot pós-apply..."
+    probe_state
+    if wait_http 90 "wait"; then
+        log "DEVICE BACK ONLINE"
         probe_state
-        if wait_http $timeout "cycle $cycle"; then
-            log "DEVICE BACK ONLINE no cycle $cycle"
-            probe_state
-            return 0
-        fi
-        log "Cycle $cycle falhou."
-        if [ $cycle -lt 6 ]; then
-            hand_long_reset
-            log "Aguardando 12s para boot iniciar pós reset longo..."
-            sleep 12
-        fi
-    done
-    log "FAIL: device não voltou após 6 ciclos com 5 resets longos"
+        return 0
+    fi
+    log "FAIL: device não voltou em 90s — brick (não recuperável por software)"
     return 1
 }
 
@@ -218,7 +209,7 @@ log "Estado pré-OTA:"
 probe_state
 log ""
 
-timeout 240 ./tools/ota_apply.py \
+timeout 80 ./tools/ota_apply.py \
     --ip "$SIMUT_IP" \
     --user admin --pass "$F9_PASS" \
     --firmware "$FW" \

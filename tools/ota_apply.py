@@ -230,8 +230,9 @@ def main():
     if rc not in (202, -1):
         print(f"ERROR: apply unexpected status: {rc}", file=sys.stderr); sys.exit(6)
 
-    # 5. Wait for boot
-    if not wait_for_device(base, timeout_s=180):
+    # 5. Wait for boot (30s — wrapper test_f9_snapshot.sh faz wait extra; ota_apply
+    # só precisa confirmar que device foi de online → offline → ANY response).
+    if not wait_for_device(base, timeout_s=30):
         print("ERROR: device não voltou online após apply", file=sys.stderr); sys.exit(7)
 
     if args.no_restore:

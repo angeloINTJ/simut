@@ -193,6 +193,12 @@ bool StorageManager::begin() {
      *
      * Limpeza da metadata partition continua em AppManager_Boot.cpp
      * (path existente) — manter aqui idempotente.
+     *
+     * v3.44.0-alpha8: NÃO envolver em enterFlashSafeMode. Tentativa
+     * alpha6/7 de wrap travou o boot — LittleFS.write internamente já
+     * usa multicore_lockout via flash_safe_execute; envolver em outro
+     * lockout cria deadlock reentrante (Core 0 segurando lockout +
+     * LittleFS tentando obter de novo). LFS handle a proteção sozinho.
      */
     {
         ota::UpdateMetadata m;
