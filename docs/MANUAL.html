@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <meta name="author" content="Ângelo Moisés Alves" />
+  <meta name="dcterms.date" content="2026-05-08" />
+  <title>SIMUT — Manual Completo</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {  background-color: #f8f8f8; }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ef2929; } /* Alert */
+    code span.an { color: #8f5902; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #204a87; } /* Attribute */
+    code span.bn { color: #0000cf; } /* BaseN */
+    code span.cf { color: #204a87; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4e9a06; } /* Char */
+    code span.cn { color: #8f5902; } /* Constant */
+    code span.co { color: #8f5902; font-style: italic; } /* Comment */
+    code span.cv { color: #8f5902; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #8f5902; font-weight: bold; font-style: italic; } /* Documentation */
+    code span.dt { color: #204a87; } /* DataType */
+    code span.dv { color: #0000cf; } /* DecVal */
+    code span.er { color: #a40000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #0000cf; } /* Float */
+    code span.fu { color: #204a87; font-weight: bold; } /* Function */
+    code span.im { } /* Import */
+    code span.in { color: #8f5902; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #204a87; font-weight: bold; } /* Keyword */
+    code span.op { color: #ce5c00; font-weight: bold; } /* Operator */
+    code span.ot { color: #8f5902; } /* Other */
+    code span.pp { color: #8f5902; font-style: italic; } /* Preprocessor */
+    code span.sc { color: #ce5c00; font-weight: bold; } /* SpecialChar */
+    code span.ss { color: #4e9a06; } /* SpecialString */
+    code span.st { color: #4e9a06; } /* String */
+    code span.va { color: #000000; } /* Variable */
+    code span.vs { color: #4e9a06; } /* VerbatimString */
+    code span.wa { color: #8f5902; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css" />
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">SIMUT — Manual Completo</h1>
+<p class="author">Ângelo Moisés Alves</p>
+<p class="date">2026-05-08</p>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#simut-manual-completo-do-sistema"
+id="toc-simut-manual-completo-do-sistema">SIMUT — Manual Completo do
+Sistema</a>
+<ul>
+<li><a href="#visão-geral" id="toc-visão-geral">1. Visão Geral</a>
+<ul>
+<li><a href="#cenário-hipotético-deste-device"
+id="toc-cenário-hipotético-deste-device">Cenário hipotético deste
+device</a></li>
+</ul></li>
+<li><a href="#hardware" id="toc-hardware">2. Hardware</a>
+<ul>
+<li><a href="#raspberry-pi-pico-w" id="toc-raspberry-pi-pico-w">2.1
+Raspberry Pi Pico W</a></li>
+<li><a href="#pinout-do-código" id="toc-pinout-do-código">2.2 Pinout (do
+código)</a></li>
+<li><a href="#picohand-mão-robótica" id="toc-picohand-mão-robótica">2.3
+PicoHand (mão robótica)</a></li>
+</ul></li>
+<li><a href="#arquitetura-de-software"
+id="toc-arquitetura-de-software">3. Arquitetura de Software</a>
+<ul>
+<li><a href="#modelo-dual-core" id="toc-modelo-dual-core">3.1 Modelo
+dual-core</a></li>
+<li><a href="#módulos-principais-managers"
+id="toc-módulos-principais-managers">3.2 Módulos principais
+(managers)</a></li>
+<li><a href="#layout-do-flash-2-mb" id="toc-layout-do-flash-2-mb">3.3
+Layout do flash (2 MB)</a></li>
+</ul></li>
+<li><a href="#telas-do-display-tft-core-1"
+id="toc-telas-do-display-tft-core-1">4. Telas do Display TFT (Core
+1)</a>
+<ul>
+<li><a href="#tela-bootloading" id="toc-tela-bootloading">4.1 Tela
+Boot/Loading</a></li>
+<li><a href="#tela-auth-pin-entrance"
+id="toc-tela-auth-pin-entrance">4.2 Tela Auth (PIN entrance)</a></li>
+<li><a href="#dashboard-principal" id="toc-dashboard-principal">4.3
+Dashboard principal</a></li>
+<li><a href="#tela-gráfico-histórico"
+id="toc-tela-gráfico-histórico">4.4 Tela Gráfico (histórico)</a></li>
+<li><a href="#bonus-tela-settings-capturada-via-touch-sim"
+id="toc-bonus-tela-settings-capturada-via-touch-sim">Bonus: Tela
+Settings (capturada via touch sim)</a></li>
+<li><a href="#telas-de-configuração-settings"
+id="toc-telas-de-configuração-settings">4.5 Telas de Configuração
+(Settings)</a></li>
+<li><a href="#tela-de-alarmes" id="toc-tela-de-alarmes">4.6 Tela de
+Alarmes</a></li>
+</ul></li>
+<li><a href="#web-ui-browser" id="toc-web-ui-browser">5. Web UI
+(browser)</a>
+<ul>
+<li><a href="#login-sem-auth" id="toc-login-sem-auth">5.1
+<code>/login</code> (sem auth)</a></li>
+<li><a href="#force_chpass-após-primeiro-login-com-otp"
+id="toc-force_chpass-após-primeiro-login-com-otp">5.2
+<code>/force_chpass</code> (após primeiro login com OTP)</a></li>
+<li><a href="#dashboard" id="toc-dashboard">5.3 <code>/</code>
+(Dashboard)</a></li>
+<li><a href="#history-históricográficos"
+id="toc-history-históricográficos">5.4 <code>/history</code>
+(Histórico/Gráficos)</a></li>
+<li><a href="#alarms-configuração-de-alarmes"
+id="toc-alarms-configuração-de-alarmes">5.5 <code>/alarms</code>
+(Configuração de Alarmes)</a></li>
+<li><a href="#config-configuração-geral"
+id="toc-config-configuração-geral">5.6 <code>/config</code>
+(Configuração geral)</a></li>
+<li><a href="#network-wifi-config" id="toc-network-wifi-config">5.7
+<code>/network</code> (WiFi config)</a></li>
+<li><a href="#users-gestão-de-usuários"
+id="toc-users-gestão-de-usuários">5.8 <code>/users</code> (Gestão de
+usuários)</a></li>
+<li><a href="#files-file-manager-ota-firmware"
+id="toc-files-file-manager-ota-firmware">5.9 <code>/files</code> (File
+manager + OTA Firmware)</a></li>
+<li><a href="#license-apisec_status" id="toc-license-apisec_status">5.10
+<code>/license</code> + <code>/api/sec_status</code></a></li>
+<li><a href="#endpoints-utilitários" id="toc-endpoints-utilitários">5.11
+Endpoints utilitários</a></li>
+<li><a href="#endpoint-ota-firmware-self-flash"
+id="toc-endpoint-ota-firmware-self-flash">5.12 Endpoint OTA (firmware
+self-flash)</a></li>
+</ul></li>
+<li><a href="#cli-usb-serial-sem-auth"
+id="toc-cli-usb-serial-sem-auth">6. CLI (USB Serial — sem auth)</a>
+<ul>
+<li><a href="#monitoring" id="toc-monitoring">6.1 Monitoring</a></li>
+<li><a href="#configuration-precisa-write-memory-reload-para-persistir"
+id="toc-configuration-precisa-write-memory-reload-para-persistir">6.2
+Configuration (precisa <code>write memory</code> + <code>reload</code>
+para persistir)</a></li>
+<li><a href="#telemetry" id="toc-telemetry">6.3 Telemetry</a></li>
+<li><a href="#dispositivos" id="toc-dispositivos">6.4
+Dispositivos</a></li>
+<li><a href="#diagnóstico-oculto" id="toc-diagnóstico-oculto">6.5
+Diagnóstico oculto</a></li>
+</ul></li>
+<li><a href="#procedimento-ota-firmware-update"
+id="toc-procedimento-ota-firmware-update">7. Procedimento OTA (firmware
+update)</a>
+<ul>
+<li><a href="#via-web-ui-recomendado"
+id="toc-via-web-ui-recomendado">7.1 Via Web UI (recomendado)</a></li>
+<li><a href="#via-clicurl-autonomia" id="toc-via-clicurl-autonomia">7.2
+Via CLI/curl (autonomia)</a></li>
+<li><a href="#wrapper-python-test_f9_snapshot.sh-usa"
+id="toc-wrapper-python-test_f9_snapshot.sh-usa">7.3 Wrapper Python
+(test_f9_snapshot.sh usa)</a></li>
+</ul></li>
+<li><a href="#recovery-em-caso-de-brick"
+id="toc-recovery-em-caso-de-brick">8. Recovery (em caso de brick)</a>
+<ul>
+<li><a href="#brick-usb-cdc-mute-pós-ota"
+id="toc-brick-usb-cdc-mute-pós-ota">8.1 Brick “USB CDC mute”
+pós-OTA</a></li>
+<li><a href="#brick-pico-não-responde-nem-com-bootsel"
+id="toc-brick-pico-não-responde-nem-com-bootsel">8.2 Brick “Pico não
+responde nem com BOOTSEL”</a></li>
+</ul></li>
+<li><a href="#arquitetura-littlefs-data"
+id="toc-arquitetura-littlefs-data">9. Arquitetura LittleFS
+(<code>/data/</code>)</a></li>
+<li><a href="#geração-automatizada-deste-manual-todo-próxima-sessão"
+id="toc-geração-automatizada-deste-manual-todo-próxima-sessão">10.
+Geração automatizada deste manual (TODO próxima sessão)</a>
+<ul>
+<li><a href="#captura-de-tela-tft-via-api"
+id="toc-captura-de-tela-tft-via-api">10.1 Captura de tela TFT via
+API</a></li>
+<li><a href="#comando-para-simular-toque-não-implementado"
+id="toc-comando-para-simular-toque-não-implementado">10.2 Comando para
+simular toque (NÃO IMPLEMENTADO)</a></li>
+<li><a href="#captura-browser" id="toc-captura-browser">10.3 Captura
+browser</a></li>
+<li><a href="#pdf-final" id="toc-pdf-final">10.4 PDF final</a></li>
+</ul></li>
+<li><a href="#referências" id="toc-referências">11. Referências</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="simut-manual-completo-do-sistema">SIMUT — Manual Completo do
+Sistema</h1>
+<p><strong>Versão:</strong> v3.44.0-alpha13 <strong>Hardware:</strong>
+Raspberry Pi Pico W (RP2040 + CYW43) <strong>Data:</strong>
+2026-05-08</p>
+<blockquote>
+<p><strong>Status do manual:</strong> STUB documentando arquitetura,
+telas e fluxos baseado em código + dados. Screenshots TFT + browser
+ficam como placeholders — gerar em próxima sessão via: -
+<code>GET /api/screenshot</code> (já implementado, retorna BMP 320×240)
+para display - Headless Chrome/Selenium para browser - Comando serial
+novo <code>touch sim X Y</code> para simular toque (não implementado
+ainda)</p>
+</blockquote>
+<hr />
+<h2 id="visão-geral">1. Visão Geral</h2>
+<p>SIMUT é um sistema de <strong>monitoramento de cadeia fria
+laboratorial/médica</strong> para vacinas, plasma, banhos-maria, estufas
+e congeladores. Roda em Raspberry Pi Pico W com:</p>
+<ul>
+<li>Display TFT 320×240 (ILI9341) com touch resistivo (XPT2046)</li>
+<li>Até <strong>10 sensores DS18B20</strong> (1-Wire) + 1 SHT31 (I2C
+ambiente)</li>
+<li>Web UI completa (login, dashboard, histórico, alarmes,
+configuração)</li>
+<li>Telemetria HTTP/MQTT</li>
+<li>Histórico binário em LittleFS (1 ponto/min, ~1 ano de dados)</li>
+<li>OTA via web (firmware self-flash)</li>
+<li>Bluetooth LE (controle remoto)</li>
+</ul>
+<h3 id="cenário-hipotético-deste-device">Cenário hipotético deste
+device</h3>
+<p>Conteúdo de <code>data/calib.csv</code> (chip
+<code>E6642815E34C1824</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Sensor ID</th>
+<th>Slot ID</th>
+<th>Offset</th>
+<th>Nome</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(interno SHT31)</td>
+<td>tSTH0001</td>
+<td>0.0°C</td>
+<td>Temperatura ambiente</td>
+</tr>
+<tr>
+<td>(interno SHT31)</td>
+<td>uSTH0001</td>
+<td>0.0%</td>
+<td>Umidade ambiente</td>
+</tr>
+<tr>
+<td>28600779000000B7</td>
+<td>STM0001</td>
+<td>0.0°C</td>
+<td>BANHO MARIA 37</td>
+</tr>
+<tr>
+<td>28ADD07A000000E5</td>
+<td>STM0002</td>
+<td>0.0°C</td>
+<td>BANHO MARIA 45</td>
+</tr>
+<tr>
+<td>28293E7900000023</td>
+<td>STM0003</td>
+<td>0.0°C</td>
+<td>ESTUFA 25</td>
+</tr>
+<tr>
+<td>28E0B27B000000C7</td>
+<td>STM0004</td>
+<td>0.0°C</td>
+<td>ESTUFA 37</td>
+</tr>
+<tr>
+<td>287CE07A00000092</td>
+<td>STM0005</td>
+<td>0.0°C</td>
+<td>GELADEIRA DE VACINAS</td>
+</tr>
+<tr>
+<td>2872F57B000000A0</td>
+<td>STM0006</td>
+<td>0.0°C</td>
+<td>FREEZER 1</td>
+</tr>
+<tr>
+<td>281A2C7900000068</td>
+<td>STM0007</td>
+<td>0.0°C</td>
+<td>GELADEIRA COPA</td>
+</tr>
+<tr>
+<td>285C1C790000002B</td>
+<td>STM0008</td>
+<td>0.0°C</td>
+<td>FREEZER 2</td>
+</tr>
+<tr>
+<td>28BF2379000000B0</td>
+<td>STM0010</td>
+<td>0.0°C</td>
+<td>ESCONDERIJO SECRETO</td>
+</tr>
+<tr>
+<td>283C217900000080</td>
+<td>STM0009</td>
+<td>0.0°C</td>
+<td>GELADEIRA DE PLASMA</td>
+</tr>
+</tbody>
+</table>
+<p>12 sensores, 10 setpoints típicos: - Banho-maria 37°C / 45°C - Estufa
+25°C / 37°C - Geladeira de vacinas (~5°C) - Freezer 1, 2 (~-20°C) -
+Geladeira COPA (~5°C) - Geladeira de plasma (~-30°C) - “ESCONDERIJO
+SECRETO” (apelido de operador)</p>
+<hr />
+<h2 id="hardware">2. Hardware</h2>
+<h3 id="raspberry-pi-pico-w">2.1 Raspberry Pi Pico W</h3>
+<ul>
+<li>RP2040 dual-core ARM Cortex-M0+ @ 133 MHz</li>
+<li>264 KB SRAM, 2 MB Flash externa QSPI</li>
+<li>WiFi 802.11n (CYW43439 chip externo via SPI)</li>
+<li>Bluetooth LE 5.2 (compartilha CYW43)</li>
+<li>USB CDC para CLI e flash</li>
+</ul>
+<h3 id="pinout-do-código">2.2 Pinout (do código)</h3>
+<table>
+<thead>
+<tr>
+<th>Função</th>
+<th>GPIO</th>
+<th>Descrição</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TFT CS</td>
+<td>28</td>
+<td>Display ILI9341 chip select</td>
+</tr>
+<tr>
+<td>TFT DC</td>
+<td>27</td>
+<td>Display data/command</td>
+</tr>
+<tr>
+<td>TFT RST</td>
+<td>26</td>
+<td>Display reset</td>
+</tr>
+<tr>
+<td>TFT MOSI/SCK</td>
+<td>SPI0</td>
+<td>Display SPI (auto)</td>
+</tr>
+<tr>
+<td>TOUCH CS</td>
+<td>21</td>
+<td>XPT2046 chip select</td>
+</tr>
+<tr>
+<td>TOUCH IRQ</td>
+<td>22</td>
+<td>XPT2046 pen IRQ</td>
+</tr>
+<tr>
+<td>OneWire (DS18B20)</td>
+<td>11..20</td>
+<td>Pinos por sensor (10 slots)</td>
+</tr>
+<tr>
+<td>Buzzer</td>
+<td>9</td>
+<td>PWM piezo</td>
+</tr>
+<tr>
+<td>LED status</td>
+<td>25 (LED_BUILTIN)</td>
+<td>Heartbeat</td>
+</tr>
+<tr>
+<td>BOOTSEL trigger</td>
+<td>-</td>
+<td>(botão físico ou via PicoHand GP0)</td>
+</tr>
+<tr>
+<td>RUN reset</td>
+<td>-</td>
+<td>(botão físico ou via PicoHand GP1)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="picohand-mão-robótica">2.3 PicoHand (mão robótica)</h3>
+<p><code>tools/PicoHand/</code> — outro Pico dedicado conecta GP0/GP1 do
+alvo para BOOTSEL/RESET via comandos serial USB CDC. Permite recovery
+automatizada sem intervenção manual.</p>
+<p>Comandos: - <code>PING</code> → <code>PONG</code> (health check) -
+<code>RESET</code> → pulso 50ms RUN (reboot) - <code>BOOTSEL</code> →
+BOOTSEL+RESET seq (entra em modo flash) -
+<code>HOLD &lt;BOOTSEL|RESET&gt;</code> /
+<code>RELEASE &lt;BOOTSEL|RESET&gt;</code> (controle manual) -
+<code>STATUS</code>, <code>PINOUT</code> (diagnóstico) -
+<code>SELF_BOOTSEL</code> (reflasha a própria mão)</p>
+<hr />
+<h2 id="arquitetura-de-software">3. Arquitetura de Software</h2>
+<h3 id="modelo-dual-core">3.1 Modelo dual-core</h3>
+<ul>
+<li><strong>Core 0</strong> (main): boot, web server, CLI, sensors,
+telemetry, alarms</li>
+<li><strong>Core 1</strong> (display): TFT render loop, touch input,
+gestures</li>
+</ul>
+<p>Sincronização via <code>multicore_lockout</code> (IRQ) ou cooperative
+quiet mode (<code>requestQuietMode</code> →
+<code>multicore_reset_core1</code>).</p>
+<h3 id="módulos-principais-managers">3.2 Módulos principais
+(managers)</h3>
+<table>
+<thead>
+<tr>
+<th>Manager</th>
+<th>Responsabilidade</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AppManager</td>
+<td>Coordenação geral, setup/loop, sensor read</td>
+</tr>
+<tr>
+<td>StorageManager</td>
+<td>LittleFS, config encrypted, history binário</td>
+</tr>
+<tr>
+<td>DisplayManager</td>
+<td>TFT render Core 1, touch, gestures, telas</td>
+</tr>
+<tr>
+<td>NetworkManager</td>
+<td>WiFi connect, AP mode, DHCP, NTP</td>
+</tr>
+<tr>
+<td>WebManager</td>
+<td>HTTP server, auth, 50+ rotas (web + API)</td>
+</tr>
+<tr>
+<td>CommandManager</td>
+<td>CLI parser USB Serial + Bluetooth</td>
+</tr>
+<tr>
+<td>LogManager</td>
+<td>Eventos persistidos, autopsia HW WDT</td>
+</tr>
+<tr>
+<td>BluetoothManager</td>
+<td>BLE GATT services</td>
+</tr>
+<tr>
+<td>AlarmManager</td>
+<td>Detecção setpoint, ações, mute</td>
+</tr>
+<tr>
+<td>TelemetryManager</td>
+<td>HTTP POST batch, MQTT publish</td>
+</tr>
+</tbody>
+</table>
+<h3 id="layout-do-flash-2-mb">3.3 Layout do flash (2 MB)</h3>
+<pre><code>0x10000000 ─┬─ Boot2 (256 B) + Code/RO Data       ─ 1020 KB ── Slot A (firmware ativo)
+0x100FF000 ─┴─ EEPROM emulada (4 KB, NÃO USADO — F-OTA usa)
+            ┌─ OTA Metadata (4 KB)                ─ 1 setor
+0x10100000 ─┤  Staging area                       ─ 1024 KB
+            │  (usado durante OTA: novo firmware) 
+            │  (último setor 0x101FE000 = snapshot config 4 KB)
+            └─ LittleFS                           ─ 0 KB (overlap c/ staging)</code></pre>
+<p>(Layout aproximado — F-OTA reformata LittleFS post-apply pra
+recuperar staging.)</p>
+<hr />
+<h2 id="telas-do-display-tft-core-1">4. Telas do Display TFT (Core
+1)</h2>
+<p>A interface TFT é <strong>resolução 320×240 paisagem</strong>,
+organizada em telas-foco navegáveis por toque na tela touch. Captura via
+<code>GET /api/screenshot</code> (BMP 24-bit, autenticado, requer
+<code>PERM_SYS_CONFIG</code>).</p>
+<h3 id="tela-bootloading">4.1 Tela Boot/Loading</h3>
+<figure>
+<img src="screenshots/tft_dashboard_initial.png"
+alt="boot_screen.bmp" />
+<figcaption aria-hidden="true">boot_screen.bmp</figcaption>
+</figure>
+<p><em>Figura: boot_screen.bmp — capturada em HW alpha14
+2026-05-08</em></p>
+<h3 id="tela-auth-pin-entrance">4.2 Tela Auth (PIN entrance)</h3>
+<figure>
+<img src="screenshots/tft_dashboard_initial.png"
+alt="auth_screen.bmp" />
+<figcaption aria-hidden="true">auth_screen.bmp</figcaption>
+</figure>
+<p><em>Figura: auth_screen.bmp — capturada em HW alpha14
+2026-05-08</em></p>
+<p><code>showAuthScreen(String expectedPin)</code> em
+DisplayManager.h:200.</p>
+<h3 id="dashboard-principal">4.3 Dashboard principal</h3>
+<figure>
+<img src="screenshots/tft_01_dashboard.png" alt="dashboard.bmp" />
+<figcaption aria-hidden="true">dashboard.bmp</figcaption>
+</figure>
+<p><em>Figura: dashboard.bmp — capturada em HW alpha14 2026-05-08</em> -
+TopBar: hora, status WiFi, alarmes ativos - Painel ambiente (temp +
+humidade SHT31) - 10 slots de sensores DS18B20 (panéis menores) -
+BottomButtons: navegação (gráfico, alarmes, settings)</p>
+<p><code>drawInterfaceFixed</code>, <code>drawTopBar</code>,
+<code>drawAmbientPanel</code>, <code>drawSlotPanel</code>,
+<code>drawBottomButtons</code>.</p>
+<h3 id="tela-gráfico-histórico">4.4 Tela Gráfico (histórico)</h3>
+<figure>
+<img src="screenshots/tft_03_graph.png" alt="graph.bmp" />
+<figcaption aria-hidden="true">graph.bmp</figcaption>
+</figure>
+<p><em>Figura: graph.bmp — capturada em HW alpha14 2026-05-08</em></p>
+<p><code>drawGraphScreen()</code>, <code>drawGraphHeaderBar()</code>,
+<code>drawPeakMarker()</code>.</p>
+<p>Variantes: - <code>drawGraphDetailScreen()</code> — tela numérica de
+detalhes do período - <code>drawStatsScreen()</code> — estatísticas
+(min/max/avg) - <code>drawCalendarScreen()</code> — calendário com dias
+de dados disponíveis</p>
+<h3 id="bonus-tela-settings-capturada-via-touch-sim">Bonus: Tela
+Settings (capturada via touch sim)</h3>
+<figure>
+<img src="screenshots/tft_02_settings.png" alt="tft_02_settings" />
+<figcaption aria-hidden="true">tft_02_settings</figcaption>
+</figure>
+<p><em>Figura: TFT settings_main — capturada após
+<code>touch sim 50 220</code> em HW alpha14</em></p>
+<figure>
+<img src="screenshots/tft_05_slot_detail.png"
+alt="tft_05_slot_detail" />
+<figcaption aria-hidden="true">tft_05_slot_detail</figcaption>
+</figure>
+<p><em>Figura: TFT slot detail — capturada após
+<code>touch sim 80 80</code> em HW alpha14</em></p>
+<h3 id="telas-de-configuração-settings">4.5 Telas de Configuração
+(Settings)</h3>
+<p>Acessível via gesto longo no dashboard. Submenus:</p>
+<ul>
+<li><code>showSettingsMain()</code> — menu principal</li>
+<li><code>showSettingsAlarms(cfg)</code> +
+<code>showAlarmEdit(idx)</code> — limites por slot</li>
+<li><code>showSettingsThemes(idx)</code> — seletor de tema
+(<code>unimed_dark.thm</code> é o atual)</li>
+<li><code>showSettingsLang(idx)</code> — pt-BR / en-US (default
+English)</li>
+<li><code>showSettingsPassword()</code> — chpass admin</li>
+<li><code>showSettingsDisplayOffset()</code> — calibração de canto da
+tela TFT</li>
+<li><code>showSettingsSounds(state)</code> — buzzer config</li>
+<li><code>showSettingsLicense()</code> — info de licença</li>
+<li><code>showTouchCalibration()</code> /
+<code>showTouchSensitivity()</code> — calibrar XPT2046</li>
+<li><code>showSystemStatus()</code> / <code>drawSystemStatus()</code> —
+info de chip, heap, uptime, etc</li>
+</ul>
+<h3 id="tela-de-alarmes">4.6 Tela de Alarmes</h3>
+<figure>
+<img src="screenshots/tft_04_alarms.png" alt="alarm_action.bmp" />
+<figcaption aria-hidden="true">alarm_action.bmp</figcaption>
+</figure>
+<p><em>Figura: alarm_action.bmp — capturada em HW alpha14
+2026-05-08</em></p>
+<hr />
+<h2 id="web-ui-browser">5. Web UI (browser)</h2>
+<p>WiFi típico: <code>192.168.3.195</code> (DHCP). Login obrigatório
+(sha256 client-side antes do POST).</p>
+<p><strong>Captura:</strong> Headless Chrome via Selenium. Cada página
+em <code>/data/web/*.gz</code> é servida via PROGMEM ou LFS.</p>
+<h3 id="login-sem-auth">5.1 <code>/login</code> (sem auth)</h3>
+<figure>
+<img src="screenshots/web_01_login.png" alt="web_login.png" />
+<figcaption aria-hidden="true">web_login.png</figcaption>
+</figure>
+<p><em>Figura: web_login.png — capturada em HW alpha14
+2026-05-08</em></p>
+<p><code>handleLogin()</code> → POST <code>/api/login_init</code>
+retorna nonce; POST <code>/api/login</code> com sha256 da senha +
+nonce.</p>
+<h3 id="force_chpass-após-primeiro-login-com-otp">5.2
+<code>/force_chpass</code> (após primeiro login com OTP)</h3>
+<figure>
+<img src="screenshots/web_01_login.png" alt="web_force_chpass.png" />
+<figcaption aria-hidden="true">web_force_chpass.png</figcaption>
+</figure>
+<p><em>Figura: web_force_chpass.png — capturada em HW alpha14
+2026-05-08</em></p>
+<h3 id="dashboard">5.3 <code>/</code> (Dashboard)</h3>
+<figure>
+<img src="screenshots/web_02_dashboard.png" alt="web_dashboard.png" />
+<figcaption aria-hidden="true">web_dashboard.png</figcaption>
+</figure>
+<p><em>Figura: web_dashboard.png — capturada em HW alpha14
+2026-05-08</em> - Painel ambiente - 10 cards de sensores (cor por
+estado: ok/warn/error) - Botão Settings/Files/History - Tema dinâmico
+via <code>/api/themes</code></p>
+<h3 id="history-históricográficos">5.4 <code>/history</code>
+(Histórico/Gráficos)</h3>
+<figure>
+<img src="screenshots/web_03_history.png" alt="web_history.png" />
+<figcaption aria-hidden="true">web_history.png</figcaption>
+</figure>
+<p><em>Figura: web_history.png — capturada em HW alpha14
+2026-05-08</em></p>
+<p>API: <code>/api/history_multi</code>, <code>/api/history_days</code>,
+<code>/api/export/history.bin</code> (CSV-equivalente).</p>
+<h3 id="alarms-configuração-de-alarmes">5.5 <code>/alarms</code>
+(Configuração de Alarmes)</h3>
+<figure>
+<img src="screenshots/web_04_alarms.png" alt="web_alarms.png" />
+<figcaption aria-hidden="true">web_alarms.png</figcaption>
+</figure>
+<p><em>Figura: web_alarms.png — capturada em HW alpha14
+2026-05-08</em></p>
+<p>API: <code>/api/alarms</code>.</p>
+<h3 id="config-configuração-geral">5.6 <code>/config</code>
+(Configuração geral)</h3>
+<figure>
+<img src="screenshots/web_05_config.png" alt="web_config.png" />
+<figcaption aria-hidden="true">web_config.png</figcaption>
+</figure>
+<p><em>Figura: web_config.png — capturada em HW alpha14
+2026-05-08</em></p>
+<p>API: <code>/api/config</code> GET, <code>/api/save_sys</code>
+POST.</p>
+<h3 id="network-wifi-config">5.7 <code>/network</code> (WiFi
+config)</h3>
+<figure>
+<img src="screenshots/web_06_network.png" alt="web_network.png" />
+<figcaption aria-hidden="true">web_network.png</figcaption>
+</figure>
+<p><em>Figura: web_network.png — capturada em HW alpha14
+2026-05-08</em></p>
+<p>API: <code>/api/network</code>.</p>
+<h3 id="users-gestão-de-usuários">5.8 <code>/users</code> (Gestão de
+usuários)</h3>
+<figure>
+<img src="screenshots/web_07_users.png" alt="web_users.png" />
+<figcaption aria-hidden="true">web_users.png</figcaption>
+</figure>
+<p><em>Figura: web_users.png — capturada em HW alpha14
+2026-05-08</em></p>
+<p>API: <code>/api/users</code>.</p>
+<h3 id="files-file-manager-ota-firmware">5.9 <code>/files</code> (File
+manager + OTA Firmware)</h3>
+<figure>
+<img src="screenshots/web_08_files.png" alt="web_files.png" />
+<figcaption aria-hidden="true">web_files.png</figcaption>
+</figure>
+<p><em>Figura: web_files.png — capturada em HW alpha14
+2026-05-08</em></p>
+<p>Botão <strong>Backup</strong> baixa arquivo <code>.bkp</code> da
+LittleFS toda (<code>GET /api/backup</code>). Botão
+<strong>Restore</strong> valida + aplica <code>.bkp</code>
+(<code>POST /api/restore?op=validate|apply</code>). Botão
+<strong>Firmware</strong> dispara OTA com WARN modal + safety checks
+(<code>POST /api/restore?op=stage&amp;commit=1</code> +
+<code>POST /api/ota/apply</code>).</p>
+<h3 id="license-apisec_status">5.10 <code>/license</code> +
+<code>/api/sec_status</code></h3>
+<figure>
+<img src="screenshots/web_09_license.png" alt="web_license.png" />
+<figcaption aria-hidden="true">web_license.png</figcaption>
+</figure>
+<p><em>Figura: web_license.png — capturada em HW alpha14
+2026-05-08</em></p>
+<h3 id="endpoints-utilitários">5.11 Endpoints utilitários</h3>
+<ul>
+<li><code>/api/status</code> — info runtime (heap, uptime, sensors)</li>
+<li><code>/api/perms</code> — permissions do user atual</li>
+<li><code>/api/calib</code> GET/POST — calibração <code>calib.csv</code>
+(offsets por sensor)</li>
+<li><code>/api/themes</code> — lista de temas instalados em
+<code>/themes/</code></li>
+<li><code>/api/lang</code> — JSON de strings traduzidas</li>
+<li><code>/api/screenshot</code> — <strong>CAPTURA DA TELA TFT em BMP
+320×240 24-bit</strong></li>
+<li><code>/api/logs</code> GET / <code>/api/clear_logs</code> POST</li>
+<li><code>/api/export/logs.bin</code> — eventos LogManager em formato
+binário</li>
+</ul>
+<h3 id="endpoint-ota-firmware-self-flash">5.12 Endpoint OTA (firmware
+self-flash)</h3>
+<ul>
+<li><code>POST /api/restore?op=stage&amp;commit=1</code> — sobe
+<code>.bin</code> do firmware para staging</li>
+<li><code>POST /api/ota/apply</code> — gatilho do orchestrator (HTTP
+202, device reboota)</li>
+<li>Boot pós-apply restaura snapshot <code>/config/system.bin</code> +
+reformata LFS</li>
+</ul>
+<hr />
+<h2 id="cli-usb-serial-sem-auth">6. CLI (USB Serial — sem auth)</h2>
+<p>Conectado via
+<code>/dev/serial/by-id/usb-Raspberry_Pi_Pico_W_&lt;chipid&gt;-if00</code>.
+115200 baud. Sem autenticação (acesso físico = autenticação).</p>
+<h3 id="monitoring">6.1 Monitoring</h3>
+<pre><code>show system info       — versão, chip, config básica
+show system log        — dump de eventos do flash
+show net status        — IP, RSSI, time sync
+show storage stats     — uso de flash
+show themes            — temas instalados
+show metrics           — heap, net, tel, sensors operacionais
+show sensors           — sensores mapeados (database)
+sensor scan            — descoberta de novos sensores DS18B20</code></pre>
+<h3 id="configuration-precisa-write-memory-reload-para-persistir">6.2
+Configuration (precisa <code>write memory</code> + <code>reload</code>
+para persistir)</h3>
+<pre><code>conf system name &lt;value&gt;           — nome do device
+conf system ssid &lt;name&gt;            — WiFi SSID (case-sensitive)
+conf system pass &lt;pass&gt;            — WiFi password
+conf system timezone &lt;offset&gt;      — UTC offset (-3 = Brasília)
+conf system ntp &lt;server&gt;           — servidor NTP
+conf system theme &lt;id|index&gt;       — tema TFT
+conf system admin reset [confirm]  — reset senha admin (OTP)
+conf system touch reset [confirm]  — reset calibração touch
+conf system factory [confirm]      — factory reset (apaga TUDO)
+conf system history_interval &lt;m&gt;   — intervalo de log (1..1440 min)
+conf ntp &lt;on|off&gt;                  — ativa/desativa NTP
+conf time &lt;YYYY-MM-DD&gt; &lt;HH:MM:SS&gt;  — RTC manual
+conf net dns auto                  — DNS via DHCP
+conf net dns manual &lt;ip1&gt; [ip2]    — DNS manual
+conf sensor ds18b20 resolution &lt;9-12&gt; — resolução DS18B20 global</code></pre>
+<h3 id="telemetry">6.3 Telemetry</h3>
+<pre><code>conf tel server &lt;url&gt;      — endpoint HTTP
+conf tel port &lt;port&gt;       — porta (80, 443)
+conf tel path &lt;path&gt;       — endpoint path
+conf tel batch &lt;n&gt;         — tamanho do batch
+conf tel int &lt;s&gt;           — intervalo</code></pre>
+<h3 id="dispositivos">6.4 Dispositivos</h3>
+<pre><code>write memory               — persiste config no flash
+reload [confirm]           — reboot soft (safeReboot watchdog reset)
+factory [confirm]          — factory reset
+language pt|en             — troca idioma display</code></pre>
+<h3 id="diagnóstico-oculto">6.5 Diagnóstico oculto</h3>
+<pre><code>conf sensor &lt;N&gt; history all          — recupera histórico pré factory reset
+conf sensor all history all          — todos os sensores (BT-only)</code></pre>
+<hr />
+<h2 id="procedimento-ota-firmware-update">7. Procedimento OTA (firmware
+update)</h2>
+<h3 id="via-web-ui-recomendado">7.1 Via Web UI (recomendado)</h3>
+<ol type="1">
+<li>Login como admin com <code>PERM_FILE_UPLOAD</code></li>
+<li>Acessar <code>/files</code>, clicar <strong>Firmware</strong></li>
+<li>Modal exibe AVISO + verifica <code>.bkp</code> da LFS atual</li>
+<li>Selecionar <code>.bin</code> (firmware RAW, sem gzip)</li>
+<li>Confirmar duplo (sumário + downgrade warn)</li>
+<li>Upload progress → stage → commit → apply</li>
+<li>Device reboota; redireciona para <code>/login</code> em ~60s</li>
+</ol>
+<h3 id="via-clicurl-autonomia">7.2 Via CLI/curl (autonomia)</h3>
+<div class="sourceCode" id="cb7"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. Login</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-c</span> cookie.txt <span class="at">-X</span> POST <span class="at">-d</span> <span class="st">&#39;user=admin&amp;pass=&lt;sha256&gt;&amp;nonce=&lt;nonce&gt;&#39;</span> <span class="dt">\</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  http://192.168.3.195/api/login</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. Stage + commit firmware</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-b</span> cookie.txt <span class="at">-F</span> <span class="st">&quot;firmware=@firmware.bin&quot;</span> <span class="dt">\</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="st">&quot;http://192.168.3.195/api/restore?op=stage&amp;commit=1&quot;</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. Apply (HTTP 202; device reboota)</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-b</span> cookie.txt <span class="at">-X</span> POST http://192.168.3.195/api/ota/apply</span></code></pre></div>
+<h3 id="wrapper-python-test_f9_snapshot.sh-usa">7.3 Wrapper Python
+(test_f9_snapshot.sh usa)</h3>
+<p><code>tools/ota_apply.py</code> automatiza: backup .bkp + stage +
+commit + apply + wait_for_device.</p>
+<hr />
+<h2 id="recovery-em-caso-de-brick">8. Recovery (em caso de brick)</h2>
+<h3 id="brick-usb-cdc-mute-pós-ota">8.1 Brick “USB CDC mute”
+pós-OTA</h3>
+<p>Sintoma: USB enumera como <code>2e8a:f00a Raspberry Pi Pico W</code>
+mas serial CLI não responde, HTTP timeout.</p>
+<p><strong>Recovery soft:</strong> 1. RESET via PicoHand:
+<code>mão RESET</code> ou pulso RUN físico → boot fresh 2. Configurar
+WiFi via CLI (config foi preservada via snapshot)</p>
+<p><strong>Recovery hard (se soft falhar):</strong> 1. BOOTSEL via
+PicoHand: <code>mão BOOTSEL</code> ou botão físico 2.
+<code>picotool erase -a</code> (apaga TODO o flash, incluindo metadata
+partition) 3.
+<code>picotool load -x tools/test_firmwares/pico_blink_echo/build/pico_blink_echo.ino.uf2</code>
+— verifica chip OK 4.
+<code>picotool load -x .pio/build/pico_w_release/firmware.uf2</code> —
+flash SIMUT 5. Configurar WiFi novamente via CLI</p>
+<h3 id="brick-pico-não-responde-nem-com-bootsel">8.2 Brick “Pico não
+responde nem com BOOTSEL”</h3>
+<p>Solução empírica do user (2026-05-08): <strong>flashar firmware
+básico</strong> (blink ou serial echo) “revive” o Pico. Após blink
+rodar, BOOTSEL volta a funcionar normalmente.</p>
+<p><code>tools/test_firmwares/pico_blink_echo/</code> — UF2 mínimo de
+revival.</p>
+<hr />
+<h2 id="arquitetura-littlefs-data">9. Arquitetura LittleFS
+(<code>/data/</code>)</h2>
+<pre><code>/data/
+├── calib.csv              — sensor offsets + nomes (versionado)
+├── config/
+│   ├── system.bin         — config encrypted (WiFi/users/sensors/...)
+│   ├── system.bak         — backup automático do system.bin
+│   └── t_cursor.bin       — cursor de telemetria (último ts enviado)
+├── history/
+│   └── YYYYMMDD.bin       — histórico binário 1 ponto/min por sensor
+├── lang/
+│   ├── language_pt-BR.lng
+│   └── language_es-ES.lng
+├── themes/
+│   └── unimed_dark.thm    — tema TFT (RGB565 pixels + meta)
+├── web/                   — páginas comprimidas servidas via /
+│   ├── login_page.gz
+│   ├── dash_page.gz
+│   ├── hist_page.gz
+│   ├── cfg_page.gz
+│   ├── alarms_page.gz
+│   ├── net_page.gz
+│   ├── usr_page.gz
+│   ├── file_page.gz
+│   ├── force_chpass_page.gz
+│   ├── license_page.gz
+│   ├── lang_js.gz
+│   └── style_css.gz
+├── system.blog            — log binário ativo (LogManager)
+├── system.old.blog        — log rotacionado
+└── favicon.ico</code></pre>
+<hr />
+<h2 id="geração-automatizada-deste-manual-todo-próxima-sessão">10.
+Geração automatizada deste manual (TODO próxima sessão)</h2>
+<h3 id="captura-de-tela-tft-via-api">10.1 Captura de tela TFT via
+API</h3>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Login + obter cookie</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-c</span> /tmp/simut.cookie <span class="at">-X</span> POST <span class="at">-d</span> <span class="st">&quot;user=admin&amp;pass=</span><span class="va">$(</span><span class="bu">echo</span> <span class="at">-n</span> <span class="st">&#39;senha&#39;</span> <span class="kw">|</span> <span class="fu">sha256sum</span> <span class="kw">|</span> <span class="fu">head</span> <span class="at">-c</span> 64<span class="va">)</span><span class="st">&amp;nonce=</span><span class="va">$(</span><span class="ex">curl</span> <span class="at">-s</span> http://192.168.3.195/api/login_init <span class="kw">|</span> <span class="ex">jq</span> <span class="at">-r</span> .nonce<span class="va">)</span><span class="st">&quot;</span> <span class="dt">\</span></span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>  http://192.168.3.195/api/login</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co"># Capturar screenshot (BMP 320x240 24-bit)</span></span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="ex">curl</span> <span class="at">-b</span> /tmp/simut.cookie <span class="at">-o</span> screenshot.bmp http://192.168.3.195/api/screenshot</span>
+<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Converter para PNG</span></span>
+<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="ex">convert</span> screenshot.bmp screenshot.png</span></code></pre></div>
+<p><strong>Streaming garantido:</strong> o handler
+<code>handleApiScreenshot</code> em
+<code>WebManager_History.cpp:861</code> faz read row-by-row do
+framebuffer com <code>_displayRef-&gt;readRow()</code>, alimenta WDT a
+cada 4 rows, e detecta client disconnect. Resposta tem
+<code>Content-Length</code> exato — falha de pixels = bytes faltantes
+detectáveis.</p>
+<h3 id="comando-para-simular-toque-não-implementado">10.2 Comando para
+simular toque (NÃO IMPLEMENTADO)</h3>
+<p>Próxima sessão: adicionar comando CLI <code>touch sim X Y</code> em
+<code>AppManager_Commands.cpp</code> que injeta um evento de toque
+simulado em <code>DisplayManager</code> via
+<code>_displayMgr-&gt;injectTouch(x, y)</code> (método novo que faria
+push em <code>_rawTouchState</code> ou similar).</p>
+<p>Fluxo proposto:</p>
+<pre><code>SIMUT&gt; touch sim 160 120          ← toque no centro
+SIMUT&gt; touch sim 50 220           ← toque no botão &quot;Settings&quot;
+SIMUT&gt; touch sim 270 220          ← toque no botão &quot;Graph&quot;</code></pre>
+<p>Ou via API:</p>
+<pre><code>POST /api/touch?x=160&amp;y=120</code></pre>
+<h3 id="captura-browser">10.3 Captura browser</h3>
+<div class="sourceCode" id="cb12"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Selenium/headless Chrome</span></span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="ex">python</span> <span class="at">-c</span> <span class="st">&quot;</span></span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="st">from selenium import webdriver</span></span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="st">from selenium.webdriver.chrome.options import Options</span></span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="st">opts = Options()</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="st">opts.add_argument(&#39;--headless&#39;)</span></span>
+<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="st">opts.add_argument(&#39;--window-size=1280,800&#39;)</span></span>
+<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="st">driver = webdriver.Chrome(options=opts)</span></span>
+<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="st"># Login</span></span>
+<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="st">driver.get(&#39;http://192.168.3.195/login&#39;)</span></span>
+<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="st">driver.find_element(&#39;id&#39;, &#39;user&#39;).send_keys(&#39;admin&#39;)</span></span>
+<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="st">driver.find_element(&#39;id&#39;, &#39;pass&#39;).send_keys(&#39;senha&#39;)</span></span>
+<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="st">driver.find_element(&#39;id&#39;, &#39;submit&#39;).click()</span></span>
+<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="st"># Capture pages</span></span>
+<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a><span class="st">for url in [&#39;/&#39;, &#39;/history&#39;, &#39;/alarms&#39;, &#39;/config&#39;, &#39;/network&#39;, &#39;/users&#39;, &#39;/files&#39;]:</span></span>
+<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a><span class="st">    driver.get(&#39;http://192.168.3.195&#39; + url)</span></span>
+<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a><span class="st">    driver.save_screenshot(&#39;docs/screenshots/web&#39; + url.replace(&#39;/&#39;, &#39;_&#39;) + &#39;.png&#39;)</span></span>
+<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="st">&quot;</span></span></code></pre></div>
+<h3 id="pdf-final">10.4 PDF final</h3>
+<div class="sourceCode" id="cb13"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Markdown → PDF via pandoc</span></span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="ex">pandoc</span> docs/MANUAL.md <span class="at">-o</span> docs/MANUAL.pdf <span class="dt">\</span></span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">--pdf-engine</span><span class="op">=</span>xelatex <span class="dt">\</span></span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">--toc</span> <span class="dt">\</span></span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">--highlight-style</span><span class="op">=</span>tango <span class="dt">\</span></span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">-V</span> geometry:margin=2cm</span></code></pre></div>
+<hr />
+<h2 id="referências">11. Referências</h2>
+<ul>
+<li><code>STABILITY_PLAN.md</code> — plano de estabilidade canônico
+(consultar antes de qualquer mudança)</li>
+<li><code>docs/INVESTIGATION_BOOTLOOP.md</code> — investigação
+F-OTA-BOOTLOOP (Achados #1-#7)</li>
+<li><code>docs/RECOVERY.md</code> — procedimento BOOTSEL + 1200bps
+trick</li>
+<li><code>docs/RELEASE_NOTES_v3.44.0-alpha*.md</code> — release notes
+por alpha</li>
+<li><code>tools/PicoHand/MANUAL_CLAUDE_CODE.md</code> — manual da mão
+robótica</li>
+<li>GitHub:
+https://github.com/angeloINTJ/SIMUT/tree/feature/ota-self-flash</li>
+</ul>
+<hr />
+<p>🤖 Manual gerado em 2026-05-08 com base em código-fonte
+v3.44.0-alpha13. Screenshots pendentes — gerar via captura programática
+quando device estável.</p>
+</body>
+</html>
