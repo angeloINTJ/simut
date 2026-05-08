@@ -57,21 +57,32 @@ s.close()
             fi
         done
         if ls /dev/disk/by-label/RPI-RP2 >/dev/null 2>&1; then
+            # v3.44.0-alpha9: blink revival pattern. picotool load sem erase
+            # falha em alguns brick states (state==APPLYING preservado em
+            # metadata partition + flash residual). Solução: erase total +
+            # flash blink (revival) + erase + flash alpha. User 2026-05-08:
+            # "Pico volta à vida com firmware bem básico".
+            log "  Recovery: erase + blink revival + reflash alpha"
+            picotool erase -a 2>&1 | tail -1 | tee -a "$LOOP_LOG"
+            picotool load -x tools/test_firmwares/pico_blink_echo/build/pico_blink_echo.ino.uf2 2>&1 | tail -1 | tee -a "$LOOP_LOG"
+            sleep 5
+            # BOOTSEL again
+            $PYBIN -u -c "
+import serial, time
+s = serial.Serial('$HAND_PORT', 115200, timeout=3); time.sleep(0.3); s.reset_input_buffer()
+s.write(b'BOOTSEL\n'); time.sleep(2); s.close()
+" 2>&1 | tee -a "$LOOP_LOG"
+            sleep 3
             picotool load -x .pio/build/pico_w_release/firmware.uf2 2>&1 | tail -1 | tee -a "$LOOP_LOG"
-            sleep 30
+            sleep 50
             # Reconfig WiFi (com timeout no python pra evitar hang)
             timeout 20 $PYBIN -u -c "
 import serial, time
 s = serial.Serial('$SIMUT_PORT', 115200, timeout=2); time.sleep(2); s.reset_input_buffer()
-for c in [b'conf system ssid ProcrastinationPLUS\r\n', b'conf system pass A\$AGzD3XeY7xSrwAg5JF\r\n', b'write memory\r\n']:
+for c in [b'conf system ssid ProcrastinationPLUS\r\n', b'conf system pass A\$AGzD3XeY7xSrwAg5JF\r\n', b'write memory\r\n', b'reload confirm\r\n']:
     s.write(c); time.sleep(2); s.read(2048)
 s.close()
 " 2>&1 | tee -a "$LOOP_LOG"
-            $PYBIN -u -c "
-import serial, time
-s = serial.Serial('$HAND_PORT', 115200, timeout=2); time.sleep(0.3); s.reset_input_buffer()
-s.write(b'RESET\n'); time.sleep(0.5); s.read(64); s.close()
-"
             sleep 60
             RECOVERY=$((RECOVERY+1))
         else
