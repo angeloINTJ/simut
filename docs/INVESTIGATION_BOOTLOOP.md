@@ -394,3 +394,120 @@ contribuindo para os "bricks residuais ~24%" mesmo no OTA flow:
 
 Validar essa hipótese antes do v4.0.0 e aplicar fix se necessário.
 
+
+---
+
+## Achado #5 — RESOLVIDO em alpha9 (2026-05-08)
+
+**Tentativas em sequência:**
+
+### Alpha4 (REGREDIDO, REVERTIDO)
+Aplicou Fix #5 mas com **sequência MMIO INCORRETA**:
+- Ordem: LOAD → PSM_WDSEL → TRIGGER (faltavam steps)
+- Faltava Clear ENABLE explícito via CLR alias
+- Faltava scratch[4] = 0
+
+Resultado: pior que antes — `reload confirm` continuou bricando, e adicionou
+brick em OTA apply path (1/20 PASS no loop20 vs 76% em v3.43.21).
+
+### Alpha5-8 (REVERT)
+Voltou ao `watchdog_enable(500, 1)` original. Funciona maioria do tempo,
+mas observado bricks ocasionais em `reload confirm` (HTTP 000 pós-reload).
+
+### Alpha9 (CORRETO — ATIVO)
+Replica EXATAMENTE a sequência de `applier_reboot` Fix #3 v3.43.21:
+1. `PSM_WDSEL` = todos peripherals exceto ROSC/XOSC
+2. **Clear ENABLE explícito** via CLR alias (estava faltando em alpha4!)
+3. **scratch[4] = 0** (boot mode = normal — também estava faltando)
+4. LOAD = 0xFFFFFF (24-bit max ≈ 8s)
+5. TRIGGER apenas via SET alias
+6. dsb (memory barrier)
+
+```cpp
+constexpr uint32_t LM_WD_BASE = 0x40058000u;  // prefixo LM_ pra evitar
+                                              // clash com #defines do
+                                              // pico-sdk watchdog.h
+
+*(volatile uint32_t*)(LM_PSM_BASE + LM_PSM_WDSEL_OFF) = LM_PSM_RESET_MASK;
+*(volatile uint32_t*)(LM_WD_BASE + LM_WD_CLR_ALIAS + LM_WD_CTRL_OFF) = LM_WD_ENABLE_BIT;
+*(volatile uint32_t*)(LM_WD_BASE + LM_WD_SCRATCH4) = 0;
+*(volatile uint32_t*)(LM_WD_BASE + LM_WD_LOAD_OFF) = 0xFFFFFFu;
+*(volatile uint32_t*)(LM_WD_BASE + LM_WD_SET_ALIAS + LM_WD_CTRL_OFF) = LM_WD_TRIG_BIT;
+__asm volatile("dsb");
+```
+
+**Validação em HW 2026-05-08:**
+- ✅ Boot via picotool: SYS READY @ 52615 ms
+- ✅ `reload confirm`: device volta HTTP 200 ~60s pós-reload (era 100% brick em alpha4)
+- ❌ OTA apply: ainda brick (usa `applier_reboot` separado, residual em outro lugar)
+
+---
+
+## Achado #6 — Snapshot restore RACE (HIPÓTESE DESCARTADA)
+
+**Hipótese inicial (user 2026-05-08):** `ota_snapshot_restore_to_lfs` em
+`StorageManager::begin` é chamado SEM `enterFlashSafeMode`. Core 1
+(DisplayManager) já lançado, podia fazer XIP fetch concorrente com a
+write em `/config/system.bin` = bus conflict / boot hang.
+
+**Tentativas:**
+
+### Alpha6 (BRICKED)
+Wrap `ota_snapshot_present + restore` em `enterFlashSafeMode/exit`. Mas
+estrutura criou DOIS pares enter/exit consecutivos (mkdirs + snapshot).
+Boot capturou `[BOOT step] 5: pre _storageMgr->begin()` mas NUNCA chegou
+a step 6 — segundo `enterFlashSafeMode` trava o boot. Empírico: Core 1
+não retorna totalmente do primeiro lockout em tão pouco tempo entre
+exit→enter.
+
+### Alpha7 (BRICKED)
+Single enter/exit pair envolvendo TUDO (mkdirs + snapshot). Ainda brica.
+**Causa identificada:** `LittleFS.write` internamente já usa
+`multicore_lockout` via `flash_safe_execute`. Wrap externo cria
+**DEADLOCK REENTRANTE** — Core 0 segura lockout + LFS tenta obter outra
+vez. Lockout primitives não são reentrant.
+
+### Alpha8 (LAST GOOD baseline)
+Voltou à lógica alpha5: snapshot restore SEM wrap. **LittleFS protege a
+write sozinho via flash_safe_execute interno.** A "race" hipotética entre
+Core 1 XIP e snapshot write é coberta automaticamente.
+
+**Conclusão:** wrap externo não é necessário e é ATIVAMENTE PERIGOSO. LFS
+já é multicore-safe. A hipótese do user identificou corretamente que o
+boot brick estava em `StorageManager::begin` (capturado via Serial step
+5→6), mas a causa raiz era o WRAP que adicionei, não o restore em si.
+
+---
+
+## Próximos achados pendentes (residual brick OTA apply)
+
+Após Fix #5 v2 (alpha9), `reload confirm` está OK mas OTA apply path
+ainda brica. Sintoma: USB CDC enumera (`2e8a:f00a`) mas zero serial
+output do firmware.
+
+**Hipóteses ativas:**
+
+1. **USB CDC connection state**: tinyusb `tud_cdc_connected()` retorna
+   false se host não raised DTR. Arduino-Pico Serial.write checks
+   `tud_cdc_connected()` e dropa silenciosamente se false. Boot rapidíssimo
+   pode terminar Serial.println antes do host raise DTR.
+   
+   **Teste:** pre-open serial port no host com DTR=true ANTES do reboot.
+   Se vier serial output dessa vez, hipótese confirmada.
+
+2. **Boot2 sector 0 corruption**: Fix v3.43.7-9 abordou sector 0 program
+   bug, mas pode ter case residual. Bisect: picotool save app slot pós-OTA
+   e comparar bytes 0-256 com fresh build.
+
+3. **LFS reformat lento**: pós-OTA, LFS é reformatada (apply destrói
+   LFS). Format leva ~10-30s. Se boot espera LFS, atrasa SYS_READY. Pode
+   ser que bricks observados sejam só boot lento >180s.
+
+4. **CYW43 state pós-watchdog**: chip externo via SPI não é resetado pelo
+   PSM. Fix #4 (drive WL_REG_ON LOW) regrediu brick rate de 24% para 57%,
+   reverted. Maybe ordem de operação está errada (deinit ANTES do
+   WiFi.end?).
+
+**Plano:** rodar loop20 alpha9 pra estatística baseline. Investigar
+hipótese 1 (USB CDC pre-open) primeiro — barato, fácil de testar.
+
