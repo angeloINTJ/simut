@@ -120,14 +120,19 @@ wait_http() {
 # Total cycle 1 = 90s. Sem cycle 2 (long reset não recupera bricks reais que
 # já vimos; só consome tempo).
 wait_post_apply_with_recovery() {
-    log "Wait único: até 90s pra boot pós-apply..."
+    # User 2026-05-08: cap absoluto 3 min. Post-OTA boot pode ter LFS
+    # reformat (~10-30s) + config recreate (~10s) + WiFi connect (~30s)
+    # = pode chegar perto de 90s no normal case, especialmente em alpha9+
+    # com cooperative quiet mode (Core 1 reset + relaunch).
+    # 180s = 3 min cap; cobre até cenários slow boot mas detecta brick real.
+    log "Wait único: até 180s pra boot pós-apply..."
     probe_state
-    if wait_http 90 "wait"; then
+    if wait_http 180 "wait"; then
         log "DEVICE BACK ONLINE"
         probe_state
         return 0
     fi
-    log "FAIL: device não voltou em 90s — brick (não recuperável por software)"
+    log "FAIL: device não voltou em 180s — brick (não recuperável por software)"
     return 1
 }
 
