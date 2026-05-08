@@ -74,6 +74,11 @@ enum DemandType {
      * só valida cfg.users[0]). Usar `write memory` + `reload` depois.
      * intVal1: slot 0..9, ou -1 para "all" (todos ativos + ambient). */
     CMD_DBG_SENSOR_HISTORY_ALL,
+
+    /* v3.44.0-alpha14: 'touch sim X Y' — injeta toque (x,y) screen-space.
+     * Útil pra automação de captura de screenshots em todas as telas
+     * via /api/screenshot. intVal1=x, intVal2 reaproveitado para y. */
+    CMD_TOUCH_SIM,
 };
 
 /** Parsed CLI command with typed payload fields.

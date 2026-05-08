@@ -207,6 +207,17 @@ CliDemand CommandManager::parseCommand(String input) {
     if (t0 == "help" || t0 == "ajuda" || t0 == "?") { cmd.type = CMD_HELP; return cmd; }
     if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
 
+    /* v3.44.0-alpha14: 'touch sim X Y' — injeta toque (x,y) screen-space.
+     * X em [0..319], Y em [0..239]. Útil pra automação de screenshots em
+     * todas as telas via /api/screenshot. strVal1=X, strVal2=Y (parsed
+     * em executeCommand). */
+    if (t0 == "touch" && t1 == "sim") {
+        cmd.type = CMD_TOUCH_SIM;
+        cmd.setStrVal1(t2.c_str());
+        cmd.setStrVal2(t3.c_str());
+        return cmd;
+    }
+
     if (t0 == "language") {
         cmd.type = CMD_LANGUAGE;
         if      (t1 == "pt" || t1 == "pt-br" || t1 == "ptbr") cmd.intVal1 = LANG_PT;

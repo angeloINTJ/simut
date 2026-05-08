@@ -411,6 +411,19 @@ void DisplayManager::drawTouchSensitivity() {
 
 
 void DisplayManager::mapTouchPoint(TS_Point raw, int16_t &outX, int16_t &outY) {
+    /* v3.44.0-alpha14: bypass mapping if simulated touch active.
+     * CLI 'touch sim X Y' seta _simTouchActive + _simTouchX/Y; aqui
+     * retornamos as coords já em screen-space, ignorando o ADC raw.
+     * Auto-clear após 100ms (1-2 frames @ ~30fps) — simula um tap. */
+    if (__atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE)) {
+        outX = __atomic_load_n(&_simTouchX, __ATOMIC_ACQUIRE);
+        outY = __atomic_load_n(&_simTouchY, __ATOMIC_ACQUIRE);
+        if (millis() - __atomic_load_n(&_simTouchSetMs, __ATOMIC_ACQUIRE) > 100) {
+            __atomic_store_n(&_simTouchActive, false, __ATOMIC_RELEASE);
+        }
+        return;
+    }
+
     int16_t rawForX, rawForY;
 
     if (_calSwapXY) {

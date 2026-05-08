@@ -122,6 +122,12 @@ public:
     void forceUnpause();
     void restartCore1();
 
+    /** v3.44.0-alpha14: injeta toque simulado em (x, y). Para um único frame:
+     *  Core 1 lê _simTouchActive em handleTouch e usa as coordenadas
+     *  override em vez do _ts->getPoint() real. Útil pra automation
+     *  (gerar screenshots de todas as telas via API). */
+    void injectTouch(int16_t x, int16_t y);
+
     /** F-LOCKOUT-STUCK fix: modo "quiet" cooperativo para saves grandes.
      *  Core 0 sinaliza, Core 1 (em loopCore1) entra em loop RAM-only com
      *  IRQs desabilitados, Core 0 faz todas as flash ops sem tentar
@@ -331,6 +337,17 @@ private:
     volatile bool _rawTouchState = false;
     volatile bool _skipPressed = false;
     volatile uint32_t _lastTouchTimestamp = 0;
+
+    /* v3.44.0-alpha14: simulated touch injection via CLI 'touch sim X Y'.
+     * Permite captura automatizada de screenshots em todas as telas via
+     * /api/screenshot — Core 0 seta x/y/active flag, Core 1 (handleTouch
+     * via _ts->getPoint) consulta override. Após processado, _simActive
+     * volta a false. Coordenadas em screen-space (320x240, igual ao
+     * mapTouchPoint output). */
+    volatile int16_t _simTouchX = 0;
+    volatile int16_t _simTouchY = 0;
+    volatile bool _simTouchActive = false;
+    volatile uint32_t _simTouchSetMs = 0;
 
 
     volatile bool _webBusy = false;

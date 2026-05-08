@@ -18,7 +18,11 @@
 #include "LogManager.h"
 
 void DisplayManager::handleTouch() {
-    if (!_ts->touched()) {
+    /* v3.44.0-alpha14: use _rawTouchState (already OR'd with sim flag in
+     * loopCore1) so simulated touches register as "touched". When sim is
+     * active, _ts->getPoint() may return zeros, but mapTouchPoint() now
+     * bypasses the ADC mapping and returns _simTouchX/Y directly. */
+    if (!_rawTouchState) {
         /* Finger released — habilita próximo toque único */
         _touchReleased = true;
 

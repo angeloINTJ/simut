@@ -603,6 +603,27 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_DBG_SENSOR_HISTORY_ALL:
             cmdHandleDbgSensorHistoryAll(cmd, cfg, changed); break;
 
+        case CMD_TOUCH_SIM: {
+            /* v3.44.0-alpha14: injeta toque simulado (x, y) screen-space.
+             * Útil pra automação de screenshots TFT via /api/screenshot.
+             * Parse X e Y de strVal1 e strVal2 com parseIntStrict. */
+            int x = 0, y = 0;
+            String sx(cmd.strVal1), sy(cmd.strVal2);
+            if (!parseIntStrict(sx, x) || !parseIntStrict(sy, y) ||
+                x < 0 || x > 319 || y < 0 || y > 239) {
+                _cmdMgr->printError(_cmdMgr->isPt()
+                    ? "Uso: touch sim <X> <Y> (X 0..319, Y 0..239)"
+                    : "Usage: touch sim <X> <Y> (X 0..319, Y 0..239)");
+                break;
+            }
+            _displayMgr->injectTouch((int16_t)x, (int16_t)y);
+            char buf[64];
+            snprintf(buf, sizeof(buf), _cmdMgr->isPt()
+                ? "Toque injetado em (%d, %d)" : "Touch injected at (%d, %d)", x, y);
+            _cmdMgr->printSuccess(buf);
+            break;
+        }
+
 
         case CMD_UNKNOWN:
         default:

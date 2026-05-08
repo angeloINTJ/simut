@@ -449,6 +449,16 @@ bool DisplayManager::isSkipPressed() {
 
 bool DisplayManager::isScreenTouched() { return _rawTouchState; }
 
+/* v3.44.0-alpha14: injetar toque simulado pra automação (screenshot capture).
+ * Set flag + coords; Core 1 vê na próxima iteração de handleTouch.
+ * Auto-clear após 100ms (1-2 frames @ 30 FPS) para simular um tap. */
+void DisplayManager::injectTouch(int16_t x, int16_t y) {
+    __atomic_store_n(&_simTouchX, x, __ATOMIC_RELEASE);
+    __atomic_store_n(&_simTouchY, y, __ATOMIC_RELEASE);
+    __atomic_store_n(&_simTouchSetMs, millis(), __ATOMIC_RELEASE);
+    __atomic_store_n(&_simTouchActive, true, __ATOMIC_RELEASE);
+}
+
 
 void DisplayManager::setWebBusy(bool busy, const char* username) {
     mutex_enter_blocking(&_stateMutex);
@@ -619,7 +629,12 @@ void DisplayManager::loopCore1() {
         TRACE_BEAT(1);
 
         _lastHeartbeat = millis();
-        _rawTouchState = _ts->touched();
+        /* v3.44.0-alpha14: OR with simulated touch active flag.
+         * handleTouch and mapTouchPoint check _simTouchActive to use
+         * synthesized screen-space coords. Allows CLI 'touch sim X Y'
+         * pra automation (screenshot capture). */
+        _rawTouchState = _ts->touched() ||
+                         __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
 
         /* Processa toque ANTES da renderização para resposta no mesmo frame */
         handleTouch();
