@@ -511,3 +511,50 @@ output do firmware.
 **Plano:** rodar loop20 alpha9 pra estatística baseline. Investigar
 hipótese 1 (USB CDC pre-open) primeiro — barato, fácil de testar.
 
+
+---
+
+## Achado #7 — Boot hang em Core 1 startup (ALPHA10, 2026-05-08)
+
+`Serial.ignoreFlowControl(true)` cedo no setup permitiu capturar boot output
+mesmo com host conectando tardiamente. Captura em alpha10 fresh-flashed:
+
+```
+[BOOT step] 1: pos-banner @ 2338
+[BOOT step] 2: _displayMgr->begin() @ 2338
+[BOOT step] 3: _displayMgr->startCore1() @ 2338[DSP] Lockout stuck >10s, restarting Core 1
+```
+
+**Observações:**
+- Step 4 (`pos-startCore1 @ ...`) NUNCA imprime
+- `[DSP] Lockout stuck >10s, restarting Core 1` aparece grudado no step 3
+  (sem newline separador) — sugere boot rodou bem além de step 3 mas
+  output dos steps intermediários foi PERDIDO ou OUT-OF-ORDER
+
+**Hipótese:** Core 0 progride além de step 3 (atinge step 5, chama
+`_storageMgr->begin()`, que chama `enterFlashSafeMode` → `pauseRendering(true)`
+→ `multicore_lockout_start_timeout_us`). Core 1 não responde ao lockout IRQ
+em 10s → recovery dispara restart Core 1 → mensagem "Lockout stuck >10s"
+imprime.
+
+Mas por que os outputs dos steps 4-N não aparecem? Possíveis explicações:
+1. **Serial.flush() não é instantâneo** — flush apenas garante TX FIFO
+   foi para TinyUSB stack; entrega ao host é assíncrona.
+2. **TinyUSB FIFO overflow** — se output gerado > FIFO size + ignoreFlowControl
+   block window, writes posteriores são silenciosamente perdidos.
+3. **Core 1 race condition em startup** — `multicore_lockout_victim_init`
+   precisa ter rodado em Core 1 antes de Core 0 chamar
+   `multicore_lockout_start_*`. Se Core 0 chama lockout antes de Core 1
+   chamar victim_init, Core 0 espera 10s e timeout.
+
+**Conclusão prelim:** o residual brick rate ~24% em v3.43.21 pode estar
+relacionado a esta race entre `startCore1()` e o primeiro `enterFlashSafeMode`
+no `_storageMgr->begin()` (step 5). Não é específico do OTA path — é
+pre-existente em qualquer cold boot, mas piora pós-OTA porque o reset
+via watchdog/PSM tem timing diferente do reset físico.
+
+**Próximo fix candidato (pendente):** garantir Core 1 está pronto antes
+do primeiro `enterFlashSafeMode`. Adicionar wait pra `_core1Ready==true`
+em DisplayManager::startCore1 OU em AppManager::setup antes de
+StorageManager::begin.
+

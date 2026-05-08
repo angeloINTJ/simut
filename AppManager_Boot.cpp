@@ -70,6 +70,30 @@ void AppManager::setup() {
     _displayMgr->begin();
     Serial.print(F("[BOOT step] 3: _displayMgr->startCore1() @ ")); Serial.println(millis()); Serial.flush();
     _displayMgr->startCore1();
+
+    /* v3.44.0-alpha11: Achado #7 fix — aguardar Core 1 estar PRONTO antes
+     * de prosseguir. _displayMgr->startCore1() retorna após
+     * multicore_launch_core1, mas Core 1 ainda precisa rodar até
+     * loopCore1::multicore_lockout_victim_init() pra setar _core1Ready.
+     * Se Core 0 chamar enterFlashSafeMode (step 5+) antes desse setpoint,
+     * multicore_lockout_start_timeout_us vai timeout 10s + recovery
+     * (mensagem [DSP] Lockout stuck >10s) — observado empíricamente em
+     * alpha10 captura HW 2026-05-08 (boot trava entre step 3 e 4).
+     *
+     * Wait com timeout de segurança (1500ms): victim_init é alguns
+     * usegundos no caminho normal. Se não pronto em 1.5s, Core 1 está
+     * defunct — boot continua sem ele (display fica off, mas firmware
+     * não trava). */
+    {
+        unsigned long wait_start = millis();
+        while (!_displayMgr->isCore1Ready() && millis() - wait_start < 1500) {
+            tight_loop_contents();
+        }
+        Serial.print(F("[BOOT step] 3.5: core1Ready=")); Serial.print(_displayMgr->isCore1Ready() ? 1 : 0);
+        Serial.print(F(" wait=")); Serial.print(millis() - wait_start);
+        Serial.print(F("ms @ ")); Serial.println(millis()); Serial.flush();
+    }
+
     Serial.print(F("[BOOT step] 4: pos-startCore1 @ ")); Serial.println(millis()); Serial.flush();
     LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, TRL("Display UI Launched on Core 1."));
 
