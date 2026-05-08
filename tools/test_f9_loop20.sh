@@ -38,23 +38,35 @@ for iter in $(seq 1 20); do
     # Verifica se device está OK antes do test
     if ! curl -fsS --max-time 5 "http://192.168.3.195/api/login_init" >/dev/null 2>&1; then
         log "  Device offline — recovery via mão BOOTSEL + picotool load"
+        # Verifica mão antes
         $PYBIN -u -c "
 import serial, time
 s = serial.Serial('$HAND_PORT', 115200, timeout=3); time.sleep(0.5); s.reset_input_buffer()
-s.write(b'BOOTSEL\n'); time.sleep(0.7); s.read(64); s.close()
-"
-        sleep 2
+s.write(b'PING\n'); time.sleep(0.4); pong = s.read(64).decode(errors='replace').strip()
+print('  hand PING:', pong)
+s.write(b'BOOTSEL\n'); time.sleep(1.0); resp = s.read(128).decode(errors='replace').strip()
+print('  hand BOOTSEL resp:', resp)
+s.close()
+" 2>&1 | tee -a "$LOOP_LOG"
+        # Aguarda enumeração USB MSC (até 8s c/ retry)
+        for try in 1 2 3 4; do
+            sleep 2
+            if ls /dev/disk/by-label/RPI-RP2 >/dev/null 2>&1; then
+                log "  RPI-RP2 detectado (try $try)"
+                break
+            fi
+        done
         if ls /dev/disk/by-label/RPI-RP2 >/dev/null 2>&1; then
             picotool load -x .pio/build/pico_w_release/firmware.uf2 2>&1 | tail -1 | tee -a "$LOOP_LOG"
             sleep 30
-            # Reconfig WiFi
-            $PYBIN -u -c "
+            # Reconfig WiFi (com timeout no python pra evitar hang)
+            timeout 20 $PYBIN -u -c "
 import serial, time
 s = serial.Serial('$SIMUT_PORT', 115200, timeout=2); time.sleep(2); s.reset_input_buffer()
 for c in [b'conf system ssid ProcrastinationPLUS\r\n', b'conf system pass A\$AGzD3XeY7xSrwAg5JF\r\n', b'write memory\r\n']:
     s.write(c); time.sleep(2); s.read(2048)
 s.close()
-"
+" 2>&1 | tee -a "$LOOP_LOG"
             $PYBIN -u -c "
 import serial, time
 s = serial.Serial('$HAND_PORT', 115200, timeout=2); time.sleep(0.3); s.reset_input_buffer()
@@ -62,6 +74,8 @@ s.write(b'RESET\n'); time.sleep(0.5); s.read(64); s.close()
 "
             sleep 60
             RECOVERY=$((RECOVERY+1))
+        else
+            log "  RPI-RP2 NÃO detectado após BOOTSEL — pulando recovery picotool"
         fi
     fi
 

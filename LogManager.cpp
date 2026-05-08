@@ -615,25 +615,52 @@ void LogManager::markCleanReboot() {
 }
 
 void LogManager::safeReboot() {
-    /* F-USB-REBOOT: rp2040.reboot() faz watchdog_reboot(0,0,10) — reset em
-     * 10ms. Sem flush/end do Serial USB, o host (Linux pio device monitor)
-     * vê IO error mas o /dev/ttyACM0 não reaparece porque a transição
-     * DETACH/ATTACH foi interrompida no meio. Sequência aqui:
+    /* F-USB-REBOOT + Achado #5 (v3.44.0-alpha4): aplica padrão fix #3 do
+     * applier_reboot pra evitar F-OTA-BOOTLOOP residual.
+     *
+     * Antes: watchdog_enable(500, 1) — sets ENABLE+timeout 500ms.
+     *        ENABLE persiste pós-reset → boot loop até power cycle físico.
+     *        Bug reproduzido em HW 2026-05-07: reload via CLI bricks device.
+     *
+     * Agora: TRIGGER-only com LOAD=0xFFFFFF (~8s), sem ENABLE persistente.
+     *        Igual SDK pico-sdk watchdog_reboot(0,0,delay_ms=0).
+     *
+     * Sequência:
      *   1. markCleanReboot — autopsy não loga FATAL no próximo boot
-     *   2. Serial.flush — drena TX buffer USB CDC
-     *   3. delay 50ms — host processa o último frame
-     *   4. Serial.end — DETACH limpo no descritor USB
-     *   5. delay 100ms — host processa disconnect (typical 50-100ms no Linux)
-     *   6. watchdog_enable(500, 1) — reset com janela 50× maior que rp2040.reboot
-     *   7. while(1) tight_loop_contents — espera o reset chegar
-     * Mesmo pattern que WebManager_Commit usa há tempo (estável). */
+     *   2. Serial.flush + Serial.end — DETACH limpo USB CDC
+     *   3. delay 100ms — host processa disconnect
+     *   4. Set LOAD=0xFFFFFF (24-bit max)
+     *   5. PSM_WDSEL com mask SDK (exclui ROSC/XOSC pra não desestabilizar PLLs)
+     *   6. WATCHDOG_CTRL_TRIGGER apenas — reset imediato, ENABLE não persiste
+     *   7. while(1) — aguarda reset chegar */
     markCleanReboot();
     Serial.println("[SYS] Rebooting...");
     Serial.flush();
     delay(50);
     Serial.end();
     delay(100);
-    watchdog_enable(500, 1);
+
+    /* MMIO direto pro padrão fix #3 (igual applier_reboot v3.43.21). */
+    constexpr uint32_t WATCHDOG_BASE_ADDR  = 0x40058000u;
+    constexpr uint32_t WATCHDOG_LOAD_OFF   = 0x04u;
+    constexpr uint32_t WATCHDOG_CTRL_OFF   = 0x00u;
+    constexpr uint32_t WATCHDOG_SET_ALIAS  = 0x2000u;
+    constexpr uint32_t WATCHDOG_CTRL_TRIG  = 0x80000000u;
+    constexpr uint32_t PSM_BASE_ADDR       = 0x40010000u;
+    constexpr uint32_t PSM_WDSEL_OFF       = 0x18u;
+    constexpr uint32_t PSM_WDSEL_BITS_ALL  = 0x0001FFFFu;  /* todos peripherals */
+    constexpr uint32_t PSM_WDSEL_ROSC_BIT  = 0x00000001u;
+    constexpr uint32_t PSM_WDSEL_XOSC_BIT  = 0x00000002u;
+    constexpr uint32_t PSM_WDSEL_RESET_MASK = PSM_WDSEL_BITS_ALL & ~(PSM_WDSEL_ROSC_BIT | PSM_WDSEL_XOSC_BIT);
+
+    /* (1) Set LOAD = 0xFFFFFF (24-bit max ≈ 8s) — tempo pra boot completar. */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_LOAD_OFF) = 0xFFFFFFu;
+    /* (2) Set PSM_WDSEL: todos peripherals exceto ROSC/XOSC. */
+    *(volatile uint32_t*)(PSM_BASE_ADDR + PSM_WDSEL_OFF) = PSM_WDSEL_RESET_MASK;
+    /* (3) Trigger via SET alias — só TRIGGER, NÃO ENABLE. */
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_SET_ALIAS + WATCHDOG_CTRL_OFF) =
+        WATCHDOG_CTRL_TRIG;
+
     while (1) tight_loop_contents();
 }
 

@@ -348,3 +348,49 @@ busy_wait_ms(100);  // Tempo pra capacitores descarregarem
 Validar com loop de 20 ciclos. Se brick rate cair pra <5%, fix
 candidato a v4.0.0.
 
+
+---
+
+## Achado #5 — `safeReboot()` reproduz F-OTA-BOOTLOOP fora do path OTA
+
+Reproduzido em 2026-05-07 21:20 testando alpha3:
+
+1. picotool BOOTSEL+flash → boot 1 OK (WiFi conecta, login_init OK)
+2. CLI `conf system ssid/pass/admin reset/user pass + write memory + reload confirm`
+3. Boot 2 trava em F-OTA-BOOTLOOP residual (USB CDC enumera, CLI/HTTP mudos)
+
+**Causa:** `LogManager::safeReboot()` chama `watchdog_enable(500, 1)` — mesma
+mecânica que o bug do `applier_reboot` antes do fix #3. `watchdog_enable`
+seta ENABLE+TRIGGER simultâneo, e ENABLE persiste pós-reset. Combinado
+com pause_on_debug=1, pode deixar watchdog armado pós-boot inicial
+disparando em loop.
+
+```cpp
+/* LogManager.cpp:636 — implementação atual */
+watchdog_enable(500, 1);  // ENABLE + 500ms timeout, pause_on_debug=1
+while (1) tight_loop_contents();
+```
+
+**Fix candidato (não aplicado ainda):** replicar o padrão do `applier_reboot`
+(fix #3): TRIGGER apenas, LOAD=0xFFFFFF (8s), sem ENABLE persistente.
+Aplicar a `safeReboot()` em LogManager.cpp e validar que `reload confirm`
+não brica.
+
+```cpp
+/* Padrão proposto (estilo applier_reboot fix #3) */
+markCleanReboot();
+Serial.println("[SYS] Rebooting..."); Serial.flush();
+delay(50); Serial.end(); delay(100);
+*WATCHDOG_LOAD = 0xFFFFFF;
+*PSM_WDSEL = PSM_WDSEL_RESET_MASK;
+*WATCHDOG_CTRL = WATCHDOG_CTRL_TRIG;  // só TRIGGER
+while (1) tight_loop_contents();
+```
+
+**Implicação importante:** se safeReboot tem o mesmo bug, ele pode estar
+contribuindo para os "bricks residuais ~24%" mesmo no OTA flow:
+- OTA apply usa `applier_reboot` (corrigido)
+- MAS configurações pré-OTA usam `reload` em alguns paths (TBD investigar)
+
+Validar essa hipótese antes do v4.0.0 e aplicar fix se necessário.
+
