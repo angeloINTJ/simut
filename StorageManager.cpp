@@ -174,11 +174,29 @@ bool StorageManager::isHeavyTaskLocked() const { return __atomic_load_n(&_heavyT
 
 bool StorageManager::begin() {
     if (!mountFS()) return false;
-    enterFlashSafeMode();
+
+    /* v3.44.0-alpha12: usar cooperative quiet mode (hard-reset Core 1)
+     * em vez de IRQ-based lockout. Captura HW alpha11 2026-05-08 mostrou
+     * "[DSP] Lockout stuck >10s, restarting Core 1" em step 5 — Core 1
+     * não respondia ao multicore IRQ por 10s. Test isolado
+     * (tools/test_firmwares/pico_multicore_lockout_test) confirmou que
+     * multicore_lockout responde em ~10us; algo específico no SIMUT
+     * (TFT/touch init, timing race) causa o stuck.
+     *
+     * Cooperative quiet mode dispatch via _bigSaveQuietCb (set em setup()
+     * antes de begin()): chama requestDisplayQuietMode → DisplayManager
+     * faz multicore_reset_core1() direto, evita IRQ. Core 1 é morto
+     * imediatamente; relaunch após o release. _inBigSave=true torna
+     * enterFlashSafeMode no-op (caso código nested chame). */
+    bool quiet_entered = false;
+    if (_bigSaveQuietCb) {
+        quiet_entered = _bigSaveQuietCb(true);
+        _inBigSave = quiet_entered;
+    }
+
     if (!LittleFS.exists(DIR_CONFIG)) LittleFS.mkdir(DIR_CONFIG);
     if (!LittleFS.exists(DIR_HISTORY)) LittleFS.mkdir(DIR_HISTORY);
     if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
-    exitFlashSafeMode();
 
     /* Fase 9 — restore da config após OTA apply.
      *
@@ -207,6 +225,14 @@ bool StorageManager::begin() {
             ota::ota_snapshot_present()) {
             (void)ota::ota_snapshot_restore_to_lfs();
         }
+    }
+
+    /* Sai do quiet mode (relaunches Core 1) ANTES de loadConfiguration.
+     * loadConfiguration faz reads via LFS que são protegidos pelo lock
+     * interno do LFS (flash_safe_execute) — não precisa quiet mode. */
+    if (quiet_entered && _bigSaveQuietCb) {
+        _bigSaveQuietCb(false);
+        _inBigSave = false;
     }
 
     if (!loadConfiguration()) saveConfiguration();
