@@ -281,6 +281,31 @@ bool __not_in_flash_func(ota_applier_run)(const UpdateMetadata* meta) {
     }
     crc ^= 0xFFFFFFFFu;
 
+    /* (3.5) alpha31: ERASE staging/LFS region. Após apply, a região 0xFF000
+     * a OTA_SNAPSHOT_OFFSET está poluída com bytes do upload do firmware
+     * (staging compartilha partição com LittleFS). No boot novo, mountFS lê
+     * bytes-de-firmware no superblock LFS → falha → tenta auto-format → cada
+     * erase chama flash_safe_execute → multicore_lockout → trava nas
+     * condições pós-OTA observadas em alpha30 (UART captura mostrou hang em
+     * marker '0' = dentro de mountFS).
+     *
+     * Erase aqui (com IRQs OFF + Core 1 lockout do orchestrator + flash
+     * direct MMIO via __not_in_flash_func) garante que próximo boot vê
+     * LFS region all-0xFF → mountFS detecta limpa → format quick path
+     * (ou nem precisa, depende da LFS lib).
+     *
+     * Snapshot region (último setor de staging, OTA_SNAPSHOT_OFFSET) é
+     * PRESERVADA — config pós-OTA precisa dela. */
+    {
+        constexpr uint32_t LFS_ERASE_END = OTA_SNAPSHOT_OFFSET;
+        for (uint32_t off = OTA_STAGING_OFFSET; off < LFS_ERASE_END; off += OTA_FLASH_SECTOR_SIZE) {
+            uint32_t saved_irq = save_and_disable_interrupts();
+            flash_range_erase(off, OTA_FLASH_SECTOR_SIZE);
+            restore_interrupts(saved_irq);
+            applier_wdt_feed();
+        }
+    }
+
     /* (4) Reboot. CRC mismatch info perdida (sem persistência possível
      * em IRQ-off mode); BootROM detecta boot2 ruim e cai pra BOOTSEL
      * em caso de write quebrado. */

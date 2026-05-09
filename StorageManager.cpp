@@ -174,24 +174,20 @@ void StorageManager::unlockHeavyTask() { __atomic_store_n(&_heavyTaskLocked, fal
 bool StorageManager::isHeavyTaskLocked() const { return __atomic_load_n(&_heavyTaskLocked, __ATOMIC_ACQUIRE); }
 
 bool StorageManager::begin() {
-    /* alpha29 markers: UART markers (uart1 GP8 TX, ver BootUart) pra
-     * diagnosticar exatamente onde StorageManager::begin pode hangar.
-     * 0=pre mountFS, 1=post, 2=enterFSM, 3=mkdirCfg, 4=mkdirHist,
-     * 5=mkdirLang, 6=exitFSM, 7=pre snap, 8=in snap, 9=post snap,
-     * A=post snap block, B=pre loadConfig, C=loadConfig fail,
-     * D=post saveConfig, E=end. */
+    /* alpha31 fix #2: REMOVIDO enterFlashSafeMode wrap dos mkdirs.
+     * Per alpha8 finding (re-confirmado em alpha31 HW captura): LittleFS
+     * internamente já usa flash_safe_execute → multicore_lockout. Wrap
+     * externo cria deadlock reentrante. UART markers mostraram boot
+     * travando consistentemente em '012' (post-enterFSM, antes do mkdir).
+     * LFS protege seus próprios writes — não envolver. */
     uart_putc_raw(uart1, '0');
     if (!mountFS()) return false;
     uart_putc_raw(uart1, '1');
-    enterFlashSafeMode();
-    uart_putc_raw(uart1, '2');
     if (!LittleFS.exists(DIR_CONFIG)) LittleFS.mkdir(DIR_CONFIG);
     uart_putc_raw(uart1, '3');
     if (!LittleFS.exists(DIR_HISTORY)) LittleFS.mkdir(DIR_HISTORY);
     uart_putc_raw(uart1, '4');
     if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
-    uart_putc_raw(uart1, '5');
-    exitFlashSafeMode();
     uart_putc_raw(uart1, '6');
     /* alpha27 fix: removidos README.md placeholders boot-time pra sysDirs.
      * alpha21 colocou os writes DENTRO do enterFlashSafeMode → deadlock
