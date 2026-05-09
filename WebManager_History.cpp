@@ -987,25 +987,33 @@ void WebManager::handleApiScreenshotChunk() {
         return;
     }
 
+    /* v3.44.0-alpha17: bump handler deadline (mesmo padrão handleApiScreenshot).
+     * 16 rows × ~50ms readRow + CRC32 + send = pode levar >2s; deadline default
+     * mata handler antes de finalizar = corpo vazio. */
+    uint32_t savedDeadline = _handlerDeadline;
+    _handlerDeadline = millis() + WEB_LONG_HANDLER_DEADLINE_MS;
+
     /* Calcula range de rows pra este chunk */
     int row_start = n * ROWS_PER_CHUNK;
     int rows_this = (row_start + ROWS_PER_CHUNK > H) ? (H - row_start) : ROWS_PER_CHUNK;
     int payload_size = rows_this * W * 3;
 
     /* Buffer temporário pra rows (16 rows * 320 cols * 3 bytes = 15360 max) */
-    uint8_t payload[ROWS_PER_CHUNK * W * 3];
+    static uint8_t payload[ROWS_PER_CHUNK * W * 3];  /* static = não estoura stack */
     uint16_t pixelRow[W];
 
-    /* BMP é bottom-up; chunk N=0 tem rows mais BAIXAS do display.
-     * Pra reassembly correto, ler rows do display em ordem DECRESCENTE
-     * dentro do chunk (mantém compat com BMP convention). */
+    /* v3.44.0-alpha18: pause Core 1 UMA VEZ por chunk (não 16x).
+     * Garante consistência de pixels (todos rows do chunk capturados
+     * com display PARADO, sem race com refresh do TFT entre rows).
+     * Trade-off: lock por ~50-100ms vs 16x de ~3ms cada. Net mesma
+     * latency mas dados consistentes. */
+    _displayRef->pauseRendering(true);
+
     for (int i = 0; i < rows_this; i++) {
         int display_y = H - 1 - (row_start + i);  /* row do display TFT */
         if (display_y < 0) break;
 
-        _displayRef->pauseRendering(true);
         _displayRef->readRow(display_y, pixelRow, W);
-        _displayRef->pauseRendering(false);
 
         uint8_t* row_dst = payload + i * W * 3;
         for (int x = 0; x < W; x++) {
@@ -1014,8 +1022,9 @@ void WebManager::handleApiScreenshotChunk() {
             row_dst[x*3 + 1] = ((color & 0x07E0) >> 5) << 2; /* G */
             row_dst[x*3 + 2] = ((color & 0xF800) >> 11) << 3;/* R */
         }
-        watchdog_update();
     }
+    _displayRef->pauseRendering(false);
+    watchdog_update();
 
     /* Compute CRC32 EDB88320 (gzip-compatible) */
     uint32_t crc = ota::crc32_update(0xFFFFFFFFu, payload, payload_size) ^ 0xFFFFFFFFu;
@@ -1032,6 +1041,8 @@ void WebManager::handleApiScreenshotChunk() {
     _server.send(200, "application/octet-stream", "");
     safeSend((const char*)hdr, 12);
     safeSend((const char*)payload, payload_size);
+
+    _handlerDeadline = savedDeadline;
 }
 
 void WebManager::handleApiHistoryDays() {
