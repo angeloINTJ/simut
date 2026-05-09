@@ -24,9 +24,34 @@
 #include "TouchPriority.h"
 #include "WebManager.h"
 #include <LittleFS.h>
+#include <hardware/uart.h>
+#include <hardware/gpio.h>
 #include <time.h>
 
 extern AppManager app;
+
+/* v3.44.0-alpha24: BOOT_LOG fan-out manual — escreve em USB CDC (Serial)
+ * E em UART1 raw (uart_putc_raw, GP4 TX). Helpers minúsculos sem snprintf
+ * pra evitar pull-in das machineries de printf. Quando USB CDC fica mute
+ * por F-USB-CDC-DEAD pós-OTA, UART1 continua transmitindo até travar no
+ * ponto exato. PicoHand lê GP4→GP5 e repassa. */
+static inline void boot_uart_init() {
+    uart_init(uart1, 115200);
+    gpio_set_function(4, GPIO_FUNC_UART);  /* TX */
+    gpio_set_function(5, GPIO_FUNC_UART);  /* RX (idle pra futuro bidir) */
+}
+static void _bu_str(const char* s) {
+    while (*s) uart_putc_raw(uart1, *s++);
+}
+static void _bu_u32(uint32_t v) {
+    char buf[11]; int n = 0;
+    if (!v) { uart_putc_raw(uart1, '0'); return; }
+    while (v && n < 10) { buf[n++] = (char)('0' + (v % 10)); v /= 10; }
+    while (n--) uart_putc_raw(uart1, buf[n]);
+}
+#define BLOG(s)   do { Serial.print(s); _bu_str(s); } while(0)
+#define BLOG_U(v) do { uint32_t _vv=(uint32_t)(v); Serial.print(_vv); _bu_u32(_vv); } while(0)
+#define BLOG_NL() do { Serial.print('\n'); uart_putc_raw(uart1, '\n'); } while(0)
 
 void AppManager::setup() {
     Serial.begin(115200);
@@ -43,21 +68,21 @@ void AppManager::setup() {
      * não conectado. Aceitável pra debug; revisitar pós-v4 stable. */
     Serial.ignoreFlowControl(true);
 
+    /* v3.44.0-alpha24: UART1 raw init — GP4 TX wired ao PicoHand GP5 RX.
+     * Captura boot logs quando USB CDC fica mute por F-USB-CDC-DEAD pós-OTA. */
+    boot_uart_init();
+
     delay(1000);
 
     /* Log da versão ANTES de qualquer init que possa travar — garante que
      * o user sempre saiba qual firmware está rodando, mesmo se o boot
-     * trancar logo depois. */
-    Serial.println();
-    Serial.println(F("=============================================="));
-    Serial.print  (F("  SIMUT firmware "));
-    Serial.println(SIMUT_VERSION);
-    Serial.println(F("=============================================="));
-    /* F-OTA-BOOTLOOP boot tracing: cada [BOOT step] tem Serial.flush()
-     * pra garantir que sai mesmo se a próxima linha travar. Permite
-     * localizar exatamente onde o boot pós-apply trava sem precisar
-     * de reflash. Logs entram só em paths críticos pré-LogManager. */
-    Serial.print(F("[BOOT step] 1: pos-banner @ ")); Serial.println(millis()); Serial.flush();
+     * trancar logo depois. F-OTA-BOOTLOOP boot tracing: BOOT_LOGF escreve
+     * em USB CDC + UART1, snprintf-based. Permite localizar exatamente
+     * onde o boot pós-apply trava sem precisar de reflash. */
+    BLOG("\n==============================================\n");
+    BLOG("  SIMUT firmware "); BLOG(SIMUT_VERSION); BLOG_NL();
+    BLOG("==============================================\n");
+    BLOG("[BOOT step] 1: pos-banner @ "); BLOG_U(millis()); BLOG_NL();
 
     /*
      * NÃO chamar TRACE_MOD aqui — scratch[4] precisa conter o módulo do
@@ -66,9 +91,9 @@ void AppManager::setup() {
      */
     TRACE_BEAT(0);
 
-    Serial.print(F("[BOOT step] 2: _displayMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 2: _displayMgr->begin() @ "); BLOG_U(millis()); BLOG_NL();
     _displayMgr->begin();
-    Serial.print(F("[BOOT step] 3: _displayMgr->startCore1() @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 3: _displayMgr->startCore1() @ "); BLOG_U(millis()); BLOG_NL();
     _displayMgr->startCore1();
 
     /* v3.44.0-alpha11: Achado #7 fix — aguardar Core 1 estar PRONTO antes
@@ -89,12 +114,12 @@ void AppManager::setup() {
         while (!_displayMgr->isCore1Ready() && millis() - wait_start < 1500) {
             tight_loop_contents();
         }
-        Serial.print(F("[BOOT step] 3.5: core1Ready=")); Serial.print(_displayMgr->isCore1Ready() ? 1 : 0);
-        Serial.print(F(" wait=")); Serial.print(millis() - wait_start);
-        Serial.print(F("ms @ ")); Serial.println(millis()); Serial.flush();
+        BLOG("[BOOT step] 3.5: core1Ready="); BLOG_U(_displayMgr->isCore1Ready() ? 1 : 0);
+        BLOG(" wait="); BLOG_U(millis() - wait_start);
+        BLOG("ms @ "); BLOG_U(millis()); BLOG_NL();
     }
 
-    Serial.print(F("[BOOT step] 4: pos-startCore1 @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 4: pos-startCore1 @ "); BLOG_U(millis()); BLOG_NL();
     LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, TRL("Display UI Launched on Core 1."));
 
     delay(BOOT_STEP_DELAY_MS);
@@ -127,9 +152,8 @@ void AppManager::setup() {
             }
             delay(20);
         }
-        Serial.printf("[BOOT] touch settle: quiet=%d ms=%lu\n",
-                      touch_settled ? 1 : 0,
-                      (unsigned long)(millis() - settle_start));
+        BLOG("[BOOT] touch settle: quiet="); BLOG_U(touch_settled ? 1 : 0);
+        BLOG(" ms="); BLOG_U(millis() - settle_start); BLOG_NL();
     }
 
     if (touch_settled) {
@@ -166,8 +190,8 @@ void AppManager::setup() {
             delay(50);
         }
     }
-    Serial.printf("[BOOT] AP detect: forceAP=%d (touch_settled=%d)\n",
-                  forceAP ? 1 : 0, touch_settled ? 1 : 0);
+    BLOG("[BOOT] AP detect: forceAP="); BLOG_U(forceAP ? 1 : 0);
+    BLOG(" (touch_settled="); BLOG_U(touch_settled ? 1 : 0); BLOG(")\n");
 
     _displayMgr->setApProgress(-1);
 
@@ -186,10 +210,11 @@ void AppManager::setup() {
         return app.requestDisplayQuietMode(enable);
     });
 
-    Serial.print(F("[BOOT step] 5: pre _storageMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 5: pre _storageMgr->begin() @ "); BLOG_U(millis()); BLOG_NL();
     _displayMgr->setBootStatusKey(TR_BOOT_MOUNT_FS);
     bool fsOk = _storageMgr->begin();
-    Serial.print(F("[BOOT step] 6: pos _storageMgr->begin() fsOk=")); Serial.print(fsOk); Serial.print(F(" @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 6: pos _storageMgr->begin() fsOk="); BLOG_U(fsOk ? 1 : 0);
+    BLOG(" @ "); BLOG_U(millis()); BLOG_NL();
 
     /* DisplayManager precisa do ponteiro pra config pra renderizar o dashboard
      * (buildDashLayout filtra slots inativos). Seta UMA vez no boot — o cfg
@@ -222,9 +247,9 @@ void AppManager::setup() {
         if (ota::ota_metadata_read(m) &&
             (m.state == ota::STATE_APPLYING || m.state == ota::STATE_POST_BOOT)) {
             const bool snap_present = ota::ota_snapshot_present();
-            Serial.printf("[BOOT] OTA post-apply detected: state=%lu attempts=%lu snapshot=%s\n",
-                          (unsigned long)m.state, (unsigned long)m.attempts,
-                          snap_present ? "present" : "absent");
+            BLOG("[BOOT] OTA post-apply detected: state="); BLOG_U(m.state);
+            BLOG(" attempts="); BLOG_U(m.attempts);
+            BLOG(" snapshot="); BLOG(snap_present ? "present" : "absent"); BLOG_NL();
             LOG_CODE(LOG_WARN, "OTA", SEC_CONFIG_CHANGED, 0,
                      String("post-apply boot, state=") + (int)m.state +
                      " attempts=" + (int)m.attempts +
@@ -238,7 +263,7 @@ void AppManager::setup() {
         }
     }
 
-    Serial.print(F("[BOOT step] 7: pos OTA detect @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 7: pos OTA detect @ "); BLOG_U(millis()); BLOG_NL();
 
     LogManager::instance().setHeavyTaskChecker([]() -> bool {
         return app._storageMgr->isHeavyTaskLocked();
@@ -252,7 +277,7 @@ void AppManager::setup() {
         return app.isUserInteracting();
     });
 
-    Serial.print(F("[BOOT step] 8: pre _cmdMgr->begin @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 8: pre _cmdMgr->begin @ "); BLOG_U(millis()); BLOG_NL();
     _displayMgr->setBootStatusKey(TR_BOOT_START_CMD);
     /* v3.33.1: nome do BT visível na rede agora vem do `cfg.deviceName`
      * (configurável em /config) em vez do default "PicoW Serial XX:XX:..."
@@ -392,7 +417,8 @@ void AppManager::setup() {
     loadAndCalibrateSensors();
     _sensorMgr->setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 
-    Serial.print(F("[BOOT step] 9: pre _netMgr (forceAP=")); Serial.print(forceAP ? 1 : 0); Serial.print(F(") @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 9: pre _netMgr (forceAP="); BLOG_U(forceAP ? 1 : 0);
+    BLOG(") @ "); BLOG_U(millis()); BLOG_NL();
     if (forceAP) {
         LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
         _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
@@ -402,12 +428,12 @@ void AppManager::setup() {
         for (int i = 0; i < 35; i++) { delay(100); feedWdt(); }
     } else {
         _displayMgr->setBootStatusKey(TR_BOOT_START_WIFI);
-        Serial.print(F("[BOOT step] 10: pre _netMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
+        BLOG("[BOOT step] 10: pre _netMgr->begin() @ "); BLOG_U(millis()); BLOG_NL();
         _netMgr->begin(cfg,
                       _storageMgr->isDnsAuto(),
                       _storageMgr->isNtpEnabled(),
                       _storageMgr->getSecondaryDns());
-        Serial.print(F("[BOOT step] 11: pos _netMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
+        BLOG("[BOOT step] 11: pos _netMgr->begin() @ "); BLOG_U(millis()); BLOG_NL();
 
         unsigned long netWait = millis();
         unsigned long lastMsg = 0;
@@ -470,10 +496,10 @@ void AppManager::setup() {
 
     LogManager::instance().setEpochSource([]() -> time_t { return time(nullptr); });
 
-    Serial.print(F("[BOOT step] 12: pre _webMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 12: pre _webMgr->begin() @ "); BLOG_U(millis()); BLOG_NL();
     _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
     _webMgr->begin(_storageMgr.get(), _sensorMgr.get(), _netMgr.get(), _displayMgr.get(), _telemetryMgr.get(), _soundMgr.get());
-    Serial.print(F("[BOOT step] 13: pos _webMgr->begin() @ ")); Serial.println(millis()); Serial.flush();
+    BLOG("[BOOT step] 13: pos _webMgr->begin() @ "); BLOG_U(millis()); BLOG_NL();
 
     _displayMgr->setBootStatusKey(TR_BOOT_REG_CALLBACKS);
     _webMgr->setYieldCallback([this]() { this->core0Yield(); });
@@ -554,7 +580,7 @@ void AppManager::setup() {
         LOG_CODE(LOG_INFO, "APP", APP_READY, 0, TRL("System ready."));
         _displayMgr->endBoot();
         _bootCompletedAt = millis();
-        Serial.print(F("[BOOT step] 14: SYS READY @ ")); Serial.println(millis()); Serial.flush();
+        BLOG("[BOOT step] 14: SYS READY @ "); BLOG_U(millis()); BLOG_NL();
 
 
         _soundMgr->play(SND_CONFIRM);

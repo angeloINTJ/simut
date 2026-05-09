@@ -623,6 +623,15 @@ void setup(void)
     /* USB CDC. A velocidade e ignorada na CDC, mas mantemos por convencao. */
     Serial.begin(115200);
 
+    /* v2: Serial2 = UART1 default GP4(TX)/GP5(RX) — bridge serial transparente
+     * para debug do SIMUT alvo (capturando boot pos-OTA quando USB CDC do
+     * SIMUT fica mute por F-USB-CDC-DEAD). Wiring crossover:
+     *   PicoHand GP4 (TX) -- SIMUT GP5 (RX)
+     *   PicoHand GP5 (RX) -- SIMUT GP4 (TX)
+     *   GND -- GND (obrigatorio)
+     * Bytes do SIMUT chegam aqui e sao repassados ao Serial USB CDC. */
+    Serial2.begin(115200);
+
     /* LED de heartbeat */
     pinMode(LED_GPIO, OUTPUT);
     digitalWrite(LED_GPIO, LOW);
@@ -640,6 +649,28 @@ void loop(void)
     if (now - last_blink_ms >= HEARTBEAT_MS) {
         last_blink_ms = now;
         digitalWrite(LED_GPIO, !digitalRead(LED_GPIO));
+    }
+
+    /* Bridge serial transparente: forward de bytes da UART1 (Serial2)
+     * pro USB CDC (Serial) — SIMUT logs aparecem no terminal do host.
+     * Line-buffered com prefixo [S] pra distinguir de output da mao em si.
+     * Buffer pequeno (200 B): OK pra logs de boot do SIMUT. */
+    static char rxbuf[200];
+    static int  rxlen = 0;
+    static bool need_prefix = true;
+    while (Serial2.available()) {
+        char c = (char)Serial2.read();
+        if (need_prefix) {
+            Serial.print("[S] ");
+            need_prefix = false;
+        }
+        Serial.write((uint8_t)c);
+        if (c == '\n') {
+            need_prefix = true;
+            rxlen = 0;
+        } else if (rxlen < (int)sizeof(rxbuf) - 1) {
+            rxbuf[rxlen++] = c;
+        }
     }
 
     /* Processa qualquer comando que tenha chegado pela serial. */
