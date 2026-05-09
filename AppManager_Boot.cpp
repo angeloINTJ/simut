@@ -52,7 +52,48 @@ static void _bu_u32(uint32_t v) {
 #define BLOG_U(v) do { uint32_t _vv=(uint32_t)(v); Serial.print(_vv); _bu_u32(_vv); } while(0)
 #define BLOG_NL() do { Serial.print('\n'); uart_putc_raw(uart1, '\n'); } while(0)
 
+/* alpha30: scratch[5] magic — orchestrator seta antes do applier_reboot
+ * pra sinalizar "próximo boot é pós-OTA-apply, power-cycle CYW43".
+ * scratch[5] sobrevive watchdog_reboot. setup() limpa imediatamente após
+ * detectar pra evitar re-cycle no boot seguinte. */
+#define POST_OTA_APPLY_MAGIC  0xC72BAB07u
+#define WD_BASE_ADDR          0x40058000u
+#define WD_SCRATCH5_OFFSET    0x20u
+
+static inline uint32_t alpha30_read_scratch5() {
+    return *(volatile uint32_t*)(WD_BASE_ADDR + WD_SCRATCH5_OFFSET);
+}
+static inline void alpha30_write_scratch5(uint32_t v) {
+    *(volatile uint32_t*)(WD_BASE_ADDR + WD_SCRATCH5_OFFSET) = v;
+}
+
 void AppManager::setup() {
+    /* alpha30: PRIMEIRA coisa — detectar boot pós-OTA-apply via scratch[5]
+     * magic. Se sim, power-cycle CYW43 via WL_REG_ON (GPIO 23) ANTES de
+     * qualquer outra inicialização. cyw43_arch_init posterior pega chip em
+     * estado cold-power conhecido, sem residual state que causa F-OTA-BOOTLOOP.
+     *
+     * Diferença vs alpha22 (Fix #6 que falhou): aqui só roda CONDICIONALMENTE
+     * quando metadata indica boot pós-OTA, não em todo boot. E timing diferente:
+     * 500ms LOW (capacitor discharge) → release pin pra high-Z (não força HIGH,
+     * deixa SDK fazer init normal). */
+    {
+        uint32_t scr5 = alpha30_read_scratch5();
+        if (scr5 == POST_OTA_APPLY_MAGIC) {
+            /* Limpa magic IMEDIATAMENTE pra evitar re-entry em boot seguinte */
+            alpha30_write_scratch5(0);
+            /* Power-cycle CYW43 chip via WL_REG_ON */
+            gpio_init(23);
+            gpio_set_dir(23, GPIO_OUT);
+            gpio_put(23, 0);            /* OFF — capacitor discharge */
+            busy_wait_ms(500);
+            gpio_set_dir(23, GPIO_IN);  /* high-Z; pull-down do board mantém LOW */
+            gpio_disable_pulls(23);
+            busy_wait_ms(100);
+            /* SDK cyw43_arch_init posterior verá chip cold-power e bootará limpo */
+        }
+    }
+
     Serial.begin(115200);
 
     /* v3.44.0-alpha10: ignoreFlowControl(true) — Arduino-Pico SerialUSB::write

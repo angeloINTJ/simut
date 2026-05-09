@@ -69,6 +69,12 @@ OrchestratorResult ota_apply_pending_update(StorageManager* storage) {
      * experimental — possivelmente precisa ordem diferente (ex: matar
      * CYW43 ANTES do WiFi.end). Investigar isolado. */
 
+    /* alpha30: marca scratch[5] com magic POST_OTA_APPLY_MAGIC pra sinalizar
+     * que próximo boot deve power-cycle CYW43. AppManager::setup detecta cedo
+     * e dispara WL_REG_ON LOW 500ms → high-Z. Resolve F-OTA-BOOTLOOP residual
+     * onde CYW43 chip fica em estado intermediário pós-watchdog_reboot. */
+    *(volatile uint32_t*)(0x40058000u + 0x20u) = 0xC72BAB07u;
+
     /* (5) IRQs globais OFF + jump pra applier SRAM. */
     uint32_t saved_irq = save_and_disable_interrupts();
 
