@@ -14,6 +14,7 @@
 
 #include "StorageManager.h"
 #include "TouchPriority.h"
+#include <hardware/uart.h>
 #include "src/ota/metadata.h"
 #include "src/ota/config_snapshot.h"
 #include <time.h>
@@ -173,12 +174,25 @@ void StorageManager::unlockHeavyTask() { __atomic_store_n(&_heavyTaskLocked, fal
 bool StorageManager::isHeavyTaskLocked() const { return __atomic_load_n(&_heavyTaskLocked, __ATOMIC_ACQUIRE); }
 
 bool StorageManager::begin() {
+    /* alpha29 markers: UART markers (uart1 GP8 TX, ver BootUart) pra
+     * diagnosticar exatamente onde StorageManager::begin pode hangar.
+     * 0=pre mountFS, 1=post, 2=enterFSM, 3=mkdirCfg, 4=mkdirHist,
+     * 5=mkdirLang, 6=exitFSM, 7=pre snap, 8=in snap, 9=post snap,
+     * A=post snap block, B=pre loadConfig, C=loadConfig fail,
+     * D=post saveConfig, E=end. */
+    uart_putc_raw(uart1, '0');
     if (!mountFS()) return false;
+    uart_putc_raw(uart1, '1');
     enterFlashSafeMode();
+    uart_putc_raw(uart1, '2');
     if (!LittleFS.exists(DIR_CONFIG)) LittleFS.mkdir(DIR_CONFIG);
+    uart_putc_raw(uart1, '3');
     if (!LittleFS.exists(DIR_HISTORY)) LittleFS.mkdir(DIR_HISTORY);
+    uart_putc_raw(uart1, '4');
     if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
+    uart_putc_raw(uart1, '5');
     exitFlashSafeMode();
+    uart_putc_raw(uart1, '6');
     /* alpha27 fix: removidos README.md placeholders boot-time pra sysDirs.
      * alpha21 colocou os writes DENTRO do enterFlashSafeMode → deadlock
      * reentrante (LittleFS.open+write+close internamente já usam
@@ -217,15 +231,25 @@ bool StorageManager::begin() {
      * LittleFS tentando obter de novo). LFS handle a proteção sozinho.
      */
     {
+        uart_putc_raw(uart1, '7');
         ota::UpdateMetadata m;
         if (ota::ota_metadata_read(m) &&
             m.state == ota::STATE_APPLYING &&
             ota::ota_snapshot_present()) {
+            uart_putc_raw(uart1, '8');
             (void)ota::ota_snapshot_restore_to_lfs();
+            uart_putc_raw(uart1, '9');
         }
+        uart_putc_raw(uart1, 'A');
     }
 
-    if (!loadConfiguration()) saveConfiguration();
+    uart_putc_raw(uart1, 'B');
+    if (!loadConfiguration()) {
+        uart_putc_raw(uart1, 'C');
+        saveConfiguration();
+        uart_putc_raw(uart1, 'D');
+    }
+    uart_putc_raw(uart1, 'E');
     return true;
 }
 
