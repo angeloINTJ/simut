@@ -132,8 +132,12 @@ void AppManager::setup() {
 
     BLOG("[BOOT step] 2: _displayMgr->begin() @ "); BLOG_U(millis()); BLOG_NL();
     _displayMgr->begin();
-    BLOG("[BOOT step] 3: _displayMgr->startCore1() @ "); BLOG_U(millis()); BLOG_NL();
-    _displayMgr->startCore1();
+    /* alpha35: startCore1 DEFERIDO pra DEPOIS de _storageMgr->begin().
+     * Sem Core 1 ativo, flash_safe_execute usa single-core path (só
+     * disable_interrupts local) — evita multicore_lockout IRQ que
+     * frequentemente trava em boot pós-OTA. Trade-off: TFT não mostra
+     * boot status mensagens até step 6.5 (~10-15s mais tarde). */
+    uart_putc_raw(uart1, 'D');  /* alpha35: startCore1 deferred */
 
     /* v3.44.0-alpha11: Achado #7 fix — aguardar Core 1 estar PRONTO antes
      * de prosseguir. _displayMgr->startCore1() retorna após
@@ -148,17 +152,7 @@ void AppManager::setup() {
      * usegundos no caminho normal. Se não pronto em 1.5s, Core 1 está
      * defunct — boot continua sem ele (display fica off, mas firmware
      * não trava). */
-    {
-        unsigned long wait_start = millis();
-        while (!_displayMgr->isCore1Ready() && millis() - wait_start < 1500) {
-            tight_loop_contents();
-        }
-        BLOG("[BOOT step] 3.5: core1Ready="); BLOG_U(_displayMgr->isCore1Ready() ? 1 : 0);
-        BLOG(" wait="); BLOG_U(millis() - wait_start);
-        BLOG("ms @ "); BLOG_U(millis()); BLOG_NL();
-    }
-
-    BLOG("[BOOT step] 4: pos-startCore1 @ "); BLOG_U(millis()); BLOG_NL();
+    /* alpha35: step 3.5 (wait Core 1 ready) também deferido. */
     LOG_CODE(LOG_INFO, "APP", APP_DISPLAY_LAUNCHED, 0, TRL("Display UI Launched on Core 1."));
 
     delay(BOOT_STEP_DELAY_MS);
@@ -255,6 +249,19 @@ void AppManager::setup() {
     BLOG("[BOOT step] 6: pos _storageMgr->begin() fsOk="); BLOG_U(fsOk ? 1 : 0);
     BLOG(" @ "); BLOG_U(millis()); BLOG_NL();
 
+    /* alpha35: AGORA é seguro startar Core 1 — flash ops de mountFS,
+     * mkdirs, snapshot restore, loadConfiguration já completaram com
+     * Core 1 INACTIVE = sem multicore_lockout IRQ-based = sem hangs. */
+    uart_putc_raw(uart1, 'C');  /* alpha35: deferred startCore1 */
+    _displayMgr->startCore1();
+    {
+        unsigned long wait_start = millis();
+        while (!_displayMgr->isCore1Ready() && millis() - wait_start < 1500) {
+            tight_loop_contents();
+        }
+        uart_putc_raw(uart1, _displayMgr->isCore1Ready() ? 'R' : 'X');
+    }
+
     /* DisplayManager precisa do ponteiro pra config pra renderizar o dashboard
      * (buildDashLayout filtra slots inativos). Seta UMA vez no boot — o cfg
      * vive em BSS (membro de StorageManager) e nunca é realocado. */
@@ -317,14 +324,14 @@ void AppManager::setup() {
     });
 
     BLOG("[BOOT step] 8: pre _cmdMgr->begin @ "); BLOG_U(millis()); BLOG_NL();
-    uart_putc_raw(uart1, 'f'); _displayMgr->setBootStatusKey(TR_BOOT_START_CMD);
+     _displayMgr->setBootStatusKey(TR_BOOT_START_CMD);
     
     /* v3.33.1: nome do BT visível na rede agora vem do `cfg.deviceName`
      * (configurável em /config) em vez do default "PicoW Serial XX:XX:..."
      * da lib SerialBT. Mudanças via web exigem reboot (já é o fluxo do
      * "Salvar e Reiniciar"). */
     _cmdMgr->begin(_storageMgr->getConfig().deviceName);
-    uart_putc_raw(uart1, 'h');
+    
 
     _cmdMgr->setBtValidator([this](String attempt) -> bool {
         SystemConfig &cfg = _storageMgr->getConfig();
@@ -373,9 +380,9 @@ void AppManager::setup() {
         }
     }
 
-    uart_putc_raw(uart1, 'i');
+    
     uint32_t lastTs = _storageMgr->getLastRecordedTimestamp();
-    uart_putc_raw(uart1, 'j');
+    
     _netMgr->setProvisionalTime(lastTs);
     _netMgr->setTimeSyncCallback([](uint32_t bootTs, int32_t delta) {
 
@@ -389,15 +396,15 @@ void AppManager::setup() {
     
     SystemConfig &cfg = _storageMgr->getConfig();
     _displayMgr->setBootStatusKey(TR_BOOT_LOAD_THEME_LANG);
-    uart_putc_raw(uart1, 'k');
+    
     scanCustomThemes();
-    uart_putc_raw(uart1, 'o');
+    
     loadTheme(cfg.themeIndex);
     
     _displayMgr->refreshTheme();
     
     DisplayManager::findAndLoadLangFile();
-    uart_putc_raw(uart1, 's');
+    
     _displayMgr->setLanguage(cfg.displayLang);
     
 

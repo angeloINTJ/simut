@@ -1,0 +1,14 @@
+[S] [BOOT] AP detect: forceAP=0 (touch_settled=1)
+[S] [BOOT step] 5: pre _storageMgr->begin() @ 6859
+[S] 01346789ABE[BOOT step] 6: pos _storageMgr->begin() fsOk=1 @ 7170
+[S] CR[BOOT] OTA post-apply detected: state=2 attempts=1 snapshot=present
+[S] [BOOT step] 7: pos OTA detect @ 7295
+[S] [BOOT step] 8: pre _cmdMgr->begin @ 7298
+[S] [BOOT step] 9: pre _netMgr (forceAP=0) @ 7381
+[S] [BOOT step] 10: pre _netMgr->begin() @ 7385
+[S] [BOOT step] 11: pos _netMgr->begin() @ 8246
+[S] [BOOT step] 11.5: cmdMgr->beginBluetooth @ 16276
+[S] [BOOT step] 11.6: pos beginBluetooth @ 16578
+[S] [BOOT step] 12: pre _webMgr->begin() @ 16603
+[S] [BOOT step] 13: pos _webMgr->begin() @ 16617
+[S] [BOOT step] 14: SYS READY @ 18504
