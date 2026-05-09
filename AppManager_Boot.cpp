@@ -30,15 +30,14 @@
 
 extern AppManager app;
 
-/* v3.44.0-alpha24: BOOT_LOG fan-out manual — escreve em USB CDC (Serial)
- * E em UART1 raw (uart_putc_raw, GP4 TX). Helpers minúsculos sem snprintf
- * pra evitar pull-in das machineries de printf. Quando USB CDC fica mute
- * por F-USB-CDC-DEAD pós-OTA, UART1 continua transmitindo até travar no
- * ponto exato. PicoHand lê GP4→GP5 e repassa. */
+/* v3.44.0-alpha27: BOOT_LOG fan-out — Serial USB CDC + UART1 raw.
+ * Helpers static (file-scope) pra inline no callsite e economizar flash.
+ * Externs adicionais (BootUart.cpp) inflavam o binário em ~3 KiB.
+ * UART1 default arduino-pico Serial2 = GP8/GP9 (alpha25 fix). */
 static inline void boot_uart_init() {
     uart_init(uart1, 115200);
-    gpio_set_function(4, GPIO_FUNC_UART);  /* TX */
-    gpio_set_function(5, GPIO_FUNC_UART);  /* RX (idle pra futuro bidir) */
+    gpio_set_function(8, GPIO_FUNC_UART);  /* TX (UART1) */
+    gpio_set_function(9, GPIO_FUNC_UART);  /* RX (UART1, idle pra futuro bidir) */
 }
 static void _bu_str(const char* s) {
     while (*s) uart_putc_raw(uart1, *s++);

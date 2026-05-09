@@ -178,22 +178,23 @@ bool StorageManager::begin() {
     if (!LittleFS.exists(DIR_CONFIG)) LittleFS.mkdir(DIR_CONFIG);
     if (!LittleFS.exists(DIR_HISTORY)) LittleFS.mkdir(DIR_HISTORY);
     if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
-    /* alpha21: README.md placeholder em cada sysDir. LittleFS perde
-     * pastas vazias (não tem inode dir explícito); placeholder mantém
-     * a pasta visível no /api/ls mesmo sem outros arquivos. */
-    const char* sysReadmes[] = {
-        "/config/README.md", "/history/README.md", "/lang/README.md", "/themes/README.md"
-    };
-    for (auto p : sysReadmes) {
-        if (!LittleFS.exists(p)) {
-            File rf = LittleFS.open(p, "w");
-            if (rf) {
-                rf.print("Pasta SIMUT. Mantém esta entrada para preservar a pasta.\n");
-                rf.close();
-            }
-        }
-    }
     exitFlashSafeMode();
+    /* alpha27 fix: removidos README.md placeholders boot-time pra sysDirs.
+     * alpha21 colocou os writes DENTRO do enterFlashSafeMode → deadlock
+     * reentrante (LittleFS.open+write+close internamente já usam
+     * flash_safe_execute → multicore_lockout, e já estávamos em outro
+     * lockout via enterFlashSafeMode). UART bridge debug capturou
+     * lLuU (mkdirs OK) seguido de SILENCE — Core 0 trava no primeiro
+     * LFS.write reentrante mantendo QSPI_CS LOW (= LED de BOOTSEL
+     * apagado, observado pelo user). Mesmo bug fixado em alpha8 que
+     * eu re-introduzi acidentalmente em alpha21.
+     *
+     * Trade-off: /lang e /themes ficam invisíveis no /api/ls root
+     * enquanto vazias. handleApiLs alpha21 lista pelo dir.next() —
+     * dirs vazias somem do listing. /config tem system.bin e /history
+     * tem logs, então ficam visíveis automaticamente. handleApiMkdir
+     * (alpha21) ainda cria README.md em pastas custom — esse path é
+     * fora de wrap e safe. */
 
     /* Fase 9 — restore da config após OTA apply.
      *
