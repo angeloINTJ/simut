@@ -27,10 +27,24 @@ CommandManager::CommandManager() {
 }
 
 void CommandManager::begin(const char* btDeviceName) {
+    /* alpha28 split: BT + welcome/prompt + sink TODOS movidos pra beginBluetooth().
+     * Aqui é NO-OP (mantido pra compatibilidade da assinatura).
+     * Razão: cada Serial.println pode bloquear ~1s/linha pré-USB-CDC-connect
+     * (ignoreFlowControl timeout). LOG_CODE → consoleSink → consolePrintln →
+     * Serial.print = boot stall acumulado de dezenas de segundos.
+     * Após cyw43_arch_init (em WiFi.begin), USB CDC re-enumerado e host
+     * geralmente conectado, então prints rápidos. */
+    (void)btDeviceName;
+}
+
+void CommandManager::beginBluetooth(const char* btDeviceName) {
+    /* SerialBT.begin acessa CYW43 via SPI/PIO. Caller deve garantir que
+     * cyw43_arch_init já rodou (WiFi.begin) — caso contrário, residual
+     * state do chip pós-OTA causa hardfault. */
     _btMgr.begin(btDeviceName);
 
-    /* A4: instala sink do LogManager para espelhar logs USB+BT.
-     * Sem o sink, LogManager cai no fallback Serial.println (compat de boot pré-CLI). */
+    /* A4: instala sink do LogManager — espelha logs em USB CDC + BT.
+     * Movido pra cá pra evitar Serial blocks durante boot setup phase. */
     LogManager::instance().setConsoleSink([this](const char* line) {
         this->consolePrintln(String(line));
     });

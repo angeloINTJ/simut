@@ -284,7 +284,6 @@ void AppManager::setup() {
      * "Salvar e Reiniciar"). */
     _cmdMgr->begin(_storageMgr->getConfig().deviceName);
 
-
     _cmdMgr->setBtValidator([this](String attempt) -> bool {
         SystemConfig &cfg = _storageMgr->getConfig();
         if (!cfg.users[0].active) return false;
@@ -342,13 +341,9 @@ void AppManager::setup() {
 
     SystemConfig &cfg = _storageMgr->getConfig();
     _displayMgr->setBootStatusKey(TR_BOOT_LOAD_THEME_LANG);
-    /* Custom themes do FS aparecem como índices >= NUM_THEMES (built-ins).
-     * Scan ANTES do loadTheme pra cobrir caso themeIndex aponte pra custom. */
     scanCustomThemes();
     loadTheme(cfg.themeIndex);
     _displayMgr->refreshTheme();
-    /* F-LANGPACK Etapa 2: scan /lang/ ANTES de setLanguage para que o
-     * lookup já esteja pronto quando tr() for chamado. Sem .lng, cai EN. */
     DisplayManager::findAndLoadLangFile();
     _displayMgr->setLanguage(cfg.displayLang);
 
@@ -489,6 +484,19 @@ void AppManager::setup() {
             delay(500);
         }
     }
+
+    /* alpha28: SerialBT.begin movido pra DEPOIS de _netMgr->begin (ambas
+     * branches AP e STA). WiFi.begin → cyw43_arch_init reseta o chip CYW43
+     * em estado limpo. Antes (alpha27 e anteriores), SerialBT.begin rodava
+     * em step 8 (_cmdMgr->begin) com CYW43 ainda em estado residual pós-OTA
+     * → hardfault → reset spontaneo entre step 8 e 9. Diagnosticado via
+     * UART bridge: boot 1 reach step 8 then BANNER (= reset), boot 2 OK.
+     *
+     * Cobertura: tanto AP como STA chamam algum WiFi.* primeiro, então
+     * cyw43_arch_init já rodou aqui. */
+    BLOG("[BOOT step] 11.5: cmdMgr->beginBluetooth @ "); BLOG_U(millis()); BLOG_NL();
+    _cmdMgr->beginBluetooth(_storageMgr->getConfig().deviceName);
+    BLOG("[BOOT step] 11.6: pos beginBluetooth @ "); BLOG_U(millis()); BLOG_NL();
 
     _displayMgr->setBootStatusKey(TR_BOOT_START_TEL);
     _telemetryMgr->begin(_storageMgr.get(), _netMgr.get());

@@ -35,6 +35,7 @@ void BluetoothManager::begin(const char* deviceName) {
         SerialBT.setName(deviceName);
     }
     SerialBT.begin(115200);
+    _initialized = true;
 }
 
 void BluetoothManager::setValidator(BtAuthValidator validator) {

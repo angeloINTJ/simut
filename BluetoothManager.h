@@ -28,6 +28,9 @@ public:
     /** Initialize Bluetooth Serial with the given device name. */
     void begin(const char* deviceName = "SIMUT_CLI");
 
+    /** alpha28: true depois de begin() — evita acessar SerialBT antes de init. */
+    bool isInitialized() const { return _initialized; }
+
     void setValidator(BtAuthValidator validator);
 
     /** Idioma do banner pós-auth. Sincronizado com CommandManager::setCliLang. */
@@ -56,4 +59,5 @@ private:
 
     uint32_t _lastActivityTime;
     const uint32_t _timeoutMs = 300000; /* 5-minute inactivity auto-logout */
+    bool _initialized = false;
 };

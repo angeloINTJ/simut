@@ -22,8 +22,15 @@ public:
     CommandManager();
     /* v3.33.1: btDeviceName define o nome BT visível ("PicoW Serial..." default
      * é substituído). Caller deve passar `cfg.deviceName` (configurável na
-     * web em /config). Default "SIMUT" usado em fallback. */
+     * web em /config). Default "SIMUT" usado em fallback.
+     *
+     * alpha28 split: begin() agora só inicializa CLI parser + console sink.
+     * BT init movido pra beginBluetooth() — chamado APÓS WiFi.begin() inicializar
+     * o cyw43_arch (que reseta o chip CYW43). Sem isso, SerialBT.begin antes
+     * do cyw43_arch_init via WiFi causava hardfault no boot 1 pós-OTA quando
+     * CYW43 estava em estado residual. */
     void begin(const char* btDeviceName = "SIMUT");
+    void beginBluetooth(const char* btDeviceName = "SIMUT");
 
 
     void setBtValidator(BtAuthValidator validator);
