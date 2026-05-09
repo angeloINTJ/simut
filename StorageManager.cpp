@@ -178,6 +178,21 @@ bool StorageManager::begin() {
     if (!LittleFS.exists(DIR_CONFIG)) LittleFS.mkdir(DIR_CONFIG);
     if (!LittleFS.exists(DIR_HISTORY)) LittleFS.mkdir(DIR_HISTORY);
     if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
+    /* alpha21: README.md placeholder em cada sysDir. LittleFS perde
+     * pastas vazias (não tem inode dir explícito); placeholder mantém
+     * a pasta visível no /api/ls mesmo sem outros arquivos. */
+    const char* sysReadmes[] = {
+        "/config/README.md", "/history/README.md", "/lang/README.md", "/themes/README.md"
+    };
+    for (auto p : sysReadmes) {
+        if (!LittleFS.exists(p)) {
+            File rf = LittleFS.open(p, "w");
+            if (rf) {
+                rf.print("Pasta SIMUT. Mantém esta entrada para preservar a pasta.\n");
+                rf.close();
+            }
+        }
+    }
     exitFlashSafeMode();
 
     /* Fase 9 — restore da config após OTA apply.

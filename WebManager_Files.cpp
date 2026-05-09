@@ -128,16 +128,10 @@ void WebManager::handleApiLs() {
             dirPath = dirPath.substring(0, dirPath.length() - 1);
         }
 
-        /* F-LANGPACK: /lang adicionado ao allowlist de leitura. */
-        /* alpha24: /themes liberado p/ Files UI listar temas custom uploadados. */
-        if (dirPath != "/" &&
-            !dirPath.startsWith("/history") &&
-            !dirPath.startsWith("/config") &&
-            !dirPath.startsWith("/lang") &&
-            !dirPath.startsWith("/themes")) {
-            _server.send(403, "application/json", "{\"error\":\"Forbidden path\"}");
-            return;
-        }
+        /* alpha21: removido allowlist estrito (/history,/config,/lang,/themes).
+         * `..` + `%` já rejeitados acima — qualquer outro path é navegação
+         * legítima. Permite UI listar pastas custom criadas via mkdir
+         * (caso 2026-05-09: upload em /test ficou invisível pra delete). */
     }
 
 
@@ -153,28 +147,10 @@ void WebManager::handleApiLs() {
 
     bool first = true;
 
-    if (dirPath == "/") {
-        /* F-LANGPACK: /lang adicionado para o Etapa 2/β. */
-        /* alpha24: /themes adicionado p/ Files UI listar temas custom. */
-        const char* sysDirs[] = {"/config", "/history", "/lang", "/themes"};
-        for (auto sd : sysDirs) {
-            feedWatchdog();
-
-            bool hasContent;
-            {
-                ReadGuard rg(_storageRef);
-                Dir testDir = LittleFS.openDir(sd);
-                hasContent = testDir.next();
-                if (!hasContent) hasContent = LittleFS.exists(String(sd) + "/");
-            }
-            if (hasContent) {
-                snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"d\",\"s\":0}",
-                         first ? "" : ",", sd + 1);
-                if (!safeSend(buf)) return;
-                first = false;
-            }
-        }
-    }
+    /* alpha21: dirs no root são enumeradas pelo loop principal abaixo
+     * (não mais via hardcoded sysDirs). README.md placeholder em cada
+     * pasta garante persistência mesmo quando vazia (LittleFS perde dirs
+     * sem entries). Permite mostrar pastas custom no UI. */
 
     bool dirDone = false;
 
@@ -205,7 +181,9 @@ void WebManager::handleApiLs() {
 
         for (int i = 0; i < batchCount; i++) {
             if (batch[i].isDir) {
-                if (dirPath == "/") continue;
+                /* alpha21: dirs emitidas inclusive em "/" — antes pulava no root
+                 * porque sysDirs vinham de uma lista hardcoded. Agora qualquer
+                 * pasta criada via mkdir aparece no UI (e fica deletável). */
                 const char* dName = batch[i].name.c_str();
                 if (dName[0] == '\0') continue;
                 if (strcmp(dName, ".") == 0 || strcmp(dName, "..") == 0) continue;
@@ -266,6 +244,17 @@ void WebManager::handleApiMkdir() {
 
     if (ok) {
         if (!alreadyExisted) {
+            /* alpha21: README.md placeholder garante que pasta vazia persista
+             * no LittleFS (sem entries, dir vira metadata órfã invisível). */
+            String readmePath = dirPath + "/README.md";
+            if (!LittleFS.exists(readmePath)) {
+                RenderGuard rg(_displayRef);
+                File rf = LittleFS.open(readmePath, "w");
+                if (rf) {
+                    rf.print("Pasta SIMUT. Mantém esta entrada para preservar a pasta.\n");
+                    rf.close();
+                }
+            }
             LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Created folder: ")) + dirPath);
         }
         _server.send(200, "application/json", "{\"status\":\"ok\"}");
