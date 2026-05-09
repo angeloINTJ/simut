@@ -352,6 +352,13 @@ void AppManager::setup() {
     if (_storageMgr->isFactoryDefaults()) {
         const char* pw = _storageMgr->getInitialAdminPassword();
         if (pw && pw[0] != '\0') {
+            /* alpha33: OTP via UART bridge raw (não BLOG pra economizar
+             * flash) — captura via PicoHand quando USB CDC fica mute. */
+            uart_putc_raw(uart1, '\n');
+            const char* otpHdr = "[OTP]";
+            for (const char* c = otpHdr; *c; c++) uart_putc_raw(uart1, *c);
+            for (const char* c = pw; *c; c++) uart_putc_raw(uart1, *c);
+            uart_putc_raw(uart1, '\n');
             Serial.println(F("\n=============================================="));
             Serial.println(F("  SEC-003: FACTORY DEFAULTS ATIVADO"));
             Serial.print  (F("  Senha ADMIN inicial: "));
