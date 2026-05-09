@@ -68,31 +68,32 @@ static inline void alpha30_write_scratch5(uint32_t v) {
 }
 
 void AppManager::setup() {
-    /* alpha30: PRIMEIRA coisa — detectar boot pós-OTA-apply via scratch[5]
-     * magic. Se sim, power-cycle CYW43 via WL_REG_ON (GPIO 23) ANTES de
-     * qualquer outra inicialização. cyw43_arch_init posterior pega chip em
-     * estado cold-power conhecido, sem residual state que causa F-OTA-BOOTLOOP.
-     *
-     * Diferença vs alpha22 (Fix #6 que falhou): aqui só roda CONDICIONALMENTE
-     * quando metadata indica boot pós-OTA, não em todo boot. E timing diferente:
-     * 500ms LOW (capacitor discharge) → release pin pra high-Z (não força HIGH,
-     * deixa SDK fazer init normal). */
+    /* alpha32: UART1 init PRIMEIRA coisa pra ter diagnóstico desde
+     * setup() entry. Markers '@' (entry), '$' (post-uart-init), '%' (pre-Serial)
+     * permitem ver onde boot post-watchdog-reboot trava (UART1 não depende de
+     * USB CDC nem PLL_USB, só HW UART). */
+    boot_uart_init();
+    uart_putc_raw(uart1, '@');
+
+    /* alpha30: detectar boot pós-OTA-apply via scratch[5] magic.
+     * Se sim, power-cycle CYW43 via WL_REG_ON. */
     {
         uint32_t scr5 = alpha30_read_scratch5();
+        uart_putc_raw(uart1, '!');  /* alpha32: post scratch read */
         if (scr5 == POST_OTA_APPLY_MAGIC) {
-            /* Limpa magic IMEDIATAMENTE pra evitar re-entry em boot seguinte */
+            uart_putc_raw(uart1, '#');  /* alpha32: magic match */
             alpha30_write_scratch5(0);
-            /* Power-cycle CYW43 chip via WL_REG_ON */
             gpio_init(23);
             gpio_set_dir(23, GPIO_OUT);
-            gpio_put(23, 0);            /* OFF — capacitor discharge */
+            gpio_put(23, 0);
             busy_wait_ms(500);
-            gpio_set_dir(23, GPIO_IN);  /* high-Z; pull-down do board mantém LOW */
+            gpio_set_dir(23, GPIO_IN);
             gpio_disable_pulls(23);
             busy_wait_ms(100);
-            /* SDK cyw43_arch_init posterior verá chip cold-power e bootará limpo */
+            uart_putc_raw(uart1, '*');  /* alpha32: cycle done */
         }
     }
+    uart_putc_raw(uart1, '$');  /* alpha32: pre Serial.begin */
 
     Serial.begin(115200);
 
@@ -107,12 +108,10 @@ void AppManager::setup() {
      * conecta. Trade-off: cada Serial.println adiciona até 1s se host
      * não conectado. Aceitável pra debug; revisitar pós-v4 stable. */
     Serial.ignoreFlowControl(true);
-
-    /* v3.44.0-alpha24: UART1 raw init — GP4 TX wired ao PicoHand GP5 RX.
-     * Captura boot logs quando USB CDC fica mute por F-USB-CDC-DEAD pós-OTA. */
-    boot_uart_init();
+    uart_putc_raw(uart1, '%');  /* alpha32: pos Serial.begin + ignoreFlowControl */
 
     delay(1000);
+    uart_putc_raw(uart1, '&');  /* alpha32: pos delay(1000) */
 
     /* Log da versão ANTES de qualquer init que possa travar — garante que
      * o user sempre saiba qual firmware está rodando, mesmo se o boot
