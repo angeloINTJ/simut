@@ -317,12 +317,14 @@ void AppManager::setup() {
     });
 
     BLOG("[BOOT step] 8: pre _cmdMgr->begin @ "); BLOG_U(millis()); BLOG_NL();
-    _displayMgr->setBootStatusKey(TR_BOOT_START_CMD);
+    uart_putc_raw(uart1, 'f'); _displayMgr->setBootStatusKey(TR_BOOT_START_CMD);
+    
     /* v3.33.1: nome do BT visível na rede agora vem do `cfg.deviceName`
      * (configurável em /config) em vez do default "PicoW Serial XX:XX:..."
      * da lib SerialBT. Mudanças via web exigem reboot (já é o fluxo do
      * "Salvar e Reiniciar"). */
     _cmdMgr->begin(_storageMgr->getConfig().deviceName);
+    uart_putc_raw(uart1, 'h');
 
     _cmdMgr->setBtValidator([this](String attempt) -> bool {
         SystemConfig &cfg = _storageMgr->getConfig();
@@ -343,7 +345,8 @@ void AppManager::setup() {
         }
     });
 
-    if (!fsOk) LOG_CODE(LOG_ERROR, "APP", APP_STORAGE_CRITICAL, 0, TRL("Storage Critical Failure!"));
+     if (!fsOk) LOG_CODE(LOG_ERROR, "APP", APP_STORAGE_CRITICAL, 0, TRL("Storage Critical Failure!"));
+    
 
     /* SEC-003/F12.3: se o dispositivo subiu em factory defaults (config
      * inexistente ou corrompida nos dois bancos), exibe a senha inicial
@@ -352,13 +355,8 @@ void AppManager::setup() {
     if (_storageMgr->isFactoryDefaults()) {
         const char* pw = _storageMgr->getInitialAdminPassword();
         if (pw && pw[0] != '\0') {
-            /* alpha33: OTP via UART bridge raw (não BLOG pra economizar
-             * flash) — captura via PicoHand quando USB CDC fica mute. */
-            uart_putc_raw(uart1, '\n');
-            const char* otpHdr = "[OTP]";
-            for (const char* c = otpHdr; *c; c++) uart_putc_raw(uart1, *c);
-            for (const char* c = pw; *c; c++) uart_putc_raw(uart1, *c);
-            uart_putc_raw(uart1, '\n');
+            /* alpha33: OTP via UART bridge — REMOVIDO em alpha34
+             * (consumiu muito flash). Pra capturar OTP, usar Serial USB CDC. */
             Serial.println(F("\n=============================================="));
             Serial.println(F("  SEC-003: FACTORY DEFAULTS ATIVADO"));
             Serial.print  (F("  Senha ADMIN inicial: "));
@@ -375,7 +373,9 @@ void AppManager::setup() {
         }
     }
 
+    uart_putc_raw(uart1, 'i');
     uint32_t lastTs = _storageMgr->getLastRecordedTimestamp();
+    uart_putc_raw(uart1, 'j');
     _netMgr->setProvisionalTime(lastTs);
     _netMgr->setTimeSyncCallback([](uint32_t bootTs, int32_t delta) {
 
@@ -386,21 +386,30 @@ void AppManager::setup() {
         app._pendingTimeSync = true;
     });
 
+    
     SystemConfig &cfg = _storageMgr->getConfig();
     _displayMgr->setBootStatusKey(TR_BOOT_LOAD_THEME_LANG);
+    uart_putc_raw(uart1, 'k');
     scanCustomThemes();
+    uart_putc_raw(uart1, 'o');
     loadTheme(cfg.themeIndex);
+    
     _displayMgr->refreshTheme();
+    
     DisplayManager::findAndLoadLangFile();
+    uart_putc_raw(uart1, 's');
     _displayMgr->setLanguage(cfg.displayLang);
+    
 
 
     _soundMgr->begin();
+    
     {
         const SoundConfigData* sndCfg = reinterpret_cast<const SoundConfigData*>(
             cfg.reserved + sizeof(TouchCalData));
         _soundMgr->loadConfig(sndCfg);
     }
+    
 
     /* Offset de posicionamento do display — aplicado antes de qualquer tela
      * subsequente para que boot statuses já reflitam o alinhamento salvo. */
@@ -425,10 +434,13 @@ void AppManager::setup() {
     LogManager::instance().setLanguage(cfg.displayLang);
 
 
+    
     {
         const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
         _displayMgr->loadTouchCalibration(cal);
+        
         if (!_displayMgr->isTouchCalibrated()) {
+            
             /* Factory boot sem cal salva: aplica default seguro para destravar
              * o boot. Sem isso, o cal-screen-loop ficaria preso à espera de
              * 4 taps válidos — e em XPT2046 com touch stuck-true (este HW)
@@ -447,14 +459,20 @@ void AppManager::setup() {
             calOut->yMax       = 3900;
             calOut->zThreshold = 400;
             _displayMgr->loadTouchCalibration(calOut);
+            
             _storageMgr->saveConfiguration();
+            
             LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0,
                      TRL("Touch cal missing; default applied (recalibrate via Settings)"));
+            
         }
     }
+    
 
     _displayMgr->setBootStatusKey(TR_BOOT_LOAD_PERIPH);
+    
     _sensorMgr->begin();
+    
     loadAndCalibrateSensors();
     _sensorMgr->setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
 
@@ -554,10 +572,10 @@ void AppManager::setup() {
     _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
     _webMgr->begin(_storageMgr.get(), _sensorMgr.get(), _netMgr.get(), _displayMgr.get(), _telemetryMgr.get(), _soundMgr.get());
     BLOG("[BOOT step] 13: pos _webMgr->begin() @ "); BLOG_U(millis()); BLOG_NL();
-    uart_putc_raw(uart1, '<');  /* alpha32: marker pre-callbacks */
+      /* alpha32: marker pre-callbacks */
 
     _displayMgr->setBootStatusKey(TR_BOOT_REG_CALLBACKS);
-    uart_putc_raw(uart1, '>');  /* alpha32: pos setBootStatusKey */
+      /* alpha32: pos setBootStatusKey */
     _webMgr->setYieldCallback([this]() { this->core0Yield(); });
     _webMgr->setLightYieldCallback([this]() {
         feedWdt();
@@ -575,17 +593,17 @@ void AppManager::setup() {
 
     /* REF-004: _webMgr->setTouchPriorityChecker removido — usa TouchPriority singleton. */
 
-    uart_putc_raw(uart1, '?');  /* alpha32: pre forceAP branch */
+      /* alpha32: pre forceAP branch */
     if (forceAP) {
         _isApMode = true;
         _displayMgr->setBootStatusKey(TR_BOOT_AP_ACTIVE, nullptr, false);
         LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode)."));
     } else {
-        uart_putc_raw(uart1, 'p');  /* alpha32: pre preloadMinMax */
+          /* alpha32: pre preloadMinMax */
         _displayMgr->setBootStatusKey(TR_BOOT_LOAD_MINMAX);
         delay(80);
         preloadMinMax();
-        uart_putc_raw(uart1, 'P');  /* alpha32: pos preloadMinMax */
+          /* alpha32: pos preloadMinMax */
 
         _displayMgr->setBootStatusKey(TR_BOOT_WARMUP);
         {
@@ -626,15 +644,15 @@ void AppManager::setup() {
         }
 
 
-        uart_putc_raw(uart1, 'w');  /* alpha32: pre warmup-end + prep-dash */
+          /* alpha32: pre warmup-end + prep-dash */
         _displayMgr->setBootStatusKey(TR_BOOT_PREP_DASH);
-        uart_putc_raw(uart1, 'x');
+        
         _sensorMgr->update();
-        uart_putc_raw(uart1, 'y');
+        
         updateLiveDisplay();
-        uart_putc_raw(uart1, 'z');
+        
         refreshSelectedSlot();
-        uart_putc_raw(uart1, 'Y');
+        
 
         _displayMgr->setBootStatusKey(TR_BOOT_ALL_INIT);
         _displayMgr->setBootStatusKey(TR_BOOT_SYS_READY);

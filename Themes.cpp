@@ -416,11 +416,13 @@ void scanCustomThemes() {
     _customCount = 0;
     for (int i = 0; i < MAX_CUSTOM_THEMES; i++) _customThemes[i].used = false;
 
-    /* LittleFS remove dirs vazios automaticamente. Sem isso, /themes some
-     * após o user apagar todos os .thm e uploads subsequentes falham (alguns
-     * builds do core requerem mkdir explícito antes de abrir arquivo em
-     * subdir inexistente). mkdir é no-op se já existe. */
-    if (!LittleFS.exists(THM_DIR)) LittleFS.mkdir(THM_DIR);
+    /* alpha34 fix: mkdir REMOVIDO daqui — causava hang em boot pós-OTA.
+     * LittleFS.mkdir usa flash_safe_execute interno que disparava
+     * multicore_lockout que não respondia em boot states pós-watchdog.
+     * Capturado via UART markers: hang no scanCustomThemes durante boot.
+     * mkdir é necessário só pra UPLOAD de novos .thm — feito em
+     * handleApiUpload (path seguro, Core 1 em loop normal). Se /themes
+     * não existir aqui, openDir retorna empty + loop sai. _customCount=0. */
 
     Dir d = LittleFS.openDir(THM_DIR);
     while (d.next() && _customCount < MAX_CUSTOM_THEMES) {
