@@ -547,8 +547,10 @@ void AppManager::setup() {
     _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
     _webMgr->begin(_storageMgr.get(), _sensorMgr.get(), _netMgr.get(), _displayMgr.get(), _telemetryMgr.get(), _soundMgr.get());
     BLOG("[BOOT step] 13: pos _webMgr->begin() @ "); BLOG_U(millis()); BLOG_NL();
+    uart_putc_raw(uart1, '<');  /* alpha32: marker pre-callbacks */
 
     _displayMgr->setBootStatusKey(TR_BOOT_REG_CALLBACKS);
+    uart_putc_raw(uart1, '>');  /* alpha32: pos setBootStatusKey */
     _webMgr->setYieldCallback([this]() { this->core0Yield(); });
     _webMgr->setLightYieldCallback([this]() {
         feedWdt();
@@ -566,16 +568,17 @@ void AppManager::setup() {
 
     /* REF-004: _webMgr->setTouchPriorityChecker removido — usa TouchPriority singleton. */
 
+    uart_putc_raw(uart1, '?');  /* alpha32: pre forceAP branch */
     if (forceAP) {
         _isApMode = true;
         _displayMgr->setBootStatusKey(TR_BOOT_AP_ACTIVE, nullptr, false);
         LOG_CODE(LOG_INFO, "APP", APP_READY_AP, 0, TRL("System ready (AP mode)."));
     } else {
-
-        /* Carrega min/max do dia a partir do arquivo de histórico */
+        uart_putc_raw(uart1, 'p');  /* alpha32: pre preloadMinMax */
         _displayMgr->setBootStatusKey(TR_BOOT_LOAD_MINMAX);
         delay(80);
         preloadMinMax();
+        uart_putc_raw(uart1, 'P');  /* alpha32: pos preloadMinMax */
 
         _displayMgr->setBootStatusKey(TR_BOOT_WARMUP);
         {
@@ -616,10 +619,15 @@ void AppManager::setup() {
         }
 
 
+        uart_putc_raw(uart1, 'w');  /* alpha32: pre warmup-end + prep-dash */
         _displayMgr->setBootStatusKey(TR_BOOT_PREP_DASH);
+        uart_putc_raw(uart1, 'x');
         _sensorMgr->update();
+        uart_putc_raw(uart1, 'y');
         updateLiveDisplay();
+        uart_putc_raw(uart1, 'z');
         refreshSelectedSlot();
+        uart_putc_raw(uart1, 'Y');
 
         _displayMgr->setBootStatusKey(TR_BOOT_ALL_INIT);
         _displayMgr->setBootStatusKey(TR_BOOT_SYS_READY);
