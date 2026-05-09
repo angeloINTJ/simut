@@ -25,7 +25,10 @@ def mkdir(path):
         return str(e)[:80]
 
 def upload(local, target_path):
-    """Upload local file to LFS target_path (full path)."""
+    """Upload local file to LFS target_path (full path).
+
+    Server expects 'uploadDir' como QUERY PARAM (não multipart 'path').
+    """
     name = os.path.basename(target_path)
     parent = os.path.dirname(target_path) or '/'
     with open(local, 'rb') as f:
@@ -33,15 +36,14 @@ def upload(local, target_path):
     boundary = '----WebKitFormBoundaryUP'
     parts = [
         f'--{boundary}\r\n'.encode(),
-        f'Content-Disposition: form-data; name="path"\r\n\r\n{parent}\r\n'.encode(),
-        f'--{boundary}\r\n'.encode(),
         f'Content-Disposition: form-data; name="file"; filename="{name}"\r\n'.encode(),
         b'Content-Type: application/octet-stream\r\n\r\n',
         body,
         f'\r\n--{boundary}--\r\n'.encode(),
     ]
     payload = b''.join(parts)
-    req = urllib.request.Request(f'http://{SIMUT_IP}/api/upload', data=payload, method='POST')
+    url = f'http://{SIMUT_IP}/api/upload?uploadDir={urllib.parse.quote(parent)}'
+    req = urllib.request.Request(url, data=payload, method='POST')
     req.add_header('Cookie', cookie)
     req.add_header('Content-Type', f'multipart/form-data; boundary={boundary}')
     req.add_header('Content-Length', str(len(payload)))
@@ -63,17 +65,27 @@ uploaded = 0
 failed = 0
 total_bytes = 0
 
+SKIPPED_EXT = {'.gz'}  # WebUI revertido pra PROGMEM em v3.43.12 — .gz é dead
+
 for root, dirs, files in os.walk('data'):
     rel = os.path.relpath(root, 'data')
     lfs_dir = '/' if rel == '.' else f'/{rel}'
-    
-    # Create dir if needed (mkdir is idempotent in firmware)
+
+    # Skip /web entirely (all .gz)
+    if rel == 'web':
+        print(f'  -- skip {lfs_dir} (PROGMEM since v3.43.12)')
+        continue
+
+    # Create dir if needed (mkdir é idempotent)
     if rel != '.':
-        s = mkdir(lfs_dir)
-        # ignore mkdir errors — file upload will create dir if needed
-    
+        mkdir(lfs_dir)
+
     for f in files:
         local = os.path.join(root, f)
+        ext = os.path.splitext(f)[1].lower()
+        if ext in SKIPPED_EXT:
+            print(f'  -- skip .{ext} {f}')
+            continue
         target = f'{lfs_dir.rstrip("/")}/{f}' if lfs_dir != '/' else f'/{f}'
         sz = os.path.getsize(local)
         status, resp = upload(local, target)
