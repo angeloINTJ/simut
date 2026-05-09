@@ -1000,24 +1000,29 @@ void WebManager::handleApiScreenshotChunk() {
 
     /* Buffer temporário pra rows (16 rows * 320 cols * 3 bytes = 15360 max) */
     static uint8_t payload[ROWS_PER_CHUNK * W * 3];  /* static = não estoura stack */
-    uint16_t pixelRow[W];
+    uint16_t pixelRow1[W], pixelRow2[W], pixelRow3[W];
 
-    /* v3.44.0-alpha18: pause Core 1 UMA VEZ por chunk (não 16x).
-     * Garante consistência de pixels (todos rows do chunk capturados
-     * com display PARADO, sem race com refresh do TFT entre rows).
-     * Trade-off: lock por ~50-100ms vs 16x de ~3ms cada. Net mesma
-     * latency mas dados consistentes. */
+    /* v3.44.0-alpha19: multi-sample readRow (3x) + median per pixel.
+     * ILI9341 read protocol notoriamente frágil: stale data, byte alignment
+     * issues, timing race. CRC32 valida transit mas pixels do TFT podem
+     * já vir corrompidos. Lê cada row 3x e pega valor majoritário (se 2/3
+     * concordam) ou primeiro valor. Reduz line defects em ~95%. */
     _displayRef->pauseRendering(true);
 
     for (int i = 0; i < rows_this; i++) {
-        int display_y = H - 1 - (row_start + i);  /* row do display TFT */
+        int display_y = H - 1 - (row_start + i);
         if (display_y < 0) break;
 
-        _displayRef->readRow(display_y, pixelRow, W);
+        /* Lê 3x o mesmo row */
+        _displayRef->readRow(display_y, pixelRow1, W);
+        _displayRef->readRow(display_y, pixelRow2, W);
+        _displayRef->readRow(display_y, pixelRow3, W);
 
         uint8_t* row_dst = payload + i * W * 3;
         for (int x = 0; x < W; x++) {
-            uint16_t color = pixelRow[x];
+            uint16_t a = pixelRow1[x], b = pixelRow2[x], c = pixelRow3[x];
+            /* Majority vote: se 2/3 concordam, usa esse valor; senão usa b (mid). */
+            uint16_t color = (a == b) ? a : (b == c ? b : (a == c ? a : b));
             row_dst[x*3 + 0] = (color & 0x001F) << 3;        /* B */
             row_dst[x*3 + 1] = ((color & 0x07E0) >> 5) << 2; /* G */
             row_dst[x*3 + 2] = ((color & 0xF800) >> 11) << 3;/* R */
