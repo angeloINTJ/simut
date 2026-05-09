@@ -306,16 +306,25 @@ se user está no display): `/api/commit_all`, `/api/delete`,
 `/api/mkdir`, `/api/clear_logs`, `/api/reset_touch_cal`,
 `/api/force_chpass`.
 
-OTA endpoints (em construção — v3.42.0 fechou Fase 5/10):
+OTA endpoints (F-OTA fase fechada em v3.45.0; loop20 100% PASS, 0 bricks):
 - `GET /api/backup` (`PERM_FILE_READ`) — gera `.bkp` da LFS atrelado ao
   chip_id. Read-only mas expõe todo conteúdo do FS, então perm = leitura.
 - `POST /api/restore?op=validate|apply` (`PERM_FILE_READ` para validate,
   `PERM_FILE_UPLOAD` para apply) — apply é destrutivo (sobrescreve
   arquivos restaurados do `.bkp`); chip_id deve bater.
 - `POST /api/restore?op=stage` (`PERM_FILE_UPLOAD`) — destrutivo
-  (apaga 1 MB da LFS para receber `.bin.gz` do firmware). Só admin.
-  Pré-check de perm em `UPLOAD_FILE_START` antes da erasure. Apply real
-  do firmware staged virá na Fase 7 (atualmente, stage→remount→trash).
+  (apaga 1 MB da LFS para receber `.bin` RAW do firmware). Só admin.
+  Pré-check de perm em `UPLOAD_FILE_START` antes da erasure. Validation
+  dry-run roda em `op=stage&commit=1`: tamanho range + boot2 CRC-32/MPEG-2
+  (raw-only desde v3.43.3 — gzip path removido em v3.44.0-alpha2).
+- `POST /api/ota/apply` (`PERM_FILE_UPLOAD`) — DESTRUTIVO IRREVERSÍVEL:
+  copia staging→app slot, watchdog reboot. Snapshot de `/config/system.bin`
+  preservado via `OTA_SNAPSHOT_OFFSET` (último setor da staging area)
+  e restaurado em `StorageManager::begin` pós-apply (chpass, users,
+  WiFi, sensores, MQTT, NTP — 11/11 campos preservados byte-a-byte).
+  Demais arquivos (history/lang/themes/calib) requerem `.bkp` baixado
+  pelo navegador antes do upload + restore manual via `/api/restore?op=apply`.
+  Recovery em caso de brick: BOOTSEL + `picotool load -x firmware.uf2`.
 
 Ação imediata (sem reboot): `/api/set_time` — seta RTC manual, requer
 `PERM_SYS_CONFIG`.
@@ -324,19 +333,50 @@ Ação imediata (sem reboot): `/api/set_time` — seta RTC manual, requer
 
 ## 9. Updates
 
-- **Sem OTA**: atualização só via BOOTSEL + UF2 (requer acesso físico).
-  Decisão explícita — remove vetor de update malicioso remoto em troca
-  de friction operacional.
-- **Integridade do firmware**: UF2 não tem assinatura; operador é
+- **OTA via web** (v3.45.0+): admin com `PERM_FILE_UPLOAD` faz upload do
+  `.bin` RAW pelo `/files`, valida (boot2 CRC + size range), e aplica via
+  `/api/ota/apply`. Snapshot da config é preservado através do apply.
+  **Threat surface**: qualquer credencial admin comprometida = poder
+  flashar firmware arbitrário remotamente. Mitigações: (1) rate-limit no
+  `/api/login_init` + lockout exponencial; (2) `mustChangePin` em factory;
+  (3) admin pwd random em factory reset (SEC-003); (4) acesso à rede do
+  device deve ser restrito (subrede isolada / VPN). UF2 não é assinado
+  ainda — operador é responsável por validar origem do binário.
+- **OTA via BOOTSEL + UF2**: continua disponível como recovery e como
+  caminho seguro pra primeiro flash. Requer acesso físico.
+- **Integridade do firmware**: UF2/BIN não têm assinatura criptográfica;
+  validação se limita a heurística boot2 CRC-32/MPEG-2 (pega gzip/random,
+  mas não impede firmware malicioso assinado válido). Operador é
   responsável por baixar binário de canal confiável.
 - **Rollback**: flashear UF2 anterior restaura. Config em `/config/`
-  sobrevive ao reflash se a imagem nova tiver o mesmo layout de flash;
-  se mudar partição LittleFS, pode apagar tudo.
+  sobrevive a OTA (snapshot) e a reflash USB se layout de flash não
+  mudou; se mudar partição LittleFS pode apagar tudo (validar antes via
+  `/api/fs/manifest` que retorna fc/psz/crc/fw/cid).
 
-### 9.1 Procedimento de update (re-flash USB)
+### 9.1 Procedimento de update via OTA (web)
 
-> v3.36.3 (Fase 18.4 / M9): documentação explícita do único caminho
-> suportado para update. Não tente OTA — não existe.
+**Pré-requisitos:**
+- Conta admin com `PERM_FILE_UPLOAD`.
+- Backup do FS recomendado (botão "Backup" em `/files`).
+- Binário `.bin` RAW (não `.bin.gz` — gzip path removido em v3.44.0-alpha2).
+
+**Passos:**
+1. Acessar `/files` autenticado, clicar em "Firmware".
+2. WARN modal explica perda de dados não-config + bricks residuais.
+3. Backup auto-download do `.bkp` (parse cliente compara header
+   BKP1 com headers `X-Backup-PSize`/`X-Backup-PCrc` anunciados; abort
+   se mismatch).
+4. Selecionar `.bin`, parser cliente valida: range size + boot2 CRC + regex
+   versão `SIMUT_VERSION`. Confirm modal final com sumário + downgrade warn.
+5. Upload (POST `/api/restore?op=stage&commit=1`) + apply (POST
+   `/api/ota/apply`). Device responde 202 e reboota.
+6. Pós-boot (~30s), redirect automático pra `/login`. Snapshot da config
+   restaurada — login funciona com mesmas credenciais.
+
+### 9.2 Procedimento de update (re-flash USB)
+
+> Caminho de recovery / primeiro flash. Para updates rotineiros, prefira
+> OTA (§9.1).
 
 **Pré-requisitos:**
 - Acesso físico ao Pico W (USB).
