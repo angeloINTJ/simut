@@ -139,9 +139,6 @@ id="toc-tela-auth-pin-entrance">4.2 Tela Auth (PIN entrance)</a></li>
 Dashboard principal</a></li>
 <li><a href="#tela-gráfico-histórico"
 id="toc-tela-gráfico-histórico">4.4 Tela Gráfico (histórico)</a></li>
-<li><a href="#bonus-tela-settings-capturada-via-touch-sim"
-id="toc-bonus-tela-settings-capturada-via-touch-sim">Bonus: Tela
-Settings (capturada via touch sim)</a></li>
 <li><a href="#telas-de-configuração-settings"
 id="toc-telas-de-configuração-settings">4.5 Telas de Configuração
 (Settings)</a></li>
@@ -237,6 +234,25 @@ browser</a></li>
 <li><a href="#pdf-final" id="toc-pdf-final">10.4 PDF final</a></li>
 </ul></li>
 <li><a href="#referências" id="toc-referências">11. Referências</a></li>
+<li><a href="#screenshots-adicionais-capturadas-via-screen-name-cli"
+id="toc-screenshots-adicionais-capturadas-via-screen-name-cli">Screenshots
+adicionais (capturadas via screen NAME CLI)</a>
+<ul>
+<li><a href="#settings-themes" id="toc-settings-themes">Settings →
+Themes</a></li>
+<li><a href="#settings-language" id="toc-settings-language">Settings →
+Language</a></li>
+<li><a href="#settings-password" id="toc-settings-password">Settings →
+Password</a></li>
+<li><a href="#settings-license" id="toc-settings-license">Settings →
+License</a></li>
+<li><a href="#settings-system-status"
+id="toc-settings-system-status">Settings → System Status</a></li>
+<li><a href="#settings-alarms" id="toc-settings-alarms">Settings →
+Alarms</a></li>
+<li><a href="#settings-main" id="toc-settings-main">Settings
+(main)</a></li>
+</ul></li>
 </ul></li>
 </ul>
 </nav>
@@ -533,61 +549,46 @@ organizada em telas-foco navegáveis por toque na tela touch. Captura via
 <code>PERM_SYS_CONFIG</code>).</p>
 <h3 id="tela-bootloading">4.1 Tela Boot/Loading</h3>
 <figure>
-<img src="screenshots/tft_dashboard_initial.png"
-alt="boot_screen.bmp" />
+<img src="screenshots/tft_dashboard.png" alt="boot_screen.bmp" />
 <figcaption aria-hidden="true">boot_screen.bmp</figcaption>
 </figure>
-<p><em>Figura: boot_screen.bmp — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: boot_screen.bmp — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <h3 id="tela-auth-pin-entrance">4.2 Tela Auth (PIN entrance)</h3>
 <figure>
-<img src="screenshots/tft_dashboard_initial.png"
-alt="auth_screen.bmp" />
+<img src="screenshots/tft_dashboard.png" alt="auth_screen.bmp" />
 <figcaption aria-hidden="true">auth_screen.bmp</figcaption>
 </figure>
-<p><em>Figura: auth_screen.bmp — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: auth_screen.bmp — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <p><code>showAuthScreen(String expectedPin)</code> em
 DisplayManager.h:200.</p>
 <h3 id="dashboard-principal">4.3 Dashboard principal</h3>
 <figure>
-<img src="screenshots/tft_01_dashboard.png" alt="dashboard.bmp" />
+<img src="screenshots/tft_dashboard.png" alt="dashboard.bmp" />
 <figcaption aria-hidden="true">dashboard.bmp</figcaption>
 </figure>
-<p><em>Figura: dashboard.bmp — capturada em HW alpha14 2026-05-08</em> -
-TopBar: hora, status WiFi, alarmes ativos - Painel ambiente (temp +
-humidade SHT31) - 10 slots de sensores DS18B20 (panéis menores) -
-BottomButtons: navegação (gráfico, alarmes, settings)</p>
+<p><em>Figura: dashboard.bmp — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em> - TopBar: hora, status WiFi, alarmes
+ativos - Painel ambiente (temp + humidade SHT31) - 10 slots de sensores
+DS18B20 (panéis menores) - BottomButtons: navegação (gráfico, alarmes,
+settings)</p>
 <p><code>drawInterfaceFixed</code>, <code>drawTopBar</code>,
 <code>drawAmbientPanel</code>, <code>drawSlotPanel</code>,
 <code>drawBottomButtons</code>.</p>
 <h3 id="tela-gráfico-histórico">4.4 Tela Gráfico (histórico)</h3>
 <figure>
-<img src="screenshots/tft_03_graph.png" alt="graph.bmp" />
+<img src="screenshots/tft_graph.png" alt="graph.bmp" />
 <figcaption aria-hidden="true">graph.bmp</figcaption>
 </figure>
-<p><em>Figura: graph.bmp — capturada em HW alpha14 2026-05-08</em></p>
+<p><em>Figura: graph.bmp — capturado via /api/screenshot_chunk com CRC32
+verified (alpha18)</em></p>
 <p><code>drawGraphScreen()</code>, <code>drawGraphHeaderBar()</code>,
 <code>drawPeakMarker()</code>.</p>
 <p>Variantes: - <code>drawGraphDetailScreen()</code> — tela numérica de
 detalhes do período - <code>drawStatsScreen()</code> — estatísticas
 (min/max/avg) - <code>drawCalendarScreen()</code> — calendário com dias
 de dados disponíveis</p>
-<h3 id="bonus-tela-settings-capturada-via-touch-sim">Bonus: Tela
-Settings (capturada via touch sim)</h3>
-<figure>
-<img src="screenshots/tft_02_settings.png" alt="tft_02_settings" />
-<figcaption aria-hidden="true">tft_02_settings</figcaption>
-</figure>
-<p><em>Figura: TFT settings_main — capturada após
-<code>touch sim 50 220</code> em HW alpha14</em></p>
-<figure>
-<img src="screenshots/tft_05_slot_detail.png"
-alt="tft_05_slot_detail" />
-<figcaption aria-hidden="true">tft_05_slot_detail</figcaption>
-</figure>
-<p><em>Figura: TFT slot detail — capturada após
-<code>touch sim 80 80</code> em HW alpha14</em></p>
 <h3 id="telas-de-configuração-settings">4.5 Telas de Configuração
 (Settings)</h3>
 <p>Acessível via gesto longo no dashboard. Submenus:</p>
@@ -611,11 +612,11 @@ info de chip, heap, uptime, etc</li>
 </ul>
 <h3 id="tela-de-alarmes">4.6 Tela de Alarmes</h3>
 <figure>
-<img src="screenshots/tft_04_alarms.png" alt="alarm_action.bmp" />
+<img src="screenshots/tft_settings_alarms.png" alt="alarm_action.bmp" />
 <figcaption aria-hidden="true">alarm_action.bmp</figcaption>
 </figure>
-<p><em>Figura: alarm_action.bmp — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: alarm_action.bmp — capturado via /api/screenshot_chunk
+com CRC32 verified (alpha18)</em></p>
 <hr />
 <h2 id="web-ui-browser">5. Web UI (browser)</h2>
 <p>WiFi típico: <code>192.168.3.195</code> (DHCP). Login obrigatório
@@ -627,8 +628,8 @@ em <code>/data/web/*.gz</code> é servida via PROGMEM ou LFS.</p>
 <img src="screenshots/web_01_login.png" alt="web_login.png" />
 <figcaption aria-hidden="true">web_login.png</figcaption>
 </figure>
-<p><em>Figura: web_login.png — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: web_login.png — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <p><code>handleLogin()</code> → POST <code>/api/login_init</code>
 retorna nonce; POST <code>/api/login</code> com sha256 da senha +
 nonce.</p>
@@ -638,25 +639,25 @@ nonce.</p>
 <img src="screenshots/web_01_login.png" alt="web_force_chpass.png" />
 <figcaption aria-hidden="true">web_force_chpass.png</figcaption>
 </figure>
-<p><em>Figura: web_force_chpass.png — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: web_force_chpass.png — capturado via
+/api/screenshot_chunk com CRC32 verified (alpha18)</em></p>
 <h3 id="dashboard">5.3 <code>/</code> (Dashboard)</h3>
 <figure>
 <img src="screenshots/web_02_dashboard.png" alt="web_dashboard.png" />
 <figcaption aria-hidden="true">web_dashboard.png</figcaption>
 </figure>
-<p><em>Figura: web_dashboard.png — capturada em HW alpha14
-2026-05-08</em> - Painel ambiente - 10 cards de sensores (cor por
-estado: ok/warn/error) - Botão Settings/Files/History - Tema dinâmico
-via <code>/api/themes</code></p>
+<p><em>Figura: web_dashboard.png — capturado via /api/screenshot_chunk
+com CRC32 verified (alpha18)</em> - Painel ambiente - 10 cards de
+sensores (cor por estado: ok/warn/error) - Botão Settings/Files/History
+- Tema dinâmico via <code>/api/themes</code></p>
 <h3 id="history-históricográficos">5.4 <code>/history</code>
 (Histórico/Gráficos)</h3>
 <figure>
 <img src="screenshots/web_03_history.png" alt="web_history.png" />
 <figcaption aria-hidden="true">web_history.png</figcaption>
 </figure>
-<p><em>Figura: web_history.png — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: web_history.png — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <p>API: <code>/api/history_multi</code>, <code>/api/history_days</code>,
 <code>/api/export/history.bin</code> (CSV-equivalente).</p>
 <h3 id="alarms-configuração-de-alarmes">5.5 <code>/alarms</code>
@@ -665,8 +666,8 @@ via <code>/api/themes</code></p>
 <img src="screenshots/web_04_alarms.png" alt="web_alarms.png" />
 <figcaption aria-hidden="true">web_alarms.png</figcaption>
 </figure>
-<p><em>Figura: web_alarms.png — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: web_alarms.png — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <p>API: <code>/api/alarms</code>.</p>
 <h3 id="config-configuração-geral">5.6 <code>/config</code>
 (Configuração geral)</h3>
@@ -674,8 +675,8 @@ via <code>/api/themes</code></p>
 <img src="screenshots/web_05_config.png" alt="web_config.png" />
 <figcaption aria-hidden="true">web_config.png</figcaption>
 </figure>
-<p><em>Figura: web_config.png — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: web_config.png — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <p>API: <code>/api/config</code> GET, <code>/api/save_sys</code>
 POST.</p>
 <h3 id="network-wifi-config">5.7 <code>/network</code> (WiFi
@@ -684,8 +685,8 @@ config)</h3>
 <img src="screenshots/web_06_network.png" alt="web_network.png" />
 <figcaption aria-hidden="true">web_network.png</figcaption>
 </figure>
-<p><em>Figura: web_network.png — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: web_network.png — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <p>API: <code>/api/network</code>.</p>
 <h3 id="users-gestão-de-usuários">5.8 <code>/users</code> (Gestão de
 usuários)</h3>
@@ -693,8 +694,8 @@ usuários)</h3>
 <img src="screenshots/web_07_users.png" alt="web_users.png" />
 <figcaption aria-hidden="true">web_users.png</figcaption>
 </figure>
-<p><em>Figura: web_users.png — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: web_users.png — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <p>API: <code>/api/users</code>.</p>
 <h3 id="files-file-manager-ota-firmware">5.9 <code>/files</code> (File
 manager + OTA Firmware)</h3>
@@ -702,8 +703,8 @@ manager + OTA Firmware)</h3>
 <img src="screenshots/web_08_files.png" alt="web_files.png" />
 <figcaption aria-hidden="true">web_files.png</figcaption>
 </figure>
-<p><em>Figura: web_files.png — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: web_files.png — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <p>Botão <strong>Backup</strong> baixa arquivo <code>.bkp</code> da
 LittleFS toda (<code>GET /api/backup</code>). Botão
 <strong>Restore</strong> valida + aplica <code>.bkp</code>
@@ -717,8 +718,8 @@ LittleFS toda (<code>GET /api/backup</code>). Botão
 <img src="screenshots/web_09_license.png" alt="web_license.png" />
 <figcaption aria-hidden="true">web_license.png</figcaption>
 </figure>
-<p><em>Figura: web_license.png — capturada em HW alpha14
-2026-05-08</em></p>
+<p><em>Figura: web_license.png — capturado via /api/screenshot_chunk com
+CRC32 verified (alpha18)</em></p>
 <h3 id="endpoints-utilitários">5.11 Endpoints utilitários</h3>
 <ul>
 <li><code>/api/status</code> — info runtime (heap, uptime, sensors)</li>
@@ -960,5 +961,49 @@ https://github.com/angeloINTJ/SIMUT/tree/feature/ota-self-flash</li>
 <p>🤖 Manual gerado em 2026-05-08 com base em código-fonte
 v3.44.0-alpha13. Screenshots pendentes — gerar via captura programática
 quando device estável.</p>
+<h2
+id="screenshots-adicionais-capturadas-via-screen-name-cli">Screenshots
+adicionais (capturadas via screen NAME CLI)</h2>
+<h3 id="settings-themes">Settings → Themes</h3>
+<figure>
+<img src="screenshots/tft_settings_themes.png"
+alt="Settings → Themes" />
+<figcaption aria-hidden="true">Settings → Themes</figcaption>
+</figure>
+<h3 id="settings-language">Settings → Language</h3>
+<figure>
+<img src="screenshots/tft_settings_lang.png"
+alt="Settings → Language" />
+<figcaption aria-hidden="true">Settings → Language</figcaption>
+</figure>
+<h3 id="settings-password">Settings → Password</h3>
+<figure>
+<img src="screenshots/tft_settings_password.png"
+alt="Settings → Password" />
+<figcaption aria-hidden="true">Settings → Password</figcaption>
+</figure>
+<h3 id="settings-license">Settings → License</h3>
+<figure>
+<img src="screenshots/tft_settings_license.png"
+alt="Settings → License" />
+<figcaption aria-hidden="true">Settings → License</figcaption>
+</figure>
+<h3 id="settings-system-status">Settings → System Status</h3>
+<figure>
+<img src="screenshots/tft_settings_status.png"
+alt="Settings → System Status" />
+<figcaption aria-hidden="true">Settings → System Status</figcaption>
+</figure>
+<h3 id="settings-alarms">Settings → Alarms</h3>
+<figure>
+<img src="screenshots/tft_settings_alarms.png"
+alt="Settings → Alarms" />
+<figcaption aria-hidden="true">Settings → Alarms</figcaption>
+</figure>
+<h3 id="settings-main">Settings (main)</h3>
+<figure>
+<img src="screenshots/tft_settings_main.png" alt="Settings (main)" />
+<figcaption aria-hidden="true">Settings (main)</figcaption>
+</figure>
 </body>
 </html>

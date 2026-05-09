@@ -139,23 +139,23 @@ A interface TFT é **resolução 320×240 paisagem**, organizada em telas-foco n
 
 ### 4.1 Tela Boot/Loading
 
-![boot_screen.bmp](screenshots/tft_dashboard_initial.png)
+![boot_screen.bmp](screenshots/tft_dashboard.png)
 
-*Figura: boot_screen.bmp — capturada em HW alpha14 2026-05-08*
+*Figura: boot_screen.bmp — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 ### 4.2 Tela Auth (PIN entrance)
 
-![auth_screen.bmp](screenshots/tft_dashboard_initial.png)
+![auth_screen.bmp](screenshots/tft_dashboard.png)
 
-*Figura: auth_screen.bmp — capturada em HW alpha14 2026-05-08*
+*Figura: auth_screen.bmp — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 `showAuthScreen(String expectedPin)` em DisplayManager.h:200.
 
 ### 4.3 Dashboard principal
 
-![dashboard.bmp](screenshots/tft_01_dashboard.png)
+![dashboard.bmp](screenshots/tft_dashboard.png)
 
-*Figura: dashboard.bmp — capturada em HW alpha14 2026-05-08*
+*Figura: dashboard.bmp — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 - TopBar: hora, status WiFi, alarmes ativos
 - Painel ambiente (temp + humidade SHT31)
 - 10 slots de sensores DS18B20 (panéis menores)
@@ -165,9 +165,9 @@ A interface TFT é **resolução 320×240 paisagem**, organizada em telas-foco n
 
 ### 4.4 Tela Gráfico (histórico)
 
-![graph.bmp](screenshots/tft_03_graph.png)
+![graph.bmp](screenshots/tft_graph.png)
 
-*Figura: graph.bmp — capturada em HW alpha14 2026-05-08*
+*Figura: graph.bmp — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 `drawGraphScreen()`, `drawGraphHeaderBar()`, `drawPeakMarker()`.
 
@@ -175,16 +175,6 @@ Variantes:
 - `drawGraphDetailScreen()` — tela numérica de detalhes do período
 - `drawStatsScreen()` — estatísticas (min/max/avg)
 - `drawCalendarScreen()` — calendário com dias de dados disponíveis
-
-### Bonus: Tela Settings (capturada via touch sim)
-
-![tft_02_settings](screenshots/tft_02_settings.png)
-
-*Figura: TFT settings_main — capturada após `touch sim 50 220` em HW alpha14*
-
-![tft_05_slot_detail](screenshots/tft_05_slot_detail.png)
-
-*Figura: TFT slot detail — capturada após `touch sim 80 80` em HW alpha14*
 
 ### 4.5 Telas de Configuração (Settings)
 
@@ -203,9 +193,9 @@ Acessível via gesto longo no dashboard. Submenus:
 
 ### 4.6 Tela de Alarmes
 
-![alarm_action.bmp](screenshots/tft_04_alarms.png)
+![alarm_action.bmp](screenshots/tft_settings_alarms.png)
 
-*Figura: alarm_action.bmp — capturada em HW alpha14 2026-05-08*
+*Figura: alarm_action.bmp — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 ---
 
@@ -219,7 +209,7 @@ WiFi típico: `192.168.3.195` (DHCP). Login obrigatório (sha256 client-side ant
 
 ![web_login.png](screenshots/web_01_login.png)
 
-*Figura: web_login.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_login.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 `handleLogin()` → POST `/api/login_init` retorna nonce; POST `/api/login` com sha256 da senha + nonce.
 
@@ -227,13 +217,13 @@ WiFi típico: `192.168.3.195` (DHCP). Login obrigatório (sha256 client-side ant
 
 ![web_force_chpass.png](screenshots/web_01_login.png)
 
-*Figura: web_force_chpass.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_force_chpass.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 ### 5.3 `/` (Dashboard)
 
 ![web_dashboard.png](screenshots/web_02_dashboard.png)
 
-*Figura: web_dashboard.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_dashboard.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 - Painel ambiente
 - 10 cards de sensores (cor por estado: ok/warn/error)
 - Botão Settings/Files/History
@@ -243,7 +233,7 @@ WiFi típico: `192.168.3.195` (DHCP). Login obrigatório (sha256 client-side ant
 
 ![web_history.png](screenshots/web_03_history.png)
 
-*Figura: web_history.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_history.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 API: `/api/history_multi`, `/api/history_days`, `/api/export/history.bin` (CSV-equivalente).
 
@@ -251,7 +241,7 @@ API: `/api/history_multi`, `/api/history_days`, `/api/export/history.bin` (CSV-e
 
 ![web_alarms.png](screenshots/web_04_alarms.png)
 
-*Figura: web_alarms.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_alarms.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 API: `/api/alarms`.
 
@@ -259,7 +249,7 @@ API: `/api/alarms`.
 
 ![web_config.png](screenshots/web_05_config.png)
 
-*Figura: web_config.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_config.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 API: `/api/config` GET, `/api/save_sys` POST.
 
@@ -267,7 +257,7 @@ API: `/api/config` GET, `/api/save_sys` POST.
 
 ![web_network.png](screenshots/web_06_network.png)
 
-*Figura: web_network.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_network.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 API: `/api/network`.
 
@@ -275,7 +265,7 @@ API: `/api/network`.
 
 ![web_users.png](screenshots/web_07_users.png)
 
-*Figura: web_users.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_users.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 API: `/api/users`.
 
@@ -283,7 +273,7 @@ API: `/api/users`.
 
 ![web_files.png](screenshots/web_08_files.png)
 
-*Figura: web_files.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_files.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 Botão **Backup** baixa arquivo `.bkp` da LittleFS toda (`GET /api/backup`).
 Botão **Restore** valida + aplica `.bkp` (`POST /api/restore?op=validate|apply`).
@@ -293,7 +283,7 @@ Botão **Firmware** dispara OTA com WARN modal + safety checks (`POST /api/resto
 
 ![web_license.png](screenshots/web_09_license.png)
 
-*Figura: web_license.png — capturada em HW alpha14 2026-05-08*
+*Figura: web_license.png — capturado via /api/screenshot_chunk com CRC32 verified (alpha18)*
 
 ### 5.11 Endpoints utilitários
 
@@ -557,3 +547,35 @@ pandoc docs/MANUAL.md -o docs/MANUAL.pdf \
 ---
 
 🤖 Manual gerado em 2026-05-08 com base em código-fonte v3.44.0-alpha13. Screenshots pendentes — gerar via captura programática quando device estável.
+
+
+## Screenshots adicionais (capturadas via screen NAME CLI)
+
+### Settings → Themes
+
+![Settings → Themes](screenshots/tft_settings_themes.png)
+
+### Settings → Language
+
+![Settings → Language](screenshots/tft_settings_lang.png)
+
+### Settings → Password
+
+![Settings → Password](screenshots/tft_settings_password.png)
+
+### Settings → License
+
+![Settings → License](screenshots/tft_settings_license.png)
+
+### Settings → System Status
+
+![Settings → System Status](screenshots/tft_settings_status.png)
+
+### Settings → Alarms
+
+![Settings → Alarms](screenshots/tft_settings_alarms.png)
+
+### Settings (main)
+
+![Settings (main)](screenshots/tft_settings_main.png)
+
