@@ -218,6 +218,16 @@ CliDemand CommandManager::parseCommand(String input) {
         return cmd;
     }
 
+    /* v3.44.0-alpha15: 'screen <NAME>' — muda tela TFT direto via show*Screen
+     * methods. Mais robusto que touch sim (bypass gates de pressão).
+     * Nomes: dashboard, settings, themes, lang, password, license, status,
+     * touchcal, sounds, alarms, graph, stats, calendar, alarmaction. */
+    if (t0 == "screen") {
+        cmd.type = CMD_GOTO_SCREEN;
+        cmd.setStrVal1(t1.c_str());
+        return cmd;
+    }
+
     if (t0 == "language") {
         cmd.type = CMD_LANGUAGE;
         if      (t1 == "pt" || t1 == "pt-br" || t1 == "ptbr") cmd.intVal1 = LANG_PT;

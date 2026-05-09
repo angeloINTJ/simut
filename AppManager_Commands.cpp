@@ -603,6 +603,25 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_DBG_SENSOR_HISTORY_ALL:
             cmdHandleDbgSensorHistoryAll(cmd, cfg, changed); break;
 
+        case CMD_GOTO_SCREEN: {
+            /* v3.44.0-alpha15: muda tela TFT via show*Screen() direto.
+             * Bypass handleTouch (gates de pressão). Pra screenshot
+             * automation. Strings curtas pra economizar flash. */
+            const char* n = cmd.strVal1;
+            if      (!strcmp(n, "dash"))     _displayMgr->forceDashboard();
+            else if (!strcmp(n, "set"))      _displayMgr->showSettingsMain();
+            else if (!strcmp(n, "thm"))      _displayMgr->showSettingsThemes(cfg.themeIndex);
+            else if (!strcmp(n, "lng"))      _displayMgr->showSettingsLang(cfg.displayLang);
+            else if (!strcmp(n, "pwd"))      _displayMgr->showSettingsPassword();
+            else if (!strcmp(n, "lic"))      _displayMgr->showSettingsLicense();
+            else if (!strcmp(n, "sts"))      _displayMgr->showSystemStatus();
+            else if (!strcmp(n, "alm"))      _displayMgr->showSettingsAlarms(&cfg);
+            else if (!strcmp(n, "gra"))      _displayMgr->forceGraphView();
+            else { _cmdMgr->printError("?screen"); break; }
+            _cmdMgr->printSuccess(n);
+            break;
+        }
+
         case CMD_TOUCH_SIM: {
             /* v3.44.0-alpha14: injeta toque simulado (x, y) screen-space.
              * Útil pra automação de screenshots TFT via /api/screenshot.

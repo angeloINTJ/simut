@@ -442,6 +442,14 @@ void DisplayManager::forceDashboard() {
     mutex_exit(&_stateMutex);
 }
 
+/* v3.44.0-alpha15: força tela de gráfico (slot 0). Útil pra automação de
+ * screenshots — bypass touch pra ir direto pra MODE_GRAPH_VIEW. */
+void DisplayManager::forceGraphView() {
+    mutex_enter_blocking(&_stateMutex);
+    _uiMode = MODE_GRAPH_VIEW; _isDirty = true; _forceFullRedraw = true;
+    mutex_exit(&_stateMutex);
+}
+
 bool DisplayManager::isSkipPressed() {
     if (_skipPressed) { _skipPressed = false; return true; }
     return false;

@@ -79,6 +79,13 @@ enum DemandType {
      * Útil pra automação de captura de screenshots em todas as telas
      * via /api/screenshot. intVal1=x, intVal2 reaproveitado para y. */
     CMD_TOUCH_SIM,
+
+    /* v3.44.0-alpha15: 'screen <NAME>' — muda tela TFT diretamente via
+     * show*Screen methods (bypass handleTouch que tem gates de pressão).
+     * NAMEs: dashboard, settings, themes, lang, password, license, status,
+     * touchcal, sounds, alarms, alarmedit, graph, stats, calendar,
+     * alarmaction, displayoffset, auth. strVal1=name. */
+    CMD_GOTO_SCREEN,
 };
 
 /** Parsed CLI command with typed payload fields.

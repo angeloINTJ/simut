@@ -128,6 +128,10 @@ public:
      *  (gerar screenshots de todas as telas via API). */
     void injectTouch(int16_t x, int16_t y);
 
+    /** v3.44.0-alpha15: força MODE_GRAPH_VIEW pra screenshot automation
+     *  (bypass touch). Set _uiMode + _forceFullRedraw. */
+    void forceGraphView();
+
     /** F-LOCKOUT-STUCK fix: modo "quiet" cooperativo para saves grandes.
      *  Core 0 sinaliza, Core 1 (em loopCore1) entra em loop RAM-only com
      *  IRQs desabilitados, Core 0 faz todas as flash ops sem tentar
