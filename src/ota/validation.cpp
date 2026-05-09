@@ -16,10 +16,10 @@
 #include <hardware/watchdog.h>
 #include <string.h>
 
-/* F-OTA-RAM (v3.44.0-alpha2): gzip decompress dry-run REMOVIDO.
- * SIMUT só sobe firmware RAW (.bin) desde v3.43.3 — gzip path era código
- * morto que mantinha uzlib + 33 KiB de BSS (g_validate_ctx) linkados
- * permanentemente. Linker GC dead-strip o uzlib agora.
+/* F-OTA-RAM (v3.44.0-alpha2/alpha3, source removed v3.45.1): gzip dry-run
+ * REMOVIDO. SIMUT só sobe firmware RAW (.bin) desde v3.43.3. Em v3.45.1
+ * o source de uzlib (lib/uzlib/) e o wrapper decompressor.{h,cpp} foram
+ * deletados (eram dead-stripped mas dívida no source tree).
  * Trade-off: se user upar .bin.gz por engano, validation falha em boot2_crc
  * (gzip header não bate com layout RP2040 boot2). Mensagem de erro v=6. */
 

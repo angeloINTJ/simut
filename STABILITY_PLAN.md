@@ -719,9 +719,12 @@ Atualize esta tabela conforme cada fase for concluída.
 
 > Pendências que NÃO podem entrar em release público sem mitigação. Reabrir antes de qualquer `git push` de tag de release no `main`.
 
-| ID | Sev | Descrição | Origem | Plano de mitigação |
-|---|---|---|---|---|
-| **F-OTA-RAM** | 🔴 | `ota::g_validate_ctx` ocupa **34 068 B (33 KiB) de BSS estática permanente** (uzlib LZ77 dict 32 KiB + state). Adicionado em `v3.43.0` (Fase 6 OTA). Singleton "1 instance por vida" — fica residente mesmo quando não há OTA em curso. Soma com `s_applier_buf` (4 KiB) + `s_tmp_pool` (2 KiB) = ~40 KiB BSS dedicado a OTA. Steady-state heap_lb hoje ≈ 11 KiB (medido em HW v3.43.13, uptime 11min: heap free 15 772 B / maior bloco 11 144 B). Margem perigosamente apertada para device em produção sob carga (telemetria+web+TLS+canvas TFT). | Auditoria de RAM em 2026-05-06 antes de continuar Fase 9 OTA. Diagnóstico via `arm-none-eabi-nm --size-sort` em `firmware.elf` + `show metrics` no device. | Mover `g_validate_ctx` para alocação heap on-demand: `unique_ptr<GunzipContext>` no entrypoint do `validate`, libera no fim. Pré-condição: 33 KiB > maior bloco contíguo livre (11 KiB) — exige liberar canvases TFT (`_canvasWide` 28 KiB + `_canvasSmall` 11 KiB) antes do `new` e reconstruí-los após o validate. Orquestração similar ao F-LOCKOUT-STUCK pivot (v3.24.9..11). Alternativa B: redimensionar janela LZ77 do uzlib (32 KiB→16 KiB) — testar empiricamente se firmwares reais comprimidos com `gzip -9` continuam decodificando (gzip default usa janela 32 KiB; reduzir quebra parte dos blobs). |
+**Nenhum blocker pendente em 2026-05-09.** Histórico:
+
+| ID | Sev | Resolução |
+|---|---|---|
+| ~~**F-OTA-RAM**~~ | ✅ | Eliminado em `v3.44.0-alpha2/alpha3` removendo o gzip dry-run de `validation.cpp` (SIMUT só recebe firmware RAW desde v3.43.3, gzip path era código morto). `g_validate_ctx` (33 KiB BSS) + uzlib + decompressor.cpp foram dead-stripped pelo linker. RAM 56.8% → 49.6%. Em `v3.45.1` o source de `lib/uzlib/` + `src/ota/decompressor.{h,cpp}` + `test/test_decompressor/` + env `[env:native_decompressor]` foram deletados (limpeza de dívida). |
+| ~~**F-OTA-BOOTLOOP**~~ | ✅ | Resolvido em `v3.45.0` — loop20 OTA 20/20 PASS (ver linha de F-OTA-BOOTLOOP acima). |
 
 ---
 
