@@ -11,6 +11,7 @@
 #include "LogManager.h"
 #include "TouchPriority.h"
 #include "HistoryCodec.h"
+#include "src/ota/backup.h"  /* v3.44.0-alpha16: ota::crc32_update pra screenshot_chunk */
 #include <LittleFS.h>
 #include <time.h>
 
@@ -946,6 +947,91 @@ void WebManager::handleApiScreenshot() {
     __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
     _handlerDeadline = savedDeadline;
     if (clientDisconnected) LOG_CODE(LOG_WARN, "WEB", WEB_SCREENSHOT_ABORTED, 0, "");
+}
+
+/* v3.44.0-alpha16: screenshot por chunk com CRC32 — integridade verificável.
+ *
+ * GET /api/screenshot_chunk?n=N retorna 1 chunk de 16 rows do display TFT.
+ * Total chunks: 15 (240/16). Cada chunk:
+ *   - 16 rows × 320 cols × 3 bytes BGR = 15360 bytes payload
+ *   - Header binário 12 bytes:
+ *     [0..3]  uint32 chunk_index (big-endian)
+ *     [4..7]  uint32 payload_size (big-endian)
+ *     [8..11] uint32 crc32 EDB88320 do payload (big-endian)
+ *
+ * Cliente: requisita N=0..14 sequencial. Verifica CRC32 cada chunk; se
+ * falhar, re-requisita esse N. Reassembla BMP localmente (header + 240 rows).
+ *
+ * Vantagens vs /api/screenshot full:
+ *   - Falha localizada (chunk individual, não BMP inteiro)
+ *   - Verifica integridade (CRC32)
+ *   - Pode re-tentar chunks corrompidos
+ *   - Cliente pode pausar/retomar
+ *
+ * Resposta MIME: application/octet-stream (binário puro). */
+void WebManager::handleApiScreenshotChunk() {
+    uint16_t perms = getAuthPerms();
+    if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
+
+    if (!_displayRef) { _server.send(500, "text/plain", "Display offline"); return; }
+
+    /* Parse ?n=N */
+    int n = -1;
+    if (_server.hasArg("n")) n = _server.arg("n").toInt();
+    constexpr int W = 320;
+    constexpr int H = 240;
+    constexpr int ROWS_PER_CHUNK = 16;
+    constexpr int TOTAL_CHUNKS = (H + ROWS_PER_CHUNK - 1) / ROWS_PER_CHUNK; /* 15 */
+    if (n < 0 || n >= TOTAL_CHUNKS) {
+        _server.send(416, "text/plain", "Invalid chunk index (use n=0..14)");
+        return;
+    }
+
+    /* Calcula range de rows pra este chunk */
+    int row_start = n * ROWS_PER_CHUNK;
+    int rows_this = (row_start + ROWS_PER_CHUNK > H) ? (H - row_start) : ROWS_PER_CHUNK;
+    int payload_size = rows_this * W * 3;
+
+    /* Buffer temporário pra rows (16 rows * 320 cols * 3 bytes = 15360 max) */
+    uint8_t payload[ROWS_PER_CHUNK * W * 3];
+    uint16_t pixelRow[W];
+
+    /* BMP é bottom-up; chunk N=0 tem rows mais BAIXAS do display.
+     * Pra reassembly correto, ler rows do display em ordem DECRESCENTE
+     * dentro do chunk (mantém compat com BMP convention). */
+    for (int i = 0; i < rows_this; i++) {
+        int display_y = H - 1 - (row_start + i);  /* row do display TFT */
+        if (display_y < 0) break;
+
+        _displayRef->pauseRendering(true);
+        _displayRef->readRow(display_y, pixelRow, W);
+        _displayRef->pauseRendering(false);
+
+        uint8_t* row_dst = payload + i * W * 3;
+        for (int x = 0; x < W; x++) {
+            uint16_t color = pixelRow[x];
+            row_dst[x*3 + 0] = (color & 0x001F) << 3;        /* B */
+            row_dst[x*3 + 1] = ((color & 0x07E0) >> 5) << 2; /* G */
+            row_dst[x*3 + 2] = ((color & 0xF800) >> 11) << 3;/* R */
+        }
+        watchdog_update();
+    }
+
+    /* Compute CRC32 EDB88320 (gzip-compatible) */
+    uint32_t crc = ota::crc32_update(0xFFFFFFFFu, payload, payload_size) ^ 0xFFFFFFFFu;
+
+    /* Header big-endian */
+    uint8_t hdr[12];
+    hdr[0] = (n >> 24) & 0xFF; hdr[1] = (n >> 16) & 0xFF; hdr[2] = (n >> 8) & 0xFF; hdr[3] = n & 0xFF;
+    hdr[4] = (payload_size >> 24) & 0xFF; hdr[5] = (payload_size >> 16) & 0xFF;
+    hdr[6] = (payload_size >> 8) & 0xFF; hdr[7] = payload_size & 0xFF;
+    hdr[8] = (crc >> 24) & 0xFF; hdr[9] = (crc >> 16) & 0xFF;
+    hdr[10] = (crc >> 8) & 0xFF; hdr[11] = crc & 0xFF;
+
+    _server.setContentLength(12 + payload_size);
+    _server.send(200, "application/octet-stream", "");
+    safeSend((const char*)hdr, 12);
+    safeSend((const char*)payload, payload_size);
 }
 
 void WebManager::handleApiHistoryDays() {

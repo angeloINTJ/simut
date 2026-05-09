@@ -274,6 +274,7 @@ private:
     char _historyFnBuf[40];     /**< Buffer reutilizável para getHistoryFileNameC (MEM-001). */
     void safeStreamFile(File& f, const String& contentType);
     void handleApiScreenshot();
+    void handleApiScreenshotChunk();  /**< v3.44.0-alpha16: chunked com CRC32 */
     String getDynamicExpectedHash(String username);
     String jsonEscape(const char* src);
     void handleApiHistoryDays();
