@@ -97,6 +97,11 @@ s.close()
     else
         FAIL=$((FAIL+1))
         log "  iter $iter: FAIL"
+        log "  STOP-ON-FAIL: encerrando loop pra debug"
+        iter_dt=$(($(date +%s) - iter_start))
+        TOTAL_TIME=$((TOTAL_TIME+iter_dt))
+        log "  iter $iter duração: ${iter_dt}s"
+        break
     fi
 
     iter_dt=$(($(date +%s) - iter_start))

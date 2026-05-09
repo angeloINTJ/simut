@@ -1,0 +1,1451 @@
+[13:48:13] === 20 ciclos OTA F9 — start 20260509-134813 ===
+[13:48:13] 
+[13:48:13] ================ ITERAÇÃO 1 / 20 ================
+[13:48:13] === F9 snapshot test v2 — start 20260509-134813 ===
+[13:48:13] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:48:13] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:48:13] 
+[13:48:16] Pre-flight mão: PONG
+[13:48:16] Pre-flight HTTP: OK
+[13:48:16] 
+[13:48:16] === Step 1: Reset admin via Serial CLI ===
+[13:48:22] OTP: TZ8VT8D8
+[13:48:24] 
+[13:48:24] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:48:27] 
+[13:48:27] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:48:28] 
+[13:48:28] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:48:28] Estado pré-OTA:
+[13:48:29]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:48:29] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345310.bkp
+[backup] wrote 5573 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.8s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 22s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345310.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[13:49:24] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[13:49:24] 
+[13:49:24] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[13:49:24] Wait único: até 180s pra boot pós-apply...
+[13:49:26]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:49:26]   wait: aguardando HTTP até 180s...
+[13:49:26]   wait: HTTP OK em 0s
+[13:49:26] DEVICE BACK ONLINE
+[13:49:28]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:49:28] PASS: device voltou online após OTA
+[13:49:28] 
+[13:49:28] === Step 6: Login com senha preservada ===
+[13:49:28]   tentativa 1: HTTP 200
+[13:49:28] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[13:49:28] 
+[13:49:28] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[13:49:29] PASS: 11 campos /api/config preservados
+[13:49:29] 
+[13:49:29] === RESUMO ===
+[13:49:29] PASS: 3   FAIL: 0
+[13:49:29] Log: docs/test_reports/f9_snapshot_v2_20260509-134813.log
+[13:49:29]   iter 1: PASS
+[13:49:29]   iter 1 duração: 76s
+[13:49:29] 
+[13:49:29] ================ ITERAÇÃO 2 / 20 ================
+[13:49:29] === F9 snapshot test v2 — start 20260509-134929 ===
+[13:49:29] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:49:29] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:49:29] 
+[13:49:32] Pre-flight mão: PONG
+[13:49:32] Pre-flight HTTP: OK
+[13:49:32] 
+[13:49:32] === Step 1: Reset admin via Serial CLI ===
+[13:49:39] OTP: TF548JF2
+[13:49:41] 
+[13:49:41] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:49:43] 
+[13:49:43] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:49:44] 
+[13:49:44] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:49:44] Estado pré-OTA:
+[13:49:46]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:49:46] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345387.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 22s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345387.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[13:50:41] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[13:50:41] 
+[13:50:41] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[13:50:41] Wait único: até 180s pra boot pós-apply...
+[13:50:43]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:50:43]   wait: aguardando HTTP até 180s...
+[13:50:43]   wait: HTTP OK em 0s
+[13:50:43] DEVICE BACK ONLINE
+[13:50:45]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:50:45] PASS: device voltou online após OTA
+[13:50:45] 
+[13:50:45] === Step 6: Login com senha preservada ===
+[13:50:45]   tentativa 1: HTTP 200
+[13:50:45] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[13:50:45] 
+[13:50:45] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[13:50:46] PASS: 11 campos /api/config preservados
+[13:50:46] 
+[13:50:46] === RESUMO ===
+[13:50:46] PASS: 3   FAIL: 0
+[13:50:46] Log: docs/test_reports/f9_snapshot_v2_20260509-134929.log
+[13:50:46]   iter 2: PASS
+[13:50:46]   iter 2 duração: 77s
+[13:50:46] 
+[13:50:46] ================ ITERAÇÃO 3 / 20 ================
+[13:50:46] === F9 snapshot test v2 — start 20260509-135046 ===
+[13:50:46] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:50:46] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:50:46] 
+[13:50:49] Pre-flight mão: PONG
+[13:50:49] Pre-flight HTTP: OK
+[13:50:49] 
+[13:50:49] === Step 1: Reset admin via Serial CLI ===
+[13:50:56] OTP: KU8VT2QW
+[13:50:58] 
+[13:50:58] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:51:00] 
+[13:51:00] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:51:01] 
+[13:51:01] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:51:01] Estado pré-OTA:
+[13:51:03]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:51:03] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345464.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.8s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 22s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345464.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[13:51:58] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[13:51:58] 
+[13:51:58] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[13:51:58] Wait único: até 180s pra boot pós-apply...
+[13:52:00]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:52:00]   wait: aguardando HTTP até 180s...
+[13:52:00]   wait: HTTP OK em 0s
+[13:52:00] DEVICE BACK ONLINE
+[13:52:02]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:52:02] PASS: device voltou online após OTA
+[13:52:02] 
+[13:52:02] === Step 6: Login com senha preservada ===
+[13:52:02]   tentativa 1: HTTP 200
+[13:52:02] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[13:52:02] 
+[13:52:02] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[13:52:03] PASS: 11 campos /api/config preservados
+[13:52:03] 
+[13:52:03] === RESUMO ===
+[13:52:03] PASS: 3   FAIL: 0
+[13:52:03] Log: docs/test_reports/f9_snapshot_v2_20260509-135046.log
+[13:52:03]   iter 3: PASS
+[13:52:03]   iter 3 duração: 77s
+[13:52:03] 
+[13:52:03] ================ ITERAÇÃO 4 / 20 ================
+[13:52:03] === F9 snapshot test v2 — start 20260509-135203 ===
+[13:52:03] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:52:03] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:52:03] 
+[13:52:06] Pre-flight mão: PONG
+[13:52:06] Pre-flight HTTP: OK
+[13:52:06] 
+[13:52:06] === Step 1: Reset admin via Serial CLI ===
+[13:52:13] OTP: RDELV4VU
+[13:52:15] 
+[13:52:15] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:52:17] 
+[13:52:17] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:52:18] 
+[13:52:18] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:52:18] Estado pré-OTA:
+[13:52:20]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:52:20] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345541.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.6s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 18s (4 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345541.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[13:53:11] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[13:53:11] 
+[13:53:11] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[13:53:11] Wait único: até 180s pra boot pós-apply...
+[13:53:13]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:53:13]   wait: aguardando HTTP até 180s...
+[13:53:13]   wait: HTTP OK em 0s
+[13:53:13] DEVICE BACK ONLINE
+[13:53:14]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:53:14] PASS: device voltou online após OTA
+[13:53:14] 
+[13:53:14] === Step 6: Login com senha preservada ===
+[13:53:15]   tentativa 1: HTTP 200
+[13:53:15] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[13:53:15] 
+[13:53:15] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[13:53:16] PASS: 11 campos /api/config preservados
+[13:53:16] 
+[13:53:16] === RESUMO ===
+[13:53:16] PASS: 3   FAIL: 0
+[13:53:16] Log: docs/test_reports/f9_snapshot_v2_20260509-135203.log
+[13:53:16]   iter 4: PASS
+[13:53:16]   iter 4 duração: 73s
+[13:53:16] 
+[13:53:16] ================ ITERAÇÃO 5 / 20 ================
+[13:53:16] === F9 snapshot test v2 — start 20260509-135316 ===
+[13:53:16] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:53:16] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:53:16] 
+[13:53:19] Pre-flight mão: PONG
+[13:53:19] Pre-flight HTTP: OK
+[13:53:19] 
+[13:53:19] === Step 1: Reset admin via Serial CLI ===
+[13:53:25] OTP: VYPJ3YSQ
+[13:53:27] 
+[13:53:27] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:53:30] 
+[13:53:30] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:53:31] 
+[13:53:31] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:53:31] Estado pré-OTA:
+[13:53:33]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:53:33] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345614.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 18s (4 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345614.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[13:54:24] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[13:54:24] 
+[13:54:24] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[13:54:24] Wait único: até 180s pra boot pós-apply...
+[13:54:25]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:54:25]   wait: aguardando HTTP até 180s...
+[13:54:25]   wait: HTTP OK em 0s
+[13:54:25] DEVICE BACK ONLINE
+[13:54:27]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:54:27] PASS: device voltou online após OTA
+[13:54:27] 
+[13:54:27] === Step 6: Login com senha preservada ===
+[13:54:28]   tentativa 1: HTTP 200
+[13:54:28] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[13:54:28] 
+[13:54:28] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[13:54:29] PASS: 11 campos /api/config preservados
+[13:54:29] 
+[13:54:29] === RESUMO ===
+[13:54:29] PASS: 3   FAIL: 0
+[13:54:29] Log: docs/test_reports/f9_snapshot_v2_20260509-135316.log
+[13:54:29]   iter 5: PASS
+[13:54:29]   iter 5 duração: 73s
+[13:54:29] 
+[13:54:29] ================ ITERAÇÃO 6 / 20 ================
+[13:54:29] === F9 snapshot test v2 — start 20260509-135429 ===
+[13:54:29] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:54:29] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:54:29] 
+[13:54:32] Pre-flight mão: PONG
+[13:54:32] Pre-flight HTTP: OK
+[13:54:32] 
+[13:54:32] === Step 1: Reset admin via Serial CLI ===
+[13:54:38] OTP: Z63X42GE
+[13:54:40] 
+[13:54:40] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:54:43] 
+[13:54:43] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:54:44] 
+[13:54:44] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:54:44] Estado pré-OTA:
+[13:54:46]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:54:46] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345686.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 19s (4 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345686.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[13:55:37] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[13:55:37] 
+[13:55:37] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[13:55:37] Wait único: até 180s pra boot pós-apply...
+[13:55:39]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:55:39]   wait: aguardando HTTP até 180s...
+[13:55:39]   wait: HTTP OK em 0s
+[13:55:39] DEVICE BACK ONLINE
+[13:55:41]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:55:41] PASS: device voltou online após OTA
+[13:55:41] 
+[13:55:41] === Step 6: Login com senha preservada ===
+[13:55:42]   tentativa 1: HTTP 200
+[13:55:42] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[13:55:42] 
+[13:55:42] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[13:55:43] PASS: 11 campos /api/config preservados
+[13:55:43] 
+[13:55:43] === RESUMO ===
+[13:55:43] PASS: 3   FAIL: 0
+[13:55:43] Log: docs/test_reports/f9_snapshot_v2_20260509-135429.log
+[13:55:43]   iter 6: PASS
+[13:55:43]   iter 6 duração: 74s
+[13:55:43] 
+[13:55:43] ================ ITERAÇÃO 7 / 20 ================
+[13:55:43] === F9 snapshot test v2 — start 20260509-135543 ===
+[13:55:43] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:55:43] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:55:43] 
+[13:55:45] Pre-flight mão: PONG
+[13:55:45] Pre-flight HTTP: OK
+[13:55:45] 
+[13:55:45] === Step 1: Reset admin via Serial CLI ===
+[13:55:52] OTP: BZHVB96X
+[13:55:54] 
+[13:55:54] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:55:57] 
+[13:55:57] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:55:58] 
+[13:55:58] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:55:58] Estado pré-OTA:
+[13:55:59]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:55:59] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345760.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 21s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345760.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[13:56:53] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[13:56:53] 
+[13:56:53] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[13:56:53] Wait único: até 180s pra boot pós-apply...
+[13:56:55]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:56:55]   wait: aguardando HTTP até 180s...
+[13:56:55]   wait: HTTP OK em 0s
+[13:56:55] DEVICE BACK ONLINE
+[13:56:57]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:56:57] PASS: device voltou online após OTA
+[13:56:57] 
+[13:56:57] === Step 6: Login com senha preservada ===
+[13:56:57]   tentativa 1: HTTP 200
+[13:56:57] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[13:56:57] 
+[13:56:57] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[13:56:58] PASS: 11 campos /api/config preservados
+[13:56:58] 
+[13:56:58] === RESUMO ===
+[13:56:58] PASS: 3   FAIL: 0
+[13:56:58] Log: docs/test_reports/f9_snapshot_v2_20260509-135543.log
+[13:56:58]   iter 7: PASS
+[13:56:58]   iter 7 duração: 75s
+[13:56:58] 
+[13:56:58] ================ ITERAÇÃO 8 / 20 ================
+[13:56:58] === F9 snapshot test v2 — start 20260509-135658 ===
+[13:56:58] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:56:58] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:56:58] 
+[13:57:01] Pre-flight mão: PONG
+[13:57:01] Pre-flight HTTP: OK
+[13:57:01] 
+[13:57:01] === Step 1: Reset admin via Serial CLI ===
+[13:57:08] OTP: 65FQRJKQ
+[13:57:10] 
+[13:57:10] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:57:12] 
+[13:57:12] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:57:13] 
+[13:57:13] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:57:13] Estado pré-OTA:
+[13:57:15]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:57:15] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345836.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 22s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345836.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[13:58:09] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[13:58:09] 
+[13:58:09] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[13:58:09] Wait único: até 180s pra boot pós-apply...
+[13:58:11]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:58:11]   wait: aguardando HTTP até 180s...
+[13:58:11]   wait: HTTP OK em 0s
+[13:58:11] DEVICE BACK ONLINE
+[13:58:13]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:58:13] PASS: device voltou online após OTA
+[13:58:13] 
+[13:58:13] === Step 6: Login com senha preservada ===
+[13:58:14]   tentativa 1: HTTP 200
+[13:58:14] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[13:58:14] 
+[13:58:14] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[13:58:15] PASS: 11 campos /api/config preservados
+[13:58:15] 
+[13:58:15] === RESUMO ===
+[13:58:15] PASS: 3   FAIL: 0
+[13:58:15] Log: docs/test_reports/f9_snapshot_v2_20260509-135658.log
+[13:58:15]   iter 8: PASS
+[13:58:15]   iter 8 duração: 77s
+[13:58:15] 
+[13:58:15] ================ ITERAÇÃO 9 / 20 ================
+[13:58:15] === F9 snapshot test v2 — start 20260509-135815 ===
+[13:58:15] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:58:15] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:58:15] 
+[13:58:17] Pre-flight mão: PONG
+[13:58:17] Pre-flight HTTP: OK
+[13:58:17] 
+[13:58:17] === Step 1: Reset admin via Serial CLI ===
+[13:58:24] OTP: MUBSD8QD
+[13:58:26] 
+[13:58:26] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:58:29] 
+[13:58:29] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:58:30] 
+[13:58:30] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:58:30] Estado pré-OTA:
+[13:58:31]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:58:31] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345912.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.8s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 21s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345912.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[13:59:25] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[13:59:25] 
+[13:59:25] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[13:59:25] Wait único: até 180s pra boot pós-apply...
+[13:59:27]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:59:27]   wait: aguardando HTTP até 180s...
+[13:59:27]   wait: HTTP OK em 0s
+[13:59:27] DEVICE BACK ONLINE
+[13:59:29]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:59:29] PASS: device voltou online após OTA
+[13:59:29] 
+[13:59:29] === Step 6: Login com senha preservada ===
+[13:59:29]   tentativa 1: HTTP 200
+[13:59:29] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[13:59:29] 
+[13:59:29] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[13:59:30] PASS: 11 campos /api/config preservados
+[13:59:30] 
+[13:59:30] === RESUMO ===
+[13:59:30] PASS: 3   FAIL: 0
+[13:59:30] Log: docs/test_reports/f9_snapshot_v2_20260509-135815.log
+[13:59:30]   iter 9: PASS
+[13:59:30]   iter 9 duração: 75s
+[13:59:30] 
+[13:59:30] ================ ITERAÇÃO 10 / 20 ================
+[13:59:30] === F9 snapshot test v2 — start 20260509-135930 ===
+[13:59:30] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[13:59:30] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[13:59:30] 
+[13:59:33] Pre-flight mão: PONG
+[13:59:33] Pre-flight HTTP: OK
+[13:59:33] 
+[13:59:33] === Step 1: Reset admin via Serial CLI ===
+[13:59:40] OTP: QZ7UYEMU
+[13:59:42] 
+[13:59:42] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[13:59:44] 
+[13:59:44] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[13:59:45] 
+[13:59:45] === Step 4: Trigger OTA (stage+commit+apply) ===
+[13:59:45] Estado pré-OTA:
+[13:59:47]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[13:59:47] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778345988.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 22s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778345988.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:00:42] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:00:42] 
+[14:00:42] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:00:42] Wait único: até 180s pra boot pós-apply...
+[14:00:44]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:00:44]   wait: aguardando HTTP até 180s...
+[14:00:44]   wait: HTTP OK em 0s
+[14:00:44] DEVICE BACK ONLINE
+[14:00:45]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:00:45] PASS: device voltou online após OTA
+[14:00:45] 
+[14:00:45] === Step 6: Login com senha preservada ===
+[14:00:46]   tentativa 1: HTTP 200
+[14:00:46] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:00:46] 
+[14:00:46] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:00:47] PASS: 11 campos /api/config preservados
+[14:00:47] 
+[14:00:47] === RESUMO ===
+[14:00:47] PASS: 3   FAIL: 0
+[14:00:47] Log: docs/test_reports/f9_snapshot_v2_20260509-135930.log
+[14:00:47]   iter 10: PASS
+[14:00:47]   iter 10 duração: 77s
+[14:00:47] 
+[14:00:47] ================ ITERAÇÃO 11 / 20 ================
+[14:00:47] === F9 snapshot test v2 — start 20260509-140047 ===
+[14:00:47] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:00:47] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:00:47] 
+[14:00:50] Pre-flight mão: PONG
+[14:00:50] Pre-flight HTTP: OK
+[14:00:50] 
+[14:00:50] === Step 1: Reset admin via Serial CLI ===
+[14:00:56] OTP: WFRRGZKE
+[14:00:58] 
+[14:00:58] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:01:01] 
+[14:01:01] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:01:02] 
+[14:01:02] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:01:02] Estado pré-OTA:
+[14:01:04]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:01:04] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346064.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.8s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 21s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346064.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:01:57] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:01:57] 
+[14:01:57] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:01:57] Wait único: até 180s pra boot pós-apply...
+[14:01:59]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:01:59]   wait: aguardando HTTP até 180s...
+[14:01:59]   wait: HTTP OK em 0s
+[14:01:59] DEVICE BACK ONLINE
+[14:02:01]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:02:01] PASS: device voltou online após OTA
+[14:02:01] 
+[14:02:01] === Step 6: Login com senha preservada ===
+[14:02:02]   tentativa 1: HTTP 200
+[14:02:02] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:02:02] 
+[14:02:02] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:02:03] PASS: 11 campos /api/config preservados
+[14:02:03] 
+[14:02:03] === RESUMO ===
+[14:02:03] PASS: 3   FAIL: 0
+[14:02:03] Log: docs/test_reports/f9_snapshot_v2_20260509-140047.log
+[14:02:03]   iter 11: PASS
+[14:02:03]   iter 11 duração: 76s
+[14:02:03] 
+[14:02:03] ================ ITERAÇÃO 12 / 20 ================
+[14:02:03] === F9 snapshot test v2 — start 20260509-140203 ===
+[14:02:03] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:02:03] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:02:03] 
+[14:02:06] Pre-flight mão: PONG
+[14:02:06] Pre-flight HTTP: OK
+[14:02:06] 
+[14:02:06] === Step 1: Reset admin via Serial CLI ===
+[14:02:12] OTP: 2SXWK8EY
+[14:02:14] 
+[14:02:14] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:02:17] 
+[14:02:17] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:02:18] 
+[14:02:18] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:02:18] Estado pré-OTA:
+[14:02:19]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:02:19] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346140.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 20s (4 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346140.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:03:12] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:03:12] 
+[14:03:12] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:03:12] Wait único: até 180s pra boot pós-apply...
+[14:03:14]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:03:14]   wait: aguardando HTTP até 180s...
+[14:03:14]   wait: HTTP OK em 0s
+[14:03:14] DEVICE BACK ONLINE
+[14:03:16]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:03:16] PASS: device voltou online após OTA
+[14:03:16] 
+[14:03:16] === Step 6: Login com senha preservada ===
+[14:03:16]   tentativa 1: HTTP 200
+[14:03:16] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:03:16] 
+[14:03:16] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:03:17] PASS: 11 campos /api/config preservados
+[14:03:17] 
+[14:03:17] === RESUMO ===
+[14:03:17] PASS: 3   FAIL: 0
+[14:03:17] Log: docs/test_reports/f9_snapshot_v2_20260509-140203.log
+[14:03:17]   iter 12: PASS
+[14:03:17]   iter 12 duração: 74s
+[14:03:17] 
+[14:03:17] ================ ITERAÇÃO 13 / 20 ================
+[14:03:17] === F9 snapshot test v2 — start 20260509-140317 ===
+[14:03:17] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:03:17] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:03:17] 
+[14:03:20] Pre-flight mão: PONG
+[14:03:20] Pre-flight HTTP: OK
+[14:03:20] 
+[14:03:20] === Step 1: Reset admin via Serial CLI ===
+[14:03:27] OTP: LNSJ5ETN
+[14:03:29] 
+[14:03:29] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:03:31] 
+[14:03:31] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:03:32] 
+[14:03:32] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:03:32] Estado pré-OTA:
+[14:03:34]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:03:34] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346215.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.8s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 19s (4 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346215.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:04:26] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:04:26] 
+[14:04:26] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:04:26] Wait único: até 180s pra boot pós-apply...
+[14:04:28]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:04:28]   wait: aguardando HTTP até 180s...
+[14:04:28]   wait: HTTP OK em 0s
+[14:04:28] DEVICE BACK ONLINE
+[14:04:30]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:04:30] PASS: device voltou online após OTA
+[14:04:30] 
+[14:04:30] === Step 6: Login com senha preservada ===
+[14:04:30]   tentativa 1: HTTP 200
+[14:04:30] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:04:30] 
+[14:04:30] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:04:31] PASS: 11 campos /api/config preservados
+[14:04:31] 
+[14:04:31] === RESUMO ===
+[14:04:31] PASS: 3   FAIL: 0
+[14:04:31] Log: docs/test_reports/f9_snapshot_v2_20260509-140317.log
+[14:04:31]   iter 13: PASS
+[14:04:31]   iter 13 duração: 74s
+[14:04:31] 
+[14:04:31] ================ ITERAÇÃO 14 / 20 ================
+[14:04:31] === F9 snapshot test v2 — start 20260509-140431 ===
+[14:04:31] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:04:31] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:04:31] 
+[14:04:34] Pre-flight mão: PONG
+[14:04:34] Pre-flight HTTP: OK
+[14:04:34] 
+[14:04:34] === Step 1: Reset admin via Serial CLI ===
+[14:04:41] OTP: AZJ9AX3R
+[14:04:43] 
+[14:04:43] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:04:45] 
+[14:04:45] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:04:46] 
+[14:04:46] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:04:46] Estado pré-OTA:
+[14:04:48]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:04:48] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346289.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 21s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346289.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:05:42] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:05:42] 
+[14:05:42] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:05:42] Wait único: até 180s pra boot pós-apply...
+[14:05:44]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:05:44]   wait: aguardando HTTP até 180s...
+[14:05:44]   wait: HTTP OK em 0s
+[14:05:44] DEVICE BACK ONLINE
+[14:05:45]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:05:45] PASS: device voltou online após OTA
+[14:05:45] 
+[14:05:45] === Step 6: Login com senha preservada ===
+[14:05:46]   tentativa 1: HTTP 200
+[14:05:46] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:05:46] 
+[14:05:46] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:05:47] PASS: 11 campos /api/config preservados
+[14:05:47] 
+[14:05:47] === RESUMO ===
+[14:05:47] PASS: 3   FAIL: 0
+[14:05:47] Log: docs/test_reports/f9_snapshot_v2_20260509-140431.log
+[14:05:47]   iter 14: PASS
+[14:05:47]   iter 14 duração: 76s
+[14:05:47] 
+[14:05:47] ================ ITERAÇÃO 15 / 20 ================
+[14:05:47] === F9 snapshot test v2 — start 20260509-140547 ===
+[14:05:47] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:05:47] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:05:47] 
+[14:05:50] Pre-flight mão: PONG
+[14:05:50] Pre-flight HTTP: OK
+[14:05:50] 
+[14:05:50] === Step 1: Reset admin via Serial CLI ===
+[14:05:56] OTP: TKC689YW
+[14:05:58] 
+[14:05:58] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:06:01] 
+[14:06:01] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:06:02] 
+[14:06:02] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:06:02] Estado pré-OTA:
+[14:06:04]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:06:04] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346364.bkp
+[backup] wrote 5490 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.9s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 20s (4 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346364.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:06:56] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:06:56] 
+[14:06:56] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:06:56] Wait único: até 180s pra boot pós-apply...
+[14:06:58]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:06:58]   wait: aguardando HTTP até 180s...
+[14:06:58]   wait: HTTP OK em 0s
+[14:06:58] DEVICE BACK ONLINE
+[14:07:00]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:07:00] PASS: device voltou online após OTA
+[14:07:00] 
+[14:07:00] === Step 6: Login com senha preservada ===
+[14:07:00]   tentativa 1: HTTP 200
+[14:07:00] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:07:00] 
+[14:07:00] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:07:01] PASS: 11 campos /api/config preservados
+[14:07:01] 
+[14:07:01] === RESUMO ===
+[14:07:01] PASS: 3   FAIL: 0
+[14:07:01] Log: docs/test_reports/f9_snapshot_v2_20260509-140547.log
+[14:07:01]   iter 15: PASS
+[14:07:01]   iter 15 duração: 74s
+[14:07:01] 
+[14:07:01] ================ ITERAÇÃO 16 / 20 ================
+[14:07:01] === F9 snapshot test v2 — start 20260509-140701 ===
+[14:07:01] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:07:01] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:07:01] 
+[14:07:04] Pre-flight mão: PONG
+[14:07:04] Pre-flight HTTP: OK
+[14:07:04] 
+[14:07:04] === Step 1: Reset admin via Serial CLI ===
+[14:07:11] OTP: R59GX6YB
+[14:07:13] 
+[14:07:13] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:07:15] 
+[14:07:15] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:07:16] 
+[14:07:16] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:07:16] Estado pré-OTA:
+[14:07:18]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:07:18] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346439.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 22s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346439.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:08:12] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:08:12] 
+[14:08:12] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:08:12] Wait único: até 180s pra boot pós-apply...
+[14:08:14]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:08:14]   wait: aguardando HTTP até 180s...
+[14:08:14]   wait: HTTP OK em 0s
+[14:08:14] DEVICE BACK ONLINE
+[14:08:16]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:08:16] PASS: device voltou online após OTA
+[14:08:16] 
+[14:08:16] === Step 6: Login com senha preservada ===
+[14:08:17]   tentativa 1: HTTP 200
+[14:08:17] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:08:17] 
+[14:08:17] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:08:17] PASS: 11 campos /api/config preservados
+[14:08:17] 
+[14:08:17] === RESUMO ===
+[14:08:17] PASS: 3   FAIL: 0
+[14:08:17] Log: docs/test_reports/f9_snapshot_v2_20260509-140701.log
+[14:08:17]   iter 16: PASS
+[14:08:17]   iter 16 duração: 76s
+[14:08:17] 
+[14:08:17] ================ ITERAÇÃO 17 / 20 ================
+[14:08:17] === F9 snapshot test v2 — start 20260509-140817 ===
+[14:08:17] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:08:17] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:08:17] 
+[14:08:20] Pre-flight mão: PONG
+[14:08:20] Pre-flight HTTP: OK
+[14:08:20] 
+[14:08:20] === Step 1: Reset admin via Serial CLI ===
+[14:08:27] OTP: AYZKSYBE
+[14:08:29] 
+[14:08:29] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:08:31] 
+[14:08:31] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:08:32] 
+[14:08:32] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:08:32] Estado pré-OTA:
+[14:08:34]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:08:34] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346515.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.8s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 24s (6 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346515.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:09:31] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:09:31] 
+[14:09:31] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:09:31] Wait único: até 180s pra boot pós-apply...
+[14:09:33]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:09:33]   wait: aguardando HTTP até 180s...
+[14:09:33]   wait: HTTP OK em 0s
+[14:09:33] DEVICE BACK ONLINE
+[14:09:35]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:09:35] PASS: device voltou online após OTA
+[14:09:35] 
+[14:09:35] === Step 6: Login com senha preservada ===
+[14:09:35]   tentativa 1: HTTP 200
+[14:09:35] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:09:35] 
+[14:09:35] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:09:36] PASS: 11 campos /api/config preservados
+[14:09:36] 
+[14:09:36] === RESUMO ===
+[14:09:36] PASS: 3   FAIL: 0
+[14:09:36] Log: docs/test_reports/f9_snapshot_v2_20260509-140817.log
+[14:09:36]   iter 17: PASS
+[14:09:36]   iter 17 duração: 79s
+[14:09:36] 
+[14:09:36] ================ ITERAÇÃO 18 / 20 ================
+[14:09:36] === F9 snapshot test v2 — start 20260509-140936 ===
+[14:09:36] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:09:36] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:09:36] 
+[14:09:39] Pre-flight mão: PONG
+[14:09:39] Pre-flight HTTP: OK
+[14:09:39] 
+[14:09:39] === Step 1: Reset admin via Serial CLI ===
+[14:09:46] OTP: 3QP2VNSN
+[14:09:48] 
+[14:09:48] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:09:50] 
+[14:09:50] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:09:51] 
+[14:09:51] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:09:51] Estado pré-OTA:
+[14:09:53]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:09:53] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346594.bkp
+[backup] wrote 5490 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 18s (4 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346594.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:10:44] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:10:44] 
+[14:10:44] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:10:44] Wait único: até 180s pra boot pós-apply...
+[14:10:46]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:10:46]   wait: aguardando HTTP até 180s...
+[14:10:46]   wait: HTTP OK em 0s
+[14:10:46] DEVICE BACK ONLINE
+[14:10:48]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:10:48] PASS: device voltou online após OTA
+[14:10:48] 
+[14:10:48] === Step 6: Login com senha preservada ===
+[14:10:48]   tentativa 1: HTTP 200
+[14:10:48] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:10:48] 
+[14:10:48] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:10:49] PASS: 11 campos /api/config preservados
+[14:10:49] 
+[14:10:49] === RESUMO ===
+[14:10:49] PASS: 3   FAIL: 0
+[14:10:49] Log: docs/test_reports/f9_snapshot_v2_20260509-140936.log
+[14:10:49]   iter 18: PASS
+[14:10:49]   iter 18 duração: 73s
+[14:10:49] 
+[14:10:49] ================ ITERAÇÃO 19 / 20 ================
+[14:10:49] === F9 snapshot test v2 — start 20260509-141049 ===
+[14:10:49] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:10:49] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:10:49] 
+[14:10:52] Pre-flight mão: PONG
+[14:10:52] Pre-flight HTTP: OK
+[14:10:52] 
+[14:10:52] === Step 1: Reset admin via Serial CLI ===
+[14:10:59] OTP: XP8KSA7S
+[14:11:01] 
+[14:11:01] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:11:03] 
+[14:11:03] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:11:04] 
+[14:11:04] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:11:04] Estado pré-OTA:
+[14:11:06]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:11:06] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346667.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.8s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 21s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346667.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:12:00] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:12:00] 
+[14:12:00] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:12:00] Wait único: até 180s pra boot pós-apply...
+[14:12:02]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:12:02]   wait: aguardando HTTP até 180s...
+[14:12:02]   wait: HTTP OK em 0s
+[14:12:02] DEVICE BACK ONLINE
+[14:12:03]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:12:03] PASS: device voltou online após OTA
+[14:12:03] 
+[14:12:03] === Step 6: Login com senha preservada ===
+[14:12:04]   tentativa 1: HTTP 200
+[14:12:04] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:12:04] 
+[14:12:04] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:12:05] PASS: 11 campos /api/config preservados
+[14:12:05] 
+[14:12:05] === RESUMO ===
+[14:12:05] PASS: 3   FAIL: 0
+[14:12:05] Log: docs/test_reports/f9_snapshot_v2_20260509-141049.log
+[14:12:05]   iter 19: PASS
+[14:12:05]   iter 19 duração: 76s
+[14:12:05] 
+[14:12:05] ================ ITERAÇÃO 20 / 20 ================
+[14:12:05] === F9 snapshot test v2 — start 20260509-141205 ===
+[14:12:05] SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[14:12:05] Mão: /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[14:12:05] 
+[14:12:08] Pre-flight mão: PONG
+[14:12:08] Pre-flight HTTP: OK
+[14:12:08] 
+[14:12:08] === Step 1: Reset admin via Serial CLI ===
+[14:12:14] OTP: A9RQHGYG
+[14:12:16] 
+[14:12:16] === Step 2: chpass OTP → 'F9Test@2026' ===
+chpass HTTP 200: {"ok":true}
+[14:12:19] 
+[14:12:19] === Step 3: Login + baseline /api/config ===
+login HTTP 200
+baseline: {
+  "name": "simut",
+  "tz": -3,
+  "ntp_srv": null,
+  "ssid": null,
+  "t_srv": "",
+  "t_port": 80,
+  "t_path": "/api.php",
+  "t_int": 0,
+  "m_topic": "simut/data",
+  "m_user": "",
+  "m_qos": 0
+}
+[14:12:20] 
+[14:12:20] === Step 4: Trigger OTA (stage+commit+apply) ===
+[14:12:20] Estado pré-OTA:
+[14:12:22]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:12:22] 
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778346742.bkp
+[backup] wrote 5514 bytes (5.4 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.7s) {"st":5,"bytes":1043712,"crc32":"2CEDE999","v":0,"dsize":1043712,"dcrc":"2CEDE999","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 22s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778346742.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[14:13:17] ota_apply.py terminou (exit=0 — wait timeout esperado, vamos seguir com nosso wait tolerante)
+[14:13:17] 
+[14:13:17] === Step 5: Espera tolerante (até 4 ciclos × 3-5 min, com resets longos) ===
+[14:13:17] Wait único: até 180s pra boot pós-apply...
+[14:13:18]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:13:18]   wait: aguardando HTTP até 180s...
+[14:13:18]   wait: HTTP OK em 0s
+[14:13:18] DEVICE BACK ONLINE
+[14:13:20]   state: USB=[2e8a:000a 2e8a:f00a ] SIMUT_acm=Y BOOTSEL=N HTTP=Y CLI=Y
+[14:13:20] PASS: device voltou online após OTA
+[14:13:20] 
+[14:13:20] === Step 6: Login com senha preservada ===
+[14:13:21]   tentativa 1: HTTP 200
+[14:13:21] PASS: Login com senha PRESERVADA funcionou — snapshot restaurou users
+[14:13:21] 
+[14:13:21] === Step 7: Compare /api/config preservado ===
+OK: 11 campos preservados
+[14:13:22] PASS: 11 campos /api/config preservados
+[14:13:22] 
+[14:13:22] === RESUMO ===
+[14:13:22] PASS: 3   FAIL: 0
+[14:13:22] Log: docs/test_reports/f9_snapshot_v2_20260509-141205.log
+[14:13:22]   iter 20: PASS
+[14:13:22]   iter 20 duração: 77s
+[14:13:22] 
+[14:13:22] ============== RELATÓRIO FINAL ==============
+[14:13:22] Total iterações: 20
+[14:13:22] PASS:    20 / 20 (100%)
+[14:13:22] FAIL:    0 / 20
+[14:13:22] Recovery: 0 (vezes que precisei flashar baseline antes)
+[14:13:22] Tempo total: 1509s (25 min)
+[14:13:22] Tempo médio por iter: 75s
+[14:13:22] ============================================
+[14:13:22] Log: docs/test_reports/f9_loop20_20260509-134813.log
