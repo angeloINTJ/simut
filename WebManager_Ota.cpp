@@ -154,6 +154,11 @@ void WebManager::handleApiRestoreUploadData() {
         if (is_stage) {
             ota::stage_session_feed(_stageSession, upload.buf, upload.currentSize);
         } else {
+            /* alpha20: RenderGuard pausa Core 1 durante cur_file.write internas.
+             * Sem isso, Core 1 (SPI ILI9341) corre paralelo a flash_program_page
+             * (Core 0) → lockout deadlock → WDT 15s → reboot mid-transfer.
+             * Mesmo padrão de WebManager_Files::_flushUploadBatch. */
+            RenderGuard rg(_restoreSession.mode == ota::RestoreMode::APPLY ? _displayRef : nullptr);
             ota::restore_session_feed(_restoreSession, upload.buf, upload.currentSize);
         }
         feedWatchdog();
