@@ -2,25 +2,29 @@
 # ============================================================================
 # patch.sh — aplica overrides SIMUT no framework arduino-pico do PlatformIO.
 #
-# RAM SAVE: 26 KB (PBUF pool reduzido + BTstack profiles unused removidos +
-#                  HCI conexões 2→1 + TCP/UDP PCBs reduzidos).
+# RAM SAVE: ~18 KB (PBUF_POOL_SIZE 24→12 em lwipopts.h).
+#
+# DESCOBERTA IMPORTANTE (v4.2.1):
+#   PIO compila a maior parte do lwIP DO SOURCE em cada build do projeto, NÃO
+#   da liblwip.a precompilada. Os .o cacheados ficam em
+#   .pio/build/<env>/FrameworkArduino/lwip/src/. Isso significa:
+#     - Patches em lwipopts.h propagam pra próxima build SIMUT (após cache invalidation).
+#     - NÃO é necessário rebuildar liblwip.a / liblwip-bt.a (versão antiga
+#       deste script tentava — caminho errado, complicava sem ganho real).
+#   BTstack ainda É precompilada em liblwip-bt.a — patches em btstack_config.h
+#   exigem rebuild da framework. Mas alterar BTstack quebra cyw43 RSSI sampling,
+#   então NÃO patcheamos BTstack. Mantemos defaults.
 #
 # O QUE FAZ:
 #   1. Detecta path da framework arduino-pico no PIO local.
-#   2. Backup originais (idempotente — só faz se backup ainda não existe).
-#   3. Copia patched headers (lwipopts.h + btstack_config.h).
-#   4. Rebuilda liblwip-rp2040 + liblwip-bt-rp2040 via cmake.
-#   5. Substitui .a no framework lib dir (POST_BUILD do CMakeLists faz isso).
-#   6. Verifica sha256 mudou.
+#   2. Backup originais (idempotente).
+#   3. Copia patched lwipopts.h.
+#   4. Invalida cache PIO em .pio/build/*/FrameworkArduino/lwip/ (próxima build
+#      recompila lwIP do source com novo header).
 #
 # QUANDO RODAR:
 #   - Após primeira instalação do arduino-pico via PlatformIO.
-#   - Após qualquer update do framework (PIO atualiza package, override perde).
-#
-# REQUISITOS:
-#   - cmake 3.12+
-#   - arm-none-eabi-gcc (do toolchain-rp2040-earlephilhower)
-#   - python3
+#   - Após qualquer update do framework via PIO.
 #
 # REVERSÃO:
 #   bash tools/arduino_pico_overrides/restore.sh
@@ -39,49 +43,32 @@ for cand in \
 done
 if [ -z "$FW" ]; then
     echo "ERRO: framework-arduinopico não encontrado em ~/.platformio/packages/"
-    echo "Instale o arduino-pico via PlatformIO primeiro (pio run -e pico_w_release)"
     exit 1
 fi
 echo "[patch] framework: $FW"
 
-TC="$HOME/.platformio/packages/toolchain-rp2040-earlephilhower/bin"
-[ -x "$TC/arm-none-eabi-gcc" ] || { echo "ERRO: toolchain-rp2040-earlephilhower não instalado"; exit 1; }
-
 # 1. Backup originais (só se ainda não existem)
-if [ ! -f "$OVR/originals/lwipopts.h" ] || [ ! -f "$OVR/originals/btstack_config.h" ]; then
+if [ ! -f "$OVR/originals/lwipopts.h" ]; then
     mkdir -p "$OVR/originals"
-    cp -v "$FW/include/lwipopts.h"        "$OVR/originals/"
-    cp -v "$FW/include/btstack_config.h"  "$OVR/originals/"
-    cp -v "$FW/lib/rp2040/liblwip.a"      "$OVR/originals/"
-    cp -v "$FW/lib/rp2040/liblwip-bt.a"   "$OVR/originals/"
-    echo "[patch] originais salvos em $OVR/originals/"
+    cp -v "$FW/include/lwipopts.h" "$OVR/originals/"
+    echo "[patch] original salvo em $OVR/originals/"
 else
-    echo "[patch] originais já estão em $OVR/originals/ — preservando"
+    echo "[patch] original lwipopts.h já está em $OVR/originals/ — preservando"
 fi
 
-# 2. Copia headers patched
-echo "[patch] aplicando patched_headers/"
-cp -v "$OVR/patched_headers/lwipopts.h"        "$FW/include/"
-cp -v "$OVR/patched_headers/btstack_config.h"  "$FW/include/"
+# 2. Copia patched lwipopts.h
+echo "[patch] aplicando patched lwipopts.h"
+cp -v "$OVR/patched_headers/lwipopts.h" "$FW/include/"
 
-# 3. Rebuild liblwip + liblwip-bt para rp2040
-echo "[patch] rebuild liblwip-rp2040 + liblwip-bt-rp2040..."
-cd "$FW/tools/libpico"
-rm -rf build-rp2040
-mkdir build-rp2040
-cd build-rp2040
-export PATH="$TC:$PATH"
-export PICO_SDK_PATH="$FW/pico-sdk"
-CPU=rp2040 cmake .. > /tmp/simut_cmake.log 2>&1 || { echo "ERRO cmake — log em /tmp/simut_cmake.log"; tail -20 /tmp/simut_cmake.log; exit 1; }
-make -j"$(nproc)" lwip-rp2040 lwip-bt-rp2040 > /tmp/simut_make.log 2>&1 || { echo "ERRO make — log em /tmp/simut_make.log"; tail -30 /tmp/simut_make.log; exit 1; }
-echo "[patch] build OK"
+# 3. Invalida cache PIO (apenas lwip src)
+for build in "$ROOT/.pio/build"/*/FrameworkArduino/lwip; do
+    if [ -d "$build" ]; then
+        rm -rf "$build"
+        echo "[patch] cache invalidado: $build"
+    fi
+done
 
-# 4. CMakeLists POST_BUILD já fez cp pra $FW/lib/rp2040/. Verifica.
 echo ""
-echo "[patch] sha256 NEW vs ORIG:"
-sha256sum "$FW/lib/rp2040/liblwip.a" "$OVR/originals/liblwip.a" "$FW/lib/rp2040/liblwip-bt.a" "$OVR/originals/liblwip-bt.a"
-
-cd "$ROOT"
-echo ""
-echo "[patch] DONE. Próximo build de SIMUT vai usar libs slim (~26 KB save em BSS)."
+echo "[patch] DONE. Próximo \`pio run\` recompila lwIP com PBUF_POOL_SIZE=12."
+echo "[patch] RAM esperada: ~36.7% (save 18 KB BSS no memp_PBUF_POOL_base)."
 echo "[patch] Reverter: bash tools/arduino_pico_overrides/restore.sh"

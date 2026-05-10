@@ -35,7 +35,9 @@ extern unsigned long __lwip_rand(void);
 #define MEMP_NUM_TCP_SEG              (32)
 #define MEMP_NUM_ARP_QUEUE            (10)
 /* SIMUT patch: 24 → 12 (save ~18 KB BSS). 1-2 conexões TCP simultâneas no
- * device típico — não satura mesmo com 12 envelopes pré-alocados. */
+ * device típico — não satura mesmo com 12 envelopes pré-alocados. UDP/BT
+ * defaults preservados (reduzir UDP_PCB quebra mDNS, BT changes quebram
+ * RSSI via cyw43 chip compartilhado). */
 #define PBUF_POOL_SIZE                (__LWIP_MEMMULT > 1 ? 32 : 12)
 #define LWIP_ARP                      7
 #define LWIP_ETHERNET                 1
@@ -68,10 +70,8 @@ extern unsigned long __lwip_rand(void);
 #define MDNS_MAX_SERVICES             4
 
 // See #1285
-/* SIMUT patch: UDP 7→2 (NTP+DNS+DHCP=3, mais que suficiente),
- *              TCP 5→3 (web+telemetria+MQTT=3). */
-#define MEMP_NUM_UDP_PCB              (__LWIP_MEMMULT * 2)
-#define MEMP_NUM_TCP_PCB              (__LWIP_MEMMULT * 3)
+#define MEMP_NUM_UDP_PCB              (__LWIP_MEMMULT * 7)
+#define MEMP_NUM_TCP_PCB              (__LWIP_MEMMULT * 5)
 
 #if LWIP_IPV6
 #define LWIP_IPV6_DHCP6               1

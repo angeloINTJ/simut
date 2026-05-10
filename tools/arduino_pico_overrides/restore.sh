@@ -2,9 +2,9 @@
 # ============================================================================
 # restore.sh — reverte overrides SIMUT do framework arduino-pico.
 #
-# Restaura headers + .a files originais a partir de tools/arduino_pico_overrides/
-# originals/. Use se quiser comparar comportamento com framework virgin ou se
-# tiver problemas atribuíveis ao patch.
+# Restaura lwipopts.h original + invalida cache PIO. Próximo `pio run` volta
+# pra config virgin (PBUF_POOL_SIZE=24, RAM ~43.7% com screenshot heap-alloc
+# ainda no código SIMUT, ou ~49.6% original sem nenhum patch).
 # ============================================================================
 set -e
 cd "$(dirname "$0")/../.."
@@ -22,8 +22,14 @@ done
 [ -f "$OVR/originals/lwipopts.h" ] || { echo "ERRO: $OVR/originals/lwipopts.h não existe"; exit 1; }
 
 echo "[restore] revertendo overrides..."
-cp -v "$OVR/originals/lwipopts.h"        "$FW/include/"
-cp -v "$OVR/originals/btstack_config.h"  "$FW/include/"
-cp -v "$OVR/originals/liblwip.a"         "$FW/lib/rp2040/"
-cp -v "$OVR/originals/liblwip-bt.a"      "$FW/lib/rp2040/"
-echo "[restore] DONE — framework virgin. Próximo SIMUT build voltará a 49.6% RAM."
+cp -v "$OVR/originals/lwipopts.h" "$FW/include/"
+
+# Invalida cache PIO
+for build in "$ROOT/.pio/build"/*/FrameworkArduino/lwip; do
+    if [ -d "$build" ]; then
+        rm -rf "$build"
+        echo "[restore] cache invalidado: $build"
+    fi
+done
+
+echo "[restore] DONE — framework virgin. Próximo pio run recompila lwIP com defaults."
