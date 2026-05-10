@@ -312,6 +312,13 @@ private:
      * o slot da app. */
     void handleApiOtaApply();
     ota::RestoreSession _restoreSession;
+    /* F-RESTORE fix: Core 1 paused durante TODA a sessão de upload
+     * /api/restore?op=apply (1 lockout no START, 1 unlock no END/ABORTED).
+     * Antes era RenderGuard recriado por chunk → centenas de
+     * multicore_lockout_start_timeout que ocasionalmente deadlockam quando
+     * Core 1 está em IRQ-bloqueado state (DSP guard reseta Core 1 →
+     * restore corrompe mid-write). */
+    bool _restoreCorePaused = false;
 
     /* Fase 5 OTA: upload do firmware .bin.gz pra staging via
      * /api/restore?op=stage. Sessão dedicada (mutuamente exclusiva com

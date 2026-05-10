@@ -24,6 +24,7 @@
 #include "ota/orchestrator.h"
 #include <Print.h>
 #include <time.h>
+#include <hardware/watchdog.h>
 
 /* Adapter Print → WebManager::safeSend (declarado friend em WebManager.h). */
 struct OtaBackupPrintAdapter : public Print {
@@ -149,16 +150,21 @@ void WebManager::handleApiRestoreUploadData() {
             ota::RestoreMode mode = (_server.arg("op") == "apply")
                 ? ota::RestoreMode::APPLY : ota::RestoreMode::VALIDATE;
             ota::restore_session_begin(_restoreSession, mode);
+            /* F-RESTORE fix: pausa Core 1 UMA vez no início da sessão apply
+             * (em vez de RenderGuard por chunk). Spans inteira upload →
+             * único lockout transition → muito menos chance de deadlock. */
+            if (mode == ota::RestoreMode::APPLY && _displayRef && !_restoreCorePaused) {
+                _displayRef->pauseRendering(true);
+                _restoreCorePaused = true;
+            }
         }
     } else if (upload.status == UPLOAD_FILE_WRITE) {
         if (is_stage) {
             ota::stage_session_feed(_stageSession, upload.buf, upload.currentSize);
         } else {
-            /* alpha20: RenderGuard pausa Core 1 durante cur_file.write internas.
-             * Sem isso, Core 1 (SPI ILI9341) corre paralelo a flash_program_page
-             * (Core 0) → lockout deadlock → WDT 15s → reboot mid-transfer.
-             * Mesmo padrão de WebManager_Files::_flushUploadBatch. */
-            RenderGuard rg(_restoreSession.mode == ota::RestoreMode::APPLY ? _displayRef : nullptr);
+            /* Core 1 já está paused desde o START (ver F-RESTORE fix acima).
+             * Sem RenderGuard recriado por chunk — economia de centenas de
+             * lockout cycles que ocasionalmente deadlockam. */
             ota::restore_session_feed(_restoreSession, upload.buf, upload.currentSize);
         }
         feedWatchdog();
@@ -168,11 +174,24 @@ void WebManager::handleApiRestoreUploadData() {
         if (is_stage) {
             ota::stage_session_end(_stageSession);
         }
+        /* Resume Core 1 ANTES do finish handler (que vai emitir resposta JSON
+         * e — se OK — disparar safeReboot). Display volta a renderizar
+         * brevemente (mostra "Aplicando restore..." se Fix B chamar
+         * setBootStatusKey antes do safeReboot). */
+        if (_restoreCorePaused && _displayRef) {
+            _displayRef->pauseRendering(false);
+            _restoreCorePaused = false;
+        }
     } else if (upload.status == UPLOAD_FILE_ABORTED) {
         if (is_stage) {
             ota::stage_session_abort(_stageSession);
         } else {
             ota::restore_session_abort(_restoreSession);
+        }
+        /* Cleanup do lockout em path de erro também. */
+        if (_restoreCorePaused && _displayRef) {
+            _displayRef->pauseRendering(false);
+            _restoreCorePaused = false;
         }
     }
 }
@@ -300,14 +319,36 @@ void WebManager::handleApiRestoreFinish() {
         return;
     }
     if (is_apply && rejectIfTouchPriority()) return;
+    /* F-RESTORE: Core 1 já está paused desde UPLOAD_FILE_START (apply mode).
+     * Defensivo: se por algum motivo UPLOAD_FILE_END não rodou (cliente
+     * timeout/abort estranho), garante que estamos protegidos aqui também.
+     * Self-balanced via _restoreCorePaused flag. */
+    bool need_local_pause = is_apply && !_restoreCorePaused && _displayRef;
+    if (need_local_pause) {
+        _displayRef->pauseRendering(true);
+        _restoreCorePaused = true;
+    }
     bool fs_mod = false;
-    {
-        RenderGuard rg(is_apply ? _displayRef : nullptr);
-        ota::restore_session_finish(_restoreSession, &fs_mod);
+    ota::restore_session_finish(_restoreSession, &fs_mod);
+    if (_restoreCorePaused && _displayRef) {
+        _displayRef->pauseRendering(false);
+        _restoreCorePaused = false;
     }
     LOG_CODE(is_apply ? LOG_WARN : LOG_INFO, "OTA", WEB_UPLOAD,
              (int)_restoreSession.status, is_apply ? "rsta" : "rstv");
     emit_restore_json(_server, _restoreSession, fs_mod);
+
+    /* F-RESTORE fix: auto-reboot pós-apply OK. Sem isso, restore escreve
+     * arquivos em LFS mas runtime fica com caches stale — usuário precisava
+     * RESET manual. Mesma sequência do commit-all. */
+    if (is_apply && fs_mod && _restoreSession.status == ota::BackupStatus::OK) {
+        _server.client().stop();
+        if (_displayRef) {
+            _displayRef->setBootStatusKey(TR_BOOT_APPLYING_CFG);
+            for (int i = 0; i < 10; i++) { delay(100); watchdog_update(); }
+        }
+        LogManager::instance().safeReboot();
+    }
 }
 
 /* ===========================================================================

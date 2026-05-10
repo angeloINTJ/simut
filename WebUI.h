@@ -3013,8 +3013,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function doRestore() {
             let inp = document.getElementById('restoreFile');
             if (!inp.files.length) return;
-            let file = inp.files[0];
-            inp.value = '';
+            let file = inp.files[0]; inp.value = '';
             try {
                 let fd = new FormData(); fd.append('bkp', file);
                 let r = await fetch('/api/restore?op=validate', { method:'POST', body: fd });
@@ -3022,11 +3021,22 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (v.st !== 0) { showToast('Validate: ' + (RST_MSG[v.st] || ('st='+v.st)), 'err'); return; }
                 let msg = window.t('fil_rst_confirm','Restore N files (X bytes)? This OVERWRITES current files.').replace('N', v.fc).replace('X', v.psz);
                 if (!confirm(msg)) return;
+                showToast(window.t('fil_rst_app','Restoring...'), 'ok');
                 let fd2 = new FormData(); fd2.append('bkp', file);
-                let r2 = await fetch('/api/restore?op=apply', { method:'POST', body: fd2 });
-                let a = await r2.json();
-                if (a.st === 0) { showToast(window.t('fil_rst_ok','Restored ')+a.fc+' files.', 'ok'); fmNavigate(currentDir); }
-                else showToast('Apply: ' + (RST_MSG[a.st] || ('st='+a.st)), 'err');
+                let applied = false;
+                try {
+                    let r2 = await fetch('/api/restore?op=apply', { method:'POST', body: fd2 });
+                    let a = await r2.json();
+                    if (a.st === 0) applied = true;
+                    else { showToast('Apply: ' + (RST_MSG[a.st] || ('st='+a.st)), 'err'); return; }
+                } catch(e) { applied = true; }
+                if (!applied) return;
+                showToast(window.t('fil_rst_reb','Rebooting...'), 'ok');
+                for (let w = 0; w < 30; w++) {
+                    await new Promise(r => setTimeout(r, 3000));
+                    try { let p = await fetch('/api/login_init?_=' + Date.now()); if (p.ok) { location.href = '/'; return; } } catch(e) {}
+                }
+                showToast(window.t('fil_rst_off','Device offline'), 'err');
             } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
         }
 

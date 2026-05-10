@@ -311,7 +311,14 @@ OTA endpoints (F-OTA fase fechada em v3.45.0; loop20 100% PASS, 0 bricks):
   chip_id. Read-only mas expõe todo conteúdo do FS, então perm = leitura.
 - `POST /api/restore?op=validate|apply` (`PERM_FILE_READ` para validate,
   `PERM_FILE_UPLOAD` para apply) — apply é destrutivo (sobrescreve
-  arquivos restaurados do `.bkp`); chip_id deve bater.
+  arquivos restaurados do `.bkp`); chip_id deve bater. F-RESTORE fechado em
+  v4.1.0 (98/100 PASS no loop_real, 0 ConnResets, integridade 100% — ver
+  `docs/F_RESTORE_BUGS.md`). Apply é AUTO-REBOOT: após escrever LFS, device
+  chama `LogManager::safeReboot()` para recarregar caches stale (display,
+  sensor loader, theme). Cliente recebe 200 OK ou ConnectionReset (ambos
+  válidos — UI `doRestore` em `WebUI.h` polla `/api/login_init` por até 90s
+  após apply pra confirmar boot). Core 1 fica paused durante todo o upload
+  (1 lockout transition em vez de 1-per-chunk, evitando deadlock).
 - `POST /api/restore?op=stage` (`PERM_FILE_UPLOAD`) — destrutivo
   (apaga 1 MB da LFS para receber `.bin` RAW do firmware). Só admin.
   Pré-check de perm em `UPLOAD_FILE_START` antes da erasure. Validation

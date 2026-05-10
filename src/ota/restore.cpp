@@ -221,10 +221,19 @@ static void on_path_complete(RestoreSession& s) {
         fail(s, BackupStatus::PATH_INVALID); return;
     }
     if (s.mode == RestoreMode::APPLY) {
-        /* Escreve direto no path final (sem rename). Ver commit_all_tmps. */
+        /* Escreve direto no path final (sem rename). Ver commit_all_tmps.
+         *
+         * F-RESTORE fix: feed WDT antes de cada operação que pode triggerar
+         * GC do LittleFS (mkdir, open com truncate). Sob LFS fragmentado
+         * (>70%), GC interno bloqueia por segundos. Em backup com 32 arquivos
+         * o tempo total acumulado excedia WDT 8s e o restore perdia o tail
+         * do payload (lang/themes/últimos history). */
+        watchdog_update();
         ensure_parent_dirs(s.cur_path);
+        watchdog_update();
         if (s.cur_file) s.cur_file.close();
         s.cur_file = LittleFS.open(s.cur_path, "w");
+        watchdog_update();
         if (!s.cur_file) { fail(s, BackupStatus::IO_ERROR); return; }
         /* Tracking: para rollback em CRC mismatch deletamos os escritos. */
         if (!tmp_list_add(s.cur_path)) { fail(s, BackupStatus::IO_ERROR); return; }
