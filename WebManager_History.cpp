@@ -859,6 +859,31 @@ void WebManager::handleApiClearLogs() {
     _server.send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
+/* v4.2.3: helper compartilhado por handleApiScreenshot + handleApiScreenshotChunk.
+ * Lê N rows do TFT (3× cada com majority vote) e converte RGB565→BGR888 em
+ * out_bgr. chunk_start_bmp_y é o offset NA IMAGEM BMP (bottom-up), display_y
+ * é mapeado pra ordem TFT (top-down). Caller é responsável por pause/unpause
+ * de Core 1 envolvendo a chamada. */
+static void read_chunk_bgr(DisplayManager* d, int chunk_start_bmp_y,
+                           int rows_this, int w, int h, uint8_t* out_bgr) {
+    uint16_t pixelRow1[320], pixelRow2[320], pixelRow3[320];
+    for (int i = 0; i < rows_this; i++) {
+        int display_y = h - 1 - (chunk_start_bmp_y + i);
+        if (display_y < 0) break;
+        d->readRow(display_y, pixelRow1, w);
+        d->readRow(display_y, pixelRow2, w);
+        d->readRow(display_y, pixelRow3, w);
+        uint8_t* row_dst = out_bgr + i * w * 3;
+        for (int x = 0; x < w; x++) {
+            uint16_t a = pixelRow1[x], b = pixelRow2[x], c = pixelRow3[x];
+            uint16_t color = (a == b) ? a : (b == c ? b : (a == c ? a : b));
+            row_dst[x*3 + 0] = (color & 0x001F) << 3;        /* B */
+            row_dst[x*3 + 1] = ((color & 0x07E0) >> 5) << 2; /* G */
+            row_dst[x*3 + 2] = ((color & 0xF800) >> 11) << 3;/* R */
+        }
+    }
+}
+
 void WebManager::handleApiScreenshot() {
     uint16_t perms = getAuthPerms();
     if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
@@ -910,40 +935,33 @@ void WebManager::handleApiScreenshot() {
     _server.send(200, "image/bmp", "");
     safeSend((const char*)bmpHeader, 54);
 
-    uint8_t rowBuffer[960];
-    uint16_t pixelRow[320];
+    /* v4.2.3: refactor pra eliminar perda/corrupção de rows.
+     * ANTES: pause/unpause Core 1 a cada 1 das 240 rows, sem multi-sample.
+     * Causava drift inter-row + ILI9341 SPI read flaky.
+     * AGORA: pattern do screenshot_chunk — pause 1× por 16 rows, lê cada
+     * row 3× com majority vote (helper read_chunk_bgr), stream em chunks. */
+    constexpr int ROWS_PER_CHUNK = 16;
+    uint8_t* chunkBuf = (uint8_t*)malloc(ROWS_PER_CHUNK * 320 * 3);  /* 15360 */
+    if (!chunkBuf) {
+        __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
+        _handlerDeadline = savedDeadline;
+        return;
+    }
     bool clientDisconnected = false;
-
-    for (int y = h - 1; y >= 0; y--) {
-
-
-        _displayRef->pauseRendering(true);
-        _displayRef->readRow(y, pixelRow, w);
-        _displayRef->pauseRendering(false);
-
-
-        for (int x = 0; x < (int)w; x++) {
-            uint16_t color = pixelRow[x];
-            rowBuffer[x*3 + 0] = (color & 0x001F) << 3;
-            rowBuffer[x*3 + 1] = ((color & 0x07E0) >> 5) << 2;
-            rowBuffer[x*3 + 2] = ((color & 0xF800) >> 11) << 3;
-        }
-
+    for (int chunk_start = 0; chunk_start < (int)h; chunk_start += ROWS_PER_CHUNK) {
+        int rows_this = ((int)h - chunk_start < ROWS_PER_CHUNK) ? ((int)h - chunk_start) : ROWS_PER_CHUNK;
         if (!_server.client().connected() || isHandlerOvertime() || _cancelScreenshot) {
-            clientDisconnected = true;
-            break;
+            clientDisconnected = true; break;
         }
-
-        safeSend((const char*)rowBuffer, 960);
-
-
-        if (y % 4 == 0) {
-            watchdog_update();
-            if (_lightYieldCb) _lightYieldCb();
-            delay(1);
-        }
+        _displayRef->pauseRendering(true);
+        read_chunk_bgr(_displayRef, chunk_start, rows_this, w, h, chunkBuf);
+        _displayRef->pauseRendering(false);
+        watchdog_update();
+        safeSend((const char*)chunkBuf, rows_this * 320 * 3);
+        if (_lightYieldCb) _lightYieldCb();
     }
 
+    free(chunkBuf);
     __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
     _handlerDeadline = savedDeadline;
     if (clientDisconnected) LOG_CODE(LOG_WARN, "WEB", WEB_SCREENSHOT_ABORTED, 0, "");
@@ -1008,34 +1026,12 @@ void WebManager::handleApiScreenshotChunk() {
         _server.send(503, "text/plain", "Out of memory");
         return;
     }
-    uint16_t pixelRow1[W], pixelRow2[W], pixelRow3[W];
-
-    /* v3.44.0-alpha19: multi-sample readRow (3x) + median per pixel.
-     * ILI9341 read protocol notoriamente frágil: stale data, byte alignment
-     * issues, timing race. CRC32 valida transit mas pixels do TFT podem
-     * já vir corrompidos. Lê cada row 3x e pega valor majoritário (se 2/3
-     * concordam) ou primeiro valor. Reduz line defects em ~95%. */
+    /* v3.44.0-alpha19 + v4.2.3: multi-sample 3x + majority vote via helper
+     * read_chunk_bgr (compartilhado com handleApiScreenshot full). ILI9341
+     * read protocol é frágil; lê cada row 3x e pega valor majoritário (2/3),
+     * fallback no sample do meio. Reduz line defects em ~95%. */
     _displayRef->pauseRendering(true);
-
-    for (int i = 0; i < rows_this; i++) {
-        int display_y = H - 1 - (row_start + i);
-        if (display_y < 0) break;
-
-        /* Lê 3x o mesmo row */
-        _displayRef->readRow(display_y, pixelRow1, W);
-        _displayRef->readRow(display_y, pixelRow2, W);
-        _displayRef->readRow(display_y, pixelRow3, W);
-
-        uint8_t* row_dst = payload + i * W * 3;
-        for (int x = 0; x < W; x++) {
-            uint16_t a = pixelRow1[x], b = pixelRow2[x], c = pixelRow3[x];
-            /* Majority vote: se 2/3 concordam, usa esse valor; senão usa b (mid). */
-            uint16_t color = (a == b) ? a : (b == c ? b : (a == c ? a : b));
-            row_dst[x*3 + 0] = (color & 0x001F) << 3;        /* B */
-            row_dst[x*3 + 1] = ((color & 0x07E0) >> 5) << 2; /* G */
-            row_dst[x*3 + 2] = ((color & 0xF800) >> 11) << 3;/* R */
-        }
-    }
+    read_chunk_bgr(_displayRef, row_start, rows_this, W, H, payload);
     _displayRef->pauseRendering(false);
     watchdog_update();
 
