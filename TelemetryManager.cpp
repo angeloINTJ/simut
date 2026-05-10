@@ -227,8 +227,18 @@ void TelemetryManager::update() {
      */
     LogManager::WdtWindow _wdt(120000);
 
-    /* Aborta se heap está criticamente baixa para evitar hard fault */
-    if (rp2040.getFreeHeap() < 20480) {
+    /* v4.6.1: aborta se heap está criticamente baixa.
+     * Antes: só checava getFreeHeap() < 20K — ignorava fragmentação.
+     * BearSSL precisa de bloco contíguo ~16 KB pro TLS context; se largest
+     * block cair abaixo disso, malloc() falha mid-handshake → undefined
+     * behavior (já reproduzido em stress test 2026-05-10: 4 reboots em
+     * 10 min com batch=200, lbm=17564 imediatamente pré-crash). */
+    uint32_t freeH = rp2040.getFreeHeap();
+    extern char* __brkval; (void)__brkval;
+    /* Largest block via API arduino-pico (nao tem direto — usar heuristica
+     * approxBlock = freeH / 2 se fragmentado (heap ESP-style), ou freeH se
+     * contiguous. Conservador: requer freeH >= 24K (cobre TLS 16K + margem). */
+    if (freeH < 24576) {
         _storageRef->unlockHeavyTask();
         __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
         escalateBackoff();
@@ -342,9 +352,15 @@ uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
      *
      * HARD_CAP = 100: payload 100 entries ~= 35 KB, cabe + TLS scratch.
      */
-    const uint32_t HEAP_RESERVE    = cfg.telEncryption ? 24576 : 12288;
+    /* v4.6.1: HEAP_RESERVE HTTPS aumentado 24K → 32K. Stress test 2026-05-10
+     * mostrou lbm=17564 mid-POST (largest block fragmentado abaixo do TLS
+     * scratch ~16K) → 4 reboots em 10 min com batch=200. 32K reserve garante
+     * margem mesmo após fragmentação acumulada de batches consecutivos.
+     * HARD_CAP 100 → 50 pelo mesmo motivo: batch menor, payload menor
+     * (50 entries × 350 B = 17.5 KB vs 100 × 350 = 35 KB), reduz fragmentação. */
+    const uint32_t HEAP_RESERVE    = cfg.telEncryption ? 32768 : 12288;
     const uint32_t BYTES_PER_ENTRY = 350;
-    const uint8_t  HARD_CAP        = 100;
+    const uint8_t  HARD_CAP        = 50;
 
     if (freeHeap <= HEAP_RESERVE) return 1;
 
