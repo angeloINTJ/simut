@@ -2942,7 +2942,9 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function fetchPerms() {
             try { let r = await fetchSafe('/api/perms'); let d = await r.json(); permsVal = d.perms; } catch(e) { }
             if (permsVal & 128) document.getElementById('btnDel').style.display = '';
-            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; document.getElementById('btnRestore').style.display = ''; document.getElementById('btnFw').style.display = ''; }
+            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; document.getElementById('btnRestore').style.display = ''; }
+            /* v4.2.2: Firmware OTA é admin-only (perms == 0xFFFF) — destrutivo irreversível. */
+            if (permsVal === 65535) { document.getElementById('btnFw').style.display = ''; }
         }
 
         function fmFormatSize(bytes) { if (bytes === 0) return '—'; if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / 1048576).toFixed(2) + ' MB'; }

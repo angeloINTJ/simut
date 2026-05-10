@@ -139,9 +139,10 @@ void WebManager::handleApiRestoreUploadData() {
     bool is_stage = (_server.arg("op") == "stage");
     if (upload.status == UPLOAD_FILE_START) {
         if (is_stage) {
-            /* Pre-check perm: sem ela, não desmonta LFS. _stageSession.status
-             * fica IDLE; feed/end ignoram silenciosamente; finish responde 403. */
-            if (getAuthPerms() & PERM_FILE_UPLOAD) {
+            /* Pre-check perm ADMIN-ONLY (v4.2.2): OTA stage apaga 1 MB de
+             * flash — só admin pode disparar. Sem perm, não desmonta LFS;
+             * status fica IDLE; finish responde 403. */
+            if (getAuthPerms() == PERM_FULL_ADMIN) {
                 ota::stage_session_begin(_stageSession, _storageRef);
             } else {
                 _stageSession.status = ota::StageStatus::IDLE;
@@ -231,8 +232,9 @@ void WebManager::handleApiRestoreFinish() {
     bool is_apply = (op == "apply");
 
     if (is_stage) {
-        if (!(getAuthPerms() & PERM_FILE_UPLOAD)) {
-            _server.send(403, "text/plain", "Forbidden");
+        /* OTA stage finish: ADMIN-ONLY (v4.2.2). */
+        if (getAuthPerms() != PERM_FULL_ADMIN) {
+            _server.send(403, "text/plain", "Forbidden — admin only");
             return;
         }
         bool ok_staged = (_stageSession.status == ota::StageStatus::STAGED);
@@ -365,8 +367,9 @@ void WebManager::handleApiRestoreFinish() {
  * Só admin pode rodar.
  * ========================================================================= */
 void WebManager::handleApiOtaStagingTest() {
-    if (!(getAuthPerms() & PERM_FILE_UPLOAD)) {
-        _server.send(403, "text/plain", "Forbidden");
+    /* OTA staging selftest: DESTRUTIVO (apaga 1 MB) — ADMIN-ONLY (v4.2.2). */
+    if (getAuthPerms() != PERM_FULL_ADMIN) {
+        _server.send(403, "text/plain", "Forbidden — admin only");
         return;
     }
     if (rejectIfTouchPriority()) return;
@@ -426,8 +429,9 @@ void WebManager::handleApiOtaStagingTest() {
  *   - Retry guard: rejeita se outra apply foi disparada nos últimos 10s.
  * ========================================================================= */
 void WebManager::handleApiOtaApply() {
-    if (!(getAuthPerms() & PERM_FILE_UPLOAD)) {
-        _server.send(403, "text/plain", "Forbidden");
+    /* OTA apply: DESTRUTIVO IRREVERSÍVEL — ADMIN-ONLY (v4.2.2). */
+    if (getAuthPerms() != PERM_FULL_ADMIN) {
+        _server.send(403, "text/plain", "Forbidden — admin only");
         return;
     }
     if (rejectIfTouchPriority()) return;

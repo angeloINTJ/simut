@@ -319,12 +319,12 @@ OTA endpoints (F-OTA fase fechada em v3.45.0; loop20 100% PASS, 0 bricks):
   válidos — UI `doRestore` em `WebUI.h` polla `/api/login_init` por até 90s
   após apply pra confirmar boot). Core 1 fica paused durante todo o upload
   (1 lockout transition em vez de 1-per-chunk, evitando deadlock).
-- `POST /api/restore?op=stage` (`PERM_FILE_UPLOAD`) — destrutivo
-  (apaga 1 MB da LFS para receber `.bin` RAW do firmware). Só admin.
+- `POST /api/restore?op=stage` (**ADMIN-ONLY** desde v4.2.2 — `getAuthPerms() == PERM_FULL_ADMIN`)
+  — destrutivo (apaga 1 MB da LFS para receber `.bin` RAW do firmware).
   Pré-check de perm em `UPLOAD_FILE_START` antes da erasure. Validation
   dry-run roda em `op=stage&commit=1`: tamanho range + boot2 CRC-32/MPEG-2
   (raw-only desde v3.43.3 — gzip path removido em v3.44.0-alpha2).
-- `POST /api/ota/apply` (`PERM_FILE_UPLOAD`) — DESTRUTIVO IRREVERSÍVEL:
+- `POST /api/ota/apply` (**ADMIN-ONLY** desde v4.2.2) — DESTRUTIVO IRREVERSÍVEL:
   copia staging→app slot, watchdog reboot. Snapshot de `/config/system.bin`
   preservado via `OTA_SNAPSHOT_OFFSET` (último setor da staging area)
   e restaurado em `StorageManager::begin` pós-apply (chpass, users,
