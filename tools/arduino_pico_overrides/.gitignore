@@ -1,0 +1,4 @@
+# originals/ é populado pelo patch.sh no primeiro run a partir da framework
+# arduino-pico instalada localmente. Não commitar — depende da versão do
+# framework e tem ~6.7 MB de .a binários.
+originals/

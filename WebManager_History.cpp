@@ -998,8 +998,16 @@ void WebManager::handleApiScreenshotChunk() {
     int rows_this = (row_start + ROWS_PER_CHUNK > H) ? (H - row_start) : ROWS_PER_CHUNK;
     int payload_size = rows_this * W * 3;
 
-    /* Buffer temporário pra rows (16 rows * 320 cols * 3 bytes = 15360 max) */
-    static uint8_t payload[ROWS_PER_CHUNK * W * 3];  /* static = não estoura stack */
+    /* Buffer temporário pra rows (16 rows × 320 cols × 3 bytes = 15360 max).
+     * v4.2.0: heap-alloc on demand em vez de static BSS — economiza 15 KB
+     * permanentes (endpoint usado raramente: debug + manual capture). Falha
+     * com 503 se heap insuficiente; cliente pode tentar de novo. */
+    uint8_t* payload = (uint8_t*)malloc(ROWS_PER_CHUNK * W * 3);
+    if (!payload) {
+        _handlerDeadline = savedDeadline;
+        _server.send(503, "text/plain", "Out of memory");
+        return;
+    }
     uint16_t pixelRow1[W], pixelRow2[W], pixelRow3[W];
 
     /* v3.44.0-alpha19: multi-sample readRow (3x) + median per pixel.
@@ -1047,6 +1055,7 @@ void WebManager::handleApiScreenshotChunk() {
     safeSend((const char*)hdr, 12);
     safeSend((const char*)payload, payload_size);
 
+    free(payload);
     _handlerDeadline = savedDeadline;
 }
 
