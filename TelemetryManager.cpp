@@ -194,7 +194,22 @@ void TelemetryManager::update() {
     uint32_t now = millis();
 
     if (_consecutiveFails > 0 && now < _backoffUntil) return;
-    if (_consecutiveFails == 0 && (now - _lastCheckTime < cfg.telInterval)) return;
+    /* v4.3.0 F-TEL-ADAPTIVE: intervalo efetivo dinâmico inline.
+     * Pisos: cfg.telInterval. Tetos: smoothed_latency × 1.5 (evita queue
+     * buildup quando server lento). Penalidade RSSI: <-85 ×2, <-75 ×1.5.
+     * Cap final 60s. */
+    uint32_t effectiveInt = cfg.telInterval;
+    if (_smoothedLatencyMs > 0) {
+        uint32_t lf = (_smoothedLatencyMs * 3) / 2;
+        if (lf > effectiveInt) effectiveInt = lf;
+    }
+    int32_t rssi = _netRef ? _netRef->getRssi() : 0;
+    if (rssi < -85 && rssi > -100) effectiveInt *= 2;
+    else if (rssi < -75)           effectiveInt = (effectiveInt * 3) / 2;
+    if (effectiveInt > 60000) effectiveInt = 60000;
+    if (effectiveInt < cfg.telInterval) effectiveInt = cfg.telInterval;
+    _effectiveIntervalMs = effectiveInt;
+    if (_consecutiveFails == 0 && (now - _lastCheckTime < effectiveInt)) return;
 
 
     /* CAS atômico: impede race entre update() periódico e forceSync() CLI */
@@ -307,6 +322,10 @@ void TelemetryManager::update() {
  * @param configured  Limite máximo configurado pelo usuário.
  * @return            Limite efetivo (≥1, ≤configured).
  */
+/* v4.3.0 F-TEL-ADAPTIVE: lógica inline no update(). Sem accessor exposto
+ * (API exposure custou 16 KB flash inexplicavelmente — chain template?).
+ * UI pode ainda observar latência via metr.tl + RSSI via metr.rmn. */
+
 uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
     SystemConfig& cfg = _storageRef->getConfig();
     uint32_t freeHeap = rp2040.getFreeHeap();
@@ -561,6 +580,10 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
                 m.telSent++;
                 m.telTotalBytes += (uint32_t)payload.length();
                 m.telLastLatencyMs = postLatency;
+                /* v4.3.0 EMA inline: 0.7 × prev + 0.3 × observed (alpha=0.3) */
+                _smoothedLatencyMs = (_smoothedLatencyMs == 0)
+                    ? postLatency
+                    : (_smoothedLatencyMs * 7 + (uint32_t)postLatency * 3) / 10;
             }
         } else {
             LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, code, String(TRL("HTTP error: ")) + http.errorToString(code));

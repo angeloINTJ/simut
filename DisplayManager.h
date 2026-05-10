@@ -165,6 +165,10 @@ public:
     void endBoot();
 
     void forceDashboard();
+    /* v4.2.4: reseta o timer de idle touch (30s → forceDashboard guard).
+     * Usado por CLI 'screen NAME' pra que a tela forçada permaneça
+     * estável durante a captura via /api/screenshot (~5s). */
+    void resetTouchIdle() { _lastTouchTime = millis(); }
     bool isMenuActive();
     bool isDisplayBusy();
     bool isHeavyRendering();

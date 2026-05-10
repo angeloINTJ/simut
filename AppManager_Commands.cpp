@@ -606,7 +606,12 @@ void AppManager::executeCommand(CliDemand cmd) {
         case CMD_GOTO_SCREEN: {
             /* v3.44.0-alpha15: muda tela TFT via show*Screen() direto.
              * Bypass handleTouch (gates de pressão). Pra screenshot
-             * automation. Strings curtas pra economizar flash. */
+             * automation. Strings curtas pra economizar flash.
+             * v4.2.4: também reseta _lastTouchTime — sem isso, a guarda
+             * de idle (30s sem toque → forceDashboard em DisplayManager_
+             * Touch.cpp:117) reverte a tela ANTES da captura HTTP do
+             * /api/screenshot completar (chunked leva ~5s, full ~4s).
+             * resetTouchIdle() dá 30s de janela pra capturar. */
             const char* n = cmd.strVal1;
             if      (!strcmp(n, "dash"))     _displayMgr->forceDashboard();
             else if (!strcmp(n, "set"))      _displayMgr->showSettingsMain();
@@ -618,6 +623,7 @@ void AppManager::executeCommand(CliDemand cmd) {
             else if (!strcmp(n, "alm"))      _displayMgr->showSettingsAlarms(&cfg);
             else if (!strcmp(n, "gra"))      _displayMgr->forceGraphView();
             else { _cmdMgr->printError("?screen"); break; }
+            _displayMgr->resetTouchIdle();
             _cmdMgr->printSuccess(n);
             break;
         }

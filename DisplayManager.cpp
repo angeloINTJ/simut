@@ -447,6 +447,9 @@ void DisplayManager::forceDashboard() {
 void DisplayManager::forceGraphView() {
     mutex_enter_blocking(&_stateMutex);
     _uiMode = MODE_GRAPH_VIEW; _isDirty = true; _forceFullRedraw = true;
+    /* v4.2.4: graph render path requer _repaintGraph (linha 783-784).
+     * Sem isso, modo trocava mas drawGraphScreen() nunca era chamado. */
+    _repaintGraph = true;
     mutex_exit(&_stateMutex);
 }
 

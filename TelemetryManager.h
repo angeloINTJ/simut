@@ -44,6 +44,7 @@ public:
     void     refreshPendingCount();
     void     notifyNewRecord();
 
+
     /**
      * @brief Consome o resultado do último envio (se houver).
      * @param outSuccess  Recebe true se sucesso, false se falha.
@@ -84,6 +85,11 @@ private:
     uint32_t _backoffUntil;
     uint8_t  _consecutiveFails;
     uint32_t _lastSuppressedLog = 0;    /**< millis() do último heartbeat suprimido */
+
+    /* v4.3.0 F-TEL-ADAPTIVE: intervalo dinâmico runtime (não persistente).
+     * Lógica inlined em update() pra economizar flash. */
+    uint32_t _smoothedLatencyMs = 0;     /**< EMA da latência observada (alpha 0.3) */
+    uint32_t _effectiveIntervalMs = 0;   /**< Intervalo efetivo computado (vs cfg.telInterval) */
 
     void     resetBackoff();
     void     escalateBackoff();
