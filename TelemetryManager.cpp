@@ -503,7 +503,13 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 /* =========================================================================== */
 /*                              HTTP TRANSPORT                               */
 /* =========================================================================== */
-/** @brief Upload a batch via HTTP POST with configurable auth headers. */
+/** @brief Upload a batch via HTTP POST with configurable auth headers.
+ *  v4.6.0 F-TEL-HTTPS-RESILIENT: bound do TLS handshake (setTLSConnectTimeout)
+ *  pra evitar BearSSL hang quando server cai mid-handshake. NÃO mexer em
+ *  setReuse() — quebrava state interno HTTPClient/WiFiClientSecure compartilhado
+ *  e causava bootloop em telemetrias grandes pós-boot (validado HW 2026-05-10).
+ *  Recreate _httpSecurePtr só quando explicit error de socket/TLS, pra evitar
+ *  perda do TCP keep-alive em sucessos consecutivos. */
 bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
     SystemConfig &cfg = _storageRef->getConfig();
 
@@ -517,7 +523,6 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
     bool connected = false;
 
     if (cfg.telEncryption) {
-        /* Reutiliza cliente TLS pré-alocado no begin() */
         if (!_httpSecurePtr) {
             _httpSecurePtr = new WiFiClientSecure();
             if (!_httpSecurePtr) {
@@ -528,17 +533,20 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
         }
         _httpSecureLastUse = millis();
 
-        if (_hasCert) {
-            _httpSecurePtr->setCACert(_cachedCert.c_str());
-        } else {
-            _httpSecurePtr->setInsecure();
-        }
+        /* v4.6.0: bound TLS handshake. Default lib >10s; server slow/dying
+         * mid-handshake nao estoura WDT_FEED_MAX_WINDOW (60s). Static method,
+         * afeta toda criacao de WiFiClientSecure subsequente. */
+        WiFiClientSecure::setTLSConnectTimeout(NET_SOCKET_TIMEOUT_MS);
+
+        if (_hasCert) _httpSecurePtr->setCACert(_cachedCert.c_str());
+        else          _httpSecurePtr->setInsecure();
         connected = http.begin(*_httpSecurePtr, url);
     } else {
         connected = http.begin(client, url);
     }
 
     bool success = false;
+    int code = 0;
 
     if (connected) {
         if (cfg.telMode == TEL_MODE_JSON) http.addHeader("Content-Type", "application/json");
@@ -563,7 +571,6 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
         feedWdt();
 
         uint32_t postStart = millis();
-        int code;
         {
             TelemetryGuard tg;  /* Alimenta watchdog durante POST bloqueante */
             code = http.POST(payload);
