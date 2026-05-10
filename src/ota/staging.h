@@ -76,6 +76,9 @@ void staging_read(uint32_t offset_in_staging, uint8_t* dst, size_t len);
  */
 bool staging_session_begin(StorageManager* storage);
 
+/* v4.4.0: variante sem erase upfront — caller faz erase on-demand. */
+bool staging_session_begin_lite(StorageManager* storage);
+
 /**
  * @brief Encerra a sessão e remonta a LittleFS.
  *

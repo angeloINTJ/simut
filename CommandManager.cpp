@@ -442,20 +442,8 @@ CliDemand CommandManager::parseCommand(String input) {
         return cmd;
     }
 
-    /* v3.37.8: comando oculto pra recovery de histórico pré factory reset.
-     * Só executa se sessão é Bluetooth (handler valida). Sintaxe:
-     *   conf sensor <N> history all     -> slot N (0..9)
-     *   conf sensor all history all     -> todos slots ativos + ambient
-     * NÃO listado em printHelp() — descoberta via doc/release notes. */
-    if (t0 == "conf" && t1 == "sensor" && t3 == "history") {
-        String t4low = t4; t4low.toLowerCase();
-        if (t4low == "all") {
-            cmd.type = CMD_DBG_SENSOR_HISTORY_ALL;
-            if (t2 == "all") { cmd.intVal1 = -1; cmd.intVal1Valid = true; }
-            else             { cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1); }
-            return cmd;
-        }
-    }
+    /* v4.4.0 EXT-002: removido CMD_DBG_SENSOR_HISTORY_ALL (debug TEST-ONLY
+     * introduzido em v3.24.12). Liberou ~1-2 KB pra F-FLASH-DIET. */
 
     if (t0 == "write" && t1 == "memory") { cmd.type = CMD_WRITE_MEMORY; return cmd; }
     if (t0 == "clear" && t1 == "log") { cmd.type = CMD_CLEAR_LOGS; return cmd; }

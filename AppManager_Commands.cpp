@@ -600,8 +600,7 @@ void AppManager::executeCommand(CliDemand cmd) {
             break;
         }
 
-        case CMD_DBG_SENSOR_HISTORY_ALL:
-            cmdHandleDbgSensorHistoryAll(cmd, cfg, changed); break;
+        /* v4.4.0 EXT-002: CMD_DBG_SENSOR_HISTORY_ALL removido (debug TEST-ONLY). */
 
         case CMD_GOTO_SCREEN: {
             /* v3.44.0-alpha15: muda tela TFT via show*Screen() direto.

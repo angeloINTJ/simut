@@ -150,6 +150,14 @@ bool staging_session_begin(StorageManager* storage) {
     return true;
 }
 
+/* v4.4.0: variante sem erase upfront — caller faz erase on-demand. */
+bool staging_session_begin_lite(StorageManager* storage) {
+    if (!storage) return false;
+    storage->enterFlashSafeMode();
+    LittleFS.end();
+    return true;
+}
+
 bool staging_session_end(StorageManager* storage) {
     if (!storage) return false;
     /* Tenta remontar; LittleFS.begin() vai ver "FS inválida" (apagada)

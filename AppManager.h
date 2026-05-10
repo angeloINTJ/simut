@@ -110,10 +110,7 @@ private:
     void cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
     void cmdHandleDnsCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
     void cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
-    /* v3.37.8: recovery de histórico — zera provisionEpoch dos sensores
-     * pra desbloquear visualização de dados pré factory reset. Restrito
-     * a sessão Bluetooth autenticada (admin slot 0). */
-    void cmdHandleDbgSensorHistoryAll(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+    /* v4.4.0 EXT-002: cmdHandleDbgSensorHistoryAll removido. */
 
     void checkAndAutoHealSensors();
     void handleTimeSync(uint32_t bootTs, int32_t delta);

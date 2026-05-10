@@ -68,12 +68,8 @@ enum DemandType {
     CMD_USER_PASS,    /**< strVal1 = username; strVal2 = nova senha */
     CMD_SET_WEB_PORT, /**< intVal1 = porta (1..65535) */
 
-    /* v3.37.8: comando oculto (não listado no help) para recuperar histórico
-     * pré factory reset. Zera provisionEpoch dos sensores selecionados.
-     * RESTRITO a sessão Bluetooth autenticada (admin slot 0 — BluetoothManager
-     * só valida cfg.users[0]). Usar `write memory` + `reload` depois.
-     * intVal1: slot 0..9, ou -1 para "all" (todos ativos + ambient). */
-    CMD_DBG_SENSOR_HISTORY_ALL,
+    /* v4.4.0 EXT-002: CMD_DBG_SENSOR_HISTORY_ALL removido (debug TEST-ONLY
+     * de v3.24.12; raramente usado, libera ~1-2 KB). */
 
     /* v3.44.0-alpha14: 'touch sim X Y' — injeta toque (x,y) screen-space.
      * Útil pra automação de captura de screenshots em todas as telas

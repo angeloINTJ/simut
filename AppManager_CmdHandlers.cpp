@@ -348,65 +348,7 @@ void AppManager::cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool
     if (!found) _cmdMgr->printError(pt ? "Usuario nao encontrado" : "User not found");
 }
 
-/* ===========================================================================
- * v3.37.8 — TEST-ONLY / RECOVERY
- * Zera `provisionEpoch` dos sensores pra recuperar visualização de histórico
- * pré factory reset. O gráfico filtra registros com `ts < provisionEpoch`
- * por padrão; zerando o campo, todos os registros nos arquivos binários de
- * /history voltam a ser exibidos.
- *
- * Restrição de segurança: aceita SOMENTE de sessão Bluetooth autenticada
- * (BluetoothManager valida exclusivamente cfg.users[0] = admin). Tentativas
- * via USB serial são rejeitadas com mensagem genérica de comando inválido —
- * mantém o comando "oculto" (não documentado em help).
- *
- * Uso após executar:
- *   write memory       (persiste em flash)
- *   reload             (reinicia para reaplicar)
- * =========================================================================== */
-void AppManager::cmdHandleDbgSensorHistoryAll(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
-    const bool pt = _cmdMgr->isPt();
-
-    /* Gate: só BT autenticado. USB serial -> finge que comando não existe. */
-    if (!_cmdMgr->wasLastInputFromBt()) {
-        _cmdMgr->printError(pt ? "Comando desconhecido. Digite 'help'."
-                              : "Unknown command. Type 'help'.");
-        return;
-    }
-
-    if (cmd.intVal1 == -1) {
-        /* Todos os slots ativos + ambient. */
-        int n = 0;
-        for (int i = 0; i < MAX_SENSORS; i++) {
-            if (cfg.sensors[i].active) {
-                cfg.sensors[i].provisionEpoch = 0;
-                n++;
-            }
-        }
-        cfg.ambientSensor.provisionEpoch = 0;
-        changed = true;
-        LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, n,
-                 String(TRL("BT recovery: provisionEpoch zeroed for ")) + n + " slots+amb");
-        _cmdMgr->printSuccess((pt ? "provisionEpoch zerado em " : "provisionEpoch zeroed for ") +
-                              String(n) +
-                              (pt ? " slots + ambient. Use 'write memory' e reload."
-                                  : " slots + ambient. Run 'write memory' and reload."));
-        return;
-    }
-
-    /* Slot específico. */
-    if (!cmd.intVal1Valid || cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
-        _cmdMgr->printError(pt ? "Slot fora de range (0-9) ou 'all'"
-                              : "Slot out of range (0-9) or 'all'");
-        return;
-    }
-    cfg.sensors[cmd.intVal1].provisionEpoch = 0;
-    changed = true;
-    LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, cmd.intVal1,
-             String(TRL("BT recovery: provisionEpoch zeroed for slot ")) + cmd.intVal1);
-    _cmdMgr->printSuccess((pt ? "provisionEpoch zerado no Slot " : "provisionEpoch zeroed for Slot ") +
-                          String(cmd.intVal1) +
-                          (pt ? ". Use 'write memory' e reload."
-                              : ". Run 'write memory' and reload."));
-}
+/* v4.4.0 EXT-002: cmdHandleDbgSensorHistoryAll removido (debug TEST-ONLY
+ * de v3.24.12 — recovery de provisionEpoch via BT). Liberou ~1-2 KB.
+ * Recovery alternativo: editar system.bin via /api/restore?op=apply com .bkp. */
 

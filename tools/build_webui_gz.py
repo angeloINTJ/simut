@@ -22,11 +22,8 @@ try:
 except ImportError:
     _HAS_MINIFY_HTML = False
 
-# Disabled — minify_html.minify(minify_css=True, minify_js=True) altera
-# atributos visuais (cores/tamanhos) em alguns campos do WebUI mesmo
-# quando setado conservador. Regex fallback preserva o output exatamente
-# como WebUI.h declara, só removendo whitespace/comentários. Ganho
-# adicional do minify_html era marginal (1.4 KB gz), não justifica o risco.
+# F-FLASH-DIET 2026-05-10: testado com e sem minify_html — gzip já comprime
+# whitespace eficientemente e o ganho líquido é zero. Mantido OFF.
 _HAS_MINIFY_HTML = False
 
 try:
@@ -121,8 +118,8 @@ def _minify_web_block(src: str) -> str:
         try:
             return minify_html.minify(
                 src,
-                minify_css=True,
-                minify_js=True,
+                minify_css=True,   # F-FLASH-DIET: preserva valores hex/numéricos, só whitespace+shorthand
+                minify_js=False,   # mantido OFF: template literals podem quebrar com mangling
                 keep_closing_tags=True,
                 keep_html_and_head_opening_tags=True,
                 allow_removing_spaces_between_attributes=True,
