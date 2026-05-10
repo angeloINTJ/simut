@@ -1,0 +1,61 @@
+# v4.0.0 Boot Diagnostic — 2026-05-09 22:51
+
+**Contexto:** post-mortem do falhanço do `f9_loop100_20260509-154003` iter 2 (recovery falhou,
+WiFi não voltou em 90s após picotool load -x + reconfigure CLI).
+
+## Procedimento
+
+1. PicoHand HOLD BOOTSEL + RESET pulse → RPI-RP2 montado.
+2. `picotool load -x .pio/build/pico_w_release/firmware.uf2` → Loaded 100%, "device rebooted".
+3. CDC re-enumerou em ~0.5s como `usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00`.
+4. Captura serial 30s pós-reflash → boot completo capturado mas device ficou silencioso após.
+5. HTTP/ping em .195 falhou (ARP `INCOMPLETE`).
+6. PicoHand RESET puro (sem BOOTSEL, sem reflash) → boot novamente.
+7. Captura serial 50s pós-reset puro: ver abaixo.
+8. HTTP 200 (20ms), ping 2.3ms — **device saudável.**
+
+## Boot capture (RESET puro, sem reflash) — sequência saudável
+
+```
+gr->begin() @ 2318ms
+[BOOT+2s][UP 00:00:02][C0][INF][APP] Display launched on Core 1
+[BOOT step] 11: pos _netMgr->begin() @ 8082ms
+[BOOT+14s][UP 00:00:14][C0][INF][NET] IP acquired: IP: 192.168.3.195
+[22:51:50][UP 00:00:30][C0][INF][NET] NTP synced: NTP OK: 09/05/2026 22:51:50
+[BOOT step] 11.5: cmdMgr->beginBluetooth @ 30695ms
+   SIMUT IoT CLI v4.0.0 (banner)
+[BOOT step] 11.6: pos beginBluetooth @ 30997ms
+[22:51:51][UP 00:00:30][C0][INF][TEL] HTTP transport initialized: 192.168.3.206/api.php (9080)
+[BOOT step] 12: pre _webMgr->begin() @ 31072ms
+[22:51:51][UP 00:00:31][C0][INF][WEB] Web server started (80)
+[BOOT step] 13: pos _webMgr->begin() @ 31210ms
+[22:51:54][UP 00:00:33][C0][INF][APP] System ready
+[BOOT step] 14: SYS READY @ 33492ms
+```
+
+Erros pós-boot esperados:
+- `[TEL] Telemetry failed: HTTP error: connection failed (-1)` — servidor de telemetria 192.168.3.206 offline (config local, não bug).
+- `[SENSOR] CRC/Read Error / Hardware Mismatch (Access Denied)` — sensor RFID físico ausente.
+
+## Diagnóstico
+
+| Pergunta | Resposta |
+|---|---|
+| v4.0.0 está bricado? | **Não** — boot completo em 33s, WiFi+HTTP funcionais |
+| Loop100 #2 iter 2 expôs regressão de v4? | **Não** — RESET puro (sem reflash) recupera o device |
+| Causa raiz do "FAIL_RECOVERY"? | **Não bug de firmware** — o fluxo de recovery do `test_f9_loop100.sh` (picotool reflash → CLI wifi reconfigure → wait 90s) é flaky |
+| Loop100 #1 13/13 PASS é confiável? | Sim — antes da interrupção em iter 14 |
+
+## Hipóteses do flake do recovery script (`test_f9_loop100.sh:148-167`)
+
+1. Após `picotool load -x` o device boot leva ~33s. Script faz `sleep 30` e depois envia `conf system ssid …` + `pass …` + `write memory` + `reload confirm`. Se o boot ainda não chegou em SYS READY (varia ±3s), os comandos vão pra um CLI não-pronto.
+2. `reload confirm` força mais um reboot. Após esse segundo reboot, `wait_http 90` pode estar contando do momento errado.
+3. O `wifi reconfigure` reescreve SSID/PASS que JÁ estavam corretos no NVS — operação desnecessária que adiciona pontos de falha.
+
+## Próximos passos sugeridos
+
+- **Não retomar loop100 ainda.** Antes, revisar `test_f9_loop100.sh:148-167` para tornar recovery determinístico:
+  - Esperar marker "SYS READY" via UART antes de qualquer CLI write.
+  - Se device tem config WiFi válida em NVS (caso comum pós-OTA), pular `wifi reconfigure`.
+  - Aumentar timeout do wait_http pós-reload pra 120s.
+- v4.0.0 fica como release válida; loop100 estável requer apenas hardening do test runner.

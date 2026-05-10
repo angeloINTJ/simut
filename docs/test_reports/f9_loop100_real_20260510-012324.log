@@ -1,0 +1,2253 @@
+[01:23:24] ==========================================================
+[01:23:24] F9 loop100 REAL — start 20260510-012324
+[01:23:24]   SIMUT: 192.168.3.195   port: /dev/serial/by-id/usb-Raspberry_Pi_Pico_W_E6642815E34C1824-if00
+[01:23:24]   Hand:  /dev/serial/by-id/usb-Raspberry_Pi_Pico_E660C062131E3E27-if00
+[01:23:24]   Senha: ^çarrando.1a
+[01:23:24]   Canonical: /home/angelo/Documentos/simut_real_loop_20260509-233527/canonical.bkp
+[01:23:24]   Iters: 100
+[01:23:24] ==========================================================
+[01:23:24] Pre-flight HTTP: OK
+[01:23:25] Pre-flight login: OK
+[01:23:25] Self-compare canonical: OK count=29 mismatches=0 (rc=0)
+[01:23:25] Critical files: 29 arquivos (in-memory hash, sem extrair)
+[01:23:25] 
+[01:23:25] ==========================================================
+[01:23:25] PRE-TEST COMPLETO — iniciando 100 iters
+[01:23:25] ==========================================================
+[01:23:25] 
+[01:23:25] ==================== ITER 1 / 100 ====================
+[01:23:25]   ota_apply.py executando (stage+apply, sem restore embutido)...
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778387006.bkp
+[backup] wrote 6372 bytes (6.2 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] device online após 21s (5 tentativas)
+
+[done] OTA apply OK. Backup salvo em: /tmp/simut-pre-ota-1778387006.bkp
+       Skipping restore (--no-restore). Para restaurar user data:
+       ./tools/ota_apply.py --ip 192.168.3.195 ... (sem --firmware)
+[01:24:19]   ota_apply.py exit=0
+[01:24:19]   aguardando HTTP até 180s...
+[01:24:19]   HTTP OK pós-OTA
+[01:24:19]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:24:43]   restore: clean 200 OK
+[01:24:43]   estabilizando pós-restore (até 120s)...
+[01:25:19]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:25:22]   iter 1: PASS (117s, integrity OK — OK count=29 mismatches=0)
+[01:25:22] ==================== ITER 2 / 100 ====================
+[01:25:22]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778387123.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.5s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x740e5bb84740>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:26:27]   ota_apply.py exit=7
+[01:26:27]   aguardando HTTP até 180s...
+[01:26:34]   HTTP OK pós-OTA
+[01:26:34]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:26:58]   restore: clean 200 OK
+[01:26:58]   estabilizando pós-restore (até 120s)...
+[01:27:36]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:27:40]   iter 2: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[01:27:40] ==================== ITER 3 / 100 ====================
+[01:27:40]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778387261.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f738eb3d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:28:45]   ota_apply.py exit=7
+[01:28:45]   aguardando HTTP até 180s...
+[01:28:49]   HTTP OK pós-OTA
+[01:28:49]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:29:14]   restore: clean 200 OK
+[01:29:14]   estabilizando pós-restore (até 120s)...
+[01:29:52]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:29:56]   iter 3: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[01:29:56] ==================== ITER 4 / 100 ====================
+[01:29:56]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778387397.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.4s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7378c4c88b60>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:31:01]   ota_apply.py exit=7
+[01:31:01]   aguardando HTTP até 180s...
+[01:31:05]   HTTP OK pós-OTA
+[01:31:05]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:31:29]   restore: clean 200 OK
+[01:31:29]   estabilizando pós-restore (até 120s)...
+[01:32:07]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:32:10]   iter 4: PASS (134s, integrity OK — OK count=29 mismatches=0)
+[01:32:10] ==================== ITER 5 / 100 ====================
+[01:32:10]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778387531.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.4s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x78f4d7d00530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:33:16]   ota_apply.py exit=7
+[01:33:16]   aguardando HTTP até 180s...
+[01:33:22]   HTTP OK pós-OTA
+[01:33:22]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:33:47]   restore: clean 200 OK
+[01:33:47]   estabilizando pós-restore (até 120s)...
+[01:34:22]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:34:26]   iter 5: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[01:34:26] ==================== ITER 6 / 100 ====================
+[01:34:26]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778387667.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x78434e4d4ce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:35:31]   ota_apply.py exit=7
+[01:35:31]   aguardando HTTP até 180s...
+[01:35:36]   HTTP OK pós-OTA
+[01:35:36]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:36:01]   restore: clean 200 OK
+[01:36:01]   estabilizando pós-restore (até 120s)...
+[01:36:38]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:36:43]   iter 6: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[01:36:43] ==================== ITER 7 / 100 ====================
+[01:36:43]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778387804.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7e5613040b60>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:37:48]   ota_apply.py exit=7
+[01:37:48]   aguardando HTTP até 180s...
+[01:37:56]   HTTP OK pós-OTA
+[01:37:56]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:38:20]   restore: clean 200 OK
+[01:38:20]   estabilizando pós-restore (até 120s)...
+[01:38:58]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:39:03]   iter 7: PASS (140s, integrity OK — OK count=29 mismatches=0)
+[01:39:03] ==================== ITER 8 / 100 ====================
+[01:39:03]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778387944.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x767a4b1753a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:40:09]   ota_apply.py exit=7
+[01:40:09]   aguardando HTTP até 180s...
+[01:40:13]   HTTP OK pós-OTA
+[01:40:13]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:40:38]   restore: clean 200 OK
+[01:40:38]   estabilizando pós-restore (até 120s)...
+[01:41:15]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:41:18]   iter 8: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[01:41:18] ==================== ITER 9 / 100 ====================
+[01:41:18]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778388079.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x71ad6de9cce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:42:24]   ota_apply.py exit=7
+[01:42:24]   aguardando HTTP até 180s...
+[01:42:30]   HTTP OK pós-OTA
+[01:42:30]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:42:54]   restore: clean 200 OK
+[01:42:54]   estabilizando pós-restore (até 120s)...
+[01:43:30]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:43:33]   iter 9: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[01:43:33] ==================== ITER 10 / 100 ====================
+[01:43:33]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778388214.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.5s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f85d2c3d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:44:39]   ota_apply.py exit=7
+[01:44:39]   aguardando HTTP até 180s...
+[01:44:45]   HTTP OK pós-OTA
+[01:44:45]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:45:09]   restore: clean 200 OK
+[01:45:09]   estabilizando pós-restore (até 120s)...
+[01:45:52]   baixando backup pós-restore via API...
+Traceback (most recent call last):
+  File "/home/angelo/Documentos/SIMUT/.venv/lib/python3.12/site-packages/urllib3/response.py", line 903, in _error_catcher
+    yield
+  File "/home/angelo/Documentos/SIMUT/.venv/lib/python3.12/site-packages/urllib3/response.py", line 1049, in _raw_read
+    raise IncompleteRead(self._fp_bytes_read, self.length_remaining)
+urllib3.exceptions.IncompleteRead: IncompleteRead(454646 bytes read, 1024 more expected)
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/angelo/Documentos/SIMUT/.venv/lib/python3.12/site-packages/requests/models.py", line 822, in generate
+    yield from self.raw.stream(chunk_size, decode_content=True)
+  File "/home/angelo/Documentos/SIMUT/.venv/lib/python3.12/site-packages/urllib3/response.py", line 1257, in stream
+    data = self.read(amt=amt, decode_content=decode_content)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/angelo/Documentos/SIMUT/.venv/lib/python3.12/site-packages/urllib3/response.py", line 1149, in read
+    data = self._raw_read(amt)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/angelo/Documentos/SIMUT/.venv/lib/python3.12/site-packages/urllib3/response.py", line 1027, in _raw_read
+    with self._error_catcher():
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/home/angelo/Documentos/SIMUT/.venv/lib/python3.12/site-packages/urllib3/response.py", line 927, in _error_catcher
+    raise ProtocolError(arg, e) from e
+urllib3.exceptions.ProtocolError: ('Connection broken: IncompleteRead(454646 bytes read, 1024 more expected)', IncompleteRead(454646 bytes read, 1024 more expected))
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "<stdin>", line 11, in <module>
+  File "/home/angelo/Documentos/SIMUT/.venv/lib/python3.12/site-packages/requests/models.py", line 824, in generate
+    raise ChunkedEncodingError(e)
+requests.exceptions.ChunkedEncodingError: ('Connection broken: IncompleteRead(454646 bytes read, 1024 more expected)', IncompleteRead(454646 bytes read, 1024 more expected))
+[01:46:02]   iter 10: download backup FAIL (rc=1)
+[01:46:02] ==================== ITER 11 / 100 ====================
+[01:46:02]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778388363.bkp
+[backup] wrote 455730 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (31.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7c57161ac740>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:47:07]   ota_apply.py exit=7
+[01:47:07]   aguardando HTTP até 180s...
+[01:47:16]   HTTP OK pós-OTA
+[01:47:16]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:47:40]   restore: clean 200 OK
+[01:47:40]   estabilizando pós-restore (até 120s)...
+[01:48:16]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:48:20]   iter 11: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[01:48:20] ==================== ITER 12 / 100 ====================
+[01:48:20]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778388501.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.5s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x71fc4c69cce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:49:25]   ota_apply.py exit=7
+[01:49:25]   aguardando HTTP até 180s...
+[01:49:32]   HTTP OK pós-OTA
+[01:49:32]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:49:56]   restore: clean 200 OK
+[01:49:56]   estabilizando pós-restore (até 120s)...
+[01:50:32]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:50:39]   iter 12: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[01:50:39] ==================== ITER 13 / 100 ====================
+[01:50:39]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: backup falhou: HTTPConnectionPool(host='192.168.3.195', port=80): Read timed out.
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778388640.bkp
+[01:51:41]   ota_apply.py exit=4
+[01:51:41]   aguardando HTTP até 180s...
+[01:51:41]   HTTP OK pós-OTA
+[01:51:41]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:52:06]   restore: clean 200 OK
+[01:52:06]   estabilizando pós-restore (até 120s)...
+[01:52:42]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:52:48]   iter 13: PASS (129s, integrity OK — OK count=29 mismatches=0)
+[01:52:48] ==================== ITER 14 / 100 ====================
+[01:52:48]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778388769.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f8915178b60>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:53:53]   ota_apply.py exit=7
+[01:53:53]   aguardando HTTP até 180s...
+[01:54:03]   HTTP OK pós-OTA
+[01:54:03]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:54:27]   restore: clean 200 OK
+[01:54:27]   estabilizando pós-restore (até 120s)...
+[01:55:05]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:55:09]   iter 14: PASS (141s, integrity OK — OK count=29 mismatches=0)
+[01:55:09] ==================== ITER 15 / 100 ====================
+[01:55:09]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778388910.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.4s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x76689957d700>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[01:56:14]   ota_apply.py exit=7
+[01:56:14]   aguardando HTTP até 180s...
+[01:56:23]   HTTP OK pós-OTA
+[01:56:23]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:56:48]   restore: clean 200 OK
+[01:56:48]   estabilizando pós-restore (até 120s)...
+[01:57:24]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:57:30]   iter 15: PASS (141s, integrity OK — OK count=29 mismatches=0)
+[01:57:30] ==================== ITER 16 / 100 ====================
+[01:57:30]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: backup falhou: HTTPConnectionPool(host='192.168.3.195', port=80): Read timed out.
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778389051.bkp
+[01:58:32]   ota_apply.py exit=4
+[01:58:32]   aguardando HTTP até 180s...
+[01:58:32]   HTTP OK pós-OTA
+[01:58:32]   restaurando canonical via /api/restore...
+RESTORE_OK
+[01:58:57]   restore: clean 200 OK
+[01:58:57]   estabilizando pós-restore (até 120s)...
+[01:59:32]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[01:59:37]   iter 16: PASS (127s, integrity OK — OK count=29 mismatches=0)
+[01:59:37] ==================== ITER 17 / 100 ====================
+[01:59:37]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778389178.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7069ab804620>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:00:43]   ota_apply.py exit=7
+[02:00:43]   aguardando HTTP até 180s...
+[02:00:49]   HTTP OK pós-OTA
+[02:00:49]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:01:13]   restore: clean 200 OK
+[02:01:13]   estabilizando pós-restore (até 120s)...
+[02:01:49]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:01:55]   iter 17: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[02:01:55] ==================== ITER 18 / 100 ====================
+[02:01:55]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778389316.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x75cd77e398b0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:03:01]   ota_apply.py exit=7
+[02:03:01]   aguardando HTTP até 180s...
+[02:03:05]   HTTP OK pós-OTA
+[02:03:05]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:03:30]   restore: clean 200 OK
+[02:03:30]   estabilizando pós-restore (até 120s)...
+[02:04:05]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:04:08]   iter 18: PASS (133s, integrity OK — OK count=29 mismatches=0)
+[02:04:08] ==================== ITER 19 / 100 ====================
+[02:04:08]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778389449.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.2s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7a7f4ead4ce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:05:14]   ota_apply.py exit=7
+[02:05:14]   aguardando HTTP até 180s...
+[02:05:21]   HTTP OK pós-OTA
+[02:05:21]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:05:46]   restore: clean 200 OK
+[02:05:46]   estabilizando pós-restore (até 120s)...
+[02:06:23]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:06:28]   iter 19: PASS (140s, integrity OK — OK count=29 mismatches=0)
+[02:06:28] ==================== ITER 20 / 100 ====================
+[02:06:28]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778389589.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x77d07a150530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:07:33]   ota_apply.py exit=7
+[02:07:33]   aguardando HTTP até 180s...
+[02:07:40]   HTTP OK pós-OTA
+[02:07:40]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:08:04]   restore: clean 200 OK
+[02:08:04]   estabilizando pós-restore (até 120s)...
+[02:08:42]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:08:45]   iter 20: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[02:08:45] ==================== ITER 21 / 100 ====================
+[02:08:45]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778389726.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fa907fac740>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:09:51]   ota_apply.py exit=7
+[02:09:51]   aguardando HTTP até 180s...
+[02:10:00]   HTTP OK pós-OTA
+[02:10:00]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:10:25]   restore: clean 200 OK
+[02:10:25]   estabilizando pós-restore (até 120s)...
+[02:11:01]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:11:04]   iter 21: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[02:11:04] ==================== ITER 22 / 100 ====================
+[02:11:04]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778389865.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7618dd288c80>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:12:09]   ota_apply.py exit=7
+[02:12:09]   aguardando HTTP até 180s...
+[02:12:15]   HTTP OK pós-OTA
+[02:12:15]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:12:40]   restore: clean 200 OK
+[02:12:40]   estabilizando pós-restore (até 120s)...
+[02:13:20]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:13:22]   iter 22: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[02:13:22] ==================== ITER 23 / 100 ====================
+[02:13:22]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778390003.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x70b57f3153a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:14:28]   ota_apply.py exit=7
+[02:14:28]   aguardando HTTP até 180s...
+[02:14:34]   HTTP OK pós-OTA
+[02:14:34]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:14:58]   restore: clean 200 OK
+[02:14:58]   estabilizando pós-restore (até 120s)...
+[02:15:35]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:15:37]   iter 23: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[02:15:37] ==================== ITER 24 / 100 ====================
+[02:15:37]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778390138.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x78f04dd3d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:16:43]   ota_apply.py exit=7
+[02:16:43]   aguardando HTTP até 180s...
+[02:16:49]   HTTP OK pós-OTA
+[02:16:49]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:17:13]   restore: clean 200 OK
+[02:17:13]   estabilizando pós-restore (até 120s)...
+[02:17:49]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:17:52]   iter 24: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[02:17:52] ==================== ITER 25 / 100 ====================
+[02:17:52]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778390272.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x72e7130398b0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:18:57]   ota_apply.py exit=7
+[02:18:57]   aguardando HTTP até 180s...
+[02:19:03]   HTTP OK pós-OTA
+[02:19:03]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:19:28]   restore: clean 200 OK
+[02:19:28]   estabilizando pós-restore (até 120s)...
+[02:20:04]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:20:07]   iter 25: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[02:20:07] ==================== ITER 26 / 100 ====================
+[02:20:07]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778390408.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7981bec54620>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:21:13]   ota_apply.py exit=7
+[02:21:13]   aguardando HTTP até 180s...
+[02:21:19]   HTTP OK pós-OTA
+[02:21:19]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:21:43]   restore: clean 200 OK
+[02:21:43]   estabilizando pós-restore (até 120s)...
+[02:22:22]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:22:25]   iter 26: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[02:22:25] ==================== ITER 27 / 100 ====================
+[02:22:25]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778390546.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.5s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x77744c778b60>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:23:31]   ota_apply.py exit=7
+[02:23:31]   aguardando HTTP até 180s...
+[02:23:35]   HTTP OK pós-OTA
+[02:23:35]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:24:00]   restore: clean 200 OK
+[02:24:00]   estabilizando pós-restore (até 120s)...
+[02:24:38]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:24:44]   iter 27: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[02:24:44] ==================== ITER 28 / 100 ====================
+[02:24:44]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778390685.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7574393ac620>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:25:50]   ota_apply.py exit=7
+[02:25:50]   aguardando HTTP até 180s...
+[02:25:56]   HTTP OK pós-OTA
+[02:25:56]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:26:21]   restore: clean 200 OK
+[02:26:21]   estabilizando pós-restore (até 120s)...
+[02:26:57]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:27:00]   iter 28: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[02:27:00] ==================== ITER 29 / 100 ====================
+[02:27:00]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778390821.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.0s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fc2f69ac740>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:28:06]   ota_apply.py exit=7
+[02:28:06]   aguardando HTTP até 180s...
+[02:28:10]   HTTP OK pós-OTA
+[02:28:10]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:28:34]   restore: clean 200 OK
+[02:28:34]   estabilizando pós-restore (até 120s)...
+[02:29:11]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:29:14]   iter 29: PASS (134s, integrity OK — OK count=29 mismatches=0)
+[02:29:14] ==================== ITER 30 / 100 ====================
+[02:29:14]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778390954.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x774f34d3d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:30:19]   ota_apply.py exit=7
+[02:30:19]   aguardando HTTP até 180s...
+[02:30:25]   HTTP OK pós-OTA
+[02:30:25]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:30:50]   restore: clean 200 OK
+[02:30:50]   estabilizando pós-restore (até 120s)...
+[02:31:28]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:31:31]   iter 30: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[02:31:31] ==================== ITER 31 / 100 ====================
+[02:31:31]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778391092.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.5s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x70c327688c80>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:32:36]   ota_apply.py exit=7
+[02:32:36]   aguardando HTTP até 180s...
+[02:32:43]   HTTP OK pós-OTA
+[02:32:43]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:33:07]   restore: clean 200 OK
+[02:33:07]   estabilizando pós-restore (até 120s)...
+[02:33:42]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:33:46]   iter 31: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[02:33:46] ==================== ITER 32 / 100 ====================
+[02:33:46]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778391227.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.1s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7c792e53d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:34:52]   ota_apply.py exit=7
+[02:34:52]   aguardando HTTP até 180s...
+[02:34:58]   HTTP OK pós-OTA
+[02:34:58]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:35:22]   restore: clean 200 OK
+[02:35:22]   estabilizando pós-restore (até 120s)...
+[02:36:06]   baixando backup pós-restore via API...
+wrote 455646 bytes
+[02:36:11]   iter 32: PASS (145s, integrity OK — OK count=29 mismatches=0)
+[02:36:11] ==================== ITER 33 / 100 ====================
+[02:36:11]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778391372.bkp
+[backup] wrote 455706 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.3s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x73429553d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:37:16]   ota_apply.py exit=7
+[02:37:16]   aguardando HTTP até 180s...
+[02:37:23]   HTTP OK pós-OTA
+[02:37:23]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:37:48]   restore: clean 200 OK
+[02:37:48]   estabilizando pós-restore (até 120s)...
+[02:38:23]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:38:26]   iter 33: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[02:38:26] ==================== ITER 34 / 100 ====================
+[02:38:26]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778391507.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7af64973d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:39:32]   ota_apply.py exit=7
+[02:39:32]   aguardando HTTP até 180s...
+[02:39:36]   HTTP OK pós-OTA
+[02:39:36]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:40:01]   restore: clean 200 OK
+[02:40:01]   estabilizando pós-restore (até 120s)...
+[02:40:39]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:40:45]   iter 34: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[02:40:45] ==================== ITER 35 / 100 ====================
+[02:40:45]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778391646.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7cc2c19ac740>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:41:50]   ota_apply.py exit=7
+[02:41:50]   aguardando HTTP até 180s...
+[02:41:54]   HTTP OK pós-OTA
+[02:41:54]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:42:19]   restore: clean 200 OK
+[02:42:19]   estabilizando pós-restore (até 120s)...
+[02:43:02]   baixando backup pós-restore via API...
+wrote 455646 bytes
+[02:43:07]   iter 35: PASS (142s, integrity OK — OK count=29 mismatches=0)
+[02:43:07] ==================== ITER 36 / 100 ====================
+[02:43:07]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778391788.bkp
+[backup] wrote 455706 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.3s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7595815e4aa0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:44:13]   ota_apply.py exit=7
+[02:44:13]   aguardando HTTP até 180s...
+[02:44:19]   HTTP OK pós-OTA
+[02:44:19]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:44:44]   restore: clean 200 OK
+[02:44:44]   estabilizando pós-restore (até 120s)...
+[02:45:21]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:45:24]   iter 36: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[02:45:24] ==================== ITER 37 / 100 ====================
+[02:45:24]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778391925.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x79e684274ce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:46:29]   ota_apply.py exit=7
+[02:46:29]   aguardando HTTP até 180s...
+[02:46:36]   HTTP OK pós-OTA
+[02:46:36]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:47:00]   restore: clean 200 OK
+[02:47:00]   estabilizando pós-restore (até 120s)...
+[02:47:36]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:47:39]   iter 37: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[02:47:39] ==================== ITER 38 / 100 ====================
+[02:47:39]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778392060.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f3f1f100530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:48:45]   ota_apply.py exit=7
+[02:48:45]   aguardando HTTP até 180s...
+[02:48:52]   HTTP OK pós-OTA
+[02:48:52]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:49:17]   restore: clean 200 OK
+[02:49:17]   estabilizando pós-restore (até 120s)...
+[02:49:52]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:49:55]   iter 38: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[02:49:55] ==================== ITER 39 / 100 ====================
+[02:49:55]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778392196.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.9s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7910fcbfd700>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:51:01]   ota_apply.py exit=7
+[02:51:01]   aguardando HTTP até 180s...
+[02:51:05]   HTTP OK pós-OTA
+[02:51:05]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:51:29]   restore: clean 200 OK
+[02:51:29]   estabilizando pós-restore (até 120s)...
+[02:52:06]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:52:12]   iter 39: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[02:52:12] ==================== ITER 40 / 100 ====================
+[02:52:12]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778392333.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x79236be9cce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:53:18]   ota_apply.py exit=7
+[02:53:18]   aguardando HTTP até 180s...
+[02:53:24]   HTTP OK pós-OTA
+[02:53:24]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:53:49]   restore: clean 200 OK
+[02:53:49]   estabilizando pós-restore (até 120s)...
+[02:54:24]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:54:30]   iter 40: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[02:54:30] ==================== ITER 41 / 100 ====================
+[02:54:30]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778392471.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x70ab65d153a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:55:35]   ota_apply.py exit=7
+[02:55:35]   aguardando HTTP até 180s...
+[02:55:43]   HTTP OK pós-OTA
+[02:55:43]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:56:08]   restore: clean 200 OK
+[02:56:08]   estabilizando pós-restore (até 120s)...
+[02:56:43]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:56:46]   iter 41: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[02:56:46] ==================== ITER 42 / 100 ====================
+[02:56:46]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778392607.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x75f0181dce00>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[02:57:52]   ota_apply.py exit=7
+[02:57:52]   aguardando HTTP até 180s...
+[02:57:58]   HTTP OK pós-OTA
+[02:57:58]   restaurando canonical via /api/restore...
+RESTORE_OK
+[02:58:23]   restore: clean 200 OK
+[02:58:23]   estabilizando pós-restore (até 120s)...
+[02:58:59]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[02:59:02]   iter 42: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[02:59:02] ==================== ITER 43 / 100 ====================
+[02:59:02]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778392743.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7845b573d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:00:08]   ota_apply.py exit=7
+[03:00:08]   aguardando HTTP até 180s...
+[03:00:12]   HTTP OK pós-OTA
+[03:00:12]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:00:36]   restore: clean 200 OK
+[03:00:36]   estabilizando pós-restore (até 120s)...
+[03:01:18]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:01:24]   iter 43: PASS (142s, integrity OK — OK count=29 mismatches=0)
+[03:01:24] ==================== ITER 44 / 100 ====================
+[03:01:24]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778392885.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7215f1088c80>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:02:30]   ota_apply.py exit=7
+[03:02:30]   aguardando HTTP até 180s...
+[03:02:37]   HTTP OK pós-OTA
+[03:02:37]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:03:02]   restore: clean 200 OK
+[03:03:02]   estabilizando pós-restore (até 120s)...
+[03:03:37]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:03:41]   iter 44: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[03:03:41] ==================== ITER 45 / 100 ====================
+[03:03:41]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778393022.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7b357cd153a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:04:46]   ota_apply.py exit=7
+[03:04:46]   aguardando HTTP até 180s...
+[03:04:52]   HTTP OK pós-OTA
+[03:04:52]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:05:17]   restore: clean 200 OK
+[03:05:17]   estabilizando pós-restore (até 120s)...
+[03:05:55]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:05:57]   iter 45: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[03:05:57] ==================== ITER 46 / 100 ====================
+[03:05:57]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778393158.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7323916398b0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:07:03]   ota_apply.py exit=7
+[03:07:03]   aguardando HTTP até 180s...
+[03:07:09]   HTTP OK pós-OTA
+[03:07:09]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:07:33]   restore: clean 200 OK
+[03:07:33]   estabilizando pós-restore (até 120s)...
+[03:08:11]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:08:17]   iter 46: PASS (140s, integrity OK — OK count=29 mismatches=0)
+[03:08:17] ==================== ITER 47 / 100 ====================
+[03:08:17]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778393298.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7b1f16288c80>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:09:23]   ota_apply.py exit=7
+[03:09:23]   aguardando HTTP até 180s...
+[03:09:30]   HTTP OK pós-OTA
+[03:09:30]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:09:55]   restore: clean 200 OK
+[03:09:55]   estabilizando pós-restore (até 120s)...
+[03:10:32]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:10:35]   iter 47: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[03:10:35] ==================== ITER 48 / 100 ====================
+[03:10:35]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778393435.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7d67fec9cce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:11:40]   ota_apply.py exit=7
+[03:11:40]   aguardando HTTP até 180s...
+[03:11:46]   HTTP OK pós-OTA
+[03:11:46]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:12:10]   restore: clean 200 OK
+[03:12:10]   estabilizando pós-restore (até 120s)...
+[03:12:49]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:12:52]   iter 48: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[03:12:52] ==================== ITER 49 / 100 ====================
+[03:12:52]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778393573.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.0s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x730cee0dcb90>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:13:58]   ota_apply.py exit=7
+[03:13:58]   aguardando HTTP até 180s...
+[03:14:04]   HTTP OK pós-OTA
+[03:14:04]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:14:29]   restore: clean 200 OK
+[03:14:29]   estabilizando pós-restore (até 120s)...
+[03:15:05]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:15:08]   iter 49: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[03:15:08] ==================== ITER 50 / 100 ====================
+[03:15:08]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778393709.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7b0535655100>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:16:13]   ota_apply.py exit=7
+[03:16:13]   aguardando HTTP até 180s...
+[03:16:21]   HTTP OK pós-OTA
+[03:16:21]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:16:46]   restore: clean 200 OK
+[03:16:46]   estabilizando pós-restore (até 120s)...
+[03:17:22]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:17:27]   iter 50: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[03:17:27] ==================== ITER 51 / 100 ====================
+[03:17:27]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778393848.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f8e28e9cce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:18:33]   ota_apply.py exit=7
+[03:18:33]   aguardando HTTP até 180s...
+[03:18:42]   HTTP OK pós-OTA
+[03:18:42]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:19:06]   restore: clean 200 OK
+[03:19:06]   estabilizando pós-restore (até 120s)...
+[03:19:44]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:19:47]   iter 51: PASS (140s, integrity OK — OK count=29 mismatches=0)
+[03:19:47] ==================== ITER 52 / 100 ====================
+[03:19:47]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778393988.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f97ced153a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:20:52]   ota_apply.py exit=7
+[03:20:52]   aguardando HTTP até 180s...
+[03:21:00]   HTTP OK pós-OTA
+[03:21:00]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:21:25]   restore: clean 200 OK
+[03:21:25]   estabilizando pós-restore (até 120s)...
+[03:22:08]   baixando backup pós-restore via API...
+wrote 455670 bytes
+[03:22:10]   iter 52: PASS (143s, integrity OK — OK count=29 mismatches=0)
+[03:22:10] ==================== ITER 53 / 100 ====================
+[03:22:11]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778394132.bkp
+[backup] wrote 455718 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.3s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x74835dd153a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:23:16]   ota_apply.py exit=7
+[03:23:16]   aguardando HTTP até 180s...
+[03:23:22]   HTTP OK pós-OTA
+[03:23:22]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:23:47]   restore: clean 200 OK
+[03:23:47]   estabilizando pós-restore (até 120s)...
+[03:24:39]   baixando backup pós-restore via API...
+wrote 455634 bytes
+[03:24:41]   iter 53: PASS (151s, integrity OK — OK count=29 mismatches=0)
+[03:24:41] ==================== ITER 54 / 100 ====================
+[03:24:41]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778394282.bkp
+[backup] wrote 455658 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.2s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x744e9b950530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:25:46]   ota_apply.py exit=7
+[03:25:46]   aguardando HTTP até 180s...
+[03:25:52]   HTTP OK pós-OTA
+[03:25:52]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:26:17]   restore: clean 200 OK
+[03:26:17]   estabilizando pós-restore (até 120s)...
+[03:26:53]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:26:57]   iter 54: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[03:26:57] ==================== ITER 55 / 100 ====================
+[03:26:57]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778394418.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.2s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7977d2f753a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:28:03]   ota_apply.py exit=7
+[03:28:03]   aguardando HTTP até 180s...
+[03:28:09]   HTTP OK pós-OTA
+[03:28:09]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:28:34]   restore: clean 200 OK
+[03:28:34]   estabilizando pós-restore (até 120s)...
+[03:29:10]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:29:16]   iter 55: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[03:29:16] ==================== ITER 56 / 100 ====================
+[03:29:16]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778394557.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x71c92b5dce00>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:30:21]   ota_apply.py exit=7
+[03:30:21]   aguardando HTTP até 180s...
+[03:30:26]   HTTP OK pós-OTA
+[03:30:26]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:30:50]   restore: clean 200 OK
+[03:30:50]   estabilizando pós-restore (até 120s)...
+[03:31:28]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:31:31]   iter 56: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[03:31:31] ==================== ITER 57 / 100 ====================
+[03:31:31]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778394692.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.0s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7abd15f3d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:32:37]   ota_apply.py exit=7
+[03:32:37]   aguardando HTTP até 180s...
+[03:32:43]   HTTP OK pós-OTA
+[03:32:43]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:33:08]   restore: clean 200 OK
+[03:33:08]   estabilizando pós-restore (até 120s)...
+[03:33:45]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:33:50]   iter 57: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[03:33:50] ==================== ITER 58 / 100 ====================
+[03:33:50]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778394831.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.5s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7c83c4ad4ce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:34:55]   ota_apply.py exit=7
+[03:34:55]   aguardando HTTP até 180s...
+[03:35:02]   HTTP OK pós-OTA
+[03:35:02]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:35:26]   restore: clean 200 OK
+[03:35:26]   estabilizando pós-restore (até 120s)...
+[03:36:05]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:36:10]   iter 58: PASS (140s, integrity OK — OK count=29 mismatches=0)
+[03:36:10] ==================== ITER 59 / 100 ====================
+[03:36:10]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778394971.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.0s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x75e58593d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:37:16]   ota_apply.py exit=7
+[03:37:16]   aguardando HTTP até 180s...
+[03:37:25]   HTTP OK pós-OTA
+[03:37:25]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:37:49]   restore: clean 200 OK
+[03:37:49]   estabilizando pós-restore (até 120s)...
+[03:38:27]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:38:30]   iter 59: PASS (140s, integrity OK — OK count=29 mismatches=0)
+[03:38:30] ==================== ITER 60 / 100 ====================
+[03:38:30]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778395111.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x794c33700530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:39:36]   ota_apply.py exit=7
+[03:39:36]   aguardando HTTP até 180s...
+[03:39:42]   HTTP OK pós-OTA
+[03:39:42]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:40:06]   restore: clean 200 OK
+[03:40:06]   estabilizando pós-restore (até 120s)...
+[03:40:43]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:40:45]   iter 60: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[03:40:45] ==================== ITER 61 / 100 ====================
+[03:40:45]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778395246.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.1s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x72cde86d4ce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:41:51]   ota_apply.py exit=7
+[03:41:51]   aguardando HTTP até 180s...
+[03:41:55]   HTTP OK pós-OTA
+[03:41:55]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:42:20]   restore: clean 200 OK
+[03:42:20]   estabilizando pós-restore (até 120s)...
+[03:42:55]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:43:01]   iter 61: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[03:43:01] ==================== ITER 62 / 100 ====================
+[03:43:01]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: backup falhou: HTTPConnectionPool(host='192.168.3.195', port=80): Read timed out.
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778395382.bkp
+[03:44:03]   ota_apply.py exit=4
+[03:44:03]   aguardando HTTP até 180s...
+[03:44:03]   HTTP OK pós-OTA
+[03:44:03]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:44:28]   restore: clean 200 OK
+[03:44:28]   estabilizando pós-restore (até 120s)...
+[03:45:07]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:45:11]   iter 62: PASS (130s, integrity OK — OK count=29 mismatches=0)
+[03:45:11] ==================== ITER 63 / 100 ====================
+[03:45:11]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778395512.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7613c93e4aa0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:46:17]   ota_apply.py exit=7
+[03:46:17]   aguardando HTTP até 180s...
+[03:46:23]   HTTP OK pós-OTA
+[03:46:23]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:46:48]   restore: clean 200 OK
+[03:46:48]   estabilizando pós-restore (até 120s)...
+[03:47:23]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:47:27]   iter 63: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[03:47:27] ==================== ITER 64 / 100 ====================
+[03:47:27]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778395648.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7a0824e54620>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:48:33]   ota_apply.py exit=7
+[03:48:33]   aguardando HTTP até 180s...
+[03:48:37]   HTTP OK pós-OTA
+[03:48:37]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:49:02]   restore: clean 200 OK
+[03:49:02]   estabilizando pós-restore (até 120s)...
+[03:49:40]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:49:44]   iter 64: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[03:49:44] ==================== ITER 65 / 100 ====================
+[03:49:44]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778395785.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x73c5c5d153a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:50:49]   ota_apply.py exit=7
+[03:50:49]   aguardando HTTP até 180s...
+[03:50:57]   HTTP OK pós-OTA
+[03:50:57]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:51:22]   restore: clean 200 OK
+[03:51:22]   estabilizando pós-restore (até 120s)...
+[03:51:57]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:52:02]   iter 65: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[03:52:02] ==================== ITER 66 / 100 ====================
+[03:52:02]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778395922.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7e720202c620>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:53:07]   ota_apply.py exit=7
+[03:53:07]   aguardando HTTP até 180s...
+[03:53:13]   HTTP OK pós-OTA
+[03:53:13]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:53:38]   restore: clean 200 OK
+[03:53:38]   estabilizando pós-restore (até 120s)...
+[03:54:17]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:54:20]   iter 66: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[03:54:20] ==================== ITER 67 / 100 ====================
+[03:54:20]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778396061.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7b78aba74da0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:55:25]   ota_apply.py exit=7
+[03:55:25]   aguardando HTTP até 180s...
+[03:55:29]   HTTP OK pós-OTA
+[03:55:29]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:55:54]   restore: clean 200 OK
+[03:55:54]   estabilizando pós-restore (até 120s)...
+[03:56:30]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:56:33]   iter 67: PASS (133s, integrity OK — OK count=29 mismatches=0)
+[03:56:33] ==================== ITER 68 / 100 ====================
+[03:56:33]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778396194.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.5s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x76441f3e0a40>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:57:38]   ota_apply.py exit=7
+[03:57:38]   aguardando HTTP até 180s...
+[03:57:44]   HTTP OK pós-OTA
+[03:57:44]   restaurando canonical via /api/restore...
+RESTORE_OK
+[03:58:09]   restore: clean 200 OK
+[03:58:09]   estabilizando pós-restore (até 120s)...
+[03:58:48]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[03:58:51]   iter 68: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[03:58:51] ==================== ITER 69 / 100 ====================
+[03:58:51]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778396332.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.9s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7e3745b753a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[03:59:57]   ota_apply.py exit=7
+[03:59:57]   aguardando HTTP até 180s...
+[04:00:03]   HTTP OK pós-OTA
+[04:00:03]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:00:28]   restore: clean 200 OK
+[04:00:28]   estabilizando pós-restore (até 120s)...
+[04:01:04]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:01:09]   iter 69: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[04:01:09] ==================== ITER 70 / 100 ====================
+[04:01:09]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778396470.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.0s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7c397202c740>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:02:14]   ota_apply.py exit=7
+[04:02:14]   aguardando HTTP até 180s...
+[04:02:21]   HTTP OK pós-OTA
+[04:02:21]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:02:45]   restore: clean 200 OK
+[04:02:45]   estabilizando pós-restore (até 120s)...
+[04:03:24]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:03:27]   iter 70: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[04:03:27] ==================== ITER 71 / 100 ====================
+[04:03:27]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778396608.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7af5f673d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:04:32]   ota_apply.py exit=7
+[04:04:32]   aguardando HTTP até 180s...
+[04:04:40]   HTTP OK pós-OTA
+[04:04:40]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:05:05]   restore: clean 200 OK
+[04:05:05]   estabilizando pós-restore (até 120s)...
+[04:05:44]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:05:50]   iter 71: PASS (143s, integrity OK — OK count=29 mismatches=0)
+[04:05:50] ==================== ITER 72 / 100 ====================
+[04:05:50]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778396751.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.9s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x715b5b204740>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:06:55]   ota_apply.py exit=7
+[04:06:55]   aguardando HTTP até 180s...
+[04:07:00]   HTTP OK pós-OTA
+[04:07:00]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:07:24]   restore: clean 200 OK
+[04:07:24]   estabilizando pós-restore (até 120s)...
+[04:08:03]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:08:06]   iter 72: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[04:08:06] ==================== ITER 73 / 100 ====================
+[04:08:06]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778396887.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.9s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x768ced384620>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:09:12]   ota_apply.py exit=7
+[04:09:12]   aguardando HTTP até 180s...
+[04:09:19]   HTTP OK pós-OTA
+[04:09:19]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:09:43]   restore: clean 200 OK
+[04:09:43]   estabilizando pós-restore (até 120s)...
+[04:10:22]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:10:27]   iter 73: PASS (141s, integrity OK — OK count=29 mismatches=0)
+[04:10:27] ==================== ITER 74 / 100 ====================
+[04:10:27]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778397027.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x74bc77bac620>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:11:32]   ota_apply.py exit=7
+[04:11:32]   aguardando HTTP até 180s...
+[04:11:38]   HTTP OK pós-OTA
+[04:11:38]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:12:03]   restore: clean 200 OK
+[04:12:03]   estabilizando pós-restore (até 120s)...
+[04:12:40]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:12:43]   iter 74: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[04:12:43] ==================== ITER 75 / 100 ====================
+[04:12:43]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778397164.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.9s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7479296d4ce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:13:49]   ota_apply.py exit=7
+[04:13:49]   aguardando HTTP até 180s...
+[04:13:52]   HTTP OK pós-OTA
+[04:13:53]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:14:17]   restore: clean 200 OK
+[04:14:17]   estabilizando pós-restore (até 120s)...
+[04:15:00]   baixando backup pós-restore via API...
+wrote 455670 bytes
+[04:15:03]   iter 75: PASS (140s, integrity OK — OK count=29 mismatches=0)
+[04:15:03] ==================== ITER 76 / 100 ====================
+[04:15:03]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778397304.bkp
+[backup] wrote 455718 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.5s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x76bf5753d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:16:08]   ota_apply.py exit=7
+[04:16:08]   aguardando HTTP até 180s...
+[04:16:15]   HTTP OK pós-OTA
+[04:16:15]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:16:39]   restore: clean 200 OK
+[04:16:39]   estabilizando pós-restore (até 120s)...
+[04:17:14]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:17:18]   iter 76: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[04:17:18] ==================== ITER 77 / 100 ====================
+[04:17:18]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778397439.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x787a3bed4ce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:18:24]   ota_apply.py exit=7
+[04:18:24]   aguardando HTTP até 180s...
+[04:18:30]   HTTP OK pós-OTA
+[04:18:30]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:18:54]   restore: clean 200 OK
+[04:18:54]   estabilizando pós-restore (até 120s)...
+[04:19:32]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:19:35]   iter 77: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[04:19:35] ==================== ITER 78 / 100 ====================
+[04:19:35]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778397576.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.0s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x76d6b63e1400>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:20:41]   ota_apply.py exit=7
+[04:20:41]   aguardando HTTP até 180s...
+[04:20:51]   HTTP OK pós-OTA
+[04:20:51]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:21:15]   restore: clean 200 OK
+[04:21:15]   estabilizando pós-restore (até 120s)...
+[04:21:54]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:21:58]   iter 78: PASS (143s, integrity OK — OK count=29 mismatches=0)
+[04:21:58] ==================== ITER 79 / 100 ====================
+[04:21:58]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778397719.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x734389fa8530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:23:04]   ota_apply.py exit=7
+[04:23:04]   aguardando HTTP até 180s...
+[04:23:08]   HTTP OK pós-OTA
+[04:23:08]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:23:32]   restore: clean 200 OK
+[04:23:32]   estabilizando pós-restore (até 120s)...
+[04:24:08]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:24:15]   iter 79: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[04:24:15] ==================== ITER 80 / 100 ====================
+[04:24:15]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: backup falhou: HTTPConnectionPool(host='192.168.3.195', port=80): Read timed out.
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778397855.bkp
+[04:25:16]   ota_apply.py exit=4
+[04:25:16]   aguardando HTTP até 180s...
+[04:25:16]   HTTP OK pós-OTA
+[04:25:16]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:25:42]   restore: clean 200 OK
+[04:25:42]   estabilizando pós-restore (até 120s)...
+[04:26:18]   baixando backup pós-restore via API...
+wrote 455729 bytes
+[04:26:21]   iter 80: MISMATCH (126s, 1 diff)
+[04:26:21]     EXTRA:/history/20260510.bin;
+[04:26:21] ==================== ITER 81 / 100 ====================
+[04:26:21]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778397982.bkp
+[backup] wrote 455765 bytes (445.1 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x79e9ef09cce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:27:27]   ota_apply.py exit=7
+[04:27:27]   aguardando HTTP até 180s...
+[04:27:40]   HTTP OK pós-OTA
+[04:27:40]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:28:04]   restore: clean 200 OK
+[04:28:04]   estabilizando pós-restore (até 120s)...
+[04:28:47]   baixando backup pós-restore via API...
+wrote 455670 bytes
+[04:28:50]   iter 81: PASS (149s, integrity OK — OK count=29 mismatches=0)
+[04:28:50] ==================== ITER 82 / 100 ====================
+[04:28:50]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778398131.bkp
+[backup] wrote 455718 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.4s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7bb29cda8530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:29:55]   ota_apply.py exit=7
+[04:29:55]   aguardando HTTP até 180s...
+[04:29:59]   HTTP OK pós-OTA
+[04:29:59]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:30:24]   restore: clean 200 OK
+[04:30:24]   estabilizando pós-restore (até 120s)...
+[04:31:02]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:31:05]   iter 82: PASS (135s, integrity OK — OK count=29 mismatches=0)
+[04:31:05] ==================== ITER 83 / 100 ====================
+[04:31:05]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778398266.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7107f05153a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:32:10]   ota_apply.py exit=7
+[04:32:10]   aguardando HTTP até 180s...
+[04:32:18]   HTTP OK pós-OTA
+[04:32:18]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:32:42]   restore: clean 200 OK
+[04:32:42]   estabilizando pós-restore (até 120s)...
+[04:33:18]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:33:22]   iter 83: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[04:33:22] ==================== ITER 84 / 100 ====================
+[04:33:22]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778398403.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.9s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x74d05e604740>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:34:28]   ota_apply.py exit=7
+[04:34:28]   aguardando HTTP até 180s...
+[04:34:34]   HTTP OK pós-OTA
+[04:34:34]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:34:58]   restore: clean 200 OK
+[04:34:58]   estabilizando pós-restore (até 120s)...
+[04:35:37]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:35:44]   iter 84: PASS (142s, integrity OK — OK count=29 mismatches=0)
+[04:35:44] ==================== ITER 85 / 100 ====================
+[04:35:44]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778398545.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x754817950530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:36:50]   ota_apply.py exit=7
+[04:36:50]   aguardando HTTP até 180s...
+[04:36:56]   HTTP OK pós-OTA
+[04:36:56]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:37:20]   restore: clean 200 OK
+[04:37:20]   estabilizando pós-restore (até 120s)...
+[04:37:56]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:38:02]   iter 85: PASS (138s, integrity OK — OK count=29 mismatches=0)
+[04:38:02] ==================== ITER 86 / 100 ====================
+[04:38:02]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778398683.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7465348dcb90>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:39:08]   ota_apply.py exit=7
+[04:39:08]   aguardando HTTP até 180s...
+[04:39:14]   HTTP OK pós-OTA
+[04:39:14]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:39:38]   restore: clean 200 OK
+[04:39:38]   estabilizando pós-restore (até 120s)...
+[04:40:18]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:40:23]   iter 86: PASS (141s, integrity OK — OK count=29 mismatches=0)
+[04:40:23] ==================== ITER 87 / 100 ====================
+[04:40:23]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778398824.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.8s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f318b7dce00>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:41:29]   ota_apply.py exit=7
+[04:41:29]   aguardando HTTP até 180s...
+[04:41:33]   HTTP OK pós-OTA
+[04:41:33]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:41:57]   restore: clean 200 OK
+[04:41:57]   estabilizando pós-restore (até 120s)...
+[04:42:36]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:42:42]   iter 87: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[04:42:42] ==================== ITER 88 / 100 ====================
+[04:42:42]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778398963.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x761dab2d4ce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:43:48]   ota_apply.py exit=7
+[04:43:48]   aguardando HTTP até 180s...
+[04:43:56]   HTTP OK pós-OTA
+[04:43:56]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:44:20]   restore: clean 200 OK
+[04:44:20]   estabilizando pós-restore (até 120s)...
+[04:44:58]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:45:03]   iter 88: PASS (141s, integrity OK — OK count=29 mismatches=0)
+[04:45:03] ==================== ITER 89 / 100 ====================
+[04:45:03]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778399104.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.9s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7ded72d78b60>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:46:09]   ota_apply.py exit=7
+[04:46:09]   aguardando HTTP até 180s...
+[04:46:18]   HTTP OK pós-OTA
+[04:46:18]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:46:43]   restore: clean 200 OK
+[04:46:43]   estabilizando pós-restore (até 120s)...
+[04:47:22]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:47:27]   iter 89: PASS (144s, integrity OK — OK count=29 mismatches=0)
+[04:47:27] ==================== ITER 90 / 100 ====================
+[04:47:27]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778399248.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x733a8b2acce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:48:33]   ota_apply.py exit=7
+[04:48:33]   aguardando HTTP até 180s...
+[04:48:39]   HTTP OK pós-OTA
+[04:48:39]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:49:04]   restore: clean 200 OK
+[04:49:04]   estabilizando pós-restore (até 120s)...
+[04:49:42]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:49:44]   iter 90: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[04:49:44] ==================== ITER 91 / 100 ====================
+[04:49:44]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778399385.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.9s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x78fb8a7ac620>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:50:50]   ota_apply.py exit=7
+[04:50:50]   aguardando HTTP até 180s...
+[04:50:56]   HTTP OK pós-OTA
+[04:50:56]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:51:20]   restore: clean 200 OK
+[04:51:20]   estabilizando pós-restore (até 120s)...
+[04:52:04]   baixando backup pós-restore via API...
+wrote 455646 bytes
+[04:52:08]   iter 91: PASS (144s, integrity OK — OK count=29 mismatches=0)
+[04:52:08] ==================== ITER 92 / 100 ====================
+[04:52:08]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778399529.bkp
+[backup] wrote 455706 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.4s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x74fc81d3d3a0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:53:14]   ota_apply.py exit=7
+[04:53:14]   aguardando HTTP até 180s...
+[04:53:18]   HTTP OK pós-OTA
+[04:53:18]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:53:42]   restore: clean 200 OK
+[04:53:42]   estabilizando pós-restore (até 120s)...
+[04:54:18]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:54:21]   iter 92: PASS (133s, integrity OK — OK count=29 mismatches=0)
+[04:54:21] ==================== ITER 93 / 100 ====================
+[04:54:21]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778399662.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (33.1s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7d5649454620>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:55:27]   ota_apply.py exit=7
+[04:55:27]   aguardando HTTP até 180s...
+[04:55:33]   HTTP OK pós-OTA
+[04:55:33]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:55:57]   restore: clean 200 OK
+[04:55:57]   estabilizando pós-restore (até 120s)...
+[04:56:37]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:56:40]   iter 93: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[04:56:40] ==================== ITER 94 / 100 ====================
+[04:56:40]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778399801.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x72a21b700530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[04:57:45]   ota_apply.py exit=7
+[04:57:45]   aguardando HTTP até 180s...
+[04:57:56]   HTTP OK pós-OTA
+[04:57:56]   restaurando canonical via /api/restore...
+RESTORE_OK
+[04:58:20]   restore: clean 200 OK
+[04:58:20]   estabilizando pós-restore (até 120s)...
+[04:58:56]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[04:58:59]   iter 94: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[04:58:59] ==================== ITER 95 / 100 ====================
+[04:58:59]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778399940.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.9s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x74b9fc0acce0>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[05:00:04]   ota_apply.py exit=7
+[05:00:04]   aguardando HTTP até 180s...
+[05:00:12]   HTTP OK pós-OTA
+[05:00:12]   restaurando canonical via /api/restore...
+RESTORE_OK
+[05:00:36]   restore: clean 200 OK
+[05:00:36]   estabilizando pós-restore (até 120s)...
+[05:01:15]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[05:01:18]   iter 95: PASS (139s, integrity OK — OK count=29 mismatches=0)
+[05:01:18] ==================== ITER 96 / 100 ====================
+[05:01:18]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778400079.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.6s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x745a77888c80>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[05:02:24]   ota_apply.py exit=7
+[05:02:24]   aguardando HTTP até 180s...
+[05:02:30]   HTTP OK pós-OTA
+[05:02:30]   restaurando canonical via /api/restore...
+RESTORE_OK
+[05:02:54]   restore: clean 200 OK
+[05:02:54]   estabilizando pós-restore (até 120s)...
+[05:03:32]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[05:03:35]   iter 96: PASS (137s, integrity OK — OK count=29 mismatches=0)
+[05:03:35] ==================== ITER 97 / 100 ====================
+[05:03:35]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778400216.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x6ffe9e5a5700>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[05:04:41]   ota_apply.py exit=7
+[05:04:41]   aguardando HTTP até 180s...
+[05:04:47]   HTTP OK pós-OTA
+[05:04:47]   restaurando canonical via /api/restore...
+RESTORE_OK
+[05:05:11]   restore: clean 200 OK
+[05:05:11]   estabilizando pós-restore (até 120s)...
+[05:05:55]   baixando backup pós-restore via API...
+wrote 455646 bytes
+[05:06:00]   iter 97: PASS (145s, integrity OK — OK count=29 mismatches=0)
+[05:06:00] ==================== ITER 98 / 100 ====================
+[05:06:00]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778400361.bkp
+[backup] wrote 455706 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.5s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fad423e1400>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[05:07:06]   ota_apply.py exit=7
+[05:07:06]   aguardando HTTP até 180s...
+[05:07:12]   HTTP OK pós-OTA
+[05:07:12]   restaurando canonical via /api/restore...
+RESTORE_OK
+[05:07:36]   restore: clean 200 OK
+[05:07:36]   estabilizando pós-restore (até 120s)...
+[05:08:13]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[05:08:16]   iter 98: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[05:08:16] ==================== ITER 99 / 100 ====================
+[05:08:16]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778400497.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x774729350530>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[05:09:22]   ota_apply.py exit=7
+[05:09:22]   aguardando HTTP até 180s...
+[05:09:26]   HTTP OK pós-OTA
+[05:09:26]   restaurando canonical via /api/restore...
+RESTORE_OK
+[05:09:50]   restore: clean 200 OK
+[05:09:50]   estabilizando pós-restore (até 120s)...
+[05:10:27]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[05:10:32]   iter 99: PASS (136s, integrity OK — OK count=29 mismatches=0)
+[05:10:32] ==================== ITER 100 / 100 ====================
+[05:10:32]   ota_apply.py executando (stage+apply, sem restore embutido)...
+ERROR: device não voltou online após apply
+[login] HTTP 200 {"ok":true,"redirect":"/"}
+[backup] downloading to /tmp/simut-pre-ota-1778400633.bkp
+[backup] wrote 455694 bytes (445.0 KiB)
+[stage] uploading firmware: 1043612 bytes (1019.2 KiB)
+[stage+commit] HTTP 200 (32.7s) {"st":5,"bytes":1043712,"crc32":"6AEF363C","v":0,"dsize":1043712,"dcrc":"6AEF363C","committed":1}
+[apply] firing /api/ota/apply — device will reboot
+[apply] HTTP 202 {"accepted":true,"mode":"apply"}
+[wait] esperando device voltar online (timeout 30s)…
+[wait] TIMEOUT após 30s. Último erro: HTTPConnectionPool(host='192.168.3.195', port=80): Max retries exceeded with url: /api/login_init (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7250503e1400>: Failed to establish a new connection: [Errno 111] Connection refused'))
+[05:11:38]   ota_apply.py exit=7
+[05:11:38]   aguardando HTTP até 180s...
+[05:11:42]   HTTP OK pós-OTA
+[05:11:42]   restaurando canonical via /api/restore...
+RESTORE_OK
+[05:12:06]   restore: clean 200 OK
+[05:12:06]   estabilizando pós-restore (até 120s)...
+[05:12:43]   baixando backup pós-restore via API...
+wrote 455658 bytes
+[05:12:46]   iter 100: PASS (134s, integrity OK — OK count=29 mismatches=0)
+[05:12:46] 
+[05:12:46] ==========================================================
+[05:12:46] RELATÓRIO FINAL — F9 loop100 REAL
+[05:12:46] ==========================================================
+[05:12:46] Total iterações: 100
+[05:12:46] PASS:     98 / 100 (98%)
+[05:12:46] MISMATCH: 1 / 100
+[05:12:46] FAIL:     1 / 100
+[05:12:46] Recovery (BOOTSEL+reflash): 0
+[05:12:46] Restore ConnResets (reboot pós-write): 0
+[05:12:46] Tempo total: 13761s (229 min)
+[05:12:46] 
+[05:12:46] Per-iter time stats:
+  N=99
+  min=117s  max=151s  avg=137.5s  median=137s
+  stdev=4.3s
+  p90=142s  p99=151s
+[05:12:46] 
+[05:12:46] Falhas:
+[05:12:46]   - 10:bkp_download=1
+[05:12:46] 
+[05:12:46] Mismatches:
+[05:12:46]   - iter 80 (1): EXTRA:/history/20260510.bin;
+[05:12:46] 
+[05:12:46] CSV: docs/test_reports/f9_loop100_real_20260510-012324.csv
+[05:12:46] Log: docs/test_reports/f9_loop100_real_20260510-012324.log
+[05:12:46] Relatório: docs/test_reports/f9_loop100_real_20260510-012324_report.md
+[05:12:46] ==========================================================
