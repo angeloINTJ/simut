@@ -75,25 +75,32 @@ void AppManager::setup() {
     boot_uart_init();
     uart_putc_raw(uart1, '@');
 
-    /* alpha30: detectar boot pós-OTA-apply via scratch[5] magic.
-     * Se sim, power-cycle CYW43 via WL_REG_ON. */
+    /* v4.5.0 F-BOOT-CYW43-CYCLE: power-cycle CYW43 SEMPRE no setup().
+     *
+     * Antes (alpha30): só power-cycle se scratch[5] == POST_OTA_APPLY_MAGIC
+     * (setado pelo orchestrator pré-applier_reboot). Cobria F-OTA-BOOTLOOP,
+     * mas não cobria reboot via picotool load -x — o SDK reset preserva
+     * scratch sem setar o magic, e o CYW43 fica em estado indeterminado
+     * pós-BOOTSEL-via-PicoHand (USB enumera, firmware silent até hand RESET
+     * forçar power-cycle via pulso RUN pin).
+     *
+     * Solução: cycle SEMPRE. Custo +600 ms no boot (de ~18 → ~19 s) mas
+     * elimina o bug pra qualquer caminho de reboot (UF2 flash, OTA apply,
+     * watchdog, hand RESET, picotool reboot). Limpa scratch[5] pra preservar
+     * compat com diagnóstico de POST_OTA_APPLY_MAGIC se alguém setá-lo. */
     {
-        uint32_t scr5 = alpha30_read_scratch5();
-        uart_putc_raw(uart1, '!');  /* alpha32: post scratch read */
-        if (scr5 == POST_OTA_APPLY_MAGIC) {
-            uart_putc_raw(uart1, '#');  /* alpha32: magic match */
-            alpha30_write_scratch5(0);
-            gpio_init(23);
-            gpio_set_dir(23, GPIO_OUT);
-            gpio_put(23, 0);
-            busy_wait_ms(500);
-            gpio_set_dir(23, GPIO_IN);
-            gpio_disable_pulls(23);
-            busy_wait_ms(100);
-            uart_putc_raw(uart1, '*');  /* alpha32: cycle done */
-        }
+        alpha30_write_scratch5(0);  /* clear sempre, magic já não é mais gate */
+        uart_putc_raw(uart1, '#');  /* power-cycle entry marker */
+        gpio_init(23);
+        gpio_set_dir(23, GPIO_OUT);
+        gpio_put(23, 0);
+        busy_wait_ms(500);
+        gpio_set_dir(23, GPIO_IN);
+        gpio_disable_pulls(23);
+        busy_wait_ms(100);
+        uart_putc_raw(uart1, '*');  /* power-cycle done */
     }
-    uart_putc_raw(uart1, '$');  /* alpha32: pre Serial.begin */
+    uart_putc_raw(uart1, '$');  /* pre Serial.begin */
 
     Serial.begin(115200);
 
