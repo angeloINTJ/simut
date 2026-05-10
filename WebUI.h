@@ -3017,62 +3017,74 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (!inp.files.length) return;
             let file = inp.files[0]; inp.value = '';
             try {
+                showToast(window.t('fil_rst_val','Step 1/3: Validating backup (CRC + chip ID)...'), 'ok');
                 let fd = new FormData(); fd.append('bkp', file);
                 let r = await fetch('/api/restore?op=validate', { method:'POST', body: fd });
                 let v = await r.json();
-                if (v.st !== 0) { showToast('Validate: ' + (RST_MSG[v.st] || ('st='+v.st)), 'err'); return; }
-                let msg = window.t('fil_rst_confirm','Restore N files (X bytes)? This OVERWRITES current files.').replace('N', v.fc).replace('X', v.psz);
+                if (v.st !== 0) { showToast(window.t('fil_rst_val_fail','Validation failed: ') + (RST_MSG[v.st] || ('st='+v.st)), 'err'); return; }
+                let msg = window.t('fil_rst_confirm','Backup valid — N files (X bytes).\n\nThis OVERWRITES current device files (history, configs, sensors, themes).\nWi-Fi config and admin password from the backup will be restored.\n\nProceed with the restore?').replace('N', v.fc).replace('X', v.psz);
                 if (!confirm(msg)) return;
-                showToast(window.t('fil_rst_app','Restoring...'), 'ok');
+                showToast(window.t('fil_rst_app','Step 2/3: Applying restore (may take ~15 s)...'), 'ok');
                 let fd2 = new FormData(); fd2.append('bkp', file);
                 let applied = false;
                 try {
                     let r2 = await fetch('/api/restore?op=apply', { method:'POST', body: fd2 });
                     let a = await r2.json();
                     if (a.st === 0) applied = true;
-                    else { showToast('Apply: ' + (RST_MSG[a.st] || ('st='+a.st)), 'err'); return; }
+                    else { showToast(window.t('fil_rst_app_fail','Apply failed: ') + (RST_MSG[a.st] || ('st='+a.st)), 'err'); return; }
                 } catch(e) { applied = true; }
                 if (!applied) return;
-                showToast(window.t('fil_rst_reb','Rebooting...'), 'ok');
+                showToast(window.t('fil_rst_reb','Step 3/3: Rebooting device (~25 s)...'), 'ok');
                 for (let w = 0; w < 30; w++) {
                     await new Promise(r => setTimeout(r, 3000));
                     try { let p = await fetch('/api/login_init?_=' + Date.now()); if (p.ok) { location.href = '/'; return; } } catch(e) {}
                 }
-                showToast(window.t('fil_rst_off','Device offline'), 'err');
+                showToast(window.t('fil_rst_off','Device offline after 90 s. Check connection and power-cycle if needed.'), 'err');
             } catch(e) { showToast(window.t('net_conn_err','Connection error.'), 'err'); }
         }
 
-        /* OTA Firmware Update — Alpha v3.44 safety flow (compact). */
+        /* OTA Firmware Update — v4.5.0 flow:
+         *   1. Backup .bkp (preserva user data) → download local
+         *   2. Confirma apply
+         *   3. Stage upload (~30s, erase on-demand sector-by-sector — TCP estável)
+         *   4. Apply (~5s) → device reboota
+         *   5. Boot ~25s (snapshot config preservada → admin pwd intacta)
+         *   6. Restore manual do .bkp pra recuperar history/sensores
+         */
         function fmFirmware() {
-            if (!confirm(window.t('fil_fw_warn','OTA reformata LittleFS. Configs preservadas; history/themes/calib APAGADOS. ~24% bricks. Prosseguir?'))) return;
+            if (!confirm(window.t('fil_fw_warn','Firmware OTA update.\n\nWill be PRESERVED:\n  • Settings (Wi-Fi, admin, telemetry)\n  • Admin password\n\nWill be ERASED:\n  • Reading history (/history)\n  • Custom themes (/themes)\n  • Touch calibration (/calib)\n  • Files in /web\n\nA .bkp backup is downloaded automatically — restore it later to recover everything.\n\nProceed?'))) return;
             document.getElementById('fwFile').click();
         }
         async function doFirmware() {
             let f = document.getElementById('fwFile').files[0];
             document.getElementById('fwFile').value = '';
-            if (!f || !/\.bin$/i.test(f.name)) { showToast('.bin necessario','err'); return; }
-            showToast(window.t('fil_fw_bk','Saving backup...'), 'ok');
+            if (!f || !/\.bin$/i.test(f.name)) { showToast(window.t('fil_fw_need_bin','Please select a .bin firmware file'),'err'); return; }
+            showToast(window.t('fil_fw_bk','Step 1/4: Downloading .bkp backup...'), 'ok');
             let r, bk;
             try { r = await fetch('/api/backup'); if (!r.ok) throw 0; bk = await r.blob(); }
-            catch(e) { showToast('Backup fail','err'); return; }
+            catch(e) { showToast(window.t('fil_fw_bk_fail','Backup download failed. Try again.'),'err'); return; }
             let psz = +r.headers.get('X-Backup-PSize'), pcrc = +r.headers.get('X-Backup-PCrc');
             let dv = new DataView(await bk.arrayBuffer());
             if (dv.getUint32(0,true) !== 0x31504B42 || dv.getUint32(24,true) !== psz || dv.getUint32(28,true) !== pcrc) {
-                showToast('Backup mismatch','err'); return;
+                showToast(window.t('fil_fw_bk_corrupt','Backup corrupted (CRC). Aborted.'),'err'); return;
             }
             let u = URL.createObjectURL(bk);
             let a = document.createElement('a'); a.href = u;
             a.download = 'simut_pre-ota_'+Date.now()+'.bkp';
             document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
-            if (!confirm(window.t('fil_fw_apply','Apply now? Reboots in ~60s.'))) return;
-            showToast(window.t('fil_fw_up','Uploading firmware...'), 'ok');
+            if (!confirm(window.t('fil_fw_apply','Backup saved to your computer.\n\nStart the update?\n  • Firmware upload: ~30 s\n  • Apply + reboot: ~25 s\n  • Full boot: ~25 s\n\nTotal: ~80 s. Do not power off the device during the process.'))) return;
+            showToast(window.t('fil_fw_up','Step 2/4: Uploading firmware (~30 s)...'), 'ok');
             try {
                 let fd = new FormData(); fd.append('file', f);
                 let r2 = await fetch('/api/restore?op=stage&commit=1', {method:'POST', body:fd});
                 let v = await r2.json();
-                if (r2.status !== 200 || v.committed !== 1) { showToast('Stage fail v='+v.v, 'err'); return; }
-                showToast(window.t('fil_fw_app','Applying...'), 'ok');
+                if (r2.status !== 200 || v.committed !== 1) {
+                    showToast(window.t('fil_fw_stage_fail','Upload failed (validation v=')+v.v+'). Cancelled.', 'err');
+                    return;
+                }
+                showToast(window.t('fil_fw_app','Step 3/4: Applying firmware...'), 'ok');
                 await fetch('/api/ota/apply', {method:'POST'});
+                showToast(window.t('fil_fw_reb','Step 4/4: Waiting for boot (~25 s)...'), 'ok');
             } catch(e) {}
             setTimeout(() => location.href = '/login', 5000);
         }
