@@ -1,0 +1,463 @@
+# Segurança do SIMUT
+
+Este documento descreve o modelo de ameaça, as defesas implementadas e os
+procedimentos operacionais de segurança do firmware SIMUT. Deve ser
+mantido em sincronia com o código — **qualquer mudança de segurança no
+projeto exige revisão deste arquivo**.
+
+Contexto: SIMUT é um firmware para Raspberry Pi Pico W (RP2040) que
+gerencia sensores de temperatura/umidade, expõe dashboard e gestão via
+HTTP, tem CLI via USB e Bluetooth, e envia telemetria para um servidor
+remoto. É projetado para operar em rede local confiável (LAN industrial
+ou domótica); não é hardened contra rede pública adversária.
+
+---
+
+## 1. Modelo de ameaça
+
+### Protegido
+
+- **Integridade da configuração** contra corrupção acidental (CRC32 +
+  dual-bank backup, `StorageManager`).
+- **Credenciais de usuário** em flash: hash HMAC-SHA256 com salt por
+  usuário + pepper derivado do serial do chip. Senhas plaintext nunca
+  são gravadas.
+- **Path traversal em upload** (`handleApiUpload` valida filename e
+  uploadDir — SEC-001/SEC-002).
+- **DoS por buffer de CLI** (`CLI_LINE_MAX=256` descarta streams sem
+  `\n` — SEC-005).
+- **Forma de JSON em `/api/ls`** contra bytes de controle que quebrariam
+  o listing (WEB-001 — `jsonEscapeFilename`).
+- **Brute force de login** (rate limiting + lockout exponencial por
+  slot IP).
+- **Crash autopsy** após HW watchdog (`LogManager::performCrashAutopsy` —
+  F13.1) — telemetria forense do último freeze.
+
+### Não protegido (fora de escopo)
+
+- **Rede pública/hostil**: HTTP puro sem TLS. Senhas SHA-256 no payload
+  do cliente, mas exposição de cookies e payloads em rede não confiável.
+  Use VPN ou rede isolada.
+- **MitM na LAN**: sem autenticação mútua TLS. Um atacante no caminho
+  pode forjar respostas ou interceptar cookies.
+- **Ataque físico**: acesso ao UART USB dá CLI privilegiado sem auth
+  (por design — recuperação via console). Acesso ao pino BOOTSEL permite
+  flash de firmware arbitrário.
+- **DMA/side-channel**: chip RP2040 sem secure enclave; qualquer código
+  rodando tem acesso total a flash e RAM.
+- **Disponibilidade sob DDoS**: rate-limiting é por-conexão, não resiste
+  a flood coordenado.
+
+---
+
+## 2. Credenciais & rotação
+
+### Admin (conta web)
+
+- **Factory defaults**: usuário `admin` com senha random 8 caracteres do
+  alfabeto `[A-Z2-9]` (32 símbolos, sem `O`/`0`/`I`/`1`). Entropia
+  ≈ 2^40 — suficiente contra brute-force casual; trocar imediatamente
+  após primeiro acesso. A senha é gerada por `rp2040.hwrand32()` (ROSC,
+  hardware). Ver SEC-003/F12.3.
+- **Exposição da senha factory**: impressa **uma vez** no Serial USB no
+  boot factory (banner `SEC-003: FACTORY DEFAULTS ATIVADO`). Nunca
+  persistida — zerada da RAM assim que o admin troca a senha ou carrega
+  config não-factory.
+- **Flag `mustChangePassword`**: bloqueia navegação até troca no 1º
+  login web.
+- **Rotação**: via UI `/users` (admin edita própria senha) ou CLI
+  `conf user pass <user> <newpass>`. Rotação periódica recomendada
+  conforme política do operador.
+- **Reset sem trocar factory**: `conf system admin reset confirm` (CLI)
+  regenera senha random e exibe no console — útil se o admin esquecer
+  a senha.
+
+### PIN do display físico
+
+- **Default**: `1234` — propositalmente trivial, protege apenas contra
+  mexidas acidentais no display.
+- **Flag `FLAG_MUST_CHANGE_PIN`** (SEC-004/F12.4): força troca no 1º
+  acesso ao menu de config do display. Overlay em
+  `SystemConfig.reserved[26..27]`.
+
+### Bluetooth CLI
+
+- Autenticação via **PIN do display**. Acesso BT sem auth só permite
+  `help` e `language`. Após auth, CLI completa — mesmos privilégios do
+  USB CLI.
+
+### Viewer (conta read-only)
+
+- Usuário `viewer` criado em factory com permissões limitadas
+  (`PERM_DASHBOARD | PERM_HISTORY`). Senha default pública (`viewer`),
+  documentada como tal, com `mustChangePassword=true` pra forçar troca
+  mesmo pra conta de leitura.
+
+---
+
+## 3. Armazenamento de secretos
+
+- **Hashes de senha** — atualmente em transição (F15):
+  - **Legado** (`hashVersion=0`, v14 e anteriores): HMAC-SHA256 × 2500
+    rounds com **salt = username.toLowerCase()** (determinístico) +
+    pepper derivado do board serial. Output truncado a 30 hex chars
+    (120 bits). Dois devices com mesmo user+pass geram hashes diferentes
+    via pepper, mas dentro de um device o salt é previsível.
+  - **v1** (`hashVersion=1`, F15.2.c em diante): HMAC-SHA256 × 5000
+    rounds com **salt random por usuário** (8 bytes via `hwrand32`) +
+    mesmo pepper. Output 32 hex chars (128 bits, atende NIST mínimo).
+    Gerado ao criar/mudar senha ou em factory reset.
+  - **Schema v15**: `UserAccount` ganhou campos
+    `salt[8]` e `hashVersion` para suportar os dois esquemas em
+    paralelo. Migração transparente: configs v13/v14 são lidas,
+    users ficam marcados `hashVersion=0` (legado), e serão
+    auto-upgradados para v1 no próximo login válido (F15.2.c).
+- **Campos sensíveis em flash** (WiFi pass, telemetry API key):
+  ofuscação XOR com keystream SHA-256(chipID + domain) antes da
+  gravação. **Não é criptografia forte** — é defesa em profundidade
+  contra dumps triviais do flash. Adversário com code-execution no chip
+  extrai facilmente.
+- **RAM-only secrets**: `_initialAdminPassword` (plaintext da senha
+  factory) só em RAM; zerado quando admin troca senha ou config válida
+  é carregada.
+- **Nonces de login** (`LoginState.nonce`): 64 chars hex de
+  SHA-256(entropia hardware × 4). Válidos por `NONCE_LIFETIME_MS = 60s`.
+  Consumidos atomicamente após uso.
+
+---
+
+## 4. Rate limiting & lockout
+
+### Login web
+
+- Estado por **IP client** em `_loginStates[LOGIN_STATE_SLOTS=8]`
+  (LRU evict por `lastActivity`, mas **apenas entre slots evictáveis** —
+  ver SEC-006 abaixo).
+- **Backoff exponencial**: `(1 << failCount) × 1s`, cap 300s. Reseta a 0
+  após login bem-sucedido.
+- **Nonce expirado** conta como falha (mesmo backoff).
+- **Log de falha**: `LOG_WARN SEC SEC_LOGIN_FAIL` com motivo (nonce
+  inválido, nonce expirado, credencial inválida).
+- **SEC-006/F15.1**: o algoritmo de LRU evict ignora slots sob lockout
+  ativo (`lockoutUntil > now`). Slots trancados ficam "sticky" até a
+  penalidade expirar — impede atacante de escapar do backoff cyclando
+  por 8+ IPs diferentes até o slot lockado virar LRU. Se os 8 slots
+  estiverem trancados simultaneamente (edge case), `/api/login_init`
+  responde **HTTP 429** com `Retry-After` em segundos.
+
+### CLI
+
+- **USB/BT buffer bound**: `CLI_LINE_MAX = 256`. Linhas maiores
+  descartadas + `LOG_WARN CLI CLI_UNKNOWN_CMD`. Previne DoS tipo
+  `yes | cat > /dev/ttyACM0` (SEC-005/F12.5).
+
+### Touch priority
+
+- Durante interação no display, handlers web pesados respondem 503
+  (`TouchPriority::isActive()` → `rejectIfTouchPriority` — REF-004).
+  Não é rate-limit, é prioridade de UX, mas também reduz janela para
+  ataques de CPU-exaustion.
+
+### Export CSV — `/api/export/history.bin` e `/api/export/logs.bin`
+
+- **Auth**: ambos exigem login web válido + permissão `PERM_HISTORY` /
+  `PERM_LOGS` respectivamente. Sem cookie `SIMUTSESS` válido → HTTP 403.
+- **Atomic guard**: cada endpoint tem flag (`_inHistoryHandler`,
+  `_inExportLogsHandler`) que impede 2 exports concorrentes do mesmo
+  tipo — segundo recebe HTTP 503 `{"error":"Already processing"}`.
+  Permite 1 export de history + 1 export de logs simultâneos.
+- **HeavyTaskGuard**: serializa contra writes de flash (saves de
+  config, sensor accept). Concorrência → HTTP 503 `System Busy`.
+- **Cap de range hard**: 31 dias por request (rejeitado com HTTP 400
+  `Range exceeds 31 days`). Cliente JS divide ranges maiores em
+  chunks de 24h (~30 chunks p/ histórico completo).
+- **Deadline servidor**: `WEB_LONG_HANDLER_DEADLINE_MS = 15s`
+  (calibrado por `tools/test_perf.sh` — export 3d ~10s no caso típico).
+  Ao estourar, handler aborta limpo via `isHandlerOvertime()` e CRC32
+  trailer não é emitido — cliente detecta CRC inválido e re-tenta com
+  chunk menor.
+- **Integridade**: bundle `.simx` tem CRC32-IEEE-802.3 trailer. Cliente
+  valida byte-a-byte antes de gerar CSV — falha de rede/truncamento
+  detectada determinísticamente.
+- **Filtros server-side**: `/api/export/logs.bin?level=err|inf|all`
+  filtra no servidor (reduz bytes na rede e CPU no cliente). History
+  filtra por `from`/`to` (epoch UTC, hard cap 31d).
+
+### Backend hardening contra loops infinitos
+
+- `handleApiExportHistory` itera por dia em range. Caso o arquivo
+  do dia não exista (`LittleFS.exists() == false`), o `dayStart` é
+  sempre avançado **antes** de qualquer `continue` — previne loop
+  infinito que disparava WDT em ranges que cobriam datas sem dados
+  .
+
+---
+
+## 5. Auditoria
+
+### Logs persistentes
+
+- Arquivos binários `/system.blog` (atual) e `/system.old.blog`
+  (rotação), `MAX_RECORDS_PER_FILE = 800`. Cada record tem timestamp,
+  core, level, tag, code, context.
+- Leitura via web `/history` → aba Logs, CLI `show system log`, ou
+  download direto `/download?file=/system.blog`.
+- Clear: `clear log confirm` (CLI) ou UI — ação auditada
+  (`LOG_CODE(LOG_WARN, "SEC", SYS_REBOOT_USER, ...)` dispara no fluxo).
+
+### Endpoint de status
+
+- `GET /api/sec_status` (perm: `PERM_SYS_CONFIG`) expõe tentativas
+  ativas, lockouts, failCount, idade de slot — úteis para triagem.
+
+### Logs imutáveis durante touch
+
+- Se user está interagindo no display, logs são **bufferizados em RAM**
+  e flushados ao soltar o touch. Previne perda de evidência em
+  crash-during-interaction.
+
+---
+
+## 6. Resposta a incidente
+
+Se houver suspeita de comprometimento:
+
+1. **Triagem remota**:
+   - `GET /api/sec_status` (se login ainda funciona) — quantos slots
+     ativos, failCounts, lockouts recentes.
+   - `GET /api/logs` ou `show system log` — procurar
+     `SEC_LOGIN_FAIL`, `SEC_CONFIG_CHANGED`, `SYS_REBOOT_USER`
+     inesperados, `STO_*` indicando gravações não solicitadas.
+
+2. **Contenção**:
+   - Desconectar da rede (power cycle ou remover WiFi).
+   - Se acesso físico disponível: USB CLI continua disponível mesmo com
+     rede down.
+
+3. **Revogação**:
+   - Rotacionar admin: `conf user pass admin <novaSenha>` + `write
+     memory` + `reload confirm`.
+   - Revogar outros users: `conf user del <nome>`.
+   - Se comprometimento extenso: `conf system factory confirm` (apaga
+     TODA config).
+
+4. **Preservação**:
+   - Baixe `/system.blog` e `/system.old.blog` antes do factory reset —
+     são apagados junto com tudo. Arquivos em `/history/` também.
+
+5. **Recuperação**:
+   - Após factory reset, reconfigure do zero. Senha admin aparece
+     **uma vez** no Serial USB (conectar para capturar).
+
+---
+
+## 7. Factory reset
+
+### Via CLI (não-destrutivo para firmware)
+
+```
+conf system factory confirm
+```
+
+Efeito:
+- `StorageManager::resetToFactory()` — aplica `loadDefaults` + save +
+  reboot limpo.
+- Overlays em `reserved[]` recriados com defaults (SetupFlags
+  `MUST_CHANGE_PIN`, NetworkTime `dns_auto/ntp_enabled`).
+- Users revogados (admin random, viewer default), sensores desmapeados,
+  cache de telemetria zerado na próxima carga.
+- **Preserva**: `/history/*.bin` (dados de sensores coletados),
+  `/system.blog` (logs). Para apagar, delete via `/files` ou
+  `clear log confirm` antes.
+
+### Via wipe de flash (destrutivo total)
+
+1. Pressionar BOOTSEL + reboot → modo UF2.
+2. Flashear um `.uf2` limpo ou ferramenta de clear do Pico SDK.
+3. Reflashar SIMUT.
+
+Apaga 100% do flash: código, config, histórico, logs.
+
+---
+
+## 8. Superfície de ataque
+
+### Portas/protocolos expostos
+
+- **HTTP**: porta 80 (ou valor em `WebConfigData.port` — 1..65535).
+  Autenticado via cookie de sessão após login.
+- **mDNS**: `<deviceName>.local` (default `simut.local`) — apenas para
+  descoberta; não expõe endpoints adicionais.
+- **Bluetooth SPP**: `SIMUT_CLI`. Sem pareamento PIN (depende da stack
+  do cliente); aplicação-layer auth via PIN do display.
+- **USB CDC**: serial sempre disponível, sem auth (requer acesso físico).
+- **NTP**: tráfego outbound UDP/123.
+- **Telemetria**: HTTP/HTTPS ou MQTT/MQTTS outbound para servidor
+  configurado (`cfg.telServer`).
+
+### Endpoints com permissão
+
+Permissões (bitmask): `PERM_DASHBOARD`, `PERM_HISTORY`, `PERM_LOGS`,
+`PERM_SYS_CONFIG`, `PERM_NET_CONFIG`, `PERM_FILE_READ`,
+`PERM_FILE_UPLOAD`, `PERM_FILE_DELETE`, `PERM_USER_MGR`.
+
+Endpoints destrutivos exigem perm específica + touch-priority check (503
+se user está no display): `/api/commit_all`, `/api/delete`,
+`/api/mkdir`, `/api/clear_logs`, `/api/reset_touch_cal`,
+`/api/force_chpass`.
+
+OTA endpoints  (F-OTA):
+- `GET /api/backup` (`PERM_FILE_READ`) — gera `.bkp` da LFS atrelado ao
+  chip_id. Read-only mas expõe todo conteúdo do FS, então perm = leitura.
+- `POST /api/restore?op=validate|apply` (`PERM_FILE_READ` para validate,
+  `PERM_FILE_UPLOAD` para apply) — apply é destrutivo (sobrescreve
+  arquivos restaurados do `.bkp`); chip_id deve bater. F-RESTORE fechado em
+  v4.1.0 (98/100 PASS no loop_real, 0 ConnResets, integridade 100% — ver
+  `docs/F_RESTORE_BUGS.md`). Apply é AUTO-REBOOT: após escrever LFS, device
+  chama `LogManager::safeReboot()` para recarregar caches stale (display,
+  sensor loader, theme). Cliente recebe 200 OK ou ConnectionReset (ambos
+  válidos — UI `doRestore` em `WebUI.h` polla `/api/login_init` por até 90s
+  após apply pra confirmar boot). Core 1 fica paused durante todo o upload
+  (1 lockout transition em vez de 1-per-chunk, evitando deadlock).
+- `POST /api/restore?op=stage` (**ADMIN-ONLY** desde v4.2.2 — `getAuthPerms() == PERM_FULL_ADMIN`)
+  — destrutivo (apaga 1 MB da LFS para receber `.bin` RAW do firmware).
+  Pré-check de perm em `UPLOAD_FILE_START` antes da erasure. Validation
+  dry-run roda em `op=stage&commit=1`: tamanho range + boot2 CRC-32/MPEG-2
+  .
+- `POST /api/ota/apply` (**ADMIN-ONLY** desde v4.2.2) — DESTRUTIVO IRREVERSÍVEL:
+  copia staging→app slot, watchdog reboot. Snapshot de `/config/system.bin`
+  preservado via `OTA_SNAPSHOT_OFFSET` (último setor da staging area)
+  e restaurado em `StorageManager::begin` pós-apply (chpass, users,
+  WiFi, sensores, MQTT, NTP — 11/11 campos preservados byte-a-byte).
+  Demais arquivos (history/lang/themes/calib) requerem `.bkp` baixado
+  pelo navegador antes do upload + restore manual via `/api/restore?op=apply`.
+  Recovery em caso de brick: BOOTSEL + `picotool load -x firmware.uf2`.
+
+Ação imediata (sem reboot): `/api/set_time` — seta RTC manual, requer
+`PERM_SYS_CONFIG`.
+
+---
+
+## 9. Updates
+
+- **OTA via web**  (admin): admin com `PERM_FILE_UPLOAD` faz upload do
+  `.bin` RAW pelo `/files`, valida (boot2 CRC + size range), e aplica via
+  `/api/ota/apply`. Snapshot da config é preservado através do apply.
+  **Threat surface**: qualquer credencial admin comprometida = poder
+  flashar firmware arbitrário remotamente. Mitigações: (1) rate-limit no
+  `/api/login_init` + lockout exponencial; (2) `mustChangePin` em factory;
+  (3) admin pwd random em factory reset (SEC-003); (4) acesso à rede do
+  device deve ser restrito (subrede isolada / VPN). UF2 não é assinado
+  ainda — operador é responsável por validar origem do binário.
+- **OTA via BOOTSEL + UF2**: continua disponível como recovery e como
+  caminho seguro pra primeiro flash. Requer acesso físico.
+- **Integridade do firmware**: UF2/BIN não têm assinatura criptográfica;
+  validação se limita a heurística boot2 CRC-32/MPEG-2 (pega gzip/random,
+  mas não impede firmware malicioso assinado válido). Operador é
+  responsável por baixar binário de canal confiável.
+- **Rollback**: flashear UF2 anterior restaura. Config em `/config/`
+  sobrevive a OTA (snapshot) e a reflash USB se layout de flash não
+  mudou; se mudar partição LittleFS pode apagar tudo (validar antes via
+  `/api/fs/manifest` que retorna fc/psz/crc/fw/cid).
+
+### 9.1 Procedimento de update via OTA (web)
+
+**Pré-requisitos:**
+- Conta admin com `PERM_FILE_UPLOAD`.
+- Backup do FS recomendado (botão "Backup" em `/files`).
+- Binário `.bin` RAW (não `.bin.gz` — gzip path removido em v3.44.0-alpha2).
+
+**Passos:**
+1. Acessar `/files` autenticado, clicar em "Firmware".
+2. WARN modal explica perda de dados não-config + bricks residuais.
+3. Backup auto-download do `.bkp` (parse cliente compara header
+   BKP1 com headers `X-Backup-PSize`/`X-Backup-PCrc` anunciados; abort
+   se mismatch).
+4. Selecionar `.bin`, parser cliente valida: range size + boot2 CRC + regex
+   versão `SIMUT_VERSION`. Confirm modal final com sumário + downgrade warn.
+5. Upload (POST `/api/restore?op=stage&commit=1`) + apply (POST
+   `/api/ota/apply`). Device responde 202 e reboota.
+6. Pós-boot (~30s), redirect automático pra `/login`. Snapshot da config
+   restaurada — login funciona com mesmas credenciais.
+
+### 9.2 Procedimento de update (re-flash USB)
+
+> Caminho de recovery / primeiro flash. Para updates rotineiros, prefira
+> OTA (§9.1).
+
+**Pré-requisitos:**
+- Acesso físico ao Pico W (USB).
+- UF2 do canal oficial (releases do GitHub).
+
+**Passos:**
+1. **Backup do config**: via web `GET /api/export/config.bin` (se
+   `PERM_FILES`) ou copiar `/config/system.bin` via download de file
+   manager. Pular só se config-default for aceitável.
+2. **Backup do FS** (recomendado se mudou layout LittleFS): `GET
+   /api/fs/backup.tar` (se exposto) ou enumerar `/api/ls` + baixar
+   cada arquivo. Lição empírica: `uploadfs` em release nova já apagou
+   `system.bin` + `/history/` quando layout mudou.
+3. **Entrar em BOOTSEL**: pressionar BOOTSEL ao plugar USB *ou* via
+   1200-baud trick (`stty -F /dev/ttyACM0 1200`). O device aparece
+   como mass storage (`RPI-RP2`).
+4. **Copiar UF2** para a unidade montada. Pico reinicia automaticamente.
+5. **Verificar versão** após boot via `GET /api/perms` (campo
+   `version`) ou banner Serial: deve bater com a release publicada.
+6. **Restaurar config** se o passo 2 baixou backup: upload via
+   `POST /api/upload` para `/config/system.bin` (precisa
+   `PERM_FILES` + `PERM_SYS_CONFIG`).
+
+**Recovery de boot quebrado:**
+- BOOTSEL force: segurar botão BOOTSEL durante power-up; sempre entra
+  em modo recovery, mesmo se firmware travou.
+- Se config corromper, factory reset via CLI Serial: `factory reset
+  confirm` (regenera senhas random, mantém calib.csv).
+
+**Versionamento:**
+- Tags git seguem semver (`v<MAJOR>.<MINOR>.<PATCH>`).
+- Patch bump = bug fix sem schema change.
+- Minor bump = feature ou schema bump (CONFIG_VERSION incrementado;
+  `attemptLoad` migra de versões anteriores transparentemente — ver
+  `StorageManager.cpp:480`).
+- Major bump = quebra de compat (raro).
+
+---
+
+## 10. Disclosure policy
+
+Suspeitou de vulnerabilidade? Reporte **privadamente** antes de
+publicar:
+
+- Abrir issue privado no repositório do projeto (se o repo estiver em
+  GitHub/GitLab, use o canal de security advisory).
+- Ou contatar o mantenedor diretamente via email (preencher canal
+  conforme repositório).
+
+Evite publicar em fóruns/issues públicos até coordenação — dispositivos
+em produção podem ser comprometidos durante janela de disclosure.
+
+---
+
+## Histórico de mudanças de segurança
+
+Commits/sub-fases relevantes:
+
+- **F12.1** (SEC-001, commit `d91b9e8`) — Path traversal em upload.
+- **F12.2** (SEC-002, `d91b9e8`) — UploadDir sanitização.
+- **F12.3** (SEC-003, `d91b9e8`) — Senha admin random em factory.
+- **F12.4** (SEC-004, `d91b9e8`) — PIN display com `mustChangePin`.
+- **F12.5** (SEC-005, `2543ed2`) — DoS CLI buffer bounded.
+- **F-NET-TIME.1b** (`6e239f1`) — CLI `conf system factory` exposta.
+- **F-NET-TIME.5a** (`95ea5e4`) — Cursor telemetria auto-reset (previne
+  silent drop pós manual time).
+- **F14/WEB-001** (`1826a85`) — Escape JSON em `/api/ls`.
+- **F14/CON-005a** (`40795d2`) — `LoginState.nonce` sem heap alloc.
+ — LRU evict de `_loginStates` ignora slots
+  sob lockout ativo; `/api/login_init` responde 429 se os 8 slots
+  estiverem trancados.
+ — schema bump v14→v15: `UserAccount`
+  ganhou `salt[8]` e `hashVersion` (zero impacto comportamental; prepara
+  F15.2.c). Migrações v13→v15 e v12→v15 expandem `UserAccount` de 52→62
+  bytes transparentemente.
+
+Para detalhes técnicos, ver `STABILITY_PLAN.md` e commits individuais.

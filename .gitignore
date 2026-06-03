@@ -1,0 +1,68 @@
+# Build artifacts
+.pio/
+.pioenvs/
+.piolibdeps/
+build/
+
+# IDE files
+.vscode/.browse.c_cpp.db*
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/ipch
+.idea/
+*.swp
+*.swo
+*~
+
+# Compiled files
+*.o
+*.elf
+*.bin
+*.hex
+*.uf2
+*.map
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Generated assets
+WebUI_GZ.h
+src/WebUI_GZ.h
+
+# Generated docs
+docs/MANUAL.html
+docs/MANUAL.pdf
+docs/MANUAL_with_images.md
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Test server certs (self-signed)
+tools/test-server/certs/
+
+# Test reports and logs (generated at runtime)
+docs/test_reports/
+
+# Screenshots (generated)
+docs/screenshots_v2/
+docs/screenshots_v4/
+
+# Device runtime data (generated on-device)
+data/history/
+data/config/
+data/web/
+data/themes/
+data/calib.csv
+data/system.blog
+data/system.old.blog
+data/*.blog
+
+# Claude Code (project config, may contain local paths)
+.claude/
+
+# Changelogs (auto-generated or versioned)
+CHANGELOG_*.md
