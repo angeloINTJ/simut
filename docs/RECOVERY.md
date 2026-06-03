@@ -1,78 +1,78 @@
-# Recovery — Pico W brick após OTA
+# Recovery — Pico W Brick After OTA
 
-> Documento entregue como pré-requisito da Fase 7b do plano OTA. Ler ANTES
-> de qualquer teste destrutivo. Mantenha `.uf2` da última versão estável
-> salva localmente em pasta separada do projeto.
+> Document delivered as a prerequisite for OTA Plan Phase 7b. Read BEFORE
+> any destructive test. Keep the `.uf2` of the last stable version saved
+> locally in a folder separate from the project.
 
 ---
 
-## Quando este documento é necessário
+## When This Document Is Needed
 
-Use **uma e apenas uma** destas situações:
+Use in **one and only one** of these situations:
 
-1. Após `POST /api/ota/apply` (sem `?test=1`) o device não volta a
-   responder em ~30 s, ping falha, serial silente.
-2. Boot loop visível (`SIMUT firmware vX.Y.Z` repetido no serial sem
-   chegar em "[BOOT] AP detect").
-3. Após queda de energia durante apply (raríssimo, mas plano §7 R3).
-4. `picotool info` retorna sucesso para `2e8a:0003` (BOOTSEL) mas o
-   device em modo aplicação (`2e8a:f00a`) não enumera CDC ou não
-   responde `\r\n`.
+1. After `POST /api/ota/apply` (without `?test=1`) the device doesn't come
+   back online in ~30 s, ping fails, serial silent.
+2. Visible boot loop (`SIMUT firmware vX.Y.Z` repeated on serial without
+   reaching "[BOOT] AP detect").
+3. After power loss during apply (extremely rare, but plan §7 R3).
+4. `picotool info` returns success for `2e8a:0003` (BOOTSEL) but the
+   device in application mode (`2e8a:f00a`) doesn't enumerate CDC or
+   doesn't respond to `\r\n`.
 
-NÃO USE este documento se:
+DO NOT use this document if:
 
-- Boot OK mas Wi-Fi falhou (problema de rede, não de firmware — ver
+- Boot OK but Wi-Fi failed (network problem, not firmware — see
   CLI `show net status`).
-- Touch broken — não afeta boot a partir do v1.0.0 (default cal
-  aplicado automaticamente).
+- Touch broken — doesn't affect boot from v1.0.0 onward (default cal
+  applied automatically).
 
 ---
 
-## Pré-requisitos físicos
+## Physical Prerequisites
 
-- Acesso ao **botão BOOTSEL** do Pico W. No Pico W oficial é o único
-  botão da placa, do lado oposto ao USB.
-- Cabo USB conectado ao host Linux.
-- Permissão para gravar em `/dev/serial/by-id/usb-Raspberry_Pi_Pico_W_*`
-  (membro do grupo `dialout`/`uucp`, ou rodar como sudo).
-- `picotool` instalado em `/usr/local/bin/picotool` (já presente neste
-  setup; também disponível em `~/.platformio/packages/tool-picotool-*/`).
+- Access to the Pico W **BOOTSEL button**. On the official Pico W it is
+  the only button on the board, on the side opposite the USB port.
+- USB cable connected to the Linux host.
+- Permission to write to `/dev/serial/by-id/usb-Raspberry_Pi_Pico_W_*`
+  (member of `dialout`/`uucp` group, or run as sudo).
+- `picotool` installed at `/usr/local/bin/picotool` (already present in
+  this setup; also available at `~/.platformio/packages/tool-picotool-*/`).
 
 ---
 
-## Procedimento BOOTSEL (sem precisar do firmware atual)
+## BOOTSEL Procedure (Without Needing Current Firmware)
 
-Este é o caminho **garantido** — não depende de software no device. É o
-que você usa quando o firmware está completamente quebrado.
+This is the **guaranteed** path — it does not depend on software on the
+device. It's what you use when the firmware is completely broken.
 
-### Passos
+### Steps
 
-1. Desconecte o cabo USB do Pico W.
-2. **Pressione e segure o botão BOOTSEL.**
-3. Conecte o cabo USB com o botão ainda pressionado.
-4. Solte o botão. O Pico W deve aparecer como
-   `Bus 003 Device NNN: ID 2e8a:0003 Raspberry Pi RP2 Boot` em
+1. Disconnect the USB cable from the Pico W.
+2. **Press and hold the BOOTSEL button.**
+3. Connect the USB cable with the button still pressed.
+4. Release the button. The Pico W should appear as
+   `Bus 003 Device NNN: ID 2e8a:0003 Raspberry Pi RP2 Boot` in
    `lsusb`.
-5. Confirme:
+5. Confirm:
    ```bash
    picotool info | head
    ```
-   Deve listar o device em BOOTSEL.
-6. Apague tudo (defensive — força LittleFS reformat no próximo boot):
+   Should list the device in BOOTSEL.
+6. Erase everything (defensive — forces LittleFS reformat on next boot):
    ```bash
    picotool erase
    ```
-7. Grave o `.uf2` da última versão estável:
+7. Flash the `.uf2` of the last stable version:
    ```bash
-   picotool load -x /caminho/para/firmware.uf2
+   picotool load -x /path/to/firmware.uf2
    ```
-   `-x` reinicia o device automaticamente após gravar.
-8. Aguarde ~30s, depois verifique:
+   `-x` reboots the device automatically after flashing.
+8. Wait ~30s, then verify:
    ```bash
-   ls /dev/serial/by-id/                  # Deve mostrar Raspberry_Pi_Pico_W_*
-   lsusb | grep 2e8a:f00a                 # Modo aplicação (não BOOTSEL)
+   ls /dev/serial/by-id/                  # Should show Raspberry_Pi_Pico_W_*
+   lsusb | grep 2e8a:f00a                 # Application mode (not BOOTSEL)
    ```
-9. Confirmar versão via serial:
+9. Confirm version via serial:
    ```bash
    ./.venv/bin/python3 -c "
    import serial, time
@@ -82,27 +82,28 @@ que você usa quando o firmware está completamente quebrado.
    s.close()"
    ```
 
-### Pós-recovery
+### Post-Recovery
 
-Após o reflash, o device estará em **factory state** (LFS apagada). Será
-necessário reconfigurar via CLI:
+After reflash, the device will be in **factory state** (LFS wiped). You
+will need to reconfigure via CLI:
 
 ```
 conf system ssid <SSID>
-conf system pass <SENHA>
+conf system pass <PASSWORD>
 write memory
 reload confirm
 ```
 
-Senha admin web é regenerada automaticamente — buscar na saída de boot
-serial (linha `SEC-003: FACTORY DEFAULTS ATIVADO` + senha de uso único).
+The admin web password is regenerated automatically — find it in the
+serial boot output (line `SEC-003: FACTORY DEFAULTS ACTIVE` + one-time
+password).
 
 ---
 
-## Trigger de BOOTSEL via software (1200 bps trick)
+## Software BOOTSEL Trigger (1200 bps Trick)
 
-Quando o device **ainda responde a USB CDC** mas o firmware app está
-travado (boot loop, mas USB descritor enumera):
+When the device **still responds to USB CDC** but the app firmware is
+frozen (boot loop, but USB descriptor enumerates):
 
 ```bash
 ./.venv/bin/python3 -c "
@@ -114,56 +115,56 @@ sleep 4
 lsusb | grep 2e8a:0003
 ```
 
-Convenção arduino native USB: abrir a porta a 1200 bps + close trigger
-reset-to-BOOTSEL. Funciona enquanto o firmware tiver a USB stack viva
-(antes do `WiFi.end` em `ota_apply_pending_update`, por exemplo).
+Arduino native USB convention: opening the port at 1200 bps + close
+triggers reset-to-BOOTSEL. Works as long as the firmware has the USB
+stack alive (before `WiFi.end` in `ota_apply_pending_update`, for
+example).
 
-Após confirmar BOOTSEL via lsusb, prosseguir como no procedimento
-acima a partir do passo 5.
-
----
-
-## O que **NÃO fazer**
-
-- ❌ `picotool erase` enquanto o device está em modo APP — falha; só
-  funciona em BOOTSEL.
-- ❌ `picotool reboot` esperando que recupere device travado — só
-  funciona se device responde.
-- ❌ Reflashear sem `picotool erase` antes — staging area + metadata
-  podem ter lixo do apply quebrado, causando comportamento estranho
-  (ainda que o sketch slot esteja OK).
-- ❌ Deletar `.uf2` da versão antiga antes de confirmar que a nova está
-  estável em HW. Sempre tenha o **rollback** disponível.
+After confirming BOOTSEL via lsusb, proceed as in the procedure above
+from step 5.
 
 ---
 
-## Diagnóstico — qual etapa do apply quebrou
+## What NOT to Do
 
-Se possível recuperar o device, ler o serial do **primeiro boot pós-apply**
-para identificar onde o orchestrator parou:
+- ❌ `picotool erase` while the device is in APP mode — fails; only
+  works in BOOTSEL.
+- ❌ `picotool reboot` expecting to recover a frozen device — only
+  works if the device responds.
+- ❌ Reflash without `picotool erase` first — staging area + metadata
+  may have garbage from the broken apply, causing strange behavior
+  (even if the sketch slot is OK).
+- ❌ Delete the old version `.uf2` before confirming the new one is
+  stable on HW. Always keep the **rollback** available.
 
-| Sintoma serial | Etapa | Causa provável |
+---
+
+## Diagnosis — Which Apply Stage Broke
+
+If the device can be recovered, read the serial output of the **first
+post-apply boot** to identify where the orchestrator stopped:
+
+| Serial Symptom | Stage | Likely Cause |
 |---|---|---|
-| Sem nenhum log | Pré-orchestrator | Crash em `WiFi.end()` ou `LittleFS.end()` |
-| Banner repetido sem `[BOOT] OTA post-apply` | Pré-applier | metadata write falhou |
-| `[BOOT] OTA post-apply detected` aparece | Apply funcionou | Boot pós-update OK |
-| `[BOOT] OTA post-apply detected: state=2 attempts=N` com N>1 | Loop | `OTA_MAX_APPLY_ATTEMPTS` será atingido |
+| No log at all | Pre-orchestrator | Crash in `WiFi.end()` or `LittleFS.end()` |
+| Banner repeated without `[BOOT] OTA post-apply` | Pre-applier | metadata write failed |
+| `[BOOT] OTA post-apply detected` appears | Apply worked | Post-update boot OK |
+| `[BOOT] OTA post-apply detected: state=2 attempts=N` with N>1 | Loop | `OTA_MAX_APPLY_ATTEMPTS` will be reached |
 
-Se atingir `OTA_MAX_APPLY_ATTEMPTS` (3), `ota_apply_pending_update`
-retorna `MAX_ATTEMPTS` sem destruir — o device continua bootando o
-firmware atual e expõe o status via `/api/ota/status` (futuro endpoint
-).
+If `OTA_MAX_APPLY_ATTEMPTS` (3) is reached, `ota_apply_pending_update`
+returns `MAX_ATTEMPTS` without destroying — the device continues booting
+the current firmware and exposes the status via `/api/ota/status`
+(future endpoint).
 
 ---
 
-## Versões mantidas como rollback
+## Versions Kept as Rollback
 
-Mantenha **localmente** (não no repo, fora do alcance de erase
-acidental):
+Keep **locally** (not in the repo, out of reach of accidental erase):
 
-- `firmware-v1.0.0.uf2` (Fase 6 fechada — sem aplicador real ainda).
-- `firmware-v3.43.x-prefase7b.uf2` (último build antes do primeiro
-  apply destrutivo).
+- `firmware-v1.0.0.uf2` (Phase 6 closed — no real applier yet).
+- `firmware-v3.43.x-prefase7b.uf2` (last build before the first
+  destructive apply).
 
-Recomendado: copiar para `~/firmware-rollback-simut/` cada vez que uma
-
+Recommended: copy to `~/firmware-rollback-simut/` each time a new stable
+version is validated.

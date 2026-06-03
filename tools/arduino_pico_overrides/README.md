@@ -1,106 +1,107 @@
-# arduino_pico_overrides — slim build do framework arduino-pico
+# arduino_pico_overrides — slim build of the arduino-pico framework
 
-> **Save: ~18 KB RAM** (`PBUF_POOL_SIZE` 24→12 em `lwipopts.h`).
-> Combinado com Tier 1.2 do firmware (screenshot heap-alloc, +15 KB), **total ~33 KB**.
+> **Savings: ~18 KB RAM** (`PBUF_POOL_SIZE` 24→12 in `lwipopts.h`).
+> Combined with firmware Tier 1.2 (screenshot heap-alloc, +15 KB), **total ~33 KB**.
 
-## Por que existe
+## Why This Exists
 
-Para reduzir o footprint de RAM do PBUF pool do lwIP, que ocupa 36 KB com config default
-do arduino-pico (24 envelopes × ~1530 B). SIMUT tem 1-2 conexões TCP simultâneas — 12
-envelopes sobram com folga.
+To reduce the RAM footprint of the lwIP PBUF pool, which occupies 36 KB with the
+default arduino-pico config (24 envelopes × ~1530 B). SIMUT has 1-2 simultaneous
+TCP connections — 12 envelopes is plenty.
 
-## Descoberta importante (v1.0.0)
+## Important Discovery (v1.0.0)
 
-PIO compila **a maior parte do lwIP do source** em cada build do projeto, NÃO da
-`liblwip.a` precompilada. Os `.o` ficam cacheados em
+PIO compiles **most of lwIP from source** in each project build, NOT from the
+precompiled `liblwip.a`. The `.o` files are cached in
 `.pio/build/<env>/FrameworkArduino/lwip/src/`.
 
-**Implicação:** patches em `lwipopts.h` propagam para a próxima build SIMUT após
-invalidação de cache. **NÃO é necessário** rebuildar `liblwip.a` — versão antiga deste
-script tentava (caminho errado, levou ~10 min e não dava ganho extra).
+**Implication:** patches in `lwipopts.h` propagate to the next SIMUT build after
+cache invalidation. It is **NOT necessary** to rebuild `liblwip.a` — an older
+version of this script tried that (wrong path, took ~10 min and gave no extra gain).
 
-**BTstack ainda é precompilada** em `liblwip-bt.a` — patches em `btstack_config.h`
-exigiriam rebuild da framework. Mas tentei (v1.0.0, descartado em v1.0.0):
-**alterar BTstack quebra cyw43 RSSI sampling** (chip CYW43439 é compartilhado entre
-WiFi e BT no Pico W; reduzir HCI ou desabilitar perfis afeta WiFi management).
+**BTstack is still precompiled** in `liblwip-bt.a` — patches in `btstack_config.h`
+would require a framework rebuild. But I tried (v1.0.0, discarded in v1.0.0):
+**changing BTstack breaks cyw43 RSSI sampling** (the CYW43439 chip is shared between
+WiFi and BT on the Pico W; reducing HCI or disabling profiles affects WiFi management).
 
-Por isso v1.0.0 só patcheia `lwipopts.h`, deixa BTstack virgin.
+That's why v1.0.0 only patches `lwipopts.h`, leaving BTstack untouched.
 
-## Conteúdo
+## Contents
 
 ```
 arduino_pico_overrides/
-├── README.md                  ← este arquivo
-├── patch.sh                   ← aplica overrides (idempotente)
-├── restore.sh                 ← reverte para originais
-├── originals/                 ← backup virgin (.gitignored, criado pelo patch.sh)
+├── README.md                  ← this file
+├── patch.sh                   ← applies overrides (idempotent)
+├── restore.sh                 ← reverts to originals
+├── originals/                 ← virgin backup (.gitignored, created by patch.sh)
 └── patched_headers/
-    └── lwipopts.h             ← header SIMUT-tunado
+    └── lwipopts.h             ← SIMUT-tuned header
 ```
 
-## Mudanças aplicadas
+## Changes Applied
 
 ### `lwipopts.h`
 
-| Setting | Original | Patched | Razão |
+| Setting | Original | Patched | Reason |
 |---|---|---|---|
-| `PBUF_POOL_SIZE` | 24 | **12** | SIMUT tem 1-2 conexões TCP simultâneas; 12 envelopes pré-alocados sobram |
+| `PBUF_POOL_SIZE` | 24 | **12** | SIMUT has 1-2 simultaneous TCP connections; 12 pre-allocated envelopes are plenty |
 
-`MEMP_NUM_TCP_PCB`, `MEMP_NUM_UDP_PCB` permanecem nos defaults (5 e 7) —
-reduzir UDP_PCB **quebra mDNS** (DHCP+DNS+NTP+mDNS responder = 4 PCBs mínimo).
+`MEMP_NUM_TCP_PCB`, `MEMP_NUM_UDP_PCB` remain at defaults (5 and 7) —
+reducing UDP_PCB **breaks mDNS** (DHCP+DNS+NTP+mDNS responder = 4 PCBs minimum).
 
 ### `btstack_config.h`
 
-**Não modificado** — alterações em BTstack quebram RSSI sampling no Pico W.
+**Not modified** — changes to BTstack break RSSI sampling on the Pico W.
 
-## Uso
+## Usage
 
 ```bash
-# Aplicar overrides (primeira vez OU após update do arduino-pico via PIO)
+# Apply overrides (first time OR after arduino-pico update via PIO)
 bash tools/arduino_pico_overrides/patch.sh
 
-# Reverter (debug ou comparação)
+# Revert (debug or comparison)
 bash tools/arduino_pico_overrides/restore.sh
 ```
 
-`patch.sh` é idempotente — pode rodar quantas vezes quiser. `originals/` é preservado
-após o primeiro patch.
+`patch.sh` is idempotent — you can run it as many times as you want. `originals/`
+is preserved after the first patch.
 
-## Validação HW (2026-05-10)
+## HW Validation (2026-05-10)
 
-| Métrica | Sem patch | Com patch | Save |
+| Metric | Without patch | With patch | Savings |
 |---|---|---|---|
 | RAM SIMUT v1.0.0 | 49.6% (129,900 B) | **36.7% (96,156 B)** | -33 KB |
 | Flash | 98.7% | 98.8% | ~0 |
 | `memp_memory_PBUF_POOL_base` | 36,771 B | 18,387 B | -18 KB |
 | `WebManager::handleApiScreenshotChunk::payload` | 15,360 B (BSS) | 0 B (heap on demand) | -15 KB |
-| mDNS responder (`simut.local:5353`) | ✅ funciona | ✅ **funciona** | — |
+| mDNS responder (`simut.local:5353`) | ✅ works | ✅ **works** | — |
 | RSSI display | ✅ -35 dBm | ✅ **-35 dBm** | — |
-| Telemetria HTTP | ✅ | ✅ | — |
-| Backup/Restore via API | ✅ (29/29 críticos) | ✅ (29/29 críticos) | — |
+| HTTP Telemetry | ✅ | ✅ | — |
+| Backup/Restore via API | ✅ (29/29 critical) | ✅ (29/29 critical) | — |
 
-## O que NÃO foi feito (e por quê)
+## What Was NOT Done (and Why)
 
-| Tentativa | Resultado | Status |
+| Attempt | Result | Status |
 |---|---|---|
-| `MEMP_NUM_UDP_PCB` 7→2 | Quebrou mDNS responder | ❌ revertido em v1.0.0 |
-| `MEMP_NUM_TCP_PCB` 5→3 | Sem efeito mensurável (PCBs são pequenos) | ❌ não vale a complexidade |
-| BTstack profiles 0 (AVRCP/HFP/HIDS/AVDTP) | Quebrou RSSI sampling no display | ❌ revertido em v1.0.0 |
-| `MAX_NR_HCI_CONNECTIONS` 2→1 | Quebrou RSSI sampling no display | ❌ revertido em v1.0.0 |
+| `MEMP_NUM_UDP_PCB` 7→2 | Broke mDNS responder | ❌ reverted in v1.0.0 |
+| `MEMP_NUM_TCP_PCB` 5→3 | No measurable effect (PCBs are small) | ❌ not worth the complexity |
+| BTstack profiles 0 (AVRCP/HFP/HIDS/AVDTP) | Broke RSSI sampling on display | ❌ reverted in v1.0.0 |
+| `MAX_NR_HCI_CONNECTIONS` 2→1 | Broke RSSI sampling on display | ❌ reverted in v1.0.0 |
 
-## Quando isso quebra
+## When This Breaks
 
-- `pio update` ou `pio pkg update framework-arduino-pico` → framework reinstalado, override perde.
-  **Reaplique:** `bash tools/arduino_pico_overrides/patch.sh`.
+- `pio update` or `pio pkg update framework-arduino-pico` → framework reinstalled,
+  override lost. **Reapply:** `bash tools/arduino_pico_overrides/patch.sh`.
 
-## Limites desse approach
+## Limits of This Approach
 
-- Não é portável para outros projetos sem o arduino-pico patched.
-- Re-aplicar patch leva **<1 segundo** (só copia header + invalida cache).
-- Próxima build PIO recompila lwIP source (~30s) na primeira vez após patch.
+- Not portable to other projects without the patched arduino-pico.
+- Reapplying the patch takes **<1 second** (just copies header + invalidates cache).
+- The next PIO build recompiles lwIP source (~30s) the first time after patching.
 
-## Alternativa upstream
+## Upstream Alternative
 
-Se a Arduino-Pico Foundation aceitar PR adicionando `#ifndef` guards em
-`lwipopts.h`, este patch fica obsoleto — bastará `-D PBUF_POOL_SIZE=12` em
-`build_flags` do platformio.ini, sem patch local de framework.
+If the Arduino-Pico Foundation accepts a PR adding `#ifndef` guards in
+`lwipopts.h`, this patch becomes obsolete — it will suffice to add
+`-D PBUF_POOL_SIZE=12` in `build_flags` of platformio.ini, without a local
+framework patch.

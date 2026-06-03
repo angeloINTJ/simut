@@ -1,6 +1,6 @@
-# SIMUT - Sistema Integrado de Monitoramento e Telemetria
+# SIMUT — Integrated Monitoring and Telemetry System
 
-> Integrated Monitoring and Telemetry System for Raspberry Pi Pico W
+> Professional-grade IoT firmware for Raspberry Pi Pico W
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)

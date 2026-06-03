@@ -1,177 +1,177 @@
-# Como usar OTA no SIMUT
+# How to Use OTA on SIMUT
 
-> Guia prático para atualizar firmware do Pico W via web, sem precisar
-> de cabo USB ou botão BOOTSEL.
+> Practical guide for updating Pico W firmware via web, without needing
+> a USB cable or BOOTSEL button.
 
-## O que é
+## What It Is
 
-OTA (Over-The-Air) atualiza o firmware do Pico W remotamente via web —
-sem precisar de cabo USB nem botão BOOTSEL.
+OTA (Over-The-Air) updates the Pico W firmware remotely via web —
+no USB cable or BOOTSEL button needed.
 
-## Pré-requisitos
+## Prerequisites
 
-- Device SIMUT já bootando com firmware **v1.0.0+** (qualquer versão recente)
-- Wi-Fi configurado e device respondendo no IP da rede local
-- Login admin ativo (senha conhecida)
-- Build novo do firmware: `firmware.bin` em `.pio/build/pico_w_release/`
-- Cabo USB conectado (apenas se algo der errado e precisar recovery via BOOTSEL)
+- SIMUT device already booting with firmware **v1.0.0+** (any recent version)
+- Wi-Fi configured and device responding on the local network IP
+- Active admin login (known password)
+- New firmware build: `firmware.bin` in `.pio/build/pico_w_release/`
+- USB cable connected (only if something goes wrong and you need BOOTSEL recovery)
 
-## ⚠️ ATENÇÃO antes de começar
+## ⚠️ WARNING Before You Start
 
-**O OTA reformata a LittleFS** — você perde:
-- WiFi config (SSID, senha, modo IP)
-- Senha admin (volta para OTP factory)
-- Mapping dos sensores (slot N → sensor)
-- Histórico de medidas (`/history/*`)
-- Themes e idiomas customizados
+**OTA reformats LittleFS** — you lose:
+- WiFi config (SSID, password, IP mode)
+- Admin password (reverts to factory OTP)
+- Sensor mapping (slot N → sensor)
+- Measurement history (`/history/*`)
+- Custom themes and languages
 
-**Fluxo recomendado**: backup antes → OTA → restaurar backup depois.
+**Recommended flow**: backup before → OTA → restore backup after.
 
-## Procedimento — opção 1: orquestrador automático
+## Procedure — Option 1: Automatic Orchestrator
 
-Forma mais fácil, com um comando:
+The easiest way, with a single command:
 
 ```bash
 cd /home/angelo/Documentos/SIMUT
 ./tools/ota_apply.py \
     --ip 192.168.3.195 \
-    --user admin --pass 'SuaSenhaAtual' \
+    --user admin --pass 'YourCurrentPassword' \
     --firmware .pio/build/pico_w_release/firmware.bin
 ```
 
-O script automaticamente faz: login → backup .bkp → upload firmware →
-commit → apply → espera boot.
+The script automatically: logs in → backs up .bkp → uploads firmware →
+commits → applies → waits for boot.
 
-Se admin estiver em factory state (recém-resetada), use também
-`--new-pass 'NovaSenha'` para fazer chpass primeiro.
+If admin is in factory state (freshly reset), also use
+`--new-pass 'NewPassword'` to chpass first.
 
-## Procedimento — opção 2: passo a passo manual
+## Procedure — Option 2: Manual Step-by-Step
 
-### 1. Build do firmware
+### 1. Build Firmware
 
 ```bash
 cd /home/angelo/Documentos/SIMUT
 ~/.platformio/penv/bin/pio run
 ```
 
-Confirma `[SUCCESS]` e gera `.pio/build/pico_w_release/firmware.bin`.
+Confirm `[SUCCESS]` and generates `.pio/build/pico_w_release/firmware.bin`.
 
-### 2. Login web + backup
+### 2. Web Login + Backup
 
-Abra `http://<IP-do-pico>` no browser, faça login com admin.
+Open `http://<pico-IP>` in the browser, log in with admin.
 
-Em **Files** → botão **Backup** → salva `.bkp` localmente.
+In **Files** → **Backup** button → save `.bkp` locally.
 
-### 3. Upload do firmware via curl ou web UI
+### 3. Upload Firmware via curl or Web UI
 
-Via curl (mais robusto):
+Via curl (more robust):
 
 ```bash
-# Pegue um nonce
+# Get a nonce
 NONCE=$(curl -s http://192.168.3.195/api/login_init | jq -r .nonce)
-PASS_HASH=$(echo -n 'SuaSenha' | sha256sum | cut -d' ' -f1)
+PASS_HASH=$(echo -n 'YourPassword' | sha256sum | cut -d' ' -f1)
 
-# Login (salva cookie)
+# Login (saves cookie)
 curl -s http://192.168.3.195/api/login \
     -d "user=admin&pass=$PASS_HASH&nonce=$NONCE" \
     -c /tmp/simut.cookie
 
-# Upload firmware com commit=1
+# Upload firmware with commit=1
 curl -s http://192.168.3.195/api/restore?op=stage\&commit=1 \
     -F "file=@.pio/build/pico_w_release/firmware.bin" \
     -b /tmp/simut.cookie
 ```
 
-Resposta esperada: `{"st":5,"bytes":...,"v":0,"committed":1}`.
+Expected response: `{"st":5,"bytes":...,"v":0,"committed":1}`.
 - `st=5` = STAGED
 - `v=0` = valid
-- `committed=1` = metadata gravada
+- `committed=1` = metadata written
 
-Tempo: ~30s para 947 KiB de firmware.
+Time: ~30s for 947 KiB of firmware.
 
-### 4. Disparar apply
+### 4. Trigger Apply
 
 ```bash
 curl -s http://192.168.3.195/api/ota/apply -b /tmp/simut.cookie -X POST
 ```
 
-Resposta: `{"accepted":true,"mode":"apply"}`. Device reboota imediatamente.
+Response: `{"accepted":true,"mode":"apply"}`. Device reboots immediately.
 
-### 5. Aguardar boot
+### 5. Wait for Boot
 
-**Tempo esperado**: 60-90 segundos. Durante esse tempo:
-- Device USB CDC enumera mas CLI fica silencioso
-- LFS auto-format em curso (~13s)
+**Expected time**: 60-90 seconds. During this time:
+- Device USB CDC enumerates but CLI stays silent
+- LFS auto-format in progress (~13s)
 - Core 1 lockout recovery (~10s)
-- Factory init (touch cal default, admin OTP regen, etc)
+- Factory init (touch cal default, admin OTP regen, etc.)
 
-**Se passar de 3 minutos sem boot**: power cycle físico (desconectar +
-reconectar USB). É o **Bug 2** documentado — relacionado a estado do
-chip CYW43/TFT que precisa power-off real para resetar.
+**If it takes more than 3 minutes without boot**: physical power cycle
+(unplug + replug USB). This is the documented **Bug 2** — related to
+CYW43/TFT chip state needing a real power-off to reset.
 
-### 6. Capturar OTP do Serial USB
+### 6. Capture OTP from USB Serial
 
-Após boot, conecte ao Serial USB e leia a senha admin one-time gerada:
-
-```
-SEC-003: FACTORY DEFAULTS ATIVADO
-Senha ADMIN inicial: ABCD1234
-Trocar no primeiro login (forcado).
-```
-
-### 7. Reconfigurar WiFi via Serial CLI
+After boot, connect to USB Serial and read the one-time admin password:
 
 ```
-conf system ssid SuaRede
-conf system pass SuaSenhaWiFi
+SEC-003: FACTORY DEFAULTS ACTIVE
+Initial ADMIN password: ABCD1234
+Change on first login (forced).
+```
+
+### 7. Reconfigure WiFi via Serial CLI
+
+```
+conf system ssid YourNetwork
+conf system pass YourWiFiPassword
 conf ip dhcp
 write memory
 reload confirm
 ```
 
-### 8. Restaurar backup
+### 8. Restore Backup
 
-Login web com a OTP, fazer chpass, depois em **Files** → **Restore**
-→ selecionar o `.bkp` baixado no passo 2.
+Web login with the OTP, do chpass, then in **Files** → **Restore**
+→ select the `.bkp` downloaded in step 2.
 
-Resposta esperada: `{"st":0,"chip":"...","fc":N,"fsm":0}`.
+Expected response: `{"st":0,"chip":"...","fc":N,"fsm":0}`.
 - `st=0` = OK
 - `fc` = files counted
 
-Device reaplica config + history + sensors. Não precisa reload —
-restore aplica direto.
+Device reapplies config + history + sensors. No reload needed —
+restore applies directly.
 
-## Verificação pós-OTA
+## Post-OTA Verification
 
-Via CLI ou web:
+Via CLI or web:
 
 ```bash
-# CLI: confirma versão nova
+# CLI: confirm new version
 SIMUT> show system info
- Firmware:  v1.0.0   ← versão nova
+ Firmware:  v1.0.0   ← new version
 
-# Web: confirma config restaurada
+# Web: confirm restored config
 curl -s http://192.168.3.195/api/perms -b /tmp/simut.cookie
 # {"user":"admin","perms":65535,"version":"v1.0.0"}
 ```
 
-## Recovery se OTA falhar
+## Recovery If OTA Fails
 
-### Cenário A: device em BOOTSEL (USB ID `2e8a:0003`)
+### Scenario A: Device in BOOTSEL (USB ID `2e8a:0003`)
 
-Boot2/firmware corrompido. Reflash via picotool:
+Boot2/firmware corrupted. Reflash via picotool:
 
 ```bash
-# Tem firmware backup local? Use ele
+# Have a local firmware backup? Use it
 picotool load -f -x ~/firmware-rollback-simut/firmware-v1.0.0.uf2
 
-# Ou flash o build atual
+# Or flash the current build
 picotool load -f -x .pio/build/pico_w_release/firmware.uf2
 ```
 
-### Cenário B: device em app mode (USB ID `2e8a:f00a`) mas firmware silent (Bug 2)
+### Scenario B: Device in App Mode (USB ID `2e8a:f00a`) but Firmware Silent (Bug 2)
 
-1. Tente 1200bps trick para ir pra BOOTSEL:
+1. Try 1200bps trick to enter BOOTSEL:
    ```bash
    ./.venv/bin/python3 -c "
    import serial,time
@@ -180,56 +180,58 @@ picotool load -f -x .pio/build/pico_w_release/firmware.uf2
    "
    ```
 
-2. Se 1200bps falhar (mesmo USB hung): **power cycle físico** —
-   desconecte USB por 30s+, reconecte.
+2. If 1200bps fails (even USB hung): **physical power cycle** —
+   unplug USB for 30s+, replug.
 
-3. Se device entrar em BOOTSEL ou voltar em app mode: siga cenário A
-   ou aguarde boot completo.
+3. If device enters BOOTSEL or returns to app mode: follow scenario A
+   or wait for complete boot.
 
-### Cenário C: tudo travado, BOOTSEL inacessível
+### Scenario C: Everything Frozen, BOOTSEL Inaccessible
 
-Apertar e segurar botão BOOTSEL no Pico W enquanto pluga o cabo USB.
-Device entra em BOOTSEL forçado. Reflash via picotool.
+Press and hold the BOOTSEL button on the Pico W while plugging in the
+USB cable. Device enters forced BOOTSEL. Reflash via picotool.
 
-## Limites técnicos
+## Technical Limits
 
-| Item | Valor |
+| Item | Value |
 |------|-------|
-| Tamanho máximo do firmware | 1020 KiB (slot da app) |
-| Tamanho atual v1.0.0 | 947 KiB (91.6% do limite) |
-| Margem livre | ~85 KiB |
-| Tempo upload | ~32s para 947 KiB |
-| Tempo apply (erase+write) | ~13s |
-| Tempo boot pós-apply | 60-90s típico |
-| Tentativas de apply (anti-loop) | 3 max |
+| Maximum firmware size | 1020 KiB (app slot) |
+| Current v1.0.0 size | 947 KiB (91.6% of limit) |
+| Free margin | ~85 KiB |
+| Upload time | ~32s for 947 KiB |
+| Apply time (erase+write) | ~13s |
+| Post-apply boot time | 60-90s typical |
+| Apply attempts (anti-loop) | 3 max |
 
-## FAQ rápido
+## Quick FAQ
 
-**P: Preciso fazer backup todo OTA?**
-R: Sim. A partição LFS é apagada durante o stage upload. Sem backup,
-perde tudo.
+**Q: Do I need to backup every OTA?**
+A: Yes. The LFS partition is erased during the stage upload. Without
+backup, you lose everything.
 
-**P: Posso fazer OTA do firmware compactado (.bin.gz)?**
-R: O servidor aceita só RAW (.bin). Build do PIO já gera .bin direto.
+**Q: Can I OTA from compressed firmware (.bin.gz)?**
+A: The server only accepts RAW (.bin). The PIO build already generates
+.bin directly.
 
-**P: Quantas vezes posso aplicar OTA?**
-R: Sem limite teórico. Flash QSPI Pico W aguenta ~100k erase cycles
-por sector. Cada apply faz ~255 erases.
+**Q: How many times can I apply OTA?**
+A: No theoretical limit. Pico W QSPI flash withstands ~100k erase cycles
+per sector. Each apply does ~255 erases.
 
-**P: Funciona via internet (não só LAN)?**
-R: Tecnicamente sim se o device tem IP público + porta 80 forwarded.
-Mas não há HTTPS — credentials viajam em claro. Use só em LAN ou via VPN.
+**Q: Does it work over the internet (not just LAN)?**
+A: Technically yes if the device has a public IP + port 80 forwarded.
+But there's no HTTPS — credentials travel in the clear. Use only on LAN
+or via VPN.
 
-**P: O backup .bkp serve para outro Pico W?**
-R: Não. O backup é atrelado ao chip_id (RP2040 unique ID 64-bit).
-Restore em chip diferente retorna erro `st=6 chip mismatch`.
+**Q: Does the .bkp backup work for another Pico W?**
+A: No. The backup is tied to the chip_id (RP2040 unique 64-bit ID).
+Restore on a different chip returns error `st=6 chip mismatch`.
 
 ---
 
-## Documentação relacionada
+## Related Documentation
 
-- `docs/OTA_FASE8.md` — fluxo completo + diagnóstico do Bug 2 boot intermitente
-- `docs/RECOVERY.md` — procedimentos de recovery via BOOTSEL
-- `docs/test_reports/` — relatórios de validação em hardware
+- `docs/OTA_FASE8.md` — full flow + Bug 2 intermittent boot diagnosis
+- `docs/RECOVERY.md` — recovery procedures via BOOTSEL
+- `docs/test_reports/` — hardware validation reports
 
-**Última atualização**: latest firmware.
+**Last updated**: latest firmware.
