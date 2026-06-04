@@ -42,7 +42,14 @@
 | GPIO | Function               | Connection                               |
 |------|------------------------|------------------------------------------|
 | 0    | DS18B20 SLOT0 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
-...
+| 1    | DS18B20 SLOT1 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 2    | DS18B20 SLOT2 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 3    | DS18B20 SLOT3 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 4    | DS18B20 SLOT4 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 5    | DS18B20 SLOT5 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 6    | DS18B20 SLOT6 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 7    | DS18B20 SLOT7 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 8    | DS18B20 SLOT8 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 9    | DS18B20 SLOT9 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 10   | DHT22 SLOT10 (1-Wire)  | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 16   | SPI MISO               | TFT MISO                                 |
