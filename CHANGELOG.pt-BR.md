@@ -12,7 +12,12 @@ Todas as mudanças notáveis do firmware SIMUT.
 - **Tópicos do GitHub** — expansão de 9 para 20 tópicos destacando inovações (offline-first, touchscreen, dual-core, ota-updates, rbac, secure, i18n)
 - **Guia de montagem** — revisão dos pinos e detalhes de conexão; correção da tabela Pin Reference no GitHub Pages (kramdown rejeitava linha `...`)
 - **Changelog em português** — `CHANGELOG.pt-BR.md` espelhando a versão em inglês
-- **Reconhecimento de contribuidores** — geração do `CONTRIBUTORS.md` com grid de emojis All-Contributors; adição do badge em ambos os READMEs
+- **Reconhecimento de contribuidores** — geração do `CONTRIBUTORS.md` com grid de emojis All-Contributors; adição do badge e tabela de contribuidores em ambos os READMEs; Lorenzo Longaretto como segundo contribuidor
+- **GIF demo no README** — animação do dashboard TFT acima da dobra
+- **Badge Contributions Welcome** — badge verde sinalizando abertura a novos contribuidores
+- **GitHub Discussions** — canal de Q&A da comunidade habilitado
+- **FUNDING.yml** — botão Sponsor como sinal de manutenção profissional
+- **CONTRIBUTING.md expandido** — seção "Finding Something to Work On" com tabela mapeando skills a issues; política de uso de ferramentas de IA
 
 ### Comunidade
 
