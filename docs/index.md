@@ -3,15 +3,13 @@ title: SIMUT — Professional IoT Firmware for Raspberry Pi Pico W
 description: Offline-first temperature monitoring with TFT dashboard, web interface, and OTA updates. Built for labs, pharmacies, and cold chain.
 ---
 
-<div align="center">
-
 ![SIMUT Dashboard](images/tft-dashboard.png)
 
 # SIMUT
 
 ### Integrated Monitoring & Telemetry System
 
-**Professional-grade IoT firmware for Raspberry Pi Pico W**<br>
+**Professional-grade IoT firmware for Raspberry Pi Pico W**  
 Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
@@ -19,17 +17,11 @@ Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/angeloINTJ/simut/blob/main/LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 
-[Quick Start](#-quick-start) ·
-[Features](#-features) ·
-[Screenshots](#-screenshots) ·
-[Documentation](#-documentation) ·
-[Contribute](#-contribute)
-
-</div>
+[Quick Start](#quick-start) · [Features](#features) · [Screenshots](#screenshots) · [Documentation](#documentation) · [Contribute](#contribute)
 
 ---
 
-## 🎯 Why SIMUT?
+## Why SIMUT?
 
 | Need | DIY Arduino Sketch | ESPHome / Tasmota | **SIMUT** |
 |------|:---:|:---:|:---:|
@@ -46,19 +38,15 @@ Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 
 ---
 
-## 📸 Screenshots
-
-<div align="center">
+## Screenshots
 
 | TFT Dashboard | Web UI | TFT Demo |
 |:---:|:---:|:---:|
 | ![TFT](images/tft-dashboard.png) | ![Web](images/web-dashboard.png) | ![Demo](images/tft-demo.gif) |
 
-</div>
-
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -84,41 +72,41 @@ Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
-1. **Get the hardware**<br>
+1. **Get the hardware**  
    Raspberry Pi Pico W · ILI9341 TFT 320×240 · XPT2046 touch · DS18B20 sensors · DHT22 · Buzzer · [wiring guide](WIRING.md)
 
-2. **Download firmware**<br>
+2. **Download firmware**  
    [Latest release](https://github.com/angeloINTJ/simut/releases/latest) → `firmware.uf2`
 
-3. **Flash the device**<br>
+3. **Flash the device**  
    Hold BOOTSEL, connect USB, drag the `.uf2` file to the `RPI-RP2` drive
 
-4. **Connect**<br>
+4. **Connect**  
    Open **`http://simut.local`** in your browser — default admin password prints once on USB Serial
 
 ---
 
-## ✨ Features
+## Features
 
 | Category | Highlights |
 |----------|-----------|
-| 🔧 **Dual-core Engine** | Core 0: sensors + network + web + telemetry. Core 1: dedicated display loop with lock-free snapshots |
-| 📊 **TFT Dashboard** | Real-time readings, history graphs, touch-driven settings, **50 built-in themes** + custom theme support |
-| 🌐 **Embedded Web Server** | Full management interface, live graphs, dark/light themes, file manager, gzip-compressed assets |
-| 👥 **Multi-user RBAC** | 10 permission bits, 3 simultaneous sessions, HMAC-SHA256 per-user random salt, brute-force protection |
-| 📡 **Dual Telemetry** | HTTP POST + MQTT with JSON/CSV/custom templates, TLS/SSL, configurable endpoints |
-| 💻 **Dual-channel CLI** | USB Serial + Bluetooth (BLE) with password-protected access via display PIN |
-| 🔄 **OTA Updates** | Firmware upload via web UI, config snapshot preservation, automatic reboot with rollback |
-| 🌍 **Internationalization** | English + Portuguese + Spanish via external language packs (LittleFS) — add your own |
-| 🛡️ **Enterprise Security** | HMAC-SHA256 auth, per-user random salt, exponential backoff rate limiting, crash forensics via watchdog |
-| 📜 **Audit Trail** | Persistent log system with rotation, CSV export, tamper-evident binary format |
-| 💾 **Backup & Restore** | Full LittleFS backup (.bkp format), CRC32 integrity verification, chip-ID binding |
+| Dual-core Engine | Core 0: sensors + network + web + telemetry. Core 1: dedicated display loop with lock-free snapshots |
+| TFT Dashboard | Real-time readings, history graphs, touch-driven settings, **50 built-in themes** + custom theme support |
+| Embedded Web Server | Full management interface, live graphs, dark/light themes, file manager, gzip-compressed assets |
+| Multi-user RBAC | 10 permission bits, 3 simultaneous sessions, HMAC-SHA256 per-user random salt, brute-force protection |
+| Dual Telemetry | HTTP POST + MQTT with JSON/CSV/custom templates, TLS/SSL, configurable endpoints |
+| Dual-channel CLI | USB Serial + Bluetooth (BLE) with password-protected access via display PIN |
+| OTA Updates | Firmware upload via web UI, config snapshot preservation, automatic reboot with rollback |
+| Internationalization | English + Portuguese + Spanish via external language packs (LittleFS) — add your own |
+| Enterprise Security | HMAC-SHA256 auth, per-user random salt, exponential backoff rate limiting, crash forensics via watchdog |
+| Audit Trail | Persistent log system with rotation, CSV export, tamper-evident binary format |
+| Backup & Restore | Full LittleFS backup (.bkp format), CRC32 integrity verification, chip-ID binding |
 
 ---
 
-## 🧰 Hardware
+## Hardware
 
 | Component | Specification |
 |-----------|---------------|
@@ -131,7 +119,7 @@ Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 
 ---
 
-## 📖 Documentation
+## Documentation
 
 | Guide | Description |
 |-------|-------------|
@@ -143,7 +131,7 @@ Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 
 ---
 
-## 🤝 Contribute
+## Contribute
 
 SIMUT is open source (MIT). Contributions are welcome!
 
@@ -155,11 +143,6 @@ SIMUT is open source (MIT). Contributions are welcome!
 
 ---
 
-<div align="center">
-
-**[⭐ Star on GitHub](https://github.com/angeloINTJ/simut)** ·
-**[📥 Download Firmware](https://github.com/angeloINTJ/simut/releases/latest)**
+**[⭐ Star on GitHub](https://github.com/angeloINTJ/simut)** · **[📥 Download Firmware](https://github.com/angeloINTJ/simut/releases/latest)**
 
 *Improve this page — [edit on GitHub](https://github.com/angeloINTJ/simut/edit/main/docs/index.md)*
-
-</div>
