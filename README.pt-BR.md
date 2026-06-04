@@ -7,6 +7,11 @@
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
 [![Version](https://img.shields.io/badge/Version-v1.0.0-blue.svg)](https://github.com/angeloINTJ/simut/releases)
 [![Contributors](https://img.shields.io/badge/All_Contributors-2-orange.svg)](CONTRIBUTORS.md)
+[![Contributions Welcome](https://img.shields.io/badge/Contribui%C3%A7%C3%B5es-Bem--vindas-brightgreen.svg)](CONTRIBUTING.md)
+
+<p align="center">
+  <img src="docs/images/tft-demo.gif" alt="SIMUT TFT Demo" width="320">
+</p>
 
 [English version](README.md) | **Português**
 

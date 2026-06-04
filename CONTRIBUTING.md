@@ -7,6 +7,19 @@ Thanks for your interest in contributing! SIMUT is an open-source IoT firmware f
 - **Open an issue first** to discuss your idea before writing code. This avoids wasted effort if the change doesn't fit the project roadmap.
 - Check the [Security Policy](SECURITY.md) if your contribution touches authentication, networking, or data handling.
 
+## Finding Something to Work On
+
+Look for issues labeled [`good first issue`](https://github.com/angeloINTJ/simut/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) — these are curated for new contributors and range from documentation to embedded testing. Each has clear scope, acceptance criteria, and reference files to get you started.
+
+| Skill | Example issues |
+|-------|---------------|
+| C/C++ embedded | HistoryCodec tests, CLI parser tests, fuzz testing |
+| Python / DevOps | Docker dev environment, cppcheck CI, pre-commit hooks |
+| Documentation / i18n | Spanish translation, social proof badges |
+| Design | New built-in color theme |
+
+Not sure where to start? Comment on any `good first issue` and the maintainer will help you scope it.
+
 ## Development Setup
 
 ### Prerequisites
@@ -78,8 +91,13 @@ Flash is critically tight (~98.7% used). Before adding features, consider:
 ## Community
 
 - Report bugs via [GitHub Issues](https://github.com/angeloINTJ/simut/issues)
+- Ask questions in [GitHub Discussions](https://github.com/angeloINTJ/simut/discussions)
 - Follow the [Code of Conduct](CODE_OF_CONDUCT.md)
 - Security vulnerabilities: follow the [Security Policy](SECURITY.md) — do not open a public issue
+
+## AI Tools
+
+We use AI assistants (Claude, Copilot, etc.) as **engineering tools**, not as substitutes for judgment. AI helps with boilerplate, documentation drafts, and test scaffolding — but architecture decisions, PIO timing, flash budgeting, and security hardening are human work. If you use AI in your contribution, that's fine — just review the output. Generated code is your responsibility.
 
 ## License
 
