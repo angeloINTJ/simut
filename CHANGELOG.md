@@ -12,7 +12,12 @@ All notable changes to SIMUT firmware.
 - **GitHub topics** — expand from 9 to 20 topics highlighting innovations (offline-first, touchscreen, dual-core, ota-updates, rbac, secure, i18n)
 - **Wiring guide** — revise pin assignments and assembly details; fix Pin Reference table rendering on GitHub Pages (kramdown rejected `...` row)
 - **Changelog in Portuguese** — `CHANGELOG.pt-BR.md` mirroring the English version
-- **Contributor recognition** — generate `CONTRIBUTORS.md` with All-Contributors emoji grid; add badge to both READMEs
+- **Contributor recognition** — generate `CONTRIBUTORS.md` with All-Contributors emoji grid; add badge and contributor table to both READMEs; add Lorenzo Longaretto as second contributor
+- **README demo GIF** — add animated TFT dashboard demo above the fold
+- **Contributions Welcome badge** — green badge signaling openness to new contributors
+- **GitHub Discussions** — enable community Q&A channel
+- **FUNDING.yml** — Sponsor button as professional maintenance signal
+- **CONTRIBUTING.md expanded** — add "Finding Something to Work On" section with skill-to-issue mapping table; add AI tools policy
 
 ### Community
 
