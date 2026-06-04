@@ -1,0 +1,5 @@
+# originals/ é populado pelo patch.sh no primeiro run a partir da framework
+# arduino-pico instalada localmente. Não commitar — depende da versão do
+# framework. v4.2.1 só backupa lwipopts.h (~5 KB), não mais .a (que não
+# precisamos rebuildar — ver README seção "Descoberta importante").
+originals/

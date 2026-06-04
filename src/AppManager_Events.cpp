@@ -1,0 +1,451 @@
+/**
+ * @file AppManager_Events.cpp
+ * @brief UI event dispatch: touch, graph, calendar, settings, alarms.
+ * @project SIMUT - Sistema Integrado de Monitoramento e Telemetria
+ *          SIMUT - Integrated Monitoring and Telemetry System
+ * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author Ângelo Moisés Alves
+ * @license MIT License
+ */
+
+#include "AppManager.h"
+#include "DisplayManager.h"
+#include "LogManager.h"
+#include "NetworkManager.h"
+#include "SensorManager.h"
+#include "SoundManager.h"
+#include "StorageManager.h"
+#include "SystemDefs.h"
+#include "Themes.h"
+#include <time.h>
+
+void AppManager::core0Yield( ) {
+ static bool _isRenderingGraph = false;
+ static bool _inYield = false;
+ static uint32_t _yieldEntryTime = 0;
+
+ /* Safety: reset guard if stuck >10s (partial crash) */
+ if (_inYield && timeSince(_yieldEntryTime, 10000)) {
+ _inYield = false;
+ _isRenderingGraph = false;
+ LOG_CODE(LOG_WARN, "APP", APP_YIELD_STUCK, 0, TRL("Yield stuck >10s, force reset."));
+ }
+
+ if (_inYield) return;
+ _inYield = true;
+ _yieldEntryTime = millis( );
+
+ /*
+ * Context-aware WdtWindow: core0Yield can be called from within
+ * web handlers (via _lightYieldCb). It processes UI events that may
+ * trigger graph preloads (5x renderGraphOptimized, each 6s budget).
+ * Without a window here, cumulative fits only in 15s default —
+ * insufficient for bursts. 30s covers a typical session.
+ */
+ LogManager::WdtWindow _wdtYield(30000);
+
+ /*
+ * Highest priority: process touch sound BEFORE any other
+ * processing. Reduces beep latency from ~50ms to ~5ms.
+ */
+ if (_displayMgr->consumeTouchSound( )) {
+ _soundMgr->play(SND_TOUCH_CLICK);
+ _soundMgr->update( ); /* Execute immediately, without waiting for yield end */
+ }
+ if (_displayMgr->consumeErrorSound( )) {
+ _soundMgr->play(SND_ERROR);
+ _soundMgr->update( );
+ }
+
+ UiEvent uiEv;
+ if (!_isRenderingGraph) {
+ while (_displayMgr->getUiEvent(uiEv)) {
+ if (uiEv.type == UiEvent::EVT_SLOT_SELECT) { _currentSensorIdx = uiEv.id; refreshSelectedSlot( ); }
+ else if (uiEv.type == UiEvent::EVT_OPEN_GRAPH) {
+ if (uiEv.param == 99) openStatsScreen(uiEv.id);
+ else {
+ int sensorId = uiEv.id;
+ int range = uiEv.param;
+ bool hasAnchor = (_graphAnchorEnd != 0);
+
+ if (!hasAnchor) {
+ _graphNavOffset = 0;
+ _displayMgr->setGraphNavOffset(0);
+ }
+ _lastGraphRange = range;
+
+ /* Always render directly from flash.
+ * Loading screen for 7D which may take ~1-2s. */
+ if (range == 4 && !hasAnchor) {
+ _displayMgr->requestLoadingScreen( );
+ uint32_t waitStart = millis( );
+ while (!_displayMgr->isLoadingDrawn( ) && (millis( ) - waitStart < 500)) {
+ feedWdt( );
+ delay(5);
+ }
+ }
+
+ _isRenderingGraph = true;
+ renderGraphOptimized(sensorId, range, true, 0,
+ hasAnchor ? _graphAnchorEnd : 0);
+ _isRenderingGraph = false;
+ }
+ }
+ /* ── Graph temporal navigation (◀▶ arrows) ── */
+ else if (uiEv.type == UiEvent::EVT_GRAPH_NAV) {
+ static const time_t rangeDur[] = { 3600, 21600, 43200, 86400, 604800 };
+ time_t step = (_lastGraphRange >= 0 && _lastGraphRange <= 4)
+ ? rangeDur[_lastGraphRange] : 86400;
+
+ /*
+ * If there is no anchor (graph opened without calendar),
+ * anchor at now rounded to the end of the current step.
+ */
+ if (_graphAnchorEnd == 0) {
+ _graphAnchorEnd = time(nullptr);
+ }
+
+ /* Shift anchor by exactly 1 step */
+ _graphAnchorEnd += (time_t)uiEv.param * step;
+
+ /* Don't allow viewing the future */
+ time_t now = time(nullptr);
+ if (_graphAnchorEnd > now) _graphAnchorEnd = now;
+
+ /* Offset derived from position: negative = past (▶ enabled) */
+ _graphNavOffset = (_graphAnchorEnd < now) ? -1 : 0;
+ _displayMgr->setGraphNavOffset(_graphNavOffset);
+
+ _isRenderingGraph = true;
+ renderGraphOptimized(uiEv.id, _lastGraphRange, true, 0, _graphAnchorEnd);
+ _isRenderingGraph = false;
+ }
+ /* ── Calendar open ── */
+ else if (uiEv.type == UiEvent::EVT_OPEN_CALENDAR) {
+ time_t now = _netMgr->getEpoch( );
+ struct tm nowTm;
+ localtime_r(&now, &nowTm);
+ int year = nowTm.tm_year + 1900;
+ int month = nowTm.tm_mon + 1;
+
+ uint32_t mask = _storageMgr->getHistoryDaysMask(year, month);
+ _displayMgr->showCalendar(year, month, mask);
+ }
+ /* ── Day selection in calendar ── */
+ else if (uiEv.type == UiEvent::EVT_CALENDAR_DAY) {
+ int sensorId = uiEv.id;
+ int dayNum = uiEv.param;
+
+ /* Midnight of the selected day */
+ struct tm selTm = {};
+ selTm.tm_year = _displayMgr->getCalYear( ) - 1900;
+ selTm.tm_mon = _displayMgr->getCalMonth( ) - 1;
+ selTm.tm_mday = dayNum;
+ time_t selMidnight = mktime(&selTm);
+
+ /*
+ * Anchor = midnight of the following day.
+ * 24H window will be exactly [00:00, 23:59] of the selected day.
+ * ◀▶ navigation shifts from this anchor, not from now.
+ */
+ _graphAnchorEnd = selMidnight + 86400;
+
+ /*
+ * Offset for ▶ button control:
+ * negative = we are in the past (▶ enabled),
+ * zero = present (▶ disabled).
+ */
+ time_t now = time(nullptr);
+ _graphNavOffset = (_graphAnchorEnd < now) ? -1 : 0;
+ _displayMgr->setGraphNavOffset(_graphNavOffset);
+
+ /* Direct render, no cache */
+ _lastGraphRange = RANGE_24H;
+
+ _isRenderingGraph = true;
+ renderGraphOptimized(sensorId, RANGE_24H, true, 0, _graphAnchorEnd);
+ _isRenderingGraph = false;
+ }
+ /* ── Month change in calendar ── */
+ else if (uiEv.type == UiEvent::EVT_CALENDAR_MONTH) {
+ int newMonth = _displayMgr->getCalMonth( ) + uiEv.param;
+ int newYear = _displayMgr->getCalYear( );
+
+ if (newMonth < 1) { newMonth = 12; newYear--; }
+ if (newMonth > 12) { newMonth = 1; newYear++; }
+
+ uint32_t mask = _storageMgr->getHistoryDaysMask(newYear, newMonth);
+ _displayMgr->showCalendar(newYear, newMonth, mask);
+ }
+ else if (uiEv.type == UiEvent::EVT_OPEN_SETTINGS) {
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ String authPin = String(cfg.displayPin);
+ if (authPin.length( ) == 0) authPin = "1234";
+ _displayMgr->showAuthScreen(authPin);
+ }
+ else if (uiEv.type == UiEvent::EVT_AUTH_SUCCESS) {
+ _soundMgr->play(SND_CONFIRM);
+
+
+ if (_pendingAlarmDeactivate) {
+ _pendingAlarmDeactivate = false;
+
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ cfg.ambientSensor.alarmsActive = false;
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ cfg.sensors[i].alarmsActive = false;
+ }
+
+ _soundMgr->stopAlarm( );
+ _displayMgr->setAlarmState(0, -1, false, false);
+ _displayMgr->setAlarmSilenced(false, 0);
+ _displayMgr->setAlarmDeactivated(true);
+ _displayMgr->forceDashboard( );
+ LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, 0, "");
+ } else if (_storageMgr->mustChangePin( )) {
+ /* PIN is still the default factory "1234";
+ * force the change screen before allowing the main menu. */
+ _displayMgr->showSettingsPassword( );
+ LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, 0,
+ TRL("Default PIN detected; forcing change."));
+ } else {
+ _displayMgr->showSettingsMain( );
+ }
+ }
+ else if (uiEv.type == UiEvent::EVT_MENU_SELECT) {
+ if (uiEv.id == 0) {
+ _displayMgr->showSettingsThemes(_storageMgr->getConfig( ).themeIndex);
+ }
+ else if (uiEv.id == 1) {
+ _displayMgr->showSettingsAlarms(&_storageMgr->getConfig( ));
+ }
+ else if (uiEv.id == 2) {
+
+ _displayMgr->showSettingsSounds(_soundMgr->getSettingsState( ));
+ }
+ else if (uiEv.id == 3) {
+ _displayMgr->showSettingsLang(_storageMgr->getConfig( ).displayLang);
+ }
+ else if (uiEv.id == 4) {
+ _displayMgr->showSettingsPassword( );
+ }
+ else if (uiEv.id == 5) {
+ _displayMgr->showTouchCalibration( );
+ }
+ else if (uiEv.id == 6) {
+ _displayMgr->showSettingsLicense( );
+ }
+ else if (uiEv.id == 7) {
+ _displayMgr->showSystemStatus( );
+ }
+ else if (uiEv.id == 8) {
+ _displayMgr->showSettingsDisplayOffset( );
+ }
+ }
+ else if (uiEv.type == UiEvent::EVT_APPLY_THEME) {
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ cfg.themeIndex = uiEv.id;
+ loadTheme(cfg.themeIndex);
+ _storageMgr->saveConfiguration( );
+ _displayMgr->refreshTheme( );
+ _soundMgr->play(SND_CONFIRM);
+ LOG_CODE(LOG_INFO, "APP", APP_UI_THEME_CHANGED, 0, "");
+ }
+ else if (uiEv.type == UiEvent::EVT_APPLY_LANG) {
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ cfg.displayLang = uiEv.id;
+ _displayMgr->setLanguage(cfg.displayLang);
+ _storageMgr->saveConfiguration( );
+ _soundMgr->play(SND_CONFIRM);
+ _displayMgr->forceDashboard( );
+ LOG_CODE(LOG_INFO, "APP", APP_UI_LANG_CHANGED, 0, "");
+ }
+ else if (uiEv.type == UiEvent::EVT_SAVE_ALARMS) {
+ _storageMgr->saveConfiguration( );
+
+ _sensorMgr->syncAlarmLimits(_storageMgr->getConfig( ));
+
+ checkAlarmConditions( );
+ _soundMgr->play(SND_CONFIRM);
+ _displayMgr->showSettingsAlarms(&_storageMgr->getConfig( ));
+ LOG_CODE(LOG_INFO, "APP", APP_UI_ALARM_SAVED, 0, "");
+ }
+
+ else if (uiEv.type == UiEvent::EVT_APPLY_TOUCH_CAL) {
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
+ _displayMgr->fillCalData(cal);
+ _storageMgr->saveConfiguration( );
+ _soundMgr->play(SND_CONFIRM);
+ LOG_CODE(LOG_INFO, "APP", APP_UI_TOUCH_CAL_SAVED, 0, "");
+ }
+
+ else if (uiEv.type == UiEvent::EVT_SAVE_TOUCH_CAL) {
+ /* Save calibrated sensitivity threshold */
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
+ _displayMgr->fillCalData(cal);
+ _storageMgr->saveConfiguration( );
+ _soundMgr->play(SND_CONFIRM);
+ LOG_CODE(LOG_INFO, "APP", APP_UI_TOUCH_SENS_SAVED, 0, "");
+ }
+
+ else if (uiEv.type == UiEvent::EVT_APPLY_DISPLAY_OFFSET) {
+ /*
+ * Applies the new offset to the TFT (already applied by the screen
+ * in preview, but values come from the event to ensure consistency),
+ * persists in reserved[] and restarts touch calibration: the
+ * raw→pixel mapping directly depends on the image position on the LCD,
+ * so keeping the old calibration after shifting makes no sense.
+ */
+ SystemConfig &cfg = _storageMgr->getConfig( );
+
+ int8_t ox = (int8_t)uiEv.id;
+ int8_t oy = (int8_t)uiEv.param;
+ DisplayOffsetData* ofs = reinterpret_cast<DisplayOffsetData*>(
+ cfg.reserved + sizeof(TouchCalData) + sizeof(SoundConfigData));
+ ofs->magic = 0xD0;
+ ofs->offsetX = ox;
+ ofs->offsetY = oy;
+ ofs->reserved = 0;
+
+ /* Invalidates touch calibration: magic=0 forces recalibration; the rest
+ * of the block can remain as garbage — magic is the sole validity
+ * criterion in loadTouchCalibration( ). */
+ TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
+ cal->magic = 0;
+
+ _storageMgr->saveConfiguration( );
+ _displayMgr->resetTouchCalibration( );
+ _soundMgr->play(SND_CONFIRM);
+ LOG_CODE(LOG_INFO, "APP", APP_UI_TOUCH_CAL_SAVED, 0,
+ "Display offset applied; touch calibration reset.");
+
+ /* Immediately open touch calibration for the user to remap
+ * touches with the new LCD image position. */
+ _displayMgr->showTouchCalibration( );
+ }
+
+ else if (uiEv.type == UiEvent::EVT_SAVE_PASSWORD) {
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ char newPwd[9];
+ _displayMgr->getNewPassword(newPwd, sizeof(newPwd));
+ if (strlen(newPwd) >= 4 && strlen(newPwd) <= 7) {
+ /* Only clear mustChangePin if the user chose a PIN != default
+ * "1234". If they set "1234" again, keep the flag active —
+ * swapping to the same value doesn't solve anything.
+ * Note: "1234" is still accepted as a value; the policy only
+ * prevents it from counting as a "real change". */
+ safeCopy(cfg.displayPin, newPwd, sizeof(cfg.displayPin));
+ cfg.displayPin[7] = '\0';
+ if (strcmp(newPwd, "1234") != 0) {
+ _storageMgr->clearMustChangePin( );
+ }
+ _storageMgr->saveConfiguration( );
+ _soundMgr->play(SND_CONFIRM);
+ LOG_CODE(LOG_INFO, "APP", APP_UI_PIN_CHANGED, 0, "");
+ } else {
+ _soundMgr->play(SND_ERROR);
+ }
+ }
+
+ else if (uiEv.type == UiEvent::EVT_SAVE_SOUNDS) {
+ SoundSettingsState sndState = _displayMgr->getSoundSettings( );
+ _soundMgr->applySettingsState(sndState);
+
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ SoundConfigData* sndCfg = reinterpret_cast<SoundConfigData*>(
+ cfg.reserved + sizeof(TouchCalData));
+ _soundMgr->fillConfig(sndCfg);
+ _storageMgr->saveConfiguration( );
+
+ _soundMgr->play(SND_CONFIRM);
+ _displayMgr->showSettingsMain( );
+ LOG_CODE(LOG_INFO, "APP", APP_UI_SOUND_SAVED, 0, "");
+ }
+
+
+ else if (uiEv.type == UiEvent::EVT_ALARM_SILENCE) {
+ uint32_t silenceSec = (uiEv.param > 0) ? uiEv.param : 120;
+ _soundMgr->stopAlarm( );
+ _displayMgr->setAlarmSilenced(true, millis( ) + (silenceSec * 1000));
+ _displayMgr->forceDashboard( );
+ LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_SILENCED, 120, "");
+ }
+
+
+ else if (uiEv.type == UiEvent::EVT_ALARM_DEACTIVATE) {
+
+ _pendingAlarmDeactivate = true;
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ _displayMgr->showAuthScreen(String(cfg.displayPin));
+ }
+ }
+ }
+
+
+ {
+ uint8_t volPreview;
+ if (_displayMgr->consumeVolumePreview(volPreview)) {
+ _soundMgr->setVolume(volPreview);
+ _soundMgr->play(SND_TOUCH_CLICK);
+ _displayMgr->consumeTouchSound( );
+ }
+ }
+
+
+ {
+ uint8_t alarmVolPreview;
+ if (_displayMgr->consumeAlarmVolumePreview(alarmVolPreview)) {
+ _soundMgr->setAlarmVolume(alarmVolPreview);
+
+ SoundSettingsState sndState = _displayMgr->getSoundSettings( );
+ _soundMgr->playPreview(SND_ALARM_START, sndState.alarmMelody);
+ _displayMgr->consumeTouchSound( );
+ }
+ }
+
+
+ if (_displayMgr->consumeTouchSound( )) {
+ _soundMgr->play(SND_TOUCH_CLICK);
+ }
+
+
+ if (_displayMgr->consumeErrorSound( )) {
+ _soundMgr->play(SND_ERROR);
+ }
+
+
+ {
+ SoundEvent prevEvt;
+ uint8_t prevIdx;
+ if (_displayMgr->consumePreviewSound(prevEvt, prevIdx)) {
+ _soundMgr->playPreview(prevEvt, prevIdx);
+ }
+ }
+
+ _soundMgr->update( );
+
+ _sensorMgr->update( );
+ updateLiveDisplay( );
+
+
+ if (_bootCompletedAt > 0 && timeSince(_bootCompletedAt, 5000)) {
+
+
+ if (_displayMgr->isAlarmSilenced( )) {
+ uint32_t silEnd = _displayMgr->getAlarmSilenceEnd( );
+ if (silEnd > 0 && millis( ) >= silEnd) {
+ _displayMgr->setAlarmSilenced(false, 0);
+ LOG_CODE(LOG_INFO, "APP", APP_UI_ALARM_SILENCE_EXP, 0, "");
+ }
+ }
+
+ checkAlarmConditions( );
+ }
+
+
+ _soundMgr->update( );
+
+ _inYield = false;
+}

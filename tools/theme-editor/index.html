@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>SIMUT Theme Editor</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>SIMUT Theme Editor</h1>
+  <span id="conn-status" class="badge bad">não autenticado</span>
+</header>
+
+<main>
+  <aside class="panel sidebar">
+    <h2>1. Conectar ao SIMUT</h2>
+    <form id="login-form">
+      <label>Usuário <input type="text" name="user" autocomplete="username"></label>
+      <label>Senha   <input type="password" name="pass" autocomplete="current-password"></label>
+      <button type="submit">Entrar</button>
+      <span id="login-msg"></span>
+    </form>
+
+    <h2>2. Capturar tela</h2>
+    <button id="cap-btn" disabled>📷 Capturar screenshot</button>
+    <div id="cap-info" class="hint"></div>
+
+    <h2>3. Tema base (cores atuais no SIMUT)</h2>
+    <select id="base-theme">
+      <option value="simut_def">Simut Default</option>
+    </select>
+    <div class="hint">Pixels da tela com essas cores serão substituídos pelas cores editadas.</div>
+
+    <h2>4. Preset inicial</h2>
+    <button id="gallery-btn">🎨 Abrir galeria (50 presets)</button>
+    <div class="hint">Carrega cores como ponto de partida; o "tema base" do remap não muda.</div>
+
+    <h2>5. Editar cores</h2>
+    <div id="color-grid"></div>
+
+    <h2>6. Identidade do tema</h2>
+    <label>Nome de exibição <input type="text" id="name" maxlength="20" value="Meu Tema"></label>
+    <label>Código (id curto) <input type="text" id="code" maxlength="16" value="custom01"></label>
+
+    <h2>7. Salvar</h2>
+    <button id="save-btn">⬇ Baixar .thm</button>
+    <button id="load-btn">📂 Carregar .thm</button>
+    <input type="file" id="load-input" accept=".thm" hidden>
+    <button id="reset-btn">↺ Resetar para tema base</button>
+  </aside>
+
+  <section class="panel viewer">
+    <div class="viewer-row">
+      <div>
+        <h2>Tela atual <span class="hint">(captura)</span></h2>
+        <canvas id="canvas-orig" width="320" height="240"></canvas>
+      </div>
+      <div>
+        <h2>Pré-visualização <span class="hint">(remap em tempo real)</span></h2>
+        <canvas id="canvas-prev" width="320" height="240"></canvas>
+      </div>
+    </div>
+    <div id="palette-info" class="hint"></div>
+  </section>
+</main>
+
+<div id="gallery-modal" class="modal hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>Galeria de presets</h2>
+      <input type="text" id="gallery-search" placeholder="Filtrar por nome...">
+      <button id="gallery-close">✕</button>
+    </div>
+    <div id="gallery-grid"></div>
+  </div>
+</div>
+
+<script src="/static/sha256.js"></script>
+<script src="/static/presets.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>
