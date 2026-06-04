@@ -2,14 +2,33 @@
 
 > Professional-grade IoT firmware for Raspberry Pi Pico W
 
+[English](README.md) | [Português](README.pt-BR.md)
+
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 [![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
+[![Version](https://img.shields.io/badge/Version-v1.0.0-blue.svg)](https://github.com/angeloINTJ/simut/releases)
+[![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
 
 ## Overview
 
 SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that provides real-time temperature and humidity monitoring through a dual-core architecture. It features a local TFT touchscreen dashboard, an embedded web interface with role-based access control, telemetry upload (HTTP/MQTT), a CLI accessible via USB and Bluetooth, and an externalized language-pack system.
+
+## Why SIMUT?
+
+| Need | DIY Arduino Sketch | ESPHome / Tasmota | **SIMUT** |
+|------|:---:|:---:|:---:|
+| Standalone with display | ⚠️ Manual coding | ❌ No TFT support | ✅ Built-in touch UI |
+| Regulated environments | ❌ No audit trail | ❌ No user RBAC | ✅ Multi-user, audit logs |
+| Cold chain (-80°C to +45°C) | ⚠️ Basic readings | ✅ Basic monitoring | ✅ Calibrated multi-sensor |
+| Offline operation | ✅ Yes | ❌ Often cloud-dependent | ✅ Full local web + display |
+| OTA updates | ❌ Manual reflash | ✅ OTA | ✅ OTA + backup/restore |
+| Security | ❌ None | ⚠️ Basic | ✅ HMAC-SHA256, RBAC, rate limiting |
+
+**SIMUT is for you if:** you need a standalone, secure, auditable temperature monitoring system that works with or without internet — typical in laboratories, pharmacies, blood banks, vaccine storage, and food cold chains.
+
+**ESPHome/Tasmota may be better if:** you already have Home Assistant, don't need a local display, and prefer YAML configuration over a built-in web UI.
 
 ## Architecture
 
@@ -245,6 +264,26 @@ All contributors must follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 - **Feature requests:** [GitHub Issues](https://github.com/angeloINTJ/simut/issues/new?template=feature_request.md)
 - **Security vulnerabilities:** See [SECURITY.md](SECURITY.md) — do not open a public issue
 - **Questions:** Open a discussion or issue
+
+## Contributors ✨
+
+Thanks goes to these wonderful people:
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/angeloINTJ"><img src="https://avatars.githubusercontent.com/u/117550822?v=4?s=100" width="100px;" alt="Angelo Moises Alves"/><br /><sub><b>Angelo Moises Alves</b></sub></a><br /><a href="https://github.com/angeloINTJ/simut/commits?author=angeloINTJ" title="Code">💻</a> <a href="https://github.com/angeloINTJ/simut/commits?author=angeloINTJ" title="Documentation">📖</a> <a href="#design-angeloINTJ" title="Design">🎨</a> <a href="#hardware-angeloINTJ" title="Hardware">🔌</a> <a href="#security-angeloINTJ" title="Security">🛡️</a> <a href="#maintenance-angeloINTJ" title="Maintenance">🚧</a></td>
+    </tr>
+  </tbody>
+</table>
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://allcontributors.org) specification.
 
 ## License
 
