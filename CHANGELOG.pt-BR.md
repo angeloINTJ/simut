@@ -10,7 +10,8 @@ Todas as mudanças notáveis do firmware SIMUT.
 - **Correção do GitHub Pages** — remoção de blocos HTML incompatíveis com o kramdown; adição de `_config.yml` para configuração do tema
 - **Social preview** — adição de meta tags `og:image` e `twitter:image` para que compartilhamentos de URL mostrem o dashboard TFT no Reddit, Twitter, Discord e WhatsApp
 - **Tópicos do GitHub** — expansão de 9 para 20 tópicos destacando inovações (offline-first, touchscreen, dual-core, ota-updates, rbac, secure, i18n)
-- **Guia de montagem** — revisão dos pinos e detalhes de conexão
+- **Guia de montagem** — revisão dos pinos e detalhes de conexão; correção da tabela Pin Reference no GitHub Pages (kramdown rejeitava linha `...`)
+- **Changelog em português** — `CHANGELOG.pt-BR.md` espelhando a versão em inglês
 - **Reconhecimento de contribuidores** — geração do `CONTRIBUTORS.md` com grid de emojis All-Contributors; adição do badge em ambos os READMEs
 
 ### Comunidade
@@ -24,6 +25,7 @@ Todas as mudanças notáveis do firmware SIMUT.
 - **.editorconfig** — indentação consistente entre editores
 - **Imagem de social preview** — PNG 1280×640 para compartilhamento Open Graph
 - **Imagens da landing page** — dashboard TFT, screenshots da Web UI, GIF animado de demonstração
+- **Suíte de testes verificada** — 49/49 testes passando em 0.9s (27 validators + 22 HistoryCodec)
 
 ## v1.0.0 (2026-06-03)
 
