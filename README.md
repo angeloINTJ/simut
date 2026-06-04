@@ -68,11 +68,24 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 
 ## Screenshots
 
-| TFT Dashboard | Web UI Dashboard |
-|:---:|:---:|
-| ![TFT](docs/images/tft-dashboard.png) | ![Web](docs/images/web-dashboard.png) |
+| TFT Dashboard | TFT Demo | Web UI |
+|:---:|:---:|:---:|
+| ![TFT](docs/images/tft-dashboard.png) | ![Demo](docs/images/tft-demo.gif) | ![Web](docs/images/web-dashboard.png) |
 
-> 📸 **Add screenshots:** See [docs/images/README.md](docs/images/README.md) for instructions on capturing images from your device.
+> 📸 See [docs/images/README.md](docs/images/README.md) for how to capture screenshots from your device.
+
+## Hardware
+
+| Component | Specification |
+|-----------|---------------|
+| MCU | Raspberry Pi Pico W (RP2040) |
+| Display | ILI9341 320×240 TFT (SPI) |
+| Touch | XPT2046 resistive touchscreen |
+| Sensors | DS18B20 (1-Wire, up to 10) + DHT22 (ambient) |
+| Buzzer | Passive piezo (PIO-driven) |
+| Storage | 2 MB internal flash |
+
+See the **[Wiring Guide](docs/WIRING.md)** for complete pinout and connection diagrams.
 
 ## Key Features
 
