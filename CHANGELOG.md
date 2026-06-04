@@ -4,7 +4,26 @@ All notable changes to SIMUT firmware.
 
 ## Unreleased
 
-- Add 672-line HistoryCodec v2 test suite — roundtrip encoding, anchor frame boundaries, NaN compression, buffer overflow ([@LorenzoLongaretto](https://github.com/LorenzoLongaretto) — first community contribution! 🎉)
+### Documentation
+
+- **Landing page v2** — redesigned with hero image, Why SIMUT comparison table, screenshots section, architecture diagram, and clear CTAs
+- **GitHub Pages fix** — remove raw HTML blocks incompatible with kramdown; add `_config.yml` for theme configuration
+- **Social preview** — add `og:image` and `twitter:image` meta tags so URL shares show the TFT dashboard on Reddit, Twitter, Discord, and WhatsApp
+- **GitHub topics** — expand from 9 to 20 topics highlighting innovations (offline-first, touchscreen, dual-core, ota-updates, rbac, secure, i18n)
+- **Wiring guide** — revise pin assignments and assembly details
+- **Contributor recognition** — generate `CONTRIBUTORS.md` with All-Contributors emoji grid; add badge to both READMEs
+
+### Community
+
+- **First external contribution** 🎉 — 672-line HistoryCodec v2 test suite covering roundtrip encoding, anchor frame boundaries, NaN compression, and buffer overflow ([@LorenzoLongaretto](https://github.com/LorenzoLongaretto))
+- **12 `good first issue`** tickets created across docs, design, DevOps, embedded, i18n, and security
+- **5 new labels** added: `tests`, `display`, `i18n`, `ci`, `tools`, `security`
+
+### Infrastructure
+
+- **.editorconfig** — consistent indentation across editors
+- **Social preview image** — 1280×640 PNG for Open Graph sharing
+- **Landing page images** — TFT dashboard, Web UI screenshots, animated demo GIF
 
 ## v1.0.0 (2026-06-03)
 
