@@ -11,6 +11,50 @@
 
 SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that provides real-time temperature and humidity monitoring through a dual-core architecture. It features a local TFT touchscreen dashboard, an embedded web interface with role-based access control, telemetry upload (HTTP/MQTT), a CLI accessible via USB and Bluetooth, and an externalized language-pack system.
 
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                    Raspberry Pi Pico W                    │
+│  ┌─────────────────────┐  ┌─────────────────────────────┐│
+│  │      Core 0          │  │        Core 1               ││
+│  │  (Main Loop)         │  │  (Display Loop)             ││
+│  │                      │  │                             ││
+│  │  ◆ AppManager ───────┼──┼─ state/snapshots ──────┐   ││
+│  │  ◆ SensorManager     │  │  ◆ DisplayManager ◄────┘   ││
+│  │  ◆ WebManager        │  │  ◆ TouchPriority           ││
+│  │  ◆ TelemetryManager  │  │  ◆ Themes (50 built-in)    ││
+│  │  ◆ CommandManager    │  │  ◆ i18n (PT/EN/ES)         ││
+│  │  ◆ StorageManager    │  │                             ││
+│  │  ◆ NetworkManager    │  │                             ││
+│  └──────────┬───────────┘  └─────────────────────────────┘│
+│             │                                              │
+│  ┌──────────┴───────────────────────────────────────────┐ │
+│  │  Hardware Interfaces                                  │ │
+│  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch         │ │
+│  │  ◆ 1-Wire (PIO) → DS18B20 ×10                         │ │
+│  │  ◆ I2C → DHT22 Ambient                                │ │
+│  │  ◆ USB CDC → CLI Serial                              │ │
+│  │  ◆ Bluetooth (BLE) → CLI Remote                       │ │
+│  │  ◆ WiFi (CYW43439) → HTTP Server + Telemetry          │ │
+│  └──────────────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────────────┘
+         │                   │                   │
+    ┌────┴────┐         ┌───┴────┐         ┌────┴─────┐
+    │ Sensors  │         │ Web UI  │         │ Telemetry │
+    │ DS18B20  │         │ Browser │         │ HTTP/MQTT │
+    │   DHT22  │         │ (RBAC)  │         │  Server   │
+    └─────────┘         └─────────┘         └──────────┘
+```
+
+## Screenshots
+
+| TFT Dashboard | Web UI Dashboard |
+|:---:|:---:|
+| ![TFT](docs/images/tft-dashboard.png) | ![Web](docs/images/web-dashboard.png) |
+
+> 📸 **Add screenshots:** See [docs/images/README.md](docs/images/README.md) for instructions on capturing images from your device.
+
 ## Key Features
 
 ### Sensing & Control
