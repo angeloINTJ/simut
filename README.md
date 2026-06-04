@@ -5,6 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 [![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
+[![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
 
 ## Overview
 
@@ -169,7 +170,17 @@ A command-line interface is available via USB Serial (115200 baud) and Bluetooth
 - `reload` — reboot the device
 
 ### Web API
-The device exposes a REST API at `http://<device-ip>/api/`. See `docs/OTA_USAGE.md` for OTA-specific endpoints.
+The device exposes a REST API at `http://<device-ip>/api/`. See [OTA Usage Guide](docs/OTA_USAGE.md) for OTA-specific endpoints.
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [User Manual](docs/MANUAL.md) | Complete hardware setup, display/web/CLI guide, troubleshooting |
+| [OTA Update Guide](docs/OTA_USAGE.md) | Firmware update over-the-air via web UI or curl |
+| [Recovery Guide](docs/RECOVERY.md) | Brick recovery after failed OTA — BOOTSEL and picotool |
+| [Security Policy](SECURITY.md) | Threat model, credential handling, incident response |
+| [Changelog](CHANGELOG.md) | Version history and feature changes |
 
 ## Testing
 
@@ -180,7 +191,16 @@ pio test -e native
 
 ## Contributing
 
-Contributions are welcome! Please open an issue to discuss proposed changes before submitting a pull request.
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code conventions, and the pull request process.
+
+All contributors must follow the [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Support
+
+- **Bug reports:** [GitHub Issues](https://github.com/angeloINTJ/simut/issues/new?template=bug_report.md)
+- **Feature requests:** [GitHub Issues](https://github.com/angeloINTJ/simut/issues/new?template=feature_request.md)
+- **Security vulnerabilities:** See [SECURITY.md](SECURITY.md) — do not open a public issue
+- **Questions:** Open a discussion or issue
 
 ## License
 

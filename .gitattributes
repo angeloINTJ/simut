@@ -1,0 +1,13 @@
+* text=auto eol=lf
+*.cpp text eol=lf
+*.h text eol=lf
+*.md text eol=lf
+*.py text eol=lf
+*.ini text eol=lf
+*.sh text eol=lf
+*.bin binary
+*.uf2 binary
+*.elf binary
+*.a binary
+*.ico binary
+*.lng binary
