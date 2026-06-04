@@ -6,10 +6,18 @@
                     Raspberry Pi Pico W
                  ┌────────────────────────┐
                  │  ╭──────────────────╮  │
-    DS18B20 #1 ──┤4 │                  │  │
-    DS18B20 #2 ──┤5 │                  │  │
-    SHT31 SDA  ──┤6 │     RP2040       │  │
-    SHT31 SCL  ──┤7 │                  │  │
+ DS18B20 SLOT0 ──┤0 │                  │  │
+ DS18B20 SLOT1 ──┤1 │                  │  │
+ DS18B20 SLOT2 ──┤2 │                  │  │
+ DS18B20 SLOT3 ──┤3 │                  │  │
+ DS18B20 SLOT4 ──┤4 │                  │  │
+ DS18B20 SLOT5 ──┤5 │                  │  │
+ DS18B20 SLOT6 ──┤6 │                  │  │
+ DS18B20 SLOT7 ──┤7 │                  │  │
+ DS18B20 SLOT8 ──┤8 │                  │  │
+ DS18B20 SLOT9 ──┤9 │                  │  │
+ DHT22 SLOT10  ──┤10│     RP2040       │  │
+                 |  │                  │  │
                  │  │    Dual-Core     │  │
     TFT MISO   ──┤16│    133 MHz       │  │
     TFT CS     ──┤17│                  │  │── GND ──── Common Ground
@@ -31,25 +39,25 @@
 
 ## Pin Reference
 
-| GPIO | Function | Connection |
-|------|----------|------------|
-| 4 | DS18B20 #1 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
-| 5 | DS18B20 #2 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
-| 6 | I2C SDA | SHT31 / DHT22 data |
-| 7 | I2C SCL | SHT31 / DHT22 clock |
-| 16 | SPI MISO | TFT MISO |
-| 17 | SPI CS | TFT CS |
-| 18 | SPI SCK | TFT SCK |
-| 19 | SPI MOSI | TFT MOSI |
-| 20 | GPIO | TFT DC (Data/Command) |
-| 21 | GPIO | TFT RST (Reset) |
-| 22 | SPI CS | XPT2046 Touch CS |
-| 26 | PIO | Passive Buzzer (+) |
-| 27 | GPIO | XPT2046 Touch IRQ |
+| GPIO | Function               | Connection                               |
+|------|------------------------|------------------------------------------|
+| 0    | DS18B20 SLOT0 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+...
+| 9    | DS18B20 SLOT9 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 10   | DHT22 SLOT10 (1-Wire)  | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 16   | SPI MISO               | TFT MISO                                 |
+| 17   | SPI CS                 | TFT CS                                   |
+| 18   | SPI SCK                | TFT SCK                                  |
+| 19   | SPI MOSI               | TFT MOSI                                 |
+| 20   | GPIO                   | TFT DC (Data/Command)                    |
+| 21   | GPIO                   | TFT RST (Reset)                          |
+| 22   | SPI CS                 | XPT2046 Touch CS                         |
+| 26   | PIO                    | Passive Buzzer (+)                       |
+| 27   | GPIO                   | XPT2046 Touch IRQ                        |
 
 ## Power
 
-- Power the Pico W via **USB-C** (5 V)
+- Power the Pico W via **USB** (5 V)
 - Display and sensors powered from Pico W's **3V3** pin
 - Average consumption: 80–120 mA @ 5 V (display active, WiFi connected)
 - Peak consumption: ~250 mA (telemetry burst + TFT render)
@@ -61,16 +69,6 @@
 - [ ] Common ground between Pico W, display, and all sensors
 - [ ] Passive buzzer connected between GPIO 26 and GND (no resistor needed — PIO-driven)
 - [ ] Use quality USB cable (≥22 AWG) — voltage drops cause reboots
-
-## Diagrama de Ligação (Português)
-
-| GPIO | Função | Conexão |
-|------|--------|---------|
-| 4 | Sensor DS18B20 #1 | Linha de dados + resistor pull-up 4,7 kΩ para 3V3 |
-| 16-21 | Display TFT ILI9341 | Barramento SPI (MISO, CS, SCK, MOSI, DC, RST) |
-| 22 | Touch XPT2046 | CS do touch (compartilha SPI com TFT) |
-| 26 | Buzzer passivo | Terminal positivo (PIO, sem resistor) |
-| 27 | Touch IRQ | Pino de interrupção do touch |
 
 ---
 
