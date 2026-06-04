@@ -16,7 +16,7 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                    Raspberry Pi Pico W                   │
-│  ┌─────────────────────┐  ┌─────────────────────────────┐│
+│  ┌──────────────────────┐  ┌────────────────────────────┐│
 │  │      Core 0          │  │        Core 1              ││
 │  │  (Main Loop)         │  │  (Display Loop)            ││
 │  │                      │  │                            ││
