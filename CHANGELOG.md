@@ -2,6 +2,10 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased
+
+- Add 672-line HistoryCodec v2 test suite — roundtrip encoding, anchor frame boundaries, NaN compression, buffer overflow ([@LorenzoLongaretto](https://github.com/LorenzoLongaretto) — first community contribution! 🎉)
+
 ## v1.0.0 (2026-06-03)
 
 ### Initial Public Release
