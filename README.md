@@ -10,6 +10,7 @@
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
 [![Version](https://img.shields.io/badge/Version-v1.0.0-blue.svg)](https://github.com/angeloINTJ/simut/releases)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
+[![Contributors](https://img.shields.io/badge/All_Contributors-2-orange.svg)](CONTRIBUTORS.md)
 
 ## Overview
 
