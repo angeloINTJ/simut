@@ -1,0 +1,6 @@
+title: SIMUT
+description: Offline-first temperature monitoring with TFT dashboard, web interface, and OTA updates
+
+# Theme settings
+theme: jekyll-theme-cayman
+show_downloads: false
