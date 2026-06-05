@@ -187,13 +187,6 @@ void AppManager::setup( ) {
  SPI.endTransaction();
  /* Leave SPI initialized — Core 1 will use it for TFT + touch. */
 
- /* Minimal touch debug via UART1:
-  *  't' + '0'/'1' = raw GPIO20 right after pin config
-  *  's' + '0'/'1' = settle result (0=fail, 1=quiet)
-  *  'a' + '0'/'1' = AP detect result (0=normal, 1=forceAP)
-  *  'c' + '0'/'1' = post-startCore1 raw GPIO20 */
- Serial.print("[TCH] t="); Serial.println(gpio_get(20));
-
  bool forceAP = false;
  _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
 
@@ -224,7 +217,7 @@ void AppManager::setup( ) {
  }
  delay(20);
  }
- Serial.print("[TCH] s="); Serial.print(touch_settled); Serial.print(" r="); Serial.println(gpio_get(20));
+ 
  }
 
  {
@@ -233,7 +226,7 @@ void AppManager::setup( ) {
  TRACE_BEAT(0);
 
  if (_displayMgr->isScreenTouched( )) {
- Serial.println("[TCH] TOUCH");
+ 
  unsigned long holdStart = millis( );
  bool held = true;
  int missedTouches = 0;
@@ -244,7 +237,7 @@ void AppManager::setup( ) {
  missedTouches++;
  if (missedTouches > AP_HOLD_MAX_MISSED) {
  held = false;
- Serial.println('[TCH] LOST');
+ 
  _displayMgr->setApProgress(-1);
  _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
  delay(800);
@@ -257,13 +250,13 @@ void AppManager::setup( ) {
  _displayMgr->setApProgress(pct);
  delay(50);
  }
- if (held) { forceAP = true; Serial.println('[TCH] HELD'); }
+ if (held) forceAP = true;
  break;
  }
  delay(50);
  }
  }
- Serial.print("[TCH] a="); Serial.println(forceAP);
+ 
 
  _displayMgr->setApProgress(-1);
 
@@ -352,7 +345,6 @@ void AppManager::setup( ) {
  return app._storageMgr->isHeavyTaskLocked( );
  });
 
-
  /* Single touch-priority provider shared by Log, Storage, and Web.
 	 * Set here before any manager queries TouchPriority::isActive()
 	 * during boot. */
@@ -423,7 +415,6 @@ void AppManager::setup( ) {
  _netMgr->setProvisionalTime(lastTs);
  _netMgr->setTimeSyncCallback([](uint32_t bootTs, int32_t delta) {
 
-
  app._timeSyncBootTs = bootTs;
  app._timeSyncDelta = delta;
  __dmb( ); /* Memory barrier: ensures bootTs/delta are visible before the flag */
@@ -444,7 +435,6 @@ void AppManager::setup( ) {
  
  _displayMgr->setLanguage(cfg.displayLang);
  
-
 
  _soundMgr->begin( );
  
@@ -476,7 +466,6 @@ void AppManager::setup( ) {
 	 * Also propagated to LogManager for translateCode labels. */
  _cmdMgr->setCliLang(cfg.displayLang);
  LogManager::instance( ).setLanguage(cfg.displayLang);
-
 
  
  {
@@ -618,7 +607,6 @@ void AppManager::setup( ) {
  _webMgr->setLightYieldCallback([this]( ) {
  feedWdt( );
 
-
  static uint32_t lastLiveUpdate = 0;
  uint32_t now = millis( );
  if (now - lastLiveUpdate > 3000) {
@@ -627,7 +615,6 @@ void AppManager::setup( ) {
  updateLiveDisplay( );
  }
  });
-
 
  /* TouchPriority uses the singleton provider set above. */
 
@@ -647,22 +634,18 @@ void AppManager::setup( ) {
  {
  unsigned long warmStart = millis( );
 
-
  while (millis( ) - warmStart < 2000) {
  feedWdt( );
  _sensorMgr->update( );
-
 
  if (timeSince(warmStart, 900)) break;
 
  delay(10);
  }
 
-
  updateLiveDisplay( );
  refreshSelectedSlot( );
  }
-
 
  if (_pendingTimeSync) {
  _displayMgr->setBootStatusKey(TR_BOOT_CORRECT_TS);
@@ -681,7 +664,6 @@ void AppManager::setup( ) {
  preloadMinMax( );
  }
 
-
  /* pre warmup-end + prep-dash */
  _displayMgr->setBootStatusKey(TR_BOOT_PREP_DASH);
  
@@ -699,7 +681,6 @@ void AppManager::setup( ) {
  _displayMgr->endBoot( );
  _bootCompletedAt = millis( );
  BLOG("[BOOT step] 14: SYS READY @ "); BLOG_U(millis( )); BLOG_NL( );
-
 
  _soundMgr->play(SND_CONFIRM);
  }
