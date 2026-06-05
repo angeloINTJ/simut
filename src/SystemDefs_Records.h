@@ -81,8 +81,7 @@ enum UiMode {
  MODE_SETTINGS_DISPLAY_OFFSET, /**< LCD position adjustment (±4H/±4V) */
  MODE_ALARM_ACTION,
  MODE_CALENDAR, /**< History calendar */
- MODE_CONFIRM_MUTE_ALL, /**< Confirms Global Mute activation */
- MODE_PRESETS_DEMO /**< Sensor preset browser (CLI: display presets) */
+ MODE_CONFIRM_MUTE_ALL /**< Confirms Global Mute activation */
 };
 
 /** Time range selection for graph rendering. */

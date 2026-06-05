@@ -243,10 +243,6 @@ CliDemand CommandManager::parseCommand(String input) {
  return cmd;
  }
 
- if (t0 == "display" && t1 == "presets") {
- cmd.type = CMD_DISPLAY_PRESETS;
- return cmd;
- }
 
  if (t0 == "language") {
  cmd.type = CMD_LANGUAGE;

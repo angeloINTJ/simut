@@ -876,10 +876,6 @@ void DisplayManager::loopCore1( ) {
 
 			if (_repaintSettings) { drawMuteConfirm( ); _repaintSettings = false; }
 		}
-		else if (_uiMode == MODE_PRESETS_DEMO) {
-
-			if (_repaintSettings) { drawPresetsDemoPage(_demoPage); _repaintSettings = false; }
-		}
 
 		/*
 		 * Adaptive delay: minimum during interaction, larger when idle.
