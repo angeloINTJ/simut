@@ -244,6 +244,7 @@ void AppManager::setup( ) {
  missedTouches++;
  if (missedTouches > AP_HOLD_MAX_MISSED) {
  held = false;
+ Serial.println('[TCH] LOST');
  _displayMgr->setApProgress(-1);
  _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
  delay(800);
@@ -256,7 +257,7 @@ void AppManager::setup( ) {
  _displayMgr->setApProgress(pct);
  delay(50);
  }
- if (held) forceAP = true;
+ if (held) { forceAP = true; Serial.println('[TCH] HELD'); }
  break;
  }
  delay(50);
