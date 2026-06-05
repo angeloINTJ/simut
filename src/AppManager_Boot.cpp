@@ -176,8 +176,7 @@ void AppManager::setup( ) {
   *  's' + '0'/'1' = settle result (0=fail, 1=quiet)
   *  'a' + '0'/'1' = AP detect result (0=normal, 1=forceAP)
   *  'c' + '0'/'1' = post-startCore1 raw GPIO20 */
- uart_putc_raw(uart1, 't');
- uart_putc_raw(uart1, gpio_get(20) ? '1' : '0');
+ Serial.print("[TCH] t="); Serial.println(gpio_get(20));
 
  bool forceAP = false;
  _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
@@ -209,8 +208,9 @@ void AppManager::setup( ) {
  }
  delay(20);
  }
- uart_putc_raw(uart1, 's');
- uart_putc_raw(uart1, touch_settled ? '1' : '0');
+ Serial.print("[TCH] s="); Serial.print(touch_settled);
+ Serial.print(" elapsed="); Serial.print(millis( ) - settle_start);
+ Serial.print(" raw20="); Serial.println(gpio_get(20));
  }
 
  if (touch_settled) {
@@ -219,6 +219,7 @@ void AppManager::setup( ) {
  TRACE_BEAT(0);
 
  if (_displayMgr->isScreenTouched( )) {
+ Serial.println("[TCH] TOUCH DETECTED in AP window!");
  unsigned long holdStart = millis( );
  bool held = true;
  int missedTouches = 0;
@@ -247,8 +248,7 @@ void AppManager::setup( ) {
  delay(50);
  }
  }
- uart_putc_raw(uart1, 'a');
- uart_putc_raw(uart1, forceAP ? '1' : '0');
+ Serial.print("[TCH] a="); Serial.println(forceAP);
 
  _displayMgr->setApProgress(-1);
 
@@ -286,8 +286,7 @@ void AppManager::setup( ) {
  }
  uart_putc_raw(uart1, _displayMgr->isCore1Ready( ) ? 'R' : 'X');
  }
- uart_putc_raw(uart1, 'c');
- uart_putc_raw(uart1, gpio_get(20) ? '1' : '0');
+ Serial.print("[TCH] c="); Serial.println(gpio_get(20));
 
  /* DisplayManager needs the config pointer to render the dashboard
 	 * (buildDashLayout filters inactive slots). Set once at boot — the
