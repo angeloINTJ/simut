@@ -224,9 +224,7 @@ void AppManager::setup( ) {
  }
  delay(20);
  }
- Serial.print("[TCH] s="); Serial.print(touch_settled);
- Serial.print(" elapsed="); Serial.print(millis( ) - settle_start);
- Serial.print(" raw20="); Serial.println(gpio_get(20));
+ Serial.print("[TCH] s="); Serial.print(touch_settled); Serial.print(" r="); Serial.println(gpio_get(20));
  }
 
  if (touch_settled) {
@@ -235,7 +233,7 @@ void AppManager::setup( ) {
  TRACE_BEAT(0);
 
  if (_displayMgr->isScreenTouched( )) {
- Serial.println("[TCH] TOUCH DETECTED in AP window!");
+ Serial.println("[TCH] TOUCH");
  unsigned long holdStart = millis( );
  bool held = true;
  int missedTouches = 0;
