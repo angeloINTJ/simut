@@ -7,6 +7,9 @@
  * failures to flag, 5 successes to recover), zero-trust hardware
  * mismatch blocking, and trimmed mean filtering.
  *
+ * Sensor drivers are conditionally compiled via SIMUT_SENSOR_* flags.
+ * See SensorConfig.h for the per-type feature switches.
+ *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
@@ -58,19 +61,29 @@ static float calculateTrimmedMean(const RingBuffer& ring) {
 
 
 SensorManager::SensorManager( )
+#if SIMUT_SENSOR_DS18B20
  : _oneWireBus(pio0),
- _ds18Sensor(_oneWireBus),
- _dhtBus(pio1),
+ _ds18Sensor(_oneWireBus)
+#endif
+#if SIMUT_SENSOR_DHT22
+#if SIMUT_SENSOR_DS18B20
+ , _dhtBus(pio1),
+#else
+ : _dhtBus(pio1),
+#endif
  _dhtSensor(_dhtBus)
+#endif
 {
 }
 
 void SensorManager::begin( ) {
+#if SIMUT_SENSOR_DS18B20
  _oneWireBus.begin(PIN_ONEWIRE_DEFAULT);
+#endif
+#if SIMUT_SENSOR_DHT22
  _dhtBus.begin(PIN_DHT_DEFAULT);
-
-
  gpio_set_pulls(PIN_DHT_DEFAULT, true, false);
+#endif
 }
 
 /**
@@ -81,7 +94,8 @@ void SensorManager::begin( ) {
 void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  _runtimeSensors.clear( );
 
-
+#if SIMUT_SENSOR_DHT22
+ {
  RuntimeSensor ambient;
  ambient.config.active = true;
  ambient.config.gpio = PIN_DHT_DEFAULT;
@@ -104,11 +118,15 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  ambient.consecutiveSuccess = 0;
  ambient.hardwareMismatch = false;
  _runtimeSensors.push_back(ambient);
+ }
+#endif
 
 
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) {
+#if SIMUT_SENSOR_DHT22
  if (cfg.sensors[i].gpio == PIN_DHT_DEFAULT) continue;
+#endif
 
  RuntimeSensor rs;
  rs.config = cfg.sensors[i];
@@ -126,20 +144,34 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  rs.hardwareMismatch = false;
  rs.calibrationOffset = 0.0f;
 
+ /* Detect sensor type from ROM field.
+  * ROM non-zero → DS18B20; ROM zero → DHT22.
+  * If a type is not compiled-in, fall back to the other. */
  bool isDs18 = false;
+#if SIMUT_SENSOR_DS18B20
  for(int k=0; k<8; k++) if(rs.config.rom[k] != 0) isDs18 = true;
+#endif
 
  if (isDs18) {
+#if SIMUT_SENSOR_DS18B20
  rs.type = TYPE_DS18B20;
  rs.readInterval = 1000;
+#else
+ /* DS18B20 not compiled in — skip this sensor */
+ continue;
+#endif
  }
  else {
+#if SIMUT_SENSOR_DHT22
  rs.type = TYPE_DHT22;
  rs.readInterval = 2000;
 
-
  gpio_init(rs.config.gpio);
  gpio_set_pulls(rs.config.gpio, true, false);
+#else
+ /* DHT22 not compiled in — skip this sensor */
+ continue;
+#endif
  }
 
  _runtimeSensors.push_back(rs);
@@ -181,6 +213,7 @@ void SensorManager::syncAlarmLimits(const SystemConfig &cfg) {
  }
 }
 
+#if SIMUT_SENSOR_DS18B20
 bool SensorManager::identifyPhysicalSensor(uint8_t gpio, uint8_t* romOut) {
  if (_ds18Sensor.readROM(gpio, romOut)) {
  return true;
@@ -194,6 +227,7 @@ bool SensorManager::checkRomMatch(const uint8_t* romRead, const uint8_t* romConf
  }
  return true;
 }
+#endif
 
 void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1, float v2, const char* errorMsg) {
  LogCode code = SYS_OK;
@@ -243,7 +277,9 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
 void SensorManager::update( ) {
 
  if (isScanning( )) {
+#if SIMUT_SENSOR_DHT22
  _dhtSensor.update( );
+#endif
 
  if (_scanState == IDLE || _scanState == COMPLETE) return;
 
@@ -251,9 +287,16 @@ void SensorManager::update( ) {
  case SETUP_PIN:
  gpio_init(_currentScanPin);
  gpio_set_pulls(_currentScanPin, true, false);
+#if SIMUT_SENSOR_DS18B20
  _scanState = ONEWIRE_RESET;
+#elif SIMUT_SENSOR_DHT22
+ _scanState = DHT_REQUEST;
+#else
+ _scanState = NEXT_PIN;
+#endif
  break;
 
+#if SIMUT_SENSOR_DS18B20
  case ONEWIRE_RESET:
  _oneWireBus.setPin(_currentScanPin);
  _oneWireBus.sendReset( );
@@ -271,14 +314,24 @@ void SensorManager::update( ) {
  _scanResults.push_back(res);
  _scanState = NEXT_PIN;
  } else {
+#if SIMUT_SENSOR_DHT22
  _scanState = DHT_REQUEST;
+#else
+ _scanState = NEXT_PIN;
+#endif
  }
  } else {
+#if SIMUT_SENSOR_DHT22
  _scanState = DHT_REQUEST;
+#else
+ _scanState = NEXT_PIN;
+#endif
  }
  }
  break;
+#endif /* SIMUT_SENSOR_DS18B20 */
 
+#if SIMUT_SENSOR_DHT22
  case DHT_REQUEST:
  _dhtSensor.requestReading(_currentScanPin);
  _scanTimer = millis( );
@@ -299,11 +352,14 @@ void SensorManager::update( ) {
  }
  }
  break;
+#endif /* SIMUT_SENSOR_DHT22 */
 
  case NEXT_PIN:
  _currentScanPin++;
  if (_currentScanPin > 16) {
+#if SIMUT_SENSOR_DS18B20
  _oneWireBus.setPin(PIN_ONEWIRE_DEFAULT);
+#endif
  _scanState = COMPLETE;
  } else {
  _scanState = SETUP_PIN;
@@ -331,7 +387,8 @@ void SensorManager::update( ) {
 void SensorManager::processPeriodicReads( ) {
  uint32_t now = millis( );
 
-
+#if SIMUT_SENSOR_DS18B20
+ /* ── DS18B20: parallel batch read ── */
  if (_dsState == DS_IDLE) {
  bool needsRead = false;
  for (auto &s : _runtimeSensors) {
@@ -403,8 +460,10 @@ void SensorManager::processPeriodicReads( ) {
  _dsState = DS_IDLE;
  }
  }
+#endif /* SIMUT_SENSOR_DS18B20 */
 
-
+#if SIMUT_SENSOR_DHT22
+ /* ── DHT22: sequential one-at-a-time ── */
  if (_dhtState == DHT_IDLE) {
 
  for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
@@ -458,6 +517,7 @@ void SensorManager::processPeriodicReads( ) {
  _dhtState = DHT_IDLE;
  }
  }
+#endif /* SIMUT_SENSOR_DHT22 */
 }
 
 /**
@@ -469,7 +529,7 @@ void SensorManager::addSample(RuntimeSensor &sensor, float v1, float v2) {
  if (!isnan(v1)) {
  sensor.buffer1.push(v1);
  }
- if (sensor.type == TYPE_DHT22 && !isnan(v2)) {
+ if (sensorHasHumidity(sensor.type) && !isnan(v2)) {
  sensor.buffer2.push(v2);
  }
 
@@ -477,7 +537,7 @@ void SensorManager::addSample(RuntimeSensor &sensor, float v1, float v2) {
  if (sensor.buffer1.full( )) {
  sensor.bufferFull = true;
  sensor.avgValue1 = calculateTrimmedMean(sensor.buffer1);
- if (sensor.type == TYPE_DHT22) sensor.avgValue2 = calculateTrimmedMean(sensor.buffer2);
+ if (sensorHasHumidity(sensor.type)) sensor.avgValue2 = calculateTrimmedMean(sensor.buffer2);
  } else {
 
  float sortBuf[MOVING_AVG_WINDOW];
@@ -486,7 +546,7 @@ void SensorManager::addSample(RuntimeSensor &sensor, float v1, float v2) {
  for (uint8_t i = 0; i < sensor.buffer1.size( ); i++) sum1 += sortBuf[i];
  sensor.avgValue1 = sum1 / sensor.buffer1.size( );
 
- if (sensor.type == TYPE_DHT22 && !sensor.buffer2.empty( )) {
+ if (sensorHasHumidity(sensor.type) && !sensor.buffer2.empty( )) {
  sensor.buffer2.copyTo(sortBuf);
  float sum2 = 0;
  for (uint8_t i = 0; i < sensor.buffer2.size( ); i++) sum2 += sortBuf[i];
@@ -531,6 +591,7 @@ bool SensorManager::getScanResults(std::vector<ScanResult> &results) {
  return false;
 }
 
+#if SIMUT_SENSOR_DS18B20
 bool SensorManager::setDs18Resolution(DS18B20PIO::Resolution res) {
  return _ds18Sensor.setResolution(PIN_ONEWIRE_DEFAULT, res);
 }
@@ -542,7 +603,9 @@ void SensorManager::requestDs18Reading( ) {
 bool SensorManager::readDs18(float &temp) {
  return _ds18Sensor.getTemperatureValidated(PIN_ONEWIRE_DEFAULT, temp, DS18B20PIO::CELSIUS);
 }
+#endif
 
+#if SIMUT_SENSOR_DHT22
 void SensorManager::requestDhtReading( ) {
  _dhtSensor.requestReading(PIN_DHT_DEFAULT);
 }
@@ -561,6 +624,7 @@ bool SensorManager::readDhtBlocking(float &t, float &h) {
  }
  return false;
 }
+#endif
 
 bool SensorManager::pollAsyncResult(String &msg) { return false; }
 
@@ -583,7 +647,12 @@ void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset,
  * persisted in cfg.ambientSensor via applyCalibration separately. */
 void SensorManager::applyAmbientCalibration(float offsetT, float offsetH) {
  for (auto &s : _runtimeSensors) {
+#if SIMUT_SENSOR_DHT22
  if (s.config.gpio == PIN_DHT_DEFAULT) {
+#else
+ /* When DHT22 is not compiled-in, apply to any sensor (fallback) */
+ {
+#endif
  s.calibrationOffset = offsetT;
  s.calibrationOffsetHum = offsetH;
  break;

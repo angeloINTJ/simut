@@ -195,7 +195,9 @@ void WebManager::handleApiCommitAll( ) {
 				String tk = getStr("t_key");
 				if (tk.indexOf("***") < 0) safeCopy(cfg.telApiKey, tk.c_str( ), sizeof(cfg.telApiKey));
 			}
+			#if SIMUT_SENSOR_DS18B20
 			if (has("res")) { int v; if (parseIntStrict(getNum("res"), v) && v >= 9 && v <= 12) cfg.ds18Resolution = (uint8_t)v; }
+#endif
 			if (has("s_int")) { int v; if (parseIntStrict(getNum("s_int"), v) && v >= 100 && v <= 600000) cfg.sampleIntervalMs = (uint32_t)v; }
 			if (has("t_srv")) safeCopy(cfg.telServer, getStr("t_srv").c_str( ), sizeof(cfg.telServer));
 			if (has("t_port")) { int v; if (parseIntStrict(getNum("t_port"), v) && isInRange(v, 1, 65535)) cfg.telPort = (uint16_t)v; }

@@ -329,7 +329,9 @@ void StorageManager::loadDefaults( ) {
  _currentConfig.timezoneOffset = -3;
  _currentConfig.sampleIntervalMs = 2000;
  _currentConfig.loggingEnabled = true;
+ #if SIMUT_SENSOR_DS18B20
  _currentConfig.ds18Resolution = 12;
+#endif
  _currentConfig.themeIndex = 0;
 
  safeCopy(_currentConfig.displayPin, "1234", sizeof(_currentConfig.displayPin));
