@@ -42,7 +42,7 @@ Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 
 | TFT Dashboard | Web UI | TFT Demo | Early Alpha |
 |:---:|:---:|:---:|:---:|
-| ![TFT](images/tft-dashboard.png) | ![Web](images/web-dashboard.png) | ![Demo](images/tft-demo.gif) | [![Alpha video](https://img.youtube.com/vi/eGZsTT5070c/hqdefault.jpg)](https://youtube.com/shorts/eGZsTT5070c) |
+| ![TFT](images/tft-dashboard.png) | ![Web](images/web-dashboard.png) | ![Demo](images/tft-demo.gif) | [![Alpha video](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
 > 🎥 The **Early Alpha** video shows the first TFT + touch prototype. The UI, themes, responsiveness, and polish have evolved significantly since then — see the current **TFT Demo** GIF for today's experience.
 

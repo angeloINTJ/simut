@@ -76,7 +76,7 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 
 | TFT Dashboard | TFT Demo | Web UI | Early Alpha |
 |:---:|:---:|:---:|:---:|
-| ![TFT](docs/images/tft-dashboard.png) | ![Demo](docs/images/tft-demo.gif) | ![Web](docs/images/web-dashboard.png) | [![Alpha video](https://img.youtube.com/vi/eGZsTT5070c/hqdefault.jpg)](https://youtube.com/shorts/eGZsTT5070c) |
+| ![TFT](docs/images/tft-dashboard.png) | ![Demo](docs/images/tft-demo.gif) | ![Web](docs/images/web-dashboard.png) | [![Alpha video](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
 > 📸 See [docs/images/README.md](docs/images/README.md) for how to capture screenshots from your device.
 >
