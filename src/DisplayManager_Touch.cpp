@@ -148,7 +148,21 @@ void DisplayManager::handleTouch( ) {
  int16_t sx, sy;
  mapTouchPoint(p, sx, sy);
  if (sy > 195 && sx < 125) {
- if (acceptTouch(0)) { showSettingsMain( ); return; }
+ if (acceptTouch(0)) {
+ if (_sharedState.isBooting) {
+ _calXMin = 300; _calXMax = 3800;
+ _calYMin = 200; _calYMax = 3700;
+ _sensZThreshold = 400;
+ _calValid = true;
+ _calSwapXY = false;
+ _uiMode = MODE_DASHBOARD;
+ _forceSettingsRedraw = true;
+ _repaintSettings = true;
+ } else {
+ showSettingsMain( );
+ }
+ return;
+ }
  }
  }
 

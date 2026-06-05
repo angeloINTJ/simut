@@ -449,7 +449,16 @@ bool DisplayManager::isSkipPressed( ) {
 	return false;
 }
 
-bool DisplayManager::isScreenTouched( ) { return _rawTouchState; }
+bool DisplayManager::isScreenTouched( ) {
+ if (_ts) return _ts->touched( );
+ return _rawTouchState;
+}
+
+void DisplayManager::beginTouch( ) {
+ if (!_ts) _ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
+ _ts->begin( );
+ _ts->setRotation(3);
+}
 
 /* Inject simulated touch for automation (screenshot capture).
  * Set flag + coords; Core 1 sees it on the next handleTouch iteration.

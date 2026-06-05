@@ -172,6 +172,7 @@ public:
 	bool isHeavyRendering( );
 	bool isSkipPressed( );
 	bool isScreenTouched( );
+	 void beginTouch( ); /**< Init touch controller on Core 0 for AP detection during boot. */
 
 
 	void setWebBusy(bool busy, const char* username = nullptr);
