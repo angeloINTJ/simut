@@ -17,7 +17,8 @@ All notable changes to SIMUT firmware.
 - **Contributions Welcome badge** — green badge signaling openness to new contributors
 - **GitHub Discussions** — enable community Q&A channel
 - **FUNDING.yml** — Sponsor button as professional maintenance signal
-- **CONTRIBUTING.md expanded** — add "Finding Something to Work On" section with skill-to-issue mapping table; add AI tools policy
+- **CONTRIBUTING.pt-BR.md** — Portuguese translation of the contributing guide, matching the bilingual README pattern
+- **CONTRIBUTING.md expanded** — add "Finding Something to Work On" section with skill-to-issue mapping table; add AI tools policy; add language selector linking to Portuguese version
 
 ### Community
 
