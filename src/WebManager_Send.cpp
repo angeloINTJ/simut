@@ -1,7 +1,7 @@
 /**
  * @file WebManager_Send.cpp
  * @brief Send infrastructure: safeSend overloads, gzip delivery, safeStreamFile, client disconnect detection.
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

@@ -8,8 +8,8 @@
  * Forward decls of shared utilities (dallasCrc8, isValidHistoryFileName).
  * Sub-header of SystemDefs.h (facade).
  *
- * @project SIMUT - Sistema Integrado de Monitoramento e Telemetria
- *          SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+ *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

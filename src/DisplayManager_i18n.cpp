@@ -6,7 +6,7 @@
  * unaccent for ASCII on the TFT). Without .lng loaded, slot 1
  * stays hidden (gated by _activeLangLoaded).
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

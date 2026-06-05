@@ -6,7 +6,7 @@
  * history files, HMAC-SHA256 password hashing with board serial pepper,
  * and calibration CSV parsing.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

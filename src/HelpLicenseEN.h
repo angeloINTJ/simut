@@ -4,8 +4,8 @@
  * @details Previously in data/help_en.txt and data/license_en.txt (LittleFS),
  * now embedded in firmware. Not accessible to user via /files.
  * PT versions come from /lang/language_<code>.lng (.lng parser).
- * @project SIMUT - Sistema Integrado de Monitoramento e Telemetria
- *          SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+ *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT
  */

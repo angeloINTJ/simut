@@ -24,7 +24,7 @@
  * point into this buffer; null-termination done
  * by modifying the buffer in-place.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

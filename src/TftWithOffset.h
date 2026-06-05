@@ -11,8 +11,8 @@
  * Depends on Adafruit_SPITFT declaring setAddrWindow() as `virtual`,
  * which has been the case in the official library since 2019.
  *
- * @project SIMUT - Sistema Integrado de Monitoramento e Telemetria
- *          SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+ *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

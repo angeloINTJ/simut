@@ -7,7 +7,7 @@
  * auth / calibration / alarm action). acceptTouch/Hold/Slide
  * are debounce + repeat-on-hold gates used by handleTouch.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

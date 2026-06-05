@@ -6,7 +6,7 @@
  * provides provisional timestamps from the last flash-stored epoch
  * until real NTP synchronization completes.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

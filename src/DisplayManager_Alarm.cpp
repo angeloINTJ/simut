@@ -7,7 +7,7 @@
  * drawAlarmAction uses fixCardCorners (Dashboard) — called
  * cross-file via this-> (member method).
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

@@ -17,8 +17,8 @@
  *          `pio run` (o pre:script detecta mtime). Para regenerar manualmente:
  *          `python3 tools/build_webui_gz.py`.
  *
- * @project SIMUT - Sistema Integrado de Monitoramento e Telemetria
- *          SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+ *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author  Ângelo Moisés Alves
  * @license MIT License
@@ -3797,7 +3797,7 @@ SOFTWARE.</pre>
         <div class="card">
             <h3 data-i18n="lic_notice">Third-Party Notices</h3>
             <pre>================================================================================
-SIMUT - Sistema Integrado de Monitoramento e Telemetria
+SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 Third-Party Software Notices
 ================================================================================
 

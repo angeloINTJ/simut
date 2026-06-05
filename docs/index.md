@@ -1,13 +1,13 @@
 ---
-title: SIMUT — Professional IoT Firmware for Raspberry Pi Pico W
-description: Offline-first temperature monitoring with TFT dashboard, web interface, and OTA updates. Built for labs, pharmacies, and cold chain.
+title: SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+description: Integrated Universal Monitoring and Telemetry System. Offline-first temperature monitoring with TFT dashboard, web interface, and OTA updates. Built for labs, pharmacies, and cold chain.
 ---
 
 ![SIMUT Dashboard](images/tft-dashboard.png)
 
-# SIMUT
+# SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 
-### Integrated Monitoring & Telemetry System
+### Integrated Universal Monitoring and Telemetry System
 
 **Professional-grade IoT firmware for Raspberry Pi Pico W**  
 Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
