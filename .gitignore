@@ -66,3 +66,6 @@ data/*.blog
 
 # Changelogs (auto-generated or versioned)
 CHANGELOG_*.md
+
+# Promotion (local only, not for the repo)
+docs/promotion/
