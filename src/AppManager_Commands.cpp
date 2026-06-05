@@ -656,6 +656,13 @@ void AppManager::executeCommand(CliDemand cmd) {
  }
 
 
+ case CMD_DISPLAY_PRESETS:
+ _displayMgr->showPresetsDemo( );
+ _cmdMgr->printSuccess(_cmdMgr->isPt( )
+ ? "Navegador de presets aberto no display. Toque para navegar."
+ : "Preset browser opened on display. Touch to navigate.");
+ break;
+
  case CMD_UNKNOWN:
  default:
  LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");

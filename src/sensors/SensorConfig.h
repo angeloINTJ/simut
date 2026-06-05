@@ -32,3 +32,7 @@
 #ifndef SIMUT_SENSOR_BME280
 #define SIMUT_SENSOR_BME280 0
 #endif
+
+#ifndef SIMUT_PRESETS_DEMO
+#define SIMUT_PRESETS_DEMO 0  /**< TFT preset browser — enable to visualize icons */
+#endif

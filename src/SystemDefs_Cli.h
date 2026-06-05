@@ -80,6 +80,7 @@ enum DemandType {
  * touchcal, sounds, alarms, alarmedit, graph, stats, calendar,
  * alarmaction, displayoffset, auth. strVal1=name. */
  CMD_GOTO_SCREEN,
+ CMD_DISPLAY_PRESETS,
 };
 
 /** Parsed CLI command with typed payload fields.

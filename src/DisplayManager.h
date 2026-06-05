@@ -232,6 +232,13 @@ public:
 	void fillCalData(TouchCalData* cal) const;
 	void resetTouchCalibration( );
 	bool isTouchCalibrated( ) const { return _calValid; }
+
+	/* ── Sensor preset demo browser ── */
+	void showPresetsDemo( );
+	bool isInPresetsDemo( ) const;
+	void drawPresetsDemoPage(int page);
+	void handlePresetsDemoTouch(int16_t sx, int16_t sy);
+
 	void setLanguage(int langId);
 
 	/* Display alignment offset (+-4H / +-4V) */
@@ -643,6 +650,9 @@ private:
 	int16_t _calXMax = 3800;
 	int16_t _calYMin = 200;
 	int16_t _calYMax = 3800;
+
+	int _demoPage = 0;       /**< Current page in preset demo browser */
+	int _demoPageCount = 0;  /**< Total pages in preset demo browser */
 
 	int _calStep = 0;
 	int _calPhase = 0;
