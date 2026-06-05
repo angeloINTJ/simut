@@ -56,7 +56,7 @@ pio run -e pico_w_release -t upload
 | [Guia OTA](docs/OTA_USAGE.md) | Atualização de firmware via web |
 | [Guia de Recuperação](docs/RECOVERY.md) | Recovery após falha de OTA |
 | [Política de Segurança](SECURITY.md) | Modelo de ameaças e procedimentos |
-| [Contribuindo](CONTRIBUTING.md) | Guia para desenvolvedores |
+| [Contribuindo](CONTRIBUTING.md) ([🇧🇷 Português](CONTRIBUTING.pt-BR.md)) | Guia para desenvolvedores |
 
 ## Hardware
 
