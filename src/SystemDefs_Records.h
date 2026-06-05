@@ -21,10 +21,15 @@
 #include "SystemDefs_Limits.h"
 
 /** Physical sensor type detected during hardware scan. */
+/** Physical sensor type detected during hardware scan.
+ * All types are always present in the enum so consumer code compiles
+ * regardless of SIMUT_SENSOR_* flags. The flags only gate driver code
+ * in SensorManager and control sensorTypeEnabled() at runtime. */
 enum SensorType {
  TYPE_NONE,
  TYPE_DS18B20,
  TYPE_DHT22,
+ TYPE_BME280,
  TYPE_UNKNOWN_ACTIVITY
 };
 

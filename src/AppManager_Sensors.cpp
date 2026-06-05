@@ -24,6 +24,7 @@ void AppManager::checkAndAutoHealSensors( ) {
  if (!cfg.sensors[gpio].active) continue;
 
  uint8_t foundRom[8];
+#if SIMUT_SENSOR_DS18B20
  if (_sensorMgr->identifyPhysicalSensor(gpio, foundRom)) {
  if (foundRom[0] == 0x00 || dallasCrc8(foundRom, 7) != foundRom[7]) continue;
 
@@ -41,6 +42,7 @@ void AppManager::checkAndAutoHealSensors( ) {
  String(cfg.sensors[gpio].friendlyName));
  }
  }
+#endif /* SIMUT_SENSOR_DS18B20 */
  }
 }
 

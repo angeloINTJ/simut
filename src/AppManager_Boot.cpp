@@ -480,7 +480,11 @@ void AppManager::setup( ) {
  _sensorMgr->begin( );
  
  loadAndCalibrateSensors( );
+#if SIMUT_SENSOR_DS18B20
+#if SIMUT_SENSOR_DS18B20
  _sensorMgr->setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
+#endif
+#endif
 
  BLOG("[BOOT step] 9: pre _netMgr (forceAP="); BLOG_U(forceAP ? 1 : 0);
  BLOG(") @ "); BLOG_U(millis( )); BLOG_NL( );
