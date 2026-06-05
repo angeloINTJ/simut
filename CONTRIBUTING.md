@@ -21,6 +21,34 @@ Look for issues labeled [`good first issue`](https://github.com/angeloINTJ/simut
 Not sure where to start? Comment on any `good first issue` and the maintainer will help you scope it.
 
 ## Development Setup
+### Option A — Docker (recommended for new contributors)
+
+No need to install PlatformIO, Python, or the ARM toolchain locally. Docker handles everything.
+
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) (macOS / Windows) or [Docker Engine](https://docs.docker.com/engine/install/) (Linux)
+
+```bash
+# Clone the repository
+git clone https://github.com/angeloINTJ/simut.git
+cd simut
+
+# Build firmware for the Raspberry Pi Pico W
+docker compose run build
+
+# Run all native unit tests
+docker compose run test
+```
+
+> **First run note:** Docker will build the image and download the ARM toolchain (~500 MB). This only happens once — subsequent runs use the cached image and are fast.
+
+| Command | Equivalent PlatformIO command |
+|---|---|
+| `docker compose run build` | `pio run -e pico_w_release` |
+| `docker compose run test` | `pio test -e native && pio test -e native_history` |
+
+---
+
+### Option B — Local PlatformIO
 
 ### Prerequisites
 

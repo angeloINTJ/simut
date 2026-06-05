@@ -1,0 +1,16 @@
+services:
+
+  # Compiles firmware for the Raspberry Pi Pico W
+  build:
+    build: .
+    volumes:
+      - ".:/workspace"
+    command: pio run -e pico_w_release
+
+# Runs both native unit test suites
+  test:
+    build: .
+    volumes:
+      - ".:/workspace"
+    command: >
+      sh -c "pio test -e native && pio test -e native_history"
