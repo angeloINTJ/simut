@@ -1653,6 +1653,9 @@ void DisplayManager::handleTouch( ) {
  }
  }
  }
+ else if (_uiMode == MODE_PRESETS_DEMO) {
+ handlePresetsDemoTouch(x, y);
+ }
 }
 
 bool DisplayManager::acceptTouch(uint8_t zoneId) {
