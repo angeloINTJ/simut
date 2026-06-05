@@ -157,13 +157,8 @@ void AppManager::setup( ) {
 
  delay(BOOT_STEP_DELAY_MS);
 
- _displayMgr->startCore1( );
- {
- unsigned long _wait_start = millis( );
- while (!_displayMgr->isCore1Ready( ) && millis( ) - _wait_start < 1500) {
- tight_loop_contents( );
- }
- }
+ _displayMgr->beginTouch( );
+
  bool forceAP = false;
  _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
 
@@ -453,31 +448,28 @@ void AppManager::setup( ) {
  _displayMgr->loadTouchCalibration(cal);
  
  if (!_displayMgr->isTouchCalibrated( )) {
- 
- /* Factory boot without saved calibration: apply safe default to
-	 * unblock boot. Without this, the calibration screen loop would
-	 * wait for 4 valid taps — and on XPT2046 with stuck-true touch
-	 * (this hardware) the loop is infinite or produces degenerate
-	 * calibration with identical coordinates. The user can recalibrate
-	 * later via Settings -> Touch Cal or via CLI.
-	 * Default range 200..3900 covers most XPT2046 panels. */
- Serial.printf("[BOOT] no touch cal saved (touch_settled=%d) — applying default\n",
- touch_settled ? 1 : 0);
- TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
- calOut->magic = 0xCA;
- calOut->flags = 0;
- calOut->xMin = 300;
- calOut->xMax = 3800;
- calOut->yMin = 200;
- calOut->yMax = 3700;
- calOut->zThreshold = 400;
- _displayMgr->loadTouchCalibration(calOut);
- 
- _storageMgr->saveConfiguration( );
- 
  LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0,
- TRL("Touch cal missing; default applied (recalibrate via Settings)"));
- 
+ TRL("First boot — touch calibration required"));
+
+ _displayMgr->setBootStatusKey(TR_BOOT_TOUCH_CAL_REQ);
+ _displayMgr->showTouchCalibration( );
+
+ /* Block Core 0 until user completes calibration on Core 1.
+  * The calibration flow (sensitivity → 4-point position × 2 cycles)
+  * runs entirely on Core 1. isTouchCalibrated() becomes true when
+  * the position calibration is accepted (or the user cancels). */
+ while (!_displayMgr->isTouchCalibrated( )) {
+ delay(20);
+ }
+
+ /* Persist the calibration result to flash. */
+ TouchCalData calOut;
+ _displayMgr->fillCalData(&calOut);
+ memcpy(cfg.reserved, &calOut, sizeof(TouchCalData));
+ _storageMgr->saveConfiguration( );
+
+ LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_REQUIRED, 0,
+ TRL("Touch calibration completed"));
  }
  }
  
