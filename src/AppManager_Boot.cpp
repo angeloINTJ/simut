@@ -227,7 +227,7 @@ void AppManager::setup( ) {
  Serial.print("[TCH] s="); Serial.print(touch_settled); Serial.print(" r="); Serial.println(gpio_get(20));
  }
 
- if (touch_settled) {
+ {
  unsigned long waitStart = millis( );
  while (millis( ) - waitStart < AP_DETECT_WINDOW_MS) {
  TRACE_BEAT(0);
