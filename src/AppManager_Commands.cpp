@@ -393,6 +393,18 @@ void AppManager::executeCommand(CliDemand cmd) {
  r.active = true;
  r.pins[0] = cmd.intVal1;
  memcpy(r.rom, cmd.rom, 8);
+ /* Determine sensor type: explicit (v16 extended syntax) or auto-detect from ROM. */
+ if (cmd.strVal3[0] != '\0') {
+ if (strcmp(cmd.strVal3, "dht22") == 0) r.sensorType = TYPE_DHT22;
+ else if (strcmp(cmd.strVal3, "ds18b20") == 0) r.sensorType = TYPE_DS18B20;
+ else if (strcmp(cmd.strVal3, "bme280") == 0) r.sensorType = TYPE_BME280;
+ else r.sensorType = TYPE_NONE;
+ } else {
+ /* Legacy: auto-detect from ROM (non-zero = DS18B20, zero = DHT22). */
+ bool isDs18 = false;
+ for (int k = 0; k < 8; k++) if (cmd.rom[k] != 0) isDs18 = true;
+ r.sensorType = isDs18 ? TYPE_DS18B20 : TYPE_DHT22;
+ }
  safeCopy(r.hwId, cmd.strVal1, sizeof(r.hwId));
  safeCopy(r.friendlyName, cmd.strVal2, sizeof(r.friendlyName));
  _cmdMgr->printSuccess(pt ? "Sensor mapeado em RAM."
@@ -562,14 +574,14 @@ void AppManager::executeCommand(CliDemand cmd) {
 
  case CMD_USER_DEL: {
  const bool pt = _cmdMgr->isPt( );
- if (strcasecmp(cmd.strVal1, "admin") == 0) {
+ if (strcmp(cmd.strVal1, "admin") == 0) {
  _cmdMgr->printError(pt ? "Nao e permitido deletar 'admin'"
  : "Cannot delete 'admin'");
  break;
  }
  bool found = false;
  for (int i = 1; i < MAX_USERS; i++) {
- if (cfg.users[i].active && strcasecmp(cmd.strVal1, cfg.users[i].username) == 0) {
+ if (cfg.users[i].active && strcmp(cmd.strVal1, cfg.users[i].username) == 0) {
  cfg.users[i].active = false;
  memset(cfg.users[i].password, 0, sizeof(cfg.users[i].password));
  _cmdMgr->printSuccess(String(pt ? "Usuario removido: " : "User deleted: ") + cmd.strVal1);
