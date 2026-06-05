@@ -157,6 +157,13 @@ void AppManager::setup( ) {
 
  delay(BOOT_STEP_DELAY_MS);
 
+ _displayMgr->startCore1( );
+ {
+ unsigned long _wait_start = millis( );
+ while (!_displayMgr->isCore1Ready( ) && millis( ) - _wait_start < 1500) {
+ tight_loop_contents( );
+ }
+ }
  bool forceAP = false;
  _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
 
@@ -459,10 +466,10 @@ void AppManager::setup( ) {
  TouchCalData* calOut = reinterpret_cast<TouchCalData*>(cfg.reserved);
  calOut->magic = 0xCA;
  calOut->flags = 0;
- calOut->xMin = 200;
- calOut->xMax = 3900;
+ calOut->xMin = 300;
+ calOut->xMax = 3800;
  calOut->yMin = 200;
- calOut->yMax = 3900;
+ calOut->yMax = 3700;
  calOut->zThreshold = 400;
  _displayMgr->loadTouchCalibration(calOut);
  
