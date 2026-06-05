@@ -40,6 +40,12 @@ docker compose run test
 ```
 
 > **First run note:** Docker will build the image and download the ARM toolchain (~500 MB). This only happens once — subsequent runs use the cached image and are fast.
+>
+> **Linux users:** Export `UID` and `GID` before running so build artifacts aren't owned by root:
+> ```bash
+> export UID GID
+> docker compose run build
+> ```
 
 | Command | Equivalent PlatformIO command |
 |---|---|
