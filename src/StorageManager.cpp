@@ -24,6 +24,7 @@
 #include "pico/unique_id.h"
 #include <hardware/watchdog.h>
 #include <stdio.h>
+#include <new>
 #include <bearssl/bearssl_hash.h>
 #include <bearssl/bearssl_hmac.h>
 
@@ -114,7 +115,7 @@ static constexpr size_t CONFIG_V14_USER_DELTA =
 static constexpr size_t CONFIG_V15_DELTA =
  11 * 4; /* SensorRecord grew: +sensorType(1)-gpio(1)+pins[4](4)=+4 per sensor, 10 slots + ambient = 11 */
 static constexpr size_t CONFIG_V15_BLOB_SIZE =
- sizeof(SystemConfig) - CONFIG_V14_USER_DELTA - CONFIG_V15_DELTA;
+ sizeof(SystemConfig) - 44; /* = sizeof(v16)-44: actual v15 blob */
 static constexpr size_t CONFIG_V14_BLOB_SIZE =
  sizeof(SystemConfig) - CONFIG_V14_USER_DELTA - CONFIG_V15_DELTA;
 static constexpr size_t CONFIG_V12_BLOB_SIZE =
@@ -509,24 +510,25 @@ bool StorageManager::loadAndMigrateV15(File& f, SystemConfig& outCfg) {
  static_assert(offsetof(SystemConfig, ambientSensor) > offsetof(SystemConfig, sensors),
  "ambientSensor must be after sensors[] for pointer arithmetic to be valid");
 
- uint8_t buf[CONFIG_V15_BLOB_SIZE];
+ uint8_t* buf = new (std::nothrow) uint8_t[CONFIG_V15_BLOB_SIZE];
+ if (!buf) return false;
  uint32_t readCrc = 0;
 
  size_t bytesRead = f.read(buf, CONFIG_V15_BLOB_SIZE);
  size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
 
- if (bytesRead != CONFIG_V15_BLOB_SIZE) return false;
+ if (bytesRead != CONFIG_V15_BLOB_SIZE) delete[] buf; return false;
 
  uint32_t fileMagic = 0;
  uint16_t fileVersion = 0;
  memcpy(&fileMagic, buf + 0, sizeof(fileMagic));
  memcpy(&fileVersion, buf + sizeof(fileMagic), sizeof(fileVersion));
 
- if (fileMagic != CONFIG_MAGIC || fileVersion != 15) return false;
+ if (fileMagic != CONFIG_MAGIC || fileVersion != 15) delete[] buf; return false;
 
  if (crcRead == sizeof(readCrc)) {
  uint32_t calcCrc = calculateCRC32(buf, CONFIG_V15_BLOB_SIZE);
- if (calcCrc != readCrc) return false;
+ if (calcCrc != readCrc) delete[] buf; return false;
  }
 
  memset(&outCfg, 0, sizeof(SystemConfig));
