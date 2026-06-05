@@ -27,6 +27,7 @@
 #include <LittleFS.h>
 #include <hardware/uart.h>
 #include <hardware/gpio.h>
+#include <SPI.h>
 #include <time.h>
 
 extern AppManager app;
@@ -170,6 +171,21 @@ void AppManager::setup( ) {
  gpio_init(18); gpio_set_dir(18, GPIO_OUT); gpio_put(18, 0);
  gpio_init(19); gpio_set_dir(19, GPIO_OUT); gpio_put(19, 0);
  gpio_init(16); gpio_set_dir(16, GPIO_IN);
+
+ /* Wake up XPT2046 via SPI: the controller starts in power-down
+  * and needs an SPI transaction to enable its internal reference
+  * and begin touch scanning. Without this, PENIRQ never asserts.
+  * Use SPI0 (pins 16-19) with TOUCH_CS (17) — TFT_CS (28) stays HIGH. */
+ SPI.begin();
+ SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+ gpio_put(17, 0);                /* select XPT2046 */
+ SPI.transfer(0x90);             /* read X position, 12-bit, differential */
+ uint8_t dummy = SPI.transfer(0x00); /* clock out first data byte */
+ dummy = SPI.transfer(0x00);          /* clock out second data byte */
+ (void)dummy;
+ gpio_put(17, 1);                /* deselect XPT2046 */
+ SPI.endTransaction();
+ /* Leave SPI initialized — Core 1 will use it for TFT + touch. */
 
  /* Minimal touch debug via UART1:
   *  't' + '0'/'1' = raw GPIO20 right after pin config
