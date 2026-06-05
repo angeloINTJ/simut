@@ -60,10 +60,10 @@ void AppManager::loadAndCalibrateSensors( ) {
  _sensorMgr->initRuntimeSensors(cfg);
 
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (cfg.sensors[i].active && cfg.sensors[i].gpio != PIN_DHT_DEFAULT) {
+ if (cfg.sensors[i].active && cfg.sensors[i].pins[0] != PIN_DHT_DEFAULT) {
  String dbId; float dbOffset = 0.0f; String dbName;
  if (_storageMgr->getCalibrationData(cfg.sensors[i].rom, dbId, dbOffset, dbName)) {
- _sensorMgr->applyCalibration(cfg.sensors[i].gpio, dbId, dbOffset, dbName);
+ _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbId, dbOffset, dbName);
  if (dbId.length( ) > 0) { safeCopy(cfg.sensors[i].hwId, dbId.c_str( ), sizeof(cfg.sensors[i].hwId)); }
  if (dbName.length( ) > 0) { safeCopy(cfg.sensors[i].friendlyName, dbName.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
  }

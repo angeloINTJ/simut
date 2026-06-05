@@ -391,7 +391,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  }
  SensorRecord &r = cfg.sensors[cmd.intVal1];
  r.active = true;
- r.gpio = cmd.intVal1;
+ r.pins[0] = cmd.intVal1;
  memcpy(r.rom, cmd.rom, 8);
  safeCopy(r.hwId, cmd.strVal1, sizeof(r.hwId));
  safeCopy(r.friendlyName, cmd.strVal2, sizeof(r.friendlyName));

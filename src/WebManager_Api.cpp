@@ -260,7 +260,7 @@ void WebManager::handleApiAlarms( ) {
 		         "\"has_hum\":true,"
 		         "\"tmin\":%.1f,\"tmax\":%.1f,\"hmin\":%.1f,\"hmax\":%.1f,"
 		         "\"active\":%s}",
-		         cfg.ambientSensor.gpio,
+		         cfg.ambientSensor.pins[0],
 		         cfg.ambientSensor.tempMin, cfg.ambientSensor.tempMax,
 		         cfg.ambientSensor.humMin, cfg.ambientSensor.humMax,
 		         cfg.ambientSensor.alarmsActive ? "true" : "false");
@@ -275,7 +275,7 @@ void WebManager::handleApiAlarms( ) {
 		first = false;
 
 
-		bool hasHum = (cfg.sensors[i].rom[0] != 0x28);
+		bool hasHum = sensorHasHumidity((SensorType)cfg.sensors[i].sensorType);
 		const char* typeName = hasHum ? "DHT22" : "DS18B20";
 
 
@@ -288,7 +288,7 @@ void WebManager::handleApiAlarms( ) {
 		         "\"has_hum\":%s,"
 		         "\"tmin\":%.1f,\"tmax\":%.1f,\"hmin\":%.1f,\"hmax\":%.1f,"
 		         "\"active\":%s}",
-		         i, sName.c_str( ), typeName, cfg.sensors[i].gpio,
+		         i, sName.c_str( ), typeName, cfg.sensors[i].pins[0],
 		         hasHum ? "true" : "false",
 		         cfg.sensors[i].tempMin, cfg.sensors[i].tempMax,
 		         cfg.sensors[i].humMin, cfg.sensors[i].humMax,
@@ -430,7 +430,7 @@ void WebManager::handleApiStatus( ) {
 			snprintf(humBuffer, sizeof(humBuffer), ",\"hum\":%.1f", s.avgValue2);
 		}
 
-		snprintf(buffer, sizeof(buffer), "{\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"val\":%s%s}", s.config.gpio, sId.c_str( ), sName.c_str( ), valBuffer, humBuffer);
+		snprintf(buffer, sizeof(buffer), "{\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"val\":%s%s}", s.config.pins[0], sId.c_str( ), sName.c_str( ), valBuffer, humBuffer);
 		if (!safeSend(buffer)) return;
 	}
 

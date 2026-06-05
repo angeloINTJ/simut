@@ -291,6 +291,7 @@ public:
  static uint32_t calculateCRC32(const uint8_t *data, size_t length);
  static bool loadCurrentBlob(File& f, SystemConfig& outCfg);
  static bool loadAndMigrateV12(File& f, SystemConfig& outCfg);
+	static bool loadAndMigrateV15(File& f, SystemConfig& outCfg);
  /** Migrate v13 (plaintext) or v14 (obfuscated) to v15
  * (UserAccount expanded with salt+hashVersion). srcVersion outputs 13 or 14. */
  static bool loadAndMigrateV14(File& f, SystemConfig& outCfg, uint16_t& srcVersion);

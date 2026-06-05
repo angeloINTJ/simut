@@ -45,9 +45,9 @@ void AppManager::refreshSelectedSlot( ) {
 
  if (_currentSensorIdx < 10) {
  if (cfg.sensors[_currentSensorIdx].active) {
- uint8_t targetGpio = cfg.sensors[_currentSensorIdx].gpio;
+ uint8_t targetGpio = cfg.sensors[_currentSensorIdx].pins[0];
  for (const auto &s : sensors) {
- if (s.config.gpio != 10 && s.config.gpio == targetGpio) {
+ if (s.config.pins[0] != 10 && s.config.pins[0] == targetGpio) {
  _displayMgr->setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  found = true; break;
  }
@@ -104,8 +104,8 @@ void AppManager::updateLiveDisplay( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
 
  for (const auto &s : sensors) {
- if (s.config.gpio == 10) _displayMgr->setAmbientData(s.avgValue1, s.avgValue2, !s.inErrorState);
- else if (_currentSensorIdx < 10 && cfg.sensors[_currentSensorIdx].active && cfg.sensors[_currentSensorIdx].gpio == s.config.gpio) {
+ if (s.config.pins[0] == 10) _displayMgr->setAmbientData(s.avgValue1, s.avgValue2, !s.inErrorState);
+ else if (_currentSensorIdx < 10 && cfg.sensors[_currentSensorIdx].active && cfg.sensors[_currentSensorIdx].pins[0] == s.config.pins[0]) {
  _displayMgr->setSlotData(s.avgValue1, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  }
  }
@@ -277,7 +277,7 @@ void AppManager::processHistoryLogging( ) {
  /* Ambient sensor (DHT22 on GPIO 10) */
  float ambT = NAN, ambH = NAN;
  for (const auto &s : sensors) {
- if (s.config.gpio == 10 && !s.inErrorState) {
+ if (s.config.pins[0] == 10 && !s.inErrorState) {
  ambT = s.avgValue1;
  ambH = s.avgValue2;
 
@@ -304,7 +304,7 @@ void AppManager::processHistoryLogging( ) {
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) {
  for (const auto &s : sensors) {
- if (s.config.gpio == cfg.sensors[i].gpio && !s.inErrorState) {
+ if (s.config.pins[0] == cfg.sensors[i].pins[0] && !s.inErrorState) {
  float v = s.avgValue1;
  if (!isnan(v)) {
  rec.sensors[i] = BinaryHistoryRecord::floatToI16(v);
@@ -422,7 +422,7 @@ void AppManager::checkAlarmConditions( ) {
  bool ambHumAlarm = false;
  if (cfg.ambientSensor.alarmsActive) {
  for (const auto &s : sensors) {
- if (s.config.gpio != 10 || s.inErrorState) continue;
+ if (s.config.pins[0] != 10 || s.inErrorState) continue;
  if (!isnan(s.avgValue1)) {
  if (s.avgValue1 < cfg.ambientSensor.tempMin ||
  s.avgValue1 > cfg.ambientSensor.tempMax) {
@@ -444,10 +444,10 @@ void AppManager::checkAlarmConditions( ) {
 
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active || !cfg.sensors[i].alarmsActive) continue;
- uint8_t targetGpio = cfg.sensors[i].gpio;
+ uint8_t targetGpio = cfg.sensors[i].pins[0];
 
  for (const auto &s : sensors) {
- if (s.config.gpio != targetGpio || s.inErrorState) continue;
+ if (s.config.pins[0] != targetGpio || s.inErrorState) continue;
 
  bool tripped = false;
 

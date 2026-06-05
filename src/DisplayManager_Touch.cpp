@@ -13,6 +13,7 @@
  */
 
 #include "DisplayManager.h"
+#include "SensorManager.h"
 #include "DisplayManager_Fonts.h"
 #include "DisplayManager_FmtFloat.h"
 #include "LogManager.h"
@@ -706,7 +707,7 @@ void DisplayManager::handleTouch( ) {
  }
  }
  else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
- bool hasHum = (_editSensorIdx == -1 || _tempAlarmConfig.rom[0] != 0x28);
+ bool hasHum = (_editSensorIdx == -1 || sensorHasHumidity((SensorType)_tempAlarmConfig.sensorType));
 
 
  if (y >= 50 && y <= 115) {

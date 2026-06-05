@@ -536,7 +536,7 @@ void CommandManager::renderSensorTable(const SensorRecord* sensors, int maxSenso
  found = true;
  char line[64];
  String romStr = formatRom(sensors[i].rom);
- snprintf(line, sizeof(line), " [Slot %02d] %s", sensors[i].gpio, sensors[i].hwId);
+ snprintf(line, sizeof(line), " [Slot %02d] %s", sensors[i].pins[0], sensors[i].hwId);
  consolePrintln(line);
  consolePrintf(" ROM: %s\n", romStr.c_str( ));
  consolePrintf(isPt( ) ? " Nome: %s\n" : " Name: %s\n",
