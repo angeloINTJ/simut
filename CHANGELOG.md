@@ -21,12 +21,14 @@ All notable changes to SIMUT firmware.
 
 ### Community
 
+- **Second external contribution** 🎉 — Docker development environment so contributors can build and test without installing PlatformIO locally ([@JohnMartin0301](https://github.com/JohnMartin0301))
 - **First external contribution** 🎉 — 672-line HistoryCodec v2 test suite covering roundtrip encoding, anchor frame boundaries, NaN compression, and buffer overflow ([@LorenzoLongaretto](https://github.com/LorenzoLongaretto))
 - **12 `good first issue`** tickets created across docs, design, DevOps, embedded, i18n, and security
 - **5 new labels** added: `tests`, `display`, `i18n`, `ci`, `tools`, `security`
 
 ### Infrastructure
 
+- **Docker development environment** — `Dockerfile` + `docker-compose.yml` so contributors can build and test without installing PlatformIO locally; image size 1.66 GB ([@JohnMartin0301](https://github.com/JohnMartin0301))
 - **.editorconfig** — consistent indentation across editors
 - **Social preview image** — 1280×640 PNG for Open Graph sharing
 - **Landing page images** — TFT dashboard, Web UI screenshots, animated demo GIF

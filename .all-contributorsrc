@@ -19,6 +19,13 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/165825895",
       "profile": "https://github.com/LorenzoLongaretto",
       "contributions": ["test", "code"]
+    },
+    {
+      "login": "JohnMartin0301",
+      "name": "John Martin",
+      "avatar_url": "https://avatars.githubusercontent.com/u/112761826",
+      "profile": "https://github.com/JohnMartin0301",
+      "contributions": ["infra", "code"]
     }
   ],
   "contributorsPerLine": 7,
