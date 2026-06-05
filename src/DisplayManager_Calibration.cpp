@@ -6,7 +6,7 @@
  * (threshold), physical display offset (±4 px), and load/save
  * of this persistent config to SystemConfig::reserved[].
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

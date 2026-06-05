@@ -8,7 +8,7 @@
  * and calibration screens. Features i18n (2 languages — EN + PT), theme system,
  * alarm flash animation, web-busy overlay, and sound event signaling.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

@@ -7,7 +7,7 @@
  * (DMA push of canvas -> TFT). restoreNormalDashboard repositions
  * everything after modal events (auth/license/alarm).
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

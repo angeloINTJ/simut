@@ -7,7 +7,7 @@
  * SystemConfig::reserved[10..15]. Uses dual-SM PIO architecture
  * (PWM amplitude + frequency gate) via the BuzzerPIO_RP2040 library.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

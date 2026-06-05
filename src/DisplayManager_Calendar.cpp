@@ -3,7 +3,7 @@
  * @brief Calendar screen: state setters + drawCalendarScreen.
  * @details Sub-file of DisplayManager.cpp.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

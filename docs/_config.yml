@@ -1,5 +1,5 @@
-title: SIMUT
-description: Offline-first temperature monitoring with TFT dashboard, web interface, and OTA updates
+title: SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+description: Integrated Universal Monitoring and Telemetry System — Offline-first temperature monitoring with TFT dashboard, web interface, and OTA updates
 
 # Theme settings
 theme: jekyll-theme-cayman

@@ -6,7 +6,7 @@
  * data. Provides two-tier flash locking: lightweight mutex for reads
  * and multicore_lockout for writes (protects XIP during erase/program).
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

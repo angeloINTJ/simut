@@ -8,7 +8,7 @@
  * timer for WDT during long sends), RAII guards for rendering and
  * flash access, and gzip-compressed asset delivery.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

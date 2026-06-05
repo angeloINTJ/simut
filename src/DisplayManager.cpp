@@ -8,7 +8,7 @@
  * scrambled layout and lockout, alarm flash animation with per-slot
  * masking, and the i18n dictionary for 2 languages (EN + PT).
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

@@ -1,7 +1,7 @@
 /**
  * @file WebManager_Commit.cpp
  * @brief Commit-all handler: batched config save + reboot, theme switch, touch cal reset.
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

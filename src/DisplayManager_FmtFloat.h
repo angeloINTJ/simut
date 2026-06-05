@@ -9,7 +9,7 @@
  * Inline header so multiple TUs (DisplayManager.cpp and
  * DisplayManager_Graph.cpp) can use it without per-TU duplication.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */

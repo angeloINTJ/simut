@@ -7,7 +7,7 @@
  * failures to flag, 5 successes to recover), zero-trust hardware
  * mismatch blocking, and trimmed mean filtering.
  *
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

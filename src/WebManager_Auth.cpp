@@ -1,7 +1,7 @@
 /**
  * @file WebManager_Auth.cpp
  * @brief Authentication: login/logout, sessions, rate limiting, nonces, password handling, RBAC.
- * @project SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

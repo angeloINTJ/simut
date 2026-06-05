@@ -1,4 +1,6 @@
-# SIMUT — Integrated Monitoring and Telemetry System
+# SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+
+> Integrated Universal Monitoring and Telemetry System
 
 > Professional-grade IoT firmware for Raspberry Pi Pico W
 

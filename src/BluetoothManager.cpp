@@ -5,8 +5,8 @@
  * validator callback invocation, and automatic session expiration.
  * All output methods are gated by authentication status.
  *
- * @project SIMUT - Sistema Integrado de Monitoramento e Telemetria
- *          SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+ *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
  * @license MIT License

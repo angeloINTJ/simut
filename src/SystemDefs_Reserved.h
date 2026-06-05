@@ -17,8 +17,8 @@
  * [28..47] NetworkTimeData (20 B) — DNS auto/manual + NTP
  * [48..63] free for future expansion
  *
- * @project SIMUT - Sistema Integrado de Monitoramento e Telemetria
- *          SIMUT - Integrated Monitoring and Telemetry System
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+ *          SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
  * @license MIT License
  */
