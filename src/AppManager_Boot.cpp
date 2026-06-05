@@ -157,11 +157,19 @@ void AppManager::setup( ) {
 
  delay(BOOT_STEP_DELAY_MS);
 
- /* Configure PENIRQ pin (GPIO 20) for touch detection during AP check.
-  * XPT2046 pulls this LOW when screen is pressed — no SPI needed. */
- gpio_init(20);
- gpio_set_dir(20, GPIO_IN);
- gpio_pull_up(20);
+ /* Configure XPT2046 + SPI bus pins for reliable PENIRQ detection.
+  * PENIRQ (GPIO 20): input with pull-up, LOW = touched.
+  * TOUCH_CS (GPIO 17): HIGH = deselected, required for XPT2046 to scan.
+  * TFT_CS (GPIO 28): HIGH = deselected, prevents SPI bus contention.
+  * SPI SCK (GPIO 18), MOSI (GPIO 19): output LOW, stable idle state.
+  * Without stable SPI lines, the XPT2046 may enter an undefined state
+  * where PENIRQ does not respond to touch. */
+ gpio_init(20); gpio_set_dir(20, GPIO_IN); gpio_pull_up(20);
+ gpio_init(17); gpio_set_dir(17, GPIO_OUT); gpio_put(17, 1);
+ gpio_init(28); gpio_set_dir(28, GPIO_OUT); gpio_put(28, 1);
+ gpio_init(18); gpio_set_dir(18, GPIO_OUT); gpio_put(18, 0);
+ gpio_init(19); gpio_set_dir(19, GPIO_OUT); gpio_put(19, 0);
+ gpio_init(16); gpio_set_dir(16, GPIO_IN);
 
  bool forceAP = false;
  _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
