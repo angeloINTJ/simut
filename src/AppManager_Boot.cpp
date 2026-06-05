@@ -157,7 +157,11 @@ void AppManager::setup( ) {
 
  delay(BOOT_STEP_DELAY_MS);
 
- _displayMgr->beginTouch( );
+ /* Configure PENIRQ pin (GPIO 20) for touch detection during AP check.
+  * XPT2046 pulls this LOW when screen is pressed — no SPI needed. */
+ gpio_init(20);
+ gpio_set_dir(20, GPIO_IN);
+ gpio_pull_up(20);
 
  bool forceAP = false;
  _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
@@ -454,15 +458,10 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_TOUCH_CAL_REQ);
  _displayMgr->showTouchCalibration( );
 
- /* Block Core 0 until user completes calibration on Core 1.
-  * The calibration flow (sensitivity → 4-point position × 2 cycles)
-  * runs entirely on Core 1. isTouchCalibrated() becomes true when
-  * the position calibration is accepted (or the user cancels). */
  while (!_displayMgr->isTouchCalibrated( )) {
  delay(20);
  }
 
- /* Persist the calibration result to flash. */
  TouchCalData calOut;
  _displayMgr->fillCalData(&calOut);
  memcpy(cfg.reserved, &calOut, sizeof(TouchCalData));
