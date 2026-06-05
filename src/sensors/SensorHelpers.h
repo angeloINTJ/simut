@@ -94,3 +94,56 @@ inline uint32_t sensorDefaultIntervalMs(SensorType t) {
  default:           return 5000;
  }
 }
+
+/* ===========================================================================
+ * Sensor display format — per-value formatting metadata.
+ *
+ * Each sensor driver defines its own format via SensorFormat::forType().
+ * Display code queries this instead of hardcoding units/decimal places/icons.
+ * =========================================================================== */
+
+/** Describes how to display a single sensor value (temperature, humidity, etc.). */
+struct SensorValueFormat {
+ const char* unit;     /**< "°C", "%", "hPa", "lux", "pH", "ppm", "" */
+ uint8_t     decimals; /**< 0, 1, or 2 decimal places */
+ const char* icon;     /**< Icon identifier for procedural drawing */
+};
+
+/** Display format for a sensor type — one SensorValueFormat per measurement. */
+struct SensorFormat {
+ uint8_t          valueCount;       /**< 1, 2, or 3 values */
+ SensorValueFormat values[3];       /**< One per value (unused entries are zeroed) */
+
+ /** Factory: returns the format metadata for a given sensor type. */
+ static SensorFormat forType(SensorType t) {
+ SensorFormat f = {};
+ switch (t) {
+#if SIMUT_SENSOR_DS18B20
+ case TYPE_DS18B20:
+ f.valueCount = 1;
+ f.values[0] = {"°C", 1, "thermometer"};
+ break;
+#endif
+#if SIMUT_SENSOR_DHT22
+ case TYPE_DHT22:
+ f.valueCount = 2;
+ f.values[0] = {"°C", 1, "thermometer"};
+ f.values[1] = {"%",  0, "drop"};
+ break;
+#endif
+#if SIMUT_SENSOR_BME280
+ case TYPE_BME280:
+ f.valueCount = 3;
+ f.values[0] = {"°C",  1, "thermometer"};
+ f.values[1] = {"%",   0, "drop"};
+ f.values[2] = {"hPa", 1, "gauge"};
+ break;
+#endif
+ default:
+ f.valueCount = 1;
+ f.values[0] = {"", 1, ""};
+ break;
+ }
+ return f;
+ }
+};
