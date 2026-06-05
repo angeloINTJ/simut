@@ -9,10 +9,10 @@ hangs before accepting the next binary — zero human intervention.
 ## How it works
 
 ```
-┌─────────────┐         ┌──────────────┐
-│  Host (CI)   │──USB──▶│  PicoHand    │──GP0──▶ BOOTSEL (target)
-│  pico_hand.sh│         │  (this fw)   │──GP1──▶ RESET   (target)
-└─────────────┘         └──────────────┘──GND───▶ GND     (target)
+┌─────────────┐        ┌──────────────┐
+│ Host (CI)   │──USB──▶│  PicoHand    │──GP0──▶ BOOTSEL (target)
+│ pico_hand.sh│        │  (this fw)   │──GP1──▶ RESET   (target)
+└─────────────┘        └──────────────┘──GND──▶ GND     (target)
 ```
 
 The host sends text commands over USB CDC (`PING`, `RESET`, `BOOTSEL`, etc.).
@@ -34,14 +34,14 @@ hand BOOTSEL                   # target enters BOOTSEL mode
 
 ## Files
 
-| File | Purpose |
-|------|---------|
-| `pico_hand/pico_hand.ino` | Arduino sketch (single file, self-contained) |
-| `pico_hand.sh` | Bash wrapper — `hand_init`, `hand <cmd>`, `hand_release_all` |
-| `MANUAL_CLAUDE_CODE.md` | Claude Code agent operation manual (English) |
-| `MANUAL_CLAUDE_CODE.pt-BR.md` | Same manual in Portuguese |
-| `pico_hand/README.md` | Hardware wiring and protocol reference (English) |
-| `pico_hand/README.pt-BR.md` | Same reference in Portuguese |
+| File                          | Purpose                                                      |
+|-------------------------------|--------------------------------------------------------------|
+| `pico_hand/pico_hand.ino`     | Arduino sketch (single file, self-contained)                 |
+| `pico_hand.sh`                | Bash wrapper — `hand_init`, `hand <cmd>`, `hand_release_all` |
+| `MANUAL_CLAUDE_CODE.md`       | Claude Code agent operation manual (English)                 |
+| `MANUAL_CLAUDE_CODE.pt-BR.md` | Same manual in Portuguese                                    |
+| `pico_hand/README.md`         | Hardware wiring and protocol reference (English)             |
+| `pico_hand/README.pt-BR.md`   | Same reference in Portuguese                                 |
 
 ## Electrical safety
 
