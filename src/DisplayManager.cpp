@@ -455,6 +455,14 @@ bool DisplayManager::isScreenTouched( ) {
 }
 
 void DisplayManager::beginTouch( ) {
+ /* Initialize SPI bus via TFT — XPT2046 shares the same SPI peripheral.
+  * Without SPI configured, the touch controller cannot be read.
+  * TFT init does a hardware reset (brief white flash), acceptable during boot. */
+ if (!_tft) _tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
+ _tft->begin( );
+ _tft->setRotation(3);
+ _tftFirstInit = false; /* prevent loopCore1 from re-initializing */
+
  if (!_ts) _ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
  _ts->begin( );
  _ts->setRotation(3);
