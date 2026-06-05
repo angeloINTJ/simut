@@ -90,6 +90,26 @@ Agradecimentos a estas pessoas incríveis:
 
 Este projeto segue a especificação [all-contributors](https://allcontributors.org).
 
+## Powered by SIMUT
+
+Seu produto ou projeto usa SIMUT? Adicione este selo ao seu README, documentação ou página do produto:
+
+```markdown
+[![Powered by SIMUT](docs/images/powered-by-simut.svg)](https://github.com/angeloINTJ/simut)
+```
+
+[![Powered by SIMUT](docs/images/powered-by-simut.svg)](https://github.com/angeloINTJ/simut)
+
+**Versão grande** (para apresentações, pôsteres ou embalagens):
+
+```markdown
+[![Powered by SIMUT](docs/images/powered-by-simut-large.svg)](https://github.com/angeloINTJ/simut)
+```
+
+[![Powered by SIMUT](docs/images/powered-by-simut-large.svg)](https://github.com/angeloINTJ/simut)
+
+---
+
 ## Licença
 
 MIT License — veja [LICENSE](LICENSE).
