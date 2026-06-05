@@ -95,15 +95,15 @@ void WebManager::handleApiCalibGet( ) {
 
 	const auto& runtime = _sensorRef->getRuntimeSensors( );
 	for (const auto& s : runtime) {
-		if (s.config.gpio == PIN_DHT_DEFAULT) {
+		if (s.config.pins[0] == PIN_DHT_DEFAULT) {
 			ambT = s.avgValue1; ambTValid = !isnan(s.avgValue1);
 			ambH = s.avgValue2; ambHValid = !isnan(s.avgValue2);
 			ambOffT = s.calibrationOffset;
 			ambOffH = s.calibrationOffsetHum;
-		} else if (s.config.gpio < MAX_SENSORS) {
-			runtimeT[s.config.gpio] = s.avgValue1;
-			runtimeTValid[s.config.gpio] = !isnan(s.avgValue1);
-			slotOff[s.config.gpio] = s.calibrationOffset;
+		} else if (s.config.pins[0] < MAX_SENSORS) {
+			runtimeT[s.config.pins[0]] = s.avgValue1;
+			runtimeTValid[s.config.pins[0]] = !isnan(s.avgValue1);
+			slotOff[s.config.pins[0]] = s.calibrationOffset;
 		}
 	}
 
@@ -234,7 +234,7 @@ void WebManager::handleApiCalibPost( ) {
 			float curT = NAN, curH = NAN, offT = 0, offH = 0;
 			const auto& runtime = _sensorRef->getRuntimeSensors( );
 			for (const auto& s : runtime) {
-				if (s.config.gpio == PIN_DHT_DEFAULT) {
+				if (s.config.pins[0] == PIN_DHT_DEFAULT) {
 					curT = s.avgValue1; curH = s.avgValue2;
 					offT = s.calibrationOffset; offH = s.calibrationOffsetHum;
 					break;
@@ -294,7 +294,7 @@ void WebManager::handleApiCalibPost( ) {
 				float curT = NAN, off = 0;
 				const auto& runtime = _sensorRef->getRuntimeSensors( );
 				for (const auto& s : runtime) {
-					if (s.config.gpio == gpio) { curT = s.avgValue1; off = s.calibrationOffset; break; }
+					if (s.config.pins[0] == gpio) { curT = s.avgValue1; off = s.calibrationOffset; break; }
 				}
 				float newOff = off;
 				if (!isnan(refT) && !isnan(curT)) newOff = off + (refT - curT);

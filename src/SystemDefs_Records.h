@@ -96,8 +96,9 @@ enum GraphRange {
 /** Persistent sensor configuration stored in Flash (binary, packed). */
 struct __attribute__((packed)) SensorRecord {
  bool active;
- uint8_t gpio;
- uint8_t rom[8];
+ uint8_t sensorType; /**< SensorType enum — explicit, not inferred from ROM. */
+ uint8_t pins[MAX_SENSOR_PINS]; /**< Up to 4 GPIOs (255=PIN_UNUSED). pins[0] is primary. */
+ uint8_t rom[8]; /**< DS18B20 64-bit ROM (zero for non-1-Wire sensors). */
  char hwId[16];
  char friendlyName[32];
  uint32_t provisionEpoch;
@@ -112,7 +113,7 @@ struct __attribute__((packed)) SensorRecord {
 /* Locks layout at compile-time. Deliberate schema bump
  * must touch HERE AND migration code; build breaks if someone adds/removes
  * a field without considering existing flash consequences. */
-static_assert(sizeof(SensorRecord) == 79, "SensorRecord drift detected — deliberate schema bump? Update attemptLoad/migration");
+static_assert(sizeof(SensorRecord) == 83, "SensorRecord v16 must be 83 bytes - update migration if changing");
 
 /**
  * User account for web interface authentication (packed for Flash storage).

@@ -108,7 +108,7 @@ void AppManager::cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, 
  String currentId = String(cfg.sensors[gpio].hwId);
 
  cfg.sensors[gpio].active = true;
- cfg.sensors[gpio].gpio = gpio;
+ cfg.sensors[gpio].pins[0] = gpio;
 #if SIMUT_SENSOR_DS18B20
  memcpy(cfg.sensors[gpio].rom, foundRom, 8);
 #else

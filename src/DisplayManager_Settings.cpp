@@ -12,6 +12,7 @@
  */
 
 #include "DisplayManager.h"
+#include "SensorManager.h"
 #include "DisplayManager_Fonts.h"
 #include "DisplayManager_FmtFloat.h"
 #include "LogManager.h"
@@ -196,7 +197,7 @@ void DisplayManager::showAlarmEdit(int sensorIdx) {
 }
 
 void DisplayManager::drawAlarmEdit( ) {
- bool hasHum = (_editSensorIdx == -1 || _tempAlarmConfig.rom[0] != 0x28);
+ bool hasHum = (_editSensorIdx == -1 || sensorHasHumidity((SensorType)_tempAlarmConfig.sensorType));
 
 
  if (_tempAlarmConfig.tempMin >= _tempAlarmConfig.tempMax) {

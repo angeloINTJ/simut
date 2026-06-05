@@ -98,7 +98,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  {
  RuntimeSensor ambient;
  ambient.config.active = true;
- ambient.config.gpio = PIN_DHT_DEFAULT;
+ ambient.config.pins[0] = PIN_DHT_DEFAULT;
  memset(ambient.config.rom, 0, 8);
  /* Uses cfg.ambientSensor.hwId/friendlyName instead of hardcoded values.
  * If calibration customized them (line t<id> in calib.csv), the dashboard
@@ -125,7 +125,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) {
 #if SIMUT_SENSOR_DHT22
- if (cfg.sensors[i].gpio == PIN_DHT_DEFAULT) continue;
+ if (cfg.sensors[i].pins[0] == PIN_DHT_DEFAULT) continue;
 #endif
 
  RuntimeSensor rs;
@@ -144,35 +144,31 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  rs.hardwareMismatch = false;
  rs.calibrationOffset = 0.0f;
 
- /* Detect sensor type from ROM field.
-  * ROM non-zero → DS18B20; ROM zero → DHT22.
-  * If a type is not compiled-in, fall back to the other. */
+ /* Use explicit sensorType from config (v16+).
+  * Fallback: ROM-based detection for sensors that haven't been re-saved
+  * after migration (paranoid safety — should never trigger). */
+ rs.type = (SensorType)rs.config.sensorType;
+ if (rs.type == TYPE_NONE) {
+ /* Legacy fallback: infer from ROM field. */
  bool isDs18 = false;
 #if SIMUT_SENSOR_DS18B20
  for(int k=0; k<8; k++) if(rs.config.rom[k] != 0) isDs18 = true;
 #endif
-
- if (isDs18) {
-#if SIMUT_SENSOR_DS18B20
- rs.type = TYPE_DS18B20;
- rs.readInterval = 1000;
-#else
- /* DS18B20 not compiled in — skip this sensor */
- continue;
-#endif
+ rs.type = isDs18 ? TYPE_DS18B20 : TYPE_DHT22;
  }
- else {
+ rs.readInterval = sensorDefaultIntervalMs(rs.type);
+
+ if (!sensorTypeEnabled(rs.type)) {
+ /* Type not compiled in — skip this sensor */
+ continue;
+ }
+
 #if SIMUT_SENSOR_DHT22
- rs.type = TYPE_DHT22;
- rs.readInterval = 2000;
-
- gpio_init(rs.config.gpio);
- gpio_set_pulls(rs.config.gpio, true, false);
-#else
- /* DHT22 not compiled in — skip this sensor */
- continue;
-#endif
+ if (rs.type == TYPE_DHT22) {
+ gpio_init(rs.config.pins[0]);
+ gpio_set_pulls(rs.config.pins[0], true, false);
  }
+#endif
 
  _runtimeSensors.push_back(rs);
  }
@@ -201,7 +197,7 @@ void SensorManager::syncAlarmLimits(const SystemConfig &cfg) {
 
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
- if (cfg.sensors[i].gpio == rs.config.gpio) {
+ if (cfg.sensors[i].pins[0] == rs.config.pins[0]) {
  rs.config.tempMin = cfg.sensors[i].tempMin;
  rs.config.tempMax = cfg.sensors[i].tempMax;
  rs.config.humMin = cfg.sensors[i].humMin;
@@ -250,7 +246,7 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
 
  if (s.inErrorState && s.consecutiveSuccess >= 5) {
  s.inErrorState = false;
- LOG_CODE(LOG_INFO, "SENSOR", LOG_SENSOR_REC, s.config.gpio, TRL("Sensor recovered"));
+ LOG_CODE(LOG_INFO, "SENSOR", LOG_SENSOR_REC, s.config.pins[0], TRL("Sensor recovered"));
  }
 
  if (!s.inErrorState) {
@@ -269,7 +265,7 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
  if (!s.inErrorState && s.consecutiveErrors >= 3) {
  s.inErrorState = true;
 
- LOG_CODE(LOG_ERROR, "SENSOR", code, s.config.gpio, String(errorMsg));
+ LOG_CODE(LOG_ERROR, "SENSOR", code, s.config.pins[0], String(errorMsg));
  }
  }
 }
@@ -399,7 +395,7 @@ void SensorManager::processPeriodicReads( ) {
 
  if (needsRead) {
  for (auto &s : _runtimeSensors) {
- if (s.type == TYPE_DS18B20) _ds18Sensor.requestTemperatures(s.config.gpio);
+ if (s.type == TYPE_DS18B20) _ds18Sensor.requestTemperatures(s.config.pins[0]);
  }
  _dsTimer = now;
  _dsState = DS_WAITING;
@@ -413,7 +409,7 @@ void SensorManager::processPeriodicReads( ) {
 
  if (s.hardwareMismatch) {
  if (!s.inErrorState) {
- LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISMATCH, s.config.gpio, TRL("Hardware Mismatch (Access Denied)"));
+ LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISMATCH, s.config.pins[0], TRL("Hardware Mismatch (Access Denied)"));
  }
  s.inErrorState = true;
  s.buffer1.clear( );
@@ -432,7 +428,7 @@ void SensorManager::processPeriodicReads( ) {
 
  if (s.totalReadings % 5 == 0) {
  uint8_t currentRom[8];
- if (_ds18Sensor.readROM(s.config.gpio, currentRom)) {
+ if (_ds18Sensor.readROM(s.config.pins[0], currentRom)) {
  if (!checkRomMatch(currentRom, s.config.rom)) {
  romVerified = false;
  failReason = "ROM Mismatch";
@@ -445,7 +441,7 @@ void SensorManager::processPeriodicReads( ) {
 
  if (romVerified) {
  float tempC = 0.0f;
- bool success = _ds18Sensor.getTemperatureValidated(s.config.gpio, tempC, DS18B20PIO::CELSIUS);
+ bool success = _ds18Sensor.getTemperatureValidated(s.config.pins[0], tempC, DS18B20PIO::CELSIUS);
 
  if (!success) handleSensorResult(s, false, 0, 0, "CRC/Read Error");
  else if (tempC < -50 || tempC > 150) handleSensorResult(s, false, 0, 0, "Out of Range");
@@ -470,7 +466,7 @@ void SensorManager::processPeriodicReads( ) {
  auto &s = _runtimeSensors[i];
  if (s.type == TYPE_DHT22 && (now - s.lastReadTime >= s.readInterval)) {
  _dhtSensor.reset( );
- _dhtSensor.requestReading(s.config.gpio);
+ _dhtSensor.requestReading(s.config.pins[0]);
 
  _dhtTimer = millis( );
  _dhtCurrentSensorIdx = i;
@@ -630,7 +626,7 @@ bool SensorManager::pollAsyncResult(String &msg) { return false; }
 
 void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset, String newName) {
  for (auto &s : _runtimeSensors) {
- if (s.config.gpio == gpio) {
+ if (s.config.pins[0] == gpio) {
  if (newHwId.length( ) > 0) {
  safeCopy(s.config.hwId, newHwId.c_str( ), sizeof(s.config.hwId));
  }
@@ -648,7 +644,7 @@ void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset,
 void SensorManager::applyAmbientCalibration(float offsetT, float offsetH) {
  for (auto &s : _runtimeSensors) {
 #if SIMUT_SENSOR_DHT22
- if (s.config.gpio == PIN_DHT_DEFAULT) {
+ if (s.config.pins[0] == PIN_DHT_DEFAULT) {
 #else
  /* When DHT22 is not compiled-in, apply to any sensor (fallback) */
  {
@@ -662,7 +658,7 @@ void SensorManager::applyAmbientCalibration(float offsetT, float offsetH) {
 
 void SensorManager::setHardwareMismatch(uint8_t gpio, bool isMismatch) {
  for (auto &s : _runtimeSensors) {
- if (s.config.gpio == gpio) {
+ if (s.config.pins[0] == gpio) {
  s.hardwareMismatch = isMismatch;
  }
  }

@@ -245,7 +245,7 @@ void AppManager::loop( ) {
  sd.ambientValid = false;
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
  for (const auto& s : sensors) {
- if (s.config.gpio == 10 && !s.inErrorState) {
+ if (s.config.pins[0] == 10 && !s.inErrorState) {
  sd.ambientTemp = s.avgValue1;
  sd.ambientHum = s.avgValue2;
  sd.ambientValid = true;
