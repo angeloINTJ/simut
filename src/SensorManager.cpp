@@ -61,28 +61,15 @@ static float calculateTrimmedMean(const RingBuffer& ring) {
 
 
 SensorManager::SensorManager( )
-#if SIMUT_SENSOR_DS18B20
- : _oneWireBus(pio0),
- _ds18Sensor(_oneWireBus)
-#endif
-#if SIMUT_SENSOR_DHT22
-#if SIMUT_SENSOR_DS18B20
- , _dhtBus(pio1),
-#else
- : _dhtBus(pio1),
-#endif
- _dhtSensor(_dhtBus)
-#endif
 {
 }
 
 void SensorManager::begin( ) {
 #if SIMUT_SENSOR_DS18B20
- _oneWireBus.begin(PIN_ONEWIRE_DEFAULT);
+ _ds18.begin( );
 #endif
 #if SIMUT_SENSOR_DHT22
- _dhtBus.begin(PIN_DHT_DEFAULT);
- gpio_set_pulls(PIN_DHT_DEFAULT, true, false);
+ _dht.begin( );
 #endif
 }
 
@@ -211,18 +198,12 @@ void SensorManager::syncAlarmLimits(const SystemConfig &cfg) {
 
 #if SIMUT_SENSOR_DS18B20
 bool SensorManager::identifyPhysicalSensor(uint8_t gpio, uint8_t* romOut) {
- if (_ds18Sensor.readROM(gpio, romOut)) {
+ if (_ds18.readROM(gpio, romOut)) {
  return true;
  }
  return false;
 }
 
-bool SensorManager::checkRomMatch(const uint8_t* romRead, const uint8_t* romConfig) {
- for (int i=0; i<8; i++) {
- if (romRead[i] != romConfig[i]) return false;
- }
- return true;
-}
 #endif
 
 void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1, float v2, const char* errorMsg) {
@@ -274,7 +255,7 @@ void SensorManager::update( ) {
 
  if (isScanning( )) {
 #if SIMUT_SENSOR_DHT22
- _dhtSensor.update( );
+ _dht.update( );
 #endif
 
  if (_scanState == IDLE || _scanState == COMPLETE) return;
@@ -294,19 +275,19 @@ void SensorManager::update( ) {
 
 #if SIMUT_SENSOR_DS18B20
  case ONEWIRE_RESET:
- _oneWireBus.setPin(_currentScanPin);
- _oneWireBus.sendReset( );
+ _ds18.setPin(_currentScanPin);
+ _ds18.sendReset( );
  _scanTimer = micros( );
  _scanState = ONEWIRE_WAIT;
  break;
 
  case ONEWIRE_WAIT:
  if (micros( ) - _scanTimer >= 1200) {
- if (_oneWireBus.isSensorPresent( )) {
+ if (_ds18.isSensorPresent( )) {
  ScanResult res;
  res.pin = _currentScanPin;
  res.type = TYPE_DS18B20;
- if (_ds18Sensor.readROM(_currentScanPin, res.rom)) {
+ if (_ds18.readROM(_currentScanPin, res.rom)) {
  _scanResults.push_back(res);
  _scanState = NEXT_PIN;
  } else {
@@ -329,13 +310,13 @@ void SensorManager::update( ) {
 
 #if SIMUT_SENSOR_DHT22
  case DHT_REQUEST:
- _dhtSensor.requestReading(_currentScanPin);
+ _dht.requestReading(_currentScanPin);
  _scanTimer = millis( );
  _scanState = DHT_WAIT;
  break;
 
  case DHT_WAIT: {
- DHT22PIO::State s = _dhtSensor.getState( );
+ DHT22PIO::State s = _dht.getState( );
  if (s == DHT22PIO::DATA_READY || s == DHT22PIO::ERROR_CHECKSUM) {
  ScanResult res;
  res.pin = _currentScanPin;
@@ -354,7 +335,7 @@ void SensorManager::update( ) {
  _currentScanPin++;
  if (_currentScanPin > 16) {
 #if SIMUT_SENSOR_DS18B20
- _oneWireBus.setPin(PIN_ONEWIRE_DEFAULT);
+ _ds18.setPin(PIN_ONEWIRE_DEFAULT);
 #endif
  _scanState = COMPLETE;
  } else {
@@ -385,7 +366,7 @@ void SensorManager::processPeriodicReads( ) {
 
 #if SIMUT_SENSOR_DS18B20
  /* ── DS18B20: parallel batch read ── */
- if (_dsState == DS_IDLE) {
+ if (_ds18.state == DS18B20Driver::DS_IDLE) {
  bool needsRead = false;
  for (auto &s : _runtimeSensors) {
  if (s.type == TYPE_DS18B20 && (now - s.lastReadTime >= s.readInterval)) {
@@ -395,14 +376,14 @@ void SensorManager::processPeriodicReads( ) {
 
  if (needsRead) {
  for (auto &s : _runtimeSensors) {
- if (s.type == TYPE_DS18B20) _ds18Sensor.requestTemperatures(s.config.pins[0]);
+ if (s.type == TYPE_DS18B20) _ds18.requestTemperatures(s.config.pins[0]);
  }
- _dsTimer = now;
- _dsState = DS_WAITING;
+ _ds18.timer = now;
+ _ds18.state = DS18B20Driver::DS_WAITING;
  }
  }
- else if (_dsState == DS_WAITING) {
- if (now - _dsTimer >= DS18B20_CONVERSION_TIME_MS) {
+ else if (_ds18.state == DS18B20Driver::DS_WAITING) {
+ if (now - _ds18.timer >= DS18B20_CONVERSION_TIME_MS) {
  for (auto &s : _runtimeSensors) {
  if (s.type == TYPE_DS18B20) {
 
@@ -428,8 +409,8 @@ void SensorManager::processPeriodicReads( ) {
 
  if (s.totalReadings % 5 == 0) {
  uint8_t currentRom[8];
- if (_ds18Sensor.readROM(s.config.pins[0], currentRom)) {
- if (!checkRomMatch(currentRom, s.config.rom)) {
+ if (_ds18.readROM(s.config.pins[0], currentRom)) {
+ if (!_ds18.checkRomMatch(currentRom, s.config.rom)) {
  romVerified = false;
  failReason = "ROM Mismatch";
  s.hardwareMismatch = true;
@@ -441,7 +422,7 @@ void SensorManager::processPeriodicReads( ) {
 
  if (romVerified) {
  float tempC = 0.0f;
- bool success = _ds18Sensor.getTemperatureValidated(s.config.pins[0], tempC, DS18B20PIO::CELSIUS);
+ bool success = _ds18.getTemperatureValidated(s.config.pins[0], tempC);
 
  if (!success) handleSensorResult(s, false, 0, 0, "CRC/Read Error");
  else if (tempC < -50 || tempC > 150) handleSensorResult(s, false, 0, 0, "Out of Range");
@@ -453,64 +434,64 @@ void SensorManager::processPeriodicReads( ) {
  }
  }
  }
- _dsState = DS_IDLE;
+ _ds18.state = DS18B20Driver::DS_IDLE;
  }
  }
 #endif /* SIMUT_SENSOR_DS18B20 */
 
 #if SIMUT_SENSOR_DHT22
  /* ── DHT22: sequential one-at-a-time ── */
- if (_dhtState == DHT_IDLE) {
+ if (_dht.state == DHT22Driver::DHT_IDLE) {
 
  for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
  auto &s = _runtimeSensors[i];
  if (s.type == TYPE_DHT22 && (now - s.lastReadTime >= s.readInterval)) {
- _dhtSensor.reset( );
- _dhtSensor.requestReading(s.config.pins[0]);
+ _dht.reset( );
+ _dht.requestReading(s.config.pins[0]);
 
- _dhtTimer = millis( );
- _dhtCurrentSensorIdx = i;
- _dhtState = DHT_WAITING;
+ _dht.timer = millis( );
+ _dht.currentSensorIdx = i;
+ _dht.state = DHT22Driver::DHT_WAITING;
  break;
  }
  }
  }
- else if (_dhtState == DHT_WAITING) {
+ else if (_dht.state == DHT22Driver::DHT_WAITING) {
 
- if (_dhtCurrentSensorIdx >= 0 && _dhtCurrentSensorIdx < (int)_runtimeSensors.size( )) {
- auto &s = _runtimeSensors[_dhtCurrentSensorIdx];
+ if (_dht.currentSensorIdx >= 0 && _dht.currentSensorIdx < (int)_runtimeSensors.size( )) {
+ auto &s = _runtimeSensors[_dht.currentSensorIdx];
 
- _dhtSensor.update( );
- DHT22PIO::State st = _dhtSensor.getState( );
+ _dht.update( );
+ DHT22PIO::State st = _dht.getState( );
 
  if (st == DHT22PIO::DATA_READY) {
  float t, h;
- if (_dhtSensor.getResults(t, h)) {
+ if (_dht.getResults(t, h)) {
  handleSensorResult(s, true, t, h, "");
  } else {
  handleSensorResult(s, false, 0, 0, "Checksum Error");
  }
- _dhtSensor.reset( );
+ _dht.reset( );
  s.lastReadTime = millis( );
- _dhtState = DHT_IDLE;
+ _dht.state = DHT22Driver::DHT_IDLE;
  }
  else if (st == DHT22PIO::ERROR_TIMEOUT || st == DHT22PIO::ERROR_CHECKSUM) {
  const char* errMsg = (st == DHT22PIO::ERROR_TIMEOUT) ? "Sensor Timeout" : "Checksum Error";
  handleSensorResult(s, false, 0, 0, errMsg);
- _dhtSensor.reset( );
+ _dht.reset( );
  s.lastReadTime = millis( );
- _dhtState = DHT_IDLE;
+ _dht.state = DHT22Driver::DHT_IDLE;
  }
 
- else if (timeSince(_dhtTimer, DHT22_READ_TIMEOUT_MS)) {
+ else if (timeSince(_dht.timer, DHT22_READ_TIMEOUT_MS)) {
  handleSensorResult(s, false, 0, 0, "Sensor Timeout");
- _dhtSensor.reset( );
+ _dht.reset( );
  s.lastReadTime = millis( );
- _dhtState = DHT_IDLE;
+ _dht.state = DHT22Driver::DHT_IDLE;
  }
  } else {
 
- _dhtState = DHT_IDLE;
+ _dht.state = DHT22Driver::DHT_IDLE;
  }
  }
 #endif /* SIMUT_SENSOR_DHT22 */
@@ -589,33 +570,33 @@ bool SensorManager::getScanResults(std::vector<ScanResult> &results) {
 
 #if SIMUT_SENSOR_DS18B20
 bool SensorManager::setDs18Resolution(DS18B20PIO::Resolution res) {
- return _ds18Sensor.setResolution(PIN_ONEWIRE_DEFAULT, res);
+ return _ds18.setResolution(res);
 }
 
 void SensorManager::requestDs18Reading( ) {
- _ds18Sensor.requestTemperatures(PIN_ONEWIRE_DEFAULT);
+ _ds18.requestTemperatures(PIN_ONEWIRE_DEFAULT);
 }
 
 bool SensorManager::readDs18(float &temp) {
- return _ds18Sensor.getTemperatureValidated(PIN_ONEWIRE_DEFAULT, temp, DS18B20PIO::CELSIUS);
+ return _ds18.getTemperatureValidated(PIN_ONEWIRE_DEFAULT, temp);
 }
 #endif
 
 #if SIMUT_SENSOR_DHT22
 void SensorManager::requestDhtReading( ) {
- _dhtSensor.requestReading(PIN_DHT_DEFAULT);
+ _dht.requestReading(PIN_DHT_DEFAULT);
 }
 
 
 bool SensorManager::readDhtBlocking(float &t, float &h) {
  delayMicroseconds(100);
- _dhtSensor.requestReading(PIN_DHT_DEFAULT);
+ _dht.requestReading(PIN_DHT_DEFAULT);
 
  uint32_t start = millis( );
  while (millis( ) - start < 2500) {
- _dhtSensor.update( );
- DHT22PIO::State s = _dhtSensor.getState( );
- if (s == DHT22PIO::DATA_READY) return _dhtSensor.getResults(t, h);
+ _dht.update( );
+ DHT22PIO::State s = _dht.getState( );
+ if (s == DHT22PIO::DATA_READY) return _dht.getResults(t, h);
  if (s == DHT22PIO::ERROR_TIMEOUT || s == DHT22PIO::ERROR_CHECKSUM) return false;
  }
  return false;

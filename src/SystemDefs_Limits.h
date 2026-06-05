@@ -13,7 +13,7 @@
 
 #pragma once
 #include <Arduino.h>
-#include "SensorConfig.h"
+#include "sensors/SensorConfig.h"
 
 /* Hardware and system limits */
 #define MAX_SENSORS 10 /* Maximum number of configurable sensor slots */

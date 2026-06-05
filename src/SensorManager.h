@@ -1,15 +1,14 @@
 /**
  * @file SensorManager.h
- * @brief Sensor driver layer with PIO-based DS18B20 and DHT22 support.
+ * @brief Sensor orchestration layer — runtime sensor list, periodic reads, scan.
  * @details Manages runtime sensor instances with static ring buffers for
  * moving average calculation (trimmed mean), asynchronous reading
  * state machines, hardware scan across GPIO pins, ROM verification,
  * calibration offset application, and hardware mismatch detection.
- * All PIO operations use custom libraries: OneWirePIO_RP2040 and
- * DHT22PIO_RP2040.
  *
+ * Hardware-specific drivers live in src/sensors/ (DS18B20Driver, DHT22Driver).
  * Sensor types are conditionally compiled via SIMUT_SENSOR_* flags
- * (see SensorConfig.h). Disable unused types to reclaim flash.
+ * (see sensors/SensorConfig.h). Disable unused types to reclaim flash.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
@@ -22,26 +21,10 @@
 #include <Arduino.h>
 #include <vector>
 #include "SystemDefs.h"
-#if SIMUT_SENSOR_DS18B20
-#include "OneWirePIO.h"
-#include "DS18B20PIO.h"
-#endif
-#if SIMUT_SENSOR_DHT22
-#include "DHTBus.h"
-#include "DHT22PIO.h"
-#endif
+#include "sensors/DS18B20Driver.h"
+#include "sensors/DHT22Driver.h"
 #include "LogManager.h"
-
-#if SIMUT_SENSOR_DS18B20
-#define PIN_ONEWIRE_DEFAULT 0
-#else
-#define PIN_ONEWIRE_DEFAULT 255  /* unused when DS18B20 disabled */
-#endif
-#if SIMUT_SENSOR_DHT22
-#define PIN_DHT_DEFAULT 10
-#else
-#define PIN_DHT_DEFAULT 255  /* unused when DHT22 disabled */
-#endif
+#include "sensors/SensorHelpers.h"
 
 
 struct RingBuffer {
@@ -94,89 +77,6 @@ struct RuntimeSensor {
  bool hardwareMismatch;
 };
 
-/* ===========================================================================
- * Compile-time sensor type helpers — inline, zero-cost.
- *
- * These centralize all SensorType-dependent logic so that consumer code
- * never needs #if SIMUT_SENSOR_* guards. The compiler constant-folds the
- * flag checks and dead-code-eliminates unreachable branches.
- * =========================================================================== */
-
-/** @return true if this sensor type produces a humidity/secondary value. */
-inline bool sensorHasHumidity(SensorType t) {
-#if SIMUT_SENSOR_DHT22
- if (t == TYPE_DHT22) return true;
-#endif
-#if SIMUT_SENSOR_BME280
- if (t == TYPE_BME280) return true;
-#endif
- (void)t;
- return false;
-}
-
-/** @return human-readable sensor type name (e.g. "DS18B20", "DHT22"). */
-inline const char* sensorTypeName(SensorType t) {
- switch (t) {
-#if SIMUT_SENSOR_DS18B20
- case TYPE_DS18B20: return "DS18B20";
-#endif
-#if SIMUT_SENSOR_DHT22
- case TYPE_DHT22:   return "DHT22";
-#endif
-#if SIMUT_SENSOR_BME280
- case TYPE_BME280:  return "BME280";
-#endif
- default:           return "Unknown";
- }
-}
-
-/** @return number of measurement values this sensor produces (1, 2, or 3). */
-inline uint8_t sensorValueCount(SensorType t) {
- switch (t) {
-#if SIMUT_SENSOR_DS18B20
- case TYPE_DS18B20: return 1;
-#endif
-#if SIMUT_SENSOR_DHT22
- case TYPE_DHT22:   return 2;
-#endif
-#if SIMUT_SENSOR_BME280
- case TYPE_BME280:  return 3;
-#endif
- default:           return 1;
- }
-}
-
-/** @return true if this sensor type is compiled-in and available. */
-inline bool sensorTypeEnabled(SensorType t) {
- switch (t) {
-#if SIMUT_SENSOR_DS18B20
- case TYPE_DS18B20: return true;
-#endif
-#if SIMUT_SENSOR_DHT22
- case TYPE_DHT22:   return true;
-#endif
-#if SIMUT_SENSOR_BME280
- case TYPE_BME280:  return true;
-#endif
- default:           return false;
- }
-}
-
-/** @return the default read interval in ms for this sensor type. */
-inline uint32_t sensorDefaultIntervalMs(SensorType t) {
- switch (t) {
-#if SIMUT_SENSOR_DS18B20
- case TYPE_DS18B20: return 1000;
-#endif
-#if SIMUT_SENSOR_DHT22
- case TYPE_DHT22:   return 2000;
-#endif
-#if SIMUT_SENSOR_BME280
- case TYPE_BME280:  return 5000;
-#endif
- default:           return 5000;
- }
-}
 
 class SensorManager {
 public:
@@ -227,36 +127,14 @@ public:
 
 private:
 #if SIMUT_SENSOR_DS18B20
- OneWirePIO _oneWireBus;
- DS18B20PIO _ds18Sensor;
+ DS18B20Driver _ds18;
 #endif
 #if SIMUT_SENSOR_DHT22
- DHTBus _dhtBus;
- DHT22PIO _dhtSensor;
+ DHT22Driver _dht;
 #endif
 
  std::vector<RuntimeSensor> _runtimeSensors;
  volatile bool _newDataAvailable = false;
-
-#if SIMUT_SENSOR_DS18B20
- enum Ds18State {
- DS_IDLE,
- DS_WAITING
- };
- Ds18State _dsState = DS_IDLE;
- uint32_t _dsTimer = 0;
- /* DS18B20_CONVERSION_TIME_MS defined in SystemDefs.h. */
-#endif
-
-#if SIMUT_SENSOR_DHT22
- enum DhtState {
- DHT_IDLE,
- DHT_WAITING
- };
- DhtState _dhtState = DHT_IDLE;
- int _dhtCurrentSensorIdx = -1;
- uint32_t _dhtTimer = 0;
-#endif
 
 
  enum ScanState {
@@ -283,7 +161,4 @@ private:
  void addSample(RuntimeSensor &sensor, float v1, float v2);
 
  void handleSensorResult(RuntimeSensor &s, bool success, float v1, float v2, const char* errorMsg);
-#if SIMUT_SENSOR_DS18B20
- bool checkRomMatch(const uint8_t* romRead, const uint8_t* romConfig);
-#endif
 };
