@@ -450,22 +450,20 @@ bool DisplayManager::isSkipPressed( ) {
 }
 
 bool DisplayManager::isScreenTouched( ) {
+ /* Read PENIRQ directly: LOW = touched, HIGH = idle.
+  * Works before Core 1 is running (no SPI/lib needed). */
+ if (!gpio_get(TOUCH_IRQ)) return true;
  if (_ts) return _ts->touched( );
  return _rawTouchState;
 }
 
 void DisplayManager::beginTouch( ) {
- /* Initialize SPI bus via TFT — XPT2046 shares the same SPI peripheral.
-  * Without SPI configured, the touch controller cannot be read.
-  * TFT init does a hardware reset (brief white flash), acceptable during boot. */
- if (!_tft) _tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
- _tft->begin( );
- _tft->setRotation(3);
- _tftFirstInit = false; /* prevent loopCore1 from re-initializing */
-
- if (!_ts) _ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
- _ts->begin( );
- _ts->setRotation(3);
+ /* XPT2046 PENIRQ (GPIO 20): pulled LOW on touch, HIGH when idle.
+  * Reading this pin directly is sufficient for AP-mode detection
+  * during boot — no SPI or library initialization needed. */
+ gpio_init(TOUCH_IRQ);
+ gpio_set_dir(TOUCH_IRQ, GPIO_IN);
+ gpio_pull_up(TOUCH_IRQ);
 }
 
 /* Inject simulated touch for automation (screenshot capture).
