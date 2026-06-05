@@ -94,6 +94,7 @@ struct CliDemand {
  DemandType type;
  char strVal1[64] = {0};
  char strVal2[64] = {0};
+ char strVal3[32] = {0};
  int intVal1;
  bool boolVal;
  uint8_t rom[8];
@@ -104,4 +105,5 @@ struct CliDemand {
  * `cmd.strVal1 = <String|const char*>`. */
  void setStrVal1(const char* s) { safeCopy(strVal1, s ? s : "", sizeof(strVal1)); }
  void setStrVal2(const char* s) { safeCopy(strVal2, s ? s : "", sizeof(strVal2)); }
+ void setStrVal3(const char* s) { safeCopy(strVal3, s ? s : "", sizeof(strVal3)); }
 };
