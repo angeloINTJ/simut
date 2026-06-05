@@ -171,6 +171,14 @@ void AppManager::setup( ) {
  gpio_init(19); gpio_set_dir(19, GPIO_OUT); gpio_put(19, 0);
  gpio_init(16); gpio_set_dir(16, GPIO_IN);
 
+ /* Minimal touch debug via UART1:
+  *  't' + '0'/'1' = raw GPIO20 right after pin config
+  *  's' + '0'/'1' = settle result (0=fail, 1=quiet)
+  *  'a' + '0'/'1' = AP detect result (0=normal, 1=forceAP)
+  *  'c' + '0'/'1' = post-startCore1 raw GPIO20 */
+ uart_putc_raw(uart1, 't');
+ uart_putc_raw(uart1, gpio_get(20) ? '1' : '0');
+
  bool forceAP = false;
  _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
 
@@ -201,8 +209,8 @@ void AppManager::setup( ) {
  }
  delay(20);
  }
- BLOG("[BOOT] touch settle: quiet="); BLOG_U(touch_settled ? 1 : 0);
- BLOG(" ms="); BLOG_U(millis( ) - settle_start); BLOG_NL( );
+ uart_putc_raw(uart1, 's');
+ uart_putc_raw(uart1, touch_settled ? '1' : '0');
  }
 
  if (touch_settled) {
@@ -239,8 +247,8 @@ void AppManager::setup( ) {
  delay(50);
  }
  }
- BLOG("[BOOT] AP detect: forceAP="); BLOG_U(forceAP ? 1 : 0);
- BLOG(" (touch_settled="); BLOG_U(touch_settled ? 1 : 0); BLOG(")\n");
+ uart_putc_raw(uart1, 'a');
+ uart_putc_raw(uart1, forceAP ? '1' : '0');
 
  _displayMgr->setApProgress(-1);
 
@@ -278,6 +286,8 @@ void AppManager::setup( ) {
  }
  uart_putc_raw(uart1, _displayMgr->isCore1Ready( ) ? 'R' : 'X');
  }
+ uart_putc_raw(uart1, 'c');
+ uart_putc_raw(uart1, gpio_get(20) ? '1' : '0');
 
  /* DisplayManager needs the config pointer to render the dashboard
 	 * (buildDashLayout filters inactive slots). Set once at boot — the
