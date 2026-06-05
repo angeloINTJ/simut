@@ -13,6 +13,16 @@
   <img src="docs/images/tft-demo.gif" alt="SIMUT TFT Demo" width="320">
 </p>
 
+## Capturas de Tela
+
+| TFT Dashboard | TFT Demo | Web UI | Alpha Inicial |
+|:---:|:---:|:---:|:---:|
+| ![TFT](docs/images/tft-dashboard.png) | ![Demo](docs/images/tft-demo.gif) | ![Web](docs/images/web-dashboard.png) | [![Vídeo Alpha](https://img.youtube.com/vi/eGZsTT5070c/hqdefault.jpg)](https://youtube.com/shorts/eGZsTT5070c) |
+
+> 📸 Veja [docs/images/README.md](docs/images/README.md) para capturar telas do seu dispositivo.
+>
+> 🎥 O vídeo **Alpha Inicial** mostra o primeiro protótipo TFT + touch. A UI, temas, responsividade e acabamento evoluíram significativamente desde então — veja o GIF **TFT Demo** para a experiência atual.
+
 [English version](README.md) | **Português**
 
 ## Visão Geral
