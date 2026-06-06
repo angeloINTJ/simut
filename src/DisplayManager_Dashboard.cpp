@@ -559,8 +559,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
                    isRedPhase, panelBg,
                    simutFont24pt, simutFont12pt, simutFont9pt,
                    C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
- maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN,
-                  isRedPhase ? RGB565(200,0,0) : C_TEXT_SUB);
+ maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
  blitCanvas(_canvasWide, CARD_X, cardY + 28, CARD_W, 40);
  goto _slot_bottom_fill;
 
