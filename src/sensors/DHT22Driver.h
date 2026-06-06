@@ -72,7 +72,8 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
                  const GFXfont& font12, const GFXfont& font9,
                  uint16_t txtSub, uint16_t tempOk,
                  uint16_t tempHot, uint16_t humidity,
-                 uint16_t textOff) {
+                 uint16_t textOff,
+                 const char* humSuffix) {
         /* Color aliases — exact match for original drawAmbientPanel normal mode */
         uint16_t tempCol   = isRedPhase ? RGB565(255,255,255) : tempOk;
         uint16_t unitCol   = isRedPhase ? RGB565(220,200,200) : txtSub;
@@ -130,7 +131,7 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
         if (!isnan(h)) {
             cv->setFont(&font12);
             int16_t px, py; uint16_t pctW, pctH, hw, hh;
-            cv->getTextBounds("%", 0, 0, &px, &py, &pctW, &pctH);
+            cv->getTextBounds(humSuffix, 0, 0, &px, &py, &pctW, &pctH);
             const int rightMargin = 15;
             int pctX = cardW - rightMargin - (int)pctW;
             int humAnchor = pctX - 3;
@@ -147,7 +148,7 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
             cv->setFont(&font12);
             cv->setTextColor(pctCol);
             cv->setCursor(pctX, 34);
-            cv->print("%");
+            cv->print(humSuffix);
 
             /* Drop icon */
             int dropRight = humAnchor - (int)hw - 6;

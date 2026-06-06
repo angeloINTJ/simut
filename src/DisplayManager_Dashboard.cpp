@@ -704,7 +704,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, SensorType type, bool is
  sensorRenderPanel(_canvasWide, type, t, h, isValid, CARD_W, true,
                    leftRed || rightRed, C_CARD_BG,
                    simutFont24pt, simutFont12pt, simutFont9pt,
-                   C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF);
+                   C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
  maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
  blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
  goto _ambient_bottom_fill;
@@ -1100,7 +1100,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  sensorRenderPanel(_canvasWide, type, t, h, isValid, CARD_W, false,
                    isRedPhase, panelBg,
                    simutFont24pt, simutFont12pt, simutFont9pt,
-                   C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF);
+                   C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
  maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN,
                   isRedPhase ? RGB565(200,0,0) : C_TEXT_SUB);
  blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
