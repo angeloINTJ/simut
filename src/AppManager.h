@@ -84,6 +84,9 @@ private:
  bool _waitingScan = false;
  int _currentSensorIdx = 0;
  bool _isApMode = false;
+ uint32_t _lastSlotChangeTime = 0;
+ int8_t _lastSavedTopIdx = -1;
+ int8_t _lastSavedSlotIdx = -1;
  
  void preloadMinMax( );
  void openStatsScreen(int sensorId);

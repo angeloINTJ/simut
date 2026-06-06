@@ -60,7 +60,7 @@ void AppManager::core0Yield( ) {
  UiEvent uiEv;
  if (!_isRenderingGraph) {
  while (_displayMgr->getUiEvent(uiEv)) {
- if (uiEv.type == UiEvent::EVT_SLOT_SELECT) { _currentSensorIdx = uiEv.id; refreshSelectedSlot( ); }
+ if (uiEv.type == UiEvent::EVT_SLOT_SELECT) { _currentSensorIdx = uiEv.id; _lastSlotChangeTime = millis( ); refreshSelectedSlot( ); }
  else if (uiEv.type == UiEvent::EVT_OPEN_GRAPH) {
  if (uiEv.param == 99) openStatsScreen(uiEv.id);
  else {
