@@ -85,54 +85,56 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
                  const GFXfont& font9,
                  uint16_t txtSub, uint16_t tempOk,
                  uint16_t tempHot, uint16_t textOff) {
-        uint16_t txtCol  = isRedPhase ? RGB565(255,255,255) : txtSub;
+        /* Color aliases — exact match for original */
         uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : tempOk;
-        uint16_t merc    = isRedPhase ? RGB565(255,255,255) : tempHot;
-        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtCol;
+        uint16_t unitCol = isRedPhase ? RGB565(220,200,200) : txtSub;
+        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtSub;
+        uint16_t mercCol = isRedPhase ? RGB565(255,255,255) : tempHot;
 
         if (!isValid || isnan(t)) {
-            cv->setFont(&font12);
-            cv->setTextColor(textOff);
-            cv->setCursor((cardW - 60) / 2, 15);
+            cv->setFont(&font12); cv->setTextSize(1);
+            cv->setTextColor(isRedPhase ? RGB565(255,255,255) : tempHot);
+            cv->setCursor((cardW - 60) / 2, 28);
             cv->print("--.-");
-            drawThermometerLarge(cv, (cardW - 160) / 2 - 10, 4,
-                                 icTherm, panelBg, merc);
             return;
         }
 
-        int negMul = (t < 0.0f) ? -1 : 1;
         float absT = (t < 0.0f) ? -t : t;
         int intPart = (int)absT;
         int decPart = (int)((absT - (float)intPart) * 10.0f + 0.5f);
         if (decPart >= 10) { intPart++; decPart = 0; }
         char iP[8]; snprintf(iP, sizeof(iP), "%d", intPart);
-        char dP[4]; snprintf(dP, sizeof(dP), "%d", decPart);
-        int16_t xx, yy; uint16_t iw, ih;
+        char dP[8]; snprintf(dP, sizeof(dP), ".%d", decPart);
+        int16_t xx, yy; uint16_t iw, ih, decW;
         cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
+        cv->getTextBounds(dP, 0, 0, &xx, &yy, &decW, &ih);
 
-        /* Centered layout matching original drawSlotPanel formula */
-        int decW = (intPart >= 10 ? (int)iw * 0.6 : (int)iw * 1.2);
-        if (decW < 6) decW = 6;
-        int totalW = 20 + 8 + ((int)iw + 4 + decW) + 3 + 16; /* iconW+gap+numW+gap+unitW */
+        /* Centered layout */
+        int totalW = 20 + 8 + ((int)iw + 4 + (int)decW) + 3 + 16;
         int offsetX = (cardW - totalW) / 2;
         int textAnchor = offsetX + 20 + 8 + (int)iw;
-        int iconX      = offsetX;
+        int iconX = offsetX;
+        int unitX = textAnchor + (int)decW + 3;
 
-        drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, merc);
+        drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, mercCol);
 
-        cv->setFont(&font24);
+        cv->setFont(&font24); cv->setTextSize(1);
         cv->setTextColor(tempCol);
-        int numX = textAnchor - (int)iw - 4;
-        if (negMul < 0) { cv->setCursor(numX - 6, 35); cv->print("-"); numX -= 6; }
-        cv->setCursor(numX, 35);
-        cv->print(iP);
-        cv->setCursor(textAnchor, 35); cv->print(".");
-        cv->print(dP);
+        int numCursorX = textAnchor - (int)iw - 4;
+        if (t < 0.0f) {
+            cv->getTextBounds("-", 0, 0, &xx, &yy, &decW, &ih);
+            int eraseW = (int)decW / 3; if (eraseW < 2) eraseW = 2;
+            cv->fillRect(numCursorX, 0, eraseW, 40, panelBg);
+        }
+        cv->setCursor(numCursorX, 35); cv->print(iP);
+        cv->setFont(&font24);
+        cv->setCursor(textAnchor, 35); cv->print(dP);
 
-        int unitX = textAnchor + decW + 3;
-        drawUnitDegC_Normal(cv, unitX, txtCol, font9, font12);
+        cv->setFont(&font9); cv->setTextColor(unitCol);
+        cv->setCursor(unitX, 17); cv->print("o");
+        cv->setFont(&font12);
+        cv->setCursor(unitX + 8, 35); cv->print("C");
     }
-
 #else
 #define PIN_ONEWIRE_DEFAULT 255
 #endif /* SIMUT_SENSOR_DS18B20 */
