@@ -382,7 +382,7 @@ private:
 	/* Ambient panel: normal vs min/max mode */
 /* Panel state — each dash panel has its own mode + min/max tracking */
  struct DashPanel {
- bool fixed = false;        // true=pinado, false=interativo
+ bool fixed = true;         // true=pinado, false=interativo (selection)
  int8_t fixedIdx = -1;      // sensor pinado
  bool showMinMax = false;   // min/max mode active
  bool lastMinMax = false;   // transition tracking
