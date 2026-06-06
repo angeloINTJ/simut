@@ -110,20 +110,26 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
         int16_t xx, yy; uint16_t iw, ih;
         cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
 
-        int anchorX = (cardW - (int)iw - 8) / 2 + 10;
-        int iconX   = (cardW - 160) / 2 - 10;
+        /* Centered layout matching original drawSlotPanel formula */
+        int decW = (intPart >= 10 ? (int)iw * 0.6 : (int)iw * 1.2);
+        if (decW < 6) decW = 6;
+        int totalW = 20 + 8 + ((int)iw + 4 + decW) + 3 + 16; /* iconW+gap+numW+gap+unitW */
+        int offsetX = (cardW - totalW) / 2;
+        int textAnchor = offsetX + 20 + 8 + (int)iw;
+        int iconX      = offsetX;
 
         drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, merc);
 
         cv->setFont(&font24);
         cv->setTextColor(tempCol);
-        if (negMul < 0) { cv->setCursor(anchorX - (int)iw - 6, 35); cv->print("-"); }
-        cv->setCursor(anchorX - (int)iw, 35);
+        int numX = textAnchor - (int)iw - 4;
+        if (negMul < 0) { cv->setCursor(numX - 6, 35); cv->print("-"); numX -= 6; }
+        cv->setCursor(numX, 35);
         cv->print(iP);
-        cv->setCursor(anchorX + 4, 35); cv->print(".");
+        cv->setCursor(textAnchor, 35); cv->print(".");
         cv->print(dP);
 
-        int unitX = anchorX + 4 + (int)iw + 6;
+        int unitX = textAnchor + decW + 3;
         drawUnitDegC_Normal(cv, unitX, txtCol, font9, font12);
     }
 

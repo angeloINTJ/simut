@@ -102,20 +102,34 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
         int16_t xx, yy; uint16_t iw, ih;
         cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
 
-        int anchorX = leftAnchor ? 92 : (cardW - (int)iw - 8) / 2 + 10;
-        int iconX  = leftAnchor ? 14 : (cardW - 160) / 2 - 10;
+        /* Position formulas match original panel code:
+         *   Ambient: textAnchor=92, iconX=14
+         *   Slot: centered via offsetX like original drawSlotPanel */
+        int decW = (intPart >= 10) ? (int)(iw * 0.6) : (int)(iw * 1.2);
+        if (decW < 6) decW = 6;
+        int textAnchor, iconX;
+        if (leftAnchor) {
+            textAnchor = 92;
+            iconX = 14;
+        } else {
+            int totalW = 20 + 8 + ((int)iw + 4 + decW) + 3 + 16;
+            int offsetX = (cardW - totalW) / 2;
+            textAnchor = offsetX + 20 + 8 + (int)iw;
+            iconX = offsetX;
+        }
 
         drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, merc);
 
         cv->setFont(&font24);
         cv->setTextColor(tempCol);
-        if (negMul < 0) { cv->setCursor(anchorX - (int)iw - 6, 35); cv->print("-"); }
-        cv->setCursor(anchorX - (int)iw, 35);
+        int numX = textAnchor - (int)iw - 4;
+        if (negMul < 0) { cv->setCursor(numX - 6, 35); cv->print("-"); numX -= 6; }
+        cv->setCursor(numX, 35);
         cv->print(iP);
-        cv->setCursor(anchorX + 4, 35); cv->print(".");
+        cv->setCursor(textAnchor, 35); cv->print(".");
         cv->print(dP);
 
-        int unitX = anchorX + 4 + (int)((intPart >= 10 ? iw + 6 : iw)) + 6;
+        int unitX = textAnchor + decW + 3;
         drawUnitDegC_Normal(cv, unitX, txtCol, font9, font12);
 
         /* Humidity — right-aligned, same layout as ambient panel */
