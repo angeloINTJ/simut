@@ -920,6 +920,9 @@ bool DisplayManager::pullSnapshot(SystemState& localSnapshot) {
 
 
 	if (mutex_enter_timeout_us(&_stateMutex, 1000)) {
+		/* Keep topSlotIdx in sync when interactive so AppManager mirrors data */
+		if (!_topPanel.fixed)
+			_sharedState.topSlotIdx = _sharedState.selectedSlotIdx;
 		if (_isDirty) {
 			localSnapshot = _sharedState;
 			_isDirty = false;
@@ -1050,6 +1053,14 @@ void DisplayManager::render(const SystemState& state) {
 	    _alarmSilenced ||
 	    _pktArrowState == 3) {
 		drawTopBar(state);
+	}
+
+	/* When top panel is interactive, sync from current slot data */
+	if (!_topPanel.fixed) {
+	 st.topSlotIdx = st.selectedSlotIdx;
+	 st.topSlotTemp = st.slotTemp; st.topSlotHum = st.slotHum;
+	 st.topSlotType = st.slotType; st.topSlotValid = st.slotValid;
+	 safeCopy(st.topSlotName, st.slotName, 31);
 	}
 
 	if (!_topPanel.showMinMax) {
