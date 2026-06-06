@@ -40,7 +40,6 @@ bool AppManager::requestDisplayQuietMode(bool enable) {
 
 void AppManager::refreshSelectedSlot( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
- if (cfg.reserved[53]) _currentSensorIdx = cfg.reserved[53];
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
  bool found = false;
 
@@ -75,7 +74,6 @@ void AppManager::refreshSelectedSlot( ) {
  }
 
  if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
- cfg.reserved[53] = (uint8_t)_currentSensorIdx;
 
  /* Fixed panels: override with pinned sensor data when panel is fixed elsewhere */
  {
