@@ -148,7 +148,7 @@ void DisplayManager::redrawAlarmFlash( ) {
 
 	int sel = _lastRenderedState.selectedSlotIdx;
 	if (isSlotAlarming(sel)) {
-		drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotValid,
+		drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotValid,
 		              sel, _lastRenderedState.slotName, true);
 	}
 

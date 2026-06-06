@@ -134,7 +134,7 @@ void DisplayManager::restoreNormalDashboard( ) {
  drawAmbientPanel(_lastRenderedState.ambientTemp,
  _lastRenderedState.ambientHum,
  _lastRenderedState.ambientValid);
- drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotValid,
+ drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotValid,
  _lastRenderedState.selectedSlotIdx,
  _lastRenderedState.slotName, true);
  drawBottomButtons(_lastRenderedState.selectedSlotIdx, true);
@@ -831,7 +831,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
  }
 }
 
-void DisplayManager::drawSlotPanel(float t, bool isValid, int slotIdx, const char* name, bool forceNameRedraw) {
+void DisplayManager::drawSlotPanel(float t, float h, bool isValid, int slotIdx, const char* name, bool forceNameRedraw) {
  if(!_canvasWide) return;
  int16_t x1, y1; uint16_t h_bound;
 

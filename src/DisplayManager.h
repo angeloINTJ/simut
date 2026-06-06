@@ -101,7 +101,7 @@ struct BootLogEntry {
 
 struct SystemState {
 	float ambientTemp; float ambientHum; bool ambientValid;
-	float slotTemp; bool slotValid; int selectedSlotIdx; char slotName[32];
+	float slotTemp; float slotHum; bool slotValid; int selectedSlotIdx; char slotName[32];
 	int wifiRssi; bool btActive; char timeString[24];
 	uint16_t pendingPkts;
 	bool isBooting; BootLogEntry bootLogs[5]; bool showSkipButton; int apProgressPct;
@@ -144,7 +144,7 @@ public:
 
 	void setAmbientData(float t, float h, bool isValid = true);
 	void setAmbientMinMax(float minT, float maxT, float minH, float maxH);
-	void setSlotData(float t, bool isValid, int slotIdx, String name);
+	void setSlotData(float t, float h, bool isValid, int slotIdx, String name);
 	void setSlotMinMax(float minT, float maxT);
 	void setSystemStatus(int rssi, bool bt, String timeStr);
 
@@ -425,7 +425,7 @@ private:
 	void drawInterfaceFixed( );
 	void drawTopBar(const SystemState& state);
 	void drawAmbientPanel(float t, float h, bool isValid);
-	void drawSlotPanel(float t, bool isValid, int slotIdx, const char* name, bool forceNameRedraw);
+	void drawSlotPanel(float t, float h, bool isValid, int slotIdx, const char* name, bool forceNameRedraw);
 	void drawBottomButtons(int selectedIdx, bool forceRedraw);
 
 	/** Dynamic dashboard layout: omits inactive slots and the pagination
