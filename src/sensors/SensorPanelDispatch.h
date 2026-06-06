@@ -47,8 +47,10 @@ inline void sensorRenderPanel(GFXcanvas16* cv, SensorType type,
 #endif
     default: break;
     }
+#if SIMUT_SENSOR_DS18B20
     /* Fallback: basic thermometer + temperature */
     DS18B20_renderPanel(cv, v1, isValid, cardW, isRedPhase, panelBg,
                         font24, font12, font9,
                         txtSub, tempOk, tempHot, textOff);
+#endif
 }
