@@ -19,6 +19,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
+#include "display/DisplayConfig.h"
 #include "display/DisplayDriver.h"
 #include "pico/mutex.h"
 #include "pico/multicore.h"
