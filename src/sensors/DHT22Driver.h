@@ -98,6 +98,7 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
         char iP[10]; snprintf(iP, sizeof(iP), "%d", intPart);
         char dP[5];  snprintf(dP, sizeof(dP), ".%d", decPart);
         int16_t xx, yy; uint16_t iw, ih, decW;
+        cv->setFont(&font24); cv->setTextSize(1);
         cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
         cv->getTextBounds(dP, 0, 0, &xx, &yy, &decW, &ih);
 
@@ -136,7 +137,7 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
 
         /* ── Humidity (right side, exact original layout) ── */
         if (!isnan(h)) {
-            cv->setFont(&font12);
+            cv->setFont(&font12); cv->setTextSize(1);
             int16_t px, py; uint16_t pctW, pctH, hw, hh;
             cv->getTextBounds(humSuffix, 0, 0, &px, &py, &pctW, &pctH);
             const int rightMargin = 15;
