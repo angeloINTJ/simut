@@ -183,7 +183,7 @@ void AppManager::updateLiveDisplay( ) {
  _displayMgr->setSlotMinMax(sMinT, sMaxT, sMinH, sMaxH);
  /* Top slot min/max — may differ from _currentSensorIdx when fixed */
  int topIdx = _displayMgr->getTopSlotIdx( );
- if (topIdx >= 0 && topIdx < 10 && topIdx != slotIdx) {
+ if (topIdx >= 0 && topIdx <= 10 && topIdx != slotIdx) {
  float tMinT = (_cachedMin[topIdx] < 999.0f) ? _cachedMin[topIdx] : NAN;
  float tMaxT = (_cachedMax[topIdx] > -999.0f) ? _cachedMax[topIdx] : NAN;
  float tMinH = (_cachedHumMin[topIdx] < 999.0f) ? _cachedHumMin[topIdx] : NAN;
