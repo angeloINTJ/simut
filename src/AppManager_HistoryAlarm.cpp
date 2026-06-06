@@ -165,7 +165,13 @@ void AppManager::updateLiveDisplay( ) {
  int topIdx = _displayMgr->getTopSlotIdx( );
 
  for (const auto &s : sensors) {
- if (s.config.pins[0] == 10) _displayMgr->setAmbientData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState);
+ if (s.config.pins[0] == 10) {
+ _displayMgr->setAmbientData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState);
+ if (_currentSensorIdx == 10) {
+ _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
+ if (topIdx == 10) _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
+ }
+ }
  else if (_currentSensorIdx < 10 && cfg.sensors[_currentSensorIdx].active && cfg.sensors[_currentSensorIdx].pins[0] == s.config.pins[0]) {
  _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  if (topIdx == _currentSensorIdx)
@@ -177,10 +183,7 @@ void AppManager::updateLiveDisplay( ) {
  }
  }
 
- if (_currentSensorIdx == 10) {
- _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
- if (topIdx == 10) _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
- }
+ 
  }
 }
 
