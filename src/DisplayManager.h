@@ -151,7 +151,7 @@ public:
  void setBottomSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
  void setTopSlotMinMax(float minT, float maxT, float minH, float maxH);
 	int getTopSlotIdx( ) { int idx; mutex_enter_blocking(&_stateMutex); idx = _sharedState.topSlotIdx; mutex_exit(&_stateMutex); return idx; }
-	void setTopSlotFixedIdx(int8_t i) { _topPanel.fixedIdx = i; _topPanel.fixed = true; }
+	void setTopSlotFixedIdx(int8_t i) { mutex_enter_blocking(&_stateMutex); _topPanel.fixedIdx = i; _topPanel.fixed = true; mutex_exit(&_stateMutex); }
 	void setSystemStatus(int rssi, bool bt, String timeStr);
 
 	/** Boot status: stores a TR key (resolved at render via tr()) plus
