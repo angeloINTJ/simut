@@ -23,6 +23,7 @@
 
 #include <unity.h>
 #include "SystemDefs_Validate.h"
+#include "ParseFloat.h"
 #include "SystemDefs_Time.h"
 #include <cmath>      /* isnan, NAN para floatToI16 */
 
@@ -396,6 +397,25 @@ void test_floatToI16_roundtrip(void) {
     TEST_ASSERT_EQUAL_FLOAT(  0.01f, i16ToFloat(floatToI16(  0.01f)));
 }
 
+/* ── parseFloat (inline, replaces atof/toFloat) ────────────────── */
+void test_parseFloat_basic(void) {
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, parseFloat("0"));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, parseFloat("0.0"));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 3.14f, parseFloat("3.14"));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, -2.5f, parseFloat("-2.5"));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 100.0f, parseFloat("100"));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.5f, parseFloat(".5"));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, -0.5f, parseFloat("-.5"));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, parseFloat("-0.0"));
+}
+void test_parseFloat_edge(void) {
+    TEST_ASSERT_TRUE(isnan(parseFloat(nullptr)));
+    TEST_ASSERT_TRUE(isnan(parseFloat("")));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.0f, parseFloat("abc"));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 5.0f, parseFloat("5.0"));
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 12.75f, parseFloat("12.75"));
+}
+
 
 /* =========================================================================== */
 /*                                  MAIN                                       */
@@ -442,6 +462,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_floatToI16_nan);
     RUN_TEST(test_i16ToFloat_basic);
     RUN_TEST(test_i16ToFloat_nan);
+
+    /* parseFloat */
+    RUN_TEST(test_parseFloat_basic);
+    RUN_TEST(test_parseFloat_edge);
     RUN_TEST(test_floatToI16_roundtrip);
 
     return UNITY_END();
