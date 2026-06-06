@@ -17,6 +17,7 @@
 #include <Arduino.h>
 #include "DHTBus.h"
 #include "DHT22PIO.h"
+#include "SensorDrawing.h"
 
 #define PIN_DHT_DEFAULT 10
 
@@ -61,7 +62,78 @@ struct DHT22Driver {
     void reset( ) {
         sensor.reset( );
     }
+
 };
+
+/* ── Panel rendering (normal mode, free function) ─────────────────────── */
+inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
+                 int16_t cardW, bool leftAnchor, bool isRedPhase,
+                 uint16_t panelBg, const GFXfont& font24,
+                 const GFXfont& font12, const GFXfont& font9) {
+        uint16_t txtSub  = isRedPhase ? RGB565(255,255,255) : 0xCE9A52; /* C_TEXT_SUB */
+        uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : 0x04B04C; /* C_TEMP_OK */
+        uint16_t humCol  = isRedPhase ? RGB565(255,255,255) : 0x5252DC; /* C_HUMIDITY */
+        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtSub;
+        uint16_t icDrop  = isRedPhase ? RGB565(220,200,200) : humCol;
+        uint16_t shine   = isRedPhase ? RGB565(255,255,255) : RGB565(200,230,255);
+        uint16_t merc    = isRedPhase ? RGB565(255,255,255) : 0xD04020; /* C_TEMP_HOT */
+
+        if (!isValid || isnan(t)) {
+            cv->setFont(&font12);
+            cv->setTextColor(0x8A7A6A); /* C_TEXT_OFF */
+            cv->setCursor(leftAnchor ? 80 : (cardW - 160) / 2 + 30, 15);
+            cv->print("--.-");
+            drawThermometerLarge(cv, leftAnchor ? 14 : (cardW - 160) / 2 - 10, 4,
+                                 icTherm, panelBg, merc);
+            return;
+        }
+
+        int negMul = (t < 0.0f) ? -1 : 1;
+        float absT = (t < 0.0f) ? -t : t;
+        int intPart = (int)absT;
+        int decPart = (int)((absT - (float)intPart) * 10.0f + 0.5f);
+        if (decPart >= 10) { intPart++; decPart = 0; }
+        char iP[8]; snprintf(iP, sizeof(iP), "%d", intPart);
+        char dP[4]; snprintf(dP, sizeof(dP), "%d", decPart);
+        int16_t xx, yy; uint16_t iw, ih;
+        cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
+
+        int anchorX = leftAnchor ? 92 : (cardW - (int)iw - 8) / 2 + 10;
+        int iconX  = leftAnchor ? 14 : (cardW - 160) / 2 - 10;
+
+        drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, merc);
+
+        cv->setFont(&font24);
+        cv->setTextColor(tempCol);
+        if (negMul < 0) { cv->setCursor(anchorX - (int)iw - 6, 35); cv->print("-"); }
+        cv->setCursor(anchorX - (int)iw + (negMul < 0 ? 0 : 0), 35);
+        cv->print(iP);
+        cv->setCursor(anchorX + 4, 35); cv->print(".");
+        cv->print(dP);
+
+        int unitX = anchorX + 4 + (int)((intPart >= 10 ? iw + 6 : iw)) + 6;
+        drawUnitDegC_Normal(cv, unitX, txtSub, font9, font12);
+
+        /* Humidity */
+        if (!isnan(h)) {
+            char hb[6];
+            if (isnan(h)) snprintf(hb, sizeof(hb), "--");
+            else snprintf(hb, sizeof(hb), "%d", (int)h);
+            int16_t px, py; uint16_t pw, ph;
+            cv->getTextBounds(hb, 0, 0, &px, &py, &pw, &ph);
+            int humAnchor = cardW - 15 - pw;
+            cv->setFont(&font24);
+            cv->setTextColor(humCol);
+            cv->setCursor(humAnchor, 35);
+            cv->print(hb);
+            int dropX = humAnchor - (int)pw - 20;
+            drawDropLarge(cv, dropX, 4, icDrop, shine);
+            cv->setFont(&font12);
+            cv->setTextColor(isRedPhase ? RGB565(220,200,200) : 0xD6C090); /* C_TEXT_MAIN */
+            cv->setCursor(cardW - 15 - pw - 4, 34);
+            cv->print("%");
+        }
+    }
 
 #else
 #define PIN_DHT_DEFAULT 255

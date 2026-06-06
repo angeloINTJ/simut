@@ -17,6 +17,7 @@
 #include <Arduino.h>
 #include "OneWirePIO.h"
 #include "DS18B20PIO.h"
+#include "SensorDrawing.h"
 
 #define PIN_ONEWIRE_DEFAULT 0
 
@@ -74,7 +75,55 @@ struct DS18B20Driver {
         }
         return true;
     }
+
 };
+
+/* ── Panel rendering (normal mode, centered, temperature only) ─────── */
+inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
+                 int16_t cardW, bool isRedPhase, uint16_t panelBg,
+                 const GFXfont& font24, const GFXfont& font12,
+                 const GFXfont& font9) {
+        uint16_t txtSub  = isRedPhase ? RGB565(255,255,255) : 0xCE9A52;
+        uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : 0x04B04C;
+        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtSub;
+        uint16_t merc    = isRedPhase ? RGB565(255,255,255) : 0xD04020;
+
+        if (!isValid || isnan(t)) {
+            cv->setFont(&font12);
+            cv->setTextColor(0x8A7A6A);
+            cv->setCursor((cardW - 60) / 2, 15);
+            cv->print("--.-");
+            drawThermometerLarge(cv, (cardW - 160) / 2 - 10, 4,
+                                 icTherm, panelBg, merc);
+            return;
+        }
+
+        int negMul = (t < 0.0f) ? -1 : 1;
+        float absT = (t < 0.0f) ? -t : t;
+        int intPart = (int)absT;
+        int decPart = (int)((absT - (float)intPart) * 10.0f + 0.5f);
+        if (decPart >= 10) { intPart++; decPart = 0; }
+        char iP[8]; snprintf(iP, sizeof(iP), "%d", intPart);
+        char dP[4]; snprintf(dP, sizeof(dP), "%d", decPart);
+        int16_t xx, yy; uint16_t iw, ih;
+        cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
+
+        int anchorX = (cardW - (int)iw - 8) / 2 + 10;
+        int iconX   = (cardW - 160) / 2 - 10;
+
+        drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, merc);
+
+        cv->setFont(&font24);
+        cv->setTextColor(tempCol);
+        if (negMul < 0) { cv->setCursor(anchorX - (int)iw - 6, 35); cv->print("-"); }
+        cv->setCursor(anchorX - (int)iw, 35);
+        cv->print(iP);
+        cv->setCursor(anchorX + 4, 35); cv->print(".");
+        cv->print(dP);
+
+        int unitX = anchorX + 4 + (int)iw + 6;
+        drawUnitDegC_Normal(cv, unitX, txtSub, font9, font12);
+    }
 
 #else
 #define PIN_ONEWIRE_DEFAULT 255
