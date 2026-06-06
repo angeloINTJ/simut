@@ -27,13 +27,15 @@ inline void sensorRenderPanel(GFXcanvas16* cv, SensorType type,
                               const GFXfont& font12, const GFXfont& font9,
                               uint16_t txtSub, uint16_t tempOk,
                               uint16_t tempHot, uint16_t humidity,
-                              uint16_t textOff) {
+                              uint16_t textOff,
+                              const char* humSuffix) {
     switch (type) {
 #if SIMUT_SENSOR_DHT22
     case TYPE_DHT22:
         DHT22_renderPanel(cv, v1, v2, isValid, cardW, leftAnchor,
                           isRedPhase, panelBg, font24, font12, font9,
-                          txtSub, tempOk, tempHot, humidity, textOff);
+                          txtSub, tempOk, tempHot, humidity, textOff,
+                          humSuffix);
         return;
 #endif
 #if SIMUT_SENSOR_DS18B20
