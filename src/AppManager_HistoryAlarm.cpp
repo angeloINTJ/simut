@@ -49,12 +49,14 @@ void AppManager::refreshSelectedSlot( ) {
  for (const auto &s : sensors) {
  if (s.config.pins[0] != 10 && s.config.pins[0] == targetGpio) {
  _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  found = true; break;
  }
  }
  }
  } else if (_currentSensorIdx == 10) {
- _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)"); found = true;
+ _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
+ _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)"); found = true;
  }
 
  if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
@@ -117,6 +119,7 @@ void AppManager::updateLiveDisplay( ) {
  float sMinH = (_cachedHumMin[slotIdx] < 999.0f) ? _cachedHumMin[slotIdx] : NAN;
  float sMaxH = (_cachedHumMax[slotIdx] > -999.0f) ? _cachedHumMax[slotIdx] : NAN;
  _displayMgr->setSlotMinMax(sMinT, sMaxT, sMinH, sMaxH);
+ _displayMgr->setTopSlotMinMax(sMinT, sMaxT, sMinH, sMaxH);
  }
  }
 

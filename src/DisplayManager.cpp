@@ -496,10 +496,10 @@ void DisplayManager::setAmbientData(float t, float h, SensorType type, bool isVa
 }
 
 void DisplayManager::setAmbientMinMax(float minT, float maxT, float minH, float maxH) {
-	_ambMinTemp = minT;
-	_ambMaxTemp = maxT;
-	_ambMinHum = minH;
-	_ambMaxHum = maxH;
+	_topPanel.minTemp = minT;
+	_topPanel.maxTemp = maxT;
+	_topPanel.minHum = minH;
+	_topPanel.maxHum = maxH;
 }
 
 void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name) {
@@ -509,11 +509,25 @@ void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid
 	mutex_exit(&_stateMutex);
 }
 
+void DisplayManager::setTopSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name) {
+	mutex_enter_blocking(&_stateMutex);
+	_sharedState.topSlotTemp = t; _sharedState.topSlotHum = h; _sharedState.topSlotValid = isValid; _sharedState.topSlotType = type; _sharedState.topSlotIdx = slotIdx;
+	safeCopy(_sharedState.topSlotName, name.c_str( ), sizeof(_sharedState.topSlotName)); _isDirty = true;
+	mutex_exit(&_stateMutex);
+}
+
 void DisplayManager::setSlotMinMax(float minT, float maxT, float minH, float maxH) {
-	_slotMinTemp = minT;
-	_slotMaxTemp = maxT;
-	_slotMinHum = minH;
-	_slotMaxHum = maxH;
+	_bottomPanel.minTemp = minT;
+	_bottomPanel.maxTemp = maxT;
+	_bottomPanel.minHum = minH;
+	_bottomPanel.maxHum = maxH;
+}
+
+void DisplayManager::setTopSlotMinMax(float minT, float maxT, float minH, float maxH) {
+	_topPanel.minTemp = minT;
+	_topPanel.maxTemp = maxT;
+	_topPanel.minHum = minH;
+	_topPanel.maxHum = maxH;
 }
 
 void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
@@ -680,8 +694,8 @@ void DisplayManager::loopCore1( ) {
 
 				drawInterfaceFixed( );
 				drawTopBar(snap);
-				drawAmbientPanel(snap.ambientTemp, snap.ambientHum, snap.ambientType, snap.ambientValid);
-				drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid, snap.selectedSlotIdx, snap.slotName, true);
+				drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid, snap.topSlotIdx, snap.topSlotName, true, _topPanel);
+				drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid, snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
 				drawBottomButtons(snap.selectedSlotIdx, true);
 				_lastRenderedState = snap;
 				_uiMode = MODE_DASHBOARD;
@@ -1000,8 +1014,8 @@ void DisplayManager::render(const SystemState& state) {
 		drawTopBar(state);
 
 
-		drawAmbientPanel(state.ambientTemp, state.ambientHum, state.ambientType, state.ambientValid);
-		drawSlotPanel(state.slotTemp, state.slotHum, state.slotType, state.slotValid, state.selectedSlotIdx, state.slotName, true);
+		drawSlotPanel(state.topSlotTemp, state.topSlotHum, state.topSlotType, state.topSlotValid, state.topSlotIdx, state.topSlotName, true, _topPanel);
+		drawSlotPanel(state.slotTemp, state.slotHum, state.slotType, state.slotValid, state.selectedSlotIdx, state.slotName, true, _bottomPanel);
 		drawBottomButtons(state.selectedSlotIdx, true);
 		_forceFullRedraw = false;
 		_lastRenderedState = state;
@@ -1020,25 +1034,25 @@ void DisplayManager::render(const SystemState& state) {
 		drawTopBar(state);
 	}
 
-	if (!_ambientShowMinMax) {
+	if (!_topPanel.showMinMax) {
 		if (abs(state.ambientTemp - _lastRenderedState.ambientTemp) > 0.01 ||
 		    abs(state.ambientHum - _lastRenderedState.ambientHum) > 0.01 ||
 		    state.ambientValid != _lastRenderedState.ambientValid) {
-			drawAmbientPanel(state.ambientTemp, state.ambientHum, state.ambientType, state.ambientValid);
+			drawSlotPanel(state.topSlotTemp, state.topSlotHum, state.topSlotType, state.topSlotValid, state.topSlotIdx, state.topSlotName, true, _topPanel);
 		}
 	}
 
 	/* Return panels to normal mode after 30s without touch */
-	if ((_ambientShowMinMax || _slotShowMinMax) &&
+	if ((_topPanel.showMinMax || _bottomPanel.showMinMax) &&
 	    timeSince(_lastTouchTime, 30000)) {
-		if (_ambientShowMinMax) {
-			_ambientShowMinMax = false;
-			drawAmbientPanel(state.ambientTemp, state.ambientHum, state.ambientType, state.ambientValid);
+		if (_topPanel.showMinMax) {
+			_topPanel.showMinMax = false;
+			drawSlotPanel(state.topSlotTemp, state.topSlotHum, state.topSlotType, state.topSlotValid, state.topSlotIdx, state.topSlotName, true, _topPanel);
 		}
-		if (_slotShowMinMax) {
-			_slotShowMinMax = false;
+		if (_bottomPanel.showMinMax) {
+			_bottomPanel.showMinMax = false;
 			drawSlotPanel(state.slotTemp, state.slotHum, state.slotType, state.slotValid,
-			              state.selectedSlotIdx, state.slotName, true);
+			              state.selectedSlotIdx, state.slotName, true, _bottomPanel);
 		}
 	}
 
@@ -1046,12 +1060,12 @@ void DisplayManager::render(const SystemState& state) {
 	bool nameChanged = (strcmp(state.slotName, _lastRenderedState.slotName) != 0);
 	bool tempChanged = (abs(state.slotTemp - _lastRenderedState.slotTemp) > 0.01) || (state.slotValid != _lastRenderedState.slotValid);
 
-	if (slotChanged || nameChanged || (!_slotShowMinMax && tempChanged)) {
+	if (slotChanged || nameChanged || (!_bottomPanel.showMinMax && tempChanged)) {
 		if (slotChanged) {
 			drawBottomButtons(state.selectedSlotIdx, false);
 		}
 
-		drawSlotPanel(state.slotTemp, state.slotHum, state.slotType, state.slotValid, state.selectedSlotIdx, state.slotName, (slotChanged || nameChanged));
+		drawSlotPanel(state.slotTemp, state.slotHum, state.slotType, state.slotValid, state.selectedSlotIdx, state.slotName, (slotChanged || nameChanged), _bottomPanel);
 	}
 
 	/* Detect alarm state change and redraw buttons + panels */
@@ -1059,12 +1073,12 @@ void DisplayManager::render(const SystemState& state) {
 	    _alarmAmbientTemp != _prevAlarmAmbTemp ||
 	    _alarmAmbientHum != _prevAlarmAmbHum) {
 		drawBottomButtons(state.selectedSlotIdx, true);
-		if (!_ambientShowMinMax) {
-			drawAmbientPanel(state.ambientTemp, state.ambientHum, state.ambientType, state.ambientValid);
+		if (!_topPanel.showMinMax) {
+			drawSlotPanel(state.topSlotTemp, state.topSlotHum, state.topSlotType, state.topSlotValid, state.topSlotIdx, state.topSlotName, true, _topPanel);
 		}
-		if (!_slotShowMinMax) {
+		if (!_bottomPanel.showMinMax) {
 			drawSlotPanel(state.slotTemp, state.slotHum, state.slotType, state.slotValid,
-			              state.selectedSlotIdx, state.slotName, true);
+			              state.selectedSlotIdx, state.slotName, true, _bottomPanel);
 		}
 		_prevAlarmSlotMask = _alarmSlotMask;
 		_prevAlarmAmbTemp = _alarmAmbientTemp;

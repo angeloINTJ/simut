@@ -132,13 +132,13 @@ void DisplayManager::maskStripCorners(GFXcanvas16* canvas,
 
 void DisplayManager::restoreNormalDashboard( ) {
  if (!_tft || !_canvasSmall || !_canvasWide) return;
- drawAmbientPanel(_lastRenderedState.ambientTemp,
- _lastRenderedState.ambientHum, _lastRenderedState.ambientType,
- _lastRenderedState.ambientValid);
+ drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
+ _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
+ _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel);
  drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotType,
  _lastRenderedState.slotValid,
  _lastRenderedState.selectedSlotIdx,
- _lastRenderedState.slotName, true);
+ _lastRenderedState.slotName, true, _bottomPanel);
  drawBottomButtons(_lastRenderedState.selectedSlotIdx, true);
 }
 
@@ -409,267 +409,8 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  blitCanvas(_canvasWide, 0, 0, W, H);
 }
 
-void DisplayManager::drawAmbientPanel(float t, float h, SensorType type, bool isValid) {
- if (!_canvasWide) return;
- int16_t x1, y1; uint16_t w, h_bound;
 
- bool leftRed = _alarmAmbientTemp && _alarmFlashPhase && !_alarmSilenced;
- bool rightRed = _alarmAmbientHum && _alarmFlashPhase && !_alarmSilenced;
- bool isRed = leftRed || rightRed;
-
- /* Ambient card (panel with double border) — inset by 4 px to
- * maintain 4 px margin on each horizontal side of the display, absorbing
- * the alignment offset of up to +-4H without edge loss. Height and
- * vertical position remain unchanged: top at y=35 and height of 75
- * already end at y=110 (well within y<=236). */
- static constexpr int16_t CARD_X = 4, CARD_Y = 35;
- static constexpr int16_t CARD_W = 312, CARD_H = 75, CARD_R = 12;
-
- bool ambAlarm = (_alarmAmbientTemp || _alarmAmbientHum) && _alarmFlashPhase;
- uint16_t borderColor = ambAlarm ? RGB565(255, 60, 60) : C_ACCENT_HIGH;
- uint16_t cardBg = isRed ? RGB565(180, 30, 30) : C_CARD_BG;
-
- if (_ambientShowMinMax) {
- /* Track mode transition (no prior cleanup — blits cover 100%) */
- _ambientLastMinMax = true;
-
- /* =============================================================
- * MIN/MAX MODE — 3 blits with embedded border
- * No maskStripCorners on individual strips.
- * ============================================================= */
-
- uint16_t txtSub = isRed ? RGB565(220, 200, 200) : C_TEXT_MAIN;
-
- /* Blit 1: Title (20px) — with top corners + borders */
- {
- _canvasWide->fillScreen(cardBg);
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(txtSub);
- _canvasWide->getTextBounds(tr(TR_AMBIENT), 0, 0, &x1, &y1, &w, &h_bound);
- _canvasWide->setCursor((CARD_W - (int)w) / 2, 15);
- _canvasWide->print(tr(TR_AMBIENT));
- maskStripCorners(_canvasWide, 0, 20, CARD_W, CARD_H, CARD_R,
- C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
- }
-
- /* Blit 2: Min + Max together (43px) — driver-rendered */
- {
- _canvasWide->fillScreen(cardBg);
- sensorRenderMinMax(_canvasWide, type,
-     _ambMinTemp, _ambMaxTemp, _ambMinHum, _ambMaxHum,
-     isValid, CARD_W, isRed, cardBg,
-     simutFont9pt,
-     txtSub, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF,
-     C_ACCENT_HIGH, C_BTN_TEXT_ACTIVE,
-     tr(TR_MIN_LBL), tr(TR_MAX_LBL), tr(TR_HUM_SUFFIX));
- /* Side borders (intermediate strip, no corners) */
- {
- uint16_t* buf = _canvasWide->getBuffer( );
- int stride = _canvasWide->width( );
- for (int row = 0; row < 43; row++) {
- buf[row * stride] = borderColor;
- buf[row * stride + CARD_W - 1] = borderColor;
- }
- }
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 20, CARD_W, 43);
- }
-
-
-
- /* Blit 3: Bottom fill (12px) — with bottom corners + borders */
- {
- _canvasWide->fillScreen(cardBg);
- maskStripCorners(_canvasWide, 63, 12, CARD_W, CARD_H, CARD_R,
- C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 63, CARD_W, 12);
- }
-
- } else {
- /* Track mode transition */
- _ambientLastMinMax = false;
-
- /* =============================================================
- * NORMAL MODE — layout with large icons
- * ============================================================= */
- uint16_t leftBg = leftRed ? RGB565(180, 30, 30) : C_CARD_BG;
- uint16_t rightBg = rightRed ? RGB565(180, 30, 30) : C_CARD_BG;
-
- /* Strip 1: Centered name (20px) — same position as min/max */
- {
- _canvasWide->fillRect(0, 0, 160, 20, leftBg);
- _canvasWide->fillRect(160, 0, 160, 20, rightBg);
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextSize(1);
- uint16_t nameColor = isRed ? RGB565(255, 255, 255) : C_TEXT_MAIN;
- _canvasWide->setTextColor(nameColor);
- _canvasWide->getTextBounds(tr(TR_AMBIENT), 0, 0, &x1, &y1, &w, &h_bound);
- _canvasWide->setCursor((CARD_W - (int)w) / 2, 15);
- _canvasWide->print(tr(TR_AMBIENT));
- maskStripCorners(_canvasWide, 0, 20, CARD_W, CARD_H, CARD_R,
- C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
- }
-
- /* Strip 2: Gap to center content (8px) */
- {
- _canvasWide->fillRect(0, 0, 160, 8, leftBg);
- _canvasWide->fillRect(160, 0, 160, 8, rightBg);
- /* Side borders */
- uint16_t* buf = _canvasWide->getBuffer( );
- int stride = _canvasWide->width( );
- for (int row = 0; row < 8; row++) {
- buf[row * stride] = borderColor;
- buf[row * stride + CARD_W - 1] = borderColor;
- }
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 20, CARD_W, 8);
- }
-
- /* Strip 3: Content (driver-rendered) */
- _canvasWide->fillScreen(C_BG_MAIN);
- sensorRenderPanel(_canvasWide, type, t, h, isValid, CARD_W, true,
-                   leftRed || rightRed, C_CARD_BG,
-                   simutFont24pt, simutFont12pt, simutFont9pt,
-                   C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
- maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
- goto _ambient_bottom_fill;
- /* Strip 3: Temperature + Humidity (40px) */
- {
- _canvasWide->fillRect(0, 0, 160, 40, leftBg);
- _canvasWide->fillRect(160, 0, 160, 40, rightBg);
-
- /* --- Temperature --- */
- if (!isValid) {
- _canvasWide->setFont(&simutFont12pt);
- _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(leftRed ? RGB565(255,255,255) : C_TEMP_HOT);
- _canvasWide->setCursor(25, 28);
- _canvasWide->print(tr(TR_ERROR_LBL));
- } else {
- _canvasWide->setFont(&simutFont24pt);
- _canvasWide->setTextSize(1);
- uint16_t corT = C_TEMP_OK;
- if (isnan(t)) corT = C_TEXT_OFF;
- if (leftRed) corT = RGB565(255, 255, 255);
- _canvasWide->setTextColor(corT);
-
- int textAnchor = 92;
- int unitX = 0;
- if (isnan(t)) {
- _canvasWide->getTextBounds("--.-", 0, 0, &x1, &y1, &w, &h_bound);
- _canvasWide->setCursor(textAnchor - w, 35);
- _canvasWide->print("--.-");
- unitX = textAnchor + 3;
- } else {
- char intPart[10]; char decPart[5];
- int fractional = abs((int)(t * 10) % 10);
- snprintf(intPart, sizeof(intPart), "%d", (int)t);
- snprintf(decPart, sizeof(decPart), ".%d", fractional);
- _canvasWide->getTextBounds(intPart, 0, 0, &x1, &y1, &w, &h_bound);
- int numCursorX = textAnchor - w - 4;
- _canvasWide->setCursor(numCursorX, 35);
- _canvasWide->print(intPart);
- if (t < 0) {
- int16_t mx1, my1; uint16_t mw, mh;
- _canvasWide->getTextBounds("-", 0, 0, &mx1, &my1, &mw, &mh);
- int eraseW = (int)mw / 3;
- if (eraseW < 2) eraseW = 2;
- _canvasWide->fillRect(numCursorX, 0, eraseW, 40, leftBg);
- }
- _canvasWide->setFont(&simutFont24pt);
- _canvasWide->setCursor(textAnchor, 35);
- _canvasWide->print(decPart);
- uint16_t decW;
- _canvasWide->getTextBounds(decPart, 0, 0, &x1, &y1, &decW, &h_bound);
- unitX = textAnchor + (int)decW + 3;
- }
- uint16_t unitCol = leftRed ? RGB565(220, 200, 200) : C_TEXT_MAIN;
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(unitCol);
- _canvasWide->setCursor(unitX, 17);
- _canvasWide->print("o");
- _canvasWide->setFont(&simutFont12pt);
- _canvasWide->setCursor(unitX + 8, 35);
- _canvasWide->print("C");
- /* Thermometer icon — drawn last */
- {
- uint16_t ic = leftRed ? RGB565(220, 200, 200) : C_TEXT_SUB;
- uint16_t merc = leftRed ? RGB565(255, 255, 255) : C_TEMP_HOT;
- int ix = 14, iy = 4;
- _canvasWide->fillCircle(ix + 5, iy + 26, 7, ic);
- _canvasWide->fillRoundRect(ix + 1, iy, 8, 24, 4, ic);
- _canvasWide->fillRoundRect(ix + 3, iy + 2, 4, 20, 2, leftBg);
- _canvasWide->fillCircle(ix + 5, iy + 26, 5, leftBg);
- _canvasWide->fillRect(ix + 4, iy + 10, 2, 14, merc);
- _canvasWide->fillCircle(ix + 5, iy + 26, 4, merc);
- _canvasWide->fillCircle(ix + 5, iy + 2, 2, ic);
- }
- }
-
- /* --- Humidity --- */
- if (!isValid) {
- _canvasWide->setFont(&simutFont12pt);
- _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(rightRed ? RGB565(255,255,255) : C_TEMP_HOT);
- _canvasWide->setCursor(185, 28);
- _canvasWide->print(tr(TR_ERROR_LBL));
- } else {
- _canvasWide->setFont(&simutFont12pt);
- int16_t px1, py1; uint16_t pctW, pctH;
- _canvasWide->getTextBounds(tr(TR_HUM_SUFFIX), 0, 0, &px1, &py1, &pctW, &pctH);
- const int rightMargin = 15;
- int pctX = CARD_W - rightMargin - (int)pctW;
- int humAnchor = pctX - 3;
- _canvasWide->setFont(&simutFont24pt);
- _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(rightRed ? RGB565(255,255,255) : C_HUMIDITY);
- char humBuffer[6];
- if (isnan(h)) snprintf(humBuffer, sizeof(humBuffer), "--");
- else snprintf(humBuffer, sizeof(humBuffer), "%d", (int)h);
- _canvasWide->getTextBounds(humBuffer, 0, 0, &x1, &y1, &w, &h_bound); _canvasWide->setCursor(humAnchor - w, 35);
- _canvasWide->print(humBuffer);
- uint16_t pctCol = rightRed ? RGB565(220, 200, 200) : C_TEXT_MAIN;
- _canvasWide->setFont(&simutFont12pt);
- _canvasWide->setTextColor(pctCol);
- _canvasWide->setCursor(pctX, 34);
- _canvasWide->print(tr(TR_HUM_SUFFIX));
- /* Drop icon */
- {
- int dropRight = humAnchor - (int)w - 6;
- int ix = dropRight - 14;
- int iy = 4;
- uint16_t ic = rightRed ? RGB565(220, 200, 200) : C_HUMIDITY;
- uint16_t shine = rightRed ? RGB565(255,255,255) : RGB565(200, 230, 255);
- _canvasWide->fillCircle(ix + 6, iy + 20, 8, ic);
- _canvasWide->fillTriangle(ix + 6, iy,
- ix - 1, iy + 18,
- ix + 13, iy + 18, ic);
- _canvasWide->fillCircle(ix + 4, iy + 17, 3, shine);
- _canvasWide->fillCircle(ix + 3, iy + 14, 1, shine);
- }
- }
- maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R,
- C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
- }
-
-_ambient_bottom_fill:
- /* Strip 4: Bottom fill (7px) */
- {
- uint16_t lBg = leftRed ? RGB565(180, 30, 30) : C_CARD_BG;
- uint16_t rBg = rightRed ? RGB565(180, 30, 30) : C_CARD_BG;
- _canvasWide->fillRect(0, 0, 160, 7, lBg);
- _canvasWide->fillRect(160, 0, 160, 7, rBg);
- maskStripCorners(_canvasWide, 68, 7, CARD_W, CARD_H, CARD_R,
- C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 68, CARD_W, 7);
- }
- }
-}
-
-void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw) {
+void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel) {
  if(!_canvasWide) return;
  int16_t x1, y1; uint16_t h_bound;
 
@@ -691,9 +432,9 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  bool slotAlarm = isSlotAlarming(slotIdx) && _alarmFlashPhase;
  uint16_t borderColor = slotAlarm ? RGB565(255, 60, 60) : C_ACCENT_HIGH;
 
- if (_slotShowMinMax) {
+ if (panel.showMinMax) {
  /* Track mode transition */
- _slotLastMinMax = true;
+ panel.lastMinMax = true;
 
  /* =============================================================
  * MIN/MAX MODE — 3 blits with embedded border
@@ -727,7 +468,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  {
  _canvasWide->fillScreen(panelBg);
  sensorRenderMinMax(_canvasWide, type,
-     _slotMinTemp, _slotMaxTemp, _slotMinHum, _slotMaxHum,
+     panel.minTemp, panel.maxTemp, panel.minHum, panel.maxHum,
      isValid, CARD_W, isRedPhase, panelBg,
      simutFont9pt,
      txtSub, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF,
@@ -757,8 +498,8 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
  } else {
  /* Force name redraw on min/max -> normal transition */
- if (_slotLastMinMax) forceNameRedraw = true;
- _slotLastMinMax = false;
+ if (panel.lastMinMax) forceNameRedraw = true;
+ panel.lastMinMax = false;
 
  /* =============================================================
  * NORMAL MODE — centered temperature with large icon
