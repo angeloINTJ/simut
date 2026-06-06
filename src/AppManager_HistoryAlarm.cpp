@@ -40,6 +40,14 @@ bool AppManager::requestDisplayQuietMode(bool enable) {
 
 void AppManager::refreshSelectedSlot( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
+ /* Restore persisted panel selection on first call */
+ if (_lastSavedSlotIdx < 0) {
+ _lastSavedSlotIdx = (int8_t)cfg.reserved[53];
+ _lastSavedTopIdx = (int8_t)cfg.reserved[52];
+ if (cfg.reserved[53] && cfg.reserved[53] <= 10) _currentSensorIdx = cfg.reserved[53];
+ if (cfg.reserved[52] && cfg.reserved[52] <= 10) _displayMgr->setTopSlotFixedIdx(cfg.reserved[52]);
+ _lastSlotChangeTime = millis( );
+ }
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
  bool found = false;
 
@@ -123,6 +131,23 @@ void AppManager::updateLiveDisplay( ) {
  lastPendingRefresh = millis( );
  }
  _displayMgr->setTelemetryPending(_telemetryMgr->getPendingEstimate( ));
+
+ /* Auto-save panel config when data changed and stable */
+ {
+ int8_t curTop = (int8_t)_displayMgr->getTopSlotIdx( );
+ int8_t curSlot = (int8_t)_currentSensorIdx;
+ bool topChanged = (curTop != _lastSavedTopIdx);
+ bool slotStable = (_lastSlotChangeTime > 0 && millis( ) - _lastSlotChangeTime > 3000
+ && curSlot != _lastSavedSlotIdx);
+ if (topChanged || slotStable) {
+ if (topChanged) _lastSavedTopIdx = curTop;
+ if (slotStable) _lastSavedSlotIdx = curSlot;
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ cfg.reserved[52] = (uint8_t)curTop;
+ cfg.reserved[53] = (uint8_t)curSlot;
+ _storageMgr->saveConfiguration( );
+ }
+ }
 
  /* Real-time min/max accumulation — feed from current sensor readings */
  {
