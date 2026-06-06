@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash",
+      "Monitor",
+      "Read",
+      "Edit",
+      "Write",
+      "Agent",
+      "Task",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList",
+      "TaskGet",
+      "TaskStop",
+      "TaskOutput",
+      "ToolSearch"
+    ]
+  }
+}
