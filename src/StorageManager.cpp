@@ -13,6 +13,7 @@
  */
 
 #include "StorageManager.h"
+#include "ParseFloat.h"
 #include "TouchPriority.h"
 #include <hardware/uart.h>
 #include "ota/metadata.h"
@@ -1660,8 +1661,8 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
  int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1); int p3 = line.indexOf(',', p2 + 1);
  if (p1 > 0 && p2 > p1) {
  outId = line.substring(p1 + 1, p2);
- if (p3 > p2) { outOffset = line.substring(p2 + 1, p3).toFloat( ); outName = line.substring(p3 + 1); outName.replace("\"", ""); }
- else { outOffset = line.substring(p2 + 1).toFloat( ); outName = ""; }
+ if (p3 > p2) { outOffset = parseFloat(line.substring(p2 + 1, p3).c_str( )); outName = line.substring(p3 + 1); outName.replace("\"", ""); }
+ else { outOffset = parseFloat(line.substring(p2 + 1).c_str( )); outName = ""; }
  found = true; break;
  }
  }
@@ -1700,10 +1701,10 @@ bool StorageManager::getCalibrationDataAmbient(char prefix, String& outId, float
  if (idCol.length( ) == 0 || idCol.charAt(0) != prefix) continue;
  outId = idCol.substring(1); /* strip prefix */
  if (p3 > p2) {
- outOffset = line.substring(p2 + 1, p3).toFloat( );
+ outOffset = parseFloat(line.substring(p2 + 1, p3).c_str( ));
  outName = line.substring(p3 + 1); outName.replace("\"", "");
  } else {
- outOffset = line.substring(p2 + 1).toFloat( );
+ outOffset = parseFloat(line.substring(p2 + 1).c_str( ));
  outName = "";
  }
  found = true; break;

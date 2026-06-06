@@ -13,6 +13,7 @@
  */
 
 #include "AppManager.h"
+#include "ParseFloat.h"
 #include "CommandManager.h"
 #include "DisplayManager.h"
 #include "LogManager.h"
@@ -50,7 +51,7 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  return;
  }
  /* Numeric (float) with sensible range. */
- float val = atof(cmd.strVal2);
+ float val = parseFloat(cmd.strVal2);
  if (val == 0.0f && strcmp(cmd.strVal2, "0") != 0 && strcmp(cmd.strVal2, "0.0") != 0
  && strcmp(cmd.strVal2, "-0") != 0 && strcmp(cmd.strVal2, "-0.0") != 0) {
  _cmdMgr->printError(pt ? "Valor numerico invalido" : "Invalid numeric value");

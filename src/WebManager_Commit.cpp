@@ -7,6 +7,7 @@
  * @license MIT License
  */
 #include "WebManager.h"
+#include "ParseFloat.h"
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "Themes.h"
@@ -255,7 +256,7 @@ void WebManager::handleApiCommitAll( ) {
 						if (kp < 0) return NAN;
 						int cp = obj.indexOf(':', kp + strlen(key));
 						if (cp < 0) return NAN;
-						return obj.substring(cp + 1).toFloat( );
+						return parseFloat(obj.substring(cp + 1).c_str( ));
 					};
 					float tmin = extractFloat("\"tmin\"");
 					float tmax = extractFloat("\"tmax\"");
