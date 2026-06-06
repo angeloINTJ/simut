@@ -359,7 +359,7 @@ void DisplayManager::handleTouch( ) {
  /* Mode indicator tap [Amb]/[Sx] (right corner, x > 280): immediate toggle */
  if (firstTouch && x > 280) {
  _topPanel.fixed = !_topPanel.fixed;
- if (_topPanel.fixed && _topPanel.fixedIdx < 0)
+ if (_topPanel.fixed)
  _topPanel.fixedIdx = _sharedState.selectedSlotIdx;
  redrawTopPanel( );
  return;
@@ -393,7 +393,7 @@ void DisplayManager::handleTouch( ) {
  _topPanel.holdFired = true;
  _touchSoundPending = true;
  _topPanel.fixed = !_topPanel.fixed;
- if (_topPanel.fixed && _topPanel.fixedIdx < 0)
+ if (_topPanel.fixed)
  _topPanel.fixedIdx = _sharedState.selectedSlotIdx;
  redrawTopPanel( );
  }
