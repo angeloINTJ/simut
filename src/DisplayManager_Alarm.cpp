@@ -140,7 +140,7 @@ bool DisplayManager::isAnyAlarmActive( ) const {
 void DisplayManager::redrawAlarmFlash( ) {
 	if (!_tft || !_canvasSmall || !_canvasWide) return;
 
-	if (_alarmAmbientTemp || _alarmAmbientHum) {
+	if (isSlotAlarming(_lastRenderedState.topSlotIdx)) {
 		drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
 		                 _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
 		                 _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel);
