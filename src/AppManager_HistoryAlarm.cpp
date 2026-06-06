@@ -49,9 +49,8 @@ void AppManager::refreshSelectedSlot( ) {
  for (const auto &s : sensors) {
  if (s.config.pins[0] != 10 && s.config.pins[0] == targetGpio) {
  _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
- _displayMgr->setBottomSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  found = true;
- /* Top panel interactive: mirror same data */
+ /* Mirror to top panel if interactive */
  if (_displayMgr->getTopSlotIdx( ) == _currentSensorIdx)
  _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  break;
@@ -60,27 +59,31 @@ void AppManager::refreshSelectedSlot( ) {
  }
  } else if (_currentSensorIdx == 10) {
  _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)"); found = true;
- _displayMgr->setBottomSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
  if (_displayMgr->getTopSlotIdx( ) == 10)
  _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
  }
 
  if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
 
- /* Top slot: may differ from _currentSensorIdx when panel is fixed */
+ /* Fixed panels: override with pinned sensor data when panel is fixed elsewhere */
  {
  int topIdx = _displayMgr->getTopSlotIdx( );
- if (topIdx >= 0 && topIdx < 10 && topIdx != _currentSensorIdx && cfg.sensors[topIdx].active) {
+ if (topIdx != _currentSensorIdx) {
+ bool tf = false;
+ if (topIdx >= 0 && topIdx < 10 && cfg.sensors[topIdx].active) {
  uint8_t tgpio = cfg.sensors[topIdx].pins[0];
  for (const auto &s : sensors) {
  if (s.config.pins[0] != 10 && s.config.pins[0] == tgpio) {
  _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
- break;
+ tf = true; break;
  }
  }
- } else if (topIdx == 10 && topIdx != _currentSensorIdx) {
+ } else if (topIdx == 10) {
  _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
+ tf = true;
  }
+ }
+ 
  }
 }
 

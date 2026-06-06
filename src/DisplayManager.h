@@ -103,7 +103,6 @@ struct SystemState {
 	float ambientTemp; float ambientHum; bool ambientValid; SensorType ambientType;
 	float slotTemp; float slotHum; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
 	float topSlotTemp; float topSlotHum; bool topSlotValid; SensorType topSlotType; int topSlotIdx; char topSlotName[32];
-	float bottomSlotTemp; float bottomSlotHum; bool bottomSlotValid; SensorType bottomSlotType; int bottomSlotIdx; char bottomSlotName[32];
 	int wifiRssi; bool btActive; char timeString[24];
 	uint16_t pendingPkts;
 	bool isBooting; BootLogEntry bootLogs[5]; bool showSkipButton; int apProgressPct;
@@ -458,25 +457,7 @@ private:
 	               snap.topSlotIdx, snap.topSlotName, true, _topPanel);
 	}
 
-	/** Redraws bottom panel — syncs bottomSlotIdx from fixed/interactive mode. */
-	void redrawBottomPanel( ) {
-	 SystemState snap;
-	 mutex_enter_blocking(&_stateMutex);
-	 _sharedState.bottomSlotIdx = (_bottomPanel.fixed && _bottomPanel.fixedIdx >= 0)
-	                            ? _bottomPanel.fixedIdx : _sharedState.selectedSlotIdx;
-	 /* When interactive or uninitialized, mirror slot* data */
-	 if (!_bottomPanel.fixed || !_sharedState.bottomSlotValid) {
-	 _sharedState.bottomSlotTemp = _sharedState.slotTemp;
-	 _sharedState.bottomSlotHum  = _sharedState.slotHum;
-	 _sharedState.bottomSlotType = _sharedState.slotType;
-	 _sharedState.bottomSlotValid = _sharedState.slotValid;
-	 safeCopy(_sharedState.bottomSlotName, _sharedState.slotName, 31);
-	 }
-	 snap = _sharedState;
-	 mutex_exit(&_stateMutex);
-	 drawSlotPanel(snap.bottomSlotTemp, snap.bottomSlotHum, snap.bottomSlotType, snap.bottomSlotValid,
-	               snap.bottomSlotIdx, snap.bottomSlotName, true, _bottomPanel);
-	}
+	
 
 	/** Dynamic dashboard layout: omits inactive slots and the pagination
 	 * button when all buttons fit on one line. Shared between
