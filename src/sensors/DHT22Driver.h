@@ -73,91 +73,88 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
                  uint16_t txtSub, uint16_t tempOk,
                  uint16_t tempHot, uint16_t humidity,
                  uint16_t textOff) {
-        uint16_t txtCol  = isRedPhase ? RGB565(255,255,255) : txtSub;
-        uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : tempOk;
-        uint16_t humCol  = isRedPhase ? RGB565(255,255,255) : humidity;
-        uint16_t merc    = isRedPhase ? RGB565(255,255,255) : tempHot;
-        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtCol;
-        uint16_t icDrop  = isRedPhase ? RGB565(220,200,200) : humCol;
-        uint16_t shine   = isRedPhase ? RGB565(255,255,255) : RGB565(200,230,255);
-        uint16_t pctCol  = isRedPhase ? RGB565(220,200,200) : txtSub;
+        /* Color aliases — exact match for original drawAmbientPanel normal mode */
+        uint16_t tempCol   = isRedPhase ? RGB565(255,255,255) : tempOk;
+        uint16_t unitCol   = isRedPhase ? RGB565(220,200,200) : txtSub;
+        uint16_t icTherm   = isRedPhase ? RGB565(220,200,200) : txtSub;
+        uint16_t mercCol   = isRedPhase ? RGB565(255,255,255) : tempHot;
+        uint16_t humCol    = isRedPhase ? RGB565(255,255,255) : humidity;
+        uint16_t dropCol   = isRedPhase ? RGB565(220,200,200) : humidity;
+        uint16_t dropShine = isRedPhase ? RGB565(255,255,255) : RGB565(200,230,255);
+        uint16_t pctCol    = isRedPhase ? RGB565(220,200,200) : txtSub;
 
         if (!isValid || isnan(t)) {
-            cv->setFont(&font12);
-            cv->setTextColor(textOff);
-            cv->setCursor(leftAnchor ? 80 : (cardW - 160) / 2 + 30, 15);
+            cv->setFont(&font12); cv->setTextSize(1);
+            cv->setTextColor(isRedPhase ? RGB565(255,255,255) : tempHot);
+            cv->setCursor(25, 28);
             cv->print("--.-");
-            drawThermometerLarge(cv, leftAnchor ? 14 : (cardW - 160) / 2 - 10, 4,
-                                 icTherm, panelBg, merc);
             return;
         }
 
-        int negMul = (t < 0.0f) ? -1 : 1;
+        /* ── Temperature (left side, exact original positions) ── */
         float absT = (t < 0.0f) ? -t : t;
         int intPart = (int)absT;
         int decPart = (int)((absT - (float)intPart) * 10.0f + 0.5f);
         if (decPart >= 10) { intPart++; decPart = 0; }
         char iP[8]; snprintf(iP, sizeof(iP), "%d", intPart);
-        char dP[4]; snprintf(dP, sizeof(dP), "%d", decPart);
-        int16_t xx, yy; uint16_t iw, ih;
+        char dP[8]; snprintf(dP, sizeof(dP), ".%d", decPart);
+        int16_t xx, yy; uint16_t iw, ih, decW;
         cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
+        cv->getTextBounds(dP, 0, 0, &xx, &yy, &decW, &ih);
 
-        /* Position formulas match original panel code:
-         *   Ambient: textAnchor=92, iconX=14
-         *   Slot: centered via offsetX like original drawSlotPanel */
-        int decW = (intPart >= 10) ? (int)(iw * 0.6) : (int)(iw * 1.2);
-        if (decW < 6) decW = 6;
-        int textAnchor, iconX;
-        if (leftAnchor) {
-            textAnchor = 92;
-            iconX = 14;
-        } else {
-            int totalW = 20 + 8 + ((int)iw + 4 + decW) + 3 + 16;
-            int offsetX = (cardW - totalW) / 2;
-            textAnchor = offsetX + 20 + 8 + (int)iw;
-            iconX = offsetX;
-        }
+        /* textAnchor=92 (ambient) or centered (slot), iconX=14 or centered */
+        int textAnchor = leftAnchor ? 92 : (cardW - (int)iw - 4 - ((int)decW) - 25) / 2 + (int)iw;
+        int iconX      = leftAnchor ? 14 : (cardW - 160) / 2 - 10;
+        int unitX      = textAnchor + (int)decW + 3;
 
-        drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, merc);
+        drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, mercCol);
 
-        cv->setFont(&font24);
+        cv->setFont(&font24); cv->setTextSize(1);
         cv->setTextColor(tempCol);
-        int numX = textAnchor - (int)iw - 4;
-        if (negMul < 0) { cv->setCursor(numX - 6, 35); cv->print("-"); numX -= 6; }
-        cv->setCursor(numX, 35);
-        cv->print(iP);
-        cv->setCursor(textAnchor, 35); cv->print(".");
-        cv->print(dP);
+        int numCursorX = textAnchor - (int)iw - 4;
+        if (t < 0.0f) {
+            cv->getTextBounds("-", 0, 0, &xx, &yy, &decW, &ih);
+            int eraseW = (int)decW / 3; if (eraseW < 2) eraseW = 2;
+            cv->fillRect(numCursorX, 0, eraseW, 40, panelBg);
+        }
+        cv->setCursor(numCursorX, 35); cv->print(iP);
+        cv->setFont(&font24);
+        cv->setCursor(textAnchor, 35); cv->print(dP);
 
-        int unitX = textAnchor + decW + 3;
-        drawUnitDegC_Normal(cv, unitX, txtCol, font9, font12);
+        cv->setFont(&font9); cv->setTextColor(unitCol);
+        cv->setCursor(unitX, 17); cv->print("o");
+        cv->setFont(&font12);
+        cv->setCursor(unitX + 8, 35); cv->print("C");
 
-        /* Humidity — fixed position matching original HUM_END=230 */
+        /* ── Humidity (right side, exact original layout) ── */
         if (!isnan(h)) {
-            uint16_t sufW, numMaxW, ph; int16_t sx, sy;
-            cv->getTextBounds("%", 0, 0, &sx, &sy, &sufW, &ph);
-            cv->getTextBounds("100", 0, 0, &sx, &sy, &numMaxW, &ph);
-            const int HUM_END = 230;
-            int worstNumX = HUM_END - (int)sufW - 3 - (int)numMaxW;
-            int dropX = worstNumX - 6;
+            cv->setFont(&font12);
+            int16_t px, py; uint16_t pctW, pctH, hw, hh;
+            cv->getTextBounds("%", 0, 0, &px, &py, &pctW, &pctH);
+            const int rightMargin = 15;
+            int pctX = cardW - rightMargin - (int)pctW;
+            int humAnchor = pctX - 3;
 
+            cv->setFont(&font24); cv->setTextSize(1);
+            cv->setTextColor(humCol);
             char hb[6];
             if (isnan(h)) snprintf(hb, sizeof(hb), "--");
             else snprintf(hb, sizeof(hb), "%d", (int)h);
-            int16_t px, py; uint16_t pw;
-            cv->getTextBounds(hb, 0, 0, &px, &py, &pw, &ph);
-            cv->setFont(&font24);
-            cv->setTextColor(humCol);
-            cv->setCursor(dropX + 20, 35);
+            cv->getTextBounds(hb, 0, 0, &px, &py, &hw, &hh);
+            cv->setCursor(humAnchor - (int)hw, 35);
             cv->print(hb);
-            drawDropLarge(cv, dropX, 4, icDrop, shine);
+
             cv->setFont(&font12);
             cv->setTextColor(pctCol);
-            cv->setCursor(HUM_END - (int)sufW, 34);
+            cv->setCursor(pctX, 34);
             cv->print("%");
+
+            /* Drop icon */
+            int dropRight = humAnchor - (int)hw - 6;
+            int dx = dropRight - 14;
+            drawDropLarge(cv, dx, 4, dropCol, dropShine);
         }
     }
-
 #else
 #define PIN_DHT_DEFAULT 255
 #endif /* SIMUT_SENSOR_DHT22 */
