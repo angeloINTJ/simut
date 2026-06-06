@@ -40,15 +40,8 @@ bool AppManager::requestDisplayQuietMode(bool enable) {
 
 void AppManager::refreshSelectedSlot( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
- /* One-time restore of persisted panel selection */
- {
- static bool restored = false;
- if (!restored) {
- restored = true;
- if (cfg.reserved[53] <= 10) _currentSensorIdx = cfg.reserved[53];
- if (cfg.reserved[52] <= 10) _displayMgr->setTopSlotFixedIdx((int8_t)cfg.reserved[52]);
- }
- }
+ if (cfg.reserved[53]) _currentSensorIdx = cfg.reserved[53];
+ if (cfg.reserved[52]) _displayMgr->setTopSlotFixedIdx((int8_t)cfg.reserved[52]);
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
  bool found = false;
 
