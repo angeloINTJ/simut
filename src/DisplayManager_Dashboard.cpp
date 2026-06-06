@@ -439,36 +439,6 @@ void DisplayManager::drawAmbientPanel(float t, float h, SensorType type, bool is
  * ============================================================= */
 
  uint16_t txtSub = isRed ? RGB565(220, 200, 200) : C_TEXT_MAIN;
- uint16_t icCol = isRed ? RGB565(220, 200, 200) : C_TEXT_SUB;
- uint16_t mercCol = isRed ? RGB565(255, 255, 255) : C_TEMP_HOT;
- uint16_t dropCol = isRed ? RGB565(220, 200, 200) : C_HUMIDITY;
- uint16_t humCol = isRed ? RGB565(255, 255, 255) : C_HUMIDITY;
-
- /* Absolute layout to center content + BTN centered
- * between end of %RH and right edge. LABEL_X shifted from 8 to 18
- * (breathing room on the left); HUM_END absolute; BTN_W reduced 44 to 40,
- * BTN_X centered. */
- _canvasWide->setFont(&simutFont9pt);
- uint16_t minLblW, maxLblW;
- _canvasWide->getTextBounds(tr(TR_MIN_LBL), 0, 0, &x1, &y1, &minLblW, &h_bound);
- _canvasWide->getTextBounds(tr(TR_MAX_LBL), 0, 0, &x1, &y1, &maxLblW, &h_bound);
- int biggestLbl = ((int)minLblW > (int)maxLblW) ? (int)minLblW : (int)maxLblW;
-
- const int LABEL_X = 18;
- const int THERM_X = LABEL_X + biggestLbl + 8;
- const int DOT_X = THERM_X + 36;
- const int HUM_END = 230; /* absolute end of %RH */
- const int BTN_W = 58; /* identical to slot button */
- const int BTN_X = HUM_END + ((CARD_W - 1) - HUM_END - BTN_W) / 2;
-
- uint16_t sufW;
- _canvasWide->getTextBounds(tr(TR_HUM_SUFFIX), 0, 0, &x1, &y1, &sufW, &h_bound);
-
- /* Fixed drop position: relative to HUM_END (worst case "100" + suffix). */
- uint16_t numMaxW;
- _canvasWide->getTextBounds("100", 0, 0, &x1, &y1, &numMaxW, &h_bound);
- int worstNumX = HUM_END - (int)sufW - 3 - (int)numMaxW;
- const int DROP_FIX = worstNumX - 6;
 
  /* Blit 1: Title (20px) — with top corners + borders */
  {
@@ -484,160 +454,16 @@ void DisplayManager::drawAmbientPanel(float t, float h, SensorType type, bool is
  blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
  }
 
- /* Blit 2: Min + Max together (43px) */
+ /* Blit 2: Min + Max together (43px) — driver-rendered */
  {
  _canvasWide->fillScreen(cardBg);
-
- /* ---- Min line (y=0..20) ---- */
- {
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(txtSub);
- _canvasWide->setCursor(LABEL_X, 15);
- _canvasWide->print(tr(TR_MIN_LBL));
-
- /* Improved mini thermometer (proportional scale of normal) */
- int tx = THERM_X, ty = 0;
- _canvasWide->fillCircle(tx + 4, ty + 15, 5, icCol); /* base (outline) */
- _canvasWide->fillRoundRect(tx + 1, ty, 7, 14, 3, icCol); /* stem (outline) */
- _canvasWide->fillRoundRect(tx + 2, ty + 1, 5, 12, 2, cardBg); /* stem (hollow) */
- _canvasWide->fillCircle(tx + 4, ty + 15, 4, cardBg); /* base (hollow) */
- _canvasWide->fillRect(tx + 3, ty + 8, 3, 6, mercCol); /* mercury (column) */
- _canvasWide->fillCircle(tx + 4, ty + 15, 3, mercCol); /* mercury (bulb) */
- _canvasWide->fillCircle(tx + 4, ty + 2, 2, icCol); /* rounded top */
-
- uint16_t tCol = isRed ? RGB565(255, 255, 255) : C_TEMP_OK;
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(tCol);
- if (isnan(_ambMinTemp)) {
- uint16_t dw;
- _canvasWide->getTextBounds("--.-", 0, 0, &x1, &y1, &dw, &h_bound);
- _canvasWide->setCursor(DOT_X - (int)dw + 10, 15);
- _canvasWide->print("--.-");
- } else {
- char iP[8], dP[4];
- snprintf(iP, sizeof(iP), "%d", (int)_ambMinTemp);
- snprintf(dP, sizeof(dP), ".%d", abs((int)(_ambMinTemp * 10) % 10));
- uint16_t iPw;
- _canvasWide->getTextBounds(iP, 0, 0, &x1, &y1, &iPw, &h_bound);
- _canvasWide->setCursor(DOT_X - (int)iPw, 15); _canvasWide->print(iP);
- _canvasWide->setCursor(DOT_X, 15); _canvasWide->print(dP);
- }
- uint16_t dpW;
- _canvasWide->getTextBounds(".0", 0, 0, &x1, &y1, &dpW, &h_bound);
- int endT = DOT_X + (int)dpW + 3;
- _canvasWide->setFont(NULL); _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(txtSub);
- _canvasWide->setCursor(endT, 2); _canvasWide->print("o");
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setCursor(endT + 6, 15); _canvasWide->print("C");
-
- _canvasWide->setFont(&simutFont9pt);
- char hnum[8];
- if (isnan(_ambMinHum)) snprintf(hnum, sizeof(hnum), "--");
- else snprintf(hnum, sizeof(hnum), "%d", (int)_ambMinHum);
- uint16_t hnW;
- _canvasWide->getTextBounds(hnum, 0, 0, &x1, &y1, &hnW, &h_bound);
- /* Suffix positioned at HUM_END (absolute, independent of BTN). */
- int sufX = HUM_END - (int)sufW;
- int numX = sufX - 3 - (int)hnW;
- _canvasWide->setTextColor(humCol);
- _canvasWide->setCursor(numX, 15);
- _canvasWide->print(hnum);
- _canvasWide->setTextColor(isRed ? RGB565(255, 255, 255) : C_TEXT_MAIN);
- _canvasWide->setCursor(sufX, 15);
- _canvasWide->print(tr(TR_HUM_SUFFIX));
- /* Fixed drop vertically aligned */
- uint16_t shine = isRed ? RGB565(255, 255, 255) : RGB565(200, 230, 255);
- _canvasWide->fillCircle(DROP_FIX + 5, 13, 6, dropCol);
- _canvasWide->fillTriangle(DROP_FIX + 5, 1, DROP_FIX, 11, DROP_FIX + 10, 11, dropCol);
- _canvasWide->fillCircle(DROP_FIX + 3, 11, 2, shine);
- _canvasWide->drawPixel(DROP_FIX + 3, 8, shine);
- }
-
- /* ---- Max line (y=22..42) ---- */
- {
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(txtSub);
- _canvasWide->setCursor(LABEL_X, 37);
- _canvasWide->print(tr(TR_MAX_LBL));
-
- /* Improved mini thermometer */
- int tx = THERM_X, ty = 22;
- _canvasWide->fillCircle(tx + 4, ty + 15, 5, icCol);
- _canvasWide->fillRoundRect(tx + 1, ty, 7, 14, 3, icCol);
- _canvasWide->fillRoundRect(tx + 2, ty + 1, 5, 12, 2, cardBg);
- _canvasWide->fillCircle(tx + 4, ty + 15, 4, cardBg);
- _canvasWide->fillRect(tx + 3, ty + 8, 3, 6, mercCol);
- _canvasWide->fillCircle(tx + 4, ty + 15, 3, mercCol);
- _canvasWide->fillCircle(tx + 4, ty + 2, 2, icCol);
-
- uint16_t tCol = isRed ? RGB565(255, 255, 255) : C_TEMP_OK;
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(tCol);
- if (isnan(_ambMaxTemp)) {
- uint16_t dw;
- _canvasWide->getTextBounds("--.-", 0, 0, &x1, &y1, &dw, &h_bound);
- _canvasWide->setCursor(DOT_X - (int)dw + 10, 37);
- _canvasWide->print("--.-");
- } else {
- char iP[8], dP[4];
- snprintf(iP, sizeof(iP), "%d", (int)_ambMaxTemp);
- snprintf(dP, sizeof(dP), ".%d", abs((int)(_ambMaxTemp * 10) % 10));
- uint16_t iPw;
- _canvasWide->getTextBounds(iP, 0, 0, &x1, &y1, &iPw, &h_bound);
- _canvasWide->setCursor(DOT_X - (int)iPw, 37); _canvasWide->print(iP);
- _canvasWide->setCursor(DOT_X, 37); _canvasWide->print(dP);
- }
- uint16_t dpW;
- _canvasWide->getTextBounds(".0", 0, 0, &x1, &y1, &dpW, &h_bound);
- int endT = DOT_X + (int)dpW + 3;
- _canvasWide->setFont(NULL); _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(txtSub);
- _canvasWide->setCursor(endT, 24); _canvasWide->print("o");
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setCursor(endT + 6, 37); _canvasWide->print("C");
-
- _canvasWide->setFont(&simutFont9pt);
- char hnum[8];
- if (isnan(_ambMaxHum)) snprintf(hnum, sizeof(hnum), "--");
- else snprintf(hnum, sizeof(hnum), "%d", (int)_ambMaxHum);
- uint16_t hnW;
- _canvasWide->getTextBounds(hnum, 0, 0, &x1, &y1, &hnW, &h_bound);
- int sufX = HUM_END - (int)sufW;
- int numX = sufX - 3 - (int)hnW;
- _canvasWide->setTextColor(humCol);
- _canvasWide->setCursor(numX, 37);
- _canvasWide->print(hnum);
- _canvasWide->setTextColor(isRed ? RGB565(255, 255, 255) : C_TEXT_MAIN);
- _canvasWide->setCursor(sufX, 37);
- _canvasWide->print(tr(TR_HUM_SUFFIX));
- /* Fixed drop vertically aligned */
- uint16_t shine = isRed ? RGB565(255, 255, 255) : RGB565(200, 230, 255);
- _canvasWide->fillCircle(DROP_FIX + 5, 35, 6, dropCol);
- _canvasWide->fillTriangle(DROP_FIX + 5, 23, DROP_FIX, 33, DROP_FIX + 10, 33, dropCol);
- _canvasWide->fillCircle(DROP_FIX + 3, 33, 2, shine);
- _canvasWide->drawPixel(DROP_FIX + 3, 30, shine);
- }
-
- /* Graph button — same dimensions/color/shape as the selected slot button
- * (58x40, radius 12, fill C_ACCENT_HIGH, fg C_BTN_TEXT_ACTIVE).
- * y=2 centers the button within the 43px strip. */
- _canvasWide->fillRoundRect(BTN_X, 2, BTN_W, 40, 12, C_ACCENT_HIGH);
- {
- int cx = BTN_X + BTN_W / 2;
- int cy = 22; /* = 2 + 40/2 — button center */
- /* Rounded graph bars */
- _canvasWide->fillRoundRect(cx - 11, cy, 4, 8, 1, C_BTN_TEXT_ACTIVE);
- _canvasWide->fillRoundRect(cx - 5, cy - 6, 4, 14, 1, C_BTN_TEXT_ACTIVE);
- _canvasWide->fillRoundRect(cx + 1, cy - 3, 4, 11, 1, C_BTN_TEXT_ACTIVE);
- /* Horizontal axis */
- _canvasWide->drawFastHLine(cx - 12, cy + 9, 19, C_BTN_TEXT_ACTIVE);
- /* Play arrow */
- _canvasWide->fillTriangle(cx + 10, cy - 5,
- cx + 10, cy + 5,
- cx + 17, cy, C_BTN_TEXT_ACTIVE);
- }
-
+ sensorRenderMinMax(_canvasWide, type,
+     _ambMinTemp, _ambMaxTemp, _ambMinHum, _ambMaxHum,
+     isValid, CARD_W, isRed, cardBg,
+     simutFont9pt,
+     txtSub, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF,
+     C_ACCENT_HIGH, C_BTN_TEXT_ACTIVE,
+     tr(TR_MIN_LBL), tr(TR_MAX_LBL), tr(TR_HUM_SUFFIX));
  /* Side borders (intermediate strip, no corners) */
  {
  uint16_t* buf = _canvasWide->getBuffer( );
@@ -647,9 +473,10 @@ void DisplayManager::drawAmbientPanel(float t, float h, SensorType type, bool is
  buf[row * stride + CARD_W - 1] = borderColor;
  }
  }
-
  blitCanvas(_canvasWide, CARD_X, CARD_Y + 20, CARD_W, 43);
  }
+
+
 
  /* Blit 3: Bottom fill (12px) — with bottom corners + borders */
  {
@@ -874,25 +701,6 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  * ============================================================= */
 
  uint16_t txtSub = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_MAIN;
- uint16_t icCol = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_SUB;
- uint16_t mercCol = isRedPhase ? RGB565(255, 255, 255) : C_TEMP_HOT;
-
- /* Absolute layout to center content + BTN centered.
- * Slot only has temp (no humidity), so BTN is centered between end
- * of degree-C (worst case) and right edge. Keeps BTN_X aligned with
- * Ambient's for visual consistency between the 2 panels. */
- _canvasWide->setFont(&simutFont9pt);
- uint16_t minLblW, maxLblW;
- _canvasWide->getTextBounds(tr(TR_MIN_LBL), 0, 0, &x1, &y1, &minLblW, &h_bound);
- _canvasWide->getTextBounds(tr(TR_MAX_LBL), 0, 0, &x1, &y1, &maxLblW, &h_bound);
- int biggestLbl = ((int)minLblW > (int)maxLblW) ? (int)minLblW : (int)maxLblW;
-
- const int LABEL_X = 18;
- const int THERM_X = LABEL_X + biggestLbl + 8;
- const int DOT_X = THERM_X + 36;
- const int CONTENT_RIGHT_X = 230; /* same HUM_END as Ambient to align BTN */
- const int BTN_W = 58; /* identical to slot button */
- const int BTN_X = CONTENT_RIGHT_X + ((CARD_W - 1) - CONTENT_RIGHT_X - BTN_W) / 2;
 
  /* Blit 1: Name (20px) */
  {
@@ -915,117 +723,16 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
  }
 
- /* Blit 2: Min + Max together (43px) */
+ /* Blit 2: Min + Max together (43px) — driver-rendered */
  {
  _canvasWide->fillScreen(panelBg);
-
- /* ---- Min line (y=0..20) ---- */
- {
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(txtSub);
- _canvasWide->setCursor(LABEL_X, 15);
- _canvasWide->print(tr(TR_MIN_LBL));
-
- /* Improved mini thermometer */
- int tx = THERM_X, ty = 0;
- _canvasWide->fillCircle(tx + 4, ty + 15, 5, icCol);
- _canvasWide->fillRoundRect(tx + 1, ty, 7, 14, 3, icCol);
- _canvasWide->fillRoundRect(tx + 2, ty + 1, 5, 12, 2, panelBg);
- _canvasWide->fillCircle(tx + 4, ty + 15, 4, panelBg);
- _canvasWide->fillRect(tx + 3, ty + 8, 3, 6, mercCol);
- _canvasWide->fillCircle(tx + 4, ty + 15, 3, mercCol);
- _canvasWide->fillCircle(tx + 4, ty + 2, 2, icCol);
-
- uint16_t tCol = isRedPhase ? RGB565(255, 255, 255) : C_TEMP_OK;
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(tCol);
- if (isnan(_slotMinTemp)) {
- uint16_t dw;
- _canvasWide->getTextBounds("--.-", 0, 0, &x1, &y1, &dw, &h_bound);
- _canvasWide->setCursor(DOT_X - (int)dw + 10, 15);
- _canvasWide->print("--.-");
- } else {
- char iP[8], dP[4];
- snprintf(iP, sizeof(iP), "%d", (int)_slotMinTemp);
- snprintf(dP, sizeof(dP), ".%d", abs((int)(_slotMinTemp * 10) % 10));
- uint16_t iPw;
- _canvasWide->getTextBounds(iP, 0, 0, &x1, &y1, &iPw, &h_bound);
- _canvasWide->setCursor(DOT_X - (int)iPw, 15); _canvasWide->print(iP);
- _canvasWide->setCursor(DOT_X, 15); _canvasWide->print(dP);
- }
- uint16_t dpW;
- _canvasWide->getTextBounds(".0", 0, 0, &x1, &y1, &dpW, &h_bound);
- int endT = DOT_X + (int)dpW + 3;
- _canvasWide->setFont(NULL); _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(txtSub);
- _canvasWide->setCursor(endT, 2); _canvasWide->print("o");
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setCursor(endT + 6, 15); _canvasWide->print("C");
- }
-
- /* ---- Max line (y=22..42) ---- */
- {
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(txtSub);
- _canvasWide->setCursor(LABEL_X, 37);
- _canvasWide->print(tr(TR_MAX_LBL));
-
- /* Improved mini thermometer */
- int tx = THERM_X, ty = 22;
- _canvasWide->fillCircle(tx + 4, ty + 15, 5, icCol);
- _canvasWide->fillRoundRect(tx + 1, ty, 7, 14, 3, icCol);
- _canvasWide->fillRoundRect(tx + 2, ty + 1, 5, 12, 2, panelBg);
- _canvasWide->fillCircle(tx + 4, ty + 15, 4, panelBg);
- _canvasWide->fillRect(tx + 3, ty + 8, 3, 6, mercCol);
- _canvasWide->fillCircle(tx + 4, ty + 15, 3, mercCol);
- _canvasWide->fillCircle(tx + 4, ty + 2, 2, icCol);
-
- uint16_t tCol = isRedPhase ? RGB565(255, 255, 255) : C_TEMP_OK;
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(tCol);
- if (isnan(_slotMaxTemp)) {
- uint16_t dw;
- _canvasWide->getTextBounds("--.-", 0, 0, &x1, &y1, &dw, &h_bound);
- _canvasWide->setCursor(DOT_X - (int)dw + 10, 37);
- _canvasWide->print("--.-");
- } else {
- char iP[8], dP[4];
- snprintf(iP, sizeof(iP), "%d", (int)_slotMaxTemp);
- snprintf(dP, sizeof(dP), ".%d", abs((int)(_slotMaxTemp * 10) % 10));
- uint16_t iPw;
- _canvasWide->getTextBounds(iP, 0, 0, &x1, &y1, &iPw, &h_bound);
- _canvasWide->setCursor(DOT_X - (int)iPw, 37); _canvasWide->print(iP);
- _canvasWide->setCursor(DOT_X, 37); _canvasWide->print(dP);
- }
- uint16_t dpW;
- _canvasWide->getTextBounds(".0", 0, 0, &x1, &y1, &dpW, &h_bound);
- int endT = DOT_X + (int)dpW + 3;
- _canvasWide->setFont(NULL); _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(txtSub);
- _canvasWide->setCursor(endT, 24); _canvasWide->print("o");
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setCursor(endT + 6, 37); _canvasWide->print("C");
- }
-
- /* Graph button — same dimensions/color/shape as selected slot button
- * (58x40, radius 12, fill C_ACCENT_HIGH, fg C_BTN_TEXT_ACTIVE).
- * y=2 centers the button within the 43px strip. */
- _canvasWide->fillRoundRect(BTN_X, 2, BTN_W, 40, 12, C_ACCENT_HIGH);
- {
- int cx = BTN_X + BTN_W / 2;
- int cy = 22; /* = 2 + 40/2 — button center */
- /* Rounded graph bars */
- _canvasWide->fillRoundRect(cx - 11, cy, 4, 8, 1, C_BTN_TEXT_ACTIVE);
- _canvasWide->fillRoundRect(cx - 5, cy - 6, 4, 14, 1, C_BTN_TEXT_ACTIVE);
- _canvasWide->fillRoundRect(cx + 1, cy - 3, 4, 11, 1, C_BTN_TEXT_ACTIVE);
- /* Horizontal axis */
- _canvasWide->drawFastHLine(cx - 12, cy + 9, 19, C_BTN_TEXT_ACTIVE);
- /* Play arrow */
- _canvasWide->fillTriangle(cx + 10, cy - 5,
- cx + 10, cy + 5,
- cx + 17, cy, C_BTN_TEXT_ACTIVE);
- }
-
+ sensorRenderMinMax(_canvasWide, type,
+     _slotMinTemp, _slotMaxTemp, _slotMinHum, _slotMaxHum,
+     isValid, CARD_W, isRedPhase, panelBg,
+     simutFont9pt,
+     txtSub, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF,
+     C_ACCENT_HIGH, C_BTN_TEXT_ACTIVE,
+     tr(TR_MIN_LBL), tr(TR_MAX_LBL), tr(TR_HUM_SUFFIX));
  /* Side borders (intermediate strip, no corners) */
  {
  uint16_t* buf = _canvasWide->getBuffer( );
@@ -1035,9 +742,10 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  buf[row * stride + CARD_W - 1] = borderColor;
  }
  }
-
  blitCanvas(_canvasWide, CARD_X, CARD_Y + 20, CARD_W, 43);
  }
+
+
 
  /* Blit 3: Bottom fill (12px) — with bottom corners + borders */
  {
@@ -1202,7 +910,6 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
  blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
 
-_ambient_bottom_fill:
 _slot_bottom_fill:
  /* Strip 4: Bottom fill (7px) */
  {

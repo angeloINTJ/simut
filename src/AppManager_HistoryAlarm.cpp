@@ -82,11 +82,31 @@ void AppManager::updateLiveDisplay( ) {
  }
  _displayMgr->setTelemetryPending(_telemetryMgr->getPendingEstimate( ));
 
+ /* Real-time min/max accumulation — feed from current sensor readings */
+ {
+ const auto& sensors = _sensorMgr->getRuntimeSensors( );
+ for (const auto &s : sensors) {
+ if (s.inErrorState) continue;
+ int gpio = s.config.pins[0];
+ if (gpio < 0 || gpio >= MINMAX_SLOT_COUNT) continue;
+ float v = s.avgValue1;
+ if (!isnan(v)) {
+ if (v < _cachedMin[gpio]) _cachedMin[gpio] = v;
+ if (v > _cachedMax[gpio]) _cachedMax[gpio] = v;
+ }
+ float h = s.avgValue2;
+ if (!isnan(h)) {
+ if (h < _cachedHumMin[gpio]) _cachedHumMin[gpio] = h;
+ if (h > _cachedHumMax[gpio]) _cachedHumMax[gpio] = h;
+ }
+ }
+ }
+
  /* Daily min/max (preload CSV + real-time accumulated readings) */
  float ambMinT = (_cachedMin[10] < 999.0f) ? _cachedMin[10] : NAN;
  float ambMaxT = (_cachedMax[10] > -999.0f) ? _cachedMax[10] : NAN;
- float ambMinH = (_cachedHumMin < 999.0f) ? _cachedHumMin : NAN;
- float ambMaxH = (_cachedHumMax > -999.0f) ? _cachedHumMax : NAN;
+ float ambMinH = (_cachedHumMin[10] < 999.0f) ? _cachedHumMin[10] : NAN;
+ float ambMaxH = (_cachedHumMax[10] > -999.0f) ? _cachedHumMax[10] : NAN;
  _displayMgr->setAmbientMinMax(ambMinT, ambMaxT, ambMinH, ambMaxH);
 
  /* Active slot min/max */
@@ -94,7 +114,9 @@ void AppManager::updateLiveDisplay( ) {
  if (slotIdx >= 0 && slotIdx < 10) {
  float sMinT = (_cachedMin[slotIdx] < 999.0f) ? _cachedMin[slotIdx] : NAN;
  float sMaxT = (_cachedMax[slotIdx] > -999.0f) ? _cachedMax[slotIdx] : NAN;
- _displayMgr->setSlotMinMax(sMinT, sMaxT);
+ float sMinH = (_cachedHumMin[slotIdx] < 999.0f) ? _cachedHumMin[slotIdx] : NAN;
+ float sMaxH = (_cachedHumMax[slotIdx] > -999.0f) ? _cachedHumMax[slotIdx] : NAN;
+ _displayMgr->setSlotMinMax(sMinT, sMaxT, sMinH, sMaxH);
  }
  }
 
@@ -204,8 +226,8 @@ void AppManager::preloadMinMax( ) {
 
  float ambH = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
  if (!isnan(ambH)) {
- if (ambH < _cachedHumMin) _cachedHumMin = ambH;
- if (ambH > _cachedHumMax) _cachedHumMax = ambH;
+ if (ambH < _cachedHumMin[10]) _cachedHumMin[10] = ambH;
+ if (ambH > _cachedHumMax[10]) _cachedHumMax[10] = ambH;
  }
 
  for (int i = 0; i < MAX_SENSORS; i++) {
@@ -230,9 +252,9 @@ void AppManager::preloadMinMax( ) {
  for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
  _preloadMin[i] = _cachedMin[i];
  _preloadMax[i] = _cachedMax[i];
+ _preloadHumMin[i] = _cachedHumMin[i];
+ _preloadHumMax[i] = _cachedHumMax[i];
  }
- _preloadHumMin = _cachedHumMin;
- _preloadHumMax = _cachedHumMax;
 
  LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_FULL, 0, "");
 }
@@ -288,10 +310,10 @@ void AppManager::processHistoryLogging( ) {
  if (ambT > _preloadMax[10]) _preloadMax[10] = ambT;
  }
  if (!isnan(ambH)) {
- if (ambH < _cachedHumMin) _cachedHumMin = ambH;
- if (ambH > _cachedHumMax) _cachedHumMax = ambH;
- if (ambH < _preloadHumMin) _preloadHumMin = ambH;
- if (ambH > _preloadHumMax) _preloadHumMax = ambH;
+ if (ambH < _cachedHumMin[10]) _cachedHumMin[10] = ambH;
+ if (ambH > _cachedHumMax[10]) _cachedHumMax[10] = ambH;
+ if (ambH < _preloadHumMin[10]) _preloadHumMin[10] = ambH;
+ if (ambH > _preloadHumMax[10]) _preloadHumMax[10] = ambH;
  }
  break;
  }
@@ -300,7 +322,7 @@ void AppManager::processHistoryLogging( ) {
  rec.ambientTemp = BinaryHistoryRecord::floatToI16(ambT);
  rec.ambientHum = BinaryHistoryRecord::floatToI16(ambH);
 
- /* DS18B20 sensors (slots 0..9) */
+ /* Slot sensors (0..9) — temp + humidity */
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) {
  for (const auto &s : sensors) {
@@ -312,6 +334,13 @@ void AppManager::processHistoryLogging( ) {
  if (v > _cachedMax[i]) _cachedMax[i] = v;
  if (v < _preloadMin[i]) _preloadMin[i] = v;
  if (v > _preloadMax[i]) _preloadMax[i] = v;
+ }
+ float h = s.avgValue2;
+ if (!isnan(h)) {
+ if (h < _cachedHumMin[i]) _cachedHumMin[i] = h;
+ if (h > _cachedHumMax[i]) _cachedHumMax[i] = h;
+ if (h < _preloadHumMin[i]) _preloadHumMin[i] = h;
+ if (h > _preloadHumMax[i]) _preloadHumMax[i] = h;
  }
  break;
  }
@@ -375,8 +404,8 @@ void AppManager::openStatsScreen(int sensorId) {
  if (pkg.minVal == 1000.0f) pkg.minVal = 0.0f;
  if (pkg.maxVal == -1000.0f) pkg.maxVal = 0.0f;
 
- float humMin = _cachedHumMin;
- float humMax = _cachedHumMax;
+ float humMin = _cachedHumMin[10];
+ float humMax = _cachedHumMax[10];
  if (humMin == 1000.0f) humMin = 0.0f;
  if (humMax == -1000.0f) humMax = 0.0f;
 

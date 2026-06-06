@@ -164,6 +164,90 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
             drawDropLarge(cv, dx, 4, dropCol, dropShine);
         }
     }
+
+/* ── Min/Max panel rendering (temp + humidity, 43px strip) ──────────── */
+inline void DHT22_renderMinMax(GFXcanvas16* cv,
+    float minT, float maxT, float minH, float maxH, bool isValid,
+    int16_t cardW, bool isRedPhase, uint16_t panelBg,
+    const GFXfont& font9,
+    uint16_t txtSub, uint16_t tempOk, uint16_t tempHot,
+    uint16_t humidity, uint16_t textOff,
+    uint16_t accentHigh, uint16_t btnTextActive,
+    const char* minLabel, const char* maxLabel,
+    const char* humSuffix) {
+    uint16_t icCol   = isRedPhase ? RGB565(220,200,200) : txtSub;
+    uint16_t mercCol = isRedPhase ? RGB565(255,255,255) : tempHot;
+    uint16_t dropCol = isRedPhase ? RGB565(220,200,200) : humidity;
+    uint16_t humCol  = isRedPhase ? RGB565(255,255,255) : humidity;
+    uint16_t shine   = isRedPhase ? RGB565(255,255,255) : RGB565(200,230,255);
+
+    int16_t x1, y1; uint16_t minLblW, maxLblW, hb, sufW;
+    cv->setFont(&font9);
+    cv->getTextBounds(minLabel, 0, 0, &x1, &y1, &minLblW, &hb);
+    cv->getTextBounds(maxLabel, 0, 0, &x1, &y1, &maxLblW, &hb);
+    cv->getTextBounds(humSuffix, 0, 0, &x1, &y1, &sufW, &hb);
+    int biggestLbl = (minLblW > maxLblW) ? (int)minLblW : (int)maxLblW;
+
+    const int LABEL_X = 18;
+    const int THERM_X = LABEL_X + biggestLbl + 8;
+    const int DOT_X  = THERM_X + 36;
+    const int HUM_END = 230;
+    const int BTN_W = 58;
+    const int BTN_X = HUM_END + ((cardW - 1) - HUM_END - BTN_W) / 2;
+
+    /* Fixed drop position (worst-case "100" + suffix) */
+    uint16_t numMaxW;
+    cv->getTextBounds("100", 0, 0, &x1, &y1, &numMaxW, &hb);
+    int DROP_FIX = HUM_END - (int)sufW - 3 - (int)numMaxW - 6;
+    int sufX = HUM_END - (int)sufW;
+
+    /* ── Min row ── */
+    drawMinMaxTempRow(cv, minLabel, LABEL_X, THERM_X, DOT_X,
+        0, minT, isRedPhase,
+        txtSub, icCol, mercCol, tempOk, panelBg, font9);
+
+    {
+        char hnum[8];
+        if (isnan(minH)) snprintf(hnum, sizeof(hnum), "--");
+        else snprintf(hnum, sizeof(hnum), "%d", (int)minH);
+        uint16_t hnW;
+        cv->setFont(&font9);
+        cv->getTextBounds(hnum, 0, 0, &x1, &y1, &hnW, &hb);
+        int numX = sufX - 3 - (int)hnW;
+        cv->setTextColor(humCol);
+        cv->setCursor(numX, 15);
+        cv->print(hnum);
+        cv->setTextColor(isRedPhase ? RGB565(255,255,255) : txtSub);
+        cv->setCursor(sufX, 15);
+        cv->print(humSuffix);
+    }
+    drawDropMini(cv, DROP_FIX, 6, dropCol, shine);
+
+    /* ── Max row ── */
+    drawMinMaxTempRow(cv, maxLabel, LABEL_X, THERM_X, DOT_X,
+        22, maxT, isRedPhase,
+        txtSub, icCol, mercCol, tempOk, panelBg, font9);
+
+    {
+        char hnum[8];
+        if (isnan(maxH)) snprintf(hnum, sizeof(hnum), "--");
+        else snprintf(hnum, sizeof(hnum), "%d", (int)maxH);
+        uint16_t hnW;
+        cv->setFont(&font9);
+        cv->getTextBounds(hnum, 0, 0, &x1, &y1, &hnW, &hb);
+        int numX = sufX - 3 - (int)hnW;
+        cv->setTextColor(humCol);
+        cv->setCursor(numX, 37);
+        cv->print(hnum);
+        cv->setTextColor(isRedPhase ? RGB565(255,255,255) : txtSub);
+        cv->setCursor(sufX, 37);
+        cv->print(humSuffix);
+    }
+    drawDropMini(cv, DROP_FIX, 28, dropCol, shine);
+
+    /* Graph button */
+    drawMinMaxGraphBtn(cv, BTN_X, 2, BTN_W, 40, accentHigh, btnTextActive);
+}
 #else
 #define PIN_DHT_DEFAULT 255
 #endif /* SIMUT_SENSOR_DHT22 */

@@ -509,9 +509,11 @@ void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid
 	mutex_exit(&_stateMutex);
 }
 
-void DisplayManager::setSlotMinMax(float minT, float maxT) {
+void DisplayManager::setSlotMinMax(float minT, float maxT, float minH, float maxH) {
 	_slotMinTemp = minT;
 	_slotMaxTemp = maxT;
+	_slotMinHum = minH;
+	_slotMaxHum = maxH;
 }
 
 void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {

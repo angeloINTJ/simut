@@ -42,10 +42,12 @@ AppManager::AppManager( )
  _preloadMin[i] = 1000.0f;
  _preloadMax[i] = -1000.0f;
  }
- _cachedHumMin = 1000.0f;
- _cachedHumMax = -1000.0f;
- _preloadHumMin = 1000.0f;
- _preloadHumMax = -1000.0f;
+ for(int i = 0; i < MINMAX_SLOT_COUNT; i++) {
+ _cachedHumMin[i] = 1000.0f;
+ _cachedHumMax[i] = -1000.0f;
+ _preloadHumMin[i] = 1000.0f;
+ _preloadHumMax[i] = -1000.0f;
+ }
 }
 
 /* Destructor defined here so that std::unique_ptr<T> can instantiate
