@@ -99,12 +99,10 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
             return;
         }
 
-        float absT = (t < 0.0f) ? -t : t;
-        int intPart = (int)absT;
-        int decPart = (int)((absT - (float)intPart) * 10.0f + 0.5f);
-        if (decPart >= 10) { intPart++; decPart = 0; }
-        char iP[8]; snprintf(iP, sizeof(iP), "%d", intPart);
-        char dP[8]; snprintf(dP, sizeof(dP), ".%d", decPart);
+        int intPart = (int)t;
+        int decPart = abs((int)(t * 10.0f) % 10);
+        char iP[10]; snprintf(iP, sizeof(iP), "%d", intPart);
+        char dP[5];  snprintf(dP, sizeof(dP), ".%d", decPart);
         int16_t xx, yy; uint16_t iw, ih, decW;
         cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
         cv->getTextBounds(dP, 0, 0, &xx, &yy, &decW, &ih);
@@ -121,12 +119,13 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
         cv->setFont(&font24); cv->setTextSize(1);
         cv->setTextColor(tempCol);
         int numCursorX = textAnchor - (int)iw - 4;
+        cv->setCursor(numCursorX, 35);
+        cv->print(iP);
         if (t < 0.0f) {
             cv->getTextBounds("-", 0, 0, &xx, &yy, &decW, &ih);
             int eraseW = (int)decW / 3; if (eraseW < 2) eraseW = 2;
             cv->fillRect(numCursorX, 0, eraseW, 40, panelBg);
         }
-        cv->setCursor(numCursorX, 35); cv->print(iP);
         cv->setFont(&font24);
         cv->setCursor(textAnchor, 35); cv->print(dP);
 
