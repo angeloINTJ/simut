@@ -121,6 +121,8 @@ DisplayManager::DisplayManager( ) {
 	_sharedState.ambientValid = true;
 	_sharedState.slotTemp = NAN;
 	_sharedState.slotValid = false;
+	_sharedState.topSlotTemp = NAN; _sharedState.topSlotValid = false;
+	_sharedState.bottomSlotTemp = NAN; _sharedState.bottomSlotValid = false;
 	_sharedState.selectedSlotIdx = 0;
 	_sharedState.wifiRssi = -100;
 	_sharedState.btActive = false;
