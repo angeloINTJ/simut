@@ -32,19 +32,9 @@ void DisplayManager::handleTouch( ) {
  _topPanel.showMinMax = !_topPanel.showMinMax;
  redrawTopPanel( );
  }
- if (_bottomPanel.holdStart != 0 && !_bottomPanel.holdFired && _lastTouchRegion == 1) {
- _bottomPanel.showMinMax = !_bottomPanel.showMinMax;
- {
- SystemState snap;
- mutex_enter_blocking(&_stateMutex);
- snap = _sharedState;
- mutex_exit(&_stateMutex);
- drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
- snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
- }
- }
+ 
  _topPanel.holdStart = 0; _topPanel.holdFired = false;
- _bottomPanel.holdStart = 0; _bottomPanel.holdFired = false;
+ 
 
  /*
  * Release detection during hold-and-release calibration.
@@ -410,29 +400,13 @@ void DisplayManager::handleTouch( ) {
  return;
  }
  if (y > 115 && y < 190) {
- bool firstTouch = acceptTouch(1);
+ if (!acceptTouch(1)) return;
  int sensorIdToGraph = -1;
  if (_sharedState.selectedSlotIdx >= 0 && _sharedState.selectedSlotIdx <= 10)
  sensorIdToGraph = _sharedState.selectedSlotIdx;
 
- /* Mode indicator tap (right corner, x > 280): immediate toggle */
- if (firstTouch && x > 280) {
- _bottomPanel.fixed = !_bottomPanel.fixed;
- if (_bottomPanel.fixed && _bottomPanel.fixedIdx < 0)
- _bottomPanel.fixedIdx = _sharedState.selectedSlotIdx;
- {
- SystemState snap;
- mutex_enter_blocking(&_stateMutex);
- snap = _sharedState;
- mutex_exit(&_stateMutex);
- drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
- snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
- }
- return;
- }
-
  /* Right corner: graph button (priority over alarm) */
- if (_bottomPanel.showMinMax && x > 266 && firstTouch) {
+ if (_bottomPanel.showMinMax && x > 266) {
  _bottomPanel.showMinMax = false;
  if (sensorIdToGraph != -1) {
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = sensorIdToGraph; ev.param = 0;
@@ -441,26 +415,13 @@ void DisplayManager::handleTouch( ) {
  return;
  }
 
- if (firstTouch && sensorIdToGraph >= 0 && isSlotAlarming(sensorIdToGraph)) {
+ if (sensorIdToGraph >= 0 && isSlotAlarming(sensorIdToGraph)) {
  showAlarmAction((int8_t)sensorIdToGraph);
  return;
  }
 
- if (firstTouch) {
- _bottomPanel.holdStart = millis();
- _bottomPanel.holdFired = false;
- return;
- }
-
- /* Holding: check long-press (1s) for fixed/interactive toggle */
- if (!_bottomPanel.holdFired && _lastTouchRegion == 1 &&
- _bottomPanel.holdStart != 0 &&
- millis() - _bottomPanel.holdStart >= 1000) {
- _bottomPanel.holdFired = true;
- _touchSoundPending = true;
- _bottomPanel.fixed = !_bottomPanel.fixed;
- if (_bottomPanel.fixed && _bottomPanel.fixedIdx < 0)
- _bottomPanel.fixedIdx = _sharedState.selectedSlotIdx;
+ /* Toggle min/max */
+ _bottomPanel.showMinMax = !_bottomPanel.showMinMax;
  {
  SystemState snap;
  mutex_enter_blocking(&_stateMutex);
@@ -468,7 +429,6 @@ void DisplayManager::handleTouch( ) {
  mutex_exit(&_stateMutex);
  drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
  snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
- }
  }
  return;
  }

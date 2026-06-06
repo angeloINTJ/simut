@@ -423,6 +423,14 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  uint16_t unitColor = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_MAIN;
  if (isSlotAlarming(slotIdx)) forceNameRedraw = true;
 
+ /* Top panel in interactive (selection) mode: dark theme */
+ bool isSelecting = (&panel == &_topPanel && !_topPanel.fixed);
+ if (isSelecting) {
+ panelBg = RGB565(50, 50, 55);
+ isRedPhase = false;
+ nameColor = RGB565(255, 255, 255);
+ unitColor = RGB565(220, 220, 225);
+ }
 
  /* Dash panel card with double border. Top=Y35, Bottom=Y115. */
  static constexpr int16_t CARD_X = 4;
@@ -431,6 +439,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
  bool slotAlarm = isSlotAlarming(slotIdx) && _alarmFlashPhase;
  uint16_t borderColor = slotAlarm ? RGB565(255, 60, 60) : C_ACCENT_HIGH;
+ if (isSelecting) borderColor = RGB565(130, 130, 140);
 
  if (panel.showMinMax) {
  /* Track mode transition */
