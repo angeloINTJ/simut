@@ -16,8 +16,7 @@
 
 #if SIMUT_DISPLAY_ALPHA
   #include "HD44780_16x2.h"
-  struct DisplayDriver : public Hd44780_16x2 {
-  };
+  using DisplayDriver = Hd44780_16x2;
   /* Note: DisplayManager rendering code is TFT-specific. Full alpha
    * display support requires refactoring DisplayManager to abstract
    * the rendering surface (GFX vs character framebuffer). */

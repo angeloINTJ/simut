@@ -20,6 +20,7 @@
 #include <SPI.h>
 #include <Adafruit_GFX.h>
 #include "display/DisplayConfig.h"
+#include "display/DisplayConfig.h"
 #include "display/DisplayDriver.h"
 #include "pico/mutex.h"
 #include "pico/multicore.h"
@@ -622,7 +623,9 @@ private:
 
 	void drawTouchCalibration( );
 	void drawCalibrationMessage( );
+#if SIMUT_DISPLAY_TFT
 	void mapTouchPoint(TS_Point raw, int16_t &outX, int16_t &outY);
+#endif
 	void drawCrosshair(int16_t cx, int16_t cy, uint16_t color);
 
 
