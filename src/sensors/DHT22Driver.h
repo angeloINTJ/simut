@@ -65,22 +65,26 @@ struct DHT22Driver {
 
 };
 
-/* ── Panel rendering (normal mode, free function) ─────────────────────── */
+/* ── Panel rendering (normal mode, theme-aware) ──────────────────────── */
 inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
                  int16_t cardW, bool leftAnchor, bool isRedPhase,
                  uint16_t panelBg, const GFXfont& font24,
-                 const GFXfont& font12, const GFXfont& font9) {
-        uint16_t txtSub  = isRedPhase ? RGB565(255,255,255) : 0xCE9A52; /* C_TEXT_SUB */
-        uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : 0x04B04C; /* C_TEMP_OK */
-        uint16_t humCol  = isRedPhase ? RGB565(255,255,255) : 0x5252DC; /* C_HUMIDITY */
-        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtSub;
+                 const GFXfont& font12, const GFXfont& font9,
+                 uint16_t txtSub, uint16_t tempOk,
+                 uint16_t tempHot, uint16_t humidity,
+                 uint16_t textOff) {
+        uint16_t txtCol  = isRedPhase ? RGB565(255,255,255) : txtSub;
+        uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : tempOk;
+        uint16_t humCol  = isRedPhase ? RGB565(255,255,255) : humidity;
+        uint16_t merc    = isRedPhase ? RGB565(255,255,255) : tempHot;
+        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtCol;
         uint16_t icDrop  = isRedPhase ? RGB565(220,200,200) : humCol;
         uint16_t shine   = isRedPhase ? RGB565(255,255,255) : RGB565(200,230,255);
-        uint16_t merc    = isRedPhase ? RGB565(255,255,255) : 0xD04020; /* C_TEMP_HOT */
+        uint16_t pctCol  = isRedPhase ? RGB565(220,200,200) : txtSub;
 
         if (!isValid || isnan(t)) {
             cv->setFont(&font12);
-            cv->setTextColor(0x8A7A6A); /* C_TEXT_OFF */
+            cv->setTextColor(textOff);
             cv->setCursor(leftAnchor ? 80 : (cardW - 160) / 2 + 30, 15);
             cv->print("--.-");
             drawThermometerLarge(cv, leftAnchor ? 14 : (cardW - 160) / 2 - 10, 4,
@@ -106,15 +110,15 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
         cv->setFont(&font24);
         cv->setTextColor(tempCol);
         if (negMul < 0) { cv->setCursor(anchorX - (int)iw - 6, 35); cv->print("-"); }
-        cv->setCursor(anchorX - (int)iw + (negMul < 0 ? 0 : 0), 35);
+        cv->setCursor(anchorX - (int)iw, 35);
         cv->print(iP);
         cv->setCursor(anchorX + 4, 35); cv->print(".");
         cv->print(dP);
 
         int unitX = anchorX + 4 + (int)((intPart >= 10 ? iw + 6 : iw)) + 6;
-        drawUnitDegC_Normal(cv, unitX, txtSub, font9, font12);
+        drawUnitDegC_Normal(cv, unitX, txtCol, font9, font12);
 
-        /* Humidity */
+        /* Humidity — right-aligned, same layout as ambient panel */
         if (!isnan(h)) {
             char hb[6];
             if (isnan(h)) snprintf(hb, sizeof(hb), "--");
@@ -129,7 +133,7 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
             int dropX = humAnchor - (int)pw - 20;
             drawDropLarge(cv, dropX, 4, icDrop, shine);
             cv->setFont(&font12);
-            cv->setTextColor(isRedPhase ? RGB565(220,200,200) : 0xD6C090); /* C_TEXT_MAIN */
+            cv->setTextColor(pctCol);
             cv->setCursor(cardW - 15 - pw - 4, 34);
             cv->print("%");
         }
