@@ -495,7 +495,7 @@ void DisplayManager::handleTouch( ) {
  /* SLOT */
  if (!acceptSlideTouch(10 + b.slotId)) return;
  _bottomPanel.showMinMax = false;
- if (_topPanel.fixed) _topPanel.fixedIdx = b.slotId;
+ if (!_topPanel.fixed) _topPanel.showMinMax = false;
  drawBottomButtons(b.slotId, false);
  UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = b.slotId;
  queue_try_add(&_eventQueue, &ev);

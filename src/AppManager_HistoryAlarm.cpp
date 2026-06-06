@@ -49,17 +49,37 @@ void AppManager::refreshSelectedSlot( ) {
  for (const auto &s : sensors) {
  if (s.config.pins[0] != 10 && s.config.pins[0] == targetGpio) {
  _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ found = true;
+ /* Top panel interactive: mirror same data */
+ if (_displayMgr->getTopSlotIdx( ) == _currentSensorIdx)
  _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
- found = true; break;
+ break;
  }
  }
  }
  } else if (_currentSensorIdx == 10) {
- _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
- _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)"); found = true;
+ _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)"); found = true;
+ if (_displayMgr->getTopSlotIdx( ) == 10)
+ _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
  }
 
  if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
+
+ /* Top slot: may differ from _currentSensorIdx when panel is fixed */
+ {
+ int topIdx = _displayMgr->getTopSlotIdx( );
+ if (topIdx >= 0 && topIdx < 10 && topIdx != _currentSensorIdx && cfg.sensors[topIdx].active) {
+ uint8_t tgpio = cfg.sensors[topIdx].pins[0];
+ for (const auto &s : sensors) {
+ if (s.config.pins[0] != 10 && s.config.pins[0] == tgpio) {
+ _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
+ break;
+ }
+ }
+ } else if (topIdx == 10 && topIdx != _currentSensorIdx) {
+ _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
+ }
+ }
 }
 
 /**
@@ -119,7 +139,17 @@ void AppManager::updateLiveDisplay( ) {
  float sMinH = (_cachedHumMin[slotIdx] < 999.0f) ? _cachedHumMin[slotIdx] : NAN;
  float sMaxH = (_cachedHumMax[slotIdx] > -999.0f) ? _cachedHumMax[slotIdx] : NAN;
  _displayMgr->setSlotMinMax(sMinT, sMaxT, sMinH, sMaxH);
+ /* Top slot min/max — may differ from _currentSensorIdx when fixed */
+ int topIdx = _displayMgr->getTopSlotIdx( );
+ if (topIdx >= 0 && topIdx < 10 && topIdx != slotIdx) {
+ float tMinT = (_cachedMin[topIdx] < 999.0f) ? _cachedMin[topIdx] : NAN;
+ float tMaxT = (_cachedMax[topIdx] > -999.0f) ? _cachedMax[topIdx] : NAN;
+ float tMinH = (_cachedHumMin[topIdx] < 999.0f) ? _cachedHumMin[topIdx] : NAN;
+ float tMaxH = (_cachedHumMax[topIdx] > -999.0f) ? _cachedHumMax[topIdx] : NAN;
+ _displayMgr->setTopSlotMinMax(tMinT, tMaxT, tMinH, tMaxH);
+ } else {
  _displayMgr->setTopSlotMinMax(sMinT, sMaxT, sMinH, sMaxH);
+ }
  }
  }
 
