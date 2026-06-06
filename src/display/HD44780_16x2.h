@@ -11,6 +11,7 @@
  */
 #pragma once
 #include <Arduino.h>
+#include <Wire.h>
 
 /* I2C backpack commonly uses PCF8574 at address 0x27 (or 0x3F). */
 #ifndef HD44780_I2C_ADDR
