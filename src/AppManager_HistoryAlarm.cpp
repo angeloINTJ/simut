@@ -41,7 +41,6 @@ bool AppManager::requestDisplayQuietMode(bool enable) {
 void AppManager::refreshSelectedSlot( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  if (cfg.reserved[53]) _currentSensorIdx = cfg.reserved[53];
- if (cfg.reserved[52]) _displayMgr->setTopSlotFixedIdx((int8_t)cfg.reserved[52]);
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
  bool found = false;
 
