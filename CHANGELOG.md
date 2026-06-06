@@ -2,6 +2,40 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.2.0-beta (2026-06-06)
+
+### OTA Subsystem — Full Upgrade to v4.6.2
+
+- **F-OTA-BOOTLOOP fixed** — Loop20 OTA 100% PASS. Root cause: reentrant LittleFS deadlock during README.md write + Core 1 startup deferred to post-WiFi + safeReboot uses MMIO identical to applier_reboot.
+- **F-RESTORE** — Reliable backup/restore via API (98/100 PASS). Config snapshot preserved across OTA apply with CRC32 integrity. Atomic rewrite of calib.csv with VERSION=epoch.
+- **F-RAM-SLIM** — RAM usage 49.6% → 33.7% (-41 KB / -16pp). Eliminated graph caches, removed unused font glyphs, shared buffer pools.
+- **F-TEL-HTTPS-RESILIENT** — Fix crash + reboot when HTTPS server drops. More conservative heap budget for TLS connections.
+- **F-OTA-STAGE-NOBLOCK + F-FLASH-DIET** — Fix TCP drop during OTA firmware staging. Non-blocking upload with adaptive chunk sizing.
+- **F-DISPLAY-MARGINS** — `fillMarginsBlack` + `fillScreen` override in `TftWithOffset` for clean display edges.
+- **F-BOOT-CYW43-CYCLE** — Power-cycle `WL_REG_ON` always in `setup()` for reliable WiFi initialization.
+- **F-SCREENSHOT-INTEGRITY** — Eliminate row loss/corruption in `/api/screenshot` via multi-sample readRow with majority vote.
+- **F-OTA-ADMIN-ONLY** — OTA endpoints require `PERM_FULL_ADMIN`.
+- **F-TEL-ADAPTIVE** — Adaptive-throughput telemetry (backend-only batch sizing).
+- **F-UI-OTA-FLOW** — User-facing OTA + restore UX messages with progress feedback.
+
+### Documentation & Tooling
+
+- **Glossary** — `docs/GLOSSARY.md` decoding all inline tags (F-\*, BUG-\*, SEC-\*, CON-\*, DOC-\*, REF-\*) used in source comments.
+- **Comment cleaner** — `tools/cleanup_comments.py` strips version history references and changelog markers from source comments for release preparation.
+
+### Flash Budget
+
+| Configuration | Flash |
+|---|---|
+| Both sensors ON | 1031464 (98.8%) |
+| DS18B20 only | ~1028400 (98.5%) |
+| DHT22 only | ~1029500 (98.6%) |
+| Both OFF | ~1024900 (98.1%) |
+
+### Tests
+
+49/49 tests passing (27 validators + 22 HistoryCodec).
+
 ## v1.1.0-beta (2026-06-06)
 
 ### Sensor Architecture — Modular Driver System

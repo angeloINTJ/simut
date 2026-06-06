@@ -2,6 +2,40 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v1.2.0-beta (2026-06-06)
+
+### Subsistema OTA — Atualização Completa para v4.6.2
+
+- **F-OTA-BOOTLOOP corrigido** — Loop20 OTA 100% PASS. Causa raiz: deadlock reentrante do LittleFS durante escrita do README.md + inicialização do Core 1 adiada para pós-WiFi + safeReboot usa MMIO idêntico ao applier_reboot.
+- **F-RESTORE** — Backup/restore confiável via API (98/100 PASS). Snapshot de configuração preservado através do apply OTA com integridade CRC32. Reescreve atômica do calib.csv com VERSION=epoch.
+- **F-RAM-SLIM** — Uso de RAM 49,6% → 33,7% (-41 KB / -16pp). Eliminados graph caches, removidos glifos de fonte não usados, buffers compartilhados.
+- **F-TEL-HTTPS-RESILIENT** — Corrige crash+reboot quando servidor HTTPS cai. Heap budget mais conservador para conexões TLS.
+- **F-OTA-STAGE-NOBLOCK + F-FLASH-DIET** — Corrige TCP drop durante staging de firmware OTA. Upload não-bloqueante com chunk sizing adaptativo.
+- **F-DISPLAY-MARGINS** — `fillMarginsBlack` + override do `fillScreen` no `TftWithOffset` para bordas limpas.
+- **F-BOOT-CYW43-CYCLE** — Power-cycle do `WL_REG_ON` sempre no `setup()` para inicialização confiável do WiFi.
+- **F-SCREENSHOT-INTEGRITY** — Elimina perda/corrupção de linhas no `/api/screenshot` via leitura multi-amostra com voto majoritário.
+- **F-OTA-ADMIN-ONLY** — Endpoints OTA exigem `PERM_FULL_ADMIN`.
+- **F-TEL-ADAPTIVE** — Telemetria com vazão adaptativa (dimensionamento de lote apenas no backend).
+- **F-UI-OTA-FLOW** — Mensagens de UX para OTA + restore com feedback de progresso.
+
+### Documentação & Ferramentas
+
+- **Glossário** — `docs/GLOSSARY.md` decodificando todas as tags inline (F-\*, BUG-\*, SEC-\*, CON-\*, DOC-\*, REF-\*) usadas nos comentários do código.
+- **Limpador de comentários** — `tools/cleanup_comments.py` remove referências de histórico de versão e marcadores de changelog dos comentários para preparação de releases.
+
+### Orçamento de Flash
+
+| Configuração | Flash |
+|---|---|
+| Ambos sensores ON | 1031464 (98,8%) |
+| Apenas DS18B20 | ~1028400 (98,5%) |
+| Apenas DHT22 | ~1029500 (98,6%) |
+| Ambos OFF | ~1024900 (98,1%) |
+
+### Testes
+
+49/49 testes passando (27 validators + 22 HistoryCodec).
+
 ## v1.1.0-beta (2026-06-06)
 
 ### Arquitetura de Sensores — Sistema Modular de Drivers
