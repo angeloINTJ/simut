@@ -456,6 +456,8 @@ private:
 	 mutex_exit(&_stateMutex);
 	 drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
 	               snap.topSlotIdx, snap.topSlotName, true, _topPanel);
+	 /* Redraw bottom buttons — fixed sensor button may appear/disappear */
+	 drawBottomButtons(snap.selectedSlotIdx, true);
 	}
 
 	
