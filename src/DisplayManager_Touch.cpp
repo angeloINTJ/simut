@@ -29,7 +29,14 @@ void DisplayManager::handleTouch( ) {
 
  /* Short tap on top panel (release before 1s): toggle min/max */
  if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0) {
+ if (!_topPanel.fixed) {
+ /* Interactive mode: short tap exits to fixed */
+ _topPanel.fixed = true;
+ _topPanel.fixedIdx = _sharedState.selectedSlotIdx;
+ } else {
+ /* Fixed mode: toggle min/max */
  _topPanel.showMinMax = !_topPanel.showMinMax;
+ }
  redrawTopPanel( );
  }
  
@@ -361,6 +368,8 @@ void DisplayManager::handleTouch( ) {
  _topPanel.fixed = !_topPanel.fixed;
  if (_topPanel.fixed)
  _topPanel.fixedIdx = _sharedState.selectedSlotIdx;
+ else
+ _topPanel.showMinMax = false;
  redrawTopPanel( );
  return;
  }
@@ -386,7 +395,7 @@ void DisplayManager::handleTouch( ) {
  return;
  }
 
- /* Holding: check long-press (1s) for ambient ↔ slot toggle */
+ /* Holding: long-press (1s) toggles fixed ↔ interactive */
  if (!_topPanel.holdFired && _lastTouchRegion == 0 &&
  _topPanel.holdStart != 0 &&
  millis() - _topPanel.holdStart >= 1000) {
