@@ -83,6 +83,11 @@ void AppManager::refreshSelectedSlot( ) {
 
  if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
 
+ /* Persist panel selection to config */
+ cfg.reserved[53] = (uint8_t)_currentSensorIdx;
+ cfg.reserved[52] = (uint8_t)_displayMgr->getTopSlotIdx( );
+ _storageMgr->saveConfiguration( );
+
  /* Fixed panels: override with pinned sensor data when panel is fixed elsewhere */
  {
  int topIdx = _displayMgr->getTopSlotIdx( );
@@ -132,23 +137,27 @@ void AppManager::updateLiveDisplay( ) {
  }
  _displayMgr->setTelemetryPending(_telemetryMgr->getPendingEstimate( ));
 
- /* Auto-save panel config when data changed and stable */
+ /* Save top panel config when topSlotIdx changes (exit interactive mode) */
  {
- int8_t curTop = (int8_t)_displayMgr->getTopSlotIdx( );
- int8_t curSlot = (int8_t)_currentSensorIdx;
- bool topChanged = (curTop != _lastSavedTopIdx);
- bool slotStable = (_lastSlotChangeTime > 0 && millis( ) - _lastSlotChangeTime > 3000
- && curSlot != _lastSavedSlotIdx);
- if (topChanged || slotStable) {
- if (topChanged) _lastSavedTopIdx = curTop;
- if (slotStable) _lastSavedSlotIdx = curSlot;
+ int8_t ct = (int8_t)_displayMgr->getTopSlotIdx( );
+ if (ct != _lastSavedTopIdx) {
+ _lastSavedTopIdx = ct;
  SystemConfig &cfg = _storageMgr->getConfig( );
- cfg.reserved[52] = (uint8_t)curTop;
- cfg.reserved[53] = (uint8_t)curSlot;
+ cfg.reserved[52] = (uint8_t)ct;
  _storageMgr->saveConfiguration( );
  }
  }
 
+ /* Save top panel config when topSlotIdx changes (exit interactive mode) */
+ {
+ int8_t ct = (int8_t)_displayMgr->getTopSlotIdx( );
+ if (ct != _lastSavedTopIdx) {
+ _lastSavedTopIdx = ct;
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ cfg.reserved[52] = (uint8_t)ct;
+ _storageMgr->saveConfiguration( );
+ }
+ }
  /* Real-time min/max accumulation — feed from current sensor readings */
  {
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
