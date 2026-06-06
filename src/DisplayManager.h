@@ -100,8 +100,8 @@ struct BootLogEntry {
 };
 
 struct SystemState {
-	float ambientTemp; float ambientHum; bool ambientValid;
-	float slotTemp; float slotHum; bool slotValid; int selectedSlotIdx; char slotName[32];
+	float ambientTemp; float ambientHum; bool ambientValid; SensorType ambientType;
+	float slotTemp; float slotHum; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
 	int wifiRssi; bool btActive; char timeString[24];
 	uint16_t pendingPkts;
 	bool isBooting; BootLogEntry bootLogs[5]; bool showSkipButton; int apProgressPct;
@@ -142,9 +142,9 @@ public:
 	 * here (Core 1 with IRQs off) and unnecessary (Core 1 does not touch flash). */
 	bool isInQuietMode( ) const { return _quietModeRequested || _quietModeActive; }
 
-	void setAmbientData(float t, float h, bool isValid = true);
+	void setAmbientData(float t, float h, SensorType type, bool isValid = true);
 	void setAmbientMinMax(float minT, float maxT, float minH, float maxH);
-	void setSlotData(float t, float h, bool isValid, int slotIdx, String name);
+	void setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
 	void setSlotMinMax(float minT, float maxT);
 	void setSystemStatus(int rssi, bool bt, String timeStr);
 
@@ -424,8 +424,8 @@ private:
 	void render(const SystemState& state);
 	void drawInterfaceFixed( );
 	void drawTopBar(const SystemState& state);
-	void drawAmbientPanel(float t, float h, bool isValid);
-	void drawSlotPanel(float t, float h, bool isValid, int slotIdx, const char* name, bool forceNameRedraw);
+	void drawAmbientPanel(float t, float h, SensorType type, bool isValid);
+	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw);
 	void drawBottomButtons(int selectedIdx, bool forceRedraw);
 
 	/** Dynamic dashboard layout: omits inactive slots and the pagination
