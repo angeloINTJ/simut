@@ -83,11 +83,6 @@ void AppManager::refreshSelectedSlot( ) {
 
  if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
 
- /* Persist panel selection to config */
- cfg.reserved[53] = (uint8_t)_currentSensorIdx;
- cfg.reserved[52] = (uint8_t)_displayMgr->getTopSlotIdx( );
- _storageMgr->saveConfiguration( );
-
  /* Fixed panels: override with pinned sensor data when panel is fixed elsewhere */
  {
  int topIdx = _displayMgr->getTopSlotIdx( );
@@ -137,27 +132,6 @@ void AppManager::updateLiveDisplay( ) {
  }
  _displayMgr->setTelemetryPending(_telemetryMgr->getPendingEstimate( ));
 
- /* Save top panel config when topSlotIdx changes (exit interactive mode) */
- {
- int8_t ct = (int8_t)_displayMgr->getTopSlotIdx( );
- if (ct != _lastSavedTopIdx) {
- _lastSavedTopIdx = ct;
- SystemConfig &cfg = _storageMgr->getConfig( );
- cfg.reserved[52] = (uint8_t)ct;
- _storageMgr->saveConfiguration( );
- }
- }
-
- /* Save top panel config when topSlotIdx changes (exit interactive mode) */
- {
- int8_t ct = (int8_t)_displayMgr->getTopSlotIdx( );
- if (ct != _lastSavedTopIdx) {
- _lastSavedTopIdx = ct;
- SystemConfig &cfg = _storageMgr->getConfig( );
- cfg.reserved[52] = (uint8_t)ct;
- _storageMgr->saveConfiguration( );
- }
- }
  /* Real-time min/max accumulation — feed from current sensor readings */
  {
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
@@ -175,6 +149,20 @@ void AppManager::updateLiveDisplay( ) {
  if (h < _cachedHumMin[gpio]) _cachedHumMin[gpio] = h;
  if (h > _cachedHumMax[gpio]) _cachedHumMax[gpio] = h;
  }
+ }
+ }
+
+ /* Debounced panel config save (3s after last interaction) */
+ if (_lastSlotChangeTime > 0 && millis( ) - _lastSlotChangeTime > 3000) {
+ int8_t ct = (int8_t)_displayMgr->getTopSlotIdx( );
+ int8_t cs = (int8_t)_currentSensorIdx;
+ if (ct != _lastSavedTopIdx || cs != _lastSavedSlotIdx) {
+ _lastSavedTopIdx = ct;
+ _lastSavedSlotIdx = cs;
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ cfg.reserved[52] = (uint8_t)ct;
+ cfg.reserved[53] = (uint8_t)cs;
+ _storageMgr->saveConfiguration( );
  }
  }
 
