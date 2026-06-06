@@ -58,9 +58,19 @@ void AppManager::refreshSelectedSlot( ) {
  }
  }
  } else if (_currentSensorIdx == 10) {
- _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)"); found = true;
+ {
+ const auto& sensors = _sensorMgr->getRuntimeSensors( );
+ for (const auto &s : sensors) {
+ if (s.config.pins[0] == 10) {
+ _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
+ found = true;
  if (_displayMgr->getTopSlotIdx( ) == 10)
- _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
+ _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
+ break;
+ }
+ }
+ }
+ if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, 10, "DHT22 (GPIO10)");
  }
 
  if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
@@ -79,8 +89,13 @@ void AppManager::refreshSelectedSlot( ) {
  }
  }
  } else if (topIdx == 10) {
- _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
- tf = true;
+ const auto& sensors = _sensorMgr->getRuntimeSensors( );
+ for (const auto &s : sensors) {
+ if (s.config.pins[0] == 10) {
+ _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
+ break;
+ }
+ }
  }
  }
  
