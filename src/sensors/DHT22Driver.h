@@ -132,23 +132,28 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
         int unitX = textAnchor + decW + 3;
         drawUnitDegC_Normal(cv, unitX, txtCol, font9, font12);
 
-        /* Humidity — right-aligned, same layout as ambient panel */
+        /* Humidity — fixed position matching original HUM_END=230 */
         if (!isnan(h)) {
+            uint16_t sufW, numMaxW, ph; int16_t sx, sy;
+            cv->getTextBounds("%", 0, 0, &sx, &sy, &sufW, &ph);
+            cv->getTextBounds("100", 0, 0, &sx, &sy, &numMaxW, &ph);
+            const int HUM_END = 230;
+            int worstNumX = HUM_END - (int)sufW - 3 - (int)numMaxW;
+            int dropX = worstNumX - 6;
+
             char hb[6];
             if (isnan(h)) snprintf(hb, sizeof(hb), "--");
             else snprintf(hb, sizeof(hb), "%d", (int)h);
-            int16_t px, py; uint16_t pw, ph;
+            int16_t px, py; uint16_t pw;
             cv->getTextBounds(hb, 0, 0, &px, &py, &pw, &ph);
-            int humAnchor = cardW - 15 - pw;
             cv->setFont(&font24);
             cv->setTextColor(humCol);
-            cv->setCursor(humAnchor, 35);
+            cv->setCursor(dropX + 20, 35);
             cv->print(hb);
-            int dropX = humAnchor - (int)pw - 20;
             drawDropLarge(cv, dropX, 4, icDrop, shine);
             cv->setFont(&font12);
             cv->setTextColor(pctCol);
-            cv->setCursor(cardW - 15 - pw - 4, 34);
+            cv->setCursor(HUM_END - (int)sufW, 34);
             cv->print("%");
         }
     }
