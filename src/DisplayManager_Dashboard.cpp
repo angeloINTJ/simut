@@ -1097,7 +1097,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  _canvasWide->print(tr(TR_ERROR_LBL));
  } else {
  _canvasWide->fillScreen(C_BG_MAIN);
- sensorRenderPanel(_canvasWide, type, t, h, isValid, CARD_W, false,
+ sensorRenderPanel(_canvasWide, type, t, h, isValid, CARD_W, true,
                    isRedPhase, panelBg,
                    simutFont24pt, simutFont12pt, simutFont9pt,
                    C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
