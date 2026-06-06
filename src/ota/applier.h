@@ -1,23 +1,32 @@
 /**
- * @file src/ota/applier.h
- * @brief OTA applier — runs entirely from SRAM.
+ * @file    src/ota/applier.h
+ * @brief   Aplicador OTA — roda inteiramente da SRAM (Fase 7).
  *
- * @details `ota_applier_run` is the destructive routine that erases the app slot
- * and rewrites it with the uncompressed staging content. IT IS MARKED
- * WITH `__not_in_flash_func` to reside in SRAM, and therefore can
- * execute even while flash is being erased/programmed.
+ * @details `ota_applier_run` é a rotina destrutiva que apaga o slot da app
+ *          e reescreve com o conteúdo descomprimido do staging. ESTÁ MARCADA
+ *          COM `__not_in_flash_func` para residir em SRAM, e portanto pode
+ *          executar mesmo enquanto a flash está sendo erased/programmed.
  *
- * PRECONDITIONS (caller orchestrator guarantees):
- * - WiFi/CYW43 off (`WiFi.end()`).
- * - LittleFS unmounted (`LittleFS.end()`).
- * - Core 1 paused via `multicore_lockout_start_blocking()`.
- * - Global IRQs disabled (`save_and_disable_interrupts`).
- * - Metadata.state == APPLYING and persisted in flash.
+ *          PRECONDIÇÕES (caller orchestrator garante):
+ *           - WiFi/CYW43 desligado (`WiFi.end()`).
+ *           - LittleFS desmontada (`LittleFS.end()`).
+ *           - Core 1 pausado via `multicore_lockout_start_blocking()`.
+ *           - IRQs globais desabilitadas (`save_and_disable_interrupts`).
+ *           - Metadata.state == APPLYING e persistida em flash.
  *
- * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
- *          SIMUT — Integrated Universal Monitoring and Telemetry System
- * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
- * @author Ângelo Moisés Alves
+ *          7a (atual — não destrutivo): a função apenas faz uma pausa breve
+ *          e dispara `watchdog_reboot`. Demonstra que a infraestrutura de
+ *          jump-to-SRAM + lockout + IRQ-off + reboot funciona, sem riscar a
+ *          app slot. Validar 7a antes de evoluir pra 7b real.
+ *
+ *          7b (a implementar — destrutivo): apaga slot da app sector-by-
+ *          sector, descomprime staging via uzlib (que precisará estar em
+ *          SRAM), grava no slot, valida CRC do output relendo via XIP,
+ *          watchdog_reboot. NÃO retorna em sucesso.
+ *
+ * @project SIMUT
+ * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #pragma once
@@ -27,12 +36,13 @@
 namespace ota {
 
 /**
- * @brief Applies the update in destructive mode. DOES NOT RETURN on success.
+ * @brief Aplica o update em modo destrutivo. NÃO RETORNA em sucesso.
  *
- * @param meta Metadata in RAM (caller read before IRQ disable).
+ * @param meta  Metadata em RAM (caller leu antes de IRQ disable).
+ *              Em 7a (no-op), parâmetro é ignorado.
  *
- * @return false only if error detected BEFORE any destructive action.
- * On success, NEVER returns (always reboots).
+ * @return false só se erro detectado ANTES de qualquer ação destrutiva.
+ *         Em 7a, NUNCA retorna (sempre reboota).
  */
 bool ota_applier_run(const UpdateMetadata* meta);
 

@@ -1,19 +1,18 @@
 /**
- * @file src/ota/staging.h
- * @brief Low-level access to the staging area (OTA).
+ * @file    src/ota/staging.h
+ * @brief   Acesso de baixo nível à área de staging (Fase 4 OTA).
  *
- * @details Reads/writes/erases the LittleFS region in raw mode (without
- * mount). PRECONDITIONS:
- * - LittleFS unmounted before writing/erasing (reading via XIP is OK).
- * - Core 1 paused via `multicore_lockout` during erase/program.
- * - StorageManager::enterFlashSafeMode() already covers this.
+ * @details Lê/escreve/apaga a região da LittleFS em modo bruto (sem
+ *          mount). PRECONDIÇÕES:
+ *           - LittleFS desmontada antes de escrever/apagar (ler via XIP é OK).
+ *           - Core 1 pausado via `multicore_lockout` durante erase/program.
+ *           - StorageManager::enterFlashSafeMode() já cobre isso.
  *
- * High-level API: use staging_session_begin/end (manages everything).
+ *          API alta-nível: usar `staging_session_begin/end` (manage tudo).
  *
- * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
- *          SIMUT — Integrated Universal Monitoring and Telemetry System
- * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
- * @author Ângelo Moisés Alves
+ * @project SIMUT
+ * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #pragma once
@@ -26,81 +25,82 @@ class StorageManager;
 namespace ota {
 
 /**
- * @brief Erases the entire staging region (1024 KB).
+ * @brief Apaga toda a região de staging (1024 KB).
  *
- * Takes ~5-10s. Pauses Core 1 internally. Updates WDT.
- * PRECONDITION: LittleFS unmounted (caller responsibility).
+ * Demora ~5-10s. Pausa Core 1 internamente. Atualiza WDT.
+ * PRECONDIÇÃO: LittleFS desmontada (caller responsável).
  *
- * @return true on success.
+ * @return true em sucesso.
  */
-bool staging_erase_all( );
+bool staging_erase_all();
 
 /**
- * @brief Erases ONE sector (4 KB) of staging at relative offset.
+ * @brief Apaga UM setor (4 KB) da staging em offset relativo.
  *
- * @param offset_in_staging Multiple of 4096; 0 = first sector.
+ * @param offset_in_staging  Múltiplo de 4096; 0 = primeiro setor.
  */
 bool staging_erase_sector(uint32_t offset_in_staging);
 
 /**
- * @brief Programs @p data at @p offset_in_staging.
+ * @brief Programa @p data em @p offset_in_staging.
  *
- * @p len and @p offset_in_staging must be multiples of OTA_FLASH_PAGE_SIZE (256).
- * Sector must have been erased BEFORE (NAND-style flash: only writes 1→0).
+ * @p len e @p offset_in_staging devem ser múltiplos de OTA_FLASH_PAGE_SIZE (256).
+ * Setor deve ter sido apagado ANTES (flash NAND-style: só escreve 1→0).
  *
- * @return true on success.
+ * @return true em sucesso.
  */
 bool staging_write(uint32_t offset_in_staging, const uint8_t* data, size_t len);
 
 /**
- * @brief Reads bytes from staging via XIP (bypasses LittleFS).
+ * @brief Lê bytes da staging via XIP (bypass LittleFS).
  *
- * Without disabling IRQs / Core 1 (XIP read is safe during normal operation).
- * Do NOT call while LittleFS is mounted if the region was written
- * externally (XIP cache may be outdated).
+ * Sem desabilitar IRQs / Core 1 (XIP read é seguro durante operação normal).
+ * NÃO chamar enquanto LittleFS está montada se a região foi escrita por
+ * fora (cache do XIP pode estar desatualizado).
  */
 void staging_read(uint32_t offset_in_staging, uint8_t* dst, size_t len);
 
 /**
- * @brief High-level session: prepares staging for upload use.
+ * @brief Sessão alta-nível: prepara a staging para uso de upload.
  *
- * Sequence:
- * 1. LittleFS.end() — unmounts.
- * 2. staging_erase_all() — cleans.
+ * Sequência:
+ *   1. Salva flag "FS in staging mode" (futuro — Fase 5).
+ *   2. LittleFS.end() — desmonta.
+ *   3. staging_erase_all() — limpa.
  *
- * On return, the LittleFS area is all 0xFF and ready to receive
- * the .bin.gz via staging_write().
+ * Ao retornar, a área da LittleFS está toda 0xFF e pronta para receber
+ * o .bin.gz via staging_write().
  *
- * @param storage Pointer to StorageManager (needed for unmount/remount).
- * @return true on success.
+ * @param storage  Ponteiro pro StorageManager (necessário pra desmontar/remount).
+ * @return true em sucesso.
  */
 bool staging_session_begin(StorageManager* storage);
 
-/* Variant without upfront erase — caller does on-demand erase. */
+/* v4.4.0: variante sem erase upfront — caller faz erase on-demand. */
 bool staging_session_begin_lite(StorageManager* storage);
 
 /**
- * @brief Ends the session and remounts LittleFS.
+ * @brief Encerra a sessão e remonta a LittleFS.
  *
- * Useful for upload ABORT (discards staging and returns to normal). Does NOT
- * format — after erase_all + LittleFS.begin(), LFS detects
- * "invalid filesystem" and formats by itself.
+ * Útil pra ABORT de upload (descarta staging e volta ao normal). NÃO
+ * formatar — depois de erase_all + LittleFS.begin(), o LFS detecta
+ * "filesystem inválido" e formata sozinho.
  *
- * In the APPLY path, staging_session_end is NOT called —
- * the applier continues with LittleFS unmounted and reboots.
+ * Em caminho de APPLY (Fase 7), staging_session_end NÃO é chamado —
+ * o aplicador continua com LittleFS desmontada e reboota.
  */
 bool staging_session_end(StorageManager* storage);
 
 /**
- * @brief Self-test of the raw flash path (acceptance criteria).
+ * @brief Self-test do path raw flash (Fase 4 acceptance criteria).
  *
- * Writes checkerboard pattern (0xAA/0x55) in ONE sector; reads back; compares;
- * erases sector. Callable only with active session (LittleFS unmounted).
+ * Escreve padrão xadrez (0xAA/0x55) em UM setor; lê de volta; compara;
+ * apaga setor. Chamável só com sessão ativa (LittleFS desmontada).
  *
- * Result in @p out_first_diff: -1 = OK, >=0 = offset of first byte
- * that did not match.
+ * Resultado em @p out_first_diff: -1 = OK, >=0 = offset do primeiro byte
+ * que não bateu.
  *
- * @return true if pattern written + read + erased all match 100%.
+ * @return true se padrão escrito + lido + apagado conferem 100%.
  */
 bool staging_selftest(int* out_first_diff);
 

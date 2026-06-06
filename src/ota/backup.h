@@ -1,19 +1,18 @@
 /**
- * @file src/ota/backup.h
- * @brief Public API of the backup (.bkp) generator — OTA.
+ * @file    src/ota/backup.h
+ * @brief   API pública do gerador de backup (.bkp) — Fase 1 do OTA.
  *
- * @details Generation does two passes over LittleFS to avoid buffering in RAM:
- * 1) scan: calculates payload_size + payload_crc32 + file_count.
- * 2) emit: writes header (with CRCs) + payload streaming via Print.
+ * @details A geração faz dois passes sobre a LittleFS para evitar buffer em RAM:
+ *          1) scan: calcula payload_size + payload_crc32 + file_count.
+ *          2) emit: escreve header (com CRCs) + payload em streaming via Print.
  *
- * The caller is responsible for ensuring LittleFS is mounted and
- * that the operation is serialized against concurrent writes (e.g.
- * via HeavyTaskGuard in WebManager).
+ *          O caller é responsável por garantir que o LittleFS está montado e
+ *          que a operação é serializada contra escritas concorrentes (ex.:
+ *          via HeavyTaskGuard no WebManager).
  *
- * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
- *          SIMUT — Integrated Universal Monitoring and Telemetry System
- * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
- * @author Ângelo Moisés Alves
+ * @project SIMUT
+ * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #pragma once
@@ -26,99 +25,98 @@
 namespace ota {
 
 /**
- * @brief Incremental CRC32 (poly 0xEDB88320, init 0xFFFFFFFF, xor-out 0xFFFFFFFF).
+ * @brief CRC32 incremental (poly 0xEDB88320, init 0xFFFFFFFF, xor-out 0xFFFFFFFF).
  *
- * Compatible with gzip/zlib CRC32. Reused in other steps (staging
- * validation, metadata).
+ * Compatível com CRC32 do gzip/zlib. Reutilizado em outras fases (validação
+ * de staging, metadata).
  *
- * @param crc Previous state (pass OTA_CRC32_INIT on first chunk).
- * @param data Byte buffer.
- * @param len Length.
- * @return Partial CRC; apply `^ 0xFFFFFFFFu` when done to get the final CRC.
+ * @param crc   Estado anterior (passar OTA_CRC32_INIT no primeiro chunk).
+ * @param data  Buffer de bytes.
+ * @param len   Tamanho.
+ * @return CRC parcial; aplicar `^ 0xFFFFFFFFu` ao terminar para obter o CRC final.
  */
 uint32_t crc32_update(uint32_t crc, const uint8_t* data, size_t len);
 
 /**
- * @brief Reads the unique RP2040 ID (flash_get_unique_id).
+ * @brief Lê o ID único do RP2040 (flash_get_unique_id).
  *
- * Cached after first call (operation costs ~100us and disables IRQs).
+ * Cacheado após a primeira chamada (operação custa ~100us e desabilita IRQs).
  *
- * @param out 8-byte buffer; filled with the ID.
+ * @param out  Buffer de 8 bytes; preenchido com o ID.
  */
 void read_chip_id(uint8_t out[8]);
 
 /**
- * @brief Encodes version string "vMAJOR.MINOR.PATCH" into packed uint32.
+ * @brief Encoda string de versão "vMAJOR.MINOR.PATCH" em uint32 packed.
  *
- * Format: (major<<16) | (minor<<8) | patch. Each field truncated to 8 bits.
- * E.g.: "v3.37.8" → 0x00032508.
+ * Formato: (major<<16) | (minor<<8) | patch. Cada campo é truncado para 8 bits.
+ * Ex.: "v3.37.8" → 0x00032508.
  *
- * @param version_str String like "v3.37.8" or "3.37.8" (prefix 'v' optional).
- * @return uint32 encoded; 0 if string is invalid.
+ * @param version_str  String tipo "v3.37.8" ou "3.37.8" (prefixo 'v' opcional).
+ * @return uint32 encoded; 0 se string for inválida.
  */
 uint32_t encode_version_u32(const char* version_str);
 
 /**
- * @brief Result of the LittleFS scan (prerequisite to generate header).
+ * @brief Resultado do scan da LittleFS (pré-requisito para gerar header).
  */
 struct BackupScanResult {
- uint32_t payload_size; /**< Total payload size in bytes. */
- uint32_t payload_crc32; /**< Final payload CRC32 (already with xor-out applied). */
- uint16_t file_count; /**< Number of files enumerated. */
+    uint32_t payload_size;      /**< Tamanho total do payload em bytes. */
+    uint32_t payload_crc32;     /**< CRC32 final do payload (já com xor-out aplicado). */
+    uint16_t file_count;        /**< Quantidade de arquivos enumerados. */
 };
 
 /**
- * @brief Backup validation status codes.
+ * @brief Códigos de status da validação de backup (Fase 2).
  *
- * Ordered so lower values correspond to failures detected
- * earlier in parsing — useful for hierarchical error messages.
+ * Ordenados de forma que valores baixos correspondam a falhas detectadas
+ * mais cedo no parse — útil pra mensagens de erro hierárquicas.
  */
 enum class BackupStatus : uint8_t {
- OK = 0,
- BAD_MAGIC = 1,
- UNSUPPORTED_SCHEMA = 2,
- HEADER_CRC_MISMATCH = 3,
- PAYLOAD_TRUNCATED = 4,
- PAYLOAD_CRC_MISMATCH = 5,
- CHIP_ID_MISMATCH = 6,
- PATH_INVALID = 7,
- PATH_TOO_LONG = 8,
- IO_ERROR = 9,
- INTERNAL_ERROR = 10,
+    OK = 0,
+    BAD_MAGIC = 1,
+    UNSUPPORTED_SCHEMA = 2,
+    HEADER_CRC_MISMATCH = 3,
+    PAYLOAD_TRUNCATED = 4,
+    PAYLOAD_CRC_MISMATCH = 5,
+    CHIP_ID_MISMATCH = 6,
+    PATH_INVALID = 7,
+    PATH_TOO_LONG = 8,
+    IO_ERROR = 9,
+    INTERNAL_ERROR = 10,
 };
 
-/* Validation of .bkp in production is done by the state machine in
- * ota::RestoreSession (VALIDATE mode) — see src/ota/restore.h. The
- * Stream-based backup_validate was removed to save flash; the web upload
- * pipeline already consumes chunks and maintains state, so the state
- * machine covers both scenarios. */
+/* Validação de .bkp em produção é feita pelo state machine em ota::RestoreSession
+ * (modo VALIDATE) — ver src/ota/restore.h. backup_validate Stream-based foi
+ * removido para economizar flash; o pipeline de upload web já consome chunks e
+ * mantém estado, então a state machine cobre os dois cenários. */
 
 /**
- * @brief Pass 1: scans LittleFS, computes total size and payload CRC32.
+ * @brief Pass 1: varre a LittleFS, computa tamanho total e CRC32 do payload.
  *
- * Does NOT write anything; only measures. Returns metrics to build the header
- * before pass 2.
+ * NÃO escreve nada; apenas mede. Retorna métricas para construir o header
+ * antes do pass 2.
  *
- * @param out Result.
- * @return true if scan was successful; false on I/O error.
+ * @param out  Resultado.
+ * @return true se o scan foi bem-sucedido; false em I/O error.
  */
 bool backup_scan(BackupScanResult& out);
 
 /**
- * @brief Pass 2: writes the full backup (header + payload) in streaming.
+ * @brief Pass 2: escreve o backup completo (header + payload) em streaming.
  *
- * Requires a valid BackupScanResult obtained by backup_scan (ideally
- * immediately before, under HeavyTaskGuard, to ensure consistency).
+ * Requer um `BackupScanResult` válido obtido por `backup_scan` (idealmente
+ * imediatamente antes, sob HeavyTaskGuard, para garantir consistência).
  *
- * @param out Output stream (Print&; e.g. WebServer client).
- * @param scan Result of pass 1.
- * @param firmware_version Encoded version via encode_version_u32.
- * @param timestamp Unix epoch UTC; 0 if NTP unavailable.
- * @return true if write completed without I/O errors.
+ * @param out               Stream de saída (Print&; ex.: WebServer client).
+ * @param scan              Resultado do pass 1.
+ * @param firmware_version  Versão encoded via encode_version_u32.
+ * @param timestamp         Unix epoch UTC; 0 se NTP indisponível.
+ * @return true se a escrita completou sem erros de I/O.
  */
 bool backup_emit(Print& out,
- const BackupScanResult& scan,
- uint32_t firmware_version,
- uint32_t timestamp);
+                 const BackupScanResult& scan,
+                 uint32_t firmware_version,
+                 uint32_t timestamp);
 
 } /* namespace ota */

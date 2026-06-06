@@ -1,28 +1,27 @@
 /**
- * @file src/ota/metadata.h
- * @brief Persistent OTA update metadata.
+ * @file    src/ota/metadata.h
+ * @brief   Metadata persistente do update OTA (Fase 7+).
  *
- * @details 4 KiB sector at OTA_METADATA_OFFSET — only the first page
- * (256 B) receives write. Survives watchdog/power reboots.
+ * @details Setor de 4 KiB em OTA_METADATA_OFFSET — apenas a primeira página
+ *          (256 B) recebe gravação. Survives reboots por watchdog/power.
  *
- * States (UpdateState):
- * NONE — no pending update (magic absent).
- * COMMITTED — upload ok, validate ok; ready for apply.
- * APPLYING — orchestrator entered destructive path. If boot
- * reads this, it is first post-update boot.
- * POST_BOOT — first post-update boot detected, LFS reformat
- * in progress or awaiting restore.
- * COMPLETED — restore complete, cycle closed. Next boot
- * normal.
+ *          Estados (UpdateState):
+ *           NONE       — sem update pendente (magic ausente).
+ *           COMMITTED  — upload ok, validate ok; pronto pra apply.
+ *           APPLYING   — orchestrator entrou no path destrutivo. Se boot
+ *                        ler isto, é primeiro boot pós-update (Fase 8).
+ *           POST_BOOT  — primeiro boot pós-update detectado, LFS reformat
+ *                        em progresso ou aguardando restore.
+ *           COMPLETED  — restore completo, ciclo fechado. Próximo boot
+ *                        normal.
  *
- * Apply is destructive. If power fails between APPLYING and the new
- * firmware reboot, attempts++ on next boot and user goes to
- * BOOTSEL recovery.
+ *          Apply é destrutivo. Se cair energia entre APPLYING e o reboot
+ *          do firmware novo, attempts++ no próximo boot e o user vai pra
+ *          BOOTSEL recovery (ver docs/RECOVERY.md).
  *
- * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
- *          SIMUT — Integrated Universal Monitoring and Telemetry System
- * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
- * @author Ângelo Moisés Alves
+ * @project SIMUT
+ * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #pragma once
@@ -32,18 +31,18 @@
 namespace ota {
 
 /**
- * 4 KiB SRAM scratch buffer shared by flash operations
- * (apply sector copy + metadata read-erase-program-all preserving
- * snapshot). Defined in `applier.cpp` (static BSS, 0-init at boot).
+ * Scratch buffer SRAM de 4 KiB compartilhado pelas operações de flash
+ * (apply sector copy + metadata read-erase-program-all preservando
+ * snapshot). Definido em `applier.cpp` (BSS estática, 0-init no boot).
  *
- * Users:
- * - `applier.cpp::ota_applier_run` (during apply, IRQ off — exclusive use).
- * - `metadata.cpp::ota_metadata_write` (preserves snapshot region).
- * - `metadata.cpp::ota_snapshot_write` (preserves metadata page 0).
- * - `config_snapshot.cpp::ota_snapshot_capture` (assembles payload pre-write).
+ * Usuários:
+ *  - `applier.cpp::ota_applier_run` (durante apply, IRQ off — uso exclusivo).
+ *  - `metadata.cpp::ota_metadata_write` (preserva snapshot region).
+ *  - `metadata.cpp::ota_snapshot_write` (preserva metadata page 0).
+ *  - `config_snapshot.cpp::ota_snapshot_capture` (monta payload pré-write).
  *
- * Race-free because caller 1 (apply) only runs AFTER `state=APPLYING` persisted,
- * and callers 2/3/4 never run concurrently with apply (apply only ends
+ * Race-free porque caller 1 (apply) só roda APÓS `state=APPLYING` persistido,
+ * e callers 2/3/4 nunca rodam concorrentemente com apply (apply só termina
  * via reboot).
  */
 extern uint8_t s_applier_buf[OTA_FLASH_SECTOR_SIZE];
@@ -51,77 +50,78 @@ extern uint8_t s_applier_buf[OTA_FLASH_SECTOR_SIZE];
 constexpr uint32_t OTA_MAGIC_PENDING = 0xA5C3F00Du;
 
 enum UpdateState : uint32_t {
- STATE_NONE = 0,
- STATE_COMMITTED = 1,
- STATE_APPLYING = 2,
- STATE_POST_BOOT = 3,
- STATE_COMPLETED = 4,
+    STATE_NONE      = 0,
+    STATE_COMMITTED = 1,
+    STATE_APPLYING  = 2,
+    STATE_POST_BOOT = 3,
+    STATE_COMPLETED = 4,
 };
 
-/* Anti-loop: if attempts >= MAX_ATTEMPTS at boot, refuses apply (leaves
- * BOOTSEL as the recovery path). */
+/* Anti-loop: se attempts >= MAX_ATTEMPTS num boot, recusa apply (deixa
+ * BOOTSEL ser o caminho de recovery). */
 constexpr uint32_t OTA_MAX_APPLY_ATTEMPTS = 3;
 
 struct __attribute__((packed)) UpdateMetadata {
- uint32_t magic; /**< OTA_MAGIC_PENDING when valid. */
- uint32_t state; /**< UpdateState. */
- uint32_t compressed_size; /**< Bytes in staging (.bin.gz). */
- uint32_t uncompressed_size; /**< Expected bytes after gunzip (.bin). */
- uint32_t compressed_crc32; /**< CRC32 of staging — matches client. */
- uint32_t uncompressed_crc32; /**< CRC32 of gunzip dry-run output. */
- uint32_t attempts; /**< Apply attempts (anti-loop). */
- uint32_t reserved[57]; /**< Pad to 256 B (fill with 0xFFFFFFFF). */
+    uint32_t magic;                /**< OTA_MAGIC_PENDING quando válido. */
+    uint32_t state;                /**< UpdateState. */
+    uint32_t compressed_size;      /**< Bytes em staging (.bin.gz). */
+    uint32_t uncompressed_size;    /**< Bytes esperados após gunzip (.bin). */
+    uint32_t compressed_crc32;     /**< CRC32 do staging — bate com client. */
+    uint32_t uncompressed_crc32;   /**< CRC32 do output do gunzip dry-run. */
+    uint32_t attempts;             /**< Tentativas de apply (anti-loop). */
+    uint32_t reserved[57];         /**< Pad até 256 B (preencher 0xFFFFFFFF). */
 };
 static_assert(sizeof(UpdateMetadata) == 256, "UpdateMetadata != 256 B");
 
 /**
- * @brief Reads metadata via XIP (without disabling IRQs / unmounting).
+ * @brief Lê metadata via XIP (sem desabilitar IRQs / unmount).
  *
- * @return true if read; false on magic mismatch (out filled with zeros).
+ * @return true se leu; false se magic mismatch (out preenchido com zeros).
  */
 bool ota_metadata_read(UpdateMetadata& out);
 
 /**
- * @brief Erases metadata sector + writes 256 B to first page.
+ * @brief Apaga setor metadata + grava 256 B na primeira página.
  *
- * **MANDATORY PRE-CONDITION**: caller must ensure Core 1 paused
- * (`StorageManager::enterFlashSafeMode()`) BEFORE calling — function
- * does internal `flash_range_erase` and Core 1 reading flash via XIP during
- * erase causes hard fault.
+ * **PRE-CONDIÇÃO OBRIGATÓRIA**: caller deve garantir Core 1 pausado
+ * (`StorageManager::enterFlashSafeMode()`) ANTES de chamar — função
+ * faz `flash_range_erase` interno e Core 1 lendo flash via XIP durante
+ * o erase causa hard fault (autópsia classifica como reset "external"
+ * sem flag de watchdog, e a metadata fica sem persistir).
  *
- * Exception: during apply post-IRQ-disable + Core 1 lockout from orchestrator,
- * already safe; can call directly.
+ * Exceção: durante apply pós-IRQ-disable + Core 1 lockout do orchestrator,
+ * já está safe; pode chamar direto.
  *
- * @return true on success.
+ * @return true em sucesso.
  */
 bool ota_metadata_write(const UpdateMetadata& in);
 
 /**
- * @brief Sets metadata.state and persists. Shortcut.
+ * @brief Marca metadata.state e persiste. Atalho.
  */
 bool ota_metadata_set_state(UpdateState st);
 
 /**
- * @brief Erases metadata sector (all 0xFF). Equivalent to "no pending update".
+ * @brief Apaga setor metadata (todos 0xFF). Equivale a "no pending update".
  *
- * IMPORTANT: also erases the config snapshot in pages 1..15.
- * Only call after restore has succeeded OR in factory init.
+ * IMPORTANTE: também apaga o snapshot da configuração nas pages 1..15.
+ * Chamar somente após o restore ter sido bem-sucedido OU em factory init.
  */
-bool ota_metadata_clear( );
+bool ota_metadata_clear();
 
 /**
- * @brief Writes raw bytes to pages 1..15 of the metadata sector.
+ * @brief Grava bytes brutos nas pages 1..15 do setor de metadata.
  *
- * Preserves current page 0 (UpdateMetadata): reads via XIP, assembles scratch
- * [page0 | snapshot_data | 0xFF padding] in `s_applier_buf`, erase + program
- * full 4 KiB.
+ * Preserva a page 0 (UpdateMetadata) atual: lê via XIP, monta scratch
+ * [page0 | snapshot_data | 0xFF padding] em `s_applier_buf`, erase + program
+ * 4 KiB inteiros.
  *
- * **PRE-CONDITION**: caller must ensure Core 1 paused
- * (`StorageManager::enterFlashSafeMode()`). It is not the function that decides.
+ * **PRE-CONDIÇÃO**: caller deve garantir Core 1 pausado
+ * (`StorageManager::enterFlashSafeMode()`). Não é a função quem decide.
  *
- * @param data Buffer with serialized snapshot (header + payload + CRC).
- * @param len Size in bytes; <= 3840.
- * @return true if written.
+ * @param data  Buffer com snapshot serializado (header + payload + CRC).
+ * @param len   Tamanho em bytes; <= 3840.
+ * @return true se gravado.
  */
 bool ota_snapshot_write(const uint8_t* data, uint16_t len);
 

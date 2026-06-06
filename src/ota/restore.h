@@ -1,20 +1,19 @@
 /**
- * @file src/ota/restore.h
- * @brief State machine for .bkp backup restore via streaming chunks.
+ * @file    src/ota/restore.h
+ * @brief   State machine de restore de backup .bkp via streaming chunks.
  *
- * @details Unlike backup_validate (which needs a seekable Stream&),
- * restore consumes chunks coming from the HTTP upload (callback
- * handleUploadData) and maintains state between chunks.
+ * @details Diferente de backup_validate (que precisa de Stream& seekable),
+ *          o restore consome chunks vindos do upload HTTP (callback
+ *          handleUploadData) e mantém estado entre chunks.
  *
- * VALIDATE mode: reads + computes CRCs + validates; never touches LittleFS.
- * APPLY mode: during CONTENT, writes to the final path;
- * on final commit, files are already in place.
- * On rollback, deletes partially written files.
+ *          Modo VALIDATE: lê + computa CRCs + valida; nunca toca LittleFS.
+ *          Modo APPLY: durante CONTENT, escreve em "<path>.restore_tmp";
+ *                      no commit final, renomeia todos para o path original.
+ *                      Em rollback, deleta todos `.restore_tmp` órfãos.
  *
- * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
- *          SIMUT — Integrated Universal Monitoring and Telemetry System
- * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
- * @author Ângelo Moisés Alves
+ * @project SIMUT
+ * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 #pragma once
@@ -27,94 +26,94 @@
 namespace ota {
 
 constexpr const char* RESTORE_TMP_SUFFIX = ".restore_tmp";
-constexpr size_t RESTORE_MAX_PATH = 200; /* < 256 (path_len uint16) and fits in struct */
+constexpr size_t RESTORE_MAX_PATH = 200;  /* < 256 (path_len uint16) e cabe no struct */
 
 enum class RestoreMode : uint8_t {
- VALIDATE = 0, /**< Does not write to LittleFS. */
- APPLY = 1, /**< Writes to final path; commit/rollback at end. */
+    VALIDATE = 0,   /**< Não escreve em LittleFS. */
+    APPLY = 1,      /**< Escreve em <path>.restore_tmp; commit/rollback no final. */
 };
 
 enum class RestorePhase : uint8_t {
- HEADER = 0, /**< Accumulating 40 bytes of BackupHeader. */
- ENTRY_HEADER = 1, /**< Accumulating 6 bytes of BackupEntry. */
- PATH = 2, /**< Accumulating path_len bytes of path. */
- CONTENT = 3, /**< Accumulating/writing content_len bytes. */
- DONE = 4, /**< payload_size complete, CRC validated. */
- FAILED = 5, /**< Error detected; status tells why. */
+    HEADER = 0,         /**< Acumulando 40 bytes do BackupHeader. */
+    ENTRY_HEADER = 1,   /**< Acumulando 6 bytes do BackupEntry. */
+    PATH = 2,           /**< Acumulando path_len bytes do path. */
+    CONTENT = 3,        /**< Acumulando/escrevendo content_len bytes. */
+    DONE = 4,           /**< payload_size completo, CRC validado. */
+    FAILED = 5,         /**< Erro detectado; status conta o porquê. */
 };
 
 struct RestoreSession {
- RestoreMode mode;
- RestorePhase phase;
- BackupStatus status;
+    RestoreMode  mode;
+    RestorePhase phase;
+    BackupStatus status;
 
- /* HEADER phase */
- uint8_t header_buf[sizeof(BackupHeader)];
- uint32_t header_filled;
- BackupHeader header;
+    /* HEADER phase */
+    uint8_t  header_buf[sizeof(BackupHeader)];
+    uint32_t header_filled;
+    BackupHeader header;
 
- /* PAYLOAD phase */
- uint32_t payload_remaining;
- uint32_t payload_crc;
- uint16_t file_count;
+    /* PAYLOAD phase */
+    uint32_t payload_remaining;
+    uint32_t payload_crc;
+    uint16_t file_count;
 
- /* ENTRY phase */
- uint8_t entry_buf[6];
- uint32_t entry_filled;
- uint16_t cur_path_len;
- uint32_t cur_content_len;
+    /* ENTRY phase */
+    uint8_t  entry_buf[6];
+    uint32_t entry_filled;
+    uint16_t cur_path_len;
+    uint32_t cur_content_len;
 
- /* PATH phase */
- char cur_path[RESTORE_MAX_PATH + 1]; /* +1 nul */
- uint32_t cur_path_filled;
+    /* PATH phase */
+    char     cur_path[RESTORE_MAX_PATH + 1];  /* +1 nul */
+    uint32_t cur_path_filled;
 
- /* CONTENT phase */
- File cur_file; /**< Open only in APPLY. */
- uint32_t cur_content_remaining;
+    /* CONTENT phase */
+    File     cur_file;            /**< Aberto só em APPLY. */
+    uint32_t cur_content_remaining;
 };
 
 /**
- * @brief Initializes session. In APPLY: cleans up orphan .restore_tmp.
+ * @brief Inicializa sessão. Em APPLY: faz cleanup de .restore_tmp órfãos.
  */
 void restore_session_begin(RestoreSession& s, RestoreMode mode);
 
 /**
- * @brief Feeds a chunk of bytes. Can be called multiple times.
+ * @brief Alimenta um chunk de bytes. Pode ser chamada várias vezes.
  *
- * If the state enters FAILED, subsequent calls are no-op.
+ * Se o estado entrar em FAILED, chamadas subsequentes são no-op.
  *
- * @return true if not yet failed (FAILED or DONE not differentiated here).
+ * @return true se ainda não falhou (FAILED ou DONE não diferenciados aqui).
  */
 bool restore_session_feed(RestoreSession& s, const uint8_t* data, size_t len);
 
 /**
- * @brief Finalizes the session.
+ * @brief Finaliza a sessão.
  *
- * In VALIDATE: only reports status (no side effects).
- * In APPLY:
- * - If status == OK and phase == DONE: commit.
- * - Otherwise: rollback (deletes all written files).
+ * Em VALIDATE: apenas reporta status (sem efeitos colaterais).
+ * Em APPLY:
+ *   - Se status == OK e phase == DONE: commit (rename todos .restore_tmp).
+ *   - Caso contrário: rollback (deleta todos .restore_tmp).
  *
- * @param s Session.
- * @param fs_modified Out: true if LittleFS was modified (only APPLY+commit).
- * @return Final status.
+ * @param s         Sessão.
+ * @param fs_modified  Out: true se a LittleFS foi modificada (apenas APPLY+commit).
+ * @return Status final.
  */
 BackupStatus restore_session_finish(RestoreSession& s, bool* fs_modified);
 
 /**
- * @brief Aborts the session (cleanup tmps + reset).
+ * @brief Aborta a sessão (cleanup de tmps + reset).
  *
- * For use in UPLOAD_FILE_ABORTED.
+ * Para uso em UPLOAD_FILE_ABORTED.
  */
 void restore_session_abort(RestoreSession& s);
 
 /**
- * @brief Standalone cleanup of orphan .restore_tmp (callable at any time).
+ * @brief Cleanup standalone de .restore_tmp órfãos (chamável a qualquer momento).
  *
- * Useful at boot and before any new APPLY session.
+ * Útil em boot e antes de qualquer nova sessão APPLY. Walk recursivo.
  *
- * @return Number of files removed.
+ * @return Quantidade de arquivos removidos.
  */
-uint32_t restore_cleanup_orphan_tmps( );
+uint32_t restore_cleanup_orphan_tmps();
 
 } /* namespace ota */
