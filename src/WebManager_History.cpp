@@ -17,6 +17,18 @@
 
 using ReadGuard = StorageManager::ReadGuard;
 
+// Inline insertion sort (replaces std::sort, eliminates qsort ~1.4KB)
+static void sortStrings(String* arr, int n, bool descending) {
+ for (int i = 1; i < n; i++) {
+ String key = arr[i];
+ int j = i - 1;
+ while (j >= 0 && (descending ? arr[j] < key : key < arr[j])) {
+ arr[j + 1] = arr[j]; j--;
+ }
+ arr[j + 1] = key;
+ }
+}
+
 
 /* =========================================================================== */
 /* GET /api/history_multi?sensors=<csv>&range=<0..6>&end=<ep> */
@@ -121,7 +133,8 @@ void WebManager::handleApiHistoryMulti( ) {
  decimation = rangeDecimation[rangeIdx];
  cutoff = (rangeIdx == 6) ? 0 : (effectiveEnd - rangeDuration[rangeIdx]);
 
- /* ── List of files to read ────────────────────────────────────────── */
+
+/* ── List of files to read ────────────────────────────────────────── */
  std::vector<String> filesToRead;
  if (rangeIdx >= 4) {
  /* 1M, 1Y, MAX: list ALL files in directory (filter by epoch
@@ -133,7 +146,7 @@ void WebManager::handleApiHistoryMulti( ) {
  filesToRead.push_back(String(DIR_HISTORY) + "/" + dir.fileName( ));
  }
  }
- std::sort(filesToRead.begin( ), filesToRead.end( )); /* YYYYMMDD sorts chronologically */
+ sortStrings(filesToRead.data( ), (int)filesToRead.size( ), false); /* YYYYMMDD ascending */
  } else {
  int daysToLoad = 1;
  switch (rangeIdx) {
@@ -1071,7 +1084,7 @@ void WebManager::handleApiHistoryDays( ) {
  }
  }
 
- std::sort(files.begin( ), files.end( ), std::greater<String>( ));
+ sortStrings(files.data( ), (int)files.size( ), true); /* descending */
 
  _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
  _server.send(200, "application/json", "");
