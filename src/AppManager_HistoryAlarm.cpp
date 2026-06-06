@@ -48,16 +48,16 @@ void AppManager::refreshSelectedSlot( ) {
  uint8_t targetGpio = cfg.sensors[_currentSensorIdx].pins[0];
  for (const auto &s : sensors) {
  if (s.config.pins[0] != 10 && s.config.pins[0] == targetGpio) {
- _displayMgr->setSlotData(s.avgValue1, s.avgValue2, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  found = true; break;
  }
  }
  }
  } else if (_currentSensorIdx == 10) {
- _displayMgr->setSlotData(analogReadTemp( ), NAN, true, 10, "Board (Internal)"); found = true;
+ _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)"); found = true;
  }
 
- if (!found) _displayMgr->setSlotData(NAN, NAN, false, _currentSensorIdx, "Empty / Inactive");
+ if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
 }
 
 /**
@@ -104,13 +104,13 @@ void AppManager::updateLiveDisplay( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
 
  for (const auto &s : sensors) {
- if (s.config.pins[0] == 10) _displayMgr->setAmbientData(s.avgValue1, s.avgValue2, !s.inErrorState);
+ if (s.config.pins[0] == 10) _displayMgr->setAmbientData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState);
  else if (_currentSensorIdx < 10 && cfg.sensors[_currentSensorIdx].active && cfg.sensors[_currentSensorIdx].pins[0] == s.config.pins[0]) {
- _displayMgr->setSlotData(s.avgValue1, s.avgValue2, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  }
  }
 
- if (_currentSensorIdx == 10) _displayMgr->setSlotData(analogReadTemp( ), NAN, true, 10, "Board (Internal)");
+ if (_currentSensorIdx == 10) _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
  }
 }
 

@@ -142,13 +142,13 @@ void DisplayManager::redrawAlarmFlash( ) {
 
 	if (_alarmAmbientTemp || _alarmAmbientHum) {
 		drawAmbientPanel(_lastRenderedState.ambientTemp,
-		                 _lastRenderedState.ambientHum,
+		                 _lastRenderedState.ambientHum, _lastRenderedState.ambientType,
 		                 _lastRenderedState.ambientValid);
 	}
 
 	int sel = _lastRenderedState.selectedSlotIdx;
 	if (isSlotAlarming(sel)) {
-		drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotValid,
+		drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotType, _lastRenderedState.slotValid,
 		              sel, _lastRenderedState.slotName, true);
 	}
 

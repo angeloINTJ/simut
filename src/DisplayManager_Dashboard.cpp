@@ -16,6 +16,7 @@
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 #include "StorageManager.h"
+#include "sensors/SensorPanelDispatch.h"
 
 void DisplayManager::fixCardCorners(int16_t x, int16_t y, int16_t w,
  int16_t h, int16_t r,
@@ -132,9 +133,10 @@ void DisplayManager::maskStripCorners(GFXcanvas16* canvas,
 void DisplayManager::restoreNormalDashboard( ) {
  if (!_tft || !_canvasSmall || !_canvasWide) return;
  drawAmbientPanel(_lastRenderedState.ambientTemp,
- _lastRenderedState.ambientHum,
+ _lastRenderedState.ambientHum, _lastRenderedState.ambientType,
  _lastRenderedState.ambientValid);
- drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotValid,
+ drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotType,
+ _lastRenderedState.slotValid,
  _lastRenderedState.selectedSlotIdx,
  _lastRenderedState.slotName, true);
  drawBottomButtons(_lastRenderedState.selectedSlotIdx, true);
@@ -407,7 +409,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  blitCanvas(_canvasWide, 0, 0, W, H);
 }
 
-void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
+void DisplayManager::drawAmbientPanel(float t, float h, SensorType type, bool isValid) {
  if (!_canvasWide) return;
  int16_t x1, y1; uint16_t w, h_bound;
 
@@ -697,6 +699,14 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
  blitCanvas(_canvasWide, CARD_X, CARD_Y + 20, CARD_W, 8);
  }
 
+ /* Strip 3: Content (driver-rendered) */
+ _canvasWide->fillScreen(C_BG_MAIN);
+ sensorRenderPanel(_canvasWide, type, t, h, isValid, CARD_W, true,
+                   leftRed || rightRed, C_CARD_BG,
+                   simutFont24pt, simutFont12pt, simutFont9pt);
+ maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
+ blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
+ goto _ambient_bottom_fill;
  /* Strip 3: Temperature + Humidity (40px) */
  {
  _canvasWide->fillRect(0, 0, 160, 40, leftBg);
@@ -817,6 +827,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
  blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
  }
 
+_ambient_bottom_fill:
  /* Strip 4: Bottom fill (7px) */
  {
  uint16_t lBg = leftRed ? RGB565(180, 30, 30) : C_CARD_BG;
@@ -830,7 +841,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
  }
 }
 
-void DisplayManager::drawSlotPanel(float t, float h, bool isValid, int slotIdx, const char* name, bool forceNameRedraw) {
+void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw) {
  if(!_canvasWide) return;
  int16_t x1, y1; uint16_t h_bound;
 
@@ -1084,6 +1095,15 @@ void DisplayManager::drawSlotPanel(float t, float h, bool isValid, int slotIdx, 
  _canvasWide->setCursor((CARD_W - (int)ew) / 2, 28);
  _canvasWide->print(tr(TR_ERROR_LBL));
  } else {
+ _canvasWide->fillScreen(C_BG_MAIN);
+ sensorRenderPanel(_canvasWide, type, t, h, isValid, CARD_W, false,
+                   isRedPhase, panelBg,
+                   simutFont24pt, simutFont12pt, simutFont9pt);
+ maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN,
+                  isRedPhase ? RGB565(200,0,0) : C_TEXT_SUB);
+ blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
+ goto _slot_bottom_fill;
+
  const int iconW = 20;
  const int iconGap = 8;
  const int unitGap = 3;
@@ -1180,6 +1200,8 @@ void DisplayManager::drawSlotPanel(float t, float h, bool isValid, int slotIdx, 
  maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
  blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
 
+_ambient_bottom_fill:
+_slot_bottom_fill:
  /* Strip 4: Bottom fill (7px) */
  {
  _canvasWide->fillScreen(panelBg);
