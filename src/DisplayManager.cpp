@@ -920,9 +920,11 @@ bool DisplayManager::pullSnapshot(SystemState& localSnapshot) {
 
 
 	if (mutex_enter_timeout_us(&_stateMutex, 1000)) {
-		/* Keep topSlotIdx in sync when interactive so AppManager mirrors data */
+		/* Keep topSlotIdx in sync with current panel mode */
 		if (!_topPanel.fixed)
 			_sharedState.topSlotIdx = _sharedState.selectedSlotIdx;
+		else if (_topPanel.fixedIdx >= 0)
+			_sharedState.topSlotIdx = _topPanel.fixedIdx;
 		if (_isDirty) {
 			localSnapshot = _sharedState;
 			_isDirty = false;
