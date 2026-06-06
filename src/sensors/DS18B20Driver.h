@@ -78,19 +78,21 @@ struct DS18B20Driver {
 
 };
 
-/* ── Panel rendering (normal mode, centered, temperature only) ─────── */
+/* ── Panel rendering (normal mode, centered, theme-aware) ──────────── */
 inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
                  int16_t cardW, bool isRedPhase, uint16_t panelBg,
                  const GFXfont& font24, const GFXfont& font12,
-                 const GFXfont& font9) {
-        uint16_t txtSub  = isRedPhase ? RGB565(255,255,255) : 0xCE9A52;
-        uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : 0x04B04C;
-        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtSub;
-        uint16_t merc    = isRedPhase ? RGB565(255,255,255) : 0xD04020;
+                 const GFXfont& font9,
+                 uint16_t txtSub, uint16_t tempOk,
+                 uint16_t tempHot, uint16_t textOff) {
+        uint16_t txtCol  = isRedPhase ? RGB565(255,255,255) : txtSub;
+        uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : tempOk;
+        uint16_t merc    = isRedPhase ? RGB565(255,255,255) : tempHot;
+        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtCol;
 
         if (!isValid || isnan(t)) {
             cv->setFont(&font12);
-            cv->setTextColor(0x8A7A6A);
+            cv->setTextColor(textOff);
             cv->setCursor((cardW - 60) / 2, 15);
             cv->print("--.-");
             drawThermometerLarge(cv, (cardW - 160) / 2 - 10, 4,
@@ -122,7 +124,7 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
         cv->print(dP);
 
         int unitX = anchorX + 4 + (int)iw + 6;
-        drawUnitDegC_Normal(cv, unitX, txtSub, font9, font12);
+        drawUnitDegC_Normal(cv, unitX, txtCol, font9, font12);
     }
 
 #else
