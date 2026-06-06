@@ -398,7 +398,7 @@ void DisplayManager::handleTouch( ) {
  mutex_enter_blocking(&_stateMutex);
  snap = _sharedState;
  mutex_exit(&_stateMutex);
- drawSlotPanel(snap.slotTemp, snap.slotValid,
+ drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotValid,
  snap.selectedSlotIdx, snap.slotName, true);
  }
  return;
