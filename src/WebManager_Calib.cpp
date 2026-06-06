@@ -12,6 +12,7 @@
  */
 
 #include "WebManager.h"
+#include "ParseFloat.h"
 #include "StorageManager.h"
 #include "SensorManager.h"
 #include "NetworkManager.h"
@@ -36,7 +37,7 @@ bool jsonExtractFloat(const String& obj, const char* key, float& out) {
 	if (e <= s) return false;
 	String v = obj.substring(s, e); v.trim( );
 	if (v.length( ) == 0 || v == "null") return false;
-	out = v.toFloat( );
+	out = parseFloat(v.c_str( ));
 	return true;
 }
 
