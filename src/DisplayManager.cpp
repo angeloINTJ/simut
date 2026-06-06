@@ -1055,9 +1055,8 @@ void DisplayManager::render(const SystemState& state) {
 		drawTopBar(state);
 	}
 
-	/* When top panel is interactive, sync from current slot data */
-	if (!_topPanel.fixed) {
-	 st.topSlotIdx = st.selectedSlotIdx;
+	/* Sync topSlot* from slot* whenever both panels show the same sensor */
+	if (st.topSlotIdx == st.selectedSlotIdx) {
 	 st.topSlotTemp = st.slotTemp; st.topSlotHum = st.slotHum;
 	 st.topSlotType = st.slotType; st.topSlotValid = st.slotValid;
 	 safeCopy(st.topSlotName, st.slotName, 31);
