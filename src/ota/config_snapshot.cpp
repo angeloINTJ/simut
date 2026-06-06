@@ -10,8 +10,8 @@
 #include "config_snapshot.h"
 #include "metadata.h"
 #include "ota_layout.h"
-#include "../../StorageManager.h"
-#include "../../SystemDefs_Records.h" /* crc32_init/update/final */
+#include "StorageManager.h"
+#include "SystemDefs_Records.h" /* crc32_init/update/final */
 
 #include <Arduino.h>
 #include <LittleFS.h>

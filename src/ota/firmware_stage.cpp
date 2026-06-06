@@ -12,7 +12,7 @@
 #include "config_snapshot.h"
 #include "ota_layout.h"
 #include "backup.h"
-#include "../../StorageManager.h"
+#include "StorageManager.h"
 
 #include <Arduino.h>
 #include <hardware/watchdog.h>
