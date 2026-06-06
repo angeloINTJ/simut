@@ -103,9 +103,18 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
         cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
         cv->getTextBounds(dP, 0, 0, &xx, &yy, &decW, &ih);
 
-        /* textAnchor=92 (ambient) or centered (slot), iconX=14 or centered */
-        int textAnchor = leftAnchor ? 92 : (cardW - (int)iw - 4 - ((int)decW) - 25) / 2 + (int)iw;
-        int iconX      = leftAnchor ? 14 : (cardW - 160) / 2 - 10;
+        /* Ambient: textAnchor=92, iconX=14. Slot: centered via exact offsetX. */
+        int textAnchor, iconX;
+        if (leftAnchor) {
+            textAnchor = 92;
+            iconX = 14;
+        } else {
+            /* Exact original drawSlotPanel formula: iconW=20 + gap=8 + numW(iw+4+decW) + gap=3 + unitW=16 */
+            int totalW = 20 + 8 + ((int)iw + 4 + (int)decW) + 3 + 16;
+            int offsetX = (cardW - totalW) / 2;
+            textAnchor = offsetX + 20 + 8 + (int)iw;
+            iconX = offsetX;
+        }
         int unitX      = textAnchor + (int)decW + 3;
 
         drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, mercCol);
