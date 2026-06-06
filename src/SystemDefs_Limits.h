@@ -21,7 +21,7 @@
 #define MOVING_AVG_WINDOW 10 /* Samples in the trimmed-mean sliding window */
 #define MAX_SENSOR_PINS 4 /* Maximum GPIO pins per sensor (fits SPI: MOSI,MISO,SCK,CS) */
 #define PIN_UNUSED 255 /* Sentinel for unused pin slots */
-#define SIMUT_VERSION "1.0.0"
+#define SIMUT_VERSION "1.1.0-beta"
 
 #define GRAPH_WIDTH 200 /* Maximum data points on the TFT graph */
 
