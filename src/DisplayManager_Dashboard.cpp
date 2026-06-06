@@ -1152,6 +1152,17 @@ void DisplayManager::drawSlotPanel(float t, float h, bool isValid, int slotIdx, 
  _canvasWide->setFont(&simutFont12pt);
  _canvasWide->setCursor(unitX + 8, 35); _canvasWide->print("C");
 
+ /* Humidity — shown when slot sensor supports it */
+ if (!isnan(h)) {
+ _canvasWide->setFont(&simutFont12pt);
+ _canvasWide->setTextColor(C_HUMIDITY);
+ _canvasWide->setCursor(unitX + 24, 35);
+ _canvasWide->print((int)h);
+ _canvasWide->setFont(&simutFont9pt);
+ _canvasWide->setCursor(unitX + 24 + ((int)h >= 100 ? 20 : (int)h >= 10 ? 12 : 6), 17);
+ _canvasWide->print("%");
+ }
+
  /* Thermometer icon — drawn last */
  {
  uint16_t ic = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_SUB;
