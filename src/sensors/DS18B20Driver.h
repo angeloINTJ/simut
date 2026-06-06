@@ -104,6 +104,7 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
         char iP[10]; snprintf(iP, sizeof(iP), "%d", intPart);
         char dP[5];  snprintf(dP, sizeof(dP), ".%d", decPart);
         int16_t xx, yy; uint16_t iw, ih, decW;
+        cv->setFont(&font24); cv->setTextSize(1);
         cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
         cv->getTextBounds(dP, 0, 0, &xx, &yy, &decW, &ih);
 
