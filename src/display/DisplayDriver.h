@@ -12,14 +12,16 @@
 
 #pragma once
 
-#if defined(SIMUT_DISPLAY_ALPHA)
+#include "DisplayConfig.h"
+
+#if SIMUT_DISPLAY_ALPHA
   #include "HD44780_16x2.h"
   struct DisplayDriver : public Hd44780_16x2 {
   };
   /* Note: DisplayManager rendering code is TFT-specific. Full alpha
    * display support requires refactoring DisplayManager to abstract
    * the rendering surface (GFX vs character framebuffer). */
-#else
+#elif SIMUT_DISPLAY_TFT
   /* Default: ILI9341 TFT + XPT2046 touch */
   #include "ILI9341_320x240.h"
   #include "XPT2046.h"
