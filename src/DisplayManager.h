@@ -145,7 +145,7 @@ public:
 	void setAmbientData(float t, float h, SensorType type, bool isValid = true);
 	void setAmbientMinMax(float minT, float maxT, float minH, float maxH);
 	void setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
-	void setSlotMinMax(float minT, float maxT);
+	void setSlotMinMax(float minT, float maxT, float minH, float maxH);
 	void setSystemStatus(int rssi, bool bt, String timeStr);
 
 	/** Boot status: stores a TR key (resolved at render via tr()) plus
@@ -384,6 +384,7 @@ private:
 	bool _slotShowMinMax = false;
 	bool _slotLastMinMax = false; /* tracks previous mode for cleanup */
 	float _slotMinTemp = NAN, _slotMaxTemp = NAN;
+	float _slotMinHum = NAN, _slotMaxHum = NAN;
 
 	bool _alarmFlashPhase = false;
 	uint32_t _alarmFlashTimer = 0;

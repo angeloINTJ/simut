@@ -658,9 +658,9 @@ void AppManager::setup( ) {
  for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
  _cachedMin[i] = 1000.0f; _cachedMax[i] = -1000.0f;
  _preloadMin[i] = 1000.0f; _preloadMax[i] = -1000.0f;
+ _cachedHumMin[i] = 1000.0f; _cachedHumMax[i] = -1000.0f;
+ _preloadHumMin[i] = 1000.0f; _preloadHumMax[i] = -1000.0f;
  }
- _cachedHumMin = 1000.0f; _cachedHumMax = -1000.0f;
- _preloadHumMin = 1000.0f; _preloadHumMax = -1000.0f;
  preloadMinMax( );
  }
 

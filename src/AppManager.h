@@ -71,14 +71,14 @@ private:
 
  float _cachedMin[MINMAX_SLOT_COUNT];
  float _cachedMax[MINMAX_SLOT_COUNT];
- float _cachedHumMin;
- float _cachedHumMax;
+ float _cachedHumMin[MINMAX_SLOT_COUNT];
+ float _cachedHumMax[MINMAX_SLOT_COUNT];
 
  /* Min/max from preload (today's binary history file) */
  float _preloadMin[MINMAX_SLOT_COUNT];
  float _preloadMax[MINMAX_SLOT_COUNT];
- float _preloadHumMin;
- float _preloadHumMax;
+ float _preloadHumMin[MINMAX_SLOT_COUNT];
+ float _preloadHumMax[MINMAX_SLOT_COUNT];
 
  /* Sensor scan state */
  bool _waitingScan = false;
