@@ -53,7 +53,7 @@ void DisplayManager::showAlarmAction(int8_t slotIdx) {
  * shows only its corresponding portion. ~5x more CPU vs single-pass but eliminates
  * top-down visual tearing (~80ms total render). */
 void DisplayManager::drawAlarmAction( ) {
-	if (!_canvasWide) return;
+	if (!_driver.canvas) return;
 	if (!_forceSettingsRedraw) return;
 	_forceSettingsRedraw = false;
 
@@ -138,7 +138,7 @@ bool DisplayManager::isAnyAlarmActive( ) const {
 
 
 void DisplayManager::redrawAlarmFlash( ) {
-	if (!_tft || !_canvasSmall || !_canvasWide) return;
+	if (!_driver.tft || !_driver.canvasSmall || !_driver.canvas) return;
 
 	if (isSlotAlarming(_lastRenderedState.topSlotIdx)) {
 		drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,

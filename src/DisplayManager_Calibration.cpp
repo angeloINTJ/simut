@@ -99,14 +99,14 @@ void DisplayManager::fillCalData(TouchCalData* cal) const {
  *
  * The "preview" state is initialized with the offset currently applied to the TFT
  * (which corresponds to the persisted value, loaded via loadDisplayOffset() at
- * boot). Any change via arrows is applied live to _tft, and BACK restores
+ * boot). Any change via arrows is applied live to _driver.tft, and BACK restores
  * the snapshot if the user cancels.
  */
 void DisplayManager::showSettingsDisplayOffset( ) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_DISPLAY_OFFSET;
- _offsetSavedX = _tft ? _tft->getOffsetX( ) : 0;
- _offsetSavedY = _tft ? _tft->getOffsetY( ) : 0;
+ _offsetSavedX = _driver.tft ? _driver.tft->getOffsetX( ) : 0;
+ _offsetSavedY = _driver.tft ? _driver.tft->getOffsetY( ) : 0;
  _offsetPreviewX = _offsetSavedX;
  _offsetPreviewY = _offsetSavedY;
  _lastOffsetDrawX = 99; /* sentinel forces redraw of numeric values */
@@ -131,7 +131,7 @@ void DisplayManager::showSettingsDisplayOffset( ) {
  * Footer: [BACK] [APPLY] (y >= 200)
  */
 void DisplayManager::drawSettingsDisplayOffset( ) {
- if (!_tft) return;
+ if (!_driver.tft) return;
  bool full = _forceSettingsRedraw;
  int16_t bx, by; uint16_t bw, bh;
 
@@ -204,20 +204,20 @@ void DisplayManager::drawSettingsDisplayOffset( ) {
 
  /* Numeric offset values — repainted only when they change. */
  if (_offsetPreviewX != _lastOffsetDrawX || _offsetPreviewY != _lastOffsetDrawY) {
- _tft->fillRect(245, 60, 70, 90, C_BG_MAIN);
- _tft->setFont(&simutFont12pt);
- _tft->setTextColor(C_TEXT_MAIN);
+ _driver.tft->fillRect(245, 60, 70, 90, C_BG_MAIN);
+ _driver.tft->setFont(&simutFont12pt);
+ _driver.tft->setTextColor(C_TEXT_MAIN);
  char buf[16];
  snprintf(buf, sizeof(buf), "X %c%d",
  _offsetPreviewX >= 0 ? '+' : '-',
  abs((int)_offsetPreviewX));
- _tft->setCursor(250, 90);
- _tft->print(buf);
+ _driver.tft->setCursor(250, 90);
+ _driver.tft->print(buf);
  snprintf(buf, sizeof(buf), "Y %c%d",
  _offsetPreviewY >= 0 ? '+' : '-',
  abs((int)_offsetPreviewY));
- _tft->setCursor(250, 130);
- _tft->print(buf);
+ _driver.tft->setCursor(250, 130);
+ _driver.tft->print(buf);
  _lastOffsetDrawX = _offsetPreviewX;
  _lastOffsetDrawY = _offsetPreviewY;
  }
@@ -234,14 +234,14 @@ void DisplayManager::drawSettingsDisplayOffset( ) {
  */
 void DisplayManager::loadDisplayOffset(const DisplayOffsetData* data) {
  if (!data || data->magic != 0xD0) {
- if (_tft) _tft->setDisplayOffset(0, 0);
+ if (_driver.tft) _driver.tft->setDisplayOffset(0, 0);
  _offsetSavedX = 0;
  _offsetSavedY = 0;
  return;
  }
  int8_t ox = constrain((int)data->offsetX, -4, 4);
  int8_t oy = constrain((int)data->offsetY, -4, 4);
- if (_tft) _tft->setDisplayOffset(ox, oy);
+ if (_driver.tft) _driver.tft->setDisplayOffset(ox, oy);
  _offsetSavedX = ox;
  _offsetSavedY = oy;
 }
@@ -253,18 +253,18 @@ void DisplayManager::loadDisplayOffset(const DisplayOffsetData* data) {
 void DisplayManager::fillDisplayOffsetData(DisplayOffsetData* data) const {
  if (!data) return;
  data->magic = 0xD0;
- data->offsetX = _tft ? _tft->getOffsetX( ) : 0;
- data->offsetY = _tft ? _tft->getOffsetY( ) : 0;
+ data->offsetX = _driver.tft ? _driver.tft->getOffsetX( ) : 0;
+ data->offsetY = _driver.tft ? _driver.tft->getOffsetY( ) : 0;
  data->reserved = 0;
 }
 
 
 int8_t DisplayManager::getDisplayOffsetX( ) const {
- return _tft ? _tft->getOffsetX( ) : 0;
+ return _driver.tft ? _driver.tft->getOffsetX( ) : 0;
 }
 
 int8_t DisplayManager::getDisplayOffsetY( ) const {
- return _tft ? _tft->getOffsetY( ) : 0;
+ return _driver.tft ? _driver.tft->getOffsetY( ) : 0;
 }
 
 
@@ -358,23 +358,23 @@ void DisplayManager::drawTouchSensitivity( ) {
  int cx = 140, cy = 115;
  if (g_sensFirstDraw || g_lastSensDone != _sensDone) {
  uint16_t crossColor = _sensDone ? C_TEMP_OK : C_ACCENT;
- _tft->fillRect(cx - 30, cy - 1, 60, 3, C_BG_MAIN);
- _tft->fillRect(cx - 1, cy - 30, 3, 60, C_BG_MAIN);
- _tft->drawLine(cx - 15, cy, cx + 15, cy, crossColor);
- _tft->drawLine(cx, cy - 15, cx, cy + 15, crossColor);
- _tft->drawCircle(cx, cy, 12, crossColor);
+ _driver.tft->fillRect(cx - 30, cy - 1, 60, 3, C_BG_MAIN);
+ _driver.tft->fillRect(cx - 1, cy - 30, 3, 60, C_BG_MAIN);
+ _driver.tft->drawLine(cx - 15, cy, cx + 15, cy, crossColor);
+ _driver.tft->drawLine(cx, cy - 15, cx, cy + 15, crossColor);
+ _driver.tft->drawCircle(cx, cy, 12, crossColor);
  }
 
  /* Progress text only when _sensDone changes or on 1st draw */
  if (g_sensFirstDraw || g_lastSensDone != _sensDone) {
- _tft->fillRect(80, 150, 140, 30, C_BG_MAIN);
- _tft->setFont(&simutFont9pt);
- _tft->setTextColor(C_TEXT_MAIN);
+ _driver.tft->fillRect(80, 150, 140, 30, C_BG_MAIN);
+ _driver.tft->setFont(&simutFont9pt);
+ _driver.tft->setTextColor(C_TEXT_MAIN);
  int16_t bx2, by2; uint16_t bw2, bh2;
  String txt = _sensDone ? tr(TR_SENS_DONE) : tr(TR_CAL_TOUCH_POINT);
- _tft->getTextBounds(txt, 0, 0, &bx2, &by2, &bw2, &bh2);
- _tft->setCursor(140 - bw2 / 2, 168);
- _tft->print(txt);
+ _driver.tft->getTextBounds(txt, 0, 0, &bx2, &by2, &bw2, &bh2);
+ _driver.tft->setCursor(140 - bw2 / 2, 168);
+ _driver.tft->print(txt);
  }
 
  /* Bar only when _sensStability changes */
@@ -382,21 +382,21 @@ void DisplayManager::drawTouchSensitivity( ) {
  int barX = 290, barY = 39, barW = 24, barH = 152;
  int fillH = (int)(barH * _sensStability);
  if (fillH > barH) fillH = barH;
- if (fillH < barH) _tft->fillRect(barX, barY, barW, barH - fillH, C_BG_MAIN);
+ if (fillH < barH) _driver.tft->fillRect(barX, barY, barW, barH - fillH, C_BG_MAIN);
  uint16_t barColor = (_sensStability >= 0.85f) ? C_TEMP_OK : C_ACCENT;
- if (fillH > 0) _tft->fillRect(barX, barY + barH - fillH, barW, fillH, barColor);
+ if (fillH > 0) _driver.tft->fillRect(barX, barY + barH - fillH, barW, fillH, barColor);
  g_lastSensStability = _sensStability;
  }
 
  /* Numeric value only when it changes */
  if (g_sensFirstDraw || g_lastSensThreshold != (int)_sensThreshold) {
- _tft->fillRect(280, 195, 40, 20, C_BG_MAIN);
- _tft->setFont(NULL); _tft->setTextSize(1);
- _tft->setTextColor(C_TEXT_OFF);
+ _driver.tft->fillRect(280, 195, 40, 20, C_BG_MAIN);
+ _driver.tft->setFont(NULL); _driver.tft->setTextSize(1);
+ _driver.tft->setTextColor(C_TEXT_OFF);
  char valBuf[8];
  snprintf(valBuf, sizeof(valBuf), "%d", _sensThreshold);
- _tft->setCursor(295, 198);
- _tft->print(valBuf);
+ _driver.tft->setCursor(295, 198);
+ _driver.tft->print(valBuf);
  g_lastSensThreshold = (int)_sensThreshold;
  }
 
@@ -436,9 +436,9 @@ void DisplayManager::mapTouchPoint(TS_Point raw, int16_t &outX, int16_t &outY) {
 
 void DisplayManager::drawCrosshair(int16_t cx, int16_t cy, uint16_t color) {
  const int16_t sz = 10;
- _tft->drawLine(cx - sz, cy, cx + sz, cy, color);
- _tft->drawLine(cx, cy - sz, cx, cy + sz, color);
- _tft->drawCircle(cx, cy, sz - 2, color);
+ _driver.tft->drawLine(cx - sz, cy, cx + sz, cy, color);
+ _driver.tft->drawLine(cx, cy - sz, cx, cy + sz, color);
+ _driver.tft->drawCircle(cx, cy, sz - 2, color);
 }
 
 /* Canvas-aware version of drawCrosshair for strip-based rendering.
@@ -454,7 +454,7 @@ static inline void drawCrosshairOnCanvas(GFXcanvas16* cv, int16_t cx, int16_t cy
 /* drawCalibrationMessage via strips.
  * Layout: success/fail icon (y=70..110) + message (y=130) + button (y=185..225). */
 void DisplayManager::drawCalibrationMessage( ) {
- if (!_tft) return;
+ if (!_driver.tft) return;
 
  bool isSuccess = (_calPhase == 2);
  uint16_t iconColor = isSuccess ? C_TEMP_OK : C_TEMP_WARM;
@@ -506,7 +506,7 @@ void DisplayManager::drawCalibrationMessage( ) {
 
 /* drawTouchCalibration. Full-screen redraw via strips (renders the
  * ENTIRE screen: current crosshair + text labels). Incremental
- * updates (between taps of the 8 points) go directly to _tft — small
+ * updates (between taps of the 8 points) go directly to _driver.tft — small
  * areas, imperceptible top-down effect. */
 void DisplayManager::drawTouchCalibration( ) {
  bool fullRedraw = _forceSettingsRedraw;
@@ -591,13 +591,13 @@ void DisplayManager::drawTouchCalibration( ) {
  g_lastCalHoldReady = _calHoldReady;
  }
 
- /* Text via atomic canvas — no direct fillRect on _tft (which
+ /* Text via atomic canvas — no direct fillRect on _driver.tft (which
  * caused visible black flash before text reappeared).
- * Layout covers y=85..150 (65px). Since _canvasWide is 320x45, split
+ * Layout covers y=85..150 (65px). Since _driver.canvas is 320x45, split
  * into 2 strips: strip 0 (y=85..130) covers title+msg, strip 1 (y=130..150)
  * covers cycle. Each blit is atomic (1 SPI burst). */
- if (g_lastCalStep != _calStep && _canvasWide) {
- GFXcanvas16* cv = _canvasWide;
+ if (g_lastCalStep != _calStep && _driver.canvas) {
+ GFXcanvas16* cv = _driver.canvas;
  int16_t bx, by; uint16_t bw, bh;
 
  /* Strip 0: y_screen 85..130 (45px). Title (y=100) + msg (y=122). */

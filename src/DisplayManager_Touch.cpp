@@ -21,7 +21,7 @@
 void DisplayManager::handleTouch( ) {
  /* Use _rawTouchState (already OR'd with sim flag in
  * loopCore1) so simulated touches register as "touched". When sim is
- * active, _ts->getPoint() may return zeros, but mapTouchPoint() now
+ * active, _driver.ts->getPoint() may return zeros, but mapTouchPoint() now
  * bypasses the ADC mapping and returns _simTouchX/Y directly. */
  if (!_rawTouchState) {
  /* Finger released — enables next single touch */
@@ -139,7 +139,7 @@ void DisplayManager::handleTouch( ) {
 
 
  if (!timeSince(_lastTouchTime, 15)) return;
- TS_Point p = _ts->getPoint( );
+ TS_Point p = _driver.ts->getPoint( );
 
  /* ── Sensitivity calibration mode: minimum threshold ──
  * Uses p.z > 50 (ADC noise floor) instead of the calibrated
@@ -965,7 +965,7 @@ void DisplayManager::handleTouch( ) {
  /* Discard preview adjustment: restore saved offset before exiting. */
  _offsetPreviewX = _offsetSavedX;
  _offsetPreviewY = _offsetSavedY;
- if (_tft) _tft->setDisplayOffset(_offsetSavedX, _offsetSavedY);
+ if (_driver.tft) _driver.tft->setDisplayOffset(_offsetSavedX, _offsetSavedY);
  showSettingsMain( );
  return;
  }
@@ -980,7 +980,7 @@ void DisplayManager::handleTouch( ) {
  }
 
  if (changed) {
- if (_tft) _tft->setDisplayOffset(_offsetPreviewX, _offsetPreviewY);
+ if (_driver.tft) _driver.tft->setDisplayOffset(_offsetPreviewX, _offsetPreviewY);
  /* Full redraw: previous frame was drawn with a different offset,
  * old pixels remain outside the new area and need to be cleared. */
  _forceSettingsRedraw = true;

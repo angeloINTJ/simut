@@ -23,8 +23,8 @@ namespace {
 }
 
 uint16_t DisplayManager::readPixel(int16_t x, int16_t y) {
-	if (!_tft) return 0;
-	_tft->startWrite( ); _tft->setAddrWindow(x, y, 1, 1); _tft->endWrite( );
+	if (!_driver.tft) return 0;
+	_driver.tft->startWrite( ); _driver.tft->setAddrWindow(x, y, 1, 1); _driver.tft->endWrite( );
 	SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
 	digitalWrite(TFT_CS, LOW);
 	digitalWrite(TFT_DC, LOW); SPI.transfer(0x2E);
@@ -36,12 +36,12 @@ uint16_t DisplayManager::readPixel(int16_t x, int16_t y) {
 
 
 void DisplayManager::readRow(int16_t y, uint16_t* buffer, int16_t w) {
-	if (!_tft || !buffer) return;
+	if (!_driver.tft || !buffer) return;
 
 
-	_tft->startWrite( );
-	_tft->setAddrWindow(0, y, w, 1);
-	_tft->endWrite( );
+	_driver.tft->startWrite( );
+	_driver.tft->setAddrWindow(0, y, w, 1);
+	_driver.tft->endWrite( );
 
 
 	SPI.beginTransaction(SPISettings(2000000, MSBFIRST, SPI_MODE0));
@@ -207,13 +207,13 @@ void DisplayManager::drawAuthScreen( ) {
 		long secondsLeft = (long)(timeRemaining(_lockoutUntil) / 1000) + 1;
 		if (secondsLeft != lastSec) {
 			lastSec = secondsLeft;
-			_canvasWide->fillScreen(C_BG_MAIN); _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextColor(C_TEMP_WARM);
-			String txt1 = tr(TR_ATTEMPTS_EXCEEDED); _canvasWide->getTextBounds(txt1, 0, 0, &bx, &by, &bw, &bh);
-			_canvasWide->setCursor((320 - bw) / 2, 25); _canvasWide->print(txt1); blitCanvas(_canvasWide, 0, 90, 320, 45);
-			_canvasWide->fillScreen(C_BG_MAIN); char timeStr[64]; snprintf(timeStr, sizeof(timeStr), tr(TR_WAIT_SECONDS), secondsLeft);
-			_canvasWide->setFont(&simutFont9pt); _canvasWide->setTextColor(C_TEXT_SUB);
-			_canvasWide->getTextBounds(timeStr, 0, 0, &bx, &by, &bw, &bh); _canvasWide->setCursor((320 - bw) / 2, 25); _canvasWide->print(timeStr);
-			blitCanvas(_canvasWide, 0, 135, 320, 45);
+			_driver.canvas->fillScreen(C_BG_MAIN); _driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextColor(C_TEMP_WARM);
+			String txt1 = tr(TR_ATTEMPTS_EXCEEDED); _driver.canvas->getTextBounds(txt1, 0, 0, &bx, &by, &bw, &bh);
+			_driver.canvas->setCursor((320 - bw) / 2, 25); _driver.canvas->print(txt1); blitCanvas(_driver.canvas, 0, 90, 320, 45);
+			_driver.canvas->fillScreen(C_BG_MAIN); char timeStr[64]; snprintf(timeStr, sizeof(timeStr), tr(TR_WAIT_SECONDS), secondsLeft);
+			_driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(C_TEXT_SUB);
+			_driver.canvas->getTextBounds(timeStr, 0, 0, &bx, &by, &bw, &bh); _driver.canvas->setCursor((320 - bw) / 2, 25); _driver.canvas->print(timeStr);
+			blitCanvas(_driver.canvas, 0, 135, 320, 45);
 		}
 		return;
 	}
@@ -227,25 +227,25 @@ void DisplayManager::drawAuthScreen( ) {
 	/* Dots only repaint when _authStep or _authFailed change. */
 	bool dotsChanged = (g_lastAuthStep != _authStep) || (g_lastAuthFailed != _authFailed);
 	if (dotsChanged) {
-		_canvasWide->fillScreen(C_BG_MAIN);
+		_driver.canvas->fillScreen(C_BG_MAIN);
 		if (_authFailed) {
-			_canvasWide->setFont(&simutFont9pt);
-			_canvasWide->setTextColor(C_TEMP_HOT);
+			_driver.canvas->setFont(&simutFont9pt);
+			_driver.canvas->setTextColor(C_TEMP_HOT);
 			String invMsg = tr(TR_INVALID_PASSWORD);
-			_canvasWide->getTextBounds(invMsg, 0, 0, &bx, &by, &bw, &bh);
-			_canvasWide->setCursor((320 - bw) / 2, 20);
-			_canvasWide->print(invMsg);
+			_driver.canvas->getTextBounds(invMsg, 0, 0, &bx, &by, &bw, &bh);
+			_driver.canvas->setCursor((320 - bw) / 2, 20);
+			_driver.canvas->print(invMsg);
 		} else {
 			int pinLen = (int)_expectedPin.length( );
 			int dotSpacing = 20;
 			int dotsStartX = (320 - (pinLen * dotSpacing)) / 2 + dotSpacing / 2;
 			for (int i = 0; i < pinLen; i++) {
 				int cx = dotsStartX + (i * dotSpacing);
-				if (i < _authStep) _canvasWide->fillCircle(cx, 15, 6, C_ACCENT);
-				else _canvasWide->drawCircle(cx, 15, 6, C_TEXT_SUB);
+				if (i < _authStep) _driver.canvas->fillCircle(cx, 15, 6, C_ACCENT);
+				else _driver.canvas->drawCircle(cx, 15, 6, C_TEXT_SUB);
 			}
 		}
-		blitCanvas(_canvasWide, 0, 35, 320, 30);
+		blitCanvas(_driver.canvas, 0, 35, 320, 30);
 		g_lastAuthStep = _authStep;
 		g_lastAuthFailed = _authFailed;
 	}
@@ -257,30 +257,30 @@ void DisplayManager::drawAuthScreen( ) {
 	/* Keypad buttons via canvas — 2 buttons per row, 2 rows */
 	for (int row = 0; row < 2; row++) {
 		int rowY = 80 + (row * 60);
-		_canvasWide->fillScreen(C_BG_MAIN);
-		_canvasWide->setFont(&simutFont12pt);
+		_driver.canvas->fillScreen(C_BG_MAIN);
+		_driver.canvas->setFont(&simutFont12pt);
 
 		for (int col = 0; col < 2; col++) {
 			int btnIdx = (row * 2) + col;
 			int bx0 = (col == 0) ? 15 : 165;
 
 			/* Button with finished rounded corners */
-			_canvasWide->fillRoundRect(bx0, 0, 140, 45, 10, C_CARD_BG);
-			_canvasWide->drawRoundRect(bx0, 0, 140, 45, 10, C_TEXT_SUB);
+			_driver.canvas->fillRoundRect(bx0, 0, 140, 45, 10, C_CARD_BG);
+			_driver.canvas->drawRoundRect(bx0, 0, 140, 45, 10, C_TEXT_SUB);
 
 			/* Characters distributed on the button */
-			_canvasWide->setTextColor(C_TEXT_MAIN);
+			_driver.canvas->setTextColor(C_TEXT_MAIN);
 			String chars = String(_keypadChars[btnIdx]);
 			int slotWidth = 35;
 			for (int j = 0; j < 4; j++) {
 				String singleChar = String(chars.charAt(j));
 				int16_t cbx, cby; uint16_t cbw, cbh;
-				_canvasWide->getTextBounds(singleChar, 0, 0, &cbx, &cby, &cbw, &cbh);
+				_driver.canvas->getTextBounds(singleChar, 0, 0, &cbx, &cby, &cbw, &cbh);
 				int charX = bx0 + (j * slotWidth) + ((slotWidth - cbw) / 2) - cbx;
-				_canvasWide->setCursor(charX, 31);
-				_canvasWide->print(singleChar);
+				_driver.canvas->setCursor(charX, 31);
+				_driver.canvas->print(singleChar);
 			}
 		}
-		blitCanvas(_canvasWide, 0, rowY, 320, 45);
+		blitCanvas(_driver.canvas, 0, rowY, 320, 45);
 	}
 }

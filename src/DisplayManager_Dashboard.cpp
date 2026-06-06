@@ -21,17 +21,17 @@
 void DisplayManager::fixCardCorners(int16_t x, int16_t y, int16_t w,
  int16_t h, int16_t r,
  uint16_t borderColor) {
- if (!_tft) return;
+ if (!_driver.tft) return;
  for (int16_t i = 0; i < r; i++) {
  int16_t span = (int16_t)(sqrtf(2.0f * r * i - (float)(i * i)) + 0.5f);
  int16_t gap = r - span;
  if (gap <= 0) continue;
- _tft->drawFastHLine(x, y + i, gap, C_BG_MAIN);
- _tft->drawFastHLine(x + w - gap, y + i, gap, C_BG_MAIN);
- _tft->drawFastHLine(x, y + h - 1 - i, gap, C_BG_MAIN);
- _tft->drawFastHLine(x + w - gap, y + h - 1 - i, gap, C_BG_MAIN);
+ _driver.tft->drawFastHLine(x, y + i, gap, C_BG_MAIN);
+ _driver.tft->drawFastHLine(x + w - gap, y + i, gap, C_BG_MAIN);
+ _driver.tft->drawFastHLine(x, y + h - 1 - i, gap, C_BG_MAIN);
+ _driver.tft->drawFastHLine(x + w - gap, y + h - 1 - i, gap, C_BG_MAIN);
  }
- _tft->drawRoundRect(x, y, w, h, r, borderColor);
+ _driver.tft->drawRoundRect(x, y, w, h, r, borderColor);
 }
 
 
@@ -131,7 +131,7 @@ void DisplayManager::maskStripCorners(GFXcanvas16* canvas,
 
 
 void DisplayManager::restoreNormalDashboard( ) {
- if (!_tft || !_canvasSmall || !_canvasWide) return;
+ if (!_driver.tft || !_driver.canvasSmall || !_driver.canvas) return;
  drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
  _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
  _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel);
@@ -145,11 +145,11 @@ void DisplayManager::restoreNormalDashboard( ) {
 void DisplayManager::drawInterfaceFixed( ) {
 
 
- _tft->fillScreen(C_BG_MAIN);
+ _driver.tft->fillScreen(C_BG_MAIN);
 }
 
 void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w, int16_t h) {
- if (!canvas || !_tft) return;
+ if (!canvas || !_driver.tft) return;
 
  /*
  * Applies LCD alignment offset explicitly here because the
@@ -160,26 +160,26 @@ void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
  * override IS called virtually, it won't apply the offset again (without
  * bypass a double offset would occur on libraries where dispatch works).
  */
- const int8_t ox = _tft->getOffsetX( );
- const int8_t oy = _tft->getOffsetY( );
+ const int8_t ox = _driver.tft->getOffsetX( );
+ const int8_t oy = _driver.tft->getOffsetY( );
  dstX += ox;
  dstY += oy;
 
  int16_t cw = canvas->width( );
- _tft->setOffsetBypass(true);
+ _driver.tft->setOffsetBypass(true);
  if (w == cw) {
- _tft->drawRGBBitmap(dstX, dstY, canvas->getBuffer( ), w, h);
+ _driver.tft->drawRGBBitmap(dstX, dstY, canvas->getBuffer( ), w, h);
  } else {
  uint16_t* buf = canvas->getBuffer( );
  for (int16_t row = 0; row < h; row++) {
- _tft->drawRGBBitmap(dstX, dstY + row, buf + (row * cw), w, 1);
+ _driver.tft->drawRGBBitmap(dstX, dstY + row, buf + (row * cw), w, 1);
  }
  }
- _tft->setOffsetBypass(false);
+ _driver.tft->setOffsetBypass(false);
 }
 
 /* Full-screen render via 40px strips.
- * Reuses `_canvasWide` (320x45, allocated at Core 1 boot for the dashboard top
+ * Reuses `_driver.canvas` (320x45, allocated at Core 1 boot for the dashboard top
  * bar). During full-screen renders (auth/settings/etc), the dashboard is not
  * active — canvas is free for reuse. Blits only 40 of the 45 canvas rows per
  * strip; 5 extra rows are ignored in the blit.
@@ -187,36 +187,36 @@ void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
  * No dynamic heap = zero risk of OOM/null-buffer crash. Telemetry runs
  * normally during render (free heap intact). */
 GFXcanvas16* DisplayManager::beginScreenRender( ) {
- if (!_canvasWide) return nullptr; /* Core 1 not initialized — unlikely during render */
- _canvasWide->fillScreen(C_BG_MAIN);
- return _canvasWide;
+ if (!_driver.canvas) return nullptr; /* Core 1 not initialized — unlikely during render */
+ _driver.canvas->fillScreen(C_BG_MAIN);
+ return _driver.canvas;
 }
 
 void DisplayManager::commitScreenStrip(int16_t stripIdx) {
- if (!_canvasWide || !_tft) return;
+ if (!_driver.canvas || !_driver.tft) return;
  int16_t stripY = stripIdx * RENDER_STRIP_H;
  /* Blit 40 of the 45 canvas rows (5 leftover ignored). */
- blitCanvas(_canvasWide, 0, stripY, 320, RENDER_STRIP_H);
+ blitCanvas(_driver.canvas, 0, stripY, 320, RENDER_STRIP_H);
  /* Clear for next strip to be drawn from scratch. Caller may overwrite. */
- _canvasWide->fillScreen(C_BG_MAIN);
+ _driver.canvas->fillScreen(C_BG_MAIN);
 }
 
 void DisplayManager::endScreenRender( ) {
- /* No-op: _canvasWide is persistent, nothing to free.
+ /* No-op: _driver.canvas is persistent, nothing to free.
  * Kept in API for consistency (caller still calls it at the end). */
 }
 
 void DisplayManager::drawTopBar(const SystemState& state) {
- if(!_canvasWide) return;
+ if(!_driver.canvas) return;
  const int W = 320, H = 29;
- _canvasWide->fillScreen(C_BG_MAIN);
+ _driver.canvas->fillScreen(C_BG_MAIN);
 
 
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(C_ACCENT);
- _canvasWide->setCursor(3, 20);
- _canvasWide->print("SIMUT");
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->setTextSize(1);
+ _driver.canvas->setTextColor(C_ACCENT);
+ _driver.canvas->setCursor(3, 20);
+ _driver.canvas->print("SIMUT");
 
 
  bool showingSilence = false;
@@ -227,10 +227,10 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  uint32_t remaining = (_alarmSilenceEnd - now) / 1000;
  char silBuf[32];
  snprintf(silBuf, sizeof(silBuf), "%s: %lus", tr(TR_SILENCED), (unsigned long)remaining);
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(RGB565(200, 100, 0));
- _canvasWide->setCursor(75, 20);
- _canvasWide->print(silBuf);
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->setTextColor(RGB565(200, 100, 0));
+ _driver.canvas->setCursor(75, 20);
+ _driver.canvas->print(silBuf);
  }
  }
 
@@ -240,12 +240,12 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  uint32_t elapsed = millis( ) - _webNotifyStartMs;
  if (elapsed < WEB_NOTIFY_DURATION_MS) {
  showingNotify = true;
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(C_ACCENT_HIGH);
- _canvasWide->setCursor(75, 20);
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->setTextColor(C_ACCENT_HIGH);
+ _driver.canvas->setCursor(75, 20);
  char notifyBuf[32];
  snprintf(notifyBuf, sizeof(notifyBuf), "Web: %s", _webNotifyUser);
- _canvasWide->print(notifyBuf);
+ _driver.canvas->print(notifyBuf);
  } else {
 
  _webNotifyStartMs = 0;
@@ -262,9 +262,9 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  * left and the time grows to the right, ensuring the text
  * does not jump when digits change.
  */
- _canvasWide->setTextSize(1);
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(C_TITLE_TEXT);
+ _driver.canvas->setTextSize(1);
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->setTextColor(C_TITLE_TEXT);
 
  /* Separate date and time by " - " */
  String fullTime = String(state.timeString);
@@ -276,9 +276,9 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  int16_t bx, by; uint16_t bw, bh;
  uint16_t sepW, dateW;
 
- _canvasWide->getTextBounds(" - ", 0, 0, &bx, &by, &bw, &bh);
+ _driver.canvas->getTextBounds(" - ", 0, 0, &bx, &by, &bw, &bh);
  sepW = bw;
- _canvasWide->getTextBounds(datePart, 0, 0, &bx, &by, &bw, &bh);
+ _driver.canvas->getTextBounds(datePart, 0, 0, &bx, &by, &bw, &bh);
  dateW = bw;
 
  /*
@@ -291,14 +291,14 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  int dateX = sepX - (int)dateW;
  int timeX = sepX + (int)sepW;
 
- _canvasWide->setCursor(dateX, 20);
- _canvasWide->print(datePart);
- _canvasWide->setTextColor(C_TEXT_SUB);
- _canvasWide->setCursor(sepX, 20);
- _canvasWide->print(" - ");
- _canvasWide->setTextColor(C_TITLE_TEXT);
- _canvasWide->setCursor(timeX, 20);
- _canvasWide->print(timePart);
+ _driver.canvas->setCursor(dateX, 20);
+ _driver.canvas->print(datePart);
+ _driver.canvas->setTextColor(C_TEXT_SUB);
+ _driver.canvas->setCursor(sepX, 20);
+ _driver.canvas->print(" - ");
+ _driver.canvas->setTextColor(C_TITLE_TEXT);
+ _driver.canvas->setCursor(timeX, 20);
+ _driver.canvas->print(timePart);
  }
 
 
@@ -345,10 +345,10 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  snprintf(pktBuf, sizeof(pktBuf), "%u", state.pendingPkts);
  }
 
- _canvasWide->setFont(&simutFont9pt);
+ _driver.canvas->setFont(&simutFont9pt);
 
  int16_t tx1, ty1; uint16_t tw, th;
- _canvasWide->getTextBounds(pktBuf, 0, 0, &tx1, &ty1, &tw, &th);
+ _driver.canvas->getTextBounds(pktBuf, 0, 0, &tx1, &ty1, &tw, &th);
 
  /*
  * Layout: [number][gapNum][arrow][gapWifi][wifi]
@@ -367,9 +367,9 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  int textX = arrowLeft - gapNumArrow - (int)tw;
 
  /* Number — fixed color based on status */
- _canvasWide->setTextColor(numColor);
- _canvasWide->setCursor(textX, 20);
- _canvasWide->print(pktBuf);
+ _driver.canvas->setTextColor(numColor);
+ _driver.canvas->setCursor(textX, 20);
+ _driver.canvas->print(pktBuf);
 
  /*
  * Right-pointing arrow:
@@ -382,8 +382,8 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  int tipX = shaftX + shaftW;
  int tipW = arrowTotalW - shaftW;
 
- _canvasWide->fillRect(shaftX, ay - 1, shaftW, 3, arrowColor);
- _canvasWide->fillTriangle(tipX, ay - 4,
+ _driver.canvas->fillRect(shaftX, ay - 1, shaftW, 3, arrowColor);
+ _driver.canvas->fillTriangle(tipX, ay - 4,
  tipX, ay + 4,
  tipX + tipW, ay,
  arrowColor);
@@ -402,16 +402,16 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  else barras = 1;
  }
  for (int i = 0; i < 4; i++) {
- _canvasWide->fillRect(xIcon + (i * 3), 20 - (4 + (i * 2)), 2, 4 + (i * 2),
+ _driver.canvas->fillRect(xIcon + (i * 3), 20 - (4 + (i * 2)), 2, 4 + (i * 2),
  (i < barras) ? C_TEMP_OK : C_BAR_BG);
  }
 
- blitCanvas(_canvasWide, 0, 0, W, H);
+ blitCanvas(_driver.canvas, 0, 0, W, H);
 }
 
 
 void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel) {
- if(!_canvasWide) return;
+ if(!_driver.canvas) return;
  int16_t x1, y1; uint16_t h_bound;
 
  /* Top panel at Y=35, bottom at Y=115 */
@@ -454,10 +454,10 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
  /* Blit 1: Name (20px) */
  {
- _canvasWide->fillScreen(panelBg);
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(txtSub);
+ _driver.canvas->fillScreen(panelBg);
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->setTextSize(1);
+ _driver.canvas->setTextColor(txtSub);
  const char* displayName = name;
  char buf[16];
  if (strlen(name) == 0) {
@@ -465,18 +465,18 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  displayName = buf;
  }
  int16_t nx1, ny1; uint16_t nw, nh;
- _canvasWide->getTextBounds(displayName, 0, 0, &nx1, &ny1, &nw, &nh);
- _canvasWide->setCursor((CARD_W - (int)nw) / 2, 15);
- _canvasWide->print(displayName);
- maskStripCorners(_canvasWide, 0, 20, CARD_W, CARD_H, CARD_R,
+ _driver.canvas->getTextBounds(displayName, 0, 0, &nx1, &ny1, &nw, &nh);
+ _driver.canvas->setCursor((CARD_W - (int)nw) / 2, 15);
+ _driver.canvas->print(displayName);
+ maskStripCorners(_driver.canvas, 0, 20, CARD_W, CARD_H, CARD_R,
  C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, cardY, CARD_W, 20);
+ blitCanvas(_driver.canvas, CARD_X, cardY, CARD_W, 20);
  }
 
  /* Blit 2: Min + Max together (43px) — driver-rendered */
  {
- _canvasWide->fillScreen(panelBg);
- sensorRenderMinMax(_canvasWide, type,
+ _driver.canvas->fillScreen(panelBg);
+ sensorRenderMinMax(_driver.canvas, type,
      panel.minTemp, panel.maxTemp, panel.minHum, panel.maxHum,
      isValid, CARD_W, isRedPhase, panelBg,
      simutFont9pt,
@@ -485,24 +485,24 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
      tr(TR_MIN_LBL), tr(TR_MAX_LBL), tr(TR_HUM_SUFFIX));
  /* Side borders (intermediate strip, no corners) */
  {
- uint16_t* buf = _canvasWide->getBuffer( );
- int stride = _canvasWide->width( );
+ uint16_t* buf = _driver.canvas->getBuffer( );
+ int stride = _driver.canvas->width( );
  for (int row = 0; row < 43; row++) {
  buf[row * stride] = borderColor;
  buf[row * stride + CARD_W - 1] = borderColor;
  }
  }
- blitCanvas(_canvasWide, CARD_X, cardY + 20, CARD_W, 43);
+ blitCanvas(_driver.canvas, CARD_X, cardY + 20, CARD_W, 43);
  }
 
 
 
  /* Blit 3: Bottom fill (12px) — with bottom corners + borders */
  {
- _canvasWide->fillScreen(panelBg);
- maskStripCorners(_canvasWide, 63, 12, CARD_W, CARD_H, CARD_R,
+ _driver.canvas->fillScreen(panelBg);
+ maskStripCorners(_driver.canvas, 63, 12, CARD_W, CARD_H, CARD_R,
  C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, cardY + 63, CARD_W, 12);
+ blitCanvas(_driver.canvas, CARD_X, cardY + 63, CARD_W, 12);
  }
 
  } else {
@@ -515,9 +515,9 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  * ============================================================= */
 
  if (forceNameRedraw) {
- _canvasWide->fillScreen(panelBg);
- _canvasWide->setFont(&simutFont9pt); _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(nameColor);
+ _driver.canvas->fillScreen(panelBg);
+ _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextSize(1);
+ _driver.canvas->setTextColor(nameColor);
  const char* displayName = name;
  char buf[16];
  if (strlen(name) == 0) {
@@ -525,42 +525,42 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  displayName = buf;
  }
  int16_t nx1, ny1; uint16_t nw, nh;
- _canvasWide->getTextBounds(displayName, 0, 0, &nx1, &ny1, &nw, &nh);
- _canvasWide->setCursor((CARD_W - (int)nw) / 2, 15);
- _canvasWide->print(displayName);
- maskStripCorners(_canvasWide, 0, 20, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, cardY, CARD_W, 20);
+ _driver.canvas->getTextBounds(displayName, 0, 0, &nx1, &ny1, &nw, &nh);
+ _driver.canvas->setCursor((CARD_W - (int)nw) / 2, 15);
+ _driver.canvas->print(displayName);
+ maskStripCorners(_driver.canvas, 0, 20, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
+ blitCanvas(_driver.canvas, CARD_X, cardY, CARD_W, 20);
  }
 
  /* Gap strip to center content (8px) */
  {
- _canvasWide->fillScreen(panelBg);
- uint16_t* buf = _canvasWide->getBuffer( );
- int stride = _canvasWide->width( );
+ _driver.canvas->fillScreen(panelBg);
+ uint16_t* buf = _driver.canvas->getBuffer( );
+ int stride = _driver.canvas->width( );
  for (int row = 0; row < 8; row++) {
  buf[row * stride] = borderColor;
  buf[row * stride + CARD_W - 1] = borderColor;
  }
- blitCanvas(_canvasWide, CARD_X, cardY + 20, CARD_W, 8);
+ blitCanvas(_driver.canvas, CARD_X, cardY + 20, CARD_W, 8);
  }
 
- _canvasWide->fillScreen(panelBg);
+ _driver.canvas->fillScreen(panelBg);
 
  if (!isValid) {
- _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextSize(1);
- _canvasWide->setTextColor(isRedPhase ? RGB565(255,255,255) : C_TEMP_HOT);
+ _driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextSize(1);
+ _driver.canvas->setTextColor(isRedPhase ? RGB565(255,255,255) : C_TEMP_HOT);
  int16_t ex1, ey1; uint16_t ew, eh;
- _canvasWide->getTextBounds(tr(TR_ERROR_LBL), 0, 0, &ex1, &ey1, &ew, &eh);
- _canvasWide->setCursor((CARD_W - (int)ew) / 2, 28);
- _canvasWide->print(tr(TR_ERROR_LBL));
+ _driver.canvas->getTextBounds(tr(TR_ERROR_LBL), 0, 0, &ex1, &ey1, &ew, &eh);
+ _driver.canvas->setCursor((CARD_W - (int)ew) / 2, 28);
+ _driver.canvas->print(tr(TR_ERROR_LBL));
  } else {
- _canvasWide->fillScreen(panelBg);
- sensorRenderPanel(_canvasWide, type, t, h, isValid, CARD_W, true,
+ _driver.canvas->fillScreen(panelBg);
+ sensorRenderPanel(_driver.canvas, type, t, h, isValid, CARD_W, true,
                    isRedPhase, panelBg,
                    simutFont24pt, simutFont12pt, simutFont9pt,
                    C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
- maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, cardY + 28, CARD_W, 40);
+ maskStripCorners(_driver.canvas, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
+ blitCanvas(_driver.canvas, CARD_X, cardY + 28, CARD_W, 40);
  goto _slot_bottom_fill;
 
  const int iconW = 20;
@@ -568,29 +568,29 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  const int unitGap = 3;
  const int dotGap = 4;
 
- _canvasWide->setFont(&simutFont24pt); _canvasWide->setTextSize(1);
+ _driver.canvas->setFont(&simutFont24pt); _driver.canvas->setTextSize(1);
 
  char intPart[10]; char decPart[5];
  bool isNan = isnan(t);
  uint16_t intW = 0, decW = 0;
 
  if (isNan) {
- _canvasWide->getTextBounds("--.-", 0, 0, &x1, &y1, &intW, &h_bound);
+ _driver.canvas->getTextBounds("--.-", 0, 0, &x1, &y1, &intW, &h_bound);
  decW = 0;
  } else {
  int fractional = abs((int)(t * 10) % 10);
  snprintf(intPart, sizeof(intPart), "%d", (int)t);
  snprintf(decPart, sizeof(decPart), ".%d", fractional);
- _canvasWide->getTextBounds(intPart, 0, 0, &x1, &y1, &intW, &h_bound);
- _canvasWide->getTextBounds(decPart, 0, 0, &x1, &y1, &decW, &h_bound);
+ _driver.canvas->getTextBounds(intPart, 0, 0, &x1, &y1, &intW, &h_bound);
+ _driver.canvas->getTextBounds(decPart, 0, 0, &x1, &y1, &decW, &h_bound);
  }
 
- _canvasWide->setFont(&simutFont9pt);
+ _driver.canvas->setFont(&simutFont9pt);
  uint16_t degW;
- _canvasWide->getTextBounds("o", 0, 0, &x1, &y1, &degW, &h_bound);
- _canvasWide->setFont(&simutFont12pt);
+ _driver.canvas->getTextBounds("o", 0, 0, &x1, &y1, &degW, &h_bound);
+ _driver.canvas->setFont(&simutFont12pt);
  uint16_t cW;
- _canvasWide->getTextBounds("C", 0, 0, &x1, &y1, &cW, &h_bound);
+ _driver.canvas->getTextBounds("C", 0, 0, &x1, &y1, &cW, &h_bound);
  int unitTotalW = (int)degW + 8 + (int)cW;
 
  int numW = (int)intW + (isNan ? 0 : dotGap + (int)decW);
@@ -601,44 +601,44 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  int numAnchorX = iconX + iconW + iconGap + (int)intW;
  int unitX;
 
- _canvasWide->setFont(&simutFont24pt);
+ _driver.canvas->setFont(&simutFont24pt);
  if (isNan) {
- _canvasWide->setTextColor(isRedPhase ? RGB565(200,180,180) : C_TEXT_OFF);
- _canvasWide->setCursor(iconX + iconW + iconGap, 35);
- _canvasWide->print("--.-");
+ _driver.canvas->setTextColor(isRedPhase ? RGB565(200,180,180) : C_TEXT_OFF);
+ _driver.canvas->setCursor(iconX + iconW + iconGap, 35);
+ _driver.canvas->print("--.-");
  unitX = iconX + iconW + iconGap + (int)intW + unitGap;
  } else {
- _canvasWide->setTextColor(isRedPhase ? RGB565(255,255,255) : C_TEMP_OK);
+ _driver.canvas->setTextColor(isRedPhase ? RGB565(255,255,255) : C_TEMP_OK);
  int numCursorX = numAnchorX - (int)intW;
- _canvasWide->setCursor(numCursorX, 35);
- _canvasWide->print(intPart);
+ _driver.canvas->setCursor(numCursorX, 35);
+ _driver.canvas->print(intPart);
  if (t < 0) {
  int16_t mx1, my1; uint16_t mw, mh;
- _canvasWide->getTextBounds("-", 0, 0, &mx1, &my1, &mw, &mh);
+ _driver.canvas->getTextBounds("-", 0, 0, &mx1, &my1, &mw, &mh);
  int eraseW = (int)mw / 3;
  if (eraseW < 2) eraseW = 2;
- _canvasWide->fillRect(numCursorX, 0, eraseW, 45, panelBg);
+ _driver.canvas->fillRect(numCursorX, 0, eraseW, 45, panelBg);
  }
- _canvasWide->setFont(&simutFont24pt);
- _canvasWide->setCursor(numAnchorX + dotGap, 35);
- _canvasWide->print(decPart);
+ _driver.canvas->setFont(&simutFont24pt);
+ _driver.canvas->setCursor(numAnchorX + dotGap, 35);
+ _driver.canvas->print(decPart);
  unitX = numAnchorX + dotGap + (int)decW + unitGap;
  }
 
- _canvasWide->setFont(&simutFont9pt); _canvasWide->setTextColor(unitColor);
- _canvasWide->setCursor(unitX, 17); _canvasWide->print("o");
- _canvasWide->setFont(&simutFont12pt);
- _canvasWide->setCursor(unitX + 8, 35); _canvasWide->print("C");
+ _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(unitColor);
+ _driver.canvas->setCursor(unitX, 17); _driver.canvas->print("o");
+ _driver.canvas->setFont(&simutFont12pt);
+ _driver.canvas->setCursor(unitX + 8, 35); _driver.canvas->print("C");
 
  /* --- Humidity --- */
  if (!isnan(h)) {
- _canvasWide->setFont(&simutFont12pt);
- _canvasWide->setTextColor(isRedPhase ? RGB565(255,255,255) : C_HUMIDITY);
- _canvasWide->setCursor(CARD_W - 56, 35);
- _canvasWide->print((int)h);
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setCursor(CARD_W - 22, 17);
- _canvasWide->print("%");
+ _driver.canvas->setFont(&simutFont12pt);
+ _driver.canvas->setTextColor(isRedPhase ? RGB565(255,255,255) : C_HUMIDITY);
+ _driver.canvas->setCursor(CARD_W - 56, 35);
+ _driver.canvas->print((int)h);
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->setCursor(CARD_W - 22, 17);
+ _driver.canvas->print("%");
  }
 
  /* Thermometer icon — drawn last (slot) */
@@ -646,25 +646,25 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  uint16_t ic = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_SUB;
  uint16_t merc = isRedPhase ? RGB565(255, 255, 255) : C_TEMP_HOT;
  int ix = iconX, iy = 4;
- _canvasWide->fillCircle(ix + 10, iy + 26, 7, ic);
- _canvasWide->fillRoundRect(ix + 6, iy, 8, 24, 4, ic);
- _canvasWide->fillRoundRect(ix + 8, iy + 2, 4, 20, 2, panelBg);
- _canvasWide->fillCircle(ix + 10, iy + 26, 5, panelBg);
- _canvasWide->fillRect(ix + 9, iy + 10, 2, 14, merc);
- _canvasWide->fillCircle(ix + 10, iy + 26, 4, merc);
- _canvasWide->fillCircle(ix + 10, iy + 2, 2, ic);
+ _driver.canvas->fillCircle(ix + 10, iy + 26, 7, ic);
+ _driver.canvas->fillRoundRect(ix + 6, iy, 8, 24, 4, ic);
+ _driver.canvas->fillRoundRect(ix + 8, iy + 2, 4, 20, 2, panelBg);
+ _driver.canvas->fillCircle(ix + 10, iy + 26, 5, panelBg);
+ _driver.canvas->fillRect(ix + 9, iy + 10, 2, 14, merc);
+ _driver.canvas->fillCircle(ix + 10, iy + 26, 4, merc);
+ _driver.canvas->fillCircle(ix + 10, iy + 2, 2, ic);
  }
  }
 
- maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, cardY + 28, CARD_W, 40);
+ maskStripCorners(_driver.canvas, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
+ blitCanvas(_driver.canvas, CARD_X, cardY + 28, CARD_W, 40);
 
 _slot_bottom_fill:
  /* Strip 4: Bottom fill (7px) */
  {
- _canvasWide->fillScreen(panelBg);
- maskStripCorners(_canvasWide, 68, 7, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, cardY + 68, CARD_W, 7);
+ _driver.canvas->fillScreen(panelBg);
+ maskStripCorners(_driver.canvas, 68, 7, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
+ blitCanvas(_driver.canvas, CARD_X, cardY + 68, CARD_W, 7);
  }
  }
 }
@@ -719,8 +719,8 @@ int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPa
 }
 
 void DisplayManager::drawBottomButtons(int selectedIdx, bool forceRedraw) {
- if(!_canvasWide) return;
- _canvasWide->fillScreen(C_BG_MAIN);
+ if(!_driver.canvas) return;
+ _driver.canvas->fillScreen(C_BG_MAIN);
  const int btnW = 58, gap = 5, xStart = 5, pitch = btnW + gap;
 
  DashBtn btns[5];
@@ -729,7 +729,7 @@ void DisplayManager::drawBottomButtons(int selectedIdx, bool forceRedraw) {
  int n = buildDashLayout(btns, &totalPages, &paging);
 
  /* Detects alarms in ACTIVE slots on other pages (to color the page btn) */
- if (!_sysConfigPtr) { blitCanvas(_canvasWide, 0, 195, 320, 41); return; }
+ if (!_sysConfigPtr) { blitCanvas(_driver.canvas, 0, 195, 320, 41); return; }
  SystemConfig &cfg = *_sysConfigPtr;
  bool hasAlarmsOnOtherPages = false;
  if (paging && _alarmSlotMask != 0) {
@@ -764,40 +764,40 @@ void DisplayManager::drawBottomButtons(int selectedIdx, bool forceRedraw) {
  bgColor = C_CARD_BG;
  txtColor = isSlotAlarming(realIdx) ? C_TEMP_HOT : C_BTN_TEXT;
  }
- _canvasWide->fillRoundRect(x, 0, btnW, 40, 12, bgColor);
- _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextSize(1); _canvasWide->setTextColor(txtColor);
+ _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, bgColor);
+ _driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextSize(1); _driver.canvas->setTextColor(txtColor);
  char label[8]; snprintf(label, sizeof(label), "S%d", realIdx);
  int16_t x1, y1; uint16_t w, h;
- _canvasWide->getTextBounds(label, 0, 0, &x1, &y1, &w, &h);
- _canvasWide->setCursor(x + (btnW - w)/2, 28);
- _canvasWide->print(label);
+ _driver.canvas->getTextBounds(label, 0, 0, &x1, &y1, &w, &h);
+ _driver.canvas->setCursor(x + (btnW - w)/2, 28);
+ _driver.canvas->print(label);
 
  } else if (b.kind == 1) { /* CFG */
- _canvasWide->fillRoundRect(x, 0, btnW, 40, 12, C_CARD_BG);
- _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextSize(1); _canvasWide->setTextColor(C_BTN_TEXT);
+ _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, C_CARD_BG);
+ _driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextSize(1); _driver.canvas->setTextColor(C_BTN_TEXT);
  int16_t x1, y1; uint16_t w, h;
- _canvasWide->getTextBounds("CFG", 0, 0, &x1, &y1, &w, &h);
- _canvasWide->setCursor(x + (btnW - w)/2, 28);
- _canvasWide->print("CFG");
+ _driver.canvas->getTextBounds("CFG", 0, 0, &x1, &y1, &w, &h);
+ _driver.canvas->setCursor(x + (btnW - w)/2, 28);
+ _driver.canvas->print("CFG");
 
  } else { /* PAGE */
  uint16_t pagTxtCol = C_BTN_TEXT;
  if (hasAlarmsOnOtherPages && _alarmFlashPhase) {
- _canvasWide->fillRoundRect(x, 0, btnW, 40, 12, RGB565(180, 30, 30));
+ _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, RGB565(180, 30, 30));
  pagTxtCol = RGB565(255, 255, 255);
  } else if (hasAlarmsOnOtherPages) {
- _canvasWide->fillRoundRect(x, 0, btnW, 40, 12, C_CARD_BG);
- _canvasWide->drawRoundRect(x, 0, btnW, 40, 12, RGB565(255, 60, 60));
+ _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, C_CARD_BG);
+ _driver.canvas->drawRoundRect(x, 0, btnW, 40, 12, RGB565(255, 60, 60));
  } else {
- _canvasWide->drawRoundRect(x, 0, btnW, 40, 12, C_TEXT_SUB);
+ _driver.canvas->drawRoundRect(x, 0, btnW, 40, 12, C_TEXT_SUB);
  }
  char pageStr[4]; snprintf(pageStr, sizeof(pageStr), "%d", _currentPage + 1);
  char totStr[4]; snprintf(totStr, sizeof(totStr), "/%d", totalPages);
- _canvasWide->setFont(&simutFont12pt); _canvasWide->setTextColor(pagTxtCol);
- _canvasWide->setCursor(x + 15, 28); _canvasWide->print(pageStr);
- _canvasWide->setFont(NULL); _canvasWide->setCursor(x + 35, 8); _canvasWide->print(totStr);
+ _driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextColor(pagTxtCol);
+ _driver.canvas->setCursor(x + 15, 28); _driver.canvas->print(pageStr);
+ _driver.canvas->setFont(NULL); _driver.canvas->setCursor(x + 35, 8); _driver.canvas->print(totStr);
  }
  }
  /* h=41 instead of 45 ensures 4 px bottom margin (y+h=236 <= 236). */
- blitCanvas(_canvasWide, 0, 195, 320, 41);
+ blitCanvas(_driver.canvas, 0, 195, 320, 41);
 }
