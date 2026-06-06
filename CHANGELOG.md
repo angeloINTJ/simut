@@ -2,6 +2,28 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.2.1-beta (2026-06-06)
+
+### Dual Independent Dash Panels
+
+- **Unified panel architecture** — Both dash panels use the same `drawSlotPanel()` function. The dedicated ambient panel (`drawAmbientPanel`) eliminated (~280 lines saved).
+- **Top panel: fixed/interactive modes** — Long-press (1s) toggles between fixed (pinned sensor, normal styling) and interactive mode (dark gray background + white elements, follows slot selector to choose which sensor to pin).
+- **Bottom panel: always interactive** — Short tap toggles min/max only. Always follows the bottom SLOT buttons.
+- **S10 button** — Added slot 10 (ambient DHT22 on GPIO 10) to the bottom button bar. Hidden when top panel is fixed on it.
+- **Min/max rendering moved to drivers** — `DS18B20_renderMinMax()` and `DHT22_renderMinMax()` in respective drivers, dispatched via `sensorRenderMinMax()`. Shared primitives in `SensorDrawing.h` reuse existing icons.
+- **Slot humidity min/max tracking** — Per-slot humidity arrays with real-time accumulation every loop cycle.
+- **Independent top panel data** — `topSlot*` fields in `SystemState` with dedicated `setTopSlotData()`/`setTopSlotMinMax()` setters.
+- **Instant panel updates** — Incremental render now compares `topSlot*` fields. `pullSnapshot()` keeps `topSlotIdx` synced for AppManager mirroring.
+- **Alarm flash fix** — Top panel alarm flash checks `isSlotAlarming(topSlotIdx)` instead of old ambient flags.
+- **Border color fix** — Normal mode content strip uses `borderColor` instead of hardcoded `C_TEXT_SUB`.
+- **Background fill fix** — Content strip uses `panelBg` instead of `C_BG_MAIN` for correct alarm red and selection mode gray.
+
+### Flash Budget
+
+| Configuration | Flash |
+|---|---|
+| Both sensors ON | 1030872 (98.7%) |
+
 ## v1.2.0-beta (2026-06-06)
 
 ### OTA Subsystem — Full Upgrade to v4.6.2
