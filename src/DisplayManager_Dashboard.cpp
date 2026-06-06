@@ -790,8 +790,7 @@ void DisplayManager::drawAmbientPanel(float t, float h, bool isValid) {
  char humBuffer[6];
  if (isnan(h)) snprintf(humBuffer, sizeof(humBuffer), "--");
  else snprintf(humBuffer, sizeof(humBuffer), "%d", (int)h);
- _canvasWide->getTextBounds(humBuffer, 0, 0, &x1, &y1, &w, &h_bound);
- _canvasWide->setCursor(humAnchor - w, 35);
+ _canvasWide->getTextBounds(humBuffer, 0, 0, &x1, &y1, &w, &h_bound); _canvasWide->setCursor(humAnchor - w, 35);
  _canvasWide->print(humBuffer);
  uint16_t pctCol = rightRed ? RGB565(220, 200, 200) : C_TEXT_MAIN;
  _canvasWide->setFont(&simutFont12pt);
@@ -1152,18 +1151,18 @@ void DisplayManager::drawSlotPanel(float t, float h, bool isValid, int slotIdx, 
  _canvasWide->setFont(&simutFont12pt);
  _canvasWide->setCursor(unitX + 8, 35); _canvasWide->print("C");
 
- /* Humidity — shown when slot sensor supports it */
+ /* --- Humidity --- */
  if (!isnan(h)) {
  _canvasWide->setFont(&simutFont12pt);
- _canvasWide->setTextColor(C_HUMIDITY);
- _canvasWide->setCursor(unitX + 24, 35);
+ _canvasWide->setTextColor(isRedPhase ? RGB565(255,255,255) : C_HUMIDITY);
+ _canvasWide->setCursor(CARD_W - 56, 35);
  _canvasWide->print((int)h);
  _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setCursor(unitX + 24 + ((int)h >= 100 ? 20 : (int)h >= 10 ? 12 : 6), 17);
+ _canvasWide->setCursor(CARD_W - 22, 17);
  _canvasWide->print("%");
  }
 
- /* Thermometer icon — drawn last */
+ /* Thermometer icon — drawn last (slot) */
  {
  uint16_t ic = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_SUB;
  uint16_t merc = isRedPhase ? RGB565(255, 255, 255) : C_TEMP_HOT;
