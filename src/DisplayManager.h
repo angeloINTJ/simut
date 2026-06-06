@@ -443,8 +443,9 @@ private:
 	 /* Always sync topSlotIdx based on fixed/interactive */
 	 _sharedState.topSlotIdx = (_topPanel.fixed && _topPanel.fixedIdx >= 0)
 	                         ? _topPanel.fixedIdx : _sharedState.selectedSlotIdx;
-	 /* When interactive or uninitialized, mirror slot* data immediately */
-	 if (!_topPanel.fixed || !_sharedState.topSlotValid) {
+	 /* Mirror slot* data when interactive, uninitialized, or showing same sensor */
+	 if (!_topPanel.fixed || !_sharedState.topSlotValid ||
+	     _sharedState.topSlotIdx == _sharedState.selectedSlotIdx) {
 	 _sharedState.topSlotTemp = _sharedState.slotTemp;
 	 _sharedState.topSlotHum  = _sharedState.slotHum;
 	 _sharedState.topSlotType = _sharedState.slotType;
