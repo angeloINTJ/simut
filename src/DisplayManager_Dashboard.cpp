@@ -135,10 +135,10 @@ void DisplayManager::restoreNormalDashboard( ) {
  drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
  _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
  _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel);
- drawSlotPanel(_lastRenderedState.bottomSlotTemp, _lastRenderedState.bottomSlotHum, _lastRenderedState.bottomSlotType,
- _lastRenderedState.bottomSlotValid,
- _lastRenderedState.bottomSlotIdx,
- _lastRenderedState.bottomSlotName, true, _bottomPanel);
+ drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotType,
+ _lastRenderedState.slotValid,
+ _lastRenderedState.selectedSlotIdx,
+ _lastRenderedState.slotName, true, _bottomPanel);
  drawBottomButtons(_lastRenderedState.selectedSlotIdx, true);
 }
 
