@@ -689,6 +689,11 @@ void DisplayManager::loopCore1( ) {
 
 				mutex_enter_blocking(&_stateMutex);
 				snap = _sharedState;
+				if (!snap.topSlotValid) {
+				snap.topSlotTemp = snap.slotTemp; snap.topSlotHum = snap.slotHum;
+				snap.topSlotType = snap.slotType; snap.topSlotValid = snap.slotValid;
+				safeCopy(snap.topSlotName, snap.slotName, 31);
+				}
 				_isDirty = false;
 				mutex_exit(&_stateMutex);
 
@@ -920,7 +925,13 @@ bool DisplayManager::pullSnapshot(SystemState& localSnapshot) {
 }
 
 void DisplayManager::render(const SystemState& state) {
-	if (state.isBooting) {
+ SystemState st = state;
+ if (!st.topSlotValid) {
+ st.topSlotTemp = st.slotTemp; st.topSlotHum = st.slotHum;
+ st.topSlotType = st.slotType; st.topSlotValid = st.slotValid;
+ safeCopy(st.topSlotName, st.slotName, 31);
+ st.topSlotIdx = st.selectedSlotIdx;
+ }	if (state.isBooting) {
 		/* _langChanged forces fullRedraw to retranslate bootLogs already
 		 * shown in EN before .lng loaded. */
 		bool langJustChanged = _langChanged;
@@ -1014,7 +1025,7 @@ void DisplayManager::render(const SystemState& state) {
 		drawTopBar(state);
 
 
-		drawSlotPanel(state.topSlotTemp, state.topSlotHum, state.topSlotType, state.topSlotValid, state.topSlotIdx, state.topSlotName, true, _topPanel);
+		drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel);
 		drawSlotPanel(state.slotTemp, state.slotHum, state.slotType, state.slotValid, state.selectedSlotIdx, state.slotName, true, _bottomPanel);
 		drawBottomButtons(state.selectedSlotIdx, true);
 		_forceFullRedraw = false;
@@ -1038,7 +1049,7 @@ void DisplayManager::render(const SystemState& state) {
 		if (abs(state.ambientTemp - _lastRenderedState.ambientTemp) > 0.01 ||
 		    abs(state.ambientHum - _lastRenderedState.ambientHum) > 0.01 ||
 		    state.ambientValid != _lastRenderedState.ambientValid) {
-			drawSlotPanel(state.topSlotTemp, state.topSlotHum, state.topSlotType, state.topSlotValid, state.topSlotIdx, state.topSlotName, true, _topPanel);
+			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel);
 		}
 	}
 
@@ -1047,7 +1058,7 @@ void DisplayManager::render(const SystemState& state) {
 	    timeSince(_lastTouchTime, 30000)) {
 		if (_topPanel.showMinMax) {
 			_topPanel.showMinMax = false;
-			drawSlotPanel(state.topSlotTemp, state.topSlotHum, state.topSlotType, state.topSlotValid, state.topSlotIdx, state.topSlotName, true, _topPanel);
+			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel);
 		}
 		if (_bottomPanel.showMinMax) {
 			_bottomPanel.showMinMax = false;
@@ -1074,7 +1085,7 @@ void DisplayManager::render(const SystemState& state) {
 	    _alarmAmbientHum != _prevAlarmAmbHum) {
 		drawBottomButtons(state.selectedSlotIdx, true);
 		if (!_topPanel.showMinMax) {
-			drawSlotPanel(state.topSlotTemp, state.topSlotHum, state.topSlotType, state.topSlotValid, state.topSlotIdx, state.topSlotName, true, _topPanel);
+			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel);
 		}
 		if (!_bottomPanel.showMinMax) {
 			drawSlotPanel(state.slotTemp, state.slotHum, state.slotType, state.slotValid,
