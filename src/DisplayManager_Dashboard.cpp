@@ -427,9 +427,9 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  bool isSelecting = (&panel == &_topPanel && !_topPanel.fixed);
  if (isSelecting) {
  panelBg = RGB565(50, 50, 55);
- isRedPhase = false;
+ isRedPhase = true;  /* white rendering like alarm mode */
  nameColor = RGB565(255, 255, 255);
- unitColor = RGB565(220, 220, 225);
+ unitColor = RGB565(255, 255, 255);
  }
 
  /* Dash panel card with double border. Top=Y35, Bottom=Y115. */
