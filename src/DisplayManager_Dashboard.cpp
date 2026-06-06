@@ -678,14 +678,22 @@ int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPa
 
  if (!_sysConfigPtr) return 0;
  SystemConfig &cfg = *_sysConfigPtr;
- DashBtn all[11];
+ DashBtn all[12];
  int total = 0;
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) {
+ /* Hide button when top panel is fixed on this sensor */
+ if (_topPanel.fixed && _topPanel.fixedIdx == i) continue;
  all[total].kind = 0;
  all[total].slotId = (int8_t)i;
  total++;
  }
+ }
+ /* S10: ambient/board sensor */
+ if (!(_topPanel.fixed && _topPanel.fixedIdx == 10)) {
+ all[total].kind = 0;
+ all[total].slotId = 10;
+ total++;
  }
  all[total].kind = 1; /* CFG always present */
  all[total].slotId = -1;
