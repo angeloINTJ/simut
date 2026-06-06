@@ -77,6 +77,7 @@ static int wrapLineCount(const char* text, int maxCols) {
 }
 
 
+#if !SIMUT_DISPLAY_ALPHA
 static void renderWrapped(Adafruit_ILI9341* tft, const char* text,
                            int x0, int y0, int maxCols, int lineH,
                            int skip, int maxVis) {
@@ -105,6 +106,8 @@ static void renderWrapped(Adafruit_ILI9341* tft, const char* text,
 		col += wlen;
 	}
 }
+
+#endif // !SIMUT_DISPLAY_ALPHA
 
 static DisplayManager* _instance = nullptr;
 
@@ -450,6 +453,7 @@ bool DisplayManager::isSkipPressed( ) {
 	return false;
 }
 
+#if !SIMUT_DISPLAY_ALPHA
 bool DisplayManager::isScreenTouched( ) {
  /* Read PENIRQ directly: LOW = touched, HIGH = idle.
   * Works before Core 1 is running (no SPI/lib needed). */
@@ -619,6 +623,7 @@ void DisplayManager::releaseQuietMode( ) {
 	/* Core 1 will set _core1Ready=true after victim_init in loopCore1. */
 }
 
+#if !SIMUT_DISPLAY_ALPHA
 void DisplayManager::loopCore1( ) {
 
 	multicore_lockout_victim_init( );
@@ -915,6 +920,8 @@ void DisplayManager::loopCore1( ) {
 	}
 }
 
+#endif // !SIMUT_DISPLAY_ALPHA
+
 bool DisplayManager::pullSnapshot(SystemState& localSnapshot) {
 	bool updated = false;
 
@@ -935,6 +942,9 @@ bool DisplayManager::pullSnapshot(SystemState& localSnapshot) {
 	return updated;
 }
 
+#endif // !SIMUT_DISPLAY_ALPHA
+
+#if !SIMUT_DISPLAY_ALPHA
 void DisplayManager::render(const SystemState& state) {
  SystemState st = state;
  if (!st.topSlotValid) {
@@ -1137,6 +1147,7 @@ void DisplayManager::setWebNotification(const char* username) {
 /* Real-time system status */
 
 
+#if !SIMUT_DISPLAY_ALPHA
 void DisplayManager::showSettingsLicense( ) {
 	mutex_enter_blocking(&_stateMutex);
 	_uiMode = MODE_SETTINGS_LICENSE;
@@ -1224,3 +1235,5 @@ void DisplayManager::drawSettingsLicense( ) {
 
 	_forceSettingsRedraw = false;
 }
+#endif // !SIMUT_DISPLAY_ALPHA
+#endif // !SIMUT_DISPLAY_ALPHA

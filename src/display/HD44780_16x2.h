@@ -16,6 +16,7 @@
  */
 #pragma once
 #include <Arduino.h>
+class Adafruit_GFX;
 
 /* ── Interface selection ───────────────────────────────────────────── */
 
@@ -71,10 +72,10 @@ struct Hd44780_16x2 {
 	static constexpr int16_t height = 2;
 
 	/* No pixel framebuffer */
-	void*   canvas      = nullptr;
-	void*   canvasSmall = nullptr;
-	void*   gfx( ) { return nullptr; }
-	void*   tft( ) { return nullptr; }
+	Adafruit_GFX* tft        = nullptr;
+	Adafruit_GFX* canvas      = nullptr;
+	Adafruit_GFX* canvasSmall = nullptr;
+	Adafruit_GFX* gfx( ) { return tft; }
 
 	/* ── Lifecycle ───────────────────────────────────────────────── */
 
@@ -198,6 +199,3 @@ private:
 	}
 };
 
-/* ── Convenience typedef ────────────────────────────────────────────── */
-
-typedef Hd44780_16x2 DisplayDriver;
