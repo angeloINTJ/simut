@@ -435,12 +435,20 @@ private:
 	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel);
 	void drawBottomButtons(int selectedIdx, bool forceRedraw);
 
-	/** Redraws top panel. Syncs topSlotIdx from fixed/interactive mode. */
+	/** Redraws top panel. Syncs topSlotIdx + copies slot*→topSlot* if uninitialized. */
 	void redrawTopPanel( ) {
 	 SystemState snap;
 	 mutex_enter_blocking(&_stateMutex);
 	 _sharedState.topSlotIdx = (_topPanel.fixed && _topPanel.fixedIdx >= 0)
 	                         ? _topPanel.fixedIdx : _sharedState.selectedSlotIdx;
+	 /* Fallback: mirror slot* data when topSlot* hasn't been populated yet */
+	 if (!_sharedState.topSlotValid) {
+	 _sharedState.topSlotTemp = _sharedState.slotTemp;
+	 _sharedState.topSlotHum  = _sharedState.slotHum;
+	 _sharedState.topSlotType = _sharedState.slotType;
+	 _sharedState.topSlotValid = _sharedState.slotValid;
+	 safeCopy(_sharedState.topSlotName, _sharedState.slotName, 31);
+	 }
 	 snap = _sharedState;
 	 mutex_exit(&_stateMutex);
 	 drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,

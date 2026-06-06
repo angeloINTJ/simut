@@ -414,6 +414,8 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  if(!_canvasWide) return;
  int16_t x1, y1; uint16_t h_bound;
 
+ /* Top panel at Y=35, bottom at Y=115 */
+ int16_t cardY = (&panel == &_topPanel) ? 35 : 115;
 
  uint16_t panelBg = slotAlarmBg(slotIdx);
  bool isRedPhase = _alarmFlashPhase && isSlotAlarming(slotIdx) && !_alarmSilenced;
@@ -422,10 +424,8 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  if (isSlotAlarming(slotIdx)) forceNameRedraw = true;
 
 
- /* Selected slot card (second panel with double border of the dashboard),
- * positioned below the ambient card. Same 4 px horizontal inset
- * to ensure 4 px margin on each side. */
- static constexpr int16_t CARD_X = 4, CARD_Y = 115;
+ /* Dash panel card with double border. Top=Y35, Bottom=Y115. */
+ static constexpr int16_t CARD_X = 4;
  static constexpr int16_t CARD_W = 312, CARD_H = 75, CARD_R = 12;
 
 
@@ -461,7 +461,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  _canvasWide->print(displayName);
  maskStripCorners(_canvasWide, 0, 20, CARD_W, CARD_H, CARD_R,
  C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
+ blitCanvas(_canvasWide, CARD_X, cardY, CARD_W, 20);
  }
 
  /* Blit 2: Min + Max together (43px) — driver-rendered */
@@ -483,7 +483,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  buf[row * stride + CARD_W - 1] = borderColor;
  }
  }
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 20, CARD_W, 43);
+ blitCanvas(_canvasWide, CARD_X, cardY + 20, CARD_W, 43);
  }
 
 
@@ -493,7 +493,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  _canvasWide->fillScreen(panelBg);
  maskStripCorners(_canvasWide, 63, 12, CARD_W, CARD_H, CARD_R,
  C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 63, CARD_W, 12);
+ blitCanvas(_canvasWide, CARD_X, cardY + 63, CARD_W, 12);
  }
 
  } else {
@@ -520,7 +520,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  _canvasWide->setCursor((CARD_W - (int)nw) / 2, 15);
  _canvasWide->print(displayName);
  maskStripCorners(_canvasWide, 0, 20, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y, CARD_W, 20);
+ blitCanvas(_canvasWide, CARD_X, cardY, CARD_W, 20);
  }
 
  /* Gap strip to center content (8px) */
@@ -532,7 +532,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  buf[row * stride] = borderColor;
  buf[row * stride + CARD_W - 1] = borderColor;
  }
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 20, CARD_W, 8);
+ blitCanvas(_canvasWide, CARD_X, cardY + 20, CARD_W, 8);
  }
 
  _canvasWide->fillScreen(panelBg);
@@ -552,7 +552,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
                    C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
  maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN,
                   isRedPhase ? RGB565(200,0,0) : C_TEXT_SUB);
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
+ blitCanvas(_canvasWide, CARD_X, cardY + 28, CARD_W, 40);
  goto _slot_bottom_fill;
 
  const int iconW = 20;
@@ -649,14 +649,14 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  }
 
  maskStripCorners(_canvasWide, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 28, CARD_W, 40);
+ blitCanvas(_canvasWide, CARD_X, cardY + 28, CARD_W, 40);
 
 _slot_bottom_fill:
  /* Strip 4: Bottom fill (7px) */
  {
  _canvasWide->fillScreen(panelBg);
  maskStripCorners(_canvasWide, 68, 7, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
- blitCanvas(_canvasWide, CARD_X, CARD_Y + 68, CARD_W, 7);
+ blitCanvas(_canvasWide, CARD_X, cardY + 68, CARD_W, 7);
  }
  }
 }
