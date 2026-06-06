@@ -109,7 +109,7 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
         cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
         cv->getTextBounds(dP, 0, 0, &xx, &yy, &decW, &ih);
 
-        /* Centered layout */
+        /* Exact original drawSlotPanel centering: iconW=20 + gap=8 + numW(iw+4+decW) + gap=3 + unitW=16 */
         int totalW = 20 + 8 + ((int)iw + 4 + (int)decW) + 3 + 16;
         int offsetX = (cardW - totalW) / 2;
         int textAnchor = offsetX + 20 + 8 + (int)iw;
