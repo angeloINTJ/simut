@@ -554,7 +554,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  _canvasWide->setCursor((CARD_W - (int)ew) / 2, 28);
  _canvasWide->print(tr(TR_ERROR_LBL));
  } else {
- _canvasWide->fillScreen(C_BG_MAIN);
+ _canvasWide->fillScreen(panelBg);
  sensorRenderPanel(_canvasWide, type, t, h, isValid, CARD_W, true,
                    isRedPhase, panelBg,
                    simutFont24pt, simutFont12pt, simutFont9pt,
