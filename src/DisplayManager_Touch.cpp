@@ -34,14 +34,7 @@ void DisplayManager::handleTouch( ) {
  }
  if (_bottomPanel.holdStart != 0 && !_bottomPanel.holdFired && _lastTouchRegion == 1) {
  _bottomPanel.showMinMax = !_bottomPanel.showMinMax;
- {
- SystemState snap;
- mutex_enter_blocking(&_stateMutex);
- snap = _sharedState;
- mutex_exit(&_stateMutex);
- drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
- snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
- }
+ redrawBottomPanel( );
  }
  _topPanel.holdStart = 0; _topPanel.holdFired = false;
  _bottomPanel.holdStart = 0; _bottomPanel.holdFired = false;
@@ -420,14 +413,7 @@ void DisplayManager::handleTouch( ) {
  _bottomPanel.fixed = !_bottomPanel.fixed;
  if (_bottomPanel.fixed && _bottomPanel.fixedIdx < 0)
  _bottomPanel.fixedIdx = _sharedState.selectedSlotIdx;
- {
- SystemState snap;
- mutex_enter_blocking(&_stateMutex);
- snap = _sharedState;
- mutex_exit(&_stateMutex);
- drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
- snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
- }
+ redrawBottomPanel( );
  return;
  }
 
@@ -461,14 +447,7 @@ void DisplayManager::handleTouch( ) {
  _bottomPanel.fixed = !_bottomPanel.fixed;
  if (_bottomPanel.fixed && _bottomPanel.fixedIdx < 0)
  _bottomPanel.fixedIdx = _sharedState.selectedSlotIdx;
- {
- SystemState snap;
- mutex_enter_blocking(&_stateMutex);
- snap = _sharedState;
- mutex_exit(&_stateMutex);
- drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
- snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
- }
+ redrawBottomPanel( );
  }
  return;
  }

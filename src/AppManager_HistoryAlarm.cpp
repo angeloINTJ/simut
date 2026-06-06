@@ -49,6 +49,7 @@ void AppManager::refreshSelectedSlot( ) {
  for (const auto &s : sensors) {
  if (s.config.pins[0] != 10 && s.config.pins[0] == targetGpio) {
  _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setBottomSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  found = true;
  /* Top panel interactive: mirror same data */
  if (_displayMgr->getTopSlotIdx( ) == _currentSensorIdx)
@@ -59,6 +60,7 @@ void AppManager::refreshSelectedSlot( ) {
  }
  } else if (_currentSensorIdx == 10) {
  _displayMgr->setSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)"); found = true;
+ _displayMgr->setBottomSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
  if (_displayMgr->getTopSlotIdx( ) == 10)
  _displayMgr->setTopSlotData(analogReadTemp( ), NAN, TYPE_NONE, true, 10, "Board (Internal)");
  }

@@ -103,6 +103,7 @@ struct SystemState {
 	float ambientTemp; float ambientHum; bool ambientValid; SensorType ambientType;
 	float slotTemp; float slotHum; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
 	float topSlotTemp; float topSlotHum; bool topSlotValid; SensorType topSlotType; int topSlotIdx; char topSlotName[32];
+	float bottomSlotTemp; float bottomSlotHum; bool bottomSlotValid; SensorType bottomSlotType; int bottomSlotIdx; char bottomSlotName[32];
 	int wifiRssi; bool btActive; char timeString[24];
 	uint16_t pendingPkts;
 	bool isBooting; BootLogEntry bootLogs[5]; bool showSkipButton; int apProgressPct;
@@ -148,6 +149,7 @@ public:
 	void setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
 	void setSlotMinMax(float minT, float maxT, float minH, float maxH);
  void setTopSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
+ void setBottomSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
  void setTopSlotMinMax(float minT, float maxT, float minH, float maxH);
 	int getTopSlotIdx( ) { int idx; mutex_enter_blocking(&_stateMutex); idx = _sharedState.topSlotIdx; mutex_exit(&_stateMutex); return idx; }
 	void setSystemStatus(int rssi, bool bt, String timeStr);
@@ -435,14 +437,15 @@ private:
 	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel);
 	void drawBottomButtons(int selectedIdx, bool forceRedraw);
 
-	/** Redraws top panel. Syncs topSlotIdx + copies slot*→topSlot* if uninitialized. */
+	/** Redraws top panel. Syncs topSlotIdx + data from current mode. */
 	void redrawTopPanel( ) {
 	 SystemState snap;
 	 mutex_enter_blocking(&_stateMutex);
+	 /* Always sync topSlotIdx based on fixed/interactive */
 	 _sharedState.topSlotIdx = (_topPanel.fixed && _topPanel.fixedIdx >= 0)
 	                         ? _topPanel.fixedIdx : _sharedState.selectedSlotIdx;
-	 /* Fallback: mirror slot* data when topSlot* hasn't been populated yet */
-	 if (!_sharedState.topSlotValid) {
+	 /* When interactive or uninitialized, mirror slot* data immediately */
+	 if (!_topPanel.fixed || !_sharedState.topSlotValid) {
 	 _sharedState.topSlotTemp = _sharedState.slotTemp;
 	 _sharedState.topSlotHum  = _sharedState.slotHum;
 	 _sharedState.topSlotType = _sharedState.slotType;
@@ -453,6 +456,26 @@ private:
 	 mutex_exit(&_stateMutex);
 	 drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
 	               snap.topSlotIdx, snap.topSlotName, true, _topPanel);
+	}
+
+	/** Redraws bottom panel — syncs bottomSlotIdx from fixed/interactive mode. */
+	void redrawBottomPanel( ) {
+	 SystemState snap;
+	 mutex_enter_blocking(&_stateMutex);
+	 _sharedState.bottomSlotIdx = (_bottomPanel.fixed && _bottomPanel.fixedIdx >= 0)
+	                            ? _bottomPanel.fixedIdx : _sharedState.selectedSlotIdx;
+	 /* When interactive or uninitialized, mirror slot* data */
+	 if (!_bottomPanel.fixed || !_sharedState.bottomSlotValid) {
+	 _sharedState.bottomSlotTemp = _sharedState.slotTemp;
+	 _sharedState.bottomSlotHum  = _sharedState.slotHum;
+	 _sharedState.bottomSlotType = _sharedState.slotType;
+	 _sharedState.bottomSlotValid = _sharedState.slotValid;
+	 safeCopy(_sharedState.bottomSlotName, _sharedState.slotName, 31);
+	 }
+	 snap = _sharedState;
+	 mutex_exit(&_stateMutex);
+	 drawSlotPanel(snap.bottomSlotTemp, snap.bottomSlotHum, snap.bottomSlotType, snap.bottomSlotValid,
+	               snap.bottomSlotIdx, snap.bottomSlotName, true, _bottomPanel);
 	}
 
 	/** Dynamic dashboard layout: omits inactive slots and the pagination
