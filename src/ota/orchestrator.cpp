@@ -10,7 +10,7 @@
 #include "orchestrator.h"
 #include "metadata.h"
 #include "applier.h"
-#include "../../StorageManager.h"
+#include "StorageManager.h"
 
 #include <Arduino.h>
 #include <WiFi.h>
