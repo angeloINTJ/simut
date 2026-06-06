@@ -141,15 +141,15 @@ void DisplayManager::redrawAlarmFlash( ) {
 	if (!_tft || !_canvasSmall || !_canvasWide) return;
 
 	if (_alarmAmbientTemp || _alarmAmbientHum) {
-		drawAmbientPanel(_lastRenderedState.ambientTemp,
-		                 _lastRenderedState.ambientHum, _lastRenderedState.ambientType,
-		                 _lastRenderedState.ambientValid);
+		drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
+		                 _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
+		                 _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel);
 	}
 
 	int sel = _lastRenderedState.selectedSlotIdx;
 	if (isSlotAlarming(sel)) {
 		drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotType, _lastRenderedState.slotValid,
-		              sel, _lastRenderedState.slotName, true);
+		              sel, _lastRenderedState.slotName, true, _bottomPanel);
 	}
 
 

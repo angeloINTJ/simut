@@ -27,6 +27,25 @@ void DisplayManager::handleTouch( ) {
  /* Finger released — enables next single touch */
  _touchReleased = true;
 
+ /* Short tap on top panel (release before 1s): toggle min/max */
+ if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0) {
+ _topPanel.showMinMax = !_topPanel.showMinMax;
+ redrawTopPanel( );
+ }
+ if (_bottomPanel.holdStart != 0 && !_bottomPanel.holdFired && _lastTouchRegion == 1) {
+ _bottomPanel.showMinMax = !_bottomPanel.showMinMax;
+ {
+ SystemState snap;
+ mutex_enter_blocking(&_stateMutex);
+ snap = _sharedState;
+ mutex_exit(&_stateMutex);
+ drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
+ snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
+ }
+ }
+ _topPanel.holdStart = 0; _topPanel.holdFired = false;
+ _bottomPanel.holdStart = 0; _bottomPanel.holdFired = false;
+
  /*
  * Release detection during hold-and-release calibration.
  * If the user held the point for the minimum time, records the
@@ -345,40 +364,76 @@ void DisplayManager::handleTouch( ) {
 
  if (_uiMode == MODE_DASHBOARD) {
  if (y > 35 && y < 110) {
- if (!acceptTouch(0)) return;
+ bool firstTouch = acceptTouch(0);
 
- /* Right corner: graph button (priority over alarm) */
- if (_ambientShowMinMax && x > 266) {
- _ambientShowMinMax = false;
+ /* Mode indicator tap [Amb]/[Sx] (right corner, x > 280): immediate toggle */
+ if (firstTouch && x > 280) {
+ _topPanel.fixed = !_topPanel.fixed;
+ if (_topPanel.fixed && _topPanel.fixedIdx < 0)
+ _topPanel.fixedIdx = _sharedState.selectedSlotIdx;
+ redrawTopPanel( );
+ return;
+ }
+
+ /* Right corner: graph button (priority over alarm) — touch-down immediate */
+ if (_topPanel.showMinMax && x > 266 && firstTouch) {
+ _topPanel.showMinMax = false;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = -1; ev.param = 0;
  queue_try_add(&_eventQueue, &ev);
  return;
  }
 
- if (_alarmAmbientTemp || _alarmAmbientHum) {
+ /* Alarm action on touch-down */
+ if (firstTouch && (_alarmAmbientTemp || _alarmAmbientHum)) {
  showAlarmAction(-1);
  return;
  }
 
- /* Toggle between normal mode and min/max mode */
- _ambientShowMinMax = !_ambientShowMinMax;
+ if (firstTouch) {
+ /* Start hold tracking — action deferred to release or 1s timeout */
+ _topPanel.holdStart = millis();
+ _topPanel.holdFired = false;
+ return;
+ }
+
+ /* Holding: check long-press (1s) for ambient ↔ slot toggle */
+ if (!_topPanel.holdFired && _lastTouchRegion == 0 &&
+ _topPanel.holdStart != 0 &&
+ millis() - _topPanel.holdStart >= 1000) {
+ _topPanel.holdFired = true;
+ _touchSoundPending = true;
+ _topPanel.fixed = !_topPanel.fixed;
+ if (_topPanel.fixed && _topPanel.fixedIdx < 0)
+ _topPanel.fixedIdx = _sharedState.selectedSlotIdx;
+ redrawTopPanel( );
+ }
+ return;
+ }
+ if (y > 115 && y < 190) {
+ bool firstTouch = acceptTouch(1);
+ int sensorIdToGraph = -1;
+ if (_sharedState.selectedSlotIdx >= 0 && _sharedState.selectedSlotIdx <= 10)
+ sensorIdToGraph = _sharedState.selectedSlotIdx;
+
+ /* Mode indicator tap (right corner, x > 280): immediate toggle */
+ if (firstTouch && x > 280) {
+ _bottomPanel.fixed = !_bottomPanel.fixed;
+ if (_bottomPanel.fixed && _bottomPanel.fixedIdx < 0)
+ _bottomPanel.fixedIdx = _sharedState.selectedSlotIdx;
  {
  SystemState snap;
  mutex_enter_blocking(&_stateMutex);
  snap = _sharedState;
  mutex_exit(&_stateMutex);
- drawAmbientPanel(snap.ambientTemp, snap.ambientHum, snap.ambientType, snap.ambientValid);
+ drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
+ snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
  }
  return;
  }
- if (y > 115 && y < 190) {
- if (!acceptTouch(1)) return;
- int sensorIdToGraph = -1;
- if (_sharedState.selectedSlotIdx >= 0 && _sharedState.selectedSlotIdx <= 10) sensorIdToGraph = _sharedState.selectedSlotIdx;
 
  /* Right corner: graph button (priority over alarm) */
- if (_slotShowMinMax && x > 266) {
- _slotShowMinMax = false;
+ if (_bottomPanel.showMinMax && x > 266 && firstTouch) {
+ _bottomPanel.showMinMax = false;
  if (sensorIdToGraph != -1) {
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = sensorIdToGraph; ev.param = 0;
  queue_try_add(&_eventQueue, &ev);
@@ -386,20 +441,34 @@ void DisplayManager::handleTouch( ) {
  return;
  }
 
- if (sensorIdToGraph >= 0 && isSlotAlarming(sensorIdToGraph)) {
+ if (firstTouch && sensorIdToGraph >= 0 && isSlotAlarming(sensorIdToGraph)) {
  showAlarmAction((int8_t)sensorIdToGraph);
  return;
  }
 
- /* Toggle between normal mode and min/max mode */
- _slotShowMinMax = !_slotShowMinMax;
+ if (firstTouch) {
+ _bottomPanel.holdStart = millis();
+ _bottomPanel.holdFired = false;
+ return;
+ }
+
+ /* Holding: check long-press (1s) for fixed/interactive toggle */
+ if (!_bottomPanel.holdFired && _lastTouchRegion == 1 &&
+ _bottomPanel.holdStart != 0 &&
+ millis() - _bottomPanel.holdStart >= 1000) {
+ _bottomPanel.holdFired = true;
+ _touchSoundPending = true;
+ _bottomPanel.fixed = !_bottomPanel.fixed;
+ if (_bottomPanel.fixed && _bottomPanel.fixedIdx < 0)
+ _bottomPanel.fixedIdx = _sharedState.selectedSlotIdx;
  {
  SystemState snap;
  mutex_enter_blocking(&_stateMutex);
  snap = _sharedState;
  mutex_exit(&_stateMutex);
  drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid,
- snap.selectedSlotIdx, snap.slotName, true);
+ snap.selectedSlotIdx, snap.slotName, true, _bottomPanel);
+ }
  }
  return;
  }
@@ -425,7 +494,8 @@ void DisplayManager::handleTouch( ) {
  }
  /* SLOT */
  if (!acceptSlideTouch(10 + b.slotId)) return;
- _slotShowMinMax = false;
+ _bottomPanel.showMinMax = false;
+ if (_topPanel.fixed) _topPanel.fixedIdx = b.slotId;
  drawBottomButtons(b.slotId, false);
  UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = b.slotId;
  queue_try_add(&_eventQueue, &ev);
@@ -1605,9 +1675,9 @@ void DisplayManager::handleTouch( ) {
  if (!acceptTouch(2)) return;
  /* Return to dashboard with the panel in min/max mode */
  if (_alarmActionSlot < 0) {
- _ambientShowMinMax = true;
+ _topPanel.showMinMax = true;
  } else {
- _slotShowMinMax = true;
+ _bottomPanel.showMinMax = true;
  }
  _uiMode = MODE_DASHBOARD;
  _forceFullRedraw = true;

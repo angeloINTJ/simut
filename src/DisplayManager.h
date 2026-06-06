@@ -102,6 +102,7 @@ struct BootLogEntry {
 struct SystemState {
 	float ambientTemp; float ambientHum; bool ambientValid; SensorType ambientType;
 	float slotTemp; float slotHum; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
+	float topSlotTemp; float topSlotHum; bool topSlotValid; SensorType topSlotType; int topSlotIdx; char topSlotName[32];
 	int wifiRssi; bool btActive; char timeString[24];
 	uint16_t pendingPkts;
 	bool isBooting; BootLogEntry bootLogs[5]; bool showSkipButton; int apProgressPct;
@@ -146,6 +147,9 @@ public:
 	void setAmbientMinMax(float minT, float maxT, float minH, float maxH);
 	void setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
 	void setSlotMinMax(float minT, float maxT, float minH, float maxH);
+ void setTopSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
+ void setTopSlotMinMax(float minT, float maxT, float minH, float maxH);
+	int getTopSlotIdx( ) { int idx; mutex_enter_blocking(&_stateMutex); idx = _sharedState.topSlotIdx; mutex_exit(&_stateMutex); return idx; }
 	void setSystemStatus(int rssi, bool bt, String timeStr);
 
 	/** Boot status: stores a TR key (resolved at render via tr()) plus
@@ -375,18 +379,20 @@ private:
 	volatile bool _alarmAmbientHum = false;
 
 	/* Ambient panel: normal vs min/max mode */
-	bool _ambientShowMinMax = false;
-	bool _ambientLastMinMax = false; /* tracks previous mode for cleanup */
-	float _ambMinTemp = NAN, _ambMaxTemp = NAN;
-	float _ambMinHum = NAN, _ambMaxHum = NAN;
+/* Panel state — each dash panel has its own mode + min/max tracking */
+ struct DashPanel {
+ bool fixed = false;        // true=pinado, false=interativo
+ int8_t fixedIdx = -1;      // sensor pinado
+ bool showMinMax = false;   // min/max mode active
+ bool lastMinMax = false;   // transition tracking
+ float minTemp = NAN, maxTemp = NAN;
+ float minHum  = NAN, maxHum  = NAN;
+ uint32_t holdStart = 0;    // long-press timestamp
+ bool holdFired = false;    // long-press already fired
+ };
+ DashPanel _topPanel, _bottomPanel;
 
-	/* Slot panel: normal vs min/max mode */
-	bool _slotShowMinMax = false;
-	bool _slotLastMinMax = false; /* tracks previous mode for cleanup */
-	float _slotMinTemp = NAN, _slotMaxTemp = NAN;
-	float _slotMinHum = NAN, _slotMaxHum = NAN;
-
-	bool _alarmFlashPhase = false;
+ bool _alarmFlashPhase = false;
 	uint32_t _alarmFlashTimer = 0;
 	uint32_t _alarmRotateTimer = 0;
 	uint16_t _prevAlarmSlotMask = 0; /* tracks changes to redraw buttons */
@@ -426,8 +432,20 @@ private:
 	void drawInterfaceFixed( );
 	void drawTopBar(const SystemState& state);
 	void drawAmbientPanel(float t, float h, SensorType type, bool isValid);
-	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw);
+	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel);
 	void drawBottomButtons(int selectedIdx, bool forceRedraw);
+
+	/** Redraws top panel. Syncs topSlotIdx from fixed/interactive mode. */
+	void redrawTopPanel( ) {
+	 SystemState snap;
+	 mutex_enter_blocking(&_stateMutex);
+	 _sharedState.topSlotIdx = (_topPanel.fixed && _topPanel.fixedIdx >= 0)
+	                         ? _topPanel.fixedIdx : _sharedState.selectedSlotIdx;
+	 snap = _sharedState;
+	 mutex_exit(&_stateMutex);
+	 drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
+	               snap.topSlotIdx, snap.topSlotName, true, _topPanel);
+	}
 
 	/** Dynamic dashboard layout: omits inactive slots and the pagination
 	 * button when all buttons fit on one line. Shared between
