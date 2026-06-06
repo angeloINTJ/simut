@@ -38,7 +38,7 @@ void DisplayManager::setGraphNavOffset(int offset) {
 
 
 void DisplayManager::drawCalendarScreen( ) {
- if (!_canvasWide) return;
+ if (!_driver.canvas) return;
 
  const char* monthNames[] = {
  "Jan","Fev","Mar","Abr","Mai","Jun",
@@ -70,7 +70,7 @@ void DisplayManager::drawCalendarScreen( ) {
  nowTm.tm_mon + 1 == _calMonth) ? nowTm.tm_mday : -1;
 
  /* ═══ STRIP RENDERING ═══ */
- GFXcanvas16* cv = _canvasWide;
+ GFXcanvas16* cv = _driver.canvas;
  const int sH = 45;
 
  for (int s = 0; s * sH < 195; s++) {

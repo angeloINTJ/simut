@@ -79,7 +79,7 @@ void DisplayManager::showSettingsLang(int currentLang) {
 }
 
 void DisplayManager::drawSettingsLang( ) {
- if (!_canvasWide) return;
+ if (!_driver.canvas) return;
 
  bool fullRedraw = _forceSettingsRedraw;
  bool pageChanged = (_langPage != _lastLangPage);
@@ -103,43 +103,43 @@ void DisplayManager::drawSettingsLang( ) {
 
 
  if (fullRedraw) {
- _tft->fillScreen(C_BG_MAIN);
+ _driver.tft->fillScreen(C_BG_MAIN);
 
 
- _tft->fillRect(4, 4, 312, 32, C_CARD_BG);
- _tft->setFont(&simutFont9pt);
- _tft->setTextColor(C_TEXT_MAIN);
- _tft->setCursor(10, 22);
- _tft->print(tr(TR_CONFIG_LANG));
+ _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
+ _driver.tft->setFont(&simutFont9pt);
+ _driver.tft->setTextColor(C_TEXT_MAIN);
+ _driver.tft->setCursor(10, 22);
+ _driver.tft->print(tr(TR_CONFIG_LANG));
 
 
  int btnY = 195; int btnH = 40;
  int16_t bx, by; uint16_t bw, bh;
 
 
- _tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
- _tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
+ _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
+ _driver.tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
 
 
- _tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
- _tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
+ _driver.tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
+ _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
 
 
- _tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
- _tft->setFont(&simutFont9pt);
- _tft->setTextColor(C_TEXT_MAIN);
+ _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
+ _driver.tft->setFont(&simutFont9pt);
+ _driver.tft->setTextColor(C_TEXT_MAIN);
  String backTxt = tr(TR_BACK);
- _tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- _tft->setCursor(141 + (75 - bw) / 2, btnY + 25);
- _tft->print(backTxt);
+ _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
+ _driver.tft->setCursor(141 + (75 - bw) / 2, btnY + 25);
+ _driver.tft->print(backTxt);
 
 
- _tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
- _tft->setTextColor(C_BG_MAIN);
+ _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
+ _driver.tft->setTextColor(C_BG_MAIN);
  String appTxt = tr(TR_APPLY);
- _tft->getTextBounds(appTxt, 0, 0, &bx, &by, &bw, &bh);
- _tft->setCursor(222 + (93 - bw) / 2, btnY + 25);
- _tft->print(appTxt);
+ _driver.tft->getTextBounds(appTxt, 0, 0, &bx, &by, &bw, &bh);
+ _driver.tft->setCursor(222 + (93 - bw) / 2, btnY + 25);
+ _driver.tft->print(appTxt);
  }
 
 
@@ -147,8 +147,8 @@ void DisplayManager::drawSettingsLang( ) {
  int trackX = 302; int trackY = 40;
  int trackW = 8; int trackH = 146;
 
- _tft->fillRoundRect(trackX, trackY, trackW, trackH, 4, C_CARD_BG);
- _tft->drawRoundRect(trackX, trackY, trackW, trackH, 4, C_TEXT_SUB);
+ _driver.tft->fillRoundRect(trackX, trackY, trackW, trackH, 4, C_CARD_BG);
+ _driver.tft->drawRoundRect(trackX, trackY, trackW, trackH, 4, C_TEXT_SUB);
 
  int thumbH = trackH / totalPages;
  if (thumbH < 20) thumbH = 20;
@@ -156,7 +156,7 @@ void DisplayManager::drawSettingsLang( ) {
  if (totalPages > 1) {
  thumbY += (_langPage * (trackH - thumbH)) / (totalPages - 1);
  }
- _tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
+ _driver.tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
  }
 
 
@@ -173,7 +173,7 @@ void DisplayManager::drawSettingsLang( ) {
  if (actualIdx != _previewLangIdx && actualIdx != _lastPreviewLangIdx) continue;
  }
 
- _canvasWide->fillScreen(C_BG_MAIN);
+ _driver.canvas->fillScreen(C_BG_MAIN);
 
  if (actualIdx < activeSlots) {
  bool isSelected = (actualIdx == _previewLangIdx);
@@ -181,28 +181,28 @@ void DisplayManager::drawSettingsLang( ) {
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
 
 
- _canvasWide->fillRoundRect(0, 0, itemW, 34, 8, bg);
- if (!isSelected) _canvasWide->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+ _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
+ if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
 
 
- _canvasWide->setFont(&simutFont9pt);
- _canvasWide->setTextColor(txt);
- _canvasWide->setCursor(10, 24);
- _canvasWide->print(actualIdx == LANG_EN ? "English" : slot1Name);
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->setTextColor(txt);
+ _driver.canvas->setCursor(10, 24);
+ _driver.canvas->print(actualIdx == LANG_EN ? "English" : slot1Name);
 
  /* Code right-aligned: measure text width and position cursor so
  * the last letter is 10px from the right edge. Previously cursor
  * was fixed at (itemW-35) -> long codes like "pt-BR" went off screen. */
  const char* code = (actualIdx == LANG_EN) ? "EN" : slot1Code;
  int16_t cbx, cby; uint16_t cbw, cbh;
- _canvasWide->getTextBounds(code, 0, 0, &cbx, &cby, &cbw, &cbh);
+ _driver.canvas->getTextBounds(code, 0, 0, &cbx, &cby, &cbw, &cbh);
  int codeX = itemW - (int)cbw - 10;
  if (codeX < 100) codeX = 100;
- _canvasWide->setCursor(codeX, 24);
- _canvasWide->print(code);
+ _driver.canvas->setCursor(codeX, 24);
+ _driver.canvas->print(code);
  }
 
- blitCanvas(_canvasWide, 10, y, itemW, 34);
+ blitCanvas(_driver.canvas, 10, y, itemW, 34);
  }
 
 

@@ -19,9 +19,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Adafruit_GFX.h>
-#include <Adafruit_ILI9341.h>
-#include "TftWithOffset.h"
-#include <XPT2046_Touchscreen.h>
+#include "DisplayDriver.h"
 #include "pico/mutex.h"
 #include "pico/multicore.h"
 #include "pico/util/queue.h"
@@ -519,10 +517,7 @@ private:
 	 * `if (!_tft) _tft = new ...` in loopCore1 skip allocation (garbage usually
 	 * evaluates to true). _tft/_ts would point to garbage and the first
 	 * _ts->begin() or _tft->begin() would hang Core 1. */
-	TftWithOffset* _tft = nullptr;
-	XPT2046_Touchscreen* _ts = nullptr;
-	GFXcanvas16* _canvasWide = nullptr;
-	GFXcanvas16* _canvasSmall = nullptr;
+	DisplayDriver _driver;
 
 	/* Full-screen render reuses `_canvasWide` (320x45)
 	 * which already exists for the dashboard. During full-screen (auth/settings/etc),

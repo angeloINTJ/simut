@@ -454,7 +454,7 @@ bool DisplayManager::isScreenTouched( ) {
  /* Read PENIRQ directly: LOW = touched, HIGH = idle.
   * Works before Core 1 is running (no SPI/lib needed). */
  if (!gpio_get(TOUCH_IRQ)) return true;
- if (_ts) return _ts->touched( );
+ if (_driver.ts) return _driver.ts->touched( );
  return _rawTouchState;
 }
 
@@ -630,22 +630,22 @@ void DisplayManager::loopCore1( ) {
 	 * reinit, touch stops responding after the first save.
 	 * TFT begin() does HW reset of ILI9341 (visible white flash); skipped
 	 * on subsequent launches. */
-	if (!_tft) _tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
-	if (!_ts) _ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
-	if (!_canvasWide) _canvasWide = new GFXcanvas16(320, 45);
-	if (!_canvasSmall) _canvasSmall = new GFXcanvas16(140, 40);
+	if (!_driver.tft) _driver.tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
+	if (!_driver.ts) _driver.ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
+	if (!_driver.canvas) _driver.canvas = new GFXcanvas16(320, 45);
+	if (!_driver.canvasSmall) _driver.canvasSmall = new GFXcanvas16(140, 40);
 
 	/* Touch: reattach IRQ every launch (Core 1's NVIC was zeroed). */
-	_ts->begin( );
-	_ts->setRotation(3);
+	_driver.ts->begin( );
+	_driver.ts->setRotation(3);
 
-	if (_tftFirstInit) {
-		_tft->begin( );
-		_tft->setRotation(3);
-		_tft->fillScreen(C_BG_MAIN);
+	if (_driver.firstInit) {
+		_driver.tft->begin( );
+		_driver.tft->setRotation(3);
+		_driver.tft->fillScreen(C_BG_MAIN);
 		if (!_sharedState.isBooting) drawInterfaceFixed( );
 		_lastRenderedState.selectedSlotIdx = -1;
-		_tftFirstInit = false;
+		_driver.firstInit = false;
 	} else {
 		/* Post-reset resume: TFT retains last frame (ILI9341 memory).
 		 * Force delta render on next iteration to update data. */
@@ -670,7 +670,7 @@ void DisplayManager::loopCore1( ) {
 		 * handleTouch and mapTouchPoint check _simTouchActive to use
 		 * synthesized screen-space coords. Allows CLI 'touch sim X Y'
 		 * for automation (screenshot capture). */
-		_rawTouchState = _ts->touched( ) ||
+		_rawTouchState = _driver.ts->touched( ) ||
 		                 __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
 
 		/* Process touch BEFORE rendering for same-frame response */
@@ -683,14 +683,14 @@ void DisplayManager::loopCore1( ) {
 			mutex_exit(&_stateMutex);
 
 			if (!snap.isBooting) {
-				_tft->fillScreen(C_BG_MAIN);
-				_tft->setFont(&simutFont12pt);
-				_tft->setTextColor(C_TEXT_MAIN);
+				_driver.tft->fillScreen(C_BG_MAIN);
+				_driver.tft->setFont(&simutFont12pt);
+				_driver.tft->setTextColor(C_TEXT_MAIN);
 				int16_t x1, y1; uint16_t w, h;
 				String msg = tr(TR_APPLYING_THEME);
-				_tft->getTextBounds(msg, 0, 0, &x1, &y1, &w, &h);
-				_tft->setCursor(160 - (w/2), 127);
-				_tft->print(msg);
+				_driver.tft->getTextBounds(msg, 0, 0, &x1, &y1, &w, &h);
+				_driver.tft->setCursor(160 - (w/2), 127);
+				_driver.tft->print(msg);
 				delay(200);
 
 				mutex_enter_blocking(&_stateMutex);
@@ -711,7 +711,7 @@ void DisplayManager::loopCore1( ) {
 				_lastRenderedState = snap;
 				_uiMode = MODE_DASHBOARD;
 			} else {
-				_tft->fillScreen(C_BG_MAIN);
+				_driver.tft->fillScreen(C_BG_MAIN);
 				_lastRenderedState.isBooting = false;
 
 				mutex_enter_blocking(&_stateMutex);
@@ -952,13 +952,13 @@ void DisplayManager::render(const SystemState& state) {
 		                  (_lastRenderedState.apProgressPct != state.apProgressPct) ||
 		                  langJustChanged;
 		if (state.apProgressPct >= 0) {
-			if (fullRedraw) _tft->fillScreen(C_BG_MAIN);
-			_tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_MAIN);
-			_tft->setCursor(55, 120); _tft->print(tr(TR_AP_MODE));
-			_tft->drawRoundRect(40, 140, 240, 20, 6, C_TEXT_SUB);
+			if (fullRedraw) _driver.tft->fillScreen(C_BG_MAIN);
+			_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
+			_driver.tft->setCursor(55, 120); _driver.tft->print(tr(TR_AP_MODE));
+			_driver.tft->drawRoundRect(40, 140, 240, 20, 6, C_TEXT_SUB);
 			int wBar = map(state.apProgressPct, 0, 100, 0, 236);
 			if (wBar > 0) {
-				_tft->fillRoundRect(42, 142, wBar, 16, 4, C_ACCENT);
+				_driver.tft->fillRoundRect(42, 142, wBar, 16, 4, C_ACCENT);
 			}
 			_lastRenderedState = state;
 			return;
@@ -967,36 +967,36 @@ void DisplayManager::render(const SystemState& state) {
 		int boxY = 105;
 
 		if (fullRedraw) {
-			_tft->fillScreen(C_BG_MAIN);
-			_tft->setFont(&simutFont24pt); _tft->setTextColor(C_TEXT_MAIN);
+			_driver.tft->fillScreen(C_BG_MAIN);
+			_driver.tft->setFont(&simutFont24pt); _driver.tft->setTextColor(C_TEXT_MAIN);
 			int16_t x1, y1; uint16_t w, h;
-			_tft->getTextBounds("SIMUT", 0, 0, &x1, &y1, &w, &h);
-			_tft->setCursor((320 - w) / 2, 60); _tft->print("SIMUT");
-			_tft->setFont(&simutFont9pt); _tft->setTextColor(C_ACCENT);
-			_tft->getTextBounds(SIMUT_VERSION, 0, 0, &x1, &y1, &w, &h);
-			_tft->setCursor((320 - w) / 2, 85); _tft->print(SIMUT_VERSION);
+			_driver.tft->getTextBounds("SIMUT", 0, 0, &x1, &y1, &w, &h);
+			_driver.tft->setCursor((320 - w) / 2, 60); _driver.tft->print("SIMUT");
+			_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_ACCENT);
+			_driver.tft->getTextBounds(SIMUT_VERSION, 0, 0, &x1, &y1, &w, &h);
+			_driver.tft->setCursor((320 - w) / 2, 85); _driver.tft->print(SIMUT_VERSION);
 
-			_tft->fillRoundRect(10, boxY, 300, 80, 8, C_CARD_BG);
-			_tft->drawRoundRect(10, boxY, 300, 80, 8, C_TEXT_OFF);
-			_tft->setFont(NULL);
-			_tft->setTextSize(1);
-			_tft->setTextColor(C_ACCENT_HIGH, C_CARD_BG);
-			_tft->setCursor(20, boxY + 8);
-			_tft->print("> system_init( ) ");
+			_driver.tft->fillRoundRect(10, boxY, 300, 80, 8, C_CARD_BG);
+			_driver.tft->drawRoundRect(10, boxY, 300, 80, 8, C_TEXT_OFF);
+			_driver.tft->setFont(NULL);
+			_driver.tft->setTextSize(1);
+			_driver.tft->setTextColor(C_ACCENT_HIGH, C_CARD_BG);
+			_driver.tft->setCursor(20, boxY + 8);
+			_driver.tft->print("> system_init( ) ");
 		}
 		/* Per-line diff: only repaints lines that changed. Boot logs are
 		 * BootLogEntry (key + suffix). In render, we resolve tr(key) +
 		 * suffix. Comparison includes key, suffix AND active language
 		 * (langJustChanged -> fullRedraw). */
-		_tft->setFont(NULL);
-		_tft->setTextSize(1);
-		_tft->setTextColor(C_TEXT_SUB, C_CARD_BG);
+		_driver.tft->setFont(NULL);
+		_driver.tft->setTextSize(1);
+		_driver.tft->setTextColor(C_TEXT_SUB, C_CARD_BG);
 		for(int i=0; i<5; i++) {
 			const BootLogEntry& cur = state.bootLogs[i];
 			const BootLogEntry& prev = _lastRenderedState.bootLogs[i];
 			if (!fullRedraw && cur.key == prev.key &&
 			    strncmp(cur.suffix, prev.suffix, sizeof(cur.suffix)) == 0) continue;
-			_tft->setCursor(20, boxY + 22 + (i*10));
+			_driver.tft->setCursor(20, boxY + 22 + (i*10));
 			String logLine;
 			if (cur.key >= 0 && cur.key < (int16_t)TR_KEYS_COUNT) {
 				logLine = tr((LangKey)cur.key);
@@ -1005,21 +1005,21 @@ void DisplayManager::render(const SystemState& state) {
 				logLine = cur.suffix; /* raw legacy */
 			}
 			while(logLine.length( ) < 46) logLine += " ";
-			_tft->print(logLine);
+			_driver.tft->print(logLine);
 		}
 
 		/* Skip button: paint only on off->on transition. Idempotent otherwise. */
 		bool skipOn = state.showSkipButton;
 		bool wasOn = _lastRenderedState.showSkipButton;
 		if (skipOn && (fullRedraw || !wasOn)) {
-			_tft->fillRoundRect(80, 195, 160, 35, 8, C_ACCENT_HIGH);
-			_tft->setFont(&simutFont9pt); _tft->setTextColor(C_BG_MAIN);
+			_driver.tft->fillRoundRect(80, 195, 160, 35, 8, C_ACCENT_HIGH);
+			_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_BG_MAIN);
 			int16_t x1, y1; uint16_t w, h;
 			const char* skipLabel = tr(TR_SKIP);
-			_tft->getTextBounds(skipLabel, 0, 0, &x1, &y1, &w, &h);
-			_tft->setCursor(80 + (160 - w)/2, 218); _tft->print(skipLabel);
+			_driver.tft->getTextBounds(skipLabel, 0, 0, &x1, &y1, &w, &h);
+			_driver.tft->setCursor(80 + (160 - w)/2, 218); _driver.tft->print(skipLabel);
 		} else if (!skipOn && (fullRedraw || wasOn)) {
-			_tft->fillRect(80, 195, 160, 35, C_BG_MAIN);
+			_driver.tft->fillRect(80, 195, 160, 35, C_BG_MAIN);
 		}
 
 		_lastRenderedState = state;
@@ -1169,57 +1169,57 @@ void DisplayManager::drawSettingsLicense( ) {
 	if (_licensePage < 0) _licensePage = 0;
 
 	if (fullRedraw) {
-		_tft->fillScreen(C_BG_MAIN);
+		_driver.tft->fillScreen(C_BG_MAIN);
 
 		/* Header with title and page counter */
-		_tft->fillRect(4, 4, 312, 32, C_CARD_BG);
-		_tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_MAIN);
-		_tft->setCursor(10, 22); _tft->print(tr(TR_LICENSE_TITLE));
+		_driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
+		_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
+		_driver.tft->setCursor(10, 22); _driver.tft->print(tr(TR_LICENSE_TITLE));
 
 		char pgBuf[8];
 		snprintf(pgBuf, sizeof(pgBuf), "%d/%d", _licensePage + 1, _licenseTotalPages);
 		int16_t px, py; uint16_t pw, ph;
-		_tft->getTextBounds(pgBuf, 0, 0, &px, &py, &pw, &ph);
-		_tft->setTextColor(C_TEXT_SUB);
-		_tft->setCursor(310 - (int)pw, 22); _tft->print(pgBuf);
+		_driver.tft->getTextBounds(pgBuf, 0, 0, &px, &py, &pw, &ph);
+		_driver.tft->setTextColor(C_TEXT_SUB);
+		_driver.tft->setCursor(310 - (int)pw, 22); _driver.tft->print(pgBuf);
 
 		/* Bottom buttons */
 		int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
 
-		_tft->fillRoundRect(5, btnY, 100, btnH, 8, C_CARD_BG);
-		_tft->fillTriangle(55, btnY + 12, 45, btnY + 26, 65, btnY + 26, C_TEXT_MAIN);
+		_driver.tft->fillRoundRect(5, btnY, 100, btnH, 8, C_CARD_BG);
+		_driver.tft->fillTriangle(55, btnY + 12, 45, btnY + 26, 65, btnY + 26, C_TEXT_MAIN);
 
-		_tft->fillRoundRect(110, btnY, 100, btnH, 8, C_CARD_BG);
-		_tft->fillTriangle(160, btnY + 26, 150, btnY + 12, 170, btnY + 12, C_TEXT_MAIN);
+		_driver.tft->fillRoundRect(110, btnY, 100, btnH, 8, C_CARD_BG);
+		_driver.tft->fillTriangle(160, btnY + 26, 150, btnY + 12, 170, btnY + 12, C_TEXT_MAIN);
 
-		_tft->fillRoundRect(215, btnY, 100, btnH, 8, C_ACCENT);
-		_tft->setTextColor(C_BG_MAIN);
+		_driver.tft->fillRoundRect(215, btnY, 100, btnH, 8, C_ACCENT);
+		_driver.tft->setTextColor(C_BG_MAIN);
 		String backTxt = tr(TR_BACK);
-		_tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
-		_tft->setCursor(215 + (100 - bw) / 2, btnY + 25); _tft->print(backTxt);
+		_driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
+		_driver.tft->setCursor(215 + (100 - bw) / 2, btnY + 25); _driver.tft->print(backTxt);
 	}
 
 	/* Clear text area */
-	_tft->fillRect(0, TEXT_Y0, 320, MAX_VIS * LINE_H, C_BG_MAIN);
-	_tft->setFont(NULL); _tft->setTextSize(1);
-	_tft->setTextColor(C_TEXT_SUB);
+	_driver.tft->fillRect(0, TEXT_Y0, 320, MAX_VIS * LINE_H, C_BG_MAIN);
+	_driver.tft->setFont(NULL); _driver.tft->setTextSize(1);
+	_driver.tft->setTextColor(C_TEXT_SUB);
 
 	/* Render current page */
 	int startLine = _licensePage * MAX_VIS;
-	renderWrapped(_tft, licText, 10, TEXT_Y0, MAX_COLS, LINE_H,
+	renderWrapped(_driver.tft, licText, 10, TEXT_Y0, MAX_COLS, LINE_H,
 	              startLine, MAX_VIS);
 
 	/* "N/M" counter in the top right corner already indicates current page. */
 
 	/* Update counter in header (without redrawing everything) */
 	if (!fullRedraw) {
-		_tft->fillRect(240, 6, 75, 22, C_CARD_BG);
-		_tft->setFont(&simutFont9pt); _tft->setTextColor(C_TEXT_SUB);
+		_driver.tft->fillRect(240, 6, 75, 22, C_CARD_BG);
+		_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_SUB);
 		char pgBuf[8];
 		snprintf(pgBuf, sizeof(pgBuf), "%d/%d", _licensePage + 1, _licenseTotalPages);
 		int16_t px, py; uint16_t pw, ph;
-		_tft->getTextBounds(pgBuf, 0, 0, &px, &py, &pw, &ph);
-		_tft->setCursor(310 - (int)pw, 22); _tft->print(pgBuf);
+		_driver.tft->getTextBounds(pgBuf, 0, 0, &px, &py, &pw, &ph);
+		_driver.tft->setCursor(310 - (int)pw, 22); _driver.tft->print(pgBuf);
 	}
 
 	_forceSettingsRedraw = false;
