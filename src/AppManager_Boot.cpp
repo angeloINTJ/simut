@@ -34,12 +34,16 @@ extern AppManager app;
 
 /* BOOT_LOG fan-out to both Serial USB CDC and UART1 raw.
  * File-scope static helpers allow inlining at the callsite to save flash.
- * UART1 uses arduino-pico Serial2 = GP8/GP9. */
-static inline void boot_uart_init( ) {
+ * UART1 uses arduino-pico Serial2 = GP8/GP9.
+ * Alpha display (parallel mode) uses GPIO 8/9 for HD44780 D6/D5 — UART1 disabled. */
+#if SIMUT_DISPLAY_TFT
+/* ── TFT build: UART1 active on GPIO 8/9 ─────────────────────────── */
+static inline void _uart_init( ) {
  uart_init(uart1, 115200);
  gpio_set_function(8, GPIO_FUNC_UART); /* TX (UART1) */
  gpio_set_function(9, GPIO_FUNC_UART); /* RX (UART1) */
 }
+static inline void _uart_mark(char c) { uart_putc_raw(uart1, c); }
 static void _bu_str(const char* s) {
  while (*s) uart_putc_raw(uart1, *s++);
 }
@@ -52,6 +56,14 @@ static void _bu_u32(uint32_t v) {
 #define BLOG(s) do { Serial.print(s); _bu_str(s); } while(0)
 #define BLOG_U(v) do { uint32_t _vv=(uint32_t)(v); Serial.print(_vv); _bu_u32(_vv); } while(0)
 #define BLOG_NL( ) do { Serial.print('\n'); uart_putc_raw(uart1, '\n'); } while(0)
+#else
+/* ── Alpha build: UART1 disabled to free GPIO 8/9 for HD44780 ────── */
+static inline void _uart_init( ) { }
+static inline void _uart_mark(char ) { }
+#define BLOG(s)    Serial.print(s)
+#define BLOG_U(v)  Serial.print((uint32_t)(v))
+#define BLOG_NL( ) Serial.print('\n')
+#endif // SIMUT_DISPLAY_TFT
 
 /* scratch[5] magic — the orchestrator sets this before applier_reboot
  * to signal "next boot is post-OTA-apply, power-cycle CYW43".
@@ -73,8 +85,8 @@ void AppManager::setup( ) {
 	 * Boot markers: '@' (entry), '$' (post-uart-init), '%' (pre-Serial)
 	 * allow tracing where a post-watchdog-reboot boot hangs (UART1 does
 	 * not depend on USB CDC or PLL_USB, only hardware UART). */
- boot_uart_init( );
- uart_putc_raw(uart1, '@');
+ _uart_init();
+ _uart_mark('@');
 
  /* Always power-cycle CYW43 during setup().
 	 *
@@ -90,7 +102,7 @@ void AppManager::setup( ) {
 	 * preserve compatibility with POST_OTA_APPLY_MAGIC diagnostics. */
  {
  alpha30_write_scratch5(0); /* always clear; magic is no longer a gate */
- uart_putc_raw(uart1, '#'); /* power-cycle entry marker */
+ _uart_mark('#'); /* power-cycle entry marker */
  gpio_init(23);
  gpio_set_dir(23, GPIO_OUT);
  gpio_put(23, 0);
@@ -98,9 +110,9 @@ void AppManager::setup( ) {
  gpio_set_dir(23, GPIO_IN);
  gpio_disable_pulls(23);
  busy_wait_ms(100);
- uart_putc_raw(uart1, '*'); /* power-cycle done */
+ _uart_mark('*'); /* power-cycle done */
  }
- uart_putc_raw(uart1, '$'); /* pre Serial.begin */
+ _uart_mark('$'); /* pre Serial.begin */
 
  Serial.begin(115200);
 
@@ -114,10 +126,10 @@ void AppManager::setup( ) {
 	 * Trade-off: each Serial.println adds up to 1 s if the host is
 	 * disconnected. Acceptable for debugging. */
  Serial.ignoreFlowControl(true);
- uart_putc_raw(uart1, '%'); /* post Serial.begin + ignoreFlowControl */
+ _uart_mark('%'); /* post Serial.begin + ignoreFlowControl */
 
  delay(1000);
- uart_putc_raw(uart1, '&'); /* post delay(1000) */
+ _uart_mark('&'); /* post delay(1000) */
 
  /* Log the firmware version BEFORE any init that could hang — ensures
 	 * the user always knows which firmware is running, even if boot
@@ -143,7 +155,7 @@ void AppManager::setup( ) {
 	 * path (local disable_interrupts only), avoiding the multicore_lockout
 	 * IRQ that often hangs on post-OTA boot. Trade-off: the TFT does not
 	 * show boot status messages until later (~10-15s). */
- uart_putc_raw(uart1, 'D'); /* startCore1 deferred */
+ _uart_mark('D'); /* startCore1 deferred */
 
  /* Wait for Core 1 to be READY before proceeding.
 	 * _displayMgr->startCore1() returns after multicore_launch_core1,
@@ -285,14 +297,14 @@ void AppManager::setup( ) {
  /* Now it is safe to start Core 1 — mountFS, mkdirs, snapshot
 	 * restore, and loadConfiguration have completed with Core 1
 	 * INACTIVE, i.e. without IRQ-based multicore_lockout hangs. */
- uart_putc_raw(uart1, 'C'); /* deferred startCore1 */
+ _uart_mark('C'); /* deferred startCore1 */
  _displayMgr->startCore1( );
  {
  unsigned long wait_start = millis( );
  while (!_displayMgr->isCore1Ready( ) && millis( ) - wait_start < 1500) {
  tight_loop_contents( );
  }
- uart_putc_raw(uart1, _displayMgr->isCore1Ready( ) ? 'R' : 'X');
+ _uart_mark(_displayMgr->isCore1Ready( ) ? 'R' : 'X');
  }
  Serial.print("[TCH] c="); Serial.println(gpio_get(20));
 
@@ -467,6 +479,7 @@ void AppManager::setup( ) {
  _cmdMgr->setCliLang(cfg.displayLang);
  LogManager::instance( ).setLanguage(cfg.displayLang);
 
+#if SIMUT_DISPLAY_TFT
  
  {
  const TouchCalData* cal = reinterpret_cast<const TouchCalData*>(cfg.reserved);
@@ -492,6 +505,7 @@ void AppManager::setup( ) {
  TRL("Touch calibration completed"));
  }
  }
+#endif // SIMUT_DISPLAY_TFT
  
 
  _displayMgr->setBootStatusKey(TR_BOOT_LOAD_PERIPH);
