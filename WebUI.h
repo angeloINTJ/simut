@@ -523,7 +523,8 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         if(sn.hum) v += ' | ' + parseFloat(sn.hum).toFixed(1) + '%';
                         const typeLabel = sn.type || '?';
                         const typeCls = sn.type === 'DHT22' ? 'color:var(--warn)' : 'color:var(--ok)';
-                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.gpio}</td><td style="${typeCls}; font-size:0.85rem; font-weight:600;">${typeLabel}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--sub)">${escHtml(sn.name)}</td></tr>`;
+                        const pinInfo = (sn.pc && sn.pr) ? `<span style="font-size:0.7rem;color:var(--sub)"> ⚡${sn.pc}p ${sn.pr}</span>` : '';
+                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.gpio}</td><td style="${typeCls}; font-size:0.85rem; font-weight:600;">${typeLabel}${pinInfo}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--sub)">${escHtml(sn.name)}</td></tr>`;
                     });
                     document.getElementById('tab').innerHTML = tabHtml;
                 } else { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--sub)">No active sensors.</td></tr>`; }

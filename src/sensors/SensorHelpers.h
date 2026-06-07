@@ -37,6 +37,64 @@ enum SensorChannel : uint8_t {
  CH_COUNT = 4  /**< Sentinel */
 };
 
+/* ===========================================================================
+ * PIN ROLES — what each GPIO does in a sensor
+ *
+ * Each sensor type declares its pin requirements via SensorFormat::forType().
+ * The role is NOT stored in flash — it is derived from the driver (sensorType
+ * + pin index). Adding a new sensor only requires the driver + format entry.
+ *
+ * Slot semantics: each slot = 1 GPIO pin with a declared role.
+ * A sensor is an entity that consumes pinCount slots.
+ *   DHT22  → 1 slot (PIN_DATA)
+ *   BME280 → 2 slots (PIN_I2C_SDA, PIN_I2C_SCL)
+ *   BMP388 → 4 slots (PIN_SPI_CS, PIN_SPI_MOSI, PIN_SPI_MISO, PIN_SPI_SCK)
+ * =========================================================================== */
+
+enum PinRole : uint8_t {
+    ROLE_DATA      = 0,   /**< 1-Wire / DHT22 single data line */
+    ROLE_I2C_SDA   = 1,   /**< I2C Serial Data */
+    ROLE_I2C_SCL   = 2,   /**< I2C Serial Clock */
+    ROLE_SPI_MOSI  = 3,   /**< SPI Master Out Slave In */
+    ROLE_SPI_MISO  = 4,   /**< SPI Master In Slave Out */
+    ROLE_SPI_SCK   = 5,   /**< SPI Serial Clock */
+    ROLE_SPI_CS    = 6,   /**< SPI Chip Select (unique per device) */
+    ROLE_UART_TX   = 7,   /**< UART Transmit */
+    ROLE_UART_RX   = 8,   /**< UART Receive */
+    ROLE_ANALOG    = 9,   /**< ADC analog input */
+    ROLE_POWER     = 10,  /**< Switchable VCC control */
+    ROLE_UNUSED    = 255  /**< Sentinel */
+};
+
+/** Describes one pin slot requirement for a sensor driver. */
+struct PinRequirement {
+    PinRole role;         /**< What this pin does (SDA, SCL, DATA, CS...) */
+    const char* label;    /**< Human label: "SDA", "SCL", "CS", "DATA" */
+    uint8_t flags;        /**< FLAG_PULLUP, FLAG_OPENDRAIN, etc. */
+};
+
+#define FLAG_PULLUP    0x01
+#define FLAG_PULLDOWN  0x02
+#define FLAG_OPENDRAIN 0x04
+
+/** @return human-readable pin role name */
+inline const char* pinRoleName(PinRole r) {
+    switch (r) {
+    case ROLE_DATA:      return "Data";
+    case ROLE_I2C_SDA:   return "SDA";
+    case ROLE_I2C_SCL:   return "SCL";
+    case ROLE_SPI_MOSI:  return "MOSI";
+    case ROLE_SPI_MISO:  return "MISO";
+    case ROLE_SPI_SCK:   return "SCK";
+    case ROLE_SPI_CS:    return "CS";
+    case ROLE_UART_TX:   return "TX";
+    case ROLE_UART_RX:   return "RX";
+    case ROLE_ANALOG:    return "ADC";
+    case ROLE_POWER:     return "VCC";
+    default:             return "?";
+    }
+}
+
 /** @return human-readable channel name */
 inline const char* sensorChannelName(uint8_t ch) {
  switch (ch) {
@@ -141,12 +199,19 @@ struct SensorValueFormat {
  const char* icon;     /**< Icon identifier for procedural drawing */
 };
 
-/** Display format for a sensor type — one SensorValueFormat per measurement. */
+/** Complete driver metadata for a sensor type — channels + pin requirements.
+ *
+ * This is THE single source of truth for each sensor driver. Display code,
+ * web API, calibration, and GPIO initialization all query this struct.
+ * Adding a new sensor type requires ONLY a new entry in forType() + a driver file.
+ */
 struct SensorFormat {
- uint8_t          valueCount;       /**< 1, 2, or 3 values */
- SensorValueFormat values[3];       /**< One per value (unused entries are zeroed) */
+ uint8_t          valueCount;       /**< 1, 2, or 3 measurement channels */
+ SensorValueFormat values[3];       /**< One per value (unused are zeroed) */
+ uint8_t          pinCount;         /**< How many GPIO slots this sensor needs */
+ PinRequirement   pins[4];          /**< Role + label per slot (unused are zeroed) */
 
- /** Factory: returns the format metadata for a given sensor type. */
+ /** Factory: returns the complete driver metadata for a given sensor type. */
  static SensorFormat forType(SensorType t) {
  SensorFormat f = {};
  switch (t) {
@@ -154,6 +219,8 @@ struct SensorFormat {
  case TYPE_DS18B20:
  f.valueCount = 1;
  f.values[0] = {"°C", 1, "thermometer"};
+ f.pinCount  = 1;
+ f.pins[0]   = {ROLE_DATA, "1-Wire", FLAG_PULLUP};
  break;
 #endif
 #if SIMUT_SENSOR_DHT22
@@ -161,6 +228,8 @@ struct SensorFormat {
  f.valueCount = 2;
  f.values[0] = {"°C", 1, "thermometer"};
  f.values[1] = {"%",  0, "drop"};
+ f.pinCount  = 1;
+ f.pins[0]   = {ROLE_DATA, "Data", FLAG_PULLUP};
  break;
 #endif
 #if SIMUT_SENSOR_BME280
@@ -169,16 +238,53 @@ struct SensorFormat {
  f.values[0] = {"°C",  1, "thermometer"};
  f.values[1] = {"%",   0, "drop"};
  f.values[2] = {"hPa", 1, "gauge"};
+ f.pinCount  = 2;
+ f.pins[0]   = {ROLE_I2C_SDA, "SDA", FLAG_PULLUP};
+ f.pins[1]   = {ROLE_I2C_SCL, "SCL", FLAG_PULLUP};
  break;
 #endif
  default:
  f.valueCount = 1;
  f.values[0] = {"", 1, ""};
+ f.pinCount  = 1;
+ f.pins[0]   = {ROLE_DATA, "Data", 0};
  break;
  }
  return f;
  }
 };
+
+/** Auto-configure a GPIO pin based on its declared role.
+ *  Called by SensorManager during initRuntimeSensors().
+ *  Each role sets direction, pulls, and alternate function as needed. */
+inline void gpioInitForRole(uint8_t gpio, PinRole role, uint8_t flags) {
+ gpio_init(gpio);
+ if (flags & FLAG_PULLUP)      gpio_pull_up(gpio);
+ if (flags & FLAG_PULLDOWN)    gpio_pull_down(gpio);
+ /* FLAG_OPENDRAIN: set via gpio_set_function(GPIO_FUNC_I2C) etc. at bus init */
+
+ switch (role) {
+ case ROLE_DATA:
+ case ROLE_UART_TX:
+ case ROLE_SPI_MOSI:
+ case ROLE_SPI_CS:
+ case ROLE_POWER:
+     gpio_set_dir(gpio, GPIO_OUT);
+     break;
+ case ROLE_UART_RX:
+ case ROLE_SPI_MISO:
+ case ROLE_ANALOG:
+     gpio_set_dir(gpio, GPIO_IN);
+     break;
+ case ROLE_I2C_SDA:
+ case ROLE_I2C_SCL:
+ case ROLE_SPI_SCK:
+     // I2C/SPI handled by peripheral init, just set function
+     break;
+ default:
+     break;
+ }
+}
 
 /* Implementation — after SensorFormat definition (resolves circular dependency). */
 inline bool sensorHasChannel(SensorType t, uint8_t channel) {
