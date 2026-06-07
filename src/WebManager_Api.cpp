@@ -409,7 +409,12 @@ void WebManager::handleApiStatus( ) {
 		else if (isnan(s.avgValue[0])) snprintf(valBuffer, sizeof(valBuffer), "\"--\"");
 		else snprintf(valBuffer, sizeof(valBuffer), "%.2f", s.avgValue[0]);
 
-		/* Humidity channel — generic, uses SensorFormat to detect capability */
+		/* v1.4.1: Sensor channels generalization.
+		 * - type: driver name (DS18B20/DHT22), queried via sensorTypeName()
+		 * - ch: channel count from SensorFormat::forType() (1=T only, 2=T+H, 3=T+H+P)
+		 * - hum: emitted only if sensorHasChannel(CH_HUM) and reading is valid
+		 * Adding a new sensor type (e.g. BMP280) requires only a driver —
+		 *   the API adapts automatically via SensorFormat metadata. */
 		const char* typeName = sensorTypeName(s.type);
 		uint8_t chCount = sensorValueCount(s.type);
 		if (sensorHasChannel(s.type, CH_HUM) && !s.inErrorState && !isnan(s.avgValue[1])) {

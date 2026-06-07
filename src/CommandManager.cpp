@@ -59,9 +59,11 @@ void CommandManager::setBtValidator(BtAuthValidator validator) {
 }
 
 
+/* v1.4.1: Non-blocking USB serial. Guard with `if (Serial)` so writes are
+ * skipped when CDC is not connected, preventing boot hang after warm boot.
+ * ignoreFlowControl(true) was removed from setup() — without it,
+ * Serial drops data silently when the host isn't reading. */
 void CommandManager::consolePrint(const String& msg) {
- /* Only write to USB if CDC is connected. Without ignoreFlowControl,
-  * data is silently dropped when host isn't reading — no boot hang. */
  if (Serial) Serial.print(msg);
  _btMgr.print(msg);
 }
