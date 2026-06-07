@@ -33,3 +33,8 @@
 #define SIMUT_SENSOR_BME280 0
 #endif
 
+
+/* Bluetooth — 0=disabled (saves ~22KB flash). Enable with -DSIMUT_BLUETOOTH=1 */
+#ifndef SIMUT_BLUETOOTH
+#define SIMUT_BLUETOOTH 0
+#endif

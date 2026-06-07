@@ -16,7 +16,11 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <time.h>
+/* LEAmDNS optional — saves ~196KB flash when disabled.
+ * Enable via -DSIMUT_MDNS in platformio.ini build_flags. */
+#ifdef SIMUT_MDNS
 #include <LEAmDNS.h>
+#endif
 #include <DNSServer.h>
 #include "SystemDefs.h"
 #include "LogManager.h"
@@ -135,7 +139,9 @@ private:
  * after IP acquired. No-op when dnsAuto=true and useDhcp=true. */
  void applyManualDnsIfNeeded( );
 
+#ifdef SIMUT_MDNS
  uint32_t _lastMdnsUpdate = 0; /**< Throttle for MDNS.update( ) */
+#endif
  uint8_t _connectCycles = 0; /**< Consecutive reconnection cycles */
 
  /* ── NTP retry with exponential backoff + fallback ── */

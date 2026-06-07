@@ -39,6 +39,37 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  }
  SensorRecord &r = cfg.sensors[cmd.intVal1];
  const char* field = cmd.strVal1;
+
+ /* ── sensor <slot> pin <index> <gpio> — GPIO resource assignment ── */
+ if (strcmp(field, "pin") == 0) {
+  int pinIdx=-1,gpio=-1;
+  if(sscanf(cmd.strVal2,"%d %d",&pinIdx,&gpio)!=2||pinIdx<0||gpio<0||gpio>15){
+   _cmdMgr->printError(pt?"Uso: sensor <slot> pin <index> <gpio> (0-15)"
+                         :"Usage: sensor <slot> pin <index> <gpio> (0-15)");
+   return;
+  }
+  if(pinIdx>=MAX_SENSOR_PINS){
+   _cmdMgr->printError((pt?"Maximo ":"Max ")+String(MAX_SENSOR_PINS)+(pt?" pinos":" pins"));
+   return;
+  }
+  /* GPIO conflict check */
+  for(int si=0;si<MAX_SENSORS;si++){
+   if(si==cmd.intVal1||!cfg.sensors[si].active)continue;
+   for(int pp=0;pp<MAX_SENSOR_PINS;pp++){
+    if(cfg.sensors[si].pins[pp]==(uint8_t)gpio){
+     _cmdMgr->printError((pt?"GPIO ":"GPIO ")+String(gpio)
+       +(pt?" ja em uso pelo Slot ":" in use by Slot ")+String(si));
+     return;
+    }
+   }
+  }
+  r.pins[pinIdx]=(uint8_t)gpio;
+  _cmdMgr->printSuccess((pt?"Slot ":"Slot ")+String(cmd.intVal1)
+    +" pin["+String(pinIdx)+"]=GPIO "+String(gpio));
+  changed=true;
+  return;
+ }
+
  if (strcmp(field, "alarm") == 0) {
  String v = cmd.strVal2; v.toLowerCase( );
  if (v != "on" && v != "off") {
