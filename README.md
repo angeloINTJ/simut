@@ -10,7 +10,7 @@
 [![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 [![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/Version-v1.0.0-blue.svg)](https://github.com/angeloINTJ/simut/releases)
+[![Version](https://img.shields.io/badge/Version-v1.4.4--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
 [![Contributors](https://img.shields.io/badge/All_Contributors-4-orange.svg)](CONTRIBUTORS.md)
 [![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -59,8 +59,9 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 │  ┌──────────┴──────────────────────────────────────────┐ │
 │  │  Hardware Interfaces                                │ │
 │  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch        │ │
-│  │  ◆ 1-Wire (PIO) → DS18B20 ×10                       │ │
-│  │  ◆ I2C → DHT22 Ambient                              │ │
+│  │  ◆ 1-Wire (PIO) → DS18B20 (up to 16)                │ │
+│  │  ◆ Data → DHT22 (up to 16)                           │ │
+│  │  ◆ I2C → BME280 T+H+P (up to 8)                      │ │
 │  │  ◆ USB CDC → CLI Serial                             │ │
 │  │  ◆ Bluetooth (BLE) → CLI Remote                     │ │
 │  │  ◆ WiFi (CYW43439) → HTTP Server + Telemetry        │ │

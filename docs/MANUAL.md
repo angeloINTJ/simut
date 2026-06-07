@@ -30,7 +30,7 @@ header-includes: |
 
 ---
 
-**Firmware version:** v1.0.0
+**Firmware version:** v1.4.4-beta
 **Target hardware:** Raspberry Pi Pico W (RP2040 + CYW43439)
 **Repository:** https://github.com/angeloINTJ/SIMUT
 **License:** MIT
@@ -62,8 +62,10 @@ banks, vaccine freezers, water baths, microbiological incubators).
 
 ### 1.1 Key Capabilities
 
-- **Up to 11 simultaneous sensors**: 1 SHT31 (ambient — T+RH) + 10
-  DS18B20 (1-Wire, T)
+- **Up to 16 simultaneous sensors** on configurable slots: DS18B20 (1-Wire, T),
+  DHT22 (Data, T+RH), BME280 (I2C, T+RH+Pressure)
+- **16 configurable GPIO slots** — each slot accepts any sensor type;
+  configure via CLI before physical wiring (`gpio`, `sensor create`, `sensor pin`)
 - **320×240 TFT display** with resistive touch — operation without a PC
 - **Complete web interface** (dashboard, history, alarms, configuration)
 - **Binary history** (1 point/min, compact format, ~1 year of data in
@@ -110,8 +112,9 @@ out of range:
 | MCU | Raspberry Pi Pico W (RP2040 + CYW43439) | Processing + WiFi/BT |
 | Display | TFT 320×240 ILI9341 SPI | Main UI |
 | Touch | XPT2046 SPI | Display interaction |
-| T+RH Sensors | SHT31 I2C | Ambient |
-| T Sensor | DS18B20 1-Wire | Individual points (up to 10) |
+| T Sensor | DS18B20 1-Wire | Individual points (up to 16) |
+| T+RH Sensor | DHT22 Data | Ambient / individual points (up to 16) |
+| T+RH+Pressure Sensor | BME280 I2C | Environmental (up to 8, 2 GPIOs each) |
 | Buzzer | PIO active buzzer | Audible alarms |
 | Storage | LittleFS on internal flash (1.5 MB usable) | Config + history |
 
@@ -119,15 +122,7 @@ out of range:
 
 | GPIO | Function |
 |---|---|
-| 0 | Reserved (UART0 TX) |
-| 1 | Reserved (UART0 RX) |
-| 4 | DS18B20 Sensor #1 (1-Wire) |
-| 5 | DS18B20 Sensor #2 (1-Wire) |
-| 6 | I2C SDA (SHT31) |
-| 7 | I2C SCL (SHT31) |
-| 8 | UART1 TX (debug — see §11) |
-| 9 | UART1 RX |
-| 10..15 | DS18B20 #3..#8 (1-Wire) |
+| 0–15 | **SLOT 0–15** — configurable via CLI. Any sensor type: DS18B20 (1-Wire), DHT22 (Data), or BME280 (I2C SDA+SCL). Assign with `sensor create` + `sensor pin`. |
 | 16 | TFT MISO |
 | 17 | TFT CS |
 | 18 | TFT SCK |
@@ -511,15 +506,29 @@ show storage stats   FS used/total
 show net status      IP, RSSI, NTP
 show themes          List themes
 show metrics         Heap, uptime, telemetry, sensors, storage
-show sensors         List mapped sensors
+show sensors         List configured slots with type, channels, alarms
+show sensor types    List compiled-in sensor drivers (DS18B20, DHT22, BME280)
+gpio                 GPIO resource map (16 pins, free/used by slot)
+show gpio            Same as above
 ```
 
 #### Sensor Diagnostics
 
 ```
-sensor scan          Scan 1-Wire for new sensors
+sensor scan          Scan for new sensors (1-Wire + I2C)
 sensor accept <gpio> Authorize newly detected sensor
 sensor wipe <gpio> [confirm]  Wipe slot history
+```
+
+#### Slot Configuration (GPIO Resource Management)
+
+```
+sensor <n> create <type>   Create slot — sets type, shows pin requirements
+sensor <n> type <type>     Change sensor driver (ds18b20|dht22|bme280)
+sensor <n> pin <idx>,<gpio>  Assign GPIO to pin (with conflict detection)
+sensor <n> name "<name>"   Set friendly name (max 31 chars)
+sensor <n> hwid <id>       Set hardware ID (max 15 chars)
+sensor <n> active <on|off> Enable/disable slot (validates prerequisites)
 ```
 
 #### System Configuration
@@ -551,11 +560,13 @@ tel sync                           Force upload now
 tel dump                           Capture next payload on console
 ```
 
-#### Sensor Mapping
+#### Sensor Mapping (Legacy)
 
 ```
 sensor define <gpio> <rom> <hwid> "<name>"
   Ex: sensor define 4 28AABB.. STM0001 "Vaccine_Fridge"
+
+Prefer the slot-based commands above for new deployments.
 ```
 
 #### Static IP Configuration
