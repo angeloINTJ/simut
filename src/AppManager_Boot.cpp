@@ -173,6 +173,7 @@ void AppManager::setup( ) {
 
  delay(BOOT_STEP_DELAY_MS);
 
+#if SIMUT_DISPLAY_TFT
  /* Configure XPT2046 + SPI bus pins for reliable PENIRQ detection.
   * PENIRQ (GPIO 20): input with pull-up, LOW = touched.
   * TOUCH_CS (GPIO 17): HIGH = deselected, required for XPT2046 to scan.
@@ -201,6 +202,7 @@ void AppManager::setup( ) {
  gpio_put(17, 1);                /* deselect XPT2046 */
  SPI.endTransaction();
  /* Leave SPI initialized — Core 1 will use it for TFT + touch. */
+#endif // SIMUT_DISPLAY_TFT
 
  bool forceAP = false;
  _displayMgr->setBootStatusKey(TR_BOOT_HOLD_AP);
