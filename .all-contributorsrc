@@ -26,6 +26,13 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/112761826",
       "profile": "https://github.com/JohnMartin0301",
       "contributions": ["infra", "code"]
+    },
+    {
+      "login": "f-p-0",
+      "name": "f p",
+      "avatar_url": "https://avatars.githubusercontent.com/u/239882173",
+      "profile": "https://github.com/f-p-0",
+      "contributions": ["doc"]
     }
   ],
   "contributorsPerLine": 7,
