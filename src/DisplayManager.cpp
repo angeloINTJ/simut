@@ -109,7 +109,7 @@ static void renderWrapped(Adafruit_ILI9341* tft, const char* text,
 
 #endif // !SIMUT_DISPLAY_ALPHA
 
-static DisplayManager* _instance = nullptr;
+DisplayManager* _instance = nullptr;
 
 
 constexpr int16_t DisplayManager::CAL_SCR_X[4];
