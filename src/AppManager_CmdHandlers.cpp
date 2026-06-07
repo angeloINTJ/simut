@@ -30,7 +30,7 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  return;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-9)" : "Slot out of range (0-9)");
+ _cmdMgr->printError(pt ? "Slot fora de range (0-15)" : "Slot out of range (0-15)");
  return;
  }
  if (cmd.strVal2[0] == '\0') {
@@ -86,7 +86,7 @@ void AppManager::cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, 
  return;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-9)" : "Slot out of range (0-9)");
+ _cmdMgr->printError(pt ? "Slot fora de range (0-15)" : "Slot out of range (0-15)");
  return;
  }
  uint8_t gpio = (uint8_t)cmd.intVal1;

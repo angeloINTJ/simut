@@ -86,25 +86,33 @@ void WebManager::handleApiCalibGet( ) {
 	bool ntpOk = _netRef->isTimeSynced( );
 	long calibVer = _storageRef->getCalibrationVersion("/calib.csv");
 
-	float runtimeT[MAX_SENSORS];
-	bool runtimeTValid[MAX_SENSORS];
-	for (int i = 0; i < MAX_SENSORS; i++) { runtimeT[i] = NAN; runtimeTValid[i] = false; }
+	float runtimeT[MAX_SENSORS]; bool runtimeTValid[MAX_SENSORS];
+	float runtimeH[MAX_SENSORS]; bool runtimeHValid[MAX_SENSORS];
+	for (int i = 0; i < MAX_SENSORS; i++) { runtimeT[i] = NAN; runtimeTValid[i] = false; runtimeH[i] = NAN; runtimeHValid[i] = false; }
 	float ambT = NAN, ambH = NAN;
 	bool ambTValid = false, ambHValid = false;
 	float ambOffT = 0.0f, ambOffH = 0.0f;
 	float slotOff[MAX_SENSORS] = {0};
+	float slotOffH[MAX_SENSORS] = {0};
 
 	const auto& runtime = _sensorRef->getRuntimeSensors( );
 	for (const auto& s : runtime) {
-		if (s.config.pins[0] == PIN_DHT_DEFAULT) {
-			ambT = s.avgValue1; ambTValid = !isnan(s.avgValue1);
-			ambH = s.avgValue2; ambHValid = !isnan(s.avgValue2);
-			ambOffT = s.calibrationOffset;
-			ambOffH = s.calibrationOffsetHum;
-		} else if (s.config.pins[0] < MAX_SENSORS) {
-			runtimeT[s.config.pins[0]] = s.avgValue1;
-			runtimeTValid[s.config.pins[0]] = !isnan(s.avgValue1);
-			slotOff[s.config.pins[0]] = s.calibrationOffset;
+		if (s.type == TYPE_DHT22) {
+			ambT = s.avgValue[0]; ambTValid = !isnan(s.avgValue[0]);
+			ambH = s.avgValue[1]; ambHValid = !isnan(s.avgValue[1]);
+			ambOffT = s.calibrationOffset[0];
+			ambOffH = s.calibrationOffset[1];
+		}
+		if (s.config.pins[0] < MAX_SENSORS) {
+			runtimeT[s.config.pins[0]] = s.avgValue[0];
+			runtimeTValid[s.config.pins[0]] = !isnan(s.avgValue[0]);
+			slotOff[s.config.pins[0]] = s.calibrationOffset[0];
+			/* Humidity per-slot for DHT22/BME280 sensors */
+			if (sensorHasHumidity(s.type)) {
+				runtimeH[s.config.pins[0]] = s.avgValue[1];
+				runtimeHValid[s.config.pins[0]] = !isnan(s.avgValue[1]);
+				slotOffH[s.config.pins[0]] = s.calibrationOffset[1];
+			}
 		}
 	}
 
@@ -119,17 +127,20 @@ void WebManager::handleApiCalibGet( ) {
 	         StorageManager::getBoardSerialNumber( ).c_str( ));
 	if (!safeSend(buf)) return;
 
-	char ambName[40], ambHwId[20];
-	safeCopy(ambName, cfg.ambientSensor.friendlyName, sizeof(ambName));
-	safeCopy(ambHwId, cfg.ambientSensor.hwId, sizeof(ambHwId));
-	sanitizeName(ambName);
-	snprintf(buf, sizeof(buf),
-	         "\"ambient\":{\"hwId\":\"%s\",\"name\":\"%s\","
-	         "\"tempRead\":%s,\"humRead\":%s,\"tempOffset\":%.2f,\"humOffset\":%.2f},",
-	         ambHwId, ambName,
-	         ambTValid ? String(ambT, 2).c_str( ) : "null",
-	         ambHValid ? String(ambH, 2).c_str( ) : "null",
-	         ambOffT, ambOffH);
+	/* Slot 10 (humidity-capable sensor) calibration data */
+	{
+		char ambName[40], ambHwId[20];
+		safeCopy(ambName, cfg.sensors[10].friendlyName, sizeof(ambName));
+		safeCopy(ambHwId, cfg.sensors[10].hwId, sizeof(ambHwId));
+		sanitizeName(ambName);
+		snprintf(buf, sizeof(buf),
+		         "\"ambient\":{\"hwId\":\"%s\",\"name\":\"%s\","
+		         "\"tempRead\":%s,\"humRead\":%s,\"tempOffset\":%.2f,\"humOffset\":%.2f},",
+		         ambHwId, ambName,
+		         ambTValid ? String(ambT, 2).c_str( ) : "null",
+		         ambHValid ? String(ambH, 2).c_str( ) : "null",
+		         ambOffT, ambOffH);
+	}
 	if (!safeSend(buf)) return;
 
 	if (!safeSend("\"sensors\":[")) return;
@@ -142,12 +153,18 @@ void WebManager::handleApiCalibGet( ) {
 		safeCopy(sName, cfg.sensors[i].friendlyName, sizeof(sName));
 		safeCopy(sHwId, cfg.sensors[i].hwId, sizeof(sHwId));
 		sanitizeName(sName);
+		bool hasH = sensorHasHumidity((SensorType)cfg.sensors[i].sensorType);
 		snprintf(buf, sizeof(buf),
 		         "%s{\"gpio\":%d,\"rom\":\"%s\",\"hwId\":\"%s\",\"name\":\"%s\","
-		         "\"tempRead\":%s,\"tempOffset\":%.2f}",
+		         "\"hasHum\":%s,"
+		         "\"tempRead\":%s,\"tempOffset\":%.2f,"
+		         "\"humRead\":%s,\"humOffset\":%.2f}",
 		         first ? "" : ",", i, romHex, sHwId, sName,
+		         hasH ? "true" : "false",
 		         runtimeTValid[i] ? String(runtimeT[i], 2).c_str( ) : "null",
-		         slotOff[i]);
+		         slotOff[i],
+		         runtimeHValid[i] ? String(runtimeH[i], 2).c_str( ) : "null",
+		         slotOffH[i]);
 		if (!safeSend(buf)) return;
 		first = false;
 	}
@@ -215,7 +232,7 @@ void WebManager::handleApiCalibPost( ) {
 	for (int i = 0; i < MAX_CHANGES; i++) { changes[i].key[0] = '\0'; changes[i].written = false; }
 	int nChanges = 0;
 
-	/* === AMBIENT === */
+	/* === SLOT 10 (humidity-capable) === */
 	int ambStart = body.indexOf("\"ambient\"");
 	if (ambStart >= 0) {
 		int objStart = body.indexOf('{', ambStart);
@@ -229,15 +246,15 @@ void WebManager::handleApiCalibPost( ) {
 			jsonExtractFloat(obj, "refTemp", refT);
 			jsonExtractFloat(obj, "refHum", refH);
 
-			if (newId[0] != '\0') safeCopy(cfg.ambientSensor.hwId, newId, sizeof(cfg.ambientSensor.hwId));
-			if (newName[0] != '\0') safeCopy(cfg.ambientSensor.friendlyName, newName, sizeof(cfg.ambientSensor.friendlyName));
+			if (newId[0] != '\0') safeCopy(cfg.sensors[10].hwId, newId, sizeof(cfg.sensors[10].hwId));
+			if (newName[0] != '\0') safeCopy(cfg.sensors[10].friendlyName, newName, sizeof(cfg.sensors[10].friendlyName));
 
 			float curT = NAN, curH = NAN, offT = 0, offH = 0;
 			const auto& runtime = _sensorRef->getRuntimeSensors( );
 			for (const auto& s : runtime) {
-				if (s.config.pins[0] == PIN_DHT_DEFAULT) {
-					curT = s.avgValue1; curH = s.avgValue2;
-					offT = s.calibrationOffset; offH = s.calibrationOffsetHum;
+				if (s.type == TYPE_DHT22) {
+					curT = s.avgValue[0]; curH = s.avgValue[1];
+					offT = s.calibrationOffset[0]; offH = s.calibrationOffset[1];
 					break;
 				}
 			}
@@ -246,11 +263,11 @@ void WebManager::handleApiCalibPost( ) {
 			if (!isnan(refH) && !isnan(curH)) newOffH = offH + (refH - curH);
 
 			char idBase[16];
-			safeCopy(idBase, cfg.ambientSensor.hwId, sizeof(idBase));
+			safeCopy(idBase, cfg.sensors[10].hwId, sizeof(idBase));
 			char prefT[18]; snprintf(prefT, sizeof(prefT), "t%s", idBase);
 			char prefU[18]; snprintf(prefU, sizeof(prefU), "u%s", idBase);
 
-			char nameSan[32]; safeCopy(nameSan, cfg.ambientSensor.friendlyName, sizeof(nameSan)); sanitizeName(nameSan);
+			char nameSan[32]; safeCopy(nameSan, cfg.sensors[10].friendlyName, sizeof(nameSan)); sanitizeName(nameSan);
 			for (int k = 0; k < 2 && nChanges < MAX_CHANGES; k++) {
 				safeCopy(changes[nChanges].key, picoUID.c_str( ), sizeof(changes[0].key));
 				safeCopy(changes[nChanges].id, k == 0 ? prefT : prefU, sizeof(changes[0].id));
@@ -295,7 +312,7 @@ void WebManager::handleApiCalibPost( ) {
 				float curT = NAN, off = 0;
 				const auto& runtime = _sensorRef->getRuntimeSensors( );
 				for (const auto& s : runtime) {
-					if (s.config.pins[0] == gpio) { curT = s.avgValue1; off = s.calibrationOffset; break; }
+					if (s.config.pins[0] == gpio) { curT = s.avgValue[0]; off = s.calibrationOffset[0]; break; }
 				}
 				float newOff = off;
 				if (!isnan(refT) && !isnan(curT)) newOff = off + (refT - curT);

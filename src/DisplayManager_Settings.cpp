@@ -97,7 +97,6 @@ void DisplayManager::drawSettingsThemes( ) {
 void DisplayManager::showSettingsAlarms(SystemConfig* cfg) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_ALARMS; _sysConfigPtr = cfg; _activeSensorCount = 0;
- if (cfg->ambientSensor.active) { _activeSensorsMap[_activeSensorCount++] = -1; }
  for(int i = 0; i < MAX_SENSORS; i++) { if(cfg->sensors[i].active) { _activeSensorsMap[_activeSensorCount++] = i; } }
  _alarmSelection = 0; _alarmPage = 0; _lastAlarmSelection = -1; _forceSettingsRedraw = true; _lastAlarmPage = -1; _repaintSettings = true;
  mutex_exit(&_stateMutex);
@@ -150,7 +149,7 @@ void DisplayManager::drawSettingsAlarms( ) {
  _driver.canvas->fillScreen(C_BG_MAIN);
  if (mapIdx < _activeSensorCount) {
  int actualSensorId = _activeSensorsMap[mapIdx];
- SensorRecord* rec = (actualSensorId == -1) ? &_sysConfigPtr->ambientSensor : &_sysConfigPtr->sensors[actualSensorId];
+ SensorRecord* rec = &_sysConfigPtr->sensors[actualSensorId];
  bool isSelected = (mapIdx == _alarmSelection);
  uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
@@ -191,7 +190,7 @@ void DisplayManager::drawSettingsAlarms( ) {
 void DisplayManager::showAlarmEdit(int sensorIdx) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_ALARM_EDIT; _editSensorIdx = sensorIdx;
- if (sensorIdx == -1) { _tempAlarmConfig = _sysConfigPtr->ambientSensor; } else { _tempAlarmConfig = _sysConfigPtr->sensors[sensorIdx]; }
+ _tempAlarmConfig = _sysConfigPtr->sensors[sensorIdx];
  _editFieldFocus = 0; _forceSettingsRedraw = true; _repaintSettings = true;
  mutex_exit(&_stateMutex);
 }
@@ -1311,16 +1310,7 @@ void DisplayManager::drawSystemStatus( ) {
  else if (_statusPage == 2) {
  snprintf(buf, sizeof(buf), "%d", d.activeSensors);
  addRow("Active", buf);
- if (d.ambientValid) {
- fmtFloat1(fbuf, sizeof(fbuf), d.ambientTemp);
- snprintf(buf, sizeof(buf), "%s oC", fbuf);
- addRow("Ambient T", buf);
- snprintf(buf, sizeof(buf), "%d%%", (int)d.ambientHum);
- addRow("Ambient H", buf);
- } else {
- addRow("Ambient T", "--", C_TEXT_OFF);
- addRow("Ambient H", "--", C_TEXT_OFF);
- }
+ /* Sensor values available via dashboard panel display */
  }
  else if (_statusPage == 3) {
  addRow("Transport", d.telTransport == 1 ? "MQTT" : "HTTP");

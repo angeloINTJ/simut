@@ -59,13 +59,12 @@ struct RuntimeSensor {
  SensorRecord config;
  SensorType type;
 
- RingBuffer buffer1;
- RingBuffer buffer2;
- float avgValue1;
- float avgValue2;
- bool bufferFull;
- float calibrationOffset;
- float calibrationOffsetHum; /* humidity offset (ambient/DHT22 only). */
+ /* Channel arrays — one buffer + average + calibration per measurement axis.
+  * [CH_TEMP]=0, [CH_HUM]=1, [CH_PRESS]=2, [CH_LUX]=3.
+  * Inactive channels maintain NAN avgValue and empty buffers. */
+ RingBuffer buffers[MAX_SENSOR_CHANNELS];
+ float avgValue[MAX_SENSOR_CHANNELS];
+ float calibrationOffset[MAX_SENSOR_CHANNELS];
 
  uint32_t lastReadTime;
  uint32_t readInterval;
@@ -75,6 +74,9 @@ struct RuntimeSensor {
  uint8_t consecutiveSuccess;
  bool inErrorState;
  bool hardwareMismatch;
+
+ /** @return true if at least CH_TEMP buffer is full. */
+ bool bufferFull() const { return buffers[CH_TEMP].full(); }
 };
 
 
@@ -117,9 +119,8 @@ public:
 #endif
 
  void applyCalibration(uint8_t gpio, String newHwId, float offset, String newName);
- /* Apply temp AND humidity offset on ambient (PIN_DHT_DEFAULT). hwId/name
- * are handled separately via applyCalibration (they share only the 't' line
- * from calib.csv — option B). */
+ /* Apply temp AND humidity offset on first DHT22 sensor found.
+ * hwId/name are handled via applyCalibration separately. */
  void applyAmbientCalibration(float offsetT, float offsetH);
 
 

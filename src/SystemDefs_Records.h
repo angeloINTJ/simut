@@ -226,8 +226,7 @@ struct __attribute__((packed)) SystemConfig {
  bool loggingEnabled;
  uint8_t ds18Resolution;
 
- SensorRecord sensors[MAX_SENSORS];
- SensorRecord ambientSensor;
+ SensorRecord sensors[MAX_SENSORS]; /**< Universal slots GPIO0–GPIO15 */
 
  int8_t themeIndex;
  char displayPin[8];
@@ -483,18 +482,15 @@ struct SystemStatusData {
 
  /* Sensors */
  uint8_t activeSensors;
- float ambientTemp;
- float ambientHum;
- bool ambientValid;
 };
 
 
 /* =========================================================================== */
-/* BINARY HISTORY RECORD — 28 bytes per record, packed */
+/* BINARY HISTORY RECORD — 40 bytes per record, packed */
 /* =========================================================================== */
 
-/** @brief Fixed size of each binary history record (28 bytes). */
-#define HISTORY_RECORD_SIZE 28
+/** @brief Fixed size of each binary history record (40 bytes). */
+#define HISTORY_RECORD_SIZE 40
 
 /** @brief Sentinel for fields without valid reading (equivalent to NAN in float). */
 #define HIST_NAN_SENTINEL INT16_MIN /* -32768 */
@@ -503,13 +499,13 @@ struct SystemStatusData {
 #define HISTORY_FILE_EXT ".bin"
 
 /**
- * @brief Binary history record — 28 bytes, packed.
+ * @brief Binary history record — 40 bytes, packed.
  *
  * Fixed layout per record:
  * [0..3] epoch uint32_t Unix timestamp
- * [4..5] ambientTemp int16_t ×100 (e.g. 2345 = 23.45°C)
- * [6..7] ambientHum int16_t ×100 (e.g. 6120 = 61.20%)
- * [8..27] sensors[10] int16_t×10 ×100 (e.g. -1850 = -18.50°C)
+ * [4..5] ambientTemp int16_t ×100 (temperature from slot 10 / humidity-capable sensor)
+ * [6..7] ambientHum int16_t ×100 (humidity from slot 10 / humidity-capable sensor)
+ * [8..39] sensors[16] int16_t×16 ×100 (temperature for all 16 slots)
  *
  * Invalid values (no reading) use HIST_NAN_SENTINEL (-32768).
  * Supported range: -327.67 to +327.67 — covers DS18B20 and DHT22.

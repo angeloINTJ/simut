@@ -16,7 +16,7 @@
  DS18B20 SLOT7 ──┤7 │                  │  │
  DS18B20 SLOT8 ──┤8 │                  │  │
  DS18B20 SLOT9 ──┤9 │                  │  │
- DHT22 SLOT10  ──┤10│     RP2040       │  │
+ Slot 10 DHT22  ──┤10│     RP2040       │  │
                  │  │                  │  │
                  │  │    Dual-Core     │  │
     TFT MISO   ──┤16│    133 MHz       │  │
@@ -54,7 +54,7 @@
  DS18B20 SLOT7 ──┤7 │                  │  │
  DS18B20 SLOT8 ──┤8 │                  │  │
  DS18B20 SLOT9 ──┤9 │                  │  │
- DHT22 SLOT10  ──┤10│     RP2040       │  │
+ Slot 10 DHT22  ──┤10│     RP2040       │  │
                  │  │                  │  │
                  │  │    Dual-Core     │  │
                  │  │    133 MHz       │  │── GND ──── Common Ground
@@ -89,7 +89,7 @@
  DS18B20 SLOT7 ──┤7 │                  │  │
  DS18B20 SLOT8 ──┤8 │                  │  │
  DS18B20 SLOT9 ──┤9 │                  │  │
- DHT22 SLOT10  ──┤10│     RP2040       │  │
+ Slot 10 DHT22  ──┤10│     RP2040       │  │
                  │  │                  │  │
                  │  │    Dual-Core     │  │
     LCD RS     ──┤16│    133 MHz       │  │
@@ -121,7 +121,7 @@
 | 7    | DS18B20 SLOT7 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 8    | DS18B20 SLOT8 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 9    | DS18B20 SLOT9 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
-| 10   | DHT22 SLOT10 (1-Wire)  | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 10   | Slot 10 DHT22 (1-Wire)  | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 16   | SPI0 MISO              | TFT MISO + Touch MISO (shared bus)       |
 | 17   | SPI0 CS0               | XPT2046 Touch CS                         |
 | 18   | SPI0 SCK               | TFT SCK + Touch SCK (shared bus)         |
@@ -146,7 +146,7 @@
 | 7    | DS18B20 SLOT7 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 8    | DS18B20 SLOT8 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 9    | DS18B20 SLOT9 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
-| 10   | DHT22 SLOT10 (1-Wire)  | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 10   | Slot 10 DHT22 (1-Wire)  | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 22   | PIO                    | Passive Buzzer (+)                       |
 | 26   | I2C1 SDA               | LCD SDA (PCF8574 backpack)               |
 | 27   | I2C1 SCL               | LCD SCL (PCF8574 backpack)               |
@@ -167,7 +167,7 @@
 | 7    | DS18B20 SLOT7 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 8    | DS18B20 SLOT8 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 9    | DS18B20 SLOT9 (1-Wire) | Sensor data line + 4.7 kΩ pull-up to 3V3 |
-| 10   | DHT22 SLOT10 (1-Wire)  | Sensor data line + 4.7 kΩ pull-up to 3V3 |
+| 10   | Slot 10 DHT22 (1-Wire)  | Sensor data line + 4.7 kΩ pull-up to 3V3 |
 | 16   | LCD RS (register sel)  | HD44780 pin 4                            |
 | 17   | LCD EN (enable)        | HD44780 pin 6                            |
 | 18   | LCD D4 (data bit 4)    | HD44780 pin 11                           |
@@ -235,7 +235,7 @@
 | **GPIO 7** | DS18B20 Slot 7 | DS18B20 Slot 7 | DS18B20 Slot 7 |
 | **GPIO 8** | DS18B20 Slot 8 | DS18B20 Slot 8 | DS18B20 Slot 8 |
 | **GPIO 9** | DS18B20 Slot 9 | DS18B20 Slot 9 | DS18B20 Slot 9 |
-| **GPIO 10** | DHT22 (ambient) | DHT22 (ambient) | DHT22 (ambient) |
+| **GPIO 10** | DHT22 (slot 10) | DHT22 (slot 10) | DHT22 (slot 10) |
 | **GPIO 16** | SPI0 MISO | — | **LCD RS** |
 | **GPIO 17** | Touch CS | — | **LCD EN** |
 | **GPIO 18** | SPI0 SCK | — | **LCD D4** |

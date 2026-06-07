@@ -44,41 +44,24 @@ void AppManager::refreshSelectedSlot( ) {
  if (_lastSavedSlotIdx < 0) {
  _lastSavedSlotIdx = (int8_t)cfg.reserved[53];
  _lastSavedTopIdx = (int8_t)cfg.reserved[52];
- if (cfg.reserved[53] && cfg.reserved[53] <= 10) _currentSensorIdx = cfg.reserved[53];
- if (cfg.reserved[52] && cfg.reserved[52] <= 10) _displayMgr->setTopSlotFixedIdx(cfg.reserved[52]);
+ if (cfg.reserved[53] && cfg.reserved[53] < MAX_SENSORS) _currentSensorIdx = cfg.reserved[53];
+ if (cfg.reserved[52] && cfg.reserved[52] < MAX_SENSORS) _displayMgr->setTopSlotFixedIdx(cfg.reserved[52]);
  _lastSlotChangeTime = millis( );
  }
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
  bool found = false;
 
- if (_currentSensorIdx < 10) {
- if (cfg.sensors[_currentSensorIdx].active) {
+ if (_currentSensorIdx >= 0 && _currentSensorIdx < MAX_SENSORS && cfg.sensors[_currentSensorIdx].active) {
  uint8_t targetGpio = cfg.sensors[_currentSensorIdx].pins[0];
  for (const auto &s : sensors) {
- if (s.config.pins[0] != 10 && s.config.pins[0] == targetGpio) {
- _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ if (s.config.pins[0] == targetGpio) {
+ _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  found = true;
- /* Mirror to top panel if interactive */
  if (_displayMgr->getTopSlotIdx( ) == _currentSensorIdx)
- _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  break;
  }
  }
- }
- } else if (_currentSensorIdx == 10) {
- {
- const auto& sensors = _sensorMgr->getRuntimeSensors( );
- for (const auto &s : sensors) {
- if (s.config.pins[0] == 10) {
- _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
- found = true;
- if (_displayMgr->getTopSlotIdx( ) == 10)
- _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
- break;
- }
- }
- }
- if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, 10, "DHT22 (GPIO10)");
  }
 
  if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
@@ -86,27 +69,15 @@ void AppManager::refreshSelectedSlot( ) {
  /* Fixed panels: override with pinned sensor data when panel is fixed elsewhere */
  {
  int topIdx = _displayMgr->getTopSlotIdx( );
- if (topIdx != _currentSensorIdx) {
- bool tf = false;
- if (topIdx >= 0 && topIdx < 10 && cfg.sensors[topIdx].active) {
+ if (topIdx != _currentSensorIdx && topIdx >= 0 && topIdx < MAX_SENSORS && cfg.sensors[topIdx].active) {
  uint8_t tgpio = cfg.sensors[topIdx].pins[0];
  for (const auto &s : sensors) {
- if (s.config.pins[0] != 10 && s.config.pins[0] == tgpio) {
- _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
- tf = true; break;
- }
- }
- } else if (topIdx == 10) {
- const auto& sensors = _sensorMgr->getRuntimeSensors( );
- for (const auto &s : sensors) {
- if (s.config.pins[0] == 10) {
- _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
+ if (s.config.pins[0] == tgpio) {
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
  break;
  }
  }
  }
- }
- 
  }
 }
 
@@ -139,12 +110,12 @@ void AppManager::updateLiveDisplay( ) {
  if (s.inErrorState) continue;
  int gpio = s.config.pins[0];
  if (gpio < 0 || gpio >= MINMAX_SLOT_COUNT) continue;
- float v = s.avgValue1;
+ float v = s.avgValue[0];
  if (!isnan(v)) {
  if (v < _cachedMin[gpio]) _cachedMin[gpio] = v;
  if (v > _cachedMax[gpio]) _cachedMax[gpio] = v;
  }
- float h = s.avgValue2;
+ float h = s.avgValue[1];
  if (!isnan(h)) {
  if (h < _cachedHumMin[gpio]) _cachedHumMin[gpio] = h;
  if (h > _cachedHumMax[gpio]) _cachedHumMax[gpio] = h;
@@ -166,16 +137,9 @@ void AppManager::updateLiveDisplay( ) {
  }
  }
 
- /* Daily min/max (preload CSV + real-time accumulated readings) */
- float ambMinT = (_cachedMin[10] < 999.0f) ? _cachedMin[10] : NAN;
- float ambMaxT = (_cachedMax[10] > -999.0f) ? _cachedMax[10] : NAN;
- float ambMinH = (_cachedHumMin[10] < 999.0f) ? _cachedHumMin[10] : NAN;
- float ambMaxH = (_cachedHumMax[10] > -999.0f) ? _cachedHumMax[10] : NAN;
- _displayMgr->setAmbientMinMax(ambMinT, ambMaxT, ambMinH, ambMaxH);
-
- /* Active slot min/max */
+ /* Daily min/max — all slots uniform */
  int slotIdx = _currentSensorIdx;
- if (slotIdx >= 0 && slotIdx < 10) {
+ if (slotIdx >= 0 && slotIdx < MAX_SENSORS) {
  float sMinT = (_cachedMin[slotIdx] < 999.0f) ? _cachedMin[slotIdx] : NAN;
  float sMaxT = (_cachedMax[slotIdx] > -999.0f) ? _cachedMax[slotIdx] : NAN;
  float sMinH = (_cachedHumMin[slotIdx] < 999.0f) ? _cachedHumMin[slotIdx] : NAN;
@@ -183,7 +147,7 @@ void AppManager::updateLiveDisplay( ) {
  _displayMgr->setSlotMinMax(sMinT, sMaxT, sMinH, sMaxH);
  /* Top slot min/max — may differ from _currentSensorIdx when fixed */
  int topIdx = _displayMgr->getTopSlotIdx( );
- if (topIdx >= 0 && topIdx <= 10 && topIdx != slotIdx) {
+ if (topIdx >= 0 && topIdx < MAX_SENSORS && topIdx != slotIdx) {
  float tMinT = (_cachedMin[topIdx] < 999.0f) ? _cachedMin[topIdx] : NAN;
  float tMaxT = (_cachedMax[topIdx] > -999.0f) ? _cachedMax[topIdx] : NAN;
  float tMinH = (_cachedHumMin[topIdx] < 999.0f) ? _cachedHumMin[topIdx] : NAN;
@@ -195,32 +159,32 @@ void AppManager::updateLiveDisplay( ) {
  }
  }
 
-
  if (_sensorMgr->hasNewReadings( )) {
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
  SystemConfig &cfg = _storageMgr->getConfig( );
  int topIdx = _displayMgr->getTopSlotIdx( );
 
  for (const auto &s : sensors) {
- if (s.config.pins[0] == 10) {
- _displayMgr->setAmbientData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState);
- if (_currentSensorIdx == 10) {
- _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
- if (topIdx == 10) _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, 10, String(s.config.friendlyName));
- }
- }
- else if (_currentSensorIdx < 10 && cfg.sensors[_currentSensorIdx].active && cfg.sensors[_currentSensorIdx].pins[0] == s.config.pins[0]) {
- _displayMgr->setSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ /* Selected slot data */
+ if (_currentSensorIdx >= 0 && _currentSensorIdx < MAX_SENSORS &&
+ cfg.sensors[_currentSensorIdx].active &&
+ cfg.sensors[_currentSensorIdx].pins[0] == s.config.pins[0]) {
+ _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _currentSensorIdx, String(s.config.friendlyName));
  if (topIdx == _currentSensorIdx)
- _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _currentSensorIdx, String(s.config.friendlyName));
  }
- if (topIdx != _currentSensorIdx && topIdx >= 0 && topIdx < 10 &&
- cfg.sensors[topIdx].active && cfg.sensors[topIdx].pins[0] == s.config.pins[0]) {
- _displayMgr->setTopSlotData(s.avgValue1, s.avgValue2, s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
+ /* Top panel (fixed elsewhere) */
+ if (topIdx != _currentSensorIdx && topIdx >= 0 && topIdx < MAX_SENSORS &&
+ cfg.sensors[topIdx].active &&
+ cfg.sensors[topIdx].pins[0] == s.config.pins[0]) {
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ topIdx, String(s.config.friendlyName));
  }
  }
 
- 
+
  }
 }
 
@@ -384,38 +348,12 @@ void AppManager::processHistoryLogging( ) {
  rec.clear( );
  rec.epoch = (uint32_t)now;
 
- /* Ambient sensor (DHT22 on GPIO 10) */
- float ambT = NAN, ambH = NAN;
- for (const auto &s : sensors) {
- if (s.config.pins[0] == 10 && !s.inErrorState) {
- ambT = s.avgValue1;
- ambH = s.avgValue2;
-
- if (!isnan(ambT)) {
- if (ambT < _cachedMin[10]) _cachedMin[10] = ambT;
- if (ambT > _cachedMax[10]) _cachedMax[10] = ambT;
- if (ambT < _preloadMin[10]) _preloadMin[10] = ambT;
- if (ambT > _preloadMax[10]) _preloadMax[10] = ambT;
- }
- if (!isnan(ambH)) {
- if (ambH < _cachedHumMin[10]) _cachedHumMin[10] = ambH;
- if (ambH > _cachedHumMax[10]) _cachedHumMax[10] = ambH;
- if (ambH < _preloadHumMin[10]) _preloadHumMin[10] = ambH;
- if (ambH > _preloadHumMax[10]) _preloadHumMax[10] = ambH;
- }
- break;
- }
- }
-
- rec.ambientTemp = BinaryHistoryRecord::floatToI16(ambT);
- rec.ambientHum = BinaryHistoryRecord::floatToI16(ambH);
-
- /* Slot sensors (0..9) — temp + humidity */
+ /* All universal slots (0..15) — temp + humidity */
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (cfg.sensors[i].active) {
+ if (!cfg.sensors[i].active) continue;
  for (const auto &s : sensors) {
  if (s.config.pins[0] == cfg.sensors[i].pins[0] && !s.inErrorState) {
- float v = s.avgValue1;
+ float v = s.avgValue[0];
  if (!isnan(v)) {
  rec.sensors[i] = BinaryHistoryRecord::floatToI16(v);
  if (v < _cachedMin[i]) _cachedMin[i] = v;
@@ -423,15 +361,19 @@ void AppManager::processHistoryLogging( ) {
  if (v < _preloadMin[i]) _preloadMin[i] = v;
  if (v > _preloadMax[i]) _preloadMax[i] = v;
  }
- float h = s.avgValue2;
+ float h = s.avgValue[1];
  if (!isnan(h)) {
  if (h < _cachedHumMin[i]) _cachedHumMin[i] = h;
  if (h > _cachedHumMax[i]) _cachedHumMax[i] = h;
  if (h < _preloadHumMin[i]) _preloadHumMin[i] = h;
  if (h > _preloadHumMax[i]) _preloadHumMax[i] = h;
  }
- break;
+ /* Slot 10 also populates ambient fields (backward compat for telemetry) */
+ if (i == 10) {
+ rec.ambientTemp = BinaryHistoryRecord::floatToI16(v);
+ rec.ambientHum = BinaryHistoryRecord::floatToI16(h);
  }
+ break;
  }
  }
  }
@@ -483,8 +425,9 @@ void AppManager::openStatsScreen(int sensorId) {
  pkg.stdHum = NAN;
  pkg.deltaHum = NAN;
 
- int cacheIdx = (sensorId == -1) ? 10 : sensorId;
- if (cacheIdx < 0 || cacheIdx > 10) cacheIdx = 10;
+ int cacheIdx = sensorId;
+ if (sensorId == (int)MINMAX_SLOT_BOARD_TEMP) cacheIdx = MINMAX_SLOT_BOARD_TEMP;
+ else if (cacheIdx < 0 || cacheIdx >= MINMAX_SLOT_COUNT) cacheIdx = 0;
 
  pkg.minVal = _cachedMin[cacheIdx];
  pkg.maxVal = _cachedMax[cacheIdx];
@@ -492,23 +435,20 @@ void AppManager::openStatsScreen(int sensorId) {
  if (pkg.minVal == 1000.0f) pkg.minVal = 0.0f;
  if (pkg.maxVal == -1000.0f) pkg.maxVal = 0.0f;
 
- float humMin = _cachedHumMin[10];
- float humMax = _cachedHumMax[10];
+ float humMin = _cachedHumMin[cacheIdx];
+ float humMax = _cachedHumMax[cacheIdx];
  if (humMin == 1000.0f) humMin = 0.0f;
  if (humMax == -1000.0f) humMax = 0.0f;
 
  SystemConfig &cfg = _storageMgr->getConfig( );
- pkg.hasHumidity = (sensorId == -1);
 
- if (sensorId == -1) {
- snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr->tr(TR_AMBIENT));
- snprintf(pkg.hwId, sizeof(pkg.hwId), "AMB");
- snprintf(pkg.rom, sizeof(pkg.rom), "INTERNAL-DHT");
- } else if (sensorId == 10) {
+ if (sensorId == (int)MINMAX_SLOT_BOARD_TEMP) {
  snprintf(pkg.title, sizeof(pkg.title), "Board Temp");
  snprintf(pkg.hwId, sizeof(pkg.hwId), "SYS");
  snprintf(pkg.rom, sizeof(pkg.rom), "RP2040-ADC");
- } else {
+ pkg.hasHumidity = false;
+ } else if (sensorId >= 0 && sensorId < MAX_SENSORS) {
+ pkg.hasHumidity = sensorHasHumidity((SensorType)cfg.sensors[sensorId].sensorType);
  if (cfg.sensors[sensorId].active) {
  safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
  safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
@@ -518,7 +458,7 @@ void AppManager::openStatsScreen(int sensorId) {
  cfg.sensors[sensorId].rom[4], cfg.sensors[sensorId].rom[5],
  cfg.sensors[sensorId].rom[6], cfg.sensors[sensorId].rom[7]);
  } else {
- snprintf(pkg.title, sizeof(pkg.title), "Sensor %d", sensorId + 1);
+ snprintf(pkg.title, sizeof(pkg.title), "Slot %d", sensorId);
  snprintf(pkg.hwId, sizeof(pkg.hwId), "--");
  snprintf(pkg.rom, sizeof(pkg.rom), "N/A");
  }
@@ -534,31 +474,6 @@ void AppManager::checkAlarmConditions( ) {
  uint16_t mask = 0;
  int8_t firstSlot = -1;
 
-
- bool ambTempAlarm = false;
- bool ambHumAlarm = false;
- if (cfg.ambientSensor.alarmsActive) {
- for (const auto &s : sensors) {
- if (s.config.pins[0] != 10 || s.inErrorState) continue;
- if (!isnan(s.avgValue1)) {
- if (s.avgValue1 < cfg.ambientSensor.tempMin ||
- s.avgValue1 > cfg.ambientSensor.tempMax) {
- ambTempAlarm = true;
- anyAlarm = true;
- }
- }
- if (s.type == TYPE_DHT22 && !isnan(s.avgValue2)) {
- if (s.avgValue2 < cfg.ambientSensor.humMin ||
- s.avgValue2 > cfg.ambientSensor.humMax) {
- ambHumAlarm = true;
- anyAlarm = true;
- }
- }
- break;
- }
- }
-
-
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active || !cfg.sensors[i].alarmsActive) continue;
  uint8_t targetGpio = cfg.sensors[i].pins[0];
@@ -568,16 +483,16 @@ void AppManager::checkAlarmConditions( ) {
 
  bool tripped = false;
 
- if (!isnan(s.avgValue1)) {
- if (s.avgValue1 < cfg.sensors[i].tempMin ||
- s.avgValue1 > cfg.sensors[i].tempMax) {
+ if (!isnan(s.avgValue[0])) {
+ if (s.avgValue[0] < cfg.sensors[i].tempMin ||
+ s.avgValue[0] > cfg.sensors[i].tempMax) {
  tripped = true;
  }
  }
 
- if (!tripped && s.type == TYPE_DHT22 && !isnan(s.avgValue2)) {
- if (s.avgValue2 < cfg.sensors[i].humMin ||
- s.avgValue2 > cfg.sensors[i].humMax) {
+ if (!tripped && sensorHasHumidity(s.type) && !isnan(s.avgValue[1])) {
+ if (s.avgValue[1] < cfg.sensors[i].humMin ||
+ s.avgValue[1] > cfg.sensors[i].humMax) {
  tripped = true;
  }
  }
@@ -601,15 +516,15 @@ void AppManager::checkAlarmConditions( ) {
  _currentSensorIdx = firstSlot;
  refreshSelectedSlot( );
  }
- _displayMgr->setAlarmState(mask, firstSlot, ambTempAlarm, ambHumAlarm);
+ _displayMgr->setAlarmState(mask, firstSlot);
  LOG_CODE(LOG_WARN, "APP", APP_ALARM_TRIGGERED, 0, "");
  } else if (anyAlarm && (_soundMgr->isAlarming( ) || silenced)) {
 
- _displayMgr->setAlarmState(mask, -1, ambTempAlarm, ambHumAlarm);
+ _displayMgr->setAlarmState(mask, -1);
  } else if (!anyAlarm && (_soundMgr->isAlarming( ) || silenced)) {
 
  _soundMgr->stopAlarm( );
- _displayMgr->setAlarmState(0, -1, false, false);
+ _displayMgr->setAlarmState(0, -1);
 
  if (silenced) {
  _displayMgr->setAlarmSilenced(false, 0);

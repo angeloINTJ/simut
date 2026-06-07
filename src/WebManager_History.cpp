@@ -75,26 +75,23 @@ void WebManager::handleApiHistoryMulti( ) {
  if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str( ));
 
  /* ── Parse sensors=... (CSV of IDs) ─────────────────────────────────── */
- int sensorIds[11]; /* MAX_SENSORS + 1 (ambient) */
+ int sensorIds[MAX_SENSORS]; /* up to 16 slots */
  int sensorCount = 0;
- bool ambientIncluded = false;
- int ambientPos = -1; /* index within sensorIds[] */
- String sArg = _server.hasArg("sensors") ? _server.arg("sensors") : String("-1");
+ String sArg = _server.hasArg("sensors") ? _server.arg("sensors") : String("10");
  {
  int start = 0;
- while (start < (int)sArg.length( ) && sensorCount < 11) {
+ while (start < (int)sArg.length( ) && sensorCount < MAX_SENSORS) {
  int comma = sArg.indexOf(',', start);
  String tok = (comma < 0) ? sArg.substring(start) : sArg.substring(start, comma);
  tok.trim( );
  if (tok.length( ) > 0) {
  int id = tok.toInt( );
- /* Accept -1 (ambient) or 0..MAX_SENSORS-1. Filter duplicates. */
- if (id >= -1 && id < MAX_SENSORS) {
+ /* Accept 0..MAX_SENSORS-1. Filter duplicates. */
+ if (id >= 0 && id < MAX_SENSORS) {
  bool dup = false;
  for (int i = 0; i < sensorCount; i++) if (sensorIds[i] == id) { dup = true; break; }
  if (!dup) {
  sensorIds[sensorCount] = id;
- if (id == -1) { ambientIncluded = true; ambientPos = sensorCount; }
  sensorCount++;
  }
  }
@@ -103,7 +100,7 @@ void WebManager::handleApiHistoryMulti( ) {
  start = comma + 1;
  }
  }
- if (sensorCount == 0) { sensorIds[0] = -1; sensorCount = 1; ambientIncluded = true; ambientPos = 0; }
+ if (sensorCount == 0) { sensorIds[0] = 10; sensorCount = 1; }
 
  /* ── Parse range/end ────────────────────────────────────────────────── */
  String reqRange = _server.arg("range");
@@ -196,14 +193,11 @@ void WebManager::handleApiHistoryMulti( ) {
  char b[160];
  const char* hwId; const char* name; const char* type;
  bool hasH;
- if (id == -1) {
- hwId = cfg.ambientSensor.hwId;
- name = cfg.ambientSensor.friendlyName;
- type = "ambient"; hasH = true;
- } else {
+ {
  hwId = cfg.sensors[id].hwId;
  name = cfg.sensors[id].friendlyName;
- type = "ds18b20"; hasH = false;
+ type = sensorHasHumidity((SensorType)cfg.sensors[id].sensorType) ? "ambient" : "ds18b20";
+ hasH = sensorHasHumidity((SensorType)cfg.sensors[id].sensorType);
  }
  /* Minimal escape: double quotes become \" */
  char nameEsc[40]; size_t k = 0;
@@ -299,7 +293,7 @@ void WebManager::handleApiHistoryMulti( ) {
  /* T stats of set (pre-decimation) */
  for (int s = 0; s < sensorCount; s++) {
  int id = sensorIds[s];
- int16_t raw = (id == -1) ? rec.ambientTemp : rec.sensors[id];
+ int16_t raw = rec.sensors[id];
  if (raw == HIST_NAN_SENTINEL) continue;
  float v = BinaryHistoryRecord::i16ToFloat(raw);
  if (v < realMinT) { realMinT = v; tsRealMinT = ts; }
@@ -317,7 +311,7 @@ void WebManager::handleApiHistoryMulti( ) {
  (unsigned long)ts);
  for (int s = 0; s < sensorCount; s++) {
  int id = sensorIds[s];
- int16_t raw = (id == -1) ? rec.ambientTemp : rec.sensors[id];
+ int16_t raw = rec.sensors[id];
  if (s > 0) pointBuf[pos++] = ',';
  if (raw == HIST_NAN_SENTINEL) {
  pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos, "null");
@@ -331,8 +325,9 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  }
  pointBuf[pos++] = ']';
- /* h: ambient hum if included and valid */
- if (ambientIncluded && rec.ambientHum != HIST_NAN_SENTINEL) {
+ /* h: humidity for slot 10 if included */
+ bool hasSlot10 = false; for (int si = 0; si < sensorCount; si++) if (sensorIds[si] == 10) { hasSlot10 = true; break; }
+ if (hasSlot10 && rec.ambientHum != HIST_NAN_SENTINEL) {
  float h = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
  int hInt = abs((int)h);
  int hDec = abs((int)(h * 10.0f) % 10);
@@ -362,7 +357,6 @@ void WebManager::handleApiHistoryMulti( ) {
  delay(5); watchdog_update( );
  }
  { ReadGuard rg(_storageRef); f.close( ); }
- (void)ambientPos; /* reserved for future use (frontend already knows position) */
  }
 
  if (!aborted) {
@@ -476,10 +470,9 @@ void WebManager::handleApiExportHistory( ) {
  if (!s.active) continue;
  appendSensor((uint8_t)i, s.hwId, s.friendlyName);
  }
- /* Ambient: special idx = 0xFE; uses ambient hwId (usually empty) +
- * friendlyName. Only emits if ambient active. */
- if (cfg.ambientSensor.active) {
- appendSensor(0xFE, cfg.ambientSensor.hwId, cfg.ambientSensor.friendlyName);
+ /* Slot 10 (humidity-capable sensor): special idx = 0xFE for backward compat */
+ if (cfg.sensors[10].active) {
+ appendSensor(0xFE, cfg.sensors[10].hwId, cfg.sensors[10].friendlyName);
  }
  }
 

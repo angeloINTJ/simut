@@ -45,7 +45,7 @@ const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
  exitFlashSafeMode( ); \
 } while (0)
 
-const uint16_t CONFIG_VERSION = 16;
+const uint16_t CONFIG_VERSION = 17;
 
 /* -------------------------------------------------------------------------- */
 /* Legacy UserAccount layout (v14 and earlier) — used ONLY by the */
@@ -59,6 +59,22 @@ struct __attribute__((packed)) UserAccount_v14 {
  bool mustChangePassword;
 };
 static_assert(sizeof(UserAccount_v14) == 52, "UserAccount_v14 must be 52 bytes");
+
+/* Legacy v15 SensorRecord (79 bytes) — used by v14 and v15 migrators. */
+struct __attribute__((packed)) SensorRecord_v15 {
+ bool active;
+ uint8_t gpio;
+ uint8_t rom[8];
+ char hwId[16];
+ char friendlyName[32];
+ uint32_t provisionEpoch;
+ float tempMin;
+ float tempMax;
+ float humMin;
+ float humMax;
+ bool alarmsActive;
+};
+static_assert(sizeof(SensorRecord_v15) == 79, "SensorRecord_v15 must be 79 bytes");
 
 /* Keystream derivation via SHA-256(chip_id + domain + counter).
  * Generates arbitrary-size keystream iterating the counter and expanding
@@ -101,24 +117,26 @@ void StorageManager::obfuscateSensitiveFields(SystemConfig& cfg) {
  xorWithDerivedKey((uint8_t*)cfg.telApiKey, sizeof(cfg.telApiKey), "telapi");
 }
 
-/* Blob sizes per historical version, derived from sizeof(SystemConfig)
- * current (v16) subtracting known deltas. Used for dispatch based
- * on file size in attemptLoad.
+/* Blob sizes per historical version, derived from known record counts.
+ * sizeof(SystemConfig) = CURRENT v17 size. Older sizes are computed
+ * by subtracting the deltas introduced in each version.
  *
- * v16: sizeof(SystemConfig) — current
- * v15: sizeof(SystemConfig) - 44 — SensorRecord grew 4B × 11
- * v14: sizeof(SystemConfig) - MAX_USERS*(62-52) — user growth
- * v13: same size as v14 (only obfuscation changes, not layout)
- * v12: v14 - (64-24) — reserved growth
+ * Record counts per version (sensor area):
+ *   v17: 16 SensorRecords (sensors[16], no ambientSensor)
+ *   v16: 11 SensorRecords (sensors[10] + ambientSensor)
+ *   v15: 11 SensorRecord_v15 (79 B each)
+ *
+ * v15→v16: SensorRecord grew 4 B × 11 = +44 B
+ * v16→v17: +5 SensorRecords (removed ambientSensor, added 6 slots) = +415 B
  */
+static constexpr size_t V16_RECORD_COUNT = 11; /* 10 sensors + 1 ambientSensor */
+static constexpr size_t V16_TO_V17_DELTA = (MAX_SENSORS - V16_RECORD_COUNT) * sizeof(SensorRecord); /* 5*83=415 */
+static constexpr size_t CONFIG_V16_BLOB_SIZE = sizeof(SystemConfig) - V16_TO_V17_DELTA;
+static constexpr size_t CONFIG_V15_BLOB_SIZE = CONFIG_V16_BLOB_SIZE - V16_RECORD_COUNT * 4; /* -44 */
 static constexpr size_t CONFIG_V14_USER_DELTA =
  MAX_USERS * (sizeof(UserAccount) - sizeof(UserAccount_v14)); /* 50 bytes */
-static constexpr size_t CONFIG_V15_DELTA =
- 11 * 4; /* SensorRecord grew: +sensorType(1)-gpio(1)+pins[4](4)=+4 per sensor, 10 slots + ambient = 11 */
-static constexpr size_t CONFIG_V15_BLOB_SIZE =
- sizeof(SystemConfig) - 44; /* = sizeof(v16)-44: actual v15 blob */
 static constexpr size_t CONFIG_V14_BLOB_SIZE =
- sizeof(SystemConfig) - CONFIG_V14_USER_DELTA - CONFIG_V15_DELTA;
+ CONFIG_V15_BLOB_SIZE - CONFIG_V14_USER_DELTA;
 static constexpr size_t CONFIG_V12_BLOB_SIZE =
  CONFIG_V14_BLOB_SIZE - (64 - CONFIG_V12_RESERVED_SIZE);
 
@@ -356,7 +374,7 @@ void StorageManager::loadDefaults( ) {
  _currentConfig.sensors[i].active = false;
  _currentConfig.sensors[i].sensorType = TYPE_NONE;
  memset(_currentConfig.sensors[i].pins, 255, sizeof(_currentConfig.sensors[i].pins));
- _currentConfig.sensors[i].pins[0] = 0;
+ _currentConfig.sensors[i].pins[0] = i; /* Default: pin = slot index */
  memset(_currentConfig.sensors[i].rom, 0, 8);
  safeCopy(_currentConfig.sensors[i].hwId, "", sizeof(_currentConfig.sensors[i].hwId));
  safeCopy(_currentConfig.sensors[i].friendlyName, "Empty Slot", sizeof(_currentConfig.sensors[i].friendlyName));
@@ -367,18 +385,40 @@ void StorageManager::loadDefaults( ) {
  _currentConfig.sensors[i].alarmsActive = true;
  }
 
- _currentConfig.ambientSensor.active = true;
- _currentConfig.ambientSensor.sensorType = TYPE_DHT22;
- memset(_currentConfig.ambientSensor.pins, 255, sizeof(_currentConfig.ambientSensor.pins));
- _currentConfig.ambientSensor.pins[0] = 10;
- memset(_currentConfig.ambientSensor.rom, 0, 8);
- safeCopy(_currentConfig.ambientSensor.hwId, "AMB", sizeof(_currentConfig.ambientSensor.hwId));
- safeCopy(_currentConfig.ambientSensor.friendlyName, "Ambiente Central", sizeof(_currentConfig.ambientSensor.friendlyName));
- _currentConfig.ambientSensor.tempMin = 15.0f;
- _currentConfig.ambientSensor.tempMax = 35.0f;
- _currentConfig.ambientSensor.humMin = 30.0f;
- _currentConfig.ambientSensor.humMax = 70.0f;
- _currentConfig.ambientSensor.alarmsActive = true;
+ /* Slots 0 e 10: DHT22 (temperatura + umidade) */
+ _currentConfig.sensors[0].active = true;
+ _currentConfig.sensors[0].sensorType = TYPE_DHT22;
+ _currentConfig.sensors[0].pins[0] = 0;
+ safeCopy(_currentConfig.sensors[0].hwId, "DHT0", sizeof(_currentConfig.sensors[0].hwId));
+ safeCopy(_currentConfig.sensors[0].friendlyName, "DHT22 Externo", sizeof(_currentConfig.sensors[0].friendlyName));
+ _currentConfig.sensors[0].tempMin = 0.0f;
+ _currentConfig.sensors[0].tempMax = 40.0f;
+ _currentConfig.sensors[0].humMin = 20.0f;
+ _currentConfig.sensors[0].humMax = 80.0f;
+
+ _currentConfig.sensors[10].active = true;
+ _currentConfig.sensors[10].sensorType = TYPE_DHT22;
+ _currentConfig.sensors[10].pins[0] = 10;
+ safeCopy(_currentConfig.sensors[10].hwId, "AMB", sizeof(_currentConfig.sensors[10].hwId));
+ safeCopy(_currentConfig.sensors[10].friendlyName, "Ambiente Central", sizeof(_currentConfig.sensors[10].friendlyName));
+ _currentConfig.sensors[10].tempMin = 15.0f;
+ _currentConfig.sensors[10].tempMax = 35.0f;
+ _currentConfig.sensors[10].humMin = 30.0f;
+ _currentConfig.sensors[10].humMax = 70.0f;
+
+ /* Slots 1-9: DS18B20 (temperatura) */
+ for (int i = 1; i <= 9; i++) {
+ _currentConfig.sensors[i].active = true;
+ _currentConfig.sensors[i].sensorType = TYPE_DS18B20;
+ _currentConfig.sensors[i].pins[0] = i;
+ char hwId[8]; snprintf(hwId, sizeof(hwId), "DS%d", i);
+ char name[32]; snprintf(name, sizeof(name), "DS18B20 #%d", i);
+ safeCopy(_currentConfig.sensors[i].hwId, hwId, sizeof(_currentConfig.sensors[i].hwId));
+ safeCopy(_currentConfig.sensors[i].friendlyName, name, sizeof(_currentConfig.sensors[i].friendlyName));
+ _currentConfig.sensors[i].tempMin = -10.0f;
+ _currentConfig.sensors[i].tempMax = 50.0f;
+ _currentConfig.sensors[i].alarmsActive = true;
+ }
 }
 
 uint32_t StorageManager::calculateCRC32(const uint8_t *data, size_t length) {
@@ -484,32 +524,17 @@ bool StorageManager::loadAndMigrateV12(File& f, SystemConfig& outCfg) {
 }
 
 /* Read config in v15 format (UserAccount[62], SensorRecord[79] with single gpio)
- * and migrate to v16 (UserAccount[62], SensorRecord[83] with sensorType + pins[4]).
+ * and migrate directly to v17 (16 universal slots).
  *
- * Each SensorRecord grows by 4 bytes: gpio(1) → sensorType(1) + pins[4](4) = +4.
- * Ambient sensor follows the same expansion.
+ * v15 had: sensors[10] + ambientSensor = 11 SensorRecord_v15 (79 B each)
+ * v17 has: sensors[16] = 16 SensorRecord (83 B each)
  *
- * The change is isolated to the SensorRecord arrays — the surrounding fields
- * (users, telServer, etc.) are identical between v15 and v16. */
+ * Migration: v15 sensors[0..9] → v17 sensors[0..9], v15 ambientSensor → v17 sensors[10],
+ * v17 sensors[11..15] = inactive defaults. Tail copied to new offset. */
 bool StorageManager::loadAndMigrateV15(File& f, SystemConfig& outCfg) {
- /* v15 SensorRecord (79 bytes, packed). Matches the pre-migration struct. */
- struct __attribute__((packed)) SensorRecord_v15 {
- bool active;
- uint8_t gpio;
- uint8_t rom[8];
- char hwId[16];
- char friendlyName[32];
- uint32_t provisionEpoch;
- float tempMin;
- float tempMax;
- float humMin;
- float humMax;
- bool alarmsActive;
- };
- static_assert(sizeof(SensorRecord_v15) == 79, "SensorRecord_v15 must be 79 bytes");
-
- static_assert(offsetof(SystemConfig, ambientSensor) > offsetof(SystemConfig, sensors),
- "ambientSensor must be after sensors[] for pointer arithmetic to be valid");
+ static constexpr size_t V15_SLOT_COUNT = 10; /* v15 had 10 configurable slots */
+ constexpr size_t V15_SENSOR_SIZE = sizeof(SensorRecord_v15);
+ constexpr size_t V16_SENSOR_SIZE = sizeof(SensorRecord);
 
  uint8_t* buf = new (std::nothrow) uint8_t[CONFIG_V15_BLOB_SIZE];
  if (!buf) return false;
@@ -518,93 +543,41 @@ bool StorageManager::loadAndMigrateV15(File& f, SystemConfig& outCfg) {
  size_t bytesRead = f.read(buf, CONFIG_V15_BLOB_SIZE);
  size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
 
- if (bytesRead != CONFIG_V15_BLOB_SIZE) delete[] buf; return false;
+ if (bytesRead != CONFIG_V15_BLOB_SIZE) { delete[] buf; return false; }
 
  uint32_t fileMagic = 0;
  uint16_t fileVersion = 0;
  memcpy(&fileMagic, buf + 0, sizeof(fileMagic));
  memcpy(&fileVersion, buf + sizeof(fileMagic), sizeof(fileVersion));
 
- if (fileMagic != CONFIG_MAGIC || fileVersion != 15) delete[] buf; return false;
+ if (fileMagic != CONFIG_MAGIC || fileVersion != 15) { delete[] buf; return false; }
 
  if (crcRead == sizeof(readCrc)) {
  uint32_t calcCrc = calculateCRC32(buf, CONFIG_V15_BLOB_SIZE);
- if (calcCrc != readCrc) delete[] buf; return false;
+ if (calcCrc != readCrc) { delete[] buf; return false; }
  }
 
  memset(&outCfg, 0, sizeof(SystemConfig));
 
- /* Deserialize v15 blob field-by-field into v16 struct.
-  * The blob has SensorRecord[79] arrays — read each one and expand to v16.
-  * Strategy: read the v15 blob into a temporary struct, then copy fields
-  * into outCfg with the new pins layout. */
-
- /* Head section: copy everything before sensors[] (magic..ds18Resolution). */
+ /* Head: copy everything before sensors[] (magic..ds18Resolution). */
  constexpr size_t HEAD_SIZE = offsetof(SystemConfig, sensors);
  memcpy(&outCfg, buf, HEAD_SIZE);
 
- /* sensors[0..9] — each v15 record is 79 bytes, v16 is 83 (+4). */
- constexpr size_t V15_SENSOR_SIZE = sizeof(SensorRecord_v15);
- constexpr size_t V16_SENSOR_SIZE = sizeof(SensorRecord);
  constexpr size_t V15_SENSORS_OFFSET = HEAD_SIZE;
- constexpr size_t V16_SENSORS_OFFSET = HEAD_SIZE;
+ constexpr size_t V17_SENSORS_OFFSET = HEAD_SIZE;
 
- for (int i = 0; i < MAX_SENSORS; i++) {
+ /* v15 sensors[0..9] → v17 sensors[0..9] */
+ for (size_t i = 0; i < V15_SLOT_COUNT; i++) {
  SensorRecord_v15 s15;
  const uint8_t* src = buf + V15_SENSORS_OFFSET + i * V15_SENSOR_SIZE;
  memcpy(&s15, src, V15_SENSOR_SIZE);
 
- /* Detect type from ROM (same logic as v15 initRuntimeSensors). */
  bool isDs18 = false;
  for (int k = 0; k < 8; k++) if (s15.rom[k] != 0) isDs18 = true;
 
- /* Write v16 record. */
- uint8_t* dst = ((uint8_t*)&outCfg) + V16_SENSORS_OFFSET + i * V16_SENSOR_SIZE;
-
- /* active (1 byte, same offset) */
- memcpy(dst + offsetof(SensorRecord, active),
- &s15.active, sizeof(s15.active));
-
- /* sensorType (1 byte) — new field */
- uint8_t st = (uint8_t)(isDs18 ? TYPE_DS18B20 : TYPE_DHT22);
- memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
-
- /* pins[4] — new field: pins[0] = old gpio, rest = PIN_UNUSED */
- uint8_t pns[4] = {s15.gpio, 255, 255, 255};
- memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
-
- /* rom[8] (same) */
- memcpy(dst + offsetof(SensorRecord, rom), s15.rom, sizeof(s15.rom));
-
- /* hwId[16] (same) */
- memcpy(dst + offsetof(SensorRecord, hwId), s15.hwId, sizeof(s15.hwId));
-
- /* friendlyName[32] (same) */
- memcpy(dst + offsetof(SensorRecord, friendlyName), s15.friendlyName, sizeof(s15.friendlyName));
-
- /* provisionEpoch (same) */
- memcpy(dst + offsetof(SensorRecord, provisionEpoch),
- &s15.provisionEpoch, sizeof(s15.provisionEpoch));
-
- /* tempMin, tempMax, humMin, humMax (same) */
- memcpy(dst + offsetof(SensorRecord, tempMin),
- &s15.tempMin, 4 * sizeof(float));
-
- /* alarmsActive (same, at end) */
- memcpy(dst + offsetof(SensorRecord, alarmsActive),
- &s15.alarmsActive, sizeof(s15.alarmsActive));
- }
-
- /* ambientSensor — same expansion as slot sensors. */
- {
- SensorRecord_v15 s15;
- const uint8_t* src = buf + V15_SENSORS_OFFSET + MAX_SENSORS * V15_SENSOR_SIZE;
- memcpy(&s15, src, V15_SENSOR_SIZE);
-
- uint8_t* dst = ((uint8_t*)&outCfg) + V16_SENSORS_OFFSET + MAX_SENSORS * V16_SENSOR_SIZE;
-
+ uint8_t* dst = ((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + i * V16_SENSOR_SIZE;
  memcpy(dst + offsetof(SensorRecord, active), &s15.active, sizeof(s15.active));
- uint8_t st = (uint8_t)TYPE_DHT22; /* ambient is always DHT22 */
+ uint8_t st = (uint8_t)(isDs18 ? TYPE_DS18B20 : TYPE_DHT22);
  memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
  uint8_t pns[4] = {s15.gpio, 255, 255, 255};
  memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
@@ -616,20 +589,51 @@ bool StorageManager::loadAndMigrateV15(File& f, SystemConfig& outCfg) {
  memcpy(dst + offsetof(SensorRecord, alarmsActive), &s15.alarmsActive, sizeof(s15.alarmsActive));
  }
 
- /* Tail: copy everything after ambientSensor (displayPin..reserved). */
+ /* v15 ambientSensor → v17 sensors[10] */
+ {
+ SensorRecord_v15 s15;
+ const uint8_t* src = buf + V15_SENSORS_OFFSET + V15_SLOT_COUNT * V15_SENSOR_SIZE;
+ memcpy(&s15, src, V15_SENSOR_SIZE);
+
+ uint8_t* dst = ((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + V15_SLOT_COUNT * V16_SENSOR_SIZE;
+
+ memcpy(dst + offsetof(SensorRecord, active), &s15.active, sizeof(s15.active));
+ uint8_t st = (uint8_t)TYPE_DHT22; /* ambient was always DHT22 */
+ memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
+ uint8_t pns[4] = {s15.gpio, 255, 255, 255};
+ memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
+ memcpy(dst + offsetof(SensorRecord, rom), s15.rom, sizeof(s15.rom));
+ memcpy(dst + offsetof(SensorRecord, hwId), s15.hwId, sizeof(s15.hwId));
+ memcpy(dst + offsetof(SensorRecord, friendlyName), s15.friendlyName, sizeof(s15.friendlyName));
+ memcpy(dst + offsetof(SensorRecord, provisionEpoch), &s15.provisionEpoch, sizeof(s15.provisionEpoch));
+ memcpy(dst + offsetof(SensorRecord, tempMin), &s15.tempMin, 4 * sizeof(float));
+ memcpy(dst + offsetof(SensorRecord, alarmsActive), &s15.alarmsActive, sizeof(s15.alarmsActive));
+ }
+
+ /* Initialize v17 sensors[11..15] as inactive */
+ for (size_t i = V15_SLOT_COUNT + 1; i < (size_t)MAX_SENSORS; i++) {
+ uint8_t* dst = ((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + i * V16_SENSOR_SIZE;
+ bool active = false;
+ memcpy(dst + offsetof(SensorRecord, active), &active, sizeof(active));
+ uint8_t st = (uint8_t)TYPE_NONE;
+ memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
+ uint8_t pns[4] = {255, 255, 255, 255};
+ memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
+ }
+
+ /* Tail: v15 ambientSensor was at V15_SENSORS_OFFSET + 11*V15_SENSOR_SIZE.
+ * v17 sensors[15] end at V17_SENSORS_OFFSET + 16*V16_SENSOR_SIZE. */
  constexpr size_t V15_TAIL_OFFSET =
- V15_SENSORS_OFFSET + (MAX_SENSORS + 1) * V15_SENSOR_SIZE;
- constexpr size_t V16_TAIL_OFFSET =
- V16_SENSORS_OFFSET + (MAX_SENSORS + 1) * V16_SENSOR_SIZE;
+ V15_SENSORS_OFFSET + (V15_SLOT_COUNT + 1) * V15_SENSOR_SIZE; /* 11 v15 records */
+ constexpr size_t V17_TAIL_OFFSET =
+ V17_SENSORS_OFFSET + (size_t)MAX_SENSORS * V16_SENSOR_SIZE; /* 16 v17 records */
  constexpr size_t TAIL_SIZE = CONFIG_V15_BLOB_SIZE - V15_TAIL_OFFSET;
 
- memcpy(((uint8_t*)&outCfg) + V16_TAIL_OFFSET,
+ memcpy(((uint8_t*)&outCfg) + V17_TAIL_OFFSET,
  buf + V15_TAIL_OFFSET,
  TAIL_SIZE);
 
- /* v15 has sensitive fields obfuscated — deobfuscate. */
  obfuscateSensitiveFields(outCfg);
-
  outCfg.version = CONFIG_VERSION;
  return true;
 }
@@ -693,10 +697,78 @@ bool StorageManager::loadAndMigrateV14(File& f, SystemConfig& outCfg, uint16_t& 
  outCfg.users[i].hashVersion = 0; /* legacy */
  }
 
- /* Copy tail (fields after users[]) to shifted offset in outCfg. */
- memcpy(((uint8_t*)&outCfg) + V15_TAIL_OFFSET,
+ /* Copy tail in three parts: mid-section (telServer..ds18Resolution),
+ * sensor area (expand 11 × v15 → 16 × v17), and post-sensor fields. */
+ constexpr size_t MID_SIZE = offsetof(SystemConfig, sensors) - offsetof(SystemConfig, telServer);
+ constexpr size_t V15_SENSOR_SIZE_T = sizeof(SensorRecord_v15);
+ constexpr size_t V17_SENSOR_SIZE_T = sizeof(SensorRecord);
+
+ /* 1. Mid-section: telServer..ds18Resolution (same in all versions) */
+ memcpy(((uint8_t*)&outCfg) + offsetof(SystemConfig, telServer),
  buf + V14_TAIL_OFFSET,
- TAIL_SIZE);
+ MID_SIZE);
+
+ /* 2. Expand sensors: 11 v15 records → 16 v17 records */
+ {
+ static constexpr size_t V15_SLOTS = 10;
+ const uint8_t* srcSensors = buf + V14_TAIL_OFFSET + MID_SIZE;
+ uint8_t* dstSensors = ((uint8_t*)&outCfg) + offsetof(SystemConfig, sensors);
+
+ for (size_t i = 0; i < V15_SLOTS; i++) {
+ SensorRecord_v15 s15;
+ memcpy(&s15, srcSensors + i * V15_SENSOR_SIZE_T, V15_SENSOR_SIZE_T);
+ bool isDs18 = false;
+ for (int k = 0; k < 8; k++) if (s15.rom[k] != 0) isDs18 = true;
+ uint8_t* dst = dstSensors + i * V17_SENSOR_SIZE_T;
+ memcpy(dst + offsetof(SensorRecord, active), &s15.active, sizeof(s15.active));
+ uint8_t st = (uint8_t)(isDs18 ? TYPE_DS18B20 : TYPE_DHT22);
+ memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
+ uint8_t pns[4] = {s15.gpio, 255, 255, 255};
+ memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
+ memcpy(dst + offsetof(SensorRecord, rom), s15.rom, sizeof(s15.rom));
+ memcpy(dst + offsetof(SensorRecord, hwId), s15.hwId, sizeof(s15.hwId));
+ memcpy(dst + offsetof(SensorRecord, friendlyName), s15.friendlyName, sizeof(s15.friendlyName));
+ memcpy(dst + offsetof(SensorRecord, provisionEpoch), &s15.provisionEpoch, sizeof(s15.provisionEpoch));
+ memcpy(dst + offsetof(SensorRecord, tempMin), &s15.tempMin, 4 * sizeof(float));
+ memcpy(dst + offsetof(SensorRecord, alarmsActive), &s15.alarmsActive, sizeof(s15.alarmsActive));
+ }
+ /* v15 ambientSensor → v17 sensors[10] */
+ {
+ SensorRecord_v15 s15;
+ memcpy(&s15, srcSensors + V15_SLOTS * V15_SENSOR_SIZE_T, V15_SENSOR_SIZE_T);
+ uint8_t* dst = dstSensors + V15_SLOTS * V17_SENSOR_SIZE_T;
+ memcpy(dst + offsetof(SensorRecord, active), &s15.active, sizeof(s15.active));
+ uint8_t st = (uint8_t)TYPE_DHT22;
+ memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
+ uint8_t pns[4] = {s15.gpio, 255, 255, 255};
+ memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
+ memcpy(dst + offsetof(SensorRecord, rom), s15.rom, sizeof(s15.rom));
+ memcpy(dst + offsetof(SensorRecord, hwId), s15.hwId, sizeof(s15.hwId));
+ memcpy(dst + offsetof(SensorRecord, friendlyName), s15.friendlyName, sizeof(s15.friendlyName));
+ memcpy(dst + offsetof(SensorRecord, provisionEpoch), &s15.provisionEpoch, sizeof(s15.provisionEpoch));
+ memcpy(dst + offsetof(SensorRecord, tempMin), &s15.tempMin, 4 * sizeof(float));
+ memcpy(dst + offsetof(SensorRecord, alarmsActive), &s15.alarmsActive, sizeof(s15.alarmsActive));
+ }
+ /* sensors[11..15] = inactive */
+ for (size_t i = V15_SLOTS + 1; i < (size_t)MAX_SENSORS; i++) {
+ uint8_t* dst = dstSensors + i * V17_SENSOR_SIZE_T;
+ bool active = false; uint8_t st = (uint8_t)TYPE_NONE; uint8_t pns[4] = {255,255,255,255};
+ memcpy(dst + offsetof(SensorRecord, active), &active, sizeof(active));
+ memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
+ memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
+ }
+ }
+
+ /* 3. Post-sensor tail: themeIndex..reserved[64] */
+ {
+ constexpr size_t V14_POST_OFFSET = V14_TAIL_OFFSET + MID_SIZE + (10 + 1) * V15_SENSOR_SIZE_T;
+ constexpr size_t V17_POST_OFFSET = offsetof(SystemConfig, themeIndex);
+ constexpr size_t POST_SIZE = sizeof(SystemConfig) - offsetof(SystemConfig, themeIndex)
+ - sizeof(SystemConfig::reserved) + sizeof(SystemConfig::reserved); /* themeIndex..reserved */
+ memcpy(((uint8_t*)&outCfg) + V17_POST_OFFSET,
+ buf + V14_POST_OFFSET,
+ POST_SIZE);
+ }
 
  /* v14 has sensitive fields obfuscated — deobfuscate. v13 is plaintext. */
  if (fileVersion == 14) {
@@ -704,7 +776,86 @@ bool StorageManager::loadAndMigrateV14(File& f, SystemConfig& outCfg, uint16_t& 
  }
 
  srcVersion = fileVersion;
- outCfg.version = CONFIG_VERSION; /* upgrade to v15 */
+ outCfg.version = CONFIG_VERSION;
+ return true;
+}
+
+/* Read config in v16 format (10 slots + ambientSensor) and migrate
+ * to v17 (16 universal slots). AmbientSensor becomes sensors[10];
+ * slots 11..15 initialized as inactive. Tail shifted by +5*sizeof(SensorRecord). */
+bool StorageManager::loadAndMigrateV16(File& f, SystemConfig& outCfg) {
+ constexpr size_t HEAD_SIZE = offsetof(SystemConfig, sensors);
+ constexpr size_t V16_REC_SIZE = sizeof(SensorRecord);
+ static constexpr size_t V16_SLOTS = 10;
+
+ uint8_t* buf = new (std::nothrow) uint8_t[CONFIG_V16_BLOB_SIZE];
+ if (!buf) return false;
+ uint32_t readCrc = 0;
+
+ size_t bytesRead = f.read(buf, CONFIG_V16_BLOB_SIZE);
+ size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
+
+ if (bytesRead != CONFIG_V16_BLOB_SIZE) { delete[] buf; return false; }
+
+ uint32_t fileMagic = 0;
+ uint16_t fileVersion = 0;
+ memcpy(&fileMagic, buf + 0, sizeof(fileMagic));
+ memcpy(&fileVersion, buf + sizeof(fileMagic), sizeof(fileVersion));
+
+ if (fileMagic != CONFIG_MAGIC || fileVersion != 16) { delete[] buf; return false; }
+
+ if (crcRead == sizeof(readCrc)) {
+ uint32_t calcCrc = calculateCRC32(buf, CONFIG_V16_BLOB_SIZE);
+ if (calcCrc != readCrc) { delete[] buf; return false; }
+ }
+
+ memset(&outCfg, 0, sizeof(SystemConfig));
+
+ /* Head (magic..ds18Resolution) — same in v16 and v17 */
+ memcpy(&outCfg, buf, HEAD_SIZE);
+
+ /* sensors[0..9] — copy directly (same format) */
+ constexpr size_t V16_SENSORS_OFFSET = HEAD_SIZE;
+ constexpr size_t V17_SENSORS_OFFSET = HEAD_SIZE;
+ for (size_t i = 0; i < V16_SLOTS; i++) {
+ memcpy(((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + i * V16_REC_SIZE,
+ buf + V16_SENSORS_OFFSET + i * V16_REC_SIZE,
+ V16_REC_SIZE);
+ }
+
+ /* v16 ambientSensor → v17 sensors[10] */
+ memcpy(((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + V16_SLOTS * V16_REC_SIZE,
+ buf + V16_SENSORS_OFFSET + V16_SLOTS * V16_REC_SIZE,
+ V16_REC_SIZE);
+
+ /* sensors[11..15] = inactive defaults */
+ for (size_t i = V16_SLOTS + 1; i < (size_t)MAX_SENSORS; i++) {
+ uint8_t* dst = ((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + i * V16_REC_SIZE;
+ bool active = false; uint8_t st = (uint8_t)TYPE_NONE; uint8_t pns[4] = {255,255,255,255};
+ uint8_t rom[8] = {0}; uint32_t pe = 0; float fdef = 0.0f;
+ memcpy(dst + offsetof(SensorRecord, active), &active, sizeof(active));
+ memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
+ memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
+ memcpy(dst + offsetof(SensorRecord, rom), rom, sizeof(rom));
+ memcpy(dst + offsetof(SensorRecord, provisionEpoch), &pe, sizeof(pe));
+ memcpy(dst + offsetof(SensorRecord, tempMin), &fdef, sizeof(fdef));
+ memcpy(dst + offsetof(SensorRecord, tempMax), &fdef, sizeof(fdef));
+ memcpy(dst + offsetof(SensorRecord, humMin), &fdef, sizeof(fdef));
+ memcpy(dst + offsetof(SensorRecord, humMax), &fdef, sizeof(fdef));
+ memcpy(dst + offsetof(SensorRecord, alarmsActive), &active, sizeof(active));
+ }
+
+ /* Tail (themeIndex..reserved) — shifted by +5 records */
+ constexpr size_t V16_TAIL_OFFSET = V16_SENSORS_OFFSET + (V16_SLOTS + 1) * V16_REC_SIZE; /* 11 records */
+ constexpr size_t V17_TAIL_OFFSET = V17_SENSORS_OFFSET + (size_t)MAX_SENSORS * V16_REC_SIZE; /* 16 records */
+ constexpr size_t TAIL_SIZE = CONFIG_V16_BLOB_SIZE - V16_TAIL_OFFSET;
+
+ memcpy(((uint8_t*)&outCfg) + V17_TAIL_OFFSET,
+ buf + V16_TAIL_OFFSET,
+ TAIL_SIZE);
+
+ obfuscateSensitiveFields(outCfg);
+ outCfg.version = CONFIG_VERSION;
  return true;
 }
 
@@ -713,15 +864,22 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  if (!f) return false;
  size_t fileSize = f.size( );
 
- /* Current format (v16 — UserAccount[62], SensorRecord[83], obfuscated). */
+ /* Current format (v17 — 16 universal sensor slots, no ambientSensor). */
  if (fileSize == sizeof(SystemConfig) + sizeof(uint32_t)) {
  bool ok = loadCurrentBlob(f, outCfg);
  f.close( );
  return ok;
  }
 
- /* v15 (SensorRecord grew +4 bytes per sensor = +44 bytes total).
- * Schema: SensorRecord had gpio (1 byte), now has sensorType (1) + pins[4] (4). */
+ /* v16 (10 slots + ambientSensor) → migrate to v17. */
+ if (fileSize == CONFIG_V16_BLOB_SIZE + sizeof(uint32_t)) {
+ bool ok = loadAndMigrateV16(f, outCfg);
+ f.close( );
+ if (ok) { _didMigrate = true; _migrationFromVersion = 16; }
+ return ok;
+ }
+
+ /* v15 (SensorRecord grew +4 bytes per sensor = +44 bytes total). */
  if (fileSize == CONFIG_V15_BLOB_SIZE + sizeof(uint32_t)) {
  bool ok = loadAndMigrateV15(f, outCfg);
  f.close( );
@@ -759,16 +917,19 @@ bool StorageManager::loadConfiguration( ) {
  _didMigrate = false;
 
  enterFlashReadLock( );
- SystemConfig tempConfig;
+ SystemConfig* tempConfig = new (std::nothrow) SystemConfig;
  bool loaded = false;
  bool fromBackup = false;
- if (LittleFS.exists(FILE_CONFIG) && attemptLoad(FILE_CONFIG, tempConfig)) {
- _currentConfig = tempConfig;
+ if (tempConfig) {
+ if (LittleFS.exists(FILE_CONFIG) && attemptLoad(FILE_CONFIG, *tempConfig)) {
+ _currentConfig = *tempConfig;
  loaded = true;
- } else if (LittleFS.exists(FILE_BACKUP) && attemptLoad(FILE_BACKUP, tempConfig)) {
- _currentConfig = tempConfig;
+ } else if (LittleFS.exists(FILE_BACKUP) && attemptLoad(FILE_BACKUP, *tempConfig)) {
+ _currentConfig = *tempConfig;
  loaded = true;
  fromBackup = true;
+ }
+ delete tempConfig;
  }
  exitFlashReadLock( );
 
@@ -899,16 +1060,19 @@ bool StorageManager::saveConfiguration( ) {
 
  /* Copy with sensitive fields encrypted. _currentConfig in
  * RAM stays plaintext. CRC over the encrypted version. */
- SystemConfig encBuf = _currentConfig;
- obfuscateSensitiveFields(encBuf);
- uint32_t crc = calculateCRC32((uint8_t*)&encBuf, sizeof(SystemConfig));
+ SystemConfig* encBuf = new (std::nothrow) SystemConfig;
+ if (!encBuf) { f.close( ); return false; }
+ *encBuf = _currentConfig;
+ obfuscateSensitiveFields(*encBuf);
+ uint32_t crc = calculateCRC32((uint8_t*)encBuf, sizeof(SystemConfig));
 
  size_t bytesWritten = 0, crcWritten = 0;
  FLASH_OP({
- bytesWritten = f.write((uint8_t*)&encBuf, sizeof(SystemConfig));
+ bytesWritten = f.write((uint8_t*)encBuf, sizeof(SystemConfig));
  crcWritten = f.write((uint8_t*)&crc, sizeof(crc));
  f.close( );
  });
+ delete encBuf;
 
  if (bytesWritten != sizeof(SystemConfig) || crcWritten != sizeof(crc)) {
  FLASH_OP(LittleFS.remove(FILE_TMP));
@@ -1066,7 +1230,6 @@ void StorageManager::setHistoryIntervalMin(uint16_t minutes) {
 }
 
 SensorRecord* StorageManager::getSensorByGpio(uint8_t gpio) {
- if (gpio == 10) return &_currentConfig.ambientSensor;
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (_currentConfig.sensors[i].active && _currentConfig.sensors[i].pins[0] == gpio) {
  return &_currentConfig.sensors[i];

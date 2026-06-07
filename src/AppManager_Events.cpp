@@ -197,13 +197,12 @@ void AppManager::core0Yield( ) {
  _pendingAlarmDeactivate = false;
 
  SystemConfig &cfg = _storageMgr->getConfig( );
- cfg.ambientSensor.alarmsActive = false;
  for (int i = 0; i < MAX_SENSORS; i++) {
  cfg.sensors[i].alarmsActive = false;
  }
 
  _soundMgr->stopAlarm( );
- _displayMgr->setAlarmState(0, -1, false, false);
+ _displayMgr->setAlarmState(0, -1);
  _displayMgr->setAlarmSilenced(false, 0);
  _displayMgr->setAlarmDeactivated(true);
  _displayMgr->forceDashboard( );

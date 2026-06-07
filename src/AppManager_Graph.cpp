@@ -13,6 +13,7 @@
 #include "LogManager.h"
 #include "StorageManager.h"
 #include "SystemDefs.h"
+#include "sensors/SensorHelpers.h"
 #include <LittleFS.h>
 #include <time.h>
 
@@ -21,12 +22,9 @@ static inline float readRecordValue(const BinaryHistoryRecord& rec,
 {
  humOut = NAN;
 
- if (sensorId == -1) {
- humOut = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
- return BinaryHistoryRecord::i16ToFloat(rec.ambientTemp);
- }
-
  if (sensorId >= 0 && sensorId < MAX_SENSORS) {
+ /* Slot 10 humidity from ambientHum field (backward compat) */
+ if (sensorId == 10) humOut = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
  return BinaryHistoryRecord::i16ToFloat(rec.sensors[sensorId]);
  }
 
@@ -75,21 +73,17 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  float localHumMin = 1000.0f;
  float localHumMax = -1000.0f;
 
- pkg.hasHumidity = (sensorId == -1);
-
  SystemConfig &cfg = _storageMgr->getConfig( );
  uint32_t epochLimit = 0;
 
- if (sensorId == -1) {
- snprintf(pkg.title, sizeof(pkg.title), "%s", _displayMgr->tr(TR_AMBIENT));
- snprintf(pkg.hwId, sizeof(pkg.hwId), "AMB");
- snprintf(pkg.rom, sizeof(pkg.rom), "INTERNAL-DHT");
- } else if (sensorId == 10) {
+ if (sensorId == (int)MINMAX_SLOT_BOARD_TEMP) {
  snprintf(pkg.title, sizeof(pkg.title), "Board Temp");
  snprintf(pkg.hwId, sizeof(pkg.hwId), "SYS");
  snprintf(pkg.rom, sizeof(pkg.rom), "RP2040-ADC");
- } else {
- if (sensorId < 10 && cfg.sensors[sensorId].active) {
+ pkg.hasHumidity = false;
+ } else if (sensorId >= 0 && sensorId < MAX_SENSORS) {
+ pkg.hasHumidity = sensorHasHumidity((SensorType)cfg.sensors[sensorId].sensorType);
+ if (cfg.sensors[sensorId].active) {
  safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
  safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
  epochLimit = cfg.sensors[sensorId].provisionEpoch;

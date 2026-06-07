@@ -238,19 +238,9 @@ void AppManager::loop( ) {
 
  /* Sensors */
  sd.activeSensors = 0;
+ const auto& sensors = _sensorMgr->getRuntimeSensors( );
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) sd.activeSensors++;
- }
- /* Ambient: read from sensor runtime */
- sd.ambientValid = false;
- const auto& sensors = _sensorMgr->getRuntimeSensors( );
- for (const auto& s : sensors) {
- if (s.config.pins[0] == 10 && !s.inErrorState) {
- sd.ambientTemp = s.avgValue1;
- sd.ambientHum = s.avgValue2;
- sd.ambientValid = true;
- break;
- }
  }
 
  _displayMgr->updateSystemStatus(sd);

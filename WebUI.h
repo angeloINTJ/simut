@@ -420,13 +420,14 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <tr>
                                 <th style="width: 40px; text-align: center;" data-i18n="dash_stat">Status</th>
                                 <th style="width: 60px;" data-i18n="dash_gpio">SLOT</th>
+                                <th style="width: 70px;" data-i18n="dash_type">Type</th>
                                 <th data-i18n="dash_id">ID Sensor</th>
                                 <th data-i18n="dash_read">Reading</th>
                                 <th data-i18n="dash_name">Sensor Name</th>
                             </tr>
                         </thead>
                         <tbody id="tab">
-                            <tr><td colspan="5" style="text-align:center;padding:20px" data-i18n="dash_load">Loading sensors...</td></tr>
+                            <tr><td colspan="6" style="text-align:center;padding:20px" data-i18n="dash_load">Loading sensors...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -520,11 +521,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     sysData.sensors.forEach((sn) => {
                         let v = (sn.val === 'Error' || sn.val === '--') ? sn.val : parseFloat(sn.val).toFixed(2) + ' ºC';
                         if(sn.hum) v += ' | ' + parseFloat(sn.hum).toFixed(1) + '%';
-                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.gpio}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--sub)">${escHtml(sn.name)}</td></tr>`;
+                        const typeLabel = sn.type || '?';
+                        const typeCls = sn.type === 'DHT22' ? 'color:var(--warn)' : 'color:var(--ok)';
+                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.gpio}</td><td style="${typeCls}; font-size:0.85rem; font-weight:600;">${typeLabel}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--sub)">${escHtml(sn.name)}</td></tr>`;
                     });
                     document.getElementById('tab').innerHTML = tabHtml;
-                } else { document.getElementById('tab').innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--sub)">No active sensors.</td></tr>`; }
-            } catch(e) { document.getElementById('tab').innerHTML = `<tr><td colspan="5" style="color:var(--dang);text-align:center;font-weight:bold;padding:20px;">Connection Error</td></tr>`; }
+                } else { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--sub)">No active sensors.</td></tr>`; }
+            } catch(e) { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="color:var(--dang);text-align:center;font-weight:bold;padding:20px;">Connection Error</td></tr>`; }
         }
 
         async function loadThemes() {
@@ -604,45 +607,40 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function escH(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/"/g,'&quot;');}
         async function onCalibTog(){const on=document.getElementById('calib-tog').checked;document.getElementById('calib-form').style.display=on?'':'none';if(on)await loadCalib();}
         async function loadCalib(){try{const r=await fetchSafe('/api/calib');const d=await r.json();_calS=d;document.getElementById('calib-warn').style.display=d.ntp?'none':'';
-            let h='<div class="card" style="padding:14px;margin-bottom:8px"><h3 style="margin:0 0 8px 0;font-size:0.95rem">🌡️ AMBIENTE</h3>';
-            const a=d.ambient;
-            h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-            h+='<input data-k="amb_id" placeholder="ID" maxlength="14" value="'+escH(a.hwId)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-            h+='<input data-k="amb_name" placeholder="Nome" maxlength="30" value="'+escH(a.name)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-            h+='<input data-k="amb_refT" type="number" step="0.01" placeholder="Ref T (°C)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-            h+='<input data-k="amb_refH" type="number" step="0.1" placeholder="Ref H (%)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-            h+='</div><div style="font-size:0.78rem;color:var(--sub);margin-top:6px">T='+(a.tempRead===null?'--':a.tempRead)+'°C off='+a.tempOffset+' | H='+(a.humRead===null?'--':a.humRead)+'% off='+a.humOffset+'</div></div>';
+            let h='';
+            /* All sensors uniform — humidity fields shown per-sensor based on hasHum flag */
             (d.sensors||[]).forEach(function(s){
-                h+='<div class="card" style="padding:14px;margin-bottom:8px"><h3 style="margin:0 0 8px 0;font-size:0.95rem">SLOT '+s.gpio+'</h3>';
+                const hasH = s.hasHum === true;
+                const icon = hasH ? '🌡️' : '🌡️';
+                h+='<div class="card" style="padding:14px;margin-bottom:8px"><h3 style="margin:0 0 8px 0;font-size:0.95rem">'+icon+' SLOT '+s.gpio+' — '+escH(s.name)+'</h3>';
                 h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
                 h+='<input data-k="s'+s.gpio+'_id" placeholder="ID" maxlength="14" value="'+escH(s.hwId)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
                 h+='<input data-k="s'+s.gpio+'_name" placeholder="Nome" maxlength="30" value="'+escH(s.name)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-                h+='<input data-k="s'+s.gpio+'_refT" type="number" step="0.01" placeholder="Ref T (°C)" style="grid-column:span 2;padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-                h+='</div><div style="font-size:0.78rem;color:var(--sub);margin-top:6px">T='+(s.tempRead===null?'--':s.tempRead)+'°C off='+s.tempOffset+' ROM '+s.rom+'</div></div>';
+                h+='<input data-k="s'+s.gpio+'_refT" type="number" step="0.01" placeholder="Ref T (°C)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+                if(hasH){
+                    h+='<input data-k="s'+s.gpio+'_refH" type="number" step="0.1" placeholder="Ref H (%)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+                }
+                h+='</div><div style="font-size:0.78rem;color:var(--sub);margin-top:6px">T='+(s.tempRead===null?'--':s.tempRead)+'°C off='+s.tempOffset;
+                if(hasH)h+=' | H='+(s.humRead===null?'--':s.humRead)+'% off='+s.humOffset;
+                h+=' ROM '+s.rom+'</div></div>';
             });
             h+='<button class="btn-fm btn-fm-pri" onclick="applyCalib()"'+(d.ntp?'':' disabled')+' style="margin-top:6px">'+window.t('cal_apply','Atualizar')+'</button>';
             document.getElementById('calib-form').innerHTML=h;
         }catch(e){showToast(window.t('net_conn_err','Erro de conexão'),'err');}}
         async function applyCalib(){if(!_calS)return;const p={};
-            const aId=(document.querySelector('[data-k="amb_id"]')||{}).value;
-            const aN=(document.querySelector('[data-k="amb_name"]')||{}).value;
-            const aT=(document.querySelector('[data-k="amb_refT"]')||{}).value;
-            const aH=(document.querySelector('[data-k="amb_refH"]')||{}).value;
-            const a={};
-            if(aId!==undefined&&aId!==_calS.ambient.hwId)a.hwId=aId.trim();
-            if(aN!==undefined&&aN!==_calS.ambient.name)a.name=aN.trim();
-            if(aT!=='')a.refTemp=parseFloat(aT);
-            if(aH!=='')a.refHum=parseFloat(aH);
-            if(Object.keys(a).length)p.ambient=a;
+            /* Per-sensor calibration with optional humidity */
             const arr=[];
             (_calS.sensors||[]).forEach(function(s){
                 const id=(document.querySelector('[data-k="s'+s.gpio+'_id"]')||{}).value;
                 const n=(document.querySelector('[data-k="s'+s.gpio+'_name"]')||{}).value;
                 const t=(document.querySelector('[data-k="s'+s.gpio+'_refT"]')||{}).value;
+                const hEl=document.querySelector('[data-k="s'+s.gpio+'_refH"]');
+                const h=hEl?hEl.value:'';
                 const e={gpio:s.gpio};let dirty=false;
                 if(id!==undefined&&id!==s.hwId){e.hwId=id.trim();dirty=true;}
                 if(n!==undefined&&n!==s.name){e.name=n.trim();dirty=true;}
                 if(t!==''){e.refTemp=parseFloat(t);dirty=true;}
+                if(h!==''){e.refHum=parseFloat(h);dirty=true;}
                 if(dirty)arr.push(e);
             });
             if(arr.length)p.sensors=arr;
@@ -863,7 +861,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         let _lastChartCutoff = 0; let _lastChartEnd = 0; /* range visualizado — usado por exportHistoryCsv */
         /* F-GRAPH-REVAMP: 7 niveis 1h, 6h, 24h, 7d, 1M, 1A, MAX (idx 6 = 0 = ilimitado) */
         const rangeDurations = [3600, 21600, 86400, 604800, 2592000, 31536000, 0];
-        let _selectedSensors = [-1]; /* default: ambient */
+        let _selectedSensors = [10]; /* default: slot 10 (humidity-capable sensor) */
         let _currentRangeIdx = 2;    /* default: 24h */
 
         /* Paleta para series. Cores quentes p/ T (variando por idx do sensor),
@@ -882,15 +880,16 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const menu = document.getElementById('sensorMselMenu');
                 if (!menu) return;
                 menu.innerHTML = '';
-                /* sensors[] tem gpio<10 (DS18B20) e gpio==10 (ambient DHT). */
+                /* Universal slots 0-15: API returns gpio field (=slot index).
+                 * Slot 10 (humidity-capable) shown first for backward compat. */
                 const items = [];
                 if (data && data.sensors) {
-                    /* Ambient primeiro */
-                    data.sensors.forEach(s => { if (s.gpio === 10) items.push({ id: -1, name: s.name, hwId: s.id }); });
-                    /* DS18B20 depois */
-                    data.sensors.forEach(s => { if (s.gpio < 10) items.push({ id: s.gpio, name: s.name, hwId: s.id }); });
+                    /* Slot 10 (DHT/humidity) first */
+                    data.sensors.forEach(s => { if (s.gpio === 10) items.push({ id: 10, name: s.name, hwId: s.id }); });
+                    /* All other active slots */
+                    data.sensors.forEach(s => { if (s.gpio !== 10 && s.gpio >= 0) items.push({ id: s.gpio, name: s.name, hwId: s.id }); });
                 }
-                if (items.length === 0) items.push({ id: -1, name: 'Ambient', hwId: 'AMB' });
+                if (items.length === 0) items.push({ id: 10, name: 'Slot 10', hwId: 'AMB' });
                 items.forEach(it => {
                     const lbl = document.createElement('label');
                     const chk = document.createElement('input');

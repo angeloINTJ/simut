@@ -16,20 +16,20 @@
 #include "sensors/SensorConfig.h"
 
 /* Hardware and system limits */
-#define MAX_SENSORS 10 /* Maximum number of configurable sensor slots */
+#define MAX_SENSORS 16 /* Maximum number of configurable sensor slots (GPIO0–GPIO15) */
 #define MAX_USERS 5 /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10 /* Samples in the trimmed-mean sliding window */
 #define MAX_SENSOR_PINS 4 /* Maximum GPIO pins per sensor (fits SPI: MOSI,MISO,SCK,CS) */
 #define PIN_UNUSED 255 /* Sentinel for unused pin slots */
-#define SIMUT_VERSION "1.3.0-beta"
+#define SIMUT_VERSION "1.4.1-beta"
 
 #define GRAPH_WIDTH 200 /* Maximum data points on the TFT graph */
 
 /**
  * @brief Named indices for the min/max cache array (sensors + board temp).
  *
- * Slots 0–9 correspond to configurable sensors (MAX_SENSORS).
- * Slot 10 is reserved for the internal board temperature.
+ * Slots 0–15 correspond to configurable sensors (MAX_SENSORS).
+ * Slot 16 is reserved for the internal board temperature.
  * MINMAX_SLOT_COUNT defines the total size of the cache arrays.
  */
 enum MinMaxSlot {

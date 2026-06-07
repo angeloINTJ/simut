@@ -68,8 +68,10 @@ void LogManager::setConsoleStream(bool enabled) { _consoleStreamEnabled = enable
  * Otherwise: fallback to direct Serial (pre-boot, before _cmdMgr.begin( )). */
 void LogManager::emitLine(const char* line) {
  if (!_consoleStreamEnabled) return;
- if (_consoleSink) _consoleSink(line);
- else Serial.println(line);
+ if (_consoleSink) { _consoleSink(line); return; }
+ /* Write to USB if CDC connected. Without ignoreFlowControl,
+  * data drops silently when host isn't reading — no boot hang. */
+ if (Serial) Serial.println(line);
 }
 
 void LogManager::writeConsole(const char* line) {
@@ -81,7 +83,7 @@ void LogManager::writeConsole(const char* line) {
  const size_t len = strlen(line);
  if (len <= MAX_CHUNK) {
  if (_consoleSink) _consoleSink(line);
- else Serial.println(line);
+ else if (Serial) Serial.println(line);
  return;
  }
 
@@ -92,9 +94,8 @@ void LogManager::writeConsole(const char* line) {
  memcpy(buf, line + off, n);
  buf[n] = '\0';
  if (_consoleSink) _consoleSink(buf);
- else Serial.println(buf);
+ else if (Serial) Serial.println(buf);
  off += n;
- /* Short pause to give BT tx buffer time to drain. */
  delay(2);
  }
 }

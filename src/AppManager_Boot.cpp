@@ -53,9 +53,12 @@ static void _bu_u32(uint32_t v) {
  while (v && n < 10) { buf[n++] = (char)('0' + (v % 10)); v /= 10; }
  while (n--) uart_putc_raw(uart1, buf[n]);
 }
-#define BLOG(s) do { Serial.print(s); _bu_str(s); } while(0)
-#define BLOG_U(v) do { uint32_t _vv=(uint32_t)(v); Serial.print(_vv); _bu_u32(_vv); } while(0)
-#define BLOG_NL( ) do { Serial.print('\n'); uart_putc_raw(uart1, '\n'); } while(0)
+/* UART1-only boot log: USB Serial is intentionally disabled during boot
+ * to prevent boot hangs when no USB host is reading (warm boot after flash).
+ * Use hardware UART1 (GPIO 8 TX) with a 3.3V FTDI adapter to read debug logs. */
+#define BLOG(s)   _bu_str(s)
+#define BLOG_U(v) _bu_u32((uint32_t)(v))
+#define BLOG_NL() uart_putc_raw(uart1, '\n')
 #else
 /* ── Alpha build: UART1 clock enabled (StorageManager needs it for
  * uart_putc_raw debug markers), but GPIO 8/9 kept free for HD44780 ── */
@@ -63,9 +66,9 @@ static inline void _uart_init( ) {
  uart_init(uart1, 115200); /* clock only — no GPIO takeover */
 }
 static inline void _uart_mark(char c) { uart_putc_raw(uart1, c); }
-#define BLOG(s)    Serial.print(s)
-#define BLOG_U(v)  Serial.print((uint32_t)(v))
-#define BLOG_NL( ) Serial.print('\n')
+#define BLOG(s)    do { } while(0)
+#define BLOG_U(v)  do { } while(0)
+#define BLOG_NL( ) do { } while(0)
 #endif // SIMUT_DISPLAY_TFT
 
 /* scratch[5] magic — the orchestrator sets this before applier_reboot
@@ -119,17 +122,16 @@ void AppManager::setup( ) {
 
  Serial.begin(115200);
 
- /* ignoreFlowControl(true): Arduino-Pico SerialUSB::write silently
-	 * drops writes when tud_cdc_connected() is false (host has not opened
-	 * the port or raised DTR). After a watchdog reset from the applier,
-	 * USB CDC re-enumerates but the host may not connect in time to
-	 * capture the first prints — boot output lost. With ignoreFlowControl,
-	 * writes retry up to ~1 s (internal SerialUSB timeout), buffered in
-	 * the TinyUSB TX FIFO; the host sees them when it connects.
-	 * Trade-off: each Serial.println adds up to 1 s if the host is
-	 * disconnected. Acceptable for debugging. */
- Serial.ignoreFlowControl(true);
- _uart_mark('%'); /* post Serial.begin + ignoreFlowControl */
+
+
+
+
+
+
+
+
+
+ _uart_mark('%'); /* post Serial.begin */
 
  delay(1000);
  _uart_mark('&'); /* post delay(1000) */
@@ -605,16 +607,26 @@ void AppManager::setup( ) {
  }
  }
 
- /* SerialBT.begin moved to AFTER _netMgr->begin (both AP and STA
-	 * branches). WiFi.begin -> cyw43_arch_init resets the CYW43 chip
-	 * to a clean state. Previously, SerialBT.begin ran during step 8
-	 * (_cmdMgr->begin) with the CYW43 still in a residual post-OTA
-	 * state, causing hardfault -> spontaneous reset between steps 8
-	 * and 9. Both AP and STA paths call some WiFi.* first, so
-	 * cyw43_arch_init has already run by this point. */
- BLOG("[BOOT step] 11.5: cmdMgr->beginBluetooth @ "); BLOG_U(millis( )); BLOG_NL( );
- _cmdMgr->beginBluetooth(_storageMgr->getConfig( ).deviceName);
- BLOG("[BOOT step] 11.6: pos beginBluetooth @ "); BLOG_U(millis( )); BLOG_NL( );
+	/* Bluetooth: only start when WiFi connected successfully.
+	 * After a failed WiFi connection, the CYW43 chip is in a bad state
+	 * and SerialBT.begin() causes a hardfault. Power-cycling the chip
+	 * before BT also kills any live WiFi connection. Safest approach:
+	 * only enable BT when we know the chip is in a clean state (post-WiFi-success). */
+	/* Install console sink regardless of Bluetooth state so CLI output
+	 * always reaches USB Serial. Without this, offline boots have no
+	 * serial output because emitLine skips Serial when buffer is full. */
+	LogManager::instance().setConsoleSink([this](const char* line) {
+	 _cmdMgr->consolePrintln(String(line));
+	});
+
+	/* Bluetooth DISABLED: SerialBT.begin() hardfaults on CYW43 after
+	 * warm boot (picotool reset), regardless of WiFi state. The chip
+	 * can't reliably run both WiFi and BT without a full power-cycle
+	 * (cold boot). USB Serial + Web interface replace BT functionality.
+	 * To re-enable: uncomment the block below. */
+	// if (_netMgr->isConnected()) {
+	//  _cmdMgr->beginBluetooth(_storageMgr->getConfig().deviceName);
+	// }
 
  _displayMgr->setBootStatusKey(TR_BOOT_START_TEL);
  _telemetryMgr->begin(_storageMgr.get( ), _netMgr.get( ));

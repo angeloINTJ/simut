@@ -382,9 +382,12 @@ void DisplayManager::handleTouch( ) {
  return;
  }
 
- /* Alarm action on touch-down */
- if (firstTouch && (_alarmAmbientTemp || _alarmAmbientHum)) {
- showAlarmAction(-1);
+ /* Alarm action on touch-down — check slot mask for any alarming slot */
+ if (firstTouch && _alarmSlotMask != 0) {
+ /* Navigate to first alarming slot */
+ for (int8_t s = 0; s < MAX_SENSORS; s++) {
+ if (_alarmSlotMask & (1 << s)) { showAlarmAction(s); break; }
+ }
  return;
  }
 
@@ -722,9 +725,7 @@ void DisplayManager::handleTouch( ) {
  /* Tap on ON/OFF of the selected item: toggle or edit */
  if (!acceptTouch(clickedIndex + 4)) return;
  int actualSensorId = _activeSensorsMap[_alarmSelection];
- SensorRecord* rec = (actualSensorId == -1)
- ? &_sysConfigPtr->ambientSensor
- : &_sysConfigPtr->sensors[actualSensorId];
+ SensorRecord* rec = &_sysConfigPtr->sensors[actualSensorId];
 
  if (rec->alarmsActive) {
  /* ON -> OFF: deactivate and save immediately */
@@ -760,7 +761,7 @@ void DisplayManager::handleTouch( ) {
  }
  }
  else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
- bool hasHum = (_editSensorIdx == -1 || sensorHasHumidity((SensorType)_tempAlarmConfig.sensorType));
+ bool hasHum = sensorHasHumidity((SensorType)_tempAlarmConfig.sensorType);
 
 
  if (y >= 50 && y <= 115) {
@@ -837,8 +838,7 @@ void DisplayManager::handleTouch( ) {
  if (!acceptTouch(12)) return;
  _lastPressedBtn = -1;
  _tempAlarmConfig.alarmsActive = false;
- if (_editSensorIdx == -1) _sysConfigPtr->ambientSensor = _tempAlarmConfig;
- else _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
+ _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
  ev.id = _editSensorIdx; queue_try_add(&_eventQueue, &ev);
  showSettingsAlarms(_sysConfigPtr);
@@ -848,8 +848,7 @@ void DisplayManager::handleTouch( ) {
  if (!acceptTouch(13)) return;
  _lastPressedBtn = -1;
  _tempAlarmConfig.alarmsActive = true;
- if (_editSensorIdx == -1) _sysConfigPtr->ambientSensor = _tempAlarmConfig;
- else _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
+ _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
  ev.id = _editSensorIdx; queue_try_add(&_eventQueue, &ev);
  showSettingsAlarms(_sysConfigPtr);
