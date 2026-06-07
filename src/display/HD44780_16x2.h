@@ -27,34 +27,43 @@ class Adafruit_GFX;
 #endif
 
 /* ── I2C mode defaults ─────────────────────────────────────────────── */
+/* GPIO 0-15 are reserved for sensors. I2C1 on GP26/GP27 (free in alpha). */
 
 #if HD44780_MODE_I2C
 #include <Wire.h>
 #ifndef HD44780_I2C_ADDR
 #define HD44780_I2C_ADDR 0x27
 #endif
+#ifndef HD44780_I2C_SDA
+#define HD44780_I2C_SDA 26
+#endif
+#ifndef HD44780_I2C_SCL
+#define HD44780_I2C_SCL 27
+#endif
+#define HD44780_WIRE Wire1  /* I2C1 bus */
 #endif
 
 /* ── Parallel mode pin defaults ────────────────────────────────────── */
+/* GPIO 0-15 are reserved for sensors. GP16-21 = SPI pins, free in alpha. */
 
 #if HD44780_MODE_PARALLEL
 #ifndef HD44780_RS
-#define HD44780_RS 12
+#define HD44780_RS 16
 #endif
 #ifndef HD44780_EN
-#define HD44780_EN 11
+#define HD44780_EN 17
 #endif
 #ifndef HD44780_D4
-#define HD44780_D4 10
+#define HD44780_D4 18
 #endif
 #ifndef HD44780_D5
-#define HD44780_D5 9
+#define HD44780_D5 19
 #endif
 #ifndef HD44780_D6
-#define HD44780_D6 8
+#define HD44780_D6 20
 #endif
 #ifndef HD44780_D7
-#define HD44780_D7 7
+#define HD44780_D7 21
 #endif
 #endif
 
@@ -84,7 +93,9 @@ struct Hd44780_16x2 {
 		memset(line[0], ' ', 16); line[0][16] = '\0';
 		memset(line[1], ' ', 16); line[1][16] = '\0';
 #if HD44780_MODE_I2C
-		Wire.begin( );
+		HD44780_WIRE.setSDA(HD44780_I2C_SDA);
+		HD44780_WIRE.setSCL(HD44780_I2C_SCL);
+		HD44780_WIRE.begin( );
 #endif
 #if HD44780_MODE_PARALLEL
 		pinMode(HD44780_RS, OUTPUT);
@@ -150,10 +161,10 @@ private:
 #if HD44780_MODE_I2C
 	void _writeNibble(uint8_t nibble, bool rs) {
 		uint8_t bits = (nibble & 0xF0) | 0x08 | (rs ? 0x01 : 0x00);
-		Wire.beginTransmission(HD44780_I2C_ADDR);
-		Wire.write(bits | 0x04);  /* EN=1 */
-		Wire.write(bits & ~0x04); /* EN=0 */
-		Wire.endTransmission( );
+		HD44780_WIRE.beginTransmission(HD44780_I2C_ADDR);
+		HD44780_WIRE.write(bits | 0x04);  /* EN=1 */
+		HD44780_WIRE.write(bits & ~0x04); /* EN=0 */
+		HD44780_WIRE.endTransmission( );
 		delayMicroseconds(50);
 	}
 #endif
