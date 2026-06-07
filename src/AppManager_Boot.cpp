@@ -57,9 +57,12 @@ static void _bu_u32(uint32_t v) {
 #define BLOG_U(v) do { uint32_t _vv=(uint32_t)(v); Serial.print(_vv); _bu_u32(_vv); } while(0)
 #define BLOG_NL( ) do { Serial.print('\n'); uart_putc_raw(uart1, '\n'); } while(0)
 #else
-/* ── Alpha build: UART1 disabled to free GPIO 8/9 for HD44780 ────── */
-static inline void _uart_init( ) { }
-static inline void _uart_mark(char ) { }
+/* ── Alpha build: UART1 clock enabled (StorageManager needs it for
+ * uart_putc_raw debug markers), but GPIO 8/9 kept free for HD44780 ── */
+static inline void _uart_init( ) {
+ uart_init(uart1, 115200); /* clock only — no GPIO takeover */
+}
+static inline void _uart_mark(char c) { uart_putc_raw(uart1, c); }
 #define BLOG(s)    Serial.print(s)
 #define BLOG_U(v)  Serial.print((uint32_t)(v))
 #define BLOG_NL( ) Serial.print('\n')

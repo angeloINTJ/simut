@@ -17,9 +17,14 @@
 #pragma once
 
 #include <Arduino.h>
+#if SIMUT_DISPLAY_TFT
 #include <SPI.h>
 #include <Adafruit_GFX.h>
-#include "display/DisplayConfig.h"
+#else
+/* Alpha display: GFX not available. Forward-declare for pointer members. */
+class GFXcanvas16;
+class Adafruit_GFX;
+#endif
 #include "display/DisplayConfig.h"
 #include "display/DisplayDriver.h"
 #include "pico/mutex.h"
@@ -301,6 +306,7 @@ public:
 
 private:
 
+#if SIMUT_DISPLAY_TFT
 	/**
 	 * @brief Truncates text to fit within maxPixelW pixels in the canvas's current font.
 	 * @param gfx Pointer to the GFX context (canvas or tft) with font already set.
@@ -311,6 +317,7 @@ private:
 	 */
 	void truncateText(Adafruit_GFX* gfx, const char* src,
 		char* out, size_t outSize, int16_t maxPixelW);
+#endif
 
 	SystemState _sharedState;
 	bool _isDirty;

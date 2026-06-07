@@ -16,7 +16,10 @@
  */
 #pragma once
 #include <Arduino.h>
+/* Alpha build: GFX library excluded. Forward-declare only for TFT build. */
+#if SIMUT_DISPLAY_TFT
 class Adafruit_GFX;
+#endif
 
 /* ── Interface selection ───────────────────────────────────────────── */
 
@@ -80,11 +83,18 @@ struct Hd44780_16x2 {
 	static constexpr int16_t width  = 16;
 	static constexpr int16_t height = 2;
 
-	/* No pixel framebuffer */
+	/* No pixel framebuffer — void* in alpha (GFX excluded). */
+#if SIMUT_DISPLAY_TFT
 	Adafruit_GFX* tft        = nullptr;
 	Adafruit_GFX* canvas      = nullptr;
 	Adafruit_GFX* canvasSmall = nullptr;
 	Adafruit_GFX* gfx( ) { return tft; }
+#else
+	void* tft        = nullptr;
+	void* canvas      = nullptr;
+	void* canvasSmall = nullptr;
+	void* gfx( ) { return tft; }
+#endif
 
 	/* ── Lifecycle ───────────────────────────────────────────────── */
 

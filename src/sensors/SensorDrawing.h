@@ -13,11 +13,14 @@
  */
 
 #pragma once
+#if SIMUT_DISPLAY_TFT
 #include <Adafruit_GFX.h>
+#endif
 #ifndef RGB565
 #define RGB565(r,g,b) ((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
 #endif
 
+#if SIMUT_DISPLAY_TFT
 /* ── Thermometer (large, 18×28 px) ──────────────────────────────────────── */
 
 #if SIMUT_SENSOR_DS18B20 || SIMUT_SENSOR_DHT22 || SIMUT_SENSOR_BME280
@@ -162,4 +165,5 @@ inline void drawMinMaxGraphBtn(GFXcanvas16* cv, int16_t x, int16_t y,
 }
 
 #endif
+#endif // SIMUT_DISPLAY_TFT
 
