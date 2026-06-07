@@ -21,8 +21,6 @@
 #include "SensorDrawing.h"
 #endif
 
-#define PIN_DHT_DEFAULT 10
-
 struct DHT22Driver {
     DHTBus    bus;
     DHT22PIO  sensor;
@@ -41,8 +39,8 @@ struct DHT22Driver {
     {}
 
     void begin( ) {
-        bus.begin(PIN_DHT_DEFAULT);
-        gpio_set_pulls(PIN_DHT_DEFAULT, true, false);
+        bus.begin(10); /* default GPIO for PIO init; per-sensor GPIO set in initRuntimeSensors */
+        gpio_set_pulls(10, true, false);
     }
 
     void requestReading(uint8_t gpio) {
@@ -251,7 +249,5 @@ inline void DHT22_renderMinMax(GFXcanvas16* cv,
     /* Graph button */
     drawMinMaxGraphBtn(cv, BTN_X, 2, BTN_W, 40, accentHigh, btnTextActive);
 }
-#else
-#define PIN_DHT_DEFAULT 255
 #endif /* SIMUT_SENSOR_DHT22 */
 #endif // SIMUT_DISPLAY_TFT

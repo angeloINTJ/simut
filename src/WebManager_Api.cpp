@@ -161,7 +161,7 @@ void WebManager::handleApiConfig( ) {
 	/* Exposes ambient hwId so the telemetry preview reflects the
 	 * custom ID (calib.csv line t<id>) instead of the serial. */
 	safeSend("\",\"ambHwId\":\"");
-	if (!safeSend(jsonEscape(cfg.ambientSensor.hwId).c_str( ))) return;
+	if (!safeSend(jsonEscape(cfg.sensors[10].hwId).c_str( ))) return;
 	safeSend("\",\"sensors\":[");
 	for (int i = 0; i < MAX_SENSORS; i++) {
 		snprintf(buf, sizeof(buf), "%s{\"hwid\":\"%s\",\"active\":%s}",
@@ -252,27 +252,9 @@ void WebManager::handleApiAlarms( ) {
 
 	bool first = true;
 
-
-	if (cfg.ambientSensor.active) {
-		char buf[256];
-		snprintf(buf, sizeof(buf),
-		         "{\"idx\":-1,\"name\":\"Ambient\",\"type\":\"DHT22\",\"gpio\":%d,"
-		         "\"has_hum\":true,"
-		         "\"tmin\":%.1f,\"tmax\":%.1f,\"hmin\":%.1f,\"hmax\":%.1f,"
-		         "\"active\":%s}",
-		         cfg.ambientSensor.pins[0],
-		         cfg.ambientSensor.tempMin, cfg.ambientSensor.tempMax,
-		         cfg.ambientSensor.humMin, cfg.ambientSensor.humMax,
-		         cfg.ambientSensor.alarmsActive ? "true" : "false");
-		if (!safeSend(buf)) return;
-		first = false;
-	}
-
-
 	for (int i = 0; i < MAX_SENSORS; i++) {
 		if (!cfg.sensors[i].active) continue;
 		if (!first) { if (!safeSend(",")) return; }
-		first = false;
 
 
 		bool hasHum = sensorHasHumidity((SensorType)cfg.sensors[i].sensorType);
@@ -283,7 +265,7 @@ void WebManager::handleApiAlarms( ) {
 		sName.replace("\"", "\\\"");
 
 		char buf[320];
-		snprintf(buf, sizeof(buf),
+			snprintf(buf, sizeof(buf),
 		         "{\"idx\":%d,\"name\":\"%s\",\"type\":\"%s\",\"gpio\":%d,"
 		         "\"has_hum\":%s,"
 		         "\"tmin\":%.1f,\"tmax\":%.1f,\"hmin\":%.1f,\"hmax\":%.1f,"
@@ -293,7 +275,8 @@ void WebManager::handleApiAlarms( ) {
 		         cfg.sensors[i].tempMin, cfg.sensors[i].tempMax,
 		         cfg.sensors[i].humMin, cfg.sensors[i].humMax,
 		         cfg.sensors[i].alarmsActive ? "true" : "false");
-		if (!safeSend(buf)) return;
+			if (!safeSend(buf)) return;
+			first = false;
 	}
 
 	if (!safeSend("],")) return;
@@ -389,6 +372,7 @@ void WebManager::handleApiStatus( ) {
 
 	if (!safeSend(buffer)) return;
 
+
 	/* "Never sampled" sentinel for min/max RSSI: serializes 0 when invalid. */
 	int32_t rmn = (mt.rssiMin == 127) ? 0 : mt.rssiMin;
 	int32_t rmx = (mt.rssiMax == -127) ? 0 : mt.rssiMax;
@@ -413,7 +397,6 @@ void WebManager::handleApiStatus( ) {
 	for (const auto &s : sensors) {
 		if (!s.config.active) continue;
 		if (!first) { if (!safeSend(",")) return; }
-		first = false;
 
 		String sName = s.config.friendlyName;
 		sName.replace("\"", "\\\"");
@@ -423,15 +406,20 @@ void WebManager::handleApiStatus( ) {
 
 		char valBuffer[16]; char humBuffer[32] = "";
 		if (s.inErrorState) snprintf(valBuffer, sizeof(valBuffer), "\"Error\"");
-		else if (isnan(s.avgValue1)) snprintf(valBuffer, sizeof(valBuffer), "\"--\"");
-		else snprintf(valBuffer, sizeof(valBuffer), "%.2f", s.avgValue1);
+		else if (isnan(s.avgValue[0])) snprintf(valBuffer, sizeof(valBuffer), "\"--\"");
+		else snprintf(valBuffer, sizeof(valBuffer), "%.2f", s.avgValue[0]);
 
-		if (s.type == TYPE_DHT22 && !s.inErrorState && !isnan(s.avgValue2)) {
-			snprintf(humBuffer, sizeof(humBuffer), ",\"hum\":%.1f", s.avgValue2);
+		/* Humidity channel — generic, uses SensorFormat to detect capability */
+		const char* typeName = sensorTypeName(s.type);
+		uint8_t chCount = sensorValueCount(s.type);
+		if (sensorHasChannel(s.type, CH_HUM) && !s.inErrorState && !isnan(s.avgValue[1])) {
+			snprintf(humBuffer, sizeof(humBuffer), ",\"hum\":%.1f", s.avgValue[1]);
 		}
 
-		snprintf(buffer, sizeof(buffer), "{\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"val\":%s%s}", s.config.pins[0], sId.c_str( ), sName.c_str( ), valBuffer, humBuffer);
+		snprintf(buffer, sizeof(buffer), "{\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"ch\":%d,\"val\":%s%s}",
+		         s.config.pins[0], sId.c_str( ), sName.c_str( ), typeName, chCount, valBuffer, humBuffer);
 		if (!safeSend(buffer)) return;
+			first = false;
 	}
 
 	safeSend("]}");

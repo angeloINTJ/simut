@@ -678,7 +678,7 @@ int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPa
 
  if (!_sysConfigPtr) return 0;
  SystemConfig &cfg = *_sysConfigPtr;
- DashBtn all[12];
+ DashBtn all[MAX_SENSORS + 2]; /* 16 slots + 1 CFG + 1 margin */
  int total = 0;
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) {
@@ -688,12 +688,6 @@ int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPa
  all[total].slotId = (int8_t)i;
  total++;
  }
- }
- /* S10: ambient/board sensor */
- if (!(_topPanel.fixed && _topPanel.fixedIdx == 10)) {
- all[total].kind = 0;
- all[total].slotId = 10;
- total++;
  }
  all[total].kind = 1; /* CFG always present */
  all[total].slotId = -1;

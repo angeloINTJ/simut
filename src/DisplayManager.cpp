@@ -121,9 +121,6 @@ DisplayManager::DisplayManager( ) {
 	_instance = this;
 	mutex_init(&_stateMutex);
 	queue_init(&_eventQueue, sizeof(UiEvent), 10);
-	_sharedState.ambientTemp = NAN;
-	_sharedState.ambientHum = NAN;
-	_sharedState.ambientValid = true;
 	_sharedState.slotTemp = NAN;
 	_sharedState.slotValid = false;
 	_sharedState.topSlotTemp = NAN; _sharedState.topSlotValid = false;
@@ -496,19 +493,6 @@ void DisplayManager::setWebBusy(bool busy, const char* username) {
 		_webBusy = false;
 	}
 	mutex_exit(&_stateMutex);
-}
-
-void DisplayManager::setAmbientData(float t, float h, SensorType type, bool isValid) {
-	mutex_enter_blocking(&_stateMutex);
-	_sharedState.ambientTemp = t; _sharedState.ambientHum = h; _sharedState.ambientValid = isValid; _sharedState.ambientType = type; _isDirty = true;
-	mutex_exit(&_stateMutex);
-}
-
-void DisplayManager::setAmbientMinMax(float minT, float maxT, float minH, float maxH) {
-	_topPanel.minTemp = minT;
-	_topPanel.maxTemp = maxT;
-	_topPanel.minHum = minH;
-	_topPanel.maxHum = maxH;
 }
 
 void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name) {
@@ -1114,9 +1098,7 @@ void DisplayManager::render(const SystemState& state) {
 	}
 
 	/* Detect alarm state change and redraw buttons + panels */
-	if (_alarmSlotMask != _prevAlarmSlotMask ||
-	    _alarmAmbientTemp != _prevAlarmAmbTemp ||
-	    _alarmAmbientHum != _prevAlarmAmbHum) {
+	if (_alarmSlotMask != _prevAlarmSlotMask) {
 		drawBottomButtons(state.selectedSlotIdx, true);
 		if (!_topPanel.showMinMax) {
 			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel);
@@ -1126,8 +1108,6 @@ void DisplayManager::render(const SystemState& state) {
 			              st.selectedSlotIdx, st.slotName, true, _bottomPanel);
 		}
 		_prevAlarmSlotMask = _alarmSlotMask;
-		_prevAlarmAmbTemp = _alarmAmbientTemp;
-		_prevAlarmAmbHum = _alarmAmbientHum;
 	}
 
 	_lastRenderedState = state;

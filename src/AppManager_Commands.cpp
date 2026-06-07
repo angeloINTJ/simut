@@ -385,8 +385,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-9)"
- : "Slot out of range (0-9)");
+ _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
+ : "Slot out of range (0-15)");
  break;
  }
  SensorRecord &r = cfg.sensors[cmd.intVal1];
@@ -427,8 +427,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
- _cmdMgr->printError(pt ? "Slot fora de range (0-9)"
- : "Slot out of range (0-9)");
+ _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
+ : "Slot out of range (0-15)");
  break;
  }
  cfg.sensors[cmd.intVal1].provisionEpoch = _netMgr->getEpoch( );

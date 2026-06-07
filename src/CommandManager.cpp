@@ -60,12 +60,14 @@ void CommandManager::setBtValidator(BtAuthValidator validator) {
 
 
 void CommandManager::consolePrint(const String& msg) {
- Serial.print(msg);
+ /* Only write to USB if CDC is connected. Without ignoreFlowControl,
+  * data is silently dropped when host isn't reading — no boot hang. */
+ if (Serial) Serial.print(msg);
  _btMgr.print(msg);
 }
 
 void CommandManager::consolePrintln(const String& msg) {
- Serial.println(msg);
+ if (Serial) Serial.println(msg);
  _btMgr.println(msg);
 }
 

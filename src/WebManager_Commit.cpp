@@ -247,7 +247,7 @@ void WebManager::handleApiCommitAll( ) {
 				int idx = obj.substring(idxColon + 1).toInt( );
 
 				SensorRecord* rec = nullptr;
-				if (idx == -1) rec = &cfg.ambientSensor;
+				if (idx == -1) rec = &cfg.sensors[10];
 				else if (idx >= 0 && idx < MAX_SENSORS && cfg.sensors[idx].active) rec = &cfg.sensors[idx];
 
 				if (rec) {

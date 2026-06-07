@@ -75,63 +75,33 @@ void SensorManager::begin( ) {
 
 /**
  * @brief Build runtime sensor list from persistent configuration.
- * Always creates the ambient DHT22 sensor first (GPIO 10),
- * then adds all active configured sensors with proper type detection.
+/**
+ * @brief Build runtime sensor list from persistent configuration.
+ * Iterates all 16 universal slots (GPIO0–GPIO15). Each active slot
+ * becomes a RuntimeSensor with proper type, interval, and GPIO setup.
  */
 void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  _runtimeSensors.clear( );
 
-#if SIMUT_SENSOR_DHT22
- {
- RuntimeSensor ambient;
- ambient.config.active = true;
- ambient.config.pins[0] = PIN_DHT_DEFAULT;
- memset(ambient.config.rom, 0, 8);
- /* Uses cfg.ambientSensor.hwId/friendlyName instead of hardcoded values.
- * If calibration customized them (line t<id> in calib.csv), the dashboard
- * reflects the correct ID/name. Defaults from loadDefaults:
- * hwId="AMB", friendlyName="Ambiente Central". */
- safeCopy(ambient.config.hwId, cfg.ambientSensor.hwId, sizeof(ambient.config.hwId));
- safeCopy(ambient.config.friendlyName, cfg.ambientSensor.friendlyName, sizeof(ambient.config.friendlyName));
- ambient.type = TYPE_DHT22;
- ambient.readInterval = 2000;
- ambient.bufferFull = false;
- ambient.calibrationOffset = 0.0f;
- ambient.calibrationOffsetHum = 0.0f;
- ambient.inErrorState = false;
- ambient.lastReadTime = 0;
- ambient.totalReadings = 0;
- ambient.consecutiveErrors = 0;
- ambient.consecutiveSuccess = 0;
- ambient.hardwareMismatch = false;
- _runtimeSensors.push_back(ambient);
- }
-#endif
-
-
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (cfg.sensors[i].active) {
-#if SIMUT_SENSOR_DHT22
- if (cfg.sensors[i].pins[0] == PIN_DHT_DEFAULT) continue;
-#endif
+ if (!cfg.sensors[i].active) continue;
 
  RuntimeSensor rs;
  rs.config = cfg.sensors[i];
- rs.calibrationOffset = 0.0f;
- rs.calibrationOffsetHum = 0.0f; /* DS18B20 doesn't use, but init for hygiene */
+ rs.calibrationOffset[0] = 0.0f;
+ rs.calibrationOffset[1] = 0.0f;
 
- rs.bufferFull = false;
- rs.avgValue1 = NAN;
- rs.avgValue2 = NAN;
+ rs.avgValue[0] = NAN;
+ rs.avgValue[1] = NAN;
  rs.lastReadTime = 0;
  rs.totalReadings = 0;
  rs.consecutiveErrors = 0;
  rs.consecutiveSuccess = 0;
  rs.inErrorState = false;
  rs.hardwareMismatch = false;
- rs.calibrationOffset = 0.0f;
+ rs.calibrationOffset[0] = 0.0f;
 
- /* Use explicit sensorType from config (v16+).
+ /* Use explicit sensorType from config.
   * Fallback: ROM-based detection for sensors that haven't been re-saved
   * after migration (paranoid safety — should never trigger). */
  rs.type = (SensorType)rs.config.sensorType;
@@ -159,7 +129,6 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 
  _runtimeSensors.push_back(rs);
  }
- }
  LOG_CODE(LOG_INFO, "SENSOR", SENSOR_RUNTIME_LOADED, _runtimeSensors.size( ), "");
 }
 
@@ -171,17 +140,6 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  */
 void SensorManager::syncAlarmLimits(const SystemConfig &cfg) {
  for (auto &rs : _runtimeSensors) {
-
- if (strcmp(rs.config.hwId, "AMB001") == 0) {
- rs.config.tempMin = cfg.ambientSensor.tempMin;
- rs.config.tempMax = cfg.ambientSensor.tempMax;
- rs.config.humMin = cfg.ambientSensor.humMin;
- rs.config.humMax = cfg.ambientSensor.humMax;
- rs.config.alarmsActive = cfg.ambientSensor.alarmsActive;
- continue;
- }
-
-
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
  if (cfg.sensors[i].pins[0] == rs.config.pins[0]) {
@@ -232,9 +190,9 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
 
  if (!s.inErrorState) {
  /* ambient (DHT22) applies offset to both quantities;
- * other sensors (DS18B20) temperature only — calibrationOffsetHum
+ * other sensors (DS18B20) temperature only — calibrationOffset[1]
  * stays at 0 and the sum is a no-op. */
- addSample(s, v1 + s.calibrationOffset, v2 + s.calibrationOffsetHum);
+ addSample(s, v1 + s.calibrationOffset[0], v2 + s.calibrationOffset[1]);
  }
  }
  else {
@@ -393,9 +351,8 @@ void SensorManager::processPeriodicReads( ) {
  LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISMATCH, s.config.pins[0], TRL("Hardware Mismatch (Access Denied)"));
  }
  s.inErrorState = true;
- s.buffer1.clear( );
- s.bufferFull = false;
- s.avgValue1 = NAN;
+ s.buffers[0].clear( );
+ s.avgValue[0] = NAN;
  s.consecutiveSuccess = 0;
  s.lastReadTime = now;
  __atomic_store_n(&_newDataAvailable, true, __ATOMIC_RELEASE);
@@ -504,30 +461,29 @@ void SensorManager::processPeriodicReads( ) {
  */
 void SensorManager::addSample(RuntimeSensor &sensor, float v1, float v2) {
  if (!isnan(v1)) {
- sensor.buffer1.push(v1);
+ sensor.buffers[0].push(v1);
  }
  if (sensorHasHumidity(sensor.type) && !isnan(v2)) {
- sensor.buffer2.push(v2);
+ sensor.buffers[1].push(v2);
  }
 
- if (!sensor.buffer1.empty( )) {
- if (sensor.buffer1.full( )) {
- sensor.bufferFull = true;
- sensor.avgValue1 = calculateTrimmedMean(sensor.buffer1);
- if (sensorHasHumidity(sensor.type)) sensor.avgValue2 = calculateTrimmedMean(sensor.buffer2);
+ if (!sensor.buffers[0].empty( )) {
+ if (sensor.buffers[0].full( )) {
+ sensor.avgValue[0] = calculateTrimmedMean(sensor.buffers[0]);
+ if (sensorHasHumidity(sensor.type)) sensor.avgValue[1] = calculateTrimmedMean(sensor.buffers[1]);
  } else {
 
  float sortBuf[MOVING_AVG_WINDOW];
- sensor.buffer1.copyTo(sortBuf);
+ sensor.buffers[0].copyTo(sortBuf);
  float sum1 = 0;
- for (uint8_t i = 0; i < sensor.buffer1.size( ); i++) sum1 += sortBuf[i];
- sensor.avgValue1 = sum1 / sensor.buffer1.size( );
+ for (uint8_t i = 0; i < sensor.buffers[0].size( ); i++) sum1 += sortBuf[i];
+ sensor.avgValue[0] = sum1 / sensor.buffers[0].size( );
 
- if (sensorHasHumidity(sensor.type) && !sensor.buffer2.empty( )) {
- sensor.buffer2.copyTo(sortBuf);
+ if (sensorHasHumidity(sensor.type) && !sensor.buffers[1].empty( )) {
+ sensor.buffers[1].copyTo(sortBuf);
  float sum2 = 0;
- for (uint8_t i = 0; i < sensor.buffer2.size( ); i++) sum2 += sortBuf[i];
- sensor.avgValue2 = sum2 / sensor.buffer2.size( );
+ for (uint8_t i = 0; i < sensor.buffers[1].size( ); i++) sum2 += sortBuf[i];
+ sensor.avgValue[1] = sum2 / sensor.buffers[1].size( );
  }
  }
 
@@ -584,13 +540,13 @@ bool SensorManager::readDs18(float &temp) {
 
 #if SIMUT_SENSOR_DHT22
 void SensorManager::requestDhtReading( ) {
- _dht.requestReading(PIN_DHT_DEFAULT);
+ _dht.requestReading(10); /* legacy: default GPIO for DHT22 */
 }
 
 
 bool SensorManager::readDhtBlocking(float &t, float &h) {
  delayMicroseconds(100);
- _dht.requestReading(PIN_DHT_DEFAULT);
+ _dht.requestReading(10); /* legacy: default GPIO for DHT22 */
 
  uint32_t start = millis( );
  while (millis( ) - start < 2500) {
@@ -614,24 +570,24 @@ void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset,
  if (newName.length( ) > 0) {
  safeCopy(s.config.friendlyName, newName.c_str( ), sizeof(s.config.friendlyName));
  }
- s.calibrationOffset = offset;
+ s.calibrationOffset[0] = offset;
  break;
  }
  }
 }
 
-/* Apply ambient (DHT22) offsets in runtime. ID/name are
- * persisted in cfg.ambientSensor via applyCalibration separately. */
+/* Apply temperature + humidity offsets to the first DHT22 sensor found.
+ * ID/name are persisted via applyCalibration in the caller. */
 void SensorManager::applyAmbientCalibration(float offsetT, float offsetH) {
  for (auto &s : _runtimeSensors) {
 #if SIMUT_SENSOR_DHT22
- if (s.config.pins[0] == PIN_DHT_DEFAULT) {
+ if (s.type == TYPE_DHT22) {
 #else
  /* When DHT22 is not compiled-in, apply to any sensor (fallback) */
  {
 #endif
- s.calibrationOffset = offsetT;
- s.calibrationOffsetHum = offsetH;
+ s.calibrationOffset[0] = offsetT;
+ s.calibrationOffset[1] = offsetH;
  break;
  }
  }

@@ -82,8 +82,7 @@ size_t historyEncodeRecord(const BinaryHistoryRecord& rec,
  /* DELTA */
  uint8_t* p = buf;
 
- /* Mask: bit 0=amb_temp, bit 1=amb_hum, bit 2..11=sensors[0..9].
- * Bits 12..15 reserved = 0. */
+ /* Mask: bit 0=amb_temp, bit 1=amb_hum, bit 2..17=sensors[0..15]. */
  uint16_t mask = 0;
  if (rec.ambientTemp != HIST_NAN_SENTINEL) mask |= (1u << 0);
  if (rec.ambientHum != HIST_NAN_SENTINEL) mask |= (1u << 1);

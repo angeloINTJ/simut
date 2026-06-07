@@ -110,12 +110,14 @@ void SoundManager::begin( ) {
  if (!_buzzer.begin( )) {
 
 
- Serial.println(F("[SND] WARN: BuzzerPIO begin( ) failed — no sound."));
+ if (Serial) {
+ Serial.println(F("[SND] WARN: BuzzerPIO begin( ) failed - no sound."));
  Serial.println(F("[SND] Neither PIO block has 4 free instr slots + 2 SMs."));
+ }
  return;
  }
 
- Serial.println(F("[SND] BuzzerPIO ready."));
+ if (Serial) Serial.println(F("[SND] BuzzerPIO ready."));
 
 
  _buzzer.setVolume(_volume);

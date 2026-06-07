@@ -1150,14 +1150,14 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
  * the default picoUID. Detect "custom" as hwId != "AMB"
  * (default from loadDefaults). Without calib, fallback boardSerial preserves
  * compat with already-configured dashboards. */
- hwid = (cfg.ambientSensor.hwId[0] != '\0' && strcmp(cfg.ambientSensor.hwId, "AMB") != 0)
- ? cfg.ambientSensor.hwId : boardSerial;
+ hwid = (cfg.sensors[10].active && cfg.sensors[10].hwId[0] != '\0' && strcmp(cfg.sensors[10].hwId, "AMB") != 0)
+ ? cfg.sensors[10].hwId : boardSerial;
  memcpy(compKey, "tAMB", 4); compKeyLen = 4;
  tokenChars = 6; tokenValid = true;
  } else if (remaining >= 6 && memcmp(tpl + ti, "{uAMB}", 6) == 0) {
  val = hasAmbH ? ambHBuf : nullptr;
- hwid = (cfg.ambientSensor.hwId[0] != '\0' && strcmp(cfg.ambientSensor.hwId, "AMB") != 0)
- ? cfg.ambientSensor.hwId : boardSerial;
+ hwid = (cfg.sensors[10].active && cfg.sensors[10].hwId[0] != '\0' && strcmp(cfg.sensors[10].hwId, "AMB") != 0)
+ ? cfg.sensors[10].hwId : boardSerial;
  memcpy(compKey, "uAMB", 4); compKeyLen = 4;
  tokenChars = 6; tokenValid = true;
  } else if (remaining >= 4 && tpl[ti+1] == 't' &&

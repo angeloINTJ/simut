@@ -1,10 +1,10 @@
 /**
  * @file HistoryCodec.h
  * @brief Encoder/decoder for binary history v2 (delta + sensor-mask + anchor).
- * @details Format replaces the fixed 28 B/record of v1 with:
+ * @details Format replaces the fixed 40 B/record of v1 with:
  * - 16 B header per file (magic SIM2 + version + anchorPeriod)
- * - 1 anchor (full 28 B record) every N=60 records
- * - 59 variable deltas between anchors (typical ~7-12 B each)
+ * - 1 anchor (full 40 B record) every N=60 records
+ * - 59 variable deltas between anchors (typical ~7-18 B each)
  *
  * Typical compression 3-4x for common usage (few active sensors +
  * small temperature variation between samples). Reader is linear:
@@ -26,7 +26,7 @@ constexpr char HIST_V2_MAGIC[4] = {'S','I','M','2'};
 constexpr uint16_t HIST_V2_VERSION = 0x0002;
 constexpr uint16_t HIST_V2_ANCHOR_PERIOD = 60; /* 1 anchor + 59 deltas (= 1 hour @ 1 min) */
 constexpr size_t HIST_V2_HEADER_SIZE = 16;
-constexpr size_t HIST_V2_MAX_DELTA_SIZE = 40; /* worst-case: 2B mask + 5B Δepoch + 12*3B varints */
+constexpr size_t HIST_V2_MAX_DELTA_SIZE = 58; /* worst-case: 2B mask + 5B Δepoch + 18*3B varints */
 
 struct __attribute__((packed)) HistoryFileHeaderV2 {
  char magic[4]; /* "SIM2" */
@@ -43,12 +43,12 @@ static_assert(sizeof(HistoryFileHeaderV2) == HIST_V2_HEADER_SIZE,
 /* ======================================================================== */
 
 /** Holds the last valid value of each field between consecutive records.
- * fieldHasValid[0]=ambientTemp, [1]=ambientHum, [2..11]=sensors[0..9].
+ * fieldHasValid[0]=ambientTemp, [1]=ambientHum, [2..17]=sensors[0..15].
  * When false, the next delta with bit set encodes the ABSOLUTE value
  * (not delta). */
 struct HistoryCodecState {
  BinaryHistoryRecord lastValid;
- bool fieldHasValid[2 + MAX_SENSORS]; /* 12 bools */
+ bool fieldHasValid[2 + MAX_SENSORS]; /* 18 bools (2 ambient + 16 slots) */
  uint16_t recordsSinceAnchor;
  bool initialized;
 };

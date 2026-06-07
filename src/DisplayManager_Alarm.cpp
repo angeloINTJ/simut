@@ -16,11 +16,8 @@
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 
-void DisplayManager::setAlarmState(uint16_t slotMask, int8_t navSlot,
-                                    bool ambTemp, bool ambHum) {
+void DisplayManager::setAlarmState(uint16_t slotMask, int8_t navSlot) {
 	_alarmSlotMask = slotMask;
-	_alarmAmbientTemp = ambTemp;
-	_alarmAmbientHum = ambHum;
 	if (navSlot >= 0) _alarmNavPending = navSlot;
 }
 
@@ -59,18 +56,14 @@ void DisplayManager::drawAlarmAction( ) {
 
 	/* Header text — computed once, used in all strips. */
 	char headerBuf[40];
-	if (_alarmActionSlot < 0) {
-		snprintf(headerBuf, sizeof(headerBuf), "! %s", tr(TR_AMBIENT));
+	mutex_enter_blocking(&_stateMutex);
+	char friendlyName[32];
+	safeCopy(friendlyName, _sharedState.slotName, sizeof(friendlyName));
+	mutex_exit(&_stateMutex);
+	if (strlen(friendlyName) > 0) {
+		snprintf(headerBuf, sizeof(headerBuf), "! %s", friendlyName);
 	} else {
-		mutex_enter_blocking(&_stateMutex);
-		char friendlyName[32];
-		safeCopy(friendlyName, _sharedState.slotName, sizeof(friendlyName));
-		mutex_exit(&_stateMutex);
-		if (strlen(friendlyName) > 0) {
-			snprintf(headerBuf, sizeof(headerBuf), "! %s", friendlyName);
-		} else {
-			snprintf(headerBuf, sizeof(headerBuf), "! Sensor %d", _alarmActionSlot);
-		}
+		snprintf(headerBuf, sizeof(headerBuf), "! Slot %d", _alarmActionSlot);
 	}
 	String silTxt = tr(TR_SILENCE_120S);
 	String deactTxt = tr(TR_DEACTIVATE);
@@ -133,7 +126,7 @@ uint16_t DisplayManager::slotAlarmBg(int slotIdx) const {
 }
 
 bool DisplayManager::isAnyAlarmActive( ) const {
-	return (_alarmSlotMask != 0) || _alarmAmbientTemp || _alarmAmbientHum;
+	return (_alarmSlotMask != 0);
 }
 
 

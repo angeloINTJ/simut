@@ -105,7 +105,6 @@ struct BootLogEntry {
 };
 
 struct SystemState {
-	float ambientTemp; float ambientHum; bool ambientValid; SensorType ambientType;
 	float slotTemp; float slotHum; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
 	float topSlotTemp; float topSlotHum; bool topSlotValid; SensorType topSlotType; int topSlotIdx; char topSlotName[32];
 	int wifiRssi; bool btActive; char timeString[24];
@@ -148,8 +147,6 @@ public:
 	 * here (Core 1 with IRQs off) and unnecessary (Core 1 does not touch flash). */
 	bool isInQuietMode( ) const { return _quietModeRequested || _quietModeActive; }
 
-	void setAmbientData(float t, float h, SensorType type, bool isValid = true);
-	void setAmbientMinMax(float minT, float maxT, float minH, float maxH);
 	void setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
 	void setSlotMinMax(float minT, float maxT, float minH, float maxH);
  void setTopSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
@@ -192,8 +189,7 @@ public:
 	void clearWebOverlayPending( ) { _webOverlayPending = false; }
 
 
-	void setAlarmState(uint16_t slotMask, int8_t navSlot = -1,
-		bool ambTemp = false, bool ambHum = false);
+	void setAlarmState(uint16_t slotMask, int8_t navSlot = -1);
 
 
 	void setAlarmSilenced(bool silenced, uint32_t endTime = 0);
@@ -384,10 +380,8 @@ private:
 
 	volatile uint16_t _alarmSlotMask = 0;
 	volatile int8_t _alarmNavPending = -1;
-	volatile bool _alarmAmbientTemp = false;
-	volatile bool _alarmAmbientHum = false;
 
-	/* Ambient panel: normal vs min/max mode */
+	/* Panel mode: normal vs min/max */
 /* Panel state — each dash panel has its own mode + min/max tracking */
  struct DashPanel {
  bool fixed = true;         // true=pinado, false=interativo (selection)
@@ -405,8 +399,6 @@ private:
 	uint32_t _alarmFlashTimer = 0;
 	uint32_t _alarmRotateTimer = 0;
 	uint16_t _prevAlarmSlotMask = 0; /* tracks changes to redraw buttons */
-	bool _prevAlarmAmbTemp = false;
-	bool _prevAlarmAmbHum = false;
 
 
 	volatile bool _alarmSilenced = false;
@@ -440,7 +432,6 @@ private:
 	void render(const SystemState& state);
 	void drawInterfaceFixed( );
 	void drawTopBar(const SystemState& state);
-	void drawAmbientPanel(float t, float h, SensorType type, bool isValid);
 	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel);
 	void drawBottomButtons(int selectedIdx, bool forceRedraw);
 
@@ -620,7 +611,7 @@ private:
 	int _alarmPage = 0;
 	int _lastAlarmPage = -1;
 	int _activeSensorCount = 0;
-	int _activeSensorsMap[MAX_SENSORS + 1];
+	int _activeSensorsMap[MAX_SENSORS];
 	int _alarmSelection = 0;
 	int _lastAlarmSelection = -1;
 	int _editSensorIdx = -1;
