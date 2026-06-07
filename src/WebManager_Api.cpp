@@ -421,8 +421,16 @@ void WebManager::handleApiStatus( ) {
 			snprintf(humBuffer, sizeof(humBuffer), ",\"hum\":%.1f", s.avgValue[1]);
 		}
 
-		snprintf(buffer, sizeof(buffer), "{\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"ch\":%d,\"val\":%s%s}",
-		         s.config.pins[0], sId.c_str( ), sName.c_str( ), typeName, chCount, valBuffer, humBuffer);
+		/* v1.4.2: include pin metadata from driver (SensorFormat).
+		 * pc = pin count, pr = comma-separated role labels (e.g. "SDA,SCL"). */
+		auto fmt = SensorFormat::forType(s.type);
+		char rolesBuf[32] = "";
+		for (int p = 0; p < fmt.pinCount && p < 4; p++) {
+		 if (p > 0) { size_t l = strlen(rolesBuf); rolesBuf[l] = ','; rolesBuf[l+1] = '\0'; }
+		 strncat(rolesBuf, fmt.pins[p].label, sizeof(rolesBuf) - strlen(rolesBuf) - 1);
+		}
+		snprintf(buffer, sizeof(buffer), "{\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"ch\":%d,\"pc\":%d,\"pr\":\"%s\",\"val\":%s%s}",
+		         s.config.pins[0], sId.c_str( ), sName.c_str( ), typeName, chCount, fmt.pinCount, rolesBuf, valBuffer, humBuffer);
 		if (!safeSend(buffer)) return;
 			first = false;
 	}

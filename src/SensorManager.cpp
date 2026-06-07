@@ -120,12 +120,18 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  continue;
  }
 
-#if SIMUT_SENSOR_DHT22
- if (rs.type == TYPE_DHT22) {
- gpio_init(rs.config.pins[0]);
- gpio_set_pulls(rs.config.pins[0], true, false);
- }
-#endif
+	/* v1.4.2: GPIO init driven by SensorFormat pin requirements.
+	 * The driver declares pin count + role per pin — no hardcoded
+	 * per-type GPIO setup. Adding a new sensor type requires only
+	 * a driver file + SensorFormat::forType() entry. */
+	{
+	 auto fmt = SensorFormat::forType(rs.type);
+	 for (int p = 0; p < fmt.pinCount && p < MAX_SENSOR_PINS; p++) {
+	  uint8_t gpio = rs.config.pins[p];
+	  if (gpio == PIN_UNUSED) continue;
+	  gpioInitForRole(gpio, fmt.pins[p].role, fmt.pins[p].flags);
+	 }
+	}
 
  _runtimeSensors.push_back(rs);
  }
