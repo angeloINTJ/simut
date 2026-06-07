@@ -57,3 +57,56 @@ void DisplayManager::fixCardCorners(int16_t,int16_t,int16_t,int16_t,int16_t,uint
 void DisplayManager::maskStripCorners(GFXcanvas16*,int16_t,int16_t,int16_t,int16_t,int16_t,uint16_t,uint16_t){}
 void DisplayManager::blitCanvas(GFXcanvas16*,int16_t,int16_t,int16_t,int16_t){}
 void DisplayManager::loadDisplayOffset(const DisplayOffsetData*){}
+/* ── Stubs for guarded/excluded TFT methods ─────────────────────── */
+void DisplayManager::core1Entry( ){}
+bool DisplayManager::getUiEvent(UiEvent&){return false;}
+void DisplayManager::setWebBusy(bool,const char*){}
+void DisplayManager::injectTouch(int16_t,int16_t){}
+void DisplayManager::setSlotData(float,float,SensorType,bool,int,String){}
+void DisplayManager::showCalendar(int,int,uint32_t){}
+void DisplayManager::setSlotMinMax(float,float,float,float){}
+void DisplayManager::setAmbientData(float,float,SensorType,bool){}
+void DisplayManager::setTopSlotData(float,float,SensorType,bool,int,String){}
+void DisplayManager::showAuthScreen(String){}
+bool DisplayManager::isScreenTouched( ){return false;}
+void DisplayManager::setSystemStatus(int,bool,String){}
+const char* DisplayManager::getActiveWebDict( ){return "";}
+void DisplayManager::releaseQuietMode( ){}
+bool DisplayManager::requestQuietMode(uint32_t){return true;}
+void DisplayManager::setAmbientMinMax(float,float,float,float){}
+void DisplayManager::setTopSlotMinMax(float,float,float,float){}
+void DisplayManager::showSettingsLang(int){}
+void DisplayManager::showSystemStatus( ){}
+bool DisplayManager::consumeErrorSound( ){return false;}
+bool DisplayManager::consumeTouchSound( ){return false;}
+const char* DisplayManager::getActiveHelpText( ){return "";}
+const char* DisplayManager::getActiveLangCode( ){return "";}
+const char* DisplayManager::getActiveLangName( ){return "";}
+void DisplayManager::setGraphNavOffset(int){}
+void DisplayManager::setWebNotification(const char*){}
+void DisplayManager::showSettingsAlarms(SystemConfig*){}
+void DisplayManager::showSettingsSounds(const SoundSettingsState&){}
+void DisplayManager::showSettingsThemes(int){}
+void DisplayManager::updateSystemStatus(const SystemStatusData&){}
+void DisplayManager::setTelemetryPending(uint16_t){}
+void DisplayManager::showSettingsLicense( ){}
+const char* DisplayManager::getActiveLicenseText( ){return "";}
+void DisplayManager::loadTouchCalibration(const TouchCalData*){}
+void DisplayManager::requestLoadingScreen( ){}
+void DisplayManager::showSettingsPassword( ){}
+void DisplayManager::showTouchCalibration( ){}
+void DisplayManager::resetTouchCalibration( ){}
+void DisplayManager::setTelemetrySendStatus(bool){}
+void DisplayManager::showSettingsDisplayOffset( ){}
+const char* DisplayManager::tr(LangKey){return "";}
+void DisplayManager::readRow(int16_t,uint16_t*,int16_t){}
+void DisplayManager::unaccent(const char*,char*,unsigned){}
+void DisplayManager::showStats(const GraphDataPackage&,float,float){}
+const char* DisplayManager::trlLookup(const char*){return "";}
+void DisplayManager::fillCalData(TouchCalData*)const{}
+void DisplayManager::getNewPassword(char*,unsigned)const{}
+const char* DisplayManager::logcodeLookup(uint16_t){return "";}
+bool DisplayManager::consumePreviewSound(SoundEvent&,uint8_t&){return false;}
+bool DisplayManager::findAndLoadLangFile( ){return false;}
+bool DisplayManager::consumeVolumePreview(uint8_t&){return false;}
+bool DisplayManager::consumeAlarmVolumePreview(uint8_t&){return false;}
