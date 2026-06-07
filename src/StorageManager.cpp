@@ -370,6 +370,9 @@ void StorageManager::loadDefaults( ) {
  * still 0 after initial memset → helper populates defaults). */
  (void)ensureNetworkTimeOverlay( );
 
+ /* v1.4.1: 16 universal slots (GPIO0–GPIO15). Each slot starts inactive with
+  * pin[i]=i as default GPIO. Slots 0 and 10 are pre-configured as DHT22,
+  * slots 1-9 as DS18B20 (factory defaults matching the protoboard layout). */
  for (int i = 0; i < MAX_SENSORS; i++) {
  _currentConfig.sensors[i].active = false;
  _currentConfig.sensors[i].sensorType = TYPE_NONE;
