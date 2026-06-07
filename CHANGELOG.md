@@ -2,6 +2,15 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.4.3-beta (2026-06-07)
+
+### Flash Diet — 86KB Freed (97.8% → 91.2%)
+
+- **LEAmDNS disabled by default** — Wrapped with `#ifdef SIMUT_MDNS`. Enable with `-DSIMUT_MDNS` in build_flags when needed. Saves ~196KB library from link.
+- **BluetoothManager stub** — When `SIMUT_BLUETOOTH=0` (default), entire class is inline no-ops. `BluetoothManager.cpp` excluded from build. `SerialBT` library still compiled by framework but unused symbols are linker-stripped.
+- **`sensor pin <slot> <index> <gpio>` CLI** — Assign specific GPIOs to sensor slots with conflict detection across all active sensors. Validates GPIO range (0-15) and pin index (< MAX_SENSOR_PINS).
+- **Flash budget**: 91.2% (952KB / 1044KB) — 92KB free for future features.
+
 ## v1.4.2-beta (2026-06-07)
 
 ### Sensor Entity Architecture — Driver-based Pin Roles

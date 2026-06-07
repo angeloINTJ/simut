@@ -32,12 +32,10 @@ constexpr uint32_t NET_SOCKET_TIMEOUT_MS = 4000;
  */
 constexpr int32_t RSSI_MIN_THRESHOLD = -78;
 
-/**
- * Minimum interval between MDNS.update() calls (ms).
- * mDNS does not need polling every loop — throttle avoids unnecessary
- * overhead on degraded networks.
- */
+#ifdef SIMUT_MDNS
+/** Minimum interval between MDNS.update() calls (ms). */
 constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 2000;
+#endif
 
 /**
  * Maximum consecutive WiFi reconnect cycles before entering
