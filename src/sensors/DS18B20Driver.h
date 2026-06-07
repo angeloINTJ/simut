@@ -17,7 +17,9 @@
 #include <Arduino.h>
 #include "OneWirePIO.h"
 #include "DS18B20PIO.h"
+#if SIMUT_DISPLAY_TFT
 #include "SensorDrawing.h"
+#endif
 
 #define PIN_ONEWIRE_DEFAULT 0
 
@@ -79,6 +81,7 @@ struct DS18B20Driver {
 };
 
 /* ── Panel rendering (normal mode, centered, theme-aware) ──────────── */
+#if SIMUT_DISPLAY_TFT
 inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
                  int16_t cardW, bool isRedPhase, uint16_t panelBg,
                  const GFXfont& font24, const GFXfont& font12,
@@ -173,3 +176,4 @@ inline void DS18B20_renderMinMax(GFXcanvas16* cv,
 #else
 #define PIN_ONEWIRE_DEFAULT 255
 #endif /* SIMUT_SENSOR_DS18B20 */
+#endif // SIMUT_DISPLAY_TFT

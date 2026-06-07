@@ -17,7 +17,9 @@
 #include <Arduino.h>
 #include "DHTBus.h"
 #include "DHT22PIO.h"
+#if SIMUT_DISPLAY_TFT
 #include "SensorDrawing.h"
+#endif
 
 #define PIN_DHT_DEFAULT 10
 
@@ -66,6 +68,7 @@ struct DHT22Driver {
 };
 
 /* ── Panel rendering (normal mode, theme-aware) ──────────────────────── */
+#if SIMUT_DISPLAY_TFT
 inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
                  int16_t cardW, bool leftAnchor, bool isRedPhase,
                  uint16_t panelBg, const GFXfont& font24,
@@ -251,3 +254,4 @@ inline void DHT22_renderMinMax(GFXcanvas16* cv,
 #else
 #define PIN_DHT_DEFAULT 255
 #endif /* SIMUT_SENSOR_DHT22 */
+#endif // SIMUT_DISPLAY_TFT

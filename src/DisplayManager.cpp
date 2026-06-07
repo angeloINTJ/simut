@@ -16,7 +16,9 @@
 
 #include "DisplayManager.h"
 #include "LogManager.h"
+#if SIMUT_DISPLAY_TFT
 #include "DisplayManager_Fonts.h"
+#endif
 #include "DisplayManager_FmtFloat.h"
 #include "HelpLicenseEN.h" /* LICENSE_TEXT_EN inline in PROGMEM */
 #include <LittleFS.h>
@@ -195,6 +197,7 @@ void DisplayManager::setLanguage(int langId) {
  * the result fits within the maximum width. The font must already be set
  * in the GFX context before calling.
  */
+#if SIMUT_DISPLAY_TFT
 void DisplayManager::truncateText(Adafruit_GFX* gfx, const char* src,
                                    char* out, size_t outSize, int16_t maxPixelW) {
 	if (!gfx || !src || !out || outSize < 4) {
@@ -255,6 +258,7 @@ void DisplayManager::truncateText(Adafruit_GFX* gfx, const char* src,
 	out[best + 3] = '\0';
 }
 
+#endif // SIMUT_DISPLAY_TFT
 bool DisplayManager::isMenuActive( ) {
 	mutex_enter_blocking(&_stateMutex);
 	bool active = (_uiMode >= MODE_AUTH);
