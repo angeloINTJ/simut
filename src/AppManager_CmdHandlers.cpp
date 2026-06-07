@@ -43,9 +43,9 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  /* ── sensor <slot> pin <index> <gpio> — GPIO resource assignment ── */
  if (strcmp(field, "pin") == 0) {
   int pinIdx=-1,gpio=-1;
-  if(sscanf(cmd.strVal2,"%d %d",&pinIdx,&gpio)!=2||pinIdx<0||gpio<0||gpio>15){
-   _cmdMgr->printError(pt?"Uso: sensor <slot> pin <index> <gpio> (0-15)"
-                         :"Usage: sensor <slot> pin <index> <gpio> (0-15)");
+  if(sscanf(cmd.strVal2,"%d,%d",&pinIdx,&gpio)!=2||pinIdx<0||gpio<0||gpio>15){
+   _cmdMgr->printError(pt?"Uso: sensor <slot> pin <idx>,<gpio> (0-15)"
+                         :"Usage: sensor <slot> pin <idx>,<gpio> (0-15)");
    return;
   }
   if(pinIdx>=MAX_SENSOR_PINS){

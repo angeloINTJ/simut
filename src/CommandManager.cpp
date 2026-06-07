@@ -434,6 +434,15 @@ CliDemand CommandManager::parseCommand(String input) {
  }
  }
  }
+
+	/* Catch-all: sensor <slot> <field> <value> — e.g., sensor 11 pin 0,4 */
+	if (count >= 3) {
+	 cmd.type = CMD_SENSOR_FIELD;
+	 cmd.intVal1Valid = parseIntStrict(t1, cmd.intVal1);
+	 cmd.setStrVal1(t2.c_str());
+	 if (count >= 4) cmd.setStrVal2(t3.c_str());
+	 return cmd;
+	}
  }
 
  if (t0 == "sensor" && t1 == "wipe") {
