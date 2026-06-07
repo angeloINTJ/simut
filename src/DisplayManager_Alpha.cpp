@@ -1,7 +1,9 @@
 #include "DisplayManager.h"
 #include "display/HD44780_16x2.h"
+extern DisplayManager* _instance;  /* defined in DisplayManager.cpp */
 static Hd44780_16x2 _lcd;
 static uint32_t _lt=0; static bool _sh=false;
+void DisplayManager::core1Entry( ){ if (_instance) _instance->loopCore1(); }
 void DisplayManager::loopCore1( ){
  _lcd.begin(); _lcd.clear(); _lcd.setCursor(0,0); _lcd.print("AMBIENTE");
  for(;;){
@@ -58,7 +60,6 @@ void DisplayManager::maskStripCorners(GFXcanvas16*,int16_t,int16_t,int16_t,int16
 void DisplayManager::blitCanvas(GFXcanvas16*,int16_t,int16_t,int16_t,int16_t){}
 void DisplayManager::loadDisplayOffset(const DisplayOffsetData*){}
 /* ── Stubs for guarded/excluded TFT methods ─────────────────────── */
-void DisplayManager::core1Entry( ){}
 bool DisplayManager::getUiEvent(UiEvent&){return false;}
 void DisplayManager::setWebBusy(bool,const char*){}
 void DisplayManager::injectTouch(int16_t,int16_t){}

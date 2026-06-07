@@ -215,7 +215,7 @@ void AppManager::setup( ) {
 	 *   bypass the AP detection window.
 	 * AP-by-touch is unavailable while stuck; fix is recalibrating
 	 * touch (via CLI or Settings) or a clean power cycle. */
- bool touch_settled = false;
+ bool touch_settled __attribute__((unused)) = false;
  {
  unsigned long settle_start = millis( );
  unsigned long quiet_since = 0;
@@ -554,6 +554,13 @@ void AppManager::setup( ) {
  delay(1000);
  break;
  }
+#if !SIMUT_DISPLAY_TFT
+ /* Alpha build: no touch skip button, timeout after 30s without WiFi */
+ if (millis( ) - netWait > 30000 && !_netMgr->isConnected( )) {
+ skipped = true;
+ break;
+ }
+#endif
 
  if (timeSince(lastMsg, BOOT_WAIT_DOT_INTERVAL_MS)) {
  dotCount++;
