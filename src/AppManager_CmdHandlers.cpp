@@ -64,9 +64,113 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
    }
   }
   r.pins[pinIdx]=(uint8_t)gpio;
+
+  /* Show role label for context */
+  auto fmt = SensorFormat::forType((SensorType)r.sensorType);
+  const char* roleLabel = "";
+  if (pinIdx < fmt.pinCount) roleLabel = fmt.pins[pinIdx].label;
   _cmdMgr->printSuccess((pt?"Slot ":"Slot ")+String(cmd.intVal1)
-    +" pin["+String(pinIdx)+"]=GPIO "+String(gpio));
+    +" pin["+String(pinIdx)+"]=GPIO "+String(gpio)
+    +String(" (")+roleLabel+")");
+
+  /* Check if all required pins are now assigned */
+  bool allAssigned = true;
+  int missingCount = 0;
+  for (int pp = 0; pp < fmt.pinCount && pp < MAX_SENSOR_PINS; pp++) {
+   if (r.pins[pp] == PIN_UNUSED) { allAssigned = false; missingCount++; }
+  }
+  if (allAssigned) {
+   _cmdMgr->printInfo((pt ? "Todos os pinos atribuidos. Proximo: sensor "
+                           : "All pins assigned. Next: sensor ")
+     + String(cmd.intVal1) + (pt ? " name \"<nome>\"" : " name \"<name>\""));
+  } else if (missingCount > 0) {
+   _cmdMgr->consolePrintf("  (%d %s)\n", missingCount,
+     pt ? "pino(s) restante(s)" : "pin(s) remaining");
+  }
   changed=true;
+  return;
+ }
+
+ /* ── sensor <slot> create <type> — guided slot creation ── */
+ if (strcmp(field, "create") == 0) {
+  String v = cmd.strVal2; v.toLowerCase( );
+  SensorType newType = TYPE_NONE;
+  if (v == "ds18b20")           newType = TYPE_DS18B20;
+  else if (v == "dht22")        newType = TYPE_DHT22;
+  else if (v == "bme280")       newType = TYPE_BME280;
+  else {
+   _cmdMgr->printError(pt ? "Tipo invalido. Use: ds18b20, dht22, bme280"
+                         : "Invalid type. Use: ds18b20, dht22, bme280");
+   return;
+  }
+  if (!sensorTypeEnabled(newType)) {
+   _cmdMgr->printError(pt ? "Tipo de sensor nao compilado nesta firmware"
+                         : "Sensor type not compiled in this firmware");
+   return;
+  }
+
+  /* Warn if slot already configured */
+  if (r.active) {
+   _cmdMgr->printInfo((pt ? "Slot ja configurado — sobrescrevendo." : "Slot already configured — overwriting.")
+     + String(" (") + sensorTypeName((SensorType)r.sensorType) + ")");
+  }
+
+  /* Reset slot: clear pins, set type, activate */
+  for (int pp = 0; pp < MAX_SENSOR_PINS; pp++) r.pins[pp] = PIN_UNUSED;
+  r.sensorType = (uint8_t)newType;
+  r.active = true;
+  /* Reset defaults */
+  r.alarmsActive = false;
+  r.tempMin = -50.0f; r.tempMax = 150.0f;
+  r.humMin = 0.0f;   r.humMax = 100.0f;
+  r.hwId[0] = '\0';
+  r.friendlyName[0] = '\0';
+
+  /* Show pin requirements */
+  auto fmt = SensorFormat::forType(newType);
+  _cmdMgr->printSuccess((pt ? "Slot " : "Slot ") + String(cmd.intVal1)
+    + ": " + sensorTypeName(newType) + " — "
+    + String(fmt.pinCount) + (pt ? " pino(s) necessarios:" : " pin(s) required:"));
+
+  for (int pp = 0; pp < fmt.pinCount && pp < MAX_SENSOR_PINS; pp++) {
+   String flagsStr = "";
+   if (fmt.pins[pp].flags & FLAG_PULLUP) flagsStr += " pull-up";
+   if (fmt.pins[pp].flags & FLAG_PULLDOWN) flagsStr += " pull-down";
+   if (fmt.pins[pp].flags & FLAG_OPENDRAIN) flagsStr += " open-drain";
+   if (flagsStr.length( ) > 0) flagsStr = " (" + flagsStr.substring(1) + ")";
+   _cmdMgr->consolePrintf("  pin[%d] = %s%s\n",
+     pp, fmt.pins[pp].label, flagsStr.c_str( ));
+  }
+
+  /* List free GPIOs */
+  bool freeGpios[16];
+  for (int g = 0; g < 16; g++) freeGpios[g] = true;
+  for (int si = 0; si < MAX_SENSORS; si++) {
+   if (si == cmd.intVal1 || !cfg.sensors[si].active) continue;
+   auto sfmt = SensorFormat::forType((SensorType)cfg.sensors[si].sensorType);
+   for (int pp = 0; pp < sfmt.pinCount && pp < MAX_SENSOR_PINS; pp++) {
+    uint8_t g = cfg.sensors[si].pins[pp];
+    if (g != PIN_UNUSED && g < 16) freeGpios[g] = false;
+   }
+  }
+  String freeList = "";
+  for (int g = 0; g < 16; g++) {
+   if (freeGpios[g]) {
+    if (freeList.length( ) > 0) freeList += ",";
+    freeList += String(g);
+   }
+  }
+  if (freeList.length( ) > 0) {
+   _cmdMgr->consolePrintf("%s: %s\n",
+     pt ? "GPIOs disponiveis" : "Available GPIOs",
+     freeList.c_str( ));
+  } else {
+   _cmdMgr->printInfo(pt ? "(nenhum GPIO livre)" : "(no free GPIOs)");
+  }
+
+  _cmdMgr->printInfo(String(pt ? "Atribua com: sensor " : "Assign with: sensor ")
+    + String(cmd.intVal1) + " pin <idx>,<gpio>");
+  changed = true;
   return;
  }
 
@@ -81,6 +185,117 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  changed = true;
  return;
  }
+
+ /* ── Non-numeric string fields: type, name, hwid, active ── */
+
+ if (strcmp(field, "type") == 0) {
+  String v = cmd.strVal2; v.toLowerCase( );
+  SensorType newType = TYPE_NONE;
+  if (v == "ds18b20")           newType = TYPE_DS18B20;
+  else if (v == "dht22")        newType = TYPE_DHT22;
+  else if (v == "bme280")       newType = TYPE_BME280;
+  else {
+   _cmdMgr->printError(pt ? "Tipo invalido. Use: ds18b20, dht22, bme280"
+                         : "Invalid type. Use: ds18b20, dht22, bme280");
+   return;
+  }
+  if (!sensorTypeEnabled(newType)) {
+   _cmdMgr->printError(pt ? "Tipo de sensor nao compilado nesta firmware"
+                         : "Sensor type not compiled in this firmware");
+   return;
+  }
+  r.sensorType = (uint8_t)newType;
+  _cmdMgr->printSuccess((pt ? "Slot " : "Slot ") + String(cmd.intVal1) + " type=" + v);
+
+  /* Show pin requirements for this type */
+  auto fmt = SensorFormat::forType(newType);
+  _cmdMgr->consolePrintf("  %s: %d pin%s\n",
+    sensorTypeName(newType), fmt.pinCount, fmt.pinCount > 1 ? "s" : "");
+  for (int pp = 0; pp < fmt.pinCount && pp < MAX_SENSOR_PINS; pp++) {
+   uint8_t curGpio = r.pins[pp];
+   String curStr = (curGpio != PIN_UNUSED && curGpio < 16)
+     ? ("GPIO " + String(curGpio)) : String(pt ? "LIVRE" : "FREE");
+   _cmdMgr->consolePrintf("  pin[%d] %-5s → %s\n",
+     pp, fmt.pins[pp].label, curStr.c_str( ));
+  }
+  changed = true;
+  return;
+ }
+
+ if (strcmp(field, "name") == 0) {
+  if (!isValidName(cmd.strVal2, sizeof(r.friendlyName) - 1)) {
+   _cmdMgr->printError(pt ? "Nome invalido (1-31 chars, sem ctrl chars)"
+                         : "Invalid name (1-31 chars, no ctrl chars)");
+   return;
+  }
+  safeCopy(r.friendlyName, cmd.strVal2, sizeof(r.friendlyName));
+  _cmdMgr->printSuccess((pt ? "Slot " : "Slot ") + String(cmd.intVal1) + " name=" + cmd.strVal2);
+  changed = true;
+  return;
+ }
+
+ if (strcmp(field, "hwid") == 0) {
+  if (!isValidCfgString(cmd.strVal2, sizeof(r.hwId) - 1)) {
+   _cmdMgr->printError(pt ? "HW ID invalido (max 15, sem ctrl chars)"
+                         : "Invalid HW ID (max 15, no ctrl chars)");
+   return;
+  }
+  safeCopy(r.hwId, cmd.strVal2, sizeof(r.hwId));
+  _cmdMgr->printSuccess((pt ? "Slot " : "Slot ") + String(cmd.intVal1) + " hwid=" + cmd.strVal2);
+  changed = true;
+  return;
+ }
+
+ if (strcmp(field, "active") == 0) {
+  String v = cmd.strVal2; v.toLowerCase( );
+  bool wantActive;
+  if (v == "on" || v == "1" || v == "true")        wantActive = true;
+  else if (v == "off" || v == "0" || v == "false") wantActive = false;
+  else {
+   _cmdMgr->printError(pt ? "Use 'on' ou 'off'" : "Use 'on' or 'off'");
+   return;
+  }
+
+  /* Validate prerequisites when activating */
+  if (wantActive) {
+   if (r.sensorType == TYPE_NONE) {
+    _cmdMgr->printError(pt ? "Defina o tipo primeiro: sensor <slot> type <tipo>"
+                          : "Set type first: sensor <slot> type <type>");
+    return;
+   }
+   if (!sensorTypeEnabled((SensorType)r.sensorType)) {
+    _cmdMgr->printError(pt ? "Tipo de sensor nao compilado nesta firmware"
+                          : "Sensor type not compiled in this firmware");
+    return;
+   }
+   auto fmt = SensorFormat::forType((SensorType)r.sensorType);
+   String missingPins = "";
+   for (int pp = 0; pp < fmt.pinCount && pp < MAX_SENSOR_PINS; pp++) {
+    if (r.pins[pp] == PIN_UNUSED) {
+     if (missingPins.length( ) > 0) missingPins += ", ";
+     missingPins += String(pp) + "(" + fmt.pins[pp].label + ")";
+    }
+   }
+   if (missingPins.length( ) > 0) {
+    _cmdMgr->printError((pt ? "Atribua os pinos restantes: " : "Assign remaining pins: ")
+      + missingPins);
+    _cmdMgr->printInfo((pt ? "Use: sensor " : "Use: sensor ")
+      + String(cmd.intVal1) + " pin <idx>,<gpio>");
+    return;
+   }
+  }
+
+  r.active = wantActive;
+  _cmdMgr->printSuccess((pt ? "Slot " : "Slot ") + String(cmd.intVal1)
+    + " active=" + (r.active ? "on" : "off"));
+  if (wantActive) {
+   _cmdMgr->printInfo(pt ? "Pronto. Execute 'write memory' para salvar."
+                         : "Ready. Run 'write memory' to persist.");
+  }
+  changed = true;
+  return;
+ }
+
  /* Numeric (float) with sensible range. */
  float val = parseFloat(cmd.strVal2);
  if (val == 0.0f && strcmp(cmd.strVal2, "0") != 0 && strcmp(cmd.strVal2, "0.0") != 0

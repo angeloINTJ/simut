@@ -19,9 +19,10 @@
 #include "DS18B20PIO.h"
 #if SIMUT_DISPLAY_TFT
 #include "SensorDrawing.h"
-#endif
-
 #define PIN_ONEWIRE_DEFAULT 0
+#else
+#define PIN_ONEWIRE_DEFAULT 255
+#endif
 
 struct DS18B20Driver {
     OneWirePIO  bus;
@@ -173,7 +174,5 @@ inline void DS18B20_renderMinMax(GFXcanvas16* cv,
 
     drawMinMaxGraphBtn(cv, BTN_X, 2, BTN_W, 40, accentHigh, btnTextActive);
 }
-#else
-#define PIN_ONEWIRE_DEFAULT 255
 #endif /* SIMUT_SENSOR_DS18B20 */
 #endif // SIMUT_DISPLAY_TFT

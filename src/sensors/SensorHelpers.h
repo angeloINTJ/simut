@@ -255,21 +255,34 @@ struct SensorFormat {
 };
 
 /** Auto-configure a GPIO pin based on its declared role.
- *  Called by SensorManager during initRuntimeSensors().
- *  Each role sets direction, pulls, and alternate function as needed. */
+ *  Called by SensorManager during initRuntimeSensors() for every pin
+ *  declared by the sensor driver (pins[0..pinCount-1]).
+ *
+ *  Each role sets direction and pulls. I2C/SPI bus peripherals need
+ *  separate Wire.begin()/SPI.begin() calls — see initRuntimeSensors().
+ *
+ *  ROLE_DATA is set as input with optional pull-up: single-wire sensors
+ *  (DHT22, DS18B20) manage direction internally during read/write cycles.
+ *  ROLE_POWER defaults to output LOW — sensor VCC off until driver activates.
+ */
 inline void gpioInitForRole(uint8_t gpio, PinRole role, uint8_t flags) {
  gpio_init(gpio);
  if (flags & FLAG_PULLUP)      gpio_pull_up(gpio);
  if (flags & FLAG_PULLDOWN)    gpio_pull_down(gpio);
- /* FLAG_OPENDRAIN: set via gpio_set_function(GPIO_FUNC_I2C) etc. at bus init */
 
  switch (role) {
  case ROLE_DATA:
+     /* Single-wire: driver manages direction per-bit (DS18B20, DHT22). */
+     gpio_set_dir(gpio, GPIO_IN);
+     break;
  case ROLE_UART_TX:
  case ROLE_SPI_MOSI:
  case ROLE_SPI_CS:
+     gpio_set_dir(gpio, GPIO_OUT);
+     break;
  case ROLE_POWER:
      gpio_set_dir(gpio, GPIO_OUT);
+     gpio_put(gpio, 0); /* Start with sensor VCC off */
      break;
  case ROLE_UART_RX:
  case ROLE_SPI_MISO:
@@ -278,8 +291,10 @@ inline void gpioInitForRole(uint8_t gpio, PinRole role, uint8_t flags) {
      break;
  case ROLE_I2C_SDA:
  case ROLE_I2C_SCL:
+     /* Pull-ups already applied above. Peripheral function set by Wire.begin(). */
+     break;
  case ROLE_SPI_SCK:
-     // I2C/SPI handled by peripheral init, just set function
+     /* Peripheral function set by SPI.begin(). */
      break;
  default:
      break;
