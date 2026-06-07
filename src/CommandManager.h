@@ -56,6 +56,7 @@ public:
 
  void printLogEntry(String rawCsvLine);
  void renderSensorTable(const SensorRecord* sensors, int maxSensors);
+ void renderGpioMap(const SensorRecord* sensors, int maxSensors);
  void renderScanResults(const std::vector<ScanResult> &results);
  void renderSystemInfo(const SystemConfig &cfg);
  void renderSensorReading(const SensorReading &reading);

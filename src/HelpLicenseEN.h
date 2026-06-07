@@ -46,7 +46,9 @@ show metrics
 
 -- 2. SENSOR DIAGNOSTICS --
 show sensors
- List mapped sensors (database)
+ List configured slots with type, channels, alarms
+show sensor types
+ List sensor drivers compiled in firmware
 sensor scan
  Hardware scan for new sensors
 
@@ -100,10 +102,21 @@ conf tel mode <json|csv|custom>
  Payload format
 
 -- 4. SENSOR MAPPING --
+sensor <slot> type <ds18b20|dht22|bme280>
+ Set sensor driver type
+sensor <slot> name <name>
+ Set friendly name (max 31 chars)
+sensor <slot> hwid <id>
+ Set hardware ID (max 15 chars)
+sensor <slot> active <on|off>
+ Enable or disable slot
+sensor <slot> pin <idx>,<gpio>
+ Assign GPIO to pin index (0-3)
+ Ex: sensor 5 pin 0,5  -> slot 5 uses GPIO5
+ Ex: sensor 5 pin 1,6  -> adds GPIO6 as 2nd pin
 sensor define <gpio> <rom> <hwid> \"<name>\"
- Ex:
- sensor define 0 28AA.. S1 \"Oven_Top\"
- Note: GPIO 10 = Ambient Sensor
+ Legacy: full sensor definition with ROM
+ Ex: sensor define 0 28AA.. S1 \"Oven_Top\"
 
 -- 5. MAINTENANCE --
 sensor accept <gpio>
@@ -136,8 +149,12 @@ debug
 -- 7. IP / SENSOR LIMITS / USERS / WEB --
 conf ip <dhcp|static>
 conf ip <addr|mask|gateway|dns> <ipv4>
+sensor <slot> <tmin|tmax|hmin|hmax> <n>
+ Set alarm thresholds per slot
+sensor <slot> alarm <on|off>
+ Toggle alarm per slot
 conf sensor <tmin|tmax|hmin|hmax> <gpio> <n>
-conf sensor alarm <gpio> <on|off>
+ Legacy: same as above with 'conf' prefix
 conf user add <name> <pass>
 conf user del <name>
 conf user pass <name> <newpass>

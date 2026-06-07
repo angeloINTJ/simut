@@ -29,6 +29,8 @@ enum DemandType {
  CMD_SHOW_SYSINFO,
  CMD_SHOW_NET,
  CMD_SHOW_METRICS,
+ CMD_SHOW_SENSOR_TYPES, /**< List compiled-in sensor drivers with channel/pin info */
+ CMD_SHOW_GPIO, /**< GPIO resource map — 16 pins, free/used by slot */
  CMD_SET_DS_RES,
  CMD_SET_SYS_NAME,
  CMD_SET_WIFI_SSID,

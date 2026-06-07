@@ -18,6 +18,7 @@
 #include "MetricsManager.h"
 #include "StorageManager.h" /* getBoardSerialNumber em show system info */
 #include "HelpLicenseEN.h" /* HELP_TEXT_EN inline em PROGMEM */
+#include "sensors/SensorHelpers.h" /* sensorTypeName, sensorHasChannel, SensorFormat */
 #include <LittleFS.h>
 #include <time.h>
 #include <stdarg.h>
@@ -223,6 +224,7 @@ CliDemand CommandManager::parseCommand(String input) {
  /* Original values (preserve case) for SSID, password, name, NTP, etc. */
  String v3 = count > 3 ? parts[3] : "";
 
+ if (t0 == "gpio") { cmd.type = CMD_SHOW_GPIO; return cmd; }
  if (t0 == "help" || t0 == "ajuda" || t0 == "?") { cmd.type = CMD_HELP; return cmd; }
  if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
 
@@ -260,6 +262,8 @@ CliDemand CommandManager::parseCommand(String input) {
  if (t1 == "themes") { cmd.type = CMD_SHOW_THEMES; return cmd; }
  if (t1 == "system" && t2 == "log") { cmd.type = CMD_SHOW_LOGS; return cmd; }
  if (t1 == "sensors") { cmd.type = CMD_SHOW_SENSORS; return cmd; }
+ if (t1 == "sensor" && t2 == "types") { cmd.type = CMD_SHOW_SENSOR_TYPES; return cmd; }
+ if (t1 == "gpio") { cmd.type = CMD_SHOW_GPIO; return cmd; }
  if (t1 == "storage" && t2 == "stats") { cmd.type = CMD_SHOW_STORAGE; return cmd; }
  if (t1 == "system" && t2 == "info") { cmd.type = CMD_SHOW_SYSINFO; return cmd; }
  if (t1 == "net" && t2 == "status") { cmd.type = CMD_SHOW_NET; return cmd; }
@@ -544,20 +548,138 @@ void CommandManager::renderSensorTable(const SensorRecord* sensors, int maxSenso
  consolePrintln("");
  consolePrintln(isPt( ) ? "--- Sensores Configurados ---"
  : "--- Configured Sensors ---");
- bool found = false;
+ int activeCount = 0;
  for(int i=0; i<maxSensors; i++) {
- if (sensors[i].active) {
- found = true;
- char line[64];
- String romStr = formatRom(sensors[i].rom);
- snprintf(line, sizeof(line), " [Slot %02d] %s", sensors[i].pins[0], sensors[i].hwId);
- consolePrintln(line);
- consolePrintf(" ROM: %s\n", romStr.c_str( ));
- consolePrintf(isPt( ) ? " Nome: %s\n" : " Name: %s\n",
- sensors[i].friendlyName);
+ if (!sensors[i].active) continue;
+ activeCount++;
+
+ SensorType st = (SensorType)sensors[i].sensorType;
+ auto fmt = SensorFormat::forType(st);
+
+ /* Build GPIO list: "3", "5,6", "10,SDA+11,SCL", or "--" if unassigned */
+ String gpioStr = "";
+ for (int p = 0; p < fmt.pinCount && p < MAX_SENSOR_PINS; p++) {
+  uint8_t gpio = sensors[i].pins[p];
+  if (gpio == PIN_UNUSED) {
+   gpioStr += "--";
+  } else {
+   gpioStr += String(gpio);
+  }
+  if (fmt.pinCount > 1 && p + 1 < fmt.pinCount) {
+   gpioStr += ",";
+   gpioStr += fmt.pins[p].label;
+   gpioStr += "/";
+  }
  }
+
+ /* Build channel list: "Temp", "Temp+Hum", "Temp+Hum+Press" */
+ String chStr = "";
+ for (int c = 0; c < fmt.valueCount && c < 3; c++) {
+  if (c > 0) chStr += "+";
+  if (c == 0) chStr += "T";
+  else if (c == 1) chStr += "H";
+  else if (c == 2) chStr += "P";
  }
- if (!found) consolePrintln(isPt( ) ? " (banco vazio)" : " (database is empty)");
+
+ /* Slot header: [Slot 00] GPIO=5 | DHT22 | T+H | Freezer 1 */
+ consolePrintf(" [Slot %02d] GPIO=%s | %-8s | %-5s | %s\n",
+   i, gpioStr.c_str( ), sensorTypeName(st),
+   chStr.c_str( ), sensors[i].friendlyName);
+
+ /* ROM for 1-Wire sensors */
+ if (st == TYPE_DS18B20) {
+  String romStr = formatRom(sensors[i].rom);
+  consolePrintf("          ROM: %s\n", romStr.c_str( ));
+ }
+
+ /* HW ID if different from default */
+ if (sensors[i].hwId[0] != '\0' && strcmp(sensors[i].hwId, "LIB_SENS") != 0) {
+  consolePrintf("          HWID: %s\n", sensors[i].hwId);
+ }
+
+ /* Alarm status + limits */
+ consolePrintf("          %s: %s",
+   isPt( ) ? "ALARMES" : "ALARMS",
+   sensors[i].alarmsActive ? (isPt( ) ? "LIGADO" : "ON") : (isPt( ) ? "DESL" : "OFF"));
+
+ if (sensors[i].alarmsActive) {
+  if (sensorHasChannel(st, CH_TEMP)) {
+   consolePrintf("  [T: %.1f .. %.1f]", sensors[i].tempMin, sensors[i].tempMax);
+  }
+  if (sensorHasChannel(st, CH_HUM)) {
+   consolePrintf("  [H: %.1f .. %.1f]", sensors[i].humMin, sensors[i].humMax);
+  }
+ }
+ consolePrintln("");
+ }
+ if (activeCount == 0) {
+  consolePrintln(isPt( ) ? " (banco vazio)" : " (database is empty)");
+ } else {
+  consolePrintf(" (%d / %d %s)\n", activeCount, maxSensors,
+    isPt( ) ? "slots ativos" : "slots active");
+ }
+ printDivider( );
+}
+
+void CommandManager::renderGpioMap(const SensorRecord* sensors, int maxSensors) {
+ consolePrintln("");
+ consolePrintln(isPt( ) ? "--- Mapa de GPIOs (16 totais) ---"
+                       : "--- GPIO Map (16 total) ---");
+
+ /* Build a map: gpioOwners[gpio] = slot index (or -1 if free) */
+ int gpioOwner[16];
+ for (int g = 0; g < 16; g++) gpioOwner[g] = -1;
+
+ int usedCount = 0;
+ for (int si = 0; si < maxSensors; si++) {
+  if (!sensors[si].active) continue;
+  auto fmt = SensorFormat::forType((SensorType)sensors[si].sensorType);
+  for (int pi = 0; pi < fmt.pinCount && pi < MAX_SENSOR_PINS; pi++) {
+   uint8_t gpio = sensors[si].pins[pi];
+   if (gpio != PIN_UNUSED && gpio < 16) {
+    gpioOwner[gpio] = si;
+    usedCount++;
+   }
+  }
+ }
+
+ /* Print GPIO rows */
+ for (int g = 0; g < 16; g++) {
+  if (gpioOwner[g] >= 0) {
+   int si = gpioOwner[g];
+   SensorType st = (SensorType)sensors[si].sensorType;
+   auto fmt = SensorFormat::forType(st);
+   /* Find which pin role this GPIO serves */
+   const char* roleLabel = "";
+   for (int pi = 0; pi < fmt.pinCount && pi < MAX_SENSOR_PINS; pi++) {
+    if (sensors[si].pins[pi] == (uint8_t)g) {
+     roleLabel = fmt.pins[pi].label;
+     break;
+    }
+   }
+   consolePrintf(" GPIO %2d: [Slot %02d] %-8s (%s)\n",
+     g, si, sensorTypeName(st), roleLabel);
+  } else {
+   consolePrintf(" GPIO %2d: FREE\n", g);
+  }
+ }
+
+ /* Free GPIOs summary line */
+ String freeList = "";
+ for (int g = 0; g < 16; g++) {
+  if (gpioOwner[g] < 0) {
+   if (freeList.length( ) > 0) freeList += ",";
+   freeList += String(g);
+  }
+ }
+ if (freeList.length( ) > 0) {
+  consolePrintf("%s: %s\n",
+    isPt( ) ? "LIVRES" : "FREE",
+    freeList.c_str( ));
+ }
+
+ consolePrintf(" (%d / 16 %s)\n", usedCount,
+   isPt( ) ? "GPIOs em uso" : "GPIOs used");
  printDivider( );
 }
 

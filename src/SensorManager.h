@@ -23,6 +23,7 @@
 #include "SystemDefs.h"
 #include "sensors/DS18B20Driver.h"
 #include "sensors/DHT22Driver.h"
+#include "sensors/BME280Driver.h"
 #include "LogManager.h"
 #include "sensors/SensorHelpers.h"
 
@@ -112,6 +113,11 @@ public:
  bool readDhtBlocking(float &t, float &h);
 #endif
 
+#if SIMUT_SENSOR_BME280
+ void requestBmeReading( );
+ bool readBmeBlocking(float &t, float &h, float &p);
+#endif
+
  bool pollAsyncResult(String &msg);
 
 #if SIMUT_SENSOR_DS18B20
@@ -133,6 +139,9 @@ private:
 #if SIMUT_SENSOR_DHT22
  DHT22Driver _dht;
 #endif
+#if SIMUT_SENSOR_BME280
+ BME280Driver _bme;
+#endif
 
  std::vector<RuntimeSensor> _runtimeSensors;
  volatile bool _newDataAvailable = false;
@@ -148,6 +157,10 @@ private:
 #if SIMUT_SENSOR_DHT22
  DHT_REQUEST,
  DHT_WAIT,
+#endif
+#if SIMUT_SENSOR_BME280
+ BME_SCAN_CHECK,
+ BME_SCAN_WAIT,
 #endif
  NEXT_PIN,
  COMPLETE

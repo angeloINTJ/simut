@@ -17,6 +17,7 @@
 #include "SensorDrawing.h"
 #include "DS18B20Driver.h"
 #include "DHT22Driver.h"
+#include "BME280Driver.h"
 
 /** Calls the appropriate driver's renderPanel for the given sensor type.
  *  Theme colors passed explicitly so drivers follow the active theme. */
@@ -36,6 +37,13 @@ inline void sensorRenderPanel(GFXcanvas16* cv, SensorType type,
                           isRedPhase, panelBg, font24, font12, font9,
                           txtSub, tempOk, tempHot, humidity, textOff,
                           humSuffix);
+        return;
+#endif
+#if SIMUT_SENSOR_BME280
+    case TYPE_BME280:
+        BME280_renderPanel(cv, v1, v2, 0.0f, isValid, cardW, leftAnchor,
+                           isRedPhase, panelBg, font24, font12, font9,
+                           txtSub, tempOk, tempHot, humidity, textOff);
         return;
 #endif
 #if SIMUT_SENSOR_DS18B20
@@ -71,6 +79,15 @@ inline void sensorRenderMinMax(GFXcanvas16* cv, SensorType type,
 #if SIMUT_SENSOR_DHT22
     case TYPE_DHT22:
         DHT22_renderMinMax(cv, minV1, maxV1, minV2, maxV2, isValid,
+            cardW, isRedPhase, panelBg, font9,
+            txtSub, tempOk, tempHot, humidity, textOff,
+            accentHigh, btnTextActive,
+            minLabel, maxLabel, humSuffix);
+        return;
+#endif
+#if SIMUT_SENSOR_BME280
+    case TYPE_BME280:
+        BME280_renderMinMax(cv, minV1, maxV1, minV2, maxV2, isValid,
             cardW, isRedPhase, panelBg, font9,
             txtSub, tempOk, tempHot, humidity, textOff,
             accentHigh, btnTextActive,

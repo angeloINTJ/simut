@@ -71,35 +71,42 @@ void SensorManager::begin( ) {
 #if SIMUT_SENSOR_DHT22
  _dht.begin( );
 #endif
+#if SIMUT_SENSOR_BME280
+ _bme.begin( );
+#endif
 }
 
 /**
  * @brief Build runtime sensor list from persistent configuration.
-/**
- * @brief Build runtime sensor list from persistent configuration.
  * Iterates all 16 universal slots (GPIO0–GPIO15). Each active slot
  * becomes a RuntimeSensor with proper type, interval, and GPIO setup.
+ *
+ * GPIO pins are configured via gpioInitForRole() using driver metadata
+ * from SensorFormat::forType(). Multi-pin sensors (I2C, SPI) have ALL
+ * their pins initialized, not just pins[0]. Bus peripherals (Wire, SPI)
+ * are initialized once when the first sensor requiring them is found.
  */
 void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  _runtimeSensors.clear( );
+
+ bool i2cInitialized = false;
+ bool spiInitialized = false;
 
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
 
  RuntimeSensor rs;
  rs.config = cfg.sensors[i];
- rs.calibrationOffset[0] = 0.0f;
- rs.calibrationOffset[1] = 0.0f;
-
- rs.avgValue[0] = NAN;
- rs.avgValue[1] = NAN;
+ for (int ch = 0; ch < MAX_SENSOR_CHANNELS; ch++) {
+  rs.calibrationOffset[ch] = 0.0f;
+  rs.avgValue[ch] = NAN;
+ }
  rs.lastReadTime = 0;
  rs.totalReadings = 0;
  rs.consecutiveErrors = 0;
  rs.consecutiveSuccess = 0;
  rs.inErrorState = false;
  rs.hardwareMismatch = false;
- rs.calibrationOffset[0] = 0.0f;
 
  /* Use explicit sensorType from config.
   * Fallback: ROM-based detection for sensors that haven't been re-saved
@@ -120,12 +127,40 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  continue;
  }
 
-	/* v1.4.2: GPIO init driven by SensorFormat pin requirements.
-		/* v1.4.2: GPIO setup via driver metadata. DHT22 needs pull-up on data pin. */
-		if (rs.type == TYPE_DHT22) {
-		 gpio_init(rs.config.pins[0]);
-		 gpio_set_pulls(rs.config.pins[0], true, false);
+	/* v1.4.2+: GPIO init driven by SensorFormat pin requirements.
+	 * All declared pins are configured via gpioInitForRole().
+	 * Bus peripherals (I2C, SPI) are initialized once at first use. */
+	auto fmt = SensorFormat::forType(rs.type);
+	for (uint8_t pi = 0; pi < fmt.pinCount && pi < MAX_SENSOR_PINS; pi++) {
+		uint8_t gpio = rs.config.pins[pi];
+		if (gpio == PIN_UNUSED) continue;
+
+		/* I2C bus init — once, using pins from first I2C sensor found */
+		if ((fmt.pins[pi].role == ROLE_I2C_SDA || fmt.pins[pi].role == ROLE_I2C_SCL)
+		    && !i2cInitialized) {
+			/* Find SDA pin for Wire.begin() — scan all pins of this sensor */
+			uint8_t sda = gpio, scl = gpio;
+			for (uint8_t pj = 0; pj < fmt.pinCount; pj++) {
+				if (fmt.pins[pj].role == ROLE_I2C_SDA) sda = rs.config.pins[pj];
+				if (fmt.pins[pj].role == ROLE_I2C_SCL) scl = rs.config.pins[pj];
+			}
+		#if SIMUT_SENSOR_BME280
+			Wire.setSDA(sda);
+			Wire.setSCL(scl);
+			Wire.begin();
+			i2cInitialized = true;
+		#endif
 		}
+
+		/* SPI bus init — once (future: BMP388, etc.) */
+		if ((fmt.pins[pi].role == ROLE_SPI_SCK || fmt.pins[pi].role == ROLE_SPI_MOSI)
+		    && !spiInitialized) {
+			/* SPI peripheral init would go here — no SPI sensors implemented yet */
+			spiInitialized = true; /* Reserve; prevents repeated init attempts */
+		}
+
+		gpioInitForRole(gpio, fmt.pins[pi].role, fmt.pins[pi].flags);
+	}
 
  _runtimeSensors.push_back(rs);
  }
@@ -292,14 +327,56 @@ void SensorManager::update( ) {
  case NEXT_PIN:
  _currentScanPin++;
  if (_currentScanPin > 16) {
+#if SIMUT_SENSOR_BME280
+ _scanState = BME_SCAN_CHECK;
+#else
 #if SIMUT_SENSOR_DS18B20
  _ds18.setPin(PIN_ONEWIRE_DEFAULT);
 #endif
  _scanState = COMPLETE;
+#endif
  } else {
  _scanState = SETUP_PIN;
  }
  break;
+
+#if SIMUT_SENSOR_BME280
+ case BME_SCAN_CHECK: {
+  /* BME280 is I2C — not detectable via GPIO probing. Check the
+   * I2C bus once after all pins are scanned. */
+  uint8_t chipId = 0;
+  Wire.beginTransmission(BME280_I2C_ADDR_PRIMARY);
+  bool primaryOk = (Wire.endTransmission() == 0);
+  if (primaryOk || true) {
+   /* Probe chip ID register at primary address */
+   Wire.beginTransmission(BME280_I2C_ADDR_PRIMARY);
+   Wire.write(BME280_REG_CHIP_ID);
+   Wire.endTransmission();
+   Wire.requestFrom(BME280_I2C_ADDR_PRIMARY, (uint8_t)1);
+   if (Wire.available()) chipId = Wire.read();
+  }
+  if (chipId != BME280_CHIP_ID) {
+   /* Try secondary address */
+   Wire.beginTransmission(BME280_I2C_ADDR_SECONDARY);
+   Wire.write(BME280_REG_CHIP_ID);
+   Wire.endTransmission();
+   Wire.requestFrom(BME280_I2C_ADDR_SECONDARY, (uint8_t)1);
+   if (Wire.available()) chipId = Wire.read();
+  }
+  if (chipId == BME280_CHIP_ID) {
+   ScanResult res;
+   res.pin = 255; /* I2C — no single GPIO */
+   res.type = TYPE_BME280;
+   memset(res.rom, 0, 8);
+   _scanResults.push_back(res);
+  }
+#if SIMUT_SENSOR_DS18B20
+  _ds18.setPin(PIN_ONEWIRE_DEFAULT);
+#endif
+  _scanState = COMPLETE;
+  break;
+ }
+#endif /* SIMUT_SENSOR_BME280 */
 
  default: break;
  }
@@ -452,6 +529,50 @@ void SensorManager::processPeriodicReads( ) {
  }
  }
 #endif /* SIMUT_SENSOR_DHT22 */
+
+#if SIMUT_SENSOR_BME280
+ /* ── BME280: sequential forced-mode via I2C ── */
+ if (_bme.state == BME280Driver::BME_IDLE) {
+  for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
+   auto &s = _runtimeSensors[i];
+   if (s.type == TYPE_BME280 && (now - s.lastReadTime >= s.readInterval)) {
+    _bme.reset( );
+    _bme.requestReading( );
+    _bme.timer = millis( );
+    _bme.currentSensorIdx = i;
+    _bme.state = BME280Driver::BME_WAITING;
+    break;
+   }
+  }
+ }
+ else if (_bme.state == BME280Driver::BME_WAITING) {
+  if (_bme.currentSensorIdx >= 0 && _bme.currentSensorIdx < (int)_runtimeSensors.size( )) {
+   auto &s = _runtimeSensors[_bme.currentSensorIdx];
+
+   if (timeSince(_bme.timer, BME280_MEAS_TIME_MS)) {
+    float t, h, p;
+    if (_bme.getResults(t, h, p)) {
+     /* BME280: v1=temp, v2=humidity (pressure available via API) */
+     handleSensorResult(s, true, t, h, "");
+     /* Store pressure in CH_PRESS channel buffer */
+     if (!isnan(p)) {
+      s.buffers[CH_PRESS].push(p);
+      if (s.buffers[CH_PRESS].full( )) {
+       s.avgValue[CH_PRESS] = calculateTrimmedMean(s.buffers[CH_PRESS]);
+      }
+     }
+    } else {
+     handleSensorResult(s, false, 0, 0, "I2C Read Error");
+    }
+    _bme.reset( );
+    s.lastReadTime = millis( );
+    _bme.state = BME280Driver::BME_IDLE;
+   }
+  } else {
+   _bme.state = BME280Driver::BME_IDLE;
+  }
+ }
+#endif /* SIMUT_SENSOR_BME280 */
 }
 
 /**
@@ -556,6 +677,18 @@ bool SensorManager::readDhtBlocking(float &t, float &h) {
  if (s == DHT22PIO::ERROR_TIMEOUT || s == DHT22PIO::ERROR_CHECKSUM) return false;
  }
  return false;
+}
+#endif
+
+#if SIMUT_SENSOR_BME280
+void SensorManager::requestBmeReading( ) {
+ _bme.requestReading( );
+}
+
+bool SensorManager::readBmeBlocking(float &t, float &h, float &p) {
+ _bme.requestReading( );
+ delay(BME280_MEAS_TIME_MS);
+ return _bme.getResults(t, h, p);
 }
 #endif
 

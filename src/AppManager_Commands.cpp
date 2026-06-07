@@ -99,6 +99,38 @@ void AppManager::executeCommand(CliDemand cmd) {
  }
 
  case CMD_SHOW_SENSORS: _cmdMgr->renderSensorTable(cfg.sensors, MAX_SENSORS); break;
+ case CMD_SHOW_GPIO:    _cmdMgr->renderGpioMap(cfg.sensors, MAX_SENSORS); break;
+ case CMD_SHOW_SENSOR_TYPES: {
+  _cmdMgr->consolePrintln("");
+  _cmdMgr->consolePrintln(_cmdMgr->isPt( ) ? "--- Tipos de Sensor Compilados ---"
+                                            : "--- Compiled Sensor Types ---");
+  SensorType allTypes[] = {TYPE_DS18B20, TYPE_DHT22, TYPE_BME280};
+  for (SensorType t : allTypes) {
+   if (!sensorTypeEnabled(t)) continue;
+   auto fmt = SensorFormat::forType(t);
+   /* Build pin role labels: "1-Wire", "Data", "SDA,SCL" */
+   String pinStr = "";
+   for (int p = 0; p < fmt.pinCount && p < 4; p++) {
+    if (p > 0) pinStr += ",";
+    pinStr += fmt.pins[p].label;
+   }
+   /* Build channel labels: "Temp", "Temp+Hum", "Temp+Hum+Press" */
+   String chStr = "";
+   for (int c = 0; c < fmt.valueCount && c < 3; c++) {
+    if (c > 0) chStr += "+";
+    if (c == 0) chStr += _cmdMgr->isPt( ) ? "Temp" : "Temp";
+    else if (c == 1) chStr += _cmdMgr->isPt( ) ? "Umid" : "Hum";
+    else if (c == 2) chStr += _cmdMgr->isPt( ) ? "Press" : "Press";
+   }
+   _cmdMgr->consolePrintf(" %-8s | %2d pin%s | %s | %s\n",
+     sensorTypeName(t),
+     fmt.pinCount, fmt.pinCount > 1 ? "s" : " ",
+     chStr.c_str( ),
+     pinStr.c_str( ));
+  }
+  _cmdMgr->printDivider( );
+  break;
+ }
  case CMD_SHOW_METRICS: _cmdMgr->renderMetrics( ); break;
  case CMD_SHOW_STORAGE: {
  String rep = _storageMgr->getStatsReport( );
