@@ -60,8 +60,8 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 │  │  Hardware Interfaces                                │ │
 │  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch        │ │
 │  │  ◆ 1-Wire (PIO) → DS18B20 (up to 16)                │ │
-│  │  ◆ Data → DHT22 (up to 16)                           │ │
-│  │  ◆ I2C → BME280 T+H+P (up to 8)                      │ │
+│  │  ◆ Data → DHT22 (up to 16)                          │ │
+│  │  ◆ I2C → BME280 T+H+P (up to 8)                     │ │
 │  │  ◆ USB CDC → CLI Serial                             │ │
 │  │  ◆ Bluetooth (BLE) → CLI Remote                     │ │
 │  │  ◆ WiFi (CYW43439) → HTTP Server + Telemetry        │ │
