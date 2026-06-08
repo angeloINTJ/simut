@@ -99,14 +99,32 @@ struct BME280Driver {
 
     /* ── Initialization ───────────────────────────────────────────────── */
     void begin( ) {
-        /* Soft-reset the sensor */
-        writeReg(BME280_I2C_ADDR_PRIMARY, BME280_REG_RESET, BME280_RESET_CMD);
+        /* Set short I2C timeout — prevents boot hang if BME280 absent */
+        _wire->setTimeout(50); /* 50ms per operation */
+
+        /* Quick probe: does ANY device ACK at primary or secondary address? */
+        _wire->beginTransmission(BME280_I2C_ADDR_PRIMARY);
+        bool primaryAck = (_wire->endTransmission() == 0);
+        _wire->beginTransmission(BME280_I2C_ADDR_SECONDARY);
+        bool secondaryAck = (_wire->endTransmission() == 0);
+
+        if (!primaryAck && !secondaryAck) {
+            _compLoaded = false;
+            return; /* No BME280 on bus — silent, safe */
+        }
+
+        /* Soft-reset the sensor at the responding address */
+        uint8_t addr = primaryAck ? BME280_I2C_ADDR_PRIMARY : BME280_I2C_ADDR_SECONDARY;
+        writeReg(addr, BME280_REG_RESET, BME280_RESET_CMD);
         delay(10);
-        /* Try primary address; fall back to secondary */
+
+        /* Verify chip ID */
         uint8_t chipId = 0;
-        if (!readRegs(BME280_I2C_ADDR_PRIMARY, BME280_REG_CHIP_ID, &chipId, 1)
+        if (!readRegs(addr, BME280_REG_CHIP_ID, &chipId, 1)
             || chipId != BME280_CHIP_ID) {
-            if (!readRegs(BME280_I2C_ADDR_SECONDARY, BME280_REG_CHIP_ID, &chipId, 1)
+            /* Try the other address */
+            uint8_t altAddr = primaryAck ? BME280_I2C_ADDR_SECONDARY : BME280_I2C_ADDR_PRIMARY;
+            if (!readRegs(altAddr, BME280_REG_CHIP_ID, &chipId, 1)
                 || chipId != BME280_CHIP_ID) {
                 _compLoaded = false;
                 return;
