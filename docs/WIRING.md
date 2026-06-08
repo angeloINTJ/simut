@@ -62,16 +62,16 @@
    │  SLOT  7 ────┤7 │    133 MHz       │  │── GND ────┤
    │  SLOT  8 ────┤8 │                  │  │── 3V3 ────┤
    │  SLOT  9 ────┤9 │                  │  │   └──────────┘
-   │  SLOT 10 ───┤10│                  │  │
-   │  SLOT 11 ───┤11│                  │  │   2× 4.7 kΩ pull-up
-   │  SLOT 12 ───┤12│                  │  │   on SDA and SCL to 3V3
-   │  SLOT 13 ───┤13│                  │  │   (usually built into module)
-   │  SLOT 14 ───┤14│                  │  │
-   ╰─ SLOT 15 ───┤15│                  │  │
-                 │  │                  │  │
-    TFT MISO   ──┤16│                  │  │
-    ...           ...                  ...  ...
-                 └────────────────────────┘
+   │  SLOT 10 ────┤10│                  │  │
+   │  SLOT 11 ────┤11│                  │  │   2× 4.7 kΩ pull-up
+   │  SLOT 12 ────┤12│                  │  │   on SDA and SCL to 3V3
+   │  SLOT 13 ────┤13│                  │  │   (usually built into module)
+   │  SLOT 14 ────┤14│                  │  │
+   ╰─ SLOT 15 ────┤15│                  │  │
+                  │  │                  │  │
+    TFT MISO   ───┤16│                  │  │
+    ...            ...                  ...  ...
+                  └────────────────────────┘
 ```
 
 ## Pinout Diagram — HD44780 16×2 (I2C Mode)
