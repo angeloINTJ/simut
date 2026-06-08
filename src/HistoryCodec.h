@@ -4,7 +4,8 @@
  * @details Format replaces the fixed 40 B/record of v1 with:
  * - 16 B header per file (magic SIM2 + version + anchorPeriod)
  * - 1 anchor (full 40 B record) every N=60 records
- * - 59 variable deltas between anchors (typical ~7-18 B each)
+ * - 59 variable deltas between anchors (typical ~7-19 B each)
+ * - 3-byte field mask (18 bits: 2 ambient + 16 sensor slots)
  *
  * Typical compression 3-4x for common usage (few active sensors +
  * small temperature variation between samples). Reader is linear:
@@ -26,7 +27,7 @@ constexpr char HIST_V2_MAGIC[4] = {'S','I','M','2'};
 constexpr uint16_t HIST_V2_VERSION = 0x0002;
 constexpr uint16_t HIST_V2_ANCHOR_PERIOD = 60; /* 1 anchor + 59 deltas (= 1 hour @ 1 min) */
 constexpr size_t HIST_V2_HEADER_SIZE = 16;
-constexpr size_t HIST_V2_MAX_DELTA_SIZE = 58; /* worst-case: 2B mask + 5B Δepoch + 18*3B varints */
+constexpr size_t HIST_V2_MAX_DELTA_SIZE = 62; /* worst-case: 3B mask + 5B Δepoch + 18*3B varints */
 
 struct __attribute__((packed)) HistoryFileHeaderV2 {
  char magic[4]; /* "SIM2" */
@@ -59,7 +60,7 @@ void historyCodecReset(HistoryCodecState& s);
 /* ENCODER / DECODER */
 /* ======================================================================== */
 
-/** Encode a record. Automatically decides between anchor (28 B fixed) or
+/** Encode a record. Automatically decides between anchor (40 B fixed) or
  * variable delta based on recordsSinceAnchor.
  *
  * @param rec Input record (in-memory uncompressed).
@@ -83,7 +84,7 @@ size_t historyEncodeRecord(const BinaryHistoryRecord& rec,
  * @param bufLen Buffer size.
  * @param s Decoder state (updated in-place).
  * @param outRec Reconstructed record.
- * @param isAnchor true if this record is an anchor (28 B fixed).
+ * @param isAnchor true if this record is an anchor (40 B fixed).
  * @return Bytes consumed, or 0 on error (truncated buffer).
  */
 size_t historyDecodeRecord(const uint8_t* buf, size_t bufLen,

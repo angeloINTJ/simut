@@ -82,18 +82,20 @@ size_t historyEncodeRecord(const BinaryHistoryRecord& rec,
  /* DELTA */
  uint8_t* p = buf;
 
- /* Mask: bit 0=amb_temp, bit 1=amb_hum, bit 2..17=sensors[0..15]. */
- uint16_t mask = 0;
- if (rec.ambientTemp != HIST_NAN_SENTINEL) mask |= (1u << 0);
- if (rec.ambientHum != HIST_NAN_SENTINEL) mask |= (1u << 1);
+ /* Mask: bit 0=amb_temp, bit 1=amb_hum, bit 2..17=sensors[0..15].
+  * Uses 3 bytes (18 bits) — uint32_t to fit all 16 sensor slots. */
+ uint32_t mask = 0;
+ if (rec.ambientTemp != HIST_NAN_SENTINEL) mask |= (1ul << 0);
+ if (rec.ambientHum != HIST_NAN_SENTINEL) mask |= (1ul << 1);
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (rec.sensors[i] != HIST_NAN_SENTINEL) mask |= (1u << (2 + i));
+ if (rec.sensors[i] != HIST_NAN_SENTINEL) mask |= (1ul << (2 + i));
  }
 
- if ((size_t)(p - buf) + 2 > bufSize) return 0;
+ if ((size_t)(p - buf) + 3 > bufSize) return 0;
  p[0] = (uint8_t)(mask & 0xFF);
- p[1] = (uint8_t)((mask >> 8) & 0x0F); /* ensure top 4 bits = 0 */
- p += 2;
+ p[1] = (uint8_t)((mask >> 8) & 0xFF);
+ p[2] = (uint8_t)((mask >> 16) & 0x03); /* only bits 16-17 used */
+ p += 3;
 
  /* Δepoch always present. In normal use = configured interval (1B). */
  int32_t depoch = (int32_t)rec.epoch - (int32_t)s.lastValid.epoch;
@@ -108,19 +110,19 @@ size_t historyEncodeRecord(const BinaryHistoryRecord& rec,
  return true;
  };
 
- if (!encField(mask & (1u << 0), s.fieldHasValid[0], rec.ambientTemp, s.lastValid.ambientTemp)) return 0;
- if (!encField(mask & (1u << 1), s.fieldHasValid[1], rec.ambientHum, s.lastValid.ambientHum)) return 0;
+ if (!encField(mask & (1ul << 0), s.fieldHasValid[0], rec.ambientTemp, s.lastValid.ambientTemp)) return 0;
+ if (!encField(mask & (1ul << 1), s.fieldHasValid[1], rec.ambientHum, s.lastValid.ambientHum)) return 0;
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (!encField(mask & (1u << (2 + i)), s.fieldHasValid[2 + i],
+ if (!encField(mask & (1ul << (2 + i)), s.fieldHasValid[2 + i],
  rec.sensors[i], s.lastValid.sensors[i])) return 0;
  }
 
  /* Update state only for fields actually present. */
  s.lastValid.epoch = rec.epoch;
- if (mask & (1u << 0)) { s.lastValid.ambientTemp = rec.ambientTemp; s.fieldHasValid[0] = true; }
- if (mask & (1u << 1)) { s.lastValid.ambientHum = rec.ambientHum; s.fieldHasValid[1] = true; }
+ if (mask & (1ul << 0)) { s.lastValid.ambientTemp = rec.ambientTemp; s.fieldHasValid[0] = true; }
+ if (mask & (1ul << 1)) { s.lastValid.ambientHum = rec.ambientHum; s.fieldHasValid[1] = true; }
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (mask & (1u << (2 + i))) {
+ if (mask & (1ul << (2 + i))) {
  s.lastValid.sensors[i] = rec.sensors[i];
  s.fieldHasValid[2 + i] = true;
  }
@@ -148,11 +150,11 @@ size_t historyDecodeRecord(const uint8_t* buf, size_t bufLen,
  return sizeof(BinaryHistoryRecord);
  }
 
- if (bufLen < 2) return 0;
+ if (bufLen < 3) return 0;
  const uint8_t* p = buf;
 
- uint16_t mask = (uint16_t)p[0] | ((uint16_t)p[1] << 8);
- p += 2;
+ uint32_t mask = (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);
+ p += 3;
 
  int32_t depoch = 0;
  size_t n = readVarintZ(p, bufLen - (size_t)(p - buf), depoch);
@@ -172,22 +174,22 @@ size_t historyDecodeRecord(const uint8_t* buf, size_t bufLen,
  };
 
  int16_t tmpTemp = HIST_NAN_SENTINEL, tmpHum = HIST_NAN_SENTINEL;
- if (!decField(mask & (1u << 0), s.fieldHasValid[0], s.lastValid.ambientTemp, &tmpTemp)) return 0;
- if (!decField(mask & (1u << 1), s.fieldHasValid[1], s.lastValid.ambientHum, &tmpHum)) return 0;
+ if (!decField(mask & (1ul << 0), s.fieldHasValid[0], s.lastValid.ambientTemp, &tmpTemp)) return 0;
+ if (!decField(mask & (1ul << 1), s.fieldHasValid[1], s.lastValid.ambientHum, &tmpHum)) return 0;
  outRec.ambientTemp = tmpTemp;
  outRec.ambientHum = tmpHum;
  for (int i = 0; i < MAX_SENSORS; i++) {
  int16_t tmpS = HIST_NAN_SENTINEL;
- if (!decField(mask & (1u << (2 + i)), s.fieldHasValid[2 + i],
+ if (!decField(mask & (1ul << (2 + i)), s.fieldHasValid[2 + i],
  s.lastValid.sensors[i], &tmpS)) return 0;
  outRec.sensors[i] = tmpS;
  }
 
  s.lastValid.epoch = outRec.epoch;
- if (mask & (1u << 0)) { s.lastValid.ambientTemp = outRec.ambientTemp; s.fieldHasValid[0] = true; }
- if (mask & (1u << 1)) { s.lastValid.ambientHum = outRec.ambientHum; s.fieldHasValid[1] = true; }
+ if (mask & (1ul << 0)) { s.lastValid.ambientTemp = outRec.ambientTemp; s.fieldHasValid[0] = true; }
+ if (mask & (1ul << 1)) { s.lastValid.ambientHum = outRec.ambientHum; s.fieldHasValid[1] = true; }
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (mask & (1u << (2 + i))) {
+ if (mask & (1ul << (2 + i))) {
  s.lastValid.sensors[i] = outRec.sensors[i];
  s.fieldHasValid[2 + i] = true;
  }
