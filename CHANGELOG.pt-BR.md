@@ -80,7 +80,7 @@ Todas as mudanças notáveis do firmware SIMUT.
 
 ### Lançamento Público Inicial
 
-- **Suporte a múltiplos sensores** — Até 10 DS18B20 (1-Wire) + 1 sensor ambiente DHT22
+- **Suporte a múltiplos sensores** — Até 16 sensores em slots configuráveis: DS18B20 (1-Wire), DHT22 (Data), BME280 (I2C)
 - **Pipeline de sensor zero-trust** — Verificação de ROM, detecção de mismatch de hardware, histerese de erro
 - **Display TFT ILI9341 320×240** — Dashboard, gráficos em tempo real, configurações via toque (XPT2046)
 - **50 temas integrados** + suporte a temas customizados via LittleFS

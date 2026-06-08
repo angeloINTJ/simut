@@ -13,7 +13,7 @@ description: Integrated Universal Monitoring and Telemetry System. Offline-first
 Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/Version-v1.0.0-blue.svg)](https://github.com/angeloINTJ/simut/releases)
+[![Version](https://img.shields.io/badge/Version-v1.4.4--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/angeloINTJ/simut/blob/main/LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 
@@ -64,8 +64,9 @@ Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 │             │                                                │
 │  ┌──────────┴──────────────────────────────────────────────┐ │
 │  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch            │ │
-│  │  ◆ 1-Wire (PIO) → DS18B20 ×10                           │ │
-│  │  ◆ I2C → DHT22 Ambient                                  │ │
+│  │  ◆ 1-Wire (PIO) → DS18B20 (up to 16)                    │ │
+│  │  ◆ Data → DHT22 (up to 16)                               │ │
+│  │  ◆ I2C → BME280 T+H+P (up to 8)                          │ │
 │  │  ◆ USB CDC → CLI Serial  ·  Bluetooth (BLE) → CLI       │ │
 │  │  ◆ WiFi (CYW43439) → HTTP Server + Telemetry            │ │
 │  └─────────────────────────────────────────────────────────┘ │
@@ -115,7 +116,7 @@ Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 | MCU | Raspberry Pi Pico W (RP2040, dual-core Cortex-M0+) |
 | Display | ILI9341 320×240 TFT (SPI) |
 | Touch | XPT2046 resistive touchscreen |
-| Sensors | DS18B20 1-Wire ×10 + DHT22 ambient (I2C) |
+| Sensors | DS18B20 (1-Wire, up to 16), DHT22 (up to 16), BME280 (I2C, up to 8) — configurable slots |
 | Buzzer | Passive piezo (PIO-driven) |
 | Storage | 2 MB internal flash (LittleFS) |
 

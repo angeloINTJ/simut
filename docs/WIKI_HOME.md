@@ -35,5 +35,5 @@ Welcome to the SIMUT documentation wiki.
 | MCU | Raspberry Pi Pico W (RP2040) |
 | Display | ILI9341 320×240 TFT (SPI) |
 | Touch | XPT2046 (SPI) |
-| Sensors | DS18B20 (1-Wire) + DHT22 |
+| Sensors | DS18B20 (1-Wire), DHT22 (Data), BME280 (I2C) — 16 configurable slots |
 | Storage | 2 MB internal flash (1 MB firmware + 1 MB LittleFS) |

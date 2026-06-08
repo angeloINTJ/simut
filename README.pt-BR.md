@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/Version-v1.0.0-blue.svg)](https://github.com/angeloINTJ/simut/releases)
+[![Version](https://img.shields.io/badge/Version-v1.4.4--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
 [![Contributors](https://img.shields.io/badge/All_Contributors-4-orange.svg)](CONTRIBUTORS.md)
 [![Contributions Welcome](https://img.shields.io/badge/Contribui%C3%A7%C3%B5es-Bem--vindas-brightgreen.svg)](CONTRIBUTING.md)
 
@@ -64,7 +64,7 @@ pio run -e pico_w_release -t upload
 |------------|---------------|
 | MCU | Raspberry Pi Pico W (RP2040) |
 | Display | ILI9341 320×240 TFT (SPI) + XPT2046 touch |
-| Sensores | DS18B20 (1-Wire, até 10) + DHT22 |
+| Sensores | DS18B20 (1-Wire, até 16), DHT22 (até 16), BME280 (I2C, até 8) — slots configuráveis |
 | Buzzer | Piezo passivo (PIO) |
 | Armazenamento | 2 MB flash (1 MB firmware + 1 MB LittleFS) |
 
