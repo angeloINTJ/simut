@@ -133,7 +133,7 @@ All notable changes to SIMUT firmware.
 
 ### Community & Docs
 
-- **Third community contribution** 🎉 — Complete Spanish translation of README.md (337 lines) by [@f-p-0](https://github.com/f-p-0), making SIMUT accessible to Spanish-speaking users worldwide
+- **Third community contribution** 🎉 — Complete Spanish documentation suite by [@f-p-0](https://github.com/f-p-0): README.md (337 lines, PR #66), CONTRIBUTING.md (140 lines, PR #68), and CODE_OF_CONDUCT.md (39 lines, PR #68), making SIMUT accessible to Spanish-speaking users worldwide
 - **Second community contribution** 🎉 — Docker development environment so contributors can build and test without installing PlatformIO locally ([@JohnMartin0301](https://github.com/JohnMartin0301))
 - **First community contribution** 🎉 — 672-line HistoryCodec v2 test suite covering roundtrip encoding, anchor frame boundaries, NaN compression, and buffer overflow ([@LorenzoLongaretto](https://github.com/LorenzoLongaretto))
 
