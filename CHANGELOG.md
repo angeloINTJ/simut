@@ -29,11 +29,19 @@ All notable changes to SIMUT firmware.
 - **`PIN_ONEWIRE_DEFAULT`** — Fixed preprocessor redefinition warning (8 instances eliminated).
 - **All 4 sensor channels initialized** — `MAX_SENSOR_CHANNELS` loop sets `avgValue` to NAN and `calibrationOffset` to 0.
 
+### Other Changes
+
+- **mDNS enabled by default** — `-DSIMUT_MDNS=1` in platformio.ini. Device accessible via `http://simut.local`. Cost: ~15KB flash, negligible RAM.
+- **I2C0/I2C1 auto-detection** — `i2cPeripheralForPins()` selects the correct peripheral at runtime. Any GPIO 0-15 pair works for I2C sensors (hardware permitting).
+- **`checkAndAutoHealSensors()`** — No longer reports false "Sensor missing" warnings for non-DS18B20 sensor types (DHT22, BME280).
+- **BME280 boot guard** — I2C timeout (50ms) + ACK probe prevents boot hang when BME280 is configured but not physically connected.
+- **Hardcoded GPIO assumptions removed** — DHT22 `begin()` no longer references GPIO 10. DS18B20 legacy methods use first active sensor's pin. Zero fixed GPIO-to-type coupling.
+
 ### Flash Budget
 
-- **Without BME280**: 91.6% (957KB / 1044KB)
-- **With BME280**: 92.3% (964KB / 1044KB) — ~7KB for BME280 driver
-- **RAM**: 35.7-35.8% (~93.5KB / 262KB)
+- **Release (DS18B20 + DHT22 + mDNS)**: 93.1% (972KB / 1044KB) — ~72KB free
+- **With BME280**: 93.7% (979KB / 1044KB) — ~65KB free
+- **RAM**: 35.7% (~93.7KB / 262KB)
 
 ## v1.4.3-beta (2026-06-07)
 

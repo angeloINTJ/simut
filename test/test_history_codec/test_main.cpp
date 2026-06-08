@@ -533,8 +533,8 @@ void test_nanFieldsOmittedFromDelta(void) {
 	rec.epoch += 60;
 	size_t written = historyEncodeRecord(rec, state, buf, sizeof(buf), nullptr);
 
-	/* Delta should be minimal: 2B mask + 1B epoch varint = 3 bytes */
-	TEST_ASSERT_EQUAL_size_t(3, written);
+	/* Delta should be minimal: 3B mask + 1B epoch varint = 4 bytes */
+	TEST_ASSERT_EQUAL_size_t(4, written);
 }
 
 
@@ -543,7 +543,7 @@ void test_nanFieldsOmittedFromDelta(void) {
 /* =========================================================================== */
 
 void test_bufferTooSmall_anchor(void) {
-	/* Anchor requires sizeof(BinaryHistoryRecord) = 28 bytes.
+	/* Anchor requires sizeof(BinaryHistoryRecord) = 40 bytes.
 	 * Offering less must return 0 (error). */
 	HistoryCodecState state;
 	historyCodecReset(state);
