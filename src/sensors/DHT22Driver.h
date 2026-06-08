@@ -39,8 +39,7 @@ struct DHT22Driver {
     {}
 
     void begin( ) {
-        bus.begin(10); /* default GPIO for PIO init; per-sensor GPIO set in initRuntimeSensors */
-        gpio_set_pulls(10, true, false);
+        bus.begin(0); /* default GPIO for PIO init; per-sensor pulls/dir set via gpioInitForRole() */
     }
 
     void requestReading(uint8_t gpio) {

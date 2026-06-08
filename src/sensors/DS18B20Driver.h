@@ -60,8 +60,8 @@ struct DS18B20Driver {
         bus.sendReset( );
     }
 
-    bool setResolution(DS18B20PIO::Resolution res) {
-        return sensor.setResolution(PIN_ONEWIRE_DEFAULT, res);
+    bool setResolution(uint8_t gpio, DS18B20PIO::Resolution res) {
+        return sensor.setResolution(gpio, res);
     }
 
     void requestTemperatures(uint8_t gpio) {
