@@ -10,7 +10,7 @@
 [![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 [![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/Version-v1.0.0-blue.svg)](https://github.com/angeloINTJ/simut/releases)
+[![Version](https://img.shields.io/badge/Version-v1.4.4--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
 [![Contributors](https://img.shields.io/badge/All_Contributors-4-orange.svg)](CONTRIBUTORS.md)
 [![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg)](CONTRIBUTING.md)
@@ -59,8 +59,9 @@ SIMUT es un firmware IoT de grado profesional para la **Raspberry Pi Pico W** qu
 │  ┌──────────┴──────────────────────────────────────────┐ │
 │  │  Interfaces de Hardware                             │ │
 │  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch        │ │
-│  │  ◆ 1-Wire (PIO) → DS18B20 ×10                       │ │
-│  │  ◆ I2C → DHT22 Ambiental                            │ │
+│  │  ◆ 1-Wire (PIO) → DS18B20 (hasta 16)                │ │
+│  │  ◆ Data → DHT22 (hasta 16)                           │ │
+│  │  ◆ I2C → BME280 T+H+P (hasta 8)                      │ │
 │  │  ◆ USB CDC → CLI Serial                             │ │
 │  │  ◆ Bluetooth (BLE) → CLI Remoto                     │ │
 │  │  ◆ WiFi (CYW43439) → Servidor HTTP + Telemetría     │ │
@@ -91,7 +92,7 @@ SIMUT es un firmware IoT de grado profesional para la **Raspberry Pi Pico W** qu
 | MCU | Raspberry Pi Pico W (RP2040) |
 | Pantalla | ILI9341 320×240 TFT (SPI) |
 | Panel táctil | Pantalla táctil resistiva XPT2046 |
-| Sensores | DS18B20 (1-Wire, hasta 10) + DHT22 (ambiental) |
+| Sensores | DS18B20 (1-Wire, hasta 16), DHT22 (hasta 16), BME280 (I2C, hasta 8) — slots configurables |
 | Zumbador | Piezoeléctrico pasivo (impulsado por PIO) |
 | Almacenamiento | 2 MB de memoria flash interna |
 
@@ -100,7 +101,7 @@ Consulta la **[Guía de Cableado](docs/WIRING.md)** para ver los diagramas compl
 ## Características Principales
 
 ### Detección y Control
-* **Soporte multisensor** — hasta 10 sensores DS18B20 (1-Wire/PIO) + 1 sensor ambiental DHT22
+* **Soporte multisensor** — hasta 16 sensores en slots configurables: DS18B20 (1-Wire), DHT22 (Data), BME280 (I2C, T+H+P)
 * **Flujo de sensores Zero-trust** — verificación de ROM cada 5 lecturas, detección de discrepancias de hardware, histéresis de errores
 * **Alarmas por sensor** — umbrales de temperatura/humedad con melodías en el zumbador y respuesta visual en la pantalla TFT
 * **Interfaz web de calibración** — modo de calibración restringido por `PERM_CALIB`; la entrada de valor de referencia calcula el offset automáticamente
