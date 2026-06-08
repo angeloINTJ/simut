@@ -4,8 +4,8 @@
 
 ```
                     Raspberry Pi Pico W
-                 ┌────────────────────────┐
-                 │  ╭──────────────────╮  │
+                  ┌────────────────────────┐
+                  │  ╭──────────────────╮  │
     SLOT  0 ──────┤0 │                  │  │
     SLOT  1 ──────┤1 │                  │  │
     SLOT  2 ──────┤2 │                  │  │
@@ -22,24 +22,24 @@
     SLOT 13 ──────┤13│                  │  │
     SLOT 14 ──────┤14│                  │  │
     SLOT 15 ──────┤15│                  │  │
-                 │  │    Dual-Core     │  │
-    TFT MISO   ──┤16│    133 MHz       │  │── GND ──── Common Ground
-    Touch CS   ──┤17│                  │  │── 3V3 ──── Display VCC
-    TFT SCK    ──┤18│                  │  │── 3V3 ──── Sensors VCC
-    TFT MOSI   ──┤19│                  │  │
-    Touch IRQ  ──┤20│                  │  │
-                 │  │                  │  │
-    Buzzer     ──┤22│                  │  │
-                 │  │                  │  │
-    TFT RST    ──┤26│                  │  │
-    TFT DC     ──┤27│                  │  │
-    TFT CS     ──┤28│                  │  │
-                 │  ╰──────────────────╯  │
-                 │        ┌──────┐        │
-                 │        │ micro│        │
-                 │        │ USB  │        │
-                 │        └──────┘        │
-                 └────────────────────────┘
+                  │  │    Dual-Core     │  │
+     TFT MISO   ──┤16│    133 MHz       │  │── GND ──── Common Ground
+     Touch CS   ──┤17│                  │  │── 3V3 ──── Display VCC
+     TFT SCK    ──┤18│                  │  │── 3V3 ──── Sensors VCC
+     TFT MOSI   ──┤19│                  │  │
+     Touch IRQ  ──┤20│                  │  │
+                  │  │                  │  │
+     Buzzer     ──┤22│                  │  │
+                  │  │                  │  │
+     TFT RST    ──┤26│                  │  │
+     TFT DC     ──┤27│                  │  │
+     TFT CS     ──┤28│                  │  │
+                  │  ╰──────────────────╯  │
+                  │        ┌──────┐        │
+                  │        │ micro│        │
+                  │        │ USB  │        │
+                  │        └──────┘        │
+                  └────────────────────────┘
 ```
 
 > **GPIO 0–15 are universal configurable slots.** Each slot accepts any sensor
@@ -50,24 +50,24 @@
 
 ```
                     Raspberry Pi Pico W
-                 ┌────────────────────────┐
-                 │  ╭──────────────────╮  │    BME280
+                  ┌────────────────────────┐
+                  │  ╭──────────────────╮  │    BME280
     SLOT  0 ──────┤0 │                  │  │   ┌──────────┐
     SLOT  1 ──────┤1 │                  │  │   │ VCC → 3V3│
     SLOT  2 ──────┤2 │                  │  │   │ GND → GND│
     SLOT  3 ──────┤3 │                  │  │   │ SDA → GP4│
-  ╭ BME280 SDA ──┤4 │     RP2040       │  │   │ SCL → GP5│
-  │ BME280 SCL ──┤5 │                  │  │   │ CSB → 3V3│
-  │  SLOT  6 ────┤6 │    Dual-Core     │  │   │ SDO → GND│
-  │  SLOT  7 ────┤7 │    133 MHz       │  │── GND ────┤
-  │  SLOT  8 ────┤8 │                  │  │── 3V3 ────┤
-  │  SLOT  9 ────┤9 │                  │  │   └──────────┘
-  │  SLOT 10 ───┤10│                  │  │
-  │  SLOT 11 ───┤11│                  │  │   2× 4.7 kΩ pull-up
-  │  SLOT 12 ───┤12│                  │  │   on SDA and SCL to 3V3
-  │  SLOT 13 ───┤13│                  │  │   (usually built into module)
-  │  SLOT 14 ───┤14│                  │  │
-  ╰─ SLOT 15 ───┤15│                  │  │
+   ╭ BME280 SDA ──┤4 │     RP2040       │  │   │ SCL → GP5│
+   │ BME280 SCL ──┤5 │                  │  │   │ CSB → 3V3│
+   │  SLOT  6 ────┤6 │    Dual-Core     │  │   │ SDO → GND│
+   │  SLOT  7 ────┤7 │    133 MHz       │  │── GND ────┤
+   │  SLOT  8 ────┤8 │                  │  │── 3V3 ────┤
+   │  SLOT  9 ────┤9 │                  │  │   └──────────┘
+   │  SLOT 10 ───┤10│                  │  │
+   │  SLOT 11 ───┤11│                  │  │   2× 4.7 kΩ pull-up
+   │  SLOT 12 ───┤12│                  │  │   on SDA and SCL to 3V3
+   │  SLOT 13 ───┤13│                  │  │   (usually built into module)
+   │  SLOT 14 ───┤14│                  │  │
+   ╰─ SLOT 15 ───┤15│                  │  │
                  │  │                  │  │
     TFT MISO   ──┤16│                  │  │
     ...           ...                  ...  ...
@@ -78,8 +78,8 @@
 
 ```
                     Raspberry Pi Pico W
-                 ┌────────────────────────┐
-                 │  ╭──────────────────╮  │
+                  ┌────────────────────────┐
+                  │  ╭──────────────────╮  │
     SLOT  0 ──────┤0 │                  │  │
     SLOT  1 ──────┤1 │                  │  │
     SLOT  2 ──────┤2 │                  │  │
@@ -96,28 +96,28 @@
     SLOT 13 ──────┤13│                  │  │
     SLOT 14 ──────┤14│                  │  │
     SLOT 15 ──────┤15│                  │  │
-                 │  │                  │  │
-                 │  │    Dual-Core     │  │── GND ──── Common Ground
-                 │  │    133 MHz       │  │── 5V  ──── LCD VCC (via backpack)
-                 │  │                  │  │── 3V3 ──── Sensors VCC
-    Buzzer     ──┤22│                  │  │
-                 │  │                  │  │
-    LCD SCL    ──┤27│                  │  │
-    LCD SDA    ──┤26│                  │  │
-                 │  ╰──────────────────╯  │
-                 │        ┌──────┐        │
-                 │        │ micro│        │
-                 │        │ USB  │        │
-                 │        └──────┘        │
-                 └────────────────────────┘
+                  │  │                  │  │
+                  │  │    Dual-Core     │  │── GND ──── Common Ground
+                  │  │    133 MHz       │  │── 5V  ──── LCD VCC (via backpack)
+                  │  │                  │  │── 3V3 ──── Sensors VCC
+     Buzzer     ──┤22│                  │  │
+                  │  │                  │  │
+     LCD SCL    ──┤27│                  │  │
+     LCD SDA    ──┤26│                  │  │
+                  │  ╰──────────────────╯  │
+                  │        ┌──────┐        │
+                  │        │ micro│        │
+                  │        │ USB  │        │
+                  │        └──────┘        │
+                  └────────────────────────┘
 ```
 
 ## Pinout Diagram — HD44780 16×2 (Parallel 4-bit Mode)
 
 ```
                     Raspberry Pi Pico W
-                 ┌────────────────────────┐
-                 │  ╭──────────────────╮  │
+                  ┌────────────────────────┐
+                  │  ╭──────────────────╮  │
     SLOT  0 ──────┤0 │                  │  │
     SLOT  1 ──────┤1 │                  │  │
     SLOT  2 ──────┤2 │                  │  │
@@ -134,20 +134,20 @@
     SLOT 13 ──────┤13│                  │  │
     SLOT 14 ──────┤14│                  │  │
     SLOT 15 ──────┤15│                  │  │
-                 │  │                  │  │
-    LCD RS     ──┤16│    Dual-Core     │  │
-    LCD EN     ──┤17│    133 MHz       │  │── GND ──── Common Ground
-    LCD D4     ──┤18│                  │  │── 5V  ──── LCD VCC
-    LCD D5     ──┤19│                  │  │── 3V3 ──── Sensors VCC
-    LCD D6     ──┤20│                  │  │
-    LCD D7     ──┤21│                  │  │
-    Buzzer     ──┤22│                  │  │
-                 │  ╰──────────────────╯  │
-                 │        ┌──────┐        │
-                 │        │ micro│        │
-                 │        │ USB  │        │
-                 │        └──────┘        │
-                 └────────────────────────┘
+                  │  │                  │  │
+     LCD RS     ──┤16│    Dual-Core     │  │
+     LCD EN     ──┤17│    133 MHz       │  │── GND ──── Common Ground
+     LCD D4     ──┤18│                  │  │── 5V  ──── LCD VCC
+     LCD D5     ──┤19│                  │  │── 3V3 ──── Sensors VCC
+     LCD D6     ──┤20│                  │  │
+     LCD D7     ──┤21│                  │  │
+     Buzzer     ──┤22│                  │  │
+                  │  ╰──────────────────╯  │
+                  │        ┌──────┐        │
+                  │        │ micro│        │
+                  │        │ USB  │        │
+                  │        └──────┘        │
+                  └────────────────────────┘
 ```
 
 ## Slot Configuration
