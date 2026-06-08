@@ -23,6 +23,11 @@ void AppManager::checkAndAutoHealSensors( ) {
  for (uint8_t gpio = 0; gpio < MAX_SENSORS; gpio++) {
  if (!cfg.sensors[gpio].active) continue;
 
+ /* 1-Wire ROM check only applies to DS18B20 sensors.
+  * DHT22, BME280, and other types use their own driver-specific
+  * error detection — don't flag them as missing here. */
+ if (cfg.sensors[gpio].sensorType != TYPE_DS18B20) continue;
+
  uint8_t foundRom[8];
 #if SIMUT_SENSOR_DS18B20
  if (_sensorMgr->identifyPhysicalSensor(gpio, foundRom)) {
@@ -34,7 +39,7 @@ void AppManager::checkAndAutoHealSensors( ) {
  _sensorMgr->setHardwareMismatch(gpio, false);
  }
  } else {
- /* Sensor configured but not found on the physical bus */
+ /* DS18B20 configured but not found on the 1-Wire bus */
  static uint32_t lastMissingLog[MAX_SENSORS] = {0};
  if (timeSince(lastMissingLog[gpio], 60000)) {
  lastMissingLog[gpio] = millis( );
