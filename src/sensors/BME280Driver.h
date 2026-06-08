@@ -60,6 +60,9 @@ struct BME280Driver {
     int      currentSensorIdx = -1;
     uint32_t timer = 0;
 
+    /* ── I2C bus — set via setBus() before begin() ── */
+    TwoWire* _wire = &Wire;
+
     /* ── Compensation parameters (read once at begin) ── */
     uint16_t dig_T1;  int16_t dig_T2, dig_T3;
     uint8_t  dig_H1;  int16_t dig_H2;  uint8_t  dig_H3;
@@ -70,22 +73,26 @@ struct BME280Driver {
 
     BME280Driver( ) { }
 
+    /** Set the I2C bus to use (Wire=I2C0, Wire1=I2C1).
+     *  Must be called BEFORE begin(). */
+    void setBus(TwoWire& bus) { _wire = &bus; }
+
     /* ── I2C helpers ──────────────────────────────────────────────────── */
-    static bool writeReg(uint8_t addr, uint8_t reg, uint8_t val) {
-        Wire.beginTransmission(addr);
-        Wire.write(reg);
-        Wire.write(val);
-        return Wire.endTransmission() == 0;
+    bool writeReg(uint8_t addr, uint8_t reg, uint8_t val) {
+        _wire->beginTransmission(addr);
+        _wire->write(reg);
+        _wire->write(val);
+        return _wire->endTransmission() == 0;
     }
 
-    static bool readRegs(uint8_t addr, uint8_t reg, uint8_t* buf, uint8_t len) {
-        Wire.beginTransmission(addr);
-        Wire.write(reg);
-        if (Wire.endTransmission() != 0) return false;
-        Wire.requestFrom(addr, len);
+    bool readRegs(uint8_t addr, uint8_t reg, uint8_t* buf, uint8_t len) {
+        _wire->beginTransmission(addr);
+        _wire->write(reg);
+        if (_wire->endTransmission() != 0) return false;
+        _wire->requestFrom(addr, len);
         for (uint8_t i = 0; i < len; i++) {
-            if (!Wire.available()) return false;
-            buf[i] = Wire.read();
+            if (!_wire->available()) return false;
+            buf[i] = _wire->read();
         }
         return true;
     }

@@ -254,6 +254,25 @@ struct SensorFormat {
  }
 };
 
+/** RP2040 I2C peripheral selection.
+ *  Returns 0 for I2C0 (Wire), 1 for I2C1 (Wire1), or -1 if neither.
+ *  Valid I2C0 pins: 0,1,4,5,8,9,12,13,16,17,20,21
+ *  Valid I2C1 pins: 2,3,6,7,10,11,14,15,18,19,26,27 */
+inline int i2cPeripheralForPins(uint8_t sda, uint8_t scl) {
+    /* Bitmask of valid I2C pins: bit N set = pin N usable on that peripheral */
+    constexpr uint32_t I2C0_MASK = (1u<<0)|(1u<<1)|(1u<<4)|(1u<<5)|(1u<<8)|(1u<<9)
+        |(1u<<12)|(1u<<13)|(1u<<16)|(1u<<17)|(1u<<20)|(1u<<21);
+    constexpr uint32_t I2C1_MASK = (1u<<2)|(1u<<3)|(1u<<6)|(1u<<7)|(1u<<10)|(1u<<11)
+        |(1u<<14)|(1u<<15)|(1u<<18)|(1u<<19)|(1u<<26)|(1u<<27);
+    bool sda0 = (I2C0_MASK & (1u << sda)) != 0;
+    bool scl0 = (I2C0_MASK & (1u << scl)) != 0;
+    bool sda1 = (I2C1_MASK & (1u << sda)) != 0;
+    bool scl1 = (I2C1_MASK & (1u << scl)) != 0;
+    if (sda0 && scl0) return 0;
+    if (sda1 && scl1) return 1;
+    return -1;
+}
+
 /** Auto-configure a GPIO pin based on its declared role.
  *  Called by SensorManager during initRuntimeSensors() for every pin
  *  declared by the sensor driver (pins[0..pinCount-1]).

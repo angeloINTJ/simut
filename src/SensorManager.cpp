@@ -72,7 +72,7 @@ void SensorManager::begin( ) {
  _dht.begin( );
 #endif
 #if SIMUT_SENSOR_BME280
- _bme.begin( );
+ /* BME280 begin() deferred to initRuntimeSensors() — needs I2C bus ready. */
 #endif
 }
 
@@ -135,19 +135,35 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 		uint8_t gpio = rs.config.pins[pi];
 		if (gpio == PIN_UNUSED) continue;
 
-		/* I2C bus init — once, using pins from first I2C sensor found */
+		/* I2C bus init — once, using pins from first I2C sensor found.
+		 * Auto-selects I2C0 (Wire) or I2C1 (Wire1) based on GPIO assignment.
+		 * Any GPIO 0-15 works — the correct peripheral is detected at runtime. */
 		if ((fmt.pins[pi].role == ROLE_I2C_SDA || fmt.pins[pi].role == ROLE_I2C_SCL)
 		    && !i2cInitialized) {
-			/* Find SDA pin for Wire.begin() — scan all pins of this sensor */
 			uint8_t sda = gpio, scl = gpio;
 			for (uint8_t pj = 0; pj < fmt.pinCount; pj++) {
 				if (fmt.pins[pj].role == ROLE_I2C_SDA) sda = rs.config.pins[pj];
 				if (fmt.pins[pj].role == ROLE_I2C_SCL) scl = rs.config.pins[pj];
 			}
 		#if SIMUT_SENSOR_BME280
-			Wire.setSDA(sda);
-			Wire.setSCL(scl);
-			Wire.begin();
+			int i2cBus = i2cPeripheralForPins(sda, scl);
+			if (i2cBus == 0) {
+				Wire.setSDA(sda);
+				Wire.setSCL(scl);
+				Wire.begin();
+				_bme.setBus(Wire);
+			} else if (i2cBus == 1) {
+				Wire1.setSDA(sda);
+				Wire1.setSCL(scl);
+				Wire1.begin();
+				_bme.setBus(Wire1);
+			}
+			/* If i2cBus == -1, pins don't share an I2C peripheral —
+			 * the sensor will fail at first read. User gets a clear
+			 * error via handleSensorResult() at runtime. */
+			if (i2cBus >= 0) {
+				_bme.begin(); /* Now safe — I2C bus is ready */
+			}
 			i2cInitialized = true;
 		#endif
 		}
@@ -647,15 +663,35 @@ bool SensorManager::getScanResults(std::vector<ScanResult> &results) {
 
 #if SIMUT_SENSOR_DS18B20
 bool SensorManager::setDs18Resolution(DS18B20PIO::Resolution res) {
- return _ds18.setResolution(res);
+ /* Apply to first active DS18B20 — PIO broadcasts to all on the bus.
+  * Falls back to GPIO 0 if no runtime sensors loaded yet (boot config). */
+ uint8_t pin = 0;
+ for (const auto &s : _runtimeSensors) {
+  if (s.type == TYPE_DS18B20 && s.config.pins[0] != PIN_UNUSED) {
+   pin = s.config.pins[0]; break;
+  }
+ }
+ return _ds18.setResolution(pin, res);
 }
 
 void SensorManager::requestDs18Reading( ) {
- _ds18.requestTemperatures(PIN_ONEWIRE_DEFAULT);
+ uint8_t pin = 0;
+ for (const auto &s : _runtimeSensors) {
+  if (s.type == TYPE_DS18B20 && s.config.pins[0] != PIN_UNUSED) {
+   pin = s.config.pins[0]; break;
+  }
+ }
+ _ds18.requestTemperatures(pin);
 }
 
 bool SensorManager::readDs18(float &temp) {
- return _ds18.getTemperatureValidated(PIN_ONEWIRE_DEFAULT, temp);
+ uint8_t pin = 0;
+ for (const auto &s : _runtimeSensors) {
+  if (s.type == TYPE_DS18B20 && s.config.pins[0] != PIN_UNUSED) {
+   pin = s.config.pins[0]; break;
+  }
+ }
+ return _ds18.getTemperatureValidated(pin, temp);
 }
 #endif
 
