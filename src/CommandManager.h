@@ -106,5 +106,4 @@ private:
  CliDemand parseCommand(String input);
 
  String formatRom(const uint8_t* rom);
- void hexStringToBytes(String hex, uint8_t* out);
 };
