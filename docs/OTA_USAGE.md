@@ -1,5 +1,7 @@
 # How to Use OTA on SIMUT
 
+> 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
+>
 > Practical guide for updating Pico W firmware via web, without needing
 > a USB cable or BOOTSEL button.
 

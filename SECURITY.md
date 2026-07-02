@@ -1,5 +1,7 @@
 # SIMUT Security
 
+> 📖 English · [Ver documentación en español](README.es-ES.md) · [Ver documentação em português](README.pt-BR.md)
+
 This document describes the threat model, implemented defenses, and
 operational security procedures of the SIMUT firmware. It must be kept
 in sync with the code — **any security changes to the project require

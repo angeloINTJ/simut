@@ -1,5 +1,7 @@
 # SIMUT — Wiring Guide
 
+> 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
+
 ## Pinout Diagram — ILI9341 TFT + XPT2046 Touch
 
 ```

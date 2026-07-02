@@ -1,5 +1,7 @@
 # SIMUT — Complete User Manual
 
+> 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
+>
 > **Reviewed:** 2026-07-02 — pinout, CLI commands, and security sections verified against
 > firmware v1.4.4-beta. Screenshots pending (see issue #72).
 
