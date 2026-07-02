@@ -1,38 +1,11 @@
----
-title: "SIMUT — Complete User Manual [DRAFT — NOT REVIEWED]"
-subtitle: "Cold Chain Monitoring System"
-author: "Ângelo Moisés Alves"
-version: "v1.0.0"
-date: ""
-documentclass: report
-geometry: margin=2.5cm
-header-includes: |
-    \usepackage{xcolor}
----
-
 # SIMUT — Complete User Manual
 
-> ⚠️ **STATUS: DRAFT — NOT REVIEWED**
->
-> This document was automatically generated as a pipeline experiment
-> (auto-capture of TFT screens via `screen <code>` + web pages via Selenium
-> + markdown→HTML→PDF render via pandoc + chromium). **Content has NOT been
-> reviewed by a human**. It may contain:
->
-> - Incorrect UI behavior descriptions
-> - Outdated endpoints and permissions
-> - Imprecise configuration recommendations
-> - Hardware details that don't match your kit
->
-> Use as a starting point only. For authoritative information consult
-> the source code, `SECURITY.md`, and `STABILITY_PLAN.md` in the
-> repository.
-
----
+> **Reviewed:** 2026-07-02 — pinout, CLI commands, and security sections verified against
+> firmware v1.4.4-beta. Screenshots pending (see issue #72).
 
 **Firmware version:** v1.4.4-beta
 **Target hardware:** Raspberry Pi Pico W (RP2040 + CYW43439)
-**Repository:** https://github.com/angeloINTJ/SIMUT
+**Repository:** https://github.com/angeloINTJ/simut
 **License:** MIT
 
 ---
@@ -116,23 +89,23 @@ out of range:
 | T+RH Sensor | DHT22 Data | Ambient / individual points (up to 16) |
 | T+RH+Pressure Sensor | BME280 I2C | Environmental (up to 8, 2 GPIOs each) |
 | Buzzer | PIO active buzzer | Audible alarms |
-| Storage | LittleFS on internal flash (1.5 MB usable) | Config + history |
+| Storage | LittleFS on internal flash (1 MB usable) | Config + history |
 
 ### 2.2 Pinout (Pico W)
 
 | GPIO | Function |
 |---|---|
 | 0–15 | **SLOT 0–15** — configurable via CLI. Any sensor type: DS18B20 (1-Wire), DHT22 (Data), or BME280 (I2C SDA+SCL). Assign with `sensor create` + `sensor pin`. |
-| 16 | TFT MISO |
-| 17 | TFT CS |
-| 18 | TFT SCK |
-| 19 | TFT MOSI |
-| 20 | TFT DC |
-| 21 | TFT RST |
-| 22 | Touch CS |
-| 26 | Buzzer (PIO) |
-| 27 | Touch IRQ |
-| 28 | Reserved |
+| 16 | TFT MISO (ILI9341 SPI) |
+| 17 | Touch CS (XPT2046 SPI) |
+| 18 | TFT SCK (ILI9341 SPI) |
+| 19 | TFT MOSI (ILI9341 SPI) |
+| 20 | Touch IRQ (XPT2046 PENIRQ) |
+| 21 | (free — available for expansion) |
+| 22 | Buzzer (PIO) |
+| 26 | TFT RST (ILI9341) |
+| 27 | TFT DC (ILI9341) |
+| 28 | TFT CS (ILI9341 SPI) |
 
 ### 2.3 Power Supply
 
@@ -194,7 +167,7 @@ SIMUT has **9 main screens** accessible via touch or via CLI command
 
 ### 4.1 Dashboard (Home Screen)
 
-![Dashboard TFT](screenshots_v4/tft_01_dashboard.png){ width=70% }
+> 📸 *Screenshot pending — see the `docs/images/` directory in the repository for current captures.*
 
 Main screen shown at boot. Displays:
 
@@ -220,8 +193,6 @@ Main screen shown at boot. Displays:
 
 ### 4.2 Settings (Main Menu)
 
-![Settings TFT](screenshots_v4/tft_02_settings_main.png){ width=70% }
-
 Accessible via touch on the menu icon on the dashboard (after PIN/
 password authentication). Lists options:
 
@@ -246,8 +217,6 @@ password authentication). Lists options:
 
 ### 4.3 Settings → Themes
 
-![Themes TFT](screenshots_v4/tft_03_settings_themes.png){ width=70% }
-
 Lists pre-installed themes + custom themes (uploadable via web). Each
 theme is a `.thm` in `/themes/` on LFS.
 
@@ -257,16 +226,12 @@ theme is a `.thm` in `/themes/` on LFS.
 
 ### 4.4 Settings → Language
 
-![Language TFT](screenshots_v4/tft_04_settings_language.png){ width=70% }
-
 Selection between **Português (Brasil)** and **English**. Immediate
 change + persistent after reboot. Lang packs in
 `/lang/language_pt-BR.lng` (~22 KB) and `/lang/language_en.lng` (not
 included by default — upload via web).
 
 ### 4.5 Settings → Password
-
-![Password TFT](screenshots_v4/tft_05_settings_password.png){ width=70% }
 
 Change the PIN for accessing Settings via touch. Different from the web
 admin password (this one is a short numeric PIN for convenience on the
@@ -277,15 +242,11 @@ use separate credentials.
 
 ### 4.6 Settings → License
 
-![License TFT](screenshots_v4/tft_06_settings_license.png){ width=70% }
-
 Shows the installed **license key** and status (valid, expired, demo
 mode). The key is a unique identifier tied to the RP2040 chip_id — for
 installation control in regulated environments.
 
 ### 4.7 System Status
-
-![System Status TFT](screenshots_v4/tft_07_system_status.png){ width=70% }
 
 Real-time technical snapshot:
 
@@ -302,8 +263,6 @@ weak; if heap < 20 KB, there's a leak or fragmentation.
 
 ### 4.8 Settings → Alarms
 
-![Alarms TFT](screenshots_v4/tft_08_settings_alarms.png){ width=70% }
-
 Lists all sensors with:
 
 - Tmin / Tmax range
@@ -318,8 +277,6 @@ Lists all sensors with:
 - "Cancel" button discards changes
 
 ### 4.9 Graph
-
-![Graph TFT](screenshots_v4/tft_09_graph.png){ width=70% }
 
 Time plot of the last N samples (default 200 points = ~3.3 h at 1 min
 interval).
@@ -342,8 +299,6 @@ Compatible with Chrome, Firefox, Safari, Edge.
 
 ### 5.1 Login
 
-![Web Login](screenshots_v4/web_01_login.png){ width=85% }
-
 - **User** field: username (default admin)
 - **Password** field: web password (≠ display PIN)
 - **Sign In** button: authenticates
@@ -359,8 +314,6 @@ After 5 consecutive failed attempts from the same IP, 30 s lockout
 
 ### 5.2 Web Dashboard
 
-![Web Dashboard](screenshots_v4/web_02_dashboard.png){ width=85% }
-
 Real-time overview:
 
 - Header with device name, time, WiFi/BT status
@@ -370,8 +323,6 @@ Real-time overview:
 - **Force sync telemetry** button (admin): forces immediate upload
 
 ### 5.3 History
-
-![Web History](screenshots_v4/web_03_history.png){ width=85% }
 
 Table of stored readings:
 
@@ -383,8 +334,6 @@ Table of stored readings:
 
 ### 5.4 Alarms
 
-![Web Alarms](screenshots_v4/web_04_alarms.png){ width=85% }
-
 - Table with all historical `alarm_open` / `alarm_close` events
 - Filters by sensor, time range
 - **Duration** column calculated automatically
@@ -392,8 +341,6 @@ Table of stored readings:
   only records)
 
 ### 5.5 Configuration
-
-![Web Config](screenshots_v4/web_05_config.png){ width=85% }
 
 Screen with ALL persistent device configs:
 
@@ -408,16 +355,12 @@ Save persists in RAM. **"Apply & Reboot"** button does `write memory` +
 
 ### 5.6 Network
 
-![Web Network](screenshots_v4/web_06_network.png){ width=85% }
-
 - WiFi: SSID, password, mode (DHCP/static)
 - Static IP (if selected): IP, mask, gateway, DNS
 - mDNS: hostname (default `simut`)
 - Reset → AP mode (emergency button)
 
 ### 5.7 Users
-
-![Web Users](screenshots_v4/web_07_users.png){ width=85% }
 
 Manages up to 5 users with granular permissions (admin only):
 
@@ -441,8 +384,6 @@ update firmware.
 
 ### 5.8 Files
 
-![Web Files](screenshots_v4/web_08_files.png){ width=85% }
-
 Manages the internal LittleFS filesystem:
 
 - List of folders + files with size
@@ -454,8 +395,6 @@ Manages the internal LittleFS filesystem:
 - **Firmware** (admin only): OTA — replaces the app `.bin`
 
 ### 5.9 License
-
-![Web License](screenshots_v4/web_09_license.png){ width=85% }
 
 View license key + register/upgrade (admin only). For use in regulated
 environments requiring installation auditing.
@@ -1087,4 +1026,4 @@ POST /api/set_time            Set RTC manually
 
 ---
 
-**End of manual — v1.0.0 —**
+**End of manual — v1.4.4-beta — Reviewed 2026-07-02**
