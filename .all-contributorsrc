@@ -3,7 +3,7 @@
   "projectOwner": "angeloINTJ",
   "repoType": "github",
   "repoHost": "https://github.com/angeloINTJ/simut",
-  "files": ["README.md", "README.pt-BR.md"],
+  "files": ["README.md", "README.pt-BR.md", "README.es-ES.md"],
   "imageSize": 100,
   "contributors": [
     {

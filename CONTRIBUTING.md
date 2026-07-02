@@ -52,7 +52,7 @@ docker compose run test
 | Command | Equivalent PlatformIO command |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native && pio test -e native_history` |
+| `docker compose run test` | `pio test -e native && pio test -e native_history && pio test -e native_cli` |
 
 ---
 
@@ -112,7 +112,7 @@ Flash is critically tight (~98.7% used). Before adding features, consider:
 2. Fork the repository and create a branch (`feature/my-feature`)
 3. Write your code and test on hardware if possible
 4. Ensure `pio run -e pico_w_release` builds with **zero warnings**
-5. Ensure `pio test -e native` passes all tests
+5. Ensure all tests pass: `pio test -e native && pio test -e native_history && pio test -e native_cli`
 6. Update documentation in `docs/` if your change affects user-facing behavior
 7. Submit the PR with a clear description, referencing the issue number
 8. The PR template checklist will guide you through remaining steps
@@ -120,8 +120,11 @@ Flash is critically tight (~98.7% used). Before adding features, consider:
 ## Testing
 
 - Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework
-- Run with `pio test -e native`
-- Add tests for new validation logic, encoding/decoding, and security-critical paths
+- Three test environments are available:
+  - `pio test -e native` — validators (29 tests: IP validation, CRC8, float encoding, etc.)
+  - `pio test -e native_history` — HistoryCodec roundtrip tests
+  - `pio test -e native_cli` — CLI parser tests (command tokenizing and routing)
+- Add tests for new validation logic, encoding/decoding, parser changes, and security-critical paths
 - Hardware testing is required for display, sensor, WiFi, and OTA changes
 
 ## Community
