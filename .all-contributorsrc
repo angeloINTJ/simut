@@ -33,6 +33,13 @@
       "avatar_url": "https://avatars.githubusercontent.com/u/239882173",
       "profile": "https://github.com/f-p-0",
       "contributions": ["doc"]
+    },
+    {
+      "login": "drmikecrypto",
+      "name": "Mike",
+      "avatar_url": "https://avatars.githubusercontent.com/u/91358784",
+      "profile": "https://github.com/drmikecrypto",
+      "contributions": ["code", "test", "doc"]
     }
   ],
   "contributorsPerLine": 7,
