@@ -1,5 +1,7 @@
 # Contribuindo com o SIMUT
 
+[English](CONTRIBUTING.md) | **Português** | [Español](CONTRIBUTING.es-ES.md)
+
 Obrigado pelo interesse em contribuir! O SIMUT é um firmware IoT open-source para Raspberry Pi Pico W. Veja como ajudar.
 
 [English](CONTRIBUTING.md) | **Português** | [Español](CONTRIBUTING.es-ES.md)

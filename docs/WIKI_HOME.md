@@ -1,5 +1,7 @@
 # SIMUT Wiki — Home Page
 
+> 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
+
 Copy this content into the first wiki page at: https://github.com/angeloINTJ/simut/wiki
 
 ---

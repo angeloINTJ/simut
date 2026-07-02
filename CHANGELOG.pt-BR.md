@@ -1,5 +1,7 @@
 # Changelog
 
+[English](CHANGELOG.md) | **Português**
+
 Todas as mudanças notáveis do firmware SIMUT.
 
 ## v1.2.0-beta (2026-06-06)

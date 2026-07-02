@@ -1,5 +1,7 @@
 # Recovery — Pico W Brick After OTA
 
+> 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
+>
 > Document delivered as a prerequisite for OTA Plan Phase 7b. Read BEFORE
 > any destructive test. Keep the `.uf2` of the last stable version saved
 > locally in a folder separate from the project.
