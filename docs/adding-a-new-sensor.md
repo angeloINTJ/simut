@@ -163,7 +163,7 @@ Hold touch 3 s at boot for AP mode if WiFi isn't provisioned yet.
 ## Step 6 — Verify
 
 ```bash
-pio run -e pico_w
+pio run -e pico_w_release
 pio test -e native          # validators
 pio test -e native_cli      # CLI parser (USB path)
 ```
