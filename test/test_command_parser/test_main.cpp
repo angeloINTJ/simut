@@ -10,6 +10,7 @@
 
 #include <unity.h>
 #include "CommandParser.h"
+#include "SystemDefs_Records.h"
 #include "SystemDefs_Network.h"
 #include <cstring>
 

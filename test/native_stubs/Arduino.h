@@ -61,6 +61,12 @@ public:
         return pos == std::string::npos ? -1 : (int)pos;
     }
 
+    int indexOf(const char* s, int from = 0) const {
+        if (!s || from < 0) return -1;
+        size_t pos = data_.find(s, (size_t)from);
+        return pos == std::string::npos ? -1 : (int)pos;
+    }
+
     String substring(size_t begin, size_t end = (size_t)-1) const {
         if (begin >= data_.size()) return String("");
         if (end == (size_t)-1 || end > data_.size()) end = data_.size();
