@@ -139,4 +139,4 @@ Este glossário decodifica o significado de cada tag. Se você encontrar uma tag
 3. Use a tag em comentários inline no formato: `/* TAG: descrição curta. */`
 4. Mantenha este glossário como fonte autoritativa — se uma tag ficar obsoleta, marque com `[OBSOLETO]` em vez de remover.
 
-> **Nota:** Tags `EXT-*` referem-se a achados da auditoria externa documentada em `audits/SIMUT_ANALISE_TECNICA_v1.md`. Elas são convertidas para o prefixo adequado (`F-`, `SEC-`, etc.) quando implementadas.
+> **Nota:** Tags `EXT-*` referem-se a achados de auditoria externa. Elas são convertidas para o prefixo adequado (`F-`, `SEC-`, etc.) quando implementadas.
