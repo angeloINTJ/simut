@@ -27,25 +27,7 @@ no USB cable or BOOTSEL button needed.
 
 **Recommended flow**: backup before → OTA → restore backup after.
 
-## Procedure — Option 1: Automatic Orchestrator
-
-The easiest way, with a single command:
-
-```bash
-cd /home/angelo/Documentos/SIMUT
-./tools/ota_apply.py \
-    --ip 192.168.3.195 \
-    --user admin --pass 'YourCurrentPassword' \
-    --firmware .pio/build/pico_w_release/firmware.bin
-```
-
-The script automatically: logs in → backs up .bkp → uploads firmware →
-commits → applies → waits for boot.
-
-If admin is in factory state (freshly reset), also use
-`--new-pass 'NewPassword'` to chpass first.
-
-## Procedure — Option 2: Manual Step-by-Step
+## Procedure — Manual Step-by-Step
 
 ### 1. Build Firmware
 
@@ -230,7 +212,6 @@ Restore on a different chip returns error `st=6 chip mismatch`.
 
 ## Related Documentation
 
-- `docs/OTA_FASE8.md` — full flow + Bug 2 intermittent boot diagnosis
 - `docs/RECOVERY.md` — recovery procedures via BOOTSEL
 - `docs/test_reports/` — hardware validation reports
 
