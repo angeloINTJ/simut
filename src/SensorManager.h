@@ -76,6 +76,11 @@ struct RuntimeSensor {
  bool inErrorState;
  bool hardwareMismatch;
 
+#if SIMUT_SENSOR_BME280
+ int8_t  bmeDriverIdx = -1;  /**< Index into SensorManager::_bmeDrivers, -1 = not BME280 */
+ uint8_t i2cAddr = 0;        /**< I2C address (0x76 or 0x77), 0 = unassigned */
+#endif
+
  /** @return true if at least CH_TEMP buffer is full. */
  bool bufferFull() const { return buffers[CH_TEMP].full(); }
 };
@@ -140,7 +145,8 @@ private:
  DHT22Driver _dht;
 #endif
 #if SIMUT_SENSOR_BME280
- BME280Driver _bme;
+ std::vector<BME280Driver*> _bmeDrivers;  /**< One driver per (sda,scl,addr) triplet */
+ int8_t _getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr);
 #endif
 
  std::vector<RuntimeSensor> _runtimeSensors;

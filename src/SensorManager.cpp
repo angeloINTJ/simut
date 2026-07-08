@@ -89,7 +89,6 @@ void SensorManager::begin( ) {
 void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  _runtimeSensors.clear( );
 
- bool i2cInitialized = false;
  bool spiInitialized = false;
 
  for (int i = 0; i < MAX_SENSORS; i++) {
@@ -135,36 +134,48 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 		uint8_t gpio = rs.config.pins[pi];
 		if (gpio == PIN_UNUSED) continue;
 
-		/* I2C bus init — once, using pins from first I2C sensor found.
-		 * Auto-selects I2C0 (Wire) or I2C1 (Wire1) based on GPIO assignment.
-		 * Any GPIO 0-15 works — the correct peripheral is detected at runtime. */
+		/* I2C bus init — PIO bit-bang works on any GPIO 0-15 pair.
+		 * Each unique (sda,scl) pair forms an independent I2C bus.
+		 * Up to 2 sensors per bus (addr 0x76 and 0x77). */
 		if ((fmt.pins[pi].role == ROLE_I2C_SDA || fmt.pins[pi].role == ROLE_I2C_SCL)
-		    && !i2cInitialized) {
-			uint8_t sda = gpio, scl = gpio;
+		    && !spiInitialized /* run once per I2C sensor, not once total */) {
+			__attribute__((unused)) uint8_t sda = gpio;
+			__attribute__((unused)) uint8_t scl = gpio;
 			for (uint8_t pj = 0; pj < fmt.pinCount; pj++) {
 				if (fmt.pins[pj].role == ROLE_I2C_SDA) sda = rs.config.pins[pj];
 				if (fmt.pins[pj].role == ROLE_I2C_SCL) scl = rs.config.pins[pj];
 			}
 		#if SIMUT_SENSOR_BME280
-			int i2cBus = i2cPeripheralForPins(sda, scl);
-			if (i2cBus == 0) {
-				Wire.setSDA(sda);
-				Wire.setSCL(scl);
-				Wire.begin();
-				_bme.setBus(Wire);
-			} else if (i2cBus == 1) {
-				Wire1.setSDA(sda);
-				Wire1.setSCL(scl);
-				Wire1.begin();
-				_bme.setBus(Wire1);
+			if (sda != PIN_UNUSED && scl != PIN_UNUSED) {
+				/* Assign I2C address: prefer 0x76, fallback to 0x77.
+				 * Track taken addresses per (sda,scl) bus in a local table. */
+				struct BmeAddrTrack { uint8_t s, d; bool a76, a77; };
+				static BmeAddrTrack _bmeBuses[8]; /* up to 8 I2C buses */
+				static uint8_t _bmeBusCount = 0;
+				BmeAddrTrack* bus = nullptr;
+				for (uint8_t bi = 0; bi < _bmeBusCount; bi++) {
+					if (_bmeBuses[bi].s == sda && _bmeBuses[bi].d == scl) {
+						bus = &_bmeBuses[bi]; break;
+					}
+				}
+				if (!bus && _bmeBusCount < 8) {
+					bus = &_bmeBuses[_bmeBusCount++];
+					bus->s = sda; bus->d = scl;
+					bus->a76 = false; bus->a77 = false;
+				}
+				uint8_t addr = 0;
+				if (bus) {
+					if (!bus->a76)      { addr = BME280_ADDR_PRIMARY; bus->a76 = true; }
+					else if (!bus->a77) { addr = 0x77;                bus->a77 = true; }
+				}
+				if (addr != 0) {
+					int8_t drvIdx = _getOrCreateBmeDriver(sda, scl, addr);
+					if (drvIdx >= 0) {
+						rs.bmeDriverIdx = drvIdx;
+						rs.i2cAddr = addr;
+					}
+				}
 			}
-			/* If i2cBus == -1, pins don't share an I2C peripheral —
-			 * the sensor will fail at first read. User gets a clear
-			 * error via handleSensorResult() at runtime. */
-			if (i2cBus >= 0) {
-				_bme.begin(); /* Now safe — I2C bus is ready */
-			}
-			i2cInitialized = true;
 		#endif
 		}
 
@@ -357,41 +368,27 @@ void SensorManager::update( ) {
  break;
 
 #if SIMUT_SENSOR_BME280
- case BME_SCAN_CHECK: {
-  /* BME280 is I2C — not detectable via GPIO probing. Check the
-   * I2C bus once after all pins are scanned. */
-  uint8_t chipId = 0;
-  Wire.beginTransmission(BME280_I2C_ADDR_PRIMARY);
-  bool primaryOk = (Wire.endTransmission() == 0);
-  if (primaryOk || true) {
-   /* Probe chip ID register at primary address */
-   Wire.beginTransmission(BME280_I2C_ADDR_PRIMARY);
-   Wire.write(BME280_REG_CHIP_ID);
-   Wire.endTransmission();
-   Wire.requestFrom(BME280_I2C_ADDR_PRIMARY, (uint8_t)1);
-   if (Wire.available()) chipId = Wire.read();
-  }
-  if (chipId != BME280_CHIP_ID) {
-   /* Try secondary address */
-   Wire.beginTransmission(BME280_I2C_ADDR_SECONDARY);
-   Wire.write(BME280_REG_CHIP_ID);
-   Wire.endTransmission();
-   Wire.requestFrom(BME280_I2C_ADDR_SECONDARY, (uint8_t)1);
-   if (Wire.available()) chipId = Wire.read();
-  }
-  if (chipId == BME280_CHIP_ID) {
-   ScanResult res;
-   res.pin = 255; /* I2C — no single GPIO */
-   res.type = TYPE_BME280;
-   memset(res.rom, 0, 8);
-   _scanResults.push_back(res);
-  }
+	 case BME_SCAN_CHECK: {
+	  /* BME280 is I2C — not detectable via GPIO probing. PIO bit-bang
+	   * on default I2C pins (4=SDA, 5=SCL) probes both addresses.
+	   * PIO works on any pin pair — users with non-default wiring
+	   * can still configure manually after scan. */
+	  {
+	   BMx280PIO_RP2040 probe(4, 5, BME280_ADDR_PRIMARY);
+	   if (probe.begin()) {
+	    ScanResult res;
+	    res.pin = 255; /* I2C — no single GPIO */
+	    res.type = TYPE_BME280;
+	    memset(res.rom, 0, 8);
+	    _scanResults.push_back(res);
+	   }
+	  }
 #if SIMUT_SENSOR_DS18B20
-  _ds18.setPin(PIN_ONEWIRE_DEFAULT);
+	  _ds18.setPin(PIN_ONEWIRE_DEFAULT);
 #endif
-  _scanState = COMPLETE;
-  break;
- }
+	  _scanState = COMPLETE;
+	  break;
+	 }
 #endif /* SIMUT_SENSOR_BME280 */
 
  default: break;
@@ -547,45 +544,51 @@ void SensorManager::processPeriodicReads( ) {
 #endif /* SIMUT_SENSOR_DHT22 */
 
 #if SIMUT_SENSOR_BME280
- /* ── BME280: sequential forced-mode via I2C ── */
- if (_bme.state == BME280Driver::BME_IDLE) {
-  for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
-   auto &s = _runtimeSensors[i];
-   if (s.type == TYPE_BME280 && (now - s.lastReadTime >= s.readInterval)) {
-    _bme.reset( );
-    _bme.requestReading( );
-    _bme.timer = millis( );
-    _bme.currentSensorIdx = i;
-    _bme.state = BME280Driver::BME_WAITING;
-    break;
+ /* ── BME280: multi-driver forced-mode via PIO ──
+  * Each driver operates independently — one can be in WAITING
+  * while another is IDLE. No shared bus contention. */
+ for (size_t di = 0; di < _bmeDrivers.size(); di++) {
+  auto *drv = _bmeDrivers[di];
+
+  if (drv->state == BME280Driver::BME_IDLE) {
+   for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
+    auto &s = _runtimeSensors[i];
+    if (s.type == TYPE_BME280 && s.bmeDriverIdx == (int8_t)di
+        && (now - s.lastReadTime >= s.readInterval)) {
+     drv->reset( );
+     drv->requestReading( );
+     drv->timer = millis( );
+     drv->currentSensorIdx = i;
+     drv->state = BME280Driver::BME_WAITING;
+     break;
+    }
    }
   }
- }
- else if (_bme.state == BME280Driver::BME_WAITING) {
-  if (_bme.currentSensorIdx >= 0 && _bme.currentSensorIdx < (int)_runtimeSensors.size( )) {
-   auto &s = _runtimeSensors[_bme.currentSensorIdx];
+  else if (drv->state == BME280Driver::BME_WAITING) {
+   if (drv->currentSensorIdx >= 0 && drv->currentSensorIdx < (int)_runtimeSensors.size( )) {
+    auto &s = _runtimeSensors[drv->currentSensorIdx];
 
-   if (timeSince(_bme.timer, BME280_MEAS_TIME_MS)) {
-    float t, h, p;
-    if (_bme.getResults(t, h, p)) {
-     /* BME280: v1=temp, v2=humidity (pressure available via API) */
-     handleSensorResult(s, true, t, h, "");
-     /* Store pressure in CH_PRESS channel buffer */
-     if (!isnan(p)) {
-      s.buffers[CH_PRESS].push(p);
-      if (s.buffers[CH_PRESS].full( )) {
-       s.avgValue[CH_PRESS] = calculateTrimmedMean(s.buffers[CH_PRESS]);
+    if (timeSince(drv->timer, BME280_MEAS_TIME_MS)) {
+     float t, h, p;
+     if (drv->getResults(t, h, p)) {
+      /* BME280: v1=temp, v2=humidity (pressure available via API) */
+      handleSensorResult(s, true, t, h, "");
+      /* Store pressure in CH_PRESS channel buffer */
+      if (!isnan(p)) {
+       s.buffers[CH_PRESS].push(p);
+       if (s.buffers[CH_PRESS].full( )) {
+        s.avgValue[CH_PRESS] = calculateTrimmedMean(s.buffers[CH_PRESS]);
+       }
       }
+     } else {
+      handleSensorResult(s, false, 0, 0, "I2C Read Error");
      }
-    } else {
-     handleSensorResult(s, false, 0, 0, "I2C Read Error");
+     drv->reset( );
+     s.lastReadTime = millis( );
     }
-    _bme.reset( );
-    s.lastReadTime = millis( );
-    _bme.state = BME280Driver::BME_IDLE;
+   } else {
+    drv->state = BME280Driver::BME_IDLE;
    }
-  } else {
-   _bme.state = BME280Driver::BME_IDLE;
   }
  }
 #endif /* SIMUT_SENSOR_BME280 */
@@ -718,17 +721,33 @@ bool SensorManager::readDhtBlocking(float &t, float &h) {
 
 #if SIMUT_SENSOR_BME280
 void SensorManager::requestBmeReading( ) {
- _bme.requestReading( );
+ if (!_bmeDrivers.empty()) _bmeDrivers[0]->requestReading();
 }
 
 bool SensorManager::readBmeBlocking(float &t, float &h, float &p) {
- _bme.requestReading( );
+ if (_bmeDrivers.empty()) return false;
+ _bmeDrivers[0]->requestReading();
  delay(BME280_MEAS_TIME_MS);
- return _bme.getResults(t, h, p);
+ return _bmeDrivers[0]->getResults(t, h, p);
 }
 #endif
 
 bool SensorManager::pollAsyncResult(String &msg) { return false; }
+
+#if SIMUT_SENSOR_BME280
+int8_t SensorManager::_getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr) {
+ /* Allocate new driver on heap — ownership stays with _bmeDrivers vector.
+  * Each driver's _sensor is independently heap-allocated by begin().
+  * No shallow-copy issues: vector stores pointers, not values. */
+ BME280Driver* drv = new BME280Driver();
+ if (drv->begin(sda, scl, addr)) {
+  _bmeDrivers.push_back(drv);
+  return (int8_t)(_bmeDrivers.size() - 1);
+ }
+ delete drv;
+ return -1;
+}
+#endif
 
 void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset, String newName) {
  for (auto &s : _runtimeSensors) {
