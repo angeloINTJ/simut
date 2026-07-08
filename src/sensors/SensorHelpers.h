@@ -257,7 +257,11 @@ struct SensorFormat {
 /** RP2040 I2C peripheral selection.
  *  Returns 0 for I2C0 (Wire), 1 for I2C1 (Wire1), or -1 if neither.
  *  Valid I2C0 pins: 0,1,4,5,8,9,12,13,16,17,20,21
- *  Valid I2C1 pins: 2,3,6,7,10,11,14,15,18,19,26,27 */
+ *  Valid I2C1 pins: 2,3,6,7,10,11,14,15,18,19,26,27
+ *
+ *  @note BME280 now uses PIO bit-bang (BMx280PIO_RP2040) — any GPIO
+ *        pair works, no peripheral selection needed. This function is
+ *        retained for future sensors using hardware I2C. */
 inline int i2cPeripheralForPins(uint8_t sda, uint8_t scl) {
     /* Bitmask of valid I2C pins: bit N set = pin N usable on that peripheral */
     constexpr uint32_t I2C0_MASK = (1u<<0)|(1u<<1)|(1u<<4)|(1u<<5)|(1u<<8)|(1u<<9)
