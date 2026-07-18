@@ -315,6 +315,7 @@ void AppManager::setup( ) {
  }
  Serial.print("[TCH] c="); Serial.println(gpio_get(20));
 
+
  /* DisplayManager needs the config pointer to render the dashboard
 	 * (buildDashLayout filters inactive slots). Set once at boot — the
 	 * config lives in BSS (member of StorageManager) and is never relocated. */
