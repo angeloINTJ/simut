@@ -9,9 +9,11 @@ void DisplayManager::loopCore1( ) {
 	_lcd.begin( );
 	_lcd.clear( );
 	_lcd.setCursor(0, 0);
-	_lcd.print("SIMUT v" SIMUT_VERSION);
+	_lcd.print("SIMUT " SIMUT_VERSION);
 
 	multicore_lockout_victim_init( );
+	_sharedState.slotTemp = NAN;
+	_sharedState.slotHum  = NAN;
 	_core1Ready = true;
 
 	while (true) {
@@ -88,7 +90,14 @@ void DisplayManager::loadDisplayOffset(const DisplayOffsetData*){}
 bool DisplayManager::getUiEvent(UiEvent&){return false;}
 void DisplayManager::setWebBusy(bool,const char*){}
 void DisplayManager::injectTouch(int16_t,int16_t){}
-void DisplayManager::setSlotData(float,float,SensorType,bool,int,String){}
+void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name) {
+	_sharedState.slotTemp = t;
+	_sharedState.slotHum  = h;
+	_sharedState.slotValid = isValid;
+	_sharedState.slotType  = type;
+	_sharedState.selectedSlotIdx = slotIdx;
+	safeCopy(_sharedState.slotName, name.c_str( ), sizeof(_sharedState.slotName));
+}
 void DisplayManager::showCalendar(int,int,uint32_t){}
 void DisplayManager::setSlotMinMax(float,float,float,float){}
 void DisplayManager::setTopSlotData(float,float,SensorType,bool,int,String){}
