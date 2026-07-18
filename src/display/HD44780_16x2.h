@@ -186,6 +186,7 @@ private:
 		digitalWrite(HD44780_D5, (data >> 5) & 1);
 		digitalWrite(HD44780_D6, (data >> 6) & 1);
 		digitalWrite(HD44780_D7, (data >> 7) & 1);
+		delayMicroseconds(1);  /* data setup: HD44780 needs >=40ns; RP2040 gpio_put ~20ns */
 		digitalWrite(HD44780_EN, HIGH);
 		delayMicroseconds(1);
 		digitalWrite(HD44780_EN, LOW);
@@ -203,20 +204,25 @@ private:
 	void _setDdramAddr(uint8_t a) { _writeCmd(0x80 | a); }
 
 	void _initLcd( ) {
-		delay(50);
-		/* 4-bit init sequence (HD44780 datasheet) */
+		/* Force known state: keep EN low, let power stabilize */
+		digitalWrite(HD44780_EN, LOW);
+		delay(100);
+
+		/* 4-bit init sequence (HD44780 datasheet). Use ms delays for
+		   compatibility with clone controllers that need longer settling. */
 		for (uint8_t i = 0; i < 3; i++) {
 			_writeNibble(0x30, false);
-			delayMicroseconds(4500);
+			delay(5);
 		}
-		_writeNibble(0x20, false);
-		delayMicroseconds(150);
+		_writeNibble(0x20, false);  /* switch to 4-bit mode */
+		delay(2);
 
 		_writeCmd(0x28); /* 4-bit, 2 lines, 5x8 */
-		_writeCmd(0x0C); /* display ON, cursor OFF */
+		_writeCmd(0x08); /* display OFF */
+		_writeCmd(0x01); /* clear display */
+		delay(5);
 		_writeCmd(0x06); /* increment, no shift */
-		_writeCmd(0x01); /* clear */
-		delay(2);
+		_writeCmd(0x0C); /* display ON, cursor OFF, no blink */
 	}
 };
 

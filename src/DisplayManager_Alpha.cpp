@@ -6,6 +6,8 @@ static uint32_t _lt=0; static bool _sh=false;
 void DisplayManager::core1Entry( ){ if (_instance) _instance->loopCore1(); }
 void DisplayManager::loopCore1( ){
  _lcd.begin(); _lcd.clear(); _lcd.setCursor(0,0); _lcd.print("SIMUT v" SIMUT_VERSION);
+ multicore_lockout_victim_init( );
+ _core1Ready = true;
  for(;;){
   if(millis()-_lt>=3000){_lt=millis();_sh=!_sh;}
   for(int i=0;i<16;i++) _lcd.line[1][i]=' ';
