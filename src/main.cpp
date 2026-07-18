@@ -25,9 +25,6 @@ AppManager app;
 /** @brief Arduino setup — initializes all subsystems. Watchdog starts in loop( ). */
 void setup( ) {
  app.setup( );
- /* Watchdog is NOT enabled here. Between setup( ) and loop( ), the framework
- * Arduino-Pico may run housekeeping (USB, WiFi yield) for an
- * indeterminate time. The watchdog is enabled on the first loop( ). */
 }
 
 /**
@@ -38,16 +35,19 @@ void setup( ) {
  * This ensures Core 0 NEVER dies due to an isolated Core 1 problem.
  */
 void loop( ) {
+#ifndef SIMUT_WDT_DISABLED
  static bool _wdtStarted = false;
  if (!_wdtStarted) {
  watchdog_enable(WATCHDOG_TIMEOUT_MS, 1);
- LogManager::markWdtActive( ); /* Flash paths may extend WDT from this point onward */
+ LogManager::markWdtActive( );
  _wdtStarted = true;
  }
-
  watchdog_update( );
+#endif
 
  app.loop( );
 
+#ifndef SIMUT_WDT_DISABLED
  watchdog_update( );
+#endif
 }

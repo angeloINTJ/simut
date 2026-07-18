@@ -1,4 +1,5 @@
 #include "DisplayManager.h"
+#include "LogManager.h"
 #include "display/HD44780_16x2.h"
 extern DisplayManager* _instance;  /* defined in DisplayManager.cpp */
 static Hd44780_16x2 _lcd;
@@ -8,7 +9,10 @@ void DisplayManager::loopCore1( ){
  _lcd.begin(); _lcd.clear(); _lcd.setCursor(0,0); _lcd.print("SIMUT v" SIMUT_VERSION);
  multicore_lockout_victim_init( );
  _core1Ready = true;
+ _lastHeartbeat = millis( );
  for(;;){
+  _lastHeartbeat = millis( );  /* DisplayManager heartbeat (Core 0 restart check) */
+  TRACE_BEAT(1);              /* LogManager heartbeat (Core 0 soft-panic check) */
   if(millis()-_lt>=3000){_lt=millis();_sh=!_sh;}
   for(int i=0;i<16;i++) _lcd.line[1][i]=' ';
   char b[17];
