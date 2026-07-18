@@ -34,6 +34,7 @@ void AppManager::loop( ) {
  _wasInteracting = isNow;
 
  LogManager::instance( ).checkCrossCoreHealth( );
+ watchdog_update( );
 
  /* Heap/HWM + largest contiguous block every 10s.
  * sampleLargestBlock does ~16 malloc/free (immediately freed). */
@@ -45,6 +46,7 @@ void AppManager::loop( ) {
  MetricsManager::instance( ).sampleLargestBlock( );
  }
  }
+	watchdog_update( );
 
 
  {
@@ -54,6 +56,7 @@ void AppManager::loop( ) {
  _displayMgr->forceUnpause( );
  }
  }
+	watchdog_update( );
 
 
  {
@@ -72,6 +75,7 @@ void AppManager::loop( ) {
  }
  }
  }
+	watchdog_update( );
 
  CliDemand cmd;
  TRACE_MOD(0, MOD_CLI);
