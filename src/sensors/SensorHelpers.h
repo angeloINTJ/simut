@@ -131,7 +131,7 @@ inline const char* sensorTypeName(SensorType t) {
  case TYPE_DHT22:   return "DHT22";
 #endif
 #if SIMUT_SENSOR_BME280
- case TYPE_BME280:  return "BME280";
+ case TYPE_BME280:  return "BMP280";
 #endif
  default:           return "Unknown";
  }

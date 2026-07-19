@@ -404,33 +404,28 @@ void WebManager::handleApiStatus( ) {
 		String sId = s.config.hwId;
 		sId.replace("\"", "\\\"");
 
-		char valBuffer[16]; char humBuffer[32] = "";
+		char valBuffer[16]; char humBuffer[32] = ""; char presBuffer[32] = "";
 		if (s.inErrorState) snprintf(valBuffer, sizeof(valBuffer), "\"Error\"");
 		else if (isnan(s.avgValue[0])) snprintf(valBuffer, sizeof(valBuffer), "\"--\"");
 		else snprintf(valBuffer, sizeof(valBuffer), "%.2f", s.avgValue[0]);
 
-		/* v1.4.1: Sensor channels generalization.
-		 * - type: driver name (DS18B20/DHT22), queried via sensorTypeName()
-		 * - ch: channel count from SensorFormat::forType() (1=T only, 2=T+H, 3=T+H+P)
-		 * - hum: emitted only if sensorHasChannel(CH_HUM) and reading is valid
-		 * Adding a new sensor type (e.g. BMP280) requires only a driver —
-		 *   the API adapts automatically via SensorFormat metadata. */
 		const char* typeName = sensorTypeName(s.type);
 		uint8_t chCount = sensorValueCount(s.type);
 		if (sensorHasChannel(s.type, CH_HUM) && !s.inErrorState && !isnan(s.avgValue[1]) && s.avgValue[1] < 1e9f) {
 			snprintf(humBuffer, sizeof(humBuffer), ",\"hum\":%.1f", s.avgValue[1]);
 		}
+		if (sensorHasChannel(s.type, CH_PRESS) && !s.inErrorState && !isnan(s.avgValue[2]) && s.avgValue[2] < 1e9f) {
+			snprintf(presBuffer, sizeof(presBuffer), ",\"press\":%.1f", s.avgValue[2]);
+		}
 
-		/* v1.4.2: include pin metadata from driver (SensorFormat).
-		 * pc = pin count, pr = comma-separated role labels (e.g. "SDA,SCL"). */
 		auto fmt = SensorFormat::forType(s.type);
 		char rolesBuf[32] = "";
 		for (int p = 0; p < fmt.pinCount && p < 4; p++) {
 		 if (p > 0) { size_t l = strlen(rolesBuf); rolesBuf[l] = ','; rolesBuf[l+1] = '\0'; }
 		 strncat(rolesBuf, fmt.pins[p].label, sizeof(rolesBuf) - strlen(rolesBuf) - 1);
 		}
-		snprintf(buffer, sizeof(buffer), "{\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"ch\":%d,\"pc\":%d,\"pr\":\"%s\",\"val\":%s%s}",
-		         s.config.pins[0], sId.c_str( ), sName.c_str( ), typeName, chCount, fmt.pinCount, rolesBuf, valBuffer, humBuffer);
+		snprintf(buffer, sizeof(buffer), "{\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"ch\":%d,\"pc\":%d,\"pr\":\"%s\",\"val\":%s%s%s}",
+		         s.config.pins[0], sId.c_str( ), sName.c_str( ), typeName, chCount, fmt.pinCount, rolesBuf, valBuffer, humBuffer, presBuffer);
 		if (!safeSend(buffer)) return;
 			first = false;
 	}
