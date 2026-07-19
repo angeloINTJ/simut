@@ -18,43 +18,95 @@ void DisplayManager::loopCore1( ) {
 	_lcd.setCursor(0, 0);
 	_lcd.print("SIMUT " SIMUT_VERSION);
 	_lcd.setCursor(0, 1);
-	_lcd.print("  HD44780 Alpha ");
+	_lcd.print("  Inicializando ");
 	_lcd.blit( );
-	delay(1500);
-	_lcd.clear( );
+	delay(1200);
 
 	multicore_lockout_victim_init( );
 	_sharedState.slotTemp = NAN;
 	_sharedState.slotHum  = NAN;
 	_core1Ready = true;
 
+	/* ── Boot progress state ─────────────────────────────────────── */
+	uint8_t  bootBar    = 0;   /* 0–14 bar fill */
+	uint32_t barTimer   = 0;   /* throttle bar advance */
+	int16_t  lastLogKey[5] = { -1, -1, -1, -1, -1 };
+	bool     bootDone   = false;
+	bool     showFullBar= false;
+	uint8_t  fullBarCnt = 0;
+
 	while (true) {
 		TRACE_MOD(1, MOD_DISPLAY);
 		TRACE_BEAT(1);
 		_lastHeartbeat = millis( );
 
-		/* Alternate humidity / temperature every 3 s */
-		if (millis( ) - _lt >= 3000) {
-			_lt = millis( );
-			_sh = !_sh;
-		}
-
-		_lcd.clear( );
-
-		if (_sh && !isnan(_sharedState.slotHum)) {
-			/* ── Humidity in big digits ──────────────────────────── */
-			int hum = (int)_sharedState.slotHum;
-			_big.showInteger(_lcd, hum, 14, '%');
-		} else if (!isnan(_sharedState.slotTemp)) {
-			/* ── Temperature in big digits ───────────────────────── */
-			int raw = (int)(_sharedState.slotTemp * 10.0f);
-			_big.showNumber(_lcd, raw);
-		} else {
-			/* ── Fallback: no sensor data ────────────────────────── */
+		if (_sharedState.isBooting) {
+			/* ── BOOT SCREEN ──────────────────────────────────── */
 			_lcd.setCursor(0, 0);
 			_lcd.print("SIMUT " SIMUT_VERSION);
+
+			/* Detect new boot stages → advance bar */
+			bool newStage = false;
+			for (int i = 0; i < 5; i++) {
+				if (_sharedState.bootLogs[i].key != lastLogKey[i]) {
+					lastLogKey[i] = _sharedState.bootLogs[i].key;
+					newStage = true;
+				}
+			}
+			uint32_t now = millis( );
+			if (newStage || (now - barTimer >= 800)) {
+				if (bootBar < 14) bootBar++;
+				barTimer = now;
+			}
+
+			/* Render bar: [############      ] */
 			_lcd.setCursor(0, 1);
-			_lcd.print("--.- C / --%%    ");
+			_lcd.write('[');
+			for (uint8_t i = 0; i < 14; i++)
+				_lcd.write(i < bootBar ? '#' : ' ');
+			_lcd.write(']');
+
+		} else if (!bootDone) {
+			/* ── BOOT → SENSOR TRANSITION ──────────────────────── */
+			if (bootBar < 14 && fullBarCnt < 6) {
+				/* Fill remaining bar segments */
+				if (fullBarCnt == 0) { bootBar = 14; }
+				_lcd.setCursor(0, 0);
+				_lcd.print("SIMUT " SIMUT_VERSION);
+				_lcd.setCursor(0, 1);
+				_lcd.write('[');
+				for (uint8_t i = 0; i < 14; i++) _lcd.write('#');
+				_lcd.write(']');
+				fullBarCnt++;
+			} else {
+				bootDone = true;
+				_lcd.clear( );
+				_lt  = millis( );
+				_sh  = false;
+				barTimer = 0;
+			}
+
+		} else {
+			/* ── SENSOR VALUES (big digits) ────────────────────── */
+			if (millis( ) - _lt >= 3000) {
+				_lt = millis( );
+				_sh = !_sh;
+			}
+
+			_lcd.clear( );
+
+			if (_sh && !isnan(_sharedState.slotHum)) {
+				int hum = (int)_sharedState.slotHum;
+				_big.showInteger(_lcd, hum, 14, '%');
+			} else if (!isnan(_sharedState.slotTemp)) {
+				int raw = (int)(_sharedState.slotTemp * 10.0f);
+				_big.showNumber(_lcd, raw);
+			} else {
+				_lcd.setCursor(0, 0);
+				_lcd.print("SIMUT " SIMUT_VERSION);
+				_lcd.setCursor(0, 1);
+				_lcd.print("--.- C / --%%    ");
+			}
 		}
 
 		_lcd.blit( );
