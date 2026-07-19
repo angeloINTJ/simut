@@ -525,7 +525,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         const typeLabel = sn.type || '?';
                         const typeCls = sn.type === 'DHT22' ? 'color:var(--warn)' : 'color:var(--ok)';
                         const pinInfo = (sn.pc && sn.pr) ? `<span style="font-size:0.7rem;color:var(--sub)"> ⚡${sn.pc}p ${sn.pr}</span>` : '';
-                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.gpio}</td><td style="${typeCls}; font-size:0.85rem; font-weight:600;">${typeLabel}${pinInfo}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--sub)">${escHtml(sn.name)}</td></tr>`;
+                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.slot}</td><td style="${typeCls}; font-size:0.85rem; font-weight:600;">${typeLabel}${pinInfo}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--sub)">${escHtml(sn.name)}</td></tr>`;
                     });
                     document.getElementById('tab').innerHTML = tabHtml;
                 } else { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--sub)">No active sensors.</td></tr>`; }
@@ -614,13 +614,13 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             (d.sensors||[]).forEach(function(s){
                 const hasH = s.hasHum === true;
                 const icon = hasH ? '🌡️' : '🌡️';
-                h+='<div class="card" style="padding:14px;margin-bottom:8px"><h3 style="margin:0 0 8px 0;font-size:0.95rem">'+icon+' SLOT '+s.gpio+' — '+escH(s.name)+'</h3>';
+                h+='<div class="card" style="padding:14px;margin-bottom:8px"><h3 style="margin:0 0 8px 0;font-size:0.95rem">'+icon+' SLOT '+s.slot+' — '+escH(s.name)+'</h3>';
                 h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-                h+='<input data-k="s'+s.gpio+'_id" placeholder="ID" maxlength="14" value="'+escH(s.hwId)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-                h+='<input data-k="s'+s.gpio+'_name" placeholder="Nome" maxlength="30" value="'+escH(s.name)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-                h+='<input data-k="s'+s.gpio+'_refT" type="number" step="0.01" placeholder="Ref T (°C)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+                h+='<input data-k="s'+s.slot+'_id" placeholder="ID" maxlength="14" value="'+escH(s.hwId)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+                h+='<input data-k="s'+s.slot+'_name" placeholder="Nome" maxlength="30" value="'+escH(s.name)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+                h+='<input data-k="s'+s.slot+'_refT" type="number" step="0.01" placeholder="Ref T (°C)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
                 if(hasH){
-                    h+='<input data-k="s'+s.gpio+'_refH" type="number" step="0.1" placeholder="Ref H (%)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
+                    h+='<input data-k="s'+s.slot+'_refH" type="number" step="0.1" placeholder="Ref H (%)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
                 }
                 h+='</div><div style="font-size:0.78rem;color:var(--sub);margin-top:6px">T='+(s.tempRead===null?'--':s.tempRead)+'°C off='+s.tempOffset;
                 if(hasH)h+=' | H='+(s.humRead===null?'--':s.humRead)+'% off='+s.humOffset;
@@ -633,12 +633,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             /* Per-sensor calibration with optional humidity */
             const arr=[];
             (_calS.sensors||[]).forEach(function(s){
-                const id=(document.querySelector('[data-k="s'+s.gpio+'_id"]')||{}).value;
-                const n=(document.querySelector('[data-k="s'+s.gpio+'_name"]')||{}).value;
-                const t=(document.querySelector('[data-k="s'+s.gpio+'_refT"]')||{}).value;
-                const hEl=document.querySelector('[data-k="s'+s.gpio+'_refH"]');
+                const id=(document.querySelector('[data-k="s'+s.slot+'_id"]')||{}).value;
+                const n=(document.querySelector('[data-k="s'+s.slot+'_name"]')||{}).value;
+                const t=(document.querySelector('[data-k="s'+s.slot+'_refT"]')||{}).value;
+                const hEl=document.querySelector('[data-k="s'+s.slot+'_refH"]');
                 const h=hEl?hEl.value:'';
-                const e={gpio:s.gpio};let dirty=false;
+                const e={slot:s.slot};let dirty=false;
                 if(id!==undefined&&id!==s.hwId){e.hwId=id.trim();dirty=true;}
                 if(n!==undefined&&n!==s.name){e.name=n.trim();dirty=true;}
                 if(t!==''){e.refTemp=parseFloat(t);dirty=true;}
@@ -887,9 +887,9 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const items = [];
                 if (data && data.sensors) {
                     /* Slot 10 (DHT/humidity) first */
-                    data.sensors.forEach(s => { if (s.gpio === 10) items.push({ id: 10, name: s.name, hwId: s.id }); });
+                    data.sensors.forEach(s => { if (s.slot === 10) items.push({ id: s.slot, name: s.name, hwId: s.id }); });
                     /* All other active slots */
-                    data.sensors.forEach(s => { if (s.gpio !== 10 && s.gpio >= 0) items.push({ id: s.gpio, name: s.name, hwId: s.id }); });
+                    data.sensors.forEach(s => { if (s.slot !== 10 && true) items.push({ id: s.slot, name: s.name, hwId: s.id }); });
                 }
                 if (items.length === 0) items.push({ id: 10, name: 'Slot 10', hwId: 'AMB' });
                 items.forEach(it => {
@@ -3400,7 +3400,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     html += '  <div class="sensor-header">';
                     html += '    <label class="toggle" title="Alarm"><input type="checkbox" class="alm-active"' + (s.active ? ' checked' : '') + '><span class="slider"></span></label>';
                     html += '    <div class="sensor-name">' + nameLabel + '</div>';
-                    html += '    <div class="sensor-type">' + escHtml(s.type) + ' &middot; SLOT ' + s.gpio + '</div>';
+                    html += '    <div class="sensor-type">' + escHtml(s.type) + ' &middot; SLOT ' + s.idx + '</div>';
                     html += '  </div>';
                     html += '  <div class="limit-grid">';
                     html += '    <div class="limit-field"><label data-i18n="alm_tmin">Temp Min</label><input type="number" step="0.1" class="alm-input" data-key="tmin" value="' + s.tmin.toFixed(1) + '"></div>';
