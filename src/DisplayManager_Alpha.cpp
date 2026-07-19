@@ -86,21 +86,26 @@ void DisplayManager::loopCore1( ) {
 					showNetCnt = 0;
 				}
 			} else {
-				/* ── Show WiFi / IP for 5 s ────────────────────── */
-				/* _netStatus may not be updated yet (Core 0 loop
-				   runs after boot).  Use _sharedState.wifiRssi
-				   which is updated by setSystemStatus. */
+				/* ── Show WiFi / IP ────────────────────────────── */
+				bool hasIp  = (_netStatus.ip[0] != '\0');
+				bool online = (_sharedState.wifiRssi > -100);
+
+				/* Reset counter when IP first appears so user
+				   sees it for at least 3 s.                      */
+				static bool hadIp = false;
+				if (hasIp && !hadIp) { showNetCnt = 0; hadIp = true; }
+
 				_lcd.setCursor(0, 0);
-				if (_sharedState.wifiRssi > -100) {
+				if (online && hasIp) {
 					_lcd.print("  Conectado!    ");
 					_lcd.setCursor(0, 1);
 					_lcd.print("                ");
 					_lcd.setCursor(0, 1);
-					if (_netStatus.ip[0] != '\0')
-						_lcd.print(_netStatus.ip);
-					else
-						_lcd.print(_netStatus.wifiConnected
-							? _netStatus.ip : "   Obtendo IP...");
+					_lcd.print(_netStatus.ip);
+				} else if (online && !hasIp) {
+					_lcd.print("  Conectado!    ");
+					_lcd.setCursor(0, 1);
+					_lcd.print("  Obtendo IP... ");
 				} else {
 					_lcd.print("  Sem WiFi      ");
 					_lcd.setCursor(0, 1);
@@ -108,7 +113,10 @@ void DisplayManager::loopCore1( ) {
 				}
 
 				showNetCnt++;
-				if (showNetCnt >= 10) {  /* 10 × 500ms = 5 s */
+				/* 3 s once IP visible, 10 s max if waiting,
+				   3 s for offline */
+				uint8_t maxCnt = (online && !hasIp) ? 20u : 6u;
+				if (showNetCnt >= maxCnt) {
 					bootDone = true;
 					_lcd.clear( );
 					_lt  = millis( );
