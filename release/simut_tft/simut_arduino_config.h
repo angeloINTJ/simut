@@ -1,0 +1,7 @@
+#pragma once
+#define SIMUT_DISPLAY_TFT   1
+#define SIMUT_DISPLAY_ALPHA 0
+#define SIMUT_SENSOR_DS18B20 1
+#define SIMUT_SENSOR_DHT22   1
+#define SIMUT_SENSOR_BME280  1
+#define SIMUT_MDNS 1
