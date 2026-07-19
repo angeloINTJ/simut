@@ -335,7 +335,7 @@ void WebManager::handleApiCalibPost( ) {
 
 	/* === Streaming 2-pass: read calib.csv, write calib.tmp === */
 	uint32_t version = (uint32_t)_netRef->getEpoch( );
-
+	if (nChanges > 0) {
 	File fout = LittleFS.open("/calib.tmp", "w");
 	if (!fout) {
 		_server.send(500, "application/json", "{\"error\":\"calib write failed\"}");
@@ -387,6 +387,7 @@ void WebManager::handleApiCalibPost( ) {
 		}
 	}
 	fout.close( );
+	} /* end if (nChanges > 0) */
 
 	if (nChanges > 0) {
 	 if (!_storageRef->processCalibrationUpload( )) {
