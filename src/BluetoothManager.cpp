@@ -15,6 +15,8 @@
 #include "BluetoothManager.h"
 #include "LogManager.h"
 
+#if SIMUT_BLUETOOTH
+
 BluetoothManager::BluetoothManager( ) {
  _authenticated = false;
  _promptSent = false;
@@ -165,3 +167,5 @@ bool BluetoothManager::available( ) {
 char BluetoothManager::read( ) {
  return _authenticated ? SerialBT.read( ) : -1;
 }
+
+#endif /* SIMUT_BLUETOOTH */

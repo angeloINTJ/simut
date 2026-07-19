@@ -15,6 +15,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "simut_config.h"  /* theme pack flags (SIMUT_THEMES_*) */
 
 /** Convert 8-bit RGB to 16-bit RGB565 format for TFT displays. */
 #define RGB565(r, g, b) ((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))

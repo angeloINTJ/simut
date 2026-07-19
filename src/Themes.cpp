@@ -16,21 +16,9 @@
 
 #include "Themes.h"
 
-/* =========================================================================
- * THEME CATEGORY SELECTION — edit here to enable optional theme packs.
- * =========================================================================
- * The core palette (simut_def) is always compiled.
- * Uncomment the desired categories to add them to the firmware.
- * Each theme costs ~70 bytes of flash.
- */
-// #define SIMUT_THEMES_HEALTH // 12 themes — monthly campaigns (jan_branco..dez_laranja)
-// #define SIMUT_THEMES_PRO // 5 themes — dark_pro, monochrome, clinical, corporate, minimal
-// #define SIMUT_THEMES_MEDICAL // 6 themes — unimed, unimed_dark, xray, uti_monitor, scrubs, biohazard
-// #define SIMUT_THEMES_SAFETY // 3 themes — danger, safety, fire
-// #define SIMUT_THEMES_RETRO // 8 themes — matrix, cyberpunk, pipboy, nes, cmd, synth, gameboy, sith
-// #define SIMUT_THEMES_NATURE // 8 themes — amber, vampire, magma, ocean, nature, outrun, midnight, forest
-// #define SIMUT_THEMES_UTILITY // 7 themes — paper, blocks, blueprint, solarized, luxury, ubuntu, whiteboard
-/* ========================================================================= */
+/* Theme pack selection → see src/simut_config.h Section 7.
+ * Uncomment the SIMUT_THEMES_* lines there to include theme packs.
+ * The core theme (simut_def) is always compiled. */
 
 
 ThemePalette currentTheme;

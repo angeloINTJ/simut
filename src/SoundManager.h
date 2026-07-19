@@ -21,7 +21,7 @@
 #include "SystemDefs.h"
 
 
-#define BUZZER_PIN 22
+/* BUZZER_PIN → see src/simut_config.h */
 
 
 #define BUZZER_PIO_BLOCK pio1
