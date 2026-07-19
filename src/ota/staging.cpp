@@ -9,7 +9,7 @@
  */
 #include "staging.h"
 #include "config_snapshot.h"
-#include "StorageManager.h"
+#include "../StorageManager.h"
 
 #include <Arduino.h>
 #include <LittleFS.h>

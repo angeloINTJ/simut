@@ -146,11 +146,23 @@ struct Hd44780_16x2 {
 
 	size_t write(uint8_t c) {
 		if (c == '\n') { cursorRow = 1; cursorCol = 0; return 1; }
-		if (c < 32) return 1;
+		if (c < 32 && c > 7) return 1;  /* allow CGRAM chars 0-7 */
 		if (cursorCol >= 16) { cursorCol = 0; cursorRow = 1; }
 		if (cursorRow >= 2)  { cursorRow = 1; cursorCol = 0; }
 		line[cursorRow][cursorCol++] = (char)c;
 		return 1;
+		}
+
+	/** Load a 5x8 custom character bitmap into CGRAM.
+	 *  @param num    Slot 0-7
+	 *  @param bitmap 8-byte pixel pattern (LSB = top row) */
+	void createChar(uint8_t num, const uint8_t* bitmap) {
+		if (!initialized) return;
+		_writeCmd(0x40 + (num & 0x07) * 8);
+		for (uint8_t i = 0; i < 8; i++) {
+			_writeData(pgm_read_byte(&bitmap[i]));
+		}
+		_writeCmd(0x80);  /* back to DDRAM address 0 */
 	}
 
 	size_t print(const char* s) {

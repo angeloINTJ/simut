@@ -1,15 +1,27 @@
 #include "DisplayManager.h"
 #include "LogManager.h"
 #include "display/HD44780_16x2.h"
+#include "display/BigFont_HD44780.h"
 extern DisplayManager* _instance;  /* defined in DisplayManager.cpp */
-static Hd44780_16x2 _lcd;
-static uint32_t _lt=0; static bool _sh=false;
+static Hd44780_16x2   _lcd;
+static BigFont_HD44780 _big;
+static uint32_t _lt = 0;
+static bool     _sh = false;
+
 void DisplayManager::core1Entry( ){ if (_instance) _instance->loopCore1(); }
 void DisplayManager::loopCore1( ) {
 	_lcd.begin( );
+	_big.begin(_lcd);  /* load CGRAM custom characters */
 	_lcd.clear( );
+
+	/* Splash screen */
 	_lcd.setCursor(0, 0);
 	_lcd.print("SIMUT " SIMUT_VERSION);
+	_lcd.setCursor(0, 1);
+	_lcd.print("  HD44780 Alpha ");
+	_lcd.blit( );
+	delay(1500);
+	_lcd.clear( );
 
 	multicore_lockout_victim_init( );
 	_sharedState.slotTemp = NAN;
@@ -27,19 +39,24 @@ void DisplayManager::loopCore1( ) {
 			_sh = !_sh;
 		}
 
-		/* Clear line 2 and render current reading */
-		for (int i = 0; i < 16; i++) _lcd.line[1][i] = ' ';
-		char b[17];
-		if (_sh && !isnan(_sharedState.slotHum))
-			snprintf(b, 16, "Umid: %d%%      ", (int)_sharedState.slotHum);
-		else if (!isnan(_sharedState.slotTemp)) {
-			int ti = (int)_sharedState.slotTemp;
-			snprintf(b, 16, "Temp: %d.%d C   ",
-			         ti, abs((int)(_sharedState.slotTemp * 10) % 10));
-		} else
-			snprintf(b, 16, "--.- C / --%%    ");
-		_lcd.setCursor(0, 1);
-		_lcd.print(b);
+		_lcd.clear( );
+
+		if (_sh && !isnan(_sharedState.slotHum)) {
+			/* ── Humidity in big digits ──────────────────────────── */
+			int hum = (int)_sharedState.slotHum;
+			_big.showInteger(_lcd, hum, 14, '%');
+		} else if (!isnan(_sharedState.slotTemp)) {
+			/* ── Temperature in big digits ───────────────────────── */
+			int raw = (int)(_sharedState.slotTemp * 10.0f);
+			_big.showNumber(_lcd, raw);
+		} else {
+			/* ── Fallback: no sensor data ────────────────────────── */
+			_lcd.setCursor(0, 0);
+			_lcd.print("SIMUT " SIMUT_VERSION);
+			_lcd.setCursor(0, 1);
+			_lcd.print("--.- C / --%%    ");
+		}
+
 		_lcd.blit( );
 		delay(500);
 	}
