@@ -15,12 +15,18 @@
 #include <Arduino.h>
 #include "sensors/SensorConfig.h"
 
-/* Hardware and system limits */
+/* Hardware and system limits — defaults in src/simut_config.h */
+#ifndef MAX_SENSORS
 #define MAX_SENSORS 16 /* Maximum number of configurable sensor slots (GPIO0–GPIO15) */
+#endif
 #define MAX_USERS 5 /* Maximum user accounts (Flash/RAM budget) */
 #define MOVING_AVG_WINDOW 10 /* Samples in the trimmed-mean sliding window */
+#ifndef MAX_SENSOR_PINS
 #define MAX_SENSOR_PINS 4 /* Maximum GPIO pins per sensor (fits SPI: MOSI,MISO,SCK,CS) */
+#endif
+#ifndef PIN_UNUSED
 #define PIN_UNUSED 255 /* Sentinel for unused pin slots */
+#endif
 #define SIMUT_VERSION "1.4.4-beta"
 
 #define GRAPH_WIDTH 200 /* Maximum data points on the TFT graph */
