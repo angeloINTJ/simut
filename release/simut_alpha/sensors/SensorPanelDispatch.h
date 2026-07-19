@@ -22,7 +22,7 @@
 /** Calls the appropriate driver's renderPanel for the given sensor type.
  *  Theme colors passed explicitly so drivers follow the active theme. */
 inline void sensorRenderPanel(GFXcanvas16* cv, SensorType type,
-                              float v1, float v2, bool isValid,
+                              float v1, float v2, float v3, bool isValid,
                               int16_t cardW, bool leftAnchor, bool isRedPhase,
                               uint16_t panelBg, const GFXfont& font24,
                               const GFXfont& font12, const GFXfont& font9,
@@ -41,9 +41,17 @@ inline void sensorRenderPanel(GFXcanvas16* cv, SensorType type,
 #endif
 #if SIMUT_SENSOR_BME280
     case TYPE_BME280:
-        BME280_renderPanel(cv, v1, v2, 0.0f, isValid, cardW, leftAnchor,
-                           isRedPhase, panelBg, font24, font12, font9,
-                           txtSub, tempOk, tempHot, humidity, textOff);
+        if (isnan(v2)) {
+            /* BMP280: no humidity — show temperature + pressure */
+            BMP280_renderPanel(cv, v1, v3, isValid, cardW, leftAnchor,
+                               isRedPhase, panelBg, font24, font12, font9,
+                               txtSub, tempOk, tempHot, humidity, textOff);
+        } else {
+            /* BME280: T + H + P (pressure as small badge) */
+            BME280_renderPanel(cv, v1, v2, v3, isValid, cardW, leftAnchor,
+                               isRedPhase, panelBg, font24, font12, font9,
+                               txtSub, tempOk, tempHot, humidity, textOff);
+        }
         return;
 #endif
 #if SIMUT_SENSOR_DS18B20

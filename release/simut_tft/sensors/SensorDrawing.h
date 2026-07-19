@@ -75,6 +75,38 @@ inline void drawDropMini(GFXcanvas16* cv, int16_t x, int16_t y,
 }
 #endif
 
+/* ── Barometer / pressure gauge (large, ~20×22 px) ──────────────────────── */
+
+#if SIMUT_SENSOR_BME280
+inline void drawBarometerLarge(GFXcanvas16* cv, int16_t x, int16_t y,
+                                uint16_t outline, uint16_t bg, uint16_t needle) {
+    /* Outer ring */
+    cv->fillCircle(x + 7, y + 13, 8, outline);
+    cv->fillCircle(x + 7, y + 13, 6, bg);
+    /* Inner disc */
+    cv->fillCircle(x + 7, y + 13, 3, outline);
+    /* Needle — diagonal line from center to upper-right */
+    cv->drawLine(x + 7, y + 13, x + 12, y + 6, needle);
+    cv->drawLine(x + 7, y + 13, x + 11, y + 7, needle);
+    /* Top mounting point */
+    cv->fillCircle(x + 7, y, 2, outline);
+}
+#endif
+
+/* ── Barometer / pressure gauge (mini, ~12×14 px) ───────────────────────── */
+
+#if SIMUT_SENSOR_BME280
+inline void drawBarometerMini(GFXcanvas16* cv, int16_t x, int16_t y,
+                               uint16_t outline, uint16_t bg, uint16_t needle) {
+    cv->fillCircle(x + 5, y + 6, 6, outline);
+    cv->fillCircle(x + 5, y + 6, 5, bg);
+    cv->fillCircle(x + 5, y + 6, 2, outline);
+    cv->drawLine(x + 5, y + 6, x + 9, y + 2, needle);
+    cv->drawLine(x + 5, y + 6, x + 8, y + 2, needle);
+    cv->fillCircle(x + 5, y, 2, outline);
+}
+#endif
+
 /* ── "°C" unit (normal mode, 24pt value) ────────────────────────────────── */
 
 inline void drawUnitDegC_Normal(GFXcanvas16* cv, int16_t x,

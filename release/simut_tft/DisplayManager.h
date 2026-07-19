@@ -16,10 +16,6 @@
 
 #pragma once
 
-#if __has_include("simut_arduino_config.h")
-#include "simut_arduino_config.h"
-#endif
-
 #include <Arduino.h>
 #if SIMUT_DISPLAY_TFT
 #include <SPI.h>
@@ -38,7 +34,7 @@ class Adafruit_GFX;
 #include "Themes.h"
 #include "SoundManager.h"
 
-/* TFT/SPI pin assignments → see simut_config.h */
+/* TFT/SPI pin assignments → see src/simut_config.h */
 
 enum LangKey {
 	TR_AMBIENT, TR_CONFIG_MAIN, TR_CONFIG_THEMES, TR_CONFIG_LANG, TR_BACK,
@@ -105,8 +101,8 @@ struct BootLogEntry {
 };
 
 struct SystemState {
-	float slotTemp; float slotHum; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
-	float topSlotTemp; float topSlotHum; bool topSlotValid; SensorType topSlotType; int topSlotIdx; char topSlotName[32];
+	float slotTemp; float slotHum; float slotPres; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
+	float topSlotTemp; float topSlotHum; float topSlotPres; bool topSlotValid; SensorType topSlotType; int topSlotIdx; char topSlotName[32];
 	int wifiRssi; bool btActive; char timeString[24];
 	uint16_t pendingPkts;
 	bool isBooting; BootLogEntry bootLogs[5]; bool showSkipButton; int apProgressPct;
@@ -147,9 +143,9 @@ public:
 	 * here (Core 1 with IRQs off) and unnecessary (Core 1 does not touch flash). */
 	bool isInQuietMode( ) const { return _quietModeRequested || _quietModeActive; }
 
-	void setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
+	void setSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name);
 	void setSlotMinMax(float minT, float maxT, float minH, float maxH);
- void setTopSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
+ void setTopSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name);
  void setBottomSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
  void setTopSlotMinMax(float minT, float maxT, float minH, float maxH);
 	int getTopSlotIdx( ) { int idx; mutex_enter_blocking(&_stateMutex); idx = _sharedState.topSlotIdx; mutex_exit(&_stateMutex); return idx; }
@@ -432,7 +428,7 @@ private:
 	void render(const SystemState& state);
 	void drawInterfaceFixed( );
 	void drawTopBar(const SystemState& state);
-	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel);
+	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel, float p = NAN);
 	void drawBottomButtons(int selectedIdx, bool forceRedraw);
 
 	/** Redraws top panel. Syncs topSlotIdx + data from current mode. */
@@ -447,6 +443,7 @@ private:
 	     _sharedState.topSlotIdx == _sharedState.selectedSlotIdx) {
 	 _sharedState.topSlotTemp = _sharedState.slotTemp;
 	 _sharedState.topSlotHum  = _sharedState.slotHum;
+	_sharedState.topSlotPres = _sharedState.slotPres;
 	 _sharedState.topSlotType = _sharedState.slotType;
 	 _sharedState.topSlotValid = _sharedState.slotValid;
 	 safeCopy(_sharedState.topSlotName, _sharedState.slotName, 31);
@@ -454,7 +451,7 @@ private:
 	 snap = _sharedState;
 	 mutex_exit(&_stateMutex);
 	 drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
-	               snap.topSlotIdx, snap.topSlotName, true, _topPanel);
+	               snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
 	 /* Redraw bottom buttons — fixed sensor button may appear/disappear */
 	 drawBottomButtons(snap.selectedSlotIdx, true);
 	}

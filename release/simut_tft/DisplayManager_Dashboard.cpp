@@ -134,11 +134,11 @@ void DisplayManager::restoreNormalDashboard( ) {
  if (!_driver.tft || !_driver.canvasSmall || !_driver.canvas) return;
  drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
  _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
- _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel);
+ _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel, _lastRenderedState.topSlotPres);
  drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotType,
  _lastRenderedState.slotValid,
  _lastRenderedState.selectedSlotIdx,
- _lastRenderedState.slotName, true, _bottomPanel);
+ _lastRenderedState.slotName, true, _bottomPanel, _lastRenderedState.slotPres);
  drawBottomButtons(_lastRenderedState.selectedSlotIdx, true);
 }
 
@@ -410,7 +410,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
 }
 
 
-void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel) {
+void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel, float p) {
  if(!_driver.canvas) return;
  int16_t x1, y1; uint16_t h_bound;
 
@@ -555,7 +555,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  _driver.canvas->print(tr(TR_ERROR_LBL));
  } else {
  _driver.canvas->fillScreen(panelBg);
- sensorRenderPanel(_driver.canvas, type, t, h, isValid, CARD_W, true,
+ sensorRenderPanel(_driver.canvas, type, t, h, p, isValid, CARD_W, true,
                    isRedPhase, panelBg,
                    simutFont24pt, simutFont12pt, simutFont9pt,
                    C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
