@@ -46,8 +46,12 @@ struct BME280Driver {
      *  Any GPIO 0-15 pair works — PIO bit-bang has no pin restrictions.
      *  Tries primary address (0x76, SDO→GND) first, then secondary (0x77). */
     void begin(uint8_t sda, uint8_t scl) {
-        /* Try primary address (0x76 — SDO → GND, most common) */
+        /* Try primary address (0x76 — SDO → GND, most common).
+         * forceGPIO(true): use GPIO bit-bang I2C only, skip PIO+DMA.
+         * This keeps pio0 instruction slots free for OneWirePIO (DS18B20)
+         * which has no GPIO fallback. GPIO mode is slower but reliable. */
         _sensor = new BMx280PIO_RP2040(sda, scl, BME280_ADDR_PRIMARY);
+        _sensor->forceGPIO(true);
         if (_sensor->begin()) {
             _compLoaded = true;
             return;
@@ -55,6 +59,7 @@ struct BME280Driver {
         /* Try secondary address (0x77 — SDO → VDD) */
         delete _sensor;
         _sensor = new BMx280PIO_RP2040(sda, scl, 0x77);
+        _sensor->forceGPIO(true);
         if (_sensor->begin()) {
             _compLoaded = true;
             return;
@@ -70,6 +75,7 @@ struct BME280Driver {
      *  by another driver on the same pin pair. */
     bool begin(uint8_t sda, uint8_t scl, uint8_t addr) {
         _sensor = new BMx280PIO_RP2040(sda, scl, addr);
+        _sensor->forceGPIO(true);  /* GPIO bit-bang only — keeps pio0 free */
         _compLoaded = _sensor->begin();
         if (!_compLoaded) {
             delete _sensor;

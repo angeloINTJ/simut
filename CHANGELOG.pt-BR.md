@@ -29,6 +29,30 @@ Todas as mudanças notáveis do firmware SIMUT.
 - **Movida para `simut_config.h`** — Pacotes de temas (`SIMUT_THEMES_HEALTH`, `_PRO`, `_MEDICAL`, `_SAFETY`, `_RETRO`, `_NATURE`, `_UTILITY`) agora são habilitados descomentando linhas no arquivo de configuração, não editando `Themes.cpp`.
 - **`Themes.h` inclui `simut_config.h`** — Flags de temas são visíveis onde quer que `Themes.h` seja incluído.
 
+### Coexistência de Recursos PIO — Resolução de Conflitos Multi-Sensor
+
+- **Conflito no pio0 identificado** — OneWirePIO (DS18B20, 27 slots de instrução) + WirePIO (BME280 I2C, 32 slots) = 59 > 32 disponíveis. WirePIO carregava primeiro, bloqueando OneWirePIO (DS18B20 morria — sem fallback GPIO).
+- **Saturação de SMs no pio1** — 2× DHT22 (2 SMs) + CYW43 WiFi (1 SM) + BuzzerPIO (2 SMs) = 5 > 4 SMs. Resolvido pelo fallback automático do BuzzerPIO para pio0.
+- **Correção no `BME280Driver.h`** — Adicionado `forceGPIO(true)` antes de cada `begin()`. BMx280PIO agora usa apenas GPIO bit-bang I2C (sem PIO+DMA), mantendo os slots de instrução do pio0 livres para OneWirePIO. Modo GPIO é um pouco mais lento mas totalmente confiável.
+- **`docs/PIO_ANALYSIS.md`** — Análise completa de alocação de recursos PIO cobrindo todas as bibliotecas (OneWirePIO, DHTBus, WirePIO, BuzzerPIO, CYW43), orçamento de slots de instrução por bloco, contagem de state machines, canais DMA, cenários de conflito e mecanismos de resolução.
+
+### Validação em Hardware — Teste de Coexistência com 4 Sensores
+
+Testado no Pico W com display TFT + buzzer + WiFi:
+
+| Sensor | GPIOs | Tipo | Status |
+|--------|-------|------|--------|
+| BMP280 | GP0 (SDA), GP1 (SCL) | driver BME280 | ✅ Lendo (GPIO bit-bang) |
+| DHT22 #1 | GP2 | DHT22 | ✅ Detectado, lendo |
+| DHT22 #2 | GP3 | DHT22 | ✅ Detectado, lendo |
+| DS18B20 | GP4 | DS18B20 | ✅ Detectado (ROM: 283C21…), lendo |
+
+- **WiFi**: Conectado (RSSI -45 dBm), servidor web respondendo
+- **PIO após correção**: pio0 31/32 slots (OneWirePIO + BuzzerPIO fallback), pio1 23/32 slots (DHTBus×2 + CYW43)
+- **Heap**: 94,3 KB estável, sem vazamentos após 11+ minutos de operação contínua
+- **Leituras**: 857/916 OK (93,2%), 59 erros concentrados na inicialização
+- Todos os 4 sensores configurados e ativados via CLI, configuração persistida no flash
+
 ### Orçamento de Flash
 
 - **Release (TFT + todos sensores + mDNS)**: 94,1% (982604 / 1044480 bytes)
