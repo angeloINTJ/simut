@@ -396,8 +396,18 @@ void WebManager::handleApiCalibPost( ) {
 	 _displayRef->requestQuietMode( );
 	}
 	_storageRef->saveConfiguration( );
-	app.loadAndCalibrateSensors( );
-	if (nChanges > 0) _displayRef->releaseQuietMode( );
+	if (nChanges > 0) { app.loadAndCalibrateSensors( ); _displayRef->releaseQuietMode( ); }
+  else { /* Sync hwId/name to runtime sensors without full reload */
+   auto& runtime = _sensorRef->getRuntimeSensors( );
+   for (auto& rs : runtime) {
+    for (int i = 0; i < MAX_SENSORS; i++) {
+     if (cfg.sensors[i].active && cfg.sensors[i].pins[0] == rs.config.pins[0]) {
+      safeCopy((char*)rs.config.hwId, cfg.sensors[i].hwId, sizeof(rs.config.hwId));
+      safeCopy((char*)rs.config.friendlyName, cfg.sensors[i].friendlyName, sizeof(rs.config.friendlyName));
+     }
+    }
+   }
+  }
 
 	LOG_CODE(LOG_INFO, "WEB", APP_SENSORS_CALIBRATED, 0, "calib via /api/calib");
 
