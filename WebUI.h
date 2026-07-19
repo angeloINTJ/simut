@@ -521,6 +521,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     sysData.sensors.forEach((sn) => {
                         let v = (sn.val === 'Error' || sn.val === '--') ? sn.val : parseFloat(sn.val).toFixed(2) + ' ºC';
                         if(sn.hum) v += ' | ' + parseFloat(sn.hum).toFixed(1) + '%';
+                        if(sn.press) v += ' | ' + parseFloat(sn.press).toFixed(1) + ' hPa';
                         const typeLabel = sn.type || '?';
                         const typeCls = sn.type === 'DHT22' ? 'color:var(--warn)' : 'color:var(--ok)';
                         const pinInfo = (sn.pc && sn.pr) ? `<span style="font-size:0.7rem;color:var(--sub)"> ⚡${sn.pc}p ${sn.pr}</span>` : '';
