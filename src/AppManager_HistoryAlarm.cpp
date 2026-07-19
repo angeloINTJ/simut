@@ -55,16 +55,16 @@ void AppManager::refreshSelectedSlot( ) {
  uint8_t targetGpio = cfg.sensors[_currentSensorIdx].pins[0];
  for (const auto &s : sensors) {
  if (s.config.pins[0] == targetGpio) {
- _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  found = true;
  if (_displayMgr->getTopSlotIdx( ) == _currentSensorIdx)
- _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  break;
  }
  }
  }
 
- if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
+ if (!found) _displayMgr->setSlotData(NAN, NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
 
  /* Fixed panels: override with pinned sensor data when panel is fixed elsewhere */
  {
@@ -73,7 +73,7 @@ void AppManager::refreshSelectedSlot( ) {
  uint8_t tgpio = cfg.sensors[topIdx].pins[0];
  for (const auto &s : sensors) {
  if (s.config.pins[0] == tgpio) {
- _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
  break;
  }
  }
@@ -169,17 +169,17 @@ void AppManager::updateLiveDisplay( ) {
  if (_currentSensorIdx >= 0 && _currentSensorIdx < MAX_SENSORS &&
  cfg.sensors[_currentSensorIdx].active &&
  cfg.sensors[_currentSensorIdx].pins[0] == s.config.pins[0]) {
- _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState,
  _currentSensorIdx, String(s.config.friendlyName));
  if (topIdx == _currentSensorIdx)
- _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState,
  _currentSensorIdx, String(s.config.friendlyName));
  }
  /* Top panel (fixed elsewhere) */
  if (topIdx != _currentSensorIdx && topIdx >= 0 && topIdx < MAX_SENSORS &&
  cfg.sensors[topIdx].active &&
  cfg.sensors[topIdx].pins[0] == s.config.pins[0]) {
- _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState,
  topIdx, String(s.config.friendlyName));
  }
  }

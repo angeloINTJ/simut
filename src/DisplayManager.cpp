@@ -495,16 +495,16 @@ void DisplayManager::setWebBusy(bool busy, const char* username) {
 	mutex_exit(&_stateMutex);
 }
 
-void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name) {
+void DisplayManager::setSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name) {
 	mutex_enter_blocking(&_stateMutex);
-	_sharedState.slotTemp = t; _sharedState.slotHum = h; _sharedState.slotValid = isValid; _sharedState.slotType = type; _sharedState.selectedSlotIdx = slotIdx;
+	_sharedState.slotTemp = t; _sharedState.slotHum = h; _sharedState.slotPres = p; _sharedState.slotValid = isValid; _sharedState.slotType = type; _sharedState.selectedSlotIdx = slotIdx;
 	safeCopy(_sharedState.slotName, name.c_str( ), sizeof(_sharedState.slotName)); _isDirty = true;
 	mutex_exit(&_stateMutex);
 }
 
-void DisplayManager::setTopSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name) {
+void DisplayManager::setTopSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name) {
 	mutex_enter_blocking(&_stateMutex);
-	_sharedState.topSlotTemp = t; _sharedState.topSlotHum = h; _sharedState.topSlotValid = isValid; _sharedState.topSlotType = type; _sharedState.topSlotIdx = slotIdx;
+	_sharedState.topSlotTemp = t; _sharedState.topSlotHum = h; _sharedState.topSlotPres = p; _sharedState.topSlotValid = isValid; _sharedState.topSlotType = type; _sharedState.topSlotIdx = slotIdx;
 	safeCopy(_sharedState.topSlotName, name.c_str( ), sizeof(_sharedState.topSlotName)); _isDirty = true;
 	mutex_exit(&_stateMutex);
 }
