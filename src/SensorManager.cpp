@@ -572,6 +572,7 @@ void SensorManager::processPeriodicReads( ) {
      float t, h, p;
      if (drv->getResults(t, h, p)) {
       /* BME280: v1=temp, v2=humidity (pressure available via API) */
+     if (drv->getChipId() == 0x58) h = NAN;  /* BMP280 chip ID */
       handleSensorResult(s, true, t, h, "");
       /* Store pressure in CH_PRESS channel buffer */
       if (!isnan(p)) {
