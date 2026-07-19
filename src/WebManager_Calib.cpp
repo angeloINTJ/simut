@@ -298,8 +298,6 @@ void WebManager::handleApiCalibPost( ) {
 				objStart = objEnd + 1;
 				if (slot < 0 || slot >= MAX_SENSORS) continue;
 				if (!cfg.sensors[slot].active) continue;
-				if (isAllZero(cfg.sensors[slot].rom)) continue;
-
 				char newId[16] = {0}, newName[32] = {0};
 				float refT = NAN;
 				jsonExtractCStr(obj, "hwId", newId, sizeof(newId));
@@ -308,6 +306,9 @@ void WebManager::handleApiCalibPost( ) {
 
 				if (newId[0] != '\0') safeCopy(cfg.sensors[slot].hwId, newId, sizeof(cfg.sensors[slot].hwId));
 				if (newName[0] != '\0') safeCopy(cfg.sensors[slot].friendlyName, newName, sizeof(cfg.sensors[slot].friendlyName));
+
+				/* Non-DS18B20 (no ROM): hwId/name applied above; skip calib.csv */
+				if (isAllZero(cfg.sensors[slot].rom)) continue;
 
 				float curT = NAN, off = 0;
 				const auto& runtime = _sensorRef->getRuntimeSensors( );

@@ -84,8 +84,9 @@ void AppManager::loadAndCalibrateSensors( ) {
  bool gotT = _storageMgr->getCalibrationDataAmbient('t', dbIdT, dbOffsetT, dbNameT);
  bool gotU = _storageMgr->getCalibrationDataAmbient('u', dbIdU, dbOffsetU, dbNameU);
  if (gotT) {
- if (dbIdT.length( ) > 0) { safeCopy(cfg.sensors[i].hwId, dbIdT.c_str( ), sizeof(cfg.sensors[i].hwId)); }
- if (dbNameT.length( ) > 0) { safeCopy(cfg.sensors[i].friendlyName, dbNameT.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
+  bool isAuto = (cfg.sensors[i].hwId[0] == '\0' || strncmp(cfg.sensors[i].hwId, "STH", 3) == 0);
+  if (dbIdT.length( ) > 0 && isAuto) { safeCopy(cfg.sensors[i].hwId, dbIdT.c_str( ), sizeof(cfg.sensors[i].hwId)); }
+  if (dbNameT.length( ) > 0 && isAuto) { safeCopy(cfg.sensors[i].friendlyName, dbNameT.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
  }
  _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbIdT, dbOffsetT, dbNameT);
  if (gotT || gotU) {
