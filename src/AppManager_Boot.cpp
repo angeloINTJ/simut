@@ -717,6 +717,19 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_SYS_READY);
  delay(800);
  LOG_CODE(LOG_INFO, "APP", APP_READY, 0, TRL("System ready."));
+
+ /* Prime network status so alpha LCD can show IP immediately
+    without waiting for the main loop to call updateSystemStatus. */
+ {
+  SystemStatusData sd;
+  memset(&sd, 0, sizeof(sd));
+  sd.wifiConnected = _netMgr->isConnected( );
+  sd.rssi          = _netMgr->getRssi( );
+  char ip[16]; _netMgr->getIpAddress(ip, sizeof(ip));
+  safeCopy(sd.ip, ip, sizeof(sd.ip));
+  _displayMgr->updateSystemStatus(sd);
+ }
+
  _displayMgr->endBoot( );
  _bootCompletedAt = millis( );
  BLOG("[BOOT step] 14: SYS READY @ "); BLOG_U(millis( )); BLOG_NL( );
