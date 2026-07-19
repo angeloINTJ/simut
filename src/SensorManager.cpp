@@ -743,14 +743,17 @@ bool SensorManager::pollAsyncResult(String &msg) { return false; }
 
 #if SIMUT_SENSOR_BME280
 int8_t SensorManager::_getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr) {
+ LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, 0, "BME280 init called");
  /* Allocate new driver on heap — ownership stays with _bmeDrivers vector.
   * Each driver's _sensor is independently heap-allocated by begin().
   * No shallow-copy issues: vector stores pointers, not values. */
  BME280Driver* drv = new BME280Driver();
  if (drv->begin(sda, scl, addr)) {
   _bmeDrivers.push_back(drv);
+  LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, 0, String("BME280 driver OK 0x") + String(addr, HEX));
   return (int8_t)(_bmeDrivers.size() - 1);
  }
+ LOG_CODE(LOG_ERROR, "SENSOR", ERR_UNKNOWN, 0, String("BME280 driver FAIL 0x") + String(addr, HEX));
  delete drv;
  return -1;
 }
