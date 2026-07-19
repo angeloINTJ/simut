@@ -481,7 +481,67 @@ void WebManager::handleApiCommitAll( ) {
 		}
 	}
 
-	if (themeChanged && _displayRef) _displayRef->refreshTheme( );
+	/* ── calib section: apply sensor hwId/name changes ──────────── */
+ {
+  int calStart = body.indexOf("\"calib\"");
+  if (calStart >= 0) {
+   int objStart = body.indexOf('{', calStart);
+   int objEnd = -1;
+   if (objStart >= 0) {
+    int depth = 0;
+    for (int i = objStart; i < (int)body.length(); i++) {
+     char c = body.charAt(i); if (c == '{') depth++; else if (c == '}') { depth--; if (depth == 0) { objEnd = i; break; } }
+    }
+   }
+   if (objStart >= 0 && objEnd > objStart) {
+    String calJson = body.substring(objStart, objEnd + 1);
+    /* Extract sensors array: "sensors":[{...}] */
+    int arrStart = calJson.indexOf("\"sensors\"");
+    if (arrStart >= 0) {
+     arrStart = calJson.indexOf('[', arrStart);
+     int arrEnd = calJson.indexOf(']', arrStart);
+     if (arrStart >= 0 && arrEnd > arrStart) {
+      String arr = calJson.substring(arrStart + 1, arrEnd);
+      int objPos = 0; int safety = 0;
+      while ((objPos = arr.indexOf('{', objPos)) >= 0 && ++safety < 20) {
+       int objEnd2 = arr.indexOf('}', objPos);
+       if (objEnd2 < 0) break;
+       String obj = arr.substring(objPos, objEnd2 + 1);
+       objPos = objEnd2 + 1;
+       /* Extract slot */
+       float slotF = -1; int slot = -1;
+       int slotPos = obj.indexOf("\"slot\":");
+       if (slotPos >= 0) {
+        slotF = obj.substring(slotPos + 7).toFloat();
+        slot = (int)slotF;
+       }
+       if (slot < 0 || slot >= MAX_SENSORS || !cfg.sensors[slot].active) continue;
+       /* Extract hwId */
+       int hwPos = obj.indexOf("\"hwId\":\"");
+       if (hwPos >= 0) {
+        int hwStart = hwPos + 8; int hwEnd = obj.indexOf('"', hwStart);
+        if (hwEnd > hwStart) {
+         String hwId = obj.substring(hwStart, hwEnd);
+         if (hwId.length() > 0) safeCopy(cfg.sensors[slot].hwId, hwId.c_str(), sizeof(cfg.sensors[slot].hwId));
+        }
+       }
+       /* Extract name */
+       int nmPos = obj.indexOf("\"name\":\"");
+       if (nmPos >= 0) {
+        int nmStart = nmPos + 8; int nmEnd = obj.indexOf('"', nmStart);
+        if (nmEnd > nmStart) {
+         String name = obj.substring(nmStart, nmEnd);
+         if (name.length() > 0) safeCopy(cfg.sensors[slot].friendlyName, name.c_str(), sizeof(cfg.sensors[slot].friendlyName));
+        }
+       }
+      }
+     }
+    }
+   }
+  }
+ }
+
+ if (themeChanged && _displayRef) _displayRef->refreshTheme( );
 
 	/* Show status message on the display BEFORE any flash I/O.
 	 * Core 1 goes to boot screen and renders, giving visual feedback
