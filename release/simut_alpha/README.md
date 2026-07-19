@@ -55,8 +55,18 @@ Tools → Board → Boards Manager → instala **Raspberry Pi Pico/RP2040/RP2350
 | D6 | 20 |
 | D7 | 21 |
 
-Para alterar pinos, edita `simut_arduino_config.h`.
+Para alterar pinos ou modo (I2C/paralelo), edita `simut_arduino_config.h`
+ou o ficheiro central **`simut_config.h`**.
+
+## Customização
+
+Todas as opções configuráveis estão em **`simut_config.h`** — pinos, sensores,
+modo LCD, buzzer, mDNS. Edite esse arquivo antes de compilar.
+
+Os valores específicos do Alpha (display HD44780, modo paralelo, pinos)
+estão pré-definidos no `simut_arduino_config.h` (antes do include).
 
 ## Sensores
 
-BME280, DS18B20 e DHT22 habilitados. Para desabilitar, comenta em `simut_arduino_config.h`.
+BME280, DS18B20 e DHT22 habilitados por padrão.
+Para desabilitar, comente em `simut_config.h`.

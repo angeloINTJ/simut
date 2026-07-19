@@ -16,7 +16,7 @@
  */
 #pragma once
 #include <Arduino.h>
-#include "display/DisplayConfig.h"  /* → simut_config.h for pin defaults */
+#include "DisplayConfig.h"  /* → simut_config.h for pin defaults */
 
 /* Alpha build: GFX library excluded. Forward-declare only for TFT build. */
 #if SIMUT_DISPLAY_TFT

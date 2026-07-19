@@ -47,6 +47,15 @@ Tools → Board → Boards Manager → instala **Raspberry Pi Pico/RP2040/RP2350
 
 **Flash usado:** ~909 KB (87%) | **RAM:** ~95 KB (36%)
 
+## Customização
+
+Todas as opções configuráveis estão em **`simut_config.h`** — pinos, sensores,
+Bluetooth, mDNS, pacotes de temas. Edite esse arquivo antes de compilar.
+
+Para sobreescrever valores, defina antes do `#include "simut_config.h"` no
+`simut_arduino_config.h` (já configurado para o display TFT).
+
 ## Sensores
 
-BME280, DS18B20 e DHT22 habilitados. Para desabilitar, comenta em `simut_arduino_config.h`.
+BME280, DS18B20 e DHT22 habilitados por padrão.
+Para desabilitar, comente em `simut_config.h`.

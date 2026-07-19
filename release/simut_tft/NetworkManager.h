@@ -18,10 +18,11 @@
 #include "simut_arduino_config.h"
 #endif
 #include <Arduino.h>
+#include "simut_config.h"   /* SIMUT_MDNS — must precede #ifdef below */
 #include <WiFi.h>
 #include <time.h>
 /* LEAmDNS optional — saves ~196KB flash when disabled.
- * Enable via -DSIMUT_MDNS in platformio.ini build_flags. */
+ * Enable via SIMUT_MDNS in simut_config.h. */
 #ifdef SIMUT_MDNS
 #include <LEAmDNS.h>
 #endif

@@ -15,7 +15,7 @@
 #if SIMUT_SENSOR_DS18B20
 
 #include <Arduino.h>
-#include "sensors/SensorConfig.h"
+#include "SensorConfig.h"
 #include "OneWirePIO.h"
 #include "DS18B20PIO.h"
 #if SIMUT_DISPLAY_TFT
