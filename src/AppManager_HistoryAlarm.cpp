@@ -184,7 +184,9 @@ void AppManager::updateLiveDisplay( ) {
  }
  }
 
-
+ /* Keep main slot data in sync so the alpha LCD sees sensor faults
+    (inErrorState changes) without waiting for a slot-change event. */
+ refreshSelectedSlot( );
  }
 }
 
