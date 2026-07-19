@@ -417,7 +417,7 @@ void WebManager::handleApiStatus( ) {
 		 *   the API adapts automatically via SensorFormat metadata. */
 		const char* typeName = sensorTypeName(s.type);
 		uint8_t chCount = sensorValueCount(s.type);
-		if (sensorHasChannel(s.type, CH_HUM) && !s.inErrorState && !isnan(s.avgValue[1])) {
+		if (sensorHasChannel(s.type, CH_HUM) && !s.inErrorState && !isnan(s.avgValue[1]) && s.avgValue[1] < 1e9f) {
 			snprintf(humBuffer, sizeof(humBuffer), ",\"hum\":%.1f", s.avgValue[1]);
 		}
 

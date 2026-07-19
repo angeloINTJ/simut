@@ -134,7 +134,7 @@ struct BME280Driver {
 
         /* Sanity checks */
         if (t < -40.0f || t > 85.0f)  t = NAN;
-        if (h < 0.0f || h > 100.0f || isnan(h) || isinf(h)) h = NAN;
+        { volatile float hv = h; if (hv < 0.0f || hv > 100.0f) h = NAN; }
         if (p < 300.0f  || p > 1100.0f) p = NAN;
 
         return !isnan(t);
