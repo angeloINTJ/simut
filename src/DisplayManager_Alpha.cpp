@@ -211,9 +211,10 @@ void DisplayManager::loadDisplayOffset(const DisplayOffsetData*){}
 bool DisplayManager::getUiEvent(UiEvent&){return false;}
 void DisplayManager::setWebBusy(bool,const char*){}
 void DisplayManager::injectTouch(int16_t,int16_t){}
-void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name) {
+void DisplayManager::setSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name) {
 	_sharedState.slotTemp = t;
 	_sharedState.slotHum  = h;
+  _sharedState.slotPres = p;
 	_sharedState.slotValid = isValid;
 	_sharedState.slotType  = type;
 	_sharedState.selectedSlotIdx = slotIdx;
@@ -221,7 +222,7 @@ void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid
 }
 void DisplayManager::showCalendar(int,int,uint32_t){}
 void DisplayManager::setSlotMinMax(float,float,float,float){}
-void DisplayManager::setTopSlotData(float,float,SensorType,bool,int,String){}
+void DisplayManager::setTopSlotData(float,float,float,SensorType,bool,int,String){}
 void DisplayManager::showAuthScreen(String){}
 bool DisplayManager::isScreenTouched( ){return false;}
 void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
