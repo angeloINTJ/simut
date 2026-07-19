@@ -184,12 +184,12 @@ void AppManager::updateLiveDisplay( ) {
  }
  }
 
+ }
+
  /* Keep main slot data in sync so the alpha LCD sees sensor faults
     (inErrorState changes) without waiting for a slot-change event. */
  refreshSelectedSlot( );
- }
 }
-
 /**
  * @brief Pre-load daily Min/Max values from binary history for fast display.
  * Runs during boot to avoid flash I/O competition with the dashboard.
