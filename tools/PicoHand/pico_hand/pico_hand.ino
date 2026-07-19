@@ -42,10 +42,10 @@
  * ============================================================================= */
 
 /** GPIO connected to the target Pico's BOOTSEL button. */
-static const uint8_t PIN_BOOTSEL = 0;
+static const uint8_t PIN_BOOTSEL = 22;
 
 /** GPIO connected to the target Pico's RUN (reset) pin. */
-static const uint8_t PIN_RESET   = 1;
+static const uint8_t PIN_RESET   = 26;
 
 /** On-board LED, used as heartbeat to indicate firmware is alive.
  *  GP25 is the standard Pico on-board LED. Using a literal value avoids
