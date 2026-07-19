@@ -388,15 +388,16 @@ void WebManager::handleApiCalibPost( ) {
 	}
 	fout.close( );
 
-	if (!_storageRef->processCalibrationUpload( )) {
-		_server.send(500, "application/json", "{\"error\":\"calib commit failed\"}");
-		return;
+	if (nChanges > 0) {
+	 if (!_storageRef->processCalibrationUpload( )) {
+	  _server.send(500, "application/json", "{\"error\":\"calib commit failed\"}");
+	  return;
+	 }
+	 _displayRef->requestQuietMode( );
 	}
-
-	_displayRef->requestQuietMode( );
 	_storageRef->saveConfiguration( );
 	app.loadAndCalibrateSensors( );
-	_displayRef->releaseQuietMode( );
+	if (nChanges > 0) _displayRef->releaseQuietMode( );
 
 	LOG_CODE(LOG_INFO, "WEB", APP_SENSORS_CALIBRATED, 0, "calib via /api/calib");
 
