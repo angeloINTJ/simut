@@ -150,14 +150,9 @@ void DisplayManager::loopCore1( ) {
 				_big.showNumber(_lcd, raw);
 				_lcd.setCursor(14, 0); _lcd.write('o');
 				_lcd.setCursor(15, 1); _lcd.write('C');
-			} else if (!_sharedState.slotValid) {
-				/* Sensor fault — show big ERRO */
-				_big.showError(_lcd);
 			} else {
-				_lcd.setCursor(0, 0);
-				_lcd.print("SIMUT " SIMUT_VERSION);
-				_lcd.setCursor(0, 1);
-				_lcd.print("--.- C / --%%    ");
+				/* Both sensors NaN → fault.  Show big ERRO. */
+				_big.showError(_lcd);
 			}
 		}
 
