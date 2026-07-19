@@ -28,9 +28,17 @@ const uint8_t BF_LR[8]  = { B11111, B11111, B11111, B11111, B11111, B11111, B111
 const uint8_t BF_UMB[8] = { B11111, B11111, B00000, B00000, B00000, B00000, B11111, B11111 };
 const uint8_t BF_GR[8]  = { B01100, B10010, B10010, B01100, B00000, B00000, B00000, B00000 };
 
+/* WiFi signal-strength icons (slot 7).  Bars grow from bottom up. */
+const uint8_t BF_WIFI0[8] = { B00000, B00000, B00000, B00000, B00000, B00000, B00000, B10001 };  /* X */
+const uint8_t BF_WIFI1[8] = { B00000, B00000, B00000, B00000, B00000, B00000, B00000, B11111 };  /* ▁ */
+const uint8_t BF_WIFI2[8] = { B00000, B00000, B00000, B00000, B00000, B00000, B11111, B11111 };  /* ▂ */
+const uint8_t BF_WIFI3[8] = { B00000, B00000, B00000, B00000, B00000, B11111, B11111, B11111 };  /* ▄ */
+const uint8_t BF_WIFI4[8] = { B00000, B00000, B00000, B00000, B11111, B11111, B11111, B11111 };  /* ▆ */
+const uint8_t BF_WIFI5[8] = { B00000, B00000, B00000, B11111, B11111, B11111, B11111, B11111 };  /* █ */
+
 enum BigFontSlot : uint8_t {
 	BFS_LT  = 0, BFS_UB = 1, BFS_RT = 2, BFS_LL = 3,
-	BFS_LB  = 4, BFS_LR = 5, BFS_UMB= 6, BFS_GR = 7
+	BFS_LB  = 4, BFS_LR = 5, BFS_UMB= 6, BFS_WIFI = 7
 };
 
 /* ═══ Classe BigFont_HD44780 ═════════════════════════════════════════ */
@@ -41,15 +49,16 @@ public:
 	 *  Hd44780_16x2 ou qualquer classe com createChar(num, bitmap). */
 	template <typename LCD>
 	void begin(LCD& lcd) {
-		lcd.createChar(BFS_LT,  const_cast<uint8_t*>(BF_LT));
-		lcd.createChar(BFS_UB,  const_cast<uint8_t*>(BF_UB));
-		lcd.createChar(BFS_RT,  const_cast<uint8_t*>(BF_RT));
-		lcd.createChar(BFS_LL,  const_cast<uint8_t*>(BF_LL));
-		lcd.createChar(BFS_LB,  const_cast<uint8_t*>(BF_LB));
-		lcd.createChar(BFS_LR,  const_cast<uint8_t*>(BF_LR));
-		lcd.createChar(BFS_UMB, const_cast<uint8_t*>(BF_UMB));
-		lcd.createChar(BFS_GR,  const_cast<uint8_t*>(BF_GR));
+		lcd.createChar(BFS_LT,   const_cast<uint8_t*>(BF_LT));
+		lcd.createChar(BFS_UB,   const_cast<uint8_t*>(BF_UB));
+		lcd.createChar(BFS_RT,   const_cast<uint8_t*>(BF_RT));
+		lcd.createChar(BFS_LL,   const_cast<uint8_t*>(BF_LL));
+		lcd.createChar(BFS_LB,   const_cast<uint8_t*>(BF_LB));
+		lcd.createChar(BFS_LR,   const_cast<uint8_t*>(BF_LR));
+		lcd.createChar(BFS_UMB,  const_cast<uint8_t*>(BF_UMB));
+		lcd.createChar(BFS_WIFI, const_cast<uint8_t*>(BF_WIFI0));
 		_loaded = true;
+		_lastRssi = -999;  /* force first redraw */
 	}
 
 	/** Marca como carregado (CGRAM carregada externamente). */
@@ -140,9 +149,8 @@ public:
 		/* D3 — décimos */
 		showDigit(lcd, d3, 12);
 
-		/* Unidade °C */
-		lcd.setCursor(15, 1); lcd.write(BFS_GR);
-		/* 'C' não cabe na linha — omitido para caber em 16 colunas */
+		/* No ° symbol — slot 7 is now WiFi icon.
+		   Temperature is clear from context (big digits + comma). */
 	}
 
 	/** Inteiro grande (0–999) sem vírgula, com sufixo personalizado.
@@ -189,6 +197,39 @@ public:
 		lcd.write(suffix);
 	}
 
+	/** Atualiza o ícone WiFi (slot 7) conforme o RSSI.
+	 *  RSSI >= -50 → 5 barras, >= -60 → 4, >= -70 → 3,
+	 *  >= -80 → 2,  >= -90 → 1,  < -90 → 0 (X).
+	 *  @returns true se o CGRAM foi alterado. */
+	template <typename LCD>
+	bool showWiFi(LCD& lcd, int32_t rssi) {
+		if (!_loaded) return false;
+		int level;
+		if      (rssi >= -50) level = 5;
+		else if (rssi >= -60) level = 4;
+		else if (rssi >= -70) level = 3;
+		else if (rssi >= -80) level = 2;
+		else if (rssi >= -90) level = 1;
+		else                 level = 0;
+
+		if (level == _lastLevel) return false;
+		_lastLevel = level;
+
+		const uint8_t* bm;
+		switch (level) {
+		case 0: bm = BF_WIFI0; break;
+		case 1: bm = BF_WIFI1; break;
+		case 2: bm = BF_WIFI2; break;
+		case 3: bm = BF_WIFI3; break;
+		case 4: bm = BF_WIFI4; break;
+		default: bm = BF_WIFI5; break;
+		}
+		lcd.createChar(BFS_WIFI, const_cast<uint8_t*>(bm));
+		return true;
+	}
+
 private:
-	bool _loaded = false;
+	bool    _loaded = false;
+	int32_t _lastRssi = -999;
+	int8_t  _lastLevel = -1;
 };
