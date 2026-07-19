@@ -87,13 +87,20 @@ void DisplayManager::loopCore1( ) {
 				}
 			} else {
 				/* ── Show WiFi / IP for 5 s ────────────────────── */
+				/* _netStatus may not be updated yet (Core 0 loop
+				   runs after boot).  Use _sharedState.wifiRssi
+				   which is updated by setSystemStatus. */
 				_lcd.setCursor(0, 0);
-				if (_netStatus.wifiConnected) {
+				if (_sharedState.wifiRssi > -100) {
 					_lcd.print("  Conectado!    ");
 					_lcd.setCursor(0, 1);
 					_lcd.print("                ");
 					_lcd.setCursor(0, 1);
-					_lcd.print(_netStatus.ip);
+					if (_netStatus.ip[0] != '\0')
+						_lcd.print(_netStatus.ip);
+					else
+						_lcd.print(_netStatus.wifiConnected
+							? _netStatus.ip : "   Obtendo IP...");
 				} else {
 					_lcd.print("  Sem WiFi      ");
 					_lcd.setCursor(0, 1);
