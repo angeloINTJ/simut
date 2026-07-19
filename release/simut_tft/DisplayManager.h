@@ -38,11 +38,7 @@ class Adafruit_GFX;
 #include "Themes.h"
 #include "SoundManager.h"
 
-#define TFT_CS 28
-#define TFT_DC 27
-#define TFT_RST 26
-#define TOUCH_CS 17
-#define TOUCH_IRQ 20
+/* TFT/SPI pin assignments → see simut_config.h */
 
 enum LangKey {
 	TR_AMBIENT, TR_CONFIG_MAIN, TR_CONFIG_THEMES, TR_CONFIG_LANG, TR_BACK,

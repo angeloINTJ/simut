@@ -29,6 +29,7 @@
 #include "simut_arduino_config.h"
 #endif
 
+#include "simut_config.h"       /* centralized hw config — must come first */
 #include "SystemDefs_Limits.h"
 #include "SystemDefs_Time.h"
 #include "SystemDefs_Network.h"

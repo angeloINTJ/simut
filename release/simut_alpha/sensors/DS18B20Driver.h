@@ -15,14 +15,14 @@
 #if SIMUT_SENSOR_DS18B20
 
 #include <Arduino.h>
+#include "SensorConfig.h"
 #include "OneWirePIO.h"
 #include "DS18B20PIO.h"
 #if SIMUT_DISPLAY_TFT
 #include "SensorDrawing.h"
-#define PIN_ONEWIRE_DEFAULT 0
-#else
-#define PIN_ONEWIRE_DEFAULT 255
 #endif
+
+/* PIN_ONEWIRE_DEFAULT → see src/simut_config.h */
 
 struct DS18B20Driver {
     OneWirePIO  bus;

@@ -16,59 +16,28 @@
  */
 #pragma once
 #include <Arduino.h>
+#include "DisplayConfig.h"  /* → simut_config.h for pin defaults */
+
 /* Alpha build: GFX library excluded. Forward-declare only for TFT build. */
 #if SIMUT_DISPLAY_TFT
 class Adafruit_GFX;
 #endif
 
 /* ── Interface selection ───────────────────────────────────────────── */
+/* Mode and pin defaults are now in src/simut_config.h.                 */
 
-#ifndef HD44780_MODE_I2C
-#ifndef HD44780_MODE_PARALLEL
-#define HD44780_MODE_I2C 1   /* default: I2C backpack */
-#endif
-#endif
-
-/* ── I2C mode defaults ─────────────────────────────────────────────── */
+/* ── I2C mode ──────────────────────────────────────────────────────── */
 /* GPIO 0-15 are reserved for sensors. I2C1 on GP26/GP27 (free in alpha). */
 
 #if HD44780_MODE_I2C
 #include <Wire.h>
-#ifndef HD44780_I2C_ADDR
-#define HD44780_I2C_ADDR 0x27
-#endif
-#ifndef HD44780_I2C_SDA
-#define HD44780_I2C_SDA 26
-#endif
-#ifndef HD44780_I2C_SCL
-#define HD44780_I2C_SCL 27
-#endif
 #define HD44780_WIRE Wire1  /* I2C1 bus */
 #endif
 
-/* ── Parallel mode pin defaults ────────────────────────────────────── */
+/* ── Parallel mode ─────────────────────────────────────────────────── */
 /* GPIO 0-15 are reserved for sensors. GP16-21 = SPI pins, free in alpha. */
 
-#if HD44780_MODE_PARALLEL
-#ifndef HD44780_RS
-#define HD44780_RS 16
-#endif
-#ifndef HD44780_EN
-#define HD44780_EN 17
-#endif
-#ifndef HD44780_D4
-#define HD44780_D4 18
-#endif
-#ifndef HD44780_D5
-#define HD44780_D5 19
-#endif
-#ifndef HD44780_D6
-#define HD44780_D6 20
-#endif
-#ifndef HD44780_D7
-#define HD44780_D7 21
-#endif
-#endif
+/* (parallel pin defaults → see src/simut_config.h) */
 
 /* ── Driver struct ──────────────────────────────────────────────────── */
 
@@ -116,7 +85,9 @@ struct Hd44780_16x2 {
 		pinMode(HD44780_D7, OUTPUT);
 		digitalWrite(HD44780_EN, LOW);
 #endif
+#if HD44780_MODE_PARALLEL
 		_initLcd( );
+#endif
 		initialized = true;
 	}
 
@@ -215,6 +186,7 @@ private:
 	void _writeData(uint8_t data) { _writeByte(data, false); }
 	void _setDdramAddr(uint8_t a) { _writeCmd(0x80 | a); }
 
+#if HD44780_MODE_PARALLEL
 	void _initLcd( ) {
 		/* Force known state: keep EN low, let power stabilize */
 		digitalWrite(HD44780_EN, LOW);
@@ -236,5 +208,6 @@ private:
 		_writeCmd(0x06); /* increment, no shift */
 		_writeCmd(0x0C); /* display ON, cursor OFF, no blink */
 	}
+#endif
 };
 
