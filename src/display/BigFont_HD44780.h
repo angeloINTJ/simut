@@ -231,14 +231,14 @@ public:
 	}
 
 	/** Exibe "ERRO" em letras grandes (3 colunas por letra).
-	 *  Ocupa colunas 2-13, centralizado no display. */
+	 *  Ocupa colunas 3-14, centralizado no display. */
 	template <typename LCD>
 	void showError(LCD& lcd) {
 		if (!_loaded) return;
-		/* E */ showLetterE(lcd, 2);
-		/* R */ showLetterR(lcd, 5);
-		/* R */ showLetterR(lcd, 8);
-		/* O */ showDigit(lcd, 0, 11);  /* 'O' = digit 0 */
+		/* E */ showLetterE(lcd, 3);
+		/* R */ showLetterR(lcd, 6);
+		/* R */ showLetterR(lcd, 9);
+		/* O */ showDigit(lcd, 0, 12);  /* 'O' = digit 0 */
 	}
 
 private:
@@ -257,9 +257,9 @@ private:
 	}
 	template <typename LCD>
 	void showLetterR(LCD& lcd, uint8_t col) {
-		/* R: left edge, top bar + right corner, middle bar,
-		   empty bottom-right = diagonal leg. */
+		/* R: left edge, top bar + right corner, bottom gap,
+		   right column continuous = diagonal leg. */
 		lcd.setCursor(col, 0); lcd.write(BFS_LT);  lcd.write(BFS_UB);  lcd.write(BFS_RT);
-		lcd.setCursor(col, 1); lcd.write(BFS_LL);  lcd.write(BFS_UMB); lcd.write(' ');
+		lcd.setCursor(col, 1); lcd.write(BFS_LL);  lcd.write(' ');      lcd.write(BFS_RT);
 	}
 };
