@@ -132,24 +132,24 @@ public:
 		uint8_t d3 = mod % 10;           /* unidades (décimo)       */
 
 		/* Sinal e limpeza da área inicial */
-		if (neg) { lcd.setCursor(4, 0); lcd.write(BFS_LB); }
-		else     { lcd.setCursor(4, 0); lcd.write(' '); }
+		if (neg) { lcd.setCursor(3, 0); lcd.write(BFS_LB); }
+		else     { lcd.setCursor(3, 0); lcd.write(' '); }
 
 		/* D1 — centenas (suprimido se for 0) */
-		if (d1 > 0) { showDigit(lcd, d1, 5); }
+		if (d1 > 0) { showDigit(lcd, d1, 4); }
 		else {
-			lcd.setCursor(5,0); lcd.write(' ');lcd.write(' ');lcd.write(' ');
-			lcd.setCursor(5,1); lcd.write(' ');lcd.write(' ');lcd.write(' ');
+			lcd.setCursor(4,0); lcd.write(' ');lcd.write(' ');lcd.write(' ');
+			lcd.setCursor(4,1); lcd.write(' ');lcd.write(' ');lcd.write(' ');
 		}
 
 		/* D2 — dezenas */
-		showDigit(lcd, d2, 8);
+		showDigit(lcd, d2, 7);
 
 		/* Vírgula decimal entre D2 e D3 */
-		lcd.setCursor(11, 1); lcd.write(',');
+		lcd.setCursor(10, 1); lcd.write(',');
 
 		/* D3 — décimos */
-		showDigit(lcd, d3, 12);
+		showDigit(lcd, d3, 11);
 
 		/* No ° symbol — slot 7 is now WiFi icon.
 		   Temperature is clear from context (big digits + comma). */
@@ -170,9 +170,9 @@ public:
 
 		/* Centrado: 3 dígitos → col 4, 2 dígitos → col 6, 1 dígito → col 8 */
 		uint8_t startCol;
-		if (d1 > 0)      startCol = 3;  /* 3 dígitos */
-		else if (d2 > 0) startCol = 6;  /* 2 dígitos */
-		else             startCol = 9;  /* 1 dígito  */
+		if (d1 > 0)      startCol = 4;  /* 3 dígitos */
+		else if (d2 > 0) startCol = 7;  /* 2 dígitos */
+		else             startCol = 10;  /* 1 dígito  */
 
 		/* Sinal */
 		if (neg) { lcd.setCursor(startCol - 1, 0); lcd.write(BFS_LB); }
