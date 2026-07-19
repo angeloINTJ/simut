@@ -155,11 +155,11 @@ void WebManager::handleApiCalibGet( ) {
 		sanitizeName(sName);
 		bool hasH = sensorHasHumidity((SensorType)cfg.sensors[i].sensorType);
 		snprintf(buf, sizeof(buf),
-		         "%s{\"gpio\":%d,\"rom\":\"%s\",\"hwId\":\"%s\",\"name\":\"%s\","
+		         "%s{\"slot\":%d,\"gpio\":%d,\"rom\":\"%s\",\"hwId\":\"%s\",\"name\":\"%s\","
 		         "\"hasHum\":%s,"
 		         "\"tempRead\":%s,\"tempOffset\":%.2f,"
 		         "\"humRead\":%s,\"humOffset\":%.2f}",
-		         first ? "" : ",", i, romHex, sHwId, sName,
+		         first ? "" : ",", i, cfg.sensors[i].pins[0], romHex, sHwId, sName,
 		         hasH ? "true" : "false",
 		         runtimeTValid[i] ? String(runtimeT[i], 2).c_str( ) : "null",
 		         slotOff[i],

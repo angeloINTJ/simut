@@ -424,8 +424,16 @@ void WebManager::handleApiStatus( ) {
 		 if (p > 0) { size_t l = strlen(rolesBuf); rolesBuf[l] = ','; rolesBuf[l+1] = '\0'; }
 		 strncat(rolesBuf, fmt.pins[p].label, sizeof(rolesBuf) - strlen(rolesBuf) - 1);
 		}
-		snprintf(buffer, sizeof(buffer), "{\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"ch\":%d,\"pc\":%d,\"pr\":\"%s\",\"val\":%s%s%s}",
-		         s.config.pins[0], sId.c_str( ), sName.c_str( ), typeName, chCount, fmt.pinCount, rolesBuf, valBuffer, humBuffer, presBuffer);
+		/* Find slot index for this sensor */
+		int slotIdx = -1;
+		for (int si = 0; si < MAX_SENSORS; si++) {
+		 if (cfg.sensors[si].active && cfg.sensors[si].pins[0] == s.config.pins[0]
+		     && cfg.sensors[si].sensorType == (uint8_t)s.type) {
+		  slotIdx = si; break;
+		 }
+		}
+		snprintf(buffer, sizeof(buffer), "{\"slot\":%d,\"gpio\":%d,\"id\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"ch\":%d,\"pc\":%d,\"pr\":\"%s\",\"val\":%s%s%s}",
+		         slotIdx, s.config.pins[0], sId.c_str( ), sName.c_str( ), typeName, chCount, fmt.pinCount, rolesBuf, valBuffer, humBuffer, presBuffer);
 		if (!safeSend(buffer)) return;
 			first = false;
 	}
