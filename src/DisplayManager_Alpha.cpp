@@ -5,6 +5,7 @@
 extern DisplayManager* _instance;  /* defined in DisplayManager.cpp */
 static Hd44780_16x2   _lcd;
 static BigFont_HD44780 _big;
+static SystemStatusData _netStatus;
 static uint32_t _lt = 0;
 static bool     _sh = false;
 
@@ -32,8 +33,9 @@ void DisplayManager::loopCore1( ) {
 	uint32_t barTimer   = 0;   /* throttle bar advance */
 	int16_t  lastLogKey[5] = { -1, -1, -1, -1, -1 };
 	bool     bootDone   = false;
-	bool     showFullBar= false;
 	uint8_t  fullBarCnt = 0;
+	uint8_t  showNetCnt = 0;
+	bool     showNetwork = false;
 
 	while (true) {
 		TRACE_MOD(1, MOD_DISPLAY);
@@ -67,23 +69,44 @@ void DisplayManager::loopCore1( ) {
 			_lcd.write(']');
 
 		} else if (!bootDone) {
-			/* ── BOOT → SENSOR TRANSITION ──────────────────────── */
-			if (bootBar < 14 && fullBarCnt < 6) {
-				/* Fill remaining bar segments */
-				if (fullBarCnt == 0) { bootBar = 14; }
-				_lcd.setCursor(0, 0);
-				_lcd.print("SIMUT " SIMUT_VERSION);
-				_lcd.setCursor(0, 1);
-				_lcd.write('[');
-				for (uint8_t i = 0; i < 14; i++) _lcd.write('#');
-				_lcd.write(']');
-				fullBarCnt++;
+			/* ── BOOT → NETWORK → SENSOR TRANSITION ──────────────── */
+			if (!showNetwork) {
+				if (bootBar < 14 && fullBarCnt < 6) {
+					/* Fill remaining bar segments */
+					if (fullBarCnt == 0) { bootBar = 14; }
+					_lcd.setCursor(0, 0);
+					_lcd.print("SIMUT " SIMUT_VERSION);
+					_lcd.setCursor(0, 1);
+					_lcd.write('[');
+					for (uint8_t i = 0; i < 14; i++) _lcd.write('#');
+					_lcd.write(']');
+					fullBarCnt++;
+				} else {
+					showNetwork = true;
+					showNetCnt = 0;
+				}
 			} else {
-				bootDone = true;
-				_lcd.clear( );
-				_lt  = millis( );
-				_sh  = false;
-				barTimer = 0;
+				/* ── Show WiFi / IP for 5 s ────────────────────── */
+				_lcd.setCursor(0, 0);
+				if (_netStatus.wifiConnected) {
+					_lcd.print("  Conectado!    ");
+					_lcd.setCursor(0, 1);
+					_lcd.print("                ");
+					_lcd.setCursor(0, 1);
+					_lcd.print(_netStatus.ip);
+				} else {
+					_lcd.print("  Sem WiFi      ");
+					_lcd.setCursor(0, 1);
+					_lcd.print("    Offline     ");
+				}
+
+				showNetCnt++;
+				if (showNetCnt >= 10) {  /* 10 × 500ms = 5 s */
+					bootDone = true;
+					_lcd.clear( );
+					_lt  = millis( );
+					_sh  = false;
+				}
 			}
 
 		} else {
@@ -189,7 +212,9 @@ void DisplayManager::setWebNotification(const char*){}
 void DisplayManager::showSettingsAlarms(SystemConfig*){}
 void DisplayManager::showSettingsSounds(const SoundSettingsState&){}
 void DisplayManager::showSettingsThemes(int){}
-void DisplayManager::updateSystemStatus(const SystemStatusData&){}
+void DisplayManager::updateSystemStatus(const SystemStatusData& d) {
+	_netStatus = d;
+}
 void DisplayManager::setTelemetryPending(uint16_t){}
 void DisplayManager::showSettingsLicense( ){}
 const char* DisplayManager::getActiveLicenseText( ){return "";}
