@@ -257,9 +257,8 @@ private:
 	}
 	template <typename LCD>
 	void showLetterR(LCD& lcd, uint8_t col) {
-		/* R: left edge, top bar + right corner, bottom gap,
-		   right column continuous = diagonal leg. */
+		/* R: left edge, top+mid bars, continuous right edge. */
 		lcd.setCursor(col, 0); lcd.write(BFS_LT);  lcd.write(BFS_UB);  lcd.write(BFS_RT);
-		lcd.setCursor(col, 1); lcd.write(BFS_LL);  lcd.write(' ');      lcd.write(BFS_RT);
+		lcd.setCursor(col, 1); lcd.write(BFS_LL);  lcd.write(BFS_UB);  lcd.write(BFS_RT);
 	}
 };
