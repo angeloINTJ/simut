@@ -150,7 +150,7 @@ void DisplayManager::loopCore1( ) {
 				_big.showNumber(_lcd, raw);
 				_lcd.setCursor(14, 0); _lcd.write('o');
 				_lcd.setCursor(15, 1); _lcd.write('C');
-			} else if (!_sharedState.slotValid && _sharedState.slotType != TYPE_NONE) {
+			} else if (!_sharedState.slotValid) {
 				/* Sensor fault — show big ERRO */
 				_big.showError(_lcd);
 			} else {
