@@ -142,6 +142,106 @@ struct BME280Driver {
 
 /* ── Panel rendering (TFT dashboard, theme-aware) ───────────────────── */
 #if SIMUT_DISPLAY_TFT
+
+/* ── BMP280 panel: Temperature + Pressure (no humidity) ────────────────────
+ *  Layout mirrors DHT22 but replaces humidity with pressure:
+ *  [thermometer] [TEMP °C] ... [PRESS hPa] [barometer]                    */
+
+inline void BMP280_renderPanel(GFXcanvas16* cv, float t, float p, bool isValid,
+                                int16_t cardW, bool leftAnchor, bool isRedPhase,
+                                uint16_t panelBg, const GFXfont& font24,
+                                const GFXfont& font12, const GFXfont& font9,
+                                uint16_t txtSub, uint16_t tempOk,
+                                uint16_t tempHot, uint16_t pressure,
+                                uint16_t textOff) {
+    uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : tempOk;
+    uint16_t unitCol = isRedPhase ? RGB565(220,200,200) : txtSub;
+    uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtSub;
+    uint16_t mercCol = isRedPhase ? RGB565(255,255,255) : tempHot;
+    uint16_t presCol = isRedPhase ? RGB565(255,255,255) : pressure;
+    uint16_t baroCol = isRedPhase ? RGB565(220,200,200) : pressure;
+    uint16_t unitPCol = isRedPhase ? RGB565(220,200,200) : txtSub;
+
+    if (!isValid || isnan(t)) {
+        cv->setFont(&font12); cv->setTextSize(1);
+        cv->setTextColor(isRedPhase ? RGB565(255,255,255) : tempHot);
+        cv->setCursor(25, 28); cv->print("--.-");
+        return;
+    }
+
+    /* ── Temperature (left side) ── */
+    int intPart = (int)t;
+    int decPart = abs((int)(t * 10.0f) % 10);
+    char iP[10]; snprintf(iP, sizeof(iP), "%d", intPart);
+    char dP[5];  snprintf(dP, sizeof(dP), ".%d", decPart);
+    int16_t xx, yy; uint16_t iw, ih, decW;
+    cv->setFont(&font24); cv->setTextSize(1);
+    cv->getTextBounds(iP, 0, 0, &xx, &yy, &iw, &ih);
+    cv->getTextBounds(dP, 0, 0, &xx, &yy, &decW, &ih);
+
+    int textAnchor, iconX;
+    if (leftAnchor) {
+        textAnchor = 92; iconX = 14;
+    } else {
+        int totalW = 20 + 8 + ((int)iw + 4 + (int)decW) + 3 + 16;
+        int offsetX = (cardW - totalW) / 2;
+        textAnchor = offsetX + 20 + 8 + (int)iw;
+        iconX = offsetX;
+    }
+    int unitX = textAnchor + (int)decW + 3;
+
+    drawThermometerLarge(cv, iconX, 4, icTherm, panelBg, mercCol);
+
+    cv->setFont(&font24); cv->setTextSize(1);
+    cv->setTextColor(tempCol);
+    int numCursorX = textAnchor - (int)iw - 4;
+    cv->setCursor(numCursorX, 35); cv->print(iP);
+    if (t < 0.0f) {
+        cv->getTextBounds("-", 0, 0, &xx, &yy, &decW, &ih);
+        int eraseW = (int)decW / 3; if (eraseW < 2) eraseW = 2;
+        cv->fillRect(numCursorX, 0, eraseW, 40, panelBg);
+    }
+    cv->setFont(&font24);
+    cv->setCursor(textAnchor, 35); cv->print(dP);
+
+    cv->setFont(&font9); cv->setTextColor(unitCol);
+    cv->setCursor(unitX, 17); cv->print("o");
+    cv->setFont(&font12);
+    cv->setCursor(unitX + 8, 35); cv->print("C");
+
+    /* ── Pressure (right side, mirrors humidity layout) ── */
+    if (!isnan(p)) {
+        const char* presUnit = "hPa";
+        cv->setFont(&font12); cv->setTextSize(1);
+        int16_t px, py; uint16_t puW, puH, pw, ph;
+        cv->getTextBounds(presUnit, 0, 0, &px, &py, &puW, &puH);
+        const int rightMargin = 15;
+        int unitPX = cardW - rightMargin - (int)puW;
+        int presAnchor = unitPX - 3;
+
+        cv->setFont(&font24); cv->setTextSize(1);
+        cv->setTextColor(presCol);
+        char pb[7];
+        snprintf(pb, sizeof(pb), "%d", (int)p);
+        cv->getTextBounds(pb, 0, 0, &px, &py, &pw, &ph);
+        cv->setCursor(presAnchor - (int)pw, 35);
+        cv->print(pb);
+
+        cv->setFont(&font12);
+        cv->setTextColor(unitPCol);
+        cv->setCursor(unitPX, 34);
+        cv->print(presUnit);
+
+        int baroRight = presAnchor - (int)pw - 6;
+        int bx = baroRight - 15;
+        drawBarometerLarge(cv, bx, 4, baroCol, panelBg, presCol);
+    }
+}
+
+/* ── BME280 panel: Temperature + Humidity + Pressure ───────────────────────
+ *  T large (center-left) + H right side (same as DHT22).
+ *  Pressure shown as small badge when available (compact, non-intrusive).   */
+
 inline void BME280_renderPanel(GFXcanvas16* cv, float t, float h, float p,
                                 bool isValid, int16_t cardW,
                                 bool leftAnchor, bool isRedPhase,
@@ -150,10 +250,6 @@ inline void BME280_renderPanel(GFXcanvas16* cv, float t, float h, float p,
                                 uint16_t txtSub, uint16_t tempOk,
                                 uint16_t tempHot, uint16_t humidity,
                                 uint16_t textOff) {
-    (void)p; /* Reserved — pressure badge can be added in a future redesign */
-    /* BME280 panel: T large (center-left) + H right side.
-     * Layout mirrors DHT22 panel — proven legible at 320×240.
-     * Pressure available via stats screen and API. */
 
     uint16_t tempCol  = isRedPhase ? RGB565(255,255,255) : tempOk;
     uint16_t unitCol  = isRedPhase ? RGB565(220,200,200) : txtSub;
@@ -167,8 +263,7 @@ inline void BME280_renderPanel(GFXcanvas16* cv, float t, float h, float p,
     if (!isValid || isnan(t)) {
         cv->setFont(&font12); cv->setTextSize(1);
         cv->setTextColor(isRedPhase ? RGB565(255,255,255) : tempHot);
-        cv->setCursor(25, 28);
-        cv->print("--.-");
+        cv->setCursor(25, 28); cv->print("--.-");
         return;
     }
 
@@ -184,8 +279,7 @@ inline void BME280_renderPanel(GFXcanvas16* cv, float t, float h, float p,
 
     int textAnchor, iconX;
     if (leftAnchor) {
-        textAnchor = 92;
-        iconX = 14;
+        textAnchor = 92; iconX = 14;
     } else {
         int totalW = 20 + 8 + ((int)iw + 4 + (int)decW) + 3 + 16;
         int offsetX = (cardW - totalW) / 2;
@@ -199,8 +293,7 @@ inline void BME280_renderPanel(GFXcanvas16* cv, float t, float h, float p,
     cv->setFont(&font24); cv->setTextSize(1);
     cv->setTextColor(tempCol);
     int numCursorX = textAnchor - (int)iw - 4;
-    cv->setCursor(numCursorX, 35);
-    cv->print(iP);
+    cv->setCursor(numCursorX, 35); cv->print(iP);
     if (t < 0.0f) {
         cv->getTextBounds("-", 0, 0, &xx, &yy, &decW, &ih);
         int eraseW = (int)decW / 3; if (eraseW < 2) eraseW = 2;
@@ -240,6 +333,18 @@ inline void BME280_renderPanel(GFXcanvas16* cv, float t, float h, float p,
         int dropRight = humAnchor - (int)hw - 6;
         int dx = dropRight - 14;
         drawDropLarge(cv, dx, 4, dropCol, dropShine);
+
+        /* ── Pressure badge (small, below humidity) ── */
+        if (!isnan(p)) {
+            cv->setFont(&font9); cv->setTextSize(1);
+            cv->setTextColor(txtSub);
+            char pBadge[16];
+            snprintf(pBadge, sizeof(pBadge), "P:%d", (int)p);
+            int16_t bpx, bpy; uint16_t bpw, bph;
+            cv->getTextBounds(pBadge, 0, 0, &bpx, &bpy, &bpw, &bph);
+            cv->setCursor(cardW - (int)bpw - 15, 28);
+            cv->print(pBadge);
+        }
     }
 }
 
