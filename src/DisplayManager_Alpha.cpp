@@ -42,6 +42,10 @@ void DisplayManager::loopCore1( ) {
 		TRACE_BEAT(1);
 		_lastHeartbeat = millis( );
 
+		/* Update WiFi signal icon (slot 7) based on RSSI */
+		_big.showWiFi(_lcd, _sharedState.wifiRssi);
+
+
 		if (_sharedState.isBooting) {
 			/* ── BOOT SCREEN ──────────────────────────────────── */
 			_lcd.setCursor(0, 0);
@@ -63,8 +67,9 @@ void DisplayManager::loopCore1( ) {
 
 			/* Render bar: [############      ] */
 			_lcd.setCursor(0, 1);
+			_lcd.write(BFS_WIFI);
 			_lcd.write('[');
-			for (uint8_t i = 0; i < 14; i++)
+			for (uint8_t i = 0; i < 13; i++)
 				_lcd.write(i < bootBar ? '#' : ' ');
 			_lcd.write(']');
 
@@ -96,18 +101,19 @@ void DisplayManager::loopCore1( ) {
 				if (hasIp && !hadIp) { showNetCnt = 0; hadIp = true; }
 
 				_lcd.setCursor(0, 0);
+				_lcd.write(BFS_WIFI);
 				if (online && hasIp) {
-					_lcd.print("  Conectado!    ");
+					_lcd.print(" Conectado!     ");
 					_lcd.setCursor(0, 1);
 					_lcd.print("                ");
 					_lcd.setCursor(0, 1);
 					_lcd.print(_netStatus.ip);
 				} else if (online && !hasIp) {
-					_lcd.print("  Conectado!    ");
+					_lcd.print(" Conectado!     ");
 					_lcd.setCursor(0, 1);
 					_lcd.print("  Obtendo IP... ");
 				} else {
-					_lcd.print("  Sem WiFi      ");
+					_lcd.print(" Sem WiFi       ");
 					_lcd.setCursor(0, 1);
 					_lcd.print("    Offline     ");
 				}
@@ -132,6 +138,9 @@ void DisplayManager::loopCore1( ) {
 			}
 
 			_lcd.clear( );
+			/* WiFi icon top-left */
+			_lcd.setCursor(0, 0);
+			_lcd.write(BFS_WIFI);
 
 			if (_sh && !isnan(_sharedState.slotHum)) {
 				int hum = (int)_sharedState.slotHum;
