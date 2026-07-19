@@ -28,14 +28,15 @@ const uint8_t BF_LR[8]  = { B11111, B11111, B11111, B11111, B11111, B11111, B111
 const uint8_t BF_UMB[8] = { B11111, B11111, B00000, B00000, B00000, B00000, B11111, B11111 };
 const uint8_t BF_GR[8]  = { B01100, B10010, B10010, B01100, B00000, B00000, B00000, B00000 };
 
-/* WiFi signal-strength icons (slot 7) — right triangle from bottom-left.
-   Each level adds one row: 1 dot → 2 → 3 → 4 → 5 (full triangle). */
-const uint8_t BF_WIFI0[8] = { B00000, B00000, B10001, B01010, B00100, B01010, B10001, B00000 };
-const uint8_t BF_WIFI1[8] = { B00000, B00000, B00000, B00000, B00000, B00000, B00000, B10000 };
-const uint8_t BF_WIFI2[8] = { B00000, B00000, B00000, B00000, B00000, B00000, B10000, B11000 };
-const uint8_t BF_WIFI3[8] = { B00000, B00000, B00000, B00000, B00000, B10000, B11000, B11100 };
-const uint8_t BF_WIFI4[8] = { B00000, B00000, B00000, B00000, B10000, B11000, B11100, B11110 };
-const uint8_t BF_WIFI5[8] = { B00000, B00000, B00000, B10000, B11000, B11100, B11110, B11111 };
+/* WiFi signal-strength icons (slot 7) — right triangle, right-angle
+   at bottom-right, flipped horizontally.  2px up-shift to align with 'W'.
+   Each level adds one row from bottom up.                              */
+const uint8_t BF_WIFI0[8] = { B00000, B10001, B01010, B00100, B01010, B10001, B00000, B00000 };
+const uint8_t BF_WIFI1[8] = { B00000, B00000, B00000, B00000, B00000, B11111, B00000, B00000 };
+const uint8_t BF_WIFI2[8] = { B00000, B00000, B00000, B00000, B01111, B11111, B00000, B00000 };
+const uint8_t BF_WIFI3[8] = { B00000, B00000, B00000, B00111, B01111, B11111, B00000, B00000 };
+const uint8_t BF_WIFI4[8] = { B00000, B00000, B00011, B00111, B01111, B11111, B00000, B00000 };
+const uint8_t BF_WIFI5[8] = { B00000, B00001, B00011, B00111, B01111, B11111, B00000, B00000 };
 
 enum BigFontSlot : uint8_t {
 	BFS_LT  = 0, BFS_UB = 1, BFS_RT = 2, BFS_LL = 3,
