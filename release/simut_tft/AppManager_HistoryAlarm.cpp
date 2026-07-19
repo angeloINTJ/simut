@@ -1,0 +1,537 @@
+/**
+ * @file AppManager_HistoryAlarm.cpp
+ * @brief History logging, min/max computation, alarm monitoring, live display updates.
+ * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
+ *          SIMUT — Integrated Universal Monitoring and Telemetry System
+ * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
+ * @author Ângelo Moisés Alves
+ * @license MIT License
+ */
+
+#include "AppManager.h"
+#include "DisplayManager.h"
+#include "LogManager.h"
+#include "NetworkManager.h"
+#include "SensorManager.h"
+#include "SoundManager.h"
+#include "StorageManager.h"
+#include "SystemDefs.h"
+#include "TelemetryManager.h"
+#include <LittleFS.h>
+#include <time.h>
+
+void AppManager::pauseDisplayForFlash(bool lock) {
+ /* During cooperative quiet mode, Core 1 is frozen in a RAM-only
+ * loop with IRQs OFF. Attempting an IRQ-based multicore_lockout here
+ * blocks forever (IRQ never handled) until WDT kills Core 0.
+ * Lockout is unnecessary in this scenario because Core 1 already
+ * doesn't touch flash. Early-return makes requestFsLock (LogManager)
+ * and enterFlashSafeMode (StorageManager) no-ops when already inside
+ * quiet mode. */
+ if (_displayMgr->isInQuietMode( )) return;
+ _displayMgr->pauseRendering(lock);
+}
+
+bool AppManager::requestDisplayQuietMode(bool enable) {
+ if (enable) return _displayMgr->requestQuietMode( ); /* default 15s */
+ _displayMgr->releaseQuietMode( );
+ return true;
+}
+
+void AppManager::refreshSelectedSlot( ) {
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ /* Restore persisted panel selection on first call */
+ if (_lastSavedSlotIdx < 0) {
+ _lastSavedSlotIdx = (int8_t)cfg.reserved[53];
+ _lastSavedTopIdx = (int8_t)cfg.reserved[52];
+ if (cfg.reserved[53] && cfg.reserved[53] < MAX_SENSORS) _currentSensorIdx = cfg.reserved[53];
+ if (cfg.reserved[52] && cfg.reserved[52] < MAX_SENSORS) _displayMgr->setTopSlotFixedIdx(cfg.reserved[52]);
+ _lastSlotChangeTime = millis( );
+ }
+ const auto& sensors = _sensorMgr->getRuntimeSensors( );
+ bool found = false;
+
+ if (_currentSensorIdx >= 0 && _currentSensorIdx < MAX_SENSORS && cfg.sensors[_currentSensorIdx].active) {
+ uint8_t targetGpio = cfg.sensors[_currentSensorIdx].pins[0];
+ for (const auto &s : sensors) {
+ if (s.config.pins[0] == targetGpio) {
+ _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ found = true;
+ if (_displayMgr->getTopSlotIdx( ) == _currentSensorIdx)
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ break;
+ }
+ }
+ }
+
+ if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
+
+ /* Fixed panels: override with pinned sensor data when panel is fixed elsewhere */
+ {
+ int topIdx = _displayMgr->getTopSlotIdx( );
+ if (topIdx != _currentSensorIdx && topIdx >= 0 && topIdx < MAX_SENSORS && cfg.sensors[topIdx].active) {
+ uint8_t tgpio = cfg.sensors[topIdx].pins[0];
+ for (const auto &s : sensors) {
+ if (s.config.pins[0] == tgpio) {
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
+ break;
+ }
+ }
+ }
+ }
+}
+
+/**
+ * @brief Push current sensor data and system status to the display shared state.
+ * System status (time, RSSI, pending count) updates every cycle.
+ * Sensor data updates only when new readings are available.
+ */
+void AppManager::updateLiveDisplay( ) {
+
+
+ {
+ String dateStr = _netMgr->getFormattedDate( );
+ dateStr.replace("/20", "/");
+ String fullStatus = dateStr + " - " + _netMgr->getFormattedTime( );
+ _displayMgr->setSystemStatus(_netMgr->getRssi( ), false, fullStatus);
+
+
+ static uint32_t lastPendingRefresh = 0;
+ if (timeSince(lastPendingRefresh, 10000)) {
+ _telemetryMgr->refreshPendingCount( );
+ lastPendingRefresh = millis( );
+ }
+ _displayMgr->setTelemetryPending(_telemetryMgr->getPendingEstimate( ));
+
+ /* Real-time min/max accumulation — feed from current sensor readings */
+ {
+ const auto& sensors = _sensorMgr->getRuntimeSensors( );
+ for (const auto &s : sensors) {
+ if (s.inErrorState) continue;
+ int gpio = s.config.pins[0];
+ if (gpio < 0 || gpio >= MINMAX_SLOT_COUNT) continue;
+ float v = s.avgValue[0];
+ if (!isnan(v)) {
+ if (v < _cachedMin[gpio]) _cachedMin[gpio] = v;
+ if (v > _cachedMax[gpio]) _cachedMax[gpio] = v;
+ }
+ float h = s.avgValue[1];
+ if (!isnan(h)) {
+ if (h < _cachedHumMin[gpio]) _cachedHumMin[gpio] = h;
+ if (h > _cachedHumMax[gpio]) _cachedHumMax[gpio] = h;
+ }
+ }
+ }
+
+ /* Debounced panel config save (3s after last interaction) */
+ if (_lastSlotChangeTime > 0 && millis( ) - _lastSlotChangeTime > 3000) {
+ int8_t ct = (int8_t)_displayMgr->getTopSlotIdx( );
+ int8_t cs = (int8_t)_currentSensorIdx;
+ if (ct != _lastSavedTopIdx || cs != _lastSavedSlotIdx) {
+ _lastSavedTopIdx = ct;
+ _lastSavedSlotIdx = cs;
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ cfg.reserved[52] = (uint8_t)ct;
+ cfg.reserved[53] = (uint8_t)cs;
+ _storageMgr->saveConfiguration( );
+ }
+ }
+
+ /* Daily min/max — all slots uniform */
+ int slotIdx = _currentSensorIdx;
+ if (slotIdx >= 0 && slotIdx < MAX_SENSORS) {
+ float sMinT = (_cachedMin[slotIdx] < 999.0f) ? _cachedMin[slotIdx] : NAN;
+ float sMaxT = (_cachedMax[slotIdx] > -999.0f) ? _cachedMax[slotIdx] : NAN;
+ float sMinH = (_cachedHumMin[slotIdx] < 999.0f) ? _cachedHumMin[slotIdx] : NAN;
+ float sMaxH = (_cachedHumMax[slotIdx] > -999.0f) ? _cachedHumMax[slotIdx] : NAN;
+ _displayMgr->setSlotMinMax(sMinT, sMaxT, sMinH, sMaxH);
+ /* Top slot min/max — may differ from _currentSensorIdx when fixed */
+ int topIdx = _displayMgr->getTopSlotIdx( );
+ if (topIdx >= 0 && topIdx < MAX_SENSORS && topIdx != slotIdx) {
+ float tMinT = (_cachedMin[topIdx] < 999.0f) ? _cachedMin[topIdx] : NAN;
+ float tMaxT = (_cachedMax[topIdx] > -999.0f) ? _cachedMax[topIdx] : NAN;
+ float tMinH = (_cachedHumMin[topIdx] < 999.0f) ? _cachedHumMin[topIdx] : NAN;
+ float tMaxH = (_cachedHumMax[topIdx] > -999.0f) ? _cachedHumMax[topIdx] : NAN;
+ _displayMgr->setTopSlotMinMax(tMinT, tMaxT, tMinH, tMaxH);
+ } else {
+ _displayMgr->setTopSlotMinMax(sMinT, sMaxT, sMinH, sMaxH);
+ }
+ }
+ }
+
+ if (_sensorMgr->hasNewReadings( )) {
+ const auto& sensors = _sensorMgr->getRuntimeSensors( );
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ int topIdx = _displayMgr->getTopSlotIdx( );
+
+ for (const auto &s : sensors) {
+ /* Selected slot data */
+ if (_currentSensorIdx >= 0 && _currentSensorIdx < MAX_SENSORS &&
+ cfg.sensors[_currentSensorIdx].active &&
+ cfg.sensors[_currentSensorIdx].pins[0] == s.config.pins[0]) {
+ _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _currentSensorIdx, String(s.config.friendlyName));
+ if (topIdx == _currentSensorIdx)
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _currentSensorIdx, String(s.config.friendlyName));
+ }
+ /* Top panel (fixed elsewhere) */
+ if (topIdx != _currentSensorIdx && topIdx >= 0 && topIdx < MAX_SENSORS &&
+ cfg.sensors[topIdx].active &&
+ cfg.sensors[topIdx].pins[0] == s.config.pins[0]) {
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ topIdx, String(s.config.friendlyName));
+ }
+ }
+
+ }
+
+ /* Keep main slot data in sync so the alpha LCD sees sensor faults
+    (inErrorState changes) without waiting for a slot-change event. */
+ refreshSelectedSlot( );
+}
+/**
+ * @brief Pre-load daily Min/Max values from binary history for fast display.
+ * Runs during boot to avoid flash I/O competition with the dashboard.
+ * Uses ReadLock (no Core 1 pause) with 5-second budget limit.
+ */
+void AppManager::preloadMinMax( ) {
+ time_t now = _netMgr->getEpoch( );
+ struct tm timeinfo;
+ localtime_r(&now, &timeinfo);
+
+ char path[40];
+ snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
+ timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+
+ File f;
+ _storageMgr->enterFlashReadLock( );
+ bool fileExists = LittleFS.exists(path);
+ if (fileExists) f = LittleFS.open(path, "r");
+ _storageMgr->exitFlashReadLock( );
+
+ if (fileExists && f) {
+ /* v2: validate SIM2 header. */
+ HistoryFileHeaderV2 hdrP;
+ bool headerOkP = false;
+ {
+ StorageManager::ReadGuard rg(_storageMgr.get( ));
+ if (f.size( ) >= HIST_V2_HEADER_SIZE) {
+ f.seek(0);
+ if (f.read((uint8_t*)&hdrP, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
+ headerOkP = (memcmp(hdrP.magic, HIST_V2_MAGIC, 4) == 0 &&
+ hdrP.version == HIST_V2_VERSION &&
+ hdrP.anchorPeriod > 0);
+ }
+ }
+ }
+ if (!headerOkP) {
+ { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
+ return;
+ }
+
+ HistoryCodecState pState;
+ historyCodecReset(pState);
+ uint16_t pAnchorPeriod = hdrP.anchorPeriod;
+ uint8_t pRdBuf[256];
+ size_t pRdFilled = 0;
+
+ uint32_t _preloadBudget = millis( );
+ bool hasMore = true;
+
+ while (hasMore) {
+ if (timeSince(_preloadBudget, 5000)) {
+ LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
+ { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
+ LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, 0, "");
+ return;
+ }
+
+ _storageMgr->enterFlashReadLock( );
+ BinaryHistoryRecord batch[20];
+ int count = 0;
+ while (count < 20) {
+ if (pRdFilled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
+ int rN = f.read(pRdBuf + pRdFilled, sizeof(pRdBuf) - pRdFilled);
+ if (rN > 0) pRdFilled += (size_t)rN;
+ }
+ if (pRdFilled == 0) break;
+ bool isAnc = (pState.recordsSinceAnchor == 0) ||
+ (pState.recordsSinceAnchor == pAnchorPeriod);
+ size_t consumed = historyDecodeRecord(pRdBuf, pRdFilled, pState,
+ batch[count], isAnc);
+ if (consumed == 0) break;
+ memmove(pRdBuf, pRdBuf + consumed, pRdFilled - consumed);
+ pRdFilled -= consumed;
+ count++;
+ }
+ hasMore = (pRdFilled > 0 || f.available( ) > 0);
+ _storageMgr->exitFlashReadLock( );
+
+ /* Process batch outside the lock */
+ for (int b = 0; b < count; b++) {
+ const BinaryHistoryRecord& rec = batch[b];
+
+ float ambT = BinaryHistoryRecord::i16ToFloat(rec.ambientTemp);
+ if (!isnan(ambT)) {
+ if (ambT < _cachedMin[10]) _cachedMin[10] = ambT;
+ if (ambT > _cachedMax[10]) _cachedMax[10] = ambT;
+ }
+
+ float ambH = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+ if (!isnan(ambH)) {
+ if (ambH < _cachedHumMin[10]) _cachedHumMin[10] = ambH;
+ if (ambH > _cachedHumMax[10]) _cachedHumMax[10] = ambH;
+ }
+
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ float v = BinaryHistoryRecord::i16ToFloat(rec.sensors[i]);
+ if (!isnan(v)) {
+ if (v < _cachedMin[i]) _cachedMin[i] = v;
+ if (v > _cachedMax[i]) _cachedMax[i] = v;
+ }
+ }
+ }
+
+ feedWdt( );
+ delay(2);
+ }
+
+ _storageMgr->enterFlashReadLock( );
+ f.close( );
+ _storageMgr->exitFlashReadLock( );
+ }
+
+ /* Save preload snapshot (CSV data only, without real-time readings) */
+ for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
+ _preloadMin[i] = _cachedMin[i];
+ _preloadMax[i] = _cachedMax[i];
+ _preloadHumMin[i] = _cachedHumMin[i];
+ _preloadHumMax[i] = _cachedHumMax[i];
+ }
+
+ LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_FULL, 0, "");
+}
+
+void AppManager::processHistoryLogging( ) {
+ _lastHistoryTime = millis( );
+ time_t now = _netMgr->getEpoch( );
+
+ /* History only saves with a valid time reference (NTP synced OR
+ * provisional active). Threshold 1600000000 = approximate Unix
+ * timestamp for 2020-09-13; below that is fallback ~1970 without
+ * any time reference. Without the gate, records would get epoch=0
+ * or bizarre values, contaminating telemetry + UI.
+ *
+ * Warn-once: without the warning, it could go minutes/hours losing
+ * records with no indication. Logs once when entering the state,
+ * once when leaving. */
+ if (now <= 1600000000) {
+ if (!_histTimeRefWarned) {
+ LOG_CODE(LOG_WARN, "HIST", APP_HIST_NO_TIME_REF, 0,
+ TRL("History skip: no time reference (NTP off + no provisional)"));
+ _histTimeRefWarned = true;
+ }
+ return;
+ }
+ /* Recovered: log once when resuming saves after a period without time ref. */
+ if (_histTimeRefWarned) {
+ LOG_CODE(LOG_INFO, "HIST", APP_HIST_TIME_REF_RECOVERED, 0,
+ TRL("History resumed: time reference acquired"));
+ _histTimeRefWarned = false;
+ }
+
+ {
+ const auto& sensors = _sensorMgr->getRuntimeSensors( );
+ SystemConfig &cfg = _storageMgr->getConfig( );
+
+ /* ── Build binary record ── */
+ BinaryHistoryRecord rec;
+ rec.clear( );
+ rec.epoch = (uint32_t)now;
+
+ /* All universal slots (0..15) — temp + humidity */
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (!cfg.sensors[i].active) continue;
+ for (const auto &s : sensors) {
+ if (s.config.pins[0] == cfg.sensors[i].pins[0] && !s.inErrorState) {
+ float v = s.avgValue[0];
+ if (!isnan(v)) {
+ rec.sensors[i] = BinaryHistoryRecord::floatToI16(v);
+ if (v < _cachedMin[i]) _cachedMin[i] = v;
+ if (v > _cachedMax[i]) _cachedMax[i] = v;
+ if (v < _preloadMin[i]) _preloadMin[i] = v;
+ if (v > _preloadMax[i]) _preloadMax[i] = v;
+ }
+ float h = s.avgValue[1];
+ if (!isnan(h)) {
+ if (h < _cachedHumMin[i]) _cachedHumMin[i] = h;
+ if (h > _cachedHumMax[i]) _cachedHumMax[i] = h;
+ if (h < _preloadHumMin[i]) _preloadHumMin[i] = h;
+ if (h > _preloadHumMax[i]) _preloadHumMax[i] = h;
+ }
+ /* Slot 10 also populates ambient fields (backward compat for telemetry) */
+ if (i == 10) {
+ rec.ambientTemp = BinaryHistoryRecord::floatToI16(v);
+ rec.ambientHum = BinaryHistoryRecord::floatToI16(h);
+ }
+ break;
+ }
+ }
+ }
+
+ if (_storageMgr->writeHistoryEntry(rec)) {
+ LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
+ _telemetryMgr->notifyNewRecord( );
+ }
+ }
+
+ /* Periodic heap log — only when low or once per hour (avoids premature log rotation) */
+ {
+ uint32_t heapFree = rp2040.getFreeHeap( );
+ static uint32_t lastFullHeapLog = 0;
+
+ if (heapFree < 32768 || timeSince(lastFullHeapLog, 3600000)) {
+ char heapMsg[48];
+ snprintf(heapMsg, sizeof(heapMsg), "Heap: %lu free / %lu total",
+ (unsigned long)heapFree,
+ (unsigned long)rp2040.getTotalHeap( ));
+ LOG_CODE(LOG_INFO, "SYS", APP_HEAP_REPORT, (int)(heapFree/1024), heapMsg);
+ lastFullHeapLog = millis( );
+ }
+
+ /* Alert when heap drops below 16KB (margin for WiFi+TLS) */
+ if (heapFree < 16384) {
+ LOG_CODE(LOG_WARN, "SYS", SYS_HEAP_LOW, (int)(heapFree/1024), "");
+ }
+ }
+}
+
+void AppManager::openStatsScreen(int sensorId) {
+ /**
+ * IMPORTANT: pkg must be static to avoid stack overflow.
+ * GraphDataPackage is ~3.2KB — exceeds RP2040 stack (~4KB).
+ * Same pattern used in renderGraphOptimized( ).
+ */
+ static GraphDataPackage pkg;
+ memset(&pkg, 0, sizeof(GraphDataPackage));
+ pkg.sensorIdx = sensorId;
+ pkg.timeRange = 3;
+ pkg.count = 0;
+ pkg.idxMinTemp = -1;
+ pkg.idxMaxTemp = -1;
+ pkg.avgTemp = NAN;
+ pkg.stdTemp = NAN;
+ pkg.deltaTemp = NAN;
+ pkg.avgHum = NAN;
+ pkg.stdHum = NAN;
+ pkg.deltaHum = NAN;
+
+ int cacheIdx = sensorId;
+ if (sensorId == (int)MINMAX_SLOT_BOARD_TEMP) cacheIdx = MINMAX_SLOT_BOARD_TEMP;
+ else if (cacheIdx < 0 || cacheIdx >= MINMAX_SLOT_COUNT) cacheIdx = 0;
+
+ pkg.minVal = _cachedMin[cacheIdx];
+ pkg.maxVal = _cachedMax[cacheIdx];
+
+ if (pkg.minVal == 1000.0f) pkg.minVal = 0.0f;
+ if (pkg.maxVal == -1000.0f) pkg.maxVal = 0.0f;
+
+ float humMin = _cachedHumMin[cacheIdx];
+ float humMax = _cachedHumMax[cacheIdx];
+ if (humMin == 1000.0f) humMin = 0.0f;
+ if (humMax == -1000.0f) humMax = 0.0f;
+
+ SystemConfig &cfg = _storageMgr->getConfig( );
+
+ if (sensorId == (int)MINMAX_SLOT_BOARD_TEMP) {
+ snprintf(pkg.title, sizeof(pkg.title), "Board Temp");
+ snprintf(pkg.hwId, sizeof(pkg.hwId), "SYS");
+ snprintf(pkg.rom, sizeof(pkg.rom), "RP2040-ADC");
+ pkg.hasHumidity = false;
+ } else if (sensorId >= 0 && sensorId < MAX_SENSORS) {
+ pkg.hasHumidity = sensorHasHumidity((SensorType)cfg.sensors[sensorId].sensorType);
+ if (cfg.sensors[sensorId].active) {
+ safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
+ safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
+ snprintf(pkg.rom, sizeof(pkg.rom), "%02X%02X%02X%02X%02X%02X%02X%02X",
+ cfg.sensors[sensorId].rom[0], cfg.sensors[sensorId].rom[1],
+ cfg.sensors[sensorId].rom[2], cfg.sensors[sensorId].rom[3],
+ cfg.sensors[sensorId].rom[4], cfg.sensors[sensorId].rom[5],
+ cfg.sensors[sensorId].rom[6], cfg.sensors[sensorId].rom[7]);
+ } else {
+ snprintf(pkg.title, sizeof(pkg.title), "Slot %d", sensorId);
+ snprintf(pkg.hwId, sizeof(pkg.hwId), "--");
+ snprintf(pkg.rom, sizeof(pkg.rom), "N/A");
+ }
+ }
+ pkg.title[31] = '\0'; pkg.hwId[15] = '\0'; pkg.rom[23] = '\0';
+
+ _displayMgr->showStats(pkg, humMin, humMax);
+}
+void AppManager::checkAlarmConditions( ) {
+ const auto& sensors = _sensorMgr->getRuntimeSensors( );
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ bool anyAlarm = false;
+ uint16_t mask = 0;
+ int8_t firstSlot = -1;
+
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (!cfg.sensors[i].active || !cfg.sensors[i].alarmsActive) continue;
+ uint8_t targetGpio = cfg.sensors[i].pins[0];
+
+ for (const auto &s : sensors) {
+ if (s.config.pins[0] != targetGpio || s.inErrorState) continue;
+
+ bool tripped = false;
+
+ if (!isnan(s.avgValue[0])) {
+ if (s.avgValue[0] < cfg.sensors[i].tempMin ||
+ s.avgValue[0] > cfg.sensors[i].tempMax) {
+ tripped = true;
+ }
+ }
+
+ if (!tripped && sensorHasHumidity(s.type) && !isnan(s.avgValue[1])) {
+ if (s.avgValue[1] < cfg.sensors[i].humMin ||
+ s.avgValue[1] > cfg.sensors[i].humMax) {
+ tripped = true;
+ }
+ }
+
+ if (tripped) {
+ mask |= (1 << i);
+ anyAlarm = true;
+ if (firstSlot < 0) firstSlot = i;
+ }
+ break;
+ }
+ }
+
+
+ bool silenced = _displayMgr->isAlarmSilenced( );
+
+ if (anyAlarm && !_soundMgr->isAlarming( ) && !silenced) {
+
+ _soundMgr->startAlarm( );
+ if (firstSlot >= 0) {
+ _currentSensorIdx = firstSlot;
+ refreshSelectedSlot( );
+ }
+ _displayMgr->setAlarmState(mask, firstSlot);
+ LOG_CODE(LOG_WARN, "APP", APP_ALARM_TRIGGERED, 0, "");
+ } else if (anyAlarm && (_soundMgr->isAlarming( ) || silenced)) {
+
+ _displayMgr->setAlarmState(mask, -1);
+ } else if (!anyAlarm && (_soundMgr->isAlarming( ) || silenced)) {
+
+ _soundMgr->stopAlarm( );
+ _displayMgr->setAlarmState(0, -1);
+
+ if (silenced) {
+ _displayMgr->setAlarmSilenced(false, 0);
+ LOG_CODE(LOG_INFO, "APP", APP_ALARM_SILENCE_CANCEL, 0, "");
+ }
+ LOG_CODE(LOG_INFO, "APP", APP_ALARM_CLEARED, 0, "");
+ }
+}
