@@ -579,6 +579,12 @@ void SensorManager::processPeriodicReads( ) {
        s.buffers[CH_PRESS].push(p);
        if (s.buffers[CH_PRESS].full( )) {
         s.avgValue[CH_PRESS] = calculateTrimmedMean(s.buffers[CH_PRESS]);
+       } else {
+        float sortBuf[MOVING_AVG_WINDOW];
+        s.buffers[CH_PRESS].copyTo(sortBuf);
+        float sumP = 0;
+        for (uint8_t i = 0; i < s.buffers[CH_PRESS].size( ); i++) sumP += sortBuf[i];
+        s.avgValue[CH_PRESS] = sumP / s.buffers[CH_PRESS].size( );
        }
       }
      } else {
