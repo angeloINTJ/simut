@@ -630,7 +630,6 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('calib-form').innerHTML=h;
         }catch(e){showToast(window.t('net_conn_err','Erro de conexão'),'err');}}
         async function applyCalib(){if(!_calS)return;const p={};
-            /* Per-sensor calibration with optional humidity */
             const arr=[];
             (_calS.sensors||[]).forEach(function(s){
                 const id=(document.querySelector('[data-k="s'+s.slot+'_id"]')||{}).value;
@@ -645,12 +644,12 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if(h!==''){e.refHum=parseFloat(h);dirty=true;}
                 if(dirty)arr.push(e);
             });
-            if(arr.length)p.sensors=arr;
-            if(!p.ambient&&!p.sensors){showToast(window.t('cal_no_changes','Nada a alterar.'),'warn');return;}
-            try{const r=await fetchSafe('/api/calib',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(p),retries:0,timeout:20000});
-                if(r.ok){const j=await r.json();showToast(window.t('cal_apply_ok','Atualizado v')+(j.version||''),'ok');await loadCalib();}
-                else{const j=await r.json().catch(()=>({}));showToast(window.t('cal_apply_fail','Falha: ')+(j.error||r.status),'err');}
-            }catch(e){showToast(window.t('net_conn_err','Erro de conexão'),'err');}
+            if(!arr.length){showToast(window.t('cal_no_changes','Nada a alterar.'),'warn');return;}
+            Pending.data.calib = {sensors: arr};
+            sessionStorage.setItem('simut_pending', JSON.stringify(Pending.data));
+            Pending.refreshUI();
+            Pending._maybeNotify();
+            showToast(window.t('cal_queued','Dados da calibração salvos. Clique em "💾 Salvar e Reiniciar" para aplicar.'),'ok',5000);
         }
 
         document.addEventListener('DOMContentLoaded', () => { initSession(); loadThemes(); fetchLoop(); setInterval(fetchLoop, 3000); checkCalib(); });
@@ -4130,6 +4129,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
         if (!confirm(msg)) return;
         const btn = document.getElementById('commit-btn');
         if (btn) { btn.disabled = true; btn.innerText = '...'; }
+        /* Apply calibration changes first if pending */
+        const pendingCalib = Pending.getSection('calib');
+        if (pendingCalib) {
+            try {
+                const cr = await fetchSafe('/api/calib', { method:'POST', headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({sensors: pendingCalib.sensors || []}), retries:0, timeout:45000 });
+                if (cr.ok) { delete Pending.data.calib; sessionStorage.setItem('simut_pending', JSON.stringify(Pending.data)); }
+            } catch(e) { /* proceed even if calib fails */ }
+        }
         const currentPort = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80);
         const pendingNet = Pending.getSection('net') || {};
         const localNewPort = pendingNet.web_port ? parseInt(pendingNet.web_port) : 0;
