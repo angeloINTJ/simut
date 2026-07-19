@@ -41,17 +41,10 @@ inline void sensorRenderPanel(GFXcanvas16* cv, SensorType type,
 #endif
 #if SIMUT_SENSOR_BME280
     case TYPE_BME280:
-        if (isnan(v2)) {
-            /* BMP280: no humidity — show temperature + pressure */
-            BMP280_renderPanel(cv, v1, v3, isValid, cardW, leftAnchor,
-                               isRedPhase, panelBg, font24, font12, font9,
-                               txtSub, tempOk, tempHot, humidity, textOff);
-        } else {
-            /* BME280: T + H + P (pressure as small badge) */
-            BME280_renderPanel(cv, v1, v2, v3, isValid, cardW, leftAnchor,
-                               isRedPhase, panelBg, font24, font12, font9,
-                               txtSub, tempOk, tempHot, humidity, textOff);
-        }
+        /* BMx280: always T+P — humidity detection unreliable on some chips */
+        BMP280_renderPanel(cv, v1, v3, isValid, cardW, leftAnchor,
+                           isRedPhase, panelBg, font24, font12, font9,
+                           txtSub, tempOk, tempHot, humidity, textOff);
         return;
 #endif
 #if SIMUT_SENSOR_DS18B20
