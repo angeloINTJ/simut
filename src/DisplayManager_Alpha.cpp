@@ -141,7 +141,12 @@ void DisplayManager::loopCore1( ) {
 			_lcd.write('W');
 			_lcd.write(BFS_WIFI);
 
-			if (_sh && !isnan(_sharedState.slotHum)) {
+			if (!_sharedState.slotValid) {
+				/* Sensor in error — show big ERRO.
+				   Checked first because avgValue may hold
+				   stale non-NaN values during fault. */
+				_big.showError(_lcd);
+			} else if (_sh && !isnan(_sharedState.slotHum)) {
 				int hum = (int)_sharedState.slotHum;
 				_big.showInteger(_lcd, hum, 13, '%');
 				_lcd.setCursor(14, 1); _lcd.print("UR");
@@ -151,7 +156,7 @@ void DisplayManager::loopCore1( ) {
 				_lcd.setCursor(14, 0); _lcd.write('o');
 				_lcd.setCursor(15, 1); _lcd.write('C');
 			} else {
-				/* Both sensors NaN → fault.  Show big ERRO. */
+				/* Both NaN — transitional (boot, sensor change) */
 				_big.showError(_lcd);
 			}
 		}
