@@ -104,6 +104,7 @@ struct BME280Driver {
         /* Pass 1: PIO+DMA */
         _sensor = new BMx280PIO_RP2040(sda, scl, addr);
         _compLoaded = _sensor->begin();
+        Serial.printf("[BMx] PIO+DMA addr=0x%02X cid=0x%02X ok=%d\n", addr, _sensor->getChipID(), _compLoaded);
         if (_compLoaded) return true;
 
         /* Pass 2: GPIO-only fallback */
@@ -111,6 +112,7 @@ struct BME280Driver {
         _sensor = new BMx280PIO_RP2040(sda, scl, addr);
         _sensor->forceGPIO(true);
         _compLoaded = _sensor->begin();
+        Serial.printf("[BMx] GPIO addr=0x%02X cid=0x%02X ok=%d\n", addr, _sensor->getChipID(), _compLoaded);
         if (!_compLoaded) {
             delete _sensor;
             _sensor = nullptr;
