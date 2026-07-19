@@ -143,13 +143,13 @@ void DisplayManager::loopCore1( ) {
 
 			if (_sh && !isnan(_sharedState.slotHum)) {
 				int hum = (int)_sharedState.slotHum;
-				_big.showInteger(_lcd, hum, 14, '%');
-				_lcd.setCursor(14, 0); _lcd.print("UR");
+				_big.showInteger(_lcd, hum, 13, '%');
+				_lcd.setCursor(14, 1); _lcd.print("UR");
 			} else if (!isnan(_sharedState.slotTemp)) {
 				int raw = (int)(_sharedState.slotTemp * 10.0f);
 				_big.showNumber(_lcd, raw);
-				_lcd.setCursor(15, 1); _lcd.write('o');
-				_lcd.setCursor(15, 0); _lcd.write('C');
+				_lcd.setCursor(14, 0); _lcd.write('o');
+				_lcd.setCursor(15, 1); _lcd.write('C');
 			} else {
 				_lcd.setCursor(0, 0);
 				_lcd.print("SIMUT " SIMUT_VERSION);
