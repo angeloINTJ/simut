@@ -4131,12 +4131,14 @@ static const char LANG_JS[] PROGMEM = R"raw(
         if (btn) { btn.disabled = true; btn.innerText = '...'; }
         /* Apply calibration changes first if pending */
         const pendingCalib = Pending.getSection('calib');
-        if (pendingCalib) {
+        if (pendingCalib && pendingCalib.sensors && pendingCalib.sensors.length > 0) {
             try {
                 const cr = await fetchSafe('/api/calib', { method:'POST', headers:{'Content-Type':'application/json'},
                     body:JSON.stringify({sensors: pendingCalib.sensors || []}), retries:0, timeout:30000 });
                 if (cr.ok) {
-                    delete Pending.data.calib; sessionStorage.setItem('simut_pending', JSON.stringify(Pending.data));
+                    /* Keep calib in Pending.data so commit_all can save it to flash */
+                    Pending.data._calibApplied = true;
+                    sessionStorage.setItem('simut_pending', JSON.stringify(Pending.data));
                 } else {
                     const j = await cr.json().catch(()=>({}));
                     showToast((window.t ? window.t('calib_err','Erro na calibração: ')+(j.error||cr.status) : 'Calib error: '+(j.error||cr.status)), 'err');
