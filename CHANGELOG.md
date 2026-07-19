@@ -29,6 +29,30 @@ All notable changes to SIMUT firmware.
 - **Moved to `simut_config.h`** — Theme packs (`SIMUT_THEMES_HEALTH`, `_PRO`, `_MEDICAL`, `_SAFETY`, `_RETRO`, `_NATURE`, `_UTILITY`) are now enabled by uncommenting lines in the config file, not by editing `Themes.cpp`.
 - **`Themes.h` includes `simut_config.h`** — Theme flags are visible wherever `Themes.h` is included.
 
+### PIO Resource Coexistence — Multi-Sensor Conflict Resolution
+
+- **pio0 conflict identified** — OneWirePIO (DS18B20, 27 instruction slots) + WirePIO (BME280 I2C, 32 slots) = 59 > 32 available. WirePIO loaded first, blocking OneWirePIO entirely (DS18B20 dead — no GPIO fallback).
+- **pio1 SM saturation** — 2× DHT22 (2 SMs) + CYW43 WiFi (1 SM) + BuzzerPIO (2 SMs) = 5 > 4 SMs. Resolved by BuzzerPIO auto-fallback to pio0.
+- **`BME280Driver.h` fix** — Added `forceGPIO(true)` before each `begin()` call. BMx280PIO now uses GPIO bit-bang I2C only (skips PIO+DMA), keeping pio0 instruction slots free for OneWirePIO. GPIO mode is slightly slower but fully reliable.
+- **`docs/PIO_ANALYSIS.md`** — Comprehensive PIO resource allocation analysis covering all libraries (OneWirePIO, DHTBus, WirePIO, BuzzerPIO, CYW43), instruction slot budgets per block, state machine counts, DMA channels, conflict scenarios, and resolution mechanisms.
+
+### Hardware Validation — 4-Sensor Coexistence Test
+
+Tested on Pico W with TFT display + buzzer + WiFi:
+
+| Sensor | GPIOs | Type | Status |
+|--------|-------|------|--------|
+| BMP280 | GP0 (SDA), GP1 (SCL) | BME280 driver | ✅ Reading (GPIO bit-bang) |
+| DHT22 #1 | GP2 | DHT22 | ✅ Detected, reading |
+| DHT22 #2 | GP3 | DHT22 | ✅ Detected, reading |
+| DS18B20 | GP4 | DS18B20 | ✅ Detected (ROM: 283C21…), reading |
+
+- **WiFi**: Connected (RSSI -45 dBm), web server responding
+- **PIO after fix**: pio0 31/32 slots (OneWirePIO + BuzzerPIO fallback), pio1 23/32 slots (DHTBus×2 + CYW43)
+- **Heap**: 94.3 KB stable, no leaks over 11+ minutes of continuous operation
+- **Sensor readings**: 857/916 OK (93.2%), 59 errors concentrated during initial setup
+- All 4 sensors configured and activated via CLI, configuration persisted to flash
+
 ### Flash Budget
 
 - **Release (TFT + all sensors + mDNS)**: 94.1% (982604 / 1044480 bytes)
