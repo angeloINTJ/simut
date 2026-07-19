@@ -230,8 +230,37 @@ public:
 		return true;
 	}
 
+	/** Exibe "ERRO" em letras grandes (2 colunas por letra).
+	 *  Ocupa colunas 3-13, centralizado no display. */
+	template <typename LCD>
+	void showError(LCD& lcd) {
+		if (!_loaded) return;
+		/* E */ showLetterE(lcd, 3);
+		/* R */ showLetterR(lcd, 6);
+		/* R */ showLetterR(lcd, 9);
+		/* O */ showLetterO(lcd, 12);
+	}
+
 private:
 	bool    _loaded = false;
 	int32_t _lastRssi = -999;
 	int8_t  _lastLevel = -1;
+
+	/* ── 2-col letter primitives ─────────────────────────────── */
+
+	template <typename LCD>
+	void showLetterE(LCD& lcd, uint8_t col) {
+		lcd.setCursor(col, 0); lcd.write(BFS_LT); lcd.write(BFS_UB);
+		lcd.setCursor(col, 1); lcd.write(BFS_LL); lcd.write(BFS_LB);
+	}
+	template <typename LCD>
+	void showLetterR(LCD& lcd, uint8_t col) {
+		lcd.setCursor(col, 0); lcd.write(BFS_LT); lcd.write(BFS_RT);
+		lcd.setCursor(col, 1); lcd.write(BFS_LL); lcd.write(BFS_LB);
+	}
+	template <typename LCD>
+	void showLetterO(LCD& lcd, uint8_t col) {
+		lcd.setCursor(col, 0); lcd.write(BFS_LT); lcd.write(BFS_RT);
+		lcd.setCursor(col, 1); lcd.write(BFS_LL); lcd.write(BFS_LR);
+	}
 };
