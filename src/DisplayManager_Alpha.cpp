@@ -202,7 +202,13 @@ void DisplayManager::setSlotMinMax(float,float,float,float){}
 void DisplayManager::setTopSlotData(float,float,SensorType,bool,int,String){}
 void DisplayManager::showAuthScreen(String){}
 bool DisplayManager::isScreenTouched( ){return false;}
-void DisplayManager::setSystemStatus(int,bool,String){}
+void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
+	mutex_enter_blocking(&_stateMutex);
+	_sharedState.wifiRssi = rssi;
+	_sharedState.btActive  = bt;
+	safeCopy(_sharedState.timeString, timeStr.c_str( ), sizeof(_sharedState.timeString));
+	mutex_exit(&_stateMutex);
+}
 const char* DisplayManager::getActiveWebDict( ){return nullptr;}
 void DisplayManager::releaseQuietMode( ){}
 bool DisplayManager::requestQuietMode(uint32_t){return true;}

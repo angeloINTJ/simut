@@ -528,12 +528,14 @@ void DisplayManager::setTopSlotMinMax(float minT, float maxT, float minH, float 
 	_topPanel.maxHum = maxH;
 }
 
+#if !SIMUT_DISPLAY_ALPHA
 void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
 	mutex_enter_blocking(&_stateMutex);
 	_sharedState.wifiRssi = rssi; _sharedState.btActive = bt;
 	safeCopy(_sharedState.timeString, timeStr.c_str( ), sizeof(_sharedState.timeString)); _isDirty = true;
 	mutex_exit(&_stateMutex);
 }
+#endif
 
 
 
