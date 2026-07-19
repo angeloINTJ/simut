@@ -127,7 +127,7 @@ struct BME280Driver {
 
         /* Sanity checks */
         if (t < -40.0f || t > 85.0f)  t = NAN;
-        if (h < 0.0f   || h > 100.0f) h = NAN;
+        if (h <= 0.0f  || h > 100.0f) h = NAN;  /* BMP280 returns h=0.0f — clamp to NAN */
         if (p < 300.0f  || p > 1100.0f) p = NAN;
 
         return true;
