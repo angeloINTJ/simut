@@ -67,6 +67,7 @@ void DisplayManager::loopCore1( ) {
 
 			/* Render bar: [############      ] */
 			_lcd.setCursor(0, 1);
+			_lcd.write('W');
 			_lcd.write(BFS_WIFI);
 			_lcd.write('[');
 			for (uint8_t i = 0; i < 13; i++)
@@ -101,6 +102,7 @@ void DisplayManager::loopCore1( ) {
 				if (hasIp && !hadIp) { showNetCnt = 0; hadIp = true; }
 
 				_lcd.setCursor(0, 0);
+				_lcd.write('W');
 				_lcd.write(BFS_WIFI);
 				if (online && hasIp) {
 					_lcd.print(" Conectado!     ");
@@ -140,6 +142,7 @@ void DisplayManager::loopCore1( ) {
 			_lcd.clear( );
 			/* WiFi icon top-left */
 			_lcd.setCursor(0, 0);
+			_lcd.write('W');
 			_lcd.write(BFS_WIFI);
 
 			if (_sh && !isnan(_sharedState.slotHum)) {
