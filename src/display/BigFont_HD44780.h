@@ -230,15 +230,15 @@ public:
 		return true;
 	}
 
-	/** Exibe "ERRO" em letras grandes (2 colunas por letra).
-	 *  Ocupa colunas 3-13, centralizado no display. */
+	/** Exibe "ERRO" em letras grandes (3 colunas por letra).
+	 *  Ocupa colunas 2-13, centralizado no display. */
 	template <typename LCD>
 	void showError(LCD& lcd) {
 		if (!_loaded) return;
-		/* E */ showLetterE(lcd, 3);
-		/* R */ showLetterR(lcd, 6);
-		/* R */ showLetterR(lcd, 9);
-		/* O */ showLetterO(lcd, 12);
+		/* E */ showLetterE(lcd, 2);
+		/* R */ showLetterR(lcd, 5);
+		/* R */ showLetterR(lcd, 8);
+		/* O */ showDigit(lcd, 0, 11);  /* 'O' = digit 0 */
 	}
 
 private:
@@ -246,21 +246,20 @@ private:
 	int32_t _lastRssi = -999;
 	int8_t  _lastLevel = -1;
 
-	/* ── 2-col letter primitives ─────────────────────────────── */
+	/* ── 3-col letter primitives ─────────────────────────────── */
 
 	template <typename LCD>
 	void showLetterE(LCD& lcd, uint8_t col) {
-		lcd.setCursor(col, 0); lcd.write(BFS_LT); lcd.write(BFS_UB);
-		lcd.setCursor(col, 1); lcd.write(BFS_LL); lcd.write(BFS_LB);
+		/* E: left edge + 3 horizontal bars (UMB's bottom row
+		   acts as middle bar at the line boundary). */
+		lcd.setCursor(col, 0); lcd.write(BFS_LT);  lcd.write(BFS_UMB); lcd.write(BFS_UMB);
+		lcd.setCursor(col, 1); lcd.write(BFS_LL);  lcd.write(BFS_LB);  lcd.write(BFS_LB);
 	}
 	template <typename LCD>
 	void showLetterR(LCD& lcd, uint8_t col) {
-		lcd.setCursor(col, 0); lcd.write(BFS_LT); lcd.write(BFS_RT);
-		lcd.setCursor(col, 1); lcd.write(BFS_LL); lcd.write(BFS_LB);
-	}
-	template <typename LCD>
-	void showLetterO(LCD& lcd, uint8_t col) {
-		lcd.setCursor(col, 0); lcd.write(BFS_LT); lcd.write(BFS_RT);
-		lcd.setCursor(col, 1); lcd.write(BFS_LL); lcd.write(BFS_LR);
+		/* R: left edge, top bar + right corner, middle bar,
+		   empty bottom-right = diagonal leg. */
+		lcd.setCursor(col, 0); lcd.write(BFS_LT);  lcd.write(BFS_UB);  lcd.write(BFS_RT);
+		lcd.setCursor(col, 1); lcd.write(BFS_LL);  lcd.write(BFS_UMB); lcd.write(' ');
 	}
 };
