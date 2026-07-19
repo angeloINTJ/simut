@@ -17,7 +17,7 @@
 #pragma once
 
 #include "SensorConfig.h"
-#include "SystemDefs_Records.h" /* SensorType enum */
+#include "../SystemDefs_Records.h" /* SensorType enum */
 
 /* ===========================================================================
  * SENSOR CHANNELS — universal measurement axes
