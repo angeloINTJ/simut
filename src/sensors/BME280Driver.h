@@ -44,20 +44,41 @@ struct BME280Driver {
     /* ── Initialization ───────────────────────────────────────────────── */
     /** Initialize the driver on the given SDA/SCL pins.
      *  Any GPIO 0-15 pair works — PIO bit-bang has no pin restrictions.
+     *
+     *  Two-phase strategy:
+     *   1. Try PIO+DMA first (fast, but needs free PIO instruction slots).
+     *      If pio0 is congested (OneWirePIO, etc.), begin() fails.
+     *   2. Retry with forceGPIO(true) — GPIO bit-bang only, slower but
+     *      uses zero PIO resources. Keeps pio0 free for DS18B20.
+     *
      *  Tries primary address (0x76, SDO→GND) first, then secondary (0x77). */
     void begin(uint8_t sda, uint8_t scl) {
-        /* Try primary address (0x76 — SDO → GND, most common).
-         * forceGPIO(true): use GPIO bit-bang I2C only, skip PIO+DMA.
-         * This keeps pio0 instruction slots free for OneWirePIO (DS18B20)
-         * which has no GPIO fallback. GPIO mode is slower but reliable. */
+        /* ── Pass 1: PIO+DMA (fast) ──────────────────────────────────── */
+        _sensor = new BMx280PIO_RP2040(sda, scl, BME280_ADDR_PRIMARY);
+        if (_sensor->begin()) {
+            _compLoaded = true;
+            return;
+        }
+        delete _sensor;
+
+        /* ── Pass 2: GPIO-only fallback (slower, zero PIO) ───────────── */
         _sensor = new BMx280PIO_RP2040(sda, scl, BME280_ADDR_PRIMARY);
         _sensor->forceGPIO(true);
         if (_sensor->begin()) {
             _compLoaded = true;
             return;
         }
-        /* Try secondary address (0x77 — SDO → VDD) */
         delete _sensor;
+
+        /* ── Pass 3: secondary address (0x77), PIO+DMA ───────────────── */
+        _sensor = new BMx280PIO_RP2040(sda, scl, 0x77);
+        if (_sensor->begin()) {
+            _compLoaded = true;
+            return;
+        }
+        delete _sensor;
+
+        /* ── Pass 4: secondary address (0x77), GPIO-only ─────────────── */
         _sensor = new BMx280PIO_RP2040(sda, scl, 0x77);
         _sensor->forceGPIO(true);
         if (_sensor->begin()) {
@@ -71,11 +92,17 @@ struct BME280Driver {
     }
 
     /** Initialize with explicit I2C address — for multi-sensor buses.
-     *  Caller guarantees the address is correct and not already claimed
-     *  by another driver on the same pin pair. */
+     *  Same two-phase strategy: PIO+DMA first, GPIO fallback second. */
     bool begin(uint8_t sda, uint8_t scl, uint8_t addr) {
+        /* Pass 1: PIO+DMA */
         _sensor = new BMx280PIO_RP2040(sda, scl, addr);
-        _sensor->forceGPIO(true);  /* GPIO bit-bang only — keeps pio0 free */
+        _compLoaded = _sensor->begin();
+        if (_compLoaded) return true;
+
+        /* Pass 2: GPIO-only fallback */
+        delete _sensor;
+        _sensor = new BMx280PIO_RP2040(sda, scl, addr);
+        _sensor->forceGPIO(true);
         _compLoaded = _sensor->begin();
         if (!_compLoaded) {
             delete _sensor;
