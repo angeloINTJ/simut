@@ -4134,9 +4134,22 @@ static const char LANG_JS[] PROGMEM = R"raw(
         if (pendingCalib) {
             try {
                 const cr = await fetchSafe('/api/calib', { method:'POST', headers:{'Content-Type':'application/json'},
-                    body:JSON.stringify({sensors: pendingCalib.sensors || []}), retries:0, timeout:45000 });
-                if (cr.ok) { delete Pending.data.calib; sessionStorage.setItem('simut_pending', JSON.stringify(Pending.data)); }
-            } catch(e) { /* proceed even if calib fails */ }
+                    body:JSON.stringify({sensors: pendingCalib.sensors || []}), retries:0, timeout:30000 });
+                if (cr.ok) {
+                    delete Pending.data.calib; sessionStorage.setItem('simut_pending', JSON.stringify(Pending.data));
+                } else {
+                    const j = await cr.json().catch(()=>({}));
+                    showToast((window.t ? window.t('calib_err','Erro na calibração: ')+(j.error||cr.status) : 'Calib error: '+(j.error||cr.status)), 'err');
+                    if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','💾 Salvar e Reiniciar') : '💾 Save & Restart'); }
+                    return;
+                }
+            } catch(e) {
+                showToast((window.t ? window.t('calib_timeout','Timeout na calibração. Tente novamente.') : 'Calib timeout. Try again.'), 'err');
+                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','💾 Salvar e Reiniciar') : '💾 Save & Restart'); }
+                return;
+            }
+            /* Wait for rate limit cooldown before commit_all */
+            await new Promise(r => setTimeout(r, 1000));
         }
         const currentPort = window.location.port ? parseInt(window.location.port) : (window.location.protocol === 'https:' ? 443 : 80);
         const pendingNet = Pending.getSection('net') || {};
