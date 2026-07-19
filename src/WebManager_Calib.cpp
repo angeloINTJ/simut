@@ -99,7 +99,7 @@ void WebManager::handleApiCalibGet( ) {
 	for (const auto& s : runtime) {
 		if (s.type == TYPE_DHT22) {
 			ambT = s.avgValue[0]; ambTValid = !isnan(s.avgValue[0]);
-			ambH = s.avgValue[1]; ambHValid = !isnan(s.avgValue[1]);
+			ambH = s.avgValue[1]; ambHValid = !isnan(s.avgValue[1]) && s.avgValue[1] < 1e9f;
 			ambOffT = s.calibrationOffset[0];
 			ambOffH = s.calibrationOffset[1];
 		}
@@ -110,7 +110,7 @@ void WebManager::handleApiCalibGet( ) {
 			/* Humidity per-slot for DHT22/BME280 sensors */
 			if (sensorHasHumidity(s.type)) {
 				runtimeH[s.config.pins[0]] = s.avgValue[1];
-				runtimeHValid[s.config.pins[0]] = !isnan(s.avgValue[1]);
+				runtimeHValid[s.config.pins[0]] = !isnan(s.avgValue[1]) && s.avgValue[1] < 1e9f;
 				slotOffH[s.config.pins[0]] = s.calibrationOffset[1];
 			}
 		}
