@@ -4,6 +4,37 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v1.5.0-beta (2026-07-19)
+
+### Configuração de Hardware Centralizada — `simut_config.h`
+
+- **Arquivo único de configuração** — Todas as opções configuráveis agora ficam em `src/simut_config.h`: tipo de display, pinos, sensores, Bluetooth, mDNS, pacotes de temas, pino do buzzer e limites avançados. Antes espalhadas por mais de 8 arquivos.
+- **9 seções documentadas** — Tipo de display, pinos TFT, pinos Alpha/HD44780 (I2C e paralelo), buzzer, sensores, comunicação, pacotes de temas, pino padrão 1-Wire, limites avançados. Cada opção com comentários explicativos.
+- **Guardas `#ifndef` em todas as definições** — Cada define permite override em tempo de compilação via flags `-D` no `platformio.ini`. Os defaults correspondem à configuração de release existente.
+- **Retrocompatível** — Headers de configuração antigos (`DisplayConfig.h`, `SensorConfig.h`) delegam ao `simut_config.h`. Todas as cadeias de `#include` preservadas. Sem breaking changes.
+- **Suporte a Arduino IDE** — Guarda `__has_include("simut_arduino_config.h")` no topo do `simut_config.h` para pacotes de release. Configs de release simplificadas para definir overrides antes do include.
+
+### Limpeza do Sistema de Build
+
+- **`platformio.ini` desduplicado** — Flags de sensores e features removidos do `[pico_base]` (agora no `simut_config.h`). Apenas overrides específicos por ambiente permanecem no `[env:pico_w_alpha]`.
+- **Pacotes de release simplificados** — `release/*/simut_arduino_config.h` agora inclui `simut_config.h` em vez de duplicar todas as definições.
+
+### Correções de Bugs
+
+- **BluetoothManager.cpp** — Adicionado guarda `#if SIMUT_BLUETOOTH` ausente em todas as implementações dos métodos. Previne erros de redefinição quando `SIMUT_BLUETOOTH=0` e o arquivo é compilado (builds debug).
+- **HD44780_16x2.h** — Envolvido `_initLcd()` e seu ponto de chamada em `#if HD44780_MODE_PARALLEL`. A sequência de inicialização paralela 4-bit era incorretamente compilada no modo I2C.
+
+### Seleção de Pacotes de Temas
+
+- **Movida para `simut_config.h`** — Pacotes de temas (`SIMUT_THEMES_HEALTH`, `_PRO`, `_MEDICAL`, `_SAFETY`, `_RETRO`, `_NATURE`, `_UTILITY`) agora são habilitados descomentando linhas no arquivo de configuração, não editando `Themes.cpp`.
+- **`Themes.h` inclui `simut_config.h`** — Flags de temas são visíveis onde quer que `Themes.h` seja incluído.
+
+### Orçamento de Flash
+
+- **Release (TFT + todos sensores + mDNS)**: 94,1% (982604 / 1044480 bytes)
+- **Alpha (HD44780 paralelo + todos sensores + mDNS)**: 85,4% (891920 / 1044480 bytes)
+- **RAM (release)**: 35,8% (93760 / 262144 bytes)
+
 ## v1.2.0-beta (2026-06-06)
 
 ### Subsistema OTA — Atualização Completa para v4.6.2
