@@ -293,12 +293,12 @@ void WebManager::handleApiCalibPost( ) {
 				int objEnd = arr.indexOf('}', objStart);
 				if (objEnd < 0) break;
 				String obj = arr.substring(objStart, objEnd + 1);
-				float gpioF = -1.0f; jsonExtractFloat(obj, "gpio", gpioF);
-				int gpio = (int)gpioF;
+				float slotF = -1.0f; if (!jsonExtractFloat(obj, "slot", slotF)) jsonExtractFloat(obj, "gpio", slotF);
+				int slot = (int)slotF;
 				objStart = objEnd + 1;
-				if (gpio < 0 || gpio >= MAX_SENSORS) continue;
-				if (!cfg.sensors[gpio].active) continue;
-				if (isAllZero(cfg.sensors[gpio].rom)) continue;
+				if (slot < 0 || slot >= MAX_SENSORS) continue;
+				if (!cfg.sensors[slot].active) continue;
+				if (isAllZero(cfg.sensors[slot].rom)) continue;
 
 				char newId[16] = {0}, newName[32] = {0};
 				float refT = NAN;
@@ -306,23 +306,23 @@ void WebManager::handleApiCalibPost( ) {
 				jsonExtractCStr(obj, "name", newName, sizeof(newName));
 				jsonExtractFloat(obj, "refTemp", refT);
 
-				if (newId[0] != '\0') safeCopy(cfg.sensors[gpio].hwId, newId, sizeof(cfg.sensors[gpio].hwId));
-				if (newName[0] != '\0') safeCopy(cfg.sensors[gpio].friendlyName, newName, sizeof(cfg.sensors[gpio].friendlyName));
+				if (newId[0] != '\0') safeCopy(cfg.sensors[slot].hwId, newId, sizeof(cfg.sensors[slot].hwId));
+				if (newName[0] != '\0') safeCopy(cfg.sensors[slot].friendlyName, newName, sizeof(cfg.sensors[slot].friendlyName));
 
 				float curT = NAN, off = 0;
 				const auto& runtime = _sensorRef->getRuntimeSensors( );
 				for (const auto& s : runtime) {
-					if (s.config.pins[0] == gpio) { curT = s.avgValue[0]; off = s.calibrationOffset[0]; break; }
+					if (s.config.pins[0] == cfg.sensors[slot].pins[0]) { curT = s.avgValue[0]; off = s.calibrationOffset[0]; break; }
 				}
 				float newOff = off;
 				if (!isnan(refT) && !isnan(curT)) newOff = off + (refT - curT);
 
 				if (nChanges < MAX_CHANGES) {
-					char romHex[17]; romToHex(cfg.sensors[gpio].rom, romHex);
+					char romHex[17]; romToHex(cfg.sensors[slot].rom, romHex);
 					safeCopy(changes[nChanges].key, romHex, sizeof(changes[0].key));
-					safeCopy(changes[nChanges].id, cfg.sensors[gpio].hwId, sizeof(changes[0].id));
+					safeCopy(changes[nChanges].id, cfg.sensors[slot].hwId, sizeof(changes[0].id));
 					changes[nChanges].offset = newOff;
-					char nameSan[32]; safeCopy(nameSan, cfg.sensors[gpio].friendlyName, sizeof(nameSan));
+					char nameSan[32]; safeCopy(nameSan, cfg.sensors[slot].friendlyName, sizeof(nameSan));
 					sanitizeName(nameSan);
 					safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
 					changes[nChanges].written = false;
