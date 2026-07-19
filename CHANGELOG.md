@@ -4,6 +4,37 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.5.0-beta (2026-07-19)
+
+### Centralized Hardware Configuration — `simut_config.h`
+
+- **Single config file** — All user-configurable options now live in `src/simut_config.h`: display type, pin assignments, sensor enable/disable, Bluetooth, mDNS, theme packs, buzzer pin, and advanced system limits. Previously scattered across 8+ files.
+- **9 documented sections** — Display type, TFT pins, Alpha/HD44780 pins (I2C and parallel), buzzer, sensors, communication, theme packs, 1-Wire default pin, advanced limits. Each option has explanatory comments.
+- **`#ifndef` guards throughout** — Every define supports compile-time override via `-D` flags in `platformio.ini`. Defaults match the existing release configuration.
+- **Backward compatible** — Existing config headers (`DisplayConfig.h`, `SensorConfig.h`) delegate to `simut_config.h`. All `#include` chains preserved. No breaking changes.
+- **Arduino IDE support** — `__has_include("simut_arduino_config.h")` guard at the top of `simut_config.h` for release packages. Release configs simplified to set overrides before including.
+
+### Build System Cleanup
+
+- **`platformio.ini` deduplicated** — Sensor and feature flags removed from `[pico_base]` (now in `simut_config.h`). Only environment-specific overrides remain in `[env:pico_w_alpha]`.
+- **Release packages simplified** — `release/*/simut_arduino_config.h` now includes `simut_config.h` instead of duplicating all defines.
+
+### Bug Fixes
+
+- **BluetoothManager.cpp** — Added missing `#if SIMUT_BLUETOOTH` guard around all method implementations. Prevents redefinition errors when `SIMUT_BLUETOOTH=0` and the file is compiled (debug builds).
+- **HD44780_16x2.h** — Wrapped `_initLcd()` and its call site in `#if HD44780_MODE_PARALLEL`. The 4-bit parallel init sequence was incorrectly compiled in I2C mode.
+
+### Theme Pack Selection
+
+- **Moved to `simut_config.h`** — Theme packs (`SIMUT_THEMES_HEALTH`, `_PRO`, `_MEDICAL`, `_SAFETY`, `_RETRO`, `_NATURE`, `_UTILITY`) are now enabled by uncommenting lines in the config file, not by editing `Themes.cpp`.
+- **`Themes.h` includes `simut_config.h`** — Theme flags are visible wherever `Themes.h` is included.
+
+### Flash Budget
+
+- **Release (TFT + all sensors + mDNS)**: 94.1% (982604 / 1044480 bytes)
+- **Alpha (HD44780 parallel + all sensors + mDNS)**: 85.4% (891920 / 1044480 bytes)
+- **RAM (release)**: 35.8% (93760 / 262144 bytes)
+
 ## v1.4.4-beta (2026-06-07)
 
 ### GPIO Resource Management — Guided Slot Assembly
