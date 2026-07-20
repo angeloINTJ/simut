@@ -44,8 +44,8 @@ void AppManager::refreshSelectedSlot( ) {
  if (_lastSavedSlotIdx < 0) {
  _lastSavedSlotIdx = (int8_t)cfg.reserved[53];
  _lastSavedTopIdx = (int8_t)cfg.reserved[52];
- if (cfg.reserved[53] && cfg.reserved[53] < MAX_SENSORS) _currentSensorIdx = cfg.reserved[53];
- if (cfg.reserved[52] && cfg.reserved[52] < MAX_SENSORS) _displayMgr->setTopSlotFixedIdx(cfg.reserved[52]);
+ if (cfg.reserved[53] < MAX_SENSORS) _currentSensorIdx = cfg.reserved[53];
+ if (cfg.reserved[52] < MAX_SENSORS) _displayMgr->setTopSlotFixedIdx(cfg.reserved[52]);
  _lastSlotChangeTime = millis( );
  }
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
@@ -125,13 +125,13 @@ void AppManager::updateLiveDisplay( ) {
 
  /* Debounced panel config save (3s after last interaction) */
  if (_lastSlotChangeTime > 0 && millis( ) - _lastSlotChangeTime > 3000) {
- int8_t ct = (int8_t)_displayMgr->getTopSlotIdx( );
+ int8_t ct = (int8_t)_displayMgr->getTopPanelFixedIdx( );
  int8_t cs = (int8_t)_currentSensorIdx;
  if (ct != _lastSavedTopIdx || cs != _lastSavedSlotIdx) {
  _lastSavedTopIdx = ct;
  _lastSavedSlotIdx = cs;
  SystemConfig &cfg = _storageMgr->getConfig( );
- cfg.reserved[52] = (uint8_t)ct;
+ cfg.reserved[52] = (uint8_t)(ct >= 0 ? ct : 0xFF);
  cfg.reserved[53] = (uint8_t)cs;
  _storageMgr->saveConfiguration( );
  }
