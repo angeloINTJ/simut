@@ -168,7 +168,7 @@ void test_singleRecord_roundtrip(void) {
 	historyCodecReset(encState);
 	historyCodecReset(decState);
 
-	uint8_t buf[64];
+	uint8_t buf[128]; /* enough for v3 anchor (74 bytes) + delta */
 	bool isAnchor = false;
 	size_t written = historyEncodeRecord(original, encState, buf, sizeof(buf), &isAnchor);
 	TEST_ASSERT_TRUE(isAnchor); /* first record is always anchor */
@@ -195,7 +195,7 @@ void test_singleRecord_allNan(void) {
 	historyCodecReset(encState);
 	historyCodecReset(decState);
 
-	uint8_t buf[64];
+	uint8_t buf[128]; /* enough for v3 anchor (74 bytes) + delta */
 	size_t written = historyEncodeRecord(original, encState, buf, sizeof(buf), nullptr);
 	TEST_ASSERT_GREATER_THAN(0, written);
 
@@ -220,7 +220,7 @@ void test_singleRecord_mixedNan(void) {
 	historyCodecReset(encState);
 	historyCodecReset(decState);
 
-	uint8_t buf[64];
+	uint8_t buf[128]; /* enough for v3 anchor (74 bytes) + delta */
 	size_t written = historyEncodeRecord(original, encState, buf, sizeof(buf), nullptr);
 
 	BinaryHistoryRecord decoded;
@@ -240,7 +240,7 @@ void test_anchorEmittedFirst(void) {
 	historyCodecReset(state);
 
 	BinaryHistoryRecord rec = makeRecord(1717500000, 2345, 6120, 1850);
-	uint8_t buf[64];
+	uint8_t buf[128]; /* enough for v3 anchor (74 bytes) + delta */
 	bool isAnchor = false;
 
 	size_t written = historyEncodeRecord(rec, state, buf, sizeof(buf), &isAnchor);
@@ -253,7 +253,7 @@ void test_deltaAfterAnchor(void) {
 	HistoryCodecState state;
 	historyCodecReset(state);
 
-	uint8_t buf[64];
+	uint8_t buf[128]; /* enough for v3 anchor (74 bytes) + delta */
 	bool isAnchor = false;
 	BinaryHistoryRecord rec = makeRecord(1717500000, 2345, 6120, 1850);
 
@@ -275,7 +275,7 @@ void test_anchorAtPeriodBoundary(void) {
 	HistoryCodecState state;
 	historyCodecReset(state);
 
-	uint8_t buf[64];
+	uint8_t buf[128]; /* enough for v3 anchor (74 bytes) + delta */
 	bool isAnchor = false;
 	BinaryHistoryRecord rec = makeRecord(1717500000, 2345, 6120, 1850);
 
@@ -436,7 +436,7 @@ void test_singleEntry(void) {
 	historyCodecReset(encState);
 	historyCodecReset(decState);
 
-	uint8_t buf[64];
+	uint8_t buf[128]; /* enough for v3 anchor (74 bytes) + delta */
 	bool isAnchor = false;
 	size_t written = historyEncodeRecord(original, encState, buf, sizeof(buf), &isAnchor);
 	TEST_ASSERT_TRUE(isAnchor);
@@ -468,7 +468,7 @@ void test_fullRangeValues(void) {
 	historyCodecReset(encState);
 	historyCodecReset(decState);
 
-	uint8_t buf[64];
+	uint8_t buf[128]; /* enough for v3 anchor (74 bytes) + delta */
 	size_t written = historyEncodeRecord(original, encState, buf, sizeof(buf), nullptr);
 
 	BinaryHistoryRecord decoded;
@@ -487,7 +487,7 @@ void test_largeEpochDelta(void) {
 	BinaryHistoryRecord rec1 = makeRecord(1717500000, 2345, 6120, 1850);
 	BinaryHistoryRecord rec2 = makeRecord(1717500000 + 86400 * 7, 2345, 6120, 1850); /* +7 days */
 
-	uint8_t buf1[64], buf2[64];
+	uint8_t buf1[128], buf2[128]; /* enough for v3 anchor (74 bytes) */
 	bool isAnc = false;
 
 	/* Anchor */
@@ -520,21 +520,22 @@ void test_nanFieldsOmittedFromDelta(void) {
 	historyCodecReset(state);
 
 	BinaryHistoryRecord rec;
+	rec.clear(); /* zero-init all fields including v3 humidity/pressure */
 	rec.epoch = 1717500000;
 	rec.ambientTemp = HIST_NAN_SENTINEL;
 	rec.ambientHum = HIST_NAN_SENTINEL;
 	for (int i = 0; i < MAX_SENSORS; i++) rec.sensors[i] = HIST_NAN_SENTINEL;
 
-	uint8_t buf[64];
-	/* Record 1: anchor (28 B regardless of NaN) */
+	uint8_t buf[128]; /* enough for v3 anchor (74 bytes) + delta */
+	/* Record 1: anchor (74 B) */
 	historyEncodeRecord(rec, state, buf, sizeof(buf), nullptr);
 
-	/* Record 2: delta — all fields still NaN, mask = 0x0000 */
+	/* Record 2: delta — all fields still NaN, mask = 0 */
 	rec.epoch += 60;
 	size_t written = historyEncodeRecord(rec, state, buf, sizeof(buf), nullptr);
 
-	/* Delta should be minimal: 3B mask + 1B epoch varint = 4 bytes */
-	TEST_ASSERT_EQUAL_size_t(4, written);
+	/* v3 delta: 5B mask + 1B epoch varint = 6 bytes */
+	TEST_ASSERT_EQUAL_size_t(6, written);
 }
 
 
@@ -543,26 +544,26 @@ void test_nanFieldsOmittedFromDelta(void) {
 /* =========================================================================== */
 
 void test_bufferTooSmall_anchor(void) {
-	/* Anchor requires sizeof(BinaryHistoryRecord) = 40 bytes.
+	/* Anchor requires sizeof(BinaryHistoryRecord) = 74 bytes for v3.
 	 * Offering less must return 0 (error). */
 	HistoryCodecState state;
 	historyCodecReset(state);
 
 	BinaryHistoryRecord rec = makeRecord(1717500000, 2345, 6120, 1850);
-	uint8_t buf[27]; /* 1 byte short */
+	uint8_t buf[27]; /* far short of 74-byte v3 anchor */
 
 	size_t written = historyEncodeRecord(rec, state, buf, sizeof(buf), nullptr);
 	TEST_ASSERT_EQUAL_size_t(0, written);
 }
 
 void test_bufferTooSmall_delta(void) {
-	/* Delta needs at least 3 bytes (2B mask + 1B epoch varint).
-	 * Offering 0 bytes for a delta must return 0. */
+	/* Delta needs at least maskBytes + epoch varint.
+	 * Offering 1 byte for a delta must return 0. */
 	HistoryCodecState state;
 	historyCodecReset(state);
 
 	BinaryHistoryRecord rec = makeRecord(1717500000, 2345, 6120, 1850);
-	uint8_t bigBuf[64];
+	uint8_t bigBuf[128]; /* v3 anchor fits here */
 
 	/* First record (anchor) succeeds */
 	historyEncodeRecord(rec, state, bigBuf, sizeof(bigBuf), nullptr);
