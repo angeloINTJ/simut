@@ -743,18 +743,30 @@ bool SensorManager::pollAsyncResult(String &msg) { return false; }
 
 #if SIMUT_SENSOR_BME280
 int8_t SensorManager::_getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr) {
- LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, 0, "BME280 init called");
- /* Allocate new driver on heap — ownership stays with _bmeDrivers vector.
-  * Each driver's _sensor is independently heap-allocated by begin().
-  * No shallow-copy issues: vector stores pointers, not values. */
- BME280Driver* drv = new BME280Driver();
+ /* Use static allocation — heap may be fragmented/exhausted during boot.
+  * On warm boot (reload, watchdog reset), BSS retains previous values.
+  * Always clear the driver to avoid stale _sensor pointer from prior boot. */
+ static BME280Driver s_bmeDrv;
+ /* Reset state: force clean init on every boot */
+ s_bmeDrv.state = BME280Driver::BME_IDLE;
+ s_bmeDrv.currentSensorIdx = -1;
+ s_bmeDrv.timer = 0;
+ if (s_bmeDrv._sensor) { delete s_bmeDrv._sensor; s_bmeDrv._sensor = nullptr; }
+ s_bmeDrv._compLoaded = false;
+
+ BME280Driver* drv = &s_bmeDrv;
+ if (Serial) { Serial.print("[DBG] BME init addr=0x"); Serial.println((int)addr, HEX); }
  if (drv->begin(sda, scl, addr)) {
+  /* Only push once per boot */
+  for (size_t i = 0; i < _bmeDrivers.size(); i++) {
+   if (_bmeDrivers[i] == drv) return (int8_t)i;
+  }
   _bmeDrivers.push_back(drv);
-  LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, 0, String("BME280 driver OK 0x") + String(addr, HEX));
+  LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, 0,
+   String("BME280 driver OK 0x") + String(addr, HEX));
   return (int8_t)(_bmeDrivers.size() - 1);
  }
- LOG_CODE(LOG_ERROR, "SENSOR", ERR_UNKNOWN, 0, String("BME280 driver FAIL 0x") + String(addr, HEX));
- delete drv;
+ if (Serial) Serial.println("[DBG] BME begin failed");
  return -1;
 }
 #endif
