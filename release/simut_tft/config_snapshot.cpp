@@ -7,9 +7,9 @@
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */
-#include "ota/config_snapshot.h"
-#include "ota/metadata.h"
-#include "ota/ota_layout.h"
+#include "config_snapshot.h"
+#include "metadata.h"
+#include "ota_layout.h"
 #include "StorageManager.h"
 #include "SystemDefs_Records.h" /* crc32_init/update/final */
 

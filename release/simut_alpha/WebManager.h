@@ -39,8 +39,8 @@ struct SendGuard {
 #include "DisplayManager.h"
 #include "TelemetryManager.h"
 #include "SoundManager.h"
-#include "ota/restore.h"
-#include "ota/firmware_stage.h"
+#include "restore.h"
+#include "firmware_stage.h"
 #include <bearssl/bearssl_hash.h>
 
 class WebManager {

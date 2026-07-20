@@ -13,7 +13,7 @@
 #include "LogManager.h"
 #include "StorageManager.h"
 #include "SystemDefs.h"
-#include "sensors/SensorHelpers.h"
+#include "SensorHelpers.h"
 #include <LittleFS.h>
 #include <time.h>
 

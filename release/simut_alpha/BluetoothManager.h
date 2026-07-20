@@ -13,13 +13,9 @@
 
 #pragma once
 
-#if __has_include("simut_arduino_config.h")
-#include "simut_arduino_config.h"
-#endif
-
 #include <Arduino.h>
 #include <functional>
-#include "sensors/SensorConfig.h"
+#include "SensorConfig.h"
 #if SIMUT_BLUETOOTH
 #include <SerialBT.h>
 #endif

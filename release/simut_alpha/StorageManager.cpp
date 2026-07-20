@@ -16,8 +16,8 @@
 #include "ParseFloat.h"
 #include "TouchPriority.h"
 #include <hardware/uart.h>
-#include "ota/metadata.h"
-#include "ota/config_snapshot.h"
+#include "metadata.h"
+#include "config_snapshot.h"
 #include <time.h>
 #include <algorithm>
 #include "LogManager.h"

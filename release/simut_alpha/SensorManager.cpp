@@ -572,12 +572,19 @@ void SensorManager::processPeriodicReads( ) {
      float t, h, p;
      if (drv->getResults(t, h, p)) {
       /* BME280: v1=temp, v2=humidity (pressure available via API) */
+     if (drv->getChipId() == 0x58) h = NAN;  /* BMP280 chip ID */
       handleSensorResult(s, true, t, h, "");
       /* Store pressure in CH_PRESS channel buffer */
       if (!isnan(p)) {
        s.buffers[CH_PRESS].push(p);
        if (s.buffers[CH_PRESS].full( )) {
         s.avgValue[CH_PRESS] = calculateTrimmedMean(s.buffers[CH_PRESS]);
+       } else {
+        float sortBuf[MOVING_AVG_WINDOW];
+        s.buffers[CH_PRESS].copyTo(sortBuf);
+        float sumP = 0;
+        for (uint8_t i = 0; i < s.buffers[CH_PRESS].size( ); i++) sumP += sortBuf[i];
+        s.avgValue[CH_PRESS] = sumP / s.buffers[CH_PRESS].size( );
        }
       }
      } else {
@@ -736,14 +743,17 @@ bool SensorManager::pollAsyncResult(String &msg) { return false; }
 
 #if SIMUT_SENSOR_BME280
 int8_t SensorManager::_getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr) {
+ LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, 0, "BME280 init called");
  /* Allocate new driver on heap — ownership stays with _bmeDrivers vector.
   * Each driver's _sensor is independently heap-allocated by begin().
   * No shallow-copy issues: vector stores pointers, not values. */
  BME280Driver* drv = new BME280Driver();
  if (drv->begin(sda, scl, addr)) {
   _bmeDrivers.push_back(drv);
+  LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, 0, String("BME280 driver OK 0x") + String(addr, HEX));
   return (int8_t)(_bmeDrivers.size() - 1);
  }
+ LOG_CODE(LOG_ERROR, "SENSOR", ERR_UNKNOWN, 0, String("BME280 driver FAIL 0x") + String(addr, HEX));
  delete drv;
  return -1;
 }

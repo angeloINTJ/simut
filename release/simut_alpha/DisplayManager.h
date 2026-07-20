@@ -25,8 +25,8 @@
 class GFXcanvas16;
 class Adafruit_GFX;
 #endif
-#include "display/DisplayConfig.h"
-#include "display/DisplayDriver.h"
+#include "DisplayConfig.h"
+#include "DisplayDriver.h"
 #include "pico/mutex.h"
 #include "pico/multicore.h"
 #include "pico/util/queue.h"
@@ -149,6 +149,8 @@ public:
  void setBottomSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
  void setTopSlotMinMax(float minT, float maxT, float minH, float maxH);
 	int getTopSlotIdx( ) { int idx; mutex_enter_blocking(&_stateMutex); idx = _sharedState.topSlotIdx; mutex_exit(&_stateMutex); return idx; }
+	/** @return fixedIdx when top panel is pinned, -1 otherwise. Thread-safe. */
+	int getTopPanelFixedIdx( ) { int idx; mutex_enter_blocking(&_stateMutex); idx = (_topPanel.fixed && _topPanel.fixedIdx >= 0) ? _topPanel.fixedIdx : -1; mutex_exit(&_stateMutex); return idx; }
 	void setTopSlotFixedIdx(int8_t i) { mutex_enter_blocking(&_stateMutex); _topPanel.fixedIdx = i; _topPanel.fixed = true; mutex_exit(&_stateMutex); }
 	void setSystemStatus(int rssi, bool bt, String timeStr);
 
@@ -438,6 +440,23 @@ private:
 	 /* Always sync topSlotIdx based on fixed/interactive */
 	 _sharedState.topSlotIdx = (_topPanel.fixed && _topPanel.fixedIdx >= 0)
 	                         ? _topPanel.fixedIdx : _sharedState.selectedSlotIdx;
+	 /* When top panel is pinned, auto-switch bottom panel to the first
+	  * available different slot to avoid showing the same sensor twice. */
+	 if (_topPanel.fixed && _topPanel.fixedIdx >= 0 &&
+	     _topPanel.fixedIdx == _sharedState.selectedSlotIdx &&
+	     _sysConfigPtr) {
+	 	int8_t nextSlot = -1;
+	 	for (int i = 0; i < MAX_SENSORS; i++) {
+	 		if (i != _topPanel.fixedIdx && _sysConfigPtr->sensors[i].active) {
+	 			nextSlot = (int8_t)i; break;
+	 		}
+	 	}
+	 	if (nextSlot >= 0) {
+	 		_sharedState.selectedSlotIdx = nextSlot;
+	 		UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = nextSlot;
+	 		queue_try_add(&_eventQueue, &ev);
+	 	}
+	 }
 	 /* Mirror slot* data when interactive, uninitialized, or showing same sensor */
 	 if (!_topPanel.fixed || !_sharedState.topSlotValid ||
 	     _sharedState.topSlotIdx == _sharedState.selectedSlotIdx) {

@@ -44,8 +44,8 @@ void AppManager::refreshSelectedSlot( ) {
  if (_lastSavedSlotIdx < 0) {
  _lastSavedSlotIdx = (int8_t)cfg.reserved[53];
  _lastSavedTopIdx = (int8_t)cfg.reserved[52];
- if (cfg.reserved[53] && cfg.reserved[53] < MAX_SENSORS) _currentSensorIdx = cfg.reserved[53];
- if (cfg.reserved[52] && cfg.reserved[52] < MAX_SENSORS) _displayMgr->setTopSlotFixedIdx(cfg.reserved[52]);
+ if (cfg.reserved[53] < MAX_SENSORS) _currentSensorIdx = cfg.reserved[53];
+ if (cfg.reserved[52] < MAX_SENSORS) _displayMgr->setTopSlotFixedIdx(cfg.reserved[52]);
  _lastSlotChangeTime = millis( );
  }
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
@@ -55,16 +55,16 @@ void AppManager::refreshSelectedSlot( ) {
  uint8_t targetGpio = cfg.sensors[_currentSensorIdx].pins[0];
  for (const auto &s : sensors) {
  if (s.config.pins[0] == targetGpio) {
- _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  found = true;
  if (_displayMgr->getTopSlotIdx( ) == _currentSensorIdx)
- _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState, _currentSensorIdx, String(s.config.friendlyName));
  break;
  }
  }
  }
 
- if (!found) _displayMgr->setSlotData(NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
+ if (!found) _displayMgr->setSlotData(NAN, NAN, NAN, TYPE_NONE, false, _currentSensorIdx, "Empty / Inactive");
 
  /* Fixed panels: override with pinned sensor data when panel is fixed elsewhere */
  {
@@ -73,7 +73,7 @@ void AppManager::refreshSelectedSlot( ) {
  uint8_t tgpio = cfg.sensors[topIdx].pins[0];
  for (const auto &s : sensors) {
  if (s.config.pins[0] == tgpio) {
- _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState, topIdx, String(s.config.friendlyName));
  break;
  }
  }
@@ -125,13 +125,13 @@ void AppManager::updateLiveDisplay( ) {
 
  /* Debounced panel config save (3s after last interaction) */
  if (_lastSlotChangeTime > 0 && millis( ) - _lastSlotChangeTime > 3000) {
- int8_t ct = (int8_t)_displayMgr->getTopSlotIdx( );
+ int8_t ct = (int8_t)_displayMgr->getTopPanelFixedIdx( );
  int8_t cs = (int8_t)_currentSensorIdx;
  if (ct != _lastSavedTopIdx || cs != _lastSavedSlotIdx) {
  _lastSavedTopIdx = ct;
  _lastSavedSlotIdx = cs;
  SystemConfig &cfg = _storageMgr->getConfig( );
- cfg.reserved[52] = (uint8_t)ct;
+ cfg.reserved[52] = (uint8_t)(ct >= 0 ? ct : 0xFF);
  cfg.reserved[53] = (uint8_t)cs;
  _storageMgr->saveConfiguration( );
  }
@@ -169,17 +169,17 @@ void AppManager::updateLiveDisplay( ) {
  if (_currentSensorIdx >= 0 && _currentSensorIdx < MAX_SENSORS &&
  cfg.sensors[_currentSensorIdx].active &&
  cfg.sensors[_currentSensorIdx].pins[0] == s.config.pins[0]) {
- _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _displayMgr->setSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState,
  _currentSensorIdx, String(s.config.friendlyName));
  if (topIdx == _currentSensorIdx)
- _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState,
  _currentSensorIdx, String(s.config.friendlyName));
  }
  /* Top panel (fixed elsewhere) */
  if (topIdx != _currentSensorIdx && topIdx >= 0 && topIdx < MAX_SENSORS &&
  cfg.sensors[topIdx].active &&
  cfg.sensors[topIdx].pins[0] == s.config.pins[0]) {
- _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.type, !s.inErrorState,
+ _displayMgr->setTopSlotData(s.avgValue[0], s.avgValue[1], s.avgValue[2], s.type, !s.inErrorState,
  topIdx, String(s.config.friendlyName));
  }
  }

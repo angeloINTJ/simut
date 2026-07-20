@@ -63,8 +63,8 @@
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */
-#include "ota/applier.h"
-#include "ota/ota_layout.h"
+#include "applier.h"
+#include "ota_layout.h"
 
 #include <Arduino.h>
 #include <hardware/flash.h>

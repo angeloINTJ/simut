@@ -41,6 +41,13 @@ struct BME280Driver {
 
     BME280Driver( ) { }
 
+    /** @return true if the detected chip is a BME280 (has humidity).
+     *         false for BMP280 (temperature + pressure only). */
+    bool isBME( ) const { return _sensor && _sensor->isBME280(); }
+
+    /** @return raw chip ID (0x58=BMP280, 0x60=BME280). */
+    uint8_t getChipId( ) const { return _sensor ? _sensor->getChipID() : 0; }
+
     /* ── Initialization ───────────────────────────────────────────────── */
     /** Initialize the driver on the given SDA/SCL pins.
      *  Any GPIO 0-15 pair works — PIO bit-bang has no pin restrictions.
@@ -97,6 +104,7 @@ struct BME280Driver {
         /* Pass 1: PIO+DMA */
         _sensor = new BMx280PIO_RP2040(sda, scl, addr);
         _compLoaded = _sensor->begin();
+        Serial.printf("[BMx] PIO+DMA addr=0x%02X cid=0x%02X ok=%d\n", addr, _sensor->getChipID(), _compLoaded);
         if (_compLoaded) return true;
 
         /* Pass 2: GPIO-only fallback */
@@ -104,6 +112,7 @@ struct BME280Driver {
         _sensor = new BMx280PIO_RP2040(sda, scl, addr);
         _sensor->forceGPIO(true);
         _compLoaded = _sensor->begin();
+        Serial.printf("[BMx] GPIO addr=0x%02X cid=0x%02X ok=%d\n", addr, _sensor->getChipID(), _compLoaded);
         if (!_compLoaded) {
             delete _sensor;
             _sensor = nullptr;
@@ -127,10 +136,10 @@ struct BME280Driver {
 
         /* Sanity checks */
         if (t < -40.0f || t > 85.0f)  t = NAN;
-        if (h < 0.0f   || h > 100.0f) h = NAN;
+        { volatile float hv = h; if (hv < 0.0f || hv > 100.0f) h = NAN; }
         if (p < 300.0f  || p > 1100.0f) p = NAN;
 
-        return true;
+        return !isnan(t);
     }
 
     void reset( ) {

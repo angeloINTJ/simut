@@ -13,7 +13,7 @@
 
 #pragma once
 #include <Arduino.h>
-#include "sensors/SensorConfig.h"
+#include "SensorConfig.h"
 
 /* Hardware and system limits — defaults in src/simut_config.h */
 #ifndef MAX_SENSORS
@@ -27,7 +27,7 @@
 #ifndef PIN_UNUSED
 #define PIN_UNUSED 255 /* Sentinel for unused pin slots */
 #endif
-#define SIMUT_VERSION "1.5.0-beta"
+#define SIMUT_VERSION "1.5.1"
 
 #define GRAPH_WIDTH 200 /* Maximum data points on the TFT graph */
 

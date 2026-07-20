@@ -62,7 +62,7 @@ void AppManager::processBackgroundScan( ) {
 }
 void AppManager::loadAndCalibrateSensors( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
- _sensorMgr->initRuntimeSensors(cfg);
+ /* initRuntimeSensors deferred to after calibration + auto-ID */
 
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
@@ -84,8 +84,9 @@ void AppManager::loadAndCalibrateSensors( ) {
  bool gotT = _storageMgr->getCalibrationDataAmbient('t', dbIdT, dbOffsetT, dbNameT);
  bool gotU = _storageMgr->getCalibrationDataAmbient('u', dbIdU, dbOffsetU, dbNameU);
  if (gotT) {
- if (dbIdT.length( ) > 0) { safeCopy(cfg.sensors[i].hwId, dbIdT.c_str( ), sizeof(cfg.sensors[i].hwId)); }
- if (dbNameT.length( ) > 0) { safeCopy(cfg.sensors[i].friendlyName, dbNameT.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
+  bool isAuto = (cfg.sensors[i].hwId[0] == '\0' || strncmp(cfg.sensors[i].hwId, "STH", 3) == 0);
+  if (dbIdT.length( ) > 0 && isAuto) { safeCopy(cfg.sensors[i].hwId, dbIdT.c_str( ), sizeof(cfg.sensors[i].hwId)); }
+  if (dbNameT.length( ) > 0 && isAuto) { safeCopy(cfg.sensors[i].friendlyName, dbNameT.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
  }
  _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbIdT, dbOffsetT, dbNameT);
  if (gotT || gotU) {
@@ -94,5 +95,22 @@ void AppManager::loadAndCalibrateSensors( ) {
  }
  }
 
+  /* Auto-generate hardware IDs for sensors without one.
+   * Format: <TYPE><2D-SLOT> (e.g. BMP28000, DHT2201, DS18B2004) */
+  for (int i = 0; i < MAX_SENSORS; i++) {
+   if (!cfg.sensors[i].active) continue;
+   /* Skip if hwId is already set (not empty and not the default STH prefix) */
+  if (cfg.sensors[i].hwId[0] != '\0' && strncmp(cfg.sensors[i].hwId, "STH", 3) != 0) continue;
+   const char* tName = sensorTypeName((SensorType)cfg.sensors[i].sensorType);
+   snprintf(cfg.sensors[i].hwId, sizeof(cfg.sensors[i].hwId),
+            "%s%02d", tName, i);
+   if (cfg.sensors[i].friendlyName[0] == '\0'
+       || strncmp(cfg.sensors[i].friendlyName, "Simut_casa", 10) == 0) {
+    snprintf(cfg.sensors[i].friendlyName, sizeof(cfg.sensors[i].friendlyName),
+             "%s #%d", tName, i);
+   }
+  }
+
+  _sensorMgr->initRuntimeSensors(cfg);
  LOG_CODE(LOG_INFO, "APP", APP_SENSORS_CALIBRATED, 0, "");
 }

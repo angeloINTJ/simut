@@ -19,7 +19,7 @@
 #include "MetricsManager.h"
 #include "StorageManager.h" /* getBoardSerialNumber em show system info */
 #include "HelpLicenseEN.h" /* HELP_TEXT_EN inline em PROGMEM */
-#include "sensors/SensorHelpers.h" /* sensorTypeName, sensorHasChannel, SensorFormat */
+#include "SensorHelpers.h" /* sensorTypeName, sensorHasChannel, SensorFormat */
 #include <LittleFS.h>
 #include <time.h>
 #include <stdarg.h>

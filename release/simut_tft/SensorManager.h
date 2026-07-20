@@ -21,11 +21,11 @@
 #include <Arduino.h>
 #include <vector>
 #include "SystemDefs.h"
-#include "sensors/DS18B20Driver.h"
-#include "sensors/DHT22Driver.h"
-#include "sensors/BME280Driver.h"
+#include "DS18B20Driver.h"
+#include "DHT22Driver.h"
+#include "BME280Driver.h"
 #include "LogManager.h"
-#include "sensors/SensorHelpers.h"
+#include "SensorHelpers.h"
 
 
 struct RingBuffer {

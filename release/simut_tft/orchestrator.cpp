@@ -7,9 +7,9 @@
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */
-#include "ota/orchestrator.h"
-#include "ota/metadata.h"
-#include "ota/applier.h"
+#include "orchestrator.h"
+#include "metadata.h"
+#include "applier.h"
 #include "StorageManager.h"
 
 #include <Arduino.h>

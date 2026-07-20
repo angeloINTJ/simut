@@ -7,8 +7,8 @@
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */
-#include "ota/backup.h"
-#include "ota/backup_format.h"
+#include "backup.h"
+#include "backup_format.h"
 
 #include <Arduino.h>
 #include <LittleFS.h>

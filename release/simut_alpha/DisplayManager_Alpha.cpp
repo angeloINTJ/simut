@@ -1,7 +1,7 @@
 #include "DisplayManager.h"
 #include "LogManager.h"
-#include "display/HD44780_16x2.h"
-#include "display/BigFont_HD44780.h"
+#include "HD44780_16x2.h"
+#include "BigFont_HD44780.h"
 extern DisplayManager* _instance;  /* defined in DisplayManager.cpp */
 static Hd44780_16x2   _lcd;
 static BigFont_HD44780 _big;
@@ -167,7 +167,7 @@ void DisplayManager::loopCore1( ) {
 }
 void DisplayManager::handleTouch( ){}
 void DisplayManager::render(const SystemState&){}
-void DisplayManager::drawSlotPanel(float,float,SensorType,bool,int,const char*,bool,DashPanel&){}
+void DisplayManager::drawSlotPanel(float,float,SensorType,bool,int,const char*,bool,DashPanel&,float){}
 void DisplayManager::drawBottomButtons(int,bool){}
 void DisplayManager::drawInterfaceFixed( ){}
 void DisplayManager::drawTopBar(const SystemState&){}
@@ -211,9 +211,10 @@ void DisplayManager::loadDisplayOffset(const DisplayOffsetData*){}
 bool DisplayManager::getUiEvent(UiEvent&){return false;}
 void DisplayManager::setWebBusy(bool,const char*){}
 void DisplayManager::injectTouch(int16_t,int16_t){}
-void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name) {
+void DisplayManager::setSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name) {
 	_sharedState.slotTemp = t;
 	_sharedState.slotHum  = h;
+  _sharedState.slotPres = p;
 	_sharedState.slotValid = isValid;
 	_sharedState.slotType  = type;
 	_sharedState.selectedSlotIdx = slotIdx;
@@ -221,7 +222,7 @@ void DisplayManager::setSlotData(float t, float h, SensorType type, bool isValid
 }
 void DisplayManager::showCalendar(int,int,uint32_t){}
 void DisplayManager::setSlotMinMax(float,float,float,float){}
-void DisplayManager::setTopSlotData(float,float,SensorType,bool,int,String){}
+void DisplayManager::setTopSlotData(float,float,float,SensorType,bool,int,String){}
 void DisplayManager::showAuthScreen(String){}
 bool DisplayManager::isScreenTouched( ){return false;}
 void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {

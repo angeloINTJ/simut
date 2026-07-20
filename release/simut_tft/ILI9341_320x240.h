@@ -11,7 +11,7 @@
 #include <Arduino.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_ILI9341.h>
-#include "../TftWithOffset.h"
+#include "TftWithOffset.h"
 
 struct Ili9341_320x240 {
 	TftWithOffset* tft   = nullptr;
