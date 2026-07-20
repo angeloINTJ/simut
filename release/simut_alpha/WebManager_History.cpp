@@ -11,7 +11,7 @@
 #include "LogManager.h"
 #include "TouchPriority.h"
 #include "HistoryCodec.h"
-#include "ota/backup.h" /* ota::crc32_update for screenshot_chunk */
+#include "backup.h" /* ota::crc32_update for screenshot_chunk */
 #include <LittleFS.h>
 #include <time.h>
 

@@ -428,7 +428,7 @@ void AppManager::cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool&
  safeCopy(cfg.users[freeSlot].password, hashed.c_str( ), sizeof(cfg.users[freeSlot].password));
  }
  cfg.users[freeSlot].active = true;
- cfg.users[freeSlot].permissions = (PERM_DASHBOARD | PERM_HISTORY);
+ cfg.users[freeSlot].permissions = (PERM_DASHBOARD | PERM_HISTORY | PERM_CALIB);
  cfg.users[freeSlot].mustChangePassword = false;
  _cmdMgr->printSuccess(String(pt ? "Usuario criado: " : "User created: ") + cmd.strVal1);
  LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, freeSlot,

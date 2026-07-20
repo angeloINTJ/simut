@@ -99,7 +99,7 @@ void WebManager::handleApiCalibGet( ) {
 	for (const auto& s : runtime) {
 		if (s.type == TYPE_DHT22) {
 			ambT = s.avgValue[0]; ambTValid = !isnan(s.avgValue[0]);
-			ambH = s.avgValue[1]; ambHValid = !isnan(s.avgValue[1]);
+			ambH = s.avgValue[1]; ambHValid = !isnan(s.avgValue[1]) && s.avgValue[1] < 1e9f;
 			ambOffT = s.calibrationOffset[0];
 			ambOffH = s.calibrationOffset[1];
 		}
@@ -110,7 +110,7 @@ void WebManager::handleApiCalibGet( ) {
 			/* Humidity per-slot for DHT22/BME280 sensors */
 			if (sensorHasHumidity(s.type)) {
 				runtimeH[s.config.pins[0]] = s.avgValue[1];
-				runtimeHValid[s.config.pins[0]] = !isnan(s.avgValue[1]);
+				runtimeHValid[s.config.pins[0]] = !isnan(s.avgValue[1]) && s.avgValue[1] < 1e9f;
 				slotOffH[s.config.pins[0]] = s.calibrationOffset[1];
 			}
 		}
@@ -155,11 +155,11 @@ void WebManager::handleApiCalibGet( ) {
 		sanitizeName(sName);
 		bool hasH = sensorHasHumidity((SensorType)cfg.sensors[i].sensorType);
 		snprintf(buf, sizeof(buf),
-		         "%s{\"gpio\":%d,\"rom\":\"%s\",\"hwId\":\"%s\",\"name\":\"%s\","
+		         "%s{\"slot\":%d,\"gpio\":%d,\"rom\":\"%s\",\"hwId\":\"%s\",\"name\":\"%s\","
 		         "\"hasHum\":%s,"
 		         "\"tempRead\":%s,\"tempOffset\":%.2f,"
 		         "\"humRead\":%s,\"humOffset\":%.2f}",
-		         first ? "" : ",", i, romHex, sHwId, sName,
+		         first ? "" : ",", i, cfg.sensors[i].pins[0], romHex, sHwId, sName,
 		         hasH ? "true" : "false",
 		         runtimeTValid[i] ? String(runtimeT[i], 2).c_str( ) : "null",
 		         slotOff[i],
@@ -293,36 +293,37 @@ void WebManager::handleApiCalibPost( ) {
 				int objEnd = arr.indexOf('}', objStart);
 				if (objEnd < 0) break;
 				String obj = arr.substring(objStart, objEnd + 1);
-				float gpioF = -1.0f; jsonExtractFloat(obj, "gpio", gpioF);
-				int gpio = (int)gpioF;
+				float slotF = -1.0f; if (!jsonExtractFloat(obj, "slot", slotF)) jsonExtractFloat(obj, "gpio", slotF);
+				int slot = (int)slotF;
 				objStart = objEnd + 1;
-				if (gpio < 0 || gpio >= MAX_SENSORS) continue;
-				if (!cfg.sensors[gpio].active) continue;
-				if (isAllZero(cfg.sensors[gpio].rom)) continue;
-
+				if (slot < 0 || slot >= MAX_SENSORS) continue;
+				if (!cfg.sensors[slot].active) continue;
 				char newId[16] = {0}, newName[32] = {0};
 				float refT = NAN;
 				jsonExtractCStr(obj, "hwId", newId, sizeof(newId));
 				jsonExtractCStr(obj, "name", newName, sizeof(newName));
 				jsonExtractFloat(obj, "refTemp", refT);
 
-				if (newId[0] != '\0') safeCopy(cfg.sensors[gpio].hwId, newId, sizeof(cfg.sensors[gpio].hwId));
-				if (newName[0] != '\0') safeCopy(cfg.sensors[gpio].friendlyName, newName, sizeof(cfg.sensors[gpio].friendlyName));
+				if (newId[0] != '\0') safeCopy(cfg.sensors[slot].hwId, newId, sizeof(cfg.sensors[slot].hwId));
+				if (newName[0] != '\0') safeCopy(cfg.sensors[slot].friendlyName, newName, sizeof(cfg.sensors[slot].friendlyName));
+
+				/* Non-DS18B20 (no ROM): hwId/name applied above; skip calib.csv */
+				if (isAllZero(cfg.sensors[slot].rom)) continue;
 
 				float curT = NAN, off = 0;
 				const auto& runtime = _sensorRef->getRuntimeSensors( );
 				for (const auto& s : runtime) {
-					if (s.config.pins[0] == gpio) { curT = s.avgValue[0]; off = s.calibrationOffset[0]; break; }
+					if (s.config.pins[0] == cfg.sensors[slot].pins[0]) { curT = s.avgValue[0]; off = s.calibrationOffset[0]; break; }
 				}
 				float newOff = off;
 				if (!isnan(refT) && !isnan(curT)) newOff = off + (refT - curT);
 
 				if (nChanges < MAX_CHANGES) {
-					char romHex[17]; romToHex(cfg.sensors[gpio].rom, romHex);
+					char romHex[17]; romToHex(cfg.sensors[slot].rom, romHex);
 					safeCopy(changes[nChanges].key, romHex, sizeof(changes[0].key));
-					safeCopy(changes[nChanges].id, cfg.sensors[gpio].hwId, sizeof(changes[0].id));
+					safeCopy(changes[nChanges].id, cfg.sensors[slot].hwId, sizeof(changes[0].id));
 					changes[nChanges].offset = newOff;
-					char nameSan[32]; safeCopy(nameSan, cfg.sensors[gpio].friendlyName, sizeof(nameSan));
+					char nameSan[32]; safeCopy(nameSan, cfg.sensors[slot].friendlyName, sizeof(nameSan));
 					sanitizeName(nameSan);
 					safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
 					changes[nChanges].written = false;
@@ -334,7 +335,7 @@ void WebManager::handleApiCalibPost( ) {
 
 	/* === Streaming 2-pass: read calib.csv, write calib.tmp === */
 	uint32_t version = (uint32_t)_netRef->getEpoch( );
-
+	if (nChanges > 0) {
 	File fout = LittleFS.open("/calib.tmp", "w");
 	if (!fout) {
 		_server.send(500, "application/json", "{\"error\":\"calib write failed\"}");
@@ -386,16 +387,28 @@ void WebManager::handleApiCalibPost( ) {
 		}
 	}
 	fout.close( );
+	} /* end if (nChanges > 0) */
 
-	if (!_storageRef->processCalibrationUpload( )) {
-		_server.send(500, "application/json", "{\"error\":\"calib commit failed\"}");
-		return;
+	if (nChanges > 0) {
+	 if (!_storageRef->processCalibrationUpload( )) {
+	  _server.send(500, "application/json", "{\"error\":\"calib commit failed\"}");
+	  return;
+	 }
+	 _displayRef->requestQuietMode( );
 	}
-
-	_displayRef->requestQuietMode( );
 	_storageRef->saveConfiguration( );
-	app.loadAndCalibrateSensors( );
-	_displayRef->releaseQuietMode( );
+	if (nChanges > 0) { app.loadAndCalibrateSensors( ); _displayRef->releaseQuietMode( ); }
+  else { /* Sync hwId/name to runtime sensors without full reload */
+   auto& runtime = _sensorRef->getRuntimeSensors( );
+   for (auto& rs : runtime) {
+    for (int i = 0; i < MAX_SENSORS; i++) {
+     if (cfg.sensors[i].active && cfg.sensors[i].pins[0] == rs.config.pins[0]) {
+      safeCopy((char*)rs.config.hwId, cfg.sensors[i].hwId, sizeof(rs.config.hwId));
+      safeCopy((char*)rs.config.friendlyName, cfg.sensors[i].friendlyName, sizeof(rs.config.friendlyName));
+     }
+    }
+   }
+  }
 
 	LOG_CODE(LOG_INFO, "WEB", APP_SENSORS_CALIBRATED, 0, "calib via /api/calib");
 

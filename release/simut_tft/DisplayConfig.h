@@ -15,4 +15,4 @@
  */
 #pragma once
 
-#include "../simut_config.h"
+#include "simut_config.h"

@@ -7,10 +7,10 @@
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */
-#include "ota/validation.h"
-#include "ota/staging.h"
-#include "ota/ota_layout.h"
-#include "ota/backup.h"      /* crc32_update / OTA_CRC32_INIT */
+#include "validation.h"
+#include "staging.h"
+#include "ota_layout.h"
+#include "backup.h"      /* crc32_update / OTA_CRC32_INIT */
 
 #include <Arduino.h>
 #include <hardware/watchdog.h>

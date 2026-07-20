@@ -7,11 +7,11 @@
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */
-#include "ota/firmware_stage.h"
-#include "ota/staging.h"
-#include "ota/config_snapshot.h"
-#include "ota/ota_layout.h"
-#include "ota/backup.h"
+#include "firmware_stage.h"
+#include "staging.h"
+#include "config_snapshot.h"
+#include "ota_layout.h"
+#include "backup.h"
 #include "StorageManager.h"
 
 #include <Arduino.h>

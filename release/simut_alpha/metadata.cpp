@@ -7,8 +7,8 @@
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */
-#include "ota/metadata.h"
-#include "ota/ota_layout.h"
+#include "metadata.h"
+#include "ota_layout.h"
 
 #include <Arduino.h>
 #include <hardware/flash.h>

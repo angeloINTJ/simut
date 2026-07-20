@@ -7,8 +7,8 @@
  * @author  Ângelo Moisés Alves
  * @license MIT License
  */
-#include "ota/staging.h"
-#include "ota/config_snapshot.h"
+#include "staging.h"
+#include "config_snapshot.h"
 #include "StorageManager.h"
 
 #include <Arduino.h>
