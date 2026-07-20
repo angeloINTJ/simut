@@ -242,7 +242,7 @@ void WebManager::handleApiHistoryMulti( ) {
  f.seek(0);
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdr.version == HIST_V2_VERSION &&
+ (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION) &&
  hdr.anchorPeriod > 0);
  }
  }
@@ -304,7 +304,7 @@ void WebManager::handleApiHistoryMulti( ) {
  if (lineIdx % decimation != 0) continue;
 
  /* Emit point: {"t":epoch,"v":[v0,v1,...]} or null for NAN. */
- char pointBuf[256];
+ char pointBuf[512]; /* v3 needs room for hv[] + pressure fields */
  int pos = 0;
  pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
  "%s{\"t\":%lu,\"v\":[", firstPoint ? "" : ",",
@@ -325,14 +325,38 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  }
  pointBuf[pos++] = ']';
- /* h: humidity for slot 10 if included */
- bool hasSlot10 = false; for (int si = 0; si < sensorCount; si++) if (sensorIds[si] == 10) { hasSlot10 = true; break; }
- if (hasSlot10 && rec.ambientHum != HIST_NAN_SENTINEL) {
+ /* h: ambient humidity (backward compat — always from ambientHum field) */
+ if (rec.ambientHum != HIST_NAN_SENTINEL) {
  float h = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
  int hInt = abs((int)h);
  int hDec = abs((int)(h * 10.0f) % 10);
  pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
  ",\"h\":%d.%01d", hInt, hDec);
+ }
+ /* hv: per-slot humidity array (aligned with sensors[]) */
+ {
+ pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos, ",\"hv\":[");
+ for (int s = 0; s < sensorCount; s++) {
+ int id = sensorIds[s];
+ int16_t hRaw = rec.humidity[id];
+ if (s > 0) pointBuf[pos++] = ',';
+ if (hRaw == HIST_NAN_SENTINEL) {
+ pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos, "null");
+ } else {
+ float hv = BinaryHistoryRecord::i16ToFloat(hRaw);
+ pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
+ "%.1f", hv);
+ }
+ }
+ pointBuf[pos++] = ']';
+ }
+ /* p: atmospheric pressure (hPa) */
+ if (rec.pressure != HIST_NAN_SENTINEL) {
+ float p = BinaryHistoryRecord::i16ToFloatx10(rec.pressure);
+ int pInt = abs((int)p);
+ int pDec = abs((int)(p * 10.0f) % 10);
+ pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
+ ",\"p\":%d.%01d", pInt, pDec);
  }
  pointBuf[pos++] = '}';
  pointBuf[pos] = '\0';
@@ -386,15 +410,15 @@ void WebManager::handleApiHistoryMulti( ) {
 /* GET /api/export/history.bin?from=<epoch>&to=<epoch> */
 /* =========================================================================== */
 /* Emits .simx bundle kind='H' (CRC32 trailer) for the browser to expand into CSV
- * locally. Hard cap of 31 days. PAYLOAD = N x BinaryHistoryRecord (28 B
+ * locally. Hard cap of 31 days. PAYLOAD = N x BinaryHistoryRecord (74 B
  * packed) raw, without reformatting. Sensor filtering is on the client.
  *
  * Format (all LE):
- * HEADER (32 B): "SIMX" | ver=1 | kind='H' | rsv | recSize=28 | rsv |
+ * HEADER (32 B): "SIMX" | ver=1 | kind='H' | rsv | recSize=74 | rsv |
  * rangeFrom u32 | rangeTo u32 | sensorTblSize u32 | rsv x2
  * SENSOR_TABLE (variable): per active slot: idx u8, hwidLen u8, hwid[],
  * friendlyLen u8, friendly[]
- * PAYLOAD (variable): N x BinaryHistoryRecord (28 B each)
+ * PAYLOAD (variable): N x BinaryHistoryRecord (74 B each)
  * TRAILER (4 B): crc32 u32 (over HEADER+TABLE+PAYLOAD)
  */
 namespace {
@@ -488,7 +512,7 @@ void WebManager::handleApiExportHistory( ) {
  memcpy(hdr.magic, "SIMX", 4);
  hdr.version = 0x01;
  hdr.kind = 'H';
- hdr.recordSize = (uint16_t)sizeof(BinaryHistoryRecord); /* 28 */
+ hdr.recordSize = (uint16_t)sizeof(BinaryHistoryRecord); /* 74 */
  hdr.rangeFrom = rangeFrom;
  hdr.rangeTo = rangeTo;
  hdr.sensorTableSize = (uint32_t)sensorTblLen;
@@ -550,7 +574,7 @@ void WebManager::handleApiExportHistory( ) {
  f.seek(0);
  if (f.read((uint8_t*)&hdrV2, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOk = (memcmp(hdrV2.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdrV2.version == HIST_V2_VERSION &&
+ (hdrV2.version == HIST_V2_VERSION || hdrV2.version == HIST_V3_VERSION) &&
  hdrV2.anchorPeriod > 0);
  }
  }
