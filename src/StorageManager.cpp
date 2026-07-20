@@ -1307,7 +1307,10 @@ static bool scanHistoryFileForState(File& f, HistoryCodecState& s) {
  f.seek(0);
  HistoryFileHeaderV2 hdr;
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) != HIST_V2_HEADER_SIZE) return false;
- if (memcmp(hdr.magic, HIST_V2_MAGIC, 4) != 0 || hdr.version != HIST_V2_VERSION) return false;
+ if (memcmp(hdr.magic, HIST_V2_MAGIC, 4) != 0 ||
+ (hdr.version != HIST_V2_VERSION && hdr.version != HIST_V3_VERSION)) return false;
+ /* Set codec file version from header — v2 (40B anchor) or v3 (74B anchor) */
+ s.fileVersion = hdr.version;
 
  uint8_t buf[256];
  size_t filled = 0;
@@ -1382,7 +1385,7 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
  if (f) {
  HistoryFileHeaderV2 hdr;
  memcpy(hdr.magic, HIST_V2_MAGIC, 4);
- hdr.version = HIST_V2_VERSION;
+ hdr.version = HIST_V3_VERSION;
  hdr.anchorPeriod = HIST_V2_ANCHOR_PERIOD;
  hdr.flags = 0;
  hdr.recordCount = 0;
@@ -1390,13 +1393,17 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
  f.close( );
  }
  historyCodecReset(_histCodec);
+ /* Set codec to v3 mode for new files (after reset which clears to 0) */
+ _histCodec.fileVersion = HIST_V3_VERSION;
  }
  });
  _histCodecValid = true;
  }
 
- /* Chunk 3: encode record (anchor or delta) and append. */
- uint8_t encBuf[64];
+ /* Chunk 3: encode record (anchor or delta) and append.
+  * Buffer must hold max(sizeof(BinaryHistoryRecord), HIST_V2_MAX_DELTA_SIZE)
+  * = max(74, 120) = 120. Round to 128 for safety. */
+ uint8_t encBuf[128];
  bool wasAnchor = false;
  size_t encLen = historyEncodeRecord(rec, _histCodec, encBuf, sizeof(encBuf), &wasAnchor);
  if (encLen == 0) {
@@ -1593,7 +1600,8 @@ uint32_t StorageManager::getLastRecordedTimestamp( ) {
  f.seek(0);
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE &&
  memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdr.version == HIST_V2_VERSION) {
+ (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION)) {
+ st.fileVersion = hdr.version;
  historyCodecReset(st);
  uint8_t buf[256];
  size_t filled = 0;

@@ -1,6 +1,13 @@
 /**
  * @file HistoryCodec.cpp
- * @brief Implementation of the v2 codec (delta + sensor-mask + anchor).
+ * @brief Implementation of the v2/v3 codec (delta + sensor-mask + anchor).
+ *
+ * v2 format (version 0x0002): 40-byte anchor, 18-bit mask (3 bytes)
+ *   Fields: ambientTemp, ambientHum, sensors[0..15]
+ *
+ * v3 format (version 0x0003): 74-byte anchor, 35-bit mask (5 bytes)
+ *   Fields: ambientTemp, ambientHum, sensors[0..15],
+ *           humidity[0..15], pressure
  */
 
 #include "HistoryCodec.h"
@@ -46,15 +53,35 @@ void historyCodecReset(HistoryCodecState& s) {
  memset(&s, 0, sizeof(s));
  s.recordsSinceAnchor = 0;
  s.initialized = false;
+ s.fileVersion = 0; /* unknown until first anchor decode */
 }
 
-static inline void updateFieldValidity(HistoryCodecState& s,
+/* Total field count per version */
+static inline int fieldCountV2() { return 2 + MAX_SENSORS; }          /* 18 */
+static inline int fieldCountV3() { return 2 + MAX_SENSORS + MAX_SENSORS + 1; } /* 35 */
+static inline int maskBytesForVersion(uint16_t ver) {
+ return (ver >= HIST_V3_VERSION) ? 5 : 3;
+}
+static inline int fieldCountForVersion(uint16_t ver) {
+ return (ver >= HIST_V3_VERSION) ? fieldCountV3() : fieldCountV2();
+}
+
+static inline void updateFieldValidityV2(HistoryCodecState& s,
  const BinaryHistoryRecord& rec) {
  s.fieldHasValid[0] = (rec.ambientTemp != HIST_NAN_SENTINEL);
  s.fieldHasValid[1] = (rec.ambientHum != HIST_NAN_SENTINEL);
  for (int i = 0; i < MAX_SENSORS; i++) {
  s.fieldHasValid[2 + i] = (rec.sensors[i] != HIST_NAN_SENTINEL);
  }
+}
+
+static inline void updateFieldValidityV3(HistoryCodecState& s,
+ const BinaryHistoryRecord& rec) {
+ updateFieldValidityV2(s, rec);
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ s.fieldHasValid[18 + i] = (rec.humidity[i] != HIST_NAN_SENTINEL);
+ }
+ s.fieldHasValid[34] = (rec.pressure != HIST_NAN_SENTINEL);
 }
 
 /* ======================================================================== */
@@ -65,6 +92,13 @@ size_t historyEncodeRecord(const BinaryHistoryRecord& rec,
  HistoryCodecState& s,
  uint8_t* buf, size_t bufSize,
  bool* outIsAnchor) {
+ /* Default to v3 if not initialized */
+ if (!s.initialized && s.fileVersion == 0) {
+ s.fileVersion = HIST_V3_VERSION;
+ }
+ uint16_t ver = s.fileVersion;
+ int totalFields = fieldCountForVersion(ver);
+
  bool emitAnchor = !s.initialized || (s.recordsSinceAnchor >= HIST_V2_ANCHOR_PERIOD);
 
  if (outIsAnchor) *outIsAnchor = emitAnchor;
@@ -73,31 +107,50 @@ size_t historyEncodeRecord(const BinaryHistoryRecord& rec,
  if (bufSize < sizeof(BinaryHistoryRecord)) return 0;
  memcpy(buf, &rec, sizeof(rec));
  s.lastValid = rec;
- updateFieldValidity(s, rec);
+ if (ver >= HIST_V3_VERSION) {
+ updateFieldValidityV3(s, rec);
+ } else {
+ updateFieldValidityV2(s, rec);
+ }
  s.initialized = true;
- s.recordsSinceAnchor = 1; /* anchor counts as record 0; next delta will be 1 */
+ s.recordsSinceAnchor = 1;
  return sizeof(BinaryHistoryRecord);
  }
 
  /* DELTA */
  uint8_t* p = buf;
 
- /* Mask: bit 0=amb_temp, bit 1=amb_hum, bit 2..17=sensors[0..15].
-  * Uses 3 bytes (18 bits) — uint32_t to fit all 16 sensor slots. */
- uint32_t mask = 0;
- if (rec.ambientTemp != HIST_NAN_SENTINEL) mask |= (1ul << 0);
- if (rec.ambientHum != HIST_NAN_SENTINEL) mask |= (1ul << 1);
+ /* Build mask. Layout:
+  * v2 (18 bits in 3 bytes):
+  *   bits 0-1:  ambient
+  *   bits 2-17: sensors[0..15]
+  * v3 (35 bits in 5 bytes):
+  *   bits 0-1:  ambient
+  *   bits 2-17: sensors[0..15]
+  *   bits 18-33: humidity[0..15]
+  *   bit 34:     pressure
+  */
+ uint64_t mask = 0; /* 64-bit to safely hold 35 bits */
+ if (rec.ambientTemp != HIST_NAN_SENTINEL) mask |= (1ull << 0);
+ if (rec.ambientHum != HIST_NAN_SENTINEL) mask |= (1ull << 1);
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (rec.sensors[i] != HIST_NAN_SENTINEL) mask |= (1ul << (2 + i));
+ if (rec.sensors[i] != HIST_NAN_SENTINEL) mask |= (1ull << (2 + i));
+ }
+ if (ver >= HIST_V3_VERSION) {
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (rec.humidity[i] != HIST_NAN_SENTINEL) mask |= (1ull << (18 + i));
+ }
+ if (rec.pressure != HIST_NAN_SENTINEL) mask |= (1ull << 34);
  }
 
- if ((size_t)(p - buf) + 3 > bufSize) return 0;
- p[0] = (uint8_t)(mask & 0xFF);
- p[1] = (uint8_t)((mask >> 8) & 0xFF);
- p[2] = (uint8_t)((mask >> 16) & 0x03); /* only bits 16-17 used */
- p += 3;
+ int maskBytes = maskBytesForVersion(ver);
+ if ((size_t)(p - buf) + maskBytes > bufSize) return 0;
+ for (int b = 0; b < maskBytes; b++) {
+ p[b] = (uint8_t)((mask >> (b * 8)) & 0xFF);
+ }
+ p += maskBytes;
 
- /* Δepoch always present. In normal use = configured interval (1B). */
+ /* Δepoch always present */
  int32_t depoch = (int32_t)rec.epoch - (int32_t)s.lastValid.epoch;
  if ((size_t)(p - buf) + 5 > bufSize) return 0;
  p += writeVarintZ(depoch, p);
@@ -110,21 +163,42 @@ size_t historyEncodeRecord(const BinaryHistoryRecord& rec,
  return true;
  };
 
- if (!encField(mask & (1ul << 0), s.fieldHasValid[0], rec.ambientTemp, s.lastValid.ambientTemp)) return 0;
- if (!encField(mask & (1ul << 1), s.fieldHasValid[1], rec.ambientHum, s.lastValid.ambientHum)) return 0;
+ /* Encode fields in mask order */
+ if (!encField(mask & (1ull << 0), s.fieldHasValid[0], rec.ambientTemp, s.lastValid.ambientTemp)) return 0;
+ if (!encField(mask & (1ull << 1), s.fieldHasValid[1], rec.ambientHum, s.lastValid.ambientHum)) return 0;
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (!encField(mask & (1ul << (2 + i)), s.fieldHasValid[2 + i],
+ if (!encField(mask & (1ull << (2 + i)), s.fieldHasValid[2 + i],
  rec.sensors[i], s.lastValid.sensors[i])) return 0;
  }
-
- /* Update state only for fields actually present. */
- s.lastValid.epoch = rec.epoch;
- if (mask & (1ul << 0)) { s.lastValid.ambientTemp = rec.ambientTemp; s.fieldHasValid[0] = true; }
- if (mask & (1ul << 1)) { s.lastValid.ambientHum = rec.ambientHum; s.fieldHasValid[1] = true; }
+ if (ver >= HIST_V3_VERSION) {
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (mask & (1ul << (2 + i))) {
+ if (!encField(mask & (1ull << (18 + i)), s.fieldHasValid[18 + i],
+ rec.humidity[i], s.lastValid.humidity[i])) return 0;
+ }
+ if (!encField(mask & (1ull << 34), s.fieldHasValid[34],
+ rec.pressure, s.lastValid.pressure)) return 0;
+ }
+
+ /* Update state */
+ s.lastValid.epoch = rec.epoch;
+ if (mask & (1ull << 0)) { s.lastValid.ambientTemp = rec.ambientTemp; s.fieldHasValid[0] = true; }
+ if (mask & (1ull << 1)) { s.lastValid.ambientHum = rec.ambientHum; s.fieldHasValid[1] = true; }
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (mask & (1ull << (2 + i))) {
  s.lastValid.sensors[i] = rec.sensors[i];
  s.fieldHasValid[2 + i] = true;
+ }
+ }
+ if (ver >= HIST_V3_VERSION) {
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (mask & (1ull << (18 + i))) {
+ s.lastValid.humidity[i] = rec.humidity[i];
+ s.fieldHasValid[18 + i] = true;
+ }
+ }
+ if (mask & (1ull << 34)) {
+ s.lastValid.pressure = rec.pressure;
+ s.fieldHasValid[34] = true;
  }
  }
 
@@ -140,26 +214,55 @@ size_t historyDecodeRecord(const uint8_t* buf, size_t bufLen,
  HistoryCodecState& s,
  BinaryHistoryRecord& outRec,
  bool isAnchor) {
+ /* Auto-detect version from anchor size on first decode.
+  * v2 anchor = 40 bytes, v3 anchor = 74 bytes.
+  * Once set, version is locked for the file. */
+ if (isAnchor && s.fileVersion == 0) {
+ if (bufLen >= sizeof(BinaryHistoryRecord)) {
+ s.fileVersion = HIST_V3_VERSION;
+ } else {
+ s.fileVersion = HIST_V2_VERSION;
+ }
+ }
+ uint16_t ver = s.fileVersion;
+
  if (isAnchor) {
- if (bufLen < sizeof(BinaryHistoryRecord)) return 0;
- memcpy(&outRec, buf, sizeof(outRec));
+ size_t anchorSize = (ver >= HIST_V3_VERSION)
+ ? sizeof(BinaryHistoryRecord) : (size_t)40;
+ if (bufLen < anchorSize) return 0;
+ /* For v2 anchors, only copy the v2 portion (40 bytes); remaining stays NAN */
+ memset(&outRec, 0, sizeof(outRec));
+ outRec.clear();
+ memcpy(&outRec, buf, anchorSize);
  s.lastValid = outRec;
- updateFieldValidity(s, outRec);
+ if (ver >= HIST_V3_VERSION) {
+ updateFieldValidityV3(s, outRec);
+ } else {
+ updateFieldValidityV2(s, outRec);
+ }
  s.initialized = true;
  s.recordsSinceAnchor = 1;
- return sizeof(BinaryHistoryRecord);
+ return anchorSize;
  }
 
- if (bufLen < 3) return 0;
+ int maskBytes = maskBytesForVersion(ver);
+ if (bufLen < (size_t)maskBytes) return 0;
  const uint8_t* p = buf;
 
- uint32_t mask = (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);
- p += 3;
+ uint64_t mask = 0;
+ for (int b = 0; b < maskBytes; b++) {
+ mask |= ((uint64_t)p[b]) << (b * 8);
+ }
+ p += maskBytes;
 
  int32_t depoch = 0;
  size_t n = readVarintZ(p, bufLen - (size_t)(p - buf), depoch);
  if (n == 0) return 0;
  p += n;
+ outRec.epoch = (uint32_t)((int32_t)s.lastValid.epoch + depoch);
+
+ /* Init all fields to NAN, then decode present ones */
+ outRec.clear();
  outRec.epoch = (uint32_t)((int32_t)s.lastValid.epoch + depoch);
 
  auto decField = [&](bool present, bool hasValid, int16_t lastVal,
@@ -173,25 +276,53 @@ size_t historyDecodeRecord(const uint8_t* buf, size_t bufLen,
  return true;
  };
 
- int16_t tmpTemp = HIST_NAN_SENTINEL, tmpHum = HIST_NAN_SENTINEL;
- if (!decField(mask & (1ul << 0), s.fieldHasValid[0], s.lastValid.ambientTemp, &tmpTemp)) return 0;
- if (!decField(mask & (1ul << 1), s.fieldHasValid[1], s.lastValid.ambientHum, &tmpHum)) return 0;
- outRec.ambientTemp = tmpTemp;
- outRec.ambientHum = tmpHum;
+ int16_t tmp;
+
+ /* Ambient temp + hum */
+ if (!decField(mask & (1ull << 0), s.fieldHasValid[0], s.lastValid.ambientTemp, &tmp)) return 0;
+ outRec.ambientTemp = tmp;
+ if (!decField(mask & (1ull << 1), s.fieldHasValid[1], s.lastValid.ambientHum, &tmp)) return 0;
+ outRec.ambientHum = tmp;
+
+ /* Sensors (temperature) */
  for (int i = 0; i < MAX_SENSORS; i++) {
- int16_t tmpS = HIST_NAN_SENTINEL;
- if (!decField(mask & (1ul << (2 + i)), s.fieldHasValid[2 + i],
- s.lastValid.sensors[i], &tmpS)) return 0;
- outRec.sensors[i] = tmpS;
+ if (!decField(mask & (1ull << (2 + i)), s.fieldHasValid[2 + i],
+ s.lastValid.sensors[i], &tmp)) return 0;
+ outRec.sensors[i] = tmp;
  }
 
- s.lastValid.epoch = outRec.epoch;
- if (mask & (1ul << 0)) { s.lastValid.ambientTemp = outRec.ambientTemp; s.fieldHasValid[0] = true; }
- if (mask & (1ul << 1)) { s.lastValid.ambientHum = outRec.ambientHum; s.fieldHasValid[1] = true; }
+ /* Humidity + pressure (v3 only) */
+ if (ver >= HIST_V3_VERSION) {
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (mask & (1ul << (2 + i))) {
+ if (!decField(mask & (1ull << (18 + i)), s.fieldHasValid[18 + i],
+ s.lastValid.humidity[i], &tmp)) return 0;
+ outRec.humidity[i] = tmp;
+ }
+ if (!decField(mask & (1ull << 34), s.fieldHasValid[34],
+ s.lastValid.pressure, &tmp)) return 0;
+ outRec.pressure = tmp;
+ }
+
+ /* Update state */
+ s.lastValid.epoch = outRec.epoch;
+ if (mask & (1ull << 0)) { s.lastValid.ambientTemp = outRec.ambientTemp; s.fieldHasValid[0] = true; }
+ if (mask & (1ull << 1)) { s.lastValid.ambientHum = outRec.ambientHum; s.fieldHasValid[1] = true; }
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (mask & (1ull << (2 + i))) {
  s.lastValid.sensors[i] = outRec.sensors[i];
  s.fieldHasValid[2 + i] = true;
+ }
+ }
+ if (ver >= HIST_V3_VERSION) {
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (mask & (1ull << (18 + i))) {
+ s.lastValid.humidity[i] = outRec.humidity[i];
+ s.fieldHasValid[18 + i] = true;
+ }
+ }
+ if (mask & (1ull << 34)) {
+ s.lastValid.pressure = outRec.pressure;
+ s.fieldHasValid[34] = true;
  }
  }
 
