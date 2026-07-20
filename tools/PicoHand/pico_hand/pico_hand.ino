@@ -1,8 +1,29 @@
 /* =============================================================================
- *  pico_hand.ino
+ *  pico_hand.ino — Dual-core "robotic hand" firmware
  *
- *  "Robotic hand" firmware to remotely drive the BOOTSEL and RESET buttons
- *  of a target Raspberry Pi Pico via USB serial commands.
+ *  Remotely drives the BOOTSEL and RESET buttons of a target Raspberry Pi Pico
+ *  via USB serial commands, with continuous hardware verification.
+ *
+ *  Architecture (RP2040 dual-core)
+ *  -------------------------------
+ *  Core 0 (Executor):
+ *    - USB CDC serial command parser
+ *    - Serial2 → USB bridge (SIMUT target debug forwarding)
+ *    - GPIO control (BOOTSEL + RESET in emulated open-drain)
+ *    - Updates expected pin state for Core 1
+ *    - Reads verification results from Core 1
+ *
+ *  Core 1 (Logic Analyzer):
+ *    - Continuously samples actual pin levels via digitalRead()
+ *    - Compares against expected state set by Core 0
+ *    - Detects faults: stuck-high (open circuit), stuck-low (short to GND)
+ *    - Maintains heartbeat timestamp for watchdog
+ *    - Drives on-board LED: slow blink = OK, fast blink = fault
+ *
+ *  Inter-core communication:
+ *    Single-writer fields in a shared volatile struct. No mutex needed:
+ *    each field has exactly one writer. Atomic reads on Cortex-M0+ for
+ *    aligned 32-bit and byte types.
  *
  *  Designed for the Arduino IDE — tested with "arduino-pico" core
  *  (Earle Philhower):  https://github.com/earlephilhower/arduino-pico
@@ -68,13 +89,96 @@ static const uint32_t BOOTSEL_HOLD_PRE_MS = 50;
  *  samples the pin low during initial check. */
 static const uint32_t BOOTSEL_HOLD_POS_MS = 200;
 
-/** LED heartbeat period. */
+/** LED heartbeat period (when no fault — Core 1). */
 static const uint32_t HEARTBEAT_MS        = 500;
+
+/** LED fault blink period (when fault active — Core 1). */
+static const uint32_t FAULT_BLINK_MS      = 100;
+
+/* =============================================================================
+ *  Logic Analyzer timing (microseconds) — Core 1
+ * ============================================================================= */
+
+/** Sampling interval for the verifier loop. 100µs = 10 kHz. */
+static const uint32_t VERIFY_SAMPLE_US      = 100;
+
+/** Grace period after a command before fault detection begins.
+ *  Allows the pin and external circuit to settle. */
+static const uint32_t VERIFY_SETTLE_US      = 500;
+
+/** How long a mismatch must persist before it is flagged as a fault.
+ *  5 ms avoids false positives from transient noise. */
+static const uint32_t VERIFY_FAULT_US       = 5000;
+
+/** If Core 1 heartbeat is older than this, Core 0 considers it dead. */
+static const uint32_t VERIFY_HB_TIMEOUT_US  = 1000000;
+
+/* =============================================================================
+ *  Fault codes — written by Core 1, read by Core 0
+ * ============================================================================= */
+
+enum FaultCode : uint8_t {
+    FAULT_NONE        = 0,  /**< Pin matches expected state.              */
+    FAULT_STUCK_HIGH  = 1,  /**< Expected LOW (pressed) but reads HIGH
+                                 (open circuit, broken wire).             */
+    FAULT_STUCK_LOW   = 2,  /**< Expected HIGH (released) but reads LOW
+                                 (short to GND, target pulling down).     */
+    FAULT_GLITCH      = 3,  /**< Unexpected transient (reserved).         */
+    FAULT_NO_VERIFIER = 4,  /**< Core 1 heartbeat timeout (internal use). */
+};
+
+/* =============================================================================
+ *  Shared state between cores
+ *
+ *  Single-writer discipline: each field is written by exactly one core.
+ *  volatile ensures visibility; no mutex needed because RP2040 SIO provides
+ *  atomic reads for aligned ≤32-bit types and digitalRead/digitalWrite are
+ *  single-cycle atomic operations on independent SIO registers.
+ * ============================================================================= */
+
+struct VerifierState {
+    /* ---------- Core 0 writes, Core 1 reads ---------- */
+
+    /** true = pin SHOULD be LOW (pressed). */
+    volatile bool     bootsel_expected_low;
+    volatile bool     reset_expected_low;
+
+    /** micros() timestamp of the last press/release command for each pin. */
+    volatile uint32_t bootsel_cmd_time_us;
+    volatile uint32_t reset_cmd_time_us;
+
+    /* ---------- Core 1 writes, Core 0 reads ---------- */
+
+    /** Last sampled pin level (true = LOW). */
+    volatile bool     bootsel_actual_low;
+    volatile bool     reset_actual_low;
+
+    /** Current fault code (FaultCode enum). */
+    volatile uint8_t  bootsel_fault;
+    volatile uint8_t  reset_fault;
+
+    /** micros() timestamp when the current fault began. */
+    volatile uint32_t bootsel_fault_time_us;
+    volatile uint32_t reset_fault_time_us;
+
+    /** Accumulated fault count (cleared by VERIFY CLEAR). */
+    volatile uint32_t bootsel_fault_count;
+    volatile uint32_t reset_fault_count;
+
+    /** Core 1 heartbeat: updated every sample loop iteration (~100µs). */
+    volatile uint32_t last_heartbeat_us;
+};
+
+/** Single global instance of the verifier shared state. */
+static VerifierState g_vs;
+
+/* =============================================================================
+ *  Debug flag
+ * ============================================================================= */
 
 /** Debug: toggle verbose pin transition + timestamp logs.
  *  Runtime toggle via "DEBUG ON"/"DEBUG OFF" commands. Default OFF so
- *  automation output stays clean. Use "DEBUG ON" before commands you
- *  want to instrument. */
+ *  automation output stays clean. */
 static bool g_debug_enabled = false;
 
 /* =============================================================================
@@ -85,7 +189,28 @@ static const size_t LINE_BUFFER_SIZE = 64;
 static const size_t ARG_BUFFER_SIZE  = 16;
 
 /* =============================================================================
- *  Virtual button layer (emulated open-drain)
+ *  Fault code string helpers
+ * ============================================================================= */
+
+/**
+ * Convert a FaultCode to its human-readable string.
+ * @param code  FaultCode enum value.
+ * @return      Static string (never NULL).
+ */
+static const char *fault_code_str(uint8_t code)
+{
+    switch (code) {
+        case FAULT_NONE:        return "OK";
+        case FAULT_STUCK_HIGH:  return "STUCK_HIGH";
+        case FAULT_STUCK_LOW:   return "STUCK_LOW";
+        case FAULT_GLITCH:      return "GLITCH";
+        case FAULT_NO_VERIFIER: return "NO_VERIFIER";
+        default:                return "UNKNOWN";
+    }
+}
+
+/* =============================================================================
+ *  Virtual button layer (emulated open-drain) — Core 0 only
  * ============================================================================= */
 
 /**
@@ -121,8 +246,26 @@ static void dbg_pin(uint32_t t, const char *action, uint8_t gpio)
 }
 
 /**
+ * Update the verifier expected state for a given pin.
+ *
+ * @param gpio         GPIO that was changed.
+ * @param expected_low true if pin should now be LOW (pressed).
+ */
+static void verifier_notify(uint8_t gpio, bool expected_low)
+{
+    uint32_t now = micros();
+    if (gpio == PIN_BOOTSEL) {
+        g_vs.bootsel_expected_low = expected_low;
+        g_vs.bootsel_cmd_time_us  = now;
+    } else if (gpio == PIN_RESET) {
+        g_vs.reset_expected_low = expected_low;
+        g_vs.reset_cmd_time_us  = now;
+    }
+}
+
+/**
  * Press the "button": GPIO becomes OUTPUT LOW, pulling the target
- * Pico's line to GND.
+ * Pico's line to GND. Also notifies Core 1 of the expected state.
  *
  * @param gpio  GPIO number to press.
  */
@@ -131,12 +274,13 @@ static void pin_press(uint8_t gpio)
     uint32_t t0 = millis();
     digitalWrite(gpio, LOW);
     pinMode(gpio, OUTPUT);
+    verifier_notify(gpio, true);
     dbg_pin(t0, "PRESS", gpio);
 }
 
 /**
  * Release the "button": GPIO returns to INPUT (high impedance), allowing
- * the target's pull-up to raise the line.
+ * the target's pull-up to raise the line. Notifies Core 1.
  *
  * @param gpio  GPIO number to release.
  */
@@ -145,6 +289,7 @@ static void pin_release(uint8_t gpio)
     /* v3 fix: INPUT_PULLUP instead of plain INPUT. See pin_init_released. */
     uint32_t t0 = millis();
     pinMode(gpio, INPUT_PULLUP);
+    verifier_notify(gpio, false);
     dbg_pin(t0, "RELEASE", gpio);
 }
 
@@ -160,6 +305,77 @@ static bool g_bootsel_pressed = false;
 static bool g_reset_pressed   = false;
 
 /* =============================================================================
+ *  Verifier health check — Core 0
+ * ============================================================================= */
+
+/**
+ * Check whether the logic analyzer (Core 1) has detected a fault on a
+ * specific pin, or whether Core 1 itself has stopped responding.
+ *
+ * @param gpio           PIN_BOOTSEL or PIN_RESET.
+ * @param out_fault_code (output) FaultCode if a fault is active.
+ * @return               true if verification passed (no fault, verifier alive),
+ *                       false if a fault is active or Core 1 is dead.
+ */
+static bool check_pin_verification(uint8_t gpio, uint8_t *out_fault_code)
+{
+    uint32_t now = micros();
+    uint32_t hb_age = now - g_vs.last_heartbeat_us;
+
+    /* Check Core 1 heartbeat first */
+    if (hb_age > VERIFY_HB_TIMEOUT_US) {
+        *out_fault_code = FAULT_NO_VERIFIER;
+        return false;
+    }
+
+    /* Read pin-specific fault */
+    uint8_t  fault;
+    uint32_t fault_time;
+    if (gpio == PIN_BOOTSEL) {
+        fault      = g_vs.bootsel_fault;
+        fault_time = g_vs.bootsel_fault_time_us;
+    } else {
+        fault      = g_vs.reset_fault;
+        fault_time = g_vs.reset_fault_time_us;
+    }
+
+    /* If a fault is flagged but happened before the last command,
+       the pin has since recovered — treat as OK. */
+    uint32_t cmd_time = (gpio == PIN_BOOTSEL) ? g_vs.bootsel_cmd_time_us
+                                              : g_vs.reset_cmd_time_us;
+    if (fault != FAULT_NONE && fault_time < cmd_time) {
+        fault = FAULT_NONE;
+    }
+
+    *out_fault_code = fault;
+    return (fault == FAULT_NONE);
+}
+
+/**
+ * Append verification suffix to a command response if a fault is active.
+ *
+ * Call after pin operations (RESET, BOOTSEL, HOLD, RELEASE).
+ * If verification passed, the response remains "OK <CMD>".
+ * If a fault is detected, appends " VFY:<PIN>_<FAULT>" to the response.
+ *
+ * @param gpio  PIN_BOOTSEL or PIN_RESET (the pin that was operated).
+ * @param name  Human-readable pin name ("BOOTSEL" or "RESET").
+ */
+static void append_verification_suffix(uint8_t gpio, const char *name)
+{
+    uint8_t fault;
+    if (check_pin_verification(gpio, &fault)) {
+        return;  /* All good, response already printed */
+    }
+
+    if (fault == FAULT_NO_VERIFIER) {
+        Serial.printf(" VFY:NO_VERIFIER");
+    } else {
+        Serial.printf(" VFY:%s_%s", name, fault_code_str(fault));
+    }
+}
+
+/* =============================================================================
  *  High-level sequences
  * ============================================================================= */
 
@@ -167,6 +383,7 @@ static bool g_reset_pressed   = false;
  * Apply a reset pulse to the target Pico.
  *
  * Measures actual pulse time and reports in debug mode.
+ * Verification suffix is appended by the caller (cmd_reset).
  */
 static void sequence_reset(void)
 {
@@ -290,6 +507,7 @@ static void cmd_pinout(const char *args);
 static void cmd_self_bootsel(const char *args);
 static void cmd_debug(const char *args);
 static void cmd_pulse_test(const char *args);
+static void cmd_verify(const char *args);
 static void cmd_help(const char *args);
 
 /* Dispatch table --------------------------------------------------------- */
@@ -304,6 +522,7 @@ static const command_t COMMANDS[] = {
     { "SELF_BOOTSEL", "puts this HAND into BOOTSEL (for reflashing)",         cmd_self_bootsel },
     { "DEBUG",        "DEBUG <ON|OFF|STATUS>: toggle verbose logs",           cmd_debug        },
     { "PULSE_TEST",   "PULSE_TEST <BOOTSEL|RESET> <ms> <count>: timed pulses",cmd_pulse_test   },
+    { "VERIFY",       "VERIFY [CLEAR]: shows/resets logic analyzer status",   cmd_verify       },
     { "HELP",         "lists all available commands",                         cmd_help         },
 };
 
@@ -323,6 +542,20 @@ static void cmd_reset(const char *args)
 {
     (void)args;
     sequence_reset();
+
+    /* Brief settle delay so Core 1 has time to detect the transition
+       before we check verification status. */
+    delay(10);
+
+    uint8_t fault;
+    if (!check_pin_verification(PIN_RESET, &fault)) {
+        if (fault == FAULT_NO_VERIFIER) {
+            Serial.println("ERR RESET VFY:NO_VERIFIER");
+        } else {
+            Serial.printf("ERR RESET VFY:RESET_%s\n", fault_code_str(fault));
+        }
+        return;
+    }
     Serial.println("OK RESET");
 }
 
@@ -330,7 +563,27 @@ static void cmd_bootsel(const char *args)
 {
     (void)args;
     sequence_bootsel();
-    Serial.println("OK BOOTSEL");
+
+    /* Brief settle delay for Core 1 detection. */
+    delay(10);
+
+    /* Check both pins since BOOTSEL sequence touches both. */
+    uint8_t bfault, rfault;
+    bool bok = check_pin_verification(PIN_BOOTSEL, &bfault);
+    bool rok = check_pin_verification(PIN_RESET,   &rfault);
+
+    if (bok && rok) {
+        Serial.println("OK BOOTSEL");
+    } else {
+        Serial.print("ERR BOOTSEL");
+        if (!bok) {
+            Serial.printf(" VFY:BOOTSEL_%s", fault_code_str(bfault));
+        }
+        if (!rok) {
+            Serial.printf(" VFY:RESET_%s", fault_code_str(rfault));
+        }
+        Serial.println();
+    }
 }
 
 /**
@@ -396,6 +649,19 @@ static void cmd_hold(const char *args)
     }
     pin_press(gpio);
     *state_flag = true;
+
+    delay(5);  /* Settle for Core 1 */
+
+    uint8_t fault;
+    if (!check_pin_verification(gpio, &fault)) {
+        if (fault == FAULT_NO_VERIFIER) {
+            Serial.printf("ERR HOLD %s VFY:NO_VERIFIER\n", target);
+        } else {
+            Serial.printf("ERR HOLD %s VFY:%s_%s\n",
+                          target, target, fault_code_str(fault));
+        }
+        return;
+    }
     Serial.printf("OK HOLD %s\n", target);
 }
 
@@ -411,15 +677,32 @@ static void cmd_release(const char *args)
     }
     pin_release(gpio);
     *state_flag = false;
+
+    delay(5);  /* Settle for Core 1 */
+
+    uint8_t fault;
+    if (!check_pin_verification(gpio, &fault)) {
+        if (fault == FAULT_NO_VERIFIER) {
+            Serial.printf("ERR RELEASE %s VFY:NO_VERIFIER\n", target);
+        } else {
+            Serial.printf("ERR RELEASE %s VFY:%s_%s\n",
+                          target, target, fault_code_str(fault));
+        }
+        return;
+    }
     Serial.printf("OK RELEASE %s\n", target);
 }
 
 static void cmd_status(const char *args)
 {
     (void)args;
-    Serial.printf("STATUS BOOTSEL=%s RESET=%s\n",
+    /* Include verifier actual readings for richer status. */
+    Serial.printf("STATUS BOOTSEL=%s RESET=%s "
+                  "VFY:BOOTSEL_ACT=%s VFY:RESET_ACT=%s\n",
                   g_bootsel_pressed ? "PRESSED" : "RELEASED",
-                  g_reset_pressed   ? "PRESSED" : "RELEASED");
+                  g_reset_pressed   ? "PRESSED" : "RELEASED",
+                  g_vs.bootsel_actual_low ? "LOW" : "HIGH",
+                  g_vs.reset_actual_low   ? "LOW" : "HIGH");
 }
 
 static void cmd_pinout(const char *args)
@@ -525,7 +808,81 @@ static void cmd_pulse_test(const char *args)
         Serial.flush();
         delay(200);
     }
-    Serial.println("DONE PULSE_TEST");
+
+    /* Final verification check */
+    delay(5);
+    uint8_t fault;
+    if (!check_pin_verification(gpio, &fault)) {
+        Serial.printf("DONE PULSE_TEST VFY:%s_%s\n",
+                      target_str, fault_code_str(fault));
+    } else {
+        Serial.println("DONE PULSE_TEST");
+    }
+}
+
+/**
+ * VERIFY [CLEAR]
+ *
+ * Without arguments: reports the current status of the logic analyzer
+ * (Core 1) for both pins, including heartbeat age and fault counters.
+ *
+ * With "CLEAR": resets all fault counters and clears active faults.
+ */
+static void cmd_verify(const char *args)
+{
+    char buf[ARG_BUFFER_SIZE];
+    if (args != NULL && *args != '\0') {
+        strncpy(buf, args, sizeof(buf) - 1);
+        buf[sizeof(buf) - 1] = '\0';
+        str_upper(buf);
+
+        if (strcmp(buf, "CLEAR") == 0) {
+            /* Reset all fault counters and active faults.
+               These are Core 1 writes but we're on Core 0 — safe because
+               we're clearing counters; if Core 1 writes concurrently it
+               will just set a new fault naturally on next mismatch. */
+            g_vs.bootsel_fault       = FAULT_NONE;
+            g_vs.reset_fault         = FAULT_NONE;
+            g_vs.bootsel_fault_count = 0;
+            g_vs.reset_fault_count   = 0;
+            Serial.println("OK VFY CLEAR");
+            return;
+        }
+        Serial.printf("ERR: VERIFY expects CLEAR or no argument (received '%s')\n", buf);
+        return;
+    }
+
+    /* Report verifier status */
+    uint32_t now    = micros();
+    uint32_t hb_age = now - g_vs.last_heartbeat_us;
+
+    /* Format each pin status */
+    const char *bf = fault_code_str(g_vs.bootsel_fault);
+    const char *rf = fault_code_str(g_vs.reset_fault);
+
+    Serial.printf("VFY BOOTSEL=%s", bf);
+    if (g_vs.bootsel_fault != FAULT_NONE) {
+        /* Format: STUCK_HIGH(3,1234us) — fault(count,last_fault_age_us) */
+        uint32_t fault_age = now - g_vs.bootsel_fault_time_us;
+        Serial.printf("(%lu,%luus)",
+                      (unsigned long)g_vs.bootsel_fault_count,
+                      (unsigned long)fault_age);
+    }
+    Serial.printf(" RESET=%s", rf);
+    if (g_vs.reset_fault != FAULT_NONE) {
+        uint32_t fault_age = now - g_vs.reset_fault_time_us;
+        Serial.printf("(%lu,%luus)",
+                      (unsigned long)g_vs.reset_fault_count,
+                      (unsigned long)fault_age);
+    }
+    Serial.printf(" HB=%luus", (unsigned long)hb_age);
+    Serial.printf(" E:BOOTSEL=%s E:RESET=%s",
+                  g_vs.bootsel_expected_low ? "LOW" : "HIGH",
+                  g_vs.reset_expected_low   ? "LOW" : "HIGH");
+    Serial.printf(" A:BOOTSEL=%s A:RESET=%s",
+                  g_vs.bootsel_actual_low ? "LOW" : "HIGH",
+                  g_vs.reset_actual_low   ? "LOW" : "HIGH");
+    Serial.println();
 }
 
 static void cmd_help(const char *args)
@@ -616,7 +973,7 @@ static void serial_pump(void)
 }
 
 /* =============================================================================
- *  setup() / loop()
+ *  Core 0 — setup() / loop()
  * ============================================================================= */
 
 void setup(void)
@@ -633,24 +990,24 @@ void setup(void)
      * Bytes from SIMUT arrive here and are forwarded to the USB CDC Serial. */
     Serial2.begin(115200);
 
-    /* Heartbeat LED */
+    /* Heartbeat LED — pin init only. Core 1 drives the blink pattern. */
     pinMode(LED_GPIO, OUTPUT);
     digitalWrite(LED_GPIO, LOW);
 
     /* Control lines start released (high impedance). */
     pin_init_released(PIN_BOOTSEL);
     pin_init_released(PIN_RESET);
+
+    /* Core 1 launches automatically via the arduino-pico framework.
+     * setup1() and loop1() are defined below — the framework detects them
+     * (weak symbol override), calls main1() which runs setup1() once
+     * followed by loop1() in an infinite loop on Core 1. */
 }
 
 void loop(void)
 {
-    /* Non-blocking heartbeat: toggle LED every HEARTBEAT_MS. */
-    static uint32_t last_blink_ms = 0;
-    uint32_t now = millis();
-    if (now - last_blink_ms >= HEARTBEAT_MS) {
-        last_blink_ms = now;
-        digitalWrite(LED_GPIO, !digitalRead(LED_GPIO));
-    }
+    /* LED heartbeat is now handled by Core 1.
+     * Core 0 only does serial I/O and bridge forwarding. */
 
     /* Transparent serial bridge: forward bytes from UART1 (Serial2)
      * to USB CDC (Serial) — SIMUT logs appear on the host terminal.
@@ -676,4 +1033,127 @@ void loop(void)
 
     /* Process any serial commands that have arrived. */
     serial_pump();
+}
+
+/* =============================================================================
+ *  Core 1 — Logic Analyzer (setup1 + loop1)
+ *
+ *  The arduino-pico framework automatically detects setup1()/loop1()
+ *  as overrides of weak symbols. Core 1 is launched via main1() which
+ *  calls rp2040.begin(1) (systick) and rp2040.fifo.registerCore() before
+ *  entering setup1() once and then loop1() in an infinite loop.
+ *
+ *  Core 1 continuously samples the BOOTSEL and RESET pins and compares
+ *  their actual levels against the expected state written by Core 0.
+ *  Faults are flagged when a mismatch persists beyond VERIFY_FAULT_US.
+ * ============================================================================= */
+
+void setup1(void)
+{
+    /* Initialize verifier state: both pins start released (HIGH). */
+    g_vs.bootsel_expected_low = false;
+    g_vs.reset_expected_low   = false;
+    g_vs.bootsel_actual_low   = false;
+    g_vs.reset_actual_low     = false;
+    g_vs.bootsel_fault        = FAULT_NONE;
+    g_vs.reset_fault          = FAULT_NONE;
+    g_vs.bootsel_fault_count  = 0;
+    g_vs.reset_fault_count    = 0;
+    g_vs.last_heartbeat_us    = micros();
+}
+
+void loop1(void)
+{
+    static uint32_t last_sample_us   = 0;
+    static uint32_t last_led_ms      = 0;
+    static uint32_t boots_mismatch_start_us = 0;
+    static uint32_t reset_mismatch_start_us = 0;
+
+    uint32_t now_us = micros();
+    uint32_t now_ms = millis();
+
+    /* ----- Heartbeat (unconditional — Core 0 watchdog depends on this) ----- */
+    g_vs.last_heartbeat_us = now_us;
+
+    /* ----- LED driver (always runs) -----
+     * Slow blink (500ms) when all OK, fast blink (100ms) on any fault. */
+    {
+        bool any_fault = (g_vs.bootsel_fault != FAULT_NONE ||
+                          g_vs.reset_fault   != FAULT_NONE);
+        uint32_t period_ms = any_fault ? FAULT_BLINK_MS : HEARTBEAT_MS;
+
+        if (now_ms - last_led_ms >= period_ms) {
+            last_led_ms = now_ms;
+            digitalWrite(LED_GPIO, !digitalRead(LED_GPIO));
+        }
+    }
+
+    /* ----- Pin sampling (throttled to VERIFY_SAMPLE_US) ----- */
+    if (now_us - last_sample_us < VERIFY_SAMPLE_US) {
+        return;
+    }
+    last_sample_us = now_us;
+
+    /* Read actual levels. digitalRead() returns HIGH (true) when the
+       line is at logic high (released via pull-up). Convert to
+       "actual_low" semantics where true = LOW (pressed). */
+    bool boots_read = (digitalRead(PIN_BOOTSEL) == LOW);
+    bool reset_read = (digitalRead(PIN_RESET)   == LOW);
+
+    g_vs.bootsel_actual_low = boots_read;
+    g_vs.reset_actual_low   = reset_read;
+
+    /* ----- BOOTSEL verification ----- */
+    {
+        bool expected = g_vs.bootsel_expected_low;
+        bool actual   = boots_read;
+        uint32_t cmd_time = g_vs.bootsel_cmd_time_us;
+
+        if (now_us - cmd_time >= VERIFY_SETTLE_US) {
+            if (expected == actual) {
+                if (g_vs.bootsel_fault != FAULT_NONE) {
+                    g_vs.bootsel_fault = FAULT_NONE;
+                }
+                boots_mismatch_start_us = 0;
+            } else {
+                if (boots_mismatch_start_us == 0) {
+                    boots_mismatch_start_us = now_us;
+                } else if (now_us - boots_mismatch_start_us >= VERIFY_FAULT_US) {
+                    if (g_vs.bootsel_fault == FAULT_NONE) {
+                        g_vs.bootsel_fault_count++;
+                    }
+                    g_vs.bootsel_fault       = expected ? FAULT_STUCK_HIGH
+                                                        : FAULT_STUCK_LOW;
+                    g_vs.bootsel_fault_time_us = now_us;
+                }
+            }
+        }
+    }
+
+    /* ----- RESET verification ----- */
+    {
+        bool expected = g_vs.reset_expected_low;
+        bool actual   = reset_read;
+        uint32_t cmd_time = g_vs.reset_cmd_time_us;
+
+        if (now_us - cmd_time >= VERIFY_SETTLE_US) {
+            if (expected == actual) {
+                if (g_vs.reset_fault != FAULT_NONE) {
+                    g_vs.reset_fault = FAULT_NONE;
+                }
+                reset_mismatch_start_us = 0;
+            } else {
+                if (reset_mismatch_start_us == 0) {
+                    reset_mismatch_start_us = now_us;
+                } else if (now_us - reset_mismatch_start_us >= VERIFY_FAULT_US) {
+                    if (g_vs.reset_fault == FAULT_NONE) {
+                        g_vs.reset_fault_count++;
+                    }
+                    g_vs.reset_fault         = expected ? FAULT_STUCK_HIGH
+                                                        : FAULT_STUCK_LOW;
+                    g_vs.reset_fault_time_us = now_us;
+                }
+            }
+        }
+    }
 }
