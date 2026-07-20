@@ -4,6 +4,34 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v1.5.1-beta (2026-07-19)
+
+### Correção do Modo AP — Toque na Inicialização
+
+- **Removido wake-up SPI do XPT2046** — A transação SPI manual (`0x90`) durante o boot colocava o XPT2046 em power-down com PENIRQ desabilitado (PD0=0). Os bytes de dados no protocolo pipeline herdavam PD0=0, mantendo o PENIRQ permanentemente desligado e impedindo a ativação do modo AP por toque. O circuito de touch-detect do XPT2046 está sempre ativo após power-up — nenhuma inicialização SPI é necessária. Correção: modo AP agora ativa corretamente ao segurar o toque na inicialização.
+
+### Correções de Persistência da Calibração
+
+- **Alterações de calibração agora persistem no reboot** — O caminho de reboot do `commit_all` salva corretamente os dados de calibração. Antes eram perdidos em reboot por watchdog.
+- **Evita reescrita do `calib.csv` quando `nChanges==0`** — Evita escritas flash desnecessárias quando não há alterações.
+- ** salvamento rápido para sensores sem ROM** — Sem travamento no modo silencioso ao salvar calibração de sensores sem identificador ROM.
+- **Alterações de hwId/nome na calibração agora instantâneas** — Mudanças aplicam em 0,4s em vez de exigir reload completo.
+
+### Melhorias no Dashboard & UI
+
+- **Persistência do slot 0 no painel superior** — O slot 0 agora persiste corretamente no painel superior após alterações de offset ou tema.
+- **Troca automática do painel inferior** — Quando o slot do painel superior muda, o painel inferior agora alterna automaticamente para o próximo slot disponível.
+
+### Pacotes de Release para Arduino IDE
+
+- **`tools/build_release.sh`** — Script automatizado para gerar `.zip` compatíveis com Arduino IDE para as variantes `simut_tft` (ILI9341) e `simut_alpha` (HD44780).
+- **Estrutura de arquivos achatada** — Todos os arquivos na raiz do sketch; includes de subpastas (`ota/`, `display/`, `sensors/`) reescritos para caminhos planos.
+- **Ambas variantes compilam com arduino-cli** — TFT: 911.888 bytes (87%), Alpha: 819.636 bytes (78%) no RP2040 Pico W com filesystem de 1 MB.
+
+### Arquivos de Atualização OTA
+
+- **Binários do firmware** — `release/simut_v1.5.1-beta.bin` (atualização OTA) e `release/simut_v1.5.1-beta.uf2` (flash via USB mass-storage).
+
 ## v1.5.0-beta (2026-07-19)
 
 ### Configuração de Hardware Centralizada — `simut_config.h`

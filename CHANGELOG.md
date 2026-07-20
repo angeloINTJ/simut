@@ -4,6 +4,34 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.5.1-beta (2026-07-19)
+
+### AP Mode Fix — Touch Hold at Boot
+
+- **XPT2046 SPI wake-up removed** — The manual SPI transaction (`0x90`) at boot was putting the XPT2046 into power-down mode with PENIRQ disabled (PD0=0). The pipelined data bytes inherited PD0=0, keeping PENIRQ permanently disabled and deadlocking AP-mode-via-touch-hold. The XPT2046 touch-detect circuit is always active from power-up — no SPI initialization is needed. Fixes: AP mode now activates correctly when holding touch at boot.
+
+### Calibration Persistence Fixes
+
+- **Calibration changes now persist through reboot** — `commit_all` reboot path correctly saves calibration data. Previously lost on watchdog-triggered reboot.
+- **Skip calib.csv rewrite when `nChanges==0`** — Avoids unnecessary flash writes when no calibration data has changed.
+- **Fast calib save for non-ROM sensors** — No quiet mode hang when saving calibration for sensors without ROM identifiers.
+- **Calibration hwId/name changes now instant** — Changes take effect in 0.4s instead of requiring a full sensor reload.
+
+### Dashboard & UI Fixes
+
+- **Top-panel slot-0 persistence** — Slot 0 now correctly persists in the top panel after display offset or theme changes.
+- **Auto-switch bottom panel** — When the top panel slot changes, the bottom panel now auto-switches to the next available slot.
+
+### Arduino IDE Release Packages
+
+- **`tools/build_release.sh`** — Automated script to generate Arduino IDE-compatible `.zip` releases for both `simut_tft` (ILI9341) and `simut_alpha` (HD44780) variants.
+- **Flattened file structure** — All source files at sketch root; `ota/`, `display/`, `sensors/` subdirectory includes rewritten to flat paths.
+- **Both variants compile with arduino-cli** — TFT: 911.888 bytes (87%), Alpha: 819.636 bytes (78%) on RP2040 Pico W with 1 MB filesystem.
+
+### OTA Update Files
+
+- **Firmware binaries** — `release/simut_v1.5.1-beta.bin` (OTA update) and `release/simut_v1.5.1-beta.uf2` (USB mass-storage flash).
+
 ## v1.5.0-beta (2026-07-19)
 
 ### Centralized Hardware Configuration — `simut_config.h`
