@@ -190,20 +190,11 @@ void AppManager::setup( ) {
  gpio_init(19); gpio_set_dir(19, GPIO_OUT); gpio_put(19, 0);
  gpio_init(16); gpio_set_dir(16, GPIO_IN);
 
- /* Wake up XPT2046 via SPI: the controller starts in power-down
-  * and needs an SPI transaction to enable its internal reference
-  * and begin touch scanning. Without this, PENIRQ never asserts.
-  * Use SPI0 (pins 16-19) with TOUCH_CS (17) — TFT_CS (28) stays HIGH. */
- SPI.begin();
- SPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
- gpio_put(17, 0);                /* select XPT2046 */
- SPI.transfer(0x90);             /* read X position, 12-bit, differential */
- uint8_t dummy = SPI.transfer(0x00); /* clock out first data byte */
- dummy = SPI.transfer(0x00);          /* clock out second data byte */
- (void)dummy;
- gpio_put(17, 1);                /* deselect XPT2046 */
- SPI.endTransaction();
- /* Leave SPI initialized — Core 1 will use it for TFT + touch. */
+ /* XPT2046 touch-detect circuit is always active from power-up.
+  * No SPI wake-up needed — PENIRQ (GPIO 20) asserts LOW on touch.
+  * Reading gpio_get(20) directly is sufficient for AP-mode detection.
+  *
+  * SPI bus is left uninitialized here; Core 1 will set it up later. */
 #endif // SIMUT_DISPLAY_TFT
 
  bool forceAP = false;
@@ -236,16 +227,15 @@ void AppManager::setup( ) {
  }
  delay(20);
  }
- 
+
  }
 
  {
  unsigned long waitStart = millis( );
  while (millis( ) - waitStart < AP_DETECT_WINDOW_MS) {
  TRACE_BEAT(0);
-
  if (_displayMgr->isScreenTouched( )) {
- 
+
  unsigned long holdStart = millis( );
  bool held = true;
  int missedTouches = 0;
@@ -256,7 +246,7 @@ void AppManager::setup( ) {
  missedTouches++;
  if (missedTouches > AP_HOLD_MAX_MISSED) {
  held = false;
- 
+
  _displayMgr->setApProgress(-1);
  _displayMgr->setBootStatusKey(TR_BOOT_AP_CANCELLED, nullptr, false);
  delay(800);
