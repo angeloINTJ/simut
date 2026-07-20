@@ -220,7 +220,7 @@ void AppManager::preloadMinMax( ) {
  f.seek(0);
  if (f.read((uint8_t*)&hdrP, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOkP = (memcmp(hdrP.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdrP.version == HIST_V2_VERSION &&
+ (hdrP.version == HIST_V2_VERSION || hdrP.version == HIST_V3_VERSION) &&
  hdrP.anchorPeriod > 0);
  }
  }
@@ -290,6 +290,11 @@ void AppManager::preloadMinMax( ) {
  if (v < _cachedMin[i]) _cachedMin[i] = v;
  if (v > _cachedMax[i]) _cachedMax[i] = v;
  }
+ float hv = BinaryHistoryRecord::i16ToFloat(rec.humidity[i]);
+ if (!isnan(hv)) {
+ if (hv < _cachedHumMin[i]) _cachedHumMin[i] = hv;
+ if (hv > _cachedHumMax[i]) _cachedHumMax[i] = hv;
+ }
  }
  }
 
@@ -350,7 +355,7 @@ void AppManager::processHistoryLogging( ) {
  rec.clear( );
  rec.epoch = (uint32_t)now;
 
- /* All universal slots (0..15) — temp + humidity */
+ /* All universal slots (0..15) — temp, humidity, and pressure */
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
  for (const auto &s : sensors) {
@@ -365,10 +370,16 @@ void AppManager::processHistoryLogging( ) {
  }
  float h = s.avgValue[1];
  if (!isnan(h)) {
+ rec.humidity[i] = BinaryHistoryRecord::floatToI16(h);
  if (h < _cachedHumMin[i]) _cachedHumMin[i] = h;
  if (h > _cachedHumMax[i]) _cachedHumMax[i] = h;
  if (h < _preloadHumMin[i]) _preloadHumMin[i] = h;
  if (h > _preloadHumMax[i]) _preloadHumMax[i] = h;
+ }
+ /* Pressure — stored once per record (typically from BMP280 at any slot) */
+ float p = s.avgValue[CH_PRESS];
+ if (!isnan(p)) {
+ rec.pressure = BinaryHistoryRecord::floatToI16x10(p);
  }
  /* Slot 10 also populates ambient fields (backward compat for telemetry) */
  if (i == 10) {

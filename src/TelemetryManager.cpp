@@ -443,7 +443,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  f.seek(0);
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdr.version == HIST_V2_VERSION &&
+ (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION) &&
  hdr.anchorPeriod > 0);
  }
  }
@@ -1061,7 +1061,6 @@ int TelemetryManager::formatLineJsonBuf(const BinaryHistoryRecord& rec, const Sy
  }
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active && rec.sensors[i] != HIST_NAN_SENTINEL) {
- /* Uses hwId directly from config char[] — no temporary String */
  const char* hwid = cfg.sensors[i].hwId;
  if (hwid[0] == '\0') {
  snprintf(tmp, sizeof(tmp), ",\"t%d\":%.2f", i, BinaryHistoryRecord::i16ToFloat(rec.sensors[i]));
@@ -1070,6 +1069,19 @@ int TelemetryManager::formatLineJsonBuf(const BinaryHistoryRecord& rec, const Sy
  }
  pos += strlcat(dest + pos, tmp, maxLen - pos);
  }
+ if (cfg.sensors[i].active && rec.humidity[i] != HIST_NAN_SENTINEL) {
+ const char* hwid = cfg.sensors[i].hwId;
+ if (hwid[0] == '\0') {
+ snprintf(tmp, sizeof(tmp), ",\"u%d\":%.1f", i, BinaryHistoryRecord::i16ToFloat(rec.humidity[i]));
+ } else {
+ snprintf(tmp, sizeof(tmp), ",\"u%s\":%.1f", hwid, BinaryHistoryRecord::i16ToFloat(rec.humidity[i]));
+ }
+ pos += strlcat(dest + pos, tmp, maxLen - pos);
+ }
+ }
+ if (rec.pressure != HIST_NAN_SENTINEL) {
+ snprintf(tmp, sizeof(tmp), ",\"pAMB\":%.1f", BinaryHistoryRecord::i16ToFloatx10(rec.pressure));
+ pos += strlcat(dest + pos, tmp, maxLen - pos);
  }
  if ((size_t)pos < maxLen - 1) { dest[pos] = '}'; dest[pos+1] = '\0'; pos++; }
  return pos;
@@ -1104,17 +1116,25 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
 
  char ambTBuf[16] = {0};
  char ambHBuf[16] = {0};
+ char pressBuf[16] = {0};
  const bool hasAmbT = (rec.ambientTemp != HIST_NAN_SENTINEL);
  const bool hasAmbH = (rec.ambientHum != HIST_NAN_SENTINEL);
+ const bool hasPress = (rec.pressure != HIST_NAN_SENTINEL);
  if (hasAmbT) snprintf(ambTBuf, sizeof(ambTBuf), "%.2f", BinaryHistoryRecord::i16ToFloat(rec.ambientTemp));
  if (hasAmbH) snprintf(ambHBuf, sizeof(ambHBuf), "%.1f", BinaryHistoryRecord::i16ToFloat(rec.ambientHum));
+ if (hasPress) snprintf(pressBuf, sizeof(pressBuf), "%.1f", BinaryHistoryRecord::i16ToFloatx10(rec.pressure));
 
  char slotVal[MAX_SENSORS][16];
  bool slotHas[MAX_SENSORS];
+ char slotHumVal[MAX_SENSORS][16];
+ bool slotHumHas[MAX_SENSORS];
  for (int i = 0; i < MAX_SENSORS; i++) {
  slotHas[i] = (cfg.sensors[i].active && rec.sensors[i] != HIST_NAN_SENTINEL);
  if (slotHas[i]) snprintf(slotVal[i], sizeof(slotVal[i]), "%.2f", BinaryHistoryRecord::i16ToFloat(rec.sensors[i]));
  else slotVal[i][0] = '\0';
+ slotHumHas[i] = (cfg.sensors[i].active && rec.humidity[i] != HIST_NAN_SENTINEL);
+ if (slotHumHas[i]) snprintf(slotHumVal[i], sizeof(slotHumVal[i]), "%.1f", BinaryHistoryRecord::i16ToFloat(rec.humidity[i]));
+ else slotHumVal[i][0] = '\0';
  }
 
  const char* tpl = cfg.telLineTemplate;
@@ -1170,6 +1190,41 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
  compKeyLen = snprintf(compKey, sizeof(compKey), "t%d", idx);
  tokenChars = 4; tokenValid = true;
  }
+ } else if (remaining >= 5 && tpl[ti+1] == 't' &&
+ tpl[ti+2] >= '1' && tpl[ti+2] <= '1' &&
+ tpl[ti+3] >= '0' && tpl[ti+3] <= '5' && tpl[ti+4] == '}') {
+ /* {t10}..{t15} — two-digit slot index */
+ int idx = (tpl[ti+2] - '0') * 10 + (tpl[ti+3] - '0');
+ if (idx < MAX_SENSORS) {
+ val = slotHas[idx] ? slotVal[idx] : nullptr;
+ hwid = cfg.sensors[idx].hwId;
+ compKeyLen = snprintf(compKey, sizeof(compKey), "t%d", idx);
+ tokenChars = 5; tokenValid = true;
+ }
+ } else if (remaining >= 4 && tpl[ti+1] == 'u' &&
+ tpl[ti+2] >= '0' && tpl[ti+2] <= '9' && tpl[ti+3] == '}') {
+ /* {u0}..{u9} — per-slot humidity single digit */
+ int idx = tpl[ti+2] - '0';
+ if (idx < MAX_SENSORS) {
+ val = slotHumHas[idx] ? slotHumVal[idx] : nullptr;
+ hwid = cfg.sensors[idx].hwId;
+ compKeyLen = snprintf(compKey, sizeof(compKey), "u%d", idx);
+ tokenChars = 4; tokenValid = true;
+ }
+ } else if (remaining >= 5 && tpl[ti+1] == 'u' &&
+ tpl[ti+2] >= '1' && tpl[ti+2] <= '1' &&
+ tpl[ti+3] >= '0' && tpl[ti+3] <= '5' && tpl[ti+4] == '}') {
+ /* {u10}..{u15} — per-slot humidity two-digit */
+ int idx = (tpl[ti+2] - '0') * 10 + (tpl[ti+3] - '0');
+ if (idx < MAX_SENSORS) {
+ val = slotHumHas[idx] ? slotHumVal[idx] : nullptr;
+ hwid = cfg.sensors[idx].hwId;
+ compKeyLen = snprintf(compKey, sizeof(compKey), "u%d", idx);
+ tokenChars = 5; tokenValid = true;
+ }
+ } else if (remaining >= 7 && memcmp(tpl + ti, "{pAMB}", 7) == 0) {
+ val = hasPress ? pressBuf : nullptr;
+ tokenChars = 7; tokenValid = true;
  }
 
  if (!tokenValid) {
@@ -1358,7 +1413,7 @@ void TelemetryManager::refreshPendingCount( ) {
  f.seek(0);
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdr.version == HIST_V2_VERSION &&
+ (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION) &&
  hdr.anchorPeriod > 0);
  }
  }

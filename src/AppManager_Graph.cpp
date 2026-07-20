@@ -23,8 +23,11 @@ static inline float readRecordValue(const BinaryHistoryRecord& rec,
  humOut = NAN;
 
  if (sensorId >= 0 && sensorId < MAX_SENSORS) {
- /* Slot 10 humidity from ambientHum field (backward compat) */
- if (sensorId == 10) humOut = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+ /* Per-slot humidity from v3 record (fallback to ambientHum for v2 / slot 10) */
+ humOut = BinaryHistoryRecord::i16ToFloat(rec.humidity[sensorId]);
+ if (isnan(humOut) && sensorId == 10) {
+ humOut = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+ }
  return BinaryHistoryRecord::i16ToFloat(rec.sensors[sensorId]);
  }
 
@@ -186,7 +189,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  f.seek(0);
  if (f.read((uint8_t*)&hdrG, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOkG = (memcmp(hdrG.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdrG.version == HIST_V2_VERSION &&
+ (hdrG.version == HIST_V2_VERSION || hdrG.version == HIST_V3_VERSION) &&
  hdrG.anchorPeriod > 0);
  }
  }
