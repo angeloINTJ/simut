@@ -87,6 +87,147 @@ Testado no Pico W com display TFT + buzzer + WiFi:
 - **Alpha (HD44780 paralelo + todos sensores + mDNS)**: 85,4% (891920 / 1044480 bytes)
 - **RAM (release)**: 35,8% (93760 / 262144 bytes)
 
+## v1.4.4-beta (2026-06-07)
+
+### Gestão de Recursos GPIO — Montagem Guiada de Slots
+
+- **Comando `gpio`** — Mapa de recursos GPIO mostrando todos os 16 pinos com estado de alocação (FREE ou `[Slot XX] Tipo (Função)`), mais uma lista consolidada de GPIOs livres. GPIOs agora são um recurso limitado visível e rastreável.
+- **`sensor <slot> create <tipo>`** — Criação guiada de slot. Define o tipo do driver, limpa atribuições de pinos anteriores, ativa o slot e mostra: contagem de pinos, função e flags de cada pino (ex.: `1-Wire (pull-up)`), GPIOs livres disponíveis e uma dica para o próximo comando (`sensor <slot> pin <idx>,<gpio>`).
+- **`sensor <slot> type <tipo>`** — Agora mostra os requisitos de pinos e as atribuições GPIO atuais por pino após mudar o tipo, para que o usuário saiba o que conectar.
+- **`sensor <slot> pin <idx>,<gpio>`** — Agora mostra o rótulo da função para contexto (ex.: `pin[0]=GPIO 3 (1-Wire)`). Detecta quando todos os pinos necessários estão atribuídos e sugere o próximo passo (`sensor <slot> name "<nome>"`).
+- **`sensor <slot> active on`** — Valida pré-requisitos antes de ativar: tipo deve estar definido, driver deve estar compilado e todos os pinos declarados devem estar atribuídos. Reporta exatamente quais pinos estão faltando.
+- **`show sensor types`** — Lista drivers de sensores compilados com contagem de pinos, resumo de canais e rótulos de função (ex.: `BME280 | 2 pinos | Temp+Hum+Press | SDA,SCL`).
+
+### Driver BME280 — Temperatura + Umidade + Pressão
+
+- **`BME280Driver.h`** (~9KB flash) — Driver I2C autocontido usando medições em modo forçado. Sem dependência de biblioteca externa (evita Adafruit_BME280 com ~15KB).
+- **Máquina de estados assíncrona** — BME_IDLE → dispara medição forçada → BME_WAITING → lê resultados, seguindo o padrão assíncrono do DS18B20/DHT22.
+- **Fórmulas de compensação** — Matemática inteira conforme datasheet Bosch BME280 §4.2.3 para temperatura, umidade e pressão. Oversampling ×1 em todos os canais (~9ms por leitura).
+- **Renderização no painel TFT** — Temperatura + umidade no dashboard (espelha layout do DHT22), suporte a painel min/max. Pressão disponível via API (canal `CH_PRESS`).
+- **Auto-detecção I2C** — Sonda endereços 0x76 e 0x77. Scan de hardware detecta BME280 no barramento I2C ativo.
+- **Inicialização GPIO multi-pino** — `gpioInitForRole()` agora chamada para TODOS os pinos declarados (não apenas `pins[0]`). Barramento I2C inicializado uma vez quando o primeiro sensor I2C é encontrado. `ROLE_POWER` padrão para output LOW.
+
+### Diagnósticos Melhorados
+
+- **`show sensors`** — Saída redesenhada: slot, GPIOs, tipo do driver, canais (ex.: `T+H+P`), nome, ROM (1-Wire), HWID, estado de alarme e limites por canal.
+- **`show sensor types`** — Drivers disponíveis com contagem de pinos, resumo de canais e rótulos de função dos pinos.
+- **`PIN_ONEWIRE_DEFAULT`** — Corrigido aviso de redefinição do pré-processador (8 instâncias eliminadas).
+- **Todos os 4 canais inicializados** — Loop `MAX_SENSOR_CHANNELS` define `avgValue` para NAN e `calibrationOffset` para 0.
+
+### Outras Mudanças
+
+- **mDNS habilitado por padrão** — `-DSIMUT_MDNS=1` no platformio.ini. Dispositivo acessível via `http://simut.local`. Custo: ~15KB flash, RAM desprezível.
+- **Auto-detecção I2C0/I2C1** — `i2cPeripheralForPins()` seleciona o periférico correto em tempo de execução. Qualquer par de GPIO 0-15 funciona para sensores I2C (sujeito ao hardware).
+- **`checkAndAutoHealSensors()`** — Não reporta mais falsos avisos "Sensor ausente" para tipos de sensor não-DS18B20 (DHT22, BME280).
+- **Guarda de boot do BME280** — Timeout I2C (50ms) + sonda ACK previne travamento no boot quando BME280 está configurado mas não fisicamente conectado.
+- **Suposições de GPIO hardcoded removidas** — `begin()` do DHT22 não referencia mais GPIO 10. Métodos legados do DS18B20 usam o pino do primeiro sensor ativo. Zero acoplamento fixo GPIO-tipo.
+
+### Orçamento de Flash
+
+- **Release (DS18B20 + DHT22 + mDNS)**: 93,1% (972KB / 1044KB) — ~72KB livres
+- **Com BME280**: 93,7% (979KB / 1044KB) — ~65KB livres
+- **RAM**: 35,7% (~93,7KB / 262KB)
+
+## v1.4.3-beta (2026-06-07)
+
+### Dieta de Flash — 86KB Liberados (97,8% → 91,2%)
+
+- **LEAmDNS desabilitado por padrão** — Envolvido com `#ifdef SIMUT_MDNS`. Habilite com `-DSIMUT_MDNS` nas build_flags quando necessário. Economiza ~196KB de biblioteca do link.
+- **Stub do BluetoothManager** — Quando `SIMUT_BLUETOOTH=0` (padrão), a classe inteira é inline no-ops. `BluetoothManager.cpp` excluído da build. `SerialBT` ainda compilado pelo framework mas símbolos não usados são removidos pelo linker.
+- **CLI `sensor pin <slot> <índice> <gpio>`** — Atribui GPIOs específicos a slots de sensor com detecção de conflitos entre todos os sensores ativos. Valida faixa GPIO (0-15) e índice de pino (< MAX_SENSOR_PINS).
+- **Orçamento de flash**: 91,2% (952KB / 1044KB) — 92KB livres para futuras features.
+
+## v1.4.2-beta (2026-06-07)
+
+### Arquitetura de Entidade de Sensor — Funções de Pino Baseadas em Driver
+
+- **Enum PinRole** — Cada pino GPIO agora tem uma função declarada (`ROLE_DATA`, `ROLE_I2C_SDA`, `ROLE_I2C_SCL`, `ROLE_SPI_MOSI`, `ROLE_SPI_MISO`, `ROLE_SPI_SCK`, `ROLE_SPI_CS`, `ROLE_UART_TX`, `ROLE_UART_RX`, `ROLE_ANALOG`, `ROLE_POWER`).
+- **PinRequirement no SensorFormat** — Cada driver declara contagem de pinos, função, rótulo e flags (pull-up, open-drain) via `SensorFormat::forType()`. Sem configuração GPIO hardcoded por tipo.
+- **`gpioInitForRole()`** — Auto-configura direção GPIO, pulls e função baseado na função declarada. Substitui blocos de inicialização hardcoded `#if SIMUT_SENSOR_DHT22`.
+- **Metadados de pino na API** — `/api/status` agora retorna `pc` (contagem de pinos) e `pr` (rótulos de função: "Data", "SDA,SCL") por sensor.
+- **Info de pinos na WebUI** — Tabela do dashboard mostra contagem de pinos + funções ao lado do tipo do sensor (ex.: `DHT22 ⚡1p Data`, `BME280 ⚡2p SDA,SCL`).
+- **Adicionar um novo sensor** agora requer apenas um arquivo de driver + entrada `SensorFormat::forType()` — display, API, calibração e inicialização GPIO seguem os metadados automaticamente.
+
+## v1.4.1-beta (2026-06-07)
+
+### Arquitetura Universal de Slots — 16 Slots GPIO
+
+- **16 slots universais de sensor** — `MAX_SENSORS` expandido de 10 para 16, cobrindo GPIO0–GPIO15. Todos os slots agora são uniformes com tipo, hwId, friendlyName, pinos e limites de alarme configuráveis.
+- **Sensor ambiente eliminado** — O campo especial `ambientSensor` no `SystemConfig` foi removido. O Slot 10 (GPIO10) agora é um slot universal regular, tratado identicamente aos demais. A convenção `idx: -1` da API é substituída pelo índice de slot padrão `10`.
+- **Generalização de canais** — `RuntimeSensor` agora usa arrays `avgValue[4]`, `buffers[4]` e `calibrationOffset[4]` com enum `SensorChannel` (CH_TEMP, CH_HUM, CH_PRESS, CH_LUX). Cada driver declara seus canais via `SensorFormat::forType()`. Adicionar um novo tipo de sensor requer apenas um driver — display, API web e calibração adaptam-se automaticamente.
+- **Coluna de tipo na tabela do dashboard web** — Tabela agora mostra o tipo do driver (DHT22/DS18B20) por sensor. Formulário de calibração mostra campos de umidade condicionalmente por sensor baseado na flag `hasHum`.
+- **Sistema de alarme unificado** — Máscara de alarme por slot agora cobre todos os 16 slots. As flags separadas `ambTempAlarm`/`ambHumAlarm` foram removidas.
+- **Migração de config v16→v17** — Migração automática: `ambientSensor` movido para `sensors[10]`, slots 11–15 inicializados como inativos.
+
+### Correções
+
+- **Travamento no boot após flash** — Eliminadas chamadas `Serial` bloqueantes no caminho de boot (`BLOG`, `LogManager`, `CommandManager`, `SoundManager`). Removido `Serial.ignoreFlowControl(true)` que causava atrasos de 1s por linha de log.
+- **Prevenção de stack overflow** — Alocações de `SystemConfig` movidas para heap (`tempConfig`, `encBuf`) para evitar o limite de 4KB de stack do RP2040 com a struct v17 maior.
+- **Bluetooth desabilitado** — `SerialBT.begin()` causa hardfault no CYW43 após warm boot (reset via picotool). Bluetooth agora desabilitado para garantir boot confiável. USB Serial + interface Web fornecem funcionalidade equivalente.
+- **Correções de JSON na API** — Restauradas chamadas `first = false` e `if (!safeSend(buf))` em `/api/sensors`, `/api/status` e `/api/users` que causavam JSON inválido (vírgulas faltando entre objetos).
+- **Calibração na WebUI** — Removido card ambiente duplicado. Todos os sensores renderizados uniformemente com campos cientes do tipo.
+
+### Breaking Changes
+
+- **Formato de config v17** — Layout do `SystemConfig` alterado. Configs v16 são auto-migradas no primeiro boot. Downgrade para ≤v1.3.x requer factory reset.
+- **API `/api/sensors`** — Sensor ambiente não mais reportado como `idx: -1`. Slot 10 aparece no array padrão de sensores.
+- **Formato de histórico** — `BinaryHistoryRecord` alterado de 28 para 40 bytes. Arquivos `.bin` existentes são incompatíveis.
+- **Bluetooth removido** — `SerialBT` desabilitado devido a hardfault no CYW43 em warm boot. Use USB Serial ou interface Web.
+- **Formato de sensor no `/api/status`** — Adicionados campos `type` e `ch`. Campo de umidade agora usa `sensorHasChannel()` genérico em vez de verificação hardcoded `TYPE_DHT22`.
+
+## v1.3.0-beta (2026-06-07)
+
+### Display Alpha — Suporte a HD44780 16×2 Alfanumérico
+
+- **Driver dual-mode HD44780** — I2C (mochila PCF8574) e GPIO paralelo 4-bit, selecionável via flags `HD44780_MODE_I2C` / `HD44780_MODE_PARALLEL`
+- **Seleção de display em tempo de compilação** — Flags `SIMUT_DISPLAY_TFT` e `SIMUT_DISPLAY_ALPHA` permitem compilar para ILI9341 TFT (padrão) ou HD44780 16×2 (alpha), mutuamente exclusivas
+- **Modo I2C** — Usa I2C1 nos GPIO 26 (SDA) / GPIO 27 (SCL), endereço 0x27 (configurável via `HD44780_I2C_ADDR`). Zero conflitos com slots de sensor — todos os 10× DS18B20 + DHT22 disponíveis
+- **Modo paralelo 4-bit** — RS=GPIO 16, EN=GPIO 17, D4=GPIO 18, D5=GPIO 19, D6=GPIO 20, D7=GPIO 21. Também zero conflitos com slots de sensor
+- **GPIO 0-15 reservados para sensores** — Pinos do display mapeados exclusivamente para GPIO 16+, sem deslocamento de sensores
+- **Loop do display alpha no Core 1** — Framebuffer de caracteres com blit(), exibição com alternância automática de temperatura/umidade
+- **Exclusão da GFX Library** — Adafruit GFX Library, ILI9341 e XPT2046 excluídos da build alpha via `lib_ignore`. Inicialização SPI e detecção de toque protegidas com `#if SIMUT_DISPLAY_TFT`
+- **Clock UART1 preservado** — `uart_init()` chamado no modo alpha (apenas clock, sem takeover de GPIO) para manter marcadores de debug do StorageManager seguros
+- **Timeout de skip WiFi** — Builds alpha sem botão de skip por toque têm timeout de 30 segundos para conexão WiFi e evitar travamento infinito no boot
+- **Ambiente de build `pico_w_alpha`** — Build limpa com 89,0% flash (929 KB), 34,6% RAM (90 KB). Economiza ~84 KB vs build release
+
+### Correções
+
+- **Loop infinito na calibração de touch** — Protegido com `#if SIMUT_DISPLAY_TFT`; build alpha não tem controlador de toque
+- **Conflito de pinos SPI no alpha paralelo** — `SPI.begin()` estava configurando GPIO 16-19 antes da inicialização do HD44780, causando falha de boot no modo paralelo
+- **Recuperação de corrupção de armazenamento flash** — `picotool erase` completo resolve partição de filesystem corrompida após flashing repetido
+
+### Documentação
+
+- **WIRING.md** — Reescrita completa com três diagramas de pinagem (ILI9341 TFT, HD44780 I2C, HD44780 Paralelo), tabela comparativa, referência de pinos HD44780 e checklists de montagem para cada modo
+
+## v1.2.1-beta (2026-06-06)
+
+### Painéis de Dashboard Duplos Independentes
+
+- **Arquitetura de painel unificada** — Ambos os painéis usam a mesma função `drawSlotPanel()`. O painel ambiente dedicado (`drawAmbientPanel`) foi eliminado (~280 linhas economizadas).
+- **Painel superior: modos fixo/interativo** — Pressionamento longo (1s) alterna entre modo fixo (sensor fixado, estilo normal) e modo interativo (fundo cinza escuro + elementos brancos, segue o seletor de slot para escolher qual sensor fixar).
+- **Painel inferior: sempre interativo** — Toque curto alterna apenas min/max. Sempre segue os botões SLOT inferiores.
+- **Botão S10** — Adicionado slot 10 (DHT22 ambiente no GPIO 10) à barra de botões inferior. Oculto quando o painel superior está fixado nele.
+- **Renderização min/max movida para drivers** — `DS18B20_renderMinMax()` e `DHT22_renderMinMax()` nos respectivos drivers, despachados via `sensorRenderMinMax()`. Primitivas compartilhadas em `SensorDrawing.h` reutilizam ícones existentes.
+- **Rastreamento de min/max de umidade por slot** — Arrays de umidade por slot com acumulação em tempo real a cada ciclo do loop.
+- **Dados independentes do painel superior** — Campos `topSlot*` no `SystemState` com setters dedicados `setTopSlotData()`/`setTopSlotMinMax()`.
+- **Atualizações instantâneas de painel** — Render incremental agora compara campos `topSlot*`. `pullSnapshot()` mantém `topSlotIdx` sincronizado para espelhamento no AppManager.
+- **Correção de flash de alarme** — Flash de alarme do painel superior verifica `isSlotAlarming(topSlotIdx)` em vez das antigas flags de ambiente.
+- **Correção de cor de borda** — Faixa de conteúdo do modo normal usa `borderColor` em vez de `C_TEXT_SUB` hardcoded.
+- **Correção de preenchimento de fundo** — Faixa de conteúdo usa `panelBg` em vez de `C_BG_MAIN` para vermelho de alarme e cinza de seleção corretos.
+
+### Comunidade & Documentação
+
+- **Terceira contribuição da comunidade** 🎉 — Suite completa de documentação em espanhol por [@f-p-0](https://github.com/f-p-0): README.md (337 linhas, PR #66), CONTRIBUTING.md (140 linhas, PR #68) e CODE_OF_CONDUCT.md (39 linhas, PR #68), tornando o SIMUT acessível para usuários hispanofalantes em todo o mundo
+- **Segunda contribuição da comunidade** 🎉 — Ambiente de desenvolvimento Docker para que contribuidores possam compilar e testar sem instalar PlatformIO localmente ([@JohnMartin0301](https://github.com/JohnMartin0301))
+- **Primeira contribuição da comunidade** 🎉 — Suite de testes HistoryCodec v2 com 672 linhas cobrindo codificação roundtrip, limites de frame âncora, compressão NaN e buffer overflow ([@LorenzoLongaretto](https://github.com/LorenzoLongaretto))
+
+### Orçamento de Flash
+
+| Configuração | Flash |
+|---|---|
+| Ambos sensores ON | 1030872 (98,7%) |
+
 ## v1.2.0-beta (2026-06-06)
 
 ### Subsistema OTA — Atualização Completa para v4.6.2
