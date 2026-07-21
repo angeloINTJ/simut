@@ -196,127 +196,124 @@ void AppManager::updateLiveDisplay( ) {
  * Uses ReadLock (no Core 1 pause) with 5-second budget limit.
  */
 void AppManager::preloadMinMax( ) {
- time_t now = _netMgr->getEpoch( );
- struct tm timeinfo;
- localtime_r(&now, &timeinfo);
+	 time_t now = _netMgr->getEpoch( );
+	 struct tm timeinfo;
+	 localtime_r(&now, &timeinfo);
 
- char path[40];
- snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
- timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+	 char path[42];
+	 snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_V4_FILE_EXT,
+	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
- File f;
- _storageMgr->enterFlashReadLock( );
- bool fileExists = LittleFS.exists(path);
- if (fileExists) f = LittleFS.open(path, "r");
- _storageMgr->exitFlashReadLock( );
+	 _storageMgr->enterFlashReadLock( );
+	 bool fileExists = LittleFS.exists(path);
+	 File f;
+	 if (fileExists) f = LittleFS.open(path, "r");
+	 _storageMgr->exitFlashReadLock( );
 
- if (fileExists && f) {
- /* v2: validate SIM2 header. */
- HistoryFileHeaderV2 hdrP;
- bool headerOkP = false;
- {
- StorageManager::ReadGuard rg(_storageMgr.get( ));
- if (f.size( ) >= HIST_V2_HEADER_SIZE) {
- f.seek(0);
- if (f.read((uint8_t*)&hdrP, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
- headerOkP = (memcmp(hdrP.magic, HIST_V2_MAGIC, 4) == 0 &&
- (hdrP.version == HIST_V2_VERSION || hdrP.version == HIST_V3_VERSION) &&
- hdrP.anchorPeriod > 0);
- }
- }
- }
- if (!headerOkP) {
- { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
- return;
- }
+	 if (!fileExists || !f) return;
 
- HistoryCodecState pState;
- historyCodecReset(pState);
- pState.fileVersion = hdrP.version; /* MUST set before decode — auto-detect unreliable */
- uint16_t pAnchorPeriod = hdrP.anchorPeriod;
- uint8_t pRdBuf[256];
- size_t pRdFilled = 0;
+	 /* V4: read header into buffer, then parse */
+	 HistV4State pState;
+	 uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 {
+	 StorageManager::ReadGuard rg(_storageMgr.get( ));
+	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+	 if (hdrRead < (int)HIST_V4_HEADER_FIXED ||
+	 histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, pState) == 0) {
+	 f.close( );
+	 return;
+	 }
+	 }
 
- uint32_t _preloadBudget = millis( );
- bool hasMore = true;
+	 uint8_t pRdBuf[HIST_V4_READ_BUF];
+	 size_t pRdFilled = 0;
 
- while (hasMore) {
- if (timeSince(_preloadBudget, 5000)) {
- LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
- { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
- LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, 0, "");
- return;
- }
+	 uint32_t _preloadBudget = millis( );
+	 bool hasMore = true;
 
- _storageMgr->enterFlashReadLock( );
- BinaryHistoryRecord batch[20];
- int count = 0;
- while (count < 20) {
- if (pRdFilled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
- int rN = f.read(pRdBuf + pRdFilled, sizeof(pRdBuf) - pRdFilled);
- if (rN > 0) pRdFilled += (size_t)rN;
- }
- if (pRdFilled == 0) break;
- bool isAnc = (pState.recordsSinceAnchor == 0) ||
- (pState.recordsSinceAnchor == pAnchorPeriod);
- size_t consumed = historyDecodeRecord(pRdBuf, pRdFilled, pState,
- batch[count], isAnc);
- if (consumed == 0) break;
- memmove(pRdBuf, pRdBuf + consumed, pRdFilled - consumed);
- pRdFilled -= consumed;
- count++;
- }
- hasMore = (pRdFilled > 0 || f.available( ) > 0);
- _storageMgr->exitFlashReadLock( );
+	 while (hasMore) {
+	 if (timeSince(_preloadBudget, 5000)) {
+	 LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
+	 { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
+	 LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, 0, "");
+	 return;
+	 }
 
- /* Process batch outside the lock */
- for (int b = 0; b < count; b++) {
- const BinaryHistoryRecord& rec = batch[b];
+	 _storageMgr->enterFlashReadLock( );
+	 /* Batch-decode up to 20 records */
+	 int64_t batchVals[20][HIST_V4_MAX_MEASUREMENTS];
+	 uint32_t batchEpochs[20];
+	 int count = 0;
+	 while (count < 20) {
+	 if (pRdFilled < pState.anchorByteSize && f.available( ) > 0) {
+	 int rN = f.read(pRdBuf + pRdFilled, sizeof(pRdBuf) - pRdFilled);
+	 if (rN > 0) pRdFilled += (size_t)rN;
+	 }
+	 if (pRdFilled == 0) break;
+	 size_t consumed = histV4DecodeNext(pRdBuf, pRdFilled, pState,
+	 batchVals[count], &batchEpochs[count]);
+	 if (consumed == 0) break;
+	 memmove(pRdBuf, pRdBuf + consumed, pRdFilled - consumed);
+	 pRdFilled -= consumed;
+	 count++;
+	 }
+	 hasMore = (pRdFilled > 0 || f.available( ) > 0);
+	 _storageMgr->exitFlashReadLock( );
 
- float ambT = BinaryHistoryRecord::i16ToFloat(rec.ambientTemp);
- if (!isnan(ambT)) {
- if (ambT < _cachedMin[10]) _cachedMin[10] = ambT;
- if (ambT > _cachedMax[10]) _cachedMax[10] = ambT;
- }
+	 /* Process batch: map measurements to slot-indexed caches */
+	 for (int b = 0; b < count; b++) {
+	 for (uint8_t m = 0; m < pState.measureCount; m++) {
+	 if (histV4IsNan(batchVals[b][m], pState.measures[m].bitWidth)) continue;
 
- float ambH = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
- if (!isnan(ambH)) {
- if (ambH < _cachedHumMin[10]) _cachedHumMin[10] = ambH;
- if (ambH > _cachedHumMax[10]) _cachedHumMax[10] = ambH;
- }
+	 /* Find which slot this measurement belongs to */
+	 uint8_t sIdx = pState.measures[m].sensorIdx;
+	 if (sIdx >= pState.sensorCount) continue;
 
- for (int i = 0; i < MAX_SENSORS; i++) {
- float v = BinaryHistoryRecord::i16ToFloat(rec.sensors[i]);
- if (!isnan(v)) {
- if (v < _cachedMin[i]) _cachedMin[i] = v;
- if (v > _cachedMax[i]) _cachedMax[i] = v;
- }
- float hv = BinaryHistoryRecord::i16ToFloat(rec.humidity[i]);
- if (!isnan(hv)) {
- if (hv < _cachedHumMin[i]) _cachedHumMin[i] = hv;
- if (hv > _cachedHumMax[i]) _cachedHumMax[i] = hv;
- }
- }
- }
+	 /* Get hwId from sensor table, match to slot */
+	 char hwId[17];
+	 histV4StrPoolGet(hwId, sizeof(hwId), pState.strPool,
+	 pState.sensors[sIdx].hwIdOffset,
+	 pState.sensors[sIdx].hwIdLen);
 
- feedWdt( );
- delay(2);
- }
+	 SystemConfig &cfg = _storageMgr->getConfig( );
+	 int slot = -1;
+	 for (int i = 0; i < MAX_SENSORS; i++) {
+	 if (cfg.sensors[i].active &&
+	 strcmp(cfg.sensors[i].hwId, hwId) == 0) {
+	 slot = i; break;
+	 }
+	 }
+	 if (slot < 0) continue;
 
- _storageMgr->enterFlashReadLock( );
- f.close( );
- _storageMgr->exitFlashReadLock( );
- }
+	 float v = histV4ToFloat(batchVals[b][m], pState.measures[m]);
+	 if (isnan(v)) continue;
 
- /* Save preload snapshot (CSV data only, without real-time readings) */
- for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
- _preloadMin[i] = _cachedMin[i];
- _preloadMax[i] = _cachedMax[i];
- _preloadHumMin[i] = _cachedHumMin[i];
- _preloadHumMax[i] = _cachedHumMax[i];
- }
+	 uint8_t ch = pState.measures[m].channel;
+	 if (ch == CH_TEMP) {
+	 if (v < _cachedMin[slot]) _cachedMin[slot] = v;
+	 if (v > _cachedMax[slot]) _cachedMax[slot] = v;
+	 } else if (ch == CH_HUM) {
+	 if (v < _cachedHumMin[slot]) _cachedHumMin[slot] = v;
+	 if (v > _cachedHumMax[slot]) _cachedHumMax[slot] = v;
+	 }
+	 }
+	 }
 
- LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_FULL, 0, "");
+	 feedWdt( );
+	 delay(2);
+	 }
+
+	 _storageMgr->enterFlashReadLock( );
+	 { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
+	 _storageMgr->exitFlashReadLock( );
+
+	 /* Snapshot: save a copy of caches so live values can separate preload from real-time */
+	 memcpy(_preloadMin, _cachedMin, sizeof(_preloadMin));
+	 memcpy(_preloadMax, _cachedMax, sizeof(_preloadMax));
+	 memcpy(_preloadHumMin, _cachedHumMin, sizeof(_preloadHumMin));
+	 memcpy(_preloadHumMax, _cachedHumMax, sizeof(_preloadHumMax));
+
+	 LOG_CODE(LOG_INFO, "APP", APP_CACHE_PRELOAD_DONE, 0, "");
 }
 
 void AppManager::processHistoryLogging( ) {
