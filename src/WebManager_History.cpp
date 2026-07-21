@@ -139,7 +139,7 @@ void WebManager::handleApiHistoryMulti( ) {
  ReadGuard rg(_storageRef);
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) {
+ if (dir.fileName( ).endsWith(HISTORY_FILE_EXT) || dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
  filesToRead.push_back(String(DIR_HISTORY) + "/" + dir.fileName( ));
  }
  }
@@ -1097,7 +1097,7 @@ void WebManager::handleApiHistoryDays( ) {
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
  feedWatchdog( );
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) {
+ if (dir.fileName( ).endsWith(HISTORY_FILE_EXT) || dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
