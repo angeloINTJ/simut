@@ -65,8 +65,24 @@ public:
  void printDivider( );
 
  /** Session mode — affects prompt ('>' vs '#') and state presented to user. */
- void setDebugMode(bool enabled) { _debugMode = enabled; }
+ void setDebugMode(bool enabled);
  bool isDebugMode( ) const { return _debugMode; }
+
+ /* ── Cisco IOS-style hierarchical CLI modes ── */
+ void setCliMode(CLIMode mode);
+ CLIMode cliMode( ) const { return _cliMode; }
+
+ /** Set the sensor slot being configured (only meaningful in SENSOR_CONFIG mode). */
+ void setConfigSensorSlot(int8_t slot);
+ int8_t configSensorSlot( ) const { return _configSensorSlot; }
+
+ /** True if in any config sub-mode (GLOBAL_CONFIG or SENSOR_CONFIG). */
+ bool isConfigMode( ) const;
+ /** True if privileged EXEC or higher. */
+ bool isPrivOrHigher( ) const;
+
+ /** Print a mode-aware, context-sensitive help page. */
+ void printModeHelp( );
 
  /** CLI language — EN (default) or PT. Reuses cfg.displayLang.
  * Also propagates to BluetoothManager (post-auth banner). */
@@ -85,6 +101,8 @@ private:
  bool _debugMode = false;
  uint8_t _cliLang = LANG_EN;
  bool _lastFromBt = false; /**< set by processInput according to channel */
+ CLIMode _cliMode = CLI_MODE_USER_EXEC; /**< Cisco IOS hierarchical mode */
+ int8_t _configSensorSlot = -1;  /**< sensor slot index when in SENSOR_CONFIG mode, -1 otherwise */
 
 
  String _usbBuffer;

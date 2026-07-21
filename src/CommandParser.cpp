@@ -61,6 +61,22 @@ CliDemand parseCliCommand(String input) {
  if (t0 == "help" || t0 == "ajuda" || t0 == "?") { cmd.type = CMD_HELP; return cmd; }
  if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
 
+ /* ── Cisco IOS-style mode navigation ── */
+ if (t0 == "enable") { cmd.type = CMD_ENABLE; return cmd; }
+ if (t0 == "disable") { cmd.type = CMD_DISABLE; return cmd; }
+ if ((t0 == "config" || t0 == "configure") && t1 == "terminal") { cmd.type = CMD_CONFIGURE; return cmd; }
+ if (t0 == "exit") { cmd.type = CMD_EXIT; return cmd; }
+ if (t0 == "end") { cmd.type = CMD_END; return cmd; }
+ if (t0 == "do") {
+  /* Pass everything after 'do ' as the inner command in strVal1 */
+  int doIdx = input.indexOf("do");
+  String innerCmd = input.substring(doIdx + 2);
+  innerCmd.trim( );
+  cmd.type = CMD_DO;
+  cmd.setStrVal1(innerCmd.c_str( ));
+  return cmd;
+ }
+
  if (t0 == "touch" && t1 == "sim") {
  cmd.type = CMD_TOUCH_SIM;
  cmd.setStrVal1(t2.c_str( ));
@@ -271,6 +287,17 @@ CliDemand parseCliCommand(String input) {
  cmd.type = CMD_ACCEPT_SENSOR;
  cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
  return cmd;
+ }
+
+ /* Bare 'sensor <N>' — enter sensor config mode (Cisco IOS pattern).
+  * Only triggers when count==2 and t1 is a clean integer (0-15).
+  * Handlers use this to transition into CLI_MODE_SENSOR_CONFIG. */
+ if (t0 == "sensor" && count == 2) {
+  bool slotOk = parseIntStrict(t1, cmd.intVal1);
+  if (slotOk && cmd.intVal1 >= 0 && cmd.intVal1 < MAX_SENSORS) {
+   cmd.type = CMD_SENSOR_ENTER;
+   return cmd;
+  }
  }
 
  if (t0 == "write" && t1 == "memory") { cmd.type = CMD_WRITE_MEMORY; return cmd; }
