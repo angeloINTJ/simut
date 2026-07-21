@@ -142,7 +142,6 @@ public:
 
  uint32_t getLastRecordedTimestamp( );
  uint32_t getHistoryDaysMask(int year, int month);
- void correctProvisionalTimestamps(uint32_t bootTs, int32_t delta);
 
  uint32_t getLastSentTimestamp( );
  void setLastSentTimestamp(uint32_t ts);
@@ -305,8 +304,6 @@ public:
 
  String _cachedOldestFile = "";
  bool _storageDirty = true;
- String _correctWatermark = ""; /**< Last corrected file (resumption) */
- int32_t _correctLastDelta = 0; /**< Delta of last correction (reset) */
  bool _didMigrate = false; /**< Set by attemptLoad when old schema detected */
  uint16_t _migrationFromVersion = 0; /**< Version of original blob before migration */
 
