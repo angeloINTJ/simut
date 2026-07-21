@@ -76,11 +76,11 @@ uint32_t crc32_final(uint32_t crc) {
 bool isValidHistoryFileName(const char* name) {
  if (!name) return false;
 
- /* Fast-path: length exactly 12 and extension .bin */
- if (strlen(name) != 12) return false;
- if (name[8] != '.' || name[9] != 'b' || name[10] != 'i' || name[11] != 'n') {
- return false;
- }
+ /* Accept .bin (12 chars) or .sim4 (13 chars) */
+ size_t nLen = strlen(name);
+ bool isBin  = (nLen == 12 && name[8] == '.' && name[9] == 'b' && name[10] == 'i' && name[11] == 'n');
+ bool isSim4 = (nLen == 13 && name[8] == '.' && name[9] == 's' && name[10] == 'i' && name[11] == 'm' && name[12] == '4');
+ if (!isBin && !isSim4) return false;
 
  /* First 8 characters must be digits (YYYYMMDD) */
  for (int i = 0; i < 8; i++) {

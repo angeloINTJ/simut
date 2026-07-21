@@ -349,53 +349,59 @@ void AppManager::processHistoryLogging( ) {
 
  {
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
- SystemConfig &cfg = _storageMgr->getConfig( );
 
- /* ── Build binary record ── */
- BinaryHistoryRecord rec;
- rec.clear( );
- rec.epoch = (uint32_t)now;
+	 /* ── Build V4 universal record (schema-driven, no legacy compat) ── */
+	 const HistV4State* schema = _storageMgr->getV4Schema( );
+	 if (!schema || schema->measureCount == 0) return;
 
- /* All universal slots (0..15) — temp, humidity, and pressure */
- for (int i = 0; i < MAX_SENSORS; i++) {
- if (!cfg.sensors[i].active) continue;
- for (const auto &s : sensors) {
- if (s.config.pins[0] == cfg.sensors[i].pins[0] && !s.inErrorState) {
- float v = s.avgValue[0];
- if (!isnan(v)) {
- rec.sensors[i] = BinaryHistoryRecord::floatToI16(v);
- if (v < _cachedMin[i]) _cachedMin[i] = v;
- if (v > _cachedMax[i]) _cachedMax[i] = v;
- if (v < _preloadMin[i]) _preloadMin[i] = v;
- if (v > _preloadMax[i]) _preloadMax[i] = v;
- }
- float h = s.avgValue[1];
- if (!isnan(h)) {
- rec.humidity[i] = BinaryHistoryRecord::floatToI16(h);
- if (h < _cachedHumMin[i]) _cachedHumMin[i] = h;
- if (h > _cachedHumMax[i]) _cachedHumMax[i] = h;
- if (h < _preloadHumMin[i]) _preloadHumMin[i] = h;
- if (h > _preloadHumMax[i]) _preloadHumMax[i] = h;
- }
- /* Pressure — stored once per record (typically from BMP280 at any slot) */
- float p = s.avgValue[CH_PRESS];
- if (!isnan(p)) {
- rec.pressure = BinaryHistoryRecord::floatToI16x10(p);
- }
- /* Slot 10 also populates ambient fields (backward compat for telemetry) */
- if (i == 10) {
- rec.ambientTemp = BinaryHistoryRecord::floatToI16(v);
- rec.ambientHum = BinaryHistoryRecord::floatToI16(h);
- }
- break;
- }
- }
- }
+	 SystemConfig &cfg = _storageMgr->getConfig( );
+	 int64_t values[HIST_V4_MAX_MEASUREMENTS];
+	 uint8_t mc = schema->measureCount;
+	 for (uint8_t m = 0; m < mc; m++) {
+	 	 values[m] = histV4NanSentinel(schema->measures[m].bitWidth);
+	 }
 
- if (_storageMgr->writeHistoryEntry(rec)) {
- LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
- _telemetryMgr->notifyNewRecord( );
- }
+	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
+	 	 if (!cfg.sensors[slot].active) continue;
+	 	 for (const auto &s : sensors) {
+	 	 	 if (s.config.pins[0] != cfg.sensors[slot].pins[0] || s.inErrorState) continue;
+
+	 	 	 for (uint8_t m = 0; m < mc; m++) {
+	 	 	 	 if (schema->measures[m].sensorIdx >= schema->sensorCount) continue;
+	 	 	 	 char sensorHwId[17];
+	 	 	 	 histV4StrPoolGet(sensorHwId, sizeof(sensorHwId),
+	 	 	 	 	 schema->strPool,
+	 	 	 	 	 schema->sensors[schema->measures[m].sensorIdx].hwIdOffset,
+	 	 	 	 	 schema->sensors[schema->measures[m].sensorIdx].hwIdLen);
+	 	 	 	 if (strcmp(sensorHwId, cfg.sensors[slot].hwId) != 0) continue;
+
+	 	 	 	 uint8_t ch = schema->measures[m].channel;
+	 	 	 	 float v = s.avgValue[ch];
+	 	 	 	 if (isnan(v)) continue;
+
+	 	 	 	 values[m] = histV4FromFloat(v, schema->measures[m]);
+
+	 	 	 	 /* Update cache (indexed by slot for display compatibility) */
+	 	 	 	 if (ch == CH_TEMP) {
+	 	 	 	 	 if (v < _cachedMin[slot]) _cachedMin[slot] = v;
+	 	 	 	 	 if (v > _cachedMax[slot]) _cachedMax[slot] = v;
+	 	 	 	 	 if (v < _preloadMin[slot]) _preloadMin[slot] = v;
+	 	 	 	 	 if (v > _preloadMax[slot]) _preloadMax[slot] = v;
+	 	 	 	 } else if (ch == CH_HUM) {
+	 	 	 	 	 if (v < _cachedHumMin[slot]) _cachedHumMin[slot] = v;
+	 	 	 	 	 if (v > _cachedHumMax[slot]) _cachedHumMax[slot] = v;
+	 	 	 	 	 if (v < _preloadHumMin[slot]) _preloadHumMin[slot] = v;
+	 	 	 	 	 if (v > _preloadHumMax[slot]) _preloadHumMax[slot] = v;
+	 	 	 	 }
+	 	 	 }
+	 	 	 break;
+	 	 }
+	 }
+
+	 if (_storageMgr->writeHistoryEntryV4(values, mc, (uint32_t)now)) {
+	 	 LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
+	 	 _telemetryMgr->notifyNewRecord( );
+	 }
  }
 
  /* Periodic heap log — only when low or once per hour (avoids premature log rotation) */

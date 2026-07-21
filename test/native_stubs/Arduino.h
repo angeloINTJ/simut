@@ -114,3 +114,50 @@ public:
 private:
     std::string data_;
 };
+
+/* ============================================================================
+ *  Minimal File stub — enough for HistoryV4 header tests (host-side only).
+ *  The encode/decode unit tests don't use File I/O; this stub exists so the
+ *  header compiles. Real File I/O is tested on-device.
+ * ============================================================================ */
+
+#include <cstdio>
+#include <vector>
+
+class File {
+public:
+    File() : pos_(0), mode_(0) {}
+
+    size_t write(const uint8_t *buf, size_t len) {
+        if (mode_ != 'w' && mode_ != 'a') return 0;
+        data_.insert(data_.end(), buf, buf + len);
+        pos_ = data_.size();
+        return len;
+    }
+    size_t read(uint8_t *buf, size_t len) {
+        if (mode_ != 'r' && mode_ != 'w') return 0;
+        size_t avail = data_.size() - pos_;
+        if (len > avail) len = avail;
+        if (avail > 0) memcpy(buf, data_.data() + pos_, len);
+        pos_ += len;
+        return len;
+    }
+    void seek(size_t pos) {
+        if (pos <= data_.size()) pos_ = pos;
+    }
+    size_t position() const { return pos_; }
+    int available() const { return (int)(data_.size() - pos_); }
+    size_t size() const { return data_.size(); }
+    void close() { mode_ = 0; }
+
+    /* Test helpers */
+    void openForWrite() { data_.clear(); pos_ = 0; mode_ = 'w'; }
+    void openForRead(const uint8_t *buf, size_t len) {
+        data_.assign(buf, buf + len); pos_ = 0; mode_ = 'r';
+    }
+
+private:
+    std::vector<uint8_t> data_;
+    size_t pos_;
+    char mode_;
+};

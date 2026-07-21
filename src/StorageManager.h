@@ -19,6 +19,8 @@
 #include "pico/mutex.h"
 #include "SystemDefs.h"
 #include "HistoryCodec.h"
+#include "HistoryV4.h"
+#include "sensors/SensorHelpers.h"
 
 #define DIR_CONFIG "/config"
 #define FILE_CONFIG "/config/system.bin"
@@ -104,6 +106,39 @@ public:
  bool writeHistoryEntry(const BinaryHistoryRecord& rec);
  String getHistoryFileName( );
  void getHistoryFileName(char* buf, size_t len); /**< Buffer version. */
+
+ /* ── V4 history API ─────────────────────────────────────────── */
+
+ /** Write one V4 record. Delegates touch-priority buffering and flash I/O. */
+ bool writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
+
+ /** @return today's V4 history file path (e.g. /history/20260721.sim4). */
+ String getHistoryFileNameV4( );
+ void getHistoryFileNameV4(char* buf, size_t len);
+
+ /** @return pointer to the current V4 schema (read-only, valid while file is open). */
+ const HistV4State* getV4Schema( ) const { return _histV4CodecValid ? &_histV4State : nullptr; }
+
+ /** @return number of measurements in the current V4 schema, or 0 if not valid. */
+ uint8_t getV4MeasureCount( ) const { return _histV4CodecValid ? _histV4State.measureCount : 0; }
+
+ /** @return true if a V4 file is currently open and its schema is ready. */
+ bool isV4Active( ) const { return _histV4CodecValid; }
+
+ /** Build a V4 schema (sensor + measurement table + string pool) from SystemConfig.
+  * Used when creating a new V4 history file. The schema is stored in the file header
+  * so any reader can interpret the data without external configuration.
+  *
+  * @param sensors     Output sensor definitions (caller-provided buffer).
+  * @param sensorCount Output count of active sensors.
+  * @param measures    Output measurement definitions.
+  * @param measureCount Output count of measurements (sum of channels across sensors).
+  * @param strPool     Output string pool bytes.
+  * @param strPoolSize Output pool size.
+  * @return true on success. */
+ bool buildMeasureSchema(HistV4SensorDef *sensors, uint8_t &sensorCount,
+                         HistV4MeasureDef *measures, uint8_t &measureCount,
+                         uint8_t *strPool, uint8_t &strPoolSize);
 
  uint32_t getLastRecordedTimestamp( );
  uint32_t getHistoryDaysMask(int year, int month);
@@ -247,8 +282,21 @@ public:
  * Zeroed by `clearInitialAdminPassword( )` when admin changes password OR
  * when valid config is loaded from flash (i.e., not factory). */
  char _initialAdminPassword[9] = {0};
- BinaryHistoryRecord _pendingHistRec; /**< HIST record deferred during touch */
+ BinaryHistoryRecord _pendingHistRec; /**< HIST record deferred during touch (legacy) */
  volatile bool _pendingHistValid = false; /**< True if _pendingHistRec has data */
+
+ /* ── V4 pending + codec state ───────────────────────────────── */
+ int64_t _pendingValuesV4[HIST_V4_MAX_MEASUREMENTS];
+ uint32_t _pendingEpochV4 = 0;
+ uint8_t  _pendingMeasureCountV4 = 0;
+ volatile bool _pendingHistV4Valid = false;
+
+ HistV4State _histV4State;
+ bool _histV4CodecValid = false;
+
+ bool writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
+ static bool scanHistoryFileV4(File &f, HistV4State &state);
+
 
  /** Internal worker: writes ONE HIST record directly to flash (without checking touch
  * nor pending flush). Called by writeHistoryEntry on the non-deferred path. */

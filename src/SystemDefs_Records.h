@@ -109,11 +109,12 @@ struct __attribute__((packed)) SensorRecord {
  float humMin;
  float humMax;
  bool alarmsActive;
+ uint8_t channelBitWidth[MAX_SENSOR_CHANNELS];
 };
 /* Locks layout at compile-time. Deliberate schema bump
  * must touch HERE AND migration code; build breaks if someone adds/removes
  * a field without considering existing flash consequences. */
-static_assert(sizeof(SensorRecord) == 83, "SensorRecord v16 must be 83 bytes - update migration if changing");
+static_assert(sizeof(SensorRecord) == 87, "SensorRecord v17 must be 87 bytes - update migration if changing");
 
 /**
  * User account for web interface authentication (packed for Flash storage).
