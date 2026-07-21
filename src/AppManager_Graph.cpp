@@ -170,7 +170,18 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  localtime_r(&targetDay, &timeinfo);
 
  char path[40];
- snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
+ /* Try .sim4 first, fallback to .bin */
+	 snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_V4_FILE_EXT,
+	 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+	 _storageMgr->enterFlashReadLock( );
+	 bool _v4exists = LittleFS.exists(path);
+	 if (!_v4exists) {
+	 snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_V4_FILE_EXT,
+	 timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+	 _storageMgr->enterFlashReadLock( );
+	 bool _v4exists = LittleFS.exists(path);
+	 if (!_v4exists) {
+	 snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
  File f;
