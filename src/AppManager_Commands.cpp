@@ -10,6 +10,7 @@
 
 #include "AppManager.h"
 #include "CommandManager.h"
+#include "CommandParser.h"
 #include "DisplayManager.h"
 #include "LogManager.h"
 #include "NetworkManager.h"
@@ -24,10 +25,42 @@
 void AppManager::executeCommand(CliDemand cmd) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  bool changed = false;
+ const bool pt = _cmdMgr->isPt( );
+
+ /* ── Cisco IOS mode validation ──
+  * Navigation commands are always processed regardless of mode mask. */
+ uint8_t curMask = (1 << _cmdMgr->cliMode( ));
+ bool isNav = (cmd.type == CMD_ENABLE || cmd.type == CMD_DISABLE ||
+               cmd.type == CMD_CONFIGURE || cmd.type == CMD_EXIT ||
+               cmd.type == CMD_END || cmd.type == CMD_DO ||
+               cmd.type == CMD_HELP || cmd.type == CMD_SENSOR_ENTER);
+
+ if (!isNav && !(getCommandModeMask(cmd.type) & curMask)) {
+  /* Build a helpful error: which mode is needed? */
+  uint8_t needed = getCommandModeMask(cmd.type);
+  if (needed & CLI_VALID_USER) {
+   _cmdMgr->printError(pt ? "Comando requer modo EXEC. Use 'enable' se estiver no modo usuario."
+                          : "Command requires EXEC mode. Use 'enable' from user mode.");
+  } else if (needed & CLI_VALID_PRIV) {
+   _cmdMgr->printError(pt ? "Comando requer modo privilegiado. Use 'enable'."
+                          : "Command requires privileged mode. Use 'enable'.");
+  } else if (needed & CLI_VALID_CONFIG) {
+   _cmdMgr->printError(pt ? "Comando requer modo configuracao. Use 'configure terminal'."
+                          : "Command requires config mode. Use 'configure terminal'.");
+  } else if (needed & CLI_VALID_SENSOR) {
+   _cmdMgr->printError(pt ? "Comando requer modo sensor. Use 'sensor <N>' no modo config."
+                          : "Command requires sensor config mode. Use 'sensor <N>' from config.");
+  } else {
+   _cmdMgr->printError(pt ? "Comando indisponivel neste modo."
+                          : "Command not available in this mode.");
+  }
+  return;
+ }
 
  switch (cmd.type) {
  case CMD_HELP:
- _cmdMgr->printHelp( ); break;
+  /* Mode-aware help — '?' shows context-sensitive commands */
+  _cmdMgr->printModeHelp( ); break;
 
  case CMD_SHOW_THEMES:
  _cmdMgr->consolePrintln("");
@@ -672,6 +705,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "sts")) _displayMgr->showSystemStatus( );
  else if (!strcmp(n, "alm")) _displayMgr->showSettingsAlarms(&cfg);
  else if (!strcmp(n, "gra")) _displayMgr->forceGraphView( );
+ else if (!strcmp(n, "touchcal")) _displayMgr->showTouchCalibration( );
+ else if (!strcmp(n, "touchsens")) _displayMgr->showTouchSensitivity( );
+ else if (!strcmp(n, "offset")) _displayMgr->showSettingsDisplayOffset( );
  else { _cmdMgr->printError("?screen"); break; }
  _displayMgr->resetTouchIdle( );
  _cmdMgr->printSuccess(n);
@@ -701,13 +737,112 @@ void AppManager::executeCommand(CliDemand cmd) {
 
 
 
+ /* ── Cisco IOS Mode Navigation ── */
+
+ case CMD_ENABLE:
+  _cmdMgr->setCliMode(CLI_MODE_PRIV_EXEC);
+  _cmdMgr->consolePrintf("%s\n", pt ? "Modo privilegiado (SIMUT#). 'configure terminal' p/ configurar."
+                                    : "Privileged mode (SIMUT#). 'configure terminal' to configure.");
+  break;
+
+ case CMD_DISABLE:
+  _cmdMgr->setCliMode(CLI_MODE_USER_EXEC);
+  _cmdMgr->consolePrintf("%s\n", pt ? "Modo EXEC (SIMUT>). 'enable' p/ privilegiado."
+                                    : "EXEC mode (SIMUT>). 'enable' for privileged.");
+  break;
+
+ case CMD_CONFIGURE:
+  _cmdMgr->setCliMode(CLI_MODE_GLOBAL_CONFIG);
+  _cmdMgr->consolePrintf("%s\n", pt ? "Modo configuracao global. 'exit' voltar, 'end' p/ privilegiado."
+                                    : "Global configuration mode. 'exit' back, 'end' to privileged.");
+  break;
+
+ case CMD_EXIT:
+  switch (_cmdMgr->cliMode( )) {
+   case CLI_MODE_SENSOR_CONFIG:
+    _cmdMgr->setCliMode(CLI_MODE_GLOBAL_CONFIG);
+    break;
+   case CLI_MODE_GLOBAL_CONFIG:
+    _cmdMgr->setCliMode(CLI_MODE_PRIV_EXEC);
+    break;
+   case CLI_MODE_PRIV_EXEC:
+    _cmdMgr->setCliMode(CLI_MODE_USER_EXEC);
+    break;
+   default:
+    _cmdMgr->consolePrintln(pt ? "Ja esta no modo raiz." : "Already at root mode.");
+    break;
+  }
+  break;
+
+ case CMD_END:
+  _cmdMgr->setCliMode(CLI_MODE_PRIV_EXEC);
+  break;
+
+ case CMD_DO: {
+  /* Execute a privileged-mode command from within config mode.
+   * Parse the inner command and dispatch it directly, bypassing
+   * mode validation (we validate against PRIV mask, not current mode). */
+  CliDemand inner = parseCliCommand(String(cmd.strVal1));
+  if (inner.type == CMD_UNKNOWN) {
+   _cmdMgr->printError(pt ? "Comando invalido apos 'do'." : "Invalid command after 'do'.");
+   break;
+  }
+  /* Validate inner command against PRIV + USER mask */
+  if (!(getCommandModeMask(inner.type) & (CLI_VALID_PRIV | CLI_VALID_USER))) {
+   _cmdMgr->printError(pt ? "Comando nao permitido via 'do'." : "Command not allowed via 'do'.");
+   break;
+  }
+  /* Execute the inner command — recursive call to executeCommand.
+   * Mode validation in the recursive call will use the current config
+   * mode, but since we already validated against PRIV, commands that
+   * are valid in PRIV mode will pass through. We temporarily change
+   * mode to PRIV_EXEC, execute, then restore. */
+  CLIMode savedMode = _cmdMgr->cliMode( );
+  _cmdMgr->setCliMode(CLI_MODE_PRIV_EXEC);
+  executeCommand(inner);
+  _cmdMgr->setCliMode(savedMode);
+  break;
+ }
+
+ case CMD_SENSOR_ENTER: {
+  /* Enter sensor sub-config mode — 'sensor <N>' from global config.
+   * cmd.intVal1 = slot index (already validated by parser: 0-15). */
+  if (_cmdMgr->cliMode( ) != CLI_MODE_GLOBAL_CONFIG && _cmdMgr->cliMode( ) != CLI_MODE_PRIV_EXEC) {
+   _cmdMgr->printError(pt ? "Use 'sensor <N>' no modo configuracao ou privilegiado."
+                          : "Use 'sensor <N>' from config or privileged mode.");
+   break;
+  }
+  if (!cfg.sensors[cmd.intVal1].active) {
+   _cmdMgr->printInfo((pt ? "Slot " : "Slot ") + String(cmd.intVal1)
+     + (pt ? " nao configurado. Use 'create <tipo>' para configurar."
+           : " not configured. Use 'create <type>' to configure."));
+  }
+  _cmdMgr->setConfigSensorSlot((int8_t)cmd.intVal1);
+  String name = cfg.sensors[cmd.intVal1].friendlyName;
+  if (name.length( ) == 0) name = sensorTypeName((SensorType)cfg.sensors[cmd.intVal1].sensorType);
+  _cmdMgr->consolePrintf("%s Slot %d (%s)\n",
+    pt ? "Entrando configuracao do sensor —" : "Entering sensor configuration —",
+    cmd.intVal1, name.c_str( ));
+  /* In sensor mode, bare commands like 'type', 'name', 'pin' will be
+   * pre-processed by processInput to fill the slot from _configSensorSlot. */
+  break;
+ }
+
  case CMD_UNKNOWN:
  default:
- LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
- _cmdMgr->printError(_cmdMgr->isPt( )
- ? "Comando desconhecido. Digite 'help'."
- : "Unknown command. Type 'help'.");
- break;
+  /* Mode-aware hint for unknown commands */
+  if (_cmdMgr->isConfigMode( )) {
+   LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
+   _cmdMgr->printError(pt
+    ? "Comando desconhecido. Digite '?' ou 'exit' p/ sair."
+    : "Unknown command. Type '?' or 'exit' to leave.");
+  } else {
+   LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
+   _cmdMgr->printError(pt
+    ? "Comando desconhecido. Digite '?' ou 'help'."
+    : "Unknown command. Type '?' or 'help'.");
+  }
+  break;
  }
 
  if (changed) _cmdMgr->printInfo(_cmdMgr->isPt( )

@@ -170,6 +170,23 @@ void CommandManager::appendCharWithLimit(String& buffer, char c,
 }
 
 CliDemand CommandManager::parseCommand(String input) {
+ /* ── Sensor-mode auto-prefix (Cisco IOS sub-mode shorthand) ──
+  * In SENSOR_CONFIG mode, bare commands like 'type dht22', 'name X',
+  * 'pin 0,5' are automatically prefixed with 'sensor <N>' so the user
+  * doesn't need to repeat the slot number.
+  * Navigation commands (exit, end, ?, help, do, show) are NOT prefixed. */
+ if (_cliMode == CLI_MODE_SENSOR_CONFIG && _configSensorSlot >= 0) {
+  String lower = input; lower.toLowerCase( );
+  lower.trim( );
+  bool isNav = lower.startsWith("exit") || lower.startsWith("end") ||
+               lower == "?" || lower == "help" || lower == "ajuda" ||
+               lower.startsWith("do ") || lower.startsWith("show ") ||
+               lower == "enable" || lower == "disable";
+  if (!isNav && lower.length( ) > 0) {
+   String prefixed = "sensor " + String(_configSensorSlot) + " " + input;
+   return parseCliCommand(prefixed);
+  }
+ }
  return parseCliCommand(input);
 }
 
@@ -227,8 +244,299 @@ void CommandManager::printWelcome( ) {
  consolePrintln("===========================================");
 }
 
-void CommandManager::printPrompt( ) { consolePrint(_debugMode ? "SIMUT# " : "SIMUT> "); }
+void CommandManager::printPrompt( ) {
+ /* Cisco IOS hierarchical prompt — mode determines character and context.
+  * Debug mode streams logs inline but no longer hijacks the prompt char. */
+ switch (_cliMode) {
+ case CLI_MODE_SENSOR_CONFIG:
+  consolePrintf("SIMUT(config-sensor-%d)# ", _configSensorSlot >= 0 ? _configSensorSlot : 0);
+  break;
+ case CLI_MODE_GLOBAL_CONFIG:
+  consolePrint("SIMUT(config)# ");
+  break;
+ case CLI_MODE_PRIV_EXEC:
+  consolePrint("SIMUT# ");
+  break;
+ case CLI_MODE_USER_EXEC:
+ default:
+  consolePrint("SIMUT> ");
+  break;
+ }
+}
+void CommandManager::setDebugMode(bool enabled) {
+ _debugMode = enabled;
+ /* Debug mode now only controls log streaming (LogManager::setConsoleStream).
+  * Prompt is determined by CLI mode (_cliMode), not debug state. */
+}
+
+void CommandManager::setCliMode(CLIMode mode) {
+ _cliMode = mode;
+ if (mode != CLI_MODE_SENSOR_CONFIG) _configSensorSlot = -1;
+}
+
+void CommandManager::setConfigSensorSlot(int8_t slot) {
+ _configSensorSlot = slot;
+ if (slot >= 0) _cliMode = CLI_MODE_SENSOR_CONFIG;
+}
+
+bool CommandManager::isConfigMode( ) const {
+ return _cliMode == CLI_MODE_GLOBAL_CONFIG || _cliMode == CLI_MODE_SENSOR_CONFIG;
+}
+
+bool CommandManager::isPrivOrHigher( ) const {
+ return _cliMode >= CLI_MODE_PRIV_EXEC;
+}
+
 void CommandManager::printDivider( ) { consolePrintln("-------------------------------------------"); }
+
+/* ── Mode validity mask table — one byte per DemandType ── */
+
+uint8_t getCommandModeMask(DemandType t) {
+ switch (t) {
+ /* Diagnostic / Show — valid in all modes */
+ case CMD_HELP:              return CLI_VALID_ALL;
+ case CMD_SHOW_THEMES:       return CLI_VALID_READONLY;
+ case CMD_SHOW_LOGS:         return CLI_VALID_READONLY;
+ case CMD_SHOW_SENSORS:      return CLI_VALID_READONLY;
+ case CMD_SHOW_STORAGE:      return CLI_VALID_READONLY;
+ case CMD_SHOW_SYSINFO:      return CLI_VALID_READONLY;
+ case CMD_SHOW_NET:          return CLI_VALID_READONLY;
+ case CMD_SHOW_METRICS:      return CLI_VALID_READONLY;
+ case CMD_SHOW_SENSOR_TYPES: return CLI_VALID_READONLY;
+ case CMD_SHOW_GPIO:         return CLI_VALID_READONLY;
+ /* Session — exec modes */
+ case CMD_LANGUAGE:          return CLI_VALID_USER | CLI_VALID_PRIV;
+ case CMD_DEBUG:             return CLI_VALID_USER | CLI_VALID_PRIV;
+ case CMD_SET_TIME:          return CLI_VALID_USER | CLI_VALID_PRIV;
+ case CMD_SCAN_SENSORS:      return CLI_VALID_USER | CLI_VALID_PRIV;
+ /* Telemetry — exec modes */
+ case CMD_TEL_SYNC:          return CLI_VALID_USER | CLI_VALID_PRIV;
+ case CMD_TEL_DUMP:          return CLI_VALID_USER | CLI_VALID_PRIV;
+ case CMD_TEL_RESET:         return CLI_VALID_PRIV;
+ /* Privileged EXEC only */
+ case CMD_WRITE_MEMORY:      return CLI_VALID_PRIV;
+ case CMD_CLEAR_LOGS:        return CLI_VALID_PRIV;
+ case CMD_RELOAD:            return CLI_VALID_PRIV;
+ case CMD_RESET_TOUCH_CAL:   return CLI_VALID_PRIV;
+ case CMD_FACTORY_RESET:     return CLI_VALID_PRIV;
+ case CMD_RESET_ADMIN:       return CLI_VALID_PRIV;
+ case CMD_WIPE_SENSOR:       return CLI_VALID_PRIV;
+ case CMD_DEFINE_SENSOR:     return CLI_VALID_PRIV;
+ case CMD_ACCEPT_SENSOR:     return CLI_VALID_PRIV;
+ case CMD_TOUCH_SIM:         return CLI_VALID_PRIV;
+ case CMD_GOTO_SCREEN:       return CLI_VALID_PRIV;
+ /* Global Config */
+ case CMD_SET_THEME:         return CLI_VALID_CONFIG;
+ case CMD_SET_DS_RES:        return CLI_VALID_CONFIG;
+ case CMD_SET_SYS_NAME:      return CLI_VALID_CONFIG;
+ case CMD_SET_WIFI_SSID:     return CLI_VALID_CONFIG;
+ case CMD_SET_WIFI_PASS:     return CLI_VALID_CONFIG;
+ case CMD_SET_TIMEZONE:      return CLI_VALID_CONFIG;
+ case CMD_SET_NTP:           return CLI_VALID_CONFIG;
+ case CMD_SET_TEL_SERVER:    return CLI_VALID_CONFIG;
+ case CMD_SET_TEL_PORT:      return CLI_VALID_CONFIG;
+ case CMD_SET_TEL_PATH:      return CLI_VALID_CONFIG;
+ case CMD_SET_TEL_BATCH:     return CLI_VALID_CONFIG;
+ case CMD_SET_TEL_INTERVAL:  return CLI_VALID_CONFIG;
+ case CMD_SET_TEL_CRYPTO:    return CLI_VALID_CONFIG;
+ case CMD_SET_TEL_MODE:      return CLI_VALID_CONFIG;
+ case CMD_SET_HISTORY_INTERVAL: return CLI_VALID_CONFIG;
+ case CMD_SET_NTP_ENABLED:   return CLI_VALID_CONFIG;
+ case CMD_SET_DNS_CFG:       return CLI_VALID_CONFIG;
+ case CMD_IP_CFG:            return CLI_VALID_CONFIG;
+ case CMD_USER_ADD:          return CLI_VALID_CONFIG;
+ case CMD_USER_DEL:          return CLI_VALID_CONFIG;
+ case CMD_USER_PASS:         return CLI_VALID_CONFIG;
+ case CMD_SET_WEB_PORT:      return CLI_VALID_CONFIG;
+ /* Sensor sub-commands — privileged + sensor config mode */
+ case CMD_SENSOR_FIELD:      return CLI_VALID_PRIV | CLI_VALID_SENSOR;
+ case CMD_SENSOR_ENTER:      return CLI_VALID_CONFIG;  /* enter sensor mode from config */
+ /* Navigation */
+ case CMD_ENABLE:            return CLI_VALID_USER;
+ case CMD_DISABLE:           return CLI_VALID_PRIV;
+ case CMD_CONFIGURE:         return CLI_VALID_PRIV;
+ case CMD_EXIT:              return CLI_VALID_PRIV | CLI_VALID_CONFIG | CLI_VALID_SENSOR;
+ case CMD_END:               return CLI_VALID_CONFIG | CLI_VALID_SENSOR;
+ case CMD_DO:                return CLI_VALID_CONFIG | CLI_VALID_SENSOR;
+ default:                    return CLI_VALID_ALL;
+ }
+}
+
+const char* getModePromptSuffix(CLIMode mode) {
+ switch (mode) {
+ case CLI_MODE_USER_EXEC:     return ">";
+ case CLI_MODE_PRIV_EXEC:     return "#";
+ case CLI_MODE_GLOBAL_CONFIG: return "(config)#";
+ case CLI_MODE_SENSOR_CONFIG: return "(config-sensor)#";
+ default:                     return ">";
+ }
+}
+
+const char* getModeHelpLine(CLIMode mode, bool pt) {
+ switch (mode) {
+ case CLI_MODE_USER_EXEC:
+  return pt ? "Modo EXEC — 'show' diagnostico, 'enable' p/ configurar"
+            : "EXEC mode — 'show' diagnostics, 'enable' to configure";
+ case CLI_MODE_PRIV_EXEC:
+  return pt ? "Modo Privilegiado — 'configure terminal' p/ config, 'write memory' p/ salvar"
+            : "Privileged mode — 'configure terminal' to config, 'write memory' to save";
+ case CLI_MODE_GLOBAL_CONFIG:
+  return pt ? "Modo Config Global — 'exit' voltar, 'end' p/ privilegiado, 'sensor <N>' sub-config"
+            : "Global Config — 'exit' back, 'end' to privileged, 'sensor <N>' sub-config";
+ case CLI_MODE_SENSOR_CONFIG:
+  return pt ? "Modo Sensor — 'type/name/pin/active/alarm', 'exit' voltar, 'end' p/ privilegiado"
+            : "Sensor Config — 'type/name/pin/active/alarm', 'exit' back, 'end' to privileged";
+ default: return "";
+ }
+}
+
+void CommandManager::printModeHelp( ) {
+ const bool pt = isPt( );
+ uint8_t curMask = (1 << _cliMode);
+
+ printDivider( );
+ consolePrintln(getModeHelpLine(_cliMode, pt));
+ consolePrintln("");
+
+ /* ── Navigation (always first) ── */
+ if (_cliMode == CLI_MODE_USER_EXEC) {
+  consolePrintln(pt ? "  enable                Entrar modo privilegiado"
+                    : "  enable                Enter privileged mode");
+ }
+ if (_cliMode == CLI_MODE_PRIV_EXEC) {
+  consolePrintln(pt ? "  disable               Voltar ao modo EXEC"
+                    : "  disable               Return to EXEC mode");
+  consolePrintln(pt ? "  configure terminal    Entrar modo configuracao"
+                    : "  configure terminal    Enter configuration mode");
+ }
+ if (isConfigMode( )) {
+  consolePrintln(pt ? "  exit                  Sair do modo atual"
+                    : "  exit                  Exit current mode");
+  consolePrintln(pt ? "  end                   Voltar ao modo privilegiado"
+                    : "  end                   Return to privileged mode");
+  consolePrintln(pt ? "  do <cmd>              Executar comando do modo #"
+                    : "  do <cmd>              Execute privileged-mode command");
+ }
+ consolePrintln("");
+
+ /* ── Show commands (all modes except sensor config get the full list) ── */
+ if (_cliMode != CLI_MODE_SENSOR_CONFIG) {
+  auto showIf = [&](DemandType t, const char* s) { if (getCommandModeMask(t) & curMask) consolePrintln(s); };
+  showIf(CMD_SHOW_SENSORS,    pt ? "  show sensors           Listar sensores"       : "  show sensors           List sensors");
+  showIf(CMD_SHOW_SYSINFO,    pt ? "  show system info      Info do sistema"        : "  show system info      System info");
+  showIf(CMD_SHOW_NET,        pt ? "  show net status       Status da rede"         : "  show net status       Network status");
+  showIf(CMD_SHOW_METRICS,    pt ? "  show metrics          Metricas operacionais"   : "  show metrics          Operational metrics");
+  showIf(CMD_SHOW_STORAGE,    pt ? "  show storage stats    Estatisticas flash"     : "  show storage stats    Flash statistics");
+  showIf(CMD_SHOW_THEMES,     pt ? "  show themes           Listar temas"           : "  show themes           List themes");
+  showIf(CMD_SHOW_GPIO,       pt ? "  show gpio             Mapa de GPIOs"          : "  show gpio             GPIO map");
+  showIf(CMD_SHOW_SENSOR_TYPES, pt?"show sensor types     Tipos compilados"        : "  show sensor types     Compiled types");
+  showIf(CMD_SHOW_LOGS,       pt ? "  show system log       Log de eventos"         : "  show system log       Event log");
+ }
+
+ /* ── Privileged EXEC extras ── */
+ if (_cliMode == CLI_MODE_PRIV_EXEC) {
+  consolePrintln("");
+  consolePrintln(pt ? "  --- Manutencao ---" : "  --- Maintenance ---");
+  auto showIf = [&](DemandType t, const char* s) { if (getCommandModeMask(t) & curMask) consolePrintln(s); };
+  showIf(CMD_WRITE_MEMORY,     pt ? "  write memory          Salvar config no Flash"
+                                  : "  write memory          Save config to Flash");
+  showIf(CMD_RELOAD,           pt ? "  reload [confirm]      Reiniciar sistema"
+                                  : "  reload [confirm]      Reboot system");
+  showIf(CMD_CLEAR_LOGS,       pt ? "  clear log [confirm]   Apagar logs"
+                                  : "  clear log [confirm]   Clear system logs");
+  showIf(CMD_DEBUG,            pt ? "  debug <on|off>        Stream logs no console"
+                                  : "  debug <on|off>        Stream logs to console");
+  showIf(CMD_FACTORY_RESET,    pt ? "  conf system factory [confirm]  Factory reset"
+                                  : "  conf system factory [confirm]  Factory reset");
+  consolePrintln("");
+  consolePrintln(pt ? "  --- Sensores ---" : "  --- Sensors ---");
+  showIf(CMD_SCAN_SENSORS,     pt ? "  sensor scan           Escanear hardware"
+                                  : "  sensor scan           Scan hardware bus");
+  showIf(CMD_ACCEPT_SENSOR,    pt ? "  sensor accept <gpio>  Aceitar sensor OneWire"
+                                  : "  sensor accept <gpio>  Accept OneWire sensor");
+  showIf(CMD_DEFINE_SENSOR,    pt ? "  sensor define <gpio> <rom> <hwid> <nome>"
+                                  : "  sensor define <gpio> <rom> <hwid> <name>");
+  showIf(CMD_WIPE_SENSOR,      pt ? "  sensor wipe <gpio> [confirm]  Resetar historico"
+                                  : "  sensor wipe <gpio> [confirm]  Wipe sensor history");
+  showIf(CMD_SENSOR_FIELD,     pt ? "  sensor <slot> <campo> <valor>  Configurar sensor"
+                                  : "  sensor <slot> <field> <value>  Configure sensor");
+ }
+
+ /* ── Global Config commands ── */
+ if (_cliMode == CLI_MODE_GLOBAL_CONFIG) {
+  auto showIf = [&](DemandType t, const char* s) { if (getCommandModeMask(t) & curMask) consolePrintln(s); };
+  consolePrintln(pt ? "  --- Sistema ---" : "  --- System ---");
+  showIf(CMD_SET_SYS_NAME,      "  system name <nome>");
+  showIf(CMD_SET_THEME,         "  system theme <id>");
+  showIf(CMD_SET_TIMEZONE,      "  system timezone <-12..14>");
+  showIf(CMD_SET_NTP,           "  system ntp <servidor>");
+  showIf(CMD_SET_HISTORY_INTERVAL, "  system history_interval <min>");
+  showIf(CMD_LANGUAGE,          "  language <pt|en>");
+  showIf(CMD_SET_TIME,          "  time <AAAA-MM-DD> <HH:MM:SS>");
+  showIf(CMD_SET_DS_RES,        "  ds18b20 resolution <9-12>");
+  consolePrintln(pt ? "  --- Rede ---" : "  --- Network ---");
+  showIf(CMD_SET_WIFI_SSID,     "  wifi ssid <nome>");
+  showIf(CMD_SET_WIFI_PASS,     "  wifi pass <senha>");
+  showIf(CMD_IP_CFG,            "  ip <dhcp|static|addr|mask|gateway|dns>");
+  showIf(CMD_SET_DNS_CFG,       "  dns <auto|manual> [ip1] [ip2]");
+  showIf(CMD_SET_NTP_ENABLED,   "  ntp <on|off>");
+  showIf(CMD_SET_WEB_PORT,      "  web port <1..65535>");
+  consolePrintln(pt ? "  --- Telemetria ---" : "  --- Telemetry ---");
+  showIf(CMD_SET_TEL_SERVER,    "  tel server <url>");
+  showIf(CMD_SET_TEL_PORT,      "  tel port <n>");
+  showIf(CMD_SET_TEL_PATH,      "  tel path <path>");
+  showIf(CMD_SET_TEL_BATCH,     "  tel batch <n>");
+  showIf(CMD_SET_TEL_INTERVAL,  "  tel interval <ms>");
+  showIf(CMD_SET_TEL_CRYPTO,    "  tel crypto <on|off>");
+  showIf(CMD_SET_TEL_MODE,      "  tel mode <json|csv|custom>");
+  consolePrintln(pt ? "  --- Usuarios ---" : "  --- Users ---");
+  showIf(CMD_USER_ADD,          "  user add <nome> <senha>");
+  showIf(CMD_USER_DEL,          "  user del <nome>");
+  showIf(CMD_USER_PASS,         "  user pass <nome> <senha>");
+  consolePrintln("");
+  consolePrintln(pt ? "  sensor <slot>         Entrar configuracao do sensor"
+                    : "  sensor <slot>         Enter sensor configuration");
+ }
+
+ /* ── Sensor Config commands ── */
+ if (_cliMode == CLI_MODE_SENSOR_CONFIG) {
+  auto showIf = [&](DemandType t, const char* s) { if (getCommandModeMask(t) & curMask) consolePrintln(s); };
+  showIf(CMD_SENSOR_FIELD, pt ? "  type <ds18b20|dht22|bme280>  Definir tipo"
+                               : "  type <ds18b20|dht22|bme280>  Set type");
+  showIf(CMD_SENSOR_FIELD, pt ? "  create <tipo>        Criar/resetar slot"
+                               : "  create <type>        Create/reset slot");
+  showIf(CMD_SENSOR_FIELD, pt ? "  pin <idx> <gpio>     Atribuir GPIO"
+                               : "  pin <idx> <gpio>     Assign GPIO");
+  showIf(CMD_SENSOR_FIELD, pt ? "  name <nome>          Nome amigavel"
+                               : "  name <name>         Friendly name");
+  showIf(CMD_SENSOR_FIELD, pt ? "  hwid <id>            Hardware ID"
+                               : "  hwid <id>            Hardware ID");
+  showIf(CMD_SENSOR_FIELD, pt ? "  active <on|off>      Ativar/desativar"
+                               : "  active <on|off>      Enable/disable");
+  showIf(CMD_SENSOR_FIELD, pt ? "  alarm <on|off>       Alarmes"
+                               : "  alarm <on|off>       Alarms");
+  showIf(CMD_SENSOR_FIELD, pt ? "  tmin|tmax <valor>    Limites temperatura"
+                               : "  tmin|tmax <value>    Temperature limits");
+  showIf(CMD_SENSOR_FIELD, pt ? "  hmin|hmax <valor>    Limites umidade"
+                               : "  hmin|hmax <value>    Humidity limits");
+ }
+
+ /* ── Telemetry ops (exec modes) ── */
+ if (_cliMode == CLI_MODE_USER_EXEC || _cliMode == CLI_MODE_PRIV_EXEC) {
+  consolePrintln("");
+  auto showIf = [&](DemandType t, const char* s) { if (getCommandModeMask(t) & curMask) consolePrintln(s); };
+  showIf(CMD_TEL_SYNC, pt ? "  tel sync              Enviar telemetria"
+                           : "  tel sync              Force telemetry upload");
+  showIf(CMD_TEL_DUMP, pt ? "  tel dump              Dump do payload"
+                           : "  tel dump              Dump next payload");
+  if (_cliMode == CLI_MODE_PRIV_EXEC) {
+   showIf(CMD_TEL_RESET, pt ? "  tel reset             Resetar cursor telemetria"
+                             : "  tel reset             Reset telemetry cursor");
+  }
+ }
+
+ printDivider( );
+}
 
 String CommandManager::formatRom(const uint8_t* rom) {
  char buff[18];
