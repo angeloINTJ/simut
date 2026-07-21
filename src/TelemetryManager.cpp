@@ -398,7 +398,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_FILE_EXT) || dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -436,7 +436,60 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  File f = LittleFS.open(fullPath, "r");
  if (!f) { _storageRef->exitFlashReadLock( ); continue; }
 
- /* V2 header */
+ 	 /* V4 detection: .sim4 files use universal format */
+	 bool isV4File = fullPath.endsWith(HISTORY_V4_FILE_EXT);
+	 if (!isV4File && f.size() >= 4) {
+	 char magic[4]; f.seek(0);
+	 if (f.read((uint8_t*)magic, 4) == 4 && memcmp(magic, HIST_V4_MAGIC, 4) == 0) isV4File = true;
+	 }
+	 if (isV4File) {
+	 HistV4State v4st; f.seek(0);
+	 uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+	 if (hdrRead >= (int)HIST_V4_HEADER_FIXED && histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) > 0) {
+	 uint8_t rdBuf[HIST_V4_READ_BUF]; size_t rdFilled = 0;
+	 int64_t v4vals[HIST_V4_MAX_MEASUREMENTS]; uint32_t v4epoch;
+	 bool fileHasMoreV4 = true; uint32_t inFileCountV4 = 0;
+	 SystemConfig &cfg = _storageRef->getConfig();
+	 while (fileHasMoreV4 && batch.size() < limit) {
+	 if (rdFilled < v4st.anchorByteSize && f.available() > 0) {
+	 int rN = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
+	 if (rN > 0) rdFilled += (size_t)rN;
+	 }
+	 if (rdFilled == 0) { fileHasMoreV4 = false; break; }
+	 size_t cons = histV4DecodeNext(rdBuf, rdFilled, v4st, v4vals, &v4epoch);
+	 if (cons == 0) { fileHasMoreV4 = false; break; }
+	 memmove(rdBuf, rdBuf + cons, rdFilled - cons); rdFilled -= cons; inFileCountV4++;
+	 if (v4epoch >= EPOCH_MIN && (nowEpoch < EPOCH_MIN || v4epoch <= nowEpoch + 86400UL) && v4epoch > lastCursor) {
+	 BinaryHistoryRecord rec; rec.clear(); rec.epoch = v4epoch;
+	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
+	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
+	 char hwId[17]; uint8_t si = v4st.measures[m].sensorIdx;
+	 histV4StrPoolGet(hwId, sizeof(hwId), v4st.strPool, v4st.sensors[si].hwIdOffset, v4st.sensors[si].hwIdLen);
+	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
+	 if (cfg.sensors[slot].active && strcmp(cfg.sensors[slot].hwId, hwId) == 0) {
+	 uint8_t ch = v4st.measures[m].channel;
+	 if (ch == CH_TEMP) rec.sensors[slot] = BinaryHistoryRecord::floatToI16(v);
+	 else if (ch == CH_HUM) rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
+	 else if (ch == CH_PRESS) rec.pressure = BinaryHistoryRecord::floatToI16x10(v);
+	 break;
+	 }
+	 }
+	 }
+	 batch.push_back(rec);
+	 if (v4epoch > newCursor) newCursor = v4epoch;
+	 }
+	 if ((inFileCountV4 % 10) == 0 && fileHasMoreV4 && batch.size() < limit) {
+	 _storageRef->exitFlashReadLock(); feedWdt(); yield(); _storageRef->enterFlashReadLock();
+	 }
+	 }
+	 }
+	 f.close(); _storageRef->exitFlashReadLock();
+	 continue;
+	 }
+
+/* V2 header */
  HistoryFileHeaderV2 hdr;
  bool headerOk = false;
  if (f.size( ) >= HIST_V2_HEADER_SIZE) {
@@ -1047,47 +1100,47 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  * @return Number of bytes written to dest (excluding \0).
  */
 int TelemetryManager::formatLineJsonBuf(const BinaryHistoryRecord& rec, const SystemConfig& cfg,
- char* dest, size_t maxLen) {
- dest[0] = '\0';
- int pos = snprintf(dest, maxLen, "{\"ts\":%lu", (unsigned long)rec.epoch);
+	 char* dest, size_t maxLen) {
+	 dest[0] = '\0';
+	 int pos = snprintf(dest, maxLen, "{\"ts\":%lu", (unsigned long)rec.epoch);
 
- char tmp[32];
- if (rec.ambientTemp != HIST_NAN_SENTINEL) {
- snprintf(tmp, sizeof(tmp), ",\"tAMB\":%.2f", BinaryHistoryRecord::i16ToFloat(rec.ambientTemp));
- pos += strlcat(dest + pos, tmp, maxLen - pos);
- }
- if (rec.ambientHum != HIST_NAN_SENTINEL) {
- snprintf(tmp, sizeof(tmp), ",\"uAMB\":%.1f", BinaryHistoryRecord::i16ToFloat(rec.ambientHum));
- pos += strlcat(dest + pos, tmp, maxLen - pos);
- }
- for (int i = 0; i < MAX_SENSORS; i++) {
- if (cfg.sensors[i].active && rec.sensors[i] != HIST_NAN_SENTINEL) {
- const char* hwid = cfg.sensors[i].hwId;
- if (hwid[0] == '\0') {
- snprintf(tmp, sizeof(tmp), ",\"t%d\":%.2f", i, BinaryHistoryRecord::i16ToFloat(rec.sensors[i]));
- } else {
- snprintf(tmp, sizeof(tmp), ",\"t%s\":%.2f", hwid, BinaryHistoryRecord::i16ToFloat(rec.sensors[i]));
- }
- pos += strlcat(dest + pos, tmp, maxLen - pos);
- }
- if (cfg.sensors[i].active && rec.humidity[i] != HIST_NAN_SENTINEL) {
- const char* hwid = cfg.sensors[i].hwId;
- if (hwid[0] == '\0') {
- snprintf(tmp, sizeof(tmp), ",\"u%d\":%.1f", i, BinaryHistoryRecord::i16ToFloat(rec.humidity[i]));
- } else {
- snprintf(tmp, sizeof(tmp), ",\"u%s\":%.1f", hwid, BinaryHistoryRecord::i16ToFloat(rec.humidity[i]));
- }
- pos += strlcat(dest + pos, tmp, maxLen - pos);
- }
- }
- if (rec.pressure != HIST_NAN_SENTINEL) {
- snprintf(tmp, sizeof(tmp), ",\"pAMB\":%.1f", BinaryHistoryRecord::i16ToFloatx10(rec.pressure));
- pos += strlcat(dest + pos, tmp, maxLen - pos);
- }
- if ((size_t)pos < maxLen - 1) { dest[pos] = '}'; dest[pos+1] = '\0'; pos++; }
- return pos;
-}
-
+	 char tmp[48];
+	 /* V4 universal keys: {prefix}{hwId}. Legacy ambient removed. */
+	 for (int i = 0; i < MAX_SENSORS; i++) {
+	 if (!cfg.sensors[i].active) continue;
+	 const char* hwid = cfg.sensors[i].hwId;
+	 if (rec.sensors[i] != HIST_NAN_SENTINEL) {
+	 float tv = BinaryHistoryRecord::i16ToFloat(rec.sensors[i]);
+	 char tKey[20];
+	 if (hwid[0]) snprintf(tKey, sizeof(tKey), "t%s", hwid);
+	 else snprintf(tKey, sizeof(tKey), "t%d", i);
+	 snprintf(tmp, sizeof(tmp), ",\"%s\":%.2f", tKey, (double)tv);
+	 pos += strlcat(dest + pos, tmp, maxLen - pos);
+	 }
+	 if (rec.humidity[i] != HIST_NAN_SENTINEL) {
+	 float hv = BinaryHistoryRecord::i16ToFloat(rec.humidity[i]);
+	 /* Build key inline */
+	 char key[16];
+	 if (hwid[0]) snprintf(key, sizeof(key), "u%s", hwid);
+	 else snprintf(key, sizeof(key), "u%d", i);
+	 snprintf(tmp, sizeof(tmp), ",\"%s\":%.1f", key, (double)hv);
+	 pos += strlcat(dest + pos, tmp, maxLen - pos);
+	 }
+	 }
+	 if (rec.pressure != HIST_NAN_SENTINEL) {
+	 float pv = BinaryHistoryRecord::i16ToFloatx10(rec.pressure);
+	 const char* pHwid = "p";
+	 for (int i = 0; i < MAX_SENSORS; i++) {
+	 if (cfg.sensors[i].active && sensorHasHumidity((SensorType)cfg.sensors[i].sensorType) && cfg.sensors[i].hwId[0]) {
+	 pHwid = cfg.sensors[i].hwId; break;
+	 }
+	 }
+	 snprintf(tmp, sizeof(tmp), ",\"p%s\":%.1f", pHwid, (double)pv);
+	 pos += strlcat(dest + pos, tmp, maxLen - pos);
+	 }
+	 if ((size_t)pos < maxLen - 1) { dest[pos] = '}'; dest[pos+1] = '\0'; pos++; }
+	 return pos;
+	}
 /** @brief Wrapper returning String — used by MQTT individual publish. */
 String TelemetryManager::formatLineJson(const BinaryHistoryRecord& rec, const SystemConfig& cfg) {
  char buf[512];
@@ -1372,7 +1425,7 @@ void TelemetryManager::refreshPendingCount( ) {
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_FILE_EXT) || dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
