@@ -251,6 +251,7 @@ void WebManager::handleApiHistoryMulti( ) {
 
  HistoryCodecState rdState;
  historyCodecReset(rdState);
+ rdState.fileVersion = hdr.version; /* MUST set before decode — auto-detect unreliable */
  uint16_t anchorPeriod = hdr.anchorPeriod;
  uint8_t rdBuf[256];
  size_t rdFilled = 0;
@@ -583,6 +584,7 @@ void WebManager::handleApiExportHistory( ) {
 
  HistoryCodecState rdState;
  historyCodecReset(rdState);
+ rdState.fileVersion = hdrV2.version; /* MUST set before decode — auto-detect unreliable */
  uint16_t anchorPeriod = hdrV2.anchorPeriod;
 
  uint8_t rdBuf[256];
