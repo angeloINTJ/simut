@@ -89,7 +89,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (cfg.sensors[sensorId].active) {
  safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
  safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
- epochLimit = cfg.sensors[sensorId].provisionEpoch;
+ epochLimit = 0; /* 0 = accept all history regardless of provision date */
  snprintf(pkg.rom, sizeof(pkg.rom), "%02X%02X%02X%02X%02X%02X%02X%02X",
  cfg.sensors[sensorId].rom[0], cfg.sensors[sensorId].rom[1],
  cfg.sensors[sensorId].rom[2], cfg.sensors[sensorId].rom[3],
