@@ -1258,6 +1258,114 @@ void StorageManager::getHistoryFileName(char* buf, size_t len) {
  snprintf(buf, len, "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 }
 
+/* ── V4 history file name ──────────────────────────────────── */
+
+String StorageManager::getHistoryFileNameV4( ) {
+	 time_t now = time(nullptr);
+	 struct tm timeinfo;
+	 localtime_r(&now, &timeinfo);
+	 char buff[42];
+	 snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT, DIR_HISTORY,
+	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+	 return String(buff);
+}
+
+void StorageManager::getHistoryFileNameV4(char* buf, size_t len) {
+	 time_t now = time(nullptr);
+	 struct tm timeinfo;
+	 localtime_r(&now, &timeinfo);
+	 snprintf(buf, len, "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT, DIR_HISTORY,
+	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+}
+
+/* ── V4 Schema Builder ──────────────────────────────────────── */
+
+bool StorageManager::buildMeasureSchema(
+     HistV4SensorDef *sensors, uint8_t &sensorCount,
+     HistV4MeasureDef *measures, uint8_t &measureCount,
+     uint8_t *strPool, uint8_t &strPoolSize)
+{
+	 sensorCount   = 0;
+	 measureCount  = 0;
+	 strPoolSize   = 0;
+
+	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
+	 if (!_currentConfig.sensors[slot].active) continue;
+
+	 const auto &sr = _currentConfig.sensors[slot];
+	 SensorFormat fmt = SensorFormat::forType((SensorType)sr.sensorType);
+
+	 /* ── Add sensor to sensor table ── */
+	 uint8_t hwIdOff = strPoolSize;
+	 uint8_t hwIdLen = (uint8_t)strlen(sr.hwId);
+	 if (hwIdLen > 0 && strPoolSize + hwIdLen <= HIST_V4_MAX_STRPOOL) {
+	 memcpy(strPool + strPoolSize, sr.hwId, hwIdLen);
+	 strPoolSize += hwIdLen;
+	 } else {
+	 continue;
+	 }
+
+	 uint8_t nameOff = strPoolSize;
+	 uint8_t nameLen = (uint8_t)strlen(sr.friendlyName);
+	 if (strPoolSize + nameLen <= HIST_V4_MAX_STRPOOL) {
+	 memcpy(strPool + strPoolSize, sr.friendlyName, nameLen);
+	 strPoolSize += nameLen;
+	 } else {
+	 nameLen = 0;
+	 }
+
+	 uint8_t chMask = 0;
+	 for (uint8_t ch = 0; ch < MAX_SENSOR_CHANNELS; ch++) {
+	 if (sensorHasChannel((SensorType)sr.sensorType, ch)) {
+	 chMask |= (1 << ch);
+	 }
+	 }
+
+	 sensors[sensorCount].hwIdOffset  = hwIdOff;
+	 sensors[sensorCount].hwIdLen     = hwIdLen;
+	 sensors[sensorCount].nameOffset  = nameOff;
+	 sensors[sensorCount].nameLen     = nameLen;
+	 sensors[sensorCount].sensorType  = sr.sensorType;
+	 sensors[sensorCount].channelMask = chMask;
+	 sensors[sensorCount].flags       = 0;
+	 memset(sensors[sensorCount].reserved, 0, 2);
+
+	 /* ── Add measurements (one per channel of this sensor) ── */
+	 for (uint8_t ch = 0; ch < MAX_SENSOR_CHANNELS; ch++) {
+	 if (!sensorHasChannel((SensorType)sr.sensorType, ch)) continue;
+
+	 const auto &vf = fmt.values[ch];
+
+	 uint8_t unitOff = strPoolSize;
+	 uint8_t unitLen = (uint8_t)strlen(vf.unit);
+	 if (strPoolSize + unitLen > HIST_V4_MAX_STRPOOL) break;
+	 memcpy(strPool + strPoolSize, vf.unit, unitLen);
+	 strPoolSize += unitLen;
+
+	 /* Use user-configured bit width if set, else default for channel */
+	 uint8_t bw = sr.channelBitWidth[ch];
+	 if (bw == 0) bw = histV4DefaultBitWidth(ch);
+
+	 measures[measureCount].sensorIdx  = sensorCount;
+	 measures[measureCount].channel    = ch;
+	 measures[measureCount].bitWidth   = bw;
+	 measures[measureCount].decimals   = vf.decimals;
+	 measures[measureCount].unitOffset = unitOff;
+	 measures[measureCount].unitLen    = unitLen;
+	 measures[measureCount].scale      = histV4DefaultScale(ch);
+	 measureCount++;
+	 if (measureCount >= HIST_V4_MAX_MEASUREMENTS) break;
+	 }
+
+	 sensorCount++;
+	 if (sensorCount >= HIST_V4_MAX_SENSORS) break;
+	 if (measureCount >= HIST_V4_MAX_MEASUREMENTS) break;
+	 }
+
+	 return sensorCount > 0 && measureCount > 0;
+}
+
+
 bool StorageManager::flushPendingHist( ) {
  if (!_isMounted || !_pendingHistValid) return false;
  BinaryHistoryRecord rec = _pendingHistRec;
@@ -1470,7 +1578,7 @@ void StorageManager::enforceStorageLimit( ) {
  String fileName = dir.fileName( );
 
 
- if (fileName.endsWith(HISTORY_FILE_EXT) && isValidHistoryFileName(fileName.c_str( ))) {
+ if ((fileName.endsWith(HISTORY_FILE_EXT) || fileName.endsWith(HISTORY_V4_FILE_EXT)) && isValidHistoryFileName(fileName.c_str( ))) {
  if (oldestFile == "" || fileName < oldestFile) oldestFile = fileName;
  }
  }
@@ -1655,7 +1763,7 @@ uint32_t StorageManager::getHistoryDaysMask(int year, int month) {
  while (dir.next( )) {
  feedWdt( );
  String fn = dir.fileName( );
- if (!fn.endsWith(HISTORY_FILE_EXT)) continue;
+ if (!fn.endsWith(HISTORY_FILE_EXT) && !fn.endsWith(HISTORY_V4_FILE_EXT)) continue;
 
  /* File: "YYYYMMDD.bin" — check month prefix */
  if (fn.length( ) >= 8 && fn.startsWith(prefix)) {
@@ -2001,4 +2109,189 @@ void StorageManager::generateSalt(uint8_t* buf) {
  uint32_t r = rp2040.hwrand32( );
  memcpy(buf + i, &r, (8 - i >= 4) ? 4 : (8 - i));
  }
+}
+
+/* ============================================================================
+ * V4 HISTORY — write, scan, build schema
+ * ============================================================================ */
+
+bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
+	if (!_isMounted) return false;
+
+	/* Defensive: reject absurd timestamps */
+	{
+		const uint32_t EPOCH_MIN = 1700000000UL;
+		uint32_t nowEpoch = (uint32_t)time(nullptr);
+		if (epoch < EPOCH_MIN) return false;
+		if (nowEpoch > EPOCH_MIN && epoch > nowEpoch + 86400UL) return false;
+	}
+
+	/* Touch priority: buffer and return */
+	if (TouchPriority::isActive()) {
+		if (measureCount <= HIST_V4_MAX_MEASUREMENTS) {
+			memcpy(_pendingValuesV4, values, measureCount * sizeof(int64_t));
+			_pendingMeasureCountV4 = measureCount;
+			_pendingEpochV4 = epoch;
+			_pendingHistV4Valid = true;
+		}
+		return true;
+	}
+
+	/* Flush pending before writing current */
+	if (_pendingHistV4Valid) {
+		_pendingHistV4Valid = false;
+		writeHistoryEntryFlashV4(_pendingValuesV4, _pendingMeasureCountV4, _pendingEpochV4);
+	}
+
+	return writeHistoryEntryFlashV4(values, measureCount, epoch);
+}
+
+bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
+	if (!_isMounted) return false;
+
+	String path = getHistoryFileNameV4();
+
+	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+	LogManager::WdtWindow _wdt(30000);
+
+	/* Chunk 1: enforce on rollover */
+	if (path != _currentLogFileName) {
+		FLASH_OP(enforceStorageLimit());
+		_currentLogFileName = path;
+		_histV4CodecValid = false;
+	}
+
+	/* Chunk 2: prepare V4 state (boot or rollover) — split into simple ops */
+	if (!_histV4CodecValid) {
+		bool needCreate = false;
+
+		/* 2a: open and check existing file */
+		FLASH_OP({
+			if (LittleFS.exists(path)) {
+				File f = LittleFS.open(path, "r+");
+				if (f) {
+					if (!scanHistoryFileV4(f, _histV4State)) {
+						f.close();
+						LittleFS.remove(path);
+						needCreate = true;
+					} else {
+						f.close();
+					}
+				}
+			} else {
+				needCreate = true;
+			}
+		});
+
+		/* 2b: create new file with schema header if needed */
+		if (needCreate) {
+			uint8_t hdrBuf[2048]; size_t hdrLen = 0;
+			{
+				HistV4SensorDef s[HIST_V4_MAX_SENSORS];
+				HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
+				uint8_t pool[HIST_V4_MAX_STRPOOL];
+				uint8_t sc = 0, mc = 0, sp = 0;
+				if (buildMeasureSchema(s, sc, m, mc, pool, sp)) {
+					hdrLen = histV4WriteHeaderBuf(hdrBuf, sizeof(hdrBuf),
+						s, sc, m, mc, pool, sp);
+				}
+			}
+			FLASH_OP({
+				File f = LittleFS.open(path, "w");
+				if (f) {
+					if (hdrLen > 0) f.write(hdrBuf, hdrLen);
+					f.close();
+				}
+			});
+
+			/* 2c: re-read header to populate state schema */
+			histV4Reset(_histV4State);
+			FLASH_OP({
+				File f = LittleFS.open(path, "r");
+				if (f) {
+					uint8_t buf[HIST_V4_MAX_HEADER];
+					int n = f.read(buf, sizeof(buf));
+					f.close();
+					if (n >= (int)HIST_V4_HEADER_FIXED) {
+						histV4ReadHeaderBuf(buf, (size_t)n, _histV4State);
+					}
+				}
+			});
+		}
+		_histV4CodecValid = true;
+	}
+
+	/* Chunk 3: encode + append */
+	uint8_t encBuf[HIST_V4_MAX_DELTA];
+	bool wasAnchor = false;
+	size_t encLen = histV4Encode(values, measureCount, _histV4State,
+	                             encBuf, sizeof(encBuf), epoch, &wasAnchor);
+	if (encLen == 0) {
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_encode_fail");
+		return false;
+	}
+
+	bool ok = false;
+	FLASH_OP({
+		File f = LittleFS.open(path, "a");
+		if (f) { f.write(encBuf, encLen); f.close(); ok = true; }
+	});
+
+	if (ok) { _storageDirty = true; return true; }
+
+	/* Fallback */
+	LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_fallback");
+	_storageDirty = true;
+	FLASH_OP(enforceStorageLimit());
+	FLASH_OP({
+		File f = LittleFS.open(path, "a");
+		if (f) { f.write(encBuf, encLen); f.close(); ok = true; }
+	});
+	return ok;
+}
+
+bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state) {
+	histV4Reset(state);
+	if (f.size() < HIST_V4_HEADER_FIXED) return false;
+	f.seek(0);
+
+	/* Read entire header into buffer, then parse */
+	uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	size_t hdrSize = f.size();
+	if (hdrSize > HIST_V4_MAX_HEADER) hdrSize = HIST_V4_MAX_HEADER;
+	if (f.read(hdrBuf, hdrSize) < HIST_V4_HEADER_FIXED) return false;
+	if (histV4ReadHeaderBuf(hdrBuf, hdrSize, state) == 0) return false;
+
+	/* Scan all records to rebuild codec state */
+	uint8_t buf[HIST_V4_READ_BUF];
+	size_t filled = 0;
+	size_t goodPos = hdrSize; /* bytes consumed by header */
+	histV4Reset(state);
+	histV4ReadHeaderBuf(hdrBuf, hdrSize, state);
+	int64_t values[HIST_V4_MAX_MEASUREMENTS];
+	uint32_t epoch;
+
+	while (true) {
+		if (filled < state.anchorByteSize && f.available() > 0) {
+			size_t toRead = HIST_V4_READ_BUF - filled;
+			if (toRead > (size_t)f.available()) toRead = f.available();
+			int r = f.read(buf + filled, toRead);
+			if (r > 0) filled += (size_t)r;
+		}
+		if (filled == 0) break;
+
+		bool isAnchor = (state.recordsSinceAnchor == 0 ||
+		                 state.recordsSinceAnchor >= state.anchorPeriod);
+		if (!state.initialized) isAnchor = true;
+
+		size_t consumed = histV4DecodeNext(buf, filled, state, values, &epoch);
+		if (consumed == 0) break; /* truncated / corrupt tail */
+
+		goodPos += consumed;
+		memmove(buf, buf + consumed, filled - consumed);
+		filled -= consumed;
+	}
+
+	f.seek(goodPos);
+	return true;
 }

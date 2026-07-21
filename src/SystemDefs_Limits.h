@@ -27,6 +27,10 @@
 #ifndef PIN_UNUSED
 #define PIN_UNUSED 255 /* Sentinel for unused pin slots */
 #endif
+
+#ifndef MAX_SENSOR_CHANNELS
+#define MAX_SENSOR_CHANNELS 4 /* Measurement channels per sensor (TEMP, HUM, PRESS, LUX) */
+#endif
 #define SIMUT_VERSION "1.5.1-beta"
 
 #define GRAPH_WIDTH 200 /* Maximum data points on the TFT graph */

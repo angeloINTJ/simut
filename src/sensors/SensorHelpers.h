@@ -27,7 +27,9 @@
  * Consumer code queries capabilities instead of hardcoding "humidity".
  * =========================================================================== */
 
+#ifndef MAX_SENSOR_CHANNELS
 #define MAX_SENSOR_CHANNELS 4
+#endif
 
 enum SensorChannel : uint8_t {
  CH_TEMP = 0,  /**< Temperature (always channel 0 for all types) */
