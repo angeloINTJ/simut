@@ -623,7 +623,7 @@ void WebManager::handleApiExportHistory( ) {
  if (isClientGone( ) || isHandlerOvertime( )) { aborted = true; break; }
 
  struct tm dtm; localtime_r(&curDay, &dtm);
- char dayPath[40];
+ char dayPath[44];
  snprintf(dayPath, sizeof(dayPath), "%s/%04d%02d%02d%s",
  DIR_HISTORY,
  dtm.tm_year + 1900, dtm.tm_mon + 1, dtm.tm_mday,
@@ -636,6 +636,14 @@ void WebManager::handleApiExportHistory( ) {
  if (LittleFS.exists(dayPath)) {
  f = LittleFS.open(dayPath, "r");
  fileOk = (bool)f;
+ } else {
+ /* Try .sim4 if .bin not found */
+ snprintf(dayPath, sizeof(dayPath), "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT,
+ DIR_HISTORY, dtm.tm_year + 1900, dtm.tm_mon + 1, dtm.tm_mday);
+ if (LittleFS.exists(dayPath)) {
+ f = LittleFS.open(dayPath, "r");
+ fileOk = (bool)f;
+ }
  }
  }
  if (!fileOk) continue;
