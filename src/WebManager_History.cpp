@@ -569,10 +569,7 @@ void WebManager::handleApiExportHistory( ) {
  if (!s.active) continue;
  appendSensor((uint8_t)i, s.hwId, s.friendlyName);
  }
- /* Slot 10 (humidity-capable sensor): special idx = 0xFE for backward compat */
- if (cfg.sensors[10].active) {
- appendSensor(0xFE, cfg.sensors[10].hwId, cfg.sensors[10].friendlyName);
- }
+ /* V4: no special ambient slot — each sensor indexed independently */
  }
 
  /* Streaming CRC32 accumulator (covers HEADER + TABLE + PAYLOAD; trailer is the CRC). */
