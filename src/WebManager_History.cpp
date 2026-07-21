@@ -52,6 +52,10 @@ static void sortStrings(String* arr, int n, bool descending) {
  * v[] is aligned by index with sensors[]. h only appears if ambient is
  * included and has a valid reading in the record.
  */
+
+/* V4 history multi handler — decodes .sim4 file and emits generic JSON.
+ * Called from handleApiHistoryMulti when a V4 file is detected.
+ * Static helper keeps the V4 logic self-contained without header changes. */
 void WebManager::handleApiHistoryMulti( ) {
  uint16_t perms = getAuthPerms( );
  if (!(perms & PERM_HISTORY)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
@@ -233,6 +237,76 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  }
  if (!fileOk) continue;
+
+	 /* V4 detection: .sim4 files use universal format */
+	 bool _v4 = path.endsWith(HISTORY_V4_FILE_EXT);
+	 if (!_v4) { ReadGuard rg(_storageRef); if (f.size() >= 4) { char m[4]; f.seek(0); if (f.read((uint8_t*)m,4)==4) _v4=(memcmp(m,HIST_V4_MAGIC,4)==0); } }
+	 if (_v4) {
+	 /* ── V4 inline decode + emit ─────────────────────── */
+	 HistV4State v4st;
+	 {
+	 ReadGuard rg(_storageRef);
+	 f.seek(0); uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+	 if (hdrRead < (int)HIST_V4_HEADER_FIXED ||
+	 histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) == 0) { f.close(); continue; }
+	 }
+
+	 uint8_t rdBuf[HIST_V4_READ_BUF]; size_t rdFilled = 0;
+	 int64_t v4vals[HIST_V4_MAX_MEASUREMENTS]; uint32_t v4epoch;
+	 bool fileHasMoreV4 = true;
+
+	 while (fileHasMoreV4 && !aborted) {
+	 if (isClientGone() || isHandlerOvertime()) { aborted = true; break; }
+	 {
+	 ReadGuard rg(_storageRef);
+	 if (rdFilled < v4st.anchorByteSize && f.available() > 0) {
+	 int r = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
+	 if (r > 0) rdFilled += (size_t)r;
+	 }
+	 if (rdFilled == 0) { fileHasMoreV4 = false; break; }
+	 size_t c = histV4DecodeNext(rdBuf, rdFilled, v4st, v4vals, &v4epoch);
+	 if (c == 0) break;
+	 memmove(rdBuf, rdBuf + c, rdFilled - c); rdFilled -= c;
+	 }
+
+	 time_t ts = (time_t)v4epoch;
+	 if (cutoff > 0 && ts < cutoff) continue;
+	 if (ts > effectiveEnd) { fileHasMoreV4 = false; break; }
+
+	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
+	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
+	 if (v < realMinT) { realMinT = v; tsRealMinT = ts; }
+	 if (v > realMaxT) { realMaxT = v; tsRealMaxT = ts; }
+	 }
+
+	 lineIdx++;
+	 if (lineIdx % decimation != 0) continue;
+
+	 char ptBuf[1024]; int pp = 0;
+	 pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp,
+	 "%s{\"t\":%lu,\"v\":{", firstPoint ? "" : ",", (unsigned long)ts);
+	 bool fk = true;
+	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
+	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
+	 char key[32]; uint8_t si = v4st.measures[m].sensorIdx;
+	 char hwId[17];
+	 histV4StrPoolGet(hwId, sizeof(hwId), v4st.strPool,
+	 v4st.sensors[si].hwIdOffset, v4st.sensors[si].hwIdLen);
+	 histV4MakeMeasKey(key, sizeof(key), v4st.measures[m].channel, hwId);
+	 pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp,
+	 "%s\"%s\":%.2f", fk ? "" : ",", key, (double)v);
+	 fk = false;
+	 }
+	 pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp, "}}");
+	 safeSend(ptBuf);
+	 firstPoint = false;
+	 }
+	 { ReadGuard rg(_storageRef); f.close(); }
+	 continue;
+	 }
 
  HistoryFileHeaderV2 hdr;
  bool headerOk = false;
