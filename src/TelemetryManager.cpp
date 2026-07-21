@@ -457,6 +457,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 
  HistoryCodecState rdState;
  historyCodecReset(rdState);
+ rdState.fileVersion = hdr.version; /* MUST set before decode — auto-detect unreliable */
  uint8_t rdBuf[256];
  size_t rdFilled = 0;
  uint32_t inFileCount = 0;
@@ -1421,6 +1422,7 @@ void TelemetryManager::refreshPendingCount( ) {
 
  HistoryCodecState rdState;
  historyCodecReset(rdState);
+ rdState.fileVersion = hdr.version; /* MUST set before decode — auto-detect unreliable */
  uint8_t rdBuf[256];
  size_t rdFilled = 0;
 

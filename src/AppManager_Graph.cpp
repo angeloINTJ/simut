@@ -198,6 +198,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
 
  HistoryCodecState gState;
  historyCodecReset(gState);
+ gState.fileVersion = hdrG.version; /* MUST set before decode — auto-detect unreliable */
  uint16_t gAnchorPeriod = hdrG.anchorPeriod;
  uint8_t gRdBuf[256];
  size_t gRdFilled = 0;

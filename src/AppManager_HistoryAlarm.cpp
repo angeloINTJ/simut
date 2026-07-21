@@ -232,6 +232,7 @@ void AppManager::preloadMinMax( ) {
 
  HistoryCodecState pState;
  historyCodecReset(pState);
+ pState.fileVersion = hdrP.version; /* MUST set before decode — auto-detect unreliable */
  uint16_t pAnchorPeriod = hdrP.anchorPeriod;
  uint8_t pRdBuf[256];
  size_t pRdFilled = 0;
