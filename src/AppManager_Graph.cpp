@@ -186,6 +186,94 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  _storageMgr->exitFlashReadLock( );
 
  if (fileExists && f) {
+ /* Detect V4 (.sim4) vs legacy (.bin) by checking path extension */
+ bool isV4 = (strlen(path) > 5 && path[strlen(path)-5] == '.' && path[strlen(path)-4] == 's');
+ if (!isV4 && f.size() >= 4) {
+ StorageManager::ReadGuard rg(_storageMgr.get( ));
+ char m[4]; f.seek(0);
+ if (f.read((uint8_t*)m, 4) == 4 && memcmp(m, HIST_V4_MAGIC, 4) == 0) isV4 = true;
+ }
+ if (isV4) {
+ HistV4State g4st;
+ { StorageManager::ReadGuard rg(_storageMgr.get( ));
+ f.seek(0); uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+ int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+ if (hdrRead < (int)HIST_V4_HEADER_FIXED ||
+ histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, g4st) == 0)
+ { _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock(); continue; }
+ }
+ int tMi = -1, hMi = -1;
+ { SystemConfig &cfg = _storageMgr->getConfig();
+ const char* tHwId = (sensorId >= 0 && sensorId < MAX_SENSORS) ? cfg.sensors[sensorId].hwId : "";
+ for (uint8_t i = 0; i < g4st.measureCount; i++) {
+ char mHwId[17]; uint8_t si = g4st.measures[i].sensorIdx;
+ histV4StrPoolGet(mHwId, sizeof(mHwId), g4st.strPool,
+ g4st.sensors[si].hwIdOffset, g4st.sensors[si].hwIdLen);
+ if (strcmp(mHwId, tHwId) == 0) {
+ if (g4st.measures[i].channel == CH_TEMP) tMi = i;
+ else if (g4st.measures[i].channel == CH_HUM) hMi = i;
+ }
+ }}
+ if (tMi < 0) { _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock(); continue; }
+
+ uint8_t g4RdBuf[HIST_V4_READ_BUF]; size_t g4RdFilled = 0;
+ int64_t g4vals[HIST_V4_MAX_MEASUREMENTS]; uint32_t g4epoch;
+ bool hm4 = true; uint32_t gb4 = millis();
+
+ while (hm4 && pkg.count < GRAPH_WIDTH) {
+ if (timeSince(gb4, GRAPH_BUDGET_MS)) break;
+ size_t cons = 0;
+ { StorageManager::ReadGuard rg(_storageMgr.get( ));
+ if (g4RdFilled < g4st.anchorByteSize && f.available() > 0) {
+ int rN = f.read(g4RdBuf + g4RdFilled, sizeof(g4RdBuf) - g4RdFilled);
+ if (rN > 0) g4RdFilled += (size_t)rN;
+ }
+ if (g4RdFilled > 0) {
+ cons = histV4DecodeNext(g4RdBuf, g4RdFilled, g4st, g4vals, &g4epoch);
+ if (cons > 0) { memmove(g4RdBuf, g4RdBuf + cons, g4RdFilled - cons); g4RdFilled -= cons; }
+ }
+ hm4 = (g4RdFilled > 0 || f.available() > 0);
+ }
+ if (cons == 0) break;
+
+ time_t ts = (time_t)g4epoch;
+ if (ts < cutoff) continue;
+ if (ts > effectiveEnd) break;
+
+ float vr = NAN, hr = NAN;
+ if (tMi >= 0 && !histV4IsNan(g4vals[tMi], g4st.measures[tMi].bitWidth))
+ vr = histV4ToFloat(g4vals[tMi], g4st.measures[tMi]);
+ if (hMi >= 0 && !histV4IsNan(g4vals[hMi], g4st.measures[hMi].bitWidth))
+ hr = histV4ToFloat(g4vals[hMi], g4st.measures[hMi]);
+ if (ts < epochLimit) vr = NAN;
+
+ if (!isnan(vr)) {
+ if (vr < pkg.realMinVal) { pkg.realMinVal = vr; pkg.tsRealMin = ts; }
+ if (vr > pkg.realMaxVal) { pkg.realMaxVal = vr; pkg.tsRealMax = ts; }
+ }
+
+ lineIdx++;
+ if (lineIdx % decimation != 0) continue;
+
+ pkg.pointsV1[pkg.count] = vr;
+ pkg.tsPoints[pkg.count] = (uint32_t)ts;
+ if (pkg.hasHumidity) pkg.pointsV2[pkg.count] = hr;
+ if (pkg.count == 0) pkg.tsFirst = ts;
+
+ if (!isnan(vr)) {
+ if (vr < pkg.minVal) { pkg.minVal = vr; pkg.idxMinTemp = pkg.count; pkg.tsMinTemp = ts; }
+ if (vr > pkg.maxVal) { pkg.maxVal = vr; pkg.idxMaxTemp = pkg.count; pkg.tsMaxTemp = ts; }
+ }
+ if (pkg.hasHumidity && !isnan(hr)) {
+ if (hr < localHumMin) { localHumMin = hr; pkg.tsMinHum = ts; }
+ if (hr > localHumMax) { localHumMax = hr; pkg.tsMaxHum = ts; }
+ }
+ pkg.count++;
+ }
+ _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock();
+ continue;
+ }
+
  /* v2: validate SIM2 header. No optimized seek (variable records). */
  HistoryFileHeaderV2 hdrG;
  bool headerOkG = false;
