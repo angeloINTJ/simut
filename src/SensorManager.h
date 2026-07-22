@@ -75,6 +75,7 @@ struct RuntimeSensor {
  uint8_t consecutiveSuccess;
  bool inErrorState;
  bool hardwareMismatch;
+ uint8_t mismatchRechecks;   /**< Wave 2: skip-cycles since last ROM re-verify (auto-recovery) */
 
 #if SIMUT_SENSOR_BME280
  int8_t  bmeDriverIdx = -1;  /**< Index into SensorManager::_bmeDrivers, -1 = not BME280 */

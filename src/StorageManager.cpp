@@ -22,6 +22,7 @@
 #include <algorithm>
 #include "LogManager.h"
 #include "MetricsManager.h"
+#include "ConcurrencyAsserts.h" /* Wave 2: invariant-3 tripwire (opt-in) */
 #include "pico/unique_id.h"
 #include <hardware/watchdog.h>
 #include <stdio.h>
@@ -38,6 +39,7 @@ const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
  * the write will be retried on the next history interval.
  * LittleFS internally handles multicore_lockout via flash_safe_execute. */
 #define FLASH_OP(BLOCK) do { \
+ SIMUT_ASSERT_NO_STATE_MUTEX(); /* Wave 2: invariant 3 (no-op unless -DSIMUT_CONCURRENCY_ASSERTS) */ \
  uint32_t _fopStart = millis( ); \
  while (!mutex_enter_timeout_ms(&_fsReadMutex, 100)) { \
   watchdog_update( ); \

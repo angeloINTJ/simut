@@ -160,6 +160,28 @@ DisplayManager::DisplayManager( ) {
 
 void DisplayManager::begin( ) {}
 
+/* Wave 2 / invariant 3 (docs/CONCURRENCY.md): mutex ownership probe.
+ * pico-sdk mutexes are non-recursive; mutex_try_enter by the owning core
+ * fails and reports the owner — exactly the signal we need. If the try
+ * SUCCEEDS, we did not previously hold it (release immediately). */
+bool DisplayManager::stateMutexHeldByCurrentCore( ) {
+	if (!_instance) return false;
+	uint32_t owner = 0;
+	if (mutex_try_enter(&_instance->_stateMutex, &owner)) {
+		mutex_exit(&_instance->_stateMutex);
+		return false;
+	}
+	return owner == get_core_num( );
+}
+
+#ifdef SIMUT_CONCURRENCY_ASSERTS
+/* Free-function bridge declared in ConcurrencyAsserts.h so StorageManager
+ * does not need to include DisplayManager.h. */
+bool simutStateMutexHeldByCurrentCore( ) {
+	return DisplayManager::stateMutexHeldByCurrentCore( );
+}
+#endif
+
 void DisplayManager::startCore1( ) { multicore_launch_core1(core1Entry); }
 
 void DisplayManager::restartCore1( ) {

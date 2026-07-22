@@ -117,6 +117,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  rs.consecutiveSuccess = 0;
  rs.inErrorState = false;
  rs.hardwareMismatch = false;
+ rs.mismatchRechecks = 0;
 
  /* Use explicit sensorType from config.
   * Fallback: ROM-based detection for sensors that haven't been re-saved
@@ -199,7 +200,15 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 				}
 					drvIdx = _getOrCreateBmeDriver(Wire1, addr);
 				} else {
-					/* Pins not I2C-capable — fall back to PIO bit-bang */
+					/* Pins not I2C-capable — fall back to PIO bit-bang.
+					 * Wave 2: this path costs ~1.6 ms of IRQs-off per I2C
+					 * transaction on Core 0 (Wi-Fi/BT jitter — cause C1/C3
+					 * in docs/CONCURRENCY.md). Make it LOUD so a silent
+					 * regression to bit-bang never hides again. HW pairs:
+					 * I2C0 SDA/SCL = 0/1, 4/5, 8/9, 12/13, 16/17, 20/21;
+					 * I2C1 = 2/3, 6/7, 10/11, 14/15, 18/19, 26/27. */
+					LOG_CODE(LOG_WARN, "SENSOR", SYS_OK, sda,
+					         TRL("BME em bit-bang (pinos sem I2C de hardware) — ver docs/CONCURRENCY.md"));
 					drvIdx = _getOrCreateBmeDriver(sda, scl, addr);
 				}
 
@@ -473,6 +482,26 @@ void SensorManager::processPeriodicReads( ) {
  for (auto &s : _runtimeSensors) {
  if (s.type == TYPE_DS18B20) {
 
+
+ if (s.hardwareMismatch) {
+ /* Wave 2 (sensor doc issue #3): the quarantine used to be permanent
+  * until reboot or manual recalibration. Every 10th skipped cycle,
+  * re-read the ROM — if the CONFIGURED chip is back on the pin (user
+  * swapped the right sensor back), lift the quarantine and let the
+  * normal read path below run this very cycle. A different chip
+  * keeps failing the match and stays quarantined (safety preserved). */
+ if (++s.mismatchRechecks >= 10) {
+ s.mismatchRechecks = 0;
+ uint8_t romNow[8];
+ if (_ds18.readROM(s.config.pins[0], romNow) &&
+     _ds18.checkRomMatch(romNow, s.config.rom)) {
+ s.hardwareMismatch = false;
+ s.inErrorState = false;
+ s.consecutiveErrors = 0;
+ LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, s.config.pins[0], TRL("Hardware match restored"));
+ }
+ }
+ }
 
  if (s.hardwareMismatch) {
  if (!s.inErrorState) {
