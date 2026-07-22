@@ -150,6 +150,31 @@ void test_wifi_ssid_utf8_bytes(void) {
     TEST_ASSERT_TRUE(strlen(d.strVal1) > 0);
 }
 
+/* ---- sensor define: optional trailing explicit type ---- */
+
+void test_sensor_define_explicit_bme280(void) {
+    CliDemand d = parse("sensor define 4 0000000000000000 BMP28000 \"BMP280 GP4-5\" bme280");
+    TEST_ASSERT_EQUAL(CMD_DEFINE_SENSOR, d.type);
+    TEST_ASSERT_TRUE(d.intVal1Valid);
+    TEST_ASSERT_EQUAL(4, d.intVal1);
+    TEST_ASSERT_EQUAL_STRING("BMP28000", d.strVal1);
+    TEST_ASSERT_EQUAL_STRING("BMP280 GP4-5", d.strVal2);
+    TEST_ASSERT_EQUAL_STRING("bme280", d.strVal3);
+}
+
+void test_sensor_define_no_type_keeps_name_and_empty_strval3(void) {
+    CliDemand d = parse("sensor define 2 0000000000000000 DHT2202 \"DHT22 GP2\"");
+    TEST_ASSERT_EQUAL(CMD_DEFINE_SENSOR, d.type);
+    TEST_ASSERT_EQUAL_STRING("DHT22 GP2", d.strVal2);
+    TEST_ASSERT_EQUAL_STRING("", d.strVal3);
+}
+
+void test_sensor_define_type_only_no_name(void) {
+    CliDemand d = parse("sensor define 4 0000000000000000 BMP28000 bme280");
+    TEST_ASSERT_EQUAL(CMD_DEFINE_SENSOR, d.type);
+    TEST_ASSERT_EQUAL_STRING("bme280", d.strVal3);
+}
+
 /* ---- 256-char boundary (CLI_LINE_MAX) ---- */
 
 void test_long_line_still_parses_help_prefix(void) {
@@ -184,6 +209,9 @@ int main(int argc, char** argv) {
     RUN_TEST(test_show_alone_unknown);
     RUN_TEST(test_conf_system_factory);
     RUN_TEST(test_wifi_ssid_utf8_bytes);
+    RUN_TEST(test_sensor_define_explicit_bme280);
+    RUN_TEST(test_sensor_define_no_type_keeps_name_and_empty_strval3);
+    RUN_TEST(test_sensor_define_type_only_no_name);
     RUN_TEST(test_long_line_still_parses_help_prefix);
     return UNITY_END();
 }

@@ -67,6 +67,11 @@ public:
         return pos == std::string::npos ? -1 : (int)pos;
     }
 
+    int lastIndexOf(char ch) const {
+        size_t pos = data_.rfind(ch);
+        return pos == std::string::npos ? -1 : (int)pos;
+    }
+
     String substring(size_t begin, size_t end = (size_t)-1) const {
         if (begin >= data_.size()) return String("");
         if (end == (size_t)-1 || end > data_.size()) end = data_.size();

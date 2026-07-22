@@ -454,8 +454,8 @@ void CommandManager::printModeHelp( ) {
                                   : "  sensor scan           Scan hardware bus");
   showIf(CMD_ACCEPT_SENSOR,    pt ? "  sensor accept <gpio>  Aceitar sensor OneWire"
                                   : "  sensor accept <gpio>  Accept OneWire sensor");
-  showIf(CMD_DEFINE_SENSOR,    pt ? "  sensor define <gpio> <rom> <hwid> <nome>"
-                                  : "  sensor define <gpio> <rom> <hwid> <name>");
+  showIf(CMD_DEFINE_SENSOR,    pt ? "  sensor define <gpio> <rom> <hwid> <nome> [tipo]"
+                                  : "  sensor define <gpio> <rom> <hwid> <name> [type]");
   showIf(CMD_WIPE_SENSOR,      pt ? "  sensor wipe <gpio> [confirm]  Resetar historico"
                                   : "  sensor wipe <gpio> [confirm]  Wipe sensor history");
   showIf(CMD_SENSOR_FIELD,     pt ? "  sensor <slot> <campo> <valor>  Configurar sensor"

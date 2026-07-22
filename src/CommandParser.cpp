@@ -303,7 +303,11 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "scan") { cmd.type = CMD_SCAN_SENSORS; return cmd; }
 
 		if (t1 == "define") {
-			/* sensor define <gpio> <rom16hex> <hwid> "<name>" */
+			/* sensor define <gpio> <rom16hex> <hwid> "<name>" [tipo]
+			 * [tipo]: ds18b20 | dht22 | bme280 — trailing token, fills
+			 * strVal3 for the explicit-type path in CMD_DEFINE_SENSOR
+			 * (without it, zero ROM always falls back to DHT22, which
+			 * made BME280 impossible to define via CLI). */
 			int idx = input.indexOf("define");
 			String args = input.substring(idx + 7);
 			args.trim( );
@@ -325,6 +329,19 @@ CliDemand parseCliCommand(String input) {
 						cmd.setStrVal1(args.substring(0, sp3).c_str( ));
 						String fname = args.substring(sp3 + 1);
 						fname.replace("\"", "");
+						fname.trim( );
+						int lastSp = fname.lastIndexOf(' ');
+						if (lastSp != -1) {
+							String tk = fname.substring(lastSp + 1);
+							if (tk == "ds18b20" || tk == "dht22" || tk == "bme280") {
+								cmd.setStrVal3(tk.c_str( ));
+								fname = fname.substring(0, lastSp);
+								fname.trim( );
+							}
+						} else if (fname == "ds18b20" || fname == "dht22" || fname == "bme280") {
+							/* Name omitted, only the type given: use it for both. */
+							cmd.setStrVal3(fname.c_str( ));
+						}
 						cmd.setStrVal2(fname.c_str( ));
 						cmd.type = CMD_DEFINE_SENSOR;
 						return cmd;

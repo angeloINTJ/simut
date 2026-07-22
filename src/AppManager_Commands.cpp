@@ -470,6 +470,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  for (int k = 0; k < 8; k++) if (cmd.rom[k] != 0) isDs18 = true;
  r.sensorType = isDs18 ? TYPE_DS18B20 : TYPE_DHT22;
  }
+ /* BME280 is I2C: pins[0]=SDA, pins[1]=SCL (convention SCL = SDA+1,
+  * same pairing as the scan probe). Other types are single-pin. */
+ r.pins[1] = (r.sensorType == TYPE_BME280) ? (uint8_t)(cmd.intVal1 + 1)
+                                           : PIN_UNUSED;
  safeCopy(r.hwId, cmd.strVal1, sizeof(r.hwId));
  safeCopy(r.friendlyName, cmd.strVal2, sizeof(r.friendlyName));
  _cmdMgr->printSuccess(pt ? "Sensor mapeado em RAM."
