@@ -144,6 +144,11 @@ void AppManager::setup( ) {
  BLOG("\n==============================================\n");
  BLOG(" SIMUT firmware "); BLOG(SIMUT_VERSION); BLOG_NL( );
  BLOG("==============================================\n");
+ /* Check if last reboot was WDT-triggered */
+ if (watchdog_caused_reboot()) {
+  BLOG("[BOOT] *** Last reboot: WATCHDOG TIMEOUT ***\n");
+ Serial.println("[BOOT] WATCHDOG_REBOOT detected");
+ }
  BLOG("[BOOT step] 1: pos-banner @ "); BLOG_U(millis( )); BLOG_NL( );
 
  /*

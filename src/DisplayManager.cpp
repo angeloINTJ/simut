@@ -120,7 +120,8 @@ constexpr int16_t DisplayManager::CAL_SCR_Y[4];
 DisplayManager::DisplayManager( ) {
 	_instance = this;
 	mutex_init(&_stateMutex);
-	queue_init(&_eventQueue, sizeof(UiEvent), 10);
+	/* UI events: SPSC lock-free ring (see DisplayManager.h) — no init
+	 * needed beyond the zeroed indices. */
 	_sharedState.slotTemp = NAN;
 	_sharedState.slotValid = false;
 	_sharedState.topSlotTemp = NAN; _sharedState.topSlotValid = false;
@@ -336,6 +337,25 @@ void DisplayManager::pauseRendering(bool pause) {
 			 * Retry forever — prefer a visibly "slow" system over
 			 * a reboot with truncated autopsy.
 			 */
+			/* Quiesce BEFORE the IRQ lockout (same T1.1 handshake as
+			 * requestQuietMode): park Core 1 at the top of its loop —
+			 * outside malloc/free, the event-queue spinlock and any SPI
+			 * burst — so the lockout freezes it at a point where it holds
+			 * NO shared lock. A lockout landing mid-malloc/mid-log leaves
+			 * that lock frozen-held; any later Core-0 attempt to take it
+			 * inside the flash section blocks forever with the WDT unfed
+			 * (autopsy: C0=[HIST_FLASH] C1=[DISPLAY]). Timeout 200 ms:
+			 * the fallback is exactly the previous behavior (freeze
+			 * wherever Core 1 happens to be). */
+			if (__atomic_load_n(&_core1Ready, __ATOMIC_ACQUIRE)) {
+				__atomic_store_n(&_quiescePlease, true, __ATOMIC_RELEASE);
+				uint32_t q0 = millis( );
+				while (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) &&
+				       !timeSince(q0, 200)) {
+					tight_loop_contents( );
+				}
+			}
+
 			uint32_t retryStart = millis( );
 			uint32_t lastCleanup = retryStart;
 			while (!multicore_lockout_start_timeout_us(500000)) {
@@ -348,20 +368,31 @@ void DisplayManager::pauseRendering(bool pause) {
 					lastCleanup = millis( );
 					watchdog_update( );
 				}
-				/* After 10s without success, fall back to hard reset.
+				/* After 3s without success, fall back to hard reset.
 				 * multicore_reset_core1() stops Core 1 immediately - no
 				 * handshake needed. All flash ops are safe. */
-				if (timeSince(retryStart, 10000)) {
-					Serial.println("[DSP] Lockout stuck >10s, hard reset Core1");
+				if (timeSince(retryStart, 3000)) {
+					Serial.println("[DSP] Lockout stuck >3s, hard reset Core1");
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 					LogManager::instance( ).setCorePaused(1, true);
 					multicore_lockout_end_blocking( );
 					multicore_reset_core1( );
+					/* Same rationale as requestQuietMode: Core 1 may have
+					 * died holding _stateMutex — reinit at kill time so
+					 * Core-0 setters can't block on a corpse-held mutex. */
+					mutex_init(&_stateMutex);
 					_pauseStartTime = 0;
-					/* Core 1 dead - flash ops safe. */
+					__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+					__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
+					_core1HardReset = true;
 					return;
 				}
 			}
+			/* Lockout holds Core 1 frozen (inside the park loop if the
+			 * quiesce succeeded). Release the park request now: when the
+			 * lockout ends on unpause, Core 1 re-checks _quiescePlease,
+			 * sees false, and resumes normally. */
+			__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
 		}
 	} else {
 		int32_t prev = __atomic_fetch_sub(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);
@@ -369,8 +400,24 @@ void DisplayManager::pauseRendering(bool pause) {
 
 			__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 			_pauseStartTime = 0;
-			multicore_lockout_end_blocking( );
-			LogManager::instance( ).setCorePaused(1, false);
+			if (__atomic_exchange_n(&_core1HardReset, false, __ATOMIC_ACQ_REL)) {
+				/* Core 1 was hard-reset by the lockout timeout: there is no
+				 * live victim to release, so multicore_lockout_end_blocking
+				 * must NOT run (it would handshake with a dead core). Reinit
+				 * shared state exactly like releaseQuietMode() — Core 1 may
+				 * have died holding _stateMutex — then relaunch fresh. */
+				mutex_init(&_stateMutex);
+				__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+				__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
+				_isPausedForFlash = false;
+				_lastHeartbeat = millis( );
+				LogManager::instance( ).setCorePaused(1, false);
+				multicore_launch_core1(core1Entry);
+				/* core1Entry re-runs victim_init and sets _core1Ready. */
+			} else {
+				multicore_lockout_end_blocking( );
+				LogManager::instance( ).setCorePaused(1, false);
+			}
 		}
 	}
 }
@@ -574,7 +621,15 @@ void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
 
 
 
-bool DisplayManager::getUiEvent(UiEvent& ev) { return queue_try_remove(&_eventQueue, &ev); }
+bool DisplayManager::getUiEvent(UiEvent& ev) {
+	/* Core-0-only consumer of the SPSC ring. */
+	uint32_t h = _evHead; /* single consumer: plain read of own index */
+	uint32_t t = __atomic_load_n(&_evTail, __ATOMIC_ACQUIRE);
+	if (h == t) return false;
+	ev = _evRing[h % UI_EV_RING];
+	__atomic_store_n(&_evHead, h + 1, __ATOMIC_RELEASE);
+	return true;
+}
 void DisplayManager::core1Entry( ) { if (_instance) _instance->loopCore1( ); }
 
 /* HARD-RESET approach (replaces the cooperative one
@@ -632,6 +687,13 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 	/* First level: hard-reset Core 1. Stops immediately; flash work safe. */
 	multicore_reset_core1( );
 	delay(50); /* Short pause for SSI/SPI to stabilize. */
+	/* Reinit _stateMutex AT KILL TIME, not only in releaseQuietMode:
+	 * if the quiesce timed out, Core 1 may have died holding it (render
+	 * copies state under mutex_try_enter). Any Core-0 setter called
+	 * inside the quiet window — e.g. loadAndCalibrateSensors →
+	 * setSlotData → mutex_enter_blocking — would block forever with the
+	 * WDT unfed (save-storm autopsy: C0=[CLI] C1=[DISPLAY]). */
+	mutex_init(&_stateMutex);
 	/* Core 1 is now dead. Set flags for consumers:
 	 * - _core1Ready = false: pauseRendering becomes no-op (no IRQ lockout).
 	 * - _quietModeActive = true: isInQuietMode() returns true. */

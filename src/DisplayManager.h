@@ -323,7 +323,12 @@ private:
 	SystemState _sharedState;
 	bool _isDirty;
 	mutex_t _stateMutex;
-	queue_t _eventQueue;
+	/* SPSC lock-free UI event ring (Core 1 produces, Core 0 consumes).
+	 * Power-of-two capacity; indices grow monotonically (wrap via %). */
+	static constexpr uint32_t UI_EV_RING = 16;
+	UiEvent _evRing[UI_EV_RING];
+	volatile uint32_t _evHead = 0; /* consumer index (Core 0) */
+	volatile uint32_t _evTail = 0; /* producer index (Core 1) */
 
 	volatile uint32_t _lastHeartbeat = 0;
 	volatile int32_t _pauseRefCount = 0;
@@ -346,6 +351,7 @@ private:
 	volatile bool _quietModeRequested = false;
 	volatile bool _quietModeActive = false;
 	volatile int32_t _quietModeRefCount = 0;
+	volatile bool _core1HardReset = false; /**< pauseRendering hard-reset flag. */
 
 	/* T1.1 quiesce protocol (stability wave 1): Core 0 raises
 	 * _quiescePlease; Core 1 parks at the top of loopCore1 (guaranteed
@@ -359,14 +365,20 @@ private:
 	volatile bool _core1Parked = false;
 	volatile uint32_t _quietSince = 0;
 
-	/** Core-1-only event push, gated by the quiesce protocol so the
-	 * queue's spinlock is never being held at hard-reset time. All
-	 * former direct queue_try_add(&_eventQueue, ...) call sites now
-	 * route through here (invariant 2, docs/CONCURRENCY.md). */
+	/** Core-1-only event push into the SPSC lock-free ring (invariant 2,
+	 * docs/CONCURRENCY.md). The former queue_t was frozen-mid-spinlock
+	 * by the lockout's quiesce-timeout fallback: Core 0's event pump —
+	 * including the web yield — then spun forever on that spinlock
+	 * (storm autopsy: C0=[WEB_SERVER] C1=[DISPLAY]). The ring has no
+	 * lock to leak; the quiesce gate remains only to stop producing
+	 * while parking. */
 	void pushUiEvent(const UiEvent& ev) {
-		if (!__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
-			queue_try_add(&_eventQueue, &ev);
-		}
+		if (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) return;
+		uint32_t t = _evTail; /* single producer: plain read of own index */
+		uint32_t h = __atomic_load_n(&_evHead, __ATOMIC_ACQUIRE);
+		if (t - h >= UI_EV_RING) return; /* full: drop, same as queue_try_add */
+		_evRing[t % UI_EV_RING] = ev;
+		__atomic_store_n(&_evTail, t + 1, __ATOMIC_RELEASE);
 	}
 
 	/* RAM-resident quiet loop — called in loopCore1 when _quietModeRequested. */
