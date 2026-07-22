@@ -163,9 +163,19 @@ void DisplayManager::begin( ) {}
 void DisplayManager::startCore1( ) { multicore_launch_core1(core1Entry); }
 
 void DisplayManager::restartCore1( ) {
+	/* Clean up lockout state before resetting Core 1.
+	 * multicore_reset_core1() stops Core 1 immediately — if Core 1 was
+	 * inside a multicore_lockout at reset time, the SDK's internal
+	 * lockout mutex is left in an unbalanced state. Without this cleanup,
+	 * ALL subsequent multicore_lockout_start_* calls on Core 0 hang
+	 * (timeout after 500ms, retry loop), producing the recurring
+	 * "[DSP] Lockout stuck >10s" error on every flash operation. */
+	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+	multicore_lockout_end_blocking();
 	multicore_reset_core1( );
 	delay(50);
 	mutex_init(&_stateMutex);
+	_pauseStartTime = 0;
 	_isPausedForFlash = false;
 	_lastHeartbeat = millis( );
 	multicore_launch_core1(core1Entry);
@@ -316,20 +326,17 @@ void DisplayManager::pauseRendering(bool pause) {
 					lastCleanup = millis( );
 					watchdog_update( );
 				}
-				/* After 10s without success, give up on lockout.
-				 * Do NOT reset Core 1 — that looks like a system
-				 * reboot to the user. Flash operations are still
-				 * safe because LittleFS internally calls
-				 * flash_safe_execute() which does its own lockout.
-				 * Log the event for diagnostics and continue. */
+				/* After 10s without success, fall back to hard reset.
+				 * multicore_reset_core1() stops Core 1 immediately - no
+				 * handshake needed. All flash ops are safe. */
 				if (timeSince(retryStart, 10000)) {
-					Serial.println("[DSP] Lockout stuck >10s, giving up (no reset)");
-					multicore_lockout_end_blocking( );
+					Serial.println("[DSP] Lockout stuck >10s, hard reset Core1");
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
-					LogManager::instance( ).setCorePaused(1, false);
+					LogManager::instance( ).setCorePaused(1, true);
+					multicore_lockout_end_blocking( );
+					multicore_reset_core1( );
 					_pauseStartTime = 0;
-					/* Flash op proceeds without Core 1 lockout.
-					 * LittleFS handles safety internally. */
+					/* Core 1 dead - flash ops safe. */
 					return;
 				}
 			}

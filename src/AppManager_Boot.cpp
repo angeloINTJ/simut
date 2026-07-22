@@ -542,6 +542,7 @@ void AppManager::setup( ) {
 
  while (!_netMgr->isConnected( ) || !_netMgr->isTimeSynced( )) {
  TRACE_BEAT(0);
+ watchdog_update( );
  _netMgr->update( );
 
  if (_displayMgr->isSkipPressed( )) {
