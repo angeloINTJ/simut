@@ -160,6 +160,46 @@ struct BME280Driver {
         return false;
     }
 
+    /** Initialize with hardware I2C peripheral (Wire / Wire1).
+     *  Uses the RP2040's built-in I2C controller instead of PIO bit-bang.
+     *  Zero PIO resources — frees pio0 for OneWirePIO (DS18B20).
+     *  Pins must be valid for the chosen I2C peripheral (see
+     *  i2cPeripheralForPins() in SensorHelpers.h).
+     *
+     *  Single-pass: hardware I2C is reliable enough that multi-pass
+     *  probing is unnecessary. Falls back to alternate address (0x76↔0x77)
+     *  if the primary address doesn't respond. */
+    bool begin(TwoWire &wire, uint8_t addr) {
+        uint8_t altAddr = (addr == 0x76) ? (uint8_t)0x77 : (uint8_t)0x76;
+
+        /* ── Pass 1: primary address ── */
+        watchdog_update();
+        delay(1);
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(wire, addr);
+        if (_sensor) {
+            _compLoaded = _sensor->begin();
+            Serial.printf("[BMx] HW I2C addr=0x%02X cid=0x%02X ok=%d\n",
+                          addr, _sensor->getChipID(), _compLoaded);
+            if (_compLoaded) return true;
+            delete _sensor; _sensor = nullptr;
+        }
+
+        /* ── Pass 2: alternate address ── */
+        watchdog_update();
+        delay(1);
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(wire, altAddr);
+        if (_sensor) {
+            _compLoaded = _sensor->begin();
+            Serial.printf("[BMx] HW I2C alt=0x%02X cid=0x%02X ok=%d\n",
+                          altAddr, _sensor->getChipID(), _compLoaded);
+            if (_compLoaded) return true;
+            delete _sensor; _sensor = nullptr;
+        }
+
+        _compLoaded = false;
+        return false;
+    }
+
     /* ── Trigger measurement (forced mode) ────────────────────────────── */
     void requestReading( ) {
         if (!_compLoaded) return;
