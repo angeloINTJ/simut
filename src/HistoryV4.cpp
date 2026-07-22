@@ -215,6 +215,13 @@ size_t histV4Encode(const int64_t *values, uint8_t count,
                     bool *outIsAnchor) {
     if (outIsAnchor) *outIsAnchor = false;
 
+    /* v1.5.3 GUARD: a day-rollover can rebuild the schema in-place between
+     * the caller snapshotting measureCount and this call. Encoding values
+     * ordered by the OLD schema against the NEW bit widths/offsets would
+     * silently corrupt the file — fail instead (caller logs and retries on
+     * the next history tick with a fresh schema pointer). */
+    if (count != state.measureCount) return 0;
+
     bool emitAnchor = !state.initialized ||
                       state.recordsSinceAnchor == 0 ||
                       state.recordsSinceAnchor >= state.anchorPeriod;
@@ -236,11 +243,13 @@ size_t histV4Encode(const int64_t *values, uint8_t count,
             uint8_t bw = state.measures[i].bitWidth;
             histV4BitInsert(buf, state.measureBitOffset[i], bw, raw);
 
-            /* Update running state */
+            /* Update running state.
+             * v1.5.3 FIX: ASSIGN validity (decoder does the same). The old
+             * set-only form left fieldHasValid=true after a NaN anchor,
+             * while the decoder cleared it — the two state machines then
+             * disagreed on delta-vs-absolute for every later record. */
             state.lastAnchor[i] = raw;
-            if (!histV4IsNan(raw, bw)) {
-                state.fieldHasValid[i] = true;
-            }
+            state.fieldHasValid[i] = !histV4IsNan(raw, bw);
         }
 
         state.recordsSinceAnchor = 1;
@@ -288,17 +297,26 @@ size_t histV4Encode(const int64_t *values, uint8_t count,
         /* Mark this measurement as present in the mask */
         maskBuf[i >> 3] |= (1 << (i & 7));
 
-        /* Encode: delta if prevValid, absolute otherwise */
+        /* Encode: delta whenever the decoder will ADD (prevValid),
+         * absolute only when it will take the value as-is (!prevValid).
+         * v1.5.3 FIX: the valid→NaN transition used to go through the
+         * absolute branch while the decoder (fieldHasValid still true)
+         * added it as a delta — 25.00 °C → NaN decoded as 2500+65535 =
+         * 68035 and the field diverged until the next anchor. Riding the
+         * delta path (raw here IS the sentinel) makes the unchanged
+         * decoder land exactly on lastAnchor + Δ = sentinel.
+         * Known limit (pre-existing): Δ is int32-clamped, so bitWidth ≥ 32
+         * cannot represent the sentinel jump — practical widths are ≤ 24. */
         int32_t encoded;
-        if (prevValid && !isNan) {
-            /* Delta from last known value */
+        if (prevValid) {
             int64_t delta = raw - state.lastAnchor[i];
             /* Clamp to int32 for varint encoding */
             if (delta > 2147483647LL) delta = 2147483647LL;
             if (delta < -2147483647LL) delta = -2147483647LL;
             encoded = (int32_t)delta;
         } else {
-            /* Absolute (first valid value or NAN returning) */
+            /* Absolute: first valid value after never/NaN — the decoder
+             * agrees because its fieldHasValid is false here too. */
             /* Clamp to int32 */
             if (raw > 2147483647LL) raw = 2147483647LL;
             if (raw < -2147483647LL) raw = -2147483647LL;
@@ -309,10 +327,13 @@ size_t histV4Encode(const int64_t *values, uint8_t count,
         if (n == 0 || pos + n > bufSize) return 0;
         pos += n;
 
-        /* Update running state */
+        /* Update running state.
+         * v1.5.3 FIX: ASSIGN validity to mirror the decoder. The old
+         * keep-as-is comment was the second half of the asymmetry: after
+         * a NaN the encoder stayed "valid" (next record as delta) while
+         * the decoder went invalid (next record as absolute). */
         state.lastAnchor[i] = raw;
-        if (!isNan) state.fieldHasValid[i] = true;
-        /* If NAN returned, keep fieldHasValid as-is (still valid for next delta) */
+        state.fieldHasValid[i] = !isNan;
     }
 
     /* Write mask bytes (now that we know which bits are set) */
