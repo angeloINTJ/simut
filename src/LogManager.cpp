@@ -596,12 +596,28 @@ void LogManager::checkCrossCoreHealth( ) {
  if (elapsed > 15000) {
  watchdog_hw->scratch[5] = 0xCA11B007;
  watchdog_hw->scratch[6] = (otherCore << 24) | (_coreModule[0] << 16) | (_coreModule[1] << 8);
-
- /* Guard the real elapsed (time since last heartbeat). */
  watchdog_hw->scratch[7] = (uint32_t)elapsed;
 
- watchdog_reboot(0, 0, 0);
- while(1);
+ /* Safe reboot: clear WDT ENABLE before triggering.
+  * watchdog_reboot(0,0,0) leaves ENABLE set → persistent boot loop. */
+ constexpr uint32_t SR_WD_BASE      = 0x40058000u;
+ constexpr uint32_t SR_WD_CTRL_OFF  = 0x00u;
+ constexpr uint32_t SR_WD_LOAD_OFF  = 0x04u;
+ constexpr uint32_t SR_WD_CLR_ALIAS = 0x3000u;
+ constexpr uint32_t SR_WD_SET_ALIAS = 0x2000u;
+ constexpr uint32_t SR_WD_ENABLE    = (1u << 30);
+ constexpr uint32_t SR_WD_TRIG      = (1u << 31);
+ constexpr uint32_t SR_PSM_BASE     = 0x40010000u;
+ constexpr uint32_t SR_PSM_WDSEL    = 0x18u;
+ constexpr uint32_t SR_PSM_MASK     = (0x0001FFFFu & ~(0x1u | 0x2u));
+
+ *(volatile uint32_t*)(SR_PSM_BASE + SR_PSM_WDSEL) = SR_PSM_MASK;
+ *(volatile uint32_t*)(SR_WD_BASE + SR_WD_CLR_ALIAS + SR_WD_CTRL_OFF) = SR_WD_ENABLE;
+ *(volatile uint32_t*)(SR_WD_BASE + SR_WD_LOAD_OFF) = 0xFFFFFFu;
+ *(volatile uint32_t*)(SR_WD_BASE + SR_WD_SET_ALIAS + SR_WD_CTRL_OFF) = SR_WD_TRIG;
+
+ __asm volatile("dsb");
+ while(1) { tight_loop_contents( ); }
  }
 }
 

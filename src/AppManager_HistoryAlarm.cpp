@@ -349,7 +349,15 @@ void AppManager::processHistoryLogging( ) {
 
 	 /* ── Build V4 universal record (schema-driven, no legacy compat) ── */
 	 const HistV4State* schema = _storageMgr->getV4Schema( );
-	 if (!schema || schema->measureCount == 0) return;
+	 if (!schema) {
+	  /* Bootstrap: first-ever history call — create the .sim4 file with
+	   * schema header. The codec starts invalid and only becomes valid
+	   * inside writeHistoryEntryFlashV4(). One-time init, then real data
+	   * flows on the next history interval. */
+	  _storageMgr->ensureV4Schema( );
+	  return;
+	 }
+	 if (schema->measureCount == 0) return;
 
 	 SystemConfig &cfg = _storageMgr->getConfig( );
 	 int64_t values[HIST_V4_MAX_MEASUREMENTS];

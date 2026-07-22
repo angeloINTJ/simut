@@ -31,18 +31,26 @@
 
 const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
 
-/* Chunked flash safe mode, file-scope.
- * Inline expansion: trace MOD_CORE1_LOCK on enter, enterFlashSafeMode,
- * watchdog feed, BLOCK, watchdog feed, exitFlashSafeMode. Used in
- * saveConfiguration (7 sites) and writeHistoryEntryFlash (up to 4 sites).
- * Between chunks, Core 1 exits multicore_lockout and renders 1 frame. */
+/* Chunked flash operation wrapper.
+ * Acquires the FS mutex with timeout + watchdog feed to prevent
+ * main-loop stalls when a long-running read (e.g. web API history)
+ * holds the mutex. After 5 seconds of waiting, gives up silently —
+ * the write will be retried on the next history interval.
+ * LittleFS internally handles multicore_lockout via flash_safe_execute. */
 #define FLASH_OP(BLOCK) do { \
- { LogManager::TraceScope _trLock(0, MOD_CORE1_LOCK); \
- enterFlashSafeMode( ); } \
- watchdog_update( ); \
- BLOCK; \
- watchdog_update( ); \
- exitFlashSafeMode( ); \
+ uint32_t _fopStart = millis( ); \
+ while (!mutex_enter_timeout_ms(&_fsReadMutex, 100)) { \
+  watchdog_update( ); \
+  if (timeSince(_fopStart, 5000)) break; \
+ } \
+ if (timeSince(_fopStart, 5000)) { \
+  LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "fs_mutex_timeout"); \
+ } else { \
+  watchdog_update( ); \
+  BLOCK; \
+  watchdog_update( ); \
+  mutex_exit(&_fsReadMutex); \
+ } \
 } while (0)
 
 const uint16_t CONFIG_VERSION = 17;
@@ -1994,6 +2002,52 @@ void StorageManager::generateSalt(uint8_t* buf) {
  * V4 HISTORY — write, scan, build schema
  * ============================================================================ */
 
+void StorageManager::ensureV4Schema( ) {
+ if (_histV4CodecValid) return;  /* already initialized */
+ if (!_isMounted) return;
+
+ LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+ LogManager::WdtWindow _wdt(30000);
+
+ String path = getHistoryFileNameV4( );
+ _currentLogFileName = path;
+
+ /* Build schema from current config */
+ HistV4SensorDef s[HIST_V4_MAX_SENSORS];
+ HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
+ uint8_t pool[HIST_V4_MAX_STRPOOL];
+ uint8_t sc = 0, mc = 0, sp = 0;
+ if (!buildMeasureSchema(s, sc, m, mc, pool, sp)) {
+  LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "schema_empty");
+  return;
+ }
+
+ static uint8_t hdrBuf[2048];
+ size_t hdrLen = histV4WriteHeaderBuf(hdrBuf, sizeof(hdrBuf), s, sc, m, mc, pool, sp);
+ if (hdrLen == 0) return;
+
+ FLASH_OP({
+  File f = LittleFS.open(path, "w");
+  if (f) { f.write(hdrBuf, hdrLen); f.close(); }
+ });
+
+ /* Read header back to populate codec state */
+ histV4Reset(_histV4State);
+ FLASH_OP({
+  File f = LittleFS.open(path, "r");
+  if (f) {
+   static uint8_t rdBuf[HIST_V4_MAX_HEADER];
+   int n = f.read(rdBuf, sizeof(rdBuf));
+   f.close();
+   if (n >= (int)HIST_V4_HEADER_FIXED) {
+    histV4ReadHeaderBuf(rdBuf, (size_t)n, _histV4State);
+   }
+  }
+ });
+ _histV4CodecValid = true;
+ LOG_CODE(LOG_INFO, "STO", SYS_OK, 0, "V4 schema bootstrapped");
+}
+
 bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
 	if (!_isMounted) return false;
 
@@ -2064,7 +2118,10 @@ bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t mea
 
 		/* 2b: create new file with schema header if needed */
 		if (needCreate) {
-			uint8_t hdrBuf[2048]; size_t hdrLen = 0;
+			/* Static buffers — avoid 4KB+ stack usage in this function
+			 * (hdrBuf 2KB + sensor/measure arrays + pool = ~3.5KB).
+			 * RP2040 stack is ~4KB; this would overflow with call chain. */
+			static uint8_t hdrBuf[2048]; size_t hdrLen = 0;
 			{
 				HistV4SensorDef s[HIST_V4_MAX_SENSORS];
 				HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
@@ -2088,11 +2145,11 @@ bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t mea
 			FLASH_OP({
 				File f = LittleFS.open(path, "r");
 				if (f) {
-					uint8_t buf[HIST_V4_MAX_HEADER];
-					int n = f.read(buf, sizeof(buf));
+					static uint8_t rdBuf[HIST_V4_MAX_HEADER];
+					int n = f.read(rdBuf, sizeof(rdBuf));
 					f.close();
 					if (n >= (int)HIST_V4_HEADER_FIXED) {
-						histV4ReadHeaderBuf(buf, (size_t)n, _histV4State);
+						histV4ReadHeaderBuf(rdBuf, (size_t)n, _histV4State);
 					}
 				}
 			});

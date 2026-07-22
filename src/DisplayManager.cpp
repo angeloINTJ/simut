@@ -316,15 +316,20 @@ void DisplayManager::pauseRendering(bool pause) {
 					lastCleanup = millis( );
 					watchdog_update( );
 				}
-				/* After 10s without success, assume Core 1
-				 * dead and restart it before continuing. */
+				/* After 10s without success, give up on lockout.
+				 * Do NOT reset Core 1 — that looks like a system
+				 * reboot to the user. Flash operations are still
+				 * safe because LittleFS internally calls
+				 * flash_safe_execute() which does its own lockout.
+				 * Log the event for diagnostics and continue. */
 				if (timeSince(retryStart, 10000)) {
-					Serial.println("[DSP] Lockout stuck >10s, restarting Core 1");
+					Serial.println("[DSP] Lockout stuck >10s, giving up (no reset)");
+					multicore_lockout_end_blocking( );
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 					LogManager::instance( ).setCorePaused(1, false);
-					multicore_reset_core1( );
-					delay(50);
-					multicore_launch_core1(core1Entry);
+					_pauseStartTime = 0;
+					/* Flash op proceeds without Core 1 lockout.
+					 * LittleFS handles safety internally. */
 					return;
 				}
 			}

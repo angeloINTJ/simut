@@ -18,6 +18,7 @@
 
 #include "SensorManager.h"
 #include "MetricsManager.h"
+#include <Wire.h>
 #include <algorithm>
 #include <vector>
 #include <cstring>
@@ -89,7 +90,17 @@ void SensorManager::begin( ) {
 void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  _runtimeSensors.clear( );
 
+ /* Clean up old BME280 drivers from previous init (reload, config change). */
+#if SIMUT_SENSOR_BME280
+ for (auto* drv : _bmeDrivers) { delete drv; }
+ _bmeDrivers.clear( );
+#endif
+
  bool spiInitialized = false;
+#if SIMUT_SENSOR_BME280
+ bool i2c0Initialized = false;
+ bool i2c1Initialized = false;
+#endif
 
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
@@ -130,54 +141,81 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 	 * All declared pins are configured via gpioInitForRole().
 	 * Bus peripherals (I2C, SPI) are initialized once at first use. */
 	auto fmt = SensorFormat::forType(rs.type);
+
+	/* ── Phase 1: I2C bus init (before per-pin GPIO config) ──
+	 * v1.5.1+: Prefer hardware I2C (Wire/Wire1) when pins map to an
+	 * I2C-capable peripheral. Falls back to PIO bit-bang for non-standard
+	 * pin pairs. Hardware I2C uses zero PIO resources, eliminating
+	 * contention with OneWirePIO (DS18B20) on pio0. */
+#if SIMUT_SENSOR_BME280
+	if (rs.type == TYPE_BME280) {
+		uint8_t sda = PIN_UNUSED, scl = PIN_UNUSED;
+		for (uint8_t pj = 0; pj < fmt.pinCount; pj++) {
+			if (fmt.pins[pj].role == ROLE_I2C_SDA) sda = rs.config.pins[pj];
+			if (fmt.pins[pj].role == ROLE_I2C_SCL) scl = rs.config.pins[pj];
+		}
+
+		if (sda != PIN_UNUSED && scl != PIN_UNUSED) {
+			/* Track taken addresses per (sda,scl) bus — up to 2 sensors
+			 * per bus (0x76 and 0x77). */
+			struct BmeAddrTrack { uint8_t s, d; bool a76, a77; };
+			static BmeAddrTrack _bmeBuses[8];
+			static uint8_t _bmeBusCount = 0;
+			BmeAddrTrack* bus = nullptr;
+			for (uint8_t bi = 0; bi < _bmeBusCount; bi++) {
+				if (_bmeBuses[bi].s == sda && _bmeBuses[bi].d == scl) {
+					bus = &_bmeBuses[bi]; break;
+				}
+			}
+			if (!bus && _bmeBusCount < 8) {
+				bus = &_bmeBuses[_bmeBusCount++];
+				bus->s = sda; bus->d = scl;
+				bus->a76 = false; bus->a77 = false;
+			}
+			uint8_t addr = 0;
+			if (bus) {
+				if (!bus->a76)      { addr = BME280_ADDR_PRIMARY; bus->a76 = true; }
+				else if (!bus->a77) { addr = 0x77;                bus->a77 = true; }
+			}
+
+			if (addr != 0) {
+				int periph = i2cPeripheralForPins(sda, scl);
+				int8_t drvIdx = -1;
+
+				if (periph == 0) {
+				if (!i2c0Initialized) {
+					Wire.setSDA(sda);
+					Wire.setSCL(scl);
+					Wire.begin();
+					i2c0Initialized = true;
+				}
+					drvIdx = _getOrCreateBmeDriver(Wire, addr);
+				} else if (periph == 1) {
+				if (!i2c1Initialized) {
+					Wire1.setSDA(sda);
+					Wire1.setSCL(scl);
+					Wire1.begin();
+					i2c1Initialized = true;
+				}
+					drvIdx = _getOrCreateBmeDriver(Wire1, addr);
+				} else {
+					/* Pins not I2C-capable — fall back to PIO bit-bang */
+					drvIdx = _getOrCreateBmeDriver(sda, scl, addr);
+				}
+
+				if (drvIdx >= 0) {
+					rs.bmeDriverIdx = drvIdx;
+					rs.i2cAddr = addr;
+				}
+			}
+		}
+	}
+#endif /* SIMUT_SENSOR_BME280 */
+
+	/* ── Phase 2: per-pin GPIO configuration ── */
 	for (uint8_t pi = 0; pi < fmt.pinCount && pi < MAX_SENSOR_PINS; pi++) {
 		uint8_t gpio = rs.config.pins[pi];
 		if (gpio == PIN_UNUSED) continue;
-
-		/* I2C bus init — PIO bit-bang works on any GPIO 0-15 pair.
-		 * Each unique (sda,scl) pair forms an independent I2C bus.
-		 * Up to 2 sensors per bus (addr 0x76 and 0x77). */
-		if ((fmt.pins[pi].role == ROLE_I2C_SDA || fmt.pins[pi].role == ROLE_I2C_SCL)
-		    && !spiInitialized /* run once per I2C sensor, not once total */) {
-			__attribute__((unused)) uint8_t sda = gpio;
-			__attribute__((unused)) uint8_t scl = gpio;
-			for (uint8_t pj = 0; pj < fmt.pinCount; pj++) {
-				if (fmt.pins[pj].role == ROLE_I2C_SDA) sda = rs.config.pins[pj];
-				if (fmt.pins[pj].role == ROLE_I2C_SCL) scl = rs.config.pins[pj];
-			}
-		#if SIMUT_SENSOR_BME280
-			if (sda != PIN_UNUSED && scl != PIN_UNUSED) {
-				/* Assign I2C address: prefer 0x76, fallback to 0x77.
-				 * Track taken addresses per (sda,scl) bus in a local table. */
-				struct BmeAddrTrack { uint8_t s, d; bool a76, a77; };
-				static BmeAddrTrack _bmeBuses[8]; /* up to 8 I2C buses */
-				static uint8_t _bmeBusCount = 0;
-				BmeAddrTrack* bus = nullptr;
-				for (uint8_t bi = 0; bi < _bmeBusCount; bi++) {
-					if (_bmeBuses[bi].s == sda && _bmeBuses[bi].d == scl) {
-						bus = &_bmeBuses[bi]; break;
-					}
-				}
-				if (!bus && _bmeBusCount < 8) {
-					bus = &_bmeBuses[_bmeBusCount++];
-					bus->s = sda; bus->d = scl;
-					bus->a76 = false; bus->a77 = false;
-				}
-				uint8_t addr = 0;
-				if (bus) {
-					if (!bus->a76)      { addr = BME280_ADDR_PRIMARY; bus->a76 = true; }
-					else if (!bus->a77) { addr = 0x77;                bus->a77 = true; }
-				}
-				if (addr != 0) {
-					int8_t drvIdx = _getOrCreateBmeDriver(sda, scl, addr);
-					if (drvIdx >= 0) {
-						rs.bmeDriverIdx = drvIdx;
-						rs.i2cAddr = addr;
-					}
-				}
-			}
-		#endif
-		}
 
 		/* SPI bus init — once (future: BMP388, etc.) */
 		if ((fmt.pins[pi].role == ROLE_SPI_SCK || fmt.pins[pi].role == ROLE_SPI_MOSI)
@@ -189,7 +227,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 		gpioInitForRole(gpio, fmt.pins[pi].role, fmt.pins[pi].flags);
 	}
 
- _runtimeSensors.push_back(rs);
+_runtimeSensors.push_back(rs);
  }
  LOG_CODE(LOG_INFO, "SENSOR", SENSOR_RUNTIME_LOADED, _runtimeSensors.size( ), "");
 }
@@ -453,8 +491,12 @@ void SensorManager::processPeriodicReads( ) {
  bool romVerified = true;
  const char* failReason = "";
 
+ /* ROM verification every 5 reads — skip if config ROM is all zeros
+  * (unpaired sensor). A zero ROM means "accept any DS18B20 on this pin". */
+ bool romIsZero = true;
+ for (int k = 0; k < 8; k++) if (s.config.rom[k] != 0) romIsZero = false;
 
- if (s.totalReadings % 5 == 0) {
+ if (!romIsZero && s.totalReadings % 5 == 0) {
  uint8_t currentRom[8];
  if (_ds18.readROM(s.config.pins[0], currentRom)) {
  if (!_ds18.checkRomMatch(currentRom, s.config.rom)) {
@@ -743,30 +785,39 @@ bool SensorManager::pollAsyncResult(String &msg) { return false; }
 
 #if SIMUT_SENSOR_BME280
 int8_t SensorManager::_getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr) {
- /* Use static allocation — heap may be fragmented/exhausted during boot.
-  * On warm boot (reload, watchdog reset), BSS retains previous values.
-  * Always clear the driver to avoid stale _sensor pointer from prior boot. */
- static BME280Driver s_bmeDrv;
- /* Reset state: force clean init on every boot */
- s_bmeDrv.state = BME280Driver::BME_IDLE;
- s_bmeDrv.currentSensorIdx = -1;
- s_bmeDrv.timer = 0;
- if (s_bmeDrv._sensor) { delete s_bmeDrv._sensor; s_bmeDrv._sensor = nullptr; }
- s_bmeDrv._compLoaded = false;
-
- BME280Driver* drv = &s_bmeDrv;
- if (Serial) { Serial.print("[DBG] BME init addr=0x"); Serial.println((int)addr, HEX); }
+ /* PIO fallback — used when pins don't map to hardware I2C.
+  * Dynamically allocates a BME280Driver; caller (initRuntimeSensors)
+  * owns cleanup via _bmeDrivers vector. */
+ auto* drv = new (std::nothrow) BME280Driver();
+ if (!drv) return -1;
+ if (Serial) { Serial.print("[DBG] BME PIO init addr=0x"); Serial.println((int)addr, HEX); }
  if (drv->begin(sda, scl, addr)) {
-  /* Only push once per boot */
-  for (size_t i = 0; i < _bmeDrivers.size(); i++) {
-   if (_bmeDrivers[i] == drv) return (int8_t)i;
-  }
   _bmeDrivers.push_back(drv);
   LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, 0,
-   String("BME280 driver OK 0x") + String(addr, HEX));
+   String("BME280 PIO driver OK 0x") + String(addr, HEX));
   return (int8_t)(_bmeDrivers.size() - 1);
  }
- if (Serial) Serial.println("[DBG] BME begin failed");
+ if (Serial) Serial.println("[DBG] BME PIO begin failed");
+ delete drv;
+ return -1;
+}
+
+int8_t SensorManager::_getOrCreateBmeDriver(TwoWire &wire, uint8_t addr) {
+ /* Hardware I2C — uses RP2040 built-in I2C peripheral (Wire/Wire1).
+  * Zero PIO resources, zero DMA channels. Reliable and fast.
+  * Dynamically allocates a BME280Driver; caller (initRuntimeSensors)
+  * owns cleanup via _bmeDrivers vector. */
+ auto* drv = new (std::nothrow) BME280Driver();
+ if (!drv) return -1;
+ if (Serial) { Serial.print("[DBG] BME HW I2C init addr=0x"); Serial.println((int)addr, HEX); }
+ if (drv->begin(wire, addr)) {
+  _bmeDrivers.push_back(drv);
+  LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, 0,
+   String("BME280 HW I2C driver OK 0x") + String(addr, HEX));
+  return (int8_t)(_bmeDrivers.size() - 1);
+ }
+ if (Serial) Serial.println("[DBG] BME HW I2C begin failed");
+ delete drv;
  return -1;
 }
 #endif

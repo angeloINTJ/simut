@@ -125,6 +125,14 @@ public:
  /** @return true if a V4 file is currently open and its schema is ready. */
  bool isV4Active( ) const { return _histV4CodecValid; }
 
+ /** Bootstrap the V4 history codec on first use.
+  * If the codec is not yet valid (_histV4CodecValid=false), this
+  * creates today's .sim4 file with the schema header and populates
+  * _histV4State. Idempotent: safe to call multiple times.
+  * Must be called before the first writeHistoryEntryV4() if
+  * getV4Schema() returns nullptr (chicken-and-egg bootstrap). */
+ void ensureV4Schema( );
+
  /** Build a V4 schema (sensor + measurement table + string pool) from SystemConfig.
   * Used when creating a new V4 history file. The schema is stored in the file header
   * so any reader can interpret the data without external configuration.

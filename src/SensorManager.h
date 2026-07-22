@@ -146,7 +146,8 @@ private:
 #endif
 #if SIMUT_SENSOR_BME280
  std::vector<BME280Driver*> _bmeDrivers;  /**< One driver per (sda,scl,addr) triplet */
- int8_t _getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr);
+ int8_t _getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr);  /**< PIO fallback */
+ int8_t _getOrCreateBmeDriver(TwoWire &wire, uint8_t addr);             /**< Hardware I2C (Wire/Wire1) */
 #endif
 
  std::vector<RuntimeSensor> _runtimeSensors;
