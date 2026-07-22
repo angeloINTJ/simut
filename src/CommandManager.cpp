@@ -319,6 +319,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_RELOAD:            return CLI_VALID_PRIV;
  case CMD_RESET_TOUCH_CAL:   return CLI_VALID_PRIV;
  case CMD_FACTORY_RESET:     return CLI_VALID_PRIV;
+ case CMD_FORMAT_FS:         return CLI_VALID_PRIV;
  case CMD_RESET_ADMIN:       return CLI_VALID_PRIV;
  case CMD_WIPE_SENSOR:       return CLI_VALID_PRIV;
  case CMD_REMOVE_SENSOR:     return CLI_VALID_PRIV;
@@ -447,6 +448,8 @@ void CommandManager::printModeHelp( ) {
                                   : "  clear log [confirm]   Clear system logs");
   showIf(CMD_DEBUG,            pt ? "  debug <on|off>        Stream logs no console"
                                   : "  debug <on|off>        Stream logs to console");
+  showIf(CMD_FORMAT_FS,        pt ? "  system format [confirm]  Formatar LittleFS + reboot"
+                                  : "  system format [confirm]  Format LittleFS + reboot");
   showIf(CMD_FACTORY_RESET,    pt ? "  conf system factory [confirm]  Factory reset"
                                   : "  conf system factory [confirm]  Factory reset");
   consolePrintln("");

@@ -233,6 +233,7 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "admin" && t2 == "reset") { cmd.type = CMD_RESET_ADMIN;     return cmd; }
 		if (t1 == "touch" && t2 == "reset") { cmd.type = CMD_RESET_TOUCH_CAL; return cmd; }
 		if (t1 == "factory")                { cmd.type = CMD_FACTORY_RESET;   return cmd; }
+		if (t1 == "format")                 { cmd.type = CMD_FORMAT_FS;      return cmd; }
 		if (t1 == "history_interval") {
 			cmd.type = CMD_SET_HISTORY_INTERVAL;
 			cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);

@@ -48,6 +48,7 @@ enum DemandType {
  CMD_RESET_ADMIN,
  CMD_RESET_TOUCH_CAL,
  CMD_FACTORY_RESET,
+ CMD_FORMAT_FS, /**< system format confirm — LittleFS.format() + reboot (recovers a corrupt-but-mountable FS) */
  CMD_SET_NTP_ENABLED, /**< intVal1 = 0 off, 1 on */
  CMD_SET_DNS_CFG, /**< intVal1 = 0 auto, 1 manual; strVal1=ip1, strVal2=ip2 */
  CMD_SET_TIME, /**< strVal1="YYYY-MM-DD", strVal2="HH:MM:SS" */
