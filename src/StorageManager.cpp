@@ -1595,7 +1595,7 @@ void StorageManager::enforceStorageLimit( ) {
  if (oldestFile != "") {
  String fullPath = String(DIR_HISTORY) + "/" + oldestFile;
 
- if (fullPath == _currentLogFileName) {
+ if (fullPath == _currentLogFileName || fullPath == _v4CurrentLogFileName) {
  LOG_CODE(LOG_WARN, "STO", STO_ENFORCE_SKIP_ACTIVE, 0, "");
  break;
  }
@@ -2010,7 +2010,7 @@ void StorageManager::ensureV4Schema( ) {
  LogManager::WdtWindow _wdt(30000);
 
  String path = getHistoryFileNameV4( );
- _currentLogFileName = path;
+ _v4CurrentLogFileName = path;
 
  /* Build schema from current config */
  HistV4SensorDef s[HIST_V4_MAX_SENSORS];
@@ -2070,10 +2070,11 @@ bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureC
 		return true;
 	}
 
-	/* Flush pending before writing current */
+	/* Flush pending before writing current - only clear flag on success */
 	if (_pendingHistV4Valid) {
-		_pendingHistV4Valid = false;
-		writeHistoryEntryFlashV4(_pendingValuesV4, _pendingMeasureCountV4, _pendingEpochV4);
+		if (writeHistoryEntryFlashV4(_pendingValuesV4, _pendingMeasureCountV4, _pendingEpochV4)) {
+			_pendingHistV4Valid = false;
+		}
 	}
 
 	return writeHistoryEntryFlashV4(values, measureCount, epoch);
@@ -2088,9 +2089,9 @@ bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t mea
 	LogManager::WdtWindow _wdt(30000);
 
 	/* Chunk 1: enforce on rollover */
-	if (path != _currentLogFileName) {
+	if (path != _v4CurrentLogFileName) {
 		FLASH_OP(enforceStorageLimit());
-		_currentLogFileName = path;
+		_v4CurrentLogFileName = path;
 		_histV4CodecValid = false;
 	}
 
@@ -2192,19 +2193,19 @@ bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state) {
 	f.seek(0);
 
 	/* Read entire header into buffer, then parse */
-	uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
 	size_t hdrSize = f.size();
 	if (hdrSize > HIST_V4_MAX_HEADER) hdrSize = HIST_V4_MAX_HEADER;
 	if (f.read(hdrBuf, hdrSize) < HIST_V4_HEADER_FIXED) return false;
 	if (histV4ReadHeaderBuf(hdrBuf, hdrSize, state) == 0) return false;
 
 	/* Scan all records to rebuild codec state */
-	uint8_t buf[HIST_V4_READ_BUF];
+	static uint8_t buf[HIST_V4_READ_BUF];
 	size_t filled = 0;
 	size_t goodPos = hdrSize; /* bytes consumed by header */
 	histV4Reset(state);
 	histV4ReadHeaderBuf(hdrBuf, hdrSize, state);
-	int64_t values[HIST_V4_MAX_MEASUREMENTS];
+	static int64_t values[HIST_V4_MAX_MEASUREMENTS];
 	uint32_t epoch;
 
 	while (true) {

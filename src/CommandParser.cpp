@@ -154,84 +154,88 @@ CliDemand parseCliCommand(String input) {
  }
  }
 
- if (t1 == "user") {
- if (t2 == "add" && v3.length( ) > 0) {
+ if (t0 == "user") {
+ if (t1 == "add" && t2.length( ) > 0) {
  cmd.type = CMD_USER_ADD;
- cmd.setStrVal1(v3.c_str( ));
- cmd.setStrVal2(count > 4 ? parts[4].c_str( ) : "");
+ cmd.setStrVal1(t2.c_str( ));
+ cmd.setStrVal2(t3.c_str( ));
  return cmd;
  }
- if (t2 == "del" && v3.length( ) > 0) {
- cmd.type = CMD_USER_DEL; cmd.setStrVal1(v3.c_str( )); return cmd;
+ if (t1 == "del" && t2.length( ) > 0) {
+ cmd.type = CMD_USER_DEL; cmd.setStrVal1(t2.c_str( )); return cmd;
  }
- if (t2 == "pass" && v3.length( ) > 0) {
- cmd.type = CMD_USER_PASS; cmd.setStrVal1(v3.c_str( ));
- cmd.setStrVal2(count > 4 ? parts[4].c_str( ) : "");
+ if (t1 == "pass" && t2.length( ) > 0) {
+ cmd.type = CMD_USER_PASS; cmd.setStrVal1(t2.c_str( ));
+ cmd.setStrVal2(t3.c_str( ));
  return cmd;
  }
  }
 
- if (t1 == "system") {
- if (t2 == "theme") { cmd.type = CMD_SET_THEME; cmd.setStrVal1(v3.c_str( )); return cmd; }
- if (t2 == "name") { cmd.type = CMD_SET_SYS_NAME; cmd.setStrVal1(v3.c_str( )); return cmd; }
- if (t2 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.setStrVal1(v3.c_str( )); return cmd; }
- if (t2 == "pass") { cmd.type = CMD_SET_WIFI_PASS; cmd.setStrVal1(v3.c_str( )); return cmd; }
- if (t2 == "timezone") {
+ if (t0 == "system") {
+ if (t1 == "theme") { cmd.type = CMD_SET_THEME; cmd.setStrVal1(t2.c_str( )); return cmd; }
+ if (t1 == "name") { cmd.type = CMD_SET_SYS_NAME; cmd.setStrVal1(t2.c_str( )); return cmd; }
+ if (t1 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.setStrVal1(t2.c_str( )); return cmd; }
+ if (t1 == "pass") { cmd.type = CMD_SET_WIFI_PASS; cmd.setStrVal1(t2.c_str( )); return cmd; }
+ if (t1 == "timezone") {
  cmd.type = CMD_SET_TIMEZONE;
- cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+ cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
  return cmd;
  }
- if (t2 == "ntp") { cmd.type = CMD_SET_NTP; cmd.setStrVal1(v3.c_str( )); return cmd; }
- if (t2 == "admin" && t3 == "reset") { cmd.type = CMD_RESET_ADMIN; return cmd; }
- if (t2 == "touch" && t3 == "reset") { cmd.type = CMD_RESET_TOUCH_CAL; return cmd; }
- if (t2 == "factory") { cmd.type = CMD_FACTORY_RESET; return cmd; }
- if (t2 == "history_interval") {
+ if (t1 == "ntp") { cmd.type = CMD_SET_NTP; cmd.setStrVal1(t2.c_str( )); return cmd; }
+ if (t1 == "admin" && t2 == "reset") { cmd.type = CMD_RESET_ADMIN; return cmd; }
+ if (t1 == "touch" && t2 == "reset") { cmd.type = CMD_RESET_TOUCH_CAL; return cmd; }
+ if (t1 == "factory") { cmd.type = CMD_FACTORY_RESET; return cmd; }
+ if (t1 == "history_interval") {
  cmd.type = CMD_SET_HISTORY_INTERVAL;
- cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+ cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
  return cmd;
  }
  }
- if (t1 == "sensor" && t2 == "ds18b20" && t3 == "resolution") {
+ if (t0 == "wifi") {
+ if (t1 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.setStrVal1(t2.c_str( )); return cmd; }
+ if (t1 == "pass") { cmd.type = CMD_SET_WIFI_PASS; cmd.setStrVal1(t2.c_str( )); return cmd; }
+ }
+ if (t0 == "ds18b20" && t1 == "resolution") {
  cmd.type = CMD_SET_DS_RES;
- cmd.intVal1Valid = parseIntStrict(t4, cmd.intVal1);
+ cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
  return cmd;
  }
- if (t1 == "web" && t2 == "port") {
+ if (t0 == "web" && t1 == "port") {
  cmd.type = CMD_SET_WEB_PORT;
- cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+ cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
  return cmd;
  }
 
- if (t1 == "tel") {
- if (t2 == "server") { cmd.type = CMD_SET_TEL_SERVER; cmd.setStrVal1(v3.c_str( )); return cmd; }
- if (t2 == "port") {
+ if (t0 == "tel") {
+ if (t1 == "server") { cmd.type = CMD_SET_TEL_SERVER; cmd.setStrVal1(t2.c_str( )); return cmd; }
+ if (t1 == "port") {
  cmd.type = CMD_SET_TEL_PORT;
- cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+ cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
  return cmd;
  }
- if (t2 == "path") { cmd.type = CMD_SET_TEL_PATH; cmd.setStrVal1(v3.c_str( )); return cmd; }
- if (t2 == "batch") {
+ if (t1 == "path") { cmd.type = CMD_SET_TEL_PATH; cmd.setStrVal1(t2.c_str( )); return cmd; }
+ if (t1 == "batch") {
  cmd.type = CMD_SET_TEL_BATCH;
- cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+ cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
  return cmd;
  }
- if (t2 == "interval") {
+ if (t1 == "interval") {
  cmd.type = CMD_SET_TEL_INTERVAL;
- cmd.intVal1Valid = parseIntStrict(t3, cmd.intVal1);
+ cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
  return cmd;
  }
- if (t2 == "crypto") {
+ if (t1 == "crypto") {
  cmd.type = CMD_SET_TEL_CRYPTO;
- cmd.setStrVal1(t3.c_str( ));
- cmd.boolVal = (t3 == "on");
+ cmd.setStrVal1(t2.c_str( ));
+ cmd.boolVal = (t2 == "on");
  return cmd;
  }
- if (t2 == "mode") {
+ if (t1 == "mode") {
  cmd.type = CMD_SET_TEL_MODE;
- cmd.setStrVal1(t3.c_str( ));
- if(t3 == "json") cmd.intVal1 = TEL_MODE_JSON;
- else if(t3 == "csv") cmd.intVal1 = TEL_MODE_CSV;
- else if(t3 == "custom") cmd.intVal1 = TEL_MODE_CUSTOM;
+ cmd.setStrVal1(t2.c_str( ));
+ if(t2 == "json") cmd.intVal1 = TEL_MODE_JSON;
+ else if(t2 == "csv") cmd.intVal1 = TEL_MODE_CSV;
+ else if(t2 == "custom") cmd.intVal1 = TEL_MODE_CUSTOM;
  else cmd.intVal1 = -1;
  return cmd;
  }

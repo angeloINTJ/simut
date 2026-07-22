@@ -212,9 +212,12 @@ void AppManager::preloadMinMax( ) {
 
 	 if (!fileExists || !f) return;
 
-	 /* V4: read header into buffer, then parse */
-	 HistV4State pState;
-	 uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 /* V4: read header into buffer, then parse.
+	  * Static allocation — HistV4State (2.2KB) + hdrBuf (2KB) + pRdBuf (256B)
+	  * exceeds the RP2040 ~4KB stack. Static moves these to BSS (global RAM). */
+	 static HistV4State pState;
+	 static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 static uint8_t pRdBuf[HIST_V4_READ_BUF];
 	 {
 	 StorageManager::ReadGuard rg(_storageMgr.get( ));
 	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
@@ -225,7 +228,6 @@ void AppManager::preloadMinMax( ) {
 	 }
 	 }
 
-	 uint8_t pRdBuf[HIST_V4_READ_BUF];
 	 size_t pRdFilled = 0;
 
 	 uint32_t _preloadBudget = millis( );
@@ -240,9 +242,9 @@ void AppManager::preloadMinMax( ) {
 	 }
 
 	 _storageMgr->enterFlashReadLock( );
-	 /* Batch-decode up to 20 records */
-	 int64_t batchVals[20][HIST_V4_MAX_MEASUREMENTS];
-	 uint32_t batchEpochs[20];
+	 /* Batch-decode up to 20 records — static to avoid 10KB stack allocation */
+	 static int64_t s_batchVals[20][HIST_V4_MAX_MEASUREMENTS];
+	 static uint32_t s_batchEpochs[20];
 	 int count = 0;
 	 while (count < 20) {
 	 if (pRdFilled < pState.anchorByteSize && f.available( ) > 0) {
@@ -251,7 +253,7 @@ void AppManager::preloadMinMax( ) {
 	 }
 	 if (pRdFilled == 0) break;
 	 size_t consumed = histV4DecodeNext(pRdBuf, pRdFilled, pState,
-	 batchVals[count], &batchEpochs[count]);
+	 s_batchVals[count], &s_batchEpochs[count]);
 	 if (consumed == 0) break;
 	 memmove(pRdBuf, pRdBuf + consumed, pRdFilled - consumed);
 	 pRdFilled -= consumed;
@@ -263,7 +265,7 @@ void AppManager::preloadMinMax( ) {
 	 /* Process batch: map measurements to slot-indexed caches */
 	 for (int b = 0; b < count; b++) {
 	 for (uint8_t m = 0; m < pState.measureCount; m++) {
-	 if (histV4IsNan(batchVals[b][m], pState.measures[m].bitWidth)) continue;
+	 if (histV4IsNan(s_batchVals[b][m], pState.measures[m].bitWidth)) continue;
 
 	 /* Find which slot this measurement belongs to */
 	 uint8_t sIdx = pState.measures[m].sensorIdx;
@@ -285,7 +287,7 @@ void AppManager::preloadMinMax( ) {
 	 }
 	 if (slot < 0) continue;
 
-	 float v = histV4ToFloat(batchVals[b][m], pState.measures[m]);
+	 float v = histV4ToFloat(s_batchVals[b][m], pState.measures[m]);
 	 if (isnan(v)) continue;
 
 	 uint8_t ch = pState.measures[m].channel;
@@ -303,9 +305,9 @@ void AppManager::preloadMinMax( ) {
 	 delay(2);
 	 }
 
-	 _storageMgr->enterFlashReadLock( );
-	 { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
-	 _storageMgr->exitFlashReadLock( );
+
+		 /* Close file under read lock */
+		 { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
 
 	 /* Snapshot: save a copy of caches so live values can separate preload from real-time */
 	 memcpy(_preloadMin, _cachedMin, sizeof(_preloadMin));
@@ -357,7 +359,13 @@ void AppManager::processHistoryLogging( ) {
 	  _storageMgr->ensureV4Schema( );
 	  return;
 	 }
-	 if (schema->measureCount == 0) return;
+	 if (schema->measureCount == 0) {
+	  if (!_histSchemaEmptyWarned) {
+	   LOG_CODE(LOG_WARN, "HIST", APP_HIST_NO_SCHEMA, 0, "V4 schema empty — no active sensors?");
+	   _histSchemaEmptyWarned = true;
+	  }
+	  return;
+	 }
 
 	 SystemConfig &cfg = _storageMgr->getConfig( );
 	 int64_t values[HIST_V4_MAX_MEASUREMENTS];

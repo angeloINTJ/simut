@@ -145,6 +145,7 @@ enum LogCode {
  APP_HEAP_REPORT = 511,
  APP_HIST_NO_TIME_REF = 512, /* skip due to missing NTP/provisional */
  APP_HIST_TIME_REF_RECOVERED = 513, /* time ref returned, resuming saves */
+ APP_HIST_NO_SCHEMA = 514, /* V4 schema has zero measurements — no active sensors? */
 
  /* ── Network extended (520–539) ── */
  NET_DHCP_MODE = 520,

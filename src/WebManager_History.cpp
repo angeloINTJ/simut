@@ -243,17 +243,23 @@ void WebManager::handleApiHistoryMulti( ) {
 	 if (!_v4) { ReadGuard rg(_storageRef); if (f.size() >= 4) { char m[4]; f.seek(0); if (f.read((uint8_t*)m,4)==4) _v4=(memcmp(m,HIST_V4_MAGIC,4)==0); } }
 	 if (_v4) {
 	 /* ── V4 inline decode + emit ─────────────────────── */
-	 HistV4State v4st;
+	 /* Static buffers — avoid 5KB+ stack allocation on RP2040 ~4KB stack.
+	  * histV4ReadHeaderBuf calls histV4Reset internally, so static state
+	  * is safe across file iterations (each file re-initializes via header read). */
+	 static HistV4State v4st;
+	 static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 static uint8_t rdBuf[HIST_V4_READ_BUF];
+	 static int64_t v4vals[HIST_V4_MAX_MEASUREMENTS];
 	 {
 	 ReadGuard rg(_storageRef);
-	 f.seek(0); uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 f.seek(0);
 	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
 	 if (hdrRead < (int)HIST_V4_HEADER_FIXED ||
 	 histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) == 0) { f.close(); continue; }
 	 }
 
-	 uint8_t rdBuf[HIST_V4_READ_BUF]; size_t rdFilled = 0;
-	 int64_t v4vals[HIST_V4_MAX_MEASUREMENTS]; uint32_t v4epoch;
+	 size_t rdFilled = 0;
+	 uint32_t v4epoch;
 	 bool fileHasMoreV4 = true;
 
 	 while (fileHasMoreV4 && !aborted) {
