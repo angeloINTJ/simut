@@ -36,3 +36,9 @@ jobs:
 
       - name: Run unit tests (HistoryCodec)
         run: pio test -e native_history
+
+      - name: Run unit tests (HistoryV4)
+        run: pio test -e native_history_v4
+
+      - name: Run unit tests (CLI parser)
+        run: pio test -e native_cli
