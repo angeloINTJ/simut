@@ -189,6 +189,12 @@ void test_sensor_remove_without_confirm(void) {
     TEST_ASSERT_FALSE(d.confirmed);
 }
 
+void test_system_format_confirm(void) {
+    CliDemand d = parse("system format confirm");
+    TEST_ASSERT_EQUAL(CMD_FORMAT_FS, d.type);
+    TEST_ASSERT_TRUE(d.confirmed);
+}
+
 /* ---- 256-char boundary (CLI_LINE_MAX) ---- */
 
 void test_long_line_still_parses_help_prefix(void) {
@@ -228,6 +234,7 @@ int main(int argc, char** argv) {
     RUN_TEST(test_sensor_define_type_only_no_name);
     RUN_TEST(test_sensor_remove_confirm);
     RUN_TEST(test_sensor_remove_without_confirm);
+    RUN_TEST(test_system_format_confirm);
     RUN_TEST(test_long_line_still_parses_help_prefix);
     return UNITY_END();
 }

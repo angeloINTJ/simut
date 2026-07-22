@@ -426,6 +426,28 @@ void AppManager::executeCommand(CliDemand cmd) {
  LogManager::instance( ).safeReboot( );
  }
 
+ case CMD_FORMAT_FS: {
+ const bool pt = _cmdMgr->isPt( );
+ if (!cmd.confirmed) {
+ _cmdMgr->printInfo(pt ? "ATENCAO: formata o LittleFS (config, historico, logs) + reboot."
+ : "WARN: formats LittleFS (config, history, logs) + reboots.");
+ _cmdMgr->printInfo(pt ? "Use 'system format confirm'."
+ : "Run 'system format confirm'.");
+ break;
+ }
+ _cmdMgr->printSuccess(pt ? "Formatando LittleFS... reboot em seguida."
+ : "Formatting LittleFS... reboot follows.");
+ delay(100);
+ /* Core 1 dead during the multi-second erase burst; no unpause needed
+  * because the device reboots right after. */
+ _displayMgr->requestQuietMode( );
+ {
+ LogManager::WdtWindow _wdt(30000);
+ LittleFS.format( );
+ }
+ LogManager::instance( ).safeReboot( );
+ }
+
  case CMD_SET_NTP_ENABLED: {
  const bool pt = _cmdMgr->isPt( );
  bool en = (cmd.intVal1 != 0);
