@@ -145,6 +145,10 @@ public:
 	/** Millis( ) when quiet mode was entered; 0 = not in quiet. Used by
 	 * the T1.5 leak watchdog in AppManager_Loop. */
 	uint32_t quietSinceMs( ) const { return _quietSince; }
+	/** Wave 2 / invariant 3: true if the CALLING core currently owns
+	 * _stateMutex. Backing for the opt-in FLASH_OP tripwire
+	 * (ConcurrencyAsserts.h); safe to call from either core. */
+	static bool stateMutexHeldByCurrentCore( );
 
 	void setSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name);
 	void setSlotMinMax(float minT, float maxT, float minH, float maxH);

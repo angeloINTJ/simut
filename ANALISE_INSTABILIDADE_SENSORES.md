@@ -6,6 +6,20 @@
 
 ---
 
+## STATUS DOS PROBLEMAS (atualizado 2026-07-22 · onda 2 de estabilidade)
+
+| # | Problema | Status |
+|---|----------|--------|
+| 1 | Conflito PIO0 | ✅ Resolvido — BMP280 usa I2C de **hardware** (`Wire`/`Wire1`) quando os pinos permitem; PIO só como fallback, agora com **WARN** no log (`SensorManager.cpp`) |
+| 2 | Driver BME280 estático único | ✅ Resolvido — pool dinâmico por barramento/endereço (`_getOrCreateBmeDriver`, até 8 barramentos, 0x76+0x77) |
+| 3 | hardwareMismatch irreversível | ✅ Resolvido na onda 2 — re-verificação de ROM a cada 10 ciclos com recuperação automática quando o chip configurado retorna |
+| 4 | I2C bit-bang reinicializa GPIOs | ✅ Mitigado — caminho de hardware não passa por `gpio_init()` (`gpioInitForRole` pula pinos I2C); bit-bang restrito ao fallback sinalizado |
+| 5 | TouchPriority bloqueia API (503) | ✔️ Comportamento por design — cliente web faz retry; ver `docs/CONCURRENCY.md` |
+
+As seções abaixo são o diagnóstico original (v1.5.1), mantidas como registro.
+
+---
+
 ## SUMÁRIO EXECUTIVO
 
 Foram identificados **5 problemas críticos** que explicam as instabilidades dos sensores

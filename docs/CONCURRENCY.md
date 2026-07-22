@@ -53,10 +53,24 @@ reset, so behavior can never be worse than before.
 - `>50ms` — count of ops that almost certainly included a 4 KB erase.
   If this grows outside history rollover/cleanup, investigate.
 
-## Deliberately deferred (wave 2)
+## Deliberately deferred (wave 3)
 
-- BMP280 → hardware `Wire`/`Wire1` (needs the device on the bench;
-  option D of `ANALISE_INSTABILIDADE_SENSORES.md`).
-- Debug assert for invariant 3; lwIP `pbuf` low-water metric
-  (build-flag change in the overrides tool).
-- History write batching (rides on the V4 pending mechanism).
+- lwIP `pbuf` low-water metric (build-flag change in the overrides tool,
+  needs a build/RAM measurement cycle).
+- History write batching (rides on the V4 pending mechanism; product
+  decision on the acceptable power-loss window).
+
+## Resolved by wave 2 (2026-07-22)
+
+- **BMP280 on hardware I2C** — audit confirmed it was already implemented
+  upstream (`SensorManager` routes valid pin pairs to `Wire`/`Wire1` via
+  `i2cPeripheralForPins`, multi-driver pool per bus/address). Wave 2
+  added the missing piece: the PIO/bit-bang fallback now logs a **WARN
+  with the valid HW pin pairs**, so cause C1/C3 can never regress
+  silently again.
+- **Invariant-3 tripwire** — `ConcurrencyAsserts.h`; enable with
+  `-DSIMUT_CONCURRENCY_ASSERTS` to make FLASH_OP log an ERROR if entered
+  while the current core owns `_stateMutex`.
+- **DS18B20 mismatch auto-recovery** (sensor doc issue #3) — a
+  quarantined slot re-verifies the ROM every 10th cycle and lifts the
+  quarantine when the configured chip returns; a wrong chip stays out.
