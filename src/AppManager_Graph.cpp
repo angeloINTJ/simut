@@ -194,13 +194,15 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (f.read((uint8_t*)m, 4) == 4 && memcmp(m, HIST_V4_MAGIC, 4) == 0) isV4 = true;
  }
  if (isV4) {
- HistV4State g4st;
+ /* Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
+ static HistV4State g4st;
+ static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
  { StorageManager::ReadGuard rg(_storageMgr.get( ));
- f.seek(0); uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+ f.seek(0);
  int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
  if (hdrRead < (int)HIST_V4_HEADER_FIXED ||
  histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, g4st) == 0)
- { _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock(); continue; }
+ { f.close(); continue; }
  }
  int tMi = -1, hMi = -1;
  { SystemConfig &cfg = _storageMgr->getConfig();
@@ -216,8 +218,10 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  }}
  if (tMi < 0) { _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock(); continue; }
 
- uint8_t g4RdBuf[HIST_V4_READ_BUF]; size_t g4RdFilled = 0;
- int64_t g4vals[HIST_V4_MAX_MEASUREMENTS]; uint32_t g4epoch;
+ static uint8_t g4RdBuf[HIST_V4_READ_BUF];
+ static int64_t g4vals[HIST_V4_MAX_MEASUREMENTS];
+ size_t g4RdFilled = 0;
+ uint32_t g4epoch;
  bool hm4 = true; uint32_t gb4 = millis();
 
  while (hm4 && pkg.count < GRAPH_WIDTH) {

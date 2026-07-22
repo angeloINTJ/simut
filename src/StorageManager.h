@@ -317,6 +317,7 @@ public:
 
  File _currentLogFile;
  String _currentLogFileName = "";
+ String _v4CurrentLogFileName = ""; /**< V4: current .sim4 file path (separate from legacy). */
 
  /** Codec state v2 of the active file. Valid only for the file
  * whose path == _currentLogFileName. Reconstructed by scan on file

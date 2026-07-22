@@ -189,7 +189,7 @@
 #endif
 
 #ifndef SIMUT_SENSOR_BME280
-#define SIMUT_SENSOR_BME280 1   // BME280 T+H+P I2C sensor (enabled)
+#define SIMUT_SENSOR_BME280 0   // BME280 T+H+P I2C sensor (disabled - PIO conflict)
 #endif
 
 /* =========================================================================

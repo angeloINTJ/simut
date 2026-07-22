@@ -132,6 +132,7 @@ private:
 	 * when time reference returns. Prevents silent record loss after
 	 * NTP failure or factory-reset boot. */
  bool _histTimeRefWarned = false;
+ bool _histSchemaEmptyWarned = false;
 
  static constexpr uint32_t TOUCH_PRIORITY_MS = 5000;
 

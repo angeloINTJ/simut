@@ -443,12 +443,15 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 	 if (f.read((uint8_t*)magic, 4) == 4 && memcmp(magic, HIST_V4_MAGIC, 4) == 0) isV4File = true;
 	 }
 	 if (isV4File) {
-	 HistV4State v4st; f.seek(0);
-	 uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 /* Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
+	 static HistV4State v4st; f.seek(0);
+	 static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 static uint8_t rdBuf[HIST_V4_READ_BUF];
+	 static int64_t v4vals[HIST_V4_MAX_MEASUREMENTS];
 	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
 	 if (hdrRead >= (int)HIST_V4_HEADER_FIXED && histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) > 0) {
-	 uint8_t rdBuf[HIST_V4_READ_BUF]; size_t rdFilled = 0;
-	 int64_t v4vals[HIST_V4_MAX_MEASUREMENTS]; uint32_t v4epoch;
+	 size_t rdFilled = 0;
+	 uint32_t v4epoch;
 	 bool fileHasMoreV4 = true; uint32_t inFileCountV4 = 0;
 	 SystemConfig &cfg = _storageRef->getConfig();
 	 while (fileHasMoreV4 && batch.size() < limit) {
