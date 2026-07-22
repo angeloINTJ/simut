@@ -507,6 +507,40 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
 
+ case CMD_REMOVE_SENSOR: {
+ const bool pt = _cmdMgr->isPt( );
+ if (!cmd.confirmed) {
+ _cmdMgr->printInfo(pt ? "ATENCAO: desativa e limpa o slot do sensor."
+ : "WARN: deactivates and clears the sensor slot.");
+ _cmdMgr->printInfo(pt ? "Use 'sensor remove <gpio> confirm'."
+ : "Run 'sensor remove <gpio> confirm'.");
+ break;
+ }
+ if (!cmd.intVal1Valid) {
+ _cmdMgr->printError(pt ? "Numero invalido para GPIO"
+ : "Invalid number for GPIO");
+ break;
+ }
+ if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
+ _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
+ : "Slot out of range (0-15)");
+ break;
+ }
+ {
+ SensorRecord &r = cfg.sensors[cmd.intVal1];
+ r.active = false;
+ r.sensorType = TYPE_NONE;
+ for (int pp = 0; pp < MAX_SENSOR_PINS; pp++) r.pins[pp] = PIN_UNUSED;
+ memset(r.rom, 0, 8);
+ r.hwId[0] = '\0';
+ r.friendlyName[0] = '\0';
+ }
+ changed = true;
+ _cmdMgr->printSuccess((pt ? "Slot removido: "
+ : "Sensor slot removed: ") + String(cmd.intVal1));
+ break;
+ }
+
  case CMD_ACCEPT_SENSOR:
  cmdHandleAcceptSensor(cmd, cfg, changed); break;
 

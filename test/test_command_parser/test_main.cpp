@@ -175,6 +175,20 @@ void test_sensor_define_type_only_no_name(void) {
     TEST_ASSERT_EQUAL_STRING("bme280", d.strVal3);
 }
 
+void test_sensor_remove_confirm(void) {
+    CliDemand d = parse("sensor remove 5 confirm");
+    TEST_ASSERT_EQUAL(CMD_REMOVE_SENSOR, d.type);
+    TEST_ASSERT_TRUE(d.intVal1Valid);
+    TEST_ASSERT_EQUAL(5, d.intVal1);
+    TEST_ASSERT_TRUE(d.confirmed);
+}
+
+void test_sensor_remove_without_confirm(void) {
+    CliDemand d = parse("sensor remove 5");
+    TEST_ASSERT_EQUAL(CMD_REMOVE_SENSOR, d.type);
+    TEST_ASSERT_FALSE(d.confirmed);
+}
+
 /* ---- 256-char boundary (CLI_LINE_MAX) ---- */
 
 void test_long_line_still_parses_help_prefix(void) {
@@ -212,6 +226,8 @@ int main(int argc, char** argv) {
     RUN_TEST(test_sensor_define_explicit_bme280);
     RUN_TEST(test_sensor_define_no_type_keeps_name_and_empty_strval3);
     RUN_TEST(test_sensor_define_type_only_no_name);
+    RUN_TEST(test_sensor_remove_confirm);
+    RUN_TEST(test_sensor_remove_without_confirm);
     RUN_TEST(test_long_line_still_parses_help_prefix);
     return UNITY_END();
 }

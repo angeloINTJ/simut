@@ -321,6 +321,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_FACTORY_RESET:     return CLI_VALID_PRIV;
  case CMD_RESET_ADMIN:       return CLI_VALID_PRIV;
  case CMD_WIPE_SENSOR:       return CLI_VALID_PRIV;
+ case CMD_REMOVE_SENSOR:     return CLI_VALID_PRIV;
  case CMD_DEFINE_SENSOR:     return CLI_VALID_PRIV;
  case CMD_ACCEPT_SENSOR:     return CLI_VALID_PRIV;
  case CMD_TOUCH_SIM:         return CLI_VALID_PRIV;
@@ -458,6 +459,8 @@ void CommandManager::printModeHelp( ) {
                                   : "  sensor define <gpio> <rom> <hwid> <name> [type]");
   showIf(CMD_WIPE_SENSOR,      pt ? "  sensor wipe <gpio> [confirm]  Resetar historico"
                                   : "  sensor wipe <gpio> [confirm]  Wipe sensor history");
+  showIf(CMD_REMOVE_SENSOR,    pt ? "  sensor remove <gpio> [confirm]  Remover slot"
+                                  : "  sensor remove <gpio> [confirm]  Remove sensor slot");
   showIf(CMD_SENSOR_FIELD,     pt ? "  sensor <slot> <campo> <valor>  Configurar sensor"
                                   : "  sensor <slot> <field> <value>  Configure sensor");
  }

@@ -53,6 +53,7 @@ enum DemandType {
  CMD_SET_TIME, /**< strVal1="YYYY-MM-DD", strVal2="HH:MM:SS" */
  CMD_DEFINE_SENSOR,
  CMD_WIPE_SENSOR,
+ CMD_REMOVE_SENSOR, /**< sensor remove <gpio> confirm — deactivate and clear a slot */
  CMD_ACCEPT_SENSOR,
  CMD_SCAN_SENSORS,
  CMD_WRITE_MEMORY,
