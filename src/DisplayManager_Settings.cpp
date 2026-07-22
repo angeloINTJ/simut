@@ -54,7 +54,7 @@ void DisplayManager::drawSettingsThemes( ) {
  _driver.tft->setCursor(141 + (75 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
  _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
  _driver.tft->setTextColor(C_BG_MAIN);
- String appTxt = tr(TR_APPLY);
+ const char* appTxt = tr(TR_APPLY); /* T1.2: no heap in Core-1 render */
  _driver.tft->getTextBounds(appTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(222 + (93 - bw)/2, btnY + 25); _driver.tft->print(appTxt);
  }
@@ -217,7 +217,7 @@ void DisplayManager::drawAlarmEdit( ) {
  _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
  _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
  int16_t tx1, ty1; uint16_t tw, th;
- String titleTxt = String(_tempAlarmConfig.friendlyName);
+ const char* titleTxt = _tempAlarmConfig.friendlyName; /* T1.2: no heap in Core-1 render */
  _driver.tft->getTextBounds(titleTxt, 0, 0, &tx1, &ty1, &tw, &th);
  _driver.tft->setCursor((320 - tw) / 2, 22); _driver.tft->print(titleTxt);
  _driver.tft->setTextColor(C_TEXT_SUB); _driver.tft->setCursor(10, 52); _driver.tft->print(tr(TR_TEMP));
@@ -234,7 +234,7 @@ void DisplayManager::drawAlarmEdit( ) {
  _driver.tft->setCursor(141 + (75 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
  _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
  _driver.tft->setTextColor(C_BG_MAIN);
- String saveTxt = tr(TR_SAVE);
+ const char* saveTxt = tr(TR_SAVE); /* T1.2: no heap in Core-1 render */
  _driver.tft->getTextBounds(saveTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(222 + (93 - bw)/2, btnY + 25); _driver.tft->print(saveTxt);
  _forceSettingsRedraw = false;
@@ -298,7 +298,7 @@ void DisplayManager::drawSettingsMain( ) {
  _driver.tft->setCursor(141 + (75 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
  _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
  _driver.tft->setTextColor(C_BG_MAIN);
- String enterTxt = tr(TR_ENTER);
+ const char* enterTxt = tr(TR_ENTER); /* T1.2: no heap in Core-1 render */
  _driver.tft->getTextBounds(enterTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(222 + (93 - bw)/2, btnY + 25); _driver.tft->print(enterTxt);
  }
@@ -915,7 +915,7 @@ void DisplayManager::drawSettingsSounds( ) {
 
  _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
  _driver.tft->setTextColor(C_BG_MAIN);
- String saveTxt = tr(TR_SAVE);
+ const char* saveTxt = tr(TR_SAVE); /* T1.2: no heap in Core-1 render */
  _driver.tft->getTextBounds(saveTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(222 + (93 - bw) / 2, btnY + 25); _driver.tft->print(saveTxt);
  }
@@ -1083,7 +1083,7 @@ void DisplayManager::drawMelodySelect( ) {
 
  _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
  _driver.tft->setTextColor(C_BG_MAIN);
- String saveTxt = tr(TR_SAVE);
+ const char* saveTxt = tr(TR_SAVE); /* T1.2: no heap in Core-1 render */
  _driver.tft->getTextBounds(saveTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(222 + (93 - bw) / 2, btnY + 25); _driver.tft->print(saveTxt);
  }
