@@ -77,6 +77,27 @@ void AppManager::loop( ) {
  }
 	watchdog_update( );
 
+ /* T1.5 (stability wave 1): quiet-mode leak watchdog. Every caller of
+  * requestQuietMode( ) must releaseQuietMode( ) — if an error path ever
+  * skips the release, Core 1 stays dead forever and the heartbeat
+  * restart above can't act (it requires isCore1Ready). 15 s is far
+  * beyond any legitimate save; drain the refcount and relaunch. */
+ {
+  static uint32_t _lastQuietCheck = 0;
+  if (timeSince(_lastQuietCheck, 5000)) {
+   _lastQuietCheck = millis( );
+   uint32_t qs = _displayMgr->quietSinceMs( );
+   if (_displayMgr->isInQuietMode( ) && qs != 0 && timeSince(qs, 15000)) {
+    LOG_CODE(LOG_ERROR, "APP", APP_DISPLAY_PAUSE_STUCK, 1,
+             TRL("Quiet mode leak >15s. Forcing release."));
+    for (int i = 0; i < 4 && _displayMgr->isInQuietMode( ); i++) {
+     _displayMgr->releaseQuietMode( );
+    }
+   }
+  }
+ }
+	watchdog_update( );
+
  CliDemand cmd;
  TRACE_MOD(0, MOD_CLI);
 

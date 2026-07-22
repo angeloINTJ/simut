@@ -336,6 +336,9 @@ public:
  bool mountFS( );
  void loadDefaults( );
  void enforceStorageLimit( );
+ /** T1.4: set when enforceStorageLimit( ) hits its per-call deletion cap
+  * with usage still above the limit; drained by update( ) in slices. */
+ bool _cleanupPending = false;
 
  /** Returns pointer to the NetworkTimeData overlay in
  * `reserved[28..47]`. If magic absent, initializes with backward-compatible

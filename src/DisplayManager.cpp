@@ -587,6 +587,26 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 		/* Already in quiet mode — external caller holds. */
 		return true;
 	}
+	/* T1.1 QUIESCE (stability wave 1): ask Core 1 to park at the top of
+	 * its loop — a point guaranteed to be outside malloc/free, outside
+	 * the event-queue spinlock and outside any SPI burst — before the
+	 * hard reset. A reset landing inside malloc leaves the allocator
+	 * mutex held forever (Core 0 hangs on its next allocation → WDT);
+	 * inside queue_try_add it leaks a spinlock (both cores hang).
+	 * Timeout 200 ms: the fallback is exactly the previous behavior
+	 * (reset wherever Core 1 is), so this can never be worse. */
+	if (__atomic_load_n(&_core1Ready, __ATOMIC_ACQUIRE)) {
+		__atomic_store_n(&_quiescePlease, true, __ATOMIC_RELEASE);
+		uint32_t t0 = millis( );
+		while (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) &&
+		       !timeSince(t0, 200)) {
+			tight_loop_contents( );
+		}
+		if (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE)) {
+			LOG_CODE(LOG_WARN, "DSP", DSP_FORCE_UNPAUSE, 1,
+			         TRL("Quiesce timeout — hard reset fallback"));
+		}
+	}
 	/* First level: hard-reset Core 1. Stops immediately; flash work safe. */
 	multicore_reset_core1( );
 	delay(50); /* Short pause for SSI/SPI to stabilize. */
@@ -596,7 +616,10 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 	__atomic_store_n(&_core1Ready, false, __ATOMIC_RELEASE);
 	__atomic_store_n(&_quietModeActive, true, __ATOMIC_RELEASE);
 	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+	__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+	__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
 	_isPausedForFlash = false;
+	_quietSince = millis( ); /* T1.5 leak watchdog anchor. */
 	LogManager::instance( ).setCorePaused(1, true);
 	return true;
 }
@@ -617,7 +640,10 @@ void DisplayManager::releaseQuietMode( ) {
 	 * zero pause flags. New Core 1 will redraw everything in core1Entry. */
 	mutex_init(&_stateMutex);
 	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+	__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+	__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
 	_isPausedForFlash = false;
+	_quietSince = 0; /* T1.5: leak watchdog disarmed. */
 	_lastHeartbeat = millis( );
 	__atomic_store_n(&_quietModeActive, false, __ATOMIC_RELEASE);
 	LogManager::instance( ).setCorePaused(1, false);
@@ -672,6 +698,19 @@ void DisplayManager::loopCore1( ) {
 		TRACE_MOD(1, MOD_DISPLAY);
 		TRACE_BEAT(1);
 
+		/* T1.1 SAFE PARK (stability wave 1): honored at the loop top —
+		 * guaranteed outside malloc/free, the event-queue spinlock and
+		 * any SPI transaction. Core 0 will hard-reset us while we spin
+		 * here; the heartbeat keeps the Core-1 health watchdog quiet
+		 * during the (sub-200 ms) wait. */
+		if (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+			__atomic_store_n(&_core1Parked, true, __ATOMIC_RELEASE);
+			while (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+				_lastHeartbeat = millis( );
+			}
+			__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
+		}
+
 		_lastHeartbeat = millis( );
 		/* OR with simulated touch active flag.
 		 * handleTouch and mapTouchPoint check _simTouchActive to use
@@ -694,7 +733,10 @@ void DisplayManager::loopCore1( ) {
 				_driver.tft->setFont(&simutFont12pt);
 				_driver.tft->setTextColor(C_TEXT_MAIN);
 				int16_t x1, y1; uint16_t w, h;
-				String msg = tr(TR_APPLYING_THEME);
+				/* T1.2: Core-1 render path is heap-free — tr( ) already
+				 * returns const char*, the String wrapper was pure waste
+				 * (and a reset-inside-malloc hazard). */
+				const char* msg = tr(TR_APPLYING_THEME);
 				_driver.tft->getTextBounds(msg, 0, 0, &x1, &y1, &w, &h);
 				_driver.tft->setCursor(160 - (w/2), 127);
 				_driver.tft->print(msg);
@@ -770,7 +812,7 @@ void DisplayManager::loopCore1( ) {
 							UiEvent ev;
 							ev.type = UiEvent::EVT_SLOT_SELECT;
 							ev.id = idx;
-							queue_try_add(&_eventQueue, &ev);
+							pushUiEvent(ev);
 							break;
 						}
 					}
@@ -1009,14 +1051,19 @@ void DisplayManager::render(const SystemState& state) {
 			if (!fullRedraw && cur.key == prev.key &&
 			    strncmp(cur.suffix, prev.suffix, sizeof(cur.suffix)) == 0) continue;
 			_driver.tft->setCursor(20, boxY + 22 + (i*10));
-			String logLine;
+			/* T1.2: fixed buffer on the Core-1 render path (was 2-3 heap
+			 * allocations per changed line). Pad to 46 columns preserved
+			 * so shorter lines still overwrite older, longer ones. */
+			char logLine[48];
 			if (cur.key >= 0 && cur.key < (int16_t)TR_KEYS_COUNT) {
-				logLine = tr((LangKey)cur.key);
-				if (cur.suffix[0]) logLine += cur.suffix;
+				snprintf(logLine, sizeof(logLine), "%s%s",
+				         tr((LangKey)cur.key), cur.suffix);
 			} else {
-				logLine = cur.suffix; /* raw legacy */
+				snprintf(logLine, sizeof(logLine), "%s", cur.suffix); /* raw legacy */
 			}
-			while(logLine.length( ) < 46) logLine += " ";
+			size_t llen = strlen(logLine);
+			while (llen < 46 && llen < sizeof(logLine) - 1) logLine[llen++] = ' ';
+			logLine[llen] = '\0';
 			_driver.tft->print(logLine);
 		}
 
@@ -1203,7 +1250,7 @@ void DisplayManager::drawSettingsLicense( ) {
 
 		_driver.tft->fillRoundRect(215, btnY, 100, btnH, 8, C_ACCENT);
 		_driver.tft->setTextColor(C_BG_MAIN);
-		String backTxt = tr(TR_BACK);
+		const char* backTxt = tr(TR_BACK); /* T1.2: heap-free render path. */
 		_driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
 		_driver.tft->setCursor(215 + (100 - bw) / 2, btnY + 25); _driver.tft->print(backTxt);
 	}

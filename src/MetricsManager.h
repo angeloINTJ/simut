@@ -40,6 +40,12 @@ struct SystemMetrics {
 
  /* Storage */
  uint32_t configSaves = 0;
+ /* T0.1 stability wave 1 — FLASH_OP timing (proxy for Core-0 IRQ-off
+  * windows during flash program/erase; see docs/CONCURRENCY.md). */
+ uint32_t flashOps = 0;         /**< Completed FLASH_OP blocks since boot */
+ uint32_t flashOpMaxMs = 0;     /**< Longest single op — the worst radio stall */
+ uint32_t flashOpTotalMs = 0;   /**< Sum, for average = total/ops */
+ uint32_t flashOpsOver50ms = 0; /**< Ops long enough to imply a 4 KB erase */
 
  /* System — updated by sampleHeap( ) */
  uint32_t heapFreeNow = 0;

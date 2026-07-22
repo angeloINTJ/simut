@@ -128,7 +128,7 @@ void DisplayManager::drawSettingsLang( ) {
  _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
  _driver.tft->setFont(&simutFont9pt);
  _driver.tft->setTextColor(C_TEXT_MAIN);
- String backTxt = tr(TR_BACK);
+ const char* backTxt = tr(TR_BACK);
  _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(141 + (75 - bw) / 2, btnY + 25);
  _driver.tft->print(backTxt);

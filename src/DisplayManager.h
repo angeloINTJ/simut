@@ -142,6 +142,9 @@ public:
 	/** Core 1 in quiet mode (or transitioning). IRQ-based lockout is impossible
 	 * here (Core 1 with IRQs off) and unnecessary (Core 1 does not touch flash). */
 	bool isInQuietMode( ) const { return _quietModeRequested || _quietModeActive; }
+	/** Millis( ) when quiet mode was entered; 0 = not in quiet. Used by
+	 * the T1.5 leak watchdog in AppManager_Loop. */
+	uint32_t quietSinceMs( ) const { return _quietSince; }
 
 	void setSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name);
 	void setSlotMinMax(float minT, float maxT, float minH, float maxH);
@@ -340,6 +343,28 @@ private:
 	volatile bool _quietModeActive = false;
 	volatile int32_t _quietModeRefCount = 0;
 
+	/* T1.1 quiesce protocol (stability wave 1): Core 0 raises
+	 * _quiescePlease; Core 1 parks at the top of loopCore1 (guaranteed
+	 * outside malloc/free, the event-queue spinlock and any SPI burst)
+	 * and ACKs via _core1Parked. Only then — or after a 200 ms timeout,
+	 * preserving the old behavior as fallback — does Core 0 hard-reset.
+	 * This closes the "reset while holding a lock" class (R1 in
+	 * docs/CONCURRENCY.md). _quietSince feeds the leak watchdog in
+	 * AppManager_Loop (T1.5). */
+	volatile bool _quiescePlease = false;
+	volatile bool _core1Parked = false;
+	volatile uint32_t _quietSince = 0;
+
+	/** Core-1-only event push, gated by the quiesce protocol so the
+	 * queue's spinlock is never being held at hard-reset time. All
+	 * former direct queue_try_add(&_eventQueue, ...) call sites now
+	 * route through here (invariant 2, docs/CONCURRENCY.md). */
+	void pushUiEvent(const UiEvent& ev) {
+		if (!__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+			queue_try_add(&_eventQueue, &ev);
+		}
+	}
+
 	/* RAM-resident quiet loop — called in loopCore1 when _quietModeRequested. */
 	void _runQuietLoop( );
 
@@ -454,7 +479,7 @@ private:
 	 	if (nextSlot >= 0) {
 	 		_sharedState.selectedSlotIdx = nextSlot;
 	 		UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = nextSlot;
-	 		queue_try_add(&_eventQueue, &ev);
+	 		pushUiEvent(ev); /* single choke point — invariant 2. */
 	 	}
 	 }
 	 /* Mirror slot* data when interactive, uninitialized, or showing same sensor */
