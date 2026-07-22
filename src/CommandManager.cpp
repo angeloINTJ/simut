@@ -803,6 +803,14 @@ void CommandManager::renderMetrics( ) {
  consolePrintln(pt ? " [STORAGE]" : " [STORAGE]");
  consolePrintf (pt ? " Config saves: %lu\n" : " Config saves: %lu\n",
  (unsigned long)m.configSaves);
+ consolePrintf (pt ? " Flash ops: %lu (media %lu ms)\n"
+                   : " Flash ops: %lu (avg %lu ms)\n",
+ (unsigned long)m.flashOps,
+ (unsigned long)(m.flashOps ? m.flashOpTotalMs / m.flashOps : 0));
+ consolePrintf (pt ? " Pior op: %lu ms | >50ms: %lu\n"
+                   : " Worst op: %lu ms | >50ms: %lu\n",
+ (unsigned long)m.flashOpMaxMs,
+ (unsigned long)m.flashOpsOver50ms);
  printDivider( );
 }
 

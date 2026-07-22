@@ -116,7 +116,7 @@ void DisplayManager::handleTouch( ) {
  _calValid = true;
  UiEvent ev;
  ev.type = UiEvent::EVT_APPLY_TOUCH_CAL;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
 
  _calPhase = 2;
  _forceSettingsRedraw = true;
@@ -252,7 +252,7 @@ void DisplayManager::handleTouch( ) {
 
  UiEvent ev;
  ev.type = UiEvent::EVT_SAVE_TOUCH_CAL;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  _touchSoundPending = false;
  }
  } else {
@@ -378,7 +378,7 @@ void DisplayManager::handleTouch( ) {
  if (_topPanel.showMinMax && x > 266 && firstTouch) {
  _topPanel.showMinMax = false;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = -1; ev.param = 0;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  return;
  }
 
@@ -422,7 +422,7 @@ void DisplayManager::handleTouch( ) {
  _bottomPanel.showMinMax = false;
  if (sensorIdToGraph != -1) {
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = sensorIdToGraph; ev.param = 0;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  }
  return;
  }
@@ -462,7 +462,7 @@ void DisplayManager::handleTouch( ) {
  if (b.kind == 1) { /* CFG */
  if (!acceptSlideTouch(20)) return;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_SETTINGS;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  /* SLOT */
  if (!acceptSlideTouch(10 + b.slotId)) return;
@@ -470,7 +470,7 @@ void DisplayManager::handleTouch( ) {
  if (!_topPanel.fixed) _topPanel.showMinMax = false;
  drawBottomButtons(b.slotId, false);
  UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = b.slotId;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  }
  }
  else if (_uiMode == MODE_STATS_VIEW) {
@@ -478,7 +478,7 @@ void DisplayManager::handleTouch( ) {
  if (y > 170) {
  if (!acceptTouch(1)) return;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = 3;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  }
  else if (_uiMode == MODE_GRAPH_VIEW) {
@@ -505,33 +505,33 @@ void DisplayManager::handleTouch( ) {
  /* Past (◀) */
  if (!acceptHoldTouch(10)) return;
  UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = -1;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  if (btn == 1 && _graphNavOffset < 0) {
  /* Future (▶) — only if offset < 0 */
  if (!acceptHoldTouch(11)) return;
  UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = +1;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  if (btn == 2) {
  /* Calendar (📅) */
  if (!acceptTouch(0)) return;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = _graphData.sensorIdx; ev.param = 0;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  if (btn == 3 && _graphData.timeRange > 0) {
  /* Zoom In — shorter range (more detail) */
  if (!acceptHoldTouch(12)) return;
  int newRange = _graphData.timeRange - 1;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  if (btn == 4 && _graphData.timeRange < 4) {
  /* Zoom Out — longer range (less detail) */
  if (!acceptHoldTouch(13)) return;
  int newRange = _graphData.timeRange + 1;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  }
  /* Tap on central zone -> temperature details (page 0) */
@@ -566,33 +566,33 @@ void DisplayManager::handleTouch( ) {
  /* Past (◀) */
  if (!acceptHoldTouch(10)) return;
  UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = -1;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  if (btn == 1 && _graphNavOffset < 0) {
  /* Future (▶) — only if offset < 0 */
  if (!acceptHoldTouch(11)) return;
  UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = +1;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  if (btn == 2) {
  /* Calendar (📅) */
  if (!acceptTouch(0)) return;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = _graphData.sensorIdx; ev.param = 0;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  if (btn == 3 && _graphData.timeRange > 0) {
  /* Zoom In — shorter range (more detail) */
  if (!acceptHoldTouch(12)) return;
  int newRange = _graphData.timeRange - 1;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  if (btn == 4 && _graphData.timeRange < 4) {
  /* Zoom Out — longer range (less detail) */
  if (!acceptHoldTouch(13)) return;
  int newRange = _graphData.timeRange + 1;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  }
  /* Tap on central zone -> next page or return to graph */
@@ -624,13 +624,13 @@ void DisplayManager::handleTouch( ) {
  if (y < 28 && x < 30) {
  if (!acceptSlideTouch(20)) return;
  UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = -1;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  /* ▶ Month arrow — header right */
  if (y < 28 && x > 290) {
  if (!acceptSlideTouch(21)) return;
  UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = +1;
- queue_try_add(&_eventQueue, &ev); return;
+ pushUiEvent(ev); return;
  }
  /* ── Day grid (y=44..190) ── */
  if (y >= 44 && y < 190) {
@@ -655,7 +655,7 @@ void DisplayManager::handleTouch( ) {
  UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_DAY;
  ev.id = _graphData.sensorIdx;
  ev.param = dayNum;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  }
  }
  }
@@ -665,18 +665,18 @@ void DisplayManager::handleTouch( ) {
  /* ◀ Month */
  if (!acceptSlideTouch(20)) return;
  UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = -1;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  } else if (x >= 108 && x < 212) {
  /* Today — returns to graph with offset 0 */
  if (!acceptTouch(0)) return;
  _graphNavOffset = 0;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = _graphData.timeRange;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  } else if (x >= 217) {
  /* Month ▶ */
  if (!acceptSlideTouch(21)) return;
  UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_MONTH; ev.id = _graphData.sensorIdx; ev.param = +1;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  }
  }
  }
@@ -704,7 +704,7 @@ void DisplayManager::handleTouch( ) {
  showSettingsMain( );
  } else {
  if (!acceptTouch(13)) return;
- UiEvent ev; ev.type = UiEvent::EVT_APPLY_THEME; ev.id = _previewThemeIdx; queue_try_add(&_eventQueue, &ev);
+ UiEvent ev; ev.type = UiEvent::EVT_APPLY_THEME; ev.id = _previewThemeIdx; pushUiEvent(ev);
  }
  }
  }
@@ -732,7 +732,7 @@ void DisplayManager::handleTouch( ) {
  rec->alarmsActive = false;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
  ev.id = actualSensorId;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  _repaintSettings = true;
  } else {
  /* OFF -> enter limit editing screen */
@@ -840,7 +840,7 @@ void DisplayManager::handleTouch( ) {
  _tempAlarmConfig.alarmsActive = false;
  _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
- ev.id = _editSensorIdx; queue_try_add(&_eventQueue, &ev);
+ ev.id = _editSensorIdx; pushUiEvent(ev);
  showSettingsAlarms(_sysConfigPtr);
  }
  else {
@@ -850,7 +850,7 @@ void DisplayManager::handleTouch( ) {
  _tempAlarmConfig.alarmsActive = true;
  _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
- ev.id = _editSensorIdx; queue_try_add(&_eventQueue, &ev);
+ ev.id = _editSensorIdx; pushUiEvent(ev);
  showSettingsAlarms(_sysConfigPtr);
  }
  }
@@ -863,12 +863,14 @@ void DisplayManager::handleTouch( ) {
  if (y >= 80 && y <= 185) {
  int row = (y < 135) ? 0 : 1; int col = (x > 160) ? 1 : 0; int btnIdx = (row * 2) + col;
  if (!acceptTouch(1 + btnIdx)) return;
- String clickedChars = String(_keypadChars[btnIdx]); char expected = _expectedPin[_authStep];
- if (clickedChars.indexOf(expected) < 0) _isCurrentAttemptValid = false;
+ /* T1.2: strchr on the fixed keypad table — the String wrapper was a
+  * per-tap heap allocation on the Core-1 touch path. */
+ const char* clickedChars = _keypadChars[btnIdx]; char expected = _expectedPin[_authStep];
+ if (strchr(clickedChars, expected) == nullptr) _isCurrentAttemptValid = false;
  _authStep++; _authFailed = false;
  if ((size_t)_authStep >= _expectedPin.length( )) {
  if (_isCurrentAttemptValid) {
- _failedAttempts = 0; UiEvent ev; ev.type = UiEvent::EVT_AUTH_SUCCESS; queue_try_add(&_eventQueue, &ev); return;
+ _failedAttempts = 0; UiEvent ev; ev.type = UiEvent::EVT_AUTH_SUCCESS; pushUiEvent(ev); return;
  } else {
  _authFailed = true; _failedAttempts++; _authStep = 0; _isCurrentAttemptValid = true;
  _errorSoundPending = true;
@@ -910,7 +912,7 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptTouch(13)) return;
- UiEvent ev; ev.type = UiEvent::EVT_MENU_SELECT; ev.id = _menuSelection; queue_try_add(&_eventQueue, &ev);
+ UiEvent ev; ev.type = UiEvent::EVT_MENU_SELECT; ev.id = _menuSelection; pushUiEvent(ev);
  }
  }
  }
@@ -974,7 +976,7 @@ void DisplayManager::handleTouch( ) {
  ev.type = UiEvent::EVT_APPLY_DISPLAY_OFFSET;
  ev.id = _offsetPreviewX;
  ev.param = _offsetPreviewY;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  return;
  }
 
@@ -1020,7 +1022,7 @@ void DisplayManager::handleTouch( ) {
  }
  else {
  if (!acceptTouch(13)) return;
- UiEvent ev; ev.type = UiEvent::EVT_APPLY_LANG; ev.id = _previewLangIdx; queue_try_add(&_eventQueue, &ev);
+ UiEvent ev; ev.type = UiEvent::EVT_APPLY_LANG; ev.id = _previewLangIdx; pushUiEvent(ev);
  }
  }
  }
@@ -1188,7 +1190,7 @@ void DisplayManager::handleTouch( ) {
  ev.type = UiEvent::EVT_SAVE_PASSWORD;
  ev.id = 0;
  ev.param = 0;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  }
  }
  }
@@ -1309,7 +1311,7 @@ void DisplayManager::handleTouch( ) {
  UiEvent ev;
  ev.type = UiEvent::EVT_SAVE_PASSWORD;
  ev.id = 0; ev.param = 0;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  }
  }
  }
@@ -1555,7 +1557,7 @@ void DisplayManager::handleTouch( ) {
  else {
  if (!acceptTouch(13)) return;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_SOUNDS; ev.id = 0; ev.param = 0;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  }
  }
  }
@@ -1629,7 +1631,7 @@ void DisplayManager::handleTouch( ) {
  ev.type = UiEvent::EVT_ALARM_SILENCE;
  ev.id = _alarmActionSlot;
  ev.param = 120;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  }
  else if (y >= 115 && y <= 160) {
  if (!acceptTouch(1)) return;
@@ -1637,7 +1639,7 @@ void DisplayManager::handleTouch( ) {
  ev.type = UiEvent::EVT_ALARM_DEACTIVATE;
  ev.id = _alarmActionSlot;
  ev.param = 0;
- queue_try_add(&_eventQueue, &ev);
+ pushUiEvent(ev);
  }
  else if (y >= 170 && y <= 215) {
  if (!acceptTouch(2)) return;

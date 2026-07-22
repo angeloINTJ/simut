@@ -47,7 +47,19 @@ const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
   LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "fs_mutex_timeout"); \
  } else { \
   watchdog_update( ); \
+  uint32_t _fopT1 = millis( ); \
   BLOCK; \
+  /* T0.1 stability metrics: op duration is the observable proxy for \
+   * the IRQ-off windows of flash program/erase (see \
+   * docs/CONCURRENCY.md). >50 ms ~= one 4 KB erase reached. */ \
+  { \
+   uint32_t _fopDur = millis( ) - _fopT1; \
+   SystemMetrics& _fm = MetricsManager::instance( ).data( ); \
+   _fm.flashOps++; \
+   _fm.flashOpTotalMs += _fopDur; \
+   if (_fopDur > _fm.flashOpMaxMs) _fm.flashOpMaxMs = _fopDur; \
+   if (_fopDur > 50) _fm.flashOpsOver50ms++; \
+  } \
   watchdog_update( ); \
   mutex_exit(&_fsReadMutex); \
  } \
@@ -286,7 +298,19 @@ bool StorageManager::mountFS( ) {
  return false;
 }
 
-void StorageManager::update( ) {}
+void StorageManager::update( ) {
+ /* T1.4 maintenance slice (stability wave 1): drain deferred storage
+  * cleanup one file at a time, at least 15 s apart, instead of the old
+  * 4 s deletion burst. Runs from the Core-0 loop; enforceStorageLimit
+  * caps itself at 2 deletions and re-arms _cleanupPending as needed. */
+ if (_cleanupPending && _isMounted && !TouchPriority::isActive( )) {
+  static uint32_t _lastCleanupSlice = 0;
+  if (timeSince(_lastCleanupSlice, 15000)) {
+   _lastCleanupSlice = millis( );
+   FLASH_OP(enforceStorageLimit( ));
+  }
+ }
+}
 
 void StorageManager::loadDefaults( ) {
  memset(&_currentConfig, 0, sizeof(SystemConfig));
@@ -1564,16 +1588,18 @@ void StorageManager::enforceStorageLimit( ) {
  if (info.totalBytes == 0) return;
 
 
- if (!_storageDirty && ((info.usedBytes * 100) / info.totalBytes) <= 86) return;
+ if (!_storageDirty && !_cleanupPending && ((info.usedBytes * 100) / info.totalBytes) <= 86) return;
 
- int maxIter = 30;
- uint32_t _budgetStart = millis( );
- while (maxIter-- > 0 && ((info.usedBytes * 100) / info.totalBytes) > 86) {
+ /* T1.4 (stability wave 1): the old version deleted in a 4 s burst
+  * (up to 30 files). Each delete costs sector erases with Core-0 IRQs
+  * off, starving the CYW43 radio for seconds — the "Wi-Fi drops during
+  * cleanup" symptom. Now: at most 2 deletions per call; the remainder
+  * is flagged in _cleanupPending and drained one file per maintenance
+  * slice by update( ) (>= 15 s apart). Same total work over time,
+  * ~100x lower duty cycle of IRQ-off windows. */
+ int deletionsLeft = 2;
+ while (deletionsLeft > 0 && ((info.usedBytes * 100) / info.totalBytes) > 86) {
  feedWdt( );
- if (timeSince(_budgetStart, 4000)) {
- LOG_CODE(LOG_WARN, "STO", STO_ENFORCE_BUDGET, 0, "");
- break;
- }
 
 
  String oldestFile = _cachedOldestFile;
@@ -1600,13 +1626,21 @@ void StorageManager::enforceStorageLimit( ) {
  break;
  }
  LittleFS.remove(fullPath);
+ deletionsLeft--;
  _cachedOldestFile = "";
  LittleFS.info(info);
  } else break;
  }
 
 
- if (((info.usedBytes * 100) / info.totalBytes) <= 86) _storageDirty = false;
+ if (((info.usedBytes * 100) / info.totalBytes) <= 86) {
+ _storageDirty = false;
+ _cleanupPending = false;
+ } else {
+ /* Still above the limit — defer the rest to maintenance slices. */
+ if (!_cleanupPending) LOG_CODE(LOG_INFO, "STO", STO_ENFORCE_BUDGET, 0, "deferred");
+ _cleanupPending = true;
+ }
 }
 
 uint32_t StorageManager::getLastSentTimestamp( ) {

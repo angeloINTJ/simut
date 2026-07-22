@@ -266,11 +266,25 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  _driver.canvas->setFont(&simutFont9pt);
  _driver.canvas->setTextColor(C_TITLE_TEXT);
 
- /* Separate date and time by " - " */
- String fullTime = String(state.timeString);
- int sepIdx = fullTime.indexOf(" - ");
- String datePart = (sepIdx >= 0) ? fullTime.substring(0, sepIdx) : fullTime;
- String timePart = (sepIdx >= 0) ? fullTime.substring(sepIdx + 3) : "";
+ /* Separate date and time by " - ".
+  * T1.2: fixed buffers — this runs EVERY dashboard frame on Core 1 and
+  * was the single largest heap churn (3 String allocations per frame),
+  * i.e. the widest window for the reset-inside-malloc hazard. */
+ char datePart[24];
+ char timePart[16];
+ const char* sep = strstr(state.timeString, " - ");
+ if (sep) {
+  size_t dlen = (size_t)(sep - state.timeString);
+  if (dlen >= sizeof(datePart)) dlen = sizeof(datePart) - 1;
+  memcpy(datePart, state.timeString, dlen);
+  datePart[dlen] = '\0';
+  strncpy(timePart, sep + 3, sizeof(timePart) - 1);
+  timePart[sizeof(timePart) - 1] = '\0';
+ } else {
+  strncpy(datePart, state.timeString, sizeof(datePart) - 1);
+  datePart[sizeof(datePart) - 1] = '\0';
+  timePart[0] = '\0';
+ }
 
  /* Measure only sep and date — timeX = sepX + sepW (no need to measure timeW). */
  int16_t bx, by; uint16_t bw, bh;

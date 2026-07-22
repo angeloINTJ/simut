@@ -49,7 +49,7 @@ void DisplayManager::drawSettingsThemes( ) {
  _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
  _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
  _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- String backTxt = tr(TR_BACK);
+ const char* backTxt = tr(TR_BACK);
  _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(141 + (75 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
  _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
@@ -123,7 +123,7 @@ void DisplayManager::drawSettingsAlarms( ) {
  /* Back button fills the entire remaining width */
  _driver.tft->fillRoundRect(141, btnY, 174, btnH, 8, C_ACCENT);
  _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_BG_MAIN);
- String backTxt = tr(TR_BACK);
+ const char* backTxt = tr(TR_BACK);
  _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(141 + (174 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
  }
@@ -229,7 +229,7 @@ void DisplayManager::drawAlarmEdit( ) {
  _driver.tft->fillTriangle(104, btnY + 12, 94, btnY + 26, 114, btnY + 26, C_TEXT_MAIN);
  _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
  _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- String backTxt = tr(TR_BACK);
+ const char* backTxt = tr(TR_BACK);
  _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(141 + (75 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
  _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
@@ -293,7 +293,7 @@ void DisplayManager::drawSettingsMain( ) {
  _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
  _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
  _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- String backTxt = tr(TR_BACK);
+ const char* backTxt = tr(TR_BACK);
  _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(141 + (75 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
  _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
@@ -909,7 +909,7 @@ void DisplayManager::drawSettingsSounds( ) {
 
  _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
  _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- String backTxt = tr(TR_BACK);
+ const char* backTxt = tr(TR_BACK);
  _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(141 + (75 - bw) / 2, btnY + 25); _driver.tft->print(backTxt);
 
@@ -1077,7 +1077,7 @@ void DisplayManager::drawMelodySelect( ) {
 
  _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
  _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- String backTxt = tr(TR_BACK);
+ const char* backTxt = tr(TR_BACK);
  _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(141 + (75 - bw) / 2, btnY + 25); _driver.tft->print(backTxt);
 

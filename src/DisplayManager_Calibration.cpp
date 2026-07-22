@@ -142,7 +142,7 @@ void DisplayManager::drawSettingsDisplayOffset( ) {
  * - reset button center at y=108..132
  * - back/apply buttons at y=204..236 */
  const String titleTxt = tr(TR_DISPLAY_OFFSET_TITLE);
- const String backTxt = tr(TR_BACK);
+ const char* backTxt = tr(TR_BACK);
  const String applyTxt = tr(TR_APPLY);
  const int cx = 160, cy = 120;
  GFXcanvas16* cv = beginScreenRender( );
@@ -324,7 +324,7 @@ void DisplayManager::drawTouchSensitivity( ) {
  * - cancel button y=195..235 (text at y=220)
  * - bar frame at (289, 38..192). */
  const String titleTxt = tr(TR_SENS_TITLE);
- const String backTxt = tr(TR_CANCEL);
+ const char* backTxt = tr(TR_CANCEL);
  GFXcanvas16* cv = beginScreenRender( );
  if (cv) {
  int16_t bx, by; uint16_t bw, bh;
