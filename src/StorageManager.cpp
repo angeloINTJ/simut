@@ -37,7 +37,11 @@ const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
  * main-loop stalls when a long-running read (e.g. web API history)
  * holds the mutex. After 5 seconds of waiting, gives up silently —
  * the write will be retried on the next history interval.
- * LittleFS internally handles multicore_lockout via flash_safe_execute. */
+ * WARNING: FLASH_OP does NOT pause Core 1 — and neither does LittleFS
+ * (arduino-pico's idleOtherCore( ) is a no-op without setup1/loop1;
+ * there is no flash_safe_execute in its write path). Any FLASH_OP whose
+ * BLOCK programs/erases flash MUST be preceded by Core1FlashPause (or
+ * run inside quiet mode), or Core 1's XIP fetches wedge the QSPI. */
 #define FLASH_OP(BLOCK) do { \
  SIMUT_ASSERT_NO_STATE_MUTEX(); /* Wave 2: invariant 3 (no-op unless -DSIMUT_CONCURRENCY_ASSERTS) */ \
  uint32_t _fopStart = millis( ); \
@@ -66,6 +70,21 @@ const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
   mutex_exit(&_fsReadMutex); \
  } \
 } while (0)
+
+/* RAII: pause Core 1 rendering across flash program/erase bursts.
+ * The FLASH_OP comment above used to claim LittleFS handles the
+ * multicore lockout — it does NOT: arduino-pico's idleOtherCore( ) is
+ * a no-op without setup1/loop1, so flash_range_program/erase would run
+ * with Core 1 executing from XIP, wedging the QSPI arbiter. Core 0
+ * then spins IRQs-off inside the flash op, the WDT never gets fed and
+ * the HW watchdog fires (autopsy: C0=[HIST_FLASH] C1=[DISPLAY]).
+ * Same protection the LogManager flush path takes via requestFsLock:
+ * refcounted pauseRendering, no-op while in quiet mode. */
+struct Core1FlashPause {
+ StorageManager* _s;
+ explicit Core1FlashPause(StorageManager* s) : _s(s) { _s->enterFlashSafeMode( ); }
+ ~Core1FlashPause( ) { _s->exitFlashSafeMode( ); }
+};
 
 const uint16_t CONFIG_VERSION = 17;
 
@@ -309,6 +328,7 @@ void StorageManager::update( ) {
   static uint32_t _lastCleanupSlice = 0;
   if (timeSince(_lastCleanupSlice, 15000)) {
    _lastCleanupSlice = millis( );
+   Core1FlashPause _c1(this); /* file deletion = erase burst */
    FLASH_OP(enforceStorageLimit( ));
   }
  }
@@ -1496,6 +1516,7 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
 
  LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
  LogManager::WdtWindow _wdt(30000);
+ Core1FlashPause _c1(this);
 
  /* Chunk 1: enforce storage limit (only on daily rollover). */
  if (path != _currentLogFileName) {
@@ -2044,6 +2065,7 @@ void StorageManager::ensureV4Schema( ) {
 
  LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
  LogManager::WdtWindow _wdt(30000);
+ Core1FlashPause _c1(this);
 
  String path = getHistoryFileNameV4( );
  _v4CurrentLogFileName = path;
@@ -2123,6 +2145,7 @@ bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t mea
 
 	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
 	LogManager::WdtWindow _wdt(30000);
+	Core1FlashPause _c1(this);
 
 	/* Chunk 1: enforce on rollover */
 	if (path != _v4CurrentLogFileName) {
