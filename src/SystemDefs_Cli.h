@@ -132,7 +132,7 @@ struct CliDemand {
  char strVal1[64] = {0};
  char strVal2[64] = {0};
  char strVal3[32] = {0};
- int intVal1;
+ int intVal1 = 0; /**< Zero-initialized: handlers must still check intVal1Valid. */
  bool boolVal;
  uint8_t rom[8];
  bool confirmed = false; /**< true if suffix 'confirm' present — gate for destructive commands */
