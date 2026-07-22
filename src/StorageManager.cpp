@@ -2012,40 +2012,38 @@ void StorageManager::ensureV4Schema( ) {
  String path = getHistoryFileNameV4( );
  _v4CurrentLogFileName = path;
 
- /* Build schema from current config */
- HistV4SensorDef s[HIST_V4_MAX_SENSORS];
- HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
- uint8_t pool[HIST_V4_MAX_STRPOOL];
- uint8_t sc = 0, mc = 0, sp = 0;
- if (!buildMeasureSchema(s, sc, m, mc, pool, sp)) {
-  LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "schema_empty");
-  return;
+ /* v1.5.3 FIX (data loss on every boot): this function used
+  * LittleFS.open(path, "w") unconditionally — mode "w" TRUNCATES.
+  * Since _histV4CodecValid is RAM-only, every boot came through here
+  * and wiped the records already logged that day. An existing file is
+  * now SCANNED (schema + anchor/delta cadence restored from disk, torn
+  * tail repaired); only a missing/header-corrupt file is recreated. */
+ bool ok = false;
+ bool exists = false;
+ FLASH_OP({ exists = LittleFS.exists(path); });
+
+ if (exists) {
+  size_t torn = 0;
+  FLASH_OP({
+   File f = LittleFS.open(path, "r");
+   if (f) { ok = scanHistoryFileV4(f, _histV4State, &torn); f.close( ); }
+  });
+  if (ok && torn > 0) ok = repairHistoryTailV4(path, torn);
+  if (ok && _histV4State.measureCount == 0) ok = false;
+ }
+ if (!ok) {
+  /* Missing file, unreadable header, or failed repair → fresh file.
+   * Only the corrupt-header case loses data, and it was unreadable. */
+  ok = createHistoryFileV4WithSchema(path);
  }
 
- static uint8_t hdrBuf[2048];
- size_t hdrLen = histV4WriteHeaderBuf(hdrBuf, sizeof(hdrBuf), s, sc, m, mc, pool, sp);
- if (hdrLen == 0) return;
-
- FLASH_OP({
-  File f = LittleFS.open(path, "w");
-  if (f) { f.write(hdrBuf, hdrLen); f.close(); }
- });
-
- /* Read header back to populate codec state */
- histV4Reset(_histV4State);
- FLASH_OP({
-  File f = LittleFS.open(path, "r");
-  if (f) {
-   static uint8_t rdBuf[HIST_V4_MAX_HEADER];
-   int n = f.read(rdBuf, sizeof(rdBuf));
-   f.close();
-   if (n >= (int)HIST_V4_HEADER_FIXED) {
-    histV4ReadHeaderBuf(rdBuf, (size_t)n, _histV4State);
-   }
-  }
- });
- _histV4CodecValid = true;
- LOG_CODE(LOG_INFO, "STO", SYS_OK, 0, "V4 schema bootstrapped");
+ /* v1.5.3 FIX: validity is EARNED, not assumed. A FLASH_OP mutex
+  * timeout or a failed header read-back used to still set the flag,
+  * leaving an empty-schema codec "valid" until the next reboot. On
+  * failure we stay invalid and the next history tick retries. */
+ _histV4CodecValid = ok;
+ if (ok) LOG_CODE(LOG_INFO, "STO", SYS_OK, 0, "V4 schema ready");
+ else    LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_bootstrap_retry");
 }
 
 bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
@@ -2053,7 +2051,9 @@ bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureC
 
 	/* Defensive: reject absurd timestamps */
 	{
-		const uint32_t EPOCH_MIN = 1700000000UL;
+		/* v1.5.3: aligned with the processHistoryLogging() gate (both were
+		 * 1.6e9 vs 1.7e9 — repo doc ANALISE_SISTEMA_HISTORICO §5.7). */
+		const uint32_t EPOCH_MIN = 1600000000UL;
 		uint32_t nowEpoch = (uint32_t)time(nullptr);
 		if (epoch < EPOCH_MIN) return false;
 		if (nowEpoch > EPOCH_MIN && epoch > nowEpoch + 86400UL) return false;
@@ -2095,67 +2095,38 @@ bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t mea
 		_histV4CodecValid = false;
 	}
 
-	/* Chunk 2: prepare V4 state (boot or rollover) — split into simple ops */
+	/* Chunk 2: prepare V4 state (boot or rollover).
+	 * v1.5.3 FIX: the flag is only set after VERIFIED success. It used to
+	 * be set unconditionally, so a FLASH_OP mutex timeout during 2a left
+	 * a virgin/stale state marked "valid" and the append below created a
+	 * HEADERLESS file (open "a") that readers reject and the next scan
+	 * deleted — one 5 s contention could cost the whole day. */
 	if (!_histV4CodecValid) {
-		bool needCreate = false;
+		bool ok = false;
+		bool exists = false;
+		FLASH_OP({ exists = LittleFS.exists(path); });
 
-		/* 2a: open and check existing file */
-		FLASH_OP({
-			if (LittleFS.exists(path)) {
-				File f = LittleFS.open(path, "r+");
-				if (f) {
-					if (!scanHistoryFileV4(f, _histV4State)) {
-						f.close();
-						LittleFS.remove(path);
-						needCreate = true;
-					} else {
-						f.close();
-					}
-				}
-			} else {
-				needCreate = true;
-			}
-		});
-
-		/* 2b: create new file with schema header if needed */
-		if (needCreate) {
-			/* Static buffers — avoid 4KB+ stack usage in this function
-			 * (hdrBuf 2KB + sensor/measure arrays + pool = ~3.5KB).
-			 * RP2040 stack is ~4KB; this would overflow with call chain. */
-			static uint8_t hdrBuf[2048]; size_t hdrLen = 0;
-			{
-				HistV4SensorDef s[HIST_V4_MAX_SENSORS];
-				HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
-				uint8_t pool[HIST_V4_MAX_STRPOOL];
-				uint8_t sc = 0, mc = 0, sp = 0;
-				if (buildMeasureSchema(s, sc, m, mc, pool, sp)) {
-					hdrLen = histV4WriteHeaderBuf(hdrBuf, sizeof(hdrBuf),
-						s, sc, m, mc, pool, sp);
-				}
-			}
-			FLASH_OP({
-				File f = LittleFS.open(path, "w");
-				if (f) {
-					if (hdrLen > 0) f.write(hdrBuf, hdrLen);
-					f.close();
-				}
-			});
-
-			/* 2c: re-read header to populate state schema */
-			histV4Reset(_histV4State);
+		if (exists) {
+			size_t torn = 0;
 			FLASH_OP({
 				File f = LittleFS.open(path, "r");
-				if (f) {
-					static uint8_t rdBuf[HIST_V4_MAX_HEADER];
-					int n = f.read(rdBuf, sizeof(rdBuf));
-					f.close();
-					if (n >= (int)HIST_V4_HEADER_FIXED) {
-						histV4ReadHeaderBuf(rdBuf, (size_t)n, _histV4State);
-					}
-				}
+				if (f) { ok = scanHistoryFileV4(f, _histV4State, &torn); f.close( ); }
 			});
+			/* Torn tail (power loss mid-append): cut it so the positional
+			 * anchor cadence stays intact for readers and for this append.
+			 * This case no longer nukes the file like the old scan-fail
+			 * path did — only a truly unreadable header does. */
+			if (ok && torn > 0) ok = repairHistoryTailV4(path, torn);
+			if (ok && _histV4State.measureCount == 0) ok = false;
+			if (!ok) FLASH_OP(LittleFS.remove(path));
 		}
-		_histV4CodecValid = true;
+		if (!ok) ok = createHistoryFileV4WithSchema(path);
+
+		_histV4CodecValid = ok;
+		if (!ok) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_prep_fail");
+			return false; /* retry next tick — never append headerless */
+		}
 	}
 
 	/* Chunk 3: encode + append */
@@ -2187,24 +2158,120 @@ bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t mea
 	return ok;
 }
 
-bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state) {
+/**
+ * @brief Create (or recreate) a day file with a fresh schema header and
+ * load the codec state by reading the header back FROM FLASH.
+ * @return true only if the read-back header parses with measureCount > 0 —
+ * the sole condition under which the caller may mark the codec valid.
+ */
+bool StorageManager::createHistoryFileV4WithSchema(const String &path) {
+	/* Static header buffer — with the ~1.3 KB of schema scratch below,
+	 * a stack hdrBuf would blow the ~4 KB core stack (v1.5.2 hard fault). */
+	static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	size_t hdrLen = 0;
+	{
+		HistV4SensorDef s[HIST_V4_MAX_SENSORS];
+		HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
+		uint8_t pool[HIST_V4_MAX_STRPOOL];
+		uint8_t sc = 0, mc = 0, sp = 0;
+		if (!buildMeasureSchema(s, sc, m, mc, pool, sp)) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "schema_empty");
+			return false;
+		}
+		hdrLen = histV4WriteHeaderBuf(hdrBuf, sizeof(hdrBuf), s, sc, m, mc, pool, sp);
+	}
+	if (hdrLen == 0) return false;
+
+	bool wrote = false;
+	FLASH_OP({
+		File f = LittleFS.open(path, "w");
+		if (f) { wrote = (f.write(hdrBuf, hdrLen) == hdrLen); f.close( ); }
+	});
+	if (!wrote) return false;
+
+	/* Read back to populate codec state — trust flash, not RAM. */
+	histV4Reset(_histV4State);
+	bool parsed = false;
+	FLASH_OP({
+		File f = LittleFS.open(path, "r");
+		if (f) {
+			static uint8_t rdBuf[HIST_V4_MAX_HEADER];
+			int n = f.read(rdBuf, sizeof(rdBuf));
+			f.close( );
+			if (n >= (int)HIST_V4_HEADER_FIXED) {
+				parsed = histV4ReadHeaderBuf(rdBuf, (size_t)n, _histV4State) > 0;
+			}
+		}
+	});
+	return parsed && _histV4State.measureCount > 0;
+}
+
+/**
+ * @brief Cut a torn tail: rewrite the file keeping only [0, goodPos).
+ * @details Recovery for power loss mid-append. Copy → remove → rename is
+ * used because File::truncate() is not uniformly available across FS
+ * backends. On failure the original file is left untouched (a stale
+ * ".fix" temp may remain and is overwritten on the next attempt).
+ */
+bool StorageManager::repairHistoryTailV4(const String &path, size_t goodPos) {
+	if (goodPos < HIST_V4_HEADER_FIXED) return false; /* never cut into the header */
+
+	String tmp = path + ".fix";
+	bool ok = false;
+	FLASH_OP({
+		File src = LittleFS.open(path, "r");
+		File dst = LittleFS.open(tmp, "w");
+		if (src && dst) {
+			static uint8_t cp[256];
+			size_t left = goodPos;
+			ok = true;
+			while (left > 0) {
+				size_t n = left > sizeof(cp) ? sizeof(cp) : left;
+				if ((size_t)src.read(cp, n) != n || dst.write(cp, n) != n) { ok = false; break; }
+				left -= n;
+			}
+		}
+		if (src) src.close( );
+		if (dst) dst.close( );
+		if (ok) {
+			LittleFS.remove(path);
+			ok = LittleFS.rename(tmp, path);
+		} else {
+			LittleFS.remove(tmp);
+		}
+	});
+	if (ok) LOG_CODE(LOG_INFO, "STO", SYS_OK, (int)goodPos, "v4_tail_repaired");
+	else    LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)goodPos, "v4_tail_repair_fail");
+	return ok;
+}
+
+bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt) {
+	if (tornAt) *tornAt = 0;
 	histV4Reset(state);
 	if (f.size() < HIST_V4_HEADER_FIXED) return false;
 	f.seek(0);
 
-	/* Read entire header into buffer, then parse */
+	/* Read up to HIST_V4_MAX_HEADER bytes and parse the header ONCE. */
 	static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
-	size_t hdrSize = f.size();
-	if (hdrSize > HIST_V4_MAX_HEADER) hdrSize = HIST_V4_MAX_HEADER;
-	if (f.read(hdrBuf, hdrSize) < HIST_V4_HEADER_FIXED) return false;
-	if (histV4ReadHeaderBuf(hdrBuf, hdrSize, state) == 0) return false;
+	size_t want = f.size();
+	if (want > HIST_V4_MAX_HEADER) want = HIST_V4_MAX_HEADER;
+	if (f.read(hdrBuf, want) < HIST_V4_HEADER_FIXED) return false;
+	size_t hdrLen = histV4ReadHeaderBuf(hdrBuf, want, state);
+	if (hdrLen == 0) return false;
+
+	/* v1.5.3 FIX (the scan bug): goodPos previously started at `want`
+	 * (up to 2 KB or the whole file) as if that were the header. Records
+	 * inside that window were never decoded — small files resumed with a
+	 * VIRGIN codec state — and files > 2 KB started decoding MISALIGNED
+	 * at byte 2048. The writer then restarted the anchor cadence and,
+	 * because anchor-ness is inferred positionally, every reader desynced
+	 * from that point on. Reposition to the REAL end of the header. */
+	f.seek(hdrLen);
+	size_t goodPos = hdrLen;
 
 	/* Scan all records to rebuild codec state */
 	static uint8_t buf[HIST_V4_READ_BUF];
 	size_t filled = 0;
-	size_t goodPos = hdrSize; /* bytes consumed by header */
-	histV4Reset(state);
-	histV4ReadHeaderBuf(hdrBuf, hdrSize, state);
 	static int64_t values[HIST_V4_MAX_MEASUREMENTS];
 	uint32_t epoch;
 
@@ -2229,6 +2296,10 @@ bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state) {
 		filled -= consumed;
 	}
 
+	/* Torn tail (power loss mid-append): report where the good bytes end
+	 * so the caller can repair. Readers would otherwise stop here and the
+	 * next append would break the positional anchor cadence for good. */
+	if (tornAt && goodPos < (size_t)f.size()) *tornAt = goodPos;
 	f.seek(goodPos);
 	return true;
 }

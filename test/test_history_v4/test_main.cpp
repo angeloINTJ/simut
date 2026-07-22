@@ -647,6 +647,153 @@ static void test_channelPrefixes(void) {
 }
 
 /* ============================================================================
+ *  v1.5.3 REGRESSION TESTS — NaN transitions, count guard, reopen/resume
+ * ============================================================================ */
+
+/** valid→NaN in a DELTA must decode to the exact sentinel (was 68035). */
+static void test_delta_valid_to_nan_transition(void) {
+    HistV4State enc, dec;
+    buildTestSchema(enc, 1);
+    buildTestSchema(dec, 1);
+    uint8_t buf[64];
+    int64_t v[1]; uint32_t ep;
+
+    v[0] = 2500;                                        /* 25.0 °C anchor  */
+    size_t n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1000);
+    histV4Decode(buf, n, dec, v, &ep, true);
+
+    v[0] = histV4NanSentinel(16);                       /* sensor failure  */
+    n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1060);
+    TEST_ASSERT_TRUE(n > 0);
+    histV4Decode(buf, n, dec, v, &ep, false);
+    TEST_ASSERT_TRUE(histV4IsNan(v[0], 16));            /* not 2500+65535  */
+
+    v[0] = 2510;                                        /* recovery        */
+    n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1120);
+    histV4Decode(buf, n, dec, v, &ep, false);
+    TEST_ASSERT_EQUAL_INT64(2510, v[0]);                /* was 5010        */
+}
+
+/** A NaN ANCHOR must clear validity on both sides → next delta absolute. */
+static void test_anchor_nan_after_valid_then_delta(void) {
+    HistV4State enc, dec;
+    buildTestSchema(enc, 1);
+    buildTestSchema(dec, 1);
+    uint8_t buf[64];
+    int64_t v[1]; uint32_t ep;
+
+    v[0] = 3000;                                        /* anchor #1: valid */
+    size_t n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1000);
+    histV4Decode(buf, n, dec, v, &ep, true);
+
+    enc.recordsSinceAnchor = enc.anchorPeriod;          /* force anchor #2  */
+    v[0] = histV4NanSentinel(16);
+    n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1060);
+    histV4Decode(buf, n, dec, v, &ep, true);
+    TEST_ASSERT_TRUE(histV4IsNan(v[0], 16));
+
+    v[0] = 3100;                                        /* delta after NaN  */
+    n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1120);
+    histV4Decode(buf, n, dec, v, &ep, false);
+    TEST_ASSERT_EQUAL_INT64(3100, v[0]);
+}
+
+/** Rollover guard: caller count ≠ schema count must fail, not corrupt. */
+static void test_encode_rejects_count_mismatch(void) {
+    HistV4State state;
+    buildTestSchema(state, 3);
+    int64_t v[2] = {100, 200};
+    uint8_t buf[64];
+    TEST_ASSERT_EQUAL_size_t(0, histV4Encode(v, 2, state, buf, sizeof(buf), 1000));
+}
+
+/** Encode a full stream then re-read it like the fixed scan does:
+ *  header parsed for its REAL length, records decoded sequentially —
+ *  the resumed state must equal the writer's so appends stay in cadence. */
+static void test_reopen_resume_continuity(void) {
+    HistV4State enc;
+    buildTestSchema(enc, 2);
+
+    static uint8_t stream[2048];
+    size_t pos = histV4WriteHeaderBuf(stream, sizeof(stream),
+        enc.sensors, enc.sensorCount, enc.measures, enc.measureCount,
+        enc.strPool, enc.strPoolSize);
+    TEST_ASSERT_TRUE(pos > 0);
+
+    int64_t v[2]; uint32_t ep;
+    for (int i = 0; i < 70; i++) {                      /* crosses anchor 61 */
+        v[0] = 2000 + i * 3;
+        v[1] = 5000 - i * 2;
+        size_t n = histV4Encode(v, 2, enc, stream + pos,
+                                sizeof(stream) - pos, 1000 + (uint32_t)i * 60);
+        TEST_ASSERT_TRUE(n > 0);
+        pos += n;
+    }
+
+    /* "Reopen": fresh state from the header's REAL length, then replay. */
+    HistV4State rdr;
+    size_t hdrLen = histV4ReadHeaderBuf(stream, pos, rdr);
+    TEST_ASSERT_TRUE(hdrLen > 0);
+    size_t p = hdrLen;
+    int decoded = 0;
+    while (p < pos) {
+        size_t n = histV4DecodeNext(stream + p, pos - p, rdr, v, &ep);
+        TEST_ASSERT_TRUE(n > 0);
+        p += n;
+        decoded++;
+    }
+    TEST_ASSERT_EQUAL_INT(70, decoded);
+    TEST_ASSERT_EQUAL_UINT16(enc.recordsSinceAnchor, rdr.recordsSinceAnchor);
+    TEST_ASSERT_EQUAL_UINT32(enc.lastEpoch, rdr.lastEpoch);
+    TEST_ASSERT_EQUAL_INT64(enc.lastAnchor[0], rdr.lastAnchor[0]);
+    TEST_ASSERT_EQUAL_INT64(enc.lastAnchor[1], rdr.lastAnchor[1]);
+
+    /* Continuity: one more record from the RESUMED writer decodes clean. */
+    v[0] = 2500; v[1] = 4700;
+    size_t n = histV4Encode(v, 2, enc, stream + pos, sizeof(stream) - pos, 5200);
+    size_t m = histV4DecodeNext(stream + pos, n, rdr, v, &ep);
+    TEST_ASSERT_EQUAL_size_t(n, m);
+    TEST_ASSERT_EQUAL_INT64(2500, v[0]);
+    TEST_ASSERT_EQUAL_INT64(4700, v[1]);
+    TEST_ASSERT_EQUAL_UINT32(5200, ep);
+}
+
+/** A torn tail must stop the reader at the last full record boundary
+ *  (the goodPos the storage layer uses for repair), never misparse. */
+static void test_torn_tail_stops_at_boundary(void) {
+    HistV4State enc;
+    buildTestSchema(enc, 2);
+
+    static uint8_t stream[1024];
+    size_t pos = histV4WriteHeaderBuf(stream, sizeof(stream),
+        enc.sensors, enc.sensorCount, enc.measures, enc.measureCount,
+        enc.strPool, enc.strPoolSize);
+
+    int64_t v[2]; uint32_t ep;
+    size_t lastBoundary = pos;
+    for (int i = 0; i < 10; i++) {
+        v[0] = 1000 + i * 7;
+        v[1] = 9000 - i * 5;
+        lastBoundary = pos;                             /* start of record i */
+        pos += histV4Encode(v, 2, enc, stream + pos,
+                            sizeof(stream) - pos, 2000 + (uint32_t)i * 60);
+    }
+    size_t torn = pos - 2;                              /* cut mid-record 10 */
+
+    HistV4State rdr;
+    size_t p = histV4ReadHeaderBuf(stream, torn, rdr);
+    int decoded = 0;
+    while (p < torn) {
+        size_t n = histV4DecodeNext(stream + p, torn - p, rdr, v, &ep);
+        if (n == 0) break;                              /* clean stop        */
+        p += n;
+        decoded++;
+    }
+    TEST_ASSERT_EQUAL_INT(9, decoded);
+    TEST_ASSERT_EQUAL_size_t(lastBoundary, p);          /* == goodPos        */
+}
+
+/* ============================================================================
  *  MAIN
  * ============================================================================ */
 
@@ -704,6 +851,13 @@ int main(void) {
     RUN_TEST(test_rawToFloat_nan);
     RUN_TEST(test_floatRoundtrip);
     RUN_TEST(test_channelPrefixes);
+
+    /* v1.5.3 regressions */
+    RUN_TEST(test_delta_valid_to_nan_transition);
+    RUN_TEST(test_anchor_nan_after_valid_then_delta);
+    RUN_TEST(test_encode_rejects_count_mismatch);
+    RUN_TEST(test_reopen_resume_continuity);
+    RUN_TEST(test_torn_tail_stops_at_boundary);
 
     return UNITY_END();
 }

@@ -302,7 +302,15 @@ public:
  bool _histV4CodecValid = false;
 
  bool writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
- static bool scanHistoryFileV4(File &f, HistV4State &state);
+ /** Rebuild codec state from an existing file. If the file ends mid-record
+  * (torn tail after power loss), returns true and reports the last good
+  * byte offset in *tornAt so the caller can repair before appending. */
+ static bool scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt = nullptr);
+ /** Create/recreate a day file with a fresh schema header; returns true
+  * only if the header read back from flash parses with measureCount > 0. */
+ bool createHistoryFileV4WithSchema(const String &path);
+ /** Cut a torn tail: rewrite the file keeping only [0, goodPos) bytes. */
+ bool repairHistoryTailV4(const String &path, size_t goodPos);
 
 
  /** Internal worker: writes ONE HIST record directly to flash (without checking touch
