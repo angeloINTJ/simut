@@ -38,6 +38,11 @@ volatile uint32_t g_flashIrqMaxUs      = 0;
 volatile uint64_t g_flashIrqTotalUs    = 0;
 volatile uint32_t g_flashIrqOver1msCount  = 0;
 
+volatile uint8_t  g_core1Running          = 0;
+volatile int32_t  g_core1FlashSafeDepth   = 0;
+volatile uint32_t g_flashIrqExposed       = 0;
+volatile uint32_t g_flashIrqExposedMaxUs  = 0;
+
 void __real_flash_range_erase(uint32_t offset, size_t count);
 void __real_flash_range_program(uint32_t offset, const uint8_t* data, size_t count);
 
@@ -58,6 +63,11 @@ static __always_inline void probe_account(uint32_t us) {
 	g_flashIrqTotalUs += us;
 	if (us > g_flashIrqMaxUs) g_flashIrqMaxUs = us;
 	if (us > 1000u) g_flashIrqOver1msCount++;
+	/* Exposure: Core 1 alive and not frozen while XIP is down. */
+	if (g_core1Running && g_core1FlashSafeDepth <= 0) {
+		g_flashIrqExposed++;
+		if (us > g_flashIrqExposedMaxUs) g_flashIrqExposedMaxUs = us;
+	}
 }
 
 void __not_in_flash_func(__wrap_flash_range_erase)(uint32_t offset, size_t count) {

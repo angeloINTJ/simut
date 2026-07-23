@@ -831,6 +831,12 @@ void CommandManager::renderMetrics( ) {
   (unsigned long)g_flashIrqEraseCount,
   (unsigned long)g_flashIrqProgCount,
   (unsigned long)g_flashIrqOver1msCount);
+  /* Exposure: flash written while Core 1 was running and not frozen. Any
+   * non-zero value names a write path missing its Core1FlashPause. */
+  consolePrintf (pt ? " Core1 exposto: %lu ops | pior: %lu us\n"
+                    : " Core1 exposed: %lu ops | worst: %lu us\n",
+  (unsigned long)g_flashIrqExposed,
+  (unsigned long)g_flashIrqExposedMaxUs);
  }
  printDivider( );
 }
