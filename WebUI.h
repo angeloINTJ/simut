@@ -1784,6 +1784,15 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <div class="container">
         <div class="card">
             <h2 class="page-title" data-i18n="cfg_title">System Settings</h2>
+            <!-- Shown when /api/config does not resolve. Without it a failed
+                 load left the form blank AND inert, with nothing on screen to
+                 say why: loadConfig( ) wires its input listeners on its last
+                 line, so any earlier failure silently produced a page that
+                 looked editable and discarded every keystroke. -->
+            <div id="cfg_load_err" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(239,68,68,0.12);border-left:3px solid #ef4444;border-radius:3px;font-size:0.92em">
+                <span id="cfg_load_err_msg" data-i18n="cfg_load_fail">Could not load the current settings. The fields are disabled to avoid saving blank values over your configuration.</span>
+                <button type="button" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;background:var(--acc);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold" data-i18n="cfg_retry">Retry</button>
+            </div>
             <form id="sysForm" onsubmit="event.preventDefault()">
                 <h3 data-i18n="cfg_gen" style="margin-top:0;">General Identity</h3>
                 <div class="grp">
@@ -2210,10 +2219,71 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
         }
 
+        /* Disables/enables every control inside the form. A failed load used to
+         * leave the inputs enabled but unwired, so typing appeared to work and
+         * silently went nowhere. Disabled + a visible banner is the honest
+         * state, and it also stops a commit from writing blanks over flash. */
+        function setFormEnabled(on) {
+            const form = document.getElementById('sysForm');
+            if (!form) return;
+            form.querySelectorAll('input,select,textarea,button').forEach(el => { el.disabled = !on; });
+            form.style.opacity = on ? '1' : '0.55';
+        }
+
+        function showLoadError(msgKey, fallback) {
+            const box = document.getElementById('cfg_load_err');
+            const msg = document.getElementById('cfg_load_err_msg');
+            if (msg) msg.textContent = window.t ? window.t(msgKey, fallback) : fallback;
+            if (box) box.style.display = '';
+            setFormEnabled(false);
+        }
+
+        function clearLoadError() {
+            const box = document.getElementById('cfg_load_err');
+            if (box) box.style.display = 'none';
+            setFormEnabled(true);
+        }
+
         async function loadConfig() {
-            try {
-                let r = await fetchSafe('/api/config'); let d = await r.json();
-                if(d.error) return;
+            /* fetchSafe retries the HTTP request, but a response that arrives
+             * truncated still parses as a JSON error — and truncation is the
+             * common failure here: /api/config streams chunked via safeSend,
+             * and a Core-1 restart stalls Core 0 long enough for the socket to
+             * break mid-body (logged server-side as WEB_CLIENT_DISCONNECT).
+             * So retry the whole load, parse included. */
+            for (let attempt = 0; attempt < 3; attempt++) {
+                if (attempt > 0) await new Promise(r => setTimeout(r, 700 * attempt));
+                try {
+                    const r = await fetchSafe('/api/config');
+                    if (r.status === 403) {
+                        showLoadError('cfg_load_forbidden',
+                            'Your user lacks permission to read the system settings.');
+                        return;
+                    }
+                    if (r.status === 503) continue;   /* display busy — retry */
+                    if (!r.ok) continue;
+                    const d = await r.json();
+                    if (d.error) {
+                        showLoadError('cfg_load_forbidden',
+                            'The device refused to return the settings: ' + d.error);
+                        return;
+                    }
+                    applyConfig(d);
+                    clearLoadError();
+                    return;
+                } catch (e) {
+                    console.error('loadConfig attempt ' + attempt + ' failed:', e);
+                }
+            }
+            showLoadError('cfg_load_fail',
+                'Could not load the current settings. The fields are disabled to avoid saving blank values over your configuration.');
+        }
+
+        /* Populates the form from a fully-parsed /api/config payload. Split out
+         * of loadConfig so a transport failure can be retried without the DOM
+         * work, and so an exception in here is no longer indistinguishable from
+         * a network failure. */
+        function applyConfig(d) {
                 /* U24: aplica valores da flash, depois sobrepõe pendentes
                  * do sessionStorage. Usuário vê o estado "provisório" que
                  * será aplicado no commit. */
@@ -2264,7 +2334,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 toggleTransport(); toggleBuilder();
                 wirePendingListeners();
-            } catch(e) {}
         }
 
         /* U24: cada input/change acumula no sessionStorage via Pending.
