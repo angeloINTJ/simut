@@ -1234,6 +1234,9 @@ void WebManager::handleApiHistoryDays( ) {
  _server.send(200, "application/json", "");
  safeSend("[");
  for (size_t i = 0; i < files.size( ); i++) {
+ /* Strip .sim4 BEFORE .sim: replace(".sim") on "20260722.sim4" left
+  * "202607224" — malformed dates, calendar never marked V4 days. */
+ files[i].replace(HISTORY_V4_FILE_EXT, "");
  files[i].replace(HISTORY_FILE_EXT, "");
  String entry = (i > 0 ? ",\"" : "\"") + files[i] + "\"";
  safeSend(entry);
