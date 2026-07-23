@@ -49,6 +49,88 @@ Issues fora do plano — todas resolvidas em 2026-07-22:
 
 ---
 
+## 0.1 Status de execução — 2026-07-23 (fechamento do T0.1 e correção do T1.6)
+
+Sessão focada em **tornar avaliáveis** os critérios de aceite que estavam
+escritos mas não mediam o que diziam medir.
+
+### Correções de rumo (itens que constavam ✅ e não estavam)
+
+| Item | O que se descobriu | Estado agora |
+|---|---|---|
+| **T0.1** | A métrica entregue (`flashOpMaxMs`) cronometra o bloco `FLASH_OP` inteiro — mutex, contabilidade do LittleFS e a escrita. O critério do plano é sobre a **janela de IRQ desligada**, que é subconjunto estrito disso (o LittleFS envolve cada program/erase em `noInterrupts( )`, `LittleFS.cpp:181-212`). O número que tínhamos não conseguia responder à pergunta que o soak de 72 h existe para fazer. | ✅ **fechado de verdade** (`e6f1480`): os dois primitivos da SDK são interceptados por `-Wl,--wrap` e cronometrados diretamente. `show metrics` agora traz `IRQ-off max/media` em µs e contadores erase/prog/>1ms. |
+| **T1.6** | `SIMUT_CONCURRENCY_ASSERTS` **não estava definido em nenhum ambiente**. O tripwire da invariante 3 sempre compilou para nada, em toda imagem já gerada — o aceite ("teste que viola dispara o assert") nunca foi cumprido. O ambiente onde a flag deveria morar, `pico_w_debug`, não linkava. | 🔶 **parcial** (`fb5a4b1`): criado `pico_w_asserts` (= release + flag, cabe em 97,6%, roda em velocidade de bancada). O tripwire agora pode ser exercitado; falta rodar o teste que o viola. |
+
+### Risco novo — **R10: teto de flash**
+
+O slot de aplicação tem 1020 KB e a imagem de release ocupa **1.017.880 B
+(97,5 %)** — sobram **~26 KB**. Maior consumidor isolado: o blob de firmware do
+rádio CYW43439 (`wb43439A0_7_95_49_00_combined`), **232 KB = 22 % do slot**. A
+UI web já está otimizada (gzip, 77 KB embarcados; o `WebUI.h` cru de 304 KB é
+build-time e não linka).
+
+Consequências práticas, já sentidas nesta sessão:
+- `pico_w_debug` **não linka**: em `-Og` e sem `--gc-sections` a imagem
+  estoura o slot em ~69 KB. Forçar `-Os` e devolver `--gc-sections` foi
+  tentado e piorou. Ficou documentado no `platformio.ini` em vez de
+  maquiado — resolver exige folga de flash que hoje não existe.
+- Qualquer feature nova relevante esbarra em flash antes de esbarrar em RAM
+  (RAM está em 49,9 %).
+
+Duas falhas de link do `pico_w_debug` **foram** corrigidas: `DisplayManager_Alpha.cpp`
+agora é excluído como no release (redefine membros que os `DisplayManager_*.cpp`
+já fornecem), e `NetworkManager::MAX_RECONNECT_DELAY` / `TelemetryManager::BACKOFF_MAX_MS`
+viraram `constexpr` — eram `static const` passados a `min( )`, que liga
+referência e portanto os ODR-usa; em `-Os` o valor é dobrado e nenhum símbolo é
+necessário, em `-Og` o link quebrava.
+
+### Armadilha no protocolo de validação #2 (save-storm)
+
+A primeira execução da tempestade reportou 155/155 saves com zero reboots — e
+**não validava nada**. `saveConfiguration( )` faz checagem de CRC e retorna
+cedo quando a config não mudou: antes do `WdtWindow`, antes do `BigSaveGuard`,
+**antes de o quiet mode ser sequer requisitado** — mas ainda incrementa
+`configSaves`. Os 155 saves produziram 8 operações de flash, e essas 8 eram o
+timer do histórico, não os saves.
+
+Portanto: **uma tempestade de saves idênticos exercita zero de T1.1/T1.2.** O
+`tools/save_storm.py` agora muda o nome do dispositivo a cada ciclo (CRC sempre
+difere) e o sumário se recusa a declarar PASS se as operações de flash não
+cresceram junto com os ciclos.
+
+### Ferramental de bancada versionado
+
+- `tools/save_storm.py` — protocolo #2. JSONL incremental, detecta reboot por
+  regressão de uptime, restaura o nome do rig ao final.
+- `tools/sensor_soak.py` — protocolo #4. Vigia o WARN de queda para bit-bang,
+  e amostra o pool de PBUF sob tráfego real para **decidir T2.2 por dado**
+  (a única medição existente era em vigília: pico 2/12, que não sustenta gastar
+  6 KB de RAM).
+- `tools/check_flash_probe.py` — guarda de build (ver invariante 8).
+
+### Invariante nova (nº 8, em `docs/CONCURRENCY.md`)
+
+**Tudo alcançável a partir de uma chamada `flash_range_*` mora em SRAM.** O
+`--wrap` coloca os nossos shims também no caminho do `ota_applier_run( )`, que
+**apaga o slot inteiro da aplicação** rodando de SRAM. Um shim no slot seria
+buscado de um setor recém-apagado na chamada seguinte e travaria o chip com a
+imagem pela metade — brick irrecuperável. Daí `__not_in_flash_func` nos dois
+shims, leitura crua de `timer_hw->timerawl` em vez de `time_us_32( )`, e
+aritmética presa em 32 bits no caminho quente. `tools/check_flash_probe.py`
+quebra o build se qualquer shim linkar fora de SRAM — **verificado removendo o
+`__not_in_flash_func` de propósito**: a guarda pegou o símbolo em `0x1001fcb4`
+e falhou o build. A desmontagem confirma um único `bl`, para
+`flash_range_erase` em `0x20000978` (SRAM), sem helper de libgcc.
+
+### Limitação desta sessão
+
+O firmware novo **não foi gravado**: não há entrada por software no bootloader
+e o PicoHand não está na bancada, então o flash exige BOOTSEL físico. Os
+números de IRQ-off ainda não foram observados em hardware. O soak do PIO
+(protocolo #4) não depende da sonda e roda na imagem atual.
+
+---
+
 ## 1. Sumário executivo
 
 A instabilidade percebida em **três frentes distintas** (Wi-Fi oscilando, sensores caindo,
