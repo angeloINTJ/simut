@@ -205,11 +205,14 @@ porque a imagem instrumentada foi gravada antes do bump. `SIMUT_VERSION` subiu
 para **1.5.2-rc4**, restaurando o protocolo de verificação por versão: a
 partir do próximo flash, `show system info` distingue as imagens sozinho.
 
-Estado transitório enquanto o soak do protocolo #4 roda: a bancada executa
-código de rc4 sob o rótulo rc3 (é o binário gravado às 19:36). O marcador
-funcional que confirma a sonda é a presença das linhas `IRQ-off` em
-`show metrics`. Alinha-se no próximo flash — que deve esperar o fim do soak,
-sob pena de zerar as 24 h.
+**Resolvido**: a bancada foi regravada com `pico_w_asserts` e reporta
+`1.5.2-rc4`. Repo e dispositivo alinhados; o rótulo volta a identificar a
+imagem sozinho.
+
+Correção de procedimento: **flash não exige BOOTSEL físico**. O registro
+anterior estava errado. `pio run -e <env> -t upload` faz o reset por toque de
+1200 bps com o dispositivo rodando e grava sem intervenção. O `picotool load`
+direto é que exige BOOTSEL prévio — daí a conclusão equivocada.
 
 ---
 
