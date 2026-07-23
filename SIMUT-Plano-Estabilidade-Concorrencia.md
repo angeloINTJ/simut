@@ -122,6 +122,44 @@ quebra o build se qualquer shim linkar fora de SRAM — **verificado removendo o
 e falhou o build. A desmontagem confirma um único `bl`, para
 `flash_range_erase` em `0x20000978` (SRAM), sem helper de libgcc.
 
+### Resultados de validação — 2026-07-23
+
+**Protocolo #2 — save-storm 500× · ✅ PASSA**
+(`docs/test_reports/save_storm_20260723/summary.json`, 50 min de execução)
+
+| Medida | Resultado |
+|---|---|
+| Saves | **500/500 OK**, 0 falhas |
+| Toques simulados | 1000 |
+| Reboots | **0** (uptime contínuo 1830 s → 4846 s) |
+| Reconexões de porta | 0 |
+| `Core 1 dead` no log | 0 |
+| `lockout` no log | 0 |
+| Operações de flash | **+2550** (5,1 por save — os saves foram reais) |
+| Heap | **55832 B do início ao fim**; mínimo 55808 B **não se moveu** |
+| Maior bloco | 35015 B, mínimo 35000 B — sem fragmentação |
+| Leituras de sensor | 3294 → 8075, **0 erros** |
+
+O heap e o maior bloco imóveis ao longo de 500 quiet modes são a evidência
+direta que o aceite pedia: o lock do alocador nunca ficou preso e o Core 1
+sempre voltou. **T1.1 e T1.2 validados.**
+
+Dado colateral relevante para R2: sob tempestade o pior `FLASH_OP` subiu de
+184 ms para **202 ms**, e as operações >50 ms passaram de 39 para 732 (de 2550).
+Quanto disso é IRQ desligada continua desconhecido — é exatamente o número que
+a sonda nova mede e que ainda não rodou em hardware.
+
+**Protocolo #4 — soak do PIO 24 h · 🔄 em execução**
+Iniciado em 2026-07-23 19:30, término previsto 2026-07-24 19:30
+(`docs/test_reports/pio_soak_20260723/`, amostra a cada 5 min). Vigia o WARN de
+queda para bit-bang, contadores de erro dos sensores, deriva de heap, reboots e
+o pico do pool de PBUF. Roda na imagem 1.5.2-rc3 atual — não depende da sonda.
+Primeira amostra: uptime 4938 s, heap 55832, 8220 leituras, 0 erros, PBUF 2/12.
+
+Observação sobre os campos `slots_*` do soak: são contagens de ocorrência do
+nome do sensor na saída de `show sensors`, não número de slots. O sinal útil é
+a **constância** — uma queda indica sensor sumindo do inventário.
+
 ### Limitação desta sessão
 
 O firmware novo **não foi gravado**: não há entrada por software no bootloader
