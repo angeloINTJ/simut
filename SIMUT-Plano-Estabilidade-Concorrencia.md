@@ -198,14 +198,18 @@ vai **reprovar** no critério como escrito. Isso é resultado útil, não fracas
 o alvo passa a ser reduzir a janela (fatiar erases, adiar GC para fora de
 janelas de rádio) e não apenas medi-la.
 
-### Nota de versionamento
+### Nota de versionamento — resolvido em **1.5.2-rc4**
 
-A imagem gravada reporta `SIMUT_VERSION 1.5.2-rc3`, igual ao HEAD — repo e
-bancada estão consistentes. Mas o rótulo rc3 agora cobre dois binários
-distintos (com e sem a sonda). O marcador funcional que os distingue é a
-presença das linhas `IRQ-off` em `show metrics`. **Bump para rc4 deve
-acompanhar o próximo flash**, para que o protocolo de verificação por
-`SIMUT_VERSION` volte a ser suficiente sozinho.
+O rótulo rc3 chegou a cobrir dois binários distintos (com e sem a sonda),
+porque a imagem instrumentada foi gravada antes do bump. `SIMUT_VERSION` subiu
+para **1.5.2-rc4**, restaurando o protocolo de verificação por versão: a
+partir do próximo flash, `show system info` distingue as imagens sozinho.
+
+Estado transitório enquanto o soak do protocolo #4 roda: a bancada executa
+código de rc4 sob o rótulo rc3 (é o binário gravado às 19:36). O marcador
+funcional que confirma a sonda é a presença das linhas `IRQ-off` em
+`show metrics`. Alinha-se no próximo flash — que deve esperar o fim do soak,
+sob pena de zerar as 24 h.
 
 ---
 
