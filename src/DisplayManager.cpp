@@ -16,6 +16,7 @@
 
 #include "DisplayManager.h"
 #include "LogManager.h"
+#include "FlashIrqProbe.h" /* Core-1 exposure flags for the flash probe */
 #if SIMUT_DISPLAY_TFT
 #include "DisplayManager_Fonts.h"
 #endif
@@ -195,6 +196,7 @@ void DisplayManager::restartCore1( ) {
 	 * "[DSP] Lockout stuck >10s" error on every flash operation. */
 	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 	multicore_lockout_end_blocking();
+	g_core1Running = 0;
 	multicore_reset_core1( );
 	delay(50);
 	mutex_init(&_stateMutex);
@@ -376,7 +378,8 @@ void DisplayManager::pauseRendering(bool pause) {
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 					LogManager::instance( ).setCorePaused(1, true);
 					multicore_lockout_end_blocking( );
-					multicore_reset_core1( );
+					g_core1Running = 0;
+	multicore_reset_core1( );
 					/* Same rationale as requestQuietMode: Core 1 may have
 					 * died holding _stateMutex — reinit at kill time so
 					 * Core-0 setters can't block on a corpse-held mutex. */
@@ -393,6 +396,16 @@ void DisplayManager::pauseRendering(bool pause) {
 			 * lockout ends on unpause, Core 1 re-checks _quiescePlease,
 			 * sees false, and resumes normally. */
 			__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+
+			/* Core 1 is frozen at IRQ level from here until the unpause, so
+			 * its loop — and with it _lastHeartbeat — stops advancing. Mark
+			 * it, so getHeartbeat( ) does not report deliberate downtime as
+			 * a stalled core. This flag was declared, cleared in five places
+			 * and read by getHeartbeat( ), but never once set: the guard has
+			 * been dead code, and every millisecond spent paused for flash
+			 * counted against the 10 s health threshold. */
+			_isPausedForFlash = true;
+			g_core1FlashSafeDepth++;
 		}
 	} else {
 		int32_t prev = __atomic_fetch_sub(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);
@@ -416,6 +429,14 @@ void DisplayManager::pauseRendering(bool pause) {
 				/* core1Entry re-runs victim_init and sets _core1Ready. */
 			} else {
 				multicore_lockout_end_blocking( );
+				/* Core 1 resumes here, but its first loop iteration — and so
+				 * the next _lastHeartbeat write — is microseconds away, while
+				 * _pauseStartTime has already been zeroed above. Stamp the
+				 * heartbeat on release so the health watchdog never sees the
+				 * frozen value in that gap and hard-resets a healthy core. */
+				_lastHeartbeat = millis( );
+				_isPausedForFlash = false;
+				if (g_core1FlashSafeDepth > 0) g_core1FlashSafeDepth--;
 				LogManager::instance( ).setCorePaused(1, false);
 			}
 		}
@@ -430,6 +451,9 @@ void DisplayManager::forceUnpause( ) {
 		__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 		_pauseStartTime = 0;
 		multicore_lockout_end_blocking( );
+		_lastHeartbeat = millis( );
+		_isPausedForFlash = false;
+		g_core1FlashSafeDepth = 0;
 		LogManager::instance( ).setCorePaused(1, false);
 	}
 }
@@ -685,6 +709,7 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 		}
 	}
 	/* First level: hard-reset Core 1. Stops immediately; flash work safe. */
+	g_core1Running = 0;
 	multicore_reset_core1( );
 	delay(50); /* Short pause for SSI/SPI to stabilize. */
 	/* Reinit _stateMutex AT KILL TIME, not only in releaseQuietMode:
@@ -740,6 +765,7 @@ void DisplayManager::loopCore1( ) {
 
 	multicore_lockout_victim_init( );
 	_core1Ready = true;
+	g_core1Running = 1;   /* live from here: XIP fetches can now collide with flash */
 
 	/* Heap allocations preserved across resets.
 	 * Touch MUST be reinitialized on every launch — attachInterrupt connects
