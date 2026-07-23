@@ -200,9 +200,15 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  { StorageManager::ReadGuard rg(_storageMgr.get( ));
  f.seek(0);
  int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
- if (hdrRead < (int)HIST_V4_HEADER_FIXED ||
- histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, g4st) == 0)
- { f.close(); continue; }
+ /* Same cursor bug fixed in handleApiHistoryMulti and in the v1.5.3
+  * StorageManager scan: reposition to the REAL header end. Reading up
+  * to 2 KB left the cursor at EOF for small files (today's) and
+  * misaligned at byte 2048 for bigger ones — the record loop below
+  * then decoded nothing: blank graph on the TFT. */
+ size_t g4HdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
+                   ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, g4st) : 0;
+ if (g4HdrLen == 0) { f.close(); continue; }
+ f.seek(g4HdrLen);
  }
  int tMi = -1, hMi = -1;
  { SystemConfig &cfg = _storageMgr->getConfig();
