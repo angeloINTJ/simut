@@ -111,10 +111,10 @@ void WebManager::handleApiHistoryMulti( ) {
  String reqEnd = _server.arg("end");
 
  static const time_t rangeDuration[] = { 3600, 21600, 86400, 604800, 2592000, 31536000, 0 };
- /* Tested decimation=480 for 1Y/MAX but time didn't
- * change — bottleneck is flash read, not JSON emit. Kept at 240
- * for higher graph fidelity. */
- static const int rangeDecimation[] = { 1, 1, 3, 15, 60, 240, 240 };
+ /* Decimation is now ADAPTIVE (computed after the file list is built):
+  * fixed per-range factors emitted ZERO points whenever the dataset was
+  * smaller than the factor (e.g. MAX=240 with 103 records). Target:
+  * ~600 emitted points regardless of dataset size. */
 
  time_t now = _netRef->getEpoch( );
  time_t effectiveEnd = now;
@@ -131,7 +131,7 @@ void WebManager::handleApiHistoryMulti( ) {
  effectiveEnd = (time_t)reqEnd.toInt( );
  if (effectiveEnd > now) effectiveEnd = now;
  }
- decimation = rangeDecimation[rangeIdx];
+ /* decimation: adaptivo, calculado apos montar filesToRead (abaixo). */
  cutoff = (rangeIdx == 6) ? 0 : (effectiveEnd - rangeDuration[rangeIdx]);
 
 
@@ -180,6 +180,24 @@ void WebManager::handleApiHistoryMulti( ) {
  HISTORY_V4_FILE_EXT);
  filesToRead.push_back(String(defPath));
  }
+ }
+
+ /* ── Adaptive decimation: target ~600 emitted points ────────────────
+  * Estimate the record count from the total file bytes (~9 B/record
+  * averaged over deltas + periodic anchors, headers ignored). Small
+  * datasets stream whole (decimation 1); two months of 1-min data
+  * stream at ~600 points. Replaces the fixed per-range table that
+  * emitted ZERO points when the dataset was smaller than the factor. */
+ {
+ size_t histBytes = 0;
+ ReadGuard rg(_storageRef);
+ for (size_t fi = 0; fi < filesToRead.size( ); fi++) {
+ File hf = LittleFS.open(filesToRead[fi], "r");
+ if (hf) { histBytes += hf.size( ); hf.close( ); }
+ }
+ size_t estRecs = histBytes / 9;
+ decimation = (int)(estRecs / 600);
+ if (decimation < 1) decimation = 1;
  }
 
  /* ── Accumulated stats (T of set, H of ambient) ─────────────────── */
