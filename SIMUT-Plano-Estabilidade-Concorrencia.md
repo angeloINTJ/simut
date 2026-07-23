@@ -40,7 +40,10 @@ Issues fora do plano — todas resolvidas em 2026-07-22:
 - ~~Log persistido "vazio"~~ (89020fb + e23a4be): o writer sempre funcionou (1.156 registros no `.blog`); o leitor do CLI lia os nomes CSV extintos E o renderizador legado descartava linhas sem `;`; o `clear log` também só removia os nomes antigos. Tudo corrigido — 111 linhas legíveis no CLI.
 - ~~Gráficos de histórico sempre vazios~~ (dc5e0bb): writer impecável (103 registros decodificados no host com o codec do projeto); o leitor web perdia os dados em 3 estágios — cursor após header-read (irmão do scan bug v1.5.3 nunca aplicado à cópia inline), extensão `.sim` legada nos ranges <1M, e sem observabilidade. Com contadores permanentes (`filesTried/filesOpened/recs`) no envelope. Range 24h → 34 pontos reais.
 - Assinatura nova em vigília: `C0=[WIFI]` 1×/100 ciclos (save-storm, durante amostragem de RSSI no `show metrics`) — próximo alvo de investigação.
-- Nota UX: decimação fixa por range esvazia gráficos com poucos dados (ex.: MAX com <240 registros → 0 pontos); avaliar decimação adaptativa.
+- ~~Nota UX: decimação fixa~~ **resolvido (722cd53)** — decimação adaptativa (~600 pts/range).
+- ~~Gráficos web/TFT em branco~~ **resolvido** — cadeia de 6 defeitos (cursor de header em 5 cópias do leitor V4, extensão .sim legada, datas malformadas do calendário, slot-10 fantasma no frontend, sign-extension em canais unsigned do codec, mapper array-vs-objeto) + minificador comendo JS com aspas em comentário (guard de sintaxe `node --check` agora aborta o build).
+- ~~uBMP 102.2~~ **resolvido** — guard `chip 0x58 → h=NaN` movido para dentro de `getResults` (fonte única; o caminho bloqueante de calibração contornava o guard do chamador).
+- **Novo (aberto)**: pressão do BMP280 = NaN no caminho periódico assíncrono (histórico sem pressão em regime; o caminho bloqueante lê 1009.5 hPa corretamente) — investigar timing de conversão no readAll assíncrono.
 - Cadência de teste ativa: lotes de 10 ciclos (diretriz do usuário) — último lote: 10/10 saves, zero reboots.
 
 ---

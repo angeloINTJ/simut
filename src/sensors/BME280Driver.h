@@ -214,6 +214,12 @@ struct BME280Driver {
 
         _sensor->readAll(&t, &p, &h);
 
+        /* BMP280 (chip 0x58) has NO humidity sensor: readAll compensates
+         * garbage registers into plausible-looking values that leaked into
+         * history through the blocking calibration path (the periodic path
+         * had a caller-side guard). Kill it at the single source. */
+        if (_sensor->getChipID() == 0x58) h = NAN;
+
         /* Sanity checks */
         if (t < -40.0f || t > 85.0f)  t = NAN;
         { volatile float hv = h; if (hv < 0.0f || hv > 100.0f) h = NAN; }
