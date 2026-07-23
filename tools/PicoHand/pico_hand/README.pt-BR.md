@@ -33,8 +33,8 @@ trava antes de aceitar o próximo binário.
 ```
    Pico "mão" (este firmware)            Pico alvo
    ---------------------------           ---------
-   GP0   ─────────────────────────────►  pad/lado quente do botão BOOTSEL
-   GP1   ─────────────────────────────►  pad/lado quente do botão RUN (reset)
+   GP0   ─────────────────────────────►  pad/lado quente do botão RUN (reset)
+   GP1   ─────────────────────────────►  pad/lado quente do botão BOOTSEL
    GND   ─────────────────────────────►  GND  (obrigatório!)
 ```
 

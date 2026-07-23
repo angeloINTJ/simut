@@ -35,8 +35,8 @@ before accepting the next binary.
 ```
    Pico "hand" (this firmware)           Target Pico
    ----------------------------          -----------
-   GP0   ─────────────────────────────►  BOOTSEL button pad/pin (hot side)
-   GP1   ─────────────────────────────►  RUN (reset) button pad/pin (hot side)
+   GP0   ─────────────────────────────►  RUN (reset) button pad/pin (hot side)
+   GP1   ─────────────────────────────►  BOOTSEL button pad/pin (hot side)
    GND   ─────────────────────────────►  GND  (mandatory!)
 ```
 

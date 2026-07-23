@@ -34,20 +34,19 @@
  *
  *  Electrical principle
  *  --------------------
- *  BOOTSEL: emulated open-drain.
- *      "Pressed": GPIO as OUTPUT LOW    → pulls line to GND
- *      "Released": GPIO as INPUT         → high impedance
+ *  Both lines are active-LOW, emulated open-drain:
+ *      "Pressed":  GPIO as OUTPUT LOW    → pulls line to GND
+ *      "Released": GPIO as INPUT_PULLUP  → high impedance, target pull-up wins
  *
- *  RESET: active-HIGH (inverted logic).
- *      "Pressed": GPIO as OUTPUT HIGH   → drives line HIGH
- *      "Released": GPIO as OUTPUT LOW   → drives line LOW
+ *  Neither line is ever driven HIGH — safe to stay wired while someone
+ *  presses the physical buttons on the target.
  *
  *  Expected wiring
  *  ---------------
  *      Pico "hand"               Target Pico
  *      ----------                 -----------
- *      GPIO PIN_BOOTSEL  -------- BOOTSEL button pad/pin (hot side)
- *      GPIO PIN_RESET    -------- RUN/RESET (via external inverter/driver)
+ *      GP0 (PIN_RESET)   -------- RUN/RESET button pad/pin (hot side)
+ *      GP1 (PIN_BOOTSEL) -------- BOOTSEL button pad/pin (hot side)
  *      GND               -------- GND  (mandatory!)
  * ============================================================================= */
 
@@ -59,17 +58,15 @@
  *  Hardware configuration (adjust to match your wiring)
  * ============================================================================= */
 
-/** GPIO connected to the target Pico's BOOTSEL button. */
-static const uint8_t PIN_BOOTSEL = 22;
-
 /** GPIO connected to the target Pico's RUN (reset) pin.
- *  Moved from GP26 to GP27 — GP26 had a hardware defect preventing
- *  proper tri-state (INPUT_PULLUP did not release the line). */
-static const uint8_t PIN_RESET   = 27;
+ *  Rewired to GP0 with direct active-LOW drive (no external inverter).
+ *  History: GP26 is unusable on this board — hardware defect preventing
+ *  proper tri-state (INPUT_PULLUP did not release the line); GP27 was the
+ *  previous home, back when RESET went through an inverter. */
+static const uint8_t PIN_RESET   = 0;
 
-/** RESET uses active-HIGH logic: OUTPUT HIGH = pressed, OUTPUT LOW = released.
- *  BOOTSEL remains open-drain (OUTPUT LOW = pressed, INPUT = released). */
-static const bool RESET_ACTIVE_HIGH = true;
+/** GPIO connected to the target Pico's BOOTSEL button. */
+static const uint8_t PIN_BOOTSEL = 1;
 
 /** On-board LED, used as heartbeat to indicate firmware is alive.
  *  GP25 is the standard Pico on-board LED. Using a literal value avoids
@@ -219,26 +216,19 @@ static const char *fault_code_str(uint8_t code)
 /**
  * Initialize GPIO in safe state (button released).
  *
- * BOOTSEL: INPUT_PULLUP (high impedance, target pull-up keeps line HIGH).
- * RESET:   OUTPUT LOW (active-HIGH logic: LOW = released).
+ * Both lines are open-drain: released = INPUT_PULLUP (high impedance,
+ * target pull-up keeps the line HIGH).
  *
  * @param gpio  GPIO number to configure.
  */
 static void pin_init_released(uint8_t gpio)
 {
-    if (gpio == PIN_RESET && RESET_ACTIVE_HIGH) {
-        /* Active-HIGH: released = OUTPUT LOW. */
-        digitalWrite(gpio, LOW);
-        pinMode(gpio, OUTPUT);
-    } else {
-        /* Open-drain: released = INPUT (high impedance).
-         * v3 fix: INPUT_PULLUP instead of plain INPUT — empirically on
-         * arduino-pico, `pinMode(INPUT)` after a digitalWrite(LOW) does not
-         * always release the line (read_back=L observed in HW 2026-05-08).
-         * Internal pull-up (~50k) ensures HIGH even if OE register glitches. */
-        digitalWrite(gpio, LOW);
-        pinMode(gpio, INPUT_PULLUP);
-    }
+    /* v3 fix: INPUT_PULLUP instead of plain INPUT — empirically on
+     * arduino-pico, `pinMode(INPUT)` after a digitalWrite(LOW) does not
+     * always release the line (read_back=L observed in HW 2026-05-08).
+     * Internal pull-up (~50k) ensures HIGH even if OE register glitches. */
+    digitalWrite(gpio, LOW);
+    pinMode(gpio, INPUT_PULLUP);
 }
 
 /**
@@ -274,53 +264,29 @@ static void verifier_notify(uint8_t gpio, bool expected_low)
 }
 
 /**
- * Press the "button".
- *
- * BOOTSEL (open-drain):  OUTPUT LOW  → pulls target line to GND.
- * RESET   (active-HIGH): OUTPUT HIGH → drives target line HIGH.
+ * Press the "button": OUTPUT LOW → pulls the target line to GND.
  *
  * @param gpio  GPIO number to press.
  */
 static void pin_press(uint8_t gpio)
 {
     uint32_t t0 = millis();
-    bool expect_low;
-    if (gpio == PIN_RESET && RESET_ACTIVE_HIGH) {
-        digitalWrite(gpio, HIGH);
-        pinMode(gpio, OUTPUT);
-        expect_low = false;   /* active-HIGH: pressed = HIGH, not LOW */
-    } else {
-        digitalWrite(gpio, LOW);
-        pinMode(gpio, OUTPUT);
-        expect_low = true;    /* open-drain: pressed = LOW */
-    }
-    verifier_notify(gpio, expect_low);
+    digitalWrite(gpio, LOW);
+    pinMode(gpio, OUTPUT);
+    verifier_notify(gpio, true);   /* active-LOW: pressed = LOW */
     dbg_pin(t0, "PRESS", gpio);
 }
 
 /**
- * Release the "button".
- *
- * BOOTSEL (open-drain):  INPUT_PULLUP → high impedance, target pull-up wins.
- * RESET   (active-HIGH): OUTPUT LOW   → drives target line LOW.
+ * Release the "button": INPUT_PULLUP → high impedance, target pull-up wins.
  *
  * @param gpio  GPIO number to release.
  */
 static void pin_release(uint8_t gpio)
 {
     uint32_t t0 = millis();
-    bool expect_low;
-    if (gpio == PIN_RESET && RESET_ACTIVE_HIGH) {
-        /* Active-HIGH: released = OUTPUT LOW. */
-        digitalWrite(gpio, LOW);
-        pinMode(gpio, OUTPUT);
-        expect_low = true;    /* active-HIGH: released = LOW */
-    } else {
-        /* Open-drain: released = INPUT (high impedance). */
-        pinMode(gpio, INPUT_PULLUP);
-        expect_low = false;   /* open-drain: released = HIGH (pull-up) */
-    }
-    verifier_notify(gpio, expect_low);
+    pinMode(gpio, INPUT_PULLUP);
+    verifier_notify(gpio, false);   /* active-LOW: released = HIGH (pull-up) */
     dbg_pin(t0, "RELEASE", gpio);
 }
 
@@ -1083,10 +1049,9 @@ void setup1(void)
 {
     /* Initialize verifier state to match the pin_init_released() defaults.
      *
-     * BOOTSEL: open-drain  → released = HIGH → expected_low = false
-     * RESET:   active-HIGH → released = LOW  → expected_low = true  */
+     * Both pins open-drain → released = HIGH → expected_low = false. */
     g_vs.bootsel_expected_low = false;
-    g_vs.reset_expected_low   = RESET_ACTIVE_HIGH;  /* true = LOW = released */
+    g_vs.reset_expected_low   = false;
     g_vs.bootsel_actual_low   = false;
     g_vs.reset_actual_low     = false;
     g_vs.bootsel_fault        = FAULT_NONE;
