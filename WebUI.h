@@ -1058,7 +1058,12 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let hasAnyHum = false;
                 let maxH = -999, minH = 999;
                 sensors.forEach((s, idx) => {
-                    const tArr = data.map(d => ({ x: d.t * 1000, y: (d.v && idx < d.v.length) ? d.v[idx] : null }));
+                    /* v e' um OBJETO chaveado por medida ("tDS18B2000": 23.4,
+                     * "uDHT2202": 55.1, ...) — o codigo antigo indexava v[idx]
+                     * como array (formato pre-V4) e lia umidade em d.h:
+                     * todos os pontos viravam null => grafico em branco. */
+                    const tKey = 't' + s.hwId, hKey = 'u' + s.hwId;
+                    const tArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[tKey] === 'number') ? d.v[tKey] : null }));
                     datasets.push({
                         label: `${s.hwId} T (°C)`,
                         data: tArr,
@@ -1069,7 +1074,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     });
                     if (s.hasH) {
                         hasAnyHum = true;
-                        const hArr = data.map(d => ({ x: d.t * 1000, y: (typeof d.h === 'number') ? d.h : null }));
+                        const hArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[hKey] === 'number') ? d.v[hKey] : null }));
                         hArr.forEach(p => { if (p.y !== null) { if (p.y > maxH) maxH = p.y; if (p.y < minH) minH = p.y; } });
                         datasets.push({
                             label: `${s.hwId} H (%)`,
@@ -1710,6 +1715,8 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         /* ===================================================================== */
 
+        /* Qualquer erro JS vira aviso visivel — nunca mais tela em branco muda. */
+        window.addEventListener('error', e => { try { showOverlay('Erro JS: ' + e.message); } catch(_) {} });
         document.addEventListener('DOMContentLoaded', () => { initSession(); loadAvailableDays(); populateSensorMsel().then(() => loadGraphRange(2)); });
     </script>
 </body>
