@@ -19,6 +19,7 @@
 #include "SystemDefs.h"
 #include "TelemetryManager.h"
 #include "Themes.h"
+#include "WebManager.h" /* _cg*Hits: por que um envio em chunks foi abortado */
 #include <LittleFS.h>
 #include <time.h>
 #include "lwip/opt.h"
@@ -209,6 +210,12 @@ void AppManager::executeCommand(CliDemand cmd) {
                         (unsigned)ps->avail, (unsigned)ps->err);
  }
 #endif
+ /* Why chunked responses were cut short. All three surface in the log as
+  * WEB_CLIENT_DISCONNECT but call for opposite fixes, so keep them apart. */
+ _cmdMgr->consolePrintf(" Abortos de envio: prazo %lu | latch %lu | desconexao %lu\n",
+                        (unsigned long)_cgDeadlineHits,
+                        (unsigned long)_cgGuardHits,
+                        (unsigned long)_cgDisconnHits);
  _cmdMgr->printDivider( );
  break;
  }
