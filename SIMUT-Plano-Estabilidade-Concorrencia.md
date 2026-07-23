@@ -15,7 +15,7 @@ Autópsias via watchdog scratch (T0.4) foram o instrumento decisivo em todos os 
 |---|---|---|
 | T0.1 métricas FLASH_OP | ✅ (wave 1) | `show metrics`: Flash ops/média/pior/>50ms |
 | T0.2 métricas de heap | ✅ (wave 1) | `show metrics`: Heap min + maior bloco |
-| T0.3 lwIP PBUF stats | ⬜ pendente | requer `LWIP_STATS` no env debug |
+| T0.3 lwIP PBUF stats | ✅ (4c56c11) | `LWIP_STATS`+`MEMP_STATS` sempre ligados via lwipopts patchado (~300 B, sem prints — divergência deliberada do "env debug": a bancada roda release); `show net status` imprime uso/pico/total/falhas do PBUF pool; verificado no ELF (`lwip_stats` 212 B, pool=12) |
 | T0.4 autópsia de reboot | ✅ (wave 1) | 4 autópsias distintas capturadas em bancada hoje |
 | T1.1 quiesce antes do reset | ✅ ampliado | wave 1 no quiet mode; hoje estendido ao lockout do `pauseRendering` + relançamento seguro (mutex/flags) + **`mutex_init(&_stateMutex)` no instante do kill** nos 2 pontos (autópsias `C0=[CLI]`/`C0=[SAVE_CFG]` do save-storm) |
 | T1.2 sem heap no render Core 1 | ✅ | 6 `String` removidos de `DisplayManager_Settings.cpp` (grep String nos caminhos de render = 0; restantes são setters Core-0/comentários) |
@@ -24,7 +24,7 @@ Autópsias via watchdog scratch (T0.4) foram o instrumento decisivo em todos os 
 | T1.5 watchdog do quiet mode | ✅ (wave 1) | `_quietSince` leak watchdog |
 | T1.6 assert de invariante | ✅ (wave 2) | `ConcurrencyAsserts.h` + tripwire no FLASH_OP |
 | T1.7 delay(50) runtime | ⚠️ exceção documentada | os 2 restantes são assentamento de HW pós-reset do Core 1; convertê-los em espera com bombas de serviço criaria reentrância (mesma classe da issue web-histórico) |
-| T2.1 batch de histórico | ⬜ pendente | mecanismo pending existe; batch N×5min não implementado |
+| T2.1 batch de histórico | ✅ (69535dd) | batch RAM de 4 amostras, dreno em UMA pausa do Core 1 (cheio ou 5 min); generaliza o pending de 1 slot; dreno antes de reboot/write memory; ~4× menos janelas de erase (intervalo default = 1 min) |
 | T2.2 PBUF 12→16 | ⬜ aguarda T0.3 | decidir por dado |
 | T2.3 de-String Core 0 | ⬜ pendente | caminhos quentes auth/telemetria |
 | T2.4 invariantes em docs | ✅ (wave 1) | `docs/CONCURRENCY.md` |
@@ -36,7 +36,12 @@ Autópsias via watchdog scratch (T0.4) foram o instrumento decisivo em todos os 
 | Obs. R6 (PBUF) | 🔶 dado novo | 25 erros TCP transitórios/10 min sob tempestade (recuperados via retry) — reforça implementar T0.3 antes de decidir T2.2 |
 | Validação #4 PIO 24 h | ⬜ iniciar | BMP280 precisa de 24 h sem fallback bit-bang |
 
-Issues abertas fora do plano: log persistido sempre vazio (gate `level >= LOG_INFO` existe, arquivo nunca ganha registros); gráfico web × flash writes concorrentes (reproduzido só sob tempestade — coberto pela validação #3).
+Issues fora do plano — todas resolvidas em 2026-07-22:
+- ~~Log persistido "vazio"~~ (89020fb + e23a4be): o writer sempre funcionou (1.156 registros no `.blog`); o leitor do CLI lia os nomes CSV extintos E o renderizador legado descartava linhas sem `;`; o `clear log` também só removia os nomes antigos. Tudo corrigido — 111 linhas legíveis no CLI.
+- ~~Gráficos de histórico sempre vazios~~ (dc5e0bb): writer impecável (103 registros decodificados no host com o codec do projeto); o leitor web perdia os dados em 3 estágios — cursor após header-read (irmão do scan bug v1.5.3 nunca aplicado à cópia inline), extensão `.sim` legada nos ranges <1M, e sem observabilidade. Com contadores permanentes (`filesTried/filesOpened/recs`) no envelope. Range 24h → 34 pontos reais.
+- Assinatura nova em vigília: `C0=[WIFI]` 1×/100 ciclos (save-storm, durante amostragem de RSSI no `show metrics`) — próximo alvo de investigação.
+- Nota UX: decimação fixa por range esvazia gráficos com poucos dados (ex.: MAX com <240 registros → 0 pontos); avaliar decimação adaptativa.
+- Cadência de teste ativa: lotes de 10 ciclos (diretriz do usuário) — último lote: 10/10 saves, zero reboots.
 
 ---
 
