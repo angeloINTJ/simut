@@ -42,8 +42,9 @@ Issues fora do plano — todas resolvidas em 2026-07-22:
 - Assinatura nova em vigília: `C0=[WIFI]` 1×/100 ciclos (save-storm, durante amostragem de RSSI no `show metrics`) — próximo alvo de investigação.
 - ~~Nota UX: decimação fixa~~ **resolvido (722cd53)** — decimação adaptativa (~600 pts/range).
 - ~~Gráficos web/TFT em branco~~ **resolvido** — cadeia de 6 defeitos (cursor de header em 5 cópias do leitor V4, extensão .sim legada, datas malformadas do calendário, slot-10 fantasma no frontend, sign-extension em canais unsigned do codec, mapper array-vs-objeto) + minificador comendo JS com aspas em comentário (guard de sintaxe `node --check` agora aborta o build).
-- ~~uBMP 102.2~~ **resolvido** — guard `chip 0x58 → h=NaN` movido para dentro de `getResults` (fonte única; o caminho bloqueante de calibração contornava o guard do chamador).
-- **Novo (aberto)**: pressão do BMP280 = NaN no caminho periódico assíncrono (histórico sem pressão em regime; o caminho bloqueante lê 1009.5 hPa corretamente) — investigar timing de conversão no readAll assíncrono.
+- ~~uBMP 102.2~~ **resolvido de verdade (eedd599, cebola de 3 camadas)**: (1) guard só no chamador periódico; (2) `getChipID()` faz leitura I2C viva por chamada e glitcha pós-readAll → guard não-determinístico → trocado pelo `isBME280()` **cacheado**; (3) a compensação de H do BMP280 produz **+INFINITY** e `isnan(inf)==false` — atravessava addSample→assembly→FromFloat e virava 1022 no clamp. Os 3 portões agora usam **isfinite**; FromFloat mapeia não-finito→sentinela. Forense duplamente mascarada pelo printf do newlib-nano (NaN imprime "inf"). Regra nova do projeto: **isfinite, nunca isnan, em portões de sanidade**.
+- ~~Pressão BMP NaN em regime~~ **resolvida de carona** — com o inf fora da cadeia, o histórico grava P real (validado: 1011.9 hPa em regime, rec-a-rec).
+- **Novos achados (corrigidos no mesmo lote)**: delete web do arquivo de histórico vivo não invalidava o codec (writer seguia em arquivo headerless até reboot); /api/delete devolvia 200 para caminho inexistente. Protocolo de bancada: todo flash verificado por marcador `SIMUT_VERSION` via serial.
 - Cadência de teste ativa: lotes de 10 ciclos (diretriz do usuário) — último lote: 10/10 saves, zero reboots.
 
 ---
