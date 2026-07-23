@@ -35,7 +35,7 @@ extern "C" {
 volatile uint32_t g_flashIrqEraseCount = 0;
 volatile uint32_t g_flashIrqProgCount  = 0;
 volatile uint32_t g_flashIrqMaxUs      = 0;
-volatile uint32_t g_flashIrqTotalUs    = 0;
+volatile uint64_t g_flashIrqTotalUs    = 0;
 volatile uint32_t g_flashIrqOver1msCount  = 0;
 
 void __real_flash_range_erase(uint32_t offset, size_t count);
@@ -49,6 +49,11 @@ static __always_inline uint32_t probe_now_us(void) {
 	return timer_hw->timerawl;
 }
 
+/* The total is 64-bit so a long soak cannot silently wrap it and turn the
+ * average into nonsense — the exact run this metric exists for. Widening is
+ * free here: 64-bit addition inlines to adds/adcs, so no flash-resident libgcc
+ * helper is reached. The division stays in CommandManager, which is ordinary
+ * flash-resident code and may call __aeabi_uldivmod freely. */
 static __always_inline void probe_account(uint32_t us) {
 	g_flashIrqTotalUs += us;
 	if (us > g_flashIrqMaxUs) g_flashIrqMaxUs = us;
