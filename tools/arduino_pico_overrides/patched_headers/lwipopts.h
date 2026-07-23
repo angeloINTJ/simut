@@ -86,11 +86,14 @@ extern void __setSystemTime(unsigned long long sec, unsigned long us);
 #define SNTP_SERVER_DNS                   1
 
 #ifndef LWIP_DEBUG
-#define LWIP_STATS                    0
+/* T0.3 (plano de estabilidade): MEMP/PBUF counters SEMPRE ligados —
+ * footprint de ~300 B, zero prints. `show net status` expõe o pico de
+ * uso e as falhas de alocacao do PBUF pool para decidir T2.2 (12→16). */
+#define LWIP_STATS                    1
 #define LWIP_STATS_DISPLAY            0
 #define MEM_STATS                     0
 #define SYS_STATS                     0
-#define MEMP_STATS                    0
+#define MEMP_STATS                    1
 #define LINK_STATS                    0
 #else
 #define LWIP_STATS                    1
