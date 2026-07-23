@@ -221,11 +221,15 @@ void AppManager::preloadMinMax( ) {
 	 {
 	 StorageManager::ReadGuard rg(_storageMgr.get( ));
 	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
-	 if (hdrRead < (int)HIST_V4_HEADER_FIXED ||
-	 histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, pState) == 0) {
+	 /* Cursor fix (same as graph/web/scan): reposition to the real
+	  * header end, else small files decode nothing (cursor at EOF). */
+	 size_t pHdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
+	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, pState) : 0;
+	 if (pHdrLen == 0) {
 	 f.close( );
 	 return;
 	 }
+	 f.seek(pHdrLen);
 	 }
 
 	 size_t pRdFilled = 0;

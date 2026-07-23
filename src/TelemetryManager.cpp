@@ -449,7 +449,11 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 	 static uint8_t rdBuf[HIST_V4_READ_BUF];
 	 static int64_t v4vals[HIST_V4_MAX_MEASUREMENTS];
 	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
-	 if (hdrRead >= (int)HIST_V4_HEADER_FIXED && histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) > 0) {
+	 /* Cursor fix (same as graph/web/scan): seek to the real header end. */
+	 size_t tHdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
+	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) : 0;
+	 if (tHdrLen > 0) f.seek(tHdrLen);
+	 if (tHdrLen > 0) {
 	 size_t rdFilled = 0;
 	 uint32_t v4epoch;
 	 bool fileHasMoreV4 = true; uint32_t inFileCountV4 = 0;
