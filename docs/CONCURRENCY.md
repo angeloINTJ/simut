@@ -42,6 +42,17 @@ reset, so behavior can never be worse than before.
 7. **Long flash work is sliced.** `enforceStorageLimit( )` deletes at
    most 2 files per call; the remainder drains via `update( )` one file
    per ≥15 s slice (`STO_ENFORCE_BUDGET` "deferred" marks the handoff).
+8. **Anything reached from a `flash_range_*` call path lives in SRAM.**
+   `src/FlashIrqProbe.cpp` wraps the two SDK flash primitives via
+   `-Wl,--wrap`, so its shims sit on the OTA applier's path too — and
+   `ota_applier_run( )` erases the whole application slot while running
+   from SRAM. A shim in the app slot would be fetched from an erased
+   sector on the next call and brick the device mid-update. Both shims
+   are `__not_in_flash_func`, they read `timer_hw->timerawl` directly
+   instead of calling `time_us_32( )`, and they stay in 32-bit
+   arithmetic so no flash-resident libgcc helper is reached.
+   `tools/check_flash_probe.py` fails the build if either shim links
+   outside `0x2000_0000–0x2004_2000`.
 
 ## Reading the new metrics
 
@@ -52,6 +63,15 @@ reset, so behavior can never be worse than before.
   radio stall. Target after wave 1: **< 60 ms** in steady state.
 - `>50ms` — count of ops that almost certainly included a 4 KB erase.
   If this grows outside history rollover/cleanup, investigate.
+- `IRQ-off max / avg` — the **actual** interrupts-disabled window around
+  flash program/erase, in microseconds. The three lines above measure a
+  whole `FLASH_OP` block (mutex, LittleFS bookkeeping, the write); this
+  measures only what LittleFS brackets with `noInterrupts( )`, which is
+  the stall cyw43/lwIP really sees. The plan's soak criterion is stated
+  on this number, not on `Worst op`.
+- `IRQ-off erase / prog / >1ms` — call counts per primitive and how many
+  windows exceeded 1 ms. Erases dominate; a rising `prog` count with
+  flat erases means many small appends landing inside one block.
 
 ## Deliberately deferred (wave 3)
 

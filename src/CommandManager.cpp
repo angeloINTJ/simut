@@ -17,6 +17,7 @@
 #include "LogManager.h"
 #include "DisplayManager.h" /* F-LANGPACK Etapa 3: getActiveHelpText */
 #include "MetricsManager.h"
+#include "FlashIrqProbe.h" /* T0.1: janela real de IRQ-off no show metrics */
 #include "StorageManager.h" /* getBoardSerialNumber em show system info */
 #include "HelpLicenseEN.h" /* HELP_TEXT_EN inline em PROGMEM */
 #include "sensors/SensorHelpers.h" /* sensorTypeName, sensorHasChannel, SensorFormat */
@@ -817,6 +818,20 @@ void CommandManager::renderMetrics( ) {
                    : " Worst op: %lu ms | >50ms: %lu\n",
  (unsigned long)m.flashOpMaxMs,
  (unsigned long)m.flashOpsOver50ms);
+ /* T0.1 (completed): the real IRQ-off window, not the FLASH_OP proxy above.
+  * Plan acceptance criterion for the 72 h soak is stated on this number. */
+ {
+  const uint32_t irqOps = g_flashIrqEraseCount + g_flashIrqProgCount;
+  consolePrintf (pt ? " IRQ-off max: %lu us | media: %lu us\n"
+                    : " IRQ-off max: %lu us | avg: %lu us\n",
+  (unsigned long)g_flashIrqMaxUs,
+  (unsigned long)(irqOps ? g_flashIrqTotalUs / irqOps : 0));
+  consolePrintf (pt ? " IRQ-off erase: %lu | prog: %lu | >1ms: %lu\n"
+                    : " IRQ-off erase: %lu | prog: %lu | >1ms: %lu\n",
+  (unsigned long)g_flashIrqEraseCount,
+  (unsigned long)g_flashIrqProgCount,
+  (unsigned long)g_flashIrqOver1msCount);
+ }
  printDivider( );
 }
 
