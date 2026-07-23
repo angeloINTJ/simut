@@ -115,6 +115,11 @@ public:
   * the whole drain). Called on batch-full/age, before reboots and on
   * write memory. Safe to call with an empty batch. */
  bool flushHistoryBatch( );
+ /** Invalidate the in-RAM V4 codec state after an EXTERNAL mutation of
+  * the current history file (e.g. web delete). Without this the writer
+  * keeps appending to a recreated HEADERLESS file until reboot and all
+  * those records are unreadable. Next write rescans/recreates. */
+ void invalidateV4Codec( ) { _histV4CodecValid = false; }
 
  /** @return today's V4 history file path (e.g. /history/20260721.sim4). */
  String getHistoryFileNameV4( );

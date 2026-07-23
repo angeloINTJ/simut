@@ -77,12 +77,26 @@ void WebManager::handleDelete( ) {
 
  String path = _server.arg("file");
 
+ bool existed = false;
  {
  RenderGuard rg(_displayRef);
  if (LittleFS.exists(path)) {
+ existed = true;
  LittleFS.remove(path);
  LOG_CODE(LOG_WARN, "SEC", SEC_FILE_DELETE, _currentUserId, path);
  }
+ }
+ if (!existed) {
+ /* Used to answer ok for nonexistent paths — silent no-ops cost a
+  * whole forensic session ("ghost purge"). Be honest. */
+ _server.send(404, "application/json", "{\"error\":\"Not found\"}");
+ return;
+ }
+ /* External mutation of the live history file: without invalidating,
+  * the writer appends to a recreated HEADERLESS file until reboot. */
+ if (path.startsWith("/history/") &&
+     (path.endsWith(HISTORY_V4_FILE_EXT) || path.endsWith(HISTORY_FILE_EXT))) {
+ _storageRef->invalidateV4Codec( );
  }
  /* Hot-reload custom theme on delete (same pattern as upload) —
  * avoids residue in in-memory list after user removes a .thm. */

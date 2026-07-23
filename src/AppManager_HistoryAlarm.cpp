@@ -394,7 +394,8 @@ void AppManager::processHistoryLogging( ) {
 
 	 	 	 	 uint8_t ch = schema->measures[m].channel;
 	 	 	 	 float v = s.avgValue[ch];
-	 	 	 	 if (isnan(v)) continue;
+	 	 	 	 /* isfinite: INFINITY passa por isnan e virava 1022 no clamp. */
+	 	 	 	 if (!isfinite(v)) continue;
 
 	 	 	 	 values[m] = histV4FromFloat(v, schema->measures[m]);
 

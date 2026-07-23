@@ -339,7 +339,9 @@ inline float histV4ToFloat(int64_t raw, const HistV4MeasureDef &def) {
  * @return Raw integer, or NAN sentinel for NAN input.
  */
 inline int64_t histV4FromFloat(float v, const HistV4MeasureDef &def) {
-    if (isnan(v)) return histV4NanSentinel(def.bitWidth);
+    /* isfinite: +-INFINITY passed the old isnan check, scaled to inf and
+     * the int64 cast clamped it to a plausible-looking max (102.2%). */
+    if (!isfinite(v)) return histV4NanSentinel(def.bitWidth);
     double scaled = (double)v * (double)def.scale;
     int64_t raw = (int64_t)round(scaled);
     // Clamp per channel signedness (exclude sentinel at top):
