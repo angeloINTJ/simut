@@ -1058,10 +1058,12 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let hasAnyHum = false;
                 let maxH = -999, minH = 999;
                 sensors.forEach((s, idx) => {
-                    /* v e' um OBJETO chaveado por medida ("tDS18B2000": 23.4,
-                     * "uDHT2202": 55.1, ...) — o codigo antigo indexava v[idx]
-                     * como array (formato pre-V4) e lia umidade em d.h:
-                     * todos os pontos viravam null => grafico em branco. */
+                    /* v e um OBJETO chaveado por medida (tDS18B2000, uDHT2202...)
+                     * — o codigo antigo indexava v[idx] como array (formato
+                     * pre-V4) e lia umidade em d.h: todos os pontos viravam
+                     * null e o grafico ficava em branco. Sem aspas neste
+                     * comentario: o minificador protege strings antes de
+                     * remover comentarios e aspas aqui o quebram. */
                     const tKey = 't' + s.hwId, hKey = 'u' + s.hwId;
                     const tArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[tKey] === 'number') ? d.v[tKey] : null }));
                     datasets.push({
