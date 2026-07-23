@@ -111,6 +111,10 @@ public:
 
  /** Write one V4 record. Delegates touch-priority buffering and flash I/O. */
  bool writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
+ /** T2.1: drain the RAM history batch to flash (one Core-1 pause for
+  * the whole drain). Called on batch-full/age, before reboots and on
+  * write memory. Safe to call with an empty batch. */
+ bool flushHistoryBatch( );
 
  /** @return today's V4 history file path (e.g. /history/20260721.sim4). */
  String getHistoryFileNameV4( );
@@ -292,11 +296,22 @@ public:
  BinaryHistoryRecord _pendingHistRec; /**< HIST record deferred during touch (legacy) */
  volatile bool _pendingHistValid = false; /**< True if _pendingHistRec has data */
 
- /* ── V4 pending + codec state ───────────────────────────────── */
- int64_t _pendingValuesV4[HIST_V4_MAX_MEASUREMENTS];
- uint32_t _pendingEpochV4 = 0;
- uint8_t  _pendingMeasureCountV4 = 0;
- volatile bool _pendingHistV4Valid = false;
+ /* ── V4 RAM batch + codec state (T2.1) ──────────────────────── */
+ /* Samples accumulate in RAM and hit flash in ONE Core-1 pause every
+  * HIST_BATCH_N samples or HIST_BATCH_MAX_MS, whichever first —
+  * ~N× fewer program/erase IRQ-off windows (plan R2). Power loss
+  * costs at most the buffered samples (plan-accepted trade-off).
+  * Generalizes the old 1-slot touch-priority pending buffer. */
+ static constexpr uint8_t  HIST_BATCH_N = 4;
+ static constexpr uint32_t HIST_BATCH_MAX_MS = 300000; /* 5 min */
+ struct HistBatchEntry {
+  int64_t values[HIST_V4_MAX_MEASUREMENTS];
+  uint32_t epoch;
+  uint8_t count;
+ };
+ HistBatchEntry _histBatch[HIST_BATCH_N];
+ uint8_t  _histBatchLen = 0;
+ uint32_t _histBatchFirstMs = 0;
 
  HistV4State _histV4State;
  bool _histV4CodecValid = false;

@@ -332,6 +332,14 @@ void StorageManager::update( ) {
    FLASH_OP(enforceStorageLimit( ));
   }
  }
+
+ /* T2.1: age-out flush of the history batch — covers the case where
+  * samples stop arriving (sensor gate, time-ref loss) with records
+  * still buffered in RAM. */
+ if (_histBatchLen > 0 && _isMounted && !TouchPriority::isActive( )
+     && timeSince(_histBatchFirstMs, HIST_BATCH_MAX_MS)) {
+  flushHistoryBatch( );
+ }
 }
 
 void StorageManager::loadDefaults( ) {
@@ -2117,25 +2125,52 @@ bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureC
 		if (nowEpoch > EPOCH_MIN && epoch > nowEpoch + 86400UL) return false;
 	}
 
-	/* Touch priority: buffer and return */
-	if (TouchPriority::isActive()) {
-		if (measureCount <= HIST_V4_MAX_MEASUREMENTS) {
-			memcpy(_pendingValuesV4, values, measureCount * sizeof(int64_t));
-			_pendingMeasureCountV4 = measureCount;
-			_pendingEpochV4 = epoch;
-			_pendingHistV4Valid = true;
-		}
+	if (measureCount > HIST_V4_MAX_MEASUREMENTS) return false;
+
+	/* T2.1: append to the RAM batch. Flash is only touched when the
+	 * batch fills or ages out — and never during touch interaction
+	 * (the old 1-slot touch-priority pending is subsumed by this). */
+	if (_histBatchLen < HIST_BATCH_N) {
+		HistBatchEntry &e = _histBatch[_histBatchLen];
+		memcpy(e.values, values, measureCount * sizeof(int64_t));
+		e.count = measureCount;
+		e.epoch = epoch;
+		if (_histBatchLen == 0) _histBatchFirstMs = millis();
+		_histBatchLen++;
+	}
+	/* else: batch full with a failing flush — sample dropped; the flush
+	 * below keeps retrying and logs on failure. */
+
+	bool full = (_histBatchLen >= HIST_BATCH_N);
+	bool aged = (_histBatchLen > 0) && timeSince(_histBatchFirstMs, HIST_BATCH_MAX_MS);
+	if ((full || aged) && !TouchPriority::isActive()) return flushHistoryBatch();
+	return true;
+}
+
+bool StorageManager::flushHistoryBatch( ) {
+	if (_histBatchLen == 0) return true;
+	if (!_isMounted) return false;
+
+	/* One Core-1 pause for the whole drain; the per-entry pause inside
+	 * writeHistoryEntryFlashV4 is refcounted and nests for free. */
+	Core1FlashPause _c1(this);
+	uint8_t written = 0;
+	for (uint8_t i = 0; i < _histBatchLen; i++) {
+		if (!writeHistoryEntryFlashV4(_histBatch[i].values, _histBatch[i].count,
+		                              _histBatch[i].epoch)) break;
+		written++;
+	}
+	if (written == _histBatchLen) {
+		_histBatchLen = 0;
 		return true;
 	}
-
-	/* Flush pending before writing current - only clear flag on success */
-	if (_pendingHistV4Valid) {
-		if (writeHistoryEntryFlashV4(_pendingValuesV4, _pendingMeasureCountV4, _pendingEpochV4)) {
-			_pendingHistV4Valid = false;
-		}
-	}
-
-	return writeHistoryEntryFlashV4(values, measureCount, epoch);
+	/* Partial drain: keep the remainder at the front, retry next tick. */
+	memmove(&_histBatch[0], &_histBatch[written],
+	        (size_t)(_histBatchLen - written) * sizeof(HistBatchEntry));
+	_histBatchLen -= written;
+	_histBatchFirstMs = millis();
+	LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, _histBatchLen, "hist_batch_partial");
+	return false;
 }
 
 bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
