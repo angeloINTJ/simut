@@ -218,7 +218,12 @@ struct BME280Driver {
          * garbage registers into plausible-looking values that leaked into
          * history through the blocking calibration path (the periodic path
          * had a caller-side guard). Kill it at the single source. */
-        if (_sensor->getChipID() == 0x58) h = NAN;
+        /* BMP280 has NO humidity. Use the CACHED isBME280() flag: the old
+         * guard called getChipID(), which does a LIVE I2C read per call —
+         * right after readAll's burst that read glitches intermittently,
+         * returns !=0x58 and the guard skips (forensics: h=inf leaking
+         * with cid printing 0x58 on the very next call). */
+        if (!_sensor->isBME280()) h = NAN;
 
         /* Sanity checks */
         if (t < -40.0f || t > 85.0f)  t = NAN;

@@ -643,7 +643,7 @@ void SensorManager::processPeriodicReads( ) {
      float t, h, p;
      if (drv->getResults(t, h, p)) {
       /* BME280: v1=temp, v2=humidity (pressure available via API) */
-     if (drv->getChipId() == 0x58) h = NAN;  /* BMP280 chip ID */
+     if (!drv->isBME( )) h = NAN;  /* BMP280: cached flag, not a live I2C read */
       handleSensorResult(s, true, t, h, "");
       /* Store pressure in CH_PRESS channel buffer */
       if (!isnan(p)) {
@@ -678,10 +678,13 @@ void SensorManager::processPeriodicReads( ) {
  * Sets the atomic _newDataAvailable flag for cross-core notification.
  */
 void SensorManager::addSample(RuntimeSensor &sensor, float v1, float v2) {
- if (!isnan(v1)) {
+ /* isfinite, not !isnan: INFINITY passes isnan and poisoned the whole
+  * averaging chain (BMP280 humidity compensation yields inf; newlib-
+  * nano printf masked it by printing NaN as "inf" during forensics). */
+ if (isfinite(v1)) {
  sensor.buffers[0].push(v1);
  }
- if (sensorHasHumidity(sensor.type) && !isnan(v2)) {
+ if (sensorHasHumidity(sensor.type) && isfinite(v2)) {
  sensor.buffers[1].push(v2);
  }
 
