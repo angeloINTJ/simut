@@ -364,6 +364,18 @@ size_t histV4Decode(const uint8_t *buf, size_t bufLen,
             int64_t raw = histV4BitExtract(buf, state.measureBitOffset[i],
                                            state.measures[i].bitWidth);
             uint8_t bw = state.measures[i].bitWidth;
+            /* Per-channel signedness (design: CH_TEMP is signed
+             * "-327.68..+327.66"; hum/press/lux are UNSIGNED "0..max").
+             * histV4BitExtract sign-extends universally, which mangled
+             * every anchor whose unsigned value had the top bit set:
+             * 76.5% hum (raw 765, 10-bit) decoded as -25.9; 1013.2 hPa
+             * (raw 10132, 14-bit) decoded as -625.1. The encoder always
+             * stored the low bits correctly — undoing the extension here
+             * retroactively repairs existing files. */
+            if (state.measures[i].channel != 0 && raw < 0 &&
+                !histV4IsNan(raw, bw) && bw < 64) {
+                raw &= (int64_t)((1ULL << bw) - 1);
+            }
             /* Normalize: all-bits-set extracted value → canonical nanSentinel */
             if (histV4IsNan(raw, bw)) {
                 raw = histV4NanSentinel(bw);
