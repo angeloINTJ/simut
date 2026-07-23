@@ -35,6 +35,56 @@ _hand_configure_port() {
 }
 
 # -----------------------------------------------------------------------------
+#  Send one command and return the first substantive response line.
+#
+#  The port is opened ONCE, read-write, and held for the whole exchange.
+#  This is not a style preference. Writing with `echo > port` and reading with
+#  `head < port` opens and closes the device twice: the hand answers in the
+#  window between the write handle closing and the read handle opening, with no
+#  reader attached, and the reply is gone. Measured on the bench — the split
+#  form returns an empty string every time while this one returns PONG.
+#
+#  Lines emitted by DEBUG mode ("[DBG t=...] RX line: ...") are skipped, so the
+#  wrapper keeps working when verbose logging is left on. Without that, even
+#  hand_detect_port fails: it reads the debug echo instead of PONG.
+#
+#  Args:
+#      $1 - port path
+#      $2 - command string
+#      $3 - timeout in seconds (optional, defaults to PICO_HAND_TIMEOUT)
+#  Stdout: first non-debug response line, CR stripped.
+#  Returns: 0 if a line was read, 1 on timeout or I/O error.
+# -----------------------------------------------------------------------------
+_hand_exchange() {
+    local port="$1" cmd="$2" tmo="${3:-$PICO_HAND_TIMEOUT}"
+    local line deadline
+
+    exec 3<>"$port" || return 1
+
+    # Drain anything left over from a previous session before asking.
+    while read -r -t 0.05 line <&3; do :; done
+
+    printf '%s\n' "$cmd" >&3 || { exec 3>&-; return 1; }
+
+    deadline=$(( SECONDS + ${tmo%.*} + 1 ))
+    while (( SECONDS < deadline )); do
+        if read -r -t "$tmo" line <&3; then
+            line="${line%$'\r'}"
+            [[ -z "$line" ]] && continue
+            [[ "$line" == \[DBG* ]] && continue
+            printf '%s\n' "$line"
+            exec 3>&-
+            return 0
+        else
+            break
+        fi
+    done
+
+    exec 3>&-
+    return 1
+}
+
+# -----------------------------------------------------------------------------
 #  Auto-detect the hand's port by sending PING and waiting for PONG.
 #
 #  Searches /dev/ttyACM* first (common for Linux CDC), then /dev/ttyUSB*
@@ -57,14 +107,7 @@ hand_detect_port() {
 
         _hand_configure_port "$port" || continue
 
-        # Drain any leftover garbage from previous sessions.
-        timeout 0.1 cat "$port" > /dev/null 2>&1 || true
-
-        # Send PING and wait up to 0.5s for a response.
-        echo "PING" > "$port" 2>/dev/null || continue
-        resp=$(timeout 0.5 head -n 1 < "$port" 2>/dev/null || true)
-        resp="${resp%$'\r'}"   # strip trailing CR if present
-
+        resp=$(_hand_exchange "$port" "PING" 1 2>/dev/null)
         if [[ "$resp" == "PONG" ]]; then
             echo "$port"
             return 0
@@ -87,6 +130,7 @@ hand_init() {
     fi
     PICO_HAND_PORT="$port"
     export PICO_HAND_PORT
+    _hand_configure_port "$PICO_HAND_PORT"
     echo "[pico_hand] hand detected at: $PICO_HAND_PORT" >&2
     return 0
 }
@@ -98,8 +142,8 @@ hand_init() {
 #      $@ - full command (e.g., hand HOLD BOOTSEL)
 #  Stdout: response line from the hand.
 #  Returns:
-#      0  if response starts with OK or PONG
-#      1  if response starts with ERR
+#      0  if the response is a success reply for its command
+#      1  if response starts with ERR (or is unrecognised)
 #      2  if no response within timeout
 #      3  if hand not initialized and detection failed
 # -----------------------------------------------------------------------------
@@ -112,21 +156,18 @@ hand() {
     local cmd="$*"
     local resp
 
-    echo "$cmd" > "$PICO_HAND_PORT" || return 3
-
-    resp=$(timeout "$PICO_HAND_TIMEOUT" head -n 1 < "$PICO_HAND_PORT" || true)
-    resp="${resp%$'\r'}"
-
-    if [[ -z "$resp" ]]; then
+    if ! resp=$(_hand_exchange "$PICO_HAND_PORT" "$cmd"); then
         echo "[pico_hand] timeout waiting for response to '$cmd'" >&2
         return 2
     fi
 
     echo "$resp"
+    # Query commands answer with their own banner rather than OK — treating
+    # those as failures made STATUS, PINOUT and VERIFY unusable from scripts.
     case "$resp" in
-        OK*|PONG*) return 0 ;;
-        ERR*)      return 1 ;;
-        *)         return 1 ;;   # anything else treated as failure
+        OK*|PONG*|STATUS*|PINOUT*|VFY*|DONE*) return 0 ;;
+        ERR*)                                 return 1 ;;
+        *)                                    return 1 ;;
     esac
 }
 

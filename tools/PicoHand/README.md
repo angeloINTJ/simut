@@ -10,8 +10,8 @@ hangs before accepting the next binary — zero human intervention.
 
 ```
 ┌─────────────┐        ┌──────────────┐
-│ Host (CI)   │──USB──▶│  PicoHand    │──GP0──▶ BOOTSEL (target)
-│ pico_hand.sh│        │  (this fw)   │──GP1──▶ RESET   (target)
+│ Host (CI)   │──USB──▶│  PicoHand    │──GP0──▶ RESET   (target)
+│ pico_hand.sh│        │  (this fw)   │──GP1──▶ BOOTSEL (target)
 └─────────────┘        └──────────────┘──GND──▶ GND     (target)
 ```
 
