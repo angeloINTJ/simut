@@ -165,10 +165,19 @@ void WebManager::handleApiHistoryMulti( ) {
  time_t targetDay = effectiveEnd - (d * 86400);
  struct tm timeinfo; localtime_r(&targetDay, &timeinfo);
  char defPath[40];
+ /* Push BOTH extensions: the writer creates .sim4 (V4) since the
+  * universal-format migration; the old code only looked for the
+  * legacy .sim here, so every range below 1M read zero V4 files
+  * (empty graphs) while the >=1M dir-listing branch matched both. */
  snprintf(defPath, sizeof(defPath), "%s/%04d%02d%02d%s",
  DIR_HISTORY,
  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
  HISTORY_FILE_EXT);
+ filesToRead.push_back(String(defPath));
+ snprintf(defPath, sizeof(defPath), "%s/%04d%02d%02d%s",
+ DIR_HISTORY,
+ timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+ HISTORY_V4_FILE_EXT);
  filesToRead.push_back(String(defPath));
  }
  }
@@ -224,6 +233,7 @@ void WebManager::handleApiHistoryMulti( ) {
  int chunkLen = 0;
  bool aborted = false;
  int lineIdx = 0;
+ unsigned filesOpened = 0, recsDecoded = 0; /* diagnostico no metaEnd */
 
  for (size_t fi = 0; fi < filesToRead.size( ) && !aborted; fi++) {
  String path = filesToRead[fi];
@@ -237,6 +247,7 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  }
  if (!fileOk) continue;
+ filesOpened++;
 
 	 /* V4 detection: .sim4 files use universal format */
 	 bool _v4 = path.endsWith(HISTORY_V4_FILE_EXT);
@@ -254,8 +265,15 @@ void WebManager::handleApiHistoryMulti( ) {
 	 ReadGuard rg(_storageRef);
 	 f.seek(0);
 	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
-	 if (hdrRead < (int)HIST_V4_HEADER_FIXED ||
-	 histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) == 0) { f.close(); continue; }
+	 /* Same fix as the v1.5.3 StorageManager scan bug: reposition the
+	  * cursor to the REAL end of the header. The old code discarded
+	  * hdrLen and kept reading from wherever the header read stopped —
+	  * for any file smaller than HIST_V4_MAX_HEADER that is EOF, so
+	  * the record loop below emitted ZERO points (empty graphs). */
+	 size_t hdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
+	                 ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) : 0;
+	 if (hdrLen == 0) { f.close(); continue; }
+	 f.seek(hdrLen);
 	 }
 
 	 size_t rdFilled = 0;
@@ -274,6 +292,7 @@ void WebManager::handleApiHistoryMulti( ) {
 	 size_t c = histV4DecodeNext(rdBuf, rdFilled, v4st, v4vals, &v4epoch);
 	 if (c == 0) break;
 	 memmove(rdBuf, rdBuf + c, rdFilled - c); rdFilled -= c;
+	 recsDecoded++;
 	 }
 
 	 time_t ts = (time_t)v4epoch;
@@ -471,12 +490,15 @@ void WebManager::handleApiHistoryMulti( ) {
  const char* sMin = (realMinT < 0) ? "-" : "";
  const char* sMax = (realMaxT < 0) ? "-" : "";
  snprintf(metaEnd, sizeof(metaEnd),
- "],\"minT\":%s%d.%02d,\"maxT\":%s%d.%02d,\"tsMinT\":%lu,\"tsMaxT\":%lu}",
+ "],\"minT\":%s%d.%02d,\"maxT\":%s%d.%02d,\"tsMinT\":%lu,\"tsMaxT\":%lu,"
+ "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u}",
  sMin, abs((int)realMinT), abs((int)(realMinT*100)%100),
  sMax, abs((int)realMaxT), abs((int)(realMaxT*100)%100),
- (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT);
+ (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT,
+ (unsigned)filesToRead.size( ), filesOpened, recsDecoded);
  } else {
- snprintf(metaEnd, sizeof(metaEnd), "]}");
+ snprintf(metaEnd, sizeof(metaEnd), "],\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u}",
+ (unsigned)filesToRead.size( ), filesOpened, recsDecoded);
  }
  safeSend(metaEnd);
  safeSend("");
