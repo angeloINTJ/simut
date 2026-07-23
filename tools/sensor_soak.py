@@ -185,6 +185,24 @@ class Soak:
         s['slots_dht22'] = sensors.count('DHT22')
         s['slots_bmp'] = sensors.count('BMP280') + sensors.count('BME280')
 
+        # T2.2 is blocked on data, not on opinion: the pool peak was only ever
+        # read at idle (2 of 12), which cannot justify spending 6 KB of RAM to
+        # grow it. Sample it here so a long run under real traffic decides.
+        net = self.cmd('show net status', timeout=12) or ''
+        m = re.search(r'PBUF pool:\s*(\d+)\s*(?:em uso|in use)\s*/\s*(?:pico|peak)\s*(\d+)'
+                      r'\s*/\s*(\d+)\s*total,\s*(\d+)', net)
+        if m:
+            s['pbuf_inuse'] = int(m.group(1))
+            s['pbuf_peak'] = int(m.group(2))
+            s['pbuf_total'] = int(m.group(3))
+            s['pbuf_fail'] = int(m.group(4))
+            if s['pbuf_fail'] > 0:
+                self.event(f'*** PBUF allocation failures: {s["pbuf_fail"]} '
+                           f'(peak {s["pbuf_peak"]}/{s["pbuf_total"]}) — T2.2 now has a case')
+        m = re.search(r'RSSI:\s*(-?\d+)', net)
+        if m:
+            s['rssi'] = int(m.group(1))
+
         log = self.cmd('show system log', timeout=15) or ''
         bb = len(re.findall(r'bit-bang', log, re.IGNORECASE))
         c1 = len(re.findall(r'Core 1 dead', log, re.IGNORECASE))
@@ -229,6 +247,7 @@ class Soak:
                 f'ok={s.get("sensor_ok")} err={s.get("sensor_err")} '
                 f'slots(ds/dht/bmp)={s.get("slots_ds18")}/{s.get("slots_dht22")}/{s.get("slots_bmp")} '
                 f'irqoff_max_us={s.get("irqoff_max_us")} '
+                f'pbuf={s.get("pbuf_peak")}/{s.get("pbuf_total")} '
                 f'reboots={self.reboots} bitbang={self.bitbang_hits} '
                 f'left={left:.1f}h')
             # Sleep in slices so a stop lands promptly.
