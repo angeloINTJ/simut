@@ -198,6 +198,62 @@ vai **reprovar** no critério como escrito. Isso é resultado útil, não fracas
 o alvo passa a ser reduzir a janela (fatiar erases, adiar GC para fora de
 janelas de rádio) e não apenas medi-la.
 
+### Causa-raiz do `APP_CORE1_DEAD` — guarda morta, não colisão de XIP
+
+O Core 1 estava sendo **hard-resetado enquanto saudável**. `getHeartbeat( )`
+sempre teve a ideia certa:
+
+```cpp
+if (_isPausedForFlash) return millis( );
+return _lastHeartbeat;
+```
+
+Congelado para uma escrita de flash, o Core 1 não roda seu loop e
+`_lastHeartbeat` para de avançar; a flag existe para que essa parada
+*deliberada* não conte contra o limiar de 10 s do watchdog de saúde. Só que
+`_isPausedForFlash` era declarada `false`, zerada em cinco lugares, lida ali —
+e **nunca atribuída `true` em lugar algum**. A guarda jamais disparou em
+nenhuma build.
+
+O efeito não é cosmético: cada milissegundo de lockout vira obsolescência
+aparente. Passando de 10 s, se o watchdog amostrar num instante em que
+`_pauseStartTime` voltou a 0, ele declara morto um núcleo perfeitamente sadio e
+chama `restartCore1( )` — o caminho `multicore_reset`, a classe de risco R1
+inteira, disparada contra quem estava fazendo exatamente o que mandaram. O
+reset então trava o Core 0 o bastante para quebrar respostas HTTP em voo: foi
+assim que apareceu, com três `APP_CORE1_DEAD` e dois `WEB_CLIENT_DISCONNECT`
+nos três minutos seguintes a um login, e a `/config` sem carregar.
+
+**Correção**: setar a flag enquanto o lockout segura o Core 1, e carimbar
+`_lastHeartbeat` na liberação, para que a janela entre zerar `_pauseStartTime`
+e a próxima iteração do Core 1 também não seja lida como travamento.
+
+**A hipótese inicial estava errada, e o dado a derrubou.** Eu entrei esperando
+o oposto — escrita de flash sem `Core1FlashPause`, o mecanismo de colisão de
+XIP dos reboots de julho — porque a sonda mostrava 1228 operações de flash
+contra 41 blocos `FLASH_OP`. Essa razão é um chamariz: a maioria são escritas
+de boot, inofensivas porque o Core 1 ainda não subiu. A sonda passou a contar o
+caso que importa (`Core1 exposto` no `show metrics`): program/erase emitido com
+o Core 1 **rodando e não congelado**. Sob carga real o contador é **zero** —
+nenhum caminho de escrita está sem pausa, e a teoria de XIP fica descartada
+para estas mortes.
+
+**Validação** (imagem `pico_w_asserts` com a correção, 2026-07-23 20:20):
+
+| Medida | Resultado |
+|---|---|
+| Saves reais | 40/40, com toque simulado |
+| Requisições HTTP concorrentes | **1086, zero falhas** |
+| Operações de flash | 2337 (230 erases) |
+| `Core1 exposto` | **0 ops** |
+| `APP_CORE1_DEAD` novos | **0** (os 3 do log são anteriores à correção) |
+| `WEB_CLIENT_DISCONNECT` novos | **0** |
+| Uptime | contínuo, heap estável |
+
+Ressalva honesta: é **uma** corrida de ~5 min. As três mortes originais
+surgiram em 16 s de sessão de navegador, então o resultado é encorajador, mas a
+mistura de carga não é idêntica e o caso merece confirmação num soak.
+
 ### Nota de versionamento — resolvido em **1.5.2-rc4**
 
 O rótulo rc3 chegou a cobrir dois binários distintos (com e sem a sonda),
