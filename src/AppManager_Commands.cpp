@@ -21,6 +21,11 @@
 #include "Themes.h"
 #include <LittleFS.h>
 #include <time.h>
+#include "lwip/opt.h"
+#if LWIP_STATS && MEMP_STATS
+#include "lwip/stats.h"
+#include "lwip/memp.h"
+#endif
 
 void AppManager::executeCommand(CliDemand cmd) {
  SystemConfig &cfg = _storageMgr->getConfig( );
@@ -103,6 +108,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  _cmdMgr->consolePrintln("");
  _cmdMgr->consolePrintln("--- SYSTEM LOG START ---");
  int logCount = 0;
+ /* Reads the COMPACT BINARY log (12-byte CompactLogRecord). The old
+  * implementation streamed "/system.log"/"/system.old" — the legacy
+  * CSV names that begin( ) deletes at every boot — so this command
+  * always printed an empty log while the writer filled *.blog. */
  auto streamLogFile = [&](const char* path) {
 
  _storageMgr->enterFlashReadLock( );
@@ -112,20 +121,23 @@ void AppManager::executeCommand(CliDemand cmd) {
  _storageMgr->exitFlashReadLock( );
  if (exists && f) {
 
- char lineBuf[256];
- while (f.available( ) && logCount < 2000) {
+ CompactLogRecord rec;
+ char line[96];
+ while (logCount < 2000 &&
+        f.read((uint8_t*)&rec, LOG_RECORD_SIZE) == (int)LOG_RECORD_SIZE) {
  feedWdt( );
- size_t len = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
- if (len == 0) continue;
- lineBuf[len] = '\0';
- _cmdMgr->printLogEntry(String(lineBuf));
+ snprintf(line, sizeof(line), "%10lu up%uh C%u [%s][%-6s] code=%u ctx=%d",
+          (unsigned long)rec.epoch, rec.uptimeHr, rec.getCore( ),
+          LogManager::instance( ).getLevelString((LogLevel)rec.getLevel( )),
+          tagIdToString(rec.getTagId( )), rec.code, (int)rec.context);
+ _cmdMgr->printLogEntry(String(line));
  logCount++;
  }
  f.close( );
  }
  };
- streamLogFile("/system.old");
- streamLogFile("/system.log");
+ streamLogFile(LOG_FILE_OLD);
+ streamLogFile(LOG_FILE_CURRENT);
  _cmdMgr->consolePrintln("--- SYSTEM LOG END ---");
  _cmdMgr->consolePrintln("");
  break;
@@ -186,6 +198,15 @@ void AppManager::executeCommand(CliDemand cmd) {
  : "--- Network Status ---");
  _cmdMgr->consolePrintf (" IP: %s\n", ip.c_str( ));
  _cmdMgr->consolePrintf (" RSSI: %ld dBm\n", (long)_netMgr->getRssi( ));
+#if LWIP_STATS && MEMP_STATS
+ /* T0.3: PBUF pool watermark — decides T2.2 (pool 12→16). */
+ {
+ const struct stats_mem* ps = lwip_stats.memp[MEMP_PBUF_POOL];
+ _cmdMgr->consolePrintf(" PBUF pool: %u em uso / pico %u / %u total, %u falhas\n",
+                        (unsigned)ps->used, (unsigned)ps->max,
+                        (unsigned)ps->avail, (unsigned)ps->err);
+ }
+#endif
  _cmdMgr->printDivider( );
  break;
  }
@@ -577,6 +598,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  * which, outside quiet mode, would fall into IRQ-based lockout and
  * get stuck. */
  _displayMgr->requestQuietMode( ); /* default 15s timeout */
+ _storageMgr->flushHistoryBatch( ); /* T2.1: persist buffered samples */
  bool saved = _storageMgr->saveConfiguration( );
  if (saved) {
  loadAndCalibrateSensors( );
@@ -616,6 +638,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI"));
+ _storageMgr->flushHistoryBatch( ); /* T2.1: don't lose buffered samples */
  delay(100); /* Ensures log is flushed to flash */
  LogManager::instance( ).safeReboot( );
  break;
