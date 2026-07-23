@@ -130,7 +130,9 @@ void AppManager::executeCommand(CliDemand cmd) {
           (unsigned long)rec.epoch, rec.uptimeHr, rec.getCore( ),
           LogManager::instance( ).getLevelString((LogLevel)rec.getLevel( )),
           tagIdToString(rec.getTagId( )), rec.code, (int)rec.context);
- _cmdMgr->printLogEntry(String(line));
+ /* Direct print: printLogEntry( ) is the legacy CSV renderer — it
+  * silently drops any line without >= 7 ';'-separated fields. */
+ _cmdMgr->consolePrintln(String(line));
  logCount++;
  }
  f.close( );
@@ -622,6 +624,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  _storageMgr->enterFlashSafeMode( );
+ /* Remove the COMPACT logs (the live format) and the legacy CSVs. The
+  * old code only removed the CSV names, so 'clear log' never actually
+  * cleared anything since the .blog migration. */
+ LittleFS.remove(LOG_FILE_CURRENT); LittleFS.remove(LOG_FILE_OLD);
  LittleFS.remove("/system.log"); LittleFS.remove("/system.old");
  _storageMgr->exitFlashSafeMode( );
  LogManager::instance( ).begin(true, LOG_DEBUG);
