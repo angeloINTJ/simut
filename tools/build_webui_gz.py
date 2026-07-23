@@ -175,6 +175,41 @@ def _minify_web_block(src: str) -> str:
     return src
 
 
+def _syntax_check_scripts(name: str, html: str) -> None:
+    """Valida a sintaxe dos <script> inline do HTML minificado via `node --check`.
+
+    O minificador preserva strings ANTES de remover comentarios: aspas dentro
+    de um comentario JS confundem essa ordem e ja produziram paginas com 13KB
+    de JS devorado (pagina /history quebrada em producao). Falha o BUILD alto
+    e claro em vez de embarcar JS invalido. No-op se node nao estiver no PATH.
+    """
+    import re as _re
+    import shutil
+    import subprocess
+    import tempfile
+
+    node = shutil.which("node") or shutil.which("nodejs")
+    if not node:
+        return
+    for i, script in enumerate(_re.findall(r"<script>(.*?)</script>", html, _re.DOTALL)):
+        if not script.strip():
+            continue
+        with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as tf:
+            tf.write(script)
+            path = tf.name
+        try:
+            r = subprocess.run([node, "--check", path], capture_output=True, text=True)
+            if r.returncode != 0:
+                raise SystemExit(
+                    f"build_webui_gz: SINTAXE JS INVALIDA apos minificacao em "
+                    f"{name} <script>[{i}] — build abortado.\n"
+                    f"Causa comum: aspas dentro de comentarios JS no WebUI.h.\n"
+                    f"{r.stderr.strip()[:400]}"
+                )
+        finally:
+            os.unlink(path)
+
+
 def generate() -> None:
     if not os.path.isfile(INPUT_FILE):
         print("build_webui_gz: WebUI.h not found — skipping generation.")
@@ -212,6 +247,7 @@ def generate() -> None:
     for name, html_content in matches:
         original_len = len(html_content)
         minified = _minify_web_block(html_content)
+        _syntax_check_scripts(name, minified)
         compressed = gzip.compress(minified.encode("utf-8"), compresslevel=9)
         hex_parts = [f"0x{b:02x}" for b in compressed]
 
