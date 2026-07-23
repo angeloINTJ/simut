@@ -150,22 +150,62 @@ Quanto disso é IRQ desligada continua desconhecido — é exatamente o número 
 a sonda nova mede e que ainda não rodou em hardware.
 
 **Protocolo #4 — soak do PIO 24 h · 🔄 em execução**
-Iniciado em 2026-07-23 19:30, término previsto 2026-07-24 19:30
-(`docs/test_reports/pio_soak_20260723/`, amostra a cada 5 min). Vigia o WARN de
-queda para bit-bang, contadores de erro dos sensores, deriva de heap, reboots e
-o pico do pool de PBUF. Roda na imagem 1.5.2-rc3 atual — não depende da sonda.
-Primeira amostra: uptime 4938 s, heap 55832, 8220 leituras, 0 erros, PBUF 2/12.
+Iniciado em 2026-07-23 19:38, término previsto 2026-07-24 19:38
+(`docs/test_reports/pio_soak_20260723/`, amostra a cada 5 min). Roda na imagem
+`pico_w_asserts` recém-gravada, portanto coleta **também** a janela de IRQ-off
+e mantém o tripwire da invariante 3 armado. Vigia o WARN de queda para
+bit-bang, contadores de erro dos sensores, deriva de heap, reboots e o pico do
+pool de PBUF. Primeira amostra: uptime 112 s, heap 55696, 163 leituras, 0
+erros, PBUF 1/12, **IRQ-off max 59724 µs**.
 
 Observação sobre os campos `slots_*` do soak: são contagens de ocorrência do
 nome do sensor na saída de `show sensors`, não número de slots. O sinal útil é
 a **constância** — uma queda indica sensor sumindo do inventário.
 
-### Limitação desta sessão
+### Primeira observação em hardware da janela de IRQ-off — e ela quase reprova
 
-O firmware novo **não foi gravado**: não há entrada por software no bootloader
-e o PicoHand não está na bancada, então o flash exige BOOTSEL físico. Os
-números de IRQ-off ainda não foram observados em hardware. O soak do PIO
-(protocolo #4) não depende da sonda e roda na imagem atual.
+Imagem `pico_w_asserts` gravada e verificada por picotool em 2026-07-23 19:36.
+Primeiro `show metrics` após o boot (39 s de uptime):
+
+```
+ Flash ops: 0 (media 0 ms)
+ Pior op: 0 ms | >50ms: 0
+ IRQ-off max: 55568 us | media: 4506 us
+ IRQ-off erase: 14 | prog: 148 | >1ms: 14
+```
+
+Três leituras diretas desse bloco:
+
+1. **`Flash ops: 0` com 162 operações de flash já contabilizadas.** As
+   operações de boot (mount do LittleFS, carga de config) acontecem **fora**
+   de qualquer bloco `FLASH_OP` — a métrica da onda 1 era literalmente cega
+   para elas. Não era só imprecisa: não as via.
+2. **14 erases, 14 janelas >1 ms, 148 programs.** A correspondência exata
+   diz que *todo* erase passa de 1 ms e *nenhum* program passa. O custo está
+   inteiramente nos erases; os programs são ruído.
+3. **Pior janela: 55,6 ms de IRQ desligada** — e o soak registrou **59,7 ms**
+   com 112 s de uptime. O critério do protocolo #1 é `flash_irqoff_max_ms
+   < 60 ms`. Estamos a **0,3 ms** dele, ainda em regime de boot, sem
+   rollover de histórico nem GC. Sob a tempestade de saves o pior `FLASH_OP`
+   bateu 202 ms; se a fração de IRQ-off acompanhar, o critério cai.
+
+Ou seja: **R2 deixou de ser hipótese**. Cada erase de setor cega o rádio por
+até ~60 ms, e a métrica antiga nunca teria mostrado isso — nem pelo valor, nem
+pela existência.
+
+Consequência para o planejamento: o soak de 72 h (protocolo #1) provavelmente
+vai **reprovar** no critério como escrito. Isso é resultado útil, não fracasso:
+o alvo passa a ser reduzir a janela (fatiar erases, adiar GC para fora de
+janelas de rádio) e não apenas medi-la.
+
+### Nota de versionamento
+
+A imagem gravada reporta `SIMUT_VERSION 1.5.2-rc3`, igual ao HEAD — repo e
+bancada estão consistentes. Mas o rótulo rc3 agora cobre dois binários
+distintos (com e sem a sonda). O marcador funcional que os distingue é a
+presença das linhas `IRQ-off` em `show metrics`. **Bump para rc4 deve
+acompanhar o próximo flash**, para que o protocolo de verificação por
+`SIMUT_VERSION` volte a ser suficiente sozinho.
 
 ---
 
