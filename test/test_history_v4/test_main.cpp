@@ -674,6 +674,79 @@ static void test_delta_valid_to_nan_transition(void) {
     TEST_ASSERT_EQUAL_INT64(2510, v[0]);                /* was 5010        */
 }
 
+/** Regression: UNSIGNED channels (hum/press) must NOT be sign-extended at
+ * anchor decode. 76.5% hum (raw 765, 10-bit, top bit set) used to decode
+ * as -259; 1013.2 hPa (raw 10132, 14-bit) as -6251. The encoder always
+ * stored the low bits correctly — only the reader was wrong. */
+static void buildUnsignedSchema(HistV4State &state, uint8_t channel,
+                                uint8_t bitWidth, uint32_t scale) {
+    buildTestSchema(state, 1);
+    state.measures[0].channel  = channel;
+    state.measures[0].bitWidth = bitWidth;
+    state.measures[0].scale    = scale;
+    uint16_t bitOff = 32;
+    state.measureBitOffset[0]  = bitOff;
+    state.measureByteOffset[0] = bitOff >> 3;
+    state.anchorByteSize = (bitOff + bitWidth + 7) / 8;
+}
+
+static void test_anchor_unsigned_hum_no_sign_extension(void) {
+    HistV4State enc, dec;
+    buildUnsignedSchema(enc, 1 /*CH_HUM*/, 10, 10);
+    buildUnsignedSchema(dec, 1, 10, 10);
+    uint8_t buf[64];
+    int64_t v[1]; uint32_t ep;
+
+    v[0] = 765;                                         /* 76.5 % — bit 9 set */
+    size_t n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1000);
+    TEST_ASSERT_TRUE(n > 0);
+    histV4Decode(buf, n, dec, v, &ep, true);
+    TEST_ASSERT_EQUAL_INT64(765, v[0]);                 /* was -259 */
+
+    /* Delta chain on top of the high anchor must stay coherent. */
+    v[0] = 780;
+    n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1060);
+    histV4Decode(buf, n, dec, v, &ep, false);
+    TEST_ASSERT_EQUAL_INT64(780, v[0]);
+}
+
+static void test_anchor_unsigned_press_no_sign_extension(void) {
+    HistV4State enc, dec;
+    buildUnsignedSchema(enc, 2 /*CH_PRESS*/, 14, 10);
+    buildUnsignedSchema(dec, 2, 14, 10);
+    uint8_t buf[64];
+    int64_t v[1]; uint32_t ep;
+
+    v[0] = 10132;                                       /* 1013.2 hPa — bit 13 set */
+    size_t n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1000);
+    TEST_ASSERT_TRUE(n > 0);
+    histV4Decode(buf, n, dec, v, &ep, true);
+    TEST_ASSERT_EQUAL_INT64(10132, v[0]);               /* was -6251 */
+}
+
+static void test_anchor_signed_temp_negative_preserved(void) {
+    HistV4State enc, dec;
+    buildTestSchema(enc, 1);                            /* CH_TEMP 16-bit */
+    buildTestSchema(dec, 1);
+    uint8_t buf[64];
+    int64_t v[1]; uint32_t ep;
+
+    v[0] = -525;                                        /* -5.25 °C */
+    size_t n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1000);
+    TEST_ASSERT_TRUE(n > 0);
+    histV4Decode(buf, n, dec, v, &ep, true);
+    TEST_ASSERT_EQUAL_INT64(-525, v[0]);                /* sign kept for temp */
+}
+
+static void test_fromfloat_unsigned_clamps_at_zero(void) {
+    HistV4MeasureDef def;
+    def.channel = 1; def.bitWidth = 10; def.scale = 10; def.decimals = 1;
+    TEST_ASSERT_EQUAL_INT64(0, histV4FromFloat(-3.0f, def));   /* not two's-complement */
+    TEST_ASSERT_EQUAL_INT64(765, histV4FromFloat(76.5f, def));
+    def.channel = 0; def.bitWidth = 16; def.scale = 100;
+    TEST_ASSERT_EQUAL_INT64(-525, histV4FromFloat(-5.25f, def)); /* temp keeps sign */
+}
+
 /** A NaN ANCHOR must clear validity on both sides → next delta absolute. */
 static void test_anchor_nan_after_valid_then_delta(void) {
     HistV4State enc, dec;
@@ -855,6 +928,10 @@ int main(void) {
     /* v1.5.3 regressions */
     RUN_TEST(test_delta_valid_to_nan_transition);
     RUN_TEST(test_anchor_nan_after_valid_then_delta);
+    RUN_TEST(test_anchor_unsigned_hum_no_sign_extension);
+    RUN_TEST(test_anchor_unsigned_press_no_sign_extension);
+    RUN_TEST(test_anchor_signed_temp_negative_preserved);
+    RUN_TEST(test_fromfloat_unsigned_clamps_at_zero);
     RUN_TEST(test_encode_rejects_count_mismatch);
     RUN_TEST(test_reopen_resume_continuity);
     RUN_TEST(test_torn_tail_stops_at_boundary);

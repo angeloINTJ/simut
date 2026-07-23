@@ -342,10 +342,18 @@ inline int64_t histV4FromFloat(float v, const HistV4MeasureDef &def) {
     if (isnan(v)) return histV4NanSentinel(def.bitWidth);
     double scaled = (double)v * (double)def.scale;
     int64_t raw = (int64_t)round(scaled);
-    // Clamp to valid range (exclude sentinel at top)
+    // Clamp per channel signedness (exclude sentinel at top):
+    // CH_TEMP (0) is signed with a symmetric range; every other channel
+    // (hum/press/lux) is unsigned 0..max — a negative raw here would be
+    // stored as two's-complement low bits and decode as a huge positive.
     int64_t maxVal = histV4NanSentinel(def.bitWidth) - 1;
-    int64_t minVal = -(maxVal / 2) - 1;  // symmetric negative range for signed
-    if (raw > maxVal) raw = maxVal;
+    int64_t minVal = (def.channel == 0) ? (-(maxVal / 2) - 1) : 0;
+    if (def.channel == 0) {
+        int64_t maxSigned = maxVal / 2;  // top bit reserved for sign
+        if (raw > maxSigned) raw = maxSigned;
+    } else if (raw > maxVal) {
+        raw = maxVal;
+    }
     if (raw < minVal) raw = minVal;
     return raw;
 }
