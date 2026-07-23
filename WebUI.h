@@ -862,7 +862,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         let _lastChartCutoff = 0; let _lastChartEnd = 0; /* range visualizado — usado por exportHistoryCsv */
         /* F-GRAPH-REVAMP: 7 niveis 1h, 6h, 24h, 7d, 1M, 1A, MAX (idx 6 = 0 = ilimitado) */
         const rangeDurations = [3600, 21600, 86400, 604800, 2592000, 31536000, 0];
-        let _selectedSensors = [10]; /* default: slot 10 (humidity-capable sensor) */
+        let _selectedSensors = []; /* preenchido com todos os slots ativos no populate */
         let _currentRangeIdx = 2;    /* default: 24h */
 
         /* Paleta para series. Cores quentes p/ T (variando por idx do sensor),
@@ -881,16 +881,19 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const menu = document.getElementById('sensorMselMenu');
                 if (!menu) return;
                 menu.innerHTML = '';
-                /* Universal slots 0-15: API returns gpio field (=slot index).
-                 * Slot 10 (humidity-capable) shown first for backward compat. */
+                /* /api/status emite {slot, id, name, ...}. O codigo antigo
+                 * especializava o slot 10 legado ("Ambiente Central") e o
+                 * default [10]: sem slot 10 na config atual, nada nascia
+                 * selecionado => grafico em branco. */
                 const items = [];
                 if (data && data.sensors) {
-                    /* Slot 10 (DHT/humidity) first */
-                    data.sensors.forEach(s => { if (s.slot === 10) items.push({ id: s.slot, name: s.name, hwId: s.id }); });
-                    /* All other active slots */
-                    data.sensors.forEach(s => { if (s.slot !== 10 && true) items.push({ id: s.slot, name: s.name, hwId: s.id }); });
+                    data.sensors.forEach(s => items.push({ id: s.slot, name: s.name, hwId: s.id }));
                 }
-                if (items.length === 0) items.push({ id: 10, name: 'Slot 10', hwId: 'AMB' });
+                /* Default: todos os sensores ativos selecionados. */
+                if (_selectedSensors.length === 0 ||
+                    !items.some(it => _selectedSensors.indexOf(it.id) >= 0)) {
+                    _selectedSensors = items.map(it => it.id);
+                }
                 items.forEach(it => {
                     const lbl = document.createElement('label');
                     const chk = document.createElement('input');
@@ -916,14 +919,12 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const checks = document.querySelectorAll('#sensorMselMenu input[type=checkbox]');
             const sel = [];
             checks.forEach(c => { if (c.checked) sel.push(parseInt(c.value, 10)); });
-            if (sel.length === 0) {
-                /* impede deselecao total — mantem ao menos ambient */
-                const first = document.querySelector('#sensorMselMenu input[type=checkbox][value="-1"]');
-                if (first) first.checked = true;
-                _selectedSensors = [-1];
-            } else {
-                _selectedSensors = sel;
+            if (sel.length === 0 && checks.length > 0) {
+                /* impede deselecao total — re-marca o primeiro slot real */
+                checks[0].checked = true;
+                sel.push(parseInt(checks[0].value, 10));
             }
+            _selectedSensors = sel;
             _updateSensorMselLabel();
             /* Recarrega grafico */
             loadGraphRange(_currentRangeIdx);
