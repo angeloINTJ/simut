@@ -825,7 +825,7 @@ void CommandManager::renderMetrics( ) {
   consolePrintf (pt ? " IRQ-off max: %lu us | media: %lu us\n"
                     : " IRQ-off max: %lu us | avg: %lu us\n",
   (unsigned long)g_flashIrqMaxUs,
-  (unsigned long)(irqOps ? g_flashIrqTotalUs / irqOps : 0));
+  (unsigned long)(irqOps ? (uint32_t)(g_flashIrqTotalUs / irqOps) : 0u));
   consolePrintf (pt ? " IRQ-off erase: %lu | prog: %lu | >1ms: %lu\n"
                     : " IRQ-off erase: %lu | prog: %lu | >1ms: %lu\n",
   (unsigned long)g_flashIrqEraseCount,

@@ -34,7 +34,7 @@ extern "C" {
 extern volatile uint32_t g_flashIrqEraseCount;  /**< flash_range_erase calls */
 extern volatile uint32_t g_flashIrqProgCount;   /**< flash_range_program calls */
 extern volatile uint32_t g_flashIrqMaxUs;       /**< Longest single IRQ-off window */
-extern volatile uint32_t g_flashIrqTotalUs;     /**< Sum, for the average */
+extern volatile uint64_t g_flashIrqTotalUs;     /**< Sum, for the average (64-bit: a long soak wraps 32) */
 extern volatile uint32_t g_flashIrqOver1msCount;   /**< Windows longer than 1 ms */
 
 #ifdef __cplusplus
