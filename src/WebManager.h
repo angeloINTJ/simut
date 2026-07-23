@@ -25,6 +25,16 @@ extern volatile bool _sendGuardExpired;
 extern volatile bool _sendGuardActive;
 extern volatile uint32_t _sendGuardStartMs;
 
+/* Why a chunked response was cut short. safeSend( ) aborts the handler the
+ * moment isClientGone( ) is true, which leaves the client holding a truncated
+ * body — JSON that cannot parse. The three causes are indistinguishable in the
+ * log (all surface as WEB_CLIENT_DISCONNECT), and they call for opposite fixes:
+ * a real disconnect is the client's doing, a deadline hit means the handler is
+ * too slow, and a guard hit means the abort latch tripped. Count them apart. */
+extern volatile uint32_t _cgDeadlineHits;
+extern volatile uint32_t _cgGuardHits;
+extern volatile uint32_t _cgDisconnHits;
+
 struct SendGuard {
 	SendGuard( ) {
 		_sendGuardStartMs = millis( );
@@ -133,14 +143,20 @@ private:
 	inline bool isClientGone( ) {
 		/* Wrap-safe: millis( ) wraps every ~49.7 days and would break this timeout. */
 		if (_handlerDeadline > 0 && timeReached(_handlerDeadline)) {
+			_cgDeadlineHits++;
 			return true;
 		}
 		/* SendGuard hit the watchdog feed ceiling:
 		 * abort handler cleanly instead of letting the WDT fire. */
 		if (_sendGuardExpired) {
+			_cgGuardHits++;
 			return true;
 		}
-		return !_server.client( ).connected( );
+		if (!_server.client( ).connected( )) {
+			_cgDisconnHits++;
+			return true;
+		}
+		return false;
 	}
 
 

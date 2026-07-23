@@ -211,6 +211,11 @@ bool WebManager::isHandlerOvertime( ) {
  */
 volatile bool _sendGuardActive = false;
 volatile bool _sendGuardExpired = false; /* extern — consumed by WebManager.h */
+
+/* Abort-cause counters — see WebManager.h. */
+volatile uint32_t _cgDeadlineHits = 0;
+volatile uint32_t _cgGuardHits    = 0;
+volatile uint32_t _cgDisconnHits  = 0;
 volatile uint32_t _sendGuardStartMs = 0;
 static struct repeating_timer _sendGuardTimer;
 
@@ -240,6 +245,14 @@ void WebManager::update( ) {
 
  uint32_t handlerStart = millis( );
  _handlerDeadline = handlerStart + 6000;
+
+ /* Clear the abort latch at the start of every tick. It is set by the
+  * SendGuard timer to end ONE overlong send, but safeSend( ) tests it before
+  * constructing the SendGuard that would clear it — so once set, every later
+  * safeSend returns false at its entry check, never reaches the constructor,
+  * and the latch stays set. That turns a single slow send into permanently
+  * truncated chunked responses for the rest of the uptime. */
+ _sendGuardExpired = false;
 
  /* Multi-request drain per tick (up to 4) with time cap (50ms).
  * Reduces systemic latency from ~600ms (1 request per loop iteration)
