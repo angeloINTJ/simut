@@ -15,22 +15,26 @@ it back into BOOTSEL mode **without human intervention**.
 ## 0. Bench status — verified 2026-07-23
 
 Everything below was exercised against the real fixture, not read off the
-source. Two findings matter before you rely on this tool:
-
-Both control lines carry a **100 Ω series resistor**, added to protect the two
-boards against a wiring short. That resistor is why the two lines behave
-differently, and §7.1 explains it.
+source.
 
 | Line | GPIO | State |
 |------|------|-------|
 | RESET | GP0 | ✅ **Works end to end.** Target uptime went 134 s → 19 s on `hand RESET`. |
-| BOOTSEL | GP1 | ⚠️ **Wired, but does not put the target into BOOTSEL.** See §7.1. |
+| BOOTSEL | GP1 | ✅ **Works end to end.** Target entered BOOTSEL and was flashed without a human touching it. |
 
-Because BOOTSEL does not currently take effect, the recovery recipe in §4.2
-cannot complete on this bench. Use `pio run -t upload`, which performs its own
-1200 bps touch reset and does not need the fixture at all; keep the hand for
-`RESET` between test cases and for the day a target hangs hard enough to ignore
-the touch reset.
+The full recovery recipe (§4.2) was executed start to finish: `hand BOOTSEL`
+returned `OK`, the target's CDC port vanished, `picotool info` reported the
+device, `picotool load` wrote the image and rebooted it, and the target came
+back answering `Firmware: 1.5.2-rc4`. Zero human intervention.
+
+**Wiring that matters.** RESET keeps a 100 Ω series resistor and works fine
+through it. BOOTSEL must be a direct connection — 100 Ω on that line stops it
+working, for the reason in §7.1. Getting there took two false diagnoses, both
+recorded in §7.1 so they are not repeated.
+
+For routine flashing, `pio run -t upload` is still the simpler path: it performs
+its own 1200 bps touch reset and needs no fixture. The hand is what saves you
+when the target is hung too hard to service USB at all.
 
 ---
 
@@ -148,8 +152,9 @@ fi
 
 ### 4.2 Flash with automatic recovery
 
-The intended core recipe. **Blocked on this bench** until the BOOTSEL line is
-rewired (§7.1) — `hand BOOTSEL` returns `ERR` and the target keeps running.
+The core recipe, **verified end to end on this bench**: BOOTSEL forced by the
+hand, image written by picotool, target back up reporting the new version, no
+human involved.
 
 ```bash
 flash_with_recovery() {
@@ -243,7 +248,7 @@ Upload firmware to target
         ▼
    hand BOOTSEL
         │
-   OK? ────────── NO ──▶ check hand VERIFY; if BOOTSEL_STUCK_LOW, see §7.1
+   OK? ────────── NO ──▶ see §7.1: series resistor on the line? bad contact?
         │
        YES
         │
@@ -280,31 +285,37 @@ reset pulse. **That fault is an artifact of the measurement, not proof of a
 short.** The toggling is itself good news: it means the wire is landed on a
 live node rather than floating.
 
-**The 100 Ω series resistor is very likely why BOOTSEL does not take.** It is
-harmless on RESET and decisive on BOOTSEL, because the two target pins are
-electrically different:
+**BOOTSEL needs a direct connection; RESET tolerates a series resistor.** The
+two target pins are electrically different, and the bench proved it in both
+directions:
 
 - **RUN** is a high-impedance input with a weak internal pull-up. 100 Ω to GND
-  overwhelms it easily, which is why `hand RESET` works — verified, not assumed.
+  overwhelms it easily, which is why `hand RESET` works through the resistor —
+  verified, not assumed.
 - **QSPI_SS** is a push-pull output actively driven by the target. Pulling it
-  through 100 Ω against a driver whose output impedance is on the order of tens
-  of ohms produces a divider that never reaches a logic LOW. The BOOTSEL button
-  it emulates is a hard short to GND, 0 Ω by design.
+  through 100 Ω against a driver whose output impedance is tens of ohms forms a
+  divider that never reaches a logic LOW, and BOOTSEL silently fails. The
+  button it emulates is a hard short to GND, 0 Ω by design. With the resistor
+  removed, BOOTSEL worked on the first attempt.
 
-This also invalidates an obvious-looking test. Holding BOOTSEL asserted while
-the target runs left it perfectly healthy — uptime advanced 46 s → 55 s,
-answering the CLI throughout — which would prove a disconnected wire if the
-link were direct. Through 100 Ω against an active driver it proves nothing: the
-line never actually goes low, so of course the target is undisturbed. **Do not
-use the hold test to decide whether the BOOTSEL wire is landed while a series
-resistor is present.**
+### The hold test, and when it lies
 
-If BOOTSEL needs to work, the series resistance on that line has to come down
-to near zero. The safety argument for the resistor is weaker there anyway: the
-hand only ever pulls low or goes high-impedance, so the dangerous case it
-guards against — two outputs fighting — requires the target to drive QSPI_SS
-high at the same moment, which is exactly the condition that also defeats the
-100 Ω.
+Holding BOOTSEL asserted while the target runs should crash it: with a direct
+link, pulling QSPI_SS low corrupts every instruction fetch. It is the only way
+to prove the wire is landed, because `VERIFY` cannot (see above). But it has
+one precondition that is easy to miss.
+
+**With a series resistor in the line, the test is meaningless.** The line never
+actually reaches logic low, so the target carries on regardless of whether the
+wire is connected. Reaching a "disconnected" verdict that way is wrong.
+
+**With a direct link, the test is decisive** — and it earns its keep. A run
+with the resistor already removed showed the target surviving the hold, uptime
+advancing 54 s → 72 s. That correctly indicated a bad connection, which turned
+out to be exactly right: the wire was reseated and BOOTSEL began working
+immediately.
+
+So: check for series resistance first, then trust the hold test.
 
 ### 7.2 DEBUG mode changes what the first response line is
 

@@ -16,19 +16,24 @@ de volta ao modo BOOTSEL **sem intervenção humana**.
 
 Tudo abaixo foi exercitado contra o dispositivo real, não lido do código.
 
-As duas linhas de controle têm um **resistor de 100 Ω em série**, colocado para
-proteger as placas contra curto de fiação. Esse resistor é justamente o motivo
-de as duas linhas se comportarem de forma diferente, e a §7.1 explica.
-
 | Linha | GPIO | Estado |
 |-------|------|--------|
 | RESET | GP0 | ✅ **Funciona de ponta a ponta.** O uptime do alvo caiu de 134 s para 19 s com `hand RESET`. |
-| BOOTSEL | GP1 | ⚠️ **Conectada, mas não coloca o alvo em BOOTSEL.** Ver §7.1. |
+| BOOTSEL | GP1 | ✅ **Funciona de ponta a ponta.** O alvo entrou em BOOTSEL e foi gravado sem ninguém encostar nele. |
 
-Como o BOOTSEL não surte efeito hoje, a receita de recuperação da §4.2 não
-completa nesta bancada. Use `pio run -t upload`, que faz o próprio reset por
-toque de 1200 bps e dispensa o dispositivo; guarde a mão para `RESET` entre
-casos de teste e para o dia em que um alvo travar a ponto de ignorar o toque.
+A receita completa de recuperação (§4.2) foi executada do início ao fim: o
+`hand BOOTSEL` retornou `OK`, a porta CDC do alvo sumiu, o `picotool info`
+enxergou o dispositivo, o `picotool load` gravou a imagem e reiniciou, e o alvo
+voltou respondendo `Firmware: 1.5.2-rc4`. Zero intervenção humana.
+
+**Fiação que importa.** O RESET mantém resistor de 100 Ω em série e funciona
+através dele. O BOOTSEL precisa de ligação direta — 100 Ω nessa linha impedem o
+funcionamento, pelo motivo da §7.1. Chegar aqui exigiu dois diagnósticos
+errados, ambos registrados na §7.1 para não se repetirem.
+
+Para gravação de rotina, o `pio run -t upload` continua sendo o caminho mais
+simples: faz o próprio reset por toque de 1200 bps e dispensa o dispositivo. A
+mão é o que te salva quando o alvo trava a ponto de não atender USB.
 
 ---
 
@@ -144,8 +149,9 @@ fi
 
 ### 4.2 Gravação com recuperação automática
 
-A receita central pretendida. **Bloqueada nesta bancada** enquanto o BOOTSEL não
-surtir efeito (§7.1) — `hand BOOTSEL` retorna `ERR` e o alvo segue rodando.
+A receita central, **verificada de ponta a ponta nesta bancada**: BOOTSEL
+forçado pela mão, imagem gravada pelo picotool, alvo de volta reportando a
+versão nova, sem ninguém envolvido.
 
 ```bash
 flash_with_recovery() {
@@ -236,7 +242,7 @@ Gravar firmware no alvo
         ▼
    hand BOOTSEL
         │
-   OK? ────────── NAO ──▶ veja hand VERIFY; se BOOTSEL_STUCK_LOW, ver §7.1
+   OK? ────────── NAO ──▶ ver §7.1: resistor em serie na linha? mau contato?
         │
        SIM
         │
@@ -272,32 +278,37 @@ rajadas longas, segurando a linha baixa além do limiar de 5 ms, e é por isso q
 pulso de reset. **Essa falha é artefato da medição, não prova de curto.** A
 oscilação é, em si, boa notícia: significa que o fio está num nó vivo, não solto.
 
-**O resistor de 100 Ω em série é muito provavelmente o motivo de o BOOTSEL não
-pegar.** Ele é inofensivo no RESET e decisivo no BOOTSEL, porque os dois pinos
-do alvo são eletricamente diferentes:
+**O BOOTSEL precisa de ligação direta; o RESET tolera resistor em série.** Os
+dois pinos do alvo são eletricamente diferentes, e a bancada provou isso nos
+dois sentidos:
 
 - **RUN** é entrada de alta impedância com pull-up interno fraco. 100 Ω para GND
-  vence com folga — e é por isso que o `hand RESET` funciona, verificado e não
-  presumido.
+  vence com folga — e é por isso que o `hand RESET` funciona através do
+  resistor, verificado e não presumido.
 - **QSPI_SS** é saída push-pull acionada ativamente pelo alvo. Puxá-la através
   de 100 Ω contra um driver de impedância de saída na casa de dezenas de ohms
-  forma um divisor que nunca chega a nível lógico baixo. O botão BOOTSEL que ela
-  emula é um curto direto para GND, 0 Ω por projeto.
+  forma um divisor que nunca chega a nível lógico baixo, e o BOOTSEL falha
+  silenciosamente. O botão que ela emula é um curto direto para GND, 0 Ω por
+  projeto. Com o resistor removido, o BOOTSEL funcionou na primeira tentativa.
 
-Isso também invalida um teste de aparência óbvia. Segurar o BOOTSEL acionado com
-o alvo rodando o deixou perfeitamente saudável — uptime avançou de 46 s para
-55 s, respondendo à CLI o tempo todo — o que provaria fio desconectado se a
-ligação fosse direta. Através de 100 Ω contra um driver ativo isso não prova
-nada: a linha nunca chega a descer, então é natural que o alvo não se abale.
-**Não use o teste de segurar para decidir se o fio de BOOTSEL está conectado
-enquanto houver resistor em série.**
+### O teste de segurar, e quando ele mente
 
-Se o BOOTSEL precisar funcionar, a resistência em série nessa linha tem de cair
-para perto de zero. O argumento de segurança do resistor é mais fraco ali de
-qualquer forma: a mão só puxa para baixo ou fica em alta impedância, então o
-caso perigoso que ele protege — duas saídas brigando — exige que o alvo esteja
-acionando o QSPI_SS em nível alto no mesmo instante, que é exatamente a condição
-que também derrota os 100 Ω.
+Segurar o BOOTSEL acionado com o alvo rodando deveria derrubá-lo: com ligação
+direta, puxar o QSPI_SS para baixo corrompe toda busca de instrução. É a única
+forma de provar que o fio está conectado, porque o `VERIFY` não consegue (ver
+acima). Mas tem uma precondição fácil de esquecer.
+
+**Com resistor em série na linha, o teste não significa nada.** A linha nunca
+chega a nível baixo de verdade, então o alvo segue rodando esteja o fio
+conectado ou não. Concluir "desconectado" por esse caminho é errado.
+
+**Com ligação direta, o teste é decisivo** — e se paga. Uma execução já sem o
+resistor mostrou o alvo sobrevivendo ao hold, com uptime avançando de 54 s para
+72 s. Isso indicou corretamente mau contato, o que se confirmou: o fio foi
+reencaixado e o BOOTSEL passou a funcionar imediatamente.
+
+Ou seja: verifique primeiro se há resistência em série, depois confie no teste
+de segurar.
 
 ### 7.2 O modo DEBUG muda qual é a primeira linha de resposta
 
