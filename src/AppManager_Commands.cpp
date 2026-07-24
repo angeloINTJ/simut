@@ -760,6 +760,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_USER_PASS:
  cmdHandleUserPass(cmd, cfg, changed); break;
 
+ case CMD_USER_PERM:
+ cmdHandleUserPerm(cmd, cfg, changed); break;
+
  case CMD_SET_WEB_PORT: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid || cmd.intVal1 < 1 || cmd.intVal1 > 65535) {

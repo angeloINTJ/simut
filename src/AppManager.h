@@ -107,6 +107,7 @@ private:
  void cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+ void cmdHandleUserPerm(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleSetTime(const CliDemand& cmd);
  void cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);

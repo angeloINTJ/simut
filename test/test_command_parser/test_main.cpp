@@ -74,6 +74,27 @@ void test_clear_log_no_confirm(void) {
 
 /* ---- user management (cold-chain labs often share one admin) ---- */
 
+void test_user_perm_role(void) {
+    CliDemand d = parse("user perm fieldtech admin");
+    TEST_ASSERT_EQUAL(CMD_USER_PERM, d.type);
+    assertStr1(d, "fieldtech");
+    TEST_ASSERT_EQUAL_STRING("admin", d.strVal2);
+}
+
+void test_user_perm_hex_mask(void) {
+    CliDemand d = parse("user perm bob 0x00FF");
+    TEST_ASSERT_EQUAL(CMD_USER_PERM, d.type);
+    assertStr1(d, "bob");
+    /* Role/mask is matched case-insensitively, so the token is lowercased. */
+    TEST_ASSERT_EQUAL_STRING("0x00ff", d.strVal2);
+}
+
+void test_user_perm_without_value_is_not_perm(void) {
+    /* Missing the role must not fall through to a half-built CMD_USER_PERM. */
+    CliDemand d = parse("user perm bob");
+    TEST_ASSERT_NOT_EQUAL(CMD_USER_PERM, d.type);
+}
+
 void test_conf_user_add(void) {
     CliDemand d = parse("conf user add fieldtech s3cret");
     TEST_ASSERT_EQUAL(CMD_USER_ADD, d.type);
@@ -217,6 +238,9 @@ int main(int argc, char** argv) {
     RUN_TEST(test_show_with_extra_spaces);
     RUN_TEST(test_clear_log_confirm);
     RUN_TEST(test_clear_log_no_confirm);
+    RUN_TEST(test_user_perm_role);
+    RUN_TEST(test_user_perm_hex_mask);
+    RUN_TEST(test_user_perm_without_value_is_not_perm);
     RUN_TEST(test_conf_user_add);
     RUN_TEST(test_conf_user_add_missing_pass_still_parses);
     RUN_TEST(test_conf_user_del);
