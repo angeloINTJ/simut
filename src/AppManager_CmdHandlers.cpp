@@ -423,9 +423,19 @@ void AppManager::cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool&
  }
  safeCopy(cfg.users[freeSlot].username, cmd.strVal1, sizeof(cfg.users[freeSlot].username));
  {
+ /* SEC-007/009 (F15): salt random + hashVersion=1 — mesmo esquema de
+  * 'user pass' e 'admin reset'. Antes gravava hashPassword( ), que salga
+  * com o username, enquanto verifyPasswordFor( ) verifica com
+  * hashPasswordV1( ) e o salt do slot: os dois nunca batiam e o usuario
+  * criado pela CLI jamais conseguia logar na web — justamente o que este
+  * comando existe para fazer. E sem definir salt/hashVersion o slot ainda
+  * herdava os bytes do usuario anterior. */
+ _storageMgr->generateSalt(cfg.users[freeSlot].salt);
  String preHash = _storageMgr->sha256Hex(String(cmd.strVal2));
- String hashed = _storageMgr->hashPassword(String(cmd.strVal1), preHash);
+ String hashed = _storageMgr->hashPasswordV1(String(cmd.strVal1), preHash,
+                                             cfg.users[freeSlot].salt);
  safeCopy(cfg.users[freeSlot].password, hashed.c_str( ), sizeof(cfg.users[freeSlot].password));
+ cfg.users[freeSlot].hashVersion = 1;
  }
  cfg.users[freeSlot].active = true;
  cfg.users[freeSlot].permissions = (PERM_DASHBOARD | PERM_HISTORY | PERM_CALIB);
