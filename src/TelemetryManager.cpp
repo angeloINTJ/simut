@@ -24,6 +24,33 @@
 #include <pico/time.h>
 
 /**
+ * @brief true se o arquivo de histórico @p fileName é de um dia ANTERIOR a
+ *        @p minDay ("YYYYMMDD").
+ *
+ * @details L2: o corte de arquivos comparava o nome inteiro contra um limite
+ * montado com o sufixo ".bin" fixo. Como os 8 dígitos da data decidem a
+ * ordem antes de o sufixo pesar, funcionava — por acidente, e só enquanto
+ * todas as extensões coexistissem sem mudar. Comparar exatamente a parte
+ * que significa alguma coisa remove o acidente.
+ *
+ * Nomes com menos de 8 caracteres ou com não-dígitos no prefixo não são
+ * arquivos de dia válidos; são mantidos (não cortados) para que a leitura
+ * decida, em vez de sumirem silenciosamente aqui.
+ *
+ * @param fileName Nome do arquivo (sem diretório), e.g. "20260724.sim4".
+ * @param minDay   Data limite no formato "YYYYMMDD".
+ * @return true se deve ser pulado.
+ */
+static bool historyDayIsBefore(const String &fileName, const char *minDay) {
+	if (fileName.length( ) < 8) return false;
+	for (int i = 0; i < 8; i++) {
+		const char c = fileName[i];
+		if (c < '0' || c > '9') return false;
+	}
+	return strncmp(fileName.c_str( ), minDay, 8) < 0;
+}
+
+/**
  * @brief Feeds the watchdog during blocking network operations (TLS/HTTP/MQTT).
  *
  * http.POST() with TLS can block for 4-8s on a healthy network. On degraded
@@ -406,14 +433,18 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  }
  std::sort(files.begin( ), files.end( ));
 
- String minFileName = "";
+ /* L2: o corte compara apenas os 8 digitos YYYYMMDD do nome. Antes o
+  * limite era montado com o sufixo ".bin" fixo e comparado contra nomes
+  * que podem terminar em ".sim4" — funcionava por acaso (os digitos
+  * decidem antes de o sufixo importar) e quebraria em silencio ao mudar
+  * qualquer extensao. Comparar so a data torna a regra explicita. */
+ char minDay[9] = "";
  if (lastCursor > 1000000000) {
  time_t cursorEpoch = (time_t)lastCursor;
  struct tm timeinfo;
  localtime_r(&cursorEpoch, &timeinfo);
- char buff[24];
- snprintf(buff, sizeof(buff), "%04d%02d%02d" HISTORY_FILE_EXT, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
- minFileName = String(buff);
+ snprintf(minDay, sizeof(minDay), "%04d%02d%02d",
+          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
  }
 
  uint8_t limit = safeBatchLimit(
@@ -424,11 +455,14 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  * (V1 format) that was silently broken after migration. Reader follows
  * the pattern used in StorageManager::getLastRecorded
  * and WebManager::handleApiHistoryData. */
- const uint32_t EPOCH_MIN = 1700000000UL;
+ /* L1: piso unificado em SystemDefs_Limits.h. Era 1,7e9 aqui e no
+  * escritor V2, contra 1,6e9 no escritor V4 — registros gravados na
+  * janela entre os dois nunca eram enviados. */
+ const uint32_t EPOCH_MIN = HIST_EPOCH_MIN;
 
  for (const String& fn : files) {
  if (batch.size( ) >= limit) break;
- if (minFileName.length( ) > 0 && fn < minFileName) continue;
+ if (minDay[0] && historyDayIsBefore(fn, minDay)) continue;
 
  String fullPath = String(DIR_HISTORY) + "/" + fn;
 
@@ -459,14 +493,20 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 	 bool fileHasMoreV4 = true; uint32_t inFileCountV4 = 0;
 	 SystemConfig &cfg = _storageRef->getConfig();
 	 while (fileHasMoreV4 && batch.size() < limit) {
-	 if (rdFilled < v4st.anchorByteSize && f.available() > 0) {
-	 int rN = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
-	 if (rN > 0) rdFilled += (size_t)rN;
-	 }
-	 if (rdFilled == 0) { fileHasMoreV4 = false; break; }
-	 size_t cons = histV4DecodeNext(rdBuf, rdFilled, v4st, v4vals, &v4epoch);
+	 /* A1: refill pós-falha. Antes, um delta maior que a âncora na
+	  * borda do buffer encerrava o arquivo cedo; como o cursor é por
+	  * epoch, o lote saía vazio e o envio só retomava no próximo tick
+	  * (telemetria atrasando indefinidamente em dias com variação
+	  * forte, que é justamente quando os deltas ficam grandes). */
+	 size_t cons = histV4DecodeNextRefill(
+	 rdBuf, sizeof(rdBuf), rdFilled, v4st, v4vals, &v4epoch,
+	 [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+	 if (f.available() <= 0) return 0;
+	 int rN = f.read(dst, maxBytes);
+	 return (rN > 0) ? (size_t)rN : 0;
+	 });
 	 if (cons == 0) { fileHasMoreV4 = false; break; }
-	 memmove(rdBuf, rdBuf + cons, rdFilled - cons); rdFilled -= cons; inFileCountV4++;
+	 inFileCountV4++;
 	 if (v4epoch >= EPOCH_MIN && (nowEpoch < EPOCH_MIN || v4epoch <= nowEpoch + 86400UL) && v4epoch > lastCursor) {
 	 BinaryHistoryRecord rec; rec.clear(); rec.epoch = v4epoch;
 	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
@@ -1440,17 +1480,18 @@ void TelemetryManager::refreshPendingCount( ) {
  }
 
 
- String minFileName = "";
+ /* L2: o corte compara apenas os 8 digitos YYYYMMDD do nome. Antes o
+  * limite era montado com o sufixo ".bin" fixo e comparado contra nomes
+  * que podem terminar em ".sim4" — funcionava por acaso (os digitos
+  * decidem antes de o sufixo importar) e quebraria em silencio ao mudar
+  * qualquer extensao. Comparar so a data torna a regra explicita. */
+ char minDay[9] = "";
  if (lastCursor > 1000000000) {
  time_t cursorEpoch = (time_t)lastCursor;
  struct tm timeinfo;
  localtime_r(&cursorEpoch, &timeinfo);
- char buff[24];
- snprintf(buff, sizeof(buff), "%04d%02d%02d" HISTORY_FILE_EXT,
- timeinfo.tm_year + 1900,
- timeinfo.tm_mon + 1,
- timeinfo.tm_mday);
- minFileName = String(buff);
+ snprintf(minDay, sizeof(minDay), "%04d%02d%02d",
+          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
  }
 
  uint16_t total = 0;
@@ -1460,7 +1501,7 @@ void TelemetryManager::refreshPendingCount( ) {
  * in V2 format, count was wrong (generally inflated). Reader identical
  * to collectBatch but only counts records with epoch > lastCursor. */
  for (const String& fn : files) {
- if (minFileName.length( ) > 0 && fn < minFileName) continue;
+ if (minDay[0] && historyDayIsBefore(fn, minDay)) continue;
 
  String fullPath = String(DIR_HISTORY) + "/" + fn;
 

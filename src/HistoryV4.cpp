@@ -405,42 +405,58 @@ size_t histV4Decode(const uint8_t *buf, size_t bufLen,
     size_t n = readVarintZ(buf + pos, bufLen - pos, dEpoch);
     if (n == 0) return 0;
     pos += n;
-    *outEpoch = state.lastEpoch + (uint32_t)dEpoch;
+    const uint32_t newEpoch = state.lastEpoch + (uint32_t)dEpoch;
 
-    /* Initialize all output values to last anchor values (fields not in mask stay) */
+    /* ── A1-b: DECODE DE DELTA É TRANSACIONAL ───────────────────────────
+     * A versão anterior gravava `state.lastAnchor[i]`/`fieldHasValid[i]`
+     * campo a campo DENTRO do laço de parsing e ainda podia sair com
+     * `return 0` no meio (varint truncado). O estado ficava meio aplicado.
+     *
+     * Enquanto o único tratamento de falha era `break`, isso passava
+     * despercebido — o leitor abandonava o arquivo logo em seguida. Com o
+     * retry pós-refill de histV4DecodeNextRefill (A1), o MESMO registro é
+     * decodificado de novo sobre um estado já parcialmente avançado: os
+     * campos aplicados na 1ª passada somariam o delta duas vezes,
+     * corrompendo silenciosamente todos os valores seguintes do dia.
+     *
+     * Duas passadas resolvem: parse (só lê o estado) e, apenas em caso de
+     * sucesso completo, commit. Falha ⇒ estado idêntico ao da entrada. */
+
+    /* Passada 1 — parsing puro. Campos fora da máscara herdam a âncora. */
     for (uint8_t i = 0; i < state.measureCount; i++) {
         outValues[i] = state.lastAnchor[i];
     }
 
-    /* Decode each field present in the mask */
     for (uint8_t i = 0; i < state.measureCount; i++) {
         if (!(mask[i >> 3] & (1 << (i & 7)))) continue;
 
         int32_t decoded;
         n = readVarintZ(buf + pos, bufLen - pos, decoded);
-        if (n == 0) return 0;
+        if (n == 0) return 0;   /* estado intacto — seguro para retry */
         pos += n;
 
-        if (state.fieldHasValid[i]) {
-            /* Delta mode: add to last known value */
-            outValues[i] = state.lastAnchor[i] + (int64_t)decoded;
-        } else {
-            /* First valid value: absolute */
-            outValues[i] = (int64_t)decoded;
-        }
+        int64_t v = state.fieldHasValid[i]
+                  ? state.lastAnchor[i] + (int64_t)decoded  /* delta */
+                  : (int64_t)decoded;                       /* 1º válido: absoluto */
 
-        /* Update state */
-        uint8_t bw = state.measures[i].bitWidth;
         /* Normalize sentinel */
-        if (histV4IsNan(outValues[i], bw)) {
-            outValues[i] = histV4NanSentinel(bw);
-        }
-        state.lastAnchor[i] = outValues[i];
-        state.fieldHasValid[i] = !histV4IsNan(outValues[i], bw);
+        const uint8_t bw = state.measures[i].bitWidth;
+        if (histV4IsNan(v, bw)) v = histV4NanSentinel(bw);
+
+        outValues[i] = v;
     }
 
+    /* Passada 2 — commit. Só chega aqui se TODOS os varints foram lidos. */
+    for (uint8_t i = 0; i < state.measureCount; i++) {
+        if (!(mask[i >> 3] & (1 << (i & 7)))) continue;
+        state.lastAnchor[i]    = outValues[i];
+        state.fieldHasValid[i] = !histV4IsNan(outValues[i],
+                                              state.measures[i].bitWidth);
+    }
+
+    *outEpoch = newEpoch;
     state.recordsSinceAnchor++;
-    state.lastEpoch = *outEpoch;
+    state.lastEpoch = newEpoch;
     return pos;
 }
 
