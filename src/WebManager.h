@@ -281,6 +281,10 @@ private:
 	const char* getHistoryFileNameC(time_t date); /**< Reusable buffer version. */
 	String rgb565ToHex(uint16_t color);
 	void feedWatchdog( );
+	/* One "respiro" between outgoing packets during a long stream: feed the
+	 * watchdog + light-yield, then a micro-pause so lwIP drains its PBUF pool
+	 * and Core 1 (display/touch) regains the heap and SPI arbiter. */
+	void streamBreath( );
 	bool isHandlerOvertime( );
 	bool isRateLimited(uint32_t minIntervalMs = 200);
 

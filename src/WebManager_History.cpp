@@ -258,6 +258,7 @@ void WebManager::handleApiHistoryMulti( ) {
  int chunkLen = 0;
  bool aborted = false;
  int lineIdx = 0;
+ uint32_t sinceBreath = 0; /* decoded records since the last respiro (both paths) */
  unsigned filesOpened = 0, recsDecoded = 0; /* diagnostico no metaEnd */
 
  for (size_t fi = 0; fi < filesToRead.size( ) && !aborted; fi++) {
@@ -369,7 +370,14 @@ void WebManager::handleApiHistoryMulti( ) {
 	 }
 
 	 lineIdx++;
-	 if (lineIdx % decimation != 0) continue;
+	 if (lineIdx % decimation != 0) {
+	 /* Decimated-out record still costs a decode; breathe every N so a
+	  * high-decimation range (MAX over months of 1-min data) never runs
+	  * yield-free — watchdog stays fed and the live clock keeps ticking. */
+	 if (++sinceBreath >= WEB_STREAM_BREATH_RECORDS) { sinceBreath = 0; feedWatchdog( ); }
+	 continue;
+	 }
+	 sinceBreath = 0;
 
 	 char ptBuf[1024]; int pp = 0;
 	 pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp,
@@ -388,10 +396,25 @@ void WebManager::handleApiHistoryMulti( ) {
 	 fk = false;
 	 }
 	 pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp, "}}");
-	 safeSend(ptBuf);
+	 if (pp >= (int)sizeof(ptBuf)) pp = (int)sizeof(ptBuf) - 1; /* snprintf truncation guard: never copy past ptBuf */
+
+	 /* Accumulate into the shared chunk buffer, flushing SMALL packets
+	  * (WEB_STREAM_CHUNK_SOFT) with a breath between — instead of one lwIP
+	  * write per point. Fewer, steadier writes ease PBUF pressure and hand
+	  * Core 1 the bus between packets. The byte stream is identical; only the
+	  * (client-transparent) chunk boundaries change. The tail is flushed after
+	  * the file loop by the existing `if (chunkLen > 0) safeSend(chunkBuf)`. */
+	 if (chunkLen + pp >= (int)WEB_STREAM_CHUNK_SOFT) {
+	 if (!safeSend(chunkBuf)) { aborted = true; break; }
+	 chunkBuf[0] = '\0'; chunkLen = 0;
+	 streamBreath( );
+	 }
+	 memcpy(chunkBuf + chunkLen, ptBuf, (size_t)pp + 1);
+	 chunkLen += pp;
 	 firstPoint = false;
 	 }
 	 { ReadGuard rg(_storageRef); f.close(); }
+	 streamBreath( ); /* respiro entre arquivos V4 (o caminho legado já tinha) */
 	 continue;
 	 }
 
@@ -532,20 +555,19 @@ void WebManager::handleApiHistoryMulti( ) {
  if (chunkLen + pLen >= (int)sizeof(chunkBuf) - 1) {
  if (!safeSend(chunkBuf)) { aborted = true; break; }
  chunkBuf[0] = '\0'; chunkLen = 0;
- delay(5); watchdog_update( );
+ streamBreath( );
  }
  memcpy(chunkBuf + chunkLen, pointBuf, pLen + 1);
  chunkLen += pLen;
  firstPoint = false;
 
- if (chunkLen > 1500) {
+ if (chunkLen >= (int)WEB_STREAM_CHUNK_SOFT) {
  if (!safeSend(chunkBuf)) { aborted = true; break; }
  chunkBuf[0] = '\0'; chunkLen = 0;
- delay(5); watchdog_update( );
+ streamBreath( );
  }
  }
- if (_lightYieldCb) _lightYieldCb( );
- delay(5); watchdog_update( );
+ streamBreath( ); /* respiro por lote (feedWatchdog + micro-pausa) */
  }
  { ReadGuard rg(_storageRef); f.close( ); }
  }
