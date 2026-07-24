@@ -2014,7 +2014,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--brd)">
                 <h3 data-i18n="cfg_touch_title">Touch Calibration</h3>
                 <button type="button" onclick="resetTouchCal()" style="background:var(--dang);color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:0.95em" data-i18n="cfg_touch_reset">Reset Touch Calibration</button>
-                <div class="c-sub" style="margin-top:6px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_touch_hint">Restores factory defaults. Recalibrate via display menu.</div>
+                <div class="c-sub" style="margin-top:6px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_touch_hint">Clears the stored calibration and starts the wizard on the display — follow the on-screen steps there.</div>
             </div>
         </div>
     </div>
@@ -2365,7 +2365,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let r = await fetchSafe('/api/reset_touch_cal', { method: 'POST' });
                 if (r.status === 503) { showToast(window.t('display_busy','Display in use. Try again shortly.'), 'warn'); return; }
                 let j = await r.json();
-                if (j.status === 'ok') showToast(window.t('cfg_touch_done', 'Touch calibration reset. Recalibrate via display.'), 'ok');
+                if (j.status === 'ok') showToast(window.t('cfg_touch_done', 'Reset done — calibration wizard is now running on the display.'), 'ok');
                 else showToast('Error', 'err');
             } catch(e) { showToast('Error', 'err'); }
         }
