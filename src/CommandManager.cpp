@@ -318,10 +318,17 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_WRITE_MEMORY:      return CLI_VALID_PRIV;
  case CMD_CLEAR_LOGS:        return CLI_VALID_PRIV;
  case CMD_RELOAD:            return CLI_VALID_PRIV;
- case CMD_RESET_TOUCH_CAL:   return CLI_VALID_PRIV;
- case CMD_FACTORY_RESET:     return CLI_VALID_PRIV;
- case CMD_FORMAT_FS:         return CLI_VALID_PRIV;
- case CMD_RESET_ADMIN:       return CLI_VALID_PRIV;
+ /* Also valid in config mode. These change persisted configuration
+  * (they set changed=true and need 'write memory'), and their own help text
+  * advertises the 'conf ...' form — which is only a stripped prefix, so it
+  * resolves to the same command and was still refused inside (config)#. The
+  * refusal then said "use 'enable'" to someone who had already enabled and
+  * gone one level deeper, which is how touch calibration ended up looking
+  * unreachable from the CLI. */
+ case CMD_RESET_TOUCH_CAL:   return CLI_VALID_PRIV | CLI_VALID_CONFIG;
+ case CMD_FACTORY_RESET:     return CLI_VALID_PRIV | CLI_VALID_CONFIG;
+ case CMD_FORMAT_FS:         return CLI_VALID_PRIV | CLI_VALID_CONFIG;
+ case CMD_RESET_ADMIN:       return CLI_VALID_PRIV | CLI_VALID_CONFIG;
  case CMD_WIPE_SENSOR:       return CLI_VALID_PRIV;
  case CMD_REMOVE_SENSOR:     return CLI_VALID_PRIV;
  case CMD_DEFINE_SENSOR:     return CLI_VALID_PRIV;
