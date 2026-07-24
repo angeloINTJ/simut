@@ -866,6 +866,199 @@ static void test_torn_tail_stops_at_boundary(void) {
     TEST_ASSERT_EQUAL_size_t(lastBoundary, p);          /* == goodPos        */
 }
 
+
+/* ============================================================================
+ *  PATCH V4 — A3: colisao de valor legitimo com o sentinela NaN
+ * ============================================================================ */
+
+/**
+ * -0,01 C em s16 x100 da raw = -1, cujo padrao de 16 bits e 0xFFFF: o
+ * proprio sentinela. O valor voltava da leitura como NAN (freezer cruzando
+ * 0 C gravava um buraco no historico). A guarda desloca 1 LSB.
+ */
+static void test_A3_negative_hundredth_is_not_nan(void) {
+    HistV4State st;
+    buildTestSchema(st, 1);
+    st.measures[0].channel  = 0;    /* CH_TEMP: signed */
+    st.measures[0].bitWidth = 16;
+    st.measures[0].scale    = 100;
+
+    int64_t raw = histV4FromFloat(-0.01f, st.measures[0]);
+
+    TEST_ASSERT_FALSE(histV4IsNan(raw, 16));            /* nao e mais sentinela */
+    TEST_ASSERT_EQUAL_INT64(-2, raw);                   /* deslocado 1 LSB      */
+
+    float back = histV4ToFloat(raw, st.measures[0]);
+    TEST_ASSERT_FALSE(isnan(back));
+    TEST_ASSERT_FLOAT_WITHIN(0.0001f, -0.02f, back);    /* erro <= 1 unidade    */
+}
+
+/** NAN de verdade continua virando sentinela — a guarda nao pode comer isso. */
+static void test_A3_real_nan_still_sentinel(void) {
+    HistV4State st;
+    buildTestSchema(st, 1);
+    st.measures[0].channel  = 0;
+    st.measures[0].bitWidth = 16;
+    st.measures[0].scale    = 100;
+
+    int64_t raw = histV4FromFloat(NAN, st.measures[0]);
+    TEST_ASSERT_TRUE(histV4IsNan(raw, 16));
+    TEST_ASSERT_TRUE(isnan(histV4ToFloat(raw, st.measures[0])));
+}
+
+/** Topo teorico unsigned (102,3 % em u10 x10) tambem nao pode ser sentinela. */
+static void test_A3_unsigned_top_of_range_is_not_nan(void) {
+    HistV4State st;
+    buildTestSchema(st, 1);
+    st.measures[0].channel  = 1;    /* CH_HUM: unsigned */
+    st.measures[0].bitWidth = 10;
+    st.measures[0].scale    = 10;
+
+    int64_t raw = histV4FromFloat(102.3f, st.measures[0]);
+    TEST_ASSERT_FALSE(histV4IsNan(raw, 10));
+    TEST_ASSERT_EQUAL_INT64(1022, raw);                 /* 102.2 %              */
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, 102.2f,
+                             histV4ToFloat(raw, st.measures[0]));
+}
+
+/** -0,01 C sobrevive a um roundtrip completo de ancora. */
+static void test_A3_roundtrip_through_anchor(void) {
+    HistV4State enc;
+    buildTestSchema(enc, 1);
+    enc.measures[0].channel  = 0;
+    enc.measures[0].bitWidth = 16;
+    enc.measures[0].scale    = 100;
+
+    uint8_t buf[64];
+    int64_t v[1] = { histV4FromFloat(-0.01f, enc.measures[0]) };
+    size_t n = histV4Encode(v, 1, enc, buf, sizeof(buf), 1700000000u);
+    TEST_ASSERT_GREATER_THAN_size_t(0, n);
+
+    HistV4State dec = enc;
+    histV4Reset(dec);
+    dec.measureCount = enc.measureCount;
+    dec.sensorCount  = enc.sensorCount;
+    memcpy(dec.measures, enc.measures, sizeof(enc.measures));
+    memcpy(dec.measureBitOffset, enc.measureBitOffset, sizeof(enc.measureBitOffset));
+    memcpy(dec.measureByteOffset, enc.measureByteOffset, sizeof(enc.measureByteOffset));
+    dec.anchorByteSize = enc.anchorByteSize;
+
+    int64_t out[1]; uint32_t ep;
+    TEST_ASSERT_EQUAL_size_t(n, histV4Decode(buf, n, dec, out, &ep, true));
+    TEST_ASSERT_FALSE(isnan(histV4ToFloat(out[0], dec.measures[0])));
+}
+
+/* ============================================================================
+ *  PATCH V4 — A1: refill pos-falha atravessa deltas maiores que a ancora
+ * ============================================================================ */
+
+/**
+ * Stream real, buffer estreito, alimentado 1 byte por vez. Com o limiar
+ * antigo (refill so abaixo de anchorByteSize) o leitor parava no primeiro
+ * delta grande; o helper reabastece depois da falha e le tudo.
+ */
+static void test_A1_refill_reads_full_stream(void) {
+    HistV4State enc;
+    buildTestSchema(enc, 8);            /* 8 medicoes: deltas gordos */
+
+    static uint8_t stream[8192];
+    size_t pos = histV4WriteHeaderBuf(stream, sizeof(stream),
+        enc.sensors, enc.sensorCount, enc.measures, enc.measureCount,
+        enc.strPool, enc.strPoolSize);
+
+    const int N = 120;                  /* cruza a fronteira de ancora (60) */
+    int64_t v[8];
+    for (int i = 0; i < N; i++) {
+        /* Variacao forte => varints de varios bytes em todos os campos. */
+        for (int m = 0; m < 8; m++) v[m] = 1000 + ((i * 7919 + m * 104729) % 20000);
+        size_t n = histV4Encode(v, 8, enc, stream + pos, sizeof(stream) - pos,
+                                1700000000u + (uint32_t)i * 60u);
+        TEST_ASSERT_GREATER_THAN_size_t(0, n);
+        pos += n;
+    }
+
+    HistV4State rdr;
+    size_t hdr = histV4ReadHeaderBuf(stream, pos, rdr);
+    TEST_ASSERT_GREATER_THAN_size_t(0, hdr);
+
+    /* Buffer deliberadamente apertado + refill de 1 byte: maximiza a chance
+     * de o decode encontrar "bytes suficientes para ancora, insuficientes
+     * para delta", que e exatamente a condicao do A1. */
+    uint8_t rdBuf[64];
+    size_t filled = 0;
+    size_t src = hdr;
+    int decoded = 0;
+    int64_t out[8]; uint32_t ep;
+
+    while (true) {
+        size_t c = histV4DecodeNextRefill(
+            rdBuf, sizeof(rdBuf), filled, rdr, out, &ep,
+            [&](uint8_t *dst, size_t maxBytes) -> size_t {
+                if (src >= pos || maxBytes == 0) return 0;
+                dst[0] = stream[src++];
+                return 1;
+            });
+        if (c == 0) break;
+        decoded++;
+    }
+    TEST_ASSERT_EQUAL_INT(N, decoded);
+    TEST_ASSERT_EQUAL_size_t(pos, src);
+}
+
+/* ============================================================================
+ *  PATCH V4 — A1-b: decode de delta e transacional
+ * ============================================================================ */
+
+/**
+ * Um delta truncado nao pode deixar rastro no estado. Sem isso o retry do
+ * A1 redecodifica o mesmo registro sobre lastAnchor ja avancado e soma o
+ * delta duas vezes — corrupcao silenciosa de todo o resto do dia.
+ */
+static void test_A1b_failed_delta_leaves_state_untouched(void) {
+    HistV4State enc;
+    buildTestSchema(enc, 4);
+
+    uint8_t buf[256];
+    size_t pos = 0;
+    int64_t v[4];
+
+    for (int m = 0; m < 4; m++) v[m] = 1000 + m;
+    pos += histV4Encode(v, 4, enc, buf, sizeof(buf), 1700000000u);   /* ancora */
+
+    size_t deltaStart = pos;
+    for (int m = 0; m < 4; m++) v[m] = 1000 + m + 500 * (m + 1);
+    size_t deltaLen = histV4Encode(v, 4, enc, buf + pos, sizeof(buf) - pos,
+                                   1700000060u);
+    TEST_ASSERT_GREATER_THAN_size_t(0, deltaLen);
+    pos += deltaLen;
+
+    /* Leitor: consome a ancora, guarda o estado, tenta o delta truncado. */
+    HistV4State rdr;
+    buildTestSchema(rdr, 4);
+    int64_t out[4]; uint32_t ep;
+    TEST_ASSERT_EQUAL_size_t(deltaStart,
+        histV4DecodeNext(buf, deltaStart, rdr, out, &ep));
+
+    HistV4State snapshot = rdr;
+
+    for (size_t cut = 1; cut < deltaLen; cut++) {
+        HistV4State attempt = snapshot;
+        size_t n = histV4DecodeNext(buf + deltaStart, cut, attempt, out, &ep);
+        if (n != 0) continue;                       /* coube: nada a checar */
+        /* Falhou => estado deve ser byte-a-byte identico ao de antes. */
+        TEST_ASSERT_EQUAL_INT(0, memcmp(&snapshot, &attempt, sizeof(HistV4State)));
+    }
+
+    /* E o delta completo, apos as tentativas falhas, decodifica correto. */
+    HistV4State after = snapshot;
+    TEST_ASSERT_EQUAL_size_t(deltaLen,
+        histV4DecodeNext(buf + deltaStart, deltaLen, after, out, &ep));
+    for (int m = 0; m < 4; m++) {
+        TEST_ASSERT_EQUAL_INT64(1000 + m + 500 * (m + 1), out[m]);
+    }
+    TEST_ASSERT_EQUAL_UINT32(1700000060u, ep);
+}
+
 /* ============================================================================
  *  MAIN
  * ============================================================================ */
@@ -935,6 +1128,16 @@ int main(void) {
     RUN_TEST(test_encode_rejects_count_mismatch);
     RUN_TEST(test_reopen_resume_continuity);
     RUN_TEST(test_torn_tail_stops_at_boundary);
+
+    /* Patch V4 — A3 (colisao com o sentinela) */
+    RUN_TEST(test_A3_negative_hundredth_is_not_nan);
+    RUN_TEST(test_A3_real_nan_still_sentinel);
+    RUN_TEST(test_A3_unsigned_top_of_range_is_not_nan);
+    RUN_TEST(test_A3_roundtrip_through_anchor);
+
+    /* Patch V4 — A1 (refill pos-falha) e A1-b (decode transacional) */
+    RUN_TEST(test_A1_refill_reads_full_stream);
+    RUN_TEST(test_A1b_failed_delta_leaves_state_untouched);
 
     return UNITY_END();
 }

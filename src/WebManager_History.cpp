@@ -332,14 +332,18 @@ void WebManager::handleApiHistoryMulti( ) {
 	 if (isClientGone() || isHandlerOvertime()) { aborted = true; break; }
 	 {
 	 ReadGuard rg(_storageRef);
-	 if (rdFilled < v4st.anchorByteSize && f.available() > 0) {
-	 int r = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
-	 if (r > 0) rdFilled += (size_t)r;
-	 }
-	 if (rdFilled == 0) { fileHasMoreV4 = false; break; }
-	 size_t c = histV4DecodeNext(rdBuf, rdFilled, v4st, v4vals, &v4epoch);
-	 if (c == 0) break;
-	 memmove(rdBuf, rdBuf + c, rdFilled - c); rdFilled -= c;
+	 /* A1: refill pós-falha. O limiar antigo travava o handler quando
+	  * um delta maior que a âncora cruzava a borda do buffer — série
+	  * incompleta no gráfico web e estatísticas calculadas sobre meio
+	  * dia sem qualquer aviso. */
+	 size_t c = histV4DecodeNextRefill(
+	 rdBuf, sizeof(rdBuf), rdFilled, v4st, v4vals, &v4epoch,
+	 [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+	 if (f.available() <= 0) return 0;
+	 int r = f.read(dst, maxBytes);
+	 return (r > 0) ? (size_t)r : 0;
+	 });
+	 if (c == 0) { fileHasMoreV4 = false; break; }
 	 recsDecoded++;
 	 }
 

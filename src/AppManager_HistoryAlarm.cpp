@@ -234,6 +234,35 @@ void AppManager::preloadMinMax( ) {
 
 	 size_t pRdFilled = 0;
 
+	 /* ── M1: mapa medição → slot, resolvido UMA VEZ por arquivo ──────────
+	  * A tabela de medições é fixa para o arquivo inteiro, mas o laço
+	  * abaixo fazia histV4StrPoolGet + varredura de MAX_SENSORS para CADA
+	  * medição de CADA registro — a mesma resposta recalculada 1.440 × 4
+	  * vezes num dia cheio. É o padrão que derrubava o handler web por
+	  * watchdog (416f2dc); aqui o teto de 5 s evita o reboot mas entrega
+	  * cache PARCIAL: min/max errados no dashboard após reboot à tarde. */
+	 int8_t measSlot[HIST_V4_MAX_MEASUREMENTS];
+	 {
+	 SystemConfig &cfg = _storageMgr->getConfig( );
+	 for (uint8_t m = 0; m < pState.measureCount; m++) {
+	 measSlot[m] = -1;                       /* -1 = medição sem dono ativo */
+	 uint8_t sIdx = pState.measures[m].sensorIdx;
+	 if (sIdx >= pState.sensorCount) continue;
+
+	 char hwId[17];
+	 histV4StrPoolGet(hwId, sizeof(hwId), pState.strPool,
+	                  pState.sensors[sIdx].hwIdOffset,
+	                  pState.sensors[sIdx].hwIdLen);
+
+	 for (int i = 0; i < MAX_SENSORS; i++) {
+	 if (cfg.sensors[i].active && strcmp(cfg.sensors[i].hwId, hwId) == 0) {
+	 measSlot[m] = (int8_t)i;
+	 break;
+	 }
+	 }
+	 }
+	 }
+
 	 uint32_t _preloadBudget = millis( );
 	 bool hasMore = true;
 
@@ -251,16 +280,19 @@ void AppManager::preloadMinMax( ) {
 	 static uint32_t s_batchEpochs[20];
 	 int count = 0;
 	 while (count < 20) {
-	 if (pRdFilled < pState.anchorByteSize && f.available( ) > 0) {
-	 int rN = f.read(pRdBuf + pRdFilled, sizeof(pRdBuf) - pRdFilled);
-	 if (rN > 0) pRdFilled += (size_t)rN;
-	 }
-	 if (pRdFilled == 0) break;
-	 size_t consumed = histV4DecodeNext(pRdBuf, pRdFilled, pState,
-	 s_batchVals[count], &s_batchEpochs[count]);
+	 /* A1: o limiar antigo (`pRdFilled < anchorByteSize`) não reabastecia
+	  * quando o buffer tinha bytes suficientes para uma âncora mas não
+	  * para um delta grande — o preload parava no meio do dia e o
+	  * dashboard ficava com min/max de meia manhã. */
+	 size_t consumed = histV4DecodeNextRefill(
+	 pRdBuf, sizeof(pRdBuf), pRdFilled, pState,
+	 s_batchVals[count], &s_batchEpochs[count],
+	 [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+	 if (f.available( ) <= 0) return 0;
+	 int rN = f.read(dst, maxBytes);
+	 return (rN > 0) ? (size_t)rN : 0;
+	 });
 	 if (consumed == 0) break;
-	 memmove(pRdBuf, pRdBuf + consumed, pRdFilled - consumed);
-	 pRdFilled -= consumed;
 	 count++;
 	 }
 	 hasMore = (pRdFilled > 0 || f.available( ) > 0);
@@ -271,24 +303,9 @@ void AppManager::preloadMinMax( ) {
 	 for (uint8_t m = 0; m < pState.measureCount; m++) {
 	 if (histV4IsNan(s_batchVals[b][m], pState.measures[m].bitWidth)) continue;
 
-	 /* Find which slot this measurement belongs to */
-	 uint8_t sIdx = pState.measures[m].sensorIdx;
-	 if (sIdx >= pState.sensorCount) continue;
-
-	 /* Get hwId from sensor table, match to slot */
-	 char hwId[17];
-	 histV4StrPoolGet(hwId, sizeof(hwId), pState.strPool,
-	 pState.sensors[sIdx].hwIdOffset,
-	 pState.sensors[sIdx].hwIdLen);
-
-	 SystemConfig &cfg = _storageMgr->getConfig( );
-	 int slot = -1;
-	 for (int i = 0; i < MAX_SENSORS; i++) {
-	 if (cfg.sensors[i].active &&
-	 strcmp(cfg.sensors[i].hwId, hwId) == 0) {
-	 slot = i; break;
-	 }
-	 }
+	 /* M1: slot já resolvido por arquivo — sem string pool nem
+	  * varredura de sensores aqui dentro. */
+	 const int slot = measSlot[m];
 	 if (slot < 0) continue;
 
 	 float v = histV4ToFloat(s_batchVals[b][m], pState.measures[m]);

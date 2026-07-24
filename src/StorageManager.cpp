@@ -1323,9 +1323,13 @@ void StorageManager::getHistoryFileName(char* buf, size_t len) {
 /* ── V4 history file name ──────────────────────────────────── */
 
 String StorageManager::getHistoryFileNameV4( ) {
-	 time_t now = time(nullptr);
+	 return getHistoryFileNameV4((uint32_t)time(nullptr));
+}
+
+String StorageManager::getHistoryFileNameV4(uint32_t epoch) {
+	 time_t t = (time_t)epoch;
 	 struct tm timeinfo;
-	 localtime_r(&now, &timeinfo);
+	 localtime_r(&t, &timeinfo);
 	 char buff[42];
 	 snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT, DIR_HISTORY,
 	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
@@ -1438,15 +1442,16 @@ bool StorageManager::flushPendingHist( ) {
 bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
  if (!_isMounted) return false;
 
- /* Defensive: reject absurd timestamps (epoch < 2023-11 or in the future).
- * Avoids creating files like /history/19691231.bin when the clock hasn't
- * synced via NTP yet — those files confuse the telemetry
- * cursor later (absurd epochs in the payload). */
+ /* Defensive: reject absurd timestamps (epoch anterior a HIST_EPOCH_MIN
+ * ou no futuro). Avoids creating files like /history/19691231.bin when
+ * the clock hasn't synced via NTP yet — those files confuse the
+ * telemetry cursor later (absurd epochs in the payload).
+ * L1: piso unificado; era um literal 1,7e9, divergente do 1,6e9 usado
+ * pelo escritor V4 — a janela entre os dois era gravada e nunca lida. */
  {
- const uint32_t EPOCH_MIN = 1700000000UL;
  uint32_t nowEpoch = (uint32_t)time(nullptr);
- if (rec.epoch < EPOCH_MIN) return false;
- if (nowEpoch > EPOCH_MIN && rec.epoch > nowEpoch + 86400UL) return false;
+ if (rec.epoch < HIST_EPOCH_MIN) return false;
+ if (nowEpoch > HIST_EPOCH_MIN && rec.epoch > nowEpoch + 86400UL) return false;
  }
 
  /* Touch priority: if user is interacting, buffer and return. Only the
@@ -1730,19 +1735,24 @@ void StorageManager::flushCursorIfDirty( ) {
  * happens on next call after interaction ends. */
  if (TouchPriority::isActive( )) return;
 
- _cursorDirty = false;
- LogManager::WdtWindow _wdt(30000); /* context-aware */
- enterFlashSafeMode( );
- watchdog_update( );
- File f = LittleFS.open(FILE_TCURSOR, "w");
- watchdog_update( );
- if (f) {
- f.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent));
- f.close( );
- watchdog_update( );
- }
- exitFlashSafeMode( );
- /* WdtWindow auto-restores */
+	_cursorDirty = false;
+	LogManager::WdtWindow _wdt(30000); /* context-aware */
+
+	/* A4: a pausa do Core 1 aqui era um par manual enter/exit. Funciona
+	 * hoje porque não há `return` entre os dois, mas qualquer guarda
+	 * futura no meio do corpo deixaria o Core 1 congelado para sempre.
+	 * RAII fecha a classe — e aninha de graça (refcount) se algum
+	 * chamador já pausou. */
+	Core1FlashPause _c1(this);
+	watchdog_update( );
+	File f = LittleFS.open(FILE_TCURSOR, "w");
+	watchdog_update( );
+	if (f) {
+		f.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent));
+		f.close( );
+		watchdog_update( );
+	}
+	/* Core1FlashPause e WdtWindow restauram no fim do escopo */
 }
 
 String StorageManager::getStatsReport( ) {
@@ -2117,15 +2127,31 @@ bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureC
 
 	/* Defensive: reject absurd timestamps */
 	{
-		/* v1.5.3: aligned with the processHistoryLogging() gate (both were
-		 * 1.6e9 vs 1.7e9 — repo doc ANALISE_SISTEMA_HISTORICO §5.7). */
-		const uint32_t EPOCH_MIN = 1600000000UL;
+		/* L1: piso único (HIST_EPOCH_MIN), antes duplicado como literal
+		 * aqui e divergente do usado pelos leitores/telemetria. */
 		uint32_t nowEpoch = (uint32_t)time(nullptr);
-		if (epoch < EPOCH_MIN) return false;
-		if (nowEpoch > EPOCH_MIN && epoch > nowEpoch + 86400UL) return false;
+		if (epoch < HIST_EPOCH_MIN) return false;
+		if (nowEpoch > HIST_EPOCH_MIN && epoch > nowEpoch + 86400UL) return false;
 	}
 
 	if (measureCount > HIST_V4_MAX_MEASUREMENTS) return false;
+
+	/* ── A2: o batch NUNCA pode cruzar a meia-noite ──────────────────────
+	 * O dreno (flushHistoryBatch → writeHistoryEntryFlashV4) resolve o
+	 * caminho do arquivo com getHistoryFileNameV4(), que é a data de
+	 * AGORA — o epoch de cada entrada é ignorado na escolha do arquivo.
+	 * Amostras bufferizadas às 23:57–23:59 drenavam ~00:01 dentro do
+	 * .sim4 do dia seguinte: até HIST_BATCH_N-1 registros com epoch de
+	 * ontem no arquivo de hoje. A consulta de ontem os perdia, o gráfico
+	 * de hoje ganhava pontos antes de 00:00 e o preload de hoje absorvia
+	 * extremos de ontem.
+	 *
+	 * Corrigido no ponto de BUFFER, não no dreno: esvazia antes de
+	 * aceitar uma amostra de dia diferente do primeiro item bufferizado,
+	 * enquanto getHistoryFileNameV4() ainda devolve o arquivo certo. */
+	if (_histBatchLen > 0 && !sameLocalDay(_histBatch[0].epoch, epoch)) {
+		flushHistoryBatch( );
+	}
 
 	/* T2.1: append to the RAM batch. Flash is only touched when the
 	 * batch fills or ages out — and never during touch interaction
@@ -2176,7 +2202,11 @@ bool StorageManager::flushHistoryBatch( ) {
 bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
 	if (!_isMounted) return false;
 
-	String path = getHistoryFileNameV4();
+	/* A2 (defesa em profundidade): o caminho vem do EPOCH DA ENTRADA, não
+	 * de "agora". writeHistoryEntryV4 já esvazia o batch na virada do dia,
+	 * mas se aquele flush falhar parcialmente o batch volta a misturar
+	 * dias — e só este ponto decide em que arquivo o registro cai. */
+	String path = getHistoryFileNameV4(epoch);
 
 	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
 	LogManager::WdtWindow _wdt(30000);
@@ -2259,6 +2289,12 @@ bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t mea
  * the sole condition under which the caller may mark the codec valid.
  */
 bool StorageManager::createHistoryFileV4WithSchema(const String &path) {
+	/* A4 (defensiva): esta função programa/apaga flash via FLASH_OP e hoje
+	 * só está protegida porque os 2 chamadores atuais já pausaram o Core 1.
+	 * Um terceiro chamador sem pausa reabriria a classe do e035791
+	 * ("FLASH_OP sozinho != proteção"). Refcount aninha sem custo. */
+	Core1FlashPause _c1(this);
+
 	/* Static header buffer — with the ~1.3 KB of schema scratch below,
 	 * a stack hdrBuf would blow the ~4 KB core stack (v1.5.2 hard fault). */
 	static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
@@ -2309,6 +2345,10 @@ bool StorageManager::createHistoryFileV4WithSchema(const String &path) {
  */
 bool StorageManager::repairHistoryTailV4(const String &path, size_t goodPos) {
 	if (goodPos < HIST_V4_HEADER_FIXED) return false; /* never cut into the header */
+
+	/* A4 (defensiva): copy → remove → rename são 3 rajadas de program/erase.
+	 * Mesma justificativa de createHistoryFileV4WithSchema. */
+	Core1FlashPause _c1(this);
 
 	String tmp = path + ".fix";
 	bool ok = false;
@@ -2369,25 +2409,25 @@ bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state, size_t *torn
 	static int64_t values[HIST_V4_MAX_MEASUREMENTS];
 	uint32_t epoch;
 
+	/* A1: o refill por limiar (`filled < anchorByteSize`) tratava um delta
+	 * maior que a âncora como CAUDA RASGADA — e aqui isso não truncava só
+	 * a leitura: o chamador usa `tornAt` para mandar repairHistoryTailV4
+	 * CORTAR o arquivo. Um único delta grande na borda do buffer apagava
+	 * o resto do dia no flash. Agora o refill acontece após a falha do
+	 * decode, que é quando se sabe que faltavam bytes. */
 	while (true) {
-		if (filled < state.anchorByteSize && f.available() > 0) {
-			size_t toRead = HIST_V4_READ_BUF - filled;
-			if (toRead > (size_t)f.available()) toRead = f.available();
-			int r = f.read(buf + filled, toRead);
-			if (r > 0) filled += (size_t)r;
-		}
-		if (filled == 0) break;
-
-		bool isAnchor = (state.recordsSinceAnchor == 0 ||
-		                 state.recordsSinceAnchor >= state.anchorPeriod);
-		if (!state.initialized) isAnchor = true;
-
-		size_t consumed = histV4DecodeNext(buf, filled, state, values, &epoch);
-		if (consumed == 0) break; /* truncated / corrupt tail */
+		size_t consumed = histV4DecodeNextRefill(
+			buf, HIST_V4_READ_BUF, filled, state, values, &epoch,
+			[&f](uint8_t *dst, size_t maxBytes) -> size_t {
+				if (f.available() <= 0) return 0;
+				size_t toRead = maxBytes;
+				if (toRead > (size_t)f.available()) toRead = (size_t)f.available();
+				int r = f.read(dst, toRead);
+				return (r > 0) ? (size_t)r : 0;
+			});
+		if (consumed == 0) break; /* fim real, ou cauda truncada/corrompida */
 
 		goodPos += consumed;
-		memmove(buf, buf + consumed, filled - consumed);
-		filled -= consumed;
 	}
 
 	/* Torn tail (power loss mid-append): report where the good bytes end

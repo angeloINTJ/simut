@@ -31,7 +31,7 @@
 #ifndef MAX_SENSOR_CHANNELS
 #define MAX_SENSOR_CHANNELS 4 /* Measurement channels per sensor (TEMP, HUM, PRESS, LUX) */
 #endif
-#define SIMUT_VERSION "1.5.2-rc5"
+#define SIMUT_VERSION "1.5.2-rc6"
 
 /* Fallback epoch for provisional time when NTP is unavailable and no
  * history records exist to seed the virtual RTC. Override via
@@ -41,6 +41,21 @@
 #endif
 
 #define GRAPH_WIDTH 200 /* Maximum data points on the TFT graph */
+
+/**
+ * @brief Piso de epoch aceito em qualquer registro de histórico.
+ *
+ * L1: o valor estava duplicado e DIVERGENTE — escritores V4 e o gate de
+ * processHistoryLogging usavam 1,6e9 (2020-09-13) enquanto telemetria e
+ * leitores usavam 1,7e9 (2023-11-14). Registros gravados na janela entre
+ * os dois eram descartados na leitura: dados no flash que nunca subiam.
+ *
+ * Unificado no valor MAIS PERMISSIVO para não invalidar o que já está
+ * gravado. Serve só para barrar epoch de relógio não sincronizado
+ * (~1970), que criaria arquivos /history/19691231.* e envenenaria o
+ * cursor de telemetria.
+ */
+#define HIST_EPOCH_MIN 1600000000UL /* 2020-09-13 */
 
 /**
  * @brief Named indices for the min/max cache array (sensors + board temp).

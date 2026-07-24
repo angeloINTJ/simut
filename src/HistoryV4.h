@@ -297,6 +297,72 @@ size_t histV4DecodeNext(const uint8_t *buf, size_t bufLen,
                         HistV4State &state,
                         int64_t *outValues, uint32_t *outEpoch);
 
+/**
+ * @brief Decodifica UM registro de um buffer deslizante, reabastecendo-o
+ *        sob demanda, e consome os bytes lidos do buffer.
+ *
+ * @details Substitui a família de laços copiados nos consumidores V4
+ * (preload, gráfico TFT, web, telemetria, scan). O padrão antigo era:
+ *
+ * @code
+ *   if (filled < state.anchorByteSize && f.available() > 0) { ...read... }
+ *   size_t n = histV4DecodeNext(buf, filled, state, vals, &epoch);
+ *   if (n == 0) break;
+ * @endcode
+ *
+ * O limiar de reabastecimento era o tamanho da ÂNCORA, mas um registro
+ * DELTA pode ser maior que ela (`ceil(N/8) + 5 + 5*N` bytes no pior caso,
+ * ver histV4MaxDeltaSize). Com `anchorByteSize <= filled < tamanho do
+ * delta`, o decode devolvia 0, o refill não disparava e o leitor parava
+ * (ou girava) no meio do arquivo: gráfico truncado, preload parcial, lote
+ * de telemetria vazio e — o pior caso — scanHistoryFileV4 classificando o
+ * resto do dia como "cauda rasgada" e mandando truncar o arquivo.
+ *
+ * Aqui a decisão de reabastecer é tomada DEPOIS da falha do decode, que é
+ * o único momento em que se sabe de quantos bytes o registro precisava.
+ *
+ * @tparam RefillFn  Callable `size_t(uint8_t *dst, size_t maxBytes)` que
+ *                   escreve até `maxBytes` em `dst` e devolve quantos
+ *                   bytes foram lidos (0 = fim de arquivo / falha).
+ *
+ * @param buf        Buffer deslizante.
+ * @param bufCap     Capacidade total de `buf`.
+ * @param filled     [in/out] Bytes válidos em `buf`; decrementado do que
+ *                   for consumido pelo registro decodificado.
+ * @param state      Estado do codec (atualizado apenas em caso de sucesso).
+ * @param outValues  Saída: valores decodificados (measureCount elementos).
+ * @param outEpoch   Saída: epoch do registro.
+ * @param refill     Functor de reabastecimento (ver acima).
+ * @return Bytes consumidos, ou 0 quando não há mais registro decodificável
+ *         (fim real do arquivo ou cauda rasgada/corrompida).
+ */
+template <typename RefillFn>
+inline size_t histV4DecodeNextRefill(uint8_t *buf, size_t bufCap, size_t &filled,
+                                     HistV4State &state,
+                                     int64_t *outValues, uint32_t *outEpoch,
+                                     RefillFn refill) {
+    /* 1ª tentativa com o que já está no buffer. */
+    size_t consumed = (filled > 0)
+                    ? histV4DecodeNext(buf, filled, state, outValues, outEpoch)
+                    : 0;
+
+    /* Falhou: pode ser fome de bytes. Reabastece e tenta de novo, até o
+     * buffer encher (limite superior) ou a fonte secar. O laço termina
+     * sempre: `filled` cresce monotonicamente e é limitado por `bufCap`. */
+    while (consumed == 0 && filled < bufCap) {
+        const size_t got = refill(buf + filled, bufCap - filled);
+        if (got == 0) break;                 /* EOF ou erro de leitura */
+        filled += got;
+        consumed = histV4DecodeNext(buf, filled, state, outValues, outEpoch);
+    }
+
+    if (consumed > 0) {
+        memmove(buf, buf + consumed, filled - consumed);
+        filled -= consumed;
+    }
+    return consumed;
+}
+
 /* ============================================================================
  * API — HELPERS
  * ============================================================================ */
@@ -357,6 +423,22 @@ inline int64_t histV4FromFloat(float v, const HistV4MeasureDef &def) {
         raw = maxVal;
     }
     if (raw < minVal) raw = minVal;
+
+    /* ── A3: o padrão all-ones é RESERVADO ao sentinela NaN ──────────────
+     * `raw` é gravado truncado em `bitWidth` bits. Um valor legítimo cujo
+     * padrão truncado seja all-ones colide com o sentinela e volta da
+     * leitura como NAN — um buraco no histórico.
+     *
+     * Caso real do produto: -0,01 °C em s16 x100 → raw = -1 → 0xFFFF =
+     * sentinela de 16 bits. Freezer cruzando 0 °C perdia o ponto.
+     *
+     * Deslocamos 1 LSB para longe do padrão. O erro máximo é 1 unidade da
+     * escala (0,01 °C aqui) — determinístico e documentado, muito melhor
+     * que um NaN. Não há risco de estourar o piso: o padrão de `minVal` é
+     * 100…0 (signed) ou 000…0 (unsigned), nunca all-ones, logo `raw` só
+     * entra aqui quando ainda há folga para decrementar. */
+    if (histV4IsNan(raw, def.bitWidth)) raw -= 1;
+
     return raw;
 }
 

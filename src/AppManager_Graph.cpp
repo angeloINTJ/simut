@@ -234,14 +234,16 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (timeSince(gb4, GRAPH_BUDGET_MS)) break;
  size_t cons = 0;
  { StorageManager::ReadGuard rg(_storageMgr.get( ));
- if (g4RdFilled < g4st.anchorByteSize && f.available() > 0) {
- int rN = f.read(g4RdBuf + g4RdFilled, sizeof(g4RdBuf) - g4RdFilled);
- if (rN > 0) g4RdFilled += (size_t)rN;
- }
- if (g4RdFilled > 0) {
- cons = histV4DecodeNext(g4RdBuf, g4RdFilled, g4st, g4vals, &g4epoch);
- if (cons > 0) { memmove(g4RdBuf, g4RdBuf + cons, g4RdFilled - cons); g4RdFilled -= cons; }
- }
+ /* A1: refill DEPOIS da falha do decode. Com o limiar antigo
+  * (`g4RdFilled < anchorByteSize`), um delta grande na borda do
+  * buffer encerrava o laço e o gráfico aparecia truncado. */
+ cons = histV4DecodeNextRefill(
+ g4RdBuf, sizeof(g4RdBuf), g4RdFilled, g4st, g4vals, &g4epoch,
+ [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+ if (f.available() <= 0) return 0;
+ int rN = f.read(dst, maxBytes);
+ return (rN > 0) ? (size_t)rN : 0;
+ });
  hm4 = (g4RdFilled > 0 || f.available() > 0);
  }
  if (cons == 0) break;

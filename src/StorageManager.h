@@ -125,6 +125,16 @@ public:
  String getHistoryFileNameV4( );
  void getHistoryFileNameV4(char* buf, size_t len);
 
+ /**
+  * @brief Caminho do arquivo V4 do dia a que pertence @p epoch.
+  * @details A2: o dreno do batch grava entradas bufferizadas que podem ser
+  * de ONTEM. Resolver o caminho por "agora" as colocava no arquivo de hoje.
+  * A sobrecarga sem argumento continua existindo e é o caminho de "agora".
+  * @param epoch Timestamp Unix da amostra.
+  * @return Caminho absoluto (e.g. /history/20260721.sim4).
+  */
+ String getHistoryFileNameV4(uint32_t epoch);
+
  /** @return pointer to the current V4 schema (read-only, valid while file is open). */
  const HistV4State* getV4Schema( ) const { return _histV4CodecValid ? &_histV4State : nullptr; }
 
