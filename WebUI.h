@@ -889,10 +889,15 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (data && data.sensors) {
                     data.sensors.forEach(s => items.push({ id: s.slot, name: s.name, hwId: s.id }));
                 }
-                /* Default: todos os sensores ativos selecionados. */
+                /* Default: apenas o primeiro sensor da lista.
+                 * Abrir com todos marcados empilha uma serie de T (mais uma de
+                 * H nos que tem) por sensor no mesmo grafico, o que polui a
+                 * leitura inicial e faz cada troca de intervalo varrer o
+                 * historico de todos eles. Quem quiser comparar marca os
+                 * outros no seletor; a escolha persiste entre recargas. */
                 if (_selectedSensors.length === 0 ||
                     !items.some(it => _selectedSensors.indexOf(it.id) >= 0)) {
-                    _selectedSensors = items.map(it => it.id);
+                    _selectedSensors = items.length ? [items[0].id] : [];
                 }
                 items.forEach(it => {
                     const lbl = document.createElement('label');
@@ -1077,7 +1082,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     if (s.hasH) {
                         hasAnyHum = true;
                         const hArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[hKey] === 'number') ? d.v[hKey] : null }));
-                        hArr.forEach(p => { if (p.y !== null) { if (p.y > maxH) maxH = p.y; if (p.y < minH) minH = p.y; } });
                         datasets.push({
                             label: `${s.hwId} H (%)`,
                             data: hArr,
@@ -1089,14 +1093,20 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         });
                     }
                 });
-                /* Stats */
+                /* Stats — all four come from the server, measured over every
+                 * record in range before decimation. Humidity used to be
+                 * scanned here from the drawn points instead, so it reported
+                 * the largest surviving sample rather than the real extreme,
+                 * and disagreed with temperature by however much decimation
+                 * had thrown away. */
                 const maxT = (json.maxT !== undefined) ? json.maxT : -999;
                 const minT = (json.minT !== undefined) ? json.minT : 999;
                 document.getElementById('statMaxT').innerText = (maxT === -999) ? '--' : maxT.toFixed(1) + '°C';
                 document.getElementById('statMinT').innerText = (minT === 999)  ? '--' : minT.toFixed(1) + '°C';
                 if (hasAnyHum) {
-                    document.getElementById('statMaxH').innerText = maxH.toFixed(1) + '%';
-                    document.getElementById('statMinH').innerText = minH.toFixed(1) + '%';
+                    const hasSrvH = (json.maxH !== undefined && json.minH !== undefined);
+                    document.getElementById('statMaxH').innerText = hasSrvH ? json.maxH.toFixed(1) + '%' : '--';
+                    document.getElementById('statMinH').innerText = hasSrvH ? json.minH.toFixed(1) + '%' : '--';
                     document.getElementById('humMaxCard').style.display = 'flex';
                     document.getElementById('humMinCard').style.display = 'flex';
                 } else {

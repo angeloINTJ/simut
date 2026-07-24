@@ -200,9 +200,16 @@ void WebManager::handleApiHistoryMulti( ) {
  if (decimation < 1) decimation = 1;
  }
 
- /* ── Accumulated stats (T of set, H of ambient) ─────────────────── */
+ /* ── Accumulated stats (T of set, H of set) ─────────────────────────
+  * Both are gathered PRE-decimation, over every record in range, so the
+  * numbers do not depend on how many points the chart happens to draw.
+  * The page used to take T from here and compute H in the browser from the
+  * decimated series, which reported two different things under one label:
+  * the true extreme for T and merely the largest surviving sample for H. */
  float realMinT = 1000.0f, realMaxT = -1000.0f;
  time_t tsRealMinT = 0, tsRealMaxT = 0;
+ float realMinH = 1000.0f, realMaxH = -1000.0f;
+ const SystemConfig& cfgRef = _storageRef->getConfig( );
 
  /* ── Response: header + sensors[] + data[] streaming ────────────────── */
  _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -294,6 +301,28 @@ void WebManager::handleApiHistoryMulti( ) {
 	 f.seek(hdrLen);
 	 }
 
+	 /* Which measurements feed the stat cards, resolved ONCE per file.
+	  * The measurement table is fixed for the whole file, so doing the
+	  * string-pool lookup and hwId comparison per record would repeat the
+	  * same answer for every one of them — inside the tightest loop in the
+	  * handler, over datasets that reach hundreds of thousands of records. */
+	 bool measIsT[HIST_V4_MAX_MEASUREMENTS] = {false};
+	 bool measIsH[HIST_V4_MAX_MEASUREMENTS] = {false};
+	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	 const uint8_t ch = v4st.measures[m].channel;
+	 if (ch != 0 && ch != 1) continue; /* only T and H have stat cards */
+	 char mHwId[17];
+	 histV4StrPoolGet(mHwId, sizeof(mHwId), v4st.strPool,
+	                  v4st.sensors[v4st.measures[m].sensorIdx].hwIdOffset,
+	                  v4st.sensors[v4st.measures[m].sensorIdx].hwIdLen);
+	 bool selected = false;
+	 for (int si = 0; si < sensorCount && !selected; si++) {
+	 if (strcmp(mHwId, cfgRef.sensors[sensorIds[si]].hwId) == 0) selected = true;
+	 }
+	 if (!selected) continue;
+	 if (ch == 0) measIsT[m] = true; else measIsH[m] = true;
+	 }
+
 	 size_t rdFilled = 0;
 	 uint32_t v4epoch;
 	 bool fileHasMoreV4 = true;
@@ -317,11 +346,26 @@ void WebManager::handleApiHistoryMulti( ) {
 	 if (cutoff > 0 && ts < cutoff) continue;
 	 if (ts > effectiveEnd) { fileHasMoreV4 = false; break; }
 
+	 /* Stats per channel, restricted to the selected sensors.
+	  *
+	  * This loop used to fold EVERY measurement into realMinT/realMaxT —
+	  * temperature, humidity and pressure alike — and the page labels those
+	  * "MIN T"/"MAX T". With a BMP280 in the set, ~1011 hPa of pressure was
+	  * reported as the maximum temperature. It also ignored which sensors
+	  * the user had selected, so unticking a sensor changed the chart but
+	  * not the numbers above it. The legacy branch below never had either
+	  * problem; only the V4 path did. */
 	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	 if (!measIsT[m] && !measIsH[m]) continue;
 	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
 	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
+	 if (measIsT[m]) {
 	 if (v < realMinT) { realMinT = v; tsRealMinT = ts; }
 	 if (v > realMaxT) { realMaxT = v; tsRealMaxT = ts; }
+	 } else {
+	 if (v < realMinH) realMinH = v;
+	 if (v > realMaxH) realMaxH = v;
+	 }
 	 }
 
 	 lineIdx++;
@@ -408,7 +452,7 @@ void WebManager::handleApiHistoryMulti( ) {
  if (cutoff > 0 && ts < cutoff) continue;
  if (ts > effectiveEnd) { fileHasMore = false; break; }
 
- /* T stats of set (pre-decimation) */
+ /* T and H stats of set (pre-decimation) */
  for (int s = 0; s < sensorCount; s++) {
  int id = sensorIds[s];
  int16_t raw = rec.sensors[id];
@@ -416,6 +460,11 @@ void WebManager::handleApiHistoryMulti( ) {
  float v = BinaryHistoryRecord::i16ToFloat(raw);
  if (v < realMinT) { realMinT = v; tsRealMinT = ts; }
  if (v > realMaxT) { realMaxT = v; tsRealMaxT = ts; }
+ }
+ if (rec.ambientHum != HIST_NAN_SENTINEL) {
+ float h = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+ if (h < realMinH) realMinH = h;
+ if (h > realMaxH) realMaxH = h;
  }
 
  lineIdx++;
@@ -503,16 +552,22 @@ void WebManager::handleApiHistoryMulti( ) {
 
  if (!aborted) {
  if (chunkLen > 0) safeSend(chunkBuf);
- char metaEnd[192];
+ char metaEnd[288]; /* +minH/maxH */
  if (realMaxT > -999.0f) {
  const char* sMin = (realMinT < 0) ? "-" : "";
  const char* sMax = (realMaxT < 0) ? "-" : "";
+ char hPart[64] = "";
+ if (realMaxH > -999.0f) {
+ snprintf(hPart, sizeof(hPart), ",\"minH\":%d.%01d,\"maxH\":%d.%01d",
+ (int)realMinH, abs((int)(realMinH*10)%10),
+ (int)realMaxH, abs((int)(realMaxH*10)%10));
+ }
  snprintf(metaEnd, sizeof(metaEnd),
- "],\"minT\":%s%d.%02d,\"maxT\":%s%d.%02d,\"tsMinT\":%lu,\"tsMaxT\":%lu,"
+ "],\"minT\":%s%d.%02d,\"maxT\":%s%d.%02d,\"tsMinT\":%lu,\"tsMaxT\":%lu%s,"
  "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u}",
  sMin, abs((int)realMinT), abs((int)(realMinT*100)%100),
  sMax, abs((int)realMaxT), abs((int)(realMaxT*100)%100),
- (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT,
+ (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT, hPart,
  (unsigned)filesToRead.size( ), filesOpened, recsDecoded);
  } else {
  snprintf(metaEnd, sizeof(metaEnd), "],\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u}",
