@@ -651,8 +651,14 @@ void WebManager::handleResetTouchCal( ) {
 	_displayRef->resetTouchCalibration( );
 	_storageRef->saveConfiguration( );
 
+	/* Same reasoning as the CLI path: the reset alone only restores default
+	 * corner values, and telling the user to recalibrate from the display menu
+	 * assumes a touchscreen usable enough to reach it. Start the wizard. */
+	_displayRef->showTouchCalibration( );
+	_displayRef->resetTouchIdle( );
+
 	if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_CONFIRM);
 	LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Touch calibration reset via web"));
 
-	_server.send(200, "application/json", "{\"status\":\"ok\"}");
+	_server.send(200, "application/json", "{\"status\":\"ok\",\"wizard\":true}");
 }

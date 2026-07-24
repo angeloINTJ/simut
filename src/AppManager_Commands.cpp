@@ -426,17 +426,27 @@ void AppManager::executeCommand(CliDemand cmd) {
  const bool pt = _cmdMgr->isPt( );
  _cmdMgr->printInfo(pt ? "ATENCAO: reseta calibracao do touch."
  : "WARN: resets touch calibration.");
- _cmdMgr->printInfo(pt ? "Use 'conf system touch reset confirm'."
- : "Run 'conf system touch reset confirm'.");
+ _cmdMgr->printInfo(pt ? "Use 'system touch reset confirm'."
+ : "Run 'system touch reset confirm'.");
  break;
  }
  /* Clear touch calibration in config (invalidates magic) */
  TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
  memset(cal, 0, sizeof(TouchCalData));
  _displayMgr->resetTouchCalibration( );
+ /* Go straight into the wizard. Resetting only restores the default
+  * corner values; on its own it leaves the panel exactly as unusable as
+  * whatever prompted the reset. And the old advice — recalibrate from the
+  * display menu — assumes touch works well enough to navigate there, which
+  * is the very thing that fails when someone reaches for this command. */
+ _displayMgr->showTouchCalibration( );
+ _displayMgr->resetTouchIdle( );
  _cmdMgr->printInfo(_cmdMgr->isPt( )
- ? "Calibracao do touch resetada p/ default."
- : "Touch calibration reset to factory defaults.");
+ ? "Calibracao resetada. Assistente iniciado no display: siga as instrucoes na tela."
+ : "Calibration reset. Wizard started on the display: follow the on-screen steps.");
+ _cmdMgr->printInfo(_cmdMgr->isPt( )
+ ? "Ao terminar, use 'write memory' para salvar."
+ : "When finished, run 'write memory' to save.");
  changed = true;
  break;
  }
