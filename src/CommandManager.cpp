@@ -428,19 +428,23 @@ void CommandManager::printModeHelp( ) {
   consolePrintln(pt ? "  do <cmd>              Executar comando do modo #"
                     : "  do <cmd>              Execute privileged-mode command");
  }
+ /* Valid in every mode, and not otherwise discoverable: a user who does not
+  * already know '?' works has no way to find out that it does. */
+ consolePrintln(pt ? "  ? | help              Esta ajuda (sensivel ao modo)"
+                   : "  ? | help              This help (mode-aware)");
  consolePrintln("");
 
  /* ── Show commands (all modes except sensor config get the full list) ── */
  if (_cliMode != CLI_MODE_SENSOR_CONFIG) {
   auto showIf = [&](DemandType t, const char* s) { if (getCommandModeMask(t) & curMask) consolePrintln(s); };
-  showIf(CMD_SHOW_SENSORS,    pt ? "  show sensors           Listar sensores"       : "  show sensors           List sensors");
+  showIf(CMD_SHOW_SENSORS,    pt ? "  show sensors          Listar sensores"       : "  show sensors          List sensors");
   showIf(CMD_SHOW_SYSINFO,    pt ? "  show system info      Info do sistema"        : "  show system info      System info");
   showIf(CMD_SHOW_NET,        pt ? "  show net status       Status da rede"         : "  show net status       Network status");
   showIf(CMD_SHOW_METRICS,    pt ? "  show metrics          Metricas operacionais"   : "  show metrics          Operational metrics");
   showIf(CMD_SHOW_STORAGE,    pt ? "  show storage stats    Estatisticas flash"     : "  show storage stats    Flash statistics");
   showIf(CMD_SHOW_THEMES,     pt ? "  show themes           Listar temas"           : "  show themes           List themes");
   showIf(CMD_SHOW_GPIO,       pt ? "  show gpio             Mapa de GPIOs"          : "  show gpio             GPIO map");
-  showIf(CMD_SHOW_SENSOR_TYPES, pt?"show sensor types     Tipos compilados"        : "  show sensor types     Compiled types");
+  showIf(CMD_SHOW_SENSOR_TYPES, pt?"  show sensor types     Tipos compilados"        : "  show sensor types     Compiled types");
   showIf(CMD_SHOW_LOGS,       pt ? "  show system log       Log de eventos"         : "  show system log       Event log");
  }
 
@@ -459,8 +463,16 @@ void CommandManager::printModeHelp( ) {
                                   : "  debug <on|off>        Stream logs to console");
   showIf(CMD_FORMAT_FS,        pt ? "  system format [confirm]  Formatar LittleFS + reboot"
                                   : "  system format [confirm]  Format LittleFS + reboot");
-  showIf(CMD_FACTORY_RESET,    pt ? "  conf system factory [confirm]  Factory reset"
-                                  : "  conf system factory [confirm]  Factory reset");
+  showIf(CMD_FACTORY_RESET,    pt ? "  system factory [confirm]  Reset de fabrica"
+                                  : "  system factory [confirm]  Factory reset");
+  showIf(CMD_RESET_TOUCH_CAL,  pt ? "  system touch reset [confirm]  Resetar calib. do touch"
+                                  : "  system touch reset [confirm]  Reset touch calibration");
+  showIf(CMD_RESET_ADMIN,      pt ? "  system admin reset [confirm]  Nova senha do admin"
+                                  : "  system admin reset [confirm]  New random admin password");
+  showIf(CMD_TOUCH_SIM,        pt ? "  touch sim <X> <Y>     Injetar toque (0..319, 0..239)"
+                                  : "  touch sim <X> <Y>     Inject touch (0..319, 0..239)");
+  showIf(CMD_GOTO_SCREEN,      pt ? "  screen <n>            Ir para tela do display"
+                                  : "  screen <n>            Go to display screen");
   consolePrintln("");
   consolePrintln(pt ? "  --- Sensores ---" : "  --- Sensors ---");
   showIf(CMD_SCAN_SENSORS,     pt ? "  sensor scan           Escanear hardware"
@@ -486,8 +498,6 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_SET_TIMEZONE,      "  system timezone <-12..14>");
   showIf(CMD_SET_NTP,           "  system ntp <servidor>");
   showIf(CMD_SET_HISTORY_INTERVAL, "  system history_interval <min>");
-  showIf(CMD_LANGUAGE,          "  language <pt|en>");
-  showIf(CMD_SET_TIME,          "  time <AAAA-MM-DD> <HH:MM:SS>");
   showIf(CMD_SET_DS_RES,        "  ds18b20 resolution <9-12>");
   consolePrintln(pt ? "  --- Rede ---" : "  --- Network ---");
   showIf(CMD_SET_WIFI_SSID,     "  wifi ssid <nome>");
@@ -509,6 +519,15 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_USER_DEL,          "  user del <nome>");
   showIf(CMD_USER_PASS,         "  user pass <nome> <senha>");
   showIf(CMD_USER_PERM,         "  user perm <nome> <papel|0xMASCARA>");
+  consolePrintln(pt ? "  --- Manutencao ---" : "  --- Maintenance ---");
+  showIf(CMD_RESET_TOUCH_CAL,  pt ? "  system touch reset [confirm]  Resetar calib. do touch"
+                                  : "  system touch reset [confirm]  Reset touch calibration");
+  showIf(CMD_RESET_ADMIN,      pt ? "  system admin reset [confirm]  Nova senha do admin"
+                                  : "  system admin reset [confirm]  New random admin password");
+  showIf(CMD_FACTORY_RESET,    pt ? "  system factory [confirm]      Reset de fabrica"
+                                  : "  system factory [confirm]      Factory reset");
+  showIf(CMD_FORMAT_FS,        pt ? "  system format [confirm]       Formatar LittleFS + reboot"
+                                  : "  system format [confirm]       Format LittleFS + reboot");
   consolePrintln("");
   consolePrintln(pt ? "  sensor <slot>         Entrar configuracao do sensor"
                     : "  sensor <slot>         Enter sensor configuration");
@@ -537,10 +556,18 @@ void CommandManager::printModeHelp( ) {
                                : "  hmin|hmax <value>    Humidity limits");
  }
 
- /* ── Telemetry ops (exec modes) ── */
+ /* ── Exec-mode actions ──
+  * language/time live here, not under config's "--- Sistema ---", where they
+  * were listed for a long time and never once rendered: their mask is
+  * USER|PRIV, so showIf filtered them out of the only block that mentioned
+  * them. Both were reachable the whole time and documented nowhere. */
  if (_cliMode == CLI_MODE_USER_EXEC || _cliMode == CLI_MODE_PRIV_EXEC) {
   consolePrintln("");
   auto showIf = [&](DemandType t, const char* s) { if (getCommandModeMask(t) & curMask) consolePrintln(s); };
+  showIf(CMD_LANGUAGE, pt ? "  language <pt|en>      Idioma da CLI e do display"
+                          : "  language <pt|en>      CLI and display language");
+  showIf(CMD_SET_TIME, pt ? "  time <AAAA-MM-DD> <HH:MM:SS>  Ajustar relogio"
+                          : "  time <YYYY-MM-DD> <HH:MM:SS>  Set clock");
   showIf(CMD_TEL_SYNC, pt ? "  tel sync              Enviar telemetria"
                            : "  tel sync              Force telemetry upload");
   showIf(CMD_TEL_DUMP, pt ? "  tel dump              Dump do payload"
