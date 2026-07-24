@@ -71,6 +71,7 @@ enum DemandType {
  CMD_USER_ADD, /**< strVal1 = username; strVal2 = password */
  CMD_USER_DEL, /**< strVal1 = username (protects admin) */
  CMD_USER_PASS, /**< strVal1 = username; strVal2 = new password */
+ CMD_USER_PERM, /**< strVal1 = username; strVal2 = role name or 0xHEX mask */
  CMD_SET_WEB_PORT, /**< intVal1 = port (1..65535) */
 
  /* 'touch sim X Y' — injects touch (x,y) screen-space.

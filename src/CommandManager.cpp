@@ -350,6 +350,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_USER_ADD:          return CLI_VALID_CONFIG;
  case CMD_USER_DEL:          return CLI_VALID_CONFIG;
  case CMD_USER_PASS:         return CLI_VALID_CONFIG;
+ case CMD_USER_PERM:         return CLI_VALID_CONFIG;
  case CMD_SET_WEB_PORT:      return CLI_VALID_CONFIG;
  /* Sensor sub-commands — privileged + sensor config mode */
  case CMD_SENSOR_FIELD:      return CLI_VALID_PRIV | CLI_VALID_SENSOR;
@@ -500,6 +501,7 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_USER_ADD,          "  user add <nome> <senha>");
   showIf(CMD_USER_DEL,          "  user del <nome>");
   showIf(CMD_USER_PASS,         "  user pass <nome> <senha>");
+  showIf(CMD_USER_PERM,         "  user perm <nome> <papel|0xMASCARA>");
   consolePrintln("");
   consolePrintln(pt ? "  sensor <slot>         Entrar configuracao do sensor"
                     : "  sensor <slot>         Enter sensor configuration");

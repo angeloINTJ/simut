@@ -81,7 +81,12 @@ JSON_APIS = [
     ('/api/network',       'admin'),
     ('/api/alarms',        'admin'),
     ('/api/sec_status',    'admin'),
-    ('/api/logs',          'admin'),
+]
+
+# Not JSON: raw CompactLogRecord stream, 12 bytes per entry, sent as
+# application/octet-stream because translating server-side cost ~10x the bytes.
+BINARY_APIS = [
+    ('/api/logs', 'admin', 12),
 ]
 
 STATIC = ['/lang.js', '/style.css', '/favicon.ico']
@@ -176,6 +181,26 @@ def create_test_user(port):
                      f'user add {TEST_USER} {TEST_PASS}',
                      'end', 'write memory'], settle=0.8)
     return 'usuario criado' in out.lower() or 'user created' in out.lower()
+
+
+def grant_admin(port):
+    """Promote the throwaway user to full admin via `user perm`.
+
+    Without this the suite can only reach dashboard/history/calibration routes,
+    because `user add` hardcodes those permissions. The alternative — resetting
+    the real admin password to borrow the account — changes the operator's
+    credentials and arms mustChangePassword, which redirects the session to
+    /force_chpass and breaks the authenticated tests anyway.
+    """
+    out = cli(port, ['configure terminal',
+                     f'user perm {TEST_USER} admin',
+                     'end', 'write memory'], settle=0.8)
+    return 'permiss' in out.lower()
+
+
+def revoke_admin(port):
+    cli(port, ['configure terminal', f'user perm {TEST_USER} operator',
+               'end', 'write memory'], settle=0.6)
 
 
 def delete_test_user(port):
@@ -318,7 +343,7 @@ def t_unauthenticated(web, res):
         except Exception as e:
             res.add('authz', f'{path} bloqueado sem sessao', False, str(e)[:100])
 
-    for path, need in JSON_APIS:
+    for path, need in JSON_APIS + [(p, n) for p, n, _ in BINARY_APIS]:
         try:
             r = web.get(path)
             ok = r.status_code in (401, 403)
@@ -406,13 +431,34 @@ def t_apis_authenticated(web, res, is_admin):
             res.add('api', f'{path} responde 200', False, str(e)[:100])
 
 
+def t_binary_apis(web, res, is_admin):
+    for path, need, unit in BINARY_APIS:
+        if need == 'admin' and not is_admin:
+            continue
+        try:
+            r = web.get(path)
+            if r.status_code != 200:
+                res.add('api', f'{path} responde 200', False, f'HTTP {r.status_code}')
+                continue
+            n = len(r.content)
+            ctype = r.headers.get('Content-Type', '')
+            # A stream cut mid-record leaves a length that is not a whole
+            # number of entries — the binary equivalent of unparseable JSON.
+            ok = n > 0 and n % unit == 0
+            res.add('api', f'{path} stream binario integro', ok,
+                    f'{n} B = {n // unit} registros de {unit} B, {ctype}'
+                    if ok else f'{n} B nao e multiplo de {unit}')
+        except Exception as e:
+            res.add('api', f'{path} responde 200', False, str(e)[:100])
+
+
 def t_permission_boundary(web, res, is_admin):
     print('\n[6] Limite de permissao com sessao valida')
     if is_admin:
         res.add('authz', 'rotas admin negadas a usuario comum', True,
                 'sessao e admin — precisa do usuario de teste', skipped=True)
         return
-    for path, need in JSON_APIS:
+    for path, need in JSON_APIS + [(p, n) for p, n, _ in BINARY_APIS]:
         if need != 'admin':
             continue
         try:
@@ -503,8 +549,32 @@ def main():
         if t_login(web, res, user, password):
             t_pages_authenticated(web, res, is_admin)
             t_apis_authenticated(web, res, is_admin)
+            t_binary_apis(web, res, is_admin)
+            # Run this while the session is still under-privileged: it is the
+            # only moment the refusals can be proven rather than assumed.
             t_permission_boundary(web, res, is_admin)
-            t_config_regression(web, res, is_admin)
+
+            if not is_admin and created:
+                print('\n[setup] promovendo o usuario a admin para o sweep completo')
+                if grant_admin(port):
+                    # Session permissions are captured at login, so the old
+                    # cookie still carries the old rights — log in again.
+                    web.logout()
+                    web.wait_lockout()
+                    ok, detail = web.login(user, password)
+                    res.add('login', 'reautentica como admin', ok, detail)
+                    if ok:
+                        is_admin = True
+                        t_pages_authenticated(web, res, True)
+                        t_apis_authenticated(web, res, True)
+                        t_binary_apis(web, res, True)
+                        t_config_regression(web, res, True)
+                else:
+                    res.add('login', 'promocao a admin via CLI', False,
+                            "'user perm' nao confirmou")
+            else:
+                t_config_regression(web, res, is_admin)
+
             t_logout(web, res)
         else:
             print('\n!! login falhou — testes autenticados nao rodaram')

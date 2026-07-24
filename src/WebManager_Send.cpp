@@ -24,7 +24,22 @@ void WebManager::maybeLogClientDisconnect(const char* origin) {
  LogManager::instance( ).log(LOG_WARN, "WEB", WEB_CLIENT_DISCONNECT, String(origin));
 }
 
+/* A zero-length chunk is the terminator in HTTP chunked transfer-encoding, so
+ * handing sendContent( ) an empty string ENDS the response body. Mid-stream
+ * that silently truncates the reply and every later safeSend( ) then sees a
+ * finished connection and reports the client as gone.
+ *
+ * This is not hypothetical: /api/config emits `"ambHwId":"` and then sends
+ * jsonEscape(sensors[10].hwId), which is empty on any device without a custom
+ * ambient id — the default. The body ended on that opening quote, the browser
+ * got JSON it could not parse, and the settings page came up blank. Measured:
+ * 483 bytes, ending exactly at `"ambHwId":"`.
+ *
+ * Nothing to send is success, not a chunk. */
+static inline bool sendIsNoOp(const char* c) { return c == nullptr || c[0] == '\0'; }
+
 bool WebManager::safeSend(const char* content) {
+ if (sendIsNoOp(content)) return !isClientGone( );
  if (isClientGone( )) { maybeLogClientDisconnect("s/early"); return false; }
 
  _server.client( ).setTimeout(500);
@@ -39,17 +54,14 @@ bool WebManager::safeSend(const char* content) {
 }
 
 bool WebManager::safeSend(const char* data, size_t len) {
+ if (len == 0 || data == nullptr) return !isClientGone( );
  if (isClientGone( )) { maybeLogClientDisconnect("sN/early"); return false; }
 
  _server.client( ).setTimeout(500);
  feedWatchdog( );
  {
  SendGuard sg;
- if (len == 0) {
- _server.sendContent("");
- } else {
  _server.sendContent(data, len);
- }
  }
  bool gone = isClientGone( );
  if (gone) maybeLogClientDisconnect("sN/post");
@@ -57,6 +69,7 @@ bool WebManager::safeSend(const char* data, size_t len) {
 }
 
 bool WebManager::safeSend(const String& content) {
+ if (content.length( ) == 0) return !isClientGone( );
  if (isClientGone( )) { maybeLogClientDisconnect("sStr/early"); return false; }
 
  _server.client( ).setTimeout(500);
@@ -71,6 +84,7 @@ bool WebManager::safeSend(const String& content) {
 }
 
 bool WebManager::safeSend_P(const char* content) {
+ if (sendIsNoOp(content)) return !isClientGone( );
  if (isClientGone( )) { maybeLogClientDisconnect("sP/early"); return false; }
 
  _server.client( ).setTimeout(500);

@@ -613,6 +613,64 @@ void AppManager::cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool
  if (!found) _cmdMgr->printError(pt ? "Usuario nao encontrado" : "User not found");
 }
 
+/**
+ * @brief `user perm <name> <role|0xMASK>` — set a web user's permission bits.
+ *
+ * The CLI could create web users but never grant them anything: `user add`
+ * hardcodes dashboard+history+calibration, and nothing else could change it.
+ * So any account beyond that had to be made through the web UI, which needs an
+ * account that can already reach it — a loop that blocked automated testing of
+ * every admin-gated route.
+ *
+ * Roles are shorthand for the masks in SystemDefs_Limits.h; a raw 0xHEX is
+ * accepted for anything they do not cover. Reachable only from config mode,
+ * which already allows `user add`, `user del` and `admin reset` — this widens
+ * nothing that serial access did not already grant.
+ */
+void AppManager::cmdHandleUserPerm(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
+ const bool pt = _cmdMgr->isPt( );
+
+ uint16_t mask = 0;
+ String role(cmd.strVal2);
+ role.toLowerCase( );
+
+ if (role == "admin" || role == "full") {
+  mask = PERM_FULL_ADMIN;
+ } else if (role == "viewer" || role == "leitor") {
+  mask = PERM_DASHBOARD | PERM_HISTORY;
+ } else if (role == "operator" || role == "operador") {
+  mask = PERM_DASHBOARD | PERM_HISTORY | PERM_LOGS | PERM_CALIB;
+ } else if (role == "none" || role == "nenhum") {
+  mask = 0;
+ } else if (role.startsWith("0x")) {
+  char* endp = nullptr;
+  unsigned long v = strtoul(role.c_str( ) + 2, &endp, 16);
+  if (endp == role.c_str( ) + 2 || *endp != '\0' || v > 0xFFFFUL) {
+   _cmdMgr->printError(pt ? "Mascara invalida (use 0x0000..0xFFFF)"
+                          : "Invalid mask (use 0x0000..0xFFFF)");
+   return;
+  }
+  mask = (uint16_t)v;
+ } else {
+  _cmdMgr->printError(pt ? "Papel invalido. Use admin|operator|viewer|none ou 0xMASCARA"
+                         : "Invalid role. Use admin|operator|viewer|none or 0xMASK");
+  return;
+ }
+
+ for (int i = 0; i < MAX_USERS; i++) {
+  if (!cfg.users[i].active || strcasecmp(cmd.strVal1, cfg.users[i].username) != 0) continue;
+  cfg.users[i].permissions = mask;
+  _cmdMgr->consolePrintf(pt ? "OK: Permissoes de %s = 0x%04X\n"
+                            : "OK: Permissions for %s = 0x%04X\n",
+                         cfg.users[i].username, (unsigned)mask);
+  LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, i,
+           String(TRL("CLI set permissions: ")) + cmd.strVal1);
+  changed = true;
+  return;
+ }
+ _cmdMgr->printError(pt ? "Usuario nao encontrado" : "User not found");
+}
+
 /* cmdHandleDbgSensorHistoryAll removido (debug TEST-ONLY
  * de v3.24.12 — recovery de provisionEpoch via BT). Liberou ~1-2 KB.
  * Recovery alternativo: editar system.bin via /api/restore?op=apply com .bkp. */

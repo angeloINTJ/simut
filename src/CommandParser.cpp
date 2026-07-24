@@ -216,6 +216,12 @@ CliDemand parseCliCommand(String input) {
 			cmd.setStrVal2(r3.c_str( ));
 			return cmd;
 		}
+		if (t1 == "perm" && t2.length( ) > 0 && t3.length( ) > 0) {
+			cmd.type = CMD_USER_PERM;
+			cmd.setStrVal1(r2.c_str( ));
+			cmd.setStrVal2(t3.c_str( )); /* role/mask — matching is case-insensitive */
+			return cmd;
+		}
 	}
 
 	/* ── System settings ── */
