@@ -180,6 +180,17 @@ void WebManager::feedWatchdog( ) {
 
 }
 
+/* A single breath between packets while streaming a long response. feedWatchdog
+ * pets the watchdog and runs the light yield (keeps the live display fed); the
+ * micro-delay then lets lwIP flush the just-sent packet and drain the PBUF pool
+ * before we pile on more, and releases the heap/SPI arbiter so Core 1 renders a
+ * frame. Cheap enough to call after every flushed chunk without slowing the
+ * transfer meaningfully (a few ms per handful of KB). */
+void WebManager::streamBreath( ) {
+ feedWatchdog( );
+ delay(WEB_STREAM_BREATH_DELAY_MS);
+}
+
 bool WebManager::rejectIfTouchPriority( ) {
  if (TouchPriority::isActive( )) {
  _server.sendHeader("Retry-After", "5");
