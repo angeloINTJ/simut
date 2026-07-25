@@ -53,6 +53,8 @@ volatile uint32_t g_core1KillsQuiet       = 0;
 volatile uint32_t g_core1Launches         = 0;
 volatile uint8_t  g_core1StuckMod0        = 0xFF;
 volatile uint8_t  g_core1StuckParked      = 0xFF;
+volatile uint8_t  g_core1Phase            = 0;
+volatile uint8_t  g_core1StuckPhase       = 0xFF;
 
 void __real_flash_range_erase(uint32_t offset, size_t count);
 void __real_flash_range_program(uint32_t offset, const uint8_t* data, size_t count);
