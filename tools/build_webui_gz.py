@@ -34,6 +34,27 @@ except NameError:
 INPUT_FILE  = os.path.join(PROJECT_DIR, "WebUI.h")
 OUTPUT_FILE = os.path.join(PROJECT_DIR, "src", "WebUI_GZ.h")
 
+# Pages served from LittleFS instead of being linked into the firmware image.
+#
+# The app slot is 1020 KB and effectively full: at the time this was added the
+# image had 660 bytes of headroom, so a page that grows costs a feature
+# somewhere else. A page listed here is still gzipped — un-gzipping would make
+# it ~5x BIGGER, not smaller — it just lives on the 1 MB filesystem partition
+# instead of the app slot, and WebManager streams it from there.
+#
+# The trade is load time (a flash read per request instead of a PROGMEM
+# pointer) for headroom. Only worth it for pages that are big and rarely
+# opened; /config is opened to configure the device and then left alone.
+#
+# Deploying one of these needs the file on the device. Do NOT use
+# `pio run -t uploadfs` on a device with data on it: that reformats the
+# partition and takes the history, logs and calib.csv with it. Upload the
+# single file through the /files page or POST it to /api/upload.
+FS_PAGES = {
+    "CFG_PAGE": "config.html.gz",
+}
+FS_OUT_DIR = os.path.join(PROJECT_DIR, "data", "web")
+
 # Languages enabled in firmware.
 ENABLED_LANGS = {"en", "pt"}
 
@@ -222,7 +243,13 @@ def generate() -> None:
         # The generated .h contains the input hash in the first comment line.
         with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
             first_line = f.readline()
-        if input_hash in first_line:
+        # The FS_PAGES outputs are not covered by the header hash: deleting one
+        # would otherwise be invisible here and the build would quietly ship a
+        # firmware whose /config has no page to serve.
+        fs_ok = all(
+            os.path.isfile(os.path.join(FS_OUT_DIR, fn)) for fn in FS_PAGES.values()
+        )
+        if input_hash in first_line and fs_ok:
             print("build_webui_gz: WebUI_GZ.h is up to date — skipping.")
             return
 
@@ -262,8 +289,20 @@ def generate() -> None:
         total_min += len(minified)
         total_gz  += length
 
-        gz_name = name + "_GZ"
         ratio = length / max(original_len, 1) * 100
+
+        if name in FS_PAGES:
+            os.makedirs(FS_OUT_DIR, exist_ok=True)
+            fs_path = os.path.join(FS_OUT_DIR, FS_PAGES[name])
+            with open(fs_path, "wb") as fo:
+                fo.write(compressed)
+            print(
+                f"build_webui_gz: {name} -> data/web/{FS_PAGES[name]} "
+                f"({length} bytes gz) — served from LittleFS, not linked."
+            )
+            continue
+
+        gz_name = name + "_GZ"
         out_lines.append(
             f"// {name}: {original_len} -> {len(minified)} (min) -> {length} bytes (gz, {ratio:.1f}%)"
         )
