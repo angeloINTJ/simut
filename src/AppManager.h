@@ -134,6 +134,7 @@ private:
 	 * NTP failure or factory-reset boot. */
  bool _histTimeRefWarned = false;
  bool _histSchemaEmptyWarned = false;
+ bool _histSchemaMismatchWarned = false;
 
  static constexpr uint32_t TOUCH_PRIORITY_MS = 5000;
 
