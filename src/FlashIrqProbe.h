@@ -119,6 +119,13 @@ enum Core1Phase {
 	C1P_LOOP_TAIL,       /* UI dispatch done, before the adaptive delay */
 	C1P_LOOP_DELAY,      /* inside delay( ) at the bottom of the loop (SDK path) */
 	C1P_W_WFE,           /* inside the private Core-1 wait: asleep in __wfe */
+	/* The non-dashboard screens. Without these their cost is charged to whatever
+	 * marker the loop set last, which is how a 183 ms graph repaint was reported
+	 * as TOUCH_HDL. Split graph from settings because they are different code:
+	 * DisplayManager_Graph.cpp draws straight to the TFT (100 direct tft-> calls,
+	 * no canvas), the settings screens are partly canvas-based. */
+	C1P_UI_GRAPH,        /* graph / stats / detail / loading screens */
+	C1P_UI_SETTINGS,     /* settings, auth, calendar, alarm-edit, confirm */
 	C1P_COUNT
 };
 extern volatile uint8_t  g_core1Phase;          /**< Core1Phase: where Core 1 is right now */

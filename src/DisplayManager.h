@@ -200,8 +200,6 @@ public:
 
 	void setWebBusy(bool busy, const char* username = nullptr);
 	bool isWebBusy( ) { return _webBusy; }
-	bool hasWebOverlayPending( ) { return _webOverlayPending; }
-	void clearWebOverlayPending( ) { _webOverlayPending = false; }
 
 
 	void setAlarmState(uint16_t slotMask, int8_t navSlot = -1);
@@ -418,8 +416,6 @@ private:
 
 
 	volatile bool _webBusy = false;
-	volatile bool _webOverlayShown = false;
-	volatile bool _webOverlayPending = false;
 	char _webBusyUser[24];
 	/* Sticky: last _webBusy read successfully via mutex_try_enter. Core 1
 	 * only (no volatile); avoids overlay flicker when try_enter fails
@@ -482,7 +478,7 @@ private:
 	void drawInterfaceFixed( );
 	void drawTopBar(const SystemState& state);
 	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel, float p = NAN);
-	void drawBottomButtons(int selectedIdx, bool forceRedraw);
+	void drawBottomButtons(int selectedIdx);
 
 	/** Redraws top panel. Syncs topSlotIdx + data from current mode. */
 	void redrawTopPanel( ) {
@@ -523,7 +519,7 @@ private:
 	 drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
 	               snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
 	 /* Redraw bottom buttons — fixed sensor button may appear/disappear */
-	 drawBottomButtons(snap.selectedSlotIdx, true);
+	 drawBottomButtons(snap.selectedSlotIdx);
 	}
 
 	
@@ -551,7 +547,6 @@ private:
 	 * called from within a strip-render loop (the
 	 * strip's external blit already covers the region). */
 	void drawGraphIcon(int16_t x, int16_t y, uint16_t color);
-	void drawWebBusyOverlay( );
 	void blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w, int16_t h);
 
 	/** Formats epoch to X-axis label (HH:MM or DD/MM HHh). */

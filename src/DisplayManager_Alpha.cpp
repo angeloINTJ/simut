@@ -168,7 +168,7 @@ void DisplayManager::loopCore1( ) {
 void DisplayManager::handleTouch( ){}
 void DisplayManager::render(const SystemState&){}
 void DisplayManager::drawSlotPanel(float,float,SensorType,bool,int,const char*,bool,DashPanel&,float){}
-void DisplayManager::drawBottomButtons(int,bool){}
+void DisplayManager::drawBottomButtons(int){}
 void DisplayManager::drawInterfaceFixed( ){}
 void DisplayManager::drawTopBar(const SystemState&){}
 void DisplayManager::redrawAlarmFlash( ){}

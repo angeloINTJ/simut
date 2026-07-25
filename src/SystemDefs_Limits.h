@@ -31,7 +31,7 @@
 #ifndef MAX_SENSOR_CHANNELS
 #define MAX_SENSOR_CHANNELS 4 /* Measurement channels per sensor (TEMP, HUM, PRESS, LUX) */
 #endif
-#define SIMUT_VERSION "1.5.2-rc24"
+#define SIMUT_VERSION "1.5.2-rc25"
 
 /* Fallback epoch for provisional time when NTP is unavailable and no
  * history records exist to seed the virtual RTC. Override via

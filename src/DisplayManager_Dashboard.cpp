@@ -167,7 +167,7 @@ void DisplayManager::restoreNormalDashboard( ) {
  _lastRenderedState.slotValid,
  _lastRenderedState.selectedSlotIdx,
  _lastRenderedState.slotName, true, _bottomPanel, _lastRenderedState.slotPres);
- drawBottomButtons(_lastRenderedState.selectedSlotIdx, true);
+ drawBottomButtons(_lastRenderedState.selectedSlotIdx);
 }
 
 void DisplayManager::drawInterfaceFixed( ) {
@@ -268,6 +268,49 @@ void DisplayManager::endScreenRender( ) {
 void DisplayManager::drawTopBar(const SystemState& state) {
  if(!_driver.canvas) return;
  const int W = DASH_W, H = TOPBAR_H;
+
+ /* Web-busy banner.
+  *
+  * Touch is rejected while a web client holds the device, by design — aborting a
+  * transfer would truncate the chart the caller is downloading. The old feedback
+  * for that was a full-screen overlay, and it had two faults: it appeared only if
+  * the user actually touched (so the reason was learned by failing first), and
+  * while it showed, rendering was suppressed entirely, so the readings froze.
+  * This says the same thing in the bar the user is already looking at, and costs
+  * one blit that was happening anyway.
+  *
+  * Hardcoded string rather than a TR key, deliberately: DisplayManager_LangParser
+  * requires a pack to have EXACTLY TR_KEYS_COUNT lines, so adding a key
+  * invalidates every installed .lng and drops the whole UI to English until the
+  * packs are regenerated. Make it a key the next time they are.
+  *
+  * No new repaint trigger is needed — render( ) already redraws this bar whenever
+  * the clock string changes, so the banner appears and clears within a second. */
+ if (_lastWebBusy) {
+  /* Bounded copy: _webBusyUser is written by Core 0 under _stateMutex and read
+   * here without it. A torn read is cosmetic, but an unterminated one would run
+   * snprintf off the end, so terminate it locally instead of taking the lock. */
+  char user[sizeof(_webBusyUser)];
+  memcpy(user, (const void*)_webBusyUser, sizeof(user));
+  user[sizeof(user) - 1] = '\0';
+
+  char msg[48];
+  snprintf(msg, sizeof(msg), "WEB '%s' - toque bloqueado", user[0] ? user : "web");
+
+  _driver.canvas->fillScreen(RGB565(150, 80, 0));
+  _driver.canvas->setFont(&simutFont9pt);
+  _driver.canvas->setTextSize(1);
+  _driver.canvas->setTextColor(RGB565(255, 255, 255));
+  int16_t bx, by; uint16_t bw, bh;
+  _driver.canvas->getTextBounds(msg, 0, 0, &bx, &by, &bw, &bh);
+  int16_t cx = (int16_t)((W - (int)bw) / 2);
+  if (cx < 2) cx = 2;
+  _driver.canvas->setCursor(cx, 20);
+  _driver.canvas->print(msg);
+  blitCanvas(_driver.canvas, 0, 0, W, H);
+  return;
+ }
+
  _driver.canvas->fillScreen(C_BG_MAIN);
 
 
@@ -786,7 +829,7 @@ int DisplayManager::buildDashLayout(DashBtn out[5], int *totalPages, bool *hasPa
  return paging ? 5 : pos;
 }
 
-void DisplayManager::drawBottomButtons(int selectedIdx, bool forceRedraw) {
+void DisplayManager::drawBottomButtons(int selectedIdx) {
  if(!_driver.canvas) return;
  _driver.canvas->fillScreen(C_BG_MAIN);
  const int btnW = 58, gap = 5, xStart = 5, pitch = btnW + gap;
