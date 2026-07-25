@@ -84,7 +84,8 @@ const char* const C1P_NAMES[C1P_COUNT] = {
 	"INIT", "RESUME_MTX", "LOOP_TOP", "PARK", "TOUCH_RD", "TOUCH_HDL",
 	"THEME_MTX", "DASH_MTX", "SNAPSHOT", "RENDER",
 	"ALARM_FLASH", "R_BOOT", "R_FULL", "R_TOPBAR", "R_TOP_PANEL",
-	"R_MINMAX", "R_BOT_PANEL", "R_ALARM", "LOOP_TAIL", "LOOP_DELAY", "W_WFE"
+	"R_MINMAX", "R_BOT_PANEL", "R_ALARM", "LOOP_TAIL", "LOOP_DELAY", "W_WFE",
+	"UI_GRAPH", "UI_SETTINGS"
 };
 static_assert(sizeof(C1P_NAMES) / sizeof(C1P_NAMES[0]) == C1P_COUNT,
               "C1P_NAMES must name every Core1Phase");

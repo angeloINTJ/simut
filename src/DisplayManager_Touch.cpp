@@ -351,11 +351,11 @@ void DisplayManager::handleTouch( ) {
 
 
  if (webBusyNow && _uiMode == MODE_DASHBOARD) {
+ /* Touch stays rejected while a web client holds the device — that decision is
+  * unchanged. What is gone is the full-screen overlay this used to paint: the
+  * reason is now permanently visible in the top-bar banner, so the user learns it
+  * BEFORE touching instead of after, and the dashboard keeps updating. */
  if (!acceptTouch(0xF0)) return;
- if (!_webOverlayShown) {
- drawWebBusyOverlay( );
- }
- _webOverlayPending = true;
  return;
  }
 
@@ -457,7 +457,7 @@ void DisplayManager::handleTouch( ) {
  if (!acceptTouch(14)) return;
  _currentPage++;
  if (_currentPage >= totalPages) _currentPage = 0;
- drawBottomButtons(_sharedState.selectedSlotIdx, true); return;
+ drawBottomButtons(_sharedState.selectedSlotIdx); return;
  }
  if (b.kind == 1) { /* CFG */
  if (!acceptSlideTouch(20)) return;
@@ -468,7 +468,7 @@ void DisplayManager::handleTouch( ) {
  if (!acceptSlideTouch(10 + b.slotId)) return;
  _bottomPanel.showMinMax = false;
  if (!_topPanel.fixed) _topPanel.showMinMax = false;
- drawBottomButtons(b.slotId, false);
+ drawBottomButtons(b.slotId);
  UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = b.slotId;
  pushUiEvent(ev);
  }

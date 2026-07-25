@@ -1083,7 +1083,7 @@ void DisplayManager::loopCore1( ) {
 				drawTopBar(snap);
 				drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid, snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
 				drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid, snap.selectedSlotIdx, snap.slotName, true, _bottomPanel, snap.slotPres);
-				drawBottomButtons(snap.selectedSlotIdx, true);
+				drawBottomButtons(snap.selectedSlotIdx);
 				_lastRenderedState = snap;
 				_uiMode = MODE_DASHBOARD;
 			} else {
@@ -1157,52 +1157,43 @@ void DisplayManager::loopCore1( ) {
 				if (now - _alarmFlashTimer >= ALARM_FLASH_INTERVAL_MS) {
 					_alarmFlashTimer = now;
 					_alarmFlashPhase = !_alarmFlashPhase;
-					if (!_webOverlayShown) {
-						C1_PHASE(C1P_ALARM_FLASH);
-						redrawAlarmFlash( );
-					}
+					C1_PHASE(C1P_ALARM_FLASH);
+					redrawAlarmFlash( );
 				}
 			} else if (_alarmFlashPhase && !_lastRenderedState.isBooting) {
 
 				_alarmFlashPhase = false;
 				_alarmFlashTimer = 0;
 				_alarmRotateTimer = 0;
-				if (!_webOverlayShown) {
-					C1_PHASE(C1P_ALARM_FLASH);
-					restoreNormalDashboard( );
-				}
+				C1_PHASE(C1P_ALARM_FLASH);
+				restoreNormalDashboard( );
 			}
 
 
-			if (_webOverlayShown) {
-				if (!webBusyNow) {
-					_webOverlayShown = false;
-					_forceFullRedraw = true;
-					_isDirty = true;
-
-					C1_PHASE(C1P_SNAPSHOT);
-					if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
-				}
-
-			} else {
-				C1_PHASE(C1P_SNAPSHOT);
-				if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
-			}
+			/* Render unconditionally. This used to be gated on _webOverlayShown,
+			 * which meant that once the user touched during a web transfer the
+			 * dashboard STOPPED UPDATING until the transfer finished — the readings
+			 * froze underneath a blanked screen. Touch is still rejected while a web
+			 * client holds the device (aborting a download would truncate the
+			 * caller's chart), but that is now said in a top-bar banner instead of
+			 * by hiding everything. See drawTopBar( ). */
+			C1_PHASE(C1P_SNAPSHOT);
+			if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
 		}
 		else if (_uiMode == MODE_GRAPH_LOADING) {
-			if (_repaintLoading) { drawLoadingScreen( ); _repaintLoading = false; }
+			if (_repaintLoading) { C1_PHASE(C1P_UI_GRAPH); drawLoadingScreen( ); _repaintLoading = false; }
 		}
 		else if (_uiMode == MODE_STATS_VIEW) {
-			if (_repaintGraph) { drawStatsScreen( ); _repaintGraph = false; }
+			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawStatsScreen( ); _repaintGraph = false; }
 		}
 		else if (_uiMode == MODE_GRAPH_VIEW) {
-			if (_repaintGraph) { drawGraphScreen( ); _repaintGraph = false; }
+			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphScreen( ); _repaintGraph = false; }
 		}
 		else if (_uiMode == MODE_GRAPH_DETAIL) {
-			if (_repaintGraph) { drawGraphDetailScreen( ); _repaintGraph = false; }
+			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphDetailScreen( ); _repaintGraph = false; }
 		}
 		else if (_uiMode == MODE_CALENDAR) {
-			if (_repaintCalendar) { drawCalendarScreen( ); _repaintCalendar = false; }
+			if (_repaintCalendar) { C1_PHASE(C1P_UI_SETTINGS); drawCalendarScreen( ); _repaintCalendar = false; }
 		}
 
 		C1_PHASE(C1P_LOOP_TAIL);
@@ -1216,13 +1207,13 @@ void DisplayManager::loopCore1( ) {
 			drawGraphHeaderBar( );
 		}
 		else if (_uiMode == MODE_SETTINGS_THEMES) {
-			if (_repaintSettings) { drawSettingsThemes( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARMS) {
-			if (_repaintSettings) { drawSettingsAlarms( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsAlarms( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
-			if (_repaintSettings) { drawAlarmEdit( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_AUTH) {
 			if (_permanentLockout) {
@@ -1232,22 +1223,22 @@ void DisplayManager::loopCore1( ) {
 				if (!timeReached(_lockoutUntil)) _repaintSettings = true;
 				else { _lockoutUntil = 0; _forceSettingsRedraw = true; _repaintSettings = true; }
 			}
-			if (_repaintSettings) { drawAuthScreen( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAuthScreen( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_MAIN) {
-			if (_repaintSettings) { drawSettingsMain( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsMain( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_LANG) {
-			if (_repaintSettings) { drawSettingsLang( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsLang( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_PASSWORD) {
-			if (_repaintSettings) { drawSettingsPassword( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsPassword( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
-			if (_repaintSettings) { drawTouchCalibration( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawTouchCalibration( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
-			if (_repaintSettings) { drawTouchSensitivity( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawTouchSensitivity( ); _repaintSettings = false; }
 			/* After 1.5s from completion, advance to position calibration */
 			if (_sensDone && timeSince(_sensDoneTime, 1500)) {
 				_uiMode = MODE_SETTINGS_TOUCH_CAL;
@@ -1273,18 +1264,18 @@ void DisplayManager::loopCore1( ) {
 			}
 		}
 		else if (_uiMode == MODE_SETTINGS_LICENSE) {
-			if (_repaintSettings) { drawSettingsLicense( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsLicense( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_DISPLAY_OFFSET) {
-			if (_repaintSettings) { drawSettingsDisplayOffset( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsDisplayOffset( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_ALARM_ACTION) {
 
-			if (_repaintSettings) { drawAlarmAction( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmAction( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {
 
-			if (_repaintSettings) { drawMuteConfirm( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); _repaintSettings = false; }
 		}
 
 		/*
@@ -1468,7 +1459,7 @@ void DisplayManager::render(const SystemState& state) {
 
 		drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
 		drawSlotPanel(st.slotTemp, st.slotHum, st.slotType, st.slotValid, st.selectedSlotIdx, st.slotName, true, _bottomPanel, st.slotPres);
-		drawBottomButtons(state.selectedSlotIdx, true);
+		drawBottomButtons(state.selectedSlotIdx);
 		_forceFullRedraw = false;
 		_lastRenderedState = state;
 		return;
@@ -1526,7 +1517,7 @@ void DisplayManager::render(const SystemState& state) {
 	if (slotChanged || bNameChanged || (!_bottomPanel.showMinMax && bTempChanged)) {
 		C1_PHASE(C1P_R_BOT_PANEL);
 		if (slotChanged) {
-			drawBottomButtons(state.selectedSlotIdx, false);
+			drawBottomButtons(state.selectedSlotIdx);
 		}
 
 		drawSlotPanel(st.slotTemp, st.slotHum, st.slotType, st.slotValid, st.selectedSlotIdx, st.slotName, (slotChanged || bNameChanged), _bottomPanel, st.slotPres);
@@ -1535,7 +1526,7 @@ void DisplayManager::render(const SystemState& state) {
 	/* Detect alarm state change and redraw buttons + panels */
 	if (_alarmSlotMask != _prevAlarmSlotMask) {
 		C1_PHASE(C1P_R_ALARM);
-		drawBottomButtons(state.selectedSlotIdx, true);
+		drawBottomButtons(state.selectedSlotIdx);
 		if (!_topPanel.showMinMax) {
 			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
 		}
