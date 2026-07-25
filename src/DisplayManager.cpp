@@ -364,11 +364,21 @@ void DisplayManager::pauseRendering(bool pause) {
 				}
 			}
 
+			/* B: SHORT lockout budget.
+			 * Measured on the bench: a lockout that is not granted almost at once is
+			 * not granted at all, and the old 3 s budget was 3 s of Core 0 spinning —
+			 * it stalls the transfer AND sits inside the 5-15 s freeze the user sees,
+			 * because the kill that follows adds a Core-1 relaunch and a full repaint.
+			 * g_core1LockWaitMaxMs measures what a GRANTED lockout really costs, so
+			 * this number can be judged by data instead of taste. The hard reset stays
+			 * as the fallback: program/erase with Core 1 loose in XIP is the reboot
+			 * class of e035791, so proceeding unprotected is never an option. */
+			const uint32_t lockBudgetMs = 400;
 			uint32_t retryStart = millis( );
 			uint32_t lastCleanup = retryStart;
-			while (!multicore_lockout_start_timeout_us(500000)) {
+			while (!multicore_lockout_start_timeout_us(100000)) {
 				watchdog_update( );
-				if (timeSince(lastCleanup, 2000)) {
+				if (timeSince(lastCleanup, 200)) {
 					/* Lockout state possibly corrupted: clean before
 					 * new attempt. end_blocking is idempotent if
 					 * mutex has already been released. */
@@ -379,8 +389,8 @@ void DisplayManager::pauseRendering(bool pause) {
 				/* After 3s without success, fall back to hard reset.
 				 * multicore_reset_core1() stops Core 1 immediately - no
 				 * handshake needed. All flash ops are safe. */
-				if (timeSince(retryStart, 3000)) {
-					Serial.println("[DSP] Lockout stuck >3s, hard reset Core1");
+				if (timeSince(retryStart, lockBudgetMs)) {
+					Serial.println("[DSP] Lockout nao concedido no orcamento; hard reset Core1");
 					g_core1LockoutStuck++;
 					g_core1KillsLockout++;
 					/* Name the culprit: which Core-0 path requested this pause, and had
@@ -406,6 +416,11 @@ void DisplayManager::pauseRendering(bool pause) {
 					_core1HardReset = true;
 					return;
 				}
+			}
+			{
+				const uint32_t waited = millis( ) - retryStart;
+				g_core1LockWaitLastMs = waited;
+				if (waited > g_core1LockWaitMaxMs) g_core1LockWaitMaxMs = waited;
 			}
 			/* Lockout holds Core 1 frozen (inside the park loop if the
 			 * quiesce succeeded). Release the park request now: when the

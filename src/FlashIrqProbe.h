@@ -122,6 +122,13 @@ extern volatile uint8_t  g_core1PauseLastMod0;  /**< Core-0 TraceModule of the m
 extern volatile uint32_t g_core1Iters;          /**< loopCore1 iterations completed */
 extern volatile uint32_t g_core1IterMaxMs;      /**< Longest single iteration (stutter) */
 
+/* How long a SUCCESSFUL lockout takes to be granted, and how many pause
+ * requests were abandoned. Shortening the retry budget is only safe if
+ * successful lockouts land well inside it — otherwise a shorter budget just
+ * converts successes into Core-1 kills. Measure before trusting. */
+extern volatile uint32_t g_core1LockWaitMaxMs;  /**< Worst wait for a granted lockout */
+extern volatile uint32_t g_core1LockWaitLastMs; /**< Wait of the most recent granted lockout */
+
 #ifdef __cplusplus
 }
 #endif
