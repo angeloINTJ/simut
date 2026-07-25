@@ -94,6 +94,17 @@ public:
  * restores the outer context in the destructor. max(outerCtx, ms) to
  * never reduce window when nested inside a larger outer one.
  * No-op if _wdtActive=false (setup).
+ *
+ * IT CANNOT EXTEND PAST 8388 ms — see WATCHDOG_TIMEOUT_MS. RP2040 clamps the
+ * watchdog load register, so every WdtWindow in this codebase that asks for
+ * more (30 s around a graph render, 120 s around telemetry) gets exactly the
+ * same ceiling as the default and buys NOTHING. The callers' comments reason
+ * about budgets that never existed: "30s covers any case" is 8.4 s, so a 6 s
+ * graph render has 2.4 s of headroom, not 24 s.
+ *
+ * The class stays — nesting a SHORTER window inside a longer one still works
+ * and the save/restore is correct — but size long operations by FEEDING the
+ * watchdog, never by widening the window.
  */
  class WdtWindow {
  public:
