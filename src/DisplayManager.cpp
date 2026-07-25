@@ -218,6 +218,15 @@ void DisplayManager::launchCore1IfAbsent( ) {
 void DisplayManager::markCore1Down( ) {
 	g_core1Running = 0;
 	_core1Launched = false;
+	/* Invalidate the phase stamp at the kill, not at the relaunch.
+	 * g_core1PhaseUs is an ordinary global and survives multicore_reset_core1,
+	 * so without this the first C1_PHASE after a relaunch measures `now - the
+	 * stamp from before the kill` and charges the entire dead window to whatever
+	 * phase Core 1 happened to be in when it was killed. A run with 24 kills
+	 * produced LOOP_TOP=62036 ms and PARK=62032 ms that way — numbers that read
+	 * as spectacular new stalls and are only bookkeeping. The zero is honoured by
+	 * the guard in C1_PHASE and by core1StallSample. */
+	g_core1PhaseUs = 0;
 	multicore_fifo_drain( );
 }
 
@@ -1198,17 +1207,36 @@ void DisplayManager::loopCore1( ) {
 		}
 
 		/*
-		 * Adaptive delay: minimum during interaction, larger when idle.
+		 * Adaptive pause: minimum during interaction, larger when idle.
 		 * - Active touch or pending repaint: 1ms (maximum responsiveness)
-		 * - Idle: 2ms (CPU savings for Core 0)
+		 * - Idle: 2ms
+		 *
+		 * Core 1 was measured frozen HERE for up to 14.3 s during a history
+		 * download (phase stamp caught it live at 5.0 -> 7.7 -> 13.6 s, per-phase
+		 * table confirmed LOOP_DELAY=14286 ms against a 14336 ms worst iteration),
+		 * so this call is where the R1 freeze happens. delay( ) resolves to
+		 * sleep_ms -> sleep_until, which arms an alarm on the DEFAULT alarm pool
+		 * (IRQ serviced on Core 0) and waits in a spin_lock_blocking / __wfe loop
+		 * on a notifier shared with Core 0 — which also hammers it from
+		 * streamBreath( ), one delay(2) per 512-byte packet, during exactly these
+		 * downloads. spin_lock_blocking disables interrupts on the calling core,
+		 * which would explain `parked=0` and the unanswerable lockout handshake.
+		 *
+		 * TREATMENT TRIED AND REVERTED (rc21): replacing this with
+		 * busy_wait_us_32 — no lock, no alarm, no other core, interrupts left
+		 * enabled. It did not fix the freeze and made the device worse:
+		 * lockout-not-granted went from 1 to 24 events in a comparable storm, and
+		 * the reboots turned into Core-0 stalls in WEB_HSCAN. A hot timer spin on
+		 * Core 1 is the likely reason (it starves nothing in theory, but the
+		 * device says otherwise). So the LOCATION is measured and certain; the
+		 * MECHANISM is not, and the next attempt should establish it before
+		 * swapping the primitive again.
 		 */
 		bool touchActive = _rawTouchState;
 		bool repaintPending = _isDirty || _repaintGraph || _repaintSettings || _repaintLoading;
 		/* Last two markers of the iteration. Without them a freeze here reads as
-		 * the previous phase — which for the dashboard is C1P_RENDER, the exact
-		 * reading the stall investigation has been working from. delay( ) gets its
-		 * own because it is the one call at the bottom of this loop that is not
-		 * ours: whether it can block on Core 1 was never established. */
+		 * the previous phase — which for the dashboard is C1P_RENDER, and that is
+		 * exactly the reading two sessions of this investigation worked from. */
 		C1_PHASE(C1P_LOOP_DELAY);
 		delay(touchActive || repaintPending ? 1 : 2);
 	}
