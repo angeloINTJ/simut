@@ -184,7 +184,10 @@ void WebManager::handleApiLs( ) {
  {
  ReadGuard rg(_storageRef);
  while (dir.next( ) && batchCount < 20) {
- feedWatchdog( );
+ /* feedWdt( ) under the read lock — feedWatchdog( ) would run the light yield,
+  * which reaches enterFlashReadLock( ) on this same core and self-deadlocks on
+  * a non-recursive mutex. See the note in handleApiHistoryDays. */
+ feedWdt( );
  batch[batchCount].isDir = dir.isDirectory( );
  batch[batchCount].name = dir.fileName( );
  batch[batchCount].size = dir.isDirectory( ) ? 0 : dir.fileSize( );

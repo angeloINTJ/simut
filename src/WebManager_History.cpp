@@ -1081,7 +1081,16 @@ void WebManager::handleApiLogs( ) {
  }
 
  if (bytesRead > 0) {
- _server.sendContent((const char*)buf, bytesRead);
+ /* safeSend, not _server.sendContent. This was the only raw sendContent
+  * outside WebManager_Send.cpp, and the difference is the SendGuard: the 2 s
+  * repeating timer in WebManager_Core feeds the watchdog ONLY while
+  * _sendGuardActive, which only SendGuard sets. Without it nothing fed during
+  * the send, and the send itself is unbounded — ClientContext restarts its
+  * timeout on every partial write, so a browser that stops draining the socket
+  * (busy parsing the history JSON it just fetched, on its single thread) blocks
+  * here indefinitely. The watchdog_update( ) below runs only AFTER the send
+  * returns, which is exactly when it is not needed. */
+ if (!safeSend((const char*)buf, bytesRead)) break;
  count += bytesRead / LOG_RECORD_SIZE;
  }
 
@@ -1328,7 +1337,14 @@ void WebManager::handleApiHistoryDays( ) {
  ReadGuard rg(_storageRef);
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- feedWatchdog( );
+ /* feedWdt( ) and not feedWatchdog( ): we hold _fsReadMutex here, and
+  * feedWatchdog( ) runs the light yield, which every 3 s calls
+  * updateLiveDisplay( ) -> refreshPendingCount( ) -> enterFlashReadLock( ).
+  * That is mutex_enter_blocking on a NON-recursive mutex this very core
+  * already owns: it never returns, and nothing feeds the watchdog while it
+  * waits. Same distinction as the history scan in 116c7f8; this call site and
+  * handleApiLs were left behind. */
+ feedWdt( );
  if (dir.fileName( ).endsWith(HISTORY_FILE_EXT) || dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
