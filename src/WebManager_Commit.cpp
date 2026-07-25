@@ -119,6 +119,304 @@ void WebManager::handleApiCommitAll( ) {
 	SystemConfig& cfg = _storageRef->getConfig( );
 	bool themeChanged = false;
 
+	/* ── slots section: sensor provisioning ─────────────────────────────────
+	 * Format: "slots":{"s":[{"i":0,"a":true,"t":2,"p":[2,255,255,255],
+	 *                        "hwId":"DHT0","name":"Sala",
+	 *                        "tmin":-10,"tmax":50,"hmin":0,"hmax":100,"al":true}]}
+	 * Only edited slots are sent — the payload cap is 6144 B and a full
+	 * 16-slot dump plus the sys section would crowd it.
+	 *
+	 * The key is "slots", not "sensors", because "sensors" already appears
+	 * nested inside both "alarms" and "calib"; a top-level indexOf("\"sensors\"")
+	 * would latch onto whichever came first in the payload.
+	 *
+	 * This block runs FIRST and is the only section that can reject the whole
+	 * commit. Validation is a separate pass over the same text: on the first
+	 * bad field we answer 400 with cfg still untouched, so a rejected commit
+	 * cannot leave half-applied sensor state behind and then reboot into it.
+	 * There is no shared pin validator in the firmware — the CLI open-codes
+	 * the same range and uniqueness rules in AppManager_CmdHandlers.cpp. */
+	int slotsStart = body.indexOf("\"slots\"");
+	if (slotsStart >= 0) {
+		/* Bound the search to this section first. An empty "slots":{} is a
+		 * normal payload (the user staged a slot and then discarded it), and an
+		 * unbounded indexOf('[') would sail past it and latch onto the array in
+		 * a later "alarms" or "calib" section. */
+		int secStart = body.indexOf('{', slotsStart);
+		int secEnd = -1;
+		if (secStart >= 0) {
+			int d = 0;
+			for (int k = secStart; k < (int)body.length( ); k++) {
+				char c = body.charAt(k);
+				if (c == '{') d++;
+				else if (c == '}') { if (--d == 0) { secEnd = k; break; } }
+			}
+		}
+		int arrStart = (secEnd > secStart) ? body.indexOf('[', secStart) : -1;
+		if (arrStart > secEnd) arrStart = -1;
+		int arrEnd = -1;
+		/* The slot objects carry a nested "p":[...] array, so the end of the
+		 * outer array is found by depth, not by the first ']'. */
+		if (arrStart >= 0) {
+			int depth = 0;
+			for (int k = arrStart; k <= secEnd; k++) {
+				char c = body.charAt(k);
+				if (c == '[') depth++;
+				else if (c == ']') { if (--depth == 0) { arrEnd = k; break; } }
+			}
+		}
+		if (arrStart >= 0 && arrEnd > arrStart) {
+			String arr = body.substring(arrStart, arrEnd + 1);
+
+			/* Field readers. Each works on one slot object at a time.
+			 *
+			 * valuePos skips the whitespace JSON allows after the colon. The
+			 * browser's JSON.stringify never emits it, but a hand-written
+			 * payload legally can, and without this getBool silently answered
+			 * "absent" for `"a": true` — which made the caller fall back to the
+			 * stored active flag and skip the GPIO conflict check entirely.
+			 * A validation pass that can be turned off by adding a space is
+			 * not a validation pass. */
+			auto valuePos = [](const String& o, const char* key) -> int {
+				String pat = String("\"") + key + "\":";
+				int p = o.indexOf(pat);
+				if (p < 0) return -1;
+				int v = p + pat.length( );
+				while (v < (int)o.length( ) && (o[v] == ' ' || o[v] == '\t')) v++;
+				return v;
+			};
+			auto getInt = [&](const String& o, const char* key, long dflt) -> long {
+				int v = valuePos(o, key);
+				return (v < 0) ? dflt : o.substring(v).toInt( );
+			};
+			auto getFloat = [&](const String& o, const char* key) -> float {
+				int v = valuePos(o, key);
+				return (v < 0) ? NAN : parseFloat(o.substring(v).c_str( ));
+			};
+			auto getBool = [&](const String& o, const char* key) -> int {
+				int v = valuePos(o, key);
+				if (v < 0) return -1; /* absent */
+				return o.startsWith("true", v) ? 1 : 0;
+			};
+			/* Whitespace-tolerant string reader. jsonExtractStringValue matches
+			 * a literal "key":" and would miss `"name": "x"`. */
+			auto getStr = [&](const String& o, const char* key) -> String {
+				int v = valuePos(o, key);
+				if (v < 0 || v >= (int)o.length( ) || o[v] != '"') return String( );
+				String out;
+				int i = v + 1;
+				while (i < (int)o.length( )) {
+					char c = o.charAt(i);
+					if (c == '\\' && i + 1 < (int)o.length( )) { out += o.charAt(i + 1); i += 2; continue; }
+					if (c == '"') break;
+					out += c;
+					i++;
+				}
+				return out;
+			};
+			/* "p":[a,b,c,d] → out[4], PIN_UNUSED for missing entries. */
+			auto getPins = [](const String& o, uint8_t* out) -> bool {
+				for (int k = 0; k < MAX_SENSOR_PINS; k++) out[k] = PIN_UNUSED;
+				int p = o.indexOf("\"p\":");
+				if (p < 0) return false;
+				int s = o.indexOf('[', p);
+				int e = (s >= 0) ? o.indexOf(']', s) : -1;
+				if (s < 0 || e <= s) return false;
+				int idx = 0, cur = s + 1;
+				while (cur < e && idx < MAX_SENSOR_PINS) {
+					int comma = o.indexOf(',', cur);
+					if (comma < 0 || comma > e) comma = e;
+					String tok = o.substring(cur, comma);
+					tok.trim( );
+					out[idx++] = (tok.length( ) == 0) ? PIN_UNUSED
+					                                 : (uint8_t)tok.toInt( );
+					cur = comma + 1;
+				}
+				return true;
+			};
+
+			/* ── pass 1: validate ──────────────────────────────────────────
+			 * owner[] starts as the persisted GPIO ownership and is rewritten
+			 * with the proposed assignments, so a commit that swaps GP2 and
+			 * GP3 between two slots validates instead of colliding with the
+			 * pre-edit state. */
+			uint8_t owner[MAX_SENSORS];
+			for (int g = 0; g < MAX_SENSORS; g++) owner[g] = 0xFF;
+			for (int i = 0; i < MAX_SENSORS; i++) {
+				if (!cfg.sensors[i].active) continue;
+				for (int k = 0; k < MAX_SENSOR_PINS; k++) {
+					uint8_t g = cfg.sensors[i].pins[k];
+					if (g < MAX_SENSORS) owner[g] = (uint8_t)i;
+				}
+			}
+			/* Then drop the claims of EVERY slot this payload touches.
+			 *
+			 * Releasing each slot as it came up in the validation loop was
+			 * wrong: it only freed slots processed earlier, so the check ran
+			 * against a half-old map. Clearing all slots and reassigning their
+			 * GPIOs in one commit then failed whenever a new assignment reused
+			 * a pin held by a slot appearing LATER in the array — the old owner
+			 * was still holding it. That rejected a valid reconfiguration, and
+			 * which pin it blamed depended on the order the page happened to
+			 * stage them in. The payload is one atomic picture of the final
+			 * state, so the whole picture must be cleared before any of it is
+			 * checked. */
+			{
+				int p = 0, guard = 0;
+				while ((p = arr.indexOf('{', p)) >= 0) {
+					if (++guard > MAX_SENSORS + 4) break;
+					int e = arr.indexOf('}', p);
+					if (e < 0) break;
+					long sl = getInt(arr.substring(p, e + 1), "i", -1);
+					p = e + 1;
+					if (sl < 0 || sl >= MAX_SENSORS) continue;
+					for (int g = 0; g < MAX_SENSORS; g++) if (owner[g] == sl) owner[g] = 0xFF;
+				}
+			}
+
+			char err[96];
+			err[0] = '\0';
+			int objStart = 0, safety = 0;
+			while ((objStart = arr.indexOf('{', objStart)) >= 0) {
+				if (++safety > MAX_SENSORS + 4) break;
+				int objEnd = arr.indexOf('}', objStart);
+				if (objEnd < 0) break;
+				String obj = arr.substring(objStart, objEnd + 1);
+				objStart = objEnd + 1;
+
+				long slot = getInt(obj, "i", -1);
+				if (slot < 0 || slot >= MAX_SENSORS) {
+					snprintf(err, sizeof(err), "slot %ld out of range", slot);
+					break;
+				}
+				long type = getInt(obj, "t", cfg.sensors[slot].sensorType);
+				int wantActive = getBool(obj, "a");
+				if (wantActive < 0) wantActive = cfg.sensors[slot].active ? 1 : 0;
+
+				if (type < TYPE_NONE || type > TYPE_BME280) {
+					snprintf(err, sizeof(err), "slot %ld: bad type %ld", slot, type);
+					break;
+				}
+				if (type != TYPE_NONE && !sensorTypeEnabled((SensorType)type)) {
+					snprintf(err, sizeof(err), "slot %ld: driver not in firmware", slot);
+					break;
+				}
+
+				uint8_t pins[MAX_SENSOR_PINS];
+				if (!getPins(obj, pins)) {
+					for (int k = 0; k < MAX_SENSOR_PINS; k++) pins[k] = cfg.sensors[slot].pins[k];
+				}
+
+				/* This slot's old claims were dropped above, along with every
+				 * other slot in this payload. */
+
+				uint8_t need = 0;
+				if (type != TYPE_NONE) need = SensorFormat::forType((SensorType)type).pinCount;
+
+				for (int k = 0; k < MAX_SENSOR_PINS; k++) {
+					if (pins[k] == PIN_UNUSED) continue;
+					/* GP16+ belong to the TFT, touch and buzzer — see simut_config.h. */
+					if (pins[k] >= MAX_SENSORS) {
+						snprintf(err, sizeof(err), "slot %ld: GP%u not a sensor pin (0-%d)",
+						         slot, pins[k], MAX_SENSORS - 1);
+						break;
+					}
+					if (wantActive && owner[pins[k]] != 0xFF) {
+						snprintf(err, sizeof(err), "slot %ld: GP%u already used by slot %u",
+						         slot, pins[k], owner[pins[k]]);
+						break;
+					}
+					if (wantActive) owner[pins[k]] = (uint8_t)slot;
+				}
+				if (err[0]) break;
+
+				if (wantActive) {
+					if (type == TYPE_NONE) {
+						snprintf(err, sizeof(err), "slot %ld: set a type before enabling", slot);
+						break;
+					}
+					for (uint8_t k = 0; k < need; k++) {
+						if (pins[k] == PIN_UNUSED) {
+							SensorFormat f = SensorFormat::forType((SensorType)type);
+							snprintf(err, sizeof(err), "slot %ld: pin %u (%s) not assigned",
+							         slot, k, f.pins[k].label);
+							break;
+						}
+					}
+					if (err[0]) break;
+				}
+
+				if (valuePos(obj, "name") >= 0) {
+					String nm = getStr(obj, "name");
+					if (nm.length( ) > 0 &&
+					    !isValidName(nm.c_str( ), sizeof(cfg.sensors[slot].friendlyName) - 1)) {
+						snprintf(err, sizeof(err), "slot %ld: invalid name", slot);
+						break;
+					}
+				}
+				if (valuePos(obj, "hwId") >= 0 &&
+				    !isValidCfgString(getStr(obj, "hwId").c_str( ), sizeof(cfg.sensors[slot].hwId) - 1)) {
+					snprintf(err, sizeof(err), "slot %ld: invalid hwId", slot);
+					break;
+				}
+			}
+
+			if (err[0]) {
+				char resp[160];
+				snprintf(resp, sizeof(resp), "{\"error\":\"%s\"}", err);
+				_server.send(400, "application/json", resp);
+				return; /* cfg untouched — nothing to roll back */
+			}
+
+			/* ── pass 2: apply ───────────────────────────────────────────── */
+			objStart = 0; safety = 0;
+			while ((objStart = arr.indexOf('{', objStart)) >= 0) {
+				if (++safety > MAX_SENSORS + 4) break;
+				int objEnd = arr.indexOf('}', objStart);
+				if (objEnd < 0) break;
+				String obj = arr.substring(objStart, objEnd + 1);
+				objStart = objEnd + 1;
+
+				long slot = getInt(obj, "i", -1);
+				if (slot < 0 || slot >= MAX_SENSORS) continue;
+				SensorRecord& r = cfg.sensors[slot];
+
+				long type = getInt(obj, "t", r.sensorType);
+				bool typeChanged = ((uint8_t)type != r.sensorType);
+				r.sensorType = (uint8_t)type;
+
+				uint8_t pins[MAX_SENSOR_PINS];
+				if (getPins(obj, pins)) {
+					for (int k = 0; k < MAX_SENSOR_PINS; k++) r.pins[k] = pins[k];
+				}
+
+				if (valuePos(obj, "name") >= 0) safeCopy(r.friendlyName, getStr(obj, "name").c_str( ), sizeof(r.friendlyName));
+				if (valuePos(obj, "hwId") >= 0) safeCopy(r.hwId, getStr(obj, "hwId").c_str( ), sizeof(r.hwId));
+
+				/* Clamped like the CLI does (AppManager_CmdHandlers.cpp), which the
+				 * older "alarms" section below deliberately does not do. */
+				float v;
+				v = getFloat(obj, "tmin"); if (!isnan(v)) r.tempMin = constrain(v, -50.0f, 150.0f);
+				v = getFloat(obj, "tmax"); if (!isnan(v)) r.tempMax = constrain(v, -50.0f, 150.0f);
+				v = getFloat(obj, "hmin"); if (!isnan(v)) r.humMin = constrain(v, 0.0f, 100.0f);
+				v = getFloat(obj, "hmax"); if (!isnan(v)) r.humMax = constrain(v, 0.0f, 100.0f);
+				int b;
+				b = getBool(obj, "al"); if (b >= 0) r.alarmsActive = (b == 1);
+				b = getBool(obj, "a");  if (b >= 0) r.active = (b == 1);
+
+				/* A slot that changed chip is a different sensor: restamp the
+				 * provisioning epoch so history graphs do not splice the old
+				 * device's readings onto the new one. Same reason `sensor wipe`
+				 * exists in the CLI. */
+				if (typeChanged) {
+					time_t now = time(nullptr);
+					r.provisionEpoch = (now > 1600000000L) ? (uint32_t)now : 0;
+					memset(r.rom, 0, sizeof(r.rom)); /* ROM belongs to the old chip */
+				}
+			}
+		}
+	}
+
 	/* ── sys section: extracts sub-object and applies each field ────────────
 	 * Manual parser for simplicity. Expected format:
 	 * "sys":{"name":"...","tz":"-3","log":"1",...}

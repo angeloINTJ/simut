@@ -75,6 +75,86 @@ void sanitizeName(char* s) {
 } /* anonymous namespace */
 
 
+/* ===== GET /api/sensors =====
+ * Whole slot map for the /config sensor editor. Two halves:
+ *
+ *  "types" — the driver catalogue, taken from SensorFormat::forType( ), which
+ *            is the same source gpioInitForRole( ) uses at boot. The pin COUNT
+ *            and the pin LABELS ("SDA"/"SCL"/"1-Wire") come from there, so the
+ *            form draws exactly the pins the driver will claim. Hardcoding that
+ *            table in JavaScript would let the two drift apart silently.
+ *  "slots" — every persisted SensorRecord field the user can edit.
+ *
+ * Guarded by PERM_SYS_CONFIG: this is provisioning (which chip on which GPIO),
+ * not calibration (PERM_CALIB, still served by /api/calib). */
+void WebManager::handleApiSensorsGet( ) {
+	if (!(getAuthPerms( ) & PERM_SYS_CONFIG)) {
+		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		return;
+	}
+	SystemConfig& cfg = _storageRef->getConfig( );
+
+	_server.sendHeader("Cache-Control", "no-store");
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.send(200, "application/json", "");
+
+	char buf[320];
+
+	/* gmax: sensors live on GP0..GP15 only — display/touch/buzzer own GP16+.
+	 * See the pin budget in simut_config.h and docs/WIRING.md. */
+	snprintf(buf, sizeof(buf), "{\"nslot\":%d,\"npin\":%d,\"gmax\":%d,\"types\":[",
+	         MAX_SENSORS, MAX_SENSOR_PINS, MAX_SENSORS - 1);
+	if (!safeSend(buf)) return;
+
+	bool firstType = true;
+	for (int t = TYPE_DS18B20; t <= TYPE_BME280; t++) {
+		if (!sensorTypeEnabled((SensorType)t)) continue; /* driver not compiled in */
+		SensorFormat f = SensorFormat::forType((SensorType)t);
+
+		/* Pin labels built separately so the snprintf below stays a single
+		 * bounded call instead of running-offset arithmetic. */
+		char labels[80];
+		labels[0] = '\0';
+		size_t o = 0;
+		for (uint8_t p = 0; p < f.pinCount && p < MAX_SENSOR_PINS; p++) {
+			int w = snprintf(labels + o, sizeof(labels) - o, "%s\"%s\"",
+			                 p ? "," : "", f.pins[p].label);
+			if (w < 0 || (size_t)w >= sizeof(labels) - o) break;
+			o += (size_t)w;
+		}
+		snprintf(buf, sizeof(buf), "%s{\"t\":%d,\"n\":\"%s\",\"nv\":%u,\"pins\":[%s]}",
+		         firstType ? "" : ",", t, sensorTypeName((SensorType)t),
+		         f.valueCount, labels);
+		if (!safeSend(buf)) return;
+		firstType = false;
+	}
+
+	if (!safeSend("],\"slots\":[")) return;
+
+	static_assert(MAX_SENSOR_PINS == 4, "pins[] emitted as a fixed 4-element array");
+	for (int i = 0; i < MAX_SENSORS; i++) {
+		const SensorRecord& s = cfg.sensors[i];
+		char romHex[17];
+		romToHex(s.rom, romHex);
+		char nm[40], hw[20];
+		safeCopy(nm, s.friendlyName, sizeof(nm));
+		safeCopy(hw, s.hwId, sizeof(hw));
+		sanitizeName(nm);
+		sanitizeName(hw);
+		snprintf(buf, sizeof(buf),
+		         "%s{\"i\":%d,\"a\":%s,\"t\":%u,\"p\":[%u,%u,%u,%u],\"rom\":\"%s\","
+		         "\"hwId\":\"%s\",\"name\":\"%s\",\"tmin\":%.2f,\"tmax\":%.2f,"
+		         "\"hmin\":%.2f,\"hmax\":%.2f,\"al\":%s}",
+		         i ? "," : "", i, s.active ? "true" : "false", s.sensorType,
+		         s.pins[0], s.pins[1], s.pins[2], s.pins[3], romHex,
+		         hw, nm, s.tempMin, s.tempMax, s.humMin, s.humMax,
+		         s.alarmsActive ? "true" : "false");
+		if (!safeSend(buf)) return;
+	}
+	safeSend("]}");
+}
+
+
 /* ===== GET /api/calib ===== */
 void WebManager::handleApiCalibGet( ) {
 	if (!(getAuthPerms( ) & PERM_CALIB)) {
