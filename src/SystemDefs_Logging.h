@@ -62,7 +62,12 @@ enum TraceModule {
  MOD_WEB_POLL = 19,   /**< inside WebServer::handleClient — accept/parse/dispatch */
  MOD_WEB_HIST = 20,   /**< inside handleApiHistoryMulti (read + decimate) */
  MOD_WEB_SEND = 21,   /**< inside sendContent, under the SendGuard */
- MOD_WEB_HSCAN = 22   /**< history file list + decimation estimate, before any send */
+ MOD_WEB_HSCAN = 22,  /**< history file list + decimation estimate, before any send */
+ /* Inside MOD_TELEMETRY. Naming the whole cycle is not actionable: it is a
+  * history scan, a payload build and a network POST, with different fixes. */
+ MOD_TEL_COLLECT = 23, /**< inside collectBatch — the per-file history scan */
+ MOD_TEL_BUILD = 24,   /**< inside buildPayload */
+ MOD_TEL_SEND = 25     /**< inside attemptHttpUpload / attemptMqttPublish */
 };
 
 /** Structured log event codes for machine-parseable system logging. */

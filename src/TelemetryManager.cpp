@@ -382,6 +382,7 @@ uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
 }
 
 bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& newCursor) {
+ LogManager::TraceScope _tC(0, MOD_TEL_COLLECT);
  SystemConfig &cfg = _storageRef->getConfig( );
  uint32_t lastCursor = _storageRef->getLastSentTimestamp( );
 
@@ -612,6 +613,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  * Recreate _httpSecurePtr only on explicit socket/TLS error, to avoid
  * losing TCP keep-alive on consecutive successes. */
 bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
+ LogManager::TraceScope _tS(0, MOD_TEL_SEND);
  SystemConfig &cfg = _storageRef->getConfig( );
 
  feedWdt( );
@@ -642,6 +644,7 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
 
  if (_hasCert) _httpSecurePtr->setCACert(_cachedCert.c_str( ));
  else _httpSecurePtr->setInsecure( );
+
  connected = http.begin(*_httpSecurePtr, url);
  } else {
  connected = http.begin(client, url);
@@ -1017,6 +1020,7 @@ bool TelemetryManager::forceSync( ) {
  * No temporary String is created during the loop → safe for 50+ records.
  */
 String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
+ LogManager::TraceScope _tB(0, MOD_TEL_BUILD);
  SystemConfig &cfg = _storageRef->getConfig( );
 
  /* Estimate size: JSON ~300 bytes/record with 12 sensors */
