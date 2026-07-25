@@ -42,8 +42,9 @@ static volatile bool _preBootSnapshotTaken = false;
 static volatile bool _autopsyPerformed = false;
 
 const char* MOD_NAMES[] = {"BOOT", "IDLE", "WIFI", "WEB_SERVER", "STORAGE_RD", "STORAGE_WR", "SENSOR", "TELEMETRY", "DISPLAY", "CLI",
- "SAVE_CFG", "LOG_FLASH", "HIST_FLASH", "CORE1_LOCK"};
-static constexpr uint8_t MOD_NAMES_MAX = 13; /* last valid index */
+ "SAVE_CFG", "LOG_FLASH", "HIST_FLASH", "CORE1_LOCK",
+ "C1_ENDLOCK", "C1_RESET", "C1_LAUNCH"};
+static constexpr uint8_t MOD_NAMES_MAX = 16; /* last valid index */
 
 volatile bool LogManager::_wdtActive = false;
 volatile uint32_t LogManager::_wdtCtxMs = WATCHDOG_TIMEOUT_MS;
