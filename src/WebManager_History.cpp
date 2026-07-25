@@ -57,6 +57,8 @@ static void sortStrings(String* arr, int n, bool descending) {
  * Called from handleApiHistoryMulti when a V4 file is detected.
  * Static helper keeps the V4 logic self-contained without header changes. */
 void WebManager::handleApiHistoryMulti( ) {
+ /* RAII so the early returns below (403/503) restore the caller's module. */
+ LogManager::TraceScope _tHist(0, MOD_WEB_HIST);
  uint16_t perms = getAuthPerms( );
  if (!(perms & PERM_HISTORY)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 

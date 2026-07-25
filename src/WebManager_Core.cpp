@@ -270,9 +270,15 @@ void WebManager::update( ) {
  * to ~100-150ms when the main loop is busy with telemetry/
  * sensors. 50ms cap preserves display responsiveness. */
  const uint32_t budget = handlerStart + 50;
- for (int i = 0; i < 4; i++) {
- _server.handleClient( );
- if (millis( ) >= budget) break;
+ {
+  /* Everything the web server does on Core 0 lives under this scope. A stall
+   * that traces as WEB_POLL rather than as one of the handler modules is in
+   * the server/lwIP/CYW43 plumbing, not in our code. */
+  LogManager::TraceScope _tPoll(0, MOD_WEB_POLL);
+  for (int i = 0; i < 4; i++) {
+   _server.handleClient( );
+   if (millis( ) >= budget) break;
+  }
  }
 
  _handlerDeadline = 0;

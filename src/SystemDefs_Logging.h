@@ -53,7 +53,15 @@ enum TraceModule {
   * reading. MOD_LOOP also separates a stall in loop( ) from one in setup( ),
   * which MOD_BOOT alone could not do. */
  MOD_C1_KILLED = 17,  /**< Core 1 killed and relaunched; back in the caller */
- MOD_LOOP = 18        /**< top of AppManager::loop, before the first task marker */
+ MOD_LOOP = 18,       /**< top of AppManager::loop, before the first task marker */
+ /* Inside MOD_WEB_SERVER. The first trustworthy autopsy put the Core-0 stall
+  * here — not in the Core-1 kill path — and MOD_WEB_SERVER covers the whole of
+  * WebManager::update( ), which is four handleClient( ) calls plus whatever
+  * handler they dispatch. These three split that: server/lwIP plumbing, our
+  * history handler, and the send itself. */
+ MOD_WEB_POLL = 19,   /**< inside WebServer::handleClient — accept/parse/dispatch */
+ MOD_WEB_HIST = 20,   /**< inside handleApiHistoryMulti (read + decimate) */
+ MOD_WEB_SEND = 21    /**< inside sendContent, under the SendGuard */
 };
 
 /** Structured log event codes for machine-parseable system logging. */
