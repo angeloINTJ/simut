@@ -89,6 +89,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server.on("/api/themes", HTTP_GET, std::bind(&WebManager::handleApiThemes, this));
  _server.on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));
  _server.on("/api/lang", HTTP_GET, std::bind(&WebManager::handleApiLang, this));
+ _server.on("/api/sensors", HTTP_GET, std::bind(&WebManager::handleApiSensorsGet, this));
  _server.on("/api/calib", HTTP_GET, std::bind(&WebManager::handleApiCalibGet, this));
  _server.on("/api/calib", HTTP_POST, std::bind(&WebManager::handleApiCalibPost, this));
 

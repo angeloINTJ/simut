@@ -407,13 +407,6 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_snr">Sensor Reads</div><div class="c-val" id="m-snr">-- ok</div><div class="c-sub" id="m-snr-err">-- err</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_metr_cfg">Config Saves</div><div class="c-val" id="m-cfg">--</div><div class="c-sub" data-i18n="dash_metr_cfg_sub">to flash</div></div>
                 </div>
-                <div id="calib-bar" style="display:none;margin-bottom:12px;align-items:center;gap:10px;flex-wrap:wrap;">
-                    <label style="display:inline-flex;align-items:center;gap:6px;font-size:0.9rem;cursor:pointer">
-                        <input type="checkbox" id="calib-tog" onchange="onCalibTog()"><span>🎯 <span data-i18n="cal_mode">Calibration Mode</span></span>
-                    </label>
-                    <span id="calib-warn" style="display:none;color:var(--dang);font-size:0.82rem" data-i18n="cal_ntp_no">NTP not synced</span>
-                </div>
-                <div id="calib-form" style="display:none"></div>
                 <div class="card" style="padding:0; overflow-x:auto;">
                     <table>
                         <thead>
@@ -602,57 +595,10 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
         }
 
-        /* v3.34.0: F-CALIB-UI integrado. Toggle aparece se user tem PERM_CALIB (0x200).
-         * Admin (perms=0xFFFF) sempre tem; admin atribui aos demais via /users. */
-        let _calS=null;
-        async function checkCalib(){try{const r=await fetch('/api/perms',{credentials:'same-origin'});const d=await r.json();if((d.perms||0)&0x200)document.getElementById('calib-bar').style.display='flex';}catch(e){}}
-        function escH(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML.replace(/"/g,'&quot;');}
-        async function onCalibTog(){const on=document.getElementById('calib-tog').checked;document.getElementById('calib-form').style.display=on?'':'none';if(on)await loadCalib();}
-        async function loadCalib(){try{const r=await fetchSafe('/api/calib');const d=await r.json();_calS=d;document.getElementById('calib-warn').style.display=d.ntp?'none':'';
-            let h='';
-            /* All sensors uniform — humidity fields shown per-sensor based on hasHum flag */
-            (d.sensors||[]).forEach(function(s){
-                const hasH = s.hasHum === true;
-                const icon = hasH ? '🌡️' : '🌡️';
-                h+='<div class="card" style="padding:14px;margin-bottom:8px"><h3 style="margin:0 0 8px 0;font-size:0.95rem">'+icon+' SLOT '+s.slot+' — '+escH(s.name)+'</h3>';
-                h+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-                h+='<input data-k="s'+s.slot+'_id" placeholder="ID" maxlength="14" value="'+escH(s.hwId)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-                h+='<input data-k="s'+s.slot+'_name" placeholder="Nome" maxlength="30" value="'+escH(s.name)+'" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-                h+='<input data-k="s'+s.slot+'_refT" type="number" step="0.01" placeholder="Ref T (°C)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-                if(hasH){
-                    h+='<input data-k="s'+s.slot+'_refH" type="number" step="0.1" placeholder="Ref H (%)" style="padding:6px 10px;background:var(--bg);border:1px solid var(--border);color:var(--txt);border-radius:5px">';
-                }
-                h+='</div><div style="font-size:0.78rem;color:var(--sub);margin-top:6px">T='+(s.tempRead===null?'--':s.tempRead)+'°C off='+s.tempOffset;
-                if(hasH)h+=' | H='+(s.humRead===null?'--':s.humRead)+'% off='+s.humOffset;
-                h+=' ROM '+s.rom+'</div></div>';
-            });
-            h+='<button class="btn-fm btn-fm-pri" onclick="applyCalib()"'+(d.ntp?'':' disabled')+' style="margin-top:6px">'+window.t('cal_apply','Atualizar')+'</button>';
-            document.getElementById('calib-form').innerHTML=h;
-        }catch(e){showToast(window.t('net_conn_err','Erro de conexão'),'err');}}
-        async function applyCalib(){if(!_calS)return;const p={};
-            const arr=[];
-            (_calS.sensors||[]).forEach(function(s){
-                const id=(document.querySelector('[data-k="s'+s.slot+'_id"]')||{}).value;
-                const n=(document.querySelector('[data-k="s'+s.slot+'_name"]')||{}).value;
-                const t=(document.querySelector('[data-k="s'+s.slot+'_refT"]')||{}).value;
-                const hEl=document.querySelector('[data-k="s'+s.slot+'_refH"]');
-                const h=hEl?hEl.value:'';
-                const e={slot:s.slot};let dirty=false;
-                if(id!==undefined&&id!==s.hwId){e.hwId=id.trim();dirty=true;}
-                if(n!==undefined&&n!==s.name){e.name=n.trim();dirty=true;}
-                if(t!==''){e.refTemp=parseFloat(t);dirty=true;}
-                if(h!==''){e.refHum=parseFloat(h);dirty=true;}
-                if(dirty)arr.push(e);
-            });
-            if(!arr.length){showToast(window.t('cal_no_changes','Nada a alterar.'),'warn');return;}
-            Pending.data.calib = {sensors: arr};
-            sessionStorage.setItem('simut_pending', JSON.stringify(Pending.data));
-            Pending.refreshUI();
-            Pending._maybeNotify();
-            showToast(window.t('cal_queued','Dados da calibração salvos. Clique em "💾 Salvar e Reiniciar" para aplicar.'),'ok',5000);
-        }
+        /* Sensor provisioning and calibration moved to /config (slot editor).
+         * The dashboard is status-only. */
 
-        document.addEventListener('DOMContentLoaded', () => { initSession(); loadThemes(); fetchLoop(); setInterval(fetchLoop, 3000); checkCalib(); });
+        document.addEventListener('DOMContentLoaded', () => { initSession(); loadThemes(); fetchLoop(); setInterval(fetchLoop, 3000); });
     </script>
 </body>
 </html>
@@ -1767,6 +1713,40 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
         .builder-box { background: #000; border: 1px solid #3f3f46; border-radius: 8px; padding: 15px; margin-top: 15px; }
+        /* Sensor slot editor. Declared once here instead of as inline style
+           strings inside the JS that builds the rows, and deliberately reusing
+           the conventions already set elsewhere in the interface: the table
+           rule from /users, the pill and the field label from /alarms. Sizes
+           are all rem, matching the rest of the page — the section had grown
+           its own scale (0.78em/0.8em/0.85em/0.9em) and read as a bolt-on. */
+        #sens_tbl { width: 100%; border-collapse: collapse; }
+        #sens_tbl th, #sens_tbl td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+        #sens_tbl th { color: var(--sub); font-size: 0.85rem; text-transform: uppercase; font-weight: 600; }
+        .sxm { font-family: monospace; }
+        .sxb { background: #3f3f46; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+        .sxb:hover { background: #52525b; }
+        .sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
+        .sxb-dang:hover { background: var(--dang); color: #fff; }
+        .sxg { font-size: 0.8rem; font-family: monospace; color: var(--sub); background: rgba(255,255,255,0.05); padding: 3px 10px; border-radius: 12px; }
+        .sxg.on { background: var(--acc); color: #000; }
+        .sxh { display: block; color: var(--sub); margin-bottom: 4px; font-size: 0.82rem; font-weight: 600; }
+        /* Prose note, as opposed to .sxh which labels a field. Same size, normal
+           weight — a paragraph set in label weight reads as a heading. */
+        .sxn { display: block; color: var(--sub); margin-top: 4px; font-size: 0.82rem; font-weight: 400; line-height: 1.45; }
+        label.sxsec { margin-top: 18px; }
+        .sx-slot { font-weight: 700; font-size: 1.05rem; color: var(--acc); }
+        .sx-warn { display: none; margin-top: 12px; padding: 10px 14px; background: rgba(239,68,68,0.12); border-left: 3px solid var(--dang); border-radius: 3px; font-size: 0.85rem; }
+        /* Slot dialog. Mirrors .exp-overlay from the history page, plus a
+           scroll cap: the editor is taller than the export progress box it is
+           modelled on. It stays inside .card on purpose — position:fixed takes
+           it out of the layout anyway, and living there keeps the .card input
+           and .card select rules applying to its fields. */
+        .sx-ov { position: fixed; inset: 0; background: rgba(9,9,11,0.85); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .sx-ov-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 320px; width: 640px; max-width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
+        #sens_tbl tbody tr { cursor: pointer; transition: background 0.15s; }
+        #sens_tbl tbody tr:hover { background: rgba(255,255,255,0.04); }
+        .sx-empty { color: var(--sub); text-align: center; padding: 28px 0; font-size: 0.9rem; }
+        .card #sens_ed input, .card #sens_ed select { margin-bottom: 0; }
         #preview { background: #18181b; color: #a1a1aa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; overflow-x: auto; border: 1px dashed #3f3f46; white-space: pre-wrap; word-break: break-all; }
         .highlight { color: #22c55e; font-weight: bold; }
     </style>
@@ -1868,6 +1848,29 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <input type="number" id="h_int" name="h_int" min="1" max="1440" required>
                             <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_hint_hint">1 to 1440 min (24h). Default: 1.</div>
                         </div>
+                    </div>
+                </div>
+
+                <h3 data-i18n="sens_title">Sensors &amp; GPIO</h3>
+                <div class="grp">
+                    <div id="sens_err" class="sx-warn" style="margin-top:0;margin-bottom:10px"></div>
+                    <div class="sxn" style="margin-bottom:12px;margin-top:0" data-i18n="sens_hint">GP0-GP15 are available to sensors; GP16 and above belong to the display, touch and buzzer.</div>
+                    <div id="sens_map" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px"></div>
+                    <table id="sens_tbl">
+                        <thead><tr>
+                            <th data-i18n="sens_slot">Slot</th>
+                            <th data-i18n="sens_type">Type</th>
+                            <th data-i18n="sens_gpios">GPIOs</th>
+                            <th data-i18n="sens_hwid">Hardware ID</th>
+                            <th data-i18n="sens_name">Name</th>
+                            <th></th>
+                        </tr></thead>
+                        <tbody id="sens_tb"></tbody>
+                    </table>
+                    <button type="button" class="sxb" id="sens_add" onclick="sensAdd()" style="margin-top:14px" data-i18n="sens_add">+ Add sensor slot</button>
+                    <div class="sxn" id="sens_full" style="display:none" data-i18n="sens_no_free">All 16 slots are in use. Free one to add another.</div>
+                    <div id="sens_ov" class="sx-ov" style="display:none" onclick="sensBackdrop(event)">
+                        <div id="sens_ed" class="sx-ov-box"></div>
                     </div>
                 </div>
 
@@ -2360,6 +2363,10 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let v;
                 if (el.type === 'checkbox') v = el.checked ? '1' : '0';
                 else v = el.value;
+                /* The sensor editor sits inside this form but stages itself,
+                 * per slot, into Pending.slots. Without this guard every se_*
+                 * field also landed in Pending.sys as a junk key. */
+                if (el.closest && el.closest('#sens_ed')) return;
                 Pending.setField('sys', el.id, v);
                 /* F-NET-TIME.5: refresh hint quando user digita em t_int. */
                 if (el.id === 't_int') updateTelDisabledWarn();
@@ -2415,7 +2422,295 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
         }
 
-        document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); loadConfig(); });
+        /* Sensor slot editor.
+         * A slot is an index 0..15 into the persisted SensorRecord array, not a
+         * GPIO: it owns 1..4 GPIOs. How many it needs and what each one does
+         * come from the type catalogue in /api/sensors, which the firmware
+         * generates from SensorFormat::forType -- the same table the driver
+         * uses to configure the pads at boot. So this page cannot disagree with
+         * the hardware about which pin of a BMP280 is SCL.
+         * Edits stage into Pending.slots and reach flash on Save and Restart. */
+        let SENS = null, CAL = null, sensOpenSlot = -1;
+        const SE = id => document.getElementById(id);
+        function sensStaged() { return Pending.getSection('slots').s || []; }
+        function calStaged() { return (Pending.getSection('calib').sensors) || []; }
+        /* /api/calib only reports active slots. */
+        function calOf(i) { return CAL ? (CAL.sensors || []).find(x => x.slot === i) : null; }
+        function sensSlot(i) {
+            const st = sensStaged().find(x => x.i === i);
+            return st ? Object.assign({}, SENS.slots[i], st) : SENS.slots[i];
+        }
+        function sensTypeOf(t) { return (SENS.types || []).find(x => x.t === t) || null; }
+
+        async function loadSensors() {
+            try { SENS = await (await fetchSafe('/api/sensors')).json(); renderSensors(); }
+            catch (e) {
+                SE('sens_err').style.display = '';
+                SE('sens_err').textContent = window.t('sens_load_fail', 'Could not load the sensor slots.');
+                return;
+            }
+            /* Calibration is a separate permission (PERM_CALIB) and a separate
+               endpoint. A user with sys-config but not calib gets 403 here and
+               simply sees no calibration panel, which is the correct RBAC
+               outcome rather than an error. */
+            try { CAL = await (await fetchSafe('/api/calib')).json(); renderSensors(); } catch (e) { CAL = null; }
+        }
+
+        /* Recomputed from the staged view, so the strip shows the layout that
+           Save and Restart would produce, not the stored one. */
+        function sensOwners() {
+            const o = {};
+            for (let i = 0; i < SENS.nslot; i++) {
+                const s = sensSlot(i);
+                /* First claim wins. Last-write-wins would let the slot being
+                   edited silently take a GPIO off another slot in the map, so
+                   the conflict only surfaced as a 400 after pressing Save. */
+                if (s.a) (s.p || []).forEach(g => { if (g <= SENS.gmax && o[g] === undefined) o[g] = i; });
+            }
+            return o;
+        }
+
+        function renderSensors() {
+            if (!SENS) return;
+            const own = sensOwners();
+            let g = '';
+            for (let p = 0; p <= SENS.gmax; p++) {
+                const u = own[p] !== undefined;
+                g += '<span class="sxg' + (u ? ' on' : '') + '" title="' + (u ? 'slot ' + own[p] : window.t('sens_free', 'free')) + '">GP' + p + '</span>';
+            }
+            SE('sens_map').innerHTML = g;
+            /* Only slots that exist as far as the user is concerned. An empty
+               slot is an implementation detail of the fixed 16-entry array —
+               listing all of them buried the four real sensors in twelve blank
+               rows. New ones arrive through sensAdd. */
+            let h = '', used = 0;
+            for (let i = 0; i < SENS.nslot; i++) {
+                const s = sensSlot(i);
+                if (!s.a && !s.t) continue;
+                used++;
+                const ty = sensTypeOf(s.t);
+                const pins = (s.p || []).filter(x => x <= SENS.gmax);
+                const d = sensStaged().some(x => x.i === i);
+                h += '<tr onclick="sensEdit(' + i + ')"' + (d ? ' style="background:rgba(6,182,212,.10)"' : '') + '>' +
+                     '<td class="sxm">' + i + (s.a ? ' <span style="color:#22c55e" title="' + window.t('sens_active', 'Active') + '">&#9679;</span>' : '') + '</td>' +
+                     '<td>' + (ty ? ty.n : '&mdash;') + '</td>' +
+                     '<td class="sxm">' + (pins.length ? pins.map(x => 'GP' + x).join(' ') : '&mdash;') + '</td>' +
+                     '<td class="sxm">' + (s.hwId ? escHtml(s.hwId) : '&mdash;') + '</td>' +
+                     '<td>' + escHtml(s.name || '') + '</td></tr>';
+            }
+            if (!used) h = '<tr><td colspan="5" class="sx-empty">' +
+                           window.t('sens_none', 'No sensor slots configured yet.') + '</td></tr>';
+            SE('sens_tb').innerHTML = h;
+            const free = sensFirstFree();
+            SE('sens_add').style.display = free < 0 ? 'none' : '';
+            SE('sens_full').style.display = free < 0 ? '' : 'none';
+            /* Deliberately does NOT redraw the open editor. Staging calls this
+               on every keystroke to refresh the table and the GPIO strip, and
+               rebuilding the editor markup here would replace the input the
+               user is typing into and send the caret to the end. Redraws are
+               explicit: sensStage(1) for controls that reshape the form. */
+        }
+
+        function sensFirstFree() {
+            for (let i = 0; i < SENS.nslot; i++) { const s = sensSlot(i); if (!s.a && !s.t) return i; }
+            return -1;
+        }
+
+        /* Clearing the markup matters: sensDrawEditor reads the live se_t value
+           so a redraw keeps the half-made choice, and without this the controls
+           of the previously open slot were still in the DOM and got read as if
+           they belonged to the new one. */
+        function sensEdit(i) { SE('sens_ed').innerHTML = ''; sensOpenSlot = i; sensDrawEditor(); SE('sens_ov').style.display = 'flex'; }
+        function sensClose() { sensOpenSlot = -1; SE('sens_ed').innerHTML = ''; SE('sens_ov').style.display = 'none'; }
+        /* Only a click on the backdrop itself closes; clicks inside the box
+           bubble up to the same handler and must not. */
+        function sensBackdrop(ev) { if (ev.target === SE('sens_ov')) sensClose(); }
+
+        /* Adds the lowest free slot. The index is not cosmetic — it is the
+           position in the persisted array and the identity the history and the
+           CLI use, so it is shown rather than hidden behind a counter. */
+        function sensAdd() {
+            const i = sensFirstFree();
+            if (i < 0) return;
+            sensEdit(i);
+        }
+
+        /* Pin rows follow the type catalogue, so switching a slot from DHT22 to
+           BMP280 grows the form from one Data row to SDA plus SCL with no table
+           in this file to keep in step. */
+        function sensDrawEditor() {
+            const i = sensOpenSlot, s = sensSlot(i), own = sensOwners();
+            const t = SE('se_t') ? parseInt(SE('se_t').value) : s.t;
+            const ty = sensTypeOf(t), nP = ty ? ty.pins.length : 0;
+            let h = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><span class="sx-slot">' +
+                    window.t('sens_slot', 'Slot') + ' ' + i + '</span>' +
+                    '<button type="button" class="sxb" onclick="sensClose()" aria-label="Close">&times;</button></div>' +
+                    '<div class="row"><div class="col"><label>' + window.t('sens_type', 'Type') + '</label>' +
+                    '<select id="se_t" onchange="sensStage(1)"><option value="0"' + (t === 0 ? ' selected' : '') +
+                    '>&mdash; ' + window.t('sens_empty', 'empty') + ' &mdash;</option>';
+            (SENS.types || []).forEach(x => {
+                h += '<option value="' + x.t + '"' + (t === x.t ? ' selected' : '') + '>' + escHtml(x.n) + '</option>';
+            });
+            h += '</select></div><div class="col"><label>' + window.t('sens_name', 'Name') + '</label>' +
+                 '<input id="se_n" type="text" oninput="sensStage(0)" maxlength="31" value="' + escHtml(s.name || '') + '"></div></div>' +
+                 '<div class="row"><div class="col"><label>' + window.t('sens_hwid', 'Hardware ID') + '</label>' +
+                 '<input id="se_id" type="text" oninput="sensStage(0)" maxlength="15" value="' + escHtml(s.hwId || '') + '">' +
+                 '<div class="sxn">' + window.t('sens_hwid_hint', 'Key used by history and telemetry. Changing it starts a new series.') + '</div></div>' +
+                 '<div class="col"><label>' + window.t('sens_state', 'State') + '</label>' +
+                 '<label class="cfg-tg"><input type="checkbox" id="se_a" onchange="sensStage(1)"' + (s.a ? ' checked' : '') + '> <span>' + window.t('sens_active', 'Active') + '</span></label>' +
+                 '<label class="cfg-tg"><input type="checkbox" id="se_al" onchange="sensStage(0)"' + (s.al ? ' checked' : '') + '> <span>' + window.t('sens_alarms', 'Alarms enabled') + '</span></label></div></div>';
+            if (nP) {
+                h += '<label class="sxsec">' + window.t('sens_pins', 'GPIO assignment') + '</label><div class="row">';
+                for (let k = 0; k < nP; k++) {
+                    const cur = (s.p && s.p[k] !== undefined) ? s.p[k] : 255;
+                    h += '<div class="col"><div class="sxh">' + window.t('sens_pin', 'Pin') + ' ' + k +
+                         ' &mdash; <strong style="color:var(--acc)">' + escHtml(ty.pins[k]) + '</strong></div>' +
+                         '<select id="se_p' + k + '" onchange="sensStage(1)"><option value="255"' + (cur > SENS.gmax ? ' selected' : '') + '>&mdash;</option>';
+                    for (let gp = 0; gp <= SENS.gmax; gp++) {
+                        const tk = own[gp] !== undefined && own[gp] !== i;
+                        h += '<option value="' + gp + '"' + (cur === gp ? ' selected' : '') + (tk ? ' disabled' : '') +
+                             '>GP' + gp + (tk ? ' (slot ' + own[gp] + ')' : '') + '</option>';
+                    }
+                    h += '</select></div>';
+                }
+                h += '</div>';
+            }
+            h += '<label class="sxsec">' + window.t('sens_limits', 'Alarm limits') + '</label><div class="row">' +
+                 '<div class="col"><div class="sxh">T min &deg;C</div><input id="se_tmin" oninput="sensStage(0)" type="number" step="0.1" min="-50" max="150" value="' + s.tmin + '"></div>' +
+                 '<div class="col"><div class="sxh">T max &deg;C</div><input id="se_tmax" oninput="sensStage(0)" type="number" step="0.1" min="-50" max="150" value="' + s.tmax + '"></div>';
+            if (ty && ty.nv >= 2) {
+                h += '<div class="col"><div class="sxh">H min %</div><input id="se_hmin" oninput="sensStage(0)" type="number" step="0.1" min="0" max="100" value="' + s.hmin + '"></div>' +
+                     '<div class="col"><div class="sxh">H max %</div><input id="se_hmax" oninput="sensStage(0)" type="number" step="0.1" min="0" max="100" value="' + s.hmax + '"></div>';
+            }
+            h += '</div>';
+
+            /* Calibration. This used to be the Calibration Mode toggle on the
+               dashboard; it belongs with the sensor it calibrates. The offset
+               is not a SensorRecord field -- it lives in calib.csv keyed by the
+               1-Wire ROM, which is why the firmware can only store one for a
+               sensor that HAS a ROM. DHT22 and BMP280 have none, so their rows
+               show the live reading but no reference input: POST /api/calib
+               would accept the value and drop it. */
+            const c = calOf(i);
+            if (c) {
+                const st = calStaged().find(x => x.slot === i);
+                const hasRom = c.rom && !/^0+$/.test(c.rom);
+                h += '<label class="sxsec">' + window.t('sens_calib', 'Calibration') + '</label>' +
+                     '<div class="sxn">' + window.t('sens_reading', 'Reading now') + ': <strong>' +
+                     (c.tempRead === null ? '--' : c.tempRead + ' &deg;C') + '</strong> (offset ' + c.tempOffset + ')' +
+                     (c.hasHum ? ' &nbsp;|&nbsp; <strong>' + (c.humRead === null ? '--' : c.humRead + ' %') + '</strong> (offset ' + c.humOffset + ')' : '') + '</div>';
+                if (hasRom) {
+                    h += '<div class="row"><div class="col"><div class="sxh">' +
+                         window.t('sens_ref', 'Reference temperature read on a trusted instrument') + '</div>' +
+                         '<input id="se_ref" oninput="sensStage(0)" type="number" step="0.01" placeholder="&deg;C" value="' + (st && st.refTemp !== undefined ? st.refTemp : '') + '"></div><div class="col"></div></div>' +
+                         '<div class="sxn">' + window.t('sens_ref_hint', 'The device stores the difference as the offset. Needs NTP synced.') +
+                         (CAL && CAL.ntp === false ? ' <span style="color:var(--dang)">' + window.t('sens_ntp_no', 'NTP not synced.') + '</span>' : '') + '</div>';
+                } else {
+                    h += '<div class="sxn">' + window.t('sens_no_rom', 'This sensor type has no 1-Wire ROM, so the firmware has nowhere to key an offset. Calibration is unavailable for it.') + '</div>';
+                }
+            }
+
+            h += '<div id="se_warn" class="sx-warn"></div>' +
+                 '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">' +
+                 '<button type="button" class="sxb sxb-dang" onclick="sensClear()">' + window.t('sens_free_slot', 'Free slot') + '</button>' +
+                 '<button type="button" class="sxb" onclick="sensRevert()">' + window.t('sens_revert', 'Discard staged') + '</button>' +
+                 '<button type="button" class="sxb" onclick="sensClose()">' + window.t('sens_done', 'Done') + '</button></div>' +
+                 '<div class="sxn" style="margin-top:10px">' + window.t('sens_stage_hint', 'Edits are staged as you type and written on Save and Restart.') + '</div>';
+            SE('sens_ed').innerHTML = h;
+            sensWarn();
+        }
+
+        function sensSet(list) {
+            /* Empty list drops the section: Pending.hasAny counts keys, so
+               leaving {"s":[]} would keep Save and Restart lit with nothing staged. */
+            Pending.setSection('slots', list.length ? { s: list.sort((a, b) => a.i - b.i) } : {});
+            renderSensors();
+        }
+        function sensPut(e) { sensSet(sensStaged().filter(x => x.i !== e.i).concat([e])); }
+
+        /* Reads the open editor and writes it straight into Pending.
+         *
+         * Every other section of this page stages on each keystroke, via the
+         * delegated listener on #sysForm. This editor opted out of that
+         * listener (it needs whole-slot objects, not flat id/value pairs), so
+         * it has to stage itself the same way. It used to require pressing a
+         * Stage button first, and anyone who edited the fields and went
+         * straight to Save and Restart silently lost the edit -- the page
+         * looked like it had saved and the slot came back unchanged.
+         *
+         * redraw=1 for controls that change the shape of the form (type, pins,
+         * active). Text and number fields pass 0: redrawing on every keystroke
+         * would rebuild the inputs and throw the caret to the end. */
+        function sensStage(redraw) {
+            const i = sensOpenSlot;
+            if (i < 0 || !SE('se_t')) return;
+            const t = parseInt(SE('se_t').value), ty = sensTypeOf(t);
+            const nP = ty ? ty.pins.length : 0, p = [255, 255, 255, 255];
+            for (let k = 0; k < nP; k++) if (SE('se_p' + k)) p[k] = parseInt(SE('se_p' + k).value);
+            const b = SENS.slots[i];
+            const num = (id, d) => { const e = SE(id); if (!e || e.value === '') return d; const v = parseFloat(e.value); return isNaN(v) ? d : v; };
+            sensPut({ i: i, a: SE('se_a').checked, t: t, p: p,
+                      hwId: SE('se_id').value.trim(), name: SE('se_n').value.trim(),
+                      tmin: num('se_tmin', b.tmin), tmax: num('se_tmax', b.tmax),
+                      hmin: num('se_hmin', b.hmin), hmax: num('se_hmax', b.hmax),
+                      al: SE('se_al').checked });
+
+            /* Calibration rides the pre-existing Pending.calib section, which
+               commitAll POSTs to /api/calib before saving. */
+            const ref = SE('se_ref');
+            if (ref) {
+                const rest = calStaged().filter(x => x.slot !== i);
+                if (ref.value !== '' && !isNaN(parseFloat(ref.value))) rest.push({ slot: i, refTemp: parseFloat(ref.value) });
+                Pending.setSection('calib', rest.length ? { sensors: rest } : {});
+            }
+            if (redraw) sensDrawEditor(); else sensWarn();
+        }
+
+        /* Live echo of the rule commit_all enforces server-side. Shown while
+           editing instead of only as a rejection after pressing Save. */
+        function sensWarn() {
+            const el = SE('se_warn');
+            if (!el) return;
+            const i = sensOpenSlot, s = sensSlot(i), ty = sensTypeOf(s.t);
+            let m = '';
+            if (s.a) {
+                if (!s.t) m = window.t('sens_need_type', 'Choose a type before activating this slot.');
+                else for (let k = 0; k < ty.pins.length; k++) {
+                    if (s.p[k] > SENS.gmax) { m = window.t('sens_need_pin', 'Assign a GPIO to pin') + ' ' + k + ' (' + ty.pins[k] + ').'; break; }
+                }
+                /* Cross-slot collision, same rule commit_all applies. */
+                if (!m) for (let k = 0; k < ty.pins.length; k++) {
+                    for (let j = 0; j < SENS.nslot && !m; j++) {
+                        if (j === i) continue;
+                        const o = sensSlot(j);
+                        if (o.a && (o.p || []).indexOf(s.p[k]) >= 0)
+                            m = 'GP' + s.p[k] + ' ' + window.t('sens_taken', 'is already used by slot') + ' ' + j + '.';
+                    }
+                    if (m) break;
+                }
+            }
+            el.textContent = m;
+            el.style.display = m ? '' : 'none';
+        }
+
+        function sensClear() {
+            if (!confirm(window.t('sens_clear_confirm', 'Free this slot? Its type, GPIOs and identity are cleared.'))) return;
+            sensPut({ i: sensOpenSlot, a: false, t: 0, p: [255, 255, 255, 255], hwId: '', name: '' });
+            sensClose();
+        }
+
+        function sensRevert() {
+            const i = sensOpenSlot;
+            sensSet(sensStaged().filter(x => x.i !== i));
+            /* Discarding a slot that only ever existed as a staged edit leaves
+               nothing to edit — keeping the dialog open would show a blank slot
+               that is no longer in the list behind it. */
+            const s = sensSlot(i);
+            if (!s.a && !s.t) sensClose(); else sensDrawEditor();
+        }
+
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sensOpenSlot >= 0) sensClose(); });
+        document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); loadConfig(); loadSensors(); });
     </script>
 </body>
 </html>
@@ -4268,7 +4563,13 @@ static const char LANG_JS[] PROGMEM = R"raw(
                     setTimeout(() => { window.location.reload(); }, 12000);
                 }
             } else {
-                showToast((window.t ? window.t('commit_err', 'Falha ao salvar.') : 'Save failed.'), 'err');
+                /* The server says exactly which slot and which pin it refused
+                 * (e.g. "slot 4: GP2 already used by slot 2"). Showing a bare
+                 * "Falha ao salvar." threw that away and left the user with a
+                 * rejected commit and no idea what to change. */
+                let detail = ''; try { detail = (await r.json()).error || ''; } catch(e) {}
+                showToast((window.t ? window.t('commit_err', 'Falha ao salvar.') : 'Save failed.') +
+                          (detail ? ' — ' + detail : ''), 'err', 9000);
                 if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn', '💾 Salvar e Reiniciar') : '💾 Save & Restart'); }
             }
         } catch(e) {
