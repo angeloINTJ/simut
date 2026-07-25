@@ -391,6 +391,7 @@ void AppManager::processHistoryLogging( ) {
 	 SystemConfig &cfg = _storageMgr->getConfig( );
 	 int64_t values[HIST_V4_MAX_MEASUREMENTS];
 	 uint8_t mc = schema->measureCount;
+	 uint8_t matched = 0; /* channels that actually took a live reading */
 	 for (uint8_t m = 0; m < mc; m++) {
 	 	 values[m] = histV4NanSentinel(schema->measures[m].bitWidth);
 	 }
@@ -415,6 +416,7 @@ void AppManager::processHistoryLogging( ) {
 	 	 	 	 if (!isfinite(v)) continue;
 
 	 	 	 	 values[m] = histV4FromFloat(v, schema->measures[m]);
+	 	 	 	 matched++;
 
 	 	 	 	 /* Update cache (indexed by slot for display compatibility) */
 	 	 	 	 if (ch == CH_TEMP) {
@@ -431,6 +433,31 @@ void AppManager::processHistoryLogging( ) {
 	 	 	 }
 	 	 	 break;
 	 	 }
+	 }
+
+	 /* Every channel is still the NaN sentinel: nothing the sensors reported
+	  * lined up with the schema. Writing that produces a record with a valid
+	  * timestamp and no data — which is exactly what happened on the bench for
+	  * hours while APP_HISTORY_SAVED kept claiming success, because
+	  * writeHistoryEntryV4 succeeds regardless of what the values are.
+	  *
+	  * The usual cause is a sensor identity change mid-day: the schema lives in
+	  * the .sim4 header and is restored from the file by ensureV4Schema, so
+	  * editing a hwId leaves the match in strcmp(schemaHwId, cfg hwId) failing
+	  * until tomorrow's file. Refuse the record and say so — an empty row is
+	  * worse than a gap, because it looks like data. */
+	 if (matched == 0) {
+	 	 if (!_histSchemaMismatchWarned) {
+	 	 	 LOG_CODE(LOG_WARN, "HIST", APP_HIST_SCHEMA_MISMATCH, (int)mc,
+	 	 	          TRL("History skip: schema matches no active sensor (hwId changed?)"));
+	 	 	 _histSchemaMismatchWarned = true;
+	 	 }
+	 	 return;
+	 }
+	 if (_histSchemaMismatchWarned) {
+	 	 LOG_CODE(LOG_INFO, "HIST", APP_HIST_SCHEMA_MISMATCH, (int)matched,
+	 	          TRL("History resumed: schema matches active sensors"));
+	 	 _histSchemaMismatchWarned = false;
 	 }
 
 	 if (_storageMgr->writeHistoryEntryV4(values, mc, (uint32_t)now)) {
