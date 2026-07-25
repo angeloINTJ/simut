@@ -28,11 +28,34 @@ volatile uint32_t _moduleStartTime[2] = {0, 0};
 volatile bool _corePaused[2] = {false, false};
 volatile uint32_t _healthCheckEnabledAt = 0;
 
-/* Snapshot of scratch[3] from previous boot, captured on the first call
- * to setModule (before overwriting). Used by autopsy to recover
- * the active module at the time of HW WATCHDOG even after AppManager::setup
- * has called `TRACE_MOD(0, MOD_BOOT)` at startup. */
-static volatile uint32_t _preBootScratch4 = 0;
+/* Snapshot of the forensic scratch registers as left by the PREVIOUS session,
+ * taken at the very top of AppManager::setup( ) — before anything in this boot
+ * can overwrite them. Both channels are destroyed within the first instants of
+ * setup( ), which is why the snapshot cannot wait for LogManager::begin( ):
+ *
+ *  - scratch[3] (module trace): startCore1( ) -> launchCore1IfAbsent( ) opens a
+ *    TraceScope(0, MOD_C1_LAUNCH). Its constructor writes mod 16 and its
+ *    destructor restores getModule(0), which is 0 in a freshly booted RAM — so
+ *    the low half lands on 0x8000 = a perfectly valid-looking "C0=[BOOT]" on
+ *    EVERY boot, whatever the previous session actually died in. Core 1 clobbers
+ *    the high half just as early via TRACE_MOD(1, MOD_DISPLAY).
+ *  - scratch[5] (crash-class magic): setup( ) zeroes it unconditionally in the
+ *    CYW43 power-cycle block, so the autopsy never saw a soft-panic or
+ *    clean-reboot magic and classified every reboot as a HW watchdog stall.
+ *
+ * Consequence for anything read before this fix: `C0=[BOOT] C1=[DISPLAY]
+ * sc3=0x80088000` under the HW WATCHDOG heading is the signature of an ERASED
+ * channel, not a measurement, and it is what this firmware printed for a soft
+ * panic and for `reload confirm` too. */
+static volatile uint32_t _preBootScratch3 = 0;
+static volatile uint32_t _preBootScratch5 = 0;
+static volatile uint32_t _preBootScratch6 = 0;
+static volatile uint32_t _preBootScratch7 = 0;
+/* WATCHDOG.REASON, the hardware's own account of the last reset: TIMER means the
+ * countdown actually expired, FORCE means someone wrote TRIGGER. Every
+ * deliberate reboot here — soft panic, safeReboot, picotool upload — is a FORCE,
+ * so TIMER is the only unforgeable evidence of a real Core-0 stall. */
+static volatile uint32_t _preBootWdReason = 0;
 static volatile bool _preBootSnapshotTaken = false;
 
 /* One-shot guard: performCrashAutopsy( ) runs exactly once per session.
@@ -43,8 +66,11 @@ static volatile bool _autopsyPerformed = false;
 
 const char* MOD_NAMES[] = {"BOOT", "IDLE", "WIFI", "WEB_SERVER", "STORAGE_RD", "STORAGE_WR", "SENSOR", "TELEMETRY", "DISPLAY", "CLI",
  "SAVE_CFG", "LOG_FLASH", "HIST_FLASH", "CORE1_LOCK",
- "C1_ENDLOCK", "C1_RESET", "C1_LAUNCH"};
-static constexpr uint8_t MOD_NAMES_MAX = 16; /* last valid index */
+ "C1_ENDLOCK", "C1_RESET", "C1_LAUNCH", "C1_KILLED", "LOOP"};
+static constexpr uint8_t MOD_NAMES_MAX = 18; /* last valid index */
+static_assert(sizeof(MOD_NAMES) / sizeof(MOD_NAMES[0]) == MOD_NAMES_MAX + 1,
+              "MOD_NAMES must cover every TraceModule — a missing entry prints as garbage, "
+              "and an out-of-range index reads past the array in the autopsy");
 
 volatile bool LogManager::_wdtActive = false;
 volatile uint32_t LogManager::_wdtCtxMs = WATCHDOG_TIMEOUT_MS;
@@ -140,14 +166,19 @@ void LogManager::setForceBuffer(bool force) {
 
 void LogManager::captureBootSnapshot( ) {
  if (!_preBootSnapshotTaken) {
- _preBootScratch4 = watchdog_hw->scratch[3];
+ _preBootScratch3 = watchdog_hw->scratch[3];
+ _preBootScratch5 = watchdog_hw->scratch[5];
+ _preBootScratch6 = watchdog_hw->scratch[6];
+ _preBootScratch7 = watchdog_hw->scratch[7];
+ _preBootWdReason = watchdog_hw->reason;
  _preBootSnapshotTaken = true;
  }
 }
 
 void LogManager::begin(bool saveToFile, LogLevel minSerialLevel) {
- /* Capture previous boot module BEFORE any TRACE_MOD overwrites
- * scratch[3]. Idempotent: subsequent calls (ex: CMD_CLEAR_LOGS) are no-op. */
+ /* Safety net only. The real capture happens at the top of AppManager::setup( ):
+ * by the time begin( ) runs, Core 1 is already up and the launch TraceScope has
+ * already rewritten scratch[3]. Idempotent, so calling it here is harmless. */
  captureBootSnapshot( );
 
  _saveToFile = saveToFile;
@@ -714,33 +745,38 @@ void LogManager::performCrashAutopsy( ) {
  if (_autopsyPerformed) return;
  _autopsyPerformed = true;
 
- /* Possible scenarios:
- * (1) scratch[5] == 0xCA11B007: our soft panic (Core 1 stuck).
+ /* Possible scenarios, in the order tested below:
+ * (1) scratch[5] == 0xCA11B007: our soft panic (the OTHER core's heartbeat
+ * went stale and we rebooted on purpose). Payload in scratch[6]/[7].
  * (2) scratch[5] == 0xC1EA8007: clean reboot (markCleanReboot was called).
- * (3) scratch[5] == 0xA11FA1E5: previous session was ALIVE (autopsy passed)
- * but ended with wdReset — EXTERNAL cause (picotool upload, hard
- * fault, hardware reset). NOT an application code crash since
- * SIMUT never enables WDT in normal operation (markWdtActive never
- * called → WdtWindow is no-op). Demote to INFO.
- * (4) watchdog_caused_reboot( ) && no magic: WDT REASON set by
- * external reset WITHOUT passing through previous autopsy (rare: 1st boot
- * post-pio upload if previous session crashed before autopsy).
- * (5) none of the above: power cycle / reset button. */
+ * (3) REASON.TIMER: the countdown expired with no soft panic and no clean
+ * reboot — a genuine Core-0 stall. FATAL, and scratch[3] names the module.
+ * (4) wdReset without TIMER: a FORCE reset nobody here claims, i.e. external.
+ * picotool upload is the usual one. INFO.
+ * (5) none of the above: power cycle / reset button.
+ *
+ * (3) used to be decided by the ALIVE magic, which was stamped at the END of
+ * this very function — inside setup( ), long before the WDT was armed. It
+ * therefore meant "the previous session booted", which is equally true of a
+ * picotool upload and of a real stall, so the two were never separable. The
+ * hardware's REASON bit answers the question directly; markWdtActive( ) still
+ * stamps ALIVE, now at the moment the watchdog really starts, as a secondary
+ * witness that the WDT was armed at all. */
 
- /* Safety net for refactors: captureBootSnapshot( ) should have
- * run before (via begin( )). If it didn't, scratch[3] may already have been
- * overwritten by some prior setModule and the modTrace below will be the live
- * state, not the pre-boot one. */
+ /* The snapshot is taken at the top of AppManager::setup( ). If that call is
+ * ever lost in a refactor, every field below is this boot's own state and the
+ * autopsy silently reports fiction — say so instead. */
  if (!_preBootSnapshotTaken) {
  Serial.println("[LOG] performCrashAutopsy called before captureBootSnapshot!");
  }
 
  bool wdReset = watchdog_caused_reboot( );
- uint32_t mark = watchdog_hw->scratch[5];
+ /* From the snapshot, never live: setup( ) zeroes scratch[5] before we get here. */
+ uint32_t mark = _preBootScratch5;
 
  if (mark == 0xCA11B007) {
- uint32_t data = watchdog_hw->scratch[6];
- uint32_t stuckTime = watchdog_hw->scratch[7];
+ uint32_t data = _preBootScratch6;
+ uint32_t stuckTime = _preBootScratch7;
  int deadCore = (data >> 24) & 0xFF;
  int mod0 = (data >> 16) & 0xFF;
  int mod1 = (data >> 8) & 0xFF;
@@ -753,39 +789,22 @@ void LogManager::performCrashAutopsy( ) {
  mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK",
  mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK");
 
- logCode(LOG_FATAL, "SYS", SYS_BOOT, deadCore, String(msg));
+ /* The compact record keeps only code + context, so the text above survives
+  * on the boot serial and nowhere else — which is why catching an autopsy
+  * needed a script camped on the port through a USB re-enumeration. Encode
+  * the verdict in context instead: 100+deadCore for a soft panic, 200+c0Mod
+  * for a HW watchdog. Distinct bands, and neither collides with the ctx=0
+  * that every record written before rc16 carries. */
+ logCode(LOG_FATAL, "SYS", SYS_BOOT, 100 + deadCore, String(msg));
  watchdog_hw->scratch[5] = 0;
  } else if (wdReset && mark == 0xC1EA8007) {
  /* Intentional reboot via markCleanReboot( ). Silent. */
  watchdog_hw->scratch[5] = 0;
- } else if (wdReset && mark == 0xA11FA1E5) {
- /* "Alive" magic set at end of previous autopsy — means the
- * past session ran normally. Since SIMUT never enables
- * WDT in operation (markWdtActive never called, WdtWindow no-op),
- * wdReset+alive = EXTERNAL cause: picotool upload, hard fault, reset
- * pin (which clears REASON, but if it reaches here via another path), etc.
- * NOT an application code crash. */
- uint32_t modTrace = _preBootSnapshotTaken ? _preBootScratch4
- : watchdog_hw->scratch[3];
- uint8_t c0Mod = (modTrace >> 0) & 0xFF;
- uint8_t c1Mod = (modTrace >> 16) & 0xFF;
- const char* c0Name = (c0Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c0Mod] : "UNK";
- const char* c1Name = (c1Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c1Mod] : "UNK";
- char msg[200];
- snprintf(msg, sizeof(msg),
- "Boot after external reset (likely picotool upload). C0 last=[%s] C1 last=[%s]",
- c0Name, c1Name);
- logCode(LOG_INFO, "SYS", SYS_BOOT, 0, String(msg));
- /* Don't clear scratch[5] here — the set below (alive) overwrites. */
- } else if (wdReset) {
- /* Hardware watchdog fired (8.3s) without our soft panic having triggered
- * and without clean reboot mark. Core 0 didn't call watchdog_update( )
- * — loop stuck on Core 0. RAM was zeroed; context comes from scratch[4]
- * which setModule( ) updates in real time.
- * Uses the pre-boot snapshot (captured in captureBootSnapshot( ), called
- * by begin( ) before the 1st TRACE_MOD) to see the PREVIOUS crash module. */
- uint32_t modTrace = _preBootSnapshotTaken ? _preBootScratch4
- : watchdog_hw->scratch[3];
+ } else if (wdReset && (_preBootWdReason & WATCHDOG_REASON_TIMER_BITS)) {
+ /* The countdown expired, with neither a soft panic nor a clean reboot in
+ * between: Core 0 stopped calling watchdog_update( ). RAM is gone;
+ * scratch[3] is the only witness and setModule( ) keeps it current. */
+ uint32_t modTrace = _preBootScratch3;
  uint8_t c0Valid = (modTrace >> 8) & 0xFF;
  uint8_t c0Mod = (modTrace >> 0) & 0xFF;
  uint8_t c1Valid = (modTrace >> 24) & 0xFF;
@@ -793,33 +812,34 @@ void LogManager::performCrashAutopsy( ) {
 
  char msg[200];
  if (c0Valid == 0x80) {
- /* Real crash: Core 0 was active (called TRACE_MOD) and hung.
- * Trace identifies the module that was executing at the time. */
  const char* c0Name = (c0Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c0Mod] : "UNK";
- if (c1Valid == 0x80) {
- const char* c1Name = (c1Mod <= MOD_NAMES_MAX) ? MOD_NAMES[c1Mod] : "UNK";
+ const char* c1Name = (c1Valid == 0x80 && c1Mod <= MOD_NAMES_MAX)
+ ? MOD_NAMES[c1Mod] : "?";
  snprintf(msg, sizeof(msg),
- "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] C1=[%s] sc3=0x%08lx",
- c0Name, c1Name, (unsigned long)modTrace);
+ "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] C1=[%s] at up=%lums sc3=0x%08lx",
+ c0Name, c1Name, (unsigned long)_preBootScratch6, (unsigned long)modTrace);
  } else {
+ /* WDT was armed, so the previous session ran past setup( ) and must
+ * have called TRACE_MOD — a missing C0 marker means the trace channel
+ * itself was lost, not that there was no crash. Do not demote it. */
  snprintf(msg, sizeof(msg),
- "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] sc3=0x%08lx",
- c0Name, (unsigned long)modTrace);
- }
- logCode(LOG_FATAL, "SYS", SYS_BOOT, 0, String(msg));
- } else {
- /* No Core 0 trace (c0Valid != 0x80) → previous boot NEVER called
- * TRACE_MOD(0,...). Most likely cause: picotool restart post-upload
- * uses watchdog reset as mechanism, leaving WATCHDOG.REASON set
- * (register only clears on POR/external reset, RP2040 datasheet).
- * Real pre-TRACE_MOD crash exists but is rare. Demote to INFO
- * to avoid alarm — repeats suppressed via scratch[5] magic. */
- snprintf(msg, sizeof(msg),
- "Boot after watchdog reset (no trace — likely post-flash by picotool; sc3=0x%08lx)",
+ "HW WATCHDOG: Core 0 loop stalled, trace channel empty (sc3=0x%08lx)",
  (unsigned long)modTrace);
- logCode(LOG_INFO, "SYS", SYS_BOOT, 0, String(msg));
- /* scratch[5] will be set as ALIVE at end of autopsy. */
  }
+ /* 200 + Core-0 module: the one fact worth reading back from a log dumped
+  * days later, without a script camped on the boot serial. */
+ logCode(LOG_FATAL, "SYS", SYS_BOOT, 200 + (c0Valid == 0x80 ? c0Mod : 0xFF),
+ String(msg));
+ } else if (wdReset) {
+ /* A FORCE reset (TRIGGER written) that none of our own reboot paths
+ * marked: the cause is outside this firmware — picotool upload reboots
+ * exactly this way. Not a stall: the countdown never expired. */
+ uint32_t modTrace = _preBootScratch3;
+ char msg[200];
+ snprintf(msg, sizeof(msg),
+ "Boot after forced watchdog reset (no timer expiry) — external cause, likely picotool upload. reason=0x%lx sc3=0x%08lx",
+ (unsigned long)_preBootWdReason, (unsigned long)modTrace);
+ logCode(LOG_INFO, "SYS", SYS_BOOT, 0, String(msg));
  watchdog_hw->scratch[3] = 0; /* Clear for next autopsy */
  } else {
  /* Power cycle / physical reset: clear scratch[4] to not contaminate
@@ -827,13 +847,10 @@ void LogManager::performCrashAutopsy( ) {
  watchdog_hw->scratch[3] = 0;
  }
 
- /* Mark the current session as "alive". On next boot,
- * if wdReset is true AND mark is this magic, we know the past
- * session was running normally when interrupted — almost
- * always external cause (picotool upload, reset pin via certain paths,
- * hard fault), not application code crash. markCleanReboot and
- * soft panic overwrite this magic with their own. */
- watchdog_hw->scratch[5] = 0xA11FA1E5;
+ /* The ARMED magic used to be stamped here and meant "this session booted",
+ * which no branch above can use: setup( ) runs with the WDT still disabled.
+ * markWdtActive( ) stamps it now, at the moment the watchdog actually starts,
+ * so scenario (3) can mean "armed and fired" instead of merely "booted". */
 }
 
 

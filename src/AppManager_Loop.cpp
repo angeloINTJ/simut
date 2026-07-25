@@ -23,6 +23,10 @@
 #include <hardware/watchdog.h>
 
 void AppManager::loop( ) {
+ /* First marker of the iteration. Everything from here to the MOD_CLI below —
+  * the cross-core health check and the Core-1 restart it can trigger — used to
+  * trace as whatever the previous iteration left behind. */
+ TRACE_MOD(0, MOD_LOOP);
  TRACE_BEAT(0);
  watchdog_update( );
 

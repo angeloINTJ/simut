@@ -63,8 +63,19 @@ public:
 
  /** Mark that the system WDT is active (called by SIMUT.ino on first
  * loop). Flash write paths use this flag to decide whether to extend
- * the WDT window — do NOT extend during setup to avoid WDT armed too early. */
- static void markWdtActive( ) { _wdtActive = true; }
+ * the WDT window — do NOT extend during setup to avoid WDT armed too early.
+ *
+ * Also stamps the ARMED magic in scratch[5]. This is what lets the next
+ * boot's autopsy tell a genuine HW-watchdog stall (WDT was armed and fired)
+ * from an external reset such as a picotool upload (WDT never armed). It is
+ * stamped HERE, not at the end of performCrashAutopsy( ), because the autopsy
+ * runs inside setup( ) — before the WDT exists — so a magic written there
+ * says nothing about whether the watchdog was ever running. Soft panic and
+ * markCleanReboot( ) overwrite this magic with their own. */
+ static void markWdtActive( ) {
+  _wdtActive = true;
+  watchdog_hw->scratch[5] = 0xA11FA1E5;
+ }
  static bool isWdtActive( ) { return _wdtActive; }
 
  /*
