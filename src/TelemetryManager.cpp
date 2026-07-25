@@ -94,6 +94,7 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  _netRef = network;
 
 
+
  _hasCert = false;
  _cachedCert = "";
 
@@ -641,6 +642,18 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
   * bounds one _run_until iteration, never the handshake — so it only really
   * holds because of the framework patch. See NET_TLS_HANDSHAKE_MS. */
  WiFiClientSecure::setTLSConnectTimeout(NET_TLS_HANDSHAKE_MS);
+
+ /* BearSSL defaults to a 16 KB receive buffer ("minimum safe", set from
+  * _clear()), and it must get that as ONE contiguous block. Measured at the
+  * moment of the attempt on this device: 31,900 B free but only 11,370 B
+  * contiguous — the default cannot fit, and freeing more memory does not
+  * help while the heap stays this fragmented.
+  *
+  * 4096 is the largest RFC 6066 max_fragment_length below the default, so
+  * the request drops to ~4.4 KB and fits with room to spare. The server has
+  * to honour the extension; if it does not and sends a larger record, the
+  * connection fails instead of succeeding — a clean failure, not a hang. */
+ _httpSecurePtr->setBufferSizes(4096, 512);
 
  if (_hasCert) _httpSecurePtr->setCACert(_cachedCert.c_str( ));
  else _httpSecurePtr->setInsecure( );
