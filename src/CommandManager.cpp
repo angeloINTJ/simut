@@ -920,6 +920,9 @@ void CommandManager::renderMetrics( ) {
   consolePrintf (pt ? " Lockout concedido: ultimo=%lu ms | pior=%lu ms\n"
                     : " Lockout granted: last=%lu ms | worst=%lu ms\n",
   (unsigned long)g_core1LockWaitLastMs, (unsigned long)g_core1LockWaitMaxMs);
+  consolePrintf (pt ? " Varredura hist (web): pior=%lu ms\n"
+                    : " History scan (web): worst=%lu ms\n",
+  (unsigned long)g_webHistScanMaxMs);
   consolePrintf (pt ? " Pause: em voo=%lu ms | total=%lu | max=%lu ms (mod%u) | ultimo mod%u\n"
                     : " Pause: in flight=%lu ms | total=%lu | max=%lu ms (mod%u) | last mod%u\n",
   (unsigned long)(g_core1PauseStartMs ? (millis( ) - g_core1PauseStartMs) : 0u),

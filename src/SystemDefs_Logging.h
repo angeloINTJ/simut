@@ -61,7 +61,8 @@ enum TraceModule {
   * history handler, and the send itself. */
  MOD_WEB_POLL = 19,   /**< inside WebServer::handleClient — accept/parse/dispatch */
  MOD_WEB_HIST = 20,   /**< inside handleApiHistoryMulti (read + decimate) */
- MOD_WEB_SEND = 21    /**< inside sendContent, under the SendGuard */
+ MOD_WEB_SEND = 21,   /**< inside sendContent, under the SendGuard */
+ MOD_WEB_HSCAN = 22   /**< history file list + decimation estimate, before any send */
 };
 
 /** Structured log event codes for machine-parseable system logging. */

@@ -127,6 +127,13 @@ extern volatile uint32_t g_core1IterMaxMs;      /**< Longest single iteration (s
  * successful lockouts land well inside it — otherwise a shorter budget just
  * converts successes into Core-1 kills. Measure before trusting. */
 extern volatile uint32_t g_core1LockWaitMaxMs;  /**< Worst wait for a granted lockout */
+/* Longest run of the history handler's file-scan + decimation-estimate phase.
+ * That phase ran with no watchdog feed and no handler-deadline check, and three
+ * successive autopsies walked the Core-0 stall down to it (WEB_SERVER ->
+ * WEB_HIST -> WEB_HSCAN). Feeding the watchdog stops the reboot; this number
+ * says whether the phase is ALSO a multi-second freeze of the whole device,
+ * which the reboot was previously hiding. */
+extern volatile uint32_t g_webHistScanMaxMs;
 extern volatile uint32_t g_core1LockWaitLastMs; /**< Wait of the most recent granted lockout */
 
 #ifdef __cplusplus
