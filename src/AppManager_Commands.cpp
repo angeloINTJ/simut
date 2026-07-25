@@ -610,6 +610,39 @@ void AppManager::executeCommand(CliDemand cmd) {
  if (!_sensorMgr->isScanning( )) { _sensorMgr->startScan( ); _waitingScan = true; }
  break;
 
+ /* Rebind history to the sensors as they are configured RIGHT NOW.
+  *
+  * A .sim4 carries its schema in the header and matches values by hwId, so
+  * changing a sensor identity silently stops every value from being recorded
+  * until the next day's file. This rewrites today's file against a schema
+  * built from the current slots — dropping the columns that no longer exist
+  * and carrying the rest over — which resumes both history and the telemetry
+  * that feeds from it, without splitting the day. */
+ case CMD_RESCHEMA_SENSORS: {
+ const bool pt = _cmdMgr->isPt( );
+ if (!cmd.confirmed) {
+ _cmdMgr->printError(pt ? "Recria o historico de HOJE (perde os registros do dia). "
+                          "Use: sensor reschema confirm"
+                        : "Recreates TODAY's history (loses the day's records). "
+                          "Use: sensor reschema confirm");
+ break;
+ }
+ uint8_t mc = 0;
+ _displayMgr->requestQuietMode( ); /* recreates the day file — park Core 1 */
+ bool ok = _storageMgr->rebindV4Schema(&mc);
+ _displayMgr->releaseQuietMode( );
+ if (ok) {
+ char msg[80];
+ snprintf(msg, sizeof(msg), pt ? "Historico religado: %u medicoes"
+                               : "History rebound: %u measurements", (unsigned)mc);
+ _cmdMgr->printSuccess(msg);
+ LOG_CODE(LOG_INFO, "HIST", APP_HIST_SCHEMA_MISMATCH, (int)mc, "");
+ } else {
+ _cmdMgr->printError(pt ? "Falha ao religar historico" : "History rebind failed");
+ }
+ break;
+ }
+
  case CMD_WRITE_MEMORY: {
  /* Wraps save + reload of sensors in the same quiet mode
  * (re-entrant). loadAndCalibrateSensors emits

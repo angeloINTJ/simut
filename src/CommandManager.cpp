@@ -311,6 +311,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_DEBUG:             return CLI_VALID_USER | CLI_VALID_PRIV;
  case CMD_SET_TIME:          return CLI_VALID_USER | CLI_VALID_PRIV;
  case CMD_SCAN_SENSORS:      return CLI_VALID_USER | CLI_VALID_PRIV;
+ case CMD_RESCHEMA_SENSORS:  return CLI_VALID_PRIV;
  /* Telemetry — exec modes */
  case CMD_TEL_SYNC:          return CLI_VALID_USER | CLI_VALID_PRIV;
  case CMD_TEL_DUMP:          return CLI_VALID_USER | CLI_VALID_PRIV;
@@ -480,6 +481,8 @@ void CommandManager::printModeHelp( ) {
                                   : "  sensor scan           Scan hardware bus");
   showIf(CMD_ACCEPT_SENSOR,    pt ? "  sensor accept <gpio>  Aceitar sensor OneWire"
                                   : "  sensor accept <gpio>  Accept OneWire sensor");
+  showIf(CMD_RESCHEMA_SENSORS, pt ? "  sensor reschema confirm  Religar historico aos slots"
+                                  : "  sensor reschema confirm  Rebind history to current slots");
   showIf(CMD_DEFINE_SENSOR,    pt ? "  sensor define <gpio> <rom> <hwid> <nome> [tipo]"
                                   : "  sensor define <gpio> <rom> <hwid> <name> [type]");
   showIf(CMD_WIPE_SENSOR,      pt ? "  sensor wipe <gpio> [confirm]  Resetar historico"

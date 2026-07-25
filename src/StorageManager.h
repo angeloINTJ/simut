@@ -152,6 +152,30 @@ public:
   * getV4Schema() returns nullptr (chicken-and-egg bootstrap). */
  void ensureV4Schema( );
 
+ /** Rebuild the day's V4 schema from the CURRENT sensor config, in place.
+  *
+  * A .sim4 stores its measurement schema in the header, and ensureV4Schema
+  * restores that header from the existing file rather than rebuilding it. So
+  * once a sensor identity changes, every value stops matching
+  * (strcmp(schemaHwId, cfg hwId)) and the rest of the day records nothing —
+  * invalidating the codec alone does not help, it just re-reads the same
+  * stale header.
+  *
+  * DESTRUCTIVE: records are bit-packed against the header, so the schema
+  * cannot be swapped under them — the day's file is recreated and today's
+  * earlier records are lost. Carrying them over means decoding and
+  * re-encoding every record, which measured at 8.2 KB of flash and 5.6 KB of
+  * RAM on this target, against an app slot with ~8.8 KB to spare. The lean
+  * trade was taken on purpose; the CLI demands `confirm` because of it.
+  *
+  * One file per day is preserved either way.
+  *
+  * @param outMeasures receives the new measurement count (may be nullptr).
+  * @return false if the schema would be empty or the file could not be
+  *         written; the codec is left invalid so the next tick re-bootstraps.
+  */
+ bool rebindV4Schema(uint8_t* outMeasures = nullptr);
+
  /** Build a V4 schema (sensor + measurement table + string pool) from SystemConfig.
   * Used when creating a new V4 history file. The schema is stored in the file header
   * so any reader can interpret the data without external configuration.
