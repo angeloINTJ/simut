@@ -98,6 +98,21 @@ enum Core1Phase {
 extern volatile uint8_t  g_core1Phase;          /**< Core1Phase: where Core 1 is right now */
 extern volatile uint8_t  g_core1StuckPhase;     /**< g_core1Phase at the instant the lockout gave up */
 
+/* How long Core 1 is actually held frozen, and by whom.
+ *
+ * The phase markers showed Core 1 stalls INSIDE render( ) for 5-7 s, and
+ * render( ) has no blocking primitive — so it is being frozen, not running
+ * slowly. The open question is whether the freeze is simply a pause that Core 0
+ * holds for seconds (a scope far longer than any flash op needs). These answer
+ * it directly: duration of the longest completed pause, the Core-0 trace module
+ * that requested it, and — for sampling — the start stamp of a pause still in
+ * flight, which is what a coarse `show metrics` poll otherwise misses. */
+extern volatile uint32_t g_core1PauseStartMs;   /**< millis( ) when the current pause began; 0 = none in flight */
+extern volatile uint32_t g_core1PauseCount;     /**< Pauses taken (refcount 0 -> 1 transitions) */
+extern volatile uint32_t g_core1PauseMaxMs;     /**< Longest pause held, end to end */
+extern volatile uint8_t  g_core1PauseMaxMod0;   /**< Core-0 TraceModule that requested that longest pause */
+extern volatile uint8_t  g_core1PauseLastMod0;  /**< Core-0 TraceModule of the most recent pause request */
+
 #ifdef __cplusplus
 }
 #endif

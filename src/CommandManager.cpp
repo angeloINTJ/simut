@@ -914,6 +914,13 @@ void CommandManager::renderMetrics( ) {
   (unsigned)g_core1StuckPhase);
   consolePrintf (pt ? " Fase atual: %u\n" : " Current phase: %u\n",
   (unsigned)g_core1Phase);
+  consolePrintf (pt ? " Pause: em voo=%lu ms | total=%lu | max=%lu ms (mod%u) | ultimo mod%u\n"
+                    : " Pause: in flight=%lu ms | total=%lu | max=%lu ms (mod%u) | last mod%u\n",
+  (unsigned long)(g_core1PauseStartMs ? (millis( ) - g_core1PauseStartMs) : 0u),
+  (unsigned long)g_core1PauseCount,
+  (unsigned long)g_core1PauseMaxMs,
+  (unsigned)g_core1PauseMaxMod0,
+  (unsigned)g_core1PauseLastMod0);
  }
  printDivider( );
 }
