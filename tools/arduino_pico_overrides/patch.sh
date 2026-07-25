@@ -60,11 +60,44 @@ fi
 echo "[patch] aplicando patched lwipopts.h"
 cp -v "$OVR/patched_headers/lwipopts.h" "$FW/include/"
 
-# 3. Invalida cache PIO (apenas lwip src)
+# 2b. Patch cirúrgico no handshake TLS (WiFiClientSecureBearSSL.cpp)
+#
+#   O upstream só tem prazo dentro de _run_until(), que reinicia o próprio
+#   contador a cada chamada. _wait_for_handshake() chama num laço sem prazo
+#   global, então setTLSConnectTimeout() limita UMA iteração e nunca o handshake
+#   inteiro. Contra um peer que aceita TCP mas não fecha o handshake, o Core 0
+#   gira ali para sempre — e os três optimistic_yield() do arquivo estão
+#   comentados, então nada cede CPU nem alimenta o watchdog: o dispositivo trava
+#   de vez em vez de retornar erro. Medido na bancada em 2026-07-25.
+#
+#   Aqui é .cpp, não header: PIO compila as libraries do source em cada build,
+#   então o patch propaga na próxima compilação (com o cache invalidado abaixo).
+BEARSSL="$FW/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp"
+BEARSSL_PATCH="$OVR/patches/wifi_tls_handshake_deadline.patch"
+if [ ! -f "$OVR/originals/WiFiClientSecureBearSSL.cpp" ]; then
+    mkdir -p "$OVR/originals"
+    cp -v "$BEARSSL" "$OVR/originals/"
+fi
+if grep -q "SIMUT override — bound the handshake as a whole" "$BEARSSL"; then
+    echo "[patch] handshake TLS já tem prazo global — nada a fazer"
+else
+    echo "[patch] aplicando prazo global no handshake TLS"
+    patch -p1 -d "$FW" < "$BEARSSL_PATCH"
+fi
+
+# 3. Invalida cache PIO (lwip src + lib WiFi)
+#    A lib WiFi tem cache próprio em lib*/WiFi/ — sem apagá-lo o .cpp patchado
+#    não recompila e o build "passa" ainda com o handshake sem prazo.
 for build in "$ROOT/.pio/build"/*/FrameworkArduino/lwip; do
     if [ -d "$build" ]; then
         rm -rf "$build"
         echo "[patch] cache invalidado: $build"
+    fi
+done
+for wifiobj in "$ROOT/.pio/build"/*/lib*/WiFi/WiFiClientSecureBearSSL.cpp.o; do
+    if [ -f "$wifiobj" ]; then
+        rm -f "$wifiobj"
+        echo "[patch] cache invalidado: $wifiobj"
     fi
 done
 

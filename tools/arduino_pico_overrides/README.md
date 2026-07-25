@@ -34,9 +34,40 @@ arduino_pico_overrides/
 ├── patch.sh                   ← applies overrides (idempotent)
 ├── restore.sh                 ← reverts to originals
 ├── originals/                 ← virgin backup (.gitignored, created by patch.sh)
-└── patched_headers/
-    └── lwipopts.h             ← SIMUT-tuned header
+├── patched_headers/
+│   └── lwipopts.h             ← SIMUT-tuned header
+└── patches/
+    └── wifi_tls_handshake_deadline.patch
 ```
+
+## TLS handshake deadline (2026-07-25)
+
+> **Turns a wedged device into a logged error.**
+
+`WiFiClientSecureBearSSL.cpp::_wait_for_handshake()` has no overall deadline.
+The only timeout lives inside `_run_until()`, which restarts its own
+`start = millis()` on every call, so `setTLSConnectTimeout()` bounds a single
+iteration and never the handshake. All three `optimistic_yield()` calls in that
+file are commented out in this port, so nothing yields and nothing feeds the
+watchdog either.
+
+Against a peer that accepts TCP but never completes the handshake — a
+telemetry port set to 8443 when the server listens on 443 was enough — Core 0
+spins there forever. Measured on the bench: with the watchdog armed the device
+rebooted every ~22 s; with it disarmed around the POST it froze permanently,
+USB still enumerated and both CLI and web dead, until a hardware reset.
+
+The patch carries one deadline across iterations, clamps the per-call timeout
+to the remaining budget, and feeds the watchdog inside the loop. The feed is
+safe **only** because the loop is now provably bounded — that is what lets
+`NET_TLS_HANDSHAKE_MS` exceed the RP2040's 8.388 s watchdog ceiling, which a
+real BearSSL handshake on a 133 MHz Cortex-M0+ needs.
+
+Unlike `lwipopts.h` this is a `.cpp`, applied with `patch(1)` rather than
+copied, so a framework update fails loudly instead of silently reverting. The
+WiFi library has its own PIO object cache (`lib*/WiFi/`) which `patch.sh`
+invalidates — without that the build succeeds while still linking the
+unpatched handshake.
 
 ## Changes Applied
 

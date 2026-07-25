@@ -26,6 +26,22 @@
 constexpr uint32_t NET_SOCKET_TIMEOUT_MS = 4000;
 
 /**
+ * Overall budget for a TLS handshake (ms), passed to setTLSConnectTimeout.
+ *
+ * Deliberately LARGER than WATCHDOG_TIMEOUT_MS, which is only safe because of
+ * the framework patch in tools/arduino_pico_overrides: upstream the handshake
+ * has no overall deadline at all (each _run_until restarts its own timer), so a
+ * peer that accepts TCP without completing the handshake wedges Core 0 forever
+ * — measured on the bench, and it took a wrong telemetry port to expose it.
+ * The patch bounds the loop AND feeds the watchdog inside it; a bounded loop is
+ * the only place where feeding does not mask a hang.
+ *
+ * Sized for a real handshake: BearSSL on a 133 MHz Cortex-M0+ spends seconds on
+ * the asymmetric crypto, so the old 4 s ceiling cut off legitimate connections.
+ */
+constexpr uint32_t NET_TLS_HANDSHAKE_MS = 15000;
+
+/**
  * Minimum acceptable RSSI for heavy network operations (dBm).
  * Below this threshold, telemetry and uploads are deferred to avoid
  * timeouts that freeze the main loop. Dashboard and sensors continue.
