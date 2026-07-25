@@ -46,7 +46,14 @@ enum TraceModule {
   * stall is inside restartCore1( ); these three names say which call. */
  MOD_C1_ENDLOCK = 14, /**< inside multicore_lockout_end_blocking (untimed mutex) */
  MOD_C1_RESET = 15,   /**< inside multicore_reset_core1 (ends in untimed fifo pop) */
- MOD_C1_LAUNCH = 16   /**< inside multicore_launch_core1 (untimed echo handshake) */
+ MOD_C1_LAUNCH = 16,  /**< inside multicore_launch_core1 (untimed echo handshake) */
+ /* The kill path returned, and the main loop has not reached its next marker.
+  * Before these two, that whole window traced as whatever the caller left
+  * behind, so "hung while killing Core 1" and "hung right after" were the same
+  * reading. MOD_LOOP also separates a stall in loop( ) from one in setup( ),
+  * which MOD_BOOT alone could not do. */
+ MOD_C1_KILLED = 17,  /**< Core 1 killed and relaunched; back in the caller */
+ MOD_LOOP = 18        /**< top of AppManager::loop, before the first task marker */
 };
 
 /** Structured log event codes for machine-parseable system logging. */

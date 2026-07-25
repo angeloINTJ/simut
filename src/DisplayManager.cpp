@@ -246,6 +246,11 @@ void DisplayManager::restartCore1( ) {
 	__atomic_store_n(&_core1HardReset, false, __ATOMIC_RELEASE);
 	_lastHeartbeat = millis( );
 	launchCore1IfAbsent( );
+	/* Past every untimed SDK call. A stall traced here happened AFTER the kill
+	 * sequence completed, which is a different bug from stalling inside it —
+	 * launchCore1IfAbsent restores the caller's module on its way out, so
+	 * without this the two were indistinguishable in the autopsy. */
+	TRACE_MOD(0, MOD_C1_KILLED);
 }
 
 void DisplayManager::setLanguage(int langId) {
@@ -455,6 +460,10 @@ void DisplayManager::pauseRendering(bool pause) {
 					__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
 					__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
 					_core1HardReset = true;
+					/* Same reason as at the end of restartCore1( ): mark the window
+					 * between "Core 1 is dead" and the caller's next marker, so the
+					 * flash op this pause exists for can be told apart from the kill. */
+					TRACE_MOD(0, MOD_C1_KILLED);
 					return;
 				}
 			}

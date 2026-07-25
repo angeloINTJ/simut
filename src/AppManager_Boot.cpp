@@ -94,6 +94,18 @@ void AppManager::setup( ) {
  _uart_init();
  _uart_mark('@');
 
+ /* FIRST STATEMENT WITH ANY SIDE EFFECT — do not move anything above it.
+  *
+  * The two forensic channels of this firmware live in watchdog scratch
+  * registers and both are destroyed within microseconds of this point:
+  * scratch[5] by the unconditional clear in the CYW43 block just below, and
+  * scratch[3] by the TraceScope inside startCore1( ) (whose destructor restores
+  * module 0 = "BOOT" out of freshly zeroed RAM) plus Core 1's own TRACE_MOD.
+  * Reading them any later than here yields this boot's own state — which is
+  * exactly what the rc15 autopsy did, reporting a constant
+  * "C0=[BOOT] C1=[DISPLAY] sc3=0x80088000" for every reboot class alike. */
+ LogManager::instance( ).captureBootSnapshot( );
+
  /* Always power-cycle CYW43 during setup().
 	 *
 	 * Previously: only power-cycled if scratch[5] == POST_OTA_APPLY_MAGIC
