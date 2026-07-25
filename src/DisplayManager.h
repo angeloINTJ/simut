@@ -119,6 +119,14 @@ public:
 	uint32_t getLastTouchTimestamp( ) const { return _lastTouchTimestamp; }
 	bool isCore1Ready( ) { return _core1Ready; }
 	void forceUnpause( );
+	/* Core-0-owned: a Core-1 launch is outstanding. Plain bool on purpose —
+	 * every launch/reset site is Core-0 code and Core 0 is cooperative.
+	 * g_core1Running cannot serve: Core 1 sets it only after victim_init, so
+	 * the launch->victim_init window reads "not running", which is exactly the
+	 * window a second launch must not fire in. */
+	bool _core1Launched = false;
+	void launchCore1IfAbsent( );   /**< Launch only when none is outstanding. */
+	void markCore1Down( );         /**< Publish "Core 1 is down" + drain the FIFO. */
 	/** Folds the finished pause into the max/owner accounting (diagnostics only). */
 	void accountPauseEnd( );
 	void restartCore1( );

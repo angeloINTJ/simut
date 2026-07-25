@@ -184,7 +184,44 @@ bool simutStateMutexHeldByCurrentCore( ) {
 }
 #endif
 
-void DisplayManager::startCore1( ) { g_core1Launches++; multicore_launch_core1(core1Entry); }
+/* THE single funnel for every Core-1 launch.
+ *
+ * multicore_launch_core1_raw( ) is an UNBOUNDED push/pop FIFO handshake: it
+ * repeats a 6-word sequence until Core 1 echoes each word. A core that is already
+ * running never echoes — its lockout victim handler drains the words and ignores
+ * anything that is not a request_id — so Core 0 spins there forever with the
+ * watchdog unfed. Field evidence: every [FTL] in the persisted log carries ctx=0,
+ * the HW-watchdog branch of the autopsy (Core 0 stalled, NOT Core 1 declared
+ * dead), and each one follows an APP_CORE1_DEAD — that is, follows a
+ * restartCore1( ). Funnelling every launch here turns that hang into a no-op. */
+void DisplayManager::launchCore1IfAbsent( ) {
+	if (_core1Launched) return;
+	_core1Launched = true;
+	g_core1Launches++;
+	{ LogManager::TraceScope _t(0, MOD_C1_LAUNCH); multicore_launch_core1(core1Entry); }
+}
+
+/* Call from EVERY site that resets Core 1, immediately before the reset.
+ *
+ * Draining Core 0's inbox first is the other half of the reboot fix:
+ * multicore_reset_core1( ) ends with an untimed multicore_fifo_pop_blocking( )
+ * and does NOT drain beforehand, so a stale word left by an aborted lockout
+ * handshake gets consumed in place of Core 1's post-reset zero (the SDK assert is
+ * a no-op in release). The real zero then stays queued and every later handshake
+ * is one word out of phase — which is how an untimed pop or launch waits forever.
+ *
+ * Clearing _core1Launched re-arms the funnel: miss it at a kill site and the
+ * matching recovery launch silently becomes a no-op, leaving the display dead for
+ * good. It deliberately does NOT touch _core1Ready, which also gates the RELEASE
+ * direction of pauseRendering( ) — the path that relaunches Core 1 after the
+ * lockout fallback. */
+void DisplayManager::markCore1Down( ) {
+	g_core1Running = 0;
+	_core1Launched = false;
+	multicore_fifo_drain( );
+}
+
+void DisplayManager::startCore1( ) { launchCore1IfAbsent( ); }
 
 void DisplayManager::restartCore1( ) {
 	/* Clean up lockout state before resetting Core 1.
@@ -196,15 +233,19 @@ void DisplayManager::restartCore1( ) {
 	 * "[DSP] Lockout stuck >10s" error on every flash operation. */
 	g_core1KillsHealth++;
 	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
-	multicore_lockout_end_blocking();
-	g_core1Running = 0;
-	multicore_reset_core1( );
+	{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking(); }
+	markCore1Down( );
+	{ LogManager::TraceScope _t(0, MOD_C1_RESET); multicore_reset_core1( ); }
 	delay(50);
 	mutex_init(&_stateMutex);
 	_pauseStartTime = 0;
 	_isPausedForFlash = false;
+	/* We relaunch below, so nothing is left for the unpause path to do.
+	 * Leaving this set made pauseRendering(false) take its hard-reset branch
+	 * and launch a SECOND time onto the core started here. */
+	__atomic_store_n(&_core1HardReset, false, __ATOMIC_RELEASE);
 	_lastHeartbeat = millis( );
-	g_core1Launches++; multicore_launch_core1(core1Entry);
+	launchCore1IfAbsent( );
 }
 
 void DisplayManager::setLanguage(int langId) {
@@ -382,7 +423,7 @@ void DisplayManager::pauseRendering(bool pause) {
 					/* Lockout state possibly corrupted: clean before
 					 * new attempt. end_blocking is idempotent if
 					 * mutex has already been released. */
-					multicore_lockout_end_blocking( );
+					{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
 					lastCleanup = millis( );
 					watchdog_update( );
 				}
@@ -402,9 +443,9 @@ void DisplayManager::pauseRendering(bool pause) {
 					g_core1StuckPhase = g_core1Phase;
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 					LogManager::instance( ).setCorePaused(1, true);
-					multicore_lockout_end_blocking( );
-					g_core1Running = 0;
-	multicore_reset_core1( );
+					{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
+					markCore1Down( );
+	{ LogManager::TraceScope _t(0, MOD_C1_RESET); multicore_reset_core1( ); }
 					/* Same rationale as requestQuietMode: Core 1 may have
 					 * died holding _stateMutex — reinit at kill time so
 					 * Core-0 setters can't block on a corpse-held mutex. */
@@ -457,10 +498,10 @@ void DisplayManager::pauseRendering(bool pause) {
 				_isPausedForFlash = false;
 				_lastHeartbeat = millis( );
 				LogManager::instance( ).setCorePaused(1, false);
-				g_core1Launches++; multicore_launch_core1(core1Entry);
+				launchCore1IfAbsent( );
 				/* core1Entry re-runs victim_init and sets _core1Ready. */
 			} else {
-				multicore_lockout_end_blocking( );
+				{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
 				/* Core 1 resumes here, but its first loop iteration — and so
 				 * the next _lastHeartbeat write — is microseconds away, while
 				 * _pauseStartTime has already been zeroed above. Stamp the
@@ -497,7 +538,7 @@ void DisplayManager::forceUnpause( ) {
 		__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 		accountPauseEnd( );
 		_pauseStartTime = 0;
-		multicore_lockout_end_blocking( );
+		{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
 		_lastHeartbeat = millis( );
 		_isPausedForFlash = false;
 		g_core1FlashSafeDepth = 0;
@@ -757,8 +798,8 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 	}
 	/* First level: hard-reset Core 1. Stops immediately; flash work safe. */
 	g_core1KillsQuiet++;
-	g_core1Running = 0;
-	multicore_reset_core1( );
+	markCore1Down( );
+	{ LogManager::TraceScope _t(0, MOD_C1_RESET); multicore_reset_core1( ); }
 	delay(50); /* Short pause for SSI/SPI to stabilize. */
 	/* Reinit _stateMutex AT KILL TIME, not only in releaseQuietMode:
 	 * if the quiesce timed out, Core 1 may have died holding it (render
@@ -804,7 +845,7 @@ void DisplayManager::releaseQuietMode( ) {
 	_lastHeartbeat = millis( );
 	__atomic_store_n(&_quietModeActive, false, __ATOMIC_RELEASE);
 	LogManager::instance( ).setCorePaused(1, false);
-	g_core1Launches++; multicore_launch_core1(core1Entry);
+	launchCore1IfAbsent( );
 	/* Core 1 will set _core1Ready=true after victim_init in loopCore1. */
 }
 

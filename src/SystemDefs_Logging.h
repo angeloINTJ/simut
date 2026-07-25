@@ -37,7 +37,16 @@ enum TraceModule {
  MOD_SAVE_CONFIG = 10, /**< inside StorageManager::saveConfiguration */
  MOD_LOG_FLASH = 11, /**< inside LogManager::writeCompactToFlash / flushPendingLogs */
  MOD_HIST_FLASH = 12, /**< inside StorageManager::writeHistoryEntryFlash */
- MOD_CORE1_LOCK = 13 /**< waiting for multicore_lockout ack (Core 1 responding) */
+ MOD_CORE1_LOCK = 13, /**< waiting for multicore_lockout ack (Core 1 responding) */
+ /* Kill-path steps. Every SDK call below can block WITHOUT a timeout, and a
+  * Core-0 hang is erased from RAM by the HW watchdog that follows — so the
+  * marker has to live in watchdog scratch[3], which is exactly what TRACE_MOD
+  * writes and what the boot autopsy prints back as C0=[...]. Every [FTL] in the
+  * log carries ctx=0 (Core 0 stalled) right after an APP_CORE1_DEAD, so the
+  * stall is inside restartCore1( ); these three names say which call. */
+ MOD_C1_ENDLOCK = 14, /**< inside multicore_lockout_end_blocking (untimed mutex) */
+ MOD_C1_RESET = 15,   /**< inside multicore_reset_core1 (ends in untimed fifo pop) */
+ MOD_C1_LAUNCH = 16   /**< inside multicore_launch_core1 (untimed echo handshake) */
 };
 
 /** Structured log event codes for machine-parseable system logging. */
