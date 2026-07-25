@@ -8,7 +8,23 @@
  #include <lwip/netif.h>
  #include <include/ClientContext.h>
  
-@@ -594,8 +595,40 @@
+@@ -486,6 +487,15 @@
+             return -1;
+         }
+ 
++        /* SIMUT override: feed here, not only in _wait_for_handshake.
++         * A single _run_until call spins for as long as _timeout allows, and
++         * the asymmetric crypto of a handshake on a 133 MHz Cortex-M0+ takes
++         * seconds — measured: feeding only between calls still tripped the
++         * RP2040's 8.388 s watchdog mid-call. This loop is bounded by the same
++         * _timeout, so the feed cannot mask a hang: whatever happens, the call
++         * returns within its budget. */
++        watchdog_update();
++
+         int state;
+         state = br_ssl_engine_current_state(_eng);
+         if (state & BR_SSL_CLOSED) {
+@@ -594,8 +604,40 @@
  }
  
  bool WiFiClientSecureCtx::_wait_for_handshake() {
