@@ -917,6 +917,9 @@ void CommandManager::renderMetrics( ) {
   consolePrintf (pt ? " Iteracoes: %lu | pior iteracao: %lu ms\n"
                     : " Iterations: %lu | worst iteration: %lu ms\n",
   (unsigned long)g_core1Iters, (unsigned long)g_core1IterMaxMs);
+  consolePrintf (pt ? " Lockout concedido: ultimo=%lu ms | pior=%lu ms\n"
+                    : " Lockout granted: last=%lu ms | worst=%lu ms\n",
+  (unsigned long)g_core1LockWaitLastMs, (unsigned long)g_core1LockWaitMaxMs);
   consolePrintf (pt ? " Pause: em voo=%lu ms | total=%lu | max=%lu ms (mod%u) | ultimo mod%u\n"
                     : " Pause: in flight=%lu ms | total=%lu | max=%lu ms (mod%u) | last mod%u\n",
   (unsigned long)(g_core1PauseStartMs ? (millis( ) - g_core1PauseStartMs) : 0u),
