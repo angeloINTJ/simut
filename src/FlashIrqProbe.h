@@ -113,6 +113,15 @@ extern volatile uint32_t g_core1PauseMaxMs;     /**< Longest pause held, end to 
 extern volatile uint8_t  g_core1PauseMaxMod0;   /**< Core-0 TraceModule that requested that longest pause */
 extern volatile uint8_t  g_core1PauseLastMod0;  /**< Core-0 TraceModule of the most recent pause request */
 
+/* Display fluidity, as a number.
+ *
+ * Heartbeat AGE only says "stalled or not" at the instant of a poll. These two
+ * give the shape of it: iterations completed (delta over an interval = the
+ * effective frame rate of the UI loop) and the worst single iteration, which is
+ * the stutter a user actually perceives. Both are written by Core 1 only. */
+extern volatile uint32_t g_core1Iters;          /**< loopCore1 iterations completed */
+extern volatile uint32_t g_core1IterMaxMs;      /**< Longest single iteration (stutter) */
+
 #ifdef __cplusplus
 }
 #endif

@@ -863,7 +863,19 @@ void DisplayManager::loopCore1( ) {
 		 * evidence that Core 1 is still completing loop iterations. Stamped
 		 * HERE only — Core 0 also writes _lastHeartbeat on pause/release, and
 		 * mirroring those would fake the very signal we need. */
-		g_core1HeartbeatMs = millis( );
+		/* Fluidity: iteration count (delta = UI frame rate) and the worst single
+		 * iteration (the perceived stutter). Measured from the previous stamp, so a
+		 * lockout freeze lands in the iteration that was interrupted. */
+		{
+			const uint32_t nowMs = millis( );
+			const uint32_t prevMs = g_core1HeartbeatMs;
+			if (prevMs != 0) {
+				const uint32_t iter = nowMs - prevMs;
+				if (iter > g_core1IterMaxMs) g_core1IterMaxMs = iter;
+			}
+			g_core1HeartbeatMs = nowMs;
+		}
+		g_core1Iters++;
 		g_core1UiMode = (uint8_t)_uiMode;
 		/* OR with simulated touch active flag.
 		 * handleTouch and mapTouchPoint check _simTouchActive to use
