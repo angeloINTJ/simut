@@ -228,10 +228,32 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  static int64_t g4vals[HIST_V4_MAX_MEASUREMENTS];
  size_t g4RdFilled = 0;
  uint32_t g4epoch;
- bool hm4 = true; uint32_t gb4 = millis();
+ bool hm4 = true;
 
+ /* Budget from _graphBudgetStart, not a fresh millis( ) per file.
+  *
+  * This loop used a per-file stamp, so GRAPH_BUDGET_MS was granted again for
+  * EVERY history file — 6 s each, against ~50 files on this bench. It never
+  * showed while queries matched, because pkg.count fills from the newest file
+  * and the loop exits almost immediately. A query that matches NOTHING (an
+  * empty hwId, a sensor whose hwId changed, a slot with no history) never
+  * fills it, so every file burned its full 6 s and the device rebooted long
+  * before the scan ended.
+  *
+  * The legacy loop below always used the render-wide stamp; this is the same
+  * semantics, and now the whole render is bounded once. */
  while (hm4 && pkg.count < GRAPH_WIDTH) {
- if (timeSince(gb4, GRAPH_BUDGET_MS)) break;
+ if (timeSince(_graphBudgetStart, GRAPH_BUDGET_MS)) {
+ LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 1, "");
+ break;
+ }
+ /* feedWdt( ) and not feedWatchdog( ): we are inside the flash read lock, and
+  * the latter runs the light yield, which allocates and can reach
+  * saveConfiguration( ). Same reason as the history scan in the web handler.
+  *
+  * The budget alone is not enough: 6 s of unfed scanning is already 40% of
+  * WATCHDOG_TIMEOUT_MS, and this loop is reached with the lock held. */
+ feedWdt( );
  size_t cons = 0;
  { StorageManager::ReadGuard rg(_storageMgr.get( ));
  /* A1: refill DEPOIS da falha do decode. Com o limiar antigo

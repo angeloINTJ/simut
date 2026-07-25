@@ -377,8 +377,20 @@ void DisplayManager::handleTouch( ) {
  /* Right corner: graph button (priority over alarm) — touch-down immediate */
  if (_topPanel.showMinMax && x > 266 && firstTouch) {
  _topPanel.showMinMax = false;
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = -1; ev.param = 0;
+ /* topSlotIdx, not -1. The hardcoded -1 was the sentinel from when this panel
+  * was always the ambient sensor; it now follows _topPanel.fixedIdx or mirrors
+  * the selection, and pullSnapshot keeps topSlotIdx in step with both.
+  *
+  * -1 did not crash — renderGraphOptimized bounds-checks it — it just left
+  * pkg.hwId empty, so no record in any history file matched and the graph came
+  * up "No Data". Worse, an hwId that matches nothing never fills pkg.count, so
+  * the V4 read loop ran to the end of every file and rebooted the device. The
+  * guard mirrors the bottom panel's, which had it all along. */
+ int topIdx = _sharedState.topSlotIdx;
+ if (topIdx >= 0 && topIdx <= 10) {
+ UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = topIdx; ev.param = 0;
  pushUiEvent(ev);
+ }
  return;
  }
 
