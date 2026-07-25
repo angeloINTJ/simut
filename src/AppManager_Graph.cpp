@@ -164,6 +164,20 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
 
  for (int d = daysToLoad - 1; d >= 0; d--) {
  if (pkg.count >= GRAPH_WIDTH) break;
+ /* Feed per file, and stop once the budget is gone.
+  *
+  * Without the break, a query that matches nothing kept opening every
+  * remaining day's file — exists( ) + open( ) + header parse + close, all
+  * LittleFS metadata walks off flash — after the record loops had already
+  * given up on the budget. Without the feed, none of that was covered: the
+  * feeds in this function sit AFTER the file loop, so the whole scan ran
+  * unfed against a watchdog whose real ceiling is 8388 ms, not the 30 s the
+  * WdtWindow above appears to grant (see WATCHDOG_TIMEOUT_MS). */
+ feedWdt( );
+ if (timeSince(_graphBudgetStart, GRAPH_BUDGET_MS)) {
+ LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 2, "");
+ break;
+ }
 
  time_t targetDay = effectiveEnd - (d * 86400);
  struct tm timeinfo;
@@ -335,6 +349,9 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  bool budgetExceeded = false;
 
  while (hasMore && pkg.count < GRAPH_WIDTH && !budgetExceeded) {
+ /* Same reason as the V4 loop: the budget bounds the work, it does not keep
+  * the watchdog alive during it. */
+ feedWdt( );
  if (timeSince(_graphBudgetStart, GRAPH_BUDGET_MS)) {
  LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 0, "");
  budgetExceeded = true;

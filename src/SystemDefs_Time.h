@@ -33,10 +33,24 @@ constexpr uint32_t BOOT_POLL_INTERVAL_MS = 50;
 
 /**
  * Hardware watchdog timeout in milliseconds.
- * Sized to cover the worst-case Flash write + WiFi scan
- * without triggering false reset during legitimate I/O operations.
+ *
+ * THIS IS THE CEILING THE CHIP CAN ENFORCE, and it is not a free choice.
+ * RP2040 errata E1 makes the watchdog counter decrement twice per tick, so the
+ * SDK loads `delay_ms * 2000` into a 24-bit register and clamps anything above
+ * WATCHDOG_LOAD_BITS (0xFFFFFF):
+ *
+ *     0xFFFFFF / 2000 = 8388 ms
+ *
+ * This constant read 15000 for a long time, and every request above the ceiling
+ * — including 15000 — silently landed on 8388 anyway. Nothing about the device's
+ * behaviour changes by writing the true number here, but a great deal of
+ * reasoning does: budgets sized "well under the 15 s watchdog" were in fact
+ * sized against 8.4 s, with half the margin their authors believed.
+ *
+ * Raising it has no effect. If more time is genuinely needed for an operation,
+ * the only mechanism that works is feeding the watchdog during it.
  */
-constexpr uint32_t WATCHDOG_TIMEOUT_MS = 15000;
+constexpr uint32_t WATCHDOG_TIMEOUT_MS = 8388;
 
 /** Missed touches tolerated before canceling AP hold. */
 constexpr int AP_HOLD_MAX_MISSED = 5;
