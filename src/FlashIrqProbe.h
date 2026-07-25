@@ -27,6 +27,10 @@
 
 #include <stdint.h>
 
+/* For the C1_PHASE stamp below: timer_hw is a fixed MMIO address, so reading it
+ * is a load with no call and no XIP fetch. */
+#include <hardware/structs/timer.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -93,10 +97,112 @@ enum Core1Phase {
 	C1P_THEME_MUTEX,     /* theme-change branch: blocking mutex + full repaint */
 	C1P_DASH_MUTEX,      /* dashboard alarm-nav branch: blocking mutex */
 	C1P_SNAPSHOT,        /* pullSnapshot (1 ms timeout, should never block) */
-	C1P_RENDER           /* render( ): SPI burst */
+	C1P_RENDER,          /* render( ): entered, before any branch */
+	/* ── Inside render( ), plus the two windows the old enum left uncovered ──
+	 *
+	 * `fase=9 (C1P_RENDER)` was as far as two sessions got, and it is weaker
+	 * evidence than it reads as: render( ) is ~180 lines dispatching six
+	 * different draw calls, and the value is STICKY, so it also covers the
+	 * window between render( ) returning and the next loop top. A freeze in the
+	 * alarm-flash repaint that runs just before it, or in the delay( ) at the
+	 * bottom of the loop, would both have printed 9 as well.
+	 *
+	 * These name each region so no value is a catch-all. */
+	C1P_ALARM_FLASH,     /* redrawAlarmFlash / restoreNormalDashboard (pre-render) */
+	C1P_R_BOOT,          /* render: boot-screen branch */
+	C1P_R_FULL,          /* render: full redraw (chrome + both panels + buttons) */
+	C1P_R_TOPBAR,        /* render: drawTopBar */
+	C1P_R_TOP_PANEL,     /* render: drawSlotPanel(top) */
+	C1P_R_MINMAX,        /* render: min/max timeout repaint */
+	C1P_R_BOT_PANEL,     /* render: drawSlotPanel(bottom) + drawBottomButtons */
+	C1P_R_ALARM,         /* render: alarm-mask change repaint */
+	C1P_LOOP_TAIL,       /* UI dispatch done, before the adaptive delay */
+	C1P_LOOP_DELAY,      /* inside delay( ) at the bottom of the loop */
+	C1P_COUNT
 };
 extern volatile uint8_t  g_core1Phase;          /**< Core1Phase: where Core 1 is right now */
 extern volatile uint8_t  g_core1StuckPhase;     /**< g_core1Phase at the instant the lockout gave up */
+
+/** Names for the phases above, so a stall reads as a place and not as a number. */
+extern const char* const C1P_NAMES[C1P_COUNT];
+
+/* ── Is Core 1 still MOVING? ───────────────────────────────────────────────
+ *
+ * The phase alone says where Core 1 is, never whether it is making progress —
+ * and that is the whole question for the 15 s freeze. Two live hypotheses
+ * remain, and this stamp separates them:
+ *
+ *   - starved of XIP: render( ) crawls but keeps reaching markers, so the AGE
+ *     of this stamp stays small while the iteration total grows to seconds;
+ *   - blocked on something: the next marker is never reached, so the age grows
+ *     to the full length of the stall and the phase names the line.
+ *
+ * g_core1PhaseSeq is the same signal sampled from outside: its delta between two
+ * `show metrics` polls is Core 1's progress rate, in phase transitions. */
+extern volatile uint32_t g_core1PhaseUs;        /**< timer_hw->timerawl at the last phase transition */
+extern volatile uint32_t g_core1PhaseSeq;       /**< Transitions so far (delta between polls = progress rate) */
+
+/* Worst age of that stamp — sampled BY CORE 0, which is the point.
+ *
+ * Core 1 cannot time its own freeze: anything it writes after the fact is
+ * missing exactly in the run that matters. That blind spot is not hypothetical
+ * here — `g_webHistScanMaxMs` reported a 308 ms worst case for a phase that was
+ * hanging for 15 s, because it is only written when the scan COMPLETES. So Core 0
+ * samples this stamp from feedWdt( ), which every flash-reading loop calls, and
+ * keeps the worst age it ever sees together with the phase Core 1 was in. */
+extern volatile uint32_t g_core1StallMaxUs;     /**< Longest age of g_core1PhaseUs seen by Core 0 */
+extern volatile uint8_t  g_core1StallPhase;     /**< Phase Core 1 was in at that moment */
+
+/* Worst time spent in each phase, accounted by Core 1 on the way OUT.
+ *
+ * Complements the pair above and shares its blind spot BY CONSTRUCTION: a phase
+ * that never ends is never accounted here. Read them together — this table
+ * localises a slow phase, g_core1StallMaxUs catches a stuck one. */
+extern volatile uint32_t g_core1PhaseMaxUs[C1P_COUNT];
+
+/** Core 0: sample the stamp above. Cheap, lock-free, safe from any context. */
+void core1StallSample(void);
+
+/* ── Uncached QSPI read latency, measured by Core 1 on itself ──────────────
+ *
+ * The live hypothesis for the freeze is that Core 0's continuous LittleFS reads
+ * starve Core 1's fetches through the XIP/QSPI path — which would make render( )
+ * crawl, not block. This tests it directly instead of by elimination: a fixed
+ * number of reads through XIP_NOCACHE_NOALLOC_BASE, an alias that bypasses the
+ * 16 KB cache and therefore always reaches the flash. Idle, the result is a
+ * hardware constant; if contention is real it inflates under load, and by how
+ * much says whether it can account for seconds of render time. */
+extern volatile uint32_t g_core1XipLastUs;      /**< Most recent probe */
+extern volatile uint32_t g_core1XipMaxUs;       /**< Worst probe since boot */
+
+/** Core 1: run one probe. Read-only flash traffic, no side effects. */
+void core1XipProbe(void);
+
+/* Set the phase, stamp when it changed, and account what the previous one cost.
+ *
+ * timer_hw->timerawl rather than millis( ): two MMIO loads and no 64-bit divide,
+ * cheap enough for the ten calls a single render( ) now makes. Core 1 is the only
+ * writer of all three; Core 0 only ever reads them, and a torn read across a
+ * transition cannot manufacture the multi-second age this exists to catch.
+ *
+ * The g_core1PhaseUs != 0 guard is not defensive, it is a correction: on the very
+ * first call there is no previous stamp, so `now - 0` is the raw timer, and the
+ * table reported the whole interval from power-on to Core 1's launch as the worst
+ * INIT — 7486 ms of pure artefact, on the same channel that is supposed to settle
+ * whether a phase really held for seconds. */
+#define C1_PHASE(p) do {                                                      \
+	const uint32_t _c1pNow  = timer_hw->timerawl;                             \
+	const uint8_t  _c1pPrev = g_core1Phase;                                   \
+	const uint32_t _c1pWas  = g_core1PhaseUs;                                 \
+	if (_c1pWas != 0 && _c1pPrev < C1P_COUNT) {                               \
+		const uint32_t _c1pHeld = _c1pNow - _c1pWas;                          \
+		if (_c1pHeld > g_core1PhaseMaxUs[_c1pPrev])                           \
+			g_core1PhaseMaxUs[_c1pPrev] = _c1pHeld;                           \
+	}                                                                         \
+	g_core1Phase   = (uint8_t)(p);                                            \
+	g_core1PhaseUs = _c1pNow ? _c1pNow : 1u;                                  \
+	g_core1PhaseSeq++;                                                        \
+} while (0)
 
 /* How long Core 1 is actually held frozen, and by whom.
  *

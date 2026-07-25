@@ -864,7 +864,7 @@ void DisplayManager::loopCore1( ) {
 	multicore_lockout_victim_init( );
 	_core1Ready = true;
 	g_core1Running = 1;   /* live from here: XIP fetches can now collide with flash */
-	g_core1Phase = C1P_INIT;
+	C1_PHASE(C1P_INIT);
 
 	/* Heap allocations preserved across resets.
 	 * Touch MUST be reinitialized on every launch — attachInterrupt connects
@@ -891,7 +891,7 @@ void DisplayManager::loopCore1( ) {
 	} else {
 		/* Post-reset resume: TFT retains last frame (ILI9341 memory).
 		 * Force delta render on next iteration to update data. */
-		g_core1Phase = C1P_RESUME_MUTEX;
+		C1_PHASE(C1P_RESUME_MUTEX);
 		mutex_enter_blocking(&_stateMutex);
 		_isDirty = true;
 		mutex_exit(&_stateMutex);
@@ -907,7 +907,7 @@ void DisplayManager::loopCore1( ) {
 
 		TRACE_MOD(1, MOD_DISPLAY);
 		TRACE_BEAT(1);
-		g_core1Phase = C1P_LOOP_TOP;
+		C1_PHASE(C1P_LOOP_TOP);
 
 		/* T1.1 SAFE PARK (stability wave 1): honored at the loop top —
 		 * guaranteed outside malloc/free, the event-queue spinlock and
@@ -915,7 +915,7 @@ void DisplayManager::loopCore1( ) {
 		 * here; the heartbeat keeps the Core-1 health watchdog quiet
 		 * during the (sub-200 ms) wait. */
 		if (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
-			g_core1Phase = C1P_PARK;
+			C1_PHASE(C1P_PARK);
 			__atomic_store_n(&_core1Parked, true, __ATOMIC_RELEASE);
 			while (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
 				_lastHeartbeat = millis( );
@@ -942,20 +942,24 @@ void DisplayManager::loopCore1( ) {
 		}
 		g_core1Iters++;
 		g_core1UiMode = (uint8_t)_uiMode;
+		/* One QSPI latency probe per iteration, on the same core whose fetches the
+		 * starvation hypothesis is about. ~30 us against a 15 ms iteration, so it
+		 * cannot itself be what makes the iteration slow. */
+		core1XipProbe( );
 		/* OR with simulated touch active flag.
 		 * handleTouch and mapTouchPoint check _simTouchActive to use
 		 * synthesized screen-space coords. Allows CLI 'touch sim X Y'
 		 * for automation (screenshot capture). */
-		g_core1Phase = C1P_TOUCH_READ;
+		C1_PHASE(C1P_TOUCH_READ);
 		_rawTouchState = _driver.ts->touched( ) ||
 		                 __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
 
 		/* Process touch BEFORE rendering for same-frame response */
-		g_core1Phase = C1P_TOUCH_HANDLE;
+		C1_PHASE(C1P_TOUCH_HANDLE);
 		handleTouch( );
 
 		if (_themeChanged) {
-			g_core1Phase = C1P_THEME_MUTEX;
+			C1_PHASE(C1P_THEME_MUTEX);
 			SystemState snap;
 			mutex_enter_blocking(&_stateMutex);
 			snap = _sharedState;
@@ -1022,7 +1026,7 @@ void DisplayManager::loopCore1( ) {
 				else if (navTarget < 8) _currentPage = 1;
 				else _currentPage = 2;
 				_alarmRotateTimer = millis( );
-				g_core1Phase = C1P_DASH_MUTEX;
+				C1_PHASE(C1P_DASH_MUTEX);
 				mutex_enter_blocking(&_stateMutex);
 				_isDirty = true;
 				mutex_exit(&_stateMutex);
@@ -1064,6 +1068,7 @@ void DisplayManager::loopCore1( ) {
 					_alarmFlashTimer = now;
 					_alarmFlashPhase = !_alarmFlashPhase;
 					if (!_webOverlayShown) {
+						C1_PHASE(C1P_ALARM_FLASH);
 						redrawAlarmFlash( );
 					}
 				}
@@ -1073,6 +1078,7 @@ void DisplayManager::loopCore1( ) {
 				_alarmFlashTimer = 0;
 				_alarmRotateTimer = 0;
 				if (!_webOverlayShown) {
+					C1_PHASE(C1P_ALARM_FLASH);
 					restoreNormalDashboard( );
 				}
 			}
@@ -1084,13 +1090,13 @@ void DisplayManager::loopCore1( ) {
 					_forceFullRedraw = true;
 					_isDirty = true;
 
-					g_core1Phase = C1P_SNAPSHOT;
-					if (pullSnapshot(currentSnapshot)) { g_core1Phase = C1P_RENDER; render(currentSnapshot); }
+					C1_PHASE(C1P_SNAPSHOT);
+					if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
 				}
 
 			} else {
-				g_core1Phase = C1P_SNAPSHOT;
-				if (pullSnapshot(currentSnapshot)) { g_core1Phase = C1P_RENDER; render(currentSnapshot); }
+				C1_PHASE(C1P_SNAPSHOT);
+				if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
 			}
 		}
 		else if (_uiMode == MODE_GRAPH_LOADING) {
@@ -1108,6 +1114,8 @@ void DisplayManager::loopCore1( ) {
 		else if (_uiMode == MODE_CALENDAR) {
 			if (_repaintCalendar) { drawCalendarScreen( ); _repaintCalendar = false; }
 		}
+
+		C1_PHASE(C1P_LOOP_TAIL);
 
 		/* Revert header to date/time after 3s of showing the name */
 		if ((_uiMode == MODE_GRAPH_VIEW || _uiMode == MODE_GRAPH_DETAIL)
@@ -1196,6 +1204,12 @@ void DisplayManager::loopCore1( ) {
 		 */
 		bool touchActive = _rawTouchState;
 		bool repaintPending = _isDirty || _repaintGraph || _repaintSettings || _repaintLoading;
+		/* Last two markers of the iteration. Without them a freeze here reads as
+		 * the previous phase — which for the dashboard is C1P_RENDER, the exact
+		 * reading the stall investigation has been working from. delay( ) gets its
+		 * own because it is the one call at the bottom of this loop that is not
+		 * ours: whether it can block on Core 1 was never established. */
+		C1_PHASE(C1P_LOOP_DELAY);
 		delay(touchActive || repaintPending ? 1 : 2);
 	}
 }
@@ -1234,6 +1248,7 @@ void DisplayManager::render(const SystemState& state) {
  st.topSlotIdx = st.selectedSlotIdx;
  }
 	if (state.isBooting) {
+		C1_PHASE(C1P_R_BOOT);
 		/* _langChanged forces fullRedraw to retranslate bootLogs already
 		 * shown in EN before .lng loaded. */
 		bool langJustChanged = _langChanged;
@@ -1328,6 +1343,7 @@ void DisplayManager::render(const SystemState& state) {
 
 	bool full = _forceFullRedraw;
 	if (full) {
+		C1_PHASE(C1P_R_FULL);
 		drawInterfaceFixed( );
 		drawTopBar(state);
 
@@ -1349,6 +1365,7 @@ void DisplayManager::render(const SystemState& state) {
 	    _webNotifyStartMs > 0 ||
 	    _alarmSilenced ||
 	    _pktArrowState == 3) {
+		C1_PHASE(C1P_R_TOPBAR);
 		drawTopBar(state);
 	}
 
@@ -1364,6 +1381,7 @@ void DisplayManager::render(const SystemState& state) {
 		    abs(st.topSlotHum - _lastRenderedState.topSlotHum) > 0.01 ||
 		    st.topSlotValid != _lastRenderedState.topSlotValid ||
 		    st.topSlotIdx != _lastRenderedState.topSlotIdx) {
+			C1_PHASE(C1P_R_TOP_PANEL);
 			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
 		}
 	}
@@ -1371,6 +1389,7 @@ void DisplayManager::render(const SystemState& state) {
 	/* Return panels to normal mode after 30s without touch */
 	if ((_topPanel.showMinMax || _bottomPanel.showMinMax) &&
 	    timeSince(_lastTouchTime, 30000)) {
+		C1_PHASE(C1P_R_MINMAX);
 		if (_topPanel.showMinMax) {
 			_topPanel.showMinMax = false;
 			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
@@ -1387,6 +1406,7 @@ void DisplayManager::render(const SystemState& state) {
 	bool bTempChanged = (abs(st.slotTemp - _lastRenderedState.slotTemp) > 0.01) || (st.slotValid != _lastRenderedState.slotValid);
 
 	if (slotChanged || bNameChanged || (!_bottomPanel.showMinMax && bTempChanged)) {
+		C1_PHASE(C1P_R_BOT_PANEL);
 		if (slotChanged) {
 			drawBottomButtons(state.selectedSlotIdx, false);
 		}
@@ -1396,6 +1416,7 @@ void DisplayManager::render(const SystemState& state) {
 
 	/* Detect alarm state change and redraw buttons + panels */
 	if (_alarmSlotMask != _prevAlarmSlotMask) {
+		C1_PHASE(C1P_R_ALARM);
 		drawBottomButtons(state.selectedSlotIdx, true);
 		if (!_topPanel.showMinMax) {
 			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);

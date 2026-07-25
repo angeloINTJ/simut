@@ -27,6 +27,7 @@
 
 #include <stddef.h>
 
+#include <hardware/regs/addressmap.h>  /* XIP_NOCACHE_NOALLOC_BASE, for the QSPI probe */
 #include <hardware/structs/timer.h>
 #include <pico/platform.h>
 
@@ -65,6 +66,66 @@ volatile uint32_t g_core1IterMaxMs        = 0;
 volatile uint32_t g_core1LockWaitMaxMs    = 0;
 volatile uint32_t g_webHistScanMaxMs      = 0;
 volatile uint32_t g_core1LockWaitLastMs   = 0;
+
+volatile uint32_t g_core1PhaseUs          = 0;
+volatile uint32_t g_core1PhaseSeq         = 0;
+volatile uint32_t g_core1StallMaxUs       = 0;
+volatile uint8_t  g_core1StallPhase       = 0xFF;
+volatile uint32_t g_core1PhaseMaxUs[C1P_COUNT] = {0};
+volatile uint32_t g_core1XipLastUs        = 0;
+volatile uint32_t g_core1XipMaxUs         = 0;
+
+/* Kept in step with enum Core1Phase. Short on purpose: these are printed in a
+ * `show metrics` block that is already dense, and parsed by the bench scripts. */
+const char* const C1P_NAMES[C1P_COUNT] = {
+	"INIT", "RESUME_MTX", "LOOP_TOP", "PARK", "TOUCH_RD", "TOUCH_HDL",
+	"THEME_MTX", "DASH_MTX", "SNAPSHOT", "RENDER",
+	"ALARM_FLASH", "R_BOOT", "R_FULL", "R_TOPBAR", "R_TOP_PANEL",
+	"R_MINMAX", "R_BOT_PANEL", "R_ALARM", "LOOP_TAIL", "LOOP_DELAY"
+};
+static_assert(sizeof(C1P_NAMES) / sizeof(C1P_NAMES[0]) == C1P_COUNT,
+              "C1P_NAMES must name every Core1Phase");
+
+/* Ordinary flash-resident code, unlike the two wrappers below: this runs from
+ * Core 0's normal loops with XIP up, never from inside a flash operation. */
+void core1StallSample(void) {
+	if (!g_core1Running) return;
+	/* C1P_INIT is startup, not a stall: driver allocations, the ILI9341 hardware
+	 * reset and the first full paint legitimately take a few hundred ms, and
+	 * counting them put a ~441 ms floor under a metric whose whole job is to
+	 * report what the LOAD did. Core 1 hanging in INIT still shows up — in the
+	 * per-phase table and in the heartbeat age. */
+	if (g_core1Phase == C1P_INIT) return;
+	const uint32_t stamp = g_core1PhaseUs;
+	if (stamp == 0) return;                    /* Core 1 has not stamped yet */
+	const uint32_t age = timer_hw->timerawl - stamp;
+	/* timerawl wraps every ~71 min, and a Core 1 that has been dead longer than
+	 * that would report a garbage age as a record. The soft panic fires at 15 s,
+	 * so nothing legitimate lands above this bound. */
+	if (age > 60u * 1000u * 1000u) return;
+	if (age > g_core1StallMaxUs) {
+		g_core1StallMaxUs = age;
+		g_core1StallPhase = g_core1Phase;
+	}
+}
+
+/* 32 reads 4 KB apart through the no-cache alias: the stride keeps them on
+ * distinct flash pages and the alias keeps the 16 KB cache out of the number, so
+ * each one is a real QSPI transaction. The window starts 128 KB into the image —
+ * inside the application, so the traffic is read-only and has no side effects.
+ * `sink` is volatile so the loop cannot be optimised away. */
+void core1XipProbe(void) {
+	static volatile uint32_t sink = 0;
+	const volatile uint8_t* const p =
+		(const volatile uint8_t*)(XIP_NOCACHE_NOALLOC_BASE + 0x20000u);
+	const uint32_t t0 = timer_hw->timerawl;
+	uint32_t acc = 0;
+	for (uint32_t i = 0; i < 32u; i++) acc += p[i * 4096u];
+	const uint32_t dt = timer_hw->timerawl - t0;
+	sink = acc;
+	g_core1XipLastUs = dt;
+	if (dt > g_core1XipMaxUs) g_core1XipMaxUs = dt;
+}
 
 void __real_flash_range_erase(uint32_t offset, size_t count);
 void __real_flash_range_program(uint32_t offset, const uint8_t* data, size_t count);
