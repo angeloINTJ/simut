@@ -18,6 +18,7 @@
 #include "DisplayManager.h" /* F-LANGPACK Etapa 3: getActiveHelpText */
 #include "MetricsManager.h"
 #include "FlashIrqProbe.h" /* T0.1: janela real de IRQ-off no show metrics */
+#include <pico/multicore.h> /* multicore_lockout_victim_is_initialized no bloco [CORE 1] */
 #include "StorageManager.h" /* getBoardSerialNumber em show system info */
 #include "HelpLicenseEN.h" /* HELP_TEXT_EN inline em PROGMEM */
 #include "sensors/SensorHelpers.h" /* sensorTypeName, sensorHasChannel, SensorFormat */
@@ -873,6 +874,43 @@ void CommandManager::renderMetrics( ) {
                     : " Core1 exposed: %lu ops | worst: %lu us\n",
   (unsigned long)g_flashIrqExposed,
   (unsigned long)g_flashIrqExposedMaxUs);
+ }
+
+ /* [CORE 1] — lifecycle observability.
+  *
+  * Until this block existed, a STALLED display looked exactly like a healthy one
+  * from outside: the stuck-lockout fallback only reached a Serial.println and
+  * every kill/relaunch was silent. Every automated download test we ran reported
+  * PASS without ever establishing that Core 1 was alive.
+  *
+  * How to read it: `beat` is the age of the stamp Core 1 writes once per loop
+  * iteration — tens of ms is healthy, seconds means frozen, killed or parked.
+  * `victima` is the SDK lockout victim (cleared by multicore_reset_core1, set by
+  * loopCore1): ready=1 with victima=0 is the window where a lockout attempt can
+  * never succeed. The kill counters split by cause, so a rising `lockout` names
+  * the stuck-handshake path rather than the health watchdog. */
+ {
+  const uint32_t beatAge = millis( ) - g_core1HeartbeatMs;
+  consolePrintln(pt ? " [CORE 1]" : " [CORE 1]");
+  consolePrintf (pt ? " Heartbeat: %lu ms atras | UI mode: %u\n"
+                    : " Heartbeat: %lu ms ago | UI mode: %u\n",
+  (unsigned long)beatAge, (unsigned)g_core1UiMode);
+  consolePrintf (pt ? " Rodando: %u | victima lockout: %u | profundidade: %ld\n"
+                    : " Running: %u | lockout victim: %u | depth: %ld\n",
+  (unsigned)g_core1Running,
+  (unsigned)(multicore_lockout_victim_is_initialized(1) ? 1 : 0),
+  (long)g_core1FlashSafeDepth);
+  consolePrintf (pt ? " Lockout travado: %lu | launches: %lu\n"
+                    : " Lockout stuck: %lu | launches: %lu\n",
+  (unsigned long)g_core1LockoutStuck, (unsigned long)g_core1Launches);
+  consolePrintf (pt ? " Kills lockout: %lu | saude: %lu | quiet: %lu\n"
+                    : " Kills lockout: %lu | health: %lu | quiet: %lu\n",
+  (unsigned long)g_core1KillsLockout,
+  (unsigned long)g_core1KillsHealth,
+  (unsigned long)g_core1KillsQuiet);
+  consolePrintf (pt ? " Ultimo stuck: mod0=%u parked=%u\n"
+                    : " Last stuck: mod0=%u parked=%u\n",
+  (unsigned)g_core1StuckMod0, (unsigned)g_core1StuckParked);
  }
  printDivider( );
 }

@@ -53,6 +53,30 @@ extern volatile int32_t  g_core1FlashSafeDepth; /**< >0 => Core 1 locked out or 
 extern volatile uint32_t g_flashIrqExposed;     /**< Ops with Core 1 running and unfrozen */
 extern volatile uint32_t g_flashIrqExposedMaxUs;/**< Longest such window */
 
+/* ── Core-1 lifecycle observability ────────────────────────────────────────
+ *
+ * The Core-1 lifecycle was invisible in the field. A stuck lockout only ever
+ * reached a `Serial.println`, and every kill/relaunch was silent, so a STALLED
+ * display was indistinguishable from a healthy one in `show metrics` — and in
+ * every automated download test, all of which reported PASS while never
+ * checking that Core 1 was alive at all.
+ *
+ * These are plain globals for the same reason as the probe counters above:
+ * `show metrics` is assembled in CommandManager, which holds no DisplayManager
+ * reference, and the increments sit on paths where the singleton accessor is
+ * not worth the coupling. Read-mostly, single-writer per counter.
+ *
+ * Diagnostics only — nothing here changes behaviour. */
+extern volatile uint32_t g_core1HeartbeatMs;    /**< millis( ) stamped by Core 1 each loop; age = liveness */
+extern volatile uint8_t  g_core1UiMode;         /**< _uiMode as last seen by Core 1 (resolves touch-probe ambiguity) */
+extern volatile uint32_t g_core1LockoutStuck;   /**< Lockout retry budget exhausted (3 s) */
+extern volatile uint32_t g_core1KillsLockout;   /**< Hard resets from the lockout timeout (P1) */
+extern volatile uint32_t g_core1KillsHealth;    /**< restartCore1( ) from the health watchdog (P2) */
+extern volatile uint32_t g_core1KillsQuiet;     /**< Quiet-mode resets (P3) */
+extern volatile uint32_t g_core1Launches;       /**< multicore_launch_core1 calls actually issued */
+extern volatile uint8_t  g_core1StuckMod0;      /**< Core-0 TraceModule when the lockout got stuck (names the pause requester) */
+extern volatile uint8_t  g_core1StuckParked;    /**< 1 = Core 1 had ACKed the quiesce; 0 = quiesce also timed out */
+
 #ifdef __cplusplus
 }
 #endif
