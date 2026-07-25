@@ -77,6 +77,27 @@ extern volatile uint32_t g_core1Launches;       /**< multicore_launch_core1 call
 extern volatile uint8_t  g_core1StuckMod0;      /**< Core-0 TraceModule when the lockout got stuck (names the pause requester) */
 extern volatile uint8_t  g_core1StuckParked;    /**< 1 = Core 1 had ACKed the quiesce; 0 = quiesce also timed out */
 
+/* Where Core 1 is executing, sampled continuously by Core 1 itself.
+ *
+ * `parked=0` at every stuck lockout proved Core 1 is genuinely blocked for
+ * seconds during a download rather than ignoring the SDK handshake — but not
+ * WHERE. These phases answer that: g_core1StuckPhase is the snapshot taken at
+ * the instant the lockout gave up, which is the moment that matters. */
+enum Core1Phase {
+	C1P_INIT = 0,        /* entry: driver allocations, ts->begin, first paint */
+	C1P_RESUME_MUTEX,    /* post-reset resume: mutex_enter_blocking(_stateMutex) */
+	C1P_LOOP_TOP,        /* top of the render loop */
+	C1P_PARK,            /* parked for the quiesce handshake */
+	C1P_TOUCH_READ,      /* XPT2046 SPI read */
+	C1P_TOUCH_HANDLE,    /* handleTouch (may draw) */
+	C1P_THEME_MUTEX,     /* theme-change branch: blocking mutex + full repaint */
+	C1P_DASH_MUTEX,      /* dashboard alarm-nav branch: blocking mutex */
+	C1P_SNAPSHOT,        /* pullSnapshot (1 ms timeout, should never block) */
+	C1P_RENDER           /* render( ): SPI burst */
+};
+extern volatile uint8_t  g_core1Phase;          /**< Core1Phase: where Core 1 is right now */
+extern volatile uint8_t  g_core1StuckPhase;     /**< g_core1Phase at the instant the lockout gave up */
+
 #ifdef __cplusplus
 }
 #endif

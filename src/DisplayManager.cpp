@@ -384,6 +384,7 @@ void DisplayManager::pauseRendering(bool pause) {
 					 * parked=0 means Core 1 never reached its park point. Different bugs. */
 					g_core1StuckMod0 = LogManager::instance( ).getModule(0);
 					g_core1StuckParked = __atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) ? 1 : 0;
+					g_core1StuckPhase = g_core1Phase;
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 					LogManager::instance( ).setCorePaused(1, true);
 					multicore_lockout_end_blocking( );
@@ -776,6 +777,7 @@ void DisplayManager::loopCore1( ) {
 	multicore_lockout_victim_init( );
 	_core1Ready = true;
 	g_core1Running = 1;   /* live from here: XIP fetches can now collide with flash */
+	g_core1Phase = C1P_INIT;
 
 	/* Heap allocations preserved across resets.
 	 * Touch MUST be reinitialized on every launch — attachInterrupt connects
@@ -802,6 +804,7 @@ void DisplayManager::loopCore1( ) {
 	} else {
 		/* Post-reset resume: TFT retains last frame (ILI9341 memory).
 		 * Force delta render on next iteration to update data. */
+		g_core1Phase = C1P_RESUME_MUTEX;
 		mutex_enter_blocking(&_stateMutex);
 		_isDirty = true;
 		mutex_exit(&_stateMutex);
@@ -817,6 +820,7 @@ void DisplayManager::loopCore1( ) {
 
 		TRACE_MOD(1, MOD_DISPLAY);
 		TRACE_BEAT(1);
+		g_core1Phase = C1P_LOOP_TOP;
 
 		/* T1.1 SAFE PARK (stability wave 1): honored at the loop top —
 		 * guaranteed outside malloc/free, the event-queue spinlock and
@@ -824,6 +828,7 @@ void DisplayManager::loopCore1( ) {
 		 * here; the heartbeat keeps the Core-1 health watchdog quiet
 		 * during the (sub-200 ms) wait. */
 		if (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+			g_core1Phase = C1P_PARK;
 			__atomic_store_n(&_core1Parked, true, __ATOMIC_RELEASE);
 			while (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
 				_lastHeartbeat = millis( );
@@ -842,13 +847,16 @@ void DisplayManager::loopCore1( ) {
 		 * handleTouch and mapTouchPoint check _simTouchActive to use
 		 * synthesized screen-space coords. Allows CLI 'touch sim X Y'
 		 * for automation (screenshot capture). */
+		g_core1Phase = C1P_TOUCH_READ;
 		_rawTouchState = _driver.ts->touched( ) ||
 		                 __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
 
 		/* Process touch BEFORE rendering for same-frame response */
+		g_core1Phase = C1P_TOUCH_HANDLE;
 		handleTouch( );
 
 		if (_themeChanged) {
+			g_core1Phase = C1P_THEME_MUTEX;
 			SystemState snap;
 			mutex_enter_blocking(&_stateMutex);
 			snap = _sharedState;
@@ -915,6 +923,7 @@ void DisplayManager::loopCore1( ) {
 				else if (navTarget < 8) _currentPage = 1;
 				else _currentPage = 2;
 				_alarmRotateTimer = millis( );
+				g_core1Phase = C1P_DASH_MUTEX;
 				mutex_enter_blocking(&_stateMutex);
 				_isDirty = true;
 				mutex_exit(&_stateMutex);
@@ -976,11 +985,13 @@ void DisplayManager::loopCore1( ) {
 					_forceFullRedraw = true;
 					_isDirty = true;
 
-					if (pullSnapshot(currentSnapshot)) render(currentSnapshot);
+					g_core1Phase = C1P_SNAPSHOT;
+					if (pullSnapshot(currentSnapshot)) { g_core1Phase = C1P_RENDER; render(currentSnapshot); }
 				}
 
 			} else {
-				if (pullSnapshot(currentSnapshot)) render(currentSnapshot);
+				g_core1Phase = C1P_SNAPSHOT;
+				if (pullSnapshot(currentSnapshot)) { g_core1Phase = C1P_RENDER; render(currentSnapshot); }
 			}
 		}
 		else if (_uiMode == MODE_GRAPH_LOADING) {

@@ -908,9 +908,12 @@ void CommandManager::renderMetrics( ) {
   (unsigned long)g_core1KillsLockout,
   (unsigned long)g_core1KillsHealth,
   (unsigned long)g_core1KillsQuiet);
-  consolePrintf (pt ? " Ultimo stuck: mod0=%u parked=%u\n"
-                    : " Last stuck: mod0=%u parked=%u\n",
-  (unsigned)g_core1StuckMod0, (unsigned)g_core1StuckParked);
+  consolePrintf (pt ? " Ultimo stuck: mod0=%u parked=%u fase=%u\n"
+                    : " Last stuck: mod0=%u parked=%u phase=%u\n",
+  (unsigned)g_core1StuckMod0, (unsigned)g_core1StuckParked,
+  (unsigned)g_core1StuckPhase);
+  consolePrintf (pt ? " Fase atual: %u\n" : " Current phase: %u\n",
+  (unsigned)g_core1Phase);
  }
  printDivider( );
 }
