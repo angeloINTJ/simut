@@ -958,7 +958,21 @@ void DisplayManager::loopCore1( ) {
 	_driver.ts->setRotation(3);
 
 	if (_driver.firstInit) {
-		_driver.tft->begin( );
+		/* Explicit clock. begin( ) with no argument took Adafruit_ILI9341's
+		 * SPI_DEFAULT_FREQ, and RP2040 matches none of that header's platform arms
+		 * so it landed on the generic 24 MHz — which the hardware cannot produce.
+		 * The PL022 divider only yields clk_peri / (prescale * postdiv), and with
+		 * clk_peri at 125 MHz the reachable ladder is 62.5 / 31.25 / 20.83 / 15.6.
+		 * A 24 MHz request therefore ran at 20.83 MHz, one rung below a free 1.5x.
+		 *
+		 * 31.25 MHz is the conservative rung: it is above Adafruit's own default
+		 * for every other platform and well inside what ILI9341 modules take, but
+		 * this is a breadboard with jumper wires, so it is a named constant and a
+		 * one-line revert if the panel shows artefacts. 62.5 MHz is the PL022
+		 * ceiling and would halve the wire time again — do not raise it without
+		 * looking at the screen. */
+		constexpr uint32_t TFT_SPI_HZ = 31250000u;
+		_driver.tft->begin(TFT_SPI_HZ);
 		_driver.tft->setRotation(3);
 		_driver.tft->fillScreen(C_BG_MAIN);
 		if (!_sharedState.isBooting) drawInterfaceFixed( );
