@@ -18,6 +18,34 @@
 #include "StorageManager.h"
 #include "sensors/SensorPanelDispatch.h"
 
+/* ── Dashboard layout: single source of truth ──────────────────────────────
+ *
+ * These were function-local constants and bare literals spread over three
+ * drawers. They are collected here because drawInterfaceFixed( ) now paints
+ * exactly the background these four widgets do NOT cover, which turns the
+ * geometry into a shared invariant:
+ *
+ *   INVARIANT: the four widget rectangles below, plus the gaps and gutters
+ *   drawInterfaceFixed( ) fills, must tile the whole 320x240 screen. Move or
+ *   resize any widget and drawInterfaceFixed( ) must move with it, or the
+ *   uncovered strip keeps whatever the previous screen left there.
+ *
+ * Coverage, for reference: rows 0-28 top bar, 35-109 top card, 115-189 bottom
+ * card, 195-235 button bar; cards span x 4-315. */
+namespace {
+constexpr int16_t DASH_W        = 320;
+constexpr int16_t DASH_H        = 240;
+constexpr int16_t TOPBAR_H      = 29;   /* rows 0 .. 28 */
+constexpr int16_t CARD_X        = 4;
+constexpr int16_t CARD_W        = 312;  /* x 4 .. 315 */
+constexpr int16_t CARD_H        = 75;
+constexpr int16_t CARD_R        = 12;
+constexpr int16_t CARD_TOP_Y    = 35;   /* rows 35 .. 109 */
+constexpr int16_t CARD_BOTTOM_Y = 115;  /* rows 115 .. 189 */
+constexpr int16_t BTNBAR_Y      = 195;  /* rows 195 .. 235 */
+constexpr int16_t BTNBAR_H      = 41;
+}  /* namespace */
+
 void DisplayManager::fixCardCorners(int16_t x, int16_t y, int16_t w,
  int16_t h, int16_t r,
  uint16_t borderColor) {
@@ -143,9 +171,40 @@ void DisplayManager::restoreNormalDashboard( ) {
 }
 
 void DisplayManager::drawInterfaceFixed( ) {
+ if (!_driver.tft) return;
+ /* Paints ONLY the background the four dashboard widgets do not cover — see the
+  * layout invariant at the top of this file.
+  *
+  * This was `fillScreen(C_BG_MAIN)`, and measurement is why it is not any more.
+  * A full redraw pushes 146,000 pixels to a 76,800-pixel screen, and 69,160 of
+  * fillScreen's own pixels were overwritten by the four blits within
+  * milliseconds. Worse, they went out through Adafruit_SPITFT::writeColor, whose
+  * RP2040 branch issues one spi_write_blocking per pixel — each ending in a full
+  * shift-register drain, so nothing pipelines (~1.98 us/px against 0.768 us of
+  * wire). That one discarded fill was ~150 ms of the 254 ms measured for R_FULL.
+  *
+  * What is left is 7,640 pixels: four horizontal gaps and the two 4-px gutters
+  * beside the 312-wide cards. Still the slow path, but 10% of the pixels.
+  *
+  * Every caller paints the full widget set immediately after (loopCore1 first
+  * init, the theme-change branch, and render( )'s full-redraw path), so the
+  * union still covers the screen and nothing stale survives. */
+ constexpr int16_t CARD_BOT = CARD_BOTTOM_Y + CARD_H;   /* 190 */
 
+ /* Horizontal gaps between the widgets. */
+ _driver.tft->fillRect(0, TOPBAR_H, DASH_W, CARD_TOP_Y - TOPBAR_H, C_BG_MAIN);
+ _driver.tft->fillRect(0, CARD_TOP_Y + CARD_H, DASH_W,
+                       CARD_BOTTOM_Y - (CARD_TOP_Y + CARD_H), C_BG_MAIN);
+ _driver.tft->fillRect(0, CARD_BOT, DASH_W, BTNBAR_Y - CARD_BOT, C_BG_MAIN);
+ _driver.tft->fillRect(0, BTNBAR_Y + BTNBAR_H, DASH_W,
+                       DASH_H - (BTNBAR_Y + BTNBAR_H), C_BG_MAIN);
 
- _driver.tft->fillScreen(C_BG_MAIN);
+ /* Gutters either side of the cards, which are narrower than the screen. The
+  * span deliberately runs straight through the 110-114 gap already filled
+  * above: the overlap is 40 pixels and costs less than getting it exact. */
+ _driver.tft->fillRect(0, CARD_TOP_Y, CARD_X, CARD_BOT - CARD_TOP_Y, C_BG_MAIN);
+ _driver.tft->fillRect(CARD_X + CARD_W, CARD_TOP_Y, DASH_W - (CARD_X + CARD_W),
+                       CARD_BOT - CARD_TOP_Y, C_BG_MAIN);
 }
 
 void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w, int16_t h) {
@@ -208,7 +267,7 @@ void DisplayManager::endScreenRender( ) {
 
 void DisplayManager::drawTopBar(const SystemState& state) {
  if(!_driver.canvas) return;
- const int W = 320, H = 29;
+ const int W = DASH_W, H = TOPBAR_H;
  _driver.canvas->fillScreen(C_BG_MAIN);
 
 
@@ -446,9 +505,8 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  unitColor = RGB565(255, 255, 255);
  }
 
- /* Dash panel card with double border. Top=Y35, Bottom=Y115. */
- static constexpr int16_t CARD_X = 4;
- static constexpr int16_t CARD_W = 312, CARD_H = 75, CARD_R = 12;
+ /* Geometry lives at the top of this file: drawInterfaceFixed( ) fills the
+  * complement of these rectangles, so the two must not drift apart. */
 
 
  bool slotAlarm = isSlotAlarming(slotIdx) && _alarmFlashPhase;
@@ -568,7 +626,9 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  _driver.canvas->setCursor((CARD_W - (int)ew) / 2, 28);
  _driver.canvas->print(tr(TR_ERROR_LBL));
  } else {
- _driver.canvas->fillScreen(panelBg);
+ /* No fillScreen here: the one above already cleared the canvas to panelBg and
+  * nothing has drawn into it since — this was a second identical 14,400-pixel
+  * fill, ~0.8 ms per panel thrown away on every redraw. */
  sensorRenderPanel(_driver.canvas, type, t, h, p, isValid, CARD_W, true,
                    isRedPhase, panelBg,
                    simutFont24pt, simutFont12pt, simutFont9pt,
@@ -737,7 +797,7 @@ void DisplayManager::drawBottomButtons(int selectedIdx, bool forceRedraw) {
  int n = buildDashLayout(btns, &totalPages, &paging);
 
  /* Detects alarms in ACTIVE slots on other pages (to color the page btn) */
- if (!_sysConfigPtr) { blitCanvas(_driver.canvas, 0, 195, 320, 41); return; }
+ if (!_sysConfigPtr) { blitCanvas(_driver.canvas, 0, BTNBAR_Y, DASH_W, BTNBAR_H); return; }
  SystemConfig &cfg = *_sysConfigPtr;
  bool hasAlarmsOnOtherPages = false;
  if (paging && _alarmSlotMask != 0) {
@@ -807,5 +867,5 @@ void DisplayManager::drawBottomButtons(int selectedIdx, bool forceRedraw) {
  }
  }
  /* h=41 instead of 45 ensures 4 px bottom margin (y+h=236 <= 236). */
- blitCanvas(_driver.canvas, 0, 195, 320, 41);
+ blitCanvas(_driver.canvas, 0, BTNBAR_Y, DASH_W, BTNBAR_H);
 }
