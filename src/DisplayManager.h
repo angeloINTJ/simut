@@ -833,9 +833,12 @@ public:
 	 * Returns nullptr if .lng not loaded or section absent. */
 	static const char* getActiveHelpText( );
 	static const char* getActiveLicenseText( );
-	/** JSON with translations for Web UI (UTF-8 directly;
-	 * the browser consumes without unaccent). Served by GET /api/lang. */
-	static const char* getActiveWebDict( );
+	/** Where the Web UI translation blob (@WEBDICT) lives inside the active
+	 * .lng file, as a byte range to stream from LittleFS. It is half the pack
+	 * by size and no firmware code path reads it — only GET /api/lang hands it
+	 * to the browser — so it is deliberately NOT kept resident.
+	 * Returns false if no pack is loaded or the pack carries no @WEBDICT. */
+	static bool getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len);
 	/** True if _activeLang is populated (any lookup may hit). */
 	static bool isLangLoaded( );
 	/** Active .lng meta info (name + code) for /api/perms to populate
@@ -850,13 +853,17 @@ private:
 		char* strings[TR_KEYS_COUNT];
 		char* helpText;
 		char* licenseText;
-		char* webDict; /**< JSON blob from @WEBDICT (UTF-8) */
 		LogCodeEntry* logcodes;
 		uint16_t logcodesCount;
 		TrlEntry* trls;
 		uint16_t trlsCount;
 		char* buffer;
 		size_t bufferSize;
+		/* @WEBDICT stays on flash: path + byte range, not a pointer.
+		 * webDictLen == 0 means the pack has no @WEBDICT section. */
+		char path[64];
+		uint32_t webDictOffset;
+		uint32_t webDictLen;
 	};
 	static ActiveLang _activeLang;
 	static bool _activeLangLoaded;
