@@ -26,6 +26,8 @@
 
 #include "hardware/structs/timer.h"
 #include "hardware/sync.h"
+#include "hardware/irq.h"   /* Core-1 private wait: exclusive alarm handler */
+#include "hardware/timer.h" /* hardware_alarm_claim_unused, TIMER_IRQ_0 */
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -868,12 +870,77 @@ void DisplayManager::releaseQuietMode( ) {
 }
 
 #if !SIMUT_DISPLAY_ALPHA
+
+/* ── Private timed wait for Core 1 ─────────────────────────────────────────
+ *
+ * See FlashIrqProbe.h for the three couplings in delay( ) this removes and how
+ * each was verified. In short: that path is entirely flash-resident, waits behind
+ * a spinlock shared with Core 0 (which the SDK documents as disabling
+ * interrupts), and is woken by an alarm whose IRQ is enabled on CORE 0. Core 1
+ * was measured frozen in it for 14.3 s.
+ *
+ * This replacement owns one hardware alarm, arms it with a single MMIO write and
+ * sleeps in __wfe. No lock is needed: an enabled interrupt taken on this core
+ * wakes WFE, and the ARM event register makes "check then sleep" race-free — if
+ * the alarm fires between the check and the __wfe, the pending IRQ makes the WFE
+ * return immediately rather than sleep through it.
+ *
+ * SRAM-resident so it stays executable while a flash program/erase has XIP down.
+ * __no_inline_not_in_flash_func and not __not_in_flash_func: the section attribute
+ * only places an OUT-OF-LINE copy, and GCC inlined both of these into loopCore1 —
+ * which lives in flash — silently voiding the one property under test. The build
+ * is checked with nm afterwards rather than trusted.
+ *
+ * The claim happens from Core 1 precisely so irq_set_enabled lands on Core 1's
+ * NVIC; doing it from Core 0 would rebuild the dependency being removed. */
+static uint8_t s_c1AlarmNum = 0xFF;
+
+static void __no_inline_not_in_flash_func(core1AlarmIsr)( ) {
+	/* Ack only. The wake is the interrupt itself, not anything this writes. */
+	timer_hw->intr = 1u << s_c1AlarmNum;
+}
+
+static void core1WaitInit( ) {
+	if (s_c1AlarmNum != 0xFF) return;              /* relaunch: already ours */
+	const int n = hardware_alarm_claim_unused(false);
+	if (n < 0) return;                             /* none free: stay on delay( ) */
+	s_c1AlarmNum = (uint8_t)n;
+	irq_set_exclusive_handler((uint)(TIMER_IRQ_0 + n), core1AlarmIsr);
+	irq_set_enabled((uint)(TIMER_IRQ_0 + n), true);
+	hw_set_bits(&timer_hw->inte, 1u << n);
+	g_core1WaitAlarm = s_c1AlarmNum;
+}
+
+static void __no_inline_not_in_flash_func(core1WaitUs)(uint32_t us) {
+	const uint32_t t0     = timer_hw->timerawl;
+	const uint32_t target = t0 + us;
+	timer_hw->alarm[s_c1AlarmNum] = target;
+	C1_PHASE(C1P_W_WFE);
+	uint32_t wakes = 0;
+	/* Signed compare: wrap-safe, and false immediately if the target already
+	 * passed while we were arming, in which case we never sleep at all. */
+	while ((int32_t)(timer_hw->timerawl - target) < 0) {
+		__wfe( );
+		wakes++;
+	}
+	/* Disarm: if the target had already passed, the comparator never matched and
+	 * the alarm would otherwise still be armed ~71 min from now. */
+	timer_hw->armed = 1u << s_c1AlarmNum;
+	const uint32_t held = timer_hw->timerawl - t0;
+	if (held > g_core1WaitMaxUs) g_core1WaitMaxUs = held;
+	/* More than one wake means some other interrupt on this core returned from
+	 * __wfe before our alarm did; the loop simply re-checked and slept again. It is
+	 * expected and harmless — lateness would show up in g_core1WaitMaxUs, not here. */
+	if (wakes > 1) g_core1WaitExtraWakes++;
+}
+
 void DisplayManager::loopCore1( ) {
 
 	multicore_lockout_victim_init( );
 	_core1Ready = true;
 	g_core1Running = 1;   /* live from here: XIP fetches can now collide with flash */
 	C1_PHASE(C1P_INIT);
+	core1WaitInit( );     /* from Core 1, so the alarm IRQ is Core 1's */
 
 	/* Heap allocations preserved across resets.
 	 * Touch MUST be reinitialized on every launch — attachInterrupt connects
@@ -1234,11 +1301,20 @@ void DisplayManager::loopCore1( ) {
 		 */
 		bool touchActive = _rawTouchState;
 		bool repaintPending = _isDirty || _repaintGraph || _repaintSettings || _repaintLoading;
-		/* Last two markers of the iteration. Without them a freeze here reads as
-		 * the previous phase — which for the dashboard is C1P_RENDER, and that is
-		 * exactly the reading two sessions of this investigation worked from. */
-		C1_PHASE(C1P_LOOP_DELAY);
-		delay(touchActive || repaintPending ? 1 : 2);
+		/* Last markers of the iteration. Without them a freeze here reads as the
+		 * previous phase — which for the dashboard is C1P_RENDER, and that is
+		 * exactly the reading two sessions of this investigation worked from.
+		 *
+		 * Which primitive ran is never assumed: the private wait stamps W_WFE, the
+		 * fallback stamps LOOP_DELAY, so the phase itself says which one a freeze
+		 * happened in. */
+		const uint32_t waitUs = (touchActive || repaintPending ? 1u : 2u) * 1000u;
+		if (s_c1AlarmNum != 0xFF) {
+			core1WaitUs(waitUs);
+		} else {
+			C1_PHASE(C1P_LOOP_DELAY);
+			delay(waitUs / 1000u);
+		}
 	}
 }
 

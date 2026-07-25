@@ -117,7 +117,8 @@ enum Core1Phase {
 	C1P_R_BOT_PANEL,     /* render: drawSlotPanel(bottom) + drawBottomButtons */
 	C1P_R_ALARM,         /* render: alarm-mask change repaint */
 	C1P_LOOP_TAIL,       /* UI dispatch done, before the adaptive delay */
-	C1P_LOOP_DELAY,      /* inside delay( ) at the bottom of the loop */
+	C1P_LOOP_DELAY,      /* inside delay( ) at the bottom of the loop (SDK path) */
+	C1P_W_WFE,           /* inside the private Core-1 wait: asleep in __wfe */
 	C1P_COUNT
 };
 extern volatile uint8_t  g_core1Phase;          /**< Core1Phase: where Core 1 is right now */
@@ -177,6 +178,39 @@ extern volatile uint32_t g_core1XipMaxUs;       /**< Worst probe since boot */
 
 /** Core 1: run one probe. Read-only flash traffic, no side effects. */
 void core1XipProbe(void);
+
+/* ── The private Core-1 wait, and whether it is behaving ───────────────────
+ *
+ * Core 1 froze for 14.3 s inside delay( ). delay( ) is weak and resolves to
+ * sleep_ms -> sleep_until, which couples the two cores three ways, all three
+ * verified rather than assumed:
+ *
+ *   1. every symbol on that path links to flash (nm: delay, sleep_ms,
+ *      sleep_until, alarm_pool_add_alarm_at, alarm_pool_irq_handler,
+ *      sleep_until_callback — 0x10xxxxxx, none in SRAM), so it cannot run at all
+ *      while a flash program/erase has XIP down;
+ *   2. it waits behind spin_lock_blocking on a notifier shared with Core 0, and
+ *      the SDK documents that primitive as always disabling interrupts — which
+ *      is a mechanism for Core 1 being unable to answer the lockout handshake
+ *      (`parked=0`, in every capture since the first session);
+ *   3. the wake-up is an alarm on the DEFAULT pool, whose IRQ is enabled by
+ *      runtime init on CORE 0, so Core 1 cannot wake until Core 0 services it.
+ *
+ * The replacement removes all three: SRAM-resident, no lock, and its own
+ * hardware alarm whose handler is installed FROM Core 1, so the NVIC enable
+ * lands on Core 1 and nothing about the wake involves Core 0.
+ *
+ * g_core1WaitAlarm is 0xFF when no alarm could be claimed, in which case the
+ * loop falls back to delay( ) and the phase reads LOOP_DELAY instead of W_WFE —
+ * so which path ran is always visible, never assumed. */
+extern volatile uint8_t  g_core1WaitAlarm;      /**< hw alarm claimed; 0xFF = fell back to delay( ) */
+extern volatile uint32_t g_core1WaitMaxUs;      /**< Longest single wait, end to end */
+/* Waits that needed more than one WFE wake. This is NOT lateness: any interrupt
+ * on Core 1 returns from __wfe early, the loop re-checks the target and sleeps
+ * again, so a large count is normal and healthy. It is here as the residual
+ * signal — read it together with g_core1WaitMaxUs, which is what would grow if
+ * the wake ever actually ran late. */
+extern volatile uint32_t g_core1WaitExtraWakes;
 
 /* Set the phase, stamp when it changed, and account what the previous one cost.
  *

@@ -933,6 +933,14 @@ void CommandManager::renderMetrics( ) {
   consolePrintf (pt ? " Latencia QSPI (Core 1): ultima=%lu us | pior=%lu us\n"
                     : " QSPI latency (Core 1): last=%lu us | worst=%lu us\n",
   (unsigned long)g_core1XipLastUs, (unsigned long)g_core1XipMaxUs);
+  /* Which wait primitive Core 1 is on, and whether it is running late. `alarme`
+   * 255 means no hardware alarm was free and Core 1 fell back to the SDK delay( )
+   * — the difference matters for every other number here, so it is printed
+   * rather than inferred. */
+  consolePrintf (pt ? " Espera Core 1: alarme=%u | pior=%lu us | acordares extra=%lu\n"
+                    : " Core 1 wait: alarm=%u | worst=%lu us | extra wakes=%lu\n",
+  (unsigned)g_core1WaitAlarm, (unsigned long)g_core1WaitMaxUs,
+  (unsigned long)g_core1WaitExtraWakes);
   {
    /* Per-phase worst, only where it is worth reading. Blind on a phase that
     * never ends, by construction — that case is the line above. */
