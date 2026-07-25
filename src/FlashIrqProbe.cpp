@@ -43,6 +43,17 @@ volatile int32_t  g_core1FlashSafeDepth   = 0;
 volatile uint32_t g_flashIrqExposed       = 0;
 volatile uint32_t g_flashIrqExposedMaxUs  = 0;
 
+/* Core-1 lifecycle observability — see the header for why these are globals. */
+volatile uint32_t g_core1HeartbeatMs      = 0;
+volatile uint8_t  g_core1UiMode           = 0xFF; /* 0xFF = never reported */
+volatile uint32_t g_core1LockoutStuck     = 0;
+volatile uint32_t g_core1KillsLockout     = 0;
+volatile uint32_t g_core1KillsHealth      = 0;
+volatile uint32_t g_core1KillsQuiet       = 0;
+volatile uint32_t g_core1Launches         = 0;
+volatile uint8_t  g_core1StuckMod0        = 0xFF;
+volatile uint8_t  g_core1StuckParked      = 0xFF;
+
 void __real_flash_range_erase(uint32_t offset, size_t count);
 void __real_flash_range_program(uint32_t offset, const uint8_t* data, size_t count);
 

@@ -184,7 +184,7 @@ bool simutStateMutexHeldByCurrentCore( ) {
 }
 #endif
 
-void DisplayManager::startCore1( ) { multicore_launch_core1(core1Entry); }
+void DisplayManager::startCore1( ) { g_core1Launches++; multicore_launch_core1(core1Entry); }
 
 void DisplayManager::restartCore1( ) {
 	/* Clean up lockout state before resetting Core 1.
@@ -194,6 +194,7 @@ void DisplayManager::restartCore1( ) {
 	 * ALL subsequent multicore_lockout_start_* calls on Core 0 hang
 	 * (timeout after 500ms, retry loop), producing the recurring
 	 * "[DSP] Lockout stuck >10s" error on every flash operation. */
+	g_core1KillsHealth++;
 	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 	multicore_lockout_end_blocking();
 	g_core1Running = 0;
@@ -203,7 +204,7 @@ void DisplayManager::restartCore1( ) {
 	_pauseStartTime = 0;
 	_isPausedForFlash = false;
 	_lastHeartbeat = millis( );
-	multicore_launch_core1(core1Entry);
+	g_core1Launches++; multicore_launch_core1(core1Entry);
 }
 
 void DisplayManager::setLanguage(int langId) {
@@ -375,6 +376,14 @@ void DisplayManager::pauseRendering(bool pause) {
 				 * handshake needed. All flash ops are safe. */
 				if (timeSince(retryStart, 3000)) {
 					Serial.println("[DSP] Lockout stuck >3s, hard reset Core1");
+					g_core1LockoutStuck++;
+					g_core1KillsLockout++;
+					/* Name the culprit: which Core-0 path requested this pause, and had
+					 * Core 1 actually ACKed the quiesce? A stuck lockout with parked=1
+					 * means Core 1 was responsive and the SDK handshake still failed;
+					 * parked=0 means Core 1 never reached its park point. Different bugs. */
+					g_core1StuckMod0 = LogManager::instance( ).getModule(0);
+					g_core1StuckParked = __atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) ? 1 : 0;
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 					LogManager::instance( ).setCorePaused(1, true);
 					multicore_lockout_end_blocking( );
@@ -425,7 +434,7 @@ void DisplayManager::pauseRendering(bool pause) {
 				_isPausedForFlash = false;
 				_lastHeartbeat = millis( );
 				LogManager::instance( ).setCorePaused(1, false);
-				multicore_launch_core1(core1Entry);
+				g_core1Launches++; multicore_launch_core1(core1Entry);
 				/* core1Entry re-runs victim_init and sets _core1Ready. */
 			} else {
 				multicore_lockout_end_blocking( );
@@ -709,6 +718,7 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 		}
 	}
 	/* First level: hard-reset Core 1. Stops immediately; flash work safe. */
+	g_core1KillsQuiet++;
 	g_core1Running = 0;
 	multicore_reset_core1( );
 	delay(50); /* Short pause for SSI/SPI to stabilize. */
@@ -756,7 +766,7 @@ void DisplayManager::releaseQuietMode( ) {
 	_lastHeartbeat = millis( );
 	__atomic_store_n(&_quietModeActive, false, __ATOMIC_RELEASE);
 	LogManager::instance( ).setCorePaused(1, false);
-	multicore_launch_core1(core1Entry);
+	g_core1Launches++; multicore_launch_core1(core1Entry);
 	/* Core 1 will set _core1Ready=true after victim_init in loopCore1. */
 }
 
@@ -822,6 +832,12 @@ void DisplayManager::loopCore1( ) {
 		}
 
 		_lastHeartbeat = millis( );
+		/* Liveness for `show metrics`: age of this stamp is the only outside
+		 * evidence that Core 1 is still completing loop iterations. Stamped
+		 * HERE only — Core 0 also writes _lastHeartbeat on pause/release, and
+		 * mirroring those would fake the very signal we need. */
+		g_core1HeartbeatMs = millis( );
+		g_core1UiMode = (uint8_t)_uiMode;
 		/* OR with simulated touch active flag.
 		 * handleTouch and mapTouchPoint check _simTouchActive to use
 		 * synthesized screen-space coords. Allows CLI 'touch sim X Y'
