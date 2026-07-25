@@ -210,7 +210,9 @@ private:
 	bool isPasswordChangeRequired( );
 
 
+	bool checkPageAccess(uint16_t requiredPerm);
 	bool serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_data, size_t gz_len);
+	bool serveProtectedFsPage(uint16_t requiredPerm, const char* path); /**< gzipped page from LittleFS */
 
 	void handleLogin( );
 	void handleApiLoginInit( );
@@ -310,6 +312,7 @@ private:
 	 * calib.csv with VERSION=epoch (NTP-gated). */
 	void handleApiCalibGet( );
 	void handleApiCalibPost( );
+	void handleApiSensorsGet( ); /**< Slot map + driver catalogue for the /config editor. */
 
 	/* OTA: full backup of LittleFS tied to chip_id (.bkp).
 	 * Implementation in WebManager_Ota.cpp; format in src/ota/backup_format.h. */
