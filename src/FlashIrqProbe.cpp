@@ -74,6 +74,9 @@ volatile uint8_t  g_core1StallPhase       = 0xFF;
 volatile uint32_t g_core1PhaseMaxUs[C1P_COUNT] = {0};
 volatile uint32_t g_core1XipLastUs        = 0;
 volatile uint32_t g_core1XipMaxUs         = 0;
+volatile uint8_t  g_core1WaitAlarm        = 0xFF; /* 0xFF until Core 1 claims one */
+volatile uint32_t g_core1WaitMaxUs        = 0;
+volatile uint32_t g_core1WaitExtraWakes   = 0;
 
 /* Kept in step with enum Core1Phase. Short on purpose: these are printed in a
  * `show metrics` block that is already dense, and parsed by the bench scripts. */
@@ -81,7 +84,7 @@ const char* const C1P_NAMES[C1P_COUNT] = {
 	"INIT", "RESUME_MTX", "LOOP_TOP", "PARK", "TOUCH_RD", "TOUCH_HDL",
 	"THEME_MTX", "DASH_MTX", "SNAPSHOT", "RENDER",
 	"ALARM_FLASH", "R_BOOT", "R_FULL", "R_TOPBAR", "R_TOP_PANEL",
-	"R_MINMAX", "R_BOT_PANEL", "R_ALARM", "LOOP_TAIL", "LOOP_DELAY"
+	"R_MINMAX", "R_BOT_PANEL", "R_ALARM", "LOOP_TAIL", "LOOP_DELAY", "W_WFE"
 };
 static_assert(sizeof(C1P_NAMES) / sizeof(C1P_NAMES[0]) == C1P_COUNT,
               "C1P_NAMES must name every Core1Phase");
