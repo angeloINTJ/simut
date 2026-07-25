@@ -324,6 +324,11 @@ void DisplayManager::pauseRendering(bool pause) {
 		int32_t prev = __atomic_fetch_add(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);
 		if (prev == 0) {
 			_pauseStartTime = millis( );
+			/* Who is freezing Core 1, and for how long. Recorded at the 0->1
+			 * transition because that is the pause which actually holds the core. */
+			g_core1PauseStartMs = _pauseStartTime;
+			g_core1PauseLastMod0 = LogManager::instance( ).getModule(0);
+			g_core1PauseCount++;
 			LogManager::instance( ).setCorePaused(1, true);
 
 			/*
@@ -394,6 +399,7 @@ void DisplayManager::pauseRendering(bool pause) {
 					 * died holding _stateMutex — reinit at kill time so
 					 * Core-0 setters can't block on a corpse-held mutex. */
 					mutex_init(&_stateMutex);
+					accountPauseEnd( );
 					_pauseStartTime = 0;
 					__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
 					__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
@@ -422,6 +428,7 @@ void DisplayManager::pauseRendering(bool pause) {
 		if (prev <= 1) {
 
 			__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+			accountPauseEnd( );
 			_pauseStartTime = 0;
 			if (__atomic_exchange_n(&_core1HardReset, false, __ATOMIC_ACQ_REL)) {
 				/* Core 1 was hard-reset by the lockout timeout: there is no
@@ -454,11 +461,26 @@ void DisplayManager::pauseRendering(bool pause) {
 }
 
 
+/* Fold the finished pause into the max/owner accounting. MUST be called
+ * before _pauseStartTime is zeroed, from every path that ends a pause. */
+void DisplayManager::accountPauseEnd( ) {
+	const uint32_t start = _pauseStartTime;
+	if (start != 0) {
+		const uint32_t held = millis( ) - start;
+		if (held > g_core1PauseMaxMs) {
+			g_core1PauseMaxMs = held;
+			g_core1PauseMaxMod0 = g_core1PauseLastMod0;
+		}
+	}
+	g_core1PauseStartMs = 0;
+}
+
 void DisplayManager::forceUnpause( ) {
 	int32_t prev = __atomic_load_n(&_pauseRefCount, __ATOMIC_ACQUIRE);
 	if (prev > 0) {
 		LOG_CODE(LOG_ERROR, "DSP", DSP_FORCE_UNPAUSE, prev, String(TRL("forceUnpause: refCount=")) + prev);
 		__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+		accountPauseEnd( );
 		_pauseStartTime = 0;
 		multicore_lockout_end_blocking( );
 		_lastHeartbeat = millis( );

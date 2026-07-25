@@ -119,6 +119,8 @@ public:
 	uint32_t getLastTouchTimestamp( ) const { return _lastTouchTimestamp; }
 	bool isCore1Ready( ) { return _core1Ready; }
 	void forceUnpause( );
+	/** Folds the finished pause into the max/owner accounting (diagnostics only). */
+	void accountPauseEnd( );
 	void restartCore1( );
 
 	/** Injects a simulated touch at (x, y). For a single frame:
