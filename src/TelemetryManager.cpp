@@ -652,7 +652,16 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
   * 4096 is the largest RFC 6066 max_fragment_length below the default, so
   * the request drops to ~4.4 KB and fits with room to spare. The server has
   * to honour the extension; if it does not and sends a larger record, the
-  * connection fails instead of succeeding — a clean failure, not a hang. */
+  * connection fails instead of succeeding — a clean failure, not a hang.
+  *
+  * Do NOT drop this in favour of the boot-time pre-allocation in begin(),
+  * whose comment has warned about this exact 16 KB contiguous block since
+  * v1.0.0. That mitigation does not reach the problem and was measured
+  * failing: pre-allocating the WiFiClientSecure OBJECT reserves nothing,
+  * because BearSSL allocates the iobuf inside _connectSSL and frees it in
+  * _freeSSL — once per connection, whatever the heap looks like by then.
+  * Removing this line and booting with encryption already enabled still
+  * watchdog-reboots at the first send. */
  _httpSecurePtr->setBufferSizes(4096, 512);
 
  if (_hasCert) _httpSecurePtr->setCACert(_cachedCert.c_str( ));
