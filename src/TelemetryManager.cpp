@@ -50,47 +50,28 @@ static bool historyDayIsBefore(const String &fileName, const char *minDay) {
 	return strncmp(fileName.c_str( ), minDay, 8) < 0;
 }
 
-/**
- * @brief Feeds the watchdog during blocking network operations (TLS/HTTP/MQTT).
+/*
+ * TelemetryGuard is gone, and deliberately not replaced.
  *
- * http.POST() with TLS can block for 4-8s on a healthy network. On degraded
- * networks (low RSSI, 2G, roaming), handshake + transfer can
- * legitimately extend to tens of seconds. Without feeding, the
- * watchdog (8.3s) fires during a normal operation.
+ * It claimed to feed the watchdog during blocking network calls, via a 2 s
+ * repeating timer. Measured on hardware 2026-07-25: the timer registers fine
+ * and ticks correctly right up to http.POST(), then stops feeding the instant
+ * the POST blocks. It never did its job in any build — what kept telemetry
+ * alive was POSTs being fast, not the guard.
  *
- * The timer runs every 2s and feeds while the guard is active.
- * Safety: stops feeding after WDT_FEED_MAX_WINDOW_MS (60s) to
- * avoid masking real deadlocks — at that point, the watchdog takes action
- * as the final safety net. HTTP/MQTT internals already have
- * NET_SOCKET_TIMEOUT_MS=4s, so healthy operations don't reach 60s.
+ * Making it work would have been worse. The blocking was a TLS handshake with
+ * no overall deadline (fixed in the framework — see
+ * tools/arduino_pico_overrides/patches/wifi_tls_handshake_deadline.patch), and
+ * a guard that fed through it would have turned a recoverable watchdog reboot
+ * into a permanent freeze. That was verified the hard way: disarming the
+ * watchdog around the POST left the device wedged with USB still enumerated
+ * and both the CLI and the web dead, until a hardware reset.
+ *
+ * The rule this leaves: bound the blocking call, and let the watchdog be the
+ * backstop. Never widen the window (the RP2040 ceiling is WATCHDOG_TIMEOUT_MS
+ * = 8388 ms regardless of what you ask for) and never feed from an interrupt
+ * to survive a call that should have been bounded in the first place.
  */
-static volatile bool _telGuardActive = false;
-static volatile uint32_t _telGuardStartMs = 0;
-static struct repeating_timer _telGuardTimer;
-static bool _telGuardTimerStarted = false;
-
-static bool _telGuardCallback(struct repeating_timer *t) {
- (void)t;
- if (_telGuardActive) {
- uint32_t elapsed = millis( ) - _telGuardStartMs;
- if (elapsed < WDT_FEED_MAX_WINDOW_MS) {
- watchdog_update( );
- }
- }
- return true;
-}
-
-struct TelemetryGuard {
- TelemetryGuard( ) {
- if (!_telGuardTimerStarted) {
- add_repeating_timer_ms(-2000, _telGuardCallback, nullptr, &_telGuardTimer);
- _telGuardTimerStarted = true;
- }
- _telGuardStartMs = millis( );
- _telGuardActive = true;
- }
- ~TelemetryGuard( ) { _telGuardActive = false; }
-};
 
 TelemetryManager::TelemetryManager( )
  : _mqttClient(_mqttWifiClient)
@@ -247,10 +228,12 @@ void TelemetryManager::update( ) {
  if (!_storageRef->lockHeavyTask( )) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return; }
 
  /*
- * RAII: extends WDT context to 120s during the cycle. TelemetryGuard only
- * covers http.POST (handshake/cleanup were exposed). Context-aware:
- * nested saves/logs don't reduce the window to 8.3s during telemetry.
- * Auto-restore on any exit path (normal or early return).
+ * This asks for 120 s and gets 8.388 s, like every other WdtWindow in the
+ * codebase: the RP2040 load register cannot express more (see the class
+ * comment in LogManager.h). It is kept only so nested saves/logs cannot
+ * shrink the window below the default mid-cycle, and auto-restores on any
+ * exit path. It buys NO extra time — every blocking call in this cycle has
+ * to be bounded on its own.
  */
  LogManager::WdtWindow _wdt(120000);
 
@@ -353,7 +336,13 @@ void TelemetryManager::update( ) {
  * Preserved safety layers:
  * - update() preflight: aborts if heap < 24 KB
  * - buildPayload: dynamic resize if estimate exceeds available
- * - TelemetryGuard: feeds WDT during POST up to 60s (covers large POSTs)
+ * - the TLS handshake is bounded by setTLSConnectTimeout, which only holds
+ *   because of the framework patch in tools/arduino_pico_overrides
+ *
+ * A third layer used to be listed here — "TelemetryGuard feeds WDT during POST
+ * up to 60s" — and it was never true, which made these limits look safer than
+ * they were. Nothing in this cycle survives a blocking call that is not bounded
+ * on its own; the watchdog window cannot be widened past 8.388 s.
  *
  * @param configured Maximum limit configured by user.
  * @return Effective limit (≥1, ≤configured).
@@ -645,10 +634,11 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  }
  _httpSecureLastUse = millis( );
 
- /* Bound TLS handshake. Default lib >10s; server slow/dying
- * mid-handshake won't blow WDT_FEED_MAX_WINDOW (60s). Static method,
- * affects all subsequent WiFiClientSecure creation. */
- WiFiClientSecure::setTLSConnectTimeout(NET_SOCKET_TIMEOUT_MS);
+ /* Bound the TLS handshake. Static method, affects all subsequent
+  * WiFiClientSecure creation. Upstream this call is nearly decorative — it
+  * bounds one _run_until iteration, never the handshake — so it only really
+  * holds because of the framework patch. See NET_TLS_HANDSHAKE_MS. */
+ WiFiClientSecure::setTLSConnectTimeout(NET_TLS_HANDSHAKE_MS);
 
  if (_hasCert) _httpSecurePtr->setCACert(_cachedCert.c_str( ));
  else _httpSecurePtr->setInsecure( );
@@ -684,7 +674,6 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
 
  uint32_t postStart = millis( );
  {
- TelemetryGuard tg; /* Feeds watchdog during blocking POST */
  code = http.POST(payload);
  }
  uint32_t postLatency = millis( ) - postStart;
@@ -769,7 +758,6 @@ bool TelemetryManager::mqttEnsureConnected( ) {
  pass.trim( );
 
  {
- TelemetryGuard tg; /* Feeds watchdog during blocking connect */
  if (user.length( ) > 0) {
  connected = _mqttClient.connect(
  clientId.c_str( ),
@@ -894,7 +882,6 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
 
  bool ok;
  {
- TelemetryGuard tg; /* Feeds watchdog during blocking publish */
  ok = _mqttClient.publish(
  topic.c_str( ),
  payload.c_str( ),
