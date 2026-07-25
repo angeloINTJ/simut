@@ -63,6 +63,7 @@ volatile uint8_t  g_core1PauseLastMod0    = 0xFF;
 volatile uint32_t g_core1Iters            = 0;
 volatile uint32_t g_core1IterMaxMs        = 0;
 volatile uint32_t g_core1LockWaitMaxMs    = 0;
+volatile uint32_t g_webHistScanMaxMs      = 0;
 volatile uint32_t g_core1LockWaitLastMs   = 0;
 
 void __real_flash_range_erase(uint32_t offset, size_t count);

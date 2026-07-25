@@ -11,6 +11,7 @@
 #include "LogManager.h"
 #include "TouchPriority.h"
 #include "HistoryCodec.h"
+#include "FlashIrqProbe.h"
 #include "ota/backup.h" /* ota::crc32_update for screenshot_chunk */
 #include <LittleFS.h>
 #include <time.h>
@@ -138,13 +139,30 @@ void WebManager::handleApiHistoryMulti( ) {
 
 
 /* ── List of files to read ────────────────────────────────────────── */
+ /* Everything from here to the end of the decimation estimate runs before the
+  * response starts, so no SendGuard is feeding the watchdog, and none of these
+  * loops calls feedWatchdog( ) or isHandlerOvertime( ) — the 6 s handler cap
+  * only exists in the record loops further down. For rangeIdx >= 4 both loops
+  * scale with the NUMBER OF FILES in /history (a dir walk, then one
+  * open+size+close each), which on this bench is ~50 days of history. That is
+  * the shape of an unfed stretch long enough to reach the bare 15 s WDT, and
+  * the autopsy already places the stall in this handler and outside the send
+  * path. This scope is here to prove or refute exactly that. */
  std::vector<String> filesToRead;
+ {
+ LogManager::TraceScope _tScan(0, MOD_WEB_HSCAN);
+ const uint32_t scanStart = millis( );
  if (rangeIdx >= 4) {
  /* 1M, 1Y, MAX: list ALL files in directory (filter by epoch
  * later). Avoids iterating 365x exists( ) in vain. */
  ReadGuard rg(_storageRef);
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
+ /* Each next( ) walks lfs metadata off flash, and this runs once per FILE in
+  * /history. feedWdt( ) and not feedWatchdog( ): the latter also fires the
+  * light-yield, which allocates and can reach saveConfiguration( ) — a flash
+  * write, started while we hold _fsReadMutex. */
+ feedWdt( );
  if (dir.fileName( ).endsWith(HISTORY_FILE_EXT) || dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
  filesToRead.push_back(String(DIR_HISTORY) + "/" + dir.fileName( ));
  }
@@ -194,6 +212,7 @@ void WebManager::handleApiHistoryMulti( ) {
  size_t histBytes = 0;
  ReadGuard rg(_storageRef);
  for (size_t fi = 0; fi < filesToRead.size( ); fi++) {
+ feedWdt( );
  File hf = LittleFS.open(filesToRead[fi], "r");
  if (hf) { histBytes += hf.size( ); hf.close( ); }
  }
@@ -201,6 +220,11 @@ void WebManager::handleApiHistoryMulti( ) {
  decimation = (int)(estRecs / 600);
  if (decimation < 1) decimation = 1;
  }
+ {
+  const uint32_t scanMs = millis( ) - scanStart;
+  if (scanMs > g_webHistScanMaxMs) g_webHistScanMaxMs = scanMs;
+ }
+ } /* end MOD_WEB_HSCAN */
 
  /* ── Accumulated stats (T of set, H of set) ─────────────────────────
   * Both are gathered PRE-decimation, over every record in range, so the
