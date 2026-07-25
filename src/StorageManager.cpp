@@ -2122,6 +2122,39 @@ void StorageManager::ensureV4Schema( ) {
  else    LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_bootstrap_retry");
 }
 
+bool StorageManager::rebindV4Schema(uint8_t *outMeasures) {
+ if (!_isMounted) return false;
+
+ LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+ LogManager::WdtWindow _wdt(30000);
+ Core1FlashPause _c1(this);
+
+ /* Drop whatever is buffered against the outgoing schema — those samples are
+  * the ones that could not be matched anyway, which is why we are here. */
+ flushHistoryBatch( );
+
+ const String path = getHistoryFileNameV4( );
+
+ /* Records are bit-packed against the header, so the schema cannot be swapped
+  * under them: the day's file is recreated. Carrying the old records over
+  * would mean decoding and re-encoding every one of them, which measured at
+  * 8.2 KB of flash and 5.6 KB of RAM on this target — more than the app slot
+  * has to spare. Hence the deliberate trade, and hence the CLI demands
+  * `confirm`: today's records before the change are lost. */
+ _histV4CodecValid = false;
+ FLASH_OP({ LittleFS.remove(path); });
+
+ if (!createHistoryFileV4WithSchema(path)) {
+  LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "rebind_failed");
+  return false; /* codec stays invalid; the next tick re-bootstraps */
+ }
+ _v4CurrentLogFileName = path;
+ _histV4CodecValid = true;
+ if (outMeasures) *outMeasures = _histV4State.measureCount;
+ LOG_CODE(LOG_INFO, "STO", SYS_OK, (int)_histV4State.measureCount, "V4 schema rebound");
+ return true;
+}
+
 bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
 	if (!_isMounted) return false;
 

@@ -57,6 +57,7 @@ enum DemandType {
  CMD_REMOVE_SENSOR, /**< sensor remove <gpio> confirm — deactivate and clear a slot */
  CMD_ACCEPT_SENSOR,
  CMD_SCAN_SENSORS,
+ CMD_RESCHEMA_SENSORS, /**< sensor reschema — rebuild the V4 schema from the configured slots */
  CMD_WRITE_MEMORY,
  CMD_CLEAR_LOGS,
  CMD_RELOAD,

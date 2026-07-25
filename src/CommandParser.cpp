@@ -362,6 +362,10 @@ CliDemand parseCliCommand(String input) {
 			cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
 			return cmd;
 		}
+		if (t1 == "reschema") {
+			cmd.type = CMD_RESCHEMA_SENSORS;
+			return cmd;
+		}
 		if (t1 == "remove") {
 			cmd.type = CMD_REMOVE_SENSOR;
 			cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
