@@ -46,6 +46,7 @@ bool WebManager::safeSend(const char* content) {
  feedWatchdog( );
  {
  SendGuard sg;
+ LogManager::TraceScope _tSend(0, MOD_WEB_SEND);
  _server.sendContent(content);
  }
  bool gone = isClientGone( );
@@ -61,6 +62,7 @@ bool WebManager::safeSend(const char* data, size_t len) {
  feedWatchdog( );
  {
  SendGuard sg;
+ LogManager::TraceScope _tSend(0, MOD_WEB_SEND);
  _server.sendContent(data, len);
  }
  bool gone = isClientGone( );
@@ -76,6 +78,7 @@ bool WebManager::safeSend(const String& content) {
  feedWatchdog( );
  {
  SendGuard sg;
+ LogManager::TraceScope _tSend(0, MOD_WEB_SEND);
  _server.sendContent(content);
  }
  bool gone = isClientGone( );
