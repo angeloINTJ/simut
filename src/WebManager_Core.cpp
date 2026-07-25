@@ -175,6 +175,10 @@ bool WebManager::isRateLimited(uint32_t minIntervalMs) {
 
 void WebManager::feedWatchdog( ) {
  watchdog_update( );
+ /* The send loop feeds through here rather than feedWdt( ), so without this the
+  * Core-1 stall sampler would be blind for the whole streaming phase of a
+  * download — half of the load under investigation. */
+ core1StallSample( );
  if (_lightYieldCb) _lightYieldCb( );
 
 

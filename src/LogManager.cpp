@@ -628,7 +628,11 @@ void LogManager::checkCrossCoreHealth( ) {
  * HW WDT on Core 0 remains the backstop for real hangs. */
  if (elapsed > 15000) {
  watchdog_hw->scratch[5] = 0xCA11B007;
- watchdog_hw->scratch[6] = (otherCore << 24) | (_coreModule[0] << 16) | (_coreModule[1] << 8);
+ /* Low byte: where Core 1 was. The module trace only ever says [DISPLAY] for a
+  * frozen Core 1 — true and useless — while the phase names the draw call. This
+  * byte was free, and RAM does not survive the reboot that follows. */
+ watchdog_hw->scratch[6] = (otherCore << 24) | (_coreModule[0] << 16) | (_coreModule[1] << 8)
+                         | (g_core1Phase & 0xFF);
  watchdog_hw->scratch[7] = (uint32_t)elapsed;
 
  /* Safe reboot: clear WDT ENABLE before triggering.
@@ -781,22 +785,31 @@ void LogManager::performCrashAutopsy( ) {
  int deadCore = (data >> 24) & 0xFF;
  int mod0 = (data >> 16) & 0xFF;
  int mod1 = (data >> 8) & 0xFF;
+ int c1Phase = data & 0xFF;
+ const char* phaseName = (c1Phase < C1P_COUNT) ? C1P_NAMES[c1Phase] : "?";
 
  char msg[200];
- snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s]",
+ snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s] phase=%s",
  deadCore,
  deadCore == 0 ? (mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK") : (mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK"),
  stuckTime,
  mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK",
- mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK");
+ mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK",
+ phaseName);
 
  /* The compact record keeps only code + context, so the text above survives
   * on the boot serial and nowhere else — which is why catching an autopsy
   * needed a script camped on the port through a USB re-enumeration. Encode
   * the verdict in context instead: 100+deadCore for a soft panic, 200+c0Mod
   * for a HW watchdog. Distinct bands, and neither collides with the ctx=0
-  * that every record written before rc16 carries. */
- logCode(LOG_FATAL, "SYS", SYS_BOOT, 100 + deadCore, String(msg));
+  * that every record written before rc16 carries.
+  *
+  * 300+phase is the band for the one failure mode that is still open: Core 1
+  * frozen. ctx=101 said only "Core 1 was stuck", which is the part already
+  * known; the phase is the part being hunted, and this is what walked mode A
+  * down from WEB_SERVER to WEB_HSCAN in three reboots. */
+ logCode(LOG_FATAL, "SYS", SYS_BOOT,
+         deadCore == 1 ? 300 + c1Phase : 100 + deadCore, String(msg));
  watchdog_hw->scratch[5] = 0;
  } else if (wdReset && mark == 0xC1EA8007) {
  /* Intentional reboot via markCleanReboot( ). Silent. */

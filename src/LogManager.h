@@ -19,6 +19,7 @@
 #include "pico/mutex.h"
 #include <hardware/watchdog.h>
 #include "SystemDefs.h"
+#include "FlashIrqProbe.h"  /* core1StallSample( ), called from feedWdt( ) below */
 
 #define LOG_FILE_CURRENT "/system.blog"
 #define LOG_FILE_OLD "/system.old.blog"
@@ -253,5 +254,11 @@ private:
 #define TRACE_BEAT(core) LogManager::instance( ).heartbeat(core)
 
 /** Feed hardware watchdog + trace heartbeat on Core 0.
- * Replaces the pair watchdog_update( ); TRACE_BEAT(0); in critical paths. */
-inline void feedWdt( ) { watchdog_update( ); TRACE_BEAT(0); }
+ * Replaces the pair watchdog_update( ); TRACE_BEAT(0); in critical paths.
+ *
+ * core1StallSample( ) rides along because this is already the densest Core-0
+ * hook there is — every loop that walks or reads flash calls it, which is
+ * exactly the load that freezes Core 1. Sampling from here means the worst
+ * Core-1 stall is recorded by the core that is still running, instead of by the
+ * core that is stuck (see FlashIrqProbe.h). */
+inline void feedWdt( ) { watchdog_update( ); TRACE_BEAT(0); core1StallSample( ); }

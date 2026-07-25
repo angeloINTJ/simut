@@ -28,6 +28,7 @@ void AppManager::loop( ) {
   * trace as whatever the previous iteration left behind. */
  TRACE_MOD(0, MOD_LOOP);
  TRACE_BEAT(0);
+ core1StallSample( );  /* covers the idle stretches between web handlers */
  watchdog_update( );
 
  /* edge detection touch-released → orchestrated flush. */

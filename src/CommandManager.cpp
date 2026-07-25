@@ -908,12 +908,47 @@ void CommandManager::renderMetrics( ) {
   (unsigned long)g_core1KillsLockout,
   (unsigned long)g_core1KillsHealth,
   (unsigned long)g_core1KillsQuiet);
-  consolePrintf (pt ? " Ultimo stuck: mod0=%u parked=%u fase=%u\n"
-                    : " Last stuck: mod0=%u parked=%u phase=%u\n",
+  /* Phases print as names now. The block used to emit bare numbers, and every
+   * reading had to be mapped back to the enum by hand — which is a decoding step
+   * between the measurement and the conclusion, on a channel that already
+   * misled this investigation once. */
+  consolePrintf (pt ? " Ultimo stuck: mod0=%u parked=%u fase=%s\n"
+                    : " Last stuck: mod0=%u parked=%u phase=%s\n",
   (unsigned)g_core1StuckMod0, (unsigned)g_core1StuckParked,
-  (unsigned)g_core1StuckPhase);
-  consolePrintf (pt ? " Fase atual: %u\n" : " Current phase: %u\n",
-  (unsigned)g_core1Phase);
+  g_core1StuckPhase < C1P_COUNT ? C1P_NAMES[g_core1StuckPhase] : "-");
+  {
+   /* Age of the phase stamp, read live: with the phase, this is the pair that
+    * says whether Core 1 is moving. Sticky phase + fresh stamp = healthy;
+    * sticky phase + old stamp = stuck right there. */
+   const uint32_t phAgeUs = timer_hw->timerawl - g_core1PhaseUs;
+   consolePrintf (pt ? " Fase atual: %s (ha %lu ms) | transicoes: %lu\n"
+                     : " Current phase: %s (%lu ms ago) | transitions: %lu\n",
+   g_core1Phase < C1P_COUNT ? C1P_NAMES[g_core1Phase] : "-",
+   (unsigned long)(phAgeUs / 1000u), (unsigned long)g_core1PhaseSeq);
+  }
+  consolePrintf (pt ? " Pior travada (vista pelo Core 0): %lu ms em %s\n"
+                    : " Worst stall (seen by Core 0): %lu ms in %s\n",
+  (unsigned long)(g_core1StallMaxUs / 1000u),
+  g_core1StallPhase < C1P_COUNT ? C1P_NAMES[g_core1StallPhase] : "-");
+  consolePrintf (pt ? " Latencia QSPI (Core 1): ultima=%lu us | pior=%lu us\n"
+                    : " QSPI latency (Core 1): last=%lu us | worst=%lu us\n",
+  (unsigned long)g_core1XipLastUs, (unsigned long)g_core1XipMaxUs);
+  {
+   /* Per-phase worst, only where it is worth reading. Blind on a phase that
+    * never ends, by construction — that case is the line above. */
+   char pbuf[200]; size_t pn = 0; pbuf[0] = '\0';
+   for (unsigned i = 0; i < C1P_COUNT; i++) {
+    const uint32_t ms = g_core1PhaseMaxUs[i] / 1000u;
+    if (ms < 5u) continue;
+    const int w = snprintf(pbuf + pn, sizeof(pbuf) - pn, "%s%s=%lu",
+                           pn ? " " : "", C1P_NAMES[i], (unsigned long)ms);
+    if (w <= 0 || (size_t)w >= sizeof(pbuf) - pn) break;
+    pn += (size_t)w;
+   }
+   consolePrintf (pt ? " Pior por fase (>=5 ms): %s\n"
+                     : " Worst per phase (>=5 ms): %s\n",
+   pn ? pbuf : "-");
+  }
   consolePrintf (pt ? " Iteracoes: %lu | pior iteracao: %lu ms\n"
                     : " Iterations: %lu | worst iteration: %lu ms\n",
   (unsigned long)g_core1Iters, (unsigned long)g_core1IterMaxMs);
