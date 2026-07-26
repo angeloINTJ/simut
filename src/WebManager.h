@@ -251,6 +251,7 @@ private:
 	void handleApiCommitAll( ); /**< save-all + reboot */
 	/* handleSaveNetwork replaced by handleApiCommitAll */
 	void handleResetTouchCal( );
+	void handleApiHistoryRebind( ); /**< POST — rebind today's .sim4 to the saved slots */
 	void handleApiStatus( );
 	void handleApiHistoryMulti( ); /**< History streaming for multiple sensors in one response. */
 	void handleApiExportHistory( ); /**< Export history as .simx bundle (CRC32 trailer). */

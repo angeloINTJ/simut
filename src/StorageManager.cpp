@@ -2155,6 +2155,349 @@ bool StorageManager::rebindV4Schema(uint8_t *outMeasures) {
  return true;
 }
 
+/* Scratch shared by migrateV4Schema and verifyMigratedV4.
+ *
+ * File scope, not function statics, because the two would otherwise each own a
+ * full set and the pair would cost 11.3 KB of .bss instead of 5.6 KB — on a
+ * device where .bss is already half the SRAM.
+ *
+ * Sharing is safe by construction, not by luck: migrateV4Schema is the ONLY
+ * caller of verifyMigratedV4, both run on Core 0 with Core 1 paused, and the
+ * write pass has finished with every one of these before the verify pass
+ * starts. s_migState is re-populated by verify from the same source file it
+ * already held, so the value survives the round trip; s_migColMap is the one
+ * thing verify needs to keep intact across the call, and verify never writes
+ * to it. The "new" schema side uses _histV4State throughout, which has to end
+ * up holding the live schema anyway.
+ *
+ * Do NOT call verifyMigratedV4 from anywhere else without revisiting this. */
+static HistV4State s_migState;
+static uint8_t s_migHdr[HIST_V4_MAX_HEADER];
+static int64_t s_migValsA[HIST_V4_MAX_MEASUREMENTS];
+static int64_t s_migValsB[HIST_V4_MAX_MEASUREMENTS];
+static uint8_t s_migBufA[HIST_V4_READ_BUF];
+static uint8_t s_migBufB[HIST_V4_READ_BUF];
+static int8_t  s_migColMap[HIST_V4_MAX_MEASUREMENTS];
+static_assert(HIST_V4_MAX_DELTA <= HIST_V4_READ_BUF,
+              "s_migBufB doubles as the encode buffer in the write pass");
+
+/* ── Migrating rewrite of the day's file ─────────────────────────────────
+ *
+ * rebindV4Schema() above throws the day away. This one keeps it: the file is
+ * rewritten against a schema built from the current slots, columns that still
+ * exist are carried over record by record, and columns that are new are filled
+ * with the NaN sentinel back to 00:00.
+ *
+ * STREAMING, not a RAM copy. A full day measured with the production codec at
+ * the 1-minute minimum interval is 9.7 KB at 9 measurements but 42.8 KB at 48
+ * (16 slots x 3 channels) and 55.9 KB at the format ceiling — against ~47 KB of
+ * free heap and a largest contiguous block of ~36 KB on a live device. Buffering
+ * the file would work on a 5-sensor bench and fail on a full deployment, which
+ * is exactly when this function matters. Cost here is constant instead:
+ *
+ *     oldState 2048 + hdrBuf 2048 + values 2x512 + map 64 + rdBuf 2x256 = ~5.6 KB
+ *
+ * and it does not grow with the day, the sensor count, or the interval.
+ *
+ * Safety follows the sequence the feature was specified with: quiesce, verify
+ * the source, build the new schema, write a TEMPORARY file, verify the
+ * temporary against the source column by column, and only then remove the
+ * original and rename. The original is untouched until the replacement has been
+ * read back from flash and compared. A power loss at any point leaves either
+ * the intact original plus an orphan .mig (removed at the start of the next
+ * attempt) or, after the rename, the complete new file.
+ *
+ * Raw integers are carried VERBATIM when the old and new measurement agree on
+ * (bitWidth, scale) — which is the normal case, since both come from
+ * histV4DefaultBitWidth/Scale for the same channel. Only a genuine width or
+ * scale change goes through float, because a raw value is meaningless without
+ * the def it was packed against. The NaN sentinel is bitWidth-derived, so it
+ * survives the verbatim path unchanged.
+ *
+ * @param outMeasures  measurements in the new schema
+ * @param outRecords   records carried over
+ * @param outCarried   columns mapped from the old schema (the rest are new)
+ * @return false with the ORIGINAL FILE INTACT on any failure.
+ */
+bool StorageManager::migrateV4Schema(uint8_t *outMeasures, uint32_t *outRecords,
+                                     uint8_t *outCarried) {
+	if (!_isMounted) return false;
+
+	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+	LogManager::WdtWindow _wdt(60000);
+	Core1FlashPause _c1(this);
+
+	/* Drain the RAM batch into the OLD file first: those samples were matched
+	 * against the old schema, so they migrate with everything else. Losing
+	 * them here would defeat the point of not losing the day. */
+	flushHistoryBatch( );
+
+	const String path = getHistoryFileNameV4( );
+	const String tmp  = path + ".mig";
+
+	/* Nothing to carry — no file yet today. Not a failure. */
+	bool exists = false;
+	FLASH_OP({ exists = LittleFS.exists(path); });
+	if (!exists) {
+		_histV4CodecValid = false;
+		if (!createHistoryFileV4WithSchema(path)) return false;
+		_v4CurrentLogFileName = path;
+		_histV4CodecValid = true;
+		if (outMeasures) *outMeasures = _histV4State.measureCount;
+		if (outRecords)  *outRecords  = 0;
+		if (outCarried)  *outCarried  = 0;
+		return true;
+	}
+
+	FLASH_OP({ LittleFS.remove(tmp); }); /* orphan from an interrupted attempt */
+
+	HistV4State &oldState = s_migState;
+	uint8_t *hdrBuf  = s_migHdr;
+	int64_t *oldVals = s_migValsA;
+	int64_t *newVals = s_migValsB;
+	int8_t  *colMap  = s_migColMap;
+
+	/* ── 1. Verify the source, repairing a torn tail before trusting it ── */
+	{
+		size_t torn = 0;
+		bool ok = false;
+		FLASH_OP({
+			File f = LittleFS.open(path, "r");
+			if (f) { ok = scanHistoryFileV4(f, oldState, &torn); f.close( ); }
+		});
+		if (ok && torn > 0) {
+			if (!repairHistoryTailV4(path, torn)) ok = false;
+			else FLASH_OP({
+				File f = LittleFS.open(path, "r");
+				ok = f && scanHistoryFileV4(f, oldState, nullptr);
+				if (f) f.close( );
+			});
+		}
+		if (!ok || oldState.measureCount == 0) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_src_bad");
+			return false; /* unreadable source: caller falls back to rebind */
+		}
+	}
+
+	/* ── 2. New schema from the configured slots, into the temp file ── */
+	size_t hdrLen = 0;
+	{
+		HistV4SensorDef s[HIST_V4_MAX_SENSORS];
+		HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
+		uint8_t pool[HIST_V4_MAX_STRPOOL];
+		uint8_t sc = 0, mc = 0, sp = 0;
+		if (!buildMeasureSchema(s, sc, m, mc, pool, sp)) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_schema_empty");
+			return false;
+		}
+		hdrLen = histV4WriteHeaderBuf(hdrBuf, sizeof(s_migHdr), s, sc, m, mc, pool, sp);
+	}
+	if (hdrLen == 0) {
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_hdr_build");
+		return false;
+	}
+
+	bool wrote = false;
+	FLASH_OP({
+		File f = LittleFS.open(tmp, "w");
+		if (f) { wrote = (f.write(hdrBuf, hdrLen) == hdrLen); f.close( ); }
+	});
+	if (!wrote) {
+		FLASH_OP({ LittleFS.remove(tmp); });
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_hdr_write");
+		return false;
+	}
+
+	/* Read the schema back from flash rather than reusing the RAM copy, so the
+	 * encoder is driven by the bytes a reader will actually see. */
+	histV4Reset(_histV4State);
+	{
+		bool parsed = false;
+		FLASH_OP({
+			File f = LittleFS.open(tmp, "r");
+			if (f) {
+				int n = f.read(hdrBuf, sizeof(s_migHdr));
+				f.close( );
+				if (n >= (int)HIST_V4_HEADER_FIXED)
+					parsed = histV4ReadHeaderBuf(hdrBuf, (size_t)n, _histV4State) > 0;
+			}
+		});
+		if (!parsed || _histV4State.measureCount == 0) {
+			FLASH_OP({ LittleFS.remove(tmp); });
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_hdr_read");
+			return false;
+		}
+	}
+
+	/* ── 3. Column map: (hwId, channel) is the identity, as everywhere else ── */
+	uint8_t carried = 0;
+	for (uint8_t j = 0; j < _histV4State.measureCount; j++) {
+		colMap[j] = -1;
+		char nHw[17];
+		const uint8_t nsi = _histV4State.measures[j].sensorIdx;
+		histV4StrPoolGet(nHw, sizeof(nHw), _histV4State.strPool,
+		                 _histV4State.sensors[nsi].hwIdOffset,
+		                 _histV4State.sensors[nsi].hwIdLen);
+		for (uint8_t i = 0; i < oldState.measureCount; i++) {
+			if (oldState.measures[i].channel != _histV4State.measures[j].channel) continue;
+			char oHw[17];
+			const uint8_t osi = oldState.measures[i].sensorIdx;
+			histV4StrPoolGet(oHw, sizeof(oHw), oldState.strPool,
+			                 oldState.sensors[osi].hwIdOffset,
+			                 oldState.sensors[osi].hwIdLen);
+			if (strcmp(oHw, nHw) == 0) { colMap[j] = (int8_t)i; carried++; break; }
+		}
+	}
+
+	/* ── 4. Stream: decode one old record, remap, encode, append ── */
+	uint32_t records = 0;
+	bool ok = true;
+	FLASH_OP({
+		File src = LittleFS.open(path, "r");
+		File dst = LittleFS.open(tmp, "a");
+		if (!src || !dst) ok = false;
+		if (ok) {
+			HistV4State rd;            /* decoder state over the OLD file */
+			memcpy(&rd, &oldState, sizeof(rd));
+			histV4ResetCodec(rd);
+			src.seek(oldState.headerLen);
+
+			uint8_t *rdBuf  = s_migBufA;
+			uint8_t *encBuf = s_migBufB;
+			size_t filled = 0;
+			uint32_t epoch = 0;
+
+			while (ok) {
+				size_t consumed = histV4DecodeNextRefill(
+					rdBuf, HIST_V4_READ_BUF, filled, rd, oldVals, &epoch,
+					[&src](uint8_t *d, size_t maxB) -> size_t {
+						if (src.available() <= 0) return 0;
+						size_t n = maxB;
+						if (n > (size_t)src.available()) n = (size_t)src.available();
+						int r = src.read(d, n);
+						return (r > 0) ? (size_t)r : 0;
+					});
+				if (consumed == 0) break; /* clean end */
+
+				for (uint8_t j = 0; j < _histV4State.measureCount; j++)
+					newVals[j] = histV4RemapValue(colMap[j], oldVals, oldState,
+					                              _histV4State.measures[j]);
+
+				size_t n = histV4Encode(newVals, _histV4State.measureCount,
+				                        _histV4State, encBuf, sizeof(s_migBufB),
+				                        epoch, nullptr);
+				if (n == 0 || dst.write(encBuf, n) != n) { ok = false; break; }
+				records++;
+				if ((records & 0x1F) == 0) feedWdt( );
+			}
+		}
+		if (src) src.close( );
+		if (dst) dst.close( );
+	});
+	if (!ok) {
+		FLASH_OP({ LittleFS.remove(tmp); });
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)records, "mig_write_fail");
+		return false;
+	}
+
+	/* ── 5. Verify the temporary against the source, column by column ──
+	 * Both files are re-decoded from flash in lockstep. This is what makes
+	 * the swap safe: a carried column that did not survive the round trip
+	 * aborts the migration with the original still in place. */
+	if (!verifyMigratedV4(path, tmp, colMap, records)) {
+		FLASH_OP({ LittleFS.remove(tmp); });
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)records, "mig_verify_fail");
+		return false;
+	}
+
+	/* ── 6. Swap. Only now does the original go away. ── */
+	_histV4CodecValid = false;
+	bool swapped = false;
+	FLASH_OP({
+		LittleFS.remove(path);
+		swapped = LittleFS.rename(tmp, path);
+	});
+	if (!swapped) {
+		/* The original is gone and the rename failed: the data still exists
+		 * under the temp name. Say so loudly — it is recoverable by hand. */
+		LOG_CODE(LOG_ERROR, "STO", STO_WRITE_FAILED, 0, "mig_rename_fail_data_in_mig");
+		return false;
+	}
+
+	/* Reload the codec from the file that is now live. */
+	{
+		bool parsed = false;
+		FLASH_OP({
+			File f = LittleFS.open(path, "r");
+			if (f) { parsed = scanHistoryFileV4(f, _histV4State, nullptr); f.close( ); }
+		});
+		if (!parsed) { LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_reload_fail"); return false; }
+	}
+	_v4CurrentLogFileName = path;
+	_histV4CodecValid = true;
+
+	if (outMeasures) *outMeasures = _histV4State.measureCount;
+	if (outRecords)  *outRecords  = records;
+	if (outCarried)  *outCarried  = carried;
+	LOG_CODE(LOG_INFO, "STO", SYS_OK, (int)records, "V4 schema migrated");
+	return true;
+}
+
+/* Lockstep re-decode of source and replacement. Every carried column must
+ * come back bit-identical to what the source holds; epochs must match and the
+ * record count must be exactly what was written. */
+bool StorageManager::verifyMigratedV4(const String &srcPath, const String &tmpPath,
+                                      const int8_t *colMap, uint32_t expectRecords) {
+	HistV4State &vOld = s_migState;      /* re-read from srcPath below */
+	HistV4State &vNew = _histV4State;    /* re-read from tmpPath below */
+	int64_t *aVals = s_migValsA;
+	int64_t *bVals = s_migValsB;
+	uint8_t *aBuf  = s_migBufA;
+	uint8_t *bBuf  = s_migBufB;
+
+	bool ok = false;
+	uint32_t n = 0;
+	FLASH_OP({
+		File a = LittleFS.open(srcPath, "r");
+		File b = LittleFS.open(tmpPath, "r");
+		if (a && b) {
+			ok = scanHistoryFileV4(a, vOld, nullptr) && scanHistoryFileV4(b, vNew, nullptr);
+			if (ok) {
+				histV4ResetCodec(vOld); histV4ResetCodec(vNew);
+				a.seek(vOld.headerLen); b.seek(vNew.headerLen);
+				size_t fa = 0;
+				size_t fb = 0;
+				uint32_t ea = 0;
+				uint32_t eb = 0;
+				while (ok) {
+					size_t ca = histV4DecodeNextRefill(aBuf, HIST_V4_READ_BUF, fa, vOld, aVals, &ea,
+						[&a](uint8_t *d, size_t m) -> size_t {
+							if (a.available() <= 0) return 0;
+							size_t k = m; if (k > (size_t)a.available()) k = (size_t)a.available();
+							int r = a.read(d, k); return (r > 0) ? (size_t)r : 0; });
+					size_t cb = histV4DecodeNextRefill(bBuf, HIST_V4_READ_BUF, fb, vNew, bVals, &eb,
+						[&b](uint8_t *d, size_t m) -> size_t {
+							if (b.available() <= 0) return 0;
+							size_t k = m; if (k > (size_t)b.available()) k = (size_t)b.available();
+							int r = b.read(d, k); return (r > 0) ? (size_t)r : 0; });
+					if (ca == 0 && cb == 0) break;      /* both ended together */
+					if (ca == 0 || cb == 0) { ok = false; break; } /* length mismatch */
+					if (ea != eb) { ok = false; break; }
+					for (uint8_t j = 0; j < vNew.measureCount && ok; j++) {
+						int64_t want = histV4RemapValue(colMap[j], aVals, vOld, vNew.measures[j]);
+						if (bVals[j] != want) ok = false;
+					}
+					n++;
+					if ((n & 0x1F) == 0) feedWdt( );
+				}
+			}
+		}
+		if (a) a.close( );
+		if (b) b.close( );
+	});
+	return ok && n == expectRecords;
+}
+
 bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
 	if (!_isMounted) return false;
 
