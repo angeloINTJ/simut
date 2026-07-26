@@ -164,10 +164,15 @@ void WebManager::handleApiConfig( ) {
 	if (!safeSend(jsonEscape(cfg.sensors[10].hwId).c_str( ))) return;
 	safeSend("\",\"sensors\":[");
 	for (int i = 0; i < MAX_SENSORS; i++) {
-		snprintf(buf, sizeof(buf), "%s{\"hwid\":\"%s\",\"active\":%s}",
+		/* hum/press say which channels this slot actually reports, so the
+		 * telemetry Live Preview can resolve {uN}/{pN} the same way the
+		 * firmware does instead of guessing from the hwId. */
+		snprintf(buf, sizeof(buf), "%s{\"hwid\":\"%s\",\"active\":%s,\"hum\":%s,\"press\":%s}",
 		         i == 0 ? "" : ",",
 		         jsonEscape(cfg.sensors[i].hwId).c_str( ),
-		         cfg.sensors[i].active ? "true" : "false");
+		         cfg.sensors[i].active ? "true" : "false",
+		         sensorHasChannel((SensorType)cfg.sensors[i].sensorType, CH_HUM) ? "true" : "false",
+		         sensorHasChannel((SensorType)cfg.sensors[i].sensorType, CH_PRESS) ? "true" : "false");
 		if (!safeSend(buf)) return;
 	}
 	safeSend("]}");
