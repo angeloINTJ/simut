@@ -43,6 +43,17 @@ class PicoTest:
         return False
 
     def _wait_prompt(self, timeout=8):
+        # Ask for the prompt instead of waiting for one. Opening the port with
+        # DTR does not reset this board, and the firmware only prints a prompt
+        # in reply to input — so a passive wait succeeded only when the suite
+        # happened to catch a boot banner. On a device that had been up a while
+        # _connect burned its 20 attempts and returned False, leaving self.ser
+        # as None and every test failing on 'NoneType has no attribute read'.
+        try:
+            self.ser.write(b'\r\n')
+            self.ser.flush()
+        except Exception:
+            return False
         buf = b''
         deadline = time.time() + timeout
         while time.time() < deadline:

@@ -567,7 +567,15 @@ void WebManager::handleApiAction( ) {
 		return;
 	}
 
-	/* ── Slot maintenance ── */
+	/* ── Slot maintenance ──
+	 * The op is validated before the slot. Checking the slot first made an
+	 * unrecognised op answer {"error":"slot"}, which points the caller at the
+	 * wrong parameter — it reads as "my slot is malformed" when the real
+	 * problem is a typo in the op name. */
+	if (op != "sensor_wipe" && op != "sensor_accept") {
+		_server.send(400, "application/json", "{\"error\":\"op\"}");
+		return;
+	}
 	int slot = _server.hasArg("slot") ? _server.arg("slot").toInt( ) : -1;
 	if (slot < 0 || slot >= MAX_SENSORS) {
 		_server.send(400, "application/json", "{\"error\":\"slot\"}");
@@ -631,5 +639,8 @@ void WebManager::handleApiAction( ) {
 		return;
 	}
 
+	/* Unreachable: the op was whitelisted above. Kept as a belt-and-braces
+	 * answer so a future op added to that whitelist without a body here fails
+	 * loudly instead of returning an empty 200. */
 	_server.send(400, "application/json", "{\"error\":\"op\"}");
 }
