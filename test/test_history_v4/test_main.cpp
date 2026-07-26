@@ -1063,6 +1063,256 @@ static void test_A1b_failed_delta_leaves_state_untouched(void) {
  *  MAIN
  * ============================================================================ */
 
+
+/* ============================================================================
+ *  MIGRACAO DE SCHEMA (reescrita do arquivo do dia)
+ *
+ *  Exercita o NUCLEO de StorageManager::migrateV4Schema sem sistema de
+ *  arquivos: monta um schema antigo, codifica um dia, remapeia coluna a coluna
+ *  para um schema novo, recodifica e confere que cada valor carregado volta
+ *  identico e que as colunas novas voltam NaN. E' exatamente o que a funcao faz
+ *  entre ler um registro do arquivo velho e gravar no temporario.
+ * ============================================================================ */
+
+/** Schema com N sensores de 1 canal (temp), hwIds "S0".."Sn". */
+static void buildMigSchema(HistV4State &st, uint8_t nSens, uint8_t firstId = 0) {
+    histV4Reset(st);
+    st.sensorCount  = nSens;
+    st.measureCount = nSens;
+    uint8_t off = 0;
+    for (uint8_t i = 0; i < nSens; i++) {
+        char hw[8];
+        snprintf(hw, sizeof(hw), "S%d", firstId + i);
+        uint8_t l = (uint8_t)strlen(hw);
+        st.sensors[i].hwIdOffset = off;
+        st.sensors[i].hwIdLen    = l;
+        memcpy(st.strPool + off, hw, l);
+        off += l;
+        st.sensors[i].nameOffset = off;
+        st.sensors[i].nameLen    = 0;
+        st.sensors[i].sensorType = TYPE_DS18B20;
+        st.sensors[i].channelMask = 0x01;
+
+        st.measures[i].sensorIdx = i;
+        st.measures[i].channel   = 0;
+        st.measures[i].bitWidth  = 16;
+        st.measures[i].decimals  = 2;
+        st.measures[i].unitOffset = 0;
+        st.measures[i].unitLen    = 0;
+        st.measures[i].scale      = 100;
+    }
+    st.strPoolSize = off;
+    uint16_t bitOff = 32;
+    for (uint8_t i = 0; i < st.measureCount; i++) {
+        st.measureByteOffset[i] = bitOff >> 3;
+        st.measureBitOffset[i]  = bitOff;
+        bitOff += st.measures[i].bitWidth;
+    }
+    st.anchorByteSize = (bitOff + 7) / 8;
+}
+
+/** Mapeia colunas por (hwId, canal), como migrateV4Schema faz. */
+static void buildMigMap(const HistV4State &oldS, const HistV4State &newS, int8_t *map) {
+    for (uint8_t j = 0; j < newS.measureCount; j++) {
+        map[j] = -1;
+        char nHw[17];
+        histV4StrPoolGet(nHw, sizeof(nHw), newS.strPool,
+                         newS.sensors[newS.measures[j].sensorIdx].hwIdOffset,
+                         newS.sensors[newS.measures[j].sensorIdx].hwIdLen);
+        for (uint8_t i = 0; i < oldS.measureCount; i++) {
+            if (oldS.measures[i].channel != newS.measures[j].channel) continue;
+            char oHw[17];
+            histV4StrPoolGet(oHw, sizeof(oHw), oldS.strPool,
+                             oldS.sensors[oldS.measures[i].sensorIdx].hwIdOffset,
+                             oldS.sensors[oldS.measures[i].sensorIdx].hwIdLen);
+            if (strcmp(oHw, nHw) == 0) { map[j] = (int8_t)i; break; }
+        }
+    }
+}
+
+/** Um sensor a mais: as 2 colunas velhas sobrevivem, a 3a nasce NaN. */
+void test_mig_adds_column_keeps_old_values(void) {
+    HistV4State oldS, newS, decOld, decNew;
+    buildMigSchema(oldS, 2);
+    buildMigSchema(newS, 3);
+    int8_t map[HIST_V4_MAX_MEASUREMENTS];
+    buildMigMap(oldS, newS, map);
+    TEST_ASSERT_EQUAL_INT8(0, map[0]);
+    TEST_ASSERT_EQUAL_INT8(1, map[1]);
+    TEST_ASSERT_EQUAL_INT8(-1, map[2]);   /* coluna nova */
+
+    const int N = 200;                     /* cruza 3 fronteiras de ancora */
+    static uint8_t oldFile[65536];
+    size_t oldLen = 0;
+    uint32_t ep = 1785000000u;
+    for (int r = 0; r < N; r++) {
+        int64_t v[2] = { (int64_t)(2000 + r), (int64_t)(-500 - r) };
+        size_t n = histV4Encode(v, 2, oldS, oldFile + oldLen, sizeof(oldFile) - oldLen, ep + r * 60, nullptr);
+        TEST_ASSERT_TRUE(n > 0);
+        oldLen += n;
+    }
+
+    /* Passo de migracao: decodifica o velho, remapeia, recodifica no novo. */
+    memcpy(&decOld, &oldS, sizeof(decOld));
+    histV4ResetCodec(decOld);
+    static uint8_t newFile[65536];
+    size_t newLen = 0, rd = 0;
+    int written = 0;
+    while (rd < oldLen) {
+        int64_t ov[HIST_V4_MAX_MEASUREMENTS];
+        uint32_t e;
+        size_t c = histV4DecodeNext(oldFile + rd, oldLen - rd, decOld, ov, &e);
+        if (c == 0) break;
+        rd += c;
+        int64_t nv[HIST_V4_MAX_MEASUREMENTS];
+        for (uint8_t j = 0; j < newS.measureCount; j++)
+            nv[j] = histV4RemapValue(map[j], ov, decOld, newS.measures[j]);
+        size_t n = histV4Encode(nv, newS.measureCount, newS, newFile + newLen,
+                                sizeof(newFile) - newLen, e, nullptr);
+        TEST_ASSERT_TRUE(n > 0);
+        newLen += n;
+        written++;
+    }
+    TEST_ASSERT_EQUAL_INT(N, written);
+
+    /* Verificacao: le o resultado e confere contra o esperado. */
+    memcpy(&decNew, &newS, sizeof(decNew));
+    histV4ResetCodec(decNew);
+    size_t p = 0;
+    for (int r = 0; r < N; r++) {
+        int64_t v[HIST_V4_MAX_MEASUREMENTS];
+        uint32_t e;
+        size_t c = histV4DecodeNext(newFile + p, newLen - p, decNew, v, &e);
+        TEST_ASSERT_TRUE(c > 0);
+        p += c;
+        TEST_ASSERT_EQUAL_UINT32(ep + r * 60, e);
+        TEST_ASSERT_EQUAL_INT64((int64_t)(2000 + r), v[0]);
+        TEST_ASSERT_EQUAL_INT64((int64_t)(-500 - r), v[1]);
+        TEST_ASSERT_TRUE(histV4IsNan(v[2], newS.measures[2].bitWidth));
+    }
+    TEST_ASSERT_EQUAL_size_t(newLen, p);
+}
+
+/** Sensor removido: a coluna sai e a sobrevivente nao se desloca de valor. */
+void test_mig_drops_column_without_shifting(void) {
+    HistV4State oldS, newS, decOld, decNew;
+    buildMigSchema(oldS, 3);
+    buildMigSchema(newS, 1);            /* so' S0 permanece */
+    int8_t map[HIST_V4_MAX_MEASUREMENTS];
+    buildMigMap(oldS, newS, map);
+    TEST_ASSERT_EQUAL_INT8(0, map[0]);
+
+    static uint8_t a[8192], b[8192];
+    size_t al = 0, bl = 0;
+    const int N = 70;
+    for (int r = 0; r < N; r++) {
+        int64_t v[3] = { (int64_t)(1000 + r), 7777, -3333 };
+        al += histV4Encode(v, 3, oldS, a + al, sizeof(a) - al, 1785000000u + r * 60, nullptr);
+    }
+    memcpy(&decOld, &oldS, sizeof(decOld)); histV4ResetCodec(decOld);
+    size_t rd = 0;
+    while (rd < al) {
+        int64_t ov[HIST_V4_MAX_MEASUREMENTS]; uint32_t e;
+        size_t c = histV4DecodeNext(a + rd, al - rd, decOld, ov, &e);
+        if (c == 0) break;
+        rd += c;
+        int64_t nv[HIST_V4_MAX_MEASUREMENTS];
+        for (uint8_t j = 0; j < newS.measureCount; j++)
+            nv[j] = histV4RemapValue(map[j], ov, decOld, newS.measures[j]);
+        bl += histV4Encode(nv, newS.measureCount, newS, b + bl, sizeof(b) - bl, e, nullptr);
+    }
+    memcpy(&decNew, &newS, sizeof(decNew)); histV4ResetCodec(decNew);
+    size_t p = 0;
+    for (int r = 0; r < N; r++) {
+        int64_t v[HIST_V4_MAX_MEASUREMENTS]; uint32_t e;
+        size_t c = histV4DecodeNext(b + p, bl - p, decNew, v, &e);
+        TEST_ASSERT_TRUE(c > 0);
+        p += c;
+        TEST_ASSERT_EQUAL_INT64((int64_t)(1000 + r), v[0]);   /* nao pegou o 7777 do vizinho */
+    }
+}
+
+/** Reordenar slots nao troca valores: o pareamento e' por hwId, nao por indice. */
+void test_mig_reorder_matches_by_hwid(void) {
+    HistV4State oldS, newS;
+    buildMigSchema(oldS, 2);            /* S0, S1 */
+    buildMigSchema(newS, 2);
+    /* Inverte os hwIds do schema novo: S1, S0 */
+    memcpy(newS.strPool, "S1S0", 4);
+    newS.sensors[0].hwIdOffset = 0; newS.sensors[0].hwIdLen = 2;
+    newS.sensors[1].hwIdOffset = 2; newS.sensors[1].hwIdLen = 2;
+    newS.strPoolSize = 4;
+
+    int8_t map[HIST_V4_MAX_MEASUREMENTS];
+    buildMigMap(oldS, newS, map);
+    TEST_ASSERT_EQUAL_INT8(1, map[0]);  /* coluna 0 do novo <- coluna 1 do velho */
+    TEST_ASSERT_EQUAL_INT8(0, map[1]);
+
+    int64_t ov[2] = { 111, 222 };
+    TEST_ASSERT_EQUAL_INT64(222, histV4RemapValue(map[0], ov, oldS, newS.measures[0]));
+    TEST_ASSERT_EQUAL_INT64(111, histV4RemapValue(map[1], ov, oldS, newS.measures[1]));
+}
+
+/** NaN da origem continua NaN no destino, com o sentinela do bitWidth destino. */
+void test_mig_nan_survives_width_change(void) {
+    HistV4State oldS, newS;
+    buildMigSchema(oldS, 1);
+    buildMigSchema(newS, 1);
+    newS.measures[0].bitWidth = 24;     /* largura diferente */
+
+    int64_t ov[1] = { histV4NanSentinel(16) };
+    int8_t map[1] = { 0 };
+    int64_t got = histV4RemapValue(map[0], ov, oldS, newS.measures[0]);
+    TEST_ASSERT_TRUE(histV4IsNan(got, 24));
+    TEST_ASSERT_EQUAL_INT64(histV4NanSentinel(24), got);
+}
+
+/** Escala diferente converte pelo valor fisico, nao pelo inteiro cru. */
+void test_mig_scale_change_converts_physically(void) {
+    HistV4State oldS, newS;
+    buildMigSchema(oldS, 1);
+    buildMigSchema(newS, 1);
+    newS.measures[0].scale = 10;        /* x100 -> x10 */
+
+    int64_t ov[1] = { 2537 };           /* 25.37 degC em escala 100 */
+    int8_t map[1] = { 0 };
+    int64_t got = histV4RemapValue(map[0], ov, oldS, newS.measures[0]);
+    TEST_ASSERT_EQUAL_INT64(254, got);  /* 25.4 em escala 10 */
+}
+
+/** histV4ResetCodec limpa a cadeia de delta e preserva o schema. */
+void test_mig_reset_codec_keeps_schema(void) {
+    HistV4State st;
+    buildMigSchema(st, 3);
+    st.lastAnchor[0] = 12345;
+    st.recordsSinceAnchor = 17;
+    st.initialized = true;
+    st.lastEpoch = 999;
+
+    histV4ResetCodec(st);
+    TEST_ASSERT_EQUAL_UINT8(3, st.measureCount);       /* schema intacto */
+    TEST_ASSERT_EQUAL_UINT8(3, st.sensorCount);
+    TEST_ASSERT_EQUAL_UINT16(0, st.recordsSinceAnchor);
+    TEST_ASSERT_FALSE(st.initialized);
+    TEST_ASSERT_EQUAL_UINT32(0, st.lastEpoch);
+    TEST_ASSERT_EQUAL_INT64(0, st.lastAnchor[0]);
+}
+
+/** headerLen aponta para o primeiro registro — o seek do streaming depende disso. */
+void test_mig_header_len_points_at_first_record(void) {
+    HistV4State st;
+    buildMigSchema(st, 4);
+    uint8_t buf[HIST_V4_MAX_HEADER];
+    size_t n = histV4WriteHeaderBuf(buf, sizeof(buf), st.sensors, st.sensorCount,
+                                    st.measures, st.measureCount,
+                                    st.strPool, st.strPoolSize);
+    TEST_ASSERT_TRUE(n > 0);
+    HistV4State rd;
+    size_t consumed = histV4ReadHeaderBuf(buf, n, rd);
+    TEST_ASSERT_EQUAL_size_t(consumed, (size_t)rd.headerLen);
+    TEST_ASSERT_EQUAL_size_t(n, (size_t)rd.headerLen);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -1134,6 +1384,15 @@ int main(void) {
     RUN_TEST(test_A3_real_nan_still_sentinel);
     RUN_TEST(test_A3_unsigned_top_of_range_is_not_nan);
     RUN_TEST(test_A3_roundtrip_through_anchor);
+
+    /* Migracao de schema (reescrita do arquivo do dia) */
+    RUN_TEST(test_mig_adds_column_keeps_old_values);
+    RUN_TEST(test_mig_drops_column_without_shifting);
+    RUN_TEST(test_mig_reorder_matches_by_hwid);
+    RUN_TEST(test_mig_nan_survives_width_change);
+    RUN_TEST(test_mig_scale_change_converts_physically);
+    RUN_TEST(test_mig_reset_codec_keeps_schema);
+    RUN_TEST(test_mig_header_len_points_at_first_record);
 
     /* Patch V4 — A1 (refill pos-falha) e A1-b (decode transacional) */
     RUN_TEST(test_A1_refill_reads_full_stream);

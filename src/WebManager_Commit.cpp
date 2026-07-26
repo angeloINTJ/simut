@@ -960,3 +960,71 @@ void WebManager::handleResetTouchCal( ) {
 
 	_server.send(200, "application/json", "{\"status\":\"ok\",\"wizard\":true}");
 }
+
+/* Rebind the day's history to the slots as they are SAVED right now.
+ *
+ * A .sim4 freezes its schema at creation and matches values by hwId, so a slot
+ * added or renamed after the day's file exists has no column to write into:
+ * the record is still appended, its channel just stays NaN, and nothing in the
+ * log says so. The caller must have committed first — rebinding on top of
+ * staged-but-unsaved edits would freeze the old schema all over again. The page
+ * guards that; this handler cannot see Pending.
+ *
+ * DEFAULT PATH IS NON-DESTRUCTIVE. migrateV4Schema streams the day's file into
+ * a verified replacement, carrying every column that still exists and filling
+ * the new ones with the NaN sentinel back to 00:00. It only fails when the
+ * source itself is unreadable, and it leaves the original in place when it does.
+ *
+ * ?force=1 selects the old destructive rebindV4Schema, which recreates the file
+ * empty. It exists for the case migration cannot handle — a corrupt source —
+ * and is never chosen on the client's behalf: throwing the day away is the
+ * user's call, so the page asks first.
+ *
+ * On success the device reboots, which is what puts every sensor back on a
+ * codec built from the file that is now live.
+ *
+ * rebindV4Schema and migrateV4Schema both carry their own Core1FlashPause and
+ * WDT window; the quiet mode here parks Core 1's rendering for the rewrite. */
+void WebManager::handleApiHistoryRebind( ) {
+	uint16_t perms = getAuthPerms( );
+	if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (rejectIfTouchPriority( )) return;
+
+	const bool force = _server.hasArg("force") && _server.arg("force") == "1";
+
+	uint8_t mc = 0;
+	uint8_t carried = 0;
+	uint32_t records = 0;
+	bool ok;
+
+	_displayRef->requestQuietMode( );
+	if (force) ok = _storageRef->rebindV4Schema(&mc);
+	else       ok = _storageRef->migrateV4Schema(&mc, &records, &carried);
+	_displayRef->releaseQuietMode( );
+
+	if (!ok) {
+		/* Distinct body for the migration case: the page turns this into the
+		 * offer to recreate the file instead, rather than a dead end. */
+		_server.send(500, "application/json",
+		             force ? "{\"error\":\"rebind failed\"}"
+		                   : "{\"error\":\"migrate failed\",\"canForce\":true}");
+		return;
+	}
+
+	if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_CONFIRM);
+	LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
+	         force ? TRL("History schema rebuilt via web (day discarded)")
+	               : TRL("History schema migrated via web (day kept)"));
+	LOG_CODE(LOG_INFO, "HIST", APP_HIST_SCHEMA_MISMATCH, (int)mc, "");
+
+	char json[96];
+	snprintf(json, sizeof(json),
+	         "{\"status\":\"ok\",\"meas\":%u,\"recs\":%lu,\"kept\":%u,\"forced\":%s,\"reboot\":true}",
+	         (unsigned)mc, (unsigned long)records, (unsigned)carried, force ? "true" : "false");
+	_server.send(200, "application/json", json);
+	_server.client( ).stop( );
+
+	/* Same consolidated sequence as commit-all: marks the reboot clean so the
+	 * autopsy does not report a HW watchdog, flushes USB CDC, then resets. */
+	LogManager::instance( ).safeReboot( );
+}

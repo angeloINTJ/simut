@@ -2714,6 +2714,20 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
             }
 
+            /* History rebind. Device-wide, not slot-scoped — hence its own
+               section and the "all slots" wording. It lives here because this
+               is where you are standing when you notice a slot you just added
+               is not being recorded: the .sim4 of the day froze its schema
+               before the slot existed, so its channel is written as NaN and
+               nothing complains. Same operation as `sensor reschema confirm`.
+               NOTE: no apostrophes in comments on this page — the minifier
+               mis-parses them and the node --check guard fails the build. */
+            h += '<label class="sxsec">' + window.t('sens_hist', 'History recording') + '</label>' +
+                 '<div class="sxn">' + window.t('sens_rebind_hint',
+                    'A slot added or renamed today has no column in the history file of the day, so it is not recorded until tomorrow. This rewrites that file for all slots, keeping the records already taken. The device restarts at the end.') + '</div>' +
+                 '<button type="button" class="sxb" id="se_rebind" onclick="histRebind()" style="margin-top:10px">' +
+                 window.t('sens_rebind', 'Rebind history now') + '</button>';
+
             h += '<div id="se_warn" class="sx-warn"></div>' +
                  '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">' +
                  '<button type="button" class="sxb sxb-dang" onclick="sensClear()">' + window.t('sens_free_slot', 'Free slot') + '</button>' +
@@ -2722,6 +2736,75 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  '<div class="sxn" style="margin-top:10px">' + window.t('sens_stage_hint', 'Edits are staged as you type and written on Save and Restart.') + '</div>';
             SE('sens_ed').innerHTML = h;
             sensWarn();
+        }
+
+        /* Rebuilds the history file of the day against the SAVED slots.
+         *
+         * The Pending guard is not politeness: rebindV4Schema reads the slots
+         * from flash, so running it with staged edits would freeze the old
+         * schema again and the user would be back where they started, having
+         * spent the records of the day for nothing.
+         *
+         * retries:0 on purpose — fetchSafe retries twice by default and this
+         * is a destructive mutation. 30 s because recreating the day file
+         * erases flash, and the firmware's own window for it is 30 s; the
+         * 15 s default would report a failure over an operation still running. */
+        async function histRebind() {
+            if (Pending.hasAny()) {
+                showToast(window.t('sens_rebind_pending',
+                    'Save and Restart first — rebinding now would use the previous configuration.'), 'warn', 6000);
+                return;
+            }
+            if (!confirm(window.t('sens_rebind_confirm',
+                'Rewrite the history file of the day for the current slots?\n\nThe records already taken are kept. The device restarts at the end.'))) return;
+            await histRebindPost(false);
+        }
+
+        /* Split out because the destructive retry re-enters with force=1. The
+           two calls differ only in the query string and in what was confirmed. */
+        async function histRebindPost(force) {
+            const b = SE('se_rebind');
+            if (b) { b.disabled = true; b.textContent = window.t('sens_rebind_busy', 'Rewriting...'); }
+            try {
+                /* 90 s: the rewrite streams the whole day twice — once to write
+                   the replacement, once to verify it against the source — and a
+                   full day at the 1-minute interval is up to 1440 records. */
+                const r = await fetchSafe('/api/history_rebind' + (force ? '?force=1' : ''),
+                                          { method: 'POST', timeout: 90000, retries: 0 });
+                if (r.status === 503) { showToast(window.t('display_busy', 'Display in use. Try again shortly.'), 'warn'); return; }
+                const j = await r.json();
+                if (j.status === 'ok') {
+                    const msg = j.forced
+                        ? window.t('sens_rebind_ok_forced', 'History rebuilt') + ' — ' + j.meas + ' ' + window.t('sens_rebind_meas', 'measurements')
+                        : window.t('sens_rebind_ok', 'History rewritten') + ' — ' + j.recs + ' ' +
+                          window.t('sens_rebind_recs', 'records kept') + ', ' + j.meas + ' ' +
+                          window.t('sens_rebind_meas', 'measurements');
+                    showToast(msg + '. ' + window.t('sens_rebind_reboot', 'Restarting...'), 'ok', 9000);
+                    /* The device is already on its way down; the response was
+                       sent before the reset. Give it the boot window, then reload. */
+                    setTimeout(() => location.reload(), 25000);
+                    return;
+                }
+                if (j.canForce) {
+                    /* Migration could not read the source. Offer the destructive
+                       path explicitly — never take it on behalf of the user. */
+                    if (confirm(window.t('sens_rebind_force',
+                        'The history file of the day could not be read, so the records cannot be carried over.\n\nRecreate it empty? The records of today are lost. Earlier days are untouched.'))) {
+                        await histRebindPost(true);
+                        return;
+                    }
+                    showToast(window.t('sens_rebind_kept', 'Nothing changed.'), 'warn');
+                    return;
+                }
+                showToast(window.t('sens_rebind_err', 'Rewrite failed'), 'err');
+            } catch (e) {
+                /* Includes the timeout case, where the rewrite may well have
+                   completed. Say so instead of inviting a blind second click. */
+                showToast(window.t('sens_rebind_unsure',
+                    'No answer from the device. Reload the page and check the log before trying again.'), 'err', 8000);
+            } finally {
+                if (SE('se_rebind')) sensDrawEditor();
+            }
         }
 
         function sensSet(list) {
@@ -4564,6 +4647,25 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "alm_attention": "Atenção",
             "fil_uploaded": "Upload concluído.",
             "fil_up_err": "Erro no upload.",
+            /* Religar histórico (/config → editor de slot). Ficam aqui, e não
+               só no .lng, porque o pack vive no LittleFS e não é atualizado
+               por um flash de firmware — sem isto o botão sairia em inglês
+               num device que já está em português. */
+            "sens_hist": "Gravação do histórico",
+            "sens_rebind": "Religar histórico agora",
+            "sens_rebind_hint": "Um slot criado ou renomeado hoje não tem coluna no arquivo de histórico de hoje, então não é gravado até amanhã. Isto reescreve esse arquivo para todos os slots, preservando os registros já feitos. O dispositivo reinicia ao final.",
+            "sens_rebind_confirm": "Reescrever o arquivo de histórico de hoje com os slots atuais?\n\nOs registros já feitos são preservados. O dispositivo reinicia ao final.",
+            "sens_rebind_pending": "Salve e Reinicie antes — reescrever agora usaria a configuração anterior.",
+            "sens_rebind_busy": "Reescrevendo...",
+            "sens_rebind_ok": "Histórico reescrito",
+            "sens_rebind_ok_forced": "Histórico recriado",
+            "sens_rebind_recs": "registros preservados",
+            "sens_rebind_reboot": "Reiniciando...",
+            "sens_rebind_force": "Não foi possível ler o arquivo de histórico de hoje, então os registros não podem ser preservados.\n\nRecriar vazio? Os registros de hoje são perdidos. Os dias anteriores não são tocados.",
+            "sens_rebind_kept": "Nada foi alterado.",
+            "sens_rebind_meas": "medições",
+            "sens_rebind_err": "Falha ao reescrever",
+            "sens_rebind_unsure": "Sem resposta do dispositivo. Recarregue a página e confira o log antes de tentar de novo.",
             /* v3.34.0: F-CALIB-UI integrado no /dashboard (~10 chaves usadas inline) */
             "usr_pcal": "Calibração",
             "cal_mode": "Modo Calibração",
