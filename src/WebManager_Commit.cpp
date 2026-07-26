@@ -448,6 +448,16 @@ void WebManager::handleApiCommitAll( ) {
 				int p = sys.indexOf(pat);
 				if (p < 0) return String( );
 				int vStart = p + pat.length( );
+				/* Whitespace after the colon is legal JSON and the page never
+				 * emits it — JSON.stringify writes {"t_int":0}. A client that
+				 * pretty-prints writes {"t_int": 0}, and this used to hand
+				 * parseIntStrict the string " 0", which it rejects. The field
+				 * was then skipped while the commit still answered 200: the
+				 * setting silently did not change. Cost an hour to find with
+				 * `tel_reset` running. */
+				while (vStart < (int)sys.length( ) &&
+				       (sys.charAt(vStart) == ' ' || sys.charAt(vStart) == '\t')) vStart++;
+				if (vStart >= (int)sys.length( )) return String( );
 				/* Skip quotes if present. */
 				if (sys.charAt(vStart) == '"') {
 					int vEnd = sys.indexOf('"', vStart + 1);
@@ -457,7 +467,9 @@ void WebManager::handleApiCommitAll( ) {
 				/* Read until comma or }. */
 				int vEnd = vStart;
 				while (vEnd < (int)sys.length( ) && sys.charAt(vEnd) != ',' && sys.charAt(vEnd) != '}') vEnd++;
-				return sys.substring(vStart, vEnd);
+				String v = sys.substring(vStart, vEnd);
+				v.trim( );   /* trailing space before the comma is legal too */
+				return v;
 			};
 			auto has = [&](const char* key) -> bool {
 				String pat = String("\"") + key + "\":";
