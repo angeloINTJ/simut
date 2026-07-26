@@ -36,6 +36,78 @@ Import("env")
 
 PROJECT = env.subst("$PROJECT_DIR")
 
+# The image ships one of two CLIs (SIMUT_CLI_FULL in SystemDefs_Cli.h), and the
+# invariant is the same for both: a user at the prompt must be able to discover
+# every command that prompt accepts. What differs is where the help comes from
+# — printModeHelp( ) for the full CLI, the short HELP_TEXT_EN block for the
+# emergency one — so the check picks its source from the build flags.
+def _cli_full():
+    # The env still carries build_flags as raw strings at pre: time (CPPDEFINES
+    # is only populated later), and several -D land joined in one entry.
+    flags = " ".join(str(f) for f in env.get("BUILD_FLAGS", []))
+    m = re.findall(r'-DSIMUT_CLI_FULL=(\d+)', flags)
+    if m:
+        return m[-1] != "0"       # last -D wins, as it does for the compiler
+    return True                   # header default
+
+
+CLI_FULL = _cli_full()
+
+# Commands the emergency image is expected to reach. Keeping this list here —
+# rather than deriving it — is the point: gating or ungating a command in
+# CommandParser.cpp without updating the short HELP_TEXT_EN block trips this,
+# which is exactly the drift the guard exists to catch.
+EMERGENCY_EXPECTED = {
+    'CMD_HELP', 'CMD_RELOAD', 'CMD_SHOW_LOGS', 'CMD_SHOW_SYSINFO',
+    'CMD_SHOW_NET', 'CMD_DEBUG', 'CMD_RESET_ADMIN', 'CMD_FACTORY_RESET',
+    'CMD_FORMAT_FS', 'CMD_UNKNOWN',
+}
+
+
+def strip_gated(src):
+    """Drop #if SIMUT_CLI_FULL blocks — what the emergency image compiles."""
+    out, depth = [], 0
+    for line in src.splitlines():
+        s = line.lstrip()
+        if s.startswith('#if SIMUT_CLI_FULL'):
+            depth += 1
+            continue
+        if depth:
+            if s.startswith('#if'):
+                depth += 1
+            elif s.startswith('#endif'):
+                depth -= 1
+            continue
+        out.append(line)
+    return '\n'.join(out)
+
+
+def strip_comments(src):
+    """CMD_* names are discussed in prose too — the file header explains which
+    command the slot-first catch-all used to swallow. Scanning comments makes
+    that read as a reachable command."""
+    src = re.sub(r'/\*.*?\*/', '', src, flags=re.DOTALL)
+    return re.sub(r'//[^\n]*', '', src)
+
+
+def check_emergency_cli(parser_src):
+    reachable = set(re.findall(r'(CMD_[A-Z0-9_]+)',
+                               strip_comments(strip_gated(parser_src))))
+    extra = reachable - EMERGENCY_EXPECTED
+    missing = EMERGENCY_EXPECTED - reachable
+    if extra or missing:
+        print('[cli-help] FATAL: the emergency CLI surface moved.')
+        for c in sorted(extra):
+            print(f'[cli-help]   reachable but undocumented: {c}')
+        for c in sorted(missing):
+            print(f'[cli-help]   documented but unreachable: {c}')
+        print('[cli-help] Update the short HELP_TEXT_EN block in HelpLicenseEN.h')
+        print('[cli-help] and the @HELP section of both data/lang/*.lng to match,')
+        print('[cli-help] then update EMERGENCY_EXPECTED in this file.')
+        sys.exit(1)
+    print(f'[cli-help] OK emergency CLI: {len(reachable)} commands, help in sync')
+
+
 # Written as literal lines in the navigation block, not via showIf.
 NAV_EXEMPT = {
     'CMD_ENABLE', 'CMD_DISABLE', 'CMD_CONFIGURE', 'CMD_EXIT', 'CMD_END',
@@ -90,6 +162,10 @@ def check_cli_help(*args, **kwargs):
                       encoding='utf-8').read()
     except Exception as exc:
         print(f"[cli-help] WARNING: could not read sources ({exc}) — check skipped")
+        return
+
+    if not CLI_FULL:
+        check_emergency_cli(parser)
         return
 
     masks = dict(re.findall(r'case\s+(CMD_[A-Z0-9_]+):\s*return\s+([A-Z_ |]+);', mgr))

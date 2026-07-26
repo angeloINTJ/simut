@@ -23,6 +23,7 @@
 #include "SystemDefs.h"
 #include <time.h>
 
+#if SIMUT_CLI_FULL
 void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
@@ -446,6 +447,8 @@ void AppManager::cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool&
  changed = true;
 }
 
+#endif /* SIMUT_CLI_FULL */
+
 void AppManager::cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bool& changed) {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.confirmed) {
@@ -488,6 +491,7 @@ static bool parse_3ints(const char* s, char sep, int& a, int& b, int& c) {
  return (end > s + 1) && (*end == '\0' || *end == ' ');
 }
 
+#if SIMUT_CLI_FULL
 void AppManager::cmdHandleSetTime(const CliDemand& cmd) {
  const bool pt = _cmdMgr->isPt( );
  int y, mo, d, h, mi, s;
@@ -675,3 +679,4 @@ void AppManager::cmdHandleUserPerm(const CliDemand& cmd, SystemConfig& cfg, bool
  * de v3.24.12 — recovery de provisionEpoch via BT). Liberou ~1-2 KB.
  * Recovery alternativo: editar system.bin via /api/restore?op=apply com .bkp. */
 
+#endif /* SIMUT_CLI_FULL */
