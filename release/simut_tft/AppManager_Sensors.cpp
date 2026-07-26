@@ -61,7 +61,11 @@ void AppManager::processBackgroundScan( ) {
  std::vector<ScanResult> results;
  if (_sensorMgr->getScanResults(results)) {
  _waitingScan = false;
+#if SIMUT_CLI_FULL
+ /* Console rendering only — the scan itself stays available so the web
+  * action can drive it without the CLI. */
  _cmdMgr->renderScanResults(results);
+#endif
  loadAndCalibrateSensors( );
  _cmdMgr->printPrompt( );
  }

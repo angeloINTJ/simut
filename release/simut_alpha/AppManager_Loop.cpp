@@ -114,13 +114,20 @@ void AppManager::loop( ) {
  _cliQueue[_cliQueueHead] = CliDemand( ); /* clears Strings — frees heap */
  _cliQueueHead = (_cliQueueHead + 1) % CLI_QUEUE_CAP;
  _cliQueueCount--;
- if (queued.type != CMD_UNKNOWN) executeCommand(queued);
+ /* CMD_UNKNOWN is dispatched too. It used to be filtered here and at the
+  * direct call below, which made the "unknown command" branch in
+  * executeCommand dead code — a typo returned silently to the prompt. That
+  * was survivable while nearly everything parsed; with the configuration
+  * commands moved to the web it is not, because every one of them now parses
+  * to CMD_UNKNOWN and silence reads as a hung device. Empty input cannot
+  * reach here: processInput only returns true on a non-empty buffer. */
+ executeCommand(queued);
  if (!_waitingScan) _cmdMgr->printPrompt( );
  _cliDropNotified = false;
  }
 
  if (_cmdMgr->processInput(cmd)) {
- if (cmd.type != CMD_UNKNOWN) {
+ {
  if (isUserInteracting( )) {
  if (_cliQueueCount < CLI_QUEUE_CAP) {
  uint8_t tail = (_cliQueueHead + _cliQueueCount) % CLI_QUEUE_CAP;

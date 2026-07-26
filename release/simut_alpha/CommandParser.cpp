@@ -24,12 +24,14 @@
 #include "SystemDefs_Records.h"
 #include <stdlib.h>
 
+#if SIMUT_CLI_FULL
 static void hexStringToBytes(String hex, uint8_t* out) {
 	if (hex.startsWith("0x")) hex = hex.substring(2);
 	for (int i = 0; i < 8; i++) {
 		out[i] = (uint8_t)strtoul(hex.substring(i * 2, i * 2 + 2).c_str( ), NULL, 16);
 	}
 }
+#endif
 
 CliDemand parseCliCommand(String input) {
 	CliDemand cmd;
@@ -108,9 +110,10 @@ CliDemand parseCliCommand(String input) {
 	String r5 = count > 5 ? parts[5] : "";
 
 	/* ── Global shortcuts ── */
-	if (t0 == "gpio") { cmd.type = CMD_SHOW_GPIO; return cmd; }
 	if (t0 == "help" || t0 == "ajuda" || t0 == "?") { cmd.type = CMD_HELP; return cmd; }
 	if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
+#if SIMUT_CLI_FULL
+	if (t0 == "gpio") { cmd.type = CMD_SHOW_GPIO; return cmd; }
 
 	/* ── Cisco IOS-style mode navigation ── */
 	if (t0 == "enable")  { cmd.type = CMD_ENABLE;  return cmd; }
@@ -146,19 +149,26 @@ CliDemand parseCliCommand(String input) {
 		else cmd.intVal1 = -1;
 		return cmd;
 	}
+#endif /* SIMUT_CLI_FULL */
 
-	/* ── show <...> — read-only diagnostics ── */
+	/* ── show <...> — read-only diagnostics ──
+	 * The emergency image keeps the three that answer "why can I not reach
+	 * the web": the IP, the identity, and the log. */
 	if (t0 == "show") {
-		if (t1 == "themes")                    { cmd.type = CMD_SHOW_THEMES;       return cmd; }
 		if (t1 == "system" && t2 == "log")     { cmd.type = CMD_SHOW_LOGS;         return cmd; }
+		if (t1 == "system" && t2 == "info")    { cmd.type = CMD_SHOW_SYSINFO;      return cmd; }
+		if (t1 == "net" && t2 == "status")     { cmd.type = CMD_SHOW_NET;          return cmd; }
+#if SIMUT_CLI_FULL
+		if (t1 == "themes")                    { cmd.type = CMD_SHOW_THEMES;       return cmd; }
 		if (t1 == "sensors")                   { cmd.type = CMD_SHOW_SENSORS;      return cmd; }
 		if (t1 == "sensor" && t2 == "types")   { cmd.type = CMD_SHOW_SENSOR_TYPES; return cmd; }
 		if (t1 == "gpio")                      { cmd.type = CMD_SHOW_GPIO;         return cmd; }
 		if (t1 == "storage" && t2 == "stats")  { cmd.type = CMD_SHOW_STORAGE;      return cmd; }
-		if (t1 == "system" && t2 == "info")    { cmd.type = CMD_SHOW_SYSINFO;      return cmd; }
-		if (t1 == "net" && t2 == "status")     { cmd.type = CMD_SHOW_NET;          return cmd; }
 		if (t1 == "metrics")                   { cmd.type = CMD_SHOW_METRICS;      return cmd; }
+#endif
 	}
+
+#if SIMUT_CLI_FULL
 
 	/* ── Network addressing (global-config family) ──
 	 * Bare forms as advertised by help; 'conf'-prefixed forms arrive
@@ -224,8 +234,18 @@ CliDemand parseCliCommand(String input) {
 		}
 	}
 
-	/* ── System settings ── */
+#endif /* SIMUT_CLI_FULL */
+
+	/* ── System settings ──
+	 * admin reset / factory / format survive into the emergency image: they
+	 * are the three recoveries that cannot be performed from the web, either
+	 * because the web is what is locked (admin reset) or because it is what
+	 * is broken (factory, format). */
 	if (t0 == "system") {
+		if (t1 == "admin" && t2 == "reset") { cmd.type = CMD_RESET_ADMIN;     return cmd; }
+		if (t1 == "factory")                { cmd.type = CMD_FACTORY_RESET;   return cmd; }
+		if (t1 == "format")                 { cmd.type = CMD_FORMAT_FS;      return cmd; }
+#if SIMUT_CLI_FULL
 		if (t1 == "theme")    { cmd.type = CMD_SET_THEME;     cmd.setStrVal1(t2.c_str( )); return cmd; }
 		if (t1 == "name")     { cmd.type = CMD_SET_SYS_NAME;  cmd.setStrVal1(r2.c_str( )); return cmd; }
 		if (t1 == "ssid")     { cmd.type = CMD_SET_WIFI_SSID; cmd.setStrVal1(r2.c_str( )); return cmd; }
@@ -236,17 +256,16 @@ CliDemand parseCliCommand(String input) {
 			return cmd;
 		}
 		if (t1 == "ntp")      { cmd.type = CMD_SET_NTP;       cmd.setStrVal1(r2.c_str( )); return cmd; }
-		if (t1 == "admin" && t2 == "reset") { cmd.type = CMD_RESET_ADMIN;     return cmd; }
 		if (t1 == "touch" && t2 == "reset") { cmd.type = CMD_RESET_TOUCH_CAL; return cmd; }
-		if (t1 == "factory")                { cmd.type = CMD_FACTORY_RESET;   return cmd; }
-		if (t1 == "format")                 { cmd.type = CMD_FORMAT_FS;      return cmd; }
 		if (t1 == "history_interval") {
 			cmd.type = CMD_SET_HISTORY_INTERVAL;
 			cmd.intVal1Valid = parseIntStrict(t2, cmd.intVal1);
 			return cmd;
 		}
+#endif
 	}
 
+#if SIMUT_CLI_FULL
 	/* ── Wi-Fi aliases (same handlers as 'system ssid/pass') ── */
 	if (t0 == "wifi") {
 		if (t1 == "ssid") { cmd.type = CMD_SET_WIFI_SSID; cmd.setStrVal1(r2.c_str( )); return cmd; }
@@ -415,7 +434,11 @@ CliDemand parseCliCommand(String input) {
 	/* ── Maintenance ── */
 	if (t0 == "write" && t1 == "memory") { cmd.type = CMD_WRITE_MEMORY; return cmd; }
 	if (t0 == "clear" && t1 == "log")    { cmd.type = CMD_CLEAR_LOGS;   return cmd; }
+#endif /* SIMUT_CLI_FULL */
 
+	/* Debug streaming is the one live-diagnosis tool the web cannot replace:
+	 * it shows the log as it happens, including during a boot that never
+	 * reaches the web server. */
 	if (t0 == "debug") {
 		cmd.type = CMD_DEBUG;
 		if      (t1 == "on")  cmd.intVal1 = 1;

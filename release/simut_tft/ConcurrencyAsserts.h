@@ -31,7 +31,7 @@ bool simutStateMutexHeldByCurrentCore( );
 #define SIMUT_ASSERT_NO_STATE_MUTEX() do { \
  if (simutStateMutexHeldByCurrentCore( )) { \
   LOG_CODE(LOG_ERROR, "APP", APP_DISPLAY_PAUSE_STUCK, 2, \
-           TRL("INVARIANTE-3 VIOLADA: _stateMutex preso atravessando FLASH_OP")); \
+           TRL("INVARIANT-3 VIOLATED: _stateMutex held across FLASH_OP")); \
  } \
 } while (0)
 

@@ -16,6 +16,24 @@
 #include <Arduino.h>
 #include "SystemDefs_Time.h" /* safeCopy */
 
+/** Full CLI surface, or emergency-only.
+ *
+ * Every configuration command has a web equivalent, so the serial CLI in a
+ * release image exists for the cases where the web cannot be reached: find
+ * the IP, read the log, reset the admin password, wipe, reboot. That is 9
+ * commands; the other 46 plus the Cisco-style mode navigation compile out.
+ *
+ * The automated suites under tools/ drive the device through the full CLI
+ * (enable / configure terminal / write memory / user add / touch sim), so
+ * `[env:pico_w_test]` builds with SIMUT_CLI_FULL=1 and keeps all of it. The
+ * default is 1 so host unit tests (`[env:native_cli]`, which compiles only
+ * CommandParser.cpp) keep exercising the whole grammar; `pico_w_release`
+ * is what opts out.
+ */
+#ifndef SIMUT_CLI_FULL
+#define SIMUT_CLI_FULL 1
+#endif
+
 /** CLI command types parsed from USB/Bluetooth input. */
 enum DemandType {
  CMD_NONE = 0,

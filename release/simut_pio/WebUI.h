@@ -1644,7 +1644,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
 
             if (allLines.length === 0) {
-                if (_expCancelled) showToast(window.t('exp_cancelled','Cancelado.'), 'warn');
+                if (_expCancelled) showToast(window.t('exp_cancelled','Cancelled.'), 'warn');
                 else showToast(window.t('exp_empty','No data recovered.'), 'err');
                 return;
             }
@@ -1932,6 +1932,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </table>
                     </div>
                     <button type="button" class="sxb" id="sens_add" onclick="sensAdd()" style="margin-top:14px" data-i18n="sens_add">+ Add sensor slot</button>
+                    <button type="button" class="sxb" id="sens_scan" onclick="sensScan()" style="margin-top:14px;margin-left:8px" data-i18n="sens_scan">Scan for probes</button>
+                    <div class="sxn" id="sens_scan_out" style="margin-top:10px"></div>
                     <div class="sxn" id="sens_full" style="display:none" data-i18n="sens_no_free">All 16 slots are in use. Free one to add another.</div>
                     <div id="sens_ov" class="sx-ov" style="display:none" onclick="sensBackdrop(event)">
                         <div id="sens_ed" class="sx-ov-box"></div>
@@ -2034,6 +2036,16 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
                     </div>
                     <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (Upload Interval = 0). Set a value to enable.</div>
+                    <!-- Act on the running device, not on the staged form: both
+                         answer "is the endpoint reachable right now", which is
+                         the question you ask while editing these fields. -->
+                    <div style="margin-top:16px;border-top:1px solid #3f3f46;padding-top:14px">
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button type="button" class="sxb" id="tel_sync_btn" onclick="telSync()" data-i18n="tel_sync">Send now</button>
+                        <button type="button" class="sxb sxb-dang" id="tel_reset_btn" onclick="telReset()" data-i18n="tel_reset">Reset send cursor</button>
+                      </div>
+                      <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="tel_hint">Send now flushes whatever is pending without waiting for the interval. Reset send cursor makes the device re-send up to 30 days back — use it after a long server outage.</div>
+                    </div>
                 </div>
 
                 <h3 data-i18n="cfg_vis">Payload Builder</h3>
@@ -2728,6 +2740,20 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  '<button type="button" class="sxb" id="se_rebind" onclick="histRebind()" style="margin-top:10px">' +
                  window.t('sens_rebind', 'Rebind history now') + '</button>';
 
+            /* Hardware operations. These act on the device NOW — unlike every
+               other control on this page they are not staged for Save and
+               Restart, because adopting a probe or moving an epoch has to
+               happen against the hardware as it is at this instant. */
+            h += '<label class="sxsec">' + window.t('sens_hw', 'Hardware') + '</label>' +
+                 '<div class="sxn">' + window.t('sens_accept_hint',
+                    'Re-reads the probe wired to this slot and binds the slot to it. Use it after swapping a DS18B20, when the device reports a hardware mismatch.') + '</div>' +
+                 '<button type="button" class="sxb" id="se_adopt" onclick="sensAdopt()" style="margin-top:10px">' +
+                 window.t('sens_accept', 'Adopt the probe wired here') + '</button>' +
+                 '<div class="sxn" style="margin-top:14px">' + window.t('sens_wipe_hint',
+                    'Marks everything recorded before now as belonging to the previous sensor. The records stay on disk; the graphs stop attributing them to this slot.') + '</div>' +
+                 '<button type="button" class="sxb sxb-dang" id="se_wipe" onclick="sensWipe()" style="margin-top:10px">' +
+                 window.t('sens_wipe', 'Reset history epoch') + '</button>';
+
             h += '<div id="se_warn" class="sx-warn"></div>' +
                  '<div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">' +
                  '<button type="button" class="sxb sxb-dang" onclick="sensClear()">' + window.t('sens_free_slot', 'Free slot') + '</button>' +
@@ -2749,6 +2775,102 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
          * is a destructive mutation. 30 s because recreating the day file
          * erases flash, and the firmware's own window for it is 30 s; the
          * 15 s default would report a failure over an operation still running. */
+        /* POST /api/action — the maintenance operations that used to live only
+           on the serial CLI. They bypass the staging buffer on purpose: each
+           one reads or writes hardware state at this instant, so staging it
+           for Save and Restart would apply it against a different reality. */
+        async function sensAction(op, extra) {
+            const q = '/api/action?op=' + encodeURIComponent(op) + (extra || '');
+            const r = await fetch(q, { method: 'POST' });
+            let j = {};
+            try { j = await r.json(); } catch (e) { /* keep {} */ }
+            return { ok: r.ok, status: r.status, body: j };
+        }
+
+        async function sensScan() {
+            const btn = SE('sens_scan'), out = SE('sens_scan_out');
+            if (!btn || !out) return;
+            btn.disabled = true;
+            out.textContent = window.t('sens_scan_busy', 'Scanning...');
+            try {
+                const start = await sensAction('sensor_scan');
+                if (!start.ok && start.status !== 202) throw new Error('start');
+                /* The scan is a state machine stepped by the main loop, so the
+                   POST only arms it. Poll until it reports done — 20 tries at
+                   500 ms covers the 16-pin sweep with margin. */
+                for (let i = 0; i < 20; i++) {
+                    await new Promise(res => setTimeout(res, 500));
+                    const p = await sensAction('scan_results');
+                    if (p.ok && p.body.scanning === false) {
+                        const found = p.body.found || [];
+                        if (!found.length) { out.textContent = window.t('sens_scan_none', 'No probes answered.'); return; }
+                        out.textContent = found.length + ' ' + window.t('sens_scan_found', 'found') + ': ' +
+                            found.map(f => 'GP' + f.pin + (f.rom ? ' (' + f.rom + ')' : '')).join(', ');
+                        return;
+                    }
+                }
+                out.textContent = window.t('sens_scan_none', 'No probes answered.');
+            } catch (e) {
+                out.textContent = window.t('act_fail', 'Action failed.');
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function sensAdopt() {
+            const i = sensOpenSlot, btn = SE('se_adopt');
+            if (i < 0 || !btn) return;
+            btn.disabled = true;
+            try {
+                const r = await sensAction('sensor_accept', '&slot=' + i);
+                if (r.ok) {
+                    showToast(window.t('sens_accept_ok', 'Slot bound to the probe found on it.'), 'ok');
+                    if (typeof loadSensors === 'function') loadSensors();
+                } else if (r.status === 404) {
+                    showToast(window.t('sens_accept_none', 'No probe answered on this GPIO.'), 'err');
+                } else if (r.status === 422) {
+                    showToast(window.t('sens_accept_bad', 'The probe answered with an invalid ROM.'), 'err');
+                } else {
+                    showToast(window.t('act_fail', 'Action failed.'), 'err');
+                }
+            } finally { btn.disabled = false; }
+        }
+
+        async function sensWipe() {
+            const i = sensOpenSlot, btn = SE('se_wipe');
+            if (i < 0 || !btn) return;
+            if (!confirm(window.t('sens_wipe_confirm',
+                'Reset the history epoch of this slot?\n\nRecords taken before now stop being attributed to it. Nothing is deleted.'))) return;
+            btn.disabled = true;
+            try {
+                const r = await sensAction('sensor_wipe', '&slot=' + i);
+                showToast(r.ok ? window.t('sens_wipe_ok', 'History epoch reset.')
+                               : window.t('act_fail', 'Action failed.'), r.ok ? 'ok' : 'err');
+            } finally { btn.disabled = false; }
+        }
+
+        async function telSync() {
+            const b = SE('tel_sync_btn');
+            if (b) b.disabled = true;
+            try {
+                const r = await sensAction('tel_sync');
+                showToast(r.ok ? window.t('tel_sync_ok', 'Upload triggered. Watch the log for the result.')
+                               : window.t('act_fail', 'Action failed.'), r.ok ? 'ok' : 'err');
+            } finally { if (b) b.disabled = false; }
+        }
+
+        async function telReset() {
+            if (!confirm(window.t('tel_reset_confirm',
+                'Reset the telemetry cursor?\n\nThe device will re-send up to 30 days of history on the next upload. Expect a burst of traffic.'))) return;
+            const b = SE('tel_reset_btn');
+            if (b) b.disabled = true;
+            try {
+                const r = await sensAction('tel_reset');
+                showToast(r.ok ? window.t('tel_reset_ok', 'Cursor reset. Next uploads cover up to 30 days back.')
+                               : window.t('act_fail', 'Action failed.'), r.ok ? 'ok' : 'err');
+            } finally { if (b) b.disabled = false; }
+        }
+
         async function histRebind() {
             if (Pending.hasAny()) {
                 showToast(window.t('sens_rebind_pending',
@@ -3315,10 +3437,10 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     if (isSuper) {
                         actions = `<span class="badge" data-i18n="usr_prot">${window.t('usr_prot','Protected')}</span>`;
                     } else if (isDel) {
-                        actions = `<span class="badge pending">${window.t('usr_pend_del','Pendente: Excluir')}</span>`;
+                        actions = `<span class="badge pending">${window.t('usr_pend_del','Pending: Delete')}</span>`;
                     } else {
                         let rstBtn = isRst
-                            ? `<span class="badge pending">${window.t('usr_pend_rst','Pendente: Reset')}</span>`
+                            ? `<span class="badge pending">${window.t('usr_pend_rst','Pending: Reset')}</span>`
                             : `<button class="btn-action" onclick="rstUsr(${u.id})" data-i18n="usr_rst">${window.t('usr_rst','Reset')}</button>`;
                         actions = `${rstBtn} <button class="btn-dang" onclick="delUsr(${u.id})" data-i18n="usr_del">${window.t('usr_del','Del')}</button>`;
                     }
@@ -3326,7 +3448,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 });
                 /* Usuários pendentes de criação */
                 pendingAdds.forEach((a, i) => {
-                    html += `<tr class="pending-add"><td>—</td><td style="font-weight:bold;color:var(--txt)">${a.name} <span class="badge pending">${window.t('usr_pend_add','Pendente: Novo')}</span></td><td>${renderPermsBadges(a.perms, false)}</td><td style="text-align:center; white-space:nowrap;"><button class="btn-dang" onclick="undoLastAdd()">↶</button></td></tr>`;
+                    html += `<tr class="pending-add"><td>—</td><td style="font-weight:bold;color:var(--txt)">${a.name} <span class="badge pending">${window.t('usr_pend_add','Pending: New')}</span></td><td>${renderPermsBadges(a.perms, false)}</td><td style="text-align:center; white-space:nowrap;"><button class="btn-dang" onclick="undoLastAdd()">↶</button></td></tr>`;
                 });
                 tbody.innerHTML = html;
                 applyLang();
@@ -3348,13 +3470,13 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         function delUsr(id) {
-            if (!confirm(window.t('usr_del_msg', 'Excluir este usuário? Será aplicado ao clicar em Salvar e Reiniciar.'))) return;
+            if (!confirm(window.t('usr_del_msg', 'Delete this user? It will be applied when you click Save & Restart.'))) return;
             Pending.pushUserAction({ type: 'del', id: id });
             loadUsers();
         }
 
         function rstUsr(id) {
-            if (!confirm(window.t('usr_rst_msg', 'Forçar reset de senha no próximo login? Será aplicado ao clicar em Salvar e Reiniciar.'))) return;
+            if (!confirm(window.t('usr_rst_msg', 'Force a password reset at next login? It will be applied when you click Save & Restart.'))) return;
             Pending.pushUserAction({ type: 'reset', id: id });
             loadUsers();
         }
@@ -4782,7 +4904,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 if (typeof showToast === 'function') {
                     /* Sem "no topo": no celular o botao fica numa barra fixa no
                        rodape, entao a posicao depende da largura da tela. */
-                    showToast((window.t ? window.t('pending_notice', 'Clique em "Salvar e Reiniciar" para aplicar as alterações.') : 'Clique em "Salvar e Reiniciar"'), 'warn', 5000);
+                    showToast((window.t ? window.t('pending_notice', 'Click "Save & Restart" to apply your changes.') : 'Click "Save & Restart"'), 'warn', 5000);
                 }
             }
         },
@@ -4804,10 +4926,10 @@ static const char LANG_JS[] PROGMEM = R"raw(
 
     window.commitAll = async function() {
         const msg = (window.t ? window.t('commit_confirm',
-            'Isto salvará todas as alterações e reiniciará o sistema.\n\n' +
-            '⚠️ O dispositivo ficará offline por ~10 segundos.\n' +
-            'Qualquer gravação de histórico/log em andamento será interrompida.\n\n' +
-            'Continuar?') : 'Save and restart?');
+            'This will save every change and restart the system.\n\n' +
+            '⚠️ The device goes offline for ~10 seconds.\n' +
+            'Any history/log write in progress is interrupted.\n\n' +
+            'Continue?') : 'Save and restart?');
         if (!confirm(msg)) return;
         const btn = document.getElementById('commit-btn');
         if (btn) { btn.disabled = true; btn.innerText = '...'; }
@@ -4823,13 +4945,13 @@ static const char LANG_JS[] PROGMEM = R"raw(
                     sessionStorage.setItem('simut_pending', JSON.stringify(Pending.data));
                 } else {
                     const j = await cr.json().catch(()=>({}));
-                    showToast((window.t ? window.t('calib_err','Erro na calibração: ')+(j.error||cr.status) : 'Calib error: '+(j.error||cr.status)), 'err');
-                    if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','💾 Salvar e Reiniciar') : '💾 Save & Restart'); }
+                    showToast((window.t ? window.t('calib_err','Calibration error: ')+(j.error||cr.status) : 'Calib error: '+(j.error||cr.status)), 'err');
+                    if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','💾 Save & Restart') : '💾 Save & Restart'); }
                     return;
                 }
             } catch(e) {
-                showToast((window.t ? window.t('calib_timeout','Timeout na calibração. Tente novamente.') : 'Calib timeout. Try again.'), 'err');
-                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','💾 Salvar e Reiniciar') : '💾 Save & Restart'); }
+                showToast((window.t ? window.t('calib_timeout','Calibration timed out. Try again.') : 'Calib timeout. Try again.'), 'err');
+                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn','💾 Save & Restart') : '💾 Save & Restart'); }
                 return;
             }
             /* Wait for rate limit cooldown before commit_all */
@@ -4840,7 +4962,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
         const localNewPort = pendingNet.web_port ? parseInt(pendingNet.web_port) : 0;
         const redirectPort = (port) => {
             if (!port || port === currentPort) return false;
-            showToast((window.t ? window.t('net_saved_port', 'Salvo. Redirecionando para nova porta ' + port + '...') : 'Salvo. Nova porta: ' + port), 'ok', 18000);
+            showToast((window.t ? window.t('net_saved_port', 'Saved. Redirecting to the new port ' + port + '...') : 'Saved. New port: ' + port), 'ok', 18000);
             setTimeout(() => {
                 const proto = window.location.protocol;
                 const host = window.location.hostname;
@@ -4857,7 +4979,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 let j = {}; try { j = await r.json(); } catch(e) {}
                 Pending.clear();
                 if (!redirectPort(j.newPort || localNewPort)) {
-                    showToast((window.t ? window.t('commit_saved', 'Salvo! Reiniciando sistema...') : 'Saved! Restarting...'), 'ok', 20000);
+                    showToast((window.t ? window.t('commit_saved', 'Saved! Restarting system...') : 'Saved! Restarting...'), 'ok', 20000);
                     setTimeout(() => { window.location.reload(); }, 12000);
                 }
             } else {
@@ -4866,15 +4988,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
                  * "Falha ao salvar." threw that away and left the user with a
                  * rejected commit and no idea what to change. */
                 let detail = ''; try { detail = (await r.json()).error || ''; } catch(e) {}
-                showToast((window.t ? window.t('commit_err', 'Falha ao salvar.') : 'Save failed.') +
+                showToast((window.t ? window.t('commit_err', 'Save failed.') : 'Save failed.') +
                           (detail ? ' — ' + detail : ''), 'err', 9000);
-                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn', '💾 Salvar e Reiniciar') : '💾 Save & Restart'); }
+                if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn', '💾 Save & Restart') : '💾 Save & Restart'); }
             }
         } catch(e) {
             /* Conexão caiu — assume que reboot começou, limpa e redireciona/reload */
             Pending.clear();
             if (!redirectPort(localNewPort)) {
-                showToast((window.t ? window.t('commit_saved', 'Salvo! Reiniciando sistema...') : 'Saved! Restarting...'), 'ok', 20000);
+                showToast((window.t ? window.t('commit_saved', 'Saved! Restarting system...') : 'Saved! Restarting...'), 'ok', 20000);
                 setTimeout(() => { window.location.reload(); }, 12000);
             }
         }
@@ -4990,7 +5112,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             btn.id = 'commit-btn';
             btn.type = 'button';
             btn.onclick = commitAll;
-            btn.innerText = (window.t ? window.t('commit_btn', '💾 Salvar e Reiniciar') : '💾 Save & Restart');
+            btn.innerText = (window.t ? window.t('commit_btn', '💾 Save & Restart') : '💾 Save & Restart');
             btn.setAttribute('data-i18n', 'commit_btn');
             wrap.insertBefore(btn, pill);
         }

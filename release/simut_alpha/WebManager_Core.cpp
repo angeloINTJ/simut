@@ -111,6 +111,11 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server.on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));
  _server.on("/api/set_time", HTTP_POST, std::bind(&WebManager::handleApiSetTime, this));
 
+ /* Maintenance actions the serial CLI used to own (sensor scan/accept/wipe,
+  * telemetry sync/reset). Six operations behind one route and an ?op=
+  * selector, for the same reason /api/restore multiplexes validate/apply. */
+ _server.on("/api/action", HTTP_POST, std::bind(&WebManager::handleApiAction, this));
+
 
  _server.on("/download", HTTP_GET, std::bind(&WebManager::handleDownload, this));
  _server.on("/api/delete", HTTP_POST, std::bind(&WebManager::handleDelete, this));

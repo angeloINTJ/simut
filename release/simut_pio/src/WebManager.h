@@ -314,6 +314,11 @@ private:
 	void handleApiCalibGet( );
 	void handleApiCalibPost( );
 	void handleApiSensorsGet( ); /**< Slot map + driver catalogue for the /config editor. */
+	/** Maintenance actions that used to exist only on the serial CLI, selected
+	 * by ?op=: sensor_scan, scan_results, sensor_accept, sensor_wipe, tel_sync,
+	 * tel_reset. One route rather than six — see the note on /api/restore about
+	 * what each additional _server.on( ) costs in flash. */
+	void handleApiAction( );
 
 	/* OTA: full backup of LittleFS tied to chip_id (.bkp).
 	 * Implementation in WebManager_Ota.cpp; format in src/ota/backup_format.h. */

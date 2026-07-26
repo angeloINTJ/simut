@@ -11,7 +11,47 @@
  */
 #pragma once
 #include <Arduino.h>
+#include "SystemDefs_Cli.h" /* SIMUT_CLI_FULL — picks which help text is built */
 
+#if !SIMUT_CLI_FULL
+/* Emergency console (see SIMUT_CLI_FULL in SystemDefs_Cli.h). Every setting
+ * moved to the web UI; what is left is the way back when the web cannot be
+ * reached. Keeping the full 3.3 KB of help text for nine commands would cost
+ * more flash than the commands themselves. */
+static const char HELP_TEXT_EN[] PROGMEM = R"raw(
+
+===========================================
+ SIMUT - EMERGENCY CONSOLE
+===========================================
+ Settings live in the web interface.
+ This console is the way back when the
+ web cannot be reached.
+ Destructive cmds need ' confirm'
+ (e.g., 'reload confirm').
+
+show net status
+ IP, RSSI, time sync - find the device
+show system info
+ Name, firmware, serial, WiFi SSID
+show system log
+ Dump the event log from flash
+debug on
+ Stream logs to this console live
+debug off
+ Stop streaming
+system admin reset [confirm]
+ New random admin password, printed
+ once on this console
+system format [confirm]
+ Reformat LittleFS, keep firmware
+ (recovers a corrupt filesystem)
+system factory [confirm]
+ Wipe ALL config + reboot
+reload [confirm]
+ Reboot now
+===========================================
+)raw";
+#else
 static const char HELP_TEXT_EN[] PROGMEM = R"raw(
 
 ===========================================
@@ -144,7 +184,6 @@ debug off
 debug
  Show current mode
  Note: 'write memory' to persist
-===========================================
 
 -- 7. IP / SENSOR LIMITS / USERS / WEB --
 conf ip <dhcp|static>
@@ -161,6 +200,7 @@ conf user pass <name> <newpass>
 conf web port <1..65535>
 ===========================================
 )raw";
+#endif /* SIMUT_CLI_FULL */
 
 static const char LICENSE_TEXT_EN[] PROGMEM = R"raw(
 MIT License

@@ -4,6 +4,108 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.5.6-beta (2026-07-26)
+
+Web-first release. Every setting already had a web equivalent, and the serial
+CLI was carrying a second, untested copy of all of it: 42 of its 55 commands
+duplicated a page that already worked. The release image now ships **9
+commands** — the ones that matter when the web is what is broken — and the
+duplication is gone, along with **44,516 B of flash**.
+
+A translation review came first and is what surfaced the duplication. It also
+found that the English fallbacks in the web UI were Portuguese, so an
+English-speaking user read "Salvar e Reiniciar" on the top bar.
+
+> **Still under test.** This is the largest structural change since 1.0.0 and it
+> has not had a long soak. See *What has not been verified* at the end.
+
+### The CLI shipped 55 commands the web already answered
+
+- **`SIMUT_CLI_FULL`** (`SystemDefs_Cli.h`, default 1) selects the surface.
+  `pico_w_release` sets 0 and keeps `show net status`, `show system info`,
+  `show system log`, `debug on|off`, `system admin reset`, `system format`,
+  `system factory`, `reload` and `help`. Single prompt, no Cisco mode tree.
+- The four CLI files went from **56,361 to 13,904 B of text**. Flash
+  983,180 → 938,664 B (94.1% → 89.9%). The five web actions added to replace
+  what was cut cost ~3.7 KB back, hence 44,516 B net.
+- **`[env:pico_w_test]`** builds the full CLI and exists for the suites under
+  `tools/`, which drive the device over serial with `enable`,
+  `configure terminal`, `write memory`, `user add/del/perm` and `touch sim`.
+  `web_test_suite.py` bootstraps its throwaway account that way because it
+  cannot authenticate yet. **Flash the test image before a suite run.**
+  It links at exactly the pre-change byte count, which is the evidence that the
+  full profile was not disturbed.
+- Removing the CLI also removed the **282 hardcoded `isPt()` string pairs**,
+  which is what made a device running the Spanish pack answer in Portuguese.
+
+### Five operations that had no web equivalent
+
+`POST /api/action?op=` — one route with a selector rather than five routes, for
+the reason `/api/restore` documents. `sensor_scan` / `scan_results` (arm and
+poll; the scan is a state machine the main loop steps, so the handler never
+blocks), `sensor_accept`, `sensor_wipe`, `tel_sync`, `tel_reset`.
+
+They bypass the Save-and-Restart staging buffer deliberately: each reads or
+writes hardware state at this instant, so deferring them would apply them
+against a different reality.
+
+### Translations
+
+- **es-ES was machine-generated from pt-BR and never reviewed.** Raw Portuguese
+  in the display dictionary (`SALVAR`, `PULAR`, `Umid Min/Max`, `SIM`/`NÃO`,
+  `%UR`), in ~25 web strings, and in roughly 60 of the 115 log codes.
+- Two entries were a **rendering** bug: `unaccent()` maps ASCII, the 0xC3 block
+  and six 0xC2 symbols, so the `¡` in `¡Calibración Completada!` reached the TFT
+  as a literal `?`. `@DICT`, `@HELP` and `@LICENSE` are now checked for it.
+- **14 `window.t(key, fallback)` calls passed Portuguese as the English
+  fallback** — which is exactly what an English user sees. Two `TRL()` literals
+  were Portuguese sentences in the C++ source.
+- Coverage: pt-BR was missing the 15 `sens_rebind_*` keys; es-ES was missing 75
+  web keys plus `@HELP` and `@LICENSE` entirely, so its CLI fell back to
+  English. 44 dead keys removed from both. Packs now agree with the firmware on
+  all 109 display strings, 119 log codes, 81 log translations and 403 web keys.
+- `*.lng` was marked `binary` in `.gitattributes` while being plain UTF-8, so
+  no translation had ever appeared in a diff. Now text.
+
+### Fixes found along the way
+
+- **`AppManager_Loop.cpp` filtered `CMD_UNKNOWN` before `executeCommand` at both
+  dispatch points**, which made the "unknown command" branch dead code — a typo
+  returned silently to the prompt, and always had. Harmless while nearly
+  everything parsed; not harmless when 46 commands now parse to `CMD_UNKNOWN`
+  and silence reads as a hung device.
+- `/api/action` validated the slot before the op, so a typo in the op name came
+  back as `{"error":"slot"}`.
+- The "Page asset missing" message named `config.html.gz` literally, which
+  stopped being true when `/config` moved back into the firmware. It reads the
+  path from its argument now.
+- `pico_test_suite.py` could not connect to a board that had been up for a
+  while: `_connect` waited passively for a prompt, but opening with DTR does not
+  reset this board and the firmware only prints a prompt in reply to input.
+- Test 11 logged in as the factory `viewer` account, which cannot be recreated
+  once deleted (`user add` takes plaintext and derives the hash). It brings its
+  own account now.
+
+### Verified
+
+Both environments build. 136/136 native tests across four suites. On hardware:
+**11/11** `pico_test_suite.py`, **81/0/5** `web_test_suite.py` including the
+CLI-bootstrapped account, **8/8** on the new web actions. The emergency console
+was exercised directly — the nine survivors answer, cut commands return the
+message naming where the setting went, prompt stays `SIMUT>`. The Spanish pack
+was loaded on the device and `help` rendered through `unaccent()` with no `?`.
+
+### What has not been verified
+
+- **`tel_reset` was never run on hardware.** Telemetry on the bench points at a
+  live endpoint at 10 s intervals and resetting the cursor would push up to 30
+  days of history at it. The other four actions were exercised.
+- **No long soak on this build.** Previous releases carried multi-hour storm
+  runs; this one has minutes.
+- The **Core 1 heartbeat race** under heavy flash load (`APP_CORE1_DEAD` →
+  soft panic) is still open and unrelated to this release.
+- The es-ES pack is newly complete and has had little real use.
+
 ## v1.5.5-beta (2026-07-26)
 
 Headroom release, and what it bought. A flash and RAM study of 1.5.4-beta found
