@@ -210,6 +210,7 @@ Reiniciando o sistema...
 525 Timeout na conexao WiFi
 526 WiFi em modo dormente
 527 Mostrar IP
+528 Falha ao iniciar mDNS
 540 Transporte HTTP inicializado
 541 Transporte MQTT inicializado
 542 MQTT conectando
@@ -229,6 +230,7 @@ Reiniciando o sistema...
 572 Cliente desconectado (histórico)
 573 Screenshot abortado pelo cliente
 574 Arquivo enviado
+575 Cliente desconectado (conexão encerrada)
 580 Tema aplicado
 581 Tema não encontrado
 585 Comando desconhecido
