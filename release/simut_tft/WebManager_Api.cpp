@@ -12,7 +12,7 @@
 #include "MetricsManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
-#include "DisplayManager.h" /* For getActiveWebDict */
+#include "DisplayManager.h" /* For getActiveWebDictSource */
 #include <LittleFS.h>
 #include <time.h>
 
@@ -164,10 +164,15 @@ void WebManager::handleApiConfig( ) {
 	if (!safeSend(jsonEscape(cfg.sensors[10].hwId).c_str( ))) return;
 	safeSend("\",\"sensors\":[");
 	for (int i = 0; i < MAX_SENSORS; i++) {
-		snprintf(buf, sizeof(buf), "%s{\"hwid\":\"%s\",\"active\":%s}",
+		/* hum/press say which channels this slot actually reports, so the
+		 * telemetry Live Preview can resolve {uN}/{pN} the same way the
+		 * firmware does instead of guessing from the hwId. */
+		snprintf(buf, sizeof(buf), "%s{\"hwid\":\"%s\",\"active\":%s,\"hum\":%s,\"press\":%s}",
 		         i == 0 ? "" : ",",
 		         jsonEscape(cfg.sensors[i].hwId).c_str( ),
-		         cfg.sensors[i].active ? "true" : "false");
+		         cfg.sensors[i].active ? "true" : "false",
+		         sensorHasChannel((SensorType)cfg.sensors[i].sensorType, CH_HUM) ? "true" : "false",
+		         sensorHasChannel((SensorType)cfg.sensors[i].sensorType, CH_PRESS) ? "true" : "false");
 		if (!safeSend(buf)) return;
 	}
 	safeSend("]}");
@@ -306,13 +311,62 @@ void WebManager::handleApiAlarms( ) {
 }
 /* Serves the @WEBDICT blob from the active .lng file (UTF-8 JSON).
  * Open without auth — login and force_chpass need to fetch it before session.
- * Cacheable per session: client fetches once and uses sessionStorage. */
+ * Cacheable per session: client fetches once and uses sessionStorage.
+ *
+ * Streamed straight off the filesystem rather than from a resident copy: the
+ * blob is ~14 KB and the firmware never reads it, so the parser deliberately
+ * leaves it on flash (see DisplayManager_LangParser.cpp). Content-Length is
+ * known up front, so this is a plain-bodied response, not chunked. */
 void WebManager::handleApiLang( ) {
-	const char* json = DisplayManager::getActiveWebDict( );
 	/* Short cache: translations only change when user swaps .lng + reboot,
 	 * so 5 min is enough without being too stale. */
 	_server.sendHeader("Cache-Control", "public, max-age=300");
-	_server.send(200, "application/json", json ? json : "{}");
+
+	const char* path = nullptr;
+	uint32_t offset = 0, len = 0;
+	if (!DisplayManager::getActiveWebDictSource(&path, &offset, &len)) {
+		_server.send(200, "application/json", "{}");
+		return;
+	}
+
+	File f;
+	{
+		ReadGuard rg(_storageRef);
+		f = LittleFS.open(path, "r");
+		if (f && !f.seek(offset)) { f.close( ); }
+	}
+	if (!f) {
+		/* Pack vanished or shrank under us (upload/delete between boot and
+		 * now). An empty dict is honest here: the UI falls back to EN. */
+		_server.send(200, "application/json", "{}");
+		return;
+	}
+
+	_server.setContentLength(len);
+	_server.send(200, "application/json", "");
+	_server.client( ).setTimeout(500);
+
+	char buf[WEB_STREAM_CHUNK_SOFT];
+	uint32_t sent = 0;
+	while (sent < len) {
+		if (isClientGone( ) || isHandlerOvertime( )) {
+			LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_FILE, (int)sent, "");
+			break;
+		}
+		size_t want = len - sent;
+		if (want > sizeof(buf)) want = sizeof(buf);
+
+		size_t n = 0;
+		{
+			ReadGuard rg(_storageRef);
+			n = f.read((uint8_t*)buf, want);
+		}
+		if (n == 0) break; /* short read: file truncated since boot */
+		if (!safeSend(buf, n)) break;
+		sent += n;
+		streamBreath( );
+	}
+	f.close( );
 }
 
 void WebManager::handleApiStatus( ) {

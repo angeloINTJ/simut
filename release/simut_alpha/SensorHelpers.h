@@ -27,7 +27,9 @@
  * Consumer code queries capabilities instead of hardcoding "humidity".
  * =========================================================================== */
 
+#ifndef MAX_SENSOR_CHANNELS
 #define MAX_SENSOR_CHANNELS 4
+#endif
 
 enum SensorChannel : uint8_t {
  CH_TEMP = 0,  /**< Temperature (always channel 0 for all types) */
@@ -259,9 +261,10 @@ struct SensorFormat {
  *  Valid I2C0 pins: 0,1,4,5,8,9,12,13,16,17,20,21
  *  Valid I2C1 pins: 2,3,6,7,10,11,14,15,18,19,26,27
  *
- *  @note BME280 now uses PIO bit-bang (BMx280PIO_RP2040) — any GPIO
- *        pair works, no peripheral selection needed. This function is
- *        retained for future sensors using hardware I2C. */
+ *  @note Wave 2 status: this function IS the selector for the BME280
+ *        hardware-I2C path (SensorManager routes matching pairs to
+ *        Wire/Wire1 and only falls back to PIO/bit-bang otherwise —
+ *        loudly, see the WARN there). Zero PIO cost on the HW path. */
 inline int i2cPeripheralForPins(uint8_t sda, uint8_t scl) {
     /* Bitmask of valid I2C pins: bit N set = pin N usable on that peripheral */
     constexpr uint32_t I2C0_MASK = (1u<<0)|(1u<<1)|(1u<<4)|(1u<<5)|(1u<<8)|(1u<<9)
@@ -289,14 +292,21 @@ inline int i2cPeripheralForPins(uint8_t sda, uint8_t scl) {
  *  ROLE_POWER defaults to output LOW — sensor VCC off until driver activates.
  */
 inline void gpioInitForRole(uint8_t gpio, PinRole role, uint8_t flags) {
- gpio_init(gpio);
+ /* Skip gpio_init() for I2C and SPI SCK pins — the peripheral init
+  * (Wire.begin() / SPI.begin()) configures the pin mux. Calling gpio_init()
+  * would reset the pin to SIO mode, breaking I2C/SPI communication.
+  * PIO-managed pins (ROLE_DATA for DS18B20/DHT22) are also skipped —
+  * the PIO state machine owns the pin via pio_gpio_init(). */
+ if (role != ROLE_I2C_SDA && role != ROLE_I2C_SCL && role != ROLE_SPI_SCK
+     && role != ROLE_DATA) {
+  gpio_init(gpio);
+ }
  if (flags & FLAG_PULLUP)      gpio_pull_up(gpio);
  if (flags & FLAG_PULLDOWN)    gpio_pull_down(gpio);
 
  switch (role) {
  case ROLE_DATA:
-     /* Single-wire: driver manages direction per-bit (DS18B20, DHT22). */
-     gpio_set_dir(gpio, GPIO_IN);
+     /* Single-wire: PIO driver owns the pin — no direction override needed. */
      break;
  case ROLE_UART_TX:
  case ROLE_SPI_MOSI:

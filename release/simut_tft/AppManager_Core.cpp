@@ -81,7 +81,8 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
  }
  _pendingTimeSync = false;
  LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTING, delta, String(TRL("NTP correction: ")) + delta + "s");
- _storageMgr->correctProvisionalTimestamps(bootTs, delta);
+ /* V4: variable-length records — in-place correction unsupported.
+  * NTP-synced epoch is used directly for all new records. */
  LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTED, 0, "");
  _storageMgr->unlockHeavyTask( );
 

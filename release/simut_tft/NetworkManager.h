@@ -124,7 +124,11 @@ private:
  uint32_t _retryTimer;
  uint32_t _reconnectTimer;
  uint32_t _reconnectDelay = 5000;
- static const uint32_t MAX_RECONNECT_DELAY = 120000;
+ /* constexpr, not const: `min(x, MAX_RECONNECT_DELAY)` binds a reference and
+  * therefore ODR-uses it. At -Os the value is folded and no symbol is needed;
+  * at -O0 the debug build failed to link. constexpr members are implicitly
+  * inline under gnu++17, so no out-of-line definition is required. */
+ static constexpr uint32_t MAX_RECONNECT_DELAY = 120000;
 
 
  TimeSyncCallback _timeSyncCb = nullptr;
