@@ -98,6 +98,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server.on("/api/commit_all", HTTP_POST, std::bind(&WebManager::handleApiCommitAll, this));
  /* /api/save_net replaced by /api/commit_all */
  _server.on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
+ _server.on("/api/history_rebind", HTTP_POST, std::bind(&WebManager::handleApiHistoryRebind, this));
  /* user_add/del/rst replaced by /api/commit_all */
  _server.on("/api/history_multi", HTTP_GET, std::bind(&WebManager::handleApiHistoryMulti, this)); /* Multi-sensor replacement for /api/history single-sensor */
  _server.on("/api/history_days", HTTP_GET, std::bind(&WebManager::handleApiHistoryDays, this));

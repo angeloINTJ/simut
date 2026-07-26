@@ -80,7 +80,13 @@ bool WebManager::checkPageAccess(uint16_t requiredPerm) {
 
 /* Serves a gzipped page held on LittleFS (see FS_PAGES in
  * tools/build_webui_gz.py). Same contract as serveProtectedPage — the browser
- * cannot tell the two apart. */
+ * cannot tell the two apart.
+ *
+ * NO CALLERS as of 2026-07-26 — /config, its only user, moved back into flash.
+ * Kept on purpose: it is the runtime half of the FS_PAGES mechanism in
+ * tools/build_webui_gz.py, and --gc-sections drops it from the image, so an
+ * unused copy costs nothing. Listing any page in FS_PAGES puts it back to
+ * work; deleting this would mean rewriting a tested helper to do that. */
 bool WebManager::serveProtectedFsPage(uint16_t requiredPerm, const char* path) {
 	if (!checkPageAccess(requiredPerm)) return false;
 
@@ -133,14 +139,14 @@ void WebManager::handleLogin( ) {
 
 void WebManager::handleRoot( ) { serveProtectedPage(PERM_DASHBOARD, WebUI_GZ::DASH_PAGE_GZ, WebUI_GZ::DASH_PAGE_GZ_LEN); }
 void WebManager::handleHistory( ) { serveProtectedPage(PERM_HISTORY | PERM_LOGS, WebUI_GZ::HIST_PAGE_GZ, WebUI_GZ::HIST_PAGE_GZ_LEN); }
-/* /config is the one page that does not live in the firmware image.
- *
- * The app slot is full — the sensor editor below would not fit alongside it —
- * so the page is gzipped into data/web/config.html.gz at build time and
- * streamed from the 1 MB filesystem partition instead. Same bytes, same
- * Content-Encoding: gzip, just a flash read instead of a PROGMEM pointer.
- * See FS_PAGES in tools/build_webui_gz.py. */
-void WebManager::handleConfig( ) { serveProtectedFsPage(PERM_SYS_CONFIG, "/web/config.html.gz"); }
+/* /config used to be the one page that did not live in the firmware image:
+ * with 660 bytes of headroom it was gzipped into data/web/config.html.gz and
+ * streamed from LittleFS. Dropping the unused Bluetooth stack (platformio.ini)
+ * freed 64732 B, so it came back in on 2026-07-26 for 11544 B — which also
+ * removed the bootstrap trap, where a freshly formatted device answered
+ * /config with "Page asset missing" until someone uploaded the file by hand.
+ * See FS_PAGES in tools/build_webui_gz.py and docs/ANALISE_FLASH_RAM.md. */
+void WebManager::handleConfig( ) { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ::CFG_PAGE_GZ, WebUI_GZ::CFG_PAGE_GZ_LEN); }
 void WebManager::handleNetwork( ) { serveProtectedPage(PERM_NET_CONFIG, WebUI_GZ::NET_PAGE_GZ, WebUI_GZ::NET_PAGE_GZ_LEN); }
 void WebManager::handleUsers( ) { serveProtectedPage(PERM_USER_MGR, WebUI_GZ::USR_PAGE_GZ, WebUI_GZ::USR_PAGE_GZ_LEN); }
 void WebManager::handleFiles( ) { serveProtectedPage(PERM_FILE_READ, WebUI_GZ::FILE_PAGE_GZ, WebUI_GZ::FILE_PAGE_GZ_LEN); }

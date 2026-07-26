@@ -187,8 +187,44 @@ size_t histV4ReadHeaderBuf(const uint8_t *buf, size_t bufLen, HistV4State &state
         bitOff += state.measures[i].bitWidth;
     }
     state.anchorByteSize = (bitOff + 7) / 8;
+    state.headerLen = (uint16_t)pos;
 
     return pos; /* bytes consumed */
+}
+
+void histV4ResetCodec(HistV4State &state) {
+    /* Clears ONLY the running codec fields, keeping the schema. A reader that
+     * has to start over on a file it already parsed (the migration decodes the
+     * same file twice: once to write, once to verify) must rewind the delta
+     * chain without paying to re-read the header. histV4Reset would wipe the
+     * schema with it. */
+    memset(state.lastAnchor, 0, sizeof(state.lastAnchor));
+    memset(state.fieldHasValid, 0, sizeof(state.fieldHasValid));
+    state.recordsSinceAnchor = 0;
+    state.initialized = false;
+    state.lastEpoch = 0;
+}
+
+int64_t histV4RemapValue(int8_t srcIdx, const int64_t *srcValues,
+                         const HistV4State &srcState,
+                         const HistV4MeasureDef &dstDef) {
+    /* A column with no counterpart in the source did not exist for this part
+     * of the day. NaN is the honest answer, not zero. */
+    if (srcIdx < 0) return histV4NanSentinel(dstDef.bitWidth);
+
+    const HistV4MeasureDef &srcDef = srcState.measures[srcIdx];
+    const int64_t raw = srcValues[srcIdx];
+
+    if (histV4IsNan(raw, srcDef.bitWidth)) return histV4NanSentinel(dstDef.bitWidth);
+
+    /* Same packing on both sides — the overwhelmingly common case, since both
+     * defs come from histV4DefaultBitWidth/Scale for the same channel. Carry
+     * the integer untouched: a float round trip here would only add error. */
+    if (srcDef.bitWidth == dstDef.bitWidth && srcDef.scale == dstDef.scale) return raw;
+
+    /* Width or scale genuinely changed. A raw integer is meaningless without
+     * the def it was packed against, so go through the physical value. */
+    return histV4FromFloat(histV4ToFloat(raw, srcDef), dstDef);
 }
 
 /* ============================================================================

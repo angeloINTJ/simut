@@ -172,6 +172,7 @@ struct HistV4State {
     uint16_t anchorPeriod;
 
     /* ── Pre-computed decode offsets ── */
+    uint16_t headerLen;                                   /**< Bytes the header occupies — where record 0 starts. RAM only. */
     uint16_t anchorByteSize;                              /**< ceil((32 + sum(bitWidth[i])) / 8) */
     uint16_t measureBitOffset[HIST_V4_MAX_MEASUREMENTS];  /**< Bit offset from start of anchor record (epoch=0..31) */
     uint8_t  measureByteOffset[HIST_V4_MAX_MEASUREMENTS]; /**< Byte offset from start of anchor record */
@@ -369,6 +370,31 @@ inline size_t histV4DecodeNextRefill(uint8_t *buf, size_t bufCap, size_t &filled
 
 /** Reset codec state to initial (keep schema, clear running state). */
 void histV4Reset(HistV4State &state);
+
+/**
+ * @brief Rewind the running codec state, keeping the parsed schema.
+ * @details For a reader that must decode the same file from the top again.
+ * histV4Reset would clear the schema too, forcing a header re-read.
+ */
+void histV4ResetCodec(HistV4State &state);
+
+/**
+ * @brief Carry one value from a source schema into a destination measurement.
+ *
+ * @param srcIdx    Index into the source schema, or <0 when the destination
+ *                  column has no counterpart (returns the NaN sentinel).
+ * @param srcValues Decoded values of the source record.
+ * @param srcState  Source schema (for the source measurement def).
+ * @param dstDef    Destination measurement def.
+ * @return Raw integer ready to encode against @p dstDef.
+ *
+ * Raw is carried verbatim when (bitWidth, scale) match on both sides, and only
+ * goes through float when they genuinely differ — a raw integer means nothing
+ * without the def it was packed against.
+ */
+int64_t histV4RemapValue(int8_t srcIdx, const int64_t *srcValues,
+                         const HistV4State &srcState,
+                         const HistV4MeasureDef &dstDef);
 
 /** @return Anchor record size in bytes (pre-computed from schema). */
 inline uint16_t histV4AnchorSize(const HistV4State &state) {
