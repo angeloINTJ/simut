@@ -1,4 +1,4 @@
-# Manual do CLI — SIMUT v1.5.2-beta
+# Manual do CLI — SIMUT v1.5.3-beta
 
 ## Visão geral
 

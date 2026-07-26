@@ -4,7 +4,7 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## v1.5.2-beta (2026-07-25)
+## v1.5.3-beta (2026-07-25)
 
 Release de estabilidade e telemetria. A maior parte veio de perseguir reboots até
 a causa real em vez da primeira plausível — vários itens abaixo registram uma
