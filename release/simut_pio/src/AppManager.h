@@ -104,15 +104,19 @@ private:
 	 * (>=30 lines each). Each receives the command, the active config,
 	 * and a 'changed' flag by reference (set to true if RAM was modified).
 	 * Implementations in AppManager_CmdHandlers.cpp. */
+ /* Only the admin-password reset survives into the emergency image; the rest
+  * are reachable exclusively from commands that compile out. */
+ void cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+#if SIMUT_CLI_FULL
  void cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserAdd(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserPerm(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
- void cmdHandleResetAdmin(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleSetTime(const CliDemand& cmd);
  void cmdHandleIpCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleDnsCfg(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
  void cmdHandleUserPass(const CliDemand& cmd, SystemConfig& cfg, bool& changed);
+#endif
 
  void checkAndAutoHealSensors( );
  void handleTimeSync(uint32_t bootTs, int32_t delta);

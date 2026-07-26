@@ -208,7 +208,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 					 * I2C0 SDA/SCL = 0/1, 4/5, 8/9, 12/13, 16/17, 20/21;
 					 * I2C1 = 2/3, 6/7, 10/11, 14/15, 18/19, 26/27. */
 					LOG_CODE(LOG_WARN, "SENSOR", SYS_OK, sda,
-					         TRL("BME em bit-bang (pinos sem I2C de hardware) — ver docs/CONCURRENCY.md"));
+					         TRL("BME in bit-bang (pins have no hardware I2C) — see docs/CONCURRENCY.md"));
 					drvIdx = _getOrCreateBmeDriver(sda, scl, addr);
 				}
 

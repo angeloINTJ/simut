@@ -55,12 +55,16 @@ public:
  void printInfo(String msg);
 
  void printLogEntry(String rawCsvLine);
+#if SIMUT_CLI_FULL
  void renderSensorTable(const SensorRecord* sensors, int maxSensors);
  void renderGpioMap(const SensorRecord* sensors, int maxSensors);
  void renderScanResults(const std::vector<ScanResult> &results);
+#endif
  void renderSystemInfo(const SystemConfig &cfg);
+#if SIMUT_CLI_FULL
  void renderSensorReading(const SensorReading &reading);
  void renderMetrics( );
+#endif
 
  void printDivider( );
 
@@ -82,7 +86,9 @@ public:
  bool isPrivOrHigher( ) const;
 
  /** Print a mode-aware, context-sensitive help page. */
+#if SIMUT_CLI_FULL
  void printModeHelp( );
+#endif
 
  /** CLI language — EN (default) or PT. Reuses cfg.displayLang.
  * Also propagates to BluetoothManager (post-auth banner). */
@@ -123,5 +129,7 @@ private:
 
  CliDemand parseCommand(String input);
 
+#if SIMUT_CLI_FULL
  String formatRom(const uint8_t* rom);
+#endif
 };

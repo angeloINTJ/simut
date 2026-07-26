@@ -1,6 +1,41 @@
-# Manual do CLI — SIMUT v1.5.5-beta
+# Manual do CLI — SIMUT v1.5.6-beta
+
+> **Leia isto antes do resto.** Desde a v1.5.6-beta existem **dois perfis de
+> CLI**, e a maior parte deste manual descreve apenas um deles.
+>
+> | Perfil | Como obter | O que tem |
+> |---|---|---|
+> | **Emergência** (padrão) | `pico_w_release` — é o que vem nos zips de release | 9 comandos, prompt único `SIMUT>` |
+> | **Completo** | `pico_w_test` — compilar da fonte | os 55 comandos e os 4 modos descritos abaixo |
+>
+> Toda configuração vive na **interface web**. O console serial da imagem de
+> release existe para o caso em que a web não pode ser alcançada: descobrir o
+> IP, ler o log, resetar a senha do admin, formatar, reiniciar.
+>
+> Se você digitar um comando deste manual e receber *"Comando desconhecido. As
+> configurações ficam na interface web"*, é isso: o comando existe, mas mudou
+> de lugar.
+>
+> **O console de emergência, na íntegra:**
+>
+> ```
+> show net status              IP, RSSI, hora — encontrar o dispositivo
+> show system info             Nome, firmware, serial, SSID do WiFi
+> show system log              Despeja o log de eventos do flash
+> debug on | off               Transmite os logs neste console ao vivo
+> system admin reset [confirm] Nova senha de admin, mostrada uma vez
+> system format [confirm]      Reformata o LittleFS, mantém o firmware
+> system factory [confirm]     Apaga TODA a config + reinicia
+> reload [confirm]             Reinicia agora
+> help                         Esta lista
+> ```
+>
+> O restante deste documento vale para o perfil **completo** (`pico_w_test`).
 
 ## Visão geral
+
+> Aplica-se ao perfil completo. Na imagem de release não há modos: o prompt é
+> sempre `SIMUT>` e os 9 comandos acima valem nele.
 
 O SIMUT adota o modelo **Cisco IOS** com 4 modos hierárquicos. Cada modo tem seu
 próprio prompt e conjunto de comandos. O caractere `?` mostra os comandos

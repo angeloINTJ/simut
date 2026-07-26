@@ -496,3 +496,151 @@ void WebManager::handleApiCalibPost( ) {
 	snprintf(resp, sizeof(resp), "{\"ok\":true,\"version\":%lu}", (unsigned long)version);
 	_server.send(200, "application/json", resp);
 }
+
+/* ─────────────────────────────────────────────────────────────────
+ * POST /api/action?op=<...>
+ *
+ * The five maintenance operations that had no web equivalent when the serial
+ * CLI was reduced to its emergency set. They are grouped behind one route and
+ * an ?op= selector because each additional _server.on( ) costs flash for the
+ * WebServer's per-route bookkeeping, and all six share the same preamble.
+ *
+ * The scan is driven straight through _sensorRef rather than through
+ * AppManager: startScan( ) only arms a state machine that the main loop steps,
+ * so the handler never blocks, and the CLI's follow-up loadAndCalibrateSensors( )
+ * is not needed here — a scan discovers, it does not configure. (In a
+ * SIMUT_CLI_FULL image a serial `sensor scan` running at the same time would
+ * consume the results first; that is a test-image race with no user impact.)
+ * ───────────────────────────────────────────────────────────────── */
+void WebManager::handleApiAction( ) {
+	uint16_t perms = getAuthPerms( );
+	if (!(perms & PERM_SYS_CONFIG)) {
+		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		return;
+	}
+	String op = _server.arg("op");
+
+	/* ── Telemetry ── */
+	if (op == "tel_sync") {
+		if (!_telemetryRef) { _server.send(503, "application/json", "{\"error\":\"unavailable\"}"); return; }
+		_telemetryRef->forceSync( );
+		LOG_CODE(LOG_INFO, "WEB", TEL_FORCE_SYNC, _currentUserId, TRL("Forcing telemetry sync"));
+		_server.send(200, "application/json", "{\"ok\":true}");
+		return;
+	}
+	if (op == "tel_reset") {
+		_storageRef->resetTelemetryCursor( );
+		LOG_CODE(LOG_WARN, "WEB", SEC_CONFIG_CHANGED, _currentUserId,
+		         TRL("Telemetry cursor reset via web"));
+		_server.send(200, "application/json", "{\"ok\":true}");
+		return;
+	}
+
+	/* ── Sensor discovery ── */
+	if (op == "sensor_scan") {
+		if (!_sensorRef) { _server.send(503, "application/json", "{\"error\":\"unavailable\"}"); return; }
+		if (_sensorRef->isScanning( )) { _server.send(200, "application/json", "{\"busy\":true}"); return; }
+		_sensorRef->startScan( );
+		_server.send(202, "application/json", "{\"started\":true}");
+		return;
+	}
+	if (op == "scan_results") {
+		if (!_sensorRef) { _server.send(503, "application/json", "{\"error\":\"unavailable\"}"); return; }
+		std::vector<ScanResult> results;
+		if (!_sensorRef->getScanResults(results)) {
+			_server.send(200, "application/json", "{\"scanning\":true}");
+			return;
+		}
+		String out = "{\"scanning\":false,\"found\":[";
+		for (size_t i = 0; i < results.size( ); i++) {
+			char rom[20] = {0};
+			if (results[i].type == TYPE_DS18B20) {
+				for (int b = 0; b < 8; b++) snprintf(rom + b * 2, 3, "%02X", results[i].rom[b]);
+			}
+			char item[64];
+			snprintf(item, sizeof(item), "%s{\"pin\":%u,\"type\":%d,\"rom\":\"%s\"}",
+			         i ? "," : "", (unsigned)results[i].pin, (int)results[i].type, rom);
+			out += item;
+		}
+		out += "]}";
+		_server.send(200, "application/json", out);
+		return;
+	}
+
+	/* ── Slot maintenance ──
+	 * The op is validated before the slot. Checking the slot first made an
+	 * unrecognised op answer {"error":"slot"}, which points the caller at the
+	 * wrong parameter — it reads as "my slot is malformed" when the real
+	 * problem is a typo in the op name. */
+	if (op != "sensor_wipe" && op != "sensor_accept") {
+		_server.send(400, "application/json", "{\"error\":\"op\"}");
+		return;
+	}
+	int slot = _server.hasArg("slot") ? _server.arg("slot").toInt( ) : -1;
+	if (slot < 0 || slot >= MAX_SENSORS) {
+		_server.send(400, "application/json", "{\"error\":\"slot\"}");
+		return;
+	}
+	SystemConfig& cfg = _storageRef->getConfig( );
+
+	if (op == "sensor_wipe") {
+		/* Same semantics as the old `sensor wipe <gpio> confirm`: move the
+		 * slot's provisioning epoch to now, so history before this instant is
+		 * no longer attributed to the sensor sitting there. */
+		cfg.sensors[slot].provisionEpoch = _netRef ? (uint32_t)_netRef->getEpoch( ) : 0;
+		_storageRef->saveConfiguration( );
+		LOG_CODE(LOG_WARN, "WEB", SEC_CONFIG_CHANGED, _currentUserId,
+		         TRL("Sensor history epoch reset via web"));
+		_server.send(200, "application/json", "{\"ok\":true}");
+		return;
+	}
+
+	if (op == "sensor_accept") {
+#if SIMUT_SENSOR_DS18B20
+		uint8_t foundRom[8];
+		if (!_sensorRef || !_sensorRef->identifyPhysicalSensor((uint8_t)slot, foundRom)) {
+			_server.send(404, "application/json", "{\"error\":\"nosensor\"}");
+			return;
+		}
+		if (foundRom[0] == 0x00 || dallasCrc8(foundRom, 7) != foundRom[7]) {
+			_server.send(422, "application/json", "{\"error\":\"badrom\"}");
+			return;
+		}
+		String dbId, dbName; float dbOffset = 0.0f;
+		_storageRef->getCalibrationData(foundRom, dbId, dbOffset, dbName);
+
+		String currentId = String(cfg.sensors[slot].hwId);
+		cfg.sensors[slot].active = true;
+		cfg.sensors[slot].pins[0] = (uint8_t)slot;
+		cfg.sensors[slot].sensorType = TYPE_DS18B20;
+		memcpy(cfg.sensors[slot].rom, foundRom, 8);
+		safeCopy(cfg.sensors[slot].hwId,
+		         dbId.length( ) ? dbId.c_str( ) : "LIB_SENS", sizeof(cfg.sensors[slot].hwId));
+		if (dbName.length( )) {
+			safeCopy(cfg.sensors[slot].friendlyName, dbName.c_str( ),
+			         sizeof(cfg.sensors[slot].friendlyName));
+		}
+		/* A different hwId means a different physical part in that slot, so the
+		 * history before now belongs to the old one. */
+		bool epochMoved = (currentId != String(cfg.sensors[slot].hwId));
+		if (epochMoved) {
+			cfg.sensors[slot].provisionEpoch = _netRef ? (uint32_t)_netRef->getEpoch( ) : 0;
+		}
+		_storageRef->saveConfiguration( );
+		LOG_CODE(LOG_WARN, "WEB", SEC_CONFIG_CHANGED, _currentUserId,
+		         TRL("Hardware match restored"));
+		char resp[64];
+		snprintf(resp, sizeof(resp), "{\"ok\":true,\"epoch_moved\":%s}",
+		         epochMoved ? "true" : "false");
+		_server.send(200, "application/json", resp);
+#else
+		_server.send(501, "application/json", "{\"error\":\"nods18b20\"}");
+#endif
+		return;
+	}
+
+	/* Unreachable: the op was whitelisted above. Kept as a belt-and-braces
+	 * answer so a future op added to that whitelist without a body here fails
+	 * loudly instead of returning an empty 200. */
+	_server.send(400, "application/json", "{\"error\":\"op\"}");
+}

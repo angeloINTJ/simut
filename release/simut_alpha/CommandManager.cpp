@@ -293,6 +293,11 @@ void CommandManager::printDivider( ) { consolePrintln("-------------------------
 
 /* ── Mode validity mask table — one byte per DemandType ── */
 
+#if !SIMUT_CLI_FULL
+/* Emergency image: one mode, and every surviving command is valid in it.
+ * The caller still asks, so answer without carrying the table. */
+uint8_t getCommandModeMask(DemandType) { return CLI_VALID_ALL; }
+#else
 uint8_t getCommandModeMask(DemandType t) {
  switch (t) {
  /* Diagnostic / Show — valid in all modes */
@@ -375,6 +380,9 @@ uint8_t getCommandModeMask(DemandType t) {
  }
 }
 
+#endif /* SIMUT_CLI_FULL */
+
+#if SIMUT_CLI_FULL
 const char* getModePromptSuffix(CLIMode mode) {
  switch (mode) {
  case CLI_MODE_USER_EXEC:     return ">";
@@ -585,12 +593,18 @@ void CommandManager::printModeHelp( ) {
  printDivider( );
 }
 
+#endif /* SIMUT_CLI_FULL */
+
+#if SIMUT_CLI_FULL
 String CommandManager::formatRom(const uint8_t* rom) {
  char buff[18];
  snprintf(buff, sizeof(buff), "%02X%02X%02X%02X%02X%02X%02X%02X", rom[0], rom[1], rom[2], rom[3], rom[4], rom[5], rom[6], rom[7]);
  return String(buff);
 }
 
+#endif /* SIMUT_CLI_FULL */
+
+#if SIMUT_CLI_FULL
 void CommandManager::renderSensorTable(const SensorRecord* sensors, int maxSensors) {
  consolePrintln("");
  consolePrintln(isPt( ) ? "--- Sensores Configurados ---"
@@ -759,6 +773,8 @@ void CommandManager::renderScanResults(const std::vector<ScanResult> &results) {
  printDivider( );
 }
 
+#endif /* SIMUT_CLI_FULL */
+
 void CommandManager::renderSystemInfo(const SystemConfig &cfg) {
  const bool pt = isPt( );
  printDivider( );
@@ -786,6 +802,7 @@ void CommandManager::renderSystemInfo(const SystemConfig &cfg) {
  printDivider( );
 }
 
+#if SIMUT_CLI_FULL
 void CommandManager::renderMetrics( ) {
  const bool pt = isPt( );
  const SystemMetrics& m = MetricsManager::instance( ).data( );
@@ -992,14 +1009,25 @@ void CommandManager::renderSensorReading(const SensorReading &reading) {
  else { consolePrintf("[%s] %.2f\n", reading.typeName, reading.value1); }
 }
 
+#endif /* SIMUT_CLI_FULL */
+
 void CommandManager::printSuccess(String msg) { consolePrint("OK: "); consolePrintln(msg); }
 void CommandManager::printError(String msg) { consolePrint("ERROR: "); consolePrintln(msg); }
 void CommandManager::printInfo(String msg) { consolePrintln(msg); }
 
 void CommandManager::printHelp( ) {
  /* PT comes from @HELP in .lng (UTF-8 -> unaccent for the ASCII terminal).
- * EN is now always inline in PROGMEM (HELP_TEXT_EN), no LittleFS dependency. */
+ * EN is now always inline in PROGMEM (HELP_TEXT_EN), no LittleFS dependency.
+ *
+ * The pack's @HELP documents the emergency console, because that is the CLI
+ * a user actually has. A test image carries the full command set, so it
+ * ignores the pack and prints the built-in full text — otherwise `help`
+ * would list nine commands while fifty-five work. */
+#if SIMUT_CLI_FULL
+ if (false) {
+#else
  if (isPt( )) {
+#endif
  const char* langHelp = DisplayManager::getActiveHelpText( );
  if (langHelp) {
  const char* line = langHelp;
