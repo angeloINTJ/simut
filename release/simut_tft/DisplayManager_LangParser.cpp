@@ -19,10 +19,17 @@
  * @LICENSE
  * <free text, multiline>
  *
- * Memory strategy: single allocation (malloc of file size).
- * Pointers in _activeLang.strings/helpText/licenseText
- * point into this buffer; null-termination done
- * by modifying the buffer in-place.
+ * Memory strategy: single allocation, sized to the file MINUS its @WEBDICT
+ * section. Pointers in _activeLang.strings/helpText/licenseText point into
+ * this buffer; null-termination done by modifying the buffer in-place.
+ *
+ * @WEBDICT is excluded on purpose. It is roughly half of a pack by bytes
+ * (14 KB of 28 KB in pt-BR) and no firmware code path reads it — it exists
+ * only to be served to the browser by GET /api/lang. Keeping it resident
+ * spent 14 KB of the 128 KB heap for the whole uptime, so the parser records
+ * its byte range (webDictOffset/webDictLen) and the web handler streams it
+ * from flash on demand. The load still reads the whole file, so the peak
+ * during parse is unchanged; only the steady state shrinks.
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @author Ângelo Moisés Alves
@@ -240,12 +247,17 @@ bool DisplayManager::loadLangFile(const char* path) {
  if (e > 0 && buf[e-1] == '\n') buf[e-1] = '\0';
  else if (e <= n) buf[e] = '\0';
  }
- /* @WEBDICT: opaque JSON blob, served via GET /api/lang to browser. */
+ /* @WEBDICT: opaque JSON blob, served via GET /api/lang to browser.
+  * Recorded as a byte range into the file, never as a pointer — the blob is
+  * excised from the buffer further down. Offsets into `buf` ARE file offsets:
+  * the buffer is a verbatim copy of the file from byte 0.
+  * The trailing '\n' is dropped from the served length so the bytes match the
+  * old in-RAM string exactly (it was terminated at that newline). */
  if (secEnd[S_WEBDICT] > secStart[S_WEBDICT]) {
- _activeLang.webDict = buf + secStart[S_WEBDICT];
  size_t e = secEnd[S_WEBDICT];
- if (e > 0 && buf[e-1] == '\n') buf[e-1] = '\0';
- else if (e <= n) buf[e] = '\0';
+ _activeLang.webDictOffset = (uint32_t)secStart[S_WEBDICT];
+ _activeLang.webDictLen = (uint32_t)((e - secStart[S_WEBDICT]) -
+ ((e > 0 && buf[e-1] == '\n') ? 1 : 0));
  }
 
  /* @LOGCODES: each line "<decimal_id> <text>", split at first space.
@@ -332,6 +344,57 @@ bool DisplayManager::loadLangFile(const char* path) {
  }
  }
  }
+
+ /* Excise @WEBDICT from the resident buffer.
+  *
+  * It is ~50% of a pack by bytes (14 KB of 28 KB in pt-BR) and no firmware
+  * path ever reads it — it exists only to be handed to the browser by
+  * GET /api/lang, which now streams it straight from this file. Holding it
+  * cost 14 KB of a 128 KB heap for the entire uptime.
+  *
+  * Everything the parser kept points into `buf`, so the survivors are copied
+  * around the hole and rebased. Nothing points inside the hole: the @WEBDICT
+  * branch above stores offsets, not a pointer.
+  *
+  * On malloc failure the original buffer is kept — /api/lang still streams
+  * from the file, so behaviour is identical and only the saving is lost. */
+ if (_activeLang.webDictLen > 0) {
+ const size_t wdStart = secStart[S_WEBDICT];
+ const size_t wdEnd = secEnd[S_WEBDICT];
+ const size_t wdLen = wdEnd - wdStart;
+ const size_t newSize = n - wdLen + 1; /* +1 for the closing '\0' */
+
+ char* nb = (char*)malloc(newSize);
+ if (nb) {
+ memcpy(nb, buf, wdStart);
+ memcpy(nb + wdStart, buf + wdEnd, n - wdEnd);
+ nb[newSize - 1] = '\0';
+
+ /* Offsets below the hole are unchanged; those above shift down by
+  * its size. Applied to every pointer the parser handed out. */
+ auto rebase = [&](char* p) -> char* {
+ if (!p) return nullptr;
+ size_t o = (size_t)(p - buf);
+ return nb + (o < wdStart ? o : o - wdLen);
+ };
+ for (int k = 0; k < TR_KEYS_COUNT; k++)
+ _activeLang.strings[k] = rebase(_activeLang.strings[k]);
+ _activeLang.helpText = rebase(_activeLang.helpText);
+ _activeLang.licenseText = rebase(_activeLang.licenseText);
+ for (uint16_t k = 0; k < _activeLang.logcodesCount; k++)
+ _activeLang.logcodes[k].text = rebase((char*)_activeLang.logcodes[k].text);
+ for (uint16_t k = 0; k < _activeLang.trlsCount; k++)
+ _activeLang.trls[k].text = rebase((char*)_activeLang.trls[k].text);
+
+ free(buf);
+ buf = nb;
+ n = newSize - 1;
+ }
+ }
+
+ /* Path is kept so /api/lang can reopen the file to stream @WEBDICT. */
+ strncpy(_activeLang.path, path, sizeof(_activeLang.path) - 1);
+ _activeLang.path[sizeof(_activeLang.path) - 1] = '\0';
 
  _activeLang.buffer = buf;
  _activeLang.bufferSize = n;
@@ -422,8 +485,12 @@ const char* DisplayManager::getActiveHelpText( ) {
 const char* DisplayManager::getActiveLicenseText( ) {
  return _activeLangLoaded ? _activeLang.licenseText : nullptr;
 }
-const char* DisplayManager::getActiveWebDict( ) {
- return _activeLangLoaded ? _activeLang.webDict : nullptr;
+bool DisplayManager::getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len) {
+ if (!_activeLangLoaded || _activeLang.webDictLen == 0) return false;
+ if (path) *path = _activeLang.path;
+ if (offset) *offset = _activeLang.webDictOffset;
+ if (len) *len = _activeLang.webDictLen;
+ return true;
 }
 bool DisplayManager::isLangLoaded( ) { return _activeLangLoaded; }
 /* Active .lng metadata for web language selector. */

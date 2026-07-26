@@ -406,7 +406,13 @@ time_t NetworkManager::getEpoch( ) {
  time_t t = time(nullptr);
  if (t > 1600000000) return t;
  if (_provisionalActive) return _provisionalBase + ((millis( ) - _provisionalBootMillis) / 1000);
- return t;
+ /* No NTP and no provisional time from flash — seed with compile timestamp
+  * so history/logs work immediately on first boot. Records will carry
+  * approximate timestamps until NTP sync corrects the system clock. */
+ _provisionalBase = SIMUT_BUILD_EPOCH;
+ _provisionalBootMillis = millis( );
+ _provisionalActive = true;
+ return _provisionalBase;
 }
 
 bool NetworkManager::isConnected( ) { return (_state == NET_READY); }

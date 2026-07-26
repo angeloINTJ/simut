@@ -43,6 +43,13 @@ void loop( ) {
  _wdtStarted = true;
  }
  watchdog_update( );
+ /* Uptime at the last watchdog feed, for the next boot's autopsy. The FATAL is
+  * written after the reset, so its own uptime field is 0 and the crash has no
+  * timestamp at all — which leaves "stalled after seven minutes of download
+  * load" and "reset while idling during a firmware upload" reading identically.
+  * Only Core 0 reaches here, and the soft-panic payload overwrites scratch[6]
+  * on its way out, so the two uses of the register cannot collide. */
+ watchdog_hw->scratch[6] = millis( );
 #endif
 
  app.loop( );

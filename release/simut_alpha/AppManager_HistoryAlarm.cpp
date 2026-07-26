@@ -196,121 +196,147 @@ void AppManager::updateLiveDisplay( ) {
  * Uses ReadLock (no Core 1 pause) with 5-second budget limit.
  */
 void AppManager::preloadMinMax( ) {
- time_t now = _netMgr->getEpoch( );
- struct tm timeinfo;
- localtime_r(&now, &timeinfo);
+	 time_t now = _netMgr->getEpoch( );
+	 struct tm timeinfo;
+	 localtime_r(&now, &timeinfo);
 
- char path[40];
- snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
- timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+	 char path[42];
+	 snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_V4_FILE_EXT,
+	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
- File f;
- _storageMgr->enterFlashReadLock( );
- bool fileExists = LittleFS.exists(path);
- if (fileExists) f = LittleFS.open(path, "r");
- _storageMgr->exitFlashReadLock( );
+	 _storageMgr->enterFlashReadLock( );
+	 bool fileExists = LittleFS.exists(path);
+	 File f;
+	 if (fileExists) f = LittleFS.open(path, "r");
+	 _storageMgr->exitFlashReadLock( );
 
- if (fileExists && f) {
- /* v2: validate SIM2 header. */
- HistoryFileHeaderV2 hdrP;
- bool headerOkP = false;
- {
- StorageManager::ReadGuard rg(_storageMgr.get( ));
- if (f.size( ) >= HIST_V2_HEADER_SIZE) {
- f.seek(0);
- if (f.read((uint8_t*)&hdrP, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
- headerOkP = (memcmp(hdrP.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdrP.version == HIST_V2_VERSION &&
- hdrP.anchorPeriod > 0);
- }
- }
- }
- if (!headerOkP) {
- { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
- return;
- }
+	 if (!fileExists || !f) return;
 
- HistoryCodecState pState;
- historyCodecReset(pState);
- uint16_t pAnchorPeriod = hdrP.anchorPeriod;
- uint8_t pRdBuf[256];
- size_t pRdFilled = 0;
+	 /* V4: read header into buffer, then parse.
+	  * Static allocation — HistV4State (2.2KB) + hdrBuf (2KB) + pRdBuf (256B)
+	  * exceeds the RP2040 ~4KB stack. Static moves these to BSS (global RAM). */
+	 static HistV4State pState;
+	 static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 static uint8_t pRdBuf[HIST_V4_READ_BUF];
+	 {
+	 StorageManager::ReadGuard rg(_storageMgr.get( ));
+	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+	 /* Cursor fix (same as graph/web/scan): reposition to the real
+	  * header end, else small files decode nothing (cursor at EOF). */
+	 size_t pHdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
+	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, pState) : 0;
+	 if (pHdrLen == 0) {
+	 f.close( );
+	 return;
+	 }
+	 f.seek(pHdrLen);
+	 }
 
- uint32_t _preloadBudget = millis( );
- bool hasMore = true;
+	 size_t pRdFilled = 0;
 
- while (hasMore) {
- if (timeSince(_preloadBudget, 5000)) {
- LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
- { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
- LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, 0, "");
- return;
- }
+	 /* ── M1: mapa medição → slot, resolvido UMA VEZ por arquivo ──────────
+	  * A tabela de medições é fixa para o arquivo inteiro, mas o laço
+	  * abaixo fazia histV4StrPoolGet + varredura de MAX_SENSORS para CADA
+	  * medição de CADA registro — a mesma resposta recalculada 1.440 × 4
+	  * vezes num dia cheio. É o padrão que derrubava o handler web por
+	  * watchdog (416f2dc); aqui o teto de 5 s evita o reboot mas entrega
+	  * cache PARCIAL: min/max errados no dashboard após reboot à tarde. */
+	 int8_t measSlot[HIST_V4_MAX_MEASUREMENTS];
+	 {
+	 SystemConfig &cfg = _storageMgr->getConfig( );
+	 for (uint8_t m = 0; m < pState.measureCount; m++) {
+	 measSlot[m] = -1;                       /* -1 = medição sem dono ativo */
+	 uint8_t sIdx = pState.measures[m].sensorIdx;
+	 if (sIdx >= pState.sensorCount) continue;
 
- _storageMgr->enterFlashReadLock( );
- BinaryHistoryRecord batch[20];
- int count = 0;
- while (count < 20) {
- if (pRdFilled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
- int rN = f.read(pRdBuf + pRdFilled, sizeof(pRdBuf) - pRdFilled);
- if (rN > 0) pRdFilled += (size_t)rN;
- }
- if (pRdFilled == 0) break;
- bool isAnc = (pState.recordsSinceAnchor == 0) ||
- (pState.recordsSinceAnchor == pAnchorPeriod);
- size_t consumed = historyDecodeRecord(pRdBuf, pRdFilled, pState,
- batch[count], isAnc);
- if (consumed == 0) break;
- memmove(pRdBuf, pRdBuf + consumed, pRdFilled - consumed);
- pRdFilled -= consumed;
- count++;
- }
- hasMore = (pRdFilled > 0 || f.available( ) > 0);
- _storageMgr->exitFlashReadLock( );
+	 char hwId[17];
+	 histV4StrPoolGet(hwId, sizeof(hwId), pState.strPool,
+	                  pState.sensors[sIdx].hwIdOffset,
+	                  pState.sensors[sIdx].hwIdLen);
 
- /* Process batch outside the lock */
- for (int b = 0; b < count; b++) {
- const BinaryHistoryRecord& rec = batch[b];
+	 for (int i = 0; i < MAX_SENSORS; i++) {
+	 if (cfg.sensors[i].active && strcmp(cfg.sensors[i].hwId, hwId) == 0) {
+	 measSlot[m] = (int8_t)i;
+	 break;
+	 }
+	 }
+	 }
+	 }
 
- float ambT = BinaryHistoryRecord::i16ToFloat(rec.ambientTemp);
- if (!isnan(ambT)) {
- if (ambT < _cachedMin[10]) _cachedMin[10] = ambT;
- if (ambT > _cachedMax[10]) _cachedMax[10] = ambT;
- }
+	 uint32_t _preloadBudget = millis( );
+	 bool hasMore = true;
 
- float ambH = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
- if (!isnan(ambH)) {
- if (ambH < _cachedHumMin[10]) _cachedHumMin[10] = ambH;
- if (ambH > _cachedHumMax[10]) _cachedHumMax[10] = ambH;
- }
+	 while (hasMore) {
+	 if (timeSince(_preloadBudget, 5000)) {
+	 LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
+	 { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
+	 LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, 0, "");
+	 return;
+	 }
 
- for (int i = 0; i < MAX_SENSORS; i++) {
- float v = BinaryHistoryRecord::i16ToFloat(rec.sensors[i]);
- if (!isnan(v)) {
- if (v < _cachedMin[i]) _cachedMin[i] = v;
- if (v > _cachedMax[i]) _cachedMax[i] = v;
- }
- }
- }
+	 _storageMgr->enterFlashReadLock( );
+	 /* Batch-decode up to 20 records — static to avoid 10KB stack allocation */
+	 static int64_t s_batchVals[20][HIST_V4_MAX_MEASUREMENTS];
+	 static uint32_t s_batchEpochs[20];
+	 int count = 0;
+	 while (count < 20) {
+	 /* A1: o limiar antigo (`pRdFilled < anchorByteSize`) não reabastecia
+	  * quando o buffer tinha bytes suficientes para uma âncora mas não
+	  * para um delta grande — o preload parava no meio do dia e o
+	  * dashboard ficava com min/max de meia manhã. */
+	 size_t consumed = histV4DecodeNextRefill(
+	 pRdBuf, sizeof(pRdBuf), pRdFilled, pState,
+	 s_batchVals[count], &s_batchEpochs[count],
+	 [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+	 if (f.available( ) <= 0) return 0;
+	 int rN = f.read(dst, maxBytes);
+	 return (rN > 0) ? (size_t)rN : 0;
+	 });
+	 if (consumed == 0) break;
+	 count++;
+	 }
+	 hasMore = (pRdFilled > 0 || f.available( ) > 0);
+	 _storageMgr->exitFlashReadLock( );
 
- feedWdt( );
- delay(2);
- }
+	 /* Process batch: map measurements to slot-indexed caches */
+	 for (int b = 0; b < count; b++) {
+	 for (uint8_t m = 0; m < pState.measureCount; m++) {
+	 if (histV4IsNan(s_batchVals[b][m], pState.measures[m].bitWidth)) continue;
 
- _storageMgr->enterFlashReadLock( );
- f.close( );
- _storageMgr->exitFlashReadLock( );
- }
+	 /* M1: slot já resolvido por arquivo — sem string pool nem
+	  * varredura de sensores aqui dentro. */
+	 const int slot = measSlot[m];
+	 if (slot < 0) continue;
 
- /* Save preload snapshot (CSV data only, without real-time readings) */
- for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
- _preloadMin[i] = _cachedMin[i];
- _preloadMax[i] = _cachedMax[i];
- _preloadHumMin[i] = _cachedHumMin[i];
- _preloadHumMax[i] = _cachedHumMax[i];
- }
+	 float v = histV4ToFloat(s_batchVals[b][m], pState.measures[m]);
+	 if (isnan(v)) continue;
 
- LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_FULL, 0, "");
+	 uint8_t ch = pState.measures[m].channel;
+	 if (ch == CH_TEMP) {
+	 if (v < _cachedMin[slot]) _cachedMin[slot] = v;
+	 if (v > _cachedMax[slot]) _cachedMax[slot] = v;
+	 } else if (ch == CH_HUM) {
+	 if (v < _cachedHumMin[slot]) _cachedHumMin[slot] = v;
+	 if (v > _cachedHumMax[slot]) _cachedHumMax[slot] = v;
+	 }
+	 }
+	 }
+
+	 feedWdt( );
+	 delay(2);
+	 }
+
+
+		 /* Close file under read lock */
+		 { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
+
+	 /* Snapshot: save a copy of caches so live values can separate preload from real-time */
+	 memcpy(_preloadMin, _cachedMin, sizeof(_preloadMin));
+	 memcpy(_preloadMax, _cachedMax, sizeof(_preloadMax));
+	 memcpy(_preloadHumMin, _cachedHumMin, sizeof(_preloadHumMin));
+	 memcpy(_preloadHumMax, _cachedHumMax, sizeof(_preloadHumMax));
+
+	 LOG_CODE(LOG_INFO, "APP", APP_CACHE_PRELOAD_DONE, 0, "");
 }
 
 void AppManager::processHistoryLogging( ) {
@@ -343,47 +369,101 @@ void AppManager::processHistoryLogging( ) {
 
  {
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
- SystemConfig &cfg = _storageMgr->getConfig( );
 
- /* ── Build binary record ── */
- BinaryHistoryRecord rec;
- rec.clear( );
- rec.epoch = (uint32_t)now;
+	 /* ── Build V4 universal record (schema-driven, no legacy compat) ── */
+	 const HistV4State* schema = _storageMgr->getV4Schema( );
+	 if (!schema) {
+	  /* Bootstrap: first-ever history call — create the .sim4 file with
+	   * schema header. The codec starts invalid and only becomes valid
+	   * inside writeHistoryEntryFlashV4(). One-time init, then real data
+	   * flows on the next history interval. */
+	  _storageMgr->ensureV4Schema( );
+	  return;
+	 }
+	 if (schema->measureCount == 0) {
+	  if (!_histSchemaEmptyWarned) {
+	   LOG_CODE(LOG_WARN, "HIST", APP_HIST_NO_SCHEMA, 0, "V4 schema empty — no active sensors?");
+	   _histSchemaEmptyWarned = true;
+	  }
+	  return;
+	 }
 
- /* All universal slots (0..15) — temp + humidity */
- for (int i = 0; i < MAX_SENSORS; i++) {
- if (!cfg.sensors[i].active) continue;
- for (const auto &s : sensors) {
- if (s.config.pins[0] == cfg.sensors[i].pins[0] && !s.inErrorState) {
- float v = s.avgValue[0];
- if (!isnan(v)) {
- rec.sensors[i] = BinaryHistoryRecord::floatToI16(v);
- if (v < _cachedMin[i]) _cachedMin[i] = v;
- if (v > _cachedMax[i]) _cachedMax[i] = v;
- if (v < _preloadMin[i]) _preloadMin[i] = v;
- if (v > _preloadMax[i]) _preloadMax[i] = v;
- }
- float h = s.avgValue[1];
- if (!isnan(h)) {
- if (h < _cachedHumMin[i]) _cachedHumMin[i] = h;
- if (h > _cachedHumMax[i]) _cachedHumMax[i] = h;
- if (h < _preloadHumMin[i]) _preloadHumMin[i] = h;
- if (h > _preloadHumMax[i]) _preloadHumMax[i] = h;
- }
- /* Slot 10 also populates ambient fields (backward compat for telemetry) */
- if (i == 10) {
- rec.ambientTemp = BinaryHistoryRecord::floatToI16(v);
- rec.ambientHum = BinaryHistoryRecord::floatToI16(h);
- }
- break;
- }
- }
- }
+	 SystemConfig &cfg = _storageMgr->getConfig( );
+	 int64_t values[HIST_V4_MAX_MEASUREMENTS];
+	 uint8_t mc = schema->measureCount;
+	 uint8_t matched = 0; /* channels that actually took a live reading */
+	 for (uint8_t m = 0; m < mc; m++) {
+	 	 values[m] = histV4NanSentinel(schema->measures[m].bitWidth);
+	 }
 
- if (_storageMgr->writeHistoryEntry(rec)) {
- LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
- _telemetryMgr->notifyNewRecord( );
- }
+	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
+	 	 if (!cfg.sensors[slot].active) continue;
+	 	 for (const auto &s : sensors) {
+	 	 	 if (s.config.pins[0] != cfg.sensors[slot].pins[0] || s.inErrorState) continue;
+
+	 	 	 for (uint8_t m = 0; m < mc; m++) {
+	 	 	 	 if (schema->measures[m].sensorIdx >= schema->sensorCount) continue;
+	 	 	 	 char sensorHwId[17];
+	 	 	 	 histV4StrPoolGet(sensorHwId, sizeof(sensorHwId),
+	 	 	 	 	 schema->strPool,
+	 	 	 	 	 schema->sensors[schema->measures[m].sensorIdx].hwIdOffset,
+	 	 	 	 	 schema->sensors[schema->measures[m].sensorIdx].hwIdLen);
+	 	 	 	 if (strcmp(sensorHwId, cfg.sensors[slot].hwId) != 0) continue;
+
+	 	 	 	 uint8_t ch = schema->measures[m].channel;
+	 	 	 	 float v = s.avgValue[ch];
+	 	 	 	 /* isfinite: INFINITY passa por isnan e virava 1022 no clamp. */
+	 	 	 	 if (!isfinite(v)) continue;
+
+	 	 	 	 values[m] = histV4FromFloat(v, schema->measures[m]);
+	 	 	 	 matched++;
+
+	 	 	 	 /* Update cache (indexed by slot for display compatibility) */
+	 	 	 	 if (ch == CH_TEMP) {
+	 	 	 	 	 if (v < _cachedMin[slot]) _cachedMin[slot] = v;
+	 	 	 	 	 if (v > _cachedMax[slot]) _cachedMax[slot] = v;
+	 	 	 	 	 if (v < _preloadMin[slot]) _preloadMin[slot] = v;
+	 	 	 	 	 if (v > _preloadMax[slot]) _preloadMax[slot] = v;
+	 	 	 	 } else if (ch == CH_HUM) {
+	 	 	 	 	 if (v < _cachedHumMin[slot]) _cachedHumMin[slot] = v;
+	 	 	 	 	 if (v > _cachedHumMax[slot]) _cachedHumMax[slot] = v;
+	 	 	 	 	 if (v < _preloadHumMin[slot]) _preloadHumMin[slot] = v;
+	 	 	 	 	 if (v > _preloadHumMax[slot]) _preloadHumMax[slot] = v;
+	 	 	 	 }
+	 	 	 }
+	 	 	 break;
+	 	 }
+	 }
+
+	 /* Every channel is still the NaN sentinel: nothing the sensors reported
+	  * lined up with the schema. Writing that produces a record with a valid
+	  * timestamp and no data — which is exactly what happened on the bench for
+	  * hours while APP_HISTORY_SAVED kept claiming success, because
+	  * writeHistoryEntryV4 succeeds regardless of what the values are.
+	  *
+	  * The usual cause is a sensor identity change mid-day: the schema lives in
+	  * the .sim4 header and is restored from the file by ensureV4Schema, so
+	  * editing a hwId leaves the match in strcmp(schemaHwId, cfg hwId) failing
+	  * until tomorrow's file. Refuse the record and say so — an empty row is
+	  * worse than a gap, because it looks like data. */
+	 if (matched == 0) {
+	 	 if (!_histSchemaMismatchWarned) {
+	 	 	 LOG_CODE(LOG_WARN, "HIST", APP_HIST_SCHEMA_MISMATCH, (int)mc,
+	 	 	          TRL("History skip: schema matches no active sensor (hwId changed?)"));
+	 	 	 _histSchemaMismatchWarned = true;
+	 	 }
+	 	 return;
+	 }
+	 if (_histSchemaMismatchWarned) {
+	 	 LOG_CODE(LOG_INFO, "HIST", APP_HIST_SCHEMA_MISMATCH, (int)matched,
+	 	          TRL("History resumed: schema matches active sensors"));
+	 	 _histSchemaMismatchWarned = false;
+	 }
+
+	 if (_storageMgr->writeHistoryEntryV4(values, mc, (uint32_t)now)) {
+	 	 LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
+	 	 _telemetryMgr->notifyNewRecord( );
+	 }
  }
 
  /* Periodic heap log — only when low or once per hour (avoids premature log rotation) */

@@ -1,0 +1,67 @@
+--- a/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp
++++ b/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp
+@@ -33,6 +33,7 @@
+ #include <lwip/ip.h>
+ #include <lwip/tcp.h>
+ #include <lwip/inet.h>
++#include <hardware/watchdog.h>  /* SIMUT override: feed inside the bounded handshake */
+ #include <lwip/netif.h>
+ #include <include/ClientContext.h>
+ 
+@@ -486,6 +487,15 @@
+             return -1;
+         }
+ 
++        /* SIMUT override: feed here, not only in _wait_for_handshake.
++         * A single _run_until call spins for as long as _timeout allows, and
++         * the asymmetric crypto of a handshake on a 133 MHz Cortex-M0+ takes
++         * seconds — measured: feeding only between calls still tripped the
++         * RP2040's 8.388 s watchdog mid-call. This loop is bounded by the same
++         * _timeout, so the feed cannot mask a hang: whatever happens, the call
++         * returns within its budget. */
++        watchdog_update();
++
+         int state;
+         state = br_ssl_engine_current_state(_eng);
+         if (state & BR_SSL_CLOSED) {
+@@ -594,8 +604,40 @@
+ }
+ 
+ bool WiFiClientSecureCtx::_wait_for_handshake() {
++    /* SIMUT override — bound the handshake as a whole.
++     *
++     * Upstream, the only deadline lives inside _run_until(), which restarts its
++     * `start = millis()` on every call. This loop can call it forever, so
++     * setTLSConnectTimeout() bounds a single iteration and never the handshake.
++     * Against a peer that accepts TCP but never completes the handshake, Core 0
++     * spins here indefinitely — with all three optimistic_yield() calls in this
++     * file commented out, nothing yields and nothing feeds the watchdog, so the
++     * device wedges hard instead of erroring out.
++     *
++     * Fix: carry one deadline across iterations and clamp the per-call timeout
++     * to whatever budget is left, making the total strictly bounded by
++     * _tlsConnectTimeout.
++     *
++     * Feeding the watchdog in here is safe ONLY because of that deadline: the
++     * loop provably ends, so the feed cannot mask a hang. It is also necessary
++     * — a real BearSSL handshake on a 133 MHz Cortex-M0+ runs for seconds, and
++     * without the feed the budget would have to stay under the RP2040's
++     * 8.388 s watchdog ceiling, which is too tight for a legitimate handshake
++     * plus the request that follows it.
++     *
++     * _connectSSL() restores _timeout after calling us, so mutating it is safe.
++     */
+     _handshake_done = false;
++    const uint32_t hsBudget = _timeout;
++    const uint32_t hsStart = millis();
+     while (!_handshake_done && _clientConnected()) {
++        const uint32_t elapsed = millis() - hsStart;
++        if (elapsed >= hsBudget) {
++            DEBUG_BSSL("_wait_for_handshake: overall timeout\n");
++            break;
++        }
++        watchdog_update();
++        _timeout = hsBudget - elapsed;
+         int ret = _run_until(BR_SSL_SENDAPP);
+         if (ret < 0) {
+             DEBUG_BSSL("_wait_for_handshake: failed\n");

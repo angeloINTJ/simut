@@ -18,6 +18,7 @@
 #if SIMUT_SENSOR_BME280
 
 #include <Arduino.h>
+#include <hardware/watchdog.h>
 #include "BMx280PIO_RP2040.h"
 #if SIMUT_DISPLAY_TFT
 #include "SensorDrawing.h"
@@ -60,64 +61,143 @@ struct BME280Driver {
      *
      *  Tries primary address (0x76, SDO→GND) first, then secondary (0x77). */
     void begin(uint8_t sda, uint8_t scl) {
+        /* Feed watchdog + yield before each I2C probe attempt.
+         * The BMx280PIO::begin() call can block for several seconds
+         * on a stuck I2C bus; without watchdog feeding, the RP2040
+         * hardware WDT fires and reboots the Pico. */
+        watchdog_update();
+        delay(1);
         /* ── Pass 1: PIO+DMA (fast) ──────────────────────────────────── */
-        _sensor = new BMx280PIO_RP2040(sda, scl, BME280_ADDR_PRIMARY);
-        if (_sensor->begin()) {
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(sda, scl, BME280_ADDR_PRIMARY);
+        if (_sensor && _sensor->begin()) {
             _compLoaded = true;
             return;
         }
-        delete _sensor;
+        if (_sensor) { delete _sensor; _sensor = nullptr; }
 
+        watchdog_update();
+        delay(1);
         /* ── Pass 2: GPIO-only fallback (slower, zero PIO) ───────────── */
-        _sensor = new BMx280PIO_RP2040(sda, scl, BME280_ADDR_PRIMARY);
-        _sensor->forceGPIO(true);
-        if (_sensor->begin()) {
-            _compLoaded = true;
-            return;
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(sda, scl, BME280_ADDR_PRIMARY);
+        if (_sensor) {
+            _sensor->forceGPIO(true);
+            if (_sensor->begin()) { _compLoaded = true; return; }
+            delete _sensor; _sensor = nullptr;
         }
-        delete _sensor;
 
+        watchdog_update();
+        delay(1);
         /* ── Pass 3: secondary address (0x77), PIO+DMA ───────────────── */
-        _sensor = new BMx280PIO_RP2040(sda, scl, 0x77);
-        if (_sensor->begin()) {
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(sda, scl, 0x77);
+        if (_sensor && _sensor->begin()) {
             _compLoaded = true;
             return;
         }
-        delete _sensor;
+        if (_sensor) { delete _sensor; _sensor = nullptr; }
 
+        watchdog_update();
+        delay(1);
         /* ── Pass 4: secondary address (0x77), GPIO-only ─────────────── */
-        _sensor = new BMx280PIO_RP2040(sda, scl, 0x77);
-        _sensor->forceGPIO(true);
-        if (_sensor->begin()) {
-            _compLoaded = true;
-            return;
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(sda, scl, 0x77);
+        if (_sensor) {
+            _sensor->forceGPIO(true);
+            if (_sensor->begin()) { _compLoaded = true; return; }
+            delete _sensor; _sensor = nullptr;
         }
         /* No sensor at either address */
-        delete _sensor;
-        _sensor = nullptr;
         _compLoaded = false;
     }
 
     /** Initialize with explicit I2C address — for multi-sensor buses.
-     *  Same two-phase strategy: PIO+DMA first, GPIO fallback second. */
+     *  Three-phase strategy:
+     *   1. PIO+DMA at given addr (fast, but needs free PIO instruction slots)
+     *   2. GPIO-only fallback at given addr (slower, zero PIO resources)
+     *   3. GPIO-only fallback at alternate addr (0x76↔0x77)
+     *  Feeds the hardware watchdog before each I2C probe. */
     bool begin(uint8_t sda, uint8_t scl, uint8_t addr) {
-        /* Pass 1: PIO+DMA */
-        _sensor = new BMx280PIO_RP2040(sda, scl, addr);
-        _compLoaded = _sensor->begin();
-        Serial.printf("[BMx] PIO+DMA addr=0x%02X cid=0x%02X ok=%d\n", addr, _sensor->getChipID(), _compLoaded);
-        if (_compLoaded) return true;
+        uint8_t altAddr = (addr == 0x76) ? (uint8_t)0x77 : (uint8_t)0x76;
 
-        /* Pass 2: GPIO-only fallback */
-        delete _sensor;
-        _sensor = new BMx280PIO_RP2040(sda, scl, addr);
-        _sensor->forceGPIO(true);
-        _compLoaded = _sensor->begin();
-        Serial.printf("[BMx] GPIO addr=0x%02X cid=0x%02X ok=%d\n", addr, _sensor->getChipID(), _compLoaded);
-        if (!_compLoaded) {
-            delete _sensor;
-            _sensor = nullptr;
+        /* ── Pass 1: PIO+DMA at requested address ──────────────────── */
+        watchdog_update();
+        delay(1);
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(sda, scl, addr);
+        if (_sensor) {
+            _compLoaded = _sensor->begin();
+            Serial.printf("[BMx] PIO+DMA addr=0x%02X cid=0x%02X ok=%d\n",
+                          addr, _sensor->getChipID(), _compLoaded);
+            if (_compLoaded) return true;
+            delete _sensor; _sensor = nullptr;
         }
-        return _compLoaded;
+
+        /* ── Pass 2: GPIO-only fallback at requested address ────────── */
+        watchdog_update();
+        delay(1);
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(sda, scl, addr);
+        if (_sensor) {
+            _sensor->forceGPIO(true);
+            _compLoaded = _sensor->begin();
+            Serial.printf("[BMx] GPIO addr=0x%02X cid=0x%02X ok=%d\n",
+                          addr, _sensor->getChipID(), _compLoaded);
+            if (_compLoaded) return true;
+            delete _sensor; _sensor = nullptr;
+        }
+
+        /* ── Pass 3: GPIO-only at alternate address ────────────────── */
+        watchdog_update();
+        delay(1);
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(sda, scl, altAddr);
+        if (_sensor) {
+            _sensor->forceGPIO(true);
+            _compLoaded = _sensor->begin();
+            Serial.printf("[BMx] GPIO alt=0x%02X cid=0x%02X ok=%d\n",
+                          altAddr, _sensor->getChipID(), _compLoaded);
+            if (_compLoaded) return true;
+            delete _sensor; _sensor = nullptr;
+        }
+
+        /* No sensor at either address */
+        _compLoaded = false;
+        return false;
+    }
+
+    /** Initialize with hardware I2C peripheral (Wire / Wire1).
+     *  Uses the RP2040's built-in I2C controller instead of PIO bit-bang.
+     *  Zero PIO resources — frees pio0 for OneWirePIO (DS18B20).
+     *  Pins must be valid for the chosen I2C peripheral (see
+     *  i2cPeripheralForPins() in SensorHelpers.h).
+     *
+     *  Single-pass: hardware I2C is reliable enough that multi-pass
+     *  probing is unnecessary. Falls back to alternate address (0x76↔0x77)
+     *  if the primary address doesn't respond. */
+    bool begin(TwoWire &wire, uint8_t addr) {
+        uint8_t altAddr = (addr == 0x76) ? (uint8_t)0x77 : (uint8_t)0x76;
+
+        /* ── Pass 1: primary address ── */
+        watchdog_update();
+        delay(1);
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(wire, addr);
+        if (_sensor) {
+            _compLoaded = _sensor->begin();
+            Serial.printf("[BMx] HW I2C addr=0x%02X cid=0x%02X ok=%d\n",
+                          addr, _sensor->getChipID(), _compLoaded);
+            if (_compLoaded) return true;
+            delete _sensor; _sensor = nullptr;
+        }
+
+        /* ── Pass 2: alternate address ── */
+        watchdog_update();
+        delay(1);
+        _sensor = new (std::nothrow) BMx280PIO_RP2040(wire, altAddr);
+        if (_sensor) {
+            _compLoaded = _sensor->begin();
+            Serial.printf("[BMx] HW I2C alt=0x%02X cid=0x%02X ok=%d\n",
+                          altAddr, _sensor->getChipID(), _compLoaded);
+            if (_compLoaded) return true;
+            delete _sensor; _sensor = nullptr;
+        }
+
+        _compLoaded = false;
+        return false;
     }
 
     /* ── Trigger measurement (forced mode) ────────────────────────────── */
@@ -133,6 +213,17 @@ struct BME280Driver {
         if (!_compLoaded) return false;
 
         _sensor->readAll(&t, &p, &h);
+
+        /* BMP280 (chip 0x58) has NO humidity sensor: readAll compensates
+         * garbage registers into plausible-looking values that leaked into
+         * history through the blocking calibration path (the periodic path
+         * had a caller-side guard). Kill it at the single source. */
+        /* BMP280 has NO humidity. Use the CACHED isBME280() flag: the old
+         * guard called getChipID(), which does a LIVE I2C read per call —
+         * right after readAll's burst that read glitches intermittently,
+         * returns !=0x58 and the guard skips (forensics: h=inf leaking
+         * with cid printing 0x58 on the very next call). */
+        if (!_sensor->isBME280()) h = NAN;
 
         /* Sanity checks */
         if (t < -40.0f || t > 85.0f)  t = NAN;

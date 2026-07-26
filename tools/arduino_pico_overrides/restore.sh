@@ -24,6 +24,12 @@ done
 echo "[restore] revertendo overrides..."
 cp -v "$OVR/originals/lwipopts.h" "$FW/include/"
 
+# Handshake TLS: volta ao arquivo virgin (sem prazo global). ATENÇÃO — sem ele
+# um handshake que não fecha trava o Core 0 para sempre; ver patch.sh.
+if [ -f "$OVR/originals/WiFiClientSecureBearSSL.cpp" ]; then
+    cp -v "$OVR/originals/WiFiClientSecureBearSSL.cpp" "$FW/libraries/WiFi/src/"
+fi
+
 # Invalida cache PIO
 for build in "$ROOT/.pio/build"/*/FrameworkArduino/lwip; do
     if [ -d "$build" ]; then

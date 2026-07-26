@@ -13,6 +13,7 @@
 #pragma once
 #include <Arduino.h>
 #include <string.h>
+#include <time.h>   /* localtime_r, struct tm — usados por sameLocalDay */
 
 /* =========================================================================== */
 /* BOOT TIMING CONSTANTS */
@@ -32,10 +33,24 @@ constexpr uint32_t BOOT_POLL_INTERVAL_MS = 50;
 
 /**
  * Hardware watchdog timeout in milliseconds.
- * Sized to cover the worst-case Flash write + WiFi scan
- * without triggering false reset during legitimate I/O operations.
+ *
+ * THIS IS THE CEILING THE CHIP CAN ENFORCE, and it is not a free choice.
+ * RP2040 errata E1 makes the watchdog counter decrement twice per tick, so the
+ * SDK loads `delay_ms * 2000` into a 24-bit register and clamps anything above
+ * WATCHDOG_LOAD_BITS (0xFFFFFF):
+ *
+ *     0xFFFFFF / 2000 = 8388 ms
+ *
+ * This constant read 15000 for a long time, and every request above the ceiling
+ * — including 15000 — silently landed on 8388 anyway. Nothing about the device's
+ * behaviour changes by writing the true number here, but a great deal of
+ * reasoning does: budgets sized "well under the 15 s watchdog" were in fact
+ * sized against 8.4 s, with half the margin their authors believed.
+ *
+ * Raising it has no effect. If more time is genuinely needed for an operation,
+ * the only mechanism that works is feeding the watchdog during it.
  */
-constexpr uint32_t WATCHDOG_TIMEOUT_MS = 15000;
+constexpr uint32_t WATCHDOG_TIMEOUT_MS = 8388;
 
 /** Missed touches tolerated before canceling AP hold. */
 constexpr int AP_HOLD_MAX_MISSED = 5;
@@ -179,4 +194,28 @@ inline bool timeSince(uint32_t start, uint32_t duration) {
 inline uint32_t timeRemaining(uint32_t deadline) {
  int32_t diff = (int32_t)(deadline - millis( ));
  return (diff > 0) ? (uint32_t)diff : 0;
+}
+
+/**
+ * @brief true se dois epochs Unix caem no MESMO dia do calendário local.
+ *
+ * @details Comparação por (tm_year, tm_yday) via localtime_r, e não por
+ * `epoch / 86400`: a divisão ignora fuso e horário de verão e erraria a
+ * fronteira do dia em todo fuso != UTC — exatamente o caso de uso.
+ *
+ * Usado pelo batch de histórico (T2.1): o dreno grava no arquivo do dia
+ * CORRENTE, então o batch nunca pode conter amostras de dias diferentes.
+ *
+ * @param epochA Primeiro timestamp Unix.
+ * @param epochB Segundo timestamp Unix.
+ * @return true se ambos pertencem ao mesmo dia local.
+ */
+inline bool sameLocalDay(uint32_t epochA, uint32_t epochB) {
+ if (epochA == epochB) return true;
+ time_t ta = (time_t)epochA;
+ time_t tb = (time_t)epochB;
+ struct tm a, b;
+ if (!localtime_r(&ta, &a)) return false;
+ if (!localtime_r(&tb, &b)) return false;
+ return (a.tm_yday == b.tm_yday) && (a.tm_year == b.tm_year);
 }

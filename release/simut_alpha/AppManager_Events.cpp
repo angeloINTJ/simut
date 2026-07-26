@@ -19,6 +19,7 @@
 #include "Themes.h"
 #include <time.h>
 
+
 void AppManager::core0Yield( ) {
  static bool _isRenderingGraph = false;
  static bool _inYield = false;
@@ -59,7 +60,65 @@ void AppManager::core0Yield( ) {
 
  UiEvent uiEv;
  if (!_isRenderingGraph) {
+ /* Graph navigation is COALESCED across the drain.
+  *
+  * This loop drains the whole 16-slot ring in one pass, and each EVT_GRAPH_NAV
+  * used to run a full renderGraphOptimized with a 6 s budget. Tapping the
+  * arrows faster than a render completes therefore queued renders that ran
+  * back to back: two of them already exceed the watchdog's real 8388 ms
+  * ceiling (see WATCHDOG_TIMEOUT_MS), and on a 1-week range each step is a
+  * whole week, so a few taps land before the start of history where nothing
+  * matches and every render burns its full budget.
+  *
+  * The steps are relative (_graphAnchorEnd += param * step), so summing them
+  * and rendering once lands on the same place. The intermediate positions were
+  * never visible anyway. One deliberate difference: forward-then-back now
+  * cancels out, where stepping one at a time could drift because each step
+  * clamped against "now" separately.
+  *
+  * Non-nav events flush the pending navigation first, so ordering is kept. */
+ int32_t navAccum = 0;
+ int navId = -1;
+ bool navPending = false;
+ auto flushGraphNav = [&]( ) {
+ if (!navPending) return;
+ navPending = false;
+ const int32_t steps = navAccum;
+ navAccum = 0;
+ if (steps == 0) return;   /* forward-then-back cancelled out: nothing to redraw */
+
+ static const time_t rangeDur[] = { 3600, 21600, 43200, 86400, 604800 };
+ time_t step = (_lastGraphRange >= 0 && _lastGraphRange <= 4)
+ ? rangeDur[_lastGraphRange] : 86400;
+
+ /* No anchor (graph opened without the calendar): anchor at now. */
+ if (_graphAnchorEnd == 0) _graphAnchorEnd = time(nullptr);
+
+ _graphAnchorEnd += (time_t)steps * step;
+
+ /* Don't allow viewing the future. */
+ time_t nowNav = time(nullptr);
+ if (_graphAnchorEnd > nowNav) _graphAnchorEnd = nowNav;
+
+ /* Offset derived from position: negative = past (▶ enabled) */
+ _graphNavOffset = (_graphAnchorEnd < nowNav) ? -1 : 0;
+ _displayMgr->setGraphNavOffset(_graphNavOffset);
+
+ _isRenderingGraph = true;
+#if SIMUT_DISPLAY_TFT
+ renderGraphOptimized(navId, _lastGraphRange, true, 0, _graphAnchorEnd);
+#endif // SIMUT_DISPLAY_TFT
+ _isRenderingGraph = false;
+ };
+
  while (_displayMgr->getUiEvent(uiEv)) {
+ if (uiEv.type == UiEvent::EVT_GRAPH_NAV) {
+ navAccum += (int32_t)uiEv.param;
+ navId = uiEv.id;
+ navPending = true;
+ continue;
+ }
+ flushGraphNav( );
  if (uiEv.type == UiEvent::EVT_SLOT_SELECT) { _currentSensorIdx = uiEv.id; _lastSlotChangeTime = millis( ); refreshSelectedSlot( ); }
  else if (uiEv.type == UiEvent::EVT_OPEN_GRAPH) {
  if (uiEv.param == 99) openStatsScreen(uiEv.id);
@@ -92,37 +151,6 @@ void AppManager::core0Yield( ) {
  _isRenderingGraph = false;
 #endif // SIMUT_DISPLAY_TFT
  }
- }
- /* ── Graph temporal navigation (◀▶ arrows) ── */
- else if (uiEv.type == UiEvent::EVT_GRAPH_NAV) {
- static const time_t rangeDur[] = { 3600, 21600, 43200, 86400, 604800 };
- time_t step = (_lastGraphRange >= 0 && _lastGraphRange <= 4)
- ? rangeDur[_lastGraphRange] : 86400;
-
- /*
- * If there is no anchor (graph opened without calendar),
- * anchor at now rounded to the end of the current step.
- */
- if (_graphAnchorEnd == 0) {
- _graphAnchorEnd = time(nullptr);
- }
-
- /* Shift anchor by exactly 1 step */
- _graphAnchorEnd += (time_t)uiEv.param * step;
-
- /* Don't allow viewing the future */
- time_t now = time(nullptr);
- if (_graphAnchorEnd > now) _graphAnchorEnd = now;
-
- /* Offset derived from position: negative = past (▶ enabled) */
- _graphNavOffset = (_graphAnchorEnd < now) ? -1 : 0;
- _displayMgr->setGraphNavOffset(_graphNavOffset);
-
- _isRenderingGraph = true;
-#if SIMUT_DISPLAY_TFT
- renderGraphOptimized(uiEv.id, _lastGraphRange, true, 0, _graphAnchorEnd);
- _isRenderingGraph = false;
-#endif // SIMUT_DISPLAY_TFT
  }
  /* ── Calendar open ── */
  else if (uiEv.type == UiEvent::EVT_OPEN_CALENDAR) {
@@ -386,6 +414,9 @@ void AppManager::core0Yield( ) {
  _displayMgr->showAuthScreen(String(cfg.displayPin));
  }
  }
+
+ /* Last run of arrow taps has no non-nav event after it to flush it. */
+ flushGraphNav( );
  }
 
 

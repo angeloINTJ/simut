@@ -155,6 +155,6 @@ void DisplayManager::redrawAlarmFlash( ) {
 		else otherPageHasAlarm = true;
 	}
 	if (pageHasAlarm || otherPageHasAlarm) {
-		drawBottomButtons(sel, true);
+		drawBottomButtons(sel);
 	}
 }

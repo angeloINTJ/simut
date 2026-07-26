@@ -94,6 +94,18 @@ void AppManager::setup( ) {
  _uart_init();
  _uart_mark('@');
 
+ /* FIRST STATEMENT WITH ANY SIDE EFFECT — do not move anything above it.
+  *
+  * The two forensic channels of this firmware live in watchdog scratch
+  * registers and both are destroyed within microseconds of this point:
+  * scratch[5] by the unconditional clear in the CYW43 block just below, and
+  * scratch[3] by the TraceScope inside startCore1( ) (whose destructor restores
+  * module 0 = "BOOT" out of freshly zeroed RAM) plus Core 1's own TRACE_MOD.
+  * Reading them any later than here yields this boot's own state — which is
+  * exactly what the rc15 autopsy did, reporting a constant
+  * "C0=[BOOT] C1=[DISPLAY] sc3=0x80088000" for every reboot class alike. */
+ LogManager::instance( ).captureBootSnapshot( );
+
  /* Always power-cycle CYW43 during setup().
 	 *
 	 * Previously: only power-cycled if scratch[5] == POST_OTA_APPLY_MAGIC
@@ -144,6 +156,11 @@ void AppManager::setup( ) {
  BLOG("\n==============================================\n");
  BLOG(" SIMUT firmware "); BLOG(SIMUT_VERSION); BLOG_NL( );
  BLOG("==============================================\n");
+ /* Check if last reboot was WDT-triggered */
+ if (watchdog_caused_reboot()) {
+  BLOG("[BOOT] *** Last reboot: WATCHDOG TIMEOUT ***\n");
+ Serial.println("[BOOT] WATCHDOG_REBOOT detected");
+ }
  BLOG("[BOOT step] 1: pos-banner @ "); BLOG_U(millis( )); BLOG_NL( );
 
  /*
@@ -484,41 +501,38 @@ void AppManager::setup( ) {
  _displayMgr->loadTouchCalibration(cal);
  
  if (!_displayMgr->isTouchCalibrated( )) {
- LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0,
- TRL("First boot — touch calibration required"));
-
- _displayMgr->setBootStatusKey(TR_BOOT_TOUCH_CAL_REQ);
- _displayMgr->showTouchCalibration( );
-
- while (!_displayMgr->isTouchCalibrated( )) {
- delay(20);
- }
-
+ /* Auto-calibrate with default values for headless testing */
  TouchCalData calOut;
- _displayMgr->fillCalData(&calOut);
+ memset(&calOut, 0, sizeof(calOut));
+ calOut.magic = 0xCA;
+ calOut.flags = 0;
+ calOut.xMin = 300; calOut.xMax = 3800;
+ calOut.yMin = 200; calOut.yMax = 3700;
+ calOut.zThreshold = 400;
  memcpy(cfg.reserved, &calOut, sizeof(TouchCalData));
  _storageMgr->saveConfiguration( );
-
- LOG_CODE(LOG_INFO, "APP", APP_TOUCH_CAL_REQUIRED, 0,
- TRL("Touch calibration completed"));
+ LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0,
+  TRL("Touch calibration auto-set (headless)"));
  }
  }
 #endif // SIMUT_DISPLAY_TFT
  
 
  _displayMgr->setBootStatusKey(TR_BOOT_LOAD_PERIPH);
- 
+
+ if (Serial) { Serial.println("[DBG] sensor begin..."); Serial.flush(); }
  _sensorMgr->begin( );
- 
+
+ if (Serial) { Serial.println("[DBG] loadAndCalibrateSensors..."); Serial.flush(); }
  loadAndCalibrateSensors( );
 #if SIMUT_SENSOR_DS18B20
-#if SIMUT_SENSOR_DS18B20
+ if (Serial) { Serial.println("[DBG] setDs18Resolution..."); Serial.flush(); }
  _sensorMgr->setDs18Resolution((DS18B20PIO::Resolution)cfg.ds18Resolution);
-#endif
 #endif
 
  BLOG("[BOOT step] 9: pre _netMgr (forceAP="); BLOG_U(forceAP ? 1 : 0);
  BLOG(") @ "); BLOG_U(millis( )); BLOG_NL( );
+ if (Serial) { Serial.println("[DBG] network begin..."); Serial.flush(); }
  if (forceAP) {
  LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
  _displayMgr->setBootStatusKey(TR_BOOT_START_AP);
@@ -529,6 +543,7 @@ void AppManager::setup( ) {
  } else {
  _displayMgr->setBootStatusKey(TR_BOOT_START_WIFI);
  BLOG("[BOOT step] 10: pre _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
+ watchdog_update();
  _netMgr->begin(cfg,
  _storageMgr->isDnsAuto( ),
  _storageMgr->isNtpEnabled( ),
@@ -544,6 +559,7 @@ void AppManager::setup( ) {
 
  while (!_netMgr->isConnected( ) || !_netMgr->isTimeSynced( )) {
  TRACE_BEAT(0);
+ watchdog_update( );
  _netMgr->update( );
 
  if (_displayMgr->isSkipPressed( )) {

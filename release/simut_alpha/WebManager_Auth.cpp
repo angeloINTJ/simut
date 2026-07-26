@@ -55,7 +55,9 @@ bool WebManager::isPasswordChangeRequired( ) {
 }
 
 
-bool WebManager::serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_data, size_t gz_len) {
+/* Auth prelude shared by the PROGMEM and filesystem page servers. Returns false
+ * when it has already answered (redirect or 403) and the caller must stop. */
+bool WebManager::checkPageAccess(uint16_t requiredPerm) {
 	uint16_t perms = getAuthPerms( );
 	if (perms == 0) {
 		_server.sendHeader("Location", "/login", true);
@@ -72,6 +74,41 @@ bool WebManager::serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_dat
 		_server.send(403, "text/html", "<h2>Access Denied</h2>");
 		return false;
 	}
+	return true;
+}
+
+
+/* Serves a gzipped page held on LittleFS (see FS_PAGES in
+ * tools/build_webui_gz.py). Same contract as serveProtectedPage — the browser
+ * cannot tell the two apart. */
+bool WebManager::serveProtectedFsPage(uint16_t requiredPerm, const char* path) {
+	if (!checkPageAccess(requiredPerm)) return false;
+
+	File f;
+	{
+		ReadGuard rg(_storageRef);
+		f = LittleFS.open(path, "r");
+	}
+	if (!f) {
+		/* The firmware flashed but the page was never uploaded. That is a
+		 * missing deploy step, not a broken route, so say which file and
+		 * where rather than answering a bare 404. */
+		_server.send(200, "text/html",
+		             "<h2>Page asset missing</h2><p>Upload <code>data/web/config.html.gz</code>"
+		             " to <code>/web/</code> on the device (Files page), then reload."
+		             "<br>Do not use <code>uploadfs</code> — it reformats the partition.</p>");
+		return false;
+	}
+	_server.sendHeader("Cache-Control", "no-store");
+	_server.sendHeader("Content-Encoding", "gzip");
+	safeStreamFile(f, "text/html");
+	f.close( );
+	return true;
+}
+
+
+bool WebManager::serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_data, size_t gz_len) {
+	if (!checkPageAccess(requiredPerm)) return false;
 	/* no-store: forces bypass of the browser's back-forward cache (bfcache).
 	 * Previously using "public, max-age=3600", returning from another page
 	 * would restore the JS state snapshot (selects with data-cd="1", old
@@ -96,7 +133,14 @@ void WebManager::handleLogin( ) {
 
 void WebManager::handleRoot( ) { serveProtectedPage(PERM_DASHBOARD, WebUI_GZ::DASH_PAGE_GZ, WebUI_GZ::DASH_PAGE_GZ_LEN); }
 void WebManager::handleHistory( ) { serveProtectedPage(PERM_HISTORY | PERM_LOGS, WebUI_GZ::HIST_PAGE_GZ, WebUI_GZ::HIST_PAGE_GZ_LEN); }
-void WebManager::handleConfig( ) { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ::CFG_PAGE_GZ, WebUI_GZ::CFG_PAGE_GZ_LEN); }
+/* /config is the one page that does not live in the firmware image.
+ *
+ * The app slot is full — the sensor editor below would not fit alongside it —
+ * so the page is gzipped into data/web/config.html.gz at build time and
+ * streamed from the 1 MB filesystem partition instead. Same bytes, same
+ * Content-Encoding: gzip, just a flash read instead of a PROGMEM pointer.
+ * See FS_PAGES in tools/build_webui_gz.py. */
+void WebManager::handleConfig( ) { serveProtectedFsPage(PERM_SYS_CONFIG, "/web/config.html.gz"); }
 void WebManager::handleNetwork( ) { serveProtectedPage(PERM_NET_CONFIG, WebUI_GZ::NET_PAGE_GZ, WebUI_GZ::NET_PAGE_GZ_LEN); }
 void WebManager::handleUsers( ) { serveProtectedPage(PERM_USER_MGR, WebUI_GZ::USR_PAGE_GZ, WebUI_GZ::USR_PAGE_GZ_LEN); }
 void WebManager::handleFiles( ) { serveProtectedPage(PERM_FILE_READ, WebUI_GZ::FILE_PAGE_GZ, WebUI_GZ::FILE_PAGE_GZ_LEN); }

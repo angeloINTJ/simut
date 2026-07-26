@@ -89,6 +89,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server.on("/api/themes", HTTP_GET, std::bind(&WebManager::handleApiThemes, this));
  _server.on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));
  _server.on("/api/lang", HTTP_GET, std::bind(&WebManager::handleApiLang, this));
+ _server.on("/api/sensors", HTTP_GET, std::bind(&WebManager::handleApiSensorsGet, this));
  _server.on("/api/calib", HTTP_GET, std::bind(&WebManager::handleApiCalibGet, this));
  _server.on("/api/calib", HTTP_POST, std::bind(&WebManager::handleApiCalibPost, this));
 
@@ -175,9 +176,24 @@ bool WebManager::isRateLimited(uint32_t minIntervalMs) {
 
 void WebManager::feedWatchdog( ) {
  watchdog_update( );
+ /* The send loop feeds through here rather than feedWdt( ), so without this the
+  * Core-1 stall sampler would be blind for the whole streaming phase of a
+  * download — half of the load under investigation. */
+ core1StallSample( );
  if (_lightYieldCb) _lightYieldCb( );
 
 
+}
+
+/* A single breath between packets while streaming a long response. feedWatchdog
+ * pets the watchdog and runs the light yield (keeps the live display fed); the
+ * micro-delay then lets lwIP flush the just-sent packet and drain the PBUF pool
+ * before we pile on more, and releases the heap/SPI arbiter so Core 1 renders a
+ * frame. Cheap enough to call after every flushed chunk without slowing the
+ * transfer meaningfully (a few ms per handful of KB). */
+void WebManager::streamBreath( ) {
+ feedWatchdog( );
+ delay(WEB_STREAM_BREATH_DELAY_MS);
 }
 
 bool WebManager::rejectIfTouchPriority( ) {
@@ -211,6 +227,11 @@ bool WebManager::isHandlerOvertime( ) {
  */
 volatile bool _sendGuardActive = false;
 volatile bool _sendGuardExpired = false; /* extern — consumed by WebManager.h */
+
+/* Abort-cause counters — see WebManager.h. */
+volatile uint32_t _cgDeadlineHits = 0;
+volatile uint32_t _cgGuardHits    = 0;
+volatile uint32_t _cgDisconnHits  = 0;
 volatile uint32_t _sendGuardStartMs = 0;
 static struct repeating_timer _sendGuardTimer;
 
@@ -241,14 +262,28 @@ void WebManager::update( ) {
  uint32_t handlerStart = millis( );
  _handlerDeadline = handlerStart + 6000;
 
+ /* Clear the abort latch at the start of every tick. It is set by the
+  * SendGuard timer to end ONE overlong send, but safeSend( ) tests it before
+  * constructing the SendGuard that would clear it — so once set, every later
+  * safeSend returns false at its entry check, never reaches the constructor,
+  * and the latch stays set. That turns a single slow send into permanently
+  * truncated chunked responses for the rest of the uptime. */
+ _sendGuardExpired = false;
+
  /* Multi-request drain per tick (up to 4) with time cap (50ms).
  * Reduces systemic latency from ~600ms (1 request per loop iteration)
  * to ~100-150ms when the main loop is busy with telemetry/
  * sensors. 50ms cap preserves display responsiveness. */
  const uint32_t budget = handlerStart + 50;
- for (int i = 0; i < 4; i++) {
- _server.handleClient( );
- if (millis( ) >= budget) break;
+ {
+  /* Everything the web server does on Core 0 lives under this scope. A stall
+   * that traces as WEB_POLL rather than as one of the handler modules is in
+   * the server/lwIP/CYW43 plumbing, not in our code. */
+  LogManager::TraceScope _tPoll(0, MOD_WEB_POLL);
+  for (int i = 0; i < 4; i++) {
+   _server.handleClient( );
+   if (millis( ) >= budget) break;
+  }
  }
 
  _handlerDeadline = 0;

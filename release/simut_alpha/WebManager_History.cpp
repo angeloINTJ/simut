@@ -11,6 +11,7 @@
 #include "LogManager.h"
 #include "TouchPriority.h"
 #include "HistoryCodec.h"
+#include "FlashIrqProbe.h"
 #include "backup.h" /* ota::crc32_update for screenshot_chunk */
 #include <LittleFS.h>
 #include <time.h>
@@ -52,7 +53,13 @@ static void sortStrings(String* arr, int n, bool descending) {
  * v[] is aligned by index with sensors[]. h only appears if ambient is
  * included and has a valid reading in the record.
  */
+
+/* V4 history multi handler — decodes .sim4 file and emits generic JSON.
+ * Called from handleApiHistoryMulti when a V4 file is detected.
+ * Static helper keeps the V4 logic self-contained without header changes. */
 void WebManager::handleApiHistoryMulti( ) {
+ /* RAII so the early returns below (403/503) restore the caller's module. */
+ LogManager::TraceScope _tHist(0, MOD_WEB_HIST);
  uint16_t perms = getAuthPerms( );
  if (!(perms & PERM_HISTORY)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
@@ -107,10 +114,10 @@ void WebManager::handleApiHistoryMulti( ) {
  String reqEnd = _server.arg("end");
 
  static const time_t rangeDuration[] = { 3600, 21600, 86400, 604800, 2592000, 31536000, 0 };
- /* Tested decimation=480 for 1Y/MAX but time didn't
- * change — bottleneck is flash read, not JSON emit. Kept at 240
- * for higher graph fidelity. */
- static const int rangeDecimation[] = { 1, 1, 3, 15, 60, 240, 240 };
+ /* Decimation is now ADAPTIVE (computed after the file list is built):
+  * fixed per-range factors emitted ZERO points whenever the dataset was
+  * smaller than the factor (e.g. MAX=240 with 103 records). Target:
+  * ~600 emitted points regardless of dataset size. */
 
  time_t now = _netRef->getEpoch( );
  time_t effectiveEnd = now;
@@ -127,19 +134,36 @@ void WebManager::handleApiHistoryMulti( ) {
  effectiveEnd = (time_t)reqEnd.toInt( );
  if (effectiveEnd > now) effectiveEnd = now;
  }
- decimation = rangeDecimation[rangeIdx];
+ /* decimation: adaptivo, calculado apos montar filesToRead (abaixo). */
  cutoff = (rangeIdx == 6) ? 0 : (effectiveEnd - rangeDuration[rangeIdx]);
 
 
 /* ── List of files to read ────────────────────────────────────────── */
+ /* Everything from here to the end of the decimation estimate runs before the
+  * response starts, so no SendGuard is feeding the watchdog, and none of these
+  * loops calls feedWatchdog( ) or isHandlerOvertime( ) — the 6 s handler cap
+  * only exists in the record loops further down. For rangeIdx >= 4 both loops
+  * scale with the NUMBER OF FILES in /history (a dir walk, then one
+  * open+size+close each), which on this bench is ~50 days of history. That is
+  * the shape of an unfed stretch long enough to reach the bare 15 s WDT, and
+  * the autopsy already places the stall in this handler and outside the send
+  * path. This scope is here to prove or refute exactly that. */
  std::vector<String> filesToRead;
+ {
+ LogManager::TraceScope _tScan(0, MOD_WEB_HSCAN);
+ const uint32_t scanStart = millis( );
  if (rangeIdx >= 4) {
  /* 1M, 1Y, MAX: list ALL files in directory (filter by epoch
  * later). Avoids iterating 365x exists( ) in vain. */
  ReadGuard rg(_storageRef);
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) {
+ /* Each next( ) walks lfs metadata off flash, and this runs once per FILE in
+  * /history. feedWdt( ) and not feedWatchdog( ): the latter also fires the
+  * light-yield, which allocates and can reach saveConfiguration( ) — a flash
+  * write, started while we hold _fsReadMutex. */
+ feedWdt( );
+ if (dir.fileName( ).endsWith(HISTORY_FILE_EXT) || dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
  filesToRead.push_back(String(DIR_HISTORY) + "/" + dir.fileName( ));
  }
  }
@@ -161,17 +185,57 @@ void WebManager::handleApiHistoryMulti( ) {
  time_t targetDay = effectiveEnd - (d * 86400);
  struct tm timeinfo; localtime_r(&targetDay, &timeinfo);
  char defPath[40];
+ /* Push BOTH extensions: the writer creates .sim4 (V4) since the
+  * universal-format migration; the old code only looked for the
+  * legacy .sim here, so every range below 1M read zero V4 files
+  * (empty graphs) while the >=1M dir-listing branch matched both. */
  snprintf(defPath, sizeof(defPath), "%s/%04d%02d%02d%s",
  DIR_HISTORY,
  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
  HISTORY_FILE_EXT);
  filesToRead.push_back(String(defPath));
+ snprintf(defPath, sizeof(defPath), "%s/%04d%02d%02d%s",
+ DIR_HISTORY,
+ timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
+ HISTORY_V4_FILE_EXT);
+ filesToRead.push_back(String(defPath));
  }
  }
 
- /* ── Accumulated stats (T of set, H of ambient) ─────────────────── */
+ /* ── Adaptive decimation: target ~600 emitted points ────────────────
+  * Estimate the record count from the total file bytes (~9 B/record
+  * averaged over deltas + periodic anchors, headers ignored). Small
+  * datasets stream whole (decimation 1); two months of 1-min data
+  * stream at ~600 points. Replaces the fixed per-range table that
+  * emitted ZERO points when the dataset was smaller than the factor. */
+ {
+ size_t histBytes = 0;
+ ReadGuard rg(_storageRef);
+ for (size_t fi = 0; fi < filesToRead.size( ); fi++) {
+ feedWdt( );
+ File hf = LittleFS.open(filesToRead[fi], "r");
+ if (hf) { histBytes += hf.size( ); hf.close( ); }
+ }
+ size_t estRecs = histBytes / 9;
+ decimation = (int)(estRecs / 600);
+ if (decimation < 1) decimation = 1;
+ }
+ {
+  const uint32_t scanMs = millis( ) - scanStart;
+  if (scanMs > g_webHistScanMaxMs) g_webHistScanMaxMs = scanMs;
+ }
+ } /* end MOD_WEB_HSCAN */
+
+ /* ── Accumulated stats (T of set, H of set) ─────────────────────────
+  * Both are gathered PRE-decimation, over every record in range, so the
+  * numbers do not depend on how many points the chart happens to draw.
+  * The page used to take T from here and compute H in the browser from the
+  * decimated series, which reported two different things under one label:
+  * the true extreme for T and merely the largest surviving sample for H. */
  float realMinT = 1000.0f, realMaxT = -1000.0f;
  time_t tsRealMinT = 0, tsRealMaxT = 0;
+ float realMinH = 1000.0f, realMaxH = -1000.0f;
+ const SystemConfig& cfgRef = _storageRef->getConfig( );
 
  /* ── Response: header + sensors[] + data[] streaming ────────────────── */
  _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -220,6 +284,8 @@ void WebManager::handleApiHistoryMulti( ) {
  int chunkLen = 0;
  bool aborted = false;
  int lineIdx = 0;
+ uint32_t sinceBreath = 0; /* decoded records since the last respiro (both paths) */
+ unsigned filesOpened = 0, recsDecoded = 0; /* diagnostico no metaEnd */
 
  for (size_t fi = 0; fi < filesToRead.size( ) && !aborted; fi++) {
  String path = filesToRead[fi];
@@ -233,6 +299,154 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  }
  if (!fileOk) continue;
+ filesOpened++;
+
+	 /* V4 detection: .sim4 files use universal format */
+	 bool _v4 = path.endsWith(HISTORY_V4_FILE_EXT);
+	 if (!_v4) { ReadGuard rg(_storageRef); if (f.size() >= 4) { char m[4]; f.seek(0); if (f.read((uint8_t*)m,4)==4) _v4=(memcmp(m,HIST_V4_MAGIC,4)==0); } }
+	 if (_v4) {
+	 /* ── V4 inline decode + emit ─────────────────────── */
+	 /* Static buffers — avoid 5KB+ stack allocation on RP2040 ~4KB stack.
+	  * histV4ReadHeaderBuf calls histV4Reset internally, so static state
+	  * is safe across file iterations (each file re-initializes via header read). */
+	 static HistV4State v4st;
+	 static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 static uint8_t rdBuf[HIST_V4_READ_BUF];
+	 static int64_t v4vals[HIST_V4_MAX_MEASUREMENTS];
+	 {
+	 ReadGuard rg(_storageRef);
+	 f.seek(0);
+	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+	 /* Same fix as the v1.5.3 StorageManager scan bug: reposition the
+	  * cursor to the REAL end of the header. The old code discarded
+	  * hdrLen and kept reading from wherever the header read stopped —
+	  * for any file smaller than HIST_V4_MAX_HEADER that is EOF, so
+	  * the record loop below emitted ZERO points (empty graphs). */
+	 size_t hdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
+	                 ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) : 0;
+	 if (hdrLen == 0) { f.close(); continue; }
+	 f.seek(hdrLen);
+	 }
+
+	 /* Which measurements feed the stat cards, resolved ONCE per file.
+	  * The measurement table is fixed for the whole file, so doing the
+	  * string-pool lookup and hwId comparison per record would repeat the
+	  * same answer for every one of them — inside the tightest loop in the
+	  * handler, over datasets that reach hundreds of thousands of records. */
+	 bool measIsT[HIST_V4_MAX_MEASUREMENTS] = {false};
+	 bool measIsH[HIST_V4_MAX_MEASUREMENTS] = {false};
+	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	 const uint8_t ch = v4st.measures[m].channel;
+	 if (ch != 0 && ch != 1) continue; /* only T and H have stat cards */
+	 char mHwId[17];
+	 histV4StrPoolGet(mHwId, sizeof(mHwId), v4st.strPool,
+	                  v4st.sensors[v4st.measures[m].sensorIdx].hwIdOffset,
+	                  v4st.sensors[v4st.measures[m].sensorIdx].hwIdLen);
+	 bool selected = false;
+	 for (int si = 0; si < sensorCount && !selected; si++) {
+	 if (strcmp(mHwId, cfgRef.sensors[sensorIds[si]].hwId) == 0) selected = true;
+	 }
+	 if (!selected) continue;
+	 if (ch == 0) measIsT[m] = true; else measIsH[m] = true;
+	 }
+
+	 size_t rdFilled = 0;
+	 uint32_t v4epoch;
+	 bool fileHasMoreV4 = true;
+
+	 while (fileHasMoreV4 && !aborted) {
+	 if (isClientGone() || isHandlerOvertime()) { aborted = true; break; }
+	 {
+	 ReadGuard rg(_storageRef);
+	 /* A1: refill pós-falha. O limiar antigo travava o handler quando
+	  * um delta maior que a âncora cruzava a borda do buffer — série
+	  * incompleta no gráfico web e estatísticas calculadas sobre meio
+	  * dia sem qualquer aviso. */
+	 size_t c = histV4DecodeNextRefill(
+	 rdBuf, sizeof(rdBuf), rdFilled, v4st, v4vals, &v4epoch,
+	 [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+	 if (f.available() <= 0) return 0;
+	 int r = f.read(dst, maxBytes);
+	 return (r > 0) ? (size_t)r : 0;
+	 });
+	 if (c == 0) { fileHasMoreV4 = false; break; }
+	 recsDecoded++;
+	 }
+
+	 time_t ts = (time_t)v4epoch;
+	 if (cutoff > 0 && ts < cutoff) continue;
+	 if (ts > effectiveEnd) { fileHasMoreV4 = false; break; }
+
+	 /* Stats per channel, restricted to the selected sensors.
+	  *
+	  * This loop used to fold EVERY measurement into realMinT/realMaxT —
+	  * temperature, humidity and pressure alike — and the page labels those
+	  * "MIN T"/"MAX T". With a BMP280 in the set, ~1011 hPa of pressure was
+	  * reported as the maximum temperature. It also ignored which sensors
+	  * the user had selected, so unticking a sensor changed the chart but
+	  * not the numbers above it. The legacy branch below never had either
+	  * problem; only the V4 path did. */
+	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	 if (!measIsT[m] && !measIsH[m]) continue;
+	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
+	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
+	 if (measIsT[m]) {
+	 if (v < realMinT) { realMinT = v; tsRealMinT = ts; }
+	 if (v > realMaxT) { realMaxT = v; tsRealMaxT = ts; }
+	 } else {
+	 if (v < realMinH) realMinH = v;
+	 if (v > realMaxH) realMaxH = v;
+	 }
+	 }
+
+	 lineIdx++;
+	 if (lineIdx % decimation != 0) {
+	 /* Decimated-out record still costs a decode; breathe every N so a
+	  * high-decimation range (MAX over months of 1-min data) never runs
+	  * yield-free — watchdog stays fed and the live clock keeps ticking. */
+	 if (++sinceBreath >= WEB_STREAM_BREATH_RECORDS) { sinceBreath = 0; feedWatchdog( ); }
+	 continue;
+	 }
+	 sinceBreath = 0;
+
+	 char ptBuf[1024]; int pp = 0;
+	 pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp,
+	 "%s{\"t\":%lu,\"v\":{", firstPoint ? "" : ",", (unsigned long)ts);
+	 bool fk = true;
+	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
+	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
+	 char key[32]; uint8_t si = v4st.measures[m].sensorIdx;
+	 char hwId[17];
+	 histV4StrPoolGet(hwId, sizeof(hwId), v4st.strPool,
+	 v4st.sensors[si].hwIdOffset, v4st.sensors[si].hwIdLen);
+	 histV4MakeMeasKey(key, sizeof(key), v4st.measures[m].channel, hwId);
+	 pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp,
+	 "%s\"%s\":%.2f", fk ? "" : ",", key, (double)v);
+	 fk = false;
+	 }
+	 pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp, "}}");
+	 if (pp >= (int)sizeof(ptBuf)) pp = (int)sizeof(ptBuf) - 1; /* snprintf truncation guard: never copy past ptBuf */
+
+	 /* Accumulate into the shared chunk buffer, flushing SMALL packets
+	  * (WEB_STREAM_CHUNK_SOFT) with a breath between — instead of one lwIP
+	  * write per point. Fewer, steadier writes ease PBUF pressure and hand
+	  * Core 1 the bus between packets. The byte stream is identical; only the
+	  * (client-transparent) chunk boundaries change. The tail is flushed after
+	  * the file loop by the existing `if (chunkLen > 0) safeSend(chunkBuf)`. */
+	 if (chunkLen + pp >= (int)WEB_STREAM_CHUNK_SOFT) {
+	 if (!safeSend(chunkBuf)) { aborted = true; break; }
+	 chunkBuf[0] = '\0'; chunkLen = 0;
+	 streamBreath( );
+	 }
+	 memcpy(chunkBuf + chunkLen, ptBuf, (size_t)pp + 1);
+	 chunkLen += pp;
+	 firstPoint = false;
+	 }
+	 { ReadGuard rg(_storageRef); f.close(); }
+	 streamBreath( ); /* respiro entre arquivos V4 (o caminho legado já tinha) */
+	 continue;
+	 }
 
  HistoryFileHeaderV2 hdr;
  bool headerOk = false;
@@ -242,7 +456,7 @@ void WebManager::handleApiHistoryMulti( ) {
  f.seek(0);
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdr.version == HIST_V2_VERSION &&
+ (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION) &&
  hdr.anchorPeriod > 0);
  }
  }
@@ -251,6 +465,7 @@ void WebManager::handleApiHistoryMulti( ) {
 
  HistoryCodecState rdState;
  historyCodecReset(rdState);
+ rdState.fileVersion = hdr.version; /* MUST set before decode — auto-detect unreliable */
  uint16_t anchorPeriod = hdr.anchorPeriod;
  uint8_t rdBuf[256];
  size_t rdFilled = 0;
@@ -290,7 +505,7 @@ void WebManager::handleApiHistoryMulti( ) {
  if (cutoff > 0 && ts < cutoff) continue;
  if (ts > effectiveEnd) { fileHasMore = false; break; }
 
- /* T stats of set (pre-decimation) */
+ /* T and H stats of set (pre-decimation) */
  for (int s = 0; s < sensorCount; s++) {
  int id = sensorIds[s];
  int16_t raw = rec.sensors[id];
@@ -299,12 +514,17 @@ void WebManager::handleApiHistoryMulti( ) {
  if (v < realMinT) { realMinT = v; tsRealMinT = ts; }
  if (v > realMaxT) { realMaxT = v; tsRealMaxT = ts; }
  }
+ if (rec.ambientHum != HIST_NAN_SENTINEL) {
+ float h = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+ if (h < realMinH) realMinH = h;
+ if (h > realMaxH) realMaxH = h;
+ }
 
  lineIdx++;
  if (lineIdx % decimation != 0) continue;
 
  /* Emit point: {"t":epoch,"v":[v0,v1,...]} or null for NAN. */
- char pointBuf[256];
+ char pointBuf[512]; /* v3 needs room for hv[] + pressure fields */
  int pos = 0;
  pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
  "%s{\"t\":%lu,\"v\":[", firstPoint ? "" : ",",
@@ -325,14 +545,38 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  }
  pointBuf[pos++] = ']';
- /* h: humidity for slot 10 if included */
- bool hasSlot10 = false; for (int si = 0; si < sensorCount; si++) if (sensorIds[si] == 10) { hasSlot10 = true; break; }
- if (hasSlot10 && rec.ambientHum != HIST_NAN_SENTINEL) {
+ /* h: ambient humidity (backward compat — always from ambientHum field) */
+ if (rec.ambientHum != HIST_NAN_SENTINEL) {
  float h = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
  int hInt = abs((int)h);
  int hDec = abs((int)(h * 10.0f) % 10);
  pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
  ",\"h\":%d.%01d", hInt, hDec);
+ }
+ /* hv: per-slot humidity array (aligned with sensors[]) */
+ {
+ pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos, ",\"hv\":[");
+ for (int s = 0; s < sensorCount; s++) {
+ int id = sensorIds[s];
+ int16_t hRaw = rec.humidity[id];
+ if (s > 0) pointBuf[pos++] = ',';
+ if (hRaw == HIST_NAN_SENTINEL) {
+ pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos, "null");
+ } else {
+ float hv = BinaryHistoryRecord::i16ToFloat(hRaw);
+ pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
+ "%.1f", hv);
+ }
+ }
+ pointBuf[pos++] = ']';
+ }
+ /* p: atmospheric pressure (hPa) */
+ if (rec.pressure != HIST_NAN_SENTINEL) {
+ float p = BinaryHistoryRecord::i16ToFloatx10(rec.pressure);
+ int pInt = abs((int)p);
+ int pDec = abs((int)(p * 10.0f) % 10);
+ pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
+ ",\"p\":%d.%01d", pInt, pDec);
  }
  pointBuf[pos++] = '}';
  pointBuf[pos] = '\0';
@@ -341,37 +585,45 @@ void WebManager::handleApiHistoryMulti( ) {
  if (chunkLen + pLen >= (int)sizeof(chunkBuf) - 1) {
  if (!safeSend(chunkBuf)) { aborted = true; break; }
  chunkBuf[0] = '\0'; chunkLen = 0;
- delay(5); watchdog_update( );
+ streamBreath( );
  }
  memcpy(chunkBuf + chunkLen, pointBuf, pLen + 1);
  chunkLen += pLen;
  firstPoint = false;
 
- if (chunkLen > 1500) {
+ if (chunkLen >= (int)WEB_STREAM_CHUNK_SOFT) {
  if (!safeSend(chunkBuf)) { aborted = true; break; }
  chunkBuf[0] = '\0'; chunkLen = 0;
- delay(5); watchdog_update( );
+ streamBreath( );
  }
  }
- if (_lightYieldCb) _lightYieldCb( );
- delay(5); watchdog_update( );
+ streamBreath( ); /* respiro por lote (feedWatchdog + micro-pausa) */
  }
  { ReadGuard rg(_storageRef); f.close( ); }
  }
 
  if (!aborted) {
  if (chunkLen > 0) safeSend(chunkBuf);
- char metaEnd[192];
+ char metaEnd[288]; /* +minH/maxH */
  if (realMaxT > -999.0f) {
  const char* sMin = (realMinT < 0) ? "-" : "";
  const char* sMax = (realMaxT < 0) ? "-" : "";
+ char hPart[64] = "";
+ if (realMaxH > -999.0f) {
+ snprintf(hPart, sizeof(hPart), ",\"minH\":%d.%01d,\"maxH\":%d.%01d",
+ (int)realMinH, abs((int)(realMinH*10)%10),
+ (int)realMaxH, abs((int)(realMaxH*10)%10));
+ }
  snprintf(metaEnd, sizeof(metaEnd),
- "],\"minT\":%s%d.%02d,\"maxT\":%s%d.%02d,\"tsMinT\":%lu,\"tsMaxT\":%lu}",
+ "],\"minT\":%s%d.%02d,\"maxT\":%s%d.%02d,\"tsMinT\":%lu,\"tsMaxT\":%lu%s,"
+ "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u}",
  sMin, abs((int)realMinT), abs((int)(realMinT*100)%100),
  sMax, abs((int)realMaxT), abs((int)(realMaxT*100)%100),
- (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT);
+ (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT, hPart,
+ (unsigned)filesToRead.size( ), filesOpened, recsDecoded);
  } else {
- snprintf(metaEnd, sizeof(metaEnd), "]}");
+ snprintf(metaEnd, sizeof(metaEnd), "],\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u}",
+ (unsigned)filesToRead.size( ), filesOpened, recsDecoded);
  }
  safeSend(metaEnd);
  safeSend("");
@@ -386,15 +638,15 @@ void WebManager::handleApiHistoryMulti( ) {
 /* GET /api/export/history.bin?from=<epoch>&to=<epoch> */
 /* =========================================================================== */
 /* Emits .simx bundle kind='H' (CRC32 trailer) for the browser to expand into CSV
- * locally. Hard cap of 31 days. PAYLOAD = N x BinaryHistoryRecord (28 B
+ * locally. Hard cap of 31 days. PAYLOAD = N x BinaryHistoryRecord (74 B
  * packed) raw, without reformatting. Sensor filtering is on the client.
  *
  * Format (all LE):
- * HEADER (32 B): "SIMX" | ver=1 | kind='H' | rsv | recSize=28 | rsv |
+ * HEADER (32 B): "SIMX" | ver=1 | kind='H' | rsv | recSize=74 | rsv |
  * rangeFrom u32 | rangeTo u32 | sensorTblSize u32 | rsv x2
  * SENSOR_TABLE (variable): per active slot: idx u8, hwidLen u8, hwid[],
  * friendlyLen u8, friendly[]
- * PAYLOAD (variable): N x BinaryHistoryRecord (28 B each)
+ * PAYLOAD (variable): N x BinaryHistoryRecord (74 B each)
  * TRAILER (4 B): crc32 u32 (over HEADER+TABLE+PAYLOAD)
  */
 namespace {
@@ -470,10 +722,7 @@ void WebManager::handleApiExportHistory( ) {
  if (!s.active) continue;
  appendSensor((uint8_t)i, s.hwId, s.friendlyName);
  }
- /* Slot 10 (humidity-capable sensor): special idx = 0xFE for backward compat */
- if (cfg.sensors[10].active) {
- appendSensor(0xFE, cfg.sensors[10].hwId, cfg.sensors[10].friendlyName);
- }
+ /* V4: no special ambient slot — each sensor indexed independently */
  }
 
  /* Streaming CRC32 accumulator (covers HEADER + TABLE + PAYLOAD; trailer is the CRC). */
@@ -488,7 +737,7 @@ void WebManager::handleApiExportHistory( ) {
  memcpy(hdr.magic, "SIMX", 4);
  hdr.version = 0x01;
  hdr.kind = 'H';
- hdr.recordSize = (uint16_t)sizeof(BinaryHistoryRecord); /* 28 */
+ hdr.recordSize = (uint16_t)sizeof(BinaryHistoryRecord); /* 74 */
  hdr.rangeFrom = rangeFrom;
  hdr.rangeTo = rangeTo;
  hdr.sensorTableSize = (uint32_t)sensorTblLen;
@@ -524,7 +773,7 @@ void WebManager::handleApiExportHistory( ) {
  if (isClientGone( ) || isHandlerOvertime( )) { aborted = true; break; }
 
  struct tm dtm; localtime_r(&curDay, &dtm);
- char dayPath[40];
+ char dayPath[44];
  snprintf(dayPath, sizeof(dayPath), "%s/%04d%02d%02d%s",
  DIR_HISTORY,
  dtm.tm_year + 1900, dtm.tm_mon + 1, dtm.tm_mday,
@@ -537,6 +786,14 @@ void WebManager::handleApiExportHistory( ) {
  if (LittleFS.exists(dayPath)) {
  f = LittleFS.open(dayPath, "r");
  fileOk = (bool)f;
+ } else {
+ /* Try .sim4 if .bin not found */
+ snprintf(dayPath, sizeof(dayPath), "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT,
+ DIR_HISTORY, dtm.tm_year + 1900, dtm.tm_mon + 1, dtm.tm_mday);
+ if (LittleFS.exists(dayPath)) {
+ f = LittleFS.open(dayPath, "r");
+ fileOk = (bool)f;
+ }
  }
  }
  if (!fileOk) continue;
@@ -550,7 +807,7 @@ void WebManager::handleApiExportHistory( ) {
  f.seek(0);
  if (f.read((uint8_t*)&hdrV2, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOk = (memcmp(hdrV2.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdrV2.version == HIST_V2_VERSION &&
+ (hdrV2.version == HIST_V2_VERSION || hdrV2.version == HIST_V3_VERSION) &&
  hdrV2.anchorPeriod > 0);
  }
  }
@@ -559,6 +816,7 @@ void WebManager::handleApiExportHistory( ) {
 
  HistoryCodecState rdState;
  historyCodecReset(rdState);
+ rdState.fileVersion = hdrV2.version; /* MUST set before decode — auto-detect unreliable */
  uint16_t anchorPeriod = hdrV2.anchorPeriod;
 
  uint8_t rdBuf[256];
@@ -823,7 +1081,16 @@ void WebManager::handleApiLogs( ) {
  }
 
  if (bytesRead > 0) {
- _server.sendContent((const char*)buf, bytesRead);
+ /* safeSend, not _server.sendContent. This was the only raw sendContent
+  * outside WebManager_Send.cpp, and the difference is the SendGuard: the 2 s
+  * repeating timer in WebManager_Core feeds the watchdog ONLY while
+  * _sendGuardActive, which only SendGuard sets. Without it nothing fed during
+  * the send, and the send itself is unbounded — ClientContext restarts its
+  * timeout on every partial write, so a browser that stops draining the socket
+  * (busy parsing the history JSON it just fetched, on its single thread) blocks
+  * here indefinitely. The watchdog_update( ) below runs only AFTER the send
+  * returns, which is exactly when it is not needed. */
+ if (!safeSend((const char*)buf, bytesRead)) break;
  count += bytesRead / LOG_RECORD_SIZE;
  }
 
@@ -1070,8 +1337,15 @@ void WebManager::handleApiHistoryDays( ) {
  ReadGuard rg(_storageRef);
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- feedWatchdog( );
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) {
+ /* feedWdt( ) and not feedWatchdog( ): we hold _fsReadMutex here, and
+  * feedWatchdog( ) runs the light yield, which every 3 s calls
+  * updateLiveDisplay( ) -> refreshPendingCount( ) -> enterFlashReadLock( ).
+  * That is mutex_enter_blocking on a NON-recursive mutex this very core
+  * already owns: it never returns, and nothing feeds the watchdog while it
+  * waits. Same distinction as the history scan in 116c7f8; this call site and
+  * handleApiLs were left behind. */
+ feedWdt( );
+ if (dir.fileName( ).endsWith(HISTORY_FILE_EXT) || dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -1083,6 +1357,9 @@ void WebManager::handleApiHistoryDays( ) {
  _server.send(200, "application/json", "");
  safeSend("[");
  for (size_t i = 0; i < files.size( ); i++) {
+ /* Strip .sim4 BEFORE .sim: replace(".sim") on "20260722.sim4" left
+  * "202607224" — malformed dates, calendar never marked V4 days. */
+ files[i].replace(HISTORY_V4_FILE_EXT, "");
  files[i].replace(HISTORY_FILE_EXT, "");
  String entry = (i > 0 ? ",\"" : "\"") + files[i] + "\"";
  safeSend(entry);

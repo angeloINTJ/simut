@@ -37,7 +37,37 @@ enum TraceModule {
  MOD_SAVE_CONFIG = 10, /**< inside StorageManager::saveConfiguration */
  MOD_LOG_FLASH = 11, /**< inside LogManager::writeCompactToFlash / flushPendingLogs */
  MOD_HIST_FLASH = 12, /**< inside StorageManager::writeHistoryEntryFlash */
- MOD_CORE1_LOCK = 13 /**< waiting for multicore_lockout ack (Core 1 responding) */
+ MOD_CORE1_LOCK = 13, /**< waiting for multicore_lockout ack (Core 1 responding) */
+ /* Kill-path steps. Every SDK call below can block WITHOUT a timeout, and a
+  * Core-0 hang is erased from RAM by the HW watchdog that follows — so the
+  * marker has to live in watchdog scratch[3], which is exactly what TRACE_MOD
+  * writes and what the boot autopsy prints back as C0=[...]. Every [FTL] in the
+  * log carries ctx=0 (Core 0 stalled) right after an APP_CORE1_DEAD, so the
+  * stall is inside restartCore1( ); these three names say which call. */
+ MOD_C1_ENDLOCK = 14, /**< inside multicore_lockout_end_blocking (untimed mutex) */
+ MOD_C1_RESET = 15,   /**< inside multicore_reset_core1 (ends in untimed fifo pop) */
+ MOD_C1_LAUNCH = 16,  /**< inside multicore_launch_core1 (untimed echo handshake) */
+ /* The kill path returned, and the main loop has not reached its next marker.
+  * Before these two, that whole window traced as whatever the caller left
+  * behind, so "hung while killing Core 1" and "hung right after" were the same
+  * reading. MOD_LOOP also separates a stall in loop( ) from one in setup( ),
+  * which MOD_BOOT alone could not do. */
+ MOD_C1_KILLED = 17,  /**< Core 1 killed and relaunched; back in the caller */
+ MOD_LOOP = 18,       /**< top of AppManager::loop, before the first task marker */
+ /* Inside MOD_WEB_SERVER. The first trustworthy autopsy put the Core-0 stall
+  * here — not in the Core-1 kill path — and MOD_WEB_SERVER covers the whole of
+  * WebManager::update( ), which is four handleClient( ) calls plus whatever
+  * handler they dispatch. These three split that: server/lwIP plumbing, our
+  * history handler, and the send itself. */
+ MOD_WEB_POLL = 19,   /**< inside WebServer::handleClient — accept/parse/dispatch */
+ MOD_WEB_HIST = 20,   /**< inside handleApiHistoryMulti (read + decimate) */
+ MOD_WEB_SEND = 21,   /**< inside sendContent, under the SendGuard */
+ MOD_WEB_HSCAN = 22,  /**< history file list + decimation estimate, before any send */
+ /* Inside MOD_TELEMETRY. Naming the whole cycle is not actionable: it is a
+  * history scan, a payload build and a network POST, with different fixes. */
+ MOD_TEL_COLLECT = 23, /**< inside collectBatch — the per-file history scan */
+ MOD_TEL_BUILD = 24,   /**< inside buildPayload */
+ MOD_TEL_SEND = 25     /**< inside attemptHttpUpload / attemptMqttPublish */
 };
 
 /** Structured log event codes for machine-parseable system logging. */
@@ -145,6 +175,8 @@ enum LogCode {
  APP_HEAP_REPORT = 511,
  APP_HIST_NO_TIME_REF = 512, /* skip due to missing NTP/provisional */
  APP_HIST_TIME_REF_RECOVERED = 513, /* time ref returned, resuming saves */
+ APP_HIST_NO_SCHEMA = 514, /* V4 schema has zero measurements — no active sensors? */
+ APP_HIST_SCHEMA_MISMATCH = 515, /* schema covers none of the configured sensors */
 
  /* ── Network extended (520–539) ── */
  NET_DHCP_MODE = 520,
