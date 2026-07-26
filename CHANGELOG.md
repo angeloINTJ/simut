@@ -4,6 +4,54 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.5.4-beta (2026-07-26)
+
+Web interface release. The interface was usable on a desktop and hostile on a
+phone, and the reason turned out to be structural rather than cosmetic: **not a
+single breakpoint in the codebase targeted anything below 600 px**, so every
+phone in existence fell entirely below the smallest one that existed. Whole
+pages were the desktop layout squeezed, and four of them were not merely ugly
+but inoperable.
+
+Nothing here cost app flash. `.rodata` is page-aligned at 4096 bytes and the
+whole set fit inside the existing padding — headroom measured 4,740 B before and
+after.
+
+### Pages that could not be operated on a phone
+
+- **The first-run password screen was 432 px wide on a 360 px screen** — `width:350px` plus `padding:40px` with no `border-box`. It overflowed every mainstream phone in portrait, and because the body centred it with flex, half the overflow landed on the left, where there is no scrolling back past the origin. The login box had the same defect at 382 px. Both are now fluid, and vertical centring moved from `align-items` to `margin:auto`, which collapses instead of pushing content off the top.
+- **The save button left the screen** — the topbar had a hard `height:48px`, no wrapping, and ~475 px of content. `#commit-btn` was the first thing pushed out; on `/config`, `/network` and `/users` it is the *only* way to persist a form, the in-form button having been removed in its favour. On phones it now docks as a fixed bar at the bottom of the viewport.
+- **The sensor table dragged the whole page sideways** — six columns, 168 px of pure cell padding in a 228 px column, and no ancestor with `overflow-x`. The real cause sat one level up: `.main-content` is a grid item, and a grid item's default `min-width:auto` refuses to shrink below its content, so the table stretched the column to 824 px on a 360 px screen and the card's own `overflow-x` was never consulted. Fixed with `min-width:0` on grid children.
+- **Sound rows needed 428 px of viewport** — 278 px of non-negotiable width (a 140 px melody select in a `flex-shrink:0` group, the test button, a 44 px toggle, gaps and padding) inside 272 px, with no `flex-wrap` to let anything drop. The label now takes the first line and the controls share the second. The volume sliders needed `min-width:0` as well: `flex:1` leaves `min-width:auto`, and a range input's automatic minimum is its intrinsic ~129 px, so it refused to shrink.
+
+### The mobile scale, applied once
+
+`/style.css` is served as a single gzipped blob that every page links, so rules
+placed there cost flash once and reach all ten pages. That is where the phone
+breakpoint lives: container and card padding cut from 20/24 px to 12/16 px, a
+44 px floor on buttons and drawer items, `100dvh` on the drawer, and a viewport
+clamp on the custom dropdown menu.
+
+- **The drawer's footer was unreachable** — `height:100%` resolves against the large viewport, so License, language and Logout sat under the browser chrome, and `nav { flex:1 }` absorbed all free space so `overflow-y` never produced a scrollbar to reach them.
+- **Eight pages redeclared `toggleDrawer()`** — identical copies of the shared function, and since a page's inline `<script>` runs after `/lang.js`, each one shadowed it. Any improvement to the shared version was dead code. The duplicates are gone; there is now exactly one in the firmware.
+- **The network toast covered the topbar** — full width at `top:0` with `z-index:9999` against the topbar's 50. During a persistent error the hamburger — the only navigation on a phone — was hidden for as long as the toast stayed.
+- **GPIO ownership was tooltip-only** — `title="slot N"` does not exist on touch, so the only way to learn which slot owned GP7 was to open all sixteen. The slot number is now printed on the pin, and the pins sit in an even grid instead of pills sized by their own text.
+
+### Cache
+
+- **A firmware update did not reach the browser** — `/style.css` and `/lang.js` are served with `Cache-Control: public, max-age=604800`. Seven days, and no way to invalidate: flashing new firmware changed nothing the browser would ask for again. The build now stamps `?v=<hash>` on those URLs, derived from the hash of `WebUI.h` that the packer already computed, so the long cache survives and breaks itself exactly when the assets change.
+
+### Login screen
+
+- **The wordmark is vector, not text** — the brand rendered in whatever the system stack supplied, so it changed shape between Safari, Chrome and Android. Five glyphs traced from Liberation Sans Bold into static SVG paths: identical everywhere, no font to load, and 638 B gzipped against ~1,130 B for the equivalent subsetted WOFF2 in base64. No font file is embedded; see notice 13 in the third-party notices.
+- The mark is larger, carries the interface accent, and gained the expansion of the acronym as a subtitle. That subtitle is deliberately not translated: SIMUT is an acronym of the Portuguese phrase, and translating it would break the correspondence with the letters.
+
+### Fixed
+
+- **The alarm-limit fields left the sensor dialog** — they duplicated `/alarms`, which edits the same four keys and additionally couples `min < max`. The staging payload still carries all four: its `num(id, d)` helper returns the stored value when the element is absent, so nothing is zeroed. Note that `/api/alarms` only returns active sensors, so limits are now set after activating a slot.
+- **The history log filter styled its checkboxes as text fields** — `.log-header input` is an element selector and matched `#chkInf`, `#chkWrn` and `#chkErr`; below 600 px the media query gave them `width:100%`, turning three checkboxes into full-width black bars. The page's only breakpoint was making it worse.
+- **The pending-changes notice said "at the top"** — true on a desktop, wrong on a phone since the save button moved to the bottom. Now position-neutral, in both language packs.
+
 ## v1.5.3-beta (2026-07-25)
 
 Stability and telemetry release. Most of it comes from chasing reboots to their

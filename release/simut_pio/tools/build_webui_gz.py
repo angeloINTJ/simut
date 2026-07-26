@@ -196,6 +196,24 @@ def _minify_web_block(src: str) -> str:
     return src
 
 
+# /style.css e /lang.js sao servidos com Cache-Control: public, max-age=604800
+# (WebManager_Util.cpp). Sem versionar a URL, gravar um firmware novo NAO troca
+# o que o navegador ja tem: ele nem pergunta durante 7 dias, e a interface
+# atualizada so aparecia limpando os dados do site na mao. Carimbar a URL com um
+# tag derivado do hash do WebUI.h mantem o cache longo (o Pico e lento e reservir
+# esses arquivos a cada navegacao custa) e mesmo assim invalida sozinho quando os
+# assets mudam. O servidor casa a rota pelo caminho e ignora a query — verificado
+# contra o dispositivo antes de adotar isto.
+_ASSET_URLS = ("/style.css", "/lang.js")
+
+
+def _stamp_assets(src: str, tag: str) -> str:
+    """Carimba ?v=<tag> nas URLs dos assets compartilhados."""
+    for url in _ASSET_URLS:
+        src = src.replace('"%s"' % url, '"%s?v=%s"' % (url, tag))
+    return src
+
+
 def _syntax_check_scripts(name: str, html: str) -> None:
     """Valida a sintaxe dos <script> inline do HTML minificado via `node --check`.
 
@@ -271,9 +289,10 @@ def generate() -> None:
     total_in = 0
     total_min = 0
     total_gz = 0
+    asset_tag = input_hash[:8]
     for name, html_content in matches:
         original_len = len(html_content)
-        minified = _minify_web_block(html_content)
+        minified = _minify_web_block(_stamp_assets(html_content, asset_tag))
         _syntax_check_scripts(name, minified)
         compressed = gzip.compress(minified.encode("utf-8"), compresslevel=9)
         hex_parts = [f"0x{b:02x}" for b in compressed]
