@@ -4,6 +4,53 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v1.5.4-beta (2026-07-26)
+
+Release da interface web. A interface era utilizável no desktop e hostil no
+celular, e a razão era estrutural, não cosmética: **nenhum breakpoint do código
+mirava abaixo de 600 px**, então todo telefone existente caía inteiramente
+abaixo do menor que havia. Páginas inteiras eram o layout de desktop espremido,
+e quatro delas não eram apenas feias — eram inoperáveis.
+
+Nada aqui custou flash de aplicação. A `.rodata` é alinhada em página de 4096
+bytes e o conjunto todo coube no padding existente — folga medida em 4.740 B
+antes e depois.
+
+### Páginas que não davam para operar no celular
+
+- **A tela de primeiro acesso tinha 432 px numa tela de 360** — `width:350px` mais `padding:40px` sem `border-box`. Transbordava em todo telefone comum em retrato e, como o corpo a centralizava por flex, metade do transbordo caía à esquerda, onde não existe rolagem para antes da origem. A caixa de login tinha o mesmo defeito, com 382 px. As duas agora são fluidas, e a centralização vertical saiu do `align-items` para `margin:auto`, que colapsa em vez de empurrar o conteúdo para fora do topo.
+- **O botão de gravar saía da tela** — a topbar tinha `height:48px` rígido, sem quebra de linha, com ~475 px de conteúdo. O `#commit-btn` era o primeiro a ser expulso; em `/config`, `/network` e `/users` ele é o *único* jeito de gravar um formulário, já que o botão do formulário foi removido em favor dele. No celular ele agora ancora numa barra fixa no rodapé.
+- **A tabela de sensores arrastava a página inteira de lado** — seis colunas, 168 px só de padding de célula num espaço de 228, e nenhum ancestral com `overflow-x`. A causa real estava um nível acima: `.main-content` é item de grid, e item de grid tem `min-width:auto` por padrão, que impede encolher abaixo do conteúdo — a tabela esticava a coluna para 824 px numa tela de 360 e o `overflow-x` do próprio card nunca chegava a ser consultado. Resolvido com `min-width:0` nos filhos do grid.
+- **As linhas de som exigiam 428 px de viewport** — 278 px de largura inegociável (seletor de melodia de 140 px num grupo `flex-shrink:0`, botão de teste, interruptor de 44 px, gaps e padding) dentro de 272 px, sem `flex-wrap` para nada descer de linha. O rótulo agora toma a primeira linha e os controles dividem a segunda. Os sliders de volume também precisaram de `min-width:0`: `flex:1` deixa `min-width:auto`, e o mínimo automático de um `range` é sua largura intrínseca de ~129 px, então ele se recusava a encolher.
+
+### A escala de celular, aplicada uma vez só
+
+O `/style.css` é servido como um único blob gzipado que todas as páginas
+linkam, então regras colocadas ali custam flash uma vez e alcançam as dez
+páginas. É onde vive o breakpoint de celular: padding de container e card de
+20/24 px para 12/16 px, piso de 44 px em botões e itens da gaveta, `100dvh` na
+gaveta e limite de viewport no menu do seletor customizado.
+
+- **O rodapé da gaveta era inalcançável** — `height:100%` resolve contra a viewport grande, então Licença, idioma e Sair ficavam sob a barra do navegador, e o `nav { flex:1 }` consumia toda a folga, de modo que o `overflow-y` nunca gerava rolagem para chegar até eles.
+- **Oito páginas redeclaravam `toggleDrawer()`** — cópias idênticas da função compartilhada e, como o `<script>` inline da página roda depois do `/lang.js`, cada uma sobrescrevia a original. Qualquer melhoria na versão compartilhada virava código morto. As duplicatas foram removidas; agora existe exatamente uma no firmware.
+- **O toast de rede cobria a topbar** — largura total em `top:0` com `z-index:9999` contra o 50 da topbar. Em erro persistente, o hambúrguer — única navegação no celular — ficava escondido enquanto o toast durasse.
+- **A posse dos GPIOs só existia em tooltip** — `title="slot N"` não existe no toque, então a única forma de saber de quem era o GP7 era abrir os dezesseis slots. O número do slot agora vai impresso no pino, e os pinos ficam numa grade uniforme em vez de pílulas dimensionadas pelo próprio texto.
+
+### Cache
+
+- **Atualizar o firmware não chegava ao navegador** — `/style.css` e `/lang.js` são servidos com `Cache-Control: public, max-age=604800`. Sete dias, sem forma de invalidar: gravar firmware novo não mudava nada que o navegador fosse perguntar de novo. O build agora carimba `?v=<hash>` nessas URLs, derivado do hash do `WebUI.h` que o packer já calculava, então o cache longo continua valendo e se quebra sozinho exatamente quando os assets mudam.
+
+### Tela de login
+
+- **A marca virou vetor, não texto** — ela renderizava na fonte que a pilha do sistema oferecesse, então mudava de desenho entre Safari, Chrome e Android. Cinco glifos traçados do Liberation Sans Bold em paths SVG estáticos: idênticos em qualquer lugar, sem fonte a carregar, e 638 B gzipados contra ~1.130 B do WOFF2 recortado equivalente em base64. Nenhum arquivo de fonte é embarcado; ver a nota 13 nos Avisos de Terceiros.
+- A marca ficou maior, recebeu o acento da interface e ganhou a expansão da sigla como legenda. Essa legenda deliberadamente não é traduzida: SIMUT é a sigla da frase em português, e traduzi-la quebraria a correspondência com as letras.
+
+### Corrigido
+
+- **Os campos de limite de alarme saíram do diálogo de sensor** — duplicavam a `/alarms`, que edita as mesmas quatro chaves e ainda acopla `min < max`. O payload de staging continua carregando as quatro: seu helper `num(id, d)` devolve o valor gravado quando o elemento não existe, então nada é zerado. Vale notar que a `/api/alarms` só devolve sensores ativos, então os limites passam a ser definidos depois de ativar o slot.
+- **O filtro de log do histórico estilizava seus checkboxes como campos de texto** — `.log-header input` é seletor de elemento e pegava `#chkInf`, `#chkWrn` e `#chkErr`; abaixo de 600 px a media query lhes dava `width:100%`, transformando três checkboxes em barras pretas de largura total. O único breakpoint da página estava piorando-a.
+- **O aviso de alterações pendentes dizia "no topo"** — verdade no desktop, errado no celular desde que o botão de gravar foi para o rodapé. Agora neutro quanto à posição, nos dois pacotes de idioma.
+
 ## v1.5.3-beta (2026-07-25)
 
 Release de estabilidade e telemetria. A maior parte veio de perseguir reboots até
