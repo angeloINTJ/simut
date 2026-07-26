@@ -28,6 +28,12 @@ void AppManager::checkAndAutoHealSensors( ) {
   * error detection — don't flag them as missing here. */
  if (cfg.sensors[gpio].sensorType != TYPE_DS18B20) continue;
 
+ /* Skip ROM verification if config ROM is all zeros — unpaired sensor
+  * accepts any DS18B20 on the bus (no hardware mismatch possible). */
+ bool romIsZero = true;
+ for (int k = 0; k < 8; k++) if (cfg.sensors[gpio].rom[k] != 0) romIsZero = false;
+ if (romIsZero) continue;
+
  uint8_t foundRom[8];
 #if SIMUT_SENSOR_DS18B20
  if (_sensorMgr->identifyPhysicalSensor(gpio, foundRom)) {

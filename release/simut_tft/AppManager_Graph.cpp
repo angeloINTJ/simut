@@ -23,8 +23,11 @@ static inline float readRecordValue(const BinaryHistoryRecord& rec,
  humOut = NAN;
 
  if (sensorId >= 0 && sensorId < MAX_SENSORS) {
- /* Slot 10 humidity from ambientHum field (backward compat) */
- if (sensorId == 10) humOut = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+ /* Per-slot humidity from v3 record (fallback to ambientHum for v2 / slot 10) */
+ humOut = BinaryHistoryRecord::i16ToFloat(rec.humidity[sensorId]);
+ if (isnan(humOut) && sensorId == 10) {
+ humOut = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
+ }
  return BinaryHistoryRecord::i16ToFloat(rec.sensors[sensorId]);
  }
 
@@ -86,7 +89,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (cfg.sensors[sensorId].active) {
  safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
  safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
- epochLimit = cfg.sensors[sensorId].provisionEpoch;
+ epochLimit = 0; /* 0 = accept all history regardless of provision date */
  snprintf(pkg.rom, sizeof(pkg.rom), "%02X%02X%02X%02X%02X%02X%02X%02X",
  cfg.sensors[sensorId].rom[0], cfg.sensors[sensorId].rom[1],
  cfg.sensors[sensorId].rom[2], cfg.sensors[sensorId].rom[3],
@@ -161,22 +164,164 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
 
  for (int d = daysToLoad - 1; d >= 0; d--) {
  if (pkg.count >= GRAPH_WIDTH) break;
+ /* Feed per file, and stop once the budget is gone.
+  *
+  * Without the break, a query that matches nothing kept opening every
+  * remaining day's file — exists( ) + open( ) + header parse + close, all
+  * LittleFS metadata walks off flash — after the record loops had already
+  * given up on the budget. Without the feed, none of that was covered: the
+  * feeds in this function sit AFTER the file loop, so the whole scan ran
+  * unfed against a watchdog whose real ceiling is 8388 ms, not the 30 s the
+  * WdtWindow above appears to grant (see WATCHDOG_TIMEOUT_MS). */
+ feedWdt( );
+ if (timeSince(_graphBudgetStart, GRAPH_BUDGET_MS)) {
+ LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 2, "");
+ break;
+ }
 
  time_t targetDay = effectiveEnd - (d * 86400);
  struct tm timeinfo;
  localtime_r(&targetDay, &timeinfo);
 
- char path[40];
+ char path[42];
  snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
  File f;
  _storageMgr->enterFlashReadLock( );
  bool fileExists = LittleFS.exists(path);
+ if (!fileExists) {
+ /* Try .sim4 if .bin not found */
+ snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_V4_FILE_EXT,
+ timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+ fileExists = LittleFS.exists(path);
+ }
  if (fileExists) f = LittleFS.open(path, "r");
  _storageMgr->exitFlashReadLock( );
 
  if (fileExists && f) {
+ /* Detect V4 (.sim4) vs legacy (.bin) by checking path extension */
+ bool isV4 = (strlen(path) > 5 && path[strlen(path)-5] == '.' && path[strlen(path)-4] == 's');
+ if (!isV4 && f.size() >= 4) {
+ StorageManager::ReadGuard rg(_storageMgr.get( ));
+ char m[4]; f.seek(0);
+ if (f.read((uint8_t*)m, 4) == 4 && memcmp(m, HIST_V4_MAGIC, 4) == 0) isV4 = true;
+ }
+ if (isV4) {
+ /* Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
+ static HistV4State g4st;
+ static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+ { StorageManager::ReadGuard rg(_storageMgr.get( ));
+ f.seek(0);
+ int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+ /* Same cursor bug fixed in handleApiHistoryMulti and in the v1.5.3
+  * StorageManager scan: reposition to the REAL header end. Reading up
+  * to 2 KB left the cursor at EOF for small files (today's) and
+  * misaligned at byte 2048 for bigger ones — the record loop below
+  * then decoded nothing: blank graph on the TFT. */
+ size_t g4HdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
+                   ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, g4st) : 0;
+ if (g4HdrLen == 0) { f.close(); continue; }
+ f.seek(g4HdrLen);
+ }
+ int tMi = -1, hMi = -1;
+ { SystemConfig &cfg = _storageMgr->getConfig();
+ const char* tHwId = (sensorId >= 0 && sensorId < MAX_SENSORS) ? cfg.sensors[sensorId].hwId : "";
+ for (uint8_t i = 0; i < g4st.measureCount; i++) {
+ char mHwId[17]; uint8_t si = g4st.measures[i].sensorIdx;
+ histV4StrPoolGet(mHwId, sizeof(mHwId), g4st.strPool,
+ g4st.sensors[si].hwIdOffset, g4st.sensors[si].hwIdLen);
+ if (strcmp(mHwId, tHwId) == 0) {
+ if (g4st.measures[i].channel == CH_TEMP) tMi = i;
+ else if (g4st.measures[i].channel == CH_HUM) hMi = i;
+ }
+ }}
+ if (tMi < 0) { _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock(); continue; }
+
+ static uint8_t g4RdBuf[HIST_V4_READ_BUF];
+ static int64_t g4vals[HIST_V4_MAX_MEASUREMENTS];
+ size_t g4RdFilled = 0;
+ uint32_t g4epoch;
+ bool hm4 = true;
+
+ /* Budget from _graphBudgetStart, not a fresh millis( ) per file.
+  *
+  * This loop used a per-file stamp, so GRAPH_BUDGET_MS was granted again for
+  * EVERY history file — 6 s each, against ~50 files on this bench. It never
+  * showed while queries matched, because pkg.count fills from the newest file
+  * and the loop exits almost immediately. A query that matches NOTHING (an
+  * empty hwId, a sensor whose hwId changed, a slot with no history) never
+  * fills it, so every file burned its full 6 s and the device rebooted long
+  * before the scan ended.
+  *
+  * The legacy loop below always used the render-wide stamp; this is the same
+  * semantics, and now the whole render is bounded once. */
+ while (hm4 && pkg.count < GRAPH_WIDTH) {
+ if (timeSince(_graphBudgetStart, GRAPH_BUDGET_MS)) {
+ LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 1, "");
+ break;
+ }
+ /* feedWdt( ) and not feedWatchdog( ): we are inside the flash read lock, and
+  * the latter runs the light yield, which allocates and can reach
+  * saveConfiguration( ). Same reason as the history scan in the web handler.
+  *
+  * The budget alone is not enough: 6 s of unfed scanning is already 40% of
+  * WATCHDOG_TIMEOUT_MS, and this loop is reached with the lock held. */
+ feedWdt( );
+ size_t cons = 0;
+ { StorageManager::ReadGuard rg(_storageMgr.get( ));
+ /* A1: refill DEPOIS da falha do decode. Com o limiar antigo
+  * (`g4RdFilled < anchorByteSize`), um delta grande na borda do
+  * buffer encerrava o laço e o gráfico aparecia truncado. */
+ cons = histV4DecodeNextRefill(
+ g4RdBuf, sizeof(g4RdBuf), g4RdFilled, g4st, g4vals, &g4epoch,
+ [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+ if (f.available() <= 0) return 0;
+ int rN = f.read(dst, maxBytes);
+ return (rN > 0) ? (size_t)rN : 0;
+ });
+ hm4 = (g4RdFilled > 0 || f.available() > 0);
+ }
+ if (cons == 0) break;
+
+ time_t ts = (time_t)g4epoch;
+ if (ts < cutoff) continue;
+ if (ts > effectiveEnd) break;
+
+ float vr = NAN, hr = NAN;
+ if (tMi >= 0 && !histV4IsNan(g4vals[tMi], g4st.measures[tMi].bitWidth))
+ vr = histV4ToFloat(g4vals[tMi], g4st.measures[tMi]);
+ if (hMi >= 0 && !histV4IsNan(g4vals[hMi], g4st.measures[hMi].bitWidth))
+ hr = histV4ToFloat(g4vals[hMi], g4st.measures[hMi]);
+ if (ts < epochLimit) vr = NAN;
+
+ if (!isnan(vr)) {
+ if (vr < pkg.realMinVal) { pkg.realMinVal = vr; pkg.tsRealMin = ts; }
+ if (vr > pkg.realMaxVal) { pkg.realMaxVal = vr; pkg.tsRealMax = ts; }
+ }
+
+ lineIdx++;
+ if (lineIdx % decimation != 0) continue;
+
+ pkg.pointsV1[pkg.count] = vr;
+ pkg.tsPoints[pkg.count] = (uint32_t)ts;
+ if (pkg.hasHumidity) pkg.pointsV2[pkg.count] = hr;
+ if (pkg.count == 0) pkg.tsFirst = ts;
+
+ if (!isnan(vr)) {
+ if (vr < pkg.minVal) { pkg.minVal = vr; pkg.idxMinTemp = pkg.count; pkg.tsMinTemp = ts; }
+ if (vr > pkg.maxVal) { pkg.maxVal = vr; pkg.idxMaxTemp = pkg.count; pkg.tsMaxTemp = ts; }
+ }
+ if (pkg.hasHumidity && !isnan(hr)) {
+ if (hr < localHumMin) { localHumMin = hr; pkg.tsMinHum = ts; }
+ if (hr > localHumMax) { localHumMax = hr; pkg.tsMaxHum = ts; }
+ }
+ pkg.count++;
+ }
+ _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock();
+ continue;
+ }
+
  /* v2: validate SIM2 header. No optimized seek (variable records). */
  HistoryFileHeaderV2 hdrG;
  bool headerOkG = false;
@@ -186,7 +331,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  f.seek(0);
  if (f.read((uint8_t*)&hdrG, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOkG = (memcmp(hdrG.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdrG.version == HIST_V2_VERSION &&
+ (hdrG.version == HIST_V2_VERSION || hdrG.version == HIST_V3_VERSION) &&
  hdrG.anchorPeriod > 0);
  }
  }
@@ -195,6 +340,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
 
  HistoryCodecState gState;
  historyCodecReset(gState);
+ gState.fileVersion = hdrG.version; /* MUST set before decode — auto-detect unreliable */
  uint16_t gAnchorPeriod = hdrG.anchorPeriod;
  uint8_t gRdBuf[256];
  size_t gRdFilled = 0;
@@ -203,6 +349,9 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  bool budgetExceeded = false;
 
  while (hasMore && pkg.count < GRAPH_WIDTH && !budgetExceeded) {
+ /* Same reason as the V4 loop: the budget bounds the work, it does not keep
+  * the watchdog alive during it. */
+ feedWdt( );
  if (timeSince(_graphBudgetStart, GRAPH_BUDGET_MS)) {
  LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 0, "");
  budgetExceeded = true;

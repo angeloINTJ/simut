@@ -16,6 +16,7 @@
 
 #include "DisplayManager.h"
 #include "LogManager.h"
+#include "FlashIrqProbe.h" /* Core-1 exposure flags for the flash probe */
 #if SIMUT_DISPLAY_TFT
 #include "DisplayManager_Fonts.h"
 #endif
@@ -25,6 +26,8 @@
 
 #include "hardware/structs/timer.h"
 #include "hardware/sync.h"
+#include "hardware/irq.h"   /* Core-1 private wait: exclusive alarm handler */
+#include "hardware/timer.h" /* hardware_alarm_claim_unused, TIMER_IRQ_0 */
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -120,7 +123,8 @@ constexpr int16_t DisplayManager::CAL_SCR_Y[4];
 DisplayManager::DisplayManager( ) {
 	_instance = this;
 	mutex_init(&_stateMutex);
-	queue_init(&_eventQueue, sizeof(UiEvent), 10);
+	/* UI events: SPSC lock-free ring (see DisplayManager.h) — no init
+	 * needed beyond the zeroed indices. */
 	_sharedState.slotTemp = NAN;
 	_sharedState.slotValid = false;
 	_sharedState.topSlotTemp = NAN; _sharedState.topSlotValid = false;
@@ -160,15 +164,104 @@ DisplayManager::DisplayManager( ) {
 
 void DisplayManager::begin( ) {}
 
-void DisplayManager::startCore1( ) { multicore_launch_core1(core1Entry); }
+/* Wave 2 / invariant 3 (docs/CONCURRENCY.md): mutex ownership probe.
+ * pico-sdk mutexes are non-recursive; mutex_try_enter by the owning core
+ * fails and reports the owner — exactly the signal we need. If the try
+ * SUCCEEDS, we did not previously hold it (release immediately). */
+bool DisplayManager::stateMutexHeldByCurrentCore( ) {
+	if (!_instance) return false;
+	uint32_t owner = 0;
+	if (mutex_try_enter(&_instance->_stateMutex, &owner)) {
+		mutex_exit(&_instance->_stateMutex);
+		return false;
+	}
+	return owner == get_core_num( );
+}
+
+#ifdef SIMUT_CONCURRENCY_ASSERTS
+/* Free-function bridge declared in ConcurrencyAsserts.h so StorageManager
+ * does not need to include DisplayManager.h. */
+bool simutStateMutexHeldByCurrentCore( ) {
+	return DisplayManager::stateMutexHeldByCurrentCore( );
+}
+#endif
+
+/* THE single funnel for every Core-1 launch.
+ *
+ * multicore_launch_core1_raw( ) is an UNBOUNDED push/pop FIFO handshake: it
+ * repeats a 6-word sequence until Core 1 echoes each word. A core that is already
+ * running never echoes — its lockout victim handler drains the words and ignores
+ * anything that is not a request_id — so Core 0 spins there forever with the
+ * watchdog unfed. Field evidence: every [FTL] in the persisted log carries ctx=0,
+ * the HW-watchdog branch of the autopsy (Core 0 stalled, NOT Core 1 declared
+ * dead), and each one follows an APP_CORE1_DEAD — that is, follows a
+ * restartCore1( ). Funnelling every launch here turns that hang into a no-op. */
+void DisplayManager::launchCore1IfAbsent( ) {
+	if (_core1Launched) return;
+	_core1Launched = true;
+	g_core1Launches++;
+	{ LogManager::TraceScope _t(0, MOD_C1_LAUNCH); multicore_launch_core1(core1Entry); }
+}
+
+/* Call from EVERY site that resets Core 1, immediately before the reset.
+ *
+ * Draining Core 0's inbox first is the other half of the reboot fix:
+ * multicore_reset_core1( ) ends with an untimed multicore_fifo_pop_blocking( )
+ * and does NOT drain beforehand, so a stale word left by an aborted lockout
+ * handshake gets consumed in place of Core 1's post-reset zero (the SDK assert is
+ * a no-op in release). The real zero then stays queued and every later handshake
+ * is one word out of phase — which is how an untimed pop or launch waits forever.
+ *
+ * Clearing _core1Launched re-arms the funnel: miss it at a kill site and the
+ * matching recovery launch silently becomes a no-op, leaving the display dead for
+ * good. It deliberately does NOT touch _core1Ready, which also gates the RELEASE
+ * direction of pauseRendering( ) — the path that relaunches Core 1 after the
+ * lockout fallback. */
+void DisplayManager::markCore1Down( ) {
+	g_core1Running = 0;
+	_core1Launched = false;
+	/* Invalidate the phase stamp at the kill, not at the relaunch.
+	 * g_core1PhaseUs is an ordinary global and survives multicore_reset_core1,
+	 * so without this the first C1_PHASE after a relaunch measures `now - the
+	 * stamp from before the kill` and charges the entire dead window to whatever
+	 * phase Core 1 happened to be in when it was killed. A run with 24 kills
+	 * produced LOOP_TOP=62036 ms and PARK=62032 ms that way — numbers that read
+	 * as spectacular new stalls and are only bookkeeping. The zero is honoured by
+	 * the guard in C1_PHASE and by core1StallSample. */
+	g_core1PhaseUs = 0;
+	multicore_fifo_drain( );
+}
+
+void DisplayManager::startCore1( ) { launchCore1IfAbsent( ); }
 
 void DisplayManager::restartCore1( ) {
-	multicore_reset_core1( );
+	/* Clean up lockout state before resetting Core 1.
+	 * multicore_reset_core1() stops Core 1 immediately — if Core 1 was
+	 * inside a multicore_lockout at reset time, the SDK's internal
+	 * lockout mutex is left in an unbalanced state. Without this cleanup,
+	 * ALL subsequent multicore_lockout_start_* calls on Core 0 hang
+	 * (timeout after 500ms, retry loop), producing the recurring
+	 * "[DSP] Lockout stuck >10s" error on every flash operation. */
+	g_core1KillsHealth++;
+	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+	{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking(); }
+	markCore1Down( );
+	{ LogManager::TraceScope _t(0, MOD_C1_RESET); multicore_reset_core1( ); }
 	delay(50);
 	mutex_init(&_stateMutex);
+	_pauseStartTime = 0;
 	_isPausedForFlash = false;
+	/* We relaunch below, so nothing is left for the unpause path to do.
+	 * Leaving this set made pauseRendering(false) take its hard-reset branch
+	 * and launch a SECOND time onto the core started here. */
+	__atomic_store_n(&_core1HardReset, false, __ATOMIC_RELEASE);
 	_lastHeartbeat = millis( );
-	multicore_launch_core1(core1Entry);
+	launchCore1IfAbsent( );
+	/* Past every untimed SDK call. A stall traced here happened AFTER the kill
+	 * sequence completed, which is a different bug from stalling inside it —
+	 * launchCore1IfAbsent restores the caller's module on its way out, so
+	 * without this the two were indistinguishable in the autopsy. */
+	TRACE_MOD(0, MOD_C1_KILLED);
 }
 
 void DisplayManager::setLanguage(int langId) {
@@ -288,6 +381,11 @@ void DisplayManager::pauseRendering(bool pause) {
 		int32_t prev = __atomic_fetch_add(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);
 		if (prev == 0) {
 			_pauseStartTime = millis( );
+			/* Who is freezing Core 1, and for how long. Recorded at the 0->1
+			 * transition because that is the pause which actually holds the core. */
+			g_core1PauseStartMs = _pauseStartTime;
+			g_core1PauseLastMod0 = LogManager::instance( ).getModule(0);
+			g_core1PauseCount++;
 			LogManager::instance( ).setCorePaused(1, true);
 
 			/*
@@ -304,51 +402,166 @@ void DisplayManager::pauseRendering(bool pause) {
 			 * Retry forever — prefer a visibly "slow" system over
 			 * a reboot with truncated autopsy.
 			 */
+			/* Quiesce BEFORE the IRQ lockout (same T1.1 handshake as
+			 * requestQuietMode): park Core 1 at the top of its loop —
+			 * outside malloc/free, the event-queue spinlock and any SPI
+			 * burst — so the lockout freezes it at a point where it holds
+			 * NO shared lock. A lockout landing mid-malloc/mid-log leaves
+			 * that lock frozen-held; any later Core-0 attempt to take it
+			 * inside the flash section blocks forever with the WDT unfed
+			 * (autopsy: C0=[HIST_FLASH] C1=[DISPLAY]). Timeout 200 ms:
+			 * the fallback is exactly the previous behavior (freeze
+			 * wherever Core 1 happens to be). */
+			if (__atomic_load_n(&_core1Ready, __ATOMIC_ACQUIRE)) {
+				__atomic_store_n(&_quiescePlease, true, __ATOMIC_RELEASE);
+				uint32_t q0 = millis( );
+				while (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) &&
+				       !timeSince(q0, 200)) {
+					tight_loop_contents( );
+				}
+			}
+
+			/* B: SHORT lockout budget.
+			 * Measured on the bench: a lockout that is not granted almost at once is
+			 * not granted at all, and the old 3 s budget was 3 s of Core 0 spinning —
+			 * it stalls the transfer AND sits inside the 5-15 s freeze the user sees,
+			 * because the kill that follows adds a Core-1 relaunch and a full repaint.
+			 * g_core1LockWaitMaxMs measures what a GRANTED lockout really costs, so
+			 * this number can be judged by data instead of taste. The hard reset stays
+			 * as the fallback: program/erase with Core 1 loose in XIP is the reboot
+			 * class of e035791, so proceeding unprotected is never an option. */
+			const uint32_t lockBudgetMs = 400;
 			uint32_t retryStart = millis( );
 			uint32_t lastCleanup = retryStart;
-			while (!multicore_lockout_start_timeout_us(500000)) {
+			while (!multicore_lockout_start_timeout_us(100000)) {
 				watchdog_update( );
-				if (timeSince(lastCleanup, 2000)) {
+				if (timeSince(lastCleanup, 200)) {
 					/* Lockout state possibly corrupted: clean before
 					 * new attempt. end_blocking is idempotent if
 					 * mutex has already been released. */
-					multicore_lockout_end_blocking( );
+					{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
 					lastCleanup = millis( );
 					watchdog_update( );
 				}
-				/* After 10s without success, assume Core 1
-				 * dead and restart it before continuing. */
-				if (timeSince(retryStart, 10000)) {
-					Serial.println("[DSP] Lockout stuck >10s, restarting Core 1");
+				/* After 3s without success, fall back to hard reset.
+				 * multicore_reset_core1() stops Core 1 immediately - no
+				 * handshake needed. All flash ops are safe. */
+				if (timeSince(retryStart, lockBudgetMs)) {
+					Serial.println("[DSP] Lockout nao concedido no orcamento; hard reset Core1");
+					g_core1LockoutStuck++;
+					g_core1KillsLockout++;
+					/* Name the culprit: which Core-0 path requested this pause, and had
+					 * Core 1 actually ACKed the quiesce? A stuck lockout with parked=1
+					 * means Core 1 was responsive and the SDK handshake still failed;
+					 * parked=0 means Core 1 never reached its park point. Different bugs. */
+					g_core1StuckMod0 = LogManager::instance( ).getModule(0);
+					g_core1StuckParked = __atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) ? 1 : 0;
+					g_core1StuckPhase = g_core1Phase;
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
-					LogManager::instance( ).setCorePaused(1, false);
-					multicore_reset_core1( );
-					delay(50);
-					multicore_launch_core1(core1Entry);
+					LogManager::instance( ).setCorePaused(1, true);
+					{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
+					markCore1Down( );
+	{ LogManager::TraceScope _t(0, MOD_C1_RESET); multicore_reset_core1( ); }
+					/* Same rationale as requestQuietMode: Core 1 may have
+					 * died holding _stateMutex — reinit at kill time so
+					 * Core-0 setters can't block on a corpse-held mutex. */
+					mutex_init(&_stateMutex);
+					accountPauseEnd( );
+					_pauseStartTime = 0;
+					__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+					__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
+					_core1HardReset = true;
+					/* Same reason as at the end of restartCore1( ): mark the window
+					 * between "Core 1 is dead" and the caller's next marker, so the
+					 * flash op this pause exists for can be told apart from the kill. */
+					TRACE_MOD(0, MOD_C1_KILLED);
 					return;
 				}
 			}
+			{
+				const uint32_t waited = millis( ) - retryStart;
+				g_core1LockWaitLastMs = waited;
+				if (waited > g_core1LockWaitMaxMs) g_core1LockWaitMaxMs = waited;
+			}
+			/* Lockout holds Core 1 frozen (inside the park loop if the
+			 * quiesce succeeded). Release the park request now: when the
+			 * lockout ends on unpause, Core 1 re-checks _quiescePlease,
+			 * sees false, and resumes normally. */
+			__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+
+			/* Core 1 is frozen at IRQ level from here until the unpause, so
+			 * its loop — and with it _lastHeartbeat — stops advancing. Mark
+			 * it, so getHeartbeat( ) does not report deliberate downtime as
+			 * a stalled core. This flag was declared, cleared in five places
+			 * and read by getHeartbeat( ), but never once set: the guard has
+			 * been dead code, and every millisecond spent paused for flash
+			 * counted against the 10 s health threshold. */
+			_isPausedForFlash = true;
+			g_core1FlashSafeDepth++;
 		}
 	} else {
 		int32_t prev = __atomic_fetch_sub(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);
 		if (prev <= 1) {
 
 			__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+			accountPauseEnd( );
 			_pauseStartTime = 0;
-			multicore_lockout_end_blocking( );
-			LogManager::instance( ).setCorePaused(1, false);
+			if (__atomic_exchange_n(&_core1HardReset, false, __ATOMIC_ACQ_REL)) {
+				/* Core 1 was hard-reset by the lockout timeout: there is no
+				 * live victim to release, so multicore_lockout_end_blocking
+				 * must NOT run (it would handshake with a dead core). Reinit
+				 * shared state exactly like releaseQuietMode() — Core 1 may
+				 * have died holding _stateMutex — then relaunch fresh. */
+				mutex_init(&_stateMutex);
+				__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+				__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
+				_isPausedForFlash = false;
+				_lastHeartbeat = millis( );
+				LogManager::instance( ).setCorePaused(1, false);
+				launchCore1IfAbsent( );
+				/* core1Entry re-runs victim_init and sets _core1Ready. */
+			} else {
+				{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
+				/* Core 1 resumes here, but its first loop iteration — and so
+				 * the next _lastHeartbeat write — is microseconds away, while
+				 * _pauseStartTime has already been zeroed above. Stamp the
+				 * heartbeat on release so the health watchdog never sees the
+				 * frozen value in that gap and hard-resets a healthy core. */
+				_lastHeartbeat = millis( );
+				_isPausedForFlash = false;
+				if (g_core1FlashSafeDepth > 0) g_core1FlashSafeDepth--;
+				LogManager::instance( ).setCorePaused(1, false);
+			}
 		}
 	}
 }
 
+
+/* Fold the finished pause into the max/owner accounting. MUST be called
+ * before _pauseStartTime is zeroed, from every path that ends a pause. */
+void DisplayManager::accountPauseEnd( ) {
+	const uint32_t start = _pauseStartTime;
+	if (start != 0) {
+		const uint32_t held = millis( ) - start;
+		if (held > g_core1PauseMaxMs) {
+			g_core1PauseMaxMs = held;
+			g_core1PauseMaxMod0 = g_core1PauseLastMod0;
+		}
+	}
+	g_core1PauseStartMs = 0;
+}
 
 void DisplayManager::forceUnpause( ) {
 	int32_t prev = __atomic_load_n(&_pauseRefCount, __ATOMIC_ACQUIRE);
 	if (prev > 0) {
 		LOG_CODE(LOG_ERROR, "DSP", DSP_FORCE_UNPAUSE, prev, String(TRL("forceUnpause: refCount=")) + prev);
 		__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+		accountPauseEnd( );
 		_pauseStartTime = 0;
-		multicore_lockout_end_blocking( );
+		{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
+		_lastHeartbeat = millis( );
+		_isPausedForFlash = false;
+		g_core1FlashSafeDepth = 0;
 		LogManager::instance( ).setCorePaused(1, false);
 	}
 }
@@ -540,7 +753,15 @@ void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
 
 
 
-bool DisplayManager::getUiEvent(UiEvent& ev) { return queue_try_remove(&_eventQueue, &ev); }
+bool DisplayManager::getUiEvent(UiEvent& ev) {
+	/* Core-0-only consumer of the SPSC ring. */
+	uint32_t h = _evHead; /* single consumer: plain read of own index */
+	uint32_t t = __atomic_load_n(&_evTail, __ATOMIC_ACQUIRE);
+	if (h == t) return false;
+	ev = _evRing[h % UI_EV_RING];
+	__atomic_store_n(&_evHead, h + 1, __ATOMIC_RELEASE);
+	return true;
+}
 void DisplayManager::core1Entry( ) { if (_instance) _instance->loopCore1( ); }
 
 /* HARD-RESET approach (replaces the cooperative one
@@ -575,16 +796,48 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 		/* Already in quiet mode — external caller holds. */
 		return true;
 	}
+	/* T1.1 QUIESCE (stability wave 1): ask Core 1 to park at the top of
+	 * its loop — a point guaranteed to be outside malloc/free, outside
+	 * the event-queue spinlock and outside any SPI burst — before the
+	 * hard reset. A reset landing inside malloc leaves the allocator
+	 * mutex held forever (Core 0 hangs on its next allocation → WDT);
+	 * inside queue_try_add it leaks a spinlock (both cores hang).
+	 * Timeout 200 ms: the fallback is exactly the previous behavior
+	 * (reset wherever Core 1 is), so this can never be worse. */
+	if (__atomic_load_n(&_core1Ready, __ATOMIC_ACQUIRE)) {
+		__atomic_store_n(&_quiescePlease, true, __ATOMIC_RELEASE);
+		uint32_t t0 = millis( );
+		while (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) &&
+		       !timeSince(t0, 200)) {
+			tight_loop_contents( );
+		}
+		if (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE)) {
+			LOG_CODE(LOG_WARN, "DSP", DSP_FORCE_UNPAUSE, 1,
+			         TRL("Quiesce timeout — hard reset fallback"));
+		}
+	}
 	/* First level: hard-reset Core 1. Stops immediately; flash work safe. */
-	multicore_reset_core1( );
+	g_core1KillsQuiet++;
+	markCore1Down( );
+	{ LogManager::TraceScope _t(0, MOD_C1_RESET); multicore_reset_core1( ); }
 	delay(50); /* Short pause for SSI/SPI to stabilize. */
+	/* Reinit _stateMutex AT KILL TIME, not only in releaseQuietMode:
+	 * if the quiesce timed out, Core 1 may have died holding it (render
+	 * copies state under mutex_try_enter). Any Core-0 setter called
+	 * inside the quiet window — e.g. loadAndCalibrateSensors →
+	 * setSlotData → mutex_enter_blocking — would block forever with the
+	 * WDT unfed (save-storm autopsy: C0=[CLI] C1=[DISPLAY]). */
+	mutex_init(&_stateMutex);
 	/* Core 1 is now dead. Set flags for consumers:
 	 * - _core1Ready = false: pauseRendering becomes no-op (no IRQ lockout).
 	 * - _quietModeActive = true: isInQuietMode() returns true. */
 	__atomic_store_n(&_core1Ready, false, __ATOMIC_RELEASE);
 	__atomic_store_n(&_quietModeActive, true, __ATOMIC_RELEASE);
 	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+	__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+	__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
 	_isPausedForFlash = false;
+	_quietSince = millis( ); /* T1.5 leak watchdog anchor. */
 	LogManager::instance( ).setCorePaused(1, true);
 	return true;
 }
@@ -605,19 +858,89 @@ void DisplayManager::releaseQuietMode( ) {
 	 * zero pause flags. New Core 1 will redraw everything in core1Entry. */
 	mutex_init(&_stateMutex);
 	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+	__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
+	__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
 	_isPausedForFlash = false;
+	_quietSince = 0; /* T1.5: leak watchdog disarmed. */
 	_lastHeartbeat = millis( );
 	__atomic_store_n(&_quietModeActive, false, __ATOMIC_RELEASE);
 	LogManager::instance( ).setCorePaused(1, false);
-	multicore_launch_core1(core1Entry);
+	launchCore1IfAbsent( );
 	/* Core 1 will set _core1Ready=true after victim_init in loopCore1. */
 }
 
 #if !SIMUT_DISPLAY_ALPHA
+
+/* ── Private timed wait for Core 1 ─────────────────────────────────────────
+ *
+ * See FlashIrqProbe.h for the three couplings in delay( ) this removes and how
+ * each was verified. In short: that path is entirely flash-resident, waits behind
+ * a spinlock shared with Core 0 (which the SDK documents as disabling
+ * interrupts), and is woken by an alarm whose IRQ is enabled on CORE 0. Core 1
+ * was measured frozen in it for 14.3 s.
+ *
+ * This replacement owns one hardware alarm, arms it with a single MMIO write and
+ * sleeps in __wfe. No lock is needed: an enabled interrupt taken on this core
+ * wakes WFE, and the ARM event register makes "check then sleep" race-free — if
+ * the alarm fires between the check and the __wfe, the pending IRQ makes the WFE
+ * return immediately rather than sleep through it.
+ *
+ * SRAM-resident so it stays executable while a flash program/erase has XIP down.
+ * __no_inline_not_in_flash_func and not __not_in_flash_func: the section attribute
+ * only places an OUT-OF-LINE copy, and GCC inlined both of these into loopCore1 —
+ * which lives in flash — silently voiding the one property under test. The build
+ * is checked with nm afterwards rather than trusted.
+ *
+ * The claim happens from Core 1 precisely so irq_set_enabled lands on Core 1's
+ * NVIC; doing it from Core 0 would rebuild the dependency being removed. */
+static uint8_t s_c1AlarmNum = 0xFF;
+
+static void __no_inline_not_in_flash_func(core1AlarmIsr)( ) {
+	/* Ack only. The wake is the interrupt itself, not anything this writes. */
+	timer_hw->intr = 1u << s_c1AlarmNum;
+}
+
+static void core1WaitInit( ) {
+	if (s_c1AlarmNum != 0xFF) return;              /* relaunch: already ours */
+	const int n = hardware_alarm_claim_unused(false);
+	if (n < 0) return;                             /* none free: stay on delay( ) */
+	s_c1AlarmNum = (uint8_t)n;
+	irq_set_exclusive_handler((uint)(TIMER_IRQ_0 + n), core1AlarmIsr);
+	irq_set_enabled((uint)(TIMER_IRQ_0 + n), true);
+	hw_set_bits(&timer_hw->inte, 1u << n);
+	g_core1WaitAlarm = s_c1AlarmNum;
+}
+
+static void __no_inline_not_in_flash_func(core1WaitUs)(uint32_t us) {
+	const uint32_t t0     = timer_hw->timerawl;
+	const uint32_t target = t0 + us;
+	timer_hw->alarm[s_c1AlarmNum] = target;
+	C1_PHASE(C1P_W_WFE);
+	uint32_t wakes = 0;
+	/* Signed compare: wrap-safe, and false immediately if the target already
+	 * passed while we were arming, in which case we never sleep at all. */
+	while ((int32_t)(timer_hw->timerawl - target) < 0) {
+		__wfe( );
+		wakes++;
+	}
+	/* Disarm: if the target had already passed, the comparator never matched and
+	 * the alarm would otherwise still be armed ~71 min from now. */
+	timer_hw->armed = 1u << s_c1AlarmNum;
+	const uint32_t held = timer_hw->timerawl - t0;
+	if (held > g_core1WaitMaxUs) g_core1WaitMaxUs = held;
+	/* More than one wake means some other interrupt on this core returned from
+	 * __wfe before our alarm did; the loop simply re-checked and slept again. It is
+	 * expected and harmless — lateness would show up in g_core1WaitMaxUs, not here. */
+	if (wakes > 1) g_core1WaitExtraWakes++;
+}
+
 void DisplayManager::loopCore1( ) {
 
 	multicore_lockout_victim_init( );
 	_core1Ready = true;
+	g_core1Running = 1;   /* live from here: XIP fetches can now collide with flash */
+	C1_PHASE(C1P_INIT);
+	core1WaitInit( );     /* from Core 1, so the alarm IRQ is Core 1's */
 
 	/* Heap allocations preserved across resets.
 	 * Touch MUST be reinitialized on every launch — attachInterrupt connects
@@ -635,7 +958,21 @@ void DisplayManager::loopCore1( ) {
 	_driver.ts->setRotation(3);
 
 	if (_driver.firstInit) {
-		_driver.tft->begin( );
+		/* Explicit clock. begin( ) with no argument took Adafruit_ILI9341's
+		 * SPI_DEFAULT_FREQ, and RP2040 matches none of that header's platform arms
+		 * so it landed on the generic 24 MHz — which the hardware cannot produce.
+		 * The PL022 divider only yields clk_peri / (prescale * postdiv), and with
+		 * clk_peri at 125 MHz the reachable ladder is 62.5 / 31.25 / 20.83 / 15.6.
+		 * A 24 MHz request therefore ran at 20.83 MHz, one rung below a free 1.5x.
+		 *
+		 * 31.25 MHz is the conservative rung: it is above Adafruit's own default
+		 * for every other platform and well inside what ILI9341 modules take, but
+		 * this is a breadboard with jumper wires, so it is a named constant and a
+		 * one-line revert if the panel shows artefacts. 62.5 MHz is the PL022
+		 * ceiling and would halve the wire time again — do not raise it without
+		 * looking at the screen. */
+		constexpr uint32_t TFT_SPI_HZ = 31250000u;
+		_driver.tft->begin(TFT_SPI_HZ);
 		_driver.tft->setRotation(3);
 		_driver.tft->fillScreen(C_BG_MAIN);
 		if (!_sharedState.isBooting) drawInterfaceFixed( );
@@ -644,6 +981,7 @@ void DisplayManager::loopCore1( ) {
 	} else {
 		/* Post-reset resume: TFT retains last frame (ILI9341 memory).
 		 * Force delta render on next iteration to update data. */
+		C1_PHASE(C1P_RESUME_MUTEX);
 		mutex_enter_blocking(&_stateMutex);
 		_isDirty = true;
 		mutex_exit(&_stateMutex);
@@ -659,19 +997,59 @@ void DisplayManager::loopCore1( ) {
 
 		TRACE_MOD(1, MOD_DISPLAY);
 		TRACE_BEAT(1);
+		C1_PHASE(C1P_LOOP_TOP);
+
+		/* T1.1 SAFE PARK (stability wave 1): honored at the loop top —
+		 * guaranteed outside malloc/free, the event-queue spinlock and
+		 * any SPI transaction. Core 0 will hard-reset us while we spin
+		 * here; the heartbeat keeps the Core-1 health watchdog quiet
+		 * during the (sub-200 ms) wait. */
+		if (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+			C1_PHASE(C1P_PARK);
+			__atomic_store_n(&_core1Parked, true, __ATOMIC_RELEASE);
+			while (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) {
+				_lastHeartbeat = millis( );
+			}
+			__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
+		}
 
 		_lastHeartbeat = millis( );
+		/* Liveness for `show metrics`: age of this stamp is the only outside
+		 * evidence that Core 1 is still completing loop iterations. Stamped
+		 * HERE only — Core 0 also writes _lastHeartbeat on pause/release, and
+		 * mirroring those would fake the very signal we need. */
+		/* Fluidity: iteration count (delta = UI frame rate) and the worst single
+		 * iteration (the perceived stutter). Measured from the previous stamp, so a
+		 * lockout freeze lands in the iteration that was interrupted. */
+		{
+			const uint32_t nowMs = millis( );
+			const uint32_t prevMs = g_core1HeartbeatMs;
+			if (prevMs != 0) {
+				const uint32_t iter = nowMs - prevMs;
+				if (iter > g_core1IterMaxMs) g_core1IterMaxMs = iter;
+			}
+			g_core1HeartbeatMs = nowMs;
+		}
+		g_core1Iters++;
+		g_core1UiMode = (uint8_t)_uiMode;
+		/* One QSPI latency probe per iteration, on the same core whose fetches the
+		 * starvation hypothesis is about. ~30 us against a 15 ms iteration, so it
+		 * cannot itself be what makes the iteration slow. */
+		core1XipProbe( );
 		/* OR with simulated touch active flag.
 		 * handleTouch and mapTouchPoint check _simTouchActive to use
 		 * synthesized screen-space coords. Allows CLI 'touch sim X Y'
 		 * for automation (screenshot capture). */
+		C1_PHASE(C1P_TOUCH_READ);
 		_rawTouchState = _driver.ts->touched( ) ||
 		                 __atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE);
 
 		/* Process touch BEFORE rendering for same-frame response */
+		C1_PHASE(C1P_TOUCH_HANDLE);
 		handleTouch( );
 
 		if (_themeChanged) {
+			C1_PHASE(C1P_THEME_MUTEX);
 			SystemState snap;
 			mutex_enter_blocking(&_stateMutex);
 			snap = _sharedState;
@@ -682,7 +1060,10 @@ void DisplayManager::loopCore1( ) {
 				_driver.tft->setFont(&simutFont12pt);
 				_driver.tft->setTextColor(C_TEXT_MAIN);
 				int16_t x1, y1; uint16_t w, h;
-				String msg = tr(TR_APPLYING_THEME);
+				/* T1.2: Core-1 render path is heap-free — tr( ) already
+				 * returns const char*, the String wrapper was pure waste
+				 * (and a reset-inside-malloc hazard). */
+				const char* msg = tr(TR_APPLYING_THEME);
 				_driver.tft->getTextBounds(msg, 0, 0, &x1, &y1, &w, &h);
 				_driver.tft->setCursor(160 - (w/2), 127);
 				_driver.tft->print(msg);
@@ -702,7 +1083,7 @@ void DisplayManager::loopCore1( ) {
 				drawTopBar(snap);
 				drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid, snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
 				drawSlotPanel(snap.slotTemp, snap.slotHum, snap.slotType, snap.slotValid, snap.selectedSlotIdx, snap.slotName, true, _bottomPanel, snap.slotPres);
-				drawBottomButtons(snap.selectedSlotIdx, true);
+				drawBottomButtons(snap.selectedSlotIdx);
 				_lastRenderedState = snap;
 				_uiMode = MODE_DASHBOARD;
 			} else {
@@ -735,6 +1116,7 @@ void DisplayManager::loopCore1( ) {
 				else if (navTarget < 8) _currentPage = 1;
 				else _currentPage = 2;
 				_alarmRotateTimer = millis( );
+				C1_PHASE(C1P_DASH_MUTEX);
 				mutex_enter_blocking(&_stateMutex);
 				_isDirty = true;
 				mutex_exit(&_stateMutex);
@@ -758,7 +1140,7 @@ void DisplayManager::loopCore1( ) {
 							UiEvent ev;
 							ev.type = UiEvent::EVT_SLOT_SELECT;
 							ev.id = idx;
-							queue_try_add(&_eventQueue, &ev);
+							pushUiEvent(ev);
 							break;
 						}
 					}
@@ -775,49 +1157,46 @@ void DisplayManager::loopCore1( ) {
 				if (now - _alarmFlashTimer >= ALARM_FLASH_INTERVAL_MS) {
 					_alarmFlashTimer = now;
 					_alarmFlashPhase = !_alarmFlashPhase;
-					if (!_webOverlayShown) {
-						redrawAlarmFlash( );
-					}
+					C1_PHASE(C1P_ALARM_FLASH);
+					redrawAlarmFlash( );
 				}
 			} else if (_alarmFlashPhase && !_lastRenderedState.isBooting) {
 
 				_alarmFlashPhase = false;
 				_alarmFlashTimer = 0;
 				_alarmRotateTimer = 0;
-				if (!_webOverlayShown) {
-					restoreNormalDashboard( );
-				}
+				C1_PHASE(C1P_ALARM_FLASH);
+				restoreNormalDashboard( );
 			}
 
 
-			if (_webOverlayShown) {
-				if (!webBusyNow) {
-					_webOverlayShown = false;
-					_forceFullRedraw = true;
-					_isDirty = true;
-
-					if (pullSnapshot(currentSnapshot)) render(currentSnapshot);
-				}
-
-			} else {
-				if (pullSnapshot(currentSnapshot)) render(currentSnapshot);
-			}
+			/* Render unconditionally. This used to be gated on _webOverlayShown,
+			 * which meant that once the user touched during a web transfer the
+			 * dashboard STOPPED UPDATING until the transfer finished — the readings
+			 * froze underneath a blanked screen. Touch is still rejected while a web
+			 * client holds the device (aborting a download would truncate the
+			 * caller's chart), but that is now said in a top-bar banner instead of
+			 * by hiding everything. See drawTopBar( ). */
+			C1_PHASE(C1P_SNAPSHOT);
+			if (pullSnapshot(currentSnapshot)) { C1_PHASE(C1P_RENDER); render(currentSnapshot); }
 		}
 		else if (_uiMode == MODE_GRAPH_LOADING) {
-			if (_repaintLoading) { drawLoadingScreen( ); _repaintLoading = false; }
+			if (_repaintLoading) { C1_PHASE(C1P_UI_GRAPH); drawLoadingScreen( ); _repaintLoading = false; }
 		}
 		else if (_uiMode == MODE_STATS_VIEW) {
-			if (_repaintGraph) { drawStatsScreen( ); _repaintGraph = false; }
+			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawStatsScreen( ); _repaintGraph = false; }
 		}
 		else if (_uiMode == MODE_GRAPH_VIEW) {
-			if (_repaintGraph) { drawGraphScreen( ); _repaintGraph = false; }
+			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphScreen( ); _repaintGraph = false; }
 		}
 		else if (_uiMode == MODE_GRAPH_DETAIL) {
-			if (_repaintGraph) { drawGraphDetailScreen( ); _repaintGraph = false; }
+			if (_repaintGraph) { C1_PHASE(C1P_UI_GRAPH); drawGraphDetailScreen( ); _repaintGraph = false; }
 		}
 		else if (_uiMode == MODE_CALENDAR) {
-			if (_repaintCalendar) { drawCalendarScreen( ); _repaintCalendar = false; }
+			if (_repaintCalendar) { C1_PHASE(C1P_UI_SETTINGS); drawCalendarScreen( ); _repaintCalendar = false; }
 		}
+
+		C1_PHASE(C1P_LOOP_TAIL);
 
 		/* Revert header to date/time after 3s of showing the name */
 		if ((_uiMode == MODE_GRAPH_VIEW || _uiMode == MODE_GRAPH_DETAIL)
@@ -828,13 +1207,13 @@ void DisplayManager::loopCore1( ) {
 			drawGraphHeaderBar( );
 		}
 		else if (_uiMode == MODE_SETTINGS_THEMES) {
-			if (_repaintSettings) { drawSettingsThemes( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARMS) {
-			if (_repaintSettings) { drawSettingsAlarms( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsAlarms( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
-			if (_repaintSettings) { drawAlarmEdit( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_AUTH) {
 			if (_permanentLockout) {
@@ -844,22 +1223,22 @@ void DisplayManager::loopCore1( ) {
 				if (!timeReached(_lockoutUntil)) _repaintSettings = true;
 				else { _lockoutUntil = 0; _forceSettingsRedraw = true; _repaintSettings = true; }
 			}
-			if (_repaintSettings) { drawAuthScreen( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAuthScreen( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_MAIN) {
-			if (_repaintSettings) { drawSettingsMain( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsMain( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_LANG) {
-			if (_repaintSettings) { drawSettingsLang( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsLang( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_PASSWORD) {
-			if (_repaintSettings) { drawSettingsPassword( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsPassword( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {
-			if (_repaintSettings) { drawTouchCalibration( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawTouchCalibration( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_TOUCH_SENS) {
-			if (_repaintSettings) { drawTouchSensitivity( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawTouchSensitivity( ); _repaintSettings = false; }
 			/* After 1.5s from completion, advance to position calibration */
 			if (_sensDone && timeSince(_sensDoneTime, 1500)) {
 				_uiMode = MODE_SETTINGS_TOUCH_CAL;
@@ -885,28 +1264,62 @@ void DisplayManager::loopCore1( ) {
 			}
 		}
 		else if (_uiMode == MODE_SETTINGS_LICENSE) {
-			if (_repaintSettings) { drawSettingsLicense( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsLicense( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_DISPLAY_OFFSET) {
-			if (_repaintSettings) { drawSettingsDisplayOffset( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsDisplayOffset( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_ALARM_ACTION) {
 
-			if (_repaintSettings) { drawAlarmAction( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmAction( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_CONFIRM_MUTE_ALL) {
 
-			if (_repaintSettings) { drawMuteConfirm( ); _repaintSettings = false; }
+			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawMuteConfirm( ); _repaintSettings = false; }
 		}
 
 		/*
-		 * Adaptive delay: minimum during interaction, larger when idle.
+		 * Adaptive pause: minimum during interaction, larger when idle.
 		 * - Active touch or pending repaint: 1ms (maximum responsiveness)
-		 * - Idle: 2ms (CPU savings for Core 0)
+		 * - Idle: 2ms
+		 *
+		 * Core 1 was measured frozen HERE for up to 14.3 s during a history
+		 * download (phase stamp caught it live at 5.0 -> 7.7 -> 13.6 s, per-phase
+		 * table confirmed LOOP_DELAY=14286 ms against a 14336 ms worst iteration),
+		 * so this call is where the R1 freeze happens. delay( ) resolves to
+		 * sleep_ms -> sleep_until, which arms an alarm on the DEFAULT alarm pool
+		 * (IRQ serviced on Core 0) and waits in a spin_lock_blocking / __wfe loop
+		 * on a notifier shared with Core 0 — which also hammers it from
+		 * streamBreath( ), one delay(2) per 512-byte packet, during exactly these
+		 * downloads. spin_lock_blocking disables interrupts on the calling core,
+		 * which would explain `parked=0` and the unanswerable lockout handshake.
+		 *
+		 * TREATMENT TRIED AND REVERTED (rc21): replacing this with
+		 * busy_wait_us_32 — no lock, no alarm, no other core, interrupts left
+		 * enabled. It did not fix the freeze and made the device worse:
+		 * lockout-not-granted went from 1 to 24 events in a comparable storm, and
+		 * the reboots turned into Core-0 stalls in WEB_HSCAN. A hot timer spin on
+		 * Core 1 is the likely reason (it starves nothing in theory, but the
+		 * device says otherwise). So the LOCATION is measured and certain; the
+		 * MECHANISM is not, and the next attempt should establish it before
+		 * swapping the primitive again.
 		 */
 		bool touchActive = _rawTouchState;
 		bool repaintPending = _isDirty || _repaintGraph || _repaintSettings || _repaintLoading;
-		delay(touchActive || repaintPending ? 1 : 2);
+		/* Last markers of the iteration. Without them a freeze here reads as the
+		 * previous phase — which for the dashboard is C1P_RENDER, and that is
+		 * exactly the reading two sessions of this investigation worked from.
+		 *
+		 * Which primitive ran is never assumed: the private wait stamps W_WFE, the
+		 * fallback stamps LOOP_DELAY, so the phase itself says which one a freeze
+		 * happened in. */
+		const uint32_t waitUs = (touchActive || repaintPending ? 1u : 2u) * 1000u;
+		if (s_c1AlarmNum != 0xFF) {
+			core1WaitUs(waitUs);
+		} else {
+			C1_PHASE(C1P_LOOP_DELAY);
+			delay(waitUs / 1000u);
+		}
 	}
 }
 
@@ -944,6 +1357,7 @@ void DisplayManager::render(const SystemState& state) {
  st.topSlotIdx = st.selectedSlotIdx;
  }
 	if (state.isBooting) {
+		C1_PHASE(C1P_R_BOOT);
 		/* _langChanged forces fullRedraw to retranslate bootLogs already
 		 * shown in EN before .lng loaded. */
 		bool langJustChanged = _langChanged;
@@ -997,14 +1411,19 @@ void DisplayManager::render(const SystemState& state) {
 			if (!fullRedraw && cur.key == prev.key &&
 			    strncmp(cur.suffix, prev.suffix, sizeof(cur.suffix)) == 0) continue;
 			_driver.tft->setCursor(20, boxY + 22 + (i*10));
-			String logLine;
+			/* T1.2: fixed buffer on the Core-1 render path (was 2-3 heap
+			 * allocations per changed line). Pad to 46 columns preserved
+			 * so shorter lines still overwrite older, longer ones. */
+			char logLine[48];
 			if (cur.key >= 0 && cur.key < (int16_t)TR_KEYS_COUNT) {
-				logLine = tr((LangKey)cur.key);
-				if (cur.suffix[0]) logLine += cur.suffix;
+				snprintf(logLine, sizeof(logLine), "%s%s",
+				         tr((LangKey)cur.key), cur.suffix);
 			} else {
-				logLine = cur.suffix; /* raw legacy */
+				snprintf(logLine, sizeof(logLine), "%s", cur.suffix); /* raw legacy */
 			}
-			while(logLine.length( ) < 46) logLine += " ";
+			size_t llen = strlen(logLine);
+			while (llen < 46 && llen < sizeof(logLine) - 1) logLine[llen++] = ' ';
+			logLine[llen] = '\0';
 			_driver.tft->print(logLine);
 		}
 
@@ -1033,13 +1452,14 @@ void DisplayManager::render(const SystemState& state) {
 
 	bool full = _forceFullRedraw;
 	if (full) {
+		C1_PHASE(C1P_R_FULL);
 		drawInterfaceFixed( );
 		drawTopBar(state);
 
 
 		drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
 		drawSlotPanel(st.slotTemp, st.slotHum, st.slotType, st.slotValid, st.selectedSlotIdx, st.slotName, true, _bottomPanel, st.slotPres);
-		drawBottomButtons(state.selectedSlotIdx, true);
+		drawBottomButtons(state.selectedSlotIdx);
 		_forceFullRedraw = false;
 		_lastRenderedState = state;
 		return;
@@ -1054,6 +1474,7 @@ void DisplayManager::render(const SystemState& state) {
 	    _webNotifyStartMs > 0 ||
 	    _alarmSilenced ||
 	    _pktArrowState == 3) {
+		C1_PHASE(C1P_R_TOPBAR);
 		drawTopBar(state);
 	}
 
@@ -1069,6 +1490,7 @@ void DisplayManager::render(const SystemState& state) {
 		    abs(st.topSlotHum - _lastRenderedState.topSlotHum) > 0.01 ||
 		    st.topSlotValid != _lastRenderedState.topSlotValid ||
 		    st.topSlotIdx != _lastRenderedState.topSlotIdx) {
+			C1_PHASE(C1P_R_TOP_PANEL);
 			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
 		}
 	}
@@ -1076,6 +1498,7 @@ void DisplayManager::render(const SystemState& state) {
 	/* Return panels to normal mode after 30s without touch */
 	if ((_topPanel.showMinMax || _bottomPanel.showMinMax) &&
 	    timeSince(_lastTouchTime, 30000)) {
+		C1_PHASE(C1P_R_MINMAX);
 		if (_topPanel.showMinMax) {
 			_topPanel.showMinMax = false;
 			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
@@ -1092,8 +1515,9 @@ void DisplayManager::render(const SystemState& state) {
 	bool bTempChanged = (abs(st.slotTemp - _lastRenderedState.slotTemp) > 0.01) || (st.slotValid != _lastRenderedState.slotValid);
 
 	if (slotChanged || bNameChanged || (!_bottomPanel.showMinMax && bTempChanged)) {
+		C1_PHASE(C1P_R_BOT_PANEL);
 		if (slotChanged) {
-			drawBottomButtons(state.selectedSlotIdx, false);
+			drawBottomButtons(state.selectedSlotIdx);
 		}
 
 		drawSlotPanel(st.slotTemp, st.slotHum, st.slotType, st.slotValid, st.selectedSlotIdx, st.slotName, (slotChanged || bNameChanged), _bottomPanel, st.slotPres);
@@ -1101,7 +1525,8 @@ void DisplayManager::render(const SystemState& state) {
 
 	/* Detect alarm state change and redraw buttons + panels */
 	if (_alarmSlotMask != _prevAlarmSlotMask) {
-		drawBottomButtons(state.selectedSlotIdx, true);
+		C1_PHASE(C1P_R_ALARM);
+		drawBottomButtons(state.selectedSlotIdx);
 		if (!_topPanel.showMinMax) {
 			drawSlotPanel(st.topSlotTemp, st.topSlotHum, st.topSlotType, st.topSlotValid, st.topSlotIdx, st.topSlotName, true, _topPanel, st.topSlotPres);
 		}
@@ -1191,7 +1616,7 @@ void DisplayManager::drawSettingsLicense( ) {
 
 		_driver.tft->fillRoundRect(215, btnY, 100, btnH, 8, C_ACCENT);
 		_driver.tft->setTextColor(C_BG_MAIN);
-		String backTxt = tr(TR_BACK);
+		const char* backTxt = tr(TR_BACK); /* T1.2: heap-free render path. */
 		_driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
 		_driver.tft->setCursor(215 + (100 - bw) / 2, btnY + 25); _driver.tft->print(backTxt);
 	}

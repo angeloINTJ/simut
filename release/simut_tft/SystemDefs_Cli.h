@@ -1,6 +1,6 @@
 /**
  * @file SystemDefs_Cli.h
- * @brief CLI command architecture: DemandType + CliDemand.
+ * @brief CLI command architecture: DemandType + CliDemand + CLIMode.
  * @details Enum of commands parsed by CommandManager (USB/BT) and struct
  * CliDemand with typed payload (intVal/strVal/rom/etc). Setters
  * encapsulate safeCopy() for char[] fields. Sub-header of
@@ -48,13 +48,16 @@ enum DemandType {
  CMD_RESET_ADMIN,
  CMD_RESET_TOUCH_CAL,
  CMD_FACTORY_RESET,
+ CMD_FORMAT_FS, /**< system format confirm — LittleFS.format() + reboot (recovers a corrupt-but-mountable FS) */
  CMD_SET_NTP_ENABLED, /**< intVal1 = 0 off, 1 on */
  CMD_SET_DNS_CFG, /**< intVal1 = 0 auto, 1 manual; strVal1=ip1, strVal2=ip2 */
  CMD_SET_TIME, /**< strVal1="YYYY-MM-DD", strVal2="HH:MM:SS" */
  CMD_DEFINE_SENSOR,
  CMD_WIPE_SENSOR,
+ CMD_REMOVE_SENSOR, /**< sensor remove <gpio> confirm — deactivate and clear a slot */
  CMD_ACCEPT_SENSOR,
  CMD_SCAN_SENSORS,
+ CMD_RESCHEMA_SENSORS, /**< sensor reschema — rebuild the V4 schema from the configured slots */
  CMD_WRITE_MEMORY,
  CMD_CLEAR_LOGS,
  CMD_RELOAD,
@@ -69,6 +72,7 @@ enum DemandType {
  CMD_USER_ADD, /**< strVal1 = username; strVal2 = password */
  CMD_USER_DEL, /**< strVal1 = username (protects admin) */
  CMD_USER_PASS, /**< strVal1 = username; strVal2 = new password */
+ CMD_USER_PERM, /**< strVal1 = username; strVal2 = role name or 0xHEX mask */
  CMD_SET_WEB_PORT, /**< intVal1 = port (1..65535) */
 
  /* 'touch sim X Y' — injects touch (x,y) screen-space.
@@ -82,7 +86,42 @@ enum DemandType {
  * touchcal, sounds, alarms, alarmedit, graph, stats, calendar,
  * alarmaction, displayoffset, auth. strVal1=name. */
  CMD_GOTO_SCREEN,
+
+ /* ── Cisco IOS-style mode navigation ── */
+ CMD_ENABLE,        /**< enable — enter privileged EXEC mode */
+ CMD_DISABLE,       /**< disable — return to user EXEC mode */
+ CMD_CONFIGURE,     /**< configure terminal — enter global config mode */
+ CMD_EXIT,          /**< exit — go up one mode level */
+ CMD_END,           /**< end — return to privileged EXEC from any config mode */
+ CMD_DO,            /**< do <cmd> — execute privileged EXEC command from config mode */
+ CMD_SENSOR_ENTER,  /**< sensor <N> — enter sensor config mode (from global config) */
 };
+
+/** Cisco IOS-style hierarchical CLI modes. */
+enum CLIMode : uint8_t {
+ CLI_MODE_USER_EXEC      = 0,  /**< SIMUT> — monitoring, read-only */
+ CLI_MODE_PRIV_EXEC      = 1,  /**< SIMUT# — maintenance, config entry */
+ CLI_MODE_GLOBAL_CONFIG  = 2,  /**< SIMUT(config)# — global configuration */
+ CLI_MODE_SENSOR_CONFIG  = 3   /**< SIMUT(config-sensor-N)# — single sensor */
+};
+
+/** Bitmask constants for command validity by CLI mode. */
+#define CLI_VALID_USER      (1 << CLI_MODE_USER_EXEC)
+#define CLI_VALID_PRIV      (1 << CLI_MODE_PRIV_EXEC)
+#define CLI_VALID_CONFIG    (1 << CLI_MODE_GLOBAL_CONFIG)
+#define CLI_VALID_SENSOR    (1 << CLI_MODE_SENSOR_CONFIG)
+#define CLI_VALID_ALL       (CLI_VALID_USER | CLI_VALID_PRIV | CLI_VALID_CONFIG | CLI_VALID_SENSOR)
+/** Commands that don't change config: valid in any mode including read-only user EXEC. */
+#define CLI_VALID_READONLY  (CLI_VALID_USER | CLI_VALID_PRIV | CLI_VALID_CONFIG)
+
+/** Returns a 4-bit mode mask indicating which CLI modes a DemandType is valid in. */
+uint8_t getCommandModeMask(DemandType t);
+
+/** Returns a human-readable prompt suffix for a CLI mode (e.g. ">", "#", "(config)#"). */
+const char* getModePromptSuffix(CLIMode mode);
+
+/** Returns a one-line help description for a CLI mode (used by '?' at each level). */
+const char* getModeHelpLine(CLIMode mode, bool pt);
 
 /** Parsed CLI command with typed payload fields.
  *
@@ -97,7 +136,7 @@ struct CliDemand {
  char strVal1[64] = {0};
  char strVal2[64] = {0};
  char strVal3[32] = {0};
- int intVal1;
+ int intVal1 = 0; /**< Zero-initialized: handlers must still check intVal1Valid. */
  bool boolVal;
  uint8_t rom[8];
  bool confirmed = false; /**< true if suffix 'confirm' present — gate for destructive commands */

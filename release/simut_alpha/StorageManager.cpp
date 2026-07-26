@@ -22,6 +22,7 @@
 #include <algorithm>
 #include "LogManager.h"
 #include "MetricsManager.h"
+#include "ConcurrencyAsserts.h" /* Wave 2: invariant-3 tripwire (opt-in) */
 #include "pico/unique_id.h"
 #include <hardware/watchdog.h>
 #include <stdio.h>
@@ -31,19 +32,59 @@
 
 const uint32_t CONFIG_MAGIC = 0xCAFEBABE;
 
-/* Chunked flash safe mode, file-scope.
- * Inline expansion: trace MOD_CORE1_LOCK on enter, enterFlashSafeMode,
- * watchdog feed, BLOCK, watchdog feed, exitFlashSafeMode. Used in
- * saveConfiguration (7 sites) and writeHistoryEntryFlash (up to 4 sites).
- * Between chunks, Core 1 exits multicore_lockout and renders 1 frame. */
+/* Chunked flash operation wrapper.
+ * Acquires the FS mutex with timeout + watchdog feed to prevent
+ * main-loop stalls when a long-running read (e.g. web API history)
+ * holds the mutex. After 5 seconds of waiting, gives up silently —
+ * the write will be retried on the next history interval.
+ * WARNING: FLASH_OP does NOT pause Core 1 — and neither does LittleFS
+ * (arduino-pico's idleOtherCore( ) is a no-op without setup1/loop1;
+ * there is no flash_safe_execute in its write path). Any FLASH_OP whose
+ * BLOCK programs/erases flash MUST be preceded by Core1FlashPause (or
+ * run inside quiet mode), or Core 1's XIP fetches wedge the QSPI. */
 #define FLASH_OP(BLOCK) do { \
- { LogManager::TraceScope _trLock(0, MOD_CORE1_LOCK); \
- enterFlashSafeMode( ); } \
- watchdog_update( ); \
- BLOCK; \
- watchdog_update( ); \
- exitFlashSafeMode( ); \
+ SIMUT_ASSERT_NO_STATE_MUTEX(); /* Wave 2: invariant 3 (no-op unless -DSIMUT_CONCURRENCY_ASSERTS) */ \
+ uint32_t _fopStart = millis( ); \
+ while (!mutex_enter_timeout_ms(&_fsReadMutex, 100)) { \
+  watchdog_update( ); \
+  if (timeSince(_fopStart, 5000)) break; \
+ } \
+ if (timeSince(_fopStart, 5000)) { \
+  LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "fs_mutex_timeout"); \
+ } else { \
+  watchdog_update( ); \
+  uint32_t _fopT1 = millis( ); \
+  BLOCK; \
+  /* T0.1 stability metrics: op duration is the observable proxy for \
+   * the IRQ-off windows of flash program/erase (see \
+   * docs/CONCURRENCY.md). >50 ms ~= one 4 KB erase reached. */ \
+  { \
+   uint32_t _fopDur = millis( ) - _fopT1; \
+   SystemMetrics& _fm = MetricsManager::instance( ).data( ); \
+   _fm.flashOps++; \
+   _fm.flashOpTotalMs += _fopDur; \
+   if (_fopDur > _fm.flashOpMaxMs) _fm.flashOpMaxMs = _fopDur; \
+   if (_fopDur > 50) _fm.flashOpsOver50ms++; \
+  } \
+  watchdog_update( ); \
+  mutex_exit(&_fsReadMutex); \
+ } \
 } while (0)
+
+/* RAII: pause Core 1 rendering across flash program/erase bursts.
+ * The FLASH_OP comment above used to claim LittleFS handles the
+ * multicore lockout — it does NOT: arduino-pico's idleOtherCore( ) is
+ * a no-op without setup1/loop1, so flash_range_program/erase would run
+ * with Core 1 executing from XIP, wedging the QSPI arbiter. Core 0
+ * then spins IRQs-off inside the flash op, the WDT never gets fed and
+ * the HW watchdog fires (autopsy: C0=[HIST_FLASH] C1=[DISPLAY]).
+ * Same protection the LogManager flush path takes via requestFsLock:
+ * refcounted pauseRendering, no-op while in quiet mode. */
+struct Core1FlashPause {
+ StorageManager* _s;
+ explicit Core1FlashPause(StorageManager* s) : _s(s) { _s->enterFlashSafeMode( ); }
+ ~Core1FlashPause( ) { _s->exitFlashSafeMode( ); }
+};
 
 const uint16_t CONFIG_VERSION = 17;
 
@@ -278,7 +319,28 @@ bool StorageManager::mountFS( ) {
  return false;
 }
 
-void StorageManager::update( ) {}
+void StorageManager::update( ) {
+ /* T1.4 maintenance slice (stability wave 1): drain deferred storage
+  * cleanup one file at a time, at least 15 s apart, instead of the old
+  * 4 s deletion burst. Runs from the Core-0 loop; enforceStorageLimit
+  * caps itself at 2 deletions and re-arms _cleanupPending as needed. */
+ if (_cleanupPending && _isMounted && !TouchPriority::isActive( )) {
+  static uint32_t _lastCleanupSlice = 0;
+  if (timeSince(_lastCleanupSlice, 15000)) {
+   _lastCleanupSlice = millis( );
+   Core1FlashPause _c1(this); /* file deletion = erase burst */
+   FLASH_OP(enforceStorageLimit( ));
+  }
+ }
+
+ /* T2.1: age-out flush of the history batch — covers the case where
+  * samples stop arriving (sensor gate, time-ref loss) with records
+  * still buffered in RAM. */
+ if (_histBatchLen > 0 && _isMounted && !TouchPriority::isActive( )
+     && timeSince(_histBatchFirstMs, HIST_BATCH_MAX_MS)) {
+  flushHistoryBatch( );
+ }
+}
 
 void StorageManager::loadDefaults( ) {
  memset(&_currentConfig, 0, sizeof(SystemConfig));
@@ -1258,6 +1320,118 @@ void StorageManager::getHistoryFileName(char* buf, size_t len) {
  snprintf(buf, len, "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 }
 
+/* ── V4 history file name ──────────────────────────────────── */
+
+String StorageManager::getHistoryFileNameV4( ) {
+	 return getHistoryFileNameV4((uint32_t)time(nullptr));
+}
+
+String StorageManager::getHistoryFileNameV4(uint32_t epoch) {
+	 time_t t = (time_t)epoch;
+	 struct tm timeinfo;
+	 localtime_r(&t, &timeinfo);
+	 char buff[42];
+	 snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT, DIR_HISTORY,
+	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+	 return String(buff);
+}
+
+void StorageManager::getHistoryFileNameV4(char* buf, size_t len) {
+	 time_t now = time(nullptr);
+	 struct tm timeinfo;
+	 localtime_r(&now, &timeinfo);
+	 snprintf(buf, len, "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT, DIR_HISTORY,
+	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+}
+
+/* ── V4 Schema Builder ──────────────────────────────────────── */
+
+bool StorageManager::buildMeasureSchema(
+     HistV4SensorDef *sensors, uint8_t &sensorCount,
+     HistV4MeasureDef *measures, uint8_t &measureCount,
+     uint8_t *strPool, uint8_t &strPoolSize)
+{
+	 sensorCount   = 0;
+	 measureCount  = 0;
+	 strPoolSize   = 0;
+
+	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
+	 if (!_currentConfig.sensors[slot].active) continue;
+
+	 const auto &sr = _currentConfig.sensors[slot];
+	 SensorFormat fmt = SensorFormat::forType((SensorType)sr.sensorType);
+
+	 /* ── Add sensor to sensor table ── */
+	 uint8_t hwIdOff = strPoolSize;
+	 uint8_t hwIdLen = (uint8_t)strlen(sr.hwId);
+	 if (hwIdLen > 0 && strPoolSize + hwIdLen <= HIST_V4_MAX_STRPOOL) {
+	 memcpy(strPool + strPoolSize, sr.hwId, hwIdLen);
+	 strPoolSize += hwIdLen;
+	 } else {
+	 continue;
+	 }
+
+	 uint8_t nameOff = strPoolSize;
+	 uint8_t nameLen = (uint8_t)strlen(sr.friendlyName);
+	 if (strPoolSize + nameLen <= HIST_V4_MAX_STRPOOL) {
+	 memcpy(strPool + strPoolSize, sr.friendlyName, nameLen);
+	 strPoolSize += nameLen;
+	 } else {
+	 nameLen = 0;
+	 }
+
+	 uint8_t chMask = 0;
+	 for (uint8_t ch = 0; ch < MAX_SENSOR_CHANNELS; ch++) {
+	 if (sensorHasChannel((SensorType)sr.sensorType, ch)) {
+	 chMask |= (1 << ch);
+	 }
+	 }
+
+	 sensors[sensorCount].hwIdOffset  = hwIdOff;
+	 sensors[sensorCount].hwIdLen     = hwIdLen;
+	 sensors[sensorCount].nameOffset  = nameOff;
+	 sensors[sensorCount].nameLen     = nameLen;
+	 sensors[sensorCount].sensorType  = sr.sensorType;
+	 sensors[sensorCount].channelMask = chMask;
+	 sensors[sensorCount].flags       = 0;
+	 memset(sensors[sensorCount].reserved, 0, 2);
+
+	 /* ── Add measurements (one per channel of this sensor) ── */
+	 for (uint8_t ch = 0; ch < MAX_SENSOR_CHANNELS; ch++) {
+	 if (!sensorHasChannel((SensorType)sr.sensorType, ch)) continue;
+
+	 const auto &vf = fmt.values[ch];
+
+	 uint8_t unitOff = strPoolSize;
+	 uint8_t unitLen = (uint8_t)strlen(vf.unit);
+	 if (strPoolSize + unitLen > HIST_V4_MAX_STRPOOL) break;
+	 memcpy(strPool + strPoolSize, vf.unit, unitLen);
+	 strPoolSize += unitLen;
+
+	 /* Use user-configured bit width if set, else default for channel */
+	 uint8_t bw = sr.channelBitWidth[ch];
+	 if (bw == 0) bw = histV4DefaultBitWidth(ch);
+
+	 measures[measureCount].sensorIdx  = sensorCount;
+	 measures[measureCount].channel    = ch;
+	 measures[measureCount].bitWidth   = bw;
+	 measures[measureCount].decimals   = vf.decimals;
+	 measures[measureCount].unitOffset = unitOff;
+	 measures[measureCount].unitLen    = unitLen;
+	 measures[measureCount].scale      = histV4DefaultScale(ch);
+	 measureCount++;
+	 if (measureCount >= HIST_V4_MAX_MEASUREMENTS) break;
+	 }
+
+	 sensorCount++;
+	 if (sensorCount >= HIST_V4_MAX_SENSORS) break;
+	 if (measureCount >= HIST_V4_MAX_MEASUREMENTS) break;
+	 }
+
+	 return sensorCount > 0 && measureCount > 0;
+}
+
+
 bool StorageManager::flushPendingHist( ) {
  if (!_isMounted || !_pendingHistValid) return false;
  BinaryHistoryRecord rec = _pendingHistRec;
@@ -1268,15 +1442,16 @@ bool StorageManager::flushPendingHist( ) {
 bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
  if (!_isMounted) return false;
 
- /* Defensive: reject absurd timestamps (epoch < 2023-11 or in the future).
- * Avoids creating files like /history/19691231.bin when the clock hasn't
- * synced via NTP yet — those files confuse the telemetry
- * cursor later (absurd epochs in the payload). */
+ /* Defensive: reject absurd timestamps (epoch anterior a HIST_EPOCH_MIN
+ * ou no futuro). Avoids creating files like /history/19691231.bin when
+ * the clock hasn't synced via NTP yet — those files confuse the
+ * telemetry cursor later (absurd epochs in the payload).
+ * L1: piso unificado; era um literal 1,7e9, divergente do 1,6e9 usado
+ * pelo escritor V4 — a janela entre os dois era gravada e nunca lida. */
  {
- const uint32_t EPOCH_MIN = 1700000000UL;
  uint32_t nowEpoch = (uint32_t)time(nullptr);
- if (rec.epoch < EPOCH_MIN) return false;
- if (nowEpoch > EPOCH_MIN && rec.epoch > nowEpoch + 86400UL) return false;
+ if (rec.epoch < HIST_EPOCH_MIN) return false;
+ if (nowEpoch > HIST_EPOCH_MIN && rec.epoch > nowEpoch + 86400UL) return false;
  }
 
  /* Touch priority: if user is interacting, buffer and return. Only the
@@ -1307,7 +1482,10 @@ static bool scanHistoryFileForState(File& f, HistoryCodecState& s) {
  f.seek(0);
  HistoryFileHeaderV2 hdr;
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) != HIST_V2_HEADER_SIZE) return false;
- if (memcmp(hdr.magic, HIST_V2_MAGIC, 4) != 0 || hdr.version != HIST_V2_VERSION) return false;
+ if (memcmp(hdr.magic, HIST_V2_MAGIC, 4) != 0 ||
+ (hdr.version != HIST_V2_VERSION && hdr.version != HIST_V3_VERSION)) return false;
+ /* Set codec file version from header — v2 (40B anchor) or v3 (74B anchor) */
+ s.fileVersion = hdr.version;
 
  uint8_t buf[256];
  size_t filled = 0;
@@ -1351,6 +1529,7 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
 
  LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
  LogManager::WdtWindow _wdt(30000);
+ Core1FlashPause _c1(this);
 
  /* Chunk 1: enforce storage limit (only on daily rollover). */
  if (path != _currentLogFileName) {
@@ -1382,7 +1561,7 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
  if (f) {
  HistoryFileHeaderV2 hdr;
  memcpy(hdr.magic, HIST_V2_MAGIC, 4);
- hdr.version = HIST_V2_VERSION;
+ hdr.version = HIST_V3_VERSION;
  hdr.anchorPeriod = HIST_V2_ANCHOR_PERIOD;
  hdr.flags = 0;
  hdr.recordCount = 0;
@@ -1390,13 +1569,17 @@ bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
  f.close( );
  }
  historyCodecReset(_histCodec);
+ /* Set codec to v3 mode for new files (after reset which clears to 0) */
+ _histCodec.fileVersion = HIST_V3_VERSION;
  }
  });
  _histCodecValid = true;
  }
 
- /* Chunk 3: encode record (anchor or delta) and append. */
- uint8_t encBuf[64];
+ /* Chunk 3: encode record (anchor or delta) and append.
+  * Buffer must hold max(sizeof(BinaryHistoryRecord), HIST_V2_MAX_DELTA_SIZE)
+  * = max(74, 120) = 120. Round to 128 for safety. */
+ uint8_t encBuf[128];
  bool wasAnchor = false;
  size_t encLen = historyEncodeRecord(rec, _histCodec, encBuf, sizeof(encBuf), &wasAnchor);
  if (encLen == 0) {
@@ -1441,16 +1624,18 @@ void StorageManager::enforceStorageLimit( ) {
  if (info.totalBytes == 0) return;
 
 
- if (!_storageDirty && ((info.usedBytes * 100) / info.totalBytes) <= 86) return;
+ if (!_storageDirty && !_cleanupPending && ((info.usedBytes * 100) / info.totalBytes) <= 86) return;
 
- int maxIter = 30;
- uint32_t _budgetStart = millis( );
- while (maxIter-- > 0 && ((info.usedBytes * 100) / info.totalBytes) > 86) {
+ /* T1.4 (stability wave 1): the old version deleted in a 4 s burst
+  * (up to 30 files). Each delete costs sector erases with Core-0 IRQs
+  * off, starving the CYW43 radio for seconds — the "Wi-Fi drops during
+  * cleanup" symptom. Now: at most 2 deletions per call; the remainder
+  * is flagged in _cleanupPending and drained one file per maintenance
+  * slice by update( ) (>= 15 s apart). Same total work over time,
+  * ~100x lower duty cycle of IRQ-off windows. */
+ int deletionsLeft = 2;
+ while (deletionsLeft > 0 && ((info.usedBytes * 100) / info.totalBytes) > 86) {
  feedWdt( );
- if (timeSince(_budgetStart, 4000)) {
- LOG_CODE(LOG_WARN, "STO", STO_ENFORCE_BUDGET, 0, "");
- break;
- }
 
 
  String oldestFile = _cachedOldestFile;
@@ -1463,7 +1648,7 @@ void StorageManager::enforceStorageLimit( ) {
  String fileName = dir.fileName( );
 
 
- if (fileName.endsWith(HISTORY_FILE_EXT) && isValidHistoryFileName(fileName.c_str( ))) {
+ if ((fileName.endsWith(HISTORY_FILE_EXT) || fileName.endsWith(HISTORY_V4_FILE_EXT)) && isValidHistoryFileName(fileName.c_str( ))) {
  if (oldestFile == "" || fileName < oldestFile) oldestFile = fileName;
  }
  }
@@ -1472,18 +1657,26 @@ void StorageManager::enforceStorageLimit( ) {
  if (oldestFile != "") {
  String fullPath = String(DIR_HISTORY) + "/" + oldestFile;
 
- if (fullPath == _currentLogFileName) {
+ if (fullPath == _currentLogFileName || fullPath == _v4CurrentLogFileName) {
  LOG_CODE(LOG_WARN, "STO", STO_ENFORCE_SKIP_ACTIVE, 0, "");
  break;
  }
  LittleFS.remove(fullPath);
+ deletionsLeft--;
  _cachedOldestFile = "";
  LittleFS.info(info);
  } else break;
  }
 
 
- if (((info.usedBytes * 100) / info.totalBytes) <= 86) _storageDirty = false;
+ if (((info.usedBytes * 100) / info.totalBytes) <= 86) {
+ _storageDirty = false;
+ _cleanupPending = false;
+ } else {
+ /* Still above the limit — defer the rest to maintenance slices. */
+ if (!_cleanupPending) LOG_CODE(LOG_INFO, "STO", STO_ENFORCE_BUDGET, 0, "deferred");
+ _cleanupPending = true;
+ }
 }
 
 uint32_t StorageManager::getLastSentTimestamp( ) {
@@ -1542,19 +1735,24 @@ void StorageManager::flushCursorIfDirty( ) {
  * happens on next call after interaction ends. */
  if (TouchPriority::isActive( )) return;
 
- _cursorDirty = false;
- LogManager::WdtWindow _wdt(30000); /* context-aware */
- enterFlashSafeMode( );
- watchdog_update( );
- File f = LittleFS.open(FILE_TCURSOR, "w");
- watchdog_update( );
- if (f) {
- f.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent));
- f.close( );
- watchdog_update( );
- }
- exitFlashSafeMode( );
- /* WdtWindow auto-restores */
+	_cursorDirty = false;
+	LogManager::WdtWindow _wdt(30000); /* context-aware */
+
+	/* A4: a pausa do Core 1 aqui era um par manual enter/exit. Funciona
+	 * hoje porque não há `return` entre os dois, mas qualquer guarda
+	 * futura no meio do corpo deixaria o Core 1 congelado para sempre.
+	 * RAII fecha a classe — e aninha de graça (refcount) se algum
+	 * chamador já pausou. */
+	Core1FlashPause _c1(this);
+	watchdog_update( );
+	File f = LittleFS.open(FILE_TCURSOR, "w");
+	watchdog_update( );
+	if (f) {
+		f.write((uint8_t*)&_cachedLastSent, sizeof(_cachedLastSent));
+		f.close( );
+		watchdog_update( );
+	}
+	/* Core1FlashPause e WdtWindow restauram no fim do escopo */
 }
 
 String StorageManager::getStatsReport( ) {
@@ -1593,7 +1791,8 @@ uint32_t StorageManager::getLastRecordedTimestamp( ) {
  f.seek(0);
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE &&
  memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdr.version == HIST_V2_VERSION) {
+ (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION)) {
+ st.fileVersion = hdr.version;
  historyCodecReset(st);
  uint8_t buf[256];
  size_t filled = 0;
@@ -1647,7 +1846,7 @@ uint32_t StorageManager::getHistoryDaysMask(int year, int month) {
  while (dir.next( )) {
  feedWdt( );
  String fn = dir.fileName( );
- if (!fn.endsWith(HISTORY_FILE_EXT)) continue;
+ if (!fn.endsWith(HISTORY_FILE_EXT) && !fn.endsWith(HISTORY_V4_FILE_EXT)) continue;
 
  /* File: "YYYYMMDD.bin" — check month prefix */
  if (fn.length( ) >= 8 && fn.startsWith(prefix)) {
@@ -1666,127 +1865,6 @@ uint32_t StorageManager::getHistoryDaysMask(int year, int month) {
 /* =========================================================================== */
 /* PROVISIONAL TIMESTAMP CORRECTION (NTP SYNC) */
 /* =========================================================================== */
-/**
- * @brief Correct timestamps written during Virtual RTC operation.
- *
- * With binary format, correction is done in-place: reads the epoch of each
- * record, applies the delta if within the provisional range, and rewrites
- * only the 4 epoch bytes. No temporary file needed.
- */
-void StorageManager::correctProvisionalTimestamps(uint32_t bootTs, int32_t delta) {
- if (delta == 0) return;
-
- /* Reset watermark if delta changed (new NTP correction) */
- if (delta != _correctLastDelta) {
- _correctWatermark = "";
- _correctLastDelta = delta;
- }
-
- _currentLogFileName = "";
- std::vector<String> files;
-
- enterFlashSafeMode( );
- Dir dir = LittleFS.openDir(DIR_HISTORY);
- while (dir.next( )) {
- feedWdt( );
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) files.push_back(dir.fileName( ));
- }
- exitFlashSafeMode( );
-
- std::sort(files.begin( ), files.end( ));
-
- uint32_t _budgetStart = millis( );
- bool budgetExceeded = false;
- int totalCorrected = 0;
-
- for (const String& fn : files) {
- if (budgetExceeded) break;
-
- /* Skip files already processed in previous call */
- if (_correctWatermark.length( ) > 0 && fn <= _correctWatermark) continue;
-
- if (timeSince(_budgetStart, 6000)) {
- LOG_CODE(LOG_WARN, "STO", STO_CORRECT_BUDGET, 0, "");
- break;
- }
-
- String path = String(DIR_HISTORY) + "/" + fn;
-
- enterFlashSafeMode( );
- File f = LittleFS.open(path, "r+"); /* Open for reading AND writing */
- if (!f) {
- exitFlashSafeMode( );
- continue;
- }
-
- /* v2: files with magic SIM2 cannot have epoch corrected in-place
- * (records are variable with varint). Skip silently — provisional
- * records pre-NTP may have slightly wrong timestamps, but the
- * graph still works (X axis just shifted). */
- char hdrCheck[4] = {0};
- f.seek(0);
- if (f.read((uint8_t*)hdrCheck, 4) == 4 && memcmp(hdrCheck, HIST_V2_MAGIC, 4) == 0) {
- f.close( );
- exitFlashSafeMode( );
- _correctWatermark = fn;
- continue;
- }
- f.seek(0);
-
- size_t fSize = f.size( );
- size_t totalRecords = fSize / HISTORY_RECORD_SIZE;
- int recCount = 0;
-
- for (size_t i = 0; i < totalRecords; i++) {
- /* Periodic pause for watchdog and cooperation */
- if (++recCount % 50 == 0) {
- exitFlashSafeMode( );
- feedWdt( );
- delay(2);
- if (timeSince(_budgetStart, 6000)) {
- enterFlashSafeMode( );
- f.close( );
- exitFlashSafeMode( );
- budgetExceeded = true;
- break;
- }
- enterFlashSafeMode( );
- }
-
- /* Position of this record's epoch */
- size_t recOffset = i * HISTORY_RECORD_SIZE;
-
- /* Read only the epoch (4 bytes) */
- uint32_t ts;
- f.seek(recOffset);
- if (f.read((uint8_t*)&ts, sizeof(ts)) != sizeof(ts)) continue;
-
- /* Apply delta only to provisional timestamps */
- if (ts >= bootTs && ts < (bootTs + 86400UL * 30)) {
- ts += delta;
- f.seek(recOffset);
- f.write((const uint8_t*)&ts, sizeof(ts));
- totalCorrected++;
- }
- }
-
- if (!budgetExceeded) {
- f.close( );
- exitFlashSafeMode( );
- _correctWatermark = fn; /* Mark file as complete */
- }
-
- feedWdt( );
- }
-
- if (totalCorrected > 0) {
- char msg[64];
- snprintf(msg, sizeof(msg), "Time correction completed: %d timestamps corrected (delta=%ld)",
- totalCorrected, (long)delta);
- LOG_CODE(LOG_INFO, "STO", STO_CONFIG_REPORT, 0, msg);
- }
-}
-
 String StorageManager::getBoardSerialNumber( ) {
  pico_unique_board_id_t board_id; pico_get_unique_board_id(&board_id);
  char hex[17]; snprintf(hex, sizeof(hex), "%02X%02X%02X%02X%02X%02X%02X%02X", board_id.id[0], board_id.id[1], board_id.id[2], board_id.id[3], board_id.id[4], board_id.id[5], board_id.id[6], board_id.id[7]);
@@ -1993,4 +2071,402 @@ void StorageManager::generateSalt(uint8_t* buf) {
  uint32_t r = rp2040.hwrand32( );
  memcpy(buf + i, &r, (8 - i >= 4) ? 4 : (8 - i));
  }
+}
+
+/* ============================================================================
+ * V4 HISTORY — write, scan, build schema
+ * ============================================================================ */
+
+void StorageManager::ensureV4Schema( ) {
+ if (_histV4CodecValid) return;  /* already initialized */
+ if (!_isMounted) return;
+
+ LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+ LogManager::WdtWindow _wdt(30000);
+ Core1FlashPause _c1(this);
+
+ String path = getHistoryFileNameV4( );
+ _v4CurrentLogFileName = path;
+
+ /* v1.5.3 FIX (data loss on every boot): this function used
+  * LittleFS.open(path, "w") unconditionally — mode "w" TRUNCATES.
+  * Since _histV4CodecValid is RAM-only, every boot came through here
+  * and wiped the records already logged that day. An existing file is
+  * now SCANNED (schema + anchor/delta cadence restored from disk, torn
+  * tail repaired); only a missing/header-corrupt file is recreated. */
+ bool ok = false;
+ bool exists = false;
+ FLASH_OP({ exists = LittleFS.exists(path); });
+
+ if (exists) {
+  size_t torn = 0;
+  FLASH_OP({
+   File f = LittleFS.open(path, "r");
+   if (f) { ok = scanHistoryFileV4(f, _histV4State, &torn); f.close( ); }
+  });
+  if (ok && torn > 0) ok = repairHistoryTailV4(path, torn);
+  if (ok && _histV4State.measureCount == 0) ok = false;
+ }
+ if (!ok) {
+  /* Missing file, unreadable header, or failed repair → fresh file.
+   * Only the corrupt-header case loses data, and it was unreadable. */
+  ok = createHistoryFileV4WithSchema(path);
+ }
+
+ /* v1.5.3 FIX: validity is EARNED, not assumed. A FLASH_OP mutex
+  * timeout or a failed header read-back used to still set the flag,
+  * leaving an empty-schema codec "valid" until the next reboot. On
+  * failure we stay invalid and the next history tick retries. */
+ _histV4CodecValid = ok;
+ if (ok) LOG_CODE(LOG_INFO, "STO", SYS_OK, 0, "V4 schema ready");
+ else    LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_bootstrap_retry");
+}
+
+bool StorageManager::rebindV4Schema(uint8_t *outMeasures) {
+ if (!_isMounted) return false;
+
+ LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+ LogManager::WdtWindow _wdt(30000);
+ Core1FlashPause _c1(this);
+
+ /* Drop whatever is buffered against the outgoing schema — those samples are
+  * the ones that could not be matched anyway, which is why we are here. */
+ flushHistoryBatch( );
+
+ const String path = getHistoryFileNameV4( );
+
+ /* Records are bit-packed against the header, so the schema cannot be swapped
+  * under them: the day's file is recreated. Carrying the old records over
+  * would mean decoding and re-encoding every one of them, which measured at
+  * 8.2 KB of flash and 5.6 KB of RAM on this target — more than the app slot
+  * has to spare. Hence the deliberate trade, and hence the CLI demands
+  * `confirm`: today's records before the change are lost. */
+ _histV4CodecValid = false;
+ FLASH_OP({ LittleFS.remove(path); });
+
+ if (!createHistoryFileV4WithSchema(path)) {
+  LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "rebind_failed");
+  return false; /* codec stays invalid; the next tick re-bootstraps */
+ }
+ _v4CurrentLogFileName = path;
+ _histV4CodecValid = true;
+ if (outMeasures) *outMeasures = _histV4State.measureCount;
+ LOG_CODE(LOG_INFO, "STO", SYS_OK, (int)_histV4State.measureCount, "V4 schema rebound");
+ return true;
+}
+
+bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
+	if (!_isMounted) return false;
+
+	/* Defensive: reject absurd timestamps */
+	{
+		/* L1: piso único (HIST_EPOCH_MIN), antes duplicado como literal
+		 * aqui e divergente do usado pelos leitores/telemetria. */
+		uint32_t nowEpoch = (uint32_t)time(nullptr);
+		if (epoch < HIST_EPOCH_MIN) return false;
+		if (nowEpoch > HIST_EPOCH_MIN && epoch > nowEpoch + 86400UL) return false;
+	}
+
+	if (measureCount > HIST_V4_MAX_MEASUREMENTS) return false;
+
+	/* ── A2: o batch NUNCA pode cruzar a meia-noite ──────────────────────
+	 * O dreno (flushHistoryBatch → writeHistoryEntryFlashV4) resolve o
+	 * caminho do arquivo com getHistoryFileNameV4(), que é a data de
+	 * AGORA — o epoch de cada entrada é ignorado na escolha do arquivo.
+	 * Amostras bufferizadas às 23:57–23:59 drenavam ~00:01 dentro do
+	 * .sim4 do dia seguinte: até HIST_BATCH_N-1 registros com epoch de
+	 * ontem no arquivo de hoje. A consulta de ontem os perdia, o gráfico
+	 * de hoje ganhava pontos antes de 00:00 e o preload de hoje absorvia
+	 * extremos de ontem.
+	 *
+	 * Corrigido no ponto de BUFFER, não no dreno: esvazia antes de
+	 * aceitar uma amostra de dia diferente do primeiro item bufferizado,
+	 * enquanto getHistoryFileNameV4() ainda devolve o arquivo certo. */
+	if (_histBatchLen > 0 && !sameLocalDay(_histBatch[0].epoch, epoch)) {
+		flushHistoryBatch( );
+	}
+
+	/* T2.1: append to the RAM batch. Flash is only touched when the
+	 * batch fills or ages out — and never during touch interaction
+	 * (the old 1-slot touch-priority pending is subsumed by this). */
+	if (_histBatchLen < HIST_BATCH_N) {
+		HistBatchEntry &e = _histBatch[_histBatchLen];
+		memcpy(e.values, values, measureCount * sizeof(int64_t));
+		e.count = measureCount;
+		e.epoch = epoch;
+		if (_histBatchLen == 0) _histBatchFirstMs = millis();
+		_histBatchLen++;
+	}
+	/* else: batch full with a failing flush — sample dropped; the flush
+	 * below keeps retrying and logs on failure. */
+
+	bool full = (_histBatchLen >= HIST_BATCH_N);
+	bool aged = (_histBatchLen > 0) && timeSince(_histBatchFirstMs, HIST_BATCH_MAX_MS);
+	if ((full || aged) && !TouchPriority::isActive()) return flushHistoryBatch();
+	return true;
+}
+
+bool StorageManager::flushHistoryBatch( ) {
+	if (_histBatchLen == 0) return true;
+	if (!_isMounted) return false;
+
+	/* One Core-1 pause for the whole drain; the per-entry pause inside
+	 * writeHistoryEntryFlashV4 is refcounted and nests for free. */
+	Core1FlashPause _c1(this);
+	uint8_t written = 0;
+	for (uint8_t i = 0; i < _histBatchLen; i++) {
+		if (!writeHistoryEntryFlashV4(_histBatch[i].values, _histBatch[i].count,
+		                              _histBatch[i].epoch)) break;
+		written++;
+	}
+	if (written == _histBatchLen) {
+		_histBatchLen = 0;
+		return true;
+	}
+	/* Partial drain: keep the remainder at the front, retry next tick. */
+	memmove(&_histBatch[0], &_histBatch[written],
+	        (size_t)(_histBatchLen - written) * sizeof(HistBatchEntry));
+	_histBatchLen -= written;
+	_histBatchFirstMs = millis();
+	LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, _histBatchLen, "hist_batch_partial");
+	return false;
+}
+
+bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
+	if (!_isMounted) return false;
+
+	/* A2 (defesa em profundidade): o caminho vem do EPOCH DA ENTRADA, não
+	 * de "agora". writeHistoryEntryV4 já esvazia o batch na virada do dia,
+	 * mas se aquele flush falhar parcialmente o batch volta a misturar
+	 * dias — e só este ponto decide em que arquivo o registro cai. */
+	String path = getHistoryFileNameV4(epoch);
+
+	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+	LogManager::WdtWindow _wdt(30000);
+	Core1FlashPause _c1(this);
+
+	/* Chunk 1: enforce on rollover */
+	if (path != _v4CurrentLogFileName) {
+		FLASH_OP(enforceStorageLimit());
+		_v4CurrentLogFileName = path;
+		_histV4CodecValid = false;
+	}
+
+	/* Chunk 2: prepare V4 state (boot or rollover).
+	 * v1.5.3 FIX: the flag is only set after VERIFIED success. It used to
+	 * be set unconditionally, so a FLASH_OP mutex timeout during 2a left
+	 * a virgin/stale state marked "valid" and the append below created a
+	 * HEADERLESS file (open "a") that readers reject and the next scan
+	 * deleted — one 5 s contention could cost the whole day. */
+	if (!_histV4CodecValid) {
+		bool ok = false;
+		bool exists = false;
+		FLASH_OP({ exists = LittleFS.exists(path); });
+
+		if (exists) {
+			size_t torn = 0;
+			FLASH_OP({
+				File f = LittleFS.open(path, "r");
+				if (f) { ok = scanHistoryFileV4(f, _histV4State, &torn); f.close( ); }
+			});
+			/* Torn tail (power loss mid-append): cut it so the positional
+			 * anchor cadence stays intact for readers and for this append.
+			 * This case no longer nukes the file like the old scan-fail
+			 * path did — only a truly unreadable header does. */
+			if (ok && torn > 0) ok = repairHistoryTailV4(path, torn);
+			if (ok && _histV4State.measureCount == 0) ok = false;
+			if (!ok) FLASH_OP(LittleFS.remove(path));
+		}
+		if (!ok) ok = createHistoryFileV4WithSchema(path);
+
+		_histV4CodecValid = ok;
+		if (!ok) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_prep_fail");
+			return false; /* retry next tick — never append headerless */
+		}
+	}
+
+	/* Chunk 3: encode + append */
+	uint8_t encBuf[HIST_V4_MAX_DELTA];
+	bool wasAnchor = false;
+	size_t encLen = histV4Encode(values, measureCount, _histV4State,
+	                             encBuf, sizeof(encBuf), epoch, &wasAnchor);
+	if (encLen == 0) {
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_encode_fail");
+		return false;
+	}
+
+	bool ok = false;
+	FLASH_OP({
+		File f = LittleFS.open(path, "a");
+		if (f) { f.write(encBuf, encLen); f.close(); ok = true; }
+	});
+
+	if (ok) { _storageDirty = true; return true; }
+
+	/* Fallback */
+	LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_fallback");
+	_storageDirty = true;
+	FLASH_OP(enforceStorageLimit());
+	FLASH_OP({
+		File f = LittleFS.open(path, "a");
+		if (f) { f.write(encBuf, encLen); f.close(); ok = true; }
+	});
+	return ok;
+}
+
+/**
+ * @brief Create (or recreate) a day file with a fresh schema header and
+ * load the codec state by reading the header back FROM FLASH.
+ * @return true only if the read-back header parses with measureCount > 0 —
+ * the sole condition under which the caller may mark the codec valid.
+ */
+bool StorageManager::createHistoryFileV4WithSchema(const String &path) {
+	/* A4 (defensiva): esta função programa/apaga flash via FLASH_OP e hoje
+	 * só está protegida porque os 2 chamadores atuais já pausaram o Core 1.
+	 * Um terceiro chamador sem pausa reabriria a classe do e035791
+	 * ("FLASH_OP sozinho != proteção"). Refcount aninha sem custo. */
+	Core1FlashPause _c1(this);
+
+	/* Static header buffer — with the ~1.3 KB of schema scratch below,
+	 * a stack hdrBuf would blow the ~4 KB core stack (v1.5.2 hard fault). */
+	static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	size_t hdrLen = 0;
+	{
+		HistV4SensorDef s[HIST_V4_MAX_SENSORS];
+		HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
+		uint8_t pool[HIST_V4_MAX_STRPOOL];
+		uint8_t sc = 0, mc = 0, sp = 0;
+		if (!buildMeasureSchema(s, sc, m, mc, pool, sp)) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "schema_empty");
+			return false;
+		}
+		hdrLen = histV4WriteHeaderBuf(hdrBuf, sizeof(hdrBuf), s, sc, m, mc, pool, sp);
+	}
+	if (hdrLen == 0) return false;
+
+	bool wrote = false;
+	FLASH_OP({
+		File f = LittleFS.open(path, "w");
+		if (f) { wrote = (f.write(hdrBuf, hdrLen) == hdrLen); f.close( ); }
+	});
+	if (!wrote) return false;
+
+	/* Read back to populate codec state — trust flash, not RAM. */
+	histV4Reset(_histV4State);
+	bool parsed = false;
+	FLASH_OP({
+		File f = LittleFS.open(path, "r");
+		if (f) {
+			static uint8_t rdBuf[HIST_V4_MAX_HEADER];
+			int n = f.read(rdBuf, sizeof(rdBuf));
+			f.close( );
+			if (n >= (int)HIST_V4_HEADER_FIXED) {
+				parsed = histV4ReadHeaderBuf(rdBuf, (size_t)n, _histV4State) > 0;
+			}
+		}
+	});
+	return parsed && _histV4State.measureCount > 0;
+}
+
+/**
+ * @brief Cut a torn tail: rewrite the file keeping only [0, goodPos).
+ * @details Recovery for power loss mid-append. Copy → remove → rename is
+ * used because File::truncate() is not uniformly available across FS
+ * backends. On failure the original file is left untouched (a stale
+ * ".fix" temp may remain and is overwritten on the next attempt).
+ */
+bool StorageManager::repairHistoryTailV4(const String &path, size_t goodPos) {
+	if (goodPos < HIST_V4_HEADER_FIXED) return false; /* never cut into the header */
+
+	/* A4 (defensiva): copy → remove → rename são 3 rajadas de program/erase.
+	 * Mesma justificativa de createHistoryFileV4WithSchema. */
+	Core1FlashPause _c1(this);
+
+	String tmp = path + ".fix";
+	bool ok = false;
+	FLASH_OP({
+		File src = LittleFS.open(path, "r");
+		File dst = LittleFS.open(tmp, "w");
+		if (src && dst) {
+			static uint8_t cp[256];
+			size_t left = goodPos;
+			ok = true;
+			while (left > 0) {
+				size_t n = left > sizeof(cp) ? sizeof(cp) : left;
+				if ((size_t)src.read(cp, n) != n || dst.write(cp, n) != n) { ok = false; break; }
+				left -= n;
+			}
+		}
+		if (src) src.close( );
+		if (dst) dst.close( );
+		if (ok) {
+			LittleFS.remove(path);
+			ok = LittleFS.rename(tmp, path);
+		} else {
+			LittleFS.remove(tmp);
+		}
+	});
+	if (ok) LOG_CODE(LOG_INFO, "STO", SYS_OK, (int)goodPos, "v4_tail_repaired");
+	else    LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)goodPos, "v4_tail_repair_fail");
+	return ok;
+}
+
+bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt) {
+	if (tornAt) *tornAt = 0;
+	histV4Reset(state);
+	if (f.size() < HIST_V4_HEADER_FIXED) return false;
+	f.seek(0);
+
+	/* Read up to HIST_V4_MAX_HEADER bytes and parse the header ONCE. */
+	static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	size_t want = f.size();
+	if (want > HIST_V4_MAX_HEADER) want = HIST_V4_MAX_HEADER;
+	if (f.read(hdrBuf, want) < HIST_V4_HEADER_FIXED) return false;
+	size_t hdrLen = histV4ReadHeaderBuf(hdrBuf, want, state);
+	if (hdrLen == 0) return false;
+
+	/* v1.5.3 FIX (the scan bug): goodPos previously started at `want`
+	 * (up to 2 KB or the whole file) as if that were the header. Records
+	 * inside that window were never decoded — small files resumed with a
+	 * VIRGIN codec state — and files > 2 KB started decoding MISALIGNED
+	 * at byte 2048. The writer then restarted the anchor cadence and,
+	 * because anchor-ness is inferred positionally, every reader desynced
+	 * from that point on. Reposition to the REAL end of the header. */
+	f.seek(hdrLen);
+	size_t goodPos = hdrLen;
+
+	/* Scan all records to rebuild codec state */
+	static uint8_t buf[HIST_V4_READ_BUF];
+	size_t filled = 0;
+	static int64_t values[HIST_V4_MAX_MEASUREMENTS];
+	uint32_t epoch;
+
+	/* A1: o refill por limiar (`filled < anchorByteSize`) tratava um delta
+	 * maior que a âncora como CAUDA RASGADA — e aqui isso não truncava só
+	 * a leitura: o chamador usa `tornAt` para mandar repairHistoryTailV4
+	 * CORTAR o arquivo. Um único delta grande na borda do buffer apagava
+	 * o resto do dia no flash. Agora o refill acontece após a falha do
+	 * decode, que é quando se sabe que faltavam bytes. */
+	while (true) {
+		size_t consumed = histV4DecodeNextRefill(
+			buf, HIST_V4_READ_BUF, filled, state, values, &epoch,
+			[&f](uint8_t *dst, size_t maxBytes) -> size_t {
+				if (f.available() <= 0) return 0;
+				size_t toRead = maxBytes;
+				if (toRead > (size_t)f.available()) toRead = (size_t)f.available();
+				int r = f.read(dst, toRead);
+				return (r > 0) ? (size_t)r : 0;
+			});
+		if (consumed == 0) break; /* fim real, ou cauda truncada/corrompida */
+
+		goodPos += consumed;
+	}
+
+	/* Torn tail (power loss mid-append): report where the good bytes end
+	 * so the caller can repair. Readers would otherwise stop here and the
+	 * next append would break the positional anchor cadence for good. */
+	if (tornAt && goodPos < (size_t)f.size()) *tornAt = goodPos;
+	f.seek(goodPos);
+	return true;
 }

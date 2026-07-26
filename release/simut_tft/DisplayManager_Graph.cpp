@@ -50,34 +50,6 @@ void DisplayManager::drawLoadingScreen( ) {
 }
 
 
-void __not_in_flash_func(DisplayManager::drawWebBusyOverlay)( ) {
-
-
- _driver.tft->fillScreen(C_BG_MAIN);
- _driver.tft->setFont(&simutFont12pt);
- char userLine[32];
- mutex_enter_blocking(&_stateMutex);
- snprintf(userLine, sizeof(userLine), "'%s'", _webBusyUser);
- mutex_exit(&_stateMutex);
- int16_t x1, y1; uint16_t w, h;
-
- _driver.tft->setTextColor(C_TEXT_MAIN);
- _driver.tft->getTextBounds(userLine, 0, 0, &x1, &y1, &w, &h);
- _driver.tft->setCursor(160 - (w / 2), 100);
- _driver.tft->print(userLine);
-
- const char* line2 = "Acessando via Web.";
- _driver.tft->setTextColor(C_TEXT_SUB);
- _driver.tft->getTextBounds(line2, 0, 0, &x1, &y1, &w, &h);
- _driver.tft->setCursor(160 - (w / 2), 130);
- _driver.tft->print(line2);
-
- const char* line3 = "Aguarde...";
- _driver.tft->getTextBounds(line3, 0, 0, &x1, &y1, &w, &h);
- _driver.tft->setCursor(160 - (w / 2), 160);
- _driver.tft->print(line3);
- _webOverlayShown = true;
-}
 
 void DisplayManager::requestLoadingScreen( ) {
  _loadingDrawn = false;

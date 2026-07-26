@@ -26,6 +26,22 @@
 constexpr uint32_t NET_SOCKET_TIMEOUT_MS = 4000;
 
 /**
+ * Overall budget for a TLS handshake (ms), passed to setTLSConnectTimeout.
+ *
+ * Deliberately LARGER than WATCHDOG_TIMEOUT_MS, which is only safe because of
+ * the framework patch in tools/arduino_pico_overrides: upstream the handshake
+ * has no overall deadline at all (each _run_until restarts its own timer), so a
+ * peer that accepts TCP without completing the handshake wedges Core 0 forever
+ * — measured on the bench, and it took a wrong telemetry port to expose it.
+ * The patch bounds the loop AND feeds the watchdog inside it; a bounded loop is
+ * the only place where feeding does not mask a hang.
+ *
+ * Sized for a real handshake: BearSSL on a 133 MHz Cortex-M0+ spends seconds on
+ * the asymmetric crypto, so the old 4 s ceiling cut off legitimate connections.
+ */
+constexpr uint32_t NET_TLS_HANDSHAKE_MS = 15000;
+
+/**
  * Minimum acceptable RSSI for heavy network operations (dBm).
  * Below this threshold, telemetry and uploads are deferred to avoid
  * timeouts that freeze the main loop. Dashboard and sensors continue.
@@ -115,6 +131,28 @@ constexpr size_t CLI_LINE_MAX = 256;
 /** Deadline for long handlers (history, logs, screenshot) in ms.
  * +50% margin absorbs concurrency/burst. */
 constexpr uint32_t WEB_LONG_HANDLER_DEADLINE_MS = 15000;
+
+/* ── Streaming cooperative pacing ("respiros") ──
+ * Long chart/file downloads run to completion inside a single Core-0 handler.
+ * Without breaks, Core 0 monopolises the heap allocator, the SPI/QSPI arbiter
+ * and the lwIP PBUF pool for the whole transfer, so Core 1 (display + touch)
+ * stutters and, on the largest ranges, the live clock freezes behind the
+ * download. These knobs slice each transfer into small packets with a breath
+ * between them: the watchdog stays fed, PBUFs drain, and Core 1 gets the bus
+ * back periodically. The emitted bytes are unchanged — only chunk boundaries
+ * (transparent to the HTTP client) and timing shift.
+ *
+ * WEB_STREAM_CHUNK_SOFT — flush the JSON accumulation buffer once it reaches
+ *   this many bytes. Smaller ⇒ more, smaller packets, each followed by a
+ *   breath (smoother display, lower PBUF pressure); larger ⇒ fewer TCP writes.
+ * WEB_STREAM_BREATH_RECORDS — on high-decimation ranges most decoded records
+ *   are dropped without a send; breathe every N decoded records so a long
+ *   decimation stride never runs yield-free (keeps the clock alive on MAX).
+ * WEB_STREAM_BREATH_DELAY_MS — micro-pause after each flushed packet; lets
+ *   lwIP drain the PBUF pool and hands the heap/SPI arbiter to Core 1. */
+constexpr size_t   WEB_STREAM_CHUNK_SOFT      = 512;
+constexpr uint32_t WEB_STREAM_BREATH_RECORDS  = 64;
+constexpr uint32_t WEB_STREAM_BREATH_DELAY_MS = 2;
 
 /* ── AP mode ── */
 

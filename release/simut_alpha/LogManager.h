@@ -19,6 +19,7 @@
 #include "pico/mutex.h"
 #include <hardware/watchdog.h>
 #include "SystemDefs.h"
+#include "FlashIrqProbe.h"  /* core1StallSample( ), called from feedWdt( ) below */
 
 #define LOG_FILE_CURRENT "/system.blog"
 #define LOG_FILE_OLD "/system.old.blog"
@@ -63,8 +64,19 @@ public:
 
  /** Mark that the system WDT is active (called by SIMUT.ino on first
  * loop). Flash write paths use this flag to decide whether to extend
- * the WDT window — do NOT extend during setup to avoid WDT armed too early. */
- static void markWdtActive( ) { _wdtActive = true; }
+ * the WDT window — do NOT extend during setup to avoid WDT armed too early.
+ *
+ * Also stamps the ARMED magic in scratch[5]. This is what lets the next
+ * boot's autopsy tell a genuine HW-watchdog stall (WDT was armed and fired)
+ * from an external reset such as a picotool upload (WDT never armed). It is
+ * stamped HERE, not at the end of performCrashAutopsy( ), because the autopsy
+ * runs inside setup( ) — before the WDT exists — so a magic written there
+ * says nothing about whether the watchdog was ever running. Soft panic and
+ * markCleanReboot( ) overwrite this magic with their own. */
+ static void markWdtActive( ) {
+  _wdtActive = true;
+  watchdog_hw->scratch[5] = 0xA11FA1E5;
+ }
  static bool isWdtActive( ) { return _wdtActive; }
 
  /*
@@ -82,6 +94,17 @@ public:
  * restores the outer context in the destructor. max(outerCtx, ms) to
  * never reduce window when nested inside a larger outer one.
  * No-op if _wdtActive=false (setup).
+ *
+ * IT CANNOT EXTEND PAST 8388 ms — see WATCHDOG_TIMEOUT_MS. RP2040 clamps the
+ * watchdog load register, so every WdtWindow in this codebase that asks for
+ * more (30 s around a graph render, 120 s around telemetry) gets exactly the
+ * same ceiling as the default and buys NOTHING. The callers' comments reason
+ * about budgets that never existed: "30s covers any case" is 8.4 s, so a 6 s
+ * graph render has 2.4 s of headroom, not 24 s.
+ *
+ * The class stays — nesting a SHORTER window inside a longer one still works
+ * and the save/restore is correct — but size long operations by FEEDING the
+ * watchdog, never by widening the window.
  */
  class WdtWindow {
  public:
@@ -242,5 +265,11 @@ private:
 #define TRACE_BEAT(core) LogManager::instance( ).heartbeat(core)
 
 /** Feed hardware watchdog + trace heartbeat on Core 0.
- * Replaces the pair watchdog_update( ); TRACE_BEAT(0); in critical paths. */
-inline void feedWdt( ) { watchdog_update( ); TRACE_BEAT(0); }
+ * Replaces the pair watchdog_update( ); TRACE_BEAT(0); in critical paths.
+ *
+ * core1StallSample( ) rides along because this is already the densest Core-0
+ * hook there is — every loop that walks or reads flash calls it, which is
+ * exactly the load that freezes Core 1. Sampling from here means the worst
+ * Core-1 stall is recorded by the core that is still running, instead of by the
+ * core that is stuck (see FlashIrqProbe.h). */
+inline void feedWdt( ) { watchdog_update( ); TRACE_BEAT(0); core1StallSample( ); }
