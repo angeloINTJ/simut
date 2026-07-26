@@ -254,25 +254,67 @@ class PicoTest:
         finally:
             c.close()
 
+    def _add_api_user(self, user, password):
+        """Cria a conta descartavel do teste 11 pela CLI serial.
+
+        Apaga antes de criar. A config vive no LittleFS e sobrevive ao flash,
+        entao uma conta deixada por uma corrida anterior faz o `user add`
+        responder "Usuario ja existe" — aceitar isso como sucesso reusaria uma
+        conta cuja senha pode nao ser mais a que este teste usa.
+        """
+        self.cmd('end'); self.cmd('enable'); self.cmd('configure terminal')
+        self.cmd(f'user del {user}')
+        out = self.cmd(f'user add {user} {password}')
+        self.cmd('end'); self.cmd('write memory', 3.0)
+        if 'sem slot livre' in out.lower() or 'no free slot' in out.lower():
+            print(f'  tabela de usuarios cheia (MAX_USERS) — libere um slot')
+            return False
+        return 'usuario criado' in out.lower() or 'user created' in out.lower()
+
+    def _del_api_user(self, user):
+        self.cmd('end'); self.cmd('enable'); self.cmd('configure terminal')
+        self.cmd(f'user del {user}')
+        self.cmd('end'); self.cmd('write memory', 3.0)
+
     def t11_api(self):
-        """API Web: login de sessao (viewer default) + endpoints autenticados."""
-        print('\n[11] API Web (login viewer + endpoints autenticados)')
+        """API Web: conta propria criada pela CLI + endpoints autenticados.
+
+        Usava a conta `viewer` provisionada por StorageManager::loadDefaults( ),
+        com o pre-hash de fabrica embutido aqui. Isso amarrava o teste a uma
+        conta que o operador pode apagar — e que so volta com factory reset,
+        porque `user add` recebe texto plano e nao o pre-hash. Agora o teste
+        traz a propria conta, como o web_test_suite.py ja fazia, e a remove no
+        fim.
+
+        `user add` concede DASHBOARD|HISTORY|CALIB, que cobre os tres endpoints
+        exercitados aqui; nenhum `user perm` e necessario.
+        """
+        print('\n[11] API Web (conta propria + endpoints autenticados)')
         if not self.ip:
             self.check('API web', False)
             return
+        import hashlib as _hashlib
         import json as _json
-        # Frontend envia pass = SHA256(plaintext); o pre-hash default do
-        # usuario 'viewer' esta fixo no firmware (StorageManager factory).
-        VIEWER_PREHASH = ('0b58331da2913b41e21b7b04938632e1'
-                          '858a729e28cf6914b4334380f339b6f1')
+        API_USER = 'ptest'
+        API_PASS = 'Pico!Test123'
+        created = False
         try:
+            created = self._add_api_user(API_USER, API_PASS)
+            print(f'  conta {API_USER!r}: {"criada" if created else "FALHOU"}')
+            if not created:
+                self.check('API web', False)
+                return
+
             st, data, _ = self._http('GET', '/api/login_init')
             nonce = _json.loads(data).get('nonce', '') if st == 200 else ''
             print(f'  login_init: HTTP {st} nonce={"OK" if nonce else "FALTOU"}')
             if not nonce:
                 self.check('API web', False)
                 return
-            body = f'user=viewer&pass={VIEWER_PREHASH}&nonce={nonce}'
+            # O frontend envia pass = SHA256(plaintext) em latin-1: o sha256 do
+            # JS le charCodeAt, tratando cada code unit como um byte.
+            prehash = _hashlib.sha256(API_PASS.encode('latin-1')).hexdigest()
+            body = f'user={API_USER}&pass={prehash}&nonce={nonce}'
             st, data, cookie = self._http(
                 'POST', '/api/login', body,
                 {'Content-Type': 'application/x-www-form-urlencoded'})
@@ -298,6 +340,12 @@ class PicoTest:
         except Exception as e:
             print(f'  ERRO: {e}')
             self.check('API web', False)
+        finally:
+            # Sai mesmo em falha ou excecao: MAX_USERS e 5, e uma conta
+            # esquecida aqui gasta um slot em toda corrida seguinte.
+            if created:
+                self._del_api_user(API_USER)
+                print(f'  conta {API_USER!r}: removida')
 
     def run(self):
         print('=' * 72)
