@@ -36,23 +36,38 @@ OUTPUT_FILE = os.path.join(PROJECT_DIR, "src", "WebUI_GZ.h")
 
 # Pages served from LittleFS instead of being linked into the firmware image.
 #
-# The app slot is 1020 KB and effectively full: at the time this was added the
-# image had 660 bytes of headroom, so a page that grows costs a feature
-# somewhere else. A page listed here is still gzipped — un-gzipping would make
-# it ~5x BIGGER, not smaller — it just lives on the 1 MB filesystem partition
-# instead of the app slot, and WebManager streams it from there.
+# A page listed here is still gzipped — un-gzipping would make it ~5x BIGGER,
+# not smaller — it just lives on the 1 MB filesystem partition instead of the
+# app slot, and WebManager::serveProtectedFsPage streams it from there.
 #
 # The trade is load time (a flash read per request instead of a PROGMEM
-# pointer) for headroom. Only worth it for pages that are big and rarely
-# opened; /config is opened to configure the device and then left alone.
+# pointer) plus a deploy step, in exchange for app-slot headroom. Only worth
+# it for pages that are big AND rarely opened.
 #
 # Deploying one of these needs the file on the device. Do NOT use
 # `pio run -t uploadfs` on a device with data on it: that reformats the
 # partition and takes the history, logs and calib.csv with it. Upload the
 # single file through the /files page or POST it to /api/upload.
-FS_PAGES = {
-    "CFG_PAGE": "config.html.gz",
-}
+#
+# --- Currently empty, and that is deliberate. ---
+# CFG_PAGE lived here from when the image had 660 bytes of headroom. Dropping
+# the never-used Bluetooth stack from platformio.ini freed 64732 B, so the page
+# went back into the firmware on 2026-07-26. Measured cost of bringing it in:
+# 11544 B (not the 12152 B of the array — serveProtectedFsPage had /config as
+# its only caller, so the helper and its error page get gc-sectioned out too).
+# Headroom after: 57928 B.
+#
+# What that buys is a failure mode removed. On a freshly formatted or
+# freshly built device the file is not there yet, and /config — the page you
+# need to configure the device — answered with "Page asset missing". Bootstrap
+# no longer depends on a manual upload.
+#
+# If headroom gets tight again, HIST_PAGE (18940 B) is the better candidate to
+# move out: it is bigger and it is not needed to bring a device up. The catch
+# is that /history is opened far more often than /config ever was, so it
+# fails the "rarely opened" half of the criterion above — measure the extra
+# latency before committing to it. See docs/ANALISE_FLASH_RAM.md.
+FS_PAGES = {}
 FS_OUT_DIR = os.path.join(PROJECT_DIR, "data", "web")
 
 # Languages enabled in firmware.

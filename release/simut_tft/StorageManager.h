@@ -163,10 +163,12 @@ public:
   *
   * DESTRUCTIVE: records are bit-packed against the header, so the schema
   * cannot be swapped under them — the day's file is recreated and today's
-  * earlier records are lost. Carrying them over means decoding and
-  * re-encoding every record, which measured at 8.2 KB of flash and 5.6 KB of
-  * RAM on this target, against an app slot with ~8.8 KB to spare. The lean
-  * trade was taken on purpose; the CLI demands `confirm` because of it.
+  * earlier records are lost. The CLI demands `confirm` because of it.
+  *
+  * PREFER migrateV4Schema( ), which carries the day's records over instead of
+  * discarding them. This one is the fallback for the case migration cannot
+  * handle — a source file too damaged to decode — and stays reachable from the
+  * CLI (`sensor reschema confirm`) and from the web with ?force=1.
   *
   * One file per day is preserved either way.
   *
@@ -175,6 +177,14 @@ public:
   *         written; the codec is left invalid so the next tick re-bootstraps.
   */
  bool rebindV4Schema(uint8_t* outMeasures = nullptr);
+
+ /** Rewrite today's .sim4 against the current slots, KEEPING the day's
+  *  records. Streaming (constant ~5.6 KB of RAM), verified against the
+  *  source before the swap, original intact on any failure.
+  *  Returns false when the source is unreadable — rebindV4Schema is then
+  *  the destructive fallback. */
+ bool migrateV4Schema(uint8_t* outMeasures = nullptr, uint32_t* outRecords = nullptr,
+                      uint8_t* outCarried = nullptr);
 
  /** Build a V4 schema (sensor + measurement table + string pool) from SystemConfig.
   * Used when creating a new V4 history file. The schema is stored in the file header
@@ -360,6 +370,12 @@ public:
   * (torn tail after power loss), returns true and reports the last good
   * byte offset in *tornAt so the caller can repair before appending. */
  static bool scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt = nullptr);
+
+ /** Lockstep re-decode of source and replacement: every carried column must
+  *  come back bit-identical, epochs must match, and the record count must be
+  *  exactly what was written. Gate for the swap in migrateV4Schema. */
+ bool verifyMigratedV4(const String &srcPath, const String &tmpPath,
+                       const int8_t *colMap, uint32_t expectRecords);
  /** Create/recreate a day file with a fresh schema header; returns true
   * only if the header read back from flash parses with measureCount > 0. */
  bool createHistoryFileV4WithSchema(const String &path);

@@ -4,6 +4,55 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v1.5.5-beta (2026-07-26)
+
+Release de folga, e o que ela comprou. Um estudo de flash e RAM da 1.5.4-beta
+encontrou que **a pilha Bluetooth estava linkada em toda imagem e nada nunca a
+chamava** — 64.732 B de flash e 16.416 B de RAM por um subsistema que o
+`build_src_filter` excluía e que o `SIMUT_BLUETOOTH=0` reduzia a stubs vazios. A
+folga real saiu de 4.740 B para 69.472 B, e duas funções antes rejeitadas por
+falta de espaço foram construídas com ela: a `/config` de volta ao firmware e
+uma reescrita do histórico que preserva o dia em vez de descartá-lo.
+
+O estudo está publicado inteiro em `docs/ANALISE_FLASH_RAM.md` — medido, não
+estimado, incluindo os experimentos que acabaram não economizando nada.
+
+### O Bluetooth que nunca esteve lá
+
+- **`-DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH` selecionava a variante `liblwip-bt.a` e o blob de rádio *combinado* WiFi+BT**, enquanto `BluetoothManager.cpp` estava excluído de todos os ambientes que embarcam. Removendo: flash 1.039.740 → 975.008 B, RAM estática 131.436 → 115.020 B, heap 130.704 → 147.120 B. No ferro, o número que importa não é o heap livre e sim o maior bloco contíguo, **11.483 → 35.776 B** — o que o BearSSL pede, e a razão de o `setBufferSizes(4096, 512)` ter precisado existir.
+- `lib_ignore = SerialBT` é obrigatório junto: o LDF do PlatformIO percorre o `#include <SerialBT.h>` dentro do `#if SIMUT_BLUETOOTH` mesmo com o ramo desligado. Ambientes que declaram o próprio `lib_ignore` substituem a lista herdada em vez de estendê-la, então o `pico_w_alpha` repete a entrada.
+- O `pico_w_debug`, documentado como estourando o slot em ~69 KB, agora estoura **16.576 B**. Ainda não linka, mas ficou ao alcance.
+
+### Um sensor adicionado hoje é gravado hoje
+
+- **Um `.sim4` congela o schema no cabeçalho e casa valores por hwId**, então um slot criado ou renomeado depois que o arquivo do dia existe não tinha coluna para gravar. O registro continuava sendo anexado, aquele canal só ficava na sentinela NaN, e nada no log dizia isso. O único remédio era `sensor reschema confirm`, que recria o arquivo e joga o dia fora.
+- **`migrateV4Schema` preserva o dia.** Reescreve o arquivo contra um schema montado dos slots atuais, carrega registro a registro cada coluna que ainda existe e preenche as novas com a sentinela NaN até 00:00. Sequência: parar tudo, verificar a origem (reparando cauda rasgada antes), gravar um `.mig` temporário, re-decodificar origem e substituto **em lockstep comparando cada coluna carregada**, e só então remover o original e renomear. O original fica intocado até o substituto ter sido relido do flash e comparado.
+- **É streaming, não cópia para RAM, e essa é a decisão que importa.** Medido com o codec de produção, um dia completo no intervalo mínimo de 1 min é 9,7 KB com 9 medições mas **42,8 KB com 48** e 55,9 KB no teto do formato — contra ~47 KB de heap livre e maior bloco de ~36 KB. Bufferizar passaria numa bancada de cinco sensores e falharia num device cheio, que é exatamente quando a função importa. O streaming custa 5,6 KB constantes, independente do dia, do número de sensores ou do intervalo.
+- Valores são carregados **crus** quando `(bitWidth, scale)` batem dos dois lados — o caso normal. Só uma mudança real de largura ou escala passa por float, porque um inteiro cru não significa nada sem o def contra o qual foi empacotado.
+- Acessível por um botão no editor de slot da `/config`, que é onde você está quando percebe o problema. O cliente bloqueia enquanto houver edições não salvas: a migração lê os slots do flash, então rodá-la sobre alterações não gravadas congelaria o schema antigo de novo e gastaria o dia à toa.
+- `POST /api/history_rebind` migra por padrão; `?force=1` seleciona o caminho destrutivo antigo, e a página só o oferece quando a migração falha por origem ilegível.
+
+### A `/config` não precisa mais ser enviada à mão
+
+- **A página vivia no LittleFS via `FS_PAGES`**, de quando a imagem tinha 660 bytes de folga. Isso carregava uma armadilha de bootstrap: num device recém-formatado ou recém-montado o arquivo não está lá, e a `/config` — a página que você precisa para configurar o aparelho — respondia *"Page asset missing"* até alguém subir o `config.html.gz` pela `/files`.
+- De volta ao firmware por **11.544 B**, não os 12.152 B do array: a `serveProtectedFsPage` tinha a `/config` como único chamador, então o helper e a página de erro dele saem no gc-sections junto. O mecanismo continua no lugar, sem uso, para quando a folga apertar de novo.
+- **Atualizar da 1.5.4-beta deixa um `/web/config.html.gz` órfão no device**, ocupando ~12 KB do LittleFS. Apague pela página `/files` ou com `POST /api/delete?file=/web/config.html.gz`. Não use `uploadfs`, que reformata a partição e leva o `/history` junto.
+
+### Achados registrados, ainda não aplicados
+
+- **O percentual de flash do PlatformIO não é a folga.** Ele omite a seção `.ota` (10.228 B) e o padding de alinhamento entre `.text` e `.rodata`: "98,3% usado" eram na verdade 4.740 bytes de sobra. O `docs/ANALISE_FLASH_RAM.md` traz a única medição que se sustenta.
+- **O knob de mDNS documentado nunca funcionou.** O `NetworkManager` testa `#ifdef SIMUT_MDNS` num símbolo que o `simut_config.h` sempre define, então `-DSIMUT_MDNS=0` produz uma imagem de tamanho idêntico com os 236 símbolos `MDNSResponder` ainda linkados. O comentário dele fala em ~196 KB; o custo medido é 15.036 B.
+- **A fragmentação do heap nasce no boot, não do tráfego.** 32 KB livres mas 11,4 KB contíguos, e não se moveu ao longo de 9,6 MB de tráfego e 679 requisições. Os candidatos são as duas alocações `GFXcanvas16` (40 KB de heap) e a excisão do pack de idioma, que tem pico de ~42 KB e deixa um buraco de 28 KB.
+- **`-DNDEBUG` vale 6.600 B** e um `sscanf` remanescente vale 7.532 B; ambos medidos, nenhum aplicado aqui.
+- **O patch do `lwipopts.h` que economiza 18 KB de `.bss` mora fora da árvore de build**, então um clone limpo compila sem ele em silêncio.
+
+### Verificado
+
+- 136/136 testes nativos em quatro suítes, incluindo 7 casos novos da migração: coluna adicionada, coluna removida, reordenação casada por hwId, NaN atravessando mudança de largura, conversão de escala, rebobinagem do codec, tamanho do cabeçalho.
+- Migração no ferro contra 32 registros reais: adicionar um sexto sensor deu `meas` 9→10 com **32/32 registros e 240/240 valores idênticos**; remover deu 10→9 com 32/32 e 240/240 de novo.
+- Carga na imagem publicada: **1.343 requisições HTTP em duas corridas, uma falha**. O dispositivo a contou como desconexão de cliente (`desconexao 1`), não como defeito próprio — o heap ficou estável, o PBUF reportou 0 falhas de alocação e o uptime foi contínuo nas duas corridas. A segunda corrida deu 691 requisições com 0 erros. Heap 41.268–41.572 B, maior bloco nunca abaixo de 30.075 B, pico de PBUF 7/12, 0 erros de leitura de sensor.
+- Os números de heap são menores que os da 1.5.4-beta porque a migração custa 5,7 KB de `.bss`. Contra a 1.5.4-beta como publicada continua sendo um ganho grande: heap livre 32.220 → 41.572 B e maior bloco contíguo **11.483 → 30.075 B**.
+
 ## v1.5.4-beta (2026-07-26)
 
 Release da interface web. A interface era utilizável no desktop e hostil no
