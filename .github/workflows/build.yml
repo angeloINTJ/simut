@@ -28,6 +28,9 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
+      - name: Check log-code tables in sync
+        run: python3 tools/gen_logcodes.py --check
+
       - name: Build firmware
         run: pio run -e pico_w_release
 
