@@ -10,4 +10,10 @@
 *.elf binary
 *.a binary
 *.ico binary
-*.lng binary
+# Language packs are UTF-8 text (no NUL, no CR). Marked binary they showed up in
+# review as "Bin 18181 -> 28741 bytes", which hid every translation change —
+# the one thing about these files anyone needs to read a diff for.
+# @DICT/@LOGCODES/@TRL/@HELP/@LICENSE now diff line by line. @WEBDICT is a
+# single-line JSON blob, so it still shows as one changed line; `git diff
+# --word-diff` on it is readable.
+*.lng text eol=lf
