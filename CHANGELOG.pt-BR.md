@@ -99,9 +99,12 @@ renderizou pelo `unaccent()` sem nenhum `?`.
 
 ### O que não foi verificado
 
-- **O `tel_reset` nunca rodou em hardware.** A telemetria da bancada aponta para
-  um endpoint vivo a cada 10 s e resetar o cursor empurraria até 30 dias de
-  histórico nele. As outras quatro ações foram exercitadas.
+- ~~O `tel_reset` nunca rodou em hardware.~~ **Verificado depois da publicação.**
+  Contra o endpoint de teste da bancada: HTTP 200 e então 21 envios em ~3 min
+  carregando 62.707 B — contra 6 envios e 3.678 B no uptime inteiro anterior —
+  com **0 falhas e 0 retries**, leituras de sensor ainda sem erro e sem reboot.
+  É o backlog reenviando exatamente como documentado. As cinco ações estão
+  exercitadas.
 - **Sem soak longo nesta build.** Releases anteriores levaram corridas de
   tempestade de horas; esta tem minutos.
 - A **corrida do heartbeat do Core 1** sob carga pesada de flash

@@ -97,9 +97,12 @@ was loaded on the device and `help` rendered through `unaccent()` with no `?`.
 
 ### What has not been verified
 
-- **`tel_reset` was never run on hardware.** Telemetry on the bench points at a
-  live endpoint at 10 s intervals and resetting the cursor would push up to 30
-  days of history at it. The other four actions were exercised.
+- ~~`tel_reset` was never run on hardware.~~ **Verified after publication.**
+  Against the bench test endpoint: HTTP 200, then 21 uploads in ~3 min carrying
+  62,707 B — against 6 uploads and 3,678 B for the whole prior uptime — with
+  **0 failures and 0 retries**, sensor reads still error-free and no reboot.
+  That is the backlog re-sending exactly as documented. All five actions are now
+  exercised.
 - **No long soak on this build.** Previous releases carried multi-hour storm
   runs; this one has minutes.
 - The **Core 1 heartbeat race** under heavy flash load (`APP_CORE1_DEAD` →
