@@ -2042,23 +2042,28 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         let _devAmbHwId = '';   /* v3.34.0: hwId customizado do ambient (do /api/config) */
         let _devSensors = Array.from({length:10}, (_,i) => ({
             hwid: 'STM' + String(i+1).padStart(4,'0'),
-            active: true
+            active: true, hasHum: false, hasPress: false
         }));
 
         /* Demo scenario: real serial + real per-slot hwid/active state, 2-record batch.
          * Value formatting mirrors firmware (%.2f for tAMB/slots, %.1f for uAMB). */
         function _previewDemoBatch() {
+            /* hum is needed for {u..} to render as a number instead of null —
+             * without it the new humidity tokens would preview as missing even
+             * on a sensor that reports humidity. */
             const mk = (tBase) => _devSensors.map((s, i) => ({
                 hwid: s.hwid,
                 val: (20 + i + tBase).toFixed(2),
+                hum: s.hasHum ? (55 + i + tBase).toFixed(1) : null,
+                hasPress: !!s.hasPress,
                 active: s.active
             }));
             /* v3.34.0: ambient hwId espelha lógica do firmware — usa
              * cfg.ambientSensor.hwId se != "AMB" (default), senão fallback serial. */
             const ambId = (_devAmbHwId && _devAmbHwId !== 'AMB') ? _devAmbHwId : _devSerial;
             return [
-                { ts: 1700000000, ambHwId: ambId, ambT: '25.30', ambH: '60.1', slots: mk(0.1) },
-                { ts: 1700000005, ambHwId: ambId, ambT: '25.40', ambH: '60.0', slots: mk(0.2) }
+                { ts: 1700000000, ambHwId: ambId, ambT: '25.30', ambH: '60.1', press: '1013.2', slots: mk(0.1) },
+                { ts: 1700000005, ambHwId: ambId, ambT: '25.40', ambH: '60.0', press: '1013.1', slots: mk(0.2) }
             ];
         }
 
@@ -2074,12 +2079,40 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.ambHwId; tc = 8; }
                 else if (tpl.substr(ti, 6) === '{tAMB}') { val = rec.ambT; hwid = rec.ambHwId; compKey = 'tAMB'; tc = 6; }
                 else if (tpl.substr(ti, 6) === '{uAMB}') { val = rec.ambH; hwid = rec.ambHwId; compKey = 'uAMB'; tc = 6; }
-                else if (tpl.length - ti >= 4 && tpl[ti+1] === 't' && tpl[ti+2] >= '0' && tpl[ti+2] <= '9' && tpl[ti+3] === '}') {
-                    const idx = parseInt(tpl[ti+2]);
-                    const s = rec.slots[idx];
-                    val = (s && s.active) ? s.val : null;
-                    hwid = s ? s.hwid : '';
-                    compKey = 't' + idx; tc = 4;
+                else if (tpl.substr(ti, 6) === '{pAMB}') { val = rec.press; hwid = rec.ambHwId; compKey = 'pAMB'; tc = 6; }
+                else {
+                    /* {t0}..{t15} and {u0}..{u15}. The preview used to know only
+                     * single-digit {t..}, so {u1} and {t12} fell through and were
+                     * echoed literally — the template looked broken here while the
+                     * firmware resolved it fine. One matcher for both channels
+                     * keeps the two sides from drifting apart again. */
+                    const ch = tpl[ti+1];
+                    if (ch === 't' || ch === 'u' || ch === 'p') {
+                        let digits = 0;
+                        if (tpl[ti+2] >= '0' && tpl[ti+2] <= '9') {
+                            if (tpl[ti+3] === '}') digits = 1;
+                            else if (tpl[ti+3] >= '0' && tpl[ti+3] <= '9' && tpl[ti+4] === '}') digits = 2;
+                        }
+                        if (digits) {
+                            const idx = parseInt(tpl.substr(ti + 2, digits), 10);
+                            if (idx < _devSensors.length || idx < 16) {
+                                const s = rec.slots[idx];
+                                /* {pN} only resolves on the slot that actually
+                                 * reports pressure — mirrors the firmware, which
+                                 * has one rec.pressure and must not lend it to a
+                                 * sensor that never measured it. */
+                                let raw = null;
+                                if (s && s.active) {
+                                    if (ch === 't') raw = s.val;
+                                    else if (ch === 'u') raw = s.hum;
+                                    else if (s.hasPress) raw = rec.press;
+                                }
+                                val = (raw === undefined) ? null : raw;
+                                hwid = s ? s.hwid : '';
+                                compKey = ch + idx; tc = 2 + digits + 1;
+                            }
+                        }
+                    }
                 }
                 if (tc === 0) { out += c; ti++; continue; }
 
@@ -2096,8 +2129,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (mFull) {
                     out = out.substr(0, out.length - (compKey.length + 6));
                     if (val !== null) {
-                        const letter = compKey[0] === 'u' ? 'u' : 't';
-                        out += '"' + letter + (hwid || '').trim() + '":' + val;
+                        /* Letter from the token (t/u/p), matching the firmware. */
+                        out += '"' + compKey[0] + (hwid || '').trim() + '":' + val;
                     }
                 } else if (mBare) {
                     if (val !== null) out += val;
@@ -2342,7 +2375,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (d.ambHwId !== undefined) _devAmbHwId = d.ambHwId || '';
                 if (Array.isArray(d.sensors)) {
                     for (let i = 0; i < 10 && i < d.sensors.length; i++) {
-                        _devSensors[i] = { hwid: d.sensors[i].hwid || '', active: !!d.sensors[i].active };
+                        _devSensors[i] = { hwid: d.sensors[i].hwid || '', active: !!d.sensors[i].active,
+                                           hasHum: !!d.sensors[i].hum, hasPress: !!d.sensors[i].press };
                     }
                 }
                 toggleTransport(); toggleBuilder();

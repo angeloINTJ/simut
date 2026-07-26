@@ -1336,9 +1336,45 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
  compKeyLen = snprintf(compKey, sizeof(compKey), "u%d", idx);
  tokenChars = 5; tokenValid = true;
  }
- } else if (remaining >= 7 && memcmp(tpl + ti, "{pAMB}", 7) == 0) {
+ } else if (remaining >= 6 && memcmp(tpl + ti, "{pAMB}", 6) == 0) {
+ /* Was comparing 7 bytes against a 6-char token, so the NUL of the
+  * literal had to line up with the template's own terminator: {pAMB}
+  * only ever resolved when it was the LAST thing in the template, and
+  * even then tokenChars=7 ate the following byte. Hence "p is not
+  * accepted as an argument".
+  *
+  * Unlike {t..}/{u..} there is no per-slot pressure: the record carries
+  * a single `pressure` field, so the key can only be attributed the way
+  * {tAMB}/{uAMB} are, not to the sensor that produced it. */
  val = hasPress ? pressBuf : nullptr;
- tokenChars = 7; tokenValid = true;
+ hwid = (cfg.sensors[10].active && cfg.sensors[10].hwId[0] != '\0' && strcmp(cfg.sensors[10].hwId, "AMB") != 0)
+        ? cfg.sensors[10].hwId : boardSerial;
+ memcpy(compKey, "pAMB", 4); compKeyLen = 4;
+ tokenChars = 6; tokenValid = true;
+ } else if (remaining >= 4 && tpl[ti+1] == 'p' &&
+            tpl[ti+2] >= '0' && tpl[ti+2] <= '9' &&
+            (tpl[ti+3] == '}' ||
+             (remaining >= 5 && tpl[ti+3] >= '0' && tpl[ti+3] <= '9' && tpl[ti+4] == '}'))) {
+ /* {p0}..{p15} — pressure attributed to the slot that produces it.
+  *
+  * BinaryHistoryRecord carries ONE pressure field, not an array, because
+  * only one sensor on a bus reports it: collectBatch writes rec.pressure
+  * from whichever active slot has CH_PRESS. So {pN} resolves to that
+  * single value, but only when slot N is really the pressure source —
+  * asking for {p1} on a DHT22 yields nothing rather than borrowing the
+  * BMP280's reading. That makes the rewritten key ("pTBD0001") match the
+  * V4 history key for the same channel, which {pAMB} cannot do since it
+  * can only name the ambient slot or the board serial. */
+ const bool twoDigit = !(tpl[ti+3] == '}');
+ int idx = twoDigit ? (tpl[ti+2] - '0') * 10 + (tpl[ti+3] - '0') : (tpl[ti+2] - '0');
+ if (idx < MAX_SENSORS) {
+ const bool slotHasPress = cfg.sensors[idx].active &&
+                           sensorHasChannel((SensorType)cfg.sensors[idx].sensorType, CH_PRESS);
+ val = (slotHasPress && hasPress) ? pressBuf : nullptr;
+ hwid = cfg.sensors[idx].hwId;
+ compKeyLen = snprintf(compKey, sizeof(compKey), "p%d", idx);
+ tokenChars = twoDigit ? 5 : 4; tokenValid = true;
+ }
  }
 
  if (!tokenValid) {
@@ -1388,7 +1424,9 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
  size_t hlen = strnlen(h, sizeof(hwidTrim) - 1);
  while (hlen > 0 && (h[hlen-1] == ' ' || h[hlen-1] == '\t')) hlen--;
  memcpy(hwidTrim, h, hlen); hwidTrim[hlen] = '\0';
- const char* prefix = (compKey[0] == 'u') ? "\"u" : "\"t";
+ /* Channel letter comes from the token itself (t/u/p), so a new
+  * channel does not need this line touched again. */
+ const char prefix[3] = { '"', compKey[0], '\0' };
  int w = snprintf(dest + di, cap - di, "%s%s\":%s", prefix, hwidTrim, val);
  if (w > 0) { di += ((size_t)w < cap - di) ? (size_t)w : (cap - di - 1); }
  }
