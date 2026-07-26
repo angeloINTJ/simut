@@ -33,8 +33,12 @@ void AppManager::executeCommand(CliDemand cmd) {
  bool changed = false;
  const bool pt = _cmdMgr->isPt( );
 
+#if SIMUT_CLI_FULL
  /* ── Cisco IOS mode validation ──
-  * Navigation commands are always processed regardless of mode mask. */
+  * Navigation commands are always processed regardless of mode mask.
+  * The emergency image has a single mode, so nothing here can fail and the
+  * whole block — including its eight bilingual "wrong mode" messages —
+  * compiles out. */
  uint8_t curMask = (1 << _cmdMgr->cliMode( ));
  bool isNav = (cmd.type == CMD_ENABLE || cmd.type == CMD_DISABLE ||
                cmd.type == CMD_CONFIGURE || cmd.type == CMD_EXIT ||
@@ -62,12 +66,19 @@ void AppManager::executeCommand(CliDemand cmd) {
   }
   return;
  }
+#endif /* SIMUT_CLI_FULL */
 
  switch (cmd.type) {
  case CMD_HELP:
+#if SIMUT_CLI_FULL
   /* Mode-aware help — '?' shows context-sensitive commands */
   _cmdMgr->printModeHelp( ); break;
+#else
+  /* One mode, nine commands: the flat list is the whole help. */
+  _cmdMgr->printHelp( ); break;
+#endif
 
+#if SIMUT_CLI_FULL
  case CMD_SHOW_THEMES:
  _cmdMgr->consolePrintln("");
  _cmdMgr->consolePrintln("--- Available Themes ---");
@@ -104,6 +115,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  }
  break;
  }
+
+#endif /* SIMUT_CLI_FULL */
 
  case CMD_SHOW_LOGS: {
  _cmdMgr->consolePrintln("");
@@ -146,6 +159,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
 
+#if SIMUT_CLI_FULL
  case CMD_SHOW_SENSORS: _cmdMgr->renderSensorTable(cfg.sensors, MAX_SENSORS); break;
  case CMD_SHOW_GPIO:    _cmdMgr->renderGpioMap(cfg.sensors, MAX_SENSORS); break;
  case CMD_SHOW_SENSOR_TYPES: {
@@ -191,6 +205,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  _cmdMgr->printDivider( );
  break;
  }
+#endif /* SIMUT_CLI_FULL */
+
  case CMD_SHOW_SYSINFO: _cmdMgr->renderSystemInfo(cfg); break;
  case CMD_SHOW_NET: {
  String ip = _netMgr->getIpAddress( );
@@ -220,6 +236,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
 
+#if SIMUT_CLI_FULL
 #if SIMUT_SENSOR_DS18B20
 #if SIMUT_SENSOR_DS18B20
  case CMD_SET_DS_RES: {
@@ -418,9 +435,12 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
 
+#endif /* SIMUT_CLI_FULL */
+
  case CMD_RESET_ADMIN:
  cmdHandleResetAdmin(cmd, cfg, changed); break;
 
+#if SIMUT_CLI_FULL
  case CMD_RESET_TOUCH_CAL: {
  if (!cmd.confirmed) {
  const bool pt = _cmdMgr->isPt( );
@@ -450,6 +470,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  changed = true;
  break;
  }
+
+#endif /* SIMUT_CLI_FULL */
 
  case CMD_FACTORY_RESET: {
  const bool pt = _cmdMgr->isPt( );
@@ -488,6 +510,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  LogManager::instance( ).safeReboot( );
  }
 
+#if SIMUT_CLI_FULL
  case CMD_SET_NTP_ENABLED: {
  const bool pt = _cmdMgr->isPt( );
  bool en = (cmd.intVal1 != 0);
@@ -684,6 +707,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  _cmdMgr->printSuccess(_cmdMgr->isPt( ) ? "Logs apagados." : "Logs cleared.");
  break;
 
+#endif /* SIMUT_CLI_FULL */
+
  case CMD_RELOAD:
  if (!cmd.confirmed) {
  const bool pt = _cmdMgr->isPt( );
@@ -698,6 +723,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  delay(100); /* Ensures log is flushed to flash */
  LogManager::instance( ).safeReboot( );
  break;
+#if SIMUT_CLI_FULL
  case CMD_TEL_SYNC:
  /* Silent by design: user sees the natural log
  * "Telemetria enviada: ..." when there is data to send. */
@@ -727,6 +753,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  : "Telemetry cursor reset. Next sends cover up to 30 days back.");
  break;
 
+#endif /* SIMUT_CLI_FULL */
+
  case CMD_DEBUG: {
  CliConfigData* cli = reinterpret_cast<CliConfigData*>(
  cfg.reserved + CLI_CONFIG_OFFSET);
@@ -748,6 +776,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
 
+#if SIMUT_CLI_FULL
  case CMD_LANGUAGE: {
  if (cmd.intVal1 == LANG_PT || cmd.intVal1 == LANG_EN) {
  cfg.displayLang = (uint8_t)cmd.intVal1;
@@ -970,8 +999,21 @@ void AppManager::executeCommand(CliDemand cmd) {
   break;
  }
 
+#endif /* SIMUT_CLI_FULL */
+
  case CMD_UNKNOWN:
  default:
+#if !SIMUT_CLI_FULL
+  /* Almost every unknown command here is one that used to work and now lives
+   * in the web UI, so say that instead of just "unknown" — otherwise muscle
+   * memory (`write memory`, `show metrics`) meets a bare error and reads as a
+   * broken device rather than a moved feature. */
+  LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
+  _cmdMgr->printError(pt
+   ? "Comando desconhecido. As configuracoes ficam na interface web; 'help' lista o que resta aqui."
+   : "Unknown command. Settings live in the web interface; 'help' lists what is left here.");
+  break;
+#else
   /* Mode-aware hint for unknown commands */
   if (_cmdMgr->isConfigMode( )) {
    LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
@@ -985,11 +1027,23 @@ void AppManager::executeCommand(CliDemand cmd) {
     : "Unknown command. Type '?' or 'help'.");
   }
   break;
+#endif /* SIMUT_CLI_FULL */
  }
 
+#if SIMUT_CLI_FULL
  if (changed) _cmdMgr->printInfo(_cmdMgr->isPt( )
  ? "RAM OK. Use 'write memory' para salvar."
  : "RAM updated. Run 'write memory' to persist.");
+#else
+ /* `write memory` does not exist in the emergency console, so pointing at it
+  * would send the user after a command that answers "unknown". `debug` is the
+  * only survivor that sets this flag, and session-only is the behaviour you
+  * want from it anyway — nobody should leave a device streaming logs because
+  * a recovery session persisted the flag. */
+ if (changed) _cmdMgr->printInfo(_cmdMgr->isPt( )
+ ? "Vale para esta sessao; nao persiste apos reiniciar."
+ : "Applies to this session; does not persist across reboot.");
+#endif
 }
 
 /* =========================================================================== */
