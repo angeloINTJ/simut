@@ -24,46 +24,54 @@
 #include <pico/time.h>
 
 /**
- * @brief Feeds the watchdog during blocking network operations (TLS/HTTP/MQTT).
+ * @brief true se o arquivo de histórico @p fileName é de um dia ANTERIOR a
+ *        @p minDay ("YYYYMMDD").
  *
- * http.POST() with TLS can block for 4-8s on a healthy network. On degraded
- * networks (low RSSI, 2G, roaming), handshake + transfer can
- * legitimately extend to tens of seconds. Without feeding, the
- * watchdog (8.3s) fires during a normal operation.
+ * @details L2: o corte de arquivos comparava o nome inteiro contra um limite
+ * montado com o sufixo ".bin" fixo. Como os 8 dígitos da data decidem a
+ * ordem antes de o sufixo pesar, funcionava — por acidente, e só enquanto
+ * todas as extensões coexistissem sem mudar. Comparar exatamente a parte
+ * que significa alguma coisa remove o acidente.
  *
- * The timer runs every 2s and feeds while the guard is active.
- * Safety: stops feeding after WDT_FEED_MAX_WINDOW_MS (60s) to
- * avoid masking real deadlocks — at that point, the watchdog takes action
- * as the final safety net. HTTP/MQTT internals already have
- * NET_SOCKET_TIMEOUT_MS=4s, so healthy operations don't reach 60s.
+ * Nomes com menos de 8 caracteres ou com não-dígitos no prefixo não são
+ * arquivos de dia válidos; são mantidos (não cortados) para que a leitura
+ * decida, em vez de sumirem silenciosamente aqui.
+ *
+ * @param fileName Nome do arquivo (sem diretório), e.g. "20260724.sim4".
+ * @param minDay   Data limite no formato "YYYYMMDD".
+ * @return true se deve ser pulado.
  */
-static volatile bool _telGuardActive = false;
-static volatile uint32_t _telGuardStartMs = 0;
-static struct repeating_timer _telGuardTimer;
-static bool _telGuardTimerStarted = false;
-
-static bool _telGuardCallback(struct repeating_timer *t) {
- (void)t;
- if (_telGuardActive) {
- uint32_t elapsed = millis( ) - _telGuardStartMs;
- if (elapsed < WDT_FEED_MAX_WINDOW_MS) {
- watchdog_update( );
- }
- }
- return true;
+static bool historyDayIsBefore(const String &fileName, const char *minDay) {
+	if (fileName.length( ) < 8) return false;
+	for (int i = 0; i < 8; i++) {
+		const char c = fileName[i];
+		if (c < '0' || c > '9') return false;
+	}
+	return strncmp(fileName.c_str( ), minDay, 8) < 0;
 }
 
-struct TelemetryGuard {
- TelemetryGuard( ) {
- if (!_telGuardTimerStarted) {
- add_repeating_timer_ms(-2000, _telGuardCallback, nullptr, &_telGuardTimer);
- _telGuardTimerStarted = true;
- }
- _telGuardStartMs = millis( );
- _telGuardActive = true;
- }
- ~TelemetryGuard( ) { _telGuardActive = false; }
-};
+/*
+ * TelemetryGuard is gone, and deliberately not replaced.
+ *
+ * It claimed to feed the watchdog during blocking network calls, via a 2 s
+ * repeating timer. Measured on hardware 2026-07-25: the timer registers fine
+ * and ticks correctly right up to http.POST(), then stops feeding the instant
+ * the POST blocks. It never did its job in any build — what kept telemetry
+ * alive was POSTs being fast, not the guard.
+ *
+ * Making it work would have been worse. The blocking was a TLS handshake with
+ * no overall deadline (fixed in the framework — see
+ * tools/arduino_pico_overrides/patches/wifi_tls_handshake_deadline.patch), and
+ * a guard that fed through it would have turned a recoverable watchdog reboot
+ * into a permanent freeze. That was verified the hard way: disarming the
+ * watchdog around the POST left the device wedged with USB still enumerated
+ * and both the CLI and the web dead, until a hardware reset.
+ *
+ * The rule this leaves: bound the blocking call, and let the watchdog be the
+ * backstop. Never widen the window (the RP2040 ceiling is WATCHDOG_TIMEOUT_MS
+ * = 8388 ms regardless of what you ask for) and never feed from an interrupt
+ * to survive a call that should have been bounded in the first place.
+ */
 
 TelemetryManager::TelemetryManager( )
  : _mqttClient(_mqttWifiClient)
@@ -84,6 +92,7 @@ TelemetryManager::TelemetryManager( )
 void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  _storageRef = storage;
  _netRef = network;
+
 
 
  _hasCert = false;
@@ -220,10 +229,12 @@ void TelemetryManager::update( ) {
  if (!_storageRef->lockHeavyTask( )) { __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE); return; }
 
  /*
- * RAII: extends WDT context to 120s during the cycle. TelemetryGuard only
- * covers http.POST (handshake/cleanup were exposed). Context-aware:
- * nested saves/logs don't reduce the window to 8.3s during telemetry.
- * Auto-restore on any exit path (normal or early return).
+ * This asks for 120 s and gets 8.388 s, like every other WdtWindow in the
+ * codebase: the RP2040 load register cannot express more (see the class
+ * comment in LogManager.h). It is kept only so nested saves/logs cannot
+ * shrink the window below the default mid-cycle, and auto-restores on any
+ * exit path. It buys NO extra time — every blocking call in this cycle has
+ * to be bounded on its own.
  */
  LogManager::WdtWindow _wdt(120000);
 
@@ -326,7 +337,13 @@ void TelemetryManager::update( ) {
  * Preserved safety layers:
  * - update() preflight: aborts if heap < 24 KB
  * - buildPayload: dynamic resize if estimate exceeds available
- * - TelemetryGuard: feeds WDT during POST up to 60s (covers large POSTs)
+ * - the TLS handshake is bounded by setTLSConnectTimeout, which only holds
+ *   because of the framework patch in tools/arduino_pico_overrides
+ *
+ * A third layer used to be listed here — "TelemetryGuard feeds WDT during POST
+ * up to 60s" — and it was never true, which made these limits look safer than
+ * they were. Nothing in this cycle survives a blocking call that is not bounded
+ * on its own; the watchdog window cannot be widened past 8.388 s.
  *
  * @param configured Maximum limit configured by user.
  * @return Effective limit (≥1, ≤configured).
@@ -366,6 +383,7 @@ uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
 }
 
 bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uint32_t& newCursor) {
+ LogManager::TraceScope _tC(0, MOD_TEL_COLLECT);
  SystemConfig &cfg = _storageRef->getConfig( );
  uint32_t lastCursor = _storageRef->getLastSentTimestamp( );
 
@@ -398,7 +416,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_FILE_EXT) || dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -406,14 +424,18 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  }
  std::sort(files.begin( ), files.end( ));
 
- String minFileName = "";
+ /* L2: o corte compara apenas os 8 digitos YYYYMMDD do nome. Antes o
+  * limite era montado com o sufixo ".bin" fixo e comparado contra nomes
+  * que podem terminar em ".sim4" — funcionava por acaso (os digitos
+  * decidem antes de o sufixo importar) e quebraria em silencio ao mudar
+  * qualquer extensao. Comparar so a data torna a regra explicita. */
+ char minDay[9] = "";
  if (lastCursor > 1000000000) {
  time_t cursorEpoch = (time_t)lastCursor;
  struct tm timeinfo;
  localtime_r(&cursorEpoch, &timeinfo);
- char buff[24];
- snprintf(buff, sizeof(buff), "%04d%02d%02d" HISTORY_FILE_EXT, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
- minFileName = String(buff);
+ snprintf(minDay, sizeof(minDay), "%04d%02d%02d",
+          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
  }
 
  uint8_t limit = safeBatchLimit(
@@ -424,11 +446,14 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  * (V1 format) that was silently broken after migration. Reader follows
  * the pattern used in StorageManager::getLastRecorded
  * and WebManager::handleApiHistoryData. */
- const uint32_t EPOCH_MIN = 1700000000UL;
+ /* L1: piso unificado em SystemDefs_Limits.h. Era 1,7e9 aqui e no
+  * escritor V2, contra 1,6e9 no escritor V4 — registros gravados na
+  * janela entre os dois nunca eram enviados. */
+ const uint32_t EPOCH_MIN = HIST_EPOCH_MIN;
 
  for (const String& fn : files) {
  if (batch.size( ) >= limit) break;
- if (minFileName.length( ) > 0 && fn < minFileName) continue;
+ if (minDay[0] && historyDayIsBefore(fn, minDay)) continue;
 
  String fullPath = String(DIR_HISTORY) + "/" + fn;
 
@@ -436,14 +461,80 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  File f = LittleFS.open(fullPath, "r");
  if (!f) { _storageRef->exitFlashReadLock( ); continue; }
 
- /* V2 header */
+ 	 /* V4 detection: .sim4 files use universal format */
+	 bool isV4File = fullPath.endsWith(HISTORY_V4_FILE_EXT);
+	 if (!isV4File && f.size() >= 4) {
+	 char magic[4]; f.seek(0);
+	 if (f.read((uint8_t*)magic, 4) == 4 && memcmp(magic, HIST_V4_MAGIC, 4) == 0) isV4File = true;
+	 }
+	 if (isV4File) {
+	 /* Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
+	 static HistV4State v4st; f.seek(0);
+	 static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+	 static uint8_t rdBuf[HIST_V4_READ_BUF];
+	 static int64_t v4vals[HIST_V4_MAX_MEASUREMENTS];
+	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+	 /* Cursor fix (same as graph/web/scan): seek to the real header end. */
+	 size_t tHdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
+	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) : 0;
+	 if (tHdrLen > 0) f.seek(tHdrLen);
+	 if (tHdrLen > 0) {
+	 size_t rdFilled = 0;
+	 uint32_t v4epoch;
+	 bool fileHasMoreV4 = true; uint32_t inFileCountV4 = 0;
+	 SystemConfig &cfg = _storageRef->getConfig();
+	 while (fileHasMoreV4 && batch.size() < limit) {
+	 /* A1: refill pós-falha. Antes, um delta maior que a âncora na
+	  * borda do buffer encerrava o arquivo cedo; como o cursor é por
+	  * epoch, o lote saía vazio e o envio só retomava no próximo tick
+	  * (telemetria atrasando indefinidamente em dias com variação
+	  * forte, que é justamente quando os deltas ficam grandes). */
+	 size_t cons = histV4DecodeNextRefill(
+	 rdBuf, sizeof(rdBuf), rdFilled, v4st, v4vals, &v4epoch,
+	 [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+	 if (f.available() <= 0) return 0;
+	 int rN = f.read(dst, maxBytes);
+	 return (rN > 0) ? (size_t)rN : 0;
+	 });
+	 if (cons == 0) { fileHasMoreV4 = false; break; }
+	 inFileCountV4++;
+	 if (v4epoch >= EPOCH_MIN && (nowEpoch < EPOCH_MIN || v4epoch <= nowEpoch + 86400UL) && v4epoch > lastCursor) {
+	 BinaryHistoryRecord rec; rec.clear(); rec.epoch = v4epoch;
+	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
+	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
+	 char hwId[17]; uint8_t si = v4st.measures[m].sensorIdx;
+	 histV4StrPoolGet(hwId, sizeof(hwId), v4st.strPool, v4st.sensors[si].hwIdOffset, v4st.sensors[si].hwIdLen);
+	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
+	 if (cfg.sensors[slot].active && strcmp(cfg.sensors[slot].hwId, hwId) == 0) {
+	 uint8_t ch = v4st.measures[m].channel;
+	 if (ch == CH_TEMP) rec.sensors[slot] = BinaryHistoryRecord::floatToI16(v);
+	 else if (ch == CH_HUM) rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
+	 else if (ch == CH_PRESS) rec.pressure = BinaryHistoryRecord::floatToI16x10(v);
+	 break;
+	 }
+	 }
+	 }
+	 batch.push_back(rec);
+	 if (v4epoch > newCursor) newCursor = v4epoch;
+	 }
+	 if ((inFileCountV4 % 10) == 0 && fileHasMoreV4 && batch.size() < limit) {
+	 _storageRef->exitFlashReadLock(); feedWdt(); yield(); _storageRef->enterFlashReadLock();
+	 }
+	 }
+	 }
+	 f.close(); _storageRef->exitFlashReadLock();
+	 continue;
+	 }
+
+/* V2 header */
  HistoryFileHeaderV2 hdr;
  bool headerOk = false;
  if (f.size( ) >= HIST_V2_HEADER_SIZE) {
  f.seek(0);
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdr.version == HIST_V2_VERSION &&
+ (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION) &&
  hdr.anchorPeriod > 0);
  }
  }
@@ -457,6 +548,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 
  HistoryCodecState rdState;
  historyCodecReset(rdState);
+ rdState.fileVersion = hdr.version; /* MUST set before decode — auto-detect unreliable */
  uint8_t rdBuf[256];
  size_t rdFilled = 0;
  uint32_t inFileCount = 0;
@@ -522,6 +614,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  * Recreate _httpSecurePtr only on explicit socket/TLS error, to avoid
  * losing TCP keep-alive on consecutive successes. */
 bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
+ LogManager::TraceScope _tS(0, MOD_TEL_SEND);
  SystemConfig &cfg = _storageRef->getConfig( );
 
  feedWdt( );
@@ -544,13 +637,36 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  }
  _httpSecureLastUse = millis( );
 
- /* Bound TLS handshake. Default lib >10s; server slow/dying
- * mid-handshake won't blow WDT_FEED_MAX_WINDOW (60s). Static method,
- * affects all subsequent WiFiClientSecure creation. */
- WiFiClientSecure::setTLSConnectTimeout(NET_SOCKET_TIMEOUT_MS);
+ /* Bound the TLS handshake. Static method, affects all subsequent
+  * WiFiClientSecure creation. Upstream this call is nearly decorative — it
+  * bounds one _run_until iteration, never the handshake — so it only really
+  * holds because of the framework patch. See NET_TLS_HANDSHAKE_MS. */
+ WiFiClientSecure::setTLSConnectTimeout(NET_TLS_HANDSHAKE_MS);
+
+ /* BearSSL defaults to a 16 KB receive buffer ("minimum safe", set from
+  * _clear()), and it must get that as ONE contiguous block. Measured at the
+  * moment of the attempt on this device: 31,900 B free but only 11,370 B
+  * contiguous — the default cannot fit, and freeing more memory does not
+  * help while the heap stays this fragmented.
+  *
+  * 4096 is the largest RFC 6066 max_fragment_length below the default, so
+  * the request drops to ~4.4 KB and fits with room to spare. The server has
+  * to honour the extension; if it does not and sends a larger record, the
+  * connection fails instead of succeeding — a clean failure, not a hang.
+  *
+  * Do NOT drop this in favour of the boot-time pre-allocation in begin(),
+  * whose comment has warned about this exact 16 KB contiguous block since
+  * v1.0.0. That mitigation does not reach the problem and was measured
+  * failing: pre-allocating the WiFiClientSecure OBJECT reserves nothing,
+  * because BearSSL allocates the iobuf inside _connectSSL and frees it in
+  * _freeSSL — once per connection, whatever the heap looks like by then.
+  * Removing this line and booting with encryption already enabled still
+  * watchdog-reboots at the first send. */
+ _httpSecurePtr->setBufferSizes(4096, 512);
 
  if (_hasCert) _httpSecurePtr->setCACert(_cachedCert.c_str( ));
  else _httpSecurePtr->setInsecure( );
+
  connected = http.begin(*_httpSecurePtr, url);
  } else {
  connected = http.begin(client, url);
@@ -583,7 +699,6 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
 
  uint32_t postStart = millis( );
  {
- TelemetryGuard tg; /* Feeds watchdog during blocking POST */
  code = http.POST(payload);
  }
  uint32_t postLatency = millis( ) - postStart;
@@ -668,7 +783,6 @@ bool TelemetryManager::mqttEnsureConnected( ) {
  pass.trim( );
 
  {
- TelemetryGuard tg; /* Feeds watchdog during blocking connect */
  if (user.length( ) > 0) {
  connected = _mqttClient.connect(
  clientId.c_str( ),
@@ -793,7 +907,6 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
 
  bool ok;
  {
- TelemetryGuard tg; /* Feeds watchdog during blocking publish */
  ok = _mqttClient.publish(
  topic.c_str( ),
  payload.c_str( ),
@@ -929,6 +1042,7 @@ bool TelemetryManager::forceSync( ) {
  * No temporary String is created during the loop → safe for 50+ records.
  */
 String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
+ LogManager::TraceScope _tB(0, MOD_TEL_BUILD);
  SystemConfig &cfg = _storageRef->getConfig( );
 
  /* Estimate size: JSON ~300 bytes/record with 12 sensors */
@@ -1046,35 +1160,47 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  * @return Number of bytes written to dest (excluding \0).
  */
 int TelemetryManager::formatLineJsonBuf(const BinaryHistoryRecord& rec, const SystemConfig& cfg,
- char* dest, size_t maxLen) {
- dest[0] = '\0';
- int pos = snprintf(dest, maxLen, "{\"ts\":%lu", (unsigned long)rec.epoch);
+	 char* dest, size_t maxLen) {
+	 dest[0] = '\0';
+	 int pos = snprintf(dest, maxLen, "{\"ts\":%lu", (unsigned long)rec.epoch);
 
- char tmp[32];
- if (rec.ambientTemp != HIST_NAN_SENTINEL) {
- snprintf(tmp, sizeof(tmp), ",\"tAMB\":%.2f", BinaryHistoryRecord::i16ToFloat(rec.ambientTemp));
- pos += strlcat(dest + pos, tmp, maxLen - pos);
- }
- if (rec.ambientHum != HIST_NAN_SENTINEL) {
- snprintf(tmp, sizeof(tmp), ",\"uAMB\":%.1f", BinaryHistoryRecord::i16ToFloat(rec.ambientHum));
- pos += strlcat(dest + pos, tmp, maxLen - pos);
- }
- for (int i = 0; i < MAX_SENSORS; i++) {
- if (cfg.sensors[i].active && rec.sensors[i] != HIST_NAN_SENTINEL) {
- /* Uses hwId directly from config char[] — no temporary String */
- const char* hwid = cfg.sensors[i].hwId;
- if (hwid[0] == '\0') {
- snprintf(tmp, sizeof(tmp), ",\"t%d\":%.2f", i, BinaryHistoryRecord::i16ToFloat(rec.sensors[i]));
- } else {
- snprintf(tmp, sizeof(tmp), ",\"t%s\":%.2f", hwid, BinaryHistoryRecord::i16ToFloat(rec.sensors[i]));
- }
- pos += strlcat(dest + pos, tmp, maxLen - pos);
- }
- }
- if ((size_t)pos < maxLen - 1) { dest[pos] = '}'; dest[pos+1] = '\0'; pos++; }
- return pos;
-}
-
+	 char tmp[48];
+	 /* V4 universal keys: {prefix}{hwId}. Legacy ambient removed. */
+	 for (int i = 0; i < MAX_SENSORS; i++) {
+	 if (!cfg.sensors[i].active) continue;
+	 const char* hwid = cfg.sensors[i].hwId;
+	 if (rec.sensors[i] != HIST_NAN_SENTINEL) {
+	 float tv = BinaryHistoryRecord::i16ToFloat(rec.sensors[i]);
+	 char tKey[20];
+	 if (hwid[0]) snprintf(tKey, sizeof(tKey), "t%s", hwid);
+	 else snprintf(tKey, sizeof(tKey), "t%d", i);
+	 snprintf(tmp, sizeof(tmp), ",\"%s\":%.2f", tKey, (double)tv);
+	 pos += strlcat(dest + pos, tmp, maxLen - pos);
+	 }
+	 if (rec.humidity[i] != HIST_NAN_SENTINEL) {
+	 float hv = BinaryHistoryRecord::i16ToFloat(rec.humidity[i]);
+	 /* Build key inline */
+	 char key[16];
+	 if (hwid[0]) snprintf(key, sizeof(key), "u%s", hwid);
+	 else snprintf(key, sizeof(key), "u%d", i);
+	 snprintf(tmp, sizeof(tmp), ",\"%s\":%.1f", key, (double)hv);
+	 pos += strlcat(dest + pos, tmp, maxLen - pos);
+	 }
+	 }
+	 if (rec.pressure != HIST_NAN_SENTINEL) {
+	 float pv = BinaryHistoryRecord::i16ToFloatx10(rec.pressure);
+	 const char* pHwid = "p";
+	 for (int i = 0; i < MAX_SENSORS; i++) {
+	 if (cfg.sensors[i].active && sensorHasHumidity((SensorType)cfg.sensors[i].sensorType) && cfg.sensors[i].hwId[0]) {
+	 pHwid = cfg.sensors[i].hwId; break;
+	 }
+	 }
+	 snprintf(tmp, sizeof(tmp), ",\"p%s\":%.1f", pHwid, (double)pv);
+	 pos += strlcat(dest + pos, tmp, maxLen - pos);
+	 }
+	 if ((size_t)pos < maxLen - 1) { dest[pos] = '}'; dest[pos+1] = '\0'; pos++; }
+	 return pos;
+	}
 /** @brief Wrapper returning String — used by MQTT individual publish. */
 String TelemetryManager::formatLineJson(const BinaryHistoryRecord& rec, const SystemConfig& cfg) {
  char buf[512];
@@ -1104,17 +1230,25 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
 
  char ambTBuf[16] = {0};
  char ambHBuf[16] = {0};
+ char pressBuf[16] = {0};
  const bool hasAmbT = (rec.ambientTemp != HIST_NAN_SENTINEL);
  const bool hasAmbH = (rec.ambientHum != HIST_NAN_SENTINEL);
+ const bool hasPress = (rec.pressure != HIST_NAN_SENTINEL);
  if (hasAmbT) snprintf(ambTBuf, sizeof(ambTBuf), "%.2f", BinaryHistoryRecord::i16ToFloat(rec.ambientTemp));
  if (hasAmbH) snprintf(ambHBuf, sizeof(ambHBuf), "%.1f", BinaryHistoryRecord::i16ToFloat(rec.ambientHum));
+ if (hasPress) snprintf(pressBuf, sizeof(pressBuf), "%.1f", BinaryHistoryRecord::i16ToFloatx10(rec.pressure));
 
  char slotVal[MAX_SENSORS][16];
  bool slotHas[MAX_SENSORS];
+ char slotHumVal[MAX_SENSORS][16];
+ bool slotHumHas[MAX_SENSORS];
  for (int i = 0; i < MAX_SENSORS; i++) {
  slotHas[i] = (cfg.sensors[i].active && rec.sensors[i] != HIST_NAN_SENTINEL);
  if (slotHas[i]) snprintf(slotVal[i], sizeof(slotVal[i]), "%.2f", BinaryHistoryRecord::i16ToFloat(rec.sensors[i]));
  else slotVal[i][0] = '\0';
+ slotHumHas[i] = (cfg.sensors[i].active && rec.humidity[i] != HIST_NAN_SENTINEL);
+ if (slotHumHas[i]) snprintf(slotHumVal[i], sizeof(slotHumVal[i]), "%.1f", BinaryHistoryRecord::i16ToFloat(rec.humidity[i]));
+ else slotHumVal[i][0] = '\0';
  }
 
  const char* tpl = cfg.telLineTemplate;
@@ -1170,6 +1304,77 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
  compKeyLen = snprintf(compKey, sizeof(compKey), "t%d", idx);
  tokenChars = 4; tokenValid = true;
  }
+ } else if (remaining >= 5 && tpl[ti+1] == 't' &&
+ tpl[ti+2] >= '1' && tpl[ti+2] <= '1' &&
+ tpl[ti+3] >= '0' && tpl[ti+3] <= '5' && tpl[ti+4] == '}') {
+ /* {t10}..{t15} — two-digit slot index */
+ int idx = (tpl[ti+2] - '0') * 10 + (tpl[ti+3] - '0');
+ if (idx < MAX_SENSORS) {
+ val = slotHas[idx] ? slotVal[idx] : nullptr;
+ hwid = cfg.sensors[idx].hwId;
+ compKeyLen = snprintf(compKey, sizeof(compKey), "t%d", idx);
+ tokenChars = 5; tokenValid = true;
+ }
+ } else if (remaining >= 4 && tpl[ti+1] == 'u' &&
+ tpl[ti+2] >= '0' && tpl[ti+2] <= '9' && tpl[ti+3] == '}') {
+ /* {u0}..{u9} — per-slot humidity single digit */
+ int idx = tpl[ti+2] - '0';
+ if (idx < MAX_SENSORS) {
+ val = slotHumHas[idx] ? slotHumVal[idx] : nullptr;
+ hwid = cfg.sensors[idx].hwId;
+ compKeyLen = snprintf(compKey, sizeof(compKey), "u%d", idx);
+ tokenChars = 4; tokenValid = true;
+ }
+ } else if (remaining >= 5 && tpl[ti+1] == 'u' &&
+ tpl[ti+2] >= '1' && tpl[ti+2] <= '1' &&
+ tpl[ti+3] >= '0' && tpl[ti+3] <= '5' && tpl[ti+4] == '}') {
+ /* {u10}..{u15} — per-slot humidity two-digit */
+ int idx = (tpl[ti+2] - '0') * 10 + (tpl[ti+3] - '0');
+ if (idx < MAX_SENSORS) {
+ val = slotHumHas[idx] ? slotHumVal[idx] : nullptr;
+ hwid = cfg.sensors[idx].hwId;
+ compKeyLen = snprintf(compKey, sizeof(compKey), "u%d", idx);
+ tokenChars = 5; tokenValid = true;
+ }
+ } else if (remaining >= 6 && memcmp(tpl + ti, "{pAMB}", 6) == 0) {
+ /* Was comparing 7 bytes against a 6-char token, so the NUL of the
+  * literal had to line up with the template's own terminator: {pAMB}
+  * only ever resolved when it was the LAST thing in the template, and
+  * even then tokenChars=7 ate the following byte. Hence "p is not
+  * accepted as an argument".
+  *
+  * Unlike {t..}/{u..} there is no per-slot pressure: the record carries
+  * a single `pressure` field, so the key can only be attributed the way
+  * {tAMB}/{uAMB} are, not to the sensor that produced it. */
+ val = hasPress ? pressBuf : nullptr;
+ hwid = (cfg.sensors[10].active && cfg.sensors[10].hwId[0] != '\0' && strcmp(cfg.sensors[10].hwId, "AMB") != 0)
+        ? cfg.sensors[10].hwId : boardSerial;
+ memcpy(compKey, "pAMB", 4); compKeyLen = 4;
+ tokenChars = 6; tokenValid = true;
+ } else if (remaining >= 4 && tpl[ti+1] == 'p' &&
+            tpl[ti+2] >= '0' && tpl[ti+2] <= '9' &&
+            (tpl[ti+3] == '}' ||
+             (remaining >= 5 && tpl[ti+3] >= '0' && tpl[ti+3] <= '9' && tpl[ti+4] == '}'))) {
+ /* {p0}..{p15} — pressure attributed to the slot that produces it.
+  *
+  * BinaryHistoryRecord carries ONE pressure field, not an array, because
+  * only one sensor on a bus reports it: collectBatch writes rec.pressure
+  * from whichever active slot has CH_PRESS. So {pN} resolves to that
+  * single value, but only when slot N is really the pressure source —
+  * asking for {p1} on a DHT22 yields nothing rather than borrowing the
+  * BMP280's reading. That makes the rewritten key ("pTBD0001") match the
+  * V4 history key for the same channel, which {pAMB} cannot do since it
+  * can only name the ambient slot or the board serial. */
+ const bool twoDigit = !(tpl[ti+3] == '}');
+ int idx = twoDigit ? (tpl[ti+2] - '0') * 10 + (tpl[ti+3] - '0') : (tpl[ti+2] - '0');
+ if (idx < MAX_SENSORS) {
+ const bool slotHasPress = cfg.sensors[idx].active &&
+                           sensorHasChannel((SensorType)cfg.sensors[idx].sensorType, CH_PRESS);
+ val = (slotHasPress && hasPress) ? pressBuf : nullptr;
+ hwid = cfg.sensors[idx].hwId;
+ compKeyLen = snprintf(compKey, sizeof(compKey), "p%d", idx);
+ tokenChars = twoDigit ? 5 : 4; tokenValid = true;
+ }
  }
 
  if (!tokenValid) {
@@ -1219,7 +1424,9 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
  size_t hlen = strnlen(h, sizeof(hwidTrim) - 1);
  while (hlen > 0 && (h[hlen-1] == ' ' || h[hlen-1] == '\t')) hlen--;
  memcpy(hwidTrim, h, hlen); hwidTrim[hlen] = '\0';
- const char* prefix = (compKey[0] == 'u') ? "\"u" : "\"t";
+ /* Channel letter comes from the token itself (t/u/p), so a new
+  * channel does not need this line touched again. */
+ const char prefix[3] = { '"', compKey[0], '\0' };
  int w = snprintf(dest + di, cap - di, "%s%s\":%s", prefix, hwidTrim, val);
  if (w > 0) { di += ((size_t)w < cap - di) ? (size_t)w : (cap - di - 1); }
  }
@@ -1316,7 +1523,7 @@ void TelemetryManager::refreshPendingCount( ) {
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_FILE_EXT) || dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -1324,17 +1531,18 @@ void TelemetryManager::refreshPendingCount( ) {
  }
 
 
- String minFileName = "";
+ /* L2: o corte compara apenas os 8 digitos YYYYMMDD do nome. Antes o
+  * limite era montado com o sufixo ".bin" fixo e comparado contra nomes
+  * que podem terminar em ".sim4" — funcionava por acaso (os digitos
+  * decidem antes de o sufixo importar) e quebraria em silencio ao mudar
+  * qualquer extensao. Comparar so a data torna a regra explicita. */
+ char minDay[9] = "";
  if (lastCursor > 1000000000) {
  time_t cursorEpoch = (time_t)lastCursor;
  struct tm timeinfo;
  localtime_r(&cursorEpoch, &timeinfo);
- char buff[24];
- snprintf(buff, sizeof(buff), "%04d%02d%02d" HISTORY_FILE_EXT,
- timeinfo.tm_year + 1900,
- timeinfo.tm_mon + 1,
- timeinfo.tm_mday);
- minFileName = String(buff);
+ snprintf(minDay, sizeof(minDay), "%04d%02d%02d",
+          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
  }
 
  uint16_t total = 0;
@@ -1344,7 +1552,7 @@ void TelemetryManager::refreshPendingCount( ) {
  * in V2 format, count was wrong (generally inflated). Reader identical
  * to collectBatch but only counts records with epoch > lastCursor. */
  for (const String& fn : files) {
- if (minFileName.length( ) > 0 && fn < minFileName) continue;
+ if (minDay[0] && historyDayIsBefore(fn, minDay)) continue;
 
  String fullPath = String(DIR_HISTORY) + "/" + fn;
 
@@ -1358,7 +1566,7 @@ void TelemetryManager::refreshPendingCount( ) {
  f.seek(0);
  if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
  headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- hdr.version == HIST_V2_VERSION &&
+ (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION) &&
  hdr.anchorPeriod > 0);
  }
  }
@@ -1366,6 +1574,7 @@ void TelemetryManager::refreshPendingCount( ) {
 
  HistoryCodecState rdState;
  historyCodecReset(rdState);
+ rdState.fileVersion = hdr.version; /* MUST set before decode — auto-detect unreliable */
  uint8_t rdBuf[256];
  size_t rdFilled = 0;
 

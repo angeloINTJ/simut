@@ -10,6 +10,7 @@
 
 #include "AppManager.h"
 #include "CommandManager.h"
+#include "CommandParser.h"
 #include "DisplayManager.h"
 #include "LogManager.h"
 #include "NetworkManager.h"
@@ -18,16 +19,54 @@
 #include "SystemDefs.h"
 #include "TelemetryManager.h"
 #include "Themes.h"
+#include "WebManager.h" /* _cg*Hits: por que um envio em chunks foi abortado */
 #include <LittleFS.h>
 #include <time.h>
+#include "lwip/opt.h"
+#if LWIP_STATS && MEMP_STATS
+#include "lwip/stats.h"
+#include "lwip/memp.h"
+#endif
 
 void AppManager::executeCommand(CliDemand cmd) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  bool changed = false;
+ const bool pt = _cmdMgr->isPt( );
+
+ /* ── Cisco IOS mode validation ──
+  * Navigation commands are always processed regardless of mode mask. */
+ uint8_t curMask = (1 << _cmdMgr->cliMode( ));
+ bool isNav = (cmd.type == CMD_ENABLE || cmd.type == CMD_DISABLE ||
+               cmd.type == CMD_CONFIGURE || cmd.type == CMD_EXIT ||
+               cmd.type == CMD_END || cmd.type == CMD_DO ||
+               cmd.type == CMD_HELP || cmd.type == CMD_SENSOR_ENTER);
+
+ if (!isNav && !(getCommandModeMask(cmd.type) & curMask)) {
+  /* Build a helpful error: which mode is needed? */
+  uint8_t needed = getCommandModeMask(cmd.type);
+  if (needed & CLI_VALID_USER) {
+   _cmdMgr->printError(pt ? "Comando requer modo EXEC. Use 'enable' se estiver no modo usuario."
+                          : "Command requires EXEC mode. Use 'enable' from user mode.");
+  } else if (needed & CLI_VALID_PRIV) {
+   _cmdMgr->printError(pt ? "Comando requer modo privilegiado. Use 'enable'."
+                          : "Command requires privileged mode. Use 'enable'.");
+  } else if (needed & CLI_VALID_CONFIG) {
+   _cmdMgr->printError(pt ? "Comando requer modo configuracao. Use 'configure terminal'."
+                          : "Command requires config mode. Use 'configure terminal'.");
+  } else if (needed & CLI_VALID_SENSOR) {
+   _cmdMgr->printError(pt ? "Comando requer modo sensor. Use 'sensor <N>' no modo config."
+                          : "Command requires sensor config mode. Use 'sensor <N>' from config.");
+  } else {
+   _cmdMgr->printError(pt ? "Comando indisponivel neste modo."
+                          : "Command not available in this mode.");
+  }
+  return;
+ }
 
  switch (cmd.type) {
  case CMD_HELP:
- _cmdMgr->printHelp( ); break;
+  /* Mode-aware help — '?' shows context-sensitive commands */
+  _cmdMgr->printModeHelp( ); break;
 
  case CMD_SHOW_THEMES:
  _cmdMgr->consolePrintln("");
@@ -70,6 +109,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  _cmdMgr->consolePrintln("");
  _cmdMgr->consolePrintln("--- SYSTEM LOG START ---");
  int logCount = 0;
+ /* Reads the COMPACT BINARY log (12-byte CompactLogRecord). The old
+  * implementation streamed "/system.log"/"/system.old" — the legacy
+  * CSV names that begin( ) deletes at every boot — so this command
+  * always printed an empty log while the writer filled *.blog. */
  auto streamLogFile = [&](const char* path) {
 
  _storageMgr->enterFlashReadLock( );
@@ -79,20 +122,25 @@ void AppManager::executeCommand(CliDemand cmd) {
  _storageMgr->exitFlashReadLock( );
  if (exists && f) {
 
- char lineBuf[256];
- while (f.available( ) && logCount < 2000) {
+ CompactLogRecord rec;
+ char line[96];
+ while (logCount < 2000 &&
+        f.read((uint8_t*)&rec, LOG_RECORD_SIZE) == (int)LOG_RECORD_SIZE) {
  feedWdt( );
- size_t len = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
- if (len == 0) continue;
- lineBuf[len] = '\0';
- _cmdMgr->printLogEntry(String(lineBuf));
+ snprintf(line, sizeof(line), "%10lu up%uh C%u [%s][%-6s] code=%u ctx=%d",
+          (unsigned long)rec.epoch, rec.uptimeHr, rec.getCore( ),
+          LogManager::instance( ).getLevelString((LogLevel)rec.getLevel( )),
+          tagIdToString(rec.getTagId( )), rec.code, (int)rec.context);
+ /* Direct print: printLogEntry( ) is the legacy CSV renderer — it
+  * silently drops any line without >= 7 ';'-separated fields. */
+ _cmdMgr->consolePrintln(String(line));
  logCount++;
  }
  f.close( );
  }
  };
- streamLogFile("/system.old");
- streamLogFile("/system.log");
+ streamLogFile(LOG_FILE_OLD);
+ streamLogFile(LOG_FILE_CURRENT);
  _cmdMgr->consolePrintln("--- SYSTEM LOG END ---");
  _cmdMgr->consolePrintln("");
  break;
@@ -153,6 +201,21 @@ void AppManager::executeCommand(CliDemand cmd) {
  : "--- Network Status ---");
  _cmdMgr->consolePrintf (" IP: %s\n", ip.c_str( ));
  _cmdMgr->consolePrintf (" RSSI: %ld dBm\n", (long)_netMgr->getRssi( ));
+#if LWIP_STATS && MEMP_STATS
+ /* T0.3: PBUF pool watermark — decides T2.2 (pool 12→16). */
+ {
+ const struct stats_mem* ps = lwip_stats.memp[MEMP_PBUF_POOL];
+ _cmdMgr->consolePrintf(" PBUF pool: %u em uso / pico %u / %u total, %u falhas\n",
+                        (unsigned)ps->used, (unsigned)ps->max,
+                        (unsigned)ps->avail, (unsigned)ps->err);
+ }
+#endif
+ /* Why chunked responses were cut short. All three surface in the log as
+  * WEB_CLIENT_DISCONNECT but call for opposite fixes, so keep them apart. */
+ _cmdMgr->consolePrintf(" Abortos de envio: prazo %lu | latch %lu | desconexao %lu\n",
+                        (unsigned long)_cgDeadlineHits,
+                        (unsigned long)_cgGuardHits,
+                        (unsigned long)_cgDisconnHits);
  _cmdMgr->printDivider( );
  break;
  }
@@ -363,17 +426,27 @@ void AppManager::executeCommand(CliDemand cmd) {
  const bool pt = _cmdMgr->isPt( );
  _cmdMgr->printInfo(pt ? "ATENCAO: reseta calibracao do touch."
  : "WARN: resets touch calibration.");
- _cmdMgr->printInfo(pt ? "Use 'conf system touch reset confirm'."
- : "Run 'conf system touch reset confirm'.");
+ _cmdMgr->printInfo(pt ? "Use 'system touch reset confirm'."
+ : "Run 'system touch reset confirm'.");
  break;
  }
  /* Clear touch calibration in config (invalidates magic) */
  TouchCalData* cal = reinterpret_cast<TouchCalData*>(cfg.reserved);
  memset(cal, 0, sizeof(TouchCalData));
  _displayMgr->resetTouchCalibration( );
+ /* Go straight into the wizard. Resetting only restores the default
+  * corner values; on its own it leaves the panel exactly as unusable as
+  * whatever prompted the reset. And the old advice — recalibrate from the
+  * display menu — assumes touch works well enough to navigate there, which
+  * is the very thing that fails when someone reaches for this command. */
+ _displayMgr->showTouchCalibration( );
+ _displayMgr->resetTouchIdle( );
  _cmdMgr->printInfo(_cmdMgr->isPt( )
- ? "Calibracao do touch resetada p/ default."
- : "Touch calibration reset to factory defaults.");
+ ? "Calibracao resetada. Assistente iniciado no display: siga as instrucoes na tela."
+ : "Calibration reset. Wizard started on the display: follow the on-screen steps.");
+ _cmdMgr->printInfo(_cmdMgr->isPt( )
+ ? "Ao terminar, use 'write memory' para salvar."
+ : "When finished, run 'write memory' to save.");
  changed = true;
  break;
  }
@@ -390,6 +463,28 @@ void AppManager::executeCommand(CliDemand cmd) {
  LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Factory reset"));
  _storageMgr->resetToFactory( );
  delay(100);
+ LogManager::instance( ).safeReboot( );
+ }
+
+ case CMD_FORMAT_FS: {
+ const bool pt = _cmdMgr->isPt( );
+ if (!cmd.confirmed) {
+ _cmdMgr->printInfo(pt ? "ATENCAO: formata o LittleFS (config, historico, logs) + reboot."
+ : "WARN: formats LittleFS (config, history, logs) + reboots.");
+ _cmdMgr->printInfo(pt ? "Use 'system format confirm'."
+ : "Run 'system format confirm'.");
+ break;
+ }
+ _cmdMgr->printSuccess(pt ? "Formatando LittleFS... reboot em seguida."
+ : "Formatting LittleFS... reboot follows.");
+ delay(100);
+ /* Core 1 dead during the multi-second erase burst; no unpause needed
+  * because the device reboots right after. */
+ _displayMgr->requestQuietMode( );
+ {
+ LogManager::WdtWindow _wdt(30000);
+ LittleFS.format( );
+ }
  LogManager::instance( ).safeReboot( );
  }
 
@@ -437,6 +532,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  for (int k = 0; k < 8; k++) if (cmd.rom[k] != 0) isDs18 = true;
  r.sensorType = isDs18 ? TYPE_DS18B20 : TYPE_DHT22;
  }
+ /* BME280 is I2C: pins[0]=SDA, pins[1]=SCL (convention SCL = SDA+1,
+  * same pairing as the scan probe). Other types are single-pin. */
+ r.pins[1] = (r.sensorType == TYPE_BME280) ? (uint8_t)(cmd.intVal1 + 1)
+                                           : PIN_UNUSED;
  safeCopy(r.hwId, cmd.strVal1, sizeof(r.hwId));
  safeCopy(r.friendlyName, cmd.strVal2, sizeof(r.friendlyName));
  _cmdMgr->printSuccess(pt ? "Sensor mapeado em RAM."
@@ -470,12 +569,79 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
 
+ case CMD_REMOVE_SENSOR: {
+ const bool pt = _cmdMgr->isPt( );
+ if (!cmd.confirmed) {
+ _cmdMgr->printInfo(pt ? "ATENCAO: desativa e limpa o slot do sensor."
+ : "WARN: deactivates and clears the sensor slot.");
+ _cmdMgr->printInfo(pt ? "Use 'sensor remove <gpio> confirm'."
+ : "Run 'sensor remove <gpio> confirm'.");
+ break;
+ }
+ if (!cmd.intVal1Valid) {
+ _cmdMgr->printError(pt ? "Numero invalido para GPIO"
+ : "Invalid number for GPIO");
+ break;
+ }
+ if (cmd.intVal1 < 0 || cmd.intVal1 >= MAX_SENSORS) {
+ _cmdMgr->printError(pt ? "Slot fora de range (0-15)"
+ : "Slot out of range (0-15)");
+ break;
+ }
+ {
+ SensorRecord &r = cfg.sensors[cmd.intVal1];
+ r.active = false;
+ r.sensorType = TYPE_NONE;
+ for (int pp = 0; pp < MAX_SENSOR_PINS; pp++) r.pins[pp] = PIN_UNUSED;
+ memset(r.rom, 0, 8);
+ r.hwId[0] = '\0';
+ r.friendlyName[0] = '\0';
+ }
+ changed = true;
+ _cmdMgr->printSuccess((pt ? "Slot removido: "
+ : "Sensor slot removed: ") + String(cmd.intVal1));
+ break;
+ }
+
  case CMD_ACCEPT_SENSOR:
  cmdHandleAcceptSensor(cmd, cfg, changed); break;
 
  case CMD_SCAN_SENSORS:
  if (!_sensorMgr->isScanning( )) { _sensorMgr->startScan( ); _waitingScan = true; }
  break;
+
+ /* Rebind history to the sensors as they are configured RIGHT NOW.
+  *
+  * A .sim4 carries its schema in the header and matches values by hwId, so
+  * changing a sensor identity silently stops every value from being recorded
+  * until the next day's file. This rewrites today's file against a schema
+  * built from the current slots — dropping the columns that no longer exist
+  * and carrying the rest over — which resumes both history and the telemetry
+  * that feeds from it, without splitting the day. */
+ case CMD_RESCHEMA_SENSORS: {
+ const bool pt = _cmdMgr->isPt( );
+ if (!cmd.confirmed) {
+ _cmdMgr->printError(pt ? "Recria o historico de HOJE (perde os registros do dia). "
+                          "Use: sensor reschema confirm"
+                        : "Recreates TODAY's history (loses the day's records). "
+                          "Use: sensor reschema confirm");
+ break;
+ }
+ uint8_t mc = 0;
+ _displayMgr->requestQuietMode( ); /* recreates the day file — park Core 1 */
+ bool ok = _storageMgr->rebindV4Schema(&mc);
+ _displayMgr->releaseQuietMode( );
+ if (ok) {
+ char msg[80];
+ snprintf(msg, sizeof(msg), pt ? "Historico religado: %u medicoes"
+                               : "History rebound: %u measurements", (unsigned)mc);
+ _cmdMgr->printSuccess(msg);
+ LOG_CODE(LOG_INFO, "HIST", APP_HIST_SCHEMA_MISMATCH, (int)mc, "");
+ } else {
+ _cmdMgr->printError(pt ? "Falha ao religar historico" : "History rebind failed");
+ }
+ break;
+ }
 
  case CMD_WRITE_MEMORY: {
  /* Wraps save + reload of sensors in the same quiet mode
@@ -484,6 +650,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  * which, outside quiet mode, would fall into IRQ-based lockout and
  * get stuck. */
  _displayMgr->requestQuietMode( ); /* default 15s timeout */
+ _storageMgr->flushHistoryBatch( ); /* T2.1: persist buffered samples */
  bool saved = _storageMgr->saveConfiguration( );
  if (saved) {
  loadAndCalibrateSensors( );
@@ -507,6 +674,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  _storageMgr->enterFlashSafeMode( );
+ /* Remove the COMPACT logs (the live format) and the legacy CSVs. The
+  * old code only removed the CSV names, so 'clear log' never actually
+  * cleared anything since the .blog migration. */
+ LittleFS.remove(LOG_FILE_CURRENT); LittleFS.remove(LOG_FILE_OLD);
  LittleFS.remove("/system.log"); LittleFS.remove("/system.old");
  _storageMgr->exitFlashSafeMode( );
  LogManager::instance( ).begin(true, LOG_DEBUG);
@@ -523,6 +694,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
  }
  LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI"));
+ _storageMgr->flushHistoryBatch( ); /* T2.1: don't lose buffered samples */
  delay(100); /* Ensures log is flushed to flash */
  LogManager::instance( ).safeReboot( );
  break;
@@ -631,6 +803,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_USER_PASS:
  cmdHandleUserPass(cmd, cfg, changed); break;
 
+ case CMD_USER_PERM:
+ cmdHandleUserPerm(cmd, cfg, changed); break;
+
  case CMD_SET_WEB_PORT: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid || cmd.intVal1 < 1 || cmd.intVal1 > 65535) {
@@ -672,6 +847,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  else if (!strcmp(n, "sts")) _displayMgr->showSystemStatus( );
  else if (!strcmp(n, "alm")) _displayMgr->showSettingsAlarms(&cfg);
  else if (!strcmp(n, "gra")) _displayMgr->forceGraphView( );
+ else if (!strcmp(n, "touchcal")) _displayMgr->showTouchCalibration( );
+ else if (!strcmp(n, "touchsens")) _displayMgr->showTouchSensitivity( );
+ else if (!strcmp(n, "offset")) _displayMgr->showSettingsDisplayOffset( );
  else { _cmdMgr->printError("?screen"); break; }
  _displayMgr->resetTouchIdle( );
  _cmdMgr->printSuccess(n);
@@ -701,13 +879,112 @@ void AppManager::executeCommand(CliDemand cmd) {
 
 
 
+ /* ── Cisco IOS Mode Navigation ── */
+
+ case CMD_ENABLE:
+  _cmdMgr->setCliMode(CLI_MODE_PRIV_EXEC);
+  _cmdMgr->consolePrintf("%s\n", pt ? "Modo privilegiado (SIMUT#). 'configure terminal' p/ configurar."
+                                    : "Privileged mode (SIMUT#). 'configure terminal' to configure.");
+  break;
+
+ case CMD_DISABLE:
+  _cmdMgr->setCliMode(CLI_MODE_USER_EXEC);
+  _cmdMgr->consolePrintf("%s\n", pt ? "Modo EXEC (SIMUT>). 'enable' p/ privilegiado."
+                                    : "EXEC mode (SIMUT>). 'enable' for privileged.");
+  break;
+
+ case CMD_CONFIGURE:
+  _cmdMgr->setCliMode(CLI_MODE_GLOBAL_CONFIG);
+  _cmdMgr->consolePrintf("%s\n", pt ? "Modo configuracao global. 'exit' voltar, 'end' p/ privilegiado."
+                                    : "Global configuration mode. 'exit' back, 'end' to privileged.");
+  break;
+
+ case CMD_EXIT:
+  switch (_cmdMgr->cliMode( )) {
+   case CLI_MODE_SENSOR_CONFIG:
+    _cmdMgr->setCliMode(CLI_MODE_GLOBAL_CONFIG);
+    break;
+   case CLI_MODE_GLOBAL_CONFIG:
+    _cmdMgr->setCliMode(CLI_MODE_PRIV_EXEC);
+    break;
+   case CLI_MODE_PRIV_EXEC:
+    _cmdMgr->setCliMode(CLI_MODE_USER_EXEC);
+    break;
+   default:
+    _cmdMgr->consolePrintln(pt ? "Ja esta no modo raiz." : "Already at root mode.");
+    break;
+  }
+  break;
+
+ case CMD_END:
+  _cmdMgr->setCliMode(CLI_MODE_PRIV_EXEC);
+  break;
+
+ case CMD_DO: {
+  /* Execute a privileged-mode command from within config mode.
+   * Parse the inner command and dispatch it directly, bypassing
+   * mode validation (we validate against PRIV mask, not current mode). */
+  CliDemand inner = parseCliCommand(String(cmd.strVal1));
+  if (inner.type == CMD_UNKNOWN) {
+   _cmdMgr->printError(pt ? "Comando invalido apos 'do'." : "Invalid command after 'do'.");
+   break;
+  }
+  /* Validate inner command against PRIV + USER mask */
+  if (!(getCommandModeMask(inner.type) & (CLI_VALID_PRIV | CLI_VALID_USER))) {
+   _cmdMgr->printError(pt ? "Comando nao permitido via 'do'." : "Command not allowed via 'do'.");
+   break;
+  }
+  /* Execute the inner command — recursive call to executeCommand.
+   * Mode validation in the recursive call will use the current config
+   * mode, but since we already validated against PRIV, commands that
+   * are valid in PRIV mode will pass through. We temporarily change
+   * mode to PRIV_EXEC, execute, then restore. */
+  CLIMode savedMode = _cmdMgr->cliMode( );
+  _cmdMgr->setCliMode(CLI_MODE_PRIV_EXEC);
+  executeCommand(inner);
+  _cmdMgr->setCliMode(savedMode);
+  break;
+ }
+
+ case CMD_SENSOR_ENTER: {
+  /* Enter sensor sub-config mode — 'sensor <N>' from global config.
+   * cmd.intVal1 = slot index (already validated by parser: 0-15). */
+  if (_cmdMgr->cliMode( ) != CLI_MODE_GLOBAL_CONFIG && _cmdMgr->cliMode( ) != CLI_MODE_PRIV_EXEC) {
+   _cmdMgr->printError(pt ? "Use 'sensor <N>' no modo configuracao ou privilegiado."
+                          : "Use 'sensor <N>' from config or privileged mode.");
+   break;
+  }
+  if (!cfg.sensors[cmd.intVal1].active) {
+   _cmdMgr->printInfo((pt ? "Slot " : "Slot ") + String(cmd.intVal1)
+     + (pt ? " nao configurado. Use 'create <tipo>' para configurar."
+           : " not configured. Use 'create <type>' to configure."));
+  }
+  _cmdMgr->setConfigSensorSlot((int8_t)cmd.intVal1);
+  String name = cfg.sensors[cmd.intVal1].friendlyName;
+  if (name.length( ) == 0) name = sensorTypeName((SensorType)cfg.sensors[cmd.intVal1].sensorType);
+  _cmdMgr->consolePrintf("%s Slot %d (%s)\n",
+    pt ? "Entrando configuracao do sensor —" : "Entering sensor configuration —",
+    cmd.intVal1, name.c_str( ));
+  /* In sensor mode, bare commands like 'type', 'name', 'pin' will be
+   * pre-processed by processInput to fill the slot from _configSensorSlot. */
+  break;
+ }
+
  case CMD_UNKNOWN:
  default:
- LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
- _cmdMgr->printError(_cmdMgr->isPt( )
- ? "Comando desconhecido. Digite 'help'."
- : "Unknown command. Type 'help'.");
- break;
+  /* Mode-aware hint for unknown commands */
+  if (_cmdMgr->isConfigMode( )) {
+   LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
+   _cmdMgr->printError(pt
+    ? "Comando desconhecido. Digite '?' ou 'exit' p/ sair."
+    : "Unknown command. Type '?' or 'exit' to leave.");
+  } else {
+   LOG_CODE(LOG_WARN, "CLI", CLI_UNKNOWN_CMD, 0, "");
+   _cmdMgr->printError(pt
+    ? "Comando desconhecido. Digite '?' ou 'help'."
+    : "Unknown command. Type '?' or 'help'.");
+  }
+  break;
  }
 
  if (changed) _cmdMgr->printInfo(_cmdMgr->isPt( )

@@ -24,10 +24,13 @@
 /* ======================================================================== */
 
 constexpr char HIST_V2_MAGIC[4] = {'S','I','M','2'};
-constexpr uint16_t HIST_V2_VERSION = 0x0002;
+constexpr uint16_t HIST_V2_VERSION = 0x0002;   /* v2: 40-byte record, 18-bit mask */
+constexpr uint16_t HIST_V3_VERSION = 0x0003;   /* v3: 74-byte record, 35-bit mask (humidity + pressure) */
 constexpr uint16_t HIST_V2_ANCHOR_PERIOD = 60; /* 1 anchor + 59 deltas (= 1 hour @ 1 min) */
 constexpr size_t HIST_V2_HEADER_SIZE = 16;
-constexpr size_t HIST_V2_MAX_DELTA_SIZE = 62; /* worst-case: 3B mask + 5B Δepoch + 18*3B varints */
+/* v2 max delta: 3B mask(18b) + 5B Δepoch + 18*3B varints = 62 */
+/* v3 max delta: 5B mask(35b) + 5B Δepoch + 35*3B varints = 115 */
+constexpr size_t HIST_V2_MAX_DELTA_SIZE = 120;
 
 struct __attribute__((packed)) HistoryFileHeaderV2 {
  char magic[4]; /* "SIM2" */
@@ -44,14 +47,18 @@ static_assert(sizeof(HistoryFileHeaderV2) == HIST_V2_HEADER_SIZE,
 /* ======================================================================== */
 
 /** Holds the last valid value of each field between consecutive records.
- * fieldHasValid[0]=ambientTemp, [1]=ambientHum, [2..17]=sensors[0..15].
+ * fieldHasValid[0]=ambientTemp, [1]=ambientHum,
+ * [2..17]=sensors[0..15] (temperature),
+ * [18..33]=humidity[0..15],
+ * [34]=pressure.
  * When false, the next delta with bit set encodes the ABSOLUTE value
  * (not delta). */
 struct HistoryCodecState {
  BinaryHistoryRecord lastValid;
- bool fieldHasValid[2 + MAX_SENSORS]; /* 18 bools (2 ambient + 16 slots) */
+ bool fieldHasValid[2 + MAX_SENSORS + MAX_SENSORS + 1]; /* 35 bools */
  uint16_t recordsSinceAnchor;
  bool initialized;
+ uint16_t fileVersion; /**< HIST_V2_VERSION or HIST_V3_VERSION — set on first anchor decode */
 };
 
 void historyCodecReset(HistoryCodecState& s);
@@ -60,11 +67,11 @@ void historyCodecReset(HistoryCodecState& s);
 /* ENCODER / DECODER */
 /* ======================================================================== */
 
-/** Encode a record. Automatically decides between anchor (40 B fixed) or
- * variable delta based on recordsSinceAnchor.
+/** Encode a record. Automatically decides between anchor (74 B fixed for v3,
+ * 40 B for v2) or variable delta based on recordsSinceAnchor.
  *
  * @param rec Input record (in-memory uncompressed).
- * @param s Encoder state (updated in-place).
+ * @param s Encoder state (updated in-place). s.fileVersion selects v2/v3 format.
  * @param buf Output buffer (must have >= HIST_V2_MAX_DELTA_SIZE bytes or
  * sizeof(BinaryHistoryRecord) — whichever is larger).
  * @param bufSize Buffer size.

@@ -109,11 +109,12 @@ struct __attribute__((packed)) SensorRecord {
  float humMin;
  float humMax;
  bool alarmsActive;
+ uint8_t channelBitWidth[MAX_SENSOR_CHANNELS];
 };
 /* Locks layout at compile-time. Deliberate schema bump
  * must touch HERE AND migration code; build breaks if someone adds/removes
  * a field without considering existing flash consequences. */
-static_assert(sizeof(SensorRecord) == 83, "SensorRecord v16 must be 83 bytes - update migration if changing");
+static_assert(sizeof(SensorRecord) == 87, "SensorRecord v17 must be 87 bytes - update migration if changing");
 
 /**
  * User account for web interface authentication (packed for Flash storage).
@@ -486,11 +487,11 @@ struct SystemStatusData {
 
 
 /* =========================================================================== */
-/* BINARY HISTORY RECORD — 40 bytes per record, packed */
+/* BINARY HISTORY RECORD — 74 bytes per record, packed */
 /* =========================================================================== */
 
-/** @brief Fixed size of each binary history record (40 bytes). */
-#define HISTORY_RECORD_SIZE 40
+/** @brief Fixed size of each binary history record (74 bytes). */
+#define HISTORY_RECORD_SIZE 74
 
 /** @brief Sentinel for fields without valid reading (equivalent to NAN in float). */
 #define HIST_NAN_SENTINEL INT16_MIN /* -32768 */
@@ -499,22 +500,27 @@ struct SystemStatusData {
 #define HISTORY_FILE_EXT ".bin"
 
 /**
- * @brief Binary history record — 40 bytes, packed.
+ * @brief Binary history record — 74 bytes, packed.
  *
  * Fixed layout per record:
- * [0..3] epoch uint32_t Unix timestamp
- * [4..5] ambientTemp int16_t ×100 (temperature from slot 10 / humidity-capable sensor)
- * [6..7] ambientHum int16_t ×100 (humidity from slot 10 / humidity-capable sensor)
- * [8..39] sensors[16] int16_t×16 ×100 (temperature for all 16 slots)
+ * [0..3]   epoch uint32_t Unix timestamp
+ * [4..5]   ambientTemp int16_t ×100 (temperature from slot 10 / humidity-capable sensor)
+ * [6..7]   ambientHum int16_t ×100 (humidity from slot 10 / humidity-capable sensor)
+ * [8..39]  sensors[16] int16_t×16 ×100 (temperature for all 16 slots)
+ * [40..71] humidity[16] int16_t×16 ×100 (humidity for all 16 slots) — v3+
+ * [72..73] pressure int16_t ×10 (atmospheric pressure in hPa) — v3+
  *
  * Invalid values (no reading) use HIST_NAN_SENTINEL (-32768).
  * Supported range: -327.67 to +327.67 — covers DS18B20 and DHT22.
+ * Pressure: 0..3276.7 hPa — covers typical range (300..1100 hPa).
  */
 struct __attribute__((packed)) BinaryHistoryRecord {
  uint32_t epoch; /* Unix timestamp (seconds) */
  int16_t ambientTemp; /* Ambient temperature × 100 */
  int16_t ambientHum; /* Ambient humidity × 100 */
  int16_t sensors[MAX_SENSORS]; /* Slot temperatures × 100 */
+ int16_t humidity[MAX_SENSORS]; /* Slot humidity × 100 */
+ int16_t pressure; /* Atmospheric pressure × 10 (hPa) */
 
  /* ── Conversion helpers ── */
 
@@ -529,6 +535,29 @@ struct __attribute__((packed)) BinaryHistoryRecord {
  if (scaled > 32767.0f) return 32767;
  if (scaled < -32767.0f) return -32767; /* -32768 reserved for NAN */
  return (int16_t)roundf(scaled);
+ }
+
+ /**
+ * @brief Converts float → int16 with ×10 scale (for pressure in hPa).
+ * @param v Float value (NAN returns HIST_NAN_SENTINEL).
+ * @return Scaled value, clamped to int16 range.
+ */
+ static inline int16_t floatToI16x10(float v) {
+ if (isnan(v)) return HIST_NAN_SENTINEL;
+ float scaled = v * 10.0f;
+ if (scaled > 32767.0f) return 32767;
+ if (scaled < -32767.0f) return -32767;
+ return (int16_t)roundf(scaled);
+ }
+
+ /**
+ * @brief Converts scaled int16 → float (×10 scale, for pressure).
+ * @param v int16 value (HIST_NAN_SENTINEL returns NAN).
+ * @return Float value with 1 decimal place of precision.
+ */
+ static inline float i16ToFloatx10(int16_t v) {
+ if (v == HIST_NAN_SENTINEL) return NAN;
+ return (float)v / 10.0f;
  }
 
  /**
@@ -548,13 +577,15 @@ struct __attribute__((packed)) BinaryHistoryRecord {
  ambientHum = HIST_NAN_SENTINEL;
  for (int i = 0; i < MAX_SENSORS; i++) {
  sensors[i] = HIST_NAN_SENTINEL;
+ humidity[i] = HIST_NAN_SENTINEL;
  }
+ pressure = HIST_NAN_SENTINEL;
  }
 
  /**
  * @brief Converts the record to a human-readable CSV line (for telemetry).
  *
- * Format: "epoch;ambT;ambH;s0;s1;...;s9"
+ * Format: "epoch;ambT;ambH;s0;...;s15;h0;...;h15;press"
  * Invalid fields remain empty (compatible with upload format).
  *
  * @param buf Destination buffer.
@@ -585,6 +616,12 @@ struct __attribute__((packed)) BinaryHistoryRecord {
  appendField(sensors[i] != HIST_NAN_SENTINEL,
  ";%.2f", (float)sensors[i] / 100.0f);
  }
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ appendField(humidity[i] != HIST_NAN_SENTINEL,
+ ";%.1f", (float)humidity[i] / 100.0f);
+ }
+ appendField(pressure != HIST_NAN_SENTINEL,
+ ";%.1f", (float)pressure / 10.0f);
 
  return buf;
  }

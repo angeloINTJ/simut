@@ -79,7 +79,10 @@ private:
 
 
  static const uint32_t BACKOFF_MIN_MS = 5000;
- static const uint32_t BACKOFF_MAX_MS = 300000;
+ /* constexpr for the same reason as NetworkManager::MAX_RECONNECT_DELAY:
+  * min( ) binds a reference, which ODR-uses the member and only shows up
+  * as a link error in the unoptimised debug build. */
+ static constexpr uint32_t BACKOFF_MAX_MS = 300000;
  static const uint8_t BACKOFF_MAX_STREAK = 10;
 
  uint32_t _currentBackoff;

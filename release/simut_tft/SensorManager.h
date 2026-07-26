@@ -75,6 +75,7 @@ struct RuntimeSensor {
  uint8_t consecutiveSuccess;
  bool inErrorState;
  bool hardwareMismatch;
+ uint8_t mismatchRechecks;   /**< Wave 2: skip-cycles since last ROM re-verify (auto-recovery) */
 
 #if SIMUT_SENSOR_BME280
  int8_t  bmeDriverIdx = -1;  /**< Index into SensorManager::_bmeDrivers, -1 = not BME280 */
@@ -146,7 +147,8 @@ private:
 #endif
 #if SIMUT_SENSOR_BME280
  std::vector<BME280Driver*> _bmeDrivers;  /**< One driver per (sda,scl,addr) triplet */
- int8_t _getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr);
+ int8_t _getOrCreateBmeDriver(uint8_t sda, uint8_t scl, uint8_t addr);  /**< PIO fallback */
+ int8_t _getOrCreateBmeDriver(TwoWire &wire, uint8_t addr);             /**< Hardware I2C (Wire/Wire1) */
 #endif
 
  std::vector<RuntimeSensor> _runtimeSensors;

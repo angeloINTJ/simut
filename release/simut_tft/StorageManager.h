@@ -19,6 +19,8 @@
 #include "pico/mutex.h"
 #include "SystemDefs.h"
 #include "HistoryCodec.h"
+#include "HistoryV4.h"
+#include "SensorHelpers.h"
 
 #define DIR_CONFIG "/config"
 #define FILE_CONFIG "/config/system.bin"
@@ -105,9 +107,92 @@ public:
  String getHistoryFileName( );
  void getHistoryFileName(char* buf, size_t len); /**< Buffer version. */
 
+ /* ── V4 history API ─────────────────────────────────────────── */
+
+ /** Write one V4 record. Delegates touch-priority buffering and flash I/O. */
+ bool writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
+ /** T2.1: drain the RAM history batch to flash (one Core-1 pause for
+  * the whole drain). Called on batch-full/age, before reboots and on
+  * write memory. Safe to call with an empty batch. */
+ bool flushHistoryBatch( );
+ /** Invalidate the in-RAM V4 codec state after an EXTERNAL mutation of
+  * the current history file (e.g. web delete). Without this the writer
+  * keeps appending to a recreated HEADERLESS file until reboot and all
+  * those records are unreadable. Next write rescans/recreates. */
+ void invalidateV4Codec( ) { _histV4CodecValid = false; }
+
+ /** @return today's V4 history file path (e.g. /history/20260721.sim4). */
+ String getHistoryFileNameV4( );
+ void getHistoryFileNameV4(char* buf, size_t len);
+
+ /**
+  * @brief Caminho do arquivo V4 do dia a que pertence @p epoch.
+  * @details A2: o dreno do batch grava entradas bufferizadas que podem ser
+  * de ONTEM. Resolver o caminho por "agora" as colocava no arquivo de hoje.
+  * A sobrecarga sem argumento continua existindo e é o caminho de "agora".
+  * @param epoch Timestamp Unix da amostra.
+  * @return Caminho absoluto (e.g. /history/20260721.sim4).
+  */
+ String getHistoryFileNameV4(uint32_t epoch);
+
+ /** @return pointer to the current V4 schema (read-only, valid while file is open). */
+ const HistV4State* getV4Schema( ) const { return _histV4CodecValid ? &_histV4State : nullptr; }
+
+ /** @return number of measurements in the current V4 schema, or 0 if not valid. */
+ uint8_t getV4MeasureCount( ) const { return _histV4CodecValid ? _histV4State.measureCount : 0; }
+
+ /** @return true if a V4 file is currently open and its schema is ready. */
+ bool isV4Active( ) const { return _histV4CodecValid; }
+
+ /** Bootstrap the V4 history codec on first use.
+  * If the codec is not yet valid (_histV4CodecValid=false), this
+  * creates today's .sim4 file with the schema header and populates
+  * _histV4State. Idempotent: safe to call multiple times.
+  * Must be called before the first writeHistoryEntryV4() if
+  * getV4Schema() returns nullptr (chicken-and-egg bootstrap). */
+ void ensureV4Schema( );
+
+ /** Rebuild the day's V4 schema from the CURRENT sensor config, in place.
+  *
+  * A .sim4 stores its measurement schema in the header, and ensureV4Schema
+  * restores that header from the existing file rather than rebuilding it. So
+  * once a sensor identity changes, every value stops matching
+  * (strcmp(schemaHwId, cfg hwId)) and the rest of the day records nothing —
+  * invalidating the codec alone does not help, it just re-reads the same
+  * stale header.
+  *
+  * DESTRUCTIVE: records are bit-packed against the header, so the schema
+  * cannot be swapped under them — the day's file is recreated and today's
+  * earlier records are lost. Carrying them over means decoding and
+  * re-encoding every record, which measured at 8.2 KB of flash and 5.6 KB of
+  * RAM on this target, against an app slot with ~8.8 KB to spare. The lean
+  * trade was taken on purpose; the CLI demands `confirm` because of it.
+  *
+  * One file per day is preserved either way.
+  *
+  * @param outMeasures receives the new measurement count (may be nullptr).
+  * @return false if the schema would be empty or the file could not be
+  *         written; the codec is left invalid so the next tick re-bootstraps.
+  */
+ bool rebindV4Schema(uint8_t* outMeasures = nullptr);
+
+ /** Build a V4 schema (sensor + measurement table + string pool) from SystemConfig.
+  * Used when creating a new V4 history file. The schema is stored in the file header
+  * so any reader can interpret the data without external configuration.
+  *
+  * @param sensors     Output sensor definitions (caller-provided buffer).
+  * @param sensorCount Output count of active sensors.
+  * @param measures    Output measurement definitions.
+  * @param measureCount Output count of measurements (sum of channels across sensors).
+  * @param strPool     Output string pool bytes.
+  * @param strPoolSize Output pool size.
+  * @return true on success. */
+ bool buildMeasureSchema(HistV4SensorDef *sensors, uint8_t &sensorCount,
+                         HistV4MeasureDef *measures, uint8_t &measureCount,
+                         uint8_t *strPool, uint8_t &strPoolSize);
+
  uint32_t getLastRecordedTimestamp( );
  uint32_t getHistoryDaysMask(int year, int month);
- void correctProvisionalTimestamps(uint32_t bootTs, int32_t delta);
 
  uint32_t getLastSentTimestamp( );
  void setLastSentTimestamp(uint32_t ts);
@@ -247,8 +332,40 @@ public:
  * Zeroed by `clearInitialAdminPassword( )` when admin changes password OR
  * when valid config is loaded from flash (i.e., not factory). */
  char _initialAdminPassword[9] = {0};
- BinaryHistoryRecord _pendingHistRec; /**< HIST record deferred during touch */
+ BinaryHistoryRecord _pendingHistRec; /**< HIST record deferred during touch (legacy) */
  volatile bool _pendingHistValid = false; /**< True if _pendingHistRec has data */
+
+ /* ── V4 RAM batch + codec state (T2.1) ──────────────────────── */
+ /* Samples accumulate in RAM and hit flash in ONE Core-1 pause every
+  * HIST_BATCH_N samples or HIST_BATCH_MAX_MS, whichever first —
+  * ~N× fewer program/erase IRQ-off windows (plan R2). Power loss
+  * costs at most the buffered samples (plan-accepted trade-off).
+  * Generalizes the old 1-slot touch-priority pending buffer. */
+ static constexpr uint8_t  HIST_BATCH_N = 4;
+ static constexpr uint32_t HIST_BATCH_MAX_MS = 300000; /* 5 min */
+ struct HistBatchEntry {
+  int64_t values[HIST_V4_MAX_MEASUREMENTS];
+  uint32_t epoch;
+  uint8_t count;
+ };
+ HistBatchEntry _histBatch[HIST_BATCH_N];
+ uint8_t  _histBatchLen = 0;
+ uint32_t _histBatchFirstMs = 0;
+
+ HistV4State _histV4State;
+ bool _histV4CodecValid = false;
+
+ bool writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
+ /** Rebuild codec state from an existing file. If the file ends mid-record
+  * (torn tail after power loss), returns true and reports the last good
+  * byte offset in *tornAt so the caller can repair before appending. */
+ static bool scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt = nullptr);
+ /** Create/recreate a day file with a fresh schema header; returns true
+  * only if the header read back from flash parses with measureCount > 0. */
+ bool createHistoryFileV4WithSchema(const String &path);
+ /** Cut a torn tail: rewrite the file keeping only [0, goodPos) bytes. */
+ bool repairHistoryTailV4(const String &path, size_t goodPos);
+
 
  /** Internal worker: writes ONE HIST record directly to flash (without checking touch
  * nor pending flush). Called by writeHistoryEntry on the non-deferred path. */
@@ -257,13 +374,12 @@ public:
 
  String _cachedOldestFile = "";
  bool _storageDirty = true;
- String _correctWatermark = ""; /**< Last corrected file (resumption) */
- int32_t _correctLastDelta = 0; /**< Delta of last correction (reset) */
  bool _didMigrate = false; /**< Set by attemptLoad when old schema detected */
  uint16_t _migrationFromVersion = 0; /**< Version of original blob before migration */
 
  File _currentLogFile;
  String _currentLogFileName = "";
+ String _v4CurrentLogFileName = ""; /**< V4: current .sim4 file path (separate from legacy). */
 
  /** Codec state v2 of the active file. Valid only for the file
  * whose path == _currentLogFileName. Reconstructed by scan on file
@@ -274,6 +390,9 @@ public:
  bool mountFS( );
  void loadDefaults( );
  void enforceStorageLimit( );
+ /** T1.4: set when enforceStorageLimit( ) hits its per-call deletion cap
+  * with usage still above the limit; drained by update( ) in slices. */
+ bool _cleanupPending = false;
 
  /** Returns pointer to the NetworkTimeData overlay in
  * `reserved[28..47]`. If magic absent, initializes with backward-compatible

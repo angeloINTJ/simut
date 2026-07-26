@@ -119,6 +119,16 @@ public:
 	uint32_t getLastTouchTimestamp( ) const { return _lastTouchTimestamp; }
 	bool isCore1Ready( ) { return _core1Ready; }
 	void forceUnpause( );
+	/* Core-0-owned: a Core-1 launch is outstanding. Plain bool on purpose —
+	 * every launch/reset site is Core-0 code and Core 0 is cooperative.
+	 * g_core1Running cannot serve: Core 1 sets it only after victim_init, so
+	 * the launch->victim_init window reads "not running", which is exactly the
+	 * window a second launch must not fire in. */
+	bool _core1Launched = false;
+	void launchCore1IfAbsent( );   /**< Launch only when none is outstanding. */
+	void markCore1Down( );         /**< Publish "Core 1 is down" + drain the FIFO. */
+	/** Folds the finished pause into the max/owner accounting (diagnostics only). */
+	void accountPauseEnd( );
 	void restartCore1( );
 
 	/** Injects a simulated touch at (x, y). For a single frame:
@@ -142,6 +152,13 @@ public:
 	/** Core 1 in quiet mode (or transitioning). IRQ-based lockout is impossible
 	 * here (Core 1 with IRQs off) and unnecessary (Core 1 does not touch flash). */
 	bool isInQuietMode( ) const { return _quietModeRequested || _quietModeActive; }
+	/** Millis( ) when quiet mode was entered; 0 = not in quiet. Used by
+	 * the T1.5 leak watchdog in AppManager_Loop. */
+	uint32_t quietSinceMs( ) const { return _quietSince; }
+	/** Wave 2 / invariant 3: true if the CALLING core currently owns
+	 * _stateMutex. Backing for the opt-in FLASH_OP tripwire
+	 * (ConcurrencyAsserts.h); safe to call from either core. */
+	static bool stateMutexHeldByCurrentCore( );
 
 	void setSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name);
 	void setSlotMinMax(float minT, float maxT, float minH, float maxH);
@@ -183,8 +200,6 @@ public:
 
 	void setWebBusy(bool busy, const char* username = nullptr);
 	bool isWebBusy( ) { return _webBusy; }
-	bool hasWebOverlayPending( ) { return _webOverlayPending; }
-	void clearWebOverlayPending( ) { _webOverlayPending = false; }
 
 
 	void setAlarmState(uint16_t slotMask, int8_t navSlot = -1);
@@ -316,7 +331,12 @@ private:
 	SystemState _sharedState;
 	bool _isDirty;
 	mutex_t _stateMutex;
-	queue_t _eventQueue;
+	/* SPSC lock-free UI event ring (Core 1 produces, Core 0 consumes).
+	 * Power-of-two capacity; indices grow monotonically (wrap via %). */
+	static constexpr uint32_t UI_EV_RING = 16;
+	UiEvent _evRing[UI_EV_RING];
+	volatile uint32_t _evHead = 0; /* consumer index (Core 0) */
+	volatile uint32_t _evTail = 0; /* producer index (Core 1) */
 
 	volatile uint32_t _lastHeartbeat = 0;
 	volatile int32_t _pauseRefCount = 0;
@@ -339,6 +359,35 @@ private:
 	volatile bool _quietModeRequested = false;
 	volatile bool _quietModeActive = false;
 	volatile int32_t _quietModeRefCount = 0;
+	volatile bool _core1HardReset = false; /**< pauseRendering hard-reset flag. */
+
+	/* T1.1 quiesce protocol (stability wave 1): Core 0 raises
+	 * _quiescePlease; Core 1 parks at the top of loopCore1 (guaranteed
+	 * outside malloc/free, the event-queue spinlock and any SPI burst)
+	 * and ACKs via _core1Parked. Only then — or after a 200 ms timeout,
+	 * preserving the old behavior as fallback — does Core 0 hard-reset.
+	 * This closes the "reset while holding a lock" class (R1 in
+	 * docs/CONCURRENCY.md). _quietSince feeds the leak watchdog in
+	 * AppManager_Loop (T1.5). */
+	volatile bool _quiescePlease = false;
+	volatile bool _core1Parked = false;
+	volatile uint32_t _quietSince = 0;
+
+	/** Core-1-only event push into the SPSC lock-free ring (invariant 2,
+	 * docs/CONCURRENCY.md). The former queue_t was frozen-mid-spinlock
+	 * by the lockout's quiesce-timeout fallback: Core 0's event pump —
+	 * including the web yield — then spun forever on that spinlock
+	 * (storm autopsy: C0=[WEB_SERVER] C1=[DISPLAY]). The ring has no
+	 * lock to leak; the quiesce gate remains only to stop producing
+	 * while parking. */
+	void pushUiEvent(const UiEvent& ev) {
+		if (__atomic_load_n(&_quiescePlease, __ATOMIC_ACQUIRE)) return;
+		uint32_t t = _evTail; /* single producer: plain read of own index */
+		uint32_t h = __atomic_load_n(&_evHead, __ATOMIC_ACQUIRE);
+		if (t - h >= UI_EV_RING) return; /* full: drop, same as queue_try_add */
+		_evRing[t % UI_EV_RING] = ev;
+		__atomic_store_n(&_evTail, t + 1, __ATOMIC_RELEASE);
+	}
 
 	/* RAM-resident quiet loop — called in loopCore1 when _quietModeRequested. */
 	void _runQuietLoop( );
@@ -367,8 +416,6 @@ private:
 
 
 	volatile bool _webBusy = false;
-	volatile bool _webOverlayShown = false;
-	volatile bool _webOverlayPending = false;
 	char _webBusyUser[24];
 	/* Sticky: last _webBusy read successfully via mutex_try_enter. Core 1
 	 * only (no volatile); avoids overlay flicker when try_enter fails
@@ -431,7 +478,7 @@ private:
 	void drawInterfaceFixed( );
 	void drawTopBar(const SystemState& state);
 	void drawSlotPanel(float t, float h, SensorType type, bool isValid, int slotIdx, const char* name, bool forceNameRedraw, DashPanel& panel, float p = NAN);
-	void drawBottomButtons(int selectedIdx, bool forceRedraw);
+	void drawBottomButtons(int selectedIdx);
 
 	/** Redraws top panel. Syncs topSlotIdx + data from current mode. */
 	void redrawTopPanel( ) {
@@ -454,7 +501,7 @@ private:
 	 	if (nextSlot >= 0) {
 	 		_sharedState.selectedSlotIdx = nextSlot;
 	 		UiEvent ev; ev.type = UiEvent::EVT_SLOT_SELECT; ev.id = nextSlot;
-	 		queue_try_add(&_eventQueue, &ev);
+	 		pushUiEvent(ev); /* single choke point — invariant 2. */
 	 	}
 	 }
 	 /* Mirror slot* data when interactive, uninitialized, or showing same sensor */
@@ -472,7 +519,7 @@ private:
 	 drawSlotPanel(snap.topSlotTemp, snap.topSlotHum, snap.topSlotType, snap.topSlotValid,
 	               snap.topSlotIdx, snap.topSlotName, true, _topPanel, snap.topSlotPres);
 	 /* Redraw bottom buttons — fixed sensor button may appear/disappear */
-	 drawBottomButtons(snap.selectedSlotIdx, true);
+	 drawBottomButtons(snap.selectedSlotIdx);
 	}
 
 	
@@ -500,7 +547,6 @@ private:
 	 * called from within a strip-render loop (the
 	 * strip's external blit already covers the region). */
 	void drawGraphIcon(int16_t x, int16_t y, uint16_t color);
-	void drawWebBusyOverlay( );
 	void blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w, int16_t h);
 
 	/** Formats epoch to X-axis label (HH:MM or DD/MM HHh). */
@@ -787,9 +833,12 @@ public:
 	 * Returns nullptr if .lng not loaded or section absent. */
 	static const char* getActiveHelpText( );
 	static const char* getActiveLicenseText( );
-	/** JSON with translations for Web UI (UTF-8 directly;
-	 * the browser consumes without unaccent). Served by GET /api/lang. */
-	static const char* getActiveWebDict( );
+	/** Where the Web UI translation blob (@WEBDICT) lives inside the active
+	 * .lng file, as a byte range to stream from LittleFS. It is half the pack
+	 * by size and no firmware code path reads it — only GET /api/lang hands it
+	 * to the browser — so it is deliberately NOT kept resident.
+	 * Returns false if no pack is loaded or the pack carries no @WEBDICT. */
+	static bool getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len);
 	/** True if _activeLang is populated (any lookup may hit). */
 	static bool isLangLoaded( );
 	/** Active .lng meta info (name + code) for /api/perms to populate
@@ -804,13 +853,17 @@ private:
 		char* strings[TR_KEYS_COUNT];
 		char* helpText;
 		char* licenseText;
-		char* webDict; /**< JSON blob from @WEBDICT (UTF-8) */
 		LogCodeEntry* logcodes;
 		uint16_t logcodesCount;
 		TrlEntry* trls;
 		uint16_t trlsCount;
 		char* buffer;
 		size_t bufferSize;
+		/* @WEBDICT stays on flash: path + byte range, not a pointer.
+		 * webDictLen == 0 means the pack has no @WEBDICT section. */
+		char path[64];
+		uint32_t webDictOffset;
+		uint32_t webDictLen;
 	};
 	static ActiveLang _activeLang;
 	static bool _activeLangLoaded;

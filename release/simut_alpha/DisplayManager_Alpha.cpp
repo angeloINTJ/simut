@@ -168,7 +168,7 @@ void DisplayManager::loopCore1( ) {
 void DisplayManager::handleTouch( ){}
 void DisplayManager::render(const SystemState&){}
 void DisplayManager::drawSlotPanel(float,float,SensorType,bool,int,const char*,bool,DashPanel&,float){}
-void DisplayManager::drawBottomButtons(int,bool){}
+void DisplayManager::drawBottomButtons(int){}
 void DisplayManager::drawInterfaceFixed( ){}
 void DisplayManager::drawTopBar(const SystemState&){}
 void DisplayManager::redrawAlarmFlash( ){}
@@ -232,7 +232,7 @@ void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
 	safeCopy(_sharedState.timeString, timeStr.c_str( ), sizeof(_sharedState.timeString));
 	mutex_exit(&_stateMutex);
 }
-const char* DisplayManager::getActiveWebDict( ){return nullptr;}
+bool DisplayManager::getActiveWebDictSource(const char**,uint32_t*,uint32_t*){return false;}
 void DisplayManager::releaseQuietMode( ){}
 bool DisplayManager::requestQuietMode(uint32_t){return true;}
 void DisplayManager::setTopSlotMinMax(float,float,float,float){}
