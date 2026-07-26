@@ -3747,7 +3747,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
          *   6. Restore manual do .bkp pra recuperar history/sensores
          */
         function fmFirmware() {
-            if (!confirm(window.t('fil_fw_warn','Firmware OTA update.\n\nWill be PRESERVED:\n  • Settings (Wi-Fi, admin, telemetry)\n  • Admin password\n\nWill be ERASED:\n  • Reading history (/history)\n  • Custom themes (/themes)\n  • Touch calibration (/calib)\n  • Files in /web\n\nA .bkp backup is downloaded automatically — restore it later to recover everything.\n\nProceed?'))) return;
+            if (!confirm(window.t('fil_fw_warn','Firmware OTA update.\n\nThe filesystem is REFORMATTED — the staging area shares the partition with it.\n\nOnly the configuration survives (captured before, restored after):\n  • Wi-Fi, admin password, telemetry\n  • Sensor mapping and alarm limits\n\nEverything else on the device is lost:\n  • Reading history (/history)\n  • Language packs (/lang)\n  • Custom themes (/themes)\n  • Touch calibration (/calib)\n  • Files in /web\n  • The event log\n\nA .bkp backup is downloaded automatically — restore it later to recover everything.\n\nProceed?'))) return;
             document.getElementById('fwFile').click();
         }
         async function doFirmware() {
