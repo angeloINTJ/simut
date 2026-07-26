@@ -46,10 +46,24 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Login</title>
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
-        body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { background: var(--card); padding: 40px; border-radius: 12px; border: 1px solid var(--border); width: 300px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .brand { font-size: 1.8rem; font-weight: 900; letter-spacing: -0.5px; margin-bottom: 30px; }
-        .brand span { color: var(--acc); }
+        /* margin:auto no lugar de align-items:center — com conteudo mais alto que a
+           viewport, centralizar por flex joga o topo fora do alcance da rolagem. */
+        body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box; }
+        .box { background: var(--card); margin: auto; padding: clamp(20px, 5vw, 40px); border-radius: 12px; border: 1px solid var(--border); width: min(340px, 100%); box-sizing: border-box; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        /* .box ja e text-align:center, entao marca e legenda centralizam sozinhas.
+           line-height:1 evita a folga que 3.6rem abriria acima do texto. */
+        /* A marca e vetor, nao texto: a pilha de fontes do sistema entrega uma
+           fonte diferente em cada SO (SF, Segoe, Roboto...) e a marca mudava de
+           desenho conforme o navegador. Traçado do Liberation Sans Bold, que e
+           metricamente Arial — o mais proximo do que a maioria ja renderizava.
+           210px reproduz a largura que o texto tinha a 4.4rem. fill=currentColor,
+           entao a cor vem daqui e acompanha --acc. */
+        .brand { width: min(210px, 100%); margin: 0 auto 6px; color: var(--acc); }
+        .brand svg { width: 100%; height: auto; display: block; }
+        /* text-wrap:balance — a legenda cabe numa linha por ~2px a 360px; numa
+           metrica de fonte um pouco diferente ela quebra, e sem isto sobraria
+           uma palavra orfa na 2a linha. Navegador antigo ignora e quebra normal. */
+        .tagline { font-size: 0.78rem; color: var(--sub); line-height: 1.45; margin-bottom: 28px; text-wrap: balance; }
         input[type="text"], input[type="password"] { width: 100%; padding: 14px; margin: 10px 0; background: #000; border: 1px solid #3f3f46; color: white; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: 0.2s; }
         input:focus { border-color: var(--acc); outline: none; }
         button[type="submit"] { width: 100%; padding: 14px; background: var(--acc); color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; margin-top: 15px; font-size: 1.05rem; transition: 0.2s; }
@@ -60,7 +74,8 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .chk-row input { width: 16px; height: 16px; accent-color: var(--acc); cursor: pointer; margin: 0;}
         .chk-row label { color: var(--sub); font-size: 0.85rem; cursor: pointer; }
         .lang-box { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--border); }
-        .lang-box select { background: #000; color: var(--sub); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; outline: none; cursor: pointer; font-size: 0.9rem;}
+        /* 16px: abaixo disso o iOS da zoom no foco e nao volta. */
+        .lang-box select { background: #000; color: var(--sub); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; outline: none; cursor: pointer; font-size: 16px;}
         .lang-box select:focus { border-color: var(--acc); color: var(--txt); }
         .toggle-link { color: var(--acc); text-decoration: none; font-size: 0.85rem; margin-top: 14px; display: inline-block; cursor: pointer; }
         .toggle-link:hover { text-decoration: underline; }
@@ -168,7 +183,10 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 </head>
 <body>
     <div class="box">
-        <div class="brand">SIMUT<span> SECURE</span></div>
+        <!-- Sem data-i18n de proposito: SIMUT e a sigla desta frase, entao traduzir
+             a legenda quebraria a correspondencia com as letras. -->
+        <div class="brand"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2951 708" fill="currentColor" role="img" aria-label="SIMUT"><g transform="translate(-29 698) scale(1 -1)"><path d="M628 198Q628 97 553 44Q478 -10 333 -10Q201 -10 125 37Q50 84 29 179L168 202Q182 147 223 123Q264 98 337 98Q488 98 488 190Q488 219 470 238Q453 257 422 270Q390 283 301 301Q224 319 193 330Q163 341 139 356Q114 371 97 392Q80 413 71 441Q61 469 61 506Q61 599 131 649Q201 698 335 698Q463 698 527 658Q591 618 610 526L470 507Q459 551 427 574Q394 596 332 596Q201 596 201 514Q201 487 215 470Q229 453 256 441Q284 429 367 411Q466 390 509 372Q552 354 577 331Q602 307 615 274Q628 241 628 198ZM704 0V688H848V0ZM1523 0V417Q1523 431 1523 445Q1523 459 1528 567Q1493 436 1477 384L1353 0H1250L1126 384L1074 567Q1080 454 1080 417V0H952V688H1145L1268 303L1278 266L1302 174L1333 284L1459 688H1651V0ZM2041 -10Q1899 -10 1823 60Q1748 129 1748 258V688H1892V269Q1892 188 1931 145Q1970 103 2045 103Q2122 103 2163 147Q2205 191 2205 274V688H2349V265Q2349 134 2268 62Q2187 -10 2041 -10ZM2757 577V0H2613V577H2391V688H2980V577Z"/></g></svg></div>
+        <div class="tagline">Sistema de Monitoramento Universal e Telemetria</div>
         <form id="loginForm" onsubmit="doLogin(event)">
             <input type="text" name="user" placeholder="Username" data-i18n="log_usr" required autocomplete="off">
             <input type="password" id="passInput" name="pass" placeholder="Password" data-i18n="log_pas" required>
@@ -218,8 +236,10 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Setup</title>
     <style>
         :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
-        body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { background: var(--card); padding: 40px; border-radius: 12px; border: 1px solid var(--border); width: 350px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        /* margin:auto no lugar de align-items:center — este formulario passa de 700px
+           de altura e centralizar por flex deixa o topo inalcancavel no celular. */
+        body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box; }
+        .box { background: var(--card); margin: auto; padding: clamp(20px, 5vw, 40px); border-radius: 12px; border: 1px solid var(--border); width: min(350px, 100%); box-sizing: border-box; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         h2 { margin-top: 0; font-size: 1.4rem; }
         p { color: var(--sub); font-size: 0.9rem; margin-bottom: 20px; }
         input[type="password"], input[type="text"] { width: 100%; padding: 14px; margin: 10px 0; background: #000; border: 1px solid #3f3f46; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: 0.2s; }
@@ -345,6 +365,20 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .c-lbl { color: var(--sub); font-size: 0.75rem; text-transform: uppercase; font-weight: 700; margin-bottom: 2px; }
         .c-val { font-size: 1rem; font-weight: 600; color: var(--txt); }
         .c-sub { font-size: 0.75rem; color: var(--sub); margin-top: 2px; }
+        /* No celular o piso de 180px do auto-fit nunca cabe duas vezes (precisa de
+           375px e o aparelho mais largo oferece 358), entao o grid caia sempre em
+           1 coluna e virava uma pilha de ~900px. Duas colunas fixas: RAM e Flash
+           sao vizinhos no DOM e caem lado a lado sozinhos. */
+        @media(max-width: 640px) {
+            .compact-info { grid-template-columns: repeat(2, 1fr); gap: 10px 12px; padding: 12px; margin-bottom: 14px; }
+            .c-lbl { font-size: 0.64rem; letter-spacing: 0.02em; }
+            .c-val { font-size: 0.92rem; }
+            .c-sub { font-size: 0.66rem; }
+            .bar-bg { height: 4px; }
+            /* a tabela de sensores rola de lado (o card ja tem overflow-x): manter
+               a leitura em uma linha por celula em vez de empilhar caracteres */
+            #tab td, thead th { white-space: nowrap; }
+        }
         .bar-bg { background: #3f3f46; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px; width: 100%; }
         .bar-fg { background: var(--acc); height: 100%; border-radius: 3px; transition: width 0.5s ease; }
         .bar-fg.warn { background: #f59e0b; } .bar-fg.crit { background: var(--dang); }
@@ -561,7 +595,6 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         window.onLangChange = function() { fetchLoop(); };
 
-        function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -623,7 +656,10 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         /* History Styles */
         .hist-layout { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start; margin-bottom: 25px; }
-        @media(max-width: 900px) { .hist-layout { grid-template-columns: 1fr; } }
+        /* order:2 no 1o filho (seletor de sensores + calendario) poe o grafico
+           primeiro: em coluna unica o calendario empurrava o grafico — o conteudo
+           da pagina — para ~470px abaixo, fora da primeira tela. */
+        @media(max-width: 900px) { .hist-layout { grid-template-columns: 1fr; } .hist-layout > :first-child { order: 2; } }
         .grp label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; }
         .grp select { width: 100%; padding: 8px 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; margin-bottom: 15px; font-size: 0.9rem; outline: none; }
         .grp select:focus { border-color: var(--acc); }
@@ -645,15 +681,22 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         /* Padronizado: todos os 5 controles tem mesma largura (72px) e altura (38px),
          * texto centralizado, sem mudancas de tamanho/forma entre estados. */
         .bottom-controls > button, .bottom-controls > .csel { width: 72px; height: 38px; box-sizing: border-box; flex-shrink: 0; }
+        /* 4 controles x 72px + 3 gaps = 312px contra ~304px uteis: o CSV caia
+           sozinho numa 2a linha por 8px. Largura flexivel resolve e ainda da
+           alvos maiores. */
+        @media(max-width: 640px) { .bottom-controls > button, .bottom-controls > .csel { width: auto; flex: 1 1 0; min-width: 0; height: 44px; } }
         .bottom-controls > button { background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; padding: 0; }
         .bottom-controls > button.active { background: var(--acc); color: #000; border-color: var(--acc); }
         .bottom-controls > .csel .csel-btn { width: 100%; height: 100%; text-align: center; padding: 0; font-weight: 600; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; }
         .bottom-controls > .csel .csel-arr { display: none; }
         .log-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px; }
-        .log-header input { padding: 8px 12px; background: #000; color: var(--txt); border: 1px solid var(--border); border-radius: 6px; min-width: 200px; outline: none;}
+        /* #logSearch, nao `.log-header input`: o seletor de elemento pegava tambem os
+           checkboxes INF/WRN/ERR e a media query abaixo os esticava a 100% de largura.
+           font-size 16px impede o zoom automatico do iOS no foco. */
+        #logSearch { padding: 8px 12px; background: #000; color: var(--txt); border: 1px solid var(--border); border-radius: 6px; min-width: 200px; outline: none; font-size: 16px;}
         .log-header input:focus { border-color: var(--acc); }
         .log-header button { padding: 8px 12px; background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-weight: 600; }
-        @media(max-width: 600px) { .log-header { flex-direction: column; align-items: stretch; } .log-header h2 { text-align: center; } .log-header > div { flex-direction: column; } .log-header input { min-width: unset; width: 100%; box-sizing: border-box; } .log-header button { width: 100%; } }
+        @media(max-width: 600px) { .log-header { flex-direction: column; align-items: stretch; } .log-header h2 { text-align: center; } .log-header > div { flex-direction: column; } #logSearch { min-width: unset; width: 100%; box-sizing: border-box; } .log-header button { width: 100%; } }
         .log-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; max-height: 400px; overflow-y: auto; }
         .log-table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
         .log-table th, .log-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
@@ -1277,7 +1320,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         window.onLangChange = function() { renderCalendar(); if(logsLoadedOnce) { loadLogs(); } else { let btn = document.getElementById('btnLoadLogs'); btn.innerText = window.t(btn.getAttribute('data-i18n'), 'Load'); } };
 
-        function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -1719,6 +1761,21 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            rule from /users, the pill and the field label from /alarms. Sizes
            are all rem, matching the rest of the page — the section had grown
            its own scale (0.78em/0.8em/0.85em/0.9em) and read as a bolt-on. */
+        /* Sem isto a tabela de 6 colunas transborda para o documento e arrasta a
+           pagina inteira de lado no celular, nao so a tabela. */
+        /* .tbl-scroll contem o transbordo aqui em vez de deixar a tabela de 6
+           colunas arrastar a pagina inteira de lado. Sem overflow-wrap nos td:
+           ele derruba a largura minima da celula para ~1 caractere, a tabela
+           "cabe" nos 100% e empilha o texto em coluna. Preferimos o deslize. */
+        .tbl-scroll { overflow-x: auto; }
+        /* Sangra ate as bordas do .grp no celular: encaixada para dentro, a
+           tabela ficava num canal de 260px e o corte no meio do card nao lia
+           como "da para arrastar". No painel ela ocupa o card inteiro e por isso
+           parece deslizavel — aqui fica igual. */
+        @media(max-width: 640px) {
+            .tbl-scroll { margin-left: -20px; margin-right: -20px; }
+            .tbl-scroll > table { min-width: max-content; }
+        }
         #sens_tbl { width: 100%; border-collapse: collapse; }
         #sens_tbl th, #sens_tbl td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
         #sens_tbl th { color: var(--sub); font-size: 0.85rem; text-transform: uppercase; font-weight: 600; }
@@ -1727,8 +1784,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .sxb:hover { background: #52525b; }
         .sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
         .sxb-dang:hover { background: var(--dang); color: #fff; }
-        .sxg { font-size: 0.8rem; font-family: monospace; color: var(--sub); background: rgba(255,255,255,0.05); padding: 3px 10px; border-radius: 12px; }
+        /* Grade em vez de flex-wrap: com flex cada pilula tinha a largura do seu
+           texto (GP1 vs GP12 2) e as linhas saiam desencontradas. Colunas iguais
+           alinham tudo — 4 colunas a 360px, mais no desktop. */
+        .sxg-map { display: grid; grid-template-columns: repeat(auto-fill, minmax(58px, 1fr)); gap: 4px; margin-bottom: 14px; }
+        .sxg { font-size: 0.8rem; font-family: monospace; color: var(--sub); background: rgba(255,255,255,0.05); padding: 4px 6px; border-radius: 12px; text-align: center; }
         .sxg.on { background: var(--acc); color: #000; }
+        .sxg i { font-style: normal; font-weight: 700; margin-left: 5px; opacity: 0.75; }
         .sxh { display: block; color: var(--sub); margin-bottom: 4px; font-size: 0.82rem; font-weight: 600; }
         /* Prose note, as opposed to .sxh which labels a field. Same size, normal
            weight — a paragraph set in label weight reads as a heading. */
@@ -1855,7 +1917,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <div class="grp">
                     <div id="sens_err" class="sx-warn" style="margin-top:0;margin-bottom:10px"></div>
                     <div class="sxn" style="margin-bottom:12px;margin-top:0" data-i18n="sens_hint">GP0-GP15 are available to sensors; GP16 and above belong to the display, touch and buzzer.</div>
-                    <div id="sens_map" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:14px"></div>
+                    <div id="sens_map" class="sxg-map"></div>
+                    <div class="tbl-scroll">
                     <table id="sens_tbl">
                         <thead><tr>
                             <th data-i18n="sens_slot">Slot</th>
@@ -1867,6 +1930,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </tr></thead>
                         <tbody id="sens_tb"></tbody>
                     </table>
+                    </div>
                     <button type="button" class="sxb" id="sens_add" onclick="sensAdd()" style="margin-top:14px" data-i18n="sens_add">+ Add sensor slot</button>
                     <div class="sxn" id="sens_full" style="display:none" data-i18n="sens_no_free">All 16 slots are in use. Free one to add another.</div>
                     <div id="sens_ov" class="sx-ov" style="display:none" onclick="sensBackdrop(event)">
@@ -2422,7 +2486,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
 
-        function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -2510,7 +2573,10 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let g = '';
             for (let p = 0; p <= SENS.gmax; p++) {
                 const u = own[p] !== undefined;
-                g += '<span class="sxg' + (u ? ' on' : '') + '" title="' + (u ? 'slot ' + own[p] : window.t('sens_free', 'free')) + '">GP' + p + '</span>';
+                /* O numero do slot era so `title`, e tooltip nao existe no toque:
+                   no celular a unica forma de saber de quem era o GP7 era abrir
+                   todos os slots. Agora vai visivel ao lado do pino. */
+                g += '<span class="sxg' + (u ? ' on' : '') + '" title="' + (u ? 'slot ' + own[p] : window.t('sens_free', 'free')) + '">GP' + p + (u ? '<i>' + own[p] + '</i>' : '') + '</span>';
             }
             SE('sens_map').innerHTML = g;
             /* Only slots that exist as far as the user is concerned. An empty
@@ -2554,8 +2620,11 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            so a redraw keeps the half-made choice, and without this the controls
            of the previously open slot were still in the DOM and got read as if
            they belonged to the new one. */
-        function sensEdit(i) { SE('sens_ed').innerHTML = ''; sensOpenSlot = i; sensDrawEditor(); SE('sens_ov').style.display = 'flex'; }
-        function sensClose() { sensOpenSlot = -1; SE('sens_ed').innerHTML = ''; SE('sens_ov').style.display = 'none'; }
+        /* body overflow: sem a trava, arrastar sobre o modal rolava a pagina atras
+           dele — e com a tabela de sensores rolando na horizontal dava para sair
+           de lado com o dialogo aberto. */
+        function sensEdit(i) { SE('sens_ed').innerHTML = ''; sensOpenSlot = i; sensDrawEditor(); SE('sens_ov').style.display = 'flex'; document.body.style.overflow = 'hidden'; }
+        function sensClose() { sensOpenSlot = -1; SE('sens_ed').innerHTML = ''; SE('sens_ov').style.display = 'none'; document.body.style.overflow = ''; }
         /* Only a click on the backdrop itself closes; clicks inside the box
            bubble up to the same handler and must not. */
         function sensBackdrop(ev) { if (ev.target === SE('sens_ov')) sensClose(); }
@@ -2609,14 +2678,15 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 h += '</div>';
             }
-            h += '<label class="sxsec">' + window.t('sens_limits', 'Alarm limits') + '</label><div class="row">' +
-                 '<div class="col"><div class="sxh">T min &deg;C</div><input id="se_tmin" oninput="sensStage(0)" type="number" step="0.1" min="-50" max="150" value="' + s.tmin + '"></div>' +
-                 '<div class="col"><div class="sxh">T max &deg;C</div><input id="se_tmax" oninput="sensStage(0)" type="number" step="0.1" min="-50" max="150" value="' + s.tmax + '"></div>';
-            if (ty && ty.nv >= 2) {
-                h += '<div class="col"><div class="sxh">H min %</div><input id="se_hmin" oninput="sensStage(0)" type="number" step="0.1" min="0" max="100" value="' + s.hmin + '"></div>' +
-                     '<div class="col"><div class="sxh">H max %</div><input id="se_hmax" oninput="sensStage(0)" type="number" step="0.1" min="0" max="100" value="' + s.hmax + '"></div>';
-            }
-            h += '</div>';
+            /* Limites de alarme saem daqui: moram na /alarms, que edita as mesmas
+               quatro chaves (tmin/tmax/hmin/hmax) e ainda acopla min<max, coisa
+               que este formulario nunca fez. Duplicar dava dois lugares para o
+               mesmo dado, com validacoes diferentes.
+               O payload de sensStage CONTINUA enviando os quatro campos: o helper
+               num(id, d) devolve o default `d` (= o valor ja gravado no slot)
+               quando o elemento nao existe, entao o valor e preservado, nao zerado.
+               NAO mexer no se_al, que fica na secao acima — ele e lido sem guarda
+               de nulo em sensStage e sumir dele quebraria o salvamento. */
 
             /* Calibration. This used to be the Calibration Mode toggle on the
                dashboard; it belongs with the sensor it calibrates. The offset
@@ -2984,7 +3054,6 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
 
-        function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -3057,7 +3126,10 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .frm-box input[type=text] { width: 100%; padding: 12px; background: #000; border: 1px solid #3f3f46; color: white; border-radius: 6px; box-sizing: border-box; font-size:1rem; outline:none; transition:0.2s;}
         .frm-box input:focus { border-color:var(--acc); }
         .chk-lbl { display: flex; align-items: center; gap: 8px; color: var(--txt); cursor: pointer; font-size: 0.9rem; }
-        .chk-lbl input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--acc); cursor: pointer; }
+        /* 22px: 16px era metade do minimo confortavel de toque, e sao 10 destes
+           empilhados numa coluna so no celular. */
+        .chk-lbl input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--acc); cursor: pointer; }
+        @media(max-width: 640px) { .chk-lbl { padding: 8px 0; } }
         .frm-box button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; font-size:1rem; transition:0.2s;}
         .frm-box button[type=submit]:hover { opacity:0.9; }
         #commit-btn { background: #16a34a; color: #fff; border: none; padding: 7px 14px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; cursor: pointer; display: none; }
@@ -3214,7 +3286,6 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         window.onLangChange = function() { loadUsers(); };
 
 
-        function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -3344,7 +3415,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <thead><tr>
                         <th style="width:40px"><input type="checkbox" class="f-chk" onclick="fmToggleAll(this)"></th>
                         <th data-i18n="fil_name">Name</th>
-                        <th style="width:120px" data-i18n="fil_sz">Size</th>
+                        <th style="width:72px" data-i18n="fil_sz">Size</th>
                     </tr></thead>
                     <tbody id="fileBody">
                         <tr><td colspan="3" class="fm-loading" data-i18n="fil_loading">Loading...</td></tr>
@@ -3511,7 +3582,6 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         window.onLangChange = function() { fmNavigate(currentDir); };
 
 
-        function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -3581,7 +3651,9 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .limit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         @media(max-width: 500px) { .limit-grid { grid-template-columns: 1fr; } }
         .limit-field label { display: block; color: var(--sub); margin-bottom: 4px; font-size: 0.82rem; font-weight: 600; }
-        .limit-field input { width: 100%; padding: 10px; background: #000; border: 1px solid #3f3f46; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 0.95rem; transition: border-color 0.2s; }
+        /* 16px: era 0.95rem = 15.2px, o ultimo campo do app que ainda disparava o
+           zoom automatico do iOS no foco (e o iOS nao desfaz o zoom no blur). */
+        .limit-field input { width: 100%; padding: 10px; background: #000; border: 1px solid #3f3f46; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 16px; transition: border-color 0.2s; }
         .limit-field input:focus { border-color: var(--acc); outline: none; }
         /* .alm-tg removida — toggle agora vive no .sensor-header */
         /* Spinners de number removidos globalmente via LANG_JS */
@@ -3603,6 +3675,22 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .btn-test { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--sub); cursor: pointer; font-size: 0.9rem; padding: 4px 8px; transition: 0.2s; line-height: 1; }
         .btn-test:hover { border-color: var(--acc); color: var(--acc); }
         .btn-test:active { transform: scale(0.92); }
+        /* A linha somava 278px inegociaveis (csel-mel 140 + teste + toggle 44 +
+           gaps + padding) num espaco de 272px, e sem flex-wrap nada descia de
+           linha: o interruptor — o controle principal — era o que saia da tela.
+           Rotulo toma a 1a linha inteira; os controles dividem a 2a. */
+        @media(max-width: 640px) {
+            .sound-item { flex-wrap: wrap; gap: 8px 10px; padding: 12px; }
+            .sound-item > .sound-label { flex: 1 1 100%; }
+            .sound-item > .mel-group { flex: 1 1 auto; min-width: 0; }
+            .mel-group > .csel-mel { flex: 1; min-width: 0; }
+            .btn-test { min-width: 44px; }
+            /* flex:1 deixa min-width:auto, e o minimo automatico de um range e a
+               largura intrinseca do controle (~129px) — ele se recusava a encolher */
+            .vol-row { gap: 10px; padding: 12px; }
+            .vol-row .sound-label { min-width: 0; }
+            .vol-row input[type=range] { min-width: 0; }
+        }
         .mel-group { display: flex; align-items: center; gap: 6px; }
 
         /* ── Botão salvar ───────────────────────────────────────────── */
@@ -3751,7 +3839,6 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         // ═══════════════════════════════════════════════════════════════
         // INICIALIZAÇÃO DE SESSÃO E PERMISSÕES (padrão SPA do SIMUT)
         // ═══════════════════════════════════════════════════════════════
-        function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -4136,7 +4223,6 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
-        function toggleDrawer() { document.getElementById('drawer').classList.toggle('open'); document.getElementById('drawer-bg').classList.toggle('open'); }
         async function initSession() {
             try {
                 let r = await fetch('/api/perms', {credentials:'same-origin'});
@@ -4356,6 +4442,19 @@ is provided for attribution and license compliance.
    Components:   BuzzerPIO_RP2040.h
 
 ================================================================================
+13. Liberation Sans Bold
+================================================================================
+   Description:  Typeface whose outlines were traced into the SIMUT wordmark
+                 (the "SIMUT" lettering on the login screen). No font file is
+                 embedded: only the five glyphs S, I, M, U, T were converted
+                 to static SVG paths.
+   Author:       Steve Matteson (Ascender Corp.), maintained by Red Hat
+   Copyright:    Copyright (c) 2012 Red Hat, Inc.
+   License:      SIL Open Font License 1.1
+   URL:          https://github.com/liberationfonts/liberation-fonts
+   Components:   SVG path data in LOGIN_PAGE
+
+================================================================================
 
 END OF THIRD-PARTY NOTICES</pre>
         </div>
@@ -4370,7 +4469,7 @@ END OF THIRD-PARTY NOTICES</pre>
  * com Cache-Control max-age=86400 (browser cacheia entre páginas). */
 static const char STYLE_CSS[] PROGMEM = R"raw(body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
 /* ── Hamburger Nav ──────────────────────────────────────── */
-.topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; height: 48px; }
+.topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; min-height: 48px; }
 .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
 .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
 .brand span { color: var(--acc); }
@@ -4396,11 +4495,62 @@ static const char STYLE_CSS[] PROGMEM = R"raw(body { font-family: -apple-system,
 .bc { padding: 10px 20px 0; display: flex; align-items: center; gap: 5px; font-size: 0.72rem; }
 .bc-root { color: #3f3f46; }
 .bc-page { color: var(--sub); font-weight: 600; }
-#net-toast { position:fixed;top:0;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
+/* top:48px, nao 0: em erro persistente (.warn e .err ficam na tela) o toast
+   cobria a topbar inteira — inclusive o hamburguer, unica navegacao no celular.
+   A copia inline do force_chpass fica em top:0 de proposito: la nao ha topbar. */
+#net-toast { position:fixed;top:48px;left:0;right:0;z-index:9999;text-align:center;padding:10px 20px;font-size:0.85rem;font-weight:600;transform:translateY(-100%);transition:transform .3s,opacity .3s;opacity:0;pointer-events:none; }
 #net-toast.show { transform:translateY(0);opacity:1; }
 #net-toast.warn { background:linear-gradient(135deg,#92400e,#b45309);color:#fef3c7;border-bottom:2px solid #f59e0b; }
 #net-toast.err { background:linear-gradient(135deg,#7f1d1d,#991b1b);color:#fecaca;border-bottom:2px solid #ef4444; }
 #net-toast.ok { background:linear-gradient(135deg,#064e3b,#065f46);color:#a7f3d0;border-bottom:2px solid #10b981; }
+/* A gaveta media 100% da viewport GRANDE (barra do navegador escondida): com ela
+   visivel, o rodape — licenca, idioma, sair — ficava embaixo da barra, e como o
+   nav tem flex:1 o overflow-y da gaveta nunca gerava rolagem para alcanca-lo.
+   `dvh` e ignorado por navegador antigo, que fica com o height:100% de cima. */
+.drawer { height: 100dvh; }
+.drawer nav { min-height: 0; overflow-y: auto; }
+/* o lang.js posiciona este menu com `left` inline, entao nao da para prende-lo
+   por CSS — mas ao menos impede que fique mais largo que a tela. */
+.csel-menu { max-width: calc(100vw - 24px); }
+/* Item de grid tem min-width:auto por padrao e NAO encolhe abaixo do min-content
+   do que carrega — por isso a tabela do painel esticava a coluna inteira (824px
+   numa tela de 360) e arrastava a pagina, apesar de o card dela ter overflow-x.
+   Com min-width:0 o item cede e o overflow fica contido no card, que rola. */
+.layout-grid > * { min-width: 0; }
+/* ── Celular ────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .topbar { padding: 0 10px; gap: 8px; }
+  .topbar .brand { font-size: 1rem; }
+  .hamburger { padding: 10px 12px; }
+  .status-pill span { display: none; }
+  .bc { padding: 8px 12px 0; }
+  /* .container e .card sao redefinidos nas 10 paginas, e o <style> da pagina vem
+     DEPOIS deste arquivo no <head> — dai o `body`, para ganhar por especificidade
+     em vez de por ordem. padding-left/right em vez do atalho: a /license depende
+     do padding-bottom de 40px que o atalho zeraria. */
+  body .container { padding-left: 12px; padding-right: 12px; margin: 16px auto; }
+  body .card { padding: 16px; }
+  /* alvos de toque: a gaveta tinha 39px, o link de licenca 32px, botoes ate 22px */
+  button { min-height: 44px; }
+  /* excecao: o botao de tema e redondo com height fixo de 30px, e min-height
+     vence height — sem isto ele virava uma elipse de 30x44. `body` porque o CSS
+     dele e injetado pelo lang.js depois deste arquivo. */
+  body #theme-toggle { width: 40px; height: 40px; min-height: 0; }
+  .drawer nav a { padding: 14px; }
+  .drawer-bottom .lic-link { padding: 12px 14px; }
+  /* NAO usar overflow-wrap em celula de tabela: toda tabela do app ja vive num
+     contentor com overflow-x, e a tabela tem width:100%. Quebrar em qualquer
+     ponto derruba a largura minima da celula para ~1 caractere, entao a tabela
+     "cabe" nos 100% e empilha o texto em coluna em vez de deixar o contentor
+     rolar. Preferimos o deslize horizontal. So vale onde NAO ha rolagem: */
+  .net-stat .val { overflow-wrap: anywhere; }
+  /* "Salvar e Reiniciar" e a unica forma de gravar em /config, /network e /users
+     (o botao do formulario foi removido em favor dele). No topbar ele e o primeiro
+     item a sair da tela — aqui vira barra fixa no rodape. O seletor precisa de
+     `body` porque o lang.js injeta #commit-btn depois deste arquivo no <head>. */
+  body #commit-btn { position: fixed; left: 10px; right: 10px; bottom: 10px; z-index: 60; min-height: 46px; font-size: 0.95rem; box-shadow: 0 6px 20px rgba(0,0,0,0.55); }
+  body.pend { padding-bottom: 68px; }
+}
 )raw";
 
 static const char LANG_JS[] PROGMEM = R"raw(
@@ -4450,7 +4600,14 @@ static const char LANG_JS[] PROGMEM = R"raw(
      * Cada página tem só <div id="drawer-host"></div> em vez do drawer
      * inteiro hardcoded (que ocupava ~2.4KB raw × 8 páginas).
      * Marca o link active baseado em window.location.pathname. */
-    window.toggleDrawer = function(){var d=document.getElementById('drawer'),b=document.getElementById('drawer-bg');if(d)d.classList.toggle('open');if(b)b.classList.toggle('open');};
+    /* Trava a rolagem do corpo com a gaveta aberta: sem isto, arrastar sobre o
+       fundo escurecido rolava a pagina atras do painel fixo, e fechar deixava o
+       usuario num ponto aleatorio do documento.
+       NAO redeclarar `function toggleDrawer()` nas paginas: o <script> inline
+       roda depois deste arquivo e a declaracao sobrescreve esta — havia 8 copias
+       identicas fazendo exatamente isso, e qualquer melhoria aqui virava codigo
+       morto. As paginas so chamam, via onclick, resolvido no clique. */
+    window.toggleDrawer = function(){var d=document.getElementById('drawer'),b=document.getElementById('drawer-bg');if(d)d.classList.toggle('open');if(b)b.classList.toggle('open');document.body.style.overflow=(d&&d.classList.contains('open'))?'hidden':'';};
     var DRAWER_HTML = '<div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>'
         +'<div class="drawer" id="drawer">'
         +'<div class="drawer-head"><div class="brand">SIMUT<span> IoT</span></div><button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button></div>'
@@ -4521,7 +4678,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
             if (!sessionStorage.getItem('simut_pending_notified')) {
                 sessionStorage.setItem('simut_pending_notified', '1');
                 if (typeof showToast === 'function') {
-                    showToast((window.t ? window.t('pending_notice', 'Clique em "Salvar e Reiniciar" no topo para aplicar as alterações.') : 'Clique em "Salvar e Reiniciar"'), 'warn', 5000);
+                    /* Sem "no topo": no celular o botao fica numa barra fixa no
+                       rodape, entao a posicao depende da largura da tela. */
+                    showToast((window.t ? window.t('pending_notice', 'Clique em "Salvar e Reiniciar" para aplicar as alterações.') : 'Clique em "Salvar e Reiniciar"'), 'warn', 5000);
                 }
             }
         },
@@ -4534,7 +4693,10 @@ static const char LANG_JS[] PROGMEM = R"raw(
         hasAny() { return Object.keys(this.data).some(k => { const s = this.data[k]; return s && (Array.isArray(s) ? s.length > 0 : Object.keys(s).length > 0); }); },
         refreshUI() {
             const btn = document.getElementById('commit-btn');
-            if (btn) btn.style.display = this.hasAny() ? 'inline-block' : 'none';
+            const any = this.hasAny();
+            if (btn) btn.style.display = any ? 'inline-block' : 'none';
+            /* .pend reserva o espaco da barra fixa de rodape no celular */
+            document.body.classList.toggle('pend', any);
         }
     };
 
@@ -4786,6 +4948,11 @@ static const char LANG_JS[] PROGMEM = R"raw(
       + '.toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}.toggle input{opacity:0;width:0;height:0}.toggle .slider{position:absolute;cursor:pointer;inset:0;background:#3f3f46;border-radius:24px;transition:.3s}.toggle .slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}.toggle input:checked+.slider{background:var(--acc)}.toggle input:checked+.slider:before{transform:translateX(20px)}'
       + 'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield;appearance:textfield}';const s=document.createElement('style');s.textContent=c;document.head.appendChild(s);})();
     document.addEventListener('click',e=>{if(!e.target.closest('.csel'))document.querySelectorAll('.csel-menu').forEach(m=>m.style.display='none');});
+    /* O menu e position:fixed com coordenadas congeladas no momento da abertura,
+       e so `click` o fechava. No toque, rolar nao e clique: o menu ficava boiando
+       sobre conteudo alheio enquanto o botao dele ia embora. Rolou, fecha.
+       Sem captura de proposito — rolar DENTRO do menu nao dispara no window. */
+    window.addEventListener('scroll',function(){document.querySelectorAll('.csel-menu').forEach(m=>m.style.display='none');},{passive:true});
     /* Setter prototypal capturado UMA vez — bypass do override para uso interno */
     const _selProtoValSet=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;
     window._cselSync=function(sel){const w=sel._cw;if(!w)return;const m=w.querySelector('.csel-menu'),b=w.querySelector('.csel-btn');m.innerHTML='';let lbl='';Array.from(sel.options).forEach(o=>{const i=document.createElement('div');i.className='csel-item'+(o.selected?' active':'');i.textContent=o.text;i.onclick=()=>{if(sel.disabled)return;/* bypass override: nao re-renderiza menu durante o handler (i nao vira orfao) */ _selProtoValSet.call(sel,o.value);m.querySelectorAll('.csel-item').forEach(x=>x.classList.remove('active'));i.classList.add('active');b.firstChild.textContent=o.text;m.style.display='none';sel.dispatchEvent(new Event('change',{bubbles:true}));};m.appendChild(i);if(o.selected)lbl=o.text;});if(!lbl&&sel.options.length)lbl=sel.options[0].text;b.firstChild.textContent=lbl;};
