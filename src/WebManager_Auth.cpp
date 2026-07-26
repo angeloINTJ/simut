@@ -98,11 +98,18 @@ bool WebManager::serveProtectedFsPage(uint16_t requiredPerm, const char* path) {
 	if (!f) {
 		/* The firmware flashed but the page was never uploaded. That is a
 		 * missing deploy step, not a broken route, so say which file and
-		 * where rather than answering a bare 404. */
-		_server.send(200, "text/html",
-		             "<h2>Page asset missing</h2><p>Upload <code>data/web/config.html.gz</code>"
-		             " to <code>/web/</code> on the device (Files page), then reload."
-		             "<br>Do not use <code>uploadfs</code> — it reformats the partition.</p>");
+		 * where rather than answering a bare 404.
+		 *
+		 * The path is read from the argument rather than named literally: this
+		 * used to say config.html.gz, which stopped being true when /config
+		 * moved back into the firmware and FS_PAGES emptied. Whatever page is
+		 * moved out next (build_webui_gz.py nominates HIST_PAGE) gets a correct
+		 * message without anyone remembering to edit this string. */
+		String msg = "<h2>Page asset missing</h2><p>Upload <code>data/web";
+		msg += path;
+		msg += "</code> to <code>/web/</code> on the device (Files page), then reload."
+		       "<br>Do not use <code>uploadfs</code> — it reformats the partition.</p>";
+		_server.send(200, "text/html", msg);
 		return false;
 	}
 	_server.sendHeader("Cache-Control", "no-store");
