@@ -420,7 +420,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_dt">System Date & Time</div><div class="c-val" id="sys-time">--/--/---- --:--:--</div><div class="c-sub" id="ntp-stat" data-i18n="dash_ntp_wait">Waiting NTP...</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_up">System Uptime</div><div class="c-val" id="up">--d --h --m --s</div></div>
                     <div class="c-item"><div class="c-lbl" data-i18n="dash_wifi">WiFi Signal</div><div class="c-val" id="rssi">-- dBm</div><div class="c-sub" id="rssi-mm">min --/-- max</div></div>
-                    <div class="c-item"><div class="c-lbl" data-i18n="dash_pend">Pending Records</div><div class="c-val" id="pending">-- pkts</div><div class="c-sub" data-i18n="dash_tel_wait">Waiting telemetry sync</div></div>
+                    <div class="c-item"><div class="c-lbl" data-i18n="dash_pend">Pending Records</div><div class="c-val" id="pending">-- pkts</div><div class="c-sub" id="pending-sub">Waiting telemetry sync</div></div>
                     <div class="c-item">
                         <div style="display:flex; justify-content:space-between;"><div class="c-lbl" data-i18n="dash_ram">RAM Usage</div><div class="c-val" style="font-size:0.85rem;" id="ram-pct">--%</div></div>
                         <div class="bar-bg"><div class="bar-fg" id="ram-bar" style="width: 0%"></div></div>
@@ -509,6 +509,19 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('rssi').innerText = d.rssi + ' dBm';
                 let pend = document.getElementById('pending');
                 if (d.pending === -1) pend.innerText = window.t('dash_eval', "Evaluating..."); else pend.innerText = d.pending + " pkts";
+                /* The sub-line used to be static markup carrying data-i18n, so
+                   applyLang wrote "Waiting telemetry sync" once at load and
+                   nothing ever revisited it — it read "waiting" forever, including
+                   with the counter at zero. It is driven from the poll now, and
+                   the data-i18n was dropped so applyLang cannot overwrite the
+                   state on a language switch. */
+                let psub = document.getElementById('pending-sub');
+                if (psub) {
+                    if (d.pending === -1)   psub.innerText = window.t('dash_tel_na',   'Telemetry unavailable');
+                    else if (d.tel === 0)   psub.innerText = window.t('dash_tel_off',  'Telemetry disabled');
+                    else if (d.pending === 0) psub.innerText = window.t('dash_tel_ok', 'Synchronized');
+                    else                    psub.innerText = window.t('dash_tel_wait', 'Waiting telemetry sync');
+                }
 
                 const m = sysData.metr;
                 if (m) {
@@ -858,6 +871,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
          * azul fixo p/ umidade. */
         const _hotColors = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#fb923c', '#fb7185', '#e11d48', '#dc2626', '#facc15', '#b91c1c', '#991b1b'];
         const _humColor  = '#3b82f6';
+        const _pressColor = '#a78bfa';
         function _seriesColor(serieIdx, isHum) { return isHum ? _humColor : _hotColors[serieIdx % _hotColors.length]; }
 
         async function loadAvailableDays() { try { const res = await fetchSafe('/api/history_days'); availDates = await res.json(); renderCalendar(); } catch(e) {} }
@@ -1049,7 +1063,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  * tempo, ticks distribuidos pelo periodo (nao pelos samples) */
                 const sensors = json.sensors || [];
                 const datasets = [];
-                let hasAnyHum = false;
+                let hasAnyHum = false, hasAnyPress = false;
                 let maxH = -999, minH = 999;
                 sensors.forEach((s, idx) => {
                     /* v e um OBJETO chaveado por medida (tDS18B2000, uDHT2202...)
@@ -1058,7 +1072,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                      * null e o grafico ficava em branco. Sem aspas neste
                      * comentario: o minificador protege strings antes de
                      * remover comentarios e aspas aqui o quebram. */
-                    const tKey = 't' + s.hwId, hKey = 'u' + s.hwId;
+                    const tKey = 't' + s.hwId, hKey = 'u' + s.hwId, pKey = 'p' + s.hwId;
                     const tArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[tKey] === 'number') ? d.v[tKey] : null }));
                     datasets.push({
                         label: `${s.hwId} T (°C)`,
@@ -1068,18 +1082,42 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         borderWidth: 1.6, tension: 0.25, pointRadius: 0,
                         yAxisID: 'y', spanGaps: false
                     });
+                    /* A series with no numeric point anywhere in the window is
+                       dropped instead of drawn. A BMP280 has no humidity die, so
+                       the firmware writes NaN for CH_HUM while the TYPE still
+                       claims the channel — that produced a dashed blue line made
+                       entirely of nulls, a %RH axis for nothing, and a legend
+                       entry for a measurement the part cannot take. */
+                    const anyNum = a => a.some(pt => typeof pt.y === 'number');
                     if (s.hasH) {
-                        hasAnyHum = true;
                         const hArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[hKey] === 'number') ? d.v[hKey] : null }));
-                        datasets.push({
-                            label: `${s.hwId} H (%)`,
-                            data: hArr,
-                            borderColor: _humColor,
-                            backgroundColor: 'transparent',
-                            borderWidth: 1.6, borderDash: [6, 3],
-                            tension: 0.25, pointRadius: 0,
-                            yAxisID: 'y1', spanGaps: false
-                        });
+                        if (anyNum(hArr)) {
+                            hasAnyHum = true;
+                            datasets.push({
+                                label: `${s.hwId} H (%)`,
+                                data: hArr,
+                                borderColor: _humColor,
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.6, borderDash: [6, 3],
+                                tension: 0.25, pointRadius: 0,
+                                yAxisID: 'y1', spanGaps: false
+                            });
+                        }
+                    }
+                    if (s.hasP) {
+                        const pArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[pKey] === 'number') ? d.v[pKey] : null }));
+                        if (anyNum(pArr)) {
+                            hasAnyPress = true;
+                            datasets.push({
+                                label: `${s.hwId} P (hPa)`,
+                                data: pArr,
+                                borderColor: _pressColor,
+                                backgroundColor: 'transparent',
+                                borderWidth: 1.6, borderDash: [2, 2],
+                                tension: 0.25, pointRadius: 0,
+                                yAxisID: 'y2', spanGaps: false
+                            });
+                        }
                     }
                 });
                 /* Stats — all four come from the server, measured over every
@@ -1088,6 +1126,14 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  * the largest surviving sample rather than the real extreme,
                  * and disagreed with temperature by however much decimation
                  * had thrown away. */
+                /* The server measures maxT/minT/maxH/minH across EVERY requested
+                   sensor, so with more than one selected the badges read as the
+                   extremes of a single mystery series — the coldest reading of
+                   whichever probe happened to be coldest. Meaningless as soon as
+                   the set is mixed (a freezer and a room), so the whole strip is
+                   hidden unless exactly one sensor is on screen. */
+                const oneSensor = (sensors.length === 1);
+                gridBox.style.display = oneSensor ? '' : 'none';
                 const maxT = (json.maxT !== undefined) ? json.maxT : -999;
                 const minT = (json.minT !== undefined) ? json.minT : 999;
                 document.getElementById('statMaxT').innerText = (maxT === -999) ? '--' : maxT.toFixed(1) + '°C';
@@ -1103,7 +1149,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     document.getElementById('humMinCard').style.display = 'none';
                 }
                 gridBox.style.opacity = '1';
-                renderChart(datasets, hasAnyHum, cutoffEpoch * 1000, endEpoch * 1000, _currentRangeIdx);
+                renderChart(datasets, hasAnyHum, hasAnyPress, cutoffEpoch * 1000, endEpoch * 1000, _currentRangeIdx);
                 hideOverlay();
             } catch (e) {
                 showProgress(false);
@@ -1140,7 +1186,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return p(d.getDate()) + '/' + p(d.getMonth()+1) + '/' + String(d.getFullYear()).slice(2);
         }
 
-        function renderChart(datasets, showHumAxis, xMin, xMax, rangeIdx) {
+        function renderChart(datasets, showHumAxis, showPressAxis, xMin, xMax, rangeIdx) {
             const ctx = document.getElementById('myChart').getContext('2d');
             if (myChart) myChart.destroy();
             const step = _xStepMsByRange[rangeIdx] || undefined;
@@ -1179,7 +1225,10 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             grid: { color: '#27272a' }
                         },
                         y: { type: 'linear', display: true, position: 'left', ticks: { color: '#ef4444' }, grid: { color: '#27272a' }, title: { display:true, text:'°C', color:'#ef4444', font:{size:10} } },
-                        y1: { type: 'linear', display: showHumAxis, position: 'right', ticks: { color: _humColor }, grid: { drawOnChartArea: false }, title: { display:true, text:'%RH', color:_humColor, font:{size:10} } }
+                        y1: { type: 'linear', display: showHumAxis, position: 'right', ticks: { color: _humColor }, grid: { drawOnChartArea: false }, title: { display:true, text:'%RH', color:_humColor, font:{size:10} } },
+                        /* Third axis: pressure sits around 1000 hPa and would flatten
+                           both %RH and °C into straight lines if it shared either. */
+                        y2: { type: 'linear', display: showPressAxis, position: 'right', ticks: { color: _pressColor }, grid: { drawOnChartArea: false }, title: { display:true, text:'hPa', color:_pressColor, font:{size:10} } }
                     }
                 }
             });
@@ -1388,8 +1437,11 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (magic !== 'SIMX') throw new Error('bad magic');
             if (u8[4] !== 1) throw new Error('bad version');
             if (u8[5] !== 0x48 /*'H'*/) throw new Error('bad kind');
+            /* Era um teste fixo `!== 28` contra um firmware que emitia 74 —
+               todo export falhava aqui com "bad recordSize". Aceita o que o
+               cabecalho declarar e usa esse passo na iteracao. */
             const recSize = dv.getUint16(8, true);
-            if (recSize !== 28) throw new Error('bad recordSize');
+            if (!recSize || recSize > 512) throw new Error('bad recordSize');
             const tblSize = dv.getUint32(20, true);
             /* CRC32: ultimos 4 bytes vs computado */
             const crcExp = dv.getUint32(u8.length - 4, true);
@@ -1407,39 +1459,47 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 sensors[idx] = { hwId, friendly };
             }
 
-            /* Itera PAYLOAD: N x BinaryHistoryRecord (28B):
-             *   epoch u32 + ambientTemp i16 + ambientHum i16 + sensors[10] i16. */
+            /* Itera PAYLOAD: N x BinaryHistoryRecord (70 B):
+             *   epoch u32 | sensors[16] i16 | humidity[16] i16 | pressure i16
+             *
+             * Este leitor estava parado num registro de 28 B (epoch + o par
+             * ambiente + sensors[10]) enquanto o firmware ja emitia 74 B com
+             * 16 slots, umidade por slot e pressao — lia a partir do offset
+             * errado do segundo registro em diante. Agora acompanha o layout,
+             * e o par ambiente saiu junto com o slot 10 especial.
+             *
+             * REC_SIZE vem do cabecalho (recordSize) quando presente, para o
+             * proximo passo de layout nao voltar a silenciar este parser. */
+            const REC = recSize && recSize > 0 ? recSize : 70;
+            const OFF_T = 4, OFF_H = 4 + 32, OFF_P = 4 + 64;
             const payStart = 32 + tblSize;
             const payEnd = u8.length - 4;
             const lines = [];
             const NAN_S = -32768;
-            /* filterIdx aceita: 'all' (string), array de IDs [-1,0,5], ou int legacy */
+            /* filterIdx aceita: 'all' (string), array de slots [0,5], ou int legacy */
             const wantAll = (filterIdx === 'all');
             const filterSet = wantAll ? null : new Set(
                 Array.isArray(filterIdx) ? filterIdx.map(Number) : [parseInt(filterIdx, 10)]
             );
-            const wantsAmb = wantAll || (filterSet && filterSet.has(-1));
-            for (let p = payStart; p < payEnd; p += 28) {
+            for (let p = payStart; p + REC <= payEnd; p += REC) {
                 const epoch = dv.getUint32(p, true);
                 const iso = _isoLocal(epoch);
-                if (wantsAmb) {
-                    const aT = dv.getInt16(p+4, true);
-                    const aH = dv.getInt16(p+6, true);
-                    const ambSensor = sensors[254];
-                    if (ambSensor && aT !== NAN_S) {
-                        lines.push(`${iso},${ambSensor.hwId},"${ambSensor.friendly}",${(aT/100).toFixed(2)},°C`);
-                    }
-                    if (ambSensor && aH !== NAN_S) {
-                        lines.push(`${iso},${ambSensor.hwId},"${ambSensor.friendly}",${(aH/100).toFixed(2)},%RH`);
-                    }
-                }
-                for (let i = 0; i < 10; i++) {
+                for (let i = 0; i < 16; i++) {
                     if (!wantAll && !filterSet.has(i)) continue;
-                    const v = dv.getInt16(p + 8 + i*2, true);
-                    if (v === NAN_S) continue;
                     const s = sensors[i];
                     if (!s) continue;
-                    lines.push(`${iso},${s.hwId},"${s.friendly}",${(v/100).toFixed(2)},°C`);
+                    const t = dv.getInt16(p + OFF_T + i*2, true);
+                    if (t !== NAN_S) {
+                        lines.push(`${iso},${s.hwId},"${s.friendly}",${(t/100).toFixed(2)},°C`);
+                    }
+                    const h = dv.getInt16(p + OFF_H + i*2, true);
+                    if (h !== NAN_S) {
+                        lines.push(`${iso},${s.hwId},"${s.friendly}",${(h/100).toFixed(2)},%RH`);
+                    }
+                }
+                const pr = dv.getInt16(p + OFF_P, true);
+                if (pr !== NAN_S && wantAll) {
+                    lines.push(`${iso},,,${(pr/10).toFixed(1)},hPa`);
                 }
             }
             return lines;
@@ -2070,22 +2130,22 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <b style="color:var(--txt);" data-i18n="cfg_leg2">Data Row Tags:</b><br>
                                 <span class="highlight">{TS}</span> - Unix Epoch<br>
                                 <span class="highlight">{DHT_ID}</span> - Board Serial<br>
-                                <span class="highlight">{tAMB}</span> / <span class="highlight">{uAMB}</span> - Internal DHT22<br>
-                                <span class="highlight">{t0}</span> to <span class="highlight">{t9}</span> - Temp Sensors<br>
+                                <span class="highlight">{t0}</span> to <span class="highlight">{t15}</span> - Temperature<br>
+                                <span class="highlight">{u0}</span> to <span class="highlight">{u15}</span> - Humidity<br>
+                                <span class="highlight">{p0}</span> to <span class="highlight">{p15}</span> - Pressure<br>
                             </div>
                         </div>
                         <div style="font-size:0.8rem; color:var(--txt); margin-bottom:15px; border-left:3px solid var(--acc); padding-left:10px;">
                             <b data-i18n="cfg_leg3">Smart Keys:</b> <span data-i18n="cfg_leg4">Use exact formats to inject ID and omit off sensors:</span><br>
                             <span class="highlight">"t0_ID":{t0}</span> &rarr; <span class="highlight">"t28FF31...":24.5</span><br>
-                            <span class="highlight">"tAMB_ID":{tAMB}</span> &rarr; <span class="highlight" data-i18n="cfg_leg5">Board Serial on Temp.</span><br>
-                            <span class="highlight">"uAMB_ID":{uAMB}</span> &rarr; <span class="highlight" data-i18n="cfg_leg6">Board Serial on Hum.</span>
+                            <span class="highlight">"u0_ID":{u0}</span> &rarr; <span class="highlight">"u28FF31...":55.2</span>
                         </div>
 
                         <label data-i18n="cfg_tpl1">1. Global Template (The Envelope)</label>
                         <input type="text" id="t_glob" name="t_glob" maxlength="255" placeholder='{"device":"{DEV}", "payload":[{DATA}]}' oninput="renderPreview()">
 
                         <label data-i18n="cfg_tpl2">2. Row Template (Single Reading)</label>
-                        <input type="text" id="t_line" name="t_line" maxlength="511" placeholder='{"time":{TS}, "tAMB_ID":{tAMB}, "uAMB_ID":{uAMB}, "t0_ID":{t0}, "t1_ID":{t1}}' oninput="renderPreview()">
+                        <input type="text" id="t_line" name="t_line" maxlength="511" placeholder='{"time":{TS}, "t0_ID":{t0}, "u0_ID":{u0}, "t1_ID":{t1}}' oninput="renderPreview()">
 
                         <label data-i18n="cfg_tpl3">3. Separator</label>
                         <input type="text" id="t_sep" name="t_sep" maxlength="7" placeholder="," oninput="renderPreview()">
@@ -2115,14 +2175,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         /* Device metadata populated by loadConfig (real serial + per-slot hwid/active).
          * Defaults used until /api/config resolves. */
         let _devSerial = 'RP2040_A1B2';
-        let _devAmbHwId = '';   /* v3.34.0: hwId customizado do ambient (do /api/config) */
         let _devSensors = Array.from({length:10}, (_,i) => ({
             hwid: 'STM' + String(i+1).padStart(4,'0'),
             active: true, hasHum: false, hasPress: false
         }));
 
         /* Demo scenario: real serial + real per-slot hwid/active state, 2-record batch.
-         * Value formatting mirrors firmware (%.2f for tAMB/slots, %.1f for uAMB). */
+         * Value formatting mirrors firmware (%.2f for temperature, %.1f for
+         * humidity and pressure). */
         function _previewDemoBatch() {
             /* hum is needed for {u..} to render as a number instead of null —
              * without it the new humidity tokens would preview as missing even
@@ -2134,12 +2194,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 hasPress: !!s.hasPress,
                 active: s.active
             }));
-            /* v3.34.0: ambient hwId espelha lógica do firmware — usa
-             * cfg.ambientSensor.hwId se != "AMB" (default), senão fallback serial. */
-            const ambId = (_devAmbHwId && _devAmbHwId !== 'AMB') ? _devAmbHwId : _devSerial;
+            /* {DHT_ID} is the one device-level key left: it resolves to the
+               board serial. The {tAMB}/{uAMB}/{pAMB} trio went with the ambient
+               slot — every value now belongs to the slot that measured it. */
             return [
-                { ts: 1700000000, ambHwId: ambId, ambT: '25.30', ambH: '60.1', press: '1013.2', slots: mk(0.1) },
-                { ts: 1700000005, ambHwId: ambId, ambT: '25.40', ambH: '60.0', press: '1013.1', slots: mk(0.2) }
+                { ts: 1700000000, serial: _devSerial, press: '1013.2', slots: mk(0.1) },
+                { ts: 1700000005, serial: _devSerial, press: '1013.1', slots: mk(0.2) }
             ];
         }
 
@@ -2152,10 +2212,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (c !== '{') { out += c; ti++; continue; }
                 let val = null, hwid = null, compKey = '', tc = 0;
                 if (tpl.substr(ti, 4) === '{TS}') { val = String(rec.ts); tc = 4; }
-                else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.ambHwId; tc = 8; }
-                else if (tpl.substr(ti, 6) === '{tAMB}') { val = rec.ambT; hwid = rec.ambHwId; compKey = 'tAMB'; tc = 6; }
-                else if (tpl.substr(ti, 6) === '{uAMB}') { val = rec.ambH; hwid = rec.ambHwId; compKey = 'uAMB'; tc = 6; }
-                else if (tpl.substr(ti, 6) === '{pAMB}') { val = rec.press; hwid = rec.ambHwId; compKey = 'pAMB'; tc = 6; }
+                else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.serial; tc = 8; }
                 else {
                     /* {t0}..{t15} and {u0}..{u15}. The preview used to know only
                      * single-digit {t..}, so {u1} and {t12} fell through and were
@@ -2252,22 +2309,28 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const batch = _previewDemoBatch();
 
             if (mode == '0') {
-                /* JSON: [{"ts":T,"tAMB":A,"uAMB":H,"t<hwid|idx>":V,...},{...}]
+                /* JSON: [{"ts":T,"t<hwid|idx>":V,"u<hwid|idx>":H,...},{...}]
                  * Empty hwid falls back to slot index (mirrors firmware formatLineJsonBuf). */
                 const lines = batch.map(r => {
-                    let s = '{"ts":' + r.ts + ',"tAMB":' + r.ambT + ',"uAMB":' + r.ambH;
+                    let s = '{"ts":' + r.ts;
                     r.slots.forEach((sl, i) => {
-                        if (sl.active) s += ',"t' + (sl.hwid ? sl.hwid : i) + '":' + sl.val;
+                        if (!sl.active) return;
+                        const id = sl.hwid ? sl.hwid : i;
+                        s += ',"t' + id + '":' + sl.val;
+                        if (sl.hum !== null) s += ',"u' + id + '":' + sl.hum;
                     });
+                    const pSlot = r.slots.find(sl => sl.active && sl.hasPress && sl.hwid);
+                    if (pSlot) s += ',"p' + pSlot.hwid + '":' + r.press;
                     return s + '}';
                 });
                 pre.innerText = '[' + lines.join(',') + ']';
             } else if (mode == '1') {
-                /* CSV: header only active; each line emits all 10 slot columns (empty if NaN) */
-                let hdr = 'timestamp;ambT;ambH';
+                /* CSV: header only active; each line emits all slot columns (empty if NaN).
+                   The ambT;ambH pair left the header with the ambient slot. */
+                let hdr = 'timestamp';
                 batch[0].slots.forEach((sl, i) => { if (sl.active) hdr += ';s' + i + '_' + sl.hwid; });
                 const lines = batch.map(r => {
-                    let s = r.ts + ';' + r.ambT + ';' + r.ambH;
+                    let s = String(r.ts);
                     r.slots.forEach(sl => { s += ';' + (sl.active ? sl.val : ''); });
                     return s;
                 });
@@ -2448,7 +2511,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('t_line').value = val('t_line', '');
                 document.getElementById('t_sep').value = val('t_sep', '');
                 if (d.serial) _devSerial = d.serial;
-                if (d.ambHwId !== undefined) _devAmbHwId = d.ambHwId || '';
                 if (Array.isArray(d.sensors)) {
                     for (let i = 0; i < 10 && i < d.sensors.length; i++) {
                         _devSensors[i] = { hwid: d.sensors[i].hwid || '', active: !!d.sensors[i].active,
@@ -2702,28 +2764,33 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
             /* Calibration. This used to be the Calibration Mode toggle on the
                dashboard; it belongs with the sensor it calibrates. The offset
-               is not a SensorRecord field -- it lives in calib.csv keyed by the
-               1-Wire ROM, which is why the firmware can only store one for a
-               sensor that HAS a ROM. DHT22 and BMP280 have none, so their rows
-               show the live reading but no reference input: POST /api/calib
-               would accept the value and drop it. */
+               is not a SensorRecord field -- it lives in calib.csv, keyed by
+               the 1-Wire ROM for a DS18B20 and by board serial + hwId for a
+               sensor that has no ROM.
+               Every slot gets a reference input now. The ROM-less ones used to
+               show the reading and a note saying calibration was unavailable,
+               which was true while the firmware held one device-wide offset
+               pair for "the ambient sensor" -- there was nowhere to put a
+               second DHT22. Each sensor has its own rows today. */
             const c = calOf(i);
             if (c) {
                 const st = calStaged().find(x => x.slot === i);
-                const hasRom = c.rom && !/^0+$/.test(c.rom);
                 h += '<label class="sxsec">' + window.t('sens_calib', 'Calibration') + '</label>' +
                      '<div class="sxn">' + window.t('sens_reading', 'Reading now') + ': <strong>' +
                      (c.tempRead === null ? '--' : c.tempRead + ' &deg;C') + '</strong> (offset ' + c.tempOffset + ')' +
                      (c.hasHum ? ' &nbsp;|&nbsp; <strong>' + (c.humRead === null ? '--' : c.humRead + ' %') + '</strong> (offset ' + c.humOffset + ')' : '') + '</div>';
-                if (hasRom) {
-                    h += '<div class="row"><div class="col"><div class="sxh">' +
-                         window.t('sens_ref', 'Reference temperature read on a trusted instrument') + '</div>' +
-                         '<input id="se_ref" oninput="sensStage(0)" type="number" step="0.01" placeholder="&deg;C" value="' + (st && st.refTemp !== undefined ? st.refTemp : '') + '"></div><div class="col"></div></div>' +
-                         '<div class="sxn">' + window.t('sens_ref_hint', 'The device stores the difference as the offset. Needs NTP synced.') +
-                         (CAL && CAL.ntp === false ? ' <span style="color:var(--dang)">' + window.t('sens_ntp_no', 'NTP not synced.') + '</span>' : '') + '</div>';
+                h += '<div class="row"><div class="col"><div class="sxh">' +
+                     window.t('sens_ref', 'Reference temperature read on a trusted instrument') + '</div>' +
+                     '<input id="se_ref" oninput="sensStage(0)" type="number" step="0.01" placeholder="&deg;C" value="' + (st && st.refTemp !== undefined ? st.refTemp : '') + '"></div>';
+                if (c.hasHum) {
+                    h += '<div class="col"><div class="sxh">' +
+                         window.t('sens_ref_h', 'Reference humidity read on a trusted instrument') + '</div>' +
+                         '<input id="se_refh" oninput="sensStage(0)" type="number" step="0.1" placeholder="%" value="' + (st && st.refHum !== undefined ? st.refHum : '') + '"></div>';
                 } else {
-                    h += '<div class="sxn">' + window.t('sens_no_rom', 'This sensor type has no 1-Wire ROM, so the firmware has nowhere to key an offset. Calibration is unavailable for it.') + '</div>';
+                    h += '<div class="col"></div>';
                 }
+                h += '</div><div class="sxn">' + window.t('sens_ref_hint', 'The device stores the difference as the offset. Needs NTP synced.') +
+                     (CAL && CAL.ntp === false ? ' <span style="color:var(--dang)">' + window.t('sens_ntp_no', 'NTP not synced.') + '</span>' : '') + '</div>';
             }
 
             /* History rebind. Device-wide, not slot-scoped — hence its own
@@ -2965,11 +3032,17 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                       al: SE('se_al').checked });
 
             /* Calibration rides the pre-existing Pending.calib section, which
-               commitAll POSTs to /api/calib before saving. */
-            const ref = SE('se_ref');
-            if (ref) {
+               commitAll POSTs to /api/calib before saving. se_refh only exists
+               on a slot that reports humidity; a slot may stage either
+               reference on its own, so the entry is built and only pushed if
+               it carries at least one. */
+            const ref = SE('se_ref'), refh = SE('se_refh');
+            if (ref || refh) {
                 const rest = calStaged().filter(x => x.slot !== i);
-                if (ref.value !== '' && !isNaN(parseFloat(ref.value))) rest.push({ slot: i, refTemp: parseFloat(ref.value) });
+                const entry = { slot: i };
+                if (ref && ref.value !== '' && !isNaN(parseFloat(ref.value))) entry.refTemp = parseFloat(ref.value);
+                if (refh && refh.value !== '' && !isNaN(parseFloat(refh.value))) entry.refHum = parseFloat(refh.value);
+                if (entry.refTemp !== undefined || entry.refHum !== undefined) rest.push(entry);
                 Pending.setSection('calib', rest.length ? { sensors: rest } : {});
             }
             if (redraw) sensDrawEditor(); else sensWarn();
@@ -3550,7 +3623,25 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         /* Files Styles */
         .fm-toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
         .fm-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-        .btn-fm { padding: 7px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s; line-height: 1.2; }
+        /* Uniform size. The six buttons sized themselves to their labels, so the
+           row came out ragged — and differently ragged per language ("Download"
+           vs "Baixar" vs "Descargar"). min-width is set from the longest label
+           across the three packs ("Upload Here"), so no translation blows past
+           it and the row stays even.
+           inline-flex + gap also drops the reliance on the literal space in the
+           markup to separate the emoji from the label. Safe against the four
+           buttons that start hidden: the JS reveals them with display = '',
+           which clears the inline value instead of writing one. */
+        .btn-fm { padding: 7px 14px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: 0.2s; line-height: 1.2;
+                  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+                  min-width: 140px; white-space: nowrap; }
+        /* Below 640px a 140px floor plus the toolbar padding leaves room for two
+           per row; letting them share the width evenly beats a ragged wrap with
+           one orphan button on the last line. */
+        @media (max-width: 640px) {
+          .fm-actions { width: 100%; }
+          .btn-fm { flex: 1 1 calc(50% - 4px); min-width: 0; }
+        }
         .btn-fm-pri { background: var(--acc); color: #000; border: 1px solid var(--acc); }
         .btn-fm-pri:hover { opacity: 0.9; transform: translateY(-1px); }
         .btn-fm-out { background: transparent; border: 1px solid var(--acc); color: var(--acc); }
@@ -3571,7 +3662,8 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .fm-row-dir { cursor:pointer; }
         .fm-row-dir:hover { background: rgba(6,182,212,0.06); }
         .fm-icon { margin-right:8px; font-size:1.1rem; vertical-align:middle; }
-        .fm-name { color:var(--txt); font-weight:500; }
+        .fm-name { color:var(--txt); font-weight:500; text-decoration:none; }
+        .fm-name:hover { text-decoration:underline; }
         .fm-name-dir { color:var(--acc); font-weight:700; }
         .fm-size { font-family:monospace; color:var(--sub); font-size:0.85rem; }
         .fm-empty, .fm-loading { text-align:center; padding:30px; color:var(--sub); }
@@ -3667,7 +3759,20 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 else {
                     for (let e of entries) {
                         if (e.t === 'd') { let fullPath = (dir === '/' ? '/' : dir + '/') + e.n; html += `<tr class="fm-row fm-row-dir" onclick="fmNavigate('${fullPath}')"><td></td><td><span class="fm-icon">&#x1F4C1;</span><span class="fm-name-dir">${e.n}/</span></td><td class="fm-size">${window.t('fil_folder','Folder')}</td></tr>`; }
-                        else { let fullPath = (dir === '/' ? '/' : dir + '/') + e.n; html += `<tr class="fm-row"><td><input type="checkbox" class="f-chk item-chk" value="${fullPath}"></td><td><span class="fm-icon">&#x1F4C4;</span><span class="fm-name">${e.n}</span></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`; }
+                        else {
+                            let fullPath = (dir === '/' ? '/' : dir + '/') + e.n;
+                            /* e.p = protected by the firmware. No checkbox at all, so it
+                               cannot be selected and fmDelete never sees it. The server
+                               refuses it too — this is the visible half. */
+                            let cell = e.p ? `<span class="fm-icon" title="${window.t('fil_protected','Protected file')}">&#x1F512;</span>`
+                                           : `<input type="checkbox" class="f-chk item-chk" value="${fullPath}">`;
+                            /* The name is a download link for EVERY file. Reading used to
+                               require ticking the box and pressing Download, which left a
+                               protected file — the one with no box — impossible to open at
+                               all. Folders were already clickable; files now match. */
+                            let href = '/download?file=' + encodeURIComponent(fullPath);
+                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon">&#x1F4C4;</span><a class="fm-name" href="${href}">${e.n}</a></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
+                        }
                     }
                 }
                 tbody.innerHTML = html;
@@ -4099,11 +4204,11 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let html = '';
                 for (let i = 0; i < sensors.length; i++) {
                     let s = sensors[i];
-                    let isAmb = s.idx === -1;
                     let hasHum = s.has_hum;
-                    let nameLabel = isAmb
-                        ? ('<span data-i18n="alm_ambient">Ambient Sensor</span>')
-                        : escHtml(s.name);
+                    /* Every entry is a real slot. The idx === -1 branch here
+                       painted an "Ambient Sensor" card for a pseudo-sensor the
+                       API never emitted. */
+                    let nameLabel = escHtml(s.name);
 
                     html += '<div class="sensor-card" data-idx="' + s.idx + '">';
                     html += '  <div class="sensor-header">';
@@ -4678,7 +4783,10 @@ static const char STYLE_CSS[] PROGMEM = R"raw(body { font-family: -apple-system,
 .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
 .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
 .brand span { color: var(--acc); }
-.status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); }
+.status-pill { display: flex; align-items: center; gap: 6px; font-size: 0.7rem; color: var(--sub); min-width: 0; }
+        /* The address is the one thing someone reads off this bar to type on
+           another device, so it truncates rather than pushing the bar wide. */
+        .status-pill span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
 .drawer-bg.open { opacity: 1; pointer-events: auto; }
@@ -4727,7 +4835,11 @@ static const char STYLE_CSS[] PROGMEM = R"raw(body { font-family: -apple-system,
   .topbar { padding: 0 10px; gap: 8px; }
   .topbar .brand { font-size: 1rem; }
   .hamburger { padding: 10px 12px; }
-  .status-pill span { display: none; }
+  /* Was `display: none`. That is not fitting the header to the width — it is
+     deleting the IP, which is exactly what a phone user opened the page for.
+     It stays, and truncates with an ellipsis if the bar runs out of room. */
+  .topbar { overflow: hidden; }
+  .brand { white-space: nowrap; }
   .bc { padding: 8px 12px 0; }
   /* .container e .card sao redefinidos nas 10 paginas, e o <style> da pagina vem
      DEPOIS deste arquivo no <head> — dai o `body`, para ganhar por especificidade
