@@ -302,22 +302,37 @@ inline const char* tagIdToString(uint8_t id) {
  * The human-readable message is reconstructed on demand via a translation table.
  *
  * Layout:
- * [0..3] epoch uint32_t Unix timestamp
- * [4..5] uptimeHr uint16_t Uptime in hours (covers ~7.5 years — wrap-safe)
- * [6..7] code uint16_t LogCode enum
- * [8..9] context int16_t Contextual value (GPIO, delta, count...)
- * [10] flags uint8_t [level:3 | core:1 | tagId:4]
- * [11] reserved uint8_t Reserved (padding)
+ * [0..3]  epoch       uint32_t Unix timestamp
+ * [4..5]  uptimeSecLo uint16_t Uptime seconds, low 16 bits
+ * [6..7]  code        uint16_t LogCode enum
+ * [8..9]  context     int16_t  Contextual value (GPIO, delta, count...)
+ * [10]    flags       uint8_t  [level:3 | core:1 | tagId:4]
+ * [11]    uptimeSecHi uint8_t  Uptime seconds, high 8 bits
+ *
+ * Uptime is SECONDS across 24 bits — 16,777,215 s ≈ 194 days, comfortably past
+ * the ~49.7-day wrap of millis( ), which is the real ceiling on the number.
+ *
+ * It was `uptimeHr`, uptime in whole HOURS, and byte [11] was an unused
+ * `reserved`. Hours meant every record of a device that reboots more often than
+ * that read exactly 0 — which is every record on a bench board, and what made
+ * the column on /history and the `up0h` in the serial dump useless. The extra
+ * byte was already sitting there.
+ *
+ * Reading an OLD .blog with this build: bytes [4..5] held hours and [11] was 0,
+ * so an old record decodes as (hours) seconds. In practice that is 0, because
+ * the field it replaces was 0. No file version marker exists to distinguish
+ * them, and inventing one to preserve a field that never carried information
+ * is not worth a format break.
  *
  * Savings: ~90-95% vs previous CSV format.
  */
 struct __attribute__((packed)) CompactLogRecord {
  uint32_t epoch;
- uint16_t uptimeHr; /**< Uptime in hours (millis()/3600000); 65535h ≈ 7.5 years. */
+ uint16_t uptimeSecLo; /**< Uptime seconds, low 16 bits — use get/setUptimeSec. */
  uint16_t code;
  int16_t context;
  uint8_t flags;
- uint8_t reserved;
+ uint8_t uptimeSecHi;  /**< Uptime seconds, high 8 bits. */
 
  /** @brief Packs level, core and tagId into the flags field. */
  static inline uint8_t packFlags(uint8_t level, uint8_t core, uint8_t tagId) {
@@ -327,6 +342,18 @@ struct __attribute__((packed)) CompactLogRecord {
  inline uint8_t getLevel( ) const { return (flags >> 5) & 0x07; }
  inline uint8_t getCore( ) const { return (flags >> 4) & 0x01; }
  inline uint8_t getTagId( ) const { return flags & 0x0F; }
+
+ /** Uptime in seconds, reassembled from the two halves. */
+ inline uint32_t getUptimeSec( ) const {
+ return ((uint32_t)uptimeSecHi << 16) | uptimeSecLo;
+ }
+ /** Stores uptime in seconds, saturating at the 24-bit ceiling rather than
+  *  wrapping — a truncated large number reads as a small plausible one. */
+ inline void setUptimeSec(uint32_t sec) {
+ if (sec > 0x00FFFFFFUL) sec = 0x00FFFFFFUL;
+ uptimeSecLo = (uint16_t)(sec & 0xFFFF);
+ uptimeSecHi = (uint8_t)((sec >> 16) & 0xFF);
+ }
 };
 static_assert(sizeof(CompactLogRecord) == 12, "CompactLogRecord must be 12 bytes!");
 

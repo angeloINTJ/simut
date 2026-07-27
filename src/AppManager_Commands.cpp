@@ -140,8 +140,17 @@ void AppManager::executeCommand(CliDemand cmd) {
  while (logCount < 2000 &&
         f.read((uint8_t*)&rec, LOG_RECORD_SIZE) == (int)LOG_RECORD_SIZE) {
  feedWdt( );
- snprintf(line, sizeof(line), "%10lu up%uh C%u [%s][%-6s] code=%u ctx=%d",
-          (unsigned long)rec.epoch, rec.uptimeHr, rec.getCore( ),
+ /* Uptime as d/h/m/s. It printed "up%uh" from a field that held whole
+  * hours, so a board that reboots every few minutes logged up0h on every
+  * line — a column that never carried information. */
+ uint32_t upS = rec.getUptimeSec( );
+ char upBuf[16];
+ if (upS >= 86400UL)     snprintf(upBuf, sizeof(upBuf), "%lud%02luh", (unsigned long)(upS / 86400UL), (unsigned long)((upS % 86400UL) / 3600UL));
+ else if (upS >= 3600UL) snprintf(upBuf, sizeof(upBuf), "%luh%02lum", (unsigned long)(upS / 3600UL), (unsigned long)((upS % 3600UL) / 60UL));
+ else if (upS >= 60UL)   snprintf(upBuf, sizeof(upBuf), "%lum%02lus", (unsigned long)(upS / 60UL), (unsigned long)(upS % 60UL));
+ else                    snprintf(upBuf, sizeof(upBuf), "%lus", (unsigned long)upS);
+ snprintf(line, sizeof(line), "%10lu up%-7s C%u [%s][%-6s] code=%u ctx=%d",
+          (unsigned long)rec.epoch, upBuf, rec.getCore( ),
           LogManager::instance( ).getLevelString((LogLevel)rec.getLevel( )),
           tagIdToString(rec.getTagId( )), rec.code, (int)rec.context);
  /* Direct print: printLogEntry( ) is the legacy CSV renderer — it

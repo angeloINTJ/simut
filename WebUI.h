@@ -1289,7 +1289,10 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 setTimeout(() => pWrap.style.display = 'none', 600);
 
                 /* Parseia registros binários de 12 bytes — little-endian (ARM Cortex-M0+).
-                 * Offset [4..5] é uptime em HORAS (uint16_t, cobre ~7,5 anos — wrap-safe). */
+                 * Uptime é SEGUNDOS em 24 bits: [4..5] baixo, [11] alto. Era um
+                 * uint16 de HORAS em [4..5] com [11] reservado, e por isso a
+                 * coluna lia zero em todo registro de uma placa que reinicia mais
+                 * de uma vez por hora — ou seja, em todos. */
                 const dv = new DataView(buf.buffer);
                 const recSize = 12;
                 const numRecs = Math.floor(totalLen / recSize);
@@ -1298,7 +1301,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 for (let i = 0; i < numRecs; i++) {
                     const off = i * recSize;
                     const epoch    = dv.getUint32(off, true);
-                    const upHr     = dv.getUint16(off + 4, true);
+                    const upSec    = dv.getUint16(off + 4, true) | (dv.getUint8(off + 11) << 16);
                     const code     = dv.getUint16(off + 6, true);
                     const ctx      = dv.getInt16(off + 8, true);
                     const flags    = dv.getUint8(off + 10);
@@ -1312,15 +1315,15 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         let dt = new Date(epoch * 1000);
                         dateStr = fmt(dt.getDate())+'/'+fmt(dt.getMonth()+1)+'/'+dt.getFullYear()+' '+fmt(dt.getHours())+':'+fmt(dt.getMinutes())+':'+fmt(dt.getSeconds());
                     } else {
-                        dateStr = 'Boot +' + (upHr) + 'h';
+                        dateStr = 'Boot +' + fmtUptime(upSec * 1000);
                     }
-                    let upStr = fmtUptime(upHr * 3600000);
+                    let upStr = fmtUptime(upSec * 1000);
                     let lvlLabel = LVL_LABELS[lvl] || 'UNK';
                     let lvlCls = LVL_CLASS[lvl] || '';
                     let tag = TAG_NAMES[tagId] || '?';
                     let desc = evtName(code) + (ctx !== 0 ? ' <span style="color:var(--sub)">[ctx: ' + ctx + ']</span>' : '');
 
-                    parsedLogRows.push({ epoch, upHr, code, ctx, lvl, dateStr, upStr, lvlLabel, lvlCls, tag, desc });
+                    parsedLogRows.push({ epoch, upSec, code, ctx, lvl, dateStr, upStr, lvlLabel, lvlCls, tag, desc });
                 }
 
                 renderLogTable();
@@ -1762,7 +1765,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 lines.push(iso + ',' + r.lvlLabel + ',' + r.tag + ',' + r.code + ',"' + msgEsc + '",' + r.ctx + ',' + r.upHr);
             }
             if (lines.length === 0) { showToast(window.t('exp_empty','No data in this range.'), 'warn'); return; }
-            const csv = '﻿' + 'timestamp_iso,level,module,code,message,context,uptime_hr\n' + lines.join('\n') + '\n';
+            const csv = '﻿' + 'timestamp_iso,level,module,code,message,context,uptime_sec\n' + lines.join('\n') + '\n';
             const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
