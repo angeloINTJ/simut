@@ -72,55 +72,97 @@ void AppManager::processBackgroundScan( ) {
 }
 void AppManager::loadAndCalibrateSensors( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
- /* initRuntimeSensors deferred to after calibration + auto-ID */
 
+ /* ── 1. Identity ──
+  * Auto-generate hardware IDs for slots without one:
+  * <TYPE><2D-SLOT> (e.g. BMP28000, DHT2201, DS18B2004).
+  *
+  * Runs FIRST: the calibration rows of ROM-less sensors are keyed by hwId,
+  * so every active slot needs one before the lookup below.
+  *
+  * EMPTY IS THE ONLY TRIGGER. This also fired when the hwId began with
+  * "STH" — a marker from an older scheme meaning "auto-assigned, safe to
+  * replace". The current generator never emits that prefix, so the clause
+  * could only ever hit an id a USER had chosen, and it silently rewrote it
+  * on the next boot: type STH0001, save, reboot, get DHT2202 back, with no
+  * error anywhere. Easy to walk into on a board whose DS18B20s are already
+  * named STM0001/STM0002 — one letter away.
+  *
+  * Keeping a stored id is also the safer half of the trade: the V4 history
+  * schema keys every measurement by hwId, so rewriting one behind the
+  * user's back stops that sensor being recorded for the rest of the day. */
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (!cfg.sensors[i].active) continue;
-
- if (cfg.sensors[i].sensorType == TYPE_DS18B20) {
- /* DS18B20: calibration via ROM (1-Wire address) */
- String dbId; float dbOffset = 0.0f; String dbName;
- if (_storageMgr->getCalibrationData(cfg.sensors[i].rom, dbId, dbOffset, dbName)) {
- _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbId, dbOffset, dbName);
- if (dbId.length( ) > 0) { safeCopy(cfg.sensors[i].hwId, dbId.c_str( ), sizeof(cfg.sensors[i].hwId)); }
- if (dbName.length( ) > 0) { safeCopy(cfg.sensors[i].friendlyName, dbName.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
- }
- } else if (sensorHasHumidity((SensorType)cfg.sensors[i].sensorType)) {
- /* DHT22/BME280: calibration via picoUID (board-specific key).
- * Line `t<id>` = ID + name + temperature offset.
- * Line `u<id>` = humidity offset only (ID/name from `t` line). */
- String dbIdT, dbNameT, dbIdU, dbNameU;
- float dbOffsetT = 0.0f, dbOffsetU = 0.0f;
- bool gotT = _storageMgr->getCalibrationDataAmbient('t', dbIdT, dbOffsetT, dbNameT);
- bool gotU = _storageMgr->getCalibrationDataAmbient('u', dbIdU, dbOffsetU, dbNameU);
- if (gotT) {
-  bool isAuto = (cfg.sensors[i].hwId[0] == '\0' || strncmp(cfg.sensors[i].hwId, "STH", 3) == 0);
-  if (dbIdT.length( ) > 0 && isAuto) { safeCopy(cfg.sensors[i].hwId, dbIdT.c_str( ), sizeof(cfg.sensors[i].hwId)); }
-  if (dbNameT.length( ) > 0 && isAuto) { safeCopy(cfg.sensors[i].friendlyName, dbNameT.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
- }
- _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbIdT, dbOffsetT, dbNameT);
- if (gotT || gotU) {
- _sensorMgr->applyAmbientCalibration(dbOffsetT, dbOffsetU);
- }
- }
+  if (!cfg.sensors[i].active) continue;
+  if (cfg.sensors[i].hwId[0] != '\0') continue;
+  const char* tName = sensorTypeName((SensorType)cfg.sensors[i].sensorType);
+  snprintf(cfg.sensors[i].hwId, sizeof(cfg.sensors[i].hwId),
+           "%s%02d", tName, i);
+  if (cfg.sensors[i].friendlyName[0] == '\0'
+      || strncmp(cfg.sensors[i].friendlyName, "Simut_casa", 10) == 0) {
+   snprintf(cfg.sensors[i].friendlyName, sizeof(cfg.sensors[i].friendlyName),
+            "%s #%d", tName, i);
+  }
  }
 
-  /* Auto-generate hardware IDs for sensors without one.
-   * Format: <TYPE><2D-SLOT> (e.g. BMP28000, DHT2201, DS18B2004) */
-  for (int i = 0; i < MAX_SENSORS; i++) {
-   if (!cfg.sensors[i].active) continue;
-   /* Skip if hwId is already set (not empty and not the default STH prefix) */
-  if (cfg.sensors[i].hwId[0] != '\0' && strncmp(cfg.sensors[i].hwId, "STH", 3) != 0) continue;
-   const char* tName = sensorTypeName((SensorType)cfg.sensors[i].sensorType);
-   snprintf(cfg.sensors[i].hwId, sizeof(cfg.sensors[i].hwId),
-            "%s%02d", tName, i);
-   if (cfg.sensors[i].friendlyName[0] == '\0'
-       || strncmp(cfg.sensors[i].friendlyName, "Simut_casa", 10) == 0) {
-    snprintf(cfg.sensors[i].friendlyName, sizeof(cfg.sensors[i].friendlyName),
-             "%s #%d", tName, i);
+ /* ── 2. Runtime ──
+  * BEFORE calibration, not after. initRuntimeSensors rebuilds the vector
+  * from scratch with every calibrationOffset back at 0.0f, so applying the
+  * offsets first wrote them into the vector that was about to be discarded
+  * and no stored offset ever reached a running sensor. */
+ _sensorMgr->initRuntimeSensors(cfg);
+
+ /* initRuntimeSensors may have retyped an I2C slot from its chip ID
+  * (BME280 <-> BMP280). That correction lives in the runtime copy; write it
+  * back to the config so the channel set is right for everything that reads
+  * cfg instead of runtime — the V4 history schema, /api/alarms, /api/calib —
+  * and so the next boot does not have to discover it again. */
+ if (_sensorMgr->takeRetypedCount( ) > 0) {
+  const auto& rt = _sensorMgr->getRuntimeSensors( );
+  for (const auto& rs : rt) {
+   for (int i = 0; i < MAX_SENSORS; i++) {
+    if (cfg.sensors[i].active && cfg.sensors[i].pins[0] == rs.config.pins[0]) {
+     cfg.sensors[i].sensorType = (uint8_t)rs.type;
+    }
    }
   }
+  _storageMgr->saveConfiguration( );
+ }
 
-  _sensorMgr->initRuntimeSensors(cfg);
+ /* ── 3. Offsets ── */
+ for (int i = 0; i < MAX_SENSORS; i++) {
+  if (!cfg.sensors[i].active) continue;
+
+  if (cfg.sensors[i].sensorType == TYPE_DS18B20) {
+   /* 1-Wire: keyed by ROM. The row also carries the ID and name the probe
+    * was adopted with, which is how `sensor accept` restores them. */
+   String dbId; float dbOffset = 0.0f; String dbName;
+   if (_storageMgr->getCalibrationData(cfg.sensors[i].rom, dbId, dbOffset, dbName)) {
+    if (dbId.length( ) > 0) { safeCopy(cfg.sensors[i].hwId, dbId.c_str( ), sizeof(cfg.sensors[i].hwId)); }
+    if (dbName.length( ) > 0) { safeCopy(cfg.sensors[i].friendlyName, dbName.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
+    _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbId, dbOffset, dbName);
+   }
+  } else {
+   /* No ROM (DHT22, BMP280): keyed by the board serial, one row per
+    * quantity, each tagged with this slot's hwId — `t<hwId>` for
+    * temperature, `u<hwId>` for humidity.
+    *
+    * This used to be a single device-wide pair found by "first row whose
+    * id starts with t/u" and pushed onto "the first DHT22 in the runtime
+    * list". Two DHT22s on one board shared one offset, and which sensor
+    * got it depended on slot order. */
+   float offT = 0.0f, offH = 0.0f;
+   String unusedName;
+   bool gotT = _storageMgr->getCalibrationByHwId('t', cfg.sensors[i].hwId, offT, unusedName);
+   bool gotH = false;
+   if (sensorHasHumidity((SensorType)cfg.sensors[i].sensorType)) {
+    gotH = _storageMgr->getCalibrationByHwId('u', cfg.sensors[i].hwId, offH, unusedName);
+   }
+   if (gotT || gotH) {
+    _sensorMgr->applyCalibrationOffsets(cfg.sensors[i].pins[0],
+                                        gotT ? offT : 0.0f,
+                                        gotH ? offH : 0.0f);
+   }
+  }
+ }
  LOG_CODE(LOG_INFO, "APP", APP_SENSORS_CALIBRATED, 0, "");
 }

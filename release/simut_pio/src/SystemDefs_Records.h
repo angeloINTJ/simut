@@ -26,12 +26,25 @@
  * regardless of SIMUT_SENSOR_* flags. The flags only gate driver code
  * in SensorManager and control sensorTypeEnabled() at runtime. */
 enum SensorType {
- TYPE_NONE,
- TYPE_DS18B20,
- TYPE_DHT22,
- TYPE_BME280,
- TYPE_UNKNOWN_ACTIVITY
+ TYPE_NONE = 0,
+ TYPE_DS18B20 = 1,
+ TYPE_DHT22 = 2,
+ TYPE_BME280 = 3,           /**< temperature + humidity + pressure */
+ TYPE_UNKNOWN_ACTIVITY = 4,
+ /* BMP280 is a DIFFERENT part from the BME280: temperature and pressure,
+  * no humidity die. Both used to share TYPE_BME280 — which declared a
+  * humidity channel and was *displayed* as "BMP280", so whichever chip you
+  * owned, the firmware was wrong about one of the two.
+  *
+  * Appended rather than inserted: the value is persisted in SensorRecord,
+  * so shifting TYPE_UNKNOWN_ACTIVITY would silently retype saved slots. */
+ TYPE_BMP280 = 5            /**< temperature + pressure */
 };
+
+/** Highest value a stored SensorRecord::sensorType may hold. Kept next to the
+ *  enum so range checks stop hardcoding the last name (they said
+ *  `> TYPE_BME280`, which rejected every type added after it). */
+#define SENSOR_TYPE_MAX TYPE_BMP280
 
 /** Payload format for telemetry uploads. */
 enum TelemetryMode {
@@ -487,28 +500,31 @@ struct SystemStatusData {
 
 
 /* =========================================================================== */
-/* BINARY HISTORY RECORD — 74 bytes per record, packed */
+/* IN-RAM HISTORY RECORD — flat, one sample across all slots                   */
 /* =========================================================================== */
-
-/** @brief Fixed size of each binary history record (74 bytes). */
-#define HISTORY_RECORD_SIZE 74
 
 /** @brief Sentinel for fields without valid reading (equivalent to NAN in float). */
 #define HIST_NAN_SENTINEL INT16_MIN /* -32768 */
 
-/** @brief Extension for binary history files. */
-#define HISTORY_FILE_EXT ".bin"
-
 /**
- * @brief Binary history record — 74 bytes, packed.
+ * @brief In-RAM history record — one sample across all 16 slots.
  *
- * Fixed layout per record:
- * [0..3]   epoch uint32_t Unix timestamp
- * [4..5]   ambientTemp int16_t ×100 (temperature from slot 10 / humidity-capable sensor)
- * [6..7]   ambientHum int16_t ×100 (humidity from slot 10 / humidity-capable sensor)
- * [8..39]  sensors[16] int16_t×16 ×100 (temperature for all 16 slots)
- * [40..71] humidity[16] int16_t×16 ×100 (humidity for all 16 slots) — v3+
- * [72..73] pressure int16_t ×10 (atmospheric pressure in hPa) — v3+
+ * NOT a file format. History on disk is V4 (.sim4), which is self-describing
+ * and identifies each measurement by {channel}{hwId} — see HistoryV4.h. This
+ * struct is the flat carrier the V4 reader decodes INTO so that telemetry and
+ * the web history endpoint can index by slot.
+ *
+ * Layout:
+ *   epoch       uint32_t  Unix timestamp
+ *   sensors[16] int16_t   temperature ×100, one per slot
+ *   humidity[16] int16_t  humidity ×100, one per slot
+ *   pressure    int16_t   atmospheric pressure ×10 (hPa)
+ *
+ * It used to open with ambientTemp/ambientHum — a privileged pair of columns
+ * for "the ambient sensor", meaning slot 10. Nothing had written them since
+ * V4 landed; they only survived as the first two fields of the v2/v3 file
+ * layout, which is gone. Slots are uniform now: whatever a sensor reports
+ * lands in its own slot's channel.
  *
  * Invalid values (no reading) use HIST_NAN_SENTINEL (-32768).
  * Supported range: -327.67 to +327.67 — covers DS18B20 and DHT22.
@@ -516,8 +532,6 @@ struct SystemStatusData {
  */
 struct __attribute__((packed)) BinaryHistoryRecord {
  uint32_t epoch; /* Unix timestamp (seconds) */
- int16_t ambientTemp; /* Ambient temperature × 100 */
- int16_t ambientHum; /* Ambient humidity × 100 */
  int16_t sensors[MAX_SENSORS]; /* Slot temperatures × 100 */
  int16_t humidity[MAX_SENSORS]; /* Slot humidity × 100 */
  int16_t pressure; /* Atmospheric pressure × 10 (hPa) */
@@ -573,8 +587,6 @@ struct __attribute__((packed)) BinaryHistoryRecord {
  /** @brief Initializes all fields with invalid values. */
  void clear( ) {
  epoch = 0;
- ambientTemp = HIST_NAN_SENTINEL;
- ambientHum = HIST_NAN_SENTINEL;
  for (int i = 0; i < MAX_SENSORS; i++) {
  sensors[i] = HIST_NAN_SENTINEL;
  humidity[i] = HIST_NAN_SENTINEL;
@@ -585,8 +597,9 @@ struct __attribute__((packed)) BinaryHistoryRecord {
  /**
  * @brief Converts the record to a human-readable CSV line (for telemetry).
  *
- * Format: "epoch;ambT;ambH;s0;...;s15;h0;...;h15;press"
+ * Format: "epoch;s0;...;s15;h0;...;h15;press"
  * Invalid fields remain empty (compatible with upload format).
+ * The leading ambT;ambH pair is gone with the ambient slot.
  *
  * @param buf Destination buffer.
  * @param bufSize Buffer size.
@@ -606,11 +619,6 @@ struct __attribute__((packed)) BinaryHistoryRecord {
  pos += snprintf(buf + pos, bufSize - (size_t)pos, ";");
  }
  };
-
- appendField(ambientTemp != HIST_NAN_SENTINEL,
- ";%.2f", (float)ambientTemp / 100.0f);
- appendField(ambientHum != HIST_NAN_SENTINEL,
- ";%.1f", (float)ambientHum / 100.0f);
 
  for (int i = 0; i < MAX_SENSORS; i++) {
  appendField(sensors[i] != HIST_NAN_SENTINEL,

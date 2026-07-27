@@ -16,12 +16,21 @@
 
 #include "TelemetryManager.h"
 #include "MetricsManager.h"
-#include "HistoryCodec.h"
 #include <LittleFS.h>
 #include <algorithm>
 #include <string.h>
 #include <hardware/watchdog.h>
 #include <pico/time.h>
+
+/* V4 decode scratch, shared by collectBatch and refreshPendingCount.
+ * ~5.9 KB — far past the ~4 KB RP2040 stack. Both run from the Core-0 main
+ * loop and never nest, so one set serves both. */
+namespace {
+HistV4State v4st;
+uint8_t     hdrBuf[HIST_V4_MAX_HEADER];
+uint8_t     rdBuf[HIST_V4_READ_BUF];
+int64_t     v4vals[HIST_V4_MAX_MEASUREMENTS];
+}
 
 /**
  * @brief true se o arquivo de histórico @p fileName é de um dia ANTERIOR a
@@ -416,7 +425,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName().endsWith(HISTORY_FILE_EXT) || dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -461,18 +470,11 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  File f = LittleFS.open(fullPath, "r");
  if (!f) { _storageRef->exitFlashReadLock( ); continue; }
 
- 	 /* V4 detection: .sim4 files use universal format */
-	 bool isV4File = fullPath.endsWith(HISTORY_V4_FILE_EXT);
-	 if (!isV4File && f.size() >= 4) {
-	 char magic[4]; f.seek(0);
-	 if (f.read((uint8_t*)magic, 4) == 4 && memcmp(magic, HIST_V4_MAGIC, 4) == 0) isV4File = true;
-	 }
-	 if (isV4File) {
-	 /* Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
-	 static HistV4State v4st; f.seek(0);
-	 static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
-	 static uint8_t rdBuf[HIST_V4_READ_BUF];
-	 static int64_t v4vals[HIST_V4_MAX_MEASUREMENTS];
+ 	 {
+	 f.seek(0);
+	 /* One format — the magic sniff that chose between this and a v2/v3
+	  * decoder went with them.
+	  * Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
 	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
 	 /* Cursor fix (same as graph/web/scan): seek to the real header end. */
 	 size_t tHdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
@@ -524,77 +526,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
 	 }
 	 }
 	 f.close(); _storageRef->exitFlashReadLock();
-	 continue;
 	 }
-
-/* V2 header */
- HistoryFileHeaderV2 hdr;
- bool headerOk = false;
- if (f.size( ) >= HIST_V2_HEADER_SIZE) {
- f.seek(0);
- if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
- headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION) &&
- hdr.anchorPeriod > 0);
- }
- }
- if (!headerOk) {
- /* Legacy or corrupted V1 file: silent skip. V1→V2 migration
- * is offline (tools/history_v1_to_v2.py). */
- f.close( );
- _storageRef->exitFlashReadLock( );
- continue;
- }
-
- HistoryCodecState rdState;
- historyCodecReset(rdState);
- rdState.fileVersion = hdr.version; /* MUST set before decode — auto-detect unreliable */
- uint8_t rdBuf[256];
- size_t rdFilled = 0;
- uint32_t inFileCount = 0;
- bool fileHasMore = true;
-
- while (fileHasMore && batch.size( ) < limit) {
- BinaryHistoryRecord rec;
-
- if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
- int rN = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
- if (rN > 0) rdFilled += (size_t)rN;
- }
- if (rdFilled == 0) { fileHasMore = false; break; }
-
- bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
- (rdState.recordsSinceAnchor == hdr.anchorPeriod);
- size_t consumed = historyDecodeRecord(rdBuf, rdFilled, rdState, rec, isAnchor);
- if (consumed == 0) {
- /* Decode failed: codec corrupted or truncated. Skip rest of file. */
- fileHasMore = false;
- break;
- }
- memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
- rdFilled -= consumed;
- inFileCount++;
-
- /* Defensive: ignores records with absurd epoch (before 2023-11
- * or in the future beyond 1 day). Same logic as the old V1 reader. */
- bool epochValid = (rec.epoch >= EPOCH_MIN) &&
- (nowEpoch < EPOCH_MIN || rec.epoch <= nowEpoch + 86400UL);
- if (epochValid && rec.epoch > lastCursor) {
- batch.push_back(rec);
- if (rec.epoch > newCursor) newCursor = rec.epoch;
- }
-
- /* Periodic WDT feed + yield every 10 decoded records, avoiding
- * holding the lock too long on large files. */
- if ((inFileCount % 10) == 0 && fileHasMore && batch.size( ) < limit) {
- _storageRef->exitFlashReadLock( );
- feedWdt( );
- yield( );
- _storageRef->enterFlashReadLock( );
- }
- }
- f.close( );
- _storageRef->exitFlashReadLock( );
 
  feedWdt( );
  }
@@ -1083,7 +1015,9 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  }
  s.concat(']');
  } else if (cfg.telMode == TEL_MODE_CSV) {
- s = "timestamp;ambT;ambH";
+ /* Header matches toCsvLine, which dropped the ambT;ambH pair with the
+  * ambient slot. */
+ s = "timestamp";
  char hdrBuf[32];
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (cfg.sensors[i].active) {
@@ -1189,9 +1123,14 @@ int TelemetryManager::formatLineJsonBuf(const BinaryHistoryRecord& rec, const Sy
 	 }
 	 if (rec.pressure != HIST_NAN_SENTINEL) {
 	 float pv = BinaryHistoryRecord::i16ToFloatx10(rec.pressure);
+	 /* Attributed to the slot that actually reports pressure. It used to
+	  * pick the first humidity-capable slot — "has humidity" stood in for
+	  * "is the ambient sensor", so on a board with a DHT22 before the
+	  * BMP280 the pressure was published under the DHT22's key. */
 	 const char* pHwid = "p";
 	 for (int i = 0; i < MAX_SENSORS; i++) {
-	 if (cfg.sensors[i].active && sensorHasHumidity((SensorType)cfg.sensors[i].sensorType) && cfg.sensors[i].hwId[0]) {
+	 if (cfg.sensors[i].active && cfg.sensors[i].hwId[0] &&
+	     sensorHasChannel((SensorType)cfg.sensors[i].sensorType, CH_PRESS)) {
 	 pHwid = cfg.sensors[i].hwId; break;
 	 }
 	 }
@@ -1210,7 +1149,7 @@ String TelemetryManager::formatLineJson(const BinaryHistoryRecord& rec, const Sy
 
 /**
  * Walk template once, emit into dest. Zero String allocations.
- * Tokens: {TS} {DHT_ID} {tAMB} {uAMB} {t0}..{t9}
+ * Tokens: {TS} {DHT_ID} {t0}..{t15} {u0}..{u15} {p0}..{p15}
  * Compound forms "<key>_ID":{<tok>} and "<key>":{<tok>} trigger key rewrite/removal.
  */
 int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
@@ -1228,14 +1167,8 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
  strlcpy(boardSerial, bs.c_str( ), sizeof(boardSerial));
  }
 
- char ambTBuf[16] = {0};
- char ambHBuf[16] = {0};
  char pressBuf[16] = {0};
- const bool hasAmbT = (rec.ambientTemp != HIST_NAN_SENTINEL);
- const bool hasAmbH = (rec.ambientHum != HIST_NAN_SENTINEL);
  const bool hasPress = (rec.pressure != HIST_NAN_SENTINEL);
- if (hasAmbT) snprintf(ambTBuf, sizeof(ambTBuf), "%.2f", BinaryHistoryRecord::i16ToFloat(rec.ambientTemp));
- if (hasAmbH) snprintf(ambHBuf, sizeof(ambHBuf), "%.1f", BinaryHistoryRecord::i16ToFloat(rec.ambientHum));
  if (hasPress) snprintf(pressBuf, sizeof(pressBuf), "%.1f", BinaryHistoryRecord::i16ToFloatx10(rec.pressure));
 
  char slotVal[MAX_SENSORS][16];
@@ -1278,22 +1211,12 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
  val = tsBuf; tokenChars = 4; tokenValid = true;
  } else if (remaining >= 8 && memcmp(tpl + ti, "{DHT_ID}", 8) == 0) {
  val = boardSerial; tokenChars = 8; tokenValid = true;
- } else if (remaining >= 6 && memcmp(tpl + ti, "{tAMB}", 6) == 0) {
- val = hasAmbT ? ambTBuf : nullptr;
- /* Custom ID via calib.csv (line `t<id>`) overrides
- * the default picoUID. Detect "custom" as hwId != "AMB"
- * (default from loadDefaults). Without calib, fallback boardSerial preserves
- * compat with already-configured dashboards. */
- hwid = (cfg.sensors[10].active && cfg.sensors[10].hwId[0] != '\0' && strcmp(cfg.sensors[10].hwId, "AMB") != 0)
- ? cfg.sensors[10].hwId : boardSerial;
- memcpy(compKey, "tAMB", 4); compKeyLen = 4;
- tokenChars = 6; tokenValid = true;
- } else if (remaining >= 6 && memcmp(tpl + ti, "{uAMB}", 6) == 0) {
- val = hasAmbH ? ambHBuf : nullptr;
- hwid = (cfg.sensors[10].active && cfg.sensors[10].hwId[0] != '\0' && strcmp(cfg.sensors[10].hwId, "AMB") != 0)
- ? cfg.sensors[10].hwId : boardSerial;
- memcpy(compKey, "uAMB", 4); compKeyLen = 4;
- tokenChars = 6; tokenValid = true;
+ /* {tAMB} and {uAMB} are gone. They read the record's ambientTemp and
+  * ambientHum, the two columns that belonged to "the ambient sensor" —
+  * i.e. slot 10 — and nothing had written them since V4 landed, so they
+  * had already been resolving as absent on every board. Per-sensor keys
+  * are {t<slot>} and {u<slot>}; both accept the compound
+  * "<key>_ID":{<key>} form that rewrites the key to the sensor hwId. */
  } else if (remaining >= 4 && tpl[ti+1] == 't' &&
  tpl[ti+2] >= '0' && tpl[ti+2] <= '9' && tpl[ti+3] == '}') {
  /* {t0}..{t9} — MAX_SENSORS=10 means single digit */
@@ -1336,21 +1259,10 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
  compKeyLen = snprintf(compKey, sizeof(compKey), "u%d", idx);
  tokenChars = 5; tokenValid = true;
  }
- } else if (remaining >= 6 && memcmp(tpl + ti, "{pAMB}", 6) == 0) {
- /* Was comparing 7 bytes against a 6-char token, so the NUL of the
-  * literal had to line up with the template's own terminator: {pAMB}
-  * only ever resolved when it was the LAST thing in the template, and
-  * even then tokenChars=7 ate the following byte. Hence "p is not
-  * accepted as an argument".
-  *
-  * Unlike {t..}/{u..} there is no per-slot pressure: the record carries
-  * a single `pressure` field, so the key can only be attributed the way
-  * {tAMB}/{uAMB} are, not to the sensor that produced it. */
- val = hasPress ? pressBuf : nullptr;
- hwid = (cfg.sensors[10].active && cfg.sensors[10].hwId[0] != '\0' && strcmp(cfg.sensors[10].hwId, "AMB") != 0)
-        ? cfg.sensors[10].hwId : boardSerial;
- memcpy(compKey, "pAMB", 4); compKeyLen = 4;
- tokenChars = 6; tokenValid = true;
+ /* {pAMB} is gone with {tAMB}/{uAMB}: it could only attribute pressure
+  * to the ambient slot or to the board, never to the sensor that
+  * measured it. {p<slot>} does, and its rewritten key matches the V4
+  * history key for the same channel. */
  } else if (remaining >= 4 && tpl[ti+1] == 'p' &&
             tpl[ti+2] >= '0' && tpl[ti+2] <= '9' &&
             (tpl[ti+3] == '}' ||
@@ -1363,8 +1275,7 @@ int TelemetryManager::formatLineCustomBuf(const BinaryHistoryRecord& rec,
   * single value, but only when slot N is really the pressure source —
   * asking for {p1} on a DHT22 yields nothing rather than borrowing the
   * BMP280's reading. That makes the rewritten key ("pTBD0001") match the
-  * V4 history key for the same channel, which {pAMB} cannot do since it
-  * can only name the ambient slot or the board serial. */
+  * V4 history key for the same channel. */
  const bool twoDigit = !(tpl[ti+3] == '}');
  int idx = twoDigit ? (tpl[ti+2] - '0') * 10 + (tpl[ti+3] - '0') : (tpl[ti+2] - '0');
  if (idx < MAX_SENSORS) {
@@ -1523,7 +1434,7 @@ void TelemetryManager::refreshPendingCount( ) {
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName().endsWith(HISTORY_FILE_EXT) || dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -1560,42 +1471,36 @@ void TelemetryManager::refreshPendingCount( ) {
  File f = LittleFS.open(fullPath, "r");
  if (!f) { _storageRef->exitFlashReadLock( ); continue; }
 
- HistoryFileHeaderV2 hdr;
- bool headerOk = false;
- if (f.size( ) >= HIST_V2_HEADER_SIZE) {
- f.seek(0);
- if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
- headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION) &&
- hdr.anchorPeriod > 0);
- }
- }
- if (!headerOk) { f.close( ); _storageRef->exitFlashReadLock( ); continue; }
+	 /* Count V4 records newer than the cursor. Static buffers — the RP2040
+	  * stack is ~4 KB and the schema alone is bigger than that. */
+	 f.seek(0);
+	 int pHdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+	 size_t pHdrLen = (pHdrRead >= (int)HIST_V4_HEADER_FIXED)
+	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)pHdrRead, v4st) : 0;
+	 if (pHdrLen == 0) { f.close( ); _storageRef->exitFlashReadLock( ); continue; }
+	 f.seek(pHdrLen);
 
- HistoryCodecState rdState;
- historyCodecReset(rdState);
- rdState.fileVersion = hdr.version; /* MUST set before decode — auto-detect unreliable */
- uint8_t rdBuf[256];
- size_t rdFilled = 0;
-
- while (true) {
- BinaryHistoryRecord rec;
-
- if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
- int rN = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
- if (rN > 0) rdFilled += (size_t)rN;
- }
- if (rdFilled == 0) break;
-
- bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
- (rdState.recordsSinceAnchor == hdr.anchorPeriod);
- size_t consumed = historyDecodeRecord(rdBuf, rdFilled, rdState, rec, isAnchor);
- if (consumed == 0) break;
- memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
- rdFilled -= consumed;
-
- if (rec.epoch > lastCursor) total++;
- }
+	 size_t pFilled = 0;
+	 uint32_t pEpoch = 0, pCount = 0;
+	 while (true) {
+	  size_t consumed = histV4DecodeNextRefill(
+	   rdBuf, sizeof(rdBuf), pFilled, v4st, v4vals, &pEpoch,
+	   [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+	    if (f.available( ) <= 0) return 0;
+	    int rN = f.read(dst, maxBytes);
+	    return (rN > 0) ? (size_t)rN : 0;
+	   });
+	  if (consumed == 0) break;
+	  if (pEpoch > lastCursor) total++;
+	  /* Same 10-record breath the collect path takes: this walks whole
+	   * days on the dashboard refresh tick. */
+	  if ((++pCount % 10) == 0) {
+	   _storageRef->exitFlashReadLock( );
+	   feedWdt( );
+	   yield( );
+	   _storageRef->enterFlashReadLock( );
+	  }
+	 }
  f.close( );
  _storageRef->exitFlashReadLock( );
 

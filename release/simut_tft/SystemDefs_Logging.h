@@ -187,6 +187,7 @@ enum LogCode {
  NET_CONNECT_TIMEOUT = 525,
  NET_DORMANT_MODE = 526,
  NET_SHOW_IP = 527,
+ NET_MDNS_FAIL = 528,   /* was logged as LOG_ERROR + SYS_OK, i.e. persisted as "OK" */
 
  /* ── Telemetry extended (540–559) ── */
  TEL_HTTP_INIT = 540,
@@ -253,6 +254,7 @@ enum LogTagId : uint8_t {
  TAG_SYS = 9,
  TAG_DSP = 10,
  TAG_SEC = 11,
+ TAG_OTA = 12,   /* OTA records used to land on TAG_UNKNOWN: tagStringToId had no 'O' case */
  TAG_UNKNOWN= 15
 };
 
@@ -264,10 +266,18 @@ inline LogTagId tagStringToId(const char* tag) {
  case 'N': return TAG_NET;
  case 'T': return TAG_TEL;
  case 'W': return TAG_WEB;
+ case 'O': return TAG_OTA;
  case 'C': return (tag[1] == 'F') ? TAG_CFG : TAG_CLI;
- case 'S': return (tag[1] == 'T') ? TAG_STO :
- (tag[1] == 'E') ? TAG_SENSOR :
- (tag[1] == 'Y') ? TAG_SYS : TAG_SEC;
+ case 'S':
+ /* 'S' is the crowded prefix: STO, SYS, SEC, SENSOR. "SEC" and "SENSOR"
+  * both have tag[1] == 'E', and the old chain answered TAG_SENSOR for
+  * both — so every security/audit record was persisted under the sensor
+  * tag, and TAG_SEC was unreachable. The third character separates them;
+  * reading tag[2] is safe because both literals are longer than that. */
+ if (tag[1] == 'T') return TAG_STO;
+ if (tag[1] == 'Y') return TAG_SYS;
+ if (tag[1] == 'E') return (tag[2] == 'C') ? TAG_SEC : TAG_SENSOR;
+ return TAG_UNKNOWN;
  case 'H': return TAG_HIST;
  case 'D': return TAG_DSP;
  default: return TAG_UNKNOWN;
@@ -279,7 +289,7 @@ inline const char* tagIdToString(uint8_t id) {
  static const char* const TAG_NAMES[] = {
  "APP", "NET", "TEL", "STO", "WEB", "CFG", "CLI",
  "SENSOR", "HIST", "SYS", "DSP", "SEC",
- "?", "?", "?", "?"
+ "OTA", "?", "?", "?"
  };
  return (id < 16) ? TAG_NAMES[id] : "?";
 }

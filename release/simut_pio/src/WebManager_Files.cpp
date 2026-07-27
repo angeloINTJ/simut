@@ -77,6 +77,15 @@ void WebManager::handleDelete( ) {
 
  String path = _server.arg("file");
 
+ /* Refused here, not only hidden in the page: /files omits the checkbox on
+  * a protected row, but this handler is one POST away from anybody. */
+ if (isProtectedFsPath(path)) {
+ LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, path);
+ _server.send(403, "application/json",
+              "{\"error\":\"Protected file — the firmware rewrites it on boot\"}");
+ return;
+ }
+
  bool existed = false;
  {
  RenderGuard rg(_displayRef);
@@ -95,7 +104,7 @@ void WebManager::handleDelete( ) {
  /* External mutation of the live history file: without invalidating,
   * the writer appends to a recreated HEADERLESS file until reboot. */
  if (path.startsWith("/history/") &&
-     (path.endsWith(HISTORY_V4_FILE_EXT) || path.endsWith(HISTORY_FILE_EXT))) {
+     path.endsWith(HISTORY_V4_FILE_EXT)) {
  _storageRef->invalidateV4Codec( );
  }
  /* Hot-reload custom theme on delete (same pattern as upload) —
@@ -223,8 +232,15 @@ void WebManager::handleApiLs( ) {
  char escaped[128];
  jsonEscapeFilename(fnStr.c_str( ), escaped, sizeof(escaped));
 
- snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"f\",\"s\":%u}",
- first ? "" : ",", escaped, (unsigned)batch[i].size);
+ /* "p":1 marks a file the page must render without a selection checkbox.
+  * The flag is emitted rather than the page hardcoding a name, so the two
+  * sides cannot disagree about what is protected. */
+ String full = (dirPath == "/") ? ("/" + fnStr) : (dirPath + "/" + fnStr);
+ bool prot = isProtectedFsPath(full);
+
+ snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"f\",\"s\":%u%s}",
+ first ? "" : ",", escaped, (unsigned)batch[i].size,
+ prot ? ",\"p\":1" : "");
  if (!safeSend(buf)) return;
  first = false;
  }
@@ -263,7 +279,7 @@ void WebManager::handleApiMkdir( ) {
  if (!alreadyExisted) {
  /* README.md placeholder ensures empty folder persists
  * in LittleFS (without entries, dir becomes invisible orphan metadata). */
- String readmePath = dirPath + "/README.md";
+ String readmePath = dirPath + "/" FS_DIR_NOTE_NAME;
  if (!LittleFS.exists(readmePath)) {
  RenderGuard rg(_displayRef);
  File rf = LittleFS.open(readmePath, "w");

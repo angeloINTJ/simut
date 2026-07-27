@@ -99,6 +99,7 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
   if (v == "ds18b20")           newType = TYPE_DS18B20;
   else if (v == "dht22")        newType = TYPE_DHT22;
   else if (v == "bme280")       newType = TYPE_BME280;
+  else if (v == "bmp280")       newType = TYPE_BMP280;
   else {
    _cmdMgr->printError(pt ? "Tipo invalido. Use: ds18b20, dht22, bme280"
                          : "Invalid type. Use: ds18b20, dht22, bme280");

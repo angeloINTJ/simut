@@ -633,13 +633,16 @@ void CommandManager::renderSensorTable(const SensorRecord* sensors, int maxSenso
   }
  }
 
- /* Build channel list: "Temp", "Temp+Hum", "Temp+Hum+Press" */
+ /* Channel list from the MASK — position told you nothing: T+P and T+H are
+    both two channels, and the old loop printed the second one as H either way. */
  String chStr = "";
- for (int c = 0; c < fmt.valueCount && c < 3; c++) {
-  if (c > 0) chStr += "+";
-  if (c == 0) chStr += "T";
-  else if (c == 1) chStr += "H";
-  else if (c == 2) chStr += "P";
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+  if (!fmt.hasChannel(c)) continue;
+  if (chStr.length( ) > 0) chStr += "+";
+  if (c == CH_TEMP)       chStr += "T";
+  else if (c == CH_HUM)   chStr += "H";
+  else if (c == CH_PRESS) chStr += "P";
+  else if (c == CH_LUX)   chStr += "L";
  }
 
  /* Slot header: [Slot 00] GPIO=5 | DHT22 | T+H | Freezer 1 */

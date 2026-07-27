@@ -1004,6 +1004,7 @@ static const char* translateCodeEn(uint16_t code) {
  case NET_CONNECT_TIMEOUT: return "WiFi connect timeout";
  case NET_DORMANT_MODE: return "WiFi dormant mode";
  case NET_SHOW_IP: return "Show IP";
+ case NET_MDNS_FAIL: return "mDNS start failed";
 
  /* ── Telemetry extended (540–547) ── */
  case TEL_HTTP_INIT: return "HTTP transport initialized";
@@ -1023,12 +1024,16 @@ static const char* translateCodeEn(uint16_t code) {
  case STO_STATS_REPORT: return "Storage stats report";
  case STO_CONFIG_REPORT: return "Config report";
 
- /* ── Web (570–574) ── */
+ /* ── Web (570–575) ── */
  case WEB_SERVER_STARTED: return "Web server started";
  case WEB_DISCONNECT_FILE: return "Client disconnected (file)";
  case WEB_DISCONNECT_HISTORY: return "Client disconnected (history)";
  case WEB_SCREENSHOT_ABORTED: return "Screenshot aborted by client";
  case WEB_UPLOAD: return "File uploaded";
+ /* 575 is emitted by WebManager_Send.cpp but had no case here, so it
+  * fell through to the default and rendered as "?" on every channel and
+  * in every language — not just in the browser table. */
+ case WEB_CLIENT_DISCONNECT: return "Client disconnected (broken pipe)";
 
  /* ── Config (580–581) ── */
  case CFG_THEME_APPLIED: return "Theme applied";

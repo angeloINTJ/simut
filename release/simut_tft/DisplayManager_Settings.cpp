@@ -1278,7 +1278,8 @@ void DisplayManager::drawSystemStatus( ) {
  if (_statusPage == 0) {
  addRow("Device", d.deviceName);
  addRow("Firmware", d.fwVersion);
- /* Pico serial — key for calib.csv for ambient (DHT22). */
+ /* Pico serial — key column in calib.csv for sensors with no 1-Wire
+  * ROM (DHT22, BMP280); the row is picked by the sensor's hwId. */
  addRow("Serial", StorageManager::getBoardSerialNumber( ).c_str( ));
  unsigned long s = (unsigned long)d.uptimeSec;
  snprintf(buf, sizeof(buf), "%lud %02lu:%02lu:%02lu",

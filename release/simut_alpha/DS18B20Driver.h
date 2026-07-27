@@ -40,8 +40,14 @@ struct DS18B20Driver {
           sensor(bus)
     {}
 
-    void begin( ) {
-        bus.begin(PIN_ONEWIRE_DEFAULT);
+    /** False when begin( ) could not claim a pio0 state machine. Same silent
+     *  failure the DHT22 driver had: the return value was dropped and every
+     *  later call poked a state machine this firmware does not own. */
+    bool ready = false;
+
+    bool begin( ) {
+        ready = bus.begin(PIN_ONEWIRE_DEFAULT);
+        return ready;
     }
 
     bool readROM(uint8_t gpio, uint8_t* romOut) {

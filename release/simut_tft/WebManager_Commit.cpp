@@ -293,7 +293,9 @@ void WebManager::handleApiCommitAll( ) {
 				int wantActive = getBool(obj, "a");
 				if (wantActive < 0) wantActive = cfg.sensors[slot].active ? 1 : 0;
 
-				if (type < TYPE_NONE || type > TYPE_BME280) {
+				/* SENSOR_TYPE_MAX, not the last name anyone happened to add: this
+				 * said `> TYPE_BME280` and would have rejected TYPE_BMP280. */
+				if (type < TYPE_NONE || type > SENSOR_TYPE_MAX) {
 					snprintf(err, sizeof(err), "slot %ld: bad type %ld", slot, type);
 					break;
 				}
@@ -354,10 +356,24 @@ void WebManager::handleApiCommitAll( ) {
 						break;
 					}
 				}
-				if (valuePos(obj, "hwId") >= 0 &&
-				    !isValidCfgString(getStr(obj, "hwId").c_str( ), sizeof(cfg.sensors[slot].hwId) - 1)) {
-					snprintf(err, sizeof(err), "slot %ld: invalid hwId", slot);
-					break;
+				if (valuePos(obj, "hwId") >= 0) {
+					String hw = getStr(obj, "hwId");
+					if (!isValidCfgString(hw.c_str( ), sizeof(cfg.sensors[slot].hwId) - 1)) {
+						snprintf(err, sizeof(err), "slot %ld: invalid hwId", slot);
+						break;
+					}
+					/* An active slot must carry an ID, and the commit is where to
+					 * say so. Blank was accepted here and then quietly refilled on
+					 * the next boot by the auto-ID in loadAndCalibrateSensors —
+					 * <TYPE><2-digit slot>, e.g. DHT2202 for a DHT22 in slot 2. To
+					 * the user that reads as "my edit was ignored and something
+					 * put its own name back", with nothing in between to explain
+					 * it. A freed slot (a:false) still clears to blank. */
+					if (wantActive && hw.length( ) == 0) {
+						snprintf(err, sizeof(err),
+						         "slot %ld: hardware ID cannot be empty on an active slot", slot);
+						break;
+					}
 				}
 			}
 
@@ -448,6 +464,16 @@ void WebManager::handleApiCommitAll( ) {
 				int p = sys.indexOf(pat);
 				if (p < 0) return String( );
 				int vStart = p + pat.length( );
+				/* Whitespace after the colon is legal JSON and the page never
+				 * emits it — JSON.stringify writes {"t_int":0}. A client that
+				 * pretty-prints writes {"t_int": 0}, and this used to hand
+				 * parseIntStrict the string " 0", which it rejects. The field
+				 * was then skipped while the commit still answered 200: the
+				 * setting silently did not change. Cost an hour to find with
+				 * `tel_reset` running. */
+				while (vStart < (int)sys.length( ) &&
+				       (sys.charAt(vStart) == ' ' || sys.charAt(vStart) == '\t')) vStart++;
+				if (vStart >= (int)sys.length( )) return String( );
 				/* Skip quotes if present. */
 				if (sys.charAt(vStart) == '"') {
 					int vEnd = sys.indexOf('"', vStart + 1);
@@ -457,7 +483,9 @@ void WebManager::handleApiCommitAll( ) {
 				/* Read until comma or }. */
 				int vEnd = vStart;
 				while (vEnd < (int)sys.length( ) && sys.charAt(vEnd) != ',' && sys.charAt(vEnd) != '}') vEnd++;
-				return sys.substring(vStart, vEnd);
+				String v = sys.substring(vStart, vEnd);
+				v.trim( );   /* trailing space before the comma is legal too */
+				return v;
 			};
 			auto has = [&](const char* key) -> bool {
 				String pat = String("\"") + key + "\":";
@@ -544,9 +572,12 @@ void WebManager::handleApiCommitAll( ) {
 				int idxColon = obj.indexOf(':', idxPos);
 				int idx = obj.substring(idxColon + 1).toInt( );
 
+				/* idx is a slot, always. It used to accept -1 as "the ambient
+				 * sensor" and write cfg.sensors[10] — including when slot 10 was
+				 * inactive or held something else entirely. /api/alarms never
+				 * emitted -1, so the only way in was a hand-built payload. */
 				SensorRecord* rec = nullptr;
-				if (idx == -1) rec = &cfg.sensors[10];
-				else if (idx >= 0 && idx < MAX_SENSORS && cfg.sensors[idx].active) rec = &cfg.sensors[idx];
+				if (idx >= 0 && idx < MAX_SENSORS && cfg.sensors[idx].active) rec = &cfg.sensors[idx];
 
 				if (rec) {
 					auto extractFloat = [&](const char* key) -> float {

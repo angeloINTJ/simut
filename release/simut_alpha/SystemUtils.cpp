@@ -3,7 +3,7 @@
  * @brief Shared utility functions used across multiple modules.
  * @details Implements CRC8 Dallas/Maxim for 1-Wire ROM validation,
  * CRC32-IEEE-802.3 incremental for streaming export bundles, and
- * history filename format validation (YYYYMMDD.bin).
+ * history filename format validation (YYYYMMDD.sim4).
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  *          SIMUT — Integrated Universal Monitoring and Telemetry System
@@ -70,17 +70,17 @@ uint32_t crc32_final(uint32_t crc) {
 /* HISTORY FILENAME VALIDATION */
 /* =========================================================================== */
 /**
- * @brief Validates a binary history filename.
- * Expected format: "YYYYMMDD.bin" (12 characters).
+ * @brief Validates a history filename.
+ * Expected format: "YYYYMMDD.sim4" (13 characters). The .bin form went with
+ * the v2/v3 codec — the GC uses this to decide what it may delete, so leaving
+ * it here would have kept stale files exempt forever.
  */
 bool isValidHistoryFileName(const char* name) {
  if (!name) return false;
 
- /* Accept .bin (12 chars) or .sim4 (13 chars) */
  size_t nLen = strlen(name);
- bool isBin  = (nLen == 12 && name[8] == '.' && name[9] == 'b' && name[10] == 'i' && name[11] == 'n');
- bool isSim4 = (nLen == 13 && name[8] == '.' && name[9] == 's' && name[10] == 'i' && name[11] == 'm' && name[12] == '4');
- if (!isBin && !isSim4) return false;
+ if (nLen != 13) return false;
+ if (name[8] != '.' || name[9] != 's' || name[10] != 'i' || name[11] != 'm' || name[12] != '4') return false;
 
  /* First 8 characters must be digits (YYYYMMDD) */
  for (int i = 0; i < 8; i++) {
