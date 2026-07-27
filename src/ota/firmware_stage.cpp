@@ -43,6 +43,7 @@ static bool ensure_sector_erased(uint32_t off) {
 bool stage_session_begin(StageSession& s, StorageManager* storage) {
     s.status = StageStatus::IDLE;
     s.bytes_written = 0;
+    s.bytes_received = 0;
     s.crc32_running = OTA_CRC32_INIT;
     s.page_buf_filled = 0;
     s.storage_ref = storage;
@@ -84,7 +85,8 @@ bool stage_session_feed(StageSession& s, const uint8_t* data, size_t len) {
     if (s.status != StageStatus::STAGING) return false;
     if (!data || len == 0) return true;
 
-    s.crc32_running = crc32_update(s.crc32_running, data, len);
+    s.crc32_running  = crc32_update(s.crc32_running, data, len);
+    s.bytes_received += (uint32_t)len;
 
     while (len > 0) {
         watchdog_update();
