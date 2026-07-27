@@ -10,7 +10,7 @@
 [![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 [![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/Version-v1.6.0--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
+[![Version](https://img.shields.io/badge/Version-v1.6.1--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
 [![Contributors](https://img.shields.io/badge/All_Contributors-5-orange.svg)](CONTRIBUTORS.md)
 [![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg)](CONTRIBUTING.md)

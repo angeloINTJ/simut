@@ -320,9 +320,78 @@ void WebManager::handleApiAlarms( ) {
  * blob is ~14 KB and the firmware never reads it, so the parser deliberately
  * leaves it on flash (see DisplayManager_LangParser.cpp). Content-Length is
  * known up front, so this is a plain-bodied response, not chunked. */
+/* Byte range of the @WEBDICT block in the pack AS IT IS ON DISK RIGHT NOW.
+ *
+ * The parser records that range once, at boot. Replacing the pack through
+ * /files leaves those numbers describing the PREVIOUS file: the handler then
+ * seeks to a stale offset and streams a stale length, and the response ends in
+ * the middle of a string. Invalid JSON makes the browser's JSON.parse throw,
+ * which drops the WHOLE dictionary — every key falls back to English, not just
+ * the ones that changed. Silent, and it survives until the next reboot.
+ *
+ * Rescanning here rather than reloading the pack is deliberate. A reload costs
+ * a ~28 KB transient allocation and rewrites the strings Core 1 is reading off
+ * the display; this endpoint never touches the resident dictionary, so it only
+ * needs the range. One pass over ~28 KB of flash on an endpoint the client
+ * caches for 5 minutes.
+ *
+ * Byte-wise on purpose: the block is one ~15 KB line, so no line-oriented read
+ * with a bounded buffer can be trusted to keep its place. */
+static bool scanWebDictRange(File &f, uint32_t &outOffset, uint32_t &outLen) {
+	static const char kDir[] = "@WEBDICT";
+	const size_t kDirLen = sizeof(kDir) - 1;
+
+	f.seek(0);
+	uint8_t buf[128];
+	uint32_t pos = 0;
+	bool atLineStart = true;   /* byte 0 counts as a line start */
+	size_t match = 0;          /* how much of kDir matched so far */
+	bool inBlock = false;
+	uint32_t bodyStart = 0;
+	bool skippingDirLine = false;
+
+	while (true) {
+		int n = f.read(buf, sizeof(buf));
+		if (n <= 0) break;
+		for (int i = 0; i < n; i++, pos++) {
+			const char c = (char)buf[i];
+
+			if (skippingDirLine) {
+				/* Body begins on the line after the directive. */
+				if (c == '\n') { skippingDirLine = false; inBlock = true; bodyStart = pos + 1; }
+				continue;
+			}
+			if (inBlock) {
+				/* Any later directive at column zero closes the block. */
+				if (atLineStart && c == '@') {
+					outOffset = bodyStart;
+					outLen = pos - bodyStart;
+					return outLen > 0;
+				}
+				atLineStart = (c == '\n');
+				continue;
+			}
+
+			if (atLineStart && c == '@') { match = 1; }
+			else if (match > 0 && match < kDirLen && c == kDir[match]) { match++; }
+			else { match = 0; }
+
+			if (match == kDirLen) { skippingDirLine = true; match = 0; continue; }
+			atLineStart = (c == '\n');
+		}
+	}
+
+	if (inBlock && pos > bodyStart) {   /* block runs to EOF */
+		outOffset = bodyStart;
+		outLen = pos - bodyStart;
+		return true;
+	}
+	return false;
+}
+
 void WebManager::handleApiLang( ) {
-	/* Short cache: translations only change when user swaps .lng + reboot,
-	 * so 5 min is enough without being too stale. */
+	/* Short cache: translations only change when user swaps .lng, so 5 min is
+	 * enough without being too stale. */
 	_server.sendHeader("Cache-Control", "public, max-age=300");
 
 	const char* path = nullptr;
@@ -336,7 +405,17 @@ void WebManager::handleApiLang( ) {
 	{
 		ReadGuard rg(_storageRef);
 		f = LittleFS.open(path, "r");
-		if (f && !f.seek(offset)) { f.close( ); }
+		if (f) {
+			/* Take the range from the file, not from what boot remembered.
+			 * Falls back to the cached pair only if the scan finds no
+			 * @WEBDICT — a pack shape this build does not understand. */
+			uint32_t scanOff = 0, scanLen = 0;
+			if (scanWebDictRange(f, scanOff, scanLen)) {
+				offset = scanOff;
+				len = scanLen;
+			}
+			if (!f.seek(offset)) { f.close( ); }
+		}
 	}
 	if (!f) {
 		/* Pack vanished or shrank under us (upload/delete between boot and
