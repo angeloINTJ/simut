@@ -232,16 +232,20 @@ void DisplayManager::drawSettingsDisplayOffset( ) {
  * @brief Loads the display offset from the persistent config block and applies
  * it immediately to the TFT. Called at boot by AppManager.
  */
+/* Called from Core 0 during boot, with Core 1 already rendering — so it sets
+ * the offset WITHOUT painting the margins. Two cores writing the same SPI bus
+ * is not a race worth taking to blacken 4 pixel columns that the next frame
+ * covers on its own. */
 void DisplayManager::loadDisplayOffset(const DisplayOffsetData* data) {
  if (!data || data->magic != 0xD0) {
- if (_driver.tft) _driver.tft->setDisplayOffset(0, 0);
+ if (_driver.tft) _driver.tft->setDisplayOffset(0, 0, false);
  _offsetSavedX = 0;
  _offsetSavedY = 0;
  return;
  }
  int8_t ox = constrain((int)data->offsetX, -4, 4);
  int8_t oy = constrain((int)data->offsetY, -4, 4);
- if (_driver.tft) _driver.tft->setDisplayOffset(ox, oy);
+ if (_driver.tft) _driver.tft->setDisplayOffset(ox, oy, false);
  _offsetSavedX = ox;
  _offsetSavedY = oy;
 }
