@@ -34,10 +34,15 @@ public:
  * Positive values move the image right/down. Values are
  * clamped to [-4, +4] to limit pixel loss at edges.
  */
- void setDisplayOffset(int8_t ox, int8_t oy) {
+ void setDisplayOffset(int8_t ox, int8_t oy, bool paintMargins = true) {
  _offsetX = constrain(ox, -4, 4);
  _offsetY = constrain(oy, -4, 4);
- fillMarginsBlack( );
+ /* paintMargins=false for callers running on a core that does not own the
+  * TFT. Boot applies the saved offset from Core 0 while Core 1 is already
+  * rendering, and painting here put two cores on the same SPI bus. The
+  * margins are covered by the next full frame anyway — every fillScreen
+  * ends in fillMarginsBlack( ). */
+ if (paintMargins) fillMarginsBlack( );
  }
 
  int8_t getOffsetX( ) const { return _offsetX; }

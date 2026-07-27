@@ -501,7 +501,28 @@ void AppManager::setup( ) {
  _displayMgr->loadTouchCalibration(cal);
  
  if (!_displayMgr->isTouchCalibrated( )) {
- /* Auto-calibrate with default values for headless testing */
+ /* Auto-calibrate with default values for headless testing.
+  *
+  * RAM ONLY. This used to call saveConfiguration( ) here, and that is a
+  * flash write in the worst place in the whole boot. startCore1( ) is
+  * deliberately deferred until after _storageMgr->begin( ) so that boot-time
+  * flash work runs on the single-core path — read the comment there, it says
+  * the multicore_lockout IRQ "often hangs on post-OTA boot". This block runs
+  * ~190 lines LATER, with Core 1 already rendering, so the write took exactly
+  * that path.
+  *
+  * And it only ran when the calibration was invalid — which is precisely what
+  * adjusting the display offset does on purpose (AppManager_Events.cpp clears
+  * cal->magic so the user re-maps touch against the shifted image). So
+  * "change the offset, restart" armed a flash write in that window on the
+  * very next boot. Core 1 owns the TFT: lose it and the panel stops being
+  * driven, which reads as a white screen.
+  *
+  * Dropping the save costs nothing. These are compile-time constants, so
+  * recomputing them each boot is free, and the next saveConfiguration( ) for
+  * any other reason carries them along. Persisting them was arguably wrong
+  * anyway: it made a placeholder indistinguishable from a calibration the
+  * user actually performed. */
  TouchCalData calOut;
  memset(&calOut, 0, sizeof(calOut));
  calOut.magic = 0xCA;
@@ -510,9 +531,9 @@ void AppManager::setup( ) {
  calOut.yMin = 200; calOut.yMax = 3700;
  calOut.zThreshold = 400;
  memcpy(cfg.reserved, &calOut, sizeof(TouchCalData));
- _storageMgr->saveConfiguration( );
+ _displayMgr->loadTouchCalibration(&calOut);
  LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0,
-  TRL("Touch calibration auto-set (headless)"));
+  TRL("Touch calibration auto-set (headless, RAM only)"));
  }
  }
 #endif // SIMUT_DISPLAY_TFT
