@@ -370,22 +370,43 @@ void AppManager::setup( ) {
 	 *
 	 * Here we are in ordinary code with logging up, and the metadata is
 	 * still on flash (it is cleared a few lines below), so the expected
-	 * CRC is available. Only runs on a post-apply boot. */
+	 * CRC is available. Only runs on a post-apply boot.
+	 *
+	 * The expected CRC covers the bytes that were uploaded; the applier
+	 * copies whole 256 B pages, so the app slot ends with up to 255 bytes
+	 * of 0xFF padding that the CRC does not include. The exact boundary is
+	 * in uncompressed_size, but only for images staged by a firmware that
+	 * records it — an update staged by an older build reports the padded
+	 * length in both size fields, and there is no way to recover the real
+	 * one from the metadata.
+	 *
+	 * So we accept any length in the final page: one pass to the start of
+	 * the window, then a byte at a time, finalising as we go. That covers
+	 * both metadata layouts with a single code path. It also means 256
+	 * chances to match instead of one, which on CRC32 is a false accept
+	 * around 6e-8 — far below the odds of the flash write itself being
+	 * wrong in a way CRC32 misses at all. */
  if (m.compressed_size > 0 && m.compressed_size <= OTA_APP_MAX_SIZE) {
- uint32_t crc = 0xFFFFFFFFu;
  const uint8_t* img = (const uint8_t*)(XIP_BASE + OTA_APP_OFFSET);
- for (uint32_t off = 0; off < m.compressed_size; off += 4096u) {
- const uint32_t n = (m.compressed_size - off) < 4096u
- ? (m.compressed_size - off) : 4096u;
+ const uint32_t total = m.compressed_size;
+ const uint32_t lo = (total > 256u) ? (total - 256u) : 0u;
+ uint32_t crc = 0xFFFFFFFFu;
+ for (uint32_t off = 0; off < lo; off += 4096u) {
+ const uint32_t n = (lo - off) < 4096u ? (lo - off) : 4096u;
  crc = crc32_update(crc, img + off, n);
  }
- crc ^= 0xFFFFFFFFu;
- const bool crc_ok = (crc == m.uncompressed_crc32);
+ uint32_t len = lo;
+ bool crc_ok = ((crc ^ 0xFFFFFFFFu) == m.uncompressed_crc32);
+ while (!crc_ok && len < total) {
+ crc = crc32_update(crc, img + len, 1);
+ len++;
+ crc_ok = ((crc ^ 0xFFFFFFFFu) == m.uncompressed_crc32);
+ }
  BLOG("[BOOT] OTA image CRC "); BLOG(crc_ok ? "ok" : "MISMATCH"); BLOG_NL( );
  LOG_CODE(crc_ok ? LOG_INFO : LOG_ERROR, "OTA", SEC_CONFIG_CHANGED, 0,
- crc_ok ? String("image verified, ") + (unsigned)m.compressed_size + " B"
- : String("image CRC mismatch: got ") + String(crc, HEX) +
- " want " + String(m.uncompressed_crc32, HEX));
+ crc_ok ? String("image verified, ") + (unsigned)len + " B"
+ : String("image CRC mismatch over ") + (unsigned)total +
+ " B, want " + String(m.uncompressed_crc32, HEX));
  }
 
  /* Snapshot was already consumed by StorageManager::begin (restore
