@@ -3886,9 +3886,24 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     return;
                 }
                 showToast(window.t('fil_fw_app','Step 3/4: Applying firmware...'), 'ok');
-                await fetch('/api/ota/apply', {method:'POST'});
+                /* The apply result used to be discarded — `await fetch(...)` with no
+                   check, inside a `catch(e) {}` that swallowed everything. A refusal
+                   (403 not full admin, 409 nothing committed) still showed "Step 4/4:
+                   waiting for boot" and bounced to /login, so a device that never
+                   updated looked exactly like one that did. That is the whole reason
+                   "it is still on the old version" arrived with no error to go on. */
+                let r3 = await fetch('/api/ota/apply', {method:'POST'});
+                if (!r3.ok) {
+                    let why = '';
+                    try { why = (await r3.json()).error || ''; } catch(e) { try { why = await r3.text(); } catch(e2) {} }
+                    showToast(window.t('fil_fw_apply_fail','Apply refused (HTTP ') + r3.status + '). ' + why, 'err', 12000);
+                    return;
+                }
                 showToast(window.t('fil_fw_reb','Step 4/4: Waiting for boot (~25 s)...'), 'ok');
-            } catch(e) {}
+            } catch(e) {
+                showToast(window.t('fil_fw_apply_err','Apply failed: ') + (e && e.message ? e.message : e), 'err', 12000);
+                return;
+            }
             setTimeout(() => location.href = '/login', 5000);
         }
 
