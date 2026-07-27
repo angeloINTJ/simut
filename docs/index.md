@@ -13,7 +13,7 @@ description: Integrated Universal Monitoring and Telemetry System. Offline-first
 Offline-first · Dual-core · TFT touch dashboard · OTA updates · RBAC · i18n
 
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/Version-v1.5.6--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
+[![Version](https://img.shields.io/badge/Version-v1.6.0--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/angeloINTJ/simut/blob/main/LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 
