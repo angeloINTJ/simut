@@ -111,18 +111,6 @@ inline const char* sensorChannelName(uint8_t ch) {
 /** Forward declaration — implementation after SensorFormat definition below. */
 inline bool sensorHasChannel(SensorType t, uint8_t channel);
 
-/** @deprecated Use sensorHasChannel(t, CH_HUM) instead. */
-inline bool sensorHasHumidity(SensorType t) {
-#if SIMUT_SENSOR_DHT22
- if (t == TYPE_DHT22) return true;
-#endif
-#if SIMUT_SENSOR_BME280
- if (t == TYPE_BME280) return true;
-#endif
- (void)t;
- return false;
-}
-
 /** @return human-readable sensor type name (e.g. "DS18B20", "DHT22"). */
 inline const char* sensorTypeName(SensorType t) {
  switch (t) {
@@ -133,25 +121,12 @@ inline const char* sensorTypeName(SensorType t) {
  case TYPE_DHT22:   return "DHT22";
 #endif
 #if SIMUT_SENSOR_BME280
- case TYPE_BME280:  return "BMP280";
+ /* This used to answer "BMP280" for TYPE_BME280 — the one type covered both
+  * parts and the label picked the wrong one for anybody holding a BME280. */
+ case TYPE_BME280:  return "BME280";
+ case TYPE_BMP280:  return "BMP280";
 #endif
  default:           return "Unknown";
- }
-}
-
-/** @return number of measurement values this sensor produces (1, 2, or 3). */
-inline uint8_t sensorValueCount(SensorType t) {
- switch (t) {
-#if SIMUT_SENSOR_DS18B20
- case TYPE_DS18B20: return 1;
-#endif
-#if SIMUT_SENSOR_DHT22
- case TYPE_DHT22:   return 2;
-#endif
-#if SIMUT_SENSOR_BME280
- case TYPE_BME280:  return 3;
-#endif
- default:           return 1;
  }
 }
 
@@ -166,6 +141,7 @@ inline bool sensorTypeEnabled(SensorType t) {
 #endif
 #if SIMUT_SENSOR_BME280
  case TYPE_BME280:  return true;
+ case TYPE_BMP280:  return true;  /* same driver, one channel fewer */
 #endif
  default:           return false;
  }
@@ -182,6 +158,7 @@ inline uint32_t sensorDefaultIntervalMs(SensorType t) {
 #endif
 #if SIMUT_SENSOR_BME280
  case TYPE_BME280:  return 5000;
+ case TYPE_BMP280:  return 5000;
 #endif
  default:           return 5000;
  }
@@ -208,10 +185,31 @@ struct SensorValueFormat {
  * Adding a new sensor type requires ONLY a new entry in forType() + a driver file.
  */
 struct SensorFormat {
- uint8_t          valueCount;       /**< 1, 2, or 3 measurement channels */
- SensorValueFormat values[3];       /**< One per value (unused are zeroed) */
+ /** Bit N set = this sensor reports channel N (1 << CH_TEMP, 1 << CH_HUM, ...).
+  *
+  * Replaces the old `valueCount`. That was a COUNT, and every consumer read it
+  * as "channels 0..count-1" — channels had to be a contiguous prefix of the
+  * enum. A BMP280 measures temperature and pressure and no humidity, i.e.
+  * channels {CH_TEMP, CH_PRESS} with a hole at CH_HUM, and a count simply
+  * cannot say that. Which is why both 280s shared one type that claimed
+  * humidity. */
+ uint8_t          channelMask;
+ /** Indexed BY CHANNEL, not by position: values[CH_PRESS] is the pressure
+  *  format whether or not CH_HUM is present. Entries for absent channels are
+  *  zeroed and must not be read — test channelMask first. */
+ SensorValueFormat values[MAX_SENSOR_CHANNELS];
  uint8_t          pinCount;         /**< How many GPIO slots this sensor needs */
- PinRequirement   pins[4];          /**< Role + label per slot (unused are zeroed) */
+ PinRequirement   pins[MAX_SENSOR_PINS]; /**< Role + label per slot (unused are zeroed) */
+
+ bool hasChannel(uint8_t ch) const {
+ return ch < MAX_SENSOR_CHANNELS && (channelMask & (uint8_t)(1u << ch)) != 0;
+ }
+ /** How many channels this sensor actually reports. */
+ uint8_t channelCount( ) const {
+ uint8_t n = 0;
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) if (hasChannel(c)) n++;
+ return n;
+ }
 
  /** Factory: returns the complete driver metadata for a given sensor type. */
  static SensorFormat forType(SensorType t) {
@@ -219,35 +217,44 @@ struct SensorFormat {
  switch (t) {
 #if SIMUT_SENSOR_DS18B20
  case TYPE_DS18B20:
- f.valueCount = 1;
- f.values[0] = {"°C", 1, "thermometer"};
+ f.channelMask = (1u << CH_TEMP);
+ f.values[CH_TEMP] = {"°C", 1, "thermometer"};
  f.pinCount  = 1;
  f.pins[0]   = {ROLE_DATA, "1-Wire", FLAG_PULLUP};
  break;
 #endif
 #if SIMUT_SENSOR_DHT22
  case TYPE_DHT22:
- f.valueCount = 2;
- f.values[0] = {"°C", 1, "thermometer"};
- f.values[1] = {"%",  0, "drop"};
+ f.channelMask = (1u << CH_TEMP) | (1u << CH_HUM);
+ f.values[CH_TEMP] = {"°C", 1, "thermometer"};
+ f.values[CH_HUM]  = {"%",  0, "drop"};
  f.pinCount  = 1;
  f.pins[0]   = {ROLE_DATA, "Data", FLAG_PULLUP};
  break;
 #endif
 #if SIMUT_SENSOR_BME280
  case TYPE_BME280:
- f.valueCount = 3;
- f.values[0] = {"°C",  1, "thermometer"};
- f.values[1] = {"%",   0, "drop"};
- f.values[2] = {"hPa", 1, "gauge"};
+ f.channelMask = (1u << CH_TEMP) | (1u << CH_HUM) | (1u << CH_PRESS);
+ f.values[CH_TEMP]  = {"°C",  1, "thermometer"};
+ f.values[CH_HUM]   = {"%",   0, "drop"};
+ f.values[CH_PRESS] = {"hPa", 1, "gauge"};
+ f.pinCount  = 2;
+ f.pins[0]   = {ROLE_I2C_SDA, "SDA", FLAG_PULLUP};
+ f.pins[1]   = {ROLE_I2C_SCL, "SCL", FLAG_PULLUP};
+ break;
+ case TYPE_BMP280:
+ /* The hole at CH_HUM is the whole point of the mask. */
+ f.channelMask = (1u << CH_TEMP) | (1u << CH_PRESS);
+ f.values[CH_TEMP]  = {"°C",  1, "thermometer"};
+ f.values[CH_PRESS] = {"hPa", 1, "gauge"};
  f.pinCount  = 2;
  f.pins[0]   = {ROLE_I2C_SDA, "SDA", FLAG_PULLUP};
  f.pins[1]   = {ROLE_I2C_SCL, "SCL", FLAG_PULLUP};
  break;
 #endif
  default:
- f.valueCount = 1;
- f.values[0] = {"", 1, ""};
+ f.channelMask = (1u << CH_TEMP);
+ f.values[CH_TEMP] = {"", 1, ""};
  f.pinCount  = 1;
  f.pins[0]   = {ROLE_DATA, "Data", 0};
  break;
@@ -255,6 +262,11 @@ struct SensorFormat {
  return f;
  }
 };
+
+/** @return number of measurement values this sensor produces. */
+inline uint8_t sensorValueCount(SensorType t) {
+ return SensorFormat::forType(t).channelCount( );
+}
 
 /** RP2040 I2C peripheral selection.
  *  Returns 0 for I2C0 (Wire), 1 for I2C1 (Wire1), or -1 if neither.
@@ -334,8 +346,16 @@ inline void gpioInitForRole(uint8_t gpio, PinRole role, uint8_t flags) {
  }
 }
 
-/* Implementation — after SensorFormat definition (resolves circular dependency). */
+/* Implementation — after SensorFormat definition (resolves circular dependency).
+ *
+ * Reads the mask. It used to be `channel < f.valueCount`, which answered "yes"
+ * for CH_HUM on anything reporting two or more channels — including a part with
+ * temperature and pressure and no humidity at all. */
 inline bool sensorHasChannel(SensorType t, uint8_t channel) {
- auto f = SensorFormat::forType(t);
- return channel < f.valueCount;
+ return SensorFormat::forType(t).hasChannel(channel);
+}
+
+/** @return true if this sensor reports relative humidity. */
+inline bool sensorHasHumidity(SensorType t) {
+ return sensorHasChannel(t, CH_HUM);
 }

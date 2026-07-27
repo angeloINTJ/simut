@@ -23,11 +23,12 @@ static inline float readRecordValue(const BinaryHistoryRecord& rec,
  humOut = NAN;
 
  if (sensorId >= 0 && sensorId < MAX_SENSORS) {
- /* Per-slot humidity from v3 record (fallback to ambientHum for v2 / slot 10) */
+ /* Per-slot humidity. The record's ambientHum field is NOT consulted as a
+  * fallback for slot 10 any more: it only ever held that slot's humidity
+  * because slot 10 was the ambient sensor, so on a board that moved its
+  * humidity sensor elsewhere the fallback grafted one sensor's readings
+  * onto another's graph. Nothing in the firmware writes the field today. */
  humOut = BinaryHistoryRecord::i16ToFloat(rec.humidity[sensorId]);
- if (isnan(humOut) && sensorId == 10) {
- humOut = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
- }
  return BinaryHistoryRecord::i16ToFloat(rec.sensors[sensorId]);
  }
 
@@ -184,30 +185,19 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  localtime_r(&targetDay, &timeinfo);
 
  char path[42];
- snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
+ snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_V4_FILE_EXT,
  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
  File f;
  _storageMgr->enterFlashReadLock( );
  bool fileExists = LittleFS.exists(path);
- if (!fileExists) {
- /* Try .sim4 if .bin not found */
- snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_V4_FILE_EXT,
- timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
- fileExists = LittleFS.exists(path);
- }
  if (fileExists) f = LittleFS.open(path, "r");
  _storageMgr->exitFlashReadLock( );
 
+ /* One format. The .bin fallback and the isV4 sniff that went with it are
+  * gone with v2/v3 — the extension no longer decides which decoder runs. */
  if (fileExists && f) {
- /* Detect V4 (.sim4) vs legacy (.bin) by checking path extension */
- bool isV4 = (strlen(path) > 5 && path[strlen(path)-5] == '.' && path[strlen(path)-4] == 's');
- if (!isV4 && f.size() >= 4) {
- StorageManager::ReadGuard rg(_storageMgr.get( ));
- char m[4]; f.seek(0);
- if (f.read((uint8_t*)m, 4) == 4 && memcmp(m, HIST_V4_MAGIC, 4) == 0) isV4 = true;
- }
- if (isV4) {
+ {
  /* Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
  static HistV4State g4st;
  static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
@@ -319,160 +309,6 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  pkg.count++;
  }
  _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock();
- continue;
- }
-
- /* v2: validate SIM2 header. No optimized seek (variable records). */
- HistoryFileHeaderV2 hdrG;
- bool headerOkG = false;
- {
- StorageManager::ReadGuard rg(_storageMgr.get( ));
- if (f.size( ) >= HIST_V2_HEADER_SIZE) {
- f.seek(0);
- if (f.read((uint8_t*)&hdrG, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
- headerOkG = (memcmp(hdrG.magic, HIST_V2_MAGIC, 4) == 0 &&
- (hdrG.version == HIST_V2_VERSION || hdrG.version == HIST_V3_VERSION) &&
- hdrG.anchorPeriod > 0);
- }
- }
- }
- if (!headerOkG) { _storageMgr->enterFlashReadLock( ); f.close( ); _storageMgr->exitFlashReadLock( ); continue; }
-
- HistoryCodecState gState;
- historyCodecReset(gState);
- gState.fileVersion = hdrG.version; /* MUST set before decode — auto-detect unreliable */
- uint16_t gAnchorPeriod = hdrG.anchorPeriod;
- uint8_t gRdBuf[256];
- size_t gRdFilled = 0;
-
- bool hasMore = true;
- bool budgetExceeded = false;
-
- while (hasMore && pkg.count < GRAPH_WIDTH && !budgetExceeded) {
- /* Same reason as the V4 loop: the budget bounds the work, it does not keep
-  * the watchdog alive during it. */
- feedWdt( );
- if (timeSince(_graphBudgetStart, GRAPH_BUDGET_MS)) {
- LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 0, "");
- budgetExceeded = true;
- break;
- }
-
- _storageMgr->enterFlashReadLock( );
- BinaryHistoryRecord batch[20];
- int batchCount = 0;
- while (batchCount < 20 && pkg.count < GRAPH_WIDTH) {
- if (gRdFilled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
- int rN = f.read(gRdBuf + gRdFilled, sizeof(gRdBuf) - gRdFilled);
- if (rN > 0) gRdFilled += (size_t)rN;
- }
- if (gRdFilled == 0) break;
- bool isAnc = (gState.recordsSinceAnchor == 0) ||
- (gState.recordsSinceAnchor == gAnchorPeriod);
- size_t consumed = historyDecodeRecord(gRdBuf, gRdFilled, gState,
- batch[batchCount], isAnc);
- if (consumed == 0) break;
- memmove(gRdBuf, gRdBuf + consumed, gRdFilled - consumed);
- gRdFilled -= consumed;
- batchCount++;
- }
- hasMore = (gRdFilled > 0 || f.available( ) > 0);
- _storageMgr->exitFlashReadLock( );
-
- bool pastWindow = false;
-
- for (int bi = 0; bi < batchCount && pkg.count < GRAPH_WIDTH; bi++) {
- const BinaryHistoryRecord& rec = batch[bi];
-
- time_t ts = (time_t)rec.epoch;
- if (ts < cutoff) continue;
-
- /*
- * Records are chronological: if this one exceeded effectiveEnd,
- * all subsequent ones will too. Immediate break instead of
- * continue avoids reading the rest of the file uselessly.
- * Critical for 1H: without this, reads ~1380 extra records in a
- * file of 1440 → exceeds 6s budget.
- */
- if (ts > effectiveEnd) { pastWindow = true; break; }
-
- float humRead = NAN;
- float valRead = readRecordValue(rec, sensorId, humRead);
- if (ts < epochLimit) valRead = NAN;
-
- /*
- * REAL min/max: tracked from EVERY record in the window,
- * regardless of decimation. Ensures the Y axis and badges
- * show the true extreme values.
- */
- if (!isnan(valRead)) {
- if (valRead < pkg.realMinVal) { pkg.realMinVal = valRead; pkg.tsRealMin = ts; }
- if (valRead > pkg.realMaxVal) { pkg.realMaxVal = valRead; pkg.tsRealMax = ts; }
- }
-
- /* Decimation: skip intermediate records to fit on screen */
- lineIdx++;
- if (lineIdx % decimation != 0) continue;
-
- /*
- * ALWAYS add the point to the array, even if NAN.
- * NAN points preserve temporal position on the X axis,
- * creating visible holes in the graph where the sensor
- * was in error. The renderer skips segments with NAN.
- */
- pkg.pointsV1[pkg.count] = valRead;
- pkg.tsPoints[pkg.count] = (uint32_t)ts;
-
- if (pkg.hasHumidity) {
- pkg.pointsV2[pkg.count] = humRead;
- }
-
- if (pkg.count == 0) pkg.tsFirst = ts;
-
- /* Statistics of displayed points (for markers on the graph) */
- if (!isnan(valRead)) {
- if (valRead < pkg.minVal) {
- pkg.minVal = valRead;
- pkg.idxMinTemp = pkg.count;
- pkg.tsMinTemp = ts;
- }
- if (valRead > pkg.maxVal) {
- pkg.maxVal = valRead;
- pkg.idxMaxTemp = pkg.count;
- pkg.tsMaxTemp = ts;
- }
- }
-
- if (pkg.hasHumidity && !isnan(humRead)) {
- if (humRead < localHumMin) {
- localHumMin = humRead;
- pkg.tsMinHum = ts;
- }
- if (humRead > localHumMax) {
- localHumMax = humRead;
- pkg.tsMaxHum = ts;
- }
- }
-
- pkg.tsLast = ts;
- pkg.count++;
- }
-
- /* Left temporal window: stop reading this file */
- if (pastWindow) break;
-
- feedWdt( );
- yield( );
- }
-
- _storageMgr->enterFlashReadLock( );
- f.close( );
- _storageMgr->exitFlashReadLock( );
-
- if (budgetExceeded) {
- _storageMgr->unlockHeavyTask( );
- _displayMgr->forceDashboard( );
- return;
  }
  }
 

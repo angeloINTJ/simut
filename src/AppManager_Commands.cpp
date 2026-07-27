@@ -166,7 +166,7 @@ void AppManager::executeCommand(CliDemand cmd) {
   _cmdMgr->consolePrintln("");
   _cmdMgr->consolePrintln(_cmdMgr->isPt( ) ? "--- Tipos de Sensor Compilados ---"
                                             : "--- Compiled Sensor Types ---");
-  SensorType allTypes[] = {TYPE_DS18B20, TYPE_DHT22, TYPE_BME280};
+  SensorType allTypes[] = {TYPE_DS18B20, TYPE_DHT22, TYPE_BME280, TYPE_BMP280};
   for (SensorType t : allTypes) {
    if (!sensorTypeEnabled(t)) continue;
    auto fmt = SensorFormat::forType(t);
@@ -176,13 +176,17 @@ void AppManager::executeCommand(CliDemand cmd) {
     if (p > 0) pinStr += ",";
     pinStr += fmt.pins[p].label;
    }
-   /* Build channel labels: "Temp", "Temp+Hum", "Temp+Hum+Press" */
+   /* Channel labels, driven by the MASK. The old loop walked 0..valueCount-1
+      and named the position, so a two-channel sensor always printed
+      "Temp+Hum" — a BMP280 measures temperature and pressure. */
    String chStr = "";
-   for (int c = 0; c < fmt.valueCount && c < 3; c++) {
-    if (c > 0) chStr += "+";
-    if (c == 0) chStr += _cmdMgr->isPt( ) ? "Temp" : "Temp";
-    else if (c == 1) chStr += _cmdMgr->isPt( ) ? "Umid" : "Hum";
-    else if (c == 2) chStr += _cmdMgr->isPt( ) ? "Press" : "Press";
+   for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+    if (!fmt.hasChannel(c)) continue;
+    if (chStr.length( ) > 0) chStr += "+";
+    if (c == CH_TEMP)       chStr += "Temp";
+    else if (c == CH_HUM)   chStr += _cmdMgr->isPt( ) ? "Umid" : "Hum";
+    else if (c == CH_PRESS) chStr += "Press";
+    else if (c == CH_LUX)   chStr += "Lux";
    }
    _cmdMgr->consolePrintf(" %-8s | %2d pin%s | %s | %s\n",
      sensorTypeName(t),
@@ -548,6 +552,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  if (strcmp(cmd.strVal3, "dht22") == 0) r.sensorType = TYPE_DHT22;
  else if (strcmp(cmd.strVal3, "ds18b20") == 0) r.sensorType = TYPE_DS18B20;
  else if (strcmp(cmd.strVal3, "bme280") == 0) r.sensorType = TYPE_BME280;
+ else if (strcmp(cmd.strVal3, "bmp280") == 0) r.sensorType = TYPE_BMP280;
  else r.sensorType = TYPE_NONE;
  } else {
  /* Legacy: auto-detect from ROM (non-zero = DS18B20, zero = DHT22). */
@@ -557,7 +562,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  }
  /* BME280 is I2C: pins[0]=SDA, pins[1]=SCL (convention SCL = SDA+1,
   * same pairing as the scan probe). Other types are single-pin. */
- r.pins[1] = (r.sensorType == TYPE_BME280) ? (uint8_t)(cmd.intVal1 + 1)
+ r.pins[1] = (r.sensorType == TYPE_BME280 || r.sensorType == TYPE_BMP280)
+             ? (uint8_t)(cmd.intVal1 + 1)
                                            : PIN_UNUSED;
  safeCopy(r.hwId, cmd.strVal1, sizeof(r.hwId));
  safeCopy(r.friendlyName, cmd.strVal2, sizeof(r.friendlyName));
