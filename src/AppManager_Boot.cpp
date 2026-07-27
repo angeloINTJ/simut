@@ -20,6 +20,8 @@
 #include "SystemDefs.h"
 #include "ota/metadata.h"
 #include "ota/config_snapshot.h"
+#include "ota/backup.h"      /* crc32_update — verificação da imagem pós-apply */
+#include "ota/ota_layout.h"
 #include "TelemetryManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
@@ -357,6 +359,35 @@ void AppManager::setup( ) {
  String("post-apply boot, state=") + (int)m.state +
  " attempts=" + (int)m.attempts +
  (snap_present ? " snap=ok" : " snap=absent"));
+
+ /* Verify the image the applier actually wrote.
+	 *
+	 * The applier computes this CRC too, but it runs from SRAM with
+	 * interrupts off and has no way to report anything — it discarded the
+	 * result and rebooted. That blind spot is why three separate applier
+	 * bugs survived several releases: every layer reported success and
+	 * nothing ever compared the app slot against what was staged.
+	 *
+	 * Here we are in ordinary code with logging up, and the metadata is
+	 * still on flash (it is cleared a few lines below), so the expected
+	 * CRC is available. Only runs on a post-apply boot. */
+ if (m.compressed_size > 0 && m.compressed_size <= OTA_APP_MAX_SIZE) {
+ uint32_t crc = 0xFFFFFFFFu;
+ const uint8_t* img = (const uint8_t*)(XIP_BASE + OTA_APP_OFFSET);
+ for (uint32_t off = 0; off < m.compressed_size; off += 4096u) {
+ const uint32_t n = (m.compressed_size - off) < 4096u
+ ? (m.compressed_size - off) : 4096u;
+ crc = crc32_update(crc, img + off, n);
+ }
+ crc ^= 0xFFFFFFFFu;
+ const bool crc_ok = (crc == m.uncompressed_crc32);
+ BLOG("[BOOT] OTA image CRC "); BLOG(crc_ok ? "ok" : "MISMATCH"); BLOG_NL( );
+ LOG_CODE(crc_ok ? LOG_INFO : LOG_ERROR, "OTA", SEC_CONFIG_CHANGED, 0,
+ crc_ok ? String("image verified, ") + (unsigned)m.compressed_size + " B"
+ : String("image CRC mismatch: got ") + String(crc, HEX) +
+ " want " + String(m.uncompressed_crc32, HEX));
+ }
+
  /* Snapshot was already consumed by StorageManager::begin (restore
 	 * before loadConfiguration). Clear the metadata partition now —
 	 * erases UpdateMetadata + snapshot region together (factory state). */
