@@ -11,8 +11,42 @@
  */
 
 #include "HistoryV4.h"
-#include "HistoryCodec.h"       /* writeVarintZ, readVarintZ */
 #include <string.h>
+
+/* ============================================================================
+ * ZIGZAG VARINT
+ *
+ * Moved here from HistoryCodec.cpp when the v2/v3 codec was deleted — these
+ * two functions were the only part of that file V4 ever used.
+ * ============================================================================ */
+
+size_t writeVarintZ(int32_t v, uint8_t* buf) {
+    /* zigzag: maps signed (-1,+1,-2,+2,...) -> unsigned (1,2,3,4,...) */
+    uint32_t u = ((uint32_t)v << 1) ^ ((uint32_t)(v >> 31));
+    size_t n = 0;
+    while (u >= 0x80) {
+        buf[n++] = (uint8_t)(u | 0x80);
+        u >>= 7;
+    }
+    buf[n++] = (uint8_t)u;
+    return n;
+}
+
+size_t readVarintZ(const uint8_t* buf, size_t bufLen, int32_t& out) {
+    uint32_t u = 0;
+    size_t n = 0;
+    int shift = 0;
+    while (n < bufLen && n < 5) {
+        uint8_t b = buf[n++];
+        u |= (uint32_t)(b & 0x7F) << shift;
+        if (!(b & 0x80)) {
+            out = (int32_t)((u >> 1) ^ (~((u & 1) - 1)));
+            return n;
+        }
+        shift += 7;
+    }
+    return 0; /* truncated or invalid varint (>5 bytes) */
+}
 
 /* ============================================================================
  * BIT PACKING — extract / insert at arbitrary bit offset

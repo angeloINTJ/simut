@@ -143,7 +143,12 @@ struct HistV4MeasureDef {
     uint8_t  decimals;    /**< 0..6: decimal places for display */
     uint8_t  unitOffset;  /**< Byte offset in string pool */
     uint8_t  unitLen;     /**< Length of unit string */
-    uint32_t scale;       /**< Divisor: realValue = rawInteger / (scale/100) */
+    /** Multiplier applied on write: rawInteger = round(realValue * scale),
+     *  so realValue = rawInteger / scale. See histV4FromFloat, which is the
+     *  canonical conversion and also clamps per channel signedness.
+     *  (This used to read "realValue = rawInteger / (scale/100)", which is not
+     *  what the code does — following it decodes 23.60 C as 2360 C.) */
+    uint32_t scale;
 };
 
 /* ============================================================================
@@ -527,6 +532,12 @@ void histV4BitInsert(uint8_t *buf, size_t bitOffset, uint8_t bitWidth, int64_t v
 /* ============================================================================
  * ZIGZAG VARINT
  *
- * Reused from HistoryCodec.cpp — declared there, implemented there.
- * Include HistoryCodec.h in your .cpp to get the symbols.
+ * Lived in HistoryCodec.cpp until the v2/v3 codec was removed; they were the
+ * only part of it V4 ever used, so they moved here with it.
  * ============================================================================ */
+
+/** Write int32 as zigzag varint. Returns bytes written (1..5). */
+size_t writeVarintZ(int32_t v, uint8_t* buf);
+
+/** Read zigzag varint. Returns bytes consumed (0 = error/truncated). */
+size_t readVarintZ(const uint8_t* buf, size_t bufLen, int32_t& out);

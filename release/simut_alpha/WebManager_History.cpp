@@ -10,11 +10,22 @@
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "TouchPriority.h"
-#include "HistoryCodec.h"
 #include "FlashIrqProbe.h"
 #include "backup.h" /* ota::crc32_update for screenshot_chunk */
 #include <LittleFS.h>
 #include <time.h>
+
+/* V4 decode scratch, shared by every reader in this file.
+ *
+ * ~5.9 KB apiece and the RP2040 stack is ~4 KB, so these cannot be locals.
+ * One set is enough because _inHistoryHandler serialises the handlers: the
+ * atomic exchange at the top of each answers 503 while another runs. */
+namespace {
+HistV4State v4st;
+uint8_t     hdrBuf[HIST_V4_MAX_HEADER];
+uint8_t     rdBuf[HIST_V4_READ_BUF];
+int64_t     v4vals[HIST_V4_MAX_MEASUREMENTS];
+}
 
 using ReadGuard = StorageManager::ReadGuard;
 
@@ -84,7 +95,7 @@ void WebManager::handleApiHistoryMulti( ) {
  /* ── Parse sensors=... (CSV of IDs) ─────────────────────────────────── */
  int sensorIds[MAX_SENSORS]; /* up to 16 slots */
  int sensorCount = 0;
- String sArg = _server.hasArg("sensors") ? _server.arg("sensors") : String("10");
+ String sArg = _server.arg("sensors"); /* empty = "pick a default below" */
  {
  int start = 0;
  while (start < (int)sArg.length( ) && sensorCount < MAX_SENSORS) {
@@ -107,7 +118,17 @@ void WebManager::handleApiHistoryMulti( ) {
  start = comma + 1;
  }
  }
- if (sensorCount == 0) { sensorIds[0] = 10; sensorCount = 1; }
+ /* No usable ?sensors= — fall back to the lowest active slot. It used to
+  * default to slot 10 because that slot was the ambient sensor, so a request
+  * without the parameter graphed an empty series on any board where 10 was
+  * not provisioned. */
+ if (sensorCount == 0) {
+ const SystemConfig& cfgDef = _storageRef->getConfig( );
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (cfgDef.sensors[i].active) { sensorIds[0] = i; sensorCount = 1; break; }
+ }
+ if (sensorCount == 0) { sensorIds[0] = 0; sensorCount = 1; }
+ }
 
  /* ── Parse range/end ────────────────────────────────────────────────── */
  String reqRange = _server.arg("range");
@@ -163,7 +184,7 @@ void WebManager::handleApiHistoryMulti( ) {
   * light-yield, which allocates and can reach saveConfiguration( ) — a flash
   * write, started while we hold _fsReadMutex. */
  feedWdt( );
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT) || dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
+ if (dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
  filesToRead.push_back(String(DIR_HISTORY) + "/" + dir.fileName( ));
  }
  }
@@ -185,15 +206,9 @@ void WebManager::handleApiHistoryMulti( ) {
  time_t targetDay = effectiveEnd - (d * 86400);
  struct tm timeinfo; localtime_r(&targetDay, &timeinfo);
  char defPath[40];
- /* Push BOTH extensions: the writer creates .sim4 (V4) since the
-  * universal-format migration; the old code only looked for the
-  * legacy .sim here, so every range below 1M read zero V4 files
-  * (empty graphs) while the >=1M dir-listing branch matched both. */
- snprintf(defPath, sizeof(defPath), "%s/%04d%02d%02d%s",
- DIR_HISTORY,
- timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
- HISTORY_FILE_EXT);
- filesToRead.push_back(String(defPath));
+ /* One extension. This used to push .bin AND .sim4 for every day
+  * because the writer had moved to V4 while this list still named the
+  * old one — ranges below 1M then read zero files. */
  snprintf(defPath, sizeof(defPath), "%s/%04d%02d%02d%s",
  DIR_HISTORY,
  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
@@ -256,12 +271,18 @@ void WebManager::handleApiHistoryMulti( ) {
  int id = sensorIds[i];
  char b[160];
  const char* hwId; const char* name; const char* type;
- bool hasH;
+ bool hasH, hasP;
  {
  hwId = cfg.sensors[id].hwId;
  name = cfg.sensors[id].friendlyName;
- type = sensorHasHumidity((SensorType)cfg.sensors[id].sensorType) ? "ambient" : "ds18b20";
- hasH = sensorHasHumidity((SensorType)cfg.sensors[id].sensorType);
+ type = sensorTypeName((SensorType)cfg.sensors[id].sensorType);
+ /* Channels come from the driver catalogue now. "type" used to be the
+  * string "ambient" or "ds18b20" — a two-type world in which a BMP280
+  * was just "ambient" and its pressure had nowhere to be announced. The
+  * page then drew a humidity series for it (the type does claim CH_HUM)
+  * that was null at every point, and no pressure series at all. */
+ hasH = sensorHasChannel((SensorType)cfg.sensors[id].sensorType, CH_HUM);
+ hasP = sensorHasChannel((SensorType)cfg.sensors[id].sensorType, CH_PRESS);
  }
  /* Minimal escape: double quotes become \" */
  char nameEsc[40]; size_t k = 0;
@@ -271,8 +292,9 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  nameEsc[k] = '\0';
  snprintf(b, sizeof(b),
- "%s{\"id\":%d,\"hwId\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"hasH\":%s}",
- (i == 0) ? "" : ",", id, hwId, nameEsc, type, hasH ? "true" : "false");
+ "%s{\"id\":%d,\"hwId\":\"%s\",\"name\":\"%s\",\"type\":\"%s\",\"hasH\":%s,\"hasP\":%s}",
+ (i == 0) ? "" : ",", id, hwId, nameEsc, type,
+ hasH ? "true" : "false", hasP ? "true" : "false");
  safeSend(b);
  }
  }
@@ -301,18 +323,13 @@ void WebManager::handleApiHistoryMulti( ) {
  if (!fileOk) continue;
  filesOpened++;
 
-	 /* V4 detection: .sim4 files use universal format */
-	 bool _v4 = path.endsWith(HISTORY_V4_FILE_EXT);
-	 if (!_v4) { ReadGuard rg(_storageRef); if (f.size() >= 4) { char m[4]; f.seek(0); if (f.read((uint8_t*)m,4)==4) _v4=(memcmp(m,HIST_V4_MAGIC,4)==0); } }
-	 if (_v4) {
-	 /* ── V4 inline decode + emit ─────────────────────── */
+	 {
+	 /* ── V4 inline decode + emit — the only format ────
+	  * The magic sniff that used to pick between this and a v2/v3
+	  * decoder went with them. */
 	 /* Static buffers — avoid 5KB+ stack allocation on RP2040 ~4KB stack.
 	  * histV4ReadHeaderBuf calls histV4Reset internally, so static state
 	  * is safe across file iterations (each file re-initializes via header read). */
-	 static HistV4State v4st;
-	 static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
-	 static uint8_t rdBuf[HIST_V4_READ_BUF];
-	 static int64_t v4vals[HIST_V4_MAX_MEASUREMENTS];
 	 {
 	 ReadGuard rg(_storageRef);
 	 f.seek(0);
@@ -444,162 +461,8 @@ void WebManager::handleApiHistoryMulti( ) {
 	 firstPoint = false;
 	 }
 	 { ReadGuard rg(_storageRef); f.close(); }
-	 streamBreath( ); /* respiro entre arquivos V4 (o caminho legado já tinha) */
-	 continue;
+	 streamBreath( ); /* respiro entre arquivos */
 	 }
-
- HistoryFileHeaderV2 hdr;
- bool headerOk = false;
- {
- ReadGuard rg(_storageRef);
- if (f.size( ) >= HIST_V2_HEADER_SIZE) {
- f.seek(0);
- if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
- headerOk = (memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION) &&
- hdr.anchorPeriod > 0);
- }
- }
- }
- if (!headerOk) { ReadGuard rg(_storageRef); f.close( ); continue; }
-
- HistoryCodecState rdState;
- historyCodecReset(rdState);
- rdState.fileVersion = hdr.version; /* MUST set before decode — auto-detect unreliable */
- uint16_t anchorPeriod = hdr.anchorPeriod;
- uint8_t rdBuf[256];
- size_t rdFilled = 0;
- bool fileHasMore = true;
-
- while (fileHasMore && !aborted) {
- if (isClientGone( ) || isHandlerOvertime( )) {
- LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_HISTORY, 0, "");
- aborted = true; break;
- }
-
- BinaryHistoryRecord batch[20];
- int batchCount = 0;
- {
- ReadGuard rg(_storageRef);
- while (batchCount < 20) {
- if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
- int r = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
- if (r > 0) rdFilled += (size_t)r;
- }
- if (rdFilled == 0) break;
- bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
- (rdState.recordsSinceAnchor == anchorPeriod);
- size_t consumed = historyDecodeRecord(rdBuf, rdFilled, rdState, batch[batchCount], isAnchor);
- if (consumed == 0) break;
- memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
- rdFilled -= consumed;
- batchCount++;
- }
- fileHasMore = (rdFilled > 0 || f.available( ) > 0);
- }
-
- for (int bi = 0; bi < batchCount && !aborted; bi++) {
- const BinaryHistoryRecord& rec = batch[bi];
- time_t ts = (time_t)rec.epoch;
-
- if (cutoff > 0 && ts < cutoff) continue;
- if (ts > effectiveEnd) { fileHasMore = false; break; }
-
- /* T and H stats of set (pre-decimation) */
- for (int s = 0; s < sensorCount; s++) {
- int id = sensorIds[s];
- int16_t raw = rec.sensors[id];
- if (raw == HIST_NAN_SENTINEL) continue;
- float v = BinaryHistoryRecord::i16ToFloat(raw);
- if (v < realMinT) { realMinT = v; tsRealMinT = ts; }
- if (v > realMaxT) { realMaxT = v; tsRealMaxT = ts; }
- }
- if (rec.ambientHum != HIST_NAN_SENTINEL) {
- float h = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
- if (h < realMinH) realMinH = h;
- if (h > realMaxH) realMaxH = h;
- }
-
- lineIdx++;
- if (lineIdx % decimation != 0) continue;
-
- /* Emit point: {"t":epoch,"v":[v0,v1,...]} or null for NAN. */
- char pointBuf[512]; /* v3 needs room for hv[] + pressure fields */
- int pos = 0;
- pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
- "%s{\"t\":%lu,\"v\":[", firstPoint ? "" : ",",
- (unsigned long)ts);
- for (int s = 0; s < sensorCount; s++) {
- int id = sensorIds[s];
- int16_t raw = rec.sensors[id];
- if (s > 0) pointBuf[pos++] = ',';
- if (raw == HIST_NAN_SENTINEL) {
- pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos, "null");
- } else {
- float v = BinaryHistoryRecord::i16ToFloat(raw);
- const char* sg = (v < 0) ? "-" : "";
- int vInt = abs((int)v);
- int vDec = abs((int)(v * 100.0f) % 100);
- pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
- "%s%d.%02d", sg, vInt, vDec);
- }
- }
- pointBuf[pos++] = ']';
- /* h: ambient humidity (backward compat — always from ambientHum field) */
- if (rec.ambientHum != HIST_NAN_SENTINEL) {
- float h = BinaryHistoryRecord::i16ToFloat(rec.ambientHum);
- int hInt = abs((int)h);
- int hDec = abs((int)(h * 10.0f) % 10);
- pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
- ",\"h\":%d.%01d", hInt, hDec);
- }
- /* hv: per-slot humidity array (aligned with sensors[]) */
- {
- pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos, ",\"hv\":[");
- for (int s = 0; s < sensorCount; s++) {
- int id = sensorIds[s];
- int16_t hRaw = rec.humidity[id];
- if (s > 0) pointBuf[pos++] = ',';
- if (hRaw == HIST_NAN_SENTINEL) {
- pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos, "null");
- } else {
- float hv = BinaryHistoryRecord::i16ToFloat(hRaw);
- pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
- "%.1f", hv);
- }
- }
- pointBuf[pos++] = ']';
- }
- /* p: atmospheric pressure (hPa) */
- if (rec.pressure != HIST_NAN_SENTINEL) {
- float p = BinaryHistoryRecord::i16ToFloatx10(rec.pressure);
- int pInt = abs((int)p);
- int pDec = abs((int)(p * 10.0f) % 10);
- pos += snprintf(pointBuf + pos, sizeof(pointBuf) - pos,
- ",\"p\":%d.%01d", pInt, pDec);
- }
- pointBuf[pos++] = '}';
- pointBuf[pos] = '\0';
-
- int pLen = pos;
- if (chunkLen + pLen >= (int)sizeof(chunkBuf) - 1) {
- if (!safeSend(chunkBuf)) { aborted = true; break; }
- chunkBuf[0] = '\0'; chunkLen = 0;
- streamBreath( );
- }
- memcpy(chunkBuf + chunkLen, pointBuf, pLen + 1);
- chunkLen += pLen;
- firstPoint = false;
-
- if (chunkLen >= (int)WEB_STREAM_CHUNK_SOFT) {
- if (!safeSend(chunkBuf)) { aborted = true; break; }
- chunkBuf[0] = '\0'; chunkLen = 0;
- streamBreath( );
- }
- }
- streamBreath( ); /* respiro por lote (feedWatchdog + micro-pausa) */
- }
- { ReadGuard rg(_storageRef); f.close( ); }
  }
 
  if (!aborted) {
@@ -638,15 +501,18 @@ void WebManager::handleApiHistoryMulti( ) {
 /* GET /api/export/history.bin?from=<epoch>&to=<epoch> */
 /* =========================================================================== */
 /* Emits .simx bundle kind='H' (CRC32 trailer) for the browser to expand into CSV
- * locally. Hard cap of 31 days. PAYLOAD = N x BinaryHistoryRecord (74 B
+ * locally. Hard cap of 31 days. PAYLOAD = N x BinaryHistoryRecord (70 B
  * packed) raw, without reformatting. Sensor filtering is on the client.
  *
+ * The record is built from the day's .sim4 — the bundle stays slot-indexed
+ * because SENSOR_TABLE names the slots and the browser expands by them.
+ *
  * Format (all LE):
- * HEADER (32 B): "SIMX" | ver=1 | kind='H' | rsv | recSize=74 | rsv |
+ * HEADER (32 B): "SIMX" | ver=1 | kind='H' | rsv | recSize=70 | rsv |
  * rangeFrom u32 | rangeTo u32 | sensorTblSize u32 | rsv x2
  * SENSOR_TABLE (variable): per active slot: idx u8, hwidLen u8, hwid[],
  * friendlyLen u8, friendly[]
- * PAYLOAD (variable): N x BinaryHistoryRecord (74 B each)
+ * PAYLOAD (variable): N x BinaryHistoryRecord (70 B each)
  * TRAILER (4 B): crc32 u32 (over HEADER+TABLE+PAYLOAD)
  */
 namespace {
@@ -656,7 +522,8 @@ struct __attribute__((packed)) SimxHeader {
  uint8_t version; /* 1 */
  uint8_t kind; /* 'H' history, 'L' logs */
  uint16_t reserved0;
- uint16_t recordSize; /* 28 (history) or 12 (logs) */
+ uint16_t recordSize; /* 70 (history) or 12 (logs) — the reader uses THIS,
+                       * not a hardcoded constant */
  uint16_t reserved1;
  uint32_t rangeFrom;
  uint32_t rangeTo;
@@ -700,9 +567,11 @@ void WebManager::handleApiExportHistory( ) {
  _handlerDeadline = millis( ) + WEB_LONG_HANDLER_DEADLINE_MS;
  if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str( ));
 
- /* Build SENSOR_TABLE in RAM buffer (= sum of all active slots +
- * ambient). Conservative cap: 11 slots x (1+1+16+1+32) = 561 B max. */
- uint8_t sensorTbl[640];
+ /* Build SENSOR_TABLE in RAM buffer (one entry per active slot; there is no
+ * ambient pseudo-slot any more). Worst case: 16 slots x (1+1+16+1+32) =
+ * 816 B — the old 640 B cap was sized for 11 entries and silently dropped
+ * the tail, so the browser could not name the last sensors. */
+ uint8_t sensorTbl[832];
  size_t sensorTblLen = 0;
  {
  const SystemConfig& cfg = _storageRef->getConfig( );
@@ -737,7 +606,7 @@ void WebManager::handleApiExportHistory( ) {
  memcpy(hdr.magic, "SIMX", 4);
  hdr.version = 0x01;
  hdr.kind = 'H';
- hdr.recordSize = (uint16_t)sizeof(BinaryHistoryRecord); /* 74 */
+ hdr.recordSize = (uint16_t)sizeof(BinaryHistoryRecord); /* 70 */
  hdr.rangeFrom = rangeFrom;
  hdr.rangeTo = rangeTo;
  hdr.sensorTableSize = (uint32_t)sensorTblLen;
@@ -772,100 +641,101 @@ void WebManager::handleApiExportHistory( ) {
  /* Cooperative abort: client gone or deadline exceeded */
  if (isClientGone( ) || isHandlerOvertime( )) { aborted = true; break; }
 
- struct tm dtm; localtime_r(&curDay, &dtm);
- char dayPath[44];
- snprintf(dayPath, sizeof(dayPath), "%s/%04d%02d%02d%s",
- DIR_HISTORY,
- dtm.tm_year + 1900, dtm.tm_mon + 1, dtm.tm_mday,
- HISTORY_FILE_EXT);
+	 struct tm dtm; localtime_r(&curDay, &dtm);
+	 char dayPath[44];
+	 snprintf(dayPath, sizeof(dayPath), "%s/%04d%02d%02d%s",
+	          DIR_HISTORY,
+	          dtm.tm_year + 1900, dtm.tm_mon + 1, dtm.tm_mday,
+	          HISTORY_V4_FILE_EXT);
 
- File f;
- bool fileOk = false;
- {
- ReadGuard rg(_storageRef);
- if (LittleFS.exists(dayPath)) {
- f = LittleFS.open(dayPath, "r");
- fileOk = (bool)f;
- } else {
- /* Try .sim4 if .bin not found */
- snprintf(dayPath, sizeof(dayPath), "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT,
- DIR_HISTORY, dtm.tm_year + 1900, dtm.tm_mon + 1, dtm.tm_mday);
- if (LittleFS.exists(dayPath)) {
- f = LittleFS.open(dayPath, "r");
- fileOk = (bool)f;
- }
- }
- }
- if (!fileOk) continue;
+	 File f;
+	 bool fileOk = false;
+	 {
+	  ReadGuard rg(_storageRef);
+	  if (LittleFS.exists(dayPath)) { f = LittleFS.open(dayPath, "r"); fileOk = (bool)f; }
+	 }
+	 if (!fileOk) continue;
 
- /* Validate v2 header */
- HistoryFileHeaderV2 hdrV2;
- bool headerOk = false;
- {
- ReadGuard rg(_storageRef);
- if (f.size( ) >= HIST_V2_HEADER_SIZE) {
- f.seek(0);
- if (f.read((uint8_t*)&hdrV2, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE) {
- headerOk = (memcmp(hdrV2.magic, HIST_V2_MAGIC, 4) == 0 &&
- (hdrV2.version == HIST_V2_VERSION || hdrV2.version == HIST_V3_VERSION) &&
- hdrV2.anchorPeriod > 0);
- }
- }
- }
- if (!headerOk) { ReadGuard rg(_storageRef); f.close( ); continue; }
+	 /* V4 -> flat record.
+	  *
+	  * The bundle stays slot-indexed because that is what the sensor table
+	  * above describes and what the browser expands. Mapping a V4
+	  * measurement back to a slot is by hwId, the same way telemetry does
+	  * it — there is no slot number stored in a .sim4. */
+	 size_t xHdrLen = 0;
+	 {
+	  ReadGuard rg(_storageRef);
+	  f.seek(0);
+	  int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
+	  xHdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
+	            ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) : 0;
+	  if (xHdrLen > 0) f.seek(xHdrLen);
+	 }
+	 if (xHdrLen == 0) { ReadGuard rg(_storageRef); f.close( ); continue; }
 
- HistoryCodecState rdState;
- historyCodecReset(rdState);
- rdState.fileVersion = hdrV2.version; /* MUST set before decode — auto-detect unreliable */
- uint16_t anchorPeriod = hdrV2.anchorPeriod;
+	 const SystemConfig& cfgX = _storageRef->getConfig( );
+	 size_t rdFilled = 0;
+	 uint32_t recEpoch = 0;
+	 bool fileHasMore = true;
+	 uint32_t emitted = 0;
 
- uint8_t rdBuf[256];
- size_t rdFilled = 0;
- bool fileHasMore = true;
+	 while (fileHasMore && !aborted) {
+	  if (isClientGone( ) || isHandlerOvertime( )) {
+	   LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_HISTORY, 0, "");
+	   aborted = true; break;
+	  }
 
- while (fileHasMore && !aborted) {
- if (isClientGone( ) || isHandlerOvertime( )) {
- LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_HISTORY, 0, "");
- aborted = true; break;
- }
+	  size_t consumed;
+	  {
+	   ReadGuard rg(_storageRef);
+	   consumed = histV4DecodeNextRefill(
+	    rdBuf, sizeof(rdBuf), rdFilled, v4st, v4vals, &recEpoch,
+	    [&f](uint8_t *dst, size_t maxBytes) -> size_t {
+	     if (f.available( ) <= 0) return 0;
+	     int rN = f.read(dst, maxBytes);
+	     return (rN > 0) ? (size_t)rN : 0;
+	    });
+	  }
+	  if (consumed == 0) { fileHasMore = false; break; }
 
- BinaryHistoryRecord batch[20];
- int batchCount = 0;
- {
- ReadGuard rg(_storageRef);
- while (batchCount < 20) {
- if (rdFilled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
- int r = f.read(rdBuf + rdFilled, sizeof(rdBuf) - rdFilled);
- if (r > 0) rdFilled += (size_t)r;
- }
- if (rdFilled == 0) break;
- bool isAnchor = (rdState.recordsSinceAnchor == 0) ||
- (rdState.recordsSinceAnchor == anchorPeriod);
- size_t consumed = historyDecodeRecord(rdBuf, rdFilled, rdState, batch[batchCount], isAnchor);
- if (consumed == 0) break;
- memmove(rdBuf, rdBuf + consumed, rdFilled - consumed);
- rdFilled -= consumed;
- batchCount++;
- }
- fileHasMore = (rdFilled > 0 || f.available( ) > 0);
- }
+	  if (recEpoch < rangeFrom) continue;
+	  if (recEpoch > rangeTo) { fileHasMore = false; break; }
 
- for (int bi = 0; bi < batchCount && !aborted; bi++) {
- const BinaryHistoryRecord& rec = batch[bi];
- if (rec.epoch < rangeFrom) continue;
- if (rec.epoch > rangeTo) { fileHasMore = false; break; }
+	  BinaryHistoryRecord rec;
+	  rec.clear( );
+	  rec.epoch = recEpoch;
+	  for (uint8_t m = 0; m < v4st.measureCount; m++) {
+	   if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
+	   float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
+	   char hwId[17];
+	   uint8_t si = v4st.measures[m].sensorIdx;
+	   histV4StrPoolGet(hwId, sizeof(hwId), v4st.strPool,
+	                    v4st.sensors[si].hwIdOffset, v4st.sensors[si].hwIdLen);
+	   for (int slot = 0; slot < MAX_SENSORS; slot++) {
+	    if (!cfgX.sensors[slot].active) continue;
+	    if (strcmp(cfgX.sensors[slot].hwId, hwId) != 0) continue;
+	    uint8_t ch = v4st.measures[m].channel;
+	    if (ch == CH_TEMP)       rec.sensors[slot]  = BinaryHistoryRecord::floatToI16(v);
+	    else if (ch == CH_HUM)   rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
+	    else if (ch == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
+	    break;
+	   }
+	  }
 
- crc = crc32_update(crc, (const uint8_t*)&rec, sizeof(rec));
- if (!safeSend((const char*)&rec, sizeof(rec))) { aborted = true; break; }
- }
+	  crc = crc32_update(crc, (const uint8_t*)&rec, sizeof(rec));
+	  if (!safeSend((const char*)&rec, sizeof(rec))) { aborted = true; break; }
 
- if (_lightYieldCb) _lightYieldCb( );
- delay(2);
- watchdog_update( );
- }
- { ReadGuard rg(_storageRef); f.close( ); }
- /* dayStart already advanced at top of loop (infinite loop protection) */
- }
+	  /* Breathe every 20 records — the legacy path did it per 20-record
+	   * batch and this loop is per record. */
+	  if ((++emitted % 20) == 0) {
+	   if (_lightYieldCb) _lightYieldCb( );
+	   delay(2);
+	   watchdog_update( );
+	  }
+	 }
+	 { ReadGuard rg(_storageRef); f.close( ); }
+	 /* dayStart already advanced at top of loop (infinite loop protection) */
+	 }
 
  /* TRAILER: final CRC32 */
  if (!aborted) {
@@ -1345,7 +1215,7 @@ void WebManager::handleApiHistoryDays( ) {
   * waits. Same distinction as the history scan in 116c7f8; this call site and
   * handleApiLs were left behind. */
  feedWdt( );
- if (dir.fileName( ).endsWith(HISTORY_FILE_EXT) || dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
+ if (dir.fileName( ).endsWith(HISTORY_V4_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -1360,7 +1230,7 @@ void WebManager::handleApiHistoryDays( ) {
  /* Strip .sim4 BEFORE .sim: replace(".sim") on "20260722.sim4" left
   * "202607224" — malformed dates, calendar never marked V4 days. */
  files[i].replace(HISTORY_V4_FILE_EXT, "");
- files[i].replace(HISTORY_FILE_EXT, "");
+ files[i].replace(HISTORY_V4_FILE_EXT, "");
  String entry = (i > 0 ? ",\"" : "\"") + files[i] + "\"";
  safeSend(entry);
  }

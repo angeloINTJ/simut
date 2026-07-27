@@ -9,7 +9,7 @@
 
 #include "WebManager.h"
 #include "WebUI_GZ.h"
-#include <LittleFS.h> /* favicon served from FS */
+#include "Favicon.h"
 #include <bearssl/bearssl_hash.h>
 
 using ReadGuard = StorageManager::ReadGuard;
@@ -73,18 +73,6 @@ String WebManager::generateSecureToken( ) {
 
  return String(hex);
 }
-String WebManager::getHistoryFileName(time_t date) {
- struct tm timeinfo; localtime_r(&date, &timeinfo);
- char buff[40]; snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
- return String(buff);
-}
-
-const char* WebManager::getHistoryFileNameC(time_t date) {
- struct tm timeinfo; localtime_r(&date, &timeinfo);
- snprintf(_historyFnBuf, sizeof(_historyFnBuf), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
- return _historyFnBuf;
-}
-
 /* extractCsvToken removed — not needed with binary format */
 
 String WebManager::rgb565ToHex(uint16_t color) {
@@ -113,23 +101,27 @@ void WebManager::handleStyleCss( ) {
  safeSend_GZ(WebUI_GZ::STYLE_CSS_GZ, WebUI_GZ::STYLE_CSS_GZ_LEN);
 }
 
-/* Favicon moved to LittleFS (`/favicon.ico`) to free 11KB
- * of flash. data/favicon.ico goes to FS via uploadfs. Without the file, returns
- * 204 (browsers treat as absence without visual error). */
+/* Served from the firmware image (src/Favicon.cpp, generated from
+ * data/favicon.ico by a pre-build hook).
+ *
+ * It spent a while on LittleFS to free 11 KB back when real flash headroom
+ * was 660 bytes. That is no longer the binding constraint, and the filesystem
+ * copy had two costs the flash one does not: it vanished on `system format`
+ * until someone re-uploaded it, and publishing it meant `uploadfs`, which
+ * reformats the partition and takes /history and calib.csv with it.
+ *
+ * safeSend_GZ is not gzip-specific — it is the length-aware PROGMEM blob
+ * sender, which is exactly what an .ico needs (NUL bytes rule out the
+ * string-oriented safeSend_P).
+ *
+ * LEN 0 means the tree had no asset at build time: answer 204, which browsers
+ * treat as "no icon" without drawing an error. */
 void WebManager::handleFavicon( ) {
- if (!LittleFS.exists("/favicon.ico")) { _server.send(204, "image/x-icon", ""); return; }
- File f = LittleFS.open("/favicon.ico", "r");
- if (!f) { _server.send(204, "image/x-icon", ""); return; }
+ if (Favicon::LEN == 0) { _server.send(204, "image/x-icon", ""); return; }
  _server.sendHeader("Cache-Control", "public, max-age=604800");
- _server.setContentLength(f.size( ));
+ _server.setContentLength(Favicon::LEN);
  _server.send(200, "image/x-icon", "");
- uint8_t buf[512];
- while (f.available( )) {
- size_t r = f.read(buf, sizeof(buf));
- if (r == 0) break;
- _server.client( ).write(buf, r);
- }
- f.close( );
+ safeSend_GZ(Favicon::DATA, Favicon::LEN);
 }
 
 bool WebManager::secureCompare(const String& a, const String& b) {

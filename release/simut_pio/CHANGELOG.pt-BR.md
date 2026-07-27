@@ -4,6 +4,170 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v1.6.0-beta (2026-07-27)
+
+Release do modelo universal. Três casos especiais faziam o papel de regras
+gerais, e cada um chegava ao usuário como defeito, não como escolha de projeto:
+um slot que não dava para liberar, um sensor cuja pressão nunca aparecia e uma
+camada de histórico carregando dois formatos onde só um é gravado.
+
+Bump de minor, não de patch: o `SensorFormat` mudou de forma, existe
+`TYPE_BMP280` e o padrão de fábrica não provisiona mais slot nenhum.
+
+> **Ainda em teste.** Verificado na bancada contra hardware real (2 DS18B20,
+> 1 DHT22, 1 BMP280), mas sem soak longo.
+
+### O slot 10 deixou de ser "o sensor ambiente"
+
+Oito pontos tratavam um slot como especial: o `/api/calib` emitia um objeto
+`ambient` fixado em `cfg.sensors[10]`; o `/alarms` aceitava `idx == -1` como
+apelido dele; o `/api/config` publicava o hwId dele como `ambHwId`; os tokens de
+telemetria `{tAMB}`/`{uAMB}`/`{pAMB}` resolviam a chave por ele; o gráfico do
+histórico usava o sensor 10 como padrão e enxertava o `ambientHum` do registro
+só nesse slot; e o `loadDefaults` o pré-ativava como DHT22 chamado `AMB` no GP10.
+
+O último é o que o usuário encontra. O seletor de pinos do `/config` desabilita
+todo GPIO pertencente a um slot ativo, então um sensor fantasma ligado a nada
+tornava o **GP10 inatribuível**, e um reset de fábrica o trazia de volta. **Os
+16 slots agora nascem vazios e não reivindicam GPIO.**
+
+Três defeitos apareceram dentro desse trabalho:
+
+- **Nenhum offset de calibração chegava a um sensor rodando.** O
+  `loadAndCalibrateSensors` aplicava os offsets e *depois* chamava o
+  `initRuntimeSensors`, que reconstrói o vetor com todos os offsets zerados.
+- **O `/api/calib` indexava os vetores por GPIO e os lia por número de slot.**
+  Isso só coincide enquanto cada slot estiver no GPIO do próprio número — o
+  layout de fábrica, e mais nada.
+- **Uma calibração de umidade por placa.** Offsets de peças sem ROM eram um par
+  de linhas único do dispositivo, achado por "primeira linha começando com
+  `t`/`u`" e aplicado ao "primeiro DHT22 da lista". Uma placa com dois DHT22
+  calibrava exatamente um, e qual dependia da ordem dos slots. As linhas agora
+  levam o hwId do próprio sensor; **o formato do `calib.csv` não mudou**.
+
+### Um BMP280 não é um BME280
+
+O `sensorHasChannel()` era `channel < valueCount` — os canais tinham que ser um
+prefixo contíguo do enum. Um BMP280 mede **temperatura e pressão e nenhuma
+umidade**: `{CH_TEMP, CH_PRESS}` com um buraco em `CH_HUM`, coisa que uma
+contagem não expressa. Por isso as duas peças dividiam `TYPE_BME280`, que
+declarava umidade e era *exibido* como "BMP280" — qualquer que fosse o seu chip,
+o firmware errava sobre um dos dois.
+
+- O `SensorFormat` passa a carregar uma **máscara de canais**; `values[]` é
+  indexado por canal.
+- **`TYPE_BMP280`** é um tipo distinto, acrescentado ao fim para não deslocar
+  nenhum valor já gravado.
+- **O chip decide.** O `initRuntimeSensors` adota o que a peça informa
+  (0x60 = BME280, 0x58 = BMP280) e persiste, então um slot existente se corrige
+  sozinho no boot seguinte, sem ninguém precisar saber qual chip soldou.
+- A umidade fantasma sumiu do schema V4, do `/api/calib`, do `/api/alarms`, do
+  `/api/config` e do gráfico. **A pressão ganhou série e eixo próprios** no
+  `/history` — ela fica na casa de 1000 hPa e achataria °C e %RH se dividisse
+  eixo com qualquer um dos dois.
+- O catálogo de tipos saiu de uma faixa `t <= TYPE_BME280` para lista explícita.
+  Aquela faixa excluía todo tipo acrescentado depois dela, e só evitava o
+  `TYPE_UNKNOWN_ACTIVITY` por acaso da ordem do enum.
+
+### Histórico: v2/v3 removidos, V4 é o único formato
+
+O `HistoryCodec` foi apagado — 441 linhas, mais cinco leitores `.bin`, a suíte
+de testes de 653 linhas e o conversor v1→v2. **O escritor legado estava sem
+chamadores havia várias releases**: um codec de delta inteiro vivo para não
+servir ninguém.
+
+Dois leitores não podiam simplesmente sumir, porque liam *só* o formato legado:
+o pacote de export `.simx` e o contador de pendentes da telemetria. Ambos foram
+reescritos sobre V4 — senão o export sairia vazio em silêncio e o contador do
+dashboard marcaria zero para sempre. O `getLastRecordedTimestamp`, que semeia a
+RTC virtual no boot, tinha o mesmo problema.
+
+O `BinaryHistoryRecord` perde `ambientTemp`/`ambientHum`. Nada os escrevia desde
+que o V4 entrou; sobreviviam só como os dois primeiros campos do layout v2/v3.
+A struct agora é o que o nome nunca disse: um **carrier em RAM**, não um formato
+de arquivo.
+
+> **Migração.** Arquivos `.sim4` não foram tocados e seguem funcionando.
+> Qualquer histórico `.bin` ainda no dispositivo fica ilegível para este
+> firmware — converta antes com `tools/history_v2_to_v4.py`, que foi mantido
+> exatamente para isso.
+
+### Falhas silenciosas que passaram a falar
+
+- **Uma falha de claim de PIO desabilitava uma família inteira de sensores sem
+  dizer nada.** Os dois drivers descartavam o retorno do `begin()`, e o `DHTBus`
+  só consulta o próprio `_isInitialized` no destrutor — então o `requestReading`
+  seguia acionando a state machine 0 do `pio1`, que este firmware nunca possuiu
+  e que num Pico W é compartilhada com o rádio CYW43. Sintoma: toda leitura
+  daquele tipo dá timeout, em todo pino, sem nada no log.
+- **O prefixo `STH` sequestrava IDs escolhidos pelo usuário.** O auto-ID
+  regenerava qualquer hwId começando com essas três letras — marcador de um
+  esquema antigo que o gerador atual nunca emite, então a cláusula só podia
+  acertar um ID digitado por uma pessoa. Grave `STH0001`, reinicie, receba
+  `DHT2202` de volta.
+- **O template padrão de telemetria publicava só o timestamp.** Era
+  `{"ts":{TS},"tAmb":{tAMB},"hAmb":{uAMB}}`, e os dois tokens AMB liam colunas
+  do registro que nada escrevia desde o V4.
+
+### Manual do sistema de arquivos, e um favicon que para de sumir
+
+- **`/README.txt`** é escrito pelo firmware no boot: um mapa de cada diretório e
+  arquivo, o que vai onde, e as armadilhas (`uploadfs` reformata a partição; o
+  schema V4 congela quando o arquivo do dia é criado). Não dá para apagar pelo
+  `/files` — a linha não tem caixa de seleção e o `/api/delete` responde 403.
+- **`/themes` e `/web` passam a ser criados no boot**, e cada pasta de sistema
+  carrega uma nota de uma linha. Essa nota sustenta a pasta: o LittleFS remove
+  do listing do pai qualquer diretório sem entradas, então um `/themes` vazio
+  não existia para o gerenciador de arquivos — **e pasta que não se vê é pasta
+  onde não se sobe tema**.
+- **O favicon voltou para a imagem do firmware.** Foi para o LittleFS quando a
+  folga real de flash era de 660 B; isso deixou de ser a restrição, e a cópia no
+  sistema de arquivos sumia a cada `system format`. O gerador que deveria
+  produzi-lo lia um diretório inexistente e escrevia fora do `build_src_filter`
+  — não poderia ter funcionado, e nada o chamava.
+
+### Interface web
+
+- **O dashboard nunca dizia "sincronizado".** A linha sob o contador de
+  pendentes era markup estático com `data-i18n`, escrito uma vez no
+  carregamento e nunca revisitado. O `/api/status` ganhou `tel` para distinguir
+  os quatro estados; sem essa flag, `pending == 0` significa tanto "não há mais
+  o que enviar" quanto "nada é enviado nunca".
+- **O IP era apagado no celular**, não ajustado: o breakpoint de 640 px tinha
+  `.status-pill span { display: none }`.
+- **O export CSV estava quebrado para todo mundo.** O leitor no navegador
+  testava `recordSize !== 28` contra um firmware que emitia 74.
+- **Mínimos e máximos do histórico só aparecem com um sensor selecionado** — o
+  servidor mede os extremos sobre todos os pedidos.
+- **Série sem nenhum ponto numérico não é mais desenhada**, que foi o que tirou
+  a linha fantasma de umidade do BMP280.
+- **Os botões da `/files` ficaram uniformes** e os nomes de arquivo viraram
+  links de download.
+
+### Números
+
+| | v1.5.6-beta | v1.6.0-beta |
+|---|---|---|
+| Flash (`pico_w_release`) | 939.096 B | 944.408 B |
+| Folga real | 93.348 B | 89.092 B |
+| RAM (`.bss` + `.data`) | 120.492 B | 122.540 B |
+| Testes nativos | 141 | 119 |
+
+O favicon responde por 11.047 B do delta de flash e a remoção do v2/v3 devolve
+8.888 B. A RAM cresce por um `HistV4State` no `getLastRecordedTimestamp` — os
+registros V4 são delta-encoded, não há como saltar ao fim de um arquivo, e a
+pilha do RP2040 tem ~4 KB. A contagem de testes cai porque a suíte de 653 linhas
+do codec v2/v3 foi junto com o codec.
+
+### O que não foi verificado
+
+- Sem soak longo. A classe R1 (corrida do heartbeat do Core 1 sob carga pesada
+  de flash) continua inalterada e aberta.
+- O caminho do BME280 não foi testado contra hardware real — a bancada tem um
+  BMP280. A separação é simétrica, mas só um lado foi exercitado.
+- O `pico_w_alpha` não linka (`DisplayManager::showTouchSensitivity` indefinido).
+  Pré-existente, sem relação, e confirmado contra a v1.5.6-beta.
+
 ## v1.5.6-beta (2026-07-26)
 
 Release web-first. Toda configuração já tinha equivalente na web, e a CLI serial
@@ -99,9 +263,12 @@ renderizou pelo `unaccent()` sem nenhum `?`.
 
 ### O que não foi verificado
 
-- **O `tel_reset` nunca rodou em hardware.** A telemetria da bancada aponta para
-  um endpoint vivo a cada 10 s e resetar o cursor empurraria até 30 dias de
-  histórico nele. As outras quatro ações foram exercitadas.
+- ~~O `tel_reset` nunca rodou em hardware.~~ **Verificado depois da publicação.**
+  Contra o endpoint de teste da bancada: HTTP 200 e então 21 envios em ~3 min
+  carregando 62.707 B — contra 6 envios e 3.678 B no uptime inteiro anterior —
+  com **0 falhas e 0 retries**, leituras de sensor ainda sem erro e sem reboot.
+  É o backlog reenviando exatamente como documentado. As cinco ações estão
+  exercitadas.
 - **Sem soak longo nesta build.** Releases anteriores levaram corridas de
   tempestade de horas; esta tem minutos.
 - A **corrida do heartbeat do Core 1** sob carga pesada de flash

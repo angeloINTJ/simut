@@ -49,7 +49,13 @@
  *           - Sector 233 (offset 0xE9000) preservado com BTstack runtime
  *             TLV. É região reservada __bluetooth_tlv (8 KiB), não código.
  *             BTstack init re-inicializa transparente.
- *           - WiFi config + admin password + sensor mapping perdidos.
+ *           - WiFi config + admin password + sensor mapping SOBREVIVEM desde
+ *             que config_snapshot passou a capturar /config/system.bin antes
+ *             do apply e restaurá-lo depois. Esta linha dizia o contrário e
+ *             ficou para trás quando o snapshot entrou; verificado no ferro
+ *             em 2026-07-26 (usuários, telemetria e Wi-Fi intactos após um
+ *             apply real). O que de fato se perde é todo o resto da LFS:
+ *             /history, /lang, /themes, /calib, /web e o log de eventos.
  *
  *          Pré-condições do applier (caller orchestrator garante):
  *           - WiFi/CYW43 desligado.

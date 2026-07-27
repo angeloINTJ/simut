@@ -265,7 +265,7 @@ private:
 	void handleNotFound( );
 	void handleLangJs( );
 	void handleStyleCss( ); /**< Common cacheable CSS. */
-	void handleFavicon( ); /**< Serve /favicon.ico from LittleFS with 7-day cache. */
+	void handleFavicon( ); /**< Serve /favicon.ico from the firmware image, 7-day cache. */
 
 	void handleApiPerms( );
 	void handleApiNetwork( );
@@ -280,8 +280,6 @@ private:
 
 	String getForceChpassHtml(bool isError);
 
-	String getHistoryFileName(time_t date);
-	const char* getHistoryFileNameC(time_t date); /**< Reusable buffer version. */
 	String rgb565ToHex(uint16_t color);
 	void feedWatchdog( );
 	/* One "respiro" between outgoing packets during a long stream: feed the
@@ -293,7 +291,6 @@ private:
 
 
 	uint32_t _handlerDeadline = 0;
-	char _historyFnBuf[40]; /**< Reusable buffer for getHistoryFileNameC. */
 	void safeStreamFile(File& f, const String& contentType);
 	void handleApiScreenshot( );
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */

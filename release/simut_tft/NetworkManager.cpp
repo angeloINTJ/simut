@@ -202,7 +202,7 @@ void NetworkManager::update( ) {
  MetricsManager::instance( ).data( ).wifiReconnects++;
  applyManualDnsIfNeeded( ); /* Manual DNS post-DHCP */
 #ifdef SIMUT_MDNS
- if (!MDNS.begin(_deviceName)) LOG_CODE(LOG_ERROR, "NET", SYS_OK, 0, TRL("mDNS failed to start"));
+ if (!MDNS.begin(_deviceName)) LOG_CODE(LOG_ERROR, "NET", NET_MDNS_FAIL, 0, TRL("mDNS failed to start"));
 #endif
  if (_ntpEnabled) {
  syncNtp( );

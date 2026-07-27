@@ -131,14 +131,21 @@ public:
 #endif
 
  void applyCalibration(uint8_t gpio, String newHwId, float offset, String newName);
- /* Apply temp AND humidity offset on first DHT22 sensor found.
- * hwId/name are handled via applyCalibration separately. */
- void applyAmbientCalibration(float offsetT, float offsetH);
+ /* Apply temperature AND humidity offset to the sensor wired to `gpio`.
+  * hwId/name are handled via applyCalibration separately. */
+ void applyCalibrationOffsets(uint8_t gpio, float offsetT, float offsetH);
 
 
  void setHardwareMismatch(uint8_t gpio, bool isMismatch);
 
+ /** Slots whose sensorType initRuntimeSensors corrected from the chip ID
+  *  (BME280 <-> BMP280). Non-zero means the caller should persist the
+  *  config, otherwise the correction is redone every boot. Cleared at the
+  *  start of each initRuntimeSensors. */
+ uint8_t takeRetypedCount( ) { uint8_t n = _retypedSlots; _retypedSlots = 0; return n; }
+
 private:
+ uint8_t _retypedSlots = 0;
 #if SIMUT_SENSOR_DS18B20
  DS18B20Driver _ds18;
 #endif

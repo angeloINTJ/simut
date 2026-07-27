@@ -239,6 +239,119 @@ void StorageManager::unlockHeavyTask( ) { __atomic_store_n(&_heavyTaskLocked, fa
 
 bool StorageManager::isHeavyTaskLocked( ) const { return __atomic_load_n(&_heavyTaskLocked, __ATOMIC_ACQUIRE); }
 
+/* Filesystem manual dropped at the root.
+ *
+ * Lives in the firmware rather than in data/ because it has to survive a
+ * `system format` and reappear on the next boot — and because publishing it
+ * any other way would mean `uploadfs`, which reformats the partition and
+ * takes /history and calib.csv with it.
+ *
+ * Keep it accurate: a wrong map is worse than no map. Every path below is
+ * the one the firmware really uses. */
+static const char FS_README_TEXT[] PROGMEM =
+"SIMUT - mapa do sistema de arquivos (LittleFS)\n"
+"\n"
+"Escrito pelo firmware. Nao aparece com caixa de selecao em /files e nao\n"
+"pode ser apagado por la; se sumir, volta no proximo boot.\n"
+"\n"
+"/config/        Configuracao do sistema. Nao editar a mao.\n"
+"  system.bin    Config ativa (binaria, com CRC32).\n"
+"  system.bak    Copia de seguranca, usada se a ativa corromper.\n"
+"  system.tmp    Temporario de escrita; so sobra apos queda de energia.\n"
+"  t_cursor.bin  Ate onde a telemetria ja enviou.\n"
+"\n"
+"/history/       Historico de medicoes, um arquivo por dia.\n"
+"  AAAAMMDD.sim4 Formato V4. O cabecalho carrega o proprio schema: cada\n"
+"                medicao e {canal}{hwId}, com t=temperatura, u=umidade,\n"
+"                p=pressao. O schema congela quando o arquivo do dia e\n"
+"                criado, entao trocar o hwId de um sensor no meio do dia\n"
+"                faz o resto do dia nao ser gravado para ele. Depois de\n"
+"                mexer em sensores, use 'Rebind history now' em /config.\n"
+"\n"
+"/lang/          Pacotes de idioma (.lng), um por idioma. Suba por /files.\n"
+"                Nunca por 'uploadfs': aquilo reformata a particao.\n"
+"/themes/        Temas personalizados (.thm). Opcional.\n"
+"/web/           Paginas servidas do disco em vez do firmware. Em geral\n"
+"                vazia; so tem conteudo se alguma pagina foi movida para\n"
+"                ca por falta de espaco no firmware.\n"
+"\n"
+"/calib.csv      Offsets de calibracao. DS18B20 e indexado pela ROM;\n"
+"                sensor sem ROM (DHT22, BMP280) vai pelo numero de serie\n"
+"                da placa mais o hwId, em linhas t<hwId> e u<hwId>.\n"
+"/cert.pem       Certificado TLS da telemetria. Opcional.\n"
+"/system.blog    Log de eventos (binario). O .old.blog e o anterior.\n"
+"\n"
+"Espaco: mantenha o uso abaixo de 86%. Acima disso o firmware comeca a\n"
+"apagar os arquivos de historico mais antigos para abrir espaco.\n";
+
+/* Written only when missing or stale (size differs), never on every boot —
+ * a flash write per boot is exactly the exposure the stability work spent
+ * months reducing.
+ *
+ * Unwrapped on purpose. Boot-time README writes were removed from here once
+ * because they sat inside enterFlashSafeMode and deadlocked: LittleFS already
+ * takes multicore_lockout internally, so wrapping it re-enters. The mkdirs
+ * below run raw for the same reason; this follows them. */
+/* One-line notes that also keep their folder ALIVE.
+ *
+ * LittleFS drops a directory with no entries from the parent listing, so an
+ * empty /themes simply did not exist as far as /files was concerned — and a
+ * folder you cannot see is a folder you cannot upload into. That was the
+ * reported symptom: no way to add a .thm because there was nowhere to put it.
+ *
+ * handleApiMkdir already used this trick for user-created folders; the system
+ * ones just never got it, because the boot-time version was removed years ago
+ * over the flash-safe-mode deadlock (see begin( )).
+ *
+ * They are protected from deletion for the same reason: without that, removing
+ * your last theme takes the folder with it. */
+struct FsDirNote { const char* path; const char* text; };
+static const FsDirNote FS_DIR_NOTES[] = {
+ { DIR_THEMES, "Arquivos de tema (.thm), um por tema. Suba por /files.\n" },
+ { DIR_WEB,    "Paginas servidas do disco em vez do firmware. Normalmente vazia.\n" },
+ { DIR_LANG,   "Pacotes de idioma (.lng), um por idioma. Suba por /files.\n" },
+};
+
+/* Writes only when missing or when the size no longer matches, so the common
+ * boot performs zero flash writes. */
+static void writeIfStale(const char* path, const char* text, bool progmem) {
+ const size_t want = progmem ? strlen_P(text) : strlen(text);
+ if (LittleFS.exists(path)) {
+ File probe = LittleFS.open(path, "r");
+ if (probe) {
+ size_t have = probe.size( );
+ probe.close( );
+ if (have == want) return;
+ }
+ }
+ File f = LittleFS.open(path, "w");
+ if (!f) return; /* Non-fatal: it is documentation, not state. */
+ /* Copied through a small stack buffer — the root manual is ~1.8 KB of
+  * PROGMEM and print() would want it contiguous in RAM. */
+ char chunk[128];
+ size_t off = 0;
+ while (off < want) {
+ size_t n = want - off;
+ if (n > sizeof(chunk) - 1) n = sizeof(chunk) - 1;
+ if (progmem) memcpy_P(chunk, text + off, n);
+ else         memcpy(chunk, text + off, n);
+ chunk[n] = '\0';
+ f.write((const uint8_t*)chunk, n);
+ off += n;
+ }
+ f.close( );
+}
+
+void StorageManager::ensureFsReadme( ) {
+ writeIfStale(FILE_FS_README, FS_README_TEXT, true);
+
+ for (size_t i = 0; i < sizeof(FS_DIR_NOTES) / sizeof(FS_DIR_NOTES[0]); i++) {
+ char p[48];
+ snprintf(p, sizeof(p), "%s/%s", FS_DIR_NOTES[i].path, FS_DIR_NOTE_NAME);
+ writeIfStale(p, FS_DIR_NOTES[i].text, false);
+ }
+}
+
 bool StorageManager::begin( ) {
  /* REMOVED enterFlashSafeMode wrap of mkdirs.
  * LittleFS internally already uses flash_safe_execute → multicore_lockout. Wrap
@@ -254,6 +367,15 @@ bool StorageManager::begin( ) {
  uart_putc_raw(uart1, '4');
  if (!LittleFS.exists(DIR_LANG)) LittleFS.mkdir(DIR_LANG);
  uart_putc_raw(uart1, '6');
+ /* /themes and /web were never created here — only handleApiMkdir made them,
+  * and only if the user thought to. Combined with LittleFS hiding empty
+  * directories, /themes was invisible in /files on a fresh filesystem, so
+  * there was no folder to upload a .thm into. */
+ if (!LittleFS.exists(DIR_THEMES)) LittleFS.mkdir(DIR_THEMES);
+ if (!LittleFS.exists(DIR_WEB)) LittleFS.mkdir(DIR_WEB);
+ uart_putc_raw(uart1, '7');
+ ensureFsReadme( );
+ uart_putc_raw(uart1, '8');
  /* Removed boot-time README.md placeholders for sysDirs.
  * The writes inside enterFlashSafeMode caused a reentrant deadlock
  * (LittleFS.open+write+close internally already use
@@ -401,7 +523,13 @@ void StorageManager::loadDefaults( ) {
  _currentConfig.telMode = TEL_MODE_JSON;
 
  safeCopy(_currentConfig.telGlobalTemplate, "{\"dev\":\"{DEV}\",\"mac\":\"{MAC}\",\"data\":[{DATA}]}", sizeof(_currentConfig.telGlobalTemplate));
- safeCopy(_currentConfig.telLineTemplate, "{\"ts\":{TS},\"tAmb\":{tAMB},\"hAmb\":{uAMB}}", sizeof(_currentConfig.telLineTemplate));
+ /* Slot 0, keyed by its own hwId. The old default was
+  * {"ts":{TS},"tAmb":{tAMB},"hAmb":{uAMB}} — both AMB tokens read record
+  * columns nothing had written since V4, so a device shipped on factory
+  * defaults published nothing but a timestamp. The compound "<k>_ID":{<k>}
+  * form drops the whole field when the slot has no reading, so this is
+  * safe on a board where slot 0 is empty or has no humidity. */
+ safeCopy(_currentConfig.telLineTemplate, "{\"ts\":{TS},\"t0_ID\":{t0},\"u0_ID\":{u0}}", sizeof(_currentConfig.telLineTemplate));
  safeCopy(_currentConfig.telLineSeparator, ",", sizeof(_currentConfig.telLineSeparator));
 
  _currentConfig.telTransport = TEL_TRANSPORT_HTTP;
@@ -432,56 +560,32 @@ void StorageManager::loadDefaults( ) {
  * still 0 after initial memset → helper populates defaults). */
  (void)ensureNetworkTimeOverlay( );
 
- /* v1.4.1: 16 universal slots (GPIO0–GPIO15). Each slot starts inactive with
-  * pin[i]=i as default GPIO. Slots 0 and 10 are pre-configured as DHT22,
-  * slots 1-9 as DS18B20 (factory defaults matching the protoboard layout). */
+ /* 16 universal slots, ALL empty. No slot is pre-provisioned and no GPIO is
+  * claimed: a factory-reset board owns none of GP0..GP15 and every one of
+  * them is offerable in the /config pin picker.
+  *
+  * Until 1.5.6 this came up with eleven slots already active — DHT22 on GP0,
+  * DS18B20 on GP1..GP9, and the ambient DHT22 on GP10 — a snapshot of one
+  * protoboard baked in as everyone's starting point. The /config pin picker
+  * greys out every GPIO owned by an active slot, so those eleven phantom
+  * sensors, wired to nothing, made their GPIOs unassignable until each was
+  * freed by hand, and a factory reset put them all back.
+  *
+  * pins[0] = i is a *suggestion* for a slot that has never been configured,
+  * not a claim: the slot is inactive, so sensOwners( ) and the commit
+  * validator both ignore it. */
  for (int i = 0; i < MAX_SENSORS; i++) {
  _currentConfig.sensors[i].active = false;
  _currentConfig.sensors[i].sensorType = TYPE_NONE;
  memset(_currentConfig.sensors[i].pins, 255, sizeof(_currentConfig.sensors[i].pins));
- _currentConfig.sensors[i].pins[0] = i; /* Default: pin = slot index */
+ _currentConfig.sensors[i].pins[0] = i; /* Suggested GPIO, not a claim */
  memset(_currentConfig.sensors[i].rom, 0, 8);
  safeCopy(_currentConfig.sensors[i].hwId, "", sizeof(_currentConfig.sensors[i].hwId));
- safeCopy(_currentConfig.sensors[i].friendlyName, "Empty Slot", sizeof(_currentConfig.sensors[i].friendlyName));
+ safeCopy(_currentConfig.sensors[i].friendlyName, "", sizeof(_currentConfig.sensors[i].friendlyName));
  _currentConfig.sensors[i].tempMin = 0.0f;
  _currentConfig.sensors[i].tempMax = 40.0f;
  _currentConfig.sensors[i].humMin = 20.0f;
  _currentConfig.sensors[i].humMax = 80.0f;
- _currentConfig.sensors[i].alarmsActive = true;
- }
-
- /* Slots 0 e 10: DHT22 (temperatura + umidade) */
- _currentConfig.sensors[0].active = true;
- _currentConfig.sensors[0].sensorType = TYPE_DHT22;
- _currentConfig.sensors[0].pins[0] = 0;
- safeCopy(_currentConfig.sensors[0].hwId, "DHT0", sizeof(_currentConfig.sensors[0].hwId));
- safeCopy(_currentConfig.sensors[0].friendlyName, "DHT22 Externo", sizeof(_currentConfig.sensors[0].friendlyName));
- _currentConfig.sensors[0].tempMin = 0.0f;
- _currentConfig.sensors[0].tempMax = 40.0f;
- _currentConfig.sensors[0].humMin = 20.0f;
- _currentConfig.sensors[0].humMax = 80.0f;
-
- _currentConfig.sensors[10].active = true;
- _currentConfig.sensors[10].sensorType = TYPE_DHT22;
- _currentConfig.sensors[10].pins[0] = 10;
- safeCopy(_currentConfig.sensors[10].hwId, "AMB", sizeof(_currentConfig.sensors[10].hwId));
- safeCopy(_currentConfig.sensors[10].friendlyName, "Ambiente Central", sizeof(_currentConfig.sensors[10].friendlyName));
- _currentConfig.sensors[10].tempMin = 15.0f;
- _currentConfig.sensors[10].tempMax = 35.0f;
- _currentConfig.sensors[10].humMin = 30.0f;
- _currentConfig.sensors[10].humMax = 70.0f;
-
- /* Slots 1-9: DS18B20 (temperatura) */
- for (int i = 1; i <= 9; i++) {
- _currentConfig.sensors[i].active = true;
- _currentConfig.sensors[i].sensorType = TYPE_DS18B20;
- _currentConfig.sensors[i].pins[0] = i;
- char hwId[8]; snprintf(hwId, sizeof(hwId), "DS%d", i);
- char name[32]; snprintf(name, sizeof(name), "DS18B20 #%d", i);
- safeCopy(_currentConfig.sensors[i].hwId, hwId, sizeof(_currentConfig.sensors[i].hwId));
- safeCopy(_currentConfig.sensors[i].friendlyName, name, sizeof(_currentConfig.sensors[i].friendlyName));
- _currentConfig.sensors[i].tempMin = -10.0f;
- _currentConfig.sensors[i].tempMax = 50.0f;
  _currentConfig.sensors[i].alarmsActive = true;
  }
 }
@@ -1305,21 +1409,6 @@ SensorRecord* StorageManager::getSensorByGpio(uint8_t gpio) {
 
 bool StorageManager::canWriteHistory(size_t sizeToWrite) { return _isMounted; }
 
-String StorageManager::getHistoryFileName( ) {
- time_t now = time(nullptr);
- struct tm timeinfo;
- localtime_r(&now, &timeinfo);
- char buff[40]; snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
- return String(buff);
-}
-
-void StorageManager::getHistoryFileName(char* buf, size_t len) {
- time_t now = time(nullptr);
- struct tm timeinfo;
- localtime_r(&now, &timeinfo);
- snprintf(buf, len, "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY, timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-}
-
 /* ── V4 history file name ──────────────────────────────────── */
 
 String StorageManager::getHistoryFileNameV4( ) {
@@ -1432,187 +1521,6 @@ bool StorageManager::buildMeasureSchema(
 }
 
 
-bool StorageManager::flushPendingHist( ) {
- if (!_isMounted || !_pendingHistValid) return false;
- BinaryHistoryRecord rec = _pendingHistRec;
- _pendingHistValid = false;
- return writeHistoryEntryFlash(rec);
-}
-
-bool StorageManager::writeHistoryEntry(const BinaryHistoryRecord& rec) {
- if (!_isMounted) return false;
-
- /* Defensive: reject absurd timestamps (epoch anterior a HIST_EPOCH_MIN
- * ou no futuro). Avoids creating files like /history/19691231.bin when
- * the clock hasn't synced via NTP yet — those files confuse the
- * telemetry cursor later (absurd epochs in the payload).
- * L1: piso unificado; era um literal 1,7e9, divergente do 1,6e9 usado
- * pelo escritor V4 — a janela entre os dois era gravada e nunca lida. */
- {
- uint32_t nowEpoch = (uint32_t)time(nullptr);
- if (rec.epoch < HIST_EPOCH_MIN) return false;
- if (nowEpoch > HIST_EPOCH_MIN && rec.epoch > nowEpoch + 86400UL) return false;
- }
-
- /* Touch priority: if user is interacting, buffer and return. Only the
- * most recent record survives (single slot) — acceptable since it's
- * 1x/min sampling and typical interaction is <15 s. */
- if (TouchPriority::isActive( )) {
- _pendingHistRec = rec;
- _pendingHistValid = true;
- return true;
- }
-
- /* Flush pending (if exists) before writing current */
- if (_pendingHistValid) {
- _pendingHistValid = false;
- writeHistoryEntryFlash(_pendingHistRec);
- }
-
- return writeHistoryEntryFlash(rec);
-}
-
-/* Helper: scan existing v2 file from beginning to end, reconstructing the
- * codec state. Returns true if valid header + scan ok; false if
- * header invalid (caller should delete and recreate). Leaves file pos at
- * end of last successfully decoded record. */
-static bool scanHistoryFileForState(File& f, HistoryCodecState& s) {
- historyCodecReset(s);
- if (f.size( ) < HIST_V2_HEADER_SIZE) return false;
- f.seek(0);
- HistoryFileHeaderV2 hdr;
- if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) != HIST_V2_HEADER_SIZE) return false;
- if (memcmp(hdr.magic, HIST_V2_MAGIC, 4) != 0 ||
- (hdr.version != HIST_V2_VERSION && hdr.version != HIST_V3_VERSION)) return false;
- /* Set codec file version from header — v2 (40B anchor) or v3 (74B anchor) */
- s.fileVersion = hdr.version;
-
- uint8_t buf[256];
- size_t filled = 0;
- BinaryHistoryRecord tmp;
- size_t goodPos = HIST_V2_HEADER_SIZE;
-
- while (true) {
- /* Refill buffer */
- if (filled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
- int r = f.read(buf + filled, sizeof(buf) - filled);
- if (r > 0) filled += (size_t)r;
- }
- if (filled == 0) break;
- bool isAnchor = (s.recordsSinceAnchor == 0) ||
- (s.recordsSinceAnchor == HIST_V2_ANCHOR_PERIOD);
- size_t consumed = historyDecodeRecord(buf, filled, s, tmp, isAnchor);
- if (consumed == 0) break; /* truncated / corrupt: stop here */
- goodPos += consumed;
- memmove(buf, buf + consumed, filled - consumed);
- filled -= consumed;
- }
-
- /* Position at end of last valid record (discard corrupted tail). */
- f.seek(goodPos);
- return true;
-}
-
-bool StorageManager::writeHistoryEntryFlash(const BinaryHistoryRecord& rec) {
- if (!_isMounted) return false;
-
- /* Reject epoch < valid minimum. The caller
- * (processHistoryLogging) already has the gate, but writeHistory is exposed via
- * StorageManager.h and can be called by new callers in the future. Without
- * this check, a caller forgetting the gate would pollute history with
- * epoch=0 records that break telemetry, codec V2 anchor logic, and
- * generate "19700101.bin" filenames. Silent reject (there's already a
- * warn-once in the caller). */
- if (rec.epoch <= 1600000000UL) return false;
-
- String path = getHistoryFileName( );
-
- LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
- LogManager::WdtWindow _wdt(30000);
- Core1FlashPause _c1(this);
-
- /* Chunk 1: enforce storage limit (only on daily rollover). */
- if (path != _currentLogFileName) {
- FLASH_OP(enforceStorageLimit( ));
- _currentLogFileName = path;
- _histCodecValid = false; /* force state reload on file change */
- }
-
- /* Chunk 2: prepare state if needed (boot or rollover). */
- if (!_histCodecValid) {
- FLASH_OP({
- bool created = false;
- if (LittleFS.exists(path)) {
- File f = LittleFS.open(path, "r+");
- if (f) {
- if (!scanHistoryFileForState(f, _histCodec)) {
- f.close( );
- LittleFS.remove(path);
- created = true;
- } else {
- f.close( );
- }
- }
- } else {
- created = true;
- }
- if (created) {
- File f = LittleFS.open(path, "w");
- if (f) {
- HistoryFileHeaderV2 hdr;
- memcpy(hdr.magic, HIST_V2_MAGIC, 4);
- hdr.version = HIST_V3_VERSION;
- hdr.anchorPeriod = HIST_V2_ANCHOR_PERIOD;
- hdr.flags = 0;
- hdr.recordCount = 0;
- f.write((const uint8_t*)&hdr, HIST_V2_HEADER_SIZE);
- f.close( );
- }
- historyCodecReset(_histCodec);
- /* Set codec to v3 mode for new files (after reset which clears to 0) */
- _histCodec.fileVersion = HIST_V3_VERSION;
- }
- });
- _histCodecValid = true;
- }
-
- /* Chunk 3: encode record (anchor or delta) and append.
-  * Buffer must hold max(sizeof(BinaryHistoryRecord), HIST_V2_MAX_DELTA_SIZE)
-  * = max(74, 120) = 120. Round to 128 for safety. */
- uint8_t encBuf[128];
- bool wasAnchor = false;
- size_t encLen = historyEncodeRecord(rec, _histCodec, encBuf, sizeof(encBuf), &wasAnchor);
- if (encLen == 0) {
- LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "encode_fail");
- return false;
- }
-
- bool ok = false;
- FLASH_OP({
- File f = LittleFS.open(path, "a");
- if (f) {
- f.write(encBuf, encLen);
- f.close( );
- ok = true;
- }
- });
-
- if (ok) { _storageDirty = true; return true; }
-
- /* Fallback: force enforce + retry. */
- LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "");
- _storageDirty = true;
- FLASH_OP(enforceStorageLimit( ));
- FLASH_OP({
- File f = LittleFS.open(path, "a");
- if (f) {
- f.write(encBuf, encLen);
- f.close( );
- ok = true;
- }
- });
- return ok;
-}
 
 /**
  * @brief Delete oldest history files to keep flash usage below 86%.
@@ -1648,7 +1556,7 @@ void StorageManager::enforceStorageLimit( ) {
  String fileName = dir.fileName( );
 
 
- if ((fileName.endsWith(HISTORY_FILE_EXT) || fileName.endsWith(HISTORY_V4_FILE_EXT)) && isValidHistoryFileName(fileName.c_str( ))) {
+ if (fileName.endsWith(HISTORY_V4_FILE_EXT) && isValidHistoryFileName(fileName.c_str( ))) {
  if (oldestFile == "" || fileName < oldestFile) oldestFile = fileName;
  }
  }
@@ -1770,6 +1678,15 @@ String StorageManager::getStatsReport( ) {
  return s;
 }
 
+/* Epoch of the newest record on disk. Seeds the virtual RTC at boot and
+ * bounds the telemetry cursor.
+ *
+ * Records are variable-length in V4, so there is no seeking to the end: the
+ * newest day file is walked in full. Once per boot, acceptable.
+ *
+ * Filenames are YYYYMMDD, so lexical order IS chronological order. Only
+ * .sim4 is considered — this used to scan .bin, and once nothing wrote that
+ * extension any more the function answered 0 on every board. */
 uint32_t StorageManager::getLastRecordedTimestamp( ) {
 
  enterFlashReadLock( );
@@ -1777,42 +1694,14 @@ uint32_t StorageManager::getLastRecordedTimestamp( ) {
  while (dir.next( )) {
  feedWdt( );
  String fn = dir.fileName( );
- if (fn.endsWith(HISTORY_FILE_EXT) && fn > newestFile) newestFile = fn;
+ if (fn.endsWith(HISTORY_V4_FILE_EXT) && fn > newestFile) newestFile = fn;
  }
  uint32_t lastTs = 0;
  if (newestFile != "") {
  File f = LittleFS.open(String(DIR_HISTORY) + "/" + newestFile, "r");
  if (f) {
- /* v2: full file scan via codec — records are variable, we cannot
- * seek to end. Acceptable cost (once per boot). */
- HistoryCodecState st;
- HistoryFileHeaderV2 hdr;
- if (f.size( ) >= HIST_V2_HEADER_SIZE) {
- f.seek(0);
- if (f.read((uint8_t*)&hdr, HIST_V2_HEADER_SIZE) == HIST_V2_HEADER_SIZE &&
- memcmp(hdr.magic, HIST_V2_MAGIC, 4) == 0 &&
- (hdr.version == HIST_V2_VERSION || hdr.version == HIST_V3_VERSION)) {
- st.fileVersion = hdr.version;
- historyCodecReset(st);
- uint8_t buf[256];
- size_t filled = 0;
- BinaryHistoryRecord rec;
- while (true) {
- if (filled < HIST_V2_MAX_DELTA_SIZE && f.available( ) > 0) {
- int rN = f.read(buf + filled, sizeof(buf) - filled);
- if (rN > 0) filled += (size_t)rN;
- }
- if (filled == 0) break;
- bool isAnc = (st.recordsSinceAnchor == 0) ||
- (st.recordsSinceAnchor == hdr.anchorPeriod);
- size_t consumed = historyDecodeRecord(buf, filled, st, rec, isAnc);
- if (consumed == 0) break;
- lastTs = rec.epoch;
- memmove(buf, buf + consumed, filled - consumed);
- filled -= consumed;
- }
- }
- }
+ static HistV4State st;
+ (void)scanHistoryFileV4(f, st, nullptr, &lastTs);
  f.close( );
  }
  }
@@ -1825,7 +1714,7 @@ uint32_t StorageManager::getLastRecordedTimestamp( ) {
 /* getHistoryDaysMask( ) — bitmask of days with history file */
 /* ─────────────────────────────────────────────────────────────────────────── */
 /**
- * @brief Returns bitmask of days in a month that have a .bin file.
+ * @brief Returns bitmask of days in a month that have a .sim4 file.
  *
  * Bit N set = day N has data (bit 1 = day 1, bit 31 = day 31).
  * Used by the calendar screen on the TFT display.
@@ -1846,9 +1735,9 @@ uint32_t StorageManager::getHistoryDaysMask(int year, int month) {
  while (dir.next( )) {
  feedWdt( );
  String fn = dir.fileName( );
- if (!fn.endsWith(HISTORY_FILE_EXT) && !fn.endsWith(HISTORY_V4_FILE_EXT)) continue;
+ if (!fn.endsWith(HISTORY_V4_FILE_EXT)) continue;
 
- /* File: "YYYYMMDD.bin" — check month prefix */
+ /* File: "YYYYMMDD.sim4" — check month prefix */
  if (fn.length( ) >= 8 && fn.startsWith(prefix)) {
  int day = fn.substring(6, 8).toInt( );
  if (day >= 1 && day <= 31) {
@@ -1917,15 +1806,19 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
  return found;
 }
 
-/* Ambient (DHT22) lookup in calib.csv. Key = picoUID 16 hex
- * (same format as DS18B20 ROM). Discriminator between the 2 ambient
- * lines is in the ID field prefix (column 2): `t<id>` for temperature,
- * `u<id>` for humidity. outId is returned WITHOUT the prefix (ex: line
- * `<picoUID>,t01,-0.4,Sala` → outId = "01"). */
-bool StorageManager::getCalibrationDataAmbient(char prefix, String& outId, float& outOffset, String& outName) {
+/* Lookup for sensors with no 1-Wire ROM (DHT22, BMP280) in calib.csv.
+ * Key column = picoUID 16 hex (same shape as a DS18B20 ROM). The ID column
+ * is `prefix` + the sensor's hwId: `t` for temperature, `u` for humidity —
+ * so `<picoUID>,tAMB,-0.4,Sala` is the temperature row of the sensor whose
+ * hwId is AMB. The whole ID is compared, which is what keeps two ROM-less
+ * sensors on one board apart. */
+bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, float& outOffset, String& outName) {
  if (prefix != 't' && prefix != 'u') return false;
+ if (!hwId || hwId[0] == '\0') return false;
  String picoUID = getBoardSerialNumber( ); /* 16 hex without separator */
  if (!LittleFS.exists("/calib.csv")) return false;
+
+ String wanted = String(prefix) + hwId;
 
  enterFlashReadLock( );
  File f = LittleFS.open("/calib.csv", "r"); bool found = false;
@@ -1942,8 +1835,7 @@ bool StorageManager::getCalibrationDataAmbient(char prefix, String& outId, float
  int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1); int p3 = line.indexOf(',', p2 + 1);
  if (p1 <= 0 || p2 <= p1) continue;
  String idCol = line.substring(p1 + 1, p2); idCol.trim( );
- if (idCol.length( ) == 0 || idCol.charAt(0) != prefix) continue;
- outId = idCol.substring(1); /* strip prefix */
+ if (!idCol.equalsIgnoreCase(wanted)) continue;
  if (p3 > p2) {
  outOffset = parseFloat(line.substring(p2 + 1, p3).c_str( ));
  outName = line.substring(p3 + 1); outName.replace("\"", "");
@@ -2549,6 +2441,25 @@ bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureC
 	return true;
 }
 
+/* Drain only if the batch already met its own full/aged criterion.
+ *
+ * writeHistoryEntryV4 refuses to flush while a touch is in progress, so a
+ * batch that came due mid-interaction sits in RAM until the next sample —
+ * up to a full history interval later. AppManager calls this on the
+ * touch-active→touch-free transition to close that window.
+ *
+ * The full/aged test is repeated rather than draining unconditionally: a
+ * plain flush on every touch release would write a one-entry batch each
+ * time and undo T2.1's batching (4 writes/5 min) on a board someone is
+ * actively using. */
+bool StorageManager::flushHistoryBatchIfDue( ) {
+	if (_histBatchLen == 0) return true;
+	bool full = (_histBatchLen >= HIST_BATCH_N);
+	bool aged = timeSince(_histBatchFirstMs, HIST_BATCH_MAX_MS);
+	if (!full && !aged) return true;
+	return flushHistoryBatch( );
+}
+
 bool StorageManager::flushHistoryBatch( ) {
 	if (_histBatchLen == 0) return true;
 	if (!_isMounted) return false;
@@ -2755,8 +2666,10 @@ bool StorageManager::repairHistoryTailV4(const String &path, size_t goodPos) {
 	return ok;
 }
 
-bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt) {
+bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt,
+                                       uint32_t *outLastEpoch) {
 	if (tornAt) *tornAt = 0;
+	if (outLastEpoch) *outLastEpoch = 0;
 	histV4Reset(state);
 	if (f.size() < HIST_V4_HEADER_FIXED) return false;
 	f.seek(0);
@@ -2804,6 +2717,7 @@ bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state, size_t *torn
 		if (consumed == 0) break; /* fim real, ou cauda truncada/corrompida */
 
 		goodPos += consumed;
+		if (outLastEpoch) *outLastEpoch = epoch;
 	}
 
 	/* Torn tail (power loss mid-append): report where the good bytes end

@@ -33,20 +33,37 @@ struct DHT22Driver {
     int      currentSensorIdx = -1;
     uint32_t timer = 0;
 
+    /** False when begin( ) could not claim a pio1 state machine or fit the
+     *  program. Every entry point below is a no-op in that case. */
+    bool     ready = false;
+
     DHT22Driver( )
         : bus(pio1),
           sensor(bus)
     {}
 
-    void begin( ) {
-        bus.begin(0); /* default GPIO for PIO init; per-sensor pulls/dir set via gpioInitForRole() */
+    /* Returns false when the PIO could not be claimed.
+     *
+     * The return value used to be discarded, and DHTBus only consults its own
+     * _isInitialized in the destructor — so a failed claim was completely
+     * silent AND requestReading went on driving state machine 0 of pio1, which
+     * this firmware never owned. On a Pico W that block is shared with the
+     * CYW43 radio. Symptom: every DHT22 read times out, on every pin, with
+     * nothing in the log to say why. */
+    bool begin( ) {
+        /* GPIO 0 is just where the program is parked at init; the real pin is
+         * set per read by requestReading -> DHTBus::setPin. */
+        ready = bus.begin(0);
+        return ready;
     }
 
     void requestReading(uint8_t gpio) {
+        if (!ready) return;
         sensor.requestReading(gpio);
     }
 
     void update( ) {
+        if (!ready) return;
         sensor.update( );
     }
 

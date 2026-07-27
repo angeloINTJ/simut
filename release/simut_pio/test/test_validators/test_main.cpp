@@ -26,6 +26,7 @@
 #include "ParseFloat.h"
 #include "SystemDefs_Time.h"
 #include <cmath>      /* isnan, NAN para floatToI16 */
+#include "SystemDefs_Logging.h"  /* tagStringToId — B1/B2 */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -420,6 +421,52 @@ void test_parseFloat_edge(void) {
 /* =========================================================================== */
 /*                                  MAIN                                       */
 /* =========================================================================== */
+
+/* ---- log tags: tagStringToId ----------------------------------------------
+ * v1.5.6 answered TAG_SENSOR for "SEC" (both share tag[1] == 'E'), so all 36
+ * security/audit call sites were persisted under the sensor tag and TAG_SEC
+ * was unreachable; "OTA" had no case at all and landed on TAG_UNKNOWN. Both
+ * were invisible because nothing exercised this mapping. Every tag literal
+ * actually used by LOG_CODE in the firmware is asserted here. */
+
+void test_tag_sec_is_not_sensor(void) {
+    TEST_ASSERT_EQUAL(TAG_SEC, tagStringToId("SEC"));
+    TEST_ASSERT_EQUAL(TAG_SENSOR, tagStringToId("SENSOR"));
+}
+
+void test_tag_ota_has_its_own_id(void) {
+    TEST_ASSERT_EQUAL(TAG_OTA, tagStringToId("OTA"));
+}
+
+void test_tag_all_literals_used_in_firmware(void) {
+    TEST_ASSERT_EQUAL(TAG_APP,    tagStringToId("APP"));
+    TEST_ASSERT_EQUAL(TAG_NET,    tagStringToId("NET"));
+    TEST_ASSERT_EQUAL(TAG_TEL,    tagStringToId("TEL"));
+    TEST_ASSERT_EQUAL(TAG_STO,    tagStringToId("STO"));
+    TEST_ASSERT_EQUAL(TAG_WEB,    tagStringToId("WEB"));
+    TEST_ASSERT_EQUAL(TAG_CFG,    tagStringToId("CFG"));
+    TEST_ASSERT_EQUAL(TAG_CLI,    tagStringToId("CLI"));
+    TEST_ASSERT_EQUAL(TAG_HIST,   tagStringToId("HIST"));
+    TEST_ASSERT_EQUAL(TAG_SYS,    tagStringToId("SYS"));
+    TEST_ASSERT_EQUAL(TAG_DSP,    tagStringToId("DSP"));
+}
+
+void test_tag_unknown_inputs(void) {
+    TEST_ASSERT_EQUAL(TAG_UNKNOWN, tagStringToId(nullptr));
+    TEST_ASSERT_EQUAL(TAG_UNKNOWN, tagStringToId("ZZZ"));
+    /* An unrecognised 'S*' tag must not silently become SEC — that was the
+     * old fallback, and it would quietly mislabel any tag added later. */
+    TEST_ASSERT_EQUAL(TAG_UNKNOWN, tagStringToId("SPI"));
+}
+
+void test_tag_id_to_string_roundtrip(void) {
+    /* The browser and the CLI both index a parallel name table; a mapped id
+     * with no name renders as "?" and hides the record's origin. */
+    TEST_ASSERT_EQUAL_STRING("SEC", tagIdToString(TAG_SEC));
+    TEST_ASSERT_EQUAL_STRING("OTA", tagIdToString(TAG_OTA));
+    TEST_ASSERT_EQUAL_STRING("SENSOR", tagIdToString(TAG_SENSOR));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -467,6 +514,12 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_parseFloat_basic);
     RUN_TEST(test_parseFloat_edge);
     RUN_TEST(test_floatToI16_roundtrip);
+
+    RUN_TEST(test_tag_sec_is_not_sensor);
+    RUN_TEST(test_tag_ota_has_its_own_id);
+    RUN_TEST(test_tag_all_literals_used_in_firmware);
+    RUN_TEST(test_tag_unknown_inputs);
+    RUN_TEST(test_tag_id_to_string_roundtrip);
 
     return UNITY_END();
 }

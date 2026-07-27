@@ -105,7 +105,7 @@ void AppManager::onTouchReleased( ) {
  LogManager::WdtWindow _wdt(30000);
  LogManager::instance( ).flushPendingIfAny( );
  watchdog_update( );
- _storageMgr->flushPendingHist( );
+ _storageMgr->flushHistoryBatchIfDue( );
  watchdog_update( );
  _storageMgr->flushCursorIfDirty( );
 }

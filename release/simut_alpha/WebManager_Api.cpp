@@ -158,10 +158,11 @@ void WebManager::handleApiConfig( ) {
 	if (!safeSend(jsonEscape(cfg.telLineSeparator).c_str( ))) return;
 	safeSend("\",\"serial\":\"");
 	if (!safeSend(jsonEscape(_storageRef->getBoardSerialNumber( ).c_str( )).c_str( ))) return;
-	/* Exposes ambient hwId so the telemetry preview reflects the
-	 * custom ID (calib.csv line t<id>) instead of the serial. */
-	safeSend("\",\"ambHwId\":\"");
-	if (!safeSend(jsonEscape(cfg.sensors[10].hwId).c_str( ))) return;
+	/* "ambHwId" (= cfg.sensors[10].hwId) is gone: the telemetry preview used
+	 * it to guess the key the {tAMB}/{uAMB}/{pAMB} tokens would publish
+	 * under, back when slot 10 was the ambient sensor by definition. Those
+	 * tokens no longer exist — per-slot keys come from the sensors[] array
+	 * below, same as the firmware resolves them. */
 	safeSend("\",\"sensors\":[");
 	for (int i = 0; i < MAX_SENSORS; i++) {
 		/* hum/press say which channels this slot actually reports, so the
@@ -263,7 +264,9 @@ void WebManager::handleApiAlarms( ) {
 
 
 		bool hasHum = sensorHasHumidity((SensorType)cfg.sensors[i].sensorType);
-		const char* typeName = hasHum ? "DHT22" : "DS18B20";
+		/* From the driver catalogue, not from "has humidity => it is a DHT22":
+		 * that two-type guess labelled every BMP280 card on /alarms "DHT22". */
+		const char* typeName = sensorTypeName((SensorType)cfg.sensors[i].sensorType);
 
 
 		String sName = cfg.sensors[i].friendlyName;
@@ -418,11 +421,17 @@ void WebManager::handleApiStatus( ) {
 	const SystemMetrics& mt = mm.data( );
 
 	uint32_t heapLargest = mt.heapLargestBlock;
-	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d},",
+	/* "tel": is telemetry switched on at all (interval 0 = off, the same test
+	 * TelemetryManager::update makes before returning early).
+	 *
+	 * Without it the dashboard cannot tell "nothing left to send" from "nothing
+	 * is ever sent", and pending==0 means both. */
+	int telOn = (cfg.telInterval > 0) ? 1 : 0;
+	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d},",
 	         devName.c_str( ), millis( ), (int)_netRef->getRssi( ), ipStr.c_str( ), cfg.themeIndex,
 	         (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
 	         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
-	         (unsigned long)now, ntp ? 1 : 0, pending);
+	         (unsigned long)now, ntp ? 1 : 0, pending, telOn);
 
 	if (!safeSend(buffer)) return;
 
