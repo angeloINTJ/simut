@@ -4,6 +4,41 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v1.6.1-beta (2026-07-27)
+
+Correção única, publicada sozinha porque o sintoma é silencioso e o gatilho é
+uma ação de manutenção comum.
+
+### Trocar o pacote de idioma quebrava todas as traduções até reiniciar
+
+O `/api/lang` transmite o bloco `@WEBDICT` direto do flash usando um intervalo
+de bytes que o parser grava **uma vez, no boot**. Ao subir um pack novo pelo
+`/files`, esses números continuam descrevendo o arquivo anterior: o handler
+busca no deslocamento velho e envia o comprimento velho, então a resposta
+termina no meio de uma string.
+
+JSON inválido faz o `JSON.parse` do navegador lançar, e isso derruba o
+dicionário **inteiro** — as ~400 chaves caem para o inglês, não só as que
+mudaram. Nada é registrado no log; a interface simplesmente troca de idioma.
+Medido na bancada: um pack 143 B maior que o residente gerou 15.868 B de corpo
+truncado.
+
+O intervalo passou a ser varrido do arquivo a cada requisição, em vez de
+herdado do boot. Varrer em vez de recarregar o pack é deliberado — um reload
+custa ~28 KB transitórios e reescreve as strings que o Core 1 está lendo no
+display, enquanto este endpoint nunca toca o dicionário residente e só precisa
+do intervalo. Uma passada por ~28 KB de flash, num endpoint que o cliente
+mantém em cache por cinco minutos.
+
+Verificado contra a falha real: um pack com o bloco deslocado em +105 B, e o
+`/api/lang` seguiu válido com as 404 chaves, sem reiniciar.
+
+**Quem deve atualizar.** Quem sobe ou troca um `.lng` pelo `/files`. Se você
+nunca fez isso, a v1.6.0-beta se comporta igual — o intervalo obsoleto só fica
+errado depois que o arquivo embaixo dele muda.
+
+Flash 944.408 -> 944.600 B (+192). Nenhuma outra mudança.
+
 ## v1.6.0-beta (2026-07-27)
 
 Release do modelo universal. Três casos especiais faziam o papel de regras

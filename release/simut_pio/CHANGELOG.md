@@ -4,6 +4,40 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.6.1-beta (2026-07-27)
+
+Single fix, shipped on its own because the symptom is silent and the trigger is
+an ordinary maintenance action.
+
+### Replacing a language pack broke every translation until reboot
+
+`/api/lang` streams the `@WEBDICT` block straight off flash using a byte range
+the parser records **once, at boot**. Upload a new pack through `/files` and
+those numbers still describe the previous file: the handler seeks to a stale
+offset and sends a stale length, so the response ends in the middle of a string.
+
+Invalid JSON makes the browser's `JSON.parse` throw, and that drops the **whole**
+dictionary — all ~400 keys fall back to English, not just the ones that changed.
+Nothing is logged; the interface simply switches language. Measured on the
+bench: a pack 143 B larger than the resident one produced 15,868 B of truncated
+body.
+
+The range is now scanned from the file on each request instead of trusted from
+boot. Rescanning rather than reloading the pack is deliberate — a reload costs a
+~28 KB transient allocation and rewrites the strings Core 1 is reading off the
+display, while this endpoint never touches the resident dictionary and only
+needs the range. One pass over ~28 KB of flash, on an endpoint the client caches
+for five minutes.
+
+Verified against the real failure: a pack with the block shifted +105 B, and
+`/api/lang` stayed valid at 404 keys with no reboot.
+
+**Who should update.** Anyone who uploads or replaces a `.lng` through `/files`.
+If you have never done that, v1.6.0-beta behaves identically — the stale range
+is only wrong once the file underneath it changes.
+
+Flash 944,408 -> 944,600 B (+192). No other change.
+
 ## v1.6.0-beta (2026-07-27)
 
 Universal-model release. Three special cases were standing in for general
