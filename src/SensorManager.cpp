@@ -65,12 +65,25 @@ SensorManager::SensorManager( )
 {
 }
 
+/* A PIO claim that fails here disables a whole sensor family for the rest of
+ * the boot, and it used to do so without a word: the drivers dropped the
+ * return value, so the only visible effect was every read of that type timing
+ * out on every pin. Both blocks have 4 state machines and 32 instruction
+ * slots shared with the buzzer (pio0, with pio1 fallback) and, on the Pico W,
+ * with the CYW43 radio — so this is not hypothetical. Log it loudly; the ctx
+ * is the PIO block number. */
 void SensorManager::begin( ) {
 #if SIMUT_SENSOR_DS18B20
- _ds18.begin( );
+ if (!_ds18.begin( )) {
+ LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISSING, 0,
+          TRL("DS18B20 PIO init failed (pio0 full) — 1-Wire disabled this boot"));
+ }
 #endif
 #if SIMUT_SENSOR_DHT22
- _dht.begin( );
+ if (!_dht.begin( )) {
+ LOG_CODE(LOG_ERROR, "SENSOR", ERR_SENSOR_MISSING, 1,
+          TRL("DHT22 PIO init failed (pio1 full) — DHT22 disabled this boot"));
+ }
 #endif
 #if SIMUT_SENSOR_BME280
  /* BME280 begin() deferred to initRuntimeSensors() — needs I2C bus ready. */
@@ -89,6 +102,7 @@ void SensorManager::begin( ) {
  */
 void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  _runtimeSensors.clear( );
+ _retypedSlots = 0;
 
  /* Clean up old BME280 drivers from previous init (reload, config change). */
 #if SIMUT_SENSOR_BME280
@@ -149,7 +163,8 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 	 * pin pairs. Hardware I2C uses zero PIO resources, eliminating
 	 * contention with OneWirePIO (DS18B20) on pio0. */
 #if SIMUT_SENSOR_BME280
-	if (rs.type == TYPE_BME280) {
+	/* Both 280s use this driver — the chip ID tells them apart at runtime. */
+	if (rs.type == TYPE_BME280 || rs.type == TYPE_BMP280) {
 		uint8_t sda = PIN_UNUSED, scl = PIN_UNUSED;
 		for (uint8_t pj = 0; pj < fmt.pinCount; pj++) {
 			if (fmt.pins[pj].role == ROLE_I2C_SDA) sda = rs.config.pins[pj];
@@ -215,6 +230,31 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 				if (drvIdx >= 0) {
 					rs.bmeDriverIdx = drvIdx;
 					rs.i2cAddr = addr;
+
+					/* Adopt what the chip says it is.
+					 *
+					 * The two parts are indistinguishable from the outside — same
+					 * package, same pinout, same driver — and the user provisioning
+					 * a slot has no reliable way to know which one is on the board.
+					 * The chip ID does (0x60 = BME280, 0x58 = BMP280), and reading
+					 * it here costs nothing because the driver has already begun.
+					 *
+					 * Only the humidity channel is at stake, so a wrong guess is
+					 * not fatal — it just puts a permanently-NaN column in the day's
+					 * history and offers humidity fields the part cannot fill.
+					 * Correcting it in RAM is enough for this boot; the caller
+					 * persists (see loadAndCalibrateSensors). */
+					SensorType detected = _bmeDrivers[drvIdx]->isBME( ) ? TYPE_BME280
+					                                                   : TYPE_BMP280;
+					if (rs.type != detected) {
+						LOG_CODE(LOG_WARN, "SENSOR", SEC_CONFIG_CHANGED, rs.config.pins[0],
+						         String(TRL("I2C sensor retyped from chip ID: ")) +
+						         sensorTypeName(rs.type) + " -> " + sensorTypeName(detected));
+						rs.type = detected;
+						rs.config.sensorType = (uint8_t)detected;
+						_retypedSlots++;
+					}
+					fmt = SensorFormat::forType(rs.type);
 				}
 			}
 		}
@@ -624,7 +664,7 @@ void SensorManager::processPeriodicReads( ) {
   if (drv->state == BME280Driver::BME_IDLE) {
    for (size_t i = 0; i < _runtimeSensors.size( ); i++) {
     auto &s = _runtimeSensors[i];
-    if (s.type == TYPE_BME280 && s.bmeDriverIdx == (int8_t)di
+    if ((s.type == TYPE_BME280 || s.type == TYPE_BMP280) && s.bmeDriverIdx == (int8_t)di
         && (now - s.lastReadTime >= s.readInterval)) {
      drv->reset( );
      drv->requestReading( );
@@ -869,18 +909,16 @@ void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset,
  }
 }
 
-/* Apply temperature + humidity offsets to the first DHT22 sensor found.
- * ID/name are persisted via applyCalibration in the caller. */
-void SensorManager::applyAmbientCalibration(float offsetT, float offsetH) {
+/* Apply temperature + humidity offsets to the sensor wired to `gpio`.
+ *
+ * Replaces applyAmbientCalibration( ), which took no pin and walked the list
+ * for the first DHT22 — one board could hold offsets for exactly one
+ * humidity sensor, and a second DHT22 silently shared or stole them. */
+void SensorManager::applyCalibrationOffsets(uint8_t gpio, float offsetT, float offsetH) {
  for (auto &s : _runtimeSensors) {
-#if SIMUT_SENSOR_DHT22
- if (s.type == TYPE_DHT22) {
-#else
- /* When DHT22 is not compiled-in, apply to any sensor (fallback) */
- {
-#endif
- s.calibrationOffset[0] = offsetT;
- s.calibrationOffset[1] = offsetH;
+ if (s.config.pins[0] == gpio) {
+ s.calibrationOffset[CH_TEMP] = offsetT;
+ s.calibrationOffset[CH_HUM] = offsetH;
  break;
  }
  }

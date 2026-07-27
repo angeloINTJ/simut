@@ -532,6 +532,12 @@ void histV4BitInsert(uint8_t *buf, size_t bitOffset, uint8_t bitWidth, int64_t v
 /* ============================================================================
  * ZIGZAG VARINT
  *
- * Reused from HistoryCodec.cpp — declared there, implemented there.
- * Include HistoryCodec.h in your .cpp to get the symbols.
+ * Lived in HistoryCodec.cpp until the v2/v3 codec was removed; they were the
+ * only part of it V4 ever used, so they moved here with it.
  * ============================================================================ */
+
+/** Write int32 as zigzag varint. Returns bytes written (1..5). */
+size_t writeVarintZ(int32_t v, uint8_t* buf);
+
+/** Read zigzag varint. Returns bytes consumed (0 = error/truncated). */
+size_t readVarintZ(const uint8_t* buf, size_t bufLen, int32_t& out);

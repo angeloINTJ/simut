@@ -18,7 +18,6 @@
 #include <vector>
 #include "pico/mutex.h"
 #include "SystemDefs.h"
-#include "HistoryCodec.h"
 #include "HistoryV4.h"
 #include "sensors/SensorHelpers.h"
 
@@ -29,6 +28,34 @@
 #define FILE_TCURSOR "/config/t_cursor.bin"
 #define DIR_HISTORY "/history"
 #define DIR_LANG "/lang"
+#define DIR_THEMES "/themes"
+#define DIR_WEB "/web"
+
+/** Filesystem manual written at the root by the firmware. */
+#define FILE_FS_README "/README.txt"
+/** Per-folder note. Doubles as the entry that keeps an empty folder listed. */
+#define FS_DIR_NOTE_NAME "README.txt"
+
+/** True for paths the web file manager must refuse to delete.
+ *
+ * Enforced in handleDelete, NOT only in the page: /files hides the checkbox
+ * on a protected row, but a hand-made POST to /api/delete reaches the same
+ * handler and has to be turned away there.
+ *
+ * Covers the root manual and the per-folder notes. The notes are protected
+ * because they are load-bearing, not decorative: LittleFS drops a directory
+ * with no entries from the parent listing, so deleting the note makes the
+ * folder itself vanish from /files — and an invisible folder cannot be
+ * uploaded into.
+ *
+ * Both the listing (which flags the row) and the delete path read this one
+ * function, so they cannot drift. */
+inline bool isProtectedFsPath(const String& path) {
+ if (path.equalsIgnoreCase(FILE_FS_README)) return true;
+ return path.equalsIgnoreCase(String(DIR_THEMES) + "/" + FS_DIR_NOTE_NAME)
+     || path.equalsIgnoreCase(String(DIR_WEB)    + "/" + FS_DIR_NOTE_NAME)
+     || path.equalsIgnoreCase(String(DIR_LANG)   + "/" + FS_DIR_NOTE_NAME);
+}
 
 typedef void (*FlashLockCallback)(bool);
 
@@ -88,14 +115,10 @@ public:
 
  /* Uses TouchPriority::isActive( ) from TouchPriority.h. */
 
- /** @return true if there is a pending HIST record waiting for flush.
- * AppManager can call after interaction ends to force flush. */
- bool hasPendingHist( ) const { return _pendingHistValid; }
-
- /** Force flush of the pending HIST record buffered during touch
- * priority. Called by AppManager on touch-active→touch-free transition.
- * No-op if nothing pending; bypasses touch checker to not re-defer. */
- bool flushPendingHist( );
+ /** Drain the V4 history batch, but only if it already came due while a
+  * touch held the flush back. Called by AppManager on the
+  * touch-active→touch-free transition. No-op otherwise. */
+ bool flushHistoryBatchIfDue( );
 
  SystemConfig& getConfig( );
  SensorRecord* getSensorByGpio(uint8_t gpio);
@@ -103,11 +126,14 @@ public:
  String getStatsReport( );
  bool canWriteHistory(size_t sizeToWrite);
 
- bool writeHistoryEntry(const BinaryHistoryRecord& rec);
- String getHistoryFileName( );
- void getHistoryFileName(char* buf, size_t len); /**< Buffer version. */
+ /** Write /README.txt if it is missing or stale. Called from begin( )
+  *  after the directories exist. No-op on the common boot. */
+ void ensureFsReadme( );
 
- /* ── V4 history API ─────────────────────────────────────────── */
+ /* ── V4 history API — the only history format ────────────────
+  * writeHistoryEntry(BinaryHistoryRecord) and the .bin filename builders
+  * lived here until v2/v3 were removed. Nothing had called the writer for
+  * releases; it kept a whole delta codec alive to serve no one. */
 
  /** Write one V4 record. Delegates touch-priority buffering and flash I/O. */
  bool writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
@@ -210,11 +236,14 @@ public:
 
  static String getBoardSerialNumber( );
  bool getCalibrationData(const uint8_t* rom, String& outId, float& outOffset, String& outName);
- /* Ambient (DHT22) lookup in calib.csv. Key = picoUID 16 hex.
- * `prefix` must be 't' (temperature) or 'u' (humidity) — the discriminator
- * is in the ID field (second column), ex: `t01` or `uA1`. outId is returned
- * WITHOUT the prefix (ex: `01` or `A1`). */
- bool getCalibrationDataAmbient(char prefix, String& outId, float& outOffset, String& outName);
+ /* Lookup for sensors with no 1-Wire ROM (DHT22, BMP280) in calib.csv.
+  * Key column = picoUID 16 hex; ID column = `prefix` + the sensor's hwId,
+  * `t` for temperature and `u` for humidity (ex: `tDHT2202`, `uDHT2202`).
+  *
+  * Matches the FULL id. It used to take no hwId and return the first row
+  * with the right prefix, which made the pair device-wide: a board with two
+  * DHT22s could only ever hold one calibration. */
+ bool getCalibrationByHwId(char prefix, const char* hwId, float& outOffset, String& outName);
  long getCalibrationVersion(String path);
  bool processCalibrationUpload( );
 
@@ -342,8 +371,6 @@ public:
  * Zeroed by `clearInitialAdminPassword( )` when admin changes password OR
  * when valid config is loaded from flash (i.e., not factory). */
  char _initialAdminPassword[9] = {0};
- BinaryHistoryRecord _pendingHistRec; /**< HIST record deferred during touch (legacy) */
- volatile bool _pendingHistValid = false; /**< True if _pendingHistRec has data */
 
  /* ── V4 RAM batch + codec state (T2.1) ──────────────────────── */
  /* Samples accumulate in RAM and hit flash in ONE Core-1 pause every
@@ -369,7 +396,11 @@ public:
  /** Rebuild codec state from an existing file. If the file ends mid-record
   * (torn tail after power loss), returns true and reports the last good
   * byte offset in *tornAt so the caller can repair before appending. */
- static bool scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt = nullptr);
+ /* outLastEpoch, when given, receives the epoch of the last record decoded
+  * (0 if the file holds none) — getLastRecordedTimestamp needs exactly that
+  * and there is no reason for a second full-file walk. */
+ static bool scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt = nullptr,
+                               uint32_t *outLastEpoch = nullptr);
 
  /** Lockstep re-decode of source and replacement: every carried column must
   *  come back bit-identical, epochs must match, and the record count must be
@@ -400,8 +431,6 @@ public:
  /** Codec state v2 of the active file. Valid only for the file
  * whose path == _currentLogFileName. Reconstructed by scan on file
  * change (boot or day rollover). */
- HistoryCodecState _histCodec;
- bool _histCodecValid = false;
 
  bool mountFS( );
  void loadDefaults( );

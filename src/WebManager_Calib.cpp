@@ -106,10 +106,18 @@ void WebManager::handleApiSensorsGet( ) {
 	         MAX_SENSORS, MAX_SENSOR_PINS, MAX_SENSORS - 1);
 	if (!safeSend(buf)) return;
 
+	/* Explicit list, not a range. `t <= TYPE_BME280` happened to stop before
+	 * TYPE_UNKNOWN_ACTIVITY (a scan marker, never a user choice) only because of
+	 * the order the enum was written in, and it silently excluded every type
+	 * added after it — TYPE_BMP280 would never have reached the picker. */
+	static const SensorType kSelectable[] = {
+		TYPE_DS18B20, TYPE_DHT22, TYPE_BME280, TYPE_BMP280
+	};
 	bool firstType = true;
-	for (int t = TYPE_DS18B20; t <= TYPE_BME280; t++) {
-		if (!sensorTypeEnabled((SensorType)t)) continue; /* driver not compiled in */
-		SensorFormat f = SensorFormat::forType((SensorType)t);
+	for (size_t ti = 0; ti < sizeof(kSelectable) / sizeof(kSelectable[0]); ti++) {
+		const SensorType t = kSelectable[ti];
+		if (!sensorTypeEnabled(t)) continue; /* driver not compiled in */
+		SensorFormat f = SensorFormat::forType(t);
 
 		/* Pin labels built separately so the snprintf below stays a single
 		 * bounded call instead of running-offset arithmetic. */
@@ -122,9 +130,12 @@ void WebManager::handleApiSensorsGet( ) {
 			if (w < 0 || (size_t)w >= sizeof(labels) - o) break;
 			o += (size_t)w;
 		}
-		snprintf(buf, sizeof(buf), "%s{\"t\":%d,\"n\":\"%s\",\"nv\":%u,\"pins\":[%s]}",
-		         firstType ? "" : ",", t, sensorTypeName((SensorType)t),
-		         f.valueCount, labels);
+		/* "ch" is the channel MASK, so the page can tell a BMP280 (temperature
+		 * and pressure) from a DHT22 (temperature and humidity) — both report
+		 * two values, which is all "nv" ever said. */
+		snprintf(buf, sizeof(buf), "%s{\"t\":%d,\"n\":\"%s\",\"nv\":%u,\"ch\":%u,\"pins\":[%s]}",
+		         firstType ? "" : ",", t, sensorTypeName(t),
+		         f.channelCount( ), f.channelMask, labels);
 		if (!safeSend(buf)) return;
 		firstType = false;
 	}
@@ -155,7 +166,18 @@ void WebManager::handleApiSensorsGet( ) {
 }
 
 
-/* ===== GET /api/calib ===== */
+/* ===== GET /api/calib =====
+ * One entry per active slot. There is no privileged "ambient" sensor:
+ * a humidity-capable slot is just a slot that reports a second channel.
+ *
+ * Until 1.5.6 this emitted an extra "ambient" object hardwired to
+ * cfg.sensors[10], and the per-slot arrays it filled were INDEXED BY GPIO
+ * while being READ BY SLOT INDEX. Those two agree only while every slot
+ * sits on the GPIO of its own number — which is nothing but the factory
+ * layout. Move one sensor off that diagonal and the calibration panel
+ * showed it the reading of whatever sat on the GPIO matching its slot
+ * number, or none at all. Matching runtime to config by GPIO removes both
+ * the special case and the coincidence it relied on. */
 void WebManager::handleApiCalibGet( ) {
 	if (!(getAuthPerms( ) & PERM_CALIB)) {
 		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
@@ -165,36 +187,7 @@ void WebManager::handleApiCalibGet( ) {
 	SystemConfig& cfg = _storageRef->getConfig( );
 	bool ntpOk = _netRef->isTimeSynced( );
 	long calibVer = _storageRef->getCalibrationVersion("/calib.csv");
-
-	float runtimeT[MAX_SENSORS]; bool runtimeTValid[MAX_SENSORS];
-	float runtimeH[MAX_SENSORS]; bool runtimeHValid[MAX_SENSORS];
-	for (int i = 0; i < MAX_SENSORS; i++) { runtimeT[i] = NAN; runtimeTValid[i] = false; runtimeH[i] = NAN; runtimeHValid[i] = false; }
-	float ambT = NAN, ambH = NAN;
-	bool ambTValid = false, ambHValid = false;
-	float ambOffT = 0.0f, ambOffH = 0.0f;
-	float slotOff[MAX_SENSORS] = {0};
-	float slotOffH[MAX_SENSORS] = {0};
-
 	const auto& runtime = _sensorRef->getRuntimeSensors( );
-	for (const auto& s : runtime) {
-		if (s.type == TYPE_DHT22) {
-			ambT = s.avgValue[0]; ambTValid = !isnan(s.avgValue[0]);
-			ambH = s.avgValue[1]; ambHValid = !isnan(s.avgValue[1]) && s.avgValue[1] < 1e9f;
-			ambOffT = s.calibrationOffset[0];
-			ambOffH = s.calibrationOffset[1];
-		}
-		if (s.config.pins[0] < MAX_SENSORS) {
-			runtimeT[s.config.pins[0]] = s.avgValue[0];
-			runtimeTValid[s.config.pins[0]] = !isnan(s.avgValue[0]);
-			slotOff[s.config.pins[0]] = s.calibrationOffset[0];
-			/* Humidity per-slot for DHT22/BME280 sensors */
-			if (sensorHasHumidity(s.type)) {
-				runtimeH[s.config.pins[0]] = s.avgValue[1];
-				runtimeHValid[s.config.pins[0]] = !isnan(s.avgValue[1]) && s.avgValue[1] < 1e9f;
-				slotOffH[s.config.pins[0]] = s.calibrationOffset[1];
-			}
-		}
-	}
 
 	_server.sendHeader("Cache-Control", "no-store");
 	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -202,38 +195,35 @@ void WebManager::handleApiCalibGet( ) {
 
 	char buf[400];
 	snprintf(buf, sizeof(buf),
-	         "{\"ntp\":%s,\"calibVersion\":%ld,\"picoUID\":\"%s\",",
+	         "{\"ntp\":%s,\"calibVersion\":%ld,\"picoUID\":\"%s\",\"sensors\":[",
 	         ntpOk ? "true" : "false", calibVer,
 	         StorageManager::getBoardSerialNumber( ).c_str( ));
 	if (!safeSend(buf)) return;
 
-	/* Slot 10 (humidity-capable sensor) calibration data */
-	{
-		char ambName[40], ambHwId[20];
-		safeCopy(ambName, cfg.sensors[10].friendlyName, sizeof(ambName));
-		safeCopy(ambHwId, cfg.sensors[10].hwId, sizeof(ambHwId));
-		sanitizeName(ambName);
-		snprintf(buf, sizeof(buf),
-		         "\"ambient\":{\"hwId\":\"%s\",\"name\":\"%s\","
-		         "\"tempRead\":%s,\"humRead\":%s,\"tempOffset\":%.2f,\"humOffset\":%.2f},",
-		         ambHwId, ambName,
-		         ambTValid ? String(ambT, 2).c_str( ) : "null",
-		         ambHValid ? String(ambH, 2).c_str( ) : "null",
-		         ambOffT, ambOffH);
-	}
-	if (!safeSend(buf)) return;
-
-	if (!safeSend("\"sensors\":[")) return;
 	bool first = true;
 	for (int i = 0; i < MAX_SENSORS; i++) {
 		if (!cfg.sensors[i].active) continue;
+
+		const RuntimeSensor* rs = nullptr;
+		for (const auto& s : runtime) {
+			if (s.config.pins[0] == cfg.sensors[i].pins[0]) { rs = &s; break; }
+		}
+
+		bool hasH = sensorHasHumidity((SensorType)cfg.sensors[i].sensorType);
+		float tRead = rs ? rs->avgValue[CH_TEMP] : NAN;
+		float hRead = rs ? rs->avgValue[CH_HUM] : NAN;
+		/* isfinite, not !isnan: the BMP280 humidity compensation produces
+		 * +INF on a part with no humidity die, and isnan(inf) is false. */
+		bool hOk = hasH && isfinite(hRead) && hRead < 1e9f;
+
 		char romHex[17] = {0};
 		romToHex(cfg.sensors[i].rom, romHex);
 		char sName[40], sHwId[20];
 		safeCopy(sName, cfg.sensors[i].friendlyName, sizeof(sName));
 		safeCopy(sHwId, cfg.sensors[i].hwId, sizeof(sHwId));
 		sanitizeName(sName);
-		bool hasH = sensorHasHumidity((SensorType)cfg.sensors[i].sensorType);
+		sanitizeName(sHwId); /* hwId accepts quotes (isValidCfgString) — they break the JSON */
+
 		snprintf(buf, sizeof(buf),
 		         "%s{\"slot\":%d,\"gpio\":%d,\"rom\":\"%s\",\"hwId\":\"%s\",\"name\":\"%s\","
 		         "\"hasHum\":%s,"
@@ -241,15 +231,14 @@ void WebManager::handleApiCalibGet( ) {
 		         "\"humRead\":%s,\"humOffset\":%.2f}",
 		         first ? "" : ",", i, cfg.sensors[i].pins[0], romHex, sHwId, sName,
 		         hasH ? "true" : "false",
-		         runtimeTValid[i] ? String(runtimeT[i], 2).c_str( ) : "null",
-		         slotOff[i],
-		         runtimeHValid[i] ? String(runtimeH[i], 2).c_str( ) : "null",
-		         slotOffH[i]);
+		         isfinite(tRead) ? String(tRead, 2).c_str( ) : "null",
+		         rs ? rs->calibrationOffset[CH_TEMP] : 0.0f,
+		         hOk ? String(hRead, 2).c_str( ) : "null",
+		         rs ? rs->calibrationOffset[CH_HUM] : 0.0f);
 		if (!safeSend(buf)) return;
 		first = false;
 	}
 	safeSend("]}");
-	safeSend("");
 }
 
 
@@ -257,18 +246,27 @@ void WebManager::handleApiCalibGet( ) {
 namespace {
 struct CalibChange {
 	char key[17];
-	char id[16];
+	char id[18];      /* id to WRITE:  't'/'u' + current hwId + NUL */
+	char matchId[18]; /* id to MATCH:  same, but with the hwId as it was on disk */
 	float offset;
 	char name[32];
 	bool written;
 };
 const int MAX_CHANGES = 14;
 
-int findChangeMatch(CalibChange* arr, int n, const char* key, char idPrefix) {
+/* id == nullptr matches on the key alone — that is the ROM scheme, where the
+ * ROM is the identity and the id column merely carries the hwId.
+ *
+ * Board-serial rows all share one key, so there the id column IS what tells
+ * them apart and has to match. It matches against matchId, not id: when the
+ * hwId is being renamed those differ, and comparing against the NEW id would
+ * miss the row on disk — leaving the old one behind as an orphan while a
+ * second one was appended. */
+int findChangeMatch(CalibChange* arr, int n, const char* key, const char* id) {
 	for (int i = 0; i < n; i++) {
 		if (arr[i].key[0] == '\0') continue;
 		if (strcasecmp(arr[i].key, key) != 0) continue;
-		if (idPrefix != 0 && arr[i].id[0] != idPrefix) continue;
+		if (id && strcasecmp(arr[i].matchId, id) != 0) continue;
 		return i;
 	}
 	return -1;
@@ -277,10 +275,21 @@ int findChangeMatch(CalibChange* arr, int n, const char* key, char idPrefix) {
 
 
 /* ===== POST /api/calib =====
- * Body JSON: {"ambient":{"hwId":"01","name":"Sala","refTemp":25.0,"refHum":50.0},
- * "sensors":[{"gpio":0,"hwId":"FRIDGE","name":"Geladeira","refTemp":4.0}]}
+ * Body JSON: {"sensors":[{"slot":0,"hwId":"FRIDGE","name":"Geladeira",
+ *                         "refTemp":4.0,"refHum":55.0}]}
  * Rewrites calib.csv via streaming 2-pass; VERSION=current epoch.
- * NTP required (503 if !synced). */
+ * NTP required (503 if !synced).
+ *
+ * Two key schemes, both per sensor. Neither is device-wide:
+ *   DS18B20 (has a ROM)   -> key = ROM hex,  id = hwId
+ *   DHT22 / BMP280 (none) -> key = picoUID,  id = t<hwId> / u<hwId>
+ *
+ * The second scheme used to hold exactly ONE pair of rows per board, found
+ * by "first line whose id starts with t/u" and applied to "the first DHT22
+ * in the runtime list". A board with two DHT22s could therefore only ever
+ * calibrate one of them, and which one depended on slot order. Tagging the
+ * rows with the sensor's own hwId gives each ROM-less sensor its own pair
+ * without changing the file format. */
 void WebManager::handleApiCalibPost( ) {
 	if (!(getAuthPerms( ) & PERM_CALIB)) {
 		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
@@ -307,59 +316,13 @@ void WebManager::handleApiCalibPost( ) {
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 	String picoUID = StorageManager::getBoardSerialNumber( );
+	const auto& runtime = _sensorRef->getRuntimeSensors( );
 
 	CalibChange changes[MAX_CHANGES];
 	for (int i = 0; i < MAX_CHANGES; i++) { changes[i].key[0] = '\0'; changes[i].written = false; }
 	int nChanges = 0;
 
-	/* === SLOT 10 (humidity-capable) === */
-	int ambStart = body.indexOf("\"ambient\"");
-	if (ambStart >= 0) {
-		int objStart = body.indexOf('{', ambStart);
-		int objEnd = body.indexOf('}', objStart);
-		if (objStart >= 0 && objEnd > objStart) {
-			String obj = body.substring(objStart, objEnd + 1);
-			char newId[16] = {0}, newName[32] = {0};
-			float refT = NAN, refH = NAN;
-			jsonExtractCStr(obj, "hwId", newId, sizeof(newId));
-			jsonExtractCStr(obj, "name", newName, sizeof(newName));
-			jsonExtractFloat(obj, "refTemp", refT);
-			jsonExtractFloat(obj, "refHum", refH);
-
-			if (newId[0] != '\0') safeCopy(cfg.sensors[10].hwId, newId, sizeof(cfg.sensors[10].hwId));
-			if (newName[0] != '\0') safeCopy(cfg.sensors[10].friendlyName, newName, sizeof(cfg.sensors[10].friendlyName));
-
-			float curT = NAN, curH = NAN, offT = 0, offH = 0;
-			const auto& runtime = _sensorRef->getRuntimeSensors( );
-			for (const auto& s : runtime) {
-				if (s.type == TYPE_DHT22) {
-					curT = s.avgValue[0]; curH = s.avgValue[1];
-					offT = s.calibrationOffset[0]; offH = s.calibrationOffset[1];
-					break;
-				}
-			}
-			float newOffT = offT, newOffH = offH;
-			if (!isnan(refT) && !isnan(curT)) newOffT = offT + (refT - curT);
-			if (!isnan(refH) && !isnan(curH)) newOffH = offH + (refH - curH);
-
-			char idBase[16];
-			safeCopy(idBase, cfg.sensors[10].hwId, sizeof(idBase));
-			char prefT[18]; snprintf(prefT, sizeof(prefT), "t%s", idBase);
-			char prefU[18]; snprintf(prefU, sizeof(prefU), "u%s", idBase);
-
-			char nameSan[32]; safeCopy(nameSan, cfg.sensors[10].friendlyName, sizeof(nameSan)); sanitizeName(nameSan);
-			for (int k = 0; k < 2 && nChanges < MAX_CHANGES; k++) {
-				safeCopy(changes[nChanges].key, picoUID.c_str( ), sizeof(changes[0].key));
-				safeCopy(changes[nChanges].id, k == 0 ? prefT : prefU, sizeof(changes[0].id));
-				changes[nChanges].offset = (k == 0) ? newOffT : newOffH;
-				safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
-				changes[nChanges].written = false;
-				nChanges++;
-			}
-		}
-	}
-
-	/* === SENSORS DS18B20 === */
+	/* === One entry per slot, whatever the sensor type === */
 	int sensStart = body.indexOf("\"sensors\"");
 	if (sensStart >= 0) {
 		int arrStart = body.indexOf('[', sensStart);
@@ -379,35 +342,69 @@ void WebManager::handleApiCalibPost( ) {
 				if (slot < 0 || slot >= MAX_SENSORS) continue;
 				if (!cfg.sensors[slot].active) continue;
 				char newId[16] = {0}, newName[32] = {0};
-				float refT = NAN;
+				float refT = NAN, refH = NAN;
 				jsonExtractCStr(obj, "hwId", newId, sizeof(newId));
 				jsonExtractCStr(obj, "name", newName, sizeof(newName));
 				jsonExtractFloat(obj, "refTemp", refT);
+				jsonExtractFloat(obj, "refHum", refH);
+
+				/* Kept before the overwrite: it is the id the rows on disk were
+				 * written under, and a rename has to find them by it. */
+				char oldHwId[16];
+				safeCopy(oldHwId, cfg.sensors[slot].hwId, sizeof(oldHwId));
 
 				if (newId[0] != '\0') safeCopy(cfg.sensors[slot].hwId, newId, sizeof(cfg.sensors[slot].hwId));
 				if (newName[0] != '\0') safeCopy(cfg.sensors[slot].friendlyName, newName, sizeof(cfg.sensors[slot].friendlyName));
 
-				/* Non-DS18B20 (no ROM): hwId/name applied above; skip calib.csv */
-				if (isAllZero(cfg.sensors[slot].rom)) continue;
-
-				float curT = NAN, off = 0;
-				const auto& runtime = _sensorRef->getRuntimeSensors( );
+				float curT = NAN, curH = NAN, offT = 0, offH = 0;
 				for (const auto& s : runtime) {
-					if (s.config.pins[0] == cfg.sensors[slot].pins[0]) { curT = s.avgValue[0]; off = s.calibrationOffset[0]; break; }
+					if (s.config.pins[0] == cfg.sensors[slot].pins[0]) {
+						curT = s.avgValue[CH_TEMP]; offT = s.calibrationOffset[CH_TEMP];
+						curH = s.avgValue[CH_HUM];  offH = s.calibrationOffset[CH_HUM];
+						break;
+					}
 				}
-				float newOff = off;
-				if (!isnan(refT) && !isnan(curT)) newOff = off + (refT - curT);
+				float newOffT = offT, newOffH = offH;
+				if (!isnan(refT) && isfinite(curT)) newOffT = offT + (refT - curT);
+				if (!isnan(refH) && isfinite(curH)) newOffH = offH + (refH - curH);
 
-				if (nChanges < MAX_CHANGES) {
-					char romHex[17]; romToHex(cfg.sensors[slot].rom, romHex);
-					safeCopy(changes[nChanges].key, romHex, sizeof(changes[0].key));
-					safeCopy(changes[nChanges].id, cfg.sensors[slot].hwId, sizeof(changes[0].id));
-					changes[nChanges].offset = newOff;
-					char nameSan[32]; safeCopy(nameSan, cfg.sensors[slot].friendlyName, sizeof(nameSan));
-					sanitizeName(nameSan);
-					safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
-					changes[nChanges].written = false;
-					nChanges++;
+				char nameSan[32];
+				safeCopy(nameSan, cfg.sensors[slot].friendlyName, sizeof(nameSan));
+				sanitizeName(nameSan);
+
+				if (!isAllZero(cfg.sensors[slot].rom)) {
+					/* 1-Wire: keyed by its own ROM. Temperature only — the part
+					 * has no second channel to calibrate. */
+					if (nChanges < MAX_CHANGES) {
+						char romHex[17]; romToHex(cfg.sensors[slot].rom, romHex);
+						safeCopy(changes[nChanges].key, romHex, sizeof(changes[0].key));
+						safeCopy(changes[nChanges].id, cfg.sensors[slot].hwId, sizeof(changes[0].id));
+						changes[nChanges].matchId[0] = '\0'; /* matched by ROM */
+						changes[nChanges].offset = newOffT;
+						safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
+						changes[nChanges].written = false;
+						nChanges++;
+					}
+				} else {
+					/* No ROM: keyed by the board serial, one row per quantity,
+					 * each tagged with this slot's hwId so a second DHT22 on the
+					 * same board gets its own pair instead of overwriting the
+					 * first one's. */
+					bool hasH = sensorHasHumidity((SensorType)cfg.sensors[slot].sensorType);
+					for (int k = 0; k < (hasH ? 2 : 1) && nChanges < MAX_CHANGES; k++) {
+						char pref[18], prefOld[18];
+						snprintf(pref, sizeof(pref), "%c%s",
+						         k == 0 ? 't' : 'u', cfg.sensors[slot].hwId);
+						snprintf(prefOld, sizeof(prefOld), "%c%s",
+						         k == 0 ? 't' : 'u', oldHwId);
+						safeCopy(changes[nChanges].key, picoUID.c_str( ), sizeof(changes[0].key));
+						safeCopy(changes[nChanges].id, pref, sizeof(changes[0].id));
+						safeCopy(changes[nChanges].matchId, prefOld, sizeof(changes[0].matchId));
+						changes[nChanges].offset = (k == 0) ? newOffT : newOffH;
+						safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
+						changes[nChanges].written = false;
+						nChanges++;
+					}
 				}
 			}
 		}
@@ -443,9 +440,14 @@ void WebManager::handleApiCalibPost( ) {
 
 			int idx;
 			if (strcasecmp(keyStr, picoUID.c_str( )) == 0 && (idStr[0] == 't' || idStr[0] == 'u')) {
-				idx = findChangeMatch(changes, nChanges, keyStr, idStr[0]);
+				/* Board-serial rows: every ROM-less sensor on this board shares
+				 * the key, so the id column is what tells them apart and has to
+				 * match in full. Matching only the leading 't'/'u' was safe while
+				 * exactly one pair existed per device; with one pair per sensor it
+				 * would overwrite the first DHT22's row using the second's offset. */
+				idx = findChangeMatch(changes, nChanges, keyStr, idStr);
 			} else {
-				idx = findChangeMatch(changes, nChanges, keyStr, 0);
+				idx = findChangeMatch(changes, nChanges, keyStr, nullptr);
 			}
 
 			if (idx >= 0) {

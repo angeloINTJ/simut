@@ -2,7 +2,7 @@
  * @file    test/test_history_v4/test_main.cpp
  * @brief   Host-side unit tests for HistoryV4 codec encode/decode roundtrip.
  * @details Runs via `pio test -e native_history_v4` (no HW). Covers:
- *            · Zigzag varint roundtrip (reused from HistoryCodec.cpp)
+ *            · Zigzag varint roundtrip (lives in HistoryV4.cpp)
  *            · Bit packing: extract/insert at arbitrary bit offsets (1-64 bits)
  *            · Header write → read roundtrip (1, 3, 16 sensors)
  *            · Single-record anchor encode → decode (normal, all-NaN, mixed)
@@ -14,7 +14,7 @@
  *            · histV4MakeMeasKey measurement key generation
  *            · histV4ScanFile state reconstruction
  *
- * Compiles production HistoryCodec.cpp (for varint) + HistoryV4.cpp.
+ * Compiles production HistoryV4.cpp.
  * Dependency chain resolves under native_stubs/Arduino.h + standard C library.
  *
  * @project SIMUT — HistoryV4 codec unit testing
