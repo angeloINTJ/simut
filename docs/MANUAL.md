@@ -183,6 +183,23 @@ display alignment, system status and the license text.
 board serial, uptime, free heap, flash usage and board temperature — the
 fastest way to confirm what a device is actually running.
 
+### Themes
+
+The release build compiles one theme, but the device is not limited to it.
+**Up to eight custom themes** live on the filesystem as `.thm` files in
+`/themes` — plain text, one colour per role, written as `#RRGGBB` or
+`0xRRGGBB`.
+
+Write them with the editor in [`tools/theme-editor/`](../tools/theme-editor/).
+It is a small web app that logs into the device, uploads a preview theme,
+applies it and deletes it again — so the panel in front of you repaints as you
+pick colours, rather than after an upload-and-reboot cycle.
+
+Fifty further themes exist as build packs in `src/simut_config.h`
+(`SIMUT_THEMES_HEALTH`, `_PRO`, `_MEDICAL`, `_SAFETY`, `_RETRO`, `_NATURE`,
+`_UTILITY`). All seven are commented out by default; uncommenting one compiles
+its palettes in at roughly 70 bytes each.
+
 ### History
 
 The graph view plots one sensor over a selectable range, with navigation
