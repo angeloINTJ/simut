@@ -20,6 +20,8 @@
 #include "SystemDefs.h"
 #include "metadata.h"
 #include "config_snapshot.h"
+#include "backup.h"      /* crc32_update — verificação da imagem pós-apply */
+#include "ota_layout.h"
 #include "TelemetryManager.h"
 #include "Themes.h"
 #include "TouchPriority.h"
@@ -357,6 +359,56 @@ void AppManager::setup( ) {
  String("post-apply boot, state=") + (int)m.state +
  " attempts=" + (int)m.attempts +
  (snap_present ? " snap=ok" : " snap=absent"));
+
+ /* Verify the image the applier actually wrote.
+	 *
+	 * The applier computes this CRC too, but it runs from SRAM with
+	 * interrupts off and has no way to report anything — it discarded the
+	 * result and rebooted. That blind spot is why three separate applier
+	 * bugs survived several releases: every layer reported success and
+	 * nothing ever compared the app slot against what was staged.
+	 *
+	 * Here we are in ordinary code with logging up, and the metadata is
+	 * still on flash (it is cleared a few lines below), so the expected
+	 * CRC is available. Only runs on a post-apply boot.
+	 *
+	 * The expected CRC covers the bytes that were uploaded; the applier
+	 * copies whole 256 B pages, so the app slot ends with up to 255 bytes
+	 * of 0xFF padding that the CRC does not include. The exact boundary is
+	 * in uncompressed_size, but only for images staged by a firmware that
+	 * records it — an update staged by an older build reports the padded
+	 * length in both size fields, and there is no way to recover the real
+	 * one from the metadata.
+	 *
+	 * So we accept any length in the final page: one pass to the start of
+	 * the window, then a byte at a time, finalising as we go. That covers
+	 * both metadata layouts with a single code path. It also means 256
+	 * chances to match instead of one, which on CRC32 is a false accept
+	 * around 6e-8 — far below the odds of the flash write itself being
+	 * wrong in a way CRC32 misses at all. */
+ if (m.compressed_size > 0 && m.compressed_size <= OTA_APP_MAX_SIZE) {
+ const uint8_t* img = (const uint8_t*)(XIP_BASE + OTA_APP_OFFSET);
+ const uint32_t total = m.compressed_size;
+ const uint32_t lo = (total > 256u) ? (total - 256u) : 0u;
+ uint32_t crc = 0xFFFFFFFFu;
+ for (uint32_t off = 0; off < lo; off += 4096u) {
+ const uint32_t n = (lo - off) < 4096u ? (lo - off) : 4096u;
+ crc = crc32_update(crc, img + off, n);
+ }
+ uint32_t len = lo;
+ bool crc_ok = ((crc ^ 0xFFFFFFFFu) == m.uncompressed_crc32);
+ while (!crc_ok && len < total) {
+ crc = crc32_update(crc, img + len, 1);
+ len++;
+ crc_ok = ((crc ^ 0xFFFFFFFFu) == m.uncompressed_crc32);
+ }
+ BLOG("[BOOT] OTA image CRC "); BLOG(crc_ok ? "ok" : "MISMATCH"); BLOG_NL( );
+ LOG_CODE(crc_ok ? LOG_INFO : LOG_ERROR, "OTA", SEC_CONFIG_CHANGED, 0,
+ crc_ok ? String("image verified, ") + (unsigned)len + " B"
+ : String("image CRC mismatch over ") + (unsigned)total +
+ " B, want " + String(m.uncompressed_crc32, HEX));
+ }
+
  /* Snapshot was already consumed by StorageManager::begin (restore
 	 * before loadConfiguration). Clear the metadata partition now —
 	 * erases UpdateMetadata + snapshot region together (factory state). */
@@ -501,7 +553,28 @@ void AppManager::setup( ) {
  _displayMgr->loadTouchCalibration(cal);
  
  if (!_displayMgr->isTouchCalibrated( )) {
- /* Auto-calibrate with default values for headless testing */
+ /* Auto-calibrate with default values for headless testing.
+  *
+  * RAM ONLY. This used to call saveConfiguration( ) here, and that is a
+  * flash write in the worst place in the whole boot. startCore1( ) is
+  * deliberately deferred until after _storageMgr->begin( ) so that boot-time
+  * flash work runs on the single-core path — read the comment there, it says
+  * the multicore_lockout IRQ "often hangs on post-OTA boot". This block runs
+  * ~190 lines LATER, with Core 1 already rendering, so the write took exactly
+  * that path.
+  *
+  * And it only ran when the calibration was invalid — which is precisely what
+  * adjusting the display offset does on purpose (AppManager_Events.cpp clears
+  * cal->magic so the user re-maps touch against the shifted image). So
+  * "change the offset, restart" armed a flash write in that window on the
+  * very next boot. Core 1 owns the TFT: lose it and the panel stops being
+  * driven, which reads as a white screen.
+  *
+  * Dropping the save costs nothing. These are compile-time constants, so
+  * recomputing them each boot is free, and the next saveConfiguration( ) for
+  * any other reason carries them along. Persisting them was arguably wrong
+  * anyway: it made a placeholder indistinguishable from a calibration the
+  * user actually performed. */
  TouchCalData calOut;
  memset(&calOut, 0, sizeof(calOut));
  calOut.magic = 0xCA;
@@ -510,9 +583,9 @@ void AppManager::setup( ) {
  calOut.yMin = 200; calOut.yMax = 3700;
  calOut.zThreshold = 400;
  memcpy(cfg.reserved, &calOut, sizeof(TouchCalData));
- _storageMgr->saveConfiguration( );
+ _displayMgr->loadTouchCalibration(&calOut);
  LOG_CODE(LOG_WARN, "APP", APP_TOUCH_CAL_REQUIRED, 0,
-  TRL("Touch calibration auto-set (headless)"));
+  TRL("Touch calibration auto-set (headless, RAM only)"));
  }
  }
 #endif // SIMUT_DISPLAY_TFT

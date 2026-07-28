@@ -4,6 +4,132 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v1.6.2-beta (2026-07-27)
+
+O destaque não é um recurso: **o OTA nunca aplicou uma atualização**, em nenhuma
+versão publicada, e esta é a release em que ele passa a aplicar.
+
+> **Grave esta por USB.** Quem está na v1.6.1-beta ou anterior roda o applier
+> quebrado, então não existe caminho pelo ar até a versão que conserta a
+> atualização pelo ar. Deste build em diante o OTA funciona — medido em 21
+> atualizações consecutivas, abaixo.
+
+### O OTA reportava sucesso em cada etapa e nunca trocava o firmware
+
+O feed de watchdog do applier era um reboot.
+
+Alimentar o watchdog do RP2040 significa recarregar LOAD no offset 0x04. Em vez
+disso, `applier_wdt_feed()` escrevia o bit 31 do CTRL no offset 0x00 — o bit
+TRIGGER, que força um reset imediato. `WATCHDOG_CTRL_OFFSET` é 0x00, ou seja,
+ele escrevia o mesmo bit no mesmo endereço que `applier_reboot()`. A primeira
+chamada, logo após gravar o setor 0 no passo (1a), resetava o chip antes de um
+único setor ser apagado ou copiado.
+
+O que isso produz na bancada é indistinguível de um apply bem-sucedido que não
+mudou nada: o slot da app mantém o firmware antigo, a causa do reset é watchdog
+forçado, a metadata fica em APPLYING e a LittleFS some — destruída não pelo
+applier, mas pelo upload, já que o staging divide a partição com ela. Stage,
+apply e reboot reportam sucesso. Nada comparava o slot da app com o que foi
+preparado, então a versão simplesmente não mudava.
+
+Isso está inalterado desde a v1.4.4-beta, e o mesmo código está na v1.0.0.
+
+Dois outros bugs estavam atrás dele, em linhas que o applier nunca alcançou:
+
+- **O `memcpy` mora no slot da app**, que o passo (1b) apaga. A primeira cópia
+  do passo (2) teria executado flash apagada. Substituído por cópia de palavras
+  em SRAM; ponteiros voláteis impedem o GCC de reconhecer o laço e chamar
+  `memcpy` de novo. Verificado por disassembly: todo alvo de desvio em
+  `ota_applier_run` agora resolve para SRAM.
+- **`WATCHDOG_SCRATCH4_OFFSET` era 0x18, que é o SCRATCH3.** `applier_reboot()`
+  limpava o registrador de rastro que a autópsia de boot lê como `sc3` e deixava
+  intacto o magic de watchdog da bootrom. Corrigido para 0x1C.
+
+O boot pós-apply agora calcula o CRC do slot da app contra a metadata e registra
+o veredito. O applier também calcula isso, mas roda de SRAM com interrupções
+desligadas e não tem como reportar nada, então descartava o resultado — que é
+justamente por que três bugs distintos sobreviveram tanto tempo. A verificação
+pertence a onde existe logging, e a metadata ainda está em flash nesse ponto.
+
+Falhas do `/api/ota/apply` agora chegam ao usuário: a página de firmware não
+checava nenhuma das três respostas e engolia as próprias exceções.
+
+### A verificação pós-apply comparava um CRC contra o comprimento errado
+
+O staging reportava o tamanho com padding nos dois campos de tamanho da
+metadata, então o par (tamanho, CRC) nunca descrevia os mesmos bytes. O
+`stage_session_end` completa a última página de 256 B com 0xFF e o
+`bytes_written` conta esse padding — corretamente, pois é o que o applier tem
+que copiar — enquanto o CRC cobre só os bytes que chegaram. Verificar o CRC de
+957.460 bytes contra o CRC de 957.696 falha numa cópia byte a byte perfeita.
+
+A sessão agora rastreia `bytes_received` separadamente e o reporta como tamanho
+descomprimido, dando aos dois campos os significados que a struct já
+documentava. O `dsize` e o `dcrc` do `/api/restore` passam a descrever a mesma
+faixa.
+
+Isso sozinho não ajudaria uma atualização preparada por um build antigo, que é
+toda atualização para esta versão: o comprimento com padding é tudo que a
+metadata dele carrega. Então a verificação pós-apply aceita qualquer
+comprimento dentro da página final.
+
+### Validado: 21 atualizações pelo ar consecutivas
+
+Medido na bancada (Pico W, `pico_w_release`), 21 ciclos de stage+apply em
+sequência. Cada ciclo preparou uma imagem com uma string de versão distinta, de
+modo que "aplicou" é lido de volta do dispositivo em vez de inferido de um
+status HTTP:
+
+| Etapa | Tempo |
+|---|---|
+| Upload + stage (957.500 B) | 29,2 s ± 0,07 (32,1 KiB/s) |
+| `/api/ota/apply` → 202 | 0,1 s |
+| Janela do applier (erase + program) | 25,1 s ± 0,10 |
+| Reboot → imagem verificada | 9,4 s ± 0,06 |
+| **Interface web inacessível** | **48,4 s** |
+
+21 de 21 aplicaram. O comprimento verificado voltou como exatamente 957.500 B
+todas as vezes, o snapshot de configuração sobreviveu a todas as reformatações
+com o Wi-Fi voltando sozinho, o heap livre variou 24 B na corrida inteira, e
+nenhum boot produziu soft panic — sob a carga de flash mais pesada que o
+firmware tem.
+
+O download é a parte lenta, e a interface web fica inacessível por cerca de 50
+segundos. Dois terços disso são o applier; o resto é o Wi-Fi reassociando.
+
+### Tela branca depois de ajustar o offset do display
+
+Dois escritores independentes disputavam o display. O bloco de auto-ajuste da
+calibração de toque chamava `saveConfiguration()`, que escreve flash, cerca de
+190 linhas depois do `startCore1()` — e o boot adia o Core 1 exatamente para que
+o trabalho de flash siga o caminho de núcleo único. O `setDisplayOffset()`
+também repintava as margens incondicionalmente, então o Core 0 desenhava no TFT
+enquanto o Core 1 renderizava.
+
+O sintoma era tela em branco no boot seguinte ao ajuste do offset, que parecia
+configuração corrompida mas era escrita rasgada.
+
+### A coluna de uptime do log sempre marcava zero
+
+O `CompactLogRecord` guardava uptime como `millis() / 3600000` num `uint16_t`.
+Qualquer dispositivo que reinicie mais de uma vez por hora escreve 0 em todo
+registro que já fez, o que numa placa de bancada é todo registro. A coluna não
+estava sem implementação — tinha uma, numa resolução que arredondava toda a
+faixa útil para zero.
+
+O uptime agora é em segundos sobre 24 bits, reaproveitando um byte `reserved`
+que era escrito como 0 e lido por ninguém, de modo que o registro continua com
+12 bytes. O `setUptimeSec` satura em vez de dar a volta, porque um número grande
+truncado leria como um número pequeno plausível. O dump serial, o decodificador
+do `/api/logs` e a exportação CSV acompanham, e essa coluna muda de `uptime_hr`
+para `uptime_sec`.
+
+**Arquivos `.blog` antigos decodificam diferente.** Não há marcador de versão no
+formato, então um registro escrito antes disso lê seu antigo campo de horas como
+segundos — na prática 0, que é o que aquele campo já continha.
+
+Flash 944.600 -> 945.464 B (+864).
+
 ## v1.6.1-beta (2026-07-27)
 
 Correção única, publicada sozinha porque o sintoma é silencioso e o gatilho é

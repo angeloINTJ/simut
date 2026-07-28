@@ -273,12 +273,11 @@ void LogManager::logCode(LogLevel level, const char* tag, LogCode code, int cont
  if (_saveToFile) {
  CompactLogRecord rec;
  rec.epoch = (uint32_t)epoch;
- rec.uptimeHr = (uint16_t)(millis( ) / 3600000UL);
+ rec.setUptimeSec(millis( ) / 1000UL);
  rec.code = (uint16_t)code;
  rec.context = (int16_t)constrain(contextVal, -32767, 32767);
  rec.flags = CompactLogRecord::packFlags((uint8_t)level, (uint8_t)core, tagStringToId(tag));
- rec.reserved = 0;
- writeCompactToFlash(rec);
+  writeCompactToFlash(rec);
  }
  mutex_exit(&_logMutex);
 
@@ -309,12 +308,11 @@ void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) 
  if (_saveToFile && level >= LOG_INFO) {
  CompactLogRecord rec;
  rec.epoch = (uint32_t)epoch;
- rec.uptimeHr = (uint16_t)(millis( ) / 3600000UL);
+ rec.setUptimeSec(millis( ) / 1000UL);
  rec.code = (uint16_t)code;
  rec.context = 0;
  rec.flags = CompactLogRecord::packFlags((uint8_t)level, (uint8_t)core, tagStringToId(tag));
- rec.reserved = 0;
- writeCompactToFlash(rec);
+  writeCompactToFlash(rec);
  }
  mutex_exit(&_logMutex);
 
@@ -396,12 +394,11 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
  emitLine("[LOG] Log file rotated.");
  CompactLogRecord rotRec;
  rotRec.epoch = (uint32_t)getEpochNow( );
- rotRec.uptimeHr = (uint16_t)(millis( ) / 3600000UL);
+ rotRec.setUptimeSec(millis( ) / 1000UL);
  rotRec.code = SYS_STORAGE_ROTATE;
  rotRec.context = MAX_RECORDS_PER_FILE;
  rotRec.flags = CompactLogRecord::packFlags(LOG_INFO, get_core_num( ), TAG_STO);
- rotRec.reserved = 0;
-
+ 
  File rf = LittleFS.open(LOG_FILE_CURRENT, "a");
  watchdog_update( );
  if (rf) { rf.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); rf.close( ); _currentLineCount++; }
@@ -460,12 +457,11 @@ void LogManager::flushPendingLogs( ) {
 
  CompactLogRecord rotRec;
  rotRec.epoch = (uint32_t)getEpochNow( );
- rotRec.uptimeHr = (uint16_t)(millis( ) / 3600000UL);
+ rotRec.setUptimeSec(millis( ) / 1000UL);
  rotRec.code = SYS_STORAGE_ROTATE;
  rotRec.context = MAX_RECORDS_PER_FILE;
  rotRec.flags = CompactLogRecord::packFlags(LOG_INFO, get_core_num( ), TAG_STO);
- rotRec.reserved = 0;
-
+ 
  f = LittleFS.open(LOG_FILE_CURRENT, "a");
  if (f) { f.write((const uint8_t*)&rotRec, LOG_RECORD_SIZE); _currentLineCount++; }
  watchdog_update( );

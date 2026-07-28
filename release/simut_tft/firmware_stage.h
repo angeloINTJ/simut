@@ -35,7 +35,11 @@ enum class StageStatus : uint8_t {
 
 struct StageSession {
     StageStatus    status;
-    uint32_t       bytes_written;       /**< Bytes flushed em staging. */
+    uint32_t       bytes_written;       /**< Bytes flushed em staging (inclui o
+                                             padding 0xFF da última página). */
+    uint32_t       bytes_received;      /**< Bytes reais do .bin, sem padding —
+                                             é a extensão que crc32_running
+                                             cobre. */
     uint32_t       crc32_running;       /**< CRC32 dos bytes recebidos. */
     uint32_t       page_buf_filled;
     uint8_t        page_buf[256];
