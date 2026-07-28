@@ -355,10 +355,23 @@ td code, .cell code, .caution code, p code, li code {
 .step p { font-size: .94rem; color: var(--ink-soft); margin: 0; }
 
 /* ---- gallery ----------------------------------------------------- */
-.gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+.gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
 @media (max-width: 860px) { .gallery { grid-template-columns: 1fr; } }
 .gallery figure { margin: 0; background: var(--surface); display: flex; flex-direction: column; }
 .gallery img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 4 / 3; }
+.shot { margin: 0 0 1px; border: 1px solid var(--rule); background: var(--surface); }
+.shot img { width: 100%; }
+.shot figcaption {
+  font-family: var(--mono); font-size: .68rem;
+  letter-spacing: .11em; text-transform: uppercase;
+  color: var(--ink-faint); padding: .7rem .85rem; border-top: 1px solid var(--rule);
+}
+.split {
+  display: grid; gap: clamp(1.5rem, 4vw, 3rem);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: center;
+}
+@media (max-width: 860px) { .split { grid-template-columns: 1fr; } }
 .gallery figcaption {
   font-family: var(--mono); font-size: .68rem;
   letter-spacing: .11em; text-transform: uppercase;
@@ -407,6 +420,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <a href="#status">Status</a>
       <a href="#whats-new">What's new</a>
       <a href="#capabilities">Capabilities</a>
+      <a href="#universal">Direction</a>
       <a href="#hardware">Hardware</a>
       <a href="#start">Get started</a>
       <a href="#docs">Docs</a>
@@ -656,20 +670,53 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 <section class="band">
   <div class="shell">
     <p class="eyebrow">In use</p>
+    <figure class="shot">
+      <img src="images/web-dashboard.png" alt="The SIMUT web dashboard in a browser: system statistics, memory and flash usage, and a table of five live sensors of three different types." loading="lazy" width="1440" height="800" />
+      <figcaption>Web dashboard · served by the device itself, no cloud in the path</figcaption>
+    </figure>
     <div class="gallery">
       <figure>
-        <img src="images/web-dashboard.png" alt="The SIMUT web interface in a browser, showing sensor cards and a history graph." loading="lazy" />
-        <figcaption>Web interface · served by the device</figcaption>
-      </figure>
-      <figure>
-        <img src="images/tft-demo.gif" alt="Animation of the SIMUT touch interface being operated on the device display." loading="lazy" />
-        <figcaption>Touch UI · live capture</figcaption>
+        <img src="images/tft-tour.gif" alt="The SIMUT touch interface cycling through its screens: dashboard pages, settings, on-screen keyboard, alarm thresholds, history graphs, statistics and the calendar picker." loading="lazy" width="640" height="480" />
+        <figcaption>Device UI · frames read back off the panel</figcaption>
       </figure>
       <figure>
         <img src="images/bench-assembly.jpg" alt="The SIMUT development bench: a Pico W, TFT display and sensors wired on a breadboard, the display showing two live readings." loading="lazy" width="1200" height="900" />
         <figcaption>Development bench · running firmware</figcaption>
       </figure>
     </div>
+  </div>
+</section>
+
+<section id="universal" class="band">
+  <div class="shell">
+    <p class="eyebrow">The direction</p>
+    <div>
+      <div>
+        <h2>Universal is the point, not a feature</h2>
+        <p class="lede">
+          SIMUT is being generalised release over release, and the work is
+          mostly deletion: every version removes a special case that only
+          existed because something was hardcoded once.
+        </p>
+        <p>
+          There is no ambient sensor, no privileged pin and no reserved slot.
+          Sixteen positions on GPIO0–GPIO15 each take any supported part, in any
+          combination, and each is identified by the sensor's own hardware ID —
+          so calibration, alarms and history follow the device you actually
+          wired, not the position you happened to wire it into.
+        </p>
+        <p>
+          The capture below is a real device: two DS18B20 probes, two DHT22s
+          and a BMP280, reporting temperature, humidity and pressure through one
+          model. Adding a part is a driver and an entry in a type list. It is
+          not a new special case, and that is the whole design goal.
+        </p>
+      </div>
+    </div>
+    <figure class="shot" style="margin-top:2rem">
+      <img src="images/web-sensors.png" alt="The sensor configuration page: a GP0 to GP15 pin map with occupied pins highlighted, and a table of five slots holding DS18B20, DHT22 and BMP280 sensors, each with its own hardware ID and name." loading="lazy" width="1205" height="495" />
+      <figcaption>Five slots · three sensor types · one model</figcaption>
+    </figure>
   </div>
 </section>
 
