@@ -626,8 +626,8 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         Fifty built-in themes, plus custom ones loaded from the filesystem.</p></div>
       <div class="cell"><h3 data-i18n="c3.t">Its own web interface</h3><p data-i18n="c3.b">
         A complete management UI served straight from the device: live graphs, file
-        manager, configuration, light and dark themes. Reachable at
-        <code>simut.local</code> on your LAN.</p></div>
+        manager, configuration, light and dark themes. Reachable at the device's
+        address on your LAN.</p></div>
       <div class="cell"><h3 data-i18n="c4.t">Sixteen universal slots</h3><p data-i18n="c4.b">
         Any mix of DS18B20, DHT22, BME280 and BMP280 across GPIO0–GPIO15. Slots are
         interchangeable — none is special, and calibration follows the sensor rather
@@ -769,7 +769,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take <code>simut_v1.6.2-beta.uf2</code> from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>. Arduino IDE and PlatformIO source trees are published alongside it.</p></div></div>
       <div class="step"><div><h3 data-i18n="st3.t">Flash over USB</h3><p data-i18n="st3.b">Hold BOOTSEL while connecting the Pico, then drop the <code>.uf2</code> onto the <code>RPI-RP2</code> drive that appears. The board reboots into SIMUT on its own.</p></div></div>
       <div class="step"><div><h3 data-i18n="st4.t">Join it to your network</h3><p data-i18n="st4.b">Configure Wi-Fi from the touch display. The admin password is printed once over USB serial on first boot — write it down, and change it at first web login.</p></div></div>
-      <div class="step"><div><h3 data-i18n="st5.t">Open the interface</h3><p data-i18n="st5.b">Browse to <code>http://simut.local</code>, add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st5.t">Open the interface</h3><p data-i18n="st5.b">Browse to the address the device reports, add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p></div></div>
     </div>
   </div>
 </section>
@@ -870,7 +870,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'c2.t': 'Painel de toque',
     'c2.b': 'Leituras ao vivo, gráficos de histórico e ajustes num TFT de 320×240, operados por toque. Cinquenta temas embutidos, mais os personalizados carregados do sistema de arquivos.',
     'c3.t': 'Interface web própria',
-    'c3.b': 'Uma interface de gestão completa servida direto do dispositivo: gráficos ao vivo, gerenciador de arquivos, configuração, temas claro e escuro. Acessível em <code>simut.local</code> na sua rede.',
+    'c3.b': 'Uma interface de gestão completa servida direto do dispositivo: gráficos ao vivo, gerenciador de arquivos, configuração, temas claro e escuro. Acessível no endereço do dispositivo na sua rede.',
     'c4.t': 'Dezesseis slots universais',
     'c4.b': 'Qualquer combinação de DS18B20, DHT22, BME280 e BMP280 entre GPIO0 e GPIO15. Os slots são intercambiáveis — nenhum é especial, e a calibração segue o sensor, não a posição.',
     'c5.t': 'Contas e permissões',
@@ -924,7 +924,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'st4.t': 'Coloque na sua rede',
     'st4.b': 'Configure o Wi-Fi pelo display de toque. A senha de admin é impressa uma única vez na serial USB no primeiro boot — anote e troque no primeiro login web.',
     'st5.t': 'Abra a interface',
-    'st5.b': 'Acesse <code>http://simut.local</code>, adicione seus sensores aos slots, defina os limites de alarme e calibre contra uma referência se as leituras importarem.',
+    'st5.b': 'Acesse o endereço que o dispositivo informa, adicione seus sensores aos slots, defina os limites de alarme e calibre contra uma referência se as leituras importarem.',
     'dc.eyebrow': 'Documentação', 'dc.h2': 'Leia mais',
     'd1.t': 'Manual do usuário', 'd1.b': 'Montagem do hardware, o display, a interface web, o console serial e solução de problemas.',
     'd2.t': 'Guia de ligação', 'd2.b': 'Pinagem, notas de montagem e o layout de protoboard de referência.',
@@ -978,7 +978,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'c2.t': 'Panel táctil',
     'c2.b': 'Lecturas en vivo, gráficas de historial y ajustes en un TFT de 320×240, manejados por toque. Cincuenta temas integrados, más los personalizados cargados del sistema de archivos.',
     'c3.t': 'Su propia interfaz web',
-    'c3.b': 'Una interfaz de gestión completa servida directamente desde el dispositivo: gráficas en vivo, gestor de archivos, configuración, temas claro y oscuro. Accesible en <code>simut.local</code> en tu red.',
+    'c3.b': 'Una interfaz de gestión completa servida directamente desde el dispositivo: gráficas en vivo, gestor de archivos, configuración, temas claro y oscuro. Accesible en la dirección del dispositivo en tu red.',
     'c4.t': 'Dieciséis ranuras universales',
     'c4.b': 'Cualquier combinación de DS18B20, DHT22, BME280 y BMP280 entre GPIO0 y GPIO15. Las ranuras son intercambiables — ninguna es especial, y la calibración sigue al sensor, no a la posición.',
     'c5.t': 'Cuentas y permisos',
@@ -1032,7 +1032,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'st4.t': 'Únela a tu red',
     'st4.b': 'Configura el Wi-Fi desde la pantalla táctil. La contraseña de admin se imprime una sola vez por el serie USB en el primer arranque — anótala y cámbiala en el primer acceso web.',
     'st5.t': 'Abre la interfaz',
-    'st5.b': 'Entra en <code>http://simut.local</code>, añade tus sensores a las ranuras, fija los límites de alarma y calibra contra una referencia si las lecturas importan.',
+    'st5.b': 'Entra en la dirección que informa el dispositivo, añade tus sensores a las ranuras, fija los límites de alarma y calibra contra una referencia si las lecturas importan.',
     'dc.eyebrow': 'Documentación', 'dc.h2': 'Sigue leyendo',
     'd1.t': 'Manual de usuario', 'd1.b': 'Montaje del hardware, la pantalla, la interfaz web, la consola serie y resolución de problemas.',
     'd2.t': 'Guía de conexión', 'd2.b': 'Pines, notas de montaje y el esquema de protoboard de referencia.',
