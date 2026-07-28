@@ -4,6 +4,126 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.6.2-beta (2026-07-27)
+
+The headline is not a feature: **OTA has never applied an update**, on any
+published version, and this is the release where it does.
+
+> **Flash this one over USB.** Everyone on v1.6.1-beta or earlier is running the
+> broken applier, so there is no over-the-air path to the version that fixes
+> over-the-air updates. From this build onward, OTA works — measured across 21
+> consecutive updates, below.
+
+### OTA reported success at every step and never replaced the firmware
+
+The applier's watchdog feed was a reboot.
+
+Feeding the RP2040 watchdog means reloading LOAD at offset 0x04.
+`applier_wdt_feed()` instead wrote bit 31 of CTRL at offset 0x00 — the TRIGGER
+bit, which forces an immediate reset. `WATCHDOG_CTRL_OFFSET` is 0x00, so it was
+writing the same bit to the same address as `applier_reboot()`. The first call,
+right after the sector-0 program in step (1a), reset the chip before a single
+sector was erased or copied.
+
+What that produces on the bench is indistinguishable from a successful apply
+that changed nothing: the app slot keeps the old firmware, the reset reason is a
+forced watchdog, metadata is left in APPLYING, and LittleFS is gone — destroyed
+not by the applier but by the upload, since staging shares the partition with
+it. Stage, apply and reboot all report success. Nothing compared the app slot
+against what was staged, so the version simply did not change.
+
+This is unchanged since v1.4.4-beta, and the same code is in v1.0.0.
+
+Two more bugs sat behind it, on lines the applier never reached:
+
+- **`memcpy` lives in the app slot**, which step (1b) erases. The first copy in
+  step (2) would have executed erased flash. Replaced with an SRAM word copy;
+  volatile pointers keep GCC from recognising the loop and calling `memcpy`
+  again. Verified by disassembly: every branch target in `ota_applier_run` now
+  resolves to SRAM.
+- **`WATCHDOG_SCRATCH4_OFFSET` was 0x18, which is SCRATCH3.** `applier_reboot()`
+  was clearing the trace register the boot autopsy reads as `sc3` and leaving
+  the bootrom's watchdog magic untouched. Corrected to 0x1C.
+
+The post-apply boot now CRCs the app slot against the metadata and logs the
+verdict. The applier computes this too, but it runs from SRAM with interrupts
+off and cannot report anything, so it discarded the result — which is why three
+separate bugs survived this long. The check belongs where there is logging, and
+the metadata is still on flash at that point.
+
+`/api/ota/apply` failures also reach the user now: the firmware page checked
+none of the three responses and swallowed its own exceptions.
+
+### The post-apply check compared a CRC against the wrong length
+
+Staging reported the padded size in both metadata size fields, so the pair
+(size, CRC) never described the same bytes. `stage_session_end` pads the last
+256 B page with 0xFF and `bytes_written` counts that padding — correctly, since
+it is what the applier has to copy — while the CRC covers only the bytes that
+arrived. Verifying the CRC of 957,460 bytes against the CRC of 957,696 fails on
+a byte-perfect copy.
+
+The session now tracks `bytes_received` separately and reports it as the
+uncompressed size, giving the two fields the meanings the struct already
+documented. `/api/restore`'s `dsize` and `dcrc` describe the same range as well.
+
+That alone would not help an update staged by an older build, which is every
+update to this version: the padded length is all its metadata carries. So the
+post-apply check accepts any length within the final page.
+
+### Validated: 21 consecutive over-the-air updates
+
+Measured on the bench (Pico W, `pico_w_release`), 21 stage+apply cycles back to
+back. Each cycle staged an image carrying a distinct version string, so "it
+applied" is read back from the device rather than inferred from an HTTP status:
+
+| Stage | Time |
+|---|---|
+| Upload + stage (957,500 B) | 29.2 s ± 0.07 (32.1 KiB/s) |
+| `/api/ota/apply` → 202 | 0.1 s |
+| Applier window (erase + program) | 25.1 s ± 0.10 |
+| Reboot → image verified | 9.4 s ± 0.06 |
+| **Web interface unreachable** | **48.4 s** |
+
+21 of 21 applied. The verified length came back as exactly 957,500 B every time,
+the config snapshot survived every reformat with Wi-Fi rejoining unattended,
+free heap moved 24 B across the whole run, and not one boot produced a soft
+panic — under the heaviest flash load the firmware has.
+
+The download is the slow part, and the web interface is unreachable for roughly
+50 seconds. Two thirds of that is the applier; the rest is Wi-Fi re-associating.
+
+### A white screen after setting the display offset
+
+Two independent writers were racing the display. The touch-calibration auto-set
+block called `saveConfiguration()`, which writes flash, about 190 lines after
+`startCore1()` — and boot defers Core 1 precisely so flash work can take the
+single-core path. `setDisplayOffset()` also repainted the margins
+unconditionally, so Core 0 drew to the TFT while Core 1 rendered.
+
+The symptom was a blank screen on the next boot after adjusting the offset,
+which read like corrupted settings but was a torn write.
+
+### The log's uptime column always read zero
+
+`CompactLogRecord` stored uptime as `millis() / 3600000` in a `uint16_t`. Any
+device that reboots more than once an hour writes 0 into every record it ever
+makes, which on a bench board is every record. The column was not missing an
+implementation — it had one, at a resolution that rounded the entire useful
+range to zero.
+
+Uptime is now seconds across 24 bits, reusing a `reserved` byte that was written
+as 0 and read by nobody, so the record stays 12 bytes. `setUptimeSec` saturates
+rather than wraps, because a truncated large number would read as a small
+plausible one. The serial dump, the `/api/logs` decoder and the CSV export
+follow, and that column changes from `uptime_hr` to `uptime_sec`.
+
+**Old `.blog` files decode differently.** There is no version marker in the
+format, so a record written before this reads its old hours field as seconds —
+in practice 0, which is what that field already contained.
+
+Flash 944,600 -> 945,464 B (+864).
+
 ## v1.6.1-beta (2026-07-27)
 
 Single fix, shipped on its own because the symptom is silent and the trigger is

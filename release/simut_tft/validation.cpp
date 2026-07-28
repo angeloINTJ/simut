@@ -55,9 +55,16 @@ bool ota_validate_staging(const StageSession& s, ValidationReport& report) {
     }
 
     /* RAW-only path (F-OTA-RAM): SIMUT só upa RAW (.bin) desde v3.43.3.
-     * Validação reduzida a: tamanho range + boot2 CRC-32/MPEG-2.
-     * decompressed_* fica == compressed_* (sem decompressão real). */
-    report.decompressed_size = s.bytes_written;
+     * Sem decompressão real, então decompressed_crc == compressed_crc.
+     *
+     * Os dois tamanhos NÃO são iguais, e a diferença importa. bytes_written
+     * inclui o padding 0xFF que stage_session_end acrescenta pra fechar a
+     * última página de 256 B — é quanto o applier precisa copiar. O CRC, por
+     * outro lado, cobre só os bytes que chegaram. Reportar bytes_written nos
+     * dois campos fazia qualquer verificação sobre o par (tamanho, CRC)
+     * falhar mesmo numa cópia perfeita: o CRC de 957.460 bytes comparado
+     * contra o CRC de 957.696. */
+    report.decompressed_size = s.bytes_received;
     report.decompressed_crc  = s.crc32_running;
 
     if (s.bytes_written < 100u * 1024u) {

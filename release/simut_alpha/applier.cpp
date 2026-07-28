@@ -86,7 +86,7 @@
 #define WATCHDOG_BASE_ADDR     0x40058000u
 #define WATCHDOG_CTRL_OFFSET   0x00u
 #define WATCHDOG_LOAD_OFFSET   0x04u
-#define WATCHDOG_SCRATCH4_OFFSET 0x18u
+#define WATCHDOG_SCRATCH4_OFFSET 0x1Cu   /* 0x18 é SCRATCH3 — ver nota abaixo */
 #define WATCHDOG_SET_ALIAS     0x00002000u   /* RP2040 SET alias offset */
 #define WATCHDOG_CLR_ALIAS     0x00003000u   /* RP2040 CLR alias offset */
 #define WATCHDOG_CTRL_TRIG     (1u << 31)    /* TRIGGER bit (1u<<30 é ENABLE — bug v3.43.4) */
@@ -130,7 +130,7 @@ namespace ota {
  * o setor inteiro durante read-erase-program-all. Race-free: applier só
  * roda após `state=APPLYING` persistido e termina via reboot, nunca
  * concorrente com os outros callers. Declarado em `metadata.h`. */
-uint8_t s_applier_buf[OTA_FLASH_SECTOR_SIZE];
+uint8_t s_applier_buf[OTA_FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
 
 /* CRC32 EDB88320 inline em SRAM (sem chamar tabelas em flash). */
 static inline uint32_t __not_in_flash_func(crc32_byte_sram)(uint32_t crc, uint8_t b) {
@@ -143,10 +143,42 @@ static inline uint32_t __not_in_flash_func(crc32_byte_sram)(uint32_t crc, uint8_
 
 /* Watchdog feed inline — pico-sdk watchdog_update() vive em flash app slot
  * (NÃO é __not_in_flash_func), então a 1a chamada após o erase do app slot
- * faulta. Aqui escrevemos direto no SET alias da hardware register. */
+ * faulta. Aqui escrevemos direto na hardware register.
+ *
+ * Alimentar o watchdog do RP2040 é recarregar LOAD (offset 0x04). NÃO é
+ * escrever em CTRL (offset 0x00): o bit 31 de CTRL é TRIGGER, que força um
+ * reset imediato — é literalmente o que applier_reboot() faz no passo (5).
+ *
+ * Até v1.6.4-beta esta função escrevia WATCHDOG_CTRL_TRIG no SET alias de
+ * CTRL, ou seja, era um reboot disfarçado de feed, no mesmo endereço que
+ * applier_reboot() usa (WATCHDOG_CTRL_OFFSET é 0). A primeira chamada —
+ * logo após programar o setor 0 no passo (1a) — resetava o chip antes de
+ * qualquer erase ou cópia. O slot da app ficava intacto com o firmware
+ * antigo, e o boot seguinte era indistinguível de um apply bem-sucedido:
+ * reset por watchdog forçado, metadata em APPLYING, LittleFS destruída
+ * (pelo upload do staging, que divide a partição com ela) e a versão sem
+ * mudar. Nenhuma camada verificava o resultado, então o OTA reportava
+ * sucesso em todos os passos e nunca trocava o firmware.
+ *
+ * LOAD é 24-bit e o contador decrementa 2x por tick (errata RP2040-E1),
+ * então 0xFFFFFF ≈ 8,38 s — o teto do hardware. Cada operação individual
+ * de flash aqui é de dezenas de ms, com folga larga. */
 static inline void __not_in_flash_func(applier_wdt_feed)() {
-    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_SET_ALIAS) =
-        WATCHDOG_CTRL_TRIG;
+    *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_LOAD_OFFSET) = 0xFFFFFFu;
+}
+
+/* memcpy em SRAM. A memcpy da libc vive no slot da app (0x1005de70 no
+ * build de 1.6.4-beta), que o passo (1b) apaga — chamá-la no passo (2)
+ * seria executar flash apagada. Ponteiros volatile impedem o GCC de
+ * reconhecer o laço e reintroduzir uma chamada a memcpy.
+ *
+ * Ambas as pontas são alinhadas a 4: s_applier_buf é aligned(4) e a origem
+ * é XIP_BASE + offset de setor. `n` é sempre OTA_FLASH_SECTOR_SIZE. */
+static inline void __not_in_flash_func(applier_copy)(void* dst, const void* src,
+                                                     uint32_t n) {
+    volatile uint32_t*       d = (volatile uint32_t*)dst;
+    const volatile uint32_t* s = (const volatile uint32_t*)src;
+    for (uint32_t i = 0; i < n / 4u; i++) d[i] = s[i];
 }
 
 /* Reboot inline via watchdog reset (PSM full reset). Substitui SCB
@@ -190,7 +222,13 @@ static inline void __not_in_flash_func(applier_reboot)() {
     *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_CLR_ALIAS + WATCHDOG_CTRL_OFFSET) =
         WATCHDOG_CTRL_ENABLE;
 
-    /* (3) Clear scratch[4] — boot ROM checa este magic; 0 = normal boot */
+    /* (3) Clear scratch[4] — boot ROM checa este magic; 0 = normal boot.
+     *
+     * O offset é 0x1C. Até v1.6.4-beta a constante valia 0x18, que é
+     * SCRATCH3: este write zerava o registrador de trace que a autópsia de
+     * boot lê como `sc3` e deixava o magic da bootrom intocado. Passou
+     * despercebido porque applier_wdt_feed() rebootava o chip antes de
+     * qualquer chamada legítima chegar aqui. */
     *(volatile uint32_t*)(WATCHDOG_BASE_ADDR + WATCHDOG_SCRATCH4_OFFSET) = 0;
 
     /* (4) LOAD = max (24-bit max = 0xFFFFFF). Watchdog HW persiste pós-reset
@@ -232,7 +270,7 @@ bool __not_in_flash_func(ota_applier_run)(const UpdateMetadata* meta) {
      * apenas) evita o race. */
     {
         const uint8_t* src = (const uint8_t*)(XIP_BASE + OTA_STAGING_OFFSET);
-        memcpy(s_applier_buf, src, OTA_FLASH_SECTOR_SIZE);
+        applier_copy(s_applier_buf, src, OTA_FLASH_SECTOR_SIZE);
 
         uint32_t saved_irq = save_and_disable_interrupts();
         flash_range_erase(0u, OTA_FLASH_SECTOR_SIZE);
@@ -267,7 +305,7 @@ bool __not_in_flash_func(ota_applier_run)(const UpdateMetadata* meta) {
     for (uint32_t i = 1; i < n_data_sectors; i++) {
         const uint8_t* src = (const uint8_t*)(XIP_BASE + OTA_STAGING_OFFSET +
                                               i * OTA_FLASH_SECTOR_SIZE);
-        memcpy(s_applier_buf, src, OTA_FLASH_SECTOR_SIZE);
+        applier_copy(s_applier_buf, src, OTA_FLASH_SECTOR_SIZE);
 
         uint32_t saved_irq = save_and_disable_interrupts();
         flash_range_program(i * OTA_FLASH_SECTOR_SIZE,
