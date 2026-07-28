@@ -1,0 +1,814 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>SIMUT — Integrated Universal Monitoring and Telemetry System</title>
+<meta name="description" content="Offline-first temperature monitoring firmware for the Raspberry Pi Pico W. TFT touch dashboard, local web interface, multi-user access control and over-the-air updates. Open source, MIT." />
+<link rel="canonical" href="https://angelointj.github.io/simut/" />
+
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="SIMUT" />
+<meta property="og:title" content="SIMUT — Integrated Universal Monitoring and Telemetry System" />
+<meta property="og:description" content="Offline-first temperature monitoring firmware for the Raspberry Pi Pico W. TFT dashboard, local web interface, and over-the-air updates." />
+<meta property="og:url" content="https://angelointj.github.io/simut/" />
+<meta property="og:image" content="https://angelointj.github.io/simut/images/social-preview.png" />
+<meta property="og:image:width" content="1280" />
+<meta property="og:image:height" content="640" />
+<meta property="og:image:type" content="image/png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="https://angelointj.github.io/simut/images/social-preview.png" />
+
+<style>
+/* ------------------------------------------------------------------ *
+ *  SIMUT — instrument specimen sheet
+ *
+ *  The palette is the subject's own: neutrals biased cold, a deep teal
+ *  for the in-range state, and amber reserved for caution. Beta is a
+ *  caution state, so it wears the amber and nothing else does.
+ * ------------------------------------------------------------------ */
+:root {
+  color-scheme: light;
+  --paper:      #eff3f4;
+  --surface:    #ffffff;
+  --surface-2:  #e7edee;
+  --ink:        #0e1a1f;
+  --ink-soft:   #54666e;
+  --ink-faint:  #7b8d95;
+  --rule:       #d2dcdf;
+  --rule-firm:  #b6c5c9;
+  --accent:     #0a6570;
+  --accent-ink: #ffffff;
+  --warn:       #a9541b;
+  --warn-bg:    #fbf1e6;
+  --warn-rule:  #e0c298;
+
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --measure: 66ch;
+  --gutter: clamp(1.25rem, 5vw, 4rem);
+  --rail: 1180px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --paper:      #0a1317;
+    --surface:    #101e23;
+    --surface-2:  #16272d;
+    --ink:        #e4edef;
+    --ink-soft:   #8ca2aa;
+    --ink-faint:  #6b8189;
+    --rule:       #213238;
+    --rule-firm:  #2e444c;
+    --accent:     #57c6d2;
+    --accent-ink: #05191d;
+    --warn:       #de9642;
+    --warn-bg:    #1d1810;
+    --warn-rule:  #4a3a20;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --paper:      #0a1317;
+  --surface:    #101e23;
+  --surface-2:  #16272d;
+  --ink:        #e4edef;
+  --ink-soft:   #8ca2aa;
+  --ink-faint:  #6b8189;
+  --rule:       #213238;
+  --rule-firm:  #2e444c;
+  --accent:     #57c6d2;
+  --accent-ink: #05191d;
+  --warn:       #de9642;
+  --warn-bg:    #1d1810;
+  --warn-rule:  #4a3a20;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --paper:      #eff3f4;
+  --surface:    #ffffff;
+  --surface-2:  #e7edee;
+  --ink:        #0e1a1f;
+  --ink-soft:   #54666e;
+  --ink-faint:  #7b8d95;
+  --rule:       #d2dcdf;
+  --rule-firm:  #b6c5c9;
+  --accent:     #0a6570;
+  --accent-ink: #ffffff;
+  --warn:       #a9541b;
+  --warn-bg:    #fbf1e6;
+  --warn-rule:  #e0c298;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 17px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; display: block; }
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 1px; }
+
+.shell { max-width: var(--rail); margin-inline: auto; padding-inline: var(--gutter); }
+
+.skip {
+  position: absolute; left: -9999px; top: 0;
+  background: var(--accent); color: var(--accent-ink);
+  padding: .6rem 1rem; z-index: 20;
+}
+.skip:focus { left: 0; }
+
+/* ---- masthead ---------------------------------------------------- */
+.masthead {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+  position: sticky; top: 0; z-index: 10;
+}
+.masthead > .shell {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; min-height: 60px; flex-wrap: wrap;
+}
+.wordmark {
+  font-family: var(--mono);
+  font-weight: 700; font-size: .95rem;
+  letter-spacing: .22em; text-transform: uppercase;
+  color: var(--ink); text-decoration: none;
+  display: inline-flex; align-items: center; gap: .6rem;
+}
+.wordmark::before {
+  content: ""; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--accent); flex: none;
+}
+.masthead nav { display: flex; gap: 1.4rem; flex-wrap: wrap; }
+.masthead nav a {
+  font-family: var(--mono); font-size: .74rem;
+  letter-spacing: .13em; text-transform: uppercase;
+  color: var(--ink-soft); text-decoration: none;
+}
+.masthead nav a:hover { color: var(--accent); }
+
+/* ---- shared section furniture ------------------------------------ */
+.band { border-bottom: 1px solid var(--rule); }
+.band > .shell { padding-block: clamp(3rem, 7vw, 5.5rem); }
+
+.eyebrow {
+  font-family: var(--mono); font-size: .72rem;
+  letter-spacing: .2em; text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 1.1rem;
+  display: flex; align-items: center; gap: .8rem;
+}
+.eyebrow::after {
+  content: ""; height: 1px; background: var(--rule); flex: 1;
+}
+
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h2 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  line-height: 1.2; letter-spacing: -.018em; font-weight: 650;
+  margin-bottom: .9rem;
+}
+h3 { font-size: 1.03rem; font-weight: 650; letter-spacing: -.005em; }
+p { margin: 0 0 1rem; max-width: var(--measure); }
+p:last-child { margin-bottom: 0; }
+.lede { color: var(--ink-soft); font-size: 1.06rem; }
+
+/* ---- hero -------------------------------------------------------- */
+.hero > .shell { padding-block: clamp(3.5rem, 9vw, 6.5rem) clamp(2.5rem, 5vw, 3.5rem); }
+.hero-grid {
+  display: grid; gap: clamp(2rem, 5vw, 4rem);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr);
+  align-items: start;
+}
+@media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
+
+.release-line {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap;
+  font-family: var(--mono); font-size: .74rem;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-faint); margin-bottom: 1.6rem;
+}
+.tag {
+  border: 1px solid var(--rule-firm); padding: .22rem .55rem;
+  color: var(--ink-soft); white-space: nowrap;
+}
+.tag-beta { border-color: var(--warn-rule); color: var(--warn); background: var(--warn-bg); }
+
+h1 {
+  font-size: clamp(2.6rem, 7.5vw, 4.4rem);
+  line-height: .98; letter-spacing: -.04em; font-weight: 700;
+  margin-bottom: 1.1rem;
+}
+h1 .expand {
+  display: block; margin-top: .7rem;
+  font-family: var(--mono); font-weight: 400;
+  font-size: clamp(.78rem, 1.7vw, .95rem);
+  letter-spacing: .1em; line-height: 1.5;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.hero p { font-size: 1.12rem; }
+
+.actions { display: flex; gap: .7rem; flex-wrap: wrap; margin-top: 1.9rem; }
+.btn {
+  display: inline-block; padding: .72rem 1.25rem;
+  font-family: var(--mono); font-size: .76rem;
+  letter-spacing: .13em; text-transform: uppercase;
+  text-decoration: none; border: 1px solid var(--accent);
+}
+.btn-solid { background: var(--accent); color: var(--accent-ink); }
+.btn-solid:hover { opacity: .88; }
+.btn-ghost { color: var(--accent); background: transparent; }
+.btn-ghost:hover { background: var(--surface); }
+
+.plate { border: 1px solid var(--rule); background: var(--surface); }
+.plate img { width: 100%; }
+.plate figcaption {
+  font-family: var(--mono); font-size: .7rem;
+  letter-spacing: .11em; text-transform: uppercase;
+  color: var(--ink-faint); padding: .7rem .85rem;
+  border-top: 1px solid var(--rule);
+}
+
+/* ---- readout strip ----------------------------------------------- */
+.readout {
+  border-top: 1px solid var(--rule-firm);
+  display: grid; grid-template-columns: repeat(6, 1fr);
+}
+@media (max-width: 900px) { .readout { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 500px) { .readout { grid-template-columns: repeat(2, 1fr); } }
+.channel {
+  padding: 1.15rem 1rem 1.25rem;
+  border-right: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+.channel:last-child { border-right: 0; }
+.channel .val {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: clamp(1.25rem, 2.6vw, 1.65rem); font-weight: 600;
+  letter-spacing: -.02em; color: var(--ink); line-height: 1.1;
+}
+.channel .val .unit { font-size: .62em; font-weight: 400; color: var(--ink-faint); margin-left: .15em; }
+.channel .key {
+  font-family: var(--mono); font-size: .66rem;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-faint); margin-top: .5rem;
+}
+
+/* ---- caution panel ----------------------------------------------- */
+.caution {
+  background: var(--warn-bg);
+  border-top: 1px solid var(--warn-rule);
+  border-bottom: 1px solid var(--warn-rule);
+}
+.caution > .shell { padding-block: clamp(2rem, 4vw, 2.75rem); }
+.caution h2 {
+  font-family: var(--mono); font-size: .8rem; font-weight: 700;
+  letter-spacing: .2em; text-transform: uppercase;
+  color: var(--warn); margin-bottom: 1rem;
+}
+.caution ul { margin: 0; padding-left: 1.1rem; max-width: var(--measure); }
+.caution li { margin-bottom: .55rem; }
+.caution li:last-child { margin-bottom: 0; }
+.caution strong { color: var(--ink); }
+
+/* ---- changelog rail ---------------------------------------------- */
+.releases { display: grid; gap: 0; }
+.release {
+  display: grid; grid-template-columns: 148px minmax(0, 1fr);
+  gap: clamp(1rem, 3vw, 2.5rem);
+  padding-block: 1.6rem;
+  border-top: 1px solid var(--rule);
+}
+.release:last-child { border-bottom: 1px solid var(--rule); }
+@media (max-width: 700px) { .release { grid-template-columns: 1fr; gap: .5rem; } }
+.release .ver {
+  font-family: var(--mono); font-size: .78rem; font-weight: 600;
+  letter-spacing: .06em; color: var(--accent);
+}
+.release .date {
+  font-family: var(--mono); font-size: .68rem;
+  letter-spacing: .1em; text-transform: uppercase;
+  color: var(--ink-faint); margin-top: .3rem;
+}
+.release h3 { margin-bottom: .35rem; }
+.release p { color: var(--ink-soft); font-size: .96rem; margin: 0; }
+
+/* ---- matrix ------------------------------------------------------ */
+.matrix { display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--rule); }
+@media (max-width: 900px) { .matrix { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) { .matrix { grid-template-columns: 1fr; } }
+.cell {
+  padding: 1.5rem 1.4rem 1.6rem;
+  border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+}
+.cell:nth-child(3n) { border-right: 0; }
+@media (max-width: 900px) {
+  .cell { border-right: 1px solid var(--rule); }
+  .cell:nth-child(3n) { border-right: 1px solid var(--rule); }
+  .cell:nth-child(2n) { border-right: 0; }
+}
+@media (max-width: 620px) { .cell, .cell:nth-child(3n) { border-right: 0; } }
+.cell h3 { margin-bottom: .5rem; }
+.cell p { font-size: .93rem; color: var(--ink-soft); margin: 0; }
+
+/* ---- spec table -------------------------------------------------- */
+.scroller { overflow-x: auto; border: 1px solid var(--rule); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 520px; }
+th, td { text-align: left; padding: .78rem 1.1rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tbody tr:last-child td { border-bottom: 0; }
+th {
+  font-family: var(--mono); font-size: .68rem; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-faint); background: var(--surface-2);
+}
+td:first-child { font-weight: 600; white-space: nowrap; }
+td { font-size: .94rem; color: var(--ink-soft); }
+td:first-child { color: var(--ink); }
+td code, .cell code, .caution code, p code, li code {
+  font-family: var(--mono); font-size: .86em;
+  background: var(--surface-2); padding: .1em .35em;
+  border: 1px solid var(--rule);
+}
+
+/* ---- steps ------------------------------------------------------- */
+.steps { counter-reset: step; display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.step {
+  counter-increment: step;
+  display: grid; grid-template-columns: 3.2rem minmax(0, 1fr);
+  gap: 1rem; padding-block: 1.35rem;
+  border-bottom: 1px solid var(--rule);
+}
+.step::before {
+  content: counter(step, decimal-leading-zero);
+  font-family: var(--mono); font-size: .8rem; font-weight: 600;
+  letter-spacing: .08em; color: var(--accent); padding-top: .15rem;
+}
+.step h3 { margin-bottom: .3rem; }
+.step p { font-size: .94rem; color: var(--ink-soft); margin: 0; }
+
+/* ---- gallery ----------------------------------------------------- */
+.gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+@media (max-width: 860px) { .gallery { grid-template-columns: 1fr; } }
+.gallery figure { margin: 0; background: var(--surface); display: flex; flex-direction: column; }
+.gallery img { width: 100%; height: 100%; object-fit: cover; aspect-ratio: 4 / 3; }
+.gallery figcaption {
+  font-family: var(--mono); font-size: .68rem;
+  letter-spacing: .11em; text-transform: uppercase;
+  color: var(--ink-faint); padding: .7rem .85rem; border-top: 1px solid var(--rule);
+}
+
+/* ---- docs list --------------------------------------------------- */
+.docs { display: grid; grid-template-columns: repeat(2, 1fr); border-top: 1px solid var(--rule); }
+@media (max-width: 700px) { .docs { grid-template-columns: 1fr; } }
+.doc {
+  display: block; text-decoration: none; color: inherit;
+  padding: 1.25rem 1.3rem;
+  border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
+}
+.doc:nth-child(2n) { border-right: 0; }
+@media (max-width: 700px) { .doc, .doc:nth-child(2n) { border-right: 0; } }
+.doc:hover { background: var(--surface); }
+.doc h3 { color: var(--accent); margin-bottom: .25rem; }
+.doc p { font-size: .9rem; color: var(--ink-soft); margin: 0; }
+
+/* ---- footer ------------------------------------------------------ */
+footer { background: var(--surface); }
+footer > .shell { padding-block: 2.5rem 3rem; }
+.foot-grid { display: flex; justify-content: space-between; gap: 2rem; flex-wrap: wrap; align-items: flex-end; }
+.foot-links { display: flex; gap: 1.3rem; flex-wrap: wrap; }
+.foot-links a {
+  font-family: var(--mono); font-size: .72rem;
+  letter-spacing: .12em; text-transform: uppercase; text-decoration: none;
+  color: var(--ink-soft);
+}
+.foot-links a:hover { color: var(--accent); }
+.colophon { font-family: var(--mono); font-size: .7rem; letter-spacing: .06em; color: var(--ink-faint); line-height: 1.7; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="masthead">
+  <div class="shell">
+    <a class="wordmark" href="./">SIMUT</a>
+    <nav aria-label="Sections">
+      <a href="#status">Status</a>
+      <a href="#whats-new">What's new</a>
+      <a href="#capabilities">Capabilities</a>
+      <a href="#hardware">Hardware</a>
+      <a href="#start">Get started</a>
+      <a href="#docs">Docs</a>
+      <a href="https://github.com/angeloINTJ/simut">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="shell">
+    <div class="hero-grid">
+      <div>
+        <p class="release-line">
+          <span class="tag tag-beta">Beta</span>
+          <span class="tag">v1.6.2-beta</span>
+          <span class="tag">MIT</span>
+          <span class="tag">RP2040</span>
+        </p>
+        <h1>
+          Temperature monitoring that answers to nobody's cloud.
+          <span class="expand">Sistema Integrado de Monitoramento Universal e Telemetria</span>
+        </h1>
+        <p class="lede">
+          Open-source firmware for the Raspberry Pi Pico W. It reads up to sixteen
+          sensors, draws them on a touch display, serves its own web interface over
+          your LAN, keeps an audit trail, and updates itself over the air — with no
+          account to create and no service to depend on.
+        </p>
+        <div class="actions">
+          <a class="btn btn-solid" href="https://github.com/angeloINTJ/simut/releases/latest">Download firmware</a>
+          <a class="btn btn-ghost" href="MANUAL.html">Read the manual</a>
+          <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut">Source on GitHub</a>
+        </div>
+      </div>
+      <figure class="plate" style="margin:0">
+        <img src="images/tft-dashboard.png" alt="The SIMUT TFT dashboard showing live sensor readings on the device display." width="1024" height="768" />
+        <figcaption>Device dashboard · ILI9341 320×240</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="status" class="band">
+  <div class="shell" style="padding-block:0">
+    <div class="readout">
+      <div class="channel">
+        <div class="val">16</div>
+        <div class="key">Sensor slots</div>
+      </div>
+      <div class="channel">
+        <div class="val">4</div>
+        <div class="key">Sensor types</div>
+      </div>
+      <div class="channel">
+        <div class="val">2</div>
+        <div class="key">CPU cores used</div>
+      </div>
+      <div class="channel">
+        <div class="val">21<span class="unit">/21</span></div>
+        <div class="key">OTA updates verified</div>
+      </div>
+      <div class="channel">
+        <div class="val">48.4<span class="unit">s</span></div>
+        <div class="key">Downtime per update</div>
+      </div>
+      <div class="channel">
+        <div class="val">0</div>
+        <div class="key">Cloud dependencies</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="caution">
+  <div class="shell">
+    <h2>Beta — read this before you rely on it</h2>
+    <ul>
+      <li>
+        SIMUT is <strong>beta software</strong>. It is tested on real hardware, but it
+        is not a certified metrological instrument. Do not make it the only control
+        on regulated storage without validating it against your own reference.
+      </li>
+      <li>
+        <strong>Over-the-air updates work from v1.6.2-beta onward — and only from
+        there.</strong> Every earlier build shipped an applier that reported success
+        and changed nothing, so there is no over-the-air path onto this release.
+        Flash it over USB once; updates work normally after that.
+      </li>
+      <li>
+        An update <strong>reformats the filesystem</strong>. Wi-Fi credentials, users
+        and sensor slots are carried across automatically; language packs,
+        <code>calib.csv</code> and stored history are not. Download a backup first.
+      </li>
+      <li>
+        There is <strong>no second firmware slot to roll back to</strong>. The image is
+        checked before it is committed and verified again on the next boot, but
+        recovery from a bad flash is the BOOTSEL button and a USB cable.
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section id="whats-new" class="band">
+  <div class="shell">
+    <p class="eyebrow">This generation</p>
+    <h2>What changed recently</h2>
+    <p class="lede" style="margin-bottom:2rem">
+      Three releases that each removed a special case rather than adding a feature.
+    </p>
+    <div class="releases">
+      <article class="release">
+        <div>
+          <div class="ver">v1.6.2-beta</div>
+          <div class="date">27 Jul 2026</div>
+        </div>
+        <div>
+          <h3>Over-the-air updates actually apply</h3>
+          <p>
+            The applier's watchdog feed was writing the reset bit instead of reloading
+            the counter, so it rebooted the chip before copying a single sector — while
+            every layer above reported success. Fixed, along with two bugs behind it,
+            and the boot now verifies the installed image against the staged one.
+            Validated across 21 consecutive updates: 21 applied, the verified image
+            length matched on every one, and free memory moved 24 bytes across the
+            whole run.
+          </p>
+        </div>
+      </article>
+      <article class="release">
+        <div>
+          <div class="ver">v1.6.0-beta</div>
+          <div class="date">27 Jul 2026</div>
+        </div>
+        <div>
+          <h3>One sensor model, no privileged slot</h3>
+          <p>
+            Eight places treated slot 10 as "the ambient sensor", which made GP10
+            unassignable and survived a factory reset. Every slot now starts empty and
+            claims no pin, calibration is keyed to the sensor's own hardware ID rather
+            than its position, and the BMP280 became its own type instead of pretending
+            to be a BME280 with a broken humidity channel.
+          </p>
+        </div>
+      </article>
+      <article class="release">
+        <div>
+          <div class="ver">v1.5.6-beta</div>
+          <div class="date">26 Jul 2026</div>
+        </div>
+        <div>
+          <h3>Web-first, with a serial console for emergencies</h3>
+          <p>
+            The serial CLI shipped 55 commands the web interface already answered.
+            Configuration now lives in the web UI and the console keeps nine commands
+            for recovery — worth 44.5 KB of reclaimed flash.
+          </p>
+        </div>
+      </article>
+    </div>
+    <p style="margin-top:1.6rem">
+      <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.md">Full changelog</a> ·
+      <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.pt-BR.md">Português</a>
+    </p>
+  </div>
+</section>
+
+<section id="capabilities" class="band">
+  <div class="shell">
+    <p class="eyebrow">Capabilities</p>
+    <h2>What the firmware does</h2>
+    <p class="lede" style="margin-bottom:2rem">
+      Everything below runs on the device. Nothing phones home.
+    </p>
+    <div class="matrix">
+      <div class="cell">
+        <h3>Dual-core by design</h3>
+        <p>
+          Core 0 runs sensors, networking, the web server and telemetry. Core 1 does
+          nothing but drive the display, reading lock-free snapshots — so a busy
+          network never stutters the screen.
+        </p>
+      </div>
+      <div class="cell">
+        <h3>Touch dashboard</h3>
+        <p>
+          Live readings, history graphs and settings on a 320×240 TFT, driven by touch.
+          Fifty built-in themes, plus custom ones loaded from the filesystem.
+        </p>
+      </div>
+      <div class="cell">
+        <h3>Its own web interface</h3>
+        <p>
+          A complete management UI served straight from the device: live graphs, file
+          manager, configuration, light and dark themes. Reachable at
+          <code>simut.local</code> on your LAN.
+        </p>
+      </div>
+      <div class="cell">
+        <h3>Sixteen universal slots</h3>
+        <p>
+          Any mix of DS18B20, DHT22, BME280 and BMP280 across GPIO0–GPIO15. Slots are
+          interchangeable — none is special, and calibration follows the sensor rather
+          than the position.
+        </p>
+      </div>
+      <div class="cell">
+        <h3>Accounts and permissions</h3>
+        <p>
+          Five accounts, ten permission bits and three concurrent sessions. Passwords
+          are salted per user and hashed; repeated failures back off exponentially.
+        </p>
+      </div>
+      <div class="cell">
+        <h3>Telemetry, if you want it</h3>
+        <p>
+          HTTP POST or MQTT with JSON, CSV or your own template, TLS supported. Off by
+          default — the device is fully usable having never been given an endpoint.
+        </p>
+      </div>
+      <div class="cell">
+        <h3>Audit trail</h3>
+        <p>
+          A persistent binary log with rotation and CSV export, recording configuration
+          changes, security events and crash forensics captured through the watchdog.
+        </p>
+      </div>
+      <div class="cell">
+        <h3>Backup and restore</h3>
+        <p>
+          Download the whole filesystem as a single <code>.bkp</code>, verified by CRC32
+          and bound to the chip ID so an image cannot be restored onto the wrong board.
+        </p>
+      </div>
+      <div class="cell">
+        <h3>Three languages</h3>
+        <p>
+          English, Portuguese and Spanish, loaded from language packs on the filesystem
+          rather than compiled in — so a translation can be edited without a rebuild.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <p class="eyebrow">In use</p>
+    <div class="gallery">
+      <figure>
+        <img src="images/web-dashboard.png" alt="The SIMUT web interface in a browser, showing sensor cards and a history graph." loading="lazy" />
+        <figcaption>Web interface · served by the device</figcaption>
+      </figure>
+      <figure>
+        <img src="images/tft-demo.gif" alt="Animation of the SIMUT touch interface being operated on the device display." loading="lazy" />
+        <figcaption>Touch UI · live capture</figcaption>
+      </figure>
+      <figure>
+        <img src="images/bench-assembly.jpg" alt="The SIMUT development bench: a Pico W, TFT display and sensors wired on a breadboard, the display showing two live readings." loading="lazy" width="1200" height="900" />
+        <figcaption>Development bench · running firmware</figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<section id="hardware" class="band">
+  <div class="shell">
+    <p class="eyebrow">Hardware</p>
+    <h2>What you need</h2>
+    <p class="lede" style="margin-bottom:2rem">
+      Roughly the cost of a takeaway meal, and none of it is proprietary.
+    </p>
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th scope="col">Part</th><th scope="col">Specification</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Microcontroller</td><td>Raspberry Pi Pico W — RP2040, dual-core Cortex-M0+, 2 MB flash</td></tr>
+          <tr><td>Display</td><td>ILI9341 320×240 TFT over SPI</td></tr>
+          <tr><td>Touch</td><td>XPT2046 resistive panel</td></tr>
+          <tr><td>Sensors</td><td>16 slots on GPIO0–GPIO15: DS18B20 (1-Wire), DHT22, BME280 and BMP280 (I²C)</td></tr>
+          <tr><td>Buzzer</td><td>Passive piezo, driven from PIO</td></tr>
+          <tr><td>Storage</td><td>On-chip flash — 1 MB filesystem, 1020 KB application slot</td></tr>
+          <tr><td>Firmware size</td><td>945,464 B — 90.5% of the application slot</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:1.2rem"><a href="WIRING.html">Wiring diagram and pinout →</a></p>
+  </div>
+</section>
+
+<section id="start" class="band">
+  <div class="shell">
+    <p class="eyebrow">Get started</p>
+    <h2>From parts to readings</h2>
+    <div class="steps">
+      <div class="step">
+        <div>
+          <h3>Build the hardware</h3>
+          <p>Wire the display, touch panel and sensors to the Pico W following the <a href="WIRING.html">wiring guide</a>. A breadboard is enough to start.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Download the firmware</h3>
+          <p>Take <code>simut_v1.6.2-beta.uf2</code> from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>. Arduino IDE and PlatformIO source trees are published alongside it.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Flash over USB</h3>
+          <p>Hold BOOTSEL while connecting the Pico, then drop the <code>.uf2</code> onto the <code>RPI-RP2</code> drive that appears. The board reboots into SIMUT on its own.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Join it to your network</h3>
+          <p>Configure Wi-Fi from the touch display. The admin password is printed once over USB serial on first boot — write it down, and change it at first web login.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div>
+          <h3>Open the interface</h3>
+          <p>Browse to <code>http://simut.local</code>, add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="docs" class="band">
+  <div class="shell">
+    <p class="eyebrow">Documentation</p>
+    <h2>Read further</h2>
+    <div class="docs">
+      <a class="doc" href="MANUAL.html">
+        <h3>User manual</h3>
+        <p>Hardware setup, the display, the web interface, the serial console, and troubleshooting.</p>
+      </a>
+      <a class="doc" href="WIRING.html">
+        <h3>Wiring guide</h3>
+        <p>Pinout, assembly notes and the reference breadboard layout.</p>
+      </a>
+      <a class="doc" href="OTA_USAGE.html">
+        <h3>Updating over the air</h3>
+        <p>How to stage and apply a firmware update from the web interface or with <code>curl</code>.</p>
+      </a>
+      <a class="doc" href="RECOVERY.html">
+        <h3>Recovery</h3>
+        <p>Getting a board back after a failed update, and what BOOTSEL rescue involves.</p>
+      </a>
+      <a class="doc" href="GLOSSARY.html">
+        <h3>Glossary</h3>
+        <p>The terms used across the interface and the documentation, defined once.</p>
+      </a>
+      <a class="doc" href="https://github.com/angeloINTJ/simut/blob/main/SECURITY.md">
+        <h3>Security policy</h3>
+        <p>Threat model, how credentials are handled, and how to report a vulnerability.</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="shell">
+    <p class="eyebrow">Contributing</p>
+    <h2>It is open source, and it is beta</h2>
+    <p class="lede">
+      Which is a good combination if you like finding things. Bug reports from real
+      deployments are the most useful thing you can send — especially the ones with a
+      log attached.
+    </p>
+    <div class="actions">
+      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/issues/new?template=bug_report.md">Report a bug</a>
+      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/issues/new?template=feature_request.md">Request a feature</a>
+      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/blob/main/CONTRIBUTING.md">Contributing guide</a>
+      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/security/advisories/new">Report a vulnerability</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="shell">
+    <div class="foot-grid">
+      <div class="colophon">
+        SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />
+        MIT licensed · built for the Raspberry Pi Pico W · v1.6.2-beta
+      </div>
+      <div class="foot-links">
+        <a href="https://github.com/angeloINTJ/simut">GitHub</a>
+        <a href="https://github.com/angeloINTJ/simut/releases">Releases</a>
+        <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/angeloINTJ/simut/blob/main/LICENSE">License</a>
+        <a href="https://github.com/angeloINTJ/simut/edit/main/docs/index.html">Edit this page</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
