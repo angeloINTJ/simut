@@ -91,14 +91,13 @@ Full pinout and assembly notes: [WIRING.md](WIRING.md).
    **once** over USB serial at 115200 baud. Write it down — it is stored only
    as a salted hash, and nothing recovers it later except a reset.
 
-3. **Join a network.** Configure Wi-Fi from the touch display, then note the
-   address the device reports. `show net status` over serial prints it, and so
-   does the dashboard once you are in.
+3. **Join a network.** Configure Wi-Fi from the touch display. The device
+   answers to mDNS, so it is reachable at `http://simut.local` as well as by
+   IP. `show net status` over serial prints the address if you need it.
 
-   > **There is no `simut.local`.** mDNS exists in the source but is compiled
-   > out by default — it costs roughly 196 KB of flash, which the application
-   > slot does not have to spare. Reach the device by IP, and give it a static
-   > lease on your router if you want the address to stay put.
+   > mDNS is on by default and costs 15,272 B of flash — measured, by linking
+   > the image both ways. Set `SIMUT_MDNS=0` in `src/simut_config.h` to drop
+   > it and reach the device by IP only.
 
 4. **Change the password.** The first web login is forced through a password
    change before any page will load.
@@ -202,8 +201,7 @@ before you touch rather than after.
 
 ## 6. The web interface
 
-Served from the device itself. Log in at `http://<device-ip>` — see the note in
-§3 about why there is no `.local` name.
+Served from the device itself. Log in at `http://simut.local` or the device IP.
 
 | Page | What it does |
 |---|---|
@@ -402,11 +400,11 @@ From the web interface: **System Config → Firmware**. Or directly:
 ```bash
 # 1. Stage — uploads and validates. ~29 s for a 957 KB image.
 curl -b cookies.txt -F "file=@simut_v1.6.2-beta.bin" \
-     "http://$DEVICE_IP/api/restore?op=stage&commit=1"
+     "http://simut.local/api/restore?op=stage&commit=1"
 # -> {"st":5,"bytes":957696,"crc32":"...","v":0,"dsize":957500,"dcrc":"...","committed":1}
 
 # 2. Apply — answers 202 immediately, then tears down and reboots.
-curl -b cookies.txt -X POST "http://$DEVICE_IP/api/ota/apply"
+curl -b cookies.txt -X POST "http://simut.local/api/ota/apply"
 # -> {"accepted":true,"mode":"apply"}
 ```
 
