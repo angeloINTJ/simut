@@ -160,6 +160,18 @@ a:hover { text-decoration-thickness: 2px; }
 }
 .masthead nav a:hover { color: var(--accent); }
 
+/* Language switcher. The page follows the browser's own preference order on
+ * first visit; these are for overriding it, and the choice is remembered. */
+.langbar { display: flex; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+.lang-btn {
+  font-family: var(--mono); font-size: .68rem; font-weight: 600;
+  letter-spacing: .1em;
+  padding: .3rem .5rem; border: 0; cursor: pointer;
+  background: var(--surface); color: var(--ink-faint);
+}
+.lang-btn:hover { color: var(--accent); }
+.lang-btn[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+
 /* ---- shared section furniture ------------------------------------ */
 .band { border-bottom: 1px solid var(--rule); }
 .band > .shell { padding-block: clamp(3rem, 7vw, 5.5rem); }
@@ -440,22 +452,27 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 </style>
 </head>
 <body>
-<a class="skip" href="#main">Skip to content</a>
+<a class="skip" href="#main" data-i18n="skip">Skip to content</a>
 
 <header class="masthead">
   <div class="shell">
     <a class="wordmark" href="./">SIMUT</a>
     <nav aria-label="Sections">
-      <a href="#status">Status</a>
-      <a href="#whats-new">What's new</a>
-      <a href="#capabilities">Capabilities</a>
-      <a href="#screens">Screens</a>
-      <a href="#universal">Direction</a>
-      <a href="#hardware">Hardware</a>
-      <a href="#start">Get started</a>
-      <a href="#docs">Docs</a>
+      <a href="#status" data-i18n="nav.status">Status</a>
+      <a href="#whats-new" data-i18n="nav.new">What's new</a>
+      <a href="#capabilities" data-i18n="nav.caps">Capabilities</a>
+      <a href="#screens" data-i18n="nav.screens">Screens</a>
+      <a href="#universal" data-i18n="nav.direction">Direction</a>
+      <a href="#hardware" data-i18n="nav.hardware">Hardware</a>
+      <a href="#start" data-i18n="nav.start">Get started</a>
+      <a href="#docs" data-i18n="nav.docs">Docs</a>
       <a href="https://github.com/angeloINTJ/simut">GitHub</a>
     </nav>
+    <div class="langbar" role="group" aria-label="Language">
+      <button type="button" class="lang-btn" data-lang="en" lang="en">EN</button>
+      <button type="button" class="lang-btn" data-lang="pt" lang="pt-BR">PT</button>
+      <button type="button" class="lang-btn" data-lang="es" lang="es">ES</button>
+    </div>
   </div>
 </header>
 
@@ -466,30 +483,30 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <div class="hero-grid">
       <div>
         <p class="release-line">
-          <span class="tag tag-beta">Beta</span>
+          <span class="tag tag-beta" data-i18n="tag.beta">Beta</span>
           <span class="tag">v1.6.2-beta</span>
           <span class="tag">MIT</span>
           <span class="tag">RP2040</span>
         </p>
         <h1>
-          Temperature monitoring that answers to nobody's cloud.
+          <span data-i18n="hero.h1">Temperature monitoring that answers to nobody's cloud.</span>
           <span class="expand">Sistema Integrado de Monitoramento Universal e Telemetria</span>
         </h1>
-        <p class="lede">
+        <p class="lede" data-i18n="hero.lede">
           Open-source firmware for the Raspberry Pi Pico W. It reads up to sixteen
           sensors, draws them on a touch display, serves its own web interface over
           your LAN, keeps an audit trail, and updates itself over the air — with no
           account to create and no service to depend on.
         </p>
         <div class="actions">
-          <a class="btn btn-solid" href="https://github.com/angeloINTJ/simut/releases/latest">Download firmware</a>
-          <a class="btn btn-ghost" href="MANUAL.html">Read the manual</a>
-          <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut">Source on GitHub</a>
+          <a class="btn btn-solid" href="https://github.com/angeloINTJ/simut/releases/latest" data-i18n="hero.download">Download firmware</a>
+          <a class="btn btn-ghost" href="MANUAL.html" data-i18n="hero.manual">Read the manual</a>
+          <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut" data-i18n="hero.source">Source on GitHub</a>
         </div>
       </div>
       <figure class="plate" style="margin:0">
-        <img class="pixels" src="images/screens/dashboard.png" alt="The SIMUT device dashboard: two sensor cards showing temperature and humidity, above a row of slot buttons." width="640" height="480" />
-        <figcaption>Device dashboard · captured off a 320×240 panel</figcaption>
+        <img class="pixels" src="images/screens/dashboard.png" data-i18n-alt="alt.dashboard" alt="The SIMUT device dashboard: two sensor cards showing temperature and humidity, above a row of slot buttons." width="640" height="480" />
+        <figcaption data-i18n="cap.hero">Device dashboard · captured off a 320×240 panel</figcaption>
       </figure>
     </div>
   </div>
@@ -498,55 +515,37 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 <section id="status" class="band">
   <div class="shell" style="padding-block:0">
     <div class="readout">
-      <div class="channel">
-        <div class="val">16</div>
-        <div class="key">Sensor slots</div>
-      </div>
-      <div class="channel">
-        <div class="val">4</div>
-        <div class="key">Sensor types</div>
-      </div>
-      <div class="channel">
-        <div class="val">2</div>
-        <div class="key">CPU cores used</div>
-      </div>
-      <div class="channel">
-        <div class="val">21<span class="unit">/21</span></div>
-        <div class="key">OTA updates verified</div>
-      </div>
-      <div class="channel">
-        <div class="val">48.4<span class="unit">s</span></div>
-        <div class="key">Downtime per update</div>
-      </div>
-      <div class="channel">
-        <div class="val">0</div>
-        <div class="key">Cloud dependencies</div>
-      </div>
+      <div class="channel"><div class="val">16</div><div class="key" data-i18n="ro.slots">Sensor slots</div></div>
+      <div class="channel"><div class="val">4</div><div class="key" data-i18n="ro.types">Sensor types</div></div>
+      <div class="channel"><div class="val">2</div><div class="key" data-i18n="ro.cores">CPU cores used</div></div>
+      <div class="channel"><div class="val">21<span class="unit">/21</span></div><div class="key" data-i18n="ro.ota">OTA updates verified</div></div>
+      <div class="channel"><div class="val">48.4<span class="unit">s</span></div><div class="key" data-i18n="ro.down">Downtime per update</div></div>
+      <div class="channel"><div class="val">0</div><div class="key" data-i18n="ro.cloud">Cloud dependencies</div></div>
     </div>
   </div>
 </section>
 
 <section class="caution">
   <div class="shell">
-    <h2>Beta — read this before you rely on it</h2>
+    <h2 data-i18n="beta.title">Beta — read this before you rely on it</h2>
     <ul>
-      <li>
+      <li data-i18n="beta.1">
         SIMUT is <strong>beta software</strong>. It is tested on real hardware, but it
         is not a certified metrological instrument. Do not make it the only control
         on regulated storage without validating it against your own reference.
       </li>
-      <li>
+      <li data-i18n="beta.2">
         <strong>Over-the-air updates work from v1.6.2-beta onward — and only from
         there.</strong> Every earlier build shipped an applier that reported success
         and changed nothing, so there is no over-the-air path onto this release.
         Flash it over USB once; updates work normally after that.
       </li>
-      <li>
+      <li data-i18n="beta.3">
         An update <strong>reformats the filesystem</strong>. Wi-Fi credentials, users
         and sensor slots are carried across automatically; language packs,
         <code>calib.csv</code> and stored history are not. Download a backup first.
       </li>
-      <li>
+      <li data-i18n="beta.4">
         There is <strong>no second firmware slot to roll back to</strong>. The image is
         checked before it is committed and verified again on the next boot, but
         recovery from a bad flash is the BOOTSEL button and a USB cable.
@@ -557,20 +556,17 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 
 <section id="whats-new" class="band">
   <div class="shell">
-    <p class="eyebrow">This generation</p>
-    <h2>What changed recently</h2>
-    <p class="lede" style="margin-bottom:2rem">
+    <p class="eyebrow" data-i18n="new.eyebrow">This generation</p>
+    <h2 data-i18n="new.h2">What changed recently</h2>
+    <p class="lede" style="margin-bottom:2rem" data-i18n="new.lede">
       Three releases that each removed a special case rather than adding a feature.
     </p>
     <div class="releases">
       <article class="release">
+        <div><div class="ver">v1.6.2-beta</div><div class="date" data-i18n="new.d1">27 Jul 2026</div></div>
         <div>
-          <div class="ver">v1.6.2-beta</div>
-          <div class="date">27 Jul 2026</div>
-        </div>
-        <div>
-          <h3>Over-the-air updates actually apply</h3>
-          <p>
+          <h3 data-i18n="new.t1">Over-the-air updates actually apply</h3>
+          <p data-i18n="new.b1">
             The applier's watchdog feed was writing the reset bit instead of reloading
             the counter, so it rebooted the chip before copying a single sector — while
             every layer above reported success. Fixed, along with two bugs behind it,
@@ -582,13 +578,10 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         </div>
       </article>
       <article class="release">
+        <div><div class="ver">v1.6.0-beta</div><div class="date" data-i18n="new.d2">27 Jul 2026</div></div>
         <div>
-          <div class="ver">v1.6.0-beta</div>
-          <div class="date">27 Jul 2026</div>
-        </div>
-        <div>
-          <h3>One sensor model, no privileged slot</h3>
-          <p>
+          <h3 data-i18n="new.t2">One sensor model, no privileged slot</h3>
+          <p data-i18n="new.b2">
             Eight places treated slot 10 as "the ambient sensor", which made GP10
             unassignable and survived a factory reset. Every slot now starts empty and
             claims no pin, calibration is keyed to the sensor's own hardware ID rather
@@ -598,13 +591,10 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         </div>
       </article>
       <article class="release">
+        <div><div class="ver">v1.5.6-beta</div><div class="date" data-i18n="new.d3">26 Jul 2026</div></div>
         <div>
-          <div class="ver">v1.5.6-beta</div>
-          <div class="date">26 Jul 2026</div>
-        </div>
-        <div>
-          <h3>Web-first, with a serial console for emergencies</h3>
-          <p>
+          <h3 data-i18n="new.t3">Web-first, with a serial console for emergencies</h3>
+          <p data-i18n="new.b3">
             The serial CLI shipped 55 commands the web interface already answered.
             Configuration now lives in the web UI and the console keeps nine commands
             for recovery — worth 44.5 KB of reclaimed flash.
@@ -613,7 +603,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       </article>
     </div>
     <p style="margin-top:1.6rem">
-      <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.md">Full changelog</a> ·
+      <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.md" data-i18n="new.changelog">Full changelog</a> ·
       <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.pt-BR.md">Português</a>
     </p>
   </div>
@@ -621,97 +611,61 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 
 <section id="capabilities" class="band">
   <div class="shell">
-    <p class="eyebrow">Capabilities</p>
-    <h2>What the firmware does</h2>
-    <p class="lede" style="margin-bottom:2rem">
+    <p class="eyebrow" data-i18n="cap.eyebrow">Capabilities</p>
+    <h2 data-i18n="cap.h2">What the firmware does</h2>
+    <p class="lede" style="margin-bottom:2rem" data-i18n="cap.lede">
       Everything below runs on the device. Nothing phones home.
     </p>
     <div class="matrix">
-      <div class="cell">
-        <h3>Dual-core by design</h3>
-        <p>
-          Core 0 runs sensors, networking, the web server and telemetry. Core 1 does
-          nothing but drive the display, reading lock-free snapshots — so a busy
-          network never stutters the screen.
-        </p>
-      </div>
-      <div class="cell">
-        <h3>Touch dashboard</h3>
-        <p>
-          Live readings, history graphs and settings on a 320×240 TFT, driven by touch.
-          Fifty built-in themes, plus custom ones loaded from the filesystem.
-        </p>
-      </div>
-      <div class="cell">
-        <h3>Its own web interface</h3>
-        <p>
-          A complete management UI served straight from the device: live graphs, file
-          manager, configuration, light and dark themes. Reachable at
-          <code>simut.local</code> on your LAN.
-        </p>
-      </div>
-      <div class="cell">
-        <h3>Sixteen universal slots</h3>
-        <p>
-          Any mix of DS18B20, DHT22, BME280 and BMP280 across GPIO0–GPIO15. Slots are
-          interchangeable — none is special, and calibration follows the sensor rather
-          than the position.
-        </p>
-      </div>
-      <div class="cell">
-        <h3>Accounts and permissions</h3>
-        <p>
-          Five accounts, ten permission bits and three concurrent sessions. Passwords
-          are salted per user and hashed; repeated failures back off exponentially.
-        </p>
-      </div>
-      <div class="cell">
-        <h3>Telemetry, if you want it</h3>
-        <p>
-          HTTP POST or MQTT with JSON, CSV or your own template, TLS supported. Off by
-          default — the device is fully usable having never been given an endpoint.
-        </p>
-      </div>
-      <div class="cell">
-        <h3>Audit trail</h3>
-        <p>
-          A persistent binary log with rotation and CSV export, recording configuration
-          changes, security events and crash forensics captured through the watchdog.
-        </p>
-      </div>
-      <div class="cell">
-        <h3>Backup and restore</h3>
-        <p>
-          Download the whole filesystem as a single <code>.bkp</code>, verified by CRC32
-          and bound to the chip ID so an image cannot be restored onto the wrong board.
-        </p>
-      </div>
-      <div class="cell">
-        <h3>Three languages</h3>
-        <p>
-          English, Portuguese and Spanish, loaded from language packs on the filesystem
-          rather than compiled in — so a translation can be edited without a rebuild.
-        </p>
-      </div>
+      <div class="cell"><h3 data-i18n="c1.t">Dual-core by design</h3><p data-i18n="c1.b">
+        Core 0 runs sensors, networking, the web server and telemetry. Core 1 does
+        nothing but drive the display, reading lock-free snapshots — so a busy
+        network never stutters the screen.</p></div>
+      <div class="cell"><h3 data-i18n="c2.t">Touch dashboard</h3><p data-i18n="c2.b">
+        Live readings, history graphs and settings on a 320×240 TFT, driven by touch.
+        Fifty built-in themes, plus custom ones loaded from the filesystem.</p></div>
+      <div class="cell"><h3 data-i18n="c3.t">Its own web interface</h3><p data-i18n="c3.b">
+        A complete management UI served straight from the device: live graphs, file
+        manager, configuration, light and dark themes. Reachable at
+        <code>simut.local</code> on your LAN.</p></div>
+      <div class="cell"><h3 data-i18n="c4.t">Sixteen universal slots</h3><p data-i18n="c4.b">
+        Any mix of DS18B20, DHT22, BME280 and BMP280 across GPIO0–GPIO15. Slots are
+        interchangeable — none is special, and calibration follows the sensor rather
+        than the position.</p></div>
+      <div class="cell"><h3 data-i18n="c5.t">Accounts and permissions</h3><p data-i18n="c5.b">
+        Five accounts, ten permission bits and three concurrent sessions. Passwords
+        are salted per user and hashed; repeated failures back off exponentially.</p></div>
+      <div class="cell"><h3 data-i18n="c6.t">Telemetry, if you want it</h3><p data-i18n="c6.b">
+        HTTP POST or MQTT with JSON, CSV or your own template, TLS supported. Off by
+        default — the device is fully usable having never been given an endpoint.</p></div>
+      <div class="cell"><h3 data-i18n="c7.t">Audit trail</h3><p data-i18n="c7.b">
+        A persistent binary log with rotation and CSV export, recording configuration
+        changes, security events and crash forensics captured through the watchdog.</p></div>
+      <div class="cell"><h3 data-i18n="c8.t">Backup and restore</h3><p data-i18n="c8.b">
+        Download the whole filesystem as a single <code>.bkp</code>, verified by CRC32
+        and bound to the chip ID so an image cannot be restored onto the wrong board.</p></div>
+      <div class="cell"><h3 data-i18n="c9.t">Three languages</h3><p data-i18n="c9.b">
+        English, Portuguese and Spanish, loaded from language packs on the filesystem
+        rather than compiled in — so a translation can be edited without a rebuild.</p></div>
     </div>
   </div>
 </section>
 
 <section class="band">
   <div class="shell">
-    <p class="eyebrow">In use</p>
+    <p class="eyebrow" data-i18n="use.eyebrow">In use</p>
     <figure class="shot">
-      <img src="images/web-dashboard.png" alt="The SIMUT web dashboard in a browser: system statistics, memory and flash usage, and a table of five live sensors of three different types." loading="lazy" width="1440" height="800" />
-      <figcaption>Web dashboard · served by the device itself, no cloud in the path</figcaption>
+      <img src="images/web-dashboard.png" data-i18n-alt="alt.web" alt="The SIMUT web dashboard in a browser: system statistics, memory and flash usage, and a table of five live sensors of three different types." loading="lazy" width="1440" height="800" />
+      <figcaption data-i18n="cap.web">Web dashboard · served by the device itself, no cloud in the path</figcaption>
     </figure>
     <div class="gallery">
       <figure>
-        <img class="pixels" src="images/tft-tour.gif" alt="The SIMUT touch interface cycling through its screens: dashboard pages, settings, on-screen keyboard, alarm thresholds, history graphs, statistics and the calendar picker." loading="lazy" width="640" height="480" />
-        <figcaption>Device UI · frames read back off the panel</figcaption>
+        <img class="pixels" src="images/tft-tour.gif" data-i18n-alt="alt.tour" alt="The SIMUT touch interface cycling through its screens." loading="lazy" width="640" height="480" />
+        <figcaption data-i18n="cap.tour">Device UI · frames read back off the panel</figcaption>
       </figure>
       <figure>
-        <img src="images/bench-assembly.jpg" alt="The SIMUT development bench: a Pico W, TFT display and sensors wired on a breadboard, the display showing two live readings." loading="lazy" width="1200" height="900" />
-        <figcaption>Development bench · running firmware</figcaption>
+        <img src="images/bench-assembly.jpg" data-i18n-alt="alt.bench" alt="The SIMUT development bench: a Pico W, TFT display and sensors wired on a breadboard." loading="lazy" width="1200" height="900" />
+        <figcaption data-i18n="cap.bench">Development bench · running firmware</figcaption>
       </figure>
     </div>
   </div>
@@ -719,27 +673,27 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 
 <section id="screens" class="band">
   <div class="shell">
-    <p class="eyebrow">Every screen</p>
-    <h2>The whole interface, on a 320×240 panel</h2>
-    <p class="lede" style="margin-bottom:2rem">
+    <p class="eyebrow" data-i18n="scr.eyebrow">Every screen</p>
+    <h2 data-i18n="scr.h2">The whole interface, on a 320×240 panel</h2>
+    <p class="lede" style="margin-bottom:2rem" data-i18n="scr.lede">
       Captured off a running device, one frame per screen. Not renderings —
       the framebuffer read back over SPI.
     </p>
     <div class="screens">
-      <figure><img class="pixels" src="images/screens/dashboard.png" alt="Dashboard with two sensor cards and the slot footer." loading="lazy" width="640" height="480" /><figcaption>Dashboard</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/auth-keypad.png" alt="PIN entry keypad guarding the settings menu." loading="lazy" width="640" height="480" /><figcaption>PIN entry</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/settings-main.png" alt="Settings menu listing themes, alarm limits, sounds and language." loading="lazy" width="640" height="480" /><figcaption>Settings</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/settings-themes.png" alt="Theme picker." loading="lazy" width="640" height="480" /><figcaption>Themes</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/settings-alarms.png" alt="Per-sensor alarm limits, each row showing its on or off state." loading="lazy" width="640" height="480" /><figcaption>Alarm limits</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/settings-alarm-edit.png" alt="Threshold editor for a single sensor." loading="lazy" width="640" height="480" /><figcaption>Threshold editor</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/settings-password.png" alt="On-screen keyboard for setting the display PIN." loading="lazy" width="640" height="480" /><figcaption>On-screen keyboard</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/settings-lang.png" alt="Interface language selection." loading="lazy" width="640" height="480" /><figcaption>Language</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/settings-status.png" alt="System status: device name, firmware version, serial, uptime, free heap and board temperature." loading="lazy" width="640" height="480" /><figcaption>System status</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/settings-offset.png" alt="Display alignment adjustment with directional arrows." loading="lazy" width="640" height="480" /><figcaption>Display alignment</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/touch-calibration.png" alt="Touch calibration crosshair." loading="lazy" width="640" height="480" /><figcaption>Touch calibration</figcaption></figure>
-      <figure><img class="pixels" src="images/screens/settings-license.png" alt="The MIT license text, paginated on the device." loading="lazy" width="640" height="480" /><figcaption>License</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/dashboard.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.dash">Dashboard</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/auth-keypad.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.pin">PIN entry</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/settings-main.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.set">Settings</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/settings-themes.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.thm">Themes</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/settings-alarms.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.alm">Alarm limits</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/settings-alarm-edit.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.edit">Threshold editor</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/settings-password.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.kbd">On-screen keyboard</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/settings-lang.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.lang">Language</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/settings-status.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.status">System status</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/settings-offset.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.align">Display alignment</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/touch-calibration.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.cal">Touch calibration</figcaption></figure>
+      <figure><img class="pixels" src="images/screens/settings-license.png" alt="" loading="lazy" width="640" height="480" /><figcaption data-i18n="s.lic">License</figcaption></figure>
     </div>
-    <p style="margin-top:1.2rem">
+    <p style="margin-top:1.2rem" data-i18n="scr.note">
       History graphs, statistics and the calendar are in the animation above —
       they need stored readings to draw, and this device had just been
       reflashed. Full map, including how each screen is reached:
@@ -750,23 +704,23 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 
 <section id="universal" class="band">
   <div class="shell">
-    <p class="eyebrow">The direction</p>
+    <p class="eyebrow" data-i18n="uni.eyebrow">The direction</p>
     <div>
       <div>
-        <h2>Universal is the point, not a feature</h2>
-        <p class="lede">
+        <h2 data-i18n="uni.h2">Universal is the point, not a feature</h2>
+        <p class="lede" data-i18n="uni.p1">
           SIMUT is being generalised release over release, and the work is
           mostly deletion: every version removes a special case that only
           existed because something was hardcoded once.
         </p>
-        <p>
+        <p data-i18n="uni.p2">
           There is no ambient sensor, no privileged pin and no reserved slot.
           Sixteen positions on GPIO0–GPIO15 each take any supported part, in any
           combination, and each is identified by the sensor's own hardware ID —
           so calibration, alarms and history follow the device you actually
           wired, not the position you happened to wire it into.
         </p>
-        <p>
+        <p data-i18n="uni.p3">
           The capture below is a real device: two DS18B20 probes, two DHT22s
           and a BMP280, reporting temperature, humidity and pressure through one
           model. Adding a part is a driver and an entry in a type list. It is
@@ -775,125 +729,80 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       </div>
     </div>
     <figure class="shot" style="margin-top:2rem">
-      <img src="images/web-sensors.png" alt="The sensor configuration page: a GP0 to GP15 pin map with occupied pins highlighted, and a table of five slots holding DS18B20, DHT22 and BMP280 sensors, each with its own hardware ID and name." loading="lazy" width="1205" height="495" />
-      <figcaption>Five slots · three sensor types · one model</figcaption>
+      <img src="images/web-sensors.png" data-i18n-alt="alt.slots" alt="The sensor configuration page: a GP0 to GP15 pin map and a table of five slots holding DS18B20, DHT22 and BMP280 sensors." loading="lazy" width="1205" height="495" />
+      <figcaption data-i18n="cap.slots">Five slots · three sensor types · one model</figcaption>
     </figure>
   </div>
 </section>
 
 <section id="hardware" class="band">
   <div class="shell">
-    <p class="eyebrow">Hardware</p>
-    <h2>What you need</h2>
-    <p class="lede" style="margin-bottom:2rem">
+    <p class="eyebrow" data-i18n="hw.eyebrow">Hardware</p>
+    <h2 data-i18n="hw.h2">What you need</h2>
+    <p class="lede" style="margin-bottom:2rem" data-i18n="hw.lede">
       Roughly the cost of a takeaway meal, and none of it is proprietary.
     </p>
     <div class="scroller">
       <table>
-        <thead>
-          <tr><th scope="col">Part</th><th scope="col">Specification</th></tr>
-        </thead>
+        <thead><tr><th scope="col" data-i18n="hw.part">Part</th><th scope="col" data-i18n="hw.spec">Specification</th></tr></thead>
         <tbody>
-          <tr><td>Microcontroller</td><td>Raspberry Pi Pico W — RP2040, dual-core Cortex-M0+, 2 MB flash</td></tr>
-          <tr><td>Display</td><td>ILI9341 320×240 TFT over SPI</td></tr>
-          <tr><td>Touch</td><td>XPT2046 resistive panel</td></tr>
-          <tr><td>Sensors</td><td>16 slots on GPIO0–GPIO15: DS18B20 (1-Wire), DHT22, BME280 and BMP280 (I²C)</td></tr>
-          <tr><td>Buzzer</td><td>Passive piezo, driven from PIO</td></tr>
-          <tr><td>Storage</td><td>On-chip flash — 1 MB filesystem, 1020 KB application slot</td></tr>
-          <tr><td>Firmware size</td><td>945,464 B — 90.5% of the application slot</td></tr>
+          <tr><td data-i18n="hw.mcu">Microcontroller</td><td data-i18n="hw.mcuv">Raspberry Pi Pico W — RP2040, dual-core Cortex-M0+, 2 MB flash</td></tr>
+          <tr><td data-i18n="hw.disp">Display</td><td data-i18n="hw.dispv">ILI9341 320×240 TFT over SPI</td></tr>
+          <tr><td data-i18n="hw.touch">Touch</td><td data-i18n="hw.touchv">XPT2046 resistive panel</td></tr>
+          <tr><td data-i18n="hw.sens">Sensors</td><td data-i18n="hw.sensv">16 slots on GPIO0–GPIO15: DS18B20 (1-Wire), DHT22, BME280 and BMP280 (I²C)</td></tr>
+          <tr><td data-i18n="hw.buz">Buzzer</td><td data-i18n="hw.buzv">Passive piezo, driven from PIO</td></tr>
+          <tr><td data-i18n="hw.stor">Storage</td><td data-i18n="hw.storv">On-chip flash — 1 MB filesystem, 1020 KB application slot</td></tr>
+          <tr><td data-i18n="hw.fw">Firmware size</td><td data-i18n="hw.fwv">945,464 B — 90.5% of the application slot</td></tr>
         </tbody>
       </table>
     </div>
-    <p style="margin-top:1.2rem"><a href="WIRING.html">Wiring diagram and pinout →</a></p>
+    <p style="margin-top:1.2rem"><a href="WIRING.html" data-i18n="hw.wiring">Wiring diagram and pinout →</a></p>
   </div>
 </section>
 
 <section id="start" class="band">
   <div class="shell">
-    <p class="eyebrow">Get started</p>
-    <h2>From parts to readings</h2>
+    <p class="eyebrow" data-i18n="st.eyebrow">Get started</p>
+    <h2 data-i18n="st.h2">From parts to readings</h2>
     <div class="steps">
-      <div class="step">
-        <div>
-          <h3>Build the hardware</h3>
-          <p>Wire the display, touch panel and sensors to the Pico W following the <a href="WIRING.html">wiring guide</a>. A breadboard is enough to start.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div>
-          <h3>Download the firmware</h3>
-          <p>Take <code>simut_v1.6.2-beta.uf2</code> from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>. Arduino IDE and PlatformIO source trees are published alongside it.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div>
-          <h3>Flash over USB</h3>
-          <p>Hold BOOTSEL while connecting the Pico, then drop the <code>.uf2</code> onto the <code>RPI-RP2</code> drive that appears. The board reboots into SIMUT on its own.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div>
-          <h3>Join it to your network</h3>
-          <p>Configure Wi-Fi from the touch display. The admin password is printed once over USB serial on first boot — write it down, and change it at first web login.</p>
-        </div>
-      </div>
-      <div class="step">
-        <div>
-          <h3>Open the interface</h3>
-          <p>Browse to <code>http://simut.local</code>, add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p>
-        </div>
-      </div>
+      <div class="step"><div><h3 data-i18n="st1.t">Build the hardware</h3><p data-i18n="st1.b">Wire the display, touch panel and sensors to the Pico W following the <a href="WIRING.html">wiring guide</a>. A breadboard is enough to start.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take <code>simut_v1.6.2-beta.uf2</code> from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>. Arduino IDE and PlatformIO source trees are published alongside it.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st3.t">Flash over USB</h3><p data-i18n="st3.b">Hold BOOTSEL while connecting the Pico, then drop the <code>.uf2</code> onto the <code>RPI-RP2</code> drive that appears. The board reboots into SIMUT on its own.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st4.t">Join it to your network</h3><p data-i18n="st4.b">Configure Wi-Fi from the touch display. The admin password is printed once over USB serial on first boot — write it down, and change it at first web login.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st5.t">Open the interface</h3><p data-i18n="st5.b">Browse to <code>http://simut.local</code>, add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p></div></div>
     </div>
   </div>
 </section>
 
 <section id="docs" class="band">
   <div class="shell">
-    <p class="eyebrow">Documentation</p>
-    <h2>Read further</h2>
+    <p class="eyebrow" data-i18n="dc.eyebrow">Documentation</p>
+    <h2 data-i18n="dc.h2">Read further</h2>
     <div class="docs">
-      <a class="doc" href="MANUAL.html">
-        <h3>User manual</h3>
-        <p>Hardware setup, the display, the web interface, the serial console, and troubleshooting.</p>
-      </a>
-      <a class="doc" href="WIRING.html">
-        <h3>Wiring guide</h3>
-        <p>Pinout, assembly notes and the reference breadboard layout.</p>
-      </a>
-      <a class="doc" href="OTA_USAGE.html">
-        <h3>Updating over the air</h3>
-        <p>How to stage and apply a firmware update from the web interface or with <code>curl</code>.</p>
-      </a>
-      <a class="doc" href="RECOVERY.html">
-        <h3>Recovery</h3>
-        <p>Getting a board back after a failed update, and what BOOTSEL rescue involves.</p>
-      </a>
-      <a class="doc" href="GLOSSARY.html">
-        <h3>Glossary</h3>
-        <p>The terms used across the interface and the documentation, defined once.</p>
-      </a>
-      <a class="doc" href="https://github.com/angeloINTJ/simut/blob/main/SECURITY.md">
-        <h3>Security policy</h3>
-        <p>Threat model, how credentials are handled, and how to report a vulnerability.</p>
-      </a>
+      <a class="doc" href="MANUAL.html"><h3 data-i18n="d1.t">User manual</h3><p data-i18n="d1.b">Hardware setup, the display, the web interface, the serial console, and troubleshooting.</p></a>
+      <a class="doc" href="WIRING.html"><h3 data-i18n="d2.t">Wiring guide</h3><p data-i18n="d2.b">Pinout, assembly notes and the reference breadboard layout.</p></a>
+      <a class="doc" href="OTA_USAGE.html"><h3 data-i18n="d3.t">Updating over the air</h3><p data-i18n="d3.b">How to stage and apply a firmware update from the web interface or with <code>curl</code>.</p></a>
+      <a class="doc" href="RECOVERY.html"><h3 data-i18n="d4.t">Recovery</h3><p data-i18n="d4.b">Getting a board back after a failed update, and what BOOTSEL rescue involves.</p></a>
+      <a class="doc" href="GLOSSARY.html"><h3 data-i18n="d5.t">Glossary</h3><p data-i18n="d5.b">The terms used across the interface and the documentation, defined once.</p></a>
+      <a class="doc" href="https://github.com/angeloINTJ/simut/blob/main/SECURITY.md"><h3 data-i18n="d6.t">Security policy</h3><p data-i18n="d6.b">Threat model, how credentials are handled, and how to report a vulnerability.</p></a>
     </div>
   </div>
 </section>
 
 <section class="band">
   <div class="shell">
-    <p class="eyebrow">Contributing</p>
-    <h2>It is open source, and it is beta</h2>
-    <p class="lede">
+    <p class="eyebrow" data-i18n="co.eyebrow">Contributing</p>
+    <h2 data-i18n="co.h2">It is open source, and it is beta</h2>
+    <p class="lede" data-i18n="co.lede">
       Which is a good combination if you like finding things. Bug reports from real
       deployments are the most useful thing you can send — especially the ones with a
       log attached.
     </p>
     <div class="actions">
-      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/issues/new?template=bug_report.md">Report a bug</a>
-      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/issues/new?template=feature_request.md">Request a feature</a>
-      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/blob/main/CONTRIBUTING.md">Contributing guide</a>
-      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/security/advisories/new">Report a vulnerability</a>
+      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/issues/new?template=bug_report.md" data-i18n="co.bug">Report a bug</a>
+      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/issues/new?template=feature_request.md" data-i18n="co.feat">Request a feature</a>
+      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/blob/main/CONTRIBUTING.md" data-i18n="co.guide">Contributing guide</a>
+      <a class="btn btn-ghost" href="https://github.com/angeloINTJ/simut/security/advisories/new" data-i18n="co.vuln">Report a vulnerability</a>
     </div>
   </div>
 </section>
@@ -903,20 +812,294 @@ footer > .shell { padding-block: 2.5rem 3rem; }
 <footer>
   <div class="shell">
     <div class="foot-grid">
-      <div class="colophon">
+      <div class="colophon" data-i18n="ft.colophon">
         SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />
         MIT licensed · built for the Raspberry Pi Pico W · v1.6.2-beta
       </div>
       <div class="foot-links">
         <a href="https://github.com/angeloINTJ/simut">GitHub</a>
-        <a href="https://github.com/angeloINTJ/simut/releases">Releases</a>
-        <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.md">Changelog</a>
-        <a href="https://github.com/angeloINTJ/simut/blob/main/LICENSE">License</a>
-        <a href="https://github.com/angeloINTJ/simut/edit/main/docs/index.html">Edit this page</a>
+        <a href="https://github.com/angeloINTJ/simut/releases" data-i18n="ft.releases">Releases</a>
+        <a href="https://github.com/angeloINTJ/simut/blob/main/CHANGELOG.md" data-i18n="ft.changelog">Changelog</a>
+        <a href="https://github.com/angeloINTJ/simut/blob/main/LICENSE" data-i18n="ft.license">License</a>
+        <a href="https://github.com/angeloINTJ/simut/edit/main/docs/index.html" data-i18n="ft.edit">Edit this page</a>
       </div>
     </div>
   </div>
 </footer>
+
+<script>
+/* Language: the markup is English, so the English dictionary is read out of
+ * the DOM at load. It therefore cannot drift from the page the way a hand-kept
+ * copy would -- there is nothing to forget to update. */
+(function () {
+  var DICT = {
+  pt: {
+    'meta.title': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria',
+    'skip': 'Pular para o conteúdo',
+    'nav.status': 'Números', 'nav.new': 'Novidades', 'nav.caps': 'Recursos',
+    'nav.screens': 'Telas', 'nav.direction': 'Direção', 'nav.hardware': 'Hardware',
+    'nav.start': 'Começar', 'nav.docs': 'Documentação',
+    'tag.beta': 'Beta',
+    'hero.h1': 'Monitoramento de temperatura que não responde à nuvem de ninguém.',
+    'hero.lede': 'Firmware de código aberto para o Raspberry Pi Pico W. Ele lê até dezesseis sensores, desenha as leituras num display de toque, serve a própria interface web na sua rede local, mantém trilha de auditoria e se atualiza pelo ar — sem conta para criar e sem serviço do qual depender.',
+    'hero.download': 'Baixar firmware', 'hero.manual': 'Ler o manual', 'hero.source': 'Código no GitHub',
+    'alt.dashboard': 'O painel do dispositivo SIMUT: dois cartões de sensor mostrando temperatura e umidade, acima de uma fileira de botões de slot.',
+    'cap.hero': 'Painel do dispositivo · capturado de uma tela de 320×240',
+    'ro.slots': 'Slots de sensor', 'ro.types': 'Tipos de sensor', 'ro.cores': 'Núcleos usados',
+    'ro.ota': 'Atualizações OTA verificadas', 'ro.down': 'Indisponibilidade por atualização',
+    'ro.cloud': 'Dependências de nuvem',
+    'beta.title': 'Beta — leia isto antes de depender dele',
+    'beta.1': 'O SIMUT é <strong>software beta</strong>. Ele é testado em hardware real, mas não é um instrumento metrológico certificado. Não faça dele o único controle de um armazenamento regulado sem validá-lo contra a sua própria referência.',
+    'beta.2': '<strong>Atualizações pelo ar funcionam da v1.6.2-beta em diante — e só de lá.</strong> Toda versão anterior levava um aplicador que reportava sucesso e não mudava nada, então não existe caminho pelo ar até esta release. Grave por USB uma vez; depois disso as atualizações funcionam normalmente.',
+    'beta.3': 'Uma atualização <strong>reformata o sistema de arquivos</strong>. Credenciais de Wi-Fi, usuários e slots de sensor são preservados automaticamente; pacotes de idioma, <code>calib.csv</code> e o histórico gravado não. Baixe um backup antes.',
+    'beta.4': '<strong>Não há um segundo slot de firmware para reverter</strong>. A imagem é checada antes de ser efetivada e verificada de novo no boot seguinte, mas a recuperação de uma gravação ruim é o botão BOOTSEL e um cabo USB.',
+    'new.eyebrow': 'Esta geração', 'new.h2': 'O que mudou recentemente',
+    'new.lede': 'Três releases que, cada uma, removeram um caso especial em vez de acrescentar um recurso.',
+    'new.d1': '27 jul 2026', 'new.d2': '27 jul 2026', 'new.d3': '26 jul 2026',
+    'new.t1': 'As atualizações pelo ar realmente se aplicam',
+    'new.b1': 'O feed de watchdog do aplicador escrevia o bit de reset em vez de recarregar o contador, então ele reiniciava o chip antes de copiar um único setor — enquanto toda camada acima reportava sucesso. Corrigido, junto de dois bugs atrás dele, e o boot agora verifica a imagem instalada contra a que foi preparada. Validado em 21 atualizações consecutivas: 21 aplicaram, o comprimento verificado bateu em todas, e a memória livre variou 24 bytes na corrida inteira.',
+    'new.t2': 'Um modelo de sensor, nenhum slot privilegiado',
+    'new.b2': 'Oito lugares tratavam o slot 10 como "o sensor ambiente", o que tornava o GP10 inatribuível e sobrevivia a um reset de fábrica. Todo slot agora nasce vazio e não reivindica pino, a calibração é indexada pelo hardware ID do próprio sensor em vez da posição, e o BMP280 virou seu próprio tipo em vez de fingir ser um BME280 com canal de umidade quebrado.',
+    'new.t3': 'Web em primeiro lugar, com um console serial para emergências',
+    'new.b3': 'A CLI serial trazia 55 comandos que a interface web já respondia. A configuração agora vive na web e o console mantém nove comandos para recuperação — valeu 44,5 KB de flash recuperados.',
+    'new.changelog': 'Changelog completo',
+    'cap.eyebrow': 'Recursos', 'cap.h2': 'O que o firmware faz',
+    'cap.lede': 'Tudo abaixo roda no dispositivo. Nada liga para casa.',
+    'c1.t': 'Dois núcleos por projeto',
+    'c1.b': 'O Núcleo 0 cuida de sensores, rede, servidor web e telemetria. O Núcleo 1 não faz nada além de tocar o display, lendo instantâneos sem travas — então uma rede ocupada nunca engasga a tela.',
+    'c2.t': 'Painel de toque',
+    'c2.b': 'Leituras ao vivo, gráficos de histórico e ajustes num TFT de 320×240, operados por toque. Cinquenta temas embutidos, mais os personalizados carregados do sistema de arquivos.',
+    'c3.t': 'Interface web própria',
+    'c3.b': 'Uma interface de gestão completa servida direto do dispositivo: gráficos ao vivo, gerenciador de arquivos, configuração, temas claro e escuro. Acessível em <code>simut.local</code> na sua rede.',
+    'c4.t': 'Dezesseis slots universais',
+    'c4.b': 'Qualquer combinação de DS18B20, DHT22, BME280 e BMP280 entre GPIO0 e GPIO15. Os slots são intercambiáveis — nenhum é especial, e a calibração segue o sensor, não a posição.',
+    'c5.t': 'Contas e permissões',
+    'c5.b': 'Cinco contas, dez bits de permissão e três sessões simultâneas. As senhas têm sal por usuário e são hasheadas; falhas repetidas recuam exponencialmente.',
+    'c6.t': 'Telemetria, se você quiser',
+    'c6.b': 'HTTP POST ou MQTT com JSON, CSV ou o seu próprio template, com suporte a TLS. Desligada por padrão — o dispositivo é plenamente utilizável sem nunca receber um endpoint.',
+    'c7.t': 'Trilha de auditoria',
+    'c7.b': 'Um log binário persistente com rotação e exportação CSV, registrando mudanças de configuração, eventos de segurança e a perícia de travamentos capturada pelo watchdog.',
+    'c8.t': 'Backup e restauração',
+    'c8.b': 'Baixe todo o sistema de arquivos como um único <code>.bkp</code>, verificado por CRC32 e vinculado ao ID do chip, de modo que uma imagem não possa ser restaurada na placa errada.',
+    'c9.t': 'Três idiomas',
+    'c9.b': 'Inglês, português e espanhol, carregados de pacotes de idioma no sistema de arquivos em vez de compilados — então uma tradução pode ser editada sem recompilar.',
+    'use.eyebrow': 'Em uso',
+    'alt.web': 'O painel web do SIMUT no navegador: estatísticas do sistema, uso de memória e flash, e uma tabela de cinco sensores ao vivo de três tipos diferentes.',
+    'cap.web': 'Painel web · servido pelo próprio dispositivo, sem nuvem no caminho',
+    'alt.tour': 'A interface de toque do SIMUT percorrendo suas telas.',
+    'cap.tour': 'Interface do dispositivo · quadros lidos da própria tela',
+    'alt.bench': 'A bancada de desenvolvimento do SIMUT: um Pico W, display TFT e sensores ligados numa protoboard.',
+    'cap.bench': 'Bancada de desenvolvimento · firmware rodando',
+    'scr.eyebrow': 'Todas as telas', 'scr.h2': 'A interface inteira, num painel de 320×240',
+    'scr.lede': 'Capturadas de um dispositivo em funcionamento, um quadro por tela. Não são renderizações — é o framebuffer lido de volta por SPI.',
+    's.dash': 'Painel', 's.pin': 'Entrada de PIN', 's.set': 'Ajustes', 's.thm': 'Temas',
+    's.alm': 'Limites de alarme', 's.edit': 'Editor de limites', 's.kbd': 'Teclado na tela',
+    's.lang': 'Idioma', 's.status': 'Status do sistema', 's.align': 'Alinhamento do display',
+    's.cal': 'Calibração de toque', 's.lic': 'Licença',
+    'scr.note': 'Gráficos de histórico, estatísticas e o calendário estão na animação acima — eles precisam de leituras gravadas para desenhar, e este dispositivo tinha acabado de ser regravado. Mapa completo, incluindo como se chega a cada tela: <a href="https://github.com/angeloINTJ/simut/blob/main/docs/images/screens/screens.md">screens.md</a>.',
+    'uni.eyebrow': 'A direção', 'uni.h2': 'Universal é o ponto, não um recurso',
+    'uni.p1': 'O SIMUT vem sendo generalizado release após release, e o trabalho é sobretudo remoção: cada versão elimina um caso especial que só existia porque algo foi fixado no código uma vez.',
+    'uni.p2': 'Não há sensor ambiente, pino privilegiado nem slot reservado. Dezesseis posições em GPIO0–GPIO15 aceitam qualquer peça suportada, em qualquer combinação, e cada uma é identificada pelo hardware ID do próprio sensor — então calibração, alarmes e histórico seguem o dispositivo que você ligou, não a posição em que por acaso o ligou.',
+    'uni.p3': 'A captura abaixo é de um dispositivo real: duas sondas DS18B20, dois DHT22 e um BMP280, reportando temperatura, umidade e pressão por um só modelo. Acrescentar uma peça é um driver e uma entrada numa lista de tipos. Não é um novo caso especial, e esse é todo o objetivo do projeto.',
+    'alt.slots': 'A página de configuração de sensores: um mapa de pinos GP0 a GP15 e uma tabela de cinco slots com sensores DS18B20, DHT22 e BMP280.',
+    'cap.slots': 'Cinco slots · três tipos de sensor · um modelo',
+    'hw.eyebrow': 'Hardware', 'hw.h2': 'O que você precisa',
+    'hw.lede': 'Mais ou menos o custo de uma refeição por delivery, e nada disso é proprietário.',
+    'hw.part': 'Peça', 'hw.spec': 'Especificação',
+    'hw.mcu': 'Microcontrolador', 'hw.mcuv': 'Raspberry Pi Pico W — RP2040, Cortex-M0+ de dois núcleos, 2 MB de flash',
+    'hw.disp': 'Display', 'hw.dispv': 'TFT ILI9341 320×240 por SPI',
+    'hw.touch': 'Toque', 'hw.touchv': 'Painel resistivo XPT2046',
+    'hw.sens': 'Sensores', 'hw.sensv': '16 slots em GPIO0–GPIO15: DS18B20 (1-Wire), DHT22, BME280 e BMP280 (I²C)',
+    'hw.buz': 'Buzzer', 'hw.buzv': 'Piezo passivo, acionado por PIO',
+    'hw.stor': 'Armazenamento', 'hw.storv': 'Flash interna — 1 MB de sistema de arquivos, 1020 KB de slot da aplicação',
+    'hw.fw': 'Tamanho do firmware', 'hw.fwv': '945.464 B — 90,5% do slot da aplicação',
+    'hw.wiring': 'Diagrama de ligação e pinagem →',
+    'st.eyebrow': 'Começar', 'st.h2': 'Das peças às leituras',
+    'st1.t': 'Monte o hardware',
+    'st1.b': 'Ligue o display, o painel de toque e os sensores ao Pico W seguindo o <a href="WIRING.html">guia de ligação</a>. Uma protoboard basta para começar.',
+    'st2.t': 'Baixe o firmware',
+    'st2.b': 'Pegue o <code>simut_v1.6.2-beta.uf2</code> na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. As árvores de código para Arduino IDE e PlatformIO são publicadas junto.',
+    'st3.t': 'Grave por USB',
+    'st3.b': 'Segure o BOOTSEL enquanto conecta o Pico, depois solte o <code>.uf2</code> no drive <code>RPI-RP2</code> que aparecer. A placa reinicia no SIMUT sozinha.',
+    'st4.t': 'Coloque na sua rede',
+    'st4.b': 'Configure o Wi-Fi pelo display de toque. A senha de admin é impressa uma única vez na serial USB no primeiro boot — anote e troque no primeiro login web.',
+    'st5.t': 'Abra a interface',
+    'st5.b': 'Acesse <code>http://simut.local</code>, adicione seus sensores aos slots, defina os limites de alarme e calibre contra uma referência se as leituras importarem.',
+    'dc.eyebrow': 'Documentação', 'dc.h2': 'Leia mais',
+    'd1.t': 'Manual do usuário', 'd1.b': 'Montagem do hardware, o display, a interface web, o console serial e solução de problemas.',
+    'd2.t': 'Guia de ligação', 'd2.b': 'Pinagem, notas de montagem e o layout de protoboard de referência.',
+    'd3.t': 'Atualizar pelo ar', 'd3.b': 'Como preparar e aplicar uma atualização de firmware pela interface web ou com <code>curl</code>.',
+    'd4.t': 'Recuperação', 'd4.b': 'Como trazer uma placa de volta depois de uma atualização falha, e o que envolve o resgate por BOOTSEL.',
+    'd5.t': 'Glossário', 'd5.b': 'Os termos usados na interface e na documentação, definidos uma vez.',
+    'd6.t': 'Política de segurança', 'd6.b': 'Modelo de ameaças, como as credenciais são tratadas e como relatar uma vulnerabilidade.',
+    'co.eyebrow': 'Contribuir', 'co.h2': 'É código aberto, e é beta',
+    'co.lede': 'O que é uma boa combinação se você gosta de achar coisas. Relatos de bug vindos de instalações reais são a coisa mais útil que você pode mandar — especialmente os que vêm com log anexado.',
+    'co.bug': 'Relatar um bug', 'co.feat': 'Pedir um recurso',
+    'co.guide': 'Guia de contribuição', 'co.vuln': 'Relatar vulnerabilidade',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W · v1.6.2-beta',
+    'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licença',
+    'ft.edit': 'Editar esta página'
+  },
+
+  es: {
+    'meta.title': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría',
+    'skip': 'Saltar al contenido',
+    'nav.status': 'Cifras', 'nav.new': 'Novedades', 'nav.caps': 'Funciones',
+    'nav.screens': 'Pantallas', 'nav.direction': 'Rumbo', 'nav.hardware': 'Hardware',
+    'nav.start': 'Empezar', 'nav.docs': 'Documentación',
+    'tag.beta': 'Beta',
+    'hero.h1': 'Monitorización de temperatura que no responde a la nube de nadie.',
+    'hero.lede': 'Firmware de código abierto para la Raspberry Pi Pico W. Lee hasta dieciséis sensores, los dibuja en una pantalla táctil, sirve su propia interfaz web en tu red local, mantiene un registro de auditoría y se actualiza por aire — sin cuenta que crear y sin servicio del que depender.',
+    'hero.download': 'Descargar firmware', 'hero.manual': 'Leer el manual', 'hero.source': 'Código en GitHub',
+    'alt.dashboard': 'El panel del dispositivo SIMUT: dos tarjetas de sensor con temperatura y humedad, sobre una fila de botones de ranura.',
+    'cap.hero': 'Panel del dispositivo · capturado de una pantalla de 320×240',
+    'ro.slots': 'Ranuras de sensor', 'ro.types': 'Tipos de sensor', 'ro.cores': 'Núcleos usados',
+    'ro.ota': 'Actualizaciones OTA verificadas', 'ro.down': 'Indisponibilidad por actualización',
+    'ro.cloud': 'Dependencias de nube',
+    'beta.title': 'Beta — lee esto antes de confiar en él',
+    'beta.1': 'SIMUT es <strong>software beta</strong>. Se prueba en hardware real, pero no es un instrumento metrológico certificado. No lo conviertas en el único control de un almacenamiento regulado sin validarlo contra tu propia referencia.',
+    'beta.2': '<strong>Las actualizaciones por aire funcionan desde la v1.6.2-beta en adelante — y solo desde ahí.</strong> Toda versión anterior llevaba un aplicador que informaba éxito y no cambiaba nada, así que no existe camino por aire hasta esta release. Grábala por USB una vez; después las actualizaciones funcionan con normalidad.',
+    'beta.3': 'Una actualización <strong>reformatea el sistema de archivos</strong>. Las credenciales de Wi-Fi, los usuarios y las ranuras de sensor se conservan automáticamente; los paquetes de idioma, <code>calib.csv</code> y el historial guardado no. Descarga una copia de seguridad antes.',
+    'beta.4': '<strong>No hay una segunda ranura de firmware a la que volver</strong>. La imagen se comprueba antes de aplicarse y se verifica de nuevo en el siguiente arranque, pero la recuperación de una grabación defectuosa es el botón BOOTSEL y un cable USB.',
+    'new.eyebrow': 'Esta generación', 'new.h2': 'Qué cambió recientemente',
+    'new.lede': 'Tres releases que, cada una, eliminaron un caso especial en lugar de añadir una función.',
+    'new.d1': '27 jul 2026', 'new.d2': '27 jul 2026', 'new.d3': '26 jul 2026',
+    'new.t1': 'Las actualizaciones por aire se aplican de verdad',
+    'new.b1': 'El feed del watchdog del aplicador escribía el bit de reinicio en lugar de recargar el contador, de modo que reiniciaba el chip antes de copiar un solo sector — mientras cada capa superior informaba éxito. Corregido, junto con dos errores detrás de él, y el arranque ahora verifica la imagen instalada contra la preparada. Validado en 21 actualizaciones consecutivas: 21 se aplicaron, la longitud verificada coincidió en todas y la memoria libre varió 24 bytes en toda la tanda.',
+    'new.t2': 'Un modelo de sensor, ninguna ranura privilegiada',
+    'new.b2': 'Ocho lugares trataban la ranura 10 como "el sensor ambiente", lo que dejaba GP10 inasignable y sobrevivía a un reinicio de fábrica. Ahora toda ranura nace vacía y no reclama pin, la calibración se indexa por el hardware ID del propio sensor en vez de su posición, y el BMP280 pasó a ser su propio tipo en lugar de fingir ser un BME280 con un canal de humedad roto.',
+    'new.t3': 'Primero la web, con una consola serie para emergencias',
+    'new.b3': 'La CLI serie traía 55 comandos que la interfaz web ya respondía. La configuración vive ahora en la web y la consola conserva nueve comandos para recuperación — 44,5 KB de flash recuperados.',
+    'new.changelog': 'Changelog completo',
+    'cap.eyebrow': 'Funciones', 'cap.h2': 'Qué hace el firmware',
+    'cap.lede': 'Todo lo de abajo corre en el dispositivo. Nada llama a casa.',
+    'c1.t': 'Dos núcleos por diseño',
+    'c1.b': 'El Núcleo 0 lleva sensores, red, servidor web y telemetría. El Núcleo 1 no hace nada más que mover la pantalla, leyendo instantáneas sin bloqueos — así una red ocupada nunca entrecorta la pantalla.',
+    'c2.t': 'Panel táctil',
+    'c2.b': 'Lecturas en vivo, gráficas de historial y ajustes en un TFT de 320×240, manejados por toque. Cincuenta temas integrados, más los personalizados cargados del sistema de archivos.',
+    'c3.t': 'Su propia interfaz web',
+    'c3.b': 'Una interfaz de gestión completa servida directamente desde el dispositivo: gráficas en vivo, gestor de archivos, configuración, temas claro y oscuro. Accesible en <code>simut.local</code> en tu red.',
+    'c4.t': 'Dieciséis ranuras universales',
+    'c4.b': 'Cualquier combinación de DS18B20, DHT22, BME280 y BMP280 entre GPIO0 y GPIO15. Las ranuras son intercambiables — ninguna es especial, y la calibración sigue al sensor, no a la posición.',
+    'c5.t': 'Cuentas y permisos',
+    'c5.b': 'Cinco cuentas, diez bits de permiso y tres sesiones simultáneas. Las contraseñas llevan sal por usuario y se cifran; los fallos repetidos se retrasan exponencialmente.',
+    'c6.t': 'Telemetría, si la quieres',
+    'c6.b': 'HTTP POST o MQTT con JSON, CSV o tu propia plantilla, con soporte TLS. Desactivada por defecto — el dispositivo es plenamente utilizable sin recibir jamás un endpoint.',
+    'c7.t': 'Registro de auditoría',
+    'c7.b': 'Un log binario persistente con rotación y exportación CSV, que registra cambios de configuración, eventos de seguridad y el análisis forense de caídas capturado por el watchdog.',
+    'c8.t': 'Copia y restauración',
+    'c8.b': 'Descarga todo el sistema de archivos como un único <code>.bkp</code>, verificado por CRC32 y ligado al ID del chip, de forma que una imagen no pueda restaurarse en la placa equivocada.',
+    'c9.t': 'Tres idiomas',
+    'c9.b': 'Inglés, portugués y español, cargados desde paquetes de idioma en el sistema de archivos en lugar de compilados — así una traducción puede editarse sin recompilar.',
+    'use.eyebrow': 'En uso',
+    'alt.web': 'El panel web de SIMUT en un navegador: estadísticas del sistema, uso de memoria y flash, y una tabla de cinco sensores en vivo de tres tipos distintos.',
+    'cap.web': 'Panel web · servido por el propio dispositivo, sin nube por medio',
+    'alt.tour': 'La interfaz táctil de SIMUT recorriendo sus pantallas.',
+    'cap.tour': 'Interfaz del dispositivo · fotogramas leídos de la propia pantalla',
+    'alt.bench': 'El banco de desarrollo de SIMUT: una Pico W, pantalla TFT y sensores cableados en una protoboard.',
+    'cap.bench': 'Banco de desarrollo · firmware en marcha',
+    'scr.eyebrow': 'Todas las pantallas', 'scr.h2': 'La interfaz entera, en un panel de 320×240',
+    'scr.lede': 'Capturadas de un dispositivo en marcha, un fotograma por pantalla. No son renderizados — es el framebuffer leído de vuelta por SPI.',
+    's.dash': 'Panel', 's.pin': 'Entrada de PIN', 's.set': 'Ajustes', 's.thm': 'Temas',
+    's.alm': 'Límites de alarma', 's.edit': 'Editor de límites', 's.kbd': 'Teclado en pantalla',
+    's.lang': 'Idioma', 's.status': 'Estado del sistema', 's.align': 'Alineación de pantalla',
+    's.cal': 'Calibración táctil', 's.lic': 'Licencia',
+    'scr.note': 'Las gráficas de historial, las estadísticas y el calendario están en la animación de arriba — necesitan lecturas guardadas para dibujarse, y este dispositivo acababa de ser regrabado. Mapa completo, incluido cómo se llega a cada pantalla: <a href="https://github.com/angeloINTJ/simut/blob/main/docs/images/screens/screens.md">screens.md</a>.',
+    'uni.eyebrow': 'El rumbo', 'uni.h2': 'Universal es el objetivo, no una función',
+    'uni.p1': 'SIMUT se generaliza release tras release, y el trabajo es sobre todo eliminación: cada versión quita un caso especial que solo existía porque algo se fijó en el código una vez.',
+    'uni.p2': 'No hay sensor ambiente, ni pin privilegiado, ni ranura reservada. Dieciséis posiciones en GPIO0–GPIO15 admiten cualquier pieza soportada, en cualquier combinación, y cada una se identifica por el hardware ID del propio sensor — así la calibración, las alarmas y el historial siguen al dispositivo que cableaste, no a la posición en la que lo cableaste.',
+    'uni.p3': 'La captura de abajo es de un dispositivo real: dos sondas DS18B20, dos DHT22 y un BMP280, informando temperatura, humedad y presión mediante un solo modelo. Añadir una pieza es un driver y una entrada en una lista de tipos. No es un nuevo caso especial, y ese es todo el objetivo del diseño.',
+    'alt.slots': 'La página de configuración de sensores: un mapa de pines GP0 a GP15 y una tabla de cinco ranuras con sensores DS18B20, DHT22 y BMP280.',
+    'cap.slots': 'Cinco ranuras · tres tipos de sensor · un modelo',
+    'hw.eyebrow': 'Hardware', 'hw.h2': 'Lo que necesitas',
+    'hw.lede': 'Más o menos lo que cuesta una comida a domicilio, y nada de ello es propietario.',
+    'hw.part': 'Pieza', 'hw.spec': 'Especificación',
+    'hw.mcu': 'Microcontrolador', 'hw.mcuv': 'Raspberry Pi Pico W — RP2040, Cortex-M0+ de dos núcleos, 2 MB de flash',
+    'hw.disp': 'Pantalla', 'hw.dispv': 'TFT ILI9341 320×240 por SPI',
+    'hw.touch': 'Táctil', 'hw.touchv': 'Panel resistivo XPT2046',
+    'hw.sens': 'Sensores', 'hw.sensv': '16 ranuras en GPIO0–GPIO15: DS18B20 (1-Wire), DHT22, BME280 y BMP280 (I²C)',
+    'hw.buz': 'Zumbador', 'hw.buzv': 'Piezo pasivo, accionado por PIO',
+    'hw.stor': 'Almacenamiento', 'hw.storv': 'Flash interna — 1 MB de sistema de archivos, 1020 KB de ranura de aplicación',
+    'hw.fw': 'Tamaño del firmware', 'hw.fwv': '945.464 B — 90,5% de la ranura de aplicación',
+    'hw.wiring': 'Diagrama de conexión y pines →',
+    'st.eyebrow': 'Empezar', 'st.h2': 'De las piezas a las lecturas',
+    'st1.t': 'Monta el hardware',
+    'st1.b': 'Conecta la pantalla, el panel táctil y los sensores a la Pico W siguiendo la <a href="WIRING.html">guía de conexión</a>. Una protoboard basta para empezar.',
+    'st2.t': 'Descarga el firmware',
+    'st2.b': 'Toma <code>simut_v1.6.2-beta.uf2</code> de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. Los árboles de código para Arduino IDE y PlatformIO se publican junto a él.',
+    'st3.t': 'Graba por USB',
+    'st3.b': 'Mantén BOOTSEL mientras conectas la Pico, y suelta el <code>.uf2</code> en la unidad <code>RPI-RP2</code> que aparece. La placa arranca en SIMUT por sí sola.',
+    'st4.t': 'Únela a tu red',
+    'st4.b': 'Configura el Wi-Fi desde la pantalla táctil. La contraseña de admin se imprime una sola vez por el serie USB en el primer arranque — anótala y cámbiala en el primer acceso web.',
+    'st5.t': 'Abre la interfaz',
+    'st5.b': 'Entra en <code>http://simut.local</code>, añade tus sensores a las ranuras, fija los límites de alarma y calibra contra una referencia si las lecturas importan.',
+    'dc.eyebrow': 'Documentación', 'dc.h2': 'Sigue leyendo',
+    'd1.t': 'Manual de usuario', 'd1.b': 'Montaje del hardware, la pantalla, la interfaz web, la consola serie y resolución de problemas.',
+    'd2.t': 'Guía de conexión', 'd2.b': 'Pines, notas de montaje y el esquema de protoboard de referencia.',
+    'd3.t': 'Actualizar por aire', 'd3.b': 'Cómo preparar y aplicar una actualización de firmware desde la interfaz web o con <code>curl</code>.',
+    'd4.t': 'Recuperación', 'd4.b': 'Cómo recuperar una placa tras una actualización fallida, y qué implica el rescate por BOOTSEL.',
+    'd5.t': 'Glosario', 'd5.b': 'Los términos usados en la interfaz y la documentación, definidos una vez.',
+    'd6.t': 'Política de seguridad', 'd6.b': 'Modelo de amenazas, cómo se tratan las credenciales y cómo informar de una vulnerabilidad.',
+    'co.eyebrow': 'Contribuir', 'co.h2': 'Es código abierto, y es beta',
+    'co.lede': 'Lo cual es buena combinación si te gusta encontrar cosas. Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
+    'co.bug': 'Informar de un error', 'co.feat': 'Pedir una función',
+    'co.guide': 'Guía de contribución', 'co.vuln': 'Informar de vulnerabilidad',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W · v1.6.2-beta',
+    'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licencia',
+    'ft.edit': 'Editar esta página'
+  }
+};
+
+  var TAG = { en: 'en', pt: 'pt-BR', es: 'es' };
+  var en = {};
+  var nodes = document.querySelectorAll('[data-i18n]');
+  var alts = document.querySelectorAll('[data-i18n-alt]');
+  nodes.forEach(function (el) { en[el.dataset.i18n] = el.innerHTML; });
+  alts.forEach(function (el) { en[el.dataset.i18nAlt] = el.alt; });
+  DICT.en = en;
+
+  function apply(lang) {
+    if (!DICT[lang]) lang = 'en';
+    document.documentElement.lang = TAG[lang];
+    nodes.forEach(function (el) {
+      var v = DICT[lang][el.dataset.i18n];
+      if (v !== undefined) el.innerHTML = v;
+    });
+    alts.forEach(function (el) {
+      var v = DICT[lang][el.dataset.i18nAlt];
+      if (v !== undefined) el.alt = v;
+    });
+    if (DICT[lang]['meta.title']) document.title = DICT[lang]['meta.title'];
+    document.querySelectorAll('.lang-btn').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.lang === lang));
+    });
+    try { localStorage.setItem('simut-lang', lang); } catch (e) {}
+  }
+
+  /* Chosen language wins; otherwise follow the browser's own preference
+   * order, which is what navigator.languages is for. */
+  function detect() {
+    try {
+      var saved = localStorage.getItem('simut-lang');
+      if (saved && DICT[saved]) return saved;
+    } catch (e) {}
+    var list = navigator.languages || [navigator.language || 'en'];
+    for (var i = 0; i < list.length; i++) {
+      var t = String(list[i]).toLowerCase();
+      if (t.indexOf('pt') === 0) return 'pt';
+      if (t.indexOf('es') === 0) return 'es';
+      if (t.indexOf('en') === 0) return 'en';
+    }
+    return 'en';
+  }
+
+  document.querySelectorAll('.lang-btn').forEach(function (b) {
+    b.addEventListener('click', function () { apply(b.dataset.lang); });
+  });
+
+  apply(detect());
+})();
+</script>
 
 </body>
 </html>
