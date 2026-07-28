@@ -462,6 +462,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <a href="#whats-new" data-i18n="nav.new">What's new</a>
       <a href="#capabilities" data-i18n="nav.caps">Capabilities</a>
       <a href="#screens" data-i18n="nav.screens">Screens</a>
+      <a href="#engine" data-i18n="nav.engine">Engineering</a>
       <a href="#universal" data-i18n="nav.direction">Direction</a>
       <a href="#hardware" data-i18n="nav.hardware">Hardware</a>
       <a href="#start" data-i18n="nav.start">Get started</a>
@@ -623,7 +624,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         network never stutters the screen.</p></div>
       <div class="cell"><h3 data-i18n="c2.t">Touch dashboard</h3><p data-i18n="c2.b">
         Live readings, history graphs and settings on a 320×240 TFT, driven by touch.
-        Fifty built-in themes, plus custom ones loaded from the filesystem.</p></div>
+        Fifty themes exist as opt-in build packs; the release ships one.</p></div>
       <div class="cell"><h3 data-i18n="c3.t">Its own web interface</h3><p data-i18n="c3.b">
         A complete management UI served straight from the device: live graphs, file
         manager, configuration, light and dark themes. Reachable at
@@ -632,21 +633,36 @@ footer > .shell { padding-block: 2.5rem 3rem; }
         Any mix of DS18B20, DHT22, BME280 and BMP280 across GPIO0–GPIO15. Slots are
         interchangeable — none is special, and calibration follows the sensor rather
         than the position.</p></div>
-      <div class="cell"><h3 data-i18n="c5.t">Accounts and permissions</h3><p data-i18n="c5.b">
-        Five accounts, ten permission bits and three concurrent sessions. Passwords
-        are salted per user and hashed; repeated failures back off exponentially.</p></div>
-      <div class="cell"><h3 data-i18n="c6.t">Telemetry, if you want it</h3><p data-i18n="c6.b">
-        HTTP POST or MQTT with JSON, CSV or your own template, TLS supported. Off by
-        default — the device is fully usable having never been given an endpoint.</p></div>
-      <div class="cell"><h3 data-i18n="c7.t">Audit trail</h3><p data-i18n="c7.b">
+      <div class="cell"><h3 data-i18n="c5.t">Passwords done properly</h3><p data-i18n="c5.b">
+        SHA-256 with a random 8-byte salt per user and multiple HMAC rounds — never
+        a bare hash. Login uses a server nonce so the password hash is not replayable,
+        and failures back off per IP.</p></div>
+      <div class="cell"><h3 data-i18n="c6.t">Telemetry that survives the network</h3><p data-i18n="c6.b">
+        HTTP POST or MQTT, JSON, CSV or your own template, TLS on both. Readings are
+        batched out of history behind a cursor, so an outage queues rather than
+        loses — and retries escalate on an exponential backoff.</p></div>
+      <div class="cell"><h3 data-i18n="c7.t">It records locally first</h3><p data-i18n="c7.b">
+        Every reading lands in a compact binary file on the device before anything is
+        sent anywhere. Browse it on the display or in the browser, export it as CSV,
+        and keep it if you never configure an endpoint at all.</p></div>
+      <div class="cell"><h3 data-i18n="c8.t">Wi-Fi that reconnects itself</h3><p data-i18n="c8.b">
+        Disconnections retry on a backoff that widens to two minutes rather than
+        hammering the access point, and the buffer pool and send aborts are counted
+        so a marginal link is visible instead of merely felt.</p></div>
+      <div class="cell"><h3 data-i18n="c9.t">Audit trail</h3><p data-i18n="c9.b">
         A persistent binary log with rotation and CSV export, recording configuration
         changes, security events and crash forensics captured through the watchdog.</p></div>
-      <div class="cell"><h3 data-i18n="c8.t">Backup and restore</h3><p data-i18n="c8.b">
+      <div class="cell"><h3 data-i18n="c10.t">Backup and restore</h3><p data-i18n="c10.b">
         Download the whole filesystem as a single <code>.bkp</code>, verified by CRC32
         and bound to the chip ID so an image cannot be restored onto the wrong board.</p></div>
-      <div class="cell"><h3 data-i18n="c9.t">Three languages</h3><p data-i18n="c9.b">
-        English, Portuguese and Spanish, loaded from language packs on the filesystem
-        rather than compiled in — so a translation can be edited without a rebuild.</p></div>
+      <div class="cell"><h3 data-i18n="c11.t">Two languages on the panel</h3><p data-i18n="c11.b">
+        English and Portuguese on the display; the web interface adds Spanish. All of
+        it loads from language packs on the filesystem rather than being compiled in,
+        so a translation is edited without a rebuild.</p></div>
+      <div class="cell"><h3 data-i18n="c12.t">Network on your terms</h3><p data-i18n="c12.b">
+        DHCP or a static address, your own DNS and NTP servers, and an mDNS name so
+        you do not have to memorise an IP. That name costs 15,272 B of flash —
+        measured, and removable in one flag.</p></div>
     </div>
   </div>
 </section>
@@ -698,6 +714,45 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       they need stored readings to draw, and this device had just been
       reflashed. Full map, including how each screen is reached:
       <a href="https://github.com/angeloINTJ/simut/blob/main/docs/images/screens/screens.md">screens.md</a>.
+    </p>
+  </div>
+</section>
+
+<section id="engine" class="band">
+  <div class="shell">
+    <p class="eyebrow" data-i18n="eng.eyebrow">Under the hood</p>
+    <h2 data-i18n="eng.h2">The sensors do not run on the processor</h2>
+    <p class="lede" style="margin-bottom:2rem" data-i18n="eng.lede">
+      Every sensor bus and the buzzer are driven by the RP2040's PIO — programmable
+      state machines that clock a protocol in hardware while both CPU cores get on
+      with something else.
+    </p>
+    <div class="matrix">
+      <div class="cell"><h3 data-i18n="e1.t">Five PIO libraries, written for this</h3><p data-i18n="e1.b">
+        1-Wire, DHT22, I²C and the buzzer each have a hand-written PIO program rather
+        than a bit-banged loop. They are separate open-source libraries by the same
+        author, pinned by commit or tag in the build and still being updated.</p></div>
+      <div class="cell"><h3 data-i18n="e2.t">Why it matters here</h3><p data-i18n="e2.b">
+        A bit-banged 1-Wire read blocks a core for milliseconds at a time and breaks
+        if an interrupt lands mid-bit. In PIO the timing is the state machine's
+        problem, which is what lets one core serve the network while the other never
+        drops a frame.</p></div>
+      <div class="cell"><h3 data-i18n="e3.t">Flash writes stop the display core</h3><p data-i18n="e3.b">
+        Erasing flash while the other core is fetching instructions from it hangs the
+        chip. Every write is wrapped in a guard that parks Core 1 first — a rule the
+        project learned by debugging the reboots that came from breaking it.</p></div>
+      <div class="cell"><h3 data-i18n="e4.t">A watchdog with forensics</h3><p data-i18n="e4.b">
+        If a core stops answering, the device reboots itself and writes down what it
+        was doing: which core, which module, and for how long. The next boot reports
+        the autopsy instead of coming up blank.</p></div>
+    </div>
+    <p style="margin-top:1.6rem" data-i18n="eng.libs">
+      The PIO libraries:
+      <a href="https://github.com/angeloINTJ/OneWirePIO_RP2040">OneWirePIO</a> ·
+      <a href="https://github.com/angeloINTJ/DHT22PIO_RP2040">DHT22PIO</a> ·
+      <a href="https://github.com/angeloINTJ/TwoWirePIO_RP2040">TwoWirePIO</a> ·
+      <a href="https://github.com/angeloINTJ/BMx280PIO_RP2040">BMx280PIO</a> ·
+      <a href="https://github.com/angeloINTJ/BuzzerPIO_RP2040">BuzzerPIO</a>
     </p>
   </div>
 </section>
@@ -867,22 +922,40 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'cap.lede': 'Tudo abaixo roda no dispositivo. Nada liga para casa.',
     'c1.t': 'Dois núcleos por projeto',
     'c1.b': 'O Núcleo 0 cuida de sensores, rede, servidor web e telemetria. O Núcleo 1 não faz nada além de tocar o display, lendo instantâneos sem travas — então uma rede ocupada nunca engasga a tela.',
+    'nav.engine': 'Engenharia',
+    'c5.t': 'Senhas feitas direito',
+    'c5.b': 'SHA-256 com sal aleatório de 8 bytes por usuário e várias rodadas de HMAC — nunca um hash cru. O login usa um nonce do servidor, então o hash da senha não é reproduzível, e as falhas recuam por IP.',
+    'c6.t': 'Telemetria que sobrevive à rede',
+    'c6.b': 'HTTP POST ou MQTT, JSON, CSV ou o seu próprio template, TLS nos dois. As leituras são enviadas em lote a partir do histórico, atrás de um cursor, então uma queda enfileira em vez de perder — e as tentativas escalam num backoff exponencial.',
+    'c7.t': 'Ele grava localmente primeiro',
+    'c7.b': 'Toda leitura cai num arquivo binário compacto no dispositivo antes de qualquer coisa ser enviada a algum lugar. Navegue por ela no display ou no navegador, exporte em CSV, e guarde-a mesmo que você nunca configure um endpoint.',
+    'c8.t': 'Wi-Fi que se reconecta sozinho',
+    'c8.b': 'Quedas são retentadas num backoff que se abre até dois minutos, em vez de martelar o ponto de acesso, e o pool de buffers e os abortos de envio são contados — então um link ruim fica visível em vez de apenas sentido.',
+    'c9.t': 'Trilha de auditoria',
+    'c9.b': 'Um log binário persistente com rotação e exportação CSV, registrando mudanças de configuração, eventos de segurança e a perícia de travamentos capturada pelo watchdog.',
+    'c10.t': 'Backup e restauração',
+    'c10.b': 'Baixe todo o sistema de arquivos como um único <code>.bkp</code>, verificado por CRC32 e vinculado ao ID do chip, de modo que uma imagem não possa ser restaurada na placa errada.',
+    'c11.t': 'Dois idiomas no painel',
+    'c11.b': 'Inglês e português no display; a interface web acrescenta o espanhol. Tudo isso carrega de pacotes de idioma no sistema de arquivos em vez de ser compilado, então uma tradução se edita sem recompilar.',
+    'c12.t': 'Rede nos seus termos',
+    'c12.b': 'DHCP ou endereço fixo, seus próprios servidores DNS e NTP, e um nome mDNS para você não ter que decorar um IP. Esse nome custa 15.272 B de flash — medidos, e removíveis num flag.',
+    'eng.eyebrow': 'Por dentro', 'eng.h2': 'Os sensores não rodam no processador',
+    'eng.lede': 'Todo barramento de sensor e o buzzer são tocados pelo PIO do RP2040 — máquinas de estado programáveis que temporizam um protocolo em hardware enquanto os dois núcleos cuidam de outra coisa.',
+    'e1.t': 'Cinco bibliotecas PIO, escritas para isto',
+    'e1.b': '1-Wire, DHT22, I²C e o buzzer têm cada um seu programa PIO escrito à mão, em vez de um laço de bit-banging. São bibliotecas de código aberto separadas, do mesmo autor, fixadas por commit ou tag no build e ainda em atualização.',
+    'e2.t': 'Por que isso importa aqui',
+    'e2.b': 'Uma leitura 1-Wire por bit-banging bloqueia um núcleo por milissegundos e quebra se uma interrupção cair no meio de um bit. No PIO a temporização é problema da máquina de estados, que é o que permite um núcleo servir a rede enquanto o outro nunca perde um quadro.',
+    'e3.t': 'Escrita em flash para o núcleo do display',
+    'e3.b': 'Apagar flash enquanto o outro núcleo busca instruções dela trava o chip. Toda escrita é embrulhada numa guarda que estaciona o Core 1 antes — uma regra que o projeto aprendeu depurando os reboots que vinham de quebrá-la.',
+    'e4.t': 'Um watchdog com perícia',
+    'e4.b': 'Se um núcleo para de responder, o dispositivo se reinicia e anota o que estava fazendo: qual núcleo, qual módulo e por quanto tempo. O boot seguinte reporta a autópsia em vez de subir em branco.',
+    'eng.libs': 'As bibliotecas PIO: <a href="https://github.com/angeloINTJ/OneWirePIO_RP2040">OneWirePIO</a> · <a href="https://github.com/angeloINTJ/DHT22PIO_RP2040">DHT22PIO</a> · <a href="https://github.com/angeloINTJ/TwoWirePIO_RP2040">TwoWirePIO</a> · <a href="https://github.com/angeloINTJ/BMx280PIO_RP2040">BMx280PIO</a> · <a href="https://github.com/angeloINTJ/BuzzerPIO_RP2040">BuzzerPIO</a>',
     'c2.t': 'Painel de toque',
-    'c2.b': 'Leituras ao vivo, gráficos de histórico e ajustes num TFT de 320×240, operados por toque. Cinquenta temas embutidos, mais os personalizados carregados do sistema de arquivos.',
+    'c2.b': 'Leituras ao vivo, gráficos de histórico e ajustes num TFT de 320×240, operados por toque. Cinquenta temas existem como pacotes opcionais de build; a release traz um.',
     'c3.t': 'Interface web própria',
     'c3.b': 'Uma interface de gestão completa servida direto do dispositivo: gráficos ao vivo, gerenciador de arquivos, configuração, temas claro e escuro. Acessível em <code>simut.local</code> na sua rede.',
     'c4.t': 'Dezesseis slots universais',
     'c4.b': 'Qualquer combinação de DS18B20, DHT22, BME280 e BMP280 entre GPIO0 e GPIO15. Os slots são intercambiáveis — nenhum é especial, e a calibração segue o sensor, não a posição.',
-    'c5.t': 'Contas e permissões',
-    'c5.b': 'Cinco contas, dez bits de permissão e três sessões simultâneas. As senhas têm sal por usuário e são hasheadas; falhas repetidas recuam exponencialmente.',
-    'c6.t': 'Telemetria, se você quiser',
-    'c6.b': 'HTTP POST ou MQTT com JSON, CSV ou o seu próprio template, com suporte a TLS. Desligada por padrão — o dispositivo é plenamente utilizável sem nunca receber um endpoint.',
-    'c7.t': 'Trilha de auditoria',
-    'c7.b': 'Um log binário persistente com rotação e exportação CSV, registrando mudanças de configuração, eventos de segurança e a perícia de travamentos capturada pelo watchdog.',
-    'c8.t': 'Backup e restauração',
-    'c8.b': 'Baixe todo o sistema de arquivos como um único <code>.bkp</code>, verificado por CRC32 e vinculado ao ID do chip, de modo que uma imagem não possa ser restaurada na placa errada.',
-    'c9.t': 'Três idiomas',
-    'c9.b': 'Inglês, português e espanhol, carregados de pacotes de idioma no sistema de arquivos em vez de compilados — então uma tradução pode ser editada sem recompilar.',
     'use.eyebrow': 'Em uso',
     'alt.web': 'O painel web do SIMUT no navegador: estatísticas do sistema, uso de memória e flash, e uma tabela de cinco sensores ao vivo de três tipos diferentes.',
     'cap.web': 'Painel web · servido pelo próprio dispositivo, sem nuvem no caminho',
@@ -975,22 +1048,40 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'cap.lede': 'Todo lo de abajo corre en el dispositivo. Nada llama a casa.',
     'c1.t': 'Dos núcleos por diseño',
     'c1.b': 'El Núcleo 0 lleva sensores, red, servidor web y telemetría. El Núcleo 1 no hace nada más que mover la pantalla, leyendo instantáneas sin bloqueos — así una red ocupada nunca entrecorta la pantalla.',
+    'nav.engine': 'Ingeniería',
+    'c5.t': 'Contraseñas bien hechas',
+    'c5.b': 'SHA-256 con sal aleatoria de 8 bytes por usuario y varias rondas de HMAC — nunca un hash desnudo. El acceso usa un nonce del servidor, así que el hash de la contraseña no es reproducible, y los fallos se retrasan por IP.',
+    'c6.t': 'Telemetría que sobrevive a la red',
+    'c6.b': 'HTTP POST o MQTT, JSON, CSV o tu propia plantilla, TLS en ambos. Las lecturas se envían por lotes desde el historial, tras un cursor, de modo que un corte encola en vez de perder — y los reintentos escalan con retroceso exponencial.',
+    'c7.t': 'Graba en local primero',
+    'c7.b': 'Cada lectura cae en un archivo binario compacto del dispositivo antes de enviarse a ningún sitio. Recórrelo en la pantalla o en el navegador, expórtalo como CSV, y consérvalo aunque nunca configures un endpoint.',
+    'c8.t': 'Wi-Fi que se reconecta solo',
+    'c8.b': 'Las caídas se reintentan con un retroceso que se abre hasta dos minutos, en lugar de machacar el punto de acceso, y el pool de búferes y los abortos de envío se cuentan — así un enlace pobre se ve, en vez de solo notarse.',
+    'c9.t': 'Registro de auditoría',
+    'c9.b': 'Un log binario persistente con rotación y exportación CSV, que registra cambios de configuración, eventos de seguridad y el análisis forense de caídas capturado por el watchdog.',
+    'c10.t': 'Copia y restauración',
+    'c10.b': 'Descarga todo el sistema de archivos como un único <code>.bkp</code>, verificado por CRC32 y ligado al ID del chip, de forma que una imagen no pueda restaurarse en la placa equivocada.',
+    'c11.t': 'Dos idiomas en el panel',
+    'c11.b': 'Inglés y portugués en la pantalla; la interfaz web añade el español. Todo ello se carga desde paquetes de idioma en el sistema de archivos en vez de compilarse, así que una traducción se edita sin recompilar.',
+    'c12.t': 'Red en tus términos',
+    'c12.b': 'DHCP o dirección fija, tus propios servidores DNS y NTP, y un nombre mDNS para no tener que memorizar una IP. Ese nombre cuesta 15.272 B de flash — medidos, y eliminables con un flag.',
+    'eng.eyebrow': 'Por dentro', 'eng.h2': 'Los sensores no corren en el procesador',
+    'eng.lede': 'Cada bus de sensor y el zumbador los mueve el PIO del RP2040 — máquinas de estado programables que temporizan un protocolo por hardware mientras ambos núcleos se ocupan de otra cosa.',
+    'e1.t': 'Cinco bibliotecas PIO, escritas para esto',
+    'e1.b': '1-Wire, DHT22, I²C y el zumbador tienen cada uno su programa PIO escrito a mano, en lugar de un bucle de bit-banging. Son bibliotecas de código abierto independientes, del mismo autor, fijadas por commit o etiqueta en la compilación y aún en actualización.',
+    'e2.t': 'Por qué importa aquí',
+    'e2.b': 'Una lectura 1-Wire por bit-banging bloquea un núcleo durante milisegundos y se rompe si una interrupción cae a mitad de un bit. En PIO la temporización es problema de la máquina de estados, que es lo que permite a un núcleo servir la red mientras el otro no pierde un fotograma.',
+    'e3.t': 'La escritura en flash para el núcleo de pantalla',
+    'e3.b': 'Borrar flash mientras el otro núcleo busca instrucciones de ella cuelga el chip. Cada escritura va envuelta en una guarda que aparca el Core 1 antes — una regla que el proyecto aprendió depurando los reinicios que venían de romperla.',
+    'e4.t': 'Un watchdog con forense',
+    'e4.b': 'Si un núcleo deja de responder, el dispositivo se reinicia y anota qué estaba haciendo: qué núcleo, qué módulo y durante cuánto. El siguiente arranque informa de la autopsia en vez de subir en blanco.',
+    'eng.libs': 'Las bibliotecas PIO: <a href="https://github.com/angeloINTJ/OneWirePIO_RP2040">OneWirePIO</a> · <a href="https://github.com/angeloINTJ/DHT22PIO_RP2040">DHT22PIO</a> · <a href="https://github.com/angeloINTJ/TwoWirePIO_RP2040">TwoWirePIO</a> · <a href="https://github.com/angeloINTJ/BMx280PIO_RP2040">BMx280PIO</a> · <a href="https://github.com/angeloINTJ/BuzzerPIO_RP2040">BuzzerPIO</a>',
     'c2.t': 'Panel táctil',
-    'c2.b': 'Lecturas en vivo, gráficas de historial y ajustes en un TFT de 320×240, manejados por toque. Cincuenta temas integrados, más los personalizados cargados del sistema de archivos.',
+    'c2.b': 'Lecturas en vivo, gráficas de historial y ajustes en un TFT de 320×240, manejados por toque. Cincuenta temas existen como paquetes opcionales de compilación; la release trae uno.',
     'c3.t': 'Su propia interfaz web',
     'c3.b': 'Una interfaz de gestión completa servida directamente desde el dispositivo: gráficas en vivo, gestor de archivos, configuración, temas claro y oscuro. Accesible en <code>simut.local</code> en tu red.',
     'c4.t': 'Dieciséis ranuras universales',
     'c4.b': 'Cualquier combinación de DS18B20, DHT22, BME280 y BMP280 entre GPIO0 y GPIO15. Las ranuras son intercambiables — ninguna es especial, y la calibración sigue al sensor, no a la posición.',
-    'c5.t': 'Cuentas y permisos',
-    'c5.b': 'Cinco cuentas, diez bits de permiso y tres sesiones simultáneas. Las contraseñas llevan sal por usuario y se cifran; los fallos repetidos se retrasan exponencialmente.',
-    'c6.t': 'Telemetría, si la quieres',
-    'c6.b': 'HTTP POST o MQTT con JSON, CSV o tu propia plantilla, con soporte TLS. Desactivada por defecto — el dispositivo es plenamente utilizable sin recibir jamás un endpoint.',
-    'c7.t': 'Registro de auditoría',
-    'c7.b': 'Un log binario persistente con rotación y exportación CSV, que registra cambios de configuración, eventos de seguridad y el análisis forense de caídas capturado por el watchdog.',
-    'c8.t': 'Copia y restauración',
-    'c8.b': 'Descarga todo el sistema de archivos como un único <code>.bkp</code>, verificado por CRC32 y ligado al ID del chip, de forma que una imagen no pueda restaurarse en la placa equivocada.',
-    'c9.t': 'Tres idiomas',
-    'c9.b': 'Inglés, portugués y español, cargados desde paquetes de idioma en el sistema de archivos en lugar de compilados — así una traducción puede editarse sin recompilar.',
     'use.eyebrow': 'En uso',
     'alt.web': 'El panel web de SIMUT en un navegador: estadísticas del sistema, uso de memoria y flash, y una tabla de cinco sensores en vivo de tres tipos distintos.',
     'cap.web': 'Panel web · servido por el propio dispositivo, sin nube por medio',
