@@ -112,7 +112,12 @@ body {
   line-height: 1.62;
   -webkit-font-smoothing: antialiased;
 }
-img { max-width: 100%; display: block; }
+/* height:auto is not optional here. Every img carries width/height attributes
+ * so layout is reserved before the bytes land, and those attributes are
+ * presentational hints: with a CSS width and no CSS height, the attribute
+ * height wins and the image renders squashed to it. Pair them or the ratio
+ * silently dies. */
+img { max-width: 100%; height: auto; display: block; }
 a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
 a:hover { text-decoration-thickness: 2px; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 1px; }
@@ -229,7 +234,7 @@ h1 .expand {
 .btn-ghost:hover { background: var(--surface); }
 
 .plate { border: 1px solid var(--rule); background: var(--surface); }
-.plate img { width: 100%; }
+.plate img { width: 100%; height: auto; }
 
 /* Panel captures are 640x480 read off a 320x240 screen. Browsers smooth an
  * upscale by default, which turns crisp UI pixels into mush -- keep them
@@ -384,7 +389,7 @@ td code, .cell code, .caution code, p code, li code {
   border-top: 1px solid var(--rule);
 }
 .shot { margin: 0 0 1px; border: 1px solid var(--rule); background: var(--surface); }
-.shot img { width: 100%; }
+.shot img { width: 100%; height: auto; }
 .shot figcaption {
   font-family: var(--mono); font-size: .68rem;
   letter-spacing: .11em; text-transform: uppercase;
