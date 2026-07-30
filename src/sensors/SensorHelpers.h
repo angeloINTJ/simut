@@ -17,27 +17,17 @@
 #pragma once
 
 #include "SensorConfig.h"
+#include "SensorChannelTable.h"    /* SensorChannel enum, ChannelInfo, the table */
 #include "../SystemDefs_Records.h" /* SensorType enum */
 
 /* ===========================================================================
  * SENSOR CHANNELS — universal measurement axes
  *
- * Each sensor type exposes N channels (temperature, humidity, pressure, etc.).
- * Drivers declare their channels via SensorFormat::forType().
- * Consumer code queries capabilities instead of hardcoding "humidity".
+ * The enum and the per-channel metadata moved to SensorChannels.h: what a
+ * channel MEANS is a property of the quantity, not of any driver. What stays
+ * here is what genuinely varies per driver — which channels it reports
+ * (channelMask) and which pins it needs.
  * =========================================================================== */
-
-#ifndef MAX_SENSOR_CHANNELS
-#define MAX_SENSOR_CHANNELS 4
-#endif
-
-enum SensorChannel : uint8_t {
- CH_TEMP = 0,  /**< Temperature (always channel 0 for all types) */
- CH_HUM  = 1,  /**< Relative humidity (DHT22, BME280) */
- CH_PRESS = 2, /**< Atmospheric pressure (BME280) */
- CH_LUX  = 3,  /**< Luminosity / light */
- CH_COUNT = 4  /**< Sentinel */
-};
 
 /* ===========================================================================
  * PIN ROLES — what each GPIO does in a sensor
@@ -97,16 +87,8 @@ inline const char* pinRoleName(PinRole r) {
     }
 }
 
-/** @return human-readable channel name */
-inline const char* sensorChannelName(uint8_t ch) {
- switch (ch) {
- case CH_TEMP:  return "Temperature";
- case CH_HUM:   return "Humidity";
- case CH_PRESS: return "Pressure";
- case CH_LUX:   return "Luminosity";
- default:       return "Channel";
- }
-}
+/** @return human-readable channel name, from the channel table. */
+inline const char* sensorChannelName(uint8_t ch) { return channelInfo(ch).name; }
 
 /** Forward declaration — implementation after SensorFormat definition below. */
 inline bool sensorHasChannel(SensorType t, uint8_t channel);
@@ -165,23 +147,18 @@ inline uint32_t sensorDefaultIntervalMs(SensorType t) {
 }
 
 /* ===========================================================================
- * Sensor display format — per-value formatting metadata.
- *
- * Each sensor driver defines its own format via SensorFormat::forType().
- * Display code queries this instead of hardcoding units/decimal places/icons.
+ * Sensor display format — SensorValueFormat now lives in SensorChannels.h,
+ * and the canonical presentation of each quantity in the channel table. A
+ * driver only fills values[] when it deviates from the channel default.
  * =========================================================================== */
-
-/** Describes how to display a single sensor value (temperature, humidity, etc.). */
-struct SensorValueFormat {
- const char* unit;     /**< "°C", "%", "hPa", "lux", "pH", "ppm", "" */
- uint8_t     decimals; /**< 0, 1, or 2 decimal places */
- const char* icon;     /**< Icon identifier for procedural drawing */
-};
 
 /** Complete driver metadata for a sensor type — channels + pin requirements.
  *
- * This is THE single source of truth for each sensor driver. Display code,
- * web API, calibration, and GPIO initialization all query this struct.
+ * The driver says WHICH channels it reports and which pins it needs. What each
+ * channel MEANS — unit, decimals, icon, storage letter, packing — comes from
+ * the channel table, so a new driver reporting an existing quantity needs no
+ * metadata at all beyond its mask.
+ *
  * Adding a new sensor type requires ONLY a new entry in forType() + a driver file.
  */
 struct SensorFormat {
@@ -218,7 +195,6 @@ struct SensorFormat {
 #if SIMUT_SENSOR_DS18B20
  case TYPE_DS18B20:
  f.channelMask = (1u << CH_TEMP);
- f.values[CH_TEMP] = {"°C", 1, "thermometer"};
  f.pinCount  = 1;
  f.pins[0]   = {ROLE_DATA, "1-Wire", FLAG_PULLUP};
  break;
@@ -226,8 +202,6 @@ struct SensorFormat {
 #if SIMUT_SENSOR_DHT22
  case TYPE_DHT22:
  f.channelMask = (1u << CH_TEMP) | (1u << CH_HUM);
- f.values[CH_TEMP] = {"°C", 1, "thermometer"};
- f.values[CH_HUM]  = {"%",  0, "drop"};
  f.pinCount  = 1;
  f.pins[0]   = {ROLE_DATA, "Data", FLAG_PULLUP};
  break;
@@ -235,9 +209,6 @@ struct SensorFormat {
 #if SIMUT_SENSOR_BME280
  case TYPE_BME280:
  f.channelMask = (1u << CH_TEMP) | (1u << CH_HUM) | (1u << CH_PRESS);
- f.values[CH_TEMP]  = {"°C",  1, "thermometer"};
- f.values[CH_HUM]   = {"%",   0, "drop"};
- f.values[CH_PRESS] = {"hPa", 1, "gauge"};
  f.pinCount  = 2;
  f.pins[0]   = {ROLE_I2C_SDA, "SDA", FLAG_PULLUP};
  f.pins[1]   = {ROLE_I2C_SCL, "SCL", FLAG_PULLUP};
@@ -245,8 +216,6 @@ struct SensorFormat {
  case TYPE_BMP280:
  /* The hole at CH_HUM is the whole point of the mask. */
  f.channelMask = (1u << CH_TEMP) | (1u << CH_PRESS);
- f.values[CH_TEMP]  = {"°C",  1, "thermometer"};
- f.values[CH_PRESS] = {"hPa", 1, "gauge"};
  f.pinCount  = 2;
  f.pins[0]   = {ROLE_I2C_SDA, "SDA", FLAG_PULLUP};
  f.pins[1]   = {ROLE_I2C_SCL, "SCL", FLAG_PULLUP};
@@ -254,10 +223,18 @@ struct SensorFormat {
 #endif
  default:
  f.channelMask = (1u << CH_TEMP);
- f.values[CH_TEMP] = {"", 1, ""};
  f.pinCount  = 1;
  f.pins[0]   = {ROLE_DATA, "Data", 0};
  break;
+ }
+ /* Presentation comes from the channel table, so a driver entry above says
+  * only WHICH channels it reports. Every entry used to restate the unit,
+  * decimals and icon of each channel it had, which is how {"°C", 1,
+  * "thermometer"} ended up written once per driver. A driver that genuinely
+  * deviates (same quantity, different unit) can still overwrite values[]
+  * after calling this. */
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+ if (f.hasChannel(c)) f.values[c] = channelInfo(c).display;
  }
  return f;
  }

@@ -246,6 +246,7 @@ public:
  bool getCalibrationByHwId(char prefix, const char* hwId, float& outOffset, String& outName);
  long getCalibrationVersion(String path);
  bool processCalibrationUpload( );
+ bool recoverCalibrationTmp( );
 
  bool lockHeavyTask( );
  void unlockHeavyTask( );

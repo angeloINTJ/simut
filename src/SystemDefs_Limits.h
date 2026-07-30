@@ -31,13 +31,13 @@
 #ifndef MAX_SENSOR_CHANNELS
 #define MAX_SENSOR_CHANNELS 4 /* Measurement channels per sensor (TEMP, HUM, PRESS, LUX) */
 #endif
-#define SIMUT_VERSION "1.6.2-beta"
+#define SIMUT_VERSION "1.6.3-beta"
 
 /* Fallback epoch for provisional time when NTP is unavailable and no
  * history records exist to seed the virtual RTC. Override via
  * platformio.ini build_flags: -DSIMUT_BUILD_EPOCH=<unix_timestamp> */
 #ifndef SIMUT_BUILD_EPOCH
-#define SIMUT_BUILD_EPOCH 1758380000UL  /* approx 2026-07-21 */
+#define SIMUT_BUILD_EPOCH 1785380400UL  /* 2026-07-30 */
 #endif
 
 #define GRAPH_WIDTH 200 /* Maximum data points on the TFT graph */

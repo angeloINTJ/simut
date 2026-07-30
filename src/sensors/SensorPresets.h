@@ -18,7 +18,11 @@
 
 #pragma once
 
-#include "SensorHelpers.h" /* SensorValueFormat definition */
+/* SensorChannels.h, not SensorHelpers.h: this catalogue needs the
+ * SensorValueFormat type and nothing else, and depending on the driver header
+ * would make SensorChannelTable.h (which binds channels to these presets)
+ * impossible to include from SensorHelpers.h without a cycle. */
+#include "SensorChannels.h"
 
 namespace SensorPresets {
 
