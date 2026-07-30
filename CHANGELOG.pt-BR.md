@@ -4,6 +4,123 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v1.6.3-beta (2026-07-30)
+
+Salvar a calibração de um sensor podia falhar de forma permanente e, para duas
+das três famílias de sensores, não fazia nada desde a v1.6.2-beta. A pressão,
+que os caminhos de sensor e de histórico já carregavam há meses, enfim chega ao
+painel de calibração e aos extremos do histórico.
+
+> Atualizações pelo ar funcionam da v1.6.2-beta em diante, então esta pode ser
+> aplicada por esse caminho. Validada em 20 applies consecutivos, abaixo.
+
+### Um save de calibração podia falhar para sempre
+
+O `calib.csv` tem uma linha VERSION, e o commit só renomeia o arquivo
+temporário sobre o real quando a versão nova supera a gravada. A versão vinha do
+`getEpoch( )`, que nunca falha de forma visível: sem NTP ele cai no RTC virtual
+e, na falta dele, no `SIMUT_BUILD_EPOCH`, uma constante de compilação. Os dois
+ficam atrás do epoch real que um save sincronizado anterior gravou.
+
+Num device com relógio dessincronizado, portanto, todo save produzia uma versão
+*menor* que a do disco, a comparação falhava, e o commit apagava o `calib.tmp` e
+respondia HTTP 500. O sintoma relatado — "o calib.tmp é criado, mas o .csv não é
+substituído" — é exatamente isso.
+
+A falha é absorvente: uma vez que a versão gravada ultrapassa o relógio, nenhuma
+calibração pode mais ser salva, porque toda tentativa seguinte perde a mesma
+comparação. Com o fallback do build epoch isso significava meses. Os carimbos de
+versão agora são monotônicos, então um save sempre avança, com ou sem relógio.
+
+A guarda que deveria ter pego isso estava morta. O `/api/calib` se recusa a
+rodar quando `isTimeSynced( )` é falso, mas essa função é
+`getEpoch( ) > 1600000000` e o `getEpoch( )` nunca devolve menos que isso — a
+verificação não tinha como disparar.
+
+### Calibrar um DHT22 ou um BMP280 não fazia nada
+
+Sensores sem ROM 1-Wire são identificados no `calib.csv` pelo serial da placa,
+com a letra da grandeza e o hwId do sensor na coluna de id. Ao reescrever o
+arquivo, o código separava a chave do início da linha mas deixava a coluna de id
+como `<id>,<offset>,<nome>`, que nunca era igual a um id puro. Toda linha por
+serial de placa errava a própria atualização, era copiada intacta, e o valor
+novo era anexado no fim.
+
+Os leitores param no primeiro match, que é a linha velha do topo. O offset era
+gravado certo e nunca lido, e o arquivo crescia uma linha por sensor a cada
+save. Introduzido em 4cff8ca, então afeta só a v1.6.2-beta. Arquivos que já têm
+duplicatas voltam a uma linha por sensor no próximo save.
+
+### Um upload interrompido deixava um arquivo que ninguém recolhia
+
+O handler de upload não tinha ramo `UPLOAD_FILE_ABORTED`, então uma conexão
+cortada no meio deixava o handle aberto e o arquivo parcial na flash. Para o
+`calib.csv` isso significava um `/calib.tmp` órfão, e o commit que o resolveria
+só rodava a partir dos dois handlers web — nunca no boot.
+
+As duas metades foram fechadas: o caminho de aborto descarta o parcial, e o boot
+recolhe um `calib.tmp` estagnado. A recuperação recusa um arquivo truncado em
+vez de promover meia calibração sobre um arquivo bom, já que um reset pode cair
+no meio da escrita.
+
+### A pressão chega à calibração e aos extremos do histórico
+
+Um BMP280 reporta temperatura e pressão, e nenhuma umidade. A API de calibração
+e as estatísticas do histórico foram construídas em torno de temperatura e
+umidade, então a pressão dele não tinha onde aparecer: nenhum campo no
+`/api/calib`, nenhum input de referência no `/config`, e nenhum selo MIN/MAX no
+`/history` mesmo com o gráfico desenhando a série. O offset também não era
+aplicado à leitura, então seria só de escrita mesmo que o resto existisse.
+
+### Uma tabela para o que é uma medida
+
+Consertar o acima exigiu editar cinco camadas que mantinham cada uma sua cópia
+privada do que é um canal — os switches de prefixo, largura e escala do V4, o
+teste de sinal do codec, o whitelist de letras do leitor de calibração, o writer
+de linhas, e uma repetição por driver da unidade e do ícone de cada canal. Foi
+por isso que a pressão precisou ser adicionada em cinco lugares e ainda assim
+não funcionou: uma das cópias era um whitelist que recusava a letra.
+
+O `sensors/SensorChannelTable.h` agora guarda uma linha por grandeza, ligando-a
+à sua identidade de armazenamento e a um preset de exibição do
+`SensorPresets.h` — um catálogo de 80 unidades que estava na árvore, sem
+nenhuma referência, desde que foi escrito. Adicionar uma grandeza é uma linha
+mais um bit na máscara de canais do driver.
+
+Os formatos de fio acompanham. O `/api/calib` reporta `channels[]` e aceita
+`refs{}`; o `/api/history_multi` reporta `extremes{}`; as páginas iteram em vez
+de nomear um campo por grandeza. As chaves fixas seguem em paralelo por uma
+release, para que uma página em cache continue funcionando.
+
+O `tools/check_channels.py` quebra o build se uma letra de canal aparecer fora
+da tabela, e reporta o que ainda não foi generalizado. Os limiares de alarme
+estão nessa lista: o `SensorRecord` ainda tem limites fixos de temperatura e
+umidade, então **ainda não existem alarmes de pressão** — isso exige mudança de
+schema da configuração gravada e não está nesta release.
+
+### Validado: 20 atualizações pelo ar consecutivas
+
+Cada ciclo subiu uma imagem com um marcador de versão que nenhuma outra tinha,
+então "aplicou" é uma versão lida de volta do firmware em execução, não uma
+inferência de código HTTP ou de tempo decorrido — toda camada de um OTA reporta
+sucesso, tenha ou não trocado alguma coisa.
+
+| etapa | n=20 |
+|---|---|
+| upload + stage (962.476 B) | 29,2 s |
+| apply → web acessível de novo | 47,5 s (45,6–49,8) |
+| ciclo completo | 83,2 s (81,3–85,6) |
+
+Os 20 applies foram confirmados por marcador. Nenhum soft panic, nenhum
+`APP_CORE1_DEAD`, nenhum reset por watchdog nos 20 boots; heap livre terminou em
+55.452 B, sem variação além do ruído.
+
+### Também
+
+- O `SIMUT_BUILD_EPOCH` estava carimbado em 2025-09-20 e comentado como
+  2026-07-21. Ele é o relógio de fallback de um device que nunca alcançou o NTP,
+  e quanto mais atrasado, pior se comportava a regressão de versão acima.
+
 ## v1.6.2-beta (2026-07-27)
 
 O destaque não é um recurso: **o OTA nunca aplicou uma atualização**, em nenhuma

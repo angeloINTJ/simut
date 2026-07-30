@@ -1,13 +1,13 @@
 # SIMUT — User Manual
 
-**Firmware:** v1.6.2-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v1.6.3-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is beta software.** It is tested on real hardware, but it is not a
 > certified metrological instrument. Do not make it the only control on
 > regulated storage without validating it against your own reference.
 
-Everything below was checked against a running v1.6.2-beta device. Where a
+Everything below was checked against a running v1.6.3-beta device. Where a
 number is quoted it was measured rather than estimated; where behaviour is
 untested or known to be incomplete, the text says so rather than going quiet.
 
@@ -83,7 +83,7 @@ Full pinout and assembly notes: [WIRING.md](WIRING.md).
 ## 3. First boot
 
 1. **Flash the firmware.** Hold BOOTSEL while connecting the Pico over USB,
-   then copy `simut_v1.6.2-beta.uf2` onto the `RPI-RP2` drive that appears. The
+   then copy `simut_v1.6.3-beta.uf2` onto the `RPI-RP2` drive that appears. The
    board reboots into SIMUT by itself.
 
 2. **Read the admin password.** On the first boot with no stored
@@ -135,11 +135,21 @@ whichever chip you owned, the firmware was wrong about one of the two.
 
 ### Calibration
 
-Each sensor carries its own offset, stored in `/calib.csv` and keyed by
-hardware ID. Two identical DHT22s on one board calibrate independently, which
-was not true before v1.6.0-beta: offsets for ROM-less parts used to be a single
-device-wide row pair applied to whichever such sensor came first in the runtime
-list.
+Each sensor carries one offset **per quantity it measures**, stored in
+`/calib.csv` and keyed by hardware ID. A DHT22 has a temperature row and a
+humidity row; a BMP280 has temperature and pressure and no humidity. The
+calibration panel shows one reference field per quantity, so what appears there
+follows the part rather than a fixed pair of boxes.
+
+Two identical DHT22s on one board calibrate independently, which was not true
+before v1.6.0-beta: offsets for ROM-less parts used to be a single device-wide
+row pair applied to whichever such sensor came first in the runtime list.
+
+Enter the value your trusted instrument reads and the device stores the
+difference. Pressure joined this panel in v1.6.3-beta; before that a BMP280
+could only have its temperature calibrated, and on v1.6.2-beta specifically no
+ROM-less sensor could be calibrated at all — the offset was written and never
+read back.
 
 Calibration requires the `CALIB` permission and is applied from the web
 dashboard.
@@ -389,9 +399,10 @@ instead of reloading the counter: it rebooted the chip before copying a single
 sector, while every layer above it reported success. The symptom was a device
 that announced a successful update and kept running the old firmware.
 
-That applier is the one every existing device is running, so **there is no
-over-the-air path onto this release**. Flash v1.6.2-beta over USB once; updates
-work normally after that.
+A device already on v1.6.2-beta or later can take this release over the air.
+Anything older is still running the broken applier and has no over-the-air path
+off it: flash v1.6.2-beta or later over USB once, and updates work normally from
+then on.
 
 ### What an update destroys
 
@@ -416,7 +427,7 @@ From the web interface: **System Config → Firmware**. Or directly:
 
 ```bash
 # 1. Stage — uploads and validates. ~29 s for a 957 KB image.
-curl -b cookies.txt -F "file=@simut_v1.6.2-beta.bin" \
+curl -b cookies.txt -F "file=@simut_v1.6.3-beta.bin" \
      "http://simut.local/api/restore?op=stage&commit=1"
 # -> {"st":5,"bytes":957696,"crc32":"...","v":0,"dsize":957500,"dcrc":"...","committed":1}
 
