@@ -22,6 +22,7 @@
 #include "CommandParser.h"
 #include "SystemDefs_Validate.h"
 #include "SystemDefs_Records.h"
+#include "sensors/SensorChannelTable.h" /* channelByKey — which fields name a quantity */
 #include <stdlib.h>
 
 #if SIMUT_CLI_FULL
@@ -406,8 +407,20 @@ CliDemand parseCliCommand(String input) {
 		 * (previously 'conf sensor tmin 4 -20'; arrives here bare
 		 * after prefix normalization). */
 		{
+			/* tmin/tmax/hmin/hmax stay because the help text and existing
+			 * scripts use them. Anything shaped <channel-key>min / <channel-key>max
+			 * is accepted from the table, so a new quantity is settable the day
+			 * its row lands — this list used to be the whole vocabulary, and a
+			 * pressure limit could not be typed at all. */
 			bool isField = (t1 == "tmin" || t1 == "tmax" || t1 == "hmin" ||
 			                t1 == "hmax" || t1 == "alarm");
+			if (!isField && t1.length( ) > 3) {
+				String suffix = t1.substring(t1.length( ) - 3);
+				if (suffix == "min" || suffix == "max") {
+					String key = t1.substring(0, t1.length( ) - 3);
+					isField = (channelByKey(key.c_str( )) >= 0);
+				}
+			}
 			if (isField) {
 				cmd.type = CMD_SENSOR_FIELD;
 				cmd.setStrVal1(t1.c_str( ));

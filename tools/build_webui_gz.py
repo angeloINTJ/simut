@@ -229,6 +229,36 @@ def _stamp_assets(src: str, tag: str) -> str:
     return src
 
 
+# Real ratios across the ten pages sit between 61% and 97%. A page that comes
+# out far below that has not been minified, it has been eaten.
+MIN_RETAINED_FRACTION = 0.40
+
+
+def _assert_not_gutted(name: str, original: int, minified: int) -> None:
+    """Fail the build when minification silently drops most of a page.
+
+    The syntax check above cannot see this: what survives is valid JavaScript,
+    just missing the half of the page that mattered. ALARMS_PAGE shipped once
+    at 9% of its source — every handler gone, the page still parsing — because
+    a JS comment contained a double quote and an apostrophe, which is the same
+    trigger that cost a release before.
+
+    A ratio is a blunt instrument, but the failure it catches is not subtle.
+    """
+    if original <= 0:
+        return
+    retained = minified / original
+    if retained >= MIN_RETAINED_FRACTION:
+        return
+    raise SystemExit(
+        f"build_webui_gz: {name} ENCOLHEU DEMAIS na minificacao — "
+        f"{original} -> {minified} B ({retained:.0%} do original, "
+        f"minimo {MIN_RETAINED_FRACTION:.0%}).\n"
+        f"Causa comum: aspas ou apostrofo dentro de comentario JS no WebUI.h. "
+        f"O `node --check` nao detecta: o que sobra continua sintaticamente valido."
+    )
+
+
 def _syntax_check_scripts(name: str, html: str) -> None:
     """Valida a sintaxe dos <script> inline do HTML minificado via `node --check`.
 
@@ -309,6 +339,7 @@ def generate() -> None:
         original_len = len(html_content)
         minified = _minify_web_block(_stamp_assets(html_content, asset_tag))
         _syntax_check_scripts(name, minified)
+        _assert_not_gutted(name, original_len, len(minified))
         # mtime=0, or the gzip header carries the build clock and firmware.bin
         # differs on every build from identical sources. That makes a released
         # image impossible to reproduce, and makes "is this the binary we

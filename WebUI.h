@@ -4350,7 +4350,8 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.querySelectorAll('.sensor-card').forEach(card => {
                 let idx = parseInt(card.getAttribute('data-idx'));
                 let obj = { idx: idx, active: card.querySelector('.alm-active').checked };
-                /* One "<channel>":[min,max] entry per pair of inputs. The inputs
+                /* One entry per pair of inputs, keyed by channel, holding a
+                   two-element min/max array. The inputs
                    are named <key>min / <key>max; the payload groups them, which
                    is the shape the firmware parses and the same shape
                    /api/sensors emits. Previously the four fixed keys went out
@@ -4566,7 +4567,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             var val = parseFloat(e.target.value);
             if (isNaN(val)) return;
 
-            /* Interlock against this field's own partner, whatever quantity it
+            /* Interlock against the partner of this field, whatever quantity it
                belongs to. Was a temperature block and a humidity block written
                out separately, which left a third quantity uncoupled — its MIN
                could be dragged above its MAX with nothing objecting. */
