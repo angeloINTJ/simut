@@ -154,13 +154,26 @@ void WebManager::handleApiSensorsGet( ) {
 		sanitizeName(hw);
 		snprintf(buf, sizeof(buf),
 		         "%s{\"i\":%d,\"a\":%s,\"t\":%u,\"p\":[%u,%u,%u,%u],\"rom\":\"%s\","
-		         "\"hwId\":\"%s\",\"name\":\"%s\",\"tmin\":%.2f,\"tmax\":%.2f,"
-		         "\"hmin\":%.2f,\"hmax\":%.2f,\"al\":%s}",
+		         "\"hwId\":\"%s\",\"name\":\"%s\",\"al\":%s,\"lim\":{",
 		         i ? "," : "", i, s.active ? "true" : "false", s.sensorType,
 		         s.pins[0], s.pins[1], s.pins[2], s.pins[3], romHex,
-		         hw, nm, s.tempMin, s.tempMax, s.humMin, s.humMax,
-		         s.alarmsActive ? "true" : "false");
+		         hw, nm, s.alarmsActive ? "true" : "false");
 		if (!safeSend(buf)) return;
+
+		/* Limits keyed by channel, replacing the fixed tmin/tmax/hmin/hmax.
+		 * Emitted for every channel slot the record carries rather than only
+		 * the ones this sensor reports: the /config editor lets the user retype
+		 * a slot, and the limits it already stored for the new type should not
+		 * disappear from the form on the way there. */
+		bool firstLim = true;
+		for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+			if (!channelValid(c)) continue;
+			snprintf(buf, sizeof(buf), "%s\"%s\":[%.2f,%.2f]",
+			         firstLim ? "" : ",", channelInfo(c).key, s.chMin[c], s.chMax[c]);
+			if (!safeSend(buf)) return;
+			firstLim = false;
+		}
+		if (!safeSend("}}")) return;
 	}
 	safeSend("]}");
 }

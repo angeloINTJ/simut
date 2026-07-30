@@ -117,17 +117,20 @@ struct __attribute__((packed)) SensorRecord {
  uint32_t provisionEpoch;
 
 
- float tempMin;
- float tempMax;
- float humMin;
- float humMax;
+ /* Alarm limits, one pair per channel, indexed by channel id. These were
+  * tempMin/tempMax/humMin/humMax — four named fields that could not express a
+  * limit for a third quantity, which is why a BMP280 had no pressure alarm
+  * however the UI was written. An inactive channel carries the plausible range
+  * from the channel table, which never trips. */
+ float chMin[MAX_SENSOR_CHANNELS];
+ float chMax[MAX_SENSOR_CHANNELS];
  bool alarmsActive;
  uint8_t channelBitWidth[MAX_SENSOR_CHANNELS];
 };
-/* Locks layout at compile-time. Deliberate schema bump
- * must touch HERE AND migration code; build breaks if someone adds/removes
- * a field without considering existing flash consequences. */
-static_assert(sizeof(SensorRecord) == 87, "SensorRecord v17 must be 87 bytes - update migration if changing");
+/* Locks layout at compile-time. A deliberate schema bump must touch HERE and
+ * CONFIG_VERSION; the build breaks if someone changes a field without
+ * considering what is already written to flash. */
+static_assert(sizeof(SensorRecord) == 139, "SensorRecord v20 must be 139 bytes - bump CONFIG_VERSION if changing");
 
 /**
  * User account for web interface authentication (packed for Flash storage).

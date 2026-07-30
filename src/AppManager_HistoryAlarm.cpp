@@ -563,18 +563,16 @@ void AppManager::checkAlarmConditions( ) {
  for (const auto &s : sensors) {
  if (s.config.pins[0] != targetGpio || s.inErrorState) continue;
 
+ /* Every channel the part reports, against that channel's own pair of
+  * limits. This tested temperature, then humidity if the sensor had it,
+  * and stopped — so a BMP280's pressure could leave its range without
+  * anything noticing, no matter what the UI offered. */
  bool tripped = false;
-
- if (!isnan(s.avgValue[0])) {
- if (s.avgValue[0] < cfg.sensors[i].tempMin ||
- s.avgValue[0] > cfg.sensors[i].tempMax) {
- tripped = true;
- }
- }
-
- if (!tripped && sensorHasHumidity(s.type) && !isnan(s.avgValue[1])) {
- if (s.avgValue[1] < cfg.sensors[i].humMin ||
- s.avgValue[1] > cfg.sensors[i].humMax) {
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS && !tripped; c++) {
+ if (!sensorHasChannel(s.type, c)) continue;
+ const float v = s.avgValue[c];
+ if (!isfinite(v)) continue;
+ if (v < cfg.sensors[i].chMin[c] || v > cfg.sensors[i].chMax[c]) {
  tripped = true;
  }
  }

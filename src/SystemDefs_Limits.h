@@ -29,9 +29,13 @@
 #endif
 
 #ifndef MAX_SENSOR_CHANNELS
-#define MAX_SENSOR_CHANNELS 4 /* Measurement channels per sensor (TEMP, HUM, PRESS, LUX) */
+/* Channel slots per sensor. Four are defined today (TEMP, HUM, PRESS, LUX —
+ * see sensors/SensorChannelTable.h); the other four are headroom, because
+ * raising this cap moves SensorRecord and therefore the stored-config layout.
+ * Doing that once with room to spare beats doing it per new quantity. */
+#define MAX_SENSOR_CHANNELS 8
 #endif
-#define SIMUT_VERSION "1.6.3-beta"
+#define SIMUT_VERSION "2.0.0-alpha"
 
 /* Fallback epoch for provisional time when NTP is unavailable and no
  * history records exist to seed the virtual RTC. Override via

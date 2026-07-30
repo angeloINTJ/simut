@@ -332,6 +332,22 @@ inline bool sensorHasChannel(SensorType t, uint8_t channel) {
  return SensorFormat::forType(t).hasChannel(channel);
 }
 
+/**
+ * @brief Channel id of the n-th channel this type reports, or CH_COUNT.
+ *
+ * For screens with a fixed number of rows. A caller that asks for row 0 and
+ * row 1 gets temperature and humidity from a DHT22, temperature and pressure
+ * from a BMP280 — instead of a humidity row the part cannot fill.
+ */
+inline uint8_t sensorNthChannel(SensorType t, uint8_t n) {
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+ if (!sensorHasChannel(t, c)) continue;
+ if (n == 0) return c;
+ n--;
+ }
+ return CH_COUNT;
+}
+
 /** @return true if this sensor reports relative humidity. */
 inline bool sensorHasHumidity(SensorType t) {
  return sensorHasChannel(t, CH_HUM);

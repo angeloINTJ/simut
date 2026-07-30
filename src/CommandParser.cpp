@@ -359,12 +359,18 @@ CliDemand parseCliCommand(String input) {
 						int lastSp = fname.lastIndexOf(' ');
 						if (lastSp != -1) {
 							String tk = fname.substring(lastSp + 1);
-							if (tk == "ds18b20" || tk == "dht22" || tk == "bme280") {
+							/* bmp280 belongs here too: it stopped being an alias of
+							 * the BME280 when the parts were split into separate
+							 * types, and nothing added it to this list — so the one
+							 * chip on the bench that has pressure and no humidity
+							 * could not be named, and fell through to DHT22. */
+							if (tk == "ds18b20" || tk == "dht22" || tk == "bme280" || tk == "bmp280") {
 								cmd.setStrVal3(tk.c_str( ));
 								fname = fname.substring(0, lastSp);
 								fname.trim( );
 							}
-						} else if (fname == "ds18b20" || fname == "dht22" || fname == "bme280") {
+						} else if (fname == "ds18b20" || fname == "dht22"
+						           || fname == "bme280" || fname == "bmp280") {
 							/* Name omitted, only the type given: use it for both. */
 							cmd.setStrVal3(fname.c_str( ));
 						}

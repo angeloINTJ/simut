@@ -86,36 +86,14 @@ struct Core1FlashPause {
  ~Core1FlashPause( ) { _s->exitFlashSafeMode( ); }
 };
 
-const uint16_t CONFIG_VERSION = 17;
+/* 20, not 18: the jump is a marker. 17 was the last schema with a migration
+ * path into it, and 2.0.0 accepts nothing older than itself, so a version in
+ * 18..19 would look like a routine step that some future reader might try to
+ * migrate from. There is no such path and there is not meant to be one. */
+const uint16_t CONFIG_VERSION = 20;
 
 /* -------------------------------------------------------------------------- */
 /* Legacy UserAccount layout (v14 and earlier) — used ONLY by the */
-/* loadAndMigrateV14 migrator. Not to be confused with UserAccount (v15, 62 B). */
-/* -------------------------------------------------------------------------- */
-struct __attribute__((packed)) UserAccount_v14 {
- bool active;
- char username[16];
- char password[32];
- uint16_t permissions;
- bool mustChangePassword;
-};
-static_assert(sizeof(UserAccount_v14) == 52, "UserAccount_v14 must be 52 bytes");
-
-/* Legacy v15 SensorRecord (79 bytes) — used by v14 and v15 migrators. */
-struct __attribute__((packed)) SensorRecord_v15 {
- bool active;
- uint8_t gpio;
- uint8_t rom[8];
- char hwId[16];
- char friendlyName[32];
- uint32_t provisionEpoch;
- float tempMin;
- float tempMax;
- float humMin;
- float humMax;
- bool alarmsActive;
-};
-static_assert(sizeof(SensorRecord_v15) == 79, "SensorRecord_v15 must be 79 bytes");
 
 /* Keystream derivation via SHA-256(chip_id + domain + counter).
  * Generates arbitrary-size keystream iterating the counter and expanding
@@ -157,29 +135,6 @@ void StorageManager::obfuscateSensitiveFields(SystemConfig& cfg) {
  xorWithDerivedKey((uint8_t*)cfg.mqttPass, sizeof(cfg.mqttPass), "mqtt");
  xorWithDerivedKey((uint8_t*)cfg.telApiKey, sizeof(cfg.telApiKey), "telapi");
 }
-
-/* Blob sizes per historical version, derived from known record counts.
- * sizeof(SystemConfig) = CURRENT v17 size. Older sizes are computed
- * by subtracting the deltas introduced in each version.
- *
- * Record counts per version (sensor area):
- *   v17: 16 SensorRecords (sensors[16], no ambientSensor)
- *   v16: 11 SensorRecords (sensors[10] + ambientSensor)
- *   v15: 11 SensorRecord_v15 (79 B each)
- *
- * v15→v16: SensorRecord grew 4 B × 11 = +44 B
- * v16→v17: +5 SensorRecords (removed ambientSensor, added 6 slots) = +415 B
- */
-static constexpr size_t V16_RECORD_COUNT = 11; /* 10 sensors + 1 ambientSensor */
-static constexpr size_t V16_TO_V17_DELTA = (MAX_SENSORS - V16_RECORD_COUNT) * sizeof(SensorRecord); /* 5*83=415 */
-static constexpr size_t CONFIG_V16_BLOB_SIZE = sizeof(SystemConfig) - V16_TO_V17_DELTA;
-static constexpr size_t CONFIG_V15_BLOB_SIZE = CONFIG_V16_BLOB_SIZE - V16_RECORD_COUNT * 4; /* -44 */
-static constexpr size_t CONFIG_V14_USER_DELTA =
- MAX_USERS * (sizeof(UserAccount) - sizeof(UserAccount_v14)); /* 50 bytes */
-static constexpr size_t CONFIG_V14_BLOB_SIZE =
- CONFIG_V15_BLOB_SIZE - CONFIG_V14_USER_DELTA;
-static constexpr size_t CONFIG_V12_BLOB_SIZE =
- CONFIG_V14_BLOB_SIZE - (64 - CONFIG_V12_RESERVED_SIZE);
 
 StorageManager::StorageManager( ) {
  mutex_init(&_fsReadMutex);
@@ -582,10 +537,10 @@ void StorageManager::loadDefaults( ) {
  memset(_currentConfig.sensors[i].rom, 0, 8);
  safeCopy(_currentConfig.sensors[i].hwId, "", sizeof(_currentConfig.sensors[i].hwId));
  safeCopy(_currentConfig.sensors[i].friendlyName, "", sizeof(_currentConfig.sensors[i].friendlyName));
- _currentConfig.sensors[i].tempMin = 0.0f;
- _currentConfig.sensors[i].tempMax = 40.0f;
- _currentConfig.sensors[i].humMin = 20.0f;
- _currentConfig.sensors[i].humMax = 80.0f;
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+ _currentConfig.sensors[i].chMin[c] = channelInfo(c).defMin;
+ _currentConfig.sensors[i].chMax[c] = channelInfo(c).defMax;
+ }
  _currentConfig.sensors[i].alarmsActive = true;
  }
 }
@@ -604,7 +559,7 @@ uint32_t StorageManager::calculateCRC32(const uint8_t *data, size_t length) {
 
 /* Read config in current format. Accepts v13 (plaintext, pre-obfuscation) or v14 (fields
  * encrypted via XOR+KDF). Decrypts in-place when v14.
- * The caller (attemptLoad) is responsible for detecting v13 and marking _didMigrate
+ * The caller (attemptLoad) accepts only the current schema.
  * so it is re-saved as v14 encrypted. */
 bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg) {
  size_t bytesRead = f.read((uint8_t*)&outCfg, sizeof(SystemConfig));
@@ -624,466 +579,42 @@ bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg) {
  return true;
 }
 
-/* Read config in legacy v12 format (reserved[24], UserAccount_v14[52]) and migrate
- * to v15 (reserved[64], UserAccount[62]). Sensitive fields in v12 are
- * plaintext — no deobfuscation needed; they will be encrypted on the first
- * saveConfiguration post-migration.
- *
- * In addition to expanding reserved[24]→[64] (delta 40 at end),
- * also expands UserAccount from 52→62 in the middle of the blob (delta 50) — requires
- * buffered read and reconstruction by section. */
-bool StorageManager::loadAndMigrateV12(File& f, SystemConfig& outCfg) {
- constexpr size_t HEAD_SIZE = offsetof(SystemConfig, users);
- constexpr size_t V14_USER_BLOCK = MAX_USERS * sizeof(UserAccount_v14);
- constexpr size_t V15_USER_BLOCK = MAX_USERS * sizeof(UserAccount);
- constexpr size_t MIDDLE_SIZE = offsetof(SystemConfig, reserved) -
- (HEAD_SIZE + V15_USER_BLOCK);
- constexpr size_t V12_MIDDLE_START = HEAD_SIZE + V14_USER_BLOCK;
- constexpr size_t V12_RESERVED_START = V12_MIDDLE_START + MIDDLE_SIZE;
- constexpr size_t V12_RESERVED_BYTES = CONFIG_V12_RESERVED_SIZE; /* 24 */
-
- uint8_t buf[CONFIG_V12_BLOB_SIZE];
- uint32_t readCrc = 0;
-
- size_t bytesRead = f.read(buf, CONFIG_V12_BLOB_SIZE);
- size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
-
- if (bytesRead != CONFIG_V12_BLOB_SIZE) return false;
-
- uint32_t fileMagic = 0;
- uint16_t fileVersion = 0;
- memcpy(&fileMagic, buf + 0, sizeof(fileMagic));
- memcpy(&fileVersion, buf + sizeof(fileMagic), sizeof(fileVersion));
- if (fileMagic != CONFIG_MAGIC || fileVersion != 12) return false;
-
- if (crcRead == sizeof(readCrc)) {
- uint32_t calcCrc = calculateCRC32(buf, CONFIG_V12_BLOB_SIZE);
- if (calcCrc != readCrc) return false;
- }
-
- memset(&outCfg, 0, sizeof(SystemConfig));
-
- /* Head (magic..useHttps). */
- memcpy(&outCfg, buf, HEAD_SIZE);
-
- /* users_v14 → users_v15 (salt={0}, hashVersion=0 → legacy mode). */
- for (size_t i = 0; i < MAX_USERS; i++) {
- UserAccount_v14 u;
- memcpy(&u, buf + HEAD_SIZE + i * sizeof(UserAccount_v14), sizeof(UserAccount_v14));
- outCfg.users[i].active = u.active;
- memcpy(outCfg.users[i].username, u.username, sizeof(u.username));
- memcpy(outCfg.users[i].password, u.password, sizeof(u.password));
- outCfg.users[i].password[sizeof(u.password)] = '\0';
- outCfg.users[i].permissions = u.permissions;
- outCfg.users[i].mustChangePassword = u.mustChangePassword;
- memset(outCfg.users[i].salt, 0, sizeof(outCfg.users[i].salt));
- outCfg.users[i].hashVersion = 0;
- }
-
- /* Middle (telServer..ntpServer) — layout unchanged, only shifted. */
- memcpy(((uint8_t*)&outCfg) + HEAD_SIZE + V15_USER_BLOCK,
- buf + V12_MIDDLE_START,
- MIDDLE_SIZE);
-
- /* reserved[0..23] from v12; reserved[24..63] stays zero from memset. */
- memcpy(outCfg.reserved, buf + V12_RESERVED_START, V12_RESERVED_BYTES);
-
- outCfg.version = CONFIG_VERSION;
- return true;
-}
-
-/* Read config in v15 format (UserAccount[62], SensorRecord[79] with single gpio)
- * and migrate directly to v17 (16 universal slots).
- *
- * v15 had: sensors[10] + ambientSensor = 11 SensorRecord_v15 (79 B each)
- * v17 has: sensors[16] = 16 SensorRecord (83 B each)
- *
- * Migration: v15 sensors[0..9] → v17 sensors[0..9], v15 ambientSensor → v17 sensors[10],
- * v17 sensors[11..15] = inactive defaults. Tail copied to new offset. */
-bool StorageManager::loadAndMigrateV15(File& f, SystemConfig& outCfg) {
- static constexpr size_t V15_SLOT_COUNT = 10; /* v15 had 10 configurable slots */
- constexpr size_t V15_SENSOR_SIZE = sizeof(SensorRecord_v15);
- constexpr size_t V16_SENSOR_SIZE = sizeof(SensorRecord);
-
- uint8_t* buf = new (std::nothrow) uint8_t[CONFIG_V15_BLOB_SIZE];
- if (!buf) return false;
- uint32_t readCrc = 0;
-
- size_t bytesRead = f.read(buf, CONFIG_V15_BLOB_SIZE);
- size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
-
- if (bytesRead != CONFIG_V15_BLOB_SIZE) { delete[] buf; return false; }
-
- uint32_t fileMagic = 0;
- uint16_t fileVersion = 0;
- memcpy(&fileMagic, buf + 0, sizeof(fileMagic));
- memcpy(&fileVersion, buf + sizeof(fileMagic), sizeof(fileVersion));
-
- if (fileMagic != CONFIG_MAGIC || fileVersion != 15) { delete[] buf; return false; }
-
- if (crcRead == sizeof(readCrc)) {
- uint32_t calcCrc = calculateCRC32(buf, CONFIG_V15_BLOB_SIZE);
- if (calcCrc != readCrc) { delete[] buf; return false; }
- }
-
- memset(&outCfg, 0, sizeof(SystemConfig));
-
- /* Head: copy everything before sensors[] (magic..ds18Resolution). */
- constexpr size_t HEAD_SIZE = offsetof(SystemConfig, sensors);
- memcpy(&outCfg, buf, HEAD_SIZE);
-
- constexpr size_t V15_SENSORS_OFFSET = HEAD_SIZE;
- constexpr size_t V17_SENSORS_OFFSET = HEAD_SIZE;
-
- /* v15 sensors[0..9] → v17 sensors[0..9] */
- for (size_t i = 0; i < V15_SLOT_COUNT; i++) {
- SensorRecord_v15 s15;
- const uint8_t* src = buf + V15_SENSORS_OFFSET + i * V15_SENSOR_SIZE;
- memcpy(&s15, src, V15_SENSOR_SIZE);
-
- bool isDs18 = false;
- for (int k = 0; k < 8; k++) if (s15.rom[k] != 0) isDs18 = true;
-
- uint8_t* dst = ((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + i * V16_SENSOR_SIZE;
- memcpy(dst + offsetof(SensorRecord, active), &s15.active, sizeof(s15.active));
- uint8_t st = (uint8_t)(isDs18 ? TYPE_DS18B20 : TYPE_DHT22);
- memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
- uint8_t pns[4] = {s15.gpio, 255, 255, 255};
- memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
- memcpy(dst + offsetof(SensorRecord, rom), s15.rom, sizeof(s15.rom));
- memcpy(dst + offsetof(SensorRecord, hwId), s15.hwId, sizeof(s15.hwId));
- memcpy(dst + offsetof(SensorRecord, friendlyName), s15.friendlyName, sizeof(s15.friendlyName));
- memcpy(dst + offsetof(SensorRecord, provisionEpoch), &s15.provisionEpoch, sizeof(s15.provisionEpoch));
- memcpy(dst + offsetof(SensorRecord, tempMin), &s15.tempMin, 4 * sizeof(float));
- memcpy(dst + offsetof(SensorRecord, alarmsActive), &s15.alarmsActive, sizeof(s15.alarmsActive));
- }
-
- /* v15 ambientSensor → v17 sensors[10] */
- {
- SensorRecord_v15 s15;
- const uint8_t* src = buf + V15_SENSORS_OFFSET + V15_SLOT_COUNT * V15_SENSOR_SIZE;
- memcpy(&s15, src, V15_SENSOR_SIZE);
-
- uint8_t* dst = ((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + V15_SLOT_COUNT * V16_SENSOR_SIZE;
-
- memcpy(dst + offsetof(SensorRecord, active), &s15.active, sizeof(s15.active));
- uint8_t st = (uint8_t)TYPE_DHT22; /* ambient was always DHT22 */
- memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
- uint8_t pns[4] = {s15.gpio, 255, 255, 255};
- memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
- memcpy(dst + offsetof(SensorRecord, rom), s15.rom, sizeof(s15.rom));
- memcpy(dst + offsetof(SensorRecord, hwId), s15.hwId, sizeof(s15.hwId));
- memcpy(dst + offsetof(SensorRecord, friendlyName), s15.friendlyName, sizeof(s15.friendlyName));
- memcpy(dst + offsetof(SensorRecord, provisionEpoch), &s15.provisionEpoch, sizeof(s15.provisionEpoch));
- memcpy(dst + offsetof(SensorRecord, tempMin), &s15.tempMin, 4 * sizeof(float));
- memcpy(dst + offsetof(SensorRecord, alarmsActive), &s15.alarmsActive, sizeof(s15.alarmsActive));
- }
-
- /* Initialize v17 sensors[11..15] as inactive */
- for (size_t i = V15_SLOT_COUNT + 1; i < (size_t)MAX_SENSORS; i++) {
- uint8_t* dst = ((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + i * V16_SENSOR_SIZE;
- bool active = false;
- memcpy(dst + offsetof(SensorRecord, active), &active, sizeof(active));
- uint8_t st = (uint8_t)TYPE_NONE;
- memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
- uint8_t pns[4] = {255, 255, 255, 255};
- memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
- }
-
- /* Tail: v15 ambientSensor was at V15_SENSORS_OFFSET + 11*V15_SENSOR_SIZE.
- * v17 sensors[15] end at V17_SENSORS_OFFSET + 16*V16_SENSOR_SIZE. */
- constexpr size_t V15_TAIL_OFFSET =
- V15_SENSORS_OFFSET + (V15_SLOT_COUNT + 1) * V15_SENSOR_SIZE; /* 11 v15 records */
- constexpr size_t V17_TAIL_OFFSET =
- V17_SENSORS_OFFSET + (size_t)MAX_SENSORS * V16_SENSOR_SIZE; /* 16 v17 records */
- constexpr size_t TAIL_SIZE = CONFIG_V15_BLOB_SIZE - V15_TAIL_OFFSET;
-
- memcpy(((uint8_t*)&outCfg) + V17_TAIL_OFFSET,
- buf + V15_TAIL_OFFSET,
- TAIL_SIZE);
-
- obfuscateSensitiveFields(outCfg);
- outCfg.version = CONFIG_VERSION;
- return true;
-}
-
-/* Read config in v13 (plaintext) or v14 (obfuscated) format — both
- * with UserAccount_v14[52] — and upgrade to v16 schema (UserAccount[62] with
- * salt={0}/hashVersion=0, indicating legacy mode). The stored hash remains
- * valid and verifiable via hashPassword( ) (algorithm unchanged).
- *
- * Layout v14: [head (up to users)] [5 × UserAccount_v14] [tail (telServer..reserved)]
- * Layout v16: [head (same)] [5 × UserAccount_v16] [tail shifted by +50]
- *
- * srcVersion (out): original version read from file (13 or 14) for telemetry. */
-bool StorageManager::loadAndMigrateV14(File& f, SystemConfig& outCfg, uint16_t& srcVersion) {
- constexpr size_t HEAD_SIZE = offsetof(SystemConfig, users);
- constexpr size_t V14_USER_BLOCK = MAX_USERS * sizeof(UserAccount_v14);
- constexpr size_t V15_USER_BLOCK = MAX_USERS * sizeof(UserAccount);
- constexpr size_t V14_TAIL_OFFSET = HEAD_SIZE + V14_USER_BLOCK;
- constexpr size_t V15_TAIL_OFFSET = HEAD_SIZE + V15_USER_BLOCK;
- constexpr size_t TAIL_SIZE = CONFIG_V14_BLOB_SIZE - V14_TAIL_OFFSET;
-
- uint8_t buf[CONFIG_V14_BLOB_SIZE];
- uint32_t readCrc = 0;
-
- size_t bytesRead = f.read(buf, CONFIG_V14_BLOB_SIZE);
- size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
-
- if (bytesRead != CONFIG_V14_BLOB_SIZE) return false;
-
- /* Magic + version via aliasing (SystemConfig starts with uint32_t magic
- * + uint16_t version in all versions since v12). */
- uint32_t fileMagic = 0;
- uint16_t fileVersion = 0;
- memcpy(&fileMagic, buf + 0, sizeof(fileMagic));
- memcpy(&fileVersion, buf + sizeof(fileMagic), sizeof(fileVersion));
-
- if (fileMagic != CONFIG_MAGIC) return false;
- if (fileVersion != 13 && fileVersion != 14) return false;
-
- /* CRC32 calculated over the v14 blob as written. */
- if (crcRead == sizeof(readCrc)) {
- uint32_t calcCrc = calculateCRC32(buf, CONFIG_V14_BLOB_SIZE);
- if (calcCrc != readCrc) return false;
- }
-
- /* Zero outCfg and copy head (fields before users[]). */
- memset(&outCfg, 0, sizeof(SystemConfig));
- memcpy(&outCfg, buf, HEAD_SIZE);
-
- /* Expand each UserAccount_v14 → UserAccount v15. */
- for (size_t i = 0; i < MAX_USERS; i++) {
- UserAccount_v14 u14;
- memcpy(&u14, buf + HEAD_SIZE + i * sizeof(UserAccount_v14), sizeof(UserAccount_v14));
- outCfg.users[i].active = u14.active;
- memcpy(outCfg.users[i].username, u14.username, sizeof(u14.username));
- memcpy(outCfg.users[i].password, u14.password, sizeof(u14.password));
- outCfg.users[i].password[sizeof(u14.password)] = '\0'; /* null-term in new [33] */
- outCfg.users[i].permissions = u14.permissions;
- outCfg.users[i].mustChangePassword = u14.mustChangePassword;
- memset(outCfg.users[i].salt, 0, sizeof(outCfg.users[i].salt));
- outCfg.users[i].hashVersion = 0; /* legacy */
- }
-
- /* Copy tail in three parts: mid-section (telServer..ds18Resolution),
- * sensor area (expand 11 × v15 → 16 × v17), and post-sensor fields. */
- constexpr size_t MID_SIZE = offsetof(SystemConfig, sensors) - offsetof(SystemConfig, telServer);
- constexpr size_t V15_SENSOR_SIZE_T = sizeof(SensorRecord_v15);
- constexpr size_t V17_SENSOR_SIZE_T = sizeof(SensorRecord);
-
- /* 1. Mid-section: telServer..ds18Resolution (same in all versions) */
- memcpy(((uint8_t*)&outCfg) + offsetof(SystemConfig, telServer),
- buf + V14_TAIL_OFFSET,
- MID_SIZE);
-
- /* 2. Expand sensors: 11 v15 records → 16 v17 records */
- {
- static constexpr size_t V15_SLOTS = 10;
- const uint8_t* srcSensors = buf + V14_TAIL_OFFSET + MID_SIZE;
- uint8_t* dstSensors = ((uint8_t*)&outCfg) + offsetof(SystemConfig, sensors);
-
- for (size_t i = 0; i < V15_SLOTS; i++) {
- SensorRecord_v15 s15;
- memcpy(&s15, srcSensors + i * V15_SENSOR_SIZE_T, V15_SENSOR_SIZE_T);
- bool isDs18 = false;
- for (int k = 0; k < 8; k++) if (s15.rom[k] != 0) isDs18 = true;
- uint8_t* dst = dstSensors + i * V17_SENSOR_SIZE_T;
- memcpy(dst + offsetof(SensorRecord, active), &s15.active, sizeof(s15.active));
- uint8_t st = (uint8_t)(isDs18 ? TYPE_DS18B20 : TYPE_DHT22);
- memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
- uint8_t pns[4] = {s15.gpio, 255, 255, 255};
- memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
- memcpy(dst + offsetof(SensorRecord, rom), s15.rom, sizeof(s15.rom));
- memcpy(dst + offsetof(SensorRecord, hwId), s15.hwId, sizeof(s15.hwId));
- memcpy(dst + offsetof(SensorRecord, friendlyName), s15.friendlyName, sizeof(s15.friendlyName));
- memcpy(dst + offsetof(SensorRecord, provisionEpoch), &s15.provisionEpoch, sizeof(s15.provisionEpoch));
- memcpy(dst + offsetof(SensorRecord, tempMin), &s15.tempMin, 4 * sizeof(float));
- memcpy(dst + offsetof(SensorRecord, alarmsActive), &s15.alarmsActive, sizeof(s15.alarmsActive));
- }
- /* v15 ambientSensor → v17 sensors[10] */
- {
- SensorRecord_v15 s15;
- memcpy(&s15, srcSensors + V15_SLOTS * V15_SENSOR_SIZE_T, V15_SENSOR_SIZE_T);
- uint8_t* dst = dstSensors + V15_SLOTS * V17_SENSOR_SIZE_T;
- memcpy(dst + offsetof(SensorRecord, active), &s15.active, sizeof(s15.active));
- uint8_t st = (uint8_t)TYPE_DHT22;
- memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
- uint8_t pns[4] = {s15.gpio, 255, 255, 255};
- memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
- memcpy(dst + offsetof(SensorRecord, rom), s15.rom, sizeof(s15.rom));
- memcpy(dst + offsetof(SensorRecord, hwId), s15.hwId, sizeof(s15.hwId));
- memcpy(dst + offsetof(SensorRecord, friendlyName), s15.friendlyName, sizeof(s15.friendlyName));
- memcpy(dst + offsetof(SensorRecord, provisionEpoch), &s15.provisionEpoch, sizeof(s15.provisionEpoch));
- memcpy(dst + offsetof(SensorRecord, tempMin), &s15.tempMin, 4 * sizeof(float));
- memcpy(dst + offsetof(SensorRecord, alarmsActive), &s15.alarmsActive, sizeof(s15.alarmsActive));
- }
- /* sensors[11..15] = inactive */
- for (size_t i = V15_SLOTS + 1; i < (size_t)MAX_SENSORS; i++) {
- uint8_t* dst = dstSensors + i * V17_SENSOR_SIZE_T;
- bool active = false; uint8_t st = (uint8_t)TYPE_NONE; uint8_t pns[4] = {255,255,255,255};
- memcpy(dst + offsetof(SensorRecord, active), &active, sizeof(active));
- memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
- memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
- }
- }
-
- /* 3. Post-sensor tail: themeIndex..reserved[64] */
- {
- constexpr size_t V14_POST_OFFSET = V14_TAIL_OFFSET + MID_SIZE + (10 + 1) * V15_SENSOR_SIZE_T;
- constexpr size_t V17_POST_OFFSET = offsetof(SystemConfig, themeIndex);
- constexpr size_t POST_SIZE = sizeof(SystemConfig) - offsetof(SystemConfig, themeIndex)
- - sizeof(SystemConfig::reserved) + sizeof(SystemConfig::reserved); /* themeIndex..reserved */
- memcpy(((uint8_t*)&outCfg) + V17_POST_OFFSET,
- buf + V14_POST_OFFSET,
- POST_SIZE);
- }
-
- /* v14 has sensitive fields obfuscated — deobfuscate. v13 is plaintext. */
- if (fileVersion == 14) {
- obfuscateSensitiveFields(outCfg);
- }
-
- srcVersion = fileVersion;
- outCfg.version = CONFIG_VERSION;
- return true;
-}
-
-/* Read config in v16 format (10 slots + ambientSensor) and migrate
- * to v17 (16 universal slots). AmbientSensor becomes sensors[10];
- * slots 11..15 initialized as inactive. Tail shifted by +5*sizeof(SensorRecord). */
-bool StorageManager::loadAndMigrateV16(File& f, SystemConfig& outCfg) {
- constexpr size_t HEAD_SIZE = offsetof(SystemConfig, sensors);
- constexpr size_t V16_REC_SIZE = sizeof(SensorRecord);
- static constexpr size_t V16_SLOTS = 10;
-
- uint8_t* buf = new (std::nothrow) uint8_t[CONFIG_V16_BLOB_SIZE];
- if (!buf) return false;
- uint32_t readCrc = 0;
-
- size_t bytesRead = f.read(buf, CONFIG_V16_BLOB_SIZE);
- size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
-
- if (bytesRead != CONFIG_V16_BLOB_SIZE) { delete[] buf; return false; }
-
- uint32_t fileMagic = 0;
- uint16_t fileVersion = 0;
- memcpy(&fileMagic, buf + 0, sizeof(fileMagic));
- memcpy(&fileVersion, buf + sizeof(fileMagic), sizeof(fileVersion));
-
- if (fileMagic != CONFIG_MAGIC || fileVersion != 16) { delete[] buf; return false; }
-
- if (crcRead == sizeof(readCrc)) {
- uint32_t calcCrc = calculateCRC32(buf, CONFIG_V16_BLOB_SIZE);
- if (calcCrc != readCrc) { delete[] buf; return false; }
- }
-
- memset(&outCfg, 0, sizeof(SystemConfig));
-
- /* Head (magic..ds18Resolution) — same in v16 and v17 */
- memcpy(&outCfg, buf, HEAD_SIZE);
-
- /* sensors[0..9] — copy directly (same format) */
- constexpr size_t V16_SENSORS_OFFSET = HEAD_SIZE;
- constexpr size_t V17_SENSORS_OFFSET = HEAD_SIZE;
- for (size_t i = 0; i < V16_SLOTS; i++) {
- memcpy(((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + i * V16_REC_SIZE,
- buf + V16_SENSORS_OFFSET + i * V16_REC_SIZE,
- V16_REC_SIZE);
- }
-
- /* v16 ambientSensor → v17 sensors[10] */
- memcpy(((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + V16_SLOTS * V16_REC_SIZE,
- buf + V16_SENSORS_OFFSET + V16_SLOTS * V16_REC_SIZE,
- V16_REC_SIZE);
-
- /* sensors[11..15] = inactive defaults */
- for (size_t i = V16_SLOTS + 1; i < (size_t)MAX_SENSORS; i++) {
- uint8_t* dst = ((uint8_t*)&outCfg) + V17_SENSORS_OFFSET + i * V16_REC_SIZE;
- bool active = false; uint8_t st = (uint8_t)TYPE_NONE; uint8_t pns[4] = {255,255,255,255};
- uint8_t rom[8] = {0}; uint32_t pe = 0; float fdef = 0.0f;
- memcpy(dst + offsetof(SensorRecord, active), &active, sizeof(active));
- memcpy(dst + offsetof(SensorRecord, sensorType), &st, sizeof(st));
- memcpy(dst + offsetof(SensorRecord, pins), pns, sizeof(pns));
- memcpy(dst + offsetof(SensorRecord, rom), rom, sizeof(rom));
- memcpy(dst + offsetof(SensorRecord, provisionEpoch), &pe, sizeof(pe));
- memcpy(dst + offsetof(SensorRecord, tempMin), &fdef, sizeof(fdef));
- memcpy(dst + offsetof(SensorRecord, tempMax), &fdef, sizeof(fdef));
- memcpy(dst + offsetof(SensorRecord, humMin), &fdef, sizeof(fdef));
- memcpy(dst + offsetof(SensorRecord, humMax), &fdef, sizeof(fdef));
- memcpy(dst + offsetof(SensorRecord, alarmsActive), &active, sizeof(active));
- }
-
- /* Tail (themeIndex..reserved) — shifted by +5 records */
- constexpr size_t V16_TAIL_OFFSET = V16_SENSORS_OFFSET + (V16_SLOTS + 1) * V16_REC_SIZE; /* 11 records */
- constexpr size_t V17_TAIL_OFFSET = V17_SENSORS_OFFSET + (size_t)MAX_SENSORS * V16_REC_SIZE; /* 16 records */
- constexpr size_t TAIL_SIZE = CONFIG_V16_BLOB_SIZE - V16_TAIL_OFFSET;
-
- memcpy(((uint8_t*)&outCfg) + V17_TAIL_OFFSET,
- buf + V16_TAIL_OFFSET,
- TAIL_SIZE);
-
- obfuscateSensitiveFields(outCfg);
- outCfg.version = CONFIG_VERSION;
- return true;
-}
-
 bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  File f = LittleFS.open(path, "r");
  if (!f) return false;
  size_t fileSize = f.size( );
 
- /* Current format (v17 — 16 universal sensor slots, no ambientSensor). */
- if (fileSize == sizeof(SystemConfig) + sizeof(uint32_t)) {
+ /* One accepted format, by deliberate decision for 2.0.0-alpha.
+  *
+  * Every migration path this function used to carry (v12, v13/v14, v15, v16)
+  * described the old layout in terms of the CURRENT struct: sizeof(SensorRecord)
+  * as the record stride, offsetof(SystemConfig, sensors) as the head size. That
+  * holds only while the record keeps its size, and 2.0.0 changes it — per-channel
+  * alarm limits and eight channel slots take SensorRecord from 87 B to 139 B.
+  * Every derived "historical" size would move with it, so those readers would
+  * have walked old files at the wrong stride. Silently: a wrong stride still
+  * produces bytes, and the CRC covers the file as written, not as interpreted.
+  *
+  * Rather than freeze four historical layouts to keep paths off a version nobody
+  * is being asked to stay on, the schema breaks here. A config written by 1.6.x
+  * is not recognised, and the device comes up on defaults. The rejection is
+  * recorded so the caller can say so — a user whose settings vanished is owed
+  * the reason. */
+ const size_t expected = sizeof(SystemConfig) + sizeof(uint32_t);
+ if (fileSize == expected) {
  bool ok = loadCurrentBlob(f, outCfg);
  f.close( );
  return ok;
  }
 
- /* v16 (10 slots + ambientSensor) → migrate to v17. */
- if (fileSize == CONFIG_V16_BLOB_SIZE + sizeof(uint32_t)) {
- bool ok = loadAndMigrateV16(f, outCfg);
  f.close( );
- if (ok) { _didMigrate = true; _migrationFromVersion = 16; }
- return ok;
- }
-
- /* v15 (SensorRecord grew +4 bytes per sensor = +44 bytes total). */
- if (fileSize == CONFIG_V15_BLOB_SIZE + sizeof(uint32_t)) {
- bool ok = loadAndMigrateV15(f, outCfg);
- f.close( );
- if (ok) { _didMigrate = true; _migrationFromVersion = 15; }
- return ok;
- }
-
- /* v13 plaintext or v14 obfuscated (same size, layout with
- * UserAccount_v14[52]) → migrate to v16. */
- if (fileSize == CONFIG_V14_BLOB_SIZE + sizeof(uint32_t)) {
- uint16_t srcVersion = 0;
- bool ok = loadAndMigrateV14(f, outCfg, srcVersion);
- f.close( );
- if (ok) {
- _didMigrate = true;
- _migrationFromVersion = srcVersion; /* 13 or 14 */
- }
- return ok;
- }
-
- /* v12 (pre reserved[] expansion) → migrate via dedicated path. */
- if (fileSize == CONFIG_V12_BLOB_SIZE + sizeof(uint32_t)) {
- bool ok = loadAndMigrateV12(f, outCfg);
- f.close( );
- if (ok) { _didMigrate = true; _migrationFromVersion = 12; }
- return ok;
- }
-
- f.close( );
+ _rejectedConfigSize = fileSize;
  return false;
 }
 
 bool StorageManager::loadConfiguration( ) {
 
- _didMigrate = false;
+ _rejectedConfigSize = 0;
 
  enterFlashReadLock( );
  SystemConfig* tempConfig = new (std::nothrow) SystemConfig;
@@ -1103,6 +634,12 @@ bool StorageManager::loadConfiguration( ) {
  exitFlashReadLock( );
 
  if (!loaded) {
+ /* The rejection is NOT logged here. loadConfiguration( ) runs inside
+  * StorageManager::begin( ), which the boot sequence calls before
+  * LogManager::begin( ) — anything emitted at this point goes nowhere. The
+  * previous "Config schema migrated" warning sat in exactly this spot and
+  * was never seen once. _rejectedConfigSize survives for the caller to
+  * report after the logger exists; see AppManager::setup( ). */
  loadDefaults( );
  return false;
  }
@@ -1125,17 +662,7 @@ bool StorageManager::loadConfiguration( ) {
  LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, TRL("Primary config corrupt, recovered from backup"));
  }
 
- /* Schema migration (v12/v13/v14/v15 → v16): persist in new format before
- * handing over control. saveConfiguration( ) marks magic/version,
- * encrypts sensitive fields and writes via atomic tmp→rename. */
- if (_didMigrate) {
- int fromVer = _migrationFromVersion;
- _didMigrate = false;
- _migrationFromVersion = 0;
- LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, fromVer,
- TRL("Config schema migrated"));
- saveConfiguration( );
- } else if (fromBackup) {
+ if (fromBackup) {
  saveConfiguration( );
  }
  return true;

@@ -196,19 +196,25 @@ void DisplayManager::showAlarmEdit(int sensorIdx) {
 }
 
 void DisplayManager::drawAlarmEdit( ) {
- bool hasHum = (_editSensorIdx == -1 || sensorHasHumidity((SensorType)_tempAlarmConfig.sensorType));
+ /* Two rows, filled with whichever channels this sensor actually reports —
+  * temperature and humidity on a DHT22, temperature and pressure on a BMP280,
+  * which previously got a humidity row it could never fill and no way to reach
+  * its pressure at all. A part with more than two channels shows its first two
+  * here; the rest are editable from the web, because 320x240 has room for two
+  * rows and pretending otherwise would be worse than the limit. */
+ const SensorType sType = (SensorType)_tempAlarmConfig.sensorType;
+ const uint8_t rowCh[2] = { sensorNthChannel(sType, 0), sensorNthChannel(sType, 1) };
+ const bool hasRow1 = channelValid(rowCh[1]);
 
-
- if (_tempAlarmConfig.tempMin >= _tempAlarmConfig.tempMax) {
- _tempAlarmConfig.tempMax = _tempAlarmConfig.tempMin + 0.1f;
- _tempAlarmConfig.tempMax = round(_tempAlarmConfig.tempMax * 10.0f) / 10.0f;
- }
- if (hasHum && _tempAlarmConfig.humMin >= _tempAlarmConfig.humMax) {
- _tempAlarmConfig.humMax = _tempAlarmConfig.humMin + 0.1f;
- _tempAlarmConfig.humMax = round(_tempAlarmConfig.humMax * 10.0f) / 10.0f;
- if (_tempAlarmConfig.humMax > 100.0f) {
- _tempAlarmConfig.humMax = 100.0f;
- _tempAlarmConfig.humMin = 99.9f;
+ for (uint8_t r = 0; r < 2; r++) {
+ const uint8_t c = rowCh[r];
+ if (!channelValid(c)) continue;
+ if (_tempAlarmConfig.chMin[c] < _tempAlarmConfig.chMax[c]) continue;
+ const ChannelInfo& ci = channelInfo(c);
+ _tempAlarmConfig.chMax[c] = round((_tempAlarmConfig.chMin[c] + 0.1f) * 10.0f) / 10.0f;
+ if (_tempAlarmConfig.chMax[c] > ci.saneMax) {
+ _tempAlarmConfig.chMax[c] = ci.saneMax;
+ _tempAlarmConfig.chMin[c] = ci.saneMax - 0.1f;
  }
  }
 
@@ -220,8 +226,9 @@ void DisplayManager::drawAlarmEdit( ) {
  const char* titleTxt = _tempAlarmConfig.friendlyName; /* T1.2: no heap in Core-1 render */
  _driver.tft->getTextBounds(titleTxt, 0, 0, &tx1, &ty1, &tw, &th);
  _driver.tft->setCursor((320 - tw) / 2, 22); _driver.tft->print(titleTxt);
- _driver.tft->setTextColor(C_TEXT_SUB); _driver.tft->setCursor(10, 52); _driver.tft->print(tr(TR_TEMP));
- if (hasHum) { _driver.tft->setCursor(10, 122); _driver.tft->print(tr(TR_HUMIDITY)); }
+ _driver.tft->setTextColor(C_TEXT_SUB); _driver.tft->setCursor(10, 52);
+ _driver.tft->print(channelInfo(rowCh[0]).name);
+ if (hasRow1) { _driver.tft->setCursor(10, 122); _driver.tft->print(channelInfo(rowCh[1]).name); }
  int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
  _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
  _driver.tft->fillTriangle(36, btnY + 26, 26, btnY + 12, 46, btnY + 12, C_TEXT_MAIN);
@@ -239,7 +246,7 @@ void DisplayManager::drawAlarmEdit( ) {
  _driver.tft->setCursor(222 + (93 - bw)/2, btnY + 25); _driver.tft->print(saveTxt);
  _forceSettingsRedraw = false;
  }
- auto drawBox = [&](int fieldId, int x, int y, const char* label, float val, bool isHum) {
+ auto drawBox = [&](int fieldId, int x, int y, const char* label, float val, uint8_t ch) {
  _driver.canvasSmall->fillScreen(C_BG_MAIN);
  bool focused = (_editFieldFocus == fieldId);
  uint16_t bg = focused ? C_ACCENT : C_CARD_BG;
@@ -258,11 +265,17 @@ void DisplayManager::drawAlarmEdit( ) {
  _driver.canvasSmall->setCursor(textAnchor - bw, 32); _driver.canvasSmall->print(intPart);
  _driver.canvasSmall->setCursor(textAnchor, 32); _driver.canvasSmall->print(decPart);
  _driver.canvasSmall->setFont(NULL); _driver.canvasSmall->setCursor(122, 20);
- if (isHum) _driver.canvasSmall->print("%"); else _driver.canvasSmall->print("C");
+ /* Unit from the channel table. The glyph used to be a hardcoded "%" or "C",
+  * chosen by a bool, which had no answer for a third quantity. */
+ _driver.canvasSmall->print(channelInfo(ch).display.unit);
  blitCanvas(_driver.canvasSmall, x, y, 140, 40);
  };
- drawBox(0, 10, 60, "MIN", _tempAlarmConfig.tempMin, false); drawBox(1, 160, 60, "MAX", _tempAlarmConfig.tempMax, false);
- if (hasHum) { drawBox(2, 10, 130, "MIN", _tempAlarmConfig.humMin, true); drawBox(3, 160, 130, "MAX", _tempAlarmConfig.humMax, true); }
+ drawBox(0,  10, 60, "MIN", _tempAlarmConfig.chMin[rowCh[0]], rowCh[0]);
+ drawBox(1, 160, 60, "MAX", _tempAlarmConfig.chMax[rowCh[0]], rowCh[0]);
+ if (hasRow1) {
+ drawBox(2,  10, 130, "MIN", _tempAlarmConfig.chMin[rowCh[1]], rowCh[1]);
+ drawBox(3, 160, 130, "MAX", _tempAlarmConfig.chMax[rowCh[1]], rowCh[1]);
+ }
 }
 
 void DisplayManager::showSettingsMain( ) {

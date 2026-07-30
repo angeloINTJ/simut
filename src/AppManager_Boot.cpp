@@ -333,6 +333,18 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_START_LOG);
  LogManager::instance( ).begin(fsOk, LOG_DEBUG);
 
+ /* First thing the logger can usefully say. 2.0.0 accepts one config schema
+  * and migrates nothing, so a device coming from 1.6.x wakes up on defaults —
+  * no WiFi, no users, no sensor slots. That has to be stated somewhere, and
+  * StorageManager detected it several steps ago, before this logger existed. */
+ {
+ size_t rejected = _storageMgr->takeRejectedConfigSize( );
+ if (rejected != 0) {
+ LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, (int)rejected,
+          TRL("Config from an older schema discarded — defaults loaded"));
+ }
+ }
+
  /* Autopsy has already read scratch[4]. Now we can set MOD_BOOT to
 	 * track stalls that happen during the remainder of setup. */
  TRACE_MOD(0, MOD_BOOT);

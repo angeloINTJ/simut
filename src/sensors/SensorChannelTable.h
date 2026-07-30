@@ -39,11 +39,15 @@
  */
 inline const ChannelInfo* channelTable( ) {
 	static const ChannelInfo t[CH_COUNT] = {
-		/*         key      name           ltr bits scale signed  saneMin      saneMax  i18nKey      display preset */
-		/* CH_TEMP  */ { "temp",  "Temperature", 't', 16,  100, true,  -327.68f,     327.66f, "ch_temp",  SensorPresets::TEMPERATURE_CELSIUS },
-		/* CH_HUM   */ { "hum",   "Humidity",    'u', 10,   10, false,     0.0f,      102.3f, "ch_hum",   SensorPresets::HUMIDITY_PERCENT    },
-		/* CH_PRESS */ { "press", "Pressure",    'p', 14,   10, false,     0.0f,     1638.3f, "ch_press", SensorPresets::PRESSURE_HPA        },
-		/* CH_LUX   */ { "lux",   "Luminosity",  'l', 24,  100, false,     0.0f, 167772.15f,  "ch_lux",   SensorPresets::LIGHT_LUX           },
+		/* defMin/defMax preserve the factory alarm band the two configurable
+		 * quantities always had (0..40 °C, 20..80 %). Pressure and luminosity
+		 * get their whole plausible range instead: nobody has set a limit for
+		 * them, and a default that trips is worse than no default. */
+		/*         key      name           ltr bits scale signed  saneMin      saneMax     defMin    defMax  i18nKey      display preset */
+		/* CH_TEMP  */ { "temp",  "Temperature", 't', 16,  100, true,  -327.68f,     327.66f,    0.0f,     40.0f, "ch_temp",  SensorPresets::TEMPERATURE_CELSIUS },
+		/* CH_HUM   */ { "hum",   "Humidity",    'u', 10,   10, false,     0.0f,      102.3f,   20.0f,     80.0f, "ch_hum",   SensorPresets::HUMIDITY_PERCENT    },
+		/* CH_PRESS */ { "press", "Pressure",    'p', 14,   10, false,     0.0f,     1638.3f,    0.0f,   1638.3f, "ch_press", SensorPresets::PRESSURE_HPA        },
+		/* CH_LUX   */ { "lux",   "Luminosity",  'l', 24,  100, false,     0.0f, 167772.15f,     0.0f, 167772.15f, "ch_lux",   SensorPresets::LIGHT_LUX           },
 	};
 	return t;
 }
@@ -61,7 +65,8 @@ inline bool channelValid(uint8_t ch) { return ch < CH_COUNT; }
  */
 inline const ChannelInfo& channelInfo(uint8_t ch) {
 	static const ChannelInfo unknown = {
-		"unk", "Channel", 'x', 16, 100, true, -327.68f, 327.66f, "ch_unk", { "", 1, "" }
+		"unk", "Channel", 'x', 16, 100, true,
+		-327.68f, 327.66f, -327.68f, 327.66f, "ch_unk", { "", 1, "" }
 	};
 	return channelValid(ch) ? channelTable( )[ch] : unknown;
 }

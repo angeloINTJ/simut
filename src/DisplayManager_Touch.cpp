@@ -805,24 +805,30 @@ void DisplayManager::handleTouch( ) {
  return val;
  };
 
+ /* Field id -> (row, min|max), rows filled by whichever channels this sensor
+  * reports. Bounds come from the channel table, so a quantity that is not
+  * temperature or humidity is clamped to its own plausible range rather than
+  * to -50..150 or 0..100 written out by hand. */
+ const SensorType sType = (SensorType)_tempAlarmConfig.sensorType;
+ const uint8_t rowCh[2] = { sensorNthChannel(sType, 0), sensorNthChannel(sType, 1) };
+ auto focusCh = [&]( ) -> uint8_t { return rowCh[_editFieldFocus / 2]; };
+ auto focusIsMax = [&]( ) -> bool { return (_editFieldFocus % 2) == 1; };
+
  auto enforceInterlock = [&]( ) {
- if (_tempAlarmConfig.tempMin >= _tempAlarmConfig.tempMax) {
- if (_editFieldFocus == 0)
- _tempAlarmConfig.tempMax = round((_tempAlarmConfig.tempMin + 0.1f) * 10.0f) / 10.0f;
+ for (uint8_t r = 0; r < 2; r++) {
+ const uint8_t c = rowCh[r];
+ if (!channelValid(c)) continue;
+ const ChannelInfo& ci = channelInfo(c);
+ if (_tempAlarmConfig.chMin[c] >= _tempAlarmConfig.chMax[c]) {
+ /* Push the field the user is NOT holding, so the digit under their
+  * finger keeps moving in the direction they pressed. */
+ if (r == _editFieldFocus / 2 && !focusIsMax( ))
+ _tempAlarmConfig.chMax[c] = round((_tempAlarmConfig.chMin[c] + 0.1f) * 10.0f) / 10.0f;
  else
- _tempAlarmConfig.tempMin = round((_tempAlarmConfig.tempMax - 0.1f) * 10.0f) / 10.0f;
+ _tempAlarmConfig.chMin[c] = round((_tempAlarmConfig.chMax[c] - 0.1f) * 10.0f) / 10.0f;
  }
- if (hasHum && _tempAlarmConfig.humMin >= _tempAlarmConfig.humMax) {
- if (_editFieldFocus == 2)
- _tempAlarmConfig.humMax = round((_tempAlarmConfig.humMin + 0.1f) * 10.0f) / 10.0f;
- else
- _tempAlarmConfig.humMin = round((_tempAlarmConfig.humMax - 0.1f) * 10.0f) / 10.0f;
- }
- if (_tempAlarmConfig.tempMax > 150.0f) _tempAlarmConfig.tempMax = 150.0f;
- if (_tempAlarmConfig.tempMin < -50.0f) _tempAlarmConfig.tempMin = -50.0f;
- if (hasHum) {
- if (_tempAlarmConfig.humMax > 100.0f) _tempAlarmConfig.humMax = 100.0f;
- if (_tempAlarmConfig.humMin < 0.0f) _tempAlarmConfig.humMin = 0.0f;
+ if (_tempAlarmConfig.chMax[c] > ci.saneMax) _tempAlarmConfig.chMax[c] = ci.saneMax;
+ if (_tempAlarmConfig.chMin[c] < ci.saneMin) _tempAlarmConfig.chMin[c] = ci.saneMin;
  }
  };
 
@@ -832,10 +838,18 @@ void DisplayManager::handleTouch( ) {
  if (_lastPressedBtn != 0) { _btnHoldStartTime = millis( ); _lastPressedBtn = 0; }
  uint32_t holdTime = millis( ) - _btnHoldStartTime;
  float step = -0.1f; if (holdTime > 6000) step = -10.0f; else if (holdTime > 4000) step = -1.0f; else if (holdTime > 2000) step = -0.5f;
- if (_editFieldFocus == 0) _tempAlarmConfig.tempMin = adjustVal(_tempAlarmConfig.tempMin, step, -50.0f, 150.0f);
- if (_editFieldFocus == 1) _tempAlarmConfig.tempMax = adjustVal(_tempAlarmConfig.tempMax, step, -50.0f, 150.0f);
- if (_editFieldFocus == 2) _tempAlarmConfig.humMin = adjustVal(_tempAlarmConfig.humMin, step, 0.0f, 100.0f);
- if (_editFieldFocus == 3) _tempAlarmConfig.humMax = adjustVal(_tempAlarmConfig.humMax, step, 0.0f, 100.0f);
+ {
+ /* Read-modify-write rather than a reference: chMin/chMax live in a packed
+  * struct, whose fields have no alignment guarantee to bind a float& to. */
+ const uint8_t c = focusCh( );
+ if (channelValid(c)) {
+ const ChannelInfo& ci = channelInfo(c);
+ const bool isMax = focusIsMax( );
+ float v = isMax ? _tempAlarmConfig.chMax[c] : _tempAlarmConfig.chMin[c];
+ v = adjustVal(v, step, ci.saneMin, ci.saneMax);
+ if (isMax) _tempAlarmConfig.chMax[c] = v; else _tempAlarmConfig.chMin[c] = v;
+ }
+ }
  enforceInterlock( );
  _repaintSettings = true;
  }
@@ -845,10 +859,18 @@ void DisplayManager::handleTouch( ) {
  if (_lastPressedBtn != 1) { _btnHoldStartTime = millis( ); _lastPressedBtn = 1; }
  uint32_t holdTime = millis( ) - _btnHoldStartTime;
  float step = 0.1f; if (holdTime > 6000) step = 10.0f; else if (holdTime > 4000) step = 1.0f; else if (holdTime > 2000) step = 0.5f;
- if (_editFieldFocus == 0) _tempAlarmConfig.tempMin = adjustVal(_tempAlarmConfig.tempMin, step, -50.0f, 150.0f);
- if (_editFieldFocus == 1) _tempAlarmConfig.tempMax = adjustVal(_tempAlarmConfig.tempMax, step, -50.0f, 150.0f);
- if (_editFieldFocus == 2) _tempAlarmConfig.humMin = adjustVal(_tempAlarmConfig.humMin, step, 0.0f, 100.0f);
- if (_editFieldFocus == 3) _tempAlarmConfig.humMax = adjustVal(_tempAlarmConfig.humMax, step, 0.0f, 100.0f);
+ {
+ /* Read-modify-write rather than a reference: chMin/chMax live in a packed
+  * struct, whose fields have no alignment guarantee to bind a float& to. */
+ const uint8_t c = focusCh( );
+ if (channelValid(c)) {
+ const ChannelInfo& ci = channelInfo(c);
+ const bool isMax = focusIsMax( );
+ float v = isMax ? _tempAlarmConfig.chMax[c] : _tempAlarmConfig.chMin[c];
+ v = adjustVal(v, step, ci.saneMin, ci.saneMax);
+ if (isMax) _tempAlarmConfig.chMax[c] = v; else _tempAlarmConfig.chMin[c] = v;
+ }
+ }
  enforceInterlock( );
  _repaintSettings = true;
  }

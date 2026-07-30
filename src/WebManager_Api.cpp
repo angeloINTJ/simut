@@ -277,13 +277,29 @@ void WebManager::handleApiAlarms( ) {
 		         "{\"idx\":%d,\"name\":\"%s\",\"type\":\"%s\",\"gpio\":%d,"
 		         "\"has_hum\":%s,"
 		         "\"tmin\":%.1f,\"tmax\":%.1f,\"hmin\":%.1f,\"hmax\":%.1f,"
-		         "\"active\":%s}",
+		         "\"active\":%s,\"lim\":{",
 		         i, sName.c_str( ), typeName, cfg.sensors[i].pins[0],
 		         hasHum ? "true" : "false",
-		         cfg.sensors[i].tempMin, cfg.sensors[i].tempMax,
-		         cfg.sensors[i].humMin, cfg.sensors[i].humMax,
+		         cfg.sensors[i].chMin[CH_TEMP], cfg.sensors[i].chMax[CH_TEMP],
+		         cfg.sensors[i].chMin[CH_HUM], cfg.sensors[i].chMax[CH_HUM],
 		         cfg.sensors[i].alarmsActive ? "true" : "false");
 			if (!safeSend(buf)) return;
+
+			/* Limits for every channel the part reports. The tmin/tmax/hmin/hmax
+			 * above are the same two channels under their old names, kept for a
+			 * cached page; a BMP280 has no humidity and its pressure limits only
+			 * exist here. */
+			bool firstLim = true;
+			for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+				if (!sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) continue;
+				char lb[96];
+				snprintf(lb, sizeof(lb), "%s\"%s\":[%.1f,%.1f]",
+				         firstLim ? "" : ",", channelInfo(c).key,
+				         cfg.sensors[i].chMin[c], cfg.sensors[i].chMax[c]);
+				if (!safeSend(lb)) return;
+				firstLim = false;
+			}
+			if (!safeSend("}}")) return;
 			first = false;
 	}
 
