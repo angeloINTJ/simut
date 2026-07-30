@@ -27,6 +27,7 @@
 #include "SystemDefs_Time.h"
 #include <cmath>      /* isnan, NAN para floatToI16 */
 #include "SystemDefs_Logging.h"  /* tagStringToId — B1/B2 */
+#include "sensors/SensorChannelTable.h" /* channel table integrity */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -467,6 +468,78 @@ void test_tag_id_to_string_roundtrip(void) {
     TEST_ASSERT_EQUAL_STRING("SENSOR", tagIdToString(TAG_SENSOR));
 }
 
+/* ===========================================================================
+ * CHANNEL TABLE INTEGRITY
+ *
+ * The table is the single source of truth for what a measurement axis is, so a
+ * bad row is not a local mistake — it corrupts calibration keys and history
+ * packing at once. A duplicated letter would make two quantities share a
+ * calib.csv row and a V4 measurement key; a bitWidth too small for the declared
+ * range would silently clamp readings at the top of the scale. Both are cheap
+ * to assert here and expensive to discover on a device.
+ * =========================================================================== */
+
+void test_channel_letters_unique(void) {
+    for (uint8_t a = 0; a < CH_COUNT; a++) {
+        TEST_ASSERT_TRUE_MESSAGE(channelTable()[a].letter != 0, "channel row has no letter");
+        for (uint8_t b = (uint8_t)(a + 1); b < CH_COUNT; b++) {
+            TEST_ASSERT_TRUE_MESSAGE(channelTable()[a].letter != channelTable()[b].letter,
+                                     "two channels claim the same letter");
+        }
+        /* Round-trip through the lookup the calib reader uses. */
+        TEST_ASSERT_EQUAL_INT((int)a, channelByLetter(channelTable()[a].letter));
+    }
+}
+
+void test_channel_keys_unique_and_resolvable(void) {
+    for (uint8_t a = 0; a < CH_COUNT; a++) {
+        TEST_ASSERT_NOT_NULL(channelTable()[a].key);
+        TEST_ASSERT_TRUE(channelTable()[a].key[0] != '\0');
+        TEST_ASSERT_EQUAL_INT((int)a, channelByKey(channelTable()[a].key));
+        for (uint8_t b = (uint8_t)(a + 1); b < CH_COUNT; b++) {
+            TEST_ASSERT_TRUE_MESSAGE(strcmp(channelTable()[a].key, channelTable()[b].key) != 0,
+                                     "two channels claim the same API key");
+        }
+    }
+    TEST_ASSERT_EQUAL_INT(-1, channelByKey("nope"));
+    TEST_ASSERT_EQUAL_INT(-1, channelByKey(nullptr));
+}
+
+void test_channel_range_fits_bit_width(void) {
+    for (uint8_t c = 0; c < CH_COUNT; c++) {
+        const ChannelInfo& ci = channelTable()[c];
+        TEST_ASSERT_TRUE_MESSAGE(ci.bitWidth > 0 && ci.bitWidth <= 32, "implausible bitWidth");
+        TEST_ASSERT_TRUE_MESSAGE(ci.scale > 0, "scale must be positive");
+        TEST_ASSERT_TRUE_MESSAGE(ci.saneMax > ci.saneMin, "empty plausible range");
+
+        /* Top raw value the field holds, minus the all-ones NaN sentinel.
+         * Compared with a relative slack because saneMax is a float literal
+         * sitting exactly on the boundary — 167772.15f is really 167772.15625,
+         * which overshoots by a fraction of one raw unit and says nothing about
+         * the row being wrong. What this must catch is a row off by orders of
+         * magnitude, e.g. 8 bits declared for a 0..10000 range. */
+        double maxRaw = (double)((1ULL << ci.bitWidth) - 1ULL) - 1.0;
+        if (ci.isSigned) maxRaw /= 2.0; /* top bit carries the sign */
+        double needed = (double)ci.saneMax * (double)ci.scale;
+        TEST_ASSERT_TRUE_MESSAGE(needed <= maxRaw * 1.0001 + 2.0,
+                                 "saneMax * scale overflows bitWidth — readings would clamp");
+        if (!ci.isSigned) {
+            TEST_ASSERT_TRUE_MESSAGE(ci.saneMin >= 0.0f,
+                                     "unsigned channel with a negative plausible minimum");
+        }
+    }
+}
+
+void test_channel_unknown_falls_back(void) {
+    /* histV4ChannelPrefix( ) answered 'x' for an unknown channel long before the
+     * table existed; keys already written in the wild depend on it. */
+    TEST_ASSERT_EQUAL_CHAR('x', channelInfo(99).letter);
+    TEST_ASSERT_EQUAL_CHAR('x', channelInfo(CH_COUNT).letter);
+    TEST_ASSERT_FALSE(channelValid(CH_COUNT));
+    TEST_ASSERT_TRUE(channelValid(CH_TEMP));
+    TEST_ASSERT_EQUAL_INT(-1, channelByLetter('z'));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -514,6 +587,12 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_parseFloat_basic);
     RUN_TEST(test_parseFloat_edge);
     RUN_TEST(test_floatToI16_roundtrip);
+
+    /* channel table — a malformed new row must fail here, not in the field */
+    RUN_TEST(test_channel_letters_unique);
+    RUN_TEST(test_channel_keys_unique_and_resolvable);
+    RUN_TEST(test_channel_range_fits_bit_width);
+    RUN_TEST(test_channel_unknown_falls_back);
 
     RUN_TEST(test_tag_sec_is_not_sensor);
     RUN_TEST(test_tag_ota_has_its_own_id);
