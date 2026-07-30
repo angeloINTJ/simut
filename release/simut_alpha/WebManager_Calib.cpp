@@ -193,7 +193,10 @@ void WebManager::handleApiCalibGet( ) {
 	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
 	_server.send(200, "application/json", "");
 
-	char buf[400];
+	/* 480, not 400: the per-sensor object grew by hasPress/pressRead/
+	 * pressOffset, and a truncated object is invalid JSON for the whole page,
+	 * not a missing field. */
+	char buf[480];
 	snprintf(buf, sizeof(buf),
 	         "{\"ntp\":%s,\"calibVersion\":%ld,\"picoUID\":\"%s\",\"sensors\":[",
 	         ntpOk ? "true" : "false", calibVer,
@@ -210,11 +213,14 @@ void WebManager::handleApiCalibGet( ) {
 		}
 
 		bool hasH = sensorHasHumidity((SensorType)cfg.sensors[i].sensorType);
+		bool hasP = sensorHasChannel((SensorType)cfg.sensors[i].sensorType, CH_PRESS);
 		float tRead = rs ? rs->avgValue[CH_TEMP] : NAN;
 		float hRead = rs ? rs->avgValue[CH_HUM] : NAN;
+		float pRead = rs ? rs->avgValue[CH_PRESS] : NAN;
 		/* isfinite, not !isnan: the BMP280 humidity compensation produces
 		 * +INF on a part with no humidity die, and isnan(inf) is false. */
 		bool hOk = hasH && isfinite(hRead) && hRead < 1e9f;
+		bool pOk = hasP && isfinite(pRead) && pRead < 1e9f;
 
 		char romHex[17] = {0};
 		romToHex(cfg.sensors[i].rom, romHex);
@@ -226,16 +232,45 @@ void WebManager::handleApiCalibGet( ) {
 
 		snprintf(buf, sizeof(buf),
 		         "%s{\"slot\":%d,\"gpio\":%d,\"rom\":\"%s\",\"hwId\":\"%s\",\"name\":\"%s\","
-		         "\"hasHum\":%s,"
+		         "\"hasHum\":%s,\"hasPress\":%s,"
 		         "\"tempRead\":%s,\"tempOffset\":%.2f,"
-		         "\"humRead\":%s,\"humOffset\":%.2f}",
+		         "\"humRead\":%s,\"humOffset\":%.2f,"
+		         "\"pressRead\":%s,\"pressOffset\":%.2f",
 		         first ? "" : ",", i, cfg.sensors[i].pins[0], romHex, sHwId, sName,
-		         hasH ? "true" : "false",
+		         hasH ? "true" : "false", hasP ? "true" : "false",
 		         isfinite(tRead) ? String(tRead, 2).c_str( ) : "null",
 		         rs ? rs->calibrationOffset[CH_TEMP] : 0.0f,
 		         hOk ? String(hRead, 2).c_str( ) : "null",
-		         rs ? rs->calibrationOffset[CH_HUM] : 0.0f);
+		         rs ? rs->calibrationOffset[CH_HUM] : 0.0f,
+		         pOk ? String(pRead, 2).c_str( ) : "null",
+		         rs ? rs->calibrationOffset[CH_PRESS] : 0.0f);
 		if (!safeSend(buf)) return;
+
+		/* The generic form. Everything above is the closed set of fields the
+		 * page used to need one of per quantity; a client that iterates this
+		 * array instead needs no change when a channel is added. Kept side by
+		 * side for one release so a cached page keeps working — the fixed
+		 * fields go away once nothing reads them. */
+		if (!safeSend(",\"channels\":[")) return;
+		bool firstCh = true;
+		for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+			if (!sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) continue;
+			const ChannelInfo& ci = channelInfo(c);
+			float v = rs ? rs->avgValue[c] : NAN;
+			/* isfinite, not !isnan: the BMP280 humidity compensation yields
+			 * +INF on a part with no humidity die, and isnan(inf) is false. */
+			bool ok = isfinite(v) && v < 1e9f;
+			snprintf(buf, sizeof(buf),
+			         "%s{\"ch\":%u,\"key\":\"%s\",\"unit\":\"%s\",\"dec\":%u,"
+			         "\"label\":\"%s\",\"read\":%s,\"offset\":%.2f}",
+			         firstCh ? "" : ",", (unsigned)c, ci.key, ci.display.unit,
+			         (unsigned)ci.display.decimals, ci.i18nKey,
+			         ok ? String(v, 2).c_str( ) : "null",
+			         rs ? rs->calibrationOffset[c] : 0.0f);
+			if (!safeSend(buf)) return;
+			firstCh = false;
+		}
+		if (!safeSend("]}")) return;
 		first = false;
 	}
 	safeSend("]}");
@@ -252,7 +287,11 @@ struct CalibChange {
 	char name[32];
 	bool written;
 };
-const int MAX_CHANGES = 14;
+/* 18, not 14: a ROM-less slot can now emit three rows (t/u/p) instead of two,
+ * so the old cap silently dropped changes one sensor earlier. Each entry is
+ * ~92 B of stack in a web handler, which is why this tracks the realistic
+ * number of slots edited at once rather than MAX_SENSORS * 3. */
+const int MAX_CHANGES = 18;
 
 /* id == nullptr matches on the key alone — that is the ROM scheme, where the
  * ROM is the identity and the id column merely carries the hwId.
@@ -342,11 +381,30 @@ void WebManager::handleApiCalibPost( ) {
 				if (slot < 0 || slot >= MAX_SENSORS) continue;
 				if (!cfg.sensors[slot].active) continue;
 				char newId[16] = {0}, newName[32] = {0};
-				float refT = NAN, refH = NAN;
 				jsonExtractCStr(obj, "hwId", newId, sizeof(newId));
 				jsonExtractCStr(obj, "name", newName, sizeof(newName));
-				jsonExtractFloat(obj, "refTemp", refT);
-				jsonExtractFloat(obj, "refHum", refH);
+
+				/* References, one per channel. Read from the generic
+				 * `"refs":{"press":1013.2}` form first, then from the legacy
+				 * refTemp/refHum/refPress keys so a page served from an older
+				 * cache keeps working. Legacy names are a closed set — the new
+				 * form needs no firmware edit for a new quantity. */
+				float ref[MAX_SENSOR_CHANNELS];
+				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) ref[c] = NAN;
+				int refsAt = obj.indexOf("\"refs\"");
+				if (refsAt >= 0) {
+					int braceAt = obj.indexOf('{', refsAt);
+					int braceEnd = (braceAt >= 0) ? obj.indexOf('}', braceAt) : -1;
+					if (braceAt >= 0 && braceEnd > braceAt) {
+						String refsObj = obj.substring(braceAt, braceEnd + 1);
+						for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+							jsonExtractFloat(refsObj, channelInfo(c).key, ref[c]);
+						}
+					}
+				}
+				jsonExtractFloat(obj, "refTemp",  ref[CH_TEMP]);
+				jsonExtractFloat(obj, "refHum",   ref[CH_HUM]);
+				jsonExtractFloat(obj, "refPress", ref[CH_PRESS]);
 
 				/* Kept before the overwrite: it is the id the rows on disk were
 				 * written under, and a rename has to find them by it. */
@@ -356,17 +414,23 @@ void WebManager::handleApiCalibPost( ) {
 				if (newId[0] != '\0') safeCopy(cfg.sensors[slot].hwId, newId, sizeof(cfg.sensors[slot].hwId));
 				if (newName[0] != '\0') safeCopy(cfg.sensors[slot].friendlyName, newName, sizeof(cfg.sensors[slot].friendlyName));
 
-				float curT = NAN, curH = NAN, offT = 0, offH = 0;
+				float cur[MAX_SENSOR_CHANNELS], newOff[MAX_SENSOR_CHANNELS];
+				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) { cur[c] = NAN; newOff[c] = 0.0f; }
 				for (const auto& s : runtime) {
 					if (s.config.pins[0] == cfg.sensors[slot].pins[0]) {
-						curT = s.avgValue[CH_TEMP]; offT = s.calibrationOffset[CH_TEMP];
-						curH = s.avgValue[CH_HUM];  offH = s.calibrationOffset[CH_HUM];
+						for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+							cur[c]    = s.avgValue[c];
+							newOff[c] = s.calibrationOffset[c];
+						}
 						break;
 					}
 				}
-				float newOffT = offT, newOffH = offH;
-				if (!isnan(refT) && isfinite(curT)) newOffT = offT + (refT - curT);
-				if (!isnan(refH) && isfinite(curH)) newOffH = offH + (refH - curH);
+				/* offset += reference - reading. A channel with no reference keeps
+				 * the offset it had; one whose sensor is not reading keeps it too,
+				 * because there is nothing to measure the difference against. */
+				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+					if (!isnan(ref[c]) && isfinite(cur[c])) newOff[c] += (ref[c] - cur[c]);
+				}
 
 				char nameSan[32];
 				safeCopy(nameSan, cfg.sensors[slot].friendlyName, sizeof(nameSan));
@@ -380,7 +444,7 @@ void WebManager::handleApiCalibPost( ) {
 						safeCopy(changes[nChanges].key, romHex, sizeof(changes[0].key));
 						safeCopy(changes[nChanges].id, cfg.sensors[slot].hwId, sizeof(changes[0].id));
 						changes[nChanges].matchId[0] = '\0'; /* matched by ROM */
-						changes[nChanges].offset = newOffT;
+						changes[nChanges].offset = newOff[CH_TEMP];
 						safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
 						changes[nChanges].written = false;
 						nChanges++;
@@ -390,17 +454,22 @@ void WebManager::handleApiCalibPost( ) {
 					 * each tagged with this slot's hwId so a second DHT22 on the
 					 * same board gets its own pair instead of overwriting the
 					 * first one's. */
-					bool hasH = sensorHasHumidity((SensorType)cfg.sensors[slot].sensorType);
-					for (int k = 0; k < (hasH ? 2 : 1) && nChanges < MAX_CHANGES; k++) {
+					/* One row per channel the sensor declares, letter from the
+					 * channel table. The quantities are not a prefix of a fixed
+					 * list — a BMP280 is t+p, with a hole where humidity would be —
+					 * so this iterates the mask rather than counting. A new
+					 * quantity needs no edit here. */
+					const SensorType sType = (SensorType)cfg.sensors[slot].sensorType;
+					for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+						if (!sensorHasChannel(sType, c) || nChanges >= MAX_CHANGES) continue;
+						const char letter = channelInfo(c).letter;
 						char pref[18], prefOld[18];
-						snprintf(pref, sizeof(pref), "%c%s",
-						         k == 0 ? 't' : 'u', cfg.sensors[slot].hwId);
-						snprintf(prefOld, sizeof(prefOld), "%c%s",
-						         k == 0 ? 't' : 'u', oldHwId);
+						snprintf(pref, sizeof(pref), "%c%s", letter, cfg.sensors[slot].hwId);
+						snprintf(prefOld, sizeof(prefOld), "%c%s", letter, oldHwId);
 						safeCopy(changes[nChanges].key, picoUID.c_str( ), sizeof(changes[0].key));
 						safeCopy(changes[nChanges].id, pref, sizeof(changes[0].id));
 						safeCopy(changes[nChanges].matchId, prefOld, sizeof(changes[0].matchId));
-						changes[nChanges].offset = (k == 0) ? newOffT : newOffH;
+						changes[nChanges].offset = newOff[c];
 						safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
 						changes[nChanges].written = false;
 						nChanges++;
@@ -413,6 +482,22 @@ void WebManager::handleApiCalibPost( ) {
 	/* === Streaming 2-pass: read calib.csv, write calib.tmp === */
 	uint32_t version = (uint32_t)_netRef->getEpoch( );
 	if (nChanges > 0) {
+	/* The commit in processCalibrationUpload( ) only renames when the new
+	 * version beats the stored one, so the stamp has to move forward on every
+	 * save. getEpoch( ) does not guarantee that: with NTP down it falls back to
+	 * the virtual RTC or to SIMUT_BUILD_EPOCH, both behind the real epoch that a
+	 * previous synced save already wrote. The comparison then failed, the commit
+	 * deleted calib.tmp, and the calibration was lost with a 500 — exactly when
+	 * the network was flaky. Force monotonicity: keep epoch semantics while the
+	 * clock is trustworthy, bump past the stored version when it is not.
+	 * Safe here because /api/calib rewrites the device's own file from the
+	 * config it already holds — the version gate guards the upload path, where
+	 * a stale file from another device can legitimately arrive, not this one.
+	 * Inside the nChanges guard so a no-op save keeps reporting the plain epoch
+	 * instead of an increment that never reached flash. */
+	long storedVer = _storageRef->getCalibrationVersion("/calib.csv");
+	if (storedVer >= (long)version) version = (uint32_t)(storedVer + 1);
+
 	File fout = LittleFS.open("/calib.tmp", "w");
 	if (!fout) {
 		_server.send(500, "application/json", "{\"error\":\"calib write failed\"}");
@@ -437,9 +522,23 @@ void WebManager::handleApiCalibPost( ) {
 			*p1 = '\0';
 			char* keyStr = lineBuf;
 			char* idStr = p1 + 1;
+			/* Terminate the id column too. Splitting off only the key left idStr
+			 * as "<id>,<offset>,<name>", which never compares equal to a bare
+			 * matchId — so every board-serial row missed its change, was copied
+			 * through untouched, and the change was appended at the end instead.
+			 * getCalibrationByHwId stops at the first match, so it kept reading
+			 * the stale row: calibrating a ROM-less sensor silently did nothing
+			 * while calib.csv grew by one row per sensor per save. Harmless
+			 * before 4cff8ca, which only ever read idStr[0]. */
+			char* p2 = strchr(idStr, ',');
+			if (p2) *p2 = '\0';
 
 			int idx;
-			if (strcasecmp(keyStr, picoUID.c_str( )) == 0 && (idStr[0] == 't' || idStr[0] == 'u')) {
+			/* Any letter the channel table claims, rather than a literal list
+			 * that has to grow with every quantity — the list form is what left
+			 * pressure rows unrecognized here while they were being written. */
+			if (strcasecmp(keyStr, picoUID.c_str( )) == 0
+			    && channelByLetter(idStr[0]) >= 0) {
 				/* Board-serial rows: every ROM-less sensor on this board shares
 				 * the key, so the id column is what tells them apart and has to
 				 * match in full. Matching only the leading 't'/'u' was safe while
@@ -451,11 +550,17 @@ void WebManager::handleApiCalibPost( ) {
 			}
 
 			if (idx >= 0) {
+				/* Duplicate rows left on disk by the bug above: the change was
+				 * already emitted on the first row that matched it, so drop the
+				 * rest rather than re-emitting them. A file written before the
+				 * fix collapses back to one row per sensor on its next save. */
+				if (changes[idx].written) continue;
 				fout.printf("%s,%s,%.2f,%s\n",
 				            changes[idx].key, changes[idx].id, changes[idx].offset, changes[idx].name);
 				changes[idx].written = true;
 			} else {
 				*p1 = ',';
+				if (p2) *p2 = ',';
 				fout.printf("%s\n", lineBuf);
 			}
 		}

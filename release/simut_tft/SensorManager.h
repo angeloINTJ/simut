@@ -133,7 +133,10 @@ public:
  void applyCalibration(uint8_t gpio, String newHwId, float offset, String newName);
  /* Apply temperature AND humidity offset to the sensor wired to `gpio`.
   * hwId/name are handled via applyCalibration separately. */
- void applyCalibrationOffsets(uint8_t gpio, float offsetT, float offsetH);
+ /** Apply one offset per channel, indexed by channel id.
+  *  Took (offsetT, offsetH, offsetP) positionally, which meant a new quantity
+  *  changed the signature and every call site. */
+ void applyCalibrationOffsets(uint8_t gpio, const float offsets[MAX_SENSOR_CHANNELS]);
 
 
  void setHardwareMismatch(uint8_t gpio, bool isMismatch);

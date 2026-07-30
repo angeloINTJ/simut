@@ -420,6 +420,11 @@ void AppManager::setup( ) {
 
  BLOG("[BOOT step] 7: pos OTA detect @ "); BLOG_U(millis( )); BLOG_NL( );
 
+ /* Collect a /calib.tmp stranded by a reset between its write and the rename.
+  * Has to happen before loadAndCalibrateSensors( ) further down so the
+  * recovered offsets are the ones the sensors come up with. */
+ if (fsOk) _storageMgr->recoverCalibrationTmp( );
+
  LogManager::instance( ).setHeavyTaskChecker([]( ) -> bool {
  return app._storageMgr->isHeavyTaskLocked( );
  });

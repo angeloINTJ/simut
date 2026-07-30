@@ -27,6 +27,7 @@
 #include <string.h>
 #include <math.h>
 #include "SystemDefs.h"
+#include "SensorChannelTable.h" /* channelInfo( ) — letters, widths, scales */
 
 /* ============================================================================
  * V4 FILE FORMAT CONSTANTS
@@ -75,37 +76,26 @@ static_assert(sizeof(HistV4FileHeader) == HIST_V4_HEADER_FIXED,
  * Extended range (4-255) for future channel types.
  * ============================================================================ */
 
+/* These three used to be switch statements holding their own copy of the
+ * channel facts. The letters in particular were duplicated by the calibration
+ * code, which then grew a reader-side whitelist (`prefix != 't' && != 'u'`)
+ * that silently refused every pressure row ever written. One table now, in
+ * sensors/SensorChannelTable.h; the unknown-channel answers ('x', 16, 100) are
+ * preserved by channelInfo( )'s fallback row. */
+
 /** Channel prefix characters for measurement key generation. */
 inline char histV4ChannelPrefix(uint8_t channel) {
-    switch (channel) {
-        case 0:  return 't'; /* CH_TEMP  → t */
-        case 1:  return 'u'; /* CH_HUM   → u (umidade) */
-        case 2:  return 'p'; /* CH_PRESS → p */
-        case 3:  return 'l'; /* CH_LUX   → l */
-        default: return 'x'; /* unknown channel */
-    }
+    return channelInfo(channel).letter;
 }
 
 /** Default bit width for a given channel type. */
 inline uint8_t histV4DefaultBitWidth(uint8_t channel) {
-    switch (channel) {
-        case 0:  return 16; /* CH_TEMP:  -327.68..+327.66 °C */
-        case 1:  return 10; /* CH_HUM:   0..102.3 % */
-        case 2:  return 14; /* CH_PRESS: 0..1638.3 hPa */
-        case 3:  return 24; /* CH_LUX:   0..167772.15 lux */
-        default: return 16;
-    }
+    return channelInfo(channel).bitWidth;
 }
 
 /** Default scale (multiplier) for a given channel type — raw = round(float * scale). */
 inline uint32_t histV4DefaultScale(uint8_t channel) {
-    switch (channel) {
-        case 0:  return 100;   /* °C:  ×100, 2 decimal places */
-        case 1:  return 10;    /* %:   ×10,  1 decimal place */
-        case 2:  return 10;    /* hPa: ×10,  1 decimal place */
-        case 3:  return 100;   /* lux: ×100, 2 decimal places */
-        default: return 100;
-    }
+    return channelInfo(channel).scale;
 }
 
 /* ============================================================================
@@ -442,12 +432,16 @@ inline int64_t histV4FromFloat(float v, const HistV4MeasureDef &def) {
     double scaled = (double)v * (double)def.scale;
     int64_t raw = (int64_t)round(scaled);
     // Clamp per channel signedness (exclude sentinel at top):
-    // CH_TEMP (0) is signed with a symmetric range; every other channel
-    // (hum/press/lux) is unsigned 0..max — a negative raw here would be
-    // stored as two's-complement low bits and decode as a huge positive.
+    // a signed channel has a symmetric range; an unsigned one is 0..max, where
+    // a negative raw would be stored as two's-complement low bits and decode as
+    // a huge positive. Which channels are signed comes from the channel table,
+    // not from `channel == 0` — that test made "signed" a property of being
+    // first rather than of the quantity, so any future signed channel would
+    // have silently reproduced the decode bug that hit humidity and pressure.
+    const bool chSigned = channelInfo(def.channel).isSigned;
     int64_t maxVal = histV4NanSentinel(def.bitWidth) - 1;
-    int64_t minVal = (def.channel == 0) ? (-(maxVal / 2) - 1) : 0;
-    if (def.channel == 0) {
+    int64_t minVal = chSigned ? (-(maxVal / 2) - 1) : 0;
+    if (chSigned) {
         int64_t maxSigned = maxVal / 2;  // top bit reserved for sign
         if (raw > maxSigned) raw = maxSigned;
     } else if (raw > maxVal) {

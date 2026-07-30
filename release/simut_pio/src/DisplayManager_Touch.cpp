@@ -265,7 +265,14 @@ void DisplayManager::handleTouch( ) {
  return;
  }
 
- if (p.z < _sensZThreshold) return;
+ /* A simulated touch carries no pressure: nothing is on the panel, so
+	 * getPoint( ) reads z near zero and this gate discarded every injected
+	 * tap before it reached a handler. loopCore1 ORs the sim flag into
+	 * _rawTouchState and mapTouchPoint bypasses the ADC mapping, but the
+	 * pressure check between them was never taught about the bypass — so
+	 * `touch sim` answered "injected" and moved nothing. */
+ if (!__atomic_load_n(&_simTouchActive, __ATOMIC_ACQUIRE) &&
+     p.z < _sensZThreshold) return;
 
 
  if (_uiMode == MODE_SETTINGS_TOUCH_CAL) {

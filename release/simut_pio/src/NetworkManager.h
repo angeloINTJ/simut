@@ -14,12 +14,17 @@
 
 #pragma once
 #include <Arduino.h>
-#include "simut_config.h"   /* SIMUT_MDNS — must precede #ifdef below */
+#include "simut_config.h"   /* SIMUT_MDNS — must precede the #if below */
 #include <WiFi.h>
 #include <time.h>
-/* LEAmDNS optional — saves ~196KB flash when disabled.
- * Enable via SIMUT_MDNS in src/simut_config.h. */
-#ifdef SIMUT_MDNS
+/* LEAmDNS is optional and ON by default (src/simut_config.h). Measured cost:
+ * 15,272 B of flash, 238 symbols — the "~196KB" this comment used to claim was
+ * wrong by 13x and had been repeated into the user manual.
+ *
+ * `#if`, not `#ifdef`: simut_config.h presents this as a 0/1 switch like every
+ * other feature flag there, and `#ifdef` is true for `0` as well, so setting
+ * SIMUT_MDNS=0 disabled nothing. */
+#if SIMUT_MDNS
 #include <LEAmDNS.h>
 #endif
 #include <DNSServer.h>
@@ -144,7 +149,7 @@ private:
  * after IP acquired. No-op when dnsAuto=true and useDhcp=true. */
  void applyManualDnsIfNeeded( );
 
-#ifdef SIMUT_MDNS
+#if SIMUT_MDNS
  uint32_t _lastMdnsUpdate = 0; /**< Throttle for MDNS.update( ) */
 #endif
  uint8_t _connectCycles = 0; /**< Consecutive reconnection cycles */

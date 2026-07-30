@@ -685,8 +685,13 @@ void SensorManager::processPeriodicReads( ) {
       /* BME280: v1=temp, v2=humidity (pressure available via API) */
      if (!drv->isBME( )) h = NAN;  /* BMP280: cached flag, not a live I2C read */
       handleSensorResult(s, true, t, h, "");
-      /* Store pressure in CH_PRESS channel buffer */
+      /* Store pressure in CH_PRESS channel buffer.
+       * The offset is added here for the same reason handleSensorResult adds
+       * it to v1/v2 before addSample: avgValue has to come out calibrated.
+       * Pressure used to be pushed raw, so a stored CH_PRESS offset changed
+       * nothing anywhere — the calibration was write-only. */
       if (!isnan(p)) {
+       p += s.calibrationOffset[CH_PRESS];
        s.buffers[CH_PRESS].push(p);
        if (s.buffers[CH_PRESS].full( )) {
         s.avgValue[CH_PRESS] = calculateTrimmedMean(s.buffers[CH_PRESS]);
@@ -914,11 +919,10 @@ void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset,
  * Replaces applyAmbientCalibration( ), which took no pin and walked the list
  * for the first DHT22 — one board could hold offsets for exactly one
  * humidity sensor, and a second DHT22 silently shared or stole them. */
-void SensorManager::applyCalibrationOffsets(uint8_t gpio, float offsetT, float offsetH) {
+void SensorManager::applyCalibrationOffsets(uint8_t gpio, const float offsets[MAX_SENSOR_CHANNELS]) {
  for (auto &s : _runtimeSensors) {
  if (s.config.pins[0] == gpio) {
- s.calibrationOffset[CH_TEMP] = offsetT;
- s.calibrationOffset[CH_HUM] = offsetH;
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) s.calibrationOffset[c] = offsets[c];
  break;
  }
  }

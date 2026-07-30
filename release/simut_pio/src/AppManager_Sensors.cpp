@@ -150,18 +150,26 @@ void AppManager::loadAndCalibrateSensors( ) {
     * id starts with t/u" and pushed onto "the first DHT22 in the runtime
     * list". Two DHT22s on one board shared one offset, and which sensor
     * got it depended on slot order. */
-   float offT = 0.0f, offH = 0.0f;
+   /* One row per channel the sensor declares, keyed `<letter><hwId>`. Driven
+    * by the channel mask and the channel table, so a sensor reporting a new
+    * quantity loads its offset with no edit here — this used to be one named
+    * variable and one hand-written `getCalibrationByHwId('x', ...)` call per
+    * quantity, which is why pressure had to be added by hand and then still
+    * did not work. */
+   const SensorType sType = (SensorType)cfg.sensors[i].sensorType;
+   float offsets[MAX_SENSOR_CHANNELS] = {0.0f};
+   bool gotAny = false;
    String unusedName;
-   bool gotT = _storageMgr->getCalibrationByHwId('t', cfg.sensors[i].hwId, offT, unusedName);
-   bool gotH = false;
-   if (sensorHasHumidity((SensorType)cfg.sensors[i].sensorType)) {
-    gotH = _storageMgr->getCalibrationByHwId('u', cfg.sensors[i].hwId, offH, unusedName);
+   for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+    if (!sensorHasChannel(sType, c)) continue;
+    float off = 0.0f;
+    if (_storageMgr->getCalibrationByHwId(channelInfo(c).letter,
+                                          cfg.sensors[i].hwId, off, unusedName)) {
+     offsets[c] = off;
+     gotAny = true;
+    }
    }
-   if (gotT || gotH) {
-    _sensorMgr->applyCalibrationOffsets(cfg.sensors[i].pins[0],
-                                        gotT ? offT : 0.0f,
-                                        gotH ? offH : 0.0f);
-   }
+   if (gotAny) _sensorMgr->applyCalibrationOffsets(cfg.sensors[i].pins[0], offsets);
   }
  }
  LOG_CODE(LOG_INFO, "APP", APP_SENSORS_CALIBRATED, 0, "");

@@ -309,7 +309,12 @@ def generate() -> None:
         original_len = len(html_content)
         minified = _minify_web_block(_stamp_assets(html_content, asset_tag))
         _syntax_check_scripts(name, minified)
-        compressed = gzip.compress(minified.encode("utf-8"), compresslevel=9)
+        # mtime=0, or the gzip header carries the build clock and firmware.bin
+        # differs on every build from identical sources. That makes a released
+        # image impossible to reproduce, and makes "is this the binary we
+        # tested?" unanswerable by hash — which is exactly the question a
+        # firmware release has to answer.
+        compressed = gzip.compress(minified.encode("utf-8"), compresslevel=9, mtime=0)
         hex_parts = [f"0x{b:02x}" for b in compressed]
 
         array_lines = []

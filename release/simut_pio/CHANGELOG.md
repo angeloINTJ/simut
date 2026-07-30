@@ -4,6 +4,121 @@
 
 All notable changes to SIMUT firmware.
 
+## v1.6.3-beta (2026-07-30)
+
+Saving a sensor calibration could fail permanently, and for two of the three
+sensor families it had been doing nothing at all since v1.6.2-beta. Pressure,
+which the sensor and history paths have carried for months, finally reaches the
+calibration panel and the history extremes.
+
+> Updates over the air work from v1.6.2-beta onward, so this one can be applied
+> that way. Validated across 20 consecutive applies, below.
+
+### A calibration save could fail forever
+
+`calib.csv` carries a VERSION line, and the commit renames the temporary file
+over the real one only when the new version beats the stored one. The version
+came from `getEpoch( )`, which never fails visibly: with NTP down it falls back
+to the virtual RTC, and failing that to `SIMUT_BUILD_EPOCH`, a compile-time
+constant. Both are behind the real epoch that a previous, synced save wrote.
+
+So on a device whose clock was not synced, every calibration save produced a
+version *lower* than the one on disk, the comparison failed, and the commit
+deleted `calib.tmp` and answered HTTP 500. The reported symptom — "calib.tmp is
+created but the .csv is never replaced" — is exactly that.
+
+The failure absorbs: once the stored version passes the clock, no calibration
+can ever be saved again, because every subsequent attempt loses the same
+comparison. With the build-epoch fallback that meant months. Version stamps are
+monotonic now, so a save always moves forward whether or not the clock does.
+
+The guard that should have caught this was dead. `/api/calib` refuses to run
+when `isTimeSynced( )` is false, but that function is `getEpoch( ) > 1600000000`
+and `getEpoch( )` never returns anything smaller — the check could not fire.
+
+### Calibrating a DHT22 or a BMP280 silently did nothing
+
+Sensors without a 1-Wire ROM are keyed in `calib.csv` by the board serial, with
+the measurement letter and the sensor's hwId in the id column. Rewriting the
+file split the key off the front of each line but left the id column as
+`<id>,<offset>,<name>`, which never compared equal to a bare id. Every
+board-serial row therefore missed its own update, was copied through untouched,
+and the new value was appended at the end instead.
+
+Readers stop at the first match, which is the stale row at the top. The offset
+was written correctly and never read, and the file grew by one row per sensor
+per save. Introduced in 4cff8ca, so it affects v1.6.2-beta only. Files already
+carrying duplicates collapse back to one row per sensor on their next save.
+
+### An interrupted upload left a file nothing would collect
+
+The file-upload handler had no `UPLOAD_FILE_ABORTED` branch, so a connection
+dropped mid-transfer left the `File` handle open and the partial file on flash.
+For `calib.csv` that meant an orphan `/calib.tmp`, and the commit that would
+have resolved it only ever ran from the two web handlers — never at boot.
+
+Both halves are closed: the abort path discards the partial file, and boot
+collects a stranded `calib.tmp`. Recovery refuses a truncated one rather than
+promoting half a calibration over a good file, since a reset can land in the
+middle of the write.
+
+### Pressure reaches calibration and the history extremes
+
+A BMP280 reports temperature and pressure and no humidity. The calibration API
+and the history statistics were built around temperature and humidity, so its
+pressure had nowhere to appear: no field in `/api/calib`, no reference input on
+`/config`, and no MIN/MAX badge on `/history` even though the chart drew the
+series. The offset was not applied to readings either, so it would have been
+write-only had the rest existed.
+
+### One table for what a measurement is
+
+Fixing the above meant editing five layers that each kept a private copy of what
+a channel is — the V4 prefix, bit-width and scale switches, the codec's
+signedness test, the calibration reader's letter whitelist, the row writer, and
+a per-driver restatement of every channel's unit and icon. That is why pressure
+support had to be added in five places and still did not work: one of the copies
+was a whitelist that refused the letter.
+
+`sensors/SensorChannelTable.h` now holds one row per quantity, binding it to its
+storage identity and to a display preset from `SensorPresets.h` — a catalogue of
+80 units that had been in the tree, unreferenced, since it was written. Adding a
+quantity is one row plus one bit in the driver's channel mask.
+
+The wire formats follow. `/api/calib` reports `channels[]` and accepts
+`refs{}`; `/api/history_multi` reports `extremes{}`; the pages iterate instead
+of naming a field per quantity. The fixed keys ship alongside for one release so
+a cached page keeps working.
+
+`tools/check_channels.py` fails the build if a channel letter appears outside
+the table, and reports what has not been generalized yet. Alarm thresholds are
+in that backlog: `SensorRecord` still has fixed temperature and humidity limits,
+so **there are still no pressure alarms** — that needs a stored-config schema
+change and is not in this release.
+
+### Validated: 20 consecutive over-the-air updates
+
+Each cycle shipped an image carrying a version marker no other image had, so
+"it applied" is a version read back from the running firmware rather than an
+inference from an HTTP code or from elapsed time — every layer of an OTA reports
+success whether or not anything was replaced.
+
+| step | n=20 |
+|---|---|
+| upload + stage (962,476 B) | 29.2 s |
+| apply → web reachable again | 47.5 s (45.6–49.8) |
+| full cycle | 83.2 s (81.3–85.6) |
+
+All 20 applies were confirmed by marker. No soft panic, no `APP_CORE1_DEAD`, no
+watchdog reset across the 20 boots; heap free ended at 55,452 B, unchanged
+within noise from where it started.
+
+### Also
+
+- `SIMUT_BUILD_EPOCH` was stamped 2025-09-20 and commented as 2026-07-21. It is
+  the fallback clock for a device that has never reached NTP, and the further
+  behind it sits the worse the version regression above behaved.
+
 ## v1.6.2-beta (2026-07-27)
 
 The headline is not a feature: **OTA has never applied an update**, on any
