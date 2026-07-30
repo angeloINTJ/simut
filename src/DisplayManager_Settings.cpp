@@ -195,6 +195,19 @@ void DisplayManager::showAlarmEdit(int sensorIdx) {
  mutex_exit(&_stateMutex);
 }
 
+/* The built-in GFX font is CP437, not UTF-8. The channel table stores "\u00b0C"
+ * as the bytes C2 B0 43, and printing that byte-for-byte draws two garbage
+ * glyphs before the C — which is exactly what happened when the hardcoded "C"
+ * was replaced by the table's unit. Map the degree sign to its CP437 slot and
+ * pass the rest through; every other unit in the table is already ASCII. */
+static void printUnitCp437(GFXcanvas16* c, const char* u) {
+ if (!u) return;
+ for (const uint8_t* p = (const uint8_t*)u; *p; p++) {
+ if (p[0] == 0xC2 && p[1] == 0xB0) { c->write(0xF8); p++; continue; }
+ c->write(*p);
+ }
+}
+
 void DisplayManager::drawAlarmEdit( ) {
  /* Two rows, filled with whichever channels this sensor actually reports —
   * temperature and humidity on a DHT22, temperature and pressure on a BMP280,
@@ -267,7 +280,7 @@ void DisplayManager::drawAlarmEdit( ) {
  _driver.canvasSmall->setFont(NULL); _driver.canvasSmall->setCursor(122, 20);
  /* Unit from the channel table. The glyph used to be a hardcoded "%" or "C",
   * chosen by a bool, which had no answer for a third quantity. */
- _driver.canvasSmall->print(channelInfo(ch).display.unit);
+ printUnitCp437(_driver.canvasSmall, channelInfo(ch).display.unit);
  blitCanvas(_driver.canvasSmall, x, y, 140, 40);
  };
  drawBox(0,  10, 60, "MIN", _tempAlarmConfig.chMin[rowCh[0]], rowCh[0]);
