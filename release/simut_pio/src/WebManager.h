@@ -91,6 +91,9 @@ private:
 	struct RateEntry { uint32_t ip = 0; uint32_t lastReq = 0; uint8_t hits = 0; };
 	RateEntry _rateLimits[RATE_LIMIT_SLOTS];
 	File _uploadFile;
+	/* Destination of the in-flight upload. Kept so UPLOAD_FILE_ABORTED can
+	 * delete the partial file — the File handle alone does not carry a path. */
+	String _uploadPath;
 	uint8_t _uploadBatchBuf[8192]; /**< Upload batch buffer. */
 	uint16_t _uploadBatchLen = 0; /**< Bytes accumulated in the batch. */
 	/* Marks upload as rejected at START so that WRITE/END become no-ops

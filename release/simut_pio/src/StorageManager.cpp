@@ -1808,12 +1808,17 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
 
 /* Lookup for sensors with no 1-Wire ROM (DHT22, BMP280) in calib.csv.
  * Key column = picoUID 16 hex (same shape as a DS18B20 ROM). The ID column
- * is `prefix` + the sensor's hwId: `t` for temperature, `u` for humidity —
- * so `<picoUID>,tAMB,-0.4,Sala` is the temperature row of the sensor whose
- * hwId is AMB. The whole ID is compared, which is what keeps two ROM-less
- * sensors on one board apart. */
+ * is `prefix` + the sensor's hwId: `t` for temperature, `u` for humidity,
+ * `p` for pressure — so `<picoUID>,tAMB,-0.4,Sala` is the temperature row of
+ * the sensor whose hwId is AMB. The whole ID is compared, which is what keeps
+ * two ROM-less sensors on one board apart. */
 bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, float& outOffset, String& outName) {
- if (prefix != 't' && prefix != 'u') return false;
+ /* Any letter the channel table claims. This was a literal whitelist of 't'
+  * and 'u', so the writer could emit a `p<hwId>` row and this reader refused
+  * it before even opening the file — the offset persisted correctly and was
+  * applied to nothing. A new quantity now becomes readable the moment it has
+  * a table row, with no edit here. */
+ if (channelByLetter(prefix) < 0) return false;
  if (!hwId || hwId[0] == '\0') return false;
  String picoUID = getBoardSerialNumber( ); /* 16 hex without separator */
  if (!LittleFS.exists("/calib.csv")) return false;
@@ -1849,6 +1854,47 @@ bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, float& 
  }
  exitFlashReadLock( );
  return found;
+}
+
+/**
+ * @brief Boot-time recovery of a /calib.tmp left behind by a reset.
+ *
+ * processCalibrationUpload( ) only ever ran from the two web handlers, so a
+ * reset landing between the write of calib.tmp and its rename stranded the
+ * file: the calibration sat on flash but never took effect, and nothing on any
+ * later boot collected it.
+ *
+ * Commits only a structurally complete file. Both writers terminate every row
+ * with '\n', so a tmp that does not end in one is a truncated write — it gets
+ * discarded rather than promoted over a good calib.csv. Anything that survives
+ * that check goes through the normal version gate.
+ */
+bool StorageManager::recoverCalibrationTmp( ) {
+ if (!LittleFS.exists("/calib.tmp")) return false;
+
+ bool complete = false;
+ enterFlashReadLock( );
+ File f = LittleFS.open("/calib.tmp", "r");
+ if (f) {
+ size_t sz = f.size( );
+ if (sz > 0 && f.seek(sz - 1)) complete = (f.read( ) == '\n');
+ f.close( );
+ }
+ exitFlashReadLock( );
+
+ if (!complete) {
+ enterFlashSafeMode( );
+ LittleFS.remove("/calib.tmp");
+ exitFlashSafeMode( );
+ LOG_CODE(LOG_WARN, "CFG", SEC_CONFIG_CHANGED, 0, "truncated calib.tmp discarded at boot");
+ return false;
+ }
+
+ bool committed = processCalibrationUpload( );
+ LOG_CODE(LOG_INFO, "CFG", SEC_CONFIG_CHANGED, 0,
+          committed ? "orphan calib.tmp committed at boot"
+                    : "orphan calib.tmp dropped at boot (version not newer)");
+ return committed;
 }
 
 bool StorageManager::processCalibrationUpload( ) {

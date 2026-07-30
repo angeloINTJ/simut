@@ -788,10 +788,10 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
             <div class="card" style="padding: 16px; display: flex; flex-direction: column; min-width: 0; overflow: hidden;">
                 <div class="stats-inline" id="statsGrid" style="opacity:0.3;">
-                    <div class="stat-badge"><span data-i18n="hist_maxt">MAX T:</span> <div class="hot" id="statMaxT">--</div></div>
-                    <div class="stat-badge"><span data-i18n="hist_mint">MIN T:</span> <div class="hot" id="statMinT">--</div></div>
-                    <div class="stat-badge" id="humMaxCard"><span data-i18n="hist_maxh">MAX H:</span> <div class="cold" id="statMaxH">--</div></div>
-                    <div class="stat-badge" id="humMinCard"><span data-i18n="hist_minh">MIN H:</span> <div class="cold" id="statMinH">--</div></div>
+                    <!-- Filled by renderExtremes() from the server's extremes{}:
+                         two badges per channel that produced a reading. Was six
+                         hardcoded badges, which is why pressure had nowhere to
+                         land even after the server started measuring it. -->
                 </div>
 
                 <div id="chartContainer">
@@ -1134,20 +1134,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                    hidden unless exactly one sensor is on screen. */
                 const oneSensor = (sensors.length === 1);
                 gridBox.style.display = oneSensor ? '' : 'none';
-                const maxT = (json.maxT !== undefined) ? json.maxT : -999;
-                const minT = (json.minT !== undefined) ? json.minT : 999;
-                document.getElementById('statMaxT').innerText = (maxT === -999) ? '--' : maxT.toFixed(1) + '°C';
-                document.getElementById('statMinT').innerText = (minT === 999)  ? '--' : minT.toFixed(1) + '°C';
-                if (hasAnyHum) {
-                    const hasSrvH = (json.maxH !== undefined && json.minH !== undefined);
-                    document.getElementById('statMaxH').innerText = hasSrvH ? json.maxH.toFixed(1) + '%' : '--';
-                    document.getElementById('statMinH').innerText = hasSrvH ? json.minH.toFixed(1) + '%' : '--';
-                    document.getElementById('humMaxCard').style.display = 'flex';
-                    document.getElementById('humMinCard').style.display = 'flex';
-                } else {
-                    document.getElementById('humMaxCard').style.display = 'none';
-                    document.getElementById('humMinCard').style.display = 'none';
-                }
+                renderExtremes(json);
                 gridBox.style.opacity = '1';
                 renderChart(datasets, hasAnyHum, hasAnyPress, cutoffEpoch * 1000, endEpoch * 1000, _currentRangeIdx);
                 hideOverlay();
@@ -1156,6 +1143,46 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 showOverlay(window.t('hist_conn_lost','Connection lost.'));
             }
         }
+        /* MAX/MIN badges, two per channel the server measured.
+         *
+         * The server sends extremes{} keyed by channel, measured over every
+         * record in range before decimation — so a badge never disagrees with
+         * the drawn series the way a browser-side scan of the decimated points
+         * would. This replaced six hardcoded badges plus a show/hide branch per
+         * quantity; pressure spent months being measured with no badge to
+         * arrive in. Falls back to the fixed minT/maxT keys so a page served
+         * from cache against a newer firmware, or vice versa, still shows
+         * something. */
+        function renderExtremes(json) {
+            const box = document.getElementById('statsGrid');
+            if (!box) return;
+            let ex = json.extremes;
+            if (!ex) {
+                ex = {};
+                if (json.minT !== undefined) ex.temp  = { min: json.minT, max: json.maxT, unit: '°C',  label: 'ch_temp'  };
+                if (json.minH !== undefined) ex.hum   = { min: json.minH, max: json.maxH, unit: '%',   label: 'ch_hum'   };
+                if (json.minP !== undefined) ex.press = { min: json.minP, max: json.maxP, unit: 'hPa', label: 'ch_press' };
+            }
+            const esc = s => String(s).replace(/[<>&"]/g, ch =>
+                ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[ch]));
+            /* Temperature keeps the warm colour it always had; everything else
+               is cold. Purely cosmetic, and the only place channel identity
+               still shows up on this page. */
+            let html = '';
+            Object.keys(ex).forEach(key => {
+                const e = ex[key];
+                if (!e || typeof e.max !== 'number') return;
+                const tone = (key === 'temp') ? 'hot' : 'cold';
+                const name = esc(window.t(e.label || ('ch_' + key), key.toUpperCase()));
+                const unit = esc(e.unit || '');
+                html += '<div class="stat-badge"><span>MAX ' + name + ':</span> <div class="' + tone + '">'
+                     +  e.max.toFixed(1) + ' ' + unit + '</div></div>'
+                     +  '<div class="stat-badge"><span>MIN ' + name + ':</span> <div class="' + tone + '">'
+                     +  e.min.toFixed(1) + ' ' + unit + '</div></div>';
+            });
+            box.innerHTML = html || '<div class="stat-badge"><span>--</span></div>';
+        }
+
         /* Step e formato dos ticks por range — define grade do eixo X. */
         const _xStepMsByRange = [
             10*60*1000,        /* 1h: 10min */
@@ -2778,21 +2805,37 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const c = calOf(i);
             if (c) {
                 const st = calStaged().find(x => x.slot === i);
+                /* Driven by c.channels, which the firmware builds from the
+                   channel table — one entry per quantity this sensor reports.
+                   Every block below used to be written once per quantity, with
+                   a hasX flag and an xRead/xOffset/refX triple each, so adding
+                   pressure meant editing all three. Iterating means a new
+                   quantity appears here with no page change at all. */
+                const chans = c.channels || [];
                 h += '<label class="sxsec">' + window.t('sens_calib', 'Calibration') + '</label>' +
-                     '<div class="sxn">' + window.t('sens_reading', 'Reading now') + ': <strong>' +
-                     (c.tempRead === null ? '--' : c.tempRead + ' &deg;C') + '</strong> (offset ' + c.tempOffset + ')' +
-                     (c.hasHum ? ' &nbsp;|&nbsp; <strong>' + (c.humRead === null ? '--' : c.humRead + ' %') + '</strong> (offset ' + c.humOffset + ')' : '') + '</div>';
-                h += '<div class="row"><div class="col"><div class="sxh">' +
-                     window.t('sens_ref', 'Reference temperature read on a trusted instrument') + '</div>' +
-                     '<input id="se_ref" oninput="sensStage(0)" type="number" step="0.01" placeholder="&deg;C" value="' + (st && st.refTemp !== undefined ? st.refTemp : '') + '"></div>';
-                if (c.hasHum) {
-                    h += '<div class="col"><div class="sxh">' +
-                         window.t('sens_ref_h', 'Reference humidity read on a trusted instrument') + '</div>' +
-                         '<input id="se_refh" oninput="sensStage(0)" type="number" step="0.1" placeholder="%" value="' + (st && st.refHum !== undefined ? st.refHum : '') + '"></div>';
-                } else {
-                    h += '<div class="col"></div>';
+                     '<div class="sxn">' + window.t('sens_reading', 'Reading now') + ': ' +
+                     chans.map(ch =>
+                        '<strong>' + (ch.read === null ? '--' : ch.read + ' ' + ch.unit) +
+                        '</strong> (offset ' + ch.offset + ')'
+                     ).join(' &nbsp;|&nbsp; ') + '</div>';
+                /* Two columns per row, so a sensor with an odd channel count
+                   ends on a half-empty row instead of a broken grid. */
+                for (let k = 0; k < chans.length; k += 2) {
+                    h += '<div class="row">';
+                    for (let j = k; j < k + 2; j++) {
+                        if (j >= chans.length) { h += '<div class="col"></div>'; continue; }
+                        const ch = chans[j];
+                        const staged = (st && st.refs && st.refs[ch.key] !== undefined) ? st.refs[ch.key] : '';
+                        const step = ch.dec >= 2 ? '0.01' : (ch.dec === 1 ? '0.1' : '1');
+                        h += '<div class="col"><div class="sxh">' +
+                             window.t('sens_ref_of', 'Reference value read on a trusted instrument') +
+                             ' — ' + window.t(ch.label, ch.key) + '</div>' +
+                             '<input id="se_ref_' + ch.key + '" oninput="sensStage(0)" type="number" step="' + step +
+                             '" placeholder="' + ch.unit + '" value="' + staged + '"></div>';
+                    }
+                    h += '</div>';
                 }
-                h += '</div><div class="sxn">' + window.t('sens_ref_hint', 'The device stores the difference as the offset. Needs NTP synced.') +
+                h += '<div class="sxn">' + window.t('sens_ref_hint', 'The device stores the difference as the offset. Needs NTP synced.') +
                      (CAL && CAL.ntp === false ? ' <span style="color:var(--dang)">' + window.t('sens_ntp_no', 'NTP not synced.') + '</span>' : '') + '</div>';
             }
 
@@ -3035,17 +3078,22 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                       al: SE('se_al').checked });
 
             /* Calibration rides the pre-existing Pending.calib section, which
-               commitAll POSTs to /api/calib before saving. se_refh only exists
-               on a slot that reports humidity; a slot may stage either
-               reference on its own, so the entry is built and only pushed if
-               it carries at least one. */
-            const ref = SE('se_ref'), refh = SE('se_refh');
-            if (ref || refh) {
+               commitAll POSTs to /api/calib before saving. One input per channel
+               the slot reports, with id se_ref_ plus the channel key; a slot may
+               stage any subset, so the entry is built and only pushed if it
+               carries at least one. Sent under a refs object keyed by channel —
+               the firmware also still reads the old refTemp/refHum/refPress
+               names, but nothing emits them any more. */
+            const cal = (typeof calOf === 'function') ? calOf(i) : null;
+            const chans = (cal && cal.channels) ? cal.channels : [];
+            if (chans.length) {
                 const rest = calStaged().filter(x => x.slot !== i);
-                const entry = { slot: i };
-                if (ref && ref.value !== '' && !isNaN(parseFloat(ref.value))) entry.refTemp = parseFloat(ref.value);
-                if (refh && refh.value !== '' && !isNaN(parseFloat(refh.value))) entry.refHum = parseFloat(refh.value);
-                if (entry.refTemp !== undefined || entry.refHum !== undefined) rest.push(entry);
+                const refs = {};
+                chans.forEach(ch => {
+                    const e = SE('se_ref_' + ch.key);
+                    if (e && e.value !== '' && !isNaN(parseFloat(e.value))) refs[ch.key] = parseFloat(e.value);
+                });
+                if (Object.keys(refs).length) rest.push({ slot: i, refs: refs });
                 Pending.setSection('calib', rest.length ? { sensors: rest } : {});
             }
             if (redraw) sensDrawEditor(); else sensWarn();

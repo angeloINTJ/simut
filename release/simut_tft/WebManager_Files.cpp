@@ -388,6 +388,7 @@ void WebManager::handleUploadData( ) {
 
  LOG_CODE(LOG_INFO, "WEB", WEB_UPLOAD, 0, finalPath);
  LOG_CODE(LOG_INFO, "SEC", SEC_FILE_UPLOAD, _currentUserId, finalPath);
+ _uploadPath = finalPath;
  { RenderGuard rg(_displayRef); _uploadFile = LittleFS.open(finalPath, "w"); }
 
  } else if (upload.status == UPLOAD_FILE_WRITE) {
@@ -432,6 +433,20 @@ void WebManager::handleUploadData( ) {
  LOG_CODE(LOG_INFO, "CFG", CFG_THEME_APPLIED, getThemeCount( ), TRL("Custom themes rescanned"));
  }
  }
+ }
+ _uploadPath = "";
+ } else if (upload.status == UPLOAD_FILE_ABORTED) {
+ /* Connection dropped mid-upload. Without this branch the File handle stayed
+  * open and the partial file survived on flash — for calib.csv that meant an
+  * orphan /calib.tmp that no boot path ever collected. The buffered tail is
+  * dropped unflushed: the file is incomplete either way. */
+ if (_uploadRejected) { _uploadPath = ""; return; }
+ _uploadBatchLen = 0;
+ if (_uploadFile) { RenderGuard rg(_displayRef); _uploadFile.close( ); }
+ if (_uploadPath.length( ) > 0) {
+ { RenderGuard rg(_displayRef); LittleFS.remove(_uploadPath); }
+ LOG_CODE(LOG_WARN, "WEB", WEB_UPLOAD, 0, String("upload aborted, discarded ") + _uploadPath);
+ _uploadPath = "";
  }
  }
 }

@@ -442,7 +442,7 @@ size_t histV4Decode(const uint8_t *buf, size_t bufLen,
              * (raw 10132, 14-bit) decoded as -625.1. The encoder always
              * stored the low bits correctly — undoing the extension here
              * retroactively repairs existing files. */
-            if (state.measures[i].channel != 0 && raw < 0 &&
+            if (!channelInfo(state.measures[i].channel).isSigned && raw < 0 &&
                 !histV4IsNan(raw, bw) && bw < 64) {
                 raw &= (int64_t)((1ULL << bw) - 1);
             }

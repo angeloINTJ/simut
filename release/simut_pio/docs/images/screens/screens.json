@@ -1,0 +1,121 @@
+[
+  {
+    "name": "dashboard",
+    "description": "Live readings, two sensor cards and the slot footer",
+    "mode": "MODE_DASHBOARD",
+    "route": "screen dash",
+    "captured": true
+  },
+  {
+    "name": "auth-keypad",
+    "description": "PIN entry guarding the settings menu",
+    "mode": "MODE_AUTH",
+    "route": "screen dash -> tap(286,215)",
+    "captured": true
+  },
+  {
+    "name": "settings-main",
+    "description": "Settings menu",
+    "mode": "MODE_SETTINGS_MAIN",
+    "route": "screen set",
+    "captured": true
+  },
+  {
+    "name": "settings-sounds",
+    "description": "Alarm sound settings, third item of the menu",
+    "mode": "MODE_SETTINGS_SOUNDS",
+    "route": "screen set -> tap(105,215) -> tap(105,215) -> tap(250,215)",
+    "captured": false
+  },
+  {
+    "name": "settings-themes",
+    "description": "Theme picker",
+    "mode": "MODE_SETTINGS_THEMES",
+    "route": "screen thm",
+    "captured": true
+  },
+  {
+    "name": "settings-lang",
+    "description": "Interface language",
+    "mode": "MODE_SETTINGS_LANG",
+    "route": "screen lng",
+    "captured": true
+  },
+  {
+    "name": "settings-password",
+    "description": "On-screen keyboard for the display PIN",
+    "mode": "MODE_SETTINGS_PASSWORD",
+    "route": "screen pwd",
+    "captured": true
+  },
+  {
+    "name": "settings-alarms",
+    "description": "Per-sensor alarm thresholds",
+    "mode": "MODE_SETTINGS_ALARMS",
+    "route": "screen alm",
+    "captured": true
+  },
+  {
+    "name": "settings-alarm-edit",
+    "description": "Threshold editor for one sensor",
+    "mode": "MODE_SETTINGS_ALARM_EDIT",
+    "route": "screen alm -> tap(270,60)",
+    "captured": true
+  },
+  {
+    "name": "settings-status",
+    "description": "Real-time system status",
+    "mode": "MODE_SETTINGS_STATUS",
+    "route": "screen sts",
+    "captured": true
+  },
+  {
+    "name": "settings-license",
+    "description": "License text",
+    "mode": "MODE_SETTINGS_LICENSE",
+    "route": "screen lic",
+    "captured": true
+  },
+  {
+    "name": "settings-offset",
+    "description": "Display position adjustment",
+    "mode": "MODE_SETTINGS_DISPLAY_OFFSET",
+    "route": "screen offset",
+    "captured": true
+  },
+  {
+    "name": "touch-calibration",
+    "description": "Touch calibration crosshairs",
+    "mode": "MODE_SETTINGS_TOUCH_CAL",
+    "route": "screen touchcal",
+    "captured": true
+  },
+  {
+    "name": "touch-sensitivity",
+    "description": "Touch pressure calibration",
+    "mode": "MODE_SETTINGS_TOUCH_SENS",
+    "route": "screen touchsens",
+    "captured": true
+  },
+  {
+    "name": "graph",
+    "description": "History plot for the selected sensor",
+    "mode": "MODE_GRAPH_VIEW",
+    "route": "screen gra",
+    "captured": true
+  },
+  {
+    "name": "graph-detail",
+    "description": "Numeric detail: max, min, average, standard deviation",
+    "mode": "MODE_GRAPH_DETAIL",
+    "route": "screen gra -> tap(160,120)",
+    "captured": true
+  },
+  {
+    "name": "calendar",
+    "description": "Month picker, third button of the graph bar",
+    "mode": "MODE_CALENDAR",
+    "route": "screen gra -> tap(160,215)",
+    "captured": true
+  }
+]

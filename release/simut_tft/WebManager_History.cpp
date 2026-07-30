@@ -247,9 +247,20 @@ void WebManager::handleApiHistoryMulti( ) {
   * The page used to take T from here and compute H in the browser from the
   * decimated series, which reported two different things under one label:
   * the true extreme for T and merely the largest surviving sample for H. */
- float realMinT = 1000.0f, realMaxT = -1000.0f;
+ /* Extremes per channel. Was one named pair per quantity, with pressure simply
+  * missing — the page drew a pressure series and had nothing to put above it.
+  * An array indexed by channel means a new quantity gets its extremes for free.
+  *
+  * A separate seen[] rather than a magic initial value: any sentinel has to be
+  * outside the channel's range to work, which silently makes "no reading" and
+  * "reading outside the expected range" the same answer. The old code used
+  * ±1000 for °C and would have needed a different one per quantity anyway. */
+ float realMin[MAX_SENSOR_CHANNELS], realMax[MAX_SENSOR_CHANNELS];
+ bool chSeen[MAX_SENSOR_CHANNELS];
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+ realMin[c] = 0.0f; realMax[c] = 0.0f; chSeen[c] = false;
+ }
  time_t tsRealMinT = 0, tsRealMaxT = 0;
- float realMinH = 1000.0f, realMaxH = -1000.0f;
  const SystemConfig& cfgRef = _storageRef->getConfig( );
 
  /* ── Response: header + sensors[] + data[] streaming ────────────────── */
@@ -350,11 +361,14 @@ void WebManager::handleApiHistoryMulti( ) {
 	  * string-pool lookup and hwId comparison per record would repeat the
 	  * same answer for every one of them — inside the tightest loop in the
 	  * handler, over datasets that reach hundreds of thousands of records. */
-	 bool measIsT[HIST_V4_MAX_MEASUREMENTS] = {false};
-	 bool measIsH[HIST_V4_MAX_MEASUREMENTS] = {false};
+	 /* Channel of each measurement, or CH_NONE when it belongs to a sensor the
+	  * user did not select. Was three parallel bool arrays, one per quantity. */
+	 const uint8_t CH_NONE = 0xFF;
+	 uint8_t measCh[HIST_V4_MAX_MEASUREMENTS];
+	 for (uint8_t m = 0; m < HIST_V4_MAX_MEASUREMENTS; m++) measCh[m] = CH_NONE;
 	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
 	 const uint8_t ch = v4st.measures[m].channel;
-	 if (ch != 0 && ch != 1) continue; /* only T and H have stat cards */
+	 if (!channelValid(ch)) continue; /* every table channel gets a stat card */
 	 char mHwId[17];
 	 histV4StrPoolGet(mHwId, sizeof(mHwId), v4st.strPool,
 	                  v4st.sensors[v4st.measures[m].sensorIdx].hwIdOffset,
@@ -364,7 +378,7 @@ void WebManager::handleApiHistoryMulti( ) {
 	 if (strcmp(mHwId, cfgRef.sensors[sensorIds[si]].hwId) == 0) selected = true;
 	 }
 	 if (!selected) continue;
-	 if (ch == 0) measIsT[m] = true; else measIsH[m] = true;
+	 measCh[m] = ch;
 	 }
 
 	 size_t rdFilled = 0;
@@ -404,15 +418,25 @@ void WebManager::handleApiHistoryMulti( ) {
 	  * not the numbers above it. The legacy branch below never had either
 	  * problem; only the V4 path did. */
 	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
-	 if (!measIsT[m] && !measIsH[m]) continue;
+	 const uint8_t ch = measCh[m];
+	 if (ch == CH_NONE) continue;
 	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
 	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
-	 if (measIsT[m]) {
-	 if (v < realMinT) { realMinT = v; tsRealMinT = ts; }
-	 if (v > realMaxT) { realMaxT = v; tsRealMaxT = ts; }
-	 } else {
-	 if (v < realMinH) realMinH = v;
-	 if (v > realMaxH) realMaxH = v;
+	 if (!chSeen[ch]) {
+	 chSeen[ch] = true;
+	 realMin[ch] = v; realMax[ch] = v;
+	 if (ch == CH_TEMP) { tsRealMinT = ts; tsRealMaxT = ts; }
+	 continue;
+	 }
+	 if (v < realMin[ch]) {
+	 realMin[ch] = v;
+	 if (ch == CH_TEMP) tsRealMinT = ts;
+	 }
+	 if (v > realMax[ch]) {
+	 realMax[ch] = v;
+	 /* Only temperature carries a timestamp with its extreme; the page
+	  * shows "when was it coldest" for T alone. */
+	 if (ch == CH_TEMP) tsRealMaxT = ts;
 	 }
 	 }
 
@@ -467,28 +491,49 @@ void WebManager::handleApiHistoryMulti( ) {
 
  if (!aborted) {
  if (chunkLen > 0) safeSend(chunkBuf);
- char metaEnd[288]; /* +minH/maxH */
- if (realMaxT > -999.0f) {
- const char* sMin = (realMinT < 0) ? "-" : "";
- const char* sMax = (realMaxT < 0) ? "-" : "";
+ if (chSeen[CH_TEMP]) {
+ /* Generic form first: one entry per channel that produced a reading,
+  * keyed by the channel's API key. A client that iterates this needs no
+  * change when a quantity is added — which is the whole point, since
+  * pressure existed in the data for months with no key to arrive under. */
+ if (!safeSend("],\"extremes\":{")) return;
+ bool firstCh = true;
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+ if (!chSeen[c]) continue;
+ char e[112];
+ snprintf(e, sizeof(e), "%s\"%s\":{\"min\":%.2f,\"max\":%.2f,\"unit\":\"%s\",\"label\":\"%s\"}",
+          firstCh ? "" : ",", channelInfo(c).key, realMin[c], realMax[c],
+          channelInfo(c).display.unit, channelInfo(c).i18nKey);
+ if (!safeSend(e)) return;
+ firstCh = false;
+ }
+ if (!safeSend("}")) return;
+
+ /* Legacy fixed keys, kept one release so a cached page keeps working. */
+ char metaEnd[352];
  char hPart[64] = "";
- if (realMaxH > -999.0f) {
- snprintf(hPart, sizeof(hPart), ",\"minH\":%d.%01d,\"maxH\":%d.%01d",
- (int)realMinH, abs((int)(realMinH*10)%10),
- (int)realMaxH, abs((int)(realMaxH*10)%10));
+ if (chSeen[CH_HUM]) {
+ snprintf(hPart, sizeof(hPart), ",\"minH\":%.1f,\"maxH\":%.1f",
+          realMin[CH_HUM], realMax[CH_HUM]);
+ }
+ char pPart[64] = "";
+ if (chSeen[CH_PRESS]) {
+ snprintf(pPart, sizeof(pPart), ",\"minP\":%.1f,\"maxP\":%.1f",
+          realMin[CH_PRESS], realMax[CH_PRESS]);
  }
  snprintf(metaEnd, sizeof(metaEnd),
- "],\"minT\":%s%d.%02d,\"maxT\":%s%d.%02d,\"tsMinT\":%lu,\"tsMaxT\":%lu%s,"
+ ",\"minT\":%.2f,\"maxT\":%.2f,\"tsMinT\":%lu,\"tsMaxT\":%lu%s%s,"
  "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u}",
- sMin, abs((int)realMinT), abs((int)(realMinT*100)%100),
- sMax, abs((int)realMaxT), abs((int)(realMaxT*100)%100),
- (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT, hPart,
+ realMin[CH_TEMP], realMax[CH_TEMP],
+ (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT, hPart, pPart,
  (unsigned)filesToRead.size( ), filesOpened, recsDecoded);
+ safeSend(metaEnd);
  } else {
+ char metaEnd[128];
  snprintf(metaEnd, sizeof(metaEnd), "],\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u}",
  (unsigned)filesToRead.size( ), filesOpened, recsDecoded);
- }
  safeSend(metaEnd);
+ }
  safeSend("");
  }
  _handlerDeadline = savedDeadline;
