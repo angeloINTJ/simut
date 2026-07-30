@@ -67,6 +67,26 @@ using ReadGuard = StorageManager::ReadGuard;
  * handleSaveSystem — minimal version.
  * Used for dashboard theme switching (immediate application, no reboot).
  */
+/* "<key>":[lo,hi] — the shape channel limits arrive in, under "lim" for the
+ * sensors section and inline for the alarms one. Either element may be empty,
+ * which leaves that bound alone. File scope because both sections parse it;
+ * as a lambda it lived in the sensors block and was invisible to the other. */
+static bool getPair(const String& o, const char* key, float& lo, float& hi) {
+	String needle = String("\"") + key + "\":";
+	int p = o.indexOf(needle);
+	if (p < 0) return false;
+	int s = o.indexOf('[', p);
+	int e = (s >= 0) ? o.indexOf(']', s) : -1;
+	if (s < 0 || e <= s) return false;
+	int comma = o.indexOf(',', s + 1);
+	if (comma < 0 || comma > e) return false;
+	String a = o.substring(s + 1, comma); a.trim( );
+	String b = o.substring(comma + 1, e); b.trim( );
+	if (a.length( )) lo = parseFloat(a.c_str( ));
+	if (b.length( )) hi = parseFloat(b.c_str( ));
+	return true;
+}
+
 void WebManager::handleSaveSystem( ) {
 	uint16_t perms = getAuthPerms( );
 	if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
@@ -409,13 +429,27 @@ void WebManager::handleApiCommitAll( ) {
 				if (valuePos(obj, "name") >= 0) safeCopy(r.friendlyName, getStr(obj, "name").c_str( ), sizeof(r.friendlyName));
 				if (valuePos(obj, "hwId") >= 0) safeCopy(r.hwId, getStr(obj, "hwId").c_str( ), sizeof(r.hwId));
 
-				/* Clamped like the CLI does (AppManager_CmdHandlers.cpp), which the
-				 * older "alarms" section below deliberately does not do. */
-				float v;
-				v = getFloat(obj, "tmin"); if (!isnan(v)) r.tempMin = constrain(v, -50.0f, 150.0f);
-				v = getFloat(obj, "tmax"); if (!isnan(v)) r.tempMax = constrain(v, -50.0f, 150.0f);
-				v = getFloat(obj, "hmin"); if (!isnan(v)) r.humMin = constrain(v, 0.0f, 100.0f);
-				v = getFloat(obj, "hmax"); if (!isnan(v)) r.humMax = constrain(v, 0.0f, 100.0f);
+				/* Limits arrive under "lim", keyed by channel: {"temp":[0,40]}.
+				 * Clamped like the CLI does (AppManager_CmdHandlers.cpp), which the
+				 * older "alarms" section below deliberately does not do — the bound
+				 * is now the channel's plausible range instead of a per-quantity
+				 * literal, so a new measurement axis is clamped correctly the day
+				 * its row lands in the table. */
+				int limPos = valuePos(obj, "lim");
+				if (limPos >= 0) {
+					int limEnd = obj.indexOf('}', limPos);
+					if (limEnd > limPos) {
+						String lim = obj.substring(limPos, limEnd + 1);
+						for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+							if (!channelValid(c)) continue;
+							const ChannelInfo& ci = channelInfo(c);
+							float lo = NAN, hi = NAN;
+							if (!getPair(lim, ci.key, lo, hi)) continue;
+							if (!isnan(lo)) r.chMin[c] = constrain(lo, ci.saneMin, ci.saneMax);
+							if (!isnan(hi)) r.chMax[c] = constrain(hi, ci.saneMin, ci.saneMax);
+						}
+					}
+				}
 				int b;
 				b = getBool(obj, "al"); if (b >= 0) r.alarmsActive = (b == 1);
 				b = getBool(obj, "a");  if (b >= 0) r.active = (b == 1);
@@ -556,7 +590,20 @@ void WebManager::handleApiCommitAll( ) {
 		/* Sensors array */
 		int sensorsStart = body.indexOf("\"sensors\"", almStart);
 		int arrStart = (sensorsStart >= 0) ? body.indexOf('[', sensorsStart) : -1;
-		int arrEnd = (arrStart >= 0) ? body.indexOf(']', arrStart) : -1;
+		/* End of the outer array by depth, not by the first ']'. Each entry now
+		 * carries "<channel>":[min,max], so the first bracket to close is a
+		 * limit pair — taking it as the end truncated the array mid-object and
+		 * the whole section applied nothing, silently. The slots section above
+		 * already had to learn this when its objects gained "p":[...]. */
+		int arrEnd = -1;
+		if (arrStart >= 0) {
+			int depth = 0;
+			for (int k = arrStart; k < (int)body.length( ); k++) {
+				char c = body.charAt(k);
+				if (c == '[') depth++;
+				else if (c == ']') { if (--depth == 0) { arrEnd = k; break; } }
+			}
+		}
 		if (arrStart >= 0 && arrEnd > arrStart) {
 			String arrStr = body.substring(arrStart, arrEnd + 1);
 			int objStart = 0;
@@ -591,16 +638,36 @@ void WebManager::handleApiCommitAll( ) {
 					float tmax = extractFloat("\"tmax\"");
 					float hmin = extractFloat("\"hmin\"");
 					float hmax = extractFloat("\"hmax\"");
-					if (!isnan(tmin)) rec->tempMin = tmin;
-					if (!isnan(tmax)) rec->tempMax = tmax;
-					if (!isnan(hmin)) rec->humMin = hmin;
-					if (!isnan(hmax)) rec->humMax = hmax;
-					if (rec->tempMin >= rec->tempMax) {
-						rec->tempMax = roundf((rec->tempMin + 0.1f) * 10.0f) / 10.0f;
+					if (!isnan(tmin)) rec->chMin[CH_TEMP] = tmin;
+					if (!isnan(tmax)) rec->chMax[CH_TEMP] = tmax;
+					if (!isnan(hmin)) rec->chMin[CH_HUM] = hmin;
+					if (!isnan(hmax)) rec->chMax[CH_HUM] = hmax;
+
+					/* Per-channel form, for anything the tmin/tmax/hmin/hmax keys
+					 * above cannot name. Applied second so it wins where both are
+					 * present — the fixed keys exist only for a cached page. */
+					for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+						if (!channelValid(c)) continue;
+						float lo = NAN, hi = NAN;
+						if (!getPair(obj, channelInfo(c).key, lo, hi)) continue;
+						if (!isnan(lo)) rec->chMin[c] = lo;
+						if (!isnan(hi)) rec->chMax[c] = hi;
 					}
-					if (rec->humMin >= rec->humMax) {
-						rec->humMax = roundf((rec->humMin + 0.1f) * 10.0f) / 10.0f;
-						if (rec->humMax > 100.0f) { rec->humMax = 100.0f; rec->humMin = 99.9f; }
+
+					/* An inverted or empty band would never trip. Nudge the top
+					 * above the bottom, then keep the pair inside the channel's
+					 * plausible range — which is where the humidity-specific
+					 * "clamp to 100" used to be written by hand. */
+					for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+						if (!channelValid(c)) continue;
+						const ChannelInfo& ci = channelInfo(c);
+						if (rec->chMin[c] >= rec->chMax[c]) {
+							rec->chMax[c] = roundf((rec->chMin[c] + 0.1f) * 10.0f) / 10.0f;
+							if (rec->chMax[c] > ci.saneMax) {
+								rec->chMax[c] = ci.saneMax;
+								rec->chMin[c] = ci.saneMax - 0.1f;
+							}
+						}
 					}
 					rec->alarmsActive = (obj.indexOf("\"active\":true") >= 0);
 				}

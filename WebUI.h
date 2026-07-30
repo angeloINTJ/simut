@@ -2782,13 +2782,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 h += '</div>';
             }
-            /* Limites de alarme saem daqui: moram na /alarms, que edita as mesmas
-               quatro chaves (tmin/tmax/hmin/hmax) e ainda acopla min<max, coisa
-               que este formulario nunca fez. Duplicar dava dois lugares para o
-               mesmo dado, com validacoes diferentes.
-               O payload de sensStage CONTINUA enviando os quatro campos: o helper
-               num(id, d) devolve o default `d` (= o valor ja gravado no slot)
-               quando o elemento nao existe, entao o valor e preservado, nao zerado.
+            /* Limites de alarme saem daqui: moram na /alarms, que os edita e ainda
+               acopla min<max, coisa que este formulario nunca fez. Duplicar dava
+               dois lugares para o mesmo dado, com validacoes diferentes.
+               O payload de sensStage repassa `lim` intacto — o objeto por canal
+               que a /api/sensors devolve — para preservar o que ja esta gravado
+               em vez de zerar. Antes eram quatro chaves tmin/tmax/hmin/hmax, que
+               nao tinham como carregar o limite de uma terceira grandeza.
                NAO mexer no se_al, que fica na secao acima — ele e lido sem guarda
                de nulo em sensStage e sumir dele quebraria o salvamento. */
 
@@ -3070,12 +3070,9 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const nP = ty ? ty.pins.length : 0, p = [255, 255, 255, 255];
             for (let k = 0; k < nP; k++) if (SE('se_p' + k)) p[k] = parseInt(SE('se_p' + k).value);
             const b = SENS.slots[i];
-            const num = (id, d) => { const e = SE(id); if (!e || e.value === '') return d; const v = parseFloat(e.value); return isNaN(v) ? d : v; };
             sensPut({ i: i, a: SE('se_a').checked, t: t, p: p,
                       hwId: SE('se_id').value.trim(), name: SE('se_n').value.trim(),
-                      tmin: num('se_tmin', b.tmin), tmax: num('se_tmax', b.tmax),
-                      hmin: num('se_hmin', b.hmin), hmax: num('se_hmax', b.hmax),
-                      al: SE('se_al').checked });
+                      lim: b.lim, al: SE('se_al').checked });
 
             /* Calibration rides the pre-existing Pending.calib section, which
                commitAll POSTs to /api/calib before saving. One input per channel
@@ -4270,7 +4267,9 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let html = '';
                 for (let i = 0; i < sensors.length; i++) {
                     let s = sensors[i];
-                    let hasHum = s.has_hum;
+                    /* s.has_hum is still emitted but no longer read: which fields
+                       this card shows comes from s.lim, which lists exactly the
+                       quantities the part reports. */
                     /* Every entry is a real slot. The idx === -1 branch here
                        painted an "Ambient Sensor" card for a pseudo-sensor the
                        API never emitted. */
@@ -4283,12 +4282,23 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     html += '    <div class="sensor-type">' + escHtml(s.type) + ' &middot; SLOT ' + s.idx + '</div>';
                     html += '  </div>';
                     html += '  <div class="limit-grid">';
-                    html += '    <div class="limit-field"><label data-i18n="alm_tmin">Temp Min</label><input type="number" step="0.1" class="alm-input" data-key="tmin" value="' + s.tmin.toFixed(1) + '"></div>';
-                    html += '    <div class="limit-field"><label data-i18n="alm_tmax">Temp Max</label><input type="number" step="0.1" class="alm-input" data-key="tmax" value="' + s.tmax.toFixed(1) + '"></div>';
-                    if (hasHum) {
-                        html += '    <div class="limit-field"><label data-i18n="alm_hmin">Hum Min</label><input type="number" step="0.1" class="alm-input" data-key="hmin" value="' + s.hmin.toFixed(1) + '"></div>';
-                        html += '    <div class="limit-field"><label data-i18n="alm_hmax">Hum Max</label><input type="number" step="0.1" class="alm-input" data-key="hmax" value="' + s.hmax.toFixed(1) + '"></div>';
-                    }
+                    /* Two fields per quantity the part reports, from s.lim.
+                       Was a temperature pair plus a humidity pair behind hasHum,
+                       so a BMP280 offered a temperature band and no way to bound
+                       its pressure. data-key stays the channel key, which is what
+                       the commit handler parses out of the payload. */
+                    const lim = s.lim || {};
+                    Object.keys(lim).forEach(k => {
+                        const pair = lim[k];
+                        if (!Array.isArray(pair) || pair.length < 2) return;
+                        const nm = window.t('ch_' + k, k);
+                        html += '    <div class="limit-field"><label>' + escHtml(nm) + ' MIN</label>'
+                             +  '<input type="number" step="0.1" class="alm-input" data-key="' + escHtml(k) + 'min"'
+                             +  ' value="' + Number(pair[0]).toFixed(1) + '"></div>';
+                        html += '    <div class="limit-field"><label>' + escHtml(nm) + ' MAX</label>'
+                             +  '<input type="number" step="0.1" class="alm-input" data-key="' + escHtml(k) + 'max"'
+                             +  ' value="' + Number(pair[1]).toFixed(1) + '"></div>';
+                    });
                     html += '  </div>';
                     html += '</div>';
                 }
@@ -4340,16 +4350,30 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.querySelectorAll('.sensor-card').forEach(card => {
                 let idx = parseInt(card.getAttribute('data-idx'));
                 let obj = { idx: idx, active: card.querySelector('.alm-active').checked };
+                /* One "<channel>":[min,max] entry per pair of inputs. The inputs
+                   are named <key>min / <key>max; the payload groups them, which
+                   is the shape the firmware parses and the same shape
+                   /api/sensors emits. Previously the four fixed keys went out
+                   flat, and a third quantity had nowhere to go. */
                 card.querySelectorAll('.alm-input').forEach(inp => {
-                    obj[inp.getAttribute('data-key')] = parseFloat(inp.value) || 0;
+                    const dk = inp.getAttribute('data-key') || '';
+                    const isMax = dk.endsWith('max');
+                    const key = dk.slice(0, -3);
+                    if (!key) return;
+                    if (!obj[key]) obj[key] = [undefined, undefined];
+                    obj[key][isMax ? 1 : 0] = parseFloat(inp.value) || 0;
                 });
-                /* Validação de intertravamento (mantida do fluxo antigo) */
-                if (obj.tmin !== undefined && obj.tmax !== undefined && obj.tmin >= obj.tmax) {
-                    obj.tmax = Math.round((obj.tmin + 0.1) * 10) / 10;
-                }
-                if (obj.hmin !== undefined && obj.hmax !== undefined && obj.hmin >= obj.hmax) {
-                    obj.hmax = Math.min(100, Math.round((obj.hmin + 0.1) * 10) / 10);
-                }
+                /* Interlock, per channel. The old pair of hand-written checks
+                   also clamped humidity to 100 here; the firmware now holds each
+                   channel inside its own plausible range, so the browser only has
+                   to keep min below max. */
+                Object.keys(obj).forEach(k => {
+                    const v = obj[k];
+                    if (!Array.isArray(v)) return;
+                    if (v[0] !== undefined && v[1] !== undefined && v[0] >= v[1]) {
+                        v[1] = Math.round((v[0] + 0.1) * 10) / 10;
+                    }
+                });
                 sensorData.push(obj);
             });
             let soundData = {
@@ -4542,29 +4566,19 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             var val = parseFloat(e.target.value);
             if (isNaN(val)) return;
 
-            // Intertravamento temperatura
-            if (key === 'tmin' && inputs['tmax']) {
-                var max = parseFloat(inputs['tmax'].value);
-                if (!isNaN(max) && val >= max) {
-                    inputs['tmax'].value = (Math.round((val + 0.1) * 10) / 10).toFixed(1);
-                }
-            } else if (key === 'tmax' && inputs['tmin']) {
-                var min = parseFloat(inputs['tmin'].value);
-                if (!isNaN(min) && val <= min) {
-                    inputs['tmin'].value = (Math.round((val - 0.1) * 10) / 10).toFixed(1);
-                }
-            }
-            // Intertravamento umidade
-            if (key === 'hmin' && inputs['hmax']) {
-                var max = parseFloat(inputs['hmax'].value);
-                if (!isNaN(max) && val >= max) {
-                    inputs['hmax'].value = Math.min(100, Math.round((val + 0.1) * 10) / 10).toFixed(1);
-                }
-            } else if (key === 'hmax' && inputs['hmin']) {
-                var min = parseFloat(inputs['hmin'].value);
-                if (!isNaN(min) && val <= min) {
-                    inputs['hmin'].value = Math.max(0, Math.round((val - 0.1) * 10) / 10).toFixed(1);
-                }
+            /* Interlock against this field's own partner, whatever quantity it
+               belongs to. Was a temperature block and a humidity block written
+               out separately, which left a third quantity uncoupled — its MIN
+               could be dragged above its MAX with nothing objecting. */
+            var isMax = key.endsWith('max');
+            var partner = inputs[key.slice(0, -3) + (isMax ? 'min' : 'max')];
+            if (!partner) return;
+            var other = parseFloat(partner.value);
+            if (isNaN(other)) return;
+            if (!isMax && val >= other) {
+                partner.value = (Math.round((val + 0.1) * 10) / 10).toFixed(1);
+            } else if (isMax && val <= other) {
+                partner.value = (Math.round((val - 0.1) * 10) / 10).toFixed(1);
             }
         });
 

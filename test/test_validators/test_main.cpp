@@ -530,6 +530,25 @@ void test_channel_range_fits_bit_width(void) {
     }
 }
 
+void test_channel_defaults_inside_sane_range(void) {
+    /* defMin/defMax seed a factory config. A default outside the channel's own
+     * plausible range would arm an alarm the user never set and cannot satisfy. */
+    for (uint8_t c = 0; c < CH_COUNT; c++) {
+        const ChannelInfo& ci = channelTable()[c];
+        TEST_ASSERT_TRUE_MESSAGE(ci.defMin >= ci.saneMin, "defMin below the plausible range");
+        TEST_ASSERT_TRUE_MESSAGE(ci.defMax <= ci.saneMax, "defMax above the plausible range");
+        TEST_ASSERT_TRUE_MESSAGE(ci.defMin < ci.defMax, "factory band is empty or inverted");
+    }
+}
+
+void test_channel_slots_cover_table(void) {
+    /* chMin[]/chMax[]/channelBitWidth[] are sized by MAX_SENSOR_CHANNELS and
+     * indexed by channel id, so a table longer than the arrays writes past
+     * them — into the next field of a packed record that goes to flash. */
+    TEST_ASSERT_TRUE_MESSAGE(CH_COUNT <= MAX_SENSOR_CHANNELS,
+                             "more channels in the table than slots in SensorRecord");
+}
+
 void test_channel_unknown_falls_back(void) {
     /* histV4ChannelPrefix( ) answered 'x' for an unknown channel long before the
      * table existed; keys already written in the wild depend on it. */
@@ -592,6 +611,8 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_channel_letters_unique);
     RUN_TEST(test_channel_keys_unique_and_resolvable);
     RUN_TEST(test_channel_range_fits_bit_width);
+    RUN_TEST(test_channel_defaults_inside_sane_range);
+    RUN_TEST(test_channel_slots_cover_table);
     RUN_TEST(test_channel_unknown_falls_back);
 
     RUN_TEST(test_tag_sec_is_not_sensor);

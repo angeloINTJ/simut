@@ -292,10 +292,10 @@ void SensorManager::syncAlarmLimits(const SystemConfig &cfg) {
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
  if (cfg.sensors[i].pins[0] == rs.config.pins[0]) {
- rs.config.tempMin = cfg.sensors[i].tempMin;
- rs.config.tempMax = cfg.sensors[i].tempMax;
- rs.config.humMin = cfg.sensors[i].humMin;
- rs.config.humMax = cfg.sensors[i].humMax;
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+ rs.config.chMin[c] = cfg.sensors[i].chMin[c];
+ rs.config.chMax[c] = cfg.sensors[i].chMax[c];
+ }
  rs.config.alarmsActive = cfg.sensors[i].alarmsActive;
  break;
  }

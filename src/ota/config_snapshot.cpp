@@ -17,6 +17,18 @@
 #include <LittleFS.h>
 #include <string.h>
 
+/* The snapshot is the only thing carrying config across a destructive apply, so
+ * a SystemConfig that outgrows the region does not fail loudly — the device
+ * simply comes up on defaults after an update, having lost WiFi, users and
+ * every sensor slot. Nothing else in the build ties the two together, and the
+ * margin is now 155 B: two more floats per sensor slot would spend it.
+ *
+ * Fails at compile time instead. If this fires, either the config has to shrink
+ * or the snapshot needs a second sector — do not just raise the constant. */
+static_assert(sizeof(SystemConfig) + sizeof(uint32_t) <= ota::CONFIG_SNAPSHOT_PAYLOAD_MAX,
+              "SystemConfig + CRC no longer fits the OTA config snapshot: an "
+              "update would silently factory-reset every device");
+
 #ifndef XIP_BASE
 #define XIP_BASE 0x10000000u
 #endif
