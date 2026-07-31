@@ -121,6 +121,20 @@ struct BootLogEntry {
 constexpr uint32_t DASH_HOLD_MS     = 1000;
 constexpr uint32_t DASH_HOLD_GAP_MS = 120;
 
+/* A resistive panel chatters for a few ms as the finger leaves it, and the
+ * first frame without contact used to be taken as the release. The bounce that
+ * followed then read as release-then-press, i.e. a tap — which is why letting
+ * go at the end of a long press undid what the long press had just done. A
+ * release is only declared once contact has been absent for this long.
+ *
+ * 60 ms is four sampling frames at the ~15 ms Core-1 cadence: past any panel
+ * chatter, and far below the ~150 ms a human needs between deliberate taps. */
+constexpr uint32_t TOUCH_RELEASE_DEBOUNCE_MS = 60;
+/* Belt and braces for the same lift: a bounce longer than the debounce window
+ * would still slip a phantom tap through, so the tap action is also refused
+ * for a moment after a long press has fired. */
+constexpr uint32_t DASH_HOLD_TAIL_MS = 400;
+
 /* ---------------------------------------------------------------------------
  * Alarm-limit editor geometry.
  *
@@ -516,6 +530,7 @@ private:
  float minHum  = NAN, maxHum  = NAN;
  uint32_t holdStart = 0;    // long-press timestamp
  uint32_t holdSeen  = 0;    // last frame the finger was OBSERVED down here
+ uint32_t holdFiredMs = 0;  // when the long press fired; survives the release
  bool holdFired = false;    // long-press already fired
  };
  DashPanel _topPanel, _bottomPanel;
@@ -692,6 +707,9 @@ private:
 	 * is only accepted after the finger is removed.
 	 */
 	bool _touchReleased = true;
+	/** First frame contact went missing; 0 while the finger is down. A release
+	 *  is only declared once it has stayed missing for the debounce window. */
+	uint32_t _releaseCandidateMs = 0;
 
 	/** Cooldown for buttons with hold-repeat (increment/decrement). */
 	uint32_t _holdRepeatLastFire = 0;
