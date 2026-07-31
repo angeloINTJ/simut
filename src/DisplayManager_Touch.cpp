@@ -27,8 +27,10 @@ void DisplayManager::handleTouch( ) {
  /* Finger released — enables next single touch */
  _touchReleased = true;
 
- /* Short tap on top panel (release before 1s): toggle min/max */
- if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0) {
+ /* Short tap on top panel (release before 1s): toggle min/max.
+  * Not during the tail of a long press — see DASH_HOLD_LOCK_MS. */
+ if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0 &&
+ timeReached(_topPanel.lockUntil)) {
  if (!_topPanel.fixed) {
  /* Interactive mode: short tap exits to fixed */
  _topPanel.fixed = true;
@@ -368,6 +370,13 @@ void DisplayManager::handleTouch( ) {
 
  if (_uiMode == MODE_DASHBOARD) {
  if (y > 35 && y < 110) {
+ /* Deaf while a long press is being let go of. Anything arriving here is
+  * the lift itself, and its coordinates are not to be trusted. */
+ if (!timeReached(_topPanel.lockUntil)) {
+ (void)acceptTouch(0);      /* consume, so it cannot land as a first touch */
+ _topPanel.holdStart = 0;
+ return;
+ }
  bool firstTouch = acceptTouch(0);
 
  /* Mode indicator tap [Amb]/[Sx] (right corner, x > 280): immediate toggle */
@@ -437,6 +446,9 @@ void DisplayManager::handleTouch( ) {
  _topPanel.holdStart != 0 &&
  nowMs - _topPanel.holdStart >= DASH_HOLD_MS) {
  _topPanel.holdFired = true;
+ /* Everything this region produces from here to the end of the lift is
+  * discarded. Survives the release reset on purpose: it is a deadline. */
+ _topPanel.lockUntil = nowMs + DASH_HOLD_LOCK_MS;
  _touchSoundPending = true;
  _topPanel.fixed = !_topPanel.fixed;
  if (_topPanel.fixed)
