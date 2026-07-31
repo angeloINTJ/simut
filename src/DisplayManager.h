@@ -88,6 +88,14 @@ enum LangKey {
 	TR_BOOT_ALL_INIT, TR_BOOT_SYS_READY,
 	TR_BOOT_APPLYING_CFG, TR_BOOT_REBOOTING,
 
+	/* Channel names. Temperature and humidity already had keys (TR_TEMP,
+	 * TR_HUMIDITY) from when they were the only two quantities; these complete
+	 * the set so the alarm-limit rows read in the user's language instead of
+	 * the table's English name. APPENDED, never inserted: a .lng @DICT is
+	 * positional and one line per key, so inserting in the middle silently
+	 * shifts every string after it. tools/check_lang_packs.py enforces this. */
+	TR_CH_PRESSURE, TR_CH_LUMINOSITY,
+
 	TR_KEYS_COUNT
 };
 
@@ -99,6 +107,40 @@ struct BootLogEntry {
 	int16_t key; /**< TR_BOOT_* or TR_KEYS_COUNT (= raw, untranslated) */
 	char suffix[40];/**< Concatenated after tr(key); or raw text if key==COUNT */
 };
+
+/* ---------------------------------------------------------------------------
+ * Alarm-limit editor geometry.
+ *
+ * Shared by the renderer (DisplayManager_Settings.cpp) and the touch handler
+ * (DisplayManager_Touch.cpp) on purpose: the step buttons are DRAWN from these
+ * and the hit zones are DERIVED from them, so the two cannot drift apart.
+ *
+ * Rows match the menus exactly — 285x34 at y=40, step 38 — because the screen
+ * is meant to read as one. The step buttons are inset by the same amount on
+ * all four sides, which is what makes their corner arcs concentric with the
+ * bar's: r_btn = r_bar - inset. Change the inset and the radius follows.
+ * ------------------------------------------------------------------------- */
+constexpr int ALARM_EDIT_ROWS   = 4;    /**< Bars per page */
+/** The alarm LIST uses the same rows — that is the point: the limit editor was
+ *  built to read as the same object as the menu it opens from. */
+constexpr int ALARM_LIST_ROWS   = ALARM_EDIT_ROWS;
+constexpr int ALARM_EDIT_Y0     = 40;   /**< Top of the first bar */
+constexpr int ALARM_EDIT_STEP   = 38;   /**< Bar pitch */
+constexpr int ALARM_EDIT_BAR_X  = 10;
+constexpr int ALARM_EDIT_BAR_W  = 285;
+constexpr int ALARM_EDIT_BAR_H  = 34;
+constexpr int ALARM_EDIT_BAR_R  = 8;
+constexpr int ALARM_EDIT_INSET  = 4;
+/* 26 and not 30: at 30 the label "Temperature MAX" overflows by 5 px, and
+ * temperature is the most common channel there is. Narrowing costs nothing in
+ * reach because the touch target is not the button — it is the end of the bar
+ * (ALARM_EDIT_HIT_*), the same way the volume rows already work. */
+constexpr int ALARM_EDIT_BTN_W  = 26;
+constexpr int ALARM_EDIT_BTN_H  = ALARM_EDIT_BAR_H - 2 * ALARM_EDIT_INSET;
+constexpr int ALARM_EDIT_BTN_R  = ALARM_EDIT_BAR_R - ALARM_EDIT_INSET;
+/* Hit zones in SCREEN coordinates, wider than the glyphs they point at. */
+constexpr int ALARM_EDIT_HIT_DEC = ALARM_EDIT_BAR_X + ALARM_EDIT_INSET + ALARM_EDIT_BTN_W + 15;
+constexpr int ALARM_EDIT_HIT_INC = ALARM_EDIT_BAR_X + ALARM_EDIT_BAR_W - ALARM_EDIT_INSET - ALARM_EDIT_BTN_W - 15;
 
 struct SystemState {
 	float slotTemp; float slotHum; float slotPres; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
@@ -238,6 +280,12 @@ public:
 	void requestAuthKeypadRedraw( );
 	void showSettingsMain( );
 	void showSettingsAlarms(SystemConfig* cfg);
+
+	/** Marks the selected row's ON/OFF word as stale without re-entering the
+	 *  screen. showSettingsAlarms() forces a full redraw and resets the cursor
+	 *  to the first sensor, which is the wrong answer for a flag that changed
+	 *  in place. */
+	void refreshAlarmStatus( );
 	void showAlarmEdit(int sensorIdx);
 	void showSettingsLang(int currentLang);
 	void showSettingsPassword( );
@@ -305,6 +353,12 @@ public:
 	void setTelemetrySendStatus(bool success);
 
 	const char* tr(LangKey key);
+
+	/** Translated name of a measurement channel ("Temperatura", "Presion").
+	 *  Falls back to the channel table's English name for an unknown id.
+	 *  Shares tr()'s rotating scratch — copy the result before calling
+	 *  tr() four more times in the same expression. */
+	const char* channelLabel(uint8_t ch);
 	UiMode getUiMode( ) const { return _uiMode; }
 
 	/** Set once at boot by AppManager. _sysConfigPtr must be
@@ -326,6 +380,18 @@ private:
 	 */
 	void truncateText(Adafruit_GFX* gfx, const char* src,
 		char* out, size_t outSize, int16_t maxPixelW);
+
+	/**
+	 * @brief Truncates name but never the suffix, which is reserved first.
+	 * @param gfx Pointer to the GFX context with font already set.
+	 * @param name Text allowed to shrink.
+	 * @param suffix Text that must survive (" MIN", " MAX").
+	 * @param out Output buffer.
+	 * @param outSize Output buffer size.
+	 * @param maxPixelW Maximum width in pixels allowed for name+suffix.
+	 */
+	void truncateTextKeepSuffix(Adafruit_GFX* gfx, const char* name,
+		const char* suffix, char* out, size_t outSize, int16_t maxPixelW);
 #endif
 
 	SystemState _sharedState;
@@ -547,7 +613,9 @@ private:
 	 * called from within a strip-render loop (the
 	 * strip's external blit already covers the region). */
 	void drawGraphIcon(int16_t x, int16_t y, uint16_t color);
-	void blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w, int16_t h);
+	/** @param srcX column of `canvas` the slice starts at (0 = whole width). */
+	void blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w,
+		int16_t h, int16_t srcX = 0);
 
 	/** Formats epoch to X-axis label (HH:MM or DD/MM HHh). */
 	void formatGraphTime(time_t epoch, char* buf, bool shortRange);
@@ -654,6 +722,8 @@ private:
 
 	void drawSettingsAlarms( );
 	void drawAlarmEdit( );
+	void renderAlarmRow(int mapIdx, int16_t& outStatusX);
+	void drawAlarmStatusOnly( );
 
 
 	void drawSettingsPassword( );
@@ -676,8 +746,10 @@ private:
 	int _activeSensorsMap[MAX_SENSORS];
 	int _alarmSelection = 0;
 	int _lastAlarmSelection = -1;
+	bool _alarmStatusDirty = false;  /**< Repaint the badge only, not the screen */
 	int _editSensorIdx = -1;
-	int _editFieldFocus = 0;
+	int _editFieldFocus = 0;   /**< Index into the sensor's limit list, not a box id */
+	int _lastEditPage = -1;
 	SensorRecord _tempAlarmConfig;
 
 

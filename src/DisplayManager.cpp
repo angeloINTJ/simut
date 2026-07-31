@@ -348,6 +348,70 @@ void DisplayManager::truncateText(Adafruit_GFX* gfx, const char* src,
 	out[best + 3] = '\0';
 }
 
+/**
+ * @brief Same as truncateText, but a suffix is reserved before the name
+ *        competes for what is left.
+ * @details truncateText shortens the whole string, so "Temperature MAX" loses
+ *          the MAX first — the one part of an alarm-limit label that must never
+ *          disappear, because it is what distinguishes the two rows of a
+ *          channel. Here the suffix width is subtracted up front and only the
+ *          name is searched, giving "Conduct... MAX" instead of "Conductivit...".
+ *          A suffix that does not fit on its own is written alone.
+ */
+void DisplayManager::truncateTextKeepSuffix(Adafruit_GFX* gfx, const char* name,
+                                             const char* suffix, char* out,
+                                             size_t outSize, int16_t maxPixelW) {
+	if (!gfx || !name || !suffix || !out || outSize < 5) {
+		if (out && outSize > 0) out[0] = '\0';
+		return;
+	}
+
+	const size_t sufLen = strlen(suffix);
+	if (sufLen + 5 > outSize) { out[0] = '\0'; return; }
+
+	int16_t bx, by;
+	uint16_t tw, th;
+
+	/* Fits whole? Then no ellipsis at all. */
+	size_t nameLen = strlen(name);
+	if (nameLen + sufLen < outSize) {
+		memcpy(out, name, nameLen);
+		memcpy(out + nameLen, suffix, sufLen + 1);
+		gfx->getTextBounds(out, 0, 0, &bx, &by, &tw, &th);
+		if ((int16_t)tw <= maxPixelW) return;
+	}
+
+	/* Budget for the name = width minus the suffix and the ellipsis. Both are
+	 * measured in the context's current font, not assumed. */
+	uint16_t sufW, ellW, dummyH;
+	gfx->getTextBounds(suffix, 0, 0, &bx, &by, &sufW, &dummyH);
+	gfx->getTextBounds("...", 0, 0, &bx, &by, &ellW, &dummyH);
+	int16_t targetW = maxPixelW - (int16_t)sufW - (int16_t)ellW;
+	if (targetW < 0) targetW = 0;
+
+	const int maxName = (int)(outSize - sufLen - 4);
+	int lo = 0, hi = (int)nameLen;
+	int best = 0;
+	while (lo <= hi) {
+		int mid = (lo + hi) / 2;
+		int copyLen = mid;
+		if (copyLen > maxName) copyLen = maxName;
+		memcpy(out, name, copyLen);
+		out[copyLen] = '\0';
+		gfx->getTextBounds(out, 0, 0, &bx, &by, &tw, &th);
+		if ((int16_t)tw <= targetW) { best = copyLen; lo = mid + 1; }
+		else { hi = mid - 1; }
+	}
+
+	while (best > 0 && out[best - 1] == ' ') best--;
+
+	memcpy(out, name, best);
+	out[best] = '.';
+	out[best + 1] = '.';
+	out[best + 2] = '.';
+	memcpy(out + best + 3, suffix, sufLen + 1);
+}
+
 #endif // SIMUT_DISPLAY_TFT
 bool DisplayManager::isMenuActive( ) {
 	mutex_enter_blocking(&_stateMutex);
@@ -1210,7 +1274,15 @@ void DisplayManager::loopCore1( ) {
 			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARMS) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsAlarms( ); _repaintSettings = false; }
+			if (_repaintSettings) {
+				C1_PHASE(C1P_UI_SETTINGS);
+				/* A flag that flipped in place repaints its own word; anything
+				 * else goes through the full path. */
+				if (_alarmStatusDirty && !_forceSettingsRedraw) drawAlarmStatusOnly( );
+				else drawSettingsAlarms( );
+				_alarmStatusDirty = false;
+				_repaintSettings = false;
+			}
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
 			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); _repaintSettings = false; }
