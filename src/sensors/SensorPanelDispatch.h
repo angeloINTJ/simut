@@ -19,6 +19,16 @@
 #include "DHT22Driver.h"
 #include "BME280Driver.h"
 
+/* Both switches below end in a fallback that draws a bare thermometer. That is
+ * a reasonable last resort for a corrupt stored type, and a silent wrong answer
+ * for a type someone forgot to add: a BMP280 fell into it and showed only its
+ * temperature, with no hint that a pressure reading existed at all. Adding a
+ * SensorType now breaks the build here instead. */
+static_assert(SENSOR_TYPE_MAX == TYPE_BMP280,
+    "New SensorType added: give it a case in sensorRenderPanel AND "
+    "sensorRenderMinMax below, otherwise the dashboard renders it as a "
+    "temperature-only sensor without saying so.");
+
 /** Calls the appropriate driver's renderPanel for the given sensor type.
  *  Theme colors passed explicitly so drivers follow the active theme. */
 inline void sensorRenderPanel(GFXcanvas16* cv, SensorType type,
@@ -41,7 +51,11 @@ inline void sensorRenderPanel(GFXcanvas16* cv, SensorType type,
 #endif
 #if SIMUT_SENSOR_BME280
     case TYPE_BME280:
-        /* BMx280: always T+P — humidity detection unreliable on some chips */
+    case TYPE_BMP280:
+        /* BMx280: always T+P — humidity detection unreliable on some chips.
+         * TYPE_BMP280 was missing here from the day the two parts were split
+         * into separate types, so the one chip that exists to measure pressure
+         * was the one rendered without it. */
         BMP280_renderPanel(cv, v1, v3, isValid, cardW, leftAnchor,
                            isRedPhase, panelBg, font24, font12, font9,
                            txtSub, tempOk, tempHot, humidity, textOff);
@@ -97,6 +111,11 @@ inline void sensorRenderMinMax(GFXcanvas16* cv, SensorType type,
 #endif
 #if SIMUT_SENSOR_DS18B20
     case TYPE_DS18B20:
+    /* BMP280 has no humidity, and min/max is only tracked for temperature and
+     * humidity (DashPanel::minTemp..maxHum) — there is no pressure extreme to
+     * draw yet. Temperature-only is the honest answer here, and it is stated
+     * rather than reached by falling through. */
+    case TYPE_BMP280:
         DS18B20_renderMinMax(cv, minV1, maxV1, isValid,
             cardW, isRedPhase, panelBg, font9,
             txtSub, tempOk, tempHot, textOff,
