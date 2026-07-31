@@ -200,6 +200,9 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 
 				if (periph == 0) {
 				if (!i2c0Initialized) {
+					/* Before the peripheral takes the pins: a sensor left
+					 * mid-byte by the last reset is still holding SDA. */
+					BME280Driver::recoverBus(sda, scl);
 					Wire.setSDA(sda);
 					Wire.setSCL(scl);
 					Wire.begin();
@@ -208,6 +211,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 					drvIdx = _getOrCreateBmeDriver(Wire, addr);
 				} else if (periph == 1) {
 				if (!i2c1Initialized) {
+					BME280Driver::recoverBus(sda, scl);
 					Wire1.setSDA(sda);
 					Wire1.setSCL(scl);
 					Wire1.begin();
