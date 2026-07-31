@@ -24,22 +24,11 @@ void DisplayManager::handleTouch( ) {
  * active, _driver.ts->getPoint() may return zeros, but mapTouchPoint() now
  * bypasses the ADC mapping and returns _simTouchX/Y directly. */
  if (!_rawTouchState) {
- /* Contact is gone this frame, which is not yet a release: the panel
-  * chatters on the way up, and taking the first empty frame at face value
-  * turned that chatter into a release-then-press pair — a tap the user
-  * never made, landing right after a long press and undoing it. Wait for
-  * the absence to hold. */
- if (_releaseCandidateMs == 0) _releaseCandidateMs = millis( );
- if (!timeSince(_releaseCandidateMs, TOUCH_RELEASE_DEBOUNCE_MS)) return;
-
  /* Finger released — enables next single touch */
  _touchReleased = true;
 
- /* Short tap on top panel (release before 1s): toggle min/max.
-  * Refused in the tail of a long press, so a bounce that outlasts the
-  * debounce window still cannot turn the lift into a tap. */
- if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0 &&
- (_topPanel.holdFiredMs == 0 || timeSince(_topPanel.holdFiredMs, DASH_HOLD_TAIL_MS))) {
+ /* Short tap on top panel (release before 1s): toggle min/max */
+ if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0) {
  if (!_topPanel.fixed) {
  /* Interactive mode: short tap exits to fixed */
  _topPanel.fixed = true;
@@ -148,10 +137,6 @@ void DisplayManager::handleTouch( ) {
  return;
  }
 
- /* Contact seen — any release that was pending is cancelled. A bounce that
-  * re-asserts inside the window therefore never becomes a release at all,
-  * so it cannot pair with the next frame into a phantom tap. */
- _releaseCandidateMs = 0;
 
  if (!timeSince(_lastTouchTime, 15)) return;
  TS_Point p = _driver.ts->getPoint( );
@@ -452,7 +437,6 @@ void DisplayManager::handleTouch( ) {
  _topPanel.holdStart != 0 &&
  nowMs - _topPanel.holdStart >= DASH_HOLD_MS) {
  _topPanel.holdFired = true;
- _topPanel.holdFiredMs = nowMs;   /* survives the release, gates its tail */
  _touchSoundPending = true;
  _topPanel.fixed = !_topPanel.fixed;
  if (_topPanel.fixed)
