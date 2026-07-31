@@ -114,7 +114,20 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let fd = new URLSearchParams(); fd.append('user', user); fd.append('pass', pass); fd.append('nonce', _nonce);
             let r = await fetch('/api/login', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: fd.toString(), credentials: 'same-origin' });
             let j = await r.json();
-            if (j.ok) { window.location.href = j.redirect || '/'; return; }
+            if (j.ok) {
+                /* Uncommitted edits live in sessionStorage so they can survive
+                   moving between the config pages before one Save and Restart.
+                   sessionStorage outlives a logout and a reload, though, so a
+                   fresh sign-in used to inherit whatever the last one had typed
+                   and never applied. Signing in means: show me the device as it
+                   is now. */
+                try {
+                    sessionStorage.removeItem('simut_pending');
+                    sessionStorage.removeItem('simut_pending_notified');
+                } catch(e) {}
+                window.location.href = j.redirect || '/';
+                return;
+            }
             await fetchNonce();
             if (j.err === 2 && j.lockSec > 0) showLockout(j.lockSec); else if (j.err === 3) { showError(t('log_full', 'System full.')); btn.disabled = false; } else { showError(t('log_err', 'Invalid credentials.')); btn.disabled = false; }
         } catch(ex) { showError('Connection error.'); btn.disabled = false; await fetchNonce(); }
@@ -5040,7 +5053,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
         +'<div class="drawer-bottom">'
         +'<a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>'
         +'<div class="drawer-footer"><div><span id="greeting" style="color:var(--sub);font-size:0.78rem"></span><div style="margin-top:4px"><select class="lang-select" onchange="setLang(this.value)"><option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option></select></div></div>'
-        +'<a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>'
+        +'<a href="/logout" onclick="if(window.Pending)Pending.clear()" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>'
         +'</div></div></div>';
     /* v3.34.1: mapeamento code → emoji bandeira pra seletor dinâmico. */
     var LANG_FLAGS = {pt:'🇧🇷','pt-BR':'🇧🇷','pt-PT':'🇵🇹',es:'🇪🇸','es-ES':'🇪🇸','es-MX':'🇲🇽',en:'🇺🇸','en-US':'🇺🇸','en-GB':'🇬🇧',fr:'🇫🇷',de:'🇩🇪',it:'🇮🇹',ru:'🇷🇺',zh:'🇨🇳',ja:'🇯🇵',ko:'🇰🇷',nl:'🇳🇱',pl:'🇵🇱',sv:'🇸🇪',tr:'🇹🇷',ar:'🇸🇦'};
