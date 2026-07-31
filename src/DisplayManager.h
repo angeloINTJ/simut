@@ -121,6 +121,21 @@ struct BootLogEntry {
 constexpr uint32_t DASH_HOLD_MS     = 1000;
 constexpr uint32_t DASH_HOLD_GAP_MS = 120;
 
+/* Once the long press has fired, the panel stops listening for this long.
+ *
+ * Lifting off a resistive panel is not a clean edge. Pressure decays, the
+ * controller keeps reporting contact, and the X/Y it reports while decaying
+ * drifts — often to an extreme of the axis. Every branch in this region is
+ * reachable by that garbage: x>280 flips pinned/interactive on touch-down,
+ * x>266 opens the graph, and a release with holdStart set runs the tap action.
+ * Guarding them one at a time is whack-a-mole, so the whole region goes deaf
+ * for the length of a lift instead. The gesture already did what it was asked;
+ * nothing else it produces on the way up is wanted.
+ *
+ * The cost is not being able to tap this panel again for 600 ms after a
+ * deliberate one-second hold, which nobody notices. */
+constexpr uint32_t DASH_HOLD_LOCK_MS = 600;
+
 /* ---------------------------------------------------------------------------
  * Alarm-limit editor geometry.
  *
@@ -516,6 +531,7 @@ private:
  float minHum  = NAN, maxHum  = NAN;
  uint32_t holdStart = 0;    // long-press timestamp
  uint32_t holdSeen  = 0;    // last frame the finger was OBSERVED down here
+ uint32_t lockUntil = 0;    // region deaf until then (tail of a long press)
  bool holdFired = false;    // long-press already fired
  };
  DashPanel _topPanel, _bottomPanel;
