@@ -40,7 +40,7 @@ void DisplayManager::handleTouch( ) {
  redrawTopPanel( );
  }
  
- _topPanel.holdStart = 0; _topPanel.holdFired = false;
+ _topPanel.holdStart = 0; _topPanel.holdSeen = 0; _topPanel.holdFired = false;
  
 
  /*
@@ -413,14 +413,29 @@ void DisplayManager::handleTouch( ) {
  if (firstTouch) {
  /* Start hold tracking — action deferred to release or 1s timeout */
  _topPanel.holdStart = millis();
+ _topPanel.holdSeen = _topPanel.holdStart;
  _topPanel.holdFired = false;
  return;
  }
 
- /* Holding: long-press (1s) toggles fixed ↔ interactive */
- if (!_topPanel.holdFired && _lastTouchRegion == 0 &&
+ /* Holding. The finger is only "still down" for spans this loop actually
+  * watched: a gap means it was either lifted or Core 1 was paused, and
+  * neither is evidence of a continuous press. Restart rather than count
+  * time nobody observed. */
+ const uint32_t nowMs = millis();
+ if (_topPanel.holdStart != 0 && nowMs - _topPanel.holdSeen > DASH_HOLD_GAP_MS) {
+ _topPanel.holdStart = nowMs;
+ _topPanel.holdFired = false;
+ }
+ _topPanel.holdSeen = nowMs;
+
+ /* Long-press toggles fixed <-> interactive, but not while the panel is
+  * showing min/max: there the gesture would swap the mode out from under
+  * the numbers the user is reading. A press there falls through to the
+  * release path, which leaves min/max — the same as a tap. */
+ if (!_topPanel.holdFired && _lastTouchRegion == 0 && !_topPanel.showMinMax &&
  _topPanel.holdStart != 0 &&
- millis() - _topPanel.holdStart >= 1000) {
+ nowMs - _topPanel.holdStart >= DASH_HOLD_MS) {
  _topPanel.holdFired = true;
  _touchSoundPending = true;
  _topPanel.fixed = !_topPanel.fixed;
