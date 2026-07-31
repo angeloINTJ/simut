@@ -108,6 +108,19 @@ struct BootLogEntry {
 	char suffix[40];/**< Concatenated after tr(key); or raw text if key==COUNT */
 };
 
+/* Long press on the top dash panel toggles pinned <-> interactive.
+ *
+ * DASH_HOLD_GAP_MS is what makes it a HOLD rather than "two touches far apart
+ * in wall-clock time". Core 1 samples touch every ~15 ms but stops entirely
+ * while flash is being written, and a finger lifted inside one of those pauses
+ * is never seen as released — so a second tap arrived as a continuation of the
+ * first, with more than a second already on the clock, and flipped the panel
+ * mode on its own. Contact is only claimed for spans actually observed: a gap
+ * wider than this restarts the hold. Erring toward restarting costs the user a
+ * longer press; erring the other way is the mode changing when nobody asked. */
+constexpr uint32_t DASH_HOLD_MS     = 1000;
+constexpr uint32_t DASH_HOLD_GAP_MS = 120;
+
 /* ---------------------------------------------------------------------------
  * Alarm-limit editor geometry.
  *
@@ -502,6 +515,7 @@ private:
  float minTemp = NAN, maxTemp = NAN;
  float minHum  = NAN, maxHum  = NAN;
  uint32_t holdStart = 0;    // long-press timestamp
+ uint32_t holdSeen  = 0;    // last frame the finger was OBSERVED down here
  bool holdFired = false;    // long-press already fired
  };
  DashPanel _topPanel, _bottomPanel;
