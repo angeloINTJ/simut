@@ -1799,26 +1799,81 @@ bool StorageManager::h5WriteSchemaTo(File& f, uint8_t seq) {
 	return f.write(buf, n) == n;
 }
 
-bool StorageManager::h5FileHasSchema(const String& path, bool* outMatches) {
+bool StorageManager::h5FileHasSchema(const String& path, bool* outMatches,
+                                     uint8_t* outLastSeq) {
 	if (outMatches) *outMatches = false;
+	if (outLastSeq) *outLastSeq = 0;
 	File f = LittleFS.open(path, "r");
 	if (!f) return false;
-	uint8_t buf[H5_SCHEMA_CHUNK_SIZE(H5_MAX_CHANNELS)];
-	const int got = f.read(buf, sizeof(buf));
-	f.close( );
-	if (got < (int)sizeof(H5ChunkPreamble)) return false;
-	const H5ChunkPreamble* p = (const H5ChunkPreamble*)buf;
-	if (p->magic != H5_MAGIC || p->version != H5_VERSION
-	    || p->type != H5_CHUNK_SCHEMA) return false;
-	const uint8_t n = p->a;
-	if (n == 0 || n > H5_MAX_CHANNELS || got < (int)H5_SCHEMA_CHUNK_SIZE(n)) return false;
-	uint16_t stored;
-	memcpy(&stored, buf + 8 + 4u * n, 2);
-	if (h5Crc16(buf, 8 + 4u * n) != stored) return false;
-	if (outMatches) {
-		*outMatches = h5SchemaEquals((const H5ChannelDesc*)(buf + 8), n, _h5Schema, _h5NCh);
+	const uint32_t size = (uint32_t)f.size( );
+
+	/* Two different questions, and they have two different answers.
+	 *
+	 * "Is this a V5 file at all" is about the FIRST chunk — a file that does
+	 * not open with a SCHEMA has nothing to interpret its blocks against, and
+	 * the caller deletes it. But "does the schema match" is about the one in
+	 * FORCE, which is the LAST SCHEMA in the file (§3.7-2: a set change adds a
+	 * SCHEMA, it does not rewrite the opening one).
+	 *
+	 * Comparing against the opening one made §14-7 unreachable: this bench
+	 * file was created with 6 channels and the equipment now runs 11, so the
+	 * comparison could never match and every single append wrote a fresh
+	 * SCHEMA first — 36 of them for 36 blocks, 54 B each against blocks of
+	 * 46 B, roughly a fifth of the daily byte budget spent restating what the
+	 * previous chunk already said. */
+	uint8_t buf[H5_DATA_HEADER_SIZE(H5_MAX_CHANNELS)];
+	static_assert(sizeof(buf) >= H5_SCHEMA_CHUNK_SIZE(H5_MAX_CHANNELS),
+	              "buffer must hold the widest chunk header");
+
+	bool opensWithSchema = false, first = true;
+	uint32_t pos = 0;
+	while (pos + sizeof(H5ChunkPreamble) <= size) {
+		size_t want = sizeof(buf);
+		if (pos + want > size) want = size - pos;
+		if (!f.seek(pos, SeekSet)) break;
+		const int got = f.read(buf, want);
+		if (got < (int)sizeof(H5ChunkPreamble)) break;
+
+		H5ChunkPreamble pre;
+		memcpy(&pre, buf, sizeof(pre));
+		if (pre.magic != H5_MAGIC || pre.version != H5_VERSION) break;
+
+		if (pre.type == H5_CHUNK_SCHEMA) {
+			const uint8_t n = pre.a;
+			if (n == 0 || n > H5_MAX_CHANNELS) break;
+			const size_t sz = H5_SCHEMA_CHUNK_SIZE(n);
+			if ((size_t)got < sz) break;
+			uint16_t stored;
+			memcpy(&stored, buf + 8 + 4u * n, 2);
+			if (h5Crc16(buf, 8 + 4u * n) != stored) break;
+			if (first) opensWithSchema = true;
+			/* Keep overwriting: what survives the walk is the last one. */
+			if (outMatches) {
+				*outMatches = h5SchemaEquals((const H5ChannelDesc*)(buf + 8), n,
+				                             _h5Schema, _h5NCh);
+			}
+			if (outLastSeq) *outLastSeq = pre.b;
+			pos += sz;
+		} else if (pre.type == H5_CHUNK_DATA) {
+			if (first) break;                   /* §3: files open with SCHEMA */
+			const uint8_t n = pre.b;
+			if (n == 0 || n > H5_MAX_CHANNELS) break;
+			const size_t hdrLen = H5_DATA_HEADER_SIZE(n);
+			if ((size_t)got < hdrLen) break;
+			uint16_t payloadLen;
+			memcpy(&payloadLen, buf + 12, sizeof(payloadLen));
+			pos += hdrLen + payloadLen;
+		} else {
+			break;
+		}
+		first = false;
+		feedWdt( );
 	}
-	return true;
+	f.close( );
+	/* A walk that stops on a damaged tail still answers the first question,
+	 * and leaves outMatches on the last SCHEMA it could trust — at worst one
+	 * redundant SCHEMA gets written, which is the safe way to be wrong. */
+	return opensWithSchema;
 }
 
 /** Sink that appends to an open File, for HistoryV5Encoder::sealStream. */
@@ -1833,9 +1888,10 @@ bool StorageManager::h5AppendChunk(const String& path, uint8_t extraFlags) {
 	Core1FlashPause _c1(this);
 
 	bool exists = false, schemaOk = false, schemaMatches = false;
+	uint8_t lastSeq = 0;
 	FLASH_OP({ exists = LittleFS.exists(path); });
 	if (exists) {
-		FLASH_OP({ schemaOk = h5FileHasSchema(path, &schemaMatches); });
+		FLASH_OP({ schemaOk = h5FileHasSchema(path, &schemaMatches, &lastSeq); });
 		if (!schemaOk) {
 			/* A file whose opening SCHEMA does not parse is not a V5 file.
 			 * Appending to it would bury good blocks behind garbage, and
@@ -1861,16 +1917,19 @@ bool StorageManager::h5AppendChunk(const String& path, uint8_t extraFlags) {
 		/* §3.7-2: the set changed since this file opened. A second SCHEMA
 		 * in the same file keeps the day intact — the blocks before it stay
 		 * readable under the schema that was in force when they were made. */
+		/* Numbered from the file, not from the member: _h5SchemaSeq starts at
+		 * zero on every boot, so a device that reboots twice in a day used to
+		 * write three different schemas all claiming seq 1. */
 		bool ok = false;
 		FLASH_OP({
 			File f = LittleFS.open(path, "a");
-			if (f) { ok = h5WriteSchemaTo(f, (uint8_t)(_h5SchemaSeq + 1)); f.close( ); }
+			if (f) { ok = h5WriteSchemaTo(f, (uint8_t)(lastSeq + 1)); f.close( ); }
 		});
 		if (!ok) {
 			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "h5_schema_append");
 			return false;
 		}
-		_h5SchemaSeq++;
+		_h5SchemaSeq = (uint8_t)(lastSeq + 1);
 		LOG_CODE(LOG_INFO, "STO", STO_SCHEMA_MISMATCH, (int)_h5NCh, "h5_new_schema");
 	}
 
@@ -1982,15 +2041,19 @@ void StorageManager::recoverWipV5( ) {
 		if (_h5Valid && dec.begin(_h5Chunk, len, _h5Schema, _h5NCh)) {
 			const String path = getHistoryFileNameV5(h->t0);
 			bool schemaOk = false, matches = false, fileExists = false;
+			uint8_t lastSeq = 0;
 			FLASH_OP({ fileExists = LittleFS.exists(path); });
-			if (fileExists) FLASH_OP({ schemaOk = h5FileHasSchema(path, &matches); });
+			if (fileExists) {
+				FLASH_OP({ schemaOk = h5FileHasSchema(path, &matches, &lastSeq); });
+			}
 			bool ready = fileExists && schemaOk && matches;
 			if (!ready) {
 				FLASH_OP({
 					File f = LittleFS.open(path, fileExists && schemaOk ? "a" : "w");
 					if (f) {
 						ready = h5WriteSchemaTo(f, fileExists && schemaOk
-						                        ? (uint8_t)(_h5SchemaSeq + 1) : 0);
+						                        ? (uint8_t)(lastSeq + 1) : 0);
+						_h5SchemaSeq = (fileExists && schemaOk) ? (uint8_t)(lastSeq + 1) : 0;
 						f.close( );
 					}
 				});
