@@ -257,7 +257,10 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
 
  time_t ts = (time_t)epoch;
  if (ts < cutoff) continue;
- if (ts > effectiveEnd) break;
+ /* Skip rather than abandon the file: one block stamped past the window
+  * would otherwise hide every block behind it, and blocks are only in time
+  * order while nothing writes one out of turn. */
+ if (ts > effectiveEnd) continue;
 
  float vr = NAN, hr = NAN;
  if (vals[tCi] != H5_NAN_SENTINEL) vr = (float)vals[tCi] * scaleT;

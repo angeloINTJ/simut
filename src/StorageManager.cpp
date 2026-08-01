@@ -1238,18 +1238,58 @@ uint32_t StorageManager::getLastRecordedTimestamp( ) {
 	exitFlashReadLock( );
 	if (newestFile.length( ) == 0) return 0;
 
+	/* A block in 20260801.h5 belongs to 1 Aug — the file name IS the bound,
+	 * and it is the only clock available before NTP. Without it a single
+	 * corrupt t0 poisons the boot: this value becomes the provisional clock,
+	 * so one block stamped into the future starts the device ahead of real
+	 * time, and every record written before the sync inherits the error. */
+	uint32_t dayStart = 0, dayEnd = 0;
+	if (newestFile.length( ) >= 8) {
+		struct tm ftm;
+		memset(&ftm, 0, sizeof(ftm));
+		ftm.tm_year = newestFile.substring(0, 4).toInt( ) - 1900;
+		ftm.tm_mon  = newestFile.substring(4, 6).toInt( ) - 1;
+		ftm.tm_mday = newestFile.substring(6, 8).toInt( );
+		ftm.tm_isdst = -1;
+		const time_t midnight = mktime(&ftm);
+		if (midnight > 0) {
+			dayStart = (uint32_t)midnight;
+			dayEnd   = dayStart + 86400u;
+		}
+	}
+
 	uint32_t lastTs = 0;
 	{
 		ReadGuard rg(this);
 		if (h5OpenDay(String(DIR_HISTORY) + "/" + newestFile, /*verifyPayload=*/false)) {
 			uint32_t lastT0 = 0;
 			uint8_t  lastCount = 0;
+			/* The NEWEST block, not the last one in the file. Those are the
+			 * same thing only while appends happen in time order, and they
+			 * stop being the same the moment a boot writes a block out of
+			 * order — which is exactly when this function is asked.
+			 *
+			 * Taking the last one was the seed of a cascade: this value
+			 * becomes the provisional clock (lastTs + 60), the provisional
+			 * clock decides the NTP delta, and handleTimeSync( ) shifts every
+			 * block with t0 >= that base. Start the clock stale and the shift
+			 * moves blocks that were already correct — one bench file ended up
+			 * with a block stamped 46 min into the future, and a reader that
+			 * stops at the window's end saw nothing past it. */
 			for (;;) {
 				H5DataHeader hdr;
 				const int16_t *mn = nullptr, *mx = nullptr;
 				if (!h5NextBlock(hdr, mn, mx)) break;
-				lastT0 = hdr.t0;
-				lastCount = hdr.pre.a;
+				if (dayEnd && (hdr.t0 < dayStart || hdr.t0 >= dayEnd)) {
+					LOG_CODE(LOG_WARN, "STO", STO_SCHEMA_MISMATCH,
+					         (int)(hdr.t0 - dayStart), "h5_t0_off_day");
+					feedWdt( );
+					continue;
+				}
+				if (hdr.t0 >= lastT0) {
+					lastT0 = hdr.t0;
+					lastCount = hdr.pre.a;
+				}
 				feedWdt( );
 			}
 			lastTs = lastT0;

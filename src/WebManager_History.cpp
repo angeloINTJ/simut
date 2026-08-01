@@ -579,7 +579,7 @@ void WebManager::handleApiHistoryMulti( ) {
 	 if (!got) break;
 
 	 const time_t bt0 = (time_t)hdr.t0;
-	 if (bt0 > effectiveEnd) break;
+	 if (bt0 > effectiveEnd) continue;      /* skip, not abandon — see decode */
 	 /* A block whose whole hour is before the cutoff has nothing to
 	  * contribute; one that straddles it still does, so it is kept. */
 	 if (cutoff > 0 && bt0 + 3600 < cutoff) continue;
@@ -662,7 +662,12 @@ void WebManager::handleApiHistoryMulti( ) {
 
 	 time_t ts = (time_t)epoch;
 	 if (cutoff > 0 && ts < cutoff) continue;
-	 if (ts > effectiveEnd) { fileHasMore = false; break; }
+	 /* Skip, do not abandon. Stopping the file here assumes blocks are in
+	  * time order, and a single block stamped past the window then hides
+	  * every block behind it — which is how seven hours of history that was
+	  * on flash the whole time came to be invisible on the bench. Files are
+	  * ordered in normal operation, so this costs the tail of one day. */
+	 if (ts > effectiveEnd) continue;
 
 	 /* Stats per channel, restricted to the selected sensors. */
 	 for (uint8_t c = 0; c < nCh; c++) {
