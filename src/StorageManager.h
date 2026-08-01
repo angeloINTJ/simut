@@ -526,8 +526,15 @@ public:
  bool h5AppendChunk(const String& path, uint8_t extraFlags);
  /** Write the SCHEMA chunk that must open every file (§3). */
  bool h5WriteSchemaTo(File& f, uint8_t seq);
- /** @return true when @p path already starts with a matching SCHEMA. */
- bool h5FileHasSchema(const String& path, bool* outMatches);
+ /**
+  * @brief @return true when @p path opens with a valid SCHEMA chunk.
+  * @param outMatches set when the schema in FORCE — the last one in the
+  *        file, not the opening one — equals the schema being written.
+  * @param outLastSeq schemaSeq of that last SCHEMA, so an appended one
+  *        numbers on from it instead of from a member a reboot reset.
+  */
+ bool h5FileHasSchema(const String& path, bool* outMatches,
+                      uint8_t* outLastSeq = nullptr);
 
  bool writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
  /** Rebuild codec state from an existing file. If the file ends mid-record
