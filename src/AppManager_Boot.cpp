@@ -753,6 +753,26 @@ void AppManager::setup( ) {
 
  /* TouchPriority uses the singleton provider set above. */
 
+ /* ── V5 history: purge the legacy format, then adopt the .wip ─────────
+  * §11: the firmware has no reader for anything but V5, so /history is
+  * swept of everything else exactly once — the .sim4 files this update
+  * replaces, and any junk. Preserving old data is the user's job BEFORE
+  * updating (export the .bin/.sim4, convert on the host with
+  * tools/history_v5.py); nothing is reimported to the device.
+  *
+  * Then §7.2: a .wip left by a power cut is the last ten minutes of the
+  * block that was open. It is validated as an ordinary chunk and appended
+  * to its own day's file, or discarded — never repaired. */
+ {
+  const uint16_t purged = _storageMgr->purgeNonV5History( );
+  if (purged) {
+   _displayMgr->setBootStatusKey(TR_BOOT_LOAD_MINMAX);
+   LOG_CODE(LOG_WARN, "STO", STO_LEGACY_PURGED, (int)purged, "boot_purge");
+  }
+  _storageMgr->recoverWipV5( );
+  _storageMgr->ensureH5Schema( );
+ }
+
  /* pre forceAP branch */
  if (forceAP) {
  _isApMode = true;

@@ -81,9 +81,29 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
  }
  _pendingTimeSync = false;
  LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTING, delta, String(TRL("NTP correction: ")) + delta + "s");
- /* V4: variable-length records — in-place correction unsupported.
-  * NTP-synced epoch is used directly for all new records. */
- LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTED, 0, "");
+
+ /* V5 makes this possible again. Under V4 the records were a
+  * variable-length stream with no addressable timestamps, so the
+  * correction was announced and then did nothing: everything written
+  * before NTP came up kept the provisional clock forever.
+  *
+  * In V5 the only thing that carries absolute time is t0 in each DATA
+  * header — a block's interior is relative to it and SCHEMA has no time
+  * at all (§7.3). So the fix is a stream-rewrite that touches 4 bytes and
+  * a CRC per block, bounded to blocks this boot wrote: records from an
+  * earlier session had a clock that was already right. */
+ int32_t blocks = 0;
+ if (delta != 0 && bootTs > 0) {
+  blocks = _storageMgr->shiftHistoryTimeV5(delta, "", bootTs);
+  /* A block that straddles midnight lands in yesterday's file. */
+  const String yesterday =
+      _storageMgr->getHistoryFileNameV5((uint32_t)(bootTs > 86400 ? bootTs - 86400 : 0));
+  if (blocks >= 0 && yesterday != _storageMgr->getHistoryFileNameV5( )) {
+   const int32_t more = _storageMgr->shiftHistoryTimeV5(delta, yesterday, bootTs);
+   if (more > 0) blocks += more;
+  }
+ }
+ LOG_CODE(blocks < 0 ? LOG_WARN : LOG_INFO, "APP", APP_NTP_CORRECTED, (int)blocks, "");
  _storageMgr->unlockHeavyTask( );
 
  LOG_CODE(LOG_INFO, "APP", APP_CACHE_INVALIDATED, 0, "");

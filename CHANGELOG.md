@@ -4,6 +4,138 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.0.1-alpha (2026-08-01)
+
+History moves to V5: a compressed, self-describing time-series format whose hot
+path never touches flash. The device now records a day in 7.6 KiB instead of
+10.6, keeps four months of history in the same partition instead of under three,
+and answers a 30-day graph from block envelopes in 187 ms — a query the previous
+format could not finish at all.
+
+> **Back up first.** V5 does not read V4. On the first boot after this update,
+> `/history` is swept of everything that is not a `.h5` file and the history
+> restarts empty. Download your `.sim4` files before updating and convert them
+> on a computer with `python3 tools/history_v5.py --convert-v4 in.sim4 out.h5`.
+
+> **Over-the-air updates do not work on this release, and did not work on
+> 2.0.0-alpha either.** Staging aborts partway through the upload and the device
+> resets; nothing in `src/ota/` changed in this release. Worse, a failed stage
+> erases the filesystem, because the staging region *is* the LittleFS partition.
+> Flash over USB until that is fixed. See `docs/test_reports/`.
+
+### The hot path stopped writing to flash
+
+Flash on the RP2040 is XIP: every program or erase means freezing Core 1 and
+running Core 0 with interrupts off, and those windows are what the stability
+work of the last month has been chasing. V4 wrote a record per sample — ~1440
+flash writes a day, batched into ~360 lockout windows.
+
+V5 keeps the hour in RAM. `writeHistoryEntryV5( )` is a `memcpy`. Flash is
+touched when a block fills (60 records), at the day rollover, when the sensor
+set changes, and every ten minutes for a `.wip` snapshot that bounds power-loss
+to that window. About 168 writes a day instead of 1440.
+
+### Graphs draw the peaks instead of sampling past them
+
+Long ranges used to be decimated: one record in N, and whatever fell between
+them was not drawn. A one-minute spike in a month-long range had roughly one
+chance in 72 of appearing.
+
+A V5 block header carries the true minimum and maximum of every channel over
+its hour, so a long range emits those — two points per block, no payload read.
+The extreme *is* the point; it cannot be sampled away. The 24-hour graph reads
+in 5.8 ms this way against 107.6 ms decoding every record, and 30 days answers
+in 187 ms. `?mode=decode|envelope` forces either path.
+
+### Changing a sensor stops costing the day
+
+A `.sim4` froze its schema in the file header, so changing a sensor identity
+meant recreating the day's file and losing what was in it — which is why the
+CLI demanded `confirm` — or running a streaming migration to carry the records
+over. V5 writes a second SCHEMA chunk into the same file and keeps going; the
+blocks before it stay readable under the schema in force when they were written.
+`sensor reschema` and the web rebind endpoint kept their signatures and are no
+longer destructive.
+
+### Timestamps really are corrected now
+
+`handleTimeSync` logged "correcting timestamps" and then "timestamps corrected",
+with `/* V4: variable-length records — in-place correction unsupported. */`
+between the two. Everything written before NTP came up kept the provisional
+clock forever, and the log said otherwise. In V5 the only absolute stamp is `t0`
+in each block header, so the fix is a stream rewrite touching four bytes and a
+CRC per block, bounded to the blocks this boot wrote.
+
+### Corruption costs an hour, not a day
+
+Every block carries its own CRC and decodes independently. A corrupt block is
+skipped and the rest of the day is served; a corrupt file is skipped and the
+other days are served. Ten injected corruptions — payload, tails, `t0`, SCHEMA
+CRC, magic, `nCh`, truncation — produced zero reboots and zero invalid
+responses. Under V4 a break in the delta chain compromised the rest of the day.
+
+### Files are readable without the firmware
+
+`python3 tools/history_v5.py --dump-csv day.h5` decodes a device file with
+nothing but the format document: the SCHEMA chunk states which channels exist,
+what each measures and at what scale. The same tool converts legacy files
+(`--convert`, `--convert-v4`), reports compression (`--stats`), generates
+synthetic history (`--synth`) and runs the format's own test vectors
+(`--selftest`).
+
+### Smaller, and much less static RAM
+
+Static RAM drops 44 060 B and the largest contiguous heap block grows 63 %
+(29 733 → 48 522 B), which is the number BearSSL cares about for TLS. That is
+not the format: V4 had five copies of the decode loop — web graph, CSV export,
+export bundle, telemetry, preload, TFT graph — each carrying its own ~2.8 KiB
+of codec state. V5 has one reader in `StorageManager`. Code flash grows 1 024 B.
+
+### The first boot with a `.wip` on disk hung
+
+Found and fixed on the bench before release. `recoverWipV5( )` deleted the
+`.wip` snapshot outside its `Core1FlashPause`: the pause sat inside the branch
+that decodes the snapshot, while the delete runs on every path out of the
+function, including the ones that never decode anything. A delete is an erase
+burst, and an erase with Core 1 still fetching from XIP wedges the QSPI — the
+rule the `FLASH_OP` comment states and this call broke.
+
+It hung rather than rebooted because the watchdog is armed on the first pass
+through `loop( )`, so all of `setup( )` runs unprotected. The device stopped
+with the boot screen frozen on the previous step, USB enumerated but answering
+nothing, and no reboot to autopsy. It needed a `.wip` on disk, which only exists
+once V5 has been recording, so it did not show up until the format was live.
+
+`sealHourV5( )` had the same defect in its own `.wip` delete — reached in normal
+operation, where the armed watchdog would have turned it into an unexplained
+reboot instead. Both now hold the pause across the delete.
+
+### Also
+
+- `/api/status` reports the flash-write counters (`fo`, `fom`, `fot`, `f50`).
+  They had been tracked since T0.1 but were only reachable from a CLI the
+  shipping image does not carry.
+- `/api/history_multi` reports `path`, `readMs` and `rejected`, so the device's
+  own read time can be told apart from Wi-Fi latency.
+- `preloadMinMax( )` reads block headers instead of decoding the day, so the
+  dashboard no longer shows mid-morning extremes after an afternoon boot.
+- Four log codes: `STO_H5_SEALED`, `STO_H5_WIP`, `STO_SCHEMA_MISMATCH`,
+  `STO_LEGACY_PURGED`.
+- Fixed: seeking to an instant before a file's first block left the scanner at
+  EOF, so a range query whose cutoff preceded a file dropped it silently.
+- `HistoryV4.cpp` is out of the shipping build. The V4 entry points remain as
+  delegating shims so nothing that called them stops compiling.
+
+### Known limitations
+
+- The §10 latency budgets are not met: 0.28 ms per block on the envelope path
+  against a budget implying 0.111 ms, and 4.48 ms to decode a block against
+  1 ms. The floor is the LittleFS indexed read, confirmed by two optimisations
+  that did not move it.
+- No 72-hour soak, and no 20-cut power-loss campaign.
+- Luminosity keeps its channel but drops to whole units: it is 24-bit at x100
+  in the channel table and V5 values are `int16`. No sensor produces it today.
+
 ## v1.6.3-beta (2026-07-30)
 
 Saving a sensor calibration could fail permanently, and for two of the three

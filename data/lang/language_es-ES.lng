@@ -226,6 +226,10 @@ Luminosidad
 563 Omitiendo el archivo de log activo
 564 Informe de estadísticas de almacenamiento
 565 Informe de config
+566 Bloque de historial sellado
+567 Instantánea de historial escrita
+568 Esquema de historial divergente
+569 Historial heredado eliminado
 570 Servidor web iniciado
 571 Cliente desconectado (archivo)
 572 Cliente desconectado (historial)

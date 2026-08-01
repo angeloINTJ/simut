@@ -22,15 +22,9 @@
 #include <hardware/watchdog.h>
 #include <pico/time.h>
 
-/* V4 decode scratch, shared by collectBatch and refreshPendingCount.
- * ~5.9 KB — far past the ~4 KB RP2040 stack. Both run from the Core-0 main
- * loop and never nest, so one set serves both. */
-namespace {
-HistV4State v4st;
-uint8_t     hdrBuf[HIST_V4_MAX_HEADER];
-uint8_t     rdBuf[HIST_V4_READ_BUF];
-int64_t     v4vals[HIST_V4_MAX_MEASUREMENTS];
-}
+/* The ~5.9 KB of V4 decode scratch that lived here is gone: collectBatch and
+ * refreshPendingCount now read through StorageManager's V5 reader, which owns
+ * the one block buffer the whole firmware shares. */
 
 /**
  * @brief true se o arquivo de histórico @p fileName é de um dia ANTERIOR a
@@ -425,7 +419,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -471,61 +465,64 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  if (!f) { _storageRef->exitFlashReadLock( ); continue; }
 
  	 {
-	 f.seek(0);
-	 /* One format — the magic sniff that chose between this and a v2/v3
-	  * decoder went with them.
-	  * Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
-	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
-	 /* Cursor fix (same as graph/web/scan): seek to the real header end. */
-	 size_t tHdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
-	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) : 0;
-	 if (tHdrLen > 0) f.seek(tHdrLen);
-	 if (tHdrLen > 0) {
-	 size_t rdFilled = 0;
-	 uint32_t v4epoch;
-	 bool fileHasMoreV4 = true; uint32_t inFileCountV4 = 0;
-	 SystemConfig &cfg = _storageRef->getConfig();
-	 while (fileHasMoreV4 && batch.size() < limit) {
-	 /* A1: refill pós-falha. Antes, um delta maior que a âncora na
-	  * borda do buffer encerrava o arquivo cedo; como o cursor é por
-	  * epoch, o lote saía vazio e o envio só retomava no próximo tick
-	  * (telemetria atrasando indefinidamente em dias com variação
-	  * forte, que é justamente quando os deltas ficam grandes). */
-	 size_t cons = histV4DecodeNextRefill(
-	 rdBuf, sizeof(rdBuf), rdFilled, v4st, v4vals, &v4epoch,
-	 [&f](uint8_t *dst, size_t maxBytes) -> size_t {
-	 if (f.available() <= 0) return 0;
-	 int rN = f.read(dst, maxBytes);
-	 return (rN > 0) ? (size_t)rN : 0;
-	 });
-	 if (cons == 0) { fileHasMoreV4 = false; break; }
-	 inFileCountV4++;
-	 if (v4epoch >= EPOCH_MIN && (nowEpoch < EPOCH_MIN || v4epoch <= nowEpoch + 86400UL) && v4epoch > lastCursor) {
-	 BinaryHistoryRecord rec; rec.clear(); rec.epoch = v4epoch;
-	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
-	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
-	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
-	 char hwId[17]; uint8_t si = v4st.measures[m].sensorIdx;
-	 histV4StrPoolGet(hwId, sizeof(hwId), v4st.strPool, v4st.sensors[si].hwIdOffset, v4st.sensors[si].hwIdLen);
-	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
-	 if (cfg.sensors[slot].active && strcmp(cfg.sensors[slot].hwId, hwId) == 0) {
-	 uint8_t ch = v4st.measures[m].channel;
-	 if (ch == CH_TEMP) rec.sensors[slot] = BinaryHistoryRecord::floatToI16(v);
-	 else if (ch == CH_HUM) rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
-	 else if (ch == CH_PRESS) rec.pressure = BinaryHistoryRecord::floatToI16x10(v);
-	 break;
+	 f.close( );
+	 _storageRef->exitFlashReadLock( );
+
+	 /* V5 read. The reader lives in StorageManager, so what used to be
+	  * ~5.9 KB of codec scratch plus a copy of the refill loop here is a
+	  * pair of calls. Mapping a value back to a slot is arithmetic on the
+	  * descriptor id rather than a string-pool lookup per measurement. */
+	 bool opened = false;
+	 { StorageManager::ReadGuard rg(_storageRef); opened = _storageRef->h5OpenDay(fullPath); }
+	 if (!opened) continue;
+
+	 uint8_t slotOf[H5_MAX_CHANNELS], chOf[H5_MAX_CHANNELS];
+	 float   scaleOf[H5_MAX_CHANNELS];
+	 uint8_t nCh = 0;
+	 {
+	 const H5ChannelDesc* schema = _storageRef->h5ReaderSchema( );
+	 nCh = _storageRef->h5ReaderChannels( );
+	 for (uint8_t c = 0; c < nCh && schema; c++) {
+	 slotOf[c] = (uint8_t)(schema[c].id / MAX_SENSOR_CHANNELS);
+	 chOf[c]   = (uint8_t)(schema[c].id % MAX_SENSOR_CHANNELS);
+	 scaleOf[c] = powf(10.0f, (float)schema[c].scaleExp);
 	 }
 	 }
+
+	 /* The cursor is an epoch, so start at the block that contains it
+	  * instead of decoding the whole day up to it. */
+	 { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5SeekTo(lastCursor); }
+
+	 int16_t vals[H5_MAX_CHANNELS];
+	 uint32_t epoch = 0;
+	 uint32_t inFileCount = 0;
+	 bool fileHasMore = true;
+	 while (fileHasMore && batch.size( ) < limit) {
+	 {
+	 StorageManager::ReadGuard rg(_storageRef);
+	 if (!_storageRef->h5NextRecord(epoch, vals)) { fileHasMore = false; break; }
+	 }
+	 inFileCount++;
+	 if (epoch >= EPOCH_MIN && (nowEpoch < EPOCH_MIN || epoch <= nowEpoch + 86400UL)
+	     && epoch > lastCursor) {
+	 BinaryHistoryRecord rec; rec.clear( ); rec.epoch = epoch;
+	 for (uint8_t c = 0; c < nCh; c++) {
+	 if (vals[c] == H5_NAN_SENTINEL) continue;
+	 const uint8_t slot = slotOf[c];
+	 if (slot >= MAX_SENSORS) continue;
+	 const float v = (float)vals[c] * scaleOf[c];
+	 if (chOf[c] == CH_TEMP)       rec.sensors[slot]  = BinaryHistoryRecord::floatToI16(v);
+	 else if (chOf[c] == CH_HUM)   rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
+	 else if (chOf[c] == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
 	 }
 	 batch.push_back(rec);
-	 if (v4epoch > newCursor) newCursor = v4epoch;
+	 if (epoch > newCursor) newCursor = epoch;
 	 }
-	 if ((inFileCountV4 % 10) == 0 && fileHasMoreV4 && batch.size() < limit) {
-	 _storageRef->exitFlashReadLock(); feedWdt(); yield(); _storageRef->enterFlashReadLock();
+	 if ((inFileCount % 10) == 0 && fileHasMore && batch.size( ) < limit) {
+	 feedWdt( ); yield( );
 	 }
 	 }
-	 }
-	 f.close(); _storageRef->exitFlashReadLock();
+	 { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5CloseDay( ); }
 	 }
 
  feedWdt( );
@@ -1434,7 +1431,7 @@ void TelemetryManager::refreshPendingCount( ) {
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -1467,42 +1464,60 @@ void TelemetryManager::refreshPendingCount( ) {
 
  String fullPath = String(DIR_HISTORY) + "/" + fn;
 
- _storageRef->enterFlashReadLock( );
- File f = LittleFS.open(fullPath, "r");
- if (!f) { _storageRef->exitFlashReadLock( ); continue; }
+ bool opened = false;
+ { StorageManager::ReadGuard rg(_storageRef); opened = _storageRef->h5OpenDay(fullPath, false); }
+ if (!opened) continue;
 
-	 /* Count V4 records newer than the cursor. Static buffers — the RP2040
-	  * stack is ~4 KB and the schema alone is bigger than that. */
-	 f.seek(0);
-	 int pHdrRead = f.read(hdrBuf, sizeof(hdrBuf));
-	 size_t pHdrLen = (pHdrRead >= (int)HIST_V4_HEADER_FIXED)
-	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)pHdrRead, v4st) : 0;
-	 if (pHdrLen == 0) { f.close( ); _storageRef->exitFlashReadLock( ); continue; }
-	 f.seek(pHdrLen);
+	 /* Counting is a header walk, not a decode.
+	  *
+	  * A V5 block header states how many records it holds and when the
+	  * first one is (§3.3), and blocks are in time order. So every block
+	  * whose t0 is past the cursor contributes all of its records with
+	  * nothing read but its header, and every block before those
+	  * contributes none. At most ONE block straddles the cursor, and it is
+	  * the last one with t0 <= cursor — that is the only one decoded.
+	  *
+	  * A dashboard tick that used to decode every record of every day now
+	  * touches ~24 headers per day plus one block. verifyPayload is off
+	  * for the same reason: CRCing payloads this path never reads would
+	  * put the whole file back through flash every ten seconds. */
+	 uint32_t straddleT0 = 0;
+	 uint8_t  straddleCount = 0;
+	 bool     haveStraddle = false;
+	 uint32_t walked = 0;
+	 for (;;) {
+	  H5DataHeader hdr;
+	  const int16_t *mn = nullptr, *mx = nullptr;
+	  bool got = false;
+	  { StorageManager::ReadGuard rg(_storageRef); got = _storageRef->h5NextBlock(hdr, mn, mx); }
+	  if (!got) break;
 
-	 size_t pFilled = 0;
-	 uint32_t pEpoch = 0, pCount = 0;
-	 while (true) {
-	  size_t consumed = histV4DecodeNextRefill(
-	   rdBuf, sizeof(rdBuf), pFilled, v4st, v4vals, &pEpoch,
-	   [&f](uint8_t *dst, size_t maxBytes) -> size_t {
-	    if (f.available( ) <= 0) return 0;
-	    int rN = f.read(dst, maxBytes);
-	    return (rN > 0) ? (size_t)rN : 0;
-	   });
-	  if (consumed == 0) break;
-	  if (pEpoch > lastCursor) total++;
-	  /* Same 10-record breath the collect path takes: this walks whole
-	   * days on the dashboard refresh tick. */
-	  if ((++pCount % 10) == 0) {
-	   _storageRef->exitFlashReadLock( );
-	   feedWdt( );
-	   yield( );
-	   _storageRef->enterFlashReadLock( );
+	  if (hdr.t0 > lastCursor) {
+	   total = (uint16_t)(total + hdr.pre.a);
+	  } else {
+	   straddleT0 = hdr.t0;
+	   straddleCount = hdr.pre.a;
+	   haveStraddle = true;
+	  }
+	  if ((++walked % 20) == 0) { feedWdt( ); yield( ); }
+	 }
+
+	 if (haveStraddle && straddleCount > 1) {
+	  bool ok = false;
+	  { StorageManager::ReadGuard rg(_storageRef); ok = _storageRef->h5SeekTo(straddleT0); }
+	  if (ok) {
+	   int16_t vals[H5_MAX_CHANNELS];
+	   uint32_t epoch = 0;
+	   for (uint8_t r = 0; r < straddleCount; r++) {
+	    bool more = false;
+	    { StorageManager::ReadGuard rg(_storageRef); more = _storageRef->h5NextRecord(epoch, vals); }
+	    if (!more) break;
+	    if (epoch > lastCursor) total++;
+	    if ((r % 20) == 19) { feedWdt( ); yield( ); }
+	   }
 	  }
 	 }
- f.close( );
- _storageRef->exitFlashReadLock( );
+ { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5CloseDay( ); }
 
  feedWdt( );
  }

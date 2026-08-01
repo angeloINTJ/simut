@@ -104,7 +104,7 @@ void WebManager::handleDelete( ) {
  /* External mutation of the live history file: without invalidating,
   * the writer appends to a recreated HEADERLESS file until reboot. */
  if (path.startsWith("/history/") &&
-     path.endsWith(HISTORY_V4_FILE_EXT)) {
+     path.endsWith(HISTORY_FILE_EXT)) {
  _storageRef->invalidateV4Codec( );
  }
  /* Hot-reload custom theme on delete (same pattern as upload) —

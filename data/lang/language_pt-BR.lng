@@ -226,6 +226,10 @@ Luminosidade
 563 Pulando arquivo de log ativo
 564 Relatório de estatísticas
 565 Relatório de config
+566 Bloco de histórico selado
+567 Snapshot de histórico gravado
+568 Schema de histórico divergente
+569 Histórico legado apagado
 570 Servidor web iniciado
 571 Cliente desconectado (arquivo)
 572 Cliente desconectado (histórico)

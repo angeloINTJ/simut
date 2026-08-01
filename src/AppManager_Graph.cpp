@@ -185,7 +185,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  localtime_r(&targetDay, &timeinfo);
 
  char path[42];
- snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_V4_FILE_EXT,
+ snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_FILE_EXT,
  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 
  File f;
@@ -194,95 +194,74 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (fileExists) f = LittleFS.open(path, "r");
  _storageMgr->exitFlashReadLock( );
 
- /* One format. The .bin fallback and the isV4 sniff that went with it are
-  * gone with v2/v3 — the extension no longer decides which decoder runs. */
+ /* One reader. Under V4 this carried its own HistV4State, its own header
+  * buffer, its own refill loop and its own hwId-to-measurement search —
+  * the same apparatus the web handler, the CSV export, telemetry and the
+  * preload each had a copy of. V5 keeps the schema in the file and the
+  * decode in StorageManager, so what is left here is the graph's own
+  * business: pick the channels this slot owns and plot them. */
  if (fileExists && f) {
- {
- /* Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
- static HistV4State g4st;
- static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
+ { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
+
+ bool opened = false;
  { StorageManager::ReadGuard rg(_storageMgr.get( ));
- f.seek(0);
- int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
- /* Same cursor bug fixed in handleApiHistoryMulti and in the v1.5.3
-  * StorageManager scan: reposition to the REAL header end. Reading up
-  * to 2 KB left the cursor at EOF for small files (today's) and
-  * misaligned at byte 2048 for bigger ones — the record loop below
-  * then decoded nothing: blank graph on the TFT. */
- size_t g4HdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
-                   ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, g4st) : 0;
- if (g4HdrLen == 0) { f.close(); continue; }
- f.seek(g4HdrLen);
- }
- int tMi = -1, hMi = -1;
- { SystemConfig &cfg = _storageMgr->getConfig();
- const char* tHwId = (sensorId >= 0 && sensorId < MAX_SENSORS) ? cfg.sensors[sensorId].hwId : "";
- for (uint8_t i = 0; i < g4st.measureCount; i++) {
- char mHwId[17]; uint8_t si = g4st.measures[i].sensorIdx;
- histV4StrPoolGet(mHwId, sizeof(mHwId), g4st.strPool,
- g4st.sensors[si].hwIdOffset, g4st.sensors[si].hwIdLen);
- if (strcmp(mHwId, tHwId) == 0) {
- if (g4st.measures[i].channel == CH_TEMP) tMi = i;
- else if (g4st.measures[i].channel == CH_HUM) hMi = i;
- }
- }}
- if (tMi < 0) { _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock(); continue; }
+ opened = _storageMgr->h5OpenDay(path); }
+ if (!opened) { feedWdt( ); yield( ); continue; }
 
- static uint8_t g4RdBuf[HIST_V4_READ_BUF];
- static int64_t g4vals[HIST_V4_MAX_MEASUREMENTS];
- size_t g4RdFilled = 0;
- uint32_t g4epoch;
- bool hm4 = true;
+ /* Channel indices for this slot, from the descriptor ids. */
+ int tCi = -1, hCi = -1;
+ {
+ const H5ChannelDesc* schema = _storageMgr->h5ReaderSchema( );
+ const uint8_t nCh = _storageMgr->h5ReaderChannels( );
+ for (uint8_t c = 0; c < nCh && schema; c++) {
+ if (schema[c].id / MAX_SENSOR_CHANNELS != (uint8_t)sensorId) continue;
+ const uint8_t ch = schema[c].id % MAX_SENSOR_CHANNELS;
+ if (ch == CH_TEMP) tCi = c;
+ else if (ch == CH_HUM) hCi = c;
+ }
+ }
+ if (tCi < 0) {
+ { StorageManager::ReadGuard rg(_storageMgr.get( )); _storageMgr->h5CloseDay( ); }
+ feedWdt( ); yield( ); continue;
+ }
 
- /* Budget from _graphBudgetStart, not a fresh millis( ) per file.
-  *
-  * This loop used a per-file stamp, so GRAPH_BUDGET_MS was granted again for
-  * EVERY history file — 6 s each, against ~50 files on this bench. It never
-  * showed while queries matched, because pkg.count fills from the newest file
-  * and the loop exits almost immediately. A query that matches NOTHING (an
-  * empty hwId, a sensor whose hwId changed, a slot with no history) never
-  * fills it, so every file burned its full 6 s and the device rebooted long
-  * before the scan ended.
-  *
-  * The legacy loop below always used the render-wide stamp; this is the same
-  * semantics, and now the whole render is bounded once. */
- while (hm4 && pkg.count < GRAPH_WIDTH) {
+ /* Skip straight to the block that holds `cutoff`: blocks are hops of
+  * one hour, so a 24 h window on a 30-day file reads 24 headers rather
+  * than walking the file from byte 0. */
+ { StorageManager::ReadGuard rg(_storageMgr.get( )); _storageMgr->h5SeekTo((uint32_t)cutoff); }
+
+ float scaleT = 1.0f, scaleH = 1.0f;
+ {
+ const H5ChannelDesc* schema = _storageMgr->h5ReaderSchema( );
+ if (schema) {
+ scaleT = powf(10.0f, (float)schema[tCi].scaleExp);
+ if (hCi >= 0) scaleH = powf(10.0f, (float)schema[hCi].scaleExp);
+ }
+ }
+
+ int16_t vals[H5_MAX_CHANNELS];
+ uint32_t epoch = 0;
+ while (pkg.count < GRAPH_WIDTH) {
  if (timeSince(_graphBudgetStart, GRAPH_BUDGET_MS)) {
  LOG_CODE(LOG_WARN, "APP", APP_GRAPH_BUDGET, 1, "");
  break;
  }
- /* feedWdt( ) and not feedWatchdog( ): we are inside the flash read lock, and
-  * the latter runs the light yield, which allocates and can reach
-  * saveConfiguration( ). Same reason as the history scan in the web handler.
-  *
-  * The budget alone is not enough: 6 s of unfed scanning is already 40% of
-  * WATCHDOG_TIMEOUT_MS, and this loop is reached with the lock held. */
+ /* feedWdt( ) and not feedWatchdog( ): we are inside the flash read
+  * lock, and the latter runs the light yield, which allocates and can
+  * reach saveConfiguration( ). */
  feedWdt( );
- size_t cons = 0;
+ bool got = false;
  { StorageManager::ReadGuard rg(_storageMgr.get( ));
- /* A1: refill DEPOIS da falha do decode. Com o limiar antigo
-  * (`g4RdFilled < anchorByteSize`), um delta grande na borda do
-  * buffer encerrava o laço e o gráfico aparecia truncado. */
- cons = histV4DecodeNextRefill(
- g4RdBuf, sizeof(g4RdBuf), g4RdFilled, g4st, g4vals, &g4epoch,
- [&f](uint8_t *dst, size_t maxBytes) -> size_t {
- if (f.available() <= 0) return 0;
- int rN = f.read(dst, maxBytes);
- return (rN > 0) ? (size_t)rN : 0;
- });
- hm4 = (g4RdFilled > 0 || f.available() > 0);
- }
- if (cons == 0) break;
+ got = _storageMgr->h5NextRecord(epoch, vals); }
+ if (!got) break;
 
- time_t ts = (time_t)g4epoch;
+ time_t ts = (time_t)epoch;
  if (ts < cutoff) continue;
  if (ts > effectiveEnd) break;
 
  float vr = NAN, hr = NAN;
- if (tMi >= 0 && !histV4IsNan(g4vals[tMi], g4st.measures[tMi].bitWidth))
- vr = histV4ToFloat(g4vals[tMi], g4st.measures[tMi]);
- if (hMi >= 0 && !histV4IsNan(g4vals[hMi], g4st.measures[hMi].bitWidth))
- hr = histV4ToFloat(g4vals[hMi], g4st.measures[hMi]);
+ if (vals[tCi] != H5_NAN_SENTINEL) vr = (float)vals[tCi] * scaleT;
+ if (hCi >= 0 && vals[hCi] != H5_NAN_SENTINEL) hr = (float)vals[hCi] * scaleH;
  if (ts < epochLimit) vr = NAN;
 
  if (!isnan(vr)) {
@@ -297,6 +276,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  pkg.tsPoints[pkg.count] = (uint32_t)ts;
  if (pkg.hasHumidity) pkg.pointsV2[pkg.count] = hr;
  if (pkg.count == 0) pkg.tsFirst = ts;
+ pkg.tsLast = ts;
 
  if (!isnan(vr)) {
  if (vr < pkg.minVal) { pkg.minVal = vr; pkg.idxMinTemp = pkg.count; pkg.tsMinTemp = ts; }
@@ -308,8 +288,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  }
  pkg.count++;
  }
- _storageMgr->enterFlashReadLock(); f.close(); _storageMgr->exitFlashReadLock();
- }
+ { StorageManager::ReadGuard rg(_storageMgr.get( )); _storageMgr->h5CloseDay( ); }
  }
 
  feedWdt( );
