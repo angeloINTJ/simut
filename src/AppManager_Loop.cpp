@@ -232,6 +232,27 @@ void AppManager::loop( ) {
 
  watchdog_update( );
 
+ /* ── V5 history: the .wip snapshot (§7.2) ──────────────────────────────
+  * The open block lives in RAM, so a power cut loses whatever has not
+  * been snapshotted. Ten minutes is the bound R8 asks for. The block is
+  * NOT closed here — the .wip is a snapshot, and the encoder keeps
+  * filling the same block until the hour is up.
+  *
+  * Skipped while the user is touching the screen for the same reason the
+  * history write is: a flash window here freezes Core 1 mid-gesture. */
+ {
+  static uint32_t lastWipMs = 0;
+  if (timeSince(lastWipMs, H5_WIP_INTERVAL_MS)) {
+   if (!_storageMgr->isHeavyTaskLocked( ) && !isUserInteracting( )
+       && _storageMgr->isH5Active( )) {
+    lastWipMs = millis( );
+    _storageMgr->flushWipV5( );
+   }
+  }
+ }
+
+ watchdog_update( );
+
  /* ── System status: update data every 1s when screen is active ── */
  {
  static uint32_t lastStatusPush = 0;

@@ -19,6 +19,7 @@
 #include "pico/mutex.h"
 #include "SystemDefs.h"
 #include "HistoryV4.h"
+#include "HistoryV5.h"
 #include "sensors/SensorHelpers.h"
 
 #define DIR_CONFIG "/config"
@@ -27,6 +28,9 @@
 #define FILE_TMP "/config/system.tmp"
 #define FILE_TCURSOR "/config/t_cursor.bin"
 #define DIR_HISTORY "/history"
+/** V5 crash-recovery snapshot: exactly one sealed PARTIAL DATA chunk
+ *  holding the block still open in RAM (§7.2). */
+#define FILE_H5_WIP DIR_HISTORY "/.wip"
 #define DIR_LANG "/lang"
 #define DIR_THEMES "/themes"
 #define DIR_WEB "/web"
@@ -141,13 +145,15 @@ public:
   * the whole drain). Called on batch-full/age, before reboots and on
   * write memory. Safe to call with an empty batch. */
  bool flushHistoryBatch( );
- /** Invalidate the in-RAM V4 codec state after an EXTERNAL mutation of
-  * the current history file (e.g. web delete). Without this the writer
-  * keeps appending to a recreated HEADERLESS file until reboot and all
-  * those records are unreadable. Next write rescans/recreates. */
- void invalidateV4Codec( ) { _histV4CodecValid = false; }
+ /** Invalidate the reader after an EXTERNAL mutation of a history file
+  * (e.g. a web delete). Under V4 this mattered a great deal: the writer
+  * held codec state tied to a file that no longer existed and kept
+  * appending to a recreated HEADERLESS one until reboot. V5 re-reads the
+  * SCHEMA on every open, so this only has to drop the open reader. */
+ void invalidateV4Codec( ) { h5CloseDay( ); }
 
- /** @return today's V4 history file path (e.g. /history/20260721.sim4). */
+ /** @return today's history file path in the V4 naming (kept for callers; V5
+  *  writes .h5 — see getHistoryFileNameV5). */
  String getHistoryFileNameV4( );
  void getHistoryFileNameV4(char* buf, size_t len);
 
@@ -161,14 +167,15 @@ public:
   */
  String getHistoryFileNameV4(uint32_t epoch);
 
- /** @return pointer to the current V4 schema (read-only, valid while file is open). */
- const HistV4State* getV4Schema( ) const { return _histV4CodecValid ? &_histV4State : nullptr; }
+ /** @return nullptr — the firmware carries no V4 state (R7). Kept so an
+  *  out-of-tree caller still compiles; ask getH5Schema( ) instead. */
+ const HistV4State* getV4Schema( ) const { return nullptr; }
 
- /** @return number of measurements in the current V4 schema, or 0 if not valid. */
- uint8_t getV4MeasureCount( ) const { return _histV4CodecValid ? _histV4State.measureCount : 0; }
+ /** @return 0. See getV4Schema( ); getH5ChannelCount( ) is the live one. */
+ uint8_t getV4MeasureCount( ) const { return 0; }
 
- /** @return true if a V4 file is currently open and its schema is ready. */
- bool isV4Active( ) const { return _histV4CodecValid; }
+ /** @return whether a history schema is ready — now answered by V5. */
+ bool isV4Active( ) const { return _h5Valid; }
 
  /** Bootstrap the V4 history codec on first use.
   * If the codec is not yet valid (_histV4CodecValid=false), this
@@ -226,6 +233,96 @@ public:
  bool buildMeasureSchema(HistV4SensorDef *sensors, uint8_t &sensorCount,
                          HistV4MeasureDef *measures, uint8_t &measureCount,
                          uint8_t *strPool, uint8_t &strPoolSize);
+
+ /* ── V5 history API — the format from 2.0.1-alpha on ───────────────────
+  * Written in RAM by the minute, put on flash by the hour. See
+  * docs/HistoryV5_Instrucoes_Implementacao.md and HistoryV5.h.
+  *
+  * The V4 entry points above are still here and still work: V4 files that
+  * predate the update are gone (§11 purges them at first boot), but the
+  * functions stay so nothing that called them stops compiling. */
+
+ /** @return today's V5 file path (e.g. /history/20260731.h5). */
+ String getHistoryFileNameV5( );
+ /** @return the V5 path for the day @p epoch belongs to. */
+ String getHistoryFileNameV5(uint32_t epoch);
+
+ /**
+  * @brief Build the V5 channel schema from the provisioned sensor slots.
+  * @details One descriptor per (slot, channel) the slot's type reports, in
+  *          slot then channel order. `id` is slot*4 + channel: stable while
+  *          the sensor keeps its slot, and never recycled inside a schema.
+  *          A sensor moved to another GPIO is a different slot, which is a
+  *          reconfiguration and therefore a new SCHEMA chunk (§3.7-2).
+  * @param out Receives up to @p cap descriptors.
+  * @return channels written (0 when no slot is active).
+  */
+ uint8_t buildH5Schema(H5ChannelDesc* out, uint8_t cap) const;
+
+ /** @return the schema the open block is being encoded against, or nullptr. */
+ const H5ChannelDesc* getH5Schema( ) const { return _h5Valid ? _h5Schema : nullptr; }
+ uint8_t getH5ChannelCount( ) const { return _h5Valid ? _h5NCh : 0; }
+ bool    isH5Active( ) const { return _h5Valid; }
+
+ /** Bind the encoder to the current sensor set. Idempotent. */
+ void ensureH5Schema( );
+
+ /**
+  * @brief Record one sample. Hot path: RAM only, no flash, no heap.
+  * @details Seals and appends only when the block fills, the day rolls
+  *          over, or the sensor set changed under it.
+  * @param values @p nCh values in schema order, H5_NAN_SENTINEL for missing.
+  * @return false when the record was refused (schema mismatch, no schema).
+  */
+ bool writeHistoryEntryV5(const int16_t* values, uint8_t nCh, uint32_t epoch);
+
+ /** Seal the open block and append it to its day file. No-op when empty. */
+ bool sealHourV5(bool partial = true);
+
+ /** Snapshot the open block to /history/.wip (§7.2). No-op when empty. */
+ bool flushWipV5( );
+
+ /** Boot recovery: adopt a valid .wip into its day file, discard a bad one. */
+ void recoverWipV5( );
+
+ /** §3.7-2: the sensor set changed — seal PARTIAL and start a new SCHEMA. */
+ void onSensorSetChangedV5( );
+
+ /**
+  * @brief §7.3 retroactive clock correction over the V5 history.
+  * @details Only DATA t0 moves; a block's interior is relative to it and
+  *          SCHEMA carries no time. Stream-rewrites each affected file to
+  *          .tmp and renames, the same shape as the config write.
+  * @param deltaS seconds to add to every timestamp.
+  * @param path   file to fix; empty means today's.
+  * @param fromEpoch only blocks whose t0 is at or after this move. The NTP
+  *        correction must not touch records an earlier boot wrote with a
+  *        clock that was already right.
+  * @return blocks rewritten, or -1 on failure.
+  */
+ int32_t shiftHistoryTimeV5(int32_t deltaS, const String& path = "",
+                            uint32_t fromEpoch = 0);
+
+ /** §11: delete everything in /history that is not a V5 file. */
+ uint16_t purgeNonV5History( );
+ /** @return files §11 purged on this boot, for the one-time UI notice. */
+ uint16_t getPurgedLegacyCount( ) const { return _h5PurgedLegacy; }
+
+ /* --- Sequential reader, shared by web, telemetry, graph and CSV --- */
+
+ /** Open a day file and position after its first SCHEMA. */
+ bool h5OpenDay(const String& path, bool verifyPayload = true);
+ /** Next record of the open file, crossing block boundaries. */
+ bool h5NextRecord(uint32_t& epoch, int16_t* v);
+ /** Next block header without decoding it — the envelope path (§10). */
+ bool h5NextBlock(H5DataHeader& hdr, const int16_t*& mn, const int16_t*& mx);
+ /** Position the reader on the block containing @p epoch. */
+ bool h5SeekTo(uint32_t epoch);
+ /** Schema in force at the reader's position. */
+ const H5ChannelDesc* h5ReaderSchema( ) const { return _h5RdSchema; }
+ uint8_t h5ReaderChannels( ) const { return _h5RdNCh; }
+ uint16_t h5ReaderRejected( ) const { return _h5Scan.rejected( ); }
+ void h5CloseDay( );
 
  uint32_t getLastRecordedTimestamp( );
  uint32_t getHistoryDaysMask(int year, int month);
@@ -383,25 +480,38 @@ public:
  * when valid config is loaded from flash (i.e., not factory). */
  char _initialAdminPassword[9] = {0};
 
- /* ── V4 RAM batch + codec state (T2.1) ──────────────────────── */
- /* Samples accumulate in RAM and hit flash in ONE Core-1 pause every
-  * HIST_BATCH_N samples or HIST_BATCH_MAX_MS, whichever first —
-  * ~N× fewer program/erase IRQ-off windows (plan R2). Power loss
-  * costs at most the buffered samples (plan-accepted trade-off).
-  * Generalizes the old 1-slot touch-priority pending buffer. */
- static constexpr uint8_t  HIST_BATCH_N = 4;
- static constexpr uint32_t HIST_BATCH_MAX_MS = 300000; /* 5 min */
- struct HistBatchEntry {
-  int64_t values[HIST_V4_MAX_MEASUREMENTS];
-  uint32_t epoch;
-  uint8_t count;
- };
- HistBatchEntry _histBatch[HIST_BATCH_N];
- uint8_t  _histBatchLen = 0;
- uint32_t _histBatchFirstMs = 0;
+ /* T2.1's RAM batch (4 x HistV4State-shaped entries) and the ~2 KB of
+  * HistV4State that went with it are gone. They existed to amortise V4's
+  * one-flash-write-per-sample; the V5 hot path writes no flash at all, so
+  * the batch had nothing left to amortise. */
 
- HistV4State _histV4State;
- bool _histV4CodecValid = false;
+ /* ── V5 state ──────────────────────────────────────────────────────────
+  * The encoder holds the hour in RAM (~2.1 KiB of samples); the reader
+  * holds one block (2118 B) so every consumer can share one buffer instead
+  * of each carrying its own HistV4State the way the V4 readers did. */
+ HistoryV5Encoder _h5Enc;
+ H5ChannelDesc    _h5Schema[H5_MAX_CHANNELS];
+ uint8_t          _h5NCh = 0;
+ uint8_t          _h5SchemaSeq = 0;
+ bool             _h5Valid = false;
+ /** Day file the open block belongs to; a change of day forces a seal. */
+ String           _h5CurrentDay = "";
+ uint16_t         _h5PurgedLegacy = 0;
+
+ File             _h5RdFile;
+ HistoryV5Scan    _h5Scan;
+ HistoryV5Decoder _h5Dec;
+ const H5ChannelDesc* _h5RdSchema = nullptr;
+ uint8_t          _h5RdNCh = 0;
+ bool             _h5RdBlockOpen = false;
+ uint8_t          _h5Chunk[H5_BLOCK_MAX_BYTES];
+
+ /** Append @p len bytes of a sealed chunk to @p path, creating with SCHEMA. */
+ bool h5AppendChunk(const String& path, uint8_t extraFlags);
+ /** Write the SCHEMA chunk that must open every file (§3). */
+ bool h5WriteSchemaTo(File& f, uint8_t seq);
+ /** @return true when @p path already starts with a matching SCHEMA. */
+ bool h5FileHasSchema(const String& path, bool* outMatches);
 
  bool writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
  /** Rebuild codec state from an existing file. If the file ends mid-record

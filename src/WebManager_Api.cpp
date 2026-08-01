@@ -522,11 +522,17 @@ void WebManager::handleApiStatus( ) {
 	 * Without it the dashboard cannot tell "nothing left to send" from "nothing
 	 * is ever sent", and pending==0 means both. */
 	int telOn = (cfg.telInterval > 0) ? 1 : 0;
-	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d},",
+	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u},",
 	         devName.c_str( ), millis( ), (int)_netRef->getRssi( ), ipStr.c_str( ), cfg.themeIndex,
 	         (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
 	         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
-	         (unsigned long)now, ntp ? 1 : 0, pending, telOn);
+	         (unsigned long)now, ntp ? 1 : 0, pending, telOn,
+	         /* hi: sampling interval in minutes. A V5 file does not carry it —
+	          * the time symbols are deltas against the nominal interval (§3.5),
+	          * so a reader outside the device has to be told. Without it a
+	          * browser decoding .h5 would place every record after the first
+	          * at the wrong instant on any device not sampling once a minute. */
+	         (unsigned)_storageRef->getHistoryIntervalMin( ));
 
 	if (!safeSend(buffer)) return;
 
@@ -537,15 +543,22 @@ void WebManager::handleApiStatus( ) {
 	uint32_t hmin = (mt.heapMinSeen == 0xFFFFFFFFU) ? mt.heapFreeNow : mt.heapMinSeen;
 	uint32_t lbmin = (mt.heapLargestMin == 0xFFFFFFFFU) ? mt.heapLargestBlock : mt.heapLargestMin;
 
+	/* fo/fom/fot/f50 are the flash-write counters. They were tracked since
+	 * T0.1 but reachable only from a CLI the shipping image does not carry,
+	 * which made "how often does this device stop Core 1 to write?" — the
+	 * question the V5 format exists to answer — unanswerable from outside. */
 	snprintf(buffer, sizeof(buffer),
-	         "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,\"rmn\":%ld,\"rmx\":%ld,\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu},",
+	         "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,\"rmn\":%ld,\"rmx\":%ld,\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
+	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu},",
 	         (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
 	         (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
 	         (long)rmn, (long)rmx,
 	         (unsigned long)mt.telSent, (unsigned long)mt.telFailed, (unsigned long)mt.telRetries,
 	         (unsigned long)mt.telTotalBytes, (unsigned long)mt.telLastLatencyMs,
 	         (unsigned long)mt.sensorReadsOk, (unsigned long)mt.sensorReadsErr,
-	         (unsigned long)mt.configSaves);
+	         (unsigned long)mt.configSaves,
+	         (unsigned long)mt.flashOps, (unsigned long)mt.flashOpMaxMs,
+	         (unsigned long)mt.flashOpTotalMs, (unsigned long)mt.flashOpsOver50ms);
 
 	if (!safeSend(buffer)) return;
 	if (!safeSend("\"sensors\":[")) return;

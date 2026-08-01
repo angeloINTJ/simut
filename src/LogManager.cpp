@@ -1019,6 +1019,10 @@ static const char* translateCodeEn(uint16_t code) {
  case STO_ENFORCE_SKIP_ACTIVE: return "Skipping active log file";
  case STO_STATS_REPORT: return "Storage stats report";
  case STO_CONFIG_REPORT: return "Config report";
+ case STO_H5_SEALED: return "History block sealed";
+ case STO_H5_WIP: return "History snapshot written";
+ case STO_SCHEMA_MISMATCH: return "History schema mismatch";
+ case STO_LEGACY_PURGED: return "Legacy history purged";
 
  /* ── Web (570–575) ── */
  case WEB_SERVER_STARTED: return "Web server started";

@@ -216,12 +216,18 @@ static const char FS_README_TEXT[] PROGMEM =
 "  t_cursor.bin  Ate onde a telemetria ja enviou.\n"
 "\n"
 "/history/       Historico de medicoes, um arquivo por dia.\n"
-"  AAAAMMDD.sim4 Formato V4. O cabecalho carrega o proprio schema: cada\n"
-"                medicao e {canal}{hwId}, com t=temperatura, u=umidade,\n"
-"                p=pressao. O schema congela quando o arquivo do dia e\n"
-"                criado, entao trocar o hwId de um sensor no meio do dia\n"
-"                faz o resto do dia nao ser gravado para ele. Depois de\n"
-"                mexer em sensores, use 'Rebind history now' em /config.\n"
+"  AAAAMMDD.h5   Formato V5, comprimido e autodescritivo. O arquivo comeca\n"
+"                por um chunk SCHEMA que diz quais canais existem, que\n"
+"                grandeza cada um mede e em que escala; depois vem um\n"
+"                bloco por hora, cada um com CRC e com o minimo/maximo de\n"
+"                cada canal no proprio cabecalho.\n"
+"                Trocar sensores no meio do dia NAO custa mais o resto do\n"
+"                dia: grava-se um SCHEMA novo no mesmo arquivo e o que ja\n"
+"                estava la continua legivel.\n"
+"                Para ler no computador: tools/history_v5.py --dump-csv\n"
+"  .wip          Instantaneo do bloco ainda aberto na RAM, regravado a\n"
+"                cada 10 min. E adotado no boot seguinte apos queda de\n"
+"                energia; se estiver corrompido, e descartado.\n"
 "\n"
 "/lang/          Pacotes de idioma (.lng), um por idioma. Suba por /files.\n"
 "                Nunca por 'uploadfs': aquilo reformata a particao.\n"
@@ -410,13 +416,9 @@ void StorageManager::update( ) {
   }
  }
 
- /* T2.1: age-out flush of the history batch — covers the case where
-  * samples stop arriving (sensor gate, time-ref loss) with records
-  * still buffered in RAM. */
- if (_histBatchLen > 0 && _isMounted && !TouchPriority::isActive( )
-     && timeSince(_histBatchFirstMs, HIST_BATCH_MAX_MS)) {
-  flushHistoryBatch( );
- }
+ /* V5: the open block is snapshotted to /history/.wip on its own timer
+  * from the AppManager loop (H5_WIP_INTERVAL_MS). What used to be here —
+  * the age-out drain of the V4 RAM batch — has no batch to drain. */
 }
 
 void StorageManager::loadDefaults( ) {
@@ -947,7 +949,7 @@ String StorageManager::getHistoryFileNameV4(uint32_t epoch) {
 	 struct tm timeinfo;
 	 localtime_r(&t, &timeinfo);
 	 char buff[42];
-	 snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT, DIR_HISTORY,
+	 snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY,
 	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 	 return String(buff);
 }
@@ -956,7 +958,7 @@ void StorageManager::getHistoryFileNameV4(char* buf, size_t len) {
 	 time_t now = time(nullptr);
 	 struct tm timeinfo;
 	 localtime_r(&now, &timeinfo);
-	 snprintf(buf, len, "%s/%04d%02d%02d" HISTORY_V4_FILE_EXT, DIR_HISTORY,
+	 snprintf(buf, len, "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY,
 	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 }
 
@@ -1083,7 +1085,7 @@ void StorageManager::enforceStorageLimit( ) {
  String fileName = dir.fileName( );
 
 
- if (fileName.endsWith(HISTORY_V4_FILE_EXT) && isValidHistoryFileName(fileName.c_str( ))) {
+ if (fileName.endsWith(HISTORY_FILE_EXT) && isValidHistoryFileName(fileName.c_str( ))) {
  if (oldestFile == "" || fileName < oldestFile) oldestFile = fileName;
  }
  }
@@ -1215,25 +1217,53 @@ String StorageManager::getStatsReport( ) {
  * .sim4 is considered — this used to scan .bin, and once nothing wrote that
  * extension any more the function answered 0 on every board. */
 uint32_t StorageManager::getLastRecordedTimestamp( ) {
+	/* Under V4 this walked the newest day file record by record, because a
+	 * variable-length stream has no seekable end. V5 blocks are framed, so
+	 * the walk is over ~24 headers and only the LAST block is decoded —
+	 * and the block still open in RAM beats anything on flash. */
+	if (_h5Valid && _h5Enc.count( )) {
+		const uint32_t ram = _h5Enc.lastEpoch( );
+		if (ram) return ram;
+	}
 
- enterFlashReadLock( );
- Dir dir = LittleFS.openDir(DIR_HISTORY); String newestFile = "";
- while (dir.next( )) {
- feedWdt( );
- String fn = dir.fileName( );
- if (fn.endsWith(HISTORY_V4_FILE_EXT) && fn > newestFile) newestFile = fn;
- }
- uint32_t lastTs = 0;
- if (newestFile != "") {
- File f = LittleFS.open(String(DIR_HISTORY) + "/" + newestFile, "r");
- if (f) {
- static HistV4State st;
- (void)scanHistoryFileV4(f, st, nullptr, &lastTs);
- f.close( );
- }
- }
- exitFlashReadLock( );
- return lastTs;
+	enterFlashReadLock( );
+	Dir dir = LittleFS.openDir(DIR_HISTORY);
+	String newestFile = "";
+	while (dir.next( )) {
+		feedWdt( );
+		const String fn = dir.fileName( );
+		/* Names are YYYYMMDD, so lexical order IS chronological order. */
+		if (fn.endsWith(HISTORY_FILE_EXT) && fn > newestFile) newestFile = fn;
+	}
+	exitFlashReadLock( );
+	if (newestFile.length( ) == 0) return 0;
+
+	uint32_t lastTs = 0;
+	{
+		ReadGuard rg(this);
+		if (h5OpenDay(String(DIR_HISTORY) + "/" + newestFile, /*verifyPayload=*/false)) {
+			uint32_t lastT0 = 0;
+			uint8_t  lastCount = 0;
+			for (;;) {
+				H5DataHeader hdr;
+				const int16_t *mn = nullptr, *mx = nullptr;
+				if (!h5NextBlock(hdr, mn, mx)) break;
+				lastT0 = hdr.t0;
+				lastCount = hdr.pre.a;
+				feedWdt( );
+			}
+			lastTs = lastT0;
+			if (lastT0 && lastCount > 1 && h5SeekTo(lastT0)) {
+				int16_t vals[H5_MAX_CHANNELS];
+				uint32_t epoch = 0;
+				for (uint8_t r = 0; r < lastCount && h5NextRecord(epoch, vals); r++) {
+					if (epoch > lastTs) lastTs = epoch;
+				}
+			}
+			h5CloseDay( );
+		}
+	}
+	return lastTs;
 }
 
 
@@ -1262,7 +1292,7 @@ uint32_t StorageManager::getHistoryDaysMask(int year, int month) {
  while (dir.next( )) {
  feedWdt( );
  String fn = dir.fileName( );
- if (!fn.endsWith(HISTORY_V4_FILE_EXT)) continue;
+ if (!fn.endsWith(HISTORY_FILE_EXT)) continue;
 
  /* File: "YYYYMMDD.sim4" — check month prefix */
  if (fn.length( ) >= 8 && fn.startsWith(prefix)) {
@@ -1542,761 +1572,626 @@ void StorageManager::generateSalt(uint8_t* buf) {
  * V4 HISTORY — write, scan, build schema
  * ============================================================================ */
 
+/* ── V4 entry points, kept as the delegating shims §2 asks for ───────────
+ * R7 is explicit: the firmware carries no reader for the legacy format. The
+ * V4 codec is gone from the build, so these keep their signatures and do the
+ * V5 thing instead. Callers — the CLI, the web rebind endpoint — did not have
+ * to change, and what they get back is better than what they asked for. */
+
 void StorageManager::ensureV4Schema( ) {
- if (_histV4CodecValid) return;  /* already initialized */
- if (!_isMounted) return;
-
- LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
- LogManager::WdtWindow _wdt(30000);
- Core1FlashPause _c1(this);
-
- String path = getHistoryFileNameV4( );
- _v4CurrentLogFileName = path;
-
- /* v1.5.3 FIX (data loss on every boot): this function used
-  * LittleFS.open(path, "w") unconditionally — mode "w" TRUNCATES.
-  * Since _histV4CodecValid is RAM-only, every boot came through here
-  * and wiped the records already logged that day. An existing file is
-  * now SCANNED (schema + anchor/delta cadence restored from disk, torn
-  * tail repaired); only a missing/header-corrupt file is recreated. */
- bool ok = false;
- bool exists = false;
- FLASH_OP({ exists = LittleFS.exists(path); });
-
- if (exists) {
-  size_t torn = 0;
-  FLASH_OP({
-   File f = LittleFS.open(path, "r");
-   if (f) { ok = scanHistoryFileV4(f, _histV4State, &torn); f.close( ); }
-  });
-  if (ok && torn > 0) ok = repairHistoryTailV4(path, torn);
-  if (ok && _histV4State.measureCount == 0) ok = false;
- }
- if (!ok) {
-  /* Missing file, unreadable header, or failed repair → fresh file.
-   * Only the corrupt-header case loses data, and it was unreadable. */
-  ok = createHistoryFileV4WithSchema(path);
- }
-
- /* v1.5.3 FIX: validity is EARNED, not assumed. A FLASH_OP mutex
-  * timeout or a failed header read-back used to still set the flag,
-  * leaving an empty-schema codec "valid" until the next reboot. On
-  * failure we stay invalid and the next history tick retries. */
- _histV4CodecValid = ok;
- if (ok) LOG_CODE(LOG_INFO, "STO", SYS_OK, 0, "V4 schema ready");
- else    LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_bootstrap_retry");
+	ensureH5Schema( );
 }
 
 bool StorageManager::rebindV4Schema(uint8_t *outMeasures) {
- if (!_isMounted) return false;
-
- LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
- LogManager::WdtWindow _wdt(30000);
- Core1FlashPause _c1(this);
-
- /* Drop whatever is buffered against the outgoing schema — those samples are
-  * the ones that could not be matched anyway, which is why we are here. */
- flushHistoryBatch( );
-
- const String path = getHistoryFileNameV4( );
-
- /* Records are bit-packed against the header, so the schema cannot be swapped
-  * under them: the day's file is recreated. Carrying the old records over
-  * would mean decoding and re-encoding every one of them, which measured at
-  * 8.2 KB of flash and 5.6 KB of RAM on this target — more than the app slot
-  * has to spare. Hence the deliberate trade, and hence the CLI demands
-  * `confirm`: today's records before the change are lost. */
- _histV4CodecValid = false;
- FLASH_OP({ LittleFS.remove(path); });
-
- if (!createHistoryFileV4WithSchema(path)) {
-  LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "rebind_failed");
-  return false; /* codec stays invalid; the next tick re-bootstraps */
- }
- _v4CurrentLogFileName = path;
- _histV4CodecValid = true;
- if (outMeasures) *outMeasures = _histV4State.measureCount;
- LOG_CODE(LOG_INFO, "STO", SYS_OK, (int)_histV4State.measureCount, "V4 schema rebound");
- return true;
+	/* Was DESTRUCTIVE: a .sim4 froze its schema in the file header, so
+	 * changing a sensor identity meant recreating the day's file and losing
+	 * every record already in it — which is why the CLI demanded `confirm`.
+	 *
+	 * V5 has no such trade. A schema change writes a new SCHEMA chunk into
+	 * the same file (§3.7-2) and the blocks before it stay readable under
+	 * the schema that was in force when they were written. Nothing is lost,
+	 * so there is nothing to confirm and nothing to force. */
+	onSensorSetChangedV5( );
+	if (outMeasures) *outMeasures = _h5NCh;
+	return _h5Valid;
 }
 
-/* Scratch shared by migrateV4Schema and verifyMigratedV4.
- *
- * File scope, not function statics, because the two would otherwise each own a
- * full set and the pair would cost 11.3 KB of .bss instead of 5.6 KB — on a
- * device where .bss is already half the SRAM.
- *
- * Sharing is safe by construction, not by luck: migrateV4Schema is the ONLY
- * caller of verifyMigratedV4, both run on Core 0 with Core 1 paused, and the
- * write pass has finished with every one of these before the verify pass
- * starts. s_migState is re-populated by verify from the same source file it
- * already held, so the value survives the round trip; s_migColMap is the one
- * thing verify needs to keep intact across the call, and verify never writes
- * to it. The "new" schema side uses _histV4State throughout, which has to end
- * up holding the live schema anyway.
- *
- * Do NOT call verifyMigratedV4 from anywhere else without revisiting this. */
-static HistV4State s_migState;
-static uint8_t s_migHdr[HIST_V4_MAX_HEADER];
-static int64_t s_migValsA[HIST_V4_MAX_MEASUREMENTS];
-static int64_t s_migValsB[HIST_V4_MAX_MEASUREMENTS];
-static uint8_t s_migBufA[HIST_V4_READ_BUF];
-static uint8_t s_migBufB[HIST_V4_READ_BUF];
-static int8_t  s_migColMap[HIST_V4_MAX_MEASUREMENTS];
-static_assert(HIST_V4_MAX_DELTA <= HIST_V4_READ_BUF,
-              "s_migBufB doubles as the encode buffer in the write pass");
-
-/* ── Migrating rewrite of the day's file ─────────────────────────────────
- *
- * rebindV4Schema() above throws the day away. This one keeps it: the file is
- * rewritten against a schema built from the current slots, columns that still
- * exist are carried over record by record, and columns that are new are filled
- * with the NaN sentinel back to 00:00.
- *
- * STREAMING, not a RAM copy. A full day measured with the production codec at
- * the 1-minute minimum interval is 9.7 KB at 9 measurements but 42.8 KB at 48
- * (16 slots x 3 channels) and 55.9 KB at the format ceiling — against ~47 KB of
- * free heap and a largest contiguous block of ~36 KB on a live device. Buffering
- * the file would work on a 5-sensor bench and fail on a full deployment, which
- * is exactly when this function matters. Cost here is constant instead:
- *
- *     oldState 2048 + hdrBuf 2048 + values 2x512 + map 64 + rdBuf 2x256 = ~5.6 KB
- *
- * and it does not grow with the day, the sensor count, or the interval.
- *
- * Safety follows the sequence the feature was specified with: quiesce, verify
- * the source, build the new schema, write a TEMPORARY file, verify the
- * temporary against the source column by column, and only then remove the
- * original and rename. The original is untouched until the replacement has been
- * read back from flash and compared. A power loss at any point leaves either
- * the intact original plus an orphan .mig (removed at the start of the next
- * attempt) or, after the rename, the complete new file.
- *
- * Raw integers are carried VERBATIM when the old and new measurement agree on
- * (bitWidth, scale) — which is the normal case, since both come from
- * histV4DefaultBitWidth/Scale for the same channel. Only a genuine width or
- * scale change goes through float, because a raw value is meaningless without
- * the def it was packed against. The NaN sentinel is bitWidth-derived, so it
- * survives the verbatim path unchanged.
- *
- * @param outMeasures  measurements in the new schema
- * @param outRecords   records carried over
- * @param outCarried   columns mapped from the old schema (the rest are new)
- * @return false with the ORIGINAL FILE INTACT on any failure.
- */
 bool StorageManager::migrateV4Schema(uint8_t *outMeasures, uint32_t *outRecords,
                                      uint8_t *outCarried) {
-	if (!_isMounted) return false;
-
-	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
-	LogManager::WdtWindow _wdt(60000);
-	Core1FlashPause _c1(this);
-
-	/* Drain the RAM batch into the OLD file first: those samples were matched
-	 * against the old schema, so they migrate with everything else. Losing
-	 * them here would defeat the point of not losing the day. */
-	flushHistoryBatch( );
-
-	const String path = getHistoryFileNameV4( );
-	const String tmp  = path + ".mig";
-
-	/* Nothing to carry — no file yet today. Not a failure. */
-	bool exists = false;
-	FLASH_OP({ exists = LittleFS.exists(path); });
-	if (!exists) {
-		_histV4CodecValid = false;
-		if (!createHistoryFileV4WithSchema(path)) return false;
-		_v4CurrentLogFileName = path;
-		_histV4CodecValid = true;
-		if (outMeasures) *outMeasures = _histV4State.measureCount;
-		if (outRecords)  *outRecords  = 0;
-		if (outCarried)  *outCarried  = 0;
-		return true;
-	}
-
-	FLASH_OP({ LittleFS.remove(tmp); }); /* orphan from an interrupted attempt */
-
-	HistV4State &oldState = s_migState;
-	uint8_t *hdrBuf  = s_migHdr;
-	int64_t *oldVals = s_migValsA;
-	int64_t *newVals = s_migValsB;
-	int8_t  *colMap  = s_migColMap;
-
-	/* ── 1. Verify the source, repairing a torn tail before trusting it ── */
-	{
-		size_t torn = 0;
-		bool ok = false;
-		FLASH_OP({
-			File f = LittleFS.open(path, "r");
-			if (f) { ok = scanHistoryFileV4(f, oldState, &torn); f.close( ); }
-		});
-		if (ok && torn > 0) {
-			if (!repairHistoryTailV4(path, torn)) ok = false;
-			else FLASH_OP({
-				File f = LittleFS.open(path, "r");
-				ok = f && scanHistoryFileV4(f, oldState, nullptr);
-				if (f) f.close( );
-			});
-		}
-		if (!ok || oldState.measureCount == 0) {
-			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_src_bad");
-			return false; /* unreadable source: caller falls back to rebind */
-		}
-	}
-
-	/* ── 2. New schema from the configured slots, into the temp file ── */
-	size_t hdrLen = 0;
-	{
-		HistV4SensorDef s[HIST_V4_MAX_SENSORS];
-		HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
-		uint8_t pool[HIST_V4_MAX_STRPOOL];
-		uint8_t sc = 0, mc = 0, sp = 0;
-		if (!buildMeasureSchema(s, sc, m, mc, pool, sp)) {
-			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_schema_empty");
-			return false;
-		}
-		hdrLen = histV4WriteHeaderBuf(hdrBuf, sizeof(s_migHdr), s, sc, m, mc, pool, sp);
-	}
-	if (hdrLen == 0) {
-		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_hdr_build");
-		return false;
-	}
-
-	bool wrote = false;
-	FLASH_OP({
-		File f = LittleFS.open(tmp, "w");
-		if (f) { wrote = (f.write(hdrBuf, hdrLen) == hdrLen); f.close( ); }
-	});
-	if (!wrote) {
-		FLASH_OP({ LittleFS.remove(tmp); });
-		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_hdr_write");
-		return false;
-	}
-
-	/* Read the schema back from flash rather than reusing the RAM copy, so the
-	 * encoder is driven by the bytes a reader will actually see. */
-	histV4Reset(_histV4State);
-	{
-		bool parsed = false;
-		FLASH_OP({
-			File f = LittleFS.open(tmp, "r");
-			if (f) {
-				int n = f.read(hdrBuf, sizeof(s_migHdr));
-				f.close( );
-				if (n >= (int)HIST_V4_HEADER_FIXED)
-					parsed = histV4ReadHeaderBuf(hdrBuf, (size_t)n, _histV4State) > 0;
-			}
-		});
-		if (!parsed || _histV4State.measureCount == 0) {
-			FLASH_OP({ LittleFS.remove(tmp); });
-			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_hdr_read");
-			return false;
-		}
-	}
-
-	/* ── 3. Column map: (hwId, channel) is the identity, as everywhere else ── */
-	uint8_t carried = 0;
-	for (uint8_t j = 0; j < _histV4State.measureCount; j++) {
-		colMap[j] = -1;
-		char nHw[17];
-		const uint8_t nsi = _histV4State.measures[j].sensorIdx;
-		histV4StrPoolGet(nHw, sizeof(nHw), _histV4State.strPool,
-		                 _histV4State.sensors[nsi].hwIdOffset,
-		                 _histV4State.sensors[nsi].hwIdLen);
-		for (uint8_t i = 0; i < oldState.measureCount; i++) {
-			if (oldState.measures[i].channel != _histV4State.measures[j].channel) continue;
-			char oHw[17];
-			const uint8_t osi = oldState.measures[i].sensorIdx;
-			histV4StrPoolGet(oHw, sizeof(oHw), oldState.strPool,
-			                 oldState.sensors[osi].hwIdOffset,
-			                 oldState.sensors[osi].hwIdLen);
-			if (strcmp(oHw, nHw) == 0) { colMap[j] = (int8_t)i; carried++; break; }
-		}
-	}
-
-	/* ── 4. Stream: decode one old record, remap, encode, append ── */
-	uint32_t records = 0;
-	bool ok = true;
-	FLASH_OP({
-		File src = LittleFS.open(path, "r");
-		File dst = LittleFS.open(tmp, "a");
-		if (!src || !dst) ok = false;
-		if (ok) {
-			HistV4State rd;            /* decoder state over the OLD file */
-			memcpy(&rd, &oldState, sizeof(rd));
-			histV4ResetCodec(rd);
-			src.seek(oldState.headerLen);
-
-			uint8_t *rdBuf  = s_migBufA;
-			uint8_t *encBuf = s_migBufB;
-			size_t filled = 0;
-			uint32_t epoch = 0;
-
-			while (ok) {
-				size_t consumed = histV4DecodeNextRefill(
-					rdBuf, HIST_V4_READ_BUF, filled, rd, oldVals, &epoch,
-					[&src](uint8_t *d, size_t maxB) -> size_t {
-						if (src.available() <= 0) return 0;
-						size_t n = maxB;
-						if (n > (size_t)src.available()) n = (size_t)src.available();
-						int r = src.read(d, n);
-						return (r > 0) ? (size_t)r : 0;
-					});
-				if (consumed == 0) break; /* clean end */
-
-				for (uint8_t j = 0; j < _histV4State.measureCount; j++)
-					newVals[j] = histV4RemapValue(colMap[j], oldVals, oldState,
-					                              _histV4State.measures[j]);
-
-				size_t n = histV4Encode(newVals, _histV4State.measureCount,
-				                        _histV4State, encBuf, sizeof(s_migBufB),
-				                        epoch, nullptr);
-				if (n == 0 || dst.write(encBuf, n) != n) { ok = false; break; }
-				records++;
-				if ((records & 0x1F) == 0) feedWdt( );
-			}
-		}
-		if (src) src.close( );
-		if (dst) dst.close( );
-	});
-	if (!ok) {
-		FLASH_OP({ LittleFS.remove(tmp); });
-		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)records, "mig_write_fail");
-		return false;
-	}
-
-	/* ── 5. Verify the temporary against the source, column by column ──
-	 * Both files are re-decoded from flash in lockstep. This is what makes
-	 * the swap safe: a carried column that did not survive the round trip
-	 * aborts the migration with the original still in place. */
-	if (!verifyMigratedV4(path, tmp, colMap, records)) {
-		FLASH_OP({ LittleFS.remove(tmp); });
-		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)records, "mig_verify_fail");
-		return false;
-	}
-
-	/* ── 6. Swap. Only now does the original go away. ── */
-	_histV4CodecValid = false;
-	bool swapped = false;
-	FLASH_OP({
-		LittleFS.remove(path);
-		swapped = LittleFS.rename(tmp, path);
-	});
-	if (!swapped) {
-		/* The original is gone and the rename failed: the data still exists
-		 * under the temp name. Say so loudly — it is recoverable by hand. */
-		LOG_CODE(LOG_ERROR, "STO", STO_WRITE_FAILED, 0, "mig_rename_fail_data_in_mig");
-		return false;
-	}
-
-	/* Reload the codec from the file that is now live. */
-	{
-		bool parsed = false;
-		FLASH_OP({
-			File f = LittleFS.open(path, "r");
-			if (f) { parsed = scanHistoryFileV4(f, _histV4State, nullptr); f.close( ); }
-		});
-		if (!parsed) { LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "mig_reload_fail"); return false; }
-	}
-	_v4CurrentLogFileName = path;
-	_histV4CodecValid = true;
-
-	if (outMeasures) *outMeasures = _histV4State.measureCount;
-	if (outRecords)  *outRecords  = records;
-	if (outCarried)  *outCarried  = carried;
-	LOG_CODE(LOG_INFO, "STO", SYS_OK, (int)records, "V4 schema migrated");
-	return true;
+	/* The streaming rewrite this used to do — read the day, remap columns,
+	 * verify, swap — exists to carry records across a schema change the
+	 * format could not express. V5 expresses it, so the migration is the
+	 * schema change itself: every record is "carried" because none moves. */
+	const bool ok = rebindV4Schema(outMeasures);
+	if (outRecords) *outRecords = 0;
+	if (outCarried) *outCarried = _h5NCh;
+	return ok;
 }
 
-/* Lockstep re-decode of source and replacement. Every carried column must
- * come back bit-identical to what the source holds; epochs must match and the
- * record count must be exactly what was written. */
-bool StorageManager::verifyMigratedV4(const String &srcPath, const String &tmpPath,
-                                      const int8_t *colMap, uint32_t expectRecords) {
-	HistV4State &vOld = s_migState;      /* re-read from srcPath below */
-	HistV4State &vNew = _histV4State;    /* re-read from tmpPath below */
-	int64_t *aVals = s_migValsA;
-	int64_t *bVals = s_migValsB;
-	uint8_t *aBuf  = s_migBufA;
-	uint8_t *bBuf  = s_migBufB;
-
-	bool ok = false;
-	uint32_t n = 0;
-	FLASH_OP({
-		File a = LittleFS.open(srcPath, "r");
-		File b = LittleFS.open(tmpPath, "r");
-		if (a && b) {
-			ok = scanHistoryFileV4(a, vOld, nullptr) && scanHistoryFileV4(b, vNew, nullptr);
-			if (ok) {
-				histV4ResetCodec(vOld); histV4ResetCodec(vNew);
-				a.seek(vOld.headerLen); b.seek(vNew.headerLen);
-				size_t fa = 0;
-				size_t fb = 0;
-				uint32_t ea = 0;
-				uint32_t eb = 0;
-				while (ok) {
-					size_t ca = histV4DecodeNextRefill(aBuf, HIST_V4_READ_BUF, fa, vOld, aVals, &ea,
-						[&a](uint8_t *d, size_t m) -> size_t {
-							if (a.available() <= 0) return 0;
-							size_t k = m; if (k > (size_t)a.available()) k = (size_t)a.available();
-							int r = a.read(d, k); return (r > 0) ? (size_t)r : 0; });
-					size_t cb = histV4DecodeNextRefill(bBuf, HIST_V4_READ_BUF, fb, vNew, bVals, &eb,
-						[&b](uint8_t *d, size_t m) -> size_t {
-							if (b.available() <= 0) return 0;
-							size_t k = m; if (k > (size_t)b.available()) k = (size_t)b.available();
-							int r = b.read(d, k); return (r > 0) ? (size_t)r : 0; });
-					if (ca == 0 && cb == 0) break;      /* both ended together */
-					if (ca == 0 || cb == 0) { ok = false; break; } /* length mismatch */
-					if (ea != eb) { ok = false; break; }
-					for (uint8_t j = 0; j < vNew.measureCount && ok; j++) {
-						int64_t want = histV4RemapValue(colMap[j], aVals, vOld, vNew.measures[j]);
-						if (bVals[j] != want) ok = false;
-					}
-					n++;
-					if ((n & 0x1F) == 0) feedWdt( );
-				}
-			}
-		}
-		if (a) a.close( );
-		if (b) b.close( );
-	});
-	return ok && n == expectRecords;
+bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureCount,
+                                        uint32_t epoch) {
+	/* Signature preserved, semantics moved: the V4 record was a measurement
+	 * vector of int64 scaled by each channel's own factor, and V5 wants the
+	 * int16 the schema declares. Nothing in the firmware calls this any
+	 * more — processHistoryLogging builds the V5 vector directly — so it
+	 * refuses rather than guessing a mapping between two schemas it cannot
+	 * see. Kept so no caller outside this tree stops compiling. */
+	(void)values; (void)measureCount; (void)epoch;
+	return false;
 }
 
-bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
-	if (!_isMounted) return false;
-
-	/* Defensive: reject absurd timestamps */
-	{
-		/* L1: piso único (HIST_EPOCH_MIN), antes duplicado como literal
-		 * aqui e divergente do usado pelos leitores/telemetria. */
-		uint32_t nowEpoch = (uint32_t)time(nullptr);
-		if (epoch < HIST_EPOCH_MIN) return false;
-		if (nowEpoch > HIST_EPOCH_MIN && epoch > nowEpoch + 86400UL) return false;
-	}
-
-	if (measureCount > HIST_V4_MAX_MEASUREMENTS) return false;
-
-	/* ── A2: o batch NUNCA pode cruzar a meia-noite ──────────────────────
-	 * O dreno (flushHistoryBatch → writeHistoryEntryFlashV4) resolve o
-	 * caminho do arquivo com getHistoryFileNameV4(), que é a data de
-	 * AGORA — o epoch de cada entrada é ignorado na escolha do arquivo.
-	 * Amostras bufferizadas às 23:57–23:59 drenavam ~00:01 dentro do
-	 * .sim4 do dia seguinte: até HIST_BATCH_N-1 registros com epoch de
-	 * ontem no arquivo de hoje. A consulta de ontem os perdia, o gráfico
-	 * de hoje ganhava pontos antes de 00:00 e o preload de hoje absorvia
-	 * extremos de ontem.
-	 *
-	 * Corrigido no ponto de BUFFER, não no dreno: esvazia antes de
-	 * aceitar uma amostra de dia diferente do primeiro item bufferizado,
-	 * enquanto getHistoryFileNameV4() ainda devolve o arquivo certo. */
-	if (_histBatchLen > 0 && !sameLocalDay(_histBatch[0].epoch, epoch)) {
-		flushHistoryBatch( );
-	}
-
-	/* T2.1: append to the RAM batch. Flash is only touched when the
-	 * batch fills or ages out — and never during touch interaction
-	 * (the old 1-slot touch-priority pending is subsumed by this). */
-	if (_histBatchLen < HIST_BATCH_N) {
-		HistBatchEntry &e = _histBatch[_histBatchLen];
-		memcpy(e.values, values, measureCount * sizeof(int64_t));
-		e.count = measureCount;
-		e.epoch = epoch;
-		if (_histBatchLen == 0) _histBatchFirstMs = millis();
-		_histBatchLen++;
-	}
-	/* else: batch full with a failing flush — sample dropped; the flush
-	 * below keeps retrying and logs on failure. */
-
-	bool full = (_histBatchLen >= HIST_BATCH_N);
-	bool aged = (_histBatchLen > 0) && timeSince(_histBatchFirstMs, HIST_BATCH_MAX_MS);
-	if ((full || aged) && !TouchPriority::isActive()) return flushHistoryBatch();
-	return true;
-}
-
-/* Drain only if the batch already met its own full/aged criterion.
- *
- * writeHistoryEntryV4 refuses to flush while a touch is in progress, so a
- * batch that came due mid-interaction sits in RAM until the next sample —
- * up to a full history interval later. AppManager calls this on the
- * touch-active→touch-free transition to close that window.
- *
- * The full/aged test is repeated rather than draining unconditionally: a
- * plain flush on every touch release would write a one-entry batch each
- * time and undo T2.1's batching (4 writes/5 min) on a board someone is
- * actively using. */
 bool StorageManager::flushHistoryBatchIfDue( ) {
-	if (_histBatchLen == 0) return true;
-	bool full = (_histBatchLen >= HIST_BATCH_N);
-	bool aged = timeSince(_histBatchFirstMs, HIST_BATCH_MAX_MS);
-	if (!full && !aged) return true;
+	/* T2.1's RAM batch existed because V4 wrote to flash once per sample and
+	 * a touch in progress could not afford the lockout. V5's hot path never
+	 * touches flash, so there is no batch to drain — what these two persist
+	 * now is the open block's .wip snapshot. */
 	return flushHistoryBatch( );
 }
 
 bool StorageManager::flushHistoryBatch( ) {
-	if (_histBatchLen == 0) return true;
 	if (!_isMounted) return false;
-
-	/* One Core-1 pause for the whole drain; the per-entry pause inside
-	 * writeHistoryEntryFlashV4 is refcounted and nests for free. */
-	Core1FlashPause _c1(this);
-	uint8_t written = 0;
-	for (uint8_t i = 0; i < _histBatchLen; i++) {
-		if (!writeHistoryEntryFlashV4(_histBatch[i].values, _histBatch[i].count,
-		                              _histBatch[i].epoch)) break;
-		written++;
-	}
-	if (written == _histBatchLen) {
-		_histBatchLen = 0;
-		return true;
-	}
-	/* Partial drain: keep the remainder at the front, retry next tick. */
-	memmove(&_histBatch[0], &_histBatch[written],
-	        (size_t)(_histBatchLen - written) * sizeof(HistBatchEntry));
-	_histBatchLen -= written;
-	_histBatchFirstMs = millis();
-	LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, _histBatchLen, "hist_batch_partial");
-	return false;
+	if (!_h5Valid || _h5Enc.count( ) == 0) return true;
+	return flushWipV5( );
 }
 
-bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch) {
-	if (!_isMounted) return false;
+bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount,
+                                              uint32_t epoch) {
+	(void)values; (void)measureCount; (void)epoch;
+	return false;                       /* see writeHistoryEntryV4 */
+}
 
-	/* A2 (defesa em profundidade): o caminho vem do EPOCH DA ENTRADA, não
-	 * de "agora". writeHistoryEntryV4 já esvazia o batch na virada do dia,
-	 * mas se aquele flush falhar parcialmente o batch volta a misturar
-	 * dias — e só este ponto decide em que arquivo o registro cai. */
-	String path = getHistoryFileNameV4(epoch);
+String StorageManager::getHistoryFileNameV5( ) {
+	return getHistoryFileNameV5((uint32_t)time(nullptr));
+}
+
+String StorageManager::getHistoryFileNameV5(uint32_t epoch) {
+	time_t t = (time_t)epoch;
+	struct tm timeinfo;
+	localtime_r(&t, &timeinfo);
+	char buff[42];
+	snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY,
+	         timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+	return String(buff);
+}
+
+/** Nominal sampling interval in seconds, clamped to what a u16 can carry.
+ *  The interval is configurable up to 24 h; the encoder only uses this to
+ *  predict the next timestamp, so a clamp costs one wider time symbol per
+ *  record rather than any loss. */
+static inline uint16_t h5NominalSeconds(uint16_t intervalMin) {
+	const uint32_t s = (uint32_t)intervalMin * 60u;
+	return (s > 0xFFFFu) ? (uint16_t)0xFFFFu : (uint16_t)s;
+}
+
+uint8_t StorageManager::buildH5Schema(H5ChannelDesc* out, uint8_t cap) const {
+	uint8_t n = 0;
+	for (int slot = 0; slot < MAX_SENSORS && n < cap; slot++) {
+		const auto &sr = _currentConfig.sensors[slot];
+		if (!sr.active) continue;
+		for (uint8_t ch = 0; ch < MAX_SENSOR_CHANNELS && n < cap; ch++) {
+			if (!sensorHasChannel((SensorType)sr.sensorType, ch)) continue;
+			const ChannelInfo &ci = channelInfo(ch);
+
+			/* scaleExp is the base-10 exponent of the channel table's scale:
+			 * x100 -> -2, x10 -> -1. Written into the SCHEMA chunk so a
+			 * reader needs nothing but the file to get real units back. */
+			int8_t exp = 0;
+			for (uint32_t s = ci.scale; s >= 10; s /= 10) exp--;
+
+			uint8_t kind;
+			switch (ch) {
+				case CH_TEMP:  kind = H5_KIND_TEMP_C;    break;
+				case CH_HUM:   kind = H5_KIND_HUM_PCT;   break;
+				case CH_PRESS: kind = H5_KIND_PRESS_HPA; break;
+				default:
+					/* V5 values are int16. A channel wider than that — lux is
+					 * 24-bit at x100 — keeps its channel but drops to whole
+					 * units, which is the honest reading of a 16-bit slot. */
+					kind = H5_KIND_GENERIC;
+					if (ci.bitWidth > 16) exp = 0;
+					break;
+			}
+
+			/* slot*4 + channel: unique across the device, never recycled
+			 * while the sensor keeps its slot. Moving a sensor to another
+			 * GPIO is a reconfiguration, and §3.7-2 answers that with a new
+			 * SCHEMA chunk rather than a reused id. */
+			out[n].id       = (uint8_t)(slot * MAX_SENSOR_CHANNELS + ch);
+			out[n].kind     = kind;
+			out[n].scaleExp = exp;
+			out[n].flags    = 0;
+			n++;
+		}
+	}
+	return n;
+}
+
+void StorageManager::ensureH5Schema( ) {
+	H5ChannelDesc want[H5_MAX_CHANNELS];
+	const uint8_t n = buildH5Schema(want, H5_MAX_CHANNELS);
+	if (n == 0) { _h5Valid = false; return; }
+	if (_h5Valid && h5SchemaEquals(_h5Schema, _h5NCh, want, n)) return;  /* §14-7 */
+
+	if (_h5Valid) onSensorSetChangedV5( );      /* seals the old block first */
+	memcpy(_h5Schema, want, (size_t)n * sizeof(H5ChannelDesc));
+	_h5NCh = n;
+	_h5Valid = true;
+	_h5Enc.begin(_h5Schema, _h5NCh, h5NominalSeconds(getHistoryIntervalMin( )));
+}
+
+bool StorageManager::writeHistoryEntryV5(const int16_t* values, uint8_t nCh, uint32_t epoch) {
+	if (!_isMounted) return false;
+	if (epoch < HIST_EPOCH_MIN) return false;
+	{
+		const uint32_t nowEpoch = (uint32_t)time(nullptr);
+		if (nowEpoch > HIST_EPOCH_MIN && epoch > nowEpoch + 86400UL) return false;
+	}
+	if (!_h5Valid) ensureH5Schema( );
+	if (!_h5Valid || nCh != _h5NCh) return false;
+
+	/* A block never spans two day files: the file is chosen from the
+	 * block's own t0, so a block open across midnight would put today's
+	 * records in yesterday's file. Same trap A2 fixed for the V4 batch. */
+	const String day = getHistoryFileNameV5(epoch);
+	if (_h5Enc.count( ) && day != _h5CurrentDay) {
+		sealHourV5(true);                       /* §14-6 */
+	}
+	_h5CurrentDay = day;
+
+	if (_h5Enc.count( ) == 0) {
+		_h5Enc.reset(epoch, values);
+		return true;
+	}
+	if (_h5Enc.add(epoch, values)) return true;
+
+	/* Full, or the clock moved past what RAW can address from t0. Either
+	 * way this block is done; the sample opens the next one. */
+	const bool wasFull = _h5Enc.full( );
+	sealHourV5(!wasFull);
+	_h5Enc.reset(epoch, values);
+	return true;
+}
+
+bool StorageManager::h5WriteSchemaTo(File& f, uint8_t seq) {
+	uint8_t buf[H5_SCHEMA_CHUNK_SIZE(H5_MAX_CHANNELS)];
+	const size_t n = h5BuildSchemaChunk(buf, sizeof(buf), _h5Schema, _h5NCh, seq);
+	if (n == 0) return false;
+	return f.write(buf, n) == n;
+}
+
+bool StorageManager::h5FileHasSchema(const String& path, bool* outMatches) {
+	if (outMatches) *outMatches = false;
+	File f = LittleFS.open(path, "r");
+	if (!f) return false;
+	uint8_t buf[H5_SCHEMA_CHUNK_SIZE(H5_MAX_CHANNELS)];
+	const int got = f.read(buf, sizeof(buf));
+	f.close( );
+	if (got < (int)sizeof(H5ChunkPreamble)) return false;
+	const H5ChunkPreamble* p = (const H5ChunkPreamble*)buf;
+	if (p->magic != H5_MAGIC || p->version != H5_VERSION
+	    || p->type != H5_CHUNK_SCHEMA) return false;
+	const uint8_t n = p->a;
+	if (n == 0 || n > H5_MAX_CHANNELS || got < (int)H5_SCHEMA_CHUNK_SIZE(n)) return false;
+	uint16_t stored;
+	memcpy(&stored, buf + 8 + 4u * n, 2);
+	if (h5Crc16(buf, 8 + 4u * n) != stored) return false;
+	if (outMatches) {
+		*outMatches = h5SchemaEquals((const H5ChannelDesc*)(buf + 8), n, _h5Schema, _h5NCh);
+	}
+	return true;
+}
+
+/** Sink that appends to an open File, for HistoryV5Encoder::sealStream. */
+static bool h5FileSink(void* ctx, const uint8_t* data, size_t len) {
+	File* f = (File*)ctx;
+	return f->write(data, len) == len;
+}
+
+bool StorageManager::h5AppendChunk(const String& path, uint8_t extraFlags) {
+	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+	LogManager::WdtWindow _wdt(30000);
+	Core1FlashPause _c1(this);
+
+	bool exists = false, schemaOk = false, schemaMatches = false;
+	FLASH_OP({ exists = LittleFS.exists(path); });
+	if (exists) {
+		FLASH_OP({ schemaOk = h5FileHasSchema(path, &schemaMatches); });
+		if (!schemaOk) {
+			/* A file whose opening SCHEMA does not parse is not a V5 file.
+			 * Appending to it would bury good blocks behind garbage, and
+			 * every reader would stop at byte 0 anyway. */
+			LOG_CODE(LOG_WARN, "STO", STO_SCHEMA_MISMATCH, 0, "h5_no_schema");
+			FLASH_OP(LittleFS.remove(path));
+			exists = false;
+		}
+	}
+	if (!exists) {
+		FLASH_OP(enforceStorageLimit( ));
+		bool ok = false;
+		FLASH_OP({
+			File f = LittleFS.open(path, "w");
+			if (f) { ok = h5WriteSchemaTo(f, 0); f.close( ); }
+		});
+		if (!ok) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "h5_schema_write");
+			return false;
+		}
+		_h5SchemaSeq = 0;
+	} else if (!schemaMatches) {
+		/* §3.7-2: the set changed since this file opened. A second SCHEMA
+		 * in the same file keeps the day intact — the blocks before it stay
+		 * readable under the schema that was in force when they were made. */
+		bool ok = false;
+		FLASH_OP({
+			File f = LittleFS.open(path, "a");
+			if (f) { ok = h5WriteSchemaTo(f, (uint8_t)(_h5SchemaSeq + 1)); f.close( ); }
+		});
+		if (!ok) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "h5_schema_append");
+			return false;
+		}
+		_h5SchemaSeq++;
+		LOG_CODE(LOG_INFO, "STO", STO_SCHEMA_MISMATCH, (int)_h5NCh, "h5_new_schema");
+	}
+
+	size_t written = 0;
+	FLASH_OP({
+		File f = LittleFS.open(path, "a");
+		if (f) {
+			written = _h5Enc.sealStream(h5FileSink, &f, extraFlags);
+			f.close( );
+		}
+	});
+	if (written == 0) {
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "h5_seal");
+		return false;
+	}
+	_storageDirty = true;
+	return true;
+}
+
+bool StorageManager::sealHourV5(bool partial) {
+	if (!_isMounted || !_h5Valid || _h5Enc.count( ) == 0) return true;
+
+	const String path = _h5CurrentDay.length( ) ? _h5CurrentDay
+	                                            : getHistoryFileNameV5(_h5Enc.t0( ));
+	const uint8_t flags = partial ? H5_FLAG_PARTIAL : 0;
+	const uint8_t records = _h5Enc.count( );
+	const bool ok = h5AppendChunk(path, flags);
+	if (ok) {
+		LOG_CODE(LOG_INFO, "STO", STO_H5_SEALED, (int)records, "");
+		/* The .wip only ever holds the block still open. Once that block is
+		 * on flash, a stale snapshot would be replayed on the next boot.
+		 *
+		 * The pause is its own scope rather than the whole function:
+		 * h5AppendChunk already pauses for its own writes and releases on
+		 * return, so this remove — an erase burst like any other — would
+		 * otherwise run with Core 1 back in XIP. Keeping the scope tight
+		 * leaves the append's lockout duty cycle where T1.4 tuned it. */
+		{
+			Core1FlashPause _c1(this);
+			FLASH_OP({ if (LittleFS.exists(FILE_H5_WIP)) LittleFS.remove(FILE_H5_WIP); });
+		}
+		_h5Enc.begin(_h5Schema, _h5NCh, h5NominalSeconds(getHistoryIntervalMin( )));
+	}
+	return ok;
+}
+
+bool StorageManager::flushWipV5( ) {
+	if (!_isMounted || !_h5Valid || _h5Enc.count( ) == 0) return true;
 
 	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
 	LogManager::WdtWindow _wdt(30000);
 	Core1FlashPause _c1(this);
 
-	/* Chunk 1: enforce on rollover */
-	if (path != _v4CurrentLogFileName) {
-		FLASH_OP(enforceStorageLimit());
-		_v4CurrentLogFileName = path;
-		_histV4CodecValid = false;
-	}
-
-	/* Chunk 2: prepare V4 state (boot or rollover).
-	 * v1.5.3 FIX: the flag is only set after VERIFIED success. It used to
-	 * be set unconditionally, so a FLASH_OP mutex timeout during 2a left
-	 * a virgin/stale state marked "valid" and the append below created a
-	 * HEADERLESS file (open "a") that readers reject and the next scan
-	 * deleted — one 5 s contention could cost the whole day. */
-	if (!_histV4CodecValid) {
-		bool ok = false;
-		bool exists = false;
-		FLASH_OP({ exists = LittleFS.exists(path); });
-
-		if (exists) {
-			size_t torn = 0;
-			FLASH_OP({
-				File f = LittleFS.open(path, "r");
-				if (f) { ok = scanHistoryFileV4(f, _histV4State, &torn); f.close( ); }
-			});
-			/* Torn tail (power loss mid-append): cut it so the positional
-			 * anchor cadence stays intact for readers and for this append.
-			 * This case no longer nukes the file like the old scan-fail
-			 * path did — only a truly unreadable header does. */
-			if (ok && torn > 0) ok = repairHistoryTailV4(path, torn);
-			if (ok && _histV4State.measureCount == 0) ok = false;
-			if (!ok) FLASH_OP(LittleFS.remove(path));
+	/* Written whole every time, never appended: the snapshot has to be
+	 * either the current block or nothing. A half-updated .wip that still
+	 * passed CRC would replay a block that never existed. */
+	size_t written = 0;
+	FLASH_OP({
+		File f = LittleFS.open(FILE_H5_WIP, "w");
+		if (f) {
+			written = _h5Enc.sealStream(h5FileSink, &f, H5_FLAG_PARTIAL);
+			f.close( );
 		}
-		if (!ok) ok = createHistoryFileV4WithSchema(path);
-
-		_histV4CodecValid = ok;
-		if (!ok) {
-			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_prep_fail");
-			return false; /* retry next tick — never append headerless */
-		}
-	}
-
-	/* Chunk 3: encode + append */
-	uint8_t encBuf[HIST_V4_MAX_DELTA];
-	bool wasAnchor = false;
-	size_t encLen = histV4Encode(values, measureCount, _histV4State,
-	                             encBuf, sizeof(encBuf), epoch, &wasAnchor);
-	if (encLen == 0) {
-		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_encode_fail");
+	});
+	if (written == 0) {
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "h5_wip");
 		return false;
 	}
-
-	bool ok = false;
-	FLASH_OP({
-		File f = LittleFS.open(path, "a");
-		if (f) { f.write(encBuf, encLen); f.close(); ok = true; }
-	});
-
-	if (ok) { _storageDirty = true; return true; }
-
-	/* Fallback */
-	LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "v4_fallback");
-	_storageDirty = true;
-	FLASH_OP(enforceStorageLimit());
-	FLASH_OP({
-		File f = LittleFS.open(path, "a");
-		if (f) { f.write(encBuf, encLen); f.close(); ok = true; }
-	});
-	return ok;
-}
-
-/**
- * @brief Create (or recreate) a day file with a fresh schema header and
- * load the codec state by reading the header back FROM FLASH.
- * @return true only if the read-back header parses with measureCount > 0 —
- * the sole condition under which the caller may mark the codec valid.
- */
-bool StorageManager::createHistoryFileV4WithSchema(const String &path) {
-	/* A4 (defensiva): esta função programa/apaga flash via FLASH_OP e hoje
-	 * só está protegida porque os 2 chamadores atuais já pausaram o Core 1.
-	 * Um terceiro chamador sem pausa reabriria a classe do e035791
-	 * ("FLASH_OP sozinho != proteção"). Refcount aninha sem custo. */
-	Core1FlashPause _c1(this);
-
-	/* Static header buffer — with the ~1.3 KB of schema scratch below,
-	 * a stack hdrBuf would blow the ~4 KB core stack (v1.5.2 hard fault). */
-	static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
-	size_t hdrLen = 0;
-	{
-		HistV4SensorDef s[HIST_V4_MAX_SENSORS];
-		HistV4MeasureDef m[HIST_V4_MAX_MEASUREMENTS];
-		uint8_t pool[HIST_V4_MAX_STRPOOL];
-		uint8_t sc = 0, mc = 0, sp = 0;
-		if (!buildMeasureSchema(s, sc, m, mc, pool, sp)) {
-			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "schema_empty");
-			return false;
-		}
-		hdrLen = histV4WriteHeaderBuf(hdrBuf, sizeof(hdrBuf), s, sc, m, mc, pool, sp);
-	}
-	if (hdrLen == 0) return false;
-
-	bool wrote = false;
-	FLASH_OP({
-		File f = LittleFS.open(path, "w");
-		if (f) { wrote = (f.write(hdrBuf, hdrLen) == hdrLen); f.close( ); }
-	});
-	if (!wrote) return false;
-
-	/* Read back to populate codec state — trust flash, not RAM. */
-	histV4Reset(_histV4State);
-	bool parsed = false;
-	FLASH_OP({
-		File f = LittleFS.open(path, "r");
-		if (f) {
-			static uint8_t rdBuf[HIST_V4_MAX_HEADER];
-			int n = f.read(rdBuf, sizeof(rdBuf));
-			f.close( );
-			if (n >= (int)HIST_V4_HEADER_FIXED) {
-				parsed = histV4ReadHeaderBuf(rdBuf, (size_t)n, _histV4State) > 0;
-			}
-		}
-	});
-	return parsed && _histV4State.measureCount > 0;
-}
-
-/**
- * @brief Cut a torn tail: rewrite the file keeping only [0, goodPos).
- * @details Recovery for power loss mid-append. Copy → remove → rename is
- * used because File::truncate() is not uniformly available across FS
- * backends. On failure the original file is left untouched (a stale
- * ".fix" temp may remain and is overwritten on the next attempt).
- */
-bool StorageManager::repairHistoryTailV4(const String &path, size_t goodPos) {
-	if (goodPos < HIST_V4_HEADER_FIXED) return false; /* never cut into the header */
-
-	/* A4 (defensiva): copy → remove → rename são 3 rajadas de program/erase.
-	 * Mesma justificativa de createHistoryFileV4WithSchema. */
-	Core1FlashPause _c1(this);
-
-	String tmp = path + ".fix";
-	bool ok = false;
-	FLASH_OP({
-		File src = LittleFS.open(path, "r");
-		File dst = LittleFS.open(tmp, "w");
-		if (src && dst) {
-			static uint8_t cp[256];
-			size_t left = goodPos;
-			ok = true;
-			while (left > 0) {
-				size_t n = left > sizeof(cp) ? sizeof(cp) : left;
-				if ((size_t)src.read(cp, n) != n || dst.write(cp, n) != n) { ok = false; break; }
-				left -= n;
-			}
-		}
-		if (src) src.close( );
-		if (dst) dst.close( );
-		if (ok) {
-			LittleFS.remove(path);
-			ok = LittleFS.rename(tmp, path);
-		} else {
-			LittleFS.remove(tmp);
-		}
-	});
-	if (ok) LOG_CODE(LOG_INFO, "STO", SYS_OK, (int)goodPos, "v4_tail_repaired");
-	else    LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)goodPos, "v4_tail_repair_fail");
-	return ok;
-}
-
-bool StorageManager::scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt,
-                                       uint32_t *outLastEpoch) {
-	if (tornAt) *tornAt = 0;
-	if (outLastEpoch) *outLastEpoch = 0;
-	histV4Reset(state);
-	if (f.size() < HIST_V4_HEADER_FIXED) return false;
-	f.seek(0);
-
-	/* Read up to HIST_V4_MAX_HEADER bytes and parse the header ONCE. */
-	static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
-	size_t want = f.size();
-	if (want > HIST_V4_MAX_HEADER) want = HIST_V4_MAX_HEADER;
-	if (f.read(hdrBuf, want) < HIST_V4_HEADER_FIXED) return false;
-	size_t hdrLen = histV4ReadHeaderBuf(hdrBuf, want, state);
-	if (hdrLen == 0) return false;
-
-	/* v1.5.3 FIX (the scan bug): goodPos previously started at `want`
-	 * (up to 2 KB or the whole file) as if that were the header. Records
-	 * inside that window were never decoded — small files resumed with a
-	 * VIRGIN codec state — and files > 2 KB started decoding MISALIGNED
-	 * at byte 2048. The writer then restarted the anchor cadence and,
-	 * because anchor-ness is inferred positionally, every reader desynced
-	 * from that point on. Reposition to the REAL end of the header. */
-	f.seek(hdrLen);
-	size_t goodPos = hdrLen;
-
-	/* Scan all records to rebuild codec state */
-	static uint8_t buf[HIST_V4_READ_BUF];
-	size_t filled = 0;
-	static int64_t values[HIST_V4_MAX_MEASUREMENTS];
-	uint32_t epoch;
-
-	/* A1: o refill por limiar (`filled < anchorByteSize`) tratava um delta
-	 * maior que a âncora como CAUDA RASGADA — e aqui isso não truncava só
-	 * a leitura: o chamador usa `tornAt` para mandar repairHistoryTailV4
-	 * CORTAR o arquivo. Um único delta grande na borda do buffer apagava
-	 * o resto do dia no flash. Agora o refill acontece após a falha do
-	 * decode, que é quando se sabe que faltavam bytes. */
-	while (true) {
-		size_t consumed = histV4DecodeNextRefill(
-			buf, HIST_V4_READ_BUF, filled, state, values, &epoch,
-			[&f](uint8_t *dst, size_t maxBytes) -> size_t {
-				if (f.available() <= 0) return 0;
-				size_t toRead = maxBytes;
-				if (toRead > (size_t)f.available()) toRead = (size_t)f.available();
-				int r = f.read(dst, toRead);
-				return (r > 0) ? (size_t)r : 0;
-			});
-		if (consumed == 0) break; /* fim real, ou cauda truncada/corrompida */
-
-		goodPos += consumed;
-		if (outLastEpoch) *outLastEpoch = epoch;
-	}
-
-	/* Torn tail (power loss mid-append): report where the good bytes end
-	 * so the caller can repair. Readers would otherwise stop here and the
-	 * next append would break the positional anchor cadence for good. */
-	if (tornAt && goodPos < (size_t)f.size()) *tornAt = goodPos;
-	f.seek(goodPos);
+	LOG_CODE(LOG_INFO, "STO", STO_H5_WIP, (int)_h5Enc.count( ), "");
 	return true;
 }
+
+void StorageManager::recoverWipV5( ) {
+	if (!_isMounted) return;
+
+	/* The pause covers the whole function, not just the append. The .wip is
+	 * removed on EVERY path out of here — including the ones that never
+	 * decode it — and a remove is an erase burst, which the FLASH_OP warning
+	 * above says must never run with Core 1 loose in XIP. The pause used to
+	 * sit inside the decode branch, leaving that final remove unprotected;
+	 * the QSPI wedge that follows is a dead hang rather than a reboot,
+	 * because setup( ) runs before main.cpp arms the watchdog. */
+	LogManager::WdtWindow _wdt(30000);
+	Core1FlashPause _c1(this);
+
+	bool exists = false;
+	FLASH_OP({ exists = LittleFS.exists(FILE_H5_WIP); });
+	if (!exists) return;
+
+	/* The snapshot is exactly one sealed DATA chunk, so validating it is
+	 * the ordinary decoder path — no special case, no repair attempt
+	 * (§14-4: never try to fix a chunk). */
+	size_t len = 0;
+	bool read = false;
+	FLASH_OP({
+		File f = LittleFS.open(FILE_H5_WIP, "r");
+		if (f) {
+			const int got = f.read(_h5Chunk, sizeof(_h5Chunk));
+			if (got > 0) { len = (size_t)got; read = true; }
+			f.close( );
+		}
+	});
+
+	bool adopted = false;
+	if (read && len >= sizeof(H5DataHeader)) {
+		ensureH5Schema( );
+		const H5DataHeader* h = (const H5DataHeader*)_h5Chunk;
+		HistoryV5Decoder dec;
+		if (_h5Valid && dec.begin(_h5Chunk, len, _h5Schema, _h5NCh)) {
+			const String path = getHistoryFileNameV5(h->t0);
+			bool schemaOk = false, matches = false, fileExists = false;
+			FLASH_OP({ fileExists = LittleFS.exists(path); });
+			if (fileExists) FLASH_OP({ schemaOk = h5FileHasSchema(path, &matches); });
+			bool ready = fileExists && schemaOk && matches;
+			if (!ready) {
+				FLASH_OP({
+					File f = LittleFS.open(path, fileExists && schemaOk ? "a" : "w");
+					if (f) {
+						ready = h5WriteSchemaTo(f, fileExists && schemaOk
+						                        ? (uint8_t)(_h5SchemaSeq + 1) : 0);
+						f.close( );
+					}
+				});
+			}
+			if (ready) {
+				FLASH_OP({
+					File f = LittleFS.open(path, "a");
+					if (f) { adopted = (f.write(_h5Chunk, len) == len); f.close( ); }
+				});
+			}
+		}
+	}
+
+	FLASH_OP({ LittleFS.remove(FILE_H5_WIP); });
+	LOG_CODE(adopted ? LOG_INFO : LOG_WARN, "STO", STO_H5_WIP,
+	         adopted ? (int)((const H5DataHeader*)_h5Chunk)->pre.a : -1,
+	         adopted ? "wip_adopted" : "wip_discarded");
+	if (adopted) _storageDirty = true;
+}
+
+void StorageManager::onSensorSetChangedV5( ) {
+	/* §3.7-2. The seal is PARTIAL by definition: the block is closing for a
+	 * reason other than being full. h5AppendChunk writes the new SCHEMA
+	 * when it sees the file's opening one no longer matches. */
+	if (_h5Valid && _h5Enc.count( )) sealHourV5(true);
+	_h5Valid = false;
+	ensureH5Schema( );
+}
+
+int32_t StorageManager::shiftHistoryTimeV5(int32_t deltaS, const String& path,
+                                           uint32_t fromEpoch) {
+	if (!_isMounted || deltaS == 0) return 0;
+	const String src = path.length( ) ? path : getHistoryFileNameV5( );
+	const String tmp = src + ".tmp";
+
+	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+	LogManager::WdtWindow _wdt(30000);
+	Core1FlashPause _c1(this);
+
+	bool exists = false;
+	FLASH_OP({ exists = LittleFS.exists(src); });
+	if (!exists) return 0;
+
+	/* Only t0 moves: SCHEMA carries no time and a block's interior is
+	 * relative to its own t0 (§7.3). LittleFS has no dependable partial
+	 * overwrite, so the file is streamed to .tmp and renamed — the same
+	 * shape the config write uses. */
+	int32_t blocks = 0;
+	bool ok = false;
+	FLASH_OP({
+		File in = LittleFS.open(src, "r");
+		File out = LittleFS.open(tmp, "w");
+		if (in && out) {
+			ok = true;
+			for (;;) {
+				H5ChunkPreamble pre;
+				const int got = in.read((uint8_t*)&pre, sizeof(pre));
+				if (got <= 0) break;
+				if (got < (int)sizeof(pre) || pre.magic != H5_MAGIC
+				    || pre.version != H5_VERSION) { ok = false; break; }
+
+				if (pre.type == H5_CHUNK_SCHEMA) {
+					const size_t sz = H5_SCHEMA_CHUNK_SIZE(pre.a);
+					memcpy(_h5Chunk, &pre, sizeof(pre));
+					if (in.read(_h5Chunk + sizeof(pre), sz - sizeof(pre))
+					    != (int)(sz - sizeof(pre))) { ok = false; break; }
+					if (out.write(_h5Chunk, sz) != sz) { ok = false; break; }
+					continue;
+				}
+				if (pre.type != H5_CHUNK_DATA) { ok = false; break; }
+
+				const uint8_t n = pre.b;
+				if (n == 0 || n > H5_MAX_CHANNELS) { ok = false; break; }
+				const size_t hdrLen = H5_DATA_HEADER_SIZE(n);
+				memcpy(_h5Chunk, &pre, sizeof(pre));
+				if (in.read(_h5Chunk + sizeof(pre), hdrLen - sizeof(pre))
+				    != (int)(hdrLen - sizeof(pre))) { ok = false; break; }
+				H5DataHeader* h = (H5DataHeader*)_h5Chunk;
+				const size_t total = hdrLen + h->payloadLen;
+				if (total > sizeof(_h5Chunk)) { ok = false; break; }
+				if (h->payloadLen
+				    && in.read(_h5Chunk + hdrLen, h->payloadLen) != (int)h->payloadLen) {
+					ok = false; break;
+				}
+				if (h->t0 >= fromEpoch) {
+					h->t0 = (uint32_t)((int32_t)h->t0 + deltaS);
+					h->crc16 = 0;
+					uint16_t crc = h5Crc16(_h5Chunk, 14);
+					crc = h5Crc16(_h5Chunk + 16, total - 16, crc);
+					memcpy(_h5Chunk + 14, &crc, 2);
+					blocks++;
+				}
+				if (out.write(_h5Chunk, total) != total) { ok = false; break; }
+				feedWdt( );
+			}
+		}
+		if (in) in.close( );
+		if (out) out.close( );
+	});
+
+	if (!ok) {
+		FLASH_OP({ LittleFS.remove(tmp); });
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "h5_shift");
+		return -1;
+	}
+	bool renamed = false;
+	FLASH_OP({
+		LittleFS.remove(src);
+		renamed = LittleFS.rename(tmp, src);
+	});
+	if (!renamed) { FLASH_OP({ LittleFS.remove(tmp); }); return -1; }
+
+	/* The block still open in RAM has to move with the file it will join. */
+	_h5Enc.shiftTime(deltaS);
+	_storageDirty = true;
+	return blocks;
+}
+
+uint16_t StorageManager::purgeNonV5History( ) {
+	if (!_isMounted) return 0;
+	uint16_t removed = 0;
+
+	/* §11: nothing in /history that is not V5 survives the update. .sim4
+	 * files, half-written junk, and anything a user dropped in there — the
+	 * firmware carries no reader for any of it, so leaving them costs flash
+	 * the retention policy needs and makes the rotation scan lie. */
+	LogManager::WdtWindow _wdt(30000);
+	Core1FlashPause _c1(this);
+
+	for (;;) {
+		String victim = "";
+		FLASH_OP({
+			Dir dir = LittleFS.openDir(DIR_HISTORY);
+			while (dir.next( )) {
+				feedWdt( );
+				const String fn = dir.fileName( );
+				if (fn == FS_DIR_NOTE_NAME) continue;
+				if (fn.endsWith(HISTORY_FILE_EXT)) continue;
+				if (fn == ".wip") continue;     /* handled by recoverWipV5 */
+				victim = fn;
+				break;
+			}
+		});
+		if (victim.length( ) == 0) break;
+		FLASH_OP({ LittleFS.remove(String(DIR_HISTORY) + "/" + victim); });
+		removed++;
+		if (removed > 400) break;               /* refuse to spin forever */
+	}
+
+	if (removed) {
+		_storageDirty = true;
+		_h5PurgedLegacy = removed;
+		LOG_CODE(LOG_WARN, "STO", STO_LEGACY_PURGED, (int)removed, "");
+	}
+	return removed;
+}
+
+/* ── V5 sequential reader ─────────────────────────────────────────────────
+ * One reader, shared by the web graph, CSV export, telemetry and the TFT
+ * graph. Under V4 each of those carried its own ~2.8 KiB HistV4State and
+ * its own copy of the decode loop; four copies of a loop is how the refill
+ * bug (A1) came to exist in five places at once. */
+
+static int h5FileRead(void* ctx, uint32_t off, uint8_t* buf, size_t len) {
+	File* f = (File*)ctx;
+	/* The scanner walks forward, so the cursor is usually already where the
+	 * next read wants it. A LittleFS seek is not free — it can walk the
+	 * file's index — and skipping the redundant one is most of the cost of
+	 * a header walk over a month of blocks. */
+	if ((uint32_t)f->position( ) != off && !f->seek(off, SeekSet)) return -1;
+	return f->read(buf, len);
+}
+
+bool StorageManager::h5OpenDay(const String& path, bool verifyPayload) {
+	h5CloseDay( );
+	_h5RdFile = LittleFS.open(path, "r");
+	if (!_h5RdFile) return false;
+	_h5Scan.begin(h5FileRead, &_h5RdFile, (uint32_t)_h5RdFile.size( ), verifyPayload);
+	_h5RdSchema = nullptr;
+	_h5RdNCh = 0;
+	_h5RdBlockOpen = false;
+
+	/* Every file opens with a SCHEMA (§3); without one there is nothing to
+	 * interpret the DATA against and the file is rejected whole. */
+	uint8_t seq = 0;
+	if (!_h5Scan.nextSchema(nullptr, _h5RdNCh, seq)) { h5CloseDay( ); return false; }
+	_h5RdSchema = _h5Scan.schema( );
+	return true;
+}
+
+void StorageManager::h5CloseDay( ) {
+	if (_h5RdFile) _h5RdFile.close( );
+	_h5RdSchema = nullptr;
+	_h5RdNCh = 0;
+	_h5RdBlockOpen = false;
+}
+
+bool StorageManager::h5NextBlock(H5DataHeader& hdr, const int16_t*& mn, const int16_t*& mx) {
+	for (;;) {
+		const H5ScanChunk t = _h5Scan.next( );
+		if (t == H5_SCAN_END) return false;
+		if (t == H5_SCAN_SCHEMA) {
+			/* A schema change mid-file re-points the reader; records after
+			 * it mean something different from records before it (R5). */
+			_h5RdSchema = _h5Scan.schema( );
+			_h5RdNCh = _h5Scan.nCh( );
+			continue;
+		}
+		if (_h5Scan.header( ).pre.b != _h5RdNCh) {
+			LOG_CODE(LOG_WARN, "STO", STO_SCHEMA_MISMATCH,
+			         (int)_h5Scan.header( ).pre.b, "h5_data_nch");
+			continue;                                    /* §3.7-3 */
+		}
+		hdr = _h5Scan.header( );
+		mn = _h5Scan.chMin( );
+		mx = _h5Scan.chMax( );
+		return true;
+	}
+}
+
+bool StorageManager::h5NextRecord(uint32_t& epoch, int16_t* v) {
+	for (;;) {
+		if (_h5RdBlockOpen && _h5Dec.next(epoch, v)) return true;
+		_h5RdBlockOpen = false;
+
+		H5DataHeader hdr;
+		const int16_t *mn, *mx;
+		if (!h5NextBlock(hdr, mn, mx)) return false;
+
+		size_t len = 0;
+		if (!_h5Scan.readChunk(_h5Chunk, sizeof(_h5Chunk), len)) continue;
+		if (!_h5Dec.begin(_h5Chunk, len, _h5RdSchema, _h5RdNCh)) continue;
+		_h5RdBlockOpen = true;
+	}
+}
+
+bool StorageManager::h5SeekTo(uint32_t epoch) {
+	_h5RdBlockOpen = false;
+	if (!_h5Scan.seek(epoch)) return false;
+	_h5RdSchema = _h5Scan.schema( );
+	_h5RdNCh = _h5Scan.nCh( );
+	return true;
+}
+
