@@ -314,6 +314,20 @@ public:
  bool h5OpenDay(const String& path, bool verifyPayload = true);
  /** Next record of the open file, crossing block boundaries. */
  bool h5NextRecord(uint32_t& epoch, int16_t* v);
+ /**
+  * @brief Bring the next DATA block off flash into the reader's buffer.
+  * @details The only half of h5NextRecord( ) that touches the filesystem,
+  *          split out so a caller can hold the read lock once per BLOCK
+  *          instead of once per record (§10). Callers MUST hold it here.
+  * @return false at end of file.
+  */
+ bool h5LoadNextBlock( );
+ /**
+  * @brief Next record out of the block already in RAM.
+  * @details Pure memory: no flash, no lock. Returns false when the block
+  *          is exhausted — the caller then calls h5LoadNextBlock( ).
+  */
+ bool h5DecodeNext(uint32_t& epoch, int16_t* v);
  /** Next block header without decoding it — the envelope path (§10). */
  bool h5NextBlock(H5DataHeader& hdr, const int16_t*& mn, const int16_t*& mx);
  /** Position the reader on the block containing @p epoch. */
@@ -504,6 +518,8 @@ public:
  const H5ChannelDesc* _h5RdSchema = nullptr;
  uint8_t          _h5RdNCh = 0;
  bool             _h5RdBlockOpen = false;
+ /** Verify the payload CRC when a block is read (§3.4), set by h5OpenDay. */
+ bool             _h5RdVerify = true;
  uint8_t          _h5Chunk[H5_BLOCK_MAX_BYTES];
 
  /** Append @p len bytes of a sealed chunk to @p path, creating with SCHEMA. */

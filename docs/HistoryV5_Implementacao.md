@@ -295,6 +295,34 @@ Com 30 dias sintéticos em flash (410 KB, 30 arquivos, 720 blocos):
   não é a decodificação: é a leitura do chunk e o par de mutex por registro que
   o laço do handler tira e devolve — o mesmo padrão que o V4 tinha.
 
+  **Corrigido em 01/08 pela medição — a frase acima errava o termo dominante.**
+  O handler passou a reportar `blocks`, `loadMs` e `loopMs`, e aceita `emit=0`
+  (decodifica e mede sem formatar nem enviar). Com isso o custo se separa, em
+  janela de 24 h, 6 canais, 1 062 registros em 32 blocos:
+
+  | | emit=1 (normal) | emit=0 |
+  |---|---|---|
+  | laço de registros (`loopMs`) | **1 503 ms** | 28,8 ms |
+  | leitura + decode (`readMs`) | 44,0 ms | 21,2 ms |
+  | só flash (`loadMs`) | 13,8 ms → 0,43 ms/bloco | 6,6 ms → 0,21 ms/bloco |
+  | só decodificador | 30,2 ms → 27,9 µs/reg | 14,6 ms → **13,7 µs/reg** |
+
+  Três coisas que a tabela diz e a hipótese anterior não previa: **(1)** o mutex
+  por registro existia e custava, mas era ~20% do caminho de leitura (2,88 →
+  2,31 ms/bloco ao removê-lo), não o termo principal; **(2)** o chunk era mesmo
+  lido duas vezes — `verifyDataCrc()` percorria o payload em pedaços de 64 B e
+  `readChunk()` relia tudo —, e unificar as duas numa leitura só com CRC em RAM
+  **não moveu o número**, porque essas releituras caíam no cache do LittleFS;
+  **(3)** o mesmo `h5DecodeNext( )` custa **o dobro** quando roda entrelaçado
+  com a formatação JSON (27,9 contra 13,7 µs), que é a assinatura de recarga de
+  código por XIP — entre dois registros o handler roda `snprintf` de seis floats
+  e despeja o cache de instruções.
+
+  E o enquadramento que importa: **o decode não é o que faz o gráfico demorar**.
+  Dos 1 503 ms do laço, 44 ms são leitura e decodificação — 3%. O resto é
+  formatar e enviar. Otimizar o decodificador até zero encurtaria a resposta de
+  24 h em 3%; trocar para o envelope encurta de 1,64 s para 0,20 s.
+
 **O que mudou na prática, apesar disso**: o envelope resolve o mesmo gráfico de
 24 h em **5,8 ms contra 107,6 ms** do decode — 18× — e é o que torna 30 dias
 viável. E ele cumpre R6 de verdade: a decimação por amostragem descarta o que

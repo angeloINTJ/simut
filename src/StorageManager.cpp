@@ -2128,7 +2128,13 @@ bool StorageManager::h5OpenDay(const String& path, bool verifyPayload) {
 	h5CloseDay( );
 	_h5RdFile = LittleFS.open(path, "r");
 	if (!_h5RdFile) return false;
-	_h5Scan.begin(h5FileRead, &_h5RdFile, (uint32_t)_h5RdFile.size( ), verifyPayload);
+	/* The scanner never verifies here, whatever the caller asked for: a
+	 * payload CRC costs a walk of the whole chunk in 64 B reads, and the
+	 * decode path is about to read those same bytes anyway. The check moves
+	 * to h5LoadNextBlock( ), over the copy in RAM — §3.7-4 unchanged, since
+	 * a chunk that fails it is still never decoded. */
+	_h5RdVerify = verifyPayload;
+	_h5Scan.begin(h5FileRead, &_h5RdFile, (uint32_t)_h5RdFile.size( ), false);
 	_h5RdSchema = nullptr;
 	_h5RdNCh = 0;
 	_h5RdBlockOpen = false;
@@ -2171,19 +2177,30 @@ bool StorageManager::h5NextBlock(H5DataHeader& hdr, const int16_t*& mn, const in
 	}
 }
 
-bool StorageManager::h5NextRecord(uint32_t& epoch, int16_t* v) {
-	for (;;) {
-		if (_h5RdBlockOpen && _h5Dec.next(epoch, v)) return true;
-		_h5RdBlockOpen = false;
+bool StorageManager::h5DecodeNext(uint32_t& epoch, int16_t* v) {
+	if (_h5RdBlockOpen && _h5Dec.next(epoch, v)) return true;
+	_h5RdBlockOpen = false;
+	return false;
+}
 
+bool StorageManager::h5LoadNextBlock( ) {
+	for (;;) {
 		H5DataHeader hdr;
 		const int16_t *mn, *mx;
 		if (!h5NextBlock(hdr, mn, mx)) return false;
 
 		size_t len = 0;
-		if (!_h5Scan.readChunk(_h5Chunk, sizeof(_h5Chunk), len)) continue;
+		if (!_h5Scan.readChunk(_h5Chunk, sizeof(_h5Chunk), len, _h5RdVerify)) continue;
 		if (!_h5Dec.begin(_h5Chunk, len, _h5RdSchema, _h5RdNCh)) continue;
 		_h5RdBlockOpen = true;
+		return true;
+	}
+}
+
+bool StorageManager::h5NextRecord(uint32_t& epoch, int16_t* v) {
+	for (;;) {
+		if (h5DecodeNext(epoch, v)) return true;
+		if (!h5LoadNextBlock( )) return false;
 	}
 }
 

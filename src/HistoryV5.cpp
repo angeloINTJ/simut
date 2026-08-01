@@ -677,9 +677,23 @@ bool HistoryV5Scan::seek(uint32_t epoch) {
     }
 }
 
-bool HistoryV5Scan::readChunk(uint8_t* buf, size_t cap, size_t& outLen) {
+bool HistoryV5Scan::readChunk(uint8_t* buf, size_t cap, size_t& outLen, bool verify) {
     if (_chunkLen == 0 || cap < _chunkLen) return false;
     if (!read(_chunkOff, buf, _chunkLen)) return false;
+
+    /* §3.4 over the bytes already in RAM. A caller that decodes wants the
+     * chunk AND its CRC, and paying for both in one read is the difference
+     * between two flash accesses per block and a dozen: verifyDataCrc( )
+     * walks the payload in 64 B pieces off the filesystem, and readChunk( )
+     * then read the very same bytes a second time. Same guarantee (§3.7-4:
+     * a chunk that fails is never decoded), a fraction of the I/O. */
+    if (verify) {
+        uint16_t crc = h5Crc16(buf, 14);
+        crc = h5Crc16(buf + 16, _chunkLen - 16, crc);
+        uint16_t stored;
+        memcpy(&stored, buf + 14, sizeof(stored));
+        if (crc != stored) { _rejected++; return false; }
+    }
     outLen = _chunkLen;
     return true;
 }

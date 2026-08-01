@@ -43,10 +43,25 @@ Itens 1–2 reescritos conforme E4. Item 8 novo: o caminho de envelope **não va
 
 Conversor documentado contra o `.sim4` verdadeiro (`--convert-v4`; delta LSB-first vs V5 MSB-first; `HistV4MeasureDef` de 12 B com padding — armadilhas no §7 das notas de implementação); purga e preservação referem `.sim4`; matriz de rejeição perde o caso "SCHEMA divergente" e ganha `nCh` inválido e arquivo truncado.
 
+## E9 — §10, §13 · O que a medição desmentiu, e o instrumento que faltava
+
+Emenda de 01/08/2026, posterior à Rev 2.0 e escrita contra número medido, não contra leitura de código.
+
+**O que a pendência §13-1 dizia** — que o gargalo do decode era "a leitura do chunk e o par de mutex por registro" — **estava errado no termo dominante**. Os três achados, na bancada, janela de 24 h, 6 canais, 1 062 registros em 32 blocos:
+
+1. **O mutex por registro custava ~20%** do caminho de leitura (2,88 → 2,31 ms/bloco ao passar a trancar por bloco). Real, e o menor dos três.
+2. **O chunk era mesmo lido duas vezes** — `verifyDataCrc( )` percorria o payload em pedaços de 64 B e `readChunk( )` relia tudo. Unificar numa leitura só, com o CRC calculado sobre a cópia em RAM, **não moveu o número**: essas releituras caíam no cache do LittleFS. A mudança fica (menos I/O, mesma garantia §3.7-4), mas não é ganho de latência.
+3. **O termo dominante é o entrelaçamento.** O mesmo `h5DecodeNext( )` custa 13,7 µs isolado e 27,9 µs entre duas formatações JSON — o handler roda `snprintf` de seis floats por registro e despeja o cache de instruções do XIP. Metade do custo do decodificador não é decodificação.
+
+**E o enquadramento que nenhuma das revisões anteriores tinha:** o laço de registros de uma janela de 24 h custa **1 503 ms**, dos quais 44 ms são leitura e decodificação. Os orçamentos do §10 governam **3% da resposta**; os 97% restantes são formatar e enviar. Isso não invalida os orçamentos — invalida a expectativa de que cumpri-los mude o que o usuário sente. A alavanca continua sendo o envelope: mesma janela, 0,20 s contra 1,64 s.
+
+**Instrumento, agora permanente** (sem ele as duas sessões anteriores atribuíram custo por raciocínio, e erraram): a resposta do `/api/history_multi` traz `blocks` (blocos lidos de verdade — reboot e troca de schema deixam blocos PARTIAL, então `registros/60` erra exatamente quando importa), `loadMs` (a metade de flash de `readMs`) e `loopMs` (uma medição do laço inteiro contra as milhares que somam `readMs` — é o que prova que `readMs` mede o trabalho e não a si mesmo). E `?emit=0` decodifica e mede sem formatar nem enviar um único ponto.
+
 ---
 
 ## Fora do documento normativo — decisões operacionais desta revisão
 
+0. **Histórico congelado no tempo sob reboots frequentes** (achado em 01/08, ver §13-2 da Rev 2.0): nada gravado depois das 10:22 alcançou o arquivo do dia, e os blocos anexados a cada boot repetem o mesmo `t0` ≈ 10:14. Isso passa à frente do OTA na fila operacional, porque perde dado em operação normal e não só durante um update.
 1. **OTA é o bloqueio nº 1 e frente própria.** Enquanto um stage falho formatar o LittleFS, qualquer tentativa de OTA custa o histórico inteiro. Mitigação imediata até a causa do reset ser achada: guarda de confirmação explícita + oferta de export do histórico antes do `stage`.
 2. **Higiene da bancada, antes de qualquer outra coisa:** a senha de admin voltou ao padrão de fábrica no episódio de OTA — trocar agora.
 3. A "Ressalva honesta" do relatório está **aceita e absorvida** (E1): o ganho de tamanho sobre o `.sim4` é 1,41×; o argumento do V5 são as escritas, a leitura por envelope, a robustez e a autodescrição — todos medidos.
