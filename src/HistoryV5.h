@@ -399,8 +399,13 @@ public:
     uint32_t chunkSize( )   const { return _chunkLen; }
     /** Chunks skipped for a bad CRC or a broken frame since begin(). */
     uint16_t rejected( ) const { return _rejected; }
-    /** Read the current DATA chunk whole, for the decoder. */
-    bool readChunk(uint8_t* buf, size_t cap, size_t& outLen);
+    /**
+     * @brief Read the current DATA chunk whole, for the decoder.
+     * @param verify check §3.4 over the bytes just read. A reader that
+     *        decodes should pass true and begin( ) with verifyPayload
+     *        false: same guarantee, one flash access instead of a dozen.
+     */
+    bool readChunk(uint8_t* buf, size_t cap, size_t& outLen, bool verify = false);
 
 private:
     bool read(uint32_t off, uint8_t* buf, size_t len);

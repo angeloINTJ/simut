@@ -379,6 +379,10 @@ Layout do formato legado `.sim4`, necessário apenas ao conversor (nunca ao firm
 
 Premissa registrada (medida em bancada): **o acesso salteado no LittleFS custa ~0,28 ms por bloco**, estável e insensível ao número de chamadas de `seek` — é o piso físico do caminho de envelope. Os orçamentos abaixo derivam dele; não tente "otimizar" contra o filesystem.
 
+Segunda premissa, medida em 01/08 e igualmente normativa: **o custo de um registro depende do que roda entre dois registros.** O mesmo `h5DecodeNext( )` custa 13,7 µs isolado e 27,9 µs entrelaçado com a formatação JSON do handler — recarga de código por XIP. Um orçamento por registro só é verificável se disser em qual dos dois regimes vale; os desta tabela valem **no handler, com emissão ligada**, que é o regime real. Medir exige `?emit=0` e os campos `blocks`/`loadMs`/`loopMs` da resposta (E9).
+
+E o enquadramento, antes da tabela: numa janela de 24 h o laço de registros custa **1 503 ms**, dos quais 44 ms são leitura e decodificação. **Os orçamentos abaixo governam 3% da resposta.** O que governa os outros 97% é o caminho de emissão, e a alavanca contra ele não é otimizar decode — é o envelope (mesma janela, 0,20 s contra 1,64 s).
+
 | Operação (RP2040 @ 133 MHz, display + web ativos) | Limite |
 |---|---|
 | `writeHistoryEntry()` (caminho quente) | ≤ 50 µs, zero flash |
@@ -421,10 +425,11 @@ WP1–WP4 (referência host, núcleo, integração, finalização) foram **execu
 
 Pendências desta frente, em ordem:
 
-1. **Mutex por bloco no handler de decode** — retirar o par de aquisição/liberação por registro; é o que habilita o orçamento de 1,5 ms/bloco do §10.
-2. **A4** — 20 cortes de energia aleatórios (a tempestade de resets dirigida não substitui o critério).
-3. **A6** — soak de 72 h com Wi-Fi instável induzido.
-4. **A3 pleno** — salto de relógio induzido isoladamente, cobrindo também o caminho `add()`-recusa → `PARTIAL` (§5).
+1. ~~**Mutex por bloco no handler de decode**~~ — **feito em 01/08** (`h5LoadNextBlock( )` + `h5DecodeNext( )`; o handler tranca uma vez por bloco). Medido: 2,88 → 2,31 ms/bloco, −20% do caminho de leitura. O orçamento de 1,5 ms/bloco passa a ser cumprido em bloco parcial (1,36 ms com 33 registros e 6 canais) e **continua não sendo** em bloco cheio (~2,1 ms com 60 registros). Ver E9: a causa que este item nomeava não era a dominante.
+2. **Histórico congelado no tempo sob reboots frequentes** — achado em 01/08 na bancada, **é o mais grave desta fila**. Desde 10:22 nenhum registro novo alcançou o arquivo do dia, embora `HIST 510` grave a cada 60 s e o arquivo cresça: os blocos anexados a cada boot saem todos com `t0` ≈ 10:14, o mesmo carimbo repetido. O relógio de boot cai para um valor derivado do último registro gravado, o `.wip` é escrito antes do sinc de NTP, e a correção retroativa (§7.3, `APP 408` com ctx de 2 751 s, −1 206 s, 396 s…) não conserta o que já foi anexado. Sintoma composto com 15 reboots em 5 h. **Próximo passo:** ler `t0` do `.wip` e o `getEpoch( )` do boot lado a lado — antes e depois do `APP 408` — em vez de raciocinar sobre a ordem.
+3. **A4** — 20 cortes de energia aleatórios (a tempestade de resets dirigida não substitui o critério).
+4. **A6** — soak de 72 h com Wi-Fi instável induzido.
+5. **A3 pleno** — salto de relógio induzido isoladamente, cobrindo também o caminho `add()`-recusa → `PARTIAL` (§5). A pendência 2 é uma instância involuntária deste teste, e ele já falhou nela.
 
 OTA é **frente própria**, fora deste documento — nenhuma tarefa de OTA entra nesta fila.
 

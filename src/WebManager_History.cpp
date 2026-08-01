@@ -469,11 +469,28 @@ void WebManager::handleApiHistoryMulti( ) {
  int lineIdx = 0;
  uint32_t sinceBreath = 0; /* decoded records since the last respiro (both paths) */
  unsigned filesOpened = 0, recsDecoded = 0; /* diagnostico no metaEnd */
+ /* Blocks actually read off flash. The §10 budgets are per block, and a
+  * count derived from records/60 is wrong exactly when it matters: every
+  * reboot and every schema change leaves a PARTIAL block behind. */
+ unsigned blocksRead = 0;
  /* Device-side read time, send path excluded. The §10 budgets are about
   * what the firmware does with flash, and an end-to-end HTTP timing is
   * mostly Wi-Fi: a 30-day envelope ships ~280 KB, which at bench link
   * speed is seconds no matter how fast the scan was. */
  uint32_t readUs = 0;
+ /* The flash half of readUs: what the block loads cost. readUs - loadUs is
+  * what the decoder costs. Without the split, a budget miss in §10 cannot be
+  * attributed, and two sessions have now guessed at it from totals. */
+ uint32_t loadUs = 0;
+ /* One bracket around the whole record loop, against the 1 062 brackets that
+  * make up readUs: the difference is what micros( ) itself costs, and it is
+  * the only way to know that readUs is measuring the work and not itself. */
+ uint32_t loopUs = 0;
+ /* ?emit=0 decodes and measures without formatting or sending a single
+  * point. Same flash reads, same decodes, none of the JSON — which is how
+  * you find out whether a record costs what it costs because of the decoder
+  * or because of what runs between two decodes. */
+ const bool emitPoints = _server.arg("emit") != "0";
  unsigned rejected = 0;
  const char* pathUsed = "decode";
 
@@ -556,7 +573,9 @@ void WebManager::handleApiHistoryMulti( ) {
 	 bool got = false;
 	 { const uint32_t t0us = micros( );
 	   ReadGuard rg(_storageRef); got = _storageRef->h5NextBlock(hdr, mn, mx);
-	   readUs += micros( ) - t0us; }
+	   /* On this path every microsecond IS a block load — no payload is read
+	    * and nothing is decoded — so the two counters coincide. */
+	   const uint32_t d = micros( ) - t0us; readUs += d; loadUs += d; }
 	 if (!got) break;
 
 	 const time_t bt0 = (time_t)hdr.t0;
@@ -608,6 +627,7 @@ void WebManager::handleApiHistoryMulti( ) {
 	 firstPoint = false;
 	 }
 	 recsDecoded += hdr.pre.a;
+	 blocksRead++;
 	 if (++sinceBreath >= WEB_STREAM_BREATH_RECORDS) { sinceBreath = 0; feedWatchdog( ); }
 	 }
 	 rejected += _storageRef->h5ReaderRejected( );
@@ -616,13 +636,27 @@ void WebManager::handleApiHistoryMulti( ) {
 	 continue;
 	 }
 
+	 const uint32_t loop0us = micros( );
 	 while (fileHasMore && !aborted) {
 	 if (isClientGone( ) || isHandlerOvertime( )) { aborted = true; break; }
 	 {
+	 /* One lock per BLOCK, not per record (§10). Records come out of the
+	  * block already in RAM; the mutex is only owed to the flash read that
+	  * brings the next block in. The shape inherited from V4 took and
+	  * returned the mutex 60 times per block to no purpose. */
 	 const uint32_t t0us = micros( );
+	 bool got = _storageRef->h5DecodeNext(epoch, vals);
+	 if (!got) {
+	 const uint32_t l0us = micros( );
 	 ReadGuard rg(_storageRef);
-	 if (!_storageRef->h5NextRecord(epoch, vals)) { fileHasMore = false; break; }
+	 while (_storageRef->h5LoadNextBlock( )) {
+	 blocksRead++;
+	 if ((got = _storageRef->h5DecodeNext(epoch, vals))) break;
+	 }
+	 loadUs += micros( ) - l0us;
+	 }
 	 readUs += micros( ) - t0us;
+	 if (!got) { fileHasMore = false; break; }
 	 recsDecoded++;
 	 }
 
@@ -654,7 +688,7 @@ void WebManager::handleApiHistoryMulti( ) {
 	 }
 
 	 lineIdx++;
-	 if (lineIdx % decimation != 0) {
+	 if (lineIdx % decimation != 0 || !emitPoints) {
 	 /* Decimated-out record still costs a decode; breathe every N so a
 	  * high-decimation range never runs yield-free. */
 	 if (++sinceBreath >= WEB_STREAM_BREATH_RECORDS) { sinceBreath = 0; feedWatchdog( ); }
@@ -689,6 +723,7 @@ void WebManager::handleApiHistoryMulti( ) {
 	 chunkLen += pp;
 	 firstPoint = false;
 	 }
+	 loopUs += micros( ) - loop0us;
 	 rejected += _storageRef->h5ReaderRejected( );
 	 { ReadGuard rg(_storageRef); _storageRef->h5CloseDay( ); }
 	 streamBreath( ); /* respiro entre arquivos */
@@ -729,20 +764,22 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  snprintf(metaEnd, sizeof(metaEnd),
  ",\"minT\":%.2f,\"maxT\":%.2f,\"tsMinT\":%lu,\"tsMaxT\":%lu%s%s,"
- "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,"
- "\"path\":\"%s\",\"readMs\":%.1f,\"rejected\":%u}",
+ "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,\"blocks\":%u,"
+ "\"path\":\"%s\",\"readMs\":%.1f,\"loadMs\":%.1f,\"loopMs\":%.1f,\"rejected\":%u}",
  realMin[CH_TEMP], realMax[CH_TEMP],
  (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT, hPart, pPart,
- (unsigned)filesToRead.size( ), filesOpened, recsDecoded,
- pathUsed, (double)readUs / 1000.0, rejected);
+ (unsigned)filesToRead.size( ), filesOpened, recsDecoded, blocksRead,
+ pathUsed, (double)readUs / 1000.0, (double)loadUs / 1000.0,
+ (double)loopUs / 1000.0, rejected);
  safeSend(metaEnd);
  } else {
  char metaEnd[192];
  snprintf(metaEnd, sizeof(metaEnd),
- "],\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,"
- "\"path\":\"%s\",\"readMs\":%.1f,\"rejected\":%u}",
- (unsigned)filesToRead.size( ), filesOpened, recsDecoded,
- pathUsed, (double)readUs / 1000.0, rejected);
+ "],\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,\"blocks\":%u,"
+ "\"path\":\"%s\",\"readMs\":%.1f,\"loadMs\":%.1f,\"loopMs\":%.1f,\"rejected\":%u}",
+ (unsigned)filesToRead.size( ), filesOpened, recsDecoded, blocksRead,
+ pathUsed, (double)readUs / 1000.0, (double)loadUs / 1000.0,
+ (double)loopUs / 1000.0, rejected);
  safeSend(metaEnd);
  }
  safeSend("");
