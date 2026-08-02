@@ -570,6 +570,16 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("m_topic")) safeCopy(cfg.mqttTopic, getStr("m_topic").c_str( ), sizeof(cfg.mqttTopic));
 			if (has("m_cid")) safeCopy(cfg.mqttClientId, getStr("m_cid").c_str( ), sizeof(cfg.mqttClientId));
 			if (has("m_user")) safeCopy(cfg.mqttUser, getStr("m_user").c_str( ), sizeof(cfg.mqttUser));
+			/* The page has always had this field and the browser has always sent
+			 * it (every input with an id inside #sysForm stages into Pending.sys)
+			 * — nothing here read it, so the MQTT password went in the bin and
+			 * a broker that wants credentials could never be reached. Empty
+			 * means keep, which is what the field's placeholder promises and
+			 * what t_key already does with its "***" mask. */
+			if (has("m_pass")) {
+				String mp = getStr("m_pass");
+				if (mp.length( ) > 0) safeCopy(cfg.mqttPass, mp.c_str( ), sizeof(cfg.mqttPass));
+			}
 			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; }
 			if (has("m_retain")) cfg.mqttRetain = (getNum("m_retain") != "0");
 			if (has("m_ka")) { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 5, 600)) cfg.mqttKeepAlive = (uint16_t)v; }
