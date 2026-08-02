@@ -44,6 +44,13 @@
  * @param minDay   Data limite no formato "YYYYMMDD".
  * @return true se deve ser pulado.
  */
+/* Largest MQTT buffer the client will be asked for, and the fixed-header plus
+ * topic-length overhead a PUBLISH carries on top of its payload. Named because
+ * the ceiling is the difference between "this batch is published record by
+ * record" and "telemetry stops forever" — see attemptMqttPublish. */
+static constexpr size_t MQTT_BUFFER_CEILING = 8192;
+static constexpr size_t MQTT_PACKET_OVERHEAD = 16;
+
 static bool historyDayIsBefore(const String &fileName, const char *minDay) {
 	if (fileName.length( ) < 8) return false;
 	for (int i = 0; i < 8; i++) {
@@ -281,6 +288,12 @@ void TelemetryManager::update( ) {
  _dumpPayload(payload.c_str( ), payload.length( ), "MQTT");
  _dumpPayloadNext = false;
  }
+ /* buildPayload can drop records off the end under heap pressure. The
+  * cursor has to follow what the payload actually carries, or those
+  * records are skipped for good, silently. The batch is in ascending
+  * epoch order (files sorted, records in time order within a file), so
+  * the last surviving element is the high-water mark. */
+ if (!batch.empty( )) newCursor = batch.back( ).epoch;
  success = attemptMqttPublish(payload, batch, newCursor);
  /* batch and payload go out of scope here and free memory */
  } else {
@@ -294,6 +307,10 @@ void TelemetryManager::update( ) {
  _dumpPayload(payload.c_str( ), payload.length( ), "HTTP");
  _dumpPayloadNext = false;
  }
+
+ /* Same reason as the MQTT branch above: read the high-water mark off the
+  * batch buildPayload left behind, before it is thrown away. */
+ if (!batch.empty( )) newCursor = batch.back( ).epoch;
 
  /* Free batch to reduce RAM peak before TLS handshake */
  batch.clear( );
@@ -634,8 +651,9 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  watchdog_update( );
 
  if (code > 0) {
- LOG_CODE(LOG_INFO, "TEL", SYS_TEL_SENT, code, "HTTP OK: " + String(payload.length( )) + " bytes, code " + String(code));
  if (code >= 200 && code < 300) {
+ LOG_CODE(LOG_INFO, "TEL", SYS_TEL_SENT, code,
+ "HTTP OK: " + String(payload.length( )) + " bytes, code " + String(code));
  _storageRef->setLastSentTimestamp(newCursor);
  success = true;
  auto& m = MetricsManager::instance( ).data( );
@@ -646,11 +664,43 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  _smoothedLatencyMs = (_smoothedLatencyMs == 0)
  ? postLatency
  : (_smoothedLatencyMs * 7 + (uint32_t)postLatency * 3) / 10;
+ } else {
+ /* A reply that arrived is not a delivery. This branch used to fall
+  * through the same INFO line as success — a server answering 500 to
+  * every batch logged "HTTP OK ... code 500" and left both telSent and
+  * telFailed untouched, so the dashboard read "Falhas: 0" while nothing
+  * was getting through. The cursor was already held back correctly; what
+  * was missing was saying so. */
+ LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, code,
+ "HTTP rejected: " + String(payload.length( )) + " bytes, code " + String(code));
+ MetricsManager::instance( ).data( ).telFailed++;
  }
  } else {
  LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, code, String(TRL("HTTP error: ")) + http.errorToString(code));
  MetricsManager::instance( ).data( ).telFailed++;
  }
+
+ /* Close the socket before end( ).
+  *
+  * Everything this cycle needs is the status code, already read. Leaving the
+  * connection open hands it to HTTPClient::disconnect( ), which drains
+  * whatever the peer is still sending so the socket stays reusable — and
+  * against a peer that never stops sending, that path still reaches the
+  * 8.388 s watchdog even with the framework deadline in place.
+  *
+  * Measured, A/B, same servers and same windows:
+  *
+  *   with this stop( )     huge1mb 0 reboots, drip 0 reboots
+  *   without this stop( )  huge1mb 0 reboots, drip 3 reboots + [FTL]
+  *
+  * It was removed once, on the theory that closing without reading was what
+  * exhausted the lwIP pbuf pool. That theory was wrong: the pool is exhausted
+  * in BOTH builds (D14 — a separate defect the watchdog reboots used to hide),
+  * and removing the stop( ) only brought the drip kill back. Put it back.
+  */
+ if (cfg.telEncryption) { if (_httpSecurePtr) _httpSecurePtr->stop( ); }
+ else client.stop( );
+
  http.end( );
  }
 
@@ -773,7 +823,18 @@ bool TelemetryManager::mqttEnsureConnected( ) {
 bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHistoryRecord>& batch, uint32_t newCursor) {
  if (!_mqttInitialized) return false;
 
- if (!mqttEnsureConnected( )) return false;
+ /* Metrics are recorded here for the same reason attemptHttpUpload records
+  * them: without it this whole transport is invisible. Measured on the bench
+  * — 386 publishes carrying 384 records, and telSent / telFailed / telBytes /
+  * telLastLatencyMs all still read zero, so the dashboard and `show metrics`
+  * said nothing had ever been sent. The functional half of that is worse than
+  * the cosmetic one: update( ) derives its effective interval from
+  * _smoothedLatencyMs, which only the HTTP path was feeding, so the adaptive
+  * pacing never engaged on MQTT at all. */
+ const uint32_t pubStart = millis( );
+ auto& m = MetricsManager::instance( ).data( );
+
+ if (!mqttEnsureConnected( )) { m.telFailed++; return false; }
 
  SystemConfig &cfg = _storageRef->getConfig( );
  String topic = String(cfg.mqttTopic);
@@ -782,6 +843,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
 
 
  bool success = false;
+ uint32_t sentBytes = 0;
 
  if (batch.size( ) <= 5) {
  /* Small batch: publish each line individually */
@@ -806,7 +868,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  cfg.mqttRetain
  );
 
- if (ok) published++;
+ if (ok) { published++; sentBytes += (uint32_t)linePayload.length( ); }
  else break;
 
  _mqttClient.loop( );
@@ -829,9 +891,57 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  /* Large batch: uses payload pre-built by caller */
  feedWdt( );
 
+ /* PubSubClient refuses any packet that does not fit its buffer, and the
+  * buffer cannot be grown past MQTT_BUFFER_CEILING. Above that the publish
+  * fails DETERMINISTICALLY — so the retry fails identically, the backoff
+  * walks up to its 300 s ceiling, and telemetry stops for good without a
+  * reboot or a message that explains it.
+  *
+  * It is reachable straight from the config page. Measured on the bench with
+  * a long custom line template (235 B/record): at batch 5 the broker got 296
+  * messages in 70 s, at batch 50 it got 11 — and not one message larger than
+  * 235 B ever arrived, because the ~11.75 KB combined payload was never sent.
+  * The eleven that did were small residual batches falling through the
+  * per-record path below.
+  *
+  * So when the combined payload will not fit, publish record by record
+  * instead of failing. That path already exists, is already used for small
+  * batches, and was measured working at exactly this record size. The cursor
+  * follows what was actually published, so a partial run costs nothing. */
+ const size_t needed = payload.length( ) + topic.length( ) + MQTT_PACKET_OVERHEAD;
+ if (needed > MQTT_BUFFER_CEILING) {
+ LOG_CODE(LOG_WARN, "TEL", SYS_TEL_QUEUE, (int)batch.size( ),
+ "MQTT payload " + String(payload.length( )) +
+ " B over buffer ceiling — publishing per record");
+ int published = 0;
+ for (size_t i = 0; i < batch.size( ); i++) {
+ feedWdt( );
+ String linePayload;
+ if (cfg.telMode == TEL_MODE_JSON) {
+ linePayload = formatLineJson(batch[i], cfg);
+ } else if (cfg.telMode == TEL_MODE_CSV) {
+ char csvBuf[256];
+ batch[i].toCsvLine(csvBuf, sizeof(csvBuf));
+ linePayload = String(csvBuf);
+ } else {
+ linePayload = formatLineCustom(batch[i], cfg);
+ }
+ if (!_mqttClient.publish(topic.c_str( ), linePayload.c_str( ), cfg.mqttRetain)) break;
+ published++;
+ sentBytes += (uint32_t)linePayload.length( );
+ _mqttClient.loop( );
+ }
+ if (published > 0) {
+ LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_PUB, published,
+ "MQTT split publish " + String(published) + "/" + String(batch.size( )));
+ _storageRef->setLastSentTimestamp(batch[published - 1].epoch);
+ success = (published == (int)batch.size( ));
+ }
+ } else {
+
  if (payload.length( ) > _mqttClient.getBufferSize( )) {
- uint16_t needed = min((size_t)8192, payload.length( ) + 64);
- _mqttClient.setBufferSize(needed);
+ _mqttClient.setBufferSize((uint16_t)min((size_t)MQTT_BUFFER_CEILING,
+                                         payload.length( ) + 64));
  }
 
  bool ok;
@@ -847,11 +957,28 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_PUB, batch.size( ),
  "MQTT batch OK: " + String(batch.size( )) + " items (" + String(payload.length( )) + " bytes)");
  _storageRef->setLastSentTimestamp(newCursor);
+ sentBytes = (uint32_t)payload.length( );
  success = true;
  } else {
  LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, _mqttClient.state( ),
  "MQTT publish failed (payload " + String(payload.length( )) + " bytes)");
  }
+ }
+ }
+
+ /* Same bookkeeping attemptHttpUpload does, so the two transports report
+  * through the same counters and the dashboard means the same thing whichever
+  * one is configured. */
+ const uint32_t pubLatency = millis( ) - pubStart;
+ if (success) {
+ m.telSent++;
+ m.telTotalBytes += sentBytes;
+ m.telLastLatencyMs = pubLatency;
+ _smoothedLatencyMs = (_smoothedLatencyMs == 0)
+ ? pubLatency
+ : (_smoothedLatencyMs * 7 + pubLatency * 3) / 10;
+ } else {
+ m.telFailed++;
  }
 
  return success;
@@ -941,6 +1068,9 @@ bool TelemetryManager::forceSync( ) {
  _dumpPayloadNext = false;
  }
 
+ /* Same as update( ): the cursor follows the payload, not the collection. */
+ if (!batch.empty( )) newCursor = batch.back( ).epoch;
+
  bool ok;
  if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
  ok = attemptMqttPublish(payload, batch, newCursor);
@@ -974,9 +1104,13 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  LogManager::TraceScope _tB(0, MOD_TEL_BUILD);
  SystemConfig &cfg = _storageRef->getConfig( );
 
- /* Estimate size: JSON ~300 bytes/record with 12 sensors */
+ /* Estimate size: JSON ~300 bytes/record with 12 sensors.
+  * CSV needs a bigger fixed part: its header names all 34 columns of the
+  * row layout (~440 B), which does not fit in the 256 B slack the other
+  * modes use and would force the String to reallocate on every batch. */
  size_t perLine = (cfg.telMode == TEL_MODE_CSV) ? 120 : 300;
- size_t estimatedSize = batch.size( ) * perLine + 256;
+ size_t fixedPart = (cfg.telMode == TEL_MODE_CSV) ? 640 : 256;
+ size_t estimatedSize = batch.size( ) * perLine + fixedPart;
 
  /* Check heap and reduce batch if needed.
  * Differentiated reserve by TLS — 12K with encryption,
@@ -990,7 +1124,7 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  batch.resize(safeCount);
  batch.shrink_to_fit( ); /* release effective capacity */
  }
- estimatedSize = batch.size( ) * perLine + 256;
+ estimatedSize = batch.size( ) * perLine + fixedPart;
  }
 
  String s;
@@ -1012,16 +1146,29 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  }
  s.concat(']');
  } else if (cfg.telMode == TEL_MODE_CSV) {
- /* Header matches toCsvLine, which dropped the ambT;ambH pair with the
-  * ambient slot. */
+ /* The header has to name every column toCsvLine emits, and toCsvLine emits
+  * the fixed layout `epoch;s0..s15;h0..h15;press` — all 16 slots, active or
+  * not, then all 16 humidities, then pressure. Naming only the active slots
+  * produced a 7-column header over 34-column rows, so anything reading by
+  * header index read the wrong values. The rows are the persisted, upload-
+  * compatible format and do not change; the header was what lied. */
  s = "timestamp";
  char hdrBuf[32];
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (cfg.sensors[i].active) {
+ if (cfg.sensors[i].active && cfg.sensors[i].hwId[0])
  snprintf(hdrBuf, sizeof(hdrBuf), ";s%d_%s", i, cfg.sensors[i].hwId);
+ else
+ snprintf(hdrBuf, sizeof(hdrBuf), ";s%d", i);
  s.concat(hdrBuf);
  }
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (cfg.sensors[i].active && cfg.sensors[i].hwId[0])
+ snprintf(hdrBuf, sizeof(hdrBuf), ";h%d_%s", i, cfg.sensors[i].hwId);
+ else
+ snprintf(hdrBuf, sizeof(hdrBuf), ";h%d", i);
+ s.concat(hdrBuf);
  }
+ s.concat(";press");
  s.concat('\n');
  char csvBuf[256];
  for (size_t i = 0; i < batch.size( ); i++) {
@@ -1425,6 +1572,14 @@ void TelemetryManager::refreshPendingCount( ) {
 
  uint32_t lastCursor = _storageRef->getLastSentTimestamp( );
 
+ /* The same 30-day floor collectBatch applies when the cursor is zero.
+  * Without it, the count right after `tel reset` includes every record on
+  * flash — including the ones the sender will never reach — so the dashboard
+  * shows a backlog that can only ever shrink to a non-zero number. */
+ if (lastCursor == 0) {
+ uint32_t lastRecorded = _storageRef->getLastRecordedTimestamp( );
+ if (lastRecorded > 86400UL * 30) lastCursor = lastRecorded - 86400UL * 30;
+ }
 
  std::vector<String> files;
  {
@@ -1453,7 +1608,11 @@ void TelemetryManager::refreshPendingCount( ) {
           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
  }
 
- uint16_t total = 0;
+ /* 32-bit accumulator, saturated on the way out. It used to be uint16_t with
+  * an explicit cast on every add, so an archive holding more than 65535
+  * pending records wrapped to a plausible-looking wrong number on the
+  * dashboard — this bench holds ~119k. */
+ uint32_t total = 0;
 
 
  /* Same reason as collectBatch — was reading 28 B raw
@@ -1493,7 +1652,7 @@ void TelemetryManager::refreshPendingCount( ) {
 	  if (!got) break;
 
 	  if (hdr.t0 > lastCursor) {
-	   total = (uint16_t)(total + hdr.pre.a);
+	   total += hdr.pre.a;
 	  } else {
 	   straddleT0 = hdr.t0;
 	   straddleCount = hdr.pre.a;
@@ -1522,7 +1681,7 @@ void TelemetryManager::refreshPendingCount( ) {
  feedWdt( );
  }
 
- _pendingEstimate = total;
+ _pendingEstimate = (total > 0xFFFFu) ? (uint16_t)0xFFFFu : (uint16_t)total;
  _pendingDirty = false;
 }
 

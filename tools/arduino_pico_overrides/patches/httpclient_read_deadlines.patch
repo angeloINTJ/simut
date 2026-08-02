@@ -1,0 +1,116 @@
+--- a/libraries/HTTPClient/src/HTTPClient.cpp
++++ b/libraries/HTTPClient/src/HTTPClient.cpp
+@@ -27,6 +27,7 @@
+ #include "HTTPClient.h"
+ #include <WiFi.h>
+ #include <time.h>
++#include <hardware/watchdog.h>  /* SIMUT override: feed inside bounded read loops */
+ #include "base64.h"
+ extern "C" char *strptime(const char *__restrict, const char *__restrict, struct tm *__restrict);  // Not exposed by headers?
+ 
+@@ -348,10 +349,33 @@
+ */
+ void HTTPClient::disconnect(bool preserveClient) {
+     if (connected()) {
++        /* SIMUT override — bound the drain.
++         *
++         * Upstream reads until available() reports empty, one byte at a time,
++         * with no deadline. Against a peer that is still streaming, the socket
++         * refills as fast as it drains, so this loop runs for the whole body:
++         * measured on the bench, a 1 MB response rebooted the RP2040 four
++         * times in two minutes via the 8.388 s hardware watchdog, with the
++         * autopsy pointing at C0=[TEL_SEND] every time. The response had
++         * already been parsed — this loop exists only to leave the socket
++         * reusable, which is never worth the device.
++         *
++         * Read in blocks, give up after _tcpTimeout, and feed the watchdog:
++         * the feed is safe because the deadline makes the loop provably
++         * terminate. Whatever is left unread, stop() below discards.
++         */
+         if (_client()->available() > 0) {
+             DEBUG_HTTPCLIENT("[HTTP-Client][end] still data in buffer (%d), clean up.\n", _client()->available());
++            const unsigned long drainStart = millis();
++            uint8_t sink[64];
+             while (_client()->available() > 0) {
+-                _client()->read();
++                if ((millis() - drainStart) > _tcpTimeout) {
++                    DEBUG_HTTPCLIENT("[HTTP-Client][end] drain deadline hit, dropping socket\n");
++                    _canReuse = false;
++                    break;
++                }
++                watchdog_update();
++                _client()->read(sink, sizeof(sink));
+             }
+         }
+ 
+@@ -1085,11 +1109,69 @@
+     unsigned long lastDataTime = millis();
+     String date;
+ 
++    /* SIMUT override — bound the header read as a whole.
++     *
++     * _tcpTimeout below is an INACTIVITY timeout: lastDataTime is reset on
++     * every line received, so a peer that trickles the response never trips
++     * it and this loop has no upper bound at all. Measured on the bench, a
++     * server answering one byte every 400 ms held Core 0 here past the
++     * RP2040's 8.388 s watchdog ceiling and rebooted the device.
++     *
++     * One budget across the whole response, plus a watchdog feed that is safe
++     * precisely because the budget makes the loop terminate. Twice the
++     * inactivity timeout leaves room for a legitimately slow-but-progressing
++     * server while still cutting off a trickle well inside a bounded time.
++     */
++    const unsigned long headerStart = millis();
++    const unsigned long headerBudget = _tcpTimeout * 2;
++
+     while (connected()) {
++        if ((millis() - headerStart) > headerBudget) {
++            DEBUG_HTTPCLIENT("[HTTP-Client][handleHeaderResponse] overall timeout\n");
++            _canReuse = false;
++            return HTTPC_ERROR_READ_TIMEOUT;
++        }
++        watchdog_update();
+         size_t len = _client()->available();
+         if (len > 0) {
+             int headerSeparator = -1;
+-            String headerLine = _client()->readStringUntil('\n');
++            /* SIMUT override — read the line ourselves.
++             *
++             * readStringUntil( ) is ONE call that blocks character by character
++             * with nothing feeding the watchdog inside it, so the budget check
++             * above — which only runs between lines — cannot save a line that
++             * is slow on its own. Measured: a peer trickling one byte every
++             * 400 ms puts `Content-Type: application/json\r\n` (32 bytes) at
++             * 12.8 s inside a single readStringUntil, well past the RP2040's
++             * 8.388 s ceiling, and the device reboots mid-header.
++             *
++             * Same contract as readStringUntil('\n'): accumulate up to the
++             * newline, do not include it, give back what we have on timeout.
++             * The difference is that the overall budget and the watchdog feed
++             * now apply between characters too. */
++            String headerLine;
++            {
++                unsigned long charWait = millis();
++                while (true) {
++                    if ((millis() - headerStart) > headerBudget) {
++                        break;
++                    }
++                    watchdog_update();
++                    int c = _client()->read();
++                    if (c < 0) {
++                        if ((millis() - charWait) > _tcpTimeout) {
++                            break;
++                        }
++                        delay(1);
++                        continue;
++                    }
++                    charWait = millis();
++                    if (c == '\n') {
++                        break;
++                    }
++                    headerLine += (char)c;
++                }
++            }
+ 
+             lastDataTime = millis();
+ 

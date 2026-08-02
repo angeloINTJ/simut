@@ -48,6 +48,16 @@ constexpr uint32_t NET_TLS_HANDSHAKE_MS = 15000;
  */
 constexpr int32_t RSSI_MIN_THRESHOLD = -78;
 
+/* Plausible range for a received-signal RSSI, in dBm. Anything outside it means
+ * the cyw43 ioctl is not returning real data — measured on the bench as +4 dBm
+ * while the device was completely off the network (host ARP INCOMPLETE, 100%
+ * ICMP loss) and WiFi.status( ) still reported WL_CONNECTED. Used by
+ * NetworkManager as a second liveness signal, because a non-negative reading
+ * otherwise sails past RSSI_MIN_THRESHOLD and confirms health instead of
+ * denying it. */
+constexpr int32_t RSSI_IMPLAUSIBLE_HIGH = 0;
+constexpr int32_t RSSI_IMPLAUSIBLE_LOW  = -120;
+
 #ifdef SIMUT_MDNS
 /** Minimum interval between MDNS.update() calls (ms). */
 constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 2000;
