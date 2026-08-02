@@ -277,9 +277,46 @@ void NetworkManager::update( ) {
  } else {
  /* Sample RSSI once per minute when connected. */
  static uint32_t _rssiSampleAt = 0;
+ static uint8_t _rssiImplausible = 0;
  if (timeSince(_rssiSampleAt, 60000)) {
  _rssiSampleAt = millis( );
- MetricsManager::instance( ).observeRssi(WiFi.RSSI( ));
+ const int32_t rssi = WiFi.RSSI( );
+ MetricsManager::instance( ).observeRssi(rssi);
+
+ /* Second liveness signal, because WiFi.status( ) above is not one.
+  *
+  * Measured 2026-08-02: after a burst of large HTTP responses the device
+  * dropped off the network completely — host ARP went INCOMPLETE and ICMP
+  * got 100% loss — while WiFi.status( ) still said WL_CONNECTED. Nothing
+  * demoted the state, so nothing ever reconnected and the device stayed
+  * dark until a reboot, still reporting its IP.
+  *
+  * The tell was in the reading right here: RSSI came back as +4 dBm.
+  * Received signal strength is negative by definition, so a non-negative
+  * value means the cyw43 ioctl is no longer returning real data — and it
+  * is worse than useless, because isNetworkHealthy( ) compares it against
+  * RSSI_MIN_THRESHOLD and an impossible +4 sails past, actively
+  * confirming health.
+  *
+  * Two consecutive bad samples before acting: one could be a glitchy
+  * read, and a needless reconnect costs more than a minute of waiting.
+  * Detection lands within ~2 minutes instead of never. Sampling stays at
+  * once a minute on purpose — RSSI is a live ioctl and hammering it is
+  * its own hazard. */
+ if (rssi >= RSSI_IMPLAUSIBLE_HIGH || rssi < RSSI_IMPLAUSIBLE_LOW) {
+ if (++_rssiImplausible >= 2) {
+ LOG_CODE(LOG_WARN, "NET", SYS_WIFI_DISCONNECT, (int)rssi,
+ TRL("Implausible RSSI twice — link presumed dead, reconnecting"));
+ _rssiImplausible = 0;
+ WiFi.disconnect(false);
+ _reconnectDelay = 5000;
+ resetNtpBackoff( );
+ _state = NET_DISCONNECT_PENDING;
+ _stateTimer = millis( );
+ }
+ } else {
+ _rssiImplausible = 0;
+ }
  }
  }
  break;
@@ -437,7 +474,15 @@ void NetworkManager::getMacAddress(char* buf, size_t len) {
 String NetworkManager::getSubnetMask( ) { return WiFi.subnetMask( ).toString( ); }
 String NetworkManager::getGateway( ) { return WiFi.gatewayIP( ).toString( ); }
 String NetworkManager::getDns( ) { return WiFi.dnsIP( ).toString( ); }
-int32_t NetworkManager::getRssi( ) { return (!isConnected( )) ? -100 : WiFi.RSSI( ); }
+int32_t NetworkManager::getRssi( ) {
+ if (!isConnected( )) return -100;
+ /* An implausible reading means the radio is not answering with real data, so
+  * report it as a dead link rather than letting a positive dBm pass the
+  * RSSI_MIN_THRESHOLD gate in isNetworkHealthy( ). See the NET_READY case. */
+ const int32_t rssi = WiFi.RSSI( );
+ if (rssi >= RSSI_IMPLAUSIBLE_HIGH || rssi < RSSI_IMPLAUSIBLE_LOW) return -100;
+ return rssi;
+}
 
 String NetworkManager::getFormattedTime( ) {
  time_t now = getEpoch( );

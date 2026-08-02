@@ -1,0 +1,42 @@
+--- a/libraries/WiFi/src/include/ClientContext.h
++++ b/libraries/WiFi/src/include/ClientContext.h
+@@ -66,6 +66,9 @@
+     err_t abort() {
+         if (_pcb) {
+             DEBUGV(":abort\r\n");
++            /* SIMUT override: release buffered RX before abandoning the pcb.
++             * See the note above close( ) — same leak, same reason. */
++            discard_received();
+             tcp_arg(_pcb, nullptr);
+             tcp_sent(_pcb, nullptr);
+             tcp_recv(_pcb, nullptr);
+@@ -81,6 +84,29 @@
+         err_t err = ERR_OK;
+         if (_pcb) {
+             DEBUGV(":close\r\n");
++            /* SIMUT override: release buffered RX before abandoning the pcb.
++             *
++             * close( ) detaches every callback and drops _pcb, but left _rx_buf
++             * alone. Once the pcb is gone that data can never be delivered to
++             * anyone, so the pool pbufs holding it are simply leaked — and
++             * WiFiClient::stop( ) calls close( ) without dropping the
++             * ClientContext, so the refcount never reaches the unref( ) path
++             * that would have discarded them.
++             *
++             * Measured on the bench against a server answering with a 1 MB
++             * body: after ~19 connections `show net status` reported
++             * "PBUF pool: 12 em uso / pico 12 / 12 total, 1158 falhas". The
++             * device kept its IP and a -42 dBm link and the serial CLI kept
++             * answering, but the web server went silent with nothing left to
++             * build a packet from, and it did not recover — with telemetry
++             * switched off entirely the pool stayed at 12/12 and the failure
++             * count kept climbing. Only a reboot returned it.
++             *
++             * Reading after the PEER closes is unaffected: that path leaves
++             * _pcb alone and does not come through here. close( ) means WE are
++             * done with the connection.
++             */
++            discard_received();
+             tcp_arg(_pcb, nullptr);
+             tcp_sent(_pcb, nullptr);
+             tcp_recv(_pcb, nullptr);

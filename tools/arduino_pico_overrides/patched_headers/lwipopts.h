@@ -34,11 +34,20 @@ extern unsigned long __lwip_rand(void);
 #define MEM_SIZE                      (__LWIP_MEMMULT * 16384)
 #define MEMP_NUM_TCP_SEG              (32)
 #define MEMP_NUM_ARP_QUEUE            (10)
-/* SIMUT patch: 24 → 12 (save ~18 KB BSS). 1-2 conexões TCP simultâneas no
- * device típico — não satura mesmo com 12 envelopes pré-alocados. UDP/BT
- * defaults preservados (reduzir UDP_PCB quebra mDNS, BT changes quebram
- * RSSI via cyw43 chip compartilhado). */
-#define PBUF_POOL_SIZE                (__LWIP_MEMMULT > 1 ? 32 : 12)
+/* SIMUT: de volta ao default 24, revertendo o corte para 12.
+ *
+ * A justificativa do corte era "1-2 conexões TCP simultâneas no device típico
+ * — não satura mesmo com 12 envelopes". Medido em 2026-08-02, satura: contra
+ * um servidor que responde 1 MB, o pool ia a 12/12 e o servidor web ficava
+ * mudo, sem recuperar. Parte disso era um vazamento de _rx_buf no
+ * ClientContext (corrigido em patches/clientcontext_rx_leak.patch, que sozinho
+ * levou o aparelho de ~16 para ~144 conexões antes de saturar), mas resta uma
+ * segunda fonte não localizada, e com 12 entradas a margem para ela é nenhuma.
+ *
+ * Custo: ~18 KB de BSS. Com o firmware em ~30% de RAM, cabe.
+ * UDP/BT seguem em default (reduzir UDP_PCB quebra mDNS; mexer em BT quebra o
+ * RSSI via chip cyw43 compartilhado). */
+#define PBUF_POOL_SIZE                (__LWIP_MEMMULT > 1 ? 32 : 24)
 #define LWIP_ARP                      7
 #define LWIP_ETHERNET                 1
 #define LWIP_ICMP                     1
