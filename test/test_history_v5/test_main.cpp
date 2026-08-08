@@ -412,6 +412,46 @@ void test_add_refuses_epoch_out_of_raw_reach(void) {
     TEST_ASSERT_EQUAL_UINT8(2, enc.count( ));
 }
 
+void test_sample_reads_back_the_open_block(void) {
+    /* sample( ) is how telemetry reaches the hour still open in RAM. It must
+     * hand back exactly what add( ) took — keyframe included, NaN sentinel
+     * included — because whatever it returns goes straight to the server. */
+    buildSchema(3);
+    HistoryV5Encoder enc;
+    enc.begin(g_schema, 3, 60);
+
+    uint32_t epoch = 0;
+    int16_t out[H5_MAX_CHANNELS];
+    TEST_ASSERT_FALSE(enc.sample(0, epoch, out));        /* empty encoder */
+
+    const uint32_t t0 = 1700000000u;
+    int16_t rows[4][3] = { { 2350, 610, H5_NAN_SENTINEL },
+                           { 2351, 612, 9871 },
+                           { H5_NAN_SENTINEL, 615, 9872 },
+                           { 2348, 620, 9870 } };
+    enc.reset(t0, rows[0]);
+    for (uint8_t i = 1; i < 4; i++) enc.add(t0 + i * 60u, rows[i]);
+
+    for (uint8_t i = 0; i < 4; i++) {
+        TEST_ASSERT_TRUE(enc.sample(i, epoch, out));
+        TEST_ASSERT_EQUAL_UINT32(t0 + i * 60u, epoch);
+        TEST_ASSERT_EQUAL_INT16_ARRAY(rows[i], out, 3);
+    }
+    TEST_ASSERT_FALSE(enc.sample(4, epoch, out));        /* one past count  */
+    TEST_ASSERT_FALSE(enc.sample(0, epoch, nullptr));    /* no destination  */
+
+    /* After seal + reset the old records are gone; only the new keyframe
+     * answers — the RAM walk must never see a stale block. */
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    TEST_ASSERT_TRUE(enc.seal(buf, sizeof(buf), 0) > 0);
+    int16_t fresh[3] = { 100, 200, 300 };
+    enc.reset(t0 + 3600u, fresh);
+    TEST_ASSERT_TRUE(enc.sample(0, epoch, out));
+    TEST_ASSERT_EQUAL_UINT32(t0 + 3600u, epoch);
+    TEST_ASSERT_EQUAL_INT16_ARRAY(fresh, out, 3);
+    TEST_ASSERT_FALSE(enc.sample(1, epoch, out));
+}
+
 void test_worst_case_block_fits_the_bound(void) {
     /* The size guarantee, exercised at its worst point: the widest schema,
      * a full block and values that defeat every delta prefix. */
@@ -902,6 +942,7 @@ int main(void) {
     RUN_TEST(test_incompressible_block_falls_back_to_raw);
     RUN_TEST(test_compressible_block_stays_compressed);
     RUN_TEST(test_add_refuses_epoch_out_of_raw_reach);
+    RUN_TEST(test_sample_reads_back_the_open_block);
     RUN_TEST(test_worst_case_block_fits_the_bound);
 
     RUN_TEST(test_tail_accessors_for_each_width);

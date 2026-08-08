@@ -545,6 +545,52 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  feedWdt( );
  }
 
+ /* Carry on into the hour still open in RAM.
+  *
+  * A V5 block reaches the day file only when it seals — 60 records, so once an
+  * hour at the default sampling rate. Reading only .h5 meant telemetry could
+  * never send anything newer than the last sealed block: a fresh device stayed
+  * silent for its first 60 minutes, and in steady state every reading was
+  * delivered up to an hour late. The samples are held plain in the encoder, so
+  * reaching them costs a copy and no decode.
+  *
+  * The cursor is an epoch, so nothing is sent twice: when this block later
+  * lands in the day file, the loop above skips it on `epoch > lastCursor`.
+  *
+  * No yield inside this walk — the history writer runs on this same core, and
+  * letting it in here could seal the block while it is being read. It is at
+  * most 60 records. */
+ if (batch.size( ) < limit) {
+ const uint8_t ramCount = _storageRef->h5RamCount( );
+ const H5ChannelDesc* ramSchema = _storageRef->getH5Schema( );
+ const uint8_t ramNCh = _storageRef->getH5ChannelCount( );
+ if (ramCount > 0 && ramSchema && ramNCh > 0) {
+ int16_t vals[H5_MAX_CHANNELS];
+ uint32_t epoch = 0;
+ for (uint8_t i = 0; i < ramCount && batch.size( ) < limit; i++) {
+ if (!_storageRef->h5RamRecord(i, epoch, vals)) break;
+ if (epoch < EPOCH_MIN) continue;
+ if (nowEpoch >= EPOCH_MIN && epoch > nowEpoch + 86400UL) continue;
+ if (epoch <= lastCursor) continue;
+
+ BinaryHistoryRecord rec; rec.clear( ); rec.epoch = epoch;
+ for (uint8_t c = 0; c < ramNCh; c++) {
+ if (vals[c] == H5_NAN_SENTINEL) continue;
+ const uint8_t slot = (uint8_t)(ramSchema[c].id / MAX_SENSOR_CHANNELS);
+ const uint8_t ch   = (uint8_t)(ramSchema[c].id % MAX_SENSOR_CHANNELS);
+ if (slot >= MAX_SENSORS) continue;
+ const float v = (float)vals[c] * powf(10.0f, (float)ramSchema[c].scaleExp);
+ if (ch == CH_TEMP)       rec.sensors[slot]  = BinaryHistoryRecord::floatToI16(v);
+ else if (ch == CH_HUM)   rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
+ else if (ch == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
+ }
+ batch.push_back(rec);
+ if (epoch > newCursor) newCursor = epoch;
+ }
+ feedWdt( );
+ }
+ }
+
  return !batch.empty( );
 }
 
@@ -1679,6 +1725,18 @@ void TelemetryManager::refreshPendingCount( ) {
  { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5CloseDay( ); }
 
  feedWdt( );
+ }
+
+ /* The hour still open in RAM counts too — collectBatch sends it now, so
+  * leaving it out would report zero pending while data is waiting. */
+ {
+ const uint8_t ramCount = _storageRef->h5RamCount( );
+ int16_t vals[H5_MAX_CHANNELS];
+ uint32_t epoch = 0;
+ for (uint8_t i = 0; i < ramCount; i++) {
+ if (!_storageRef->h5RamRecord(i, epoch, vals)) break;
+ if (epoch > lastCursor) total++;
+ }
  }
 
  _pendingEstimate = (total > 0xFFFFu) ? (uint16_t)0xFFFFu : (uint16_t)total;

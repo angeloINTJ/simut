@@ -335,6 +335,20 @@ public:
  /** Schema in force at the reader's position. */
  const H5ChannelDesc* h5ReaderSchema( ) const { return _h5RdSchema; }
  uint8_t h5ReaderChannels( ) const { return _h5RdNCh; }
+
+ /* ── Hour still open in RAM ──
+  * A V5 block reaches the day file only when it seals, which at one record a
+  * minute is once an hour. Everything that reads .h5 therefore trails the
+  * present by up to that hour — telemetry included, which is why a fresh
+  * device sent nothing for its first 60 minutes. These expose the open block
+  * so a reader can carry on past the newest sealed record.
+  *
+  * Same core as the history writer, so no lock is needed; do not yield in the
+  * middle of a walk, or the block can seal underneath it. */
+ uint8_t h5RamCount( ) const { return _h5Valid ? _h5Enc.count( ) : 0; }
+ bool h5RamRecord(uint8_t i, uint32_t& epoch, int16_t* vals) const {
+ return _h5Valid && _h5Enc.sample(i, epoch, vals);
+ }
  uint16_t h5ReaderRejected( ) const { return _h5Scan.rejected( ); }
  void h5CloseDay( );
 

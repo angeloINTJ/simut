@@ -275,6 +275,29 @@ public:
     uint32_t lastEpoch( ) const;
 
     /**
+     * @brief Read back record @p i (0-based) still held in RAM.
+     *
+     * The samples are kept plain, not bit-packed — packing only happens in
+     * seal( ) — so a reader costs a copy and no decode. Telemetry uses this to
+     * reach the hour in progress: a block only lands in the day file once it
+     * fills, which at one record a minute means the newest hour is invisible
+     * to anything that reads .h5 files, and telemetry ran an hour behind.
+     *
+     * @param i     0 .. count( )-1.
+     * @param epoch Receives the record's timestamp.
+     * @param out   Receives nCh( ) values; must hold H5_MAX_CHANNELS.
+     * @return false if @p i is past the end.
+     */
+    bool sample(uint8_t i, uint32_t& epoch, int16_t* out) const {
+        if (i >= _count || !out) return false;
+        /* Record 0 is the keyframe in _kf/_t0; the rest live in the arrays. */
+        const int16_t* src = (i == 0) ? _kf : _v[i - 1];
+        epoch = (i == 0) ? _t0 : _epoch[i - 1];
+        for (uint8_t c = 0; c < _nCh; c++) out[c] = src[c];
+        return true;
+    }
+
+    /**
      * @brief Shift every timestamp held in RAM by @p deltaS (§7.3).
      * @details The retroactive clock fix rewrites t0 in the DATA headers on
      *          flash; the block still open in RAM has to move with them or it
