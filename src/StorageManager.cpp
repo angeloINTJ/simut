@@ -1408,7 +1408,40 @@ long StorageManager::getCalibrationVersion(String path) {
  return ver;
 }
 
-bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float& outOffset, String& outName) {
+/* Shared tail of a calib.csv row: `...,offset[,name[,pts]]`. p2/p3 are the
+ * commas around the offset column (p3 may be -1 on a 3-column row).
+ *
+ * The offset column and the pts column coexist on purpose: a 4-column row is
+ * everything older firmware ever wrote and decodes as the constant offset it
+ * always was, and a pts column that fails to parse falls back to the offset
+ * column so the row keeps meaning something instead of silently zeroing out. */
+static void parseCalibRowTail(const String& line, int p2, int p3,
+                              CalibCurve& outCurve, String& outName) {
+ float off = 0.0f;
+ String pts = "";
+ if (p3 > p2) {
+ off = parseFloat(line.substring(p2 + 1, p3).c_str( ));
+ int p4 = line.indexOf(',', p3 + 1);
+ if (p4 > p3) {
+ outName = line.substring(p3 + 1, p4);
+ pts = line.substring(p4 + 1); pts.trim( );
+ } else {
+ outName = line.substring(p3 + 1);
+ }
+ outName.replace("\"", "");
+ } else {
+ off = parseFloat(line.substring(p2 + 1).c_str( ));
+ outName = "";
+ }
+ if (pts.length( ) == 0) {
+ calibCurveFromOffset(outCurve, off);
+ } else if (!calibCurveDecodePts(pts.c_str( ), outCurve)) {
+ calibCurveFromOffset(outCurve, off);
+ LOG_CODE(LOG_WARN, "CFG", SEC_CONFIG_CHANGED, 0, "bad pts column in calib.csv — offset fallback");
+ }
+}
+
+bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, CalibCurve& outCurve, String& outName) {
  char romStr[17]; snprintf(romStr, sizeof(romStr), "%02X%02X%02X%02X%02X%02X%02X%02X", rom[0], rom[1], rom[2], rom[3], rom[4], rom[5], rom[6], rom[7]);
  if (!LittleFS.exists("/calib.csv")) return false;
 
@@ -1416,7 +1449,10 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
  enterFlashReadLock( );
  File f = LittleFS.open("/calib.csv", "r"); bool found = false;
  if (f) {
- char lineBuf[256];
+ /* 320, not 256: a 5-point pts column on a pressure row is ~155 chars on
+  * top of key+id+offset+name. A row longer than the buffer is read in two
+  * halves and neither matches a key — skipped, not misparsed. */
+ char lineBuf[320];
  while (f.available( )) {
  feedWdt( );
  size_t len = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
@@ -1427,8 +1463,7 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
  int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1); int p3 = line.indexOf(',', p2 + 1);
  if (p1 > 0 && p2 > p1) {
  outId = line.substring(p1 + 1, p2);
- if (p3 > p2) { outOffset = parseFloat(line.substring(p2 + 1, p3).c_str( )); outName = line.substring(p3 + 1); outName.replace("\"", ""); }
- else { outOffset = parseFloat(line.substring(p2 + 1).c_str( )); outName = ""; }
+ parseCalibRowTail(line, p2, p3, outCurve, outName);
  found = true; break;
  }
  }
@@ -1445,7 +1480,7 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
  * `p` for pressure — so `<picoUID>,tAMB,-0.4,Sala` is the temperature row of
  * the sensor whose hwId is AMB. The whole ID is compared, which is what keeps
  * two ROM-less sensors on one board apart. */
-bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, float& outOffset, String& outName) {
+bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, CalibCurve& outCurve, String& outName) {
  /* Any letter the channel table claims. This was a literal whitelist of 't'
   * and 'u', so the writer could emit a `p<hwId>` row and this reader refused
   * it before even opening the file — the offset persisted correctly and was
@@ -1461,7 +1496,7 @@ bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, float& 
  enterFlashReadLock( );
  File f = LittleFS.open("/calib.csv", "r"); bool found = false;
  if (f) {
- char lineBuf[256];
+ char lineBuf[320]; /* sized for a 5-point pts column, see getCalibrationData */
  while (f.available( )) {
  feedWdt( );
  size_t len = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
@@ -1474,13 +1509,7 @@ bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, float& 
  if (p1 <= 0 || p2 <= p1) continue;
  String idCol = line.substring(p1 + 1, p2); idCol.trim( );
  if (!idCol.equalsIgnoreCase(wanted)) continue;
- if (p3 > p2) {
- outOffset = parseFloat(line.substring(p2 + 1, p3).c_str( ));
- outName = line.substring(p3 + 1); outName.replace("\"", "");
- } else {
- outOffset = parseFloat(line.substring(p2 + 1).c_str( ));
- outName = "";
- }
+ parseCalibRowTail(line, p2, p3, outCurve, outName);
  found = true; break;
  }
  f.close( );

@@ -106,9 +106,9 @@ void AppManager::loadAndCalibrateSensors( ) {
 
  /* ── 2. Runtime ──
   * BEFORE calibration, not after. initRuntimeSensors rebuilds the vector
-  * from scratch with every calibrationOffset back at 0.0f, so applying the
-  * offsets first wrote them into the vector that was about to be discarded
-  * and no stored offset ever reached a running sensor. */
+  * from scratch with every calibration curve reset to identity, so applying
+  * the curves first wrote them into the vector that was about to be
+  * discarded and no stored correction ever reached a running sensor. */
  _sensorMgr->initRuntimeSensors(cfg);
 
  /* initRuntimeSensors may have retyped an I2C slot from its chip ID
@@ -143,11 +143,11 @@ void AppManager::loadAndCalibrateSensors( ) {
   if (cfg.sensors[i].sensorType == TYPE_DS18B20 && !romIsZero) {
    /* 1-Wire: keyed by ROM. The row also carries the ID and name the probe
     * was adopted with, which is how `sensor accept` restores them. */
-   String dbId; float dbOffset = 0.0f; String dbName;
-   if (_storageMgr->getCalibrationData(cfg.sensors[i].rom, dbId, dbOffset, dbName)) {
+   String dbId; CalibCurve dbCurve; String dbName;
+   if (_storageMgr->getCalibrationData(cfg.sensors[i].rom, dbId, dbCurve, dbName)) {
     if (dbId.length( ) > 0) { safeCopy(cfg.sensors[i].hwId, dbId.c_str( ), sizeof(cfg.sensors[i].hwId)); }
     if (dbName.length( ) > 0) { safeCopy(cfg.sensors[i].friendlyName, dbName.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
-    _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbId, dbOffset, dbName);
+    _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbId, dbCurve, dbName);
    }
   } else {
    /* No ROM (DHT22, BMP280, unpaired DS18B20): keyed by the board serial,
@@ -165,19 +165,17 @@ void AppManager::loadAndCalibrateSensors( ) {
     * quantity, which is why pressure had to be added by hand and then still
     * did not work. */
    const SensorType sType = (SensorType)cfg.sensors[i].sensorType;
-   float offsets[MAX_SENSOR_CHANNELS] = {0.0f};
+   CalibCurve curves[MAX_SENSOR_CHANNELS]; /* default-constructed: identity */
    bool gotAny = false;
    String unusedName;
    for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
     if (!sensorHasChannel(sType, c)) continue;
-    float off = 0.0f;
     if (_storageMgr->getCalibrationByHwId(channelInfo(c).letter,
-                                          cfg.sensors[i].hwId, off, unusedName)) {
-     offsets[c] = off;
+                                          cfg.sensors[i].hwId, curves[c], unusedName)) {
      gotAny = true;
     }
    }
-   if (gotAny) _sensorMgr->applyCalibrationOffsets(cfg.sensors[i].pins[0], offsets);
+   if (gotAny) _sensorMgr->applyCalibrationCurves(cfg.sensors[i].pins[0], curves);
   }
  }
  LOG_CODE(LOG_INFO, "APP", APP_SENSORS_CALIBRATED, 0, "");

@@ -21,6 +21,7 @@
 #include "HistoryV4.h"
 #include "HistoryV5.h"
 #include "sensors/SensorHelpers.h"
+#include "sensors/CalibCurve.h"
 
 #define DIR_CONFIG "/config"
 #define FILE_CONFIG "/config/system.bin"
@@ -360,7 +361,10 @@ public:
  void resetTelemetryCursor( ); /**< CMD_TEL_RESET: invalidates RAM cache + deletes flash file. */
 
  static String getBoardSerialNumber( );
- bool getCalibrationData(const uint8_t* rom, String& outId, float& outOffset, String& outName);
+ /* Both readers answer a CalibCurve. A 4-column row (the only shape older
+  * firmware ever wrote) decodes as the constant offset it always was; a
+  * 5th column carries up to CALIB_MAX_POINTS `raw:ref` pairs. */
+ bool getCalibrationData(const uint8_t* rom, String& outId, CalibCurve& outCurve, String& outName);
  /* Lookup for sensors with no 1-Wire ROM (DHT22, BMP280) in calib.csv.
   * Key column = picoUID 16 hex; ID column = `prefix` + the sensor's hwId,
   * `t` for temperature and `u` for humidity (ex: `tDHT2202`, `uDHT2202`).
@@ -368,7 +372,7 @@ public:
   * Matches the FULL id. It used to take no hwId and return the first row
   * with the right prefix, which made the pair device-wide: a board with two
   * DHT22s could only ever hold one calibration. */
- bool getCalibrationByHwId(char prefix, const char* hwId, float& outOffset, String& outName);
+ bool getCalibrationByHwId(char prefix, const char* hwId, CalibCurve& outCurve, String& outName);
  long getCalibrationVersion(String path);
  bool processCalibrationUpload( );
  bool recoverCalibrationTmp( );

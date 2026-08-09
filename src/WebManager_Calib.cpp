@@ -252,11 +252,11 @@ void WebManager::handleApiCalibGet( ) {
 		         first ? "" : ",", i, cfg.sensors[i].pins[0], romHex, sHwId, sName,
 		         hasH ? "true" : "false", hasP ? "true" : "false",
 		         isfinite(tRead) ? String(tRead, 2).c_str( ) : "null",
-		         rs ? rs->calibrationOffset[CH_TEMP] : 0.0f,
+		         rs ? calibCurveOffsetAt(rs->calib[CH_TEMP], rs->rawValue[CH_TEMP]) : 0.0f,
 		         hOk ? String(hRead, 2).c_str( ) : "null",
-		         rs ? rs->calibrationOffset[CH_HUM] : 0.0f,
+		         rs ? calibCurveOffsetAt(rs->calib[CH_HUM], rs->rawValue[CH_HUM]) : 0.0f,
 		         pOk ? String(pRead, 2).c_str( ) : "null",
-		         rs ? rs->calibrationOffset[CH_PRESS] : 0.0f);
+		         rs ? calibCurveOffsetAt(rs->calib[CH_PRESS], rs->rawValue[CH_PRESS]) : 0.0f);
 		if (!safeSend(buf)) return;
 
 		/* The generic form. Everything above is the closed set of fields the
@@ -279,7 +279,7 @@ void WebManager::handleApiCalibGet( ) {
 			         firstCh ? "" : ",", (unsigned)c, ci.key, ci.display.unit,
 			         (unsigned)ci.display.decimals, ci.i18nKey,
 			         ok ? String(v, 2).c_str( ) : "null",
-			         rs ? rs->calibrationOffset[c] : 0.0f);
+			         rs ? calibCurveOffsetAt(rs->calib[c], rs->rawValue[c]) : 0.0f);
 			if (!safeSend(buf)) return;
 			firstCh = false;
 		}
@@ -434,7 +434,7 @@ void WebManager::handleApiCalibPost( ) {
 					if (s.config.pins[0] == cfg.sensors[slot].pins[0]) {
 						for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
 							cur[c]    = s.avgValue[c];
-							newOff[c] = s.calibrationOffset[c];
+							newOff[c] = calibCurveOffsetAt(s.calib[c], s.rawValue[c]);
 						}
 						break;
 					}
@@ -736,8 +736,8 @@ void WebManager::handleApiAction( ) {
 			_server.send(422, "application/json", "{\"error\":\"badrom\"}");
 			return;
 		}
-		String dbId, dbName; float dbOffset = 0.0f;
-		_storageRef->getCalibrationData(foundRom, dbId, dbOffset, dbName);
+		String dbId, dbName; CalibCurve dbCurve;
+		_storageRef->getCalibrationData(foundRom, dbId, dbCurve, dbName);
 
 		String currentId = String(cfg.sensors[slot].hwId);
 		cfg.sensors[slot].active = true;
