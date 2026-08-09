@@ -134,12 +134,14 @@ inline void calibCurveFromOffset(CalibCurve& c, float offset) {
 }
 
 /**
- * @brief Encode the curve as the calib.csv pts column: "raw:ref;raw:ref".
+ * @brief Encode the curve as the calib.csv trailing point columns:
+ *        "raw,ref,raw,ref" — every number its own CSV cell, so a spreadsheet
+ *        opens the file with one value per column instead of one packed blob.
  *
  * Identity and anchor-free n==1 both encode as "" — the first has nothing to
  * say, the second is exactly the legacy row shape (the offset column already
- * carries it), and writing an empty pts keeps that row 4 columns and readable
- * by older firmware.
+ * carries it), and writing nothing keeps that row 4 columns and readable by
+ * older firmware.
  *
  * @return chars written (0 for ""); on a cap too small, writes "" and returns
  *         0 rather than shipping a truncated curve into the file.
@@ -152,8 +154,8 @@ inline size_t calibCurveEncodePts(const CalibCurve& c, char* out, size_t cap) {
 
 	size_t used = 0;
 	for (uint8_t i = 0; i < c.n; i++) {
-		const int w = snprintf(out + used, cap - used, "%s%.2f:%.2f",
-		                       (i > 0) ? ";" : "", (double)c.raw[i], (double)(c.raw[i] + c.off[i]));
+		const int w = snprintf(out + used, cap - used, "%s%.2f,%.2f",
+		                       (i > 0) ? "," : "", (double)c.raw[i], (double)(c.raw[i] + c.off[i]));
 		if (w < 0 || (size_t)w >= cap - used) { out[0] = '\0'; return 0; }
 		used += (size_t)w;
 	}
@@ -184,16 +186,20 @@ inline bool calibParseNumber(const char** p, float& out) {
 }
 
 /**
- * @brief Decode a pts column back into a curve.
+ * @brief Decode the trailing point cells back into a curve.
  *
- * Accepts what the encoder writes plus what a hand-edited file plausibly
- * contains: spaces around numbers, a trailing ';', a stray '\r'. Anything
- * structurally wrong — a malformed pair, a sixth point, duplicate raws —
- * fails the whole field; the caller falls back to the offset column, which
- * is always intact on a row this reader is given.
+ * The canonical form is what the encoder writes — numbers separated by
+ * commas, alternating raw,ref — but the parser treats ',', ';' and ':' as
+ * the same separator: it reads a flat number list and pairs it up. That one
+ * relaxation makes it accept the packed "raw:ref;raw:ref" shape this file
+ * briefly used on the bench, plus any sane hand edit, at zero extra code.
+ * The structure lives in the counting instead: an odd number of values, an
+ * eleventh value, a non-number, duplicate raws — any of these fails the
+ * whole field, and the caller falls back to the offset column, which is
+ * always intact on a row this reader is given.
  *
- * NULL or empty decodes to identity and returns true: an absent column IS
- * the legacy format, not an error.
+ * NULL or empty decodes to identity and returns true: an absent tail IS the
+ * legacy 4-column format, not an error.
  */
 inline bool calibCurveDecodePts(const char* pts, CalibCurve& c) {
 	c = CalibCurve( );
@@ -202,25 +208,23 @@ inline bool calibCurveDecodePts(const char* pts, CalibCurve& c) {
 	while (*p == ' ' || *p == '\t') p++;
 	if (*p == '\0' || *p == '\r' || *p == '\n') return true;
 
-	float r[CALIB_MAX_POINTS], v[CALIB_MAX_POINTS];
-	uint8_t count = 0;
+	float vals[CALIB_MAX_POINTS * 2];
+	uint8_t n = 0;
 	while (true) {
-		if (count >= CALIB_MAX_POINTS) return false; /* a sixth pair is coming */
-		if (!calibParseNumber(&p, r[count])) return false;
+		if (n >= CALIB_MAX_POINTS * 2) return false; /* an eleventh value is coming */
+		if (!calibParseNumber(&p, vals[n])) return false;
+		n++;
 		while (*p == ' ' || *p == '\t') p++;
-		if (*p != ':') return false;
-		p++;
-		if (!calibParseNumber(&p, v[count])) return false;
-		while (*p == ' ' || *p == '\t') p++;
-		count++;
-		if (*p == ';') {
-			p++;
-			while (*p == ' ' || *p == '\t') p++;
-			if (*p == '\0' || *p == '\r' || *p == '\n') break; /* tolerated trailing ';' */
-			continue;
-		}
 		if (*p == '\0' || *p == '\r' || *p == '\n') break;
-		return false;
+		if (*p != ',' && *p != ';' && *p != ':') return false;
+		p++;
+		while (*p == ' ' || *p == '\t') p++;
+		if (*p == '\0' || *p == '\r' || *p == '\n') break; /* tolerated trailing separator */
 	}
+	if (n < 2 || (n & 1u)) return false;
+
+	float r[CALIB_MAX_POINTS], v[CALIB_MAX_POINTS];
+	const uint8_t count = (uint8_t)(n / 2);
+	for (uint8_t i = 0; i < count; i++) { r[i] = vals[2 * i]; v[i] = vals[2 * i + 1]; }
 	return calibCurveBuild(c, r, v, count);
 }

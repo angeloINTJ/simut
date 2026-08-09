@@ -702,18 +702,35 @@ void test_calibcurve_encode_decode_roundtrip(void) {
     }
 }
 
+void test_calibcurve_encode_is_flat_csv_cells(void) {
+    /* The user-facing contract: every number is its own CSV cell, so a
+     * spreadsheet opens one value per column. Exact-string pin. */
+    CalibCurve c;
+    const float raws[2] = { 20.90f, 24.90f };
+    const float refs[2] = { 21.90f, 25.30f };
+    TEST_ASSERT_TRUE(calibCurveBuild(c, raws, refs, 2));
+    char buf[CALIB_PTS_BUF];
+    TEST_ASSERT_TRUE(calibCurveEncodePts(c, buf, sizeof(buf)) > 0);
+    TEST_ASSERT_EQUAL_STRING("20.90,21.90,24.90,25.30", buf);
+}
+
 void test_calibcurve_decode_sorts_and_tolerates(void) {
     CalibCurve a, b;
     /* Out-of-order input decodes to the same curve as sorted input. */
-    TEST_ASSERT_TRUE(calibCurveDecodePts("35.40:35.00;20.10:20.00", a));
+    TEST_ASSERT_TRUE(calibCurveDecodePts("35.40,35.00,20.10,20.00", a));
+    TEST_ASSERT_TRUE(calibCurveDecodePts("20.10,20.00,35.40,35.00", b));
+    TEST_ASSERT_EQUAL_UINT8(a.n, b.n);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, b.raw[0], a.raw[0]);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, b.off[1], a.off[1]);
+    /* Separator-agnostic: the packed bench-era form reads as the same curve. */
     TEST_ASSERT_TRUE(calibCurveDecodePts("20.10:20.00;35.40:35.00", b));
     TEST_ASSERT_EQUAL_UINT8(a.n, b.n);
     TEST_ASSERT_FLOAT_WITHIN(0.001f, b.raw[0], a.raw[0]);
     TEST_ASSERT_FLOAT_WITHIN(0.001f, b.off[1], a.off[1]);
-    /* Spaces, a trailing semicolon, a CR off a hand-edited file. */
-    TEST_ASSERT_TRUE(calibCurveDecodePts(" 20.10 : 20.00 ; 35.40:35.00; \r", a));
+    /* Spaces, a trailing separator, a CR off a hand-edited file. */
+    TEST_ASSERT_TRUE(calibCurveDecodePts(" 20.10 , 20.00 , 35.40,35.00, \r", a));
     TEST_ASSERT_EQUAL_UINT8(2, a.n);
-    /* Empty and NULL are the legacy no-pts column, not errors. */
+    /* Empty and NULL are the legacy 4-column tail, not errors. */
     TEST_ASSERT_TRUE(calibCurveDecodePts("", a));
     TEST_ASSERT_TRUE(calibCurveIsIdentity(a));
     TEST_ASSERT_TRUE(calibCurveDecodePts(nullptr, a));
@@ -722,11 +739,13 @@ void test_calibcurve_decode_sorts_and_tolerates(void) {
 
 void test_calibcurve_decode_rejects_malformed(void) {
     CalibCurve c;
-    TEST_ASSERT_FALSE(calibCurveDecodePts("a:b", c));
-    TEST_ASSERT_FALSE(calibCurveDecodePts("1:2:3", c));
-    TEST_ASSERT_FALSE(calibCurveDecodePts("1.0;2.0", c));            /* pair without ':' */
-    TEST_ASSERT_FALSE(calibCurveDecodePts("1:1;2:2;3:3;4:4;5:5;6:6", c)); /* sixth pair */
-    TEST_ASSERT_FALSE(calibCurveDecodePts("20.10:20.00;20.10:21.00", c)); /* duplicate raw */
+    TEST_ASSERT_FALSE(calibCurveDecodePts("a,b", c));
+    TEST_ASSERT_FALSE(calibCurveDecodePts("1,2,3", c));   /* odd count: a raw without its ref */
+    TEST_ASSERT_FALSE(calibCurveDecodePts("1:2:3", c));   /* odd through any separator */
+    TEST_ASSERT_FALSE(calibCurveDecodePts("5", c));       /* a single lonely value */
+    TEST_ASSERT_FALSE(calibCurveDecodePts("1,,2", c));    /* empty cell mid-list */
+    TEST_ASSERT_FALSE(calibCurveDecodePts("1,1,2,2,3,3,4,4,5,5,6,6", c)); /* sixth pair */
+    TEST_ASSERT_FALSE(calibCurveDecodePts("20.10,20.00,20.10,21.00", c)); /* duplicate raw */
     /* A failed decode leaves identity behind, never half a curve. */
     TEST_ASSERT_TRUE(calibCurveIsIdentity(c));
 }
@@ -860,6 +879,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_calibcurve_apply_two_points);
     RUN_TEST(test_calibcurve_apply_five_points);
     RUN_TEST(test_calibcurve_from_offset);
+    RUN_TEST(test_calibcurve_encode_is_flat_csv_cells);
     RUN_TEST(test_calibcurve_encode_decode_roundtrip);
     RUN_TEST(test_calibcurve_decode_sorts_and_tolerates);
     RUN_TEST(test_calibcurve_decode_rejects_malformed);

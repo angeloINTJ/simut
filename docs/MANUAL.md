@@ -154,14 +154,16 @@ plausible range; the panel warns as you type, with the same rules the firmware
 enforces.
 
 Everything is stored in `/calib.csv`, keyed by the 1-Wire ROM for a DS18B20
-and by board serial + hardware ID for ROM-less parts. The row format gained an
-optional 5th column: `key,id,offset,name[,pts]` with `pts` as
-`raw:ref;raw:ref;…`. A file written by older firmware (4 columns) reads as the
-constant offset it always was; a multi-point row read by older firmware falls
-back to the offset column (`0.00` for curves of 2+ points — the correction is
-simply off after a downgrade, never wrong). Renaming a hardware ID migrates
-the rows; removing a correction deletes the row, except for DS18B20 rows,
-which double as the ROM→ID/name database that `sensor accept` reads.
+and by board serial + hardware ID for ROM-less parts. The points ride at the
+end of the row as plain CSV cells, alternating raw and reference:
+`key,id,offset,name[,raw,ref,raw,ref,…]` — one number per column, so a
+spreadsheet opens the file directly. A file written by older firmware
+(4 columns) reads as the constant offset it always was; a multi-point row
+read by older firmware falls back to the offset column (`0.00` for curves of
+2+ points — the correction is simply off after a downgrade, never wrong).
+Renaming a hardware ID migrates the rows; removing a correction deletes the
+row, except for DS18B20 rows, which double as the ROM→ID/name database that
+`sensor accept` reads.
 
 Two identical DHT22s on one board calibrate independently, which was not true
 before v1.6.0-beta: offsets for ROM-less parts used to be a single device-wide

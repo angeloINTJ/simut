@@ -351,12 +351,13 @@ static CalibChange s_changes[MAX_CHANGES];
 struct PendIdent { int slot; char hwId[16]; char name[32]; };
 static PendIdent s_idents[MAX_SENSORS];
 
-/* One row of calib.csv. The offset column and the pts column are written to
- * back each other: n=1 mirrors its offset into the legacy column (older
- * firmware reads that row exactly as before), n>=2 has no single-offset
- * equivalent and writes 0.00 there. An empty pts keeps the row at 4 columns
- * with no trailing comma — older readers take everything after the third
- * comma as the name. */
+/* One row of calib.csv. The offset column and the trailing point cells are
+ * written to back each other: n=1 mirrors its offset into the legacy column
+ * (older firmware reads that row exactly as before), n>=2 has no
+ * single-offset equivalent and writes 0.00 there. The points go out as flat
+ * CSV cells — raw,ref,raw,ref — one number per column; no points keeps the
+ * row at 4 columns with no trailing comma, and older readers take everything
+ * after the third comma as the name. */
 static void emitCalibRow(File& f, const CalibChange& ch) {
 	char pts[CALIB_PTS_BUF];
 	calibCurveEncodePts(ch.curve, pts, sizeof(pts));

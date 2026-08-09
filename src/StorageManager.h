@@ -362,8 +362,9 @@ public:
 
  static String getBoardSerialNumber( );
  /* Both readers answer a CalibCurve. A 4-column row (the only shape older
-  * firmware ever wrote) decodes as the constant offset it always was; a
-  * 5th column carries up to CALIB_MAX_POINTS `raw:ref` pairs. */
+  * firmware ever wrote) decodes as the constant offset it always was; the
+  * cells after the name carry up to CALIB_MAX_POINTS raw,ref pairs — one
+  * number per CSV column, so a spreadsheet reads the file directly. */
  bool getCalibrationData(const uint8_t* rom, String& outId, CalibCurve& outCurve, String& outName);
  /* Lookup for sensors with no 1-Wire ROM (DHT22, BMP280) in calib.csv.
   * Key column = picoUID 16 hex; ID column = `prefix` + the sensor's hwId,

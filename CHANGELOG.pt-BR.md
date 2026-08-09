@@ -21,10 +21,11 @@ bruta**: a rejeição de outliers passa a operar sempre sobre valores físicos e
 uma correção editada vale na hora, sem atravessar uma janela de 10 amostras.
 Para offsets constantes a aritmética é idêntica — os valores lidos não mudam.
 
-O `/calib.csv` ganha uma 5ª coluna opcional (`key,id,offset,name[,pts]`, com
-`pts = bruto:ref;bruto:ref;…`). Arquivos antigos de 4 colunas leem sem
-mudança; linhas sem curva multiponto continuam gravadas com 4 colunas, então
-um downgrade segue lendo seus offsets. Remover uma correção apaga a linha
+O `/calib.csv` carrega os pontos como células CSV planas no fim da linha,
+alternando bruto e referência (`key,id,offset,name[,bruto,ref,bruto,ref,…]`)
+— um número por coluna, direto na planilha. Arquivos antigos de 4 colunas
+leem sem mudança; linhas sem curva multiponto continuam gravadas com 4
+colunas, então um downgrade segue lendo seus offsets. Remover uma correção apaga a linha
 (linhas de DS18B20 ficam — são também o banco de identidade ROM→ID/nome).
 `POST /api/calib` aceita `"cal":{"<canal>":[[bruto,ref],…]}` com validação
 completa antes de qualquer gravação; o `GET /api/calib` ganha `raw`, `min`,
