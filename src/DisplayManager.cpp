@@ -197,6 +197,18 @@ bool simutStateMutexHeldByCurrentCore( ) {
  * the HW-watchdog branch of the autopsy (Core 0 stalled, NOT Core 1 declared
  * dead), and each one follows an APP_CORE1_DEAD — that is, follows a
  * restartCore1( ). Funnelling every launch here turns that hang into a no-op. */
+/* Core 1 ran the entire display — ILI9341 rendering, font rasterisation,
+ * snprintf, the graph screen — plus its nested ISRs (lockout victim, wait
+ * alarm, fault witness) on the SDK's DEFAULT core-1 stack: 2048 bytes.
+ * The margin was luck, and under load the luck ran out rarely enough to
+ * look like five different bugs: the hard-fault witness finally caught it
+ * as PC inside core1WaitUs, an `ldrb` through a pointer reloaded from a
+ * CORRUPTED stack slot. A faulted core parks in the handler with its
+ * heartbeat frozen and the last phase stamped — which is precisely the
+ * historic "stuck in W_WFE / UI_GRAPH" panic signature this hunt started
+ * from. Eight dedicated kilobytes end the roulette. */
+static uint32_t __attribute__((aligned(8))) s_core1Stack[2048];
+
 void DisplayManager::launchCore1IfAbsent( ) {
 	if (_core1Launched) return;
 	_core1Launched = true;
@@ -204,7 +216,8 @@ void DisplayManager::launchCore1IfAbsent( ) {
 	/* From the first launched instruction the core fetches XIP — the flash
 	 * exposure accounting must see this window, not just victim-ready. */
 	g_core1MayExecute = 1;
-	{ LogManager::TraceScope _t(0, MOD_C1_LAUNCH); multicore_launch_core1(core1Entry); }
+	{ LogManager::TraceScope _t(0, MOD_C1_LAUNCH);
+	  multicore_launch_core1_with_stack(core1Entry, s_core1Stack, sizeof(s_core1Stack)); }
 }
 
 /* Call from EVERY site that resets Core 1, immediately before the reset.
