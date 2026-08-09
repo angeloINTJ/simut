@@ -13,6 +13,7 @@
 #include "Themes.h"
 #include "TouchPriority.h"
 #include "DisplayManager.h" /* For getActiveWebDictSource */
+#include "FlashIrqProbe.h"  /* For g_flashIrqExposed (metr.fx) */
 #include <LittleFS.h>
 #include <time.h>
 
@@ -546,10 +547,16 @@ void WebManager::handleApiStatus( ) {
 	/* fo/fom/fot/f50 are the flash-write counters. They were tracked since
 	 * T0.1 but reachable only from a CLI the shipping image does not carry,
 	 * which made "how often does this device stop Core 1 to write?" — the
-	 * question the V5 format exists to answer — unanswerable from outside. */
+	 * question the V5 format exists to answer — unanswerable from outside.
+	 *
+	 * fx is the invariant among them: flash ops that ran with Core 1
+	 * possibly executing and not frozen. Any value but 0 names a write
+	 * path missing its Core1FlashPause — the class behind e035791 and the
+	 * calibration reboots of 4611987 — and the release image needs it
+	 * readable for exactly the same reason as the four above. */
 	snprintf(buffer, sizeof(buffer),
 	         "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,\"rmn\":%ld,\"rmx\":%ld,\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
-	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu},",
+	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu},",
 	         (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
 	         (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
 	         (long)rmn, (long)rmx,
@@ -558,7 +565,8 @@ void WebManager::handleApiStatus( ) {
 	         (unsigned long)mt.sensorReadsOk, (unsigned long)mt.sensorReadsErr,
 	         (unsigned long)mt.configSaves,
 	         (unsigned long)mt.flashOps, (unsigned long)mt.flashOpMaxMs,
-	         (unsigned long)mt.flashOpTotalMs, (unsigned long)mt.flashOpsOver50ms);
+	         (unsigned long)mt.flashOpTotalMs, (unsigned long)mt.flashOpsOver50ms,
+	         (unsigned long)g_flashIrqExposed);
 
 	if (!safeSend(buffer)) return;
 	if (!safeSend("\"sensors\":[")) return;
