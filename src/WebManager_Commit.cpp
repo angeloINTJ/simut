@@ -8,6 +8,7 @@
  */
 #include "WebManager.h"
 #include "ParseFloat.h"
+#include "WebJsonSlice.h"
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "Themes.h"
@@ -392,7 +393,7 @@ void WebManager::handleApiCommitAll( ) {
 				int p = 0, guard = 0;
 				while ((p = arr.indexOf('{', p)) >= 0) {
 					if (++guard > MAX_SENSORS + 4) break;
-					int e = arr.indexOf('}', p);
+					int e = jsonMatchEnd(arr, p);
 					if (e < 0) break;
 					long sl = getInt(arr.substring(p, e + 1), "i", -1);
 					p = e + 1;
@@ -403,10 +404,14 @@ void WebManager::handleApiCommitAll( ) {
 
 			char err[96];
 			err[0] = '\0';
+			/* jsonMatchEnd, not indexOf('}'): the slot object carries a nested
+			 * "lim":{...}, and the first closing brace is lim's — every key
+			 * staged after it ("al") fell off the slice and was silently kept
+			 * at its stored value, commit after commit. */
 			int objStart = 0, safety = 0;
 			while ((objStart = arr.indexOf('{', objStart)) >= 0) {
 				if (++safety > MAX_SENSORS + 4) break;
-				int objEnd = arr.indexOf('}', objStart);
+				int objEnd = jsonMatchEnd(arr, objStart);
 				if (objEnd < 0) break;
 				String obj = arr.substring(objStart, objEnd + 1);
 				objStart = objEnd + 1;
@@ -515,7 +520,7 @@ void WebManager::handleApiCommitAll( ) {
 			objStart = 0; safety = 0;
 			while ((objStart = arr.indexOf('{', objStart)) >= 0) {
 				if (++safety > MAX_SENSORS + 4) break;
-				int objEnd = arr.indexOf('}', objStart);
+				int objEnd = jsonMatchEnd(arr, objStart);
 				if (objEnd < 0) break;
 				String obj = arr.substring(objStart, objEnd + 1);
 				objStart = objEnd + 1;
@@ -544,7 +549,9 @@ void WebManager::handleApiCommitAll( ) {
 				 * its row lands in the table. */
 				int limPos = valuePos(obj, "lim");
 				if (limPos >= 0) {
-					int limEnd = obj.indexOf('}', limPos);
+					/* valuePos lands on lim's '{'; match it by depth so a future
+					 * nested value inside lim cannot shear the slice. */
+					int limEnd = jsonMatchEnd(obj, limPos);
 					if (limEnd > limPos) {
 						String lim = obj.substring(limPos, limEnd + 1);
 						for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
@@ -1041,12 +1048,14 @@ void WebManager::handleApiCommitAll( ) {
     int arrStart = calJson.indexOf("\"sensors\"");
     if (arrStart >= 0) {
      arrStart = calJson.indexOf('[', arrStart);
-     int arrEnd = calJson.indexOf(']', arrStart);
+     /* Depth-aware on both axes: the staged entries carry "cal" point
+      * arrays whose ']' and '}' would otherwise end the slice early. */
+     int arrEnd = (arrStart >= 0) ? jsonMatchEnd(calJson, arrStart) : -1;
      if (arrStart >= 0 && arrEnd > arrStart) {
       String arr = calJson.substring(arrStart + 1, arrEnd);
       int objPos = 0; int safety = 0;
       while ((objPos = arr.indexOf('{', objPos)) >= 0 && ++safety < 20) {
-       int objEnd2 = arr.indexOf('}', objPos);
+       int objEnd2 = jsonMatchEnd(arr, objPos);
        if (objEnd2 < 0) break;
        String obj = arr.substring(objPos, objEnd2 + 1);
        objPos = objEnd2 + 1;
