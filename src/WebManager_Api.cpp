@@ -104,7 +104,7 @@ void WebManager::handleApiConfig( ) {
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	char buf[256];
@@ -216,7 +216,7 @@ void WebManager::handleApiThemes( ) {
 	}
 
 	_server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	safeSend("[");
@@ -254,7 +254,7 @@ void WebManager::handleApiAlarms( ) {
 	SystemConfig& cfg = _storageRef->getConfig( );
 
 
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 
@@ -503,7 +503,7 @@ void WebManager::handleApiStatus( ) {
 	              ? static_cast<int>(_telemetryRef->getPendingEstimate( ))
 	              : -1;
 
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	char buffer[1024];
@@ -563,7 +563,7 @@ void WebManager::handleApiStatus( ) {
 	 * readable for exactly the same reason as the four above. */
 	snprintf(buffer, sizeof(buffer),
 	         "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,\"rmn\":%ld,\"rmx\":%ld,\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
-	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu},",
+	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu,\"ad\":%lu},",
 	         (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
 	         (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
 	         (long)rmn, (long)rmx,
@@ -573,7 +573,7 @@ void WebManager::handleApiStatus( ) {
 	         (unsigned long)mt.configSaves,
 	         (unsigned long)mt.flashOps, (unsigned long)mt.flashOpMaxMs,
 	         (unsigned long)mt.flashOpTotalMs, (unsigned long)mt.flashOpsOver50ms,
-	         (unsigned long)g_flashIrqExposed);
+	         (unsigned long)g_flashIrqExposed, (unsigned long)_abortDrops);
 
 	if (!safeSend(buffer)) return;
 	if (!safeSend("\"sensors\":[")) return;

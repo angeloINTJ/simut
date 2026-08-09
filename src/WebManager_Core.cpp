@@ -297,6 +297,7 @@ void WebManager::update( ) {
    /* Fresh request, fresh position: a death wearing a previous request's
     * hp= sent one investigation down a stale trail already. */
    watchdog_hw->scratch[7] = 0;
+   _chunkedResponse = false;
    _server.handleClient( );
    /* Before the framework can retire this client with its polite close
     * (whose ACK-wait a trickling reader extends forever, unfed), drain

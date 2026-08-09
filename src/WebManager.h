@@ -197,6 +197,13 @@ private:
 	 * the crash-loop this flag exists to prevent. */
 	bool _drainPending = false;
 
+	/* True while the current response is chunked — armed alongside every
+	 * setContentLength(CONTENT_LENGTH_UNKNOWN), cleared per request in
+	 * update( ). The abort policy branches on it: see dropAbortedStream. */
+	bool _chunkedResponse = false;
+	uint32_t _abortDrops = 0; /**< aborted chunked streams hard-closed (metr.ad) */
+	void dropAbortedStream(const char* origin);
+
 	/* Broken-pipe observability. safeSend returning false is logged at most
 	 * once every 5 seconds (throttle to avoid log spam when a handler
 	 * sends many chunks after the client disconnects). */

@@ -168,7 +168,7 @@ void WebManager::handleApiLs( ) {
  const uint32_t savedDeadline = _handlerDeadline;
  _handlerDeadline = millis( ) + WEB_LONG_HANDLER_DEADLINE_MS;
 
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/json", "");
 
  char buf[256];

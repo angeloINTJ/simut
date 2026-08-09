@@ -95,7 +95,7 @@ void WebManager::handleApiSensorsGet( ) {
 	SystemConfig& cfg = _storageRef->getConfig( );
 
 	_server.sendHeader("Cache-Control", "no-store");
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	char buf[320];
@@ -203,7 +203,7 @@ void WebManager::handleApiCalibGet( ) {
 	const auto& runtime = _sensorRef->getRuntimeSensors( );
 
 	_server.sendHeader("Cache-Control", "no-store");
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	/* 480, not 400: the per-sensor object grew by hasPress/pressRead/

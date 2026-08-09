@@ -434,7 +434,7 @@ void WebManager::handleApiHistoryMulti( ) {
   __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
   return;
  }
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  HPOS(6);
  _server.send(200, "application/json", "");
  HPOS(7);
@@ -835,6 +835,9 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  safeSend("");
  }
+ /* Loop-top aborts (client gone / overtime) break without passing through
+  * the funnel again — apply the same hard-close the funnel's aborts get. */
+ if (aborted) dropAbortedStream("hm");
  _handlerDeadline = savedDeadline;
  if (_displayRef) _displayRef->setWebBusy(false);
  __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
@@ -942,7 +945,7 @@ void WebManager::handleApiExportHistory( ) {
  uint32_t crc = crc32_init( );
 
  _server.sendHeader("Content-Disposition", "attachment; filename=\"simut_history.simx\"");
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/octet-stream", "");
 
  /* Emit HEADER */
@@ -1078,7 +1081,7 @@ void WebManager::handleApiExportHistory( ) {
  uint32_t crcFinal = crc32_final(crc);
  safeSend((const char*)&crcFinal, sizeof(crcFinal));
  safeSend("");
- }
+ } else dropAbortedStream("hx");
 
  _handlerDeadline = savedDeadline;
  if (_displayRef) _displayRef->setWebBusy(false);
@@ -1146,7 +1149,7 @@ void WebManager::handleApiExportLogs( ) {
  uint32_t crc = crc32_init( );
 
  _server.sendHeader("Content-Disposition", "attachment; filename=\"simut_logs.simx\"");
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/octet-stream", "");
 
  /* Emit HEADER */
@@ -1216,7 +1219,7 @@ void WebManager::handleApiExportLogs( ) {
  uint32_t crcFinal = crc32_final(crc);
  safeSend((const char*)&crcFinal, sizeof(crcFinal));
  safeSend("");
- }
+ } else dropAbortedStream("hx");
 
  _handlerDeadline = savedDeadline;
  if (_displayRef) _displayRef->setWebBusy(false);
@@ -1252,7 +1255,7 @@ void WebManager::handleApiLogs( ) {
  * Format: application/octet-stream, N × CompactLogRecord(12 bytes).
  * ~10x smaller than the previous translated CSV.
  */
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/octet-stream", "");
 
  auto streamRawLog = [&](const char* path) -> bool {
@@ -1559,7 +1562,7 @@ void WebManager::handleApiHistoryDays( ) {
 
  sortStrings(files.data( ), (int)files.size( ), true); /* descending */
 
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/json", "");
  safeSend("[");
  for (size_t i = 0; i < files.size( ); i++) {

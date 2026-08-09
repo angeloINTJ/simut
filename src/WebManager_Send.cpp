@@ -68,16 +68,22 @@ bool WebManager::waitSendRoom(size_t need, const char* origin) {
  while (_server.client( ).availableForWrite( ) < (int)target) {
  if (isClientGone( )) {
  maybeLogClientDisconnect(origin);
+ if (_chunkedResponse) { dropAbortedStream(origin); return false; }
  _drainPending = _server.client( ).connected( ); /* deadline abort: peer alive */
  return false;
  }
  if (millis( ) - waited0 > WEB_SEND_STALL_MS) {
  _cgDisconnHits++; /* counted as a drop we chose — see stall note */
  maybeLogClientDisconnect(origin);
- /* stop(0), never stop( ): the no-arg close runs wait_until_acked,
-  * whose clock RESETS on every trickled ACK — the very park this
-  * whole path exists to end. */
- _server.client( ).stop(0);
+ /* stop(1), and 0 would not do: stop's argument caps flush's
+  * wait_until_acked, whose clock RESETS on every trickled ACK — but
+  * 0 does not mean "no wait", it means "use the 300 ms default"
+  * (WIFICLIENT_MAX_FLUSH_WAIT_MS). A peer ACKing every 250 ms
+  * extends a stop(0) forever, unfed — measured: sip-250 clients
+  * reboot the device, sip-450 clients cannot, and 300 sits exactly
+  * between. 1 ms is the smallest honest cap: one scheduler pass,
+  * then tcp_close — and close( ) falls back to tcp_abort on error. */
+ _server.client( ).stop(1);
  _drainPending = false; /* pcb gone — nothing left to drain */
  return false;
  }
@@ -132,7 +138,13 @@ bool WebManager::safeSendN(const char* data, size_t len, const char* origin) {
  }
 
  bool gone = isClientGone( );
- if (gone) maybeLogClientDisconnect(origin);
+ if (gone) {
+ maybeLogClientDisconnect(origin);
+ /* Chunked + aborted = the framework will write the terminator into
+  * whatever this abort leaves behind, inside this same handleClient
+  * call — end the pcb NOW so that write is a no-op (see below). */
+ if (_chunkedResponse) { dropAbortedStream(origin); return false; }
+ }
  /* connected( ), not !gone: a deadline/guard abort leaves the client
   * CONNECTED with an un-ACKed tail — precisely the case whose polite
   * close parks. Success or abort, a live peer still needs the drain. */
@@ -183,13 +195,54 @@ void WebManager::drainOrDrop( ) {
  _cgDisconnHits++;
  maybeLogClientDisconnect("drain");
  HPOS(601);
- c.stop(0);
+ c.stop(1); /* 0 = 300 ms flush default, resettable by ACKs — see waitSendRoom */
  HPOS(602);
  return;
  }
  feedWatchdog( );
  delay(1);
  }
+}
+
+/* Why an aborted CHUNKED stream must die hard, not politely.
+ *
+ * An aborted chunked response is unfinishable: the peer will never get the
+ * terminator, so there is nothing left for a graceful close to deliver. And
+ * the graceful path is not merely useless here — it is the last standing
+ * storm signature. When the handler returns from an abort, the framework's
+ * _finalizeResponse( ) runs inside the SAME handleClient call — before
+ * update( )'s drainOrDrop can intervene — and, seeing _chunked, writes the
+ * terminator into the socket the abort just left stuffed. On a slow reader
+ * that write meets an exhausted segment queue (the hp=720 lesson: byte room
+ * is not segment room) and waits inside ClientContext, where every trickled
+ * ACK re-arms the timeout — unbounded, unfed, wearing the abort's hp=900
+ * under C0=[WEB_POLL]. With the pcb aborted first, that write and the
+ * framework's later delete both exit instantly. Non-chunked responses keep
+ * the polite drain: their finalize is a no-op, and small replies deserve
+ * the chance to flush. */
+void WebManager::dropAbortedStream(const char* origin) {
+ (void)origin;
+ WiFiClient c = _server.client( );
+ if (!c || !c.connected( )) { _drainPending = false; return; }
+ /* Surgical, not blanket: a socket with room for the 5-byte terminator
+  * (plus framing slack) lets _finalizeResponse complete instantly, and the
+  * polite path then hands the legitimate deadline-truncated reader a
+  * VALIDLY-FRAMED chunked ending — json cut short, framing whole, the
+  * documented behavior tools rely on. Hard-closing those trades a clean
+  * truncation for a mid-chunk RST (the kernel discards buffered rx on
+  * reset — measured as InvalidChunkLength in a healthy client). Only a
+  * socket without even terminator room — a reader that is not draining —
+  * meets the write that parks, and only it gets the RST.
+  *
+  * Half the send buffer, not "room for 5 bytes": byte room is not segment
+  * room (the hp=720 lesson, and it bit this very check on the bench — 32
+  * bytes "free" with the segment queue exhausted parked the terminator
+  * write and rebooted the device). Half in flight keeps the queue
+  * healthy by construction, the same predicate waitSendRoom trusts. */
+ if (c.availableForWrite( ) >= (int)(TCP_SND_BUF / 2)) { _drainPending = true; return; }
+ c.stop(1); /* 1, not 0: see waitSendRoom */
+ _abortDrops++;
+ _drainPending = false;
 }
 
 void WebManager::detectGzipSupport( ) {
