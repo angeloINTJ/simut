@@ -751,6 +751,61 @@ void test_calibcurve_decode_rejects_malformed(void) {
 }
 
 
+void test_calibrow_parse_tail_shapes(void) {
+    /* The row shape is identified by field count — this is the contract the
+     * whole file format now stands on. */
+    CalibCurve c; char name[40];
+    /* 1 field: identity DB row (DS18B20 ROM->id/name), no correction. */
+    TEST_ASSERT_TRUE(calibRowParseTail("GELADEIRA", c, name, sizeof(name)));
+    TEST_ASSERT_TRUE(calibCurveIsIdentity(c));
+    TEST_ASSERT_EQUAL_STRING("GELADEIRA", name);
+    /* 2 fields: legacy offset,name -> anchor-free constant offset. */
+    TEST_ASSERT_TRUE(calibRowParseTail("0.50,GELADEIRA", c, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(1, c.n);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 23.50f, calibCurveApply(c, 23.0f));
+    TEST_ASSERT_EQUAL_STRING("GELADEIRA", name);
+    /* Legacy row with an empty name keeps its offset — trailing-empty
+     * stripping must not eat the name field and shift the shape. */
+    TEST_ASSERT_TRUE(calibRowParseTail("0.50,", c, name, sizeof(name)));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.50f, calibCurveOffsetAt(c, NAN));
+    TEST_ASSERT_EQUAL_STRING("", name);
+    /* Odd >= 3: canonical name,raw,ref[,...]. */
+    TEST_ASSERT_TRUE(calibRowParseTail("GELADEIRA,1.00,1.50", c, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(1, c.n);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 1.00f, c.raw[0]);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.50f, c.off[0]);
+    TEST_ASSERT_EQUAL_STRING("GELADEIRA", name);
+    TEST_ASSERT_TRUE(calibRowParseTail("AMBIENTE,20.80,21.80,24.80,25.20,", c, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(2, c.n); /* trailing comma tolerated */
+    /* Even >= 4: transitional offset,name,pairs — the pairs win. */
+    TEST_ASSERT_TRUE(calibRowParseTail("9.99,GELADEIRA,1.00,1.50", c, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(1, c.n);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 1.00f, c.raw[0]);
+    TEST_ASSERT_EQUAL_STRING("GELADEIRA", name);
+}
+
+void test_calibrow_parse_tail_fallbacks(void) {
+    CalibCurve c; char name[40];
+    /* Even shape with broken cells falls back to its offset column. */
+    TEST_ASSERT_FALSE(calibRowParseTail("0.50,NAME,1.00,xx", c, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(1, c.n);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.50f, calibCurveOffsetAt(c, NAN));
+    /* Canonical shape with broken cells has no offset to fall back on. */
+    TEST_ASSERT_FALSE(calibRowParseTail("NAME,1.00,xx", c, name, sizeof(name)));
+    TEST_ASSERT_TRUE(calibCurveIsIdentity(c));
+    /* Bench-era packed row: the ';'-joined pair cell carries no commas, so
+     * the count reads one off — the numeric first field is rescued as the
+     * offset instead of zeroing a real correction. */
+    TEST_ASSERT_FALSE(calibRowParseTail("0.50,AMBIENTE,20.90:21.90;24.90:25.30", c, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(1, c.n);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.50f, calibCurveOffsetAt(c, NAN));
+    TEST_ASSERT_EQUAL_STRING("AMBIENTE", name);
+    /* Empty tail is the shape of a row that ends at the id — identity. */
+    TEST_ASSERT_TRUE(calibRowParseTail("", c, name, sizeof(name)));
+    TEST_ASSERT_TRUE(calibCurveIsIdentity(c));
+}
+
+
 /* ===========================================================================
  * JSON SLICE (jsonMatchEnd)
  *
@@ -883,6 +938,8 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_calibcurve_encode_decode_roundtrip);
     RUN_TEST(test_calibcurve_decode_sorts_and_tolerates);
     RUN_TEST(test_calibcurve_decode_rejects_malformed);
+    RUN_TEST(test_calibrow_parse_tail_shapes);
+    RUN_TEST(test_calibrow_parse_tail_fallbacks);
 
     /* depth-aware JSON slicing — replaces the first-'}' walkers */
     RUN_TEST(test_jsonMatchEnd_flat);

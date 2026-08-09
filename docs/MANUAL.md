@@ -154,13 +154,15 @@ plausible range; the panel warns as you type, with the same rules the firmware
 enforces.
 
 Everything is stored in `/calib.csv`, keyed by the 1-Wire ROM for a DS18B20
-and by board serial + hardware ID for ROM-less parts. The points ride at the
-end of the row as plain CSV cells, alternating raw and reference:
-`key,id,offset,name[,raw,ref,raw,ref,…]` — one number per column, so a
-spreadsheet opens the file directly. A file written by older firmware
-(4 columns) reads as the constant offset it always was; a multi-point row
-read by older firmware falls back to the offset column (`0.00` for curves of
-2+ points — the correction is simply off after a downgrade, never wrong).
+and by board serial + hardware ID for ROM-less parts. The canonical row is
+`key,id,name,raw,ref[,raw,ref,…]` — everything a row has to say sits after
+the name, one number per CSV column, so a spreadsheet opens the file
+directly. Two other shapes coexist, told apart by field count: `key,id,name`
+(a DS18B20 identity row with no correction) and the legacy 4-column
+`key,id,offset,name` written by older firmware, which reads as the constant
+offset it always was and is carried in that shape until real points replace
+it — an offset with no known anchor has no point cells to become. Older
+firmware reading a points row sees **no** correction (never a wrong one).
 Renaming a hardware ID migrates the rows; removing a correction deletes the
 row, except for DS18B20 rows, which double as the ROM→ID/name database that
 `sensor accept` reads.

@@ -351,19 +351,31 @@ static CalibChange s_changes[MAX_CHANGES];
 struct PendIdent { int slot; char hwId[16]; char name[32]; };
 static PendIdent s_idents[MAX_SENSORS];
 
-/* One row of calib.csv. The offset column and the trailing point cells are
- * written to back each other: n=1 mirrors its offset into the legacy column
- * (older firmware reads that row exactly as before), n>=2 has no
- * single-offset equivalent and writes 0.00 there. The points go out as flat
- * CSV cells — raw,ref,raw,ref — one number per column; no points keeps the
- * row at 4 columns with no trailing comma, and older readers take everything
- * after the third comma as the name. */
+/* One row of calib.csv. Everything a row has to say now sits AFTER the name,
+ * as flat CSV cells — raw,ref,raw,ref — one number per column. The reader
+ * identifies the shape by field count (calibRowParseTail), so three shapes
+ * coexist:
+ *   canonical  key,id,name,raw,ref[,...]   any anchored curve
+ *   legacy     key,id,offset,name          ONLY for a carried anchor-free
+ *                                          constant offset — a curve with no
+ *                                          anchor has no point cells to
+ *                                          write, and inventing an anchor
+ *                                          would show the user a measurement
+ *                                          that never happened
+ *   identity   key,id,name                 DS18B20 ROM->id/name DB row with
+ *                                          no correction
+ * The legacy shape disappears on its own: the first edit that sets real
+ * points replaces it with the canonical row. */
 static void emitCalibRow(File& f, const CalibChange& ch) {
 	char pts[CALIB_PTS_BUF];
 	calibCurveEncodePts(ch.curve, pts, sizeof(pts));
-	const float offCol = (ch.curve.n == 1) ? ch.curve.off[0] : 0.0f;
-	if (pts[0] != '\0') f.printf("%s,%s,%.2f,%s,%s\n", ch.key, ch.id, offCol, ch.name, pts);
-	else                f.printf("%s,%s,%.2f,%s\n",    ch.key, ch.id, offCol, ch.name);
+	if (pts[0] != '\0') {
+		f.printf("%s,%s,%s,%s\n", ch.key, ch.id, ch.name, pts);
+	} else if (ch.curve.n == 1) {
+		f.printf("%s,%s,%.2f,%s\n", ch.key, ch.id, ch.curve.off[0], ch.name);
+	} else {
+		f.printf("%s,%s,%s\n", ch.key, ch.id, ch.name);
+	}
 }
 
 /* Parse `"<chKey>":[[raw,ref],...]` inside the cal{} object.

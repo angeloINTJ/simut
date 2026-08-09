@@ -1408,36 +1408,19 @@ long StorageManager::getCalibrationVersion(String path) {
  return ver;
 }
 
-/* Shared tail of a calib.csv row: `...,offset[,name[,pts]]`. p2/p3 are the
- * commas around the offset column (p3 may be -1 on a 3-column row).
- *
- * The offset column and the pts column coexist on purpose: a 4-column row is
- * everything older firmware ever wrote and decodes as the constant offset it
- * always was, and a pts column that fails to parse falls back to the offset
- * column so the row keeps meaning something instead of silently zeroing out. */
-static void parseCalibRowTail(const String& line, int p2, int p3,
+/* Shared tail of a calib.csv row — everything after the id column. The row
+ * shape is identified by field count inside calibRowParseTail (CalibCurve.h,
+ * host-tested): name-only, legacy `offset,name`, canonical `name,raw,ref...`
+ * or the transitional `offset,name,raw,ref...`. A false return means point
+ * cells were present but malformed and a fallback was taken. */
+static void parseCalibRowTail(const String& line, int p2,
                               CalibCurve& outCurve, String& outName) {
- float off = 0.0f;
- String pts = "";
- if (p3 > p2) {
- off = parseFloat(line.substring(p2 + 1, p3).c_str( ));
- int p4 = line.indexOf(',', p3 + 1);
- if (p4 > p3) {
- outName = line.substring(p3 + 1, p4);
- pts = line.substring(p4 + 1); pts.trim( );
- } else {
- outName = line.substring(p3 + 1);
- }
+ char nameBuf[40];
+ const bool clean = calibRowParseTail(line.c_str( ) + p2 + 1, outCurve, nameBuf, sizeof(nameBuf));
+ outName = nameBuf;
  outName.replace("\"", "");
- } else {
- off = parseFloat(line.substring(p2 + 1).c_str( ));
- outName = "";
- }
- if (pts.length( ) == 0) {
- calibCurveFromOffset(outCurve, off);
- } else if (!calibCurveDecodePts(pts.c_str( ), outCurve)) {
- calibCurveFromOffset(outCurve, off);
- LOG_CODE(LOG_WARN, "CFG", SEC_CONFIG_CHANGED, 0, "bad pts column in calib.csv — offset fallback");
+ if (!clean) {
+ LOG_CODE(LOG_WARN, "CFG", SEC_CONFIG_CHANGED, 0, "bad point cells in calib.csv — fallback");
  }
 }
 
@@ -1460,10 +1443,10 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, Calib
  lineBuf[len] = '\0'; if (len > 0 && lineBuf[len - 1] == '\r') lineBuf[len - 1] = '\0';
  String line = String(lineBuf); line.trim( );
  if (line.length( ) >= 16 && line.substring(0, 16).equalsIgnoreCase(romStr)) {
- int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1); int p3 = line.indexOf(',', p2 + 1);
+ int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1);
  if (p1 > 0 && p2 > p1) {
  outId = line.substring(p1 + 1, p2);
- parseCalibRowTail(line, p2, p3, outCurve, outName);
+ parseCalibRowTail(line, p2, outCurve, outName);
  found = true; break;
  }
  }
@@ -1505,11 +1488,11 @@ bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, CalibCu
  String line = String(lineBuf); line.trim( );
  if (line.length( ) < 16) continue;
  if (!line.substring(0, 16).equalsIgnoreCase(picoUID)) continue;
- int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1); int p3 = line.indexOf(',', p2 + 1);
+ int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1);
  if (p1 <= 0 || p2 <= p1) continue;
  String idCol = line.substring(p1 + 1, p2); idCol.trim( );
  if (!idCol.equalsIgnoreCase(wanted)) continue;
- parseCalibRowTail(line, p2, p3, outCurve, outName);
+ parseCalibRowTail(line, p2, outCurve, outName);
  found = true; break;
  }
  f.close( );

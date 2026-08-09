@@ -32,6 +32,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <math.h>
 #include <stdio.h>
 
@@ -227,4 +228,116 @@ inline bool calibCurveDecodePts(const char* pts, CalibCurve& c) {
 	const uint8_t count = (uint8_t)(n / 2);
 	for (uint8_t i = 0; i < count; i++) { r[i] = vals[2 * i]; v[i] = vals[2 * i + 1]; }
 	return calibCurveBuild(c, r, v, count);
+}
+
+/**
+ * @brief Parse everything after the id column of a calib.csv row.
+ *
+ * The row shape is identified by FIELD COUNT, which is why this lives here
+ * as a pure function instead of inside StorageManager — the dispatch is the
+ * part worth pinning with host tests:
+ *
+ *   1 field       name                        identity (DS18B20 ROM->id/name DB row)
+ *   2 fields      offset,name                 legacy constant offset (anchor-free —
+ *                                             the one shape that has no point cells
+ *                                             to be written as)
+ *   odd  >= 3     name,raw,ref[,...]          canonical points row
+ *   even >= 4     offset,name,raw,ref[,...]   transitional shape; offset doubles as
+ *                                             the fallback if the cells fail to parse
+ *
+ * Trailing empty fields (a row ending in commas) are ignored before counting,
+ * but never below 2 fields — `0.50,` is a legacy row with an empty name, not
+ * a name-only row called "0.50".
+ *
+ * @return false when a fallback was taken (malformed point cells) — the
+ *         caller decides whether that earns a log line. The curve is always
+ *         left in a valid state.
+ */
+inline bool calibRowParseTail(const char* tail, CalibCurve& c, char* nameOut, size_t nameCap) {
+	c = CalibCurve( );
+	if (nameOut && nameCap) nameOut[0] = '\0';
+	if (!tail) return true;
+
+	/* Field boundaries on raw commas — names are comma-stripped at write
+	 * time, so a comma is always a separator here. */
+	const int MAXF = 2 + CALIB_MAX_POINTS * 2 + 2;
+	const char* fs[MAXF];
+	const char* fe[MAXF];
+	int nf = 0;
+	const char* p = tail;
+	bool overflow = false;
+	while (true) {
+		const char* comma = strchr(p, ',');
+		if (nf >= MAXF) { overflow = true; break; }
+		fs[nf] = p;
+		fe[nf] = comma ? comma : p + strlen(p);
+		nf++;
+		if (!comma) break;
+		p = comma + 1;
+	}
+
+	/* Trim each field view; drop trailing empties (min 2, see doc). */
+	auto trimField = [](const char*& s, const char*& e) {
+		while (s < e && (*s == ' ' || *s == '\t')) s++;
+		while (e > s && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r' || e[-1] == '\n')) e--;
+	};
+	for (int i = 0; i < nf; i++) trimField(fs[i], fe[i]);
+	while (nf > 2 && fs[nf - 1] == fe[nf - 1]) nf--;
+	if (nf == 2 && fs[1] == fe[1] && fs[0] == fe[0]) nf = 0;
+
+	auto copyName = [&](int idx) {
+		if (!nameOut || nameCap == 0 || idx >= nf) return;
+		size_t len = (size_t)(fe[idx] - fs[idx]);
+		if (len >= nameCap) len = nameCap - 1;
+		memcpy(nameOut, fs[idx], len);
+		nameOut[len] = '\0';
+	};
+	auto fieldNumber = [&](int idx, float& out) -> bool {
+		const char* q = fs[idx];
+		if (!calibParseNumber(&q, out)) return false;
+		while (q < fe[idx] && (*q == ' ' || *q == '\t')) q++;
+		return q == fe[idx]; /* the whole field, not a numeric prefix */
+	};
+
+	if (nf == 0) return true;
+	if (nf == 1) { copyName(0); return true; }
+	if (nf == 2) {
+		float off = 0.0f;
+		fieldNumber(0, off); /* garbage keeps 0.0 — same tolerance as ever */
+		calibCurveFromOffset(c, off);
+		copyName(1);
+		return true;
+	}
+
+	const bool even = (nf % 2) == 0;
+	const int nameIdx = even ? 1 : 0;
+	float legacyOff = 0.0f;
+	if (even) fieldNumber(0, legacyOff);
+	copyName(nameIdx);
+
+	bool clean = !overflow;
+	char pbuf[CALIB_PTS_BUF];
+	const char* span0 = fs[nameIdx + 1];
+	const char* span1 = fe[nf - 1];
+	const size_t spanLen = (size_t)(span1 - span0);
+	if (!overflow && spanLen < sizeof(pbuf)) {
+		memcpy(pbuf, span0, spanLen);
+		pbuf[spanLen] = '\0';
+		if (calibCurveDecodePts(pbuf, c)) return clean;
+	}
+
+	/* Point cells did not parse. An even row still has its offset column; an
+	 * odd row whose first field is numeric is a transitional packed row
+	 * ("0.50,NAME,r:v;...") that field-counting reads one off — rescue the
+	 * offset in both cases rather than zeroing a correction. */
+	float off = 0.0f;
+	if (even) {
+		off = legacyOff;
+	} else if (fieldNumber(0, off)) {
+		copyName(1);
+	} else {
+		off = 0.0f;
+	}
+	calibCurveFromOffset(c, off);
+	return false;
 }

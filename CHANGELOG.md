@@ -22,11 +22,14 @@ takes effect immediately instead of bleeding through a 10-sample window. For
 constant offsets the arithmetic is identical, so existing deployments read the
 same values they always did.
 
-`/calib.csv` carries the points as plain trailing CSV cells, alternating raw
-and reference (`key,id,offset,name[,raw,ref,raw,ref,…]`) — one number per
-column, spreadsheet-friendly. Old 4-column files read unchanged; rows without
-a multi-point curve are still written as 4 columns, so a downgrade keeps
-reading its offsets. Removing a correction deletes the row (DS18B20 rows stay — they
+`/calib.csv` puts everything after the name as flat CSV cells:
+`key,id,name,raw,ref[,raw,ref,…]` — one number per column,
+spreadsheet-friendly, no dedicated offset column anymore. Row shapes are told
+apart by field count: legacy 4-column `key,id,offset,name` files still read
+as the constant offset they always were (and a carried anchor-free offset is
+still written in that shape — it has no points to become); `key,id,name` is
+an identity row. Older firmware reading a points row sees no correction,
+never a wrong one. Removing a correction deletes the row (DS18B20 rows stay — they
 double as the ROM→ID/name identity database). `POST /api/calib` accepts
 `"cal":{"<channel>":[[raw,ref],…]}` with full validation before anything is
 written; `GET /api/calib` channels gain `raw`, `min`, `max` and `pts`.
