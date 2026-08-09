@@ -224,6 +224,7 @@ bool WebManager::isHandlerOvertime( ) {
 
 
 #include <pico/time.h>
+#include <hardware/watchdog.h>
 
 /*
  * SendGuard — feeds the watchdog during blocking send calls.
@@ -293,6 +294,9 @@ void WebManager::update( ) {
    * the server/lwIP/CYW43 plumbing, not in our code. */
   LogManager::TraceScope _tPoll(0, MOD_WEB_POLL);
   for (int i = 0; i < 4; i++) {
+   /* Fresh request, fresh position: a death wearing a previous request's
+    * hp= sent one investigation down a stale trail already. */
+   watchdog_hw->scratch[7] = 0;
    _server.handleClient( );
    /* Before the framework can retire this client with its polite close
     * (whose ACK-wait a trickling reader extends forever, unfed), drain

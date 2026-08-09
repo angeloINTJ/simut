@@ -14,6 +14,9 @@
 #include "TouchPriority.h"
 #include "DisplayManager.h" /* For getActiveWebDictSource */
 #include "FlashIrqProbe.h"  /* For g_flashIrqExposed (metr.fx) */
+#include <hardware/watchdog.h>
+/* Position trace (hp=) — see WebManager_History.cpp. */
+#define HPOS(v) do { watchdog_hw->scratch[7] = (uint32_t)(v); } while (0)
 #include <LittleFS.h>
 #include <time.h>
 
@@ -511,9 +514,13 @@ void WebManager::handleApiStatus( ) {
 	/* Refreshes heap samples before serving metrics (cost: ~16 malloc/free).
 	 * Frequency limited by the dashboard polling interval (3s). */
 	MetricsManager& mm = MetricsManager::instance( );
+	HPOS(810);
 	mm.sampleHeap( );
 	mm.sampleLargestBlock( );
-	mm.observeRssi(_netRef->getRssi( ));
+	HPOS(811);
+	const int liveRssi = _netRef->getRssi( ); /* one live ioctl, bracketed */
+	HPOS(812);
+	mm.observeRssi(liveRssi);
 	const SystemMetrics& mt = mm.data( );
 
 	uint32_t heapLargest = mt.heapLargestBlock;
@@ -524,7 +531,7 @@ void WebManager::handleApiStatus( ) {
 	 * is ever sent", and pending==0 means both. */
 	int telOn = (cfg.telInterval > 0) ? 1 : 0;
 	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u},",
-	         devName.c_str( ), millis( ), (int)_netRef->getRssi( ), ipStr.c_str( ), cfg.themeIndex,
+	         devName.c_str( ), millis( ), liveRssi, ipStr.c_str( ), cfg.themeIndex,
 	         (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
 	         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
 	         (unsigned long)now, ntp ? 1 : 0, pending, telOn,
