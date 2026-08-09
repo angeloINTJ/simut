@@ -827,8 +827,8 @@ void LogManager::performCrashAutopsy( ) {
  const char* c1Name = (c1Valid == 0x80 && c1Mod <= MOD_NAMES_MAX)
  ? MOD_NAMES[c1Mod] : "?";
  snprintf(msg, sizeof(msg),
- "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] C1=[%s] at up=%lums sc3=0x%08lx",
- c0Name, c1Name, (unsigned long)_preBootScratch6, (unsigned long)modTrace);
+ "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] C1=[%s] at up=%lums sc3=0x%08lx hp=%lu",
+ c0Name, c1Name, (unsigned long)_preBootScratch6, (unsigned long)modTrace, (unsigned long)_preBootScratch7);
  } else {
  /* WDT was armed, so the previous session ran past setup( ) and must
  * have called TRACE_MOD — a missing C0 marker means the trace channel

@@ -182,6 +182,12 @@ bool WebManager::isRateLimited(uint32_t minIntervalMs) {
 
 void WebManager::feedWatchdog( ) {
  watchdog_update( );
+ /* The heartbeat must ride along too: this is the ONLY feeder for every
+  * send-wait and stream-breath loop, and it fed the dog without stamping
+  * the beat — so the autopsy's "at up=" froze at the last feedWdt( ) site
+  * while whole seconds of fed waiting ran on. Every stall investigated
+  * under load was mislocated by however long the beatless stretch was. */
+ TRACE_BEAT(0);
  /* The send loop feeds through here rather than feedWdt( ), so without this the
   * Core-1 stall sampler would be blind for the whole streaming phase of a
   * download — half of the load under investigation. */
@@ -288,6 +294,11 @@ void WebManager::update( ) {
   LogManager::TraceScope _tPoll(0, MOD_WEB_POLL);
   for (int i = 0; i < 4; i++) {
    _server.handleClient( );
+   /* Before the framework can retire this client with its polite close
+    * (whose ACK-wait a trickling reader extends forever, unfed), drain
+    * the un-ACKed tail with the watchdog fed or drop the connection.
+    * Only when a send completed — see _drainPending. */
+   if (_drainPending) { drainOrDrop( ); _drainPending = false; }
    if (millis( ) >= budget) break;
   }
  }
