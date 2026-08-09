@@ -43,10 +43,19 @@ bool jsonExtractFloat(const String& obj, const char* key, float& out) {
 }
 
 bool jsonExtractCStr(const String& obj, const char* key, char* outBuf, size_t outSize) {
-	char needle[24]; snprintf(needle, sizeof(needle), "\"%s\":\"", key);
+	/* Needle stops at the colon — the last survivor of the space-in-JSON
+	 * family. With `"key":"` as the needle, a `"hwId": "X"` (every Python
+	 * json.dumps, any hand-written payload) silently read as absent: the
+	 * browser never emits the space, so the page worked and the API lied
+	 * only to everyone else. Found on the bench by a rename that returned
+	 * ok and renamed nothing. */
+	char needle[24]; snprintf(needle, sizeof(needle), "\"%s\":", key);
 	int p = obj.indexOf(needle);
 	if (p < 0) { outBuf[0] = '\0'; return false; }
 	int s = p + (int)strlen(needle);
+	while (s < (int)obj.length( ) && (obj[s] == ' ' || obj[s] == '\t')) s++;
+	if (s >= (int)obj.length( ) || obj[s] != '"') { outBuf[0] = '\0'; return false; }
+	s++;
 	int e = s;
 	while (e < (int)obj.length( ) && obj[e] != '"') {
 		if (obj[e] == '\\' && e + 1 < (int)obj.length( )) e++;
