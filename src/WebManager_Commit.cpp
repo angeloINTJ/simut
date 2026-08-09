@@ -149,6 +149,19 @@ void WebManager::handleApiCommitAll( ) {
 	SystemConfig& cfg = _storageRef->getConfig( );
 	bool themeChanged = false;
 
+	/* Fields the sys section DISCARDS — out-of-range or unparsable values
+	 * keep the stored setting, which is the right conservatism, but doing
+	 * it silently under a 200 cost a bench session per occurrence ("my
+	 * edit was ignored and nothing said so"). The names are echoed back in
+	 * the response as "rejected":[...] so the page can say which fields
+	 * did not take. */
+	char rejectedList[128];
+	rejectedList[0] = '\0';
+	auto rejectField = [&](const char* k) {
+		size_t l = strlen(rejectedList);
+		snprintf(rejectedList + l, sizeof(rejectedList) - l, "%s\"%s\"", l ? "," : "", k);
+	};
+
 	/* ── slots section: sensor provisioning ─────────────────────────────────
 	 * Format: "slots":{"s":[{"i":0,"a":true,"t":2,"p":[2,255,255,255],
 	 *                        "hwId":"DHT0","name":"Sala",
@@ -541,7 +554,7 @@ void WebManager::handleApiCommitAll( ) {
 				String n = getStr("name"); n.trim( );
 				if (n.length( ) > 0 && isValidName(n.c_str( ))) {
 					safeCopy(cfg.deviceName, n.c_str( ), sizeof(cfg.deviceName));
-				}
+				} else rejectField("name");
 			}
 			/* Strict parsing of numeric fields.
 			 * String::toInt( ) would silently return 0 on invalid input
@@ -556,7 +569,7 @@ void WebManager::handleApiCommitAll( ) {
 				if (parseIntStrict(getNum("tz"), v) && v >= -12 && v <= 14) {
 					cfg.timezoneOffset = (int8_t)v;
 					NetworkManager::applyTimezone(cfg.timezoneOffset);
-				}
+				} else rejectField("tz");
 			}
 			if (has("log")) cfg.loggingEnabled = (getNum("log") != "0");
 			if (has("t_sec")) cfg.telEncryption = (getNum("t_sec") != "0");
@@ -567,16 +580,20 @@ void WebManager::handleApiCommitAll( ) {
 				if (tk.indexOf("***") < 0) safeCopy(cfg.telApiKey, tk.c_str( ), sizeof(cfg.telApiKey));
 			}
 			#if SIMUT_SENSOR_DS18B20
-			if (has("res")) { int v; if (parseIntStrict(getNum("res"), v) && v >= 9 && v <= 12) cfg.ds18Resolution = (uint8_t)v; }
+			if (has("res")) { int v; if (parseIntStrict(getNum("res"), v) && v >= 9 && v <= 12) cfg.ds18Resolution = (uint8_t)v; else rejectField("res"); }
 #endif
-			if (has("s_int")) { int v; if (parseIntStrict(getNum("s_int"), v) && v >= 100 && v <= 600000) cfg.sampleIntervalMs = (uint32_t)v; }
+			if (has("s_int")) { int v; if (parseIntStrict(getNum("s_int"), v) && v >= 100 && v <= 600000) cfg.sampleIntervalMs = (uint32_t)v; else rejectField("s_int"); }
 			if (has("t_srv")) safeCopy(cfg.telServer, getStr("t_srv").c_str( ), sizeof(cfg.telServer));
-			if (has("t_port")) { int v; if (parseIntStrict(getNum("t_port"), v) && isInRange(v, 1, 65535)) cfg.telPort = (uint16_t)v; }
+			if (has("t_port")) { int v; if (parseIntStrict(getNum("t_port"), v) && isInRange(v, 1, 65535)) cfg.telPort = (uint16_t)v; else rejectField("t_port"); }
 			if (has("t_path")) safeCopy(cfg.telPath, getStr("t_path").c_str( ), sizeof(cfg.telPath));
-			if (has("t_int")) { int v; if (parseIntStrict(getNum("t_int"), v) && v >= 0 && v <= 86400000) cfg.telInterval = (uint32_t)v; }
-			if (has("t_bat")) { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 200)) cfg.telBatchSize = (uint8_t)v; }
-			if (has("t_mode")) { int v; if (parseIntStrict(getNum("t_mode"), v) && isInRange(v, 0, 2)) cfg.telMode = (uint8_t)v; }
-			if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && isInRange(v, 0, 1)) cfg.telTransport = (uint8_t)v; }
+			if (has("t_int")) { int v; if (parseIntStrict(getNum("t_int"), v) && v >= 0 && v <= 86400000) cfg.telInterval = (uint32_t)v; else rejectField("t_int"); }
+			/* 1..50 everywhere now: the CLI always said 1-50, the runtime clamps at
+			 * HARD_CAP=50 (TelemetryManager), and the page's input agrees since the
+			 * same commit — this was the field with four different ceilings, where
+			 * a user typing 100 silently got 50 with no one saying so. */
+			if (has("t_bat")) { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 50)) cfg.telBatchSize = (uint8_t)v; else rejectField("t_bat"); }
+			if (has("t_mode")) { int v; if (parseIntStrict(getNum("t_mode"), v) && isInRange(v, 0, 2)) cfg.telMode = (uint8_t)v; else rejectField("t_mode"); }
+			if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && isInRange(v, 0, 1)) cfg.telTransport = (uint8_t)v; else rejectField("t_transport"); }
 			if (has("m_topic")) safeCopy(cfg.mqttTopic, getStr("m_topic").c_str( ), sizeof(cfg.mqttTopic));
 			if (has("m_cid")) safeCopy(cfg.mqttClientId, getStr("m_cid").c_str( ), sizeof(cfg.mqttClientId));
 			if (has("m_user")) safeCopy(cfg.mqttUser, getStr("m_user").c_str( ), sizeof(cfg.mqttUser));
@@ -590,15 +607,15 @@ void WebManager::handleApiCommitAll( ) {
 				String mp = getStr("m_pass");
 				if (mp.length( ) > 0) safeCopy(cfg.mqttPass, mp.c_str( ), sizeof(cfg.mqttPass));
 			}
-			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; }
+			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; else rejectField("m_qos"); }
 			if (has("m_retain")) cfg.mqttRetain = (getNum("m_retain") != "0");
-			if (has("m_ka")) { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 5, 600)) cfg.mqttKeepAlive = (uint16_t)v; }
+			if (has("m_ka")) { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 5, 600)) cfg.mqttKeepAlive = (uint16_t)v; else rejectField("m_ka"); }
 			if (has("t_glob")) safeCopy(cfg.telGlobalTemplate, getStr("t_glob").c_str( ), sizeof(cfg.telGlobalTemplate));
 			if (has("t_line")) safeCopy(cfg.telLineTemplate, getStr("t_line").c_str( ), sizeof(cfg.telLineTemplate));
 			if (has("t_sep")) safeCopy(cfg.telLineSeparator, getStr("t_sep").c_str( ), sizeof(cfg.telLineSeparator));
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
 			if (has("ntp_enabled")) _storageRef->setNtpEnabled(getNum("ntp_enabled") != "0");
-			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); }
+			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); else rejectField("h_int"); }
 			(void)getInt; /* lambda kept for future fields, suppress -Wunused */
 		}
 	}
@@ -1003,9 +1020,14 @@ void WebManager::handleApiCommitAll( ) {
 
 	/* Response to client before reboot. Includes newPort if web port
 	 * changed — client uses it to redirect to the new host:port. */
-	char resp[64];
-	if (commitNewPort != 0) {
+	char resp[224];
+	if (commitNewPort != 0 && rejectedList[0]) {
+		snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"newPort\":%u,\"rejected\":[%s]}",
+		         (unsigned)commitNewPort, rejectedList);
+	} else if (commitNewPort != 0) {
 		snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"newPort\":%u}", (unsigned)commitNewPort);
+	} else if (rejectedList[0]) {
+		snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"rejected\":[%s]}", rejectedList);
 	} else {
 		snprintf(resp, sizeof(resp), "{\"status\":\"ok\"}");
 	}
