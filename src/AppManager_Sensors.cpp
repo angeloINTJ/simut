@@ -132,7 +132,15 @@ void AppManager::loadAndCalibrateSensors( ) {
  for (int i = 0; i < MAX_SENSORS; i++) {
   if (!cfg.sensors[i].active) continue;
 
-  if (cfg.sensors[i].sensorType == TYPE_DS18B20) {
+  /* Unpaired probe: all-zero ROM is a supported state (single-drop bus,
+   * see checkAndAutoHealSensors). The write side of /api/calib branches on
+   * exactly this predicate and files the row under `t<hwId>` — so the read
+   * side must mirror it, or those rows are written and never read again:
+   * calibrate, get "ok", offset stays 0.0 forever, reboot included. */
+  bool romIsZero = true;
+  for (int k = 0; k < 8; k++) if (cfg.sensors[i].rom[k] != 0) romIsZero = false;
+
+  if (cfg.sensors[i].sensorType == TYPE_DS18B20 && !romIsZero) {
    /* 1-Wire: keyed by ROM. The row also carries the ID and name the probe
     * was adopted with, which is how `sensor accept` restores them. */
    String dbId; float dbOffset = 0.0f; String dbName;
@@ -142,9 +150,9 @@ void AppManager::loadAndCalibrateSensors( ) {
     _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbId, dbOffset, dbName);
    }
   } else {
-   /* No ROM (DHT22, BMP280): keyed by the board serial, one row per
-    * quantity, each tagged with this slot's hwId — `t<hwId>` for
-    * temperature, `u<hwId>` for humidity.
+   /* No ROM (DHT22, BMP280, unpaired DS18B20): keyed by the board serial,
+    * one row per quantity, each tagged with this slot's hwId — `t<hwId>`
+    * for temperature, `u<hwId>` for humidity.
     *
     * This used to be a single device-wide pair found by "first row whose
     * id starts with t/u" and pushed onto "the first DHT22 in the runtime
