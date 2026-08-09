@@ -41,6 +41,10 @@ volatile uint32_t g_flashIrqOver1msCount  = 0;
 
 volatile uint8_t  g_core1Running          = 0;
 volatile uint8_t  g_core1MayExecute       = 0;
+volatile int32_t  g_core1PauseRefCount    = 0;
+volatile uint8_t  g_core1QuietActive      = 0;
+volatile uint8_t  g_core1Fault            = 0;
+volatile uint32_t g_core1FaultPc          = 0;
 volatile int32_t  g_core1FlashSafeDepth   = 0;
 volatile uint32_t g_flashIrqExposed       = 0;
 volatile uint32_t g_flashIrqExposedMaxUs  = 0;

@@ -626,6 +626,13 @@ void LogManager::checkCrossCoreHealth( ) {
  * Core 1 for several cumulative seconds between consecutive saves.
  * HW WDT on Core 0 remains the backstop for real hangs. */
  if (elapsed > 15000) {
+ if (otherCore == 1 && g_core1Fault) {
+ /* Core 1 did not hang — it CRASHED, and the parked fault handler has
+  * the address. A different magic routes the autopsy to print it. */
+ watchdog_hw->scratch[5] = 0xCA11FA17;
+ watchdog_hw->scratch[6] = g_core1FaultPc;
+ watchdog_hw->scratch[7] = (uint32_t)elapsed & 0xFFFFFu;
+ } else {
  watchdog_hw->scratch[5] = 0xCA11B007;
  /* Low byte: where Core 1 was. The module trace only ever says [DISPLAY] for a
   * frozen Core 1 — true and useless — while the phase names the draw call. This
@@ -639,15 +646,23 @@ void LogManager::checkCrossCoreHealth( ) {
   * them (in AppManager's 10 s check) sat behind gates the panic path never
   * takes. Autopsy prints them as tw=0xNNN. */
  uint32_t twfp = 0;
- if (g_core1WaitAlarm < 4) {
-  const uint8_t an = (uint8_t)g_core1WaitAlarm;
-  const int32_t dUs = (int32_t)(timer_hw->alarm[an] - timer_hw->timerawl);
-  uint32_t mag = (uint32_t)((dUs < 0 ? -(int64_t)dUs : (int64_t)dUs) / 1000000);
-  if (mag > 255u) mag = 255u;
-  twfp = (((timer_hw->inte >> an) & 1u) << 11) | (((timer_hw->intr >> an) & 1u) << 10)
-       | (((timer_hw->armed >> an) & 1u) << 9)  | ((dUs < 0 ? 1u : 0u) << 8) | mag;
+ { /* Pause ledger, not the alarm: eight tw= samples acquitted the wait's
+    * own alarm, so these 12 bits now interrogate the suspect the alarm
+    * pointed at — a granted lockout whose unpause never came. Packed:
+    * depth(3) | refcount(3) | pause age s, cap 31 (5) | quiet(1). */
+  uint32_t age = 0;
+  if (g_core1PauseStartMs != 0) {
+   age = (millis( ) - g_core1PauseStartMs) / 1000u;
+   if (age > 31u) age = 31u;
+  }
+  uint32_t dep = (g_core1FlashSafeDepth > 0) ? (uint32_t)g_core1FlashSafeDepth : 0u;
+  if (dep > 7u) dep = 7u;
+  uint32_t rc = (g_core1PauseRefCount > 0) ? (uint32_t)g_core1PauseRefCount : 0u;
+  if (rc > 7u) rc = 7u;
+  twfp = (dep << 9) | (rc << 6) | (age << 1) | (g_core1QuietActive ? 1u : 0u);
  }
- watchdog_hw->scratch[7] = (twfp << 20) | ((uint32_t)elapsed & 0xFFFFFu);
+  watchdog_hw->scratch[7] = (twfp << 20) | ((uint32_t)elapsed & 0xFFFFFu);
+ }
 
  /* Safe reboot: clear WDT ENABLE before triggering.
   * watchdog_reboot(0,0,0) leaves ENABLE set → persistent boot loop. */
@@ -793,7 +808,16 @@ void LogManager::performCrashAutopsy( ) {
  /* From the snapshot, never live: setup( ) zeroes scratch[5] before we get here. */
  uint32_t mark = _preBootScratch5;
 
- if (mark == 0xCA11B007) {
+ if (mark == 0xCA11FA17) {
+ /* ctx band 400: Core 1 died by EXCEPTION, not by hanging. The PC is in
+  * the serial text; the persisted record keeps the band. */
+ char msg[120];
+ snprintf(msg, sizeof(msg),
+ "SOFT PANIC: CORE 1 HARD FAULT at PC=0x%08lx (stuck %lums before verdict)",
+ (unsigned long)_preBootScratch6, (unsigned long)(_preBootScratch7 & 0xFFFFFu));
+ logCode(LOG_FATAL, "SYS", SYS_BOOT, 400, String("System boot: ") + msg);
+ watchdog_hw->scratch[5] = 0;
+ } else if (mark == 0xCA11B007) {
  uint32_t data = _preBootScratch6;
  uint32_t stuckTime = _preBootScratch7 & 0xFFFFFu;
  uint32_t twfp = _preBootScratch7 >> 20;
@@ -804,7 +828,7 @@ void LogManager::performCrashAutopsy( ) {
  const char* phaseName = (c1Phase < C1P_COUNT) ? C1P_NAMES[c1Phase] : "?";
 
  char msg[200];
- snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s] phase=%s tw=0x%03lx",
+ snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s] phase=%s pl=0x%03lx",
  deadCore,
  deadCore == 0 ? (mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK") : (mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK"),
  stuckTime,

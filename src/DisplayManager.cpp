@@ -32,6 +32,7 @@
 #include <stdlib.h>
 
 #include "pico/multicore.h"
+#include "hardware/structs/scb.h"
 
 
 /* Reduced from 8 to 2 languages (EN + PT) to save flash.
@@ -447,6 +448,7 @@ void DisplayManager::pauseRendering(bool pause) {
 	if (pause) {
 
 		int32_t prev = __atomic_fetch_add(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);
+		g_core1PauseRefCount = prev + 1;
 		if (prev == 0) {
 			_pauseStartTime = millis( );
 			/* Who is freezing Core 1, and for how long. Recorded at the 0->1
@@ -539,6 +541,7 @@ void DisplayManager::pauseRendering(bool pause) {
 					g_core1StuckParked = __atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) ? 1 : 0;
 					g_core1StuckPhase = g_core1Phase;
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+					g_core1PauseRefCount = 0;
 					LogManager::instance( ).setCorePaused(1, true);
 					{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
 					markCore1Down( );
@@ -582,6 +585,7 @@ void DisplayManager::pauseRendering(bool pause) {
 		}
 	} else {
 		int32_t prev = __atomic_fetch_sub(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);
+		g_core1PauseRefCount = (prev <= 1) ? 0 : prev - 1;
 		if (prev <= 1) {
 
 			__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
@@ -637,6 +641,7 @@ void DisplayManager::forceUnpause( ) {
 	if (prev > 0) {
 		LOG_CODE(LOG_ERROR, "DSP", DSP_FORCE_UNPAUSE, prev, String(TRL("forceUnpause: refCount=")) + prev);
 		__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+		g_core1PauseRefCount = 0;
 		accountPauseEnd( );
 		_pauseStartTime = 0;
 		{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
@@ -914,6 +919,7 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 	 * - _quietModeActive = true: isInQuietMode() returns true. */
 	__atomic_store_n(&_core1Ready, false, __ATOMIC_RELEASE);
 	__atomic_store_n(&_quietModeActive, true, __ATOMIC_RELEASE);
+	g_core1QuietActive = 1;
 	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 	__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
 	__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
@@ -945,6 +951,7 @@ void DisplayManager::releaseQuietMode( ) {
 	_quietSince = 0; /* T1.5: leak watchdog disarmed. */
 	_lastHeartbeat = millis( );
 	__atomic_store_n(&_quietModeActive, false, __ATOMIC_RELEASE);
+	g_core1QuietActive = 0;
 	LogManager::instance( ).setCorePaused(1, false);
 	launchCore1IfAbsent( );
 	/* Core 1 will set _core1Ready=true after victim_init in loopCore1. */
@@ -979,6 +986,36 @@ static uint8_t s_c1AlarmNum = 0xFF;
 static void __no_inline_not_in_flash_func(core1AlarmIsr)( ) {
 	/* Ack only. The wake is the interrupt itself, not anything this writes. */
 	timer_hw->intr = 1u << s_c1AlarmNum;
+}
+
+/* A raw-launched Core 1 runs with VTOR pointing at a table it cannot write —
+ * which is how the SysTick experiment died in init (the install tried to
+ * write flash) and why a Core-1 hard fault has always been a silent forever-
+ * loop wearing whatever phase was stamped last. Copy the table to RAM once
+ * per launch, point VTOR at it, and give HardFault a handler that stamps the
+ * stacked PC before parking. The panic path then reports the fault instead
+ * of blaming the sleep it interrupted. */
+static uint32_t __attribute__((aligned(256))) s_c1Vectors[48];
+
+static void __attribute__((naked, used)) core1FaultIsr(void) {
+	__asm volatile(
+		"mrs r0, msp\n"
+		"ldr r1, [r0, #24]\n"
+		"ldr r2, =g_core1FaultPc\n"
+		"str r1, [r2]\n"
+		"ldr r2, =g_core1Fault\n"
+		"movs r1, #1\n"
+		"strb r1, [r2]\n"
+		"1: wfi\n"
+		"b 1b\n");
+}
+
+static void core1VtorInit( ) {
+	const uint32_t* src = (const uint32_t*)scb_hw->vtor;
+	for (int i = 0; i < 48; i++) s_c1Vectors[i] = src[i];
+	s_c1Vectors[3] = (uint32_t)&core1FaultIsr;  /* HardFault, thumb bit set by the compiler */
+	__dmb( );
+	scb_hw->vtor = (uint32_t)s_c1Vectors;
 }
 
 static void core1WaitInit( ) {
@@ -1036,6 +1073,7 @@ void DisplayManager::loopCore1( ) {
 	_core1Ready = true;
 	g_core1Running = 1;   /* live from here: XIP fetches can now collide with flash */
 	C1_PHASE(C1P_INIT);
+	core1VtorInit( );     /* RAM vector table: makes Core-1 faults visible */
 	core1WaitInit( );     /* from Core 1, so the alarm IRQ is Core 1's */
 
 	/* Heap allocations preserved across resets.
