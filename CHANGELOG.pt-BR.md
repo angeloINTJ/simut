@@ -4,6 +4,47 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado
+
+### Curvas de calibração: até 5 pontos por grandeza
+
+A calibração cresce de um offset constante para uma **curva de correção de até
+5 pontos (bruto → referência) por grandeza**, editada no diálogo de slot do
+`/config`. A correção interpola linearmente entre os pontos e segura o offset
+das pontas além delas; um ponto é exatamente o offset constante de sempre, e
+zero pontos é o estado explícito "sem correção — padrão do sensor". Os pontos
+podem ser digitados de uma tabela de bancada ou captados da leitura ao vivo
+(bruto vazio capta no momento do salvar).
+
+As correções agora se aplicam à **média filtrada em vez de cada amostra
+bruta**: a rejeição de outliers passa a operar sempre sobre valores físicos e
+uma correção editada vale na hora, sem atravessar uma janela de 10 amostras.
+Para offsets constantes a aritmética é idêntica — os valores lidos não mudam.
+
+O `/calib.csv` ganha uma 5ª coluna opcional (`key,id,offset,name[,pts]`, com
+`pts = bruto:ref;bruto:ref;…`). Arquivos antigos de 4 colunas leem sem
+mudança; linhas sem curva multiponto continuam gravadas com 4 colunas, então
+um downgrade segue lendo seus offsets. Remover uma correção apaga a linha
+(linhas de DS18B20 ficam — são também o banco de identidade ROM→ID/nome).
+`POST /api/calib` aceita `"cal":{"<canal>":[[bruto,ref],…]}` com validação
+completa antes de qualquer gravação; o `GET /api/calib` ganha `raw`, `min`,
+`max` e `pts` por canal.
+
+**Mudança de comportamento:** os campos legados `refs`/`refTemp` (páginas em
+cache) agora definem uma correção absoluta de um ponto na leitura bruta atual,
+em vez de acumular `offset += ref − leitura`. Repetir a mesma referência virou
+operação idempotente — que é o que todo mundo sempre esperou.
+
+### Corrigido
+
+- **A caixa "Alarmes ativos" do editor de slot nunca salvava.** Todos os
+  walkers do `commit_all` fatiavam elementos no primeiro `}`, então qualquer
+  chave staged depois do objeto aninhado `lim{}` — onde mora o `al` — era
+  truncada em silêncio e mantinha o valor gravado. Os walkers de JSON
+  artesanais agora casam chaves por profundidade (cientes de aspas), que é
+  também o que permite o payload de calibração carregar arrays de pontos
+  aninhados.
+
 ## v2.0.1-alpha (2026-08-01)
 
 O histórico passa para o V5: um formato de série temporal comprimido e

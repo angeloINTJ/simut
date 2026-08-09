@@ -135,24 +135,43 @@ whichever chip you owned, the firmware was wrong about one of the two.
 
 ### Calibration
 
-Each sensor carries one offset **per quantity it measures**, stored in
-`/calib.csv` and keyed by hardware ID. A DHT22 has a temperature row and a
-humidity row; a BMP280 has temperature and pressure and no humidity. The
-calibration panel shows one reference field per quantity, so what appears there
-follows the part rather than a fixed pair of boxes.
+Each sensor carries one correction curve **per quantity it measures**, defined
+by up to **5 calibration points**. A point pairs the raw reading with the value
+a trusted instrument showed at the same moment. The correction is interpolated
+linearly between points and **held flat beyond the first and last** — the
+device never extrapolates a slope outside the span you actually measured.
+One point is the classic constant offset; zero points means **no correction**
+(the sensor's own output stands), and the editor says so explicitly.
+
+The editor lives in the `/config` slot dialog, one block per quantity: the raw
+and corrected readings side by side, the point rows, a capture button that
+fills the raw field with the current reading, and **Remove correction** to
+return to the sensor default. A point whose raw field is left empty is
+captured from the live reading at the moment you save — that is the one-click
+equivalent of the old single-reference flow. Points must have distinct raw
+values (at two decimals) and both coordinates must sit inside the quantity's
+plausible range; the panel warns as you type, with the same rules the firmware
+enforces.
+
+Everything is stored in `/calib.csv`, keyed by the 1-Wire ROM for a DS18B20
+and by board serial + hardware ID for ROM-less parts. The row format gained an
+optional 5th column: `key,id,offset,name[,pts]` with `pts` as
+`raw:ref;raw:ref;…`. A file written by older firmware (4 columns) reads as the
+constant offset it always was; a multi-point row read by older firmware falls
+back to the offset column (`0.00` for curves of 2+ points — the correction is
+simply off after a downgrade, never wrong). Renaming a hardware ID migrates
+the rows; removing a correction deletes the row, except for DS18B20 rows,
+which double as the ROM→ID/name database that `sensor accept` reads.
 
 Two identical DHT22s on one board calibrate independently, which was not true
 before v1.6.0-beta: offsets for ROM-less parts used to be a single device-wide
 row pair applied to whichever such sensor came first in the runtime list.
 
-Enter the value your trusted instrument reads and the device stores the
-difference. Pressure joined this panel in v1.6.3-beta; before that a BMP280
-could only have its temperature calibrated, and on v1.6.2-beta specifically no
-ROM-less sensor could be calibrated at all — the offset was written and never
-read back.
+Corrections apply to the filtered reading (after the trimmed mean), so the
+outlier rejection always operates on raw physical values, and every consumer —
+display, history, alarms, telemetry — sees the corrected value.
 
-Calibration requires the `CALIB` permission and is applied from the web
-dashboard.
+Calibration requires the `CALIB` permission and needs NTP synced.
 
 > **`/calib.csv` does not survive a firmware update.** See
 > [§12](#12-firmware-updates) for what an update preserves and what it does not.
@@ -281,14 +300,17 @@ for confirmation, because it silences every alarm channel at once.
 
 ### History records
 
-Readings are written to `/history/YYYY-MM-DD.sim4` in a compact binary format
-(**V4**). The recording interval defaults to one minute and is configurable
+Readings are written to `/history/YYYYMMDD.h5` in a compact binary format
+(**V5**). The recording interval defaults to one minute and is configurable
 from 1 to 1440.
 
-Records are keyed by the sensor's hardware ID. That has a consequence worth
-knowing before rewiring anything: **changing a slot's hardware ID makes the
-existing file stop matching it**, and the history for that sensor appears to
-stop. `/api/history_rebind` exists to re-point records at a new ID.
+V5 records are keyed by **slot × channel**, not by hardware ID — renaming an
+ID no longer stops the recording (that was a V4 behavior). The place a rename
+does bite today is **calibration**: `/calib.csv` rows of ROM-less sensors are
+keyed by hardware ID, so rename through the slot editor (which migrates the
+rows) rather than by editing files. A slot added or renamed today still needs
+`/api/history_rebind` (the button in the slot editor) to gain its column in
+the day file that froze its schema at midnight.
 
 Export is available as CSV from `/history`, or as raw binary through
 `/api/export/history.bin`.

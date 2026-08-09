@@ -4,6 +4,46 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased
+
+### Calibration curves: up to 5 points per quantity
+
+Calibration grows from one constant offset to a **correction curve of up to 5
+(raw → reference) points per quantity**, edited in the `/config` slot dialog.
+The correction interpolates linearly between points and holds the end offset
+beyond them; one point is exactly the old constant offset, and zero points is
+an explicit "no correction — sensor default" state. Points can be typed from a
+bench table or captured from the live reading (an empty raw field captures at
+save time).
+
+Corrections now apply to the **filtered mean instead of each raw sample**, so
+outlier rejection always works on physical values and an edited correction
+takes effect immediately instead of bleeding through a 10-sample window. For
+constant offsets the arithmetic is identical, so existing deployments read the
+same values they always did.
+
+`/calib.csv` gains an optional 5th column (`key,id,offset,name[,pts]`,
+`pts = raw:ref;raw:ref;…`). Old 4-column files read unchanged; rows without a
+multi-point curve are still written as 4 columns, so a downgrade keeps reading
+its offsets. Removing a correction deletes the row (DS18B20 rows stay — they
+double as the ROM→ID/name identity database). `POST /api/calib` accepts
+`"cal":{"<channel>":[[raw,ref],…]}` with full validation before anything is
+written; `GET /api/calib` channels gain `raw`, `min`, `max` and `pts`.
+
+**Behavior change:** the legacy `refs`/`refTemp` fields (cached pages) now set
+an absolute one-point correction at the current raw reading instead of
+accumulating `offset += ref − reading`. Repeating the same reference is now
+idempotent, which is what users expected all along.
+
+### Fixed
+
+- **The slot editor's "Alarms enabled" checkbox never saved.** Every
+  `commit_all` walker sliced array elements at the first `}`, so any key
+  staged after the nested `lim{}` object — which is where `al` sits — was
+  silently truncated off and kept its stored value. All the hand-rolled JSON
+  walkers now match braces by depth (quote-aware), which is also what lets
+  the calibration payload carry nested point arrays at all.
+
 ## v2.0.1-alpha (2026-08-01)
 
 History moves to V5: a compressed, self-describing time-series format whose hot
