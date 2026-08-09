@@ -642,7 +642,17 @@ void WebManager::handleApiCommitAll( ) {
 						if (kp < 0) return NAN;
 						int cp = obj.indexOf(':', kp + strlen(key));
 						if (cp < 0) return NAN;
-						return parseFloat(obj.substring(cp + 1).c_str( ));
+						/* Whitespace after the colon is legal JSON that the page's
+						 * JSON.stringify never emits — but any other client can.
+						 * parseFloat answers 0.0 for it, not NAN, so `"hmax": 80`
+						 * wrote a 0 bound and the inverted-band fixer below then
+						 * rewrote the pair to [min, min+0.1] — under a 200 OK.
+						 * getNum in the sys section and jsonExtractFloat both
+						 * already skip it; this reader was the one left behind. */
+						int vs = cp + 1;
+						while (vs < (int)obj.length( ) && (obj[vs] == ' ' || obj[vs] == '\t' ||
+						       obj[vs] == '\r' || obj[vs] == '\n')) vs++;
+						return parseFloat(obj.substring(vs).c_str( ));
 					};
 					float tmin = extractFloat("\"tmin\"");
 					float tmax = extractFloat("\"tmax\"");
