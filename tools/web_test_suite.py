@@ -550,9 +550,11 @@ def t_calib_rw(web, res):
     """Opt-in (--calib-rw): mutating round-trip on POST /api/calib.
 
     Writes flash, bumps the calibration version and briefly applies a +0.5
-    correction to one live channel, then restores exactly what was there.
-    Channels in the legacy anchor-free state (offset without pts) are not
-    touched — their state cannot be restored through the pts API."""
+    correction to one live channel, then clears it. Only channels with NO
+    correction at all are eligible: a restore is not guaranteed to run (a
+    Save & Restart from another browser mid-run reboots the device and kills
+    the session — it happened), so the test must never touch a channel that
+    carries real user calibration."""
     print('\n[5c] /api/calib — escrita opt-in (--calib-rw)')
 
     def post(payload):
@@ -571,15 +573,15 @@ def t_calib_rw(web, res):
     target = None
     for s in j.get('sensors', []):
         for ch in s.get('channels', []):
-            legacy = (not ch.get('pts')) and abs(ch.get('offset') or 0.0) >= 0.005
-            if ch.get('raw') is not None and not legacy and ch['raw'] + 1.0 < ch['max']:
+            untouched = (not ch.get('pts')) and abs(ch.get('offset') or 0.0) < 0.005
+            if ch.get('raw') is not None and untouched and ch['raw'] + 1.0 < ch['max']:
                 target = (s, ch)
                 break
         if target:
             break
     if not target:
         res.add('calibrw', 'round-trip de pontos', True,
-                'nenhum canal elegivel com leitura ao vivo', skipped=True)
+                'nenhum canal sem correcao com leitura ao vivo', skipped=True)
         return
 
     s, ch = target
