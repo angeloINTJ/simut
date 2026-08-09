@@ -28,6 +28,8 @@
 #include <cmath>      /* isnan, NAN para floatToI16 */
 #include "SystemDefs_Logging.h"  /* tagStringToId — B1/B2 */
 #include "sensors/SensorChannelTable.h" /* channel table integrity */
+#include "sensors/CalibCurve.h"         /* calibration curve engine */
+#include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -559,6 +561,235 @@ void test_channel_unknown_falls_back(void) {
     TEST_ASSERT_EQUAL_INT(-1, channelByLetter('z'));
 }
 
+/* ===========================================================================
+ * CALIB CURVE
+ *
+ * The curve engine is the whole correctness story of multi-point calibration:
+ * every consumer (display, history, alarms, telemetry) sees whatever
+ * calibCurveApply says, and the CSV pts column round-trips through
+ * encode/decode on every save. A wrong segment lookup or a lossy round-trip
+ * would corrupt readings silently, which is exactly the class of bug that is
+ * cheap to pin here and expensive to notice on a device.
+ * =========================================================================== */
+
+void test_calibcurve_build_sorts_input(void) {
+    CalibCurve c;
+    const float raws[3] = { 35.40f, 20.10f, 27.00f };
+    const float refs[3] = { 35.00f, 20.00f, 27.10f };
+    TEST_ASSERT_TRUE(calibCurveBuild(c, raws, refs, 3));
+    TEST_ASSERT_EQUAL_UINT8(3, c.n);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 20.10f, c.raw[0]);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 27.00f, c.raw[1]);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 35.40f, c.raw[2]);
+    /* Offsets followed their raws through the sort. */
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, -0.10f, c.off[0]);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f,  0.10f, c.off[1]);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, -0.40f, c.off[2]);
+}
+
+void test_calibcurve_build_rejects_bad_input(void) {
+    CalibCurve c;
+    /* Duplicate raws at 2-decimal granularity — 20.10 and 20.104 collide. */
+    {
+        const float raws[2] = { 20.10f, 20.104f };
+        const float refs[2] = { 20.00f, 21.00f };
+        TEST_ASSERT_FALSE(calibCurveBuild(c, raws, refs, 2));
+        TEST_ASSERT_TRUE(calibCurveIsIdentity(c));
+    }
+    /* More points than the model holds. */
+    {
+        const float raws[6] = { 1, 2, 3, 4, 5, 6 };
+        const float refs[6] = { 1, 2, 3, 4, 5, 6 };
+        TEST_ASSERT_FALSE(calibCurveBuild(c, raws, refs, 6));
+    }
+    /* Non-finite anywhere. */
+    {
+        const float raws[2] = { 1.0f, NAN };
+        const float refs[2] = { 1.0f, 2.0f };
+        TEST_ASSERT_FALSE(calibCurveBuild(c, raws, refs, 2));
+    }
+    {
+        const float raws[1] = { 1.0f };
+        const float refs[1] = { INFINITY };
+        TEST_ASSERT_FALSE(calibCurveBuild(c, raws, refs, 1));
+    }
+    /* Zero points is a valid "no correction", not an error. */
+    TEST_ASSERT_TRUE(calibCurveBuild(c, nullptr, nullptr, 0));
+    TEST_ASSERT_TRUE(calibCurveIsIdentity(c));
+}
+
+void test_calibcurve_apply_identity(void) {
+    CalibCurve c;
+    TEST_ASSERT_EQUAL_FLOAT(-50.0f, calibCurveApply(c, -50.0f));
+    TEST_ASSERT_EQUAL_FLOAT(0.0f,   calibCurveApply(c, 0.0f));
+    TEST_ASSERT_EQUAL_FLOAT(150.0f, calibCurveApply(c, 150.0f));
+    TEST_ASSERT_TRUE(std::isnan(calibCurveApply(c, NAN)));
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, calibCurveOffsetAt(c, 25.0f));
+}
+
+void test_calibcurve_apply_single_point(void) {
+    CalibCurve c;
+    const float raws[1] = { 25.00f };
+    const float refs[1] = { 24.70f };
+    TEST_ASSERT_TRUE(calibCurveBuild(c, raws, refs, 1));
+    /* One point is a constant offset over the whole axis. */
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, -1000.30f, calibCurveApply(c, -1000.0f));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f,    24.70f, calibCurveApply(c, 25.0f));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f,   999.70f, calibCurveApply(c, 1000.0f));
+    TEST_ASSERT_TRUE(std::isnan(calibCurveApply(c, NAN)));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, -0.30f, calibCurveOffsetAt(c, NAN));
+}
+
+void test_calibcurve_apply_two_points(void) {
+    CalibCurve c;
+    const float raws[2] = { 20.10f, 35.40f };
+    const float refs[2] = { 20.00f, 35.00f };
+    TEST_ASSERT_TRUE(calibCurveBuild(c, raws, refs, 2));
+    /* Exact at the knots. */
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 20.00f, calibCurveApply(c, 20.10f));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 35.00f, calibCurveApply(c, 35.40f));
+    /* Midpoint of the raw span: offset halfway between -0.10 and -0.40. */
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 27.50f, calibCurveApply(c, 27.75f));
+    /* Beyond the ends the end offset is held, not extrapolated. */
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 18.90f, calibCurveApply(c, 19.00f));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 39.60f, calibCurveApply(c, 40.00f));
+}
+
+void test_calibcurve_apply_five_points(void) {
+    CalibCurve c;
+    const float raws[5] = { 0.0f, 10.0f, 20.0f, 30.0f, 40.0f };
+    const float refs[5] = { 0.5f, 10.0f, 19.5f, 30.2f, 40.0f };
+    TEST_ASSERT_TRUE(calibCurveBuild(c, raws, refs, 5));
+    /* Every knot lands exactly on its reference. */
+    for (uint8_t i = 0; i < 5; i++) {
+        TEST_ASSERT_FLOAT_WITHIN(0.001f, refs[i], calibCurveApply(c, raws[i]));
+    }
+    /* Interior segments interpolate the offset linearly. */
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 14.75f, calibCurveApply(c, 15.0f)); /* off 0.0 -> -0.5 */
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 24.85f, calibCurveApply(c, 25.0f)); /* off -0.5 -> 0.2 */
+}
+
+void test_calibcurve_from_offset(void) {
+    CalibCurve c;
+    calibCurveFromOffset(c, 0.30f);
+    TEST_ASSERT_EQUAL_UINT8(1, c.n);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, 25.30f, calibCurveApply(c, 25.0f));
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, -9.70f, calibCurveApply(c, -10.0f));
+    /* Anchor-free: encodes to "" so the CSV row stays 4 columns. */
+    char buf[CALIB_PTS_BUF];
+    TEST_ASSERT_EQUAL_UINT(0, calibCurveEncodePts(c, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_STRING("", buf);
+    /* Offset zero is not a correction at all. */
+    calibCurveFromOffset(c, 0.0f);
+    TEST_ASSERT_TRUE(calibCurveIsIdentity(c));
+}
+
+void test_calibcurve_encode_decode_roundtrip(void) {
+    const float raws[5] = { -10.25f, 0.0f, 21.37f, 100.0f, 1013.25f };
+    const float refs[5] = { -10.00f, 0.3f, 21.00f, 100.5f, 1010.00f };
+    for (uint8_t count = 1; count <= 5; count++) {
+        CalibCurve a, b;
+        TEST_ASSERT_TRUE(calibCurveBuild(a, raws, refs, count));
+        char buf[CALIB_PTS_BUF];
+        TEST_ASSERT_TRUE(calibCurveEncodePts(a, buf, sizeof(buf)) > 0);
+        TEST_ASSERT_TRUE(calibCurveDecodePts(buf, b));
+        TEST_ASSERT_EQUAL_UINT8(a.n, b.n);
+        for (uint8_t i = 0; i < a.n; i++) {
+            /* %.2f granularity: half a hundredth of slack. */
+            TEST_ASSERT_FLOAT_WITHIN(0.006f, a.raw[i], b.raw[i]);
+            TEST_ASSERT_FLOAT_WITHIN(0.011f, a.off[i], b.off[i]);
+        }
+    }
+}
+
+void test_calibcurve_decode_sorts_and_tolerates(void) {
+    CalibCurve a, b;
+    /* Out-of-order input decodes to the same curve as sorted input. */
+    TEST_ASSERT_TRUE(calibCurveDecodePts("35.40:35.00;20.10:20.00", a));
+    TEST_ASSERT_TRUE(calibCurveDecodePts("20.10:20.00;35.40:35.00", b));
+    TEST_ASSERT_EQUAL_UINT8(a.n, b.n);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, b.raw[0], a.raw[0]);
+    TEST_ASSERT_FLOAT_WITHIN(0.001f, b.off[1], a.off[1]);
+    /* Spaces, a trailing semicolon, a CR off a hand-edited file. */
+    TEST_ASSERT_TRUE(calibCurveDecodePts(" 20.10 : 20.00 ; 35.40:35.00; \r", a));
+    TEST_ASSERT_EQUAL_UINT8(2, a.n);
+    /* Empty and NULL are the legacy no-pts column, not errors. */
+    TEST_ASSERT_TRUE(calibCurveDecodePts("", a));
+    TEST_ASSERT_TRUE(calibCurveIsIdentity(a));
+    TEST_ASSERT_TRUE(calibCurveDecodePts(nullptr, a));
+    TEST_ASSERT_TRUE(calibCurveIsIdentity(a));
+}
+
+void test_calibcurve_decode_rejects_malformed(void) {
+    CalibCurve c;
+    TEST_ASSERT_FALSE(calibCurveDecodePts("a:b", c));
+    TEST_ASSERT_FALSE(calibCurveDecodePts("1:2:3", c));
+    TEST_ASSERT_FALSE(calibCurveDecodePts("1.0;2.0", c));            /* pair without ':' */
+    TEST_ASSERT_FALSE(calibCurveDecodePts("1:1;2:2;3:3;4:4;5:5;6:6", c)); /* sixth pair */
+    TEST_ASSERT_FALSE(calibCurveDecodePts("20.10:20.00;20.10:21.00", c)); /* duplicate raw */
+    /* A failed decode leaves identity behind, never half a curve. */
+    TEST_ASSERT_TRUE(calibCurveIsIdentity(c));
+}
+
+
+/* ===========================================================================
+ * JSON SLICE (jsonMatchEnd)
+ *
+ * The walkers this replaces sliced elements at the first '}' — fine until an
+ * element contains a nested object, at which point trailing keys silently
+ * fall off (the commit_all "al" field did exactly that). These tests pin the
+ * three ways the naive scan went wrong: nesting, brackets inside string
+ * literals, and escaped quotes.
+ * =========================================================================== */
+
+void test_jsonMatchEnd_flat(void) {
+    String s("{\"a\":1}");
+    TEST_ASSERT_EQUAL_INT(6, jsonMatchEnd(s, 0));
+    String arr("[1,2,3]");
+    TEST_ASSERT_EQUAL_INT(6, jsonMatchEnd(arr, 0));
+}
+
+void test_jsonMatchEnd_nested(void) {
+    /* The commit_all slot shape: "al" sits after the nested lim{}. */
+    String s("{\"i\":4,\"lim\":{\"temp\":[0,40]},\"al\":true}");
+    const int end = jsonMatchEnd(s, 0);
+    TEST_ASSERT_EQUAL_INT((int)s.length() - 1, end);
+    /* The calibration shape: pair arrays inside an object inside an object. */
+    String cal("{\"slot\":0,\"cal\":{\"temp\":[[20.1,20.0],[35.4,35.0]]}}");
+    TEST_ASSERT_EQUAL_INT((int)cal.length() - 1, jsonMatchEnd(cal, 0));
+    /* Matching an inner array from its own opening bracket. */
+    String inner("[[1,2],[3,4]]");
+    TEST_ASSERT_EQUAL_INT(5, jsonMatchEnd(inner, 1));
+}
+
+void test_jsonMatchEnd_brackets_inside_strings(void) {
+    String s("[\"a]b\",2]");
+    TEST_ASSERT_EQUAL_INT((int)s.length() - 1, jsonMatchEnd(s, 0));
+    String t("{\"name\":\"chao {mido}\"}");
+    TEST_ASSERT_EQUAL_INT((int)t.length() - 1, jsonMatchEnd(t, 0));
+}
+
+void test_jsonMatchEnd_escaped_quotes(void) {
+    /* {"k":"a\"}b"} — the escaped quote must not end the string, and the
+     * brace inside the literal must not close the object. */
+    String s("{\"k\":\"a\\\"}b\"}");
+    TEST_ASSERT_EQUAL_INT((int)s.length() - 1, jsonMatchEnd(s, 0));
+}
+
+void test_jsonMatchEnd_invalid(void) {
+    String open("{\"a\":1");
+    TEST_ASSERT_EQUAL_INT(-1, jsonMatchEnd(open, 0));
+    String arr("[1,2");
+    TEST_ASSERT_EQUAL_INT(-1, jsonMatchEnd(arr, 0));
+    String mixed("{\"a\":1]");
+    TEST_ASSERT_EQUAL_INT(-1, jsonMatchEnd(mixed, 0));
+    String notBracket("x{}");
+    TEST_ASSERT_EQUAL_INT(-1, jsonMatchEnd(notBracket, 0));
+    TEST_ASSERT_EQUAL_INT(-1, jsonMatchEnd(notBracket, -1));
+    TEST_ASSERT_EQUAL_INT(-1, jsonMatchEnd(notBracket, 99));
+}
+
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -620,6 +851,25 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_tag_all_literals_used_in_firmware);
     RUN_TEST(test_tag_unknown_inputs);
     RUN_TEST(test_tag_id_to_string_roundtrip);
+
+    /* calibration curves — the engine every corrected reading passes through */
+    RUN_TEST(test_calibcurve_build_sorts_input);
+    RUN_TEST(test_calibcurve_build_rejects_bad_input);
+    RUN_TEST(test_calibcurve_apply_identity);
+    RUN_TEST(test_calibcurve_apply_single_point);
+    RUN_TEST(test_calibcurve_apply_two_points);
+    RUN_TEST(test_calibcurve_apply_five_points);
+    RUN_TEST(test_calibcurve_from_offset);
+    RUN_TEST(test_calibcurve_encode_decode_roundtrip);
+    RUN_TEST(test_calibcurve_decode_sorts_and_tolerates);
+    RUN_TEST(test_calibcurve_decode_rejects_malformed);
+
+    /* depth-aware JSON slicing — replaces the first-'}' walkers */
+    RUN_TEST(test_jsonMatchEnd_flat);
+    RUN_TEST(test_jsonMatchEnd_nested);
+    RUN_TEST(test_jsonMatchEnd_brackets_inside_strings);
+    RUN_TEST(test_jsonMatchEnd_escaped_quotes);
+    RUN_TEST(test_jsonMatchEnd_invalid);
 
     return UNITY_END();
 }
