@@ -969,14 +969,29 @@ static void __no_inline_not_in_flash_func(core1AlarmIsr)( ) {
 }
 
 static void core1WaitInit( ) {
-	if (s_c1AlarmNum != 0xFF) return;              /* relaunch: already ours */
-	const int n = hardware_alarm_claim_unused(false);
-	if (n < 0) return;                             /* none free: stay on delay( ) */
-	s_c1AlarmNum = (uint8_t)n;
-	irq_set_exclusive_handler((uint)(TIMER_IRQ_0 + n), core1AlarmIsr);
-	irq_set_enabled((uint)(TIMER_IRQ_0 + n), true);
-	hw_set_bits(&timer_hw->inte, 1u << n);
-	g_core1WaitAlarm = s_c1AlarmNum;
+	/* The static guard may skip only the CLAIM. A core reset clears this
+	 * core's NVIC and its vector table is rebuilt on launch, so a relaunched
+	 * Core 1 came back with its own wake IRQ disabled: every core1WaitUs
+	 * slept in __wfe with an alarm that could never be taken, advancing only
+	 * on stray SEVs from Core 0's FIFO traffic. Flash pauses supply those
+	 * SEVs constantly, which is what kept the display limping invisibly —
+	 * until a long pure-read stream (a 1 MB history download) went lockout-
+	 * free for 19 s, the heartbeat froze with phase=W_WFE, and the health
+	 * check declared APP_CORE1_DEAD: the download-storm 502. Relaunches are
+	 * routine (every quiet-mode save is a kill+relaunch), so this bit every
+	 * boot's first save. */
+	if (s_c1AlarmNum == 0xFF) {
+		const int n = hardware_alarm_claim_unused(false);
+		if (n < 0) return;                         /* none free: stay on delay( ) */
+		s_c1AlarmNum = (uint8_t)n;
+		g_core1WaitAlarm = s_c1AlarmNum;
+	}
+	const uint irqn = (uint)(TIMER_IRQ_0 + s_c1AlarmNum);
+	if (irq_get_exclusive_handler(irqn) != core1AlarmIsr) {
+		irq_set_exclusive_handler(irqn, core1AlarmIsr);
+	}
+	irq_set_enabled(irqn, true);
+	hw_set_bits(&timer_hw->inte, 1u << s_c1AlarmNum);
 }
 
 static void __no_inline_not_in_flash_func(core1WaitUs)(uint32_t us) {
