@@ -742,6 +742,14 @@ void AppManager::setup( ) {
  _webMgr->setLightYieldCallback([this]( ) {
  feedWdt( );
 
+ /* Not while a response is streaming. update( ) reads real sensors and
+  * updateLiveDisplay( ) can fire the panel-save debounce — a quiet-mode
+  * kill+relaunch of Core 1 in the middle of the stream. The sensor
+  * values change every second, so the debounce arms itself; every long
+  * download rolled these dice once per 3 s of transfer. The next loop
+  * tick catches the work up. */
+ if (_webMgr->isStreamingNow( )) return;
+
  static uint32_t lastLiveUpdate = 0;
  uint32_t now = millis( );
  if (now - lastLiveUpdate > 3000) {

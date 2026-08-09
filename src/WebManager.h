@@ -140,6 +140,14 @@ private:
 	volatile bool _isProcessingScreenshot = false;
 	volatile bool _cancelScreenshot = false;
 	volatile bool _inHistoryHandler = false;
+public:
+	/* The light-yield asks before doing live work: a sensor sweep plus a
+	 * possible panel-save debounce inside a streaming handler kills and
+	 * relaunches Core 1 mid-response — the detonator behind the storm's
+	 * residual soft-panics. Streaming pauses that work; it resumes on the
+	 * next loop tick after the handler returns. */
+	bool isStreamingNow( ) const { return _inHistoryHandler; }
+private:
 	volatile bool _inExportLogsHandler = false; /**< Separate guard for /api/export/logs.bin */
 
 
