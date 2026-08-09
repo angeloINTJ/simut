@@ -27,11 +27,21 @@
  * correctly; stops at the FIRST unescaped quote. Unknown escapes (\x) are
  * preserved leniently. */
 static String jsonExtractStringValue(const String& src, const char* key) {
-	String pat = String("\"") + key + "\":\"";
+	String pat = String("\"") + key + "\":";
 	int p = src.indexOf(pat);
 	if (p < 0) return String( );
 	int i = p + pat.length( );
 	const int n = src.length( );
+	/* Whitespace between the colon and the opening quote is legal JSON the
+	 * page never emits. With the quote baked into the needle, a spaced
+	 * payload missed the match and the caller applied the empty result —
+	 * on the bench, {"sys":{"t_srv": "192.168.3.31"}} ERASED the telemetry
+	 * server. getNum below carries the numeric twin of this story; the
+	 * string form is worse because absent and empty apply alike. */
+	while (i < n && (src.charAt(i) == ' ' || src.charAt(i) == '\t' ||
+	                 src.charAt(i) == '\r' || src.charAt(i) == '\n')) i++;
+	if (i >= n || src.charAt(i) != '"') return String( );
+	i++;
 	String out;
 	while (i < n) {
 		char c = src.charAt(i);
