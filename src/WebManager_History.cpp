@@ -21,6 +21,16 @@
 
 using ReadGuard = StorageManager::ReadGuard;
 
+/* Fine-grained position trace, parked in watchdog scratch[7] — unused by
+ * the HW-WDT autopsy class, whose report prints it as hp=N. TRACE_MOD says
+ * which handler died; this says which STRETCH of it. Three send-path
+ * parking spots (hp=720, 721, and the pre-header window) were located in
+ * one bench run each with this channel after days of module-level
+ * guessing. Keep stamps on the transitions a death would need localized:
+ * they are single MMIO stores. */
+#include <hardware/watchdog.h>
+#define HPOS(v) do { watchdog_hw->scratch[7] = (uint32_t)(v); } while (0)
+
 // Inline insertion sort (replaces std::sort, eliminates qsort ~1.4KB)
 static void sortStrings(String* arr, int n, bool descending) {
  for (int i = 1; i < n; i++) {
@@ -384,7 +394,10 @@ void WebManager::handleApiHistoryMulti( ) {
    estPoints * WEB_HISTORY_BYTES_PER_POINT,
    useEnvelope ? "envelope" : "decode",
    (unsigned long)probeCutoff, (unsigned long)effectiveEnd);
-  _server.send(200, "application/json", buf);
+  /* Keep-alive: the previous response's unread tail can hold the buffer,
+   * and _server.send( ) writes headers straight into lwIP. */
+  if (waitSendRoom(sizeof(buf) + 256, "hist/probe"))
+   _server.send(200, "application/json", buf);
   _handlerDeadline = savedDeadline;      /* same unwind as the normal exit */
   if (_displayRef) _displayRef->setWebBusy(false);
   __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
@@ -414,8 +427,17 @@ void WebManager::handleApiHistoryMulti( ) {
  const SystemConfig& cfgRef = _storageRef->getConfig( );
 
  /* ── Response: header + sensors[] + data[] streaming ────────────────── */
+ HPOS(5);
+ if (!waitSendRoom(1024, "hist/hdr")) {
+  _handlerDeadline = savedDeadline;
+  if (_displayRef) _displayRef->setWebBusy(false);
+  __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
+  return;
+ }
  _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ HPOS(6);
  _server.send(200, "application/json", "");
+ HPOS(7);
 
  {
  char metaBuf[160];
@@ -468,6 +490,7 @@ void WebManager::handleApiHistoryMulti( ) {
  bool aborted = false;
  int lineIdx = 0;
  uint32_t sinceBreath = 0; /* decoded records since the last respiro (both paths) */
+ HPOS(1);
  unsigned filesOpened = 0, recsDecoded = 0; /* diagnostico no metaEnd */
  unsigned winSkips = 0; /* records decoded but outside the from/to window */
  /* Blocks actually read off flash. The §10 budgets are per block, and a
@@ -568,7 +591,7 @@ void WebManager::handleApiHistoryMulti( ) {
 	  * is what a month of one-minute data honestly is at screen
 	  * resolution. Nothing here reads a payload. */
 	 while (!aborted) {
-	 if (isClientGone( ) || isHandlerOvertime( )) { aborted = true; break; }
+	 if (isClientGone( ) || isHandlerOvertime( )) { HPOS(900); aborted = true; break; }
 	 H5DataHeader hdr;
 	 const int16_t *mn = nullptr, *mx = nullptr;
 	 bool got = false;
@@ -639,17 +662,19 @@ void WebManager::handleApiHistoryMulti( ) {
 
 	 const uint32_t loop0us = micros( );
 	 while (fileHasMore && !aborted) {
-	 if (isClientGone( ) || isHandlerOvertime( )) { aborted = true; break; }
+	 if (isClientGone( ) || isHandlerOvertime( )) { HPOS(900); aborted = true; break; }
 	 {
 	 /* One lock per BLOCK, not per record (§10). Records come out of the
 	  * block already in RAM; the mutex is only owed to the flash read that
 	  * brings the next block in. The shape inherited from V4 took and
 	  * returned the mutex 60 times per block to no purpose. */
 	 const uint32_t t0us = micros( );
+	 HPOS(301);
 	 bool got = _storageRef->h5DecodeNext(epoch, vals);
 	 if (!got) {
 	 const uint32_t l0us = micros( );
 	 ReadGuard rg(_storageRef);
+	 HPOS(300);
 	 while (_storageRef->h5LoadNextBlock( )) {
 	 blocksRead++;
 	 /* A block whose records all fail the reader's gates (schema
@@ -787,6 +812,7 @@ void WebManager::handleApiHistoryMulti( ) {
  snprintf(pPart, sizeof(pPart), ",\"minP\":%.1f,\"maxP\":%.1f",
           realMin[CH_PRESS], realMax[CH_PRESS]);
  }
+ HPOS(500);
  snprintf(metaEnd, sizeof(metaEnd),
  ",\"minT\":%.2f,\"maxT\":%.2f,\"tsMinT\":%lu,\"tsMaxT\":%lu%s%s,"
  "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,\"blocks\":%u,"

@@ -161,6 +161,17 @@ constexpr uint32_t WEB_LONG_HANDLER_DEADLINE_MS = 15000;
  * WEB_STREAM_BREATH_DELAY_MS — micro-pause after each flushed packet; lets
  *   lwIP drain the PBUF pool and hands the heap/SPI arbiter to Core 1. */
 constexpr size_t   WEB_STREAM_CHUNK_SOFT      = 512;
+
+/* WEB_SEND_STALL_MS — how long safeSend waits for the socket's send buffer
+ * to absorb one slice before dropping the client. The wait loop feeds the
+ * watchdog, so this is a POLICY bound on slow readers, not a survival bound:
+ * 528 B within 4 s is a 132 B/s floor that any real client clears. A reader
+ * below it used to park a single lwIP write past the WDT window — the
+ * SendGuard's 2 s timer feeds demonstrably never reached the watchdog during
+ * those blocks (autopsy: "no feed in WDT window" with C0=[WEB_SEND]) — and
+ * the device rebooted mid-response. Now the stalled client is the one that
+ * pays. */
+constexpr uint32_t WEB_SEND_STALL_MS          = 4000;
 constexpr uint32_t WEB_STREAM_BREATH_RECORDS  = 64;
 
 /* Largest history answer served in one response, in estimated payload
