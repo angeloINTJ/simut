@@ -342,6 +342,7 @@ int findChangeMatch(CalibChange* arr, int n, const char* key, const char* id) {
  * calibrate one of them, and which one depended on slot order. Tagging the
  * rows with the sensor's own hwId gives each ROM-less sensor its own pair
  * without changing the file format. */
+
 void WebManager::handleApiCalibPost( ) {
 	if (!(getAuthPerms( ) & PERM_CALIB)) {
 		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
@@ -495,6 +496,15 @@ void WebManager::handleApiCalibPost( ) {
 	/* === Streaming 2-pass: read calib.csv, write calib.tmp === */
 	uint32_t version = (uint32_t)_netRef->getEpoch( );
 	if (nChanges > 0) {
+	/* The open, the row writes and the close each program flash, and this
+	 * block ran them with Core 1 alive and rendering — the one write path
+	 * left outside the e035791 discipline. Four exposed ops per save, and
+	 * whichever one collided with a Core-1 XIP fetch froze the QSPI
+	 * arbiter with the WDT unfed: the "first calibration POST after boot
+	 * reboots the device" repro. Same guard the upload path already uses;
+	 * processCalibrationUpload( ) and saveConfiguration( ) below carry
+	 * their own. */
+	RenderGuard rg(_displayRef);
 	/* The commit in processCalibrationUpload( ) only renames when the new
 	 * version beats the stored one, so the stamp has to move forward on every
 	 * save. getEpoch( ) does not guarantee that: with NTP down it falls back to
@@ -597,7 +607,7 @@ void WebManager::handleApiCalibPost( ) {
 	 _displayRef->requestQuietMode( );
 	}
 	_storageRef->saveConfiguration( );
-	if (nChanges > 0) { app.loadAndCalibrateSensors( ); _displayRef->releaseQuietMode( ); }
+	if (nChanges > 0) { app.loadAndCalibrateSensors( );_displayRef->releaseQuietMode( );}
   else { /* Sync hwId/name to runtime sensors without full reload */
    auto& runtime = _sensorRef->getRuntimeSensors( );
    for (auto& rs : runtime) {
