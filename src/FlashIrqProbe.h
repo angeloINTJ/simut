@@ -53,6 +53,9 @@ extern volatile uint32_t g_flashIrqOver1msCount;   /**< Windows longer than 1 ms
  * is running AND not frozen. Any non-zero value here is a real exposure window
  * and names a code path that is missing its Core1FlashPause. */
 extern volatile uint8_t  g_core1Running;        /**< Core 1 launched and looping */
+extern volatile uint8_t  g_core1MayExecute;     /**< Set at launch, cleared at kill: covers the
+                                                 *   launch->victim_init entry window, where the
+                                                 *   core fetches XIP but g_core1Running is still 0. */
 extern volatile int32_t  g_core1FlashSafeDepth; /**< >0 => Core 1 locked out or parked */
 extern volatile uint32_t g_flashIrqExposed;     /**< Ops with Core 1 running and unfrozen */
 extern volatile uint32_t g_flashIrqExposedMaxUs;/**< Longest such window */

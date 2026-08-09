@@ -40,6 +40,7 @@ volatile uint64_t g_flashIrqTotalUs    = 0;
 volatile uint32_t g_flashIrqOver1msCount  = 0;
 
 volatile uint8_t  g_core1Running          = 0;
+volatile uint8_t  g_core1MayExecute       = 0;
 volatile int32_t  g_core1FlashSafeDepth   = 0;
 volatile uint32_t g_flashIrqExposed       = 0;
 volatile uint32_t g_flashIrqExposedMaxUs  = 0;
@@ -152,7 +153,12 @@ static __always_inline void probe_account(uint32_t us) {
 	if (us > g_flashIrqMaxUs) g_flashIrqMaxUs = us;
 	if (us > 1000u) g_flashIrqOver1msCount++;
 	/* Exposure: Core 1 alive and not frozen while XIP is down. */
-	if (g_core1Running && g_core1FlashSafeDepth <= 0) {
+	/* g_core1MayExecute, not g_core1Running: the launch->victim_init entry
+	 * window fetches XIP with Running still 0, and it is precisely the
+	 * window where an unpaused flash op is the QSPI-arbiter freeze. The
+	 * old predicate made that window invisible — "Core1 exposto = 0" was
+	 * measured with this blind spot. */
+	if (g_core1MayExecute && g_core1FlashSafeDepth <= 0) {
 		g_flashIrqExposed++;
 		if (us > g_flashIrqExposedMaxUs) g_flashIrqExposedMaxUs = us;
 	}

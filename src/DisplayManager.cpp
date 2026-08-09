@@ -200,6 +200,9 @@ void DisplayManager::launchCore1IfAbsent( ) {
 	if (_core1Launched) return;
 	_core1Launched = true;
 	g_core1Launches++;
+	/* From the first launched instruction the core fetches XIP — the flash
+	 * exposure accounting must see this window, not just victim-ready. */
+	g_core1MayExecute = 1;
 	{ LogManager::TraceScope _t(0, MOD_C1_LAUNCH); multicore_launch_core1(core1Entry); }
 }
 
@@ -219,6 +222,7 @@ void DisplayManager::launchCore1IfAbsent( ) {
  * lockout fallback. */
 void DisplayManager::markCore1Down( ) {
 	g_core1Running = 0;
+	g_core1MayExecute = 0;
 	_core1Launched = false;
 	/* Invalidate the phase stamp at the kill, not at the relaunch.
 	 * g_core1PhaseUs is an ordinary global and survives multicore_reset_core1,
