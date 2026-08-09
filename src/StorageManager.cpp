@@ -151,11 +151,47 @@ StorageManager::StorageManager( ) {
  * The RP2040 flash is accessed via QSPI (not SPI0/SPI1), so there
  * is no bus conflict between flash reads and display SPI traffic.
  */
+/* Owner breadcrumbs for the read lock. Written by the acquirer, read by a
+ * starving acquirer's log line — the difference between "the device rebooted
+ * again" and the name of the frame that never let go. */
+static volatile uint8_t  g_fsLockOwnerMod = 0xFF;
+static volatile uint32_t g_fsLockSinceMs  = 0;
+
 void StorageManager::enterFlashReadLock( ) {
+ /* Bounded, FED acquisition. mutex_enter_blocking parked here with the
+  * watchdog starving whenever a holder never released — measured on the
+  * bench as hp=301: the V5 block-load's guard against a lock nobody
+  * alive was holding, HW WDT 8.4 s later. A fed spin turns that reboot
+  * into a diagnosable stall; at 5 s the log names the owner; at 10 s
+  * the owner is declared a corpse and the mutex is re-initialized — the
+  * same judgement requestQuietMode already applies to _stateMutex at
+  * kill time, applied here at starvation time. A same-core recursive
+  * acquisition (the light-yield reaching back in — see the note in
+  * handleApiHistoryDays) lands in the corpse path too: ugly, logged,
+  * and alive beats silent and rebooting. */
+ uint32_t t0 = millis( );
+ bool logged = false;
+ while (!mutex_enter_timeout_ms(&_fsReadMutex, 100)) {
+ watchdog_update( );
+ if (!logged && timeSince(t0, 5000)) {
+ logged = true;
+ LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)g_fsLockOwnerMod,
+          "fsReadMutex starving; ctx=owner module");
+ }
+ if (timeSince(t0, 10000)) {
+ LOG_CODE(LOG_ERROR, "STO", STO_WRITE_FAILED, (int)g_fsLockOwnerMod,
+          "fsReadMutex owner presumed dead — reinit");
+ mutex_init(&_fsReadMutex);
  mutex_enter_blocking(&_fsReadMutex);
+ break;
+ }
+ }
+ g_fsLockOwnerMod = LogManager::instance( ).getModule(0);
+ g_fsLockSinceMs  = millis( );
 }
 
 void StorageManager::exitFlashReadLock( ) {
+ g_fsLockOwnerMod = 0xFF;
  mutex_exit(&_fsReadMutex);
 }
 
