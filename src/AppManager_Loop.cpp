@@ -10,6 +10,8 @@
 
 #include "AppManager.h"
 #include "CommandManager.h"
+#include "FlashIrqProbe.h"   /* g_core1WaitAlarm — W_WFE timer fingerprint */
+#include <hardware/timer.h>
 #include "DisplayManager.h"
 #include "LogManager.h"
 #include "MetricsManager.h"
@@ -74,6 +76,31 @@ void AppManager::loop( ) {
  /* Patch C: signed cast to tolerate cross-core race (beat
  * slightly ahead of local millis( )). */
  if (beat > 0 && timeSince(beat, 10000)) {
+ /* W_WFE fingerprint: the state of Core 1's wait alarm at the moment
+  * of the verdict, packed for the persisted log. ctx = deltaMs*10 +
+  * flags (INTE*4 | INTR*2 | ARMED*1), flags sign-matched to delta so
+  * |ctx|%10 recovers them. ARMED with the target in the past =
+  * comparator missed its equality tick; INTR raw set = the tick fired
+  * and Core 1's NVIC never took it; ARMED clear = the wait was not
+  * asleep on this alarm at all. One line decides three theories. */
+ if (g_core1WaitAlarm < 4) {
+  /* The log's ctx is 16-bit: pack as sign(delta) * (flags*1000 +
+   * min(|delta| in SECONDS, 999)). First run clamped at -32767 and
+   * cost the flags — worth exactly one line of arithmetic to never
+   * lose a bit to the record format again. */
+  const uint8_t n = (uint8_t)g_core1WaitAlarm;
+  const int32_t deltaUs = (int32_t)(timer_hw->alarm[n] - timer_hw->timerawl);
+  int32_t deltaS = deltaUs / 1000000;
+  if (deltaS > 999) deltaS = 999;
+  if (deltaS < -999) deltaS = -999;
+  const int32_t flags = (int32_t)(((timer_hw->inte >> n) & 1u) * 4u +
+                                  ((timer_hw->intr >> n) & 1u) * 2u +
+                                  ((timer_hw->armed >> n) & 1u));
+  const int32_t mag = flags * 1000 + (deltaS < 0 ? -deltaS : deltaS);
+  LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD,
+           (deltaUs < 0) ? -mag : mag,
+           "W_WFE timer fingerprint");
+ }
  LOG_CODE(LOG_ERROR, "APP", APP_CORE1_DEAD, 0, TRL("Core 1 dead >10s. Restarting."));
  _displayMgr->restartCore1( );
  }

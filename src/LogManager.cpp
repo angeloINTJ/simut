@@ -13,6 +13,8 @@
  */
 
 #include "LogManager.h"
+#include "FlashIrqProbe.h"   /* g_core1WaitAlarm — tw= fingerprint */
+#include <hardware/timer.h>
 #include "DisplayManager.h" /* logcodeLookup / trlLookup from .lng */
 #include "TouchPriority.h"
 #include <LittleFS.h>
@@ -630,7 +632,22 @@ void LogManager::checkCrossCoreHealth( ) {
   * byte was free, and RAM does not survive the reboot that follows. */
  watchdog_hw->scratch[6] = (otherCore << 24) | (_coreModule[0] << 16) | (_coreModule[1] << 8)
                          | (g_core1Phase & 0xFF);
- watchdog_hw->scratch[7] = (uint32_t)elapsed;
+ /* elapsed needs 20 bits at most; the other 12 carry the state of Core 1's
+  * wait alarm at the moment of the verdict — INTE|INTR|ARMED|sign + the
+  * target's distance in seconds (capped 255). The W_WFE wedge investigation
+  * lives or dies on exactly these bits, and the first attempt at capturing
+  * them (in AppManager's 10 s check) sat behind gates the panic path never
+  * takes. Autopsy prints them as tw=0xNNN. */
+ uint32_t twfp = 0;
+ if (g_core1WaitAlarm < 4) {
+  const uint8_t an = (uint8_t)g_core1WaitAlarm;
+  const int32_t dUs = (int32_t)(timer_hw->alarm[an] - timer_hw->timerawl);
+  uint32_t mag = (uint32_t)((dUs < 0 ? -(int64_t)dUs : (int64_t)dUs) / 1000000);
+  if (mag > 255u) mag = 255u;
+  twfp = (((timer_hw->inte >> an) & 1u) << 11) | (((timer_hw->intr >> an) & 1u) << 10)
+       | (((timer_hw->armed >> an) & 1u) << 9)  | ((dUs < 0 ? 1u : 0u) << 8) | mag;
+ }
+ watchdog_hw->scratch[7] = (twfp << 20) | ((uint32_t)elapsed & 0xFFFFFu);
 
  /* Safe reboot: clear WDT ENABLE before triggering.
   * watchdog_reboot(0,0,0) leaves ENABLE set → persistent boot loop. */
@@ -778,7 +795,8 @@ void LogManager::performCrashAutopsy( ) {
 
  if (mark == 0xCA11B007) {
  uint32_t data = _preBootScratch6;
- uint32_t stuckTime = _preBootScratch7;
+ uint32_t stuckTime = _preBootScratch7 & 0xFFFFFu;
+ uint32_t twfp = _preBootScratch7 >> 20;
  int deadCore = (data >> 24) & 0xFF;
  int mod0 = (data >> 16) & 0xFF;
  int mod1 = (data >> 8) & 0xFF;
@@ -786,13 +804,14 @@ void LogManager::performCrashAutopsy( ) {
  const char* phaseName = (c1Phase < C1P_COUNT) ? C1P_NAMES[c1Phase] : "?";
 
  char msg[200];
- snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s] phase=%s",
+ snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s] phase=%s tw=0x%03lx",
  deadCore,
  deadCore == 0 ? (mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK") : (mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK"),
  stuckTime,
  mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK",
  mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK",
- phaseName);
+ phaseName,
+ (unsigned long)twfp);
 
  /* The compact record keeps only code + context, so the text above survives
   * on the boot serial and nowhere else — which is why catching an autopsy

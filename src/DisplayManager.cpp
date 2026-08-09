@@ -501,16 +501,29 @@ void DisplayManager::pauseRendering(bool pause) {
 			const uint32_t lockBudgetMs = 400;
 			uint32_t retryStart = millis( );
 			uint32_t lastCleanup = retryStart;
+			/* Phase-align the handshake before it starts, and again before
+			 * every retry: a stale victim reply left in THIS core's inbox by
+			 * an earlier timed-out attempt shifts every later dialogue one
+			 * word out of phase. The launch funnel learned this in July; the
+			 * lockout dance never did. Measured under storm as the residual
+			 * W_WFE wedge: Core 1 parked in the victim spin awaiting an END
+			 * the desynced dialogue never delivered, its own alarm long
+			 * fired and auto-disarmed (fingerprint flags=4, delta −10…−13 s,
+			 * five for five). Draining eats only replies on our side — the
+			 * victim ignores any word that is not a protocol magic. */
+			multicore_fifo_drain( );
 			while (!multicore_lockout_start_timeout_us(100000)) {
 				watchdog_update( );
 				if (timeSince(lastCleanup, 200)) {
 					/* Lockout state possibly corrupted: clean before
 					 * new attempt. end_blocking is idempotent if
 					 * mutex has already been released. */
+					multicore_fifo_drain( );
 					{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
 					lastCleanup = millis( );
 					watchdog_update( );
 				}
+				multicore_fifo_drain( );
 				/* After 3s without success, fall back to hard reset.
 				 * multicore_reset_core1() stops Core 1 immediately - no
 				 * handshake needed. All flash ops are safe. */
