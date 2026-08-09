@@ -469,6 +469,7 @@ void WebManager::handleApiHistoryMulti( ) {
  int lineIdx = 0;
  uint32_t sinceBreath = 0; /* decoded records since the last respiro (both paths) */
  unsigned filesOpened = 0, recsDecoded = 0; /* diagnostico no metaEnd */
+ unsigned winSkips = 0; /* records decoded but outside the from/to window */
  /* Blocks actually read off flash. The §10 budgets are per block, and a
   * count derived from records/60 is wrong exactly when it matters: every
   * reboot and every schema change leaves a PARTIAL block behind. */
@@ -651,6 +652,12 @@ void WebManager::handleApiHistoryMulti( ) {
 	 ReadGuard rg(_storageRef);
 	 while (_storageRef->h5LoadNextBlock( )) {
 	 blocksRead++;
+	 /* A block whose records all fail the reader's gates (schema
+	  * mismatch, epoch floor, future cap) decodes to nothing and this
+	  * loop moves straight to the next one — under the guard, with no
+	  * feed. feedWdt and not feedWatchdog: the ReadGuard is held (see
+	  * the export handler's note). */
+	 feedWdt( );
 	 if ((got = _storageRef->h5DecodeNext(epoch, vals))) break;
 	 }
 	 loadUs += micros( ) - l0us;
@@ -661,13 +668,26 @@ void WebManager::handleApiHistoryMulti( ) {
 	 }
 
 	 time_t ts = (time_t)epoch;
-	 if (cutoff > 0 && ts < cutoff) continue;
+	 /* Out-of-window records still cost a decode each, and skipping them
+	  * bypassed BOTH breath sites below — an explicit from/to window that
+	  * sits weeks behind the newest data decodes every earlier record in
+	  * the walked files with the watchdog unfed. Same lesson the
+	  * decimation skip already carries; these two exits missed it. */
+	 if (cutoff > 0 && ts < cutoff) {
+	 winSkips++;
+	 if (++sinceBreath >= WEB_STREAM_BREATH_RECORDS) { sinceBreath = 0; feedWatchdog( ); }
+	 continue;
+	 }
 	 /* Skip, do not abandon. Stopping the file here assumes blocks are in
 	  * time order, and a single block stamped past the window then hides
 	  * every block behind it — which is how seven hours of history that was
 	  * on flash the whole time came to be invisible on the bench. Files are
 	  * ordered in normal operation, so this costs the tail of one day. */
-	 if (ts > effectiveEnd) continue;
+	 if (ts > effectiveEnd) {
+	 winSkips++;
+	 if (++sinceBreath >= WEB_STREAM_BREATH_RECORDS) { sinceBreath = 0; feedWatchdog( ); }
+	 continue;
+	 }
 
 	 /* Stats per channel, restricted to the selected sensors. */
 	 for (uint8_t c = 0; c < nCh; c++) {
@@ -770,12 +790,12 @@ void WebManager::handleApiHistoryMulti( ) {
  snprintf(metaEnd, sizeof(metaEnd),
  ",\"minT\":%.2f,\"maxT\":%.2f,\"tsMinT\":%lu,\"tsMaxT\":%lu%s%s,"
  "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,\"blocks\":%u,"
- "\"path\":\"%s\",\"readMs\":%.1f,\"loadMs\":%.1f,\"loopMs\":%.1f,\"rejected\":%u}",
+ "\"path\":\"%s\",\"readMs\":%.1f,\"loadMs\":%.1f,\"loopMs\":%.1f,\"rejected\":%u,\"winSkips\":%u}",
  realMin[CH_TEMP], realMax[CH_TEMP],
  (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT, hPart, pPart,
  (unsigned)filesToRead.size( ), filesOpened, recsDecoded, blocksRead,
  pathUsed, (double)readUs / 1000.0, (double)loadUs / 1000.0,
- (double)loopUs / 1000.0, rejected);
+ (double)loopUs / 1000.0, rejected, winSkips);
  safeSend(metaEnd);
  } else {
  char metaEnd[192];
