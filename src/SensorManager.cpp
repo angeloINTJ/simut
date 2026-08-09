@@ -112,8 +112,26 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 
  bool spiInitialized = false;
 #if SIMUT_SENSOR_BME280
- bool i2c0Initialized = false;
- bool i2c1Initialized = false;
+ /* Two lifetimes, and they were declared the other way around.
+  *
+  * The I2C PERIPHERAL is per-boot state: recoverBus( ) bit-bangs the pins
+  * away from the peripheral, and TwoWire::begin( ) on a running bus
+  * returns without re-muxing them — so a second pass through this init
+  * (the calibration POST's reload) parked SDA/SCL on SIO and every probe
+  * after that answered cid=0x00 on both addresses. As statics the boot
+  * init survives reloads and recoverBus stays where it belongs: a runtime
+  * reload has no interrupted-reset transaction to recover from, and pin
+  * changes always arrive via commit_all, which reboots.
+  *
+  * The ADDRESS BOOKKEEPING is per-call state: as function statics inside
+  * the loop, a reload found 0x76 "already taken" by the boot pass and
+  * moved the lone BMP280 to 0x77, and the reload after that had no
+  * address left to give it at all. Plain locals, reset every call. */
+ static bool i2c0Initialized = false;
+ static bool i2c1Initialized = false;
+ struct BmeAddrTrack { uint8_t s, d; bool a76, a77; };
+ BmeAddrTrack bmeBuses[8] = {};
+ uint8_t bmeBusCount = 0;
 #endif
 
  for (int i = 0; i < MAX_SENSORS; i++) {
@@ -173,18 +191,16 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 
 		if (sda != PIN_UNUSED && scl != PIN_UNUSED) {
 			/* Track taken addresses per (sda,scl) bus — up to 2 sensors
-			 * per bus (0x76 and 0x77). */
-			struct BmeAddrTrack { uint8_t s, d; bool a76, a77; };
-			static BmeAddrTrack _bmeBuses[8];
-			static uint8_t _bmeBusCount = 0;
+			 * per bus (0x76 and 0x77). Declared at function scope: per-call
+			 * on purpose, see the note beside the i2c init flags. */
 			BmeAddrTrack* bus = nullptr;
-			for (uint8_t bi = 0; bi < _bmeBusCount; bi++) {
-				if (_bmeBuses[bi].s == sda && _bmeBuses[bi].d == scl) {
-					bus = &_bmeBuses[bi]; break;
+			for (uint8_t bi = 0; bi < bmeBusCount; bi++) {
+				if (bmeBuses[bi].s == sda && bmeBuses[bi].d == scl) {
+					bus = &bmeBuses[bi]; break;
 				}
 			}
-			if (!bus && _bmeBusCount < 8) {
-				bus = &_bmeBuses[_bmeBusCount++];
+			if (!bus && bmeBusCount < 8) {
+				bus = &bmeBuses[bmeBusCount++];
 				bus->s = sda; bus->d = scl;
 				bus->a76 = false; bus->a77 = false;
 			}
