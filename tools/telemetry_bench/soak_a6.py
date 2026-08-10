@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Acceptance A6 — long soak on the image that actually ships.
+r"""Acceptance A6 — long soak on the image that actually ships.
 
 A6 asks for "heartbeat/WDT without regression" over 72 h. soak24.py samples the
 serial CLI, which means it can only run against pico_w_test — and certifying a
