@@ -4,6 +4,92 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado
+
+### Medições se perdiam no corte de energia e em toda reinicialização para configuração
+
+O bloco de histórico aberto vive em RAM e só chega à flash quando enche, uma vez
+por hora. Um snapshot em `/history/.wip` limitava a exposição — e o limite era
+dez minutos, porque é literalmente o que o R8 pedia: *"power-loss: perda máxima
+de 10 min de dados"*. O requisito estava sendo cumprido exatamente como escrito,
+e o que estava escrito não servia.
+
+Três vias de perda distintas, com custos muito diferentes:
+
+**Seis das sete reinicializações voluntárias não gravavam nada.** O `reload
+confirm` da CLI era o único caminho que fazia certo — sela o bloco explicitamente
+antes de chamar `safeReboot()`. Os outros seis não, e um deles é o `commit_all` da
+web: o reboot que você dá *para configurar o aparelho*. Esses reiniciavam direto e
+descartavam tudo desde o último snapshot periódico, até dez minutos,
+determinístico, toda vez. O caminho da CLI ter a selagem e o da web não é a forma
+do defeito — a proteção estava escrita por chamador, então valia só até o próximo
+chamador esquecer. Daí o gancho no ponto de estrangulamento: o próprio
+`safeReboot()` grava o snapshot na saída, e um caminho de reboot novo não tem como
+esquecer.
+
+Dois chamadores precisam suprimir o gancho, e suprimem: `system format confirm` e
+o *apply* de restore com `fs_mod`, onde um snapshot do bloco em RAM anterior ao
+apagamento ressuscitaria no boot seguinte o dado que o usuário mandou destruir.
+
+**O timer de dez minutos saiu.** O snapshot passa a ser feito a cada registro
+aceito, inline, então corte de energia não perde nada. O custo foi medido antes
+da escolha, não depois: 1.440 regravações do `.wip` por dia contra 144. O limite
+não é endurance (~2,6k erases por bloco por ano contra 100k nominais) — é o *duty
+cycle* de lockout do Core 1, e por isso a escrita continua cedendo a vez à
+prioridade de toque e à trava de tarefa pesada.
+
+**Alguns minutos simplesmente não eram medidos.** O laço condicionava a *amostra
+inteira* às mesmas duas condições, então um arraste sustentado na tela ou um
+backup atravessando a virada do minuto deixava aquele minuto sem leitura — um
+buraco que nenhum snapshot preenche, porque nada foi registrado. Amostrar e
+gravar agora são coisas separadas: o registro sempre entra no encoder em RAM (um
+memcpy, seguro sob qualquer gate) e só a escrita em flash adia, latchada para que
+a varredura de recuperação grave em até 2 s da abertura do gate, em vez de
+esperar o próximo registro carregar o anterior.
+
+Uma troca é deliberada e vale dizer em voz alta: selar bloco cheio, e a selagem
+de virada de dia, agora rodam mesmo com gate fechado. Um bloco cheio não aceita
+outro registro, então a escolha ali é entre uma janela de lockout e uma amostra
+perdida — 24 janelas forçadas por dia contra a promessa de que nenhuma se perde.
+
+Três perdas silenciosas achadas auditando a mesma função, as três por um retorno
+de `sealHourV5()` que ninguém lia:
+
+- **A selagem horária descartava o bloco inteiro ao falhar.** O `reset()` que vem
+  depois esvazia o encoder de qualquer forma, então uma selagem falhada jogava
+  fora até 60 registros sem dizer nada além de um aviso genérico de escrita. É a
+  selagem que dispara *toda hora*, de longe a mais provável de falhar entre as
+  três. Agora recusa o registro que estava entrando enquanto o bloco retido ainda
+  tem tentativas, porque o bloco é o que vale proteger.
+
+- **Selagem de virada de dia falhada arquivava o bloco no dia errado.** O código
+  adotava o dia novo de qualquer forma, então o registro seguinte era enxertado
+  no bloco de ontem e o bloco inteiro ia para o arquivo de *hoje* — §14-6
+  quebrado, e junto com ele o "o nome do arquivo É o limite". Agora recusa aquele
+  único registro e deixa o bloco intacto para o minuto seguinte tentar de novo.
+  Um registro em risco num sistema de arquivos já degradado é melhor que até 60
+  arquivados errado sem erro nenhum em lugar nenhum.
+- **Selagem falhada na troca de conjunto de sensores descartava até 60 registros
+  em silêncio.** O `ensureH5Schema()` logo em seguida reexecuta `_h5Enc.begin()`,
+  que descarta qualquer bloco em andamento. O `.wip` não é escapatória — ele
+  carregaria o schema antigo e o `recoverWipV5()` valida contra o compilado, então
+  o boot seguinte o rejeitaria. Agora tenta uma segunda vez (o que cobre um
+  timeout transitório de mutex) e, se ainda falhar, registra quantos registros se
+  perderam em vez de sumir atrás de um aviso genérico de escrita.
+
+Os dois lados de uma selagem falhada são perda, então a recuperação é **limitada**
+em vez de escolhida: descartar o bloco na primeira falha joga fora até 60
+registros por causa do que normalmente é um timeout transitório do mutex do
+`FLASH_OP`, e segurá-lo para sempre significa um aparelho que para de registrar
+em silêncio, definitivamente. Cinco registros recusados — a paciência de um
+intervalo, bem abaixo do bloco que se está protegendo — e então o bloco é dado
+por perdido, a perda é registrada com a contagem, e o registro volta a andar.
+
+Sem mudança de formato em disco: bytes gravados antes continuam legíveis, e o
+`.wip` segue sendo exatamente um chunk DATA `PARTIAL`. Emenda E10 em
+`docs/HistoryV5_Emendas_Rev2.md`; R8, §7.1, §7.2 e a matriz de aceitação do §11
+reescritos na Rev 2.0 normativa.
+
 ## v2.1.1-beta (2026-08-10)
 
 ### Um único request HTTP lento reiniciava o aparelho — remotamente, sem auth

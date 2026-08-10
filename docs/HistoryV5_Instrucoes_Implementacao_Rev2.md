@@ -32,7 +32,7 @@ Entregáveis:
 | R5 | Mudança do conjunto de canais no meio do dia sem perda nem ambiguidade (novo SCHEMA no mesmo arquivo). |
 | R6 | Gráficos: decimação por envelope min/máx por canal — picos nunca desaparecem; latências dentro dos orçamentos do §10. |
 | R7 | O firmware **não contém** leitor do formato legado. |
-| R8 | Power-loss: perda máxima de 10 min de dados; sistema de arquivos íntegro após corte em qualquer instante. |
+| R8 | Power-loss e reboot: **perda máxima de zero registros**; sistema de arquivos íntegro após corte em qualquer instante. Vale para corte de energia, reinicialização voluntária e minuto sob contenção — ver E10. |
 | R9 | Caminho quente sem FPU e sem alocação de heap por amostra ou por requisição; a memória do V5 é alocada **uma única vez** na construção do `StorageManager` (custo líquido ≤ +0,5 KiB vs formato anterior; teto de 4,5 KiB no objeto); toda escrita em flash sob a disciplina `flashOp` (§2). |
 
 ---
@@ -336,13 +336,17 @@ SensorManager ──(BinaryHistoryRecord)──▶ writeHistoryEntry()
     /history/AAAAMMDD.h5 }                             /history/.wip }
 ```
 
-O arquivo diário é **append-only** (regime em que o LittleFS é eficiente e previsível). Resultado esperado: ~24 appends + 144 regravações do `.wip` por dia, contra 1.440 escritas/dia do formato legado — ~8× menos janelas de lockout do Core 1.
+O arquivo diário é **append-only** (regime em que o LittleFS é eficiente e previsível). Resultado esperado: ~24 appends + uma regravação do `.wip` por registro — 1.440/dia no intervalo padrão de 1 min (E10; eram 144). O ganho de escrita sobre o formato legado passa a ser o **arquivo diário**, não o total: 24 appends contra 1.440. A regravação do `.wip` é um arquivo pequeno e isolado, não o histórico.
 
 ### 7.2 `.wip`, boot e recuperação (R8)
 
-`/history/.wip` contém **exatamente um** chunk DATA selado com `PARTIAL` (sem SCHEMA — o schema é o compilado, validado na recuperação). A cada 10 min: `seal()` do estado corrente para o buffer estático → regravar `.wip` inteiro sob `flashOp` → **o encoder continua acumulando o mesmo bloco** (o `.wip` é um snapshot, não um fechamento).
+`/history/.wip` contém **exatamente um** chunk DATA selado com `PARTIAL` (sem SCHEMA — o schema é o compilado, validado na recuperação). **A cada registro aceito** (E10; era a cada 10 min): `seal()` do estado corrente para o buffer estático → regravar `.wip` inteiro sob `flashOp` → **o encoder continua acumulando o mesmo bloco** (o `.wip` é um snapshot, não um fechamento).
 
-Boot: montar FS → se `.wip` existe e o CRC fecha → garantir que o arquivo diário do seu `t0` existe **começando por SCHEMA** (criar se necessário) → append do chunk como está → truncar `.wip`. `.wip` inválido ⇒ descartar com log (perda ≤ 10 min, nunca crash). Iniciar encoder novo (`PARTIAL` se no meio da hora).
+A regravação cede a vez à prioridade de toque e à trava de tarefa pesada — uma janela de flash ali congela o Core 1 no meio do gesto. Ceder **adia a escrita, nunca a amostra**: o registro já está no encoder (memcpy, seguro sob qualquer gate) e `h5WipPending( )` faz a varredura do laço gravá-lo em ≤ 2 s. A amostragem em si não é condicionada a gate nenhum.
+
+Toda reinicialização voluntária grava o `.wip` no caminho de saída (`LogManager::setPreRebootHook`). Duas exceções, que **precisam** suprimir o gancho porque o snapshot cairia sobre um sistema de arquivos que não é mais o mesmo: `system format confirm` e o *apply* de restore com `fs_mod`.
+
+Boot: montar FS → se `.wip` existe e o CRC fecha → garantir que o arquivo diário do seu `t0` existe **começando por SCHEMA** (criar se necessário) → append do chunk como está → truncar `.wip`. `.wip` inválido ⇒ descartar com log (perda ≤ 1 bloco, nunca crash). Iniciar encoder novo (`PARTIAL` se no meio da hora).
 
 ### 7.3 Correção retroativa de timestamps
 
@@ -413,7 +417,9 @@ Primeiro boot com V5: remover de `/history` todo arquivo que **não** comece com
 | Golden replay | Arquivos `.sim4` reais → `--convert-v4` → decodificados pelo firmware; séries idênticas valor a valor | Também **mede** a taxa real de compressão |
 | Autodescrição (R4) | Arquivos gravados pelo firmware lidos pela ferramenta **sem nenhum conhecimento do firmware** (só este documento) | CSV do host ≡ CSV do firmware |
 | Rejeição | `nCh` inválido (0 ou > 16), DATA antes de SCHEMA, CRC inválido, arquivo truncado, arquivo com troca de schema no meio do dia (gerado no host) | Log correto, chunk/arquivo pulado, zero crash/WDT |
-| Power-cut | Corte durante: append horário, regravação do `.wip`, `rename` da correção | FS monta; perda ≤ 10 min; nenhum chunk inválido aceito |
+| Power-cut | Corte durante: append horário, regravação do `.wip`, `rename` da correção | FS monta; **perda de 0 registros**; nenhum chunk inválido aceito |
+| Reboot voluntário | `commit_all` da web, restore, factory reset, recuperação de rede | Todo registro anterior ao reboot presente no arquivo do dia; `format` e restore com `fs_mod` **não** ressuscitam dado apagado |
+| Contenção | Toque sustentado e backup atravessando a virada do minuto | Nenhum minuto sem amostra; o `.wip` alcança em ≤ 2 s do gate abrir |
 | Desempenho no alvo | Tabela do §10 | Todos os limites, com margem de WDT ≥ 50% |
 | Soak | 72 h contínuas com Wi-Fi instável induzido | Heartbeat do Core 1 sem quedas; contadores de retry estáveis |
 

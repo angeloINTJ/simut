@@ -4,6 +4,90 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased
+
+### Measurements were lost on power cut and on every reboot for configuration
+
+The open history block lives in RAM and only reaches flash when it fills, once
+an hour. A snapshot in `/history/.wip` bounded the exposure — and the bound was
+ten minutes, because that is literally what R8 asked for: *"power-loss: maximum
+loss of 10 min of data"*. The requirement was met exactly as written, and what
+was written was not good enough.
+
+Three separate loss paths, found with very different costs:
+
+**Six of the seven voluntary reboots snapshotted nothing.** `reload confirm` from
+the CLI was the only path that did it right — it seals the block explicitly
+before calling `safeReboot()`. The other six did not, and one of them is the web
+`commit_all`: the reboot you take *to configure the device*. Those rebooted
+straight through and dropped everything since the last periodic snapshot, up to
+ten minutes, deterministically, every time. That the CLI path had the seal and
+the web path did not is the shape of the bug — the protection was written per
+call site, so it was only ever as complete as the next caller remembered to be.
+Hence a hook at the choke point instead: `safeReboot()` itself now writes the
+snapshot on the way out, and a new reboot path cannot forget.
+
+Two callers must suppress it, and do: `system format confirm` and an OTA restore
+apply with `fs_mod`, where a snapshot from the pre-erase RAM block would
+resurrect data the user asked to destroy on the next boot.
+
+**The ten-minute timer is gone.** The snapshot is now taken once per accepted
+record, inline, so a power cut loses nothing. The cost was measured before the
+choice rather than after: 1440 `.wip` rewrites a day against 144. Endurance is
+not the binding constraint (~2.6k erases per block per year against 100k rated);
+the Core 1 lockout duty cycle is, which is why the write still yields to touch
+priority and to the heavy-task lock.
+
+**Some minutes were never measured at all.** The loop gated the *entire sample*
+on those same two conditions, so a sustained touch drag or a backup spanning the
+minute boundary left that minute with no reading — a hole no snapshot can fill,
+because nothing was ever recorded. Sampling and writing are now separate: the
+record always lands in the RAM encoder (a memcpy, safe under any gate) and only
+the flash write defers, latched so the catch-up sweep writes it within 2 s of
+the gate opening instead of waiting for the next sample to carry it.
+
+One trade-off is deliberate and worth stating: sealing a full block, and the
+day-rollover seal, now run even with a gate closed. A full block cannot accept
+another record, so the choice there is a lockout window or a lost sample — 24
+forced windows a day against the promise that none are lost.
+
+Three silent losses found while auditing the same function, all three from a
+`sealHourV5()` return value nobody read:
+
+- **The hourly seal discarded the whole block on failure.** The `reset()` that
+  follows it empties the encoder unconditionally, so a failed seal threw away up
+  to 60 records with nothing said beyond a generic write warning. This is the
+  seal that fires *every hour*, making it by far the likeliest of the three to
+  ever fail. It now refuses the incoming record while the held block still has
+  retries left, because the block is what is worth protecting.
+
+- **A failed day-rollover seal misfiled the block.** The code adopted the new
+  day regardless, so the next record was spliced into yesterday's block and the
+  whole block was then written to *today's* file — §14-6 broken, and with it
+  "the file name IS the bound". It refuses the one record instead now, leaving
+  the block intact for the next minute to retry. One record at risk on an
+  already-degraded filesystem beats up to 60 misfiled with no error anywhere.
+- **A failed seal on a sensor-set change discarded up to 60 records in
+  silence.** `ensureH5Schema()` immediately re-runs `_h5Enc.begin()`, which
+  drops any block in progress. The `.wip` is no escape — it would carry the old
+  schema and `recoverWipV5()` validates against the compiled one, so the next
+  boot would reject it. Now retried once (which is what a transient mutex
+  timeout needs) and, if it still fails, logged with the number of records lost
+  instead of vanishing behind a generic write warning.
+
+Both directions of a failed seal are a loss, so the recovery is bounded rather
+than chosen: discarding the block on the first failure throws away up to 60
+records for what is usually a transient `FLASH_OP` mutex timeout, while holding
+it forever means a device that silently stops recording for good. Five refused
+records — one interval's worth of patience, well under the block being
+protected — then the block is written off, the loss is logged with its count,
+and recording resumes.
+
+No on-disk format change: bytes written before this still read, and the `.wip`
+is still exactly one `PARTIAL` DATA chunk. Amendment E10 in
+`docs/HistoryV5_Emendas_Rev2.md`; R8, §7.1, §7.2 and the §11 acceptance matrix
+restated in the normative Rev 2.0.
+
 ## v2.1.1-beta (2026-08-10)
 
 ### A single slow HTTP request rebooted the device — remotely, no auth
