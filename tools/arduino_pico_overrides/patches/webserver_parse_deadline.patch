@@ -1,0 +1,89 @@
+--- a/libraries/WebServer/src/Parsing.cpp
++++ b/libraries/WebServer/src/Parsing.cpp
+@@ -31,6 +31,50 @@
+ #define log_v(...)
+ #endif
+ 
++/* SIMUT override — bound the request parse as a whole.
++ *
++ * readStringUntil() waits the client timeout PER BYTE and resets it on every
++ * byte received, so a peer dribbling one byte just under that timeout keeps
++ * Core 0 inside the read forever with nothing feeding the hardware watchdog —
++ * the SIMUT loop feeds it before handleClient(), never during. A single slow
++ * GET rebooted the device: autopsy C0=[WEB_POLL] hp=0 (219), i.e. the stall
++ * was inside handleClient and it never returned. Confirmed on the bench
++ * 2026-08-10 with one request dribbled at 3 s/byte.
++ *
++ * This reader feeds the watchdog on every iteration and caps the WHOLE parse
++ * by wall clock. A request that overruns the budget comes back partial, so the
++ * caller sees a malformed line and stops the client — a dropped slow request
++ * instead of a reboot. On a LAN a real request line arrives in one segment in
++ * well under a millisecond, so the 3 s budget is only ever spent by a stall. */
++#include <hardware/watchdog.h>
++#define SIMUT_PARSE_BUDGET_MS 3000u
++static String simutReadLine(WiFiClient* client, char until, uint32_t deadline) {
++    String out;
++    for (;;) {
++        watchdog_update();
++        int c = client->read();
++        if (c >= 0) {
++            if ((char)c == until) {
++                break;
++            }
++            out += (char)c;
++            if (out.length() >= 2048) {
++                break;    /* absurd line — drop it, caller will stop the client */
++            }
++            continue;
++        }
++        /* no byte available right now */
++        if ((int32_t)(millis() - deadline) >= 0) {
++            break;    /* whole-parse budget spent */
++        }
++        if (!client->connected() && client->available() == 0) {
++            break;    /* peer closed and buffer drained */
++        }
++        delay(1);
++    }
++    return out;
++}
++
+ #ifndef WEBSERVER_MAX_POST_ARGS
+ #define WEBSERVER_MAX_POST_ARGS 32
+ #endif
+@@ -79,9 +123,11 @@
+ }
+ 
+ HTTPServer::ClientFuture HTTPServer::_parseRequest(WiFiClient* client) {
++    // SIMUT: one wall-clock budget for the whole parse (see simutReadLine).
++    const uint32_t _simutDeadline = millis() + SIMUT_PARSE_BUDGET_MS;
+     // Read the first line of HTTP request
+-    String req = client->readStringUntil('\r');
+-    client->readStringUntil('\n');
++    String req = simutReadLine(client, '\r', _simutDeadline);
++    simutReadLine(client, '\n', _simutDeadline);
+     //reset header value
+     for (int i = 0; i < _headerKeysCount; ++i) {
+         _currentHeaders[i].value = String();
+@@ -152,8 +198,8 @@
+         bool isEncoded = false;
+         //parse headers
+         while (1) {
+-            req = client->readStringUntil('\r');
+-            client->readStringUntil('\n');
++            req = simutReadLine(client, '\r', _simutDeadline);
++            simutReadLine(client, '\n', _simutDeadline);
+             if (req == "") {
+                 break;    //no moar headers
+             }
+@@ -252,8 +298,8 @@
+         String headerValue;
+         //parse headers
+         while (1) {
+-            req = client->readStringUntil('\r');
+-            client->readStringUntil('\n');
++            req = simutReadLine(client, '\r', _simutDeadline);
++            simutReadLine(client, '\n', _simutDeadline);
+             if (req == "") {
+                 break;    //no moar headers
+             }

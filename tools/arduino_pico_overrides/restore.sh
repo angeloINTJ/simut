@@ -24,13 +24,27 @@ done
 echo "[restore] revertendo overrides..."
 cp -v "$OVR/originals/lwipopts.h" "$FW/include/"
 
-# Handshake TLS: volta ao arquivo virgin (sem prazo global). ATENÇÃO — sem ele
-# um handshake que não fecha trava o Core 0 para sempre; ver patch.sh.
-if [ -f "$OVR/originals/WiFiClientSecureBearSSL.cpp" ]; then
+# Todos os cinco arquivos que patch.sh toca. Antes este script revertia so
+# lwipopts e o BearSSL, entao um "restore" deixava HTTPClient, ClientContext e
+# Parsing patchados — dois deles com override real ainda ativo. ATENCAO: cada
+# um segura algo (ver patch.sh) — TLS sem prazo trava o Core 0, Parsing sem
+# prazo aceita o DoS do request lento (D-B8), HTTPClient/ClientContext idem.
+[ -f "$OVR/originals/WiFiClientSecureBearSSL.cpp" ] && \
     cp -v "$OVR/originals/WiFiClientSecureBearSSL.cpp" "$FW/libraries/WiFi/src/"
-fi
+[ -f "$OVR/originals/HTTPClient.cpp" ] && \
+    cp -v "$OVR/originals/HTTPClient.cpp" "$FW/libraries/HTTPClient/src/"
+[ -f "$OVR/originals/ClientContext.h" ] && \
+    cp -v "$OVR/originals/ClientContext.h" "$FW/libraries/WiFi/src/include/"
+[ -f "$OVR/originals/Parsing.cpp" ] && \
+    cp -v "$OVR/originals/Parsing.cpp" "$FW/libraries/WebServer/src/"
 
-# Invalida cache PIO
+# Invalida cache PIO — FrameworkArduino (lwip) + os .o das libs patchadas, senao
+# o build "passa" religando os objetos antigos ainda patchados.
+for obj in "$ROOT/.pio/build"/*/lib*/WiFi/*.o \
+           "$ROOT/.pio/build"/*/lib*/HTTPClient/HTTPClient.cpp.o \
+           "$ROOT/.pio/build"/*/lib*/WebServer/Parsing.cpp.o; do
+    [ -f "$obj" ] && { rm -f "$obj"; echo "[restore] cache invalidado: $obj"; }
+done
 for build in "$ROOT/.pio/build"/*/FrameworkArduino/lwip; do
     if [ -d "$build" ]; then
         rm -rf "$build"

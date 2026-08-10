@@ -176,6 +176,38 @@ else
     patch -p1 -d "$FW" < "$CTXH_PATCH"
 fi
 
+# 2e. Parse do request sem prazo global (Parsing.cpp) — D-B8.
+#   readStringUntil espera o timeout do cliente POR BYTE e o reinicia a cada
+#   byte recebido, entao um cliente que goteja um byte logo abaixo do timeout
+#   segura o Core 0 dentro da leitura para sempre, sem nada alimentar o watchdog
+#   — o loop SIMUT alimenta ANTES do handleClient, nunca durante. Um unico GET
+#   lento, sem autenticacao, reiniciou o aparelho: autopsia ao vivo
+#   C0=[WEB_POLL] hp=0 sc3=0x80088013 (219), i.e. o handleClient NAO retornou.
+#   Medido na bancada em 2026-08-10 com 1 request a 3 s/byte; curado nos 3
+#   vetores (0,4/1,0/3,0 s por byte), 0 reboots, operacao normal 40/40.
+#
+#   IMPORTANTE: main salva originais em pasta unica e NAO tem o guard
+#   save_original da branch de migracao. O original virgem de Parsing.cpp ja
+#   esta versionado fora do git em originals/; se ele sumir, reinstale a
+#   framework antes de rodar isto, senao o backup captura o arquivo ja patchado.
+PARSING="$FW/libraries/WebServer/src/Parsing.cpp"
+PARSING_PATCH="$OVR/patches/webserver_parse_deadline.patch"
+if [ ! -f "$OVR/originals/Parsing.cpp" ]; then
+    mkdir -p "$OVR/originals"
+    if grep -q "SIMUT override" "$PARSING"; then
+        echo "[patch] AVISO: Parsing.cpp ja patchado e sem original salvo —"
+        echo "[patch]   reinstale a framework antes de confiar no restore.sh."
+    else
+        cp -v "$PARSING" "$OVR/originals/"
+    fi
+fi
+if grep -q "SIMUT override — bound the request parse as a whole" "$PARSING"; then
+    echo "[patch] Parsing ja tem prazo global — nada a fazer"
+else
+    echo "[patch] aplicando prazo global no parse do request"
+    patch -p1 -d "$FW" < "$PARSING_PATCH"
+fi
+
 # 3. Invalida cache PIO (lwip src + lib WiFi)
 #    A lib WiFi tem cache próprio em lib*/WiFi/ — sem apagá-lo o .cpp patchado
 #    não recompila e o build "passa" ainda com o handshake sem prazo.
@@ -200,6 +232,14 @@ for httpobj in "$ROOT/.pio/build"/*/lib*/HTTPClient/HTTPClient.cpp.o; do
     if [ -f "$httpobj" ]; then
         rm -f "$httpobj"
         echo "[patch] cache invalidado: $httpobj"
+    fi
+done
+# WebServer tem cache proprio (lib*/WebServer): sem apagar Parsing.cpp.o o build
+# "passa" ainda com o parse sem prazo.
+for wsobj in "$ROOT/.pio/build"/*/lib*/WebServer/Parsing.cpp.o; do
+    if [ -f "$wsobj" ]; then
+        rm -f "$wsobj"
+        echo "[patch] cache invalidado: $wsobj"
     fi
 done
 
