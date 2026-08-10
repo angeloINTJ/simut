@@ -27,10 +27,15 @@ Sampling is every 5 min. Anything anomalous is written to the log with an
 ANOMALY prefix so grep is a valid triage. The run is resumable and additive:
 it appends to the ndjson, so an interrupted soak keeps its hours.
 
-Stop early:  kill $(pgrep -f "telemetry_bench/soak_a6")  — the summary is
-rebuilt from the ndjson. Do NOT use `pkill -f soak_a6.py`: the pattern also
-matches the shell that launched it, so the whole command line dies mid-way and
-whatever was meant to run after the kill silently never does.
+Stop early:  kill $(ps -eo pid,cmd | awk '/[s]oak_a6\.py/ && !/awk/ {print $1}')
+
+Any pattern-matching kill has to exclude the shell running it, or that shell
+matches its own command line and dies mid-command — silently skipping whatever
+came after. `pkill -f soak_a6.py` does it, and so did the `pgrep -f` form this
+docstring recommended as the fix, which is how the lesson got learned twice.
+The bracket trick above ([s] never matches the literal string in the pattern)
+is the version that actually holds. The summary is rebuilt from the ndjson, so
+stopping costs nothing already logged.
 """
 import json
 import os
@@ -159,7 +164,7 @@ def main():
     base = sample(w)
     print(f'baseline: uptime={base["uptime"]} c1a={base["c1a"]} c1n={base["c1n"]} '
           f'fx={base["fx"]} heap_lb={base["heap_lb"]}')
-    print(f'logging to {OUT}, every {PERIOD_S} s — stop with kill $(pgrep -f "telemetry_bench/soak_a6")')
+    print(f'logging to {OUT}, every {PERIOD_S} s — stop: see the docstring')
 
     prev = None
     n = 0
