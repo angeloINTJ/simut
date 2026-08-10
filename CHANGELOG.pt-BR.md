@@ -39,9 +39,15 @@ Downloads são governados pelo `TCP_SND_BUF` e ficam intocados.
 Aumentar o pool era a alavanca errada: 24 envelopes já são 35,5 KB de BSS, e
 dobrar custa mais que o heap livre inteiro.
 
-Vale dizer com todas as letras, porque o nome antigo sugeria o contrário: a
-exaustão do pool nunca reiniciou o device, nem antes nem depois. As requisições
-falham e o pool volta inteiro.
+Vale dizer com todas as letras, porque o nome antigo sugeria o contrário: secar
+o pool nunca reiniciou o device. As requisições falham e o pool volta inteiro.
+
+Isso não é o mesmo que dizer que concorrência pesada é segura. Seis clientes
+martelando ainda batem no resíduo `C0=[WEB_POLL]` documentado em
+`docs/netstorm-campaign-2026-08-10/` — visto uma vez aqui em cerca de dois
+minutos de carga a seis, e não reproduzido numa repetição de 90 s. Ele é
+anterior a esta mudança, que ataca falhas de alocação e nada mais, e segue
+aberto.
 
 ## v2.0.2-alpha (2026-08-10)
 

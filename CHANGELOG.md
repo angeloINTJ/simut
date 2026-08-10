@@ -40,9 +40,14 @@ are governed by `TCP_SND_BUF` and are untouched.
 Growing the pool was the wrong lever: 24 entries are already 35,5 KB of BSS, and
 doubling costs more than the whole free heap.
 
-Worth saying plainly, because the old name suggested otherwise: pool exhaustion
-never rebooted the device, before or after. Requests fail and the pool comes
-back whole.
+Worth saying plainly, because the old name suggested otherwise: running the pool
+dry never rebooted the device. Requests fail and the pool comes back whole.
+
+That is not the same as saying heavy concurrency is safe. Six clients hammering
+the device still hit the residual `C0=[WEB_POLL]` park documented in
+`docs/netstorm-campaign-2026-08-10/` — seen once here in about two minutes of
+six-way load, and not reproduced in a 90 s repeat. It predates this change,
+which targets allocation failures and nothing else, and it stays open.
 
 ## v2.0.2-alpha (2026-08-10)
 
