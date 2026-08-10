@@ -441,6 +441,15 @@ void AppManager::setup( ) {
  return app._storageMgr->isHeavyTaskLocked( );
  });
 
+ /* Every voluntary reboot — commit-all, restore, factory reset, the network
+  * recovery path — snapshots the open history block on its way out. It used
+  * to reboot straight through and drop whatever the last periodic snapshot
+  * had not covered, which is the one loss the firmware could have avoided
+  * outright: it knows the reboot is coming and has time to write. */
+ LogManager::instance( ).setPreRebootHook([]( ) {
+ app._storageMgr->flushWipV5( );
+ });
+
  /* Single touch-priority provider shared by Log, Storage, and Web.
 	 * Set here before any manager queries TouchPriority::isActive()
 	 * during boot. */

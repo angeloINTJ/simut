@@ -452,9 +452,9 @@ void StorageManager::update( ) {
   }
  }
 
- /* V5: the open block is snapshotted to /history/.wip on its own timer
-  * from the AppManager loop (H5_WIP_INTERVAL_MS). What used to be here —
-  * the age-out drain of the V4 RAM batch — has no batch to drain. */
+ /* V5: the open block is snapshotted to /history/.wip once per record, from
+  * writeHistoryEntryV5 itself. What used to be here — the age-out drain of
+  * the V4 RAM batch — has no batch to drain. */
 }
 
 void StorageManager::loadDefaults( ) {
@@ -1890,22 +1890,80 @@ bool StorageManager::writeHistoryEntryV5(const int16_t* values, uint8_t nCh, uin
 	 * records in yesterday's file. Same trap A2 fixed for the V4 batch. */
 	const String day = getHistoryFileNameV5(epoch);
 	if (_h5Enc.count( ) && day != _h5CurrentDay) {
-		sealHourV5(true);                       /* §14-6 */
+		if (!sealHourV5(true)) {                /* §14-6 */
+			/* The seal failed, so the old day's block is still in RAM and
+			 * still belongs to the old day. Adopting `day` here — which is
+			 * what this did — let the add() below splice today's record into
+			 * yesterday's block, and the whole block then got filed under
+			 * today: §14-6 broken, and "the file name IS the bound" with it.
+			 * Silently, too: nothing in that path reported an error. */
+			if (++_h5SealFails < H5_SEAL_MAX_FAILS) {
+				LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)_h5SealFails,
+				         "h5_rollover_seal_retry");
+				return false;   /* keep the old bound AND the block intact */
+			}
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)_h5Enc.count( ),
+			         "h5_rollover_seal_lost");
+			/* Written off. Empty the encoder so the new day starts clean
+			 * rather than inheriting yesterday's t0. */
+			_h5Enc.begin(_h5Schema, _h5NCh, h5NominalSeconds(getHistoryIntervalMin( )));
+			_h5WipDirty = false;
+		}
+		_h5SealFails = 0;
 	}
 	_h5CurrentDay = day;
 
 	if (_h5Enc.count( ) == 0) {
 		_h5Enc.reset(epoch, values);
+		_h5WipDirty = true;
+		flushWipUnlessBlocked( );
 		return true;
 	}
-	if (_h5Enc.add(epoch, values)) return true;
+	if (_h5Enc.add(epoch, values)) {
+		_h5WipDirty = true;
+		flushWipUnlessBlocked( );
+		return true;
+	}
 
 	/* Full, or the clock moved past what RAW can address from t0. Either
-	 * way this block is done; the sample opens the next one. */
+	 * way this block is done; the sample opens the next one.
+	 *
+	 * This seal runs even with a gate closed, and so does the day-rollover
+	 * one above: a full block cannot take another record, so the choice is
+	 * a lockout window or a lost sample. It costs 24 forced windows a day
+	 * against R8's promise that none are lost. */
 	const bool wasFull = _h5Enc.full( );
-	sealHourV5(!wasFull);
+	if (!sealHourV5(!wasFull)) {
+		/* The reset below empties the encoder unconditionally, so a failure
+		 * here used to discard the whole held block — up to 60 records — with
+		 * nothing said beyond sealHourV5's generic write warning. And unlike
+		 * the two paths above this one fires every hour, so it is the seal
+		 * most likely to ever fail. Refuse the record while the block still
+		 * has retries left; the block is what is worth protecting. */
+		if (++_h5SealFails < H5_SEAL_MAX_FAILS) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)_h5SealFails,
+			         "h5_seal_retry");
+			return false;
+		}
+		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)_h5Enc.count( ),
+		         "h5_seal_lost");
+	}
+	_h5SealFails = 0;
 	_h5Enc.reset(epoch, values);
+	_h5WipDirty = true;
+	flushWipUnlessBlocked( );
 	return true;
+}
+
+/* The snapshot is the only part of the record path that touches flash, and
+ * the two gates exist to keep flash off Core 1's back mid-gesture and out of
+ * a heavy task's way. Deferring it — rather than skipping the whole sample,
+ * which is what the loop used to do — keeps the measurement and moves only
+ * the write. h5WipPending( ) is what gets it written moments later. */
+void StorageManager::flushWipUnlessBlocked( ) {
+	if (!_h5WipDirty) return;
+	if (isHeavyTaskLocked( ) || TouchPriority::isActive( )) return;
+	flushWipV5( );
 }
 
 bool StorageManager::h5WriteSchemaTo(File& f, uint8_t seq) {
@@ -2088,12 +2146,22 @@ bool StorageManager::sealHourV5(bool partial) {
 			FLASH_OP({ if (LittleFS.exists(FILE_H5_WIP)) LittleFS.remove(FILE_H5_WIP); });
 		}
 		_h5Enc.begin(_h5Schema, _h5NCh, h5NominalSeconds(getHistoryIntervalMin( )));
+		/* The records the .wip was covering are in the day file now, and the
+		 * block that replaces it is empty — nothing left to snapshot. */
+		_h5WipDirty = false;
+		/* Cleared here so every caller's patience resets on a seal that
+		 * worked, not just the two in writeHistoryEntryV5 that count. */
+		_h5SealFails = 0;
 	}
 	return ok;
 }
 
 bool StorageManager::flushWipV5( ) {
-	if (!_isMounted || !_h5Valid || _h5Enc.count( ) == 0) return true;
+	if (!_isMounted || !_h5Valid) return true;
+	/* Nothing open to snapshot: the block was just sealed, and sealHourV5
+	 * already removed the .wip. Clearing the flag here keeps the loop sweep
+	 * from retrying a write with no content for the rest of the minute. */
+	if (_h5Enc.count( ) == 0) { _h5WipDirty = false; return true; }
 
 	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
 	LogManager::WdtWindow _wdt(30000);
@@ -2112,8 +2180,9 @@ bool StorageManager::flushWipV5( ) {
 	});
 	if (written == 0) {
 		LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, 0, "h5_wip");
-		return false;
+		return false;                       /* stays dirty; the sweep retries */
 	}
+	_h5WipDirty = false;
 	LOG_CODE(LOG_INFO, "STO", STO_H5_WIP, (int)_h5Enc.count( ), "");
 	return true;
 }
@@ -2194,7 +2263,21 @@ void StorageManager::onSensorSetChangedV5( ) {
 	/* §3.7-2. The seal is PARTIAL by definition: the block is closing for a
 	 * reason other than being full. h5AppendChunk writes the new SCHEMA
 	 * when it sees the file's opening one no longer matches. */
-	if (_h5Valid && _h5Enc.count( )) sealHourV5(true);
+	if (_h5Valid && _h5Enc.count( )) {
+		const uint8_t held = _h5Enc.count( );
+		/* Nothing can rescue the block if this fails, and it has to be said
+		 * out loud. ensureH5Schema( ) below re-runs _h5Enc.begin( ), which
+		 * drops whatever block is in progress — so a failed seal here used to
+		 * discard up to 60 records with no trace but a generic write warning.
+		 * The .wip is no escape either: it would carry the OLD schema, and
+		 * recoverWipV5( ) validates against the compiled one, so the next boot
+		 * would reject it. Retrying once covers a transient mutex timeout,
+		 * which is the only failure that a retry can actually fix. */
+		if (!sealHourV5(true) && !sealHourV5(true)) {
+			LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)held,
+			         "h5_schema_change_seal_lost");
+		}
+	}
 	_h5Valid = false;
 	ensureH5Schema( );
 }

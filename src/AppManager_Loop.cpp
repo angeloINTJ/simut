@@ -251,25 +251,29 @@ void AppManager::loop( ) {
  watchdog_update( );
 
 
+ /* Sampling is NOT gated. It used to be, and a gate held across a minute
+  * boundary meant that minute was never measured at all — a touch drag or a
+  * backup left a hole no snapshot could fill, because there was nothing to
+  * snapshot. The record now always lands in the RAM encoder (a memcpy, safe
+  * under any gate) and only the flash snapshot inside defers. */
  if (timeSince(_lastHistoryTime, _storageMgr->getHistoryIntervalMin( ) * 60000UL)) {
- if (!_storageMgr->isHeavyTaskLocked( ) && !isUserInteracting( )) {
  processHistoryLogging( );
- }
  }
 
  watchdog_update( );
 
- /* ── V5 history: the .wip snapshot (§7.2) ──────────────────────────────
-  * The open block lives in RAM, so a power cut loses whatever has not
-  * been snapshotted. Ten minutes is the bound R8 asks for. The block is
-  * NOT closed here — the .wip is a snapshot, and the encoder keeps
-  * filling the same block until the hour is up.
+ /* ── V5 history: the deferred .wip snapshot (§7.2) ──────────────────────
+  * writeHistoryEntryV5 snapshots each record inline, so R8's bound is one
+  * record, not a clock interval. This is only the catch-up path: the inline
+  * attempt is refused while the user is touching the screen or a heavy task
+  * holds the flash (a window here would freeze Core 1 mid-gesture), and the
+  * record then waits here instead of until the next sample.
   *
-  * Skipped while the user is touching the screen for the same reason the
-  * history write is: a flash window here freezes Core 1 mid-gesture. */
+  * Gated on h5WipPending( ) so the common case — snapshot already written
+  * inline — costs one load and no flash. */
  {
   static uint32_t lastWipMs = 0;
-  if (timeSince(lastWipMs, H5_WIP_INTERVAL_MS)) {
+  if (_storageMgr->h5WipPending( ) && timeSince(lastWipMs, H5_WIP_RETRY_MS)) {
    if (!_storageMgr->isHeavyTaskLocked( ) && !isUserInteracting( )
        && _storageMgr->isH5Active( )) {
     lastWipMs = millis( );
