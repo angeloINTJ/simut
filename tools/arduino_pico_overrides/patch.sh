@@ -40,25 +40,56 @@ ROOT="$(pwd)"
 OVR="$ROOT/tools/arduino_pico_overrides"
 
 # Detecta framework path
+# PIO_CORE respeita PLATFORMIO_CORE_DIR: a migracao de framework tem de rodar
+# num core dir ISOLADO, nunca in-place, porque ~/.platformio e a toolchain que
+# constroi a imagem publicada — perde-la no meio significa nao conseguir
+# reconstruir o que esta no release.
+PIO_CORE="${PLATFORMIO_CORE_DIR:-$HOME/.platformio}"
 FW=""
 for cand in \
-    "$HOME/.platformio/packages/framework-arduinopico" \
-    "$HOME/.platformio/packages/framework-arduino-pico"; do
+    "$PIO_CORE/packages/framework-arduinopico" \
+    "$PIO_CORE/packages/framework-arduino-pico"; do
     [ -d "$cand" ] && { FW="$cand"; break; }
 done
 if [ -z "$FW" ]; then
-    echo "ERRO: framework-arduinopico não encontrado em ~/.platformio/packages/"
+    echo "ERRO: framework-arduinopico não encontrado em $PIO_CORE/packages/"
     exit 1
 fi
 echo "[patch] framework: $FW"
 
+# Backups sao POR VERSAO de framework. Sem isso, migrar de framework num core
+# isolado sobrescreve os originais do core de casa, e o restore.sh seguinte
+# escreve fontes da versao nova dentro da versao antiga — em silencio, porque
+# os arquivos existem e o cp funciona. Aconteceu na migracao 5.4.3 -> 5.6.1.
+FW_VER="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' "$FW/package.json" 2>/dev/null | head -1)"
+[ -z "$FW_VER" ] && FW_VER="unknown"
+ORIG="$OVR/originals/$FW_VER"
+echo "[patch] originais desta versao: $ORIG"
+
+# Guarda: nunca gravar como "original" um arquivo que ja carrega override
+# SIMUT. Acontece quando os originais desta versao foram perdidos DEPOIS do
+# primeiro patch — o cp funciona, o backup fica com o patch dentro, e o
+# restore.sh seguinte "restaura" para um estado que nunca foi de fabrica.
+# Custou exatamente isso na migracao 5.4.3 -> 5.6.1.
+save_original( ) {  # $1 = arquivo na framework, $2 = nome no backup
+    [ -f "$ORIG/$2" ] && return 0
+    if grep -q "SIMUT override" "$1" 2>/dev/null; then
+        echo "[patch] RECUSADO: $1 ja tem override e nao ha original de $FW_VER."
+        echo "[patch]   Reinstale a framework (pio pkg install --force) antes de"
+        echo "[patch]   depender do restore.sh — o backup seria falso."
+        return 0
+    fi
+    mkdir -p "$ORIG"
+    cp -v "$1" "$ORIG/$2"
+}
+
 # 1. Backup originais (só se ainda não existem)
-if [ ! -f "$OVR/originals/lwipopts.h" ]; then
-    mkdir -p "$OVR/originals"
-    cp -v "$FW/include/lwipopts.h" "$OVR/originals/"
-    echo "[patch] original salvo em $OVR/originals/"
+if [ ! -f "$ORIG/lwipopts.h" ]; then
+    mkdir -p "$ORIG"
+    cp -v "$FW/include/lwipopts.h" "$ORIG/"
+    echo "[patch] original salvo em $ORIG/"
 else
-    echo "[patch] original lwipopts.h já está em $OVR/originals/ — preservando"
+    echo "[patch] original lwipopts.h já está em $ORIG/ — preservando"
 fi
 
 # 2. Copia patched lwipopts.h
@@ -79,10 +110,7 @@ cp -v "$OVR/patched_headers/lwipopts.h" "$FW/include/"
 #   então o patch propaga na próxima compilação (com o cache invalidado abaixo).
 BEARSSL="$FW/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp"
 BEARSSL_PATCH="$OVR/patches/wifi_tls_handshake_deadline.patch"
-if [ ! -f "$OVR/originals/WiFiClientSecureBearSSL.cpp" ]; then
-    mkdir -p "$OVR/originals"
-    cp -v "$BEARSSL" "$OVR/originals/"
-fi
+save_original "$BEARSSL" "WiFiClientSecureBearSSL.cpp"
 if grep -q "SIMUT override — bound the handshake as a whole" "$BEARSSL"; then
     echo "[patch] handshake TLS já tem prazo global — nada a fazer"
 else
@@ -110,10 +138,7 @@ fi
 #   prazo de handshake TLS acima.
 HTTPC="$FW/libraries/HTTPClient/src/HTTPClient.cpp"
 HTTPC_PATCH="$OVR/patches/httpclient_read_deadlines.patch"
-if [ ! -f "$OVR/originals/HTTPClient.cpp" ]; then
-    mkdir -p "$OVR/originals"
-    cp -v "$HTTPC" "$OVR/originals/"
-fi
+save_original "$HTTPC" "HTTPClient.cpp"
 if grep -q "SIMUT override — bound the header read as a whole" "$HTTPC"; then
     echo "[patch] HTTPClient já tem prazos de leitura — nada a fazer"
 else
@@ -165,10 +190,7 @@ fi
 #   o que aperta e a JANELA, nao o tamanho do pool — ver D14.)
 CTXH="$FW/libraries/WiFi/src/include/ClientContext.h"
 CTXH_PATCH="$OVR/patches/clientcontext_rx_leak.patch"
-if [ ! -f "$OVR/originals/ClientContext.h" ]; then
-    mkdir -p "$OVR/originals"
-    cp -v "$CTXH" "$OVR/originals/"
-fi
+save_original "$CTXH" "ClientContext.h"
 if grep -q "SIMUT override: release buffered RX before abandoning the pcb" "$CTXH"; then
     echo "[patch] ClientContext ja libera o RX no close/abort — nada a fazer"
 else
@@ -186,21 +208,9 @@ fi
 #   Medido na bancada em 2026-08-10 com 1 request a 3 s/byte; curado nos 3
 #   vetores (0,4/1,0/3,0 s por byte), 0 reboots, operacao normal 40/40.
 #
-#   IMPORTANTE: main salva originais em pasta unica e NAO tem o guard
-#   save_original da branch de migracao. O original virgem de Parsing.cpp ja
-#   esta versionado fora do git em originals/; se ele sumir, reinstale a
-#   framework antes de rodar isto, senao o backup captura o arquivo ja patchado.
 PARSING="$FW/libraries/WebServer/src/Parsing.cpp"
 PARSING_PATCH="$OVR/patches/webserver_parse_deadline.patch"
-if [ ! -f "$OVR/originals/Parsing.cpp" ]; then
-    mkdir -p "$OVR/originals"
-    if grep -q "SIMUT override" "$PARSING"; then
-        echo "[patch] AVISO: Parsing.cpp ja patchado e sem original salvo —"
-        echo "[patch]   reinstale a framework antes de confiar no restore.sh."
-    else
-        cp -v "$PARSING" "$OVR/originals/"
-    fi
-fi
+save_original "$PARSING" "Parsing.cpp"
 if grep -q "SIMUT override — bound the request parse as a whole" "$PARSING"; then
     echo "[patch] Parsing ja tem prazo global — nada a fazer"
 else
