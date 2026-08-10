@@ -176,13 +176,109 @@ Alpha volta a linkar em 89,0 % de flash.
 
 ---
 
+## D-B8 · Um request lento reinicia o aparelho — sem auth · **CORRIGIDO em v2.1.1-beta**
+
+**Isto reabriu o que o D-B2 tinha estreitado, e era mais grave do que as notas
+do release v2.1.0-beta diziam — um reboot remoto sem autenticação.**
+
+### Mecanismo, confirmado byte a byte
+
+`WebServer::handleClient` faz o parse do request com `readStringUntil`, que
+espera o timeout do cliente **por byte** e o **reinicia a cada byte recebido**
+(`Stream::timedRead`). Um cliente que goteja um byte logo abaixo do timeout
+mantém o Core 0 dentro da leitura para sempre, e o loop SIMUT alimenta o
+watchdog **antes** do `handleClient`, nunca durante. Um único GET lento derruba
+o aparelho.
+
+**Autópsia ao vivo** (captura serial camped no boot, o instrumento que faltou
+nas 3 campanhas): `C0=[WEB_POLL] C1=[DISPLAY] hp=0 sc3=0x80088013 (219)`.
+- `sc3=0x80088013`: byte 0x13 = módulo 19 = WEB_POLL, byte 0x80 = marca válida.
+- **`hp=0`**: `scratch[7]` nunca virou 740 → o `handleClient( )` **não retornou**.
+  O travamento foi dentro dele, exatamente no `readStringUntil`.
+
+### Repro determinística
+
+`scratchpad/repro_slowloris.py N M` — abre um socket cru e envia um GET
+bem-formado a N segundos por byte. **Não é malícia, é latência**: a forma exata
+de um cliente meio-aberto ou de uma rede congestionada. O veredito é o uptime
+por uma conexão limpa SEPARADA, nunca o sucesso do socket lento.
+- **Antes (v2.1.0-beta)**: 1 GET a 3 s/byte reiniciou em ~10 bytes.
+
+### Correção
+
+`patches/webserver_parse_deadline.patch` (5º override, ligado ao `patch.sh`):
+um leitor `simutReadLine` que **alimenta o watchdog a cada byte** e limita o
+parse inteiro por um orçamento de relógio (`SIMUT_PARSE_BUDGET_MS = 3000`). Um
+request que estoura o orçamento volta parcial → linha malformada → o servidor
+descarta o cliente. Numa LAN um request real chega em um segmento em <1 ms, o
+orçamento só é gasto por stall. Só o `_parseRequest` (linha de request +
+cabeçalhos, o caminho sem auth); o `_parseForm` (multipart, pós-auth) fica de
+follow-up.
+
+### Validação
+
+- **DoS curado**: 0,4 / 1,0 / 3,0 s por byte → todos dropados, **0 reboots**,
+  uptime sempre subindo.
+- **Operação normal intacta**: 40/40 status sequenciais, `GET /` (17.961 B) e
+  `/api/logs` (16.524 B) inteiros, `fx=0`.
+- **Patch versionado == imagem validada**: `diff` do patch aplicado na virgem
+  contra a edição no ferro = vazio; restore→patch→rebuild reproduz o `md5`.
+- **Aplica em 5.4.3 e 5.6.1** (o `Parsing.cpp` é byte-idêntico entre as duas).
+
+### O que fica aberto
+
+O caso **brando** por trás da mesma autópsia sob **seis clientes concorrentes**
+(`docs/netstorm-campaign-2026-08-10/`) — estreitado, não refeito aqui. Aquilo
+pode ter uma segunda fonte que não é o parse lento; o soak segue rodando para
+pegá-la se existir.
+
+---
+
+<details><summary>Histórico: como estava quando ABERTO (achado pelo soak)</summary>
+
+**Isto reabre o que o D-B2 tinha estreitado, e é mais grave do que as notas do
+release v2.1.0-beta dizem.**
+
+**Medido.** Na imagem publicada (`1ce3fd62`), gravada às ~10:20, o aparelho
+rodou **130 minutos** e reiniciou às 12:32 com `SYS_BOOT ctx=219` =
+`HW WATCHDOG C0=[WEB_POLL]`, nível FATAL, bit TIMER — watchdog genuíno, não
+perda de energia (que sai com `ctx=0`) nem toque de gravação (que sai INFO com
+`ctx=0`, ver `LogManager.cpp`, ramo `else if (wdReset)`).
+
+**A carga durante esses 130 min era o soak e nada mais**: um `GET /api/status`
+a cada 5 minutos. As buildas da migração de framework rodavam em core isolado,
+sem tocar no aparelho. Os registros imediatamente anteriores ao boot são
+rotina — `APP_HISTORY_SAVED` de minuto em minuto e `SYS_TEL_FAIL` do servidor
+fora do ar.
+
+**Por que isso muda o diagnóstico.** As notas do release descrevem esse parque
+como o residual "sob seis clientes concorrentes". Não é só isso: ele dispara
+**em repouso**. Os três caminhos drenados (D-NS2 ×2, D-B2) eram todos respostas
+grandes ou recusas; nenhum explica um aparelho parado.
+
+**Ressalva de leitura, para não repetir o erro do D-B2.** O log retido cobre
+apenas 07:45→12:45 de 10/08 e contém **12 sessões encerradas por watchdog** com
+módulos variados (`STORAGE_WR`, `CLI`, `LOOP`, `WEB_POLL`). A maioria é dos
+testes destrutivos desta própria varredura — as recusas repetidas do D-B2 e as
+gravações. **Não se pode tirar MTBF desse número.** A única sessão limpa é a de
+130 min descrita acima, e ela é uma amostra, não uma taxa.
+
+**Próximo passo** (na hora em que estava aberto): o soak segue rodando sobre a
+mesma imagem e sem carga artificial — o que levou à repro determinística e à
+correção acima.
+
+</details>
+
+---
+
 ## Aberto, e por quê
 
 - **`pico_w_debug` estoura o flash em ~81 KB.** Já estourava na v2.0.3-alpha
   (81040 B lá, 81208 B aqui) — pré-existente e não é perfil publicado.
-- **Parque `C0=[WEB_POLL]` sob seis clientes concorrentes.** Três caminhos para
-  ele estão drenados; o caso de seis clientes do
-  `docs/netstorm-campaign-2026-08-10/` **não foi refeito** nesta varredura.
+- **Parque `C0=[WEB_POLL]` — a causa ociosa foi CORRIGIDA (D-B8 acima).** O que
+  resta é o caso brando sob seis clientes concorrentes do
+  `docs/netstorm-campaign-2026-08-10/`, que pode ter uma segunda fonte que não é
+  o parse lento e não foi refeito aqui.
 - **D-NS7, IRQ desligada 68–78 ms contra critério de 60 ms.** Intocado.
 - **Soak A6.** Rodando sobre a imagem final. O critério pede 72 h com Wi-Fi
   instável induzido; o que roda hoje é a carga de falha real do servidor de

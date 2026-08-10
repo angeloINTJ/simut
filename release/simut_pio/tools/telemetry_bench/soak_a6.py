@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Acceptance A6 — long soak on the image that actually ships.
+r"""Acceptance A6 — long soak on the image that actually ships.
 
 A6 asks for "heartbeat/WDT without regression" over 72 h. soak24.py samples the
 serial CLI, which means it can only run against pico_w_test — and certifying a
@@ -27,10 +27,15 @@ Sampling is every 5 min. Anything anomalous is written to the log with an
 ANOMALY prefix so grep is a valid triage. The run is resumable and additive:
 it appends to the ndjson, so an interrupted soak keeps its hours.
 
-Stop early:  kill $(pgrep -f "telemetry_bench/soak_a6")  — the summary is
-rebuilt from the ndjson. Do NOT use `pkill -f soak_a6.py`: the pattern also
-matches the shell that launched it, so the whole command line dies mid-way and
-whatever was meant to run after the kill silently never does.
+Stop early:  kill $(ps -eo pid,cmd | awk '/[s]oak_a6\.py/ && !/awk/ {print $1}')
+
+Any pattern-matching kill has to exclude the shell running it, or that shell
+matches its own command line and dies mid-command — silently skipping whatever
+came after. `pkill -f soak_a6.py` does it, and so did the `pgrep -f` form this
+docstring recommended as the fix, which is how the lesson got learned twice.
+The bracket trick above ([s] never matches the literal string in the pattern)
+is the version that actually holds. The summary is rebuilt from the ndjson, so
+stopping costs nothing already logged.
 """
 import json
 import os
@@ -65,8 +70,19 @@ def session():
     return w
 
 
+class SessionExpired(Exception):
+    """The device answered; this end was not authorised to read it."""
+
+
 def sample(w):
-    j = json.loads(w.get('/api/status').text)
+    r = w.get('/api/status')
+    j = json.loads(r.text)
+    # A device that answers {"error": "Forbidden"} or {"error": "Too Fast"} is
+    # a healthy device refusing THIS request. Letting that land in the same
+    # bucket as "no answer at all" would put an instrument problem in the
+    # findings column, which is the one mistake this soak exists to not make.
+    if 'sys' not in j:
+        raise SessionExpired(str(j.get('error', j))[:80])
     d = {'wall': time.time()}
     d.update({k: j['sys'].get(k) for k in SYS})
     d.update({k: j['metr'].get(k) for k in METR})
@@ -104,13 +120,23 @@ def summarise(path):
     if not rows:
         return 'no samples'
     span_h = (rows[-1]['wall'] - rows[0]['wall']) / 3600.0
-    reboots = sum(1 for i in range(1, len(rows))
-                  if rows[i]['uptime'] < rows[i - 1]['uptime'])
-    beats = [r['c1a'] for r in rows if r.get('c1a') is not None]
-    lbs = [r['heap_lb'] for r in rows if r.get('heap_lb') is not None]
-    last = rows[-1]
+    # Rows without 'uptime' are gaps — a read that never landed, or a session
+    # this end had to renew. They are counted, never silently dropped, and
+    # never compared: an earlier version indexed them blind and crashed with
+    # KeyError, which meant the summary died exactly when there was finally
+    # something in it to read.
+    good = [r for r in rows if 'uptime' in r]
+    gaps = len(rows) - len(good)
+    if not good:
+        return f'{len(rows)} samples, none of them readable ({gaps} gaps)'
+    reboots = sum(1 for i in range(1, len(good))
+                  if good[i]['uptime'] < good[i - 1]['uptime'])
+    beats = [r['c1a'] for r in good if r.get('c1a') is not None]
+    lbs = [r['heap_lb'] for r in good if r.get('heap_lb') is not None]
+    last = good[-1]
     return '\n'.join([
-        f'samples      {len(rows)} over {span_h:.1f} h',
+        f'samples      {len(good)} over {span_h:.1f} h'
+        + (f'   ({gaps} unreadable — see gaps below)' if gaps else ''),
         f'reboots      {reboots}',
         f'core1 kills  lockout={last.get("c1kl")} health={last.get("c1kh")} '
         f'quiet={last.get("c1kq")} launches={last.get("c1n")} stuck={last.get("c1s")}',
@@ -120,7 +146,12 @@ def summarise(path):
         f'heap largest min {min(lbs) if lbs else "?"} B, last {last.get("heap_lb")} B',
         f'wifi reconn  {last.get("wf")}   tel sent/failed {last.get("ts")}/{last.get("tf")}',
         f'uptime       {last.get("uptime")} ms',
-    ])
+    ] + ([''] + ['gaps:'] + [
+        f'  {time.strftime("%d/%m %H:%M", time.localtime(r["wall"]))}  '
+        f'{"session renewed" if r.get("session_expired") else "no answer"}: '
+        f'{str(r.get("read_error", ""))[:70]}'
+        for r in rows if 'uptime' not in r
+    ] if gaps else []))
 
 
 def main():
@@ -133,16 +164,33 @@ def main():
     base = sample(w)
     print(f'baseline: uptime={base["uptime"]} c1a={base["c1a"]} c1n={base["c1n"]} '
           f'fx={base["fx"]} heap_lb={base["heap_lb"]}')
-    print(f'logging to {OUT}, every {PERIOD_S} s — stop with kill $(pgrep -f "telemetry_bench/soak_a6")')
+    print(f'logging to {OUT}, every {PERIOD_S} s — stop: see the docstring')
 
     prev = None
     n = 0
     while True:
         try:
             cur = sample(w)
+        except SessionExpired as exc:
+            # The device answered and refused us. Renew and retry immediately —
+            # waiting a whole period would turn a 2-second instrument problem
+            # into a 5-minute hole in the record.
+            try:
+                w = session()
+                cur = sample(w)
+            except Exception as exc2:
+                cur = {'wall': time.time(), 'session_expired': True,
+                       'read_error': f'{exc} -> renew failed: {exc2}'[:200]}
+                with open(OUT, 'a') as fh:
+                    fh.write(json.dumps(cur) + '\n')
+                print(f'[{time.strftime("%H:%M:%S")}] INSTRUMENT session renew '
+                      f'failed: {exc2}'[:160], flush=True)
+                time.sleep(PERIOD_S)
+                continue
+            print(f'[{time.strftime("%H:%M:%S")}] instrument: session renewed '
+                  f'({exc})', flush=True)
         except Exception as exc:
-            # A failed read is data too: the device may be rebooting. Re-auth
-            # and record the gap rather than dying on it.
+            # No answer at all. This one IS device data — it may be rebooting.
             cur = {'wall': time.time(), 'read_error': str(exc)[:200]}
             try:
                 w = session()
@@ -150,7 +198,7 @@ def main():
                 pass
             with open(OUT, 'a') as fh:
                 fh.write(json.dumps(cur) + '\n')
-            print(f'[{time.strftime("%H:%M:%S")}] ANOMALY read_error {exc}'[:160],
+            print(f'[{time.strftime("%H:%M:%S")}] ANOMALY no answer: {exc}'[:160],
                   flush=True)
             time.sleep(PERIOD_S)
             continue
