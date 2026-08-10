@@ -4,7 +4,57 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## Não lançado
+## v2.0.2-alpha (2026-08-10)
+
+### Sobrevive a uma rede hostil: a costura de watchdog no caminho de envio
+
+Uma campanha rodou a matriz de falhas de telemetria, um martelo web concorrente
+e os sensores **ao mesmo tempo** — 26 janelas de falha em cerca de duas horas —
+porque todas as corridas anteriores exercitaram essas cargas uma de cada vez, e
+é na sobreposição que os defeitos moravam. Relatório e lista numerada de
+defeitos em `docs/netstorm-campaign-2026-08-10/`.
+
+**O laço de envio do `HTTPClient` nunca alimentava o watchdog, e era a maior
+parte dos reboots.** O orçamento de 5 s do `StreamConstPtr::sendAll` limita o
+laço, não uma escrita; cada `write()` estaciona pelos 4 s do timeout de socket,
+então uma escrita iniciada perto do fim do orçamento termina por volta de 9 s —
+além dos 8388 ms do watchdog de hardware. Fechado por um quarto override de
+framework, ligado ao `patch.sh` para não sumir num upgrade. Medido no grupo HTTP
+completo, mesmas condições antes e depois: **5 reboots → 1**, MTBF sob
+tempestade **~10 min → 58 min**, 557 downloads de histórico sem um JSON inválido.
+
+**Uma resposta não-chunked deixava a cauda para o framework estacionar.** O
+fechamento duro existente valia só para respostas chunked, então `/download` e
+`/api/backup` seguiam pelo caminho educado — e esse caminho espera por ACKs com
+um relógio que reinicia a cada um deles, sem alimentar. Reproduzia sem
+tempestade nenhuma: **um download por boot**. Drenar antes de o handler retornar
+resolveu — `/download` foi de 6/8 com 2 reboots para **24/24 sem nenhum**, e
+`/api/backup` (794 KB cada) de 2/3 com 1 reboot para **6/6 sem nenhum**.
+
+### Corrigido
+
+- **Um único envio abortado na cauda do histórico podia travar o display.** Três
+  `return` na cauda `extremes` pulavam o desenrolar do handler, deixando o latch
+  `_inHistoryHandler` preso — todo `/api/history_multi` seguinte respondendo
+  `503 Already processing` — e o overlay de "web ocupada" do display travado com
+  **o toque bloqueado**, ambos até o próximo reboot. A posse agora vive num
+  destrutor, que um `return` não consegue pular.
+- **`/api/sec_status` podia escrever fora do buffer.** O `pos += snprintf(...)`
+  acumulado passa do array assim que uma entrada trunca, e a aritmética do
+  espaço restante é sem sinal, então ela dá a volta em vez de ficar negativa. O
+  espaço agora é limitado antes de cada escrita, e uma entrada truncada é
+  desfeita para o JSON seguir parseável com menos slots.
+
+### Adicionado
+
+- `metr.cgd` / `metr.cgg` / `metr.cgx` em `/api/status`: as três razões para uma
+  resposta chunked ser cortada — prazo, latch do guard, desconexão real. O `show
+  metrics` já as imprimia, mas esse comando não existe fora da imagem de CLI
+  completa, então pela rede um download truncado e um cliente que foi embora
+  eram indistinguíveis.
+- `tools/telemetry_bench/storm_net.py`, o arranjo da tempestade combinada, mais
+  o `storm_report.py` e dois modos de falha no sink (`never_read`,
+  `tls_bigrecord`).
 
 ### Curvas de calibração: até 5 pontos por grandeza
 

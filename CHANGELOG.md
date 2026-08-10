@@ -4,7 +4,57 @@
 
 All notable changes to SIMUT firmware.
 
-## Unreleased
+## v2.0.2-alpha (2026-08-10)
+
+### Survives a hostile network: the watchdog seam in the send path
+
+A campaign ran the telemetry fault matrix, a concurrent web hammer and the
+sensors **at the same time** — 26 fault windows over about two hours — because
+every previous run had exercised those loads one at a time, and the overlap is
+where the failures actually lived. Write-up and numbered defect list in
+`docs/netstorm-campaign-2026-08-10/`.
+
+**`HTTPClient`'s send loop never fed the watchdog, and it was most of the
+reboots.** `StreamConstPtr::sendAll`'s 5 s budget bounds the loop, not a write;
+each `write()` parks for the 4 s socket timeout, so a write entered near the end
+of the budget finishes around 9 s — past the 8388 ms hardware watchdog. Closed
+by a fourth framework override, wired into `patch.sh` so an upgrade cannot drop
+it silently. Measured on the full HTTP group, same conditions before and after:
+**5 reboots → 1**, MTBF under storm **~10 min → 58 min**, 557 history downloads
+with no invalid JSON.
+
+**A non-chunked response left its tail for the framework to park on.** The
+existing hard close was gated on chunked responses, so `/download` and
+`/api/backup` kept the polite path — and that path waits on ACKs with a clock
+that renews on every one of them, unfed. It reproduced without any storm at all:
+**one download per boot**. Draining before the handler returns fixed it —
+`/download` went from 6/8 with 2 reboots to **24/24 with none**, `/api/backup`
+(794 KB a piece) from 2/3 with 1 reboot to **6/6 with none**.
+
+### Fixed
+
+- **A single aborted send in the history tail could pin the display.** Three
+  returns in the `extremes` tail skipped the handler's unwind, leaving the
+  `_inHistoryHandler` latch set — every later `/api/history_multi` answering
+  `503 Already processing` — and the display's web-busy overlay stuck with
+  **touch blocked**, both until the next reboot. Ownership now lives in a
+  destructor, which a return cannot skip.
+- **`/api/sec_status` could write past its buffer.** Accumulated
+  `pos += snprintf(...)` runs past the array once an entry truncates, and the
+  remaining-room arithmetic is unsigned, so it wraps instead of going negative.
+  Room is clamped before every write now, and a truncated entry is backed out so
+  the JSON stays parseable with fewer slots.
+
+### Added
+
+- `metr.cgd` / `metr.cgg` / `metr.cgx` in `/api/status`: the three reasons a
+  chunked response was cut short — deadline, guard latch, real disconnect.
+  `show metrics` already printed them, but that command does not exist outside
+  the full-CLI image, so from the network a truncated download and a client that
+  walked away read identically.
+- `tools/telemetry_bench/storm_net.py`, the combined-storm harness, plus
+  `storm_report.py` and two fault modes in the sink (`never_read`,
+  `tls_bigrecord`).
 
 ### Calibration curves: up to 5 points per quantity
 
