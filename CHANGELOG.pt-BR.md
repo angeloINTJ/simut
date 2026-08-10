@@ -4,6 +4,42 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.1-beta (2026-08-10)
+
+### Um único request HTTP lento reiniciava o aparelho — remotamente, sem auth
+
+A v2.1.0-beta saiu com o `C0=[WEB_POLL]` listado como resíduo aberto, descrito
+como problema de concorrência pesada. O soak o pegou na imagem publicada com o
+aparelho praticamente ocioso, e o mecanismo não era nem concorrência nem
+resposta grande.
+
+O `WebServer::handleClient` faz o parse do request com `readStringUntil`, que
+espera o timeout do cliente **por byte** e reinicia esse timeout a cada byte
+recebido. Um cliente que goteja um byte logo abaixo do timeout segura o Core 0
+dentro da leitura para sempre, e nada alimenta o watchdog de hardware enquanto
+isso acontece — o loop principal alimenta o watchdog **antes** do
+`handleClient`, nunca durante. Então um único request lento, sem autenticação e
+sem concorrência, derrubou o aparelho em cerca de oito segundos. A autópsia ao
+vivo é inequívoca: `C0=[WEB_POLL] hp=0 sc3=0x80088013 (219)` — `hp=0` significa
+que o `handleClient` não retornou.
+
+O parser agora lê cada linha sob um orçamento de relógio único, com o watchdog
+alimentado a cada byte. Um request que estoura o orçamento volta parcial, e o
+servidor descarta o cliente em vez de travar nele — um request lento dropado em
+vez de um reboot. Numa LAN um request real chega em um único segmento em bem
+menos de um milissegundo, então o orçamento só é gasto por um stall.
+
+Medido na bancada: o mesmo repro que reiniciou a v2.1.0-beta (um GET a 3 s/byte)
+não reinicia mais, em três taxas de gotejamento (0,4 / 1,0 / 3,0 s por byte),
+zero reboots; requisições normais intactas (40/40 sequencial, página e download
+de log inteiros). Mesmo padrão dos quatro overrides de framework já em
+`tools/arduino_pico_overrides/`, e aplica limpo em 5.4.3 e 5.6.1 (o parser é
+byte-idêntico entre as duas).
+
+Isso fecha o reboot remoto sem autenticação. Continua aberto o caso mais brando
+por trás da mesma autópsia sob seis clientes concorrentes — estreitado, não
+refeito aqui. Detalhe como D-B8 em `docs/beta-sweep-2026-08-10/`.
+
 ## v2.1.0-beta (2026-08-10)
 
 Primeira beta. A versão sai da linha alpha porque os defeitos que a

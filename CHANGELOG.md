@@ -4,6 +4,43 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.1-beta (2026-08-10)
+
+### A single slow HTTP request rebooted the device — remotely, no auth
+
+v2.1.0-beta shipped with `C0=[WEB_POLL]` listed as an open residual, described
+as a heavy-concurrency problem. The soak caught it on the shipped image with the
+device essentially idle, and the mechanism turned out to be neither concurrency
+nor a large response.
+
+`WebServer::handleClient` parses a request by calling `readStringUntil`, which
+waits the client timeout **per byte** and resets that timeout on every byte
+received. A peer that dribbles one byte just under the timeout holds Core 0
+inside the read indefinitely, and nothing feeds the hardware watchdog while it
+does — the main loop feeds the watchdog before `handleClient`, never inside it.
+So one slow request, requiring no authentication and no concurrency, took the
+device down after about eight seconds. The live autopsy is unambiguous:
+`C0=[WEB_POLL] hp=0 sc3=0x80088013 (219)` — `hp=0` means `handleClient` never
+returned.
+
+The request parser now reads each line under a single wall-clock budget with
+the watchdog fed on every byte. A request that overruns the budget comes back
+partial, so the server drops the client instead of stalling on it — a dropped
+slow request rather than a reboot. On a LAN a real request arrives in one
+segment in well under a millisecond, so the budget is only ever spent by a
+stall.
+
+Measured on the bench: the exact repro that rebooted v2.1.0-beta (one GET at
+3 s/byte) no longer does, across three dribble rates (0,4 / 1,0 / 3,0 s per
+byte), zero reboots; normal requests are unaffected (40/40 sequential, full
+page and log downloads intact). Same fix pattern as the four framework
+overrides already in `tools/arduino_pico_overrides/`, and it applies cleanly to
+both 5.4.3 and 5.6.1 (the parser is byte-identical between them).
+
+This closes the unauthenticated remote reboot. What stays open is the softer
+case behind the same autopsy under six concurrent clients — narrowed, not
+retested here. Full write-up as D-B8 in `docs/beta-sweep-2026-08-10/`.
+
 ## v2.1.0-beta (2026-08-10)
 
 First beta. The version leaves the alpha line because the defects that kept
