@@ -378,6 +378,14 @@ private:
 	 * when Core 1 was in an IRQ-blocked state. */
 	bool _restoreCorePaused = false;
 
+	/* Set at UPLOAD_FILE_START when the session may not do what the payload
+	 * asks. The framework feeds the whole body through the upload callback
+	 * before it ever calls the finish handler, so a permission answered only
+	 * there arrives after the writes — this latch is what makes the refusal
+	 * take effect at the first byte. Same role _uploadRejected plays for
+	 * /api/upload. */
+	bool _restoreRejected = false;
+
 	/* OTA: upload of firmware .bin.gz to staging via
 	 * /api/restore?op=stage. Dedicated session (mutually exclusive with
 	 * _restoreSession via the op= gate in the upload callback). */

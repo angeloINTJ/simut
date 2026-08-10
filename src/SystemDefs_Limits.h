@@ -85,4 +85,10 @@ enum MinMaxSlot {
 #define PERM_USER_MGR 0x0100
 #define PERM_CALIB 0x0200 /* Sensor calibration via /dashboard */
 
+/* Every bit the users page can actually set — its checkbox map is exactly the
+ * ten above. A grant carrying anything else is not a preference the device can
+ * honour partially, so /api/commit_all refuses the action instead of masking
+ * it down to something the operator never asked for. */
+#define PERM_ALL_BITS 0x03FF
+
 #define PERM_FULL_ADMIN 0xFFFF
