@@ -77,6 +77,34 @@ de `sealHourV5()` que ninguém lia:
   timeout transitório de mutex) e, se ainda falhar, registra quantos registros se
   perderam em vez de sumir atrás de um aviso genérico de escrita.
 
+### Um reboot ainda perdia uma leitura, e o bloco não tinha nada a ver com isso
+
+Relatado na bancada depois do acima entrar, e as duas metades eram verdade. Num
+`commit_all` da web: `STO_H5_WIP ctx=50` do gancho pré-reboot, o boot seguinte
+adotando `ctx=50`, bloco intacto — e 108 s entre o último registro antes e o
+primeiro depois, contra um intervalo de 60 s. Um registro faltando na sequência.
+
+`_lastHistoryTime` começa em 0, então a checagem de intervalo não pode disparar
+antes de `millis()` passar um intervalo inteiro: o primeiro registro de todo boot
+caía em `up=60s`, somados aos ~20 s que o próprio boot leva. Preservar o bloco
+nunca ia corrigir isso, porque o minuto não era amostrado.
+
+O primeiro registro agora sai assim que o relógio é confiável, com o portão no
+relógio **cru** do sistema — deliberadamente não `getEpoch()` nem `isTimeSynced()`.
+O `getEpoch()` semeia um relógio provisório com `SIMUT_BUILD_EPOCH` (2025-09-20) e
+devolve isso, que fica acima do `HIST_EPOCH_MIN`; logo, os dois reportam relógio
+bom num aparelho que não tem nenhum, e o registro seria arquivado dois anos no
+passado. Carimbo errado envenena o arquivo do dia pior que minuto faltando.
+
+Medido num `reload confirm` real: primeiro registro em `up=23s`, buraco de 41 s,
+zero registros faltando; o caso de 108 s vira 71 s, também zero. `up=23s` está
+perto do piso, porque o NTP chega por volta dos 20 s e é aí que o carimbo passa a
+ser verdadeiro. Resíduo: derrubar um registro agora exige buraco acima de 120 s, o
+que pede um boot atrasando ~37 s além do vencimento do registro — uma retentativa
+de WiFi ou timeout de DHCP ainda consegue.
+
+### Recuperação limitada para selagem falhada
+
 Os dois lados de uma selagem falhada são perda, então a recuperação é **limitada**
 em vez de escolhida: descartar o bloco na primeira falha joga fora até 60
 registros por causa do que normalmente é um timeout transitório do mutex do

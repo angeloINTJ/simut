@@ -75,6 +75,34 @@ Three silent losses found while auditing the same function, all three from a
   timeout needs) and, if it still fails, logged with the number of records lost
   instead of vanishing behind a generic write warning.
 
+### A reboot still lost one reading, and the block had nothing to do with it
+
+Reported from the bench after the above landed, and both halves were true. Across
+a web `commit_all`: `STO_H5_WIP ctx=50` from the pre-reboot hook, the next boot
+adopting `ctx=50`, the block intact — and 108 s between the last record before and
+the first after, against a 60 s interval. One record missing from the sequence.
+
+`_lastHistoryTime` starts at 0, so the interval check cannot fire until `millis()`
+passes a full interval: the first record of every boot landed at `up=60s`, on top
+of the ~20 s the boot itself takes. Preserving the block was never going to fix
+that, because the minute was never sampled in the first place.
+
+The first record now goes as soon as the clock can be trusted, gated on the **raw**
+system clock — deliberately not `getEpoch()` and not `isTimeSynced()`. `getEpoch()`
+seeds a provisional clock from `SIMUT_BUILD_EPOCH` (2025-09-20) and returns it,
+which sits above `HIST_EPOCH_MIN`, so both report a good clock on a device that has
+none, and the record would be filed two years in the past. A wrong timestamp
+poisons the day file worse than a missing minute.
+
+Measured on a real `reload confirm`: first record at `up=23s`, gap 41 s, zero
+records missing; the 108 s case becomes 71 s, also zero. `up=23s` is near the
+floor, since NTP lands around 20 s and that is when a timestamp becomes truthful.
+Residual: dropping a record now needs a gap over 120 s, which takes a boot running
+~37 s past the record's due time — a WiFi retry or DHCP timeout could still manage
+it.
+
+### Bounded recovery for a failed seal
+
 Both directions of a failed seal are a loss, so the recovery is bounded rather
 than chosen: discarding the block on the first failure throws away up to 60
 records for what is usually a transient `FLASH_OP` mutex timeout, while holding
