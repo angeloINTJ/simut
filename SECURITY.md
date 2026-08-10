@@ -27,6 +27,9 @@ adversarial public network.
   written to flash.
 - **Path traversal in uploads** (`handleApiUpload` validates filename and
   uploadDir — SEC-001/SEC-002).
+- **Slow-request denial of service** on the HTTP parser, bounded by a
+  wall-clock budget with the watchdog fed per byte (SEC-008 — fixed in
+  v2.1.1-beta, see §6).
 - **Authorization on routes that consume an upload body**, checked at
   `UPLOAD_FILE_START` rather than in the handler that answers
   (SEC-007 — fixed in v2.1.0-beta, see §6).
@@ -286,6 +289,33 @@ that do not match the device's own writes.
 
 From v2.1.0-beta a rejected restore logs `SEC_UNAUTHORIZED` with the
 requested `op`, so the refusal itself is auditable going forward.
+
+### SEC-008 — a slow request rebooted the device (fixed v2.1.1-beta)
+
+Every build up to and including v2.1.0-beta could be rebooted by an
+**unauthenticated** HTTP request that arrives slowly. `WebServer::handleClient`
+parses with `readStringUntil`, which waits the client timeout per byte and
+resets it on every byte received; a peer dribbling one byte just under that
+timeout holds Core 0 inside the parse indefinitely, and the main loop feeds the
+hardware watchdog before `handleClient`, never inside it. One slow GET took the
+device down in about eight seconds — no auth, no concurrency, no large payload.
+
+Autopsy on the boot serial: `C0=[WEB_POLL] hp=0 sc3=0x80088013 (219)`, where
+`hp=0` means `handleClient` never returned.
+
+Fixed by reading each request line under one wall-clock budget with the
+watchdog fed on every byte; a request that overruns is dropped. This covers the
+unauthenticated request line and headers (`_parseRequest`). The multipart body
+path (`_parseForm`) is reachable only after authentication and a valid request
+line, and its slow-body variant is a documented follow-up.
+
+Not fully closed: the same autopsy also appears under six concurrent clients,
+which may have a second cause that is not the slow parse. That case stays open.
+
+Triage: the reboot logs as a watchdog reset with `ctx=219`, distinct from a
+power loss (`ctx=0`). There is no per-request audit line for the parse itself —
+a device rebooting on `C0=[WEB_POLL]` with no offending large transfer in the
+access pattern is the signature.
 
 ---
 
