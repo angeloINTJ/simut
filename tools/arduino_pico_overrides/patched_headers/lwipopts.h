@@ -52,7 +52,24 @@ extern unsigned long __lwip_rand(void);
 #define LWIP_ETHERNET                 1
 #define LWIP_ICMP                     1
 #define LWIP_RAW                      1
-#define TCP_WND                       (8 * TCP_MSS)
+/* SIMUT: receive window halved, 8 -> 4 MSS, to stop the device advertising
+ * more buffering than the pool can back.
+ *
+ * PBUF_POOL entries are ~1514 B each, so an 8*MSS window is 7,7 entries a
+ * connection. Six connections filling their windows want 46 against a pool of
+ * 24, and measured on the bench 2026-08-10 that is exactly what happens: four
+ * concurrent clients peak at 13 entries and never fail, five reach 24/24 with
+ * 45 failed allocations, six with 79. Nothing leaks — `em uso` returns to
+ * baseline every time — the pool is simply promised out twice over.
+ *
+ * The window costs nothing to give up because the device cannot use it. Uploads
+ * run at 26 KB/s, bound by flash writes; at a ~5 ms RTT even 4*MSS allows about
+ * 1,1 MB/s, forty times more than the device can absorb. Downloads are governed
+ * by TCP_SND_BUF, not this, so they are untouched.
+ *
+ * 4*MSS puts six connections at 23 entries — inside the pool with the peak
+ * still bounded by it rather than by the sum of the windows. */
+#define TCP_WND                       (4 * TCP_MSS)
 #define TCP_MSS                       1460
 #define TCP_SND_BUF                   (8 * TCP_MSS)
 #define TCP_SND_QUEUELEN              ((4 * (TCP_SND_BUF) + (TCP_MSS - 1)) / (TCP_MSS))
