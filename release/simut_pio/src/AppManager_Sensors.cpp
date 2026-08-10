@@ -106,9 +106,9 @@ void AppManager::loadAndCalibrateSensors( ) {
 
  /* ── 2. Runtime ──
   * BEFORE calibration, not after. initRuntimeSensors rebuilds the vector
-  * from scratch with every calibrationOffset back at 0.0f, so applying the
-  * offsets first wrote them into the vector that was about to be discarded
-  * and no stored offset ever reached a running sensor. */
+  * from scratch with every calibration curve reset to identity, so applying
+  * the curves first wrote them into the vector that was about to be
+  * discarded and no stored correction ever reached a running sensor. */
  _sensorMgr->initRuntimeSensors(cfg);
 
  /* initRuntimeSensors may have retyped an I2C slot from its chip ID
@@ -128,23 +128,74 @@ void AppManager::loadAndCalibrateSensors( ) {
   _storageMgr->saveConfiguration( );
  }
 
+ /* ── 2.5 Pairing ──
+  * A DS18B20 provisioned through the web arrives with an all-zero ROM: the
+  * editor knows the GPIO, not the silicon. Bind it here, on the reload the
+  * Save & Restart already caused — read the ROM off the pin, adopt it into
+  * the slot, and move the calibration row from the board-serial scheme to
+  * the ROM scheme, so the serial number is what calib.csv keys the sensor
+  * by from the first boot. Single-drop by design: pins[0] is the sensor
+  * identity everywhere else too. A failed read (probe absent, CRC bad)
+  * changes nothing and simply tries again on the next reload.
+  *
+  * AFTER initRuntimeSensors on purpose: reading the ROM needs the pin muxed
+  * for the driver, and gpioInitForRole runs inside the runtime rebuild — on
+  * a cold boot a read before it answers nothing. The runtime copy of
+  * config.rom stays zeroed until the next reload, so ROM verification
+  * starts one boot later; phase 3 below reads cfg directly and applies the
+  * freshly bound row in this very pass. */
+ bool romAdopted = false;
+#if SIMUT_SENSOR_DS18B20
+ for (int i = 0; i < MAX_SENSORS; i++) {
+  if (!cfg.sensors[i].active) continue;
+  if (cfg.sensors[i].sensorType != TYPE_DS18B20) continue;
+  bool zero = true;
+  for (int k = 0; k < 8; k++) if (cfg.sensors[i].rom[k] != 0) zero = false;
+  if (!zero) continue;
+  uint8_t rom[8];
+  if (!_sensorMgr->identifyPhysicalSensor(cfg.sensors[i].pins[0], rom)) continue;
+  if (rom[0] == 0x00 || dallasCrc8(rom, 7) != rom[7]) continue;
+
+  /* Any curve saved while unpaired lives under t<hwId>; carry it over. */
+  CalibCurve curve; String unusedName;
+  _storageMgr->getCalibrationByHwId(channelInfo(CH_TEMP).letter,
+                                    cfg.sensors[i].hwId, curve, unusedName);
+  if (_storageMgr->bindDs18Identity(rom, cfg.sensors[i].hwId,
+                                    cfg.sensors[i].friendlyName, curve)) {
+   memcpy(cfg.sensors[i].rom, rom, 8);
+   romAdopted = true;
+   LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, cfg.sensors[i].pins[0],
+            TRL("DS18B20 paired to its serial number"));
+  }
+ }
+#endif
+ if (romAdopted) _storageMgr->saveConfiguration( );
+
  /* ── 3. Offsets ── */
  for (int i = 0; i < MAX_SENSORS; i++) {
   if (!cfg.sensors[i].active) continue;
 
-  if (cfg.sensors[i].sensorType == TYPE_DS18B20) {
+  /* Unpaired probe: all-zero ROM is a supported state (single-drop bus,
+   * see checkAndAutoHealSensors). The write side of /api/calib branches on
+   * exactly this predicate and files the row under `t<hwId>` — so the read
+   * side must mirror it, or those rows are written and never read again:
+   * calibrate, get "ok", offset stays 0.0 forever, reboot included. */
+  bool romIsZero = true;
+  for (int k = 0; k < 8; k++) if (cfg.sensors[i].rom[k] != 0) romIsZero = false;
+
+  if (cfg.sensors[i].sensorType == TYPE_DS18B20 && !romIsZero) {
    /* 1-Wire: keyed by ROM. The row also carries the ID and name the probe
     * was adopted with, which is how `sensor accept` restores them. */
-   String dbId; float dbOffset = 0.0f; String dbName;
-   if (_storageMgr->getCalibrationData(cfg.sensors[i].rom, dbId, dbOffset, dbName)) {
+   String dbId; CalibCurve dbCurve; String dbName;
+   if (_storageMgr->getCalibrationData(cfg.sensors[i].rom, dbId, dbCurve, dbName)) {
     if (dbId.length( ) > 0) { safeCopy(cfg.sensors[i].hwId, dbId.c_str( ), sizeof(cfg.sensors[i].hwId)); }
     if (dbName.length( ) > 0) { safeCopy(cfg.sensors[i].friendlyName, dbName.c_str( ), sizeof(cfg.sensors[i].friendlyName)); }
-    _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbId, dbOffset, dbName);
+    _sensorMgr->applyCalibration(cfg.sensors[i].pins[0], dbId, dbCurve, dbName);
    }
   } else {
-   /* No ROM (DHT22, BMP280): keyed by the board serial, one row per
-    * quantity, each tagged with this slot's hwId — `t<hwId>` for
-    * temperature, `u<hwId>` for humidity.
+   /* No ROM (DHT22, BMP280, unpaired DS18B20): keyed by the board serial,
+    * one row per quantity, each tagged with this slot's hwId — `t<hwId>`
+    * for temperature, `u<hwId>` for humidity.
     *
     * This used to be a single device-wide pair found by "first row whose
     * id starts with t/u" and pushed onto "the first DHT22 in the runtime
@@ -157,19 +208,17 @@ void AppManager::loadAndCalibrateSensors( ) {
     * quantity, which is why pressure had to be added by hand and then still
     * did not work. */
    const SensorType sType = (SensorType)cfg.sensors[i].sensorType;
-   float offsets[MAX_SENSOR_CHANNELS] = {0.0f};
+   CalibCurve curves[MAX_SENSOR_CHANNELS]; /* default-constructed: identity */
    bool gotAny = false;
    String unusedName;
    for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
     if (!sensorHasChannel(sType, c)) continue;
-    float off = 0.0f;
     if (_storageMgr->getCalibrationByHwId(channelInfo(c).letter,
-                                          cfg.sensors[i].hwId, off, unusedName)) {
-     offsets[c] = off;
+                                          cfg.sensors[i].hwId, curves[c], unusedName)) {
      gotAny = true;
     }
    }
-   if (gotAny) _sensorMgr->applyCalibrationOffsets(cfg.sensors[i].pins[0], offsets);
+   if (gotAny) _sensorMgr->applyCalibrationCurves(cfg.sensors[i].pins[0], curves);
   }
  }
  LOG_CODE(LOG_INFO, "APP", APP_SENSORS_CALIBRATED, 0, "");

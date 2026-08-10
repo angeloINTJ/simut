@@ -4,6 +4,256 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.0.2-alpha (2026-08-10)
+
+### Sobrevive a uma rede hostil: a costura de watchdog no caminho de envio
+
+Uma campanha rodou a matriz de falhas de telemetria, um martelo web concorrente
+e os sensores **ao mesmo tempo** — 26 janelas de falha em cerca de duas horas —
+porque todas as corridas anteriores exercitaram essas cargas uma de cada vez, e
+é na sobreposição que os defeitos moravam. Relatório e lista numerada de
+defeitos em `docs/netstorm-campaign-2026-08-10/`.
+
+**O laço de envio do `HTTPClient` nunca alimentava o watchdog, e era a maior
+parte dos reboots.** O orçamento de 5 s do `StreamConstPtr::sendAll` limita o
+laço, não uma escrita; cada `write()` estaciona pelos 4 s do timeout de socket,
+então uma escrita iniciada perto do fim do orçamento termina por volta de 9 s —
+além dos 8388 ms do watchdog de hardware. Fechado por um quarto override de
+framework, ligado ao `patch.sh` para não sumir num upgrade. Medido no grupo HTTP
+completo, mesmas condições antes e depois: **5 reboots → 1**, MTBF sob
+tempestade **~10 min → 58 min**, 557 downloads de histórico sem um JSON inválido.
+
+**Uma resposta não-chunked deixava a cauda para o framework estacionar.** O
+fechamento duro existente valia só para respostas chunked, então `/download` e
+`/api/backup` seguiam pelo caminho educado — e esse caminho espera por ACKs com
+um relógio que reinicia a cada um deles, sem alimentar. Reproduzia sem
+tempestade nenhuma: **um download por boot**. Drenar antes de o handler retornar
+resolveu — `/download` foi de 6/8 com 2 reboots para **24/24 sem nenhum**, e
+`/api/backup` (794 KB cada) de 2/3 com 1 reboot para **6/6 sem nenhum**.
+
+### Corrigido
+
+- **Um único envio abortado na cauda do histórico podia travar o display.** Três
+  `return` na cauda `extremes` pulavam o desenrolar do handler, deixando o latch
+  `_inHistoryHandler` preso — todo `/api/history_multi` seguinte respondendo
+  `503 Already processing` — e o overlay de "web ocupada" do display travado com
+  **o toque bloqueado**, ambos até o próximo reboot. A posse agora vive num
+  destrutor, que um `return` não consegue pular.
+- **`/api/sec_status` podia escrever fora do buffer.** O `pos += snprintf(...)`
+  acumulado passa do array assim que uma entrada trunca, e a aritmética do
+  espaço restante é sem sinal, então ela dá a volta em vez de ficar negativa. O
+  espaço agora é limitado antes de cada escrita, e uma entrada truncada é
+  desfeita para o JSON seguir parseável com menos slots.
+
+### Adicionado
+
+- `metr.cgd` / `metr.cgg` / `metr.cgx` em `/api/status`: as três razões para uma
+  resposta chunked ser cortada — prazo, latch do guard, desconexão real. O `show
+  metrics` já as imprimia, mas esse comando não existe fora da imagem de CLI
+  completa, então pela rede um download truncado e um cliente que foi embora
+  eram indistinguíveis.
+- `tools/telemetry_bench/storm_net.py`, o arranjo da tempestade combinada, mais
+  o `storm_report.py` e dois modos de falha no sink (`never_read`,
+  `tls_bigrecord`).
+
+### Curvas de calibração: até 5 pontos por grandeza
+
+A calibração cresce de um offset constante para uma **curva de correção de até
+5 pontos (bruto → referência) por grandeza**, editada no diálogo de slot do
+`/config`. A correção interpola linearmente entre os pontos e segura o offset
+das pontas além delas; um ponto é exatamente o offset constante de sempre, e
+zero pontos é o estado explícito "sem correção — padrão do sensor". Os pontos
+podem ser digitados de uma tabela de bancada ou captados da leitura ao vivo
+(bruto vazio capta no momento do salvar).
+
+Com 3+ pontos a interpolação é escolhível por grandeza: **Reta** (linear por
+partes) ou **Suave** — uma cúbica monótona (Fritsch–Carlson) sobre os offsets,
+que dobra pelas âncoras sem jamais ultrapassá-las e aplaina ao encontrar as
+zonas seguradas. Linhas suaves levam uma célula `cub` depois do nome no
+`calib.csv`; a API aceita `{"m":"cub","p":[[bruto,ref],…]}` além da forma de
+array simples (reta).
+
+As correções agora se aplicam à **média filtrada em vez de cada amostra
+bruta**: a rejeição de outliers passa a operar sempre sobre valores físicos e
+uma correção editada vale na hora, sem atravessar uma janela de 10 amostras.
+Para offsets constantes a aritmética é idêntica — os valores lidos não mudam.
+
+O `/calib.csv` põe tudo depois do nome, como células CSV planas:
+`key,id,name,bruto,ref[,bruto,ref,…]` — um número por coluna, direto na
+planilha, sem coluna dedicada de offset. As formas de linha se distinguem
+pela contagem de campos: arquivos legados de 4 colunas
+(`key,id,offset,name`) continuam lendo como o offset constante que sempre
+foram (e um offset sem âncora carregado adiante ainda é gravado nessa forma —
+não há pontos em que ele possa virar); `key,id,name` é linha de identidade.
+Firmware antigo lendo uma linha de pontos vê ausência de correção, nunca uma
+correção errada. Remover uma correção apaga a linha
+(linhas de DS18B20 ficam — são também o banco de identidade ROM→ID/nome).
+`POST /api/calib` aceita `"cal":{"<canal>":[[bruto,ref],…]}` com validação
+completa antes de qualquer gravação; o `GET /api/calib` ganha `raw`, `min`,
+`max` e `pts` por canal.
+
+**Mudança de comportamento:** os campos legados `refs`/`refTemp` (páginas em
+cache) agora definem uma correção absoluta de um ponto na leitura bruta atual,
+em vez de acumular `offset += ref − leitura`. Repetir a mesma referência virou
+operação idempotente — que é o que todo mundo sempre esperou.
+
+O editor de slot desenha um **mini-gráfico ao vivo por grandeza**: a linha
+tracejada é o padrão do sensor (correção zero), a curva é a correção staged
+com suas âncoras, simulada na interpolação escolhida enquanto você digita.
+O **pareamento do DS18B20 virou automático**: um sensor provisionado pelo
+editor tem o ROM lido e gravado no `calib.csv` no reinício que segue o
+Salvar e Reiniciar, migrando qualquer correção salva enquanto estava sem
+par; a verificação de ROM passa a proteger contra troca de sonda.
+
+### Corrigido
+
+- **A caixa "Alarmes ativos" do editor de slot nunca salvava.** Todos os
+  walkers do `commit_all` fatiavam elementos no primeiro `}`, então qualquer
+  chave staged depois do objeto aninhado `lim{}` — onde mora o `al` — era
+  truncada em silêncio e mantinha o valor gravado. Os walkers de JSON
+  artesanais agora casam chaves por profundidade (cientes de aspas), que é
+  também o que permite o payload de calibração carregar arrays de pontos
+  aninhados.
+
+## v2.0.1-alpha (2026-08-01)
+
+O histórico passa para o V5: um formato de série temporal comprimido e
+autodescritivo cujo caminho quente nunca toca a flash. O dispositivo grava um
+dia em 7,6 KiB em vez de 10,6, guarda quatro meses na mesma partição em vez de
+menos de três, e responde um gráfico de 30 dias a partir dos envelopes dos
+blocos em 187 ms — uma consulta que o formato anterior não conseguia terminar.
+
+> **Faça backup antes.** O V5 não lê V4. No primeiro boot depois desta
+> atualização, `/history` é varrido de tudo que não for `.h5` e o histórico
+> recomeça vazio. Baixe seus arquivos `.sim4` antes de atualizar e converta no
+> computador com `python3 tools/history_v5.py --convert-v4 ent.sim4 sai.h5`.
+
+> **A atualização pelo ar não funciona nesta versão, e também não funcionava na
+> 2.0.0-alpha.** O staging aborta no meio do upload e o dispositivo reinicia;
+> nada em `src/ota/` mudou nesta entrega. Pior: um staging que falha apaga o
+> sistema de arquivos, porque a área de staging *é* a partição do LittleFS.
+> Grave por USB até isso ser corrigido. Ver `docs/test_reports/`.
+
+### O caminho quente parou de escrever na flash
+
+A flash do RP2040 é XIP: todo program ou erase significa congelar o Core 1 e
+rodar o Core 0 com interrupções desligadas, e são essas janelas que o trabalho
+de estabilidade do último mês vem perseguindo. O V4 gravava um registro por
+amostra — ~1440 escritas por dia, agrupadas em ~360 janelas de lockout.
+
+O V5 mantém a hora na RAM. `writeHistoryEntryV5( )` é um `memcpy`. A flash só é
+tocada quando um bloco fecha (60 registros), na virada do dia, quando o conjunto
+de sensores muda, e a cada dez minutos para um snapshot `.wip` que limita a
+perda por queda de energia a essa janela. Cerca de 168 escritas por dia em vez
+de 1440.
+
+### Os gráficos desenham os picos em vez de passar por cima deles
+
+Faixas longas eram decimadas: um registro a cada N, e o que caísse entre eles
+não era desenhado. Um pico de um minuto num mês tinha cerca de uma chance em 72
+de aparecer.
+
+O cabeçalho de um bloco V5 carrega o mínimo e o máximo reais de cada canal
+naquela hora, então uma faixa longa emite esses valores — dois pontos por bloco,
+sem ler payload. O extremo *é* o ponto; não há como perdê-lo na amostragem. O
+gráfico de 24 h lê em 5,8 ms por esse caminho contra 107,6 ms decodificando cada
+registro, e 30 dias respondem em 187 ms. `?mode=decode|envelope` força qualquer
+um dos dois.
+
+### Trocar um sensor deixou de custar o dia
+
+Um `.sim4` congelava o schema no cabeçalho do arquivo, então mudar a identidade
+de um sensor obrigava a recriar o arquivo do dia e perder o que havia nele — daí
+o `confirm` exigido pela CLI — ou a rodar uma migração streaming para carregar
+os registros. O V5 grava um segundo chunk SCHEMA no mesmo arquivo e segue; os
+blocos anteriores continuam legíveis sob o schema que valia quando foram
+escritos. O `sensor reschema` e o endpoint web de rebind mantiveram suas
+assinaturas e deixaram de ser destrutivos.
+
+### Os timestamps agora são corrigidos de verdade
+
+O `handleTimeSync` registrava "corrigindo timestamps" e em seguida "timestamps
+corrigidos", com `/* V4: variable-length records — in-place correction
+unsupported. */` entre os dois. Tudo que fosse gravado antes de o NTP subir
+ficava com o relógio provisório para sempre, e o log dizia o contrário. No V5 o
+único carimbo absoluto é o `t0` do cabeçalho de cada bloco, então a correção é
+uma reescrita em fluxo que toca quatro bytes e um CRC por bloco, limitada aos
+blocos que o boot atual escreveu.
+
+### Corrupção custa uma hora, não um dia
+
+Cada bloco carrega o próprio CRC e decodifica sozinho. Um bloco corrompido é
+pulado e o resto do dia é servido; um arquivo corrompido é pulado e os outros
+dias são servidos. Dez corrupções injetadas — payload, caudas, `t0`, CRC do
+SCHEMA, magic, `nCh`, truncamento — produziram zero reboots e zero respostas
+inválidas. No V4 uma quebra na cadeia de deltas comprometia o resto do dia.
+
+### Os arquivos são legíveis sem o firmware
+
+`python3 tools/history_v5.py --dump-csv dia.h5` decodifica um arquivo do
+dispositivo apenas com o documento do formato: o chunk SCHEMA diz quais canais
+existem, o que cada um mede e em que escala. A mesma ferramenta converte
+arquivos legados (`--convert`, `--convert-v4`), reporta compressão (`--stats`),
+gera histórico sintético (`--synth`) e roda os vetores de teste do próprio
+formato (`--selftest`).
+
+### Menor, e com muito menos RAM estática
+
+A RAM estática cai 44 060 B e o maior bloco contíguo de heap cresce 63%
+(29 733 → 48 522 B), que é o número que importa para o TLS do BearSSL. Isso não
+vem do formato: o V4 tinha cinco cópias do laço de decodificação — gráfico web,
+export CSV, bundle, telemetria, preload, gráfico do TFT — cada uma com seus
+~2,8 KiB de estado de codec. O V5 tem um leitor no `StorageManager`. A flash de
+código cresce 1 024 B.
+
+### O primeiro boot com um `.wip` em disco travava
+
+Achado e corrigido na bancada antes do lançamento. O `recoverWipV5( )` apagava o
+snapshot `.wip` fora do seu `Core1FlashPause`: a pausa ficava dentro do ramo que
+decodifica o snapshot, enquanto a remoção acontece em todos os caminhos de saída
+da função — inclusive nos que nunca decodificam nada. Remover é uma rajada de
+erase, e um erase com o Core 1 ainda buscando instruções do XIP trava o QSPI, que
+é exatamente a regra enunciada no comentário do `FLASH_OP` e quebrada por essa
+chamada.
+
+Travou em vez de reiniciar porque o watchdog só é armado na primeira volta do
+`loop( )`, ou seja, todo o `setup( )` roda desprotegido. O dispositivo parava com
+a tela de boot congelada no passo anterior, USB enumerado mas sem responder, e
+sem reboot para autopsiar. Exigia um `.wip` em disco, que só existe depois que o
+V5 começa a gravar — por isso não apareceu antes de o formato entrar em uso.
+
+O `sealHourV5( )` tinha o mesmo defeito na sua própria remoção do `.wip`, esse
+alcançado em operação normal, onde o watchdog armado o transformaria num reboot
+inexplicado. Os dois agora seguram a pausa durante a remoção.
+
+### Também
+
+- `/api/status` reporta os contadores de escrita em flash (`fo`, `fom`, `fot`,
+  `f50`). Eles existiam desde o T0.1 mas só eram alcançáveis por uma CLI que a
+  imagem de release não carrega.
+- `/api/history_multi` reporta `path`, `readMs` e `rejected`, então dá para
+  separar o tempo de leitura do dispositivo da latência do Wi-Fi.
+- `preloadMinMax( )` lê cabeçalhos de bloco em vez de decodificar o dia, então o
+  dashboard não mostra mais extremos de meia-manhã depois de um boot à tarde.
+- Quatro códigos de log: `STO_H5_SEALED`, `STO_H5_WIP`, `STO_SCHEMA_MISMATCH`,
+  `STO_LEGACY_PURGED`.
+- Corrigido: posicionar num instante anterior ao primeiro bloco de um arquivo
+  deixava o scanner no fim dele, então uma consulta cujo corte precedesse o
+  arquivo o descartava em silêncio.
+- `HistoryV4.cpp` saiu do build de release. Os pontos de entrada do V4 continuam
+  como fachadas que delegam, para que nada que os chamava pare de compilar.
+
+### Limitações conhecidas
+
+- Os orçamentos de latência do §10 não são cumpridos: 0,28 ms por bloco no
+  caminho de envelope contra um orçamento que implica 0,111 ms, e 4,48 ms para
+  decodificar um bloco contra 1 ms. O piso é a leitura indexada do LittleFS,
+  confirmado por duas otimizações que não moveram o número.
+- Sem soak de 72 h e sem a campanha de 20 cortes de energia.
+- A luminosidade mantém o canal mas cai para unidades inteiras: ela é 24 bits
+  x100 na tabela de canais e os valores do V5 são `int16`. Nenhum sensor a
+  produz hoje.
+
 ## v1.6.3-beta (2026-07-30)
 
 Salvar a calibração de um sensor podia falhar de forma permanente e, para duas

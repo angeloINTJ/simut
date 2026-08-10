@@ -22,15 +22,9 @@
 #include <hardware/watchdog.h>
 #include <pico/time.h>
 
-/* V4 decode scratch, shared by collectBatch and refreshPendingCount.
- * ~5.9 KB — far past the ~4 KB RP2040 stack. Both run from the Core-0 main
- * loop and never nest, so one set serves both. */
-namespace {
-HistV4State v4st;
-uint8_t     hdrBuf[HIST_V4_MAX_HEADER];
-uint8_t     rdBuf[HIST_V4_READ_BUF];
-int64_t     v4vals[HIST_V4_MAX_MEASUREMENTS];
-}
+/* The ~5.9 KB of V4 decode scratch that lived here is gone: collectBatch and
+ * refreshPendingCount now read through StorageManager's V5 reader, which owns
+ * the one block buffer the whole firmware shares. */
 
 /**
  * @brief true se o arquivo de histórico @p fileName é de um dia ANTERIOR a
@@ -50,6 +44,13 @@ int64_t     v4vals[HIST_V4_MAX_MEASUREMENTS];
  * @param minDay   Data limite no formato "YYYYMMDD".
  * @return true se deve ser pulado.
  */
+/* Largest MQTT buffer the client will be asked for, and the fixed-header plus
+ * topic-length overhead a PUBLISH carries on top of its payload. Named because
+ * the ceiling is the difference between "this batch is published record by
+ * record" and "telemetry stops forever" — see attemptMqttPublish. */
+static constexpr size_t MQTT_BUFFER_CEILING = 8192;
+static constexpr size_t MQTT_PACKET_OVERHEAD = 16;
+
 static bool historyDayIsBefore(const String &fileName, const char *minDay) {
 	if (fileName.length( ) < 8) return false;
 	for (int i = 0; i < 8; i++) {
@@ -287,6 +288,12 @@ void TelemetryManager::update( ) {
  _dumpPayload(payload.c_str( ), payload.length( ), "MQTT");
  _dumpPayloadNext = false;
  }
+ /* buildPayload can drop records off the end under heap pressure. The
+  * cursor has to follow what the payload actually carries, or those
+  * records are skipped for good, silently. The batch is in ascending
+  * epoch order (files sorted, records in time order within a file), so
+  * the last surviving element is the high-water mark. */
+ if (!batch.empty( )) newCursor = batch.back( ).epoch;
  success = attemptMqttPublish(payload, batch, newCursor);
  /* batch and payload go out of scope here and free memory */
  } else {
@@ -300,6 +307,10 @@ void TelemetryManager::update( ) {
  _dumpPayload(payload.c_str( ), payload.length( ), "HTTP");
  _dumpPayloadNext = false;
  }
+
+ /* Same reason as the MQTT branch above: read the high-water mark off the
+  * batch buildPayload left behind, before it is thrown away. */
+ if (!batch.empty( )) newCursor = batch.back( ).epoch;
 
  /* Free batch to reduce RAM peak before TLS handshake */
  batch.clear( );
@@ -425,7 +436,7 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -471,64 +482,113 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  if (!f) { _storageRef->exitFlashReadLock( ); continue; }
 
  	 {
-	 f.seek(0);
-	 /* One format — the magic sniff that chose between this and a v2/v3
-	  * decoder went with them.
-	  * Static buffers — avoid 5KB+ stack on RP2040 ~4KB stack. */
-	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
-	 /* Cursor fix (same as graph/web/scan): seek to the real header end. */
-	 size_t tHdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
-	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, v4st) : 0;
-	 if (tHdrLen > 0) f.seek(tHdrLen);
-	 if (tHdrLen > 0) {
-	 size_t rdFilled = 0;
-	 uint32_t v4epoch;
-	 bool fileHasMoreV4 = true; uint32_t inFileCountV4 = 0;
-	 SystemConfig &cfg = _storageRef->getConfig();
-	 while (fileHasMoreV4 && batch.size() < limit) {
-	 /* A1: refill pós-falha. Antes, um delta maior que a âncora na
-	  * borda do buffer encerrava o arquivo cedo; como o cursor é por
-	  * epoch, o lote saía vazio e o envio só retomava no próximo tick
-	  * (telemetria atrasando indefinidamente em dias com variação
-	  * forte, que é justamente quando os deltas ficam grandes). */
-	 size_t cons = histV4DecodeNextRefill(
-	 rdBuf, sizeof(rdBuf), rdFilled, v4st, v4vals, &v4epoch,
-	 [&f](uint8_t *dst, size_t maxBytes) -> size_t {
-	 if (f.available() <= 0) return 0;
-	 int rN = f.read(dst, maxBytes);
-	 return (rN > 0) ? (size_t)rN : 0;
-	 });
-	 if (cons == 0) { fileHasMoreV4 = false; break; }
-	 inFileCountV4++;
-	 if (v4epoch >= EPOCH_MIN && (nowEpoch < EPOCH_MIN || v4epoch <= nowEpoch + 86400UL) && v4epoch > lastCursor) {
-	 BinaryHistoryRecord rec; rec.clear(); rec.epoch = v4epoch;
-	 for (uint8_t m = 0; m < v4st.measureCount; m++) {
-	 if (histV4IsNan(v4vals[m], v4st.measures[m].bitWidth)) continue;
-	 float v = histV4ToFloat(v4vals[m], v4st.measures[m]);
-	 char hwId[17]; uint8_t si = v4st.measures[m].sensorIdx;
-	 histV4StrPoolGet(hwId, sizeof(hwId), v4st.strPool, v4st.sensors[si].hwIdOffset, v4st.sensors[si].hwIdLen);
-	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
-	 if (cfg.sensors[slot].active && strcmp(cfg.sensors[slot].hwId, hwId) == 0) {
-	 uint8_t ch = v4st.measures[m].channel;
-	 if (ch == CH_TEMP) rec.sensors[slot] = BinaryHistoryRecord::floatToI16(v);
-	 else if (ch == CH_HUM) rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
-	 else if (ch == CH_PRESS) rec.pressure = BinaryHistoryRecord::floatToI16x10(v);
-	 break;
+	 f.close( );
+	 _storageRef->exitFlashReadLock( );
+
+	 /* V5 read. The reader lives in StorageManager, so what used to be
+	  * ~5.9 KB of codec scratch plus a copy of the refill loop here is a
+	  * pair of calls. Mapping a value back to a slot is arithmetic on the
+	  * descriptor id rather than a string-pool lookup per measurement. */
+	 bool opened = false;
+	 { StorageManager::ReadGuard rg(_storageRef); opened = _storageRef->h5OpenDay(fullPath); }
+	 if (!opened) continue;
+
+	 uint8_t slotOf[H5_MAX_CHANNELS], chOf[H5_MAX_CHANNELS];
+	 float   scaleOf[H5_MAX_CHANNELS];
+	 uint8_t nCh = 0;
+	 {
+	 const H5ChannelDesc* schema = _storageRef->h5ReaderSchema( );
+	 nCh = _storageRef->h5ReaderChannels( );
+	 for (uint8_t c = 0; c < nCh && schema; c++) {
+	 slotOf[c] = (uint8_t)(schema[c].id / MAX_SENSOR_CHANNELS);
+	 chOf[c]   = (uint8_t)(schema[c].id % MAX_SENSOR_CHANNELS);
+	 scaleOf[c] = powf(10.0f, (float)schema[c].scaleExp);
 	 }
 	 }
+
+	 /* The cursor is an epoch, so start at the block that contains it
+	  * instead of decoding the whole day up to it. */
+	 { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5SeekTo(lastCursor); }
+
+	 int16_t vals[H5_MAX_CHANNELS];
+	 uint32_t epoch = 0;
+	 uint32_t inFileCount = 0;
+	 bool fileHasMore = true;
+	 while (fileHasMore && batch.size( ) < limit) {
+	 {
+	 StorageManager::ReadGuard rg(_storageRef);
+	 if (!_storageRef->h5NextRecord(epoch, vals)) { fileHasMore = false; break; }
+	 }
+	 inFileCount++;
+	 if (epoch >= EPOCH_MIN && (nowEpoch < EPOCH_MIN || epoch <= nowEpoch + 86400UL)
+	     && epoch > lastCursor) {
+	 BinaryHistoryRecord rec; rec.clear( ); rec.epoch = epoch;
+	 for (uint8_t c = 0; c < nCh; c++) {
+	 if (vals[c] == H5_NAN_SENTINEL) continue;
+	 const uint8_t slot = slotOf[c];
+	 if (slot >= MAX_SENSORS) continue;
+	 const float v = (float)vals[c] * scaleOf[c];
+	 if (chOf[c] == CH_TEMP)       rec.sensors[slot]  = BinaryHistoryRecord::floatToI16(v);
+	 else if (chOf[c] == CH_HUM)   rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
+	 else if (chOf[c] == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
 	 }
 	 batch.push_back(rec);
-	 if (v4epoch > newCursor) newCursor = v4epoch;
+	 if (epoch > newCursor) newCursor = epoch;
 	 }
-	 if ((inFileCountV4 % 10) == 0 && fileHasMoreV4 && batch.size() < limit) {
-	 _storageRef->exitFlashReadLock(); feedWdt(); yield(); _storageRef->enterFlashReadLock();
+	 if ((inFileCount % 10) == 0 && fileHasMore && batch.size( ) < limit) {
+	 feedWdt( ); yield( );
 	 }
 	 }
-	 }
-	 f.close(); _storageRef->exitFlashReadLock();
+	 { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5CloseDay( ); }
 	 }
 
  feedWdt( );
+ }
+
+ /* Carry on into the hour still open in RAM.
+  *
+  * A V5 block reaches the day file only when it seals — 60 records, so once an
+  * hour at the default sampling rate. Reading only .h5 meant telemetry could
+  * never send anything newer than the last sealed block: a fresh device stayed
+  * silent for its first 60 minutes, and in steady state every reading was
+  * delivered up to an hour late. The samples are held plain in the encoder, so
+  * reaching them costs a copy and no decode.
+  *
+  * The cursor is an epoch, so nothing is sent twice: when this block later
+  * lands in the day file, the loop above skips it on `epoch > lastCursor`.
+  *
+  * No yield inside this walk — the history writer runs on this same core, and
+  * letting it in here could seal the block while it is being read. It is at
+  * most 60 records. */
+ if (batch.size( ) < limit) {
+ const uint8_t ramCount = _storageRef->h5RamCount( );
+ const H5ChannelDesc* ramSchema = _storageRef->getH5Schema( );
+ const uint8_t ramNCh = _storageRef->getH5ChannelCount( );
+ if (ramCount > 0 && ramSchema && ramNCh > 0) {
+ int16_t vals[H5_MAX_CHANNELS];
+ uint32_t epoch = 0;
+ for (uint8_t i = 0; i < ramCount && batch.size( ) < limit; i++) {
+ if (!_storageRef->h5RamRecord(i, epoch, vals)) break;
+ if (epoch < EPOCH_MIN) continue;
+ if (nowEpoch >= EPOCH_MIN && epoch > nowEpoch + 86400UL) continue;
+ if (epoch <= lastCursor) continue;
+
+ BinaryHistoryRecord rec; rec.clear( ); rec.epoch = epoch;
+ for (uint8_t c = 0; c < ramNCh; c++) {
+ if (vals[c] == H5_NAN_SENTINEL) continue;
+ const uint8_t slot = (uint8_t)(ramSchema[c].id / MAX_SENSOR_CHANNELS);
+ const uint8_t ch   = (uint8_t)(ramSchema[c].id % MAX_SENSOR_CHANNELS);
+ if (slot >= MAX_SENSORS) continue;
+ const float v = (float)vals[c] * powf(10.0f, (float)ramSchema[c].scaleExp);
+ if (ch == CH_TEMP)       rec.sensors[slot]  = BinaryHistoryRecord::floatToI16(v);
+ else if (ch == CH_HUM)   rec.humidity[slot] = BinaryHistoryRecord::floatToI16(v);
+ else if (ch == CH_PRESS) rec.pressure       = BinaryHistoryRecord::floatToI16x10(v);
+ }
+ batch.push_back(rec);
+ if (epoch > newCursor) newCursor = epoch;
+ }
+ feedWdt( );
+ }
  }
 
  return !batch.empty( );
@@ -637,8 +697,9 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  watchdog_update( );
 
  if (code > 0) {
- LOG_CODE(LOG_INFO, "TEL", SYS_TEL_SENT, code, "HTTP OK: " + String(payload.length( )) + " bytes, code " + String(code));
  if (code >= 200 && code < 300) {
+ LOG_CODE(LOG_INFO, "TEL", SYS_TEL_SENT, code,
+ "HTTP OK: " + String(payload.length( )) + " bytes, code " + String(code));
  _storageRef->setLastSentTimestamp(newCursor);
  success = true;
  auto& m = MetricsManager::instance( ).data( );
@@ -649,11 +710,43 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
  _smoothedLatencyMs = (_smoothedLatencyMs == 0)
  ? postLatency
  : (_smoothedLatencyMs * 7 + (uint32_t)postLatency * 3) / 10;
+ } else {
+ /* A reply that arrived is not a delivery. This branch used to fall
+  * through the same INFO line as success — a server answering 500 to
+  * every batch logged "HTTP OK ... code 500" and left both telSent and
+  * telFailed untouched, so the dashboard read "Falhas: 0" while nothing
+  * was getting through. The cursor was already held back correctly; what
+  * was missing was saying so. */
+ LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, code,
+ "HTTP rejected: " + String(payload.length( )) + " bytes, code " + String(code));
+ MetricsManager::instance( ).data( ).telFailed++;
  }
  } else {
  LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, code, String(TRL("HTTP error: ")) + http.errorToString(code));
  MetricsManager::instance( ).data( ).telFailed++;
  }
+
+ /* Close the socket before end( ).
+  *
+  * Everything this cycle needs is the status code, already read. Leaving the
+  * connection open hands it to HTTPClient::disconnect( ), which drains
+  * whatever the peer is still sending so the socket stays reusable — and
+  * against a peer that never stops sending, that path still reaches the
+  * 8.388 s watchdog even with the framework deadline in place.
+  *
+  * Measured, A/B, same servers and same windows:
+  *
+  *   with this stop( )     huge1mb 0 reboots, drip 0 reboots
+  *   without this stop( )  huge1mb 0 reboots, drip 3 reboots + [FTL]
+  *
+  * It was removed once, on the theory that closing without reading was what
+  * exhausted the lwIP pbuf pool. That theory was wrong: the pool is exhausted
+  * in BOTH builds (D14 — a separate defect the watchdog reboots used to hide),
+  * and removing the stop( ) only brought the drip kill back. Put it back.
+  */
+ if (cfg.telEncryption) { if (_httpSecurePtr) _httpSecurePtr->stop( ); }
+ else client.stop( );
+
  http.end( );
  }
 
@@ -776,7 +869,18 @@ bool TelemetryManager::mqttEnsureConnected( ) {
 bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHistoryRecord>& batch, uint32_t newCursor) {
  if (!_mqttInitialized) return false;
 
- if (!mqttEnsureConnected( )) return false;
+ /* Metrics are recorded here for the same reason attemptHttpUpload records
+  * them: without it this whole transport is invisible. Measured on the bench
+  * — 386 publishes carrying 384 records, and telSent / telFailed / telBytes /
+  * telLastLatencyMs all still read zero, so the dashboard and `show metrics`
+  * said nothing had ever been sent. The functional half of that is worse than
+  * the cosmetic one: update( ) derives its effective interval from
+  * _smoothedLatencyMs, which only the HTTP path was feeding, so the adaptive
+  * pacing never engaged on MQTT at all. */
+ const uint32_t pubStart = millis( );
+ auto& m = MetricsManager::instance( ).data( );
+
+ if (!mqttEnsureConnected( )) { m.telFailed++; return false; }
 
  SystemConfig &cfg = _storageRef->getConfig( );
  String topic = String(cfg.mqttTopic);
@@ -785,6 +889,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
 
 
  bool success = false;
+ uint32_t sentBytes = 0;
 
  if (batch.size( ) <= 5) {
  /* Small batch: publish each line individually */
@@ -809,7 +914,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  cfg.mqttRetain
  );
 
- if (ok) published++;
+ if (ok) { published++; sentBytes += (uint32_t)linePayload.length( ); }
  else break;
 
  _mqttClient.loop( );
@@ -832,9 +937,57 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  /* Large batch: uses payload pre-built by caller */
  feedWdt( );
 
+ /* PubSubClient refuses any packet that does not fit its buffer, and the
+  * buffer cannot be grown past MQTT_BUFFER_CEILING. Above that the publish
+  * fails DETERMINISTICALLY — so the retry fails identically, the backoff
+  * walks up to its 300 s ceiling, and telemetry stops for good without a
+  * reboot or a message that explains it.
+  *
+  * It is reachable straight from the config page. Measured on the bench with
+  * a long custom line template (235 B/record): at batch 5 the broker got 296
+  * messages in 70 s, at batch 50 it got 11 — and not one message larger than
+  * 235 B ever arrived, because the ~11.75 KB combined payload was never sent.
+  * The eleven that did were small residual batches falling through the
+  * per-record path below.
+  *
+  * So when the combined payload will not fit, publish record by record
+  * instead of failing. That path already exists, is already used for small
+  * batches, and was measured working at exactly this record size. The cursor
+  * follows what was actually published, so a partial run costs nothing. */
+ const size_t needed = payload.length( ) + topic.length( ) + MQTT_PACKET_OVERHEAD;
+ if (needed > MQTT_BUFFER_CEILING) {
+ LOG_CODE(LOG_WARN, "TEL", SYS_TEL_QUEUE, (int)batch.size( ),
+ "MQTT payload " + String(payload.length( )) +
+ " B over buffer ceiling — publishing per record");
+ int published = 0;
+ for (size_t i = 0; i < batch.size( ); i++) {
+ feedWdt( );
+ String linePayload;
+ if (cfg.telMode == TEL_MODE_JSON) {
+ linePayload = formatLineJson(batch[i], cfg);
+ } else if (cfg.telMode == TEL_MODE_CSV) {
+ char csvBuf[256];
+ batch[i].toCsvLine(csvBuf, sizeof(csvBuf));
+ linePayload = String(csvBuf);
+ } else {
+ linePayload = formatLineCustom(batch[i], cfg);
+ }
+ if (!_mqttClient.publish(topic.c_str( ), linePayload.c_str( ), cfg.mqttRetain)) break;
+ published++;
+ sentBytes += (uint32_t)linePayload.length( );
+ _mqttClient.loop( );
+ }
+ if (published > 0) {
+ LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_PUB, published,
+ "MQTT split publish " + String(published) + "/" + String(batch.size( )));
+ _storageRef->setLastSentTimestamp(batch[published - 1].epoch);
+ success = (published == (int)batch.size( ));
+ }
+ } else {
+
  if (payload.length( ) > _mqttClient.getBufferSize( )) {
- uint16_t needed = min((size_t)8192, payload.length( ) + 64);
- _mqttClient.setBufferSize(needed);
+ _mqttClient.setBufferSize((uint16_t)min((size_t)MQTT_BUFFER_CEILING,
+                                         payload.length( ) + 64));
  }
 
  bool ok;
@@ -850,11 +1003,28 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_PUB, batch.size( ),
  "MQTT batch OK: " + String(batch.size( )) + " items (" + String(payload.length( )) + " bytes)");
  _storageRef->setLastSentTimestamp(newCursor);
+ sentBytes = (uint32_t)payload.length( );
  success = true;
  } else {
  LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, _mqttClient.state( ),
  "MQTT publish failed (payload " + String(payload.length( )) + " bytes)");
  }
+ }
+ }
+
+ /* Same bookkeeping attemptHttpUpload does, so the two transports report
+  * through the same counters and the dashboard means the same thing whichever
+  * one is configured. */
+ const uint32_t pubLatency = millis( ) - pubStart;
+ if (success) {
+ m.telSent++;
+ m.telTotalBytes += sentBytes;
+ m.telLastLatencyMs = pubLatency;
+ _smoothedLatencyMs = (_smoothedLatencyMs == 0)
+ ? pubLatency
+ : (_smoothedLatencyMs * 7 + pubLatency * 3) / 10;
+ } else {
+ m.telFailed++;
  }
 
  return success;
@@ -944,6 +1114,9 @@ bool TelemetryManager::forceSync( ) {
  _dumpPayloadNext = false;
  }
 
+ /* Same as update( ): the cursor follows the payload, not the collection. */
+ if (!batch.empty( )) newCursor = batch.back( ).epoch;
+
  bool ok;
  if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
  ok = attemptMqttPublish(payload, batch, newCursor);
@@ -977,9 +1150,13 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  LogManager::TraceScope _tB(0, MOD_TEL_BUILD);
  SystemConfig &cfg = _storageRef->getConfig( );
 
- /* Estimate size: JSON ~300 bytes/record with 12 sensors */
+ /* Estimate size: JSON ~300 bytes/record with 12 sensors.
+  * CSV needs a bigger fixed part: its header names all 34 columns of the
+  * row layout (~440 B), which does not fit in the 256 B slack the other
+  * modes use and would force the String to reallocate on every batch. */
  size_t perLine = (cfg.telMode == TEL_MODE_CSV) ? 120 : 300;
- size_t estimatedSize = batch.size( ) * perLine + 256;
+ size_t fixedPart = (cfg.telMode == TEL_MODE_CSV) ? 640 : 256;
+ size_t estimatedSize = batch.size( ) * perLine + fixedPart;
 
  /* Check heap and reduce batch if needed.
  * Differentiated reserve by TLS — 12K with encryption,
@@ -993,7 +1170,7 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  batch.resize(safeCount);
  batch.shrink_to_fit( ); /* release effective capacity */
  }
- estimatedSize = batch.size( ) * perLine + 256;
+ estimatedSize = batch.size( ) * perLine + fixedPart;
  }
 
  String s;
@@ -1015,16 +1192,29 @@ String TelemetryManager::buildPayload(std::vector<BinaryHistoryRecord>& batch) {
  }
  s.concat(']');
  } else if (cfg.telMode == TEL_MODE_CSV) {
- /* Header matches toCsvLine, which dropped the ambT;ambH pair with the
-  * ambient slot. */
+ /* The header has to name every column toCsvLine emits, and toCsvLine emits
+  * the fixed layout `epoch;s0..s15;h0..h15;press` — all 16 slots, active or
+  * not, then all 16 humidities, then pressure. Naming only the active slots
+  * produced a 7-column header over 34-column rows, so anything reading by
+  * header index read the wrong values. The rows are the persisted, upload-
+  * compatible format and do not change; the header was what lied. */
  s = "timestamp";
  char hdrBuf[32];
  for (int i = 0; i < MAX_SENSORS; i++) {
- if (cfg.sensors[i].active) {
+ if (cfg.sensors[i].active && cfg.sensors[i].hwId[0])
  snprintf(hdrBuf, sizeof(hdrBuf), ";s%d_%s", i, cfg.sensors[i].hwId);
+ else
+ snprintf(hdrBuf, sizeof(hdrBuf), ";s%d", i);
  s.concat(hdrBuf);
  }
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (cfg.sensors[i].active && cfg.sensors[i].hwId[0])
+ snprintf(hdrBuf, sizeof(hdrBuf), ";h%d_%s", i, cfg.sensors[i].hwId);
+ else
+ snprintf(hdrBuf, sizeof(hdrBuf), ";h%d", i);
+ s.concat(hdrBuf);
  }
+ s.concat(";press");
  s.concat('\n');
  char csvBuf[256];
  for (size_t i = 0; i < batch.size( ); i++) {
@@ -1428,13 +1618,21 @@ void TelemetryManager::refreshPendingCount( ) {
 
  uint32_t lastCursor = _storageRef->getLastSentTimestamp( );
 
+ /* The same 30-day floor collectBatch applies when the cursor is zero.
+  * Without it, the count right after `tel reset` includes every record on
+  * flash — including the ones the sender will never reach — so the dashboard
+  * shows a backlog that can only ever shrink to a non-zero number. */
+ if (lastCursor == 0) {
+ uint32_t lastRecorded = _storageRef->getLastRecordedTimestamp( );
+ if (lastRecorded > 86400UL * 30) lastCursor = lastRecorded - 86400UL * 30;
+ }
 
  std::vector<String> files;
  {
  _storageRef->enterFlashReadLock( );
  Dir dir = LittleFS.openDir(DIR_HISTORY);
  while (dir.next( )) {
- if (dir.fileName().endsWith(HISTORY_V4_FILE_EXT)) {
+ if (dir.fileName().endsWith(HISTORY_FILE_EXT)) {
  files.push_back(dir.fileName( ));
  }
  }
@@ -1456,7 +1654,11 @@ void TelemetryManager::refreshPendingCount( ) {
           timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
  }
 
- uint16_t total = 0;
+ /* 32-bit accumulator, saturated on the way out. It used to be uint16_t with
+  * an explicit cast on every add, so an archive holding more than 65535
+  * pending records wrapped to a plausible-looking wrong number on the
+  * dashboard — this bench holds ~119k. */
+ uint32_t total = 0;
 
 
  /* Same reason as collectBatch — was reading 28 B raw
@@ -1467,47 +1669,77 @@ void TelemetryManager::refreshPendingCount( ) {
 
  String fullPath = String(DIR_HISTORY) + "/" + fn;
 
- _storageRef->enterFlashReadLock( );
- File f = LittleFS.open(fullPath, "r");
- if (!f) { _storageRef->exitFlashReadLock( ); continue; }
+ bool opened = false;
+ { StorageManager::ReadGuard rg(_storageRef); opened = _storageRef->h5OpenDay(fullPath, false); }
+ if (!opened) continue;
 
-	 /* Count V4 records newer than the cursor. Static buffers — the RP2040
-	  * stack is ~4 KB and the schema alone is bigger than that. */
-	 f.seek(0);
-	 int pHdrRead = f.read(hdrBuf, sizeof(hdrBuf));
-	 size_t pHdrLen = (pHdrRead >= (int)HIST_V4_HEADER_FIXED)
-	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)pHdrRead, v4st) : 0;
-	 if (pHdrLen == 0) { f.close( ); _storageRef->exitFlashReadLock( ); continue; }
-	 f.seek(pHdrLen);
+	 /* Counting is a header walk, not a decode.
+	  *
+	  * A V5 block header states how many records it holds and when the
+	  * first one is (§3.3), and blocks are in time order. So every block
+	  * whose t0 is past the cursor contributes all of its records with
+	  * nothing read but its header, and every block before those
+	  * contributes none. At most ONE block straddles the cursor, and it is
+	  * the last one with t0 <= cursor — that is the only one decoded.
+	  *
+	  * A dashboard tick that used to decode every record of every day now
+	  * touches ~24 headers per day plus one block. verifyPayload is off
+	  * for the same reason: CRCing payloads this path never reads would
+	  * put the whole file back through flash every ten seconds. */
+	 uint32_t straddleT0 = 0;
+	 uint8_t  straddleCount = 0;
+	 bool     haveStraddle = false;
+	 uint32_t walked = 0;
+	 for (;;) {
+	  H5DataHeader hdr;
+	  const int16_t *mn = nullptr, *mx = nullptr;
+	  bool got = false;
+	  { StorageManager::ReadGuard rg(_storageRef); got = _storageRef->h5NextBlock(hdr, mn, mx); }
+	  if (!got) break;
 
-	 size_t pFilled = 0;
-	 uint32_t pEpoch = 0, pCount = 0;
-	 while (true) {
-	  size_t consumed = histV4DecodeNextRefill(
-	   rdBuf, sizeof(rdBuf), pFilled, v4st, v4vals, &pEpoch,
-	   [&f](uint8_t *dst, size_t maxBytes) -> size_t {
-	    if (f.available( ) <= 0) return 0;
-	    int rN = f.read(dst, maxBytes);
-	    return (rN > 0) ? (size_t)rN : 0;
-	   });
-	  if (consumed == 0) break;
-	  if (pEpoch > lastCursor) total++;
-	  /* Same 10-record breath the collect path takes: this walks whole
-	   * days on the dashboard refresh tick. */
-	  if ((++pCount % 10) == 0) {
-	   _storageRef->exitFlashReadLock( );
-	   feedWdt( );
-	   yield( );
-	   _storageRef->enterFlashReadLock( );
+	  if (hdr.t0 > lastCursor) {
+	   total += hdr.pre.a;
+	  } else {
+	   straddleT0 = hdr.t0;
+	   straddleCount = hdr.pre.a;
+	   haveStraddle = true;
+	  }
+	  if ((++walked % 20) == 0) { feedWdt( ); yield( ); }
+	 }
+
+	 if (haveStraddle && straddleCount > 1) {
+	  bool ok = false;
+	  { StorageManager::ReadGuard rg(_storageRef); ok = _storageRef->h5SeekTo(straddleT0); }
+	  if (ok) {
+	   int16_t vals[H5_MAX_CHANNELS];
+	   uint32_t epoch = 0;
+	   for (uint8_t r = 0; r < straddleCount; r++) {
+	    bool more = false;
+	    { StorageManager::ReadGuard rg(_storageRef); more = _storageRef->h5NextRecord(epoch, vals); }
+	    if (!more) break;
+	    if (epoch > lastCursor) total++;
+	    if ((r % 20) == 19) { feedWdt( ); yield( ); }
+	   }
 	  }
 	 }
- f.close( );
- _storageRef->exitFlashReadLock( );
+ { StorageManager::ReadGuard rg(_storageRef); _storageRef->h5CloseDay( ); }
 
  feedWdt( );
  }
 
- _pendingEstimate = total;
+ /* The hour still open in RAM counts too — collectBatch sends it now, so
+  * leaving it out would report zero pending while data is waiting. */
+ {
+ const uint8_t ramCount = _storageRef->h5RamCount( );
+ int16_t vals[H5_MAX_CHANNELS];
+ uint32_t epoch = 0;
+ for (uint8_t i = 0; i < ramCount; i++) {
+ if (!_storageRef->h5RamRecord(i, epoch, vals)) break;
+ if (epoch > lastCursor) total++;
+ }
+ }
+
+ _pendingEstimate = (total > 0xFFFFu) ? (uint16_t)0xFFFFu : (uint16_t)total;
  _pendingDirty = false;
 }
 

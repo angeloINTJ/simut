@@ -32,6 +32,7 @@
 #include <stdlib.h>
 
 #include "pico/multicore.h"
+#include "hardware/structs/scb.h"
 
 
 /* Reduced from 8 to 2 languages (EN + PT) to save flash.
@@ -196,11 +197,27 @@ bool simutStateMutexHeldByCurrentCore( ) {
  * the HW-watchdog branch of the autopsy (Core 0 stalled, NOT Core 1 declared
  * dead), and each one follows an APP_CORE1_DEAD — that is, follows a
  * restartCore1( ). Funnelling every launch here turns that hang into a no-op. */
+/* Core 1 ran the entire display — ILI9341 rendering, font rasterisation,
+ * snprintf, the graph screen — plus its nested ISRs (lockout victim, wait
+ * alarm, fault witness) on the SDK's DEFAULT core-1 stack: 2048 bytes.
+ * The margin was luck, and under load the luck ran out rarely enough to
+ * look like five different bugs: the hard-fault witness finally caught it
+ * as PC inside core1WaitUs, an `ldrb` through a pointer reloaded from a
+ * CORRUPTED stack slot. A faulted core parks in the handler with its
+ * heartbeat frozen and the last phase stamped — which is precisely the
+ * historic "stuck in W_WFE / UI_GRAPH" panic signature this hunt started
+ * from. Eight dedicated kilobytes end the roulette. */
+static uint32_t __attribute__((aligned(8))) s_core1Stack[2048];
+
 void DisplayManager::launchCore1IfAbsent( ) {
 	if (_core1Launched) return;
 	_core1Launched = true;
 	g_core1Launches++;
-	{ LogManager::TraceScope _t(0, MOD_C1_LAUNCH); multicore_launch_core1(core1Entry); }
+	/* From the first launched instruction the core fetches XIP — the flash
+	 * exposure accounting must see this window, not just victim-ready. */
+	g_core1MayExecute = 1;
+	{ LogManager::TraceScope _t(0, MOD_C1_LAUNCH);
+	  multicore_launch_core1_with_stack(core1Entry, s_core1Stack, sizeof(s_core1Stack)); }
 }
 
 /* Call from EVERY site that resets Core 1, immediately before the reset.
@@ -219,6 +236,7 @@ void DisplayManager::launchCore1IfAbsent( ) {
  * lockout fallback. */
 void DisplayManager::markCore1Down( ) {
 	g_core1Running = 0;
+	g_core1MayExecute = 0;
 	_core1Launched = false;
 	/* Invalidate the phase stamp at the kill, not at the relaunch.
 	 * g_core1PhaseUs is an ordinary global and survives multicore_reset_core1,
@@ -348,6 +366,70 @@ void DisplayManager::truncateText(Adafruit_GFX* gfx, const char* src,
 	out[best + 3] = '\0';
 }
 
+/**
+ * @brief Same as truncateText, but a suffix is reserved before the name
+ *        competes for what is left.
+ * @details truncateText shortens the whole string, so "Temperature MAX" loses
+ *          the MAX first — the one part of an alarm-limit label that must never
+ *          disappear, because it is what distinguishes the two rows of a
+ *          channel. Here the suffix width is subtracted up front and only the
+ *          name is searched, giving "Conduct... MAX" instead of "Conductivit...".
+ *          A suffix that does not fit on its own is written alone.
+ */
+void DisplayManager::truncateTextKeepSuffix(Adafruit_GFX* gfx, const char* name,
+                                             const char* suffix, char* out,
+                                             size_t outSize, int16_t maxPixelW) {
+	if (!gfx || !name || !suffix || !out || outSize < 5) {
+		if (out && outSize > 0) out[0] = '\0';
+		return;
+	}
+
+	const size_t sufLen = strlen(suffix);
+	if (sufLen + 5 > outSize) { out[0] = '\0'; return; }
+
+	int16_t bx, by;
+	uint16_t tw, th;
+
+	/* Fits whole? Then no ellipsis at all. */
+	size_t nameLen = strlen(name);
+	if (nameLen + sufLen < outSize) {
+		memcpy(out, name, nameLen);
+		memcpy(out + nameLen, suffix, sufLen + 1);
+		gfx->getTextBounds(out, 0, 0, &bx, &by, &tw, &th);
+		if ((int16_t)tw <= maxPixelW) return;
+	}
+
+	/* Budget for the name = width minus the suffix and the ellipsis. Both are
+	 * measured in the context's current font, not assumed. */
+	uint16_t sufW, ellW, dummyH;
+	gfx->getTextBounds(suffix, 0, 0, &bx, &by, &sufW, &dummyH);
+	gfx->getTextBounds("...", 0, 0, &bx, &by, &ellW, &dummyH);
+	int16_t targetW = maxPixelW - (int16_t)sufW - (int16_t)ellW;
+	if (targetW < 0) targetW = 0;
+
+	const int maxName = (int)(outSize - sufLen - 4);
+	int lo = 0, hi = (int)nameLen;
+	int best = 0;
+	while (lo <= hi) {
+		int mid = (lo + hi) / 2;
+		int copyLen = mid;
+		if (copyLen > maxName) copyLen = maxName;
+		memcpy(out, name, copyLen);
+		out[copyLen] = '\0';
+		gfx->getTextBounds(out, 0, 0, &bx, &by, &tw, &th);
+		if ((int16_t)tw <= targetW) { best = copyLen; lo = mid + 1; }
+		else { hi = mid - 1; }
+	}
+
+	while (best > 0 && out[best - 1] == ' ') best--;
+
+	memcpy(out, name, best);
+	out[best] = '.';
+	out[best + 1] = '.';
+	out[best + 2] = '.';
+	memcpy(out + best + 3, suffix, sufLen + 1);
+}
+
 #endif // SIMUT_DISPLAY_TFT
 bool DisplayManager::isMenuActive( ) {
 	mutex_enter_blocking(&_stateMutex);
@@ -379,6 +461,7 @@ void DisplayManager::pauseRendering(bool pause) {
 	if (pause) {
 
 		int32_t prev = __atomic_fetch_add(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);
+		g_core1PauseRefCount = prev + 1;
 		if (prev == 0) {
 			_pauseStartTime = millis( );
 			/* Who is freezing Core 1, and for how long. Recorded at the 0->1
@@ -433,16 +516,29 @@ void DisplayManager::pauseRendering(bool pause) {
 			const uint32_t lockBudgetMs = 400;
 			uint32_t retryStart = millis( );
 			uint32_t lastCleanup = retryStart;
+			/* Phase-align the handshake before it starts, and again before
+			 * every retry: a stale victim reply left in THIS core's inbox by
+			 * an earlier timed-out attempt shifts every later dialogue one
+			 * word out of phase. The launch funnel learned this in July; the
+			 * lockout dance never did. Measured under storm as the residual
+			 * W_WFE wedge: Core 1 parked in the victim spin awaiting an END
+			 * the desynced dialogue never delivered, its own alarm long
+			 * fired and auto-disarmed (fingerprint flags=4, delta −10…−13 s,
+			 * five for five). Draining eats only replies on our side — the
+			 * victim ignores any word that is not a protocol magic. */
+			multicore_fifo_drain( );
 			while (!multicore_lockout_start_timeout_us(100000)) {
 				watchdog_update( );
 				if (timeSince(lastCleanup, 200)) {
 					/* Lockout state possibly corrupted: clean before
 					 * new attempt. end_blocking is idempotent if
 					 * mutex has already been released. */
+					multicore_fifo_drain( );
 					{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
 					lastCleanup = millis( );
 					watchdog_update( );
 				}
+				multicore_fifo_drain( );
 				/* After 3s without success, fall back to hard reset.
 				 * multicore_reset_core1() stops Core 1 immediately - no
 				 * handshake needed. All flash ops are safe. */
@@ -458,6 +554,7 @@ void DisplayManager::pauseRendering(bool pause) {
 					g_core1StuckParked = __atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) ? 1 : 0;
 					g_core1StuckPhase = g_core1Phase;
 					__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+					g_core1PauseRefCount = 0;
 					LogManager::instance( ).setCorePaused(1, true);
 					{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
 					markCore1Down( );
@@ -501,6 +598,7 @@ void DisplayManager::pauseRendering(bool pause) {
 		}
 	} else {
 		int32_t prev = __atomic_fetch_sub(&_pauseRefCount, 1, __ATOMIC_ACQ_REL);
+		g_core1PauseRefCount = (prev <= 1) ? 0 : prev - 1;
 		if (prev <= 1) {
 
 			__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
@@ -556,6 +654,7 @@ void DisplayManager::forceUnpause( ) {
 	if (prev > 0) {
 		LOG_CODE(LOG_ERROR, "DSP", DSP_FORCE_UNPAUSE, prev, String(TRL("forceUnpause: refCount=")) + prev);
 		__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
+		g_core1PauseRefCount = 0;
 		accountPauseEnd( );
 		_pauseStartTime = 0;
 		{ LogManager::TraceScope _t(0, MOD_C1_ENDLOCK); multicore_lockout_end_blocking( ); }
@@ -833,6 +932,7 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 	 * - _quietModeActive = true: isInQuietMode() returns true. */
 	__atomic_store_n(&_core1Ready, false, __ATOMIC_RELEASE);
 	__atomic_store_n(&_quietModeActive, true, __ATOMIC_RELEASE);
+	g_core1QuietActive = 1;
 	__atomic_store_n(&_pauseRefCount, 0, __ATOMIC_RELEASE);
 	__atomic_store_n(&_quiescePlease, false, __ATOMIC_RELEASE);
 	__atomic_store_n(&_core1Parked, false, __ATOMIC_RELEASE);
@@ -864,6 +964,7 @@ void DisplayManager::releaseQuietMode( ) {
 	_quietSince = 0; /* T1.5: leak watchdog disarmed. */
 	_lastHeartbeat = millis( );
 	__atomic_store_n(&_quietModeActive, false, __ATOMIC_RELEASE);
+	g_core1QuietActive = 0;
 	LogManager::instance( ).setCorePaused(1, false);
 	launchCore1IfAbsent( );
 	/* Core 1 will set _core1Ready=true after victim_init in loopCore1. */
@@ -900,15 +1001,60 @@ static void __no_inline_not_in_flash_func(core1AlarmIsr)( ) {
 	timer_hw->intr = 1u << s_c1AlarmNum;
 }
 
+/* A raw-launched Core 1 runs with VTOR pointing at a table it cannot write —
+ * which is how the SysTick experiment died in init (the install tried to
+ * write flash) and why a Core-1 hard fault has always been a silent forever-
+ * loop wearing whatever phase was stamped last. Copy the table to RAM once
+ * per launch, point VTOR at it, and give HardFault a handler that stamps the
+ * stacked PC before parking. The panic path then reports the fault instead
+ * of blaming the sleep it interrupted. */
+static uint32_t __attribute__((aligned(256))) s_c1Vectors[48];
+
+static void __attribute__((naked, used)) core1FaultIsr(void) {
+	__asm volatile(
+		"mrs r0, msp\n"
+		"ldr r1, [r0, #24]\n"
+		"ldr r2, =g_core1FaultPc\n"
+		"str r1, [r2]\n"
+		"ldr r2, =g_core1Fault\n"
+		"movs r1, #1\n"
+		"strb r1, [r2]\n"
+		"1: wfi\n"
+		"b 1b\n");
+}
+
+static void core1VtorInit( ) {
+	const uint32_t* src = (const uint32_t*)scb_hw->vtor;
+	for (int i = 0; i < 48; i++) s_c1Vectors[i] = src[i];
+	s_c1Vectors[3] = (uint32_t)&core1FaultIsr;  /* HardFault, thumb bit set by the compiler */
+	__dmb( );
+	scb_hw->vtor = (uint32_t)s_c1Vectors;
+}
+
 static void core1WaitInit( ) {
-	if (s_c1AlarmNum != 0xFF) return;              /* relaunch: already ours */
-	const int n = hardware_alarm_claim_unused(false);
-	if (n < 0) return;                             /* none free: stay on delay( ) */
-	s_c1AlarmNum = (uint8_t)n;
-	irq_set_exclusive_handler((uint)(TIMER_IRQ_0 + n), core1AlarmIsr);
-	irq_set_enabled((uint)(TIMER_IRQ_0 + n), true);
-	hw_set_bits(&timer_hw->inte, 1u << n);
-	g_core1WaitAlarm = s_c1AlarmNum;
+	/* The static guard may skip only the CLAIM. A core reset clears this
+	 * core's NVIC and its vector table is rebuilt on launch, so a relaunched
+	 * Core 1 came back with its own wake IRQ disabled: every core1WaitUs
+	 * slept in __wfe with an alarm that could never be taken, advancing only
+	 * on stray SEVs from Core 0's FIFO traffic. Flash pauses supply those
+	 * SEVs constantly, which is what kept the display limping invisibly —
+	 * until a long pure-read stream (a 1 MB history download) went lockout-
+	 * free for 19 s, the heartbeat froze with phase=W_WFE, and the health
+	 * check declared APP_CORE1_DEAD: the download-storm 502. Relaunches are
+	 * routine (every quiet-mode save is a kill+relaunch), so this bit every
+	 * boot's first save. */
+	if (s_c1AlarmNum == 0xFF) {
+		const int n = hardware_alarm_claim_unused(false);
+		if (n < 0) return;                         /* none free: stay on delay( ) */
+		s_c1AlarmNum = (uint8_t)n;
+		g_core1WaitAlarm = s_c1AlarmNum;
+	}
+	const uint irqn = (uint)(TIMER_IRQ_0 + s_c1AlarmNum);
+	if (irq_get_exclusive_handler(irqn) != core1AlarmIsr) {
+		irq_set_exclusive_handler(irqn, core1AlarmIsr);
+	}
+	irq_set_enabled(irqn, true);
+	hw_set_bits(&timer_hw->inte, 1u << s_c1AlarmNum);
 }
 
 static void __no_inline_not_in_flash_func(core1WaitUs)(uint32_t us) {
@@ -940,6 +1086,7 @@ void DisplayManager::loopCore1( ) {
 	_core1Ready = true;
 	g_core1Running = 1;   /* live from here: XIP fetches can now collide with flash */
 	C1_PHASE(C1P_INIT);
+	core1VtorInit( );     /* RAM vector table: makes Core-1 faults visible */
 	core1WaitInit( );     /* from Core 1, so the alarm IRQ is Core 1's */
 
 	/* Heap allocations preserved across resets.
@@ -1210,7 +1357,15 @@ void DisplayManager::loopCore1( ) {
 			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsThemes( ); _repaintSettings = false; }
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARMS) {
-			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawSettingsAlarms( ); _repaintSettings = false; }
+			if (_repaintSettings) {
+				C1_PHASE(C1P_UI_SETTINGS);
+				/* A flag that flipped in place repaints its own word; anything
+				 * else goes through the full path. */
+				if (_alarmStatusDirty && !_forceSettingsRedraw) drawAlarmStatusOnly( );
+				else drawSettingsAlarms( );
+				_alarmStatusDirty = false;
+				_repaintSettings = false;
+			}
 		}
 		else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
 			if (_repaintSettings) { C1_PHASE(C1P_UI_SETTINGS); drawAlarmEdit( ); _repaintSettings = false; }

@@ -14,10 +14,18 @@ WHAT FAILS THE BUILD
   established and the one whose violation cost a release.
 
 WHAT IS ONLY REPORTED
-  Fields named per quantity (tempMin, humMax, hasHum, ...). Those are the
-  alarm-threshold and display layers, still pending the SensorRecord schema
-  bump — layer 3. Counting them here keeps the backlog visible instead of
-  letting it look finished. Run with --debt to list them.
+  Names built around one quantity (tempMin, humMax, hasHum, ...). Since 2.0.0
+  these are no longer stored config — SensorRecord carries chMin[]/chMax[] and
+  the compiler rejects the old fields. What is left falls in three groups, and
+  only the first is work:
+
+    · the TFT graph, which plots two series because the screen holds two;
+      widening it is a display redesign and 8 x GRAPH_WIDTH floats of RAM
+    · legacy JSON keys the web API still emits beside the generic form, for
+      one release, so a cached page keeps working
+    · local booleans and cache variables that merely borrow the name
+
+  Run with --debt to list them by file.
 
 Usage:  python3 tools/check_channels.py [--debt] [--list]
 Exit:   0 clean, 1 a hardcoded letter escaped the table.
@@ -136,8 +144,8 @@ def main():
         by_file = {}
         for rel, line, name in debt:
             by_file.setdefault(rel, []).append((line, name))
-        print(f'[check_channels] {len(debt)} campos nomeados por grandeza '
-              f'em {len(by_file)} arquivos (camada 3 — bump de schema do SensorRecord):')
+        print(f'[check_channels] {len(debt)} nomes por grandeza em {len(by_file)} '
+              f'arquivos (nenhum e config gravada — ver cabecalho para os 3 grupos):')
         for rel in sorted(by_file):
             names = sorted({n for _, n in by_file[rel]})
             print(f'  {rel}: {len(by_file[rel])}x  {", ".join(names)}')
@@ -150,7 +158,7 @@ def main():
         return 1
 
     print(f'[check_channels] OK — nenhuma letra de canal hardcoded '
-          f'({len(debt)} campos por grandeza pendentes da camada 3)')
+          f'({len(debt)} nomes por grandeza remanescentes; --debt para ver)')
     return 0
 
 

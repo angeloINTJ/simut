@@ -22,6 +22,7 @@
 #include "CommandParser.h"
 #include "SystemDefs_Validate.h"
 #include "SystemDefs_Records.h"
+#include "SensorChannelTable.h" /* channelByKey — which fields name a quantity */
 #include <stdlib.h>
 
 #if SIMUT_CLI_FULL
@@ -359,12 +360,18 @@ CliDemand parseCliCommand(String input) {
 						int lastSp = fname.lastIndexOf(' ');
 						if (lastSp != -1) {
 							String tk = fname.substring(lastSp + 1);
-							if (tk == "ds18b20" || tk == "dht22" || tk == "bme280") {
+							/* bmp280 belongs here too: it stopped being an alias of
+							 * the BME280 when the parts were split into separate
+							 * types, and nothing added it to this list — so the one
+							 * chip on the bench that has pressure and no humidity
+							 * could not be named, and fell through to DHT22. */
+							if (tk == "ds18b20" || tk == "dht22" || tk == "bme280" || tk == "bmp280") {
 								cmd.setStrVal3(tk.c_str( ));
 								fname = fname.substring(0, lastSp);
 								fname.trim( );
 							}
-						} else if (fname == "ds18b20" || fname == "dht22" || fname == "bme280") {
+						} else if (fname == "ds18b20" || fname == "dht22"
+						           || fname == "bme280" || fname == "bmp280") {
 							/* Name omitted, only the type given: use it for both. */
 							cmd.setStrVal3(fname.c_str( ));
 						}
@@ -400,8 +407,20 @@ CliDemand parseCliCommand(String input) {
 		 * (previously 'conf sensor tmin 4 -20'; arrives here bare
 		 * after prefix normalization). */
 		{
+			/* tmin/tmax/hmin/hmax stay because the help text and existing
+			 * scripts use them. Anything shaped <channel-key>min / <channel-key>max
+			 * is accepted from the table, so a new quantity is settable the day
+			 * its row lands — this list used to be the whole vocabulary, and a
+			 * pressure limit could not be typed at all. */
 			bool isField = (t1 == "tmin" || t1 == "tmax" || t1 == "hmin" ||
 			                t1 == "hmax" || t1 == "alarm");
+			if (!isField && t1.length( ) > 3) {
+				String suffix = t1.substring(t1.length( ) - 3);
+				if (suffix == "min" || suffix == "max") {
+					String key = t1.substring(0, t1.length( ) - 3);
+					isField = (channelByKey(key.c_str( )) >= 0);
+				}
+			}
 			if (isField) {
 				cmd.type = CMD_SENSOR_FIELD;
 				cmd.setStrVal1(t1.c_str( ));

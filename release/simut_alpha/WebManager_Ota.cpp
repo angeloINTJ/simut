@@ -119,11 +119,26 @@ void WebManager::handleApiBackup( ) {
  /* Headers already sent — can only log. Client will detect
  * truncation via Content-Length mismatch or invalid CRC. */
  LOG_CODE(LOG_WARN, "OTA", WEB_DISCONNECT_FILE, _currentUserId, "backup_emit");
+ drainOrDrop( );
+ _drainPending = false;
  return;
  }
 
  LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId,
  String("backup ") + scan.file_count + "f " + scan.payload_size + "B");
+
+ /* Same reason as safeStreamFile( ) — see the note there. This response is
+  * setContentLength( ), so nothing in the abort discipline covers its tail,
+  * and the framework retires the client inside handleClient( ) with a bare
+  * stop( ) whose ACK-wait renews on progress and never feeds the watchdog.
+  * update( )'s drainOrDrop( ) runs after that, too late.
+  *
+  * Measured 2026-08-10 with safeStreamFile already fixed: three sequential
+  * GET /api/backup (794 KB each) still produced a watchdog reboot on the
+  * second, autopsy `C0=[WEB_POLL] hp=721 (219)` — the same one, reached by
+  * this path instead. Drain before returning and it stops. */
+ drainOrDrop( );
+ _drainPending = false;
 }
 
 /* ===========================================================================

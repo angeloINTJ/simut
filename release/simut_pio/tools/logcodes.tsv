@@ -115,6 +115,10 @@
 563	STO_ENFORCE_SKIP_ACTIVE	Skipping active log file	Pulando arquivo de log ativo	Pulando arquivo de log ativo	Omitiendo el archivo de log activo
 564	STO_STATS_REPORT	Storage stats report	Relatorio de estatisticas	Relatório de estatísticas	Informe de estadísticas de almacenamiento
 565	STO_CONFIG_REPORT	Config report	Relatorio de config	Relatório de config	Informe de config
+566	STO_H5_SEALED	History block sealed	Bloco de historico selado	Bloco de histórico selado	Bloque de historial sellado
+567	STO_H5_WIP	History snapshot written	Snapshot de historico gravado	Snapshot de histórico gravado	Instantánea de historial escrita
+568	STO_SCHEMA_MISMATCH	History schema mismatch	Schema de historico divergente	Schema de histórico divergente	Esquema de historial divergente
+569	STO_LEGACY_PURGED	Legacy history purged	Historico legado apagado	Histórico legado apagado	Historial heredado eliminado
 570	WEB_SERVER_STARTED	Web server started	Servidor web iniciado	Servidor web iniciado	Servidor web iniciado
 571	WEB_DISCONNECT_FILE	Client disconnected (file)	Cliente desconectado (arquivo)	Cliente desconectado (arquivo)	Cliente desconectado (archivo)
 572	WEB_DISCONNECT_HISTORY	Client disconnected (history)	Cliente desconectado (historico)	Cliente desconectado (histórico)	Cliente desconectado (historial)

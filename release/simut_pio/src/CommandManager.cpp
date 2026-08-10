@@ -667,11 +667,13 @@ void CommandManager::renderSensorTable(const SensorRecord* sensors, int maxSenso
    sensors[i].alarmsActive ? (isPt( ) ? "LIGADO" : "ON") : (isPt( ) ? "DESL" : "OFF"));
 
  if (sensors[i].alarmsActive) {
-  if (sensorHasChannel(st, CH_TEMP)) {
-   consolePrintf("  [T: %.1f .. %.1f]", sensors[i].tempMin, sensors[i].tempMax);
-  }
-  if (sensorHasChannel(st, CH_HUM)) {
-   consolePrintf("  [H: %.1f .. %.1f]", sensors[i].humMin, sensors[i].humMax);
+  /* One bracket per channel the part reports, tagged with the channel's own
+   * letter. Was a hardcoded T and H pair, so a BMP280 printed its temperature
+   * band and nothing about pressure. */
+  for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+   if (!sensorHasChannel(st, c)) continue;
+   consolePrintf("  [%c: %.1f .. %.1f]", toupper(channelInfo(c).letter),
+                 sensors[i].chMin[c], sensors[i].chMax[c]);
   }
  }
  consolePrintln("");

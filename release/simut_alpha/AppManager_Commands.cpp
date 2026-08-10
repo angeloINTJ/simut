@@ -689,6 +689,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  * get stuck. */
  _displayMgr->requestQuietMode( ); /* default 15s timeout */
  _storageMgr->flushHistoryBatch( ); /* T2.1: persist buffered samples */
+ /* The sensor set is about to change: seal the open V5 block PARTIAL so
+  * the day keeps its records and the new schema opens a new one (§3.7-2). */
+ _storageMgr->onSensorSetChangedV5( );
  bool saved = _storageMgr->saveConfiguration( );
  if (saved) {
  loadAndCalibrateSensors( );
@@ -735,6 +738,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  }
  LOG_CODE(LOG_WARN, "SYS", SYS_REBOOT_USER, 0, TRL("Reboot via CLI"));
  _storageMgr->flushHistoryBatch( ); /* T2.1: don't lose buffered samples */
+ _storageMgr->sealHourV5( );        /* V5: the open block is RAM-only */
  delay(100); /* Ensures log is flushed to flash */
  LogManager::instance( ).safeReboot( );
  break;

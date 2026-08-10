@@ -332,7 +332,50 @@ inline bool sensorHasChannel(SensorType t, uint8_t channel) {
  return SensorFormat::forType(t).hasChannel(channel);
 }
 
+/**
+ * @brief Channel id of the n-th channel this type reports, or CH_COUNT.
+ *
+ * For screens with a fixed number of rows. A caller that asks for row 0 and
+ * row 1 gets temperature and humidity from a DHT22, temperature and pressure
+ * from a BMP280 — instead of a humidity row the part cannot fill.
+ */
+inline uint8_t sensorNthChannel(SensorType t, uint8_t n) {
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+ if (!sensorHasChannel(t, c)) continue;
+ if (n == 0) return c;
+ n--;
+ }
+ return CH_COUNT;
+}
+
+/**
+ * @brief Number of editable alarm limits — two per channel the type reports.
+ *
+ * A screen that lists limits one per row asks this instead of assuming 4. A
+ * DHT22 has 4, a BMP280 has 4 (but of different quantities), a BME280 has 6.
+ */
+inline uint8_t sensorLimitCount(SensorType t) {
+ return (uint8_t)(sensorValueCount(t) * 2);
+}
+
+/** @brief Channel behind limit index i — 2n and 2n+1 share the n-th channel. */
+inline uint8_t sensorLimitChannel(SensorType t, uint8_t i) {
+ return sensorNthChannel(t, (uint8_t)(i / 2));
+}
+
+/** @brief True when limit index i is its channel's MAX, false for its MIN. */
+inline bool sensorLimitIsMax(uint8_t i) { return (i & 1u) != 0; }
+
 /** @return true if this sensor reports relative humidity. */
+/** True for parts carrying a factory-unique serial number the firmware can
+ *  read back (the DS18B20 1-Wire ROM). Only these can be adopted and then
+ *  verified in place — a swapped probe fails the ROM match and is
+ *  quarantined. Serial-less parts are indistinguishable in hardware, so
+ *  adopt/verify flows must not even be offered for them. */
+inline bool sensorHasSerialNumber(SensorType t) {
+	return t == TYPE_DS18B20;
+}
+
 inline bool sensorHasHumidity(SensorType t) {
  return sensorHasChannel(t, CH_HUM);
 }

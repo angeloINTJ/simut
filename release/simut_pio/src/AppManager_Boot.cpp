@@ -333,6 +333,18 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_START_LOG);
  LogManager::instance( ).begin(fsOk, LOG_DEBUG);
 
+ /* First thing the logger can usefully say. 2.0.0 accepts one config schema
+  * and migrates nothing, so a device coming from 1.6.x wakes up on defaults —
+  * no WiFi, no users, no sensor slots. That has to be stated somewhere, and
+  * StorageManager detected it several steps ago, before this logger existed. */
+ {
+ size_t rejected = _storageMgr->takeRejectedConfigSize( );
+ if (rejected != 0) {
+ LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_MIGRATED, (int)rejected,
+          TRL("Config from an older schema discarded — defaults loaded"));
+ }
+ }
+
  /* Autopsy has already read scratch[4]. Now we can set MOD_BOOT to
 	 * track stalls that happen during the remainder of setup. */
  TRACE_MOD(0, MOD_BOOT);
@@ -730,6 +742,14 @@ void AppManager::setup( ) {
  _webMgr->setLightYieldCallback([this]( ) {
  feedWdt( );
 
+ /* Not while a response is streaming. update( ) reads real sensors and
+  * updateLiveDisplay( ) can fire the panel-save debounce — a quiet-mode
+  * kill+relaunch of Core 1 in the middle of the stream. The sensor
+  * values change every second, so the debounce arms itself; every long
+  * download rolled these dice once per 3 s of transfer. The next loop
+  * tick catches the work up. */
+ if (_webMgr->isStreamingNow( )) return;
+
  static uint32_t lastLiveUpdate = 0;
  uint32_t now = millis( );
  if (now - lastLiveUpdate > 3000) {
@@ -740,6 +760,26 @@ void AppManager::setup( ) {
  });
 
  /* TouchPriority uses the singleton provider set above. */
+
+ /* ── V5 history: purge the legacy format, then adopt the .wip ─────────
+  * §11: the firmware has no reader for anything but V5, so /history is
+  * swept of everything else exactly once — the .sim4 files this update
+  * replaces, and any junk. Preserving old data is the user's job BEFORE
+  * updating (export the .bin/.sim4, convert on the host with
+  * tools/history_v5.py); nothing is reimported to the device.
+  *
+  * Then §7.2: a .wip left by a power cut is the last ten minutes of the
+  * block that was open. It is validated as an ordinary chunk and appended
+  * to its own day's file, or discarded — never repaired. */
+ {
+  const uint16_t purged = _storageMgr->purgeNonV5History( );
+  if (purged) {
+   _displayMgr->setBootStatusKey(TR_BOOT_LOAD_MINMAX);
+   LOG_CODE(LOG_WARN, "STO", STO_LEGACY_PURGED, (int)purged, "boot_purge");
+  }
+  _storageMgr->recoverWipV5( );
+  _storageMgr->ensureH5Schema( );
+ }
 
  /* pre forceAP branch */
  if (forceAP) {

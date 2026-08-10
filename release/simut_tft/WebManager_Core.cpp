@@ -182,6 +182,12 @@ bool WebManager::isRateLimited(uint32_t minIntervalMs) {
 
 void WebManager::feedWatchdog( ) {
  watchdog_update( );
+ /* The heartbeat must ride along too: this is the ONLY feeder for every
+  * send-wait and stream-breath loop, and it fed the dog without stamping
+  * the beat — so the autopsy's "at up=" froze at the last feedWdt( ) site
+  * while whole seconds of fed waiting ran on. Every stall investigated
+  * under load was mislocated by however long the beatless stretch was. */
+ TRACE_BEAT(0);
  /* The send loop feeds through here rather than feedWdt( ), so without this the
   * Core-1 stall sampler would be blind for the whole streaming phase of a
   * download — half of the load under investigation. */
@@ -218,6 +224,7 @@ bool WebManager::isHandlerOvertime( ) {
 
 
 #include <pico/time.h>
+#include <hardware/watchdog.h>
 
 /*
  * SendGuard — feeds the watchdog during blocking send calls.
@@ -287,7 +294,24 @@ void WebManager::update( ) {
    * the server/lwIP/CYW43 plumbing, not in our code. */
   LogManager::TraceScope _tPoll(0, MOD_WEB_POLL);
   for (int i = 0; i < 4; i++) {
+   /* Fresh request, fresh position: a death wearing a previous request's
+    * hp= sent one investigation down a stale trail already. */
+   watchdog_hw->scratch[7] = 0;
+   _chunkedResponse = false;
    _server.handleClient( );
+   /* 740: handleClient RETURNED. Together with 722 (end of safeSendN) this
+    * splits the storm residual three ways instead of lumping it all under
+    * 721 — ours, the framework's, or the drain's. */
+   watchdog_hw->scratch[7] = 740;
+   /* Before the framework can retire this client with its polite close
+    * (whose ACK-wait a trickling reader extends forever, unfed), drain
+    * the un-ACKed tail with the watchdog fed or drop the connection.
+    * Only when a send completed — see _drainPending.
+    *
+    * Careful: for a response the framework closes itself (Connection:
+    * close reaches CLIENT_MUST_STOP), retirement happens INSIDE
+    * handleClient and this call is already too late — measured 2026-08-10. */
+   if (_drainPending) { drainOrDrop( ); _drainPending = false; }
    if (millis( ) >= budget) break;
   }
  }

@@ -112,8 +112,26 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 
  bool spiInitialized = false;
 #if SIMUT_SENSOR_BME280
- bool i2c0Initialized = false;
- bool i2c1Initialized = false;
+ /* Two lifetimes, and they were declared the other way around.
+  *
+  * The I2C PERIPHERAL is per-boot state: recoverBus( ) bit-bangs the pins
+  * away from the peripheral, and TwoWire::begin( ) on a running bus
+  * returns without re-muxing them — so a second pass through this init
+  * (the calibration POST's reload) parked SDA/SCL on SIO and every probe
+  * after that answered cid=0x00 on both addresses. As statics the boot
+  * init survives reloads and recoverBus stays where it belongs: a runtime
+  * reload has no interrupted-reset transaction to recover from, and pin
+  * changes always arrive via commit_all, which reboots.
+  *
+  * The ADDRESS BOOKKEEPING is per-call state: as function statics inside
+  * the loop, a reload found 0x76 "already taken" by the boot pass and
+  * moved the lone BMP280 to 0x77, and the reload after that had no
+  * address left to give it at all. Plain locals, reset every call. */
+ static bool i2c0Initialized = false;
+ static bool i2c1Initialized = false;
+ struct BmeAddrTrack { uint8_t s, d; bool a76, a77; };
+ BmeAddrTrack bmeBuses[8] = {};
+ uint8_t bmeBusCount = 0;
 #endif
 
  for (int i = 0; i < MAX_SENSORS; i++) {
@@ -122,8 +140,9 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
  RuntimeSensor rs;
  rs.config = cfg.sensors[i];
  for (int ch = 0; ch < MAX_SENSOR_CHANNELS; ch++) {
-  rs.calibrationOffset[ch] = 0.0f;
+  rs.calib[ch] = CalibCurve( );
   rs.avgValue[ch] = NAN;
+  rs.rawValue[ch] = NAN;
  }
  rs.lastReadTime = 0;
  rs.totalReadings = 0;
@@ -173,18 +192,16 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 
 		if (sda != PIN_UNUSED && scl != PIN_UNUSED) {
 			/* Track taken addresses per (sda,scl) bus — up to 2 sensors
-			 * per bus (0x76 and 0x77). */
-			struct BmeAddrTrack { uint8_t s, d; bool a76, a77; };
-			static BmeAddrTrack _bmeBuses[8];
-			static uint8_t _bmeBusCount = 0;
+			 * per bus (0x76 and 0x77). Declared at function scope: per-call
+			 * on purpose, see the note beside the i2c init flags. */
 			BmeAddrTrack* bus = nullptr;
-			for (uint8_t bi = 0; bi < _bmeBusCount; bi++) {
-				if (_bmeBuses[bi].s == sda && _bmeBuses[bi].d == scl) {
-					bus = &_bmeBuses[bi]; break;
+			for (uint8_t bi = 0; bi < bmeBusCount; bi++) {
+				if (bmeBuses[bi].s == sda && bmeBuses[bi].d == scl) {
+					bus = &bmeBuses[bi]; break;
 				}
 			}
-			if (!bus && _bmeBusCount < 8) {
-				bus = &_bmeBuses[_bmeBusCount++];
+			if (!bus && bmeBusCount < 8) {
+				bus = &bmeBuses[bmeBusCount++];
 				bus->s = sda; bus->d = scl;
 				bus->a76 = false; bus->a77 = false;
 			}
@@ -200,6 +217,9 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 
 				if (periph == 0) {
 				if (!i2c0Initialized) {
+					/* Before the peripheral takes the pins: a sensor left
+					 * mid-byte by the last reset is still holding SDA. */
+					BME280Driver::recoverBus(sda, scl);
 					Wire.setSDA(sda);
 					Wire.setSCL(scl);
 					Wire.begin();
@@ -208,6 +228,7 @@ void SensorManager::initRuntimeSensors(const SystemConfig &cfg) {
 					drvIdx = _getOrCreateBmeDriver(Wire, addr);
 				} else if (periph == 1) {
 				if (!i2c1Initialized) {
+					BME280Driver::recoverBus(sda, scl);
 					Wire1.setSDA(sda);
 					Wire1.setSCL(scl);
 					Wire1.begin();
@@ -292,10 +313,10 @@ void SensorManager::syncAlarmLimits(const SystemConfig &cfg) {
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
  if (cfg.sensors[i].pins[0] == rs.config.pins[0]) {
- rs.config.tempMin = cfg.sensors[i].tempMin;
- rs.config.tempMax = cfg.sensors[i].tempMax;
- rs.config.humMin = cfg.sensors[i].humMin;
- rs.config.humMax = cfg.sensors[i].humMax;
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+ rs.config.chMin[c] = cfg.sensors[i].chMin[c];
+ rs.config.chMax[c] = cfg.sensors[i].chMax[c];
+ }
  rs.config.alarmsActive = cfg.sensors[i].alarmsActive;
  break;
  }
@@ -338,10 +359,10 @@ void SensorManager::handleSensorResult(RuntimeSensor &s, bool success, float v1,
  }
 
  if (!s.inErrorState) {
- /* ambient (DHT22) applies offset to both quantities;
- * other sensors (DS18B20) temperature only — calibrationOffset[1]
- * stays at 0 and the sum is a no-op. */
- addSample(s, v1 + s.calibrationOffset[0], v2 + s.calibrationOffset[1]);
+ /* Raw goes in; the curve is applied to the filtered mean inside
+ * pushChannelSample. Sensors without a humidity die never push CH_HUM. */
+ pushChannelSample(s, CH_TEMP, v1);
+ if (sensorHasHumidity(s.type)) pushChannelSample(s, CH_HUM, v2);
  }
  }
  else {
@@ -550,6 +571,7 @@ void SensorManager::processPeriodicReads( ) {
  s.inErrorState = true;
  s.buffers[0].clear( );
  s.avgValue[0] = NAN;
+ s.rawValue[0] = NAN;
  s.consecutiveSuccess = 0;
  s.lastReadTime = now;
  __atomic_store_n(&_newDataAvailable, true, __ATOMIC_RELEASE);
@@ -685,24 +707,11 @@ void SensorManager::processPeriodicReads( ) {
       /* BME280: v1=temp, v2=humidity (pressure available via API) */
      if (!drv->isBME( )) h = NAN;  /* BMP280: cached flag, not a live I2C read */
       handleSensorResult(s, true, t, h, "");
-      /* Store pressure in CH_PRESS channel buffer.
-       * The offset is added here for the same reason handleSensorResult adds
-       * it to v1/v2 before addSample: avgValue has to come out calibrated.
-       * Pressure used to be pushed raw, so a stored CH_PRESS offset changed
-       * nothing anywhere — the calibration was write-only. */
-      if (!isnan(p)) {
-       p += s.calibrationOffset[CH_PRESS];
-       s.buffers[CH_PRESS].push(p);
-       if (s.buffers[CH_PRESS].full( )) {
-        s.avgValue[CH_PRESS] = calculateTrimmedMean(s.buffers[CH_PRESS]);
-       } else {
-        float sortBuf[MOVING_AVG_WINDOW];
-        s.buffers[CH_PRESS].copyTo(sortBuf);
-        float sumP = 0;
-        for (uint8_t i = 0; i < s.buffers[CH_PRESS].size( ); i++) sumP += sortBuf[i];
-        s.avgValue[CH_PRESS] = sumP / s.buffers[CH_PRESS].size( );
-       }
-      }
+      /* Pressure rides the same per-channel path as everything else.
+       * It used to have its own inline copy of the mean AND its own offset
+       * add — the era when it was pushed raw left a stored CH_PRESS offset
+       * changing nothing anywhere; the calibration was write-only. */
+      pushChannelSample(s, CH_PRESS, p);
      } else {
       handleSensorResult(s, false, 0, 0, "I2C Read Error");
      }
@@ -718,43 +727,37 @@ void SensorManager::processPeriodicReads( ) {
 }
 
 /**
- * @brief Add a new reading to the sensor's ring buffer and update averages.
- * Uses trimmed mean when buffer is full, simple mean otherwise.
+ * @brief Filtered mean of one ring: trimmed when full, simple otherwise.
+ * The <full simple-mean split is deliberate and predates the curves — a
+ * 5..9-sample window through the trimmer would change warm-up readings.
+ */
+static float channelMean(const RingBuffer& ring) {
+ if (ring.empty( )) return NAN;
+ if (ring.full( )) return calculateTrimmedMean(ring);
+ float sortBuf[MOVING_AVG_WINDOW];
+ ring.copyTo(sortBuf);
+ float sum = 0;
+ for (uint8_t i = 0; i < ring.size( ); i++) sum += sortBuf[i];
+ return sum / ring.size( );
+}
+
+/**
+ * @brief Push one RAW sample into one channel and refresh both means.
+ * rawValue is the filtered mean of what the hardware said; avgValue is that
+ * mean through the calibration curve — the only value consumers ever see.
  * Sets the atomic _newDataAvailable flag for cross-core notification.
  */
-void SensorManager::addSample(RuntimeSensor &sensor, float v1, float v2) {
+void SensorManager::pushChannelSample(RuntimeSensor &sensor, uint8_t ch, float rawV) {
  /* isfinite, not !isnan: INFINITY passes isnan and poisoned the whole
   * averaging chain (BMP280 humidity compensation yields inf; newlib-
   * nano printf masked it by printing NaN as "inf" during forensics). */
- if (isfinite(v1)) {
- sensor.buffers[0].push(v1);
- }
- if (sensorHasHumidity(sensor.type) && isfinite(v2)) {
- sensor.buffers[1].push(v2);
- }
+ if (ch >= MAX_SENSOR_CHANNELS || !isfinite(rawV)) return;
 
- if (!sensor.buffers[0].empty( )) {
- if (sensor.buffers[0].full( )) {
- sensor.avgValue[0] = calculateTrimmedMean(sensor.buffers[0]);
- if (sensorHasHumidity(sensor.type)) sensor.avgValue[1] = calculateTrimmedMean(sensor.buffers[1]);
- } else {
-
- float sortBuf[MOVING_AVG_WINDOW];
- sensor.buffers[0].copyTo(sortBuf);
- float sum1 = 0;
- for (uint8_t i = 0; i < sensor.buffers[0].size( ); i++) sum1 += sortBuf[i];
- sensor.avgValue[0] = sum1 / sensor.buffers[0].size( );
-
- if (sensorHasHumidity(sensor.type) && !sensor.buffers[1].empty( )) {
- sensor.buffers[1].copyTo(sortBuf);
- float sum2 = 0;
- for (uint8_t i = 0; i < sensor.buffers[1].size( ); i++) sum2 += sortBuf[i];
- sensor.avgValue[1] = sum2 / sensor.buffers[1].size( );
- }
- }
+ sensor.buffers[ch].push(rawV);
+ sensor.rawValue[ch] = channelMean(sensor.buffers[ch]);
+ sensor.avgValue[ch] = calibCurveApply(sensor.calib[ch], sensor.rawValue[ch]);
 
  __atomic_store_n(&_newDataAvailable, true, __ATOMIC_RELEASE);
- }
 }
 
 bool SensorManager::hasNewReadings( ) {
@@ -899,7 +902,7 @@ int8_t SensorManager::_getOrCreateBmeDriver(TwoWire &wire, uint8_t addr) {
 }
 #endif
 
-void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset, String newName) {
+void SensorManager::applyCalibration(uint8_t gpio, String newHwId, const CalibCurve& tempCurve, String newName) {
  for (auto &s : _runtimeSensors) {
  if (s.config.pins[0] == gpio) {
  if (newHwId.length( ) > 0) {
@@ -908,21 +911,27 @@ void SensorManager::applyCalibration(uint8_t gpio, String newHwId, float offset,
  if (newName.length( ) > 0) {
  safeCopy(s.config.friendlyName, newName.c_str( ), sizeof(s.config.friendlyName));
  }
- s.calibrationOffset[0] = offset;
+ s.calib[CH_TEMP] = tempCurve;
+ s.avgValue[CH_TEMP] = calibCurveApply(tempCurve, s.rawValue[CH_TEMP]);
  break;
  }
  }
 }
 
-/* Apply temperature + humidity offsets to the sensor wired to `gpio`.
+/* Apply one calibration curve per channel to the sensor wired to `gpio`.
  *
- * Replaces applyAmbientCalibration( ), which took no pin and walked the list
- * for the first DHT22 — one board could hold offsets for exactly one
- * humidity sensor, and a second DHT22 silently shared or stole them. */
-void SensorManager::applyCalibrationOffsets(uint8_t gpio, const float offsets[MAX_SENSOR_CHANNELS]) {
+ * The float[] ancestor replaced applyAmbientCalibration( ), which took no pin
+ * and walked the list for the first DHT22 — one board could hold offsets for
+ * exactly one humidity sensor, and a second DHT22 silently shared or stole
+ * them. avgValue is refreshed immediately: the ring holds raw samples, so a
+ * new curve takes effect on the spot instead of after the next read cycle. */
+void SensorManager::applyCalibrationCurves(uint8_t gpio, const CalibCurve curves[MAX_SENSOR_CHANNELS]) {
  for (auto &s : _runtimeSensors) {
  if (s.config.pins[0] == gpio) {
- for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) s.calibrationOffset[c] = offsets[c];
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+ s.calib[c] = curves[c];
+ s.avgValue[c] = calibCurveApply(curves[c], s.rawValue[c]);
+ }
  break;
  }
  }

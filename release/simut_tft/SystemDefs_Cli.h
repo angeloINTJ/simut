@@ -86,7 +86,7 @@ enum DemandType {
  CMD_LANGUAGE,
  /* CLI↔Web parity */
  CMD_IP_CFG, /**< Static IP: intVal1 = 0 dhcp, 1 static, 2 addr, 3 mask, 4 gw, 5 dns; strVal1 = value */
- CMD_SENSOR_FIELD, /**< Limits/calib: intVal1 = gpio; strVal1 = field (tmin/tmax/hmin/hmax/alarm/calib); strVal2 = value */
+ CMD_SENSOR_FIELD, /**< Limits: intVal1 = gpio; strVal1 = field (tmin/tmax/hmin/hmax/alarm — calibration is web-only); strVal2 = value */
  CMD_USER_ADD, /**< strVal1 = username; strVal2 = password */
  CMD_USER_DEL, /**< strVal1 = username (protects admin) */
  CMD_USER_PASS, /**< strVal1 = username; strVal2 = new password */

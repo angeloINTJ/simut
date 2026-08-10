@@ -5,13 +5,21 @@
  * @details O apply destrutivo da Fase 7b reformata a partição LittleFS
  *          (compartilhada com a área de staging do firmware). Para que o
  *          device suba pós-update preservando WiFi/users/sensores, este
- *          módulo serializa `/config/system.bin` em pages 1..15 do setor
- *          de metadata OTA (`OTA_METADATA_OFFSET`, 4 KiB), que sobrevive
+ *          módulo serializa `/config/system.bin` num setor de 4 KiB dedicado
+ *          (`OTA_SNAPSHOT_OFFSET`, no fim da staging area), que sobrevive
  *          ao apply.
  *
- *          Layout do setor pós-snapshot:
- *            page 0       (256 B)  → UpdateMetadata (já existente)
- *            pages 1..15  (3840 B) → ConfigSnapshotHeader + payload + CRC32
+ *          Layout do setor:
+ *            [0..15]      ConfigSnapshotHeader
+ *            [16..]       payload (system.bin raw)
+ *            [tail 4 B]   CRC32
+ *          Total útil: CONFIG_SNAPSHOT_PAYLOAD_MAX = 4096 - 20 = 4076 B.
+ *
+ *          Este comentário dizia "pages 1..15 (3840 B) do setor de metadata",
+ *          que era o desenho antigo — o snapshot ganhou setor próprio e
+ *          `metadata.cpp` grava o setor inteiro. A diferença importa: com
+ *          3840 B a config de hoje (3921 B) não caberia, e alguém alinhando o
+ *          código ao comentário faria todo update virar factory reset.
  *
  *          Demais arquivos (`/calib.csv`, `/history/*`, `/web/*`, `/lang/*`)
  *          NÃO entram no snapshot: o user mantém o `.bkp` baixado pelo

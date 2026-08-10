@@ -207,7 +207,8 @@ void DisplayManager::drawInterfaceFixed( ) {
                        CARD_BOT - CARD_TOP_Y, C_BG_MAIN);
 }
 
-void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w, int16_t h) {
+void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
+ int16_t w, int16_t h, int16_t srcX) {
  if (!canvas || !_driver.tft) return;
 
  /*
@@ -226,12 +227,14 @@ void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
 
  int16_t cw = canvas->width( );
  _driver.tft->setOffsetBypass(true);
- if (w == cw) {
+ if (w == cw && srcX == 0) {
  _driver.tft->drawRGBBitmap(dstX, dstY, canvas->getBuffer( ), w, h);
  } else {
+ /* srcX lets a caller push only a slice of a row it already rendered in
+  * full — the render into RAM is cheap, the SPI transfer is not. */
  uint16_t* buf = canvas->getBuffer( );
  for (int16_t row = 0; row < h; row++) {
- _driver.tft->drawRGBBitmap(dstX, dstY + row, buf + (row * cw), w, 1);
+ _driver.tft->drawRGBBitmap(dstX, dstY + row, buf + (row * cw) + srcX, w, 1);
  }
  }
  _driver.tft->setOffsetBypass(false);

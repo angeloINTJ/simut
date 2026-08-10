@@ -205,8 +205,20 @@ bool DisplayManager::loadLangFile(const char* path) {
  return false;
  }
 
- /* Partition the @DICT block into lines; each line becomes a string.
- * Exactly TR_KEYS_COUNT lines required. */
+ /* Partition the @DICT block into lines; line N is LangKey N.
+ *
+ * A pack shorter than TR_KEYS_COUNT used to be rejected whole, which meant
+ * that adding one key to the firmware turned every already-deployed pack off
+ * and reverted the entire UI to English. Missing keys are left null instead,
+ * and tr() already answers a null entry from DICTIONARY_EN — so an old pack
+ * keeps translating everything it knows and only the new strings come out in
+ * English until it is updated.
+ *
+ * Empty lines are nulled for the same reason. That case is not hypothetical:
+ * both shipped packs ended @DICT with a blank line, so a stale pack lined up
+ * against a newer firmware filled the new slots with "" and drew blank labels
+ * on the TFT — a worse failure than English, because nothing looks wrong,
+ * there is just nothing there. */
  int dictIdx = 0;
  size_t lineStart = secStart[S_DICT];
  size_t dictEnd = secEnd[S_DICT];
@@ -221,17 +233,24 @@ bool DisplayManager::loadLangFile(const char* path) {
  if (lastChar > lineStart && buf[lastChar-1] == '\r') {
  buf[lastChar-1] = '\0';
  }
- _activeLang.strings[dictIdx++] = buf + lineStart;
+ char* line = buf + lineStart;
+ _activeLang.strings[dictIdx++] = (line[0] == '\0') ? nullptr : line;
  }
  lineStart = k + 1;
  if (dictIdx >= TR_KEYS_COUNT) break;
  }
  }
 
- if (dictIdx != TR_KEYS_COUNT) {
+ /* A file with no usable dictionary at all is still a bad file. */
+ if (dictIdx == 0) {
  free(buf);
  memset(&_activeLang, 0, sizeof(_activeLang));
  return false;
+ }
+ for (int k = dictIdx; k < TR_KEYS_COUNT; k++) _activeLang.strings[k] = nullptr;
+ if (dictIdx != TR_KEYS_COUNT) {
+ LOG_CODE(LOG_WARN, "I18N", SYS_OK, dictIdx,
+ TRL("Language pack is older than the firmware — missing strings show in English"));
  }
 
  /* HELP and LICENSE: preserve newlines, only null-terminate at end */

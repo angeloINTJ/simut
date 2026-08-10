@@ -101,8 +101,8 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
   else if (v == "bme280")       newType = TYPE_BME280;
   else if (v == "bmp280")       newType = TYPE_BMP280;
   else {
-   _cmdMgr->printError(pt ? "Tipo invalido. Use: ds18b20, dht22, bme280"
-                         : "Invalid type. Use: ds18b20, dht22, bme280");
+   _cmdMgr->printError(pt ? "Tipo invalido. Use: ds18b20, dht22, bme280, bmp280"
+                         : "Invalid type. Use: ds18b20, dht22, bme280, bmp280");
    return;
   }
   if (!sensorTypeEnabled(newType)) {
@@ -123,8 +123,12 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
   r.active = true;
   /* Reset defaults */
   r.alarmsActive = false;
-  r.tempMin = -50.0f; r.tempMax = 150.0f;
-  r.humMin = 0.0f;   r.humMax = 100.0f;
+  /* Widest band the channel admits: a retyped slot must not carry the previous
+   * chip's alarm limits, and "no limit" is safer than a guess. */
+  for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+   r.chMin[c] = channelInfo(c).saneMin;
+   r.chMax[c] = channelInfo(c).saneMax;
+  }
   r.hwId[0] = '\0';
   r.friendlyName[0] = '\0';
 
@@ -196,9 +200,10 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
   if (v == "ds18b20")           newType = TYPE_DS18B20;
   else if (v == "dht22")        newType = TYPE_DHT22;
   else if (v == "bme280")       newType = TYPE_BME280;
+  else if (v == "bmp280")       newType = TYPE_BMP280;
   else {
-   _cmdMgr->printError(pt ? "Tipo invalido. Use: ds18b20, dht22, bme280"
-                         : "Invalid type. Use: ds18b20, dht22, bme280");
+   _cmdMgr->printError(pt ? "Tipo invalido. Use: ds18b20, dht22, bme280, bmp280"
+                         : "Invalid type. Use: ds18b20, dht22, bme280, bmp280");
    return;
   }
   if (!sensorTypeEnabled(newType)) {
@@ -305,22 +310,41 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  _cmdMgr->printError(pt ? "Valor numerico invalido" : "Invalid numeric value");
  return;
  }
- /* Use strcmp instead of == (pointer comparison). */
- if (strcmp(field, "tmin") == 0 || strcmp(field, "tmax") == 0) {
- if (val < -50.0f || val > 150.0f) {
- _cmdMgr->printError(pt ? "Temp fora de range (-50 a 150)" : "Temp out of range (-50 to 150)");
- return;
+ /* `<key>min` / `<key>max`, key from the channel table — `tempmin`, `pressmax`.
+  * The short `tmin`/`tmax`/`hmin`/`hmax` still work, because they are what the
+  * help text and every existing script say. Both used to be the only form, and
+  * a quantity with no two-letter name of its own could not be set at all. */
+ size_t flen = strlen(field);
+ int fch = -1; bool fIsMax = false;
+ if (flen > 3 && (strcmp(field + flen - 3, "min") == 0 || strcmp(field + flen - 3, "max") == 0)) {
+ char key[16];
+ size_t klen = flen - 3;
+ if (klen < sizeof(key)) {
+ memcpy(key, field, klen); key[klen] = '\0';
+ fch = channelByKey(key);
+ fIsMax = (strcmp(field + flen - 3, "max") == 0);
  }
- if (strcmp(field, "tmin") == 0) r.tempMin = val; else r.tempMax = val;
- } else if (strcmp(field, "hmin") == 0 || strcmp(field, "hmax") == 0) {
- if (val < 0.0f || val > 100.0f) {
- _cmdMgr->printError(pt ? "Umid fora de range (0-100)" : "Hum out of range (0-100)");
- return;
  }
- if (strcmp(field, "hmin") == 0) r.humMin = val; else r.humMax = val;
- } else {
+ if (fch < 0) {
+ if (strcmp(field, "tmin") == 0)      { fch = CH_TEMP; fIsMax = false; }
+ else if (strcmp(field, "tmax") == 0) { fch = CH_TEMP; fIsMax = true;  }
+ else if (strcmp(field, "hmin") == 0) { fch = CH_HUM;  fIsMax = false; }
+ else if (strcmp(field, "hmax") == 0) { fch = CH_HUM;  fIsMax = true;  }
+ }
+ if (fch < 0) {
  _cmdMgr->printError(pt ? "Campo desconhecido" : "Unknown field");
  return;
+ }
+ {
+ const ChannelInfo& ci = channelInfo((uint8_t)fch);
+ if (val < ci.saneMin || val > ci.saneMax) {
+ char msg[80];
+ snprintf(msg, sizeof(msg), pt ? "%s fora de range (%.1f a %.1f)" : "%s out of range (%.1f to %.1f)",
+          ci.name, ci.saneMin, ci.saneMax);
+ _cmdMgr->printError(msg);
+ return;
+ }
+ if (fIsMax) r.chMax[fch] = val; else r.chMin[fch] = val;
  }
  _cmdMgr->printSuccess((pt ? "Slot " : "Slot ") + String(cmd.intVal1) + " " + field + "=" + cmd.strVal2);
  changed = true;
@@ -341,7 +365,7 @@ void AppManager::cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, 
  if (gpio >= MAX_SENSORS) return;
 
  uint8_t foundRom[8];
- String dbId; float dbOffset = 0.0f; String dbName;
+ String dbId; CalibCurve dbCurve; String dbName;
 #if SIMUT_SENSOR_DS18B20
  if (!_sensorMgr->identifyPhysicalSensor(gpio, foundRom)) {
  _cmdMgr->printError((pt ? "Nenhum sensor no GPIO " : "No physical sensor detected on GPIO ") + String(gpio));
@@ -351,7 +375,7 @@ void AppManager::cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, 
  _cmdMgr->printError((pt ? "Sensor invalido no GPIO " : "Invalid physical sensor on GPIO ") + String(gpio));
  return;
  }
- _storageMgr->getCalibrationData(foundRom, dbId, dbOffset, dbName);
+ _storageMgr->getCalibrationData(foundRom, dbId, dbCurve, dbName);
 #endif
 
  String currentId = String(cfg.sensors[gpio].hwId);

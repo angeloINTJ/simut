@@ -140,6 +140,14 @@ private:
 	volatile bool _isProcessingScreenshot = false;
 	volatile bool _cancelScreenshot = false;
 	volatile bool _inHistoryHandler = false;
+public:
+	/* The light-yield asks before doing live work: a sensor sweep plus a
+	 * possible panel-save debounce inside a streaming handler kills and
+	 * relaunches Core 1 mid-response — the detonator behind the storm's
+	 * residual soft-panics. Streaming pauses that work; it resumes on the
+	 * next loop tick after the handler returns. */
+	bool isStreamingNow( ) const { return _inHistoryHandler; }
+private:
 	volatile bool _inExportLogsHandler = false; /**< Separate guard for /api/export/logs.bin */
 
 
@@ -171,6 +179,30 @@ private:
 	bool safeSend(const String& content);
 	bool safeSend_P(const char* content);
 	bool safeSend_GZ(const uint8_t* gz_data, size_t gz_len);
+	/* The funnel under every overload: slices, waits for socket room with the
+	 * watchdog fed, and only then hands lwIP a write it can complete without
+	 * parking. See WebManager_Send.cpp for the slow-reader reboot it ends. */
+	bool safeSendN(const char* data, size_t len, const char* origin);
+	/* Room-wait alone — REQUIRED before any direct _server.send( ) on a
+	 * streaming handler: on keep-alive the previous response's unread tail
+	 * makes even a header write park in lwIP. */
+	bool waitSendRoom(size_t need, const char* origin);
+	/* Post-handleClient: fed+bounded drain of the un-ACKed tail, else
+	 * stop(0) — so the framework's polite close never parks unfed. */
+	void drainOrDrop( );
+	/* Armed by a send that COMPLETED; cleared on gone/drop. The successful
+	 * send is what proves _server.client( ) is safe to touch after
+	 * handleClient returns: the framework keeps a connected client, and
+	 * client( ) is a bare `*_currentClient` — with no client that deref is
+	 * the crash-loop this flag exists to prevent. */
+	bool _drainPending = false;
+
+	/* True while the current response is chunked — armed alongside every
+	 * setContentLength(CONTENT_LENGTH_UNKNOWN), cleared per request in
+	 * update( ). The abort policy branches on it: see dropAbortedStream. */
+	bool _chunkedResponse = false;
+	uint32_t _abortDrops = 0; /**< aborted chunked streams hard-closed (metr.ad) */
+	void dropAbortedStream(const char* origin);
 
 	/* Broken-pipe observability. safeSend returning false is logged at most
 	 * once every 5 seconds (throttle to avoid log spam when a handler

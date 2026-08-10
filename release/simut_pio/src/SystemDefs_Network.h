@@ -48,6 +48,16 @@ constexpr uint32_t NET_TLS_HANDSHAKE_MS = 15000;
  */
 constexpr int32_t RSSI_MIN_THRESHOLD = -78;
 
+/* Plausible range for a received-signal RSSI, in dBm. Anything outside it means
+ * the cyw43 ioctl is not returning real data — measured on the bench as +4 dBm
+ * while the device was completely off the network (host ARP INCOMPLETE, 100%
+ * ICMP loss) and WiFi.status( ) still reported WL_CONNECTED. Used by
+ * NetworkManager as a second liveness signal, because a non-negative reading
+ * otherwise sails past RSSI_MIN_THRESHOLD and confirms health instead of
+ * denying it. */
+constexpr int32_t RSSI_IMPLAUSIBLE_HIGH = 0;
+constexpr int32_t RSSI_IMPLAUSIBLE_LOW  = -120;
+
 #ifdef SIMUT_MDNS
 /** Minimum interval between MDNS.update() calls (ms). */
 constexpr uint32_t MDNS_UPDATE_INTERVAL_MS = 2000;
@@ -151,7 +161,37 @@ constexpr uint32_t WEB_LONG_HANDLER_DEADLINE_MS = 15000;
  * WEB_STREAM_BREATH_DELAY_MS — micro-pause after each flushed packet; lets
  *   lwIP drain the PBUF pool and hands the heap/SPI arbiter to Core 1. */
 constexpr size_t   WEB_STREAM_CHUNK_SOFT      = 512;
+
+/* WEB_SEND_STALL_MS — how long safeSend waits for the socket's send buffer
+ * to absorb one slice before dropping the client. The wait loop feeds the
+ * watchdog, so this is a POLICY bound on slow readers, not a survival bound:
+ * 528 B within 4 s is a 132 B/s floor that any real client clears. A reader
+ * below it used to park a single lwIP write past the WDT window — the
+ * SendGuard's 2 s timer feeds demonstrably never reached the watchdog during
+ * those blocks (autopsy: "no feed in WDT window" with C0=[WEB_SEND]) — and
+ * the device rebooted mid-response. Now the stalled client is the one that
+ * pays. */
+constexpr uint32_t WEB_SEND_STALL_MS          = 4000;
 constexpr uint32_t WEB_STREAM_BREATH_RECORDS  = 64;
+
+/* Largest history answer served in one response, in estimated payload
+ * bytes. Past this the handler refuses and asks the client to fetch the
+ * range in slices (?from=&to=).
+ *
+ * The number is not about memory — the response streams. It is about how
+ * long Core 0 stays inside sendContent: ~55 KB/s on this link makes 64 KB
+ * about one second, against a hardware watchdog that fires after 8.4 s of
+ * unfed loop. A 530 KB answer took ten seconds, and three of them queued
+ * by a browser that polls while it charts reset the device every time. */
+constexpr uint32_t WEB_HISTORY_SINGLE_MAX     = 64u * 1024u;
+
+/* Calibration for the payload estimate, measured on real V5 files:
+ * 5.4 B per record at 11 channels, 5.7 at 6, and ~126 B per emitted JSON
+ * point. The old figure was 9 B/record from the V4 era — it made the
+ * estimate read barely half the truth, and a client sizing its slices
+ * from it asked for windows twice as large as it intended. */
+constexpr uint32_t WEB_HISTORY_BYTES_PER_RECORD = 6u;
+constexpr uint32_t WEB_HISTORY_BYTES_PER_POINT  = 126u;
 constexpr uint32_t WEB_STREAM_BREATH_DELAY_MS = 2;
 
 /* ── AP mode ── */

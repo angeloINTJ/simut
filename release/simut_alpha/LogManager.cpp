@@ -13,6 +13,8 @@
  */
 
 #include "LogManager.h"
+#include "FlashIrqProbe.h"   /* g_core1WaitAlarm — tw= fingerprint */
+#include <hardware/timer.h>
 #include "DisplayManager.h" /* logcodeLookup / trlLookup from .lng */
 #include "TouchPriority.h"
 #include <LittleFS.h>
@@ -624,13 +626,43 @@ void LogManager::checkCrossCoreHealth( ) {
  * Core 1 for several cumulative seconds between consecutive saves.
  * HW WDT on Core 0 remains the backstop for real hangs. */
  if (elapsed > 15000) {
+ if (otherCore == 1 && g_core1Fault) {
+ /* Core 1 did not hang — it CRASHED, and the parked fault handler has
+  * the address. A different magic routes the autopsy to print it. */
+ watchdog_hw->scratch[5] = 0xCA11FA17;
+ watchdog_hw->scratch[6] = g_core1FaultPc;
+ watchdog_hw->scratch[7] = (uint32_t)elapsed & 0xFFFFFu;
+ } else {
  watchdog_hw->scratch[5] = 0xCA11B007;
  /* Low byte: where Core 1 was. The module trace only ever says [DISPLAY] for a
   * frozen Core 1 — true and useless — while the phase names the draw call. This
   * byte was free, and RAM does not survive the reboot that follows. */
  watchdog_hw->scratch[6] = (otherCore << 24) | (_coreModule[0] << 16) | (_coreModule[1] << 8)
                          | (g_core1Phase & 0xFF);
- watchdog_hw->scratch[7] = (uint32_t)elapsed;
+ /* elapsed needs 20 bits at most; the other 12 carry the state of Core 1's
+  * wait alarm at the moment of the verdict — INTE|INTR|ARMED|sign + the
+  * target's distance in seconds (capped 255). The W_WFE wedge investigation
+  * lives or dies on exactly these bits, and the first attempt at capturing
+  * them (in AppManager's 10 s check) sat behind gates the panic path never
+  * takes. Autopsy prints them as tw=0xNNN. */
+ uint32_t twfp = 0;
+ { /* Pause ledger, not the alarm: eight tw= samples acquitted the wait's
+    * own alarm, so these 12 bits now interrogate the suspect the alarm
+    * pointed at — a granted lockout whose unpause never came. Packed:
+    * depth(3) | refcount(3) | pause age s, cap 31 (5) | quiet(1). */
+  uint32_t age = 0;
+  if (g_core1PauseStartMs != 0) {
+   age = (millis( ) - g_core1PauseStartMs) / 1000u;
+   if (age > 31u) age = 31u;
+  }
+  uint32_t dep = (g_core1FlashSafeDepth > 0) ? (uint32_t)g_core1FlashSafeDepth : 0u;
+  if (dep > 7u) dep = 7u;
+  uint32_t rc = (g_core1PauseRefCount > 0) ? (uint32_t)g_core1PauseRefCount : 0u;
+  if (rc > 7u) rc = 7u;
+  twfp = (dep << 9) | (rc << 6) | (age << 1) | (g_core1QuietActive ? 1u : 0u);
+ }
+  watchdog_hw->scratch[7] = (twfp << 20) | ((uint32_t)elapsed & 0xFFFFFu);
+ }
 
  /* Safe reboot: clear WDT ENABLE before triggering.
   * watchdog_reboot(0,0,0) leaves ENABLE set → persistent boot loop. */
@@ -776,9 +808,19 @@ void LogManager::performCrashAutopsy( ) {
  /* From the snapshot, never live: setup( ) zeroes scratch[5] before we get here. */
  uint32_t mark = _preBootScratch5;
 
- if (mark == 0xCA11B007) {
+ if (mark == 0xCA11FA17) {
+ /* ctx band 400: Core 1 died by EXCEPTION, not by hanging. The PC is in
+  * the serial text; the persisted record keeps the band. */
+ char msg[120];
+ snprintf(msg, sizeof(msg),
+ "SOFT PANIC: CORE 1 HARD FAULT at PC=0x%08lx (stuck %lums before verdict)",
+ (unsigned long)_preBootScratch6, (unsigned long)(_preBootScratch7 & 0xFFFFFu));
+ logCode(LOG_FATAL, "SYS", SYS_BOOT, 400, String("System boot: ") + msg);
+ watchdog_hw->scratch[5] = 0;
+ } else if (mark == 0xCA11B007) {
  uint32_t data = _preBootScratch6;
- uint32_t stuckTime = _preBootScratch7;
+ uint32_t stuckTime = _preBootScratch7 & 0xFFFFFu;
+ uint32_t twfp = _preBootScratch7 >> 20;
  int deadCore = (data >> 24) & 0xFF;
  int mod0 = (data >> 16) & 0xFF;
  int mod1 = (data >> 8) & 0xFF;
@@ -786,13 +828,14 @@ void LogManager::performCrashAutopsy( ) {
  const char* phaseName = (c1Phase < C1P_COUNT) ? C1P_NAMES[c1Phase] : "?";
 
  char msg[200];
- snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s] phase=%s",
+ snprintf(msg, sizeof(msg), "SOFT PANIC: Core %d heartbeat stuck in [%s] for %lums. C0=[%s] C1=[%s] phase=%s pl=0x%03lx",
  deadCore,
  deadCore == 0 ? (mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK") : (mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK"),
  stuckTime,
  mod0 <= MOD_NAMES_MAX ? MOD_NAMES[mod0] : "UNK",
  mod1 <= MOD_NAMES_MAX ? MOD_NAMES[mod1] : "UNK",
- phaseName);
+ phaseName,
+ (unsigned long)twfp);
 
  /* The compact record keeps only code + context, so the text above survives
   * on the boot serial and nowhere else — which is why catching an autopsy
@@ -827,8 +870,8 @@ void LogManager::performCrashAutopsy( ) {
  const char* c1Name = (c1Valid == 0x80 && c1Mod <= MOD_NAMES_MAX)
  ? MOD_NAMES[c1Mod] : "?";
  snprintf(msg, sizeof(msg),
- "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] C1=[%s] at up=%lums sc3=0x%08lx",
- c0Name, c1Name, (unsigned long)_preBootScratch6, (unsigned long)modTrace);
+ "HW WATCHDOG: Core 0 loop stalled (no feed in WDT window). C0=[%s] C1=[%s] at up=%lums sc3=0x%08lx hp=%lu",
+ c0Name, c1Name, (unsigned long)_preBootScratch6, (unsigned long)modTrace, (unsigned long)_preBootScratch7);
  } else {
  /* WDT was armed, so the previous session ran past setup( ) and must
  * have called TRACE_MOD — a missing C0 marker means the trace channel
@@ -1019,6 +1062,10 @@ static const char* translateCodeEn(uint16_t code) {
  case STO_ENFORCE_SKIP_ACTIVE: return "Skipping active log file";
  case STO_STATS_REPORT: return "Storage stats report";
  case STO_CONFIG_REPORT: return "Config report";
+ case STO_H5_SEALED: return "History block sealed";
+ case STO_H5_WIP: return "History snapshot written";
+ case STO_SCHEMA_MISMATCH: return "History schema mismatch";
+ case STO_LEGACY_PURGED: return "Legacy history purged";
 
  /* ── Web (570–575) ── */
  case WEB_SERVER_STARTED: return "Web server started";

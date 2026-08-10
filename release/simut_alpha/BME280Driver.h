@@ -160,6 +160,49 @@ struct BME280Driver {
         return false;
     }
 
+    /** Frees a slave that is holding SDA low, before the bus is opened.
+     *
+     *  Reflashing resets the MCU but not the sensor, so the chip can be left
+     *  half-way through returning a byte, holding SDA down. The bus then looks
+     *  permanently busy and Wire.begin() has nothing to talk to — which is the
+     *  other half of why the part came up dead after an upload and fine after
+     *  a power cycle.
+     *
+     *  The escape is the standard one: clock the slave out of that byte by
+     *  hand, up to 9 pulses on SCL (eight bits plus the ACK), stopping as soon
+     *  as SDA rises, then a manual STOP so it returns to idle. Costs nothing
+     *  when the bus is already idle, which is the usual case.
+     *
+     *  Must run BEFORE Wire.begin(). Leaves both pins as inputs.
+     *  @return true if the bus was stuck and recovery was attempted. */
+    static bool recoverBus(uint8_t sda, uint8_t scl) {
+        pinMode(sda, INPUT_PULLUP);
+        pinMode(scl, INPUT_PULLUP);
+        delayMicroseconds(10);
+        if (digitalRead(sda) == HIGH) return false;   /* idle — nothing held */
+
+        for (uint8_t i = 0; i < 9 && digitalRead(sda) == LOW; i++) {
+            pinMode(scl, OUTPUT);
+            digitalWrite(scl, LOW);
+            delayMicroseconds(5);
+            pinMode(scl, INPUT_PULLUP);              /* release, pull-up raises it */
+            delayMicroseconds(5);
+        }
+
+        /* STOP condition: SDA low while SCL rises, then SDA released. */
+        pinMode(sda, OUTPUT);
+        digitalWrite(sda, LOW);
+        delayMicroseconds(5);
+        pinMode(scl, INPUT_PULLUP);
+        delayMicroseconds(5);
+        pinMode(sda, INPUT_PULLUP);
+        delayMicroseconds(10);
+
+        Serial.printf("[BMx] bus preso em SDA=%u SCL=%u; recuperado=%d\n",
+                      sda, scl, digitalRead(sda) == HIGH);
+        return true;
+    }
+
     /** Initialize with hardware I2C peripheral (Wire / Wire1).
      *  Uses the RP2040's built-in I2C controller instead of PIO bit-bang.
      *  Zero PIO resources — frees pio0 for OneWirePIO (DS18B20).
@@ -170,30 +213,33 @@ struct BME280Driver {
      *  probing is unnecessary. Falls back to alternate address (0x76↔0x77)
      *  if the primary address doesn't respond. */
     bool begin(TwoWire &wire, uint8_t addr) {
-        uint8_t altAddr = (addr == 0x76) ? (uint8_t)0x77 : (uint8_t)0x76;
+        const uint8_t altAddr = (addr == 0x76) ? (uint8_t)0x77 : (uint8_t)0x76;
+        const uint8_t tryAddr[2] = { addr, altAddr };
 
-        /* ── Pass 1: primary address ── */
-        watchdog_update();
-        delay(1);
-        _sensor = new (std::nothrow) BMx280PIO_RP2040(wire, addr);
-        if (_sensor) {
-            _compLoaded = _sensor->begin();
-            Serial.printf("[BMx] HW I2C addr=0x%02X cid=0x%02X ok=%d\n",
-                          addr, _sensor->getChipID(), _compLoaded);
-            if (_compLoaded) return true;
-            delete _sensor; _sensor = nullptr;
-        }
-
-        /* ── Pass 2: alternate address ── */
-        watchdog_update();
-        delay(1);
-        _sensor = new (std::nothrow) BMx280PIO_RP2040(wire, altAddr);
-        if (_sensor) {
-            _compLoaded = _sensor->begin();
-            Serial.printf("[BMx] HW I2C alt=0x%02X cid=0x%02X ok=%d\n",
-                          altAddr, _sensor->getChipID(), _compLoaded);
-            if (_compLoaded) return true;
-            delete _sensor; _sensor = nullptr;
+        /* Two attempts per address rather than one.
+         *
+         * The single pass was written on the assumption that hardware I2C is
+         * reliable enough not to need retries, and it is — the failure this
+         * fixes is not the bus being flaky, it is the SENSOR being mid-recovery.
+         * A BMx280 needs ~2 ms after power-on and reloads its calibration NVM
+         * after any reset; probe inside that window and it answers with a chip
+         * ID of 0x00. Because a reflash resets the MCU without resetting the
+         * sensor, the two are not in step, which is why the part came up dead
+         * after `pio run -t upload` and healthy after a power cycle. Retrying
+         * costs a few milliseconds on a path that runs once per boot. */
+        for (uint8_t attempt = 0; attempt < 2; attempt++) {
+            for (uint8_t ai = 0; ai < 2; ai++) {
+                watchdog_update();
+                delay(attempt == 0 ? 1 : 5);
+                _sensor = new (std::nothrow) BMx280PIO_RP2040(wire, tryAddr[ai]);
+                if (!_sensor) continue;
+                _compLoaded = _sensor->begin();
+                Serial.printf("[BMx] HW I2C %s=0x%02X cid=0x%02X ok=%d try=%u\n",
+                              ai == 0 ? "addr" : "alt", tryAddr[ai],
+                              _sensor->getChipID(), _compLoaded, attempt + 1);
+                if (_compLoaded) return true;
+                delete _sensor; _sensor = nullptr;
+            }
         }
 
         _compLoaded = false;
@@ -309,6 +355,15 @@ inline void BMP280_renderPanel(GFXcanvas16* cv, float t, float p, bool isValid,
     cv->setFont(&font12);
     cv->setCursor(unitX + 8, 35); cv->print("C");
 
+    /* Right edge of everything the temperature owns. The two halves used to be
+     * anchored independently — temperature from the left, pressure from the
+     * right — and neither knew where the other ended. Pressure is four digits
+     * at sea level, one more than humidity ever needs, so the right block grew
+     * leftwards until its barometer sat on top of the degree sign. */
+    uint16_t cW, cH; int16_t cx, cy;
+    cv->getTextBounds("C", 0, 0, &cx, &cy, &cW, &cH);
+    const int tempRight = unitX + 8 + (int)cW;
+
     /* ── Pressure (right side, mirrors humidity layout) ── */
     if (!isnan(p)) {
         const char* presUnit = "hPa";
@@ -316,14 +371,24 @@ inline void BMP280_renderPanel(GFXcanvas16* cv, float t, float p, bool isValid,
         int16_t px, py; uint16_t puW, puH, pw, ph;
         cv->getTextBounds(presUnit, 0, 0, &px, &py, &puW, &puH);
         const int rightMargin = 15;
+        const int unitGap = 5;          /* was 3: "1014" touched the "hPa" */
         int unitPX = cardW - rightMargin - (int)puW;
-        int presAnchor = unitPX - 3;
+        int presAnchor = unitPX - unitGap;
 
-        cv->setFont(&font24); cv->setTextSize(1);
-        cv->setTextColor(presCol);
         char pb[7];
         snprintf(pb, sizeof(pb), "%d", (int)p);
+
+        /* Measure at the big font first and step down only if it does not fit.
+         * Losing a digit of pressure would be worse than losing its size. */
+        cv->setFont(&font24); cv->setTextSize(1);
         cv->getTextBounds(pb, 0, 0, &px, &py, &pw, &ph);
+        bool bigFont = ((presAnchor - (int)pw) > tempRight + 4);
+        if (!bigFont) {
+            cv->setFont(&font12);
+            cv->getTextBounds(pb, 0, 0, &px, &py, &pw, &ph);
+        }
+
+        cv->setTextColor(presCol);
         cv->setCursor(presAnchor - (int)pw, 35);
         cv->print(pb);
 
@@ -332,9 +397,12 @@ inline void BMP280_renderPanel(GFXcanvas16* cv, float t, float p, bool isValid,
         cv->setCursor(unitPX, 34);
         cv->print(presUnit);
 
-        int baroRight = presAnchor - (int)pw - 6;
-        int bx = baroRight - 15;
-        drawBarometerLarge(cv, bx, 4, baroCol, panelBg, presCol);
+        /* The barometer is decoration, so it is the first thing to go when the
+         * numbers need the room. */
+        int bx = presAnchor - (int)pw - 6 - 15;
+        if (bx > tempRight + 4) {
+            drawBarometerLarge(cv, bx, 4, baroCol, panelBg, presCol);
+        }
     }
 }
 

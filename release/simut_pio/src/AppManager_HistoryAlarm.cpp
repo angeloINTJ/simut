@@ -197,138 +197,74 @@ void AppManager::updateLiveDisplay( ) {
  */
 void AppManager::preloadMinMax( ) {
 	 time_t now = _netMgr->getEpoch( );
-	 struct tm timeinfo;
-	 localtime_r(&now, &timeinfo);
 
-	 char path[42];
-	 snprintf(path, sizeof(path), "/history/%04d%02d%02d" HISTORY_V4_FILE_EXT,
-	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
+	 /* V5 turns this from a full-day decode into a header walk.
+	  *
+	  * Under V4 the day's ~1440 records had to be decoded one by one just to
+	  * find four numbers per slot, which is why this function carried a 5 s
+	  * budget and a "partial cache" log — a boot in the afternoon regularly
+	  * ran out of time and left the dashboard showing min/max of mid-morning.
+	  *
+	  * A V5 DATA header already carries the per-channel min/max of its block
+	  * (§3.3), so the answer for a whole day is 24 header reads and no
+	  * payload at all. The budget stays as a guard, but nothing here is
+	  * expected to approach it. */
+	 const String path = _storageMgr->getHistoryFileNameV5((uint32_t)now);
 
-	 _storageMgr->enterFlashReadLock( );
-	 bool fileExists = LittleFS.exists(path);
-	 File f;
-	 if (fileExists) f = LittleFS.open(path, "r");
-	 _storageMgr->exitFlashReadLock( );
-
-	 if (!fileExists || !f) return;
-
-	 /* V4: read header into buffer, then parse.
-	  * Static allocation — HistV4State (2.2KB) + hdrBuf (2KB) + pRdBuf (256B)
-	  * exceeds the RP2040 ~4KB stack. Static moves these to BSS (global RAM). */
-	 static HistV4State pState;
-	 static uint8_t hdrBuf[HIST_V4_MAX_HEADER];
-	 static uint8_t pRdBuf[HIST_V4_READ_BUF];
+	 bool opened = false;
 	 {
 	 StorageManager::ReadGuard rg(_storageMgr.get( ));
-	 int hdrRead = f.read(hdrBuf, sizeof(hdrBuf));
-	 /* Cursor fix (same as graph/web/scan): reposition to the real
-	  * header end, else small files decode nothing (cursor at EOF). */
-	 size_t pHdrLen = (hdrRead >= (int)HIST_V4_HEADER_FIXED)
-	                  ? histV4ReadHeaderBuf(hdrBuf, (size_t)hdrRead, pState) : 0;
-	 if (pHdrLen == 0) {
-	 f.close( );
-	 return;
+	 opened = LittleFS.exists(path)
+	          && _storageMgr->h5OpenDay(path, /*verifyPayload=*/false);
 	 }
-	 f.seek(pHdrLen);
-	 }
+	 if (!opened) return;
 
-	 size_t pRdFilled = 0;
+	 const uint32_t budget = millis( );
+	 uint16_t blocks = 0;
+	 bool truncated = false;
 
-	 /* ── M1: mapa medição → slot, resolvido UMA VEZ por arquivo ──────────
-	  * A tabela de medições é fixa para o arquivo inteiro, mas o laço
-	  * abaixo fazia histV4StrPoolGet + varredura de MAX_SENSORS para CADA
-	  * medição de CADA registro — a mesma resposta recalculada 1.440 × 4
-	  * vezes num dia cheio. É o padrão que derrubava o handler web por
-	  * watchdog (416f2dc); aqui o teto de 5 s evita o reboot mas entrega
-	  * cache PARCIAL: min/max errados no dashboard após reboot à tarde. */
-	 int8_t measSlot[HIST_V4_MAX_MEASUREMENTS];
+	 for (;;) {
+	 if (timeSince(budget, 5000)) { truncated = true; break; }
+
+	 H5DataHeader hdr;
+	 const int16_t *mn = nullptr, *mx = nullptr;
+	 bool got = false;
 	 {
-	 SystemConfig &cfg = _storageMgr->getConfig( );
-	 for (uint8_t m = 0; m < pState.measureCount; m++) {
-	 measSlot[m] = -1;                       /* -1 = medição sem dono ativo */
-	 uint8_t sIdx = pState.measures[m].sensorIdx;
-	 if (sIdx >= pState.sensorCount) continue;
-
-	 char hwId[17];
-	 histV4StrPoolGet(hwId, sizeof(hwId), pState.strPool,
-	                  pState.sensors[sIdx].hwIdOffset,
-	                  pState.sensors[sIdx].hwIdLen);
-
-	 for (int i = 0; i < MAX_SENSORS; i++) {
-	 if (cfg.sensors[i].active && strcmp(cfg.sensors[i].hwId, hwId) == 0) {
-	 measSlot[m] = (int8_t)i;
-	 break;
+	 StorageManager::ReadGuard rg(_storageMgr.get( ));
+	 got = _storageMgr->h5NextBlock(hdr, mn, mx);
 	 }
-	 }
-	 }
-	 }
+	 if (!got) break;
+	 blocks++;
 
-	 uint32_t _preloadBudget = millis( );
-	 bool hasMore = true;
+	 const H5ChannelDesc* schema = _storageMgr->h5ReaderSchema( );
+	 const uint8_t nCh = _storageMgr->h5ReaderChannels( );
+	 for (uint8_t c = 0; c < nCh && schema; c++) {
+	 /* id is slot*MAX_SENSOR_CHANNELS + channel by construction
+	  * (StorageManager::buildH5Schema), so the slot the display
+	  * indexes by comes straight out of the descriptor — no string
+	  * pool, no per-record sensor scan. That whole apparatus, and
+	  * the M1 hoisting that made it survivable, is gone. */
+	 const uint8_t slot = (uint8_t)(schema[c].id / MAX_SENSOR_CHANNELS);
+	 const uint8_t ch   = (uint8_t)(schema[c].id % MAX_SENSOR_CHANNELS);
+	 if (slot >= MAX_SENSORS) continue;
+	 if (mn[c] == H5_NAN_SENTINEL || mx[c] == H5_NAN_SENTINEL) continue;
 
-	 while (hasMore) {
-	 if (timeSince(_preloadBudget, 5000)) {
-	 LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, 0, "");
-	 { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
-	 LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, 0, "");
-	 return;
-	 }
-
-	 _storageMgr->enterFlashReadLock( );
-	 /* Batch-decode up to 20 records — static to avoid 10KB stack allocation */
-	 static int64_t s_batchVals[20][HIST_V4_MAX_MEASUREMENTS];
-	 static uint32_t s_batchEpochs[20];
-	 int count = 0;
-	 while (count < 20) {
-	 /* A1: o limiar antigo (`pRdFilled < anchorByteSize`) não reabastecia
-	  * quando o buffer tinha bytes suficientes para uma âncora mas não
-	  * para um delta grande — o preload parava no meio do dia e o
-	  * dashboard ficava com min/max de meia manhã. */
-	 size_t consumed = histV4DecodeNextRefill(
-	 pRdBuf, sizeof(pRdBuf), pRdFilled, pState,
-	 s_batchVals[count], &s_batchEpochs[count],
-	 [&f](uint8_t *dst, size_t maxBytes) -> size_t {
-	 if (f.available( ) <= 0) return 0;
-	 int rN = f.read(dst, maxBytes);
-	 return (rN > 0) ? (size_t)rN : 0;
-	 });
-	 if (consumed == 0) break;
-	 count++;
-	 }
-	 hasMore = (pRdFilled > 0 || f.available( ) > 0);
-	 _storageMgr->exitFlashReadLock( );
-
-	 /* Process batch: map measurements to slot-indexed caches */
-	 for (int b = 0; b < count; b++) {
-	 for (uint8_t m = 0; m < pState.measureCount; m++) {
-	 if (histV4IsNan(s_batchVals[b][m], pState.measures[m].bitWidth)) continue;
-
-	 /* M1: slot já resolvido por arquivo — sem string pool nem
-	  * varredura de sensores aqui dentro. */
-	 const int slot = measSlot[m];
-	 if (slot < 0) continue;
-
-	 float v = histV4ToFloat(s_batchVals[b][m], pState.measures[m]);
-	 if (isnan(v)) continue;
-
-	 uint8_t ch = pState.measures[m].channel;
+	 const float scale = powf(10.0f, (float)schema[c].scaleExp);
+	 const float lo = (float)mn[c] * scale;
+	 const float hi = (float)mx[c] * scale;
 	 if (ch == CH_TEMP) {
-	 if (v < _cachedMin[slot]) _cachedMin[slot] = v;
-	 if (v > _cachedMax[slot]) _cachedMax[slot] = v;
+	 if (lo < _cachedMin[slot]) _cachedMin[slot] = lo;
+	 if (hi > _cachedMax[slot]) _cachedMax[slot] = hi;
 	 } else if (ch == CH_HUM) {
-	 if (v < _cachedHumMin[slot]) _cachedHumMin[slot] = v;
-	 if (v > _cachedHumMax[slot]) _cachedHumMax[slot] = v;
-	 }
+	 if (lo < _cachedHumMin[slot]) _cachedHumMin[slot] = lo;
+	 if (hi > _cachedHumMax[slot]) _cachedHumMax[slot] = hi;
 	 }
 	 }
 
 	 feedWdt( );
-	 delay(2);
 	 }
 
-
-		 /* Close file under read lock */
-		 { StorageManager::ReadGuard rg(_storageMgr.get( )); f.close( ); }
+	 { StorageManager::ReadGuard rg(_storageMgr.get( )); _storageMgr->h5CloseDay( ); }
 
 	 /* Snapshot: save a copy of caches so live values can separate preload from real-time */
 	 memcpy(_preloadMin, _cachedMin, sizeof(_preloadMin));
@@ -336,7 +272,12 @@ void AppManager::preloadMinMax( ) {
 	 memcpy(_preloadHumMin, _cachedHumMin, sizeof(_preloadHumMin));
 	 memcpy(_preloadHumMax, _cachedHumMax, sizeof(_preloadHumMax));
 
-	 LOG_CODE(LOG_INFO, "APP", APP_CACHE_PRELOAD_DONE, 0, "");
+	 if (truncated) {
+	 LOG_CODE(LOG_WARN, "APP", APP_PRELOAD_BUDGET, (int)blocks, "");
+	 LOG_CODE(LOG_INFO, "APP", APP_CACHE_MINMAX_PARTIAL, (int)blocks, "");
+	 } else {
+	 LOG_CODE(LOG_INFO, "APP", APP_CACHE_PRELOAD_DONE, (int)blocks, "");
+	 }
 }
 
 void AppManager::processHistoryLogging( ) {
@@ -370,86 +311,88 @@ void AppManager::processHistoryLogging( ) {
  {
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
 
-	 /* ── Build V4 universal record (schema-driven, no legacy compat) ── */
-	 const HistV4State* schema = _storageMgr->getV4Schema( );
-	 if (!schema) {
-	  /* Bootstrap: first-ever history call — create the .sim4 file with
-	   * schema header. The codec starts invalid and only becomes valid
-	   * inside writeHistoryEntryFlashV4(). One-time init, then real data
-	   * flows on the next history interval. */
-	  _storageMgr->ensureV4Schema( );
-	  return;
-	 }
-	 if (schema->measureCount == 0) {
+	 /* ── Build the V5 record — one value per schema channel ───────────
+	  * The schema comes from the provisioned slots (StorageManager
+	  * ::buildH5Schema) and is emitted into the file's SCHEMA chunk, so
+	  * this loop only has to fill values in that same order: slot by
+	  * slot, channel by channel. */
+	 _storageMgr->ensureH5Schema( );
+	 const H5ChannelDesc* h5schema = _storageMgr->getH5Schema( );
+	 const uint8_t nCh = _storageMgr->getH5ChannelCount( );
+	 if (!h5schema || nCh == 0) {
 	  if (!_histSchemaEmptyWarned) {
-	   LOG_CODE(LOG_WARN, "HIST", APP_HIST_NO_SCHEMA, 0, "V4 schema empty — no active sensors?");
+	   LOG_CODE(LOG_WARN, "HIST", APP_HIST_NO_SCHEMA, 0, "V5 schema empty — no active sensors?");
 	   _histSchemaEmptyWarned = true;
 	  }
 	  return;
 	 }
+	 _histSchemaEmptyWarned = false;
 
 	 SystemConfig &cfg = _storageMgr->getConfig( );
-	 int64_t values[HIST_V4_MAX_MEASUREMENTS];
-	 uint8_t mc = schema->measureCount;
-	 uint8_t matched = 0; /* channels that actually took a live reading */
-	 for (uint8_t m = 0; m < mc; m++) {
-	 	 values[m] = histV4NanSentinel(schema->measures[m].bitWidth);
-	 }
+	 int16_t values[H5_MAX_CHANNELS];
+	 for (uint8_t i = 0; i < nCh; i++) values[i] = H5_NAN_SENTINEL;
+	 uint8_t matched = 0;   /* channels that actually took a live reading */
 
-	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
+	 uint8_t idx = 0;
+	 for (int slot = 0; slot < MAX_SENSORS && idx < nCh; slot++) {
 	 	 if (!cfg.sensors[slot].active) continue;
+	 	 const uint8_t stype = cfg.sensors[slot].sensorType;
+
+	 	 /* The runtime sensor for this slot, matched by GPIO the way the
+	 	  * rest of the system does. Absent or in error leaves its channels
+	 	  * as NAN, which costs 1 bit per record and per channel (§3.7-1) —
+	 	  * a transient dropout is not a schema change. */
+	 	 const RuntimeSensor* live = nullptr;
 	 	 for (const auto &s : sensors) {
-	 	 	 if (s.config.pins[0] != cfg.sensors[slot].pins[0] || s.inErrorState) continue;
-
-	 	 	 for (uint8_t m = 0; m < mc; m++) {
-	 	 	 	 if (schema->measures[m].sensorIdx >= schema->sensorCount) continue;
-	 	 	 	 char sensorHwId[17];
-	 	 	 	 histV4StrPoolGet(sensorHwId, sizeof(sensorHwId),
-	 	 	 	 	 schema->strPool,
-	 	 	 	 	 schema->sensors[schema->measures[m].sensorIdx].hwIdOffset,
-	 	 	 	 	 schema->sensors[schema->measures[m].sensorIdx].hwIdLen);
-	 	 	 	 if (strcmp(sensorHwId, cfg.sensors[slot].hwId) != 0) continue;
-
-	 	 	 	 uint8_t ch = schema->measures[m].channel;
-	 	 	 	 float v = s.avgValue[ch];
-	 	 	 	 /* isfinite: INFINITY passa por isnan e virava 1022 no clamp. */
-	 	 	 	 if (!isfinite(v)) continue;
-
-	 	 	 	 values[m] = histV4FromFloat(v, schema->measures[m]);
-	 	 	 	 matched++;
-
-	 	 	 	 /* Update cache (indexed by slot for display compatibility) */
-	 	 	 	 if (ch == CH_TEMP) {
-	 	 	 	 	 if (v < _cachedMin[slot]) _cachedMin[slot] = v;
-	 	 	 	 	 if (v > _cachedMax[slot]) _cachedMax[slot] = v;
-	 	 	 	 	 if (v < _preloadMin[slot]) _preloadMin[slot] = v;
-	 	 	 	 	 if (v > _preloadMax[slot]) _preloadMax[slot] = v;
-	 	 	 	 } else if (ch == CH_HUM) {
-	 	 	 	 	 if (v < _cachedHumMin[slot]) _cachedHumMin[slot] = v;
-	 	 	 	 	 if (v > _cachedHumMax[slot]) _cachedHumMax[slot] = v;
-	 	 	 	 	 if (v < _preloadHumMin[slot]) _preloadHumMin[slot] = v;
-	 	 	 	 	 if (v > _preloadHumMax[slot]) _preloadHumMax[slot] = v;
-	 	 	 	 }
+	 	 	 if (s.config.pins[0] == cfg.sensors[slot].pins[0] && !s.inErrorState) {
+	 	 	 	 live = &s;
+	 	 	 	 break;
 	 	 	 }
-	 	 	 break;
+	 	 }
+
+	 	 for (uint8_t ch = 0; ch < MAX_SENSOR_CHANNELS && idx < nCh; ch++) {
+	 	 	 if (!sensorHasChannel((SensorType)stype, ch)) continue;
+	 	 	 const ChannelInfo &ci = channelInfo(ch);
+	 	 	 const uint8_t chIdx = idx++;
+	 	 	 if (!live) continue;
+
+	 	 	 const float v = live->avgValue[ch];
+	 	 	 /* isfinite, not isnan: the BMP280 humidity compensation yields
+	 	 	  * +INF, and isnan(inf) is false. */
+	 	 	 if (!isfinite(v)) continue;
+
+	 	 	 /* Scale must match the scaleExp buildH5Schema wrote into the
+	 	 	  * SCHEMA, or the file would describe values it does not hold. */
+	 	 	 float scale = (float)ci.scale;
+	 	 	 if (ci.bitWidth > 16) scale = 1.0f;      /* see buildH5Schema */
+	 	 	 float scaled = v * scale;
+	 	 	 if (scaled > 32767.0f) scaled = 32767.0f;
+	 	 	 if (scaled < -32767.0f) scaled = -32767.0f;  /* -32768 is the sentinel */
+	 	 	 values[chIdx] = (int16_t)lroundf(scaled);
+	 	 	 matched++;
+
+	 	 	 /* Min/max cache, indexed by slot for the display. */
+	 	 	 if (ch == CH_TEMP) {
+	 	 	 	 if (v < _cachedMin[slot]) _cachedMin[slot] = v;
+	 	 	 	 if (v > _cachedMax[slot]) _cachedMax[slot] = v;
+	 	 	 	 if (v < _preloadMin[slot]) _preloadMin[slot] = v;
+	 	 	 	 if (v > _preloadMax[slot]) _preloadMax[slot] = v;
+	 	 	 } else if (ch == CH_HUM) {
+	 	 	 	 if (v < _cachedHumMin[slot]) _cachedHumMin[slot] = v;
+	 	 	 	 if (v > _cachedHumMax[slot]) _cachedHumMax[slot] = v;
+	 	 	 	 if (v < _preloadHumMin[slot]) _preloadHumMin[slot] = v;
+	 	 	 	 if (v > _preloadHumMax[slot]) _preloadHumMax[slot] = v;
+	 	 	 }
 	 	 }
 	 }
 
-	 /* Every channel is still the NaN sentinel: nothing the sensors reported
-	  * lined up with the schema. Writing that produces a record with a valid
-	  * timestamp and no data — which is exactly what happened on the bench for
-	  * hours while APP_HISTORY_SAVED kept claiming success, because
-	  * writeHistoryEntryV4 succeeds regardless of what the values are.
-	  *
-	  * The usual cause is a sensor identity change mid-day: the schema lives in
-	  * the .sim4 header and is restored from the file by ensureV4Schema, so
-	  * editing a hwId leaves the match in strcmp(schemaHwId, cfg hwId) failing
-	  * until tomorrow's file. Refuse the record and say so — an empty row is
-	  * worse than a gap, because it looks like data. */
+	 /* Every channel still the sentinel means nothing the sensors reported
+	  * lined up with the schema. An all-empty row has a valid timestamp and
+	  * no data, which looks like data — refuse it and say so. */
 	 if (matched == 0) {
 	 	 if (!_histSchemaMismatchWarned) {
-	 	 	 LOG_CODE(LOG_WARN, "HIST", APP_HIST_SCHEMA_MISMATCH, (int)mc,
-	 	 	          TRL("History skip: schema matches no active sensor (hwId changed?)"));
+	 	 	 LOG_CODE(LOG_WARN, "HIST", APP_HIST_SCHEMA_MISMATCH, (int)nCh,
+	 	 	          TRL("History skip: schema matches no active sensor"));
 	 	 	 _histSchemaMismatchWarned = true;
 	 	 }
 	 	 return;
@@ -460,7 +403,7 @@ void AppManager::processHistoryLogging( ) {
 	 	 _histSchemaMismatchWarned = false;
 	 }
 
-	 if (_storageMgr->writeHistoryEntryV4(values, mc, (uint32_t)now)) {
+	 if (_storageMgr->writeHistoryEntryV5(values, nCh, (uint32_t)now)) {
 	 	 LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
 	 	 _telemetryMgr->notifyNewRecord( );
 	 }
@@ -563,18 +506,16 @@ void AppManager::checkAlarmConditions( ) {
  for (const auto &s : sensors) {
  if (s.config.pins[0] != targetGpio || s.inErrorState) continue;
 
+ /* Every channel the part reports, against that channel's own pair of
+  * limits. This tested temperature, then humidity if the sensor had it,
+  * and stopped — so a BMP280's pressure could leave its range without
+  * anything noticing, no matter what the UI offered. */
  bool tripped = false;
-
- if (!isnan(s.avgValue[0])) {
- if (s.avgValue[0] < cfg.sensors[i].tempMin ||
- s.avgValue[0] > cfg.sensors[i].tempMax) {
- tripped = true;
- }
- }
-
- if (!tripped && sensorHasHumidity(s.type) && !isnan(s.avgValue[1])) {
- if (s.avgValue[1] < cfg.sensors[i].humMin ||
- s.avgValue[1] > cfg.sensors[i].humMax) {
+ for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS && !tripped; c++) {
+ if (!sensorHasChannel(s.type, c)) continue;
+ const float v = s.avgValue[c];
+ if (!isfinite(v)) continue;
+ if (v < cfg.sensors[i].chMin[c] || v > cfg.sensors[i].chMax[c]) {
  tripped = true;
  }
  }

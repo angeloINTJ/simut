@@ -94,6 +94,12 @@ void DisplayManager::drawSettingsThemes( ) {
  _forceSettingsRedraw = false; _lastThemePage = _themePage; _lastPreviewThemeIdx = _previewThemeIdx;
 }
 
+void DisplayManager::refreshAlarmStatus( ) {
+ mutex_enter_blocking(&_stateMutex);
+ _alarmStatusDirty = true; _repaintSettings = true;
+ mutex_exit(&_stateMutex);
+}
+
 void DisplayManager::showSettingsAlarms(SystemConfig* cfg) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_ALARMS; _sysConfigPtr = cfg; _activeSensorCount = 0;
@@ -137,34 +143,60 @@ void DisplayManager::drawSettingsAlarms( ) {
  _driver.tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
  }
 
- int startIdx = _alarmPage * 4; int yBase = 40; int itemW = 285;
- for (int i = 0; i < 4; i++) {
- int y = yBase + (i * 38); int mapIdx = startIdx + i;
+ int startIdx = _alarmPage * 4;
+ for (int i = 0; i < ALARM_LIST_ROWS; i++) {
+ int y = ALARM_EDIT_Y0 + (i * ALARM_EDIT_STEP); int mapIdx = startIdx + i;
 
  /* Only redraw items whose selection state changed, or on fullRedraw/pageChanged */
  if (!fullRedraw && !pageChanged) {
  if (mapIdx != _alarmSelection && mapIdx != _lastAlarmSelection) continue;
  }
 
+ int16_t statusX;
+ renderAlarmRow(mapIdx, statusX);
+ blitCanvas(_driver.canvas, ALARM_EDIT_BAR_X, y, ALARM_EDIT_BAR_W, ALARM_EDIT_BAR_H);
+ }
+ _forceSettingsRedraw = false; _lastAlarmPage = _alarmPage; _lastAlarmSelection = _alarmSelection;
+}
+
+/**
+ * @brief Renders one row of the alarm list into _driver.canvas.
+ * @param outStatusX canvas column where the ON/OFF area begins, wide enough
+ *        for whichever of the two words is longer in the active language —
+ *        the slice a status-only repaint has to cover.
+ */
+void DisplayManager::renderAlarmRow(int mapIdx, int16_t& outStatusX) {
+ const int itemW = ALARM_EDIT_BAR_W;
  _driver.canvas->fillScreen(C_BG_MAIN);
- if (mapIdx < _activeSensorCount) {
+ _driver.canvas->setFont(&simutFont9pt);
+
+ /* Measured from both words, not from the one on screen: "SIM" and "NAO"
+  * differ in width, and a slice sized to the narrower one would leave a
+  * sliver of the wider one behind when the value flips. */
+ int16_t bx, by; uint16_t wOn, wOff, hh;
+ _driver.canvas->getTextBounds(tr(TR_ON), 0, 0, &bx, &by, &wOn, &hh);
+ _driver.canvas->getTextBounds(tr(TR_OFF), 0, 0, &bx, &by, &wOff, &hh);
+ const int widest = (int)((wOn > wOff) ? wOn : wOff);
+ outStatusX = (int16_t)(itemW - 10 - widest - 6);
+ if (outStatusX < 0) outStatusX = 0;
+
+ if (mapIdx >= _activeSensorCount) return;
+
  int actualSensorId = _activeSensorsMap[mapIdx];
  SensorRecord* rec = &_sysConfigPtr->sensors[actualSensorId];
  bool isSelected = (mapIdx == _alarmSelection);
  uint16_t bg = isSelected ? C_ACCENT : C_CARD_BG;
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
- _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
- if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+ _driver.canvas->fillRoundRect(0, 0, itemW, ALARM_EDIT_BAR_H, ALARM_EDIT_BAR_R, bg);
+ if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, ALARM_EDIT_BAR_H,
+ ALARM_EDIT_BAR_R, C_TEXT_SUB);
 
- /* Measure ON/OFF indicator width to reserve space */
  const char* statusTxt = rec->alarmsActive ? tr(TR_ON) : tr(TR_OFF);
- _driver.canvas->setFont(&simutFont9pt);
- int16_t sx1, sy1; uint16_t sw, sh;
- _driver.canvas->getTextBounds(statusTxt, 0, 0, &sx1, &sy1, &sw, &sh);
- int statusAreaW = (int)sw + 20; /* 10px margin on each side */
+ uint16_t sw;
+ _driver.canvas->getTextBounds(statusTxt, 0, 0, &bx, &by, &sw, &hh);
 
  /* Sensor name — truncated if needed to avoid collision */
- int maxNameW = itemW - statusAreaW - 15;
+ int maxNameW = itemW - (widest + 20) - 15;
  char nameBuf[40];
  truncateText(_driver.canvas, rec->friendlyName, nameBuf, sizeof(nameBuf), maxNameW);
  _driver.canvas->setTextColor(txt);
@@ -181,36 +213,95 @@ void DisplayManager::drawSettingsAlarms( ) {
  _driver.canvas->setTextColor(statusColor);
  _driver.canvas->setCursor(itemW - 10 - (int)sw, 24);
  _driver.canvas->print(statusTxt);
- }
- blitCanvas(_driver.canvas, 10, y, itemW, 34);
- }
- _forceSettingsRedraw = false; _lastAlarmPage = _alarmPage; _lastAlarmSelection = _alarmSelection;
+}
+
+/**
+ * @brief Repaints only the ON/OFF word of the selected row.
+ *
+ * Toggling the flag used to route through showSettingsAlarms(), which forces a
+ * whole-screen redraw AND resets the cursor to the first sensor on page 0 —
+ * so flipping the fifth item flashed the display and threw the selection away.
+ * The row is still rendered in full (into RAM, which is cheap); only the
+ * badge-sized slice is pushed over SPI.
+ */
+void DisplayManager::drawAlarmStatusOnly( ) {
+ if (!_driver.canvas || !_sysConfigPtr) return;
+ const int row = _alarmSelection - (_alarmPage * ALARM_LIST_ROWS);
+ if (row < 0 || row >= ALARM_LIST_ROWS) return;
+ int16_t statusX;
+ renderAlarmRow(_alarmSelection, statusX);
+ const int y = ALARM_EDIT_Y0 + (row * ALARM_EDIT_STEP);
+ blitCanvas(_driver.canvas, (int16_t)(ALARM_EDIT_BAR_X + statusX), (int16_t)y,
+ (int16_t)(ALARM_EDIT_BAR_W - statusX), ALARM_EDIT_BAR_H, statusX);
 }
 
 void DisplayManager::showAlarmEdit(int sensorIdx) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_ALARM_EDIT; _editSensorIdx = sensorIdx;
  _tempAlarmConfig = _sysConfigPtr->sensors[sensorIdx];
- _editFieldFocus = 0; _forceSettingsRedraw = true; _repaintSettings = true;
+ _editFieldFocus = 0; _lastEditPage = -1;
+ _forceSettingsRedraw = true; _repaintSettings = true;
  mutex_exit(&_stateMutex);
 }
 
+/* The built-in GFX font is CP437, not UTF-8. The channel table stores "\u00b0C"
+ * as the bytes C2 B0 43, and printing that byte-for-byte draws two garbage
+ * glyphs before the C — which is exactly what happened when the hardcoded "C"
+ * was replaced by the table's unit. Map the degree sign to its CP437 slot and
+ * pass the rest through; every other unit in the table is already ASCII. */
+static void printUnitCp437(GFXcanvas16* c, const char* u) {
+ if (!u) return;
+ for (const uint8_t* p = (const uint8_t*)u; *p; p++) {
+ if (p[0] == 0xC2 && p[1] == 0xB0) { c->write(0xF8); p++; continue; }
+ c->write(*p);
+ }
+}
+
+/* How many glyphs printUnitCp437 actually emits: "°C" is 3 bytes but 2
+ * glyphs. Layout that reserves space for the unit needs the drawn width, and
+ * strlen() would over-reserve by one glyph per degree sign — enough to truncate
+ * a name that fits. */
+static size_t unitGlyphCount(const char* u) {
+ if (!u) return 0;
+ size_t n = 0;
+ for (const uint8_t* p = (const uint8_t*)u; *p; p++) {
+ if (p[0] == 0xC2 && p[1] == 0xB0) p++;
+ n++;
+ }
+ return n;
+}
+
 void DisplayManager::drawAlarmEdit( ) {
- bool hasHum = (_editSensorIdx == -1 || sensorHasHumidity((SensorType)_tempAlarmConfig.sensorType));
+ /* One limit per bar, scrolled four at a time — the same rows, spacing and
+  * scrollbar as every other menu on this display. The screen it replaces laid
+  * out four fixed boxes, which meant a hard ceiling of two channels: a part
+  * with three quantities had its third reachable only from the web. Rows are
+  * derived from the channel table via sensorLimitCount(), so a driver that
+  * adds a quantity gets its two rows here with no edit to this function. */
+ if (!_driver.canvas) return;
+ const SensorType sType = (SensorType)_tempAlarmConfig.sensorType;
+ const uint8_t nLimits = sensorLimitCount(sType);
+ if (nLimits == 0) return;
 
+ /* MIN >= MAX is not representable on screen and would arm an alarm that can
+  * never clear, so every channel is pulled apart before anything is drawn. */
+ for (uint8_t i = 0; i < nLimits; i += 2) {
+ const uint8_t c = sensorLimitChannel(sType, i);
+ if (!channelValid(c)) continue;
+ if (_tempAlarmConfig.chMin[c] < _tempAlarmConfig.chMax[c]) continue;
+ const ChannelInfo& ci = channelInfo(c);
+ _tempAlarmConfig.chMax[c] = round((_tempAlarmConfig.chMin[c] + 0.1f) * 10.0f) / 10.0f;
+ if (_tempAlarmConfig.chMax[c] > ci.saneMax) {
+ _tempAlarmConfig.chMax[c] = ci.saneMax;
+ _tempAlarmConfig.chMin[c] = ci.saneMax - 0.1f;
+ }
+ }
 
- if (_tempAlarmConfig.tempMin >= _tempAlarmConfig.tempMax) {
- _tempAlarmConfig.tempMax = _tempAlarmConfig.tempMin + 0.1f;
- _tempAlarmConfig.tempMax = round(_tempAlarmConfig.tempMax * 10.0f) / 10.0f;
- }
- if (hasHum && _tempAlarmConfig.humMin >= _tempAlarmConfig.humMax) {
- _tempAlarmConfig.humMax = _tempAlarmConfig.humMin + 0.1f;
- _tempAlarmConfig.humMax = round(_tempAlarmConfig.humMax * 10.0f) / 10.0f;
- if (_tempAlarmConfig.humMax > 100.0f) {
- _tempAlarmConfig.humMax = 100.0f;
- _tempAlarmConfig.humMin = 99.9f;
- }
- }
+ const int totalPages = (nLimits + ALARM_EDIT_ROWS - 1) / ALARM_EDIT_ROWS;
+ if (_editFieldFocus >= (int)nLimits) _editFieldFocus = (int)nLimits - 1;
+ if (_editFieldFocus < 0) _editFieldFocus = 0;
+ const int page = _editFieldFocus / ALARM_EDIT_ROWS;
+ const bool pageChanged = (page != _lastEditPage);
 
  if (_forceSettingsRedraw) {
  _driver.tft->fillScreen(C_BG_MAIN);
@@ -220,13 +311,14 @@ void DisplayManager::drawAlarmEdit( ) {
  const char* titleTxt = _tempAlarmConfig.friendlyName; /* T1.2: no heap in Core-1 render */
  _driver.tft->getTextBounds(titleTxt, 0, 0, &tx1, &ty1, &tw, &th);
  _driver.tft->setCursor((320 - tw) / 2, 22); _driver.tft->print(titleTxt);
- _driver.tft->setTextColor(C_TEXT_SUB); _driver.tft->setCursor(10, 52); _driver.tft->print(tr(TR_TEMP));
- if (hasHum) { _driver.tft->setCursor(10, 122); _driver.tft->print(tr(TR_HUMIDITY)); }
+
+ /* The footer arrows now move the SELECTION, not the value — the value is
+  * adjusted on the bar itself. Hence the menu's up/down orientation. */
  int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
  _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(36, btnY + 26, 26, btnY + 12, 46, btnY + 12, C_TEXT_MAIN);
+ _driver.tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
  _driver.tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(104, btnY + 12, 94, btnY + 26, 114, btnY + 26, C_TEXT_MAIN);
+ _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
  _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
  _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
  const char* backTxt = tr(TR_BACK);
@@ -237,32 +329,86 @@ void DisplayManager::drawAlarmEdit( ) {
  const char* saveTxt = tr(TR_SAVE); /* T1.2: no heap in Core-1 render */
  _driver.tft->getTextBounds(saveTxt, 0, 0, &bx, &by, &bw, &bh);
  _driver.tft->setCursor(222 + (93 - bw)/2, btnY + 25); _driver.tft->print(saveTxt);
- _forceSettingsRedraw = false;
  }
- auto drawBox = [&](int fieldId, int x, int y, const char* label, float val, bool isHum) {
- _driver.canvasSmall->fillScreen(C_BG_MAIN);
- bool focused = (_editFieldFocus == fieldId);
- uint16_t bg = focused ? C_ACCENT : C_CARD_BG;
- uint16_t txt = focused ? C_BG_MAIN : C_TEXT_MAIN;
- _driver.canvasSmall->fillRoundRect(0, 0, 140, 40, 10, bg);
- if (!focused) _driver.canvasSmall->drawRoundRect(0, 0, 140, 40, 10, C_TEXT_SUB);
- _driver.canvasSmall->setFont(&simutFont9pt); _driver.canvasSmall->setTextColor(focused ? C_BG_MAIN : C_TEXT_SUB);
- _driver.canvasSmall->setCursor(8, 17); _driver.canvasSmall->print(label);
- _driver.canvasSmall->setFont(&simutFont12pt); _driver.canvasSmall->setTextColor(txt);
- char intPart[8]; char decPart[4];
- if (val < 0 && val > -1.0) { snprintf(intPart, sizeof(intPart), "-0"); } else { snprintf(intPart, sizeof(intPart), "%d", (int)val); }
- int fractional = abs((int)round(val * 10.0f) % 10);
- snprintf(decPart, sizeof(decPart), ".%d", fractional);
- int textAnchor = 98; int16_t bx, by; uint16_t bw, bh;
- _driver.canvasSmall->getTextBounds(intPart, 0, 0, &bx, &by, &bw, &bh);
- _driver.canvasSmall->setCursor(textAnchor - bw, 32); _driver.canvasSmall->print(intPart);
- _driver.canvasSmall->setCursor(textAnchor, 32); _driver.canvasSmall->print(decPart);
- _driver.canvasSmall->setFont(NULL); _driver.canvasSmall->setCursor(122, 20);
- if (isHum) _driver.canvasSmall->print("%"); else _driver.canvasSmall->print("C");
- blitCanvas(_driver.canvasSmall, x, y, 140, 40);
- };
- drawBox(0, 10, 60, "MIN", _tempAlarmConfig.tempMin, false); drawBox(1, 160, 60, "MAX", _tempAlarmConfig.tempMax, false);
- if (hasHum) { drawBox(2, 10, 130, "MIN", _tempAlarmConfig.humMin, true); drawBox(3, 160, 130, "MAX", _tempAlarmConfig.humMax, true); }
+
+ if (_forceSettingsRedraw || pageChanged) {
+ int trackX = 302; int trackY = 40; int trackW = 8; int trackH = 146;
+ _driver.tft->fillRoundRect(trackX, trackY, trackW, trackH, 4, C_CARD_BG);
+ _driver.tft->drawRoundRect(trackX, trackY, trackW, trackH, 4, C_TEXT_SUB);
+ int thumbH = trackH / totalPages; if (thumbH < 20) thumbH = 20;
+ int thumbY = trackY;
+ if (totalPages > 1) { thumbY += (page * (trackH - thumbH)) / (totalPages - 1); }
+ _driver.tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
+ }
+
+ for (int row = 0; row < ALARM_EDIT_ROWS; row++) {
+ const int idx = page * ALARM_EDIT_ROWS + row;
+ const int y = ALARM_EDIT_Y0 + row * ALARM_EDIT_STEP;
+ _driver.canvas->fillScreen(C_BG_MAIN);
+ if (idx < (int)nLimits) {
+ const uint8_t ch = sensorLimitChannel(sType, (uint8_t)idx);
+ const bool isMax = sensorLimitIsMax((uint8_t)idx);
+ if (channelValid(ch)) {
+ const ChannelInfo& ci = channelInfo(ch);
+ const bool focused = (idx == _editFieldFocus);
+ const uint16_t bg = focused ? C_ACCENT : C_CARD_BG;
+ const uint16_t txt = focused ? C_BG_MAIN : C_TEXT_MAIN;
+
+ _driver.canvas->fillRoundRect(0, 0, ALARM_EDIT_BAR_W, ALARM_EDIT_BAR_H,
+ ALARM_EDIT_BAR_R, bg);
+ if (!focused) _driver.canvas->drawRoundRect(0, 0, ALARM_EDIT_BAR_W,
+ ALARM_EDIT_BAR_H, ALARM_EDIT_BAR_R, C_TEXT_SUB);
+
+ /* The step buttons sit inset by the same amount on all four sides, so
+  * their arcs are concentric with the bar's: r_btn = r_bar - inset. */
+ const int lx = ALARM_EDIT_INSET;
+ const int rx = ALARM_EDIT_BAR_W - ALARM_EDIT_INSET - ALARM_EDIT_BTN_W;
+ const uint16_t btnBg = focused ? C_BG_MAIN : C_BAR_BG;
+ const uint16_t arrow = focused ? C_ACCENT : C_TEXT_MAIN;
+ _driver.canvas->fillRoundRect(lx, ALARM_EDIT_INSET, ALARM_EDIT_BTN_W,
+ ALARM_EDIT_BTN_H, ALARM_EDIT_BTN_R, btnBg);
+ _driver.canvas->fillRoundRect(rx, ALARM_EDIT_INSET, ALARM_EDIT_BTN_W,
+ ALARM_EDIT_BTN_H, ALARM_EDIT_BTN_R, btnBg);
+ const int cy = ALARM_EDIT_INSET + ALARM_EDIT_BTN_H / 2;
+ _driver.canvas->fillTriangle(lx + 8, cy, lx + 18, cy - 7, lx + 18, cy + 7, arrow);
+ _driver.canvas->fillTriangle(rx + 18, cy, rx + 8, cy - 7, rx + 8, cy + 7, arrow);
+
+ const float val = isMax ? _tempAlarmConfig.chMax[ch] : _tempAlarmConfig.chMin[ch];
+ char numBuf[12];
+ if (val < 0 && val > -1.0f) snprintf(numBuf, sizeof(numBuf), "-0.%d",
+ abs((int)round(val * 10.0f) % 10));
+ else snprintf(numBuf, sizeof(numBuf), "%d.%d", (int)val,
+ abs((int)round(val * 10.0f) % 10));
+
+ _driver.canvas->setFont(&simutFont9pt);
+ int16_t bx, by; uint16_t bw, bh;
+ _driver.canvas->getTextBounds(numBuf, 0, 0, &bx, &by, &bw, &bh);
+ /* The unit prints in the built-in 6px font, so measuring it in the 9pt
+  * font would over-reserve and truncate names that actually fit. */
+ const int unitW = (int)unitGlyphCount(ci.display.unit) * 6;
+ const int valW = (int)bw + 4 + unitW;
+ const int textL = lx + ALARM_EDIT_BTN_W + 6;
+ const int textR = rx - 6;
+
+ /* The suffix is copied out of tr()'s rotating scratch before the channel
+  * name is fetched, so the order of the two lookups cannot matter. */
+ char suffix[16];
+ snprintf(suffix, sizeof(suffix), " %s", tr(isMax ? TR_MAX_LBL : TR_MIN_LBL));
+ char label[48];
+ truncateTextKeepSuffix(_driver.canvas, channelLabel(ch), suffix,
+ label, sizeof(label), (int16_t)(textR - valW - 8 - textL));
+ _driver.canvas->setTextColor(txt);
+ _driver.canvas->setCursor(textL, 23); _driver.canvas->print(label);
+ _driver.canvas->setCursor(textR - valW, 23); _driver.canvas->print(numBuf);
+ _driver.canvas->setFont(NULL);
+ _driver.canvas->setCursor(_driver.canvas->getCursorX( ) + 4, 16);
+ printUnitCp437(_driver.canvas, ci.display.unit);
+ }
+ }
+ blitCanvas(_driver.canvas, ALARM_EDIT_BAR_X, y, ALARM_EDIT_BAR_W, ALARM_EDIT_BAR_H);
+ }
+ _forceSettingsRedraw = false;
+ _lastEditPage = page;
 }
 
 void DisplayManager::showSettingsMain( ) {

@@ -3,7 +3,7 @@
  * @brief Shared utility functions used across multiple modules.
  * @details Implements CRC8 Dallas/Maxim for 1-Wire ROM validation,
  * CRC32-IEEE-802.3 incremental for streaming export bundles, and
- * history filename format validation (YYYYMMDD.sim4).
+ * history filename format validation (YYYYMMDD.h5).
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  *          SIMUT — Integrated Universal Monitoring and Telemetry System
@@ -71,16 +71,16 @@ uint32_t crc32_final(uint32_t crc) {
 /* =========================================================================== */
 /**
  * @brief Validates a history filename.
- * Expected format: "YYYYMMDD.sim4" (13 characters). The .bin form went with
- * the v2/v3 codec — the GC uses this to decide what it may delete, so leaving
- * it here would have kept stale files exempt forever.
+ * Expected format: "YYYYMMDD.h5" (11 characters). Both older forms went with
+ * the codecs that wrote them — the GC uses this to decide what it may delete,
+ * so leaving one here would have kept stale files exempt forever.
  */
 bool isValidHistoryFileName(const char* name) {
  if (!name) return false;
 
  size_t nLen = strlen(name);
- if (nLen != 13) return false;
- if (name[8] != '.' || name[9] != 's' || name[10] != 'i' || name[11] != 'm' || name[12] != '4') return false;
+ if (nLen != 11) return false;
+ if (name[8] != '.' || name[9] != 'h' || name[10] != '5') return false;
 
  /* First 8 characters must be digits (YYYYMMDD) */
  for (int i = 0; i < 8; i++) {

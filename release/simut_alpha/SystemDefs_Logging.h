@@ -206,6 +206,10 @@ enum LogCode {
  STO_ENFORCE_SKIP_ACTIVE = 563,
  STO_STATS_REPORT = 564,
  STO_CONFIG_REPORT = 565,
+ STO_H5_SEALED = 566,        /* V5 block sealed and appended to its day file */
+ STO_H5_WIP = 567,           /* V5 open block snapshotted to /history/.wip   */
+ STO_SCHEMA_MISMATCH = 568,  /* V5 SCHEMA differs from the compiled one      */
+ STO_LEGACY_PURGED = 569,    /* §11: non-V5 files removed from /history      */
 
  /* ── Web server (570–579) ── */
  WEB_SERVER_STARTED = 570,

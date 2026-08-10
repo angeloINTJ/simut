@@ -27,8 +27,10 @@ void DisplayManager::handleTouch( ) {
  /* Finger released — enables next single touch */
  _touchReleased = true;
 
- /* Short tap on top panel (release before 1s): toggle min/max */
- if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0) {
+ /* Short tap on top panel (release before 1s): toggle min/max.
+  * Not during the tail of a long press — see DASH_HOLD_LOCK_MS. */
+ if (_topPanel.holdStart != 0 && !_topPanel.holdFired && _lastTouchRegion == 0 &&
+ timeReached(_topPanel.lockUntil)) {
  if (!_topPanel.fixed) {
  /* Interactive mode: short tap exits to fixed */
  _topPanel.fixed = true;
@@ -40,7 +42,7 @@ void DisplayManager::handleTouch( ) {
  redrawTopPanel( );
  }
  
- _topPanel.holdStart = 0; _topPanel.holdFired = false;
+ _topPanel.holdStart = 0; _topPanel.holdSeen = 0; _topPanel.holdFired = false;
  
 
  /*
@@ -368,6 +370,13 @@ void DisplayManager::handleTouch( ) {
 
  if (_uiMode == MODE_DASHBOARD) {
  if (y > 35 && y < 110) {
+ /* Deaf while a long press is being let go of. Anything arriving here is
+  * the lift itself, and its coordinates are not to be trusted. */
+ if (!timeReached(_topPanel.lockUntil)) {
+ (void)acceptTouch(0);      /* consume, so it cannot land as a first touch */
+ _topPanel.holdStart = 0;
+ return;
+ }
  bool firstTouch = acceptTouch(0);
 
  /* Mode indicator tap [Amb]/[Sx] (right corner, x > 280): immediate toggle */
@@ -413,15 +422,33 @@ void DisplayManager::handleTouch( ) {
  if (firstTouch) {
  /* Start hold tracking — action deferred to release or 1s timeout */
  _topPanel.holdStart = millis();
+ _topPanel.holdSeen = _topPanel.holdStart;
  _topPanel.holdFired = false;
  return;
  }
 
- /* Holding: long-press (1s) toggles fixed ↔ interactive */
- if (!_topPanel.holdFired && _lastTouchRegion == 0 &&
+ /* Holding. The finger is only "still down" for spans this loop actually
+  * watched: a gap means it was either lifted or Core 1 was paused, and
+  * neither is evidence of a continuous press. Restart rather than count
+  * time nobody observed. */
+ const uint32_t nowMs = millis();
+ if (_topPanel.holdStart != 0 && nowMs - _topPanel.holdSeen > DASH_HOLD_GAP_MS) {
+ _topPanel.holdStart = nowMs;
+ _topPanel.holdFired = false;
+ }
+ _topPanel.holdSeen = nowMs;
+
+ /* Long-press toggles fixed <-> interactive, but not while the panel is
+  * showing min/max: there the gesture would swap the mode out from under
+  * the numbers the user is reading. A press there falls through to the
+  * release path, which leaves min/max — the same as a tap. */
+ if (!_topPanel.holdFired && _lastTouchRegion == 0 && !_topPanel.showMinMax &&
  _topPanel.holdStart != 0 &&
- millis() - _topPanel.holdStart >= 1000) {
+ nowMs - _topPanel.holdStart >= DASH_HOLD_MS) {
  _topPanel.holdFired = true;
+ /* Everything this region produces from here to the end of the lift is
+  * discarded. Survives the release reset on purpose: it is a deadline. */
+ _topPanel.lockUntil = nowMs + DASH_HOLD_LOCK_MS;
  _touchSoundPending = true;
  _topPanel.fixed = !_topPanel.fixed;
  if (_topPanel.fixed)
@@ -747,10 +774,15 @@ void DisplayManager::handleTouch( ) {
  SensorRecord* rec = &_sysConfigPtr->sensors[actualSensorId];
 
  if (rec->alarmsActive) {
- /* ON -> OFF: deactivate and save immediately */
+ /* ON -> OFF: deactivate and save immediately. param=1 tells the save
+  * handler the flag flipped in place, so it repaints the word instead
+  * of re-entering the screen (which would also drop the cursor back to
+  * the first sensor). param was never assigned on this event before —
+  * it was uninitialised stack, harmless only because nobody read it. */
  rec->alarmsActive = false;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
  ev.id = actualSensorId;
+ ev.param = 1;
  pushUiEvent(ev);
  _repaintSettings = true;
  } else {
@@ -780,24 +812,17 @@ void DisplayManager::handleTouch( ) {
  }
  }
  else if (_uiMode == MODE_SETTINGS_ALARM_EDIT) {
- bool hasHum = sensorHasHumidity((SensorType)_tempAlarmConfig.sensorType);
+ /* One limit per bar, four bars per page. The value is adjusted on the bar
+  * itself — the arrows at its ends — and the footer arrows move the
+  * selection, which is what pages the list. Bounds come from the channel
+  * table, so a quantity that is neither temperature nor humidity is clamped
+  * to its own plausible range instead of a hand-written -50..150. */
+ const SensorType sType = (SensorType)_tempAlarmConfig.sensorType;
+ const uint8_t nLimits = sensorLimitCount(sType);
+ if (nLimits == 0) return;
+ if (_editFieldFocus >= (int)nLimits) _editFieldFocus = (int)nLimits - 1;
+ if (_editFieldFocus < 0) _editFieldFocus = 0;
 
-
- if (y >= 50 && y <= 115) {
- uint8_t zone = (x < 160) ? 0 : 1;
- if (!acceptTouch(zone)) return;
- _editFieldFocus = zone;
- _repaintSettings = true;
- }
-
- else if (hasHum && y >= 125 && y <= 170) {
- uint8_t zone = (x < 160) ? 2 : 3;
- if (!acceptTouch(zone)) return;
- _editFieldFocus = zone;
- _repaintSettings = true;
- }
-
- else if (y >= 190) {
  auto adjustVal = [](float val, float step, float minV, float maxV) -> float {
  val += step; val = round(val * 10.0f) / 10.0f;
  if (val < minV) val = minV;
@@ -805,51 +830,81 @@ void DisplayManager::handleTouch( ) {
  return val;
  };
 
- auto enforceInterlock = [&]( ) {
- if (_tempAlarmConfig.tempMin >= _tempAlarmConfig.tempMax) {
- if (_editFieldFocus == 0)
- _tempAlarmConfig.tempMax = round((_tempAlarmConfig.tempMin + 0.1f) * 10.0f) / 10.0f;
+ /* MIN and MAX of one channel may not cross. Push the one the user is NOT
+  * holding, so the digit under their finger keeps moving the way they
+  * pressed. Runs over every channel, not the first two. */
+ auto enforceInterlock = [&](int heldIdx) {
+ for (uint8_t i = 0; i < nLimits; i += 2) {
+ const uint8_t c = sensorLimitChannel(sType, i);
+ if (!channelValid(c)) continue;
+ const ChannelInfo& ci = channelInfo(c);
+ if (_tempAlarmConfig.chMin[c] >= _tempAlarmConfig.chMax[c]) {
+ if (heldIdx == (int)i) /* holding this channel's MIN */
+ _tempAlarmConfig.chMax[c] = round((_tempAlarmConfig.chMin[c] + 0.1f) * 10.0f) / 10.0f;
  else
- _tempAlarmConfig.tempMin = round((_tempAlarmConfig.tempMax - 0.1f) * 10.0f) / 10.0f;
+ _tempAlarmConfig.chMin[c] = round((_tempAlarmConfig.chMax[c] - 0.1f) * 10.0f) / 10.0f;
  }
- if (hasHum && _tempAlarmConfig.humMin >= _tempAlarmConfig.humMax) {
- if (_editFieldFocus == 2)
- _tempAlarmConfig.humMax = round((_tempAlarmConfig.humMin + 0.1f) * 10.0f) / 10.0f;
- else
- _tempAlarmConfig.humMin = round((_tempAlarmConfig.humMax - 0.1f) * 10.0f) / 10.0f;
- }
- if (_tempAlarmConfig.tempMax > 150.0f) _tempAlarmConfig.tempMax = 150.0f;
- if (_tempAlarmConfig.tempMin < -50.0f) _tempAlarmConfig.tempMin = -50.0f;
- if (hasHum) {
- if (_tempAlarmConfig.humMax > 100.0f) _tempAlarmConfig.humMax = 100.0f;
- if (_tempAlarmConfig.humMin < 0.0f) _tempAlarmConfig.humMin = 0.0f;
+ if (_tempAlarmConfig.chMax[c] > ci.saneMax) _tempAlarmConfig.chMax[c] = ci.saneMax;
+ if (_tempAlarmConfig.chMin[c] < ci.saneMin) _tempAlarmConfig.chMin[c] = ci.saneMin;
  }
  };
 
- if (x < 70) {
- /* Decrement with hold-repeat (300ms) and acceleration */
- if (!acceptHoldTouch(10)) return;
- if (_lastPressedBtn != 0) { _btnHoldStartTime = millis( ); _lastPressedBtn = 0; }
+ auto stepLimit = [&](int idx, float step) {
+ const uint8_t c = sensorLimitChannel(sType, (uint8_t)idx);
+ if (!channelValid(c)) return;
+ const ChannelInfo& ci = channelInfo(c);
+ const bool isMax = sensorLimitIsMax((uint8_t)idx);
+ /* Read-modify-write rather than a reference: chMin/chMax live in a packed
+  * struct, whose fields have no alignment guarantee to bind a float& to. */
+ float v = isMax ? _tempAlarmConfig.chMax[c] : _tempAlarmConfig.chMin[c];
+ v = adjustVal(v, step, ci.saneMin, ci.saneMax);
+ if (isMax) _tempAlarmConfig.chMax[c] = v; else _tempAlarmConfig.chMin[c] = v;
+ enforceInterlock(idx);
+ };
+
+ const int page = _editFieldFocus / ALARM_EDIT_ROWS;
+
+ if (y >= ALARM_EDIT_Y0 && y <= 188) {
+ int row;
+ if (y < 80) row = 0; else if (y < 118) row = 1; else if (y < 156) row = 2; else row = 3;
+ const int idx = page * ALARM_EDIT_ROWS + row;
+ if (idx >= (int)nLimits) return;
+
+ if (x <= ALARM_EDIT_HIT_DEC || x >= ALARM_EDIT_HIT_INC) {
+ const bool inc = (x >= ALARM_EDIT_HIT_INC);
+ /* A distinct zone per (row, direction) so sliding off the arrow ends the
+  * repeat instead of silently retargeting it at another limit. */
+ const uint8_t zone = (uint8_t)(30 + row * 2 + (inc ? 1 : 0));
+ if (!acceptHoldTouch(zone)) return;
+ if (_lastPressedBtn != (int)zone) { _btnHoldStartTime = millis( ); _lastPressedBtn = (int)zone; }
  uint32_t holdTime = millis( ) - _btnHoldStartTime;
- float step = -0.1f; if (holdTime > 6000) step = -10.0f; else if (holdTime > 4000) step = -1.0f; else if (holdTime > 2000) step = -0.5f;
- if (_editFieldFocus == 0) _tempAlarmConfig.tempMin = adjustVal(_tempAlarmConfig.tempMin, step, -50.0f, 150.0f);
- if (_editFieldFocus == 1) _tempAlarmConfig.tempMax = adjustVal(_tempAlarmConfig.tempMax, step, -50.0f, 150.0f);
- if (_editFieldFocus == 2) _tempAlarmConfig.humMin = adjustVal(_tempAlarmConfig.humMin, step, 0.0f, 100.0f);
- if (_editFieldFocus == 3) _tempAlarmConfig.humMax = adjustVal(_tempAlarmConfig.humMax, step, 0.0f, 100.0f);
- enforceInterlock( );
+ float mag = 0.1f;
+ if (holdTime > 6000) mag = 10.0f; else if (holdTime > 4000) mag = 1.0f; else if (holdTime > 2000) mag = 0.5f;
+ _editFieldFocus = idx;
+ stepLimit(idx, inc ? mag : -mag);
+ _repaintSettings = true;
+ }
+ else {
+ if (!acceptSlideTouch((uint8_t)row)) return;
+ _lastPressedBtn = -1;
+ _editFieldFocus = idx;
+ _repaintSettings = true;
+ }
+ }
+
+ else if (y >= 190) {
+ if (x < 70) {
+ /* Selection up, with hold-repeat. Paging follows the selection, and
+  * the ends wrap instead of stopping — same as the alarm list above. */
+ if (!acceptHoldTouch(10)) return;
+ _editFieldFocus = (_editFieldFocus > 0) ? _editFieldFocus - 1
+ : (int)nLimits - 1;
  _repaintSettings = true;
  }
  else if (x < 138) {
- /* Increment with hold-repeat (300ms) and acceleration */
  if (!acceptHoldTouch(11)) return;
- if (_lastPressedBtn != 1) { _btnHoldStartTime = millis( ); _lastPressedBtn = 1; }
- uint32_t holdTime = millis( ) - _btnHoldStartTime;
- float step = 0.1f; if (holdTime > 6000) step = 10.0f; else if (holdTime > 4000) step = 1.0f; else if (holdTime > 2000) step = 0.5f;
- if (_editFieldFocus == 0) _tempAlarmConfig.tempMin = adjustVal(_tempAlarmConfig.tempMin, step, -50.0f, 150.0f);
- if (_editFieldFocus == 1) _tempAlarmConfig.tempMax = adjustVal(_tempAlarmConfig.tempMax, step, -50.0f, 150.0f);
- if (_editFieldFocus == 2) _tempAlarmConfig.humMin = adjustVal(_tempAlarmConfig.humMin, step, 0.0f, 100.0f);
- if (_editFieldFocus == 3) _tempAlarmConfig.humMax = adjustVal(_tempAlarmConfig.humMax, step, 0.0f, 100.0f);
- enforceInterlock( );
+ _editFieldFocus = (_editFieldFocus < (int)nLimits - 1) ? _editFieldFocus + 1
+ : 0;
  _repaintSettings = true;
  }
  else if (x < 219) {
@@ -859,7 +914,7 @@ void DisplayManager::handleTouch( ) {
  _tempAlarmConfig.alarmsActive = false;
  _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
- ev.id = _editSensorIdx; pushUiEvent(ev);
+ ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
  showSettingsAlarms(_sysConfigPtr);
  }
  else {
@@ -869,7 +924,7 @@ void DisplayManager::handleTouch( ) {
  _tempAlarmConfig.alarmsActive = true;
  _sysConfigPtr->sensors[_editSensorIdx] = _tempAlarmConfig;
  UiEvent ev; ev.type = UiEvent::EVT_SAVE_ALARMS;
- ev.id = _editSensorIdx; pushUiEvent(ev);
+ ev.id = _editSensorIdx; ev.param = 0; pushUiEvent(ev);
  showSettingsAlarms(_sysConfigPtr);
  }
  }

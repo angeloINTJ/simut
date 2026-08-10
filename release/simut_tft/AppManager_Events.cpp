@@ -300,7 +300,12 @@ void AppManager::core0Yield( ) {
 
  checkAlarmConditions( );
  _soundMgr->play(SND_CONFIRM);
- _displayMgr->showSettingsAlarms(&_storageMgr->getConfig( ));
+ /* param=1 means the ON/OFF flag was toggled from the list and the screen
+  * is already the right one. Re-entering it would repaint all of it and
+  * send the cursor back to the first sensor — the "unpleasant effect".
+  * param=0 comes from the limit editor, which does need the list back. */
+ if (uiEv.param == 1) _displayMgr->refreshAlarmStatus( );
+ else _displayMgr->showSettingsAlarms(&_storageMgr->getConfig( ));
  LOG_CODE(LOG_INFO, "APP", APP_UI_ALARM_SAVED, 0, "");
  }
 

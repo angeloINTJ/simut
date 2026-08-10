@@ -4,7 +4,7 @@
  * @details Manages runtime sensor instances with static ring buffers for
  * moving average calculation (trimmed mean), asynchronous reading
  * state machines, hardware scan across GPIO pins, ROM verification,
- * calibration offset application, and hardware mismatch detection.
+ * calibration curve application, and hardware mismatch detection.
  *
  * Hardware-specific drivers live in src/sensors/ (DS18B20Driver, DHT22Driver).
  * Sensor types are conditionally compiled via SIMUT_SENSOR_* flags
@@ -26,6 +26,7 @@
 #include "sensors/BME280Driver.h"
 #include "LogManager.h"
 #include "sensors/SensorHelpers.h"
+#include "sensors/CalibCurve.h"
 
 
 struct RingBuffer {
@@ -60,12 +61,19 @@ struct RuntimeSensor {
  SensorRecord config;
  SensorType type;
 
- /* Channel arrays — one buffer + average + calibration per measurement axis.
+ /* Channel arrays — one buffer + averages + calibration per measurement axis.
   * [CH_TEMP]=0, [CH_HUM]=1, [CH_PRESS]=2, [CH_LUX]=3.
-  * Inactive channels maintain NAN avgValue and empty buffers. */
+  * Inactive channels maintain NAN averages and empty buffers.
+  *
+  * The ring holds RAW samples and the curve is applied to the filtered mean,
+  * not the other way around: for the old constant offset both orders are the
+  * same arithmetic, but a piecewise curve pushed through the trimmed mean
+  * would let the correction move the outlier cut, and editing a curve at
+  * runtime would leave 10 samples of the old correction in the window. */
  RingBuffer buffers[MAX_SENSOR_CHANNELS];
- float avgValue[MAX_SENSOR_CHANNELS];
- float calibrationOffset[MAX_SENSOR_CHANNELS];
+ float rawValue[MAX_SENSOR_CHANNELS]; /**< filtered mean of the raw samples */
+ float avgValue[MAX_SENSOR_CHANNELS]; /**< rawValue through the curve — what every consumer reads */
+ CalibCurve calib[MAX_SENSOR_CHANNELS];
 
  uint32_t lastReadTime;
  uint32_t readInterval;
@@ -130,13 +138,12 @@ public:
  bool identifyPhysicalSensor(uint8_t gpio, uint8_t* romOut);
 #endif
 
- void applyCalibration(uint8_t gpio, String newHwId, float offset, String newName);
- /* Apply temperature AND humidity offset to the sensor wired to `gpio`.
-  * hwId/name are handled via applyCalibration separately. */
- /** Apply one offset per channel, indexed by channel id.
-  *  Took (offsetT, offsetH, offsetP) positionally, which meant a new quantity
-  *  changed the signature and every call site. */
- void applyCalibrationOffsets(uint8_t gpio, const float offsets[MAX_SENSOR_CHANNELS]);
+ /** DS18B20 path: temperature curve + hwId/name adoption from the ROM row. */
+ void applyCalibration(uint8_t gpio, String newHwId, const CalibCurve& tempCurve, String newName);
+ /** Apply one curve per channel, indexed by channel id.
+  *  The float[] ancestor took (offsetT, offsetH, offsetP) positionally, which
+  *  meant a new quantity changed the signature and every call site. */
+ void applyCalibrationCurves(uint8_t gpio, const CalibCurve curves[MAX_SENSOR_CHANNELS]);
 
 
  void setHardwareMismatch(uint8_t gpio, bool isMismatch);
@@ -190,7 +197,7 @@ private:
 
 
  void processPeriodicReads( );
- void addSample(RuntimeSensor &sensor, float v1, float v2);
+ void pushChannelSample(RuntimeSensor &sensor, uint8_t ch, float rawV);
 
  void handleSensorResult(RuntimeSensor &s, bool success, float v1, float v2, const char* errorMsg);
 };

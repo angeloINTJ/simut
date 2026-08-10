@@ -31,7 +31,7 @@
 /* Same guard the other headers use, so this file can appear anywhere in the
  * include chain without fighting over who defines it. */
 #ifndef MAX_SENSOR_CHANNELS
-#define MAX_SENSOR_CHANNELS 4
+#define MAX_SENSOR_CHANNELS 8
 #endif
 
 /** Universal measurement axes. Channel 0 is temperature for every sensor. */
@@ -69,6 +69,11 @@ struct ChannelInfo {
 	bool              isSigned; /**< Negative readings are meaningful (temperature) */
 	float             saneMin;  /**< Plausible range: chart axis defaults + sanity checks */
 	float             saneMax;
+	/** Factory alarm limits for this quantity. A channel the user never
+	 *  configured should not invent an alarm, so anything without a
+	 *  conventional comfort band gets its full plausible range here. */
+	float             defMin;
+	float             defMax;
 	const char*       i18nKey;  /**< Label key shared by stat cards and calibration inputs */
 	/** Canonical presentation. The unit here is also the unit the channel is
 	 *  STORED in: a driver that reads PSI converts to hPa before reporting,

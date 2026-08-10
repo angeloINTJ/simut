@@ -4,6 +4,247 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.0.2-alpha (2026-08-10)
+
+### Survives a hostile network: the watchdog seam in the send path
+
+A campaign ran the telemetry fault matrix, a concurrent web hammer and the
+sensors **at the same time** — 26 fault windows over about two hours — because
+every previous run had exercised those loads one at a time, and the overlap is
+where the failures actually lived. Write-up and numbered defect list in
+`docs/netstorm-campaign-2026-08-10/`.
+
+**`HTTPClient`'s send loop never fed the watchdog, and it was most of the
+reboots.** `StreamConstPtr::sendAll`'s 5 s budget bounds the loop, not a write;
+each `write()` parks for the 4 s socket timeout, so a write entered near the end
+of the budget finishes around 9 s — past the 8388 ms hardware watchdog. Closed
+by a fourth framework override, wired into `patch.sh` so an upgrade cannot drop
+it silently. Measured on the full HTTP group, same conditions before and after:
+**5 reboots → 1**, MTBF under storm **~10 min → 58 min**, 557 history downloads
+with no invalid JSON.
+
+**A non-chunked response left its tail for the framework to park on.** The
+existing hard close was gated on chunked responses, so `/download` and
+`/api/backup` kept the polite path — and that path waits on ACKs with a clock
+that renews on every one of them, unfed. It reproduced without any storm at all:
+**one download per boot**. Draining before the handler returns fixed it —
+`/download` went from 6/8 with 2 reboots to **24/24 with none**, `/api/backup`
+(794 KB a piece) from 2/3 with 1 reboot to **6/6 with none**.
+
+### Fixed
+
+- **A single aborted send in the history tail could pin the display.** Three
+  returns in the `extremes` tail skipped the handler's unwind, leaving the
+  `_inHistoryHandler` latch set — every later `/api/history_multi` answering
+  `503 Already processing` — and the display's web-busy overlay stuck with
+  **touch blocked**, both until the next reboot. Ownership now lives in a
+  destructor, which a return cannot skip.
+- **`/api/sec_status` could write past its buffer.** Accumulated
+  `pos += snprintf(...)` runs past the array once an entry truncates, and the
+  remaining-room arithmetic is unsigned, so it wraps instead of going negative.
+  Room is clamped before every write now, and a truncated entry is backed out so
+  the JSON stays parseable with fewer slots.
+
+### Added
+
+- `metr.cgd` / `metr.cgg` / `metr.cgx` in `/api/status`: the three reasons a
+  chunked response was cut short — deadline, guard latch, real disconnect.
+  `show metrics` already printed them, but that command does not exist outside
+  the full-CLI image, so from the network a truncated download and a client that
+  walked away read identically.
+- `tools/telemetry_bench/storm_net.py`, the combined-storm harness, plus
+  `storm_report.py` and two fault modes in the sink (`never_read`,
+  `tls_bigrecord`).
+
+### Calibration curves: up to 5 points per quantity
+
+Calibration grows from one constant offset to a **correction curve of up to 5
+(raw → reference) points per quantity**, edited in the `/config` slot dialog.
+The correction interpolates linearly between points and holds the end offset
+beyond them; one point is exactly the old constant offset, and zero points is
+an explicit "no correction — sensor default" state. Points can be typed from a
+bench table or captured from the live reading (an empty raw field captures at
+save time).
+
+With 3+ points the interpolation is selectable per quantity: **Straight**
+(piecewise linear) or **Smooth** — a monotone cubic (Fritsch–Carlson) on the
+offsets that bends through the anchors without ever overshooting them and
+flattens into the held zones. Smooth rows carry a `cub` cell after the name in
+`calib.csv`; the API accepts `{"m":"cub","p":[[raw,ref],…]}` alongside the
+plain-array (linear) form.
+
+Corrections now apply to the **filtered mean instead of each raw sample**, so
+outlier rejection always works on physical values and an edited correction
+takes effect immediately instead of bleeding through a 10-sample window. For
+constant offsets the arithmetic is identical, so existing deployments read the
+same values they always did.
+
+`/calib.csv` puts everything after the name as flat CSV cells:
+`key,id,name,raw,ref[,raw,ref,…]` — one number per column,
+spreadsheet-friendly, no dedicated offset column anymore. Row shapes are told
+apart by field count: legacy 4-column `key,id,offset,name` files still read
+as the constant offset they always were (and a carried anchor-free offset is
+still written in that shape — it has no points to become); `key,id,name` is
+an identity row. Older firmware reading a points row sees no correction,
+never a wrong one. Removing a correction deletes the row (DS18B20 rows stay — they
+double as the ROM→ID/name identity database). `POST /api/calib` accepts
+`"cal":{"<channel>":[[raw,ref],…]}` with full validation before anything is
+written; `GET /api/calib` channels gain `raw`, `min`, `max` and `pts`.
+
+**Behavior change:** the legacy `refs`/`refTemp` fields (cached pages) now set
+an absolute one-point correction at the current raw reading instead of
+accumulating `offset += ref − reading`. Repeating the same reference is now
+idempotent, which is what users expected all along.
+
+The slot editor draws a **live mini-chart per quantity**: the dashed line is
+the sensor default (zero correction), the curve is the staged correction with
+its anchors, simulated in the chosen interpolation as you type. **DS18B20
+pairing became automatic**: a probe provisioned through the editor gets its
+ROM read and written into `calib.csv` on the restart that follows Save &
+Restart, migrating any correction saved while unpaired; ROM verification then
+guards against swapped probes.
+
+### Fixed
+
+- **The slot editor's "Alarms enabled" checkbox never saved.** Every
+  `commit_all` walker sliced array elements at the first `}`, so any key
+  staged after the nested `lim{}` object — which is where `al` sits — was
+  silently truncated off and kept its stored value. All the hand-rolled JSON
+  walkers now match braces by depth (quote-aware), which is also what lets
+  the calibration payload carry nested point arrays at all.
+
+## v2.0.1-alpha (2026-08-01)
+
+History moves to V5: a compressed, self-describing time-series format whose hot
+path never touches flash. The device now records a day in 7.6 KiB instead of
+10.6, keeps four months of history in the same partition instead of under three,
+and answers a 30-day graph from block envelopes in 187 ms — a query the previous
+format could not finish at all.
+
+> **Back up first.** V5 does not read V4. On the first boot after this update,
+> `/history` is swept of everything that is not a `.h5` file and the history
+> restarts empty. Download your `.sim4` files before updating and convert them
+> on a computer with `python3 tools/history_v5.py --convert-v4 in.sim4 out.h5`.
+
+> **Over-the-air updates do not work on this release, and did not work on
+> 2.0.0-alpha either.** Staging aborts partway through the upload and the device
+> resets; nothing in `src/ota/` changed in this release. Worse, a failed stage
+> erases the filesystem, because the staging region *is* the LittleFS partition.
+> Flash over USB until that is fixed. See `docs/test_reports/`.
+
+### The hot path stopped writing to flash
+
+Flash on the RP2040 is XIP: every program or erase means freezing Core 1 and
+running Core 0 with interrupts off, and those windows are what the stability
+work of the last month has been chasing. V4 wrote a record per sample — ~1440
+flash writes a day, batched into ~360 lockout windows.
+
+V5 keeps the hour in RAM. `writeHistoryEntryV5( )` is a `memcpy`. Flash is
+touched when a block fills (60 records), at the day rollover, when the sensor
+set changes, and every ten minutes for a `.wip` snapshot that bounds power-loss
+to that window. About 168 writes a day instead of 1440.
+
+### Graphs draw the peaks instead of sampling past them
+
+Long ranges used to be decimated: one record in N, and whatever fell between
+them was not drawn. A one-minute spike in a month-long range had roughly one
+chance in 72 of appearing.
+
+A V5 block header carries the true minimum and maximum of every channel over
+its hour, so a long range emits those — two points per block, no payload read.
+The extreme *is* the point; it cannot be sampled away. The 24-hour graph reads
+in 5.8 ms this way against 107.6 ms decoding every record, and 30 days answers
+in 187 ms. `?mode=decode|envelope` forces either path.
+
+### Changing a sensor stops costing the day
+
+A `.sim4` froze its schema in the file header, so changing a sensor identity
+meant recreating the day's file and losing what was in it — which is why the
+CLI demanded `confirm` — or running a streaming migration to carry the records
+over. V5 writes a second SCHEMA chunk into the same file and keeps going; the
+blocks before it stay readable under the schema in force when they were written.
+`sensor reschema` and the web rebind endpoint kept their signatures and are no
+longer destructive.
+
+### Timestamps really are corrected now
+
+`handleTimeSync` logged "correcting timestamps" and then "timestamps corrected",
+with `/* V4: variable-length records — in-place correction unsupported. */`
+between the two. Everything written before NTP came up kept the provisional
+clock forever, and the log said otherwise. In V5 the only absolute stamp is `t0`
+in each block header, so the fix is a stream rewrite touching four bytes and a
+CRC per block, bounded to the blocks this boot wrote.
+
+### Corruption costs an hour, not a day
+
+Every block carries its own CRC and decodes independently. A corrupt block is
+skipped and the rest of the day is served; a corrupt file is skipped and the
+other days are served. Ten injected corruptions — payload, tails, `t0`, SCHEMA
+CRC, magic, `nCh`, truncation — produced zero reboots and zero invalid
+responses. Under V4 a break in the delta chain compromised the rest of the day.
+
+### Files are readable without the firmware
+
+`python3 tools/history_v5.py --dump-csv day.h5` decodes a device file with
+nothing but the format document: the SCHEMA chunk states which channels exist,
+what each measures and at what scale. The same tool converts legacy files
+(`--convert`, `--convert-v4`), reports compression (`--stats`), generates
+synthetic history (`--synth`) and runs the format's own test vectors
+(`--selftest`).
+
+### Smaller, and much less static RAM
+
+Static RAM drops 44 060 B and the largest contiguous heap block grows 63 %
+(29 733 → 48 522 B), which is the number BearSSL cares about for TLS. That is
+not the format: V4 had five copies of the decode loop — web graph, CSV export,
+export bundle, telemetry, preload, TFT graph — each carrying its own ~2.8 KiB
+of codec state. V5 has one reader in `StorageManager`. Code flash grows 1 024 B.
+
+### The first boot with a `.wip` on disk hung
+
+Found and fixed on the bench before release. `recoverWipV5( )` deleted the
+`.wip` snapshot outside its `Core1FlashPause`: the pause sat inside the branch
+that decodes the snapshot, while the delete runs on every path out of the
+function, including the ones that never decode anything. A delete is an erase
+burst, and an erase with Core 1 still fetching from XIP wedges the QSPI — the
+rule the `FLASH_OP` comment states and this call broke.
+
+It hung rather than rebooted because the watchdog is armed on the first pass
+through `loop( )`, so all of `setup( )` runs unprotected. The device stopped
+with the boot screen frozen on the previous step, USB enumerated but answering
+nothing, and no reboot to autopsy. It needed a `.wip` on disk, which only exists
+once V5 has been recording, so it did not show up until the format was live.
+
+`sealHourV5( )` had the same defect in its own `.wip` delete — reached in normal
+operation, where the armed watchdog would have turned it into an unexplained
+reboot instead. Both now hold the pause across the delete.
+
+### Also
+
+- `/api/status` reports the flash-write counters (`fo`, `fom`, `fot`, `f50`).
+  They had been tracked since T0.1 but were only reachable from a CLI the
+  shipping image does not carry.
+- `/api/history_multi` reports `path`, `readMs` and `rejected`, so the device's
+  own read time can be told apart from Wi-Fi latency.
+- `preloadMinMax( )` reads block headers instead of decoding the day, so the
+  dashboard no longer shows mid-morning extremes after an afternoon boot.
+- Four log codes: `STO_H5_SEALED`, `STO_H5_WIP`, `STO_SCHEMA_MISMATCH`,
+  `STO_LEGACY_PURGED`.
+- Fixed: seeking to an instant before a file's first block left the scanner at
+  EOF, so a range query whose cutoff preceded a file dropped it silently.
+- `HistoryV4.cpp` is out of the shipping build. The V4 entry points remain as
+  delegating shims so nothing that called them stops compiling.
+
+### Known limitations
+
+- The §10 latency budgets are not met: 0.28 ms per block on the envelope path
+  against a budget implying 0.111 ms, and 4.48 ms to decode a block against
+  1 ms. The floor is the LittleFS indexed read, confirmed by two optimisations
+  that did not move it.
+- No 72-hour soak, and no 20-cut power-loss campaign.
+- Luminosity keeps its channel but drops to whole units: it is 24-bit at x100
+  in the channel table and V5 values are `int16`. No sensor produces it today.
+
 ## v1.6.3-beta (2026-07-30)
 
 Saving a sensor calibration could fail permanently, and for two of the three

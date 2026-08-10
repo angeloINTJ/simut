@@ -114,7 +114,20 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let fd = new URLSearchParams(); fd.append('user', user); fd.append('pass', pass); fd.append('nonce', _nonce);
             let r = await fetch('/api/login', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: fd.toString(), credentials: 'same-origin' });
             let j = await r.json();
-            if (j.ok) { window.location.href = j.redirect || '/'; return; }
+            if (j.ok) {
+                /* Uncommitted edits live in sessionStorage so they can survive
+                   moving between the config pages before one Save and Restart.
+                   sessionStorage outlives a logout and a reload, though, so a
+                   fresh sign-in used to inherit whatever the last one had typed
+                   and never applied. Signing in means: show me the device as it
+                   is now. */
+                try {
+                    sessionStorage.removeItem('simut_pending');
+                    sessionStorage.removeItem('simut_pending_notified');
+                } catch(e) {}
+                window.location.href = j.redirect || '/';
+                return;
+            }
             await fetchNonce();
             if (j.err === 2 && j.lockSec > 0) showLockout(j.lockSec); else if (j.err === 3) { showError(t('log_full', 'System full.')); btn.disabled = false; } else { showError(t('log_err', 'Invalid credentials.')); btn.disabled = false; }
         } catch(ex) { showError('Connection error.'); btn.disabled = false; await fetchNonce(); }
@@ -1005,6 +1018,242 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function showProgress(show) { const w = document.getElementById('progressWrap'); const f = document.getElementById('progFill'); if (show) { w.style.display='block'; f.style.width='0%'; f.classList.add('pulse'); } else { f.classList.remove('pulse'); setTimeout(()=>{ w.style.display='none'; }, 400); } }
         function updateProgress(received, estTotal) { const pct = Math.min(95, (received / estTotal) * 100); document.getElementById('progFill').style.width = pct + '%'; document.getElementById('progDetail').innerText = (received / 1024).toFixed(1) + ' KB'; }
         function finishProgress() { const f = document.getElementById('progFill'); f.classList.remove('pulse'); f.style.width = '100%'; document.getElementById('progStatus').innerText = window.t('hist_done', 'Complete'); }
+        /* ── Carregamento do grafico em fatias ──────────────────────────────
+         *
+         * O grafico era UMA requisicao: 500 KB de JSON, tudo ou nada. Se a
+         * conexao tropecasse no meio, o JSON.parse falhava e nao sobrava
+         * nada — nem os 400 KB que ja tinham chegado. Numa faixa MAX isso
+         * eram 15 s de espera para talvez nao ter grafico nenhum.
+         *
+         * Agora ele segue o mesmo desenho do export de CSV: o servidor
+         * responde ?probe=1 dizendo o tamanho provavel, o cliente decide se
+         * cabe numa requisicao so, e se nao couber fatia a faixa por tempo
+         * (?from=&to=). Cada fatia e independente e idempotente, entao uma
+         * que falha e uma que se refaz. A janela encolhe pela metade a cada
+         * falha e volta a dobrar depois de acertos seguidos, que e como se
+         * mede a rede sem perguntar nada a ela.
+         *
+         * NOTA DE HONESTIDADE: isto conta FATIAS, nao pacotes. Abaixo de nos
+         * o TCP ja retransmite pacote perdido sem nos contar; o que da para
+         * observar aqui e requisicao que voltou, requisicao que precisou de
+         * nova tentativa, e requisicao que desistimos. A UI diz isso.
+         */
+        const GCH_SINGLE_MAX   = 64 * 1024;  /* ate aqui, requisicao unica    */
+        const GCH_TARGET_BYTES = 48 * 1024;  /* alvo por fatia                */
+        const GCH_WIN_MIN      = 3600;       /* 1 h                           */
+        const GCH_WIN_MAX      = 14 * 86400; /* 14 d                          */
+        const GCH_RETRIES      = 3;          /* por fatia, antes de encolher  */
+        const GCH_RECOVERY     = 3;          /* acertos antes de dobrar       */
+        let _gchAbort = null;
+        let _gchCancelled = false;
+
+        /* Botao de cancelar, criado so quando o carregamento vira fatiado —
+         * numa requisicao unica nao ha o que cancelar sem perder tudo. */
+        function _gchCancelUi(on) {
+            let b = document.getElementById('gchX');
+            if (on && !b) {
+                const wrap = document.getElementById('progressWrap');
+                if (!wrap) return;
+                b = document.createElement('button');
+                b.id = 'gchX'; b.type = 'button';
+                b.textContent = window.t('hist_cancel', 'Cancel');
+                b.style.cssText = 'margin-top:8px;padding:5px 10px;background:transparent;'
+                    + 'color:var(--dang);border:1px solid var(--dang);border-radius:6px;'
+                    + 'cursor:pointer;font-weight:600;font-size:.75rem';
+                b.onclick = () => {
+                    _gchCancelled = true;
+                    if (_gchAbort) try { _gchAbort.abort(); } catch (e) {}
+                    b.disabled = true; b.textContent = '...';
+                };
+                wrap.appendChild(b);
+            } else if (!on && b) {
+                b.remove();
+            }
+        }
+
+        function _gchShow(st) {
+            const wrap = document.getElementById('progressWrap');
+            const fill = document.getElementById('progFill');
+            if (wrap) wrap.style.display = 'block';
+            if (fill) { fill.classList.remove('pulse'); fill.style.width = st.pct + '%'; }
+            const det = document.getElementById('progDetail');
+            const sta = document.getElementById('progStatus');
+            if (det) det.innerText = (st.kb).toFixed(1) + ' KB';
+            if (sta) {
+                const win = st.winSecs >= 86400
+                    ? (st.winSecs / 86400).toFixed(0) + 'd'
+                    : (st.winSecs / 3600).toFixed(0) + 'h';
+                sta.innerText = window.t('hist_slices', 'Slices') + ': '
+                    + st.ok + ' ok'
+                    + (st.retry ? ' / ' + st.retry + ' ' + window.t('hist_retry', 'retry') : '')
+                    + (st.fail  ? ' / ' + st.fail  + ' ' + window.t('hist_lost', 'lost')  : '')
+                    + '  ' + win + '  ' + _fmtEta(st.etaMs);
+            }
+        }
+
+        /* Requisicao unica, com leitura em stream so para a barra.
+         * Pode voltar sliceRequired=1: o servidor recusa responder de uma vez
+         * o que levaria ~10 s de envio, porque e nesse tempo que o Core 0 fica
+         * presos no sendContent e o watchdog derruba o aparelho. */
+        async function _gchWhole(url, estTotal) {
+            const response = await fetchSafe(url, {timeout: 60000, retries: 1});
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let received = 0; const parts = [];
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                parts.push(value); received += value.length;
+                updateProgress(received, estTotal);
+            }
+            let text = '';
+            for (const c of parts) text += decoder.decode(c, { stream: true });
+            text += decoder.decode();
+            return JSON.parse(text);
+        }
+
+        /* Funde uma fatia no acumulado. Fatias vizinhas compartilham o bloco
+         * da fronteira, entao o mesmo instante pode chegar duas vezes — o
+         * mapa por timestamp resolve sem depender de alinhamento. */
+        function _gchMerge(acc, part) {
+            if (!acc.sensors && part.sensors) acc.sensors = part.sensors;
+            for (const pt of (part.data || [])) acc.byT.set(pt.t, pt);
+            const ex = part.extremes || {};
+            for (const k in ex) {
+                if (!acc.extremes[k]) { acc.extremes[k] = Object.assign({}, ex[k]); continue; }
+                const a = acc.extremes[k];
+                if (typeof ex[k].min === 'number' && (typeof a.min !== 'number' || ex[k].min < a.min)) a.min = ex[k].min;
+                if (typeof ex[k].max === 'number' && (typeof a.max !== 'number' || ex[k].max > a.max)) a.max = ex[k].max;
+            }
+            if (typeof part.minT === 'number' && (acc.minT === null || part.minT < acc.minT)) { acc.minT = part.minT; acc.tsMinT = part.tsMinT; }
+            if (typeof part.maxT === 'number' && (acc.maxT === null || part.maxT > acc.maxT)) { acc.maxT = part.maxT; acc.tsMaxT = part.tsMaxT; }
+            acc.recs += (part.recs || 0);
+        }
+
+        async function _gchSliced(base, probe, estTotal) {
+            const from = probe.cutoff, to = probe.end;
+            const totalSecs = Math.max(1, to - from);
+            const bytesPerSec = Math.max(1, probe.estPayload / totalSecs);
+            let winSecs = Math.round(GCH_TARGET_BYTES / bytesPerSec);
+            winSecs = Math.max(GCH_WIN_MIN, Math.min(GCH_WIN_MAX, winSecs));
+            /* A janela cresce quando a rede vai bem, mas nao alem do que o
+             * servidor aceita responder de uma vez — passar disso troca uma
+             * fatia rapida por uma recusa, e em versoes anteriores trocava por
+             * um envio de dez segundos, que e o que derrubava o aparelho. */
+            const winCeil = Math.max(GCH_WIN_MIN,
+                Math.min(GCH_WIN_MAX, Math.floor((GCH_SINGLE_MAX * 0.8) / bytesPerSec)));
+
+            const acc = { sensors: null, byT: new Map(), extremes: {},
+                          minT: null, maxT: null, tsMinT: 0, tsMaxT: 0, recs: 0 };
+            const missing = [];
+            let ok = 0, retried = 0, failed = 0, consecutiveOk = 0, kb = 0;
+            const etaSamples = [];
+            let cursor = from;
+            _gchCancelled = false;
+            _gchShow({ pct: 0, kb: 0, ok: 0, retry: 0, fail: 0, winSecs, etaMs: -1 });
+            _gchCancelUi(true);
+
+            while (cursor < to && !_gchCancelled) {
+                const iterStart = performance.now();
+                const cFrom = cursor;
+                const cTo = Math.min(to, cFrom + winSecs);
+                let got = null;
+                for (let attempt = 0; attempt < GCH_RETRIES && !got && !_gchCancelled; attempt++) {
+                    if (attempt > 0) retried++;
+                    try {
+                        _gchAbort = new AbortController();
+                        const r = await fetch(base + `&from=${cFrom}&to=${cTo}&mode=envelope`,
+                                              { credentials: 'include', signal: _gchAbort.signal });
+                        if (!r.ok) throw new Error('HTTP ' + r.status);
+                        const buf = await r.text();
+                        kb += buf.length / 1024;
+                        got = JSON.parse(buf);
+                    } catch (e) {
+                        if (e.name === 'AbortError') break;
+                        if (attempt < GCH_RETRIES - 1) await new Promise(s => setTimeout(s, 250 * (attempt + 1)));
+                    }
+                }
+                _gchAbort = null;
+                if (_gchCancelled) break;
+
+                const advancedFrom = cursor;
+                if (got) {
+                    _gchMerge(acc, got);
+                    ok++; consecutiveOk++;
+                    cursor = cTo;
+                    if (consecutiveOk >= GCH_RECOVERY && winSecs < winCeil) {
+                        winSecs = Math.min(winSecs * 2, winCeil);
+                        consecutiveOk = 0;
+                    }
+                } else if (winSecs > GCH_WIN_MIN) {
+                    /* Encolhe e refaz o MESMO cursor: rede ruim pede pedaco
+                     * menor, nao pedaco pulado. */
+                    winSecs = Math.max(Math.floor(winSecs / 2), GCH_WIN_MIN);
+                    consecutiveOk = 0;
+                } else {
+                    /* Ja no minimo e ainda falhando: registra o buraco e
+                     * segue, para entregar o resto em vez de nada. */
+                    failed++; consecutiveOk = 0;
+                    missing.push({ from: cFrom, to: cTo });
+                    cursor = cTo;
+                }
+
+                const advanced = cursor - advancedFrom;
+                if (advanced > 0) {
+                    etaSamples.push({ ms: performance.now() - iterStart, ratio: advanced / totalSecs });
+                    if (etaSamples.length > 5) etaSamples.shift();
+                }
+                let etaMs = -1;
+                if (etaSamples.length >= 2) {
+                    const sMs = etaSamples.reduce((a, x) => a + x.ms, 0);
+                    const sR  = etaSamples.reduce((a, x) => a + x.ratio, 0);
+                    if (sR > 0) etaMs = (sMs / sR) * Math.max(0, 1 - (cursor - from) / totalSecs);
+                }
+                _gchShow({ pct: Math.min(99, Math.round(((cursor - from) / totalSecs) * 100)),
+                           kb, ok, retry: retried, fail: failed, winSecs, etaMs });
+            }
+
+            _gchCancelUi(false);
+            const data = Array.from(acc.byT.values()).sort((a, b) => a.t - b.t);
+            return { data, sensors: acc.sensors || [], extremes: acc.extremes,
+                     minT: acc.minT, maxT: acc.maxT, tsMinT: acc.tsMinT, tsMaxT: acc.tsMaxT,
+                     cutoff: from, end: to, recs: acc.recs,
+                     _slices: { ok, retried, failed, missing, cancelled: _gchCancelled } };
+        }
+
+        /* Escolhe o caminho e devolve o JSON pronto para desenhar. */
+        async function _gchLoad(queryParam, sensorsCsv, estTotal) {
+            const base = `/api/history_multi?sensors=${encodeURIComponent(sensorsCsv)}`;
+            let probe = null;
+            try {
+                const pr = await fetchSafe(base + '&' + queryParam + '&probe=1',
+                                           { timeout: 20000, retries: 1 });
+                if (pr.ok) probe = await pr.json();
+            } catch (e) { /* o probe e otimizacao, nao requisito */ }
+
+            /* Fatiar so quando o servidor JA escolheria o envelope. Se ele
+             * ainda usaria o decode, a resposta e pequena por construcao (a
+             * decimacao mira ~600 pontos) e forcar envelope trocaria centenas
+             * de amostras por duas dezenas de blocos — mais rapido e pior.
+             * Perto do limiar isso importa: 700 registros em 12 h viram 24
+             * pontos no envelope. */
+            const worthSlicing = probe && probe.estPayload > GCH_SINGLE_MAX
+                                 && probe.path === 'envelope'
+                                 && probe.end > probe.cutoff && probe.cutoff > 0;
+            if (!worthSlicing) {
+                const whole = await _gchWhole(base + '&' + queryParam, estTotal);
+                /* O probe pode ter falhado (e opcional) e a recusa vir so
+                 * agora — a resposta traz os mesmos campos, entao da para
+                 * fatiar sem uma segunda ida ao aparelho. */
+                if (whole && whole.sliceRequired && whole.end > whole.cutoff && whole.cutoff > 0) {
+                    return await _gchSliced(base, whole, estTotal);
+                }
+                return whole;
+            }
+            return await _gchSliced(base, probe, estTotal);
+        }
+
         async function fetchAndDraw(queryParam) {
             const gridBox = document.getElementById('statsGrid');
             let estKey = 'date'; const rm = queryParam.match(/range=(\d)/); if (rm) estKey = rm[1];
@@ -1015,25 +1264,19 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 showOverlay(window.t('hist_down_msg','Downloading...'));
                 showProgress(true);
                 document.getElementById('progStatus').innerText = window.t('hist_loading','Loading...');
-                const url = `/api/history_multi?sensors=${encodeURIComponent(sensorsCsv)}&${queryParam}`;
-                const response = await fetchSafe(url, {timeout: 60000, retries: 1});
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                const reader = response.body.getReader(); const decoder = new TextDecoder();
-                let received = 0; let chunks = [];
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    chunks.push(value); received += value.length;
-                    updateProgress(received, estTotal);
-                }
-                let text = '';
-                for (const c of chunks) text += decoder.decode(c, { stream: true });
-                text += decoder.decode();
-                finishProgress();
                 let json;
-                try { json = JSON.parse(text); }
+                try { json = await _gchLoad(queryParam, sensorsCsv, estTotal); }
                 catch(e) { showProgress(false); showOverlay(window.t('hist_err_json','Error')); return; }
+                finishProgress();
+                if (!json) { showProgress(false); showOverlay(window.t('hist_err_json','Error')); return; }
                 if (json.error) { showProgress(false); showOverlay(json.error); return; }
+                if (json._slices && (json._slices.failed || json._slices.cancelled)) {
+                    /* Parcial e melhor que nada, mas o usuario precisa saber
+                       que e parcial — um grafico com buraco silencioso e pior
+                       que um aviso. */
+                    showToast(window.t('hist_partial','Partial: ') + json._slices.failed + ' '
+                              + window.t('hist_lost','lost'), 'warn');
+                }
                 const data = json.data || [];
                 if (data.length === 0) {
                     if (myChart) myChart.destroy();
@@ -1262,8 +1505,8 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         // Logs — binary parsing in browser. Tabelas sincronizadas com LogManager::translateCode (LogManager.cpp).
-        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
-        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao de flash ocupada', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
+        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
+        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao de flash ocupada', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
         function evtName(code) { let l = localStorage.getItem('simut_lang') || 'en'; let dict = (l === 'pt') ? EVT_NAMES_PT : EVT_NAMES_EN; let lbl = dict[code.toString()]; if (lbl) return lbl; return (l === 'pt' ? 'Evento #' : 'Event #') + code; }
         const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
         const LVL_LABELS = ['DBG','INF','WRN','ERR','FTL']; const LVL_CLASS = ['log-inf','log-inf','log-wrn','log-err','log-err'];
@@ -1459,6 +1702,218 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         /* Decoder .simx kind='H' -> array de linhas CSV (sem header).
          * Filtra por sensor selecionado (sensorIdx == 'all' ou string com idx). */
+        /* HistoryV5 decoder for the browser.
+         *
+         * The export used to arrive as a .simx bundle of 70-byte BinaryHistoryRecords
+         * that the device built by decoding its own .h5 files. On this bench that was
+         * 70.1 B per record on the wire against 5.63 B on flash — 12.5x — because the
+         * record is 33 fixed channels and only 6 exist, so 77 % of every one of them
+         * was the NAN sentinel.
+         *
+         * With this, the page downloads the .h5 files themselves through /download and
+         * decodes them here. The device does a file read and nothing else.
+         *
+         * Mirrors src/HistoryV5.cpp and tools/history_v5.py; the format is specified
+         * in docs/HistoryV5_Instrucoes_Implementacao.md.
+         */
+
+        const H5_MAGIC = 0x4835;
+        const H5_VERSION = 0x02;
+        const H5_CHUNK_SCHEMA = 0x01;
+        const H5_CHUNK_DATA = 0x02;
+        const H5_FLAG_RAW = 0x01;
+        const H5_NAN = -32768;
+
+        const H5_KIND_TEMP = 0x01, H5_KIND_HUM = 0x02, H5_KIND_PRESS = 0x03;
+
+        /* CRC-16/CCITT-FALSE, nibble table — same one the firmware carries. */
+        const _H5_CRCTAB = [0x0000,0x1021,0x2042,0x3063,0x4084,0x50A5,0x60C6,0x70E7,
+                            0x8108,0x9129,0xA14A,0xB16B,0xC18C,0xD1AD,0xE1CE,0xF1EF];
+
+        function h5Crc16(u8, from, len, seed) {
+            let crc = (seed === undefined) ? 0xFFFF : seed;
+            for (let i = 0; i < len; i++) {
+                crc ^= u8[from + i] << 8;
+                crc = ((crc << 4) ^ _H5_CRCTAB[(crc >> 12) & 0x0F]) & 0xFFFF;
+                crc = ((crc << 4) ^ _H5_CRCTAB[(crc >> 12) & 0x0F]) & 0xFFFF;
+            }
+            return crc & 0xFFFF;
+        }
+
+        function _h5ToI16(v) { v &= 0xFFFF; return (v & 0x8000) ? v - 0x10000 : v; }
+
+        /* MSB-first bit reader. Multiplication rather than shifts: a 32-bit resync
+         * epoch overflows the sign bit of the shift operators. */
+        function _h5Bits(u8, from, len) {
+            let pos = 0;
+            return {
+                get(width) {
+                    let v = 0;
+                    for (let i = 0; i < width; i++) {
+                        const bi = pos >> 3;
+                        const bit = (bi < len) ? ((u8[from + bi] >> (7 - (pos & 7))) & 1) : 0;
+                        v = (v * 2) + bit;
+                        pos++;
+                    }
+                    return v;
+                }
+            };
+        }
+
+        /**
+         * Decode one .h5 file.
+         * @param {ArrayBuffer|Uint8Array} buf
+         * @param {number} nominalSecs sampling interval; the file does not carry it.
+         * @returns {{blocks:number, rejected:number, series:Array<{schema:Array,t:number,v:Int16Array}>}}
+         */
+        function h5Decode(buf, nominalSecs) {
+            const u8 = (buf instanceof Uint8Array) ? buf : new Uint8Array(buf);
+            const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+            const nominal = nominalSecs > 0 ? nominalSecs : 60;
+            const out = { blocks: 0, rejected: 0, series: [] };
+            let schema = null;
+            let pos = 0;
+
+            while (pos + 8 <= u8.length) {
+                const magic = dv.getUint16(pos, true);
+                if (magic !== H5_MAGIC || u8[pos + 2] !== H5_VERSION) { out.rejected++; break; }
+                const type = u8[pos + 3], flags = u8[pos + 4], a = u8[pos + 5], b = u8[pos + 6];
+
+                if (type === H5_CHUNK_SCHEMA) {
+                    const n = a;
+                    const size = 8 + 4 * n + 2;
+                    if (n === 0 || n > 16 || pos + size > u8.length) { out.rejected++; break; }
+                    const stored = dv.getUint16(pos + 8 + 4 * n, true);
+                    if (h5Crc16(u8, pos, 8 + 4 * n) !== stored) { out.rejected++; pos += size; continue; }
+                    schema = [];
+                    for (let i = 0; i < n; i++) {
+                        const o = pos + 8 + 4 * i;
+                        schema.push({ id: u8[o], kind: u8[o + 1],
+                                      scaleExp: _h5ToI16(u8[o + 2] | (u8[o + 2] & 0x80 ? 0xFF00 : 0)) });
+                    }
+                    pos += size;
+                    continue;
+                }
+                if (type !== H5_CHUNK_DATA) { out.rejected++; break; }
+
+                const n = b;
+                const hdrLen = 16 + 6 * n;
+                if (n === 0 || n > 16 || a === 0 || a > 60 || pos + hdrLen > u8.length) { out.rejected++; break; }
+                const count = a;
+                const t0 = dv.getUint32(pos + 8, true);
+                const payLen = dv.getUint16(pos + 12, true);
+                const crcExp = dv.getUint16(pos + 14, true);
+                const total = hdrLen + payLen;
+                if (pos + total > u8.length) { out.rejected++; break; }
+
+                /* The stored CRC covers everything but its own two bytes. */
+                let crc = h5Crc16(u8, pos, 14);
+                crc = h5Crc16(u8, pos + 16, total - 16, crc);
+                if (crc !== crcExp) { out.rejected++; pos += total; continue; }
+                if (!schema || schema.length !== n) { out.rejected++; pos += total; continue; }
+
+                const kf = new Int16Array(n);
+                for (let c = 0; c < n; c++) kf[c] = dv.getInt16(pos + 16 + 2 * c, true);
+
+                const prev = Int16Array.from(kf);
+                out.series.push({ schema, t: t0, v: Int16Array.from(kf) });
+                out.blocks++;
+
+                if (count > 1) {
+                    if (flags & H5_FLAG_RAW) {
+                        const rec = 2 + 2 * n;
+                        for (let r = 0; r < count - 1; r++) {
+                            const o = pos + hdrLen + r * rec;
+                            const vals = new Int16Array(n);
+                            for (let c = 0; c < n; c++) vals[c] = dv.getInt16(o + 2 + 2 * c, true);
+                            out.series.push({ schema, t: t0 + dv.getUint16(o, true), v: vals });
+                        }
+                    } else {
+                        const br = _h5Bits(u8, pos + hdrLen, payLen);
+                        let prevDelta = nominal, prevEpoch = t0;
+                        for (let r = 1; r < count; r++) {
+                            let epoch;
+                            if (br.get(1) === 0) {
+                                epoch = prevEpoch + prevDelta;
+                            } else if (br.get(1) === 0) {
+                                let d = br.get(7); if (d & 0x40) d -= 128;
+                                prevDelta += d; epoch = prevEpoch + prevDelta;
+                            } else if (br.get(1) === 0) {
+                                let d = br.get(12); if (d & 0x800) d -= 4096;
+                                prevDelta += d; epoch = prevEpoch + prevDelta;
+                            } else {
+                                epoch = br.get(32);
+                                prevDelta = nominal;
+                            }
+                            prevEpoch = epoch;
+
+                            const vals = new Int16Array(n);
+                            for (let c = 0; c < n; c++) {
+                                let val;
+                                if (br.get(1) === 0)      val = prev[c];
+                                else if (br.get(1) === 0) val = prev[c] + _h5Unzig(br.get(3));
+                                else if (br.get(1) === 0) val = prev[c] + _h5Unzig(br.get(6));
+                                else if (br.get(1) === 0) val = prev[c] + _h5Unzig(br.get(10));
+                                else                      val = _h5ToI16(br.get(16));
+                                val = _h5ToI16(val);
+                                prev[c] = val; vals[c] = val;
+                            }
+                            out.series.push({ schema, t: epoch, v: vals });
+                        }
+                    }
+                }
+                pos += total;
+            }
+            return out;
+        }
+
+        function _h5Unzig(z) {
+            const v = ((z >>> 1) ^ (-(z & 1))) & 0xFFFF;
+            return (v & 0x8000) ? v - 0x10000 : v;
+        }
+
+        /* Unit and display precision per physical quantity. Kept as the page always
+         * showed them so the CSV does not change shape: humidity keeps two decimals
+         * even though V5 stores it at one. */
+        function h5KindUnit(kind) {
+            if (kind === H5_KIND_TEMP)  return '°C';
+            if (kind === H5_KIND_HUM)   return '%RH';
+            if (kind === H5_KIND_PRESS) return 'hPa';
+            return '';
+        }
+        function h5KindDecimals(kind) {
+            if (kind === H5_KIND_PRESS) return 1;
+            return 2;
+        }
+
+        /**
+         * CSV rows, in the shape the export has always produced:
+         *   timestamp_iso,sensor_id,sensor_name,value,unit
+         *
+         * A descriptor id is slot * 8 + channel, so the slot the sensor table is keyed
+         * by comes straight out of the file — no string pool, and pressure finally
+         * lands on the sensor that measured it instead of an empty column.
+         */
+        function h5ToCsvLines(decoded, slots, filterSet, from, to, isoFn) {
+            const lines = [];
+            for (const rec of decoded.series) {
+                if (rec.t < from || rec.t > to) continue;
+                const iso = isoFn(rec.t);
+                for (let c = 0; c < rec.schema.length; c++) {
+                    const raw = rec.v[c];
+                    if (raw === H5_NAN) continue;
+                    const d = rec.schema[c];
+                    const slot = d.id >> 3;
+                    if (filterSet && !filterSet.has(slot)) continue;
+                    const s = slots[slot];
+                    if (!s) continue;
+                    const val = raw * Math.pow(10, d.scaleExp);
+                    lines.push(iso + ',' + s.hwId + ',"' + s.friendly + '",'
+                               + val.toFixed(h5KindDecimals(d.kind)) + ',' + h5KindUnit(d.kind));
+                }
+            }
+            return lines;
+        }
         function _decodeSimxHistory(buf, filterIdx) {
             const u8 = new Uint8Array(buf);
             if (u8.length < 36) throw new Error('blob too small');
@@ -1634,48 +2089,94 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
              * fetch lança fora do retry, etc). */
             try {
 
-            /* Calibra chunk inicial pelo heap_lb do servidor */
-            let chunkSecs = EXP_CHUNK_INITIAL;
+            /* ── Export a partir dos arquivos .h5 ───────────────────────────
+             *
+             * Antes o aparelho decodificava o proprio historico e mandava
+             * BinaryHistoryRecord de 70 bytes fixos: 33 canais, dos quais 27
+             * eram o sentinela NAN numa bancada de 6 canais. Medido: 70,1 B
+             * por registro na rede contra 5,63 B em flash, 12,5x, e um export
+             * completo de 9,2 MB em quase seis minutos.
+             *
+             * Agora a pagina baixa os proprios arquivos por /download e
+             * decodifica aqui. O aparelho faz uma leitura de arquivo e mais
+             * nada, e o que chega e exatamente o arquivo de arquivo morto —
+             * o mesmo que tools/history_v5.py --dump-csv le.
+             *
+             * A cadencia de amostragem NAO esta no arquivo: os simbolos de
+             * tempo sao deltas contra o intervalo nominal, entao ele vem de
+             * /api/status (campo hi, em minutos). Sem isso todo registro
+             * depois do primeiro cairia na hora errada num aparelho que nao
+             * amostre a cada minuto. */
+            let nominalSecs = 60;
+            const slotMeta = {};
             try {
-                const sr = await fetch('/api/status', {credentials:'include'});
-                if (sr.ok) {
-                    const sd = await sr.json();
-                    const lb = (sd.sys && sd.sys.heap_lb) ? sd.sys.heap_lb : 0;
-                    if (lb > 0 && lb < 20000)      chunkSecs = 21600;  /* 6h se heap fragmentado */
-                    else if (lb > 0 && lb < 30000) chunkSecs = 43200;  /* 12h */
-                    /* else: 24h default */
+                const sr = await fetchSafe('/api/status', {timeout: 8000, retries: 1});
+                const sd = await sr.json();
+                if (sd.sys && sd.sys.hi > 0) nominalSecs = sd.sys.hi * 60;
+                for (const s of (sd.sensors || [])) {
+                    slotMeta[s.slot] = { hwId: s.id, friendly: (s.name || '').replace(/"/g, "'") };
                 }
-            } catch(e) { /* mantem default */ }
+            } catch (e) { /* segue com 60 s e sem nomes bonitos */ }
 
-            const allLines = [];
+            /* Dias disponiveis, do mais novo para o mais antigo — se o usuario
+             * cancelar no meio ele fica com o periodo recente, que e o que
+             * costuma querer. */
+            let days = [];
+            try {
+                const lr = await fetchSafe('/api/ls?dir=/history', {timeout: 10000, retries: 2});
+                const lj = await lr.json();
+                for (const e of (lj.entries || [])) {
+                    const m = /^(\d{4})(\d{2})(\d{2})\.h5$/.exec(e.n);
+                    if (!m) continue;
+                    const d0 = Math.floor(new Date(+m[1], +m[2] - 1, +m[3]).getTime() / 1000);
+                    const d1 = d0 + 86400;
+                    if (d1 < from || d0 > to) continue;   /* fora da janela pedida */
+                    days.push({ name: e.n, size: e.s || 0, t0: d0 });
+                }
+            } catch (e) {
+                showToast(window.t('exp_empty', 'No data recovered.'), 'err');
+                return;
+            }
+            days.sort((a, b) => b.t0 - a.t0);
+            if (days.length === 0) {
+                showToast(window.t('exp_empty', 'No data recovered.'), 'err');
+                return;
+            }
+
+            const filterSet = (filterArr && filterArr.length) ? new Set(filterArr.map(Number)) : null;
+            /* Um array de linhas POR DIA. Os dias chegam do mais novo para o
+             * mais antigo, mas as linhas dentro de um dia ja vem em ordem —
+             * juntar tudo num array so e inverter no fim inverteria os dois
+             * niveis e embaralharia cada dia. */
+            const dayLines = [];
             const failedRanges = [];
             let okChunks = 0, failChunks = 0;
-            let consecutiveOk = 0;
-            let cursor = from;
-            /* ETA: media movel das ultimas N iteracoes em ms-por-progresso.
-             * Conta tempo real (incluindo retries/pausa) — falhas inflam ETA
-             * de forma honesta. */
+            const totalBytes = days.reduce((a, d) => a + d.size, 0) || 1;
+            let doneBytes = 0;
             const ETA_WIN = 5;
-            const etaSamples = [];  /* {ms, ratio} */
+            const etaSamples = [];
 
-            _showExpProgress({ pct: 0, ok: 0, fail: 0, chunkSecs, etaMs: -1 });
+            _showExpProgress({ pct: 0, ok: 0, fail: 0, chunkSecs: 86400, etaMs: -1 });
 
-            while (cursor < to && !_expCancelled) {
+            for (const day of days) {
+                if (_expCancelled) break;
                 const iterStart = performance.now();
-                const cFrom = cursor;
-                const cTo   = Math.min(to, cFrom + chunkSecs);
-                let success = false; let lastErr = '';
-                const cursorBefore = cursor;
-
+                let success = false, lastErr = '';
                 for (let attempt = 0; attempt < EXP_MAX_RETRIES && !success && !_expCancelled; attempt++) {
                     try {
                         _expAbort = new AbortController();
-                        const r = await fetch('/api/export/history.bin?from=' + cFrom + '&to=' + cTo,
-                            {credentials:'include', signal: _expAbort.signal});
+                        const r = await fetch('/download?file=/history/' + day.name,
+                            { credentials: 'include', signal: _expAbort.signal });
                         if (!r.ok) throw new Error('HTTP ' + r.status);
                         const buf = await r.arrayBuffer();
-                        const lines = _decodeSimxHistory(buf, filterArr);
-                        for (const ln of lines) allLines.push(ln);
+                        const dec = h5Decode(new Uint8Array(buf), nominalSecs);
+                        if (dec.rejected) {
+                            /* Bloco corrompido nao invalida o dia: o que
+                             * sobreviveu vai para o CSV e o resto e contado. */
+                            failedRanges.push({ from: day.t0, to: day.t0 + 86400,
+                                                err: dec.rejected + ' chunk(s)' });
+                        }
+                        dayLines.push(h5ToCsvLines(dec, slotMeta, filterSet, from, to, _isoLocal));
                         success = true;
                     } catch (e) {
                         lastErr = String(e.message || e);
@@ -1686,56 +2187,38 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     }
                 }
                 _expAbort = null;
-
                 if (_expCancelled) break;
 
-                if (success) {
-                    okChunks++;
-                    consecutiveOk++;
-                    cursor = cTo;
-                    if (consecutiveOk >= EXP_RECOVERY_WIN && chunkSecs < EXP_CHUNK_MAX) {
-                        chunkSecs = Math.min(chunkSecs * 2, EXP_CHUNK_MAX);
-                        consecutiveOk = 0;
-                    }
-                } else {
-                    if (chunkSecs > EXP_CHUNK_MIN) {
-                        chunkSecs = Math.max(Math.floor(chunkSecs / 2), EXP_CHUNK_MIN);
-                        consecutiveOk = 0;
-                    } else {
-                        failChunks++;
-                        failedRanges.push({ from: cFrom, to: cTo, err: lastErr });
-                        cursor = cTo;
-                        consecutiveOk = 0;
-                    }
-                }
+                if (success) okChunks++;
+                else { failChunks++; failedRanges.push({ from: day.t0, to: day.t0 + 86400, err: lastErr }); }
 
-                /* Mede ms gastos vs progresso real (ratio=cursor avancado / total). */
-                const iterMs = performance.now() - iterStart + 50; /* + pausa */
-                const advanced = cursor - cursorBefore;
-                if (advanced > 0) {
-                    etaSamples.push({ ms: iterMs, ratio: advanced / totalSecs });
+                doneBytes += day.size;
+                const ratio = day.size / totalBytes;
+                if (ratio > 0) {
+                    etaSamples.push({ ms: performance.now() - iterStart + 50, ratio });
                     if (etaSamples.length > ETA_WIN) etaSamples.shift();
                 }
-
-                /* Progresso e ETA */
-                const pct = Math.min(99, Math.round(((cursor - from) / totalSecs) * 100));
                 let etaMs = -1;
                 if (etaSamples.length >= 2) {
-                    const sumMs    = etaSamples.reduce((a, x) => a + x.ms, 0);
-                    const sumRatio = etaSamples.reduce((a, x) => a + x.ratio, 0);
-                    if (sumRatio > 0) {
-                        const remainingRatio = Math.max(0, 1 - (cursor - from) / totalSecs);
-                        etaMs = (sumMs / sumRatio) * remainingRatio;
-                    }
+                    const sumMs = etaSamples.reduce((a, x) => a + x.ms, 0);
+                    const sumR = etaSamples.reduce((a, x) => a + x.ratio, 0);
+                    if (sumR > 0) etaMs = (sumMs / sumR) * Math.max(0, 1 - doneBytes / totalBytes);
                 }
-                _showExpProgress({ pct, ok: okChunks, fail: failChunks, chunkSecs, etaMs });
+                _showExpProgress({ pct: Math.min(99, Math.round((doneBytes / totalBytes) * 100)),
+                                   ok: okChunks, fail: failChunks, chunkSecs: 86400, etaMs });
+                if (!_expCancelled) await new Promise(r => setTimeout(r, 20));
+            }
 
-                if (!_expCancelled) await new Promise(r => setTimeout(r, 50));
+            /* Os dias vieram do mais novo para o mais antigo; o CSV sai em
+             * ordem cronologica, com cada dia intacto. */
+            const allLines = [];
+            for (let i = dayLines.length - 1; i >= 0; i--) {
+                for (const ln of dayLines[i]) allLines.push(ln);
             }
 
             if (allLines.length === 0) {
-                if (_expCancelled) showToast(window.t('exp_cancelled','Cancelled.'), 'warn');
-                else showToast(window.t('exp_empty','No data recovered.'), 'err');
+                if (_expCancelled) showToast(window.t('exp_cancelled', 'Cancelled.'), 'warn');
+                else showToast(window.t('exp_empty', 'No data recovered.'), 'err');
                 return;
             }
 
@@ -1874,6 +2357,17 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .sxb:hover { background: #52525b; }
         .sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
         .sxb-dang:hover { background: var(--dang); color: #fff; }
+        .sxb-on { background: var(--acc); color: #000; }
+        .sxb-on:hover { background: var(--acc); }
+        /* Mini grafico de correcao por canal: a linha tracejada e o padrao do
+           sensor (delta zero), a curva e a correcao com suas ancoras. Cores em
+           classes, nunca em atributos fill/stroke — var() nao resolve la. */
+        .spk { display: block; width: 100%; height: 74px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; margin: 6px 0 2px; }
+        .spk .l0 { stroke: #71717a; stroke-width: 1; stroke-dasharray: 4 4; }
+        .spk .lc { stroke: var(--acc); stroke-width: 2; fill: none; }
+        .spk .pa { fill: var(--acc); stroke: #18181b; stroke-width: 1.5; }
+        .spk .hz { fill: rgba(255,255,255,0.05); }
+        .spk .tk { stroke: #eab308; stroke-width: 1.2; }
         /* Grade em vez de flex-wrap: com flex cada pilula tinha a largura do seu
            texto (GP1 vs GP12 2) e as linhas saiam desencontradas. Colunas iguais
            alinham tudo — 4 colunas a 360px, mais no desktop. */
@@ -1888,6 +2382,11 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         label.sxsec { margin-top: 18px; }
         .sx-slot { font-weight: 700; font-size: 1.05rem; color: var(--acc); }
         .sx-warn { display: none; margin-top: 12px; padding: 10px 14px; background: rgba(239,68,68,0.12); border-left: 3px solid var(--dang); border-radius: 3px; font-size: 0.85rem; }
+        /* One calibration point: raw + reference inputs, capture and remove.
+           A grid, not flex — equal columns keep the rows of a 5-point table
+           aligned regardless of how wide each typed number is. */
+        .sxpt { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 6px; margin-bottom: 6px; align-items: center; }
+        .sxpt .sxb { padding: 6px 10px; }
         /* Slot dialog. Mirrors .exp-overlay from the history page, plus a
            scroll cap: the editor is taller than the export progress box it is
            modelled on. It stays inside .card on purpose — position:fixed takes
@@ -2122,7 +2621,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
                         <div class="col">
                             <label data-i18n="cfg_bat">Batch Limit</label>
-                            <input type="number" id="t_bat" name="t_bat" min="1" max="100">
+                            <input type="number" id="t_bat" name="t_bat" min="1" max="50">
                         </div>
                     </div>
                     <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (Upload Interval = 0). Set a value to enable.</div>
@@ -2632,6 +3131,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
          * the hardware about which pin of a BMP280 is SCL.
          * Edits stage into Pending.slots and reach flash on Save and Restart. */
         let SENS = null, CAL = null, sensOpenSlot = -1;
+        /* Point-editor working state. calEdit holds the rows as the user
+           typed them (strings, possibly incomplete), keyed slot:chkey, so a
+           structural redraw does not lose a half-filled row. calDirty marks
+           channels to stage — an untouched channel is never sent, which is
+           what the server-side "absent means unchanged" rides on. calMode
+           holds the interpolation choice per channel: lin or cub. */
+        let calEdit = {}, calDirty = {}, calMode = {};
         const SE = id => document.getElementById(id);
         function sensStaged() { return Pending.getSection('slots').s || []; }
         function calStaged() { return (Pending.getSection('calib').sensors) || []; }
@@ -2782,60 +3288,95 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 h += '</div>';
             }
-            /* Limites de alarme saem daqui: moram na /alarms, que edita as mesmas
-               quatro chaves (tmin/tmax/hmin/hmax) e ainda acopla min<max, coisa
-               que este formulario nunca fez. Duplicar dava dois lugares para o
-               mesmo dado, com validacoes diferentes.
-               O payload de sensStage CONTINUA enviando os quatro campos: o helper
-               num(id, d) devolve o default `d` (= o valor ja gravado no slot)
-               quando o elemento nao existe, entao o valor e preservado, nao zerado.
+            /* Limites de alarme saem daqui: moram na /alarms, que os edita e ainda
+               acopla min<max, coisa que este formulario nunca fez. Duplicar dava
+               dois lugares para o mesmo dado, com validacoes diferentes.
+               O payload de sensStage repassa `lim` intacto — o objeto por canal
+               que a /api/sensors devolve — para preservar o que ja esta gravado
+               em vez de zerar. Antes eram quatro chaves tmin/tmax/hmin/hmax, que
+               nao tinham como carregar o limite de uma terceira grandeza.
                NAO mexer no se_al, que fica na secao acima — ele e lido sem guarda
                de nulo em sensStage e sumir dele quebraria o salvamento. */
 
-            /* Calibration. This used to be the Calibration Mode toggle on the
-               dashboard; it belongs with the sensor it calibrates. The offset
-               is not a SensorRecord field -- it lives in calib.csv, keyed by
-               the 1-Wire ROM for a DS18B20 and by board serial + hwId for a
-               sensor that has no ROM.
-               Every slot gets a reference input now. The ROM-less ones used to
-               show the reading and a note saying calibration was unavailable,
-               which was true while the firmware held one device-wide offset
-               pair for "the ambient sensor" -- there was nowhere to put a
-               second DHT22. Each sensor has its own rows today. */
+            /* Calibration. Up to 5 (raw, reference) points per quantity — the
+               firmware interpolates the correction between them and holds it
+               flat beyond the ends; one point is the old constant offset. The
+               data is not a SensorRecord field: it lives in calib.csv, keyed
+               by the 1-Wire ROM for a DS18B20 and by board serial + hwId for
+               a sensor that has no ROM.
+               Driven by c.channels, which the firmware builds from the
+               channel table — one block per quantity this sensor reports, so
+               a new quantity appears here with no page change at all. Rows
+               render from calEdit (the typed strings), never from the staged
+               numbers: a redraw mid-edit must not eat a half-filled row. */
             const c = calOf(i);
             if (c) {
-                const st = calStaged().find(x => x.slot === i);
-                /* Driven by c.channels, which the firmware builds from the
-                   channel table — one entry per quantity this sensor reports.
-                   Every block below used to be written once per quantity, with
-                   a hasX flag and an xRead/xOffset/refX triple each, so adding
-                   pressure meant editing all three. Iterating means a new
-                   quantity appears here with no page change at all. */
+                const stc = calStaged().find(x => x.slot === i);
                 const chans = c.channels || [];
                 h += '<label class="sxsec">' + window.t('sens_calib', 'Calibration') + '</label>' +
-                     '<div class="sxn">' + window.t('sens_reading', 'Reading now') + ': ' +
-                     chans.map(ch =>
-                        '<strong>' + (ch.read === null ? '--' : ch.read + ' ' + ch.unit) +
-                        '</strong> (offset ' + ch.offset + ')'
-                     ).join(' &nbsp;|&nbsp; ') + '</div>';
-                /* Two columns per row, so a sensor with an odd channel count
-                   ends on a half-empty row instead of a broken grid. */
-                for (let k = 0; k < chans.length; k += 2) {
-                    h += '<div class="row">';
-                    for (let j = k; j < k + 2; j++) {
-                        if (j >= chans.length) { h += '<div class="col"></div>'; continue; }
-                        const ch = chans[j];
-                        const staged = (st && st.refs && st.refs[ch.key] !== undefined) ? st.refs[ch.key] : '';
-                        const step = ch.dec >= 2 ? '0.01' : (ch.dec === 1 ? '0.1' : '1');
-                        h += '<div class="col"><div class="sxh">' +
-                             window.t('sens_ref_of', 'Reference value read on a trusted instrument') +
-                             ' — ' + window.t(ch.label, ch.key) + '</div>' +
-                             '<input id="se_ref_' + ch.key + '" oninput="sensStage(0)" type="number" step="' + step +
-                             '" placeholder="' + ch.unit + '" value="' + staged + '"></div>';
+                     '<div class="sxn">' + window.t('cal_pts_hint',
+                        'Up to 5 points per quantity, each pairing the raw reading with the value a trusted instrument showed. One point applies a constant offset; more points bend the correction between them, held flat beyond the ends. Leave raw empty to capture the reading at save time.') + '</div>';
+                chans.forEach(ch => {
+                    const ek = i + ':' + ch.key;
+                    const stv = (stc && stc.cal) ? stc.cal[ch.key] : undefined;
+                    if (calEdit[ek] === undefined) {
+                        /* A staged channel may be the plain array (linear) or
+                           the object form with an interpolation mode. */
+                        const src = (stv !== undefined)
+                            ? (Array.isArray(stv) ? stv : (stv.p || []))
+                            : (ch.pts || []);
+                        calEdit[ek] = src.map(p => ({ r: p[0] === null ? '' : String(p[0]), v: String(p[1]) }));
+                        /* Staged rows that survived a page reload are still
+                           edits — without this they would stop being sent. */
+                        if (stv !== undefined) calDirty[ek] = 1;
+                    }
+                    if (calMode[ek] === undefined) {
+                        calMode[ek] = (stv !== undefined && !Array.isArray(stv) && stv.m === 'cub') ? 'cub'
+                                    : (ch.mode === 'cub' ? 'cub' : 'lin');
+                    }
+                    const rows = calEdit[ek];
+                    const step = ch.dec >= 2 ? '0.01' : (ch.dec === 1 ? '0.1' : '1');
+                    const legacy = !calDirty[ek] && rows.length === 0 && (ch.pts || []).length === 0 && Math.abs(ch.offset) >= 0.005;
+                    h += '<div class="sxh" style="margin-top:10px"><strong>' + window.t(ch.label, ch.key) + '</strong> &mdash; ' +
+                         window.t('cal_raw', 'Raw') + ': <strong>' + (ch.raw === null ? '--' : ch.raw + ' ' + ch.unit) + '</strong>' +
+                         ' &rarr; ' + window.t('cal_corr', 'corrected') + ': <strong>' + (ch.read === null ? '--' : ch.read + ' ' + ch.unit) + '</strong></div>' +
+                         '<svg class="spk" id="se_spk_' + ch.key + '" viewBox="0 0 560 74" preserveAspectRatio="none" aria-hidden="true"></svg>';
+                    if (!rows.length) {
+                        h += '<div class="sxn">' + (legacy
+                             ? window.t('cal_legacy', 'Constant offset') + ': ' + ch.offset + ' ' + ch.unit
+                             : window.t('cal_none', 'No correction — sensor default.')) + '</div>';
+                    }
+                    rows.forEach((r, idx) => {
+                        h += '<div class="sxpt">' +
+                             '<input id="se_pr_' + ch.key + '_' + idx + '" type="number" step="' + step + '" placeholder="' +
+                             window.t('cal_raw', 'Raw') + '" value="' + r.r + '" oninput="calPtIn(&quot;' + ch.key + '&quot;,' + idx + ',this)">' +
+                             '<input id="se_pv_' + ch.key + '_' + idx + '" type="number" step="' + step + '" placeholder="' +
+                             window.t('cal_ref', 'Reference') + '" value="' + r.v + '" oninput="calPtIn(&quot;' + ch.key + '&quot;,' + idx + ',this)">' +
+                             '<button type="button" class="sxb" title="' + window.t('cal_cap', 'Use the current raw reading') + '"' +
+                             (ch.raw === null ? ' disabled' : '') + ' onclick="calPtCap(&quot;' + ch.key + '&quot;,' + idx + ')">&#8635;</button>' +
+                             '<button type="button" class="sxb sxb-dang" title="' + window.t('cal_del', 'Remove this point') + '"' +
+                             ' onclick="calPtDel(&quot;' + ch.key + '&quot;,' + idx + ')">&times;</button></div>';
+                    });
+                    h += '<div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;align-items:center">';
+                    if (rows.length < 5) h += '<button type="button" class="sxb" onclick="calPtAdd(&quot;' + ch.key + '&quot;)">+ ' + window.t('cal_add', 'Add point') + '</button>';
+                    if (rows.length || legacy) h += '<button type="button" class="sxb sxb-dang" onclick="calPtClear(&quot;' + ch.key + '&quot;)">' + window.t('cal_clear', 'Remove correction') + '</button>';
+                    /* Interpolation choice — always visible, one per quantity
+                       of every sensor type. Below 3 points the cubic IS the
+                       straight line, so the choice is stored but changes
+                       nothing yet; the hint says so. */
+                    {
+                        const mc = calMode[ek] === 'cub';
+                        h += '<span class="sxh" style="margin:0 0 0 6px">' + window.t('cal_mode_lbl', 'Interpolation') + ':</span>' +
+                             '<button type="button" class="sxb' + (mc ? '' : ' sxb-on') + '" onclick="calModeSet(&quot;' + ch.key + '&quot;,&quot;lin&quot;)">' + window.t('cal_mode_lin', 'Straight') + '</button>' +
+                             '<button type="button" class="sxb' + (mc ? ' sxb-on' : '') + '" onclick="calModeSet(&quot;' + ch.key + '&quot;,&quot;cub&quot;)">' + window.t('cal_mode_cub', 'Smooth') + '</button>';
                     }
                     h += '</div>';
-                }
-                h += '<div class="sxn">' + window.t('sens_ref_hint', 'The device stores the difference as the offset. Needs NTP synced.') +
+                    if (calMode[ek] === 'cub' && rows.length < 3) {
+                        h += '<div class="sxn">' + window.t('cal_mode_hint', 'Smooth is a monotone cubic: it bends through the anchors without ever overshooting them. Needs 3+ points; with fewer it behaves as straight.') + '</div>';
+                    }
+                });
+                h += '<div id="se_calwarn" class="sx-warn"></div>' +
+                     '<div class="sxn">' + window.t('cal_save_hint', 'Corrections are written on Save and Restart. Needs NTP synced.') +
                      (CAL && CAL.ntp === false ? ' <span style="color:var(--dang)">' + window.t('sens_ntp_no', 'NTP not synced.') + '</span>' : '') + '</div>';
             }
 
@@ -2856,13 +3397,19 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             /* Hardware operations. These act on the device NOW — unlike every
                other control on this page they are not staged for Save and
                Restart, because adopting a probe or moving an epoch has to
-               happen against the hardware as it is at this instant. */
-            h += '<label class="sxsec">' + window.t('sens_hw', 'Hardware') + '</label>' +
-                 '<div class="sxn">' + window.t('sens_accept_hint',
-                    'Re-reads the probe wired to this slot and binds the slot to it. Use it after swapping a DS18B20, when the device reports a hardware mismatch.') + '</div>' +
-                 '<button type="button" class="sxb" id="se_adopt" onclick="sensAdopt()" style="margin-top:10px">' +
-                 window.t('sens_accept', 'Adopt the probe wired here') + '</button>' +
-                 '<div class="sxn" style="margin-top:14px">' + window.t('sens_wipe_hint',
+               happen against the hardware as it is at this instant.
+               Adopt only exists where a factory serial exists to adopt
+               (ty.sn — DS18B20 ROM): a serial-less part cannot error when
+               moved to the wrong place, so offering the button there only
+               invited the LIB_SENS rename accident. */
+            h += '<label class="sxsec">' + window.t('sens_hw', 'Hardware') + '</label>';
+            if (ty && ty.sn) {
+                h += '<div class="sxn">' + window.t('sens_accept_hint',
+                        'Re-reads the probe wired to this slot and binds the slot to it. Use it after swapping a DS18B20, when the device reports a hardware mismatch.') + '</div>' +
+                     '<button type="button" class="sxb" id="se_adopt" onclick="sensAdopt()" style="margin-top:10px">' +
+                     window.t('sens_accept', 'Adopt the probe wired here') + '</button>';
+            }
+            h += '<div class="sxn" style="margin-top:14px">' + window.t('sens_wipe_hint',
                     'Marks everything recorded before now as belonging to the previous sensor. The records stay on disk; the graphs stop attributing them to this slot.') + '</div>' +
                  '<button type="button" class="sxb sxb-dang" id="se_wipe" onclick="sensWipe()" style="margin-top:10px">' +
                  window.t('sens_wipe', 'Reset history epoch') + '</button>';
@@ -2875,6 +3422,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  '<div class="sxn" style="margin-top:10px">' + window.t('sens_stage_hint', 'Edits are staged as you type and written on Save and Restart.') + '</div>';
             SE('sens_ed').innerHTML = h;
             sensWarn();
+            calSparkAll();
         }
 
         /* Rebuilds the history file of the day against the SAVED slots.
@@ -3050,6 +3598,178 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
         function sensPut(e) { sensSet(sensStaged().filter(x => x.i !== e.i).concat([e])); }
 
+        /* ── Calibration point editor ──
+           The DOM inputs are transcribed into calEdit on every keystroke and
+           the structural actions (add, remove, clear) mutate calEdit and ask
+           for a redraw — the same split the rest of the editor uses. */
+        function calPtIn(key, idx, el) {
+            const ek = sensOpenSlot + ':' + key;
+            if (!calEdit[ek] || !calEdit[ek][idx]) return;
+            calEdit[ek][idx][el.id.indexOf('se_pr_') === 0 ? 'r' : 'v'] = el.value;
+            calDirty[ek] = 1;
+            sensStage(0);
+        }
+        function calPtCap(key, idx) {
+            const c = calOf(sensOpenSlot);
+            const ch = c ? (c.channels || []).find(x => x.key === key) : null;
+            if (!ch || ch.raw === null) return;
+            const ek = sensOpenSlot + ':' + key;
+            if (!calEdit[ek] || !calEdit[ek][idx]) return;
+            calEdit[ek][idx].r = String(ch.raw);
+            const el = SE('se_pr_' + key + '_' + idx);
+            if (el) el.value = ch.raw;
+            calDirty[ek] = 1;
+            sensStage(0);
+        }
+        function calPtAdd(key) {
+            const ek = sensOpenSlot + ':' + key;
+            calEdit[ek] = calEdit[ek] || [];
+            if (calEdit[ek].length >= 5) return;
+            calEdit[ek].push({ r: '', v: '' });
+            calDirty[ek] = 1;
+            sensStage(1);
+        }
+        function calPtDel(key, idx) {
+            const ek = sensOpenSlot + ':' + key;
+            if (!calEdit[ek]) return;
+            calEdit[ek].splice(idx, 1);
+            calDirty[ek] = 1;
+            sensStage(1);
+        }
+        function calPtClear(key) {
+            const ek = sensOpenSlot + ':' + key;
+            calEdit[ek] = [];
+            calDirty[ek] = 1;
+            sensStage(1);
+        }
+        function calModeSet(key, m) {
+            const ek = sensOpenSlot + ':' + key;
+            calMode[ek] = m;
+            calDirty[ek] = 1;
+            sensStage(1);
+        }
+        /* ── Mini grafico da correcao ──
+           Um por canal, dentro do editor: a reta do padrao (delta zero) e a
+           curva de correcao com as ancoras, simulada no modo escolhido (reta
+           ou suave — mesmo Fritsch-Carlson do firmware). Redesenha apenas o
+           svg proprio, nunca os inputs — regra do caret. */
+        function calSparkPts(ek) {
+            const out = [];
+            (calEdit[ek] || []).forEach(r => {
+                if (r.v === '' || isNaN(parseFloat(r.v))) return;
+                if (r.r === '' || isNaN(parseFloat(r.r))) return;
+                out.push({ r: parseFloat(r.r), d: parseFloat(r.v) - parseFloat(r.r) });
+            });
+            out.sort((a, b) => a.r - b.r);
+            return out;
+        }
+        function calSparkSlopes(pp) {
+            const n = pp.length, m = new Array(n).fill(0);
+            if (n < 3) return m;
+            const h = [], d = [];
+            for (let i = 0; i < n - 1; i++) { h.push(pp[i + 1].r - pp[i].r); d.push((pp[i + 1].d - pp[i].d) / h[i]); }
+            for (let i = 1; i < n - 1; i++) {
+                if (d[i - 1] === 0 || d[i] === 0 || ((d[i - 1] > 0) !== (d[i] > 0))) m[i] = 0;
+                else m[i] = 3 * (h[i - 1] + h[i]) / ((2 * h[i] + h[i - 1]) / d[i - 1] + (h[i] + 2 * h[i - 1]) / d[i]);
+            }
+            return m;
+        }
+        function calSparkDelta(pp, m, smooth, x) {
+            const n = pp.length;
+            if (!n) return 0;
+            if (n === 1 || x <= pp[0].r) return pp[0].d;
+            if (x >= pp[n - 1].r) return pp[n - 1].d;
+            for (let i = 1; i < n; i++) {
+                if (x <= pp[i].r) {
+                    const h = pp[i].r - pp[i - 1].r, t = (x - pp[i - 1].r) / h;
+                    if (smooth && n >= 3) {
+                        const t2 = t * t, t3 = t2 * t;
+                        return pp[i - 1].d * (2 * t3 - 3 * t2 + 1) + h * m[i - 1] * (t3 - 2 * t2 + t) +
+                               pp[i].d * (-2 * t3 + 3 * t2) + h * m[i] * (t3 - t2);
+                    }
+                    return pp[i - 1].d + t * (pp[i].d - pp[i - 1].d);
+                }
+            }
+            return pp[n - 1].d;
+        }
+        function calSpark(ch) {
+            const host = SE('se_spk_' + ch.key);
+            if (!host) return;
+            const ek = sensOpenSlot + ':' + ch.key;
+            const pp = calSparkPts(ek);
+            const smooth = calMode[ek] === 'cub';
+            const legacyOff = (!pp.length && !calDirty[ek]) ? (ch.offset || 0) : 0;
+            const W = 560, H = 74, L = 8, R = 8, T = 10, B = 12;
+            let lo, hi;
+            if (pp.length >= 2) {
+                const sp = Math.max(pp[pp.length - 1].r - pp[0].r, 1);
+                lo = pp[0].r - sp * 0.18; hi = pp[pp.length - 1].r + sp * 0.18;
+            } else if (pp.length === 1) { lo = pp[0].r - 5; hi = pp[0].r + 5; }
+            else if (ch.raw !== null) { lo = ch.raw - 5; hi = ch.raw + 5; }
+            else { lo = ch.min; hi = ch.max; }
+            let ym = 0.5;
+            pp.forEach(p => { ym = Math.max(ym, Math.abs(p.d) * 1.3); });
+            ym = Math.max(ym, Math.abs(legacyOff) * 1.3);
+            const X = x => L + (x - lo) / (hi - lo) * (W - L - R);
+            const Y = d => T + (ym - d) / (2 * ym) * (H - T - B);
+            const m = calSparkSlopes(pp);
+            let s = '';
+            if (pp.length >= 2) {
+                s += '<rect class="hz" x="' + L + '" y="' + T + '" width="' + (X(pp[0].r) - L).toFixed(1) + '" height="' + (H - T - B) + '"/>';
+                s += '<rect class="hz" x="' + X(pp[pp.length - 1].r).toFixed(1) + '" y="' + T + '" width="' + (W - R - X(pp[pp.length - 1].r)).toFixed(1) + '" height="' + (H - T - B) + '"/>';
+            }
+            s += '<line class="l0" x1="' + L + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - R) + '" y2="' + Y(0).toFixed(1) + '"/>';
+            if (pp.length || legacyOff) {
+                let dp = '';
+                const steps = 52;
+                for (let k = 0; k <= steps; k++) {
+                    const x = lo + (hi - lo) * k / steps;
+                    const d = pp.length ? calSparkDelta(pp, m, smooth, x) : legacyOff;
+                    dp += (k ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(d).toFixed(1);
+                }
+                s += '<path class="lc" d="' + dp + '"/>';
+            }
+            if (ch.raw !== null && ch.raw >= lo && ch.raw <= hi) {
+                s += '<line class="tk" x1="' + X(ch.raw).toFixed(1) + '" y1="' + T + '" x2="' + X(ch.raw).toFixed(1) + '" y2="' + (H - B) + '"/>';
+            }
+            pp.forEach(p => { s += '<circle class="pa" cx="' + X(p.r).toFixed(1) + '" cy="' + Y(p.d).toFixed(1) + '" r="3.5"/>'; });
+            host.innerHTML = s;
+        }
+        function calSparkAll() {
+            const c = (typeof calOf === 'function') ? calOf(sensOpenSlot) : null;
+            if (c) (c.channels || []).forEach(calSpark);
+        }
+        /* Mirror of the rules POST /api/calib enforces, surfaced while typing
+           instead of as a 400 after Save. First problem wins, like sensWarn. */
+        function calWarnMsg() {
+            const i = sensOpenSlot, c = calOf(i);
+            if (!c) return '';
+            const chans = c.channels || [];
+            for (let k = 0; k < chans.length; k++) {
+                const ch = chans[k], ek = i + ':' + ch.key;
+                if (!calDirty[ek]) continue;
+                const rows = (calEdit[ek] || []).filter(r => r.r !== '' || r.v !== '');
+                const lbl = window.t(ch.label, ch.key);
+                if (rows.length > 5) return lbl + ': ' + window.t('cal_err_max', 'at most 5 points.');
+                const seen = [];
+                for (let j = 0; j < rows.length; j++) {
+                    const r = rows[j];
+                    if (r.v === '' || isNaN(parseFloat(r.v)) || (r.r !== '' && isNaN(parseFloat(r.r))))
+                        return lbl + ': ' + window.t('cal_err_num', 'every point needs numeric raw and reference values.');
+                    if (r.r === '' && ch.raw === null)
+                        return lbl + ': ' + window.t('cal_err_noread', 'no live reading to capture — fill the raw value.');
+                    const rv = r.r === '' ? ch.raw : parseFloat(r.r), fv = parseFloat(r.v);
+                    if (rv < ch.min || rv > ch.max || fv < ch.min || fv > ch.max)
+                        return lbl + ': ' + window.t('cal_err_rng', 'point outside the plausible range') + ' (' + ch.min + '..' + ch.max + ').';
+                    const rk = Math.round(rv * 100);
+                    if (seen.indexOf(rk) >= 0)
+                        return lbl + ': ' + window.t('cal_err_dup', 'two points share the same raw value.');
+                    seen.push(rk);
+                }
+            }
+            return '';
+        }
+
         /* Reads the open editor and writes it straight into Pending.
          *
          * Every other section of this page stages on each keystroke, via the
@@ -3070,33 +3790,44 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const nP = ty ? ty.pins.length : 0, p = [255, 255, 255, 255];
             for (let k = 0; k < nP; k++) if (SE('se_p' + k)) p[k] = parseInt(SE('se_p' + k).value);
             const b = SENS.slots[i];
-            const num = (id, d) => { const e = SE(id); if (!e || e.value === '') return d; const v = parseFloat(e.value); return isNaN(v) ? d : v; };
             sensPut({ i: i, a: SE('se_a').checked, t: t, p: p,
                       hwId: SE('se_id').value.trim(), name: SE('se_n').value.trim(),
-                      tmin: num('se_tmin', b.tmin), tmax: num('se_tmax', b.tmax),
-                      hmin: num('se_hmin', b.hmin), hmax: num('se_hmax', b.hmax),
-                      al: SE('se_al').checked });
+                      lim: b.lim, al: SE('se_al').checked });
 
             /* Calibration rides the pre-existing Pending.calib section, which
-               commitAll POSTs to /api/calib before saving. One input per channel
-               the slot reports, with id se_ref_ plus the channel key; a slot may
-               stage any subset, so the entry is built and only pushed if it
-               carries at least one. Sent under a refs object keyed by channel —
-               the firmware also still reads the old refTemp/refHum/refPress
-               names, but nothing emits them any more. */
+               commitAll POSTs to /api/calib before saving. Staged per channel
+               and only for channels the user touched (calDirty): an absent
+               channel means "unchanged" server-side, which is what lets a
+               rename commit without re-sending curves it never edited. A
+               channel with an incomplete or non-numeric row stages nothing —
+               the red #se_calwarn line is already saying why. An empty row
+               list IS staged: [] is the explicit "remove the correction". */
             const cal = (typeof calOf === 'function') ? calOf(i) : null;
             const chans = (cal && cal.channels) ? cal.channels : [];
             if (chans.length) {
                 const rest = calStaged().filter(x => x.slot !== i);
-                const refs = {};
+                const entry = { slot: i, cal: {} };
+                let anyc = 0;
                 chans.forEach(ch => {
-                    const e = SE('se_ref_' + ch.key);
-                    if (e && e.value !== '' && !isNaN(parseFloat(e.value))) refs[ch.key] = parseFloat(e.value);
+                    const ek = i + ':' + ch.key;
+                    if (!calDirty[ek]) return;
+                    const rows = (calEdit[ek] || []).filter(r => r.r !== '' || r.v !== '');
+                    const pts = [];
+                    let bad = false;
+                    rows.forEach(r => {
+                        const fv = parseFloat(r.v);
+                        const rv = r.r === '' ? null : parseFloat(r.r);
+                        if (r.v === '' || isNaN(fv) || (rv !== null && isNaN(rv))) { bad = true; return; }
+                        pts.push([rv, fv]);
+                    });
+                    if (bad || pts.length > 5) return;
+                    entry.cal[ch.key] = (calMode[ek] === 'cub') ? { m: 'cub', p: pts } : pts;
+                    anyc = 1;
                 });
-                if (Object.keys(refs).length) rest.push({ slot: i, refs: refs });
+                if (anyc) rest.push(entry);
                 Pending.setSection('calib', rest.length ? { sensors: rest } : {});
             }
-            if (redraw) sensDrawEditor(); else sensWarn();
+            if (redraw) { sensDrawEditor(); } else { sensWarn(); calSparkAll(); }
         }
 
         /* Live echo of the rule commit_all enforces server-side. Shown while
@@ -3124,6 +3855,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
             el.textContent = m;
             el.style.display = m ? '' : 'none';
+            /* The calibration panel has its own warning line so a slot-config
+               problem and a point problem can be visible at the same time. */
+            const cw = SE('se_calwarn');
+            if (cw) {
+                const cm = calWarnMsg();
+                cw.textContent = cm;
+                cw.style.display = cm ? '' : 'none';
+            }
         }
 
         function sensClear() {
@@ -3135,6 +3874,15 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function sensRevert() {
             const i = sensOpenSlot;
             sensSet(sensStaged().filter(x => x.i !== i));
+            /* The calibration section stages separately — drop this slot from
+               it too, and forget the local point-editor state so the redraw
+               below re-reads the server truth. Leaving it staged made Revert
+               a lie for exactly the edits that rewrite flash. */
+            const rest = calStaged().filter(x => x.slot !== i);
+            Pending.setSection('calib', rest.length ? { sensors: rest } : {});
+            Object.keys(calEdit).forEach(k => {
+                if (k.indexOf(i + ':') === 0) { delete calEdit[k]; delete calDirty[k]; delete calMode[k]; }
+            });
             /* Discarding a slot that only ever existed as a staged edit leaves
                nothing to edit — keeping the dialog open would show a blank slot
                that is no longer in the list behind it. */
@@ -4270,7 +5018,9 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let html = '';
                 for (let i = 0; i < sensors.length; i++) {
                     let s = sensors[i];
-                    let hasHum = s.has_hum;
+                    /* s.has_hum is still emitted but no longer read: which fields
+                       this card shows comes from s.lim, which lists exactly the
+                       quantities the part reports. */
                     /* Every entry is a real slot. The idx === -1 branch here
                        painted an "Ambient Sensor" card for a pseudo-sensor the
                        API never emitted. */
@@ -4283,12 +5033,23 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     html += '    <div class="sensor-type">' + escHtml(s.type) + ' &middot; SLOT ' + s.idx + '</div>';
                     html += '  </div>';
                     html += '  <div class="limit-grid">';
-                    html += '    <div class="limit-field"><label data-i18n="alm_tmin">Temp Min</label><input type="number" step="0.1" class="alm-input" data-key="tmin" value="' + s.tmin.toFixed(1) + '"></div>';
-                    html += '    <div class="limit-field"><label data-i18n="alm_tmax">Temp Max</label><input type="number" step="0.1" class="alm-input" data-key="tmax" value="' + s.tmax.toFixed(1) + '"></div>';
-                    if (hasHum) {
-                        html += '    <div class="limit-field"><label data-i18n="alm_hmin">Hum Min</label><input type="number" step="0.1" class="alm-input" data-key="hmin" value="' + s.hmin.toFixed(1) + '"></div>';
-                        html += '    <div class="limit-field"><label data-i18n="alm_hmax">Hum Max</label><input type="number" step="0.1" class="alm-input" data-key="hmax" value="' + s.hmax.toFixed(1) + '"></div>';
-                    }
+                    /* Two fields per quantity the part reports, from s.lim.
+                       Was a temperature pair plus a humidity pair behind hasHum,
+                       so a BMP280 offered a temperature band and no way to bound
+                       its pressure. data-key stays the channel key, which is what
+                       the commit handler parses out of the payload. */
+                    const lim = s.lim || {};
+                    Object.keys(lim).forEach(k => {
+                        const pair = lim[k];
+                        if (!Array.isArray(pair) || pair.length < 2) return;
+                        const nm = window.t('ch_' + k, k);
+                        html += '    <div class="limit-field"><label>' + escHtml(nm) + ' MIN</label>'
+                             +  '<input type="number" step="0.1" class="alm-input" data-key="' + escHtml(k) + 'min"'
+                             +  ' value="' + Number(pair[0]).toFixed(1) + '"></div>';
+                        html += '    <div class="limit-field"><label>' + escHtml(nm) + ' MAX</label>'
+                             +  '<input type="number" step="0.1" class="alm-input" data-key="' + escHtml(k) + 'max"'
+                             +  ' value="' + Number(pair[1]).toFixed(1) + '"></div>';
+                    });
                     html += '  </div>';
                     html += '</div>';
                 }
@@ -4340,16 +5101,31 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.querySelectorAll('.sensor-card').forEach(card => {
                 let idx = parseInt(card.getAttribute('data-idx'));
                 let obj = { idx: idx, active: card.querySelector('.alm-active').checked };
+                /* One entry per pair of inputs, keyed by channel, holding a
+                   two-element min/max array. The inputs
+                   are named <key>min / <key>max; the payload groups them, which
+                   is the shape the firmware parses and the same shape
+                   /api/sensors emits. Previously the four fixed keys went out
+                   flat, and a third quantity had nowhere to go. */
                 card.querySelectorAll('.alm-input').forEach(inp => {
-                    obj[inp.getAttribute('data-key')] = parseFloat(inp.value) || 0;
+                    const dk = inp.getAttribute('data-key') || '';
+                    const isMax = dk.endsWith('max');
+                    const key = dk.slice(0, -3);
+                    if (!key) return;
+                    if (!obj[key]) obj[key] = [undefined, undefined];
+                    obj[key][isMax ? 1 : 0] = parseFloat(inp.value) || 0;
                 });
-                /* Validação de intertravamento (mantida do fluxo antigo) */
-                if (obj.tmin !== undefined && obj.tmax !== undefined && obj.tmin >= obj.tmax) {
-                    obj.tmax = Math.round((obj.tmin + 0.1) * 10) / 10;
-                }
-                if (obj.hmin !== undefined && obj.hmax !== undefined && obj.hmin >= obj.hmax) {
-                    obj.hmax = Math.min(100, Math.round((obj.hmin + 0.1) * 10) / 10);
-                }
+                /* Interlock, per channel. The old pair of hand-written checks
+                   also clamped humidity to 100 here; the firmware now holds each
+                   channel inside its own plausible range, so the browser only has
+                   to keep min below max. */
+                Object.keys(obj).forEach(k => {
+                    const v = obj[k];
+                    if (!Array.isArray(v)) return;
+                    if (v[0] !== undefined && v[1] !== undefined && v[0] >= v[1]) {
+                        v[1] = Math.round((v[0] + 0.1) * 10) / 10;
+                    }
+                });
                 sensorData.push(obj);
             });
             let soundData = {
@@ -4542,29 +5318,19 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             var val = parseFloat(e.target.value);
             if (isNaN(val)) return;
 
-            // Intertravamento temperatura
-            if (key === 'tmin' && inputs['tmax']) {
-                var max = parseFloat(inputs['tmax'].value);
-                if (!isNaN(max) && val >= max) {
-                    inputs['tmax'].value = (Math.round((val + 0.1) * 10) / 10).toFixed(1);
-                }
-            } else if (key === 'tmax' && inputs['tmin']) {
-                var min = parseFloat(inputs['tmin'].value);
-                if (!isNaN(min) && val <= min) {
-                    inputs['tmin'].value = (Math.round((val - 0.1) * 10) / 10).toFixed(1);
-                }
-            }
-            // Intertravamento umidade
-            if (key === 'hmin' && inputs['hmax']) {
-                var max = parseFloat(inputs['hmax'].value);
-                if (!isNaN(max) && val >= max) {
-                    inputs['hmax'].value = Math.min(100, Math.round((val + 0.1) * 10) / 10).toFixed(1);
-                }
-            } else if (key === 'hmax' && inputs['hmin']) {
-                var min = parseFloat(inputs['hmin'].value);
-                if (!isNaN(min) && val <= min) {
-                    inputs['hmin'].value = Math.max(0, Math.round((val - 0.1) * 10) / 10).toFixed(1);
-                }
+            /* Interlock against the partner of this field, whatever quantity it
+               belongs to. Was a temperature block and a humidity block written
+               out separately, which left a third quantity uncoupled — its MIN
+               could be dragged above its MAX with nothing objecting. */
+            var isMax = key.endsWith('max');
+            var partner = inputs[key.slice(0, -3) + (isMax ? 'min' : 'max')];
+            if (!partner) return;
+            var other = parseFloat(partner.value);
+            if (isNaN(other)) return;
+            if (!isMax && val >= other) {
+                partner.value = (Math.round((val + 0.1) * 10) / 10).toFixed(1);
+            } else if (isMax && val <= other) {
+                partner.value = (Math.round((val - 0.1) * 10) / 10).toFixed(1);
             }
         });
 
@@ -4977,7 +5743,30 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "cal_apply_ok": "Atualizado v",
             "cal_apply_fail": "Falha: ",
             "cal_no_changes": "Nada a alterar.",
-            "cal_ntp_no": "NTP não sincronizado"
+            "cal_ntp_no": "NTP não sincronizado",
+            /* Curvas de calibração por pontos (/config → editor de slot).
+               Inline pelo mesmo motivo do bloco sens_rebind acima: o .lng no
+               LittleFS não acompanha o flash do firmware. */
+            "cal_pts_hint": "Até 5 pontos por grandeza, cada um ligando a leitura bruta ao valor mostrado por um instrumento confiável. Um ponto aplica um offset constante; mais pontos dobram a correção entre eles, mantida reta além das pontas. Deixe o bruto vazio para captar a leitura ao salvar.",
+            "cal_raw": "Bruto",
+            "cal_ref": "Referência",
+            "cal_corr": "corrigido",
+            "cal_cap": "Usar a leitura bruta atual",
+            "cal_del": "Remover este ponto",
+            "cal_add": "Adicionar ponto",
+            "cal_clear": "Remover correção",
+            "cal_none": "Sem correção — padrão do sensor.",
+            "cal_legacy": "Offset constante",
+            "cal_save_hint": "As correções são gravadas no Salvar e Reiniciar. Requer NTP sincronizado.",
+            "cal_err_max": "no máximo 5 pontos.",
+            "cal_err_num": "todo ponto precisa de bruto e referência numéricos.",
+            "cal_err_noread": "sem leitura ao vivo para captar — preencha o valor bruto.",
+            "cal_err_rng": "ponto fora da faixa plausível",
+            "cal_err_dup": "dois pontos com o mesmo valor bruto.",
+            "cal_mode_lbl": "Interpolação",
+            "cal_mode_lin": "Reta",
+            "cal_mode_cub": "Suave",
+            "cal_mode_hint": "Suave é uma cúbica monótona: dobra pelas âncoras sem jamais ultrapassá-las. Precisa de 3+ pontos; com menos, comporta-se como reta."
         },
         en: {
             "hist_load_btn": "Load", "hist_prompt": "Click 'Load' to view system logs.",
@@ -5025,7 +5814,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
         +'<div class="drawer-bottom">'
         +'<a href="/license" class="lic-link" data-i18n="nav_lic">📜 License</a>'
         +'<div class="drawer-footer"><div><span id="greeting" style="color:var(--sub);font-size:0.78rem"></span><div style="margin-top:4px"><select class="lang-select" onchange="setLang(this.value)"><option value="en">🇺🇸 EN</option><option value="pt">🇧🇷 PT</option></select></div></div>'
-        +'<a href="/logout" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>'
+        +'<a href="/logout" onclick="if(window.Pending)Pending.clear()" style="color:var(--dang);font-size:0.78rem;text-decoration:none;font-weight:600" data-i18n="greet_logout">Logout</a>'
         +'</div></div></div>';
     /* v3.34.1: mapeamento code → emoji bandeira pra seletor dinâmico. */
     var LANG_FLAGS = {pt:'🇧🇷','pt-BR':'🇧🇷','pt-PT':'🇵🇹',es:'🇪🇸','es-ES':'🇪🇸','es-MX':'🇲🇽',en:'🇺🇸','en-US':'🇺🇸','en-GB':'🇬🇧',fr:'🇫🇷',de:'🇩🇪',it:'🇮🇹',ru:'🇷🇺',zh:'🇨🇳',ja:'🇯🇵',ko:'🇰🇷',nl:'🇳🇱',pl:'🇵🇱',sv:'🇸🇪',tr:'🇹🇷',ar:'🇸🇦'};

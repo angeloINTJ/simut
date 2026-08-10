@@ -196,6 +196,9 @@ void DisplayManager::drawGraphIcon(int16_t,int16_t,uint16_t){}
 void DisplayManager::drawSettingsMain( ){}
 void DisplayManager::drawSettingsThemes( ){}
 void DisplayManager::drawSettingsAlarms( ){}
+void DisplayManager::renderAlarmRow(int,int16_t&){}
+void DisplayManager::drawAlarmStatusOnly( ){}
+void DisplayManager::refreshAlarmStatus( ){}
 void DisplayManager::drawSettingsSounds( ){}
 void DisplayManager::drawSettingsPassword( ){}
 void DisplayManager::drawSettingsLang( ){}
@@ -205,7 +208,7 @@ void DisplayManager::showSettingsMain( ){}
 void DisplayManager::showGraphPlot(const GraphDataPackage&,float,float){}
 void DisplayManager::fixCardCorners(int16_t,int16_t,int16_t,int16_t,int16_t,uint16_t){}
 void DisplayManager::maskStripCorners(GFXcanvas16*,int16_t,int16_t,int16_t,int16_t,int16_t,uint16_t,uint16_t){}
-void DisplayManager::blitCanvas(GFXcanvas16*,int16_t,int16_t,int16_t,int16_t){}
+void DisplayManager::blitCanvas(GFXcanvas16*,int16_t,int16_t,int16_t,int16_t,int16_t){}
 void DisplayManager::loadDisplayOffset(const DisplayOffsetData*){}
 /* ── Stubs for guarded/excluded TFT methods ─────────────────────── */
 bool DisplayManager::getUiEvent(UiEvent&){return false;}
@@ -262,6 +265,7 @@ void DisplayManager::resetTouchCalibration( ){}
 void DisplayManager::setTelemetrySendStatus(bool){}
 void DisplayManager::showSettingsDisplayOffset( ){}
 const char* DisplayManager::tr(LangKey){return "";}
+const char* DisplayManager::channelLabel(uint8_t){return "";}
 void DisplayManager::readRow(int16_t,uint16_t*,int16_t){}
 void DisplayManager::unaccent(const char*,char*,unsigned){}
 void DisplayManager::showStats(const GraphDataPackage&,float,float){}

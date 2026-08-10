@@ -14,6 +14,7 @@
 #include "DisplayManager.h"
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
+#include "SensorChannelTable.h"   /* CH_COUNT, channelInfo, channelValid */
 
 static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language", "EXIT",
@@ -47,8 +48,29 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "Loading daily Min/Max cache...", "Warming up sensors...", "Correcting timestamps (NTP)...",
  "Reloading Min/Max cache...", "Preparing dashboard data...",
  "All subsystems initialized.", "System Ready! Entering Dashboard.",
- "Applying settings...", "Rebooting system..."
+ "Applying settings...", "Rebooting system...",
+ /* Channel names — appended, matching the tail of enum LangKey. */
+ "Pressure", "Luminosity"
 };
+
+/* Channel -> label key. The table in SensorChannelTable.h carries an i18nKey
+ * string ("ch_press") that the web APIs use, but the TFT dictionary is indexed
+ * by enum, not looked up by name, so the bridge lives here. Adding a channel
+ * without adding its label breaks the build on the static_assert rather than
+ * silently drawing an empty row. */
+static const LangKey CHANNEL_LABEL[] = {
+ /* CH_TEMP  */ TR_TEMP,
+ /* CH_HUM   */ TR_HUMIDITY,
+ /* CH_PRESS */ TR_CH_PRESSURE,
+ /* CH_LUX   */ TR_CH_LUMINOSITY,
+};
+static_assert(sizeof(CHANNEL_LABEL) / sizeof(CHANNEL_LABEL[0]) == CH_COUNT,
+ "every channel in SensorChannelTable.h needs a label key here");
+
+const char* DisplayManager::channelLabel(uint8_t ch) {
+ if (!channelValid(ch)) return channelInfo(ch).name;
+ return tr(CHANNEL_LABEL[ch]);
+}
 
 const char* DisplayManager::tr(LangKey key) {
  if (_activeLangLoaded && _currentLangIdx != LANG_EN &&
