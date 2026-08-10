@@ -560,10 +560,18 @@ void WebManager::handleApiStatus( ) {
 	 * possibly executing and not frozen. Any value but 0 names a write
 	 * path missing its Core1FlashPause — the class behind e035791 and the
 	 * calibration reboots of 4611987 — and the release image needs it
-	 * readable for exactly the same reason as the four above. */
+	 * readable for exactly the same reason as the four above.
+	 *
+	 * cgd/cgg/cgx are the three reasons a chunked response was cut short
+	 * (WebManager.h:34-36): deadline, guard latch, real disconnect. `show
+	 * metrics` prints them, but that command does not exist outside the
+	 * full-CLI image, so from the network they were indistinguishable —
+	 * a truncated download and a client that walked away read the same.
+	 * They are what makes an abort diagnosable while a storm is running. */
 	snprintf(buffer, sizeof(buffer),
 	         "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,\"rmn\":%ld,\"rmx\":%ld,\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
-	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu,\"ad\":%lu},",
+	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu,\"ad\":%lu,"
+	         "\"cgd\":%lu,\"cgg\":%lu,\"cgx\":%lu},",
 	         (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
 	         (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
 	         (long)rmn, (long)rmx,
@@ -573,7 +581,9 @@ void WebManager::handleApiStatus( ) {
 	         (unsigned long)mt.configSaves,
 	         (unsigned long)mt.flashOps, (unsigned long)mt.flashOpMaxMs,
 	         (unsigned long)mt.flashOpTotalMs, (unsigned long)mt.flashOpsOver50ms,
-	         (unsigned long)g_flashIrqExposed, (unsigned long)_abortDrops);
+	         (unsigned long)g_flashIrqExposed, (unsigned long)_abortDrops,
+	         (unsigned long)_cgDeadlineHits, (unsigned long)_cgGuardHits,
+	         (unsigned long)_cgDisconnHits);
 
 	if (!safeSend(buffer)) return;
 	if (!safeSend("\"sensors\":[")) return;

@@ -299,10 +299,18 @@ void WebManager::update( ) {
    watchdog_hw->scratch[7] = 0;
    _chunkedResponse = false;
    _server.handleClient( );
+   /* 740: handleClient RETURNED. Together with 722 (end of safeSendN) this
+    * splits the storm residual three ways instead of lumping it all under
+    * 721 — ours, the framework's, or the drain's. */
+   watchdog_hw->scratch[7] = 740;
    /* Before the framework can retire this client with its polite close
     * (whose ACK-wait a trickling reader extends forever, unfed), drain
     * the un-ACKed tail with the watchdog fed or drop the connection.
-    * Only when a send completed — see _drainPending. */
+    * Only when a send completed — see _drainPending.
+    *
+    * Careful: for a response the framework closes itself (Connection:
+    * close reaches CLIENT_MUST_STOP), retirement happens INSIDE
+    * handleClient and this call is already too late — measured 2026-08-10. */
    if (_drainPending) { drainOrDrop( ); _drainPending = false; }
    if (millis( ) >= budget) break;
   }

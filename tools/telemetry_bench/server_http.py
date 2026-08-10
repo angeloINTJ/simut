@@ -25,6 +25,21 @@ garbage         answer with non-HTTP bytes.
 huge            answer 200 with a --huge-bytes body.
 drip            answer one byte every --drip-ms ms (slowloris, server side).
 close_early     read only the headers, close before the body arrives.
+never_read      accept, finish the TLS handshake, then never read the request.
+tls_bigrecord   answer in one oversized TLS record (--tls only).
+
+never_read is the seam the framework patches did not close. The other faults
+break the *response*, which the device reads under a deadline; this one breaks
+the *request*, which the device writes. HTTPClient's sendAll loops up to 5 s
+with no watchdog feed, and DNS (4 s) plus connect (4 s) sit in front of it with
+no feed either, so the three chained cross the 8388 ms hardware watchdog.
+
+Refusing to call recv( ) is not enough on its own: Linux sizes the receive
+buffer in the hundreds of KB, so the whole request lands in the kernel and the
+device's write returns immediately having blocked on nothing. The window has to
+be small enough to actually close, hence --rcvbuf on the listening socket
+(accepted sockets inherit it). Set it once there rather than on each accepted
+socket: after the handshake bytes are already in flight, shrinking is too late.
 """
 import argparse
 import json
@@ -183,6 +198,15 @@ def handle(conn, addr, args, stats):
             conn.close()
             return
 
+        if mode == 'never_read':
+            # The handshake is finished (wrap_socket did read that much); the
+            # request is not, and never will be. Hold the socket open without
+            # draining it so the window closes under the device mid-write.
+            # Nothing to parse, so there is no batch to record — the evidence
+            # for this fault is on the device side (uptime, watchdog), not here.
+            time.sleep(args.delay)
+            return
+
         head, body = read_request(conn, stats, args.read_timeout)
         if head is None:
             return
@@ -264,6 +288,17 @@ def handle(conn, addr, args, stats):
         elif mode == 'close_early':
             conn.close()
             return
+        elif mode == 'tls_bigrecord':
+            # One sendall = one TLS record. The device asks BearSSL for a 4096 B
+            # input buffer (setBufferSizes(4096,512)) but never negotiates
+            # max_fragment_length (RFC 6066), so a server is within its rights
+            # to send 16 KB records and the device has to cope. Failing to
+            # decode is acceptable; hanging or rebooting is not.
+            n = max(args.big_record_bytes, 512)
+            body = b'B' * (n - 128)
+            conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n'
+                         b'Content-Length: ' + str(len(body)).encode() +
+                         b'\r\nConnection: close\r\n\r\n' + body)
         else:
             raise SystemExit(f'unknown mode {mode}')
 
@@ -291,6 +326,15 @@ def main():
     ap.add_argument('--drip-ms', type=float, default=500.0)
     ap.add_argument('--huge-bytes', type=int, default=1 << 20)
     ap.add_argument('--read-timeout', type=float, default=30.0)
+    ap.add_argument('--big-record-bytes', type=int, default=16384,
+                    help='tls_bigrecord: bytes written in a single sendall, '
+                         'which OpenSSL emits as one TLS record')
+    ap.add_argument('--rcvbuf', type=int, default=0,
+                    help='SO_RCVBUF on the listening socket, inherited by every '
+                         'accepted socket. Required by never_read: the kernel '
+                         'default is large enough to swallow the whole request, '
+                         'which makes a server that never reads look identical '
+                         'to one that does.')
     ap.add_argument('--stats', default='stats.json')
     ap.add_argument('--records', default='')
     ap.add_argument('--raw-dump', type=int, default=0,
@@ -308,6 +352,13 @@ def main():
 
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if args.rcvbuf:
+        # Before bind/listen, so accepted sockets inherit it. The kernel doubles
+        # the value and enforces a floor (~2 KB), so the effective window is
+        # larger than asked for — report both rather than assume.
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, args.rcvbuf)
+        eff = srv.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+        print(f'[rcvbuf] asked {args.rcvbuf} B, kernel gave {eff} B', flush=True)
     srv.bind((args.bind, args.port))
     srv.listen(16)
     ctx = None
