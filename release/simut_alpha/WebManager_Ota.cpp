@@ -181,6 +181,13 @@ void WebManager::handleApiRestoreUploadData( ) {
                                                    : PERM_FILE_READ;
  if (!(getAuthPerms( ) & need)) {
  _restoreRejected = true;
+ /* Logged because the old hole left no trace at all: the write
+  * happened in the feed and the only LOG_CODE on this route sits
+  * in the finish handler, behind the very check that failed. An
+  * exposed device therefore had nothing to show for the request,
+  * which is the worst possible answer to "was I hit?". */
+ LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId,
+          String("restore rejected: op=") + _server.arg("op"));
  /* A refused session never reaches the unpause in finish, so a
   * lockout left over from a previous upload whose client vanished
   * would stay held and the display frozen. Cheapest place to

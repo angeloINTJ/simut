@@ -27,6 +27,9 @@ adversarial public network.
   written to flash.
 - **Path traversal in uploads** (`handleApiUpload` validates filename and
   uploadDir — SEC-001/SEC-002).
+- **Authorization on routes that consume an upload body**, checked at
+  `UPLOAD_FILE_START` rather than in the handler that answers
+  (SEC-007 — fixed in v2.1.0-beta, see §6).
 - **CLI buffer DoS** (`CLI_LINE_MAX=256` discards streams without
   `\n` — SEC-005).
 - **JSON formatting in `/api/ls`** against control bytes that would break
@@ -253,6 +256,37 @@ If compromise is suspected:
    - After factory reset, reconfigure from scratch. The admin password
      appears **once** on USB Serial (connect to capture it).
 
+### SEC-007 — `/api/restore` wrote before it authorized (fixed v2.1.0-beta)
+
+Every build up to and including v2.0.3-alpha accepted an
+**unauthenticated** `POST /api/restore?op=apply` and wrote the payload's
+files to LittleFS. The permission check existed, correctly named in this
+document, and ran in the handler that emits the response — which the web
+framework calls only *after* the whole multipart body has been fed
+through the upload callback. The apply feed writes each entry straight to
+its final path as bytes arrive, so the 403 was accurate about the verdict
+and late about the effect.
+
+Reach: anything the backup format can name — `/config`, `/calib.csv`,
+`/history`, the language packs. The path check rejects `..` and nothing
+else. No session cookie was needed.
+
+The lesson generalises past this route: **on any endpoint with an upload
+callback, a permission checked in the final handler is checked too late.**
+`/api/upload` and `?op=stage` always got this right; restore was the one
+that did not, and the design intent recorded here read as if it did.
+
+Triage on a device that was exposed is thin, and the reason is worth
+stating plainly: **the exploited path left no log entry**. The only
+`LOG_CODE` on this route sits in the finish handler, behind the very
+check that failed, so a device that was written to has nothing to show
+for it. The available evidence is indirect — compare `/api/backup`
+against a known-good copy, and look for file timestamps or history gaps
+that do not match the device's own writes.
+
+From v2.1.0-beta a rejected restore logs `SEC_UNAUTHORIZED` with the
+requested `op`, so the refusal itself is auditable going forward.
+
 ---
 
 ## 7. Factory Reset
@@ -316,8 +350,11 @@ OTA endpoints (F-OTA):
   tied to the chip_id. Read-only but exposes the entire FS contents, so
   perm = read.
 - `POST /api/restore?op=validate|apply` (`PERM_FILE_READ` for validate,
-  `PERM_FILE_UPLOAD` for apply) — apply is destructive (overwrites
-  restored `.bkp` files); chip_id must match. F-RESTORE closed in
+  `PERM_FILE_UPLOAD` for apply) — **permission pre-checked at
+  `UPLOAD_FILE_START`, before the first byte is consumed** (see
+  SEC-007 below for why this sentence had to be added). apply is
+  destructive (overwrites restored `.bkp` files); chip_id must match.
+  F-RESTORE closed in
   v4.1.0 (98/100 PASS in loop_real, 0 ConnResets, 100% integrity — see
   `docs/F_RESTORE_BUGS.md`). Apply is AUTO-REBOOT: after writing LFS,
   the device calls `LogManager::safeReboot()` to reload stale caches
