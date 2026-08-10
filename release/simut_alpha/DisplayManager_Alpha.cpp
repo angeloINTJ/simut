@@ -261,6 +261,12 @@ void DisplayManager::loadTouchCalibration(const TouchCalData*){}
 void DisplayManager::requestLoadingScreen( ){}
 void DisplayManager::showSettingsPassword( ){}
 void DisplayManager::showTouchCalibration( ){}
+/* Arrived with the touch-sensitivity screen and never got its stub here, so
+ * pico_w_alpha stopped linking the moment `screen touchsens` was wired into
+ * AppManager_Commands — a variant with no touchscreen at all failing on the
+ * one screen it can never show. The zip built from this tree is a release
+ * asset, so the break shipped as source nobody could compile. */
+void DisplayManager::showTouchSensitivity( ){}
 void DisplayManager::resetTouchCalibration( ){}
 void DisplayManager::setTelemetrySendStatus(bool){}
 void DisplayManager::showSettingsDisplayOffset( ){}

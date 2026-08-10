@@ -567,10 +567,25 @@ void WebManager::handleApiStatus( ) {
 	 * metrics` prints them, but that command does not exist outside the
 	 * full-CLI image, so from the network they were indistinguishable —
 	 * a truncated download and a client that walked away read the same.
-	 * They are what makes an abort diagnosable while a storm is running. */
+	 * They are what makes an abort diagnosable while a storm is running.
+	 *
+	 * c1a/c1n/c1kl/c1kh/c1kq/c1s are the Core-1 lifecycle, and they are here
+	 * for the third time the same lesson has had to be learned: a STALLED
+	 * display reads exactly like a healthy one from outside, and every kill
+	 * and relaunch was visible only through `show metrics` — a command the
+	 * shipping image does not carry. Acceptance A6 asks for a 72 h soak with
+	 * "heartbeat/WDT without regression", so on the release image the very
+	 * quantity being certified could not be read at all, and a soak that
+	 * cannot see a Core-1 death would have reported PASS through one. c1a is
+	 * the age of the stamp Core 1 writes once per loop: tens of ms is
+	 * healthy, seconds means frozen, killed or parked. The kills split by
+	 * cause so a rising c1kl names the stuck-handshake path rather than the
+	 * health watchdog. */
+	const uint32_t c1BeatAge = millis( ) - g_core1HeartbeatMs;
 	snprintf(buffer, sizeof(buffer),
 	         "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,\"rmn\":%ld,\"rmx\":%ld,\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
 	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu,\"ad\":%lu,"
+	         "\"c1a\":%lu,\"c1n\":%lu,\"c1kl\":%lu,\"c1kh\":%lu,\"c1kq\":%lu,\"c1s\":%lu,"
 	         "\"cgd\":%lu,\"cgg\":%lu,\"cgx\":%lu},",
 	         (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
 	         (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
@@ -582,6 +597,9 @@ void WebManager::handleApiStatus( ) {
 	         (unsigned long)mt.flashOps, (unsigned long)mt.flashOpMaxMs,
 	         (unsigned long)mt.flashOpTotalMs, (unsigned long)mt.flashOpsOver50ms,
 	         (unsigned long)g_flashIrqExposed, (unsigned long)_abortDrops,
+	         (unsigned long)c1BeatAge, (unsigned long)g_core1Launches,
+	         (unsigned long)g_core1KillsLockout, (unsigned long)g_core1KillsHealth,
+	         (unsigned long)g_core1KillsQuiet, (unsigned long)g_core1LockoutStuck,
 	         (unsigned long)_cgDeadlineHits, (unsigned long)_cgGuardHits,
 	         (unsigned long)_cgDisconnHits);
 

@@ -124,7 +124,16 @@ void WebManager::handleSaveSystem( ) {
 	SystemConfig& cfg = _storageRef->getConfig( );
 	if (_server.hasArg("theme")) {
 		int t = _server.arg("theme").toInt( );
-		if (t >= 0 && t < getThemeCount( ) && cfg.themeIndex != t) {
+		/* A theme index the build does not carry used to answer ok and change
+		 * nothing, so the page had no way to tell "applied" from "ignored" —
+		 * and neither did anyone driving this by hand. Nothing else happens in
+		 * this handler, so refusing here is atomic by construction. */
+		if (t < 0 || t >= getThemeCount( )) {
+			_server.send(400, "application/json",
+			             "{\"status\":\"error\",\"error\":\"Theme index out of range\"}");
+			return;
+		}
+		if (cfg.themeIndex != t) {
 			cfg.themeIndex = t;
 			loadTheme(t);
 			_storageRef->saveConfiguration( );
@@ -179,8 +188,18 @@ void WebManager::handleApiCommitAll( ) {
 	char rejectedList[128];
 	rejectedList[0] = '\0';
 	auto rejectField = [&](const char* k) {
+		/* Idempotent and all-or-nothing. The users section below can hand the
+		 * same reason up to eight times, and a token that only half fits would
+		 * leave the array unterminated — a 200 carrying unparseable JSON, the
+		 * same shape as the sec_status overflow. Both are cheaper to prevent
+		 * here than to diagnose in the page. */
+		char needle[40];
+		snprintf(needle, sizeof(needle), "\"%s\"", k);
+		if (strstr(rejectedList, needle)) return;
 		size_t l = strlen(rejectedList);
-		snprintf(rejectedList + l, sizeof(rejectedList) - l, "%s\"%s\"", l ? "," : "", k);
+		size_t need = strlen(needle) + (l ? 1 : 0);
+		if (l + need + 1 > sizeof(rejectedList)) return;
+		snprintf(rejectedList + l, sizeof(rejectedList) - l, "%s%s", l ? "," : "", needle);
 	};
 
 	/* ── alarms limits pre-validation ───────────────────────────────────────
@@ -640,6 +659,20 @@ void WebManager::handleApiCommitAll( ) {
 				return sys.indexOf(pat) >= 0;
 			};
 
+			/* String fields used to go straight into safeCopy, which truncates
+			 * to fit. A hostname or a template cut in half is not a partial
+			 * preference — it is a wrong value stored under a 200, and the
+			 * only field with a length the page enforces is the one the page
+			 * happens to enforce. isValidCfgString is the same gate the CLI
+			 * has always applied: no control bytes, must fit whole. Empty
+			 * stays legal, because clearing a template or a server is a real
+			 * edit; the fields where empty means "keep" say so themselves. */
+			auto setStr = [&](const char* k, char* dst, size_t dstSize) {
+				String v = getStr(k);
+				if (isValidCfgString(v.c_str( ), dstSize - 1)) safeCopy(dst, v.c_str( ), dstSize);
+				else rejectField(k);
+			};
+
 			/* Applies each field. */
 			if (has("name")) {
 				String n = getStr("name"); n.trim( );
@@ -668,7 +701,7 @@ void WebManager::handleApiCommitAll( ) {
 				/* If value contains "***", it came from the masked GET
 				 * and the user did not edit — keep current cfg.telApiKey. Otherwise overwrite. */
 				String tk = getStr("t_key");
-				if (tk.indexOf("***") < 0) safeCopy(cfg.telApiKey, tk.c_str( ), sizeof(cfg.telApiKey));
+				if (tk.indexOf("***") < 0) setStr("t_key", cfg.telApiKey, sizeof(cfg.telApiKey));
 			}
 			#if SIMUT_SENSOR_DS18B20
 			if (has("res")) { int v; if (parseIntStrict(getNum("res"), v) && v >= 9 && v <= 12) cfg.ds18Resolution = (uint8_t)v; else rejectField("res"); }
@@ -679,9 +712,9 @@ void WebManager::handleApiCommitAll( ) {
 			 * value like that, stored via API, jams the page's own form: the
 			 * HTML input marks it invalid and refuses to resubmit. */
 			if (has("s_int")) { int v; if (parseIntStrict(getNum("s_int"), v) && v >= 1000 && v <= 60000) cfg.sampleIntervalMs = (uint32_t)v; else rejectField("s_int"); }
-			if (has("t_srv")) safeCopy(cfg.telServer, getStr("t_srv").c_str( ), sizeof(cfg.telServer));
+			if (has("t_srv")) setStr("t_srv", cfg.telServer, sizeof(cfg.telServer));
 			if (has("t_port")) { int v; if (parseIntStrict(getNum("t_port"), v) && isInRange(v, 1, 65535)) cfg.telPort = (uint16_t)v; else rejectField("t_port"); }
-			if (has("t_path")) safeCopy(cfg.telPath, getStr("t_path").c_str( ), sizeof(cfg.telPath));
+			if (has("t_path")) setStr("t_path", cfg.telPath, sizeof(cfg.telPath));
 			if (has("t_int")) { int v; if (parseIntStrict(getNum("t_int"), v) && v >= 0 && v <= 86400000) cfg.telInterval = (uint32_t)v; else rejectField("t_int"); }
 			/* 1..50 everywhere now: the CLI always said 1-50, the runtime clamps at
 			 * HARD_CAP=50 (TelemetryManager), and the page's input agrees since the
@@ -690,9 +723,9 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("t_bat")) { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 50)) cfg.telBatchSize = (uint8_t)v; else rejectField("t_bat"); }
 			if (has("t_mode")) { int v; if (parseIntStrict(getNum("t_mode"), v) && isInRange(v, 0, 2)) cfg.telMode = (uint8_t)v; else rejectField("t_mode"); }
 			if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && isInRange(v, 0, 1)) cfg.telTransport = (uint8_t)v; else rejectField("t_transport"); }
-			if (has("m_topic")) safeCopy(cfg.mqttTopic, getStr("m_topic").c_str( ), sizeof(cfg.mqttTopic));
-			if (has("m_cid")) safeCopy(cfg.mqttClientId, getStr("m_cid").c_str( ), sizeof(cfg.mqttClientId));
-			if (has("m_user")) safeCopy(cfg.mqttUser, getStr("m_user").c_str( ), sizeof(cfg.mqttUser));
+			if (has("m_topic")) setStr("m_topic", cfg.mqttTopic, sizeof(cfg.mqttTopic));
+			if (has("m_cid")) setStr("m_cid", cfg.mqttClientId, sizeof(cfg.mqttClientId));
+			if (has("m_user")) setStr("m_user", cfg.mqttUser, sizeof(cfg.mqttUser));
 			/* The page has always had this field and the browser has always sent
 			 * it (every input with an id inside #sysForm stages into Pending.sys)
 			 * — nothing here read it, so the MQTT password went in the bin and
@@ -701,14 +734,14 @@ void WebManager::handleApiCommitAll( ) {
 			 * what t_key already does with its "***" mask. */
 			if (has("m_pass")) {
 				String mp = getStr("m_pass");
-				if (mp.length( ) > 0) safeCopy(cfg.mqttPass, mp.c_str( ), sizeof(cfg.mqttPass));
+				if (mp.length( ) > 0) setStr("m_pass", cfg.mqttPass, sizeof(cfg.mqttPass));
 			}
 			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; else rejectField("m_qos"); }
 			if (has("m_retain")) cfg.mqttRetain = (getNum("m_retain") != "0");
 			if (has("m_ka")) { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 10, 300)) cfg.mqttKeepAlive = (uint16_t)v; else rejectField("m_ka"); }
-			if (has("t_glob")) safeCopy(cfg.telGlobalTemplate, getStr("t_glob").c_str( ), sizeof(cfg.telGlobalTemplate));
-			if (has("t_line")) safeCopy(cfg.telLineTemplate, getStr("t_line").c_str( ), sizeof(cfg.telLineTemplate));
-			if (has("t_sep")) safeCopy(cfg.telLineSeparator, getStr("t_sep").c_str( ), sizeof(cfg.telLineSeparator));
+			if (has("t_glob")) setStr("t_glob", cfg.telGlobalTemplate, sizeof(cfg.telGlobalTemplate));
+			if (has("t_line")) setStr("t_line", cfg.telLineTemplate, sizeof(cfg.telLineTemplate));
+			if (has("t_sep")) setStr("t_sep", cfg.telLineSeparator, sizeof(cfg.telLineSeparator));
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
 			if (has("ntp_enabled")) _storageRef->setNtpEnabled(getNum("ntp_enabled") != "0");
 			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); else rejectField("h_int"); }
@@ -893,44 +926,44 @@ void WebManager::handleApiCommitAll( ) {
 				int objEnd = arr.indexOf('}', objStart);
 				if (objEnd < 0) break;
 				String obj = arr.substring(objStart, objEnd + 1);
-				String type;
-				int tp = obj.indexOf("\"type\":\"");
-				if (tp >= 0) {
-					int vs = tp + 8;
-					int ve = obj.indexOf('"', vs);
-					if (ve > vs) type = obj.substring(vs, ve);
-				}
+				/* type and name went through raw needles with the quote baked
+				 * in ("\"type\":\""), so a payload with the space JSON allows
+				 * after the colon matched nothing: type came back empty, both
+				 * branches were skipped and the whole action evaporated under a
+				 * 200. Same family as the float, string and boolean readers
+				 * above — this section was simply never swept with them. */
+				String type = jsonExtractStringValue(obj, "type");
 
 				if (type == "add") {
-					/* Find first inactive slot (skip slot 0 — admin). */
-					int slot = -1;
-					for (int i = 1; i < MAX_USERS; i++) {
-						if (!cfg.users[i].active) { slot = i; break; }
-					}
-					if (slot < 0) { objStart = objEnd + 1; continue; }
-
-					/* name */
-					String name;
-					int np = obj.indexOf("\"name\":\"");
-					if (np >= 0) {
-						int vs = np + 8;
-						int ve = obj.indexOf('"', vs);
-						if (ve > vs) name = obj.substring(vs, ve);
-					}
+					String name = jsonExtractStringValue(obj, "name");
 					name.trim( );
 					if (name.length( ) == 0 || !isValidName(name.c_str( ), 15) || name.equalsIgnoreCase("admin")) {
-						objStart = objEnd + 1; continue;
+						rejectField("users.name"); objStart = objEnd + 1; continue;
 					}
 					/* dup check */
 					bool dup = false;
 					for (int i = 0; i < MAX_USERS; i++) {
 						if (cfg.users[i].active && name.equalsIgnoreCase(String(cfg.users[i].username))) { dup = true; break; }
 					}
-					if (dup) { objStart = objEnd + 1; continue; }
+					if (dup) { rejectField("users.dup"); objStart = objEnd + 1; continue; }
 
-					int perms = 0;
+					/* Absent stays 0 — the page emits perms even with no box
+					 * ticked, and an account that can log in and do nothing is
+					 * a choice it offers. Out of the page's bit map is not. */
+					long perms = 0;
 					int pp = obj.indexOf("\"perms\":");
 					if (pp >= 0) perms = obj.substring(pp + 8).toInt( );
+					if (perms < 0 || perms > PERM_ALL_BITS) {
+						rejectField("users.perms"); objStart = objEnd + 1; continue;
+					}
+
+					/* Capacity last: a full table is a state limit, and saying
+					 * so is only useful once the request itself is sound. */
+					int slot = -1;
+					for (int i = 1; i < MAX_USERS; i++) {
+						if (!cfg.users[i].active) { slot = i; break; }
+					}
+					if (slot < 0) { rejectField("users.full"); objStart = objEnd + 1; continue; }
 
 					safeCopy(cfg.users[slot].username, name.c_str( ), sizeof(cfg.users[slot].username));
 					safeCopy(cfg.users[slot].password, "*PENDING*", sizeof(cfg.users[slot].password));
@@ -941,17 +974,25 @@ void WebManager::handleApiCommitAll( ) {
 				else if (type == "del" || type == "reset") {
 					int ip = obj.indexOf("\"id\":");
 					int id = (ip >= 0) ? obj.substring(ip + 5).toInt( ) : -1;
-					if (id > 0 && id < MAX_USERS && cfg.users[id].active) {
-						if (type == "del") {
-							cfg.users[id].active = false;
-							memset(cfg.users[id].username, 0, sizeof(cfg.users[id].username));
-							memset(cfg.users[id].password, 0, sizeof(cfg.users[id].password));
-							cfg.users[id].permissions = 0;
-						} else { /* reset */
-							safeCopy(cfg.users[id].password, "*PENDING*", sizeof(cfg.users[id].password));
-							cfg.users[id].mustChangePassword = true;
-						}
+					if (!(id > 0 && id < MAX_USERS && cfg.users[id].active)) {
+						/* Out of range, absent, already gone, or slot 0 — the
+						 * admin, which no payload gets to delete. */
+						rejectField("users.id"); objStart = objEnd + 1; continue;
 					}
+					if (type == "del") {
+						cfg.users[id].active = false;
+						memset(cfg.users[id].username, 0, sizeof(cfg.users[id].username));
+						memset(cfg.users[id].password, 0, sizeof(cfg.users[id].password));
+						cfg.users[id].permissions = 0;
+					} else { /* reset */
+						safeCopy(cfg.users[id].password, "*PENDING*", sizeof(cfg.users[id].password));
+						cfg.users[id].mustChangePassword = true;
+					}
+				}
+				else {
+					/* Neither add, del nor reset — a malformed entry, and the
+					 * only signal that an action was read but not understood. */
+					rejectField("users.type");
 				}
 				objStart = objEnd + 1;
 			}

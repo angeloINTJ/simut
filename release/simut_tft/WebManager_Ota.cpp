@@ -153,6 +153,7 @@ void WebManager::handleApiRestoreUploadData( ) {
  HTTPUpload& upload = _server.upload( );
  bool is_stage = (_server.arg("op") == "stage");
  if (upload.status == UPLOAD_FILE_START) {
+ _restoreRejected = false;
  if (is_stage) {
  /* Pre-check ADMIN-ONLY permission: OTA stage erases 1 MB of
  * flash — only admin can trigger. Without perm, doesn't unmount LFS;
@@ -161,10 +162,35 @@ void WebManager::handleApiRestoreUploadData( ) {
  ota::stage_session_begin(_stageSession, _storageRef);
  } else {
  _stageSession.status = ota::StageStatus::IDLE;
+ _restoreRejected = true;
  }
  } else {
  ota::RestoreMode mode = (_server.arg("op") == "apply")
  ? ota::RestoreMode::APPLY : ota::RestoreMode::VALIDATE;
+ /* The restore branch had no gate here at all — it was checked
+  * only in the finish handler, which the framework calls AFTER
+  * the entire body has passed through this callback. An apply
+  * feed writes each entry straight to its final path (see
+  * on_path_complete: "sem rename"), so by the time the 403 was
+  * emitted /config, /calib.csv and /history had already been
+  * overwritten, with no cookie required to do it. The check is
+  * the same one the finish handler makes, moved to the first
+  * byte, and it mirrors what the stage branch above and
+  * handleUploadData have always done. */
+ uint16_t need = (mode == ota::RestoreMode::APPLY) ? PERM_FILE_UPLOAD
+                                                   : PERM_FILE_READ;
+ if (!(getAuthPerms( ) & need)) {
+ _restoreRejected = true;
+ /* A refused session never reaches the unpause in finish, so a
+  * lockout left over from a previous upload whose client vanished
+  * would stay held and the display frozen. Cheapest place to
+  * notice it is here. */
+ if (_restoreCorePaused && _displayRef) {
+ _displayRef->pauseRendering(false);
+ _restoreCorePaused = false;
+ }
+ return;
+ }
  ota::restore_session_begin(_restoreSession, mode);
  /* Pause Core 1 ONCE at start of apply session
  * (instead of RenderGuard per chunk). Spans entire upload →
@@ -175,6 +201,11 @@ void WebManager::handleApiRestoreUploadData( ) {
  }
  }
  } else if (upload.status == UPLOAD_FILE_WRITE) {
+ /* Fed before the latch check on purpose: a refused upload still
+  * streams its whole body through here, and starving the watchdog
+  * would turn a 403 into a reboot. */
+ feedWatchdog( );
+ if (_restoreRejected) return;
  if (is_stage) {
  ota::stage_session_feed(_stageSession, upload.buf, upload.currentSize);
  } else {
@@ -183,8 +214,8 @@ void WebManager::handleApiRestoreUploadData( ) {
  * lockout cycles that occasionally deadlock. */
  ota::restore_session_feed(_restoreSession, upload.buf, upload.currentSize);
  }
- feedWatchdog( );
  } else if (upload.status == UPLOAD_FILE_END) {
+ if (_restoreRejected) return;
  /* Stage needs explicit finalize (pad last page + xor-out CRC).
  * Restore has no separate finalize — the finish handler manages everything. */
  if (is_stage) {
@@ -199,6 +230,7 @@ void WebManager::handleApiRestoreUploadData( ) {
  _restoreCorePaused = false;
  }
  } else if (upload.status == UPLOAD_FILE_ABORTED) {
+ if (_restoreRejected) return;
  if (is_stage) {
  ota::stage_session_abort(_stageSession);
  } else {

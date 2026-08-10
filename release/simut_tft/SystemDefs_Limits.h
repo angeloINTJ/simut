@@ -35,7 +35,7 @@
  * Doing that once with room to spare beats doing it per new quantity. */
 #define MAX_SENSOR_CHANNELS 8
 #endif
-#define SIMUT_VERSION "2.0.3-alpha"
+#define SIMUT_VERSION "2.1.0-beta"
 
 /* Fallback epoch for provisional time when NTP is unavailable and no
  * history records exist to seed the virtual RTC. Override via
@@ -84,5 +84,11 @@ enum MinMaxSlot {
 #define PERM_FILE_DELETE 0x0080
 #define PERM_USER_MGR 0x0100
 #define PERM_CALIB 0x0200 /* Sensor calibration via /dashboard */
+
+/* Every bit the users page can actually set — its checkbox map is exactly the
+ * ten above. A grant carrying anything else is not a preference the device can
+ * honour partially, so /api/commit_all refuses the action instead of masking
+ * it down to something the operator never asked for. */
+#define PERM_ALL_BITS 0x03FF
 
 #define PERM_FULL_ADMIN 0xFFFF
