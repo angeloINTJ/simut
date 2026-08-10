@@ -127,19 +127,36 @@ def cmd_commit(cycles):
 def cmd_contend(minutes):
     w = session()
     t_end = time.time() + minutes * 60
-    reqs, errs = 0, 0
-    print(f"hammering /api/history_multi for {minutes} min to hold the heavy "
-          f"lock across record boundaries", flush=True)
+    reqs, errs, held, sizes = 0, 0, 0.0, []
+    # range is parsed with .toInt( ) and clamped to 0..6, so it is an INDEX, not
+    # "24h" — a string request silently became 24, then 6. Asking for 6 outright
+    # says what it means. And no emit=0: that decodes without formatting or
+    # sending, which SHORTENS the lock, and HeavyTaskGuard is scoped to the whole
+    # handler including the stream. Holding the lock is the entire point here.
+    print(f"hammering /api/history_multi?range=6 for {minutes} min to hold the "
+          f"heavy lock across record boundaries", flush=True)
     while time.time() < t_end:
+        t0 = time.time()
         try:
-            r = w.get('/api/history_multi?range=24h&emit=0')
+            r = w.get('/api/history_multi?range=6')
+            dt = time.time() - t0
             reqs += 1
             if r.status_code >= 400:
                 errs += 1
+            else:
+                held += dt
+                sizes.append(len(r.content))
         except Exception:
             errs += 1
             w = session()
-    print(f"{reqs} requests, {errs} errors", flush=True)
+    span = minutes * 60
+    print(f"{reqs} requests, {errs} errors, "
+          f"{held:.0f}s holding the lock of {span:.0f}s "
+          f"({100.0 * held / span:.0f}% duty)", flush=True)
+    if sizes:
+        print(f"response bytes: min={min(sizes)} max={max(sizes)} "
+              f"(a tiny response would mean the range asked for no work)",
+              flush=True)
 
     ev = hw.read_log(timeout=14)
     cur = hw.last_boot(ev)
