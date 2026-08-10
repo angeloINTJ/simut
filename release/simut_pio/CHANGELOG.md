@@ -4,6 +4,46 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.0.3-alpha (2026-08-10)
+
+### The receive window no longer promises the pbuf pool out twice over
+
+`D14` had been on the books as a pbuf leak "with a second source not yet
+located". It is not a leak, and the reason nobody could find the second source
+is that there was never a first one left to find.
+
+What had been measured was the pool's **peak** — a high-water mark that by
+definition never comes down — and its failure count. The number that separates a
+leak from pressure is what is still **in use once the load stops**, and it had
+never been read. It comes back to baseline at every level of concurrency,
+including the one that emptied the pool and failed 79 allocations. Nothing is
+held.
+
+The real cause is arithmetic. A pool entry is ~1514 B and `TCP_WND` was 8×MSS,
+so one connection can hold 7,7 of them; six connections filling their windows
+want 46 against a pool of 24. Four clients peak at 13 and never fail, five reach
+24/24 with 45 failed allocations, six with 79.
+
+`TCP_WND` is now 4×MSS. It costs nothing measurable because the device could
+never use the window it was advertising: uploads run at 26 KB/s, bound by flash
+writes, and at a ~5 ms round trip even 4×MSS allows about 1,1 MB/s. Downloads
+are governed by `TCP_SND_BUF` and are untouched.
+
+| | before | after |
+|---|---|---|
+| allocation failures, 5 / 6 clients | 45 / 79 | **0 / 0** |
+| pool peak at 6 clients | 24/24 | 18/24 |
+| successful requests at 6 clients | 98 | 166 |
+| download | 221 KB/s | 216 KB/s |
+| upload | 26 KB/s | 25 KB/s |
+
+Growing the pool was the wrong lever: 24 entries are already 35,5 KB of BSS, and
+doubling costs more than the whole free heap.
+
+Worth saying plainly, because the old name suggested otherwise: pool exhaustion
+never rebooted the device, before or after. Requests fail and the pool comes
+back whole.
+
 ## v2.0.2-alpha (2026-08-10)
 
 ### Survives a hostile network: the watchdog seam in the send path

@@ -92,11 +92,52 @@ truncada para o JSON seguir parseável com menos slots.
 
 ---
 
-## D-NS5 · PBUF satura e não se recupera (D14) · **ABERTO**
+## D-NS5 · PBUF satura sob concorrência (D14) · **CORRIGIDO**
 
-Sob tempestade o pool vai a **24/24** e passa a falhar alocações. Nunca se
-recuperou dentro de um boot; só o reboot devolve. Era o combustível do D-NS2.
-Candidato natural à próxima rodada.
+**Re-caracterizado: NÃO era vazamento.** O D14 estava registrado como
+"vazamento que não se recupera, com uma segunda fonte não localizada". Isso era
+verdade na era de 12 entradas; o `clientcontext_rx_leak.patch` fechou aquilo, e
+o que restava era outra coisa.
+
+**O que a campanha mediu e o que faltava.** Só o *pico* (marca d'água, que nunca
+desce) e as *falhas* foram registrados. O número que separa vazamento de pressão
+é o **"em uso" depois que a carga para** — e ele nunca tinha sido medido.
+
+**Medição (`scratchpad/pbuf_probe.py`, `pbuf_conc.py`)**: carga sequencial não
+retém nada (history, download, upload: **+0** pbufs em 25 requisições cada).
+Varrendo concorrência, o "em uso" volta ao basal em **todos** os níveis —
+inclusive no que esgotou o pool e falhou 79 alocações. **Nada vaza.**
+
+**Causa real: a janela anunciada não tem lastro.** Cada envelope custa ~1514 B,
+e `TCP_WND = 8 × MSS` são **7,7 envelopes por conexão**. Seis conexões com a
+janela cheia pedem **46 contra um pool de 24** — o pool está prometido em dobro.
+
+| clientes | pico do pool (8×MSS) | falhas |
+|---|---|---|
+| 1 | 2 | 0 |
+| 2 | 3 | 0 |
+| 4 | 13 | 0 |
+| 5 | **24/24** | **+45** |
+| 6 | **24/24** | **+79** |
+
+**Correção: `TCP_WND` 8×MSS → 4×MSS** (`patched_headers/lwipopts.h`). Custa
+nada porque o device não usa a janela: uploads rodam a 26 KB/s, limitados por
+escrita em flash, e num RTT de ~5 ms mesmo 4×MSS permitiria ~1,1 MB/s. Downloads
+são governados pelo `TCP_SND_BUF`, não por isto.
+
+| | antes | depois |
+|---|---|---|
+| falhas de alocação (k=5 / k=6) | 45 / 79 | **0 / 0** |
+| pico do pool em k=6 | 24/24 (esgotado) | 18/24 |
+| requisições OK em k=6 | 98 | 166 |
+| download | 221 KB/s | 216 KB/s |
+| upload | 26 KB/s | 25 KB/s |
+
+Sem reboot em nenhum nível, antes ou depois — a exaustão sempre foi degradação
+graciosa, nunca morte.
+
+> Aumentar o pool era a saída errada: 24 envelopes já são 35,5 KB de BSS, e
+> dobrar custaria mais que o heap livre inteiro.
 
 ---
 
