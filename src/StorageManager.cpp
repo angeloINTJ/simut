@@ -1501,6 +1501,74 @@ bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, CalibCu
  return found;
 }
 
+bool StorageManager::bindDs18Identity(const uint8_t* rom, const char* hwId, const char* name, const CalibCurve& curve) {
+ if (!rom || !hwId || hwId[0] == '\0') return false;
+ char romHex[17];
+ snprintf(romHex, sizeof(romHex), "%02X%02X%02X%02X%02X%02X%02X%02X",
+          rom[0], rom[1], rom[2], rom[3], rom[4], rom[5], rom[6], rom[7]);
+ /* The board-serial row this sensor used while unpaired. Letter from the
+  * channel table — a DS18B20 is temperature-only. */
+ char oldId[20];
+ snprintf(oldId, sizeof(oldId), "%c%s", channelInfo(CH_TEMP).letter, hwId);
+ String picoUID = getBoardSerialNumber( );
+
+ /* Version: the epoch when the clock is trustworthy, else one past the
+  * stored version — this can run at boot, before NTP, and the commit gate
+  * only accepts strictly newer. */
+ long storedVer = getCalibrationVersion("/calib.csv");
+ uint32_t newVer = (uint32_t)((storedVer > 0 ? storedVer : 0) + 1);
+
+ char nameSan[32];
+ safeCopy(nameSan, (name && name[0]) ? name : hwId, sizeof(nameSan));
+ for (char* p = nameSan; *p; p++) { if (*p == ',' || *p == '"') *p = ' '; }
+
+ enterFlashSafeMode( );
+ File fout = LittleFS.open("/calib.tmp", "w");
+ if (!fout) { exitFlashSafeMode( ); return false; }
+ fout.printf("VERSION,%lu\n", (unsigned long)newVer);
+
+ File fin = LittleFS.open("/calib.csv", "r");
+ if (fin) {
+ char lineBuf[320];
+ while (fin.available( )) {
+ feedWdt( );
+ size_t len = fin.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
+ if (len == 0) continue;
+ lineBuf[len] = '\0';
+ if (len > 0 && lineBuf[len - 1] == '\r') lineBuf[len - 1] = '\0';
+ if (lineBuf[0] == '\0') continue;
+ if (strncmp(lineBuf, "VERSION,", 8) == 0) continue;
+
+ char* p1 = strchr(lineBuf, ',');
+ if (!p1) continue;
+ *p1 = '\0';
+ char* keyStr = lineBuf;
+ char* idStr = p1 + 1;
+ char* p2 = strchr(idStr, ',');
+ if (p2) *p2 = '\0';
+
+ const bool isRomRow = (strcasecmp(keyStr, romHex) == 0);
+ const bool isOldRow = (strcasecmp(keyStr, picoUID.c_str( )) == 0
+                        && strcasecmp(idStr, oldId) == 0);
+ if (isRomRow || isOldRow) continue; /* replaced / migrated below */
+
+ *p1 = ',';
+ if (p2) *p2 = ',';
+ fout.printf("%s\n", lineBuf);
+ }
+ fin.close( );
+ }
+
+ char line[352];
+ if (calibRowFormat(line, sizeof(line), romHex, hwId, nameSan, curve) > 0) {
+ fout.printf("%s\n", line);
+ }
+ fout.close( );
+ exitFlashSafeMode( );
+
+ return processCalibrationUpload( );
+}
+
 /**
  * @brief Boot-time recovery of a /calib.tmp left behind by a reset.
  *

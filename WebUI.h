@@ -2359,6 +2359,15 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .sxb-dang:hover { background: var(--dang); color: #fff; }
         .sxb-on { background: var(--acc); color: #000; }
         .sxb-on:hover { background: var(--acc); }
+        /* Mini grafico de correcao por canal: a linha tracejada e o padrao do
+           sensor (delta zero), a curva e a correcao com suas ancoras. Cores em
+           classes, nunca em atributos fill/stroke — var() nao resolve la. */
+        .spk { display: block; width: 100%; height: 74px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; margin: 6px 0 2px; }
+        .spk .l0 { stroke: #71717a; stroke-width: 1; stroke-dasharray: 4 4; }
+        .spk .lc { stroke: var(--acc); stroke-width: 2; fill: none; }
+        .spk .pa { fill: var(--acc); stroke: #18181b; stroke-width: 1.5; }
+        .spk .hz { fill: rgba(255,255,255,0.05); }
+        .spk .tk { stroke: #eab308; stroke-width: 1.2; }
         /* Grade em vez de flex-wrap: com flex cada pilula tinha a largura do seu
            texto (GP1 vs GP12 2) e as linhas saiam desencontradas. Colunas iguais
            alinham tudo — 4 colunas a 360px, mais no desktop. */
@@ -3330,7 +3339,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     const legacy = !calDirty[ek] && rows.length === 0 && (ch.pts || []).length === 0 && Math.abs(ch.offset) >= 0.005;
                     h += '<div class="sxh" style="margin-top:10px"><strong>' + window.t(ch.label, ch.key) + '</strong> &mdash; ' +
                          window.t('cal_raw', 'Raw') + ': <strong>' + (ch.raw === null ? '--' : ch.raw + ' ' + ch.unit) + '</strong>' +
-                         ' &rarr; ' + window.t('cal_corr', 'corrected') + ': <strong>' + (ch.read === null ? '--' : ch.read + ' ' + ch.unit) + '</strong></div>';
+                         ' &rarr; ' + window.t('cal_corr', 'corrected') + ': <strong>' + (ch.read === null ? '--' : ch.read + ' ' + ch.unit) + '</strong></div>' +
+                         '<svg class="spk" id="se_spk_' + ch.key + '" viewBox="0 0 560 74" preserveAspectRatio="none" aria-hidden="true"></svg>';
                     if (!rows.length) {
                         h += '<div class="sxn">' + (legacy
                              ? window.t('cal_legacy', 'Constant offset') + ': ' + ch.offset + ' ' + ch.unit
@@ -3405,6 +3415,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  '<div class="sxn" style="margin-top:10px">' + window.t('sens_stage_hint', 'Edits are staged as you type and written on Save and Restart.') + '</div>';
             SE('sens_ed').innerHTML = h;
             sensWarn();
+            calSparkAll();
         }
 
         /* Rebuilds the history file of the day against the SAVED slots.
@@ -3630,6 +3641,97 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             calDirty[ek] = 1;
             sensStage(1);
         }
+        /* ── Mini grafico da correcao ──
+           Um por canal, dentro do editor: a reta do padrao (delta zero) e a
+           curva de correcao com as ancoras, simulada no modo escolhido (reta
+           ou suave — mesmo Fritsch-Carlson do firmware). Redesenha apenas o
+           svg proprio, nunca os inputs — regra do caret. */
+        function calSparkPts(ek) {
+            const out = [];
+            (calEdit[ek] || []).forEach(r => {
+                if (r.v === '' || isNaN(parseFloat(r.v))) return;
+                if (r.r === '' || isNaN(parseFloat(r.r))) return;
+                out.push({ r: parseFloat(r.r), d: parseFloat(r.v) - parseFloat(r.r) });
+            });
+            out.sort((a, b) => a.r - b.r);
+            return out;
+        }
+        function calSparkSlopes(pp) {
+            const n = pp.length, m = new Array(n).fill(0);
+            if (n < 3) return m;
+            const h = [], d = [];
+            for (let i = 0; i < n - 1; i++) { h.push(pp[i + 1].r - pp[i].r); d.push((pp[i + 1].d - pp[i].d) / h[i]); }
+            for (let i = 1; i < n - 1; i++) {
+                if (d[i - 1] === 0 || d[i] === 0 || ((d[i - 1] > 0) !== (d[i] > 0))) m[i] = 0;
+                else m[i] = 3 * (h[i - 1] + h[i]) / ((2 * h[i] + h[i - 1]) / d[i - 1] + (h[i] + 2 * h[i - 1]) / d[i]);
+            }
+            return m;
+        }
+        function calSparkDelta(pp, m, smooth, x) {
+            const n = pp.length;
+            if (!n) return 0;
+            if (n === 1 || x <= pp[0].r) return pp[0].d;
+            if (x >= pp[n - 1].r) return pp[n - 1].d;
+            for (let i = 1; i < n; i++) {
+                if (x <= pp[i].r) {
+                    const h = pp[i].r - pp[i - 1].r, t = (x - pp[i - 1].r) / h;
+                    if (smooth && n >= 3) {
+                        const t2 = t * t, t3 = t2 * t;
+                        return pp[i - 1].d * (2 * t3 - 3 * t2 + 1) + h * m[i - 1] * (t3 - 2 * t2 + t) +
+                               pp[i].d * (-2 * t3 + 3 * t2) + h * m[i] * (t3 - t2);
+                    }
+                    return pp[i - 1].d + t * (pp[i].d - pp[i - 1].d);
+                }
+            }
+            return pp[n - 1].d;
+        }
+        function calSpark(ch) {
+            const host = SE('se_spk_' + ch.key);
+            if (!host) return;
+            const ek = sensOpenSlot + ':' + ch.key;
+            const pp = calSparkPts(ek);
+            const smooth = calMode[ek] === 'cub';
+            const legacyOff = (!pp.length && !calDirty[ek]) ? (ch.offset || 0) : 0;
+            const W = 560, H = 74, L = 8, R = 8, T = 10, B = 12;
+            let lo, hi;
+            if (pp.length >= 2) {
+                const sp = Math.max(pp[pp.length - 1].r - pp[0].r, 1);
+                lo = pp[0].r - sp * 0.18; hi = pp[pp.length - 1].r + sp * 0.18;
+            } else if (pp.length === 1) { lo = pp[0].r - 5; hi = pp[0].r + 5; }
+            else if (ch.raw !== null) { lo = ch.raw - 5; hi = ch.raw + 5; }
+            else { lo = ch.min; hi = ch.max; }
+            let ym = 0.5;
+            pp.forEach(p => { ym = Math.max(ym, Math.abs(p.d) * 1.3); });
+            ym = Math.max(ym, Math.abs(legacyOff) * 1.3);
+            const X = x => L + (x - lo) / (hi - lo) * (W - L - R);
+            const Y = d => T + (ym - d) / (2 * ym) * (H - T - B);
+            const m = calSparkSlopes(pp);
+            let s = '';
+            if (pp.length >= 2) {
+                s += '<rect class="hz" x="' + L + '" y="' + T + '" width="' + (X(pp[0].r) - L).toFixed(1) + '" height="' + (H - T - B) + '"/>';
+                s += '<rect class="hz" x="' + X(pp[pp.length - 1].r).toFixed(1) + '" y="' + T + '" width="' + (W - R - X(pp[pp.length - 1].r)).toFixed(1) + '" height="' + (H - T - B) + '"/>';
+            }
+            s += '<line class="l0" x1="' + L + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - R) + '" y2="' + Y(0).toFixed(1) + '"/>';
+            if (pp.length || legacyOff) {
+                let dp = '';
+                const steps = 52;
+                for (let k = 0; k <= steps; k++) {
+                    const x = lo + (hi - lo) * k / steps;
+                    const d = pp.length ? calSparkDelta(pp, m, smooth, x) : legacyOff;
+                    dp += (k ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(d).toFixed(1);
+                }
+                s += '<path class="lc" d="' + dp + '"/>';
+            }
+            if (ch.raw !== null && ch.raw >= lo && ch.raw <= hi) {
+                s += '<line class="tk" x1="' + X(ch.raw).toFixed(1) + '" y1="' + T + '" x2="' + X(ch.raw).toFixed(1) + '" y2="' + (H - B) + '"/>';
+            }
+            pp.forEach(p => { s += '<circle class="pa" cx="' + X(p.r).toFixed(1) + '" cy="' + Y(p.d).toFixed(1) + '" r="3.5"/>'; });
+            host.innerHTML = s;
+        }
+        function calSparkAll() {
+            const c = (typeof calOf === 'function') ? calOf(sensOpenSlot) : null;
+            if (c) (c.channels || []).forEach(calSpark);
+        }
         /* Mirror of the rules POST /api/calib enforces, surfaced while typing
            instead of as a 400 after Save. First problem wins, like sensWarn. */
         function calWarnMsg() {
@@ -3718,7 +3820,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (anyc) rest.push(entry);
                 Pending.setSection('calib', rest.length ? { sensors: rest } : {});
             }
-            if (redraw) sensDrawEditor(); else sensWarn();
+            if (redraw) { sensDrawEditor(); } else { sensWarn(); calSparkAll(); }
         }
 
         /* Live echo of the rule commit_all enforces server-side. Shown while

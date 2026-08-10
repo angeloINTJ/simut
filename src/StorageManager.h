@@ -374,6 +374,12 @@ public:
   * with the right prefix, which made the pair device-wide: a board with two
   * DHT22s could only ever hold one calibration. */
  bool getCalibrationByHwId(char prefix, const char* hwId, CalibCurve& outCurve, String& outName);
+ /* Pair a DS18B20 to its silicon: writes/replaces the calib.csv row keyed by
+  * this ROM and drops the board-serial temperature row that carried the
+  * sensor while it was unpaired — its curve arrives via `curve` and moves
+  * into the ROM row, so pairing never loses a calibration. Atomic through
+  * /calib.tmp + the version gate. */
+ bool bindDs18Identity(const uint8_t* rom, const char* hwId, const char* name, const CalibCurve& curve);
  long getCalibrationVersion(String path);
  bool processCalibrationUpload( );
  bool recoverCalibrationTmp( );

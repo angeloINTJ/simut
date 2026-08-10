@@ -104,6 +104,42 @@ void AppManager::loadAndCalibrateSensors( ) {
   }
  }
 
+ /* ── 1.5 Pairing ──
+  * A DS18B20 provisioned through the web arrives with an all-zero ROM: the
+  * editor knows the GPIO, not the silicon. Bind it here, on the reload the
+  * Save & Restart already caused — read the ROM off the pin, adopt it into
+  * the slot, and move the calibration row from the board-serial scheme to
+  * the ROM scheme, so the serial number is what calib.csv keys the sensor
+  * by from the first boot. Single-drop by design: pins[0] is the sensor
+  * identity everywhere else too. A failed read (probe absent, CRC bad)
+  * changes nothing and simply tries again on the next reload. */
+ bool romAdopted = false;
+#if SIMUT_SENSOR_DS18B20
+ for (int i = 0; i < MAX_SENSORS; i++) {
+  if (!cfg.sensors[i].active) continue;
+  if (cfg.sensors[i].sensorType != TYPE_DS18B20) continue;
+  bool zero = true;
+  for (int k = 0; k < 8; k++) if (cfg.sensors[i].rom[k] != 0) zero = false;
+  if (!zero) continue;
+  uint8_t rom[8];
+  if (!_sensorMgr->identifyPhysicalSensor(cfg.sensors[i].pins[0], rom)) continue;
+  if (rom[0] == 0x00 || dallasCrc8(rom, 7) != rom[7]) continue;
+
+  /* Any curve saved while unpaired lives under t<hwId>; carry it over. */
+  CalibCurve curve; String unusedName;
+  _storageMgr->getCalibrationByHwId(channelInfo(CH_TEMP).letter,
+                                    cfg.sensors[i].hwId, curve, unusedName);
+  if (_storageMgr->bindDs18Identity(rom, cfg.sensors[i].hwId,
+                                    cfg.sensors[i].friendlyName, curve)) {
+   memcpy(cfg.sensors[i].rom, rom, 8);
+   romAdopted = true;
+   LOG_CODE(LOG_INFO, "SENSOR", SYS_OK, cfg.sensors[i].pins[0],
+            TRL("DS18B20 paired to its serial number"));
+  }
+ }
+#endif
+ if (romAdopted) _storageMgr->saveConfiguration( );
+
  /* ── 2. Runtime ──
   * BEFORE calibration, not after. initRuntimeSensors rebuilds the vector
   * from scratch with every calibration curve reset to identity, so applying

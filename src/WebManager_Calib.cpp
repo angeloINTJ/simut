@@ -368,19 +368,9 @@ static PendIdent s_idents[MAX_SENSORS];
  * The legacy shape disappears on its own: the first edit that sets real
  * points replaces it with the canonical row. */
 static void emitCalibRow(File& f, const CalibChange& ch) {
-	char pts[CALIB_PTS_BUF];
-	calibCurveEncodePts(ch.curve, pts, sizeof(pts));
-	if (pts[0] != '\0') {
-		/* The "cub" cell right after the name is the interpolation mode;
-		 * rows without it are linear (and stay an odd field count). */
-		if (ch.curve.mode == CALIB_MODE_SMOOTH)
-			f.printf("%s,%s,%s,cub,%s\n", ch.key, ch.id, ch.name, pts);
-		else
-			f.printf("%s,%s,%s,%s\n", ch.key, ch.id, ch.name, pts);
-	} else if (ch.curve.n == 1) {
-		f.printf("%s,%s,%.2f,%s\n", ch.key, ch.id, ch.curve.off[0], ch.name);
-	} else {
-		f.printf("%s,%s,%s\n", ch.key, ch.id, ch.name);
+	char line[352];
+	if (calibRowFormat(line, sizeof(line), ch.key, ch.id, ch.name, ch.curve) > 0) {
+		f.printf("%s\n", line);
 	}
 }
 

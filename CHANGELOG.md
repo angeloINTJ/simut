@@ -46,6 +46,14 @@ an absolute one-point correction at the current raw reading instead of
 accumulating `offset += ref − reading`. Repeating the same reference is now
 idempotent, which is what users expected all along.
 
+The slot editor draws a **live mini-chart per quantity**: the dashed line is
+the sensor default (zero correction), the curve is the staged correction with
+its anchors, simulated in the chosen interpolation as you type. **DS18B20
+pairing became automatic**: a probe provisioned through the editor gets its
+ROM read and written into `calib.csv` on the restart that follows Save &
+Restart, migrating any correction saved while unpaired; ROM verification then
+guards against swapped probes.
+
 ### Fixed
 
 - **The slot editor's "Alarms enabled" checkbox never saved.** Every

@@ -807,6 +807,36 @@ void test_calibrow_mode_token(void) {
     TEST_ASSERT_EQUAL_STRING("GELADEIRA", name);
 }
 
+void test_calibrow_format_shapes(void) {
+    /* The one write-side authority: web rewrite and boot ROM binder both go
+     * through calibRowFormat, so the shapes are pinned here once. */
+    char line[352];
+    CalibCurve c;
+    /* identity -> 3 cells */
+    TEST_ASSERT_TRUE(calibRowFormat(line, sizeof(line), "KEY", "ID", "NAME", c) > 0);
+    TEST_ASSERT_EQUAL_STRING("KEY,ID,NAME", line);
+    /* anchor-free constant -> legacy 4-column */
+    calibCurveFromOffset(c, 0.5f);
+    TEST_ASSERT_TRUE(calibRowFormat(line, sizeof(line), "KEY", "ID", "NAME", c) > 0);
+    TEST_ASSERT_EQUAL_STRING("KEY,ID,0.50,NAME", line);
+    /* anchored linear -> name then flat cells */
+    const float r1[1] = { 1.0f }, v1[1] = { 1.5f };
+    TEST_ASSERT_TRUE(calibCurveBuild(c, r1, v1, 1));
+    TEST_ASSERT_TRUE(calibRowFormat(line, sizeof(line), "KEY", "ID", "NAME", c) > 0);
+    TEST_ASSERT_EQUAL_STRING("KEY,ID,NAME,1.00,1.50", line);
+    /* smooth -> cub cell after the name */
+    const float r3[3] = { 0.0f, 10.0f, 20.0f }, v3[3] = { 0.5f, 10.0f, 20.2f };
+    TEST_ASSERT_TRUE(calibCurveBuild(c, r3, v3, 3, CALIB_MODE_SMOOTH));
+    TEST_ASSERT_TRUE(calibRowFormat(line, sizeof(line), "KEY", "ID", "NAME", c) > 0);
+    TEST_ASSERT_EQUAL_STRING("KEY,ID,NAME,cub,0.00,0.50,10.00,10.00,20.00,20.20", line);
+    /* and the parser reads its own writer back */
+    CalibCurve back; char name[40];
+    TEST_ASSERT_TRUE(calibRowParseTail(strchr(strchr(line, ',') + 1, ',') + 1, back, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(3, back.n);
+    TEST_ASSERT_EQUAL_UINT8(CALIB_MODE_SMOOTH, back.mode);
+    TEST_ASSERT_EQUAL_STRING("NAME", name);
+}
+
 void test_calibrow_parse_tail_shapes(void) {
     /* The row shape is identified by field count — this is the contract the
      * whole file format now stands on. */
@@ -999,6 +1029,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_calibcurve_smooth_monotone_cubic);
     RUN_TEST(test_calibcurve_smooth_small_n_is_linear);
     RUN_TEST(test_calibrow_mode_token);
+    RUN_TEST(test_calibrow_format_shapes);
 
     /* depth-aware JSON slicing — replaces the first-'}' walkers */
     RUN_TEST(test_jsonMatchEnd_flat);

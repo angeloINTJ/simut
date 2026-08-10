@@ -47,6 +47,14 @@ cache) agora definem uma correção absoluta de um ponto na leitura bruta atual,
 em vez de acumular `offset += ref − leitura`. Repetir a mesma referência virou
 operação idempotente — que é o que todo mundo sempre esperou.
 
+O editor de slot desenha um **mini-gráfico ao vivo por grandeza**: a linha
+tracejada é o padrão do sensor (correção zero), a curva é a correção staged
+com suas âncoras, simulada na interpolação escolhida enquanto você digita.
+O **pareamento do DS18B20 virou automático**: um sensor provisionado pelo
+editor tem o ROM lido e gravado no `calib.csv` no reinício que segue o
+Salvar e Reiniciar, migrando qualquer correção salva enquanto estava sem
+par; a verificação de ROM passa a proteger contra troca de sonda.
+
 ### Corrigido
 
 - **A caixa "Alarmes ativos" do editor de slot nunca salvava.** Todos os

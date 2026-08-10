@@ -283,6 +283,34 @@ inline bool calibCurveDecodePts(const char* pts, CalibCurve& c, uint8_t mode = C
 	return calibCurveBuild(c, r, v, count, mode);
 }
 
+/**
+ * @brief Format one full calib.csv row (no newline) — the single authority
+ *        on the write-side shapes, shared by the web rewrite and the boot
+ *        ROM binder so the two can never drift apart.
+ * @return chars written; 0 (and an empty out) when cap is too small.
+ */
+inline size_t calibRowFormat(char* out, size_t cap, const char* key, const char* id,
+                             const char* name, const CalibCurve& c) {
+	if (!out || cap == 0) return 0;
+	char pts[CALIB_PTS_BUF];
+	calibCurveEncodePts(c, pts, sizeof(pts));
+	int w;
+	if (pts[0] != '\0') {
+		if (c.mode == CALIB_MODE_SMOOTH)
+			w = snprintf(out, cap, "%s,%s,%s,cub,%s", key, id, name, pts);
+		else
+			w = snprintf(out, cap, "%s,%s,%s,%s", key, id, name, pts);
+	} else if (c.n == 1) {
+		/* anchor-free constant offset: only the legacy 4-column shape can
+		 * carry it — a curve with no anchor has no point cells to write */
+		w = snprintf(out, cap, "%s,%s,%.2f,%s", key, id, (double)c.off[0], name);
+	} else {
+		w = snprintf(out, cap, "%s,%s,%s", key, id, name);
+	}
+	if (w < 0 || (size_t)w >= cap) { out[0] = '\0'; return 0; }
+	return (size_t)w;
+}
+
 /* The interpolation-mode cell: sits right after the name, only on rows whose
  * curve is SMOOTH ("cub" — cubic). Exact-match on a tiny vocabulary, which is
  * what disambiguates a mode row (even count, non-numeric second field) from

@@ -178,6 +178,15 @@ Renaming a hardware ID migrates the rows; removing a correction deletes the
 row, except for DS18B20 rows, which double as the ROM→ID/name database that
 `sensor accept` reads.
 
+**DS18B20 pairing is automatic.** A DS18B20 provisioned through the slot
+editor is saved with the GPIO only; on the restart that follows Save &
+Restart, the firmware reads the probe's ROM off the wire, adopts it into the
+slot and re-keys the sensor's `calib.csv` row by that serial number —
+migrating any correction saved while the sensor was unpaired. From that boot
+on, the ROM is verified periodically and a swapped probe is quarantined
+instead of silently impersonating the calibrated one. A probe that is absent
+at boot simply pairs on the next restart.
+
 Two identical DHT22s on one board calibrate independently, which was not true
 before v1.6.0-beta: offsets for ROM-less parts used to be a single device-wide
 row pair applied to whichever such sensor came first in the runtime list.
