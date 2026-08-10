@@ -63,11 +63,33 @@ now carries `c1a` (age of the stamp Core 1 writes once per loop), `c1n`
 (launches), `c1kl`/`c1kh`/`c1kq` (kills split by cause) and `c1s` (stuck
 lockouts), for the same reason `fx` and `cgd`/`cgg`/`cgx` are already there.
 
+### A third path into the `C0=[WEB_POLL]` park, found by closing the one above
+
+Gating the restore made its refusal path reachable by anyone — and the refusal
+path rebooted the device. Repeating an unauthenticated apply took it down on
+the 12th request in one run and the 31st in another, with the autopsy that has
+been on the books as an open residual since the network-storm campaign.
+
+It is the same defect that campaign cured in two places: the 403 answers
+non-chunked and returns, so nothing in the abort discipline covers its tail,
+and the framework retires the client with a bare `stop()` whose ACK-wait
+renews on progress and never feeds the watchdog. Draining before the return
+is what `safeStreamFile()` and `/api/backup` already do. 100 refused restores
+afterwards: no reboots, every one answered 403, nothing written.
+
+Two attributions were tried and discarded on the way, both of which had looked
+convincing: that the log line the gate added inside the multipart callback was
+to blame (removing it gave 40 clean requests — a false negative, since the
+reboot returned on the 31st with the line elsewhere), and that `/api/logs` was
+the trigger (51 fetches, nothing). An event that fires once in a few dozen
+requests is not cleared by one clean run of forty.
+
 ### Still open
 
 The residual `C0=[WEB_POLL]` park under six-way concurrent load, documented in
-`docs/netstorm-campaign-2026-08-10/`, is unchanged and still open. So is the
-IRQ-off window of 68–78 ms against a 60 ms criterion (D-NS7).
+`docs/netstorm-campaign-2026-08-10/`, is narrowed but not closed: three paths
+into it are now drained, and the six-client case was not retested here. The
+IRQ-off window of 68–78 ms against a 60 ms criterion (D-NS7) is untouched.
 
 ## v2.0.3-alpha (2026-08-10)
 

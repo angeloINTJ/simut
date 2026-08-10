@@ -64,12 +64,35 @@ laço), `c1n` (launches), `c1kl`/`c1kh`/`c1kq` (kills separados por causa) e
 `c1s` (lockouts travados), pelo mesmo motivo que o `fx` e o `cgd`/`cgg`/`cgx`
 já estão lá.
 
+### Um terceiro caminho para o parque `C0=[WEB_POLL]`, achado ao fechar o de cima
+
+Colocar o gate no restore tornou o caminho de recusa alcançável por qualquer
+um — e o caminho de recusa derrubava o aparelho. Repetir um apply sem
+autenticação reiniciou na 12ª requisição numa corrida e na 31ª noutra, com a
+mesma autópsia que estava registrada como resíduo aberto desde a campanha de
+tempestade de rede.
+
+É o mesmo defeito que aquela campanha curou em dois lugares: o 403 responde
+não-chunked e retorna, então nada da disciplina de aborto cobre a cauda, e o
+framework aposenta o cliente com um `stop()` seco cuja espera de ACK se renova
+a cada progresso e nunca alimenta o watchdog. Drenar antes de retornar é o que
+o `safeStreamFile()` e o `/api/backup` já fazem. 100 recusas depois: nenhum
+reboot, todas respondidas com 403, nada gravado.
+
+Duas atribuições foram tentadas e descartadas no caminho, ambas convincentes
+na hora: que a linha de log que o gate acrescentou dentro do callback multipart
+era a culpada (tirar a linha deu 40 requisições limpas — falso negativo, o
+reboot voltou na 31ª com a linha em outro lugar), e que o `/api/logs` era o
+gatilho (51 buscas, nada). Um evento que dispara uma vez a cada algumas dezenas
+de requisições não se descarta com uma corrida limpa de quarenta.
+
 ### Continua aberto
 
 O parque residual `C0=[WEB_POLL]` sob carga concorrente de seis clientes,
-documentado em `docs/netstorm-campaign-2026-08-10/`, segue igual e aberto.
-A janela de IRQ desligada de 68–78 ms contra o critério de 60 ms (D-NS7)
-também.
+documentado em `docs/netstorm-campaign-2026-08-10/`, está estreitado mas não
+fechado: três caminhos para ele estão drenados, e o caso de seis clientes não
+foi refeito aqui. A janela de IRQ desligada de 68–78 ms contra o critério de
+60 ms (D-NS7) segue intocada.
 
 ## v2.0.3-alpha (2026-08-10)
 

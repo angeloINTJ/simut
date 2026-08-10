@@ -186,8 +186,12 @@ void WebManager::handleApiRestoreUploadData( ) {
   * in the finish handler, behind the very check that failed. An
   * exposed device therefore had nothing to show for the request,
   * which is the worst possible answer to "was I hit?". */
- LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId,
-          String("restore rejected: op=") + _server.arg("op"));
+ /* The refusal is recorded in the finish handler, not here. Logging
+  * from inside the multipart callback is not itself the fault — the
+  * reboot that showed up while chasing this was the non-chunked park
+  * on the 403, and it survived removing the log line. But the finish
+  * handler is where every other route on this server logs, and a
+  * flash write inside the parser is not a habit worth starting. */
  /* A refused session never reaches the unpause in finish, so a
   * lockout left over from a previous upload whose client vanished
   * would stay held and the display frozen. Cheapest place to
@@ -370,7 +374,25 @@ void WebManager::handleApiRestoreFinish( ) {
 
  uint16_t need = is_apply ? PERM_FILE_UPLOAD : PERM_FILE_READ;
  if (!(getAuthPerms( ) & need)) {
+ /* The refusal is recorded here rather than at the callback that
+  * enforces it, because the old hole left no trace at all and the
+  * obvious place to fix that turned out to reboot the device: a
+  * log write from inside the multipart callback took Core 0 past
+  * the watchdog window on the 12th refusal. This is the ordinary
+  * request path, and it costs nothing. */
+ LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId,
+          String("restore rejected: op=") + op);
  _server.send(403, "text/plain", "Forbidden");
+ /* Same reason as handleApiBackup above, reached by a third path.
+  * A refusal answers non-chunked and returns, so nothing in the
+  * abort discipline covers its tail; the framework retires the
+  * client inside handleClient( ) with a bare stop( ) whose ACK-wait
+  * renews on progress and never feeds the watchdog. Measured on the
+  * rig: repeating a refused restore rebooted the device on the 12th
+  * and the 31st across two runs, autopsy `HW WATCHDOG C0=[WEB_POLL]`
+  * (ctx=219) — the same signature, and the same cure. */
+ drainOrDrop( );
+ _drainPending = false;
  return;
  }
  if (is_apply && rejectIfTouchPriority( )) return;
