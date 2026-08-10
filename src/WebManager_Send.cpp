@@ -149,6 +149,13 @@ bool WebManager::safeSendN(const char* data, size_t len, const char* origin) {
   * CONNECTED with an un-ACKed tail — precisely the case whose polite
   * close parks. Success or abort, a live peer still needs the drain. */
  _drainPending = _server.client( ).connected( );
+ /* 722 says this funnel RETURNED. Without it, every park anywhere between
+  * the last sendContent and the next stamp wore 721 alike, which is why the
+  * storm residual could not be placed: 721 covers "inside the tail of
+  * safeSendN" and "anywhere the framework goes after the handler" at once.
+  * With 722, a residual still wearing 721 is ours; one wearing 722 is the
+  * framework's, and 740 (WebManager_Core.cpp) narrows it further. */
+ HPOS(722);
  return !gone;
 }
 
@@ -259,6 +266,27 @@ bool WebManager::safeSend_GZ(const uint8_t* gz_data, size_t gz_len) {
  return safeSendN((const char*)gz_data, gz_len, "gz");
 }
 
+/* Why this one drains before returning, unlike every other response.
+ *
+ * setContentLength( ) means NOT chunked, and non-chunked is the one shape the
+ * abort discipline never covered: safeSendN's hard close is gated on
+ * _chunkedResponse, so a file stream leaves its un-ACKed tail to the framework.
+ * The framework then retires the client inside handleClient( ) —
+ * WebServerTemplate.h, case CLIENT_MUST_STOP — with a bare
+ * `_currentClient->stop( )`. Bare means maxWaitMs 0, and flush( ) reads 0 as
+ * "use the 300 ms default", not as "do not wait"; wait_until_acked( ) then
+ * renews its clock on every ACK that moves sndbuf, so a peer trickling ACKs
+ * holds Core 0 there with nothing feeding the watchdog.
+ *
+ * update( )'s drainOrDrop( ) cannot help: it runs after handleClient( )
+ * returns, and the retirement happened inside it. Measured on the bench,
+ * 2026-08-10: one /download per boot, response 200 in 0,05 s and the watchdog
+ * reboot ~8 s later, autopsy `C0=[WEB_POLL] hp=721 (219)` — hp=721 being the
+ * stamp right after sendContent, with drainOrDrop's own HPOS(600) never set.
+ *
+ * Draining here makes the framework's stop( ) find a flushed buffer and return
+ * on its first pass. Same move f0f8e23 made for chunked aborts, on the side
+ * that was left out. */
 void WebManager::safeStreamFile(File& f, const String& contentType) {
  const size_t CHUNK = 1024;
  uint8_t buf[CHUNK];
@@ -271,6 +299,8 @@ void WebManager::safeStreamFile(File& f, const String& contentType) {
  while (hasMore) {
  if (isClientGone( ) || isHandlerOvertime( )) {
  LOG_CODE(LOG_WARN, "WEB", WEB_DISCONNECT_FILE, 0, "");
+ drainOrDrop( );
+ _drainPending = false;
  return;
  }
 
@@ -284,4 +314,6 @@ void WebManager::safeStreamFile(File& f, const String& contentType) {
  feedWatchdog( );
  }
  safeSend("");
+ drainOrDrop( );
+ _drainPending = false;
 }
