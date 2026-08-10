@@ -243,24 +243,29 @@ Luminosidad
 600 Forzar reanudación
 999 Error desconocido
 @TRL
+016eef1e DS18B20 emparejado a su número de serie
 018a9730 Valores de fábrica activos; contraseña admin por USB/serial.
 08676d6a Fallo de MQTT: 
 0bd7e96f Fallo al interpretar el paquete de idioma: 
 0f3af34a Contraseña restablecida con éxito: 
 127a9a1b Tiempo agotado en el quiesce — recurriendo a reset forzado
+24cc6557 Paquete de idioma más antiguo que el firmware — cadenas ausentes aparecen en inglés
 271b51a1 Historial omitido: sin referencia de hora (NTP apagado y sin hora provisional)
 2886fa7b Paquete de idioma cargado: 
 2a5674b6 Reset de fábrica
 2b134751 Fuga de modo silencioso >15s. Forzando liberación.
+2d0aad45 Histórico omitido: el esquema no coincide con ningún sensor activo
 2dfd2825 Inicio de sesión BT admin
 2e7466d7 Historial reanudado: el esquema corresponde a los sensores activos
 2f67bcd7 BME en bit-bang (pines sin I2C de hardware) — ver docs/CONCURRENCY.md
 34731b0f Valores de fábrica activos; se requiere regenerar la contraseña.
 37b8c417 Esquema del historial reconstruido vía web (día descartado)
+3b8726db Config de esquema antiguo descartada — valores de fábrica cargados
 4053e02c Cambio de contraseña rechazado: entrada inválida
 4922ff94 UI de la pantalla iniciada en Core 1.
 4e94b2fd Archivo subido.
 508b2648 Fallo crítico de almacenamiento!
+528db96d Sensor I2C retipado por el ID del chip: 
 57ef7f98 Historial reanudado: referencia de hora obtenida
 58cf268b Config primaria corrupta, recuperada desde el respaldo
 5b298f0a Reinicio vía CLI
@@ -275,9 +280,11 @@ Luminosidad
 72706305 mDNS no pudo iniciar
 728bf426 Core 1 colgado >10s. Reiniciando.
 74df218f Punto de acceso: 
+7599a637 RSSI inverosímil dos veces — enlace dado por muerto, reconectando
 798468cf Varios archivos .lng en /lang/ — cargando el primero en orden alfabético
 79d951e9 Contraseña BT admin rechazada
 7b990491 Contraseña restablecida por la CLI: 
+88d38ff3 Fallo del PIO del DS18B20 (pio0 lleno) — 1-Wire desactivado en este arranque
 8991624f Provisional: 
 89a28b4b OOM: WiFiClientSecure
 8a488318 Sesión expirada: 
@@ -291,6 +298,7 @@ Luminosidad
 a1984a33 Carpeta creada: 
 a7c6522f Permisos definidos por la CLI: 
 aa95ee6e Correspondencia de hardware restaurada
+abc23722 Calibración táctil autoajustada (sin pantalla, solo en RAM)
 ad366e70 Cambio de contraseña en el login OK: 
 adb4b368 Pausa de la pantalla colgada >5s!
 aeca57d7 Sistema listo.
@@ -309,6 +317,7 @@ c72bc4db El usuario activó el modo AP.
 c8d42c3f Inicio de sesión rechazado: límite de sesiones
 c98bcdab Buscando SSID (backoff=
 cc0a0d40 PIN predeterminado detectado; forzando cambio.
+d4183f73 Fallo del PIO del DHT22 (pio1 lleno) — DHT22 desactivado en este arranque
 d62db850 Yield colgado >10s, reset forzado.
 dabcafea Cursor de telemetría en el futuro — reset a 0
 db8ede8b Forzando sincronización de telemetría

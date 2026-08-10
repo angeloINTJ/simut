@@ -243,24 +243,29 @@ Luminosidade
 600 Forçar despausar
 999 Erro desconhecido
 @TRL
+016eef1e DS18B20 pareado ao seu número de série
 018a9730 Factory defaults ativos; senha admin via USB/serial.
 08676d6a Falha de MQTT: 
 0bd7e96f Falha ao interpretar o pacote de idioma: 
 0f3af34a Senha redefinida com sucesso: 
 127a9a1b Tempo esgotado no quiesce — recorrendo a reset forçado
+24cc6557 Pacote de idioma mais antigo que o firmware — strings ausentes aparecem em inglês
 271b51a1 Histórico pulado: sem referência de hora (NTP desligado e sem hora provisória)
 2886fa7b Pacote de idioma carregado: 
 2a5674b6 Factory reset
 2b134751 Modo silencioso vazando >15s. Forçando liberação.
+2d0aad45 Histórico pulado: schema não corresponde a nenhum sensor ativo
 2dfd2825 Login BT admin
 2e7466d7 Histórico retomado: schema corresponde aos sensores ativos
 2f67bcd7 BME em bit-bang (pinos sem I2C de hardware) — ver docs/CONCURRENCY.md
 34731b0f Factory defaults ativos; reset admin para gerar senha.
 37b8c417 Schema do histórico reconstruído via web (dia descartado)
+3b8726db Config de schema antigo descartada — padrões carregados
 4053e02c Troca de senha rejeitada: entrada inválida
 4922ff94 UI do display iniciada no Core 1.
 4e94b2fd Arquivo enviado.
 508b2648 Falha crítica de storage!
+528db96d Sensor I2C retipado pelo ID do chip: 
 57ef7f98 Histórico retomado: referência de hora obtida
 58cf268b Config primária corrompida, recuperada do backup
 5b298f0a Reboot via CLI
@@ -275,9 +280,11 @@ Luminosidade
 72706305 mDNS falhou ao iniciar
 728bf426 Core 1 travado >10s. Reiniciando.
 74df218f Ponto de acesso: 
+7599a637 RSSI implausível duas vezes — link dado como morto, reconectando
 798468cf Vários arquivos .lng em /lang/ — carregando o primeiro em ordem alfabética
 79d951e9 Senha BT admin rejeitada
 7b990491 Senha redefinida pela CLI: 
+88d38ff3 Falha no PIO do DS18B20 (pio0 cheio) — 1-Wire desativado neste boot
 8991624f Provisória: 
 89a28b4b OOM: WiFiClientSecure
 8a488318 Sessão expirada: 
@@ -291,6 +298,7 @@ Luminosidade
 a1984a33 Pasta criada: 
 a7c6522f Permissões definidas pela CLI: 
 aa95ee6e Correspondência de hardware restaurada
+abc23722 Calibração de toque autoajustada (sem tela, só na RAM)
 ad366e70 Troca de senha no login OK: 
 adb4b368 Pause do display preso >5s!
 aeca57d7 Sistema pronto.
@@ -309,6 +317,7 @@ c72bc4db Usuário ativou modo AP.
 c8d42c3f Login rejeitado: limite de sessões
 c98bcdab Procurando SSID (backoff=
 cc0a0d40 PIN padrão detectado; forçando troca.
+d4183f73 Falha no PIO do DHT22 (pio1 cheio) — DHT22 desativado neste boot
 d62db850 Yield preso >10s, reset forçado.
 dabcafea Cursor de telemetria no futuro — reset para 0
 db8ede8b Forçando sync de telemetria
