@@ -3360,17 +3360,18 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     h += '<div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;align-items:center">';
                     if (rows.length < 5) h += '<button type="button" class="sxb" onclick="calPtAdd(&quot;' + ch.key + '&quot;)">+ ' + window.t('cal_add', 'Add point') + '</button>';
                     if (rows.length || legacy) h += '<button type="button" class="sxb sxb-dang" onclick="calPtClear(&quot;' + ch.key + '&quot;)">' + window.t('cal_clear', 'Remove correction') + '</button>';
-                    /* Interpolation choice — shown once there are enough
-                       points for it to mean anything (or when it is already
-                       set, so the state is never invisible). */
-                    if (rows.length >= 3 || calMode[ek] === 'cub') {
+                    /* Interpolation choice — always visible, one per quantity
+                       of every sensor type. Below 3 points the cubic IS the
+                       straight line, so the choice is stored but changes
+                       nothing yet; the hint says so. */
+                    {
                         const mc = calMode[ek] === 'cub';
                         h += '<span class="sxh" style="margin:0 0 0 6px">' + window.t('cal_mode_lbl', 'Interpolation') + ':</span>' +
                              '<button type="button" class="sxb' + (mc ? '' : ' sxb-on') + '" onclick="calModeSet(&quot;' + ch.key + '&quot;,&quot;lin&quot;)">' + window.t('cal_mode_lin', 'Straight') + '</button>' +
                              '<button type="button" class="sxb' + (mc ? ' sxb-on' : '') + '" onclick="calModeSet(&quot;' + ch.key + '&quot;,&quot;cub&quot;)">' + window.t('cal_mode_cub', 'Smooth') + '</button>';
                     }
                     h += '</div>';
-                    if (rows.length >= 3 || calMode[ek] === 'cub') {
+                    if (calMode[ek] === 'cub' && rows.length < 3) {
                         h += '<div class="sxn">' + window.t('cal_mode_hint', 'Smooth is a monotone cubic: it bends through the anchors without ever overshooting them. Needs 3+ points; with fewer it behaves as straight.') + '</div>';
                     }
                 });
@@ -3396,13 +3397,19 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             /* Hardware operations. These act on the device NOW — unlike every
                other control on this page they are not staged for Save and
                Restart, because adopting a probe or moving an epoch has to
-               happen against the hardware as it is at this instant. */
-            h += '<label class="sxsec">' + window.t('sens_hw', 'Hardware') + '</label>' +
-                 '<div class="sxn">' + window.t('sens_accept_hint',
-                    'Re-reads the probe wired to this slot and binds the slot to it. Use it after swapping a DS18B20, when the device reports a hardware mismatch.') + '</div>' +
-                 '<button type="button" class="sxb" id="se_adopt" onclick="sensAdopt()" style="margin-top:10px">' +
-                 window.t('sens_accept', 'Adopt the probe wired here') + '</button>' +
-                 '<div class="sxn" style="margin-top:14px">' + window.t('sens_wipe_hint',
+               happen against the hardware as it is at this instant.
+               Adopt only exists where a factory serial exists to adopt
+               (ty.sn — DS18B20 ROM): a serial-less part cannot error when
+               moved to the wrong place, so offering the button there only
+               invited the LIB_SENS rename accident. */
+            h += '<label class="sxsec">' + window.t('sens_hw', 'Hardware') + '</label>';
+            if (ty && ty.sn) {
+                h += '<div class="sxn">' + window.t('sens_accept_hint',
+                        'Re-reads the probe wired to this slot and binds the slot to it. Use it after swapping a DS18B20, when the device reports a hardware mismatch.') + '</div>' +
+                     '<button type="button" class="sxb" id="se_adopt" onclick="sensAdopt()" style="margin-top:10px">' +
+                     window.t('sens_accept', 'Adopt the probe wired here') + '</button>';
+            }
+            h += '<div class="sxn" style="margin-top:14px">' + window.t('sens_wipe_hint',
                     'Marks everything recorded before now as belonging to the previous sensor. The records stay on disk; the graphs stop attributing them to this slot.') + '</div>' +
                  '<button type="button" class="sxb sxb-dang" id="se_wipe" onclick="sensWipe()" style="margin-top:10px">' +
                  window.t('sens_wipe', 'Reset history epoch') + '</button>';

@@ -142,10 +142,13 @@ void WebManager::handleApiSensorsGet( ) {
 		}
 		/* "ch" is the channel MASK, so the page can tell a BMP280 (temperature
 		 * and pressure) from a DHT22 (temperature and humidity) — both report
-		 * two values, which is all "nv" ever said. */
-		snprintf(buf, sizeof(buf), "%s{\"t\":%d,\"n\":\"%s\",\"nv\":%u,\"ch\":%u,\"pins\":[%s]}",
+		 * two values, which is all "nv" ever said. "sn" marks parts with a
+		 * readable factory serial (DS18B20 ROM) — the page only offers the
+		 * adopt-the-probe flow where a serial exists to adopt. */
+		snprintf(buf, sizeof(buf), "%s{\"t\":%d,\"n\":\"%s\",\"nv\":%u,\"ch\":%u,\"sn\":%s,\"pins\":[%s]}",
 		         firstType ? "" : ",", t, sensorTypeName(t),
-		         f.channelCount( ), f.channelMask, labels);
+		         f.channelCount( ), f.channelMask,
+		         sensorHasSerialNumber(t) ? "true" : "false", labels);
 		if (!safeSend(buf)) return;
 		firstType = false;
 	}
