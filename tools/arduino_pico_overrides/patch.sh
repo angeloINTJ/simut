@@ -116,6 +116,32 @@ else
     patch -p1 -d "$FW" < "$HTTPC_PATCH"
 fi
 
+# 2c-bis. Feed do watchdog no laço de ENVIO do HTTPClient (HTTPClient.cpp)
+#
+#   Os prazos acima cobrem a LEITURA. O envio ficou de fora, e tem o mesmo
+#   defeito com uma torção: o orçamento de 5 s de StreamConstPtr::sendAll
+#   limita o LAÇO, não uma escrita. Contra um servidor que aceita a conexão e
+#   para de ler (janela zero), cada dst->write( ) estaciona pelo timeout de
+#   socket (4 s), então uma escrita iniciada perto do fim do orçamento termina
+#   por volta de 9 s — além dos 8388 ms do watchdog de hardware — sem nada
+#   alimentando.
+#
+#   Medido na bancada em 2026-08-10 com o sink em modo never_read: 3 reboots em
+#   150 s, autópsia C0=[TEL_SEND] ctx=225, e o servidor contando 9 conexões com
+#   0 requisições completas. Era a única costura de watchdog que a campanha de
+#   02/08 tinha deixado aberta.
+#
+#   Patch: watchdog_update( ) dos dois lados da escrita — a maior lacuna sem
+#   feed passa a ser uma escrita (<= 4 s). Seguro porque os dois limites que já
+#   existiam continuam terminando o laço.
+HTTPC_SEND_PATCH="$OVR/patches/httpclient_send_feed.patch"
+if grep -q "SIMUT override — feed the watchdog around every write" "$HTTPC"; then
+    echo "[patch] HTTPClient já alimenta no laço de envio — nada a fazer"
+else
+    echo "[patch] aplicando feed do watchdog no laço de envio do HTTPClient"
+    patch -p1 -d "$FW" < "$HTTPC_SEND_PATCH"
+fi
+
 # 2d. Vazamento de pbufs de recepcao no ClientContext (ClientContext.h)
 #
 #   close( ) e abort( ) desanexam todos os callbacks e largam o _pcb, mas
