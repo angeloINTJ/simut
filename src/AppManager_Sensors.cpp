@@ -104,7 +104,31 @@ void AppManager::loadAndCalibrateSensors( ) {
   }
  }
 
- /* ── 1.5 Pairing ──
+ /* ── 2. Runtime ──
+  * BEFORE calibration, not after. initRuntimeSensors rebuilds the vector
+  * from scratch with every calibration curve reset to identity, so applying
+  * the curves first wrote them into the vector that was about to be
+  * discarded and no stored correction ever reached a running sensor. */
+ _sensorMgr->initRuntimeSensors(cfg);
+
+ /* initRuntimeSensors may have retyped an I2C slot from its chip ID
+  * (BME280 <-> BMP280). That correction lives in the runtime copy; write it
+  * back to the config so the channel set is right for everything that reads
+  * cfg instead of runtime — the V4 history schema, /api/alarms, /api/calib —
+  * and so the next boot does not have to discover it again. */
+ if (_sensorMgr->takeRetypedCount( ) > 0) {
+  const auto& rt = _sensorMgr->getRuntimeSensors( );
+  for (const auto& rs : rt) {
+   for (int i = 0; i < MAX_SENSORS; i++) {
+    if (cfg.sensors[i].active && cfg.sensors[i].pins[0] == rs.config.pins[0]) {
+     cfg.sensors[i].sensorType = (uint8_t)rs.type;
+    }
+   }
+  }
+  _storageMgr->saveConfiguration( );
+ }
+
+ /* ── 2.5 Pairing ──
   * A DS18B20 provisioned through the web arrives with an all-zero ROM: the
   * editor knows the GPIO, not the silicon. Bind it here, on the reload the
   * Save & Restart already caused — read the ROM off the pin, adopt it into
@@ -112,7 +136,14 @@ void AppManager::loadAndCalibrateSensors( ) {
   * the ROM scheme, so the serial number is what calib.csv keys the sensor
   * by from the first boot. Single-drop by design: pins[0] is the sensor
   * identity everywhere else too. A failed read (probe absent, CRC bad)
-  * changes nothing and simply tries again on the next reload. */
+  * changes nothing and simply tries again on the next reload.
+  *
+  * AFTER initRuntimeSensors on purpose: reading the ROM needs the pin muxed
+  * for the driver, and gpioInitForRole runs inside the runtime rebuild — on
+  * a cold boot a read before it answers nothing. The runtime copy of
+  * config.rom stays zeroed until the next reload, so ROM verification
+  * starts one boot later; phase 3 below reads cfg directly and applies the
+  * freshly bound row in this very pass. */
  bool romAdopted = false;
 #if SIMUT_SENSOR_DS18B20
  for (int i = 0; i < MAX_SENSORS; i++) {
@@ -139,30 +170,6 @@ void AppManager::loadAndCalibrateSensors( ) {
  }
 #endif
  if (romAdopted) _storageMgr->saveConfiguration( );
-
- /* ── 2. Runtime ──
-  * BEFORE calibration, not after. initRuntimeSensors rebuilds the vector
-  * from scratch with every calibration curve reset to identity, so applying
-  * the curves first wrote them into the vector that was about to be
-  * discarded and no stored correction ever reached a running sensor. */
- _sensorMgr->initRuntimeSensors(cfg);
-
- /* initRuntimeSensors may have retyped an I2C slot from its chip ID
-  * (BME280 <-> BMP280). That correction lives in the runtime copy; write it
-  * back to the config so the channel set is right for everything that reads
-  * cfg instead of runtime — the V4 history schema, /api/alarms, /api/calib —
-  * and so the next boot does not have to discover it again. */
- if (_sensorMgr->takeRetypedCount( ) > 0) {
-  const auto& rt = _sensorMgr->getRuntimeSensors( );
-  for (const auto& rs : rt) {
-   for (int i = 0; i < MAX_SENSORS; i++) {
-    if (cfg.sensors[i].active && cfg.sensors[i].pins[0] == rs.config.pins[0]) {
-     cfg.sensors[i].sensorType = (uint8_t)rs.type;
-    }
-   }
-  }
-  _storageMgr->saveConfiguration( );
- }
 
  /* ── 3. Offsets ── */
  for (int i = 0; i < MAX_SENSORS; i++) {
