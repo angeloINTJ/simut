@@ -176,13 +176,50 @@ Alpha volta a linkar em 89,0 % de flash.
 
 ---
 
+## D-B8 · `C0=[WEB_POLL]` dispara com o aparelho ocioso · **ABERTO — achado pelo soak, depois da tag**
+
+**Isto reabre o que o D-B2 tinha estreitado, e é mais grave do que as notas do
+release v2.1.0-beta dizem.**
+
+**Medido.** Na imagem publicada (`1ce3fd62`), gravada às ~10:20, o aparelho
+rodou **130 minutos** e reiniciou às 12:32 com `SYS_BOOT ctx=219` =
+`HW WATCHDOG C0=[WEB_POLL]`, nível FATAL, bit TIMER — watchdog genuíno, não
+perda de energia (que sai com `ctx=0`) nem toque de gravação (que sai INFO com
+`ctx=0`, ver `LogManager.cpp`, ramo `else if (wdReset)`).
+
+**A carga durante esses 130 min era o soak e nada mais**: um `GET /api/status`
+a cada 5 minutos. As buildas da migração de framework rodavam em core isolado,
+sem tocar no aparelho. Os registros imediatamente anteriores ao boot são
+rotina — `APP_HISTORY_SAVED` de minuto em minuto e `SYS_TEL_FAIL` do servidor
+fora do ar.
+
+**Por que isso muda o diagnóstico.** As notas do release descrevem esse parque
+como o residual "sob seis clientes concorrentes". Não é só isso: ele dispara
+**em repouso**. Os três caminhos drenados (D-NS2 ×2, D-B2) eram todos respostas
+grandes ou recusas; nenhum explica um aparelho parado.
+
+**Ressalva de leitura, para não repetir o erro do D-B2.** O log retido cobre
+apenas 07:45→12:45 de 10/08 e contém **12 sessões encerradas por watchdog** com
+módulos variados (`STORAGE_WR`, `CLI`, `LOOP`, `WEB_POLL`). A maioria é dos
+testes destrutivos desta própria varredura — as recusas repetidas do D-B2 e as
+gravações. **Não se pode tirar MTBF desse número.** A única sessão limpa é a de
+130 min descrita acima, e ela é uma amostra, não uma taxa.
+
+**Próximo passo**: o soak segue rodando sobre a mesma imagem e sem carga
+artificial. Se ele reproduzir, cada ocorrência vira uma amostra com carga
+conhecida — que é exatamente o que faltou para caracterizar este defeito nas
+três campanhas anteriores.
+
+---
+
 ## Aberto, e por quê
 
 - **`pico_w_debug` estoura o flash em ~81 KB.** Já estourava na v2.0.3-alpha
   (81040 B lá, 81208 B aqui) — pré-existente e não é perfil publicado.
-- **Parque `C0=[WEB_POLL]` sob seis clientes concorrentes.** Três caminhos para
-  ele estão drenados; o caso de seis clientes do
-  `docs/netstorm-campaign-2026-08-10/` **não foi refeito** nesta varredura.
+- **Parque `C0=[WEB_POLL]` — ver D-B8 acima, que o reabre.** Três caminhos estão
+  drenados, mas o defeito dispara com o aparelho ocioso, então nenhum deles era
+  a causa-raiz. O caso de seis clientes do `docs/netstorm-campaign-2026-08-10/`
+  também não foi refeito.
 - **D-NS7, IRQ desligada 68–78 ms contra critério de 60 ms.** Intocado.
 - **Soak A6.** Rodando sobre a imagem final. O critério pede 72 h com Wi-Fi
   instável induzido; o que roda hoje é a carga de falha real do servidor de
