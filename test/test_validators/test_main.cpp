@@ -751,6 +751,62 @@ void test_calibcurve_decode_rejects_malformed(void) {
 }
 
 
+void test_calibcurve_smooth_monotone_cubic(void) {
+    /* Fritsch-Carlson on the offsets: through every anchor, never past any,
+     * flat into the held zones. Δ knots +0.8 / −0.6 / +0.5 change sign at
+     * the middle anchor, which forces its slope to 0 — the overshoot killer. */
+    CalibCurve lin, cub;
+    const float raws[3] = { 0.0f, 20.0f, 40.0f };
+    const float refs[3] = { 0.8f, 19.4f, 40.5f };
+    TEST_ASSERT_TRUE(calibCurveBuild(lin, raws, refs, 3, CALIB_MODE_LINEAR));
+    TEST_ASSERT_TRUE(calibCurveBuild(cub, raws, refs, 3, CALIB_MODE_SMOOTH));
+    for (uint8_t i = 0; i < 3; i++) {
+        TEST_ASSERT_FLOAT_WITHIN(0.0005f, refs[i], calibCurveApply(lin, raws[i]));
+        TEST_ASSERT_FLOAT_WITHIN(0.0005f, refs[i], calibCurveApply(cub, raws[i]));
+    }
+    /* Genuinely a different function between anchors... */
+    TEST_ASSERT_TRUE(fabsf(calibCurveApply(cub, 5.0f) - calibCurveApply(lin, 5.0f)) > 0.05f);
+    /* ...that never leaves the segment's offset envelope (no overshoot). */
+    for (float x = 0.0f; x <= 40.0f; x += 0.5f) {
+        float d = calibCurveApply(cub, x) - x;
+        TEST_ASSERT_TRUE(d <= 0.8f + 0.001f);
+        TEST_ASSERT_TRUE(d >= -0.6f - 0.001f);
+    }
+    /* End slope 0: the curve meets the held zone without a kink. */
+    TEST_ASSERT_FLOAT_WITHIN(0.01f, calibCurveApply(cub, 0.0f) - 0.0f,
+                                    calibCurveApply(cub, 0.4f) - 0.4f);
+}
+
+void test_calibcurve_smooth_small_n_is_linear(void) {
+    /* With two anchors the monotone cubic IS the straight line, so SMOOTH
+     * below 3 points must evaluate identically to LINEAR. */
+    CalibCurve s, l;
+    const float raws[2] = { 10.0f, 30.0f };
+    const float refs[2] = { 10.5f, 29.8f };
+    TEST_ASSERT_TRUE(calibCurveBuild(s, raws, refs, 2, CALIB_MODE_SMOOTH));
+    TEST_ASSERT_TRUE(calibCurveBuild(l, raws, refs, 2, CALIB_MODE_LINEAR));
+    for (float x = 5.0f; x <= 35.0f; x += 2.5f) {
+        TEST_ASSERT_FLOAT_WITHIN(0.0005f, calibCurveApply(l, x), calibCurveApply(s, x));
+    }
+}
+
+void test_calibrow_mode_token(void) {
+    CalibCurve c; char name[40];
+    /* name,cub,pairs — even count whose second field is the mode vocabulary */
+    TEST_ASSERT_TRUE(calibRowParseTail("AMBIENTE,cub,0.00,0.80,20.00,19.40,40.00,40.50", c, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(3, c.n);
+    TEST_ASSERT_EQUAL_UINT8(CALIB_MODE_SMOOTH, c.mode);
+    TEST_ASSERT_EQUAL_STRING("AMBIENTE", name);
+    /* hand-edited lin token reads too, though the writer never emits it */
+    TEST_ASSERT_TRUE(calibRowParseTail("AMBIENTE,lin,1.00,1.50", c, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(CALIB_MODE_LINEAR, c.mode);
+    TEST_ASSERT_EQUAL_UINT8(1, c.n);
+    /* the transitional even shape still dispatches by its numeric first field */
+    TEST_ASSERT_TRUE(calibRowParseTail("9.99,GELADEIRA,1.00,1.50", c, name, sizeof(name)));
+    TEST_ASSERT_EQUAL_UINT8(CALIB_MODE_LINEAR, c.mode);
+    TEST_ASSERT_EQUAL_STRING("GELADEIRA", name);
+}
+
 void test_calibrow_parse_tail_shapes(void) {
     /* The row shape is identified by field count — this is the contract the
      * whole file format now stands on. */
@@ -940,6 +996,9 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_calibcurve_decode_rejects_malformed);
     RUN_TEST(test_calibrow_parse_tail_shapes);
     RUN_TEST(test_calibrow_parse_tail_fallbacks);
+    RUN_TEST(test_calibcurve_smooth_monotone_cubic);
+    RUN_TEST(test_calibcurve_smooth_small_n_is_linear);
+    RUN_TEST(test_calibrow_mode_token);
 
     /* depth-aware JSON slicing — replaces the first-'}' walkers */
     RUN_TEST(test_jsonMatchEnd_flat);

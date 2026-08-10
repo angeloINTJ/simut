@@ -290,13 +290,14 @@ void WebManager::handleApiCalibGet( ) {
 			snprintf(buf, sizeof(buf),
 			         "%s{\"ch\":%u,\"key\":\"%s\",\"unit\":\"%s\",\"dec\":%u,"
 			         "\"label\":\"%s\",\"read\":%s,\"raw\":%s,\"offset\":%.2f,"
-			         "\"min\":%.2f,\"max\":%.2f,\"pts\":[",
+			         "\"min\":%.2f,\"max\":%.2f,\"mode\":\"%s\",\"pts\":[",
 			         firstCh ? "" : ",", (unsigned)c, ci.key, ci.display.unit,
 			         (unsigned)ci.display.decimals, ci.i18nKey,
 			         ok ? String(v, 2).c_str( ) : "null",
 			         rawOk ? String(rv, 2).c_str( ) : "null",
 			         rs ? calibCurveOffsetAt(rs->calib[c], rs->rawValue[c]) : 0.0f,
-			         ci.saneMin, ci.saneMax);
+			         ci.saneMin, ci.saneMax,
+			         (rs && rs->calib[c].mode == CALIB_MODE_SMOOTH) ? "cub" : "lin");
 			if (!safeSend(buf)) return;
 			/* Points streamed one pair at a time — a 5-point entry inlined in
 			 * the snprintf above would flirt with the buffer. An anchor-free
@@ -370,7 +371,12 @@ static void emitCalibRow(File& f, const CalibChange& ch) {
 	char pts[CALIB_PTS_BUF];
 	calibCurveEncodePts(ch.curve, pts, sizeof(pts));
 	if (pts[0] != '\0') {
-		f.printf("%s,%s,%s,%s\n", ch.key, ch.id, ch.name, pts);
+		/* The "cub" cell right after the name is the interpolation mode;
+		 * rows without it are linear (and stay an odd field count). */
+		if (ch.curve.mode == CALIB_MODE_SMOOTH)
+			f.printf("%s,%s,%s,cub,%s\n", ch.key, ch.id, ch.name, pts);
+		else
+			f.printf("%s,%s,%s,%s\n", ch.key, ch.id, ch.name, pts);
 	} else if (ch.curve.n == 1) {
 		f.printf("%s,%s,%.2f,%s\n", ch.key, ch.id, ch.curve.off[0], ch.name);
 	} else {
@@ -378,29 +384,54 @@ static void emitCalibRow(File& f, const CalibChange& ch) {
 	}
 }
 
-/* Parse `"<chKey>":[[raw,ref],...]` inside the cal{} object.
+/* Parse one channel inside the cal{} object. Two accepted shapes:
+ *   "temp":[[raw,ref],...]                    linear (the original contract)
+ *   "temp":{"m":"cub","p":[[raw,ref],...]}    with an interpolation mode
  * Returns 0 when the key is absent (channel untouched), 1 on success
- * (count may be 0 — an explicit [] means "clear the correction"), -1 on
- * anything malformed. A null (or empty) raw marks "capture the current
- * reading at save time"; the caller substitutes rawValue. */
+ * (count may be 0 — an explicit empty list means "clear the correction"),
+ * -1 on anything malformed, including an unknown mode. A null (or empty)
+ * raw marks "capture the current reading at save time"; the caller
+ * substitutes rawValue. */
 static int extractCalPairs(const String& calObj, const char* chKey,
-                           float* raws, float* refs, bool* rawIsNull, uint8_t& outCount) {
+                           float* raws, float* refs, bool* rawIsNull,
+                           uint8_t& outCount, uint8_t& outMode) {
 	outCount = 0;
+	outMode = CALIB_MODE_LINEAR;
 	char needle[24]; snprintf(needle, sizeof(needle), "\"%s\":", chKey);
 	int p = calObj.indexOf(needle);
 	if (p < 0) return 0;
 	int s = p + (int)strlen(needle);
 	while (s < (int)calObj.length( ) && (calObj[s] == ' ' || calObj[s] == '\t')) s++;
-	if (s >= (int)calObj.length( ) || calObj[s] != '[') return -1;
-	int e = jsonMatchEnd(calObj, s);
-	if (e < 0) return -1;
+	if (s >= (int)calObj.length( )) return -1;
 
-	int pos = s + 1;
+	int arrStart = -1, arrEnd = -1;
+	if (calObj[s] == '{') {
+		int oe = jsonMatchEnd(calObj, s);
+		if (oe < 0) return -1;
+		char mbuf[8] = { 0 };
+		jsonExtractCStr(calObj.substring(s, oe + 1), "m", mbuf, sizeof(mbuf));
+		if (strcmp(mbuf, "cub") == 0) outMode = CALIB_MODE_SMOOTH;
+		else if (mbuf[0] != '\0' && strcmp(mbuf, "lin") != 0) return -1;
+		int pp = calObj.indexOf("\"p\"", s);
+		if (pp < 0 || pp > oe) return -1;
+		arrStart = calObj.indexOf('[', pp);
+		if (arrStart < 0 || arrStart > oe) return -1;
+		arrEnd = jsonMatchEnd(calObj, arrStart);
+		if (arrEnd < 0 || arrEnd > oe) return -1;
+	} else if (calObj[s] == '[') {
+		arrStart = s;
+		arrEnd = jsonMatchEnd(calObj, s);
+		if (arrEnd < 0) return -1;
+	} else {
+		return -1;
+	}
+
+	int pos = arrStart + 1;
 	while (true) {
 		int b = calObj.indexOf('[', pos);
-		if (b < 0 || b >= e) break;
+		if (b < 0 || b >= arrEnd) break;
 		int be = jsonMatchEnd(calObj, b);
-		if (be < 0 || be >= e) return -1;
+		if (be < 0 || be >= arrEnd) return -1;
 		if (outCount >= CALIB_MAX_POINTS) return -1; /* a sixth pair */
 		String pair = calObj.substring(b + 1, be);
 		int comma = pair.indexOf(',');
@@ -449,6 +480,9 @@ int findChangeMatch(CalibChange* arr, int n, const char* key, const char* id) {
  *   - channel absent from cal{}  -> its stored curve is carried through
  *   - explicit []                -> correction removed (sensor default)
  *   - raw null                   -> captured from the live raw reading at save
+ *   - {"m":"cub","p":[[...]]}    -> same pairs with an interpolation mode:
+ *                                   "cub" = monotone cubic, "lin"/absent =
+ *                                   piecewise linear (the plain-array form)
  * Legacy refTemp/refHum/refPress and "refs":{...} (cached pages) still parse
  * and now mean an ABSOLUTE one-point set at the current raw reading — the old
  * `offset += ref - reading` accumulator is gone with the offsets themselves.
@@ -602,9 +636,9 @@ void WebManager::handleApiCalibPost( ) {
 
 					float praw[CALIB_MAX_POINTS], pref[CALIB_MAX_POINTS];
 					bool pnull[CALIB_MAX_POINTS];
-					uint8_t pcount = 0;
+					uint8_t pcount = 0, pmode = CALIB_MODE_LINEAR;
 					int got = (calObj.length( ) > 0)
-					          ? extractCalPairs(calObj, ci.key, praw, pref, pnull, pcount) : 0;
+					          ? extractCalPairs(calObj, ci.key, praw, pref, pnull, pcount, pmode) : 0;
 					if (got < 0) {
 						snprintf(err, sizeof(err), "slot %d %s: bad calibration points", slot, ci.key);
 						break;
@@ -629,7 +663,7 @@ void WebManager::handleApiCalibPost( ) {
 							}
 						}
 						if (err[0]) break;
-						if (!calibCurveBuild(newCurve[c], praw, pref, pcount)) {
+						if (!calibCurveBuild(newCurve[c], praw, pref, pcount, pmode)) {
 							snprintf(err, sizeof(err), "slot %d %s: duplicate calibration points", slot, ci.key);
 							break;
 						}

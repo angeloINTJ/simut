@@ -521,7 +521,7 @@ def t_calib_shape(web, res):
         for s in sensors:
             for ch in s.get('channels', []):
                 n_ch += 1
-                missing = [k for k in ('key', 'read', 'raw', 'offset', 'min', 'max', 'pts')
+                missing = [k for k in ('key', 'read', 'raw', 'offset', 'min', 'max', 'mode', 'pts')
                            if k not in ch]
                 if missing:
                     ok_all = False

@@ -16,6 +16,13 @@ an explicit "no correction — sensor default" state. Points can be typed from a
 bench table or captured from the live reading (an empty raw field captures at
 save time).
 
+With 3+ points the interpolation is selectable per quantity: **Straight**
+(piecewise linear) or **Smooth** — a monotone cubic (Fritsch–Carlson) on the
+offsets that bends through the anchors without ever overshooting them and
+flattens into the held zones. Smooth rows carry a `cub` cell after the name in
+`calib.csv`; the API accepts `{"m":"cub","p":[[raw,ref],…]}` alongside the
+plain-array (linear) form.
+
 Corrections now apply to the **filtered mean instead of each raw sample**, so
 outlier rejection always works on physical values and an edited correction
 takes effect immediately instead of bleeding through a 10-sample window. For

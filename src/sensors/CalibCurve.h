@@ -43,13 +43,29 @@
  * hold an encoded field should size with this, not with a guess. */
 #define CALIB_PTS_BUF 224
 
+/* Interpolation between anchors. LINEAR is the piecewise straight line;
+ * SMOOTH is a monotone cubic Hermite (Fritsch-Carlson / PCHIP) on the
+ * offsets. Monotone cubic and not Catmull-Rom or a natural spline on
+ * purpose: those overshoot between anchors, and an overshoot here is a
+ * correction larger than anything the reference instrument ever showed.
+ * PCHIP stays inside the anchor values in every interval. SMOOTH with
+ * fewer than 3 points is evaluated as LINEAR — with two anchors the
+ * monotone cubic IS the straight line. */
+#define CALIB_MODE_LINEAR 0
+#define CALIB_MODE_SMOOTH 1
+
 struct CalibCurve {
 	uint8_t n;
+	uint8_t mode;                /* CALIB_MODE_LINEAR / CALIB_MODE_SMOOTH */
 	float raw[CALIB_MAX_POINTS]; /* strictly increasing; NAN only when n==1 (anchor-free) */
 	float off[CALIB_MAX_POINTS]; /* off[i] = reference_i - raw_i */
+	float m[CALIB_MAX_POINTS];   /* Hermite slopes dΔ/dx at each anchor (SMOOTH only);
+	                              * derived at build time, never persisted. Both end
+	                              * slopes are 0 so the curve meets the held zones
+	                              * beyond the anchors without a kink. */
 
-	CalibCurve( ) : n(0) {
-		for (uint8_t i = 0; i < CALIB_MAX_POINTS; i++) { raw[i] = NAN; off[i] = 0.0f; }
+	CalibCurve( ) : n(0), mode(CALIB_MODE_LINEAR) {
+		for (uint8_t i = 0; i < CALIB_MAX_POINTS; i++) { raw[i] = NAN; off[i] = 0.0f; m[i] = 0.0f; }
 	}
 };
 
@@ -65,11 +81,17 @@ inline bool calibCurveIsIdentity(const CalibCurve& c) { return c.n == 0; }
  * Duplicates are judged at 2 decimals — the file stores %.2f, so anything
  * closer than that would collide on the next round-trip anyway.
  *
+ * SMOOTH mode precomputes the Fritsch-Carlson slopes here, once, on the
+ * (raw, offset) knots: interior slopes are the weighted harmonic mean of the
+ * neighboring secants (zeroed across a sign change — that is what kills the
+ * overshoot), end slopes are 0 so the curve flattens into the held zones.
+ *
  * @return false on count > CALIB_MAX_POINTS, non-finite input or duplicate
  *         raws; the curve is left as identity. count == 0 is a valid "no
  *         correction" and returns true.
  */
-inline bool calibCurveBuild(CalibCurve& c, const float* raws, const float* refs, uint8_t count) {
+inline bool calibCurveBuild(CalibCurve& c, const float* raws, const float* refs, uint8_t count,
+                            uint8_t mode = CALIB_MODE_LINEAR) {
 	c = CalibCurve( );
 	if (count == 0) return true;
 	if (count > CALIB_MAX_POINTS || !raws || !refs) return false;
@@ -92,6 +114,25 @@ inline bool calibCurveBuild(CalibCurve& c, const float* raws, const float* refs,
 
 	for (uint8_t i = 0; i < count; i++) { c.raw[i] = r[i]; c.off[i] = v[i] - r[i]; }
 	c.n = count;
+	c.mode = (mode == CALIB_MODE_SMOOTH) ? CALIB_MODE_SMOOTH : CALIB_MODE_LINEAR;
+
+	if (c.mode == CALIB_MODE_SMOOTH && count >= 3) {
+		float h[CALIB_MAX_POINTS - 1], d[CALIB_MAX_POINTS - 1];
+		for (uint8_t i = 0; i + 1 < count; i++) {
+			h[i] = c.raw[i + 1] - c.raw[i];
+			d[i] = (c.off[i + 1] - c.off[i]) / h[i];
+		}
+		c.m[0] = 0.0f;
+		c.m[count - 1] = 0.0f;
+		for (uint8_t i = 1; i + 1 < count; i++) {
+			if (d[i - 1] == 0.0f || d[i] == 0.0f || ((d[i - 1] > 0.0f) != (d[i] > 0.0f))) {
+				c.m[i] = 0.0f;
+			} else {
+				c.m[i] = 3.0f * (h[i - 1] + h[i]) /
+				         ((2.0f * h[i] + h[i - 1]) / d[i - 1] + (h[i] + 2.0f * h[i - 1]) / d[i]);
+			}
+		}
+	}
 	return true;
 }
 
@@ -104,7 +145,19 @@ inline float calibCurveApply(const CalibCurve& c, float x) {
 	for (uint8_t i = 1; i < c.n; i++) {
 		if (x <= c.raw[i]) {
 			/* raw[] is strictly increasing, so the span cannot be zero. */
-			const float t = (x - c.raw[i - 1]) / (c.raw[i] - c.raw[i - 1]);
+			const float h = c.raw[i] - c.raw[i - 1];
+			const float t = (x - c.raw[i - 1]) / h;
+			if (c.mode == CALIB_MODE_SMOOTH && c.n >= 3) {
+				/* Cubic Hermite on the offset knots with the precomputed
+				 * monotone slopes. Basis expanded once; t powers by
+				 * multiplication — no libm on the hot path. */
+				const float t2 = t * t, t3 = t2 * t;
+				const float dOff = c.off[i - 1] * (2.0f * t3 - 3.0f * t2 + 1.0f)
+				                 + h * c.m[i - 1] * (t3 - 2.0f * t2 + t)
+				                 + c.off[i] * (-2.0f * t3 + 3.0f * t2)
+				                 + h * c.m[i] * (t3 - t2);
+				return x + dOff;
+			}
 			return x + c.off[i - 1] + t * (c.off[i] - c.off[i - 1]);
 		}
 	}
@@ -202,7 +255,7 @@ inline bool calibParseNumber(const char** p, float& out) {
  * NULL or empty decodes to identity and returns true: an absent tail IS the
  * legacy 4-column format, not an error.
  */
-inline bool calibCurveDecodePts(const char* pts, CalibCurve& c) {
+inline bool calibCurveDecodePts(const char* pts, CalibCurve& c, uint8_t mode = CALIB_MODE_LINEAR) {
 	c = CalibCurve( );
 	if (!pts) return true;
 	const char* p = pts;
@@ -227,7 +280,18 @@ inline bool calibCurveDecodePts(const char* pts, CalibCurve& c) {
 	float r[CALIB_MAX_POINTS], v[CALIB_MAX_POINTS];
 	const uint8_t count = (uint8_t)(n / 2);
 	for (uint8_t i = 0; i < count; i++) { r[i] = vals[2 * i]; v[i] = vals[2 * i + 1]; }
-	return calibCurveBuild(c, r, v, count);
+	return calibCurveBuild(c, r, v, count, mode);
+}
+
+/* The interpolation-mode cell: sits right after the name, only on rows whose
+ * curve is SMOOTH ("cub" — cubic). Exact-match on a tiny vocabulary, which is
+ * what disambiguates a mode row (even count, non-numeric second field) from
+ * the transitional offset,name,pairs shape (even count, numeric first). */
+inline int calibModeToken(const char* s, const char* e) {
+	const size_t len = (size_t)(e - s);
+	if (len == 3 && strncmp(s, "cub", 3) == 0) return CALIB_MODE_SMOOTH;
+	if (len == 3 && strncmp(s, "lin", 3) == 0) return CALIB_MODE_LINEAR;
+	return -1;
 }
 
 /**
@@ -241,7 +305,11 @@ inline bool calibCurveDecodePts(const char* pts, CalibCurve& c) {
  *   2 fields      offset,name                 legacy constant offset (anchor-free —
  *                                             the one shape that has no point cells
  *                                             to be written as)
- *   odd  >= 3     name,raw,ref[,...]          canonical points row
+ *   odd  >= 3     name,raw,ref[,...]          canonical points row (linear)
+ *   even >= 4, f1 is a mode token
+ *                 name,cub,raw,ref[,...]      canonical points row, smooth (monotone
+ *                                             cubic); "lin" also accepted from hand
+ *                                             edits though the writer never emits it
  *   even >= 4     offset,name,raw,ref[,...]   transitional shape; offset doubles as
  *                                             the fallback if the cells fail to parse
  *
@@ -310,20 +378,23 @@ inline bool calibRowParseTail(const char* tail, CalibCurve& c, char* nameOut, si
 	}
 
 	const bool even = (nf % 2) == 0;
-	const int nameIdx = even ? 1 : 0;
+	int mode = even ? calibModeToken(fs[1], fe[1]) : -1;
+	const bool modeRow = (mode >= 0);
+	const int nameIdx = (even && !modeRow) ? 1 : 0;
+	const int pairIdx = modeRow ? 2 : nameIdx + 1;
 	float legacyOff = 0.0f;
-	if (even) fieldNumber(0, legacyOff);
+	if (even && !modeRow) fieldNumber(0, legacyOff);
 	copyName(nameIdx);
 
 	bool clean = !overflow;
 	char pbuf[CALIB_PTS_BUF];
-	const char* span0 = fs[nameIdx + 1];
+	const char* span0 = fs[pairIdx];
 	const char* span1 = fe[nf - 1];
 	const size_t spanLen = (size_t)(span1 - span0);
 	if (!overflow && spanLen < sizeof(pbuf)) {
 		memcpy(pbuf, span0, spanLen);
 		pbuf[spanLen] = '\0';
-		if (calibCurveDecodePts(pbuf, c)) return clean;
+		if (calibCurveDecodePts(pbuf, c, modeRow ? (uint8_t)mode : CALIB_MODE_LINEAR)) return clean;
 	}
 
 	/* Point cells did not parse. An even row still has its offset column; an

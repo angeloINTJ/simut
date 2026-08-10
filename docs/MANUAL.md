@@ -138,10 +138,19 @@ whichever chip you owned, the firmware was wrong about one of the two.
 Each sensor carries one correction curve **per quantity it measures**, defined
 by up to **5 calibration points**. A point pairs the raw reading with the value
 a trusted instrument showed at the same moment. The correction is interpolated
-linearly between points and **held flat beyond the first and last** — the
-device never extrapolates a slope outside the span you actually measured.
-One point is the classic constant offset; zero points means **no correction**
-(the sensor's own output stands), and the editor says so explicitly.
+between points and **held flat beyond the first and last** — the device never
+extrapolates a slope outside the span you actually measured. One point is the
+classic constant offset; zero points means **no correction** (the sensor's own
+output stands), and the editor says so explicitly.
+
+With 3+ points you can choose the **interpolation** per quantity: **Straight**
+(piecewise linear, the default) or **Smooth** (a monotone cubic — Fritsch–
+Carlson/PCHIP — on the offsets). Smooth bends through the anchors without ever
+overshooting them: in every interval the correction stays inside the range the
+two surrounding points define, and its slope flattens to zero at the first and
+last anchors so it meets the held zones without a kink. Splines that overshoot
+(Catmull-Rom, natural cubic) were rejected on principle — an overshoot is a
+correction larger than anything the reference instrument ever showed.
 
 The editor lives in the `/config` slot dialog, one block per quantity: the raw
 and corrected readings side by side, the point rows, a capture button that
@@ -157,12 +166,14 @@ Everything is stored in `/calib.csv`, keyed by the 1-Wire ROM for a DS18B20
 and by board serial + hardware ID for ROM-less parts. The canonical row is
 `key,id,name,raw,ref[,raw,ref,…]` — everything a row has to say sits after
 the name, one number per CSV column, so a spreadsheet opens the file
-directly. Two other shapes coexist, told apart by field count: `key,id,name`
-(a DS18B20 identity row with no correction) and the legacy 4-column
-`key,id,offset,name` written by older firmware, which reads as the constant
-offset it always was and is carried in that shape until real points replace
-it — an offset with no known anchor has no point cells to become. Older
-firmware reading a points row sees **no** correction (never a wrong one).
+directly. A smooth curve adds a `cub` cell right after the name
+(`key,id,name,cub,raw,ref,…`). Two other shapes coexist, told apart by field
+count: `key,id,name` (a DS18B20 identity row with no correction) and the
+legacy 4-column `key,id,offset,name` written by older firmware, which reads as
+the constant offset it always was and is carried in that shape until real
+points replace it — an offset with no known anchor has no point cells to
+become. Older firmware reading a points row sees **no** correction (never a
+wrong one).
 Renaming a hardware ID migrates the rows; removing a correction deletes the
 row, except for DS18B20 rows, which double as the ROM→ID/name database that
 `sensor accept` reads.

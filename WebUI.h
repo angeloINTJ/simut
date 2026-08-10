@@ -2357,6 +2357,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .sxb:hover { background: #52525b; }
         .sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
         .sxb-dang:hover { background: var(--dang); color: #fff; }
+        .sxb-on { background: var(--acc); color: #000; }
+        .sxb-on:hover { background: var(--acc); }
         /* Grade em vez de flex-wrap: com flex cada pilula tinha a largura do seu
            texto (GP1 vs GP12 2) e as linhas saiam desencontradas. Colunas iguais
            alinham tudo — 4 colunas a 360px, mais no desktop. */
@@ -3124,8 +3126,9 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            typed them (strings, possibly incomplete), keyed slot:chkey, so a
            structural redraw does not lose a half-filled row. calDirty marks
            channels to stage — an untouched channel is never sent, which is
-           what the server-side "absent means unchanged" rides on. */
-        let calEdit = {}, calDirty = {};
+           what the server-side "absent means unchanged" rides on. calMode
+           holds the interpolation choice per channel: lin or cub. */
+        let calEdit = {}, calDirty = {}, calMode = {};
         const SE = id => document.getElementById(id);
         function sensStaged() { return Pending.getSection('slots').s || []; }
         function calStaged() { return (Pending.getSection('calib').sensors) || []; }
@@ -3306,12 +3309,21 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         'Up to 5 points per quantity, each pairing the raw reading with the value a trusted instrument showed. One point applies a constant offset; more points bend the correction between them, held flat beyond the ends. Leave raw empty to capture the reading at save time.') + '</div>';
                 chans.forEach(ch => {
                     const ek = i + ':' + ch.key;
+                    const stv = (stc && stc.cal) ? stc.cal[ch.key] : undefined;
                     if (calEdit[ek] === undefined) {
-                        const src = (stc && stc.cal && stc.cal[ch.key] !== undefined) ? stc.cal[ch.key] : (ch.pts || []);
+                        /* A staged channel may be the plain array (linear) or
+                           the object form with an interpolation mode. */
+                        const src = (stv !== undefined)
+                            ? (Array.isArray(stv) ? stv : (stv.p || []))
+                            : (ch.pts || []);
                         calEdit[ek] = src.map(p => ({ r: p[0] === null ? '' : String(p[0]), v: String(p[1]) }));
                         /* Staged rows that survived a page reload are still
                            edits — without this they would stop being sent. */
-                        if (stc && stc.cal && stc.cal[ch.key] !== undefined) calDirty[ek] = 1;
+                        if (stv !== undefined) calDirty[ek] = 1;
+                    }
+                    if (calMode[ek] === undefined) {
+                        calMode[ek] = (stv !== undefined && !Array.isArray(stv) && stv.m === 'cub') ? 'cub'
+                                    : (ch.mode === 'cub' ? 'cub' : 'lin');
                     }
                     const rows = calEdit[ek];
                     const step = ch.dec >= 2 ? '0.01' : (ch.dec === 1 ? '0.1' : '1');
@@ -3335,10 +3347,22 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                              '<button type="button" class="sxb sxb-dang" title="' + window.t('cal_del', 'Remove this point') + '"' +
                              ' onclick="calPtDel(&quot;' + ch.key + '&quot;,' + idx + ')">&times;</button></div>';
                     });
-                    h += '<div style="display:flex;gap:8px;margin-top:4px">';
+                    h += '<div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;align-items:center">';
                     if (rows.length < 5) h += '<button type="button" class="sxb" onclick="calPtAdd(&quot;' + ch.key + '&quot;)">+ ' + window.t('cal_add', 'Add point') + '</button>';
                     if (rows.length || legacy) h += '<button type="button" class="sxb sxb-dang" onclick="calPtClear(&quot;' + ch.key + '&quot;)">' + window.t('cal_clear', 'Remove correction') + '</button>';
+                    /* Interpolation choice — shown once there are enough
+                       points for it to mean anything (or when it is already
+                       set, so the state is never invisible). */
+                    if (rows.length >= 3 || calMode[ek] === 'cub') {
+                        const mc = calMode[ek] === 'cub';
+                        h += '<span class="sxh" style="margin:0 0 0 6px">' + window.t('cal_mode_lbl', 'Interpolation') + ':</span>' +
+                             '<button type="button" class="sxb' + (mc ? '' : ' sxb-on') + '" onclick="calModeSet(&quot;' + ch.key + '&quot;,&quot;lin&quot;)">' + window.t('cal_mode_lin', 'Straight') + '</button>' +
+                             '<button type="button" class="sxb' + (mc ? ' sxb-on' : '') + '" onclick="calModeSet(&quot;' + ch.key + '&quot;,&quot;cub&quot;)">' + window.t('cal_mode_cub', 'Smooth') + '</button>';
+                    }
                     h += '</div>';
+                    if (rows.length >= 3 || calMode[ek] === 'cub') {
+                        h += '<div class="sxn">' + window.t('cal_mode_hint', 'Smooth is a monotone cubic: it bends through the anchors without ever overshooting them. Needs 3+ points; with fewer it behaves as straight.') + '</div>';
+                    }
                 });
                 h += '<div id="se_calwarn" class="sx-warn"></div>' +
                      '<div class="sxn">' + window.t('cal_save_hint', 'Corrections are written on Save and Restart. Needs NTP synced.') +
@@ -3600,6 +3624,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             calDirty[ek] = 1;
             sensStage(1);
         }
+        function calModeSet(key, m) {
+            const ek = sensOpenSlot + ':' + key;
+            calMode[ek] = m;
+            calDirty[ek] = 1;
+            sensStage(1);
+        }
         /* Mirror of the rules POST /api/calib enforces, surfaced while typing
            instead of as a 400 after Save. First problem wins, like sensWarn. */
         function calWarnMsg() {
@@ -3682,7 +3712,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         pts.push([rv, fv]);
                     });
                     if (bad || pts.length > 5) return;
-                    entry.cal[ch.key] = pts;
+                    entry.cal[ch.key] = (calMode[ek] === 'cub') ? { m: 'cub', p: pts } : pts;
                     anyc = 1;
                 });
                 if (anyc) rest.push(entry);
@@ -3742,7 +3772,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             const rest = calStaged().filter(x => x.slot !== i);
             Pending.setSection('calib', rest.length ? { sensors: rest } : {});
             Object.keys(calEdit).forEach(k => {
-                if (k.indexOf(i + ':') === 0) { delete calEdit[k]; delete calDirty[k]; }
+                if (k.indexOf(i + ':') === 0) { delete calEdit[k]; delete calDirty[k]; delete calMode[k]; }
             });
             /* Discarding a slot that only ever existed as a staged edit leaves
                nothing to edit — keeping the dialog open would show a blank slot
@@ -5623,7 +5653,11 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "cal_err_num": "todo ponto precisa de bruto e referência numéricos.",
             "cal_err_noread": "sem leitura ao vivo para captar — preencha o valor bruto.",
             "cal_err_rng": "ponto fora da faixa plausível",
-            "cal_err_dup": "dois pontos com o mesmo valor bruto."
+            "cal_err_dup": "dois pontos com o mesmo valor bruto.",
+            "cal_mode_lbl": "Interpolação",
+            "cal_mode_lin": "Reta",
+            "cal_mode_cub": "Suave",
+            "cal_mode_hint": "Suave é uma cúbica monótona: dobra pelas âncoras sem jamais ultrapassá-las. Precisa de 3+ pontos; com menos, comporta-se como reta."
         },
         en: {
             "hist_load_btn": "Load", "hist_prompt": "Click 'Load' to view system logs.",

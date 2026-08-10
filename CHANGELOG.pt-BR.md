@@ -16,6 +16,13 @@ zero pontos é o estado explícito "sem correção — padrão do sensor". Os po
 podem ser digitados de uma tabela de bancada ou captados da leitura ao vivo
 (bruto vazio capta no momento do salvar).
 
+Com 3+ pontos a interpolação é escolhível por grandeza: **Reta** (linear por
+partes) ou **Suave** — uma cúbica monótona (Fritsch–Carlson) sobre os offsets,
+que dobra pelas âncoras sem jamais ultrapassá-las e aplaina ao encontrar as
+zonas seguradas. Linhas suaves levam uma célula `cub` depois do nome no
+`calib.csv`; a API aceita `{"m":"cub","p":[[bruto,ref],…]}` além da forma de
+array simples (reta).
+
 As correções agora se aplicam à **média filtrada em vez de cada amostra
 bruta**: a rejeição de outliers passa a operar sempre sobre valores físicos e
 uma correção editada vale na hora, sem atravessar uma janela de 10 amostras.
