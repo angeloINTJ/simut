@@ -94,6 +94,35 @@ void WebManager::handleApiHistoryMulti( ) {
  _handlerDeadline = millis( ) + WEB_LONG_HANDLER_DEADLINE_MS;
  if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str( ));
 
+ /* Three things are now owned by this handler, and every exit has to hand all
+  * three back. Doing that by hand at the bottom only ever covered the exits
+  * that reached the bottom — and the "extremes" tail has three returns on a
+  * failed send that skipped the lot. The cost of one such abort, and an abort
+  * there is routine because it is where the 15 s deadline tends to land on a
+  * wide range: _inHistoryHandler stays true for the rest of the boot, so every
+  * later /api/history_multi answers 503 "Already processing" and the graphs go
+  * dead; setWebBusy stays true, so the display keeps its "web busy" overlay
+  * and TOUCH STAYS BLOCKED; and _handlerDeadline never returns to the
+  * caller's value.
+  *
+  * A destructor cannot be skipped by a return, so ownership is expressed
+  * there instead — the reasoning behind Core1FlashPause and RenderGuard. A
+  * local class inside a member function keeps the class's access rights. */
+ struct HistUnwind {
+  WebManager* w;
+  uint32_t saved;
+  ~HistUnwind( ) {
+   /* Tried and REVERTED 2026-08-10: draining here (the chunked twin of the
+    * safeStreamFile fix, on the theory that _finalizeResponse's terminator
+    * write was the park) changed nothing — same 1 reboot in 5 windows, same
+    * `C0=[WEB_POLL] hp=721`. The hypothesis is not supported, so the code is
+    * not here. Do not re-add it without a measurement that moves. */
+   w->_handlerDeadline = saved;
+   if (w->_displayRef) w->_displayRef->setWebBusy(false);
+   __atomic_store_n(&w->_inHistoryHandler, false, __ATOMIC_RELEASE);
+  }
+ } _unwind{this, savedDeadline};
+
  /* ── Parse sensors=... (CSV of IDs) ─────────────────────────────────── */
  int sensorIds[MAX_SENSORS]; /* up to 16 slots */
  int sensorCount = 0;
@@ -398,10 +427,7 @@ void WebManager::handleApiHistoryMulti( ) {
    * and _server.send( ) writes headers straight into lwIP. */
   if (waitSendRoom(sizeof(buf) + 256, "hist/probe"))
    _server.send(200, "application/json", buf);
-  _handlerDeadline = savedDeadline;      /* same unwind as the normal exit */
-  if (_displayRef) _displayRef->setWebBusy(false);
-  __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
-  return;
+  return;                                /* ~HistUnwind does the unwind */
  }
 
  /* ── Accumulated stats (T of set, H of set) ─────────────────────────
@@ -429,10 +455,7 @@ void WebManager::handleApiHistoryMulti( ) {
  /* ── Response: header + sensors[] + data[] streaming ────────────────── */
  HPOS(5);
  if (!waitSendRoom(1024, "hist/hdr")) {
-  _handlerDeadline = savedDeadline;
-  if (_displayRef) _displayRef->setWebBusy(false);
-  __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
-  return;
+  return;                                /* ~HistUnwind does the unwind */
  }
  _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  HPOS(6);
@@ -838,9 +861,8 @@ void WebManager::handleApiHistoryMulti( ) {
  /* Loop-top aborts (client gone / overtime) break without passing through
   * the funnel again — apply the same hard-close the funnel's aborts get. */
  if (aborted) dropAbortedStream("hm");
- _handlerDeadline = savedDeadline;
- if (_displayRef) _displayRef->setWebBusy(false);
- __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
+ /* deadline, web-busy and the _inHistoryHandler latch are released by
+  * ~HistUnwind, which the tail's early returns cannot skip. */
 }
 
 
