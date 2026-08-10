@@ -35,7 +35,7 @@
  * Doing that once with room to spare beats doing it per new quantity. */
 #define MAX_SENSOR_CHANNELS 8
 #endif
-#define SIMUT_VERSION "2.0.3-alpha"
+#define SIMUT_VERSION "2.1.0-beta"
 
 /* Fallback epoch for provisional time when NTP is unavailable and no
  * history records exist to seed the virtual RTC. Override via

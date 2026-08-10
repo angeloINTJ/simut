@@ -4,6 +4,73 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.0-beta (2026-08-10)
+
+Primeira beta. A versão sai da linha alpha porque os defeitos que a
+seguravam ali foram fechados e medidos, não porque o calendário andou.
+
+### O `/api/restore` gravava os arquivos antes de conferir quem estava pedindo
+
+A verificação de permissão do restore morava só no handler de fim. O framework
+chama esse handler **depois** que o corpo multipart inteiro já passou pelo
+callback de upload, e um feed em modo apply grava cada entrada direto no
+caminho final — o nome real, sem rename, escrito conforme os bytes chegam.
+
+Ou seja: o 403 estava certo no veredito e atrasado no efeito. Um POST **sem
+autenticação nenhuma** em `/api/restore?op=apply` sobrescrevia qualquer coisa
+que o formato de backup consiga nomear: `/config`, `/calib.csv`, `/history`,
+os pacotes de idioma. A checagem de caminho só recusa `..`, e não era preciso
+cookie nenhum para chegar até ali.
+
+Medido na bancada com um backup de uma entrada carregando o chip id do próprio
+aparelho: antes, a requisição respondia 403 e o arquivo aparecia no sistema de
+arquivos; depois, 403 e nada gravado. Os caminhos legítimos ficaram intactos —
+um validate autenticado de um backup real de 807 KB continua respondendo sobre
+seus 106 arquivos, e a exposição do Core 1 ficou em `metr.fx=0` nos dois.
+
+Se você roda um aparelho numa rede que não controla por inteiro, é por isto
+que vale pegar esta versão.
+
+### Os últimos descartes silenciosos passam a se anunciar
+
+O `users.actions` nunca tinha sido varrido junto com a família espaço-no-JSON.
+Ele lia `type` e `name` por agulhas com a aspa embutida, então um payload com
+o espaço que o JSON permite depois dos dois-pontos não casava com nada e a
+ação inteira evaporava sob um 200. Passando disso, toda recusa era um
+`continue` seco: nome inválido ou reservado, duplicado, tabela cheia, um `del`
+apontando para uma vaga que não existe. A página não oferece verificação
+nenhuma no cliente para nada disso — então acrescentar um quinto usuário era
+clicar em Salvar & Reiniciar, esperar o reboot e descobrir a conta
+simplesmente ausente. Cada caso agora se nomeia no array `rejected` que a
+seção sys já usava, e as permissões ficam presas aos dez bits que a página
+consegue marcar.
+
+Os campos de texto da sys iam direto para uma cópia que trunca para caber: um
+servidor de 70 caracteres virava um de 63 e o commit ainda respondia ok. Agora
+passam pelo mesmo validador que a CLI sempre usou, e um valor que não cabe
+inteiro é recusado em vez de guardado errado.
+
+O `save_sys` respondia ok para um índice de tema que a build não carrega, e a
+página não tinha como distinguir aplicado de ignorado. Agora responde 400.
+
+### O Core 1 fica visível na imagem que é publicada
+
+O heartbeat, a contagem de launches e os três contadores de kill chegavam só
+ao `show metrics` — comando que o perfil de release não carrega. Um display
+travado, visto de fora, é idêntico a um saudável; um soak ligado nessa imagem
+poderia relatar sucesso atravessando uma morte do Core 1. O `/api/status`
+agora carrega `c1a` (idade do carimbo que o Core 1 escreve a cada volta do
+laço), `c1n` (launches), `c1kl`/`c1kh`/`c1kq` (kills separados por causa) e
+`c1s` (lockouts travados), pelo mesmo motivo que o `fx` e o `cgd`/`cgg`/`cgx`
+já estão lá.
+
+### Continua aberto
+
+O parque residual `C0=[WEB_POLL]` sob carga concorrente de seis clientes,
+documentado em `docs/netstorm-campaign-2026-08-10/`, segue igual e aberto.
+A janela de IRQ desligada de 68–78 ms contra o critério de 60 ms (D-NS7)
+também.
+
 ## v2.0.3-alpha (2026-08-10)
 
 ### A janela de recepção deixa de prometer o pool de pbuf em dobro

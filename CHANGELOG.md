@@ -4,6 +4,71 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.0-beta (2026-08-10)
+
+First beta. The version leaves the alpha line because the defects that kept
+it there are closed and measured, not because the calendar moved.
+
+### /api/restore wrote the files before it checked who was asking
+
+The permission check for restore lived only in the finish handler. The
+framework calls that handler after the entire multipart body has already been
+streamed through the upload callback, and an apply feed writes each entry
+straight to its final path — the entry's real name, no rename, written as the
+bytes arrive.
+
+So the 403 was honest about the verdict and late about the effect. An
+**unauthenticated** POST to `/api/restore?op=apply` overwrote anything the
+backup format can name: `/config`, `/calib.csv`, `/history`, the language
+packs. The path check only rejects `..`, and no session cookie was needed to
+get that far.
+
+Measured on the bench with a one-entry backup carrying the device's own chip
+id: before, the request answered 403 and the file appeared on the filesystem;
+after, 403 and nothing written. The legitimate paths are untouched — an
+authenticated validate of a real 807 KB backup still answers over its 106
+files, and Core-1 exposure stayed at `metr.fx=0` through both.
+
+If you run a device on a network you do not fully control, this is the reason
+to take this build.
+
+### The last silent drops learn to say so
+
+`users.actions` had never been swept with the space-in-JSON family. It read
+`type` and `name` through needles with the quote baked in, so a payload
+carrying the space JSON allows after a colon matched nothing and the whole
+action evaporated under a 200. Past that, every refusal was a bare `continue`:
+an invalid or reserved name, a duplicate, a full table, a `del` naming a slot
+that is not there. The page offers no client-side check for any of them, so
+adding a fifth user meant clicking Save & Restart, waiting out the reboot and
+finding the account simply absent. Each now names itself in the `rejected`
+array the sys section already uses, and permissions are held to the ten bits
+the page can actually set.
+
+The sys string fields went straight into a copy that truncates to fit: a
+70-character server became a 63-character one and the commit still answered
+ok. They now pass the same validator the CLI has always used, and a value that
+does not fit whole is refused rather than stored wrong.
+
+`save_sys` answered ok for a theme index the build does not carry, so the page
+could not tell applied from ignored. It answers 400 now.
+
+### Core 1 is visible from the shipping image
+
+The heartbeat, the launch count and the three kill counters reached only `show
+metrics` — a command the release profile does not carry. A stalled display
+reads exactly like a healthy one from outside, so a soak wired to that image
+could have reported success straight through a Core-1 death. `/api/status`
+now carries `c1a` (age of the stamp Core 1 writes once per loop), `c1n`
+(launches), `c1kl`/`c1kh`/`c1kq` (kills split by cause) and `c1s` (stuck
+lockouts), for the same reason `fx` and `cgd`/`cgg`/`cgx` are already there.
+
+### Still open
+
+The residual `C0=[WEB_POLL]` park under six-way concurrent load, documented in
+`docs/netstorm-campaign-2026-08-10/`, is unchanged and still open. So is the
+IRQ-off window of 68–78 ms against a 60 ms criterion (D-NS7).
+
 ## v2.0.3-alpha (2026-08-10)
 
 ### The receive window no longer promises the pbuf pool out twice over
