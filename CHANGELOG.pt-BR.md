@@ -4,6 +4,45 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.0.3-alpha (2026-08-10)
+
+### A janela de recepção deixa de prometer o pool de pbuf em dobro
+
+O `D14` constava como vazamento de pbuf "com uma segunda fonte ainda não
+localizada". Não é vazamento — e ninguém achava a segunda fonte porque não havia
+mais nenhuma para achar.
+
+O que se media era o **pico** do pool, uma marca d'água que por definição nunca
+desce, e a contagem de falhas. O número que separa vazamento de pressão é o que
+continua **em uso depois que a carga para**, e ele nunca tinha sido lido. Ele
+volta ao basal em todos os níveis de concorrência, inclusive naquele que esvaziou
+o pool e falhou 79 alocações. Nada fica retido.
+
+A causa real é aritmética. Um envelope do pool custa ~1514 B e o `TCP_WND` era
+8×MSS, então uma conexão pode segurar 7,7 deles; seis conexões com as janelas
+cheias pedem 46 contra um pool de 24. Quatro clientes chegam a 13 e nunca falham,
+cinco atingem 24/24 com 45 alocações falhadas, seis com 79.
+
+O `TCP_WND` agora é 4×MSS. Não custa nada mensurável porque o device nunca
+conseguiu usar a janela que anunciava: uploads rodam a 26 KB/s, limitados por
+escrita em flash, e num ida-e-volta de ~5 ms mesmo 4×MSS permitiria ~1,1 MB/s.
+Downloads são governados pelo `TCP_SND_BUF` e ficam intocados.
+
+| | antes | depois |
+|---|---|---|
+| falhas de alocação, 5 / 6 clientes | 45 / 79 | **0 / 0** |
+| pico do pool com 6 clientes | 24/24 | 18/24 |
+| requisições bem-sucedidas com 6 clientes | 98 | 166 |
+| download | 221 KB/s | 216 KB/s |
+| upload | 26 KB/s | 25 KB/s |
+
+Aumentar o pool era a alavanca errada: 24 envelopes já são 35,5 KB de BSS, e
+dobrar custa mais que o heap livre inteiro.
+
+Vale dizer com todas as letras, porque o nome antigo sugeria o contrário: a
+exaustão do pool nunca reiniciou o device, nem antes nem depois. As requisições
+falham e o pool volta inteiro.
+
 ## v2.0.2-alpha (2026-08-10)
 
 ### Sobrevive a uma rede hostil: a costura de watchdog no caminho de envio
