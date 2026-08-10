@@ -2,7 +2,12 @@
 # ============================================================================
 # patch.sh — aplica overrides SIMUT no framework arduino-pico do PlatformIO.
 #
-# RAM SAVE: ~18 KB (PBUF_POOL_SIZE 24→12 em lwipopts.h).
+# O QUE lwipopts.h MUDA HOJE (conferido contra o header de fábrica em 10/08/2026):
+#   TCP_WND 8*MSS -> 4*MSS  (correcao do D14 — a janela prometia o pool em dobro)
+#   LWIP_STATS 0 -> 1, MEMP_STATS 0 -> 1  (contadores do pool)
+# PBUF_POOL_SIZE fica nos 24 de fabrica. Uma revisao antiga cortava para 12 por
+# ~18 KB de BSS; aumentar ou diminuir o pool NAO e mais a estrategia, e a
+# aritmetica do D14 depende de ele ser 24.
 #
 # DESCOBERTA IMPORTANTE (v4.2.1):
 #   PIO compila a maior parte do lwIP DO SOURCE em cada build do projeto, NÃO
@@ -156,8 +161,8 @@ fi
 #   servidor web ficava mudo, e NAO se recuperava: com a telemetria desligada o
 #   pool continuava 12/12 e as falhas subindo. So reboot devolvia.
 #
-#   O pool tem so 12 entradas (PBUF_POOL_SIZE 24->12 no lwipopts patchado, para
-#   economizar 18 KB de RAM), entao a margem e estreita.
+#   (Na epoca o pool tinha 12 entradas e a margem era estreita. Hoje sao 24 e
+#   o que aperta e a JANELA, nao o tamanho do pool — ver D14.)
 CTXH="$FW/libraries/WiFi/src/include/ClientContext.h"
 CTXH_PATCH="$OVR/patches/clientcontext_rx_leak.patch"
 if [ ! -f "$OVR/originals/ClientContext.h" ]; then
@@ -199,6 +204,6 @@ for httpobj in "$ROOT/.pio/build"/*/lib*/HTTPClient/HTTPClient.cpp.o; do
 done
 
 echo ""
-echo "[patch] DONE. Próximo \`pio run\` recompila lwIP com PBUF_POOL_SIZE=12."
-echo "[patch] RAM esperada: ~36.7% (save 18 KB BSS no memp_PBUF_POOL_base)."
+echo "[patch] DONE. Próximo \`pio run\` recompila lwIP com TCP_WND=4*MSS e stats ligados."
+echo "[patch] PBUF_POOL_SIZE fica nos 24 de fábrica — ver D14 sobre por quê."
 echo "[patch] Reverter: bash tools/arduino_pico_overrides/restore.sh"

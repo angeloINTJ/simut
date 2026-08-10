@@ -1,13 +1,47 @@
-# arduino_pico_overrides — slim build of the arduino-pico framework
+# arduino_pico_overrides — SIMUT's changes to the arduino-pico framework
 
-> **Savings: ~18 KB RAM** (`PBUF_POOL_SIZE` 24→12 in `lwipopts.h`).
-> Combined with firmware Tier 1.2 (screenshot heap-alloc, +15 KB), **total ~33 KB**.
+> **What `lwipopts.h` actually changes today**, diffed against the stock header
+> (2026-08-10, framework 1.50403.0 = arduino-pico 5.4.3):
+>
+> | | stock | here | why |
+> |---|---|---|---|
+> | `TCP_WND` | `8 * TCP_MSS` | `4 * TCP_MSS` | the D14 fix, below |
+> | `LWIP_STATS` | 0 | 1 | pool counters — without them D14 is unmeasurable |
+> | `MEMP_STATS` | 0 | 1 | same |
+>
+> Nothing else. **`PBUF_POOL_SIZE` is left at the stock 24.**
 
 ## Why This Exists
 
-To reduce the RAM footprint of the lwIP PBUF pool, which occupies 36 KB with the
-default arduino-pico config (24 envelopes × ~1530 B). SIMUT has 1-2 simultaneous
-TCP connections — 12 envelopes is plenty.
+The heading above used to read "Savings: ~18 KB RAM (`PBUF_POOL_SIZE` 24→12)",
+and this section used to explain that SIMUT has 1-2 simultaneous TCP
+connections so 12 envelopes is plenty. Neither is true of the file any more,
+and the drift matters: **the D14 arithmetic depends on the pool being 24**, so
+a reader who believed the old headline would compute the window budget wrong.
+
+What the overrides are for now is bounding things upstream leaves unbounded —
+a TLS handshake with no overall deadline, two HTTPClient read loops with no
+upper limit, a send loop that never feeds the watchdog, received pbufs not
+released when a connection is abandoned — plus the one arithmetic fix in
+`lwipopts.h`.
+
+### The `TCP_WND` fix (2026-08-10, D14)
+
+A pool entry costs ~1514 B, and at `8 * TCP_MSS` a single connection can hold
+7,7 of them. Six connections filling their windows want 46 against a pool of
+24: the pool was being promised out twice over. Four clients peak at 13 and
+never fail; five reach 24/24 with 45 failed allocations, six with 79.
+
+At `4 * TCP_MSS` those failures go to 0/0 and the peak at six clients drops to
+18/24. It costs nothing measurable, because the device could never use the
+window it was advertising: uploads run at 26 KB/s bound by flash writes, and at
+a ~5 ms round trip even 4×MSS allows about 1,1 MB/s. Downloads are governed by
+`TCP_SND_BUF` and are untouched.
+
+**Growing the pool was the wrong lever** — 24 entries are already 35,5 KB of
+BSS, and doubling costs more than the whole free heap. That is why the number
+that the old headline said had been halved is instead left exactly as upstream
+ships it.
 
 ## Important Discovery (v1.0.0)
 
@@ -75,7 +109,14 @@ unpatched handshake.
 
 | Setting | Original | Patched | Reason |
 |---|---|---|---|
-| `PBUF_POOL_SIZE` | 24 | **12** | SIMUT has 1-2 simultaneous TCP connections; 12 pre-allocated envelopes are plenty |
+| `TCP_WND` | `8 * TCP_MSS` | **`4 * TCP_MSS`** | at 8×MSS one connection can hold 7,7 pool entries; six connections want 46 against 24 |
+| `LWIP_STATS` | 0 | **1** | pool in-use / peak / failure counters |
+| `MEMP_STATS` | 0 | **1** | same — without these, "is it a leak or is it pressure?" has no answer |
+
+`PBUF_POOL_SIZE` is **at the stock 24**. An earlier revision of this file cut it
+to 12 for ~18 KB of BSS, and the tables further down still measure that build;
+they are kept as the historical record of the v1.0.0 slim build, not as a
+description of what ships now.
 
 `MEMP_NUM_TCP_PCB`, `MEMP_NUM_UDP_PCB` remain at defaults (5 and 7) —
 reducing UDP_PCB **breaks mDNS** (DHCP+DNS+NTP+mDNS responder = 4 PCBs minimum).
@@ -97,7 +138,12 @@ bash tools/arduino_pico_overrides/restore.sh
 `patch.sh` is idempotent — you can run it as many times as you want. `originals/`
 is preserved after the first patch.
 
-## HW Validation (2026-05-10)
+## HW Validation (2026-05-10) — historical, describes the v1.0.0 slim build
+
+> These numbers were taken when `PBUF_POOL_SIZE` was 12. It is 24 today, so the
+> pool rows below no longer describe the shipping image. Kept because the mDNS,
+> RSSI and telemetry rows are what established that the pool can be touched at
+> all without breaking the shared CYW43 radio.
 
 | Metric | Without patch | With patch | Savings |
 |---|---|---|---|
