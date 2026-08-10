@@ -128,20 +128,32 @@ def cmd_contend(minutes):
     w = session()
     t_end = time.time() + minutes * 60
     reqs, errs, held, sizes = 0, 0, 0.0, []
-    # range is parsed with .toInt( ) and clamped to 0..6, so it is an INDEX, not
-    # "24h" — a string request silently became 24, then 6. Asking for 6 outright
-    # says what it means. And no emit=0: that decodes without formatting or
-    # sending, which SHORTENS the lock, and HeavyTaskGuard is scoped to the whole
-    # handler including the stream. Holding the lock is the entire point here.
-    print(f"hammering /api/history_multi?range=6 for {minutes} min to hold the "
-          f"heavy lock across record boundaries", flush=True)
+    # `from`/`to`, not `range`. Three traps, all of which produced a run that
+    # looked fine and held the lock for nothing:
+    #  - `range` is parsed with .toInt( ) and clamped to 0..6, so it is an INDEX;
+    #    "24h" silently became 24, then 6.
+    #  - a wide `range` answers {"probe":1,"sliceRequired":1,...} in 184 bytes and
+    #    does no work at all — it tells the client to slice instead. Only an
+    #    explicit window streams.
+    #  - emit=0 decodes without formatting or sending, which SHORTENS the hold,
+    #    and HeavyTaskGuard covers the whole handler including the stream.
+    # A 7-day explicit window measures ~1.1 s of held lock; 30 days breaks the
+    # chunked framing on this firmware (InvalidChunkLength), so it is not usable
+    # as a load generator here.
+    span = 7 * 86400
+    print(f"hammering /api/history_multi over a {span // 86400}-day explicit "
+          f"window for {minutes} min, to hold the heavy lock across record "
+          f"boundaries", flush=True)
     while time.time() < t_end:
+        now = int(time.time())
         t0 = time.time()
         try:
-            r = w.get('/api/history_multi?range=6')
+            r = w.get(f'/api/history_multi?from={now - span}&to={now}')
             dt = time.time() - t0
             reqs += 1
-            if r.status_code >= 400:
+            # Only a substantial body proves the handler did work while holding
+            # the lock; a probe or an error body is not a hold.
+            if r.status_code >= 400 or len(r.content) < 2048:
                 errs += 1
             else:
                 held += dt
@@ -149,14 +161,15 @@ def cmd_contend(minutes):
         except Exception:
             errs += 1
             w = session()
-    span = minutes * 60
-    print(f"{reqs} requests, {errs} errors, "
-          f"{held:.0f}s holding the lock of {span:.0f}s "
-          f"({100.0 * held / span:.0f}% duty)", flush=True)
+    window = minutes * 60
+    print(f"{reqs} requests, {errs} rejected/failed, "
+          f"{held:.0f}s of held lock over {window:.0f}s "
+          f"({100.0 * held / window:.0f}% duty)", flush=True)
     if sizes:
-        print(f"response bytes: min={min(sizes)} max={max(sizes)} "
-              f"(a tiny response would mean the range asked for no work)",
-              flush=True)
+        print(f"response bytes: min={min(sizes)} max={max(sizes)}", flush=True)
+    else:
+        print("NO substantial response at all — the lock was never really held, "
+              "so nothing below says anything about contention", flush=True)
 
     ev = hw.read_log(timeout=14)
     cur = hw.last_boot(ev)
@@ -177,9 +190,18 @@ def cmd_contend(minutes):
     print(f"unsampled slots (gap > 90 s): {len(gaps)} {gaps}")
     print(f"records whose snapshot was deferred: {len(deferred)} at up{deferred}")
     if not deferred:
-        print("INCONCLUSIVE on contention: the lock never covered a record "
-              "boundary, so the deferral path was not exercised. The sampling "
-              "result still stands on its own.")
+        print("INCONCLUSIVE on contention, and structurally so — not bad luck.\n"
+              "  Every heavy-lock holder runs in AppManager::loop( ) on Core 0:\n"
+              "  _webMgr->update( ) at line 187, _telemetryMgr->update( ) at 223,\n"
+              "  the graph via UI events — all strictly sequential with\n"
+              "  processHistoryLogging( ) at 290, and nothing on the Core 1 path\n"
+              "  takes it at all. So the lock CANNOT be held at the instant a\n"
+              "  record is sampled, no matter how hard this hammers.\n"
+              "  The reachable gate is touch priority: getLastTouchTimestamp( ) is\n"
+              "  set by Core 1 and read by the loop, so it can be true while line\n"
+              "  290 runs. Exercising it needs real touch, or `touch sim` — which\n"
+              "  exists only in pico_w_test.\n"
+              "  The sampling result below stands on its own.")
     ok = not gaps
     print(f"-> {'PASS' if ok else 'FAIL'} (sampling)", flush=True)
     return ok

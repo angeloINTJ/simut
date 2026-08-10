@@ -252,10 +252,20 @@ void AppManager::loop( ) {
 
 
  /* Sampling is NOT gated. It used to be, and a gate held across a minute
-  * boundary meant that minute was never measured at all — a touch drag or a
-  * backup left a hole no snapshot could fill, because there was nothing to
-  * snapshot. The record now always lands in the RAM encoder (a memcpy, safe
-  * under any gate) and only the flash snapshot inside defers. */
+  * boundary meant that minute was never measured at all — a hole no snapshot
+  * can fill, because there was nothing to snapshot. The record now always
+  * lands in the RAM encoder (a memcpy, safe under any gate) and only the
+  * flash snapshot inside defers.
+  *
+  * Of the two gates that used to sit here only ONE could ever fire, which is
+  * worth writing down because the removal reads like belt-and-braces
+  * otherwise. isUserInteracting( ) is real: getLastTouchTimestamp( ) is set by
+  * Core 1 and read here, so it can be true while this line runs.
+  * isHeavyTaskLocked( ) could not: every holder — _webMgr->update( ),
+  * _telemetryMgr->update( ), the graph via UI events — runs earlier in THIS
+  * loop on Core 0, strictly sequential with this call, and nothing on the
+  * Core 1 path takes the lock at all. Measured: hammering the heavy lock to a
+  * 57% duty cycle for six minutes deferred exactly zero snapshots. */
  {
  bool due = timeSince(_lastHistoryTime,
                       _storageMgr->getHistoryIntervalMin( ) * 60000UL);

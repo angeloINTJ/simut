@@ -88,6 +88,10 @@ def read_log(timeout=12):
 REC, SEAL, WIP = 510, 566, 567
 
 
+# A real boot's first entries sit well under this many seconds of uptime.
+BOOT_UP_MAX = 60
+
+
 def last_boot(ev):
     """Events since the most recent boot.
 
@@ -96,13 +100,30 @@ def last_boot(ev):
     defect, because they are it. Analysing the whole file reports the same
     stale findings forever and buries a real one; findings have to be about
     the image running now.
+
+    A backwards step in uptime is NOT enough to call a boot. `show system log`
+    prints the rotated file and the current one, so at a SYS_STORAGE_ROTATE
+    seam the chronology jumps backwards inside a single boot — and one such
+    seam truncated a six-minute run to "1 record", which read as the firmware
+    having stopped sampling. A real boot begins with entries at up<60s (NET
+    524, the sensor scan), so the drop has to land near zero to count.
     """
     start = 0
     for i in range(1, len(ev)):
         a, b = ev[i - 1]['up'], ev[i]['up']
-        if a is not None and b is not None and b < a:
+        if a is not None and b is not None and b < a and b < BOOT_UP_MAX:
             start = i
     return ev[start:]
+
+
+def seams(ev):
+    """Backwards uptime steps that are NOT boots — log-rotation artefacts."""
+    out = []
+    for i in range(1, len(ev)):
+        a, b = ev[i - 1]['up'], ev[i]['up']
+        if a is not None and b is not None and b < a and b >= BOOT_UP_MAX:
+            out.append((a, b))
+    return out
 
 
 def analyse(ev):

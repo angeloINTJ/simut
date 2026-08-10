@@ -39,9 +39,20 @@ cycle* de lockout do Core 1, e por isso a escrita continua cedendo a vez à
 prioridade de toque e à trava de tarefa pesada.
 
 **Alguns minutos simplesmente não eram medidos.** O laço condicionava a *amostra
-inteira* às mesmas duas condições, então um arraste sustentado na tela ou um
-backup atravessando a virada do minuto deixava aquele minuto sem leitura — um
-buraco que nenhum snapshot preenche, porque nada foi registrado. Amostrar e
+inteira* às mesmas duas condições, então um portão retido na virada do minuto
+deixava aquele minuto sem leitura — um buraco que nenhum snapshot preenche, porque
+nada foi registrado.
+
+Só um dos dois portões podia disparar, e vale dizer porque um rascunho anterior
+desta entrada afirmava os dois. O `isUserInteracting()` é real: o timestamp do
+toque é posto pelo Core 1 e lido pelo laço, então pode estar verdadeiro enquanto a
+linha da amostragem roda. O `isHeavyTaskLocked()` não podia: todo detentor —
+`_webMgr->update()`, `_telemetryMgr->update()`, o gráfico via eventos de UI — roda
+antes, no **mesmo** laço do Core 0, estritamente sequencial com a amostragem, e
+nada no caminho do Core 1 pega a trava. Medido: trava pesada retida a 57% de *duty
+cycle* por seis minutos adiou exatamente zero snapshots e pulou exatamente zero
+registros. Remover essa metade do portão é correto mas não muda nada observável; a
+metade do toque é a que perdia leituras. Amostrar e
 gravar agora são coisas separadas: o registro sempre entra no encoder em RAM (um
 memcpy, seguro sob qualquer gate) e só a escrita em flash adia, latchada para que
 a varredura de recuperação grave em até 2 s da abertura do gate, em vez de

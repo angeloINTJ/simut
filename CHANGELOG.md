@@ -39,9 +39,20 @@ the Core 1 lockout duty cycle is, which is why the write still yields to touch
 priority and to the heavy-task lock.
 
 **Some minutes were never measured at all.** The loop gated the *entire sample*
-on those same two conditions, so a sustained touch drag or a backup spanning the
-minute boundary left that minute with no reading — a hole no snapshot can fill,
-because nothing was ever recorded. Sampling and writing are now separate: the
+on those same two conditions, so a gate held across the minute boundary left that
+minute with no reading — a hole no snapshot can fill, because nothing was ever
+recorded.
+
+Only one of those two gates could ever fire, which is worth stating because an
+earlier draft of this entry claimed both. `isUserInteracting()` is real: the touch
+timestamp is set by Core 1 and read by the loop, so it can be true while the
+sampling line runs. `isHeavyTaskLocked()` could not be: every holder —
+`_webMgr->update()`, `_telemetryMgr->update()`, the graph via UI events — runs
+earlier in the *same* Core 0 loop, strictly sequential with the sampling call, and
+nothing on the Core 1 path takes the lock at all. Measured: the heavy lock held to
+a 57% duty cycle for six minutes deferred exactly zero snapshots and skipped
+exactly zero records. Removing that half of the gate is correct but changes
+nothing observable; the touch half is the one that was losing readings. Sampling and writing are now separate: the
 record always lands in the RAM encoder (a memcpy, safe under any gate) and only
 the flash write defers, latched so the catch-up sweep writes it within 2 s of
 the gate opening instead of waiting for the next sample to carry it.
