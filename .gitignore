@@ -70,3 +70,11 @@ CHANGELOG_*.md
 # Promotion (local only, not for the repo)
 docs/promotion/
 scratchpad/soak_a6.log
+
+# Release zips are assets, not history: they go on the GitHub release, and the
+# `release: vX artifacts` commit versions only the release/simut_{tft,alpha,pio}
+# trees. A stray `git add release/` swept 17 MB of them in once — hence the rule
+# rather than the convention alone. (The v1.6.x pair predates this and stays.)
+release/simut_tft_v*.zip
+release/simut_alpha_v*.zip
+release/simut_pio_v*.zip

@@ -27,7 +27,10 @@ Sampling is every 5 min. Anything anomalous is written to the log with an
 ANOMALY prefix so grep is a valid triage. The run is resumable and additive:
 it appends to the ndjson, so an interrupted soak keeps its hours.
 
-Stop early:  pkill -f soak_a6.py    — the summary is rebuilt from the ndjson.
+Stop early:  kill $(pgrep -f "telemetry_bench/soak_a6")  — the summary is
+rebuilt from the ndjson. Do NOT use `pkill -f soak_a6.py`: the pattern also
+matches the shell that launched it, so the whole command line dies mid-way and
+whatever was meant to run after the kill silently never does.
 """
 import json
 import os
@@ -130,7 +133,7 @@ def main():
     base = sample(w)
     print(f'baseline: uptime={base["uptime"]} c1a={base["c1a"]} c1n={base["c1n"]} '
           f'fx={base["fx"]} heap_lb={base["heap_lb"]}')
-    print(f'logging to {OUT}, every {PERIOD_S} s — stop with pkill -f soak_a6.py')
+    print(f'logging to {OUT}, every {PERIOD_S} s — stop with kill $(pgrep -f "telemetry_bench/soak_a6")')
 
     prev = None
     n = 0
