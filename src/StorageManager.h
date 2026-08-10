@@ -21,6 +21,7 @@
 #include "HistoryV4.h"
 #include "HistoryV5.h"
 #include "sensors/SensorHelpers.h"
+#include "sensors/CalibCurve.h"
 
 #define DIR_CONFIG "/config"
 #define FILE_CONFIG "/config/system.bin"
@@ -335,6 +336,20 @@ public:
  /** Schema in force at the reader's position. */
  const H5ChannelDesc* h5ReaderSchema( ) const { return _h5RdSchema; }
  uint8_t h5ReaderChannels( ) const { return _h5RdNCh; }
+
+ /* ── Hour still open in RAM ──
+  * A V5 block reaches the day file only when it seals, which at one record a
+  * minute is once an hour. Everything that reads .h5 therefore trails the
+  * present by up to that hour — telemetry included, which is why a fresh
+  * device sent nothing for its first 60 minutes. These expose the open block
+  * so a reader can carry on past the newest sealed record.
+  *
+  * Same core as the history writer, so no lock is needed; do not yield in the
+  * middle of a walk, or the block can seal underneath it. */
+ uint8_t h5RamCount( ) const { return _h5Valid ? _h5Enc.count( ) : 0; }
+ bool h5RamRecord(uint8_t i, uint32_t& epoch, int16_t* vals) const {
+ return _h5Valid && _h5Enc.sample(i, epoch, vals);
+ }
  uint16_t h5ReaderRejected( ) const { return _h5Scan.rejected( ); }
  void h5CloseDay( );
 
@@ -346,7 +361,11 @@ public:
  void resetTelemetryCursor( ); /**< CMD_TEL_RESET: invalidates RAM cache + deletes flash file. */
 
  static String getBoardSerialNumber( );
- bool getCalibrationData(const uint8_t* rom, String& outId, float& outOffset, String& outName);
+ /* Both readers answer a CalibCurve. A 4-column row (the only shape older
+  * firmware ever wrote) decodes as the constant offset it always was; the
+  * cells after the name carry up to CALIB_MAX_POINTS raw,ref pairs — one
+  * number per CSV column, so a spreadsheet reads the file directly. */
+ bool getCalibrationData(const uint8_t* rom, String& outId, CalibCurve& outCurve, String& outName);
  /* Lookup for sensors with no 1-Wire ROM (DHT22, BMP280) in calib.csv.
   * Key column = picoUID 16 hex; ID column = `prefix` + the sensor's hwId,
   * `t` for temperature and `u` for humidity (ex: `tDHT2202`, `uDHT2202`).
@@ -354,7 +373,13 @@ public:
   * Matches the FULL id. It used to take no hwId and return the first row
   * with the right prefix, which made the pair device-wide: a board with two
   * DHT22s could only ever hold one calibration. */
- bool getCalibrationByHwId(char prefix, const char* hwId, float& outOffset, String& outName);
+ bool getCalibrationByHwId(char prefix, const char* hwId, CalibCurve& outCurve, String& outName);
+ /* Pair a DS18B20 to its silicon: writes/replaces the calib.csv row keyed by
+  * this ROM and drops the board-serial temperature row that carried the
+  * sensor while it was unpaired — its curve arrives via `curve` and moves
+  * into the ROM row, so pairing never loses a calibration. Atomic through
+  * /calib.tmp + the version gate. */
+ bool bindDs18Identity(const uint8_t* rom, const char* hwId, const char* name, const CalibCurve& curve);
  long getCalibrationVersion(String path);
  bool processCalibrationUpload( );
  bool recoverCalibrationTmp( );

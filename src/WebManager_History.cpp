@@ -21,6 +21,16 @@
 
 using ReadGuard = StorageManager::ReadGuard;
 
+/* Fine-grained position trace, parked in watchdog scratch[7] — unused by
+ * the HW-WDT autopsy class, whose report prints it as hp=N. TRACE_MOD says
+ * which handler died; this says which STRETCH of it. Three send-path
+ * parking spots (hp=720, 721, and the pre-header window) were located in
+ * one bench run each with this channel after days of module-level
+ * guessing. Keep stamps on the transitions a death would need localized:
+ * they are single MMIO stores. */
+#include <hardware/watchdog.h>
+#define HPOS(v) do { watchdog_hw->scratch[7] = (uint32_t)(v); } while (0)
+
 // Inline insertion sort (replaces std::sort, eliminates qsort ~1.4KB)
 static void sortStrings(String* arr, int n, bool descending) {
  for (int i = 1; i < n; i++) {
@@ -83,6 +93,35 @@ void WebManager::handleApiHistoryMulti( ) {
  uint32_t savedDeadline = _handlerDeadline;
  _handlerDeadline = millis( ) + WEB_LONG_HANDLER_DEADLINE_MS;
  if (_displayRef) _displayRef->setWebBusy(true, _currentUserName.c_str( ));
+
+ /* Three things are now owned by this handler, and every exit has to hand all
+  * three back. Doing that by hand at the bottom only ever covered the exits
+  * that reached the bottom — and the "extremes" tail has three returns on a
+  * failed send that skipped the lot. The cost of one such abort, and an abort
+  * there is routine because it is where the 15 s deadline tends to land on a
+  * wide range: _inHistoryHandler stays true for the rest of the boot, so every
+  * later /api/history_multi answers 503 "Already processing" and the graphs go
+  * dead; setWebBusy stays true, so the display keeps its "web busy" overlay
+  * and TOUCH STAYS BLOCKED; and _handlerDeadline never returns to the
+  * caller's value.
+  *
+  * A destructor cannot be skipped by a return, so ownership is expressed
+  * there instead — the reasoning behind Core1FlashPause and RenderGuard. A
+  * local class inside a member function keeps the class's access rights. */
+ struct HistUnwind {
+  WebManager* w;
+  uint32_t saved;
+  ~HistUnwind( ) {
+   /* Tried and REVERTED 2026-08-10: draining here (the chunked twin of the
+    * safeStreamFile fix, on the theory that _finalizeResponse's terminator
+    * write was the park) changed nothing — same 1 reboot in 5 windows, same
+    * `C0=[WEB_POLL] hp=721`. The hypothesis is not supported, so the code is
+    * not here. Do not re-add it without a measurement that moves. */
+   w->_handlerDeadline = saved;
+   if (w->_displayRef) w->_displayRef->setWebBusy(false);
+   __atomic_store_n(&w->_inHistoryHandler, false, __ATOMIC_RELEASE);
+  }
+ } _unwind{this, savedDeadline};
 
  /* ── Parse sensors=... (CSV of IDs) ─────────────────────────────────── */
  int sensorIds[MAX_SENSORS]; /* up to 16 slots */
@@ -384,11 +423,11 @@ void WebManager::handleApiHistoryMulti( ) {
    estPoints * WEB_HISTORY_BYTES_PER_POINT,
    useEnvelope ? "envelope" : "decode",
    (unsigned long)probeCutoff, (unsigned long)effectiveEnd);
-  _server.send(200, "application/json", buf);
-  _handlerDeadline = savedDeadline;      /* same unwind as the normal exit */
-  if (_displayRef) _displayRef->setWebBusy(false);
-  __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
-  return;
+  /* Keep-alive: the previous response's unread tail can hold the buffer,
+   * and _server.send( ) writes headers straight into lwIP. */
+  if (waitSendRoom(sizeof(buf) + 256, "hist/probe"))
+   _server.send(200, "application/json", buf);
+  return;                                /* ~HistUnwind does the unwind */
  }
 
  /* ── Accumulated stats (T of set, H of set) ─────────────────────────
@@ -414,8 +453,14 @@ void WebManager::handleApiHistoryMulti( ) {
  const SystemConfig& cfgRef = _storageRef->getConfig( );
 
  /* ── Response: header + sensors[] + data[] streaming ────────────────── */
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ HPOS(5);
+ if (!waitSendRoom(1024, "hist/hdr")) {
+  return;                                /* ~HistUnwind does the unwind */
+ }
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ HPOS(6);
  _server.send(200, "application/json", "");
+ HPOS(7);
 
  {
  char metaBuf[160];
@@ -468,7 +513,9 @@ void WebManager::handleApiHistoryMulti( ) {
  bool aborted = false;
  int lineIdx = 0;
  uint32_t sinceBreath = 0; /* decoded records since the last respiro (both paths) */
+ HPOS(1);
  unsigned filesOpened = 0, recsDecoded = 0; /* diagnostico no metaEnd */
+ unsigned winSkips = 0; /* records decoded but outside the from/to window */
  /* Blocks actually read off flash. The §10 budgets are per block, and a
   * count derived from records/60 is wrong exactly when it matters: every
   * reboot and every schema change leaves a PARTIAL block behind. */
@@ -567,7 +614,7 @@ void WebManager::handleApiHistoryMulti( ) {
 	  * is what a month of one-minute data honestly is at screen
 	  * resolution. Nothing here reads a payload. */
 	 while (!aborted) {
-	 if (isClientGone( ) || isHandlerOvertime( )) { aborted = true; break; }
+	 if (isClientGone( ) || isHandlerOvertime( )) { HPOS(900); aborted = true; break; }
 	 H5DataHeader hdr;
 	 const int16_t *mn = nullptr, *mx = nullptr;
 	 bool got = false;
@@ -638,19 +685,27 @@ void WebManager::handleApiHistoryMulti( ) {
 
 	 const uint32_t loop0us = micros( );
 	 while (fileHasMore && !aborted) {
-	 if (isClientGone( ) || isHandlerOvertime( )) { aborted = true; break; }
+	 if (isClientGone( ) || isHandlerOvertime( )) { HPOS(900); aborted = true; break; }
 	 {
 	 /* One lock per BLOCK, not per record (§10). Records come out of the
 	  * block already in RAM; the mutex is only owed to the flash read that
 	  * brings the next block in. The shape inherited from V4 took and
 	  * returned the mutex 60 times per block to no purpose. */
 	 const uint32_t t0us = micros( );
+	 HPOS(301);
 	 bool got = _storageRef->h5DecodeNext(epoch, vals);
 	 if (!got) {
 	 const uint32_t l0us = micros( );
 	 ReadGuard rg(_storageRef);
+	 HPOS(300);
 	 while (_storageRef->h5LoadNextBlock( )) {
 	 blocksRead++;
+	 /* A block whose records all fail the reader's gates (schema
+	  * mismatch, epoch floor, future cap) decodes to nothing and this
+	  * loop moves straight to the next one — under the guard, with no
+	  * feed. feedWdt and not feedWatchdog: the ReadGuard is held (see
+	  * the export handler's note). */
+	 feedWdt( );
 	 if ((got = _storageRef->h5DecodeNext(epoch, vals))) break;
 	 }
 	 loadUs += micros( ) - l0us;
@@ -661,13 +716,26 @@ void WebManager::handleApiHistoryMulti( ) {
 	 }
 
 	 time_t ts = (time_t)epoch;
-	 if (cutoff > 0 && ts < cutoff) continue;
+	 /* Out-of-window records still cost a decode each, and skipping them
+	  * bypassed BOTH breath sites below — an explicit from/to window that
+	  * sits weeks behind the newest data decodes every earlier record in
+	  * the walked files with the watchdog unfed. Same lesson the
+	  * decimation skip already carries; these two exits missed it. */
+	 if (cutoff > 0 && ts < cutoff) {
+	 winSkips++;
+	 if (++sinceBreath >= WEB_STREAM_BREATH_RECORDS) { sinceBreath = 0; feedWatchdog( ); }
+	 continue;
+	 }
 	 /* Skip, do not abandon. Stopping the file here assumes blocks are in
 	  * time order, and a single block stamped past the window then hides
 	  * every block behind it — which is how seven hours of history that was
 	  * on flash the whole time came to be invisible on the bench. Files are
 	  * ordered in normal operation, so this costs the tail of one day. */
-	 if (ts > effectiveEnd) continue;
+	 if (ts > effectiveEnd) {
+	 winSkips++;
+	 if (++sinceBreath >= WEB_STREAM_BREATH_RECORDS) { sinceBreath = 0; feedWatchdog( ); }
+	 continue;
+	 }
 
 	 /* Stats per channel, restricted to the selected sensors. */
 	 for (uint8_t c = 0; c < nCh; c++) {
@@ -767,15 +835,16 @@ void WebManager::handleApiHistoryMulti( ) {
  snprintf(pPart, sizeof(pPart), ",\"minP\":%.1f,\"maxP\":%.1f",
           realMin[CH_PRESS], realMax[CH_PRESS]);
  }
+ HPOS(500);
  snprintf(metaEnd, sizeof(metaEnd),
  ",\"minT\":%.2f,\"maxT\":%.2f,\"tsMinT\":%lu,\"tsMaxT\":%lu%s%s,"
  "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,\"blocks\":%u,"
- "\"path\":\"%s\",\"readMs\":%.1f,\"loadMs\":%.1f,\"loopMs\":%.1f,\"rejected\":%u}",
+ "\"path\":\"%s\",\"readMs\":%.1f,\"loadMs\":%.1f,\"loopMs\":%.1f,\"rejected\":%u,\"winSkips\":%u}",
  realMin[CH_TEMP], realMax[CH_TEMP],
  (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT, hPart, pPart,
  (unsigned)filesToRead.size( ), filesOpened, recsDecoded, blocksRead,
  pathUsed, (double)readUs / 1000.0, (double)loadUs / 1000.0,
- (double)loopUs / 1000.0, rejected);
+ (double)loopUs / 1000.0, rejected, winSkips);
  safeSend(metaEnd);
  } else {
  char metaEnd[192];
@@ -789,9 +858,11 @@ void WebManager::handleApiHistoryMulti( ) {
  }
  safeSend("");
  }
- _handlerDeadline = savedDeadline;
- if (_displayRef) _displayRef->setWebBusy(false);
- __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
+ /* Loop-top aborts (client gone / overtime) break without passing through
+  * the funnel again — apply the same hard-close the funnel's aborts get. */
+ if (aborted) dropAbortedStream("hm");
+ /* deadline, web-busy and the _inHistoryHandler latch are released by
+  * ~HistUnwind, which the tail's early returns cannot skip. */
 }
 
 
@@ -896,7 +967,7 @@ void WebManager::handleApiExportHistory( ) {
  uint32_t crc = crc32_init( );
 
  _server.sendHeader("Content-Disposition", "attachment; filename=\"simut_history.simx\"");
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/octet-stream", "");
 
  /* Emit HEADER */
@@ -1032,7 +1103,7 @@ void WebManager::handleApiExportHistory( ) {
  uint32_t crcFinal = crc32_final(crc);
  safeSend((const char*)&crcFinal, sizeof(crcFinal));
  safeSend("");
- }
+ } else dropAbortedStream("hx");
 
  _handlerDeadline = savedDeadline;
  if (_displayRef) _displayRef->setWebBusy(false);
@@ -1100,7 +1171,7 @@ void WebManager::handleApiExportLogs( ) {
  uint32_t crc = crc32_init( );
 
  _server.sendHeader("Content-Disposition", "attachment; filename=\"simut_logs.simx\"");
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/octet-stream", "");
 
  /* Emit HEADER */
@@ -1170,7 +1241,7 @@ void WebManager::handleApiExportLogs( ) {
  uint32_t crcFinal = crc32_final(crc);
  safeSend((const char*)&crcFinal, sizeof(crcFinal));
  safeSend("");
- }
+ } else dropAbortedStream("hx");
 
  _handlerDeadline = savedDeadline;
  if (_displayRef) _displayRef->setWebBusy(false);
@@ -1206,7 +1277,7 @@ void WebManager::handleApiLogs( ) {
  * Format: application/octet-stream, N × CompactLogRecord(12 bytes).
  * ~10x smaller than the previous translated CSV.
  */
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/octet-stream", "");
 
  auto streamRawLog = [&](const char* path) -> bool {
@@ -1513,7 +1584,7 @@ void WebManager::handleApiHistoryDays( ) {
 
  sortStrings(files.data( ), (int)files.size( ), true); /* descending */
 
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/json", "");
  safeSend("[");
  for (size_t i = 0; i < files.size( ); i++) {

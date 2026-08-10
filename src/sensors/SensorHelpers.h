@@ -367,6 +367,15 @@ inline uint8_t sensorLimitChannel(SensorType t, uint8_t i) {
 inline bool sensorLimitIsMax(uint8_t i) { return (i & 1u) != 0; }
 
 /** @return true if this sensor reports relative humidity. */
+/** True for parts carrying a factory-unique serial number the firmware can
+ *  read back (the DS18B20 1-Wire ROM). Only these can be adopted and then
+ *  verified in place — a swapped probe fails the ROM match and is
+ *  quarantined. Serial-less parts are indistinguishable in hardware, so
+ *  adopt/verify flows must not even be offered for them. */
+inline bool sensorHasSerialNumber(SensorType t) {
+	return t == TYPE_DS18B20;
+}
+
 inline bool sensorHasHumidity(SensorType t) {
  return sensorHasChannel(t, CH_HUM);
 }

@@ -8,6 +8,7 @@
  */
 #include "WebManager.h"
 #include "ParseFloat.h"
+#include "WebJsonSlice.h"
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "Themes.h"
@@ -27,11 +28,21 @@
  * correctly; stops at the FIRST unescaped quote. Unknown escapes (\x) are
  * preserved leniently. */
 static String jsonExtractStringValue(const String& src, const char* key) {
-	String pat = String("\"") + key + "\":\"";
+	String pat = String("\"") + key + "\":";
 	int p = src.indexOf(pat);
 	if (p < 0) return String( );
 	int i = p + pat.length( );
 	const int n = src.length( );
+	/* Whitespace between the colon and the opening quote is legal JSON the
+	 * page never emits. With the quote baked into the needle, a spaced
+	 * payload missed the match and the caller applied the empty result —
+	 * on the bench, {"sys":{"t_srv": "192.168.3.31"}} ERASED the telemetry
+	 * server. getNum below carries the numeric twin of this story; the
+	 * string form is worse because absent and empty apply alike. */
+	while (i < n && (src.charAt(i) == ' ' || src.charAt(i) == '\t' ||
+	                 src.charAt(i) == '\r' || src.charAt(i) == '\n')) i++;
+	if (i >= n || src.charAt(i) != '"') return String( );
+	i++;
 	String out;
 	while (i < n) {
 		char c = src.charAt(i);
@@ -87,6 +98,26 @@ static bool getPair(const String& o, const char* key, float& lo, float& hi) {
 	return true;
 }
 
+/* "key": true|false with legal whitespace after the colon — the boolean
+ * cousin of the extractFloat/jsonExtractStringValue scars above, found the
+ * same way: a spaced payload (json.dumps' default) read every true as
+ * false, and on the bench that silently disarmed a slot's alarms. Absent
+ * or unrecognizable answers `fallback`, which at every call site is the
+ * currently stored value — so absent means keep, matching the section
+ * semantics the beta decided on. */
+static bool jsonBoolValue(const String& src, const char* key, bool fallback) {
+	String pat = String("\"") + key + "\":";
+	int p = src.indexOf(pat);
+	if (p < 0) return fallback;
+	int i = p + pat.length( );
+	const int n = src.length( );
+	while (i < n && (src.charAt(i) == ' ' || src.charAt(i) == '\t' ||
+	                 src.charAt(i) == '\r' || src.charAt(i) == '\n')) i++;
+	if (src.startsWith("true", i)) return true;
+	if (src.startsWith("false", i)) return false;
+	return fallback;
+}
+
 void WebManager::handleSaveSystem( ) {
 	uint16_t perms = getAuthPerms( );
 	if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
@@ -139,6 +170,83 @@ void WebManager::handleApiCommitAll( ) {
 	SystemConfig& cfg = _storageRef->getConfig( );
 	bool themeChanged = false;
 
+	/* Fields the sys section DISCARDS — out-of-range or unparsable values
+	 * keep the stored setting, which is the right conservatism, but doing
+	 * it silently under a 200 cost a bench session per occurrence ("my
+	 * edit was ignored and nothing said so"). The names are echoed back in
+	 * the response as "rejected":[...] so the page can say which fields
+	 * did not take. */
+	char rejectedList[128];
+	rejectedList[0] = '\0';
+	auto rejectField = [&](const char* k) {
+		size_t l = strlen(rejectedList);
+		snprintf(rejectedList + l, sizeof(rejectedList) - l, "%s\"%s\"", l ? "," : "", k);
+	};
+
+	/* ── alarms limits pre-validation ───────────────────────────────────────
+	 * The alarms apply-pass below takes values raw (deliberate legacy) — which
+	 * let hmax=300 %RH through as an alarm that can never trip, under 200 OK.
+	 * Out-of-plausible-range is an error, not a preference: checked HERE,
+	 * before any section mutates cfg, so the 400 stays atomic for the whole
+	 * commit. Values are judged against the channel's [saneMin, saneMax]
+	 * regardless of slot state — a bad number is bad even on a slot this same
+	 * payload is about to activate. */
+	{
+		int vAlm = body.indexOf("\"alarms\"");
+		int vSens = (vAlm >= 0) ? body.indexOf("\"sensors\"", vAlm) : -1;
+		int vArr = (vSens >= 0) ? body.indexOf('[', vSens) : -1;
+		int vArrEnd = -1;
+		if (vArr >= 0) {
+			int depth = 0;
+			for (int k = vArr; k < (int)body.length( ); k++) {
+				char c = body.charAt(k);
+				if (c == '[') depth++;
+				else if (c == ']') { if (--depth == 0) { vArrEnd = k; break; } }
+			}
+		}
+		if (vArr >= 0 && vArrEnd > vArr) {
+			String arrStr = body.substring(vArr, vArrEnd + 1);
+			int objStart = 0, safety = 0;
+			while ((objStart = arrStr.indexOf('{', objStart)) >= 0) {
+				if (++safety > MAX_SENSORS + 4) break;
+				int objEnd = arrStr.indexOf('}', objStart);
+				if (objEnd < 0) break;
+				String obj = arrStr.substring(objStart, objEnd + 1);
+				auto limOk = [&](uint8_t ch, float v) -> bool {
+					if (isnan(v)) return true; /* absent keeps the stored bound */
+					const ChannelInfo& ci = channelInfo(ch);
+					return v >= ci.saneMin && v <= ci.saneMax;
+				};
+				/* Same reader shape as the apply-pass, so both passes see the
+				 * same value (whitespace after the colon included). */
+				auto exf = [&](const char* key) -> float {
+					int kp = obj.indexOf(key);
+					if (kp < 0) return NAN;
+					int cp = obj.indexOf(':', kp + strlen(key));
+					if (cp < 0) return NAN;
+					int vs = cp + 1;
+					while (vs < (int)obj.length( ) && (obj[vs] == ' ' || obj[vs] == '\t' ||
+					       obj[vs] == '\r' || obj[vs] == '\n')) vs++;
+					return parseFloat(obj.substring(vs).c_str( ));
+				};
+				bool bad = !limOk(CH_TEMP, exf("\"tmin\"")) || !limOk(CH_TEMP, exf("\"tmax\"")) ||
+				           !limOk(CH_HUM, exf("\"hmin\"")) || !limOk(CH_HUM, exf("\"hmax\""));
+				for (uint8_t c = 0; !bad && c < MAX_SENSOR_CHANNELS; c++) {
+					if (!channelValid(c)) continue;
+					float lo = NAN, hi = NAN;
+					if (!getPair(obj, channelInfo(c).key, lo, hi)) continue;
+					if (!limOk(c, lo) || !limOk(c, hi)) bad = true;
+				}
+				if (bad) {
+					_server.send(400, "application/json",
+					             "{\"error\":\"Alarm limit outside channel range\"}");
+					return;
+				}
+				objStart = objEnd + 1;
+			}
+		}
+	}
+
 	/* ── slots section: sensor provisioning ─────────────────────────────────
 	 * Format: "slots":{"s":[{"i":0,"a":true,"t":2,"p":[2,255,255,255],
 	 *                        "hwId":"DHT0","name":"Sala",
@@ -150,8 +258,8 @@ void WebManager::handleApiCommitAll( ) {
 	 * nested inside both "alarms" and "calib"; a top-level indexOf("\"sensors\"")
 	 * would latch onto whichever came first in the payload.
 	 *
-	 * This block runs FIRST and is the only section that can reject the whole
-	 * commit. Validation is a separate pass over the same text: on the first
+	 * This block and the alarm-limits pre-check above are the only gates that
+	 * can reject the whole commit. Validation is a separate pass over the same text: on the first
 	 * bad field we answer 400 with cfg still untouched, so a rejected commit
 	 * cannot leave half-applied sensor state behind and then reboot into it.
 	 * There is no shared pin validator in the firmware — the CLI open-codes
@@ -285,7 +393,7 @@ void WebManager::handleApiCommitAll( ) {
 				int p = 0, guard = 0;
 				while ((p = arr.indexOf('{', p)) >= 0) {
 					if (++guard > MAX_SENSORS + 4) break;
-					int e = arr.indexOf('}', p);
+					int e = jsonMatchEnd(arr, p);
 					if (e < 0) break;
 					long sl = getInt(arr.substring(p, e + 1), "i", -1);
 					p = e + 1;
@@ -296,10 +404,14 @@ void WebManager::handleApiCommitAll( ) {
 
 			char err[96];
 			err[0] = '\0';
+			/* jsonMatchEnd, not indexOf('}'): the slot object carries a nested
+			 * "lim":{...}, and the first closing brace is lim's — every key
+			 * staged after it ("al") fell off the slice and was silently kept
+			 * at its stored value, commit after commit. */
 			int objStart = 0, safety = 0;
 			while ((objStart = arr.indexOf('{', objStart)) >= 0) {
 				if (++safety > MAX_SENSORS + 4) break;
-				int objEnd = arr.indexOf('}', objStart);
+				int objEnd = jsonMatchEnd(arr, objStart);
 				if (objEnd < 0) break;
 				String obj = arr.substring(objStart, objEnd + 1);
 				objStart = objEnd + 1;
@@ -408,7 +520,7 @@ void WebManager::handleApiCommitAll( ) {
 			objStart = 0; safety = 0;
 			while ((objStart = arr.indexOf('{', objStart)) >= 0) {
 				if (++safety > MAX_SENSORS + 4) break;
-				int objEnd = arr.indexOf('}', objStart);
+				int objEnd = jsonMatchEnd(arr, objStart);
 				if (objEnd < 0) break;
 				String obj = arr.substring(objStart, objEnd + 1);
 				objStart = objEnd + 1;
@@ -437,7 +549,9 @@ void WebManager::handleApiCommitAll( ) {
 				 * its row lands in the table. */
 				int limPos = valuePos(obj, "lim");
 				if (limPos >= 0) {
-					int limEnd = obj.indexOf('}', limPos);
+					/* valuePos lands on lim's '{'; match it by depth so a future
+					 * nested value inside lim cannot shear the slice. */
+					int limEnd = jsonMatchEnd(obj, limPos);
 					if (limEnd > limPos) {
 						String lim = obj.substring(limPos, limEnd + 1);
 						for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
@@ -531,7 +645,7 @@ void WebManager::handleApiCommitAll( ) {
 				String n = getStr("name"); n.trim( );
 				if (n.length( ) > 0 && isValidName(n.c_str( ))) {
 					safeCopy(cfg.deviceName, n.c_str( ), sizeof(cfg.deviceName));
-				}
+				} else rejectField("name");
 			}
 			/* Strict parsing of numeric fields.
 			 * String::toInt( ) would silently return 0 on invalid input
@@ -546,7 +660,7 @@ void WebManager::handleApiCommitAll( ) {
 				if (parseIntStrict(getNum("tz"), v) && v >= -12 && v <= 14) {
 					cfg.timezoneOffset = (int8_t)v;
 					NetworkManager::applyTimezone(cfg.timezoneOffset);
-				}
+				} else rejectField("tz");
 			}
 			if (has("log")) cfg.loggingEnabled = (getNum("log") != "0");
 			if (has("t_sec")) cfg.telEncryption = (getNum("t_sec") != "0");
@@ -557,28 +671,47 @@ void WebManager::handleApiCommitAll( ) {
 				if (tk.indexOf("***") < 0) safeCopy(cfg.telApiKey, tk.c_str( ), sizeof(cfg.telApiKey));
 			}
 			#if SIMUT_SENSOR_DS18B20
-			if (has("res")) { int v; if (parseIntStrict(getNum("res"), v) && v >= 9 && v <= 12) cfg.ds18Resolution = (uint8_t)v; }
+			if (has("res")) { int v; if (parseIntStrict(getNum("res"), v) && v >= 9 && v <= 12) cfg.ds18Resolution = (uint8_t)v; else rejectField("res"); }
 #endif
-			if (has("s_int")) { int v; if (parseIntStrict(getNum("s_int"), v) && v >= 100 && v <= 600000) cfg.sampleIntervalMs = (uint32_t)v; }
+			/* 1000-60000 and 10-300: the page's ranges are now the contract
+			 * (same unification as t_bat). The backend used to accept 100 ms
+			 * sampling and 600 s keep-alives the page never offered — and a
+			 * value like that, stored via API, jams the page's own form: the
+			 * HTML input marks it invalid and refuses to resubmit. */
+			if (has("s_int")) { int v; if (parseIntStrict(getNum("s_int"), v) && v >= 1000 && v <= 60000) cfg.sampleIntervalMs = (uint32_t)v; else rejectField("s_int"); }
 			if (has("t_srv")) safeCopy(cfg.telServer, getStr("t_srv").c_str( ), sizeof(cfg.telServer));
-			if (has("t_port")) { int v; if (parseIntStrict(getNum("t_port"), v) && isInRange(v, 1, 65535)) cfg.telPort = (uint16_t)v; }
+			if (has("t_port")) { int v; if (parseIntStrict(getNum("t_port"), v) && isInRange(v, 1, 65535)) cfg.telPort = (uint16_t)v; else rejectField("t_port"); }
 			if (has("t_path")) safeCopy(cfg.telPath, getStr("t_path").c_str( ), sizeof(cfg.telPath));
-			if (has("t_int")) { int v; if (parseIntStrict(getNum("t_int"), v) && v >= 0 && v <= 86400000) cfg.telInterval = (uint32_t)v; }
-			if (has("t_bat")) { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 200)) cfg.telBatchSize = (uint8_t)v; }
-			if (has("t_mode")) { int v; if (parseIntStrict(getNum("t_mode"), v) && isInRange(v, 0, 2)) cfg.telMode = (uint8_t)v; }
-			if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && isInRange(v, 0, 1)) cfg.telTransport = (uint8_t)v; }
+			if (has("t_int")) { int v; if (parseIntStrict(getNum("t_int"), v) && v >= 0 && v <= 86400000) cfg.telInterval = (uint32_t)v; else rejectField("t_int"); }
+			/* 1..50 everywhere now: the CLI always said 1-50, the runtime clamps at
+			 * HARD_CAP=50 (TelemetryManager), and the page's input agrees since the
+			 * same commit — this was the field with four different ceilings, where
+			 * a user typing 100 silently got 50 with no one saying so. */
+			if (has("t_bat")) { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 50)) cfg.telBatchSize = (uint8_t)v; else rejectField("t_bat"); }
+			if (has("t_mode")) { int v; if (parseIntStrict(getNum("t_mode"), v) && isInRange(v, 0, 2)) cfg.telMode = (uint8_t)v; else rejectField("t_mode"); }
+			if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && isInRange(v, 0, 1)) cfg.telTransport = (uint8_t)v; else rejectField("t_transport"); }
 			if (has("m_topic")) safeCopy(cfg.mqttTopic, getStr("m_topic").c_str( ), sizeof(cfg.mqttTopic));
 			if (has("m_cid")) safeCopy(cfg.mqttClientId, getStr("m_cid").c_str( ), sizeof(cfg.mqttClientId));
 			if (has("m_user")) safeCopy(cfg.mqttUser, getStr("m_user").c_str( ), sizeof(cfg.mqttUser));
-			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; }
+			/* The page has always had this field and the browser has always sent
+			 * it (every input with an id inside #sysForm stages into Pending.sys)
+			 * — nothing here read it, so the MQTT password went in the bin and
+			 * a broker that wants credentials could never be reached. Empty
+			 * means keep, which is what the field's placeholder promises and
+			 * what t_key already does with its "***" mask. */
+			if (has("m_pass")) {
+				String mp = getStr("m_pass");
+				if (mp.length( ) > 0) safeCopy(cfg.mqttPass, mp.c_str( ), sizeof(cfg.mqttPass));
+			}
+			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; else rejectField("m_qos"); }
 			if (has("m_retain")) cfg.mqttRetain = (getNum("m_retain") != "0");
-			if (has("m_ka")) { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 5, 600)) cfg.mqttKeepAlive = (uint16_t)v; }
+			if (has("m_ka")) { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 10, 300)) cfg.mqttKeepAlive = (uint16_t)v; else rejectField("m_ka"); }
 			if (has("t_glob")) safeCopy(cfg.telGlobalTemplate, getStr("t_glob").c_str( ), sizeof(cfg.telGlobalTemplate));
 			if (has("t_line")) safeCopy(cfg.telLineTemplate, getStr("t_line").c_str( ), sizeof(cfg.telLineTemplate));
 			if (has("t_sep")) safeCopy(cfg.telLineSeparator, getStr("t_sep").c_str( ), sizeof(cfg.telLineSeparator));
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
 			if (has("ntp_enabled")) _storageRef->setNtpEnabled(getNum("ntp_enabled") != "0");
-			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); }
+			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); else rejectField("h_int"); }
 			(void)getInt; /* lambda kept for future fields, suppress -Wunused */
 		}
 	}
@@ -632,7 +765,17 @@ void WebManager::handleApiCommitAll( ) {
 						if (kp < 0) return NAN;
 						int cp = obj.indexOf(':', kp + strlen(key));
 						if (cp < 0) return NAN;
-						return parseFloat(obj.substring(cp + 1).c_str( ));
+						/* Whitespace after the colon is legal JSON that the page's
+						 * JSON.stringify never emits — but any other client can.
+						 * parseFloat answers 0.0 for it, not NAN, so `"hmax": 80`
+						 * wrote a 0 bound and the inverted-band fixer below then
+						 * rewrote the pair to [min, min+0.1] — under a 200 OK.
+						 * getNum in the sys section and jsonExtractFloat both
+						 * already skip it; this reader was the one left behind. */
+						int vs = cp + 1;
+						while (vs < (int)obj.length( ) && (obj[vs] == ' ' || obj[vs] == '\t' ||
+						       obj[vs] == '\r' || obj[vs] == '\n')) vs++;
+						return parseFloat(obj.substring(vs).c_str( ));
 					};
 					float tmin = extractFloat("\"tmin\"");
 					float tmax = extractFloat("\"tmax\"");
@@ -669,7 +812,7 @@ void WebManager::handleApiCommitAll( ) {
 							}
 						}
 					}
-					rec->alarmsActive = (obj.indexOf("\"active\":true") >= 0);
+					rec->alarmsActive = jsonBoolValue(obj, "active", rec->alarmsActive);
 				}
 				objStart = objEnd + 1;
 			}
@@ -682,22 +825,32 @@ void WebManager::handleApiCommitAll( ) {
 			int sObjEnd = body.indexOf('}', sObjStart);
 			if (sObjStart >= 0 && sObjEnd > sObjStart) {
 				String sObj = body.substring(sObjStart, sObjEnd + 1);
-				SoundSettingsState snd;
-				snd.touchEnabled = (sObj.indexOf("\"touch\":true") >= 0);
-				snd.confirmEnabled = (sObj.indexOf("\"confirm\":true") >= 0);
-				snd.errorEnabled = (sObj.indexOf("\"error\":true") >= 0);
-				snd.alarmEnabled = (sObj.indexOf("\"alarm\":true") >= 0);
-				snd.webEnabled = (sObj.indexOf("\"web\":true") >= 0);
-				snd.attentionEnabled = (sObj.indexOf("\"attention\":true") >= 0);
-				snd.muted = (sObj.indexOf("\"mute\":true") >= 0);
+				/* Merge, not replace: start from what is configured and change
+				 * only the keys the payload mentions — the same "absent keeps"
+				 * the alarms section speaks. This block used to rebuild the
+				 * state from scratch, so a partial {"volume":55} silently
+				 * switched off every unmentioned toggle and reset the other
+				 * volume to 70. The page always sends the full object and
+				 * never noticed; an API client muting its own alarm sound as a
+				 * side effect is the failure a monitoring device exists to not
+				 * have. (Needles are quote-delimited, so "alarm" cannot latch
+				 * onto "alarmVolume" or "melAlarm".) */
+				SoundSettingsState snd = _soundRef ? _soundRef->getSettingsState( )
+				                                   : SoundSettingsState{};
+				auto sHas = [&](const char* k) { return sObj.indexOf(k) >= 0; };
+				snd.touchEnabled = jsonBoolValue(sObj, "touch", snd.touchEnabled);
+				snd.confirmEnabled = jsonBoolValue(sObj, "confirm", snd.confirmEnabled);
+				snd.errorEnabled = jsonBoolValue(sObj, "error", snd.errorEnabled);
+				snd.alarmEnabled = jsonBoolValue(sObj, "alarm", snd.alarmEnabled);
+				snd.webEnabled = jsonBoolValue(sObj, "web", snd.webEnabled);
+				snd.attentionEnabled = jsonBoolValue(sObj, "attention", snd.attentionEnabled);
+				snd.muted = jsonBoolValue(sObj, "mute", snd.muted);
 
 				int volPos = sObj.indexOf("\"volume\"");
 				if (volPos >= 0) { int vc = sObj.indexOf(':', volPos); snd.volume = (uint8_t)constrain(sObj.substring(vc + 1).toInt( ), 0, 100); }
-				else snd.volume = 70;
 
 				int aVolPos = sObj.indexOf("\"alarmVolume\"");
 				if (aVolPos >= 0) { int avc = sObj.indexOf(':', aVolPos); snd.alarmVolume = (uint8_t)constrain(sObj.substring(avc + 1).toInt( ), 0, 100); }
-				else snd.alarmVolume = 70;
 
 				auto extractMelIdx = [&](const char* key) -> uint8_t {
 					int kp = sObj.indexOf(key);
@@ -706,11 +859,11 @@ void WebManager::handleApiCommitAll( ) {
 					if (cp < 0) return 0;
 					return (uint8_t)constrain(sObj.substring(cp + 1).toInt( ), 0, 5);
 				};
-				snd.touchMelody = extractMelIdx("\"melTouch\"");
-				snd.confirmMelody = extractMelIdx("\"melConfirm\"");
-				snd.errorMelody = extractMelIdx("\"melError\"");
-				snd.alarmMelody = extractMelIdx("\"melAlarm\"");
-				snd.attentionMelody = extractMelIdx("\"melAttention\"");
+				if (sHas("\"melTouch\"")) snd.touchMelody = extractMelIdx("\"melTouch\"");
+				if (sHas("\"melConfirm\"")) snd.confirmMelody = extractMelIdx("\"melConfirm\"");
+				if (sHas("\"melError\"")) snd.errorMelody = extractMelIdx("\"melError\"");
+				if (sHas("\"melAlarm\"")) snd.alarmMelody = extractMelIdx("\"melAlarm\"");
+				if (sHas("\"melAttention\"")) snd.attentionMelody = extractMelIdx("\"melAttention\"");
 
 				if (_soundRef) {
 					_soundRef->applySettingsState(snd);
@@ -895,12 +1048,14 @@ void WebManager::handleApiCommitAll( ) {
     int arrStart = calJson.indexOf("\"sensors\"");
     if (arrStart >= 0) {
      arrStart = calJson.indexOf('[', arrStart);
-     int arrEnd = calJson.indexOf(']', arrStart);
+     /* Depth-aware on both axes: the staged entries carry "cal" point
+      * arrays whose ']' and '}' would otherwise end the slice early. */
+     int arrEnd = (arrStart >= 0) ? jsonMatchEnd(calJson, arrStart) : -1;
      if (arrStart >= 0 && arrEnd > arrStart) {
       String arr = calJson.substring(arrStart + 1, arrEnd);
       int objPos = 0; int safety = 0;
       while ((objPos = arr.indexOf('{', objPos)) >= 0 && ++safety < 20) {
-       int objEnd2 = arr.indexOf('}', objPos);
+       int objEnd2 = jsonMatchEnd(arr, objPos);
        if (objEnd2 < 0) break;
        String obj = arr.substring(objPos, objEnd2 + 1);
        objPos = objEnd2 + 1;
@@ -973,9 +1128,14 @@ void WebManager::handleApiCommitAll( ) {
 
 	/* Response to client before reboot. Includes newPort if web port
 	 * changed — client uses it to redirect to the new host:port. */
-	char resp[64];
-	if (commitNewPort != 0) {
+	char resp[224];
+	if (commitNewPort != 0 && rejectedList[0]) {
+		snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"newPort\":%u,\"rejected\":[%s]}",
+		         (unsigned)commitNewPort, rejectedList);
+	} else if (commitNewPort != 0) {
 		snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"newPort\":%u}", (unsigned)commitNewPort);
+	} else if (rejectedList[0]) {
+		snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"rejected\":[%s]}", rejectedList);
 	} else {
 		snprintf(resp, sizeof(resp), "{\"status\":\"ok\"}");
 	}

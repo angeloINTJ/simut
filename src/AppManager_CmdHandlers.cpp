@@ -365,7 +365,7 @@ void AppManager::cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, 
  if (gpio >= MAX_SENSORS) return;
 
  uint8_t foundRom[8];
- String dbId; float dbOffset = 0.0f; String dbName;
+ String dbId; CalibCurve dbCurve; String dbName;
 #if SIMUT_SENSOR_DS18B20
  if (!_sensorMgr->identifyPhysicalSensor(gpio, foundRom)) {
  _cmdMgr->printError((pt ? "Nenhum sensor no GPIO " : "No physical sensor detected on GPIO ") + String(gpio));
@@ -375,7 +375,7 @@ void AppManager::cmdHandleAcceptSensor(const CliDemand& cmd, SystemConfig& cfg, 
  _cmdMgr->printError((pt ? "Sensor invalido no GPIO " : "Invalid physical sensor on GPIO ") + String(gpio));
  return;
  }
- _storageMgr->getCalibrationData(foundRom, dbId, dbOffset, dbName);
+ _storageMgr->getCalibrationData(foundRom, dbId, dbCurve, dbName);
 #endif
 
  String currentId = String(cfg.sensors[gpio].hwId);

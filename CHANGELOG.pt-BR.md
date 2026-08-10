@@ -4,6 +4,117 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.0.2-alpha (2026-08-10)
+
+### Sobrevive a uma rede hostil: a costura de watchdog no caminho de envio
+
+Uma campanha rodou a matriz de falhas de telemetria, um martelo web concorrente
+e os sensores **ao mesmo tempo** — 26 janelas de falha em cerca de duas horas —
+porque todas as corridas anteriores exercitaram essas cargas uma de cada vez, e
+é na sobreposição que os defeitos moravam. Relatório e lista numerada de
+defeitos em `docs/netstorm-campaign-2026-08-10/`.
+
+**O laço de envio do `HTTPClient` nunca alimentava o watchdog, e era a maior
+parte dos reboots.** O orçamento de 5 s do `StreamConstPtr::sendAll` limita o
+laço, não uma escrita; cada `write()` estaciona pelos 4 s do timeout de socket,
+então uma escrita iniciada perto do fim do orçamento termina por volta de 9 s —
+além dos 8388 ms do watchdog de hardware. Fechado por um quarto override de
+framework, ligado ao `patch.sh` para não sumir num upgrade. Medido no grupo HTTP
+completo, mesmas condições antes e depois: **5 reboots → 1**, MTBF sob
+tempestade **~10 min → 58 min**, 557 downloads de histórico sem um JSON inválido.
+
+**Uma resposta não-chunked deixava a cauda para o framework estacionar.** O
+fechamento duro existente valia só para respostas chunked, então `/download` e
+`/api/backup` seguiam pelo caminho educado — e esse caminho espera por ACKs com
+um relógio que reinicia a cada um deles, sem alimentar. Reproduzia sem
+tempestade nenhuma: **um download por boot**. Drenar antes de o handler retornar
+resolveu — `/download` foi de 6/8 com 2 reboots para **24/24 sem nenhum**, e
+`/api/backup` (794 KB cada) de 2/3 com 1 reboot para **6/6 sem nenhum**.
+
+### Corrigido
+
+- **Um único envio abortado na cauda do histórico podia travar o display.** Três
+  `return` na cauda `extremes` pulavam o desenrolar do handler, deixando o latch
+  `_inHistoryHandler` preso — todo `/api/history_multi` seguinte respondendo
+  `503 Already processing` — e o overlay de "web ocupada" do display travado com
+  **o toque bloqueado**, ambos até o próximo reboot. A posse agora vive num
+  destrutor, que um `return` não consegue pular.
+- **`/api/sec_status` podia escrever fora do buffer.** O `pos += snprintf(...)`
+  acumulado passa do array assim que uma entrada trunca, e a aritmética do
+  espaço restante é sem sinal, então ela dá a volta em vez de ficar negativa. O
+  espaço agora é limitado antes de cada escrita, e uma entrada truncada é
+  desfeita para o JSON seguir parseável com menos slots.
+
+### Adicionado
+
+- `metr.cgd` / `metr.cgg` / `metr.cgx` em `/api/status`: as três razões para uma
+  resposta chunked ser cortada — prazo, latch do guard, desconexão real. O `show
+  metrics` já as imprimia, mas esse comando não existe fora da imagem de CLI
+  completa, então pela rede um download truncado e um cliente que foi embora
+  eram indistinguíveis.
+- `tools/telemetry_bench/storm_net.py`, o arranjo da tempestade combinada, mais
+  o `storm_report.py` e dois modos de falha no sink (`never_read`,
+  `tls_bigrecord`).
+
+### Curvas de calibração: até 5 pontos por grandeza
+
+A calibração cresce de um offset constante para uma **curva de correção de até
+5 pontos (bruto → referência) por grandeza**, editada no diálogo de slot do
+`/config`. A correção interpola linearmente entre os pontos e segura o offset
+das pontas além delas; um ponto é exatamente o offset constante de sempre, e
+zero pontos é o estado explícito "sem correção — padrão do sensor". Os pontos
+podem ser digitados de uma tabela de bancada ou captados da leitura ao vivo
+(bruto vazio capta no momento do salvar).
+
+Com 3+ pontos a interpolação é escolhível por grandeza: **Reta** (linear por
+partes) ou **Suave** — uma cúbica monótona (Fritsch–Carlson) sobre os offsets,
+que dobra pelas âncoras sem jamais ultrapassá-las e aplaina ao encontrar as
+zonas seguradas. Linhas suaves levam uma célula `cub` depois do nome no
+`calib.csv`; a API aceita `{"m":"cub","p":[[bruto,ref],…]}` além da forma de
+array simples (reta).
+
+As correções agora se aplicam à **média filtrada em vez de cada amostra
+bruta**: a rejeição de outliers passa a operar sempre sobre valores físicos e
+uma correção editada vale na hora, sem atravessar uma janela de 10 amostras.
+Para offsets constantes a aritmética é idêntica — os valores lidos não mudam.
+
+O `/calib.csv` põe tudo depois do nome, como células CSV planas:
+`key,id,name,bruto,ref[,bruto,ref,…]` — um número por coluna, direto na
+planilha, sem coluna dedicada de offset. As formas de linha se distinguem
+pela contagem de campos: arquivos legados de 4 colunas
+(`key,id,offset,name`) continuam lendo como o offset constante que sempre
+foram (e um offset sem âncora carregado adiante ainda é gravado nessa forma —
+não há pontos em que ele possa virar); `key,id,name` é linha de identidade.
+Firmware antigo lendo uma linha de pontos vê ausência de correção, nunca uma
+correção errada. Remover uma correção apaga a linha
+(linhas de DS18B20 ficam — são também o banco de identidade ROM→ID/nome).
+`POST /api/calib` aceita `"cal":{"<canal>":[[bruto,ref],…]}` com validação
+completa antes de qualquer gravação; o `GET /api/calib` ganha `raw`, `min`,
+`max` e `pts` por canal.
+
+**Mudança de comportamento:** os campos legados `refs`/`refTemp` (páginas em
+cache) agora definem uma correção absoluta de um ponto na leitura bruta atual,
+em vez de acumular `offset += ref − leitura`. Repetir a mesma referência virou
+operação idempotente — que é o que todo mundo sempre esperou.
+
+O editor de slot desenha um **mini-gráfico ao vivo por grandeza**: a linha
+tracejada é o padrão do sensor (correção zero), a curva é a correção staged
+com suas âncoras, simulada na interpolação escolhida enquanto você digita.
+O **pareamento do DS18B20 virou automático**: um sensor provisionado pelo
+editor tem o ROM lido e gravado no `calib.csv` no reinício que segue o
+Salvar e Reiniciar, migrando qualquer correção salva enquanto estava sem
+par; a verificação de ROM passa a proteger contra troca de sonda.
+
+### Corrigido
+
+- **A caixa "Alarmes ativos" do editor de slot nunca salvava.** Todos os
+  walkers do `commit_all` fatiavam elementos no primeiro `}`, então qualquer
+  chave staged depois do objeto aninhado `lim{}` — onde mora o `al` — era
+  truncada em silêncio e mantinha o valor gravado. Os walkers de JSON
+  artesanais agora casam chaves por profundidade (cientes de aspas), que é
+  também o que permite o payload de calibração carregar arrays de pontos
+  aninhados.
+
 ## v2.0.1-alpha (2026-08-01)
 
 O histórico passa para o V5: um formato de série temporal comprimido e

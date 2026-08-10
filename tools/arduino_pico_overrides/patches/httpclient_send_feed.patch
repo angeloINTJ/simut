@@ -1,0 +1,31 @@
+--- a/libraries/HTTPClient/src/HTTPClient.cpp
++++ b/libraries/HTTPClient/src/HTTPClient.cpp
+@@ -86,11 +86,28 @@
+         _size = string.length();
+     }
+     size_t sendAll(Client *dst) {
++        /* SIMUT override — feed the watchdog around every write.
++         *
++         * The 5 s budget below bounds the LOOP, not a single write. Against a
++         * peer that accepts the connection and then stops reading, each
++         * dst->write( ) parks for the socket timeout (4 s via
++         * HTTPClient::setTimeout), so a write entered just under the budget
++         * ends around 9 s — past the 8388 ms hardware watchdog — with nothing
++         * feeding it. Measured on the bench 2026-08-10 against a zero-window
++         * sink: three reboots in 150 s, autopsy `C0=[TEL_SEND] ctx=225`, and
++         * the server logged 9 connections with 0 completed requests.
++         *
++         * Feeding on both sides of the write caps the unfed gap at one write
++         * (<= 4 s). It is safe to feed here precisely because both bounds
++         * still terminate the loop: the 5 s budget and the socket timeout.
++         * Same reasoning as the read-deadline override further down. */
+         uint32_t start = millis();
+         size_t sent = 0;
+         while ((sent < _size) && (millis() - start < 5000)) {
++            watchdog_update();
+             size_t towrite = std::min((size_t)128, _size - sent);
+             auto wrote = dst->write(_payload, towrite);
++            watchdog_update();
+             if (wrote <= 0) {
+                 break;
+             }

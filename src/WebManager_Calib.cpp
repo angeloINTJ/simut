@@ -13,6 +13,7 @@
 
 #include "WebManager.h"
 #include "ParseFloat.h"
+#include "WebJsonSlice.h"
 #include "StorageManager.h"
 #include "SensorManager.h"
 #include "NetworkManager.h"
@@ -42,10 +43,19 @@ bool jsonExtractFloat(const String& obj, const char* key, float& out) {
 }
 
 bool jsonExtractCStr(const String& obj, const char* key, char* outBuf, size_t outSize) {
-	char needle[24]; snprintf(needle, sizeof(needle), "\"%s\":\"", key);
+	/* Needle stops at the colon — the last survivor of the space-in-JSON
+	 * family. With `"key":"` as the needle, a `"hwId": "X"` (every Python
+	 * json.dumps, any hand-written payload) silently read as absent: the
+	 * browser never emits the space, so the page worked and the API lied
+	 * only to everyone else. Found on the bench by a rename that returned
+	 * ok and renamed nothing. */
+	char needle[24]; snprintf(needle, sizeof(needle), "\"%s\":", key);
 	int p = obj.indexOf(needle);
 	if (p < 0) { outBuf[0] = '\0'; return false; }
 	int s = p + (int)strlen(needle);
+	while (s < (int)obj.length( ) && (obj[s] == ' ' || obj[s] == '\t')) s++;
+	if (s >= (int)obj.length( ) || obj[s] != '"') { outBuf[0] = '\0'; return false; }
+	s++;
 	int e = s;
 	while (e < (int)obj.length( ) && obj[e] != '"') {
 		if (obj[e] == '\\' && e + 1 < (int)obj.length( )) e++;
@@ -95,7 +105,7 @@ void WebManager::handleApiSensorsGet( ) {
 	SystemConfig& cfg = _storageRef->getConfig( );
 
 	_server.sendHeader("Cache-Control", "no-store");
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	char buf[320];
@@ -132,10 +142,13 @@ void WebManager::handleApiSensorsGet( ) {
 		}
 		/* "ch" is the channel MASK, so the page can tell a BMP280 (temperature
 		 * and pressure) from a DHT22 (temperature and humidity) — both report
-		 * two values, which is all "nv" ever said. */
-		snprintf(buf, sizeof(buf), "%s{\"t\":%d,\"n\":\"%s\",\"nv\":%u,\"ch\":%u,\"pins\":[%s]}",
+		 * two values, which is all "nv" ever said. "sn" marks parts with a
+		 * readable factory serial (DS18B20 ROM) — the page only offers the
+		 * adopt-the-probe flow where a serial exists to adopt. */
+		snprintf(buf, sizeof(buf), "%s{\"t\":%d,\"n\":\"%s\",\"nv\":%u,\"ch\":%u,\"sn\":%s,\"pins\":[%s]}",
 		         firstType ? "" : ",", t, sensorTypeName(t),
-		         f.channelCount( ), f.channelMask, labels);
+		         f.channelCount( ), f.channelMask,
+		         sensorHasSerialNumber(t) ? "true" : "false", labels);
 		if (!safeSend(buf)) return;
 		firstType = false;
 	}
@@ -203,7 +216,7 @@ void WebManager::handleApiCalibGet( ) {
 	const auto& runtime = _sensorRef->getRuntimeSensors( );
 
 	_server.sendHeader("Cache-Control", "no-store");
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	/* 480, not 400: the per-sensor object grew by hasPress/pressRead/
@@ -252,11 +265,11 @@ void WebManager::handleApiCalibGet( ) {
 		         first ? "" : ",", i, cfg.sensors[i].pins[0], romHex, sHwId, sName,
 		         hasH ? "true" : "false", hasP ? "true" : "false",
 		         isfinite(tRead) ? String(tRead, 2).c_str( ) : "null",
-		         rs ? rs->calibrationOffset[CH_TEMP] : 0.0f,
+		         rs ? calibCurveOffsetAt(rs->calib[CH_TEMP], rs->rawValue[CH_TEMP]) : 0.0f,
 		         hOk ? String(hRead, 2).c_str( ) : "null",
-		         rs ? rs->calibrationOffset[CH_HUM] : 0.0f,
+		         rs ? calibCurveOffsetAt(rs->calib[CH_HUM], rs->rawValue[CH_HUM]) : 0.0f,
 		         pOk ? String(pRead, 2).c_str( ) : "null",
-		         rs ? rs->calibrationOffset[CH_PRESS] : 0.0f);
+		         rs ? calibCurveOffsetAt(rs->calib[CH_PRESS], rs->rawValue[CH_PRESS]) : 0.0f);
 		if (!safeSend(buf)) return;
 
 		/* The generic form. Everything above is the closed set of fields the
@@ -270,17 +283,41 @@ void WebManager::handleApiCalibGet( ) {
 			if (!sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) continue;
 			const ChannelInfo& ci = channelInfo(c);
 			float v = rs ? rs->avgValue[c] : NAN;
+			float rv = rs ? rs->rawValue[c] : NAN;
 			/* isfinite, not !isnan: the BMP280 humidity compensation yields
 			 * +INF on a part with no humidity die, and isnan(inf) is false. */
 			bool ok = isfinite(v) && v < 1e9f;
+			bool rawOk = isfinite(rv) && rv < 1e9f;
+			/* raw feeds the editor's capture button; min/max echo the same
+			 * bounds the POST enforces, so the page can warn before the 400. */
 			snprintf(buf, sizeof(buf),
 			         "%s{\"ch\":%u,\"key\":\"%s\",\"unit\":\"%s\",\"dec\":%u,"
-			         "\"label\":\"%s\",\"read\":%s,\"offset\":%.2f}",
+			         "\"label\":\"%s\",\"read\":%s,\"raw\":%s,\"offset\":%.2f,"
+			         "\"min\":%.2f,\"max\":%.2f,\"mode\":\"%s\",\"pts\":[",
 			         firstCh ? "" : ",", (unsigned)c, ci.key, ci.display.unit,
 			         (unsigned)ci.display.decimals, ci.i18nKey,
 			         ok ? String(v, 2).c_str( ) : "null",
-			         rs ? rs->calibrationOffset[c] : 0.0f);
+			         rawOk ? String(rv, 2).c_str( ) : "null",
+			         rs ? calibCurveOffsetAt(rs->calib[c], rs->rawValue[c]) : 0.0f,
+			         ci.saneMin, ci.saneMax,
+			         (rs && rs->calib[c].mode == CALIB_MODE_SMOOTH) ? "cub" : "lin");
 			if (!safeSend(buf)) return;
+			/* Points streamed one pair at a time — a 5-point entry inlined in
+			 * the snprintf above would flirt with the buffer. An anchor-free
+			 * n=1 (legacy offset column) sends pts:[] with offset != 0, which
+			 * is the UI's "constant offset, origin unknown" state. */
+			if (rs) {
+				const CalibCurve& cv = rs->calib[c];
+				if (!(cv.n == 1 && !isfinite(cv.raw[0]))) {
+					for (uint8_t k = 0; k < cv.n; k++) {
+						char pbuf[48];
+						snprintf(pbuf, sizeof(pbuf), "%s[%.2f,%.2f]",
+						         k ? "," : "", cv.raw[k], cv.raw[k] + cv.off[k]);
+						if (!safeSend(pbuf)) return;
+					}
+				}
+			}
+			if (!safeSend("]}")) return;
 			firstCh = false;
 		}
 		if (!safeSend("]}")) return;
@@ -296,15 +333,116 @@ struct CalibChange {
 	char key[17];
 	char id[18];      /* id to WRITE:  't'/'u' + current hwId + NUL */
 	char matchId[18]; /* id to MATCH:  same, but with the hwId as it was on disk */
-	float offset;
+	CalibCurve curve; /* n=0 identity, n=1 constant offset, n>=2 piecewise */
+	bool drop;        /* identity on a ROM-less row: remove it instead of writing 0.00 */
 	char name[32];
 	bool written;
 };
 /* 18, not 14: a ROM-less slot can now emit three rows (t/u/p) instead of two,
- * so the old cap silently dropped changes one sensor earlier. Each entry is
- * ~92 B of stack in a web handler, which is why this tracks the realistic
- * number of slots edited at once rather than MAX_SENSORS * 3. */
+ * so the old cap silently dropped changes one sensor earlier. It tracks the
+ * realistic number of slots edited at once rather than MAX_SENSORS * 3. */
 const int MAX_CHANGES = 18;
+
+/* File-scope, not handler stack: with the curve inside, the array is ~2.4 KB,
+ * and Core-0 handler stacks are a place this project has already bled
+ * (250428e). The WebServer is single-threaded on Core 0, so one static
+ * instance can never be entered twice. */
+static CalibChange s_changes[MAX_CHANGES];
+
+/* hwId/name renames parsed in the validation pass, applied only after the
+ * whole payload validates — the walk used to write them into cfg as it went,
+ * so a 400 halfway through left RAM config half-renamed and unsaved. */
+struct PendIdent { int slot; char hwId[16]; char name[32]; };
+static PendIdent s_idents[MAX_SENSORS];
+
+/* One row of calib.csv. Everything a row has to say now sits AFTER the name,
+ * as flat CSV cells — raw,ref,raw,ref — one number per column. The reader
+ * identifies the shape by field count (calibRowParseTail), so three shapes
+ * coexist:
+ *   canonical  key,id,name,raw,ref[,...]   any anchored curve
+ *   legacy     key,id,offset,name          ONLY for a carried anchor-free
+ *                                          constant offset — a curve with no
+ *                                          anchor has no point cells to
+ *                                          write, and inventing an anchor
+ *                                          would show the user a measurement
+ *                                          that never happened
+ *   identity   key,id,name                 DS18B20 ROM->id/name DB row with
+ *                                          no correction
+ * The legacy shape disappears on its own: the first edit that sets real
+ * points replaces it with the canonical row. */
+static void emitCalibRow(File& f, const CalibChange& ch) {
+	char line[352];
+	if (calibRowFormat(line, sizeof(line), ch.key, ch.id, ch.name, ch.curve) > 0) {
+		f.printf("%s\n", line);
+	}
+}
+
+/* Parse one channel inside the cal{} object. Two accepted shapes:
+ *   "temp":[[raw,ref],...]                    linear (the original contract)
+ *   "temp":{"m":"cub","p":[[raw,ref],...]}    with an interpolation mode
+ * Returns 0 when the key is absent (channel untouched), 1 on success
+ * (count may be 0 — an explicit empty list means "clear the correction"),
+ * -1 on anything malformed, including an unknown mode. A null (or empty)
+ * raw marks "capture the current reading at save time"; the caller
+ * substitutes rawValue. */
+static int extractCalPairs(const String& calObj, const char* chKey,
+                           float* raws, float* refs, bool* rawIsNull,
+                           uint8_t& outCount, uint8_t& outMode) {
+	outCount = 0;
+	outMode = CALIB_MODE_LINEAR;
+	char needle[24]; snprintf(needle, sizeof(needle), "\"%s\":", chKey);
+	int p = calObj.indexOf(needle);
+	if (p < 0) return 0;
+	int s = p + (int)strlen(needle);
+	while (s < (int)calObj.length( ) && (calObj[s] == ' ' || calObj[s] == '\t')) s++;
+	if (s >= (int)calObj.length( )) return -1;
+
+	int arrStart = -1, arrEnd = -1;
+	if (calObj[s] == '{') {
+		int oe = jsonMatchEnd(calObj, s);
+		if (oe < 0) return -1;
+		char mbuf[8] = { 0 };
+		jsonExtractCStr(calObj.substring(s, oe + 1), "m", mbuf, sizeof(mbuf));
+		if (strcmp(mbuf, "cub") == 0) outMode = CALIB_MODE_SMOOTH;
+		else if (mbuf[0] != '\0' && strcmp(mbuf, "lin") != 0) return -1;
+		int pp = calObj.indexOf("\"p\"", s);
+		if (pp < 0 || pp > oe) return -1;
+		arrStart = calObj.indexOf('[', pp);
+		if (arrStart < 0 || arrStart > oe) return -1;
+		arrEnd = jsonMatchEnd(calObj, arrStart);
+		if (arrEnd < 0 || arrEnd > oe) return -1;
+	} else if (calObj[s] == '[') {
+		arrStart = s;
+		arrEnd = jsonMatchEnd(calObj, s);
+		if (arrEnd < 0) return -1;
+	} else {
+		return -1;
+	}
+
+	int pos = arrStart + 1;
+	while (true) {
+		int b = calObj.indexOf('[', pos);
+		if (b < 0 || b >= arrEnd) break;
+		int be = jsonMatchEnd(calObj, b);
+		if (be < 0 || be >= arrEnd) return -1;
+		if (outCount >= CALIB_MAX_POINTS) return -1; /* a sixth pair */
+		String pair = calObj.substring(b + 1, be);
+		int comma = pair.indexOf(',');
+		if (comma < 0) return -1;
+		String rawTok = pair.substring(0, comma); rawTok.trim( );
+		String refTok = pair.substring(comma + 1); refTok.trim( );
+		float rv = NAN, fv = NAN;
+		bool rNull = (rawTok.length( ) == 0 || rawTok == "null");
+		if (!rNull && !parseFloatStrict(rawTok, rv)) return -1;
+		if (!parseFloatStrict(refTok, fv)) return -1;
+		rawIsNull[outCount] = rNull;
+		raws[outCount] = rv;
+		refs[outCount] = fv;
+		outCount++;
+		pos = be + 1;
+	}
+	return 1;
+}
 
 /* id == nullptr matches on the key alone — that is the ROM scheme, where the
  * ROM is the identity and the id column merely carries the hwId.
@@ -328,20 +466,42 @@ int findChangeMatch(CalibChange* arr, int n, const char* key, const char* id) {
 
 /* ===== POST /api/calib =====
  * Body JSON: {"sensors":[{"slot":0,"hwId":"FRIDGE","name":"Geladeira",
- *                         "refTemp":4.0,"refHum":55.0}]}
+ *                         "cal":{"temp":[[20.10,20.00],[35.40,35.00]],
+ *                                "hum":[]}}]}
+ *
+ * "cal" carries up to CALIB_MAX_POINTS [raw,ref] pairs per channel key:
+ *   - channel absent from cal{}  -> its stored curve is carried through
+ *   - explicit []                -> correction removed (sensor default)
+ *   - raw null                   -> captured from the live raw reading at save
+ *   - {"m":"cub","p":[[...]]}    -> same pairs with an interpolation mode:
+ *                                   "cub" = monotone cubic, "lin"/absent =
+ *                                   piecewise linear (the plain-array form)
+ * Legacy refTemp/refHum/refPress and "refs":{...} (cached pages) still parse
+ * and now mean an ABSOLUTE one-point set at the current raw reading — the old
+ * `offset += ref - reading` accumulator is gone with the offsets themselves.
+ *
+ * Validation is a separate first pass: nothing touches cfg and nothing
+ * touches flash until the whole payload has parsed and range-checked, so a
+ * 400 always leaves the device exactly as it was.
+ *
  * Rewrites calib.csv via streaming 2-pass; VERSION=current epoch.
  * NTP required (503 if !synced).
  *
  * Two key schemes, both per sensor. Neither is device-wide:
- *   DS18B20 (has a ROM)   -> key = ROM hex,  id = hwId
+ *   DS18B20 (has a ROM)   -> key = ROM hex,  id = hwId   (row kept even with
+ *                            no correction — it doubles as the ROM->hwId/name
+ *                            identity database `sensor accept` reads)
  *   DHT22 / BMP280 (none) -> key = picoUID,  id = t<hwId> / u<hwId>
+ *                            (identity rows are dropped instead: the id
+ *                            column already carries the hwId)
  *
  * The second scheme used to hold exactly ONE pair of rows per board, found
  * by "first line whose id starts with t/u" and applied to "the first DHT22
  * in the runtime list". A board with two DHT22s could therefore only ever
  * calibrate one of them, and which one depended on slot order. Tagging the
- * rows with the sensor's own hwId gives each ROM-less sensor its own pair
+ * rows with the sensor's own hwId gives each ROM-less sensor its own rows
  * without changing the file format. */
+
 void WebManager::handleApiCalibPost( ) {
 	if (!(getAuthPerms( ) & PERM_CALIB)) {
 		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
@@ -365,27 +525,40 @@ void WebManager::handleApiCalibPost( ) {
 		_server.send(400, "application/json", "{\"error\":\"empty body\"}");
 		return;
 	}
+	/* The page sends only edited slots, so a legitimate body is well under a
+	 * kilobyte. Anything bigger is a bug or an attack; bounce it before the
+	 * substring copies below double it on the heap. */
+	if (body.length( ) > 8192) {
+		_server.send(413, "application/json", "{\"error\":\"payload too large\"}");
+		return;
+	}
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 	String picoUID = StorageManager::getBoardSerialNumber( );
 	const auto& runtime = _sensorRef->getRuntimeSensors( );
 
-	CalibChange changes[MAX_CHANGES];
-	for (int i = 0; i < MAX_CHANGES; i++) { changes[i].key[0] = '\0'; changes[i].written = false; }
+	CalibChange* const changes = s_changes;
+	for (int i = 0; i < MAX_CHANGES; i++) { changes[i].key[0] = '\0'; changes[i].written = false; changes[i].drop = false; }
 	int nChanges = 0;
+	int nIdents = 0;
+	char err[96];
+	err[0] = '\0';
 
-	/* === One entry per slot, whatever the sensor type === */
+	/* === Pass A: parse + validate. No cfg writes, no flash. ===
+	 * One entry per slot, whatever the sensor type. */
 	int sensStart = body.indexOf("\"sensors\"");
 	if (sensStart >= 0) {
 		int arrStart = body.indexOf('[', sensStart);
-		int arrEnd = body.indexOf(']', arrStart);
+		/* jsonMatchEnd on both cuts: the cal{} pair arrays put ']' and '}'
+		 * inside the elements, where indexOf found the "end" of everything. */
+		int arrEnd = (arrStart >= 0) ? jsonMatchEnd(body, arrStart) : -1;
 		if (arrStart >= 0 && arrEnd > arrStart) {
 			String arr = body.substring(arrStart, arrEnd + 1);
 			int objStart = 0;
 			int safety = 0; /* Cap iterations on adversarial payloads. */
 			while ((objStart = arr.indexOf('{', objStart)) >= 0) {
 				if (++safety > MAX_SENSORS + 4) break;
-				int objEnd = arr.indexOf('}', objStart);
+				int objEnd = jsonMatchEnd(arr, objStart);
 				if (objEnd < 0) break;
 				String obj = arr.substring(objStart, objEnd + 1);
 				float slotF = -1.0f; if (!jsonExtractFloat(obj, "slot", slotF)) jsonExtractFloat(obj, "gpio", slotF);
@@ -396,18 +569,22 @@ void WebManager::handleApiCalibPost( ) {
 				char newId[16] = {0}, newName[32] = {0};
 				jsonExtractCStr(obj, "hwId", newId, sizeof(newId));
 				jsonExtractCStr(obj, "name", newName, sizeof(newName));
+				if (nIdents < MAX_SENSORS) {
+					s_idents[nIdents].slot = slot;
+					safeCopy(s_idents[nIdents].hwId, newId, sizeof(s_idents[0].hwId));
+					safeCopy(s_idents[nIdents].name, newName, sizeof(s_idents[0].name));
+					nIdents++;
+				}
 
-				/* References, one per channel. Read from the generic
-				 * `"refs":{"press":1013.2}` form first, then from the legacy
-				 * refTemp/refHum/refPress keys so a page served from an older
-				 * cache keeps working. Legacy names are a closed set — the new
-				 * form needs no firmware edit for a new quantity. */
+				/* Legacy references, one per channel: the generic
+				 * `"refs":{"press":1013.2}` form first, then refTemp/refHum/
+				 * refPress, so a page served from an older cache keeps working. */
 				float ref[MAX_SENSOR_CHANNELS];
 				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) ref[c] = NAN;
 				int refsAt = obj.indexOf("\"refs\"");
 				if (refsAt >= 0) {
 					int braceAt = obj.indexOf('{', refsAt);
-					int braceEnd = (braceAt >= 0) ? obj.indexOf('}', braceAt) : -1;
+					int braceEnd = (braceAt >= 0) ? jsonMatchEnd(obj, braceAt) : -1;
 					if (braceAt >= 0 && braceEnd > braceAt) {
 						String refsObj = obj.substring(braceAt, braceEnd + 1);
 						for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
@@ -419,82 +596,169 @@ void WebManager::handleApiCalibPost( ) {
 				jsonExtractFloat(obj, "refHum",   ref[CH_HUM]);
 				jsonExtractFloat(obj, "refPress", ref[CH_PRESS]);
 
-				/* Kept before the overwrite: it is the id the rows on disk were
-				 * written under, and a rename has to find them by it. */
+				/* The cal{} object, if any. */
+				String calObj = "";
+				{
+					int calAt = obj.indexOf("\"cal\"");
+					if (calAt >= 0) {
+						int b = obj.indexOf('{', calAt);
+						int e = (b >= 0) ? jsonMatchEnd(obj, b) : -1;
+						if (b >= 0 && e > b) calObj = obj.substring(b, e + 1);
+					}
+				}
+
+				/* Kept from the stored config: it is the id the rows on disk
+				 * were written under, and a rename has to find them by it. */
 				char oldHwId[16];
 				safeCopy(oldHwId, cfg.sensors[slot].hwId, sizeof(oldHwId));
 
-				if (newId[0] != '\0') safeCopy(cfg.sensors[slot].hwId, newId, sizeof(cfg.sensors[slot].hwId));
-				if (newName[0] != '\0') safeCopy(cfg.sensors[slot].friendlyName, newName, sizeof(cfg.sensors[slot].friendlyName));
-
-				float cur[MAX_SENSOR_CHANNELS], newOff[MAX_SENSOR_CHANNELS];
-				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) { cur[c] = NAN; newOff[c] = 0.0f; }
+				const RuntimeSensor* rsp = nullptr;
 				for (const auto& s : runtime) {
-					if (s.config.pins[0] == cfg.sensors[slot].pins[0]) {
-						for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
-							cur[c]    = s.avgValue[c];
-							newOff[c] = s.calibrationOffset[c];
-						}
+					if (s.config.pins[0] == cfg.sensors[slot].pins[0]) { rsp = &s; break; }
+				}
+
+				/* Per channel: cal{} wins, legacy ref falls back to a one-point
+				 * ABSOLUTE set at the current raw reading, anything else carries
+				 * the stored curve through — a pure rename must not lose it. */
+				const SensorType sType = (SensorType)cfg.sensors[slot].sensorType;
+				CalibCurve newCurve[MAX_SENSOR_CHANNELS];
+				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+					if (!sensorHasChannel(sType, c)) continue;
+					const ChannelInfo& ci = channelInfo(c);
+					if (rsp) newCurve[c] = rsp->calib[c];
+
+					float praw[CALIB_MAX_POINTS], pref[CALIB_MAX_POINTS];
+					bool pnull[CALIB_MAX_POINTS];
+					uint8_t pcount = 0, pmode = CALIB_MODE_LINEAR;
+					int got = (calObj.length( ) > 0)
+					          ? extractCalPairs(calObj, ci.key, praw, pref, pnull, pcount, pmode) : 0;
+					if (got < 0) {
+						snprintf(err, sizeof(err), "slot %d %s: bad calibration points", slot, ci.key);
 						break;
 					}
+					if (got == 1) {
+						for (uint8_t k = 0; k < pcount; k++) {
+							if (pnull[k]) {
+								const float rv = rsp ? rsp->rawValue[c] : NAN;
+								if (!isfinite(rv) || rv >= 1e9f) {
+									snprintf(err, sizeof(err), "slot %d %s: no live reading to capture", slot, ci.key);
+									break;
+								}
+								praw[k] = rv;
+							}
+						}
+						if (err[0]) break;
+						for (uint8_t k = 0; k < pcount; k++) {
+							if (praw[k] < ci.saneMin || praw[k] > ci.saneMax ||
+							    pref[k] < ci.saneMin || pref[k] > ci.saneMax) {
+								snprintf(err, sizeof(err), "slot %d %s: point out of range", slot, ci.key);
+								break;
+							}
+						}
+						if (err[0]) break;
+						if (!calibCurveBuild(newCurve[c], praw, pref, pcount, pmode)) {
+							snprintf(err, sizeof(err), "slot %d %s: duplicate calibration points", slot, ci.key);
+							break;
+						}
+					} else if (!isnan(ref[c])) {
+						/* Legacy path. No reading -> no change, same as always:
+						 * there is nothing to anchor the point to. */
+						const float rv = rsp ? rsp->rawValue[c] : NAN;
+						if (isfinite(rv) && rv < 1e9f) {
+							float r1 = rv, v1 = ref[c];
+							if (!calibCurveBuild(newCurve[c], &r1, &v1, 1)) {
+								snprintf(err, sizeof(err), "slot %d %s: bad reference", slot, ci.key);
+								break;
+							}
+						}
+					}
 				}
-				/* offset += reference - reading. A channel with no reference keeps
-				 * the offset it had; one whose sensor is not reading keeps it too,
-				 * because there is nothing to measure the difference against. */
-				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
-					if (!isnan(ref[c]) && isfinite(cur[c])) newOff[c] += (ref[c] - cur[c]);
-				}
+				if (err[0]) break;
 
 				char nameSan[32];
-				safeCopy(nameSan, cfg.sensors[slot].friendlyName, sizeof(nameSan));
+				safeCopy(nameSan, (newName[0] != '\0') ? newName : cfg.sensors[slot].friendlyName,
+				         sizeof(nameSan));
 				sanitizeName(nameSan);
+				char effId[16];
+				safeCopy(effId, (newId[0] != '\0') ? newId : oldHwId, sizeof(effId));
 
 				if (!isAllZero(cfg.sensors[slot].rom)) {
 					/* 1-Wire: keyed by its own ROM. Temperature only — the part
-					 * has no second channel to calibrate. */
-					if (nChanges < MAX_CHANGES) {
-						char romHex[17]; romToHex(cfg.sensors[slot].rom, romHex);
-						safeCopy(changes[nChanges].key, romHex, sizeof(changes[0].key));
-						safeCopy(changes[nChanges].id, cfg.sensors[slot].hwId, sizeof(changes[0].id));
-						changes[nChanges].matchId[0] = '\0'; /* matched by ROM */
-						changes[nChanges].offset = newOff[CH_TEMP];
-						safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
-						changes[nChanges].written = false;
-						nChanges++;
+					 * has no second channel to calibrate. The row is written even
+					 * for an identity curve: it is also the ROM->hwId/name
+					 * identity database that `sensor accept` reads. */
+					if (nChanges >= MAX_CHANGES) {
+						snprintf(err, sizeof(err), "too many changes in one save");
+						break;
 					}
+					char romHex[17]; romToHex(cfg.sensors[slot].rom, romHex);
+					safeCopy(changes[nChanges].key, romHex, sizeof(changes[0].key));
+					safeCopy(changes[nChanges].id, effId, sizeof(changes[0].id));
+					changes[nChanges].matchId[0] = '\0'; /* matched by ROM */
+					changes[nChanges].curve = newCurve[CH_TEMP];
+					changes[nChanges].drop = false;
+					safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
+					changes[nChanges].written = false;
+					nChanges++;
 				} else {
-					/* No ROM: keyed by the board serial, one row per quantity,
-					 * each tagged with this slot's hwId so a second DHT22 on the
-					 * same board gets its own pair instead of overwriting the
-					 * first one's. */
-					/* One row per channel the sensor declares, letter from the
-					 * channel table. The quantities are not a prefix of a fixed
-					 * list — a BMP280 is t+p, with a hole where humidity would be —
-					 * so this iterates the mask rather than counting. A new
-					 * quantity needs no edit here. */
-					const SensorType sType = (SensorType)cfg.sensors[slot].sensorType;
+					/* No ROM: keyed by the board serial, one row per quantity the
+					 * sensor declares, each tagged with this slot's hwId so a
+					 * second DHT22 on the same board gets its own rows. Driven by
+					 * the channel mask — a BMP280 is t+p with a hole at humidity —
+					 * so a new quantity needs no edit here. An identity curve
+					 * drops the row instead of parking a 0.00 in the file. */
+					const SensorType sT = (SensorType)cfg.sensors[slot].sensorType;
 					for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
-						if (!sensorHasChannel(sType, c) || nChanges >= MAX_CHANGES) continue;
+						if (!sensorHasChannel(sT, c)) continue;
+						if (nChanges >= MAX_CHANGES) {
+							snprintf(err, sizeof(err), "too many changes in one save");
+							break;
+						}
 						const char letter = channelInfo(c).letter;
-						char pref[18], prefOld[18];
-						snprintf(pref, sizeof(pref), "%c%s", letter, cfg.sensors[slot].hwId);
+						char pref2[18], prefOld[18];
+						snprintf(pref2, sizeof(pref2), "%c%s", letter, effId);
 						snprintf(prefOld, sizeof(prefOld), "%c%s", letter, oldHwId);
 						safeCopy(changes[nChanges].key, picoUID.c_str( ), sizeof(changes[0].key));
-						safeCopy(changes[nChanges].id, pref, sizeof(changes[0].id));
+						safeCopy(changes[nChanges].id, pref2, sizeof(changes[0].id));
 						safeCopy(changes[nChanges].matchId, prefOld, sizeof(changes[0].matchId));
-						changes[nChanges].offset = newOff[c];
+						changes[nChanges].curve = newCurve[c];
+						changes[nChanges].drop = calibCurveIsIdentity(newCurve[c]);
 						safeCopy(changes[nChanges].name, nameSan, sizeof(changes[0].name));
 						changes[nChanges].written = false;
 						nChanges++;
 					}
+					if (err[0]) break;
 				}
 			}
 		}
 	}
 
+	if (err[0]) {
+		char resp[160];
+		snprintf(resp, sizeof(resp), "{\"error\":\"%s\"}", err);
+		_server.send(400, "application/json", resp);
+		return; /* cfg and calib.csv untouched */
+	}
+
+	/* === Pass B: the payload validated — now the renames may land. === */
+	for (int k = 0; k < nIdents; k++) {
+		SensorRecord& sr = cfg.sensors[s_idents[k].slot];
+		if (s_idents[k].hwId[0] != '\0') safeCopy(sr.hwId, s_idents[k].hwId, sizeof(sr.hwId));
+		if (s_idents[k].name[0] != '\0') safeCopy(sr.friendlyName, s_idents[k].name, sizeof(sr.friendlyName));
+	}
+
 	/* === Streaming 2-pass: read calib.csv, write calib.tmp === */
 	uint32_t version = (uint32_t)_netRef->getEpoch( );
 	if (nChanges > 0) {
+	/* The open, the row writes and the close each program flash, and this
+	 * block ran them with Core 1 alive and rendering — the one write path
+	 * left outside the e035791 discipline. Four exposed ops per save, and
+	 * whichever one collided with a Core-1 XIP fetch froze the QSPI
+	 * arbiter with the WDT unfed: the "first calibration POST after boot
+	 * reboots the device" repro. Same guard the upload path already uses;
+	 * processCalibrationUpload( ) and saveConfiguration( ) below carry
+	 * their own. */
+	RenderGuard rg(_displayRef);
 	/* The commit in processCalibrationUpload( ) only renames when the new
 	 * version beats the stored one, so the stamp has to move forward on every
 	 * save. getEpoch( ) does not guarantee that: with NTP down it falls back to
@@ -520,7 +784,7 @@ void WebManager::handleApiCalibPost( ) {
 
 	File fin = LittleFS.open("/calib.csv", "r");
 	if (fin) {
-		char lineBuf[256];
+		char lineBuf[320]; /* sized for a 5-point pts column, see StorageManager */
 		while (fin.available( )) {
 			feedWdt( );
 			size_t len = fin.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
@@ -568,8 +832,9 @@ void WebManager::handleApiCalibPost( ) {
 				 * rest rather than re-emitting them. A file written before the
 				 * fix collapses back to one row per sensor on its next save. */
 				if (changes[idx].written) continue;
-				fout.printf("%s,%s,%.2f,%s\n",
-				            changes[idx].key, changes[idx].id, changes[idx].offset, changes[idx].name);
+				/* A dropped row (correction removed on a ROM-less sensor) is
+				 * consumed without being copied — that IS the removal. */
+				if (!changes[idx].drop) emitCalibRow(fout, changes[idx]);
 				changes[idx].written = true;
 			} else {
 				*p1 = ',';
@@ -581,9 +846,8 @@ void WebManager::handleApiCalibPost( ) {
 	}
 
 	for (int i = 0; i < nChanges; i++) {
-		if (!changes[i].written && changes[i].key[0] != '\0') {
-			fout.printf("%s,%s,%.2f,%s\n",
-			            changes[i].key, changes[i].id, changes[i].offset, changes[i].name);
+		if (!changes[i].written && changes[i].key[0] != '\0' && !changes[i].drop) {
+			emitCalibRow(fout, changes[i]);
 		}
 	}
 	fout.close( );
@@ -597,7 +861,7 @@ void WebManager::handleApiCalibPost( ) {
 	 _displayRef->requestQuietMode( );
 	}
 	_storageRef->saveConfiguration( );
-	if (nChanges > 0) { app.loadAndCalibrateSensors( ); _displayRef->releaseQuietMode( ); }
+	if (nChanges > 0) { app.loadAndCalibrateSensors( );_displayRef->releaseQuietMode( );}
   else { /* Sync hwId/name to runtime sensors without full reload */
    auto& runtime = _sensorRef->getRuntimeSensors( );
    for (auto& rs : runtime) {
@@ -726,8 +990,8 @@ void WebManager::handleApiAction( ) {
 			_server.send(422, "application/json", "{\"error\":\"badrom\"}");
 			return;
 		}
-		String dbId, dbName; float dbOffset = 0.0f;
-		_storageRef->getCalibrationData(foundRom, dbId, dbOffset, dbName);
+		String dbId, dbName; CalibCurve dbCurve;
+		_storageRef->getCalibrationData(foundRom, dbId, dbCurve, dbName);
 
 		String currentId = String(cfg.sensors[slot].hwId);
 		cfg.sensors[slot].active = true;

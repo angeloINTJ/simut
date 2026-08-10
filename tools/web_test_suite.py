@@ -499,6 +499,167 @@ def t_logout(web, res):
         res.add('login', 'sessao invalidada apos logout', False, str(e)[:100])
 
 
+def t_calib_shape(web, res):
+    """GET /api/calib: every channel entry must carry the point-editor fields.
+
+    raw feeds the capture button, min/max echo the bounds the POST enforces,
+    pts is the stored curve (<=5 [raw,ref] pairs). A missing field here is the
+    page silently losing a feature, not a cosmetic problem."""
+    print('\n[5b] /api/calib — forma dos canais (raw/min/max/pts)')
+    try:
+        r = web.get('/api/calib')
+        if r.status_code != 200:
+            res.add('calib', 'GET /api/calib responde 200', False, f'HTTP {r.status_code}')
+            return
+        j = r.json()
+        sensors = j.get('sensors', [])
+        if not sensors:
+            res.add('calib', 'channels[] com raw/min/max/pts', True,
+                    'sem sensores ativos', skipped=True)
+            return
+        ok_all, detail, n_ch = True, '', 0
+        for s in sensors:
+            for ch in s.get('channels', []):
+                n_ch += 1
+                missing = [k for k in ('key', 'read', 'raw', 'offset', 'min', 'max', 'mode', 'pts')
+                           if k not in ch]
+                if missing:
+                    ok_all = False
+                    detail = f"slot {s.get('slot')} {ch.get('key')}: faltam {missing}"
+                    break
+                pts = ch['pts']
+                if (not isinstance(pts, list) or len(pts) > 5
+                        or any(not (isinstance(p, list) and len(p) == 2) for p in pts)):
+                    ok_all = False
+                    detail = f"slot {s.get('slot')} {ch.get('key')}: pts invalido: {pts!r}"
+                    break
+                if not (isinstance(ch['min'], (int, float)) and isinstance(ch['max'], (int, float))
+                        and ch['min'] < ch['max']):
+                    ok_all = False
+                    detail = f"slot {s.get('slot')} {ch.get('key')}: faixa {ch['min']}..{ch['max']}"
+                    break
+            if not ok_all:
+                break
+        res.add('calib', 'channels[] com raw/min/max/pts', ok_all,
+                detail or f'{n_ch} canais verificados')
+    except Exception as e:
+        res.add('calib', 'GET /api/calib forma', False, str(e)[:100])
+
+
+def t_calib_rw(web, res):
+    """Opt-in (--calib-rw): mutating round-trip on POST /api/calib.
+
+    Writes flash, bumps the calibration version and briefly applies a +0.5
+    correction to one live channel, then clears it. Only channels with NO
+    correction at all are eligible: a restore is not guaranteed to run (a
+    Save & Restart from another browser mid-run reboots the device and kills
+    the session — it happened), so the test must never touch a channel that
+    carries real user calibration."""
+    print('\n[5c] /api/calib — escrita opt-in (--calib-rw)')
+
+    def post(payload):
+        return web.post('/api/calib', json=payload)
+
+    try:
+        j = web.get('/api/calib').json()
+    except Exception as e:
+        res.add('calibrw', 'GET inicial', False, str(e)[:100])
+        return
+    if j.get('ntp') is False:
+        res.add('calibrw', 'round-trip de pontos', True,
+                'NTP fora do ar — POST responderia 503', skipped=True)
+        return
+
+    target = None
+    for s in j.get('sensors', []):
+        for ch in s.get('channels', []):
+            untouched = (not ch.get('pts')) and abs(ch.get('offset') or 0.0) < 0.005
+            if ch.get('raw') is not None and untouched and ch['raw'] + 1.0 < ch['max']:
+                target = (s, ch)
+                break
+        if target:
+            break
+    if not target:
+        res.add('calibrw', 'round-trip de pontos', True,
+                'nenhum canal sem correcao com leitura ao vivo', skipped=True)
+        return
+
+    s, ch = target
+    slot, key, raw, prev_pts = s['slot'], ch['key'], ch['raw'], ch['pts']
+    print(f"  alvo: slot {slot} {key} (raw {raw}, pts previos {prev_pts})")
+
+    # 1. Set a one-point +0.5 correction anchored at the current raw.
+    r = post({'sensors': [{'slot': slot, 'cal': {key: [[raw, round(raw + 0.5, 2)]]}}]})
+    okd = {}
+    try:
+        okd = r.json()
+    except Exception:
+        pass
+    res.add('calibrw', 'POST 1 ponto aceita', r.status_code == 200 and okd.get('ok') is True,
+            f"HTTP {r.status_code} {str(okd)[:60]}")
+    if r.status_code != 200:
+        return
+    v1 = okd.get('version', 0)
+
+    # 2. An immediate second POST must trip the 5 s rate limit.
+    r = post({'sensors': [{'slot': slot, 'cal': {key: [[raw, round(raw + 0.5, 2)]]}}]})
+    res.add('calibrw', 'POST imediato leva 429', r.status_code == 429, f'HTTP {r.status_code}')
+
+    time.sleep(6)
+
+    # 3. Round-trip: the stored pts and the applied correction come back.
+    try:
+        j = web.get('/api/calib').json()
+        ch2 = next(c for sn in j['sensors'] if sn['slot'] == slot
+                   for c in sn['channels'] if c['key'] == key)
+        pts_ok = (len(ch2['pts']) == 1 and abs(ch2['pts'][0][0] - raw) < 0.02
+                  and abs(ch2['pts'][0][1] - (raw + 0.5)) < 0.02)
+        res.add('calibrw', 'pts persistiu no GET', pts_ok, f"pts={ch2['pts']}")
+        applied = (ch2['read'] is not None and ch2['raw'] is not None
+                   and abs((ch2['read'] - ch2['raw']) - 0.5) < 0.02)
+        res.add('calibrw', 'correcao aplicada (read = raw + 0.5)', applied,
+                f"raw={ch2['raw']} read={ch2['read']} offset={ch2['offset']}")
+        res.add('calibrw', 'versao avancou', isinstance(v1, int) and v1 > 0
+                and j.get('calibVersion', 0) >= v1, f"v={j.get('calibVersion')}")
+    except Exception as e:
+        res.add('calibrw', 'round-trip no GET', False, str(e)[:100])
+
+    time.sleep(6)
+
+    # 4. Six points: one beyond the model, and the file must not change.
+    six = [[round(raw + k * 0.05, 2), round(raw + k * 0.05, 2)] for k in range(6)]
+    r = post({'sensors': [{'slot': slot, 'cal': {key: six}}]})
+    res.add('calibrw', 'POST 6 pontos leva 400', r.status_code == 400,
+            f'HTTP {r.status_code} {r.text[:60]}')
+
+    time.sleep(6)
+
+    # 5. Duplicate raws collapse at two decimals and must be refused.
+    r = post({'sensors': [{'slot': slot, 'cal': {key: [[raw, raw + 0.1], [raw, raw + 0.2]]}}]})
+    res.add('calibrw', 'POST bruto duplicado leva 400', r.status_code == 400,
+            f'HTTP {r.status_code} {r.text[:60]}')
+
+    time.sleep(6)
+
+    # 6. Restore what was there — an empty list IS the restore when the
+    #    channel had no correction before.
+    r = post({'sensors': [{'slot': slot, 'cal': {key: prev_pts}}]})
+    restored = r.status_code == 200
+    if restored:
+        time.sleep(6)
+        try:
+            j = web.get('/api/calib').json()
+            ch3 = next(c for sn in j['sensors'] if sn['slot'] == slot
+                       for c in sn['channels'] if c['key'] == key)
+            restored = (len(ch3['pts']) == len(prev_pts)
+                        and all(abs(a[0] - b[0]) < 0.02 and abs(a[1] - b[1]) < 0.02
+                                for a, b in zip(ch3['pts'], prev_pts)))
+        except Exception:
+            restored = False
+    res.add('calibrw', 'estado anterior restaurado', restored,
+            f'pts de volta a {prev_pts}')
+
+
 # --------------------------------------------------------------------------
 
 def main():
@@ -506,6 +667,9 @@ def main():
     ap.add_argument('--host', help='IP do dispositivo (default: perguntar pela serial)')
     ap.add_argument('--keep-user', action='store_true',
                     help='nao remover o usuario de teste ao final')
+    ap.add_argument('--calib-rw', action='store_true',
+                    help='roda o round-trip MUTANTE de /api/calib (escreve flash, '
+                         'aplica e desfaz uma correcao de +0.5 num canal ao vivo)')
     args = ap.parse_args()
 
     env_user = os.environ.get('SIMUT_WEB_USER')
@@ -549,6 +713,10 @@ def main():
         if t_login(web, res, user, password):
             t_pages_authenticated(web, res, is_admin)
             t_apis_authenticated(web, res, is_admin)
+            # The test user carries CALIB, so both run under-privileged too.
+            t_calib_shape(web, res)
+            if args.calib_rw:
+                t_calib_rw(web, res)
             t_binary_apis(web, res, is_admin)
             # Run this while the session is still under-privileged: it is the
             # only moment the refusals can be proven rather than assumed.

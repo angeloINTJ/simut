@@ -161,12 +161,19 @@ void WebManager::handleApiLs( ) {
  HeavyTaskGuard htg(_storageRef);
  if (!htg.isLocked( )) { _server.send(503, "application/json", "{\"error\":\"System Busy\"}"); return; }
 
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+ /* Listing a big directory belongs with the other long handlers: /history
+  * holds one file per day, and every entry costs a flash read plus a chunked
+  * write, which contends with telemetry for the same flash lock. At the
+  * default 6 s budget an archive of ~90 days was being cut off mid-scan. */
+ const uint32_t savedDeadline = _handlerDeadline;
+ _handlerDeadline = millis( ) + WEB_LONG_HANDLER_DEADLINE_MS;
+
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  _server.send(200, "application/json", "");
 
  char buf[256];
  snprintf(buf, sizeof(buf), "{\"path\":\"%s\",\"entries\":[", dirPath.c_str( ));
- if (!safeSend(buf)) return;
+ if (!safeSend(buf)) { _handlerDeadline = savedDeadline; return; }
 
  bool first = true;
 
@@ -183,8 +190,15 @@ void WebManager::handleApiLs( ) {
  dir = LittleFS.openDir(dirPath);
  }
 
+ /* Set when the enumeration is cut short, and reported in the body. A caller
+  * that cannot tell a partial listing from a complete one will treat missing
+  * files as deleted: two listings of the same /history minutes apart came
+  * back with 84 entries each and DIFFERENT contents, and both looked like
+  * well-formed, finished JSON. */
+ bool truncated = false;
+
  while (!dirDone) {
- if (isHandlerOvertime( )) break;
+ if (isHandlerOvertime( )) { truncated = true; break; }
 
  struct DirEntry { String name; size_t size; bool isDir; };
  DirEntry batch[20];
@@ -192,7 +206,15 @@ void WebManager::handleApiLs( ) {
 
  {
  ReadGuard rg(_storageRef);
- while (dir.next( ) && batchCount < 20) {
+ /* Count first, THEN advance. Written the other way round —
+  * `dir.next( ) && batchCount < 20` — the iterator moves before the count is
+  * tested, so the entry that would have filled the batch is consumed and
+  * never recorded: every full batch of 20 silently lost one file. Measured:
+  * 88 files on flash, 84 in the listing, and because LittleFS iteration
+  * order varies, two listings minutes apart dropped DIFFERENT files
+  * (20260523 vs 20260524 — both present, both intact, neither ever shown
+  * together). Nothing in the response said anything was missing. */
+ while (batchCount < 20 && dir.next( )) {
  /* feedWdt( ) under the read lock — feedWatchdog( ) would run the light yield,
   * which reaches enterFlashReadLock( ) on this same core and self-deadlocks on
   * a non-recursive mutex. See the note in handleApiHistoryDays. */
@@ -218,7 +240,7 @@ void WebManager::handleApiLs( ) {
  jsonEscapeFilename(dName, dEscaped, sizeof(dEscaped));
  snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"d\",\"s\":0}",
  first ? "" : ",", dEscaped);
- if (!safeSend(buf)) return;
+ if (!safeSend(buf)) { _handlerDeadline = savedDeadline; return; }
  first = false;
  continue;
  }
@@ -241,14 +263,15 @@ void WebManager::handleApiLs( ) {
  snprintf(buf, sizeof(buf), "%s{\"n\":\"%s\",\"t\":\"f\",\"s\":%u%s}",
  first ? "" : ",", escaped, (unsigned)batch[i].size,
  prot ? ",\"p\":1" : "");
- if (!safeSend(buf)) return;
+ if (!safeSend(buf)) { _handlerDeadline = savedDeadline; return; }
  first = false;
  }
 
  feedWatchdog( );
  }
 
- safeSend("]}");
+ safeSend(truncated ? "],\"truncated\":true}" : "]}");
+ _handlerDeadline = savedDeadline;
 }
 
 void WebManager::handleApiMkdir( ) {

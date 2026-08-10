@@ -13,6 +13,10 @@
 #include "Themes.h"
 #include "TouchPriority.h"
 #include "DisplayManager.h" /* For getActiveWebDictSource */
+#include "FlashIrqProbe.h"  /* For g_flashIrqExposed (metr.fx) */
+#include <hardware/watchdog.h>
+/* Position trace (hp=) — see WebManager_History.cpp. */
+#define HPOS(v) do { watchdog_hw->scratch[7] = (uint32_t)(v); } while (0)
 #include <LittleFS.h>
 #include <time.h>
 
@@ -100,7 +104,7 @@ void WebManager::handleApiConfig( ) {
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	char buf[256];
@@ -212,7 +216,7 @@ void WebManager::handleApiThemes( ) {
 	}
 
 	_server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	safeSend("[");
@@ -250,7 +254,7 @@ void WebManager::handleApiAlarms( ) {
 	SystemConfig& cfg = _storageRef->getConfig( );
 
 
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 
@@ -499,7 +503,7 @@ void WebManager::handleApiStatus( ) {
 	              ? static_cast<int>(_telemetryRef->getPendingEstimate( ))
 	              : -1;
 
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
 	_server.send(200, "application/json", "");
 
 	char buffer[1024];
@@ -510,9 +514,13 @@ void WebManager::handleApiStatus( ) {
 	/* Refreshes heap samples before serving metrics (cost: ~16 malloc/free).
 	 * Frequency limited by the dashboard polling interval (3s). */
 	MetricsManager& mm = MetricsManager::instance( );
+	HPOS(810);
 	mm.sampleHeap( );
 	mm.sampleLargestBlock( );
-	mm.observeRssi(_netRef->getRssi( ));
+	HPOS(811);
+	const int liveRssi = _netRef->getRssi( ); /* one live ioctl, bracketed */
+	HPOS(812);
+	mm.observeRssi(liveRssi);
 	const SystemMetrics& mt = mm.data( );
 
 	uint32_t heapLargest = mt.heapLargestBlock;
@@ -523,7 +531,7 @@ void WebManager::handleApiStatus( ) {
 	 * is ever sent", and pending==0 means both. */
 	int telOn = (cfg.telInterval > 0) ? 1 : 0;
 	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u},",
-	         devName.c_str( ), millis( ), (int)_netRef->getRssi( ), ipStr.c_str( ), cfg.themeIndex,
+	         devName.c_str( ), millis( ), liveRssi, ipStr.c_str( ), cfg.themeIndex,
 	         (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
 	         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
 	         (unsigned long)now, ntp ? 1 : 0, pending, telOn,
@@ -546,10 +554,24 @@ void WebManager::handleApiStatus( ) {
 	/* fo/fom/fot/f50 are the flash-write counters. They were tracked since
 	 * T0.1 but reachable only from a CLI the shipping image does not carry,
 	 * which made "how often does this device stop Core 1 to write?" — the
-	 * question the V5 format exists to answer — unanswerable from outside. */
+	 * question the V5 format exists to answer — unanswerable from outside.
+	 *
+	 * fx is the invariant among them: flash ops that ran with Core 1
+	 * possibly executing and not frozen. Any value but 0 names a write
+	 * path missing its Core1FlashPause — the class behind e035791 and the
+	 * calibration reboots of 4611987 — and the release image needs it
+	 * readable for exactly the same reason as the four above.
+	 *
+	 * cgd/cgg/cgx are the three reasons a chunked response was cut short
+	 * (WebManager.h:34-36): deadline, guard latch, real disconnect. `show
+	 * metrics` prints them, but that command does not exist outside the
+	 * full-CLI image, so from the network they were indistinguishable —
+	 * a truncated download and a client that walked away read the same.
+	 * They are what makes an abort diagnosable while a storm is running. */
 	snprintf(buffer, sizeof(buffer),
 	         "\"metr\":{\"lb\":%lu,\"lbm\":%lu,\"hm\":%lu,\"wf\":%lu,\"mq\":%lu,\"rmn\":%ld,\"rmx\":%ld,\"ts\":%lu,\"tf\":%lu,\"tr\":%lu,\"tb\":%lu,\"tl\":%lu,\"so\":%lu,\"se\":%lu,\"cs\":%lu,"
-	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu},",
+	         "\"fo\":%lu,\"fom\":%lu,\"fot\":%lu,\"f50\":%lu,\"fx\":%lu,\"ad\":%lu,"
+	         "\"cgd\":%lu,\"cgg\":%lu,\"cgx\":%lu},",
 	         (unsigned long)mt.heapLargestBlock, (unsigned long)lbmin, (unsigned long)hmin,
 	         (unsigned long)mt.wifiReconnects, (unsigned long)mt.mqttReconnects,
 	         (long)rmn, (long)rmx,
@@ -558,7 +580,10 @@ void WebManager::handleApiStatus( ) {
 	         (unsigned long)mt.sensorReadsOk, (unsigned long)mt.sensorReadsErr,
 	         (unsigned long)mt.configSaves,
 	         (unsigned long)mt.flashOps, (unsigned long)mt.flashOpMaxMs,
-	         (unsigned long)mt.flashOpTotalMs, (unsigned long)mt.flashOpsOver50ms);
+	         (unsigned long)mt.flashOpTotalMs, (unsigned long)mt.flashOpsOver50ms,
+	         (unsigned long)g_flashIrqExposed, (unsigned long)_abortDrops,
+	         (unsigned long)_cgDeadlineHits, (unsigned long)_cgGuardHits,
+	         (unsigned long)_cgDisconnHits);
 
 	if (!safeSend(buffer)) return;
 	if (!safeSend("\"sensors\":[")) return;

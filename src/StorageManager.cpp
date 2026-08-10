@@ -151,11 +151,47 @@ StorageManager::StorageManager( ) {
  * The RP2040 flash is accessed via QSPI (not SPI0/SPI1), so there
  * is no bus conflict between flash reads and display SPI traffic.
  */
+/* Owner breadcrumbs for the read lock. Written by the acquirer, read by a
+ * starving acquirer's log line — the difference between "the device rebooted
+ * again" and the name of the frame that never let go. */
+static volatile uint8_t  g_fsLockOwnerMod = 0xFF;
+static volatile uint32_t g_fsLockSinceMs  = 0;
+
 void StorageManager::enterFlashReadLock( ) {
+ /* Bounded, FED acquisition. mutex_enter_blocking parked here with the
+  * watchdog starving whenever a holder never released — measured on the
+  * bench as hp=301: the V5 block-load's guard against a lock nobody
+  * alive was holding, HW WDT 8.4 s later. A fed spin turns that reboot
+  * into a diagnosable stall; at 5 s the log names the owner; at 10 s
+  * the owner is declared a corpse and the mutex is re-initialized — the
+  * same judgement requestQuietMode already applies to _stateMutex at
+  * kill time, applied here at starvation time. A same-core recursive
+  * acquisition (the light-yield reaching back in — see the note in
+  * handleApiHistoryDays) lands in the corpse path too: ugly, logged,
+  * and alive beats silent and rebooting. */
+ uint32_t t0 = millis( );
+ bool logged = false;
+ while (!mutex_enter_timeout_ms(&_fsReadMutex, 100)) {
+ watchdog_update( );
+ if (!logged && timeSince(t0, 5000)) {
+ logged = true;
+ LOG_CODE(LOG_WARN, "STO", STO_WRITE_FAILED, (int)g_fsLockOwnerMod,
+          "fsReadMutex starving; ctx=owner module");
+ }
+ if (timeSince(t0, 10000)) {
+ LOG_CODE(LOG_ERROR, "STO", STO_WRITE_FAILED, (int)g_fsLockOwnerMod,
+          "fsReadMutex owner presumed dead — reinit");
+ mutex_init(&_fsReadMutex);
  mutex_enter_blocking(&_fsReadMutex);
+ break;
+ }
+ }
+ g_fsLockOwnerMod = LogManager::instance( ).getModule(0);
+ g_fsLockSinceMs  = millis( );
 }
 
 void StorageManager::exitFlashReadLock( ) {
+ g_fsLockOwnerMod = 0xFF;
  mutex_exit(&_fsReadMutex);
 }
 
@@ -1372,7 +1408,23 @@ long StorageManager::getCalibrationVersion(String path) {
  return ver;
 }
 
-bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float& outOffset, String& outName) {
+/* Shared tail of a calib.csv row — everything after the id column. The row
+ * shape is identified by field count inside calibRowParseTail (CalibCurve.h,
+ * host-tested): name-only, legacy `offset,name`, canonical `name,raw,ref...`
+ * or the transitional `offset,name,raw,ref...`. A false return means point
+ * cells were present but malformed and a fallback was taken. */
+static void parseCalibRowTail(const String& line, int p2,
+                              CalibCurve& outCurve, String& outName) {
+ char nameBuf[40];
+ const bool clean = calibRowParseTail(line.c_str( ) + p2 + 1, outCurve, nameBuf, sizeof(nameBuf));
+ outName = nameBuf;
+ outName.replace("\"", "");
+ if (!clean) {
+ LOG_CODE(LOG_WARN, "CFG", SEC_CONFIG_CHANGED, 0, "bad point cells in calib.csv — fallback");
+ }
+}
+
+bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, CalibCurve& outCurve, String& outName) {
  char romStr[17]; snprintf(romStr, sizeof(romStr), "%02X%02X%02X%02X%02X%02X%02X%02X", rom[0], rom[1], rom[2], rom[3], rom[4], rom[5], rom[6], rom[7]);
  if (!LittleFS.exists("/calib.csv")) return false;
 
@@ -1380,7 +1432,10 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
  enterFlashReadLock( );
  File f = LittleFS.open("/calib.csv", "r"); bool found = false;
  if (f) {
- char lineBuf[256];
+ /* 320, not 256: a 5-point pts column on a pressure row is ~155 chars on
+  * top of key+id+offset+name. A row longer than the buffer is read in two
+  * halves and neither matches a key — skipped, not misparsed. */
+ char lineBuf[320];
  while (f.available( )) {
  feedWdt( );
  size_t len = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
@@ -1388,11 +1443,10 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
  lineBuf[len] = '\0'; if (len > 0 && lineBuf[len - 1] == '\r') lineBuf[len - 1] = '\0';
  String line = String(lineBuf); line.trim( );
  if (line.length( ) >= 16 && line.substring(0, 16).equalsIgnoreCase(romStr)) {
- int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1); int p3 = line.indexOf(',', p2 + 1);
+ int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1);
  if (p1 > 0 && p2 > p1) {
  outId = line.substring(p1 + 1, p2);
- if (p3 > p2) { outOffset = parseFloat(line.substring(p2 + 1, p3).c_str( )); outName = line.substring(p3 + 1); outName.replace("\"", ""); }
- else { outOffset = parseFloat(line.substring(p2 + 1).c_str( )); outName = ""; }
+ parseCalibRowTail(line, p2, outCurve, outName);
  found = true; break;
  }
  }
@@ -1409,7 +1463,7 @@ bool StorageManager::getCalibrationData(const uint8_t* rom, String& outId, float
  * `p` for pressure — so `<picoUID>,tAMB,-0.4,Sala` is the temperature row of
  * the sensor whose hwId is AMB. The whole ID is compared, which is what keeps
  * two ROM-less sensors on one board apart. */
-bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, float& outOffset, String& outName) {
+bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, CalibCurve& outCurve, String& outName) {
  /* Any letter the channel table claims. This was a literal whitelist of 't'
   * and 'u', so the writer could emit a `p<hwId>` row and this reader refused
   * it before even opening the file — the offset persisted correctly and was
@@ -1425,7 +1479,7 @@ bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, float& 
  enterFlashReadLock( );
  File f = LittleFS.open("/calib.csv", "r"); bool found = false;
  if (f) {
- char lineBuf[256];
+ char lineBuf[320]; /* sized for a 5-point pts column, see getCalibrationData */
  while (f.available( )) {
  feedWdt( );
  size_t len = f.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
@@ -1434,23 +1488,85 @@ bool StorageManager::getCalibrationByHwId(char prefix, const char* hwId, float& 
  String line = String(lineBuf); line.trim( );
  if (line.length( ) < 16) continue;
  if (!line.substring(0, 16).equalsIgnoreCase(picoUID)) continue;
- int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1); int p3 = line.indexOf(',', p2 + 1);
+ int p1 = line.indexOf(','); int p2 = line.indexOf(',', p1 + 1);
  if (p1 <= 0 || p2 <= p1) continue;
  String idCol = line.substring(p1 + 1, p2); idCol.trim( );
  if (!idCol.equalsIgnoreCase(wanted)) continue;
- if (p3 > p2) {
- outOffset = parseFloat(line.substring(p2 + 1, p3).c_str( ));
- outName = line.substring(p3 + 1); outName.replace("\"", "");
- } else {
- outOffset = parseFloat(line.substring(p2 + 1).c_str( ));
- outName = "";
- }
+ parseCalibRowTail(line, p2, outCurve, outName);
  found = true; break;
  }
  f.close( );
  }
  exitFlashReadLock( );
  return found;
+}
+
+bool StorageManager::bindDs18Identity(const uint8_t* rom, const char* hwId, const char* name, const CalibCurve& curve) {
+ if (!rom || !hwId || hwId[0] == '\0') return false;
+ char romHex[17];
+ snprintf(romHex, sizeof(romHex), "%02X%02X%02X%02X%02X%02X%02X%02X",
+          rom[0], rom[1], rom[2], rom[3], rom[4], rom[5], rom[6], rom[7]);
+ /* The board-serial row this sensor used while unpaired. Letter from the
+  * channel table — a DS18B20 is temperature-only. */
+ char oldId[20];
+ snprintf(oldId, sizeof(oldId), "%c%s", channelInfo(CH_TEMP).letter, hwId);
+ String picoUID = getBoardSerialNumber( );
+
+ /* Version: the epoch when the clock is trustworthy, else one past the
+  * stored version — this can run at boot, before NTP, and the commit gate
+  * only accepts strictly newer. */
+ long storedVer = getCalibrationVersion("/calib.csv");
+ uint32_t newVer = (uint32_t)((storedVer > 0 ? storedVer : 0) + 1);
+
+ char nameSan[32];
+ safeCopy(nameSan, (name && name[0]) ? name : hwId, sizeof(nameSan));
+ for (char* p = nameSan; *p; p++) { if (*p == ',' || *p == '"') *p = ' '; }
+
+ enterFlashSafeMode( );
+ File fout = LittleFS.open("/calib.tmp", "w");
+ if (!fout) { exitFlashSafeMode( ); return false; }
+ fout.printf("VERSION,%lu\n", (unsigned long)newVer);
+
+ File fin = LittleFS.open("/calib.csv", "r");
+ if (fin) {
+ char lineBuf[320];
+ while (fin.available( )) {
+ feedWdt( );
+ size_t len = fin.readBytesUntil('\n', lineBuf, sizeof(lineBuf) - 1);
+ if (len == 0) continue;
+ lineBuf[len] = '\0';
+ if (len > 0 && lineBuf[len - 1] == '\r') lineBuf[len - 1] = '\0';
+ if (lineBuf[0] == '\0') continue;
+ if (strncmp(lineBuf, "VERSION,", 8) == 0) continue;
+
+ char* p1 = strchr(lineBuf, ',');
+ if (!p1) continue;
+ *p1 = '\0';
+ char* keyStr = lineBuf;
+ char* idStr = p1 + 1;
+ char* p2 = strchr(idStr, ',');
+ if (p2) *p2 = '\0';
+
+ const bool isRomRow = (strcasecmp(keyStr, romHex) == 0);
+ const bool isOldRow = (strcasecmp(keyStr, picoUID.c_str( )) == 0
+                        && strcasecmp(idStr, oldId) == 0);
+ if (isRomRow || isOldRow) continue; /* replaced / migrated below */
+
+ *p1 = ',';
+ if (p2) *p2 = ',';
+ fout.printf("%s\n", lineBuf);
+ }
+ fin.close( );
+ }
+
+ char line[352];
+ if (calibRowFormat(line, sizeof(line), romHex, hwId, nameSan, curve) > 0) {
+ fout.printf("%s\n", line);
+ }
+ fout.close( );
+ exitFlashSafeMode( );
+
+ return processCalibrationUpload( );
 }
 
 /**

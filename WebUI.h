@@ -2357,6 +2357,17 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .sxb:hover { background: #52525b; }
         .sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
         .sxb-dang:hover { background: var(--dang); color: #fff; }
+        .sxb-on { background: var(--acc); color: #000; }
+        .sxb-on:hover { background: var(--acc); }
+        /* Mini grafico de correcao por canal: a linha tracejada e o padrao do
+           sensor (delta zero), a curva e a correcao com suas ancoras. Cores em
+           classes, nunca em atributos fill/stroke — var() nao resolve la. */
+        .spk { display: block; width: 100%; height: 74px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; margin: 6px 0 2px; }
+        .spk .l0 { stroke: #71717a; stroke-width: 1; stroke-dasharray: 4 4; }
+        .spk .lc { stroke: var(--acc); stroke-width: 2; fill: none; }
+        .spk .pa { fill: var(--acc); stroke: #18181b; stroke-width: 1.5; }
+        .spk .hz { fill: rgba(255,255,255,0.05); }
+        .spk .tk { stroke: #eab308; stroke-width: 1.2; }
         /* Grade em vez de flex-wrap: com flex cada pilula tinha a largura do seu
            texto (GP1 vs GP12 2) e as linhas saiam desencontradas. Colunas iguais
            alinham tudo — 4 colunas a 360px, mais no desktop. */
@@ -2371,6 +2382,11 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         label.sxsec { margin-top: 18px; }
         .sx-slot { font-weight: 700; font-size: 1.05rem; color: var(--acc); }
         .sx-warn { display: none; margin-top: 12px; padding: 10px 14px; background: rgba(239,68,68,0.12); border-left: 3px solid var(--dang); border-radius: 3px; font-size: 0.85rem; }
+        /* One calibration point: raw + reference inputs, capture and remove.
+           A grid, not flex — equal columns keep the rows of a 5-point table
+           aligned regardless of how wide each typed number is. */
+        .sxpt { display: grid; grid-template-columns: 1fr 1fr auto auto; gap: 6px; margin-bottom: 6px; align-items: center; }
+        .sxpt .sxb { padding: 6px 10px; }
         /* Slot dialog. Mirrors .exp-overlay from the history page, plus a
            scroll cap: the editor is taller than the export progress box it is
            modelled on. It stays inside .card on purpose — position:fixed takes
@@ -2605,7 +2621,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
                         <div class="col">
                             <label data-i18n="cfg_bat">Batch Limit</label>
-                            <input type="number" id="t_bat" name="t_bat" min="1" max="100">
+                            <input type="number" id="t_bat" name="t_bat" min="1" max="50">
                         </div>
                     </div>
                     <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (Upload Interval = 0). Set a value to enable.</div>
@@ -3115,6 +3131,13 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
          * the hardware about which pin of a BMP280 is SCL.
          * Edits stage into Pending.slots and reach flash on Save and Restart. */
         let SENS = null, CAL = null, sensOpenSlot = -1;
+        /* Point-editor working state. calEdit holds the rows as the user
+           typed them (strings, possibly incomplete), keyed slot:chkey, so a
+           structural redraw does not lose a half-filled row. calDirty marks
+           channels to stage — an untouched channel is never sent, which is
+           what the server-side "absent means unchanged" rides on. calMode
+           holds the interpolation choice per channel: lin or cub. */
+        let calEdit = {}, calDirty = {}, calMode = {};
         const SE = id => document.getElementById(id);
         function sensStaged() { return Pending.getSection('slots').s || []; }
         function calStaged() { return (Pending.getSection('calib').sensors) || []; }
@@ -3275,50 +3298,85 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                NAO mexer no se_al, que fica na secao acima — ele e lido sem guarda
                de nulo em sensStage e sumir dele quebraria o salvamento. */
 
-            /* Calibration. This used to be the Calibration Mode toggle on the
-               dashboard; it belongs with the sensor it calibrates. The offset
-               is not a SensorRecord field -- it lives in calib.csv, keyed by
-               the 1-Wire ROM for a DS18B20 and by board serial + hwId for a
-               sensor that has no ROM.
-               Every slot gets a reference input now. The ROM-less ones used to
-               show the reading and a note saying calibration was unavailable,
-               which was true while the firmware held one device-wide offset
-               pair for "the ambient sensor" -- there was nowhere to put a
-               second DHT22. Each sensor has its own rows today. */
+            /* Calibration. Up to 5 (raw, reference) points per quantity — the
+               firmware interpolates the correction between them and holds it
+               flat beyond the ends; one point is the old constant offset. The
+               data is not a SensorRecord field: it lives in calib.csv, keyed
+               by the 1-Wire ROM for a DS18B20 and by board serial + hwId for
+               a sensor that has no ROM.
+               Driven by c.channels, which the firmware builds from the
+               channel table — one block per quantity this sensor reports, so
+               a new quantity appears here with no page change at all. Rows
+               render from calEdit (the typed strings), never from the staged
+               numbers: a redraw mid-edit must not eat a half-filled row. */
             const c = calOf(i);
             if (c) {
-                const st = calStaged().find(x => x.slot === i);
-                /* Driven by c.channels, which the firmware builds from the
-                   channel table — one entry per quantity this sensor reports.
-                   Every block below used to be written once per quantity, with
-                   a hasX flag and an xRead/xOffset/refX triple each, so adding
-                   pressure meant editing all three. Iterating means a new
-                   quantity appears here with no page change at all. */
+                const stc = calStaged().find(x => x.slot === i);
                 const chans = c.channels || [];
                 h += '<label class="sxsec">' + window.t('sens_calib', 'Calibration') + '</label>' +
-                     '<div class="sxn">' + window.t('sens_reading', 'Reading now') + ': ' +
-                     chans.map(ch =>
-                        '<strong>' + (ch.read === null ? '--' : ch.read + ' ' + ch.unit) +
-                        '</strong> (offset ' + ch.offset + ')'
-                     ).join(' &nbsp;|&nbsp; ') + '</div>';
-                /* Two columns per row, so a sensor with an odd channel count
-                   ends on a half-empty row instead of a broken grid. */
-                for (let k = 0; k < chans.length; k += 2) {
-                    h += '<div class="row">';
-                    for (let j = k; j < k + 2; j++) {
-                        if (j >= chans.length) { h += '<div class="col"></div>'; continue; }
-                        const ch = chans[j];
-                        const staged = (st && st.refs && st.refs[ch.key] !== undefined) ? st.refs[ch.key] : '';
-                        const step = ch.dec >= 2 ? '0.01' : (ch.dec === 1 ? '0.1' : '1');
-                        h += '<div class="col"><div class="sxh">' +
-                             window.t('sens_ref_of', 'Reference value read on a trusted instrument') +
-                             ' — ' + window.t(ch.label, ch.key) + '</div>' +
-                             '<input id="se_ref_' + ch.key + '" oninput="sensStage(0)" type="number" step="' + step +
-                             '" placeholder="' + ch.unit + '" value="' + staged + '"></div>';
+                     '<div class="sxn">' + window.t('cal_pts_hint',
+                        'Up to 5 points per quantity, each pairing the raw reading with the value a trusted instrument showed. One point applies a constant offset; more points bend the correction between them, held flat beyond the ends. Leave raw empty to capture the reading at save time.') + '</div>';
+                chans.forEach(ch => {
+                    const ek = i + ':' + ch.key;
+                    const stv = (stc && stc.cal) ? stc.cal[ch.key] : undefined;
+                    if (calEdit[ek] === undefined) {
+                        /* A staged channel may be the plain array (linear) or
+                           the object form with an interpolation mode. */
+                        const src = (stv !== undefined)
+                            ? (Array.isArray(stv) ? stv : (stv.p || []))
+                            : (ch.pts || []);
+                        calEdit[ek] = src.map(p => ({ r: p[0] === null ? '' : String(p[0]), v: String(p[1]) }));
+                        /* Staged rows that survived a page reload are still
+                           edits — without this they would stop being sent. */
+                        if (stv !== undefined) calDirty[ek] = 1;
+                    }
+                    if (calMode[ek] === undefined) {
+                        calMode[ek] = (stv !== undefined && !Array.isArray(stv) && stv.m === 'cub') ? 'cub'
+                                    : (ch.mode === 'cub' ? 'cub' : 'lin');
+                    }
+                    const rows = calEdit[ek];
+                    const step = ch.dec >= 2 ? '0.01' : (ch.dec === 1 ? '0.1' : '1');
+                    const legacy = !calDirty[ek] && rows.length === 0 && (ch.pts || []).length === 0 && Math.abs(ch.offset) >= 0.005;
+                    h += '<div class="sxh" style="margin-top:10px"><strong>' + window.t(ch.label, ch.key) + '</strong> &mdash; ' +
+                         window.t('cal_raw', 'Raw') + ': <strong>' + (ch.raw === null ? '--' : ch.raw + ' ' + ch.unit) + '</strong>' +
+                         ' &rarr; ' + window.t('cal_corr', 'corrected') + ': <strong>' + (ch.read === null ? '--' : ch.read + ' ' + ch.unit) + '</strong></div>' +
+                         '<svg class="spk" id="se_spk_' + ch.key + '" viewBox="0 0 560 74" preserveAspectRatio="none" aria-hidden="true"></svg>';
+                    if (!rows.length) {
+                        h += '<div class="sxn">' + (legacy
+                             ? window.t('cal_legacy', 'Constant offset') + ': ' + ch.offset + ' ' + ch.unit
+                             : window.t('cal_none', 'No correction — sensor default.')) + '</div>';
+                    }
+                    rows.forEach((r, idx) => {
+                        h += '<div class="sxpt">' +
+                             '<input id="se_pr_' + ch.key + '_' + idx + '" type="number" step="' + step + '" placeholder="' +
+                             window.t('cal_raw', 'Raw') + '" value="' + r.r + '" oninput="calPtIn(&quot;' + ch.key + '&quot;,' + idx + ',this)">' +
+                             '<input id="se_pv_' + ch.key + '_' + idx + '" type="number" step="' + step + '" placeholder="' +
+                             window.t('cal_ref', 'Reference') + '" value="' + r.v + '" oninput="calPtIn(&quot;' + ch.key + '&quot;,' + idx + ',this)">' +
+                             '<button type="button" class="sxb" title="' + window.t('cal_cap', 'Use the current raw reading') + '"' +
+                             (ch.raw === null ? ' disabled' : '') + ' onclick="calPtCap(&quot;' + ch.key + '&quot;,' + idx + ')">&#8635;</button>' +
+                             '<button type="button" class="sxb sxb-dang" title="' + window.t('cal_del', 'Remove this point') + '"' +
+                             ' onclick="calPtDel(&quot;' + ch.key + '&quot;,' + idx + ')">&times;</button></div>';
+                    });
+                    h += '<div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;align-items:center">';
+                    if (rows.length < 5) h += '<button type="button" class="sxb" onclick="calPtAdd(&quot;' + ch.key + '&quot;)">+ ' + window.t('cal_add', 'Add point') + '</button>';
+                    if (rows.length || legacy) h += '<button type="button" class="sxb sxb-dang" onclick="calPtClear(&quot;' + ch.key + '&quot;)">' + window.t('cal_clear', 'Remove correction') + '</button>';
+                    /* Interpolation choice — always visible, one per quantity
+                       of every sensor type. Below 3 points the cubic IS the
+                       straight line, so the choice is stored but changes
+                       nothing yet; the hint says so. */
+                    {
+                        const mc = calMode[ek] === 'cub';
+                        h += '<span class="sxh" style="margin:0 0 0 6px">' + window.t('cal_mode_lbl', 'Interpolation') + ':</span>' +
+                             '<button type="button" class="sxb' + (mc ? '' : ' sxb-on') + '" onclick="calModeSet(&quot;' + ch.key + '&quot;,&quot;lin&quot;)">' + window.t('cal_mode_lin', 'Straight') + '</button>' +
+                             '<button type="button" class="sxb' + (mc ? ' sxb-on' : '') + '" onclick="calModeSet(&quot;' + ch.key + '&quot;,&quot;cub&quot;)">' + window.t('cal_mode_cub', 'Smooth') + '</button>';
                     }
                     h += '</div>';
-                }
-                h += '<div class="sxn">' + window.t('sens_ref_hint', 'The device stores the difference as the offset. Needs NTP synced.') +
+                    if (calMode[ek] === 'cub' && rows.length < 3) {
+                        h += '<div class="sxn">' + window.t('cal_mode_hint', 'Smooth is a monotone cubic: it bends through the anchors without ever overshooting them. Needs 3+ points; with fewer it behaves as straight.') + '</div>';
+                    }
+                });
+                h += '<div id="se_calwarn" class="sx-warn"></div>' +
+                     '<div class="sxn">' + window.t('cal_save_hint', 'Corrections are written on Save and Restart. Needs NTP synced.') +
                      (CAL && CAL.ntp === false ? ' <span style="color:var(--dang)">' + window.t('sens_ntp_no', 'NTP not synced.') + '</span>' : '') + '</div>';
             }
 
@@ -3339,13 +3397,19 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             /* Hardware operations. These act on the device NOW — unlike every
                other control on this page they are not staged for Save and
                Restart, because adopting a probe or moving an epoch has to
-               happen against the hardware as it is at this instant. */
-            h += '<label class="sxsec">' + window.t('sens_hw', 'Hardware') + '</label>' +
-                 '<div class="sxn">' + window.t('sens_accept_hint',
-                    'Re-reads the probe wired to this slot and binds the slot to it. Use it after swapping a DS18B20, when the device reports a hardware mismatch.') + '</div>' +
-                 '<button type="button" class="sxb" id="se_adopt" onclick="sensAdopt()" style="margin-top:10px">' +
-                 window.t('sens_accept', 'Adopt the probe wired here') + '</button>' +
-                 '<div class="sxn" style="margin-top:14px">' + window.t('sens_wipe_hint',
+               happen against the hardware as it is at this instant.
+               Adopt only exists where a factory serial exists to adopt
+               (ty.sn — DS18B20 ROM): a serial-less part cannot error when
+               moved to the wrong place, so offering the button there only
+               invited the LIB_SENS rename accident. */
+            h += '<label class="sxsec">' + window.t('sens_hw', 'Hardware') + '</label>';
+            if (ty && ty.sn) {
+                h += '<div class="sxn">' + window.t('sens_accept_hint',
+                        'Re-reads the probe wired to this slot and binds the slot to it. Use it after swapping a DS18B20, when the device reports a hardware mismatch.') + '</div>' +
+                     '<button type="button" class="sxb" id="se_adopt" onclick="sensAdopt()" style="margin-top:10px">' +
+                     window.t('sens_accept', 'Adopt the probe wired here') + '</button>';
+            }
+            h += '<div class="sxn" style="margin-top:14px">' + window.t('sens_wipe_hint',
                     'Marks everything recorded before now as belonging to the previous sensor. The records stay on disk; the graphs stop attributing them to this slot.') + '</div>' +
                  '<button type="button" class="sxb sxb-dang" id="se_wipe" onclick="sensWipe()" style="margin-top:10px">' +
                  window.t('sens_wipe', 'Reset history epoch') + '</button>';
@@ -3358,6 +3422,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  '<div class="sxn" style="margin-top:10px">' + window.t('sens_stage_hint', 'Edits are staged as you type and written on Save and Restart.') + '</div>';
             SE('sens_ed').innerHTML = h;
             sensWarn();
+            calSparkAll();
         }
 
         /* Rebuilds the history file of the day against the SAVED slots.
@@ -3533,6 +3598,178 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
         function sensPut(e) { sensSet(sensStaged().filter(x => x.i !== e.i).concat([e])); }
 
+        /* ── Calibration point editor ──
+           The DOM inputs are transcribed into calEdit on every keystroke and
+           the structural actions (add, remove, clear) mutate calEdit and ask
+           for a redraw — the same split the rest of the editor uses. */
+        function calPtIn(key, idx, el) {
+            const ek = sensOpenSlot + ':' + key;
+            if (!calEdit[ek] || !calEdit[ek][idx]) return;
+            calEdit[ek][idx][el.id.indexOf('se_pr_') === 0 ? 'r' : 'v'] = el.value;
+            calDirty[ek] = 1;
+            sensStage(0);
+        }
+        function calPtCap(key, idx) {
+            const c = calOf(sensOpenSlot);
+            const ch = c ? (c.channels || []).find(x => x.key === key) : null;
+            if (!ch || ch.raw === null) return;
+            const ek = sensOpenSlot + ':' + key;
+            if (!calEdit[ek] || !calEdit[ek][idx]) return;
+            calEdit[ek][idx].r = String(ch.raw);
+            const el = SE('se_pr_' + key + '_' + idx);
+            if (el) el.value = ch.raw;
+            calDirty[ek] = 1;
+            sensStage(0);
+        }
+        function calPtAdd(key) {
+            const ek = sensOpenSlot + ':' + key;
+            calEdit[ek] = calEdit[ek] || [];
+            if (calEdit[ek].length >= 5) return;
+            calEdit[ek].push({ r: '', v: '' });
+            calDirty[ek] = 1;
+            sensStage(1);
+        }
+        function calPtDel(key, idx) {
+            const ek = sensOpenSlot + ':' + key;
+            if (!calEdit[ek]) return;
+            calEdit[ek].splice(idx, 1);
+            calDirty[ek] = 1;
+            sensStage(1);
+        }
+        function calPtClear(key) {
+            const ek = sensOpenSlot + ':' + key;
+            calEdit[ek] = [];
+            calDirty[ek] = 1;
+            sensStage(1);
+        }
+        function calModeSet(key, m) {
+            const ek = sensOpenSlot + ':' + key;
+            calMode[ek] = m;
+            calDirty[ek] = 1;
+            sensStage(1);
+        }
+        /* ── Mini grafico da correcao ──
+           Um por canal, dentro do editor: a reta do padrao (delta zero) e a
+           curva de correcao com as ancoras, simulada no modo escolhido (reta
+           ou suave — mesmo Fritsch-Carlson do firmware). Redesenha apenas o
+           svg proprio, nunca os inputs — regra do caret. */
+        function calSparkPts(ek) {
+            const out = [];
+            (calEdit[ek] || []).forEach(r => {
+                if (r.v === '' || isNaN(parseFloat(r.v))) return;
+                if (r.r === '' || isNaN(parseFloat(r.r))) return;
+                out.push({ r: parseFloat(r.r), d: parseFloat(r.v) - parseFloat(r.r) });
+            });
+            out.sort((a, b) => a.r - b.r);
+            return out;
+        }
+        function calSparkSlopes(pp) {
+            const n = pp.length, m = new Array(n).fill(0);
+            if (n < 3) return m;
+            const h = [], d = [];
+            for (let i = 0; i < n - 1; i++) { h.push(pp[i + 1].r - pp[i].r); d.push((pp[i + 1].d - pp[i].d) / h[i]); }
+            for (let i = 1; i < n - 1; i++) {
+                if (d[i - 1] === 0 || d[i] === 0 || ((d[i - 1] > 0) !== (d[i] > 0))) m[i] = 0;
+                else m[i] = 3 * (h[i - 1] + h[i]) / ((2 * h[i] + h[i - 1]) / d[i - 1] + (h[i] + 2 * h[i - 1]) / d[i]);
+            }
+            return m;
+        }
+        function calSparkDelta(pp, m, smooth, x) {
+            const n = pp.length;
+            if (!n) return 0;
+            if (n === 1 || x <= pp[0].r) return pp[0].d;
+            if (x >= pp[n - 1].r) return pp[n - 1].d;
+            for (let i = 1; i < n; i++) {
+                if (x <= pp[i].r) {
+                    const h = pp[i].r - pp[i - 1].r, t = (x - pp[i - 1].r) / h;
+                    if (smooth && n >= 3) {
+                        const t2 = t * t, t3 = t2 * t;
+                        return pp[i - 1].d * (2 * t3 - 3 * t2 + 1) + h * m[i - 1] * (t3 - 2 * t2 + t) +
+                               pp[i].d * (-2 * t3 + 3 * t2) + h * m[i] * (t3 - t2);
+                    }
+                    return pp[i - 1].d + t * (pp[i].d - pp[i - 1].d);
+                }
+            }
+            return pp[n - 1].d;
+        }
+        function calSpark(ch) {
+            const host = SE('se_spk_' + ch.key);
+            if (!host) return;
+            const ek = sensOpenSlot + ':' + ch.key;
+            const pp = calSparkPts(ek);
+            const smooth = calMode[ek] === 'cub';
+            const legacyOff = (!pp.length && !calDirty[ek]) ? (ch.offset || 0) : 0;
+            const W = 560, H = 74, L = 8, R = 8, T = 10, B = 12;
+            let lo, hi;
+            if (pp.length >= 2) {
+                const sp = Math.max(pp[pp.length - 1].r - pp[0].r, 1);
+                lo = pp[0].r - sp * 0.18; hi = pp[pp.length - 1].r + sp * 0.18;
+            } else if (pp.length === 1) { lo = pp[0].r - 5; hi = pp[0].r + 5; }
+            else if (ch.raw !== null) { lo = ch.raw - 5; hi = ch.raw + 5; }
+            else { lo = ch.min; hi = ch.max; }
+            let ym = 0.5;
+            pp.forEach(p => { ym = Math.max(ym, Math.abs(p.d) * 1.3); });
+            ym = Math.max(ym, Math.abs(legacyOff) * 1.3);
+            const X = x => L + (x - lo) / (hi - lo) * (W - L - R);
+            const Y = d => T + (ym - d) / (2 * ym) * (H - T - B);
+            const m = calSparkSlopes(pp);
+            let s = '';
+            if (pp.length >= 2) {
+                s += '<rect class="hz" x="' + L + '" y="' + T + '" width="' + (X(pp[0].r) - L).toFixed(1) + '" height="' + (H - T - B) + '"/>';
+                s += '<rect class="hz" x="' + X(pp[pp.length - 1].r).toFixed(1) + '" y="' + T + '" width="' + (W - R - X(pp[pp.length - 1].r)).toFixed(1) + '" height="' + (H - T - B) + '"/>';
+            }
+            s += '<line class="l0" x1="' + L + '" y1="' + Y(0).toFixed(1) + '" x2="' + (W - R) + '" y2="' + Y(0).toFixed(1) + '"/>';
+            if (pp.length || legacyOff) {
+                let dp = '';
+                const steps = 52;
+                for (let k = 0; k <= steps; k++) {
+                    const x = lo + (hi - lo) * k / steps;
+                    const d = pp.length ? calSparkDelta(pp, m, smooth, x) : legacyOff;
+                    dp += (k ? 'L' : 'M') + X(x).toFixed(1) + ' ' + Y(d).toFixed(1);
+                }
+                s += '<path class="lc" d="' + dp + '"/>';
+            }
+            if (ch.raw !== null && ch.raw >= lo && ch.raw <= hi) {
+                s += '<line class="tk" x1="' + X(ch.raw).toFixed(1) + '" y1="' + T + '" x2="' + X(ch.raw).toFixed(1) + '" y2="' + (H - B) + '"/>';
+            }
+            pp.forEach(p => { s += '<circle class="pa" cx="' + X(p.r).toFixed(1) + '" cy="' + Y(p.d).toFixed(1) + '" r="3.5"/>'; });
+            host.innerHTML = s;
+        }
+        function calSparkAll() {
+            const c = (typeof calOf === 'function') ? calOf(sensOpenSlot) : null;
+            if (c) (c.channels || []).forEach(calSpark);
+        }
+        /* Mirror of the rules POST /api/calib enforces, surfaced while typing
+           instead of as a 400 after Save. First problem wins, like sensWarn. */
+        function calWarnMsg() {
+            const i = sensOpenSlot, c = calOf(i);
+            if (!c) return '';
+            const chans = c.channels || [];
+            for (let k = 0; k < chans.length; k++) {
+                const ch = chans[k], ek = i + ':' + ch.key;
+                if (!calDirty[ek]) continue;
+                const rows = (calEdit[ek] || []).filter(r => r.r !== '' || r.v !== '');
+                const lbl = window.t(ch.label, ch.key);
+                if (rows.length > 5) return lbl + ': ' + window.t('cal_err_max', 'at most 5 points.');
+                const seen = [];
+                for (let j = 0; j < rows.length; j++) {
+                    const r = rows[j];
+                    if (r.v === '' || isNaN(parseFloat(r.v)) || (r.r !== '' && isNaN(parseFloat(r.r))))
+                        return lbl + ': ' + window.t('cal_err_num', 'every point needs numeric raw and reference values.');
+                    if (r.r === '' && ch.raw === null)
+                        return lbl + ': ' + window.t('cal_err_noread', 'no live reading to capture — fill the raw value.');
+                    const rv = r.r === '' ? ch.raw : parseFloat(r.r), fv = parseFloat(r.v);
+                    if (rv < ch.min || rv > ch.max || fv < ch.min || fv > ch.max)
+                        return lbl + ': ' + window.t('cal_err_rng', 'point outside the plausible range') + ' (' + ch.min + '..' + ch.max + ').';
+                    const rk = Math.round(rv * 100);
+                    if (seen.indexOf(rk) >= 0)
+                        return lbl + ': ' + window.t('cal_err_dup', 'two points share the same raw value.');
+                    seen.push(rk);
+                }
+            }
+            return '';
+        }
+
         /* Reads the open editor and writes it straight into Pending.
          *
          * Every other section of this page stages on each keystroke, via the
@@ -3558,25 +3795,39 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                       lim: b.lim, al: SE('se_al').checked });
 
             /* Calibration rides the pre-existing Pending.calib section, which
-               commitAll POSTs to /api/calib before saving. One input per channel
-               the slot reports, with id se_ref_ plus the channel key; a slot may
-               stage any subset, so the entry is built and only pushed if it
-               carries at least one. Sent under a refs object keyed by channel —
-               the firmware also still reads the old refTemp/refHum/refPress
-               names, but nothing emits them any more. */
+               commitAll POSTs to /api/calib before saving. Staged per channel
+               and only for channels the user touched (calDirty): an absent
+               channel means "unchanged" server-side, which is what lets a
+               rename commit without re-sending curves it never edited. A
+               channel with an incomplete or non-numeric row stages nothing —
+               the red #se_calwarn line is already saying why. An empty row
+               list IS staged: [] is the explicit "remove the correction". */
             const cal = (typeof calOf === 'function') ? calOf(i) : null;
             const chans = (cal && cal.channels) ? cal.channels : [];
             if (chans.length) {
                 const rest = calStaged().filter(x => x.slot !== i);
-                const refs = {};
+                const entry = { slot: i, cal: {} };
+                let anyc = 0;
                 chans.forEach(ch => {
-                    const e = SE('se_ref_' + ch.key);
-                    if (e && e.value !== '' && !isNaN(parseFloat(e.value))) refs[ch.key] = parseFloat(e.value);
+                    const ek = i + ':' + ch.key;
+                    if (!calDirty[ek]) return;
+                    const rows = (calEdit[ek] || []).filter(r => r.r !== '' || r.v !== '');
+                    const pts = [];
+                    let bad = false;
+                    rows.forEach(r => {
+                        const fv = parseFloat(r.v);
+                        const rv = r.r === '' ? null : parseFloat(r.r);
+                        if (r.v === '' || isNaN(fv) || (rv !== null && isNaN(rv))) { bad = true; return; }
+                        pts.push([rv, fv]);
+                    });
+                    if (bad || pts.length > 5) return;
+                    entry.cal[ch.key] = (calMode[ek] === 'cub') ? { m: 'cub', p: pts } : pts;
+                    anyc = 1;
                 });
-                if (Object.keys(refs).length) rest.push({ slot: i, refs: refs });
+                if (anyc) rest.push(entry);
                 Pending.setSection('calib', rest.length ? { sensors: rest } : {});
             }
-            if (redraw) sensDrawEditor(); else sensWarn();
+            if (redraw) { sensDrawEditor(); } else { sensWarn(); calSparkAll(); }
         }
 
         /* Live echo of the rule commit_all enforces server-side. Shown while
@@ -3604,6 +3855,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
             el.textContent = m;
             el.style.display = m ? '' : 'none';
+            /* The calibration panel has its own warning line so a slot-config
+               problem and a point problem can be visible at the same time. */
+            const cw = SE('se_calwarn');
+            if (cw) {
+                const cm = calWarnMsg();
+                cw.textContent = cm;
+                cw.style.display = cm ? '' : 'none';
+            }
         }
 
         function sensClear() {
@@ -3615,6 +3874,15 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function sensRevert() {
             const i = sensOpenSlot;
             sensSet(sensStaged().filter(x => x.i !== i));
+            /* The calibration section stages separately — drop this slot from
+               it too, and forget the local point-editor state so the redraw
+               below re-reads the server truth. Leaving it staged made Revert
+               a lie for exactly the edits that rewrite flash. */
+            const rest = calStaged().filter(x => x.slot !== i);
+            Pending.setSection('calib', rest.length ? { sensors: rest } : {});
+            Object.keys(calEdit).forEach(k => {
+                if (k.indexOf(i + ':') === 0) { delete calEdit[k]; delete calDirty[k]; delete calMode[k]; }
+            });
             /* Discarding a slot that only ever existed as a staged edit leaves
                nothing to edit — keeping the dialog open would show a blank slot
                that is no longer in the list behind it. */
@@ -5475,7 +5743,30 @@ static const char LANG_JS[] PROGMEM = R"raw(
             "cal_apply_ok": "Atualizado v",
             "cal_apply_fail": "Falha: ",
             "cal_no_changes": "Nada a alterar.",
-            "cal_ntp_no": "NTP não sincronizado"
+            "cal_ntp_no": "NTP não sincronizado",
+            /* Curvas de calibração por pontos (/config → editor de slot).
+               Inline pelo mesmo motivo do bloco sens_rebind acima: o .lng no
+               LittleFS não acompanha o flash do firmware. */
+            "cal_pts_hint": "Até 5 pontos por grandeza, cada um ligando a leitura bruta ao valor mostrado por um instrumento confiável. Um ponto aplica um offset constante; mais pontos dobram a correção entre eles, mantida reta além das pontas. Deixe o bruto vazio para captar a leitura ao salvar.",
+            "cal_raw": "Bruto",
+            "cal_ref": "Referência",
+            "cal_corr": "corrigido",
+            "cal_cap": "Usar a leitura bruta atual",
+            "cal_del": "Remover este ponto",
+            "cal_add": "Adicionar ponto",
+            "cal_clear": "Remover correção",
+            "cal_none": "Sem correção — padrão do sensor.",
+            "cal_legacy": "Offset constante",
+            "cal_save_hint": "As correções são gravadas no Salvar e Reiniciar. Requer NTP sincronizado.",
+            "cal_err_max": "no máximo 5 pontos.",
+            "cal_err_num": "todo ponto precisa de bruto e referência numéricos.",
+            "cal_err_noread": "sem leitura ao vivo para captar — preencha o valor bruto.",
+            "cal_err_rng": "ponto fora da faixa plausível",
+            "cal_err_dup": "dois pontos com o mesmo valor bruto.",
+            "cal_mode_lbl": "Interpolação",
+            "cal_mode_lin": "Reta",
+            "cal_mode_cub": "Suave",
+            "cal_mode_hint": "Suave é uma cúbica monótona: dobra pelas âncoras sem jamais ultrapassá-las. Precisa de 3+ pontos; com menos, comporta-se como reta."
         },
         en: {
             "hist_load_btn": "Load", "hist_prompt": "Click 'Load' to view system logs.",

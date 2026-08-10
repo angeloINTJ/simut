@@ -482,11 +482,22 @@ void WebManager::handleApiSecStatus( ) {
 	uint32_t now = millis( );
 	char buf[512];
 	int pos = 0;
-	pos += snprintf(buf + pos, sizeof(buf) - pos, "{\"slots\":[");
+
+	/* snprintf returns what WOULD have been written, so `pos` can run past the
+	 * buffer the moment one entry truncates. `sizeof(buf) - pos` is size_t
+	 * arithmetic: past the end it does not go negative, it wraps to about 4
+	 * billion, and the next snprintf writes happily outside the array. With
+	 * eight slots filled by long dotted-quad addresses the entries do reach
+	 * 512 B, so the old bottom-of-loop guard fired one write too late. Clamp
+	 * the room before every write instead, and treat "no room" as done. */
+	#define SEC_ROOM() (int)(sizeof(buf) - (size_t)pos)
+	pos += snprintf(buf + pos, SEC_ROOM(), "{\"slots\":[");
 
 	bool first = true;
 	for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
 		if (_loginStates[i].ip == 0) continue;
+		/* Leave room for the separator plus the "]}" terminator. */
+		if (SEC_ROOM() < 4) break;
 		if (!first) buf[pos++] = ',';
 		first = false;
 
@@ -496,16 +507,24 @@ void WebManager::handleApiSecStatus( ) {
 		if (locked) lockSec = timeRemaining(_loginStates[i].lockoutUntil) / 1000;
 		uint32_t ageSec = (now - _loginStates[i].lastActivity) / 1000;
 
-		pos += snprintf(buf + pos, sizeof(buf) - pos,
+		int wrote = snprintf(buf + pos, SEC_ROOM(),
 		                "{\"ip\":\"%lu.%lu.%lu.%lu\",\"fails\":%u,\"lockSec\":%lu,\"ageSec\":%lu}",
 		                (unsigned long)(ip & 0xFF), (unsigned long)((ip >> 8) & 0xFF),
 		                (unsigned long)((ip >> 16) & 0xFF), (unsigned long)((ip >> 24) & 0xFF),
 		                _loginStates[i].failCount, (unsigned long)lockSec, (unsigned long)ageSec);
-
-		if (pos >= (int)sizeof(buf) - 2) break;
+		if (wrote < 0 || wrote >= SEC_ROOM()) {
+			/* Truncated: back out the partial entry (and its separator) so the
+			 * list stays parseable, and stop — reporting fewer slots beats
+			 * emitting JSON nobody can read. */
+			buf[pos] = '\0';
+			if (pos > 0 && buf[pos - 1] == ',') buf[--pos] = '\0';
+			break;
+		}
+		pos += wrote;
 	}
 
-	pos += snprintf(buf + pos, sizeof(buf) - pos, "]}");
+	pos += snprintf(buf + pos, SEC_ROOM(), "]}");
+	#undef SEC_ROOM
 	_server.sendHeader("Cache-Control", "no-store");
 	_server.send(200, "application/json", buf);
 }

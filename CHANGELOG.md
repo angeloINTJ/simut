@@ -4,6 +4,115 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.0.2-alpha (2026-08-10)
+
+### Survives a hostile network: the watchdog seam in the send path
+
+A campaign ran the telemetry fault matrix, a concurrent web hammer and the
+sensors **at the same time** — 26 fault windows over about two hours — because
+every previous run had exercised those loads one at a time, and the overlap is
+where the failures actually lived. Write-up and numbered defect list in
+`docs/netstorm-campaign-2026-08-10/`.
+
+**`HTTPClient`'s send loop never fed the watchdog, and it was most of the
+reboots.** `StreamConstPtr::sendAll`'s 5 s budget bounds the loop, not a write;
+each `write()` parks for the 4 s socket timeout, so a write entered near the end
+of the budget finishes around 9 s — past the 8388 ms hardware watchdog. Closed
+by a fourth framework override, wired into `patch.sh` so an upgrade cannot drop
+it silently. Measured on the full HTTP group, same conditions before and after:
+**5 reboots → 1**, MTBF under storm **~10 min → 58 min**, 557 history downloads
+with no invalid JSON.
+
+**A non-chunked response left its tail for the framework to park on.** The
+existing hard close was gated on chunked responses, so `/download` and
+`/api/backup` kept the polite path — and that path waits on ACKs with a clock
+that renews on every one of them, unfed. It reproduced without any storm at all:
+**one download per boot**. Draining before the handler returns fixed it —
+`/download` went from 6/8 with 2 reboots to **24/24 with none**, `/api/backup`
+(794 KB a piece) from 2/3 with 1 reboot to **6/6 with none**.
+
+### Fixed
+
+- **A single aborted send in the history tail could pin the display.** Three
+  returns in the `extremes` tail skipped the handler's unwind, leaving the
+  `_inHistoryHandler` latch set — every later `/api/history_multi` answering
+  `503 Already processing` — and the display's web-busy overlay stuck with
+  **touch blocked**, both until the next reboot. Ownership now lives in a
+  destructor, which a return cannot skip.
+- **`/api/sec_status` could write past its buffer.** Accumulated
+  `pos += snprintf(...)` runs past the array once an entry truncates, and the
+  remaining-room arithmetic is unsigned, so it wraps instead of going negative.
+  Room is clamped before every write now, and a truncated entry is backed out so
+  the JSON stays parseable with fewer slots.
+
+### Added
+
+- `metr.cgd` / `metr.cgg` / `metr.cgx` in `/api/status`: the three reasons a
+  chunked response was cut short — deadline, guard latch, real disconnect.
+  `show metrics` already printed them, but that command does not exist outside
+  the full-CLI image, so from the network a truncated download and a client that
+  walked away read identically.
+- `tools/telemetry_bench/storm_net.py`, the combined-storm harness, plus
+  `storm_report.py` and two fault modes in the sink (`never_read`,
+  `tls_bigrecord`).
+
+### Calibration curves: up to 5 points per quantity
+
+Calibration grows from one constant offset to a **correction curve of up to 5
+(raw → reference) points per quantity**, edited in the `/config` slot dialog.
+The correction interpolates linearly between points and holds the end offset
+beyond them; one point is exactly the old constant offset, and zero points is
+an explicit "no correction — sensor default" state. Points can be typed from a
+bench table or captured from the live reading (an empty raw field captures at
+save time).
+
+With 3+ points the interpolation is selectable per quantity: **Straight**
+(piecewise linear) or **Smooth** — a monotone cubic (Fritsch–Carlson) on the
+offsets that bends through the anchors without ever overshooting them and
+flattens into the held zones. Smooth rows carry a `cub` cell after the name in
+`calib.csv`; the API accepts `{"m":"cub","p":[[raw,ref],…]}` alongside the
+plain-array (linear) form.
+
+Corrections now apply to the **filtered mean instead of each raw sample**, so
+outlier rejection always works on physical values and an edited correction
+takes effect immediately instead of bleeding through a 10-sample window. For
+constant offsets the arithmetic is identical, so existing deployments read the
+same values they always did.
+
+`/calib.csv` puts everything after the name as flat CSV cells:
+`key,id,name,raw,ref[,raw,ref,…]` — one number per column,
+spreadsheet-friendly, no dedicated offset column anymore. Row shapes are told
+apart by field count: legacy 4-column `key,id,offset,name` files still read
+as the constant offset they always were (and a carried anchor-free offset is
+still written in that shape — it has no points to become); `key,id,name` is
+an identity row. Older firmware reading a points row sees no correction,
+never a wrong one. Removing a correction deletes the row (DS18B20 rows stay — they
+double as the ROM→ID/name identity database). `POST /api/calib` accepts
+`"cal":{"<channel>":[[raw,ref],…]}` with full validation before anything is
+written; `GET /api/calib` channels gain `raw`, `min`, `max` and `pts`.
+
+**Behavior change:** the legacy `refs`/`refTemp` fields (cached pages) now set
+an absolute one-point correction at the current raw reading instead of
+accumulating `offset += ref − reading`. Repeating the same reference is now
+idempotent, which is what users expected all along.
+
+The slot editor draws a **live mini-chart per quantity**: the dashed line is
+the sensor default (zero correction), the curve is the staged correction with
+its anchors, simulated in the chosen interpolation as you type. **DS18B20
+pairing became automatic**: a probe provisioned through the editor gets its
+ROM read and written into `calib.csv` on the restart that follows Save &
+Restart, migrating any correction saved while unpaired; ROM verification then
+guards against swapped probes.
+
+### Fixed
+
+- **The slot editor's "Alarms enabled" checkbox never saved.** Every
+  `commit_all` walker sliced array elements at the first `}`, so any key
+  staged after the nested `lim{}` object — which is where `al` sits — was
+  silently truncated off and kept its stored value. All the hand-rolled JSON
+  walkers now match braces by depth (quote-aware), which is also what lets
+  the calibration payload carry nested point arrays at all.
+
 ## v2.0.1-alpha (2026-08-01)
 
 History moves to V5: a compressed, self-describing time-series format whose hot
