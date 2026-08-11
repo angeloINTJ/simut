@@ -428,3 +428,50 @@ correção acima.
   instável induzido; o que roda hoje é a carga de falha real do servidor de
   telemetria fora do ar (falha de envio a cada 10 s) mais a amostragem web.
   Não é o mesmo que derrubar o AP, e o relatório final deve dizer isso.
+
+## D-C1 · Reboot e wedge por escrita de flash × render do Core 1 · **PARCIALMENTE CORRIGIDO em v2.1.3-beta**
+
+O `ctx=205` (`C0=[STORAGE_WR]`) que um usuário pegou configurando/reiniciando é a
+via do histórico de uma classe maior: **escrita de flash no Core 0 colidindo com o
+Core 1 no display.** Reproduzido na bancada pela via do config-save (`ctx=209`,
+`C0=[CLI]`).
+
+### Reprodução (automatizada)
+
+Tempestade combinando **leitura web** (`scratchpad/web_contention.py`: downloads
+segurando a trava de flash + gráficos), **display** (`tools/save_storm.py`:
+`touch sim` — precisa `enable` primeiro) e **escrita de config** (`write memory`
+com flip de nome). Na imagem publicada 2.1.2-beta: **3 reboots de watchdog** em
+~10 min (`C0=[CLI] C1=[DISPLAY]`, `up` 86–193 s cada) e depois **WEDGE** do QSPI —
+dead hang que só power-cycle resolveu (a serial CDC parou de responder, o toque de
+1200 bps não levou a BOOTSEL).
+
+### Causa-raiz (medida)
+
+`fx`/`Core1 exposto = 0` o tempo todo → **não** é escrita sem pausa. Os kills eram
+`quiet=3` (não `lockout`). O `requestQuietMode`/`pauseRendering` pedia ao Core 1 para
+parkar e esperava **200 ms sem alimentar o watchdog**; um render dura até ~1 s
+(`INIT=1025ms`, `R_BOOT=627ms`), então o park expirava mid-render → o Core 1 era
+morto segurando um lock → a próxima aquisição desse lock pelo Core 0 travava sem
+feed (`C0=[CLI]`), no pior caso escalando para o wedge.
+
+### Correção (v2.1.3-beta)
+
+`src/DisplayManager.cpp`: `CORE1_QUIESCE_MS = 1200` (cobre um render) + `watchdog_update()`
+nos dois laços de quiesce (o do quiet-mode em `requestQuietMode` e o do lockout em
+`pauseRendering`). O Core 1 parka num ponto sem locks antes do kill.
+
+### Resultado (mesma tempestade, imagem corrigida)
+
+- **Wedge ELIMINADO**: o device recupera sozinho em vez de travar.
+- Reboots caíram ~3× (3 → 1 em tempo similar).
+- `fx=0` mantido.
+
+### Residual (aberto — próximo ciclo)
+
+**1 reboot `C0=[CLI]` ainda sobrevive** — às vezes o Core 1 não parka nem em 1200 ms
+(render mais longo, ou outro caminho de bloqueio). Fechar exige **marcadores
+por-instrução** (como o `hp=` que localizou o drain, D-B8c) no caminho
+CLI→saveConfiguration→quiet→releaseQuietMode, para a autópsia apontar a instrução
+exata. O `hp=740` da autópsia atual é valor velho da via web (o caminho CLI não
+carimba `hp`).

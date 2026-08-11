@@ -4,6 +4,35 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.3-beta (2026-08-11)
+
+### O Core 1 parka antes de a pausa de flash matá-lo — o wedge da tempestade de display acabou
+
+Uma escrita de flash no Core 0 (um save de config, um registro do histórico) pausa o
+Core 1 antes, para o erase nunca rodar com o Core 1 buscando de XIP. Essa pausa pedia
+ao Core 1 para parkar no topo do laço de render e esperava só 200 ms por isso — girando
+ali **sem alimentar o watchdog**. Mas um render mede até ~1 s sob carga, então 200 ms
+expiravam mid-render: o Core 1 era hard-resetado segurando um lock (o mutex de estado do
+render, o alocador, um spinlock), e a próxima aquisição desse lock pelo caminho de flash
+do Core 0 travava para sempre com o watchdog sem alimentar. Na bancada isso reiniciava
+como `C0=[CLI] C1=[DISPLAY]` sob uma tempestade de save+toque+leitura — a mesma forma do
+reboot `C0=[STORAGE_WR]` do histórico que um usuário pegou configurando o aparelho — e no
+pior caso escalava para um **wedge** do QSPI: um travamento morto que só um power-cycle
+resolvia.
+
+A janela de park agora cobre um render inteiro (1200 ms) e alimenta o watchdog enquanto
+espera, então o Core 1 chega a um ponto sem locks antes do reset, em vez de morrer
+mid-work. Aplicado aos dois caminhos de pausa — o quiet-mode do save e o lockout IRQ do
+histórico. Medido contra a mesma tempestade: o **wedge sumiu** (o aparelho se recupera
+sozinho em vez de travar), os reboots de watchdog caíram ~3×, e nenhuma escrita de flash
+rodou sem pausa (`fx` ficou 0).
+
+**Ainda aberto:** um reboot residual `C0=[CLI]` sobrevive à tempestade — às vezes o Core 1
+não parka nem em 1200 ms. Fechá-lo exige a passada de marcadores por-instrução que
+localizou o reboot do drain; anotado para o próximo ciclo. A falha do dia-a-dia (um único
+reboot que também perdia ou desalinhava dado — ambos corrigidos nesta linha) não trava
+mais o aparelho.
+
 ## v2.1.2-beta (2026-08-11)
 
 ### Um reboot não arrasta mais o bloco recém-recuperado 15 minutos para o futuro

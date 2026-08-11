@@ -455,6 +455,20 @@ bool DisplayManager::isHeavyRendering( ) {
 	return heavy;
 }
 
+/* How long to wait for Core 1 to park at the top of its loop before a flash
+ * pause gives up and hard-resets it. It was 200 ms, and an unfed spin — but the
+ * cooperative park only happens between renders, and a single render measured up
+ * to ~1 s under a display storm (INIT/R_BOOT). So 200 ms routinely expired
+ * mid-render: Core 1 was then reset while holding a lock (the render's state
+ * mutex, the allocator, a spinlock), and the next Core-0 flash-path acquisition
+ * of that lock blocked forever with the watchdog unfed — reproduced on the bench
+ * as C0=[CLI] C1=[DISPLAY] under save+touch+read, and the same shape as the
+ * user's C0=[STORAGE_WR] history-write reboot. A window that covers a whole
+ * render lets the park land at a lock-free point; the hard reset stays as the
+ * fallback for a genuinely wedged Core 1. FED now — a busy Core 1 is not a
+ * reason to starve the watchdog while we wait for it. */
+static constexpr uint32_t CORE1_QUIESCE_MS = 1200u;
+
 void DisplayManager::pauseRendering(bool pause) {
 
 	if (!_core1Ready) return;
@@ -499,7 +513,8 @@ void DisplayManager::pauseRendering(bool pause) {
 				__atomic_store_n(&_quiescePlease, true, __ATOMIC_RELEASE);
 				uint32_t q0 = millis( );
 				while (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) &&
-				       !timeSince(q0, 200)) {
+				       !timeSince(q0, CORE1_QUIESCE_MS)) {
+					watchdog_update( );
 					tight_loop_contents( );
 				}
 			}
@@ -907,7 +922,8 @@ bool DisplayManager::requestQuietMode(uint32_t /*timeoutMs*/) {
 		__atomic_store_n(&_quiescePlease, true, __ATOMIC_RELEASE);
 		uint32_t t0 = millis( );
 		while (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE) &&
-		       !timeSince(t0, 200)) {
+		       !timeSince(t0, CORE1_QUIESCE_MS)) {
+			watchdog_update( );
 			tight_loop_contents( );
 		}
 		if (!__atomic_load_n(&_core1Parked, __ATOMIC_ACQUIRE)) {
