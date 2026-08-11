@@ -2172,10 +2172,11 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 return;
             }
             days.sort((a, b) => b.t0 - a.t0);
-            if (days.length === 0) {
-                showToast(window.t('exp_empty', 'No data recovered.'), 'err');
-                return;
-            }
+            /* Zero dias NAO e mais saida antecipada: um aparelho na primeira
+             * hora depois de um factory reset nao tem arquivo nenhum e tem a
+             * hora aberta, que e justamente o que este export passou a
+             * alcancar. O laco roda zero vezes e o teste de allLines vazio la
+             * embaixo da o mesmo aviso quando de fato nao houver nada. */
 
             const filterSet = (filterArr && filterArr.length) ? new Set(filterArr.map(Number)) : null;
             /* Um array de linhas POR DIA. Os dias chegam do mais novo para o
@@ -2241,6 +2242,38 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 _showExpProgress({ pct: Math.min(99, Math.round((doneBytes / totalBytes) * 100)),
                                    ok: okChunks, fail: failChunks, chunkSecs: 86400, etaMs });
                 if (!_expCancelled) await new Promise(r => setTimeout(r, 20));
+            }
+
+            /* ── A hora ainda aberta ────────────────────────────────────────
+             * Um bloco V5 so chega ao arquivo do dia quando sela, uma vez por
+             * hora — entao os ultimos minutos nunca estiveram em .h5 nenhum e
+             * o CSV parava na ultima selagem, por mais recente que fosse a
+             * janela pedida. O aparelho serve esse bloco em /api/history/open
+             * no MESMO formato dos arquivos, entao aqui e o mesmo h5Decode e
+             * o mesmo h5ToCsvLines — nao ha segundo decodificador.
+             *
+             * Buscado DEPOIS dos arquivos, de proposito. Se uma selagem cair
+             * no meio do export, o pior caso e uma lacuna (registros que
+             * foram para o arquivo do dia depois de o termos baixado), nunca
+             * uma linha duplicada — e linha repetida num CSV e pior que linha
+             * faltando. Uma falha aqui nao derruba o export: o que ja foi
+             * decodificado vale. */
+            if (!_expCancelled) {
+                try {
+                    const r = await fetchSafe('/api/history/open',
+                                              { timeout: 10000, retries: 1 });
+                    /* 204 = nada aberto (o minuto seguinte a uma selagem). */
+                    if (r.ok && r.status !== 204) {
+                        const buf = await r.arrayBuffer();
+                        if (buf.byteLength > 0) {
+                            const dec = h5Decode(new Uint8Array(buf), nominalSecs);
+                            const ln = h5ToCsvLines(dec, slotMeta, filterSet, from, to, _isoLocal);
+                            /* unshift, nao push: dayLines esta do mais novo
+                             * para o mais antigo e e invertido logo abaixo. */
+                            if (ln.length) dayLines.unshift(ln);
+                        }
+                    }
+                } catch (e) { /* a cauda e um bonus, nao um requisito */ }
             }
 
             /* Os dias vieram do mais novo para o mais antigo; o CSV sai em

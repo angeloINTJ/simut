@@ -298,6 +298,86 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  yield( );
  }
 
+ /* ── The hour still open in RAM ───────────────────────────────────────
+  * A V5 block reaches its day file only when it seals, which at one record a
+  * minute is once an hour. Everything that reads .h5 therefore trails the
+  * present by up to that hour — which is why opening the graph showed nothing
+  * for the last few minutes. The samples were never missing: they are held in
+  * the encoder, plain rather than bit-packed, so reaching them costs a copy
+  * and no decode. The /history/.wip alongside them is a crash bound, not a
+  * read path — boot adopts it into the day file and nothing else opens it.
+  *
+  * No yield inside this walk: the history writer runs on this same core, and
+  * letting it in here could seal the block mid-read. It is at most
+  * H5_BLOCK_MAX_RECORDS records of pure memory, no flash and no lock. */
+ {
+ const uint8_t ramCount = _storageMgr->h5RamCount( );
+ const H5ChannelDesc* ramSchema = _storageMgr->getH5Schema( );
+ const uint8_t ramNCh = _storageMgr->getH5ChannelCount( );
+
+ /* Resolved against the LIVE schema, not the reader's: the open block is
+  * encoded against the sensor set in force right now, which is not
+  * necessarily the one the last file on flash was written with. */
+ int tCi = -1, hCi = -1;
+ for (uint8_t c = 0; c < ramNCh && ramSchema; c++) {
+ if (ramSchema[c].id / MAX_SENSOR_CHANNELS != (uint8_t)sensorId) continue;
+ const uint8_t ch = ramSchema[c].id % MAX_SENSOR_CHANNELS;
+ if (ch == CH_TEMP) tCi = c;
+ else if (ch == CH_HUM) hCi = c;
+ }
+
+ if (ramCount > 0 && tCi >= 0) {
+ const float scaleT = powf(10.0f, (float)ramSchema[tCi].scaleExp);
+ const float scaleH = (hCi >= 0) ? powf(10.0f, (float)ramSchema[hCi].scaleExp) : 1.0f;
+
+ int16_t vals[H5_MAX_CHANNELS];
+ uint32_t epoch = 0;
+ for (uint8_t i = 0; i < ramCount && pkg.count < GRAPH_WIDTH; i++) {
+ if (!_storageMgr->h5RamRecord(i, epoch, vals)) break;
+
+ time_t ts = (time_t)epoch;
+ if (ts < cutoff) continue;
+ if (ts > effectiveEnd) continue;   /* window ends in the past: no tail */
+
+ float vr = NAN, hr = NAN;
+ if (vals[tCi] != H5_NAN_SENTINEL) vr = (float)vals[tCi] * scaleT;
+ if (hCi >= 0 && vals[hCi] != H5_NAN_SENTINEL) hr = (float)vals[hCi] * scaleH;
+ if (ts < epochLimit) vr = NAN;
+
+ if (!isnan(vr)) {
+ if (vr < pkg.realMinVal) { pkg.realMinVal = vr; pkg.tsRealMin = ts; }
+ if (vr > pkg.realMaxVal) { pkg.realMaxVal = vr; pkg.tsRealMax = ts; }
+ }
+
+ /* The cadence carries on from the file loop so the tail is spaced like the
+  * rest of the series — except for the newest record, which is emitted
+  * whatever the decimation says. Otherwise a 24 h range (step 8) would
+  * still leave the right edge up to eight minutes stale, and the right
+  * edge being current is the whole point of reading RAM at all. */
+ lineIdx++;
+ const bool newest = (i + 1 == ramCount);
+ if (lineIdx % decimation != 0 && !newest) continue;
+
+ pkg.pointsV1[pkg.count] = vr;
+ pkg.tsPoints[pkg.count] = (uint32_t)ts;
+ if (pkg.hasHumidity) pkg.pointsV2[pkg.count] = hr;
+ if (pkg.count == 0) pkg.tsFirst = ts;
+ pkg.tsLast = ts;
+
+ if (!isnan(vr)) {
+ if (vr < pkg.minVal) { pkg.minVal = vr; pkg.idxMinTemp = pkg.count; pkg.tsMinTemp = ts; }
+ if (vr > pkg.maxVal) { pkg.maxVal = vr; pkg.idxMaxTemp = pkg.count; pkg.tsMaxTemp = ts; }
+ }
+ if (pkg.hasHumidity && !isnan(hr)) {
+ if (hr < localHumMin) { localHumMin = hr; pkg.tsMinHum = ts; }
+ if (hr > localHumMax) { localHumMax = hr; pkg.tsMaxHum = ts; }
+ }
+ pkg.count++;
+ }
+ feedWdt( );
+ }
+ }
+
  if (pkg.count > 0) {
  pkg.tsMid = pkg.tsFirst + (pkg.tsLast - pkg.tsFirst) / 2;
 

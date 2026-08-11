@@ -290,6 +290,14 @@ private:
 	void handleApiStatus( );
 	void handleApiHistoryMulti( ); /**< History streaming for multiple sensors in one response. */
 	void handleApiExportHistory( ); /**< Export history as .simx bundle (CRC32 trailer). */
+	/** The hour still open in RAM, as a standalone one-block V5 stream.
+	 *
+	 * The CSV export downloads the .h5 files and decodes them in the browser,
+	 * and a block reaches a file only when it seals — so the newest hour was
+	 * invisible to it however the device answered. This serves that block in
+	 * the SAME format, which is why the page needs no second decoder: it
+	 * fetches this after the files and runs the one it already has. */
+	void handleApiHistoryOpen( );
 	void handleApiExportLogs( ); /**< Export logs as .simx bundle kind='L' (CRC32 trailer). */
 	void handleApiLogs( );
 	void handleApiClearLogs( );
