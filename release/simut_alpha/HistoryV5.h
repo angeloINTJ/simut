@@ -60,12 +60,32 @@
                                  * H5_RAW_RECORD_SIZE(H5_MAX_CHANNELS))
                                                     /* = 2118 B              */
 
-/* Policy, not format. How often the block still open in RAM is snapshotted
- * to /history/.wip; R8 bounds a power cut to that much lost data. Blocks
- * themselves close by COUNT, not by clock (§14-5), so there is no separate
- * hourly timer — 60 records at the default one-per-minute interval is the
- * hour. */
-#define H5_WIP_INTERVAL_MS      (10u * 60u * 1000u)
+/* Policy, not format. The block still open in RAM is snapshotted to
+ * /history/.wip once per record, inline in writeHistoryEntryV5, so R8's bound
+ * is ONE record rather than a clock interval — the ten-minute timer this
+ * replaced meant a power cut, and every reboot for configuration, discarded up
+ * to ten measurements. Blocks themselves still close by COUNT, not by clock
+ * (§14-5): 60 records at the default one-per-minute interval is the hour.
+ *
+ * The cost of the tighter bound is 1 440 .wip rewrites a day against 144 —
+ * ten times the Core 1 lockout windows. Endurance is not the constraint
+ * (~2,6k erases per block per year against 100k rated); the lockout duty
+ * cycle is, which is why the write still yields to touch and heavy tasks.
+ *
+ * How soon a snapshot that yielded gets retried. Only ever reached when the
+ * inline write was refused, so it costs nothing in the common case. */
+#define H5_WIP_RETRY_MS         (2u * 1000u)
+
+/* How many records in a row may be refused while a seal keeps failing before
+ * the held block is written off and recording resumes on a fresh one.
+ *
+ * Both directions of this are a loss, which is why there is a bound and not a
+ * choice: discarding the block on the first failure throws away up to 60
+ * records for what is usually a transient FLASH_OP mutex timeout, and holding
+ * it forever means a device that silently stops recording for good. Five
+ * records is the interval's worth of patience — enough for a long web read to
+ * release the filesystem, bounded well under the block it is protecting. */
+#define H5_SEAL_MAX_FAILS       5u
 
 /** Physical quantities. Adding values is free; renumbering is forbidden. */
 enum H5Kind : uint8_t {

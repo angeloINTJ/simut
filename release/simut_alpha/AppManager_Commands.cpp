@@ -513,6 +513,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  _cmdMgr->printSuccess(pt ? "Formatando LittleFS... reboot em seguida."
  : "Formatting LittleFS... reboot follows.");
  delay(100);
+ /* The only reboot that must NOT persist the open history block: the
+  * snapshot would land on the fresh filesystem and next boot would adopt
+  * it, handing back a day file the user asked to erase. */
+ LogManager::instance( ).suppressPreRebootHook( );
  /* Core 1 dead during the multi-second erase burst; no unpause needed
   * because the device reboots right after. */
  _displayMgr->requestQuietMode( );

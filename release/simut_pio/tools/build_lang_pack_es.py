@@ -8,15 +8,25 @@ para evitar partial-match ambíguo). Acentos espanhóis incluídos.
 @HELP e @LICENSE ficam omitidos — quando ES selecionado, firmware
 faz fallback para /help_en.txt e /license_en.txt (EN inline).
 
-Tradução é "best-effort". Usuário pode refinar editando este script
-e re-rodando, ou editando data/lang/language_es-ES.lng à mão.
+DESATUALIZADO — LEIA ANTES DE RODAR. O data/lang/language_es-ES.lng
+versionado é a FONTE DE VERDADE (validado em HW) e NÃO é reproduzível
+por este script: o pack de hoje carrega @HELP/@LICENSE traduzidos para
+o espanhol, que este gerador dropa. Rodar sem --force é RECUSADO na
+escrita, de propósito, para não trocar tradução real por fallback EN em
+silêncio. Para mexer numa string, editar o .lng à mão e conferir com
+tools/check_lang_packs.py continua sendo o caminho seguro; regenerar do
+zero exige --force e revalidação no ferro.
 """
 import json
 import re
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/angelo/Documentos/SIMUT")
+# Derived from the script's own location, not hardcoded. It used to read
+# Path("/home/angelo/Documentos/SIMUT") — case wrong on a case-sensitive FS
+# (the project is .../simut), so the generator did not run at all, which is
+# part of why the checked-in pack drifted from what this script produces.
+ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "data" / "lang" / "language_pt-BR.lng"
 OUT = ROOT / "data" / "lang" / "language_es-ES.lng"
 
@@ -545,8 +555,27 @@ if "WEBDICT" in sections:
 # @HELP / @LICENSE intencionalmente omitidos.
 
 content = "\n".join(out_lines) + "\n"
+
+# The checked-in language_es-ES.lng is the source of truth: it was validated on
+# hardware and it carries @HELP/@LICENSE translated into Spanish, which THIS
+# script omits (see the note above). Regenerating would therefore overwrite
+# real translations with an English fallback — silently, since the file just
+# gets smaller. Refuse to clobber an existing pack unless asked, and say why.
+if OUT.exists() and "--force" not in sys.argv:
+    if OUT.read_text(encoding="utf-8") != content:
+        on_disk = OUT.stat().st_size
+        gen = len(content.encode("utf-8"))
+        sys.stderr.write(
+            f"[build_lang_pack_es] {OUT.name} already exists and differs from what\n"
+            f"  this script would produce ({on_disk} B on disk vs {gen} B generated).\n"
+            f"  The checked-in pack is the HW-validated source of truth and carries\n"
+            f"  Spanish @HELP/@LICENSE this generator drops. Refusing to overwrite.\n"
+            f"  Re-run with --force only if you mean to regenerate from scratch and\n"
+            f"  re-validate on hardware.\n")
+        sys.exit(1)
 OUT.parent.mkdir(parents=True, exist_ok=True)
 OUT.write_text(content, encoding="utf-8")
+print(f"[build_lang_pack_es] wrote {OUT} ({len(content)} B)")
 size = len(content.encode("utf-8"))
 print(f"\n✓ Escrito: {OUT}")
 print(f"  Tamanho: {size} bytes ({size/1024:.1f} KB)")

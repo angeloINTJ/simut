@@ -419,6 +419,10 @@ void WebManager::handleApiRestoreFinish( ) {
  * files to LFS but runtime keeps stale caches — user needed
  * manual RESET. Same sequence as commit-all. */
  if (is_apply && fs_mod && _restoreSession.status == ota::BackupStatus::OK) {
+ /* fs_mod means the restore replaced the filesystem. The block still in
+  * RAM belongs to the image that was just overwritten, so snapshotting it
+  * would splice pre-restore records into the restored history. */
+ LogManager::instance( ).suppressPreRebootHook( );
  _server.client( ).stop( );
  if (_displayRef) {
  _displayRef->setBootStatusKey(TR_BOOT_APPLYING_CFG);

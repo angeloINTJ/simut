@@ -4,6 +4,233 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.2-beta (2026-08-11)
+
+### A reboot no longer drags the just-recovered block 15 minutes into the future
+
+A reboot mid-hour lost a quarter-hour of history to the wrong timestamps, not to
+the writer. The `.wip` snapshot recovered the open block correctly, with its own
+pre-reboot timestamps — and then the NTP correction on boot moved it. The chain:
+`getLastRecordedTimestamp()` seeds the provisional clock from the newest record,
+but it read only the sealed day file, never the `.wip`. So after a reboot mid-hour
+it seeded from the last *sealed* block — up to an hour behind the real newest data
+that was sitting in the `.wip`. NTP then measured that stale base as a large error
+(measured on the bench: +919 s) and `shiftHistoryTimeV5()` shifts every block with
+`t0 >= base` — which caught the block `recoverWipV5()` had just restored, already
+correctly stamped, and pushed it forward by the whole error. 05:48–06:03 was filed
+as 06:04–06:18; the 05:48 window read empty and the reader stopped at its end.
+
+Fix: `getLastRecordedTimestamp()` now also reads the `.wip`, taking the newest of
+the sealed file and the snapshot. The provisional clock lands close to real (the
+shift error shrinks to seconds) and, decisively, the shift floor rises above the
+recovered block's `t0`, so the block the reboot just restored is exempt and stays
+exactly where its own timestamps put it. Verified on hardware: a partial block at
+06:32–06:36 was snapshotted, the target hardware-reset, and the block came back at
+06:32–06:36 unmoved, with the NTP correction down to −13 s (was +919 s) and the
+sealed hourly blocks untouched. The reboot that triggered it — a watchdog stall in
+the storage-write path — is a separate stability item still open.
+
+### Changing the sensor selection mid-load now cancels the transfer and starts one clean load
+
+The graph page fetches history in slices, and each loader (`fetchAndDraw`) was
+`async` but uncoordinated: changing the sensor selection — or the range or date —
+while a graph was still loading started a *second* slice loop without stopping the
+first. Two loops then raced on the same progress bar and the shared abort handle,
+and fired overlapping `/api/history_multi` requests at the device — the "confused
+loading bar, several downloads at once" the user reported. That overlap is also
+what exposed the drain reboot (D-B8c, below), so this fixes the appearance and
+removes the trigger at the source.
+
+`fetchAndDraw` is now a coordinator: it bumps a generation, aborts the transfer in
+flight, and queues the new load behind it on a promise chain, so exactly one graph
+transfer is ever live and the newest selection wins. A load superseded before it
+starts is skipped; one superseded mid-fetch drops its result instead of drawing
+over the newer one. Client-side only (`WebUI.h`); pairs with the firmware
+null-guard so the device is safe even if some other client still overlaps.
+
+### A slow POST body rebooted the device — the loss behind "reboots when I configure"
+
+The measurements were being lost to a reboot, not to the writer. Chasing "lost
+data when I restart or configure" on the bench turned up a live watchdog reboot
+with the signature `C0=[WEB_POLL] hp=0 (219)` — `hp=0` meaning `handleClient()`
+never returned, so the stall was inside it. The D-B8 fix bounded the request line
+and headers with a watchdog-fed, wall-clock reader; the request **body** was left
+on the stock reads, which feed nothing and are consumed during the parse, before
+dispatch and auth. A POST whose body dribbles in holds Core 0 across the 8388 ms
+window and reboots — on the exact path taken to save configuration.
+
+Reproduced deterministically (`scratchpad/repro_post_slow.py`): `POST /api/save_sys`
+at 1 s/byte took the device from uptime 2815 s to 31 s; `/api/upload` and
+`/api/restore` did the same through the RAW upload loop.
+
+Three unbounded body reads, all now under the same discipline as `simutReadLine`:
+- **`plain`/urlencoded/json** (`readBytesWithTimeout`): feeds the watchdog while
+  the body dribbles, and caps the whole read by wall clock
+  (`SIMUT_BODY_BUDGET_MS = 15000`). Feeding alone would trade "reboot in 8 s" for
+  Core 0 frozen for hours on a large declared `Content-Length`; the ceiling makes
+  an overrun return partial and drop the client. A real config POST is a few KB in
+  one segment under a millisecond, so the budget is only ever spent by a stall.
+- **RAW upload** (`/api/upload`, `/api/restore`): a new `simutReadRaw` reads only
+  what is already buffered — so `readBytes` cannot block, the way it did per-byte —
+  feeds the watchdog while waiting, and gives up after a short no-data window. No
+  whole-transfer cap: a firmware/file upload is long and flash-bound.
+- **multipart** (`_uploadReadByte`, `_parseForm`): the byte wait now feeds the
+  watchdog and the header-line reads use the bounded reader.
+
+Same fifth framework override (`webserver_parse_deadline.patch`), regenerated so
+`restore → patch → rebuild` reproduces the flashed `firmware.bin` byte for byte.
+Validated on the bench: the reboot is gone on all three paths (0 new `hp=0 (219)`
+in the boot capture), a fast legitimate upload still works, `/`, `/history`,
+`/config` still serve whole, the request-line slowloris still drops, `fx=0`.
+Both firmware environments build (release 93.8 %, test 98.5 %).
+
+The reboot the user also reported while *reading graphs* is a **separate
+mechanism**, and the user pinned its trigger: **changing the sensor selection
+while a graph loads** ("several downloads at once, the progress bar confused").
+Three autopsies over three builds tracked it down. `hp=740` said `handleClient()`
+returned and the stall was in the drain after it; a first fix guessed the lwIP
+entry and only moved the marker to `hp=603`; a second (the drain's `feedWatchdog`
+light-yield) missed too. Per-instruction markers then named the exact statement:
+`hp=6031` = `WiFiClient c = _server.client();`, the copy of the current client.
+
+Root cause, proven from the framework: `_server.client()` returns
+`*(ClientType*)_currentClient`, and `handleClient()` deletes `_currentClient` and
+sets it null whenever the peer is no longer connected — which a sensor change
+mid-load causes, by RSTing the in-flight graph and opening a fresh connection. But
+`_drainPending`, latched true by that response's completed send, is still set, so
+`drainOrDrop()` copies `*(ClientType*)nullptr`: the copy reads through a null
+`this`, takes a garbage `ClientContext*` from ROM and `ref()`s it — a load to a
+wild address that parks the bus until the watchdog fires. Only under overlapping
+requests, a microsecond race no synthetic client hit (the drain path was exercised
+~5000× across five repro styles without it). Fix: `drainOrDrop()` and
+`dropAbortedStream()` take the pointer, not a copy — `&_server.client()` folds to
+`_currentClient` with no dereference, so a retired (null) client is caught by a
+guard instead of read through, and the per-drain WiFiClient copy is gone too.
+Lesson recorded twice over: `hp` locates the position; the cure needs knowing
+*what* runs there — reasoning "it's instant" was wrong on code that, with a null
+client, was not.
+
+### Measurements were lost on power cut and on every reboot for configuration
+
+The open history block lives in RAM and only reaches flash when it fills, once
+an hour. A snapshot in `/history/.wip` bounded the exposure — and the bound was
+ten minutes, because that is literally what R8 asked for: *"power-loss: maximum
+loss of 10 min of data"*. The requirement was met exactly as written, and what
+was written was not good enough.
+
+Three separate loss paths, found with very different costs:
+
+**Six of the seven voluntary reboots snapshotted nothing.** `reload confirm` from
+the CLI was the only path that did it right — it seals the block explicitly
+before calling `safeReboot()`. The other six did not, and one of them is the web
+`commit_all`: the reboot you take *to configure the device*. Those rebooted
+straight through and dropped everything since the last periodic snapshot, up to
+ten minutes, deterministically, every time. That the CLI path had the seal and
+the web path did not is the shape of the bug — the protection was written per
+call site, so it was only ever as complete as the next caller remembered to be.
+Hence a hook at the choke point instead: `safeReboot()` itself now writes the
+snapshot on the way out, and a new reboot path cannot forget.
+
+Two callers must suppress it, and do: `system format confirm` and an OTA restore
+apply with `fs_mod`, where a snapshot from the pre-erase RAM block would
+resurrect data the user asked to destroy on the next boot.
+
+**The ten-minute timer is gone.** The snapshot is now taken once per accepted
+record, inline, so a power cut loses nothing. The cost was measured before the
+choice rather than after: 1440 `.wip` rewrites a day against 144. Endurance is
+not the binding constraint (~2.6k erases per block per year against 100k rated);
+the Core 1 lockout duty cycle is, which is why the write still yields to touch
+priority and to the heavy-task lock.
+
+**Some minutes were never measured at all.** The loop gated the *entire sample*
+on those same two conditions, so a gate held across the minute boundary left that
+minute with no reading — a hole no snapshot can fill, because nothing was ever
+recorded.
+
+Only one of those two gates could ever fire, which is worth stating because an
+earlier draft of this entry claimed both. `isUserInteracting()` is real: the touch
+timestamp is set by Core 1 and read by the loop, so it can be true while the
+sampling line runs. `isHeavyTaskLocked()` could not be: every holder —
+`_webMgr->update()`, `_telemetryMgr->update()`, the graph via UI events — runs
+earlier in the *same* Core 0 loop, strictly sequential with the sampling call, and
+nothing on the Core 1 path takes the lock at all. Measured: the heavy lock held to
+a 57% duty cycle for six minutes deferred exactly zero snapshots and skipped
+exactly zero records. Removing that half of the gate is correct but changes
+nothing observable; the touch half is the one that was losing readings. Sampling and writing are now separate: the
+record always lands in the RAM encoder (a memcpy, safe under any gate) and only
+the flash write defers, latched so the catch-up sweep writes it within 2 s of
+the gate opening instead of waiting for the next sample to carry it.
+
+One trade-off is deliberate and worth stating: sealing a full block, and the
+day-rollover seal, now run even with a gate closed. A full block cannot accept
+another record, so the choice there is a lockout window or a lost sample — 24
+forced windows a day against the promise that none are lost.
+
+Three silent losses found while auditing the same function, all three from a
+`sealHourV5()` return value nobody read:
+
+- **The hourly seal discarded the whole block on failure.** The `reset()` that
+  follows it empties the encoder unconditionally, so a failed seal threw away up
+  to 60 records with nothing said beyond a generic write warning. This is the
+  seal that fires *every hour*, making it by far the likeliest of the three to
+  ever fail. It now refuses the incoming record while the held block still has
+  retries left, because the block is what is worth protecting.
+
+- **A failed day-rollover seal misfiled the block.** The code adopted the new
+  day regardless, so the next record was spliced into yesterday's block and the
+  whole block was then written to *today's* file — §14-6 broken, and with it
+  "the file name IS the bound". It refuses the one record instead now, leaving
+  the block intact for the next minute to retry. One record at risk on an
+  already-degraded filesystem beats up to 60 misfiled with no error anywhere.
+- **A failed seal on a sensor-set change discarded up to 60 records in
+  silence.** `ensureH5Schema()` immediately re-runs `_h5Enc.begin()`, which
+  drops any block in progress. The `.wip` is no escape — it would carry the old
+  schema and `recoverWipV5()` validates against the compiled one, so the next
+  boot would reject it. Now retried once (which is what a transient mutex
+  timeout needs) and, if it still fails, logged with the number of records lost
+  instead of vanishing behind a generic write warning.
+
+### A reboot still lost one reading, and the block had nothing to do with it
+
+Reported from the bench after the above landed, and both halves were true. Across
+a web `commit_all`: `STO_H5_WIP ctx=50` from the pre-reboot hook, the next boot
+adopting `ctx=50`, the block intact — and 108 s between the last record before and
+the first after, against a 60 s interval. One record missing from the sequence.
+
+`_lastHistoryTime` starts at 0, so the interval check cannot fire until `millis()`
+passes a full interval: the first record of every boot landed at `up=60s`, on top
+of the ~20 s the boot itself takes. Preserving the block was never going to fix
+that, because the minute was never sampled in the first place.
+
+The first record now goes as soon as the clock can be trusted, gated on the **raw**
+system clock — deliberately not `getEpoch()` and not `isTimeSynced()`. `getEpoch()`
+seeds a provisional clock from `SIMUT_BUILD_EPOCH` (2025-09-20) and returns it,
+which sits above `HIST_EPOCH_MIN`, so both report a good clock on a device that has
+none, and the record would be filed two years in the past. A wrong timestamp
+poisons the day file worse than a missing minute.
+
+Measured on a real `reload confirm`: first record at `up=23s`, gap 41 s, zero
+records missing; the 108 s case becomes 71 s, also zero. `up=23s` is near the
+floor, since NTP lands around 20 s and that is when a timestamp becomes truthful.
+Residual: dropping a record now needs a gap over 120 s, which takes a boot running
+~37 s past the record's due time — a WiFi retry or DHCP timeout could still manage
+it.
+
+### Bounded recovery for a failed seal
+
+Both directions of a failed seal are a loss, so the recovery is bounded rather
+than chosen: discarding the block on the first failure throws away up to 60
+records for what is usually a transient `FLASH_OP` mutex timeout, while holding
+it forever means a device that silently stops recording for good. Five refused
+records — one interval's worth of patience, well under the block being
+protected — then the block is written off, the loss is logged with its count,
+and recording resumes.
+
+No on-disk format change: bytes written before this still read, and the `.wip`
+is still exactly one `PARTIAL` DATA chunk. Amendment E10 in
+`docs/HistoryV5_Emendas_Rev2.md`; R8, §7.1, §7.2 and the §11 acceptance matrix
+restated in the normative Rev 2.0.
+
 ## v2.1.1-beta (2026-08-10)
 
 ### A single slow HTTP request rebooted the device — remotely, no auth

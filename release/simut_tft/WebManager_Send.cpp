@@ -191,22 +191,48 @@ bool WebManager::safeSend_P(const char* content) {
  * the connection without the polite wait. With the tail either ACKed or the
  * pcb gone, the framework's later close exits instantly. */
 void WebManager::drainOrDrop( ) {
- WiFiClient c = _server.client( );
- if (!c || !c.connected( )) return;
- if (c.availableForWrite( ) >= (int)TCP_SND_BUF) return; /* nothing pending */
+ /* Drain the just-sent response's un-ACKed tail — but ONLY if the client that
+  * sent it still exists.
+  *
+  * handleClient( ) OWNS _currentClient: on the way out it does
+  *   if (!keepCurrentClient) { delete _currentClient; _currentClient = nullptr; }
+  * and keepCurrentClient is false whenever the peer is no longer connected. A
+  * sensor change mid-load is exactly that — the browser RSTs the in-flight graph
+  * and opens a fresh connection for the new selection (the "several downloads at
+  * once, loading bar confused" the user saw) — so handleClient nulls
+  * _currentClient. But _drainPending was latched true by that response's
+  * completed send and is still set here. The old code then did
+  *   WiFiClient c = _server.client( );          // = *(ClientType*)nullptr
+  * whose copy reads members through a null `this`, takes a garbage ClientContext*
+  * out of ROM, and ref()'s it — a load to a wild address that parks the bus until
+  * the watchdog fires. Autopsy: C0=[WEB_POLL] hp=6031 (the copy), C1=[DISPLAY],
+  * only under overlapping requests. Reproduced by the user by switching sensors
+  * while a graph loaded; not by any single-stream synthetic client.
+  *
+  * Take the pointer, not a copy: &_server.client( ) is &*(ClientType*)_currentClient,
+  * which folds to _currentClient with NO dereference (so a null is returned as
+  * null, never read through), and bail if the client is gone. This also drops the
+  * per-drain WiFiClient copy/SList churn entirely. _currentClient is only ever a
+  * live client or nullptr — handleClient never leaves it dangling — so the null
+  * check is a complete guard. */
+ HPOS(603);
+ watchdog_update( );
+ WiFiClient* c = &_server.client( );
+ if (!c || !c->connected( )) return;
+ if (c->availableForWrite( ) >= (int)TCP_SND_BUF) return; /* nothing pending */
  uint32_t t0 = millis( );
- while (c.availableForWrite( ) < (int)TCP_SND_BUF) {
+ while (c->availableForWrite( ) < (int)TCP_SND_BUF) {
  HPOS(600);
- if (!c.connected( )) return;
+ if (!c->connected( )) return;
  if (millis( ) - t0 > WEB_SEND_STALL_MS) {
  _cgDisconnHits++;
  maybeLogClientDisconnect("drain");
  HPOS(601);
- c.stop(1); /* 0 = 300 ms flush default, resettable by ACKs — see waitSendRoom */
+ c->stop(1); /* 0 = 300 ms flush default, resettable by ACKs — see waitSendRoom */
  HPOS(602);
  return;
  }
- feedWatchdog( );
+ watchdog_update( );
  delay(1);
  }
 }
@@ -229,8 +255,13 @@ void WebManager::drainOrDrop( ) {
  * the chance to flush. */
 void WebManager::dropAbortedStream(const char* origin) {
  (void)origin;
- WiFiClient c = _server.client( );
- if (!c || !c.connected( )) { _drainPending = false; return; }
+ /* Pointer, not a copy — same reason as drainOrDrop: &_server.client( ) folds to
+  * _currentClient with no dereference, so a client the framework already retired
+  * (null) is caught by the guard instead of read through. This path runs inside
+  * handleClient, where _currentClient is normally live, but the guard costs
+  * nothing and closes the same class of null-deref for good. */
+ WiFiClient* c = &_server.client( );
+ if (!c || !c->connected( )) { _drainPending = false; return; }
  /* Surgical, not blanket: a socket with room for the 5-byte terminator
   * (plus framing slack) lets _finalizeResponse complete instantly, and the
   * polite path then hands the legitimate deadline-truncated reader a
@@ -246,8 +277,8 @@ void WebManager::dropAbortedStream(const char* origin) {
   * bytes "free" with the segment queue exhausted parked the terminator
   * write and rebooted the device). Half in flight keeps the queue
   * healthy by construction, the same predicate waitSendRoom trusts. */
- if (c.availableForWrite( ) >= (int)(TCP_SND_BUF / 2)) { _drainPending = true; return; }
- c.stop(1); /* 1, not 0: see waitSendRoom */
+ if (c->availableForWrite( ) >= (int)(TCP_SND_BUF / 2)) { _drainPending = true; return; }
+ c->stop(1); /* 1, not 0: see waitSendRoom */
  _abortDrops++;
  _drainPending = false;
 }

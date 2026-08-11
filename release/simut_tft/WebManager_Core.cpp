@@ -303,6 +303,16 @@ void WebManager::update( ) {
     * splits the storm residual three ways instead of lumping it all under
     * 721 — ours, the framework's, or the drain's. */
    watchdog_hw->scratch[7] = 740;
+   /* Feed here, at the one choke point every request passes through on its
+    * way out. The window between handleClient returning and drainOrDrop's own
+    * fed loop was the last unfed stretch on Core 0: its entry queries lwIP
+    * (client()/connected()/availableForWrite()) before reaching HPOS(600),
+    * and a reboot wearing exactly hp=740 on a graph read (2026-08-10, user's
+    * browser, ~1 in 33 drains) placed the stall right there. drainOrDrop
+    * feeds inside its loop and is capped at WEB_SEND_STALL_MS, so it was never
+    * the culprit; this line closes the gap ahead of it. Cheap: watchdog_update
+    * is a register write, run a few times per tick. */
+   watchdog_update( );
    /* Before the framework can retire this client with its polite close
     * (whose ACK-wait a trickling reader extends forever, unfed), drain
     * the un-ACKed tail with the watchdog fed or drop the connection.
