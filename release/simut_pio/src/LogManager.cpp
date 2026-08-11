@@ -138,6 +138,11 @@ void LogManager::setHeavyTaskChecker(bool (*fn)( )) {
 }
 
 
+void LogManager::setPreRebootHook(void (*fn)( )) { _preRebootFn = fn; }
+
+void LogManager::suppressPreRebootHook( ) { _preRebootFn = nullptr; }
+
+
 void LogManager::setEpochSource(time_t (*fn)( )) { _epochFn = fn; }
 
 time_t LogManager::getEpochNow( ) {
@@ -696,6 +701,16 @@ void LogManager::markCleanReboot( ) {
 }
 
 void LogManager::safeReboot( ) {
+ /* Persist before anything else: below this point the console detaches and
+  * the chip resets, and the history block still open lives in RAM. Cleared
+  * before the call so a hook that somehow reaches safeReboot again cannot
+  * recurse. Suppressed by callers that just erased the filesystem. */
+ if (_preRebootFn) {
+ void (*fn)( ) = _preRebootFn;
+ _preRebootFn = nullptr;
+ fn( );
+ }
+
  /* Applies the correct reboot pattern.
  * Root cause "reload confirm bricks 100%": watchdog_enable
  * (500, 1) leaves ENABLE bit set in watchdog ctrl. After reset fires,

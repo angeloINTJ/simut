@@ -11,13 +11,28 @@ Coleta material de:
 
 Computa FNV-1a 32-bit do EN para cada par TRL e emite o .lng final.
 Acentos são restaurados manualmente em PT_ACCENTS (post-processing).
+
+HISTÓRICO, NÃO REEXECUTÁVEL — LEIA ANTES DE RODAR. Este script é o registro
+de como o pack foi montado a PRIMEIRA vez, não uma ferramenta viva. Ele lê de
+fontes que não existem mais nesta forma: `/tmp/trl_pairs.tsv` (temporário,
+já foi), `git show 130d6de:DisplayManager_i18n.cpp` (baseline congelado) e
+arquivos na RAIZ do repo que hoje moram em src/ — então ele falha antes mesmo
+de escrever. O data/lang/language_pt-BR.lng versionado é a FONTE DE VERDADE
+(validado em HW). Para mexer numa string: editar o .lng à mão e conferir com
+tools/check_lang_packs.py. Se um dia for preciso regenerar de verdade, este
+script precisa ser reescrito para a estrutura atual e o resultado revalidado
+no ferro — o guard de escrita no fim recusa sobrescrever sem --force por isso.
 """
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
-ROOT = Path("/home/angelo/Documentos/SIMUT")
+# Derived from the script's own location, not hardcoded. It used to read
+# Path("/home/angelo/Documentos/SIMUT") — case wrong on a case-sensitive FS
+# (the project is .../simut), so the generator did not run at all.
+ROOT = Path(__file__).resolve().parent.parent
 BASELINE_SHA = "130d6de"
 OUT = ROOT / "data" / "lang" / "language_pt-BR.lng"
 
@@ -703,6 +718,23 @@ lines.append("@WEBDICT")
 lines.append(json.dumps(webdict, ensure_ascii=False, separators=(",", ":")))
 
 content = "\n".join(lines) + "\n"
+
+# The checked-in language_pt-BR.lng is the HW-validated source of truth. This
+# script assembles it from a fixed baseline SHA plus several C++ tables, so a
+# rerun on a moved tree can differ from what shipped. Refuse to clobber an
+# existing pack that differs unless asked, so a regenerate is a deliberate act
+# followed by re-validation, not a silent drift.
+if OUT.exists() and "--force" not in sys.argv:
+    if OUT.read_text(encoding="utf-8") != content:
+        on_disk = OUT.stat().st_size
+        gen = len(content.encode("utf-8"))
+        sys.stderr.write(
+            f"[build_lang_pack] {OUT.name} already exists and differs from what\n"
+            f"  this script would produce ({on_disk} B on disk vs {gen} B generated).\n"
+            f"  The checked-in pack is the HW-validated source of truth. Refusing to\n"
+            f"  overwrite. Re-run with --force only if you mean to regenerate from\n"
+            f"  scratch and re-validate on hardware.\n")
+        sys.exit(1)
 OUT.write_text(content, encoding="utf-8")
 print(f"\n✓ Escrito: {OUT}")
 print(f"  Tamanho: {len(content.encode('utf-8'))} bytes ({len(content.encode('utf-8'))/1024:.1f} KB)")

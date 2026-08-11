@@ -51,9 +51,86 @@
  #ifndef WEBSERVER_MAX_POST_ARGS
  #define WEBSERVER_MAX_POST_ARGS 32
  #endif
-@@ -79,9 +123,11 @@
+@@ -46,13 +90,37 @@
+ static const char Content_Type[] PROGMEM = "Content-Type";
+ static const char filename[] PROGMEM = "filename";
+ 
++/* SIMUT override — bound the request BODY the same way simutReadLine bounds the
++ * request line. webserver_parse_deadline.patch fed the watchdog through the line
++ * and header parse but left the body reads (this function and _uploadReadByte /
++ * _parseForm below) on the stock per-block HTTP_MAX_POST_WAIT with no feed. The
++ * SIMUT loop feeds the watchdog before handleClient(), never during, so a POST
++ * whose body dribbles in holds Core 0 inside this read across the 8388 ms window
++ * and reboots the device: autopsy C0=[WEB_POLL] hp=0 (219), the same signature as
++ * the request-line D-B8, on the config-save path. Confirmed on the bench
++ * 2026-08-10 with a POST body dribbled at 1 s/byte (uptime 2815 s -> 31 s).
++ *
++ * Feeding alone is not enough here: without a ceiling a client declaring a large
++ * Content-Length and trickling it would turn "reboot in 8 s" into Core 0 frozen
++ * for hours (watchdog fed, nothing else running). So this caps the WHOLE body
++ * read by wall clock too. On a LAN a real config POST is a few KB in one segment
++ * under a millisecond, so the budget is only ever spent by a stall; an overrun
++ * returns partial and the caller (plainLength < _clientContentLength) stops the
++ * client. Uploads do NOT come through here — they use _parseForm — so this
++ * ceiling never truncates a legitimate long transfer. */
++#define SIMUT_BODY_BUDGET_MS 15000u
+ static char* readBytesWithTimeout(WiFiClient* client, size_t maxLength, size_t& dataLength, int timeout_ms) {
+     char *buf = nullptr;
+     dataLength = 0;
++    const uint32_t _simutBodyDeadline = millis() + SIMUT_BODY_BUDGET_MS;
+     while (dataLength < maxLength) {
+         int tries = timeout_ms;
+         size_t newLength;
+         while (!(newLength = client->available()) && tries--) {
++            watchdog_update();    /* SIMUT: feed while the body dribbles */
++            if ((int32_t)(millis() - _simutBodyDeadline) >= 0) {
++                break;            /* SIMUT: whole-body budget spent — return partial */
++            }
+             delay(1);
+         }
+         if (!newLength) {
+@@ -78,10 +146,50 @@
+     return buf;
  }
  
++/* SIMUT override — bounded raw-body read for the RAW upload path below.
++ *
++ * The stock RAW loop calls client->readBytes(buf, HTTP_RAW_BUFLEN), and
++ * Stream::readBytes waits the client timeout PER BYTE, resetting it on every
++ * byte. A peer trickling the body keeps that ONE call inside timedRead for
++ * content-length seconds — so feeding the watchdog only at the top of the outer
++ * loop never runs, and Core 0 crosses the 8388 ms window inside a single
++ * readBytes. /api/upload and /api/restore rebooted exactly this way on the bench
++ * 2026-08-10 (C0=[WEB_POLL] hp=0 (219)), after the plain-body and header parses
++ * were already bounded — the RAW path was the one still open.
++ *
++ * This reads only what is already buffered (so readBytes cannot block), feeds
++ * the watchdog while it waits, and gives up after a short no-data window so an
++ * abandoned upload ends as RAW_ABORTED instead of a reboot. No whole-transfer
++ * cap: a real firmware/file upload is long and flash-bound, and capping it would
++ * truncate a legitimate transfer. A continuous upload sees available() > 0 every
++ * iteration and streams at full speed. */
++static size_t simutReadRaw(WiFiClient* client, uint8_t* buf, size_t maxLen) {
++    const uint32_t idleDeadline = millis() + SIMUT_PARSE_BUDGET_MS;  /* no data for the budget => give up */
++    for (;;) {
++        watchdog_update();
++        size_t avail = client->available();
++        if (avail) {
++            if (avail > maxLen) {
++                avail = maxLen;
++            }
++            return client->readBytes(buf, avail);   /* these bytes are buffered — returns at once */
++        }
++        if ((int32_t)(millis() - idleDeadline) >= 0) {
++            return 0;    /* caller turns 0 into RAW_ABORTED / CLIENT_MUST_STOP */
++        }
++        if (!client->connected()) {
++            return 0;
++        }
++        delay(1);
++    }
++}
++
  HTTPServer::ClientFuture HTTPServer::_parseRequest(WiFiClient* client) {
 +    // SIMUT: one wall-clock budget for the whole parse (see simutReadLine).
 +    const uint32_t _simutDeadline = millis() + SIMUT_PARSE_BUDGET_MS;
@@ -65,7 +142,7 @@
      //reset header value
      for (int i = 0; i < _headerKeysCount; ++i) {
          _currentHeaders[i].value = String();
-@@ -152,8 +198,8 @@
+@@ -152,8 +260,8 @@
          bool isEncoded = false;
          //parse headers
          while (1) {
@@ -76,7 +153,16 @@
              if (req == "") {
                  break;    //no moar headers
              }
-@@ -252,8 +298,8 @@
+@@ -199,7 +307,7 @@
+             _currentRaw->status = RAW_WRITE;
+ 
+             while (_currentRaw->totalSize < (size_t)_clientContentLength) {
+-                _currentRaw->currentSize = client->readBytes(_currentRaw->buf, HTTP_RAW_BUFLEN);
++                _currentRaw->currentSize = simutReadRaw(client, _currentRaw->buf, HTTP_RAW_BUFLEN);
+                 _currentRaw->totalSize += _currentRaw->currentSize;
+                 if (_currentRaw->currentSize == 0) {
+                     _currentRaw->status = RAW_ABORTED;
+@@ -252,8 +360,8 @@
          String headerValue;
          //parse headers
          while (1) {
@@ -87,3 +173,78 @@
              if (req == "") {
                  break;    //no moar headers
              }
+@@ -370,6 +478,10 @@
+             }
+             // loosely modeled after blinkWithoutDelay pattern
+             while (!timedOut && !client->available() && client->connected()) {
++                watchdog_update();    /* SIMUT: feed while a multipart upload byte is awaited.
++                                       * No whole-transfer ceiling here — an upload is long by
++                                       * nature (flash-bound) — but getTimeout() per byte still
++                                       * ends an abandoned one, now without rebooting first. */
+                 delay(2);
+                 timedOut = (millis() - startMillis) >= timeoutIntervalMillis;
+             }
+@@ -405,11 +517,11 @@
+     String line;
+     int retry = 0;
+     do {
+-        line = client->readStringUntil('\r');
++        line = simutReadLine(client, '\r', millis() + SIMUT_PARSE_BUDGET_MS);
+         ++retry;
+     } while (line.length() == 0 && retry < 3);
+ 
+-    client->readStringUntil('\n');
++    simutReadLine(client, '\n', millis() + SIMUT_PARSE_BUDGET_MS);
+     //start reading the form
+     if (line == ("--" + boundary)) {
+         if (_postArgs) {
+@@ -424,8 +536,8 @@
+             String argFilename;
+             bool argIsFile = false;
+ 
+-            line = client->readStringUntil('\r');
+-            client->readStringUntil('\n');
++            line = simutReadLine(client, '\r', millis() + SIMUT_PARSE_BUDGET_MS);
++            simutReadLine(client, '\n', millis() + SIMUT_PARSE_BUDGET_MS);
+             if (line.length() > 19 && line.substring(0, 19).equalsIgnoreCase(F("Content-Disposition"))) {
+                 int nameStart = line.indexOf('=');
+                 if (nameStart != -1) {
+@@ -446,21 +558,21 @@
+                     log_v("PostArg Name: %s", argName.c_str());
+                     using namespace mime;
+                     argType = FPSTR(mimeTable[txt].mimeType);
+-                    line = client->readStringUntil('\r');
+-                    client->readStringUntil('\n');
++                    line = simutReadLine(client, '\r', millis() + SIMUT_PARSE_BUDGET_MS);
++                    simutReadLine(client, '\n', millis() + SIMUT_PARSE_BUDGET_MS);
+                     while (line.length() > 0) {
+                         if (line.length() > 12 && line.substring(0, 12).equalsIgnoreCase(FPSTR(Content_Type))) {
+                             argType = line.substring(line.indexOf(':') + 2);
+                         }
+                         //skip over any other headers
+-                        line = client->readStringUntil('\r');
+-                        client->readStringUntil('\n');
++                        line = simutReadLine(client, '\r', millis() + SIMUT_PARSE_BUDGET_MS);
++                        simutReadLine(client, '\n', millis() + SIMUT_PARSE_BUDGET_MS);
+                     }
+                     log_v("PostArg Type: %s", argType.c_str());
+                     if (!argIsFile) {
+                         while (1) {
+-                            line = client->readStringUntil('\r');
+-                            client->readStringUntil('\n');
++                            line = simutReadLine(client, '\r', millis() + SIMUT_PARSE_BUDGET_MS);
++                            simutReadLine(client, '\n', millis() + SIMUT_PARSE_BUDGET_MS);
+                             if (line.startsWith("--" + boundary)) {
+                                 break;
+                             }
+@@ -542,8 +654,8 @@
+                         if (!client->connected()) {
+                             return _parseFormUploadAborted();
+                         }
+-                        line = client->readStringUntil('\r');
+-                        client->readStringUntil('\n');
++                        line = simutReadLine(client, '\r', millis() + SIMUT_PARSE_BUDGET_MS);
++                        simutReadLine(client, '\n', millis() + SIMUT_PARSE_BUDGET_MS);
+                         if (line == "--") {  // extra two dashes mean we reached the end of all form fields
+                             log_v("Done Parsing POST");
+                             break;

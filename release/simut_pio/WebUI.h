@@ -1046,6 +1046,8 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         const GCH_RECOVERY     = 3;          /* acertos antes de dobrar       */
         let _gchAbort = null;
         let _gchCancelled = false;
+        let _gchGen = 0;                    /* newest graph load wins */
+        let _gchChain = Promise.resolve();  /* serialize loads: one transfer at a time */
 
         /* Botao de cancelar, criado so quando o carregamento vira fatiado —
          * numa requisicao unica nao ha o que cancelar sem perder tudo. */
@@ -1057,9 +1059,18 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 b = document.createElement('button');
                 b.id = 'gchX'; b.type = 'button';
                 b.textContent = window.t('hist_cancel', 'Cancel');
-                b.style.cssText = 'margin-top:8px;padding:5px 10px;background:transparent;'
-                    + 'color:var(--dang);border:1px solid var(--dang);border-radius:6px;'
-                    + 'cursor:pointer;font-weight:600;font-size:.75rem';
+                /* pointer-events:auto is the whole fix: .chart-overlay sets
+                 * pointer-events:none so the faded overlay never blocks chart
+                 * pan/zoom, and that none is inherited by this button — the tap
+                 * fell through to the canvas behind it (the chart "caught" the
+                 * touch). Re-enabling events on the button alone, plus a touch
+                 * action so the tap fires without the 300 ms delay, hands the
+                 * press to Cancel instead of the graph. relative+z-index keeps it
+                 * above the canvas in the overlay's stacking context. */
+                b.style.cssText = 'position:relative;z-index:6;pointer-events:auto;'
+                    + 'touch-action:manipulation;margin-top:8px;padding:8px 14px;'
+                    + 'background:transparent;color:var(--dang);border:1px solid var(--dang);'
+                    + 'border-radius:6px;cursor:pointer;font-weight:600;font-size:.8rem';
                 b.onclick = () => {
                     _gchCancelled = true;
                     if (_gchAbort) try { _gchAbort.abort(); } catch (e) {}
@@ -1254,7 +1265,28 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return await _gchSliced(base, probe, estTotal);
         }
 
-        async function fetchAndDraw(queryParam) {
+        /* Coordinator: serialize graph loads so exactly one transfer is ever live,
+         * and let the newest win. Each call cancels the load in flight (abort +
+         * flag) and queues behind it on _gchChain; a load superseded before it even
+         * starts is skipped by the generation check. Changing the sensor selection,
+         * range or date mid-load used to start a second slice loop over the first —
+         * two loops racing on one progress bar and on the shared _gchAbort, and
+         * firing overlapping requests at the device. That overlap is the "confused
+         * loading bar" the user reported, and the same overlap that tripped the
+         * drain reboot (D-B8c); one-at-a-time removes both at the source. */
+        function fetchAndDraw(queryParam) {
+            const myGen = ++_gchGen;
+            _gchCancelled = true;
+            if (_gchAbort) { try { _gchAbort.abort(); } catch (e) {} }
+            _gchChain = _gchChain.then(async () => {
+                if (myGen !== _gchGen) return;   /* a newer load already superseded this one */
+                _gchCancelled = false;
+                await _doFetchAndDraw(queryParam, myGen);
+            }).catch(() => {});
+            return _gchChain;
+        }
+
+        async function _doFetchAndDraw(queryParam, myGen) {
             const gridBox = document.getElementById('statsGrid');
             let estKey = 'date'; const rm = queryParam.match(/range=(\d)/); if (rm) estKey = rm[1];
             const estTotal = estSizes[estKey] || 40000;
@@ -1266,7 +1298,8 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('progStatus').innerText = window.t('hist_loading','Loading...');
                 let json;
                 try { json = await _gchLoad(queryParam, sensorsCsv, estTotal); }
-                catch(e) { showProgress(false); showOverlay(window.t('hist_err_json','Error')); return; }
+                catch(e) { if (_gchGen === myGen) { showProgress(false); showOverlay(window.t('hist_err_json','Error')); } return; }
+                if (_gchGen !== myGen) return;   /* superseded mid-fetch — a newer load owns the UI */
                 finishProgress();
                 if (!json) { showProgress(false); showOverlay(window.t('hist_err_json','Error')); return; }
                 if (json.error) { showProgress(false); showOverlay(json.error); return; }
@@ -1382,6 +1415,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 renderChart(datasets, hasAnyHum, hasAnyPress, cutoffEpoch * 1000, endEpoch * 1000, _currentRangeIdx);
                 hideOverlay();
             } catch (e) {
+                if (_gchGen !== myGen) return;   /* superseded — leave the UI to the newer load */
                 showProgress(false);
                 showOverlay(window.t('hist_conn_lost','Connection lost.'));
             }

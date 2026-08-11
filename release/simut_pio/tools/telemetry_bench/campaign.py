@@ -23,8 +23,15 @@ from bench import Target, Web, Server, kill_stale, wait_web, HOST_IP  # noqa: E4
 
 import requests  # noqa: E402
 
-DEV = '192.168.3.24'
-WEB_USER, WEB_PASS = 'telb', 'Bench2026x'
+DEV = os.environ.get('SIMUT_DEV', '192.168.3.24')
+# Overridable because the hardcoded pair stopped working: the bench account no
+# longer authenticates (401 err=2, lockout escalating 2/4/8 s), and every phase
+# then reads Forbidden — which, on an endpoint behind auth, is indistinguishable
+# from a healthy device unless something checks. Recreating the account needs
+# `user add`/`user perm`, and those exist only in pico_w_test. soak_a6.py is not
+# affected: it logs in as admin with SIMUT_PASS, on its own Web helper.
+WEB_USER = os.environ.get('SIMUT_WEB_USER', 'telb')
+WEB_PASS = os.environ.get('SIMUT_WEB_PASS', 'Bench2026x')
 PORT_HTTP, PORT_HTTPS, PORT_MQTT, PORT_MQTTS = 18080, 18443, 11883, 18883
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results')

@@ -211,9 +211,8 @@ um leitor `simutReadLine` que **alimenta o watchdog a cada byte** e limita o
 parse inteiro por um orçamento de relógio (`SIMUT_PARSE_BUDGET_MS = 3000`). Um
 request que estoura o orçamento volta parcial → linha malformada → o servidor
 descarta o cliente. Numa LAN um request real chega em um segmento em <1 ms, o
-orçamento só é gasto por stall. Só o `_parseRequest` (linha de request +
-cabeçalhos, o caminho sem auth); o `_parseForm` (multipart, pós-auth) fica de
-follow-up.
+orçamento só é gasto por stall. Só a **linha de request + cabeçalhos**; o
+**corpo** ficou de follow-up — fechado em **D-B8b** abaixo.
 
 ### Validação
 
@@ -231,6 +230,151 @@ O caso **brando** por trás da mesma autópsia sob **seis clientes concorrentes*
 (`docs/netstorm-campaign-2026-08-10/`) — estreitado, não refeito aqui. Aquilo
 pode ter uma segunda fonte que não é o parse lento; o soak segue rodando para
 pegá-la se existir.
+
+## D-B8b · O corpo do POST tinha o mesmo buraco — reboot ao configurar/enviar · **CORRIGIDO em Unreleased**
+
+**O follow-up do D-B8, achado pelo usuário na bancada relatando perda de medição
+ao "reiniciar ou configurar".** O D-B8 limitou a linha de request e os
+cabeçalhos; o **corpo** do POST continuava lido sem prazo e sem alimentar o
+watchdog. Mesmo mecanismo, mesma autópsia, num caminho que o usuário exercita
+toda vez que salva configuração ou envia arquivo.
+
+### Mecanismo, confirmado byte a byte
+
+O corpo é consumido **durante** o parse (antes do dispatch/auth), em três leituras
+que não alimentam o watchdog:
+1. `readBytesWithTimeout` (o caminho `plain`/urlencoded/json, ex. `/api/save_sys`,
+   `/api/commit_all`) — a espera interna por `available()`.
+2. o laço RAW (`/api/upload`, `/api/restore`) — `readBytes(buf, HTTP_RAW_BUFLEN)`,
+   e o `Stream::readBytes` **reinicia o timeout por byte**, então uma única
+   chamada fica presa por `content-length` segundos num gotejo.
+3. `_uploadReadByte` e os `readStringUntil` de `_parseForm` (headers do multipart).
+
+**Autópsia ao vivo** (captura serial no boot): `C0=[WEB_POLL] hp=0 (219)`,
+`sc3=0x80088013` — idêntica ao D-B8, `hp=0` = o `handleClient( )` não retornou.
+
+### Repro determinística
+
+`scratchpad/repro_post_slow.py <path> <s/byte> <bytes>` — envia a linha e os
+cabeçalhos de uma vez (satisfaz o prazo do D-B8) e então **goteja o corpo**.
+- **Antes**: `POST /api/save_sys` a 1 s/byte → reboot, `uptime 2815 s → 31 s`.
+  `/api/upload` e `/api/restore?op=stage` idem (pelo caminho RAW).
+
+### Correção
+
+`patches/webserver_parse_deadline.patch` estendido ao corpo, mesma técnica do
+`simutReadLine`:
+- **`plain`**: alimenta o watchdog na espera **e** um teto de parede da leitura
+  inteira (`SIMUT_BODY_BUDGET_MS = 15000`) — sem o teto, um gotejo com
+  `Content-Length` grande trocaria "reboot em 8 s" por Core 0 congelado por horas.
+  Estouro → parcial → `CLIENT_MUST_STOP`.
+- **RAW**: `simutReadRaw` lê só o que já está no buffer (o `readBytes` não
+  bloqueia), alimenta o watchdog enquanto espera, e desiste após um intervalo
+  curto sem dados (→ `RAW_ABORTED`). **Sem** teto total — upload legítimo é longo
+  e limitado por flash; capá-lo truncaria a transferência.
+- **multipart**: `watchdog_update()` na espera de `_uploadReadByte`; os 12
+  `readStringUntil` de `_parseForm` viram `simutReadLine` sob budget.
+
+### Validação (imagem `pico_w_release`, `firmware.bin` sha256 `50a08c57…`)
+
+- **Reboot curado nos 3 caminhos**: `save_sys` / `upload` / `restore` a 1 s/byte
+  (e `save_sys` a 3 s/byte) → cliente dropado, uptime sempre subindo, **0**
+  `hp=0 (219)` novo na captura serial.
+- **Operação normal intacta**: upload rápido legítimo (540 B, 0,63 s, HTTP 200,
+  arquivo no FS); `GET /`, `/history`, `/config` inteiros; `repro_slowloris.py`
+  ainda dropa o GET lento; `fx=0`, `c1n` estável, heap plano em repouso.
+- **Patch versionado == imagem validada**: aplicar o patch na virgem reproduz o
+  `Parsing.cpp` da bancada byte a byte; **restore→patch→rebuild reproduz o mesmo
+  `firmware.bin`** (sha256 idêntico).
+- **Ambos os envs compilam** (release 93,8 %, test 98,5 %).
+
+### Nota de escopo
+
+Um gotejo lento num endpoint de **upload** ainda pode segurar o Core 0 pelo tempo
+da transferência (watchdog alimentado, **sem reboot**; abandono cai no intervalo
+de 3 s). Esses endpoints são pós-auth. O reboot — o que apagava medição — está
+fechado. O reboot "ao ler gráficos" (GET) que o usuário também citou é **outro
+mecanismo** — ver D-B8c.
+
+## D-B8c · Reboot ao trocar sensores durante o load — null-deref do cliente retirado no drain · **CORREÇÃO APLICADA, confirmação pendente**
+
+**O usuário reproduziu lendo gráficos, e depois isolou o gatilho: trocar a seleção
+de sensores DURANTE o carregamento** ("vários downloads ao mesmo tempo, a barra de
+progresso fica atrapalhada"). A captura serial pegou, e três marcadores em três
+gravações levaram à causa. É distinto do corpo do POST.
+
+### A trilha dos marcadores (duas tentativas erradas antes da certa)
+
+1. **`hp=740`** = o `handleClient( )` RETORNOU; a travada é no `drainOrDrop( )`
+   seguinte. 1ª tentativa: supus as consultas lwIP de entrada, pus `HPOS(603)`+feed.
+2. **`hp=603`** (2×) = errado — reincidiu no marcador que eu mesmo pus. As três
+   chamadas lwIP são instantâneas (`availableForWrite`=`tcp_sndbuf`), então 603 só
+   podia ser o `feedWatchdog( )`. 2ª tentativa: troquei `feedWatchdog`→`watchdog_update`
+   (o light-yield roda sensor/display/flash no drain). **Também errado** — reincidiu.
+3. **`hp=6031`** (marcadores finos, um por instrução) = a instrução exata:
+   **`WiFiClient c = _server.client( );`**, a CÓPIA do cliente atual.
+
+### Causa-raiz (provada pelo código do framework)
+
+`_server.client( )` devolve `*(ClientType*)_currentClient`. E o `handleClient( )`
+é DONO do `_currentClient` — na saída faz
+`if (!keepCurrentClient) { delete _currentClient; _currentClient = nullptr; }`, e
+`keepCurrentClient` é false sempre que o peer não está mais conectado. **Trocar
+sensores no meio do load é exatamente isso**: o navegador dá RST no gráfico em voo
+e abre conexão nova para a nova seleção → o `handleClient` zera o `_currentClient`.
+Mas o `_drainPending` foi travado `true` pelo envio já concluído dessa resposta e
+continua ligado. Então o `drainOrDrop( )` copia `*(ClientType*)nullptr`: a cópia lê
+membros através de um `this` nulo, tira um `ClientContext*` lixo da ROM e faz
+`ref( )` nele — uma leitura a endereço selvagem que **trava o barramento** até o
+watchdog (não é hardfault; é stall). Autópsia: `C0=[WEB_POLL] hp=6031 C1=[DISPLAY]`,
+só sob **requisições sobrepostas**. `C1=[DISPLAY]` é só onde o Core 1 estava, ruído.
+
+### Reprodução — o drain sim, a corrida não
+
+A janela é de **microssegundos**: o RST tem que cair entre o último `safeSendN`
+(que travou `_drainPending` com o peer ainda conectado) e a checagem `connected( )`
+do fim do `handleClient`. `scratchpad/repro_sensorswitch.py` (abort mid-stream +
+replace, concorrente) exercitou o drain **3996 vezes sem reboot** — o cliente não
+acerta o timing; o navegador acerta porque o abort vem num limite natural. Também
+`repro_zerowin_conc.py` (janela-zero real via `SO_RCVBUF` pequeno; um cliente que
+só para de ler NÃO prende o buffer — o kernel faz ACK): 800+ drains, nada. **Nenhum
+dos 5 estilos reproduziu a corrida** — daí os marcadores finos serem a única via.
+
+### Correção (em `src/`, não no framework)
+
+No `drainOrDrop( )` e no `dropAbortedStream( )` (`WebManager_Send.cpp`): **pegar o
+PONTEIRO, não copiar** — `&_server.client( )` é `&*(ClientType*)_currentClient`, que
+dobra para `_currentClient` **sem dereferenciar** (nulo volta como nulo, nunca é
+lido através), e sair se o cliente sumiu. Também elimina a cópia/churn de `WiFiClient`
+por drain. `_currentClient` é sempre um cliente vivo ou `nullptr` (o `handleClient`
+nunca o deixa pendurado), então o teste de nulo é guard completo. Beneficia os
+call sites de OTA também.
+
+**Duas tentativas erradas registradas** (o valor está na disciplina): alimentar a
+janela (740→603) só moveu o marcador; trocar o feed (light-yield) não curou. A
+lição dura: **`hp` localiza a POSIÇÃO; a cura exige saber O QUE roda ali** — e eu
+raciocinei "é instantâneo" duas vezes sobre código que, com o cliente nulo, não era.
+Só o marcador por-instrução (`6031`) e a leitura do dono do `_currentClient`
+fecharam.
+
+### Validação
+
+- **Sem regressão**: na imagem do fix, `repro_sensorswitch` exercita o drain
+  **2920×** (abort+replace), uptime monotônico, `fx=0`, heap plano, **0 reboots**.
+- **Corrida não reproduzível** sinteticamente (janela de µs), então a prova final é
+  o **usuário trocar sensores durante o load** com a captura armada
+  (`boot_capture7.txt`, `firmware.bin` sha `15e89e53…`).
+- **Confiança**: desta vez não é palpite de janela — o `hp=6031` aponta a instrução
+  e o código do framework PROVA que `_currentClient` vira `nullptr` no caminho do
+  peer desconectado. Se reincidir, não será mais `hp=6031` (a cópia sumiu), e a
+  autópsia dirá o novo ponto.
+
+### Observação colateral (não perseguida)
+
+No boot após o reboot do usuário: `WRN[STO] History schema mismatch:
+h5_t0_off_day (103832…)` ×5 — a recuperação do `.wip`/blocos rejeitando por t0 de
+dia deslocado, resíduo da fragmentação/blocos fora de ordem que os reboots em série
+deixaram. O boot recupera; é aviso, não perda nova. Ver [[perda-de-medicao-tres-vias]].
 
 ---
 

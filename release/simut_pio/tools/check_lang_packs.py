@@ -26,7 +26,25 @@ except NameError:
     ROOT = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 HEADER = ROOT / "src" / "DisplayManager.h"
+PARSER = ROOT / "src" / "DisplayManager_LangParser.cpp"
 PACKS = sorted((ROOT / "data" / "lang").glob("*.lng"))
+
+# A pack over LANG_FILE_MAX is the same invisible failure as a short one:
+# loadLangFile() returns false, setLanguage() reverts to English, and nothing
+# says so. es-ES already sits near the ceiling (it derives from pt-BR by
+# substitution and only fits because it omits @HELP/@LICENSE), so a warning
+# band gives notice before a routine addition tips it over the edge in a
+# commit that "just adds a string".
+CEIL_WARN_FRAC = 0.95
+
+
+def lang_file_max():
+    src = PARSER.read_text(encoding="utf-8")
+    m = re.search(r"LANG_FILE_MAX\s*=\s*(\d+)", src)
+    if not m:
+        raise SystemExit("check_lang_packs: LANG_FILE_MAX not found in "
+                         "DisplayManager_LangParser.cpp")
+    return int(m.group(1))
 
 
 def enum_keys():
@@ -73,8 +91,21 @@ def dict_lines(path):
 def main():
     keys = enum_keys()
     want = len(keys)
+    ceil = lang_file_max()
+    warn_at = int(ceil * CEIL_WARN_FRAC)
     failed = False
     for pack in PACKS:
+        size = pack.stat().st_size
+        if size > ceil:
+            print(f"[lang-packs] FAIL {pack.name}: {size} B exceeds LANG_FILE_MAX "
+                  f"({ceil}) — loadLangFile() rejects it and the UI silently "
+                  f"reverts to English", file=sys.stderr)
+            failed = True
+        elif size >= warn_at:
+            print(f"[lang-packs] WARN {pack.name}: {size} B is {size * 100 // ceil}% "
+                  f"of the {ceil} B ceiling ({ceil - size} B left) — the next "
+                  f"addition may tip it over, and the failure is invisible at runtime",
+                  file=sys.stderr)
         lines, blanks = dict_lines(pack)
         if blanks:
             print(f"[lang-packs] FAIL {pack.name}: blank line(s) inside @DICT at "

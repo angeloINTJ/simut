@@ -283,6 +283,17 @@ public:
  /** Snapshot the open block to /history/.wip (§7.2). No-op when empty. */
  bool flushWipV5( );
 
+ /**
+  * @brief True when the open block holds records the .wip does not.
+  * @details writeHistoryEntryV5 snapshots inline, so this is normally false.
+  *          It latches when the inline attempt was refused — touch priority
+  *          or a heavy task was holding the flash — and the loop sweeps it as
+  *          soon as the gate opens. Without the latch a deferred record would
+  *          wait for the next sample to carry it, which is the window R8 is
+  *          supposed to close.
+  */
+ bool h5WipPending( ) const { return _h5WipDirty; }
+
  /** Boot recovery: adopt a valid .wip into its day file, discard a bad one. */
  void recoverWipV5( );
 
@@ -533,9 +544,16 @@ public:
  uint8_t          _h5NCh = 0;
  uint8_t          _h5SchemaSeq = 0;
  bool             _h5Valid = false;
+ /** Records held in RAM that the .wip on flash does not carry yet. */
+ bool             _h5WipDirty = false;
+ /** Consecutive records refused because a seal keeps failing (§H5_SEAL_MAX_FAILS). */
+ uint8_t          _h5SealFails = 0;
  /** Day file the open block belongs to; a change of day forces a seal. */
  String           _h5CurrentDay = "";
  uint16_t         _h5PurgedLegacy = 0;
+
+ /** Snapshot now unless a gate is holding the flash; leaves the flag set. */
+ void flushWipUnlessBlocked( );
 
  File             _h5RdFile;
  HistoryV5Scan    _h5Scan;

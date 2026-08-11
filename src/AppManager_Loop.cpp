@@ -251,25 +251,69 @@ void AppManager::loop( ) {
  watchdog_update( );
 
 
- if (timeSince(_lastHistoryTime, _storageMgr->getHistoryIntervalMin( ) * 60000UL)) {
- if (!_storageMgr->isHeavyTaskLocked( ) && !isUserInteracting( )) {
- processHistoryLogging( );
+ /* Sampling is NOT gated. It used to be, and a gate held across a minute
+  * boundary meant that minute was never measured at all — a hole no snapshot
+  * can fill, because there was nothing to snapshot. The record now always
+  * lands in the RAM encoder (a memcpy, safe under any gate) and only the
+  * flash snapshot inside defers.
+  *
+  * Of the two gates that used to sit here only ONE could ever fire, which is
+  * worth writing down because the removal reads like belt-and-braces
+  * otherwise. isUserInteracting( ) is real: getLastTouchTimestamp( ) is set by
+  * Core 1 and read here, so it can be true while this line runs.
+  * isHeavyTaskLocked( ) could not: every holder — _webMgr->update( ),
+  * _telemetryMgr->update( ), the graph via UI events — runs earlier in THIS
+  * loop on Core 0, strictly sequential with this call, and nothing on the
+  * Core 1 path takes the lock at all. Measured: hammering the heavy lock to a
+  * 57% duty cycle for six minutes deferred exactly zero snapshots. */
+ {
+ bool due = timeSince(_lastHistoryTime,
+                      _storageMgr->getHistoryIntervalMin( ) * 60000UL);
+
+ /* The FIRST record of a boot does not wait a whole interval.
+  *
+  * _lastHistoryTime starts at 0, so the timer above only fires once millis( )
+  * passes the interval — one full minute after boot, on top of the ~20 s the
+  * boot itself takes. Every reboot therefore cost a measurement even with the
+  * .wip snapshot preserving the block perfectly: measured across a web
+  * commit_all, 108 s between the last record before and the first after, where
+  * the interval is 60 s. The block lost nothing; the minute the device spent
+  * restarting was never sampled, and roughly 40 s of that was pure waiting.
+  *
+  * The gate is the RAW system clock, deliberately not getEpoch( ) and not
+  * isTimeSynced( ): getEpoch( ) seeds a provisional clock from
+  * SIMUT_BUILD_EPOCH (2025-09-20) and returns it, which is above the
+  * HIST_EPOCH_MIN threshold, so both would report a good clock on a device
+  * that has none — and the record would be filed two years in the past, which
+  * poisons the day file far worse than a missing minute. time(nullptr) passes
+  * only once NTP or a manual `time` has really set the clock; with neither,
+  * behaviour is exactly what it was before.
+  *
+  * Rate-limited because a failed attempt leaves the flag clear: without it
+  * this calls processHistoryLogging( ) every loop iteration while a sensor or
+  * the schema is not ready yet. */
+ if (!due && !_histFirstDone && time(nullptr) > (time_t)HIST_EPOCH_MIN
+     && timeSince(_histFirstTryMs, 2000)) {
+  _histFirstTryMs = millis( );
+  due = true;
  }
+ if (due) processHistoryLogging( );
  }
 
  watchdog_update( );
 
- /* ── V5 history: the .wip snapshot (§7.2) ──────────────────────────────
-  * The open block lives in RAM, so a power cut loses whatever has not
-  * been snapshotted. Ten minutes is the bound R8 asks for. The block is
-  * NOT closed here — the .wip is a snapshot, and the encoder keeps
-  * filling the same block until the hour is up.
+ /* ── V5 history: the deferred .wip snapshot (§7.2) ──────────────────────
+  * writeHistoryEntryV5 snapshots each record inline, so R8's bound is one
+  * record, not a clock interval. This is only the catch-up path: the inline
+  * attempt is refused while the user is touching the screen or a heavy task
+  * holds the flash (a window here would freeze Core 1 mid-gesture), and the
+  * record then waits here instead of until the next sample.
   *
-  * Skipped while the user is touching the screen for the same reason the
-  * history write is: a flash window here freezes Core 1 mid-gesture. */
+  * Gated on h5WipPending( ) so the common case — snapshot already written
+  * inline — costs one load and no flash. */
  {
   static uint32_t lastWipMs = 0;
-  if (timeSince(lastWipMs, H5_WIP_INTERVAL_MS)) {
+  if (_storageMgr->h5WipPending( ) && timeSince(lastWipMs, H5_WIP_RETRY_MS)) {
    if (!_storageMgr->isHeavyTaskLocked( ) && !isUserInteracting( )
        && _storageMgr->isH5Active( )) {
     lastWipMs = millis( );

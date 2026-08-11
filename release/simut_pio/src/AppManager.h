@@ -61,6 +61,10 @@ private:
  std::unique_ptr<SoundManager> _soundMgr;
 
  uint32_t _lastHistoryTime = 0;
+ /** A record has been written since this boot (see the first-sample note in
+  *  AppManager_Loop.cpp). */
+ bool     _histFirstDone = false;
+ uint32_t _histFirstTryMs = 0;
  uint32_t _lastSensorCheck = 0;
  uint32_t _bootCompletedAt = 0;
 

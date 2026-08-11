@@ -185,12 +185,19 @@ drenando no arquivo do dia seguinte.
 ### 3.1 O `.wip`
 
 Contém **exatamente um** chunk DATA selado com `PARTIAL`, sem SCHEMA. É
-regravado inteiro a cada 10 min (nunca acrescido: um `.wip` meio atualizado que
-ainda passasse no CRC reproduziria um bloco que nunca existiu). No boot é
-validado pelo decodificador comum — sem tratamento especial, sem tentativa de
-conserto (§14-4) — e acrescentado ao arquivo do dia a que seu `t0` pertence.
-É apagado quando o bloco que ele espelha é selado, senão o boot seguinte
-reproduziria dados que já estão no arquivo.
+regravado inteiro **a cada registro aceito** (nunca acrescido: um `.wip` meio
+atualizado que ainda passasse no CRC reproduziria um bloco que nunca existiu).
+No boot é validado pelo decodificador comum — sem tratamento especial, sem
+tentativa de conserto (§14-4) — e acrescentado ao arquivo do dia a que seu `t0`
+pertence. É apagado quando o bloco que ele espelha é selado, senão o boot
+seguinte reproduziria dados que já estão no arquivo.
+
+**Era a cada 10 min até a emenda E10 (10/08/2026).** O intervalo não era folga
+de implementação: era o R8 escrito, "perda máxima de 10 min". Três coisas
+mudaram junto com ele, e as três estão em `HistoryV5_Emendas_Rev2.md` §E10 — o
+gancho pré-reboot (o `commit_all` reiniciava sem gravar nada), o snapshot por
+registro, e a separação entre amostrar e escrever, porque condicionar a
+amostragem aos gates deixava minutos sem medição alguma.
 
 ### 3.2 Correção retroativa (§7.3) — o que o V4 anunciava e não fazia
 

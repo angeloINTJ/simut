@@ -404,6 +404,9 @@ void AppManager::processHistoryLogging( ) {
 	 }
 
 	 if (_storageMgr->writeHistoryEntryV5(values, nCh, (uint32_t)now)) {
+	 	 /* Only a record that really landed closes the first-sample window;
+	 	  * a refusal has to leave it open so the loop retries. */
+	 	 _histFirstDone = true;
 	 	 LOG_CODE(LOG_INFO, "HIST", APP_HISTORY_SAVED, 0, "");
 	 	 _telemetryMgr->notifyNewRecord( );
 	 }

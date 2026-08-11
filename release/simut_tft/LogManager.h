@@ -48,6 +48,18 @@ public:
 
  void setLockCallback(FlashLockCallback cb);
  void setHeavyTaskChecker(bool (*fn)( ));
+
+ /** Last chance to persist RAM state, run at the very top of safeReboot( )
+  * while flash is still writable and the console still attached. AppManager
+  * registers the V5 history snapshot here: the open block lives in RAM, so a
+  * voluntary reboot used to discard every record taken since the last
+  * snapshot — deterministically, on a path that had time to spare. */
+ void setPreRebootHook(void (*fn)( ));
+
+ /** Cancel the hook for a reboot that must NOT persist: the caller has just
+  * erased or replaced the filesystem the hook would write into, and a
+  * snapshot from the pre-erase RAM block would resurrect it on next boot. */
+ void suppressPreRebootHook( );
  void setConsoleSink(ConsoleSink sink);
  void setConsoleStream(bool enabled); /**< false = CONFIG mode (silent console) */
 
@@ -238,6 +250,7 @@ private:
 
 
  bool (*_isHeavyTaskFn)( ) = nullptr;
+ void (*_preRebootFn)( ) = nullptr;
 
  /* Uses TouchPriority::isActive( ) directly. */
 
