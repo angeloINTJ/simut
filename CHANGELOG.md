@@ -4,6 +4,34 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.3-beta (2026-08-11)
+
+### Core 1 parks before a flash pause kills it — the display-storm wedge is gone
+
+A flash write on Core 0 (a config save, a history record) pauses Core 1 first, so
+the erase never runs with Core 1 fetching from XIP. That pause asked Core 1 to park
+at the top of its render loop and waited only 200 ms for it — and it spun there
+without feeding the watchdog. But a single render measured up to ~1 s under load, so
+200 ms routinely expired mid-render: Core 1 was then hard-reset while holding a lock
+(the render's state mutex, the allocator, a spinlock), and the next Core-0 flash-path
+acquisition of that lock blocked forever with the watchdog unfed. On the bench that
+rebooted as `C0=[CLI] C1=[DISPLAY]` under a save+touch+read storm — the same shape as
+the `C0=[STORAGE_WR]` history-write reboot a user hit configuring the device — and in
+the worst case escalated to a QSPI wedge: a dead hang that a power-cycle was the only
+way out of.
+
+The park window now covers a whole render (1200 ms) and feeds the watchdog while it
+waits, so Core 1 reaches a lock-free point before the reset instead of dying mid-work.
+Applied to both pause paths — the quiet-mode save and the IRQ-lockout history write.
+Measured against the same storm: the **wedge is gone** (the device self-recovers
+instead of hanging), watchdog reboots dropped roughly threefold, and no flash write ran
+unpaused (`fx` stayed 0).
+
+**Still open:** one residual `C0=[CLI]` reboot survives the storm — Core 1 occasionally
+does not park even within 1200 ms. Closing it needs the per-instruction marker pass that
+located the drain reboot; tracked for the next cycle. The everyday failure (a single
+reboot that used to also lose or misfile data — both fixed in this line) no longer wedges.
+
 ## v2.1.2-beta (2026-08-11)
 
 ### A reboot no longer drags the just-recovered block 15 minutes into the future
