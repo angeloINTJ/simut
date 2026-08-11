@@ -4,6 +4,55 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.4-beta (2026-08-11)
+
+### The hour still open in RAM reaches the graphs and the CSV
+
+A V5 block is held in RAM and reaches its day file only when it seals, which at one
+record a minute is once an hour. Everything that read `.h5` therefore trailed the
+present by up to that hour: opening a chart — on the display or on the web — showed
+nothing for the last few minutes, and a CSV export stopped at the last seal however
+recent the window asked for. Telemetry had already been given a way past this when a
+fresh device was found to stay silent for its first 60 minutes; the graphs and the
+export never were.
+
+The samples were never missing. They are held plain in the encoder, not bit-packed, so
+reaching them costs a copy and no decode — and the `/history/.wip` snapshot beside them
+is a power-cut bound, not a read path: boot adopts it into the day file and nothing else
+opens it.
+
+- **Display graph** (`renderGraphOptimized`) and **web graph** (`/api/history_multi`,
+  both the decode and the envelope paths) now continue into the open block after the day
+  files. Channels are resolved against the live schema rather than the reader's, because
+  the open block is encoded with the sensor set in force now, not the one the newest file
+  on flash was written with.
+- The newest record is emitted **whatever the decimation says**. Without that, a 24 h
+  range (step 8) would still leave the right edge up to eight minutes stale, and a range
+  decimated 40:1 forty minutes — the right edge being current is the point.
+- **CSV export**: the device serves the open block at `GET /api/history/open` as a
+  standalone one-block V5 stream — a SCHEMA chunk followed by the block sealed PARTIAL,
+  byte for byte what a `.h5` file looks like. The page fetches it after the day files and
+  runs the decoder it already has, so there is no second format and no second decoder.
+  Fetched last on purpose: a seal mid-export can then only cost a gap, never a duplicate
+  row. An export whose window has no day file at all — a device in its first hour after a
+  factory reset — now returns the open hour instead of "no data recovered".
+
+`/api/history_multi` reports `"ram"` (records taken from the open block) and marks
+`"path"` as `decode+ram` / `envelope+ram` when the tail contributed, which is the only
+field that distinguishes a live answer from a stale one.
+
+Measured on hardware: the graph's right edge went from up to an hour behind to **0 s**,
+with the seam visible across a reboot (flash ends at 18:33:51, RAM carries 18:35 →
+18:41). The open-block stream was decoded by `tools/history_v5.py` — the reference
+implementation the native tests already use as an oracle — with **0 frame/CRC errors**
+over a 9-record block whose 37-byte payload carries 64 values, and independently by the
+page's own decoder, both agreeing value for value with the plain copies the JSON path
+emits.
+
+**Not covered:** `/api/export/history.bin` (the `.simx` bundle) still reads files only.
+It is no longer the CSV button's path — the page downloads `.h5` and decodes locally —
+but it remains reachable by URL and stops at the last seal.
+
 ## v2.1.3-beta (2026-08-11)
 
 ### Core 1 parks before a flash pause kills it — the display-storm wedge is gone

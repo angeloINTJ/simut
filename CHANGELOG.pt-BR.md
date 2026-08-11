@@ -4,6 +4,55 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.4-beta (2026-08-11)
+
+### A hora ainda aberta na RAM chega aos gráficos e ao CSV
+
+Um bloco V5 fica na RAM e só chega ao arquivo do dia quando sela, o que a um registro
+por minuto é uma vez por hora. Tudo que lia `.h5` ficava, portanto, até uma hora atrás
+do presente: abrir um gráfico — no display ou na web — não mostrava os últimos minutos,
+e um export CSV parava na última selagem por mais recente que fosse a janela pedida. A
+telemetria já tinha ganhado um caminho para além disso quando se descobriu que um
+aparelho novo ficava mudo nos primeiros 60 minutos; os gráficos e o export, não.
+
+As amostras nunca estiveram faltando. Elas ficam em texto claro no encoder, sem
+empacotamento de bits, então alcançá-las custa uma cópia e nenhuma decodificação — e o
+`/history/.wip` ao lado delas é um limite para queda de energia, não um caminho de
+leitura: o boot o adota no arquivo do dia e mais nada o abre.
+
+- **Gráfico do display** (`renderGraphOptimized`) e **gráfico da web**
+  (`/api/history_multi`, tanto o caminho de decode quanto o de envelope) agora seguem
+  para o bloco aberto depois dos arquivos do dia. Os canais são resolvidos contra o
+  schema vivo, e não o do leitor, porque o bloco aberto é codificado com o conjunto de
+  sensores em vigor agora, não o do arquivo mais novo em flash.
+- O registro mais novo sai **independentemente da decimação**. Sem isso, uma faixa de
+  24 h (passo 8) ainda deixaria a borda direita até oito minutos velha, e uma faixa
+  decimada 40:1 deixaria quarenta — a borda direita estar em dia é o objetivo.
+- **Export CSV**: o aparelho serve o bloco aberto em `GET /api/history/open` como uma
+  corrente V5 de um bloco só — um chunk SCHEMA seguido do bloco selado PARTIAL, byte a
+  byte o que um `.h5` parece. A página o busca depois dos arquivos do dia e roda nele o
+  decodificador que já tem, então não há segundo formato nem segundo decodificador.
+  Buscado por último de propósito: uma selagem no meio do export passa a custar no
+  máximo uma lacuna, nunca uma linha duplicada. Um export cuja janela não tem arquivo
+  nenhum — um aparelho na primeira hora depois de um factory reset — devolve a hora
+  aberta em vez de "nenhum dado recuperado".
+
+O `/api/history_multi` informa `"ram"` (registros vindos do bloco aberto) e marca
+`"path"` como `decode+ram` / `envelope+ram` quando a cauda contribuiu, que é o único
+campo capaz de distinguir uma resposta viva de uma parada.
+
+Medido no hardware: a borda direita do gráfico saiu de até uma hora atrás para **0 s**,
+com a costura visível através de um reboot (o flash termina em 18:33:51, a RAM carrega
+18:35 → 18:41). A corrente do bloco aberto foi decodificada pelo `tools/history_v5.py`
+— a implementação de referência que os testes nativos já usam como oráculo — com **0
+erros de frame/CRC** sobre um bloco de 9 registros cujo payload de 37 bytes carrega 64
+valores, e independentemente pelo próprio decodificador da página, ambos concordando
+valor a valor com as cópias planas que o caminho JSON emite.
+
+**Fora do escopo:** o `/api/export/history.bin` (o bundle `.simx`) continua lendo só
+arquivos. Ele não é mais o caminho do botão CSV — a página baixa os `.h5` e decodifica
+localmente — mas segue alcançável por URL e para na última selagem.
+
 ## v2.1.3-beta (2026-08-11)
 
 ### O Core 1 parka antes de a pausa de flash matá-lo — o wedge da tempestade de display acabou
