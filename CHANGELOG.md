@@ -4,7 +4,111 @@
 
 All notable changes to SIMUT firmware.
 
-## Unreleased
+## v2.1.2-beta (2026-08-11)
+
+### A reboot no longer drags the just-recovered block 15 minutes into the future
+
+A reboot mid-hour lost a quarter-hour of history to the wrong timestamps, not to
+the writer. The `.wip` snapshot recovered the open block correctly, with its own
+pre-reboot timestamps — and then the NTP correction on boot moved it. The chain:
+`getLastRecordedTimestamp()` seeds the provisional clock from the newest record,
+but it read only the sealed day file, never the `.wip`. So after a reboot mid-hour
+it seeded from the last *sealed* block — up to an hour behind the real newest data
+that was sitting in the `.wip`. NTP then measured that stale base as a large error
+(measured on the bench: +919 s) and `shiftHistoryTimeV5()` shifts every block with
+`t0 >= base` — which caught the block `recoverWipV5()` had just restored, already
+correctly stamped, and pushed it forward by the whole error. 05:48–06:03 was filed
+as 06:04–06:18; the 05:48 window read empty and the reader stopped at its end.
+
+Fix: `getLastRecordedTimestamp()` now also reads the `.wip`, taking the newest of
+the sealed file and the snapshot. The provisional clock lands close to real (the
+shift error shrinks to seconds) and, decisively, the shift floor rises above the
+recovered block's `t0`, so the block the reboot just restored is exempt and stays
+exactly where its own timestamps put it. Verified on hardware: a partial block at
+06:32–06:36 was snapshotted, the target hardware-reset, and the block came back at
+06:32–06:36 unmoved, with the NTP correction down to −13 s (was +919 s) and the
+sealed hourly blocks untouched. The reboot that triggered it — a watchdog stall in
+the storage-write path — is a separate stability item still open.
+
+### Changing the sensor selection mid-load now cancels the transfer and starts one clean load
+
+The graph page fetches history in slices, and each loader (`fetchAndDraw`) was
+`async` but uncoordinated: changing the sensor selection — or the range or date —
+while a graph was still loading started a *second* slice loop without stopping the
+first. Two loops then raced on the same progress bar and the shared abort handle,
+and fired overlapping `/api/history_multi` requests at the device — the "confused
+loading bar, several downloads at once" the user reported. That overlap is also
+what exposed the drain reboot (D-B8c, below), so this fixes the appearance and
+removes the trigger at the source.
+
+`fetchAndDraw` is now a coordinator: it bumps a generation, aborts the transfer in
+flight, and queues the new load behind it on a promise chain, so exactly one graph
+transfer is ever live and the newest selection wins. A load superseded before it
+starts is skipped; one superseded mid-fetch drops its result instead of drawing
+over the newer one. Client-side only (`WebUI.h`); pairs with the firmware
+null-guard so the device is safe even if some other client still overlaps.
+
+### A slow POST body rebooted the device — the loss behind "reboots when I configure"
+
+The measurements were being lost to a reboot, not to the writer. Chasing "lost
+data when I restart or configure" on the bench turned up a live watchdog reboot
+with the signature `C0=[WEB_POLL] hp=0 (219)` — `hp=0` meaning `handleClient()`
+never returned, so the stall was inside it. The D-B8 fix bounded the request line
+and headers with a watchdog-fed, wall-clock reader; the request **body** was left
+on the stock reads, which feed nothing and are consumed during the parse, before
+dispatch and auth. A POST whose body dribbles in holds Core 0 across the 8388 ms
+window and reboots — on the exact path taken to save configuration.
+
+Reproduced deterministically (`scratchpad/repro_post_slow.py`): `POST /api/save_sys`
+at 1 s/byte took the device from uptime 2815 s to 31 s; `/api/upload` and
+`/api/restore` did the same through the RAW upload loop.
+
+Three unbounded body reads, all now under the same discipline as `simutReadLine`:
+- **`plain`/urlencoded/json** (`readBytesWithTimeout`): feeds the watchdog while
+  the body dribbles, and caps the whole read by wall clock
+  (`SIMUT_BODY_BUDGET_MS = 15000`). Feeding alone would trade "reboot in 8 s" for
+  Core 0 frozen for hours on a large declared `Content-Length`; the ceiling makes
+  an overrun return partial and drop the client. A real config POST is a few KB in
+  one segment under a millisecond, so the budget is only ever spent by a stall.
+- **RAW upload** (`/api/upload`, `/api/restore`): a new `simutReadRaw` reads only
+  what is already buffered — so `readBytes` cannot block, the way it did per-byte —
+  feeds the watchdog while waiting, and gives up after a short no-data window. No
+  whole-transfer cap: a firmware/file upload is long and flash-bound.
+- **multipart** (`_uploadReadByte`, `_parseForm`): the byte wait now feeds the
+  watchdog and the header-line reads use the bounded reader.
+
+Same fifth framework override (`webserver_parse_deadline.patch`), regenerated so
+`restore → patch → rebuild` reproduces the flashed `firmware.bin` byte for byte.
+Validated on the bench: the reboot is gone on all three paths (0 new `hp=0 (219)`
+in the boot capture), a fast legitimate upload still works, `/`, `/history`,
+`/config` still serve whole, the request-line slowloris still drops, `fx=0`.
+Both firmware environments build (release 93.8 %, test 98.5 %).
+
+The reboot the user also reported while *reading graphs* is a **separate
+mechanism**, and the user pinned its trigger: **changing the sensor selection
+while a graph loads** ("several downloads at once, the progress bar confused").
+Three autopsies over three builds tracked it down. `hp=740` said `handleClient()`
+returned and the stall was in the drain after it; a first fix guessed the lwIP
+entry and only moved the marker to `hp=603`; a second (the drain's `feedWatchdog`
+light-yield) missed too. Per-instruction markers then named the exact statement:
+`hp=6031` = `WiFiClient c = _server.client();`, the copy of the current client.
+
+Root cause, proven from the framework: `_server.client()` returns
+`*(ClientType*)_currentClient`, and `handleClient()` deletes `_currentClient` and
+sets it null whenever the peer is no longer connected — which a sensor change
+mid-load causes, by RSTing the in-flight graph and opening a fresh connection. But
+`_drainPending`, latched true by that response's completed send, is still set, so
+`drainOrDrop()` copies `*(ClientType*)nullptr`: the copy reads through a null
+`this`, takes a garbage `ClientContext*` from ROM and `ref()`s it — a load to a
+wild address that parks the bus until the watchdog fires. Only under overlapping
+requests, a microsecond race no synthetic client hit (the drain path was exercised
+~5000× across five repro styles without it). Fix: `drainOrDrop()` and
+`dropAbortedStream()` take the pointer, not a copy — `&_server.client()` folds to
+`_currentClient` with no dereference, so a retired (null) client is caught by a
+guard instead of read through, and the per-drain WiFiClient copy is gone too.
+Lesson recorded twice over: `hp` locates the position; the cure needs knowing
+*what* runs there — reasoning "it's instant" was wrong on code that, with a null
+client, was not.
 
 ### Measurements were lost on power cut and on every reboot for configuration
 

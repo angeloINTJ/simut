@@ -4,7 +4,116 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## Não lançado
+## v2.1.2-beta (2026-08-11)
+
+### Um reboot não arrasta mais o bloco recém-recuperado 15 minutos para o futuro
+
+Um reboot no meio da hora perdia um quarto de hora de histórico para a hora
+errada, não para a gravação. O snapshot `.wip` recuperava o bloco aberto
+corretamente, com os timestamps próprios de antes do reboot — e então a correção
+de NTP no boot o movia. A cadeia: o `getLastRecordedTimestamp()` semeia o relógio
+provisório do registro mais novo, mas lia só o arquivo diário selado, nunca o
+`.wip`. Então, após um reboot no meio da hora, semeava do último bloco *selado* —
+até uma hora atrás do dado mais novo real, que estava no `.wip`. O NTP media essa
+base velha como um erro grande (na bancada: +919 s) e o `shiftHistoryTimeV5()`
+desloca todo bloco com `t0 >= base` — pegando o bloco que o `recoverWipV5()` acabou
+de restaurar, já com a hora certa, e empurrando-o para frente pelo erro inteiro.
+05:48–06:03 virou 06:04–06:18; a janela de 05:48 lia vazia e o leitor parava no
+fim dela.
+
+Correção: o `getLastRecordedTimestamp()` agora também lê o `.wip`, pegando o mais
+novo entre o arquivo selado e o snapshot. O relógio provisório cai perto do real
+(o erro do shift encolhe para segundos) e, decisivo, o piso do shift sobe acima do
+`t0` do bloco recuperado, então o bloco que o reboot acabou de restaurar fica
+isento e permanece exatamente onde os timestamps dele mandam. Verificado em
+hardware: um bloco parcial em 06:32–06:36 foi snapshotado, o alvo resetado por
+hardware, e o bloco voltou em 06:32–06:36 sem se mover, com a correção de NTP em
+−13 s (era +919 s) e os blocos horários selados intocados. O reboot que disparou
+tudo — um travamento de watchdog no caminho de escrita de armazenamento — é uma
+questão de estabilidade separada, ainda aberta.
+
+### Trocar a seleção de sensores durante o load agora cancela a transferência e começa um load limpo
+
+A página do gráfico busca o histórico em fatias, e cada carregador (`fetchAndDraw`)
+era `async` mas sem coordenação: trocar a seleção de sensores — ou a faixa, ou a
+data — enquanto um gráfico ainda carregava iniciava um *segundo* laço de fatias sem
+parar o primeiro. Dois laços disputavam a mesma barra de progresso e o mesmo abort
+compartilhado, e disparavam requisições `/api/history_multi` sobrepostas ao
+aparelho — a "barra de carregamento atrapalhada, vários downloads ao mesmo tempo"
+que o usuário relatou. Essa sobreposição também é o que expunha o reboot do drain
+(D-B8c, abaixo), então isto corrige a aparência e remove o gatilho na origem.
+
+O `fetchAndDraw` virou um coordenador: incrementa uma geração, aborta a
+transferência em voo e enfileira o novo load atrás dela numa cadeia de promessas,
+de modo que exatamente uma transferência fica viva e a seleção mais nova vence. Um
+load superado antes de começar é pulado; um superado no meio do fetch descarta o
+resultado em vez de desenhar por cima do mais novo. Só no cliente (`WebUI.h`); faz
+par com o null-guard do firmware, então o aparelho fica seguro mesmo se outro
+cliente ainda sobrepuser.
+
+### Um corpo de POST lento reiniciava o aparelho — a perda por trás de "reinicia ao configurar"
+
+As medições se perdiam por um reboot, não pela gravação. Perseguir na bancada o
+"dado perdido ao reiniciar ou configurar" achou um reboot vivo de watchdog com a
+assinatura `C0=[WEB_POLL] hp=0 (219)` — `hp=0` significa que o `handleClient()`
+não retornou, então a travada foi dentro dele. A correção do D-B8 limitou a linha
+de request e os cabeçalhos com um leitor que alimenta o watchdog e tem prazo de
+parede; o **corpo** do request ficou nas leituras de fábrica, que não alimentam
+nada e são consumidas **durante** o parse, antes do dispatch e da auth. Um POST
+cujo corpo goteja segura o Core 0 além da janela de 8388 ms e reinicia — no exato
+caminho usado para salvar configuração.
+
+Reproduzido de forma determinística (`scratchpad/repro_post_slow.py`): `POST
+/api/save_sys` a 1 s/byte levou o aparelho de uptime 2815 s a 31 s; `/api/upload`
+e `/api/restore` fizeram o mesmo pelo laço RAW de upload.
+
+Três leituras de corpo sem limite, agora sob a mesma disciplina do `simutReadLine`:
+- **`plain`/urlencoded/json** (`readBytesWithTimeout`): alimenta o watchdog
+  enquanto o corpo goteja e limita a leitura inteira por relógio de parede
+  (`SIMUT_BODY_BUDGET_MS = 15000`). Só alimentar trocaria "reboot em 8 s" por Core
+  0 congelado por horas com um `Content-Length` grande declarado; o teto faz o
+  estouro voltar parcial e derrubar o cliente. Um POST de config real é uns poucos
+  KB em um segmento em <1 ms, então o orçamento só é gasto por stall.
+- **upload RAW** (`/api/upload`, `/api/restore`): um novo `simutReadRaw` lê só o
+  que já está no buffer — então o `readBytes` não bloqueia como bloqueava por byte
+  —, alimenta o watchdog enquanto espera, e desiste após um intervalo curto sem
+  dados. Sem teto total: upload de firmware/arquivo é longo e limitado por flash.
+- **multipart** (`_uploadReadByte`, `_parseForm`): a espera por byte agora
+  alimenta o watchdog e as linhas de header usam o leitor com prazo.
+
+Mesmo quinto override do framework (`webserver_parse_deadline.patch`), regenerado
+para que `restore → patch → rebuild` reproduza o `firmware.bin` gravado byte a
+byte. Validado na bancada: o reboot sumiu nos três caminhos (0 novo `hp=0 (219)`
+na captura de boot), um upload legítimo rápido segue funcionando, `/`, `/history`
+e `/config` servem inteiros, o slowloris na linha de request ainda dropa, `fx=0`.
+Os dois ambientes de firmware compilam (release 93,8 %, test 98,5 %).
+
+O reboot que o usuário também relatou ao *ler gráficos* é um **mecanismo
+separado**, e o usuário fixou o gatilho: **trocar a seleção de sensores enquanto o
+gráfico carrega** ("vários downloads ao mesmo tempo, a barra de progresso
+atrapalhada"). Três autópsias em três builds levaram até ele. `hp=740` disse que o
+`handleClient()` retornou e a travada era no drain seguinte; uma 1ª correção supôs
+as consultas lwIP e só moveu o marcador para `hp=603`; uma 2ª (o light-yield do
+`feedWatchdog` no drain) também errou. Marcadores por-instrução então nomearam a
+instrução exata: `hp=6031` = `WiFiClient c = _server.client();`, a cópia do cliente
+atual.
+
+Causa-raiz, provada pelo framework: `_server.client()` devolve
+`*(ClientType*)_currentClient`, e o `handleClient()` deleta o `_currentClient` e o
+zera sempre que o peer não está mais conectado — o que a troca de sensores no meio
+do load causa, dando RST no gráfico em voo e abrindo conexão nova. Mas o
+`_drainPending`, travado `true` pelo envio já concluído dessa resposta, continua
+ligado, então o `drainOrDrop()` copia `*(ClientType*)nullptr`: a cópia lê através
+de um `this` nulo, tira um `ClientContext*` lixo da ROM e faz `ref()` nele — uma
+leitura a endereço selvagem que trava o barramento até o watchdog. Só sob
+requisições sobrepostas, uma corrida de microssegundos que nenhum cliente sintético
+acertou (o drain foi exercitado ~5000× em cinco estilos sem ela). Correção: o
+`drainOrDrop()` e o `dropAbortedStream()` pegam o ponteiro, não uma cópia —
+`&_server.client()` dobra para `_currentClient` sem dereferenciar, então um cliente
+já retirado (nulo) cai no guard em vez de ser lido, e a cópia por-drain some. Lição
+registrada em dobro: o `hp` localiza a posição; a cura exige saber *o que* roda ali
+— raciocinar "é instantâneo" estava errado sobre código que, com o cliente nulo,
+não era.
 
 ### Medições se perdiam no corte de energia e em toda reinicialização para configuração
 
