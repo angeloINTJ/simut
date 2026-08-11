@@ -2244,6 +2244,20 @@ bool StorageManager::flushWipV5( ) {
 	return true;
 }
 
+size_t StorageManager::h5StreamOpenBlock(H5WriteFn sink, void* ctx) {
+	if (!_h5Valid || !sink || _h5Enc.count( ) == 0) return 0;
+
+	/* The schema seq is the one the block would land with, so a reader that
+	 * tracks schema changes sees the same number here and in the day file. */
+	uint8_t schemaBuf[H5_SCHEMA_CHUNK_SIZE(H5_MAX_CHANNELS)];
+	const size_t sn = h5BuildSchemaChunk(schemaBuf, sizeof(schemaBuf),
+	                                     _h5Schema, _h5NCh, _h5SchemaSeq);
+	if (sn == 0 || !sink(ctx, schemaBuf, sn)) return 0;
+
+	const size_t dn = _h5Enc.sealStream(sink, ctx, H5_FLAG_PARTIAL);
+	return dn ? sn + dn : 0;
+}
+
 void StorageManager::recoverWipV5( ) {
 	if (!_isMounted) return;
 

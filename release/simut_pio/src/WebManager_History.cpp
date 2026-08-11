@@ -515,6 +515,10 @@ void WebManager::handleApiHistoryMulti( ) {
  uint32_t sinceBreath = 0; /* decoded records since the last respiro (both paths) */
  HPOS(1);
  unsigned filesOpened = 0, recsDecoded = 0; /* diagnostico no metaEnd */
+ /* Records the answer took from the block still open in RAM. Reported apart
+  * from recsDecoded because it is the one number that says whether the tail
+  * ran at all — "recs" alone cannot tell a stale answer from a live one. */
+ unsigned ramRecs = 0;
  unsigned winSkips = 0; /* records decoded but outside the from/to window */
  /* Blocks actually read off flash. The §10 budgets are per block, and a
   * count derived from records/60 is wrong exactly when it matters: every
@@ -803,6 +807,119 @@ void WebManager::handleApiHistoryMulti( ) {
 	 (void)chAny;
  }
 
+ /* ── The hour still open in RAM ──────────────────────────────────────
+  * A V5 block reaches its day file only when it seals, which at one record a
+  * minute is once an hour. Everything that reads .h5 therefore trails the
+  * present by up to that hour — which is why a freshly opened chart was
+  * missing its last few minutes. The samples were never absent: they are held
+  * in the encoder, plain rather than bit-packed, so reaching them costs a copy
+  * and no decode. The /history/.wip alongside them is a crash bound, not a
+  * read path — boot adopts it into the day file and nothing else opens it,
+  * and it never appears in filesToRead because it carries no HISTORY_FILE_EXT.
+  *
+  * Nothing is emitted twice: the seal appends the block to the file and
+  * empties the encoder in one non-yielding step, so a record is in exactly
+  * one of the two places.
+  *
+  * The walk itself does not yield — the history writer runs on this same
+  * core, and letting it in could seal the block mid-read — but the emit
+  * between two records does, exactly as the file path's does. That is safe
+  * here for the same reason it is safe there: the sampler runs only from the
+  * main loop, which is blocked for as long as this handler is running. */
+ if (!aborted) {
+ const uint8_t ramCount = _storageRef->h5RamCount( );
+ const H5ChannelDesc* ramSchema = _storageRef->getH5Schema( );
+ const uint8_t ramNCh = _storageRef->getH5ChannelCount( );
+ if (ramCount > 0 && ramSchema && ramNCh > 0) {
+ /* Same resolution the file path does per file, against the LIVE schema:
+  * the open block is encoded with the sensor set in force right now, not
+  * necessarily the one the newest file on flash was written with. */
+ const uint8_t CH_NONE = 0xFF;
+ uint8_t chOfR[H5_MAX_CHANNELS];
+ char    keyOfR[H5_MAX_CHANNELS][32];
+ float   scaleOfR[H5_MAX_CHANNELS];
+ for (uint8_t c = 0; c < ramNCh; c++) {
+ const uint8_t slot = (uint8_t)(ramSchema[c].id / MAX_SENSOR_CHANNELS);
+ const uint8_t ch   = (uint8_t)(ramSchema[c].id % MAX_SENSOR_CHANNELS);
+ chOfR[c] = CH_NONE;
+ keyOfR[c][0] = '\0';
+ scaleOfR[c] = powf(10.0f, (float)ramSchema[c].scaleExp);
+ if (slot >= MAX_SENSORS || !channelValid(ch)) continue;
+ snprintf(keyOfR[c], sizeof(keyOfR[c]), "%c%s",
+          channelInfo(ch).letter, cfgRef.sensors[slot].hwId);
+ for (int si = 0; si < sensorCount; si++) {
+ if (sensorIds[si] == (int)slot) { chOfR[c] = ch; break; }
+ }
+ }
+
+ /* The envelope path replaces decimation rather than applying it, so the
+  * tail follows suit: at most H5_BLOCK_MAX_RECORDS points either way. */
+ const int ramDecim = useEnvelope ? 1 : (decimation > 0 ? decimation : 1);
+
+ int16_t vals[H5_MAX_CHANNELS];
+ uint32_t epoch = 0;
+ for (uint8_t i = 0; i < ramCount && !aborted; i++) {
+ if (isClientGone( ) || isHandlerOvertime( )) { HPOS(901); aborted = true; break; }
+ if (!_storageRef->h5RamRecord(i, epoch, vals)) break;
+
+ const time_t ts = (time_t)epoch;
+ if (cutoff > 0 && ts < cutoff) { winSkips++; continue; }
+ if (ts > effectiveEnd)         { winSkips++; continue; }
+ ramRecs++;
+
+ for (uint8_t c = 0; c < ramNCh; c++) {
+ const uint8_t ch = chOfR[c];
+ if (ch == CH_NONE || vals[c] == H5_NAN_SENTINEL) continue;
+ const float v = (float)vals[c] * scaleOfR[c];
+ if (!chSeen[ch]) {
+ chSeen[ch] = true;
+ realMin[ch] = v; realMax[ch] = v;
+ if (ch == CH_TEMP) { tsRealMinT = ts; tsRealMaxT = ts; }
+ continue;
+ }
+ if (v < realMin[ch]) { realMin[ch] = v; if (ch == CH_TEMP) tsRealMinT = ts; }
+ if (v > realMax[ch]) { realMax[ch] = v; if (ch == CH_TEMP) tsRealMaxT = ts; }
+ }
+
+ /* The cadence carries on from the file loop so the tail is spaced like
+  * the rest of the series — except for the newest record, which is
+  * emitted whatever the decimation says. Otherwise a range decimated 40:1
+  * would still leave the right edge forty minutes stale, and the right
+  * edge being current is the whole point of reading RAM at all. */
+ lineIdx++;
+ const bool newest = (i + 1 == ramCount);
+ if (!emitPoints) continue;
+ if (lineIdx % ramDecim != 0 && !newest) continue;
+
+ char ptBuf[1024]; int pp = 0;
+ pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp,
+ "%s{\"t\":%lu,\"v\":{", firstPoint ? "" : ",", (unsigned long)ts);
+ bool fk = true;
+ for (uint8_t c = 0; c < ramNCh; c++) {
+ if (vals[c] == H5_NAN_SENTINEL || keyOfR[c][0] == '\0') continue;
+ pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp, "%s\"%s\":%.2f",
+ fk ? "" : ",", keyOfR[c], (double)((float)vals[c] * scaleOfR[c]));
+ fk = false;
+ }
+ pp += snprintf(ptBuf + pp, sizeof(ptBuf) - pp, "}}");
+ if (pp >= (int)sizeof(ptBuf)) pp = (int)sizeof(ptBuf) - 1;
+
+ if (chunkLen + pp >= (int)WEB_STREAM_CHUNK_SOFT) {
+ if (!safeSend(chunkBuf)) { aborted = true; break; }
+ chunkBuf[0] = '\0'; chunkLen = 0;
+ streamBreath( );
+ }
+ memcpy(chunkBuf + chunkLen, ptBuf, (size_t)pp + 1);
+ chunkLen += pp;
+ firstPoint = false;
+ }
+ /* Only when the tail really contributed: a window that ends in the past
+  * walks the block and discards every record, and reporting "+ram" for
+  * that would say the answer is live when it is not. */
+ if (ramRecs > 0) pathUsed = useEnvelope ? "envelope+ram" : "decode+ram";
+ }
+ }
+
  if (!aborted) {
  if (chunkLen > 0) safeSend(chunkBuf);
  if (chSeen[CH_TEMP]) {
@@ -824,7 +941,7 @@ void WebManager::handleApiHistoryMulti( ) {
  if (!safeSend("}")) return;
 
  /* Legacy fixed keys, kept one release so a cached page keeps working. */
- char metaEnd[416];
+ char metaEnd[448];
  char hPart[64] = "";
  if (chSeen[CH_HUM]) {
  snprintf(hPart, sizeof(hPart), ",\"minH\":%.1f,\"maxH\":%.1f",
@@ -838,20 +955,20 @@ void WebManager::handleApiHistoryMulti( ) {
  HPOS(500);
  snprintf(metaEnd, sizeof(metaEnd),
  ",\"minT\":%.2f,\"maxT\":%.2f,\"tsMinT\":%lu,\"tsMaxT\":%lu%s%s,"
- "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,\"blocks\":%u,"
+ "\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,\"ram\":%u,\"blocks\":%u,"
  "\"path\":\"%s\",\"readMs\":%.1f,\"loadMs\":%.1f,\"loopMs\":%.1f,\"rejected\":%u,\"winSkips\":%u}",
  realMin[CH_TEMP], realMax[CH_TEMP],
  (unsigned long)tsRealMinT, (unsigned long)tsRealMaxT, hPart, pPart,
- (unsigned)filesToRead.size( ), filesOpened, recsDecoded, blocksRead,
+ (unsigned)filesToRead.size( ), filesOpened, recsDecoded, ramRecs, blocksRead,
  pathUsed, (double)readUs / 1000.0, (double)loadUs / 1000.0,
  (double)loopUs / 1000.0, rejected, winSkips);
  safeSend(metaEnd);
  } else {
- char metaEnd[192];
+ char metaEnd[208];
  snprintf(metaEnd, sizeof(metaEnd),
- "],\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,\"blocks\":%u,"
+ "],\"filesTried\":%u,\"filesOpened\":%u,\"recs\":%u,\"ram\":%u,\"blocks\":%u,"
  "\"path\":\"%s\",\"readMs\":%.1f,\"loadMs\":%.1f,\"loopMs\":%.1f,\"rejected\":%u}",
- (unsigned)filesToRead.size( ), filesOpened, recsDecoded, blocksRead,
+ (unsigned)filesToRead.size( ), filesOpened, recsDecoded, ramRecs, blocksRead,
  pathUsed, (double)readUs / 1000.0, (double)loadUs / 1000.0,
  (double)loopUs / 1000.0, rejected);
  safeSend(metaEnd);
@@ -902,6 +1019,62 @@ struct __attribute__((packed)) SimxHeader {
 };
 static_assert(sizeof(SimxHeader) == 32, "SimxHeader must be 32 bytes");
 }
+
+/* =========================================================================== */
+/* GET /api/history/open — the hour still open in RAM, as a V5 stream */
+/* =========================================================================== */
+void WebManager::handleApiHistoryOpen( ) {
+ uint16_t perms = getAuthPerms( );
+ if (!(perms & PERM_HISTORY)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+
+ /* Nothing open is a normal answer, not an error — a device in the minute
+  * after a seal has an empty encoder. 204 rather than an empty 200 body:
+  * in HTTP chunked a zero-length chunk IS the terminator, and answering
+  * "nothing" by starting a chunked response and sending no bytes is the
+  * same trap that once truncated /api/config. */
+ if (_storageRef->h5RamCount( ) == 0) { _server.send(204, "application/octet-stream", ""); return; }
+
+ /* At most H5_BLOCK_MAX_BYTES + a schema chunk — a couple of KiB, once per
+  * export. No HeavyTaskGuard: this touches no flash and takes no lock, it
+  * copies out of the encoder. */
+ _server.sendHeader("Content-Disposition", "attachment; filename=\"open.h5\"");
+ _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server.send(200, "application/octet-stream", "");
+
+ /* sealStream hands the payload over in 64 B windows. Sending each one as
+  * its own chunk would be ~34 tiny lwIP writes for 2 KiB, the same PBUF
+  * pressure the point-by-point graph send was fixed for; accumulating to
+  * WEB_STREAM_CHUNK_SOFT makes it four. A local struct so the sink keeps
+  * this member function's access to safeSend. */
+ struct Sink {
+  WebManager* w;
+  uint8_t buf[WEB_STREAM_CHUNK_SOFT];
+  size_t len;
+  bool ok;
+  static bool write(void* ctx, const uint8_t* d, size_t n) {
+   Sink* s = (Sink*)ctx;
+   while (n > 0) {
+    const size_t room = sizeof(s->buf) - s->len;
+    const size_t take = (n < room) ? n : room;
+    memcpy(s->buf + s->len, d, take);
+    s->len += take; d += take; n -= take;
+    if (s->len == sizeof(s->buf) && !s->flush( )) return false;
+   }
+   return true;
+  }
+  bool flush( ) {
+   if (len == 0) return true;             /* never an empty chunk */
+   ok = w->safeSend((const char*)buf, len);
+   len = 0;
+   return ok;
+  }
+ } sink{this, {}, 0, true};
+
+ const size_t n = _storageRef->h5StreamOpenBlock(&Sink::write, &sink);
+ if (n == 0 || !sink.flush( )) { dropAbortedStream("ho"); return; }
+ safeSend("");
+}
+
 
 void WebManager::handleApiExportHistory( ) {
  uint16_t perms = getAuthPerms( );

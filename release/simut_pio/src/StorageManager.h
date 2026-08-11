@@ -361,6 +361,23 @@ public:
  bool h5RamRecord(uint8_t i, uint32_t& epoch, int16_t* vals) const {
  return _h5Valid && _h5Enc.sample(i, epoch, vals);
  }
+ /**
+  * @brief Serialize the open block as a standalone V5 stream (§3).
+  * @details A SCHEMA chunk followed by the block sealed PARTIAL — byte for
+  *          byte what a one-block .h5 file looks like. That is the whole
+  *          point: a consumer that already decodes day files decodes this
+  *          with no second format and no special case, which is how the CSV
+  *          export reaches the open hour without the browser learning
+  *          anything new. It is the same bytes flushWipV5( ) writes to the
+  *          snapshot, plus the schema a standalone stream has to carry.
+  *
+  *          Reads the encoder, never disturbs it: sealStream( ) only emits,
+  *          which is why the .wip can be rewritten once per record without
+  *          costing the block. No flash and no lock — same core as the
+  *          writer, so do not yield mid-stream.
+  * @return bytes written, or 0 when nothing is open or the seal failed.
+  */
+ size_t h5StreamOpenBlock(H5WriteFn sink, void* ctx);
  uint16_t h5ReaderRejected( ) const { return _h5Scan.rejected( ); }
  void h5CloseDay( );
 

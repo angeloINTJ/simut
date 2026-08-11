@@ -103,6 +103,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server.on("/api/history_multi", HTTP_GET, std::bind(&WebManager::handleApiHistoryMulti, this)); /* Multi-sensor replacement for /api/history single-sensor */
  _server.on("/api/history_days", HTTP_GET, std::bind(&WebManager::handleApiHistoryDays, this));
  _server.on("/api/export/history.bin", HTTP_GET, std::bind(&WebManager::handleApiExportHistory, this));
+ _server.on("/api/history/open", HTTP_GET, std::bind(&WebManager::handleApiHistoryOpen, this));
  _server.on("/api/export/logs.bin", HTTP_GET, std::bind(&WebManager::handleApiExportLogs, this));
  _server.on("/api/logs", HTTP_GET, std::bind(&WebManager::handleApiLogs, this));
  _server.on("/api/clear_logs", HTTP_POST, std::bind(&WebManager::handleApiClearLogs, this));
