@@ -1339,6 +1339,63 @@ uint32_t StorageManager::getLastRecordedTimestamp( ) {
 			h5CloseDay( );
 		}
 	}
+
+	/* The open block has not reached the day file yet — it lives in the .wip
+	 * snapshot, and on a reboot it is exactly the data recoverWipV5( ) is about
+	 * to restore with its own, already-correct timestamps. Reading only the day
+	 * file seeds the provisional clock from the last SEALED block, minutes behind
+	 * the real newest record. That stale base becomes the NTP shift floor
+	 * (handleTimeSync → shiftHistoryTimeV5, which moves every block with
+	 * t0 >= base), so the correction then drags the just-recovered block into the
+	 * future by the whole error — a reboot at 06:04 filed 05:48–06:03 as
+	 * 06:04–06:18 on the bench, 15 min off, for exactly this reason.
+	 *
+	 * Including the .wip's newest record keeps the clock close to real AND lifts
+	 * the shift floor above the recovered block (base = lastTs + 60 > its t0), so
+	 * it stays where its own timestamps put it. Header t0 alone already exempts
+	 * the block; decoding to the last record just shrinks the residual error and,
+	 * with it, how much post-boot data the shift has to touch. Read under the
+	 * same lock the day scan uses; decode afterwards on the RAM buffer, since
+	 * ensureH5Schema( ) must not run holding _fsReadMutex. */
+	{
+		size_t wipLen = 0;
+		{
+			ReadGuard rg(this);
+			if (LittleFS.exists(FILE_H5_WIP)) {
+				File f = LittleFS.open(FILE_H5_WIP, "r");
+				if (f) {
+					const int got = f.read(_h5Chunk, sizeof(_h5Chunk));
+					if (got > 0) wipLen = (size_t)got;
+					f.close( );
+				}
+			}
+		}
+		if (wipLen >= sizeof(H5DataHeader)) {
+			const H5DataHeader* h = (const H5DataHeader*)_h5Chunk;
+			/* Trust the snapshot only if its start is newer than the sealed data
+			 * and inside the plausible day window — a corrupt t0 must never seed
+			 * the clock into the future (recoverWipV5 would reject the block, but
+			 * the seed is read here, before it runs). */
+			const bool sane = (dayStart == 0)
+			                  || (h->t0 >= dayStart && h->t0 < dayEnd + 86400u);
+			if (h->pre.magic == H5_MAGIC && h->pre.version == H5_VERSION
+			    && h->t0 > lastTs && sane) {
+				lastTs = h->t0;
+				ensureH5Schema( );
+				HistoryV5Decoder dec;
+				if (_h5Valid && dec.begin(_h5Chunk, wipLen, _h5Schema, _h5NCh)) {
+					uint32_t epoch = 0;
+					int16_t vals[H5_MAX_CHANNELS];
+					while (dec.next(epoch, vals)) {
+						if (epoch > lastTs
+						    && (dayStart == 0 || epoch < dayEnd + 86400u)) {
+							lastTs = epoch;
+						}
+					}
+				}
+			}
+		}
+	}
 	return lastTs;
 }
 
