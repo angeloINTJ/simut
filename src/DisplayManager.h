@@ -918,8 +918,12 @@ public:
 	struct LogCodeEntry { uint16_t code; const char* text; };
 	struct TrlEntry { uint32_t hash; const char* text; };
 
-	/** UTF-8 to ASCII 7-bit transliteration (Latin accents removed). */
+	/** UTF-8 to ASCII 7-bit transliteration (Latin accents removed).
+	 * Consumers: CLI/serial and the license page (classic CP437 font). */
 	static void unaccent(const char* utf8, char* out, size_t outSize);
+	/** UTF-8 to ISO-8859-1 for the TFT's Latin-1 fonts (accents kept).
+	 * Output never longer than input; non-Latin-1 degrades to '?'. */
+	static void utf8ToLatin1(const char* utf8, char* out, size_t outSize);
 	/** Log code lookup in .lng. Returns nullptr if absent. */
 	static const char* logcodeLookup(uint16_t code);
 	/** TRL string lookup via FNV-1a hash of EN. nullptr if absent. */

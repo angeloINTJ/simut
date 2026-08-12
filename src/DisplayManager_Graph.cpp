@@ -15,6 +15,7 @@
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 #include "DisplayManager_FmtFloat.h"
+#include "UiWidgets.h"
 
 void DisplayManager::showStats(const GraphDataPackage& data, float minHum, float maxHum) {
  mutex_enter_blocking(&_stateMutex);
@@ -75,12 +76,18 @@ void DisplayManager::drawPeriodButtons( ) {
  GFXcanvas16* cv = _driver.canvas;
  cv->fillScreen(C_BG_MAIN);
 
- /* Helper: draws button background and returns X */
+ /* Helper: draws button background and returns X. Enabled buttons carry
+ * the same card fill + subtle border as every secondary button; disabled
+ * ones are hollow with an off-tone outline. */
  auto btnBase = [&](int idx, bool enabled) -> int {
  int x = startX + idx * (btnW + gap);
- uint16_t bg = enabled ? C_CARD_BG : C_BG_MAIN;
- cv->fillRoundRect(x, 0, btnW, btnH, btnR, bg);
- if (!enabled) cv->drawRoundRect(x, 0, btnW, btnH, btnR, C_TEXT_OFF);
+ if (enabled) {
+ cv->fillRoundRect(x, 0, btnW, btnH, btnR, C_CARD_BG);
+ cv->drawRoundRect(x, 0, btnW, btnH, btnR, C_TEXT_SUB);
+ } else {
+ cv->fillRoundRect(x, 0, btnW, btnH, btnR, C_BG_MAIN);
+ cv->drawRoundRect(x, 0, btnW, btnH, btnR, C_TEXT_OFF);
+ }
  return x;
  };
 
@@ -151,7 +158,7 @@ void DisplayManager::drawPeriodButtons( ) {
  {
  int x = btnBase(3, canZoomIn);
  cx = x + btnW / 2; cy = btnH / 2;
- uint16_t ic = canZoomIn ? C_TEMP_OK : C_TEXT_OFF;
+ uint16_t ic = canZoomIn ? C_ACCENT_HIGH : C_TEXT_OFF;
 
  /* Magnifying glass */
  int lx = cx - 3, ly = cy - 3, lr = 8;
@@ -169,7 +176,7 @@ void DisplayManager::drawPeriodButtons( ) {
  /* Next range label (zoom in = range-1) */
  if (canZoomIn) {
  cv->setFont(NULL); cv->setTextSize(1);
- cv->setTextColor(ic);
+ cv->setTextColor(C_TEXT_SUB);
  const char* lbl = ranges[_graphData.timeRange - 1];
  int lblW = strlen(lbl) * 6; /* NULL font: 6px/char */
  cv->setCursor(x + (btnW - lblW) / 2, btnH - 9);
@@ -181,7 +188,7 @@ void DisplayManager::drawPeriodButtons( ) {
  {
  int x = btnBase(4, canZoomOut);
  cx = x + btnW / 2; cy = btnH / 2;
- uint16_t ic = canZoomOut ? C_TEMP_WARM : C_TEXT_OFF;
+ uint16_t ic = canZoomOut ? C_ACCENT_HIGH : C_TEXT_OFF;
 
  /* Magnifying glass (same shape) */
  int lx = cx - 3, ly = cy - 3, lr = 8;
@@ -198,7 +205,7 @@ void DisplayManager::drawPeriodButtons( ) {
  /* Next range label (zoom out = range+1) */
  if (canZoomOut) {
  cv->setFont(NULL); cv->setTextSize(1);
- cv->setTextColor(ic);
+ cv->setTextColor(C_TEXT_SUB);
  const char* lbl = ranges[_graphData.timeRange + 1];
  int lblW = strlen(lbl) * 6;
  cv->setCursor(x + (btnW - lblW) / 2, btnH - 9);
@@ -310,11 +317,7 @@ void DisplayManager::drawGraphHeaderBar(bool blitNow) {
 
  /* X button (close) in top right corner (284, 6, 32, 24).
  * x+w=316 stays within the 4 px right safe zone. */
- cv->fillRoundRect(284, 6, 32, 24, 6, C_TEMP_WARM);
- cv->setFont(&simutFont9pt);
- cv->setTextColor(C_BG_MAIN);
- cv->setCursor(293, 23);
- cv->print("X");
+ uiCloseX(cv, 284, 6, 32, 24);
 
  /* Blit the entire block (safe zone + header) directly to display 1:1.
  * Suppressed in strip-render: the external strip blit covers this region. */
@@ -352,22 +355,12 @@ void DisplayManager::drawStatsScreen( ) {
  if (_driver.canvas) {
  GFXcanvas16* cv = _driver.canvas;
  cv->fillScreen(C_BG_MAIN);
- cv->fillRect(4, 4, 312, 32, C_CARD_BG);
- cv->setFont(&simutFont9pt); cv->setTextColor(C_TEXT_MAIN);
- cv->setCursor(14, 23); cv->print(_graphData.title);
- cv->fillRoundRect(280, 4, 36, 24, 6, C_TEMP_WARM);
- cv->setFont(&simutFont9pt); cv->setTextColor(C_BG_MAIN);
- cv->getTextBounds("X", 0, 0, &x1, &y1, &w, &h_bound);
- cv->setCursor(298 - w / 2, 23); cv->print("X");
+ uiTitleBar(cv, 4, _graphData.title);
+ uiCloseX(cv, 284, 8, 32, 24); /* standard rect, centered in the 32px bar */
  blitCanvas(cv, 0, 0, 320, 45);
  } else {
- _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- _driver.tft->setCursor(14, 23); _driver.tft->print(_graphData.title);
- _driver.tft->fillRoundRect(280, 4, 36, 24, 6, C_TEMP_WARM);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_BG_MAIN);
- _driver.tft->getTextBounds("X", 0, 0, &x1, &y1, &w, &h_bound);
- _driver.tft->setCursor(298 - w / 2, 23); _driver.tft->print("X");
+ uiTitleBar(_driver.tft, 4, _graphData.title);
+ uiCloseX(_driver.tft, 284, 8, 32, 24);
  }
 
  /* Clear zone below header/canvas (y=45..235) — 4px bottom margin */
@@ -400,13 +393,9 @@ void DisplayManager::drawStatsScreen( ) {
  }
 
 
- if (large) {
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setCursor(symbolX, y - 18); _driver.tft->print("o");
- _driver.tft->setFont(&simutFont12pt); _driver.tft->setCursor(symbolX + 8, y); _driver.tft->print("C");
- } else {
- _driver.tft->setFont(NULL); _driver.tft->setCursor(symbolX, y - 12); _driver.tft->print("o");
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setCursor(symbolX + 7, y); _driver.tft->print("C");
- }
+ _driver.tft->setFont(large ? &simutFont12pt : &simutFont9pt);
+ _driver.tft->setCursor(symbolX, y);
+ _driver.tft->print("\xB0" "C"); /* real Latin-1 degree glyph */
  };
 
 
@@ -813,6 +802,30 @@ void DisplayManager::drawGraphScreen( ) {
  }
  }
 
+ /* ── Area fill under the temperature curve ──
+ * 25% of the series color toward the background: two successive
+ * 50/50 RGB565 blends, no alpha buffer. Column-by-column vertical
+ * lines down to the grid base, clipped to this strip; drawn BEFORE
+ * the curves so both series stay crisp on top. */
+ {
+ uint16_t fillCol = uiBlend565(uiBlend565(C_TEMP_HOT, C_BG_MAIN), C_BG_MAIN);
+ const int base = gy + gh - 1;
+ for (int i = 0; i < _graphData.count - 1; i++) {
+ if (pyV1[i] < 0 || pyV1[i + 1] < 0) continue; /* NaN gap */
+ int x0 = pxV1[i], x1c = pxV1[i + 1];
+ if (x1c <= x0) continue;
+ for (int x = x0; x < x1c; x++) {
+ if (x <= gx) continue; /* keep the Y axis line clean */
+ int yTopF = pyV1[i] + (int)((long)(pyV1[i + 1] - pyV1[i]) * (x - x0) / (x1c - x0)) + 2;
+ if (yTopF > base) continue;
+ int a = (yTopF > sTop) ? yTopF : sTop;
+ int b = (base < sBot - 1) ? base : sBot - 1;
+ if (b < a) continue;
+ cv->drawFastVLine(x, a - sTop, b - a + 1, fillCol);
+ }
+ }
+ }
+
  /* ── Temperature curve (2px) — skip gaps (pyV1 == -1) ── */
  for (int i = 0; i < _graphData.count - 1; i++) {
  if (pyV1[i] < 0 || pyV1[i + 1] < 0) continue; /* Gap: sensor in error */
@@ -1092,15 +1105,14 @@ void DisplayManager::drawGraphDetailScreen( ) {
 
  if (d.isTempUnit) {
  /*
- * Temperature: number + "o" (degree circle, NULL font above) + "C" (9pt)
- * Same pattern as the main screen (drawTemp).
+ * Temperature: number + "°C" typeset in 9pt with the real
+ * Latin-1 degree glyph.
  */
  int16_t ub2, uy3; uint16_t cw2, ch2;
  cv->setFont(&simutFont9pt);
- cv->getTextBounds("C", 0, 0, &ub2, &uy3, &cw2, &ch2);
+ cv->getTextBounds("\xB0" "C", 0, 0, &ub2, &uy3, &cw2, &ch2);
 
- /* "o" in NULL font is ~6px wide */
- int unitW = 6 + 1 + (int)cw2; /* "o" + gap + "C" */
+ int unitW = (int)cw2;
  int totalW = (int)nw + 2 + unitW;
  int vx = cx + (cardW - totalW) / 2;
 
@@ -1110,18 +1122,11 @@ void DisplayManager::drawGraphDetailScreen( ) {
  cv->setCursor(vx, vy);
  cv->print(d.num);
 
- /* Degree circle "o" (NULL font, white, positioned above baseline) */
- int oX = vx + (int)nw + 2;
- cv->setFont(NULL); cv->setTextSize(1);
- cv->setTextColor(C_TEXT_MAIN);
- cv->setCursor(oX, vy - 16);
- cv->print("o");
-
- /* "C" (FreeSansBold9pt7b, white) */
+ /* "°C" (white) */
  cv->setFont(&simutFont9pt);
  cv->setTextColor(C_TEXT_MAIN);
- cv->setCursor(oX + 7, vy);
- cv->print("C");
+ cv->setCursor(vx + (int)nw + 2, vy);
+ cv->print("\xB0" "C");
 
  } else {
  /*
