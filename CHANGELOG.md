@@ -4,6 +4,56 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.5-beta (2026-08-12)
+
+### The display gets one visual system
+
+The 17 TFT screens grew one at a time, and it showed: three typefaces mixed (the
+System Status page used the stretched 5x7 terminal font), the degree sign had three
+different spellings ("o" in 9pt, a tiny classic-font "c", a literal "oC"), closing a
+screen looked different on every screen that could be closed, pagination had four
+idioms, and a handful of hardcoded RGB values ignored the theme system entirely.
+This release replaces all of that with a shared widget layer (`UiWidgets.h`) that
+every screen composes from — title bar with accent tab and page dots, two button
+styles (the primary action is always bottom-right; exit/close is never primary), one
+standard close button, one scrollbar, menu icons. **Every touch zone is untouched**:
+the widgets draw on the same rectangles the touch handler already derives its hit
+areas from.
+
+### Real accents on the TFT
+
+The language packs always carried UTF-8 ("Configurações" was in the `.lng` all
+along) — the display transliterated it to ASCII at runtime because the 7-bit GFX
+fonts had no accented glyphs. The 9pt and 12pt faces are now regenerated from the
+same GNU FreeSansBold.ttf the stock fonts came from, with Latin-1 coverage subsetted
+to ASCII + the 32 glyphs pt-BR/es-ES need (+3.4 KB of flash), and `tr()` maps UTF-8
+to Latin-1 instead of stripping it. Portuguese and Spanish render accented on the
+panel; the serial CLI keeps its 7-bit transliteration. The degree sign is now the
+font's own glyph everywhere — including the channel-unit helper, so "°C" in the
+alarm editor, the dashboard cards, the statistics and the status page all agree.
+
+### The strip renderer goes out through DMA
+
+Full-width canvas strips — the hot path of every screen — are pushed with the SPI
+peripheral in 16-bit frame mode fed by a DMA channel (no byte swap, no bounce
+buffer, synchronous by design so the quiesce/flash-pause protocol is untouched).
+A full dashboard redraw measured on hardware went from **254 ms to 121 ms**. When a
+display alignment offset pushes a strip off-panel, the old library path is used.
+
+### Also
+
+- History graph: subtle area fill under the temperature curve; toolbar buttons
+  carry the standard border; zoom icons follow the theme accent.
+- System Status: values right-aligned so Serial/SSID/MAC fit on one line; fixed two
+  pre-existing leaks — the footer band was never cleared (the previous screen's
+  buttons survived in the gaps) and the fixed-width unit reserve clipped "°C" off
+  the right edge.
+- Calendar: month navigation lives only in the bottom bar; "Mês" finally spelled
+  with its accent, as are the other hardcoded PT literals (Atenção, serão).
+- Password keyboard: OK/123 in the UI face, thicker space/confirm strokes.
+- Net binary cost of the whole release: about +2.2 KB of flash; no new translation
+  keys, so installed `.lng` packs stay valid byte for byte.
+
 ## v2.1.4-beta (2026-08-11)
 
 ### The hour still open in RAM reaches the graphs and the CSV
