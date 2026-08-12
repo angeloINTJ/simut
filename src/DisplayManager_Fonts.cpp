@@ -13,10 +13,14 @@
  */
 
 #include "DisplayManager_Fonts.h"
-#include <Fonts/FreeSansBold9pt7b.h>
-#include <Fonts/FreeSansBold12pt7b.h>
+/* Latin-1 builds of the same GNU FreeSansBold the stock 7b fonts came
+ * from: ASCII glyphs are bit-identical, 0xA0-0xFF adds real accents and
+ * the degree sign. The .lng packs already carry UTF-8 — tr() now maps
+ * them to Latin-1 instead of transliterating to ASCII. */
+#include "FreeSansBold9pt8b_latin1.h"
+#include "FreeSansBold12pt8b_latin1.h"
 #include "FreeSansBold24pt7b_subset.h"
 
-const GFXfont &simutFont9pt = FreeSansBold9pt7b;
-const GFXfont &simutFont12pt = FreeSansBold12pt7b;
+const GFXfont &simutFont9pt = FreeSansBold9pt8b;
+const GFXfont &simutFont12pt = FreeSansBold12pt8b;
 const GFXfont &simutFont24pt = FreeSansBold24pt7b;

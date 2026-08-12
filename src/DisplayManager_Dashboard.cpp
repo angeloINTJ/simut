@@ -17,6 +17,8 @@
 #include "LogManager.h"
 #include "StorageManager.h"
 #include "sensors/SensorPanelDispatch.h"
+#include "hardware/dma.h" /* strip-blit fast path: SSP 16-bit + DMA */
+#include "hardware/spi.h"
 
 /* ── Dashboard layout: single source of truth ──────────────────────────────
  *
@@ -207,6 +209,63 @@ void DisplayManager::drawInterfaceFixed( ) {
                        CARD_BOT - CARD_TOP_Y, C_BG_MAIN);
 }
 
+/* ── DMA fast path for full-width canvas pushes (the strip renderer) ────────
+ *
+ * Adafruit_SPITFT's write path on RP2040 tops out well under the wire rate,
+ * and the strips are the hot path of EVERY screen. This pushes the canvas
+ * buffer with the SSP in 16-bit frame mode fed by a DMA channel: the 16-bit
+ * frame sends the MSB of each RGB565 VALUE first, so no byte-swap pass and
+ * no bounce buffer are needed — the DMA reads the canvas memory directly.
+ *
+ * The CS/DC/command sequence mirrors readPixel( ) (the proven pattern in
+ * this codebase for taking the bus over from the library): set the window
+ * through the library, then re-assert CS, re-issue RAMWR, stream, restore.
+ *
+ * Synchronous by design: the caller clears/reuses the canvas immediately
+ * after (commitScreenStrip), and the quiesce/flash-pause protocol assumes
+ * SPI bursts end within the loop iteration that started them. The wait is
+ * ~7.4 ms for a 320x45 strip at 31.25 MHz — wire-limited.
+ */
+static bool blitWindowDma(TftWithOffset* tft, const uint16_t* buf,
+ int16_t x, int16_t y, int16_t w, int16_t h) {
+ /* Raw setAddrWindow does not clip; a display offset can push a strip
+ * off-screen. Anything not fully on-panel takes the library path. */
+ if (x < 0 || y < 0 || x + w > 320 || y + h > 240) return false;
+
+ static int s_ch = -1;
+ if (s_ch < 0) {
+ s_ch = dma_claim_unused_channel(false);
+ if (s_ch < 0) return false; /* no channel free: library path */
+ }
+
+ tft->startWrite( );
+ tft->setAddrWindow(x, y, w, h);
+ tft->endWrite( ); /* window latched; CS toggles, RAMWR re-sent below */
+
+ SPI.beginTransaction(SPISettings(31250000u, MSBFIRST, SPI_MODE0));
+ digitalWrite(TFT_CS, LOW);
+ digitalWrite(TFT_DC, LOW);
+ SPI.transfer(0x2C); /* RAMWR */
+ digitalWrite(TFT_DC, HIGH);
+
+ spi_set_format(spi0, 16, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+
+ dma_channel_config c = dma_channel_get_default_config(s_ch);
+ channel_config_set_transfer_data_size(&c, DMA_SIZE_16);
+ channel_config_set_dreq(&c, DREQ_SPI0_TX);
+ channel_config_set_read_increment(&c, true);
+ channel_config_set_write_increment(&c, false);
+ dma_channel_configure(s_ch, &c, &spi_get_hw(spi0)->dr, buf,
+ (uint32_t)w * (uint32_t)h, true);
+ dma_channel_wait_for_finish_blocking(s_ch);
+ while (spi_get_hw(spi0)->sr & SPI_SSPSR_BSY_BITS) { tight_loop_contents( ); }
+
+ spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+ digitalWrite(TFT_CS, HIGH);
+ SPI.endTransaction( );
+ return true;
+}
+
 void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
  int16_t w, int16_t h, int16_t srcX) {
  if (!canvas || !_driver.tft) return;
@@ -228,7 +287,9 @@ void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
  int16_t cw = canvas->width( );
  _driver.tft->setOffsetBypass(true);
  if (w == cw && srcX == 0) {
+ if (!blitWindowDma(_driver.tft, canvas->getBuffer( ), dstX, dstY, w, h)) {
  _driver.tft->drawRGBBitmap(dstX, dstY, canvas->getBuffer( ), w, h);
+ }
  } else {
  /* srcX lets a caller push only a slice of a row it already rendered in
   * full — the render into RAM is cheap, the SPI transfer is not. */
@@ -300,10 +361,10 @@ void DisplayManager::drawTopBar(const SystemState& state) {
   char msg[48];
   snprintf(msg, sizeof(msg), "WEB '%s' - toque bloqueado", user[0] ? user : "web");
 
-  _driver.canvas->fillScreen(RGB565(150, 80, 0));
+  _driver.canvas->fillScreen(C_TEMP_WARM);
   _driver.canvas->setFont(&simutFont9pt);
   _driver.canvas->setTextSize(1);
-  _driver.canvas->setTextColor(RGB565(255, 255, 255));
+  _driver.canvas->setTextColor(C_BG_MAIN);
   int16_t bx, by; uint16_t bw, bh;
   _driver.canvas->getTextBounds(msg, 0, 0, &bx, &by, &bw, &bh);
   int16_t cx = (int16_t)((W - (int)bw) / 2);
@@ -333,7 +394,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  char silBuf[32];
  snprintf(silBuf, sizeof(silBuf), "%s: %lus", tr(TR_SILENCED), (unsigned long)remaining);
  _driver.canvas->setFont(&simutFont9pt);
- _driver.canvas->setTextColor(RGB565(200, 100, 0));
+ _driver.canvas->setTextColor(C_TEMP_WARM);
  _driver.canvas->setCursor(75, 20);
  _driver.canvas->print(silBuf);
  }
