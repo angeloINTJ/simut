@@ -4,6 +4,60 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.5-beta (2026-08-12)
+
+### O display ganha um sistema visual único
+
+As 17 telas do TFT cresceram uma de cada vez, e isso aparecia: três tipografias
+conviviam (a tela de Status usava a fonte 5×7 de terminal esticada), o símbolo de
+grau tinha três grafias ("o" em 9pt, um "c" minúsculo na fonte clássica, um "oC"
+literal), fechar uma tela era diferente em cada tela que fechava, a paginação tinha
+quatro idiomas e sobravam cores RGB fixas que ignoravam o sistema de temas. Esta
+versão substitui tudo isso por uma camada de widgets compartilhada (`UiWidgets.h`)
+da qual toda tela se compõe — barra de título com aba accent e page dots, dois
+estilos de botão (a ação primária é sempre o canto inferior direito; sair/fechar
+nunca é primário), um botão de fechar padrão, uma scrollbar, ícones no menu.
+**Nenhuma zona de toque mudou**: os widgets desenham nos mesmos retângulos dos quais
+o handler de toque já deriva suas áreas.
+
+### Acentos de verdade no TFT
+
+Os packs de idioma sempre carregaram UTF-8 ("Configurações" estava no `.lng` desde
+sempre) — o display é que transliterava para ASCII em runtime, porque as fontes GFX
+de 7 bits não tinham os glifos acentuados. As faces 9pt e 12pt agora são regeradas
+do mesmo FreeSansBold.ttf (GNU) de onde vieram as originais, com cobertura Latin-1
+subsetada para ASCII + os 32 glifos que pt-BR/es-ES precisam (+3,4 KB de flash), e o
+`tr()` mapeia UTF-8 para Latin-1 em vez de descartar. Português e espanhol aparecem
+acentuados no painel; a CLI serial continua na transliteração de 7 bits. O símbolo
+de grau agora é o glifo da própria fonte em todo lugar — inclusive no helper de
+unidades, então o "°C" do editor de alarmes, dos cartões do painel, das estatísticas
+e do status finalmente concordam.
+
+### O renderizador de strips sai por DMA
+
+Os strips de largura cheia do canvas — o caminho quente de toda tela — são empurrados
+com o periférico SPI em modo de quadro de 16 bits alimentado por um canal de DMA
+(sem troca de bytes, sem buffer intermediário, síncrono de propósito para não tocar
+no protocolo de quiesce/pausa de flash). O redesenho completo do painel, medido no
+hardware, foi de **254 ms para 121 ms**. Quando o offset de alinhamento da tela
+empurra um strip para fora do painel, vale o caminho antigo da biblioteca.
+
+### Também
+
+- Gráfico de histórico: preenchimento sutil sob a curva de temperatura; botões da
+  barra com a borda padrão; lupas de zoom na cor do tema.
+- Status do Sistema: valores alinhados à direita para Serial/SSID/MAC caberem em uma
+  linha; corrigidos dois vazamentos pré-existentes — a faixa do rodapé nunca era
+  limpa (botões da tela anterior sobreviviam nas frestas) e a reserva fixa da
+  unidade cortava o "°C" na borda direita.
+- Calendário: navegação de mês só na barra de baixo; "Mês" enfim com acento, assim
+  como os outros literais pt fixos no código (Atenção, serão).
+- Teclado de senha: OK/123 na fonte da UI, traços do espaço e do confirmar mais
+  grossos.
+- Custo líquido de binário da versão inteira: cerca de +2,2 KB de flash; nenhuma
+  chave de tradução nova, então os packs `.lng` instalados continuam válidos byte a
+  byte.
+
 ## v2.1.4-beta (2026-08-11)
 
 ### A hora ainda aberta na RAM chega aos gráficos e ao CSV

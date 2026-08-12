@@ -11,6 +11,7 @@
 #include "DisplayManager.h"
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
+#include "UiWidgets.h"
 
 void DisplayManager::showCalendar(int year, int month, uint32_t daysMask) {
  mutex_enter_blocking(&_stateMutex);
@@ -82,37 +83,29 @@ void DisplayManager::drawCalendarScreen( ) {
 
  /* ── Header (y=0..27) ── */
  if (sTop == 0) {
- cv->fillRect(4, 4, 312, 28, C_CARD_BG);
+ uiTitleBar(cv, 4, nullptr, -1, 0, 28);
 
- /* ◀ month button */
- cv->setFont(&simutFont12pt);
- cv->setTextColor(C_ACCENT_HIGH);
- cv->setCursor(8, 22);
- cv->print("<");
+ /* Month navigation lives ONLY in the bottom bar — the header chevrons
+  * duplicated it and crowded the close button. The touch zones at the
+  * header corners still work (harmless hidden shortcut). */
 
  /* Title "Abr 2026" */
  char titleBuf[16];
  snprintf(titleBuf, sizeof(titleBuf), "%s %d",
  monthNames[_calMonth - 1], _calYear);
  cv->setFont(&simutFont9pt);
- cv->setTextColor(C_TEXT_MAIN);
+ cv->setTextColor(C_TITLE_TEXT);
  int16_t bx, by; uint16_t bw, bh;
  cv->getTextBounds(titleBuf, 0, 0, &bx, &by, &bw, &bh);
  cv->setCursor(160 - bw / 2 - bx, 20);
  cv->print(titleBuf);
 
- /* ▶ month button */
- cv->setFont(&simutFont12pt);
- cv->setTextColor(C_ACCENT_HIGH);
- cv->setCursor(298, 22);
- cv->print(">");
-
- /* X button (back to graph) — y=4 ensures 4 px top margin */
- cv->fillRoundRect(270, 4, 24, 24, 6, C_TEMP_WARM);
- cv->setFont(&simutFont9pt);
- cv->setTextColor(C_BG_MAIN);
- cv->setCursor(277, 21);
- cv->print("X");
+ /* X button (back to graph) — the STANDARD close rect (32x24 flush
+  * right, centered in the 28 px bar), same as the graph header. It
+  * inherited 24x24 at x=270 from when the ">" chevron sat beside it;
+  * with the chevron gone it fills that corner. Touch zone (x>=270,
+  * y<28) already covers it. */
+ uiCloseX(cv, 284, 6, 32, 24);
  }
 
  /* ── Day-of-week headers (y=30..42) ── */
@@ -177,27 +170,9 @@ void DisplayManager::drawCalendarScreen( ) {
 
  /* ── Bottom bar: [◀ Month] [Today] [Month ▶] ── */
  cv->fillScreen(C_BG_MAIN);
-
- /* ◀ Month button */
- cv->fillRoundRect(5, 3, 98, 36, 10, C_CARD_BG);
- cv->setFont(&simutFont9pt);
- cv->setTextColor(C_TEXT_SUB);
- cv->setCursor(20, 26);
- cv->print("< Mes");
-
- /* Today button */
- cv->fillRoundRect(108, 3, 104, 36, 10, C_ACCENT);
- cv->setTextColor(C_BG_MAIN);
- int16_t bx2, by2; uint16_t bw2, bh2;
- cv->getTextBounds("Hoje", 0, 0, &bx2, &by2, &bw2, &bh2);
- cv->setCursor(160 - bw2 / 2 - bx2, 26);
- cv->print("Hoje");
-
- /* Month ▶ button */
- cv->fillRoundRect(217, 3, 98, 36, 10, C_CARD_BG);
- cv->setTextColor(C_TEXT_SUB);
- cv->setCursor(237, 26);
- cv->print("Mes >");
+ uiButton(cv, 5, 3, 98, 36, "< M\xEAs", UI_BTN_SECONDARY);
+ uiButton(cv, 108, 3, 104, 36, "Hoje", UI_BTN_PRIMARY);
+ uiButton(cv, 217, 3, 98, 36, "M\xEAs >", UI_BTN_SECONDARY);
 
  /* 4 px bottom margin: y=195 + h=41 = 236 ≤ 236 */
  blitCanvas(cv, 0, 195, 320, 41);

@@ -15,6 +15,7 @@
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 #include "sensors/SensorChannelTable.h"   /* CH_COUNT, channelInfo, channelValid */
+#include "UiWidgets.h"
 
 static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language", "EXIT",
@@ -75,15 +76,16 @@ const char* DisplayManager::channelLabel(uint8_t ch) {
 const char* DisplayManager::tr(LangKey key) {
  if (_activeLangLoaded && _currentLangIdx != LANG_EN &&
  _activeLang.strings[key] != nullptr) {
- /* TFT renders only ASCII (font has no Latin-1
- * glyphs). Applies unaccent in rotating scratch of 4 slots —
+ /* The TFT fonts carry the full Latin-1 range now, so the pack's
+ * UTF-8 maps to Latin-1 bytes with accents KEPT (it used to be
+ * transliterated to ASCII). Rotating scratch of 4 slots —
  * supports up to 4 concurrent calls in the same expression (e.g.
  * snprintf("%s %s ...", tr(A), tr(B), ...)). */
  static char scratch[4][96];
  static uint8_t scratchIdx = 0;
  char* buf = scratch[scratchIdx];
  scratchIdx = (scratchIdx + 1) & 3;
- unaccent(_activeLang.strings[key], buf, sizeof(scratch[0]));
+ utf8ToLatin1(_activeLang.strings[key], buf, sizeof(scratch[0]));
  return buf;
  }
  return DICTIONARY_EN[key];
@@ -108,16 +110,15 @@ void DisplayManager::drawSettingsLang( ) {
 
 
  /* Slot 1 visible when .lng loaded; shows _activeLang.name/code
- * transliterated (unaccent) for the TFT, which renders only ASCII
- * in the current font. */
+ * mapped to Latin-1 for the TFT fonts (accents kept). */
  int activeSlots = _activeLangLoaded ? LANG_COUNT : 1;
  char slot1Name[40] = "(install .lng)";
  char slot1Code[12] = "??";
  if (_activeLangLoaded && _activeLang.name[0]) {
- unaccent(_activeLang.name, slot1Name, sizeof(slot1Name));
+ utf8ToLatin1(_activeLang.name, slot1Name, sizeof(slot1Name));
  }
  if (_activeLangLoaded && _activeLang.code[0]) {
- unaccent(_activeLang.code, slot1Code, sizeof(slot1Code));
+ utf8ToLatin1(_activeLang.code, slot1Code, sizeof(slot1Code));
  }
  int totalPages = (activeSlots + 3) / 4;
  if (_langPage >= totalPages) _langPage = totalPages - 1;
@@ -126,59 +127,13 @@ void DisplayManager::drawSettingsLang( ) {
 
  if (fullRedraw) {
  _driver.tft->fillScreen(C_BG_MAIN);
-
-
- _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt);
- _driver.tft->setTextColor(C_TEXT_MAIN);
- _driver.tft->setCursor(10, 22);
- _driver.tft->print(tr(TR_CONFIG_LANG));
-
-
- int btnY = 195; int btnH = 40;
- int16_t bx, by; uint16_t bw, bh;
-
-
- _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
-
-
- _driver.tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
-
-
- _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt);
- _driver.tft->setTextColor(C_TEXT_MAIN);
- const char* backTxt = tr(TR_BACK);
- _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(141 + (75 - bw) / 2, btnY + 25);
- _driver.tft->print(backTxt);
-
-
- _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
- _driver.tft->setTextColor(C_BG_MAIN);
- String appTxt = tr(TR_APPLY);
- _driver.tft->getTextBounds(appTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(222 + (93 - bw) / 2, btnY + 25);
- _driver.tft->print(appTxt);
+ uiTitleBar(_driver.tft, 4, tr(TR_CONFIG_LANG));
+ uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_APPLY)); /* T1.2: no heap */
  }
 
 
  if (fullRedraw || pageChanged) {
- int trackX = 302; int trackY = 40;
- int trackW = 8; int trackH = 146;
-
- _driver.tft->fillRoundRect(trackX, trackY, trackW, trackH, 4, C_CARD_BG);
- _driver.tft->drawRoundRect(trackX, trackY, trackW, trackH, 4, C_TEXT_SUB);
-
- int thumbH = trackH / totalPages;
- if (thumbH < 20) thumbH = 20;
- int thumbY = trackY;
- if (totalPages > 1) {
- thumbY += (_langPage * (trackH - thumbH)) / (totalPages - 1);
- }
- _driver.tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
+ uiScrollbar(_driver.tft, 302, 40, 8, 146, totalPages, _langPage);
  }
 
 

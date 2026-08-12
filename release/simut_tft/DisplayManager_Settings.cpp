@@ -17,6 +17,7 @@
 #include "DisplayManager_FmtFloat.h"
 #include "LogManager.h"
 #include "StorageManager.h" /* getBoardSerialNumber in System Status */
+#include "UiWidgets.h"
 
 void DisplayManager::showSettingsThemes(int currentThemeIdx) {
  mutex_enter_blocking(&_stateMutex);
@@ -38,34 +39,12 @@ void DisplayManager::drawSettingsThemes( ) {
 
  if (fullRedraw) {
  _driver.tft->fillScreen(C_BG_MAIN);
- _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- _driver.tft->setCursor(10, 22); _driver.tft->print(tr(TR_CONFIG_THEMES));
-
- int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
- _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
- _driver.tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
- _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- const char* backTxt = tr(TR_BACK);
- _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(141 + (75 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
- _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
- _driver.tft->setTextColor(C_BG_MAIN);
- const char* appTxt = tr(TR_APPLY); /* T1.2: no heap in Core-1 render */
- _driver.tft->getTextBounds(appTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(222 + (93 - bw)/2, btnY + 25); _driver.tft->print(appTxt);
+ uiTitleBar(_driver.tft, 4, tr(TR_CONFIG_THEMES));
+ uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_APPLY)); /* T1.2: no heap */
  }
 
  if (fullRedraw || pageChanged) {
- int trackX = 302; int trackY = 40; int trackW = 8; int trackH = 146;
- _driver.tft->fillRoundRect(trackX, trackY, trackW, trackH, 4, C_CARD_BG);
- _driver.tft->drawRoundRect(trackX, trackY, trackW, trackH, 4, C_TEXT_SUB);
- int thumbH = trackH / totalPages; if (thumbH < 20) thumbH = 20;
- int thumbY = trackY; if (totalPages > 1) { thumbY += (_themePage * (trackH - thumbH)) / (totalPages - 1); }
- _driver.tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
+ uiScrollbar(_driver.tft, 302, 40, 8, 146, totalPages, _themePage);
  }
 
  int startIdx = _themePage * 4;
@@ -117,30 +96,16 @@ void DisplayManager::drawSettingsAlarms( ) {
 
  if (fullRedraw) {
  _driver.tft->fillScreen(C_BG_MAIN);
- _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- _driver.tft->setCursor(10, 22); _driver.tft->print(tr(TR_ALARMS_TITLE));
-
- int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
- _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
- _driver.tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
- /* Back button fills the entire remaining width */
- _driver.tft->fillRoundRect(141, btnY, 174, btnH, 8, C_ACCENT);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_BG_MAIN);
- const char* backTxt = tr(TR_BACK);
- _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(141 + (174 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
+ uiTitleBar(_driver.tft, 4, tr(TR_ALARMS_TITLE));
+ uiNavArrow(_driver.tft, 5, 195, 62, 40, UI_UP);
+ uiNavArrow(_driver.tft, 73, 195, 62, 40, UI_DOWN);
+ /* Exit keeps its full remaining width (same touch zone) but drops the
+  * accent: EXIT is never the screen's primary action. */
+ uiButton(_driver.tft, 141, 195, 174, 40, tr(TR_BACK), UI_BTN_SECONDARY);
  }
 
  if (fullRedraw || pageChanged) {
- int trackX = 302; int trackY = 40; int trackW = 8; int trackH = 146;
- _driver.tft->fillRoundRect(trackX, trackY, trackW, trackH, 4, C_CARD_BG);
- _driver.tft->drawRoundRect(trackX, trackY, trackW, trackH, 4, C_TEXT_SUB);
- int thumbH = trackH / totalPages; if (thumbH < 20) thumbH = 20;
- int thumbY = trackY; if (totalPages > 1) { thumbY += (_alarmPage * (trackH - thumbH)) / (totalPages - 1); }
- _driver.tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
+ uiScrollbar(_driver.tft, 302, 40, 8, 146, totalPages, _alarmPage);
  }
 
  int startIdx = _alarmPage * 4;
@@ -245,32 +210,9 @@ void DisplayManager::showAlarmEdit(int sensorIdx) {
 }
 
 /* The built-in GFX font is CP437, not UTF-8. The channel table stores "\u00b0C"
- * as the bytes C2 B0 43, and printing that byte-for-byte draws two garbage
- * glyphs before the C — which is exactly what happened when the hardcoded "C"
- * was replaced by the table's unit. Map the degree sign to its CP437 slot and
- * pass the rest through; every other unit in the table is already ASCII. */
-static void printUnitCp437(GFXcanvas16* c, const char* u) {
- if (!u) return;
- for (const uint8_t* p = (const uint8_t*)u; *p; p++) {
- if (p[0] == 0xC2 && p[1] == 0xB0) { c->write(0xF8); p++; continue; }
- c->write(*p);
- }
-}
-
-/* How many glyphs printUnitCp437 actually emits: "°C" is 3 bytes but 2
- * glyphs. Layout that reserves space for the unit needs the drawn width, and
- * strlen() would over-reserve by one glyph per degree sign — enough to truncate
- * a name that fits. */
-static size_t unitGlyphCount(const char* u) {
- if (!u) return 0;
- size_t n = 0;
- for (const uint8_t* p = (const uint8_t*)u; *p; p++) {
- if (p[0] == 0xC2 && p[1] == 0xB0) p++;
- n++;
- }
- return n;
-}
-
+ * as the bytes C2 B0 43. Unit rendering (that "°" prefix drawn as a real
+ * ring + 9pt text) now lives in uiUnit/uiUnitWidth in UiWidgets.cpp,
+ * shared with every screen that prints a channel unit. */
 void DisplayManager::drawAlarmEdit( ) {
  /* One limit per bar, scrolled four at a time — the same rows, spacing and
   * scrollbar as every other menu on this display. The screen it replaces laid
@@ -305,40 +247,16 @@ void DisplayManager::drawAlarmEdit( ) {
 
  if (_forceSettingsRedraw) {
  _driver.tft->fillScreen(C_BG_MAIN);
- _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- int16_t tx1, ty1; uint16_t tw, th;
- const char* titleTxt = _tempAlarmConfig.friendlyName; /* T1.2: no heap in Core-1 render */
- _driver.tft->getTextBounds(titleTxt, 0, 0, &tx1, &ty1, &tw, &th);
- _driver.tft->setCursor((320 - tw) / 2, 22); _driver.tft->print(titleTxt);
+ /* T1.2: no heap in Core-1 render */
+ uiTitleBar(_driver.tft, 4, _tempAlarmConfig.friendlyName);
 
- /* The footer arrows now move the SELECTION, not the value — the value is
+ /* The footer arrows move the SELECTION, not the value — the value is
   * adjusted on the bar itself. Hence the menu's up/down orientation. */
- int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
- _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
- _driver.tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
- _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- const char* backTxt = tr(TR_BACK);
- _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(141 + (75 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
- _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
- _driver.tft->setTextColor(C_BG_MAIN);
- const char* saveTxt = tr(TR_SAVE); /* T1.2: no heap in Core-1 render */
- _driver.tft->getTextBounds(saveTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(222 + (93 - bw)/2, btnY + 25); _driver.tft->print(saveTxt);
+ uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_SAVE));
  }
 
  if (_forceSettingsRedraw || pageChanged) {
- int trackX = 302; int trackY = 40; int trackW = 8; int trackH = 146;
- _driver.tft->fillRoundRect(trackX, trackY, trackW, trackH, 4, C_CARD_BG);
- _driver.tft->drawRoundRect(trackX, trackY, trackW, trackH, 4, C_TEXT_SUB);
- int thumbH = trackH / totalPages; if (thumbH < 20) thumbH = 20;
- int thumbY = trackY;
- if (totalPages > 1) { thumbY += (page * (trackH - thumbH)) / (totalPages - 1); }
- _driver.tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
+ uiScrollbar(_driver.tft, 302, 40, 8, 146, totalPages, page);
  }
 
  for (int row = 0; row < ALARM_EDIT_ROWS; row++) {
@@ -383,9 +301,9 @@ void DisplayManager::drawAlarmEdit( ) {
  _driver.canvas->setFont(&simutFont9pt);
  int16_t bx, by; uint16_t bw, bh;
  _driver.canvas->getTextBounds(numBuf, 0, 0, &bx, &by, &bw, &bh);
- /* The unit prints in the built-in 6px font, so measuring it in the 9pt
-  * font would over-reserve and truncate names that actually fit. */
- const int unitW = (int)unitGlyphCount(ci.display.unit) * 6;
+ /* Unit rendered by uiUnit (real degree ring + 9pt text), so the
+  * reserved width comes from the same helper that draws it. */
+ const int unitW = (int)uiUnitWidth(_driver.canvas, ci.display.unit);
  const int valW = (int)bw + 4 + unitW;
  const int textL = lx + ALARM_EDIT_BTN_W + 6;
  const int textR = rx - 6;
@@ -400,9 +318,7 @@ void DisplayManager::drawAlarmEdit( ) {
  _driver.canvas->setTextColor(txt);
  _driver.canvas->setCursor(textL, 23); _driver.canvas->print(label);
  _driver.canvas->setCursor(textR - valW, 23); _driver.canvas->print(numBuf);
- _driver.canvas->setFont(NULL);
- _driver.canvas->setCursor(_driver.canvas->getCursorX( ) + 4, 16);
- printUnitCp437(_driver.canvas, ci.display.unit);
+ uiUnit(_driver.canvas, (int16_t)(textR - unitW), 23, ci.display.unit, txt);
  }
  }
  blitCanvas(_driver.canvas, ALARM_EDIT_BAR_X, y, ALARM_EDIT_BAR_W, ALARM_EDIT_BAR_H);
@@ -428,34 +344,12 @@ void DisplayManager::drawSettingsMain( ) {
 
  if (fullRedraw) {
  _driver.tft->fillScreen(C_BG_MAIN);
- _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- _driver.tft->setCursor(10, 22); _driver.tft->print(tr(TR_CONFIG_MAIN));
-
- int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
- _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
- _driver.tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
- _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- const char* backTxt = tr(TR_BACK);
- _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(141 + (75 - bw)/2, btnY + 25); _driver.tft->print(backTxt);
- _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
- _driver.tft->setTextColor(C_BG_MAIN);
- const char* enterTxt = tr(TR_ENTER); /* T1.2: no heap in Core-1 render */
- _driver.tft->getTextBounds(enterTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(222 + (93 - bw)/2, btnY + 25); _driver.tft->print(enterTxt);
+ uiTitleBar(_driver.tft, 4, tr(TR_CONFIG_MAIN));
+ uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_ENTER)); /* T1.2: no heap */
  }
 
  if (fullRedraw || pageChanged) {
- int trackX = 302; int trackY = 40; int trackW = 8; int trackH = 146;
- _driver.tft->fillRoundRect(trackX, trackY, trackW, trackH, 4, C_CARD_BG);
- _driver.tft->drawRoundRect(trackX, trackY, trackW, trackH, 4, C_TEXT_SUB);
- int thumbH = trackH / totalPages; if (thumbH < 20) thumbH = 20;
- int thumbY = trackY; if (totalPages > 1) { thumbY += (_mainMenuPage * (trackH - thumbH)) / (totalPages - 1); }
- _driver.tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
+ uiScrollbar(_driver.tft, 302, 40, 8, 146, totalPages, _mainMenuPage);
  }
 
  int startIdx = _mainMenuPage * 4; int yBase = 40; int itemW = 285;
@@ -469,8 +363,13 @@ void DisplayManager::drawSettingsMain( ) {
  uint16_t txt = isSelected ? C_BG_MAIN : C_TEXT_MAIN;
  _driver.canvas->fillRoundRect(0, 0, itemW, 34, 8, bg);
  if (!isSelected) _driver.canvas->drawRoundRect(0, 0, itemW, 34, 8, C_TEXT_SUB);
+ /* Menu items keep their table order, so the icon id IS the index:
+  * 0 themes, 1 alarms, 2 sounds, 3 lang, 4 password, 5 touch-cal,
+  * 6 license, 7 status, 8 display-offset. */
+ uiMenuIcon(_driver.canvas, 10, 9, (uint8_t)mapIdx,
+ isSelected ? C_BG_MAIN : C_ACCENT);
  _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(txt);
- _driver.canvas->setCursor(10, 24); _driver.canvas->print(tr(menuItems[mapIdx]));
+ _driver.canvas->setCursor(34, 24); _driver.canvas->print(tr(menuItems[mapIdx]));
  _driver.canvas->fillTriangle(itemW - 20, 11, itemW - 20, 23, itemW - 10, 17, isSelected ? C_BG_MAIN : C_TEXT_SUB);
  }
  blitCanvas(_driver.canvas, 10, y, itemW, 34);
@@ -583,7 +482,6 @@ void DisplayManager::drawSettingsPassword( ) {
 
  char* activeBuf = (_kbPhase == 0) ? _kbBuffer : _kbConfirmBuf;
 
- int16_t x1, y1; uint16_t w, h_bound;
  bool fullRedraw = _forceSettingsRedraw;
 
 
@@ -593,18 +491,15 @@ void DisplayManager::drawSettingsPassword( ) {
 
  /* Title — always redraw via canvas (changes between phases) */
  {
- /* Full-width bar without rounded corners */
- _driver.canvas->fillScreen(C_CARD_BG);
- _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(C_TEXT_MAIN);
- _driver.canvas->setCursor(14, 18);
- _driver.canvas->print((_kbPhase == 0) ? tr(TR_NEW_PASSWORD) : tr(TR_CONFIRM_PASSWORD));
+ _driver.canvas->fillScreen(C_BG_MAIN);
+ uiTitleBar(_driver.canvas, 0, (_kbPhase == 0) ? tr(TR_NEW_PASSWORD)
+ : tr(TR_CONFIRM_PASSWORD),
+ -1, 0, 26);
 
- /* X button overlaid on bar — y=4 keeps 4 px top margin,
- * resisting display offset -4V without clipping upper lines. */
- _driver.canvas->fillRoundRect(282, 4, 30, 22, 4, C_TEMP_WARM);
- _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextColor(C_BG_MAIN);
- _driver.canvas->getTextBounds("X", 0, 0, &x1, &y1, &w, &h_bound);
- _driver.canvas->setCursor(297 - w / 2, 20); _driver.canvas->print("X");
+ /* X button overlaid on bar — the standard 32x24 close, vertically
+ * centered in the 26 px bar (canvas y=1 -> screen y=5..29; the touch
+ * zone x>280, y<28 covers it). */
+ uiCloseX(_driver.canvas, 284, 1, 32, 24);
 
  /* Blit with dstY=4 pushes the header 4 px down on screen — avoids
  * top clipping at offset -4V. h goes to 30 to match the
@@ -776,7 +671,7 @@ void DisplayManager::drawSettingsPassword( ) {
  }
  }
 
- /* 123 button (col 1) */
+ /* 123 button (col 1) — UI font, not the thin 6px classic face */
  {
  bool layerActive = (_kbLayer == 2);
  bool sel = barActive && (_kbSelCol == 1);
@@ -785,11 +680,12 @@ void DisplayManager::drawSettingsPassword( ) {
  _driver.canvas->fillRoundRect(bx1, 0, bw01, barH, 4, bg);
  if (!sel && !layerActive) _driver.canvas->drawRoundRect(bx1, 0, bw01, barH, 4, C_TEXT_SUB);
  if (sel) _driver.canvas->drawRoundRect(bx1, 0, bw01, barH, 4, C_ACCENT);
- _driver.canvas->setFont(NULL); _driver.canvas->setTextSize(1);
+ _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextSize(1);
  _driver.canvas->setTextColor(fg);
  int16_t tx1, ty1; uint16_t tw, th;
  _driver.canvas->getTextBounds("123", 0, 0, &tx1, &ty1, &tw, &th);
- _driver.canvas->setCursor(bx1 + (bw01 - (int)tw) / 2, (barH - (int)th) / 2);
+ _driver.canvas->setCursor(bx1 + (bw01 - (int)tw) / 2 - tx1,
+ (barH - (int)th) / 2 - ty1);
  _driver.canvas->print("123");
  }
 
@@ -803,6 +699,8 @@ void DisplayManager::drawSettingsPassword( ) {
  uint16_t lineCol = sel ? C_BG_MAIN : C_TEXT_OFF;
  int lineX = bx2 + 20;
  int lineW = bw2 - 40;
+ /* 2 px — the 1 px line read as thinner than everything around it. */
+ _driver.canvas->drawFastHLine(lineX, 13, lineW, lineCol);
  _driver.canvas->drawFastHLine(lineX, 14, lineW, lineCol);
  }
 
@@ -819,18 +717,19 @@ void DisplayManager::drawSettingsPassword( ) {
  _driver.canvas->fillRect(cx - 2, cy - 3, 10, 6, fg);
  }
 
- /* OK button (col 4) */
+ /* OK button (col 4) — UI font, like every other primary action */
  {
  bool sel = barActive && (_kbSelCol == 4);
  uint16_t bg = sel ? C_ACCENT_HIGH : C_ACCENT;
  uint16_t fg = C_BG_MAIN;
  _driver.canvas->fillRoundRect(bx4, 0, bw34, barH, 4, bg);
  if (sel) _driver.canvas->drawRoundRect(bx4, 0, bw34, barH, 4, C_BG_MAIN);
- _driver.canvas->setFont(NULL); _driver.canvas->setTextSize(1);
+ _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextSize(1);
  _driver.canvas->setTextColor(fg);
  int16_t tx1, ty1; uint16_t tw, th;
  _driver.canvas->getTextBounds("OK", 0, 0, &tx1, &ty1, &tw, &th);
- _driver.canvas->setCursor(bx4 + (bw34 - (int)tw) / 2, (barH - (int)th) / 2);
+ _driver.canvas->setCursor(bx4 + (bw34 - (int)tw) / 2 - tx1,
+ (barH - (int)th) / 2 - ty1);
  _driver.canvas->print("OK");
  }
 
@@ -885,11 +784,12 @@ void DisplayManager::drawSettingsPassword( ) {
  int bx = startX + 4 * (btnW + gap);
  _driver.canvas->fillRoundRect(bx, 0, btnW, btnH, 12, C_ACCENT);
  int cx = bx + btnW / 2, cy = btnH / 2;
- /* Check icon */
- _driver.canvas->drawLine(cx - 8, cy, cx - 3, cy + 6, C_BG_MAIN);
- _driver.canvas->drawLine(cx - 7, cy, cx - 2, cy + 6, C_BG_MAIN);
- _driver.canvas->drawLine(cx - 3, cy + 6, cx + 8, cy - 6, C_BG_MAIN);
- _driver.canvas->drawLine(cx - 2, cy + 6, cx + 9, cy - 6, C_BG_MAIN);
+ /* Check icon, 4 px stroke — the 2 px version read thinner than the
+ * bold arrows beside it. */
+ for (int i = 0; i < 4; i++) {
+ _driver.canvas->drawLine(cx - 8 + i, cy, cx - 3 + i, cy + 6, C_BG_MAIN);
+ _driver.canvas->drawLine(cx - 3 + i, cy + 6, cx + 8 + i, cy - 6, C_BG_MAIN);
+ }
  }
 
  blitCanvas(_driver.canvas, 0, navY, 320, btnH);
@@ -966,7 +866,7 @@ void DisplayManager::drawMuteConfirm( ) {
 
  bool isPt = (_currentLangIdx == LANG_PT);
  const char* titleTxt = isPt ? "Mudo Global" : "Mute All";
- const char* msgL1 = isPt ? "Todos os sons serao" : "All sounds will be";
+ const char* msgL1 = isPt ? "Todos os sons ser\xE3o" : "All sounds will be";
  const char* msgL2 = isPt ? "desabilitados." : "disabled.";
  const char* msgL3 = isPt ? "Tem certeza?" : "Are you sure?";
  const char* backTxt = tr(TR_BACK);
@@ -1041,40 +941,13 @@ void DisplayManager::drawSettingsSounds( ) {
 
  if (fullRedraw) {
  _driver.tft->fillScreen(C_BG_MAIN);
- _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- _driver.tft->setCursor(10, 22); _driver.tft->print(tr(TR_SOUNDS_TITLE));
-
- int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
-
- _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
-
- _driver.tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
-
- _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- const char* backTxt = tr(TR_BACK);
- _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(141 + (75 - bw) / 2, btnY + 25); _driver.tft->print(backTxt);
-
- _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
- _driver.tft->setTextColor(C_BG_MAIN);
- const char* saveTxt = tr(TR_SAVE); /* T1.2: no heap in Core-1 render */
- _driver.tft->getTextBounds(saveTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(222 + (93 - bw) / 2, btnY + 25); _driver.tft->print(saveTxt);
+ uiTitleBar(_driver.tft, 4, tr(TR_SOUNDS_TITLE));
+ uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_SAVE)); /* T1.2: no heap */
  }
 
 
  if (fullRedraw || pageChanged) {
- int trackX = 302; int trackY = 40; int trackW = 8; int trackH = 146;
- _driver.tft->fillRoundRect(trackX, trackY, trackW, trackH, 4, C_CARD_BG);
- _driver.tft->drawRoundRect(trackX, trackY, trackW, trackH, 4, C_TEXT_SUB);
- int thumbH = trackH / totalPages; if (thumbH < 20) thumbH = 20;
- int thumbY = trackY;
- if (totalPages > 1) { thumbY += (soundPage * (trackH - thumbH)) / (totalPages - 1); }
- _driver.tft->fillRoundRect(trackX, thumbY, trackW, thumbH, 4, C_ACCENT);
+ uiScrollbar(_driver.tft, 302, 40, 8, 146, totalPages, soundPage);
  }
 
 
@@ -1087,7 +960,7 @@ void DisplayManager::drawSettingsSounds( ) {
  * DICTIONARY_EN or device .lng files. */
  const char* errorLabel = isPt ? "Erro" : "Error";
  const char* alarmLabel = isPt ? "Alarme" : "Alarm";
- const char* attentionLabel = isPt ? "Atencao" : "Attention";
+ const char* attentionLabel = isPt ? "Aten\xE7\xE3o" : "Attention";
  const char* muteLabel = isPt ? "Mudo Global" : "Mute All";
 
  int startIdx = soundPage * 4;
@@ -1201,37 +1074,10 @@ void DisplayManager::drawMelodySelect( ) {
 
  if (fullRedraw) {
  _driver.tft->fillScreen(C_BG_MAIN);
-
-
- _driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_ACCENT);
- _driver.tft->setCursor(10, 22);
- if (typeIdx == 4) {
- _driver.tft->print(isPt ? "Atencao" : "Attention");
- } else {
- _driver.tft->print(tr(TYPE_LABELS[typeIdx]));
- }
-
-
- int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
-
- _driver.tft->fillRoundRect(5, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(36, btnY + 12, 26, btnY + 26, 46, btnY + 26, C_TEXT_MAIN);
-
- _driver.tft->fillRoundRect(73, btnY, 62, btnH, 8, C_CARD_BG);
- _driver.tft->fillTriangle(104, btnY + 26, 94, btnY + 12, 114, btnY + 12, C_TEXT_MAIN);
-
- _driver.tft->fillRoundRect(141, btnY, 75, btnH, 8, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- const char* backTxt = tr(TR_BACK);
- _driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(141 + (75 - bw) / 2, btnY + 25); _driver.tft->print(backTxt);
-
- _driver.tft->fillRoundRect(222, btnY, 93, btnH, 8, C_ACCENT);
- _driver.tft->setTextColor(C_BG_MAIN);
- const char* saveTxt = tr(TR_SAVE); /* T1.2: no heap in Core-1 render */
- _driver.tft->getTextBounds(saveTxt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(222 + (93 - bw) / 2, btnY + 25); _driver.tft->print(saveTxt);
+ uiTitleBar(_driver.tft, 4, (typeIdx == 4)
+ ? (isPt ? "Aten\xE7\xE3o" : "Attention")
+ : tr(TYPE_LABELS[typeIdx]));
+ uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_SAVE)); /* T1.2: no heap */
  }
 
 
@@ -1371,37 +1217,24 @@ void DisplayManager::drawSystemStatus( ) {
 
  /* ── Header + Buttons (only on fullRedraw) ── */
  if (fullRedraw) {
- cv->fillScreen(C_CARD_BG);
- cv->setFont(&simutFont9pt);
- cv->setTextColor(C_TEXT_MAIN);
- cv->setCursor(10, 20); cv->print(tr(TR_STATUS_TITLE));
+ cv->fillScreen(C_BG_MAIN);
+ /* Same title bar as every other screen; page dots come with it. */
+ uiTitleBar(cv, 2, tr(TR_STATUS_TITLE), _statusPage, STATUS_PAGES, 30);
+ blitCanvas(cv, 0, 0, 320, 33);
 
- /* Page dots */
- cv->setFont(NULL); cv->setTextSize(1);
- for (int p = 0; p < STATUS_PAGES; p++) {
- int dx = 280 + p * 10;
- if (p == _statusPage) cv->fillCircle(dx, 14, 3, C_ACCENT);
- else cv->drawCircle(dx, 14, 2, C_TEXT_OFF);
- }
- blitCanvas(cv, 0, 0, 320, 28);
-
- /* ← → BACK buttons */
- _driver.tft->fillRoundRect(5, 195, 62, 40, 8, C_CARD_BG);
- _driver.tft->fillTriangle(36, 207, 26, 221, 46, 221, C_TEXT_MAIN);
- _driver.tft->fillRoundRect(73, 195, 62, 40, 8, C_CARD_BG);
- _driver.tft->fillTriangle(104, 221, 94, 207, 114, 207, C_TEXT_MAIN);
- _driver.tft->fillRoundRect(141, 195, 75, 40, 8, C_CARD_BG);
- _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
- int16_t bx, by; uint16_t bw, bh;
- const char* bt = tr(TR_BACK);
- _driver.tft->getTextBounds(bt, 0, 0, &bx, &by, &bw, &bh);
- _driver.tft->setCursor(141 + (75 - bw) / 2, 220); _driver.tft->print(bt);
+ /* Clear the WHOLE footer band before drawing: this screen paints only
+  * three buttons and no full-screen background, so whatever screen came
+  * before leaks through every gap between button rects (the alarm
+  * editor's SAVE, the dashboard's slot pills — both seen on hardware). */
+ _driver.tft->fillRect(0, 195, 320, 41, C_BG_MAIN);
+ uiFooterMenu(_driver.tft, tr(TR_BACK), nullptr);
  }
 
  /*
- * Simple table: NULL font size 2 (12x16px).
- * Each row: 20px (16px text + 4px gap).
- * Useful area: y=28..194 = 166px -> 8 rows per page.
+ * Simple table in the UI font (9pt), same family as the rest of the
+ * display — the classic terminal font only survives on the license
+ * page, where character density is the point.
+ * Each row: 20px. Useful area: y=34..194 = 160px -> 8 rows per page.
  * Label on left, value on right, separated by dotted line.
  */
 
@@ -1409,15 +1242,17 @@ void DisplayManager::drawSystemStatus( ) {
  static char fbuf[12];
 
  /* Build row array for the current page */
- struct Row { const char* lbl; char val[28]; uint16_t color; };
+ struct Row { const char* lbl; char val[28]; uint16_t color; bool degc; };
  static Row rows[8];
  int nRows = 0;
 
- auto addRow = [&](const char* lbl, const char* val, uint16_t c = 0) {
+ auto addRow = [&](const char* lbl, const char* val, uint16_t c = 0,
+ bool degc = false) {
  if (nRows >= 8) return;
  rows[nRows].lbl = lbl;
  safeCopy(rows[nRows].val, val, sizeof(rows[nRows].val));
  rows[nRows].color = c ? c : C_TEXT_MAIN;
+ rows[nRows].degc = degc;
  nRows++;
  };
 
@@ -1436,8 +1271,7 @@ void DisplayManager::drawSystemStatus( ) {
  snprintf(buf, sizeof(buf), "%lu", (unsigned long)d.flashUsed);
  addRow("Flash Used", buf);
  fmtFloat1(fbuf, sizeof(fbuf), d.boardTemp);
- snprintf(buf, sizeof(buf), "%s oC", fbuf);
- addRow("Board Temp", buf);
+ addRow("Board Temp", fbuf, 0, /*degc=*/true);
  snprintf(buf, sizeof(buf), "GMT%+d", (int)d.timezone);
  addRow("Timezone", buf);
  }
@@ -1475,27 +1309,32 @@ void DisplayManager::drawSystemStatus( ) {
  }
 
  /* ── Render table with variable row height ──
- * Long values (SSID up to 32 chars, MAC 17 chars) that don't fit
- * in valX..312 with font size 2 get 2 lines (label top, value with
- * indent on the line below) — both size 2 as requested. RowH:
- * normal = 20 px (size 2 text = 16 px + 4 gap/separator)
- * wrapped = 32 px (16 + 16 = 2 tight lines, zero gap)
+ * Label on the left, value RIGHT-ALIGNED at x=312 — a long value
+ * (Serial 16 hex, SSID, MAC) grows toward the label instead of off
+ * the screen, so one line fits almost everything the old layout
+ * wrapped. Wraps only when label + value truly collide.
+ * RowH: normal = 20 px, wrapped = 34 px (two 9pt baselines).
  * Render row-by-row via _driver.canvas (320x45 fits both heights).
  * Stop when accumulated y exceeds yEnd — avoids writing over the
- * bottom button bar (at y=195). Page 2 (network) with long
- * SSID/MAC/NTP Server values gets close to the limit. */
- const int valX = 150;
- const int yStart = 28;
+ * bottom button bar (at y=195). */
+ const int valR = 312;
+ const int yStart = 34;
  const int yEnd = 194;
  int curY = yStart;
 
  for (int ri = 0; ri < nRows; ri++) {
- cv->setFont(NULL);
- cv->setTextSize(2);
+ cv->setFont(&simutFont9pt);
+ cv->setTextSize(1);
  int16_t bx, by; uint16_t bw, bh;
+ int16_t lx, ly; uint16_t lw, lh;
  cv->getTextBounds(rows[ri].val, 0, 0, &bx, &by, &bw, &bh);
- const bool wraps = (valX + (int)bw > 312);
- const int rowH = wraps ? 32 : 20;
+ cv->getTextBounds(rows[ri].lbl, 0, 0, &lx, &ly, &lw, &lh);
+ /* Measured, not guessed: "°C" in the 9pt face is ~24 px, and a fixed
+  * reserve smaller than that pushed the C off the right edge. */
+ const int degW = rows[ri].degc
+ ? (int)uiUnitWidth(cv, "\xC2\xB0" "C") + 5 : 0;
+ const bool wraps = (4 + (int)lw + 12 + (int)bw + degW > valR);
+ const int rowH = wraps ? 34 : 20;
 
  if (curY + rowH > yEnd) break; /* no space, drop tail */
 
@@ -1504,24 +1343,29 @@ void DisplayManager::drawSystemStatus( ) {
 
  if (!wraps) {
  cv->setTextColor(C_TEXT_SUB);
- cv->setCursor(4, 2);
+ cv->setCursor(4, 14);
  cv->print(rows[ri].lbl);
  cv->setTextColor(rows[ri].color);
- cv->setCursor(valX, 2);
+ cv->setCursor((int16_t)(valR - degW - (int)bw), 14);
  cv->print(rows[ri].val);
+ if (rows[ri].degc) {
+ uiUnit(cv, (int16_t)(valR - degW + 5), 14, "\xC2\xB0" "C",
+ rows[ri].color);
+ /* degW = measured width + 5 px gap, so the C ends at valR. */
+ }
  } else {
- /* Line 1: label size 2 at y=0 (top). Line 2: value size 2
- * at y=16 with 16 px indent. Total 32 px. */
+ /* Line 1: label at baseline 13. Line 2: value right-aligned at
+ * baseline 29. Total 34 px. */
  cv->setTextColor(C_TEXT_SUB);
- cv->setCursor(4, 0);
+ cv->setCursor(4, 13);
  cv->print(rows[ri].lbl);
  cv->setTextColor(rows[ri].color);
- cv->setCursor(16, 16);
+ cv->setCursor((int16_t)(valR - (int)bw), 29);
  cv->print(rows[ri].val);
  }
 
  /* Dotted separator at row bottom. */
- int sepY = rowH - 3;
+ int sepY = rowH - 2;
  for (int dx = 4; dx < 316; dx += 4)
  cv->drawPixel(dx, sepY, C_GRID);
 

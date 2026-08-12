@@ -107,32 +107,31 @@ inline void drawBarometerMini(GFXcanvas16* cv, int16_t x, int16_t y,
 }
 #endif
 
+/* ── "°C" unit ──────────────────────────────────────────────────────────────
+ * The Latin-1 fonts (FreeSansBold*8b_latin1.h) carry a REAL degree glyph
+ * at 0xB0, so the unit is simply typeset — this replaced first a printed
+ * "o" and then a hand-drawn ring. "\xB0" below is that Latin-1 byte. */
+
 /* ── "°C" unit (normal mode, 24pt value) ────────────────────────────────── */
 
 inline void drawUnitDegC_Normal(GFXcanvas16* cv, int16_t x,
                                 uint16_t color, const GFXfont& font9,
                                 const GFXfont& font12) {
-    cv->setFont(&font9);
+    (void)font9;
     cv->setTextColor(color);
-    cv->setCursor(x, 17);
-    cv->print("o");
     cv->setFont(&font12);
-    cv->setCursor(x + 8, 35);
-    cv->print("C");
+    cv->setCursor(x + 2, 35);
+    cv->print("\xB0" "C");
 }
 
 /* ── "°C" unit (min/max mode, 9pt value) ────────────────────────────────── */
 
 inline void drawUnitDegC_Mini(GFXcanvas16* cv, int16_t x, int16_t baseY,
                               uint16_t color, const GFXfont& font9) {
-    cv->setFont(NULL);
-    cv->setTextSize(1);
     cv->setTextColor(color);
-    cv->setCursor(x, baseY + 2);
-    cv->print("o");
     cv->setFont(&font9);
-    cv->setCursor(x + 6, baseY + 15);
-    cv->print("C");
+    cv->setCursor(x + 1, baseY + 15);
+    cv->print("\xB0" "C");
 }
 
 /* ── Min/Max panel helpers ─────────────────────────────────────────────── */

@@ -599,3 +599,38 @@ void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
  }
  out[o] = '\0';
 }
+
+/* ─────────────────────────────────────────────────────────────────
+ * utf8ToLatin1: UTF-8 -> ISO-8859-1 bytes for the TFT fonts.
+ *
+ * The 8-bit GFX fonts (FreeSansBold*8b_latin1.h) index glyphs by
+ * Latin-1 code, so a 2-byte UTF-8 sequence 0xC2/0xC3 + cc maps to one
+ * output byte. Anything outside Latin-1 (3/4-byte sequences) degrades
+ * through unaccent()'s policy: '?'. Output is never longer than input,
+ * so in-place-sized buffers stay safe. The CLI keeps using unaccent()
+ * — its consumer is a 7-bit serial terminal, not these fonts.
+ * ───────────────────────────────────────────────────────────────── */
+void DisplayManager::utf8ToLatin1(const char* utf8, char* out, size_t outSize) {
+ if (!out || outSize == 0) return;
+ if (!utf8) { out[0] = '\0'; return; }
+
+ size_t o = 0;
+ const unsigned char* p = (const unsigned char*)utf8;
+
+ while (*p && o + 1 < outSize) {
+ unsigned char c = *p;
+ if (c < 0x80) {
+ out[o++] = (char)c;
+ p++;
+ } else if ((c == 0xC2 || c == 0xC3) && (p[1] & 0xC0) == 0x80) {
+ out[o++] = (char)(((c & 0x03) << 6) | (p[1] & 0x3F));
+ p += 2;
+ } else {
+ /* Outside Latin-1: consume the whole sequence, emit '?'. */
+ out[o++] = '?';
+ p++;
+ while ((*p & 0xC0) == 0x80) p++;
+ }
+ }
+ out[o] = '\0';
+}

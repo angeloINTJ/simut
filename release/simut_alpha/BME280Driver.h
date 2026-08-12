@@ -350,10 +350,9 @@ inline void BMP280_renderPanel(GFXcanvas16* cv, float t, float p, bool isValid,
     cv->setFont(&font24);
     cv->setCursor(textAnchor, 35); cv->print(dP);
 
-    cv->setFont(&font9); cv->setTextColor(unitCol);
-    cv->setCursor(unitX, 17); cv->print("o");
+    cv->setTextColor(unitCol);
     cv->setFont(&font12);
-    cv->setCursor(unitX + 8, 35); cv->print("C");
+    cv->setCursor(unitX + 2, 35); cv->print("\xB0" "C");
 
     /* Right edge of everything the temperature owns. The two halves used to be
      * anchored independently — temperature from the left, pressure from the
@@ -470,10 +469,9 @@ inline void BME280_renderPanel(GFXcanvas16* cv, float t, float h, float p,
     cv->setFont(&font24);
     cv->setCursor(textAnchor, 35); cv->print(dP);
 
-    cv->setFont(&font9); cv->setTextColor(unitCol);
-    cv->setCursor(unitX, 17); cv->print("o");
+    cv->setTextColor(unitCol);
     cv->setFont(&font12);
-    cv->setCursor(unitX + 8, 35); cv->print("C");
+    cv->setCursor(unitX + 2, 35); cv->print("\xB0" "C");
 
     /* ── Humidity (right side) ── */
     if (!isnan(h)) {

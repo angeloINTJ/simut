@@ -14,6 +14,7 @@
 #include "DisplayManager.h"
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
+#include "UiWidgets.h"
 #include <math.h>
 
 /* POD volatile globals + writes in show*(). Volatile forces writes to persist. */
@@ -133,7 +134,6 @@ void DisplayManager::showSettingsDisplayOffset( ) {
 void DisplayManager::drawSettingsDisplayOffset( ) {
  if (!_driver.tft) return;
  bool full = _forceSettingsRedraw;
- int16_t bx, by; uint16_t bw, bh;
 
  if (full) {
  /* Full redraw via strips. Static layout:
@@ -152,39 +152,21 @@ void DisplayManager::drawSettingsDisplayOffset( ) {
  const int16_t yOff = -strip * RENDER_STRIP_H;
 
  /* Title bar */
- cv->fillRect(4, 4 + yOff, 312, 32, C_CARD_BG);
- cv->setFont(&simutFont9pt);
- cv->setTextColor(C_TEXT_MAIN);
- cv->setCursor(10, 22 + yOff);
- cv->print(titleTxt);
+ uiTitleBar(cv, (int16_t)(4 + yOff), titleTxt.c_str( ));
 
  /* Direction pad — 4 capsules with arrows */
- cv->fillRoundRect(130, 55 + yOff, 60, 40, 8, C_CARD_BG); /* UP */
- cv->fillTriangle(cx, 62 + yOff, cx - 10, 86 + yOff, cx + 10, 86 + yOff, C_TEXT_MAIN);
- cv->fillRoundRect(130, 145 + yOff, 60, 40, 8, C_CARD_BG); /* DOWN */
- cv->fillTriangle(cx - 10, 154 + yOff, cx + 10, 154 + yOff, cx, 178 + yOff, C_TEXT_MAIN);
- cv->fillRoundRect(80, 100 + yOff, 60, 40, 8, C_CARD_BG); /* LEFT */
- cv->fillTriangle(90, cy + yOff, 120, cy - 10 + yOff, 120, cy + 10 + yOff, C_TEXT_MAIN);
- cv->fillRoundRect(180, 100 + yOff, 60, 40, 8, C_CARD_BG); /* RIGHT */
- cv->fillTriangle(230, cy + yOff, 200, cy - 10 + yOff, 200, cy + 10 + yOff, C_TEXT_MAIN);
+ uiNavArrow(cv, 130, (int16_t)(55 + yOff), 60, 40, UI_UP);
+ uiNavArrow(cv, 130, (int16_t)(145 + yOff), 60, 40, UI_DOWN);
+ uiNavArrow(cv, 80, (int16_t)(100 + yOff), 60, 40, UI_LEFT);
+ uiNavArrow(cv, 180, (int16_t)(100 + yOff), 60, 40, UI_RIGHT);
 
  /* Reset center */
  cv->fillRoundRect(148, 108 + yOff, 24, 24, 4, C_ACCENT);
  cv->drawCircle(cx, cy + yOff, 4, C_BG_MAIN);
 
- /* Back button */
- cv->fillRoundRect(10, 204 + yOff, 120, 32, 8, C_CARD_BG);
- cv->setTextColor(C_TEXT_MAIN);
- cv->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- cv->setCursor(10 + (120 - (int)bw) / 2, 226 + yOff);
- cv->print(backTxt);
-
- /* Apply button */
- cv->fillRoundRect(190, 204 + yOff, 120, 32, 8, C_ACCENT);
- cv->setTextColor(C_BG_MAIN);
- cv->getTextBounds(applyTxt, 0, 0, &bx, &by, &bw, &bh);
- cv->setCursor(190 + (120 - (int)bw) / 2, 226 + yOff);
- cv->print(applyTxt);
+ /* Back / Apply buttons */
+ uiButton(cv, 10, (int16_t)(204 + yOff), 120, 32, backTxt, UI_BTN_SECONDARY);
+ uiButton(cv, 190, (int16_t)(204 + yOff), 120, 32, applyTxt.c_str( ), UI_BTN_PRIMARY);
 
  /* Bright green frame on safe area (4..315, 4..235)
  * — exactly the offset range (-4..+4) that loadDisplayOffset
@@ -331,23 +313,15 @@ void DisplayManager::drawTouchSensitivity( ) {
  const char* backTxt = tr(TR_CANCEL);
  GFXcanvas16* cv = beginScreenRender( );
  if (cv) {
- int16_t bx, by; uint16_t bw, bh;
  for (int strip = 0; strip < 6; strip++) {
  cv->fillScreen(C_BG_MAIN);
  const int16_t yOff = -strip * RENDER_STRIP_H;
 
  /* Title bar */
- cv->fillRect(4, 4 + yOff, 312, 32, C_CARD_BG);
- cv->setFont(&simutFont9pt);
- cv->setTextColor(C_TEXT_MAIN);
- cv->setCursor(10, 22 + yOff);
- cv->print(titleTxt);
+ uiTitleBar(cv, (int16_t)(4 + yOff), titleTxt.c_str( ));
 
  /* Cancel button */
- cv->fillRoundRect(5, 195 + yOff, 120, 40, 8, C_CARD_BG);
- cv->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
- cv->setCursor(5 + (120 - bw) / 2, 220 + yOff);
- cv->print(backTxt);
+ uiButton(cv, 5, (int16_t)(195 + yOff), 120, 40, backTxt, UI_BTN_SECONDARY);
 
  /* Bar frame (vertical, right side) */
  cv->drawRect(289, 38 + yOff, 26, 154, C_TEXT_OFF);

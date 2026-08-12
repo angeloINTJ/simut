@@ -140,10 +140,9 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
         cv->setFont(&font24);
         cv->setCursor(textAnchor, 35); cv->print(dP);
 
-        cv->setFont(&font9); cv->setTextColor(unitCol);
-        cv->setCursor(unitX, 17); cv->print("o");
+        cv->setTextColor(unitCol);
         cv->setFont(&font12);
-        cv->setCursor(unitX + 8, 35); cv->print("C");
+        cv->setCursor(unitX + 2, 35); cv->print("\xB0" "C");
     }
 
 /* ── Min/Max panel rendering (temp only, 43px strip) ───────────────── */

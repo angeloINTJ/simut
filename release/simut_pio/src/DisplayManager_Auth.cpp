@@ -12,6 +12,7 @@
 #include "DisplayManager.h"
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
+#include "UiWidgets.h"
 
 /* Volatile globals for incremental auth screen redraw.
  * Draw functions use these to detect state changes.
@@ -133,10 +134,7 @@ static inline bool drawAuthChromeViaStrips(DisplayManager* dm, GFXcanvas16* cv,
 
 	/* Strip 0 (y=0..39): title bar */
 	cv->fillScreen(bgColor);
-	cv->fillRect(4, 4, 312, 32, C_CARD_BG);
-	cv->setFont(&simutFont9pt); cv->setTextColor(C_TEXT_MAIN);
-	cv->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh);
-	cv->setCursor((320 - bw) / 2, 22); cv->print(titleTxt);
+	uiTitleBar(cv, 4, titleTxt.c_str( ));
 	dm->commitScreenStrip(0);
 
 	/* Strip 1 (y=40..79): empty */
@@ -167,14 +165,8 @@ static inline bool drawAuthChromeViaStrips(DisplayManager* dm, GFXcanvas16* cv,
 
 	/* Strip 5 (y=200..239): cancel + license buttons at y=202 -> canvas y=2..34 */
 	cv->fillScreen(bgColor);
-	cv->fillRoundRect(10, 2, 110, 32, 8, C_CARD_BG);
-	cv->setFont(&simutFont9pt); cv->setTextColor(C_TEXT_MAIN);
-	cv->getTextBounds(cancelTxt, 0, 0, &bx, &by, &bw, &bh);
-	cv->setCursor(10 + (110 - bw) / 2, 24); cv->print(cancelTxt);
-	cv->fillRoundRect(200, 2, 110, 32, 8, C_CARD_BG);
-	cv->setTextColor(C_TEXT_SUB);
-	cv->getTextBounds(licTxt, 0, 0, &bx, &by, &bw, &bh);
-	cv->setCursor(200 + (110 - bw) / 2, 24); cv->print(licTxt);
+	uiButton(cv, 10, 2, 110, 32, cancelTxt.c_str( ), UI_BTN_SECONDARY);
+	uiButton(cv, 200, 2, 110, 32, licTxt.c_str( ), UI_BTN_SECONDARY);
 	dm->commitScreenStrip(5);
 
 	dm->endScreenRender( );

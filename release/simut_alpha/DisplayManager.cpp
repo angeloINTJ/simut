@@ -16,6 +16,7 @@
 
 #include "DisplayManager.h"
 #include "LogManager.h"
+#include "UiWidgets.h"
 #include "FlashIrqProbe.h" /* Core-1 exposure flags for the flash probe */
 #if SIMUT_DISPLAY_TFT
 #include "DisplayManager_Fonts.h"
@@ -1764,32 +1765,16 @@ void DisplayManager::drawSettingsLicense( ) {
 	if (fullRedraw) {
 		_driver.tft->fillScreen(C_BG_MAIN);
 
-		/* Header with title and page counter */
-		_driver.tft->fillRect(4, 4, 312, 32, C_CARD_BG);
-		_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
-		_driver.tft->setCursor(10, 22); _driver.tft->print(tr(TR_LICENSE_TITLE));
-
-		char pgBuf[8];
-		snprintf(pgBuf, sizeof(pgBuf), "%d/%d", _licensePage + 1, _licenseTotalPages);
-		int16_t px, py; uint16_t pw, ph;
-		_driver.tft->getTextBounds(pgBuf, 0, 0, &px, &py, &pw, &ph);
-		_driver.tft->setTextColor(C_TEXT_SUB);
-		_driver.tft->setCursor(310 - (int)pw, 22); _driver.tft->print(pgBuf);
+		/* Header with title and page dots — the pagination idiom every
+		 * paged screen shares now (status already used dots). */
+		uiTitleBar(_driver.tft, 4, tr(TR_LICENSE_TITLE),
+		           _licensePage, _licenseTotalPages);
 
 		/* Bottom buttons */
-		int btnY = 195; int btnH = 40; int16_t bx, by; uint16_t bw, bh;
-
-		_driver.tft->fillRoundRect(5, btnY, 100, btnH, 8, C_CARD_BG);
-		_driver.tft->fillTriangle(55, btnY + 12, 45, btnY + 26, 65, btnY + 26, C_TEXT_MAIN);
-
-		_driver.tft->fillRoundRect(110, btnY, 100, btnH, 8, C_CARD_BG);
-		_driver.tft->fillTriangle(160, btnY + 26, 150, btnY + 12, 170, btnY + 12, C_TEXT_MAIN);
-
-		_driver.tft->fillRoundRect(215, btnY, 100, btnH, 8, C_ACCENT);
-		_driver.tft->setTextColor(C_BG_MAIN);
-		const char* backTxt = tr(TR_BACK); /* T1.2: heap-free render path. */
-		_driver.tft->getTextBounds(backTxt, 0, 0, &bx, &by, &bw, &bh);
-		_driver.tft->setCursor(215 + (100 - bw) / 2, btnY + 25); _driver.tft->print(backTxt);
+		uiNavArrow(_driver.tft, 5, 195, 100, 40, UI_UP);
+		uiNavArrow(_driver.tft, 110, 195, 100, 40, UI_DOWN);
+		/* T1.2: heap-free render path. */
+		uiButton(_driver.tft, 215, 195, 100, 40, tr(TR_BACK), UI_BTN_SECONDARY);
 	}
 
 	/* Clear text area */
@@ -1802,17 +1787,11 @@ void DisplayManager::drawSettingsLicense( ) {
 	renderWrapped(_driver.tft, licText, 10, TEXT_Y0, MAX_COLS, LINE_H,
 	              startLine, MAX_VIS);
 
-	/* "N/M" counter in the top right corner already indicates current page. */
-
-	/* Update counter in header (without redrawing everything) */
+	/* Update page dots in header (without redrawing everything): repaint
+	 * only the dot strip region, then redraw the dots. */
 	if (!fullRedraw) {
-		_driver.tft->fillRect(240, 6, 75, 22, C_CARD_BG);
-		_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_SUB);
-		char pgBuf[8];
-		snprintf(pgBuf, sizeof(pgBuf), "%d/%d", _licensePage + 1, _licenseTotalPages);
-		int16_t px, py; uint16_t pw, ph;
-		_driver.tft->getTextBounds(pgBuf, 0, 0, &px, &py, &pw, &ph);
-		_driver.tft->setCursor(310 - (int)pw, 22); _driver.tft->print(pgBuf);
+		_driver.tft->fillRect(212, 10, 100, 20, C_CARD_BG);
+		uiPageDots(_driver.tft, 20, _licensePage, _licenseTotalPages);
 	}
 
 	_forceSettingsRedraw = false;
