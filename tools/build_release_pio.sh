@@ -22,6 +22,13 @@ echo "--- Generating src/WebUI_GZ.h ---"
 python3 tools/build_webui_gz.py
 cp src/WebUI_GZ.h "${DST}/src/WebUI_GZ.h"
 
+# ── Data (only what the pre-build hooks read: lang packs + favicon) ──
+echo "--- Copying data/ (lang packs + favicon) ---"
+rm -rf "${DST}/data"
+mkdir -p "${DST}/data/lang"
+cp data/favicon.ico "${DST}/data/"
+cp data/lang/language_*.lng "${DST}/data/lang/"
+
 # ── Root files ──
 echo "--- Copying root files ---"
 cp platformio.ini "${DST}/"
