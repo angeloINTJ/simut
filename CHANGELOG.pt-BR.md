@@ -4,6 +4,63 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.6-beta (2026-08-12)
+
+### As telas param de carregar de cima para baixo
+
+A 2.1.5 trouxe o blit por DMA, mas ele só disparava em envios com exatamente
+320 px de largura. Os cards do dashboard (312 px), toda linha de menu (285 px)
+e o chrome inteiro das telas ainda saíam pelo caminho de ~2 µs/pixel da
+biblioteca — e dez telas abriam com um `fillScreen` por-pixel de ~150 ms. Essa
+combinação era o que aparecia como a tela "carregando de cima para baixo".
+Esta versão termina o serviço:
+
+- **Blits de sub-largura também vão pelo DMA.** Fatias mais estreitas que o
+  canvas são compactadas no lugar e enviadas num burst só. Um card do
+  dashboard cai de ~40 ms para ~12 ms por redesenho (no clock antigo — o novo
+  está logo abaixo).
+- **Limpeza de tela na velocidade do fio.** Um fill sólido dedicado por DMA
+  (fonte sem incremento) substitui o `fillScreen` por-pixel na entrada de cada
+  tela, no fundo do dashboard e nas faixas da página de licença.
+- **Chrome dos menus pelo canvas.** Barras de título e rodapés são compostos
+  no canvas compartilhado e enviados em largura cheia, em vez de desenhados
+  widget a widget no painel. Os clears redundantes do strip renderer saíram, e
+  os menus principal/sons repintam só as duas linhas cuja seleção mudou.
+
+### SPI no teto do silício
+
+O clock de escrita sobe de 31,25 MHz para 62,5 MHz — o divisor PL022 do
+RP2040 não oferece nada entre os dois. Os dois caminhos de escrita
+(biblioteca e DMA) agora compartilham uma constante única, `SIMUT_TFT_SPI_HZ`
+em `simut_config.h`, para não divergirem em silêncio. Validado em hardware
+lendo o GRAM do painel de volta em três capturas consecutivas: todo pixel
+divergente estava em conteúdo vivo do top bar, nenhum em região estática. Se
+a sua fiação mostrar artefatos nessa velocidade, sobrescreva a constante para
+`31250000u` — todo o resto da versão fica de pé sozinho.
+
+Efeito combinado, medido/derivado em hardware: entrar numa tela de ajustes
+caiu de ~240 ms para **~50 ms**, o redesenho completo do dashboard de 121 ms
+para **~35 ms**, e a piscada de alarme custa um quarto do que custava.
+
+### O gráfico responde no instante do toque
+
+Abrir um gráfico de qualquer tela agora sempre mostra a tela de carregamento
+(ela pinta em ~45 ms, então lê-se como transição, não como tela em branco).
+Zoom, navegação e toques de calendário *dentro* do gráfico mantêm de
+propósito o plot antigo na tela para contexto — e acendem uma linha fina de
+destaque no topo no momento em que o toque cai, para uma leitura de flash de
+um segundo nunca parecer toque morto. O próximo render cobre a linha.
+
+### Também
+
+- Removido um canvas off-screen de 140×40 alocado a cada boot e desenhado por
+  ninguém desde a 2.1.5 — **11,5 KB de heap devolvidos** (heap livre pós-boot
+  na bancada foi de 46,6 KB para 58,2 KB).
+- `blitCanvas` agora tem contrato documentado: ele consome o canvas; componha
+  antes de cada blit. Todos os callers existentes já faziam isso.
+- Corrigida a documentação do strip renderer (strips de 6×40 px, não 3×80) e
+  comentários de tempo de fio defasados.
+
 ## v2.1.5-beta (2026-08-12)
 
 ### O display ganha um sistema visual único

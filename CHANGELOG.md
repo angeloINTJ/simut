@@ -4,6 +4,60 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.6-beta (2026-08-12)
+
+### Screens stop loading top-to-bottom
+
+2.1.5 brought the DMA blit, but it only engaged for pushes exactly 320 px wide.
+The dashboard cards (312 px), every menu row (285 px) and all the screen chrome
+still went out through the library's ~2 µs/pixel path — and ten screens opened
+with a ~150 ms per-pixel `fillScreen`. That combination is what read as the
+screen "loading top to bottom". This release finishes the job:
+
+- **Sub-width blits ride the DMA too.** Slices narrower than the canvas are
+  compacted in place and pushed as one burst. A dashboard card drops from
+  ~40 ms to ~12 ms per redraw (at the old SPI clock — see below for the new one).
+- **Screen clears at wire speed.** A dedicated DMA solid-fill (non-incrementing
+  source) replaces the per-pixel `fillScreen` on every screen entry, the
+  dashboard background filler, and the license page bands.
+- **Menu chrome through the canvas.** Title bars and footers are composed in
+  the shared canvas and pushed full-width instead of drawn widget-by-widget on
+  the panel. Redundant canvas clears in the strip renderer are gone, and the
+  main/sounds menus repaint only the two rows whose selection changed.
+
+### SPI at the silicon's ceiling
+
+The write clock goes from 31.25 MHz to 62.5 MHz — the RP2040's PL022 divider
+offers nothing in between. Both write paths (library and DMA) now share one
+constant, `SIMUT_TFT_SPI_HZ` in `simut_config.h`, so they cannot drift apart.
+Validated on real hardware by reading the panel's GRAM back over three
+consecutive captures: every differing pixel sat in live top-bar content, none
+in static regions. If your wiring shows artefacts at this speed, override the
+constant to `31250000u` — everything else in this release stands on its own.
+
+Combined effect, measured/derived on hardware: entering a settings screen went
+from ~240 ms to **~50 ms**, a full dashboard redraw from 121 ms to **~35 ms**,
+and the alarm flash costs a quarter of what it did per blink.
+
+### The graph answers the instant you touch it
+
+Opening a graph from any screen now always shows the loading screen (it paints
+in ~45 ms, so it reads as a transition, not a blank). Zoom, pan and calendar
+taps *inside* the graph deliberately keep the old plot on screen for context —
+and light a thin accent line across the top edge the moment the tap lands, so
+a flash read that takes a second never feels like a dead touch. The next
+render covers the line.
+
+### Also
+
+- Removed a 140×40 off-screen canvas allocated on every boot and drawn into by
+  nothing since 2.1.5 — **11.5 KB of heap returned** (free heap after boot on
+  the bench went from 46.6 KB to 58.2 KB).
+- `blitCanvas` has a documented contract now: it consumes the canvas; compose
+  before every blit. Every existing caller already did.
+- Corrected the strip-renderer docs (6×40 px strips, not 3×80) and stale wire
+  timing comments.
+
 ## v2.1.5-beta (2026-08-12)
 
 ### The display gets one visual system
