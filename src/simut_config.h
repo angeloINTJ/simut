@@ -100,6 +100,22 @@
 #define TOUCH_IRQ 20  // XPT2046 touch controller IRQ (must support GPIO interrupts)
 #endif
 
+/* TFT SPI write clock, in Hz. One constant for BOTH write paths (the
+ * Adafruit library begin( ) and the DMA blit transactions) — they must
+ * agree or the DMA path silently runs at a different speed.
+ *
+ * The RP2040 PL022 divider only yields clk_peri / even ratios; with
+ * clk_peri at 125 MHz the reachable ladder is 62.5 / 31.25 / 20.83 MHz —
+ * there is nothing between the top two rungs. 62.5 MHz is well beyond the
+ * ILI9341 datasheet figure (which real modules routinely exceed), so it
+ * MUST be validated by reading pixels back (GET /api/screenshot reads the
+ * panel GRAM): stray pixels in flat regions mean the wiring cannot carry
+ * it — drop back to 31250000u. Touch and panel READS are unaffected
+ * (they run their own 2 MHz transactions). */
+#ifndef SIMUT_TFT_SPI_HZ
+#define SIMUT_TFT_SPI_HZ 62500000u
+#endif
+
 /* =========================================================================
  * SECTION 3: ALPHA DISPLAY — HD44780 16x2
  *

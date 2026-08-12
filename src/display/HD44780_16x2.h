@@ -56,12 +56,10 @@ struct Hd44780_16x2 {
 #if SIMUT_DISPLAY_TFT
 	Adafruit_GFX* tft        = nullptr;
 	Adafruit_GFX* canvas      = nullptr;
-	Adafruit_GFX* canvasSmall = nullptr;
 	Adafruit_GFX* gfx( ) { return tft; }
 #else
 	void* tft        = nullptr;
 	void* canvas      = nullptr;
-	void* canvasSmall = nullptr;
 	void* gfx( ) { return tft; }
 #endif
 

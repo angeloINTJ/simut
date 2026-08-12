@@ -16,6 +16,7 @@
 #include "DisplayManager_Fonts.h"
 #include "LogManager.h"
 #include "StorageManager.h"
+#include "UiWidgets.h" /* blitTitleBar/blitFooterMenu compose the shared chrome */
 #include "sensors/SensorPanelDispatch.h"
 #include "hardware/dma.h" /* strip-blit fast path: SSP 16-bit + DMA */
 #include "hardware/spi.h"
@@ -161,7 +162,7 @@ void DisplayManager::maskStripCorners(GFXcanvas16* canvas,
 
 
 void DisplayManager::restoreNormalDashboard( ) {
- if (!_driver.tft || !_driver.canvasSmall || !_driver.canvas) return;
+ if (!_driver.tft || !_driver.canvas) return;
  drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
  _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
  _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel, _lastRenderedState.topSlotPres);
@@ -182,11 +183,12 @@ void DisplayManager::drawInterfaceFixed( ) {
   * fillScreen's own pixels were overwritten by the four blits within
   * milliseconds. Worse, they went out through Adafruit_SPITFT::writeColor, whose
   * RP2040 branch issues one spi_write_blocking per pixel — each ending in a full
-  * shift-register drain, so nothing pipelines (~1.98 us/px against 0.768 us of
+  * shift-register drain, so nothing pipelines (~2 us/px against 0.512 us of
   * wire). That one discarded fill was ~150 ms of the 254 ms measured for R_FULL.
   *
   * What is left is 7,640 pixels: four horizontal gaps and the two 4-px gutters
-  * beside the 312-wide cards. Still the slow path, but 10% of the pixels.
+  * beside the 312-wide cards — filled at wire speed by fastFillRect now
+  * (~15 ms -> ~4 ms).
   *
   * Every caller paints the full widget set immediately after (loopCore1 first
   * init, the theme-change branch, and render( )'s full-redraw path), so the
@@ -194,76 +196,151 @@ void DisplayManager::drawInterfaceFixed( ) {
  constexpr int16_t CARD_BOT = CARD_BOTTOM_Y + CARD_H;   /* 190 */
 
  /* Horizontal gaps between the widgets. */
- _driver.tft->fillRect(0, TOPBAR_H, DASH_W, CARD_TOP_Y - TOPBAR_H, C_BG_MAIN);
- _driver.tft->fillRect(0, CARD_TOP_Y + CARD_H, DASH_W,
-                       CARD_BOTTOM_Y - (CARD_TOP_Y + CARD_H), C_BG_MAIN);
- _driver.tft->fillRect(0, CARD_BOT, DASH_W, BTNBAR_Y - CARD_BOT, C_BG_MAIN);
- _driver.tft->fillRect(0, BTNBAR_Y + BTNBAR_H, DASH_W,
-                       DASH_H - (BTNBAR_Y + BTNBAR_H), C_BG_MAIN);
+ fastFillRect(0, TOPBAR_H, DASH_W, CARD_TOP_Y - TOPBAR_H, C_BG_MAIN);
+ fastFillRect(0, CARD_TOP_Y + CARD_H, DASH_W,
+              CARD_BOTTOM_Y - (CARD_TOP_Y + CARD_H), C_BG_MAIN);
+ fastFillRect(0, CARD_BOT, DASH_W, BTNBAR_Y - CARD_BOT, C_BG_MAIN);
+ fastFillRect(0, BTNBAR_Y + BTNBAR_H, DASH_W,
+              DASH_H - (BTNBAR_Y + BTNBAR_H), C_BG_MAIN);
 
  /* Gutters either side of the cards, which are narrower than the screen. The
   * span deliberately runs straight through the 110-114 gap already filled
   * above: the overlap is 40 pixels and costs less than getting it exact. */
- _driver.tft->fillRect(0, CARD_TOP_Y, CARD_X, CARD_BOT - CARD_TOP_Y, C_BG_MAIN);
- _driver.tft->fillRect(CARD_X + CARD_W, CARD_TOP_Y, DASH_W - (CARD_X + CARD_W),
-                       CARD_BOT - CARD_TOP_Y, C_BG_MAIN);
+ fastFillRect(0, CARD_TOP_Y, CARD_X, CARD_BOT - CARD_TOP_Y, C_BG_MAIN);
+ fastFillRect(CARD_X + CARD_W, CARD_TOP_Y, DASH_W - (CARD_X + CARD_W),
+              CARD_BOT - CARD_TOP_Y, C_BG_MAIN);
 }
 
-/* ── DMA fast path for full-width canvas pushes (the strip renderer) ────────
+/* ── DMA fast path for canvas pushes and solid fills ────────────────────────
  *
- * Adafruit_SPITFT's write path on RP2040 tops out well under the wire rate,
- * and the strips are the hot path of EVERY screen. This pushes the canvas
- * buffer with the SSP in 16-bit frame mode fed by a DMA channel: the 16-bit
- * frame sends the MSB of each RGB565 VALUE first, so no byte-swap pass and
- * no bounce buffer are needed — the DMA reads the canvas memory directly.
+ * Adafruit_SPITFT's write path on RP2040 tops out well under the wire rate
+ * (~2 us/px measured against 0.512 us of wire at 31.25 MHz), and these
+ * pushes are the hot path of EVERY screen. Pixels go out with the SSP in
+ * 16-bit frame mode fed by a DMA channel: the 16-bit frame sends the MSB of
+ * each RGB565 VALUE first, so no byte-swap pass and no bounce buffer are
+ * needed — the DMA reads the source memory directly.
  *
  * The CS/DC/command sequence mirrors readPixel( ) (the proven pattern in
  * this codebase for taking the bus over from the library): set the window
  * through the library, then re-assert CS, re-issue RAMWR, stream, restore.
  *
- * Synchronous by design: the caller clears/reuses the canvas immediately
- * after (commitScreenStrip), and the quiesce/flash-pause protocol assumes
- * SPI bursts end within the loop iteration that started them. The wait is
- * ~7.4 ms for a 320x45 strip at 31.25 MHz — wire-limited.
+ * Synchronous by design: the caller reuses the canvas immediately after,
+ * and the quiesce/flash-pause protocol assumes SPI bursts end within the
+ * loop iteration that started them. Wire-limited: a 320x45 strip is
+ * ~7.4 ms at 31.25 MHz, ~3.7 ms at the 62.5 MHz ceiling (SIMUT_TFT_SPI_HZ).
  */
-static bool blitWindowDma(TftWithOffset* tft, const uint16_t* buf,
- int16_t x, int16_t y, int16_t w, int16_t h) {
- /* Raw setAddrWindow does not clip; a display offset can push a strip
- * off-screen. Anything not fully on-panel takes the library path. */
- if (x < 0 || y < 0 || x + w > 320 || y + h > 240) return false;
-
+static int dmaTftChannel( ) {
  static int s_ch = -1;
- if (s_ch < 0) {
- s_ch = dma_claim_unused_channel(false);
- if (s_ch < 0) return false; /* no channel free: library path */
- }
+ if (s_ch < 0) s_ch = dma_claim_unused_channel(false);
+ return s_ch; /* -1: no channel free, callers take the library path */
+}
 
+/* Latches the address window and leaves the bus open in 16-bit frame mode,
+ * RAMWR issued, ready for a DMA stream. Must be paired with dmaTftClose. */
+static void dmaTftOpen(TftWithOffset* tft, int16_t x, int16_t y,
+ int16_t w, int16_t h) {
  tft->startWrite( );
  tft->setAddrWindow(x, y, w, h);
  tft->endWrite( ); /* window latched; CS toggles, RAMWR re-sent below */
 
- SPI.beginTransaction(SPISettings(31250000u, MSBFIRST, SPI_MODE0));
+ SPI.beginTransaction(SPISettings(SIMUT_TFT_SPI_HZ, MSBFIRST, SPI_MODE0));
  digitalWrite(TFT_CS, LOW);
  digitalWrite(TFT_DC, LOW);
  SPI.transfer(0x2C); /* RAMWR */
  digitalWrite(TFT_DC, HIGH);
 
  spi_set_format(spi0, 16, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+}
 
- dma_channel_config c = dma_channel_get_default_config(s_ch);
+static void dmaTftClose( ) {
+ while (spi_get_hw(spi0)->sr & SPI_SSPSR_BSY_BITS) { tight_loop_contents( ); }
+ spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
+ digitalWrite(TFT_CS, HIGH);
+ SPI.endTransaction( );
+}
+
+static bool blitWindowDma(TftWithOffset* tft, const uint16_t* buf,
+ int16_t x, int16_t y, int16_t w, int16_t h) {
+ /* Raw setAddrWindow does not clip; a display offset can push a strip
+ * off-screen. Anything not fully on-panel takes the library path. */
+ if (x < 0 || y < 0 || x + w > 320 || y + h > 240) return false;
+
+ int ch = dmaTftChannel( );
+ if (ch < 0) return false;
+
+ dmaTftOpen(tft, x, y, w, h);
+ dma_channel_config c = dma_channel_get_default_config(ch);
  channel_config_set_transfer_data_size(&c, DMA_SIZE_16);
  channel_config_set_dreq(&c, DREQ_SPI0_TX);
  channel_config_set_read_increment(&c, true);
  channel_config_set_write_increment(&c, false);
- dma_channel_configure(s_ch, &c, &spi_get_hw(spi0)->dr, buf,
+ dma_channel_configure(ch, &c, &spi_get_hw(spi0)->dr, buf,
  (uint32_t)w * (uint32_t)h, true);
- dma_channel_wait_for_finish_blocking(s_ch);
- while (spi_get_hw(spi0)->sr & SPI_SSPSR_BSY_BITS) { tight_loop_contents( ); }
-
- spi_set_format(spi0, 8, SPI_CPOL_0, SPI_CPHA_0, SPI_MSB_FIRST);
- digitalWrite(TFT_CS, HIGH);
- SPI.endTransaction( );
+ dma_channel_wait_for_finish_blocking(ch);
+ dmaTftClose( );
  return true;
+}
+
+/* Solid fill at wire speed: same stream, but the DMA source is one 16-bit
+ * color word with read_increment=false. The word lives on the stack — the
+ * blocking wait below keeps it alive for the whole transfer. */
+static bool fillWindowDma(TftWithOffset* tft, uint16_t color,
+ int16_t x, int16_t y, int16_t w, int16_t h) {
+ if (w <= 0 || h <= 0) return true; /* nothing to paint IS success */
+ if (x < 0 || y < 0 || x + w > 320 || y + h > 240) return false;
+
+ int ch = dmaTftChannel( );
+ if (ch < 0) return false;
+
+ uint16_t colorWord = color;
+ dmaTftOpen(tft, x, y, w, h);
+ dma_channel_config c = dma_channel_get_default_config(ch);
+ channel_config_set_transfer_data_size(&c, DMA_SIZE_16);
+ channel_config_set_dreq(&c, DREQ_SPI0_TX);
+ channel_config_set_read_increment(&c, false);
+ channel_config_set_write_increment(&c, false);
+ dma_channel_configure(ch, &c, &spi_get_hw(spi0)->dr, &colorWord,
+ (uint32_t)w * (uint32_t)h, true);
+ dma_channel_wait_for_finish_blocking(ch);
+ dmaTftClose( );
+ return true;
+}
+
+void DisplayManager::fastFillRect(int16_t x, int16_t y, int16_t w, int16_t h,
+ uint16_t color) {
+ if (!_driver.tft) return;
+ /* Logical -> physical: apply the alignment offset here and clamp, the
+ * same discipline blitCanvas uses. Clamping (instead of bailing to the
+ * library) is safe for a FILL — dropping off-panel pixels of a solid
+ * rect changes nothing visible. */
+ int32_t px = (int32_t)x + _driver.tft->getOffsetX( );
+ int32_t py = (int32_t)y + _driver.tft->getOffsetY( );
+ int32_t pw = w, ph = h;
+ if (px < 0) { pw += px; px = 0; }
+ if (py < 0) { ph += py; py = 0; }
+ if (px + pw > 320) pw = 320 - px;
+ if (py + ph > 240) ph = 240 - py;
+ if (pw <= 0 || ph <= 0) return;
+
+ _driver.tft->setOffsetBypass(true);
+ if (!fillWindowDma(_driver.tft, color, (int16_t)px, (int16_t)py,
+                    (int16_t)pw, (int16_t)ph)) {
+ _driver.tft->fillRect((int16_t)px, (int16_t)py, (int16_t)pw, (int16_t)ph,
+                       color);
+ }
+ _driver.tft->setOffsetBypass(false);
+}
+
+void DisplayManager::fastClearScreen(uint16_t color) {
+ if (!_driver.tft) return;
+ /* Whole PHYSICAL panel in one burst, then the black alignment margins —
+ * visually identical to TftWithOffset::fillScreen( ), ~4x faster. */
+ _driver.tft->setOffsetBypass(true);
+ if (!fillWindowDma(_driver.tft, color, 0, 0, 320, 240)) {
+ _driver.tft->fillRect(0, 0, 320, 240, color);
+ }
+ _driver.tft->setOffsetBypass(false);
+ _driver.tft->fillMarginsBlack( );
 }
 
 void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
@@ -291,11 +368,26 @@ void DisplayManager::blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY,
  _driver.tft->drawRGBBitmap(dstX, dstY, canvas->getBuffer( ), w, h);
  }
  } else {
- /* srcX lets a caller push only a slice of a row it already rendered in
-  * full — the render into RAM is cheap, the SPI transfer is not. */
+ /* Sub-width slice (dashboard cards at 312, menu rows at 285, the
+  * srcX status slice): the DMA has no 2D stride, so the rows are
+  * compacted IN PLACE into a contiguous w*h block and pushed as one
+  * burst. This took the cards and menu rows off the ~2 us/px library
+  * path — they were the last big consumers of it (a dashboard card is
+  * 23,400 px: ~40 ms per redraw, now ~12 ms).
+  *
+  * The compaction CONSUMES the canvas content (see the contract at the
+  * declaration): with w < cw the destination row always starts at or
+  * before its source row, and memmove handles the in-row overlap of
+  * the early rows. Row 0 with srcX == 0 is a same-address no-op. */
  uint16_t* buf = canvas->getBuffer( );
  for (int16_t row = 0; row < h; row++) {
- _driver.tft->drawRGBBitmap(dstX, dstY + row, buf + (row * cw) + srcX, w, 1);
+ memmove(buf + (int32_t)row * w, buf + (int32_t)row * cw + srcX,
+ (size_t)w * 2u);
+ }
+ if (!blitWindowDma(_driver.tft, buf, dstX, dstY, w, h)) {
+ /* Off-panel (display offset) or no DMA channel: the compacted
+  * buffer is a plain w*h bitmap — the library path clips per row. */
+ _driver.tft->drawRGBBitmap(dstX, dstY, buf, w, h);
  }
  }
  _driver.tft->setOffsetBypass(false);
@@ -318,15 +410,42 @@ GFXcanvas16* DisplayManager::beginScreenRender( ) {
 void DisplayManager::commitScreenStrip(int16_t stripIdx) {
  if (!_driver.canvas || !_driver.tft) return;
  int16_t stripY = stripIdx * RENDER_STRIP_H;
- /* Blit 40 of the 45 canvas rows (5 leftover ignored). */
+ /* Blit 40 of the 45 canvas rows (5 leftover ignored). No clear afterwards:
+ * every strip loop starts with its own fillScreen (audited — Auth, mute
+ * confirm, calibration x4, alarm action, and the pattern in the header
+ * comment requires it), and the old post-blit clear was a second full
+ * canvas pass thrown away per strip. */
  blitCanvas(_driver.canvas, 0, stripY, 320, RENDER_STRIP_H);
- /* Clear for next strip to be drawn from scratch. Caller may overwrite. */
- _driver.canvas->fillScreen(C_BG_MAIN);
 }
 
 void DisplayManager::endScreenRender( ) {
  /* No-op: _driver.canvas is persistent, nothing to free.
  * Kept in API for consistency (caller still calls it at the end). */
+}
+
+/* ── Shared chrome strips ───────────────────────────────────────────────────
+ *
+ * Every menu-family screen used to paint its title bar and footer straight
+ * onto the TFT through the library path (~20 ms each). These compose the
+ * same widgets into the shared canvas and push one full-width DMA blit:
+ * pixel-identical, ~6-7 ms per band, and the bands double as background
+ * fill for the rows they cover. */
+void DisplayManager::blitTitleBar(const char* title, int curPage,
+ int totalPages) {
+ if (!_driver.canvas || !_driver.tft) return;
+ _driver.canvas->fillScreen(C_BG_MAIN);
+ /* Same geometry as the direct call: bar at y=4, h=32. */
+ uiTitleBar(_driver.canvas, 4, title, curPage, totalPages);
+ blitCanvas(_driver.canvas, 0, 0, 320, 40);
+}
+
+void DisplayManager::blitFooterMenu(const char* exitLabel,
+ const char* primaryLabel) {
+ if (!_driver.canvas || !_driver.tft) return;
+ _driver.canvas->fillScreen(C_BG_MAIN);
+ uiFooterMenu(_driver.canvas, exitLabel, primaryLabel, /*yBase=*/0);
+ /* 45 rows: buttons at 195..234 plus the bottom margin through 239. */
+ blitCanvas(_driver.canvas, 0, 195, 320, 45);
 }
 
 void DisplayManager::drawTopBar(const SystemState& state) {

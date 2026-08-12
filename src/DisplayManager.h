@@ -643,9 +643,35 @@ private:
 	 * called from within a strip-render loop (the
 	 * strip's external blit already covers the region). */
 	void drawGraphIcon(int16_t x, int16_t y, uint16_t color);
-	/** @param srcX column of `canvas` the slice starts at (0 = whole width). */
+	/** Thin accent line at the top edge: instant "working…" feedback for
+	 * graph zoom/pan/range taps, covered by the next header repaint. */
+	void drawGraphBusyHint( );
+	/** Pushes a canvas rectangle to the TFT — DMA whenever the destination is
+	 * fully on-panel. Sub-width slices (w < canvas width, or srcX > 0) are
+	 * compacted IN PLACE into a contiguous w*h block first, so the call
+	 * CONSUMES the canvas: compose afresh before every blit (all callers
+	 * already do — each blit is preceded by fillScreen + draws).
+	 * @param srcX column of `canvas` the slice starts at (0 = whole width). */
 	void blitCanvas(GFXcanvas16* canvas, int16_t dstX, int16_t dstY, int16_t w,
 		int16_t h, int16_t srcX = 0);
+
+	/** Solid fill at wire speed: DMA with a non-incrementing source feeding
+	 * the SSP in 16-bit frames — replaces the library's ~2 us/px per-pixel
+	 * path. Coordinates are logical; the display-alignment offset is applied
+	 * and the rect clamped to the physical panel. Synchronous, like every
+	 * SPI burst on Core 1 (the quiesce protocol depends on that). */
+	void fastFillRect(int16_t x, int16_t y, int16_t w, int16_t h, uint16_t color);
+
+	/** Full-screen clear via fastFillRect + black alignment margins.
+	 * Replaces `_tft->fillScreen( )` on screen entry (~150 ms -> ~40 ms). */
+	void fastClearScreen(uint16_t color);
+
+	/** Standard screen chrome, composed in the shared canvas and pushed with
+	 * one full-width DMA blit each — replacing the direct-to-TFT widget calls
+	 * that went out per-pixel. blitTitleBar covers rows 0..39 (bar at y=4..35 plus
+	 * the gaps above/below); blitFooterMenu covers rows 195..239. */
+	void blitTitleBar(const char* title, int curPage = -1, int totalPages = 0);
+	void blitFooterMenu(const char* exitLabel, const char* primaryLabel);
 
 	/** Formats epoch to X-axis label (HH:MM or DD/MM HHh). */
 	void formatGraphTime(time_t epoch, char* buf, bool shortRange);
@@ -888,20 +914,19 @@ private:
 	static constexpr int16_t CAL_SCR_Y[4] = { 20, 20, 220, 220 };
 
 public:
-	/* Full-screen render via 3 strips of 80px.
+	/* Full-screen render via 6 strips of RENDER_STRIP_H (40) px.
 	 * Typical usage (instead of _tft->fillScreen + sequential draws):
 	 * GFXcanvas16* cv = beginScreenRender( );
 	 * if (!cv) { fallback _tft->...; return; }
-	 * // Strip 0 (y=0..79): same coordinates as screen
-	 * cv->fillRect(4, 4, 312, 32, ...); cv->setCursor(x, 22); cv->print(title);
-	 * commitScreenStrip(0);
-	 * // Strip 1 (y=80..159): subtract 80 from screen coordinates
-	 * commitScreenStrip(1);
-	 * // Strip 2 (y=160..239): subtract 160 from screen coordinates
-	 * cv->fillRoundRect(10, 202-160, 110, 32, 8, ...);
-	 * commitScreenStrip(2);
+	 * for (int strip = 0; strip < 6; strip++) {
+	 *   cv->fillScreen(C_BG_MAIN);            // caller owns the background
+	 *   const int16_t yOff = -strip * RENDER_STRIP_H;
+	 *   ...draw everything with +yOff; the canvas clips what falls outside...
+	 *   commitScreenStrip(strip);
+	 * }
 	 * endScreenRender( );
-	 * Alloc/free per render = frees heap for telemetry between renders. */
+	 * The canvas is the shared 320x45 dashboard canvas — free during
+	 * full-screen renders, and no allocation means no OOM path. */
 	GFXcanvas16* beginScreenRender( );
 	void commitScreenStrip(int16_t stripIdx);
 	void endScreenRender( );

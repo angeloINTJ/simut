@@ -53,11 +53,13 @@ void uiButton(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h,
 void uiNavArrow(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h,
 	UiArrowDir dir);
 
-/** The standard menu footer at y=195: [up][down][exit][primary].
+/** The standard menu footer at y=yBase: [up][down][exit][primary].
  *  primaryLabel == nullptr suppresses the primary slot. Geometry matches the
- *  historical footer exactly, so touch zones are untouched. */
+ *  historical footer exactly, so touch zones are untouched. yBase exists so
+ *  the footer can be composed into a canvas strip at 0 and blitted to 195 —
+ *  the default keeps every direct-to-TFT caller pixel-identical. */
 void uiFooterMenu(Adafruit_GFX* g, const char* exitLabel,
-	const char* primaryLabel);
+	const char* primaryLabel, int16_t yBase = 195);
 
 /** Modal close button: accent-high pill with a stroked X glyph. */
 void uiCloseX(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h);
