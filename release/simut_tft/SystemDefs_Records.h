@@ -428,6 +428,15 @@ struct GraphDataPackage {
  float minVal; /**< Min of displayed points (decimated) */
  float maxVal; /**< Max of displayed points (decimated) */
  bool hasHumidity;
+ bool hasPressure; /**< Sensor reports CH_PRESS (BMx280) */
+ /**
+ * The TFT plot has one secondary curve (pointsV2 + right axis). It carries
+ * humidity when the sensor has it; on a pressure-without-humidity part
+ * (BMP280) it carries pressure instead, and this flag tells the renderer
+ * to relabel the axis in hPa. On a BME280 (all three channels) humidity
+ * keeps the curve and pressure appears only in the detail-page stats.
+ */
+ bool v2IsPress;
 
  /* REAL min/max — calculated from ALL records in the window,
  * not just the decimated points for display.
@@ -464,6 +473,18 @@ struct GraphDataPackage {
  float avgHum; /**< Arithmetic mean of humidity */
  float stdHum; /**< Standard deviation of humidity */
  float deltaHum; /**< Humidity variation */
+
+ /* Pressure stats for the detail page. Extremes are REAL (every record in
+ * the window, like realMinVal/realMaxVal); avg/std follow the decimated
+ * cadence like the temperature/humidity stats above. Tracked whenever the
+ * sensor has CH_PRESS, whether or not pressure owns the plotted curve. */
+ float realMinPress; /**< Real minimum pressure in the window (NAN if none) */
+ float realMaxPress; /**< Real maximum pressure in the window (NAN if none) */
+ time_t tsRealMinPress; /**< Epoch of real minimum pressure */
+ time_t tsRealMaxPress; /**< Epoch of real maximum pressure */
+ float avgPress; /**< Arithmetic mean of pressure */
+ float stdPress; /**< Standard deviation of pressure */
+ float deltaPress; /**< Pressure variation (last - first valid sample) */
 };
 
 

@@ -656,12 +656,17 @@ void DisplayManager::handleTouch( ) {
  if (y >= 40 && y < 195) {
  if (!acceptTouch(10)) return;
  bool hasHumNow = _graphData.hasHumidity && !isnan(_currentMinHum);
+ bool hasPressNow = _graphData.hasPressure;
  if (_detailPage == 0 && hasHumNow) {
  /* Temperature -> Humidity */
  _detailPage = 1;
  _repaintGraph = true;
+ } else if (_detailPage < 2 && hasPressNow) {
+ /* Temperature or Humidity -> Pressure (BMP280 skips the hum page) */
+ _detailPage = 2;
+ _repaintGraph = true;
  } else {
- /* Humidity (or temp without hum) -> return to graph */
+ /* Last page for this sensor -> return to graph */
  _detailPage = 0;
  _uiMode = MODE_GRAPH_VIEW;
  _repaintGraph = true;

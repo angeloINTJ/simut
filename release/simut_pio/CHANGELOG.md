@@ -4,6 +4,58 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.7-beta (2026-08-13)
+
+### Pressure joins the history graphs
+
+The graph reader only resolved temperature and humidity, so the one sensor
+that exists to measure pressure (BMP280) plotted temperature alone, and its
+pressure had no screen anywhere on the TFT. The pressure channel is now read
+from both the day files and the hour still open in RAM: on a
+pressure-without-humidity part it takes the plot's second curve and right
+axis (hPa, one decimal, wearing the same color pressure has on the
+dashboard), and on a BME280 — where humidity keeps the curve — it still gets
+its own metrics page. Tapping the center of the detail screen cycles
+temperature → humidity → pressure → back to the graph.
+
+### The metrics screen becomes an instrument table
+
+The four MAX/MIN/AVG/STDDEV cards gave way to full-width instrument rows
+under a section strip that names the channel and its unit — "Pressure (hPa)"
+— and shows page dots for the tap-to-cycle pages. Each row carries a
+semantically colored icon (hot MAX, cold MIN), a value on one shared decimal
+edge, and a right column with the **full dd/mm/yy hh:mm stamp** of the
+extreme, the **window delta** with a trend triangle on the AVG row, and the
+sample count on the STDDEV row. The layout is measured at runtime from the
+actual glyphs, so any language or unit keeps its clearances; the only label
+that could not fit, English "AVERAGE", became "AVG".
+
+Three repairs rode along: detail labels no longer corrupt under a loaded
+`.lng` (they stored pointers into `tr()`'s 4-slot rotating scratch and the
+humidity page's unit calls recycled them mid-render — English never showed
+it); the plot's secondary-axis minimum no longer sticks at the 1000.0
+sentinel for pressure (sea level sits above it, so the curve rendered
+squeezed against the top); and the graph header interval now wears the
+dashboard clock color and carries the two-digit year.
+
+### Long uploads stop dying at the first hiccup
+
+The web server's multipart reader kept the Stream default of one second of
+patience per byte. With the receive window at 4×MSS (the v2.1.4 lwIP fix), a
+~1 MB upload closes the window many times a second; when the reopening
+segment is lost to a radio blind spot, the flow stalls until the peer
+retransmits — and one second turned that recoverable stall into an aborted
+upload at ~13–15 s, every time. The reader now waits 3 s, and the OTA
+stage→apply cycle was re-validated end to end twice on the bench, version
+read back from the serial console each time.
+
+While chasing this, a second, environmental killer was isolated and is worth
+knowing about: consumer APs with "flood protection" features can inject RSTs
+into sustained port-80 flows toward the station at a fixed connection age,
+regardless of rate — ICMP unaffected, device counters clean. If large
+transfers die at a suspiciously constant ~13 s on your network, try moving
+the SIMUT web port off 80 or relaxing the router's DoS protection.
+
 ## v2.1.6-beta (2026-08-12)
 
 ### Screens stop loading top-to-bottom

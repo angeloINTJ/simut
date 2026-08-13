@@ -32,7 +32,10 @@ static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "OFF", "Web Access", "Melody", "7. License", "MIT License",
  "ACTIVE", "Silence 120s", "Deactivate", "Min/Max", "Silenced",
  "%RH", "7. Touch Sensitivity", "Touch Sensitivity", "Tap %d/%d", "Calibration Done!",
- "AVERAGE", "STD DEV", "Error", "Configuration Mode", "8. System Status",
+ /* "AVG", not "AVERAGE": the graph detail rows fit label + value + unit +
+ * full date/time stamp in 320 px only with the short form. Text-only
+ * change — .lng packs are positional and unaffected. */
+ "AVG", "STD DEV", "Error", "Configuration Mode", "8. System Status",
  "System Status",
  "9. Display Alignment", "Display Alignment", "Adjust +/-4 px. Saving clears touch calibration.",
  /* v3.31.2 boot terminal i18n */

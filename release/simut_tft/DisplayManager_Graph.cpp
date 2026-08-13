@@ -16,6 +16,7 @@
 #include "LogManager.h"
 #include "DisplayManager_FmtFloat.h"
 #include "UiWidgets.h"
+#include "SensorChannels.h" /* CH_TEMP/CH_HUM/CH_PRESS for card units */
 
 void DisplayManager::showStats(const GraphDataPackage& data, float minHum, float maxHum) {
  mutex_enter_blocking(&_stateMutex);
@@ -305,20 +306,27 @@ void DisplayManager::drawGraphHeaderBar(bool blitNow) {
  bool sameDay = (tmFirst.tm_mday == tmLast.tm_mday
  && tmFirst.tm_mon == tmLast.tm_mon);
 
+ /* Date with the two-digit year, like the dashboard clock. Cross-day
+ * windows carry the year on the START date only: with it on both the
+ * line is 254 px against ~227 usable, and the start's year already
+ * anchors the window (a 31/12-01/01 span reads fine). */
  if (sameDay) {
- snprintf(dateBuf, sizeof(dateBuf), "%02d/%02d %02d:%02d - %02d:%02d",
- tmFirst.tm_mday, tmFirst.tm_mon + 1,
+ snprintf(dateBuf, sizeof(dateBuf), "%02d/%02d/%02d %02d:%02d - %02d:%02d",
+ tmFirst.tm_mday, tmFirst.tm_mon + 1, (tmFirst.tm_year + 1900) % 100,
  tmFirst.tm_hour, tmFirst.tm_min,
  tmLast.tm_hour, tmLast.tm_min);
  } else {
- snprintf(dateBuf, sizeof(dateBuf), "%02d/%02d %02d:%02d - %02d/%02d %02d:%02d",
- tmFirst.tm_mday, tmFirst.tm_mon + 1,
+ snprintf(dateBuf, sizeof(dateBuf), "%02d/%02d/%02d %02d:%02d - %02d/%02d %02d:%02d",
+ tmFirst.tm_mday, tmFirst.tm_mon + 1, (tmFirst.tm_year + 1900) % 100,
  tmFirst.tm_hour, tmFirst.tm_min,
  tmLast.tm_mday, tmLast.tm_mon + 1,
  tmLast.tm_hour, tmLast.tm_min);
  }
 
- uint16_t dateColor = (_graphData.count >= 2) ? C_ACCENT_HIGH : C_TEXT_SUB;
+ /* Same color as the dashboard top-bar clock (C_TITLE_TEXT): this text IS
+ * the screen's date/time, so it keeps the dashboard's visual language.
+ * Dimmed C_TEXT_SUB stays for the no-data state. */
+ uint16_t dateColor = (_graphData.count >= 2) ? C_TITLE_TEXT : C_TEXT_SUB;
  cv->setTextColor(dateColor);
  int16_t bx, by; uint16_t bw, bh;
  cv->getTextBounds(dateBuf, 0, 0, &bx, &by, &bw, &bh);
@@ -555,15 +563,17 @@ void DisplayManager::drawStatsScreen( ) {
  * For long ranges (24H, 7D) shows DD/MM HHh.
  *
  * @param epoch Unix timestamp of the point.
- * @param buf Output buffer (minimum 12 bytes).
+ * @param buf Output buffer (minimum 16 bytes).
  * @param shortRange true for short format (HH:MM), false for long (DD/MM HHh).
  */
 void DisplayManager::formatGraphTime(time_t epoch, char* buf, bool shortRange) {
  struct tm ti;
  localtime_r(&epoch, &ti);
- /* Always display full date and time, regardless of interval */
+ /* Always display full date and time, regardless of interval — with the
+ * two-digit year, the same "dd/mm/yy" the dashboard clock uses. */
  (void)shortRange;
- snprintf(buf, 12, "%02d/%02d %02d:%02d", ti.tm_mday, ti.tm_mon + 1, ti.tm_hour, ti.tm_min);
+ snprintf(buf, 16, "%02d/%02d/%02d %02d:%02d", ti.tm_mday, ti.tm_mon + 1,
+ (ti.tm_year + 1900) % 100, ti.tm_hour, ti.tm_min);
 }
 
 /**
@@ -663,7 +673,8 @@ void DisplayManager::drawGraphScreen( ) {
  }
 
  bool shortRange = (_graphData.timeRange <= 3); /* 1H..24H = HH:MM, 7D = DD/MM */
- bool hasHum = _graphData.hasHumidity && !isnan(_currentMinHum);
+ /* Secondary curve: humidity, or pressure standing in for it (BMP280). */
+ bool hasV2 = (_graphData.hasHumidity || _graphData.v2IsPress) && !isnan(_currentMinHum);
  bool hasData = (_graphData.count >= 2 && _graphData.idxMaxTemp >= 0);
 
  /*
@@ -673,7 +684,7 @@ void DisplayManager::drawGraphScreen( ) {
  */
  const int gx = 30; /* Left margin (Y labels) */
  const int gy = 30; /* Grid top */
- const int gw = hasHum ? 250 : 285; /* Grid width */
+ const int gw = hasV2 ? 250 : 285; /* Grid width */
  const int gh = 155; /* Grid height */
  const int margin = 2; /* Internal graph clearance */
  const int timeAxisY = gy + gh + 2; /* X axis labels */
@@ -689,7 +700,7 @@ void DisplayManager::drawGraphScreen( ) {
  if (hasData) {
  tempRange = _graphData.realMaxVal - _graphData.realMinVal;
  if (tempRange < 0.001f) tempRange = 1.0f; /* Constant value -> line in middle */
- if (hasHum) {
+ if (hasV2) {
  humMin = _currentMinHum; humMax = _currentMaxHum;
  humRange = humMax - humMin;
  if (humRange < 0.001f) humRange = 1.0f;
@@ -717,7 +728,7 @@ void DisplayManager::drawGraphScreen( ) {
  pyV1[i] = y;
  }
 
- if (hasHum && !isnan(_graphData.pointsV2[i])) {
+ if (hasV2 && !isnan(_graphData.pointsV2[i])) {
  int yh = gy + margin + (int)((humMax - _graphData.pointsV2[i]) / humRange * (gh - 2 * margin));
  if (yh < gy) yh = gy;
  if (yh > gy + gh) yh = gy + gh;
@@ -730,12 +741,17 @@ void DisplayManager::drawGraphScreen( ) {
 
  /* ── Pre-format texts ── */
  static char maxLbl[10], minLbl[10];
- static char humMaxLbl[8], humMinLbl[8];
+ static char humMaxLbl[10], humMinLbl[10];
 
  if (hasData) {
  fmtFloat1(maxLbl, sizeof(maxLbl), _graphData.realMaxVal);
  fmtFloat1(minLbl, sizeof(minLbl), _graphData.realMinVal);
- if (hasHum) {
+ if (_graphData.v2IsPress) {
+ /* hPa with 1 decimal: a day of pressure moves a few hPa, so the
+ * integer would often collapse the two axis labels into one. */
+ fmtFloat1(humMaxLbl, sizeof(humMaxLbl), humMax);
+ fmtFloat1(humMinLbl, sizeof(humMinLbl), humMin);
+ } else if (hasV2) {
  snprintf(humMaxLbl, sizeof(humMaxLbl), "%d%%", (int)humMax);
  snprintf(humMinLbl, sizeof(humMinLbl), "%d%%", (int)humMin);
  }
@@ -763,7 +779,7 @@ void DisplayManager::drawGraphScreen( ) {
  cv->drawFastVLine(gx, at, ab - at, C_AXIS);
  if (gy + gh >= sTop && gy + gh < sBot)
  cv->drawFastHLine(gx, gy + gh - sTop, gw, C_AXIS);
- if (hasHum)
+ if (hasV2)
  cv->drawFastVLine(gx + gw, at, ab - at, C_AXIS);
  }
 
@@ -806,8 +822,8 @@ void DisplayManager::drawGraphScreen( ) {
  cv->print(minLbl);
  }
 
- /* ── Humidity Y axis labels (right side) ── */
- if (hasHum) {
+ /* ── Secondary Y axis labels, right side (%RH or hPa) ── */
+ if (hasV2) {
  int rxAxis = gx + gw;
  cv->setTextColor(C_HUMIDITY);
  if (lyMax < sBot && lyMax + 8 > sTop) {
@@ -855,8 +871,8 @@ void DisplayManager::drawGraphScreen( ) {
  cv->drawLine(pxV1[i], y1 - sTop + 1, pxV1[i+1], y2 - sTop + 1, C_TEMP_HOT);
  }
 
- /* ── Humidity curve (1px) ── */
- if (hasHum) {
+ /* ── Secondary curve, 1px (humidity, or pressure on a BMP280) ── */
+ if (hasV2) {
  for (int i = 0; i < _graphData.count - 1; i++) {
  if (pyV2[i] < 0 || pyV2[i+1] < 0) continue;
  int y1 = pyV2[i], y2 = pyV2[i + 1];
@@ -968,9 +984,12 @@ void DisplayManager::drawGraphScreen( ) {
 /**
  * @brief Draws screen with legible numeric data for the selected period.
  *
- * Displays in large cards: MAX, MIN, AVG, stddev, and period.
+ * Instrument layout: a section strip (channel name + page dots) over four
+ * full-width rows — MAX, MIN, AVG, STDDEV — each with icon, label, value+
+ * unit and a right column (event time, window delta, sample count).
  * Keeps header with title/X button and period buttons at the bottom.
- * Tap on the central zone returns to the graph.
+ * Tap on the central zone cycles temperature -> humidity -> pressure
+ * (pages the sensor lacks are skipped) and then returns to the graph.
  * All floats formatted via fmtFloat1/fmtFloat2 (without snprintf %f).
  */
 void DisplayManager::drawGraphDetailScreen( ) {
@@ -979,19 +998,34 @@ void DisplayManager::drawGraphDetailScreen( ) {
 
  bool shortRange = (_graphData.timeRange <= 3); /* 1H..24H = HH:MM, 7D = DD/MM */
  bool hasHum = _graphData.hasHumidity && !isnan(_currentMinHum);
+ bool hasPress = _graphData.hasPressure;
  bool isHumPage = (_detailPage == 1 && hasHum);
+ bool isPressPage = (_detailPage == 2 && hasPress);
 
  int16_t bx, by; uint16_t bw, bh;
 
- struct CardData {
- const char* label;
+ /* Channel this page shows + its position among the pages this sensor
+ * actually has (drives the section title and the page dots). */
+ uint8_t pageCh = isPressPage ? CH_PRESS : (isHumPage ? CH_HUM : CH_TEMP);
+ int dotTotal = 1 + (hasHum ? 1 : 0) + (hasPress ? 1 : 0);
+ int dotCur = isPressPage ? (dotTotal - 1) : (isHumPage ? 1 : 0);
+
+ /* The label is stored as its TR key and resolved by tr() at PRINT time.
+ * It used to be the tr() pointer itself, which points into a 4-slot
+ * rotating scratch: on the humidity page the unit's own tr(TR_HUM_SUFFIX)
+ * calls recycled the slots the four labels lived in, so MIN/AVG/STD
+ * printed as suffix fragments. English never showed it — without a pack,
+ * tr() returns static dictionary pointers. */
+ struct RowData {
+ LangKey labelKey;
  char num[14];
- bool isTempUnit; /* true = degree-C with circle, false = tr(TR_HUM_SUFFIX) */
- char sub[12];
+ char right[16]; /* right column text; meaning per rightKind */
+ uint8_t rightKind; /* 0 none, 1 event time, 2 window delta, 3 sample count */
+ float delta; /* signed value behind rightKind==2 (triangle direction) */
  uint16_t numColor;
- int icon;
+ int icon; /* 0 max, 1 min, 2 avg, 3 std */
  };
- static CardData cards[4];
+ static RowData rows[4];
 
  if (_graphData.count < 2) {
  _driver.tft->fillRect(4, 4, 312, 191, C_BG_MAIN);
@@ -1004,68 +1038,117 @@ void DisplayManager::drawGraphDetailScreen( ) {
  return;
  }
 
- /* ── Populate cards ── */
- if (!isHumPage) {
- cards[0] = { tr(TR_MAX_LBL), {0}, true, {0}, C_TEMP_OK, 0 };
- fmtFloat1(cards[0].num, sizeof(cards[0].num), _graphData.realMaxVal);
- if (_graphData.tsRealMax > 0) formatGraphTime(_graphData.tsRealMax, cards[0].sub, shortRange);
+ /* Signed 1-decimal window delta ("+0.3"/"-0.2"); NAN prints "--".
+ * Anything that rounds to zero prints unsigned "0.0" — otherwise a
+ * -0.04 drift shows as the nonsensical "-0.0". */
+ auto fmtDelta = [&](float dv, char* buf, size_t n) {
+ if (isnan(dv)) { snprintf(buf, n, "--"); return; }
+ if (fabsf(dv) < 0.05f) { snprintf(buf, n, "0.0"); return; }
+ char f[10];
+ fmtFloat1(f, sizeof(f), dv);
+ snprintf(buf, n, (dv >= 0.0f) ? "+%s" : "%s", f);
+ };
 
- cards[1] = { tr(TR_MIN_LBL), {0}, true, {0}, C_TEMP_OK, 1 };
- fmtFloat1(cards[1].num, sizeof(cards[1].num), _graphData.realMinVal);
- if (_graphData.tsRealMin > 0) formatGraphTime(_graphData.tsRealMin, cards[1].sub, shortRange);
+ /* ── Populate rows: MAX, MIN, AVG (window delta), STDDEV (n) ── */
+ if (isPressPage) {
+ /* Values wear the color pressure has on the dashboard (C_HUMIDITY). */
+ rows[0] = { TR_MAX_LBL, {0}, {0}, 1, 0, C_HUMIDITY, 0 };
+ fmtFloat1(rows[0].num, sizeof(rows[0].num), _graphData.realMaxPress);
+ if (_graphData.tsRealMaxPress > 0) formatGraphTime(_graphData.tsRealMaxPress, rows[0].right, shortRange);
 
- cards[2] = { tr(TR_AVG_LBL), {0}, true, {0}, C_TEMP_OK, 2 };
- fmtFloat1(cards[2].num, sizeof(cards[2].num), _graphData.avgTemp);
+ rows[1] = { TR_MIN_LBL, {0}, {0}, 1, 0, C_HUMIDITY, 1 };
+ fmtFloat1(rows[1].num, sizeof(rows[1].num), _graphData.realMinPress);
+ if (_graphData.tsRealMinPress > 0) formatGraphTime(_graphData.tsRealMinPress, rows[1].right, shortRange);
 
- cards[3] = { tr(TR_STD_LBL), {0}, true, {0}, C_TEMP_OK, 3 };
- fmtFloat2(cards[3].num, sizeof(cards[3].num), _graphData.stdTemp);
+ rows[2] = { TR_AVG_LBL, {0}, {0}, 2, _graphData.deltaPress, C_HUMIDITY, 2 };
+ fmtFloat1(rows[2].num, sizeof(rows[2].num), _graphData.avgPress);
+ fmtDelta(_graphData.deltaPress, rows[2].right, sizeof(rows[2].right));
+
+ rows[3] = { TR_STD_LBL, {0}, {0}, 3, 0, C_TEXT_MAIN, 3 };
+ fmtFloat2(rows[3].num, sizeof(rows[3].num), _graphData.stdPress);
+ snprintf(rows[3].right, sizeof(rows[3].right), "n=%d", _graphData.count);
+ } else if (!isHumPage) {
+ /* Temperature: semantic colors — hot MAX, cold MIN, ok AVG. */
+ rows[0] = { TR_MAX_LBL, {0}, {0}, 1, 0, C_TEMP_HOT, 0 };
+ fmtFloat1(rows[0].num, sizeof(rows[0].num), _graphData.realMaxVal);
+ if (_graphData.tsRealMax > 0) formatGraphTime(_graphData.tsRealMax, rows[0].right, shortRange);
+
+ rows[1] = { TR_MIN_LBL, {0}, {0}, 1, 0, C_TEMP_COLD, 1 };
+ fmtFloat1(rows[1].num, sizeof(rows[1].num), _graphData.realMinVal);
+ if (_graphData.tsRealMin > 0) formatGraphTime(_graphData.tsRealMin, rows[1].right, shortRange);
+
+ rows[2] = { TR_AVG_LBL, {0}, {0}, 2, _graphData.deltaTemp, C_TEMP_OK, 2 };
+ fmtFloat1(rows[2].num, sizeof(rows[2].num), _graphData.avgTemp);
+ fmtDelta(_graphData.deltaTemp, rows[2].right, sizeof(rows[2].right));
+
+ rows[3] = { TR_STD_LBL, {0}, {0}, 3, 0, C_TEXT_MAIN, 3 };
+ fmtFloat2(rows[3].num, sizeof(rows[3].num), _graphData.stdTemp);
+ snprintf(rows[3].right, sizeof(rows[3].right), "n=%d", _graphData.count);
  } else {
- cards[0] = { tr(TR_MAX_LBL), {0}, false, {0}, C_HUMIDITY, 0 };
- snprintf(cards[0].num, sizeof(cards[0].num), "%d", (int)_currentMaxHum);
- if (_graphData.tsMaxHum > 0) formatGraphTime(_graphData.tsMaxHum, cards[0].sub, shortRange);
+ rows[0] = { TR_MAX_LBL, {0}, {0}, 1, 0, C_HUMIDITY, 0 };
+ snprintf(rows[0].num, sizeof(rows[0].num), "%d", (int)_currentMaxHum);
+ if (_graphData.tsMaxHum > 0) formatGraphTime(_graphData.tsMaxHum, rows[0].right, shortRange);
 
- cards[1] = { tr(TR_MIN_LBL), {0}, false, {0}, C_HUMIDITY, 1 };
- snprintf(cards[1].num, sizeof(cards[1].num), "%d", (int)_currentMinHum);
- if (_graphData.tsMinHum > 0) formatGraphTime(_graphData.tsMinHum, cards[1].sub, shortRange);
+ rows[1] = { TR_MIN_LBL, {0}, {0}, 1, 0, C_HUMIDITY, 1 };
+ snprintf(rows[1].num, sizeof(rows[1].num), "%d", (int)_currentMinHum);
+ if (_graphData.tsMinHum > 0) formatGraphTime(_graphData.tsMinHum, rows[1].right, shortRange);
 
- cards[2] = { tr(TR_AVG_LBL), {0}, false, {0}, C_HUMIDITY, 2 };
- if (!isnan(_graphData.avgHum)) snprintf(cards[2].num, sizeof(cards[2].num), "%d", (int)_graphData.avgHum);
- else snprintf(cards[2].num, sizeof(cards[2].num), "--");
+ rows[2] = { TR_AVG_LBL, {0}, {0}, 2, _graphData.deltaHum, C_HUMIDITY, 2 };
+ if (!isnan(_graphData.avgHum)) snprintf(rows[2].num, sizeof(rows[2].num), "%d", (int)_graphData.avgHum);
+ else snprintf(rows[2].num, sizeof(rows[2].num), "--");
+ fmtDelta(_graphData.deltaHum, rows[2].right, sizeof(rows[2].right));
 
- cards[3] = { tr(TR_STD_LBL), {0}, false, {0}, C_HUMIDITY, 3 };
- if (!isnan(_graphData.stdHum)) fmtFloat2(cards[3].num, sizeof(cards[3].num), _graphData.stdHum);
- else snprintf(cards[3].num, sizeof(cards[3].num), "--");
+ rows[3] = { TR_STD_LBL, {0}, {0}, 3, 0, C_TEXT_MAIN, 3 };
+ if (!isnan(_graphData.stdHum)) fmtFloat2(rows[3].num, sizeof(rows[3].num), _graphData.stdHum);
+ else snprintf(rows[3].num, sizeof(rows[3].num), "--");
+ snprintf(rows[3].right, sizeof(rows[3].right), "n=%d", _graphData.count);
  }
 
- /* ── Layout: 2 rows x 2 columns, larger cards ── */
- const int cardW = 152, cardH = 76, cardR = 8;
- const int colL = 4, colR = 164, gapY = 4;
- const int totalH = 2 * cardH + gapY;
- const int startY = 28 + (167 - totalH) / 2;
- int rowY[2] = { startY, startY + cardH + gapY };
+ /* ── Instrument rows: icon | label | value+unit | stamp/delta/n ── */
+ const int16_t rowYs[4] = { 56, 90, 124, 158 };
+ const int rowH = 31;
+ const int RIGHT_X = 310; /* right column right-aligned ending here */
 
- /**
- * Draws card on canvas (expanded version).
- * - Refined 18x18 icon
- * - Label in FreeSansBold9pt7b, color C_TEXT_SUB (light gray)
- * - Large colored value (green temp / blue hum)
- * - Unit: temp = degree circle "o" (NULL font) + "C" (9pt) white
- * hum = tr(TR_HUM_SUFFIX) (9pt) white
- * - Event date/time at card bottom (FreeSansBold9pt7b, soft yellow)
- */
- auto drawCardOn = [&](GFXcanvas16* cv, int cx, int cy, int stripTop, int idx) {
- int ry = cy - stripTop;
- CardData& d = cards[idx];
-
- cv->fillRoundRect(cx, ry, cardW, cardH, cardR, C_CARD_BG);
-
- /* Soft yellow for event date/time */
+ /* Soft yellow for event times (same tone the old cards used). */
  const uint16_t C_DATETIME = RGB565(190, 170, 60);
 
- /* ── 18x18 Icon ── */
- int ix = cx + 6, iy = ry + 2;
- uint16_t ic = d.numColor;
- switch (d.icon) {
+ /* The page's unit, copied out of tr(): the scratch pointer must not be
+ * held across the row draws — the labels call tr() too. */
+ char unitBuf[8];
+ {
+ const char* u = (pageCh == CH_HUM) ? tr(TR_HUM_SUFFIX)
+ : (pageCh == CH_PRESS) ? "hPa"
+ : "\xB0" "C";
+ strncpy(unitBuf, u, sizeof(unitBuf) - 1);
+ unitBuf[sizeof(unitBuf) - 1] = '\0';
+ }
+
+ /* Measured layout: the full "DD/MM/YY HH:MM" stamp (119 px in the 9pt
+ * font) reserves the right end of the row and the value's decimal edge
+ * (VAL_X) is whatever remains — one shared edge for all four rows.
+ * There is no room left for a per-row unit beside the stamp with the
+ * year in it, so the unit is declared ONCE, in the section strip
+ * ("Pressão (hPa)"), the way an instrument table heads its column. */
+ int16_t mbx, mby; uint16_t stampW, mbh;
+ _driver.canvas->setFont(&simutFont9pt);
+ _driver.canvas->getTextBounds("00/00/00 00:00", 0, 0, &mbx, &mby, &stampW, &mbh);
+ const int VAL_X = RIGHT_X - (int)stampW - 8;
+
+ auto drawRowOn = [&](GFXcanvas16* cv, int idx, int stripTop) {
+ const RowData& r = rows[idx];
+ int ry = rowYs[idx] - stripTop;
+ int16_t rbx, rby; uint16_t rbw, rbh;
+
+ cv->fillRoundRect(4, ry, 312, rowH, 4, C_CARD_BG);
+
+ /* ── 18x18 icon. Semantic colors on every page: MAX hot, MIN cold,
+ * AVG in the channel color, STDDEV neutral. ── */
+ int ix = 10, iy = ry + 6;
+ uint16_t ic = (idx == 0) ? C_TEMP_HOT
+ : (idx == 1) ? C_TEMP_COLD
+ : (idx == 2) ? ((pageCh == CH_TEMP) ? C_TEMP_OK : C_HUMIDITY)
+ : C_TEXT_SUB;
+ switch (r.icon) {
  case 0: { /* ▲ MAX — ascending triangle with inner outline */
  cv->fillTriangle(ix, iy+16, ix+9, iy+1, ix+17, iy+16, ic);
  cv->drawTriangle(ix+2, iy+15, ix+9, iy+4, ix+15, iy+15, C_CARD_BG);
@@ -1107,77 +1190,41 @@ void DisplayManager::drawGraphDetailScreen( ) {
  }
  }
 
- /* ── Label (FreeSansBold9pt7b, light gray, to the right of icon) ── */
+ /* ── Label (9pt, light gray). tr() at print time — the pointer must
+ * not be held across the unit's own tr() call below (4-slot rotating
+ * scratch, see RowData). ── */
  cv->setFont(&simutFont9pt);
  cv->setTextColor(C_TEXT_SUB);
- cv->setCursor(ix + 22, iy + 14);
- cv->print(d.label);
+ cv->setCursor(34, ry + 21);
+ cv->print(tr(r.labelKey));
 
- /* ── Value + Unit (card vertical center) ── */
- int vy = ry + 48;
-
- /* Measure number width */
- int16_t nb, ny2; uint16_t nw, nh;
+ /* ── Value (12pt, colored), right-aligned at VAL_X. The unit lives
+ * in the section strip, not here — see the layout note above. ── */
  cv->setFont(&simutFont12pt);
- cv->getTextBounds(d.num, 0, 0, &nb, &ny2, &nw, &nh);
+ cv->setTextColor(r.numColor);
+ cv->getTextBounds(r.num, 0, 0, &rbx, &rby, &rbw, &rbh);
+ cv->setCursor(VAL_X - (int)rbw, ry + 22);
+ cv->print(r.num);
 
- if (d.isTempUnit) {
- /*
- * Temperature: number + "°C" typeset in 9pt with the real
- * Latin-1 degree glyph.
- */
- int16_t ub2, uy3; uint16_t cw2, ch2;
+ /* ── Right column: event stamp / window delta / sample count ── */
+ if (r.rightKind != 0 && r.right[0]) {
+ uint16_t rcol = (r.rightKind == 1) ? C_DATETIME
+ : (r.rightKind == 2) ? C_TEXT_SUB
+ : C_TEXT_OFF;
  cv->setFont(&simutFont9pt);
- cv->getTextBounds("\xB0" "C", 0, 0, &ub2, &uy3, &cw2, &ch2);
+ cv->setTextColor(rcol);
+ cv->getTextBounds(r.right, 0, 0, &rbx, &rby, &rbw, &rbh);
+ int tx = RIGHT_X - (int)rbw;
+ cv->setCursor(tx, ry + 21);
+ cv->print(r.right);
 
- int unitW = (int)cw2;
- int totalW = (int)nw + 2 + unitW;
- int vx = cx + (cardW - totalW) / 2;
-
- /* Number (colored) */
- cv->setFont(&simutFont12pt);
- cv->setTextColor(d.numColor);
- cv->setCursor(vx, vy);
- cv->print(d.num);
-
- /* "°C" (white) */
- cv->setFont(&simutFont9pt);
- cv->setTextColor(C_TEXT_MAIN);
- cv->setCursor(vx + (int)nw + 2, vy);
- cv->print("\xB0" "C");
-
- } else {
- /*
- * Humidity: number + tr(TR_HUM_SUFFIX) (9pt, white)
- */
- int16_t ub2, uy3; uint16_t uw2, uh2;
- cv->setFont(&simutFont9pt);
- cv->getTextBounds(tr(TR_HUM_SUFFIX), 0, 0, &ub2, &uy3, &uw2, &uh2);
-
- int totalW = (int)nw + 3 + (int)uw2;
- int vx = cx + (cardW - totalW) / 2;
-
- /* Number (colored) */
- cv->setFont(&simutFont12pt);
- cv->setTextColor(d.numColor);
- cv->setCursor(vx, vy);
- cv->print(d.num);
-
- /* Humidity suffix (white) */
- cv->setFont(&simutFont9pt);
- cv->setTextColor(C_TEXT_MAIN);
- cv->setCursor(vx + (int)nw + 3, vy);
- cv->print(tr(TR_HUM_SUFFIX));
+ /* Trend triangle beside the window delta */
+ if (r.rightKind == 2 && !isnan(r.delta) && fabsf(r.delta) >= 0.05f) {
+ if (r.delta > 0.0f)
+ cv->fillTriangle(tx - 13, ry + 20, tx - 9, ry + 13, tx - 5, ry + 20, C_TEMP_HOT);
+ else
+ cv->fillTriangle(tx - 13, ry + 13, tx - 5, ry + 13, tx - 9, ry + 20, C_TEMP_COLD);
  }
-
- /* ── Event date/time (card bottom, centered, soft yellow) ── */
- if (d.sub[0]) {
- int16_t sx, sy; uint16_t sw, sh;
- cv->setFont(&simutFont9pt);
- cv->setTextColor(C_DATETIME);
- cv->getTextBounds(d.sub, 0, 0, &sx, &sy, &sw, &sh);
- cv->setCursor(cx + (cardW - (int)sw) / 2, ry + cardH - 6);
- cv->print(d.sub);
  }
  };
 
@@ -1194,17 +1241,27 @@ void DisplayManager::drawGraphDetailScreen( ) {
 
  cv->fillScreen(C_BG_MAIN);
 
- /* Only 2 rows of cards */
- for (int r = 0; r < 2; r++) {
- int cy = rowY[r];
- if (cy < sTop + h && cy + cardH > sTop) {
- drawCardOn(cv, colL, cy, sTop, r * 2);
- drawCardOn(cv, colR, cy, sTop, r * 2 + 1);
+ /* Section strip (y32..53): channel name + its unit + page dots — the
+ * dots are the affordance that a center tap cycles pages. Spans
+ * strips 0 and 1. */
+ if (sTop < 54) {
+ cv->setFont(&simutFont9pt);
+ cv->setTextColor(C_TEXT_MAIN);
+ cv->setCursor(8, 49 - sTop);
+ cv->print(channelLabel(pageCh));
+ cv->setTextColor(C_TEXT_SUB);
+ cv->print(" (");
+ cv->print(unitBuf);
+ cv->print(")");
+ uiPageDots(cv, (int16_t)(43 - sTop), dotCur, dotTotal);
  }
+
+ for (int i = 0; i < 4; i++) {
+ if (rowYs[i] < sTop + h && rowYs[i] + rowH > sTop) drawRowOn(cv, i, sTop);
  }
 
  /* Header drawn LAST on strip 0 — overwrites any
- * card pixel that may have entered the header zone. */
+ * row pixel that may have entered the header zone. */
  if (sTop == 0) {
  drawGraphHeaderBar(/*blitNow=*/false);
  }

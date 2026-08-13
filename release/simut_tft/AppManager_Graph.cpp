@@ -74,8 +74,24 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  pkg.idxMaxTemp = -1;
  pkg.tsMaxHum = 0;
  pkg.tsMinHum = 0;
- float localHumMin = 1000.0f;
+ /* 1e9, not the 1000.0f the temperature sentinels use: this pair also
+ * hosts the pressure axis when v2IsPress, and sea-level pressure
+ * (~1013 hPa) sits ABOVE 1000 — with the old sentinel the minimum never
+ * updated and the curve rendered squeezed against the top of the plot. */
+ float localHumMin = 1e9f;
  float localHumMax = -1000.0f;
+
+ /* Pressure real extremes + avg/std accumulators. The sums are taken as
+ * deviations from the first sample (pressBase): absolute hPa values are
+ * ~1013 and their squares eat float precision, while deviations stay in
+ * the units digit. Spans both the file walk and the RAM tail. */
+ pkg.realMinPress = 1e9f; /* same reason as localHumMin above */
+ pkg.realMaxPress = -1000.0f;
+ pkg.tsRealMinPress = 0;
+ pkg.tsRealMaxPress = 0;
+ float pressBase = 0.0f, pressSum = 0.0f, pressSumSq = 0.0f;
+ float pressLast = NAN; /* newest valid sample — pressBase is the oldest */
+ int pressCnt = 0;
 
  SystemConfig &cfg = _storageMgr->getConfig( );
  uint32_t epochLimit = 0;
@@ -87,6 +103,9 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  pkg.hasHumidity = false;
  } else if (sensorId >= 0 && sensorId < MAX_SENSORS) {
  pkg.hasHumidity = sensorHasHumidity((SensorType)cfg.sensors[sensorId].sensorType);
+ pkg.hasPressure = sensorHasChannel((SensorType)cfg.sensors[sensorId].sensorType, CH_PRESS);
+ /* BMP280 (pressure, no humidity): pressure takes the plot's second curve. */
+ pkg.v2IsPress = pkg.hasPressure && !pkg.hasHumidity;
  if (cfg.sensors[sensorId].active) {
  safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
  safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
@@ -209,7 +228,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (!opened) { feedWdt( ); yield( ); continue; }
 
  /* Channel indices for this slot, from the descriptor ids. */
- int tCi = -1, hCi = -1;
+ int tCi = -1, hCi = -1, pCi = -1;
  {
  const H5ChannelDesc* schema = _storageMgr->h5ReaderSchema( );
  const uint8_t nCh = _storageMgr->h5ReaderChannels( );
@@ -218,6 +237,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  const uint8_t ch = schema[c].id % MAX_SENSOR_CHANNELS;
  if (ch == CH_TEMP) tCi = c;
  else if (ch == CH_HUM) hCi = c;
+ else if (ch == CH_PRESS) pCi = c;
  }
  }
  if (tCi < 0) {
@@ -230,12 +250,13 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
   * than walking the file from byte 0. */
  { StorageManager::ReadGuard rg(_storageMgr.get( )); _storageMgr->h5SeekTo((uint32_t)cutoff); }
 
- float scaleT = 1.0f, scaleH = 1.0f;
+ float scaleT = 1.0f, scaleH = 1.0f, scaleP = 1.0f;
  {
  const H5ChannelDesc* schema = _storageMgr->h5ReaderSchema( );
  if (schema) {
  scaleT = powf(10.0f, (float)schema[tCi].scaleExp);
  if (hCi >= 0) scaleH = powf(10.0f, (float)schema[hCi].scaleExp);
+ if (pCi >= 0) scaleP = powf(10.0f, (float)schema[pCi].scaleExp);
  }
  }
 
@@ -262,14 +283,19 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
   * order while nothing writes one out of turn. */
  if (ts > effectiveEnd) continue;
 
- float vr = NAN, hr = NAN;
+ float vr = NAN, hr = NAN, pr = NAN;
  if (vals[tCi] != H5_NAN_SENTINEL) vr = (float)vals[tCi] * scaleT;
  if (hCi >= 0 && vals[hCi] != H5_NAN_SENTINEL) hr = (float)vals[hCi] * scaleH;
+ if (pCi >= 0 && vals[pCi] != H5_NAN_SENTINEL) pr = (float)vals[pCi] * scaleP;
  if (ts < epochLimit) vr = NAN;
 
  if (!isnan(vr)) {
  if (vr < pkg.realMinVal) { pkg.realMinVal = vr; pkg.tsRealMin = ts; }
  if (vr > pkg.realMaxVal) { pkg.realMaxVal = vr; pkg.tsRealMax = ts; }
+ }
+ if (!isnan(pr)) {
+ if (pr < pkg.realMinPress) { pkg.realMinPress = pr; pkg.tsRealMinPress = ts; }
+ if (pr > pkg.realMaxPress) { pkg.realMaxPress = pr; pkg.tsRealMaxPress = ts; }
  }
 
  lineIdx++;
@@ -278,6 +304,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  pkg.pointsV1[pkg.count] = vr;
  pkg.tsPoints[pkg.count] = (uint32_t)ts;
  if (pkg.hasHumidity) pkg.pointsV2[pkg.count] = hr;
+ else if (pkg.v2IsPress) pkg.pointsV2[pkg.count] = pr;
  if (pkg.count == 0) pkg.tsFirst = ts;
  pkg.tsLast = ts;
 
@@ -288,6 +315,18 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (pkg.hasHumidity && !isnan(hr)) {
  if (hr < localHumMin) { localHumMin = hr; pkg.tsMinHum = ts; }
  if (hr > localHumMax) { localHumMax = hr; pkg.tsMaxHum = ts; }
+ }
+ /* Pressure owning the plotted curve: its DISPLAYED extremes feed the
+ * right-axis scale (same role localHumMin/Max play for humidity). */
+ if (pkg.v2IsPress && !isnan(pr)) {
+ if (pr < localHumMin) localHumMin = pr;
+ if (pr > localHumMax) localHumMax = pr;
+ }
+ if (pkg.hasPressure && !isnan(pr)) {
+ if (pressCnt == 0) pressBase = pr;
+ pressLast = pr;
+ float pd = pr - pressBase;
+ pressSum += pd; pressSumSq += pd * pd; pressCnt++;
  }
  pkg.count++;
  }
@@ -318,17 +357,19 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  /* Resolved against the LIVE schema, not the reader's: the open block is
   * encoded against the sensor set in force right now, which is not
   * necessarily the one the last file on flash was written with. */
- int tCi = -1, hCi = -1;
+ int tCi = -1, hCi = -1, pCi = -1;
  for (uint8_t c = 0; c < ramNCh && ramSchema; c++) {
  if (ramSchema[c].id / MAX_SENSOR_CHANNELS != (uint8_t)sensorId) continue;
  const uint8_t ch = ramSchema[c].id % MAX_SENSOR_CHANNELS;
  if (ch == CH_TEMP) tCi = c;
  else if (ch == CH_HUM) hCi = c;
+ else if (ch == CH_PRESS) pCi = c;
  }
 
  if (ramCount > 0 && tCi >= 0) {
  const float scaleT = powf(10.0f, (float)ramSchema[tCi].scaleExp);
  const float scaleH = (hCi >= 0) ? powf(10.0f, (float)ramSchema[hCi].scaleExp) : 1.0f;
+ const float scaleP = (pCi >= 0) ? powf(10.0f, (float)ramSchema[pCi].scaleExp) : 1.0f;
 
  int16_t vals[H5_MAX_CHANNELS];
  uint32_t epoch = 0;
@@ -339,14 +380,19 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (ts < cutoff) continue;
  if (ts > effectiveEnd) continue;   /* window ends in the past: no tail */
 
- float vr = NAN, hr = NAN;
+ float vr = NAN, hr = NAN, pr = NAN;
  if (vals[tCi] != H5_NAN_SENTINEL) vr = (float)vals[tCi] * scaleT;
  if (hCi >= 0 && vals[hCi] != H5_NAN_SENTINEL) hr = (float)vals[hCi] * scaleH;
+ if (pCi >= 0 && vals[pCi] != H5_NAN_SENTINEL) pr = (float)vals[pCi] * scaleP;
  if (ts < epochLimit) vr = NAN;
 
  if (!isnan(vr)) {
  if (vr < pkg.realMinVal) { pkg.realMinVal = vr; pkg.tsRealMin = ts; }
  if (vr > pkg.realMaxVal) { pkg.realMaxVal = vr; pkg.tsRealMax = ts; }
+ }
+ if (!isnan(pr)) {
+ if (pr < pkg.realMinPress) { pkg.realMinPress = pr; pkg.tsRealMinPress = ts; }
+ if (pr > pkg.realMaxPress) { pkg.realMaxPress = pr; pkg.tsRealMaxPress = ts; }
  }
 
  /* The cadence carries on from the file loop so the tail is spaced like the
@@ -361,6 +407,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  pkg.pointsV1[pkg.count] = vr;
  pkg.tsPoints[pkg.count] = (uint32_t)ts;
  if (pkg.hasHumidity) pkg.pointsV2[pkg.count] = hr;
+ else if (pkg.v2IsPress) pkg.pointsV2[pkg.count] = pr;
  if (pkg.count == 0) pkg.tsFirst = ts;
  pkg.tsLast = ts;
 
@@ -372,11 +419,35 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (hr < localHumMin) { localHumMin = hr; pkg.tsMinHum = ts; }
  if (hr > localHumMax) { localHumMax = hr; pkg.tsMaxHum = ts; }
  }
+ if (pkg.v2IsPress && !isnan(pr)) {
+ if (pr < localHumMin) localHumMin = pr;
+ if (pr > localHumMax) localHumMax = pr;
+ }
+ if (pkg.hasPressure && !isnan(pr)) {
+ if (pressCnt == 0) pressBase = pr;
+ pressLast = pr;
+ float pd = pr - pressBase;
+ pressSum += pd; pressSumSq += pd * pd; pressCnt++;
+ }
  pkg.count++;
  }
  feedWdt( );
  }
  }
+
+ /* Pressure stats close out here, independent of pkg.count: a window can
+ * hold temperature yet no pressure (schema without the column). tsReal-
+ * MaxPress == 0 means no finite pressure was ever seen. */
+ if (pkg.tsRealMaxPress == 0) { pkg.realMinPress = NAN; pkg.realMaxPress = NAN; }
+ pkg.avgPress = (pressCnt > 0) ? (pressBase + pressSum / (float)pressCnt) : NAN;
+ if (pressCnt > 2) {
+ float pressMean = pressSum / (float)pressCnt;
+ float pressVar = (pressSumSq - pressSum * pressMean) / (float)(pressCnt - 1);
+ pkg.stdPress = (pressVar > 0.0f) ? sqrtf(pressVar) : 0.0f;
+ } else {
+ pkg.stdPress = NAN;
+ }
+ pkg.deltaPress = (pressCnt > 0) ? (pressLast - pressBase) : NAN;
 
  if (pkg.count > 0) {
  pkg.tsMid = pkg.tsFirst + (pkg.tsLast - pkg.tsFirst) / 2;
@@ -435,6 +506,9 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (pkg.hasHumidity && localHumMax > -1000.0f) {
  if (localHumMax > 100.0f) localHumMax = 100.0f;
  if (localHumMin < 0.0f) localHumMin = 0.0f;
+ } else if (pkg.v2IsPress && localHumMax > -1000.0f) {
+ /* Pressure on the second axis: keep its real hPa extremes — the
+ * 0..100 clamp above is a humidity rule. */
  } else {
  localHumMin = 0.0f;
  localHumMax = 100.0f;
