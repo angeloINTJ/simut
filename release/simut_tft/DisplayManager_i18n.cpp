@@ -126,9 +126,9 @@ void DisplayManager::drawSettingsLang( ) {
 
 
  if (fullRedraw) {
- _driver.tft->fillScreen(C_BG_MAIN);
- uiTitleBar(_driver.tft, 4, tr(TR_CONFIG_LANG));
- uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_APPLY)); /* T1.2: no heap */
+ fastClearScreen(C_BG_MAIN);
+ blitTitleBar(tr(TR_CONFIG_LANG));
+ blitFooterMenu(tr(TR_BACK), tr(TR_APPLY)); /* T1.2: no heap */
  }
 
 

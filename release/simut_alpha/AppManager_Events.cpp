@@ -134,13 +134,24 @@ void AppManager::core0Yield( ) {
  _lastGraphRange = range;
 
  /* Always render directly from flash.
- * Loading screen for 7D which may take ~1-2s. */
- if (range == 4 && !hasAnchor) {
+ *
+ * Feedback rule: ENTERING the graph from another screen shows the
+ * loading screen for every range — it paints in ~45 ms now, so even a
+ * 1H read presents as a clean transition instead of a frozen screen.
+ * Zoom/nav INSIDE the graph deliberately does not blank: the old plot
+ * stays for context and the touch handler already painted the busy
+ * hint the moment the tap landed. */
+ {
+ UiMode m = _displayMgr->getUiMode( );
+ bool onGraph = (m == MODE_GRAPH_VIEW || m == MODE_GRAPH_DETAIL ||
+ m == MODE_GRAPH_LOADING);
+ if (!onGraph) {
  _displayMgr->requestLoadingScreen( );
  uint32_t waitStart = millis( );
  while (!_displayMgr->isLoadingDrawn( ) && (millis( ) - waitStart < 500)) {
  feedWdt( );
  delay(5);
+ }
  }
  }
 
@@ -193,6 +204,18 @@ void AppManager::core0Yield( ) {
 
  /* Direct render, no cache */
  _lastGraphRange = RANGE_24H;
+
+ /* Same feedback rule as EVT_OPEN_GRAPH: leaving the calendar for the
+ * graph is a screen change — show the (now fast) loading screen
+ * instead of a calendar frozen for up to a second. */
+ _displayMgr->requestLoadingScreen( );
+ {
+ uint32_t waitStart = millis( );
+ while (!_displayMgr->isLoadingDrawn( ) && (millis( ) - waitStart < 500)) {
+ feedWdt( );
+ delay(5);
+ }
+ }
 
  _isRenderingGraph = true;
 #if SIMUT_DISPLAY_TFT

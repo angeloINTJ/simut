@@ -85,13 +85,13 @@ void uiNavArrow(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h,
 }
 
 void uiFooterMenu(Adafruit_GFX* g, const char* exitLabel,
-	const char* primaryLabel) {
+	const char* primaryLabel, int16_t yBase) {
 	/* Geometry is the historical footer: zones in DisplayManager_Touch.cpp
-	 * are derived from these same rects — do not move them. */
-	uiNavArrow(g, 5, 195, 62, 40, UI_UP);
-	uiNavArrow(g, 73, 195, 62, 40, UI_DOWN);
-	uiButton(g, 141, 195, 75, 40, exitLabel, UI_BTN_SECONDARY);
-	if (primaryLabel) uiButton(g, 222, 195, 93, 40, primaryLabel, UI_BTN_PRIMARY);
+	 * are derived from these same rects — do not move them on screen. */
+	uiNavArrow(g, 5, yBase, 62, 40, UI_UP);
+	uiNavArrow(g, 73, yBase, 62, 40, UI_DOWN);
+	uiButton(g, 141, yBase, 75, 40, exitLabel, UI_BTN_SECONDARY);
+	if (primaryLabel) uiButton(g, 222, yBase, 93, 40, primaryLabel, UI_BTN_PRIMARY);
 }
 
 void uiCloseX(Adafruit_GFX* g, int16_t x, int16_t y, int16_t w, int16_t h) {

@@ -16,7 +16,6 @@
 struct Ili9341_320x240 {
 	TftWithOffset* tft   = nullptr;
 	GFXcanvas16*   canvas = nullptr;
-	GFXcanvas16*   canvasSmall = nullptr;
 	bool           firstInit = true;
 
 	int16_t width  = 320;

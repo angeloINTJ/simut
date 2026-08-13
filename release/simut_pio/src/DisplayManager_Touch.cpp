@@ -523,6 +523,7 @@ void DisplayManager::handleTouch( ) {
  if (y < 40 && x > 270) { if (!acceptTouch(0)) return; _uiMode = MODE_DASHBOARD; _isDirty = true; _forceFullRedraw = true; return; }
  if (y > 170) {
  if (!acceptTouch(1)) return;
+ drawGraphBusyHint( ); /* 24H read follows */
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = 3;
  pushUiEvent(ev); return;
  }
@@ -550,24 +551,28 @@ void DisplayManager::handleTouch( ) {
  if (btn == 0) {
  /* Past (◀) */
  if (!acceptHoldTouch(10)) return;
+ drawGraphBusyHint( ); /* instant feedback; Core 0 read may take a while */
  UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = -1;
  pushUiEvent(ev); return;
  }
  if (btn == 1 && _graphNavOffset < 0) {
  /* Future (▶) — only if offset < 0 */
  if (!acceptHoldTouch(11)) return;
+ drawGraphBusyHint( );
  UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = +1;
  pushUiEvent(ev); return;
  }
  if (btn == 2) {
  /* Calendar (📅) */
  if (!acceptTouch(0)) return;
+ drawGraphBusyHint( ); /* days-mask scan of /history is not instant */
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = _graphData.sensorIdx; ev.param = 0;
  pushUiEvent(ev); return;
  }
  if (btn == 3 && _graphData.timeRange > 0) {
  /* Zoom In — shorter range (more detail) */
  if (!acceptHoldTouch(12)) return;
+ drawGraphBusyHint( );
  int newRange = _graphData.timeRange - 1;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
  pushUiEvent(ev); return;
@@ -575,6 +580,7 @@ void DisplayManager::handleTouch( ) {
  if (btn == 4 && _graphData.timeRange < 4) {
  /* Zoom Out — longer range (less detail) */
  if (!acceptHoldTouch(13)) return;
+ drawGraphBusyHint( );
  int newRange = _graphData.timeRange + 1;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
  pushUiEvent(ev); return;
@@ -611,24 +617,28 @@ void DisplayManager::handleTouch( ) {
  if (btn == 0) {
  /* Past (◀) */
  if (!acceptHoldTouch(10)) return;
+ drawGraphBusyHint( );
  UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = -1;
  pushUiEvent(ev); return;
  }
  if (btn == 1 && _graphNavOffset < 0) {
  /* Future (▶) — only if offset < 0 */
  if (!acceptHoldTouch(11)) return;
+ drawGraphBusyHint( );
  UiEvent ev; ev.type = UiEvent::EVT_GRAPH_NAV; ev.id = _graphData.sensorIdx; ev.param = +1;
  pushUiEvent(ev); return;
  }
  if (btn == 2) {
  /* Calendar (📅) */
  if (!acceptTouch(0)) return;
+ drawGraphBusyHint( );
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_CALENDAR; ev.id = _graphData.sensorIdx; ev.param = 0;
  pushUiEvent(ev); return;
  }
  if (btn == 3 && _graphData.timeRange > 0) {
  /* Zoom In — shorter range (more detail) */
  if (!acceptHoldTouch(12)) return;
+ drawGraphBusyHint( );
  int newRange = _graphData.timeRange - 1;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
  pushUiEvent(ev); return;
@@ -636,6 +646,7 @@ void DisplayManager::handleTouch( ) {
  if (btn == 4 && _graphData.timeRange < 4) {
  /* Zoom Out — longer range (less detail) */
  if (!acceptHoldTouch(13)) return;
+ drawGraphBusyHint( );
  int newRange = _graphData.timeRange + 1;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = newRange;
  pushUiEvent(ev); return;
@@ -698,6 +709,7 @@ void DisplayManager::handleTouch( ) {
  /* Check if it's a valid day with data */
  if (dayNum >= 1 && dayNum <= 31 && (_calDaysMask & (1UL << dayNum))) {
  if (!acceptTouch(0)) return;
+ drawGraphBusyHint( ); /* day read can take a second on 24H */
  UiEvent ev; ev.type = UiEvent::EVT_CALENDAR_DAY;
  ev.id = _graphData.sensorIdx;
  ev.param = dayNum;
@@ -715,6 +727,7 @@ void DisplayManager::handleTouch( ) {
  } else if (x >= 108 && x < 212) {
  /* Today — returns to graph with offset 0 */
  if (!acceptTouch(0)) return;
+ drawGraphBusyHint( );
  _graphNavOffset = 0;
  UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = _graphData.sensorIdx; ev.param = _graphData.timeRange;
  pushUiEvent(ev);

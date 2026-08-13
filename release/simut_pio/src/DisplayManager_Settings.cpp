@@ -38,9 +38,9 @@ void DisplayManager::drawSettingsThemes( ) {
  if (_themePage < 0) _themePage = 0;
 
  if (fullRedraw) {
- _driver.tft->fillScreen(C_BG_MAIN);
- uiTitleBar(_driver.tft, 4, tr(TR_CONFIG_THEMES));
- uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_APPLY)); /* T1.2: no heap */
+ fastClearScreen(C_BG_MAIN);
+ blitTitleBar(tr(TR_CONFIG_THEMES));
+ blitFooterMenu(tr(TR_BACK), tr(TR_APPLY)); /* T1.2: no heap */
  }
 
  if (fullRedraw || pageChanged) {
@@ -95,13 +95,17 @@ void DisplayManager::drawSettingsAlarms( ) {
  if (_alarmPage < 0) _alarmPage = 0;
 
  if (fullRedraw) {
- _driver.tft->fillScreen(C_BG_MAIN);
- uiTitleBar(_driver.tft, 4, tr(TR_ALARMS_TITLE));
- uiNavArrow(_driver.tft, 5, 195, 62, 40, UI_UP);
- uiNavArrow(_driver.tft, 73, 195, 62, 40, UI_DOWN);
+ fastClearScreen(C_BG_MAIN);
+ blitTitleBar(tr(TR_ALARMS_TITLE));
+ /* Custom footer (wide EXIT, no primary) — same rects, composed in the
+  * canvas at y=0 and pushed as one full-width band. */
+ _driver.canvas->fillScreen(C_BG_MAIN);
+ uiNavArrow(_driver.canvas, 5, 0, 62, 40, UI_UP);
+ uiNavArrow(_driver.canvas, 73, 0, 62, 40, UI_DOWN);
  /* Exit keeps its full remaining width (same touch zone) but drops the
   * accent: EXIT is never the screen's primary action. */
- uiButton(_driver.tft, 141, 195, 174, 40, tr(TR_BACK), UI_BTN_SECONDARY);
+ uiButton(_driver.canvas, 141, 0, 174, 40, tr(TR_BACK), UI_BTN_SECONDARY);
+ blitCanvas(_driver.canvas, 0, 195, 320, 45);
  }
 
  if (fullRedraw || pageChanged) {
@@ -246,13 +250,13 @@ void DisplayManager::drawAlarmEdit( ) {
  const bool pageChanged = (page != _lastEditPage);
 
  if (_forceSettingsRedraw) {
- _driver.tft->fillScreen(C_BG_MAIN);
+ fastClearScreen(C_BG_MAIN);
  /* T1.2: no heap in Core-1 render */
- uiTitleBar(_driver.tft, 4, _tempAlarmConfig.friendlyName);
+ blitTitleBar(_tempAlarmConfig.friendlyName);
 
  /* The footer arrows move the SELECTION, not the value — the value is
   * adjusted on the bar itself. Hence the menu's up/down orientation. */
- uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_SAVE));
+ blitFooterMenu(tr(TR_BACK), tr(TR_SAVE));
  }
 
  if (_forceSettingsRedraw || pageChanged) {
@@ -343,18 +347,23 @@ void DisplayManager::drawSettingsMain( ) {
  if (_mainMenuPage < 0) _mainMenuPage = 0;
 
  if (fullRedraw) {
- _driver.tft->fillScreen(C_BG_MAIN);
- uiTitleBar(_driver.tft, 4, tr(TR_CONFIG_MAIN));
- uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_ENTER)); /* T1.2: no heap */
+ fastClearScreen(C_BG_MAIN);
+ blitTitleBar(tr(TR_CONFIG_MAIN));
+ blitFooterMenu(tr(TR_BACK), tr(TR_ENTER)); /* T1.2: no heap */
  }
 
  if (fullRedraw || pageChanged) {
  uiScrollbar(_driver.tft, 302, 40, 8, 146, totalPages, _mainMenuPage);
  }
 
+ /* Cursor moves repaint only the two rows whose selection state changed —
+  * the same skip the themes/alarms/language lists already had. */
+ static int s_lastMenuSel = -1;
  int startIdx = _mainMenuPage * 4; int yBase = 40; int itemW = 285;
  for (int i = 0; i < 4; i++) {
  int y = yBase + (i * 38); int mapIdx = startIdx + i;
+ if (!fullRedraw && !pageChanged &&
+     mapIdx != _menuSelection && mapIdx != s_lastMenuSel) continue;
  _driver.canvas->fillScreen(C_BG_MAIN);
  _driver.canvas->setTextSize(1); /* Ensures reset after status screen */
  if (mapIdx < TOTAL_ITEMS) {
@@ -375,6 +384,7 @@ void DisplayManager::drawSettingsMain( ) {
  blitCanvas(_driver.canvas, 10, y, itemW, 34);
  }
  _forceSettingsRedraw = false; _lastMainMenuPage = _mainMenuPage;
+ s_lastMenuSel = _menuSelection;
 }
 
 
@@ -409,7 +419,7 @@ void DisplayManager::drawPasswordMessage( ) {
  if (!_driver.tft) return;
  int16_t x1, y1; uint16_t w, h_bound;
 
- _driver.tft->fillScreen(C_BG_MAIN);
+ fastClearScreen(C_BG_MAIN);
 
 
  bool isSuccess = (_kbPhase == 3);
@@ -486,7 +496,7 @@ void DisplayManager::drawSettingsPassword( ) {
 
 
  if (fullRedraw) {
- _driver.tft->fillScreen(C_BG_MAIN);
+ fastClearScreen(C_BG_MAIN);
  }
 
  /* Title — always redraw via canvas (changes between phases) */
@@ -940,9 +950,9 @@ void DisplayManager::drawSettingsSounds( ) {
 
 
  if (fullRedraw) {
- _driver.tft->fillScreen(C_BG_MAIN);
- uiTitleBar(_driver.tft, 4, tr(TR_SOUNDS_TITLE));
- uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_SAVE)); /* T1.2: no heap */
+ fastClearScreen(C_BG_MAIN);
+ blitTitleBar(tr(TR_SOUNDS_TITLE));
+ blitFooterMenu(tr(TR_BACK), tr(TR_SAVE)); /* T1.2: no heap */
  }
 
 
@@ -963,12 +973,18 @@ void DisplayManager::drawSettingsSounds( ) {
  const char* attentionLabel = isPt ? "Aten\xE7\xE3o" : "Attention";
  const char* muteLabel = isPt ? "Mudo Global" : "Mute All";
 
+ /* Cursor moves repaint only the two affected rows; value changes (volume
+  * drag, ON/OFF toggle) always land on the selected row, which repaints. */
+ static int s_lastSoundSel = -1;
  int startIdx = soundPage * 4;
  int yBase = 40; int itemW = 285;
 
  for (int i = 0; i < 4; i++) {
  int actualIdx = startIdx + i;
  int y = yBase + (i * 38);
+
+ if (!fullRedraw && !pageChanged &&
+     actualIdx != _soundSelection && actualIdx != s_lastSoundSel) continue;
 
  _driver.canvas->fillScreen(C_BG_MAIN);
 
@@ -1039,6 +1055,7 @@ void DisplayManager::drawSettingsSounds( ) {
 
  _forceSettingsRedraw = false;
  lastSoundPage = soundPage;
+ s_lastSoundSel = _soundSelection;
 }
 
 
@@ -1073,11 +1090,11 @@ void DisplayManager::drawMelodySelect( ) {
 
 
  if (fullRedraw) {
- _driver.tft->fillScreen(C_BG_MAIN);
- uiTitleBar(_driver.tft, 4, (typeIdx == 4)
+ fastClearScreen(C_BG_MAIN);
+ blitTitleBar((typeIdx == 4)
  ? (isPt ? "Aten\xE7\xE3o" : "Attention")
  : tr(TYPE_LABELS[typeIdx]));
- uiFooterMenu(_driver.tft, tr(TR_BACK), tr(TR_SAVE)); /* T1.2: no heap */
+ blitFooterMenu(tr(TR_BACK), tr(TR_SAVE)); /* T1.2: no heap */
  }
 
 
@@ -1222,12 +1239,11 @@ void DisplayManager::drawSystemStatus( ) {
  uiTitleBar(cv, 2, tr(TR_STATUS_TITLE), _statusPage, STATUS_PAGES, 30);
  blitCanvas(cv, 0, 0, 320, 33);
 
- /* Clear the WHOLE footer band before drawing: this screen paints only
-  * three buttons and no full-screen background, so whatever screen came
-  * before leaks through every gap between button rects (the alarm
-  * editor's SAVE, the dashboard's slot pills — both seen on hardware). */
- _driver.tft->fillRect(0, 195, 320, 41, C_BG_MAIN);
- uiFooterMenu(_driver.tft, tr(TR_BACK), nullptr);
+ /* Footer band via canvas: covers 195..239 wall to wall, so whatever
+  * screen came before cannot leak through the gaps between buttons
+  * (the alarm editor's SAVE, the dashboard's slot pills — both seen
+  * on hardware back when only the button rects were painted). */
+ blitFooterMenu(tr(TR_BACK), nullptr);
  }
 
  /*
@@ -1375,7 +1391,7 @@ void DisplayManager::drawSystemStatus( ) {
 
  /* Clear eventual residue from previous pages that had more rows. */
  if (curY < yEnd) {
- _driver.tft->fillRect(0, curY, 320, yEnd - curY, C_BG_MAIN);
+ fastFillRect(0, curY, 320, yEnd - curY, C_BG_MAIN);
  }
 
  _statusLastDraw = millis( );

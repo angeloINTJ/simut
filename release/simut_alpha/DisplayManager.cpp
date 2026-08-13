@@ -1115,7 +1115,9 @@ void DisplayManager::loopCore1( ) {
 	if (!_driver.tft) _driver.tft = new TftWithOffset(TFT_CS, TFT_DC, TFT_RST);
 	if (!_driver.ts) _driver.ts = new XPT2046_Touchscreen(TOUCH_CS, TOUCH_IRQ);
 	if (!_driver.canvas) _driver.canvas = new GFXcanvas16(320, 45);
-	if (!_driver.canvasSmall) _driver.canvasSmall = new GFXcanvas16(140, 40);
+	/* The 140x40 canvasSmall that used to be allocated here was dead weight:
+	 * since the widget overhaul nothing drew into it, yet it held 11.2 KB of
+	 * heap hostage on a device whose low-water mark dips below 40 KB. */
 
 	/* Touch: reattach IRQ every launch (Core 1's NVIC was zeroed). */
 	_driver.ts->begin( );
@@ -1129,16 +1131,14 @@ void DisplayManager::loopCore1( ) {
 		 * clk_peri at 125 MHz the reachable ladder is 62.5 / 31.25 / 20.83 / 15.6.
 		 * A 24 MHz request therefore ran at 20.83 MHz, one rung below a free 1.5x.
 		 *
-		 * 31.25 MHz is the conservative rung: it is above Adafruit's own default
-		 * for every other platform and well inside what ILI9341 modules take, but
-		 * this is a breadboard with jumper wires, so it is a named constant and a
-		 * one-line revert if the panel shows artefacts. 62.5 MHz is the PL022
-		 * ceiling and would halve the wire time again — do not raise it without
-		 * looking at the screen. */
-		constexpr uint32_t TFT_SPI_HZ = 31250000u;
-		_driver.tft->begin(TFT_SPI_HZ);
+		 * The value lives in simut_config.h (SIMUT_TFT_SPI_HZ) and is shared
+		 * with the DMA blit path. 62.5 MHz is the PL022 ceiling; it was
+		 * validated on this rig by GRAM readback (screenshot diff confined to
+		 * live content). If a different panel/wiring shows artefacts, override
+		 * to 31250000u — the conservative rung that shipped in 2.1.5. */
+		_driver.tft->begin(SIMUT_TFT_SPI_HZ);
 		_driver.tft->setRotation(3);
-		_driver.tft->fillScreen(C_BG_MAIN);
+		fastClearScreen(C_BG_MAIN);
 		if (!_sharedState.isBooting) drawInterfaceFixed( );
 		_lastRenderedState.selectedSlotIdx = -1;
 		_driver.firstInit = false;
@@ -1220,7 +1220,7 @@ void DisplayManager::loopCore1( ) {
 			mutex_exit(&_stateMutex);
 
 			if (!snap.isBooting) {
-				_driver.tft->fillScreen(C_BG_MAIN);
+				fastClearScreen(C_BG_MAIN);
 				_driver.tft->setFont(&simutFont12pt);
 				_driver.tft->setTextColor(C_TEXT_MAIN);
 				int16_t x1, y1; uint16_t w, h;
@@ -1251,7 +1251,7 @@ void DisplayManager::loopCore1( ) {
 				_lastRenderedState = snap;
 				_uiMode = MODE_DASHBOARD;
 			} else {
-				_driver.tft->fillScreen(C_BG_MAIN);
+				fastClearScreen(C_BG_MAIN);
 				_lastRenderedState.isBooting = false;
 
 				mutex_enter_blocking(&_stateMutex);
@@ -1538,7 +1538,7 @@ void DisplayManager::render(const SystemState& state) {
 		                  (_lastRenderedState.apProgressPct != state.apProgressPct) ||
 		                  langJustChanged;
 		if (state.apProgressPct >= 0) {
-			if (fullRedraw) _driver.tft->fillScreen(C_BG_MAIN);
+			if (fullRedraw) fastClearScreen(C_BG_MAIN);
 			_driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_MAIN);
 			_driver.tft->setCursor(55, 120); _driver.tft->print(tr(TR_AP_MODE));
 			_driver.tft->drawRoundRect(40, 140, 240, 20, 6, C_TEXT_SUB);
@@ -1553,7 +1553,7 @@ void DisplayManager::render(const SystemState& state) {
 		int boxY = 105;
 
 		if (fullRedraw) {
-			_driver.tft->fillScreen(C_BG_MAIN);
+			fastClearScreen(C_BG_MAIN);
 			_driver.tft->setFont(&simutFont24pt); _driver.tft->setTextColor(C_TEXT_MAIN);
 			int16_t x1, y1; uint16_t w, h;
 			_driver.tft->getTextBounds("SIMUT", 0, 0, &x1, &y1, &w, &h);
@@ -1763,22 +1763,25 @@ void DisplayManager::drawSettingsLicense( ) {
 	if (_licensePage < 0) _licensePage = 0;
 
 	if (fullRedraw) {
-		_driver.tft->fillScreen(C_BG_MAIN);
+		fastClearScreen(C_BG_MAIN);
 
 		/* Header with title and page dots — the pagination idiom every
 		 * paged screen shares now (status already used dots). */
-		uiTitleBar(_driver.tft, 4, tr(TR_LICENSE_TITLE),
-		           _licensePage, _licenseTotalPages);
+		blitTitleBar(tr(TR_LICENSE_TITLE), _licensePage, _licenseTotalPages);
 
-		/* Bottom buttons */
-		uiNavArrow(_driver.tft, 5, 195, 100, 40, UI_UP);
-		uiNavArrow(_driver.tft, 110, 195, 100, 40, UI_DOWN);
-		/* T1.2: heap-free render path. */
-		uiButton(_driver.tft, 215, 195, 100, 40, tr(TR_BACK), UI_BTN_SECONDARY);
+		/* Bottom buttons — composed in the canvas, one full-width band. */
+		if (_driver.canvas) {
+			_driver.canvas->fillScreen(C_BG_MAIN);
+			uiNavArrow(_driver.canvas, 5, 0, 100, 40, UI_UP);
+			uiNavArrow(_driver.canvas, 110, 0, 100, 40, UI_DOWN);
+			/* T1.2: heap-free render path. */
+			uiButton(_driver.canvas, 215, 0, 100, 40, tr(TR_BACK), UI_BTN_SECONDARY);
+			blitCanvas(_driver.canvas, 0, 195, 320, 45);
+		}
 	}
 
 	/* Clear text area */
-	_driver.tft->fillRect(0, TEXT_Y0, 320, MAX_VIS * LINE_H, C_BG_MAIN);
+	fastFillRect(0, TEXT_Y0, 320, MAX_VIS * LINE_H, C_BG_MAIN);
 	_driver.tft->setFont(NULL); _driver.tft->setTextSize(1);
 	_driver.tft->setTextColor(C_TEXT_SUB);
 

@@ -38,16 +38,34 @@ void DisplayManager::showGraphPlot(const GraphDataPackage& data, float minHum, f
 }
 
 void DisplayManager::drawLoadingScreen( ) {
-
- _driver.tft->fillScreen(C_BG_MAIN);
- _driver.tft->setFont(&simutFont12pt);
- _driver.tft->setTextColor(C_TEXT_MAIN);
+ fastClearScreen(C_BG_MAIN);
+ /* Message composed in the canvas and pushed as one strip: with the DMA
+ * clear above, the whole screen is up in ~45 ms instead of ~170 —
+ * feedback that lands before the flash scan starts, not after. */
+ if (_driver.canvas) {
+ _driver.canvas->fillScreen(C_BG_MAIN);
+ _driver.canvas->setFont(&simutFont12pt);
+ _driver.canvas->setTextColor(C_TEXT_MAIN);
  int16_t x1, y1; uint16_t w, h;
- String t1 = tr(TR_LOADING);
- _driver.tft->getTextBounds(t1, 0, 0, &x1, &y1, &w, &h);
- _driver.tft->setCursor(160 - (w/2), 127);
- _driver.tft->print(t1);
+ const char* t1 = tr(TR_LOADING); /* T1.2: no heap on Core 1 */
+ _driver.canvas->getTextBounds(t1, 0, 0, &x1, &y1, &w, &h);
+ _driver.canvas->setCursor(160 - (w/2), 32);
+ _driver.canvas->print(t1);
+ blitCanvas(_driver.canvas, 0, 95, 320, 45);
+ }
  _loadingDrawn = true;
+}
+
+/* "Busy" hint: a thin accent line across the very top of the screen (the
+ * 4-px safe zone above the header, which every graph/detail/stats render
+ * repaints). Painted by the TOUCH handler the instant a zoom/pan/range tap
+ * is accepted — the data read on Core 0 can take from ~0.2 s (1H) to
+ * seconds (7D), and until it lands the old graph stays on screen; without
+ * this the tap feels dead. Deliberately not on the canvas: the canvas may
+ * hold a half-composed strip, and fastFillRect costs ~0.5 ms. */
+void DisplayManager::drawGraphBusyHint( ) {
+ if (!_driver.tft) return;
+ fastFillRect(0, 0, 320, 3, C_ACCENT_HIGH);
 }
 
 
@@ -637,7 +655,7 @@ void DisplayManager::drawGraphScreen( ) {
  if (!_driver.canvas) return;
 
  if (_graphData.count < 0 || _graphData.count > GRAPH_WIDTH) {
- _driver.tft->fillScreen(C_BG_MAIN);
+ fastClearScreen(C_BG_MAIN);
  _driver.tft->setFont(&simutFont9pt); _driver.tft->setTextColor(C_TEXT_SUB);
  _driver.tft->setCursor(60, 120); _driver.tft->print(tr(TR_ERROR_LBL));
  drawPeriodButtons( );
