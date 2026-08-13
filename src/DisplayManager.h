@@ -555,7 +555,7 @@ private:
 	GraphDataPackage _graphData;
 	float _currentMinHum;
 	float _currentMaxHum;
-	uint8_t _detailPage = 0; /**< 0 = temperature, 1 = humidity */
+	uint8_t _detailPage = 0; /**< 0 = temperature, 1 = humidity, 2 = pressure */
 
 	/* Calendar state */
 	int _calYear = 2026; /**< Year shown on calendar */
