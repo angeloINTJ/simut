@@ -4,6 +4,60 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.7-beta (2026-08-13)
+
+### A pressão entra nos gráficos de histórico
+
+O leitor do gráfico só resolvia temperatura e umidade, então o único sensor
+que existe para medir pressão (BMP280) plotava temperatura sozinha — e a
+pressão não tinha tela nenhuma no TFT. O canal de pressão agora é lido dos
+arquivos diários e da hora ainda aberta na RAM: numa peça com pressão e sem
+umidade ele assume a segunda curva do gráfico e o eixo direito (hPa, uma
+casa, na mesma cor que a pressão veste no dashboard); num BME280 — onde a
+umidade fica com a curva — ele ganha a própria página de métricas. O toque no
+centro da tela de detalhe circula temperatura → umidade → pressão → volta ao
+gráfico.
+
+### A tela de métricas vira tabela de instrumento
+
+Os quatro cartões MAX/MIN/MÉDIA/DESVIO deram lugar a linhas de instrumento de
+largura inteira sob uma faixa de seção que nomeia o canal e a unidade —
+"Pressão (hPa)" — e mostra os page dots das páginas do ciclo de toque. Cada
+linha carrega um ícone com cor semântica (MAX quente, MIN frio), o valor num
+eixo decimal único, e uma coluna à direita com o **carimbo completo
+dd/mm/aa hh:mm** do extremo, a **variação da janela** com setinha de
+tendência na linha da MÉDIA, e a contagem de amostras na do DESVIO. O layout
+é medido em tempo de execução a partir dos glifos reais, então qualquer
+idioma ou unidade mantém as folgas; o único rótulo que não coube, o inglês
+"AVERAGE", virou "AVG".
+
+Três consertos foram de carona: os rótulos do detalhe não corrompem mais com
+um `.lng` carregado (guardavam ponteiros do scratch rotativo de 4 slots do
+`tr()` e as chamadas de unidade da página de umidade os reciclavam no meio do
+render — o inglês nunca mostrava); o mínimo do eixo secundário não trava mais
+no sentinela 1000.0 para pressão (o nível do mar fica acima dele, e a curva
+saía esmagada no topo); e o intervalo do cabeçalho do gráfico agora veste a
+cor do relógio do dashboard e carrega o ano de dois dígitos.
+
+### Uploads longos param de morrer no primeiro soluço
+
+O leitor multipart do servidor web mantinha o padrão do Stream: um segundo de
+paciência por byte. Com a janela de recepção em 4×MSS (o fix de lwIP da
+v2.1.4), um upload de ~1 MB fecha a janela várias vezes por segundo; quando o
+segmento que a reabre se perde num apagão de rádio, o fluxo trava até o peer
+retransmitir — e um segundo transformava esse trave recuperável num upload
+abortado aos ~13–15 s, todas as vezes. O leitor agora espera 3 s, e o ciclo
+de OTA stage→apply foi revalidado de ponta a ponta duas vezes na bancada,
+com a versão lida de volta pelo console serial em cada uma.
+
+Na caça a isso, um segundo assassino — ambiental — foi isolado e vale
+registro: APs domésticos com "proteção anti-flood" podem injetar RST em
+fluxos porta-80 sustentados rumo à estação numa idade fixa de conexão,
+independente da vazão — ICMP intacto, contadores do dispositivo limpos. Se
+transferências grandes morrem num ~13 s suspeitamente constante na sua rede,
+experimente tirar a web do SIMUT da porta 80 ou relaxar a proteção DoS do
+roteador.
+
 ## v2.1.6-beta (2026-08-12)
 
 ### As telas param de carregar de cima para baixo
