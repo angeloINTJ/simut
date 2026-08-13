@@ -173,7 +173,33 @@
              if (req == "") {
                  break;    //no moar headers
              }
-@@ -370,6 +478,10 @@
+@@ -362,7 +470,24 @@
+     if (res < 0) {
+         // keep trying until you either read a valid byte or timeout
+         const unsigned long startMillis = millis();
+-        const unsigned long timeoutIntervalMillis = client->getTimeout();
++        /* SIMUT override — ride out zero-window stalls instead of aborting.
++         *
++         * getTimeout() is the Stream default of 1000 ms. With TCP_WND at
++         * 4*MSS (the D14 fix), a ~1 MB upload closes the receive window many
++         * times a second; when the reopening segment is lost to a radio blind
++         * spot (flash erase burst, sensor read with IRQs held), the flow
++         * stalls until the peer retransmits — and one second of patience
++         * turned that recoverable stall into UPLOAD_FILE_ABORTED + a RST at
++         * ~13-15 s into EVERY long upload. Measured on the bench 2026-08-13:
++         * chunks streaming steadily, heap flat, then a single >1 s gap at
++         * ~490 KB killed the OTA stage five runs out of five. July's 21/21
++         * OTA cycles ran with TCP_WND at 8*MSS; the halved window is what
++         * made the stall routine. Three seconds covers several retransmit
++         * backoffs; a peer that truly vanished still ends the upload, just
++         * two seconds later than before. */
++        const unsigned long timeoutIntervalMillis =
++            (client->getTimeout() > SIMUT_PARSE_BUDGET_MS)
++                ? client->getTimeout() : SIMUT_PARSE_BUDGET_MS;
+         bool timedOut = false;
+         for (;;) {
+             if (!client->connected()) {
+@@ -370,6 +495,10 @@
              }
              // loosely modeled after blinkWithoutDelay pattern
              while (!timedOut && !client->available() && client->connected()) {
@@ -184,7 +210,7 @@
                  delay(2);
                  timedOut = (millis() - startMillis) >= timeoutIntervalMillis;
              }
-@@ -405,11 +517,11 @@
+@@ -405,11 +534,11 @@
      String line;
      int retry = 0;
      do {
@@ -198,7 +224,7 @@
      //start reading the form
      if (line == ("--" + boundary)) {
          if (_postArgs) {
-@@ -424,8 +536,8 @@
+@@ -424,8 +553,8 @@
              String argFilename;
              bool argIsFile = false;
  
@@ -209,7 +235,7 @@
              if (line.length() > 19 && line.substring(0, 19).equalsIgnoreCase(F("Content-Disposition"))) {
                  int nameStart = line.indexOf('=');
                  if (nameStart != -1) {
-@@ -446,21 +558,21 @@
+@@ -446,21 +575,21 @@
                      log_v("PostArg Name: %s", argName.c_str());
                      using namespace mime;
                      argType = FPSTR(mimeTable[txt].mimeType);
@@ -237,7 +263,7 @@
                              if (line.startsWith("--" + boundary)) {
                                  break;
                              }
-@@ -542,8 +654,8 @@
+@@ -542,8 +671,8 @@
                          if (!client->connected()) {
                              return _parseFormUploadAborted();
                          }
