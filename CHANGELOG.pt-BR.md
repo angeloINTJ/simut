@@ -4,6 +4,41 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.9-beta (2026-08-14)
+
+### Um teclado de senha para a ponta do dedo
+
+A tela de troca de senha exigia cirurgia: teclas de 30 pixels — 5,4 mm no
+painel de 2,8" — três camadas escondidas atrás de Shift e 123, e uma
+fileira de setas embaixo como contorno oficial, cerca de cinco toques para
+acertar um caractere. O teclado novo são oito teclas de grupo de 76×54 px
+(13,7×9,7 mm): toque em `pqrs` e abre um popup com `p q r s` sobre
+`P Q R S` — as duas caixas de uma vez, 68×56 px cada — e toque na que
+queria. Sem Shift, sem camadas, sem cursor para pilotar. `123` e `@#!`
+abrem o mesmo tipo de popup para os dez dígitos e os 28 símbolos; espaço e
+backspace agem direto; o OK fica ao lado das caixinhas; tocar fora do
+popup cancela. Cada caractere do mesmo conjunto de 91 agora custa
+exatamente dois toques em alvos do tamanho de um dedo, e o fluxo
+digitar-e-confirmar de 4–7 caracteres, suas mensagens e o alternar de
+máscara continuam os mesmos.
+
+Um único header passa a ser dono da geometria e das tabelas de caracteres
+para o renderizador E o mapeador de toque — a tela antiga mantinha três
+cópias das tabelas de camada sincronizadas na mão — e a composição usa o
+renderizador de tela cheia em 6 strips no lugar de cinco blits parciais
+posicionados um a um. A reescrita devolve ~2,5 KB de flash: a imagem
+release ficou menor, e o ambiente `pico_w_test`, que estava a 224 bytes do
+teto, volta a linkar com 2,7 KB de folga real.
+
+### OTA revalidado na imagem nova
+
+Dois ciclos stage+apply na bancada com este firmware, veredito lido de
+volta como a string de versão (nunca inferido de tempo ou código HTTP):
+1.001.964 B em stage de 30,7 s cada, apply aceito na primeira tentativa
+nas duas vezes, CRCs distintos por imagem. O 503 "Display in use" visto em
+13/08 não reapareceu. Os ciclos rodaram na :8080, contornando a injeção de
+RST na porta 80 do roteador da bancada documentada na v2.1.7-beta.
+
 ## v2.1.8-beta (2026-08-13)
 
 ### Os gráficos web de histórico passam a ler o próprio arquivo

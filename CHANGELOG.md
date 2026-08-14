@@ -4,6 +4,40 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.9-beta (2026-08-14)
+
+### A password keyboard for fingertips
+
+The password-change screen used to ask for surgery: 30-pixel keys — 5.4 mm
+on the 2.8" panel — three layers hidden behind Shift and 123, and a row of
+arrow buttons at the bottom as the official workaround, about five taps to
+land one character. The new keyboard is eight group keys of 76×54 px
+(13.7×9.7 mm): tap `pqrs` and a popup opens with `p q r s` above
+`P Q R S` — both cases at once, 68×56 px each — tap the one you meant.
+No Shift, no layers, no cursor to steer. `123` and `@#!` open the same
+kind of popup for the ten digits and all 28 symbols; space and backspace
+act directly; OK sits beside the password boxes; tapping outside a popup
+cancels it. Every character of the same 91-character set now costs exactly
+two taps on fingertip-sized targets, and the 4–7 character
+type-then-confirm flow, its messages and its masking toggle are unchanged.
+
+One header now owns the geometry and character tables for both the
+renderer and the touch mapper — the old screen kept three hand-synced
+copies of its layer tables — and the screen composes through the 6-strip
+full-screen renderer instead of five hand-placed partial blits. The
+rewrite returns ~2.5 KB of flash: the release image got smaller, and the
+`pico_w_test` environment, which was 224 bytes from the ceiling, links
+again with 2.7 KB of real headroom.
+
+### OTA revalidated on the new image
+
+Two stage+apply cycles on the bench with this firmware, verdict read back
+as the version string (never inferred from timing or HTTP codes):
+1 001 964 B staged in 30.7 s each, apply accepted on the first try both
+times, distinct CRCs per image. The "Display in use" 503 seen on 08-13
+did not reappear. Cycles ran on :8080, working around the bench router's
+port-80 RST injection documented in v2.1.7-beta.
+
 ## v2.1.8-beta (2026-08-13)
 
 ### The web history graphs read the archive itself
