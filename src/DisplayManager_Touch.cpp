@@ -17,6 +17,7 @@
 #include "DisplayManager_Fonts.h"
 #include "DisplayManager_FmtFloat.h"
 #include "LogManager.h"
+#include "PasswordKeyboard.h"
 
 void DisplayManager::handleTouch( ) {
  /* Use _rawTouchState (already OR'd with sim flag in
@@ -1121,8 +1122,9 @@ void DisplayManager::handleTouch( ) {
 
 
  else if (_uiMode == MODE_SETTINGS_PASSWORD) {
+ using namespace PwdKb;
 
-
+ /* Result screens (error/success): single button at the bottom. */
  if (_kbPhase >= 2) {
  if (y >= 185) {
  if (!acceptTouch(0)) return;
@@ -1143,106 +1145,31 @@ void DisplayManager::handleTouch( ) {
 
  char* activeBuf = (_kbPhase == 0) ? _kbBuffer : _kbConfirmBuf;
 
+ /* An open popup owns the whole surface: a key inserts its
+  * character, the card between keys swallows the tap, and anywhere
+  * outside the card cancels (including the title-bar X). */
+ if (_kbPopup != POPUP_NONE) {
+ int hit = popupHit(_kbPopup, x, y);
+ if (hit == -1) return;
+ if (!acceptTouch((uint8_t)(hit >= 0 ? 0x60 + hit : 0x5F))) return;
+ if (hit >= 0 && _kbCursor < 7) {
+ activeBuf[_kbCursor++] = popupChar(_kbPopup, hit);
+ activeBuf[_kbCursor] = '\0';
+ }
+ _kbPopup = POPUP_NONE;
+ _repaintSettings = true;
+ return;
+ }
 
+ /* X on the title bar: leave the screen. */
  if (y < 28 && x > 280) {
  if (!acceptTouch(1)) return;
- showSettingsMain( ); return;
- }
-
-
- if (y >= 33 && y < 66) {
- if (!acceptTouch(2)) return;
- _kbShowRaw = !_kbShowRaw;
- _repaintSettings = true;
+ showSettingsMain( );
  return;
  }
 
-
- if (y >= 72 && y < 168) {
- int row = (y - 72) / 32;
- int col = (x - 1) / 32;
- if (row < 0) row = 0;
- if (row > 2) row = 2;
- if (col < 0) col = 0;
- if (col > 9) col = 9;
-
-
- if (!acceptTouch((uint8_t)(row * 10 + col + 10))) return;
-
- /* Update visual selection cursor */
- _kbSelRow = row;
- _kbSelCol = col;
-
- static const char layer0[3][10] = {
- {'q','w','e','r','t','y','u','i','o','p'},
- {'a','s','d','f','g','h','j','k','l','.'},
- {'z','x','c','v','b','n','m',',','!','?'}
- };
- static const char layer1[3][10] = {
- {'Q','W','E','R','T','Y','U','I','O','P'},
- {'A','S','D','F','G','H','J','K','L',':'},
- {'Z','X','C','V','B','N','M',';','"','\''}
- };
- static const char layer2[3][10] = {
- {'1','2','3','4','5','6','7','8','9','0'},
- {'@','#','$','%','&','*','-','+','=','~'},
- {'(',')','[',']','{','}','/','\\','^','_'}
- };
-
- const char (*active)[10] = (_kbLayer == 2) ? layer2
- : (_kbLayer == 1) ? layer1
- : layer0;
-
- if (_kbCursor < 7) {
- activeBuf[_kbCursor++] = active[row][col];
- activeBuf[_kbCursor] = '\0';
- if (_kbLayer == 1 && !_kbShiftLock) _kbLayer = 0;
- }
- _repaintSettings = true;
- return;
- }
-
-
- if (y >= 170 && y < 195) {
- /* Positions: Shift=1..49, 123=51..99, Space=101..219, Bksp=221..269, OK=271..319 */
- if (x < 49) {
- /* Shift */
- if (!acceptTouch(50)) return;
- if (_kbLayer == 1) {
- _kbShiftLock = !_kbShiftLock;
- if (!_kbShiftLock) _kbLayer = 0;
- } else {
- _kbLayer = 1;
- _kbShiftLock = false;
- }
- _repaintSettings = true;
- }
- else if (x < 99) {
- /* 123 */
- if (!acceptTouch(51)) return;
- _kbLayer = (_kbLayer == 2) ? 0 : 2;
- _kbShiftLock = false;
- _repaintSettings = true;
- }
- else if (x < 219) {
- /* Space */
- if (!acceptTouch(52)) return;
- if (_kbCursor < 7) {
- activeBuf[_kbCursor++] = ' ';
- activeBuf[_kbCursor] = '\0';
- }
- _repaintSettings = true;
- }
- else if (x < 269) {
- /* Backspace */
- if (!acceptTouch(53)) return;
- if (_kbCursor > 0) {
- activeBuf[--_kbCursor] = '\0';
- }
- _repaintSettings = true;
- }
- else {
- /* OK — same confirmation logic */
+ /* OK — finger button beside the boxes. */
+ if (x >= OK_X && y >= OK_Y && y < OK_Y + OK_H + 4) {
  if (!acceptTouch(54)) return;
  if (_kbPhase == 0) {
  if (_kbCursor < 4) {
@@ -1255,7 +1182,6 @@ void DisplayManager::handleTouch( ) {
  _kbCursor = 0;
  _kbShowRaw = false;
  memset(_kbConfirmBuf, 0, sizeof(_kbConfirmBuf));
- /* Partial redraw: title and boxes change, keys don't */
  _repaintSettings = true;
  }
  }
@@ -1285,156 +1211,43 @@ void DisplayManager::handleTouch( ) {
  pushUiEvent(ev);
  }
  }
- }
  return;
  }
 
-
- if (y >= 195) {
- int btnW = 58; int bGap = 5; int bStartX = 5;
- int btnIdx = (x - bStartX) / (btnW + bGap);
- if (btnIdx < 0) btnIdx = 0;
- if (btnIdx > 4) btnIdx = 4;
- /* Check if touch is inside the button (not in the gap) */
- int btnX = bStartX + btnIdx * (btnW + bGap);
- if (x < btnX || x > btnX + btnW) return;
-
- /* Column limits: row 3 (bar) has 5 items, rows 0-2 have 10 */
- int maxCol = (_kbSelRow == 3) ? 4 : 9;
-
- if (btnIdx == 0) {
- /* ◄ Left */
- if (!acceptTouch(60)) return;
- _kbSelCol--;
- if (_kbSelCol < 0) _kbSelCol = maxCol;
+ /* Password boxes: toggle mask/plain. */
+ if (y >= BOX_Y && y < GRID_Y0 && x < OK_X - 4) {
+ if (!acceptTouch(2)) return;
+ _kbShowRaw = !_kbShowRaw;
  _repaintSettings = true;
+ return;
  }
- else if (btnIdx == 1) {
- /* ► Right */
- if (!acceptTouch(61)) return;
- _kbSelCol++;
- if (_kbSelCol > maxCol) _kbSelCol = 0;
- _repaintSettings = true;
- }
- else if (btnIdx == 2) {
- /* ▲ Up */
- if (!acceptTouch(62)) return;
- _kbSelRow--;
- if (_kbSelRow < 0) _kbSelRow = 3;
- /* Adjust col when switching to/from the bar */
- if (_kbSelRow == 3 && _kbSelCol > 4) _kbSelCol = 4;
- _repaintSettings = true;
- }
- else if (btnIdx == 3) {
- /* ▼ Down */
- if (!acceptTouch(63)) return;
- _kbSelRow++;
- if (_kbSelRow > 3) _kbSelRow = 0;
- /* Adjust col when switching to/from the bar */
- if (_kbSelRow == 3 && _kbSelCol > 4) _kbSelCol = 4;
- _repaintSettings = true;
- }
- else if (btnIdx == 4) {
- /* ✓ Confirm selection */
- if (!acceptTouch(64)) return;
 
- if (_kbSelRow == 3) {
- /*
- * Action bar: execute the action of the selected item.
- * 0=Shift, 1=123, 2=Space, 3=Backspace, 4=OK
- */
- if (_kbSelCol == 0) {
- /* Shift */
- if (_kbLayer == 1) {
- _kbShiftLock = !_kbShiftLock;
- if (!_kbShiftLock) _kbLayer = 0;
- } else {
- _kbLayer = 1;
- _kbShiftLock = false;
+ /* Group grid — gaps count as the nearest key (finger-friendly). */
+ if (y >= GRID_Y0) {
+ int row = (y - GRID_Y0) / GRID_ROW_H;
+ int col = (x - GRID_X0) / GRID_COL_W;
+ if (row > 2) row = 2;
+ if (col < 0) col = 0;
+ if (col > 3) col = 3;
+ if (!acceptTouch((uint8_t)(10 + row * 4 + col))) return;
+
+ if (row < 2) {
+ _kbPopup = (int8_t)(POPUP_GROUP0 + row * 4 + col);
  }
- }
- else if (_kbSelCol == 1) {
- /* 123 */
- _kbLayer = (_kbLayer == 2) ? 0 : 2;
- _kbShiftLock = false;
- }
- else if (_kbSelCol == 2) {
- /* Space */
+ else if (col == 0) _kbPopup = POPUP_DIGITS;
+ else if (col == 1) _kbPopup = POPUP_SYMBOLS;
+ else if (col == 2) {
  if (_kbCursor < 7) {
  activeBuf[_kbCursor++] = ' ';
  activeBuf[_kbCursor] = '\0';
  }
  }
- else if (_kbSelCol == 3) {
- /* Backspace */
+ else {
  if (_kbCursor > 0) {
  activeBuf[--_kbCursor] = '\0';
  }
  }
- else if (_kbSelCol == 4) {
- /* OK — password confirmation */
- if (_kbPhase == 0) {
- if (_kbCursor < 4) {
- _kbPhase = 2;
- _kbMsgKey = TR_PWD_TOO_SHORT;
- _forceSettingsRedraw = true;
- } else {
- _kbPhase = 1;
- _kbCursor = 0;
- _kbShowRaw = false;
- memset(_kbConfirmBuf, 0, sizeof(_kbConfirmBuf));
- }
- }
- else if (_kbPhase == 1) {
- if (_kbCursor < 4) {
- _kbPhase = 2;
- _kbMsgKey = TR_PWD_TOO_SHORT;
- _forceSettingsRedraw = true;
- }
- else if (strcmp(_kbBuffer, _kbConfirmBuf) != 0) {
- _kbPhase = 2;
- _kbMsgKey = TR_PWD_MISMATCH;
- _forceSettingsRedraw = true;
- }
- else {
- _kbPhase = 3;
- _kbMsgKey = TR_PWD_SAVED;
- _forceSettingsRedraw = true;
- UiEvent ev;
- ev.type = UiEvent::EVT_SAVE_PASSWORD;
- ev.id = 0; ev.param = 0;
- pushUiEvent(ev);
- }
- }
- }
- } else {
- /* Key row (0-2): insert the selected character */
- static const char lay0[3][10] = {
- {'q','w','e','r','t','y','u','i','o','p'},
- {'a','s','d','f','g','h','j','k','l','.'},
- {'z','x','c','v','b','n','m',',','!','?'}
- };
- static const char lay1[3][10] = {
- {'Q','W','E','R','T','Y','U','I','O','P'},
- {'A','S','D','F','G','H','J','K','L',':'},
- {'Z','X','C','V','B','N','M',';','"','\''}
- };
- static const char lay2[3][10] = {
- {'1','2','3','4','5','6','7','8','9','0'},
- {'@','#','$','%','&','*','-','+','=','~'},
- {'(',')','[',']','{','}','/','\\','^','_'}
- };
- const char (*sel)[10] = (_kbLayer == 2) ? lay2
- : (_kbLayer == 1) ? lay1
- : lay0;
- if (_kbCursor < 7) {
- activeBuf[_kbCursor++] = sel[_kbSelRow][_kbSelCol];
- activeBuf[_kbCursor] = '\0';
- if (_kbLayer == 1 && !_kbShiftLock) _kbLayer = 0;
- }
- }
  _repaintSettings = true;
- }
  return;
  }
  }
