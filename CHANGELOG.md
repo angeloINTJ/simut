@@ -4,6 +4,77 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.8-beta (2026-08-13)
+
+### The web history graphs read the archive itself
+
+The `.h5` files were always complete; the graph was not. The page asked
+`/api/history_multi` for a pre-shrunk JSON, and the shrinking lied twice: the
+decode path emitted one record in N (peaks survived by luck), and past a size
+threshold the block-envelope path emitted the block minimum at t0 and the
+block maximum at t0+30 min **as one series** — drawn as a line, that is a
+sawtooth the sensor never produced, and a single freezer defrost renders as
+two peaks with a valley between them. Worse, the threshold was estimated from
+the bytes of the day files it would walk, not the requested window, so a
+one-hour view anchored in the past arrived with **3 points** (6 h: 13; 24 h:
+51) and the behavior changed with the time of day.
+
+The page now downloads the day files themselves through `/download` — the
+same road the CSV export already drove — decodes them in the browser with the
+`h5Decode` it already had, and reduces for the screen with per-pixel-column
+buckets that keep **min, max and mean**: a band behind a mean line. A
+one-minute spike survives any window because the extreme IS the bucket edge;
+an empty bucket is a null the chart draws as a real gap; a lone sample
+between two gaps gets a visible dot; and the newest record always lands with
+its own timestamp. Closed day files are cached by (name, size), so switching
+ranges or sensors after the first load fetches nothing; the current day and
+the open hour (`/api/history/open`) are always refreshed, tail last so a
+mid-load seal can cost at most a gap, never a duplicate. Extremes badges are
+computed from every record in the window during the same pass, and the CSV
+export reuses the byte cache instead of re-downloading.
+
+Measured on the bench against 64 days of ground-truth synthetic data: 1 h
+3→60 points, 6 h 13→360, 24 h 51→1 398 (full resolution), 7 d 339→885, and
+the day the device spent 6.5 h powered off finally shows a hole instead of a
+bridge. Bonus robustness: each file is a short request, immune to the
+router-injected RST that used to kill the single 500 KB response. The
+firmware side of `/api/history_multi` is untouched and still serves tools.
+
+### The TFT graphs get time buckets and an honest envelope
+
+Same disease, native renderer: stride decimation fixed per range (1 in 51 on
+the 7-day view) tuned for a one-minute cadence, X spaced by index rather than
+time, and a Y axis scaled by the TRUE extremes over a curve that had lost
+them — the axis announced −6.5 °C the line never reached, and identical
+freezer defrosts drew at random heights, some missing entirely. A 6.5-hour
+outage compressed into one invisible index step, and on a full 7-day window
+the 200-point cap silently cut the open-hour tail, leaving the right edge
+stale.
+
+The loader now aggregates into buckets uniform in TIME
+(`clamp(window/logging-interval, 40, 200)`), each carrying min/max/mean —
+which makes the renderer's index-spaced X time-proportional for free, turns
+empty buckets into gaps with their true width, and never overflows the cap.
+The renderer paints the min/max band behind the 2-px mean line (replacing the
+fill-to-baseline), gives lone buckets a 3×3 dot, and sits the peak markers on
+the band edge of the bucket that holds the real extreme — marker, axis label
+and badge finally agree. Detail-screen statistics (AVG/STDDEV/Δ and the n=
+count) are now computed over every record in the window: n= on a 24 h view
+went from 180 to 1 435. Cost: ~13 KB of static RAM (41.6% → 47.0%) and under
+1 KB of flash.
+
+### Bench and build notes
+
+`pico_w_test` had been living 224 bytes from the flash ceiling and the new
+web JS pushed it over; the env now builds with `-DNDEBUG` (the documented
+~6.6 KB lever) and `-DSIMUT_LICENSE_STUB` (the license screen shows a short
+pointer; the release image always carries the full MIT text). A real diet —
+migrating pages to LittleFS via FS_PAGES — remains future work. Known
+limitation, pre-existing: the web graph page loads Chart.js from a CDN, so
+browser graphs need internet even though every byte of data now comes from
+the device.
+
+
 ## v2.1.7-beta (2026-08-13)
 
 ### Pressure joins the history graphs

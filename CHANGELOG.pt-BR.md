@@ -4,6 +4,77 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.8-beta (2026-08-13)
+
+### Os gráficos web de histórico passam a ler o próprio arquivo
+
+Os `.h5` sempre estiveram completos; o gráfico é que não estava. A página
+pedia ao `/api/history_multi` um JSON já encolhido, e o encolhimento mentia
+duas vezes: o caminho decode emitia um registro a cada N (pico sobrevivia por
+sorte), e acima de um certo tamanho o caminho de envelope emitia o mínimo do
+bloco em t0 e o máximo em t0+30 min **na mesma série** — desenhado como
+linha, isso é uma serra que o sensor nunca produziu, e um degelo único da
+geladeira vira dois picos com um vale no meio. Pior: o limiar era estimado
+pelos bytes dos arquivos varridos, não pela janela pedida, então um 1 h
+ancorado no passado chegava com **3 pontos** (6 h: 13; 24 h: 51) e o
+comportamento mudava com a hora do dia.
+
+A página agora baixa os próprios arquivos diários por `/download` — a mesma
+estrada que o export CSV já usava — decodifica no navegador com o `h5Decode`
+que ela já tinha, e reduz para a tela com baldes por coluna de pixel
+guardando **mínimo, máximo e média**: uma banda atrás da linha média. Pico de
+1 minuto sobrevive a qualquer janela porque o extremo É a aresta do balde;
+balde vazio é null que o gráfico desenha como lacuna real; amostra sozinha
+entre duas lacunas ganha um ponto visível; e o registro mais novo sempre sai
+com o próprio carimbo. Dia fechado nunca muda, então o cache por (nome,
+tamanho) faz troca de faixa e de sensor não baixar nada; o dia corrente e a
+hora aberta (`/api/history/open`) são sempre rebuscados, a cauda por último —
+uma selagem no meio da carga custa no máximo uma lacuna, nunca duplicata. Os
+badges de extremos saem de todos os registros da janela na mesma passada, e o
+export CSV reusa o cache de bytes em vez de baixar de novo.
+
+Medido na bancada contra 64 dias de dado sintético com gabarito: 1 h 3→60
+pontos, 6 h 13→360, 24 h 51→1 398 (resolução plena), 7 d 339→885, e o dia em
+que o aparelho passou 6,5 h desligado finalmente mostra um buraco em vez de
+uma ponte. Robustez de brinde: cada arquivo é uma requisição curta, imune ao
+RST que o roteador injetava na resposta única de 500 KB. O lado firmware do
+`/api/history_multi` está intocado e continua servindo ferramentas.
+
+### Os gráficos do TFT ganham baldes de tempo e um envelope honesto
+
+Mesma doença, renderer nativo: decimação por stride fixa por faixa (1 em 51
+no 7 dias) calibrada para cadência de 1/min, X espaçado por índice em vez de
+tempo, e um eixo Y na escala dos extremos REAIS sobre uma curva que os tinha
+perdido — o eixo anunciava −6,5 °C que a linha nunca alcançava, e degelos
+idênticos da geladeira saíam com alturas aleatórias, vários sumindo por
+completo. Um apagão de 6,5 h comprimia num passo invisível de índice, e no
+7 dias cheio o teto de 200 pontos cortava em silêncio a cauda da hora aberta,
+deixando a borda direita velha.
+
+O loader agora agrega em baldes uniformes no TEMPO
+(`clamp(janela/intervalo, 40, 200)`), cada um com mín/máx/média — o que torna
+o X por índice do renderer proporcional ao tempo de graça, transforma balde
+vazio em lacuna com a largura verdadeira e nunca estoura o teto. O renderer
+pinta a banda mín/máx atrás da linha média de 2 px (substituindo o
+preenchimento até a base), dá um ponto 3×3 a balde solitário, e senta os
+marcadores de pico na aresta da banda do balde do extremo real — marcador,
+rótulo do eixo e badge finalmente concordam. As estatísticas do detalhe
+(MÉDIA/DESVIO/Δ e o n=) agora saem de todos os registros da janela: o n= de
+um 24 h foi de 180 para 1 435. Custo: ~13 KB de RAM estática (41,6% → 47,0%)
+e menos de 1 KB de flash.
+
+### Notas de bancada e build
+
+O `pico_w_test` vivia a 224 bytes do teto de flash e o JS novo o estourou; o
+env agora compila com `-DNDEBUG` (a alavanca documentada de ~6,6 KB) e
+`-DSIMUT_LICENSE_STUB` (a tela de licença mostra um ponteiro curto; a imagem
+de release sempre carrega o texto MIT completo). A dieta de verdade — migrar
+páginas para a LittleFS via FS_PAGES — fica como trabalho futuro. Limitação
+conhecida, pré-existente: a página de gráficos carrega o Chart.js de um CDN,
+então o gráfico no navegador precisa de internet mesmo com todo dado vindo do
+aparelho.
+
+
 ## v2.1.7-beta (2026-08-13)
 
 ### A pressão entra nos gráficos de histórico
