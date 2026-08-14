@@ -4,7 +4,43 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## v2.1.9-beta (2026-08-14)
+## v2.1.10-beta (2026-08-14)
+
+### O offset de alinhamento não corta mais a tela
+
+O SIMUT permite deslocar a imagem inteira em até 4 pixels por eixo
+(Config → Alinhamento da Tela) para compensar painéis cuja janela
+visível fica levemente fora da matriz de pixels. Mas vários elementos
+eram desenhados a menos de 4 px de uma borda, então os ajustes extremos
+raspavam pixels deles — e um, a linha fina de "trabalhando…" pintada
+enquanto um gráfico carrega, morava inteira nas 3 primeiras linhas:
+um offset vertical de −4 removia o único feedback de que o toque
+tinha sido aceito.
+
+Todos os renderizadores foram varridos contra uma regra só: conteúdo
+vive dentro de x 4..315, y 4..235 — exatamente o retângulo que a
+moldura verde da tela de alinhamento desenha. O que se moveu: o hint
+de ocupado do gráfico (agora sobre o cabeçalho), os botões de período
+do gráfico (iam de 2..317, agora 4..315), os rótulos do eixo Y, os
+rótulos de hPa do eixo direito, o marcador de último valor e o
+cabeçalho full-bleed do gráfico, a marca "SIMUT" do dashboard e o
+banner de web ocupado (virou um chip recuado que trunca usuários
+longos por medida em vez de cortar no meio do glifo), a grade do
+teclado de senha (chegava a x=317 e y=237; as teclas agora têm 74 px
+e a última fileira termina em y=235), a barra de título do status do
+sistema e o número da sensibilidade do toque.
+
+Onde uma tela e seu handler de toque mantinham cópias separadas da
+mesma geometria, os números foram promovidos a constantes
+compartilhadas — `GRAPH_PBTN_*` para o rodapé do gráfico, ao lado do
+header compartilhado que o teclado já tinha — para que os botões
+desenhados e suas zonas de toque não possam mais divergir.
+
+Validado no hardware: 19 capturas do framebuffer cobrindo todas as
+telas, com a borda de 4 px verificada 100 % fundo em todas, e o offset
+exercitado ao vivo até os extremos e restaurado.
+
+
 
 ### Um teclado de senha para a ponta do dedo
 

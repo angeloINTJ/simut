@@ -4,7 +4,41 @@
 
 All notable changes to SIMUT firmware.
 
-## v2.1.9-beta (2026-08-14)
+## v2.1.10-beta (2026-08-14)
+
+### The alignment offset can no longer crop the screen
+
+SIMUT lets you shift the whole image by up to 4 pixels on each axis
+(Settings → Screen alignment) to compensate for panels whose visible
+window sits slightly off the pixel matrix. But several elements were
+drawn closer than 4 px to an edge, so the extreme settings shaved
+pixels off them — and one of them, the thin "working…" hint painted
+while a graph loads, lived entirely in the top 3 rows: a −4 vertical
+offset removed the only feedback that a tap had landed.
+
+Every renderer was swept against one rule: content lives inside
+x 4..315, y 4..235 — exactly the rectangle the alignment screen's
+green frame draws. What moved: the graph busy hint (now over the
+header), the graph period buttons (spanned 2..317, now 4..315), the
+graph's Y-axis labels, hPa right-axis labels, last-value marker and
+full-bleed header card, the dashboard's "SIMUT" brand and the web-busy
+banner (now an inset chip that truncates long usernames by measurement
+instead of clipping mid-glyph), the password keyboard's key grid
+(reached x=317 and y=237; keys are now 74 px wide and the bottom row
+ends at y=235), the system-status title bar, and the touch-sensitivity
+threshold readout.
+
+Where a screen and its touch handler used to keep separate copies of
+the same geometry, the numbers were promoted to shared constants —
+`GRAPH_PBTN_*` for the graph footer, alongside the keyboard's existing
+shared header — so the drawn buttons and their hit zones cannot drift
+apart again.
+
+Validated on hardware: 19 framebuffer captures across every screen,
+with the 4 px border verified 100 % background on all of them, and the
+offset exercised live to its extremes and restored.
+
+
 
 ### A password keyboard for fingertips
 
