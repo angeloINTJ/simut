@@ -173,10 +173,11 @@ write memory                  # Persist to flash
 | DS18B20 | 1 | 1-Wire (pull-up) | 16 |
 | DHT22 | 1 | Data (pull-up) | 16 |
 | BME280 | 2 | SDA, SCL (pull-up) | 8 |
+| BMP280 | 2 | SDA, SCL (pull-up) | 8 |
 
 > **Example:** 10× DS18B20 + 2× BME280 = 10 + 4 = 14 GPIOs. 2 GPIOs remain free.
 
-## BME280 Wiring (I2C)
+## BME280 / BMP280 Wiring (I2C)
 
 The BME280 module typically comes on a breakout board with 6 pins:
 
@@ -206,7 +207,7 @@ write memory
 
 | GPIO | Function               | Connection                               |
 |------|------------------------|------------------------------------------|
-| 0–15 | **SLOT 0–15** (configurable) | Any sensor type: DS18B20 (1-Wire), DHT22 (Data), or BME280 (I2C SDA/SCL) |
+| 0–15 | **SLOT 0–15** (configurable) | Any sensor type: DS18B20 (1-Wire), DHT22 (Data), or BMP280/BME280 (I2C SDA/SCL) |
 | 16   | SPI0 MISO              | TFT MISO + Touch MISO (shared bus)       |
 | 17   | SPI0 CS0               | XPT2046 Touch CS                         |
 | 18   | SPI0 SCK               | TFT SCK + Touch SCK (shared bus)         |
@@ -217,7 +218,7 @@ write memory
 | 27   | GPIO                   | TFT DC (Data/Command)                    |
 | 28   | GPIO                   | TFT CS (Chip Select)                     |
 
-## Pin Reference — HD44780 16×2 I2C *(SIMUT_DISPLAY_ALPHA, default)*
+## Pin Reference — HD44780 16×2 I2C *(when `SIMUT_DISPLAY_ALPHA` is enabled)*
 
 | GPIO | Function               | Connection                               |
 |------|------------------------|------------------------------------------|

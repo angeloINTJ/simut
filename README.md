@@ -10,18 +10,18 @@
 [![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 [![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/Version-v1.6.3--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
+[![Release](https://img.shields.io/github/v/release/angeloINTJ/simut?label=Release&color=blue)](https://github.com/angeloINTJ/simut/releases/latest)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
 [![Contributors](https://img.shields.io/badge/All_Contributors-5-orange.svg)](CONTRIBUTORS.md)
 [![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg)](CONTRIBUTING.md)
 
 <p align="center">
-  <img src="docs/images/tft-demo.gif" alt="SIMUT TFT Demo" width="320">
+  <img src="docs/images/tft-tour.gif" alt="SIMUT TFT tour — dashboard, history graphs, calendar and settings" width="400">
 </p>
 
 ## Overview
 
-SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that provides real-time temperature and humidity monitoring through a dual-core architecture. It features a local TFT touchscreen dashboard, an embedded web interface with role-based access control, telemetry upload (HTTP/MQTT), a CLI accessible via USB and Bluetooth, and an externalized language-pack system.
+SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that provides real-time temperature, humidity and pressure monitoring through a dual-core architecture. It features a local TFT touchscreen dashboard, an embedded web interface with role-based access control, binary on-device history with client-side graphing, telemetry upload (HTTP/MQTT), OTA updates, and a CLI over USB serial.
 
 ## Why SIMUT?
 
@@ -29,7 +29,7 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 |------|:---:|:---:|:---:|
 | Standalone with display | ⚠️ Manual coding | ❌ No TFT support | ✅ Built-in touch UI |
 | Regulated environments | ❌ No audit trail | ❌ No user RBAC | ✅ Multi-user, audit logs |
-| Cold chain (-80°C to +45°C) | ⚠️ Basic readings | ✅ Basic monitoring | ✅ Calibrated multi-sensor |
+| Cold chain (−55 °C and below-freezing probes) | ⚠️ Basic readings | ✅ Basic monitoring | ✅ Calibrated multi-sensor |
 | Offline operation | ✅ Yes | ❌ Often cloud-dependent | ✅ Full local web + display |
 | OTA updates | ❌ Manual reflash | ✅ OTA | ✅ OTA + backup/restore |
 | Security | ❌ None | ⚠️ Basic | ✅ HMAC-SHA256, RBAC, rate limiting |
@@ -50,20 +50,18 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
 │  │  ◆ AppManager ───────┼──┼─ state/snapshots ──────┐   ││
 │  │  ◆ SensorManager     │  │  ◆ DisplayManager ◄────┘   ││
 │  │  ◆ WebManager        │  │  ◆ TouchPriority           ││
-│  │  ◆ TelemetryManager  │  │  ◆ Themes (50 built-in)    ││
-│  │  ◆ CommandManager    │  │  ◆ i18n (PT/EN/ES)         ││
-│  │  ◆ StorageManager    │  │                            ││
+│  │  ◆ TelemetryManager  │  │  ◆ DMA canvas renderer     ││
+│  │  ◆ CommandManager    │  │  ◆ Themes                  ││
+│  │  ◆ StorageManager    │  │  ◆ i18n (EN/PT/ES packs)   ││
 │  │  ◆ NetworkManager    │  │                            ││
 │  └──────────┬───────────┘  └────────────────────────────┘│
 │             │                                            │
 │  ┌──────────┴──────────────────────────────────────────┐ │
 │  │  Hardware Interfaces                                │ │
 │  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch        │ │
-│  │  ◆ 1-Wire (PIO) → DS18B20 (up to 16)                │ │
-│  │  ◆ Data → DHT22 (up to 16)                          │ │
-│  │  ◆ I2C → BME280 T+H+P (up to 8)                     │ │
+│  │  ◆ GP0–GP15 → 16 universal sensor slots:            │ │
+│  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
 │  │  ◆ USB CDC → CLI Serial                             │ │
-│  │  ◆ Bluetooth (BLE) → CLI Remote                     │ │
 │  │  ◆ WiFi (CYW43439) → HTTP Server + Telemetry        │ │
 │  └─────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────┘
@@ -71,104 +69,81 @@ SIMUT is a professional-grade IoT firmware for the **Raspberry Pi Pico W** that 
     ┌────┴────┐          ┌───┴────┐         ┌────┴───────┐
     │ Sensors │          │ Web UI │         │  Telemetry │
     │ DS18B20 │          │ Browser│         │  HTTP/MQTT │
-    │   DHT22 │          │ (RBAC) │         │    Server  │
-    └─────────┘          └────────┘         └────────────┘
+    │  DHT22  │          │ (RBAC) │         │    Server  │
+    │ BMx280  │          └────────┘         └────────────┘
+    └─────────┘
 ```
 
 ## Screenshots
 
-| TFT Dashboard | TFT Demo | Web UI | Early Alpha |
+| TFT Dashboard | TFT History Graph | Web Dashboard | Early Alpha |
 |:---:|:---:|:---:|:---:|
-| ![TFT](docs/images/tft-dashboard.png) | ![Demo](docs/images/tft-demo.gif) | ![Web](docs/images/web-dashboard.png) | [![Alpha video](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
+| ![TFT dashboard](docs/images/tft-dashboard.png) | ![TFT graph](docs/images/screens/graph.png) | ![Web dashboard](docs/images/web-dashboard.png) | [![Alpha video](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
-> 📸 See [docs/images/README.md](docs/images/README.md) for how to capture screenshots from your device.
+> 📸 Every display screen, captured off the real panel framebuffer: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
-> 🎥 The **Early Alpha** video shows the first TFT + touch prototype. The UI, themes, responsiveness, and polish have evolved significantly since then — see the current **TFT Demo** GIF for today's experience.
+> 🎥 The **Early Alpha** video shows the first TFT + touch prototype — the UI has been redesigned since.
 
 ## Hardware
 
 | Component | Specification |
 |-----------|---------------|
-| MCU | Raspberry Pi Pico W (RP2040) |
-| Display | ILI9341 320×240 TFT (SPI) |
+| MCU | Raspberry Pi Pico W (RP2040, dual-core) |
+| Display | ILI9341 320×240 TFT (SPI, DMA-driven) |
 | Touch | XPT2046 resistive touchscreen |
-| Sensors | DS18B20 (1-Wire, up to 10) + DHT22 (ambient) |
+| Sensors | **16 universal slots on GP0–GP15** — any mix of DS18B20 (1-Wire), DHT22, BMP280/BME280 (I2C, 2 pins) |
 | Buzzer | Passive piezo (PIO-driven) |
-| Storage | 2 MB internal flash |
+| Storage | 2 MB internal flash (1 MB firmware slot + 1 MB LittleFS) |
 
-See the **[Wiring Guide](docs/WIRING.md)** for complete pinout and connection diagrams.
+See the **[Wiring Guide](docs/WIRING.md)** for the complete pinout and connection diagrams.
 
 ## Key Features
 
-### Sensing & Control
-- **Multi-sensor support** — up to 10 DS18B20 (1-Wire/PIO) + 1 DHT22 ambient sensor
-- **Zero-trust sensor pipeline** — ROM verification every 5 readings, hardware mismatch detection, error hysteresis
-- **Per-sensor alarms** — temperature/humidity thresholds with buzzer melodies and visual TFT feedback
-- **Web-based calibration UI** — calibration mode gated by `PERM_CALIB`; reference value input calculates offset automatically
-- **Ambient calibration via picoUID** — `calib.csv` supports custom ID, name, and offsets for the DHT22
+### Sensing
+- **16 universal sensor slots** — GP0–GP15, each slot accepts DS18B20, DHT22 or BMP280/BME280; type and pins assigned at runtime, no recompile
+- **Temperature, humidity and pressure** as first-class channels, per-sensor calibration offsets and multi-point calibration curves
+- **Zero-trust sensor pipeline** — ROM verification, hardware mismatch detection, error hysteresis
+- **Per-sensor alarms** — thresholds with buzzer melodies and visual TFT feedback
 
 ### Display & UI
-- **320×240 ILI9341 TFT** — dashboard, real-time graphs, statistics, touch-driven settings (XPT2046)
-- **Touch-priority scheduler** — UI input always wins over background operations
-- **50 built-in themes** + up to 8 custom themes loaded from LittleFS (offline editor in `tools/theme-editor/`)
-- **Dynamic dashboard layout** — slot-based, theme-aware
-- **Atomic screen rendering** — canvas-based off-screen compositing, zero tearing
+- **320×240 ILI9341 TFT** — dashboard, bucketed history graphs with min/max band, statistics, calendar, touch-driven settings
+- **DMA rendering fast path** — canvas compositing at wire speed, zero tearing
+- **Fingertip password keyboard** — 8 group keys + popup, any of 91 characters in exactly two taps
+- **4 px safe area everywhere** — the screen-alignment offset (±4 px per axis) can never crop content
+- **Custom themes** loaded from LittleFS (up to 8, offline editor in `tools/theme-editor/`); compile-time theme packs available
 - **Sound system** — Touch / Confirmation / Error / Alarm / Attention classes with configurable melodies and volume
-- **Light & dark themes** for the Web UI with `localStorage` persistence
 
 ### Connectivity & Web
-- **Embedded web server** — multi-user sessions, RBAC (10 permission bits), file manager, live dashboard
-- **gzip-compressed WebUI** — minified inline pages with shared CSS/JS, browser-cacheable
-- **Self-service password change** on the login screen with strength meter
-- **Telemetry** — HTTP POST and MQTT with JSON / CSV / custom templates, TLS/SSL support, adaptive batch sizing
-- **Multi-sensor history graph** — endpoint returning multiple series in one response; configurable range
-- **CSV export** — binary `.simx` bundle with magic, version, sensor table, records, and CRC32 trailer
-- **Chunked export with adaptive retry** — split on failure with automatic recovery
-
-### CLI & Bluetooth
-- **Dual-channel CLI** — USB Serial + Bluetooth with password-protected sessions
-- **Custom BT device name** — configurable via web/CLI
-- **Deferred-flush logging** during BT login to avoid flash contention
+- **Embedded web server** — multi-user sessions, RBAC (10 permission bits), file manager, live dashboard with a display-capture panel
+- **gzip-compressed WebUI** — minified inline pages, browser-cacheable, light & dark themes
+- **History graphs decimated in the browser** — the page downloads the raw binary day files and does min/max bucketing client-side; the device only serves bytes
+- **CSV export in the browser** — decoded from the same raw files by the page itself
+- **Telemetry** — HTTP POST and MQTT with JSON / CSV / custom payload templates, TLS support, adaptive batch sizing
 
 ### Time & Storage
-- **NTP time sync** — exponential backoff, multi-server fallback, virtual RTC with automatic correction
-- **Manual time entry** via Web UI when no NTP is available
-- **History codec** — delta + sensor-mask + anchor encoding for compact binary storage
-- **LittleFS** — CRC32 dual-bank config, history files, rotating compact log
+- **NTP time sync** — exponential backoff, multi-server fallback, virtual RTC seeded from history across reboots
+- **Compact binary history (V5)** — delta + anchor encoding at ~5.4 bytes/record ≈ 116 days of 1-minute records in flash
+- **LittleFS** — CRC32 dual-bank config, per-day history files, rotating compact log
 
 ### Security
-- **Hardened authentication** — HMAC-SHA256 with per-user random salt, 5000 rounds, 128-bit hash
-- **Random admin password on factory reset** — 8-char shown on TFT, never persisted in flash
+- **Hardened authentication** — HMAC-SHA256 with per-user random salt, 5000 rounds
+- **Random admin password on factory reset** — 8 chars shown once on the TFT, never persisted
 - **Rate limiter** — 16-slot LRU with 15-min TTL, lockout-aware eviction, exponential backoff
 - **Path-traversal-safe uploads** — `..`, percent-encoding, control bytes and reserved chars blocked
-- **`SECURITY.md`** with threat model, rotation policy, and incident response
+- **[SECURITY.md](SECURITY.md)** with threat model, rotation policy, and incident response
 
 ### Resilience & Forensics
-- **Crash forensics** — black-box profiler with watchdog scratch register autopsy
-- **Safe reboot path** — USB-friendly reset that keeps the serial port reachable
-- **Soft-panic detection** — cross-core health monitoring
-- **Watchdog discipline** — feeds around every LittleFS operation and during flash operations
+- **Crash forensics** — black-box profiler with watchdog scratch-register autopsy on every boot
+- **Dual-core flash discipline** — Core 1 provably paused around every flash write (measured, not assumed)
+- **Watchdog discipline** — feeds around every LittleFS operation; slow HTTP clients cannot starve the loop
 
 ### OTA Updates
-- **OTA firmware update** — upload new firmware via web UI, applied in-place with config preservation
+- **OTA firmware update** — upload via web UI, applied in-place with config snapshot preservation (Wi-Fi, users and sensor slots survive)
 - **Backup & restore** — full LittleFS backup/restore with CRC32 integrity verification
-- **Snapshot-based config preservation** — critical settings survive firmware apply
+- **[Recovery guide](docs/RECOVERY.md)** — BOOTSEL and picotool paths for every failure mode
 
 ### Internationalization
-- **2 display languages** — English (inline) + Portuguese/Spanish via external language packs
-- **Hot-loadable language packs** from LittleFS
-- **i18n inline fallback** for keys not persisted in device language files
-
-## Hardware Requirements
-
-| Component | Specification |
-|-----------|---------------|
-| MCU | Raspberry Pi Pico W (RP2040) |
-| Display | ILI9341 TFT 320×240 (SPI) |
-| Touch | XPT2046 (SPI) |
-| Sensors | DS18B20 (1-Wire) + DHT22 |
-| Storage | 2 MB flash (1 MB firmware + 1 MB LittleFS) |
-| Buzzer | Passive piezo (PIO-driven) |
+- **3 interface languages** — English built-in; Portuguese and Spanish via external `.lng` language packs loaded from LittleFS at boot
 
 ## Quick Start
 
@@ -180,101 +155,113 @@ See the **[Wiring Guide](docs/WIRING.md)** for complete pinout and connection di
 
 ```bash
 # Clone the repository
-git clone https://github.com/angeloINTJ/SIMUT.git
-cd SIMUT
+git clone https://github.com/angeloINTJ/simut.git
+cd simut
 
 # Build firmware
 pio run -e pico_w_release
 
-# Flash to Pico W (hold BOOTSEL, connect USB)
+# Flash to Pico W (auto-reset via 1200 bps touch; BOOTSEL works too)
 pio run -e pico_w_release -t upload
 
-# Upload LittleFS data (language packs, favicon)
+# First flash only: upload LittleFS data (language packs, favicon).
+# ⚠️ uploadfs REFORMATS the LittleFS partition — on a device already in
+# service it destroys history, config and calibration. Never run it again
+# after the device has data; language packs can be uploaded later from the
+# web file manager instead.
 pio run -e pico_w_release -t uploadfs
 ```
 
+Prefer not to build? Every [release](https://github.com/angeloINTJ/simut/releases/latest) ships a ready `simut_vX.Y.Z.uf2` (drag-and-drop with BOOTSEL held), plus PlatformIO and Arduino IDE source bundles.
+
 ### First Boot
-1. The device boots and shows the setup screen on the TFT
-2. A random 8-character admin password is displayed on the TFT
-3. Connect to the SIMUT WiFi access point or connect via USB Serial at 115200 baud
-4. Log in via the web interface (`http://simut.local` or the device IP)
+1. The device boots to the dashboard and, on a factory-fresh unit, shows a **random 8-character admin password on the TFT** — write it down, it is never shown again.
+2. Configure Wi-Fi from the touch display's settings, **or** hold a finger on the screen for ~3 s during boot to start setup AP mode — the device broadcasts **`simut_SETUP`** for 15 minutes.
+3. Open the web interface at `http://simut.local` (mDNS) or the IP shown on the display, and log in as `admin` with the password from step 1. You will be asked to change it.
+4. Add sensors in **Config → Sensors & GPIO** (or watch them auto-appear with *Scan for probes*).
 
 ## Project Structure
 
 ```
-SIMUT/
-├── src/                    # All source code
+simut/
+├── src/                    # All firmware source
 │   ├── main.cpp            # Entry point
-│   ├── AppManager*.cpp/h   # Application state machine
-│   ├── DisplayManager*.cpp/h  # TFT display, touch, themes
-│   ├── WebManager*.cpp/h   # Web server, API, OTA endpoints
-│   ├── StorageManager.cpp/h   # LittleFS, config, history
-│   ├── SensorManager.cpp/h # DS18B20 and DHT22 drivers
-│   ├── NetworkManager.cpp/h   # WiFi, mDNS
-│   ├── TelemetryManager.cpp/h # MQTT and HTTP telemetry
-│   ├── CommandManager.cpp/h   # CLI parser (USB + Bluetooth)
-│   ├── LogManager.cpp/h    # Logging and crash forensics
-│   ├── SystemDefs*.h       # System constants and limits
-│   └── ota/                # OTA update subsystem
-├── data/                   # LittleFS assets
-│   ├── favicon.ico
-│   └── lang/               # Language packs
-├── test/                   # Unit tests (Unity framework)
-├── tools/                  # Build and development tools
-├── docs/                   # Documentation
-├── platformio.ini          # Build configuration
-├── WebUI.h                 # Web UI source (compressed at build time)
-└── LICENSE
+│   ├── AppManager*         # Application state machine
+│   ├── DisplayManager*     # TFT display, touch, themes (Core 1)
+│   ├── WebManager*         # Web server, API, OTA endpoints
+│   ├── StorageManager*     # LittleFS, config, history
+│   ├── SensorManager*      # DS18B20 / DHT22 / BMx280 drivers
+│   ├── NetworkManager*     # WiFi, mDNS, AP setup mode
+│   ├── TelemetryManager*   # MQTT and HTTP telemetry
+│   ├── CommandManager*     # CLI parser
+│   ├── LogManager*         # Logging and crash forensics
+│   ├── history/            # V5 history codec
+│   └── SystemDefs*.h       # System constants and limits
+├── data/                   # LittleFS assets (language packs, favicon)
+├── test/                   # Native unit tests (Unity)
+├── tools/                  # screen_mapper, release scripts, theme editor…
+├── docs/                   # Documentation + GitHub Pages site
+├── WebUI.h                 # Web UI source (gzipped into WebUI_GZ.h at build)
+└── platformio.ini          # Build configuration
 ```
 
 ## Building
 
 ### Environments
 
-| Environment | Description |
-|-------------|-------------|
-| `pico_w_release` | Production firmware (default) |
-| `pico_w_debug` | Debug build with extra logging |
-| `native` | Host-side unit tests (Unity) |
+| Environment | Purpose |
+|-------------|---------|
+| `pico_w_release` | Production firmware — **the image releases ship** |
+| `pico_w_test` | Same firmware + full 55-command CLI for bench suites |
+| `pico_w_asserts` | Release + concurrency assertions |
+| `pico_w_alpha` | Headless build (16×2 char LCD, no TFT) |
+| `native`, `native_history_v4/v5`, `native_cli` | Host-side unit tests |
+
+> `pico_w_debug` exists but does not link — at `-Og` the image overflows the 1020 KB app slot. Flash is tight: the release image uses ~95 % of the slot.
 
 ### Build Flags
-- `-Os` — optimize for size (flash is tight at ~98.7%)
+- `-Os` — optimize for size
 - `-Wall -Wextra` — elevated warnings
 - `-specs=nano.specs` — newlib-nano for smaller binary
 - LTO is disabled (toolchain limitation with earlephilhower Arduino-Pico)
 
 ## Configuration
 
-### CLI Commands
-A command-line interface is available via USB Serial (115200 baud) and Bluetooth. Key command groups:
+### CLI
+A command-line interface is available via USB Serial (115200 baud).
 
-- `help` — show available commands
-- `conf system` — view/edit system configuration
-- `conf sensor` — view/edit sensor configuration
-- `conf net` — view/edit network settings
-- `conf user` — manage user accounts
-- `write memory` — persist changes to flash
-- `reload` — reboot the device
+- The **release image** ships a minimal 9-command emergency console: `show net status`, `show system info`, `show system log`, `debug on|off`, `system admin reset`, `system format`, `system factory`, `reload`, `help`.
+- The **`pico_w_test` image** ships the full Cisco-style CLI (55 commands, `enable` / `configure terminal` modes) — see the [CLI Manual](docs/CLI-Manual.md).
+
+Day-to-day configuration is designed to happen on the touch display and the web UI, which are always full-featured.
 
 ### Web API
-The device exposes a REST API at `http://<device-ip>/api/`. See [OTA Usage Guide](docs/OTA_USAGE.md) for OTA-specific endpoints.
+The device exposes a REST API at `http://<device-ip>/api/`. The full route table is in the [User Manual](docs/MANUAL.md).
+
+## Testing
+
+```bash
+# Host-side unit tests
+pio test -e native            # validators, CRC, float conversion, time logic
+pio test -e native_history_v5 # V5 history codec (34 tests)
+pio test -e native_cli        # CLI parser
+
+# V5 codec reference checks (Python vs C++, 20k random cases)
+python3 tools/check_history_v5_parity.py --cases 20000
+python3 tools/history_v5.py --selftest --trials 200000
+```
 
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
-| [User Manual](docs/MANUAL.md) | Complete hardware setup, display/web/CLI guide, troubleshooting |
-| [OTA Update Guide](docs/OTA_USAGE.md) | Firmware update over-the-air via web UI or curl |
-| [Recovery Guide](docs/RECOVERY.md) | Brick recovery after failed OTA — BOOTSEL and picotool |
+| [User Manual](docs/MANUAL.md) | Hardware setup, display/web/CLI guide, OTA, API reference, troubleshooting |
+| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Manual completo em português, com telas reais |
+| [Wiring Guide](docs/WIRING.md) | Complete pinout and connection diagrams |
+| [Recovery Guide](docs/RECOVERY.md) | Brick recovery — BOOTSEL, picotool, 1200 bps reset |
+| [CLI Manual](docs/CLI-Manual.md) | Full command reference for the `pico_w_test` console |
 | [Security Policy](SECURITY.md) | Threat model, credential handling, incident response |
 | [Changelog](CHANGELOG.md) | Version history and feature changes |
-
-## Testing
-
-```bash
-# Run unit tests (validators, CRC, float conversion, time logic)
-pio test -e native
-```
 
 ## Contributing
 

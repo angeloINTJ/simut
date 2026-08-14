@@ -1,42 +1,42 @@
 # SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 
-> Sistema Integrado de Monitorización Universal y Telemetría
+> Sistema Integrado de Monitoreo Universal y Telemetría
 
-> Firmware IoT de grado profesional para Raspberry Pi Pico W
+> Firmware IoT de nivel profesional para Raspberry Pi Pico W
 
-[English](README.md) | [Português](README.pt-BR.md) | **Español**
+[English](README.md) | [Português](README.pt-BR.md) | [Español](README.es-ES.md)
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Platform: RP2040](https://img.shields.io/badge/Platform-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
+[![License: MIT](https://img.shields.io/badge/Licencia-MIT-blue.svg)](LICENSE)
+[![Platform: RP2040](https://img.shields.io/badge/Plataforma-RP2040-green.svg)](https://www.raspberrypi.com/products/raspberry-pi-pico/)
 [![Framework: Arduino](https://img.shields.io/badge/Framework-Arduino-teal.svg)](https://arduino-pico.readthedocs.io/)
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
-[![Version](https://img.shields.io/badge/Version-v1.6.3--beta-blue.svg)](https://github.com/angeloINTJ/simut/releases)
+[![Release](https://img.shields.io/github/v/release/angeloINTJ/simut?label=Release&color=blue)](https://github.com/angeloINTJ/simut/releases/latest)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
-[![Contributors](https://img.shields.io/badge/All_Contributors-5-orange.svg)](CONTRIBUTORS.md)
-[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Contributors](https://img.shields.io/badge/Contribuidores-5-orange.svg)](CONTRIBUTORS.md)
+[![Contributions Welcome](https://img.shields.io/badge/Contribuciones-Bienvenidas-brightgreen.svg)](CONTRIBUTING.es-ES.md)
 
 <p align="center">
-  <img src="docs/images/tft-demo.gif" alt="SIMUT TFT Demo" width="320">
+  <img src="docs/images/tft-tour.gif" alt="Tour del TFT de SIMUT — dashboard, gráficos de histórico, calendario y ajustes" width="400">
 </p>
 
-## Resumen
+## Descripción general
 
-SIMUT es un firmware IoT de grado profesional para la **Raspberry Pi Pico W** que proporciona monitoreo en tiempo real de temperatura y humedad a través de una arquitectura de doble núcleo. Cuenta con un panel táctil TFT local, una interfaz web integrada con control de acceso basado en roles (RBAC), subida de telemetría (HTTP/MQTT), una CLI accesible a través de USB y Bluetooth, y un sistema externo de paquetes de idiomas.
+SIMUT es un firmware IoT de nivel profesional para la **Raspberry Pi Pico W** que proporciona monitoreo de temperatura, humedad y presión en tiempo real con arquitectura de doble núcleo. Incluye dashboard local en TFT táctil, interfaz web embebida con control de acceso por roles, histórico binario en el dispositivo con gráficos decimados en el navegador, telemetría (HTTP/MQTT), actualización OTA y CLI por serial USB.
 
 ## ¿Por qué SIMUT?
 
-| Necesidad | DIY Arduino Sketch | ESPHome / Tasmota | **SIMUT** |
+| Necesidad | Sketch Arduino DIY | ESPHome / Tasmota | **SIMUT** |
 |------|:---:|:---:|:---:|
-| Independiente con pantalla | ⚠️ Programación manual | ❌ Sin soporte TFT | ✅ Interfaz táctil integrada |
-| Entornos regulados | ❌ Sin rastro de auditoría | ❌ Sin RBAC de usuario | ✅ Multiusuario, registros de auditoría |
-| Cadena de frío (-80°C a +45°C) | ⚠️ Lecturas básicas | ✅ Monitoreo básico | ✅ Multisensor calibrado |
-| Funcionamiento sin conexión | ✅ Sí | ❌ A menudo dependiente de la nube | ✅ Web local completa + pantalla |
-| Actualizaciones OTA | ❌ Flasheo manual | ✅ OTA | ✅ OTA + copia de seguridad/restauración |
+| Autónomo con pantalla | ⚠️ Programación manual | ❌ Sin soporte TFT | ✅ UI táctil integrada |
+| Entornos regulados | ❌ Sin traza de auditoría | ❌ Sin RBAC de usuarios | ✅ Multiusuario, logs de auditoría |
+| Cadena de frío (−55 °C y sondas bajo cero) | ⚠️ Lecturas básicas | ✅ Monitoreo básico | ✅ Multisensor calibrado |
+| Operación offline | ✅ Sí | ❌ A menudo depende de la nube | ✅ Web local completa + pantalla |
+| Actualización OTA | ❌ Reflasheo manual | ✅ OTA | ✅ OTA + backup/restore |
 | Seguridad | ❌ Ninguna | ⚠️ Básica | ✅ HMAC-SHA256, RBAC, rate limiting |
 
-**SIMUT es para ti si:** necesitas un sistema de monitoreo de temperatura independiente, seguro y auditable que funcione con o sin internet — típico en laboratorios, farmacias, bancos de sangre, almacenamiento de vacunas y cadenas de frío de alimentos.
+**SIMUT es para ti si:** necesitas un sistema de monitoreo de temperatura autónomo, seguro y auditable que funcione con o sin internet — típico de laboratorios, farmacias, bancos de sangre, almacenamiento de vacunas y cadenas de frío alimentarias.
 
-**ESPHome/Tasmota podría ser mejor si:** ya tienes Home Assistant, no necesitas una pantalla local y prefieres la configuración en YAML en lugar de una interfaz web integrada.
+**ESPHome/Tasmota pueden ser mejores si:** ya usas Home Assistant, no necesitas pantalla local y prefieres configuración YAML a una interfaz web integrada.
 
 ## Arquitectura
 
@@ -44,254 +44,241 @@ SIMUT es un firmware IoT de grado profesional para la **Raspberry Pi Pico W** qu
 ┌──────────────────────────────────────────────────────────┐
 │                    Raspberry Pi Pico W                   │
 │  ┌──────────────────────┐  ┌────────────────────────────┐│
-│  │       Núcleo 0       │  │       Núcleo 1             ││
-│  │   (Bucle Principal)  │  │     (Bucle de UI)          ││
+│  │      Core 0          │  │        Core 1              ││
+│  │  (Bucle principal)   │  │  (Bucle de pantalla)       ││
 │  │                      │  │                            ││
-│  │  ◆ AppManager ───────┼──┼─ state/snapshots ──────┐   ││
+│  │  ◆ AppManager ───────┼──┼─ estado/snapshots ─────┐   ││
 │  │  ◆ SensorManager     │  │  ◆ DisplayManager ◄────┘   ││
 │  │  ◆ WebManager        │  │  ◆ TouchPriority           ││
-│  │  ◆ TelemetryManager  │  │  ◆ Themes (50 built-in)    ││
-│  │  ◆ CommandManager    │  │  ◆ i18n (PT/EN/ES)         ││
-│  │  ◆ StorageManager    │  │                            ││
+│  │  ◆ TelemetryManager  │  │  ◆ Renderizador DMA        ││
+│  │  ◆ CommandManager    │  │  ◆ Temas                   ││
+│  │  ◆ StorageManager    │  │  ◆ i18n (packs EN/PT/ES)   ││
 │  │  ◆ NetworkManager    │  │                            ││
 │  └──────────┬───────────┘  └────────────────────────────┘│
 │             │                                            │
 │  ┌──────────┴──────────────────────────────────────────┐ │
-│  │  Interfaces de Hardware                             │ │
-│  │  ◆ SPI → ILI9341 TFT 320×240 + XPT2046 Touch        │ │
-│  │  ◆ 1-Wire (PIO) → DS18B20 (hasta 16)                │ │
-│  │  ◆ Data → DHT22 (hasta 16)                           │ │
-│  │  ◆ I2C → BME280 T+H+P (hasta 8)                      │ │
+│  │  Interfaces de hardware                             │ │
+│  │  ◆ SPI → TFT ILI9341 320×240 + Táctil XPT2046       │ │
+│  │  ◆ GP0–GP15 → 16 slots universales de sensor:       │ │
+│  │      DS18B20 (1-Wire) · DHT22 · BMP280/BME280 (I2C) │ │
 │  │  ◆ USB CDC → CLI Serial                             │ │
-│  │  ◆ Bluetooth (BLE) → CLI Remoto                     │ │
 │  │  ◆ WiFi (CYW43439) → Servidor HTTP + Telemetría     │ │
 │  └─────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────┘
-         │                   │                  │
+         │                   │                   │
     ┌────┴────┐          ┌───┴────┐         ┌────┴───────┐
-    │ Sensores│          │ Web UI │         │ Telemetría │
-    │ DS18B20 │          │Navegador│        │ Servidor   │
-    │   DHT22 │          │ (RBAC) │         │  HTTP/MQTT │
-    └─────────┘          └────────┘         └────────────┘
+    │Sensores │          │ Web UI │         │ Telemetría │
+    │ DS18B20 │          │Navegador│        │ HTTP/MQTT  │
+    │  DHT22  │          │ (RBAC) │         │  Servidor  │
+    │ BMx280  │          └────────┘         └────────────┘
+    └─────────┘
 ```
 
 ## Capturas de pantalla
 
-| Panel TFT | Demo TFT | Interfaz Web | Versión Alpha Temprana |
+| Dashboard TFT | Gráfico de histórico en TFT | Dashboard web | Alpha inicial |
 |:---:|:---:|:---:|:---:|
-| ![TFT](docs/images/tft-dashboard.png) | ![Demo](docs/images/tft-demo.gif) | ![Web](docs/images/web-dashboard.png) | [![Alpha video](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
+| ![Dashboard TFT](docs/images/tft-dashboard.png) | ![Gráfico TFT](docs/images/screens/graph.png) | ![Dashboard web](docs/images/web-dashboard.png) | [![Video del alpha](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
-> 📸 Consulta [docs/images/README.md](docs/images/README.md) para saber cómo hacer capturas de pantalla desde tu dispositivo.
+> 📸 Todas las pantallas del display, capturadas del framebuffer del panel real: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
-> 🎥 El vídeo de la **Versión Alpha Temprana** muestra el primer prototipo TFT + táctil. La interfaz de usuario, los temas, la capacidad de respuesta y el nivel de pulido han evolucionado significativamente desde entonces — mira el GIF de la **Demo TFT** actual para ver la experiencia de hoy.
+> 🎥 El video del **alpha inicial** muestra el primer prototipo TFT + táctil — la interfaz fue rediseñada desde entonces.
 
 ## Hardware
 
 | Componente | Especificación |
 |-----------|---------------|
-| MCU | Raspberry Pi Pico W (RP2040) |
-| Pantalla | ILI9341 320×240 TFT (SPI) |
-| Panel táctil | Pantalla táctil resistiva XPT2046 |
-| Sensores | DS18B20 (1-Wire, hasta 16), DHT22 (hasta 16), BME280 (I2C, hasta 8) — slots configurables |
-| Zumbador | Piezoeléctrico pasivo (impulsado por PIO) |
-| Almacenamiento | 2 MB de memoria flash interna |
+| MCU | Raspberry Pi Pico W (RP2040, doble núcleo) |
+| Pantalla | TFT ILI9341 320×240 (SPI, con DMA) |
+| Táctil | Pantalla táctil resistiva XPT2046 |
+| Sensores | **16 slots universales en GP0–GP15** — cualquier mezcla de DS18B20 (1-Wire), DHT22, BMP280/BME280 (I2C, 2 pines) |
+| Zumbador | Piezo pasivo (por PIO) |
+| Almacenamiento | Flash interna de 2 MB (slot de firmware de 1 MB + LittleFS de 1 MB) |
 
-Consulta la **[Guía de Cableado](docs/WIRING.md)** para ver los diagramas completos de pines y conexiones.
+Consulta la **[Guía de Cableado](docs/WIRING.md)** para el pinout completo y los diagramas de conexión.
 
-## Características Principales
+## Características principales
 
-### Detección y Control
-* **Soporte multisensor** — hasta 16 sensores en slots configurables: DS18B20 (1-Wire), DHT22 (Data), BME280 (I2C, T+H+P)
-* **Flujo de sensores Zero-trust** — verificación de ROM cada 5 lecturas, detección de discrepancias de hardware, histéresis de errores
-* **Alarmas por sensor** — umbrales de temperatura/humedad con melodías en el zumbador y respuesta visual en la pantalla TFT
-* **Interfaz web de calibración** — modo de calibración restringido por `PERM_CALIB`; la entrada de valor de referencia calcula el offset automáticamente
-* **Calibración ambiental mediante picoUID** — `calib.csv` admite ID, nombre y offsets personalizados para el DHT22
+### Sensores
+- **16 slots universales** — GP0–GP15; cada slot acepta DS18B20, DHT22 o BMP280/BME280; tipo y pines asignados en tiempo de ejecución, sin recompilar
+- **Temperatura, humedad y presión** como magnitudes de primera clase, offsets de calibración por sensor y curvas de calibración multipunto
+- **Pipeline de sensores de confianza cero** — verificación de ROM, detección de cambio de hardware, histéresis de error
+- **Alarmas por sensor** — umbrales con melodías en el zumbador y señalización visual en el TFT
 
-### Pantalla e Interfaz de Usuario
-* **Pantalla TFT ILI9341 de 320×240** — panel de control, gráficos en tiempo real, estadísticas, ajustes táctiles (XPT2046)
-* **Programador con prioridad táctil** — la entrada de la interfaz de usuario siempre prevalece sobre las operaciones en segundo plano
-* **50 temas integrados** + hasta 8 temas personalizados cargados desde LittleFS (editor sin conexión en `tools/theme-editor/`)
-* **Diseño dinámico del panel** — basado en ranuras (slots), adaptable a temas
-* **Renderizado atómico de pantalla** — composición fuera de pantalla basada en canvas, sin tearing
-* **Sistema de sonido** — clases Táctil / Confirmación / Error / Alarma / Atención con melodías y volumen configurables
-* **Temas claro y oscuro** para la interfaz web con persistencia en `localStorage`
+### Pantalla y UI
+- **TFT ILI9341 320×240** — dashboard, gráficos de histórico por cubetas con banda mín/máx, estadísticas, calendario, ajustes táctiles
+- **Ruta rápida de renderizado con DMA** — composición en canvas a velocidad de bus, cero tearing
+- **Teclado de contraseña para la yema del dedo** — 8 teclas de grupo + popup; cualquiera de los 91 caracteres en exactamente dos toques
+- **Área segura de 4 px en toda la UI** — el offset de alineación de pantalla (±4 px por eje) nunca recorta contenido
+- **Temas personalizados** cargados desde LittleFS (hasta 8, editor offline en `tools/theme-editor/`); packs de temas disponibles en compilación
+- **Sistema de sonidos** — clases Toque / Confirmación / Error / Alarma / Atención con melodías y volumen configurables
 
 ### Conectividad y Web
-* **Servidor web integrado** — sesiones multiusuario, RBAC (10 bits de permisos), administrador de archivos, panel en vivo
-* **WebUI comprimida con gzip** — páginas integradas minificadas con CSS/JS compartido, almacenables en caché por el navegador
-* **Cambio de contraseña de autoservicio** en la pantalla de inicio de sesión con medidor de seguridad
-* **Telemetría** — HTTP POST y MQTT con JSON / CSV / plantillas personalizadas, soporte TLS/SSL, tamaño de lote adaptativo
-* **Gráfico de historial multisensor** — endpoint que devuelve múltiples series en una sola respuesta; rango configurable
-* **Exportación CSV** — paquete binario `.simx` con magic, versión, tabla de sensores, registros y tráiler CRC32
-* **Exportación en fragmentos con reintento adaptativo** — división ante fallos con recuperación automática
+- **Servidor web embebido** — sesiones multiusuario, RBAC (10 bits de permiso), gestor de archivos, dashboard en vivo con panel de captura de pantalla
+- **WebUI comprimida en gzip** — páginas minificadas inline, cacheables en el navegador, temas claro y oscuro
+- **Gráficos de histórico decimados en el navegador** — la página descarga los archivos binarios diarios crudos y hace el bucketing mín/máx en el cliente; el dispositivo solo sirve bytes
+- **Exportación CSV en el navegador** — decodificada de los mismos archivos crudos por la propia página
+- **Telemetría** — HTTP POST y MQTT con payloads JSON / CSV / plantilla personalizada, soporte TLS, lotes adaptativos
 
-### CLI y Bluetooth
-* **CLI de doble canal** — USB Serial + Bluetooth con sesiones protegidas por contraseña
-* **Nombre de dispositivo BT personalizado** — configurable vía web/CLI
-* **Registro con volcado diferido** durante el inicio de sesión BT para evitar la contención de la flash
-
-### Tiempo y Almacenamiento
-* **Sincronización de hora NTP** — retroceso exponencial, respaldo multiservidor, RTC virtual con corrección automática
-* **Entrada manual de tiempo** a través de la interfaz web cuando no hay NTP disponible
-* **Códec de historial** — codificación delta + sensor-mask + anclaje para almacenamiento binario compacto
-* **LittleFS** — configuración dual-bank con CRC32, archivos de historial, registro compacto rotativo
+### Tiempo y almacenamiento
+- **Sincronización NTP** — backoff exponencial, fallback multiservidor, RTC virtual sembrado del histórico entre reinicios
+- **Histórico binario compacto (V5)** — codificación delta + ancla a ~5,4 bytes/registro ≈ 116 días de registros de 1 minuto en flash
+- **LittleFS** — configuración de doble banco con CRC32, archivos de histórico por día, log compacto rotativo
 
 ### Seguridad
-* **Autenticación reforzada** — HMAC-SHA256 con sal aleatoria por usuario, 5000 iteraciones, hash de 128 bits
-* **Contraseña de administrador aleatoria al restablecer de fábrica** — de 8 caracteres mostrada en TFT, nunca persistida en la flash
-* **Limitador de tasa** — LRU de 16 ranuras con TTL de 15 min, expulsión consciente de bloqueos, retroceso exponencial
-* **Subidas seguras contra salto de directorios** — `..`, codificación por porcentaje, bytes de control y caracteres reservados bloqueados
-* **`SECURITY.md`** con modelo de amenazas, política de rotación y respuesta a incidentes
+- **Autenticación endurecida** — HMAC-SHA256 con salt aleatorio por usuario, 5000 rondas
+- **Contraseña de admin aleatoria en el reset de fábrica** — 8 caracteres mostrados una sola vez en el TFT, nunca persistidos
+- **Rate limiter** — LRU de 16 slots con TTL de 15 min, evicción consciente de lockout, backoff exponencial
+- **Subidas protegidas contra path traversal** — `..`, percent-encoding, bytes de control y caracteres reservados bloqueados
+- **[SECURITY.md](SECURITY.md)** con modelo de amenazas, política de rotación y respuesta a incidentes
 
-### Resiliencia y Análisis Forense
-* **Análisis forense de bloqueos** — perfilador de caja negra con autopsia del registro scratch del watchdog
-* **Ruta de reinicio seguro** — restablecimiento amigable con USB que mantiene el puerto serial accesible
-* **Detección de pánico leve** — monitorización de estado entre núcleos
-* **Disciplina del Watchdog** — se alimenta en cada operación de LittleFS y durante las operaciones de flash
+### Resiliencia y forense
+- **Forense de crash** — caja negra con autopsia de los scratch registers del watchdog en cada arranque
+- **Disciplina de flash de doble núcleo** — Core 1 comprobadamente pausado en cada escritura de flash (medido, no supuesto)
+- **Disciplina de watchdog** — alimentado alrededor de cada operación de LittleFS; clientes HTTP lentos no bloquean el bucle
 
-### Actualizaciones OTA
-* **Actualización de firmware OTA** — subida de nuevo firmware a través de la interfaz web, aplicado en el lugar preservando la configuración
-* **Copia de seguridad y restauración** — copia de seguridad/restauración completa de LittleFS con verificación de integridad CRC32
-* **Preservación de configuración basada en instantáneas** — las configuraciones críticas sobreviven a la aplicación del firmware
+### Actualización OTA
+- **Actualización de firmware OTA** — subida por la web, aplicada in-place con preservación de snapshot de la config (Wi-Fi, usuarios y slots de sensores sobreviven)
+- **Backup y restore** — backup/restore completo de LittleFS con verificación de integridad CRC32
+- **[Guía de recuperación](docs/RECOVERY.md)** — rutas BOOTSEL y picotool para cada modo de fallo
 
 ### Internacionalización
-* **2 idiomas de visualización** — Inglés (integrado) + Portugués/Español mediante paquetes de idiomas externos
-* **Paquetes de idiomas cargables en caliente** desde LittleFS
-* **Respaldo i18n en línea** para claves no persistidas en los archivos de idioma del dispositivo
+- **3 idiomas de interfaz** — inglés integrado; portugués y español mediante packs `.lng` externos cargados desde LittleFS al arrancar
 
-## Requisitos de Hardware
+## Inicio rápido
 
-| Componente | Especificación |
-|-----------|---------------|
-| MCU | Raspberry Pi Pico W (RP2040) |
-| Pantalla | ILI9341 TFT 320×240 (SPI) |
-| Panel táctil | XPT2046 (SPI) |
-| Sensores | DS18B20 (1-Wire) + DHT22 |
-| Almacenamiento | 2 MB flash (1 MB firmware + 1 MB LittleFS) |
-| Zumbador | Piezoeléctrico pasivo (impulsado por PIO) |
+### Requisitos previos
+- [PlatformIO](https://platformio.org/) (Core 6.x o superior)
+- Raspberry Pi Pico W
 
-## Inicio Rápido
-
-### Requisitos Previos
-* [PlatformIO](https://platformio.org/) (Core 6.x o posterior)
-* Raspberry Pi Pico W
-
-### Compilar y Flashear
+### Compilar y flashear
 
 ```bash
-# Clone the repository
-git clone https://github.com/angeloINTJ/SIMUT.git
-cd SIMUT
+# Clonar el repositorio
+git clone https://github.com/angeloINTJ/simut.git
+cd simut
 
-# Build firmware
+# Compilar el firmware
 pio run -e pico_w_release
 
-# Flash to Pico W (hold BOOTSEL, connect USB)
+# Flashear la Pico W (auto-reset por toque de 1200 bps; BOOTSEL también funciona)
 pio run -e pico_w_release -t upload
 
-# Upload LittleFS data (language packs, favicon)
+# SOLO en el primer flasheo: subir los datos de LittleFS (packs de idioma, favicon).
+# ⚠️ uploadfs REFORMATEA la partición LittleFS — en un dispositivo ya en
+# servicio destruye histórico, configuración y calibración. No lo repitas
+# cuando el dispositivo tenga datos; los packs de idioma pueden subirse
+# después desde el gestor de archivos web.
 pio run -e pico_w_release -t uploadfs
 ```
 
-### Primer Arranque
-1. El dispositivo arranca y muestra la pantalla de configuración en la TFT.
-2. Se muestra una contraseña de administrador aleatoria de 8 caracteres en la TFT.
-3. Conéctate al punto de acceso WiFi de SIMUT o conéctate vía USB Serial a 115200 baudios.
-4. Inicia sesión a través de la interfaz web (`http://simut.local` o la IP del dispositivo).
+¿Prefieres no compilar? Cada [release](https://github.com/angeloINTJ/simut/releases/latest) incluye un `simut_vX.Y.Z.uf2` listo (arrastrar y soltar con BOOTSEL presionado), además de bundles de código fuente para PlatformIO y Arduino IDE.
 
-## Estructura del Proyecto
+### Primer arranque
+1. El dispositivo arranca en el dashboard y, en una unidad recién salida de fábrica, muestra una **contraseña de admin aleatoria de 8 caracteres en el TFT** — anótala, no vuelve a aparecer.
+2. Configura el Wi-Fi desde los ajustes de la pantalla táctil, **o** mantén un dedo en la pantalla ~3 s durante el arranque para entrar en modo AP de configuración — el dispositivo anuncia la red **`simut_SETUP`** durante 15 minutos.
+3. Abre la interfaz web en `http://simut.local` (mDNS) o en la IP mostrada en la pantalla, y entra como `admin` con la contraseña del paso 1. Se te pedirá cambiarla.
+4. Añade sensores en **Config → Sensors & GPIO** (o deja que aparezcan con *Scan for probes*).
+
+## Estructura del proyecto
 
 ```
-SIMUT/
-├── src/                    # All source code
-│   ├── main.cpp            # Entry point
-│   ├── AppManager*.cpp/h   # Application state machine
-│   ├── DisplayManager*.cpp/h  # TFT display, touch, themes
-│   ├── WebManager*.cpp/h   # Web server, API, OTA endpoints
-│   ├── StorageManager.cpp/h   # LittleFS, config, history
-│   ├── SensorManager.cpp/h # DS18B20 and DHT22 drivers
-│   ├── NetworkManager.cpp/h   # WiFi, mDNS
-│   ├── TelemetryManager.cpp/h # MQTT and HTTP telemetry
-│   ├── CommandManager.cpp/h   # CLI parser (USB + Bluetooth)
-│   ├── LogManager.cpp/h    # Logging and crash forensics
-│   ├── SystemDefs*.h       # System constants and limits
-│   └── ota/                # OTA update subsystem
-├── data/                   # LittleFS assets
-│   ├── favicon.ico
-│   └── lang/               # Language packs
-├── test/                   # Unit tests (Unity framework)
-├── tools/                  # Build and development tools
-├── docs/                   # Documentation
-├── platformio.ini          # Build configuration
-├── WebUI.h                 # Web UI source (compressed at build time)
-└── LICENSE
+simut/
+├── src/                    # Todo el código del firmware
+│   ├── main.cpp            # Punto de entrada
+│   ├── AppManager*         # Máquina de estados de la aplicación
+│   ├── DisplayManager*     # Pantalla TFT, táctil, temas (Core 1)
+│   ├── WebManager*         # Servidor web, API, endpoints OTA
+│   ├── StorageManager*     # LittleFS, configuración, histórico
+│   ├── SensorManager*      # Drivers DS18B20 / DHT22 / BMx280
+│   ├── NetworkManager*     # WiFi, mDNS, modo AP de configuración
+│   ├── TelemetryManager*   # Telemetría MQTT y HTTP
+│   ├── CommandManager*     # Parser de la CLI
+│   ├── LogManager*         # Logs y forense de crash
+│   ├── history/            # Códec V5 de histórico
+│   └── SystemDefs*.h       # Constantes y límites del sistema
+├── data/                   # Assets de LittleFS (packs de idioma, favicon)
+├── test/                   # Tests unitarios nativos (Unity)
+├── tools/                  # screen_mapper, scripts de release, editor de temas…
+├── docs/                   # Documentación + sitio GitHub Pages
+├── WebUI.h                 # Fuente de la web UI (se convierte en WebUI_GZ.h al compilar)
+└── platformio.ini          # Configuración de build
 ```
 
 ## Compilación
 
 ### Entornos
 
-| Entorno | Descripción |
-|-------------|-------------|
-| `pico_w_release` | Firmware de producción (por defecto) |
-| `pico_w_debug` | Compilación de depuración con registros adicionales |
-| `native` | Pruebas unitarias en el host (Unity) |
+| Entorno | Propósito |
+|-------------|---------|
+| `pico_w_release` | Firmware de producción — **la imagen publicada en los releases** |
+| `pico_w_test` | Mismo firmware + CLI completa de 55 comandos para las suites de banco |
+| `pico_w_asserts` | Release + aserciones de concurrencia |
+| `pico_w_alpha` | Build headless (LCD 16×2, sin TFT) |
+| `native`, `native_history_v4/v5`, `native_cli` | Tests unitarios en el host |
 
-### Opciones de Compilación 
-* `-Os` — optimizar para tamaño (la flash está muy ajustada al ~98.7%)
-* `-Wall -Wextra` — advertencias elevadas
-* `-specs=nano.specs` — newlib-nano para un binario más pequeño
-* LTO está desactivado (limitación del toolchain con earlephilhower Arduino-Pico)
+> `pico_w_debug` existe pero no enlaza — en `-Og` la imagen desborda el slot de 1020 KB. La flash va justa: la imagen release usa ~95 % del slot.
+
+### Flags de compilación
+- `-Os` — optimización por tamaño
+- `-Wall -Wextra` — warnings elevados
+- `-specs=nano.specs` — newlib-nano para un binario más pequeño
+- LTO deshabilitado (limitación del toolchain con Arduino-Pico de earlephilhower)
 
 ## Configuración
 
-### Comandos CLI
-Una interfaz de línea de comandos está disponible a través de USB Serial (115200 baudios) y Bluetooth. Grupos de comandos principales:
+### CLI
+Hay una interfaz de línea de comandos disponible por serial USB (115200 baudios).
 
-* `help` — mostrar los comandos disponibles
-* `conf system` — ver/editar la configuración del sistema
-* `conf sensor` — ver/editar la configuración de los sensores
-* `conf net` — ver/editar la configuración de red
-* `conf user` — administrar cuentas de usuario
-* `write memory` — guardar cambios en la flash
-* `reload` — reiniciar el dispositivo
+- La **imagen release** incluye una consola de emergencia mínima de 9 comandos: `show net status`, `show system info`, `show system log`, `debug on|off`, `system admin reset`, `system format`, `system factory`, `reload`, `help`.
+- La **imagen `pico_w_test`** incluye la CLI completa estilo Cisco (55 comandos, modos `enable` / `configure terminal`) — ver el [Manual de la CLI](docs/CLI-Manual.md) (en portugués).
+
+La configuración del día a día está pensada para hacerse en la pantalla táctil y en la interfaz web, que siempre son completas.
 
 ### API Web
-El dispositivo expone una API REST en `http://<device-ip>/api/`. Consulta la [Guía de Uso de OTA](docs/OTA_USAGE.md) para ver los endpoints específicos de OTA.
+El dispositivo expone una API REST en `http://<ip-del-dispositivo>/api/`. La tabla completa de rutas está en el [Manual de Usuario](docs/MANUAL.md).
+
+## Pruebas
+
+```bash
+# Tests unitarios en el host
+pio test -e native            # validadores, CRC, conversión float, lógica de tiempo
+pio test -e native_history_v5 # códec V5 de histórico (34 tests)
+pio test -e native_cli        # parser de la CLI
+
+# Comprobaciones de referencia del códec V5 (Python vs C++, 20 mil casos aleatorios)
+python3 tools/check_history_v5_parity.py --cases 20000
+python3 tools/history_v5.py --selftest --trials 200000
+```
 
 ## Documentación
 
 | Documento | Descripción |
 |----------|-------------|
-| [Manual del Usuario](docs/MANUAL.md) | Configuración completa de hardware, guía de pantalla/web/CLI, resolución de problemas |
-| [Guía de Actualización OTA](docs/OTA_USAGE.md) | Actualización de firmware de forma inalámbrica vía interfaz web o curl |
-| [Guía de Recuperación](docs/RECOVERY.md) | Recuperación de un brickeo tras un fallo de OTA — BOOTSEL y picotool |
+| [Manual de Usuario (EN)](docs/MANUAL.md) | Montaje, pantalla/web/CLI, OTA, referencia de la API, resolución de problemas |
+| [Manual do Usuário (pt-BR)](docs/MANUAL.pt-BR.html) | Manual completo en portugués, con pantallas reales |
+| [Guía de Cableado](docs/WIRING.md) | Pinout completo y diagramas de conexión |
+| [Guía de Recuperación](docs/RECOVERY.md) | Recuperación de brick — BOOTSEL, picotool, reset 1200 bps |
+| [Manual de la CLI](docs/CLI-Manual.md) | Referencia completa de la consola `pico_w_test` |
 | [Política de Seguridad](SECURITY.md) | Modelo de amenazas, manejo de credenciales, respuesta a incidentes |
-| [Registro de Cambios (Changelog)](CHANGELOG.md) | Historial de versiones y cambios en las funcionalidades |
-
-## Pruebas
-
-```bash
-# Run unit tests (validators, CRC, float conversion, time logic)
-pio test -e native
-```
+| [Changelog](CHANGELOG.md) | Historial de versiones y cambios |
 
 ## Contribuir
 
-¡Las contribuciones son bienvenidas! Por favor, lee [CONTRIBUTING.md](CONTRIBUTING.md) para conocer la configuración del entorno de desarrollo, las convenciones de código y el proceso de pull requests.
+¡Las contribuciones son bienvenidas! Lee [CONTRIBUTING.es-ES.md](CONTRIBUTING.es-ES.md) para el setup de desarrollo, las convenciones de código y el proceso de pull request.
 
-Todos los contribuyentes deben seguir el [Código de Conducta](CODE_OF_CONDUCT.md).
+Todos los contribuidores deben seguir el [Código de Conducta](CODE_OF_CONDUCT.es-ES.md).
 
 ## Soporte
 
-* **Reportes de errores:** [GitHub Issues](https://github.com/angeloINTJ/simut/issues/new?template=bug_report.md)
-* **Peticiones de funciones:** [GitHub Issues](https://github.com/angeloINTJ/simut/issues/new?template=feature_request.md)
-* **Vulnerabilidades de seguridad:** Consulta [SECURITY.md](SECURITY.md) — no abras un issue público
-* **Preguntas:** Abre una discusión o un issue
+- **Reportes de bugs:** [GitHub Issues](https://github.com/angeloINTJ/simut/issues/new?template=bug_report.md)
+- **Solicitudes de funciones:** [GitHub Issues](https://github.com/angeloINTJ/simut/issues/new?template=feature_request.md)
+- **Vulnerabilidades de seguridad:** ver [SECURITY.md](SECURITY.md) — no abras una issue pública
+- **Preguntas:** abre una discusión o una issue
 
-## Contribuyentes ✨
+## Contribuidores ✨
 
-Gracias a estas maravillosas personas:
+Gracias a estas personas maravillosas:
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -311,11 +298,11 @@ Gracias a estas maravillosas personas:
 <!-- prettier-ignore-end -->
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
-Este proyecto sigue la especificación de [all-contributors](https://allcontributors.org).
+Este proyecto sigue la especificación [all-contributors](https://allcontributors.org).
 
-## Impulsado por SIMUT
+## Powered by SIMUT
 
-¿Está tu producto o proyecto utilizando SIMUT? Añade esta insignia a tu README, documentación o página del producto:
+¿Tu producto o proyecto usa SIMUT? Añade esta insignia a tu README, documentación o página de producto:
 
 ```markdown
 [![Powered by SIMUT](docs/images/powered-by-simut.svg)](https://github.com/angeloINTJ/simut)
@@ -323,7 +310,7 @@ Este proyecto sigue la especificación de [all-contributors](https://allcontribu
 
 [![Powered by SIMUT](docs/images/powered-by-simut.svg)](https://github.com/angeloINTJ/simut)
 
-**Versión grande** (para presentaciones, pósters o empaques de productos):
+**Versión grande** (para presentaciones, pósteres o embalaje de producto):
 
 ```markdown
 [![Powered by SIMUT](docs/images/powered-by-simut-large.svg)](https://github.com/angeloINTJ/simut)
@@ -335,6 +322,6 @@ Este proyecto sigue la especificación de [all-contributors](https://allcontribu
 
 ## Licencia
 
-Licencia MIT — consulta el archivo [LICENSE](LICENSE) para más detalles.
+Licencia MIT — ver [LICENSE](LICENSE) para los detalles.
 
 Copyright © 2026 Angelo Moises Alves

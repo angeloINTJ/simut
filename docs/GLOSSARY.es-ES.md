@@ -1,5 +1,7 @@
 # Glosario de Etiquetas — SIMUT
 
+*Las etiquetas de versión como v3.x/v4.x en entradas históricas se refieren al esquema de numeración pre-1.0 del proyecto, conservadas por procedencia; el firmware actual sigue la línea 2.x.*
+
 [English](GLOSSARY.md) | [Português](GLOSSARY.pt-BR.md) | **Español**
 
 > Diccionario de etiquetas inline utilizadas en comentarios del código fuente. Consulta este archivo antes de interpretar cualquier etiqueta como `F-*`, `BUG-*`, `SEC-*`, `Patch X`, `Fase N`, `#N` encontrada en las fuentes.

@@ -1,5 +1,7 @@
 # Tag Glossary — SIMUT
 
+*Version tags like v3.x/v4.x in historical entries refer to the project's pre-1.0 numbering scheme, kept for provenance; current firmware follows the 2.x line.*
+
 **English** | [Português](GLOSSARY.pt-BR.md) | [Español](GLOSSARY.es-ES.md)
 
 > Dictionary of inline tags used in source code comments. Consult this file before interpreting any tag such as `F-*`, `BUG-*`, `SEC-*`, `Patch X`, `Phase N`, `#N` found in the sources.

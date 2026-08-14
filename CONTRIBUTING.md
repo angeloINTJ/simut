@@ -54,7 +54,7 @@ docker compose run test
 | Command | Equivalent PlatformIO command |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native && pio test -e native_history && pio test -e native_cli` |
+| `docker compose run test` | `pio test -e native && pio test -e native_history_v5 && pio test -e native_cli` |
 
 ---
 
@@ -88,6 +88,7 @@ pio run -e pico_w_release -t upload
 
 # Upload LittleFS data (language packs, favicon)
 pio run -e pico_w_release -t uploadfs
+# WARNING: uploadfs REFORMATS the LittleFS partition — it destroys history, config and calibration on a device already in service. First flash only.
 ```
 
 ## Code Conventions
@@ -102,7 +103,7 @@ pio run -e pico_w_release -t uploadfs
 
 ## Flash Budget
 
-Flash is critically tight (~98.7% used). Before adding features, consider:
+Flash is critically tight — ~95 % of the 1020 KB app slot in the release env (the `pico_w_test` env runs ~99 %). Before adding features, consider:
 
 1. Can it be optimized to use less space?
 2. Can it replace something of lower value?
@@ -114,7 +115,7 @@ Flash is critically tight (~98.7% used). Before adding features, consider:
 2. Fork the repository and create a branch (`feature/my-feature`)
 3. Write your code and test on hardware if possible
 4. Ensure `pio run -e pico_w_release` builds with **zero warnings**
-5. Ensure all tests pass: `pio test -e native && pio test -e native_history && pio test -e native_cli`
+5. Ensure all tests pass: `pio test -e native && pio test -e native_history_v5 && pio test -e native_cli`
 6. Update documentation in `docs/` if your change affects user-facing behavior
 7. Submit the PR with a clear description, referencing the issue number
 8. The PR template checklist will guide you through remaining steps
@@ -123,8 +124,8 @@ Flash is critically tight (~98.7% used). Before adding features, consider:
 
 - Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework
 - Three test environments are available:
-  - `pio test -e native` — validators (29 tests: IP validation, CRC8, float encoding, etc.)
-  - `pio test -e native_history` — HistoryCodec roundtrip tests
+  - `pio test -e native` — validators (62 test cases: IP validation, CRC8, float encoding, etc.)
+  - `pio test -e native_history_v5` — HistoryCodec roundtrip tests
   - `pio test -e native_cli` — CLI parser tests (command tokenizing and routing)
 - Add tests for new validation logic, encoding/decoding, parser changes, and security-critical paths
 - Hardware testing is required for display, sensor, WiFi, and OTA changes

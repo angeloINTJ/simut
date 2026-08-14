@@ -8,7 +8,7 @@ frame was read back off the panel through `GET /api/screenshot`.
 | ![dashboard](dashboard.png)<br>`dashboard` | `MODE_DASHBOARD` | `screen dash` | Live readings, two sensor cards and the slot footer |
 | ![auth-keypad](auth-keypad.png)<br>`auth-keypad` | `MODE_AUTH` | `screen dash -> tap(286,215)` | PIN entry guarding the settings menu |
 | ![settings-main](settings-main.png)<br>`settings-main` | `MODE_SETTINGS_MAIN` | `screen set` | Settings menu |
-| —<br>`settings-sounds` | `MODE_SETTINGS_SOUNDS` | `screen set -> tap(105,215) -> tap(105,215) -> tap(250,215)` | Alarm sound settings, third item of the menu |
+| ![settings-sounds](settings-sounds.png)<br>`settings-sounds` | `MODE_SETTINGS_SOUNDS` | `screen set -> tap(105,215) -> tap(105,215) -> tap(250,215)` | Alarm sound settings, third item of the menu |
 | ![settings-themes](settings-themes.png)<br>`settings-themes` | `MODE_SETTINGS_THEMES` | `screen thm` | Theme picker |
 | ![settings-lang](settings-lang.png)<br>`settings-lang` | `MODE_SETTINGS_LANG` | `screen lng` | Interface language |
 | ![settings-password](settings-password.png)<br>`settings-password` | `MODE_SETTINGS_PASSWORD` | `screen pwd` | On-screen keyboard for the display PIN |
@@ -30,6 +30,6 @@ frame was read back off the panel through `GET /api/screenshot`.
 - **`MODE_GRAPH_LOADING`** — transient -- only painted while a 7-day range is being read
 - **`MODE_STATS_VIEW`** — no touch path reaches it -- see the note in screens.md
 
-## Did not capture
-
-- **`settings-sounds`** via `screen set -> tap(105,215) -> tap(105,215) -> tap(250,215)`
+`settings-sounds` needs a longer settle than the default: the screenshot
+endpoint answers 503 for ~5 s after a simulated tap, so the capture is taken
+with a 6.5 s pause after the last navigation tap.
