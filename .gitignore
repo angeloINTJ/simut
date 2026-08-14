@@ -78,3 +78,6 @@ scratchpad/soak_a6.log
 release/simut_tft_v*.zip
 release/simut_alpha_v*.zip
 release/simut_pio_v*.zip
+
+# local bench scratch
+scratchpad/

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Save-storm validation — protocol item #2 of SIMUT-Plano-Estabilidade-Concorrencia.md.
+Save-storm validation — protocol item #2 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md.
 
 Alternates a real `write memory` with simulated touch events to hammer the
 quiet-mode request/release path (T1.1) and the Core-1 no-heap regime (T1.2).

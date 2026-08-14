@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Sensor soak — protocol item #4 of SIMUT-Plano-Estabilidade-Concorrencia.md.
+Sensor soak — protocol item #4 of docs/analysis/SIMUT-Plano-Estabilidade-Concorrencia.md.
 
 Watches the triple sensor read (DS18B20 + DHT22 + BMP280) over a long run and
 fails the validation if the BMP280 ever silently drops to PIO/GPIO bit-bang,

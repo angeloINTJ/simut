@@ -1,3 +1,5 @@
+**⚠️ Este documento descreve o formato de histórico V4 (.sim4), aposentado — desde a 2.1.x o único gravador é o V5. Superado por [ANALISE_PIPELINE_SENSORES.md](ANALISE_PIPELINE_SENSORES.md) (caminho de escrita) e docs/HistoryV5_*.md (formato).**
+
 # Análise Completa do Sistema de Armazenamento de Histórico
 
 **Data:** 2026-07-21
