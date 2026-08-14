@@ -784,16 +784,14 @@ private:
 
 	void drawSettingsPassword( );
 	void drawPasswordMessage( );
-	int _kbLayer = 0;
-	bool _kbShiftLock = false;
 	char _kbBuffer[9];
 	char _kbConfirmBuf[9];
 	int _kbCursor = 0;
 	bool _kbShowRaw = false;
 	int _kbPhase = 0;
 	LangKey _kbMsgKey = TR_KEYS_COUNT;
-	int _kbSelRow = 0; /**< Selected row in the key grid (0..2) */
-	int _kbSelCol = 0; /**< Selected column in the key grid (0..9) */
+	int8_t _kbPopup = 0; /**< PwdKb popup id: 0 none, 1..8 letter group,
+	                      *   9 digits, 10 symbols. */
 
 	SystemConfig* _sysConfigPtr = nullptr;
 	int _alarmPage = 0;

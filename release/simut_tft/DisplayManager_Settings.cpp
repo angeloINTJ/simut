@@ -18,6 +18,7 @@
 #include "LogManager.h"
 #include "StorageManager.h" /* getBoardSerialNumber in System Status */
 #include "UiWidgets.h"
+#include "PasswordKeyboard.h"
 
 void DisplayManager::showSettingsThemes(int currentThemeIdx) {
  mutex_enter_blocking(&_stateMutex);
@@ -393,14 +394,11 @@ void DisplayManager::drawSettingsMain( ) {
 void DisplayManager::showSettingsPassword( ) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_PASSWORD;
- _kbLayer = 0;
- _kbShiftLock = false;
  _kbCursor = 0;
  _kbShowRaw = false;
  _kbPhase = 0;
  _kbMsgKey = TR_KEYS_COUNT;
- _kbSelRow = 0;
- _kbSelCol = 0;
+ _kbPopup = PwdKb::POPUP_NONE;
  memset(_kbBuffer, 0, sizeof(_kbBuffer));
  memset(_kbConfirmBuf, 0, sizeof(_kbConfirmBuf));
  _forceSettingsRedraw = true;
@@ -457,353 +455,224 @@ void DisplayManager::drawPasswordMessage( ) {
  _driver.tft->print(btnLabel);
 }
 
+/* ---- password keyboard (option A): local draw helpers ---------------- */
+
+/* Centered one-line label — canvas variant of uiCenteredText (which is
+ * private to UiWidgets.cpp). Sets font/color itself. */
+static void kbCenteredLabel(GFXcanvas16* cv, int16_t x, int16_t y, int16_t w,
+ int16_t h, const char* label, const GFXfont* font, uint16_t color) {
+ cv->setFont(font); cv->setTextSize(1); cv->setTextColor(color);
+ int16_t bx, by; uint16_t bw, bh;
+ cv->getTextBounds(label, 0, 0, &bx, &by, &bw, &bh);
+ cv->setCursor(x + (w - (int16_t)bw) / 2 - bx, y + (h - (int16_t)bh) / 2 - by);
+ cv->print(label);
+}
+
+/* Backspace glyph (triangle + body) centered at (cx, cy) — the action-bar
+ * icon of the old keyboard, scaled to the 54 px keys. */
+static void kbBackspaceIcon(GFXcanvas16* cv, int16_t cx, int16_t cy,
+ uint16_t fg) {
+ cv->fillTriangle(cx - 12, cy, cx - 3, cy - 8, cx - 3, cy + 8, fg);
+ cv->fillRect(cx - 3, cy - 5, 14, 10, fg);
+}
+
+/* Popup card: 2 px background ring for separation + accent double border. */
+static void kbPopupCard(GFXcanvas16* cv, int16_t x, int16_t y, int16_t w,
+ int16_t h) {
+ cv->fillRoundRect(x - 2, y - 2, w + 4, h + 4, 12, C_BG_MAIN);
+ cv->fillRoundRect(x, y, w, h, 10, C_CARD_BG);
+ cv->drawRoundRect(x, y, w, h, 10, C_ACCENT);
+ cv->drawRoundRect(x + 1, y + 1, w - 2, h - 2, 9, C_ACCENT);
+}
+
+/* One popup key: bar-bg capsule + centered character. */
+static void kbPopupKey(GFXcanvas16* cv, int16_t x, int16_t y, int16_t w,
+ int16_t h, int16_t r, char c, const GFXfont* font, uint16_t color) {
+ cv->fillRoundRect(x, y, w, h, r, C_BAR_BG);
+ cv->drawRoundRect(x, y, w, h, r, C_TEXT_SUB);
+ char s[2] = { c, '\0' };
+ kbCenteredLabel(cv, x, y, w, h, s, font, color);
+}
+
+/* The open popup, drawn over the grid. Letter popups show the lower-case
+ * row above the UPPER-case row (accent-high) — no Shift key anywhere. */
+static void kbDrawPopup(GFXcanvas16* cv, int8_t popup, int16_t yOff) {
+ using namespace PwdKb;
+
+ if (popup == POPUP_SYMBOLS) {
+ kbPopupCard(cv, SP_CARD_X, (int16_t)(SP_CARD_Y + yOff), SP_CARD_W,
+ SP_CARD_H);
+ for (int r = 0; r < 4; r++)
+ for (int c = 0; c < 7; c++)
+ kbPopupKey(cv, (int16_t)(SP_X0 + c * SP_COL_W),
+ (int16_t)(SP_Y0 + r * SP_ROW_H + yOff),
+ SP_KEY_W, SP_KEY_H, 6, SYMBOLS[r * 7 + c],
+ &simutFont9pt, C_TEXT_MAIN);
+ return;
+ }
+
+ if (popup == POPUP_DIGITS) {
+ kbPopupCard(cv, DP_CARD_X, (int16_t)(LP_CARD_Y + yOff), DP_CARD_W,
+ LP_CARD_H);
+ for (int i = 0; i < 10; i++)
+ kbPopupKey(cv, (int16_t)(DP_X0 + (i % 5) * (DP_KEY_W + DP_GAP)),
+ (int16_t)(((i < 5) ? LP_ROW0_Y : LP_ROW1_Y) + yOff),
+ DP_KEY_W, DP_KEY_H, 8, DIGITS[i], &simutFont12pt,
+ C_TEXT_MAIN);
+ return;
+ }
+
+ const int n = letterCount(popup);
+ const int16_t x0 = lpX0(n);
+ kbPopupCard(cv, (int16_t)(x0 - LP_CARD_PAD), (int16_t)(LP_CARD_Y + yOff),
+ (int16_t)(lpTotalW(n) + 2 * LP_CARD_PAD), LP_CARD_H);
+ for (int i = 0; i < 2 * n; i++) {
+ const bool upperRow = (i >= n);
+ kbPopupKey(cv, (int16_t)(x0 + (i % n) * (LP_KEY_W + LP_GAP)),
+ (int16_t)((upperRow ? LP_ROW1_Y : LP_ROW0_Y) + yOff),
+ LP_KEY_W, LP_KEY_H, 8, popupChar(popup, i), &simutFont12pt,
+ upperRow ? C_ACCENT_HIGH : C_TEXT_MAIN);
+ }
+}
+
+/**
+ * @brief Password-change keyboard, option A: group grid + zoom popups.
+ *
+ * Every character costs two taps on finger-sized targets (grid keys
+ * 76x54 px): tap a group, then tap the character in a popup that offers
+ * both cases at once. 123 and @#! open digit/symbol popups the same way;
+ * space and backspace act directly. Full screen is composed through the
+ * 6-strip renderer — no partial-blit paths, every repaint is one pass.
+ */
 void DisplayManager::drawSettingsPassword( ) {
  if (!_driver.tft) return;
 
-
+ /* Result screens (error/success) keep the message layout. */
  if (_kbPhase >= 2) {
  drawPasswordMessage( );
  _forceSettingsRedraw = false;
  return;
  }
 
+ using namespace PwdKb;
 
- static const char layer0[3][10] = {
- {'q','w','e','r','t','y','u','i','o','p'},
- {'a','s','d','f','g','h','j','k','l','.'},
- {'z','x','c','v','b','n','m',',','!','?'}
- };
- static const char layer1[3][10] = {
- {'Q','W','E','R','T','Y','U','I','O','P'},
- {'A','S','D','F','G','H','J','K','L',':'},
- {'Z','X','C','V','B','N','M',';','"','\''}
- };
- static const char layer2[3][10] = {
- {'1','2','3','4','5','6','7','8','9','0'},
- {'@','#','$','%','&','*','-','+','=','~'},
- {'(',')','[',']','{','}','/','\\','^','_'}
- };
-
-
- const char (*activeLayer)[10] = (_kbLayer == 2) ? layer2
- : (_kbLayer == 1) ? layer1
- : layer0;
-
-
- char* activeBuf = (_kbPhase == 0) ? _kbBuffer : _kbConfirmBuf;
-
- bool fullRedraw = _forceSettingsRedraw;
-
-
- if (fullRedraw) {
- fastClearScreen(C_BG_MAIN);
- }
-
- /* Title — always redraw via canvas (changes between phases) */
- {
- _driver.canvas->fillScreen(C_BG_MAIN);
- uiTitleBar(_driver.canvas, 0, (_kbPhase == 0) ? tr(TR_NEW_PASSWORD)
- : tr(TR_CONFIRM_PASSWORD),
- -1, 0, 26);
-
- /* X button overlaid on bar — the standard 32x24 close, vertically
- * centered in the 26 px bar (canvas y=1 -> screen y=5..29; the touch
- * zone x>280, y<28 covers it). */
- uiCloseX(_driver.canvas, 284, 1, 32, 24);
-
- /* Blit with dstY=4 pushes the header 4 px down on screen — avoids
- * top clipping at offset -4V. h goes to 30 to match the
- * vertical extent of content (title + X button up to y=26). */
- blitCanvas(_driver.canvas, 0, 4, 320, 30);
- }
-
-
- {
- const int MAX_BOXES = 7;
- const int MIN_BOXES = 4;
- const int boxW = 32, boxH = 28, gap = 6;
- const int startY = 33;
- const int stripH = boxH + 10;
+ const char* activeBuf = (_kbPhase == 0) ? _kbBuffer : _kbConfirmBuf;
+ const String title = (_kbPhase == 0) ? tr(TR_NEW_PASSWORD)
+ : tr(TR_CONFIRM_PASSWORD);
 
  /*
- * Number of visible boxes: in phase 0 (typing), shows the max
- * between MIN_BOXES and (cursor + 1), up to MAX_BOXES.
- * In phase 1 (confirmation), shows exactly the password length
- * already set in _kbBuffer.
+ * Number of visible boxes: in phase 0 (typing), the max between 4 and
+ * (cursor + 1), up to 7. In phase 1 (confirmation), exactly the length
+ * of the password being confirmed — same rule as the old keyboard.
  */
  int visibleBoxes;
  if (_kbPhase == 1) {
  visibleBoxes = (int)strlen(_kbBuffer);
  } else {
  visibleBoxes = _kbCursor + 1;
- if (visibleBoxes < MIN_BOXES) visibleBoxes = MIN_BOXES;
- if (visibleBoxes > MAX_BOXES) visibleBoxes = MAX_BOXES;
+ if (visibleBoxes < 4) visibleBoxes = 4;
+ if (visibleBoxes > 7) visibleBoxes = 7;
  }
 
- int totalW = visibleBoxes * boxW + (visibleBoxes - 1) * gap;
- int startX = (320 - totalW) / 2;
+ GFXcanvas16* cv = beginScreenRender( );
+ if (!cv) return;
 
- /* Draw boxes + counter in canvas to avoid flicker */
- _driver.canvas->fillScreen(C_BG_MAIN);
+ for (int strip = 0; strip < 6; strip++) {
+ cv->fillScreen(C_BG_MAIN);
+ const int16_t yOff = (int16_t)(-strip * RENDER_STRIP_H);
 
+ uiTitleBar(cv, (int16_t)(4 + yOff), title.c_str( ), -1, 0, 26);
+ uiCloseX(cv, 284, (int16_t)(5 + yOff), 32, 24);
+
+ /* Password boxes + counter + OK beside them */
  for (int i = 0; i < visibleBoxes; i++) {
- int bx = startX + i * (boxW + gap);
- bool filled = (i < _kbCursor);
- bool isRequired = (i < MIN_BOXES);
+ const int16_t bx = (int16_t)(BOX_X0 + i * (BOX_W + BOX_GAP));
+ const int16_t by = (int16_t)(BOX_Y + yOff);
 
- /* Rounded box */
- _driver.canvas->fillRoundRect(bx, 0, boxW, boxH, 4, C_CARD_BG);
+ cv->fillRoundRect(bx, by, BOX_W, BOX_H, 4, C_CARD_BG);
+ uint16_t borderColor = (i < 4) ? C_ACCENT_HIGH : C_TEXT_OFF;
+ if (i == _kbCursor) borderColor = C_ACCENT;
+ cv->drawRoundRect(bx, by, BOX_W, BOX_H, 4, borderColor);
 
- /* Border with conditional color */
- uint16_t borderColor = isRequired ? C_ACCENT_HIGH : C_TEXT_OFF;
- if (i == _kbCursor && _kbCursor < visibleBoxes) borderColor = C_ACCENT;
- _driver.canvas->drawRoundRect(bx, 0, boxW, boxH, 4, borderColor);
-
- if (filled) {
+ if (i < _kbCursor) {
  if (_kbShowRaw) {
- /* Show real character */
- _driver.canvas->setFont(&simutFont9pt);
- _driver.canvas->setTextColor(C_TEXT_MAIN);
  char ch[2] = { activeBuf[i], '\0' };
- int16_t cx1, cy1; uint16_t cw, ch1;
- _driver.canvas->getTextBounds(ch, 0, 0, &cx1, &cy1, &cw, &ch1);
- _driver.canvas->setCursor(bx + (boxW - cw) / 2, 20);
- _driver.canvas->print(ch);
+ kbCenteredLabel(cv, bx, by, BOX_W, BOX_H, ch, &simutFont9pt,
+ C_TEXT_MAIN);
  } else {
- /* Show masked dot */
- _driver.canvas->fillCircle(bx + boxW / 2, boxH / 2, 5, C_TEXT_MAIN);
+ cv->fillCircle(bx + BOX_W / 2, by + BOX_H / 2, 5, C_TEXT_MAIN);
  }
  }
  }
 
- /* Counter below boxes */
+ {
  char countBuf[8];
- snprintf(countBuf, sizeof(countBuf), "%d / %d", _kbCursor, visibleBoxes);
- uint16_t countColor = (_kbCursor < MIN_BOXES) ? C_TEXT_OFF : C_ACCENT;
- _driver.canvas->setFont(NULL); _driver.canvas->setTextSize(1);
- _driver.canvas->setTextColor(countColor);
- int16_t cx1, cy1; uint16_t cw, ch1;
- _driver.canvas->getTextBounds(countBuf, 0, 0, &cx1, &cy1, &cw, &ch1);
- _driver.canvas->setCursor((320 - cw) / 2, boxH + 3);
- _driver.canvas->print(countBuf);
-
- /* Single blit — no flicker */
- blitCanvas(_driver.canvas, 0, startY, 320, stripH);
+ snprintf(countBuf, sizeof(countBuf), "%d/%d", _kbCursor, visibleBoxes);
+ cv->setFont(NULL); cv->setTextSize(1);
+ cv->setTextColor((_kbCursor < 4) ? C_TEXT_OFF : C_ACCENT);
+ cv->setCursor(BOX_X0 + visibleBoxes * (BOX_W + BOX_GAP) + 4,
+ BOX_Y + 10 + yOff);
+ cv->print(countBuf);
  }
 
+ uiButton(cv, OK_X, (int16_t)(OK_Y + yOff), OK_W, OK_H, "OK",
+ UI_BTN_PRIMARY);
 
+ /* Group grid, rows 0-1: the 8 letter groups */
+ for (int k = 0; k < 8; k++) {
+ const int16_t kx = (int16_t)(GRID_X0 + (k % 4) * GRID_COL_W);
+ const int16_t ky = (int16_t)(GRID_Y0 + (k / 4) * GRID_ROW_H + yOff);
+ const bool active = (_kbPopup == POPUP_GROUP0 + k);
+
+ cv->fillRoundRect(kx, ky, GRID_KEY_W, GRID_KEY_H, 10,
+ active ? C_ACCENT : C_CARD_BG);
+ if (!active)
+ cv->drawRoundRect(kx, ky, GRID_KEY_W, GRID_KEY_H, 10, C_TEXT_SUB);
+ kbCenteredLabel(cv, kx, ky, GRID_KEY_W, GRID_KEY_H, GROUPS[k],
+ &simutFont12pt, active ? C_BG_MAIN : C_TEXT_MAIN);
+ }
+
+ /* Row 2: 123 / @#! / space / backspace */
  {
- const int keyW = 30, keyH = 30, gap = 2;
- const int startX = 1, startY = 72;
+ const int16_t ry = (int16_t)(GRID_Y0 + 2 * GRID_ROW_H + yOff);
 
- /* Draw one row of keys at a time via canvas to avoid flicker */
- for (int row = 0; row < 3; row++) {
- int ky = startY + row * (keyH + gap);
+ const bool digitsActive = (_kbPopup == POPUP_DIGITS);
+ cv->fillRoundRect(GRID_X0, ry, GRID_KEY_W, GRID_KEY_H, 10,
+ digitsActive ? C_ACCENT : C_BAR_BG);
+ cv->drawRoundRect(GRID_X0, ry, GRID_KEY_W, GRID_KEY_H, 10,
+ digitsActive ? C_ACCENT : C_TEXT_SUB);
+ kbCenteredLabel(cv, GRID_X0, ry, GRID_KEY_W, GRID_KEY_H, "123",
+ &simutFont12pt, digitsActive ? C_BG_MAIN : C_ACCENT_HIGH);
 
- /* Fill canvas with screen background */
- _driver.canvas->fillScreen(C_BG_MAIN);
+ const bool symActive = (_kbPopup == POPUP_SYMBOLS);
+ const int16_t sx = (int16_t)(GRID_X0 + GRID_COL_W);
+ cv->fillRoundRect(sx, ry, GRID_KEY_W, GRID_KEY_H, 10,
+ symActive ? C_ACCENT : C_BAR_BG);
+ cv->drawRoundRect(sx, ry, GRID_KEY_W, GRID_KEY_H, 10,
+ symActive ? C_ACCENT : C_TEXT_SUB);
+ kbCenteredLabel(cv, sx, ry, GRID_KEY_W, GRID_KEY_H, "@#!",
+ &simutFont12pt, symActive ? C_BG_MAIN : C_ACCENT_HIGH);
 
- for (int col = 0; col < 10; col++) {
- int kx = startX + col * (keyW + gap);
- char ch = activeLayer[row][col];
- bool selected = (row == _kbSelRow && col == _kbSelCol);
+ const int16_t spx = (int16_t)(GRID_X0 + 2 * GRID_COL_W);
+ cv->fillRoundRect(spx, ry, GRID_KEY_W, GRID_KEY_H, 10, C_CARD_BG);
+ cv->drawRoundRect(spx, ry, GRID_KEY_W, GRID_KEY_H, 10, C_TEXT_SUB);
+ /* 2 px space bar line — 1 px reads thinner than everything else. */
+ cv->drawFastHLine(spx + 18, ry + GRID_KEY_H / 2 + 2, 40, C_TEXT_SUB);
+ cv->drawFastHLine(spx + 18, ry + GRID_KEY_H / 2 + 3, 40, C_TEXT_SUB);
 
- /* Key with rounded corners — highlight if selected */
- uint16_t keyBg = selected ? C_ACCENT : C_CARD_BG;
- uint16_t keyFg = selected ? C_BG_MAIN : C_TEXT_MAIN;
- uint16_t hintFg = selected ? C_BG_MAIN : C_TEXT_OFF;
-
- _driver.canvas->fillRoundRect(kx, 0, keyW, keyH, 4, keyBg);
- if (!selected) _driver.canvas->drawRoundRect(kx, 0, keyW, keyH, 4, C_TEXT_SUB);
-
- /* Main character centered */
- _driver.canvas->setFont(&simutFont9pt);
- _driver.canvas->setTextColor(keyFg);
- char label[2] = {ch, '\0'};
- int16_t lx1, ly1; uint16_t lw, lh;
- _driver.canvas->getTextBounds(label, 0, 0, &lx1, &ly1, &lw, &lh);
- _driver.canvas->setCursor(kx + (keyW - lw) / 2 - lx1, (keyH - lh) / 2 - ly1);
- _driver.canvas->print(label);
-
- /* Alternate layer hint — upper right corner, inside the key */
- char hint = '\0';
- if (_kbLayer == 0) hint = layer2[row][col];
- else if (_kbLayer == 1) hint = layer2[row][col];
- else hint = layer0[row][col];
- _driver.canvas->setFont(NULL); _driver.canvas->setTextSize(1);
- _driver.canvas->setTextColor(hintFg);
- char hintStr[2] = {hint, '\0'};
- int16_t hx1, hy1; uint16_t hw, hh;
- _driver.canvas->getTextBounds(hintStr, 0, 0, &hx1, &hy1, &hw, &hh);
- _driver.canvas->setCursor(kx + keyW - (int)hw - 4, 3);
- _driver.canvas->print(hintStr);
+ const int16_t bkx = (int16_t)(GRID_X0 + 3 * GRID_COL_W);
+ cv->fillRoundRect(bkx, ry, GRID_KEY_W, GRID_KEY_H, 10, C_CARD_BG);
+ cv->drawRoundRect(bkx, ry, GRID_KEY_W, GRID_KEY_H, 10, C_TEXT_SUB);
+ kbBackspaceIcon(cv, (int16_t)(bkx + GRID_KEY_W / 2),
+ (int16_t)(ry + GRID_KEY_H / 2), C_TEXT_MAIN);
  }
 
- /* Blit the entire row at once — no flicker */
- blitCanvas(_driver.canvas, 0, ky, 320, keyH);
+ /* Popup last — on top of everything below the title. */
+ if (_kbPopup != POPUP_NONE) kbDrawPopup(cv, _kbPopup, yOff);
+
+ commitScreenStrip(strip);
  }
- }
-
-
- {
- /*
- * Action bar: Shift, 123, Space, Backspace, OK.
- * Same total width as the key rows (x=1..319).
- * Shift=48, 123=48, Space=118, Backspace=48, OK=48, gap=2.
- */
- const int barY = 170, barH = 22;
- const int bx0 = 1; /* Shift */
- const int bx1 = 51; /* 123 */
- const int bx2 = 101; /* Space */
- const int bx3 = 221; /* Backspace */
- const int bx4 = 271; /* OK */
- const int bw01 = 48; /* Shift and 123 */
- const int bw2 = 118; /* Space */
- const int bw34 = 48; /* Backspace and OK */
- bool barActive = (_kbSelRow == 3);
-
- _driver.canvas->fillScreen(C_BG_MAIN);
-
- /* Shift button (col 0) */
- {
- bool layerActive = (_kbLayer == 1) || _kbShiftLock;
- bool sel = barActive && (_kbSelCol == 0);
- uint16_t bg = sel ? C_ACCENT_HIGH : (layerActive ? C_ACCENT : C_CARD_BG);
- uint16_t fg = (sel || layerActive) ? C_BG_MAIN : C_TEXT_MAIN;
- _driver.canvas->fillRoundRect(bx0, 0, bw01, barH, 4, bg);
- if (!sel && !layerActive) _driver.canvas->drawRoundRect(bx0, 0, bw01, barH, 4, C_TEXT_SUB);
- if (sel) _driver.canvas->drawRoundRect(bx0, 0, bw01, barH, 4, C_ACCENT);
- int cx = bx0 + bw01 / 2, cy = 5;
- _driver.canvas->fillTriangle(cx - 5, cy + 5, cx, cy, cx + 5, cy + 5, fg);
- _driver.canvas->fillRect(cx - 2, cy + 5, 4, 6, fg);
- if (_kbShiftLock) {
- _driver.canvas->drawFastHLine(bx0 + 10, barH - 3, 28, fg);
- }
- }
-
- /* 123 button (col 1) — UI font, not the thin 6px classic face */
- {
- bool layerActive = (_kbLayer == 2);
- bool sel = barActive && (_kbSelCol == 1);
- uint16_t bg = sel ? C_ACCENT_HIGH : (layerActive ? C_ACCENT : C_CARD_BG);
- uint16_t fg = (sel || layerActive) ? C_BG_MAIN : C_TEXT_MAIN;
- _driver.canvas->fillRoundRect(bx1, 0, bw01, barH, 4, bg);
- if (!sel && !layerActive) _driver.canvas->drawRoundRect(bx1, 0, bw01, barH, 4, C_TEXT_SUB);
- if (sel) _driver.canvas->drawRoundRect(bx1, 0, bw01, barH, 4, C_ACCENT);
- _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextSize(1);
- _driver.canvas->setTextColor(fg);
- int16_t tx1, ty1; uint16_t tw, th;
- _driver.canvas->getTextBounds("123", 0, 0, &tx1, &ty1, &tw, &th);
- _driver.canvas->setCursor(bx1 + (bw01 - (int)tw) / 2 - tx1,
- (barH - (int)th) / 2 - ty1);
- _driver.canvas->print("123");
- }
-
- /* Space bar (col 2) */
- {
- bool sel = barActive && (_kbSelCol == 2);
- uint16_t bg = sel ? C_ACCENT_HIGH : C_CARD_BG;
- _driver.canvas->fillRoundRect(bx2, 0, bw2, barH, 4, bg);
- if (sel) _driver.canvas->drawRoundRect(bx2, 0, bw2, barH, 4, C_ACCENT);
- else _driver.canvas->drawRoundRect(bx2, 0, bw2, barH, 4, C_TEXT_SUB);
- uint16_t lineCol = sel ? C_BG_MAIN : C_TEXT_OFF;
- int lineX = bx2 + 20;
- int lineW = bw2 - 40;
- /* 2 px — the 1 px line read as thinner than everything around it. */
- _driver.canvas->drawFastHLine(lineX, 13, lineW, lineCol);
- _driver.canvas->drawFastHLine(lineX, 14, lineW, lineCol);
- }
-
- /* Backspace button (col 3) */
- {
- bool sel = barActive && (_kbSelCol == 3);
- uint16_t bg = sel ? C_ACCENT_HIGH : C_CARD_BG;
- uint16_t fg = sel ? C_BG_MAIN : C_TEXT_MAIN;
- _driver.canvas->fillRoundRect(bx3, 0, bw34, barH, 4, bg);
- if (sel) _driver.canvas->drawRoundRect(bx3, 0, bw34, barH, 4, C_ACCENT);
- else _driver.canvas->drawRoundRect(bx3, 0, bw34, barH, 4, C_TEXT_SUB);
- int cx = bx3 + bw34 / 2, cy = barH / 2;
- _driver.canvas->fillTriangle(cx - 8, cy, cx - 2, cy - 5, cx - 2, cy + 5, fg);
- _driver.canvas->fillRect(cx - 2, cy - 3, 10, 6, fg);
- }
-
- /* OK button (col 4) — UI font, like every other primary action */
- {
- bool sel = barActive && (_kbSelCol == 4);
- uint16_t bg = sel ? C_ACCENT_HIGH : C_ACCENT;
- uint16_t fg = C_BG_MAIN;
- _driver.canvas->fillRoundRect(bx4, 0, bw34, barH, 4, bg);
- if (sel) _driver.canvas->drawRoundRect(bx4, 0, bw34, barH, 4, C_BG_MAIN);
- _driver.canvas->setFont(&simutFont9pt); _driver.canvas->setTextSize(1);
- _driver.canvas->setTextColor(fg);
- int16_t tx1, ty1; uint16_t tw, th;
- _driver.canvas->getTextBounds("OK", 0, 0, &tx1, &ty1, &tw, &th);
- _driver.canvas->setCursor(bx4 + (bw34 - (int)tw) / 2 - tx1,
- (barH - (int)th) / 2 - ty1);
- _driver.canvas->print("OK");
- }
-
- blitCanvas(_driver.canvas, 0, barY, 320, barH);
- }
-
-
- {
- /*
- * 5 navigation buttons in dashboard style (58x40, radius 12).
- * ▲ ▼ ◄ ► ✓(confirm character)
- * Positioned at the bottom of the screen (Y=195).
- */
- const int btnW = 58, btnH = 40, gap = 5, startX = 5;
- const int navY = 195;
-
- _driver.canvas->fillScreen(C_BG_MAIN);
-
- /* ◄ button (left) */
- {
- _driver.canvas->fillRoundRect(startX, 0, btnW, btnH, 12, C_CARD_BG);
- int cx = startX + btnW / 2, cy = btnH / 2;
- _driver.canvas->fillTriangle(cx + 6, cy - 8, cx + 6, cy + 8, cx - 8, cy, C_TEXT_MAIN);
- }
-
- /* ► button (right) */
- {
- int bx = startX + (btnW + gap);
- _driver.canvas->fillRoundRect(bx, 0, btnW, btnH, 12, C_CARD_BG);
- int cx = bx + btnW / 2, cy = btnH / 2;
- _driver.canvas->fillTriangle(cx - 6, cy - 8, cx - 6, cy + 8, cx + 8, cy, C_TEXT_MAIN);
- }
-
- /* ▲ button (up) */
- {
- int bx = startX + 2 * (btnW + gap);
- _driver.canvas->fillRoundRect(bx, 0, btnW, btnH, 12, C_CARD_BG);
- int cx = bx + btnW / 2, cy = btnH / 2;
- _driver.canvas->fillTriangle(cx - 8, cy + 6, cx + 8, cy + 6, cx, cy - 8, C_TEXT_MAIN);
- }
-
- /* ▼ button (down) */
- {
- int bx = startX + 3 * (btnW + gap);
- _driver.canvas->fillRoundRect(bx, 0, btnW, btnH, 12, C_CARD_BG);
- int cx = bx + btnW / 2, cy = btnH / 2;
- _driver.canvas->fillTriangle(cx - 8, cy - 6, cx + 8, cy - 6, cx, cy + 8, C_TEXT_MAIN);
- }
-
- /* ✓ button (confirm selected character) */
- {
- int bx = startX + 4 * (btnW + gap);
- _driver.canvas->fillRoundRect(bx, 0, btnW, btnH, 12, C_ACCENT);
- int cx = bx + btnW / 2, cy = btnH / 2;
- /* Check icon, 4 px stroke — the 2 px version read thinner than the
- * bold arrows beside it. */
- for (int i = 0; i < 4; i++) {
- _driver.canvas->drawLine(cx - 8 + i, cy, cx - 3 + i, cy + 6, C_BG_MAIN);
- _driver.canvas->drawLine(cx - 3 + i, cy + 6, cx + 8 + i, cy - 6, C_BG_MAIN);
- }
- }
-
- blitCanvas(_driver.canvas, 0, navY, 320, btnH);
- }
+ endScreenRender( );
 
  _forceSettingsRedraw = false;
 }
