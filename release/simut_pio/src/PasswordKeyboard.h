@@ -41,10 +41,14 @@ enum : int8_t {
 constexpr int16_t BOX_X0 = 6, BOX_Y = 33, BOX_W = 26, BOX_H = 28, BOX_GAP = 4;
 constexpr int16_t OK_X = 240, OK_Y = 33, OK_W = 74, OK_H = 28;
 
-/* Main grid: 4 cols x 3 rows of 76x54 finger keys (~13.7 x 9.7 mm).
- * Row 0-1 = letter groups; row 2 = 123 / @#! / space / backspace. */
-constexpr int16_t GRID_X0 = 2, GRID_COL_W = 80, GRID_KEY_W = 76;
-constexpr int16_t GRID_Y0 = 68, GRID_ROW_H = 58, GRID_KEY_H = 54;
+/* Main grid: 4 cols x 3 rows of 74x54 finger keys (~13.3 x 9.7 mm).
+ * Row 0-1 = letter groups; row 2 = 123 / @#! / space / backspace.
+ * Geometry keeps the 4-px safe margin on every side: columns at
+ * 6/84/162/240 end at x=313, rows at 66/124/182 end at y=235 — so the
+ * display alignment offset (+-4) can never cut a key. The previous
+ * 76-px keys at x=2 ran to 317 and the bottom row to 237. */
+constexpr int16_t GRID_X0 = 6, GRID_COL_W = 78, GRID_KEY_W = 74;
+constexpr int16_t GRID_Y0 = 66, GRID_ROW_H = 58, GRID_KEY_H = 54;
 
 /* Letter popup: n keys of 68x56 per row, row 0 = lower, row 1 = UPPER. */
 constexpr int16_t LP_KEY_W = 68, LP_KEY_H = 56, LP_GAP = 8;

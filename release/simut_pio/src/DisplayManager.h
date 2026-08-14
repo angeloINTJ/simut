@@ -170,6 +170,21 @@ constexpr int ALARM_EDIT_BTN_R  = ALARM_EDIT_BAR_R - ALARM_EDIT_INSET;
 constexpr int ALARM_EDIT_HIT_DEC = ALARM_EDIT_BAR_X + ALARM_EDIT_INSET + ALARM_EDIT_BTN_W + 15;
 constexpr int ALARM_EDIT_HIT_INC = ALARM_EDIT_BAR_X + ALARM_EDIT_BAR_W - ALARM_EDIT_INSET - ALARM_EDIT_BTN_W - 15;
 
+/* ---------------------------------------------------------------------------
+ * Graph period-button bar geometry.
+ *
+ * Shared by the renderer (drawPeriodButtons) and the touch handler (graph
+ * view + detail) for the same reason as the alarm-editor block above: the
+ * buttons are DRAWN from these and the hit zones DERIVED from them.
+ *
+ * 5 buttons of 60 px with 3 px gaps starting at x=4 span 4..315 — the same
+ * 4-px safe margin every screen keeps on all four sides, so the display
+ * alignment offset (+-4H/+-4V) can never cut a button.
+ * ------------------------------------------------------------------------- */
+constexpr int GRAPH_PBTN_X0  = 4;   /**< First button's left edge */
+constexpr int GRAPH_PBTN_W   = 60;  /**< Button width */
+constexpr int GRAPH_PBTN_GAP = 3;   /**< Gap between buttons */
+
 struct SystemState {
 	float slotTemp; float slotHum; float slotPres; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
 	float topSlotTemp; float topSlotHum; float topSlotPres; bool topSlotValid; SensorType topSlotType; int topSlotIdx; char topSlotName[32];

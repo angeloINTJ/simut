@@ -480,16 +480,23 @@ void DisplayManager::drawTopBar(const SystemState& state) {
   char msg[48];
   snprintf(msg, sizeof(msg), "WEB '%s' - toque bloqueado", user[0] ? user : "web");
 
-  _driver.canvas->fillScreen(C_TEMP_WARM);
+  /* Banner as an inset chip (4..315 x 4..28) instead of a full-bleed fill:
+   * at the panel edge, a display offset chopped the band asymmetrically.
+   * The message is truncated to the chip's width for long usernames —
+   * before, anything past x=320 was silently clipped mid-glyph. */
+  _driver.canvas->fillScreen(C_BG_MAIN);
+  _driver.canvas->fillRoundRect(4, 4, 312, 25, 8, C_TEMP_WARM);
   _driver.canvas->setFont(&simutFont9pt);
   _driver.canvas->setTextSize(1);
   _driver.canvas->setTextColor(C_BG_MAIN);
+  char fitMsg[48];
+  truncateText(_driver.canvas, msg, fitMsg, sizeof(fitMsg), 296);
   int16_t bx, by; uint16_t bw, bh;
-  _driver.canvas->getTextBounds(msg, 0, 0, &bx, &by, &bw, &bh);
+  _driver.canvas->getTextBounds(fitMsg, 0, 0, &bx, &by, &bw, &bh);
   int16_t cx = (int16_t)((W - (int)bw) / 2);
-  if (cx < 2) cx = 2;
-  _driver.canvas->setCursor(cx, 20);
-  _driver.canvas->print(msg);
+  if (cx < 8) cx = 8;
+  _driver.canvas->setCursor(cx, 21);
+  _driver.canvas->print(fitMsg);
   blitCanvas(_driver.canvas, 0, 0, W, H);
   return;
  }
@@ -500,7 +507,9 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  _driver.canvas->setFont(&simutFont9pt);
  _driver.canvas->setTextSize(1);
  _driver.canvas->setTextColor(C_ACCENT);
- _driver.canvas->setCursor(3, 20);
+ /* x=4: aligned with the cards' left edge AND inside the 4-px safe margin
+  * (at x=3 a -4 horizontal offset shaved the S). */
+ _driver.canvas->setCursor(4, 20);
  _driver.canvas->print("SIMUT");
 
 

@@ -366,14 +366,16 @@ void DisplayManager::drawTouchSensitivity( ) {
  g_lastSensStability = _sensStability;
  }
 
- /* Numeric value only when it changes */
+ /* Numeric value only when it changes. Clear rect ends at x=315 and a
+ * 4-digit threshold at x=314 — inside the 4-px safe margin (the old
+ * 280/295 pair ran to 319/318 and lost digits to a +4 offset). */
  if (g_sensFirstDraw || g_lastSensThreshold != (int)_sensThreshold) {
- _driver.tft->fillRect(280, 195, 40, 20, C_BG_MAIN);
+ _driver.tft->fillRect(276, 195, 40, 20, C_BG_MAIN);
  _driver.tft->setFont(NULL); _driver.tft->setTextSize(1);
  _driver.tft->setTextColor(C_TEXT_OFF);
  char valBuf[8];
  snprintf(valBuf, sizeof(valBuf), "%d", _sensThreshold);
- _driver.tft->setCursor(295, 198);
+ _driver.tft->setCursor(291, 198);
  _driver.tft->print(valBuf);
  g_lastSensThreshold = (int)_sensThreshold;
  }

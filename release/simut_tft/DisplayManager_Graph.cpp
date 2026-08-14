@@ -57,16 +57,20 @@ void DisplayManager::drawLoadingScreen( ) {
  _loadingDrawn = true;
 }
 
-/* "Busy" hint: a thin accent line across the very top of the screen (the
- * 4-px safe zone above the header, which every graph/detail/stats render
- * repaints). Painted by the TOUCH handler the instant a zoom/pan/range tap
- * is accepted — the data read on Core 0 can take from ~0.2 s (1H) to
- * seconds (7D), and until it lands the old graph stays on screen; without
- * this the tap feels dead. Deliberately not on the canvas: the canvas may
- * hold a half-composed strip, and fastFillRect costs ~0.5 ms. */
+/* "Busy" hint: a thin accent line over the top edge of the header card
+ * (which every graph/detail/stats render repaints). Painted by the TOUCH
+ * handler the instant a zoom/pan/range tap is accepted — the data read on
+ * Core 0 can take from ~0.2 s (1H) to seconds (7D), and until it lands the
+ * old graph stays on screen; without this the tap feels dead. Deliberately
+ * not on the canvas: the canvas may hold a half-composed strip, and
+ * fastFillRect costs ~0.5 ms.
+ * Inside the 4-px safe area on purpose: drawn at y=0 it sat entirely in the
+ * alignment margin, and a -4 vertical display offset pushed it off-panel —
+ * the one screen state where the hint existed was the one where it could
+ * vanish. */
 void DisplayManager::drawGraphBusyHint( ) {
  if (!_driver.tft) return;
- fastFillRect(0, 0, 320, 3, C_ACCENT_HIGH);
+ fastFillRect(4, 4, 312, 3, C_ACCENT_HIGH);
 }
 
 
@@ -81,11 +85,13 @@ void DisplayManager::drawPeriodButtons( ) {
  if (!_driver.canvas) return;
 
  /*
- * Layout: 5 buttons with pixel-art icons (60x40 each, gap=4)
+ * Layout: 5 buttons with pixel-art icons (60x40 each)
  * [◀ Past] [▶ Future] [📅 Cal] [🔍+ ZoomIn] [🔍- ZoomOut]
- * Total: 5x60 + 4x4 = 316px, startX=2.
+ * Geometry comes from GRAPH_PBTN_* (DisplayManager.h), shared with the
+ * touch zones: 5x60 + 4x3 = 312 px spanning x=4..315 (4-px safe margin).
  */
- const int btnW = 60, btnH = 40, btnR = 12, gap = 4, startX = 2;
+ const int btnW = GRAPH_PBTN_W, btnH = 40, btnR = 12,
+           gap = GRAPH_PBTN_GAP, startX = GRAPH_PBTN_X0;
  const char* ranges[] = {"1H", "6H", "12H", "24H", "7D"};
 
  bool canFwd = (_graphNavOffset < 0);
@@ -262,7 +268,11 @@ void DisplayManager::drawGraphHeaderBar(bool blitNow) {
  * y=0..44) produce exactly the same visual result on the display:
  * header at y=4..31 with 4 px safe zone above. */
  cv->fillRect(0, 0, 320, 4, C_BG_MAIN);
- cv->fillRect(0, 4, 320, 28, C_CARD_BG);
+ /* Card inset to x=4..315 like every title bar — full-bleed here meant the
+ * card's first/last columns fell in the alignment margin and were cut by
+ * a horizontal display offset. */
+ cv->fillRect(0, 4, 320, 28, C_BG_MAIN);
+ cv->fillRect(4, 4, 312, 28, C_CARD_BG);
  cv->setFont(&simutFont9pt);
 
  /* ── Current range pill on left corner ── */
@@ -631,9 +641,9 @@ void DisplayManager::drawPeakMarker(int16_t cx, int16_t cy, uint16_t color,
  if (labelY + (int16_t)bh > graphBot) labelY = cy - r - (int16_t)bh - 3; /* Flip up */
  }
 
- /* Horizontal clamp to stay on screen */
- if (labelX < 2) labelX = 2;
- if (labelX + (int16_t)bw > 318) labelX = 318 - (int16_t)bw;
+ /* Horizontal clamp to the 4-px safe area */
+ if (labelX < 4) labelX = 4;
+ if (labelX + (int16_t)bw > 316) labelX = 316 - (int16_t)bw;
 
  /* Opaque background for readability over the curve */
  _driver.tft->fillRect(labelX - 1, labelY - 1, bw + 2, bh + 2, C_BG_MAIN);
@@ -684,7 +694,10 @@ void DisplayManager::drawGraphScreen( ) {
  */
  const int gx = 30; /* Left margin (Y labels) */
  const int gy = 30; /* Grid top */
- const int gw = hasV2 ? 250 : 285; /* Grid width */
+ /* 282, not 285: the last-value marker is a r=3 circle centered on the
+  * curve's end column (gx+gw), so the grid must stop at 312 for the
+  * marker to end at 315 — the 4-px right safe margin. */
+ const int gw = hasV2 ? 250 : 282; /* Grid width */
  const int gh = 155; /* Grid height */
  const int margin = 2; /* Internal graph clearance */
  const int timeAxisY = gy + gh + 2; /* X axis labels */
@@ -822,12 +835,12 @@ void DisplayManager::drawGraphScreen( ) {
  /* Intersection condition: label visible if any part crosses the strip */
  if (lyMax < sBot && lyMax + 8 > sTop) {
  cv->setTextColor(C_TEMP_HOT);
- cv->setCursor(1, lyMax - sTop);
+ cv->setCursor(4, lyMax - sTop);
  cv->print(maxLbl);
  }
  if (lyMin < sBot && lyMin + 8 > sTop) {
  cv->setTextColor(C_TEMP_OK);
- cv->setCursor(1, lyMin - sTop);
+ cv->setCursor(4, lyMin - sTop);
  cv->print(minLbl);
  }
 
@@ -835,12 +848,21 @@ void DisplayManager::drawGraphScreen( ) {
  if (hasV2) {
  int rxAxis = gx + gw;
  cv->setTextColor(C_HUMIDITY);
+ /* Right-clamped to end at x=315: "100%" fits at rxAxis+3, but a
+  * 1-decimal hPa label ("1013.2", 6 cells of the 6-px font) ran to
+  * x=317 — outside the 4-px safe margin the offset can consume. */
+ auto v2LabelX = [&](const char* lbl) {
+ int lx = rxAxis + 3;
+ int lw = 6 * (int)strlen(lbl);
+ if (lx + lw > 316) lx = 316 - lw;
+ return lx;
+ };
  if (lyMax < sBot && lyMax + 8 > sTop) {
- cv->setCursor(rxAxis + 3, lyMax - sTop);
+ cv->setCursor(v2LabelX(humMaxLbl), lyMax - sTop);
  cv->print(humMaxLbl);
  }
  if (lyMin < sBot && lyMin + 8 > sTop) {
- cv->setCursor(rxAxis + 3, lyMin - sTop);
+ cv->setCursor(v2LabelX(humMinLbl), lyMin - sTop);
  cv->print(humMinLbl);
  }
  }
