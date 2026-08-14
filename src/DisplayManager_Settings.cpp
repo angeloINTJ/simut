@@ -656,9 +656,10 @@ void DisplayManager::drawSettingsPassword( ) {
  const int16_t spx = (int16_t)(GRID_X0 + 2 * GRID_COL_W);
  cv->fillRoundRect(spx, ry, GRID_KEY_W, GRID_KEY_H, 10, C_CARD_BG);
  cv->drawRoundRect(spx, ry, GRID_KEY_W, GRID_KEY_H, 10, C_TEXT_SUB);
- /* 2 px space bar line — 1 px reads thinner than everything else. */
- cv->drawFastHLine(spx + 18, ry + GRID_KEY_H / 2 + 2, 40, C_TEXT_SUB);
- cv->drawFastHLine(spx + 18, ry + GRID_KEY_H / 2 + 3, 40, C_TEXT_SUB);
+ /* 2 px space bar line — 1 px reads thinner than everything else.
+  * Centered in the 74-px key: (74-40)/2 = 17. */
+ cv->drawFastHLine(spx + 17, ry + GRID_KEY_H / 2 + 2, 40, C_TEXT_SUB);
+ cv->drawFastHLine(spx + 17, ry + GRID_KEY_H / 2 + 3, 40, C_TEXT_SUB);
 
  const int16_t bkx = (int16_t)(GRID_X0 + 3 * GRID_COL_W);
  cv->fillRoundRect(bkx, ry, GRID_KEY_W, GRID_KEY_H, 10, C_CARD_BG);
@@ -1104,9 +1105,11 @@ void DisplayManager::drawSystemStatus( ) {
  /* ── Header + Buttons (only on fullRedraw) ── */
  if (fullRedraw) {
  cv->fillScreen(C_BG_MAIN);
- /* Same title bar as every other screen; page dots come with it. */
- uiTitleBar(cv, 2, tr(TR_STATUS_TITLE), _statusPage, STATUS_PAGES, 30);
- blitCanvas(cv, 0, 0, 320, 33);
+ /* Same title bar as every other screen; page dots come with it.
+  * yTop=4 (was 2): rows 0..3 are the alignment-offset safe margin. The
+  * bar ends at y=33, flush with the table's yStart=34. */
+ uiTitleBar(cv, 4, tr(TR_STATUS_TITLE), _statusPage, STATUS_PAGES, 30);
+ blitCanvas(cv, 0, 0, 320, 34);
 
  /* Footer band via canvas: covers 195..239 wall to wall, so whatever
   * screen came before cannot leak through the gaps between buttons

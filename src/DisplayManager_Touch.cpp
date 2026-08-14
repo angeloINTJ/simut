@@ -540,9 +540,11 @@ void DisplayManager::handleTouch( ) {
  drawGraphHeaderBar( );
  return;
  }
- /* ── Bottom bar: [◀Past][▶Fut][📅Cal][🔍+ZoomIn][🔍-ZoomOut] ── */
+ /* ── Bottom bar: [◀Past][▶Fut][📅Cal][🔍+ZoomIn][🔍-ZoomOut] ──
+ * Zones derive from the same GRAPH_PBTN_* constants the renderer draws
+ * from (DisplayManager.h), so the two cannot drift apart. */
  if (y >= 195) {
- const int btnW = 60, gap = 4, startX = 2;
+ const int btnW = GRAPH_PBTN_W, gap = GRAPH_PBTN_GAP, startX = GRAPH_PBTN_X0;
  int btn = -1;
  for (int i = 0; i < 5; i++) {
  int bx = startX + i * (btnW + gap);
@@ -606,9 +608,9 @@ void DisplayManager::handleTouch( ) {
  drawGraphHeaderBar( );
  return;
  }
- /* Bottom bar — same logic as graph view */
+ /* Bottom bar — same logic as graph view, same GRAPH_PBTN_* geometry */
  if (y >= 195) {
- const int btnW = 60, gap = 4, startX = 2;
+ const int btnW = GRAPH_PBTN_W, gap = GRAPH_PBTN_GAP, startX = GRAPH_PBTN_X0;
  int btn = -1;
  for (int i = 0; i < 5; i++) {
  int bx = startX + i * (btnW + gap);
