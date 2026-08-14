@@ -4,6 +4,34 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.1.10 (2026-08-14)
+
+### A linha 2.1 fica estável
+
+O mesmo firmware publicado como v2.1.10-beta — os únicos bytes que mudam
+são a string de versão. Onze betas entre 10/08/2026 e 14/08/2026 levaram
+a linha 2.1 da primeira varredura de reboots via web até um display que
+sobrevive ao próprio offset de alinhamento; cada uma passou pelos mesmos
+quatro portões de release antes de publicar (os dois builds de firmware,
+34/34 testes nativos de histórico, paridade do codec com 20.000 casos,
+selftest de 200.000 sorteios) e foi gravada e verificada em hardware
+real. Este release promove esse firmware a estável e passa a ser a
+imagem recomendada.
+
+### Revisão geral da documentação
+
+- README reescrito nos três idiomas, com screenshots novos da interface
+  2.1.10 — o conjunto anterior era anterior à reforma visual da v2.1.5.
+- Manual do usuário (pt-BR) recapturado e revisado para a 2.1.10: o
+  teclado de senha para a ponta do dedo, os gráficos de histórico em
+  baldes, a série de pressão e o editor de alinhamento de tela estão
+  documentados com telas reais.
+- Manual em inglês reescrito para o firmware atual (ainda descrevia a
+  v1.6.3).
+- Guia de fiação conferido contra o mapa de pinos do código.
+- Raiz do repositório organizada: análises de engenharia movidas para
+  `docs/`.
+
 ## v2.1.10-beta (2026-08-14)
 
 ### O offset de alinhamento não corta mais a tela
@@ -40,7 +68,7 @@ Validado no hardware: 19 capturas do framebuffer cobrindo todas as
 telas, com a borda de 4 px verificada 100 % fundo em todas, e o offset
 exercitado ao vivo até os extremos e restaurado.
 
-
+## v2.1.9-beta (2026-08-14)
 
 ### Um teclado de senha para a ponta do dedo
 

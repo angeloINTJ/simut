@@ -54,7 +54,7 @@ docker compose run test
 | Comando | Comando equivalente en PlatformIO |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native && pio test -e native_history` |
+| `docker compose run test` | `pio test -e native && pio test -e native_history_v5` |
 
 ---
 
@@ -88,6 +88,7 @@ pio run -e pico_w_release -t upload
 
 # Subir datos de LittleFS (paquetes de idiomas, favicon)
 pio run -e pico_w_release -t uploadfs
+# ADVERTENCIA: uploadfs REFORMATEA la partición LittleFS — destruye el historial, la configuración y la calibración de un dispositivo ya en servicio. Solo para el primer flasheo.
 ```
 
 ## Convenciones de Código
@@ -102,7 +103,7 @@ pio run -e pico_w_release -t uploadfs
 
 ## Presupuesto de Memoria Flash
 
-El espacio en la memoria flash es críticamente ajustado (~98.7% en uso). Antes de añadir nuevas características, considera:
+El espacio en la memoria flash es críticamente ajustado — ~95 % del slot de app de 1020 KB en el env de release (el env `pico_w_test` llega a ~99 %). Antes de añadir nuevas características, considera:
 
 1. ¿Se puede optimizar para usar menos espacio?
 2. ¿Puede reemplazar algo de menor valor?

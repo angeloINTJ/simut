@@ -2,7 +2,7 @@
 
 > 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
 >
-> Document delivered as a prerequisite for OTA Plan Phase 7b. Read BEFORE
+> Recovery procedures for a Pico W that no longer boots. Read BEFORE
 > any destructive test. Keep the `.uf2` of the last stable version saved
 > locally in a folder separate from the project.
 
@@ -155,18 +155,15 @@ post-apply boot** to identify where the orchestrator stopped:
 
 If `OTA_MAX_APPLY_ATTEMPTS` (3) is reached, `ota_apply_pending_update`
 returns `MAX_ATTEMPTS` without destroying — the device continues booting
-the current firmware and exposes the status via `/api/ota/status`
-(future endpoint).
+the current firmware.
 
 ---
 
 ## Versions Kept as Rollback
 
-Keep **locally** (not in the repo, out of reach of accidental erase):
+Keep the previous release's `simut_vX.Y.Z.uf2` from the
+[GitHub releases page](https://github.com/angeloINTJ/simut/releases) as
+your rollback image — every release publishes one.
 
-- `firmware-v1.0.0.uf2` (Phase 6 closed — no real applier yet).
-- `firmware-v3.43.x-prefase7b.uf2` (last build before the first
-  destructive apply).
-
-Recommended: copy to `~/firmware-rollback-simut/` each time a new stable
-version is validated.
+Recommended: copy it locally (not in the repo, out of reach of accidental
+erase) each time a new stable version is validated.

@@ -384,7 +384,7 @@ td code, .cell code, .caution code, p code, li code {
 .gallery figure { margin: 0; background: var(--surface); display: flex; flex-direction: column; }
 .gallery img { width: 100%; height: auto; aspect-ratio: 4 / 3; object-fit: contain; }
 
-/* The screen map: sixteen 4:3 captures, shown at their own ratio. */
+/* The screen map: seventeen 4:3 captures, shown at their own ratio. */
 .screens {
   display: grid; gap: 1px; background: var(--rule);
   border: 1px solid var(--rule);
@@ -485,7 +485,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <div>
         <p class="release-line">
           <span class="tag tag-beta" data-i18n="tag.beta">Beta</span>
-          <span class="tag">v1.6.2-beta</span>
+          <span class="tag">v2.1.10</span>
           <span class="tag">MIT</span>
           <span class="tag">RP2040</span>
         </p>
@@ -560,45 +560,45 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <p class="eyebrow" data-i18n="new.eyebrow">This generation</p>
     <h2 data-i18n="new.h2">What changed recently</h2>
     <p class="lede" style="margin-bottom:2rem" data-i18n="new.lede">
-      Three releases that each removed a special case rather than adding a feature.
+      Eleven releases in five days took the 2.1 line from its first beta to stable — every one gated by the same four release checks and verified on real hardware.
     </p>
     <div class="releases">
       <article class="release">
-        <div><div class="ver">v1.6.2-beta</div><div class="date" data-i18n="new.d1">27 Jul 2026</div></div>
+        <div><div class="ver">v2.1.10</div><div class="date" data-i18n="new.d1">14 Aug 2026</div></div>
         <div>
-          <h3 data-i18n="new.t1">Over-the-air updates actually apply</h3>
+          <h3 data-i18n="new.t1">The 2.1 line goes stable</h3>
           <p data-i18n="new.b1">
-            The applier's watchdog feed was writing the reset bit instead of reloading
-            the counter, so it rebooted the chip before copying a single sector — while
-            every layer above reported success. Fixed, along with two bugs behind it,
-            and the boot now verifies the installed image against the staged one.
-            Validated across 21 consecutive updates: 21 applied, the verified image
-            length matched on every one, and free memory moved 24 bytes across the
-            whole run.
+            The same firmware that shipped as v2.1.10-beta, promoted to stable. The
+            closing change swept a 4 px safe area across every screen: the display's
+            alignment offset (±4 px per axis) can shift the image to its extremes
+            without cropping a single element, verified with 19 framebuffer captures
+            off the real panel. Where a screen and its touch handler kept separate
+            copies of the same geometry, the numbers became shared constants.
           </p>
         </div>
       </article>
       <article class="release">
-        <div><div class="ver">v1.6.0-beta</div><div class="date" data-i18n="new.d2">27 Jul 2026</div></div>
+        <div><div class="ver">v2.1.8-beta</div><div class="date" data-i18n="new.d2">13 Aug 2026</div></div>
         <div>
-          <h3 data-i18n="new.t2">One sensor model, no privileged slot</h3>
+          <h3 data-i18n="new.t2">History graphs tell the truth</h3>
           <p data-i18n="new.b2">
-            Eight places treated slot 10 as "the ambient sensor", which made GP10
-            unassignable and survived a factory reset. Every slot now starts empty and
-            claims no pin, calibration is keyed to the sensor's own hardware ID rather
-            than its position, and the BMP280 became its own type instead of pretending
-            to be a BME280 with a broken humidity channel.
+            The web page now downloads the raw binary day files and does the
+            decimation itself, in the browser — time buckets with real min/max, so a
+            one-minute spike in a month of data cannot be sampled out of the picture.
+            The device only serves bytes. The display's graph got the same honesty:
+            buckets with a min/max band around the average line.
           </p>
         </div>
       </article>
       <article class="release">
-        <div><div class="ver">v1.5.6-beta</div><div class="date" data-i18n="new.d3">26 Jul 2026</div></div>
+        <div><div class="ver">v2.1.5–v2.1.7</div><div class="date" data-i18n="new.d3">12–13 Aug 2026</div></div>
         <div>
-          <h3 data-i18n="new.t3">Web-first, with a serial console for emergencies</h3>
+          <h3 data-i18n="new.t3">A redesigned display at wire speed</h3>
           <p data-i18n="new.b3">
-            The serial CLI shipped 55 commands the web interface already answered.
-            Configuration now lives in the web UI and the console keeps nine commands
-            for recovery — worth 44.5 KB of reclaimed flash.
+            The TFT interface was rebuilt — widgets, Latin-1 accents, DMA-composited
+            rendering that cut a full-screen pass from 254 to ~120 ms — and pressure
+            became a first-class series with its own hPa axis on the graphs, next to
+            an instrument-table metrics screen and resilient long uploads.
           </p>
         </div>
       </article>
@@ -823,7 +823,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <h2 data-i18n="st.h2">From parts to readings</h2>
     <div class="steps">
       <div class="step"><div><h3 data-i18n="st1.t">Build the hardware</h3><p data-i18n="st1.b">Wire the display, touch panel and sensors to the Pico W following the <a href="WIRING.html">wiring guide</a>. A breadboard is enough to start.</p></div></div>
-      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take <code>simut_v1.6.2-beta.uf2</code> from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>. Arduino IDE and PlatformIO source trees are published alongside it.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take <code>simut_v2.1.10.uf2</code> from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>. Arduino IDE and PlatformIO source trees are published alongside it.</p></div></div>
       <div class="step"><div><h3 data-i18n="st3.t">Flash over USB</h3><p data-i18n="st3.b">Hold BOOTSEL while connecting the Pico, then drop the <code>.uf2</code> onto the <code>RPI-RP2</code> drive that appears. The board reboots into SIMUT on its own.</p></div></div>
       <div class="step"><div><h3 data-i18n="st4.t">Join it to your network</h3><p data-i18n="st4.b">Configure Wi-Fi from the touch display. The admin password is printed once over USB serial on first boot — write it down, and change it at first web login.</p></div></div>
       <div class="step"><div><h3 data-i18n="st5.t">Open the interface</h3><p data-i18n="st5.b">Browse to <code>http://simut.local</code>, add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p></div></div>
@@ -871,7 +871,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <div class="foot-grid">
       <div class="colophon" data-i18n="ft.colophon">
         SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />
-        MIT licensed · built for the Raspberry Pi Pico W · v1.6.2-beta
+        MIT licensed · built for the Raspberry Pi Pico W · v2.1.10
       </div>
       <div class="foot-links">
         <a href="https://github.com/angeloINTJ/simut">GitHub</a>
@@ -911,14 +911,14 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'beta.3': 'Uma atualização <strong>reformata o sistema de arquivos</strong>. Credenciais de Wi-Fi, usuários e slots de sensor são preservados automaticamente; pacotes de idioma, <code>calib.csv</code> e o histórico gravado não. Baixe um backup antes.',
     'beta.4': '<strong>Não há um segundo slot de firmware para reverter</strong>. A imagem é checada antes de ser efetivada e verificada de novo no boot seguinte, mas a recuperação de uma gravação ruim é o botão BOOTSEL e um cabo USB.',
     'new.eyebrow': 'Esta geração', 'new.h2': 'O que mudou recentemente',
-    'new.lede': 'Três releases que, cada uma, removeram um caso especial em vez de acrescentar um recurso.',
-    'new.d1': '27 jul 2026', 'new.d2': '27 jul 2026', 'new.d3': '26 jul 2026',
-    'new.t1': 'As atualizações pelo ar realmente se aplicam',
-    'new.b1': 'O feed de watchdog do aplicador escrevia o bit de reset em vez de recarregar o contador, então ele reiniciava o chip antes de copiar um único setor — enquanto toda camada acima reportava sucesso. Corrigido, junto de dois bugs atrás dele, e o boot agora verifica a imagem instalada contra a que foi preparada. Validado em 21 atualizações consecutivas: 21 aplicaram, o comprimento verificado bateu em todas, e a memória livre variou 24 bytes na corrida inteira.',
-    'new.t2': 'Um modelo de sensor, nenhum slot privilegiado',
-    'new.b2': 'Oito lugares tratavam o slot 10 como "o sensor ambiente", o que tornava o GP10 inatribuível e sobrevivia a um reset de fábrica. Todo slot agora nasce vazio e não reivindica pino, a calibração é indexada pelo hardware ID do próprio sensor em vez da posição, e o BMP280 virou seu próprio tipo em vez de fingir ser um BME280 com canal de umidade quebrado.',
-    'new.t3': 'Web em primeiro lugar, com um console serial para emergências',
-    'new.b3': 'A CLI serial trazia 55 comandos que a interface web já respondia. A configuração agora vive na web e o console mantém nove comandos para recuperação — valeu 44,5 KB de flash recuperados.',
+    'new.lede': 'Onze releases em cinco dias levaram a linha 2.1 da primeira beta ao estável — cada uma passou pelos mesmos quatro portões de release e foi verificada em hardware real.',
+    'new.d1': '14 ago 2026', 'new.d2': '13 ago 2026', 'new.d3': '12–13 ago 2026',
+    'new.t1': 'A linha 2.1 fica estável',
+    'new.b1': 'O mesmo firmware publicado como v2.1.10-beta, promovido a estável. A mudança de fechamento varreu uma área segura de 4 px em todas as telas: o offset de alinhamento do display (±4 px por eixo) desloca a imagem até os extremos sem cortar um único elemento, verificado com 19 capturas do framebuffer do painel real. Onde uma tela e seu handler de toque mantinham cópias separadas da mesma geometria, os números viraram constantes compartilhadas.',
+    'new.t2': 'Os gráficos de histórico dizem a verdade',
+    'new.b2': 'A página web agora baixa os arquivos binários do dia crus e faz a decimação ela mesma, no navegador — baldes de tempo com mín/máx reais, então um pico de um minuto num mês de dados não pode ser amostrado para fora do gráfico. O aparelho só serve bytes. O gráfico do display ganhou a mesma honestidade: baldes com banda mín/máx em volta da linha média.',
+    'new.t3': 'Um display redesenhado na velocidade do fio',
+    'new.b3': 'A interface do TFT foi reconstruída — widgets, acentos Latin-1, composição com DMA que baixou a tela cheia de 254 para ~120 ms — e a pressão virou série de primeira classe com eixo próprio em hPa nos gráficos, ao lado de uma tela de métricas em linhas de instrumento e uploads longos resilientes.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Recursos', 'cap.h2': 'O que o firmware faz',
     'cap.lede': 'Tudo abaixo roda no dispositivo. Nada liga para casa.',
@@ -993,7 +993,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'st1.t': 'Monte o hardware',
     'st1.b': 'Ligue o display, o painel de toque e os sensores ao Pico W seguindo o <a href="WIRING.html">guia de ligação</a>. Uma protoboard basta para começar.',
     'st2.t': 'Baixe o firmware',
-    'st2.b': 'Pegue o <code>simut_v1.6.2-beta.uf2</code> na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. As árvores de código para Arduino IDE e PlatformIO são publicadas junto.',
+    'st2.b': 'Pegue o <code>simut_v2.1.10.uf2</code> na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. As árvores de código para Arduino IDE e PlatformIO são publicadas junto.',
     'st3.t': 'Grave por USB',
     'st3.b': 'Segure o BOOTSEL enquanto conecta o Pico, depois solte o <code>.uf2</code> no drive <code>RPI-RP2</code> que aparecer. A placa reinicia no SIMUT sozinha.',
     'st4.t': 'Coloque na sua rede',
@@ -1011,7 +1011,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'co.lede': 'O que é uma boa combinação se você gosta de achar coisas. Relatos de bug vindos de instalações reais são a coisa mais útil que você pode mandar — especialmente os que vêm com log anexado.',
     'co.bug': 'Relatar um bug', 'co.feat': 'Pedir um recurso',
     'co.guide': 'Guia de contribuição', 'co.vuln': 'Relatar vulnerabilidade',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W · v1.6.2-beta',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W · v2.1.10',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licença',
     'ft.edit': 'Editar esta página'
   },
@@ -1037,14 +1037,14 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'beta.3': 'Una actualización <strong>reformatea el sistema de archivos</strong>. Las credenciales de Wi-Fi, los usuarios y las ranuras de sensor se conservan automáticamente; los paquetes de idioma, <code>calib.csv</code> y el historial guardado no. Descarga una copia de seguridad antes.',
     'beta.4': '<strong>No hay una segunda ranura de firmware a la que volver</strong>. La imagen se comprueba antes de aplicarse y se verifica de nuevo en el siguiente arranque, pero la recuperación de una grabación defectuosa es el botón BOOTSEL y un cable USB.',
     'new.eyebrow': 'Esta generación', 'new.h2': 'Qué cambió recientemente',
-    'new.lede': 'Tres releases que, cada una, eliminaron un caso especial en lugar de añadir una función.',
-    'new.d1': '27 jul 2026', 'new.d2': '27 jul 2026', 'new.d3': '26 jul 2026',
-    'new.t1': 'Las actualizaciones por aire se aplican de verdad',
-    'new.b1': 'El feed del watchdog del aplicador escribía el bit de reinicio en lugar de recargar el contador, de modo que reiniciaba el chip antes de copiar un solo sector — mientras cada capa superior informaba éxito. Corregido, junto con dos errores detrás de él, y el arranque ahora verifica la imagen instalada contra la preparada. Validado en 21 actualizaciones consecutivas: 21 se aplicaron, la longitud verificada coincidió en todas y la memoria libre varió 24 bytes en toda la tanda.',
-    'new.t2': 'Un modelo de sensor, ninguna ranura privilegiada',
-    'new.b2': 'Ocho lugares trataban la ranura 10 como "el sensor ambiente", lo que dejaba GP10 inasignable y sobrevivía a un reinicio de fábrica. Ahora toda ranura nace vacía y no reclama pin, la calibración se indexa por el hardware ID del propio sensor en vez de su posición, y el BMP280 pasó a ser su propio tipo en lugar de fingir ser un BME280 con un canal de humedad roto.',
-    'new.t3': 'Primero la web, con una consola serie para emergencias',
-    'new.b3': 'La CLI serie traía 55 comandos que la interfaz web ya respondía. La configuración vive ahora en la web y la consola conserva nueve comandos para recuperación — 44,5 KB de flash recuperados.',
+    'new.lede': 'Once releases en cinco días llevaron la línea 2.1 de su primera beta a estable — cada una pasó por las mismas cuatro puertas de release y fue verificada en hardware real.',
+    'new.d1': '14 ago 2026', 'new.d2': '13 ago 2026', 'new.d3': '12–13 ago 2026',
+    'new.t1': 'La línea 2.1 pasa a estable',
+    'new.b1': 'El mismo firmware publicado como v2.1.10-beta, promovido a estable. El cambio de cierre barrió un área segura de 4 px en todas las pantallas: el offset de alineación de la pantalla (±4 px por eje) desplaza la imagen hasta sus extremos sin recortar un solo elemento, verificado con 19 capturas del framebuffer del panel real. Donde una pantalla y su handler táctil mantenían copias separadas de la misma geometría, los números pasaron a constantes compartidas.',
+    'new.t2': 'Los gráficos de histórico dicen la verdad',
+    'new.b2': 'La página web ahora descarga los archivos binarios diarios crudos y hace la decimación ella misma, en el navegador — cubetas de tiempo con mín/máx reales, así que un pico de un minuto en un mes de datos no puede quedar fuera del gráfico por muestreo. El dispositivo solo sirve bytes. El gráfico de la pantalla ganó la misma honestidad: cubetas con banda mín/máx alrededor de la línea media.',
+    'new.t3': 'Una pantalla rediseñada a velocidad de bus',
+    'new.b3': 'La interfaz TFT fue reconstruida — widgets, acentos Latin-1, composición con DMA que bajó la pantalla completa de 254 a ~120 ms — y la presión pasó a ser una serie de primera clase con su propio eje en hPa en los gráficos, junto a una pantalla de métricas en filas de instrumento y subidas largas resilientes.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Funciones', 'cap.h2': 'Qué hace el firmware',
     'cap.lede': 'Todo lo de abajo corre en el dispositivo. Nada llama a casa.',
@@ -1119,7 +1119,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'st1.t': 'Monta el hardware',
     'st1.b': 'Conecta la pantalla, el panel táctil y los sensores a la Pico W siguiendo la <a href="WIRING.html">guía de conexión</a>. Una protoboard basta para empezar.',
     'st2.t': 'Descarga el firmware',
-    'st2.b': 'Toma <code>simut_v1.6.2-beta.uf2</code> de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. Los árboles de código para Arduino IDE y PlatformIO se publican junto a él.',
+    'st2.b': 'Toma <code>simut_v2.1.10.uf2</code> de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. Los árboles de código para Arduino IDE y PlatformIO se publican junto a él.',
     'st3.t': 'Graba por USB',
     'st3.b': 'Mantén BOOTSEL mientras conectas la Pico, y suelta el <code>.uf2</code> en la unidad <code>RPI-RP2</code> que aparece. La placa arranca en SIMUT por sí sola.',
     'st4.t': 'Únela a tu red',
@@ -1137,7 +1137,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'co.lede': 'Lo cual es buena combinación si te gusta encontrar cosas. Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
     'co.bug': 'Informar de un error', 'co.feat': 'Pedir una función',
     'co.guide': 'Guía de contribución', 'co.vuln': 'Informar de vulnerabilidad',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W · v1.6.2-beta',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W · v2.1.10',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licencia',
     'ft.edit': 'Editar esta página'
   }

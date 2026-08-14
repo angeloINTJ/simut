@@ -4,6 +4,31 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.1.10 (2026-08-14)
+
+### The 2.1 line goes stable
+
+The same firmware that shipped as v2.1.10-beta — the only bytes that
+change are the version string. Eleven beta releases between 2026-08-10
+and 2026-08-14 took the 2.1 line from the first web-reboot sweep to a
+display that survives its own alignment offset; every one of them passed
+the same four release gates before publishing (both firmware builds,
+34/34 native history tests, 20 000-case codec parity, 200 000-trial
+selftest) and was flashed and verified on real hardware. This release
+promotes that firmware to stable and becomes the recommended image.
+
+### Documentation overhaul
+
+- README rewritten in all three languages, with fresh screenshots of the
+  2.1.10 interface — the previous set predated the v2.1.5 visual overhaul.
+- User manual (pt-BR) recaptured and revised for 2.1.10: the fingertip
+  password keyboard, the bucketed history graphs, the pressure series and
+  the screen-alignment editor are documented with real screens.
+- English manual rewritten to match the current firmware (it still
+  described v1.6.3).
+- Wiring guide verified against the pin map in the source.
+- Repository root decluttered: engineering analyses moved under `docs/`.
+
 ## v2.1.10-beta (2026-08-14)
 
 ### The alignment offset can no longer crop the screen
@@ -38,7 +63,7 @@ Validated on hardware: 19 framebuffer captures across every screen,
 with the 4 px border verified 100 % background on all of them, and the
 offset exercised live to its extremes and restored.
 
-
+## v2.1.9-beta (2026-08-14)
 
 ### A password keyboard for fingertips
 

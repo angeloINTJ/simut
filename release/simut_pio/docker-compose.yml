@@ -15,4 +15,4 @@ services:
     volumes:
       - ".:/workspace"
     command: >
-      sh -c "pio test -e native && pio test -e native_history"
+      sh -c "pio test -e native && pio test -e native_history_v5"

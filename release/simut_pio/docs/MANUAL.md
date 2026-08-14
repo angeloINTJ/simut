@@ -1,13 +1,13 @@
 # SIMUT — User Manual
 
-**Firmware:** v1.6.3-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.1.10 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is beta software.** It is tested on real hardware, but it is not a
 > certified metrological instrument. Do not make it the only control on
 > regulated storage without validating it against your own reference.
 
-Everything below was checked against a running v1.6.3-beta device. Where a
+Everything below was checked against a running v2.1.10 device. Where a
 number is quoted it was measured rather than estimated; where behaviour is
 untested or known to be incomplete, the text says so rather than going quiet.
 
@@ -83,7 +83,7 @@ Full pinout and assembly notes: [WIRING.md](WIRING.md).
 ## 3. First boot
 
 1. **Flash the firmware.** Hold BOOTSEL while connecting the Pico over USB,
-   then copy `simut_v1.6.3-beta.uf2` onto the `RPI-RP2` drive that appears. The
+   then copy `simut_v2.1.10.uf2` onto the `RPI-RP2` drive that appears. The
    board reboots into SIMUT by itself.
 
 2. **Read the admin password.** On the first boot with no stored
@@ -216,6 +216,12 @@ reach it — is generated from a real device by
 [`tools/screen_mapper.py`](../tools/screen_mapper.py) and published at
 [docs/images/screens/screens.md](images/screens/screens.md).
 
+The whole interface was visually redesigned in v2.1.5 (widgets, Latin-1
+accents, DMA-composited rendering) and hardened in v2.1.10 so that every
+screen keeps its content inside a 4 px safe area — the screen-alignment
+offset (±4 px per axis, Settings → Screen alignment) can shift the image
+without ever cropping anything.
+
 ### Dashboard
 
 Two sensor cards — an upper panel and a lower panel — above a footer of up to
@@ -230,7 +236,10 @@ four are active, and open settings (**CFG**).
 
 Reached through CFG. Covers visual themes, alarm limits, alarm sounds,
 interface language, the display PIN, touch calibration, touch sensitivity,
-display alignment, system status and the license text.
+display alignment, system status and the license text. Since v2.1.9 the
+PIN/password screen is a fingertip keyboard: eight large group keys open a
+popup with both cases at once, so any of the 91 accepted characters costs
+exactly two taps.
 
 **System status** is the screen worth knowing: device name, firmware version,
 board serial, uptime, free heap, flash usage and board temperature — the
@@ -255,10 +264,13 @@ its palettes in at roughly 70 bytes each.
 
 ### History
 
-The graph view plots one sensor over a selectable range, with navigation
-backwards and forwards in time, a calendar picker and zoom. A numeric detail
-screen gives maximum, minimum, average and standard deviation for the range on
-screen.
+The graph view plots one sensor over a selectable range (1H · 6H · 12H ·
+24H · 7D), with navigation backwards and forwards in time, a calendar picker
+and zoom. Since v2.1.8 the plot aggregates into time buckets with a real
+min/max band around the average line — a one-minute spike cannot be sampled
+out of the picture — and pressure sensors get a second axis in hPa (v2.1.7).
+A numeric detail screen gives maximum, minimum, average and standard
+deviation for the range on screen.
 
 ### While the web holds the device
 
@@ -336,8 +348,12 @@ rows) rather than by editing files. A slot added or renamed today still needs
 `/api/history_rebind` (the button in the slot editor) to gain its column in
 the day file that froze its schema at midnight.
 
-Export is available as CSV from `/history`, or as raw binary through
-`/api/export/history.bin`.
+Export is available as CSV from `/history`: since v2.1.8 the page downloads
+the raw `.h5` day files (plus the open hour via `/api/history/open`) and both
+the graph decimation and the CSV decoding happen in the browser — the device
+only serves bytes. The `.simx` bundle endpoint `/api/export/history.bin`
+remains reachable by URL for scripts, but it is no longer the CSV button's
+path and it stops at the last sealed hour.
 
 ### Event log
 
@@ -473,7 +489,7 @@ From the web interface: **System Config → Firmware**. Or directly:
 
 ```bash
 # 1. Stage — uploads and validates. ~29 s for a 957 KB image.
-curl -b cookies.txt -F "file=@simut_v1.6.3-beta.bin" \
+curl -b cookies.txt -F "file=@simut_v2.1.10.bin" \
      "http://simut.local/api/restore?op=stage&commit=1"
 # -> {"st":5,"bytes":957696,"crc32":"...","v":0,"dsize":957500,"dcrc":"...","committed":1}
 
@@ -518,6 +534,10 @@ persistent log stores only the numeric code, so after the fact the level
 Roughly two thirds of the downtime is the applier; the rest is Wi-Fi
 re-associating. Free heap moved 24 bytes across the whole run, and no boot
 produced a panic.
+
+Revalidated on the 2.1 line (v2.1.9): two full stage+apply cycles with a
+1,001,964 B image, 30.7 s per stage, apply accepted first try both times, and
+the verdict read back as the version string — never inferred from timing.
 
 ---
 
@@ -614,9 +634,9 @@ the metadata sector instead.
 
 | | |
 |---|---|
-| Firmware size | 945,464 B — 90.5% of the application slot |
-| RAM at link | 122,540 B of 262,144 B |
-| Free heap in service | ~55 KB |
+| Firmware size | 1,002,084 B — ~96% of the 1020 KB application slot |
+| RAM at link | 123,124 B of 262,144 B |
+| Free heap in service | ~46 KB (reference rig: five sensors, pt-BR language pack) |
 | Radio firmware | ~232 KB of the application slot |
 
 ---

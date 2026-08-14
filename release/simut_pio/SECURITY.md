@@ -188,7 +188,10 @@ adversarial public network.
   retries with a smaller chunk.
 - **Integrity**: the `.simx` bundle has a CRC32-IEEE-802.3 trailer. The
   client validates byte-by-byte before generating CSV — network
-  failure/truncation detected deterministically.
+  failure/truncation detected deterministically. Since 2.1.8 the web CSV
+  button no longer goes through `.simx` — the page downloads the raw
+  `.h5` day files and decodes them in the browser; the `.simx` endpoint
+  remains reachable by direct URL.
 - **Server-side filters**: `/api/export/logs.bin?level=err|inf|all`
   filters on the server (reduces bytes on the wire and client CPU).
   History filters by `from`/`to` (epoch UTC, hard cap 31d).

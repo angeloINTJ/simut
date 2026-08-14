@@ -1,7 +1,8 @@
-# Manual do CLI — SIMUT v1.5.6-beta
+# Manual do CLI — SIMUT (perfil `pico_w_test`)
 
 > **Leia isto antes do resto.** Desde a v1.5.6-beta existem **dois perfis de
-> CLI**, e a maior parte deste manual descreve apenas um deles.
+> CLI**, e esta referência cobre o perfil completo gravado pelo ambiente
+> `pico_w_test`; a imagem release traz só o console de emergência de 9 comandos.
 >
 > | Perfil | Como obter | O que tem |
 > |---|---|---|
