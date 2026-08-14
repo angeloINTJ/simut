@@ -709,23 +709,32 @@ void DisplayManager::drawGraphScreen( ) {
 
  /* ── Precompute curve coordinates ── */
  static int16_t pxV1[GRAPH_WIDTH], pyV1[GRAPH_WIDTH], pyV2[GRAPH_WIDTH];
+ /* Envelope edges of each time bucket: the band the mean line rides in.
+  * pyLo is the bucket MINIMUM (larger y), pyHi the MAXIMUM (smaller y). */
+ static int16_t pyLo[GRAPH_WIDTH], pyHi[GRAPH_WIDTH];
  if (hasData) {
  /*
- * X position by index: data always fills the entire grid width.
+ * X position by index — buckets are uniform in TIME, so index spacing
+ * IS time spacing, and a run of empty (NaN) buckets is a gap with its
+ * true width on screen.
  * Y position by realMinVal/realMaxVal: real scale of all records.
- * Header and X labels use tsCutoff/tsEnd to show the time window.
  */
+ auto yOf = [&](float v) {
+ int y = gy + margin + (int)((_graphData.realMaxVal - v) / tempRange * (gh - 2 * margin));
+ if (y < gy) y = gy;
+ if (y > gy + gh) y = gy + gh;
+ return y;
+ };
  for (int i = 0; i < _graphData.count; i++) {
  pxV1[i] = gx + (int)((long)i * gw / max(1, _graphData.count - 1));
 
- /* NaN points (sensor in error) -> pyV1 = -1 to create visible gap */
+ /* NaN points (empty bucket / sensor in error) -> -1 = visible gap */
  if (isnan(_graphData.pointsV1[i])) {
- pyV1[i] = -1;
+ pyV1[i] = -1; pyLo[i] = -1; pyHi[i] = -1;
  } else {
- int y = gy + margin + (int)((_graphData.realMaxVal - _graphData.pointsV1[i]) / tempRange * (gh - 2 * margin));
- if (y < gy) y = gy;
- if (y > gy + gh) y = gy + gh;
- pyV1[i] = y;
+ pyV1[i] = yOf(_graphData.pointsV1[i]);
+ pyLo[i] = isnan(_graphData.minV1[i]) ? pyV1[i] : yOf(_graphData.minV1[i]);
+ pyHi[i] = isnan(_graphData.maxV1[i]) ? pyV1[i] : yOf(_graphData.maxV1[i]);
  }
 
  if (hasV2 && !isnan(_graphData.pointsV2[i])) {
@@ -836,33 +845,35 @@ void DisplayManager::drawGraphScreen( ) {
  }
  }
 
- /* ── Area fill under the temperature curve ──
+ /* ── Min/max band of the temperature buckets ──
  * 25% of the series color toward the background: two successive
- * 50/50 RGB565 blends, no alpha buffer. Column-by-column vertical
- * lines down to the grid base, clipped to this strip; drawn BEFORE
- * the curves so both series stay crisp on top. */
+ * 50/50 RGB565 blends, no alpha buffer. Both edges interpolated
+ * column by column, clipped to this strip; drawn BEFORE the curves
+ * so the mean line stays crisp on top. This replaces the old fill
+ * to the grid base: the band IS the honest area — the range the
+ * signal really covered inside each pixel column. */
  {
  uint16_t fillCol = uiBlend565(uiBlend565(C_TEMP_HOT, C_BG_MAIN), C_BG_MAIN);
- const int base = gy + gh - 1;
  for (int i = 0; i < _graphData.count - 1; i++) {
- if (pyV1[i] < 0 || pyV1[i + 1] < 0) continue; /* NaN gap */
+ if (pyLo[i] < 0 || pyLo[i + 1] < 0) continue; /* NaN gap */
  int x0 = pxV1[i], x1c = pxV1[i + 1];
  if (x1c <= x0) continue;
  for (int x = x0; x < x1c; x++) {
  if (x <= gx) continue; /* keep the Y axis line clean */
- int yTopF = pyV1[i] + (int)((long)(pyV1[i + 1] - pyV1[i]) * (x - x0) / (x1c - x0)) + 2;
- if (yTopF > base) continue;
- int a = (yTopF > sTop) ? yTopF : sTop;
- int b = (base < sBot - 1) ? base : sBot - 1;
+ int yT = pyHi[i] + (int)((long)(pyHi[i + 1] - pyHi[i]) * (x - x0) / (x1c - x0));
+ int yB = pyLo[i] + (int)((long)(pyLo[i + 1] - pyLo[i]) * (x - x0) / (x1c - x0));
+ if (yB < yT) { int t = yT; yT = yB; yB = t; }
+ int a = (yT > sTop) ? yT : sTop;
+ int b = (yB < sBot - 1) ? yB : sBot - 1;
  if (b < a) continue;
  cv->drawFastVLine(x, a - sTop, b - a + 1, fillCol);
  }
  }
  }
 
- /* ── Temperature curve (2px) — skip gaps (pyV1 == -1) ── */
+ /* ── Temperature mean line (2px) — skip gaps (pyV1 == -1) ── */
  for (int i = 0; i < _graphData.count - 1; i++) {
- if (pyV1[i] < 0 || pyV1[i + 1] < 0) continue; /* Gap: sensor in error */
+ if (pyV1[i] < 0 || pyV1[i + 1] < 0) continue; /* Gap: empty bucket */
  int y1 = pyV1[i], y2 = pyV1[i + 1];
  int yMn = (y1 < y2) ? y1 : y2;
  int yMx = (y1 > y2) ? y1 : y2;
@@ -870,6 +881,21 @@ void DisplayManager::drawGraphScreen( ) {
  cv->drawLine(pxV1[i], y1 - sTop, pxV1[i+1], y2 - sTop, C_TEMP_HOT);
  cv->drawLine(pxV1[i], y1 - sTop + 1, pxV1[i+1], y2 - sTop + 1, C_TEMP_HOT);
  }
+
+ /* ── Isolated points: a bucket with data between two gaps drew
+ * nothing (no segment to either side, radius zero). A 3x3 dot makes
+ * a lone sample visible instead of looking like lost data. ── */
+ auto loneDots = [&](const int16_t* py, uint16_t col) __attribute__((noinline)) {
+ for (int i = 0; i < _graphData.count; i++) {
+ if (py[i] < 0) continue;
+ bool loneL = (i == 0) || (py[i - 1] < 0);
+ bool loneR = (i == _graphData.count - 1) || (py[i + 1] < 0);
+ if (!(loneL && loneR)) continue;
+ if (py[i] + 1 < sTop || py[i] - 1 >= sBot) continue;
+ cv->fillRect(pxV1[i] - 1, py[i] - 1 - sTop, 3, 3, col);
+ }
+ };
+ loneDots(pyV1, C_TEMP_HOT);
 
  /* ── Secondary curve, 1px (humidity, or pressure on a BMP280) ── */
  if (hasV2) {
@@ -881,6 +907,7 @@ void DisplayManager::drawGraphScreen( ) {
  if (yMx < sTop || yMn >= sBot) continue;
  cv->drawLine(pxV1[i], y1 - sTop, pxV1[i+1], y2 - sTop, C_HUMIDITY);
  }
+ loneDots(pyV2, C_HUMIDITY);
  }
 
  /* ── Last valid value marker ── */
@@ -912,10 +939,14 @@ void DisplayManager::drawGraphScreen( ) {
  if (ry >= 0 && ry < h) cv->drawPixel(dx, ry, C_BG_MAIN);
  };
 
+ /* Markers sit on the band EDGE of the extreme bucket — the drawn pixel
+ * that really is the window maximum/minimum, so the marker, the axis
+ * label and the badge all agree now (the stride-decimated curve used to
+ * top out below the label whenever the peak fell between samples). */
  if (_graphData.idxMaxTemp >= 0 && _graphData.idxMaxTemp < _graphData.count)
- drawDiamond(pxV1[_graphData.idxMaxTemp], pyV1[_graphData.idxMaxTemp], C_TEMP_HOT);
+ drawDiamond(pxV1[_graphData.idxMaxTemp], pyHi[_graphData.idxMaxTemp], C_TEMP_HOT);
  if (_graphData.idxMinTemp >= 0 && _graphData.idxMinTemp < _graphData.count)
- drawDiamond(pxV1[_graphData.idxMinTemp], pyV1[_graphData.idxMinTemp], C_TEMP_OK);
+ drawDiamond(pxV1[_graphData.idxMinTemp], pyLo[_graphData.idxMinTemp], C_TEMP_OK);
 
  } else {
  /* No data */
@@ -1066,7 +1097,7 @@ void DisplayManager::drawGraphDetailScreen( ) {
 
  rows[3] = { TR_STD_LBL, {0}, {0}, 3, 0, C_TEXT_MAIN, 3 };
  fmtFloat2(rows[3].num, sizeof(rows[3].num), _graphData.stdPress);
- snprintf(rows[3].right, sizeof(rows[3].right), "n=%d", _graphData.count);
+ snprintf(rows[3].right, sizeof(rows[3].right), "n=%d", (_graphData.sampleCount > 0) ? _graphData.sampleCount : _graphData.count);
  } else if (!isHumPage) {
  /* Temperature: semantic colors — hot MAX, cold MIN, ok AVG. */
  rows[0] = { TR_MAX_LBL, {0}, {0}, 1, 0, C_TEMP_HOT, 0 };
@@ -1083,7 +1114,7 @@ void DisplayManager::drawGraphDetailScreen( ) {
 
  rows[3] = { TR_STD_LBL, {0}, {0}, 3, 0, C_TEXT_MAIN, 3 };
  fmtFloat2(rows[3].num, sizeof(rows[3].num), _graphData.stdTemp);
- snprintf(rows[3].right, sizeof(rows[3].right), "n=%d", _graphData.count);
+ snprintf(rows[3].right, sizeof(rows[3].right), "n=%d", (_graphData.sampleCount > 0) ? _graphData.sampleCount : _graphData.count);
  } else {
  rows[0] = { TR_MAX_LBL, {0}, {0}, 1, 0, C_HUMIDITY, 0 };
  snprintf(rows[0].num, sizeof(rows[0].num), "%d", (int)_currentMaxHum);
@@ -1101,7 +1132,7 @@ void DisplayManager::drawGraphDetailScreen( ) {
  rows[3] = { TR_STD_LBL, {0}, {0}, 3, 0, C_TEXT_MAIN, 3 };
  if (!isnan(_graphData.stdHum)) fmtFloat2(rows[3].num, sizeof(rows[3].num), _graphData.stdHum);
  else snprintf(rows[3].num, sizeof(rows[3].num), "--");
- snprintf(rows[3].right, sizeof(rows[3].right), "n=%d", _graphData.count);
+ snprintf(rows[3].right, sizeof(rows[3].right), "n=%d", (_graphData.sampleCount > 0) ? _graphData.sampleCount : _graphData.count);
  }
 
  /* ── Instrument rows: icon | label | value+unit | stamp/delta/n ── */

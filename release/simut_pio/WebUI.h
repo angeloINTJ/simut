@@ -1012,45 +1012,53 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             if (anchorEnd > nowEpoch) anchorEnd = nowEpoch;
             await fetchAndDraw(`range=${_currentRangeIdx}&end=${anchorEnd}`);
         }
-        const estSizes = { '0':3000, '1':15000, '2':40000, '3':80000, '4':200000, '5':350000, '6':350000, 'date':50000 };
         function showOverlay(msg) { const ov = document.getElementById('chartOverlay'); const om = document.getElementById('overlayMsg'); ov.classList.remove('hidden'); om.innerText = msg || ''; }
         function hideOverlay() { document.getElementById('chartOverlay').classList.add('hidden'); }
         function showProgress(show) { const w = document.getElementById('progressWrap'); const f = document.getElementById('progFill'); if (show) { w.style.display='block'; f.style.width='0%'; f.classList.add('pulse'); } else { f.classList.remove('pulse'); setTimeout(()=>{ w.style.display='none'; }, 400); } }
-        function updateProgress(received, estTotal) { const pct = Math.min(95, (received / estTotal) * 100); document.getElementById('progFill').style.width = pct + '%'; document.getElementById('progDetail').innerText = (received / 1024).toFixed(1) + ' KB'; }
         function finishProgress() { const f = document.getElementById('progFill'); f.classList.remove('pulse'); f.style.width = '100%'; document.getElementById('progStatus').innerText = window.t('hist_done', 'Complete'); }
-        /* ── Carregamento do grafico em fatias ──────────────────────────────
+        /* ── Grafico direto dos arquivos .h5 ────────────────────────────────
          *
-         * O grafico era UMA requisicao: 500 KB de JSON, tudo ou nada. Se a
-         * conexao tropecasse no meio, o JSON.parse falhava e nao sobrava
-         * nada — nem os 400 KB que ja tinham chegado. Numa faixa MAX isso
-         * eram 15 s de espera para talvez nao ter grafico nenhum.
+         * O caminho antigo pedia ao aparelho um JSON ja reamostrado pelo
+         * /api/history_multi: stride de 1 em N registros no caminho decode
+         * e, alem de um certo tamanho, o envelope de bloco - dois pontos por
+         * hora, o minimo em t0 e o maximo em t0+30min, desenhados como se
+         * fossem a serie. Era isso que fazia uma faixa de 1h ancorada no
+         * passado chegar com 3 pontos, e o 24h virar uma serra min-max que
+         * nao parece com o dado gravado (medido na bancada: 1h=3, 6h=13,
+         * 24h=51 pontos, com o degelo da geladeira duplicado pela alternancia
+         * min/max de blocos vizinhos).
          *
-         * Agora ele segue o mesmo desenho do export de CSV: o servidor
-         * responde ?probe=1 dizendo o tamanho provavel, o cliente decide se
-         * cabe numa requisicao so, e se nao couber fatia a faixa por tempo
-         * (?from=&to=). Cada fatia e independente e idempotente, entao uma
-         * que falha e uma que se refaz. A janela encolhe pela metade a cada
-         * falha e volta a dobrar depois de acertos seguidos, que e como se
-         * mede a rede sem perguntar nada a ela.
+         * Agora a pagina baixa os proprios arquivos por /download - o mesmo
+         * caminho do export CSV - decodifica aqui com h5Decode, e quem reduz
+         * para a tela e o navegador, por balde de pixel guardando minimo,
+         * maximo e media. Pico de 1 minuto sobrevive porque o extremo E o
+         * ponto; lacuna real vira lacuna desenhada; e o numero de pontos
+         * acompanha a largura do canvas em qualquer faixa.
          *
-         * NOTA DE HONESTIDADE: isto conta FATIAS, nao pacotes. Abaixo de nos
-         * o TCP ja retransmite pacote perdido sem nos contar; o que da para
-         * observar aqui e requisicao que voltou, requisicao que precisou de
-         * nova tentativa, e requisicao que desistimos. A UI diz isso.
+         * Cache por arquivo: um dia fechado nunca muda, entao trocar de
+         * faixa ou de sensor nao baixa nada de novo. So o dia corrente e a
+         * hora aberta (servida em /api/history/open no mesmo formato) sao
+         * rebuscados. Download do mais novo para o mais antigo: cancelar no
+         * meio deixa justamente a parte recente na tela.
          */
-        const GCH_SINGLE_MAX   = 64 * 1024;  /* ate aqui, requisicao unica    */
-        const GCH_TARGET_BYTES = 48 * 1024;  /* alvo por fatia                */
-        const GCH_WIN_MIN      = 3600;       /* 1 h                           */
-        const GCH_WIN_MAX      = 14 * 86400; /* 14 d                          */
-        const GCH_RETRIES      = 3;          /* por fatia, antes de encolher  */
-        const GCH_RECOVERY     = 3;          /* acertos antes de dobrar       */
+        const H5G_BUCKET_MIN = 300, H5G_BUCKET_MAX = 1200;
+        const H5G_RAW_FACTOR = 1.6;   /* ate buckets*fator registros vai cru */
+        const H5G_LS_TTL_MS = 45000, H5G_META_TTL_MS = 60000;
+        const H5G_KIND = { 1: { letter: 't', key: 'temp',  unit: '°C',  label: 'ch_temp',  dec: 2 },
+                           2: { letter: 'u', key: 'hum',   unit: '%',   label: 'ch_hum',   dec: 1 },
+                           3: { letter: 'p', key: 'press', unit: 'hPa', label: 'ch_press', dec: 1 } };
         let _gchAbort = null;
         let _gchCancelled = false;
         let _gchGen = 0;                    /* newest graph load wins */
         let _gchChain = Promise.resolve();  /* serialize loads: one transfer at a time */
+        let _h5Meta = null, _h5MetaAt = 0;
+        let _h5LsCache = null, _h5LsAt = 0;
+        const _h5Raw = new Map();           /* nome -> {size, buf} - reuso do CSV  */
+        const _h5Cols = new Map();          /* nome -> {size, recs, t, cols} */
 
-        /* Botao de cancelar, criado so quando o carregamento vira fatiado —
-         * numa requisicao unica nao ha o que cancelar sem perder tudo. */
+        /* Botao de cancelar dentro da barra de progresso. pointer-events e
+         * z-index: o overlay do grafico desliga eventos para nao roubar o
+         * pan, e o botao precisa reativa-los para ser clicavel. */
         function _gchCancelUi(on) {
             let b = document.getElementById('gchX');
             if (on && !b) {
@@ -1059,14 +1067,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 b = document.createElement('button');
                 b.id = 'gchX'; b.type = 'button';
                 b.textContent = window.t('hist_cancel', 'Cancel');
-                /* pointer-events:auto is the whole fix: .chart-overlay sets
-                 * pointer-events:none so the faded overlay never blocks chart
-                 * pan/zoom, and that none is inherited by this button — the tap
-                 * fell through to the canvas behind it (the chart "caught" the
-                 * touch). Re-enabling events on the button alone, plus a touch
-                 * action so the tap fires without the 300 ms delay, hands the
-                 * press to Cancel instead of the graph. relative+z-index keeps it
-                 * above the canvas in the overlay's stacking context. */
                 b.style.cssText = 'position:relative;z-index:6;pointer-events:auto;'
                     + 'touch-action:manipulation;margin-top:8px;padding:8px 14px;'
                     + 'background:transparent;color:var(--dang);border:1px solid var(--dang);'
@@ -1082,187 +1082,269 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
         }
 
-        function _gchShow(st) {
+        function _h5ShowProg(done, total, kb) {
             const wrap = document.getElementById('progressWrap');
             const fill = document.getElementById('progFill');
             if (wrap) wrap.style.display = 'block';
-            if (fill) { fill.classList.remove('pulse'); fill.style.width = st.pct + '%'; }
+            if (fill) {
+                fill.classList.remove('pulse');
+                fill.style.width = Math.round(done * 100 / Math.max(1, total)) + '%';
+            }
             const det = document.getElementById('progDetail');
             const sta = document.getElementById('progStatus');
-            if (det) det.innerText = (st.kb).toFixed(1) + ' KB';
-            if (sta) {
-                const win = st.winSecs >= 86400
-                    ? (st.winSecs / 86400).toFixed(0) + 'd'
-                    : (st.winSecs / 3600).toFixed(0) + 'h';
-                sta.innerText = window.t('hist_slices', 'Slices') + ': '
-                    + st.ok + ' ok'
-                    + (st.retry ? ' / ' + st.retry + ' ' + window.t('hist_retry', 'retry') : '')
-                    + (st.fail  ? ' / ' + st.fail  + ' ' + window.t('hist_lost', 'lost')  : '')
-                    + '  ' + win + '  ' + _fmtEta(st.etaMs);
-            }
+            if (det) det.innerText = kb.toFixed(1) + ' KB';
+            if (sta) sta.innerText = window.t('hist_files', 'Files') + ': ' + done + '/' + total;
         }
 
-        /* Requisicao unica, com leitura em stream so para a barra.
-         * Pode voltar sliceRequired=1: o servidor recusa responder de uma vez
-         * o que levaria ~10 s de envio, porque e nesse tempo que o Core 0 fica
-         * presos no sendContent e o watchdog derruba o aparelho. */
-        async function _gchWhole(url, estTotal) {
-            const response = await fetchSafe(url, {timeout: 60000, retries: 1});
-            if (!response.ok) throw new Error('HTTP ' + response.status);
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let received = 0; const parts = [];
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                parts.push(value); received += value.length;
-                updateProgress(received, estTotal);
-            }
-            let text = '';
-            for (const c of parts) text += decoder.decode(c, { stream: true });
-            text += decoder.decode();
-            return JSON.parse(text);
+        async function _h5GetMeta(force) {
+            const nowMs = Date.now();
+            if (!force && _h5Meta && nowMs - _h5MetaAt < H5G_META_TTL_MS) return _h5Meta;
+            const r = await fetchSafe('/api/status', { timeout: 10000, retries: 1 });
+            const j = await r.json();
+            const slots = {};
+            (j.sensors || []).forEach(s => { slots[s.slot] = { hwId: s.id, name: s.name }; });
+            /* skew: o relogio do aparelho manda na janela, nao o do PC */
+            _h5Meta = { nominal: (j.sys && j.sys.hi > 0) ? j.sys.hi * 60 : 60,
+                        slots,
+                        skew: (j.sys && j.sys.time) ? (j.sys.time - nowMs / 1000) : 0 };
+            _h5MetaAt = nowMs;
+            return _h5Meta;
+        }
+        function _h5Now() { return Math.floor(Date.now() / 1000 + (_h5Meta ? _h5Meta.skew : 0)); }
+        function _h5DayStart(ep) {
+            const d = new Date(ep * 1000);
+            return Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 1000);
         }
 
-        /* Funde uma fatia no acumulado. Fatias vizinhas compartilham o bloco
-         * da fronteira, entao o mesmo instante pode chegar duas vezes — o
-         * mapa por timestamp resolve sem depender de alinhamento. */
-        function _gchMerge(acc, part) {
-            if (!acc.sensors && part.sensors) acc.sensors = part.sensors;
-            for (const pt of (part.data || [])) acc.byT.set(pt.t, pt);
-            const ex = part.extremes || {};
-            for (const k in ex) {
-                if (!acc.extremes[k]) { acc.extremes[k] = Object.assign({}, ex[k]); continue; }
-                const a = acc.extremes[k];
-                if (typeof ex[k].min === 'number' && (typeof a.min !== 'number' || ex[k].min < a.min)) a.min = ex[k].min;
-                if (typeof ex[k].max === 'number' && (typeof a.max !== 'number' || ex[k].max > a.max)) a.max = ex[k].max;
+        async function _h5GetLs(force) {
+            const nowMs = Date.now();
+            if (!force && _h5LsCache && nowMs - _h5LsAt < H5G_LS_TTL_MS) return _h5LsCache;
+            const r = await fetchSafe('/api/ls?dir=/history', { timeout: 12000, retries: 2 });
+            const j = await r.json();
+            const out = [];
+            for (const e of (j.entries || [])) {
+                const m = /^(\d{4})(\d{2})(\d{2})\.h5$/.exec(e.n);
+                if (!m) continue;
+                /* dia LOCAL do navegador == dia local do aparelho (mesmo fuso,
+                 * mesma premissa que o export CSV ja faz) */
+                const t0 = Math.floor(new Date(+m[1], +m[2] - 1, +m[3]).getTime() / 1000);
+                out.push({ name: e.n, size: e.s || 0, t0 });
             }
-            if (typeof part.minT === 'number' && (acc.minT === null || part.minT < acc.minT)) { acc.minT = part.minT; acc.tsMinT = part.tsMinT; }
-            if (typeof part.maxT === 'number' && (acc.maxT === null || part.maxT > acc.maxT)) { acc.maxT = part.maxT; acc.tsMaxT = part.tsMaxT; }
-            acc.recs += (part.recs || 0);
+            out.sort((a, b) => a.t0 - b.t0);
+            _h5LsCache = out; _h5LsAt = nowMs;
+            return out;
         }
 
-        async function _gchSliced(base, probe, estTotal) {
-            const from = probe.cutoff, to = probe.end;
-            const totalSecs = Math.max(1, to - from);
-            const bytesPerSec = Math.max(1, probe.estPayload / totalSecs);
-            let winSecs = Math.round(GCH_TARGET_BYTES / bytesPerSec);
-            winSecs = Math.max(GCH_WIN_MIN, Math.min(GCH_WIN_MAX, winSecs));
-            /* A janela cresce quando a rede vai bem, mas nao alem do que o
-             * servidor aceita responder de uma vez — passar disso troca uma
-             * fatia rapida por uma recusa, e em versoes anteriores trocava por
-             * um envio de dez segundos, que e o que derrubava o aparelho. */
-            const winCeil = Math.max(GCH_WIN_MIN,
-                Math.min(GCH_WIN_MAX, Math.floor((GCH_SINGLE_MAX * 0.8) / bytesPerSec)));
+        /* Colunar por arquivo: um Float64Array de epochs e um Int16Array por
+         * canal, com sentinela onde o canal nao existia ainda (arquivo antigo
+         * com schema menor). O dispositivo inteiro decodificado cabe folgado
+         * na memoria da pagina. */
+        function _h5Columnar(buf, nominal) {
+            const dec = h5Decode((buf instanceof Uint8Array) ? buf : new Uint8Array(buf), nominal);
+            const n = dec.series.length;
+            const t = new Float64Array(n);
+            const byId = new Map();
+            for (let i = 0; i < n; i++) {
+                const rec = dec.series[i];
+                t[i] = rec.t;
+                for (let c = 0; c < rec.schema.length; c++) {
+                    const d = rec.schema[c];
+                    let col = byId.get(d.id);
+                    if (!col) {
+                        col = { id: d.id, kind: d.kind, scale: Math.pow(10, d.scaleExp),
+                                v: new Int16Array(n).fill(H5_NAN) };
+                        byId.set(d.id, col);
+                    }
+                    col.v[i] = rec.v[c];
+                }
+            }
+            return { recs: n, rejected: dec.rejected, t, cols: Array.from(byId.values()) };
+        }
 
-            const acc = { sensors: null, byT: new Map(), extremes: {},
-                          minT: null, maxT: null, tsMinT: 0, tsMaxT: 0, recs: 0 };
-            const missing = [];
-            let ok = 0, retried = 0, failed = 0, consecutiveOk = 0, kb = 0;
-            const etaSamples = [];
-            let cursor = from;
-            _gchCancelled = false;
-            _gchShow({ pct: 0, kb: 0, ok: 0, retry: 0, fail: 0, winSecs, etaMs: -1 });
-            _gchCancelUi(true);
+        /* Reamostragem por balde de pixel. Abaixo do limiar desenha cru (com
+         * null no meio de lacunas reais); acima, cada balde guarda minimo,
+         * maximo e media, e balde vazio vira null. O registro mais novo sai
+         * sempre com o proprio carimbo - a borda em dia e o objetivo. */
+        function _h5Decimate(ts, vs, fromEp, toEp, nominal, buckets) {
+            const n = ts.length;
+            if (n === 0) return { mode: 'raw', pts: [] };
+            if (n <= buckets * H5G_RAW_FACTOR) {
+                const gapThr = Math.max(3.5 * nominal, 90);
+                const pts = [];
+                for (let i = 0; i < n; i++) {
+                    if (i > 0 && ts[i] - ts[i - 1] > gapThr)
+                        pts.push({ x: (ts[i - 1] + (ts[i] - ts[i - 1]) / 2) * 1000, y: null });
+                    pts.push({ x: ts[i] * 1000, y: vs[i] });
+                }
+                return { mode: 'raw', pts };
+            }
+            const w = (toEp - fromEp) / buckets;
+            const mn = new Float64Array(buckets).fill(Infinity);
+            const mx = new Float64Array(buckets).fill(-Infinity);
+            const sum = new Float64Array(buckets);
+            const cnt = new Uint32Array(buckets);
+            const tsum = new Float64Array(buckets);
+            for (let i = 0; i < n; i++) {
+                let b = Math.floor((ts[i] - fromEp) / w);
+                if (b < 0) b = 0;
+                if (b >= buckets) b = buckets - 1;
+                const v = vs[i];
+                if (v < mn[b]) mn[b] = v;
+                if (v > mx[b]) mx[b] = v;
+                sum[b] += v; cnt[b]++; tsum[b] += ts[i];
+            }
+            const lo = [], hi = [], mid = [];
+            let inGap = false;
+            for (let b = 0; b < buckets; b++) {
+                if (cnt[b] === 0) {
+                    if (!inGap && lo.length) {
+                        const x = (fromEp + (b + 0.5) * w) * 1000;
+                        lo.push({ x, y: null }); hi.push({ x, y: null }); mid.push({ x, y: null });
+                        inGap = true;
+                    }
+                    continue;
+                }
+                inGap = false;
+                const x = (tsum[b] / cnt[b]) * 1000;
+                lo.push({ x, y: mn[b] });
+                hi.push({ x, y: mx[b] });
+                mid.push({ x, y: sum[b] / cnt[b] });
+            }
+            const lastX = ts[n - 1] * 1000;
+            if (mid.length && mid[mid.length - 1].x < lastX) {
+                lo.push({ x: lastX, y: vs[n - 1] });
+                hi.push({ x: lastX, y: vs[n - 1] });
+                mid.push({ x: lastX, y: vs[n - 1] });
+            }
+            return { mode: 'band', lo, hi, mid };
+        }
 
-            while (cursor < to && !_gchCancelled) {
-                const iterStart = performance.now();
-                const cFrom = cursor;
-                const cTo = Math.min(to, cFrom + winSecs);
+        async function _h5Fetch(path, signal) {
+            const r = await fetch(path, { credentials: 'include', signal });
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return await r.arrayBuffer();
+        }
+
+        /* Busca e monta a janela inteira a partir dos arquivos. Folga de um
+         * dia na escolha: um bloco selado pode cruzar a meia-noite e carregar
+         * registros do dia seguinte no arquivo do dia do t0. */
+        async function _h5Load(fromEp, toEp, sensorSel, myGen) {
+            const meta = await _h5GetMeta(false);
+            const ls = await _h5GetLs(false);
+            const wantAll = (fromEp <= 0);
+            const nowEp = _h5Now();
+            const todayT0 = _h5DayStart(nowEp);
+            const files = ls.filter(f => wantAll || (f.t0 <= toEp && f.t0 + 2 * 86400 > fromEp));
+            if (wantAll && files.length) fromEp = files[0].t0;
+
+            const fetchList = files.slice().sort((a, b) => b.t0 - a.t0);
+            const holes = [];
+            let done = 0, kb = 0;
+            _h5ShowProg(0, fetchList.length, 0);
+            for (const f of fetchList) {
+                if (_gchCancelled || myGen !== _gchGen) break;
+                const cached = _h5Cols.get(f.name);
+                if (cached && cached.size === f.size && f.t0 !== todayT0) {
+                    done++; _h5ShowProg(done, fetchList.length, kb);
+                    continue;
+                }
                 let got = null;
-                for (let attempt = 0; attempt < GCH_RETRIES && !got && !_gchCancelled; attempt++) {
-                    if (attempt > 0) retried++;
+                for (let att = 0; att < 3 && !got && !_gchCancelled; att++) {
                     try {
                         _gchAbort = new AbortController();
-                        const r = await fetch(base + `&from=${cFrom}&to=${cTo}&mode=envelope`,
-                                              { credentials: 'include', signal: _gchAbort.signal });
-                        if (!r.ok) throw new Error('HTTP ' + r.status);
-                        const buf = await r.text();
-                        kb += buf.length / 1024;
-                        got = JSON.parse(buf);
+                        const buf = await _h5Fetch('/download?file=/history/' + f.name, _gchAbort.signal);
+                        kb += buf.byteLength / 1024;
+                        got = _h5Columnar(buf, meta.nominal);
+                        got.size = buf.byteLength;
+                        _h5Raw.set(f.name, { size: buf.byteLength, buf });
+                        _h5Cols.set(f.name, got);
                     } catch (e) {
                         if (e.name === 'AbortError') break;
-                        if (attempt < GCH_RETRIES - 1) await new Promise(s => setTimeout(s, 250 * (attempt + 1)));
+                        if (att < 2) await new Promise(s => setTimeout(s, 300 * (att + 1)));
                     }
                 }
                 _gchAbort = null;
-                if (_gchCancelled) break;
+                if (!got && !_gchCancelled) holes.push(f.name);
+                done++;
+                _h5ShowProg(done, fetchList.length, kb);
+            }
 
-                const advancedFrom = cursor;
-                if (got) {
-                    _gchMerge(acc, got);
-                    ok++; consecutiveOk++;
-                    cursor = cTo;
-                    if (consecutiveOk >= GCH_RECOVERY && winSecs < winCeil) {
-                        winSecs = Math.min(winSecs * 2, winCeil);
-                        consecutiveOk = 0;
+            /* Montagem das series, em ordem cronologica de arquivo. O guarda
+             * monotonico faz dois papeis: nunca duplicar um instante (uma
+             * selagem no meio da carga poe o mesmo registro no arquivo E na
+             * cauda) e ignorar regressao de relogio dentro de um arquivo. */
+            const sel = new Set(sensorSel.map(Number));
+            const series = new Map();
+            const extremes = {};
+            let tsMinT = 0, tsMaxT = 0, recsInWin = 0;
+            const pushCols = (cs) => {
+                const tArr = cs.t, m = cs.recs;
+                for (const col of cs.cols) {
+                    const slot = col.id >> 3;
+                    if (!sel.has(slot)) continue;
+                    const ki = H5G_KIND[col.kind];
+                    if (!ki) continue;
+                    const sm = meta.slots[slot];
+                    const hwId = sm ? sm.hwId : ('S' + slot);
+                    const key = ki.letter + hwId;
+                    let s = series.get(key);
+                    if (!s) {
+                        s = { key, slot, kind: col.kind, hwId, ts: [], vs: [] };
+                        series.set(key, s);
                     }
-                } else if (winSecs > GCH_WIN_MIN) {
-                    /* Encolhe e refaz o MESMO cursor: rede ruim pede pedaco
-                     * menor, nao pedaco pulado. */
-                    winSecs = Math.max(Math.floor(winSecs / 2), GCH_WIN_MIN);
-                    consecutiveOk = 0;
-                } else {
-                    /* Ja no minimo e ainda falhando: registra o buraco e
-                     * segue, para entregar o resto em vez de nada. */
-                    failed++; consecutiveOk = 0;
-                    missing.push({ from: cFrom, to: cTo });
-                    cursor = cTo;
+                    const v = col.v, sc = col.scale;
+                    let last = s.ts.length ? s.ts[s.ts.length - 1] : -Infinity;
+                    let q = extremes[ki.key];
+                    if (!q) q = extremes[ki.key] = { min: Infinity, max: -Infinity, unit: ki.unit, label: ki.label };
+                    for (let i = 0; i < m; i++) {
+                        const t = tArr[i];
+                        if (t < fromEp || t > toEp || v[i] === H5_NAN || t <= last) continue;
+                        const rv = v[i] * sc;
+                        s.ts.push(t); s.vs.push(rv); last = t;
+                        recsInWin++;
+                        if (rv < q.min) { q.min = rv; if (col.kind === 1) tsMinT = t; }
+                        if (rv > q.max) { q.max = rv; if (col.kind === 1) tsMaxT = t; }
+                    }
                 }
-
-                const advanced = cursor - advancedFrom;
-                if (advanced > 0) {
-                    etaSamples.push({ ms: performance.now() - iterStart, ratio: advanced / totalSecs });
-                    if (etaSamples.length > 5) etaSamples.shift();
-                }
-                let etaMs = -1;
-                if (etaSamples.length >= 2) {
-                    const sMs = etaSamples.reduce((a, x) => a + x.ms, 0);
-                    const sR  = etaSamples.reduce((a, x) => a + x.ratio, 0);
-                    if (sR > 0) etaMs = (sMs / sR) * Math.max(0, 1 - (cursor - from) / totalSecs);
-                }
-                _gchShow({ pct: Math.min(99, Math.round(((cursor - from) / totalSecs) * 100)),
-                           kb, ok, retry: retried, fail: failed, winSecs, etaMs });
+            };
+            for (const f of files) {
+                const cs = _h5Cols.get(f.name);
+                if (cs) pushCols(cs);
             }
 
-            _gchCancelUi(false);
-            const data = Array.from(acc.byT.values()).sort((a, b) => a.t - b.t);
-            return { data, sensors: acc.sensors || [], extremes: acc.extremes,
-                     minT: acc.minT, maxT: acc.maxT, tsMinT: acc.tsMinT, tsMaxT: acc.tsMaxT,
-                     cutoff: from, end: to, recs: acc.recs,
-                     _slices: { ok, retried, failed, missing, cancelled: _gchCancelled } };
-        }
-
-        /* Escolhe o caminho e devolve o JSON pronto para desenhar. */
-        async function _gchLoad(queryParam, sensorsCsv, estTotal) {
-            const base = `/api/history_multi?sensors=${encodeURIComponent(sensorsCsv)}`;
-            let probe = null;
-            try {
-                const pr = await fetchSafe(base + '&' + queryParam + '&probe=1',
-                                           { timeout: 20000, retries: 1 });
-                if (pr.ok) probe = await pr.json();
-            } catch (e) { /* o probe e otimizacao, nao requisito */ }
-
-            /* Fatiar so quando o servidor JA escolheria o envelope. Se ele
-             * ainda usaria o decode, a resposta e pequena por construcao (a
-             * decimacao mira ~600 pontos) e forcar envelope trocaria centenas
-             * de amostras por duas dezenas de blocos — mais rapido e pior.
-             * Perto do limiar isso importa: 700 registros em 12 h viram 24
-             * pontos no envelope. */
-            const worthSlicing = probe && probe.estPayload > GCH_SINGLE_MAX
-                                 && probe.path === 'envelope'
-                                 && probe.end > probe.cutoff && probe.cutoff > 0;
-            if (!worthSlicing) {
-                const whole = await _gchWhole(base + '&' + queryParam, estTotal);
-                /* O probe pode ter falhado (e opcional) e a recusa vir so
-                 * agora — a resposta traz os mesmos campos, entao da para
-                 * fatiar sem uma segunda ida ao aparelho. */
-                if (whole && whole.sliceRequired && whole.end > whole.cutoff && whole.cutoff > 0) {
-                    return await _gchSliced(base, whole, estTotal);
-                }
-                return whole;
+            /* A cauda por ULTIMO (regra da hora aberta): se uma selagem cair
+             * no meio, o pior caso e lacuna, nunca duplicata. */
+            let ramRecs = 0;
+            if (!_gchCancelled && myGen === _gchGen && toEp >= nowEp - 4500) {
+                try {
+                    const r = await fetchSafe('/api/history/open', { timeout: 10000, retries: 1 });
+                    if (r.ok && r.status !== 204) {
+                        const buf = await r.arrayBuffer();
+                        if (buf.byteLength > 0) {
+                            const cs = _h5Columnar(buf, meta.nominal);
+                            ramRecs = cs.recs;
+                            pushCols(cs);
+                        }
+                    }
+                } catch (e) { /* a cauda e bonus, nao requisito */ }
             }
-            return await _gchSliced(base, probe, estTotal);
+
+            for (const k in extremes) {
+                if (!isFinite(extremes[k].min)) delete extremes[k];
+            }
+
+            const cv = document.getElementById('myChart');
+            const wPx = (cv && cv.clientWidth) ? cv.clientWidth : 900;
+            const buckets = Math.max(H5G_BUCKET_MIN, Math.min(H5G_BUCKET_MAX, Math.floor(wPx)));
+            const out = [];
+            for (const s of series.values()) {
+                out.push({ key: s.key, slot: s.slot, kind: s.kind, hwId: s.hwId,
+                           n: s.ts.length,
+                           dec: _h5Decimate(s.ts, s.vs, fromEp, toEp, meta.nominal, buckets) });
+            }
+            return { series: out, extremes, tsMinT, tsMaxT, cutoff: fromEp, end: toEp,
+                     recs: recsInWin, ram: ramRecs, holes,
+                     cancelled: _gchCancelled, files: files.length };
         }
 
         /* Coordinator: serialize graph loads so exactly one transfer is ever live,
@@ -1288,41 +1370,48 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         async function _doFetchAndDraw(queryParam, myGen) {
             const gridBox = document.getElementById('statsGrid');
-            let estKey = 'date'; const rm = queryParam.match(/range=(\d)/); if (rm) estKey = rm[1];
-            const estTotal = estSizes[estKey] || 40000;
-            const sensorsCsv = _selectedSensors.join(',');
+            const rm = queryParam.match(/range=(\d)/);
+            const rangeIdx = rm ? parseInt(rm[1], 10) : 2;
+            const em = queryParam.match(/end=(\d+)/);
             try {
                 gridBox.style.opacity = '0.3';
-                showOverlay(window.t('hist_down_msg','Downloading...'));
+                showOverlay(window.t('hist_down_msg', 'Downloading...'));
                 showProgress(true);
-                document.getElementById('progStatus').innerText = window.t('hist_loading','Loading...');
-                let json;
-                try { json = await _gchLoad(queryParam, sensorsCsv, estTotal); }
-                catch(e) { if (_gchGen === myGen) { showProgress(false); showOverlay(window.t('hist_err_json','Error')); } return; }
-                if (_gchGen !== myGen) return;   /* superseded mid-fetch — a newer load owns the UI */
-                finishProgress();
-                if (!json) { showProgress(false); showOverlay(window.t('hist_err_json','Error')); return; }
-                if (json.error) { showProgress(false); showOverlay(json.error); return; }
-                if (json._slices && (json._slices.failed || json._slices.cancelled)) {
-                    /* Parcial e melhor que nada, mas o usuario precisa saber
-                       que e parcial — um grafico com buraco silencioso e pior
-                       que um aviso. */
-                    showToast(window.t('hist_partial','Partial: ') + json._slices.failed + ' '
-                              + window.t('hist_lost','lost'), 'warn');
+                document.getElementById('progStatus').innerText = window.t('hist_loading', 'Loading...');
+                _gchCancelUi(true);
+                let res;
+                try {
+                    await _h5GetMeta(false);
+                    const dur = rangeDurations[rangeIdx] || 0;
+                    const toEp = em ? Math.min(parseInt(em[1], 10), _h5Now()) : _h5Now();
+                    const fromEp = dur > 0 ? toEp - dur : 0;
+                    res = await _h5Load(fromEp, toEp, _selectedSensors, myGen);
+                } catch (e) {
+                    if (_gchGen === myGen) {
+                        _gchCancelUi(false); showProgress(false);
+                        showOverlay(window.t('hist_err_json', 'Error'));
+                    }
+                    return;
                 }
-                const data = json.data || [];
-                if (data.length === 0) {
-                    if (myChart) myChart.destroy();
+                if (_gchGen !== myGen) return;
+                _gchCancelUi(false);
+                finishProgress();
+                if (res.holes.length || res.cancelled) {
+                    /* Parcial e melhor que nada, mas o usuario precisa saber
+                       que e parcial - um grafico com buraco silencioso e pior
+                       que um aviso. */
+                    showToast(window.t('hist_partial', 'Partial: ') + res.holes.length + ' '
+                              + window.t('hist_lost', 'lost'), 'warn');
+                }
+                const totalPts = res.series.reduce((a, s) => a + s.n, 0);
+                if (totalPts === 0) {
+                    if (myChart) { myChart.destroy(); myChart = null; }
                     showProgress(false);
-                    showOverlay(window.t('hist_no_data','No data for this period'));
+                    showOverlay(window.t('hist_no_data', 'No data for this period'));
                     return;
                 }
                 setTimeout(() => showProgress(false), 400);
-                /* Janela temporal — quando MAX (range=6) o servidor envia
-                 * cutoff=0; usamos o epoch do primeiro record real para
-                 * que o export chunked nao itere desde 1970. */
-                const cutoffEpoch = json.cutoff || (data.length > 0 ? data[0].t : 0);
-                const endEpoch = json.end || data[data.length-1].t;
+                const cutoffEpoch = res.cutoff, endEpoch = res.end;
                 _lastChartCutoff = cutoffEpoch; _lastChartEnd = endEpoch;
                 /* Titulo */
                 if (cutoffEpoch > 0 && endEpoch > 0) {
@@ -1331,95 +1420,65 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     document.getElementById('chartTitle').innerText = sameDay
                         ? `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)}  ${fmt(dC.getHours())}:${fmt(dC.getMinutes())} - ${fmt(dE.getHours())}:${fmt(dE.getMinutes())}`
                         : `${fmt(dC.getDate())}/${fmt(dC.getMonth()+1)} - ${fmt(dE.getDate())}/${fmt(dE.getMonth()+1)}`;
-                } else {
-                    const dMin = new Date(data[0].t * 1000), dMax = new Date(data[data.length-1].t * 1000);
-                    document.getElementById('chartTitle').innerText = `${fmt(dMin.getDate())}/${fmt(dMin.getMonth()+1)} a ${fmt(dMax.getDate())}/${fmt(dMax.getMonth()+1)}`;
                 }
-                /* Series como pontos {x:epochMs, y:val} — eixo X linear no
-                 * tempo, ticks distribuidos pelo periodo (nao pelos samples) */
-                const sensors = json.sensors || [];
+                /* Series: cru vira linha; balde vira linha media + banda
+                 * min-max pintada pelo plugin. Umidade e pressao mantem a cor
+                 * fixa da grandeza e ganham tracejado por sensor quando ha
+                 * mais de um - identidade nunca so pela cor. */
+                const selOrder = _selectedSensors.map(Number);
+                const ordIdx = sl => { const i = selOrder.indexOf(sl); return i < 0 ? 99 : i; };
+                res.series.sort((a, b) => (ordIdx(a.slot) - ordIdx(b.slot)) || (a.kind - b.kind));
                 const datasets = [];
                 let hasAnyHum = false, hasAnyPress = false;
-                let maxH = -999, minH = 999;
-                sensors.forEach((s, idx) => {
-                    /* v e um OBJETO chaveado por medida (tDS18B2000, uDHT2202...)
-                     * — o codigo antigo indexava v[idx] como array (formato
-                     * pre-V4) e lia umidade em d.h: todos os pontos viravam
-                     * null e o grafico ficava em branco. Sem aspas neste
-                     * comentario: o minificador protege strings antes de
-                     * remover comentarios e aspas aqui o quebram. */
-                    const tKey = 't' + s.hwId, hKey = 'u' + s.hwId, pKey = 'p' + s.hwId;
-                    const tArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[tKey] === 'number') ? d.v[tKey] : null }));
-                    datasets.push({
-                        label: `${s.hwId} T (°C)`,
-                        data: tArr,
-                        borderColor: _seriesColor(idx, false),
-                        backgroundColor: 'transparent',
-                        borderWidth: 1.6, tension: 0.25, pointRadius: 0,
-                        yAxisID: 'y', spanGaps: false
-                    });
-                    /* A series with no numeric point anywhere in the window is
-                       dropped instead of drawn. A BMP280 has no humidity die, so
-                       the firmware writes NaN for CH_HUM while the TYPE still
-                       claims the channel — that produced a dashed blue line made
-                       entirely of nulls, a %RH axis for nothing, and a legend
-                       entry for a measurement the part cannot take. */
-                    const anyNum = a => a.some(pt => typeof pt.y === 'number');
-                    if (s.hasH) {
-                        const hArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[hKey] === 'number') ? d.v[hKey] : null }));
-                        if (anyNum(hArr)) {
-                            hasAnyHum = true;
-                            datasets.push({
-                                label: `${s.hwId} H (%)`,
-                                data: hArr,
-                                borderColor: _humColor,
-                                backgroundColor: 'transparent',
-                                borderWidth: 1.6, borderDash: [6, 3],
-                                tension: 0.25, pointRadius: 0,
-                                yAxisID: 'y1', spanGaps: false
-                            });
-                        }
+                const humDash = [[6, 3], [2, 3], [9, 3], [3, 6]];
+                const pressDash = [[2, 2], [6, 2], [2, 6], [8, 3]];
+                let humSeen = 0, pressSeen = 0;
+                res.series.forEach(s => {
+                    const idx = Math.max(0, selOrder.indexOf(s.slot));
+                    let color, dash, axis = 'y', suffix = 'T (°C)';
+                    if (s.kind === 2) {
+                        color = _humColor; axis = 'y1'; suffix = 'H (%)';
+                        dash = humDash[humSeen++ % humDash.length]; hasAnyHum = true;
+                    } else if (s.kind === 3) {
+                        color = _pressColor; axis = 'y2'; suffix = 'P (hPa)';
+                        dash = pressDash[pressSeen++ % pressDash.length]; hasAnyPress = true;
+                    } else {
+                        color = _seriesColor(idx, false);
                     }
-                    if (s.hasP) {
-                        const pArr = data.map(d => ({ x: d.t * 1000, y: (d.v && typeof d.v[pKey] === 'number') ? d.v[pKey] : null }));
-                        if (anyNum(pArr)) {
-                            hasAnyPress = true;
-                            datasets.push({
-                                label: `${s.hwId} P (hPa)`,
-                                data: pArr,
-                                borderColor: _pressColor,
-                                backgroundColor: 'transparent',
-                                borderWidth: 1.6, borderDash: [2, 2],
-                                tension: 0.25, pointRadius: 0,
-                                yAxisID: 'y2', spanGaps: false
-                            });
-                        }
+                    const ds = {
+                        label: `${s.hwId} ${suffix}`,
+                        borderColor: color, backgroundColor: 'transparent',
+                        borderWidth: 1.6, borderDash: dash, tension: 0,
+                        pointRadius: _h5IsolatedRadius, pointHitRadius: 8,
+                        yAxisID: axis, spanGaps: false, _h5kind: s.kind
+                    };
+                    if (s.dec.mode === 'band') {
+                        ds.data = s.dec.mid;
+                        ds._h5BandLo = s.dec.lo;
+                        ds._h5BandHi = s.dec.hi;
+                        ds._h5BandColor = _h5Alpha(color, 0.18);
+                    } else {
+                        ds.data = s.dec.pts;
                     }
+                    datasets.push(ds);
                 });
-                /* Stats — all four come from the server, measured over every
-                 * record in range before decimation. Humidity used to be
-                 * scanned here from the drawn points instead, so it reported
-                 * the largest surviving sample rather than the real extreme,
-                 * and disagreed with temperature by however much decimation
-                 * had thrown away. */
-                /* The server measures maxT/minT/maxH/minH across EVERY requested
-                   sensor, so with more than one selected the badges read as the
-                   extremes of a single mystery series — the coldest reading of
-                   whichever probe happened to be coldest. Meaningless as soon as
-                   the set is mixed (a freezer and a room), so the whole strip is
-                   hidden unless exactly one sensor is on screen. */
-                const oneSensor = (sensors.length === 1);
+                /* Extremos medidos sobre TODO registro da janela, na mesma
+                 * passada da montagem - nunca discordam do desenho. Faixa de
+                 * badges so com um sensor: com varios, min e max de sensores
+                 * misturados nao significam nada. */
+                const oneSensor = (selOrder.length === 1);
                 gridBox.style.display = oneSensor ? '' : 'none';
-                renderExtremes(json);
+                renderExtremes({ extremes: res.extremes });
                 gridBox.style.opacity = '1';
-                renderChart(datasets, hasAnyHum, hasAnyPress, cutoffEpoch * 1000, endEpoch * 1000, _currentRangeIdx);
+                renderChart(datasets, hasAnyHum, hasAnyPress, cutoffEpoch * 1000, endEpoch * 1000, rangeIdx);
                 hideOverlay();
             } catch (e) {
-                if (_gchGen !== myGen) return;   /* superseded — leave the UI to the newer load */
+                if (_gchGen !== myGen) return;
                 showProgress(false);
-                showOverlay(window.t('hist_conn_lost','Connection lost.'));
+                showOverlay(window.t('hist_conn_lost', 'Connection lost.'));
             }
         }
+
         /* MAX/MIN badges, two per channel the server measured.
          *
          * The server sends extremes{} keyed by channel, measured over every
@@ -1490,6 +1549,70 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return p(d.getDate()) + '/' + p(d.getMonth()+1) + '/' + String(d.getFullYear()).slice(2);
         }
 
+        function _h5Alpha(hex, a) {
+            const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16),
+                  b = parseInt(hex.slice(5, 7), 16);
+            return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+        }
+
+        /* Ponto isolado (vizinhos nulos dos dois lados) ganha raio visivel;
+         * sem isso uma amostra unica entre duas lacunas nao desenha nada e
+         * parece dado perdido. */
+        function _h5IsolatedRadius(c) {
+            const d = c.dataset.data, i = c.dataIndex;
+            if (!d || !d[i] || d[i].y === null || d[i].y === undefined) return 0;
+            const pn = (i === 0) || !d[i - 1] || d[i - 1].y === null || d[i - 1].y === undefined;
+            const nn = (i === d.length - 1) || !d[i + 1] || d[i + 1].y === null || d[i + 1].y === undefined;
+            return (pn && nn) ? 2.4 : 0;
+        }
+
+        /* Banda min-max por tras da linha media, com recorte na area do
+         * grafico e respeito as lacunas (null quebra o poligono). Plugin
+         * local em vez de datasets extras: a legenda, o tooltip e o modo
+         * nearest so enxergam as linhas de verdade. */
+        const _h5BandPlugin = {
+            id: 'h5band',
+            beforeDatasetsDraw(chart) {
+                const area = chart.chartArea;
+                if (!area) return;
+                const c = chart.ctx;
+                chart.data.datasets.forEach((ds, di) => {
+                    if (!ds._h5BandLo || !chart.isDatasetVisible(di)) return;
+                    const xs = chart.scales.x, ys = chart.scales[ds.yAxisID || 'y'];
+                    if (!xs || !ys) return;
+                    c.save();
+                    c.beginPath();
+                    c.rect(area.left, area.top, area.right - area.left, area.bottom - area.top);
+                    c.clip();
+                    c.fillStyle = ds._h5BandColor || 'rgba(128,128,128,0.15)';
+                    const lo = ds._h5BandLo, hi = ds._h5BandHi;
+                    let seg = [];
+                    const flush = () => {
+                        if (seg.length >= 2) {
+                            c.beginPath();
+                            seg.forEach((p, i) => {
+                                const X = xs.getPixelForValue(p.x), Y = ys.getPixelForValue(p.hi);
+                                if (i === 0) c.moveTo(X, Y); else c.lineTo(X, Y);
+                            });
+                            for (let i = seg.length - 1; i >= 0; i--) {
+                                c.lineTo(xs.getPixelForValue(seg[i].x), ys.getPixelForValue(seg[i].lo));
+                            }
+                            c.closePath();
+                            c.fill();
+                        }
+                        seg = [];
+                    };
+                    for (let i = 0; i < lo.length; i++) {
+                        if (lo[i].y === null || lo[i].y === undefined
+                            || hi[i].y === null || hi[i].y === undefined) { flush(); continue; }
+                        seg.push({ x: lo[i].x, lo: lo[i].y, hi: hi[i].y });
+                    }
+                    flush();
+                    c.restore();
+                });
+            }
+        };
+
         function renderChart(datasets, showHumAxis, showPressAxis, xMin, xMax, rangeIdx) {
             const ctx = document.getElementById('myChart').getContext('2d');
             if (myChart) myChart.destroy();
@@ -1497,20 +1620,32 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             myChart = new Chart(ctx, {
                 type: 'line',
                 data: { datasets: datasets },
+                plugins: [_h5BandPlugin],
                 options: {
                     animation: false, responsive: true, maintainAspectRatio: false,
-                    interaction: { mode: 'index', intersect: false },
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false },
                     plugins: {
                         legend: { display: datasets.length > 1, position: 'top', labels: { color: '#a1a1aa', font: { size: 11 } } },
                         tooltip: {
                             callbacks: {
-                                /* X agora e' epoch ms — formata como data/hora local. */
+                                /* X e epoch ms - formata como data/hora local. */
                                 title: function(items) {
                                     if (!items || !items.length) return '';
                                     const d = new Date(items[0].parsed.x);
                                     const p = n => String(n).padStart(2, '0');
                                     return p(d.getDate()) + '/' + p(d.getMonth()+1) + '/' + d.getFullYear() +
                                            ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+                                },
+                                label: function(item) {
+                                    const d = item.dataset;
+                                    const dec = (d._h5kind === 1 || d._h5kind === undefined) ? 2 : 1;
+                                    let txt = ' ' + d.label + ': ' + item.parsed.y.toFixed(dec);
+                                    if (d._h5BandLo) {
+                                        const lo = d._h5BandLo[item.dataIndex], hi = d._h5BandHi[item.dataIndex];
+                                        if (lo && hi && lo.y !== null && hi.y !== null && (hi.y - lo.y) > 0)
+                                            txt += '  [' + lo.y.toFixed(dec) + ' … ' + hi.y.toFixed(dec) + ']';
+                                    }
+                                    return txt;
                                 }
                             }
                         }
@@ -2199,11 +2334,22 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let success = false, lastErr = '';
                 for (let attempt = 0; attempt < EXP_MAX_RETRIES && !success && !_expCancelled; attempt++) {
                     try {
-                        _expAbort = new AbortController();
-                        const r = await fetch('/download?file=/history/' + day.name,
-                            { credentials: 'include', signal: _expAbort.signal });
-                        if (!r.ok) throw new Error('HTTP ' + r.status);
-                        const buf = await r.arrayBuffer();
+                        /* O grafico ja baixou e guardou os bytes de cada dia
+                         * fechado - o export decodifica do cache e so vai a
+                         * rede pelo que faltar (ou pelo dia corrente, que
+                         * cresce a cada selagem). */
+                        let buf;
+                        const rawc = _h5Raw.get(day.name);
+                        if (rawc && rawc.size === day.size) {
+                            buf = rawc.buf;
+                        } else {
+                            _expAbort = new AbortController();
+                            const r = await fetch('/download?file=/history/' + day.name,
+                                { credentials: 'include', signal: _expAbort.signal });
+                            if (!r.ok) throw new Error('HTTP ' + r.status);
+                            buf = await r.arrayBuffer();
+                            _h5Raw.set(day.name, { size: buf.byteLength, buf });
+                        }
                         const dec = h5Decode(new Uint8Array(buf), nominalSecs);
                         if (dec.rejected) {
                             /* Bloco corrompido nao invalida o dia: o que

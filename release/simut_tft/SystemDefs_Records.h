@@ -423,10 +423,21 @@ struct GraphDataPackage {
  char rom[24];
  float pointsV1[GRAPH_WIDTH];
  float pointsV2[GRAPH_WIDTH];
+ /* Per-bucket envelope. Points are TIME buckets now, not every Nth record:
+  * each bucket keeps the min, max and mean of every record that fell in it,
+  * so a one-minute spike survives any window (the extreme IS the bucket
+  * edge) and an empty bucket is NAN — a real gap the plot draws as a gap.
+  * The old stride decimation sampled 1-in-N and a 7-day view drew each
+  * (identical) freezer defrost at a different random height. */
+ float minV1[GRAPH_WIDTH];  /**< bucket min of V1 (band lower edge)       */
+ float maxV1[GRAPH_WIDTH];  /**< bucket max of V1 (band upper edge)       */
+ float minV2[GRAPH_WIDTH];  /**< bucket min of V2                         */
+ float maxV2[GRAPH_WIDTH];  /**< bucket max of V2                         */
  uint32_t tsPoints[GRAPH_WIDTH]; /**< Epoch of each point (temporal position on X axis) */
  int count;
- float minVal; /**< Min of displayed points (decimated) */
- float maxVal; /**< Max of displayed points (decimated) */
+ int sampleCount; /**< finite V1 records in the window (n= on the detail screen) */
+ float minVal; /**< Min of displayed points (== realMinVal since bucketing) */
+ float maxVal; /**< Max of displayed points (== realMaxVal since bucketing) */
  bool hasHumidity;
  bool hasPressure; /**< Sensor reports CH_PRESS (BMx280) */
  /**

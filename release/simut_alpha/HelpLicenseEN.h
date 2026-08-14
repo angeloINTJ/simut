@@ -202,6 +202,14 @@ conf web port <1..65535>
 )raw";
 #endif /* SIMUT_CLI_FULL */
 
+#if defined(SIMUT_LICENSE_STUB)
+/* Bench/test image only (pico_w_test): the full MIT text costs ~6.5 KB of
+ * a flash slot the full CLI already fills to the brim. The release image
+ * always carries the complete license below. */
+static const char LICENSE_TEXT_EN[] PROGMEM =
+"MIT License - full text ships in the release image\n"
+"and in the LICENSE file of the source repository.\n";
+#else
 static const char LICENSE_TEXT_EN[] PROGMEM = R"raw(
 MIT License
 
@@ -252,3 +260,4 @@ BuzzerPIO RP2040
  Angelo M. Alves - MIT
 
 SIMUT v3 - Made in Brazil)raw";
+#endif /* SIMUT_LICENSE_STUB */
