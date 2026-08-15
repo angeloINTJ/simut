@@ -499,7 +499,15 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
   * qualquer extensao. Comparar so a data torna a regra explicita. */
  char minDay[9] = "";
  if (lastCursor > 1000000000) {
- time_t cursorEpoch = (time_t)lastCursor;
+ /* The floor is one block span behind the cursor, not the cursor's own day.
+  * A block open across midnight is filed under the day it STARTED, so
+  * yesterday's file goes on holding records after 00:00 — and cutting at the
+  * cursor's day closed that file the moment the cursor crossed midnight,
+  * stranding those records for good. They are not missing and not older than
+  * the cursor; they are in a file nobody opens again. Measured on the bench:
+  * 48 records of one straddling block, never sent. */
+ const time_t cursorEpoch = (time_t)h5ScanFloor(
+     lastCursor, h5NominalSeconds(_storageRef->getHistoryIntervalMin( )));
  struct tm timeinfo;
  localtime_r(&cursorEpoch, &timeinfo);
  snprintf(minDay, sizeof(minDay), "%04d%02d%02d",
@@ -1695,7 +1703,12 @@ void TelemetryManager::refreshPendingCount( ) {
   * qualquer extensao. Comparar so a data torna a regra explicita. */
  char minDay[9] = "";
  if (lastCursor > 1000000000) {
- time_t cursorEpoch = (time_t)lastCursor;
+ /* Same floor as collectBatch, for the same reason: a block open across
+  * midnight lives in the previous day's file. Counting from the cursor's own
+  * day undercounts exactly the records collectBatch used to strand, so the
+  * dashboard would have agreed with the bug instead of exposing it. */
+ const time_t cursorEpoch = (time_t)h5ScanFloor(
+     lastCursor, h5NominalSeconds(_storageRef->getHistoryIntervalMin( )));
  struct tm timeinfo;
  localtime_r(&cursorEpoch, &timeinfo);
  snprintf(minDay, sizeof(minDay), "%04d%02d%02d",

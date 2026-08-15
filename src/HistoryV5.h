@@ -127,6 +127,31 @@ static inline uint32_t h5SeedCeiling(uint32_t dayEnd, uint16_t nominalS) {
 }
 
 /**
+ * @brief Earliest epoch a day file may still hold unread records for.
+ *
+ * A block is filed under the day its FIRST record belongs to, so a block open
+ * across midnight lives in the PREVIOUS day's file and keeps collecting
+ * records after 00:00. Anything that walks history day by day and skips files
+ * older than its cursor's own day therefore stops looking at that block the
+ * moment the cursor crosses midnight — and the records it took after 00:00 are
+ * never read. Telemetry lost 48 measurements to exactly this on the bench,
+ * silently, because those records are neither missing from flash nor newer
+ * than the cursor: they are simply in a file nobody opens again.
+ *
+ * One block span is the whole of the exposure: a block cannot reach further
+ * past its own start than the records it can hold. Backing the floor off by
+ * that much keeps yesterday's file in the scan for exactly as long as it can
+ * matter — an hour at the default interval — and no longer.
+ *
+ * @param nominalS Nominal sampling interval in seconds; 0 reads as 60.
+ */
+static inline uint32_t h5ScanFloor(uint32_t cursor, uint16_t nominalS) {
+    const uint32_t span = (uint32_t)H5_BLOCK_MAX_RECORDS
+                          * (nominalS ? nominalS : 60u);
+    return (cursor > span) ? (cursor - span) : 0;
+}
+
+/**
  * @brief True when @p epoch is plausible enough to seed the provisional clock.
  *
  * A zero window means the filename could not be parsed into a day; there is
