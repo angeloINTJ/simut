@@ -763,9 +763,9 @@ void DisplayManager::drawMuteConfirm( ) {
  const int16_t yOff = -strip * RENDER_STRIP_H;
 
  /* Header (y_screen=4..36) — highlighted red background, white text. */
- cv->fillRect(4, 4 + yOff, 312, 32, RGB565(180, 30, 30));
+ cv->fillRect(4, 4 + yOff, 312, 32, C_ALARM_BG);
  cv->setFont(&simutFont12pt);
- cv->setTextColor(RGB565(255, 255, 255));
+ cv->setTextColor(C_ALARM_TEXT);
  cv->getTextBounds(titleTxt, 0, 0, &bx, &by, &bw, &bh);
  cv->setCursor((320 - bw) / 2, 28 + yOff);
  cv->print(titleTxt);
@@ -793,8 +793,8 @@ void DisplayManager::drawMuteConfirm( ) {
  cv->print(backTxt);
 
  /* Confirm button (right, x=170..300, y=190..230) — red highlight. */
- cv->fillRoundRect(170, 190 + yOff, 130, 40, 10, RGB565(180, 30, 30));
- cv->setTextColor(RGB565(255, 255, 255));
+ cv->fillRoundRect(170, 190 + yOff, 130, 40, 10, C_ALARM_BG);
+ cv->setTextColor(C_ALARM_TEXT);
  cv->getTextBounds(confirmTxt, 0, 0, &bx, &by, &bw, &bh);
  cv->setCursor(170 + (130 - bw) / 2, 218 + yOff);
  cv->print(confirmTxt);

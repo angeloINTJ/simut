@@ -96,14 +96,14 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
                  uint16_t txtSub, uint16_t tempOk,
                  uint16_t tempHot, uint16_t textOff) {
         /* Color aliases — exact match for original */
-        uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : tempOk;
-        uint16_t unitCol = isRedPhase ? RGB565(220,200,200) : txtSub;
-        uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtSub;
-        uint16_t mercCol = isRedPhase ? RGB565(255,255,255) : tempHot;
+        uint16_t tempCol = isRedPhase ? C_ALARM_TEXT : tempOk;
+        uint16_t unitCol = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
+        uint16_t icTherm = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
+        uint16_t mercCol = isRedPhase ? C_ALARM_TEXT : tempHot;
 
         if (!isValid || isnan(t)) {
             cv->setFont(&font12); cv->setTextSize(1);
-            cv->setTextColor(isRedPhase ? RGB565(255,255,255) : tempHot);
+            cv->setTextColor(isRedPhase ? C_ALARM_TEXT : tempHot);
             cv->setCursor((cardW - 60) / 2, 28);
             cv->print("--.-");
             return;
@@ -153,8 +153,8 @@ inline void DS18B20_renderMinMax(GFXcanvas16* cv,
     uint16_t txtSub, uint16_t tempOk, uint16_t tempHot, uint16_t textOff,
     uint16_t accentHigh, uint16_t btnTextActive,
     const char* minLabel, const char* maxLabel) {
-    uint16_t icCol   = isRedPhase ? RGB565(220,200,200) : txtSub;
-    uint16_t mercCol = isRedPhase ? RGB565(255,255,255) : tempHot;
+    uint16_t icCol   = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
+    uint16_t mercCol = isRedPhase ? C_ALARM_TEXT : tempHot;
 
     int16_t x1, y1; uint16_t minLblW, maxLblW, hb;
     cv->setFont(&font9);

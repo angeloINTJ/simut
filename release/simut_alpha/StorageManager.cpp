@@ -1371,28 +1371,30 @@ uint32_t StorageManager::getLastRecordedTimestamp( ) {
 			}
 		}
 		if (wipLen >= sizeof(H5DataHeader)) {
-			const H5DataHeader* h = (const H5DataHeader*)_h5Chunk;
-			/* Trust the snapshot only if its start is newer than the sealed data
-			 * and inside the plausible day window — a corrupt t0 must never seed
-			 * the clock into the future (recoverWipV5 would reject the block, but
-			 * the seed is read here, before it runs). */
-			const bool sane = (dayStart == 0)
-			                  || (h->t0 >= dayStart && h->t0 < dayEnd + 86400u);
-			if (h->pre.magic == H5_MAGIC && h->pre.version == H5_VERSION
-			    && h->t0 > lastTs && sane) {
-				lastTs = h->t0;
-				ensureH5Schema( );
-				HistoryV5Decoder dec;
-				if (_h5Valid && dec.begin(_h5Chunk, wipLen, _h5Schema, _h5NCh)) {
-					uint32_t epoch = 0;
-					int16_t vals[H5_MAX_CHANNELS];
-					while (dec.next(epoch, vals)) {
-						if (epoch > lastTs
-						    && (dayStart == 0 || epoch < dayEnd + 86400u)) {
-							lastTs = epoch;
-						}
-					}
-				}
+			/* Every gate — magic, version, plausibility of t0, and the CRC that
+			 * has to pass before any field is believed — lives in
+			 * h5SeedFromSnapshot, next to the format it judges and reachable
+			 * from the host test suite. What used to be here trusted t0 from an
+			 * unverified header and bounded it by a flat 24 h, which is what let
+			 * the 2026-08-14 seed start the clock 4 h 43 min into the future. */
+			ensureH5Schema( );
+			const uint16_t nominalS = h5NominalSeconds(getHistoryIntervalMin( ));
+			uint32_t seed = 0;
+			if (_h5Valid) {
+				seed = h5SeedFromSnapshot(_h5Chunk, wipLen, _h5Schema, _h5NCh,
+				                          dayStart, dayEnd, nominalS);
+			}
+			if (seed > lastTs) lastTs = seed;
+			else if (seed == 0) {
+				/* Outside the _h5Valid branch on purpose. A snapshot that
+				 * contributes nothing is the interesting case either way, and
+				 * the two reasons are not the same thing: ctx 0 is a snapshot
+				 * that failed a gate, ctx 1 is no schema to judge it with — the
+				 * whole path skipped, sealed data standing alone. Logging only
+				 * inside the branch would make the second one invisible, which
+				 * is how a seed path comes to be dead without anyone noticing. */
+				LOG_CODE(LOG_WARN, "STO", STO_H5_WIP, _h5Valid ? 0 : 1,
+				         "wip_seed_rejected");
 			}
 		}
 	}
@@ -1865,15 +1867,6 @@ String StorageManager::getHistoryFileNameV5(uint32_t epoch) {
 	snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY,
 	         timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
 	return String(buff);
-}
-
-/** Nominal sampling interval in seconds, clamped to what a u16 can carry.
- *  The interval is configurable up to 24 h; the encoder only uses this to
- *  predict the next timestamp, so a clamp costs one wider time symbol per
- *  record rather than any loss. */
-static inline uint16_t h5NominalSeconds(uint16_t intervalMin) {
-	const uint32_t s = (uint32_t)intervalMin * 60u;
-	return (s > 0xFFFFu) ? (uint16_t)0xFFFFu : (uint16_t)s;
 }
 
 uint8_t StorageManager::buildH5Schema(H5ChannelDesc* out, uint8_t cap) const {

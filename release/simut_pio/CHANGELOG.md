@@ -4,6 +4,83 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.1-beta (2026-08-15)
+
+### The history hole that was never a hole
+
+A device recorded normally through the night of 14 August and the graph showed
+nothing between 21:32 and 02:15. The measurements were on flash the whole time,
+stamped 4 h 43 min into the future, and part of the gap was the reader throwing
+away good data on top of that. Both halves are fixed.
+
+**The clock seed.** Before NTP arrives the clock is seeded from the open block
+snapshot in `/history/.wip`, and that snapshot was trusted twice over: `t0` was
+read straight out of the header, ahead of the CRC that certifies it, and any
+epoch up to a full day past the file's own day was accepted. Everything written
+before the sync inherits that value. The window is now one block span past
+midnight — derived from the sampling interval, since blocks close by count and
+not by clock, so an hour at the default rate instead of a day — and the seed
+moves only after the decoder has verified the block. A forged `t0` now fails the
+CRC instead of reaching the clock.
+
+Measured on the same board that had the incident, planting a snapshot the old
+rule accepted: without the fix the boot's NTP correction saturates its field at
+18.5 hours, with it, 77 seconds.
+
+**An NTP correction larger than an hour now logs at WARN.** It is still applied
+— refusing one would leave timestamps wrong for good after a long outage — but
+it is no longer invisible, and it measures how far the clock had drifted while
+the records were being written.
+
+**The graph reader.** Series assembly dropped any record not newer than the
+running maximum. The guard existed to remove duplicates, but it cannot tell a
+duplicate from a record that arrived out of order, and file order is write
+order. One block stamped ahead therefore hid every block behind it: 65 of 205
+records on that file, including 31 whose timestamps were correct all along.
+Series are now sorted and collapsed on equal instants after assembly.
+
+**Block scanning.** `HistoryV5Scan::seek` assumed time order, which is a claim
+about the writer's clock rather than a property of the format. Out of order,
+more than one block straddles the cutoff and only the last was kept, skipping
+records that were on flash. It now verifies the assumption during the header
+walk it already performs and refuses to skip anything in a file that fails it.
+Ordered files get the same answer, and the same fast path, as before.
+
+**Telemetry cursor.** The cursor advanced to the last element of the batch,
+documented as the high-water mark — true only while records ascend. A block
+stamped hours ahead buried every correctly stamped record behind it,
+permanently and silently. The cursor is now the maximum over what the transport
+actually carried, clamped to the present.
+
+### Themeable alarm, caution and selection chrome
+
+The palette described 17 roles and the display drew more. Alarm fills, the
+caution button, the slot-selection background and the graph's date stamps were
+hardcoded, so a custom theme could restyle everything a user looks at and still
+flash a stock red panel over it. Seven roles close the gap, bringing the palette
+to 24; files carrying only the old 17 still load, with missing keys falling back
+to stock. Icon highlights now derive from the colour underneath instead of a
+fixed light blue.
+
+Eleven ready-made palettes ship in `data/themes/`, each audited for contrast
+against the backgrounds it actually renders on.
+
+### Known, and deliberately not claimed as fixed
+
+The seed ceiling narrows the blast radius from a day to an hour; it does not
+make a bad seed impossible, and a stamp less than one block span past midnight
+remains indistinguishable from a block that legitimately crossed it.
+
+The telemetry clamp covers a stamp that is in the future when it is sent, which
+is the live failure. A stamp ahead of its neighbours but already in the past
+still advances the cursor over older unsent records — closing that needs the
+cursor to become a scan position rather than an instant.
+
+Hardware validation surfaced a separate defect that is not addressed here: a
+block straddling midnight lives in the previous day's file, and once the
+telemetry cursor crosses 00:00 the file selection stops looking back at it, so
+that block is never sent.
+
 ## v2.2.0-beta (2026-08-15)
 
 ### Web interface visual overhaul

@@ -173,7 +173,10 @@ void DisplayManager::drawSettingsDisplayOffset( ) {
  * accepts. The frame moves with the entire UI when offset is
  * applied: user adjusts until it coincides with the physical
  * enclosure opening. Drawn last to be visible on top of title
- * bar and edge buttons. */
+ * bar and edge buttons.
+ * DELIBERATELY not themeable: this is a physical alignment
+ * gauge (like a test pattern), so it must look identical on
+ * every theme — the one draw call allowed to bypass Themes.h. */
  cv->drawRect(4, 4 + yOff, 312, 232, 0x07E0); /* BRIGHT_GREEN */
 
  commitScreenStrip(strip);

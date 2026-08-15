@@ -87,6 +87,57 @@
  * release the filesystem, bounded well under the block it is protecting. */
 #define H5_SEAL_MAX_FAILS       5u
 
+/* ===========================================================================
+ *  PROVISIONAL-CLOCK SEED PLAUSIBILITY
+ * ======================================================================== */
+
+/** Nominal sampling interval in seconds, clamped to what a u16 can carry.
+ *  The interval is configurable up to 24 h; the encoder only uses this to
+ *  predict the next timestamp, so a clamp costs one wider time symbol per
+ *  record rather than any loss. */
+static inline uint16_t h5NominalSeconds(uint16_t intervalMin) {
+    const uint32_t s = (uint32_t)intervalMin * 60u;
+    return (s > 0xFFFFu) ? (uint16_t)0xFFFFu : (uint16_t)s;
+}
+
+/**
+ * @brief Latest epoch a snapshot belonging to day D may legitimately carry.
+ *
+ * A block belonging to file D starts inside D, and blocks close by COUNT
+ * (§14-5), so the newest record a .wip can hold is one block span past its
+ * own t0 — at worst one span past midnight, in the window between the day
+ * rollover and the seal that closes the block. Clamped to a day so this is
+ * never looser than the flat +24 h it replaces.
+ *
+ * The bound matters because this value seeds the provisional clock at boot
+ * (StorageManager::getLastRecordedTimestamp). On 2026-08-14 a seed 4 h 43 min
+ * past the day it belonged to started the clock in the future, and every
+ * record written before NTP arrived inherited the error — 121 measurements
+ * filed under the following day, with the graph showing a hole where the
+ * device had in fact been recording normally. The old ceiling of dayEnd+24 h
+ * admitted it; at the one-minute interval this one leaves an hour.
+ *
+ * @param dayEnd   Midnight ending the day the file is named for (epoch).
+ * @param nominalS Nominal sampling interval in seconds; 0 reads as 60.
+ */
+static inline uint32_t h5SeedCeiling(uint32_t dayEnd, uint16_t nominalS) {
+    uint32_t span = (uint32_t)H5_BLOCK_MAX_RECORDS * (nominalS ? nominalS : 60u);
+    if (span > 86400u) span = 86400u;
+    return dayEnd + span;
+}
+
+/**
+ * @brief True when @p epoch is plausible enough to seed the provisional clock.
+ *
+ * A zero window means the filename could not be parsed into a day; there is
+ * nothing to judge against, so the caller's other guards stand alone.
+ */
+static inline bool h5SeedPlausible(uint32_t epoch, uint32_t dayStart,
+                                   uint32_t dayEnd, uint16_t nominalS) {
+    if (dayStart == 0 || dayEnd == 0) return true;
+    return epoch >= dayStart && epoch < h5SeedCeiling(dayEnd, nominalS);
+}
+
 /** Physical quantities. Adding values is free; renumbering is forbidden. */
 enum H5Kind : uint8_t {
     H5_KIND_TEMP_C    = 0x01,   /* °C   — typical scaleExp -2 (x100)        */
@@ -383,6 +434,52 @@ private:
     int16_t  _prev[H5_MAX_CHANNELS];
     BitReader _br;
 };
+
+/**
+ * @brief Newest epoch in a .wip snapshot that may seed the provisional clock.
+ *
+ * The snapshot is the block that was still open when the device went down, so
+ * at boot it holds the newest measurements in existence — which is exactly why
+ * it seeds the clock, and exactly why a bad one is dangerous: the seed decides
+ * what every record written before NTP arrives is stamped with.
+ *
+ * Three gates, in order:
+ *   1. magic and version, so a foreign or truncated file is not read as one;
+ *   2. h5SeedPlausible on t0, bounding how far past its own day a snapshot
+ *      may reach (see h5SeedCeiling);
+ *   3. the CRC, via the decoder — nothing here trusts a field the integrity
+ *      check has not covered. t0 sits inside the CRC's first span, so a
+ *      forged one fails this gate rather than reaching the clock.
+ *
+ * Records are then walked to the newest plausible one, which tightens the seed
+ * from "start of the open block" to "last measurement taken".
+ *
+ * @return 0 when the snapshot fails any gate; the caller keeps whatever the
+ *         sealed day file gave it.
+ */
+static inline uint32_t h5SeedFromSnapshot(const uint8_t* chunk, size_t len,
+                                          const H5ChannelDesc* schema,
+                                          uint8_t nCh,
+                                          uint32_t dayStart, uint32_t dayEnd,
+                                          uint16_t nominalS) {
+    if (!chunk || len < sizeof(H5DataHeader) || !schema || nCh == 0) return 0;
+    const H5DataHeader* h = (const H5DataHeader*)chunk;
+    if (h->pre.magic != H5_MAGIC || h->pre.version != H5_VERSION) return 0;
+    if (!h5SeedPlausible(h->t0, dayStart, dayEnd, nominalS)) return 0;
+
+    HistoryV5Decoder dec;
+    if (!dec.begin(chunk, len, schema, nCh, nominalS)) return 0;
+
+    uint32_t seed = h->t0;
+    uint32_t epoch = 0;
+    int16_t vals[H5_MAX_CHANNELS];
+    while (dec.next(epoch, vals)) {
+        if (epoch > seed && h5SeedPlausible(epoch, dayStart, dayEnd, nominalS)) {
+            seed = epoch;
+        }
+    }
+    return seed;
+}
 
 /* ===========================================================================
  *  FILE SCANNER (§5)

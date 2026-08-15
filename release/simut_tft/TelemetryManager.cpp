@@ -195,6 +195,56 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  * @brief Periodic telemetry check — collects batch and dispatches via configured transport.
  * Respects backoff intervals, network availability, and heavy task locks.
  */
+/**
+ * @brief Highest epoch safe to record as delivered.
+ *
+ * @p batch is what buildPayload left behind, so it is exactly what the
+ * transport carries. Two things this must not do:
+ *
+ *  · Read the last element as the newest one. That was the rule, and it holds
+ *    only while records arrive in time order — which is an assumption about
+ *    the writer's clock, not a property of the data. A boot with a mis-seeded
+ *    provisional clock (2026-08-14) writes blocks stamped ahead of the ones
+ *    that follow them, and then the tail of the vector is not the high-water
+ *    mark at all.
+ *
+ *  · Let a record stamped in the future set the frontier. The cursor is a
+ *    scalar in time and `epoch > lastCursor` skips everything at or below it,
+ *    forever — so one block stamped hours ahead buried every correctly stamped
+ *    record behind it, permanently, and without a log line. That is worse than
+ *    the graph bug of the same night, because a chart redraws and a telemetry
+ *    record that was never sent is gone.
+ *
+ * Clamping to @p nowEpoch stops a future stamp from moving the frontier past
+ * real time. The record still goes out; it just does not get to define what
+ * counts as sent. Anything ahead of the clamp is offered again on a later
+ * round, which is the right way round: ingest is keyed by timestamp, so a
+ * duplicate costs a write and a gap costs the measurement.
+ *
+ * What this does NOT fix, because a scalar cursor in time cannot: a record
+ * stamped ahead of its neighbours but still behind `now` — a mis-stamped block
+ * read back hours later — advances the frontier over records that are older
+ * and not yet sent, and those stay unsent. Closing that needs the cursor to
+ * become a scan position rather than an instant, which is a format change, or
+ * needs the stamps to be right in the first place, which is what the seed
+ * ceiling in h5SeedCeiling is for. The clamp covers the live case, where the
+ * bad stamp is in the future at the moment of sending, and that is the shape
+ * the 2026-08-14 device was in while it was writing.
+ *
+ * @param fallback Cursor to keep when nothing was delivered, or when the clamp
+ *                 would move it backwards.
+ */
+static uint32_t deliveredCursor(const std::vector<BinaryHistoryRecord>& batch,
+                                uint32_t fallback, uint32_t nowEpoch) {
+ uint32_t hi = 0;
+ for (size_t i = 0; i < batch.size( ); i++) {
+ if (batch[i].epoch > hi) hi = batch[i].epoch;
+ }
+ if (hi == 0) return fallback;
+ if (nowEpoch >= HIST_EPOCH_MIN && hi > nowEpoch) hi = nowEpoch;
+ return (hi < fallback) ? fallback : hi;
+}
+
 void TelemetryManager::update( ) {
  SystemConfig &cfg = _storageRef->getConfig( );
  if (cfg.telInterval == 0) return;
@@ -288,12 +338,10 @@ void TelemetryManager::update( ) {
  _dumpPayload(payload.c_str( ), payload.length( ), "MQTT");
  _dumpPayloadNext = false;
  }
- /* buildPayload can drop records off the end under heap pressure. The
-  * cursor has to follow what the payload actually carries, or those
-  * records are skipped for good, silently. The batch is in ascending
-  * epoch order (files sorted, records in time order within a file), so
-  * the last surviving element is the high-water mark. */
- if (!batch.empty( )) newCursor = batch.back( ).epoch;
+ /* buildPayload can drop records off the end under heap pressure, so the
+  * cursor has to follow what the payload actually carries — see
+  * deliveredCursor for why the last element is not that. */
+ newCursor = deliveredCursor(batch, newCursor, (uint32_t)time(nullptr));
  success = attemptMqttPublish(payload, batch, newCursor);
  /* batch and payload go out of scope here and free memory */
  } else {
@@ -308,9 +356,9 @@ void TelemetryManager::update( ) {
  _dumpPayloadNext = false;
  }
 
- /* Same reason as the MQTT branch above: read the high-water mark off the
-  * batch buildPayload left behind, before it is thrown away. */
- if (!batch.empty( )) newCursor = batch.back( ).epoch;
+ /* Same reason as the MQTT branch above: read the frontier off the batch
+  * buildPayload left behind, before it is thrown away. */
+ newCursor = deliveredCursor(batch, newCursor, (uint32_t)time(nullptr));
 
  /* Free batch to reduce RAM peak before TLS handshake */
  batch.clear( );
@@ -1115,7 +1163,7 @@ bool TelemetryManager::forceSync( ) {
  }
 
  /* Same as update( ): the cursor follows the payload, not the collection. */
- if (!batch.empty( )) newCursor = batch.back( ).epoch;
+ newCursor = deliveredCursor(batch, newCursor, (uint32_t)time(nullptr));
 
  bool ok;
  if (cfg.telTransport == TEL_TRANSPORT_MQTT) {

@@ -640,7 +640,7 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  _pktArrowFlashOn = !_pktArrowFlashOn;
  _pktArrowFlashTime = now;
  }
- arrowColor = _pktArrowFlashOn ? RGB565(255, 255, 255) : C_ACCENT_HIGH;
+ arrowColor = _pktArrowFlashOn ? C_TEXT_MAIN : C_ACCENT_HIGH;
  }
  }
 
@@ -727,17 +727,19 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
  uint16_t panelBg = slotAlarmBg(slotIdx);
  bool isRedPhase = _alarmFlashPhase && isSlotAlarming(slotIdx) && !_alarmSilenced;
- uint16_t nameColor = isRedPhase ? RGB565(255, 255, 255) : C_SENSOR_NAME;
- uint16_t unitColor = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_MAIN;
+ uint16_t nameColor = isRedPhase ? C_ALARM_TEXT : C_SENSOR_NAME;
+ uint16_t unitColor = isRedPhase ? C_ALARM_TEXT_DIM : C_TEXT_MAIN;
  if (isSlotAlarming(slotIdx)) forceNameRedraw = true;
 
- /* Top panel in interactive (selection) mode: dark theme */
+ /* Top panel in interactive (selection) mode: state-override chrome.
+ * Reuses the alarm TEXT pair over its own selBg — themes must keep
+ * alarmText readable on both alarmBg and selBg. */
  bool isSelecting = (&panel == &_topPanel && !_topPanel.fixed);
  if (isSelecting) {
- panelBg = RGB565(50, 50, 55);
- isRedPhase = true;  /* white rendering like alarm mode */
- nameColor = RGB565(255, 255, 255);
- unitColor = RGB565(255, 255, 255);
+ panelBg = C_SEL_BG;
+ isRedPhase = true;  /* mono text rendering like alarm mode */
+ nameColor = C_ALARM_TEXT;
+ unitColor = C_ALARM_TEXT;
  }
 
  /* Geometry lives at the top of this file: drawInterfaceFixed( ) fills the
@@ -745,8 +747,8 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
 
  bool slotAlarm = isSlotAlarming(slotIdx) && _alarmFlashPhase;
- uint16_t borderColor = slotAlarm ? RGB565(255, 60, 60) : C_ACCENT_HIGH;
- if (isSelecting) borderColor = RGB565(130, 130, 140);
+ uint16_t borderColor = slotAlarm ? C_ALARM_BORDER : C_ACCENT_HIGH;
+ if (isSelecting) borderColor = C_TEXT_OFF;
 
  if (panel.showMinMax) {
  /* Track mode transition */
@@ -757,7 +759,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  * Slot has no humidity.
  * ============================================================= */
 
- uint16_t txtSub = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_MAIN;
+ uint16_t txtSub = isRedPhase ? C_ALARM_TEXT_DIM : C_TEXT_MAIN;
 
  /* Blit 1: Name (20px) */
  {
@@ -855,7 +857,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
  if (!isValid) {
  _driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextSize(1);
- _driver.canvas->setTextColor(isRedPhase ? RGB565(255,255,255) : C_TEMP_HOT);
+ _driver.canvas->setTextColor(isRedPhase ? C_ALARM_TEXT : C_TEMP_HOT);
  int16_t ex1, ey1; uint16_t ew, eh;
  _driver.canvas->getTextBounds(tr(TR_ERROR_LBL), 0, 0, &ex1, &ey1, &ew, &eh);
  _driver.canvas->setCursor((CARD_W - (int)ew) / 2, 28);
@@ -912,12 +914,12 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
  _driver.canvas->setFont(&simutFont24pt);
  if (isNan) {
- _driver.canvas->setTextColor(isRedPhase ? RGB565(200,180,180) : C_TEXT_OFF);
+ _driver.canvas->setTextColor(isRedPhase ? C_ALARM_TEXT_DIM : C_TEXT_OFF);
  _driver.canvas->setCursor(iconX + iconW + iconGap, 35);
  _driver.canvas->print("--.-");
  unitX = iconX + iconW + iconGap + (int)intW + unitGap;
  } else {
- _driver.canvas->setTextColor(isRedPhase ? RGB565(255,255,255) : C_TEMP_OK);
+ _driver.canvas->setTextColor(isRedPhase ? C_ALARM_TEXT : C_TEMP_OK);
  int numCursorX = numAnchorX - (int)intW;
  _driver.canvas->setCursor(numCursorX, 35);
  _driver.canvas->print(intPart);
@@ -942,7 +944,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  /* --- Humidity --- */
  if (!isnan(h)) {
  _driver.canvas->setFont(&simutFont12pt);
- _driver.canvas->setTextColor(isRedPhase ? RGB565(255,255,255) : C_HUMIDITY);
+ _driver.canvas->setTextColor(isRedPhase ? C_ALARM_TEXT : C_HUMIDITY);
  _driver.canvas->setCursor(CARD_W - 56, 35);
  _driver.canvas->print((int)h);
  _driver.canvas->setFont(&simutFont9pt);
@@ -952,8 +954,8 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
  /* Thermometer icon — drawn last (slot) */
  {
- uint16_t ic = isRedPhase ? RGB565(220, 200, 200) : C_TEXT_SUB;
- uint16_t merc = isRedPhase ? RGB565(255, 255, 255) : C_TEMP_HOT;
+ uint16_t ic = isRedPhase ? C_ALARM_TEXT_DIM : C_TEXT_SUB;
+ uint16_t merc = isRedPhase ? C_ALARM_TEXT : C_TEMP_HOT;
  int ix = iconX, iy = 4;
  _driver.canvas->fillCircle(ix + 10, iy + 26, 7, ic);
  _driver.canvas->fillRoundRect(ix + 6, iy, 8, 24, 4, ic);
@@ -1058,8 +1060,8 @@ void DisplayManager::drawBottomButtons(int selectedIdx) {
  bool btnAlarm = _alarmFlashPhase && isSlotAlarming(realIdx);
  uint16_t bgColor, txtColor;
  if (btnAlarm) {
- bgColor = RGB565(180, 30, 30);
- txtColor = RGB565(255, 255, 255);
+ bgColor = C_ALARM_BG;
+ txtColor = C_ALARM_TEXT;
  } else if (isActive) {
  bgColor = C_ACCENT_HIGH;
  txtColor = C_BTN_TEXT_ACTIVE;
@@ -1086,11 +1088,11 @@ void DisplayManager::drawBottomButtons(int selectedIdx) {
  } else { /* PAGE */
  uint16_t pagTxtCol = C_BTN_TEXT;
  if (hasAlarmsOnOtherPages && _alarmFlashPhase) {
- _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, RGB565(180, 30, 30));
- pagTxtCol = RGB565(255, 255, 255);
+ _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, C_ALARM_BG);
+ pagTxtCol = C_ALARM_TEXT;
  } else if (hasAlarmsOnOtherPages) {
  _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, C_CARD_BG);
- _driver.canvas->drawRoundRect(x, 0, btnW, 40, 12, RGB565(255, 60, 60));
+ _driver.canvas->drawRoundRect(x, 0, btnW, 40, 12, C_ALARM_BORDER);
  } else {
  _driver.canvas->drawRoundRect(x, 0, btnW, 40, 12, C_TEXT_SUB);
  }

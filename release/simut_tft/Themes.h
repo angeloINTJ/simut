@@ -20,6 +20,14 @@
 /** Convert 8-bit RGB to 16-bit RGB565 format for TFT displays. */
 #define RGB565(r, g, b) ((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
 
+/** Halfway blend toward white, per RGB565 channel. Used for icon glints
+ * (e.g. the humidity drop shine) so highlights derive from the theme
+ * color they sit on instead of a fixed light blue. */
+static inline uint16_t themeTint(uint16_t c) {
+ uint16_t r = (c >> 11) & 0x1F, g = (c >> 5) & 0x3F, b = c & 0x1F;
+ return (uint16_t)((((r + 32) >> 1) << 11) | (((g + 64) >> 1) << 5) | ((b + 32) >> 1));
+}
+
 /** Color palette definition for the TFT display theme system. */
 struct ThemePalette {
  const char* idName;
@@ -46,6 +54,19 @@ struct ThemePalette {
  uint16_t titleText; /**< Top bar (date/time) and menu titles */
  uint16_t sensorName; /**< Sensor name in slot panel */
  uint16_t btnTextActive; /**< Text of SELECTED slot button (over accentHigh) */
+
+ /* State colors — alarm/caution/selection chrome and the graph stamp.
+ * Historically hardcoded in the render code; themeable since the
+ * blind-spot sweep. Every text/bg pair here must hold contrast on
+ * its own: alarmText/alarmTextDim sit on alarmBg, cautionBg and
+ * selBg; alarmBorder sits on bgMain and cardBg. */
+ uint16_t alarmBg; /**< Alarm fill: flashing panel/buttons, destructive confirm */
+ uint16_t alarmText; /**< Primary text over alarmBg/cautionBg/selBg */
+ uint16_t alarmTextDim; /**< Secondary text/icons over alarmBg/selBg */
+ uint16_t alarmBorder; /**< Alarm outline: panel border, page-button ring */
+ uint16_t cautionBg; /**< Caution action fill (silence button) */
+ uint16_t selBg; /**< Top-panel background while selecting a slot */
+ uint16_t stampText; /**< Date/time stamps in the graph detail rows */
 };
 
 extern ThemePalette currentTheme;
@@ -84,6 +105,14 @@ void scanCustomThemes( );
 #define C_TITLE_TEXT currentTheme.titleText
 #define C_SENSOR_NAME currentTheme.sensorName
 #define C_BTN_TEXT_ACTIVE currentTheme.btnTextActive
+
+#define C_ALARM_BG currentTheme.alarmBg
+#define C_ALARM_TEXT currentTheme.alarmText
+#define C_ALARM_TEXT_DIM currentTheme.alarmTextDim
+#define C_ALARM_BORDER currentTheme.alarmBorder
+#define C_CAUTION_BG currentTheme.cautionBg
+#define C_SEL_BG currentTheme.selBg
+#define C_STAMP_TEXT currentTheme.stampText
 
 #define C_GRID currentTheme.barBg
 #define C_AXIS currentTheme.textOff

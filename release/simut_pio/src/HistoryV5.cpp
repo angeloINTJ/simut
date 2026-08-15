@@ -634,22 +634,44 @@ bool HistoryV5Scan::nextData(H5DataHeader& hdr, int16_t* kf, int16_t* mn, int16_
 }
 
 bool HistoryV5Scan::seek(uint32_t epoch) {
-    /* Blocks are in time order, so the answer is the last block whose t0 is
-     * at or before `epoch`. Scanning forward is O(blocks) with no payload
-     * reads — 24 hops for a day, which is cheaper than any index would be. */
+    /* The answer is the last block whose t0 is at or before `epoch` — but only
+     * while blocks are in time order, which is an assumption about the writer,
+     * not a property of the format. A boot with a mis-seeded clock writes
+     * blocks stamped ahead of the ones that follow them (2026-08-14), and then
+     * the rule breaks twice over: the walk used to stop at the first block past
+     * `epoch` and never look further, and more than one block can straddle the
+     * cutoff, of which this keeps only the last.
+     *
+     * So the walk now runs to the end and checks the assumption while it is
+     * there. Header-only hops, no payload reads — 24 for a day, which is why
+     * checking costs nothing worth measuring. Out of order, it refuses to skip
+     * anything and hands back the start of the file: the callers all filter by
+     * time anyway, so the cost is decode work, and the alternative is silently
+     * skipping records that are on flash. In an ordered file the answer, and
+     * the fast path, are exactly what they were. */
     _pos = 0;
     _schema = nullptr;
     uint32_t bestOff = 0, bestLen = 0;
     bool found = false;
+    bool ordered = true;
+    uint32_t prevT0 = 0;
+    bool havePrev = false;
     for (;;) {
         const H5ScanChunk t = next( );
         if (t == H5_SCAN_END) break;
         if (t != H5_SCAN_DATA) continue;
+        if (havePrev && _hdr.t0 < prevT0) ordered = false;
+        prevT0 = _hdr.t0;
+        havePrev = true;
         if (_hdr.t0 <= epoch) {
             bestOff = _chunkOff; bestLen = _chunkLen; found = true;
-        } else {
-            break;
         }
+    }
+    if (!ordered) {
+        _pos = 0;
+        _schema = nullptr;
+        _nCh = 0;
+        return false;
     }
     if (!found) {
         /* Nothing at or before `epoch` — every block in this file is NEWER

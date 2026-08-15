@@ -300,17 +300,17 @@ inline void BMP280_renderPanel(GFXcanvas16* cv, float t, float p, bool isValid,
                                 uint16_t txtSub, uint16_t tempOk,
                                 uint16_t tempHot, uint16_t pressure,
                                 uint16_t textOff) {
-    uint16_t tempCol = isRedPhase ? RGB565(255,255,255) : tempOk;
-    uint16_t unitCol = isRedPhase ? RGB565(220,200,200) : txtSub;
-    uint16_t icTherm = isRedPhase ? RGB565(220,200,200) : txtSub;
-    uint16_t mercCol = isRedPhase ? RGB565(255,255,255) : tempHot;
-    uint16_t presCol = isRedPhase ? RGB565(255,255,255) : pressure;
-    uint16_t baroCol = isRedPhase ? RGB565(220,200,200) : pressure;
-    uint16_t unitPCol = isRedPhase ? RGB565(220,200,200) : txtSub;
+    uint16_t tempCol = isRedPhase ? C_ALARM_TEXT : tempOk;
+    uint16_t unitCol = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
+    uint16_t icTherm = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
+    uint16_t mercCol = isRedPhase ? C_ALARM_TEXT : tempHot;
+    uint16_t presCol = isRedPhase ? C_ALARM_TEXT : pressure;
+    uint16_t baroCol = isRedPhase ? C_ALARM_TEXT_DIM : pressure;
+    uint16_t unitPCol = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
 
     if (!isValid || isnan(t)) {
         cv->setFont(&font12); cv->setTextSize(1);
-        cv->setTextColor(isRedPhase ? RGB565(255,255,255) : tempHot);
+        cv->setTextColor(isRedPhase ? C_ALARM_TEXT : tempHot);
         cv->setCursor(25, 28); cv->print("--.-");
         return;
     }
@@ -418,18 +418,18 @@ inline void BME280_renderPanel(GFXcanvas16* cv, float t, float h, float p,
                                 uint16_t tempHot, uint16_t humidity,
                                 uint16_t textOff) {
 
-    uint16_t tempCol  = isRedPhase ? RGB565(255,255,255) : tempOk;
-    uint16_t unitCol  = isRedPhase ? RGB565(220,200,200) : txtSub;
-    uint16_t icTherm  = isRedPhase ? RGB565(220,200,200) : txtSub;
-    uint16_t mercCol  = isRedPhase ? RGB565(255,255,255) : tempHot;
-    uint16_t humCol   = isRedPhase ? RGB565(255,255,255) : humidity;
-    uint16_t dropCol  = isRedPhase ? RGB565(220,200,200) : humidity;
-    uint16_t dropShine= isRedPhase ? RGB565(255,255,255) : RGB565(200,230,255);
-    uint16_t pctCol   = isRedPhase ? RGB565(220,200,200) : txtSub;
+    uint16_t tempCol  = isRedPhase ? C_ALARM_TEXT : tempOk;
+    uint16_t unitCol  = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
+    uint16_t icTherm  = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
+    uint16_t mercCol  = isRedPhase ? C_ALARM_TEXT : tempHot;
+    uint16_t humCol   = isRedPhase ? C_ALARM_TEXT : humidity;
+    uint16_t dropCol  = isRedPhase ? C_ALARM_TEXT_DIM : humidity;
+    uint16_t dropShine= isRedPhase ? C_ALARM_TEXT : themeTint(humidity);
+    uint16_t pctCol   = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
 
     if (!isValid || isnan(t)) {
         cv->setFont(&font12); cv->setTextSize(1);
-        cv->setTextColor(isRedPhase ? RGB565(255,255,255) : tempHot);
+        cv->setTextColor(isRedPhase ? C_ALARM_TEXT : tempHot);
         cv->setCursor(25, 28); cv->print("--.-");
         return;
     }
@@ -529,11 +529,11 @@ inline void BME280_renderMinMax(GFXcanvas16* cv,
      * Pressure min/max omitted — atmospheric drift is negligible
      * at dashboard timescales. */
 
-    uint16_t icCol   = isRedPhase ? RGB565(220,200,200) : txtSub;
-    uint16_t mercCol = isRedPhase ? RGB565(255,255,255) : tempHot;
-    uint16_t dropCol = isRedPhase ? RGB565(220,200,200) : humidity;
-    uint16_t humCol  = isRedPhase ? RGB565(255,255,255) : humidity;
-    uint16_t shine   = isRedPhase ? RGB565(255,255,255) : RGB565(200,230,255);
+    uint16_t icCol   = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
+    uint16_t mercCol = isRedPhase ? C_ALARM_TEXT : tempHot;
+    uint16_t dropCol = isRedPhase ? C_ALARM_TEXT_DIM : humidity;
+    uint16_t humCol  = isRedPhase ? C_ALARM_TEXT : humidity;
+    uint16_t shine   = isRedPhase ? C_ALARM_TEXT : themeTint(humidity);
 
     int16_t x1, y1; uint16_t minLblW, maxLblW, hb, sufW;
     cv->setFont(&font9);
@@ -570,7 +570,7 @@ inline void BME280_renderMinMax(GFXcanvas16* cv,
         cv->setTextColor(humCol);
         cv->setCursor(numX, 15);
         cv->print(hnum);
-        cv->setTextColor(isRedPhase ? RGB565(255,255,255) : txtSub);
+        cv->setTextColor(isRedPhase ? C_ALARM_TEXT : txtSub);
         cv->setCursor(sufX, 15);
         cv->print(humSuffix);
     }
@@ -592,7 +592,7 @@ inline void BME280_renderMinMax(GFXcanvas16* cv,
         cv->setTextColor(humCol);
         cv->setCursor(numX, 37);
         cv->print(hnum);
-        cv->setTextColor(isRedPhase ? RGB565(255,255,255) : txtSub);
+        cv->setTextColor(isRedPhase ? C_ALARM_TEXT : txtSub);
         cv->setCursor(sufX, 37);
         cv->print(humSuffix);
     }

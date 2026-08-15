@@ -81,23 +81,23 @@ void DisplayManager::drawAlarmAction( ) {
 		const int16_t yOff = -strip * RENDER_STRIP_H;
 
 		/* Header (y_screen=4..52) — visible in strips 0 and 1 */
-		cv->fillRect(4, 4 + yOff, 312, 48, RGB565(180, 30, 30));
+		cv->fillRect(4, 4 + yOff, 312, 48, C_ALARM_BG);
 		cv->setFont(&simutFont12pt);
-		cv->setTextColor(RGB565(255, 255, 255));
+		cv->setTextColor(C_ALARM_TEXT);
 		cv->getTextBounds(headerBuf, 0, 0, &bx, &by, &bw, &bh);
 		cv->setCursor((320 - bw) / 2, 32 + yOff);
 		cv->print(headerBuf);
 
 		/* Silence button (y_screen=60..105) — visible in strips 1 and 2 */
-		cv->fillRoundRect(btnX, 60 + yOff, btnW, btnH, btnR, RGB565(200, 100, 0));
+		cv->fillRoundRect(btnX, 60 + yOff, btnW, btnH, btnR, C_CAUTION_BG);
 		cv->setFont(&simutFont12pt);
-		cv->setTextColor(RGB565(255, 255, 255));
+		cv->setTextColor(C_ALARM_TEXT);
 		cv->getTextBounds(silTxt, 0, 0, &bx, &by, &bw, &bh);
 		cv->setCursor(btnX + (btnW - bw) / 2, 90 + yOff);
 		cv->print(silTxt);
 
 		/* Deactivate button (y_screen=115..160) — visible in strips 2 and 3 */
-		cv->fillRoundRect(btnX, 115 + yOff, btnW, btnH, btnR, RGB565(180, 30, 30));
+		cv->fillRoundRect(btnX, 115 + yOff, btnW, btnH, btnR, C_ALARM_BG);
 		cv->getTextBounds(deactTxt, 0, 0, &bx, &by, &bw, &bh);
 		cv->setCursor(btnX + (btnW - bw) / 2, 145 + yOff);
 		cv->print(deactTxt);
@@ -122,7 +122,7 @@ uint16_t DisplayManager::slotAlarmBg(int slotIdx) const {
 	if (!isSlotAlarming(slotIdx)) return C_CARD_BG;
 
 	if (_alarmSilenced) return C_CARD_BG;
-	return _alarmFlashPhase ? RGB565(180, 30, 30) : C_CARD_BG;
+	return _alarmFlashPhase ? C_ALARM_BG : C_CARD_BG;
 }
 
 bool DisplayManager::isAnyAlarmActive( ) const {

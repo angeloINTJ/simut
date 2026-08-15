@@ -80,7 +80,15 @@ void AppManager::handleTimeSync(uint32_t bootTs, int32_t delta) {
  return;
  }
  _pendingTimeSync = false;
- LOG_CODE(LOG_INFO, "APP", APP_NTP_CORRECTING, delta, String(TRL("NTP correction: ")) + delta + "s");
+ /* Level, not a new code: the persisted record carries only code + context, so
+  * a WARN is what survives into `show system log` without costing a string in
+  * five tables. Context saturates at int16 — a pegged value is itself the
+  * signal that the correction was enormous. The record's own epoch is already
+  * corrected, so the seed that caused it is (epoch - delta). */
+ const bool suspect = (delta > NTP_SUSPECT_DELTA_S) || (delta < -NTP_SUSPECT_DELTA_S);
+ const int32_t ctxClamped = delta > 32767 ? 32767 : (delta < -32768 ? -32768 : delta);
+ LOG_CODE(suspect ? LOG_WARN : LOG_INFO, "APP", APP_NTP_CORRECTING, ctxClamped,
+          String(TRL("NTP correction: ")) + delta + "s");
 
  /* V5 makes this possible again. Under V4 the records were a
   * variable-length stream with no addressable timestamps, so the
