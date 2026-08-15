@@ -1,7 +1,7 @@
 // SIMUT Theme Editor — frontend
 const $ = (s) => document.querySelector(s);
 
-// 16 fields da ThemePalette (alpha24, mesma ordem de Themes.cpp)
+// 24 fields da ThemePalette (mesma ordem de Themes.cpp)
 const FIELDS = [
   { key: "bgMain",     label: "Fundo principal" },
   { key: "cardBg",     label: "Fundo de cards" },
@@ -20,9 +20,19 @@ const FIELDS = [
   { key: "btnTextActive", label: "Texto de botão SELECIONADO" },
   { key: "titleText",     label: "Texto de título / hora" },
   { key: "sensorName",    label: "Nome de sensor" },
+  // Cores de estado (alarme/seleção/carimbo) — só aparecem no mapa de
+  // regiões se a captura for feita com alarme/seleção/detalhe ativos;
+  // os inputs e o export .thm funcionam sempre.
+  { key: "alarmBg",      label: "Alarme: fundo" },
+  { key: "alarmText",    label: "Alarme: texto" },
+  { key: "alarmTextDim", label: "Alarme: texto secundário" },
+  { key: "alarmBorder",  label: "Alarme: borda" },
+  { key: "cautionBg",    label: "Botão silenciar (fundo)" },
+  { key: "selBg",        label: "Seleção de slot (fundo)" },
+  { key: "stampText",    label: "Data/hora no gráfico" },
 ];
 
-// Cores RGB888 do simut_def (alpha24, 16 cores)
+// Cores RGB888 do simut_def (24 cores, espelho de Themes.cpp)
 const BASE_THEMES = {
   simut_def: {
     bgMain:     [18, 18, 20],
@@ -42,6 +52,13 @@ const BASE_THEMES = {
     btnTextActive: [0, 0, 0],
     titleText:     [245, 245, 245],
     sensorName:    [245, 245, 245],
+    alarmBg:      [180, 30, 30],
+    alarmText:    [255, 255, 255],
+    alarmTextDim: [220, 200, 200],
+    alarmBorder:  [255, 60, 60],
+    cautionBg:    [180, 90, 0],
+    selBg:        [50, 50, 55],
+    stampText:    [190, 170, 60],
   },
 };
 
@@ -57,12 +74,9 @@ const state = {
 };
 
 // Paleta diagnostic FIXA (cores únicas RGB888 — devem bater com o tema "diagnostic"
-// uploadado no SIMUT pra captura). Após RGB565 round-trip vira:
-//   bgMain        #000000  cardBg     #202020  textMain   #F8FCF8  textSub   #C0C0C0
-//   textOff       #606060  accent     #00FCF8  accentHigh #F8FC00  barBg     #303030
-//   tempHot       #F80000  tempWarm   #F88800  tempOk     #00FC00  tempCold  #0000F8
-//   humidity      #F800F8  btnText    #00FC80  titleText  #F880F8  sensorName #80FC00
-//   btnTextActive #500000
+// de presets.js/gen_presets.py, uploadado no SIMUT pra captura). Todas as 24
+// permanecem únicas após o round-trip RGB565 (gen_presets.py confere).
+// As 7 cores de estado só aparecem em capturas com alarme/seleção/detalhe.
 const DIAG_RGB888 = {
   bgMain:        [0, 0, 0],
   cardBg:        [32, 32, 32],
@@ -81,6 +95,13 @@ const DIAG_RGB888 = {
   titleText:     [255, 128, 255],
   sensorName:    [128, 255, 0],
   btnTextActive: [80, 0, 0],
+  alarmBg:       [128, 0, 64],
+  alarmText:     [0, 128, 255],
+  alarmTextDim:  [128, 128, 0],
+  alarmBorder:   [255, 64, 0],
+  cautionBg:     [0, 64, 128],
+  selBg:         [64, 0, 128],
+  stampText:     [192, 255, 192],
 };
 function genDiagThm() {
   let s = "@NAME _PreviewDiag\n@CODE _preview_diag\n@COLORS\n";
@@ -335,9 +356,9 @@ $("#base-theme").addEventListener("change", (ev) => loadBaseTheme(ev.target.valu
 $("#reset-btn").addEventListener("click", () => loadBaseTheme(state.baseThemeKey));
 
 // ─── Remap (tempo real) ──────────────────────────────────────────────
-// Modo diagnostic: cada pixel do screenshot foi capturado com paleta de 17
+// Modo diagnostic: cada pixel do screenshot foi capturado com paleta de 24
 // cores únicas (DIAG_RGB888). Mapeamos cada pixel pro field exato (Uint8Array,
-// 0..16 = índice em FIELDS, 255 = sem match). Anti-alias usa closest-color
+// 0..23 = índice em FIELDS, 255 = sem match). Anti-alias usa closest-color
 // pra preservar bordas suaves de fonte.
 function buildPixelToFieldMap(img) {
   const w = img.width, h = img.height;
@@ -439,7 +460,8 @@ function rerender() {
 // ─── Save / load .thm ────────────────────────────────────────────────
 $("#save-btn").addEventListener("click", () => {
   const name = $("#name").value.trim() || "Custom Theme";
-  const code = ($("#code").value.trim() || "custom").replace(/[^A-Za-z0-9_]/g, "_").slice(0, 16);
+  // 15 = THM_ID_MAX-1 do firmware (strncpy trunca em silêncio acima disso)
+  const code = ($("#code").value.trim() || "custom").replace(/[^A-Za-z0-9_]/g, "_").slice(0, 15);
   let txt = `@NAME ${name}\n@CODE ${code}\n@COLORS\n`;
   for (const f of FIELDS) {
     txt += `${f.key}=${rgbToHex(...state.newColors[f.key])}\n`;
@@ -503,7 +525,9 @@ function buildGallery(filter = "") {
 function applyPreset(preset) {
   state.newColors = {};
   for (const f of FIELDS) {
-    state.newColors[f.key] = [...preset.colors[f.key]];
+    // Preset antigo (17 cores) cai no simut_def pros campos de estado
+    const src = preset.colors[f.key] || BASE_THEMES.simut_def[f.key];
+    state.newColors[f.key] = [...src];
   }
   $("#name").value = preset.name;
   $("#code").value = preset.id;

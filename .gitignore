@@ -55,7 +55,13 @@ docs/screenshots_v4/
 data/history/
 data/config/
 data/web/
-data/themes/
+# Contents, not the directory — git does not descend into an excluded
+# directory, so a negation inside one never matches.
+data/themes/*
+# ...except the curated collection itself, which is authored source (built by
+# tools/gen_theme_collection.py, contrast-audited) and is what docs/MANUAL.md
+# links to. Only themes the device writes at runtime stay out.
+!data/themes/*.thm
 data/calib.csv
 data/system.blog
 data/system.old.blog

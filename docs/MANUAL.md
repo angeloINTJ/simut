@@ -249,10 +249,14 @@ fastest way to confirm what a device is actually running.
 
 The release build compiles one theme, but the device is not limited to it.
 **Up to eight custom themes** live on the filesystem as `.thm` files in
-`/themes` — plain text, one colour per role, written as `#RRGGBB` or
-`0xRRGGBB`.
+`/themes` — plain text, one colour per role (24 roles, covering every element
+the display draws: chrome, values, and the alarm/caution/selection state
+colours plus the graph's date stamps), written as `#RRGGBB` or `0xRRGGBB`.
+Missing keys fall back to safe stock values, so older 17-colour files stay
+valid. Ready-made themes ship in [`data/themes/`](../data/themes/) — upload
+the ones you want through the `/files` page.
 
-Write them with the editor in [`tools/theme-editor/`](../tools/theme-editor/).
+Write your own with the editor in [`tools/theme-editor/`](../tools/theme-editor/).
 It is a small web app that logs into the device, uploads a preview theme,
 applies it and deletes it again — so the panel in front of you repaints as you
 pick colours, rather than after an upload-and-reboot cycle.
@@ -260,7 +264,9 @@ pick colours, rather than after an upload-and-reboot cycle.
 Fifty further themes exist as build packs in `src/simut_config.h`
 (`SIMUT_THEMES_HEALTH`, `_PRO`, `_MEDICAL`, `_SAFETY`, `_RETRO`, `_NATURE`,
 `_UTILITY`). All seven are commented out by default; uncommenting one compiles
-its palettes in at roughly 70 bytes each.
+its palettes in at roughly 85 bytes each. Every built-in palette passes the
+same contrast audit as the curated collection (small text ≥ 4.5:1, values
+≥ 3:1 against their real backgrounds).
 
 ### History
 

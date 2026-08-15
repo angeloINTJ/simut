@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Cafe com Leite
+@CODE cafe
+@COLORS
+bgMain=#F0E9E0
+cardBg=#FCF8F2
+textMain=#3C2D23
+textSub=#826E5F
+textOff=#BEAFA0
+accent=#785032
+accentHigh=#966441
+barBg=#DCD2C6
+tempHot=#AF3728
+tempWarm=#A0640A
+tempOk=#507D3C
+tempCold=#3C6996
+humidity=#5A6996
+btnText=#786455
+titleText=#3C2D23
+sensorName=#3C2D23
+btnTextActive=#FCF8F2
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#B45A00
+selBg=#323237
+stampText=#7D5A0F

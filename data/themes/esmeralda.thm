@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Esmeralda
+@CODE esmeralda
+@COLORS
+bgMain=#0E1A14
+cardBg=#182A21
+textMain=#DEF0E6
+textSub=#8CB4A0
+textOff=#466455
+accent=#3CB482
+accentHigh=#5AD7A0
+barBg=#283E32
+tempHot=#F06E5A
+tempWarm=#E6B450
+tempOk=#6ED296
+tempCold=#64BEDC
+humidity=#5ABEAA
+btnText=#8CB4A0
+titleText=#DEF0E6
+sensorName=#DEF0E6
+btnTextActive=#0E1A14
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#B45A00
+selBg=#323237
+stampText=#BEB464

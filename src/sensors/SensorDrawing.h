@@ -15,6 +15,7 @@
 #pragma once
 #if SIMUT_DISPLAY_TFT
 #include <Adafruit_GFX.h>
+#include "../Themes.h" /* C_ALARM_* state colors + themeTint for glints */
 #endif
 #ifndef RGB565
 #define RGB565(r,g,b) ((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | ((b) >> 3))
@@ -177,7 +178,7 @@ inline void drawMinMaxTempRow(GFXcanvas16* cv,
     cv->setCursor(labelX, baseY + 15);
     cv->print(label);
     drawThermometerMini(cv, thermX, baseY, icCol, panelBg, mercCol);
-    uint16_t tCol = isRedPhase ? RGB565(255,255,255) : tempOk;
+    uint16_t tCol = isRedPhase ? C_ALARM_TEXT : tempOk;
     int16_t endX = drawTempValue1D(cv, dotX, baseY + 15, value, tCol, font9);
     drawUnitDegC_Mini(cv, endX, baseY, txtSub, font9);
 }

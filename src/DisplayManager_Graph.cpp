@@ -1162,8 +1162,9 @@ void DisplayManager::drawGraphDetailScreen( ) {
  const int rowH = 31;
  const int RIGHT_X = 310; /* right column right-aligned ending here */
 
- /* Soft yellow for event times (same tone the old cards used). */
- const uint16_t C_DATETIME = RGB565(190, 170, 60);
+ /* Date/time stamps — themeable since the blind-spot sweep (light
+ * themes need a darker ochre than the old fixed soft yellow). */
+ const uint16_t C_DATETIME = C_STAMP_TEXT;
 
  /* The page's unit, copied out of tr(): the scratch pointer must not be
  * held across the row draws — the labels call tr() too. */

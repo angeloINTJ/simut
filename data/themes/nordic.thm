@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Nordico
+@CODE nordic
+@COLORS
+bgMain=#1C212A
+cardBg=#29303D
+textMain=#E2E8F0
+textSub=#9AA5B6
+textOff=#545F71
+accent=#81A1C1
+accentHigh=#88C0D0
+barBg=#3A4252
+tempHot=#E06C75
+tempWarm=#EBB464
+tempOk=#8CC882
+tempCold=#78B4E6
+humidity=#81A1C1
+btnText=#9AA5B6
+titleText=#E2E8F0
+sensorName=#E2E8F0
+btnTextActive=#1C212A
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#B45A00
+selBg=#323237
+stampText=#C8B46E

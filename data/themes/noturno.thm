@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Turno da Noite
+@CODE noturno
+@COLORS
+bgMain=#180E08
+cardBg=#26180E
+textMain=#FFC482
+textSub=#C88C50
+textOff=#6E4828
+accent=#E6781E
+accentHigh=#FFA03C
+barBg=#3A2616
+tempHot=#FF6E50
+tempWarm=#FFAA3C
+tempOk=#E6AA5A
+tempCold=#C89678
+humidity=#DC965A
+btnText=#C88C50
+titleText=#FFC482
+sensorName=#FFC482
+btnTextActive=#180E08
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#B45A00
+selBg=#323237
+stampText=#E6B45A

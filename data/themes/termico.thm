@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Camera Termica
+@CODE termico
+@COLORS
+bgMain=#100A20
+cardBg=#1E1434
+textMain=#F5EBDC
+textSub=#B496BE
+textOff=#5F4B78
+accent=#FA8228
+accentHigh=#FFAA3C
+barBg=#32244C
+tempHot=#FF5A3C
+tempWarm=#FFAA3C
+tempOk=#FFD25A
+tempCold=#5A8CFF
+humidity=#AA78E6
+btnText=#B496BE
+titleText=#F5EBDC
+sensorName=#F5EBDC
+btnTextActive=#100A20
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#B45A00
+selBg=#323237
+stampText=#DCBE6E

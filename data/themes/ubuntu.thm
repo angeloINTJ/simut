@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Ubuntu
+@CODE ubuntu
+@COLORS
+bgMain=#300A24
+cardBg=#4A1537
+textMain=#F2F0EE
+textSub=#BEAFB9
+textOff=#705266
+accent=#E95420
+accentHigh=#FF7D46
+barBg=#582444
+tempHot=#FF5F55
+tempWarm=#FFAA3C
+tempOk=#82D773
+tempCold=#6EB9F0
+humidity=#73AFF5
+btnText=#BEAFB9
+titleText=#F2F0EE
+sensorName=#F2F0EE
+btnTextActive=#300A24
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#966E00
+selBg=#421C34
+stampText=#D6B878

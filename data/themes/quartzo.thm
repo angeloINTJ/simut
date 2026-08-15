@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Quartzo Claro
+@CODE quartzo
+@COLORS
+bgMain=#F3F1EE
+cardBg=#FFFFFF
+textMain=#2D2926
+textSub=#787069
+textOff=#BAB4AE
+accent=#965A3C
+accentHigh=#A0613F
+barBg=#E0DCD7
+tempHot=#B43228
+tempWarm=#AA6900
+tempOk=#378246
+tempCold=#286EAA
+humidity=#3C6EA0
+btnText=#6E665F
+titleText=#2D2926
+sensorName=#2D2926
+btnTextActive=#FFFFFF
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#B45A00
+selBg=#323237
+stampText=#825F0F

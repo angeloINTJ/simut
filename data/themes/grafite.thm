@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Grafite Industrial
+@CODE grafite
+@COLORS
+bgMain=#181A1C
+cardBg=#26292C
+textMain=#E8EAEC
+textSub=#A0A6AC
+textOff=#585E64
+accent=#FF7828
+accentHigh=#FF9646
+barBg=#383C40
+tempHot=#FF5F55
+tempWarm=#FFB446
+tempOk=#78D282
+tempCold=#6EB9F0
+humidity=#6EAAF0
+btnText=#A0A6AC
+titleText=#E8EAEC
+sensorName=#E8EAEC
+btnTextActive=#181A1C
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#B45A00
+selBg=#323237
+stampText=#C8B464

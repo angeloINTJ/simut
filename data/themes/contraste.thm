@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Alto Contraste
+@CODE contraste
+@COLORS
+bgMain=#000000
+cardBg=#141414
+textMain=#FFFFFF
+textSub=#D2D2D2
+textOff=#787878
+accent=#FFD700
+accentHigh=#FFEB3C
+barBg=#373737
+tempHot=#FF5A5A
+tempWarm=#FFC83C
+tempOk=#5AFF5A
+tempCold=#5AC8FF
+humidity=#78BEFF
+btnText=#E6E6E6
+titleText=#FFFFFF
+sensorName=#FFFFFF
+btnTextActive=#000000
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#B45A00
+selBg=#323237
+stampText=#FFEB96

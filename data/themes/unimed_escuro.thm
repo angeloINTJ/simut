@@ -1,0 +1,28 @@
+# SIMUT theme — gerado por tools/gen_theme_collection.py
+@NAME Unimed Escuro
+@CODE unimed_escuro
+@COLORS
+bgMain=#0A1E1C
+cardBg=#122E2A
+textMain=#E8F4EE
+textSub=#96B4A5
+textOff=#4B645A
+accent=#00AF69
+accentHigh=#3CD28C
+barBg=#23443C
+tempHot=#FF695A
+tempWarm=#FF9632
+tempOk=#B1D34B
+tempCold=#5FBEEB
+humidity=#5AC8AA
+btnText=#96B4A5
+titleText=#E8F4EE
+sensorName=#E8F4EE
+btnTextActive=#0A1E1C
+alarmBg=#B41E1E
+alarmText=#FFFFFF
+alarmTextDim=#DCC8C8
+alarmBorder=#FF3C3C
+cautionBg=#AF5408
+selBg=#003E3A
+stampText=#C8B45A
