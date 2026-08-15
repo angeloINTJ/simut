@@ -1072,6 +1072,31 @@ void test_seed_walk_stops_at_the_ceiling(void) {
     TEST_ASSERT_EQUAL_UINT32(DAY_END + 1800u, seed);
 }
 
+void test_scan_floor_reaches_back_across_midnight(void) {
+    /* The bench case: a block that opened at 23:58 keeps taking records past
+     * 00:00, and it is filed under the day it started. A reader that cuts at
+     * the cursor's own day closes that file the moment the cursor crosses
+     * midnight, stranding the records it took after it — 48 of them, measured.
+     * The floor has to land on the PREVIOUS day for as long as such a block
+     * could still be relevant. */
+    const uint32_t just_after_midnight = DAY_END + 600u;      /* 00:10 */
+    TEST_ASSERT_TRUE(h5ScanFloor(just_after_midnight, 60) < DAY_END);
+
+    /* And no longer than that: by mid-morning the previous day is out of
+     * reach again, so the scan does not widen for the rest of the day. */
+    TEST_ASSERT_TRUE(h5ScanFloor(DAY_END + 6 * 3600u, 60) > DAY_END);
+}
+
+void test_scan_floor_is_one_block_span(void) {
+    TEST_ASSERT_EQUAL_UINT32(DAY_END - 3600u, h5ScanFloor(DAY_END, 60));
+    TEST_ASSERT_EQUAL_UINT32(DAY_END - 36000u, h5ScanFloor(DAY_END, 600));
+    /* A zero interval reads as the default rather than collapsing the reach. */
+    TEST_ASSERT_EQUAL_UINT32(DAY_END - 3600u, h5ScanFloor(DAY_END, 0));
+    /* Never underflows past the epoch. */
+    TEST_ASSERT_EQUAL_UINT32(0, h5ScanFloor(100, 60));
+    TEST_ASSERT_EQUAL_UINT32(0, h5ScanFloor(0, 60));
+}
+
 void test_nominal_seconds_clamps(void) {
     TEST_ASSERT_EQUAL_UINT16(60, h5NominalSeconds(1));
     TEST_ASSERT_EQUAL_UINT16(600, h5NominalSeconds(10));
@@ -1211,6 +1236,8 @@ int main(void) {
     RUN_TEST(test_seed_from_snapshot_refuses_a_corrupt_payload);
     RUN_TEST(test_seed_from_snapshot_refuses_junk_and_short_reads);
     RUN_TEST(test_seed_walk_stops_at_the_ceiling);
+    RUN_TEST(test_scan_floor_reaches_back_across_midnight);
+    RUN_TEST(test_scan_floor_is_one_block_span);
     RUN_TEST(test_nominal_seconds_clamps);
 
     RUN_TEST(test_property_random_series_roundtrip);
