@@ -713,6 +713,77 @@ void test_scan_seek_lands_on_the_right_block(void) {
     TEST_ASSERT_EQUAL_UINT8(6, after);
 }
 
+/** Build a day whose blocks are NOT in time order, from explicit t0s. */
+static void buildFileUnordered(uint8_t n, const uint32_t* t0s, uint8_t blocks) {
+    g_file.len = 0;
+    buildSchema(n, H5_KIND_TEMP_C, -2);
+    uint8_t sc[H5_SCHEMA_CHUNK_SIZE(H5_MAX_CHANNELS)];
+    fileAppend(sc, h5BuildSchemaChunk(sc, sizeof(sc), g_schema, n, 0));
+
+    HistoryV5Encoder enc;
+    enc.begin(g_schema, n, 60);
+    for (uint8_t b = 0; b < blocks; b++) {
+        int16_t row[H5_MAX_CHANNELS];
+        for (uint8_t c = 0; c < n; c++) row[c] = (int16_t)(2000 + b * 10 + c);
+        enc.reset(t0s[b], row);
+        for (uint8_t i = 1; i < H5_BLOCK_MAX_RECORDS; i++) {
+            for (uint8_t c = 0; c < n; c++) row[c] = (int16_t)(2000 + b * 10 + c + i);
+            enc.add(t0s[b] + i * 60u, row);
+        }
+        enc.sealStream(fileSink, nullptr, 0);
+    }
+}
+
+void test_seek_refuses_to_skip_in_an_unordered_file(void) {
+    /* File order is WRITE order. A boot whose clock was seeded wrong writes
+     * blocks stamped ahead of the ones that follow them, and then no prefix of
+     * the file can be skipped safely: more than one block straddles any cutoff,
+     * and the rule "the last block with t0 <= epoch" keeps only one of them.
+     * Seek answers by refusing to skip — it rewinds and lets the caller filter,
+     * because decode work is cheaper than a record that silently never ships.
+     *
+     * Layout is the one measured in /history/20260814.h5 on the bench. */
+    const uint32_t t0s[6] = {
+        1786750398u,   /* 20:33:18       */
+        1786770946u,   /* 02:15:46 (+1d) */
+        1786774568u,   /* 03:16:08 (+1d) */
+        1786770962u,   /* 02:16:02 (+1d) */
+        1786766135u,   /* 00:55:35 (+1d) */
+        1786760983u,   /* 23:29:43       */
+    };
+    buildFileUnordered(3, t0s, 6);
+    HistoryV5Scan sc;
+    sc.begin(memRead, &g_file, g_file.len);
+
+    /* A cursor past the high-water mark used to leave every later block behind
+     * it unreachable. Every block has to remain readable. */
+    TEST_ASSERT_FALSE(sc.seek(1786774568u + 600u));
+    H5DataHeader hdr;
+    uint8_t seen = 0;
+    bool saw2329 = false;
+    while (sc.nextData(hdr, nullptr, nullptr, nullptr)) {
+        seen++;
+        if (hdr.t0 == 1786760983u) saw2329 = true;
+    }
+    TEST_ASSERT_EQUAL_UINT8(6, seen);
+    TEST_ASSERT_TRUE(saw2329);
+}
+
+void test_seek_still_skips_in_an_ordered_file(void) {
+    /* The refusal above must not cost the fast path: an ordered file still
+     * lands on the block that holds the target, not on the start of the file. */
+    buildFile(4, 6, 1700000000u);
+    HistoryV5Scan sc;
+    sc.begin(memRead, &g_file, g_file.len);
+    TEST_ASSERT_TRUE(sc.seek(1700000000u + 4 * 3600u + 60u));
+    H5DataHeader hdr;
+    TEST_ASSERT_TRUE(sc.nextData(hdr, nullptr, nullptr, nullptr));
+    TEST_ASSERT_EQUAL_UINT32(1700000000u + 4 * 3600u, hdr.t0);
+    uint8_t rest = 1;
+    while (sc.nextData(hdr, nullptr, nullptr, nullptr)) rest++;
+    TEST_ASSERT_EQUAL_UINT8(2, rest);   /* blocks 5 and 6 only */
+}
+
 void test_scan_reads_a_chunk_back_for_the_decoder(void) {
     buildFile(4, 3, 1700000000u);
     HistoryV5Scan sc;
@@ -842,6 +913,173 @@ void test_shift_time_moves_the_whole_block(void) {
 }
 
 /* ============================================================================
+ *  PROVISIONAL-CLOCK SEED  (the 2026-08-14 incident)
+ *
+ *  A .wip snapshot seeds the clock at boot, so what it is allowed to claim
+ *  bounds how wrong every pre-NTP timestamp can be. The numbers in
+ *  test_seed_rejects_the_20260814_value are the ones measured on the bench.
+ * ============================================================================ */
+
+/* 2026-08-14 00:00:00 -03 and the midnight that ends that day. */
+static const uint32_t DAY_START = 1786676400u;
+static const uint32_t DAY_END   = DAY_START + 86400u;
+
+/** Seals a one-channel block of @p n records starting at @p t0. */
+static size_t sealBlockAt(uint32_t t0, uint8_t n, uint16_t nominal,
+                          uint8_t* out, size_t cap) {
+    buildSchema(1);
+    HistoryV5Encoder enc;
+    enc.begin(g_schema, 1, nominal);
+    int16_t v = 2100;
+    enc.reset(t0, &v);
+    for (uint8_t i = 1; i < n; i++) {
+        v = (int16_t)(2100 + i);
+        enc.add(t0 + (uint32_t)i * nominal, &v);
+    }
+    return enc.seal(out, cap, 0);
+}
+
+void test_seed_ceiling_is_one_block_span(void) {
+    /* One minute apart, 60 to a block: an hour past midnight, not a day. */
+    TEST_ASSERT_EQUAL_UINT32(DAY_END + 3600u, h5SeedCeiling(DAY_END, 60));
+    /* Ten-minute interval widens the block, and the ceiling with it. */
+    TEST_ASSERT_EQUAL_UINT32(DAY_END + 36000u, h5SeedCeiling(DAY_END, 600));
+    /* A zero interval reads as the default rather than collapsing the window. */
+    TEST_ASSERT_EQUAL_UINT32(DAY_END + 3600u, h5SeedCeiling(DAY_END, 0));
+    /* Never looser than the flat day it replaces, however long the interval. */
+    TEST_ASSERT_EQUAL_UINT32(DAY_END + 86400u, h5SeedCeiling(DAY_END, 3600));
+    TEST_ASSERT_EQUAL_UINT32(DAY_END + 86400u, h5SeedCeiling(DAY_END, 0xFFFF));
+}
+
+void test_seed_plausible_accepts_the_honest_cases(void) {
+    /* Inside the day. */
+    TEST_ASSERT_TRUE(h5SeedPlausible(DAY_START, DAY_START, DAY_END, 60));
+    TEST_ASSERT_TRUE(h5SeedPlausible(DAY_END - 1, DAY_START, DAY_END, 60));
+    /* A block opened at 23:59 reaches into the next day before the rollover
+     * seal closes it — the case the ceiling exists to keep legal. */
+    TEST_ASSERT_TRUE(h5SeedPlausible(DAY_END + 1800u, DAY_START, DAY_END, 60));
+    /* An unparsed filename leaves nothing to judge against. */
+    TEST_ASSERT_TRUE(h5SeedPlausible(DAY_END + 999999u, 0, 0, 60));
+}
+
+void test_seed_plausible_rejects_past_and_future(void) {
+    TEST_ASSERT_FALSE(h5SeedPlausible(DAY_START - 1, DAY_START, DAY_END, 60));
+    TEST_ASSERT_FALSE(h5SeedPlausible(DAY_END + 3600u, DAY_START, DAY_END, 60));
+    TEST_ASSERT_FALSE(h5SeedPlausible(DAY_END + 86400u, DAY_START, DAY_END, 60));
+}
+
+void test_seed_rejects_the_20260814_value(void) {
+    /* The bench seed: 15/08 02:15:46 -03 on a snapshot belonging to 14/08,
+     * 2 h 15 min past midnight. The old dayEnd+24 h window admitted it, and the
+     * records written before NTP arrived went to the following day. */
+    const uint32_t seed_0815_0215 = 1786770946u;
+    TEST_ASSERT_TRUE(seed_0815_0215 < DAY_END + 86400u);     /* old rule: pass */
+    TEST_ASSERT_FALSE(h5SeedPlausible(seed_0815_0215, DAY_START, DAY_END, 60));
+
+    /* The furthest stamp the incident produced, 03:35:08. */
+    TEST_ASSERT_FALSE(h5SeedPlausible(1786775708u, DAY_START, DAY_END, 60));
+
+    /* Honesty about the limit: the earliest bad stamp of that night, 00:55:35,
+     * sits 56 min past midnight and is indistinguishable from a block that
+     * legitimately crossed it. The ceiling cuts the blast radius from a day to
+     * one block span; it does not make a bad seed impossible. */
+    TEST_ASSERT_TRUE(h5SeedPlausible(1786766135u, DAY_START, DAY_END, 60));
+}
+
+void test_seed_from_snapshot_returns_the_newest_record(void) {
+    /* Not t0: the seed has to be the last measurement taken, or the clock
+     * starts a whole block behind and the NTP shift has more to move. */
+    const uint32_t t0 = DAY_START + 12u * 3600u;
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    const size_t len = sealBlockAt(t0, 10, 60, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(len > 0);
+
+    buildSchema(1);
+    const uint32_t seed = h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                             DAY_START, DAY_END, 60);
+    TEST_ASSERT_EQUAL_UINT32(t0 + 9u * 60u, seed);
+}
+
+void test_seed_from_snapshot_refuses_a_forged_t0(void) {
+    /* The gate the fix rests on. t0 lives at offset 8, inside the CRC's first
+     * span, so writing a future value there breaks the CRC — the seed is
+     * refused instead of being believed. Before the fix t0 was read straight
+     * out of the header, ahead of any integrity check. */
+    const uint32_t t0 = DAY_START + 12u * 3600u;
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    const size_t len = sealBlockAt(t0, 10, 60, buf, sizeof(buf));
+    buildSchema(1);
+    TEST_ASSERT_TRUE(h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                        DAY_START, DAY_END, 60) > 0);
+
+    const uint32_t forged = DAY_END + 1800u;   /* plausible, so only CRC stops it */
+    memcpy(buf + 8, &forged, sizeof(forged));
+    TEST_ASSERT_TRUE(h5SeedPlausible(forged, DAY_START, DAY_END, 60));
+    TEST_ASSERT_EQUAL_UINT32(0, h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                                   DAY_START, DAY_END, 60));
+}
+
+void test_seed_from_snapshot_refuses_a_corrupt_payload(void) {
+    const uint32_t t0 = DAY_START + 3600u;
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    const size_t len = sealBlockAt(t0, 20, 60, buf, sizeof(buf));
+    buildSchema(1);
+    buf[len - 1] ^= 0xFF;
+    TEST_ASSERT_EQUAL_UINT32(0, h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                                   DAY_START, DAY_END, 60));
+}
+
+void test_seed_from_snapshot_refuses_junk_and_short_reads(void) {
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    const size_t len = sealBlockAt(DAY_START + 60u, 5, 60, buf, sizeof(buf));
+    buildSchema(1);
+
+    TEST_ASSERT_EQUAL_UINT32(0, h5SeedFromSnapshot(nullptr, len, g_schema, 1,
+                                                   DAY_START, DAY_END, 60));
+    TEST_ASSERT_EQUAL_UINT32(0, h5SeedFromSnapshot(buf, sizeof(H5DataHeader) - 1,
+                                                   g_schema, 1, DAY_START,
+                                                   DAY_END, 60));
+    TEST_ASSERT_EQUAL_UINT32(0, h5SeedFromSnapshot(buf, len, g_schema, 0,
+                                                   DAY_START, DAY_END, 60));
+    uint8_t junk[64];
+    memset(junk, 0xA5, sizeof(junk));
+    TEST_ASSERT_EQUAL_UINT32(0, h5SeedFromSnapshot(junk, sizeof(junk), g_schema,
+                                                   1, DAY_START, DAY_END, 60));
+}
+
+void test_seed_walk_stops_at_the_ceiling(void) {
+    /* The incident's shape: an honest t0, and then the clock jumps mid-block.
+     * A full block starting inside the day always fits the ceiling by
+     * construction — one block span is exactly what the ceiling allows — so
+     * only a jump can carry records past it. The seed must be the last
+     * plausible record, not the last one present. */
+    buildSchema(1);
+    HistoryV5Encoder enc;
+    enc.begin(g_schema, 1, 60);
+    int16_t v = 2100;
+    enc.reset(DAY_END - 120u, &v);              /* 23:58 */
+    TEST_ASSERT_TRUE(enc.add(DAY_END - 60u, &v));        /* 23:59 */
+    TEST_ASSERT_TRUE(enc.add(DAY_END, &v));              /* 00:00, still fine */
+    TEST_ASSERT_TRUE(enc.add(DAY_END + 1800u, &v));      /* 00:30, inside      */
+    TEST_ASSERT_TRUE(enc.add(DAY_END + 7200u, &v));      /* 02:00, past it     */
+
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    const size_t len = enc.seal(buf, sizeof(buf), 0);
+    TEST_ASSERT_TRUE(len > 0);
+
+    const uint32_t seed = h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                             DAY_START, DAY_END, 60);
+    TEST_ASSERT_EQUAL_UINT32(DAY_END + 1800u, seed);
+}
+
+void test_nominal_seconds_clamps(void) {
+    TEST_ASSERT_EQUAL_UINT16(60, h5NominalSeconds(1));
+    TEST_ASSERT_EQUAL_UINT16(600, h5NominalSeconds(10));
+    /* 24 h in minutes overflows u16 seconds; the clamp keeps it addressable. */
+    TEST_ASSERT_EQUAL_UINT16(0xFFFF, h5NominalSeconds(1440));
+}
+
+/* ============================================================================
  *  PROPERTY SWEEP
  * ============================================================================ */
 
@@ -955,12 +1193,25 @@ int main(void) {
     RUN_TEST(test_scan_walks_every_chunk);
     RUN_TEST(test_scan_skips_a_corrupt_block_and_continues);
     RUN_TEST(test_scan_seek_lands_on_the_right_block);
+    RUN_TEST(test_seek_refuses_to_skip_in_an_unordered_file);
+    RUN_TEST(test_seek_still_skips_in_an_ordered_file);
     RUN_TEST(test_scan_reads_a_chunk_back_for_the_decoder);
     RUN_TEST(test_mid_day_schema_change);
 
     RUN_TEST(test_seal_and_sealstream_agree);
     RUN_TEST(test_seal_refuses_a_short_buffer);
     RUN_TEST(test_shift_time_moves_the_whole_block);
+
+    RUN_TEST(test_seed_ceiling_is_one_block_span);
+    RUN_TEST(test_seed_plausible_accepts_the_honest_cases);
+    RUN_TEST(test_seed_plausible_rejects_past_and_future);
+    RUN_TEST(test_seed_rejects_the_20260814_value);
+    RUN_TEST(test_seed_from_snapshot_returns_the_newest_record);
+    RUN_TEST(test_seed_from_snapshot_refuses_a_forged_t0);
+    RUN_TEST(test_seed_from_snapshot_refuses_a_corrupt_payload);
+    RUN_TEST(test_seed_from_snapshot_refuses_junk_and_short_reads);
+    RUN_TEST(test_seed_walk_stops_at_the_ceiling);
+    RUN_TEST(test_nominal_seconds_clamps);
 
     RUN_TEST(test_property_random_series_roundtrip);
 
