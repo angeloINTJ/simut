@@ -1298,10 +1298,9 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 _h5ShowProg(done, fetchList.length, kb);
             }
 
-            /* Montagem das series, em ordem cronologica de arquivo. O guarda
-             * monotonico faz dois papeis: nunca duplicar um instante (uma
-             * selagem no meio da carga poe o mesmo registro no arquivo E na
-             * cauda) e ignorar regressao de relogio dentro de um arquivo. */
+            /* Montagem das series, em ordem de arquivo. Duplicatas (uma selagem
+             * no meio da carga poe o mesmo registro no arquivo E na cauda) saem
+             * na normalizacao adiante, junto com a ordenacao por instante. */
             const sel = new Set(sensorSel.map(Number));
             const series = new Map();
             const extremes = {};
@@ -1322,14 +1321,13 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         series.set(key, s);
                     }
                     const v = col.v, sc = col.scale;
-                    let last = s.ts.length ? s.ts[s.ts.length - 1] : -Infinity;
                     let q = extremes[ki.key];
                     if (!q) q = extremes[ki.key] = { min: Infinity, max: -Infinity, unit: ki.unit, label: ki.label };
                     for (let i = 0; i < m; i++) {
                         const t = tArr[i];
-                        if (t < fromEp || t > toEp || v[i] === H5_NAN || t <= last) continue;
+                        if (t < fromEp || t > toEp || v[i] === H5_NAN) continue;
                         const rv = v[i] * sc;
-                        s.ts.push(t); s.vs.push(rv); last = t;
+                        s.ts.push(t); s.vs.push(rv);
                         recsInWin++;
                         if (rv < q.min) { q.min = rv; if (col.kind === 1) tsMinT = t; }
                         if (rv > q.max) { q.max = rv; if (col.kind === 1) tsMaxT = t; }
@@ -1356,6 +1354,36 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         }
                     }
                 } catch (e) { /* a cauda e bonus, nao requisito */ }
+            }
+
+            /* Normalizacao: ordena por instante e descarta duplicatas. O guarda
+             * antigo era "t <= last" no laco acima, que trata fora-de-ordem
+             * como duplicata e descarta TUDO que vier depois de um bloco
+             * carimbado a frente. Na noite de 14/08 isso apagou do grafico tres
+             * blocos validos que estavam no flash o tempo todo, entre eles os
+             * 31 registros de 23:29 as 23:59 com carimbo correto. Deduplicar
+             * exige comparar com o conjunto, nao com o vizinho; ordenar depois
+             * mantem a deteccao de lacuna e o "ultimo valor" corretos. */
+            recsInWin = 0;
+            for (const s of series.values()) {
+                const n = s.ts.length;
+                if (n > 1) {
+                    const idx = new Array(n);
+                    for (let i = 0; i < n; i++) idx[i] = i;
+                    idx.sort((a, b) => s.ts[a] - s.ts[b]);
+                    const ts = new Array(n), vs = new Array(n);
+                    let m = 0;
+                    for (let i = 0; i < n; i++) {
+                        const t = s.ts[idx[i]];
+                        if (m && ts[m - 1] === t) continue;
+                        ts[m] = t; vs[m] = s.vs[idx[i]]; m++;
+                    }
+                    ts.length = m; vs.length = m;
+                    s.ts = ts; s.vs = vs;
+                }
+                /* Recontado aqui: o laco de montagem soma antes de deduplicar,
+                 * e a cauda repete o que a selagem ja gravou. */
+                recsInWin += s.ts.length;
             }
 
             for (const k in extremes) {
