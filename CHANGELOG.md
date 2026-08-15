@@ -4,6 +4,41 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.2-beta (2026-08-15)
+
+### The block that crosses midnight is read again
+
+A block is filed under the day its **first** record belongs to, so one still
+open at 00:00 goes on collecting records into the previous day's file. Both
+history walks — the telemetry sender and its pending counter — cut the file
+list at the cursor's own day, so the moment the cursor crossed midnight that
+file stopped being opened. Everything the block took after 00:00 was stranded:
+not missing from flash, not older than the cursor, simply in a file nobody
+looks at again.
+
+Worse than a gap in the data, the sender **stalled** there. With nothing left
+to read in the files it was still willing to open, the cursor stopped advancing.
+
+The floor is now one block span behind the cursor rather than the cursor's day
+(`h5ScanFloor`, alongside `h5SeedCeiling`, which bounds the same thing from the
+other side). A block cannot reach further past its own start than the records
+it can hold, so yesterday's file stays in the scan for exactly as long as it can
+matter — an hour at the default interval, and not a minute of the rest of the
+day. The pending counter gets the same floor, because a count that agrees with
+the bug hides it instead of showing it.
+
+Measured on hardware with a block straddling the boundary and holding 32
+records past it, batch size small enough that the cursor crosses while the block
+is still half-read:
+
+| | before | after |
+|---|---|---|
+| post-midnight records delivered | **0 of 32** | **32 of 32** |
+| records drained before stalling | 10 | 829 |
+
+This was found by the hardware validation written for the v2.2.1-beta clock
+work, which is the argument for having written it.
+
 ## v2.2.1-beta (2026-08-15)
 
 ### The history hole that was never a hole

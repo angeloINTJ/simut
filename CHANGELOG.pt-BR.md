@@ -4,6 +4,42 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.2-beta (2026-08-15)
+
+### O bloco que atravessa a meia-noite volta a ser lido
+
+Um bloco é arquivado sob o dia do seu **primeiro** registro, então um bloco
+ainda aberto às 00:00 segue recolhendo dados no arquivo do dia anterior. As
+duas varreduras do histórico — o remetente de telemetria e o contador de
+pendentes — cortavam a lista de arquivos no dia do cursor, de modo que no
+instante em que o cursor cruzava a meia-noite aquele arquivo deixava de ser
+aberto. Tudo que o bloco recolheu depois das 00:00 ficava preso: não sumiu do
+flash, não é mais velho que o cursor, apenas está num arquivo que ninguém
+reabre.
+
+Pior que a lacuna nos dados, o remetente **travava** ali. Sem nada a ler nos
+arquivos que ainda se dispunha a abrir, o cursor parava de avançar.
+
+O piso agora recua um vão de bloco atrás do cursor, em vez de cortar no dia
+dele (`h5ScanFloor`, ao lado do `h5SeedCeiling`, que limita a mesma coisa pelo
+outro lado). Um bloco não alcança mais adiante do próprio início do que os
+registros que cabe nele, então o arquivo de ontem permanece no escopo por
+exatamente o tempo em que pode importar — uma hora no intervalo padrão, e nem
+um minuto do resto do dia. O contador de pendentes recebe o mesmo piso, porque
+uma contagem que concorda com o bug o esconde em vez de mostrá-lo.
+
+Medido em hardware com um bloco atravessando a fronteira e carregando 32
+registros depois dela, com lote pequeno o bastante para o cursor cruzar
+enquanto o bloco ainda está meio lido:
+
+| | antes | depois |
+|---|---|---|
+| registros pós-meia-noite entregues | **0 de 32** | **32 de 32** |
+| registros drenados antes de travar | 10 | 829 |
+
+Encontrado pela validação em hardware escrita para o trabalho do relógio da
+v2.2.1-beta, que é o argumento para tê-la escrito.
+
 ## v2.2.1-beta (2026-08-15)
 
 ### O buraco do histórico que nunca foi um buraco
