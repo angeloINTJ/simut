@@ -4,6 +4,52 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.0-beta (2026-08-15)
+
+### Web interface visual overhaul
+
+Both themes redesigned around measured WCAG contrast, verified on real
+hardware with a 36-screenshot sweep (9 pages × light/dark × 1366 px/390 px)
+before and after. Total flash cost: +860 B of gzipped UI.
+
+**Dark theme** — surfaces finally separate: cool blue-tinted background
+(`#0c0f13`), cards (`#161b22`) with a border that does its job (1.36:1
+against the card, up from 1.19:1), inputs sit shallow (`--bg`) instead of
+pure-black pits, and the top bar is distinct from the page.
+
+**Light theme** — white cards on a cool paper background, and the accent
+becomes `#0072CD`: same SIMUT hue, but 4.9:1 against white (the previous
+`#0096FF` measured 3.1:1 and failed WCAG AA on links and buttons). Fixed
+five dark-theme leftovers that never got light styles:
+
+- Chart grid was hard-coded near-black (13.8:1 on white — the strongest
+  element on the page) and axis labels washed out at 2.4:1; both now read
+  the theme tokens (`--border`/`--sub`) at render time.
+- Toggles in the ON state lost their accent color to a specificity
+  conflict — ON and OFF rendered identically.
+- The event-log search field kept its pure-black background inside a
+  light card.
+- RAM/storage bar troughs stayed dark (`#3f3f46`).
+- Status greens/ambers measured ~2:1 on light cards; new `--ok`/`--warn`
+  tokens use 700-grade tones (≥4.9:1).
+
+**Login and forced password change** now follow the saved theme — they
+are pre-session pages that never loaded the theme engine, so a light-mode
+user used to get a black login screen before a white app.
+
+**History charts** — the 11-color temperature palette had four
+near-identical reds and two yellows that vanished on white; now 6 clearly
+distinct warm tones that hold ≥3:1 on both grounds. Pressure trades the
+light-only lilac for a violet that works on both. Grid and ticks follow
+the active theme.
+
+**Consistency** — sensor names use the same text color everywhere (they
+were gray on the dashboard, cyan on alarms); the dashboard TYPE column's
+amber/green coloring — which referenced tokens that never existed — now
+actually renders; INF/WRN/ERR log filters fit one row on phones; a shared
+`.b-pri` primary-button style; global `:focus-visible` outline for
+keyboard navigation.
+
 ## v2.1.10 (2026-08-14)
 
 ### The 2.1 line goes stable

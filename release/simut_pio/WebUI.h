@@ -44,8 +44,19 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Login</title>
+    <script>if(localStorage.getItem('simut_ui_theme')==='light')document.documentElement.classList.add('light')</script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
+        /* Tema claro: pre-sessao nao carrega o lang.js, entao a classe vem do
+           script acima (mesma chave simut_ui_theme) e as regras moram aqui. */
+        html.light { --bg: #f2f5f8; --card: #ffffff; --txt: #1b2733; --sub: #526172; --acc: #0072cd; --dang: #c93838; --border: #d9e1e8; color-scheme: light; }
+        html.light input[type="text"], html.light input[type="password"] { background: #fff; border-color: var(--border); color: var(--txt); }
+        html.light .box { box-shadow: 0 10px 30px rgba(27,39,51,0.12); }
+        html.light button[type="submit"] { color: #fff; }
+        html.light button[type="submit"]:disabled { background: #cbd5e1; color: #94a3b8; }
+        html.light .lang-box select { background: #fff; color: var(--sub); }
+        html.light .bar-bg { background: #e3eaf0; }
+        html.light .req-list span.ok, html.light .ok-msg { color: #15803d; }
         /* margin:auto no lugar de align-items:center — com conteudo mais alto que a
            viewport, centralizar por flex joga o topo fora do alcance da rolagem. */
         body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box; }
@@ -247,8 +258,18 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Setup</title>
+    <script>if(localStorage.getItem('simut_ui_theme')==='light')document.documentElement.classList.add('light')</script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
+        /* Tema claro: espelha o bloco do login (sem lang.js aqui). */
+        html.light { --bg: #f2f5f8; --card: #ffffff; --txt: #1b2733; --sub: #526172; --acc: #0072cd; --dang: #c93838; --border: #d9e1e8; color-scheme: light; }
+        html.light input[type="text"], html.light input[type="password"] { background: #fff; border-color: var(--border); color: var(--txt); }
+        html.light .box { box-shadow: 0 10px 30px rgba(27,39,51,0.12); }
+        html.light button[type="submit"] { color: #fff; }
+        html.light button[type="submit"]:disabled { background: #cbd5e1; color: #94a3b8; }
+        html.light .lang-box select { background: #fff; color: var(--sub); }
+        html.light .bar-bg { background: #e3eaf0; }
+        html.light .req-list span.ok, html.light .ok-msg { color: #15803d; }
         /* margin:auto no lugar de align-items:center — este formulario passa de 700px
            de altura e centralizar por flex deixa o topo inalcancavel no celular. */
         body { background: var(--bg); color: var(--txt); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; min-height: 100vh; min-height: 100dvh; margin: 0; padding: 16px; box-sizing: border-box; }
@@ -365,7 +386,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 
@@ -392,7 +413,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                a leitura em uma linha por celula em vez de empilhar caracteres */
             #tab td, thead th { white-space: nowrap; }
         }
-        .bar-bg { background: #3f3f46; height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px; width: 100%; }
+        .bar-bg { background: var(--track); height: 6px; border-radius: 3px; overflow: hidden; margin-top: 4px; width: 100%; }
         .bar-fg { background: var(--acc); height: 100%; border-radius: 3px; transition: width 0.5s ease; }
         .bar-fg.warn { background: #f59e0b; } .bar-fg.crit { background: var(--dang); }
         table { width: 100%; border-collapse: collapse; }
@@ -419,7 +440,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
         <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
             <span id="status-ip">--</span>
         </div>
     </div>
@@ -578,7 +599,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         const typeLabel = sn.type || '?';
                         const typeCls = sn.type === 'DHT22' ? 'color:var(--warn)' : 'color:var(--ok)';
                         const pinInfo = (sn.pc && sn.pr) ? `<span style="font-size:0.7rem;color:var(--sub)"> ⚡${sn.pc}p ${sn.pr}</span>` : '';
-                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.slot}</td><td style="${typeCls}; font-size:0.85rem; font-weight:600;">${typeLabel}${pinInfo}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--sub)">${escHtml(sn.name)}</td></tr>`;
+                        tabHtml += `<tr><td style="text-align:center;"><span class="dot ${sn.val === 'Error' ? 'err' : ''}"></span></td><td style="color:var(--sub)">${sn.slot}</td><td style="${typeCls}; font-size:0.85rem; font-weight:600;">${typeLabel}${pinInfo}</td><td style="font-family:monospace; color:var(--acc); font-weight:600;">${escHtml(sn.id)}</td><td style="color:var(--txt); font-weight:600;">${escHtml(v)}</td><td style="font-weight:600; color:var(--txt)">${escHtml(sn.name)}</td></tr>`;
                     });
                     document.getElementById('tab').innerHTML = tabHtml;
                 } else { document.getElementById('tab').innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--sub)">No active sensors.</td></tr>`; }
@@ -649,9 +670,9 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 let dot = document.getElementById('conn-dot');
                 let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = '#22c55e';
+                if (dot) dot.style.background = 'var(--ok)';
                 if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
+            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
         }
 
         /* Sensor provisioning and calibration moved to /config (slot editor).
@@ -675,7 +696,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <link rel="stylesheet" href="/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
@@ -701,7 +722,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .stat-badge span { color: var(--sub); font-weight: 600; font-size: 0.75rem; }
         .hot { color: #ef4444; } .cold { color: #3b82f6; }
         .chart-box { position: relative; height: 45vh; min-height: 280px; width: 100%; resize: vertical; overflow: hidden; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); }
-        .chart-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(9,9,11,0.85); z-index: 5; transition: opacity 0.3s; pointer-events: none; }
+        .chart-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: rgba(12,15,19,0.85); z-index: 5; transition: opacity 0.3s; pointer-events: none; }
         .chart-overlay.hidden { opacity: 0; }
         .bottom-controls { display: flex; justify-content: center; gap: 8px; margin-top: 20px; flex-wrap: wrap; align-items: center; }
         /* Padronizado: todos os 5 controles tem mesma largura (72px) e altura (38px),
@@ -719,15 +740,18 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         /* #logSearch, nao `.log-header input`: o seletor de elemento pegava tambem os
            checkboxes INF/WRN/ERR e a media query abaixo os esticava a 100% de largura.
            font-size 16px impede o zoom automatico do iOS no foco. */
-        #logSearch { padding: 8px 12px; background: #000; color: var(--txt); border: 1px solid var(--border); border-radius: 6px; min-width: 200px; outline: none; font-size: 16px;}
+        #logSearch { padding: 8px 12px; background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; min-width: 200px; outline: none; font-size: 16px;}
         .log-header input:focus { border-color: var(--acc); }
         .log-header button { padding: 8px 12px; background: var(--bg); color: var(--txt); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-weight: 600; }
-        @media(max-width: 600px) { .log-header { flex-direction: column; align-items: stretch; } .log-header h2 { text-align: center; } .log-header > div { flex-direction: column; } #logSearch { min-width: unset; width: 100%; box-sizing: border-box; } .log-header button { width: 100%; } }
+        /* Celular: filtros INF/WRN/ERR continuam em LINHA (3 labels cabem em 360px);
+           so a busca e os botoes viram largura cheia. Antes o `> div` inteiro virava
+           coluna e cada checkbox ocupava uma linha. */
+        @media(max-width: 600px) { .log-header { flex-direction: column; align-items: stretch; } .log-header h2 { text-align: center; } #logSearch { min-width: unset; width: 100%; box-sizing: border-box; } .log-header button { width: 100%; } }
         .log-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; max-height: 400px; overflow-y: auto; }
         .log-table { width: 100%; border-collapse: collapse; font-family: monospace; font-size: 0.85rem; }
         .log-table th, .log-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); text-align: left; }
         .log-table th { color: var(--sub); position: sticky; top: 0; background: var(--card); }
-        .log-err { color: var(--dang); font-weight: bold;} .log-wrn { color: #f59e0b; font-weight: bold;} .log-inf { color: var(--acc); }
+        .log-err { color: var(--dang); font-weight: bold;} .log-wrn { color: var(--warn); font-weight: bold;} .log-inf { color: var(--acc); }
         .progress-wrapper { margin: 15px 0; padding: 0 5px; }
         .progress-label { display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.8rem; color:var(--sub); font-weight:700; text-transform:uppercase;}
         .progress-track { width:100%; height:8px; background:var(--bg); border:1px solid var(--border); border-radius:4px; overflow:hidden; }
@@ -735,13 +759,13 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         @keyframes pulse-bg { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
         .pulse { animation: pulse-bg 1.5s infinite; }
         /* F-GRAPH.3: progress overlay do export chunked */
-        .exp-overlay { position: fixed; inset: 0; background: rgba(9,9,11,0.85); z-index: 9000; display: flex; align-items: center; justify-content: center; }
+        .exp-overlay { position: fixed; inset: 0; background: rgba(12,15,19,0.85); z-index: 9000; display: flex; align-items: center; justify-content: center; }
         .exp-overlay-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px 32px; min-width: 320px; max-width: 90vw; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
         .exp-overlay-title { color: var(--txt); font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; }
         .exp-overlay-bar { width: 100%; height: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 8px; }
         .exp-overlay-fill { height: 100%; background: linear-gradient(90deg, var(--acc), #22d3ee); width: 0%; transition: width 0.25s; }
         .exp-overlay-stat { color: var(--sub); font-size: 0.82rem; font-weight: 600; display: flex; justify-content: space-between; }
-        .exp-overlay-stat .ok { color: #22c55e; }
+        .exp-overlay-stat .ok { color: var(--ok); }
         .exp-overlay-stat .fail { color: var(--dang); }
         /* F-GRAPH-REVAMP: multi-select dropdown */
         .msel { position: relative; }
@@ -766,7 +790,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
         <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
             <span id="status-ip">--</span>
         </div>
     </div>
@@ -845,7 +869,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <h2 class="page-title" data-i18n="hist_logs" style="margin:0;">System Event Logs</h2>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--acc);cursor:pointer;"><input type="checkbox" id="chkInf" onchange="filterLogs()"> INF</label>
-                    <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:#f59e0b;cursor:pointer;"><input type="checkbox" id="chkWrn" onchange="filterLogs()"> WRN</label>
+                    <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--warn);cursor:pointer;"><input type="checkbox" id="chkWrn" onchange="filterLogs()"> WRN</label>
                     <label style="display:flex;align-items:center;gap:4px;font-size:0.8rem;color:var(--dang);cursor:pointer;"><input type="checkbox" id="chkErr" onchange="filterLogs()" checked> ERR</label>
                     <input type="text" id="logSearch" placeholder="Filter events..." data-i18n="hist_filt" onkeyup="filterLogs()">
                     <button id="btnLoadLogs" onclick="loadLogs()" data-i18n="hist_load_btn" style="color:var(--acc); border-color:var(--acc);">Load</button>
@@ -882,9 +906,14 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         /* Paleta para series. Cores quentes p/ T (variando por idx do sensor),
          * azul fixo p/ umidade. */
-        const _hotColors = ['#ef4444', '#f97316', '#f59e0b', '#eab308', '#fb923c', '#fb7185', '#e11d48', '#dc2626', '#facc15', '#b91c1c', '#991b1b'];
+        const _hotColors = ['#e5484d', '#f76b15', '#d97706', '#e93d82', '#c2410c', '#9f6b00'];
         const _humColor  = '#3b82f6';
-        const _pressColor = '#a78bfa';
+        const _pressColor = '#8250df';
+        /* Grade e ticks acompanham o tema: mesmos tokens das bordas/texto-sub.
+         * Lidos a cada render — trocar o tema vale a partir do proximo grafico. */
+        function _themeVar(name, fb) { const v = getComputedStyle(document.documentElement).getPropertyValue(name); return (v || fb).trim(); }
+        function _gridColor() { return _themeVar('--border', '#2a3340'); }
+        function _tickColor() { return _themeVar('--sub', '#98a6b3'); }
         function _seriesColor(serieIdx, isHum) { return isHum ? _humColor : _hotColors[serieIdx % _hotColors.length]; }
 
         async function loadAvailableDays() { try { const res = await fetchSafe('/api/history_days'); availDates = await res.json(); renderCalendar(); } catch(e) {} }
@@ -1655,15 +1684,15 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             type: 'linear',
                             min: xMin, max: xMax,    /* largura = periodo pedido (mesmo sem dados) */
                             ticks: {
-                                color: '#a1a1aa',
+                                color: _tickColor(),
                                 stepSize: step,
                                 maxTicksLimit: 13,
                                 callback: function(value) { return _xTickLabel(value, rangeIdx); },
                                 autoSkip: true
                             },
-                            grid: { color: '#27272a' }
+                            grid: { color: _gridColor() }
                         },
-                        y: { type: 'linear', display: true, position: 'left', ticks: { color: '#ef4444' }, grid: { color: '#27272a' }, title: { display:true, text:'°C', color:'#ef4444', font:{size:10} } },
+                        y: { type: 'linear', display: true, position: 'left', ticks: { color: '#e5484d' }, grid: { color: _gridColor() }, title: { display:true, text:'°C', color:'#e5484d', font:{size:10} } },
                         y1: { type: 'linear', display: showHumAxis, position: 'right', ticks: { color: _humColor }, grid: { drawOnChartArea: false }, title: { display:true, text:'%RH', color:_humColor, font:{size:10} } },
                         /* Third axis: pressure sits around 1000 hPa and would flatten
                            both %RH and °C into straight lines if it shared either. */
@@ -1839,9 +1868,9 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 let dot = document.getElementById('conn-dot');
                 let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = '#22c55e';
+                if (dot) dot.style.background = 'var(--ok)';
                 if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
+            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
         }
 
         /* ============== F-CSV: export histórico + logs (UI simplificada) ============== */
@@ -2520,7 +2549,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
@@ -2530,7 +2559,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px; font-size: 1.1rem; }
         .grp { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
         label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.9rem; font-weight: 600; }
-        .card input[type=text], .card input[type=password], .card input[type=number], .card input[type=date], .card input[type=time], .card select { width: 100%; padding: 12px; background: #000; border: 1px solid #3f3f46; color: white; border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
+        .card input[type=text], .card input[type=password], .card input[type=number], .card input[type=date], .card input[type=time], .card select { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
         .card input:focus, .card select:focus { border-color: var(--acc); outline: none; }
         .card button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-top: 20px; transition: 0.2s; }
         .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
@@ -2540,7 +2569,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
-        .builder-box { background: #000; border: 1px solid #3f3f46; border-radius: 8px; padding: 15px; margin-top: 15px; }
+        .builder-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-top: 15px; }
         /* Sensor slot editor. Declared once here instead of as inline style
            strings inside the JS that builds the rows, and deliberately reusing
            the conventions already set elsewhere in the interface: the table
@@ -2566,7 +2595,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #sens_tbl th, #sens_tbl td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
         #sens_tbl th { color: var(--sub); font-size: 0.85rem; text-transform: uppercase; font-weight: 600; }
         .sxm { font-family: monospace; }
-        .sxb { background: #3f3f46; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+        .sxb { background: var(--track); color: var(--txt); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
         .sxb:hover { background: #52525b; }
         .sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
         .sxb-dang:hover { background: var(--dang); color: #fff; }
@@ -2578,9 +2607,9 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .spk { display: block; width: 100%; height: 74px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; margin: 6px 0 2px; }
         .spk .l0 { stroke: #71717a; stroke-width: 1; stroke-dasharray: 4 4; }
         .spk .lc { stroke: var(--acc); stroke-width: 2; fill: none; }
-        .spk .pa { fill: var(--acc); stroke: #18181b; stroke-width: 1.5; }
+        .spk .pa { fill: var(--acc); stroke: var(--card); stroke-width: 1.5; }
         .spk .hz { fill: rgba(255,255,255,0.05); }
-        .spk .tk { stroke: #eab308; stroke-width: 1.2; }
+        .spk .tk { stroke: var(--warn); stroke-width: 1.2; }
         /* Grade em vez de flex-wrap: com flex cada pilula tinha a largura do seu
            texto (GP1 vs GP12 2) e as linhas saiam desencontradas. Colunas iguais
            alinham tudo — 4 colunas a 360px, mais no desktop. */
@@ -2605,14 +2634,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
            modelled on. It stays inside .card on purpose — position:fixed takes
            it out of the layout anyway, and living there keeps the .card input
            and .card select rules applying to its fields. */
-        .sx-ov { position: fixed; inset: 0; background: rgba(9,9,11,0.85); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .sx-ov { position: fixed; inset: 0; background: rgba(12,15,19,0.85); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .sx-ov-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; min-width: 320px; width: 640px; max-width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.6); }
         #sens_tbl tbody tr { cursor: pointer; transition: background 0.15s; }
         #sens_tbl tbody tr:hover { background: rgba(255,255,255,0.04); }
         .sx-empty { color: var(--sub); text-align: center; padding: 28px 0; font-size: 0.9rem; }
         .card #sens_ed input, .card #sens_ed select { margin-bottom: 0; }
         #preview { background: #18181b; color: #a1a1aa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 0.85rem; overflow-x: auto; border: 1px dashed #3f3f46; white-space: pre-wrap; word-break: break-all; }
-        .highlight { color: #22c55e; font-weight: bold; }
+        .highlight { color: var(--ok); font-weight: bold; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -2628,7 +2657,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
         <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
             <span id="status-ip">--</span>
         </div>
     </div>
@@ -2683,7 +2712,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <input type="time" id="man_time" step="1" style="color-scheme:light dark">
                             </div>
                         </div>
-                        <button type="button" onclick="applyManualTime()" style="background:var(--acc);color:#fff;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:0.95em;font-weight:600;margin-top:12px" data-i18n="cfg_apply_now">Apply Now</button>
+                        <button type="button" class="b-pri" onclick="applyManualTime()" style="margin-top:12px" data-i18n="cfg_apply_now">Apply Now</button>
                         <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_manual_hint">Uses device timezone (offset above). Save &amp; Reboot to persist the NTP toggle.</div>
                         <div id="time_result" style="margin-top:8px;font-size:0.9em"></div>
                     </div>
@@ -3330,9 +3359,9 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 let dot = document.getElementById('conn-dot');
                 let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = '#22c55e';
+                if (dot) dot.style.background = 'var(--ok)';
                 if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
+            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
         }
 
         /* Sensor slot editor.
@@ -3415,7 +3444,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 const pins = (s.p || []).filter(x => x <= SENS.gmax);
                 const d = sensStaged().some(x => x.i === i);
                 h += '<tr onclick="sensEdit(' + i + ')"' + (d ? ' style="background:rgba(6,182,212,.10)"' : '') + '>' +
-                     '<td class="sxm">' + i + (s.a ? ' <span style="color:#22c55e" title="' + window.t('sens_active', 'Active') + '">&#9679;</span>' : '') + '</td>' +
+                     '<td class="sxm">' + i + (s.a ? ' <span style="color:var(--ok)" title="' + window.t('sens_active', 'Active') + '">&#9679;</span>' : '') + '</td>' +
                      '<td>' + (ty ? ty.n : '&mdash;') + '</td>' +
                      '<td class="sxm">' + (pins.length ? pins.map(x => 'GP' + x).join(' ') : '&mdash;') + '</td>' +
                      '<td class="sxm">' + (s.hwId ? escHtml(s.hwId) : '&mdash;') + '</td>' +
@@ -4121,7 +4150,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
@@ -4133,7 +4162,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; font-size: 1.1rem; }
         .grp { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid var(--border); }
         label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.9rem; font-weight: 600; }
-        .card input[type=text], .card input[type=password] { width: 100%; padding: 12px; background: #000; border: 1px solid #3f3f46; color: white; border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
+        .card input[type=text], .card input[type=password] { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
         .card input:focus { border-color: var(--acc); outline: none; }
         .card button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-top: 10px; transition: 0.2s; }
         .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
@@ -4165,7 +4194,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
         <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
             <span id="status-ip">--</span>
         </div>
     </div>
@@ -4372,9 +4401,9 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 let dot = document.getElementById('conn-dot');
                 let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = '#22c55e';
+                if (dot) dot.style.background = 'var(--ok)';
                 if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
+            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
         }
 
         document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); loadNet(); });
@@ -4394,7 +4423,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
@@ -4413,7 +4442,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .frm-box { background: rgba(255,255,255,0.02); border: 1px solid var(--border); padding: 20px; border-radius: 8px; }
         .chk-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; margin-bottom: 15px; }
         @media(max-width: 600px) { .chk-grid { grid-template-columns: 1fr; } }
-        .frm-box input[type=text] { width: 100%; padding: 12px; background: #000; border: 1px solid #3f3f46; color: white; border-radius: 6px; box-sizing: border-box; font-size:1rem; outline:none; transition:0.2s;}
+        .frm-box input[type=text] { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; font-size:1rem; outline:none; transition:0.2s;}
         .frm-box input:focus { border-color:var(--acc); }
         .chk-lbl { display: flex; align-items: center; gap: 8px; color: var(--txt); cursor: pointer; font-size: 0.9rem; }
         /* 22px: 16px era metade do minimo confortavel de toque, e sao 10 destes
@@ -4440,7 +4469,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
         <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
             <span id="status-ip">--</span>
         </div>
     </div>
@@ -4604,9 +4633,9 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 let dot = document.getElementById('conn-dot');
                 let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = '#22c55e';
+                if (dot) dot.style.background = 'var(--ok)';
                 if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
+            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
         }
 
         document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); loadUsers(); });
@@ -4626,7 +4655,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 0; }
@@ -4692,7 +4721,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
         <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
             <span id="status-ip">--</span>
         </div>
     </div>
@@ -4947,9 +4976,9 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 let dot = document.getElementById('conn-dot');
                 let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = '#22c55e';
+                if (dot) dot.style.background = 'var(--ok)';
                 if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
+            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
         }
 
         document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); fetchPerms().then(() => fmNavigate('/')); });
@@ -4969,7 +4998,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; --ok: #22c55e; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; }
         .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 24px; }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
@@ -4979,8 +5008,8 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         /* ── Sensor cards ───────────────────────────────────────────── */
         .sensor-card { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 16px; }
         .sensor-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
-        .sensor-header .sensor-name { flex: 1; font-weight: 700; font-size: 1.05rem; color: var(--acc); }
-        .sensor-name { font-weight: 700; font-size: 1.05rem; color: var(--acc); }
+        .sensor-header .sensor-name { flex: 1; font-weight: 700; font-size: 1.05rem; color: var(--txt); }
+        .sensor-name { font-weight: 700; font-size: 1.05rem; color: var(--txt); }
         /* Limites de alarme só aparecem quando o toggle do card está ON */
         .sensor-card:has(.alm-active:not(:checked)) .limit-grid { display: none; }
         .sensor-card:has(.alm-active:not(:checked)) { opacity: 0.7; }
@@ -4990,7 +5019,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .limit-field label { display: block; color: var(--sub); margin-bottom: 4px; font-size: 0.82rem; font-weight: 600; }
         /* 16px: era 0.95rem = 15.2px, o ultimo campo do app que ainda disparava o
            zoom automatico do iOS no foco (e o iOS nao desfaz o zoom no blur). */
-        .limit-field input { width: 100%; padding: 10px; background: #000; border: 1px solid #3f3f46; color: #fff; border-radius: 6px; box-sizing: border-box; font-size: 16px; transition: border-color 0.2s; }
+        .limit-field input { width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; font-size: 16px; transition: border-color 0.2s; }
         .limit-field input:focus { border-color: var(--acc); outline: none; }
         /* .alm-tg removida — toggle agora vive no .sensor-header */
         /* Spinners de number removidos globalmente via LANG_JS */
@@ -5051,7 +5080,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
         <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
             <span id="status-ip">--</span>
         </div>
     </div>
@@ -5204,9 +5233,9 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 let dot = document.getElementById('conn-dot');
                 let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = '#22c55e';
+                if (dot) dot.style.background = 'var(--ok)';
                 if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
+            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -5569,12 +5598,12 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #09090b; --card: #18181b; --txt: #f4f4f5; --sub: #a1a1aa; --acc: #06b6d4; --dang: #ef4444; --border: #27272a; color-scheme: dark; }
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
         .container { max-width: 1200px; margin: 20px auto; padding: 0 20px 40px; }
         .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
         h3 { color: var(--acc); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; font-size: 1.05rem; }
-        pre { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 16px; color: var(--sub); font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace; font-size: 0.78rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+        pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; color: var(--sub); font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace; font-size: 0.78rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
@@ -5606,9 +5635,9 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 }
                 let dot = document.getElementById('conn-dot');
                 let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = '#22c55e';
+                if (dot) dot.style.background = 'var(--ok)';
                 if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = '#ef4444'; }
+            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
         }
     </script>
 </head>
@@ -5620,7 +5649,7 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="brand">SIMUT<span> IoT</span></div>
         </div>
         <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:#3f3f46"></div>
+            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
             <span id="status-ip">--</span>
         </div>
     </div>
@@ -5822,9 +5851,15 @@ END OF THIRD-PARTY NOTICES</pre>
 
 /* v3.34.0: F-WEB-DEDUP — CSS comum extraído. Servido em /style.css
  * com Cache-Control max-age=86400 (browser cacheia entre páginas). */
-static const char STYLE_CSS[] PROGMEM = R"raw(body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
+static const char STYLE_CSS[] PROGMEM = R"raw(:root { --ok: #22c55e; --warn: #f59e0b; --track: #262e39; }
+:focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+/* Botao primario padrao: solido no accent, texto escuro no tema escuro
+   (cyan claro pede tinta escura); o claro troca para branco via lang.js. */
+.b-pri { background: var(--acc); color: #001318; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.95em; font-weight: 700; transition: 0.2s; }
+.b-pri:hover { opacity: 0.9; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
 /* ── Hamburger Nav ──────────────────────────────────────── */
-.topbar { background: #0c0c0e; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; min-height: 48px; }
+.topbar { background: #10151c; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; min-height: 48px; }
 .hamburger { background: none; border: none; color: var(--sub); cursor: pointer; padding: 6px; display: flex; align-items: center; font-size: 1.4rem; }
 .brand { font-size: 1.15rem; font-weight: 800; letter-spacing: -0.5px; color: var(--txt); }
 .brand span { color: var(--acc); }
@@ -5835,7 +5870,7 @@ static const char STYLE_CSS[] PROGMEM = R"raw(body { font-family: -apple-system,
 .status-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .drawer-bg { position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 80; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
 .drawer-bg.open { opacity: 1; pointer-events: auto; }
-.drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #0c0c0e; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
+.drawer { position: fixed; top: 0; left: 0; width: 270px; max-width: 80vw; height: 100%; background: #10151c; border-right: 1px solid var(--border); z-index: 90; transform: translateX(-100%); transition: transform 0.25s ease; display: flex; flex-direction: column; overflow-y: auto; }
 .drawer.open { transform: translateX(0); }
 .drawer-head { padding: 16px 18px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); }
 .drawer-head .brand { font-size: 1.1rem; }
@@ -6200,14 +6235,14 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 '.brand > span{font-size:0.7rem;font-weight:500;letter-spacing:0.02em;opacity:0.7;margin-left:4px}' +
                 /* Tag reference panel em /config — usa var em vez de #18181b */
                 '.tag-ref{background:var(--card)}' +
-                /* ── Light theme — bg branco puro + elementos slate-azulados suaves
-                 *    com accent SIMUT #0096FF. Evita branco-em-branco que cansa
-                 *    a vista; cards/inputs ficam em tom levemente mais frio. ── */
-                ':root.theme-light{--bg:#ffffff;--card:#eef2f7;--txt:#1a2533;--sub:#5a6b7d;--border:#d8dfe6;--acc:#0096FF;--dang:#c93838;color-scheme:light}' +
-                'html.theme-light{background:#ffffff}' +
+                /* ── Light theme — papel frio de fundo + cartao BRANCO nitido.
+                 *    Accent #0072CD (mesmo matiz SIMUT, 4,9:1 = passa AA em texto
+                 *    e em botao). --ok/--warn em tons -700 legiveis sobre claro. ── */
+                ':root.theme-light{--bg:#f2f5f8;--card:#ffffff;--txt:#1b2733;--sub:#526172;--border:#d9e1e8;--acc:#0072cd;--dang:#c93838;--ok:#15803d;--warn:#b45309;--track:#e3eaf0;color-scheme:light}' +
+                'html.theme-light{background:#f2f5f8}' +
                 'html.theme-light body{background:var(--bg);color:var(--txt)}' +
-                'html.theme-light .topbar{background:#f4f7fa;border-bottom-color:var(--border)}' +
-                'html.theme-light .drawer{background:#f4f7fa;border-right-color:var(--border)}' +
+                'html.theme-light .topbar{background:#ffffff;border-bottom-color:var(--border)}' +
+                'html.theme-light .drawer{background:#ffffff;border-right-color:var(--border)}' +
                 'html.theme-light .drawer nav a{color:var(--sub)}' +
                 'html.theme-light .drawer nav a:hover{background:rgba(0,150,255,0.08);color:var(--txt)}' +
                 'html.theme-light .drawer nav a.active{background:rgba(0,150,255,0.14);color:var(--acc)}' +
@@ -6223,7 +6258,8 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 'html.theme-light .bc-root{color:#94a3b8}' +
                 'html.theme-light .bc-page{color:var(--sub)}' +
                 /* Inputs, selects, textareas — mais claros que cards p/ destacar */
-                'html.theme-light input[type=text],html.theme-light input[type=password],html.theme-light input[type=number],html.theme-light input[type=search],html.theme-light input[type=date],html.theme-light input[type=time],html.theme-light select,html.theme-light textarea{background:#f8fafc;color:var(--txt);border-color:var(--border)}' +
+                'html.theme-light input[type=text],html.theme-light input[type=password],html.theme-light input[type=number],html.theme-light input[type=search],html.theme-light input[type=date],html.theme-light input[type=time],html.theme-light select,html.theme-light textarea{background:#ffffff;color:var(--txt);border-color:var(--border)}' +
+                'html.theme-light #logSearch{background:#ffffff;color:var(--txt)}' +
                 'html.theme-light input:focus,html.theme-light select:focus,html.theme-light textarea:focus{border-color:var(--acc);outline:none}' +
                 'html.theme-light input::placeholder{color:#94a3b8}' +
                 /* Containers de form/grp/cards — tom intermediário p/ separar do card */
@@ -6238,8 +6274,8 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 'html.theme-light table th,html.theme-light table td{border-bottom-color:var(--border)}' +
                 'html.theme-light .log-inf{color:var(--acc)}' +
                 /* Chart */
-                'html.theme-light .chart-box{background:#f4f7fa;border-color:var(--border)}' +
-                'html.theme-light .chart-overlay{background:rgba(244,247,250,0.92);color:var(--sub)}' +
+                'html.theme-light .chart-box{background:#ffffff;border-color:var(--border)}' +
+                'html.theme-light .chart-overlay{background:rgba(255,255,255,0.92);color:var(--sub)}' +
                 /* Buttons / badges */
                 'html.theme-light .btn-action{background:#dde4eb;color:var(--txt)}' +
                 'html.theme-light .btn-action:hover{background:#c8d2dc}' +
@@ -6259,7 +6295,11 @@ static const char LANG_JS[] PROGMEM = R"raw(
                 'html.theme-light .cal-cell.selected{background:var(--acc);color:#ffffff;border-color:var(--acc)}' +
                 'html.theme-light .cal-dow{color:var(--sub)}' +
                 /* Sound toggle */
+                /* O trilho apagado so vale DESLIGADO — a regra generica vencia o
+                 * :checked por especificidade e o toggle ligado perdia o accent. */
                 'html.theme-light .toggle .slider{background:#c8d2dc}' +
+                'html.theme-light .toggle input:checked+.slider{background:var(--acc)}' +
+                'html.theme-light .b-pri{color:#fff}' +
                 'html.theme-light .btn-test{background:transparent;color:var(--sub);border-color:var(--border)}' +
                 'html.theme-light .btn-test:hover{color:var(--acc);border-color:var(--acc)}' +
                 /* Progress bars */
