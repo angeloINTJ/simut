@@ -4,6 +4,53 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.0-beta (2026-08-15)
+
+### Reforma visual da interface web
+
+Os dois temas redesenhados com contraste WCAG medido, verificados no
+hardware real com uma varredura de 36 capturas (9 páginas × claro/escuro ×
+1366 px/390 px) antes e depois. Custo total de flash: +860 B de UI gzip.
+
+**Tema escuro** — as superfícies finalmente se separam: fundo azulado frio
+(`#0c0f13`), cartões (`#161b22`) com borda que cumpre o papel (1,36:1
+contra o cartão, ante 1,19:1), inputs rasos (`--bg`) em vez de poços de
+preto puro, e topbar distinta da página.
+
+**Tema claro** — cartões brancos sobre papel frio, e o accent vira
+`#0072CD`: o mesmo matiz SIMUT, mas com 4,9:1 sobre branco (o `#0096FF`
+anterior media 3,1:1 e reprovava no WCAG AA em links e botões). Corrigidas
+cinco sobras do tema escuro que nunca ganharam estilo claro:
+
+- A grade do gráfico era quase preta hard-coded (13,8:1 sobre branco — o
+  elemento mais forte da tela) e os rótulos dos eixos sumiam a 2,4:1;
+  ambos agora leem os tokens do tema (`--border`/`--sub`) no render.
+- Toggles LIGADOS perdiam o accent por conflito de especificidade —
+  ligado e desligado ficavam idênticos.
+- O campo de busca do log de eventos mantinha fundo preto puro dentro de
+  cartão claro.
+- Os trilhos das barras de RAM/armazenamento continuavam escuros
+  (`#3f3f46`).
+- Verdes/âmbares de status mediam ~2:1 em cartão claro; os novos tokens
+  `--ok`/`--warn` usam tons grau-700 (≥4,9:1).
+
+**Login e troca forçada de senha** agora seguem o tema salvo — são páginas
+pré-sessão que nunca carregavam o motor de tema, então quem usava o claro
+entrava por uma tela preta antes de um app branco.
+
+**Gráficos de histórico** — a paleta de 11 cores de temperatura tinha
+quatro vermelhos quase idênticos e dois amarelos que sumiam no branco;
+agora são 6 tons quentes distintos que seguram ≥3:1 nos dois fundos. A
+pressão troca o lilás só-de-escuro por um violeta que funciona nos dois.
+Grade e rótulos acompanham o tema ativo.
+
+**Consistência** — nomes de sensor com a mesma cor de texto em toda parte
+(eram cinza no painel, ciano nos alarmes); o colorido âmbar/verde da
+coluna TIPO do painel — que referenciava tokens inexistentes — agora
+renderiza de fato; filtros INF/WRN/ERR do log cabem numa linha no celular;
+estilo compartilhado `.b-pri` para botão primário; contorno global
+`:focus-visible` para navegação por teclado.
+
 ## v2.1.10 (2026-08-14)
 
 ### A linha 2.1 fica estável
