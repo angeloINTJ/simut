@@ -106,6 +106,23 @@ constexpr uint32_t NTP_MAX_RETRY_DELAY_MS = 900000;
  */
 constexpr uint8_t NTP_FAILS_BEFORE_FALLBACK = 3;
 
+/**
+ * Size of NTP correction above which the sync is logged as a warning rather
+ * than information.
+ *
+ * A correction is normal after a power cut — it is the length of the outage.
+ * What it must not be is routine, because the same number also measures how
+ * far the provisional clock had drifted from real time, and every record
+ * written before the sync carries that error. One hour is chosen to sit far
+ * above ordinary drift and far below the 4 h 43 min seen on 2026-08-14, when a
+ * bad seed filed 121 measurements under the following day.
+ *
+ * The correction is applied either way: refusing a large one would leave the
+ * timestamps wrong forever after a genuinely long outage. This only makes the
+ * event visible in `show system log` after the fact.
+ */
+constexpr int32_t NTP_SUSPECT_DELTA_S = 3600;
+
 /* ── Rate-limiter (WebManager) ── */
 
 /** Number of rate-limiter slots per IP. */
