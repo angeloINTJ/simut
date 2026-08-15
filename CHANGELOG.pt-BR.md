@@ -4,6 +4,87 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.1-beta (2026-08-15)
+
+### O buraco do histórico que nunca foi um buraco
+
+Um aparelho registrou normalmente pela noite de 14 de agosto e o gráfico não
+mostrou nada entre 21:32 e 02:15. As medições estavam no flash o tempo todo,
+carimbadas 4 h 43 min no futuro, e parte da lacuna era o leitor jogando dado
+bom fora por cima disso. As duas metades foram corrigidas.
+
+**A semente do relógio.** Antes do NTP chegar, o relógio é semeado pelo
+snapshot do bloco aberto em `/history/.wip`, e esse snapshot era acreditado
+duas vezes: o `t0` era lido direto do cabeçalho, antes do CRC que o certifica,
+e qualquer época até um dia inteiro além do dia do arquivo era aceita. Tudo que
+é escrito antes da sincronização herda esse valor. A janela agora é de um vão
+de bloco após a meia-noite — derivada do intervalo de amostragem, já que blocos
+fecham por contagem e não por relógio, ou seja uma hora no intervalo padrão em
+vez de um dia — e a semente só se move depois que o decodificador validou o
+bloco. Um `t0` forjado agora falha no CRC em vez de chegar ao relógio.
+
+Medido na mesma placa que teve o incidente, plantando um snapshot que a regra
+antiga aceitava: sem a correção o NTP do boot satura o campo em 18,5 horas; com
+ela, 77 segundos.
+
+**Correção de NTP maior que uma hora agora sai como WARN.** Ela continua sendo
+aplicada — recusá-la deixaria os carimbos errados para sempre depois de uma
+queda longa — mas deixa de ser invisível, e é o número que mede o quanto o
+relógio havia derivado enquanto os registros eram escritos.
+
+**O leitor do gráfico.** A montagem das séries descartava qualquer registro que
+não fosse mais novo que o máximo corrente. O guarda existia para remover
+duplicatas, mas não distingue duplicata de registro fora de ordem, e ordem de
+arquivo é ordem de escrita. Um bloco carimbado à frente escondia todos os
+blocos atrás dele: 65 de 205 registros naquele arquivo, incluindo 31 cujos
+carimbos estavam corretos desde sempre. As séries agora são ordenadas e
+deduplicadas por instante após a montagem.
+
+**Varredura de blocos.** O `HistoryV5Scan::seek` presumia ordem temporal, que é
+uma afirmação sobre o relógio de quem escreveu, não uma propriedade do formato.
+Fora de ordem, mais de um bloco atravessa o corte e só o último era guardado,
+pulando registros que estavam no flash. Agora ele confere a premissa durante a
+varredura de cabeçalhos que já fazia, e recusa pular qualquer coisa num arquivo
+que falhe nela. Arquivos ordenados recebem a mesma resposta e o mesmo caminho
+rápido de antes.
+
+**Cursor de telemetria.** O cursor avançava para o último elemento do lote,
+documentado como marca d'água — verdade apenas enquanto os registros sobem. Um
+bloco carimbado horas à frente enterrava todos os registros corretos atrás
+dele, permanentemente e em silêncio. O cursor agora é o máximo sobre o que o
+transporte de fato levou, limitado ao presente.
+
+### Alarme, atenção e seleção passam a ser temáveis
+
+A paleta descrevia 17 papéis e a tela desenhava mais. Preenchimentos de alarme,
+o botão de silenciar, o fundo de seleção de slot e os carimbos de data do
+gráfico eram fixos no código, então um tema personalizado podia reestilizar
+tudo que o usuário olha e ainda piscar um painel vermelho de fábrica por cima.
+Sete papéis fecham a lacuna, levando a paleta a 24; arquivos com apenas os 17
+antigos continuam carregando, com as chaves ausentes caindo no valor de
+fábrica. Os brilhos dos ícones agora derivam da cor de baixo em vez de um azul
+claro fixo.
+
+Onze paletas prontas acompanham em `data/themes/`, cada uma auditada por
+contraste contra os fundos em que de fato é desenhada.
+
+### Conhecido, e deliberadamente não declarado resolvido
+
+O teto da semente reduz o raio de estrago de um dia para uma hora; não torna
+uma semente ruim impossível, e um carimbo a menos de um vão de bloco da
+meia-noite continua indistinguível de um bloco que a atravessou legitimamente.
+
+A limitação do cursor de telemetria cobre o carimbo que está no futuro no
+instante do envio, que é a falha real de campo. Um carimbo à frente dos
+vizinhos mas já no passado ainda avança o cursor por cima de registros antigos
+não enviados — fechar isso exige o cursor virar posição de varredura em vez de
+instante.
+
+A validação em hardware revelou um defeito separado, que não é tratado aqui: um
+bloco que atravessa a meia-noite vive no arquivo do dia anterior, e assim que o
+cursor de telemetria cruza 00:00 a seleção de arquivos deixa de olhar para trás,
+de modo que esse bloco nunca é enviado.
+
 ## v2.2.0-beta (2026-08-15)
 
 ### Reforma visual da interface web
