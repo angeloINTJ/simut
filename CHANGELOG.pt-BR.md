@@ -4,6 +4,45 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.6-beta (2026-08-16)
+
+### O build de teste tinha 152 bytes, e nenhum zip levava as páginas dele
+
+O trabalho de segurança da v2.2.5-beta consumiu os 3,5 KB que mover a página de
+licença para o LittleFS tinha devolvido mais cedo no mesmo dia. A folga real do
+`pico_w_test` caiu para **152 bytes** — o próximo teste escrito para aquele
+ambiente não linkaria, e o sintoma é um `overflowed by N bytes` que **não muda**
+quando se encolhe um asset, porque a `.rodata` é alinhada em página e absorve
+variações pequenas em degraus. O percentual que o PlatformIO imprime diz 98,8%
+e esconde tudo isso: ele deixa de fora a seção `.ota` e o padding de
+alinhamento.
+
+A página de alarmes (8507 B comprimidos) passa para o sistema de arquivos. É a
+única página grande que passa nas três partes do critério — grande, raramente
+aberta, e não necessária para levantar o aparelho. Uma unidade sem o arquivo
+continua amostrando, registrando e disparando os alarmes que já tem; ela apenas
+não permite editá-los pela web. A página de histórico é quatro vezes maior mas
+é a mais quente que existe, a de configuração quebrou o bootstrap quando isso
+foi tentado em julho, e a de arquivos é circular, já que é por ela que estes
+próprios arquivos são enviados.
+
+    folga real   pico_w_test   152 B -> 8 640 B
+                 release    19 740 B -> 28 228 B
+
+**Um bug de deploy foi publicado no release anterior, e isto o encontrou.**
+`data/web/` estava no gitignore e nenhum script de release o copiava, então
+nenhum zip jamais levou o `license.html.gz` — enquanto o comentário do
+`build_webui_gz.py` afirmava que todos levavam. Compilada a partir do zip pio
+da v2.2.5-beta, a `/license` responde "Page asset missing". A regra de ignore
+agora exclui o conteúdo e nega as páginas, como o `data/themes` já fazia — o
+git não desce em diretório excluído, então uma negação dentro de um nunca casa
+— e o zip pio leva `data/web/*.html.gz`. Os zips Arduino não levam `data/` por
+projeto.
+
+Ao atualizar: suba `data/web/alarms.html.gz` para `/web/` junto com o
+`license.html.gz`, pela página de Arquivos ou por `POST /api/upload`. Nunca
+`uploadfs` — ele reformata a partição.
+
 ## v2.2.5-beta (2026-08-16)
 
 ### Toda permissão é conferida onde o payload é lido

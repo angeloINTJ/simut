@@ -4,6 +4,43 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.6-beta (2026-08-16)
+
+### The test build had 152 bytes left, and no release zip carried its pages
+
+The security work in v2.2.5-beta consumed the 3.5 KB that moving the licence
+page to LittleFS had returned earlier the same day. Real headroom on
+`pico_w_test` was down to **152 bytes** — the next test written for that
+environment would not have linked, and the symptom is an `overflowed by N
+bytes` that does not move when you shrink an asset, because `.rodata` is page
+aligned and absorbs small changes in steps. The percentage PlatformIO prints
+says 98.8% and hides all of this; it leaves out the `.ota` section and the
+alignment padding.
+
+The alarms page (8507 B gzipped) moves to the filesystem. It is the only large
+page that passes all three parts of the test — big, rarely opened, and not
+needed to bring the device up. A unit missing the file still samples, logs and
+fires the alarms it already has; it just cannot edit them from the web. The
+history page is four times bigger but is the hottest page there is, the config
+page broke the bootstrap when this was tried in July, and the files page is
+circular, being how these assets get uploaded in the first place.
+
+    real headroom   pico_w_test   152 B -> 8 640 B
+                    release    19 740 B -> 28 228 B
+
+**A deploy bug shipped with the previous release, and this found it.**
+`data/web/` was gitignored and no release script copied it, so no zip had ever
+carried `license.html.gz` — while the comment in `build_webui_gz.py` claimed
+they all did. Built from the v2.2.5-beta pio zip, `/license` answers "Page
+asset missing". The ignore rule now excludes the contents and negates the
+pages, the way `data/themes` already did — git does not descend into an
+excluded directory, so a negation inside one never matches — and the pio zip
+carries `data/web/*.html.gz`. The Arduino zips carry no `data/` by design.
+
+Upgrading: upload `data/web/alarms.html.gz` to `/web/` alongside
+`license.html.gz`, through the Files page or `POST /api/upload`. Never
+`uploadfs` — it reformats the partition.
+
 ## v2.2.5-beta (2026-08-16)
 
 ### Every permission is checked where the payload is parsed
