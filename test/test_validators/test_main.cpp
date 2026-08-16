@@ -30,6 +30,8 @@
 #include "sensors/SensorChannelTable.h" /* channel table integrity */
 #include "sensors/CalibCurve.h"         /* calibration curve engine */
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
+#include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
+#include "FsSecretPath.h"               /* /config download guard (A-4) */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -949,6 +951,258 @@ void test_jsonMatchEnd_invalid(void) {
     TEST_ASSERT_EQUAL_INT(-1, jsonMatchEnd(notBracket, 99));
 }
 
+/* ===========================================================================
+ * /api/commit_all — per-section authorization
+ * ===========================================================================
+ * The route multiplexes six sections under three permission bits. One gate on
+ * the route cannot express who may change what, and for a while there was only
+ * one: PERM_SYS_CONFIG got you in, and every section then parsed regardless —
+ * so a config operator could add administrators and re-point the Wi-Fi.
+ *
+ * These are the positive control. Each escalation payload below is asserted to
+ * be REFUSED, and the legitimate payload of the same operator asserted to pass,
+ * because a gate that refuses everything would satisfy the first half alone.
+ */
+
+/* The permission sets that actually ship: what /config, /network and /users
+ * each require to render, plus the built-in admin. */
+static const uint16_t P_CONFIG_ONLY = PERM_SYS_CONFIG;
+static const uint16_t P_USERMGR_ONLY = PERM_USER_MGR;
+static const uint16_t P_NETONLY = PERM_NET_CONFIG;
+static const uint16_t P_ADMIN = PERM_FULL_ADMIN;
+static const uint16_t P_VIEWER = PERM_DASHBOARD | PERM_HISTORY;
+
+void test_commit_sys_operator_cannot_add_users(void) {
+    int st[SEC_COUNT];
+    /* The escalation from the audit: perms 1023 = PERM_ALL_BITS. */
+    String esc("{\"users\":{\"actions\":[{\"type\":\"add\",\"name\":\"svc\",\"perms\":1023}]}}");
+    TEST_ASSERT_EQUAL_INT(SEC_USERS, commitScanSections(esc, P_CONFIG_ONLY, st));
+    /* Buried in a legitimate-looking sys commit — same verdict. */
+    String mixed("{\"sys\":{\"name\":\"SIMUT\"},\"users\":{\"actions\":[{\"type\":\"reset\",\"id\":1}]}}");
+    TEST_ASSERT_EQUAL_INT(SEC_USERS, commitScanSections(mixed, P_CONFIG_ONLY, st));
+}
+
+void test_commit_sys_operator_cannot_change_net(void) {
+    int st[SEC_COUNT];
+    String esc("{\"net\":{\"ssid\":\"evil\",\"pass\":\"hunter2\"}}");
+    TEST_ASSERT_EQUAL_INT(SEC_NET, commitScanSections(esc, P_CONFIG_ONLY, st));
+}
+
+/* The gate must not have become a wall: the same operator's own sections
+ * still commit. Without this the tests above pass on a handler that refuses
+ * every payload it is given. */
+void test_commit_sys_operator_keeps_own_sections(void) {
+    int st[SEC_COUNT];
+    String ok("{\"sys\":{\"name\":\"SIMUT\",\"tz\":\"-3\"},\"alarms\":{\"sensors\":[]},"
+              "\"slots\":[],\"calib\":{\"sensors\":[]}}");
+    TEST_ASSERT_EQUAL_INT(COMMIT_AUTH_OK, commitScanSections(ok, P_CONFIG_ONLY, st));
+    /* And the offsets it hands the parsers are real. */
+    TEST_ASSERT_TRUE(st[SEC_SYS] >= 0);
+    TEST_ASSERT_TRUE(st[SEC_ALARMS] >= 0);
+    TEST_ASSERT_TRUE(st[SEC_SLOTS] >= 0);
+    TEST_ASSERT_TRUE(st[SEC_CALIB] >= 0);
+    TEST_ASSERT_EQUAL_INT(-1, st[SEC_NET]);
+    TEST_ASSERT_EQUAL_INT(-1, st[SEC_USERS]);
+}
+
+/* A pure user-manager could open /users, stage an account, and then have the
+ * commit refused by the old route gate — the role could not do its one job. */
+void test_commit_usermgr_can_commit_users_only(void) {
+    int st[SEC_COUNT];
+    String users("{\"users\":{\"actions\":[{\"type\":\"add\",\"name\":\"op\",\"perms\":3}]}}");
+    TEST_ASSERT_EQUAL_INT(COMMIT_AUTH_OK, commitScanSections(users, P_USERMGR_ONLY, st));
+    /* But nothing else. */
+    String andSys("{\"sys\":{\"name\":\"x\"},\"users\":{\"actions\":[]}}");
+    TEST_ASSERT_EQUAL_INT(SEC_SYS, commitScanSections(andSys, P_USERMGR_ONLY, st));
+}
+
+void test_commit_netonly_can_commit_net_only(void) {
+    int st[SEC_COUNT];
+    String net("{\"net\":{\"ssid\":\"lab\",\"use_dhcp\":1}}");
+    TEST_ASSERT_EQUAL_INT(COMMIT_AUTH_OK, commitScanSections(net, P_NETONLY, st));
+    String andUsers("{\"net\":{\"ssid\":\"lab\"},\"users\":{\"actions\":[]}}");
+    TEST_ASSERT_EQUAL_INT(SEC_USERS, commitScanSections(andUsers, P_NETONLY, st));
+}
+
+void test_commit_admin_passes_everything(void) {
+    int st[SEC_COUNT];
+    String all("{\"sys\":{},\"slots\":[],\"calib\":{},\"alarms\":{},"
+               "\"net\":{\"ssid\":\"lab\"},\"users\":{\"actions\":[]}}");
+    TEST_ASSERT_EQUAL_INT(COMMIT_AUTH_OK, commitScanSections(all, P_ADMIN, st));
+    for (int i = 0; i < SEC_COUNT; i++) TEST_ASSERT_TRUE(st[i] >= 0);
+}
+
+/* The viewer never reaches commitScanSections — the route's front door turns
+ * it away first — but the front door is the thing being asserted here. */
+void test_commit_entry_perms_exclude_viewer(void) {
+    TEST_ASSERT_EQUAL_UINT16(0, (uint16_t)(P_VIEWER & commitEntryPerms()));
+    TEST_ASSERT_TRUE((P_CONFIG_ONLY & commitEntryPerms()) != 0);
+    TEST_ASSERT_TRUE((P_USERMGR_ONLY & commitEntryPerms()) != 0);
+    TEST_ASSERT_TRUE((P_NETONLY & commitEntryPerms()) != 0);
+}
+
+/* The reason the scan is flat rather than depth-aware. A gate that walked
+ * only top-level keys would see one `sys` section here and wave it through,
+ * while the flat parser in WebManager_Commit.cpp finds `"users"` anywhere in
+ * the body and acts on it. The refusal below IS the property. */
+void test_commit_nested_users_does_not_evade(void) {
+    int st[SEC_COUNT];
+    String nested("{\"sys\":{\"users\":{\"actions\":[{\"type\":\"add\",\"name\":\"svc\",\"perms\":1023}]}}}");
+    TEST_ASSERT_EQUAL_INT(SEC_USERS, commitScanSections(nested, P_CONFIG_ONLY, st));
+    String inArray("{\"slots\":[{\"n\":\"a\"}],\"x\":[\"net\"]}");
+    TEST_ASSERT_EQUAL_INT(SEC_NET, commitScanSections(inArray, P_CONFIG_ONLY, st));
+}
+
+/* An empty or unrecognised payload is a refusal, not a no-op commit: the
+ * handler reboots the device at the end whether or not a field changed. */
+void test_commit_empty_payload_is_refused(void) {
+    int st[SEC_COUNT];
+    String empty("{}");
+    TEST_ASSERT_EQUAL_INT(COMMIT_AUTH_EMPTY, commitScanSections(empty, P_ADMIN, st));
+    String junk("{\"nope\":{\"a\":1}}");
+    TEST_ASSERT_EQUAL_INT(COMMIT_AUTH_EMPTY, commitScanSections(junk, P_ADMIN, st));
+    for (int i = 0; i < SEC_COUNT; i++) TEST_ASSERT_EQUAL_INT(-1, st[i]);
+}
+
+/* Denial must not truncate the map: the parsers read outStart[] and would
+ * otherwise slice the wrong bytes if a future caller kept going after a 403. */
+void test_commit_denial_still_fills_offsets(void) {
+    int st[SEC_COUNT];
+    String mixed("{\"sys\":{\"name\":\"x\"},\"users\":{\"actions\":[]},\"net\":{\"ssid\":\"l\"}}");
+    TEST_ASSERT_EQUAL_INT(SEC_NET, commitScanSections(mixed, P_CONFIG_ONLY, st));
+    TEST_ASSERT_TRUE(st[SEC_SYS] >= 0);
+    TEST_ASSERT_TRUE(st[SEC_USERS] >= 0);
+    TEST_ASSERT_TRUE(st[SEC_NET] >= 0);
+}
+
+/* Every row must name a real permission and a real section. A row added with
+ * perm 0 would be a section nobody needs a bit for. */
+void test_commit_section_table_is_sane(void) {
+    for (int i = 0; i < SEC_COUNT; i++) {
+        TEST_ASSERT_NOT_NULL(kCommitSectionRules[i].needle);
+        TEST_ASSERT_NOT_NULL(kCommitSectionRules[i].name);
+        TEST_ASSERT_TRUE(kCommitSectionRules[i].perm != 0);
+        /* The needle must be the quoted key the parser searches for. */
+        TEST_ASSERT_EQUAL_CHAR('"', kCommitSectionRules[i].needle[0]);
+    }
+}
+
+
+/* ===========================================================================
+ * isSecretFsPath — the /config download guard (finding A-4)
+ * ===========================================================================
+ * Positive control included: the legitimate downloads (history, calib) must
+ * still pass, or a guard that returns true for everything would satisfy the
+ * "secrets are blocked" half alone and quietly break the file manager.
+ */
+void test_secret_path_blocks_config(void) {
+    TEST_ASSERT_TRUE(isSecretFsPath("/config/system.bin"));
+    TEST_ASSERT_TRUE(isSecretFsPath("/config/system.bak"));
+    TEST_ASSERT_TRUE(isSecretFsPath("/config/t_cursor.bin"));
+}
+
+void test_secret_path_normalises_spelling(void) {
+    TEST_ASSERT_TRUE(isSecretFsPath("config/system.bin"));   /* no leading slash */
+    TEST_ASSERT_TRUE(isSecretFsPath("/CONFIG/system.bin"));  /* case */
+    TEST_ASSERT_TRUE(isSecretFsPath("/Config/System.bin"));
+}
+
+void test_secret_path_allows_legit_downloads(void) {
+    TEST_ASSERT_FALSE(isSecretFsPath("/history/20260101.h5"));
+    TEST_ASSERT_FALSE(isSecretFsPath("/calib.csv"));
+    TEST_ASSERT_FALSE(isSecretFsPath("/themes/dark.thm"));
+    TEST_ASSERT_FALSE(isSecretFsPath("/lang/language_pt-BR.lng"));
+}
+
+void test_secret_path_no_sibling_overmatch(void) {
+    /* "/config" alone is the dir, not a file under it (you cannot download a
+     * dir); and a sibling that merely starts with "config" must not be caught. */
+    TEST_ASSERT_FALSE(isSecretFsPath("/config"));
+    TEST_ASSERT_FALSE(isSecretFsPath("/configuration/notes.txt"));
+    TEST_ASSERT_FALSE(isSecretFsPath("/config-backup/x"));
+    TEST_ASSERT_FALSE(isSecretFsPath(""));
+}
+
+void test_secret_path_traversal_is_callers_job(void) {
+    /* isSecretFsPath does NOT resolve "..": a "/history/../config/system.bin"
+     * does not start with "/config/" and returns false here. The caller
+     * (handleDownload) rejects ".." before ever calling this — the two guards
+     * are separate on purpose, and this pins that contract so a later reader
+     * does not assume this function catches traversal. */
+    TEST_ASSERT_FALSE(isSecretFsPath("/history/../config/system.bin"));
+}
+
+/* ===========================================================================
+ * isSafeDirPath — /api/mkdir folder-name guard (finding M-7)
+ * ===========================================================================
+ * Positive control included: the legitimate folder names must pass, or an
+ * allowlist that rejects everything would satisfy the "XSS blocked" half alone
+ * and make the Create-Folder button useless.
+ */
+void test_dirpath_accepts_legit(void) {
+    TEST_ASSERT_TRUE(isSafeDirPath("test"));
+    TEST_ASSERT_TRUE(isSafeDirPath("logs2"));
+    TEST_ASSERT_TRUE(isSafeDirPath("my data"));
+    TEST_ASSERT_TRUE(isSafeDirPath("sub-dir_1"));
+    TEST_ASSERT_TRUE(isSafeDirPath("/backups/2026"));
+    TEST_ASSERT_TRUE(isSafeDirPath("a.d"));
+}
+
+void test_dirpath_blocks_xss_bytes(void) {
+    TEST_ASSERT_FALSE(isSafeDirPath("<img src=x onerror=alert(1)>"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a<b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a>b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a\"b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a'b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a&b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a`b"));
+}
+
+void test_dirpath_blocks_path_and_url_bytes(void) {
+    TEST_ASSERT_FALSE(isSafeDirPath(".."));
+    TEST_ASSERT_FALSE(isSafeDirPath("a/../b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("...."));         /* the replace("..","") bypass */
+    TEST_ASSERT_FALSE(isSafeDirPath("a%2e"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a\\b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a:b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a|b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a?b"));
+    TEST_ASSERT_FALSE(isSafeDirPath("a*b"));
+}
+
+void test_dirpath_blocks_empty_control_and_long(void) {
+    TEST_ASSERT_FALSE(isSafeDirPath(""));
+    TEST_ASSERT_FALSE(isSafeDirPath(NULL));
+    char ctrl[4] = { 'a', 0x07, 'b', 0 };             /* bell */
+    TEST_ASSERT_FALSE(isSafeDirPath(ctrl));
+    char longName[110];
+    for (int i = 0; i < 109; i++) longName[i] = 'a';
+    longName[109] = '\0';
+    TEST_ASSERT_FALSE(isSafeDirPath(longName));
+}
+
+/* ===========================================================================
+ * passwordPolicyOk — server-side strength floor (finding A-5)
+ * ===========================================================================
+ * Positive control: strong passwords must pass, or a floor that rejects
+ * everything would satisfy the "weak blocked" half alone and lock everyone out.
+ */
+void test_pwpolicy_accepts_strong(void) {
+    TEST_ASSERT_TRUE(passwordPolicyOk("simut2026"));
+    TEST_ASSERT_TRUE(passwordPolicyOk("Abc12345"));
+    TEST_ASSERT_TRUE(passwordPolicyOk("a1b2c3d4"));
+    TEST_ASSERT_TRUE(passwordPolicyOk("Longer P4ss with spaces"));
+}
+
+void test_pwpolicy_rejects_weak(void) {
+    TEST_ASSERT_FALSE(passwordPolicyOk(""));
+    TEST_ASSERT_FALSE(passwordPolicyOk(NULL));
+    TEST_ASSERT_FALSE(passwordPolicyOk("short1"));      /* < 8 */
+    TEST_ASSERT_FALSE(passwordPolicyOk("abcdefgh"));    /* no digit */
+    TEST_ASSERT_FALSE(passwordPolicyOk("12345678"));    /* no letter */
+    TEST_ASSERT_FALSE(passwordPolicyOk("!!!!!!!!"));    /* neither */
+    TEST_ASSERT_FALSE(passwordPolicyOk("a1b2c3"));      /* 6 chars */
+}
 
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
@@ -1037,6 +1291,36 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_jsonMatchEnd_brackets_inside_strings);
     RUN_TEST(test_jsonMatchEnd_escaped_quotes);
     RUN_TEST(test_jsonMatchEnd_invalid);
+
+    /* /api/commit_all — one gate per section, not one per route */
+    RUN_TEST(test_commit_sys_operator_cannot_add_users);
+    RUN_TEST(test_commit_sys_operator_cannot_change_net);
+    RUN_TEST(test_commit_sys_operator_keeps_own_sections);
+    RUN_TEST(test_commit_usermgr_can_commit_users_only);
+    RUN_TEST(test_commit_netonly_can_commit_net_only);
+    RUN_TEST(test_commit_admin_passes_everything);
+    RUN_TEST(test_commit_entry_perms_exclude_viewer);
+    RUN_TEST(test_commit_nested_users_does_not_evade);
+    RUN_TEST(test_commit_empty_payload_is_refused);
+    RUN_TEST(test_commit_denial_still_fills_offsets);
+    RUN_TEST(test_commit_section_table_is_sane);
+
+    /* isSecretFsPath — /config download guard (A-4) */
+    RUN_TEST(test_secret_path_blocks_config);
+    RUN_TEST(test_secret_path_normalises_spelling);
+    RUN_TEST(test_secret_path_allows_legit_downloads);
+    RUN_TEST(test_secret_path_no_sibling_overmatch);
+    RUN_TEST(test_secret_path_traversal_is_callers_job);
+
+    /* isSafeDirPath — /api/mkdir folder-name guard (M-7) */
+    RUN_TEST(test_dirpath_accepts_legit);
+    RUN_TEST(test_dirpath_blocks_xss_bytes);
+    RUN_TEST(test_dirpath_blocks_path_and_url_bytes);
+    RUN_TEST(test_dirpath_blocks_empty_control_and_long);
+
+    /* passwordPolicyOk — server-side strength floor (A-5) */
+    RUN_TEST(test_pwpolicy_accepts_strong);
+    RUN_TEST(test_pwpolicy_rejects_weak);
 
     return UNITY_END();
 }

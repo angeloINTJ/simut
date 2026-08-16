@@ -22,6 +22,12 @@ build/
 *.uf2
 *.map
 
+# Device backups — a .bkp is a full LittleFS dump and carries /config/system.bin
+# (Wi-Fi/MQTT/API secrets + password hashes). Never commit one. See finding C-1:
+# scratchpad/backup_pre_ota/device.bkp was committed and leaked; purge it from
+# history with git filter-repo and rotate the exposed credentials.
+*.bkp
+
 # OS files
 .DS_Store
 Thumbs.db

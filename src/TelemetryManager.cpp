@@ -133,6 +133,19 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  } else {
  LOG_CODE(LOG_INFO, "TEL", TEL_CERT_MISSING, 0, "");
  }
+
+ /* M-8: one clear, once-per-boot record when encryption is ON but no valid
+  * cert was loaded — from here every transport calls setInsecure( ), so the
+  * TLS session is encrypted but NOT authenticated and a man in the middle can
+  * present any certificate, read the API key and payloads, and answer 200.
+  * The per-cause lines above (too large / empty / missing) name WHY; this one
+  * names the CONSEQUENCE, which the empty-message WARNs did not — an operator
+  * read "cert read error" as a file glitch, not "telemetry is unauthenticated".
+  * ctx=1 distinguishes it from the ctx=0 file-missing line. */
+ if (!_hasCert) {
+ LOG_CODE(LOG_WARN, "TEL", TEL_CERT_READ_ERR, 1,
+          "TLS on without cert validation: connection not authenticated (MITM possible) — upload /cert.pem");
+ }
  }
 
 
@@ -141,6 +154,27 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  _mqttSecurePtr = new WiFiClientSecure( );
  if (_mqttSecurePtr) {
  _mqttSecurePtr->setTimeout(NET_SOCKET_TIMEOUT_MS);
+ /* Same 16 KB contiguous block that attemptHttpUpload documents at
+  * length — BearSSL's default _clear() asks setBufferSizes(16384, 512)
+  * and allocates the iobuf inside _connectSSL. The HTTP path got the
+  * 4096 cap in v1.5.3-beta; this one never did, and MQTTS has been
+  * dying of it ever since.
+  *
+  * Measured on the bench 2026-08-15, same backlog (39.2 k pending),
+  * same t_bat and t_int, TLS the only variable:
+  *   MQTTS  largest block 9542 B, heap 17680 — pending FROZEN at
+  *          39234, telSent stuck at 1, telRetries climbing
+  *   MQTT   largest block 29390 B, heap 39392 — pending draining,
+  *          telSent 3 -> 72, telRetries 0
+  * The first TLS connect succeeds and takes its ~16.7 KB; from then on
+  * the largest free block is 9.5 KB and no reconnect can ever get its
+  * own, so the cursor never advances again. The broker was innocent:
+  * all three handshakes it saw completed without a failure.
+  *
+  * Setting it here, once, is enough where HTTP needs it per attempt:
+  * _httpSecurePtr is recreated on socket error, this object is built
+  * once in begin( ) and reused for the life of the boot. */
+ _mqttSecurePtr->setBufferSizes(4096, 512);
  if (_hasCert) {
  _mqttSecurePtr->setCACert(_cachedCert.c_str( ));
  } else {

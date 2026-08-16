@@ -62,12 +62,26 @@ OUTPUT_FILE = os.path.join(PROJECT_DIR, "src", "WebUI_GZ.h")
 # need to configure the device — answered with "Page asset missing". Bootstrap
 # no longer depends on a manual upload.
 #
-# If headroom gets tight again, HIST_PAGE (18940 B) is the better candidate to
-# move out: it is bigger and it is not needed to bring a device up. The catch
-# is that /history is opened far more often than /config ever was, so it
-# fails the "rarely opened" half of the criterion above — measure the extra
-# latency before committing to it. See docs/ANALISE_FLASH_RAM.md.
-FS_PAGES = {}
+# HIST_PAGE (32216 B today) is the biggest candidate, but /history is opened
+# constantly, so it fails the "rarely opened" half of the criterion above —
+# measure the extra latency before ever committing to it.
+#
+# --- LICENSE_PAGE moved out on 2026-08-16. ---
+# The edge-triggered log filter needed 536 B and pico_w_test had 376 B of real
+# headroom left (the reported 12 KB omits .ota and the .rodata alignment
+# padding — see scratchpad/flashfree.sh and docs/ANALISE_FLASH_RAM.md).
+#
+# LICENSE_PAGE is the right page to move, for the reasons the criterion above
+# names and CFG_PAGE failed: it is static legal text on a route nobody visits
+# twice, and a device that never received the file is still fully usable — it
+# gets the "Page asset missing" notice on /license and nothing else changes.
+# CFG_PAGE broke bootstrap; HIST_PAGE would cost a flash read on the hottest
+# page there is. This one costs neither.
+#
+# Deploy: the release zips carry data/web/license.html.gz; upload it through
+# the Files page or POST to /api/upload. NOT `uploadfs` — that reformats the
+# partition and takes history, logs and calib.csv with it.
+FS_PAGES = {"LICENSE_PAGE": "license.html.gz"}
 FS_OUT_DIR = os.path.join(PROJECT_DIR, "data", "web")
 
 # Languages enabled in firmware.

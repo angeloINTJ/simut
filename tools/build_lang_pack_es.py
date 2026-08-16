@@ -195,7 +195,7 @@ PT_TO_ES_PHRASES: dict[str, str] = {
     "Excluir": "Eliminar",
     "Usuários": "Usuarios",
     "Criar": "Crear",
-    "Login via: Nome@DDMMAAAA": "Login vía: Nombre@DDMMAAAA",
+    "Uma senha de uso único aparece após Salvar e Reiniciar. Copie — ela é mostrada só uma vez, e o usuário deve trocá-la no 1º login.": "Se muestra una contraseña de un solo uso tras Guardar y Reiniciar. Cópiela — solo se muestra una vez, y el usuario debe cambiarla en el primer inicio.",
     "Protegido": "Protegido",
     "Reset": "Reset",
     "Super": "Super",

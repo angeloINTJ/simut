@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Configure WiFi and test Pico stability after lockout fixes."""
-import serial, time, socket, re, sys
+import serial, time, socket, re, sys, os
+
+WIFI_SSID = os.environ.get('SIMUT_WIFI_SSID', '')
+WIFI_PASS = os.environ.get('SIMUT_WIFI_PASS', '')
+if not WIFI_SSID or not WIFI_PASS:
+    sys.exit('defina SIMUT_WIFI_SSID e SIMUT_WIFI_PASS no ambiente')
 
 ser = serial.Serial('/dev/ttyACM0', 115200, timeout=5)
 ser.dtr = True
@@ -60,13 +65,13 @@ def cmd(text, wait=2.0):
 cmd('enable')
 cmd('configure terminal')
 
-r = cmd('wifi ssid ProcrastinationPLUS')
+r = cmd(f'wifi ssid {WIFI_SSID}')
 if 'SIMUT' not in r:
     print(f'  wifi ssid: FALHOU - {r[:60]}')
 else:
     print(f'  wifi ssid: OK')
 
-r = cmd('wifi pass ***REMOVED***')
+r = cmd(f'wifi pass {WIFI_PASS}')
 if 'SIMUT' not in r:
     print(f'  wifi pass: FALHOU - {r[:60]}')
 else:

@@ -45,11 +45,16 @@ struct OtaBackupPrintAdapter : public Print {
 };
 
 void WebManager::handleApiBackup( ) {
- /* Permission: backup has the same risk level as reading all
- * LittleFS files, so it matches PERM_FILE_READ. */
+ /* PERM_FULL_ADMIN, matching /api/restore — the two are a pair. The backup is
+  * a whole-filesystem dump, /config/system.bin included, and that file carries
+  * every secret plus the password hashes. Gating it at PERM_FILE_READ (as it
+  * once was) let an account meant only to read history and calibration pull
+  * the entire credential store in one request — the bulk sibling of the
+  * /download leak fixed alongside this (finding A-4). Reading all files IS an
+  * admin operation once "all files" includes the secrets. */
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_FILE_READ)) {
- _server.send(403, "text/plain", "Forbidden");
+ if (perms != PERM_FULL_ADMIN) {
+ _server->send(403, "text/plain", "Forbidden");
  return;
  }
 
@@ -59,7 +64,7 @@ void WebManager::handleApiBackup( ) {
  /* Serialize against other heavy tasks (uploads, exports, etc.). */
  HeavyTaskGuard htg(_storageRef);
  if (!htg.isLocked( )) {
- _server.send(503, "text/plain", "System Busy");
+ _server->send(503, "text/plain", "System Busy");
  return;
  }
 
@@ -68,7 +73,7 @@ void WebManager::handleApiBackup( ) {
  {
  StorageManager::ReadGuard rg(_storageRef);
  if (!ota::backup_scan(scan)) {
- _server.send(500, "text/plain", "Backup scan failed");
+ _server->send(500, "text/plain", "Backup scan failed");
  LOG_CODE(LOG_ERROR, "OTA", SEC_CONFIG_CHANGED, _currentUserId, "backup_scan");
  return;
  }
@@ -96,15 +101,15 @@ void WebManager::handleApiBackup( ) {
 
  char dispo[128];
  snprintf(dispo, sizeof(dispo), "attachment; filename=\"%s\"", fname);
- _server.sendHeader("Content-Disposition", dispo);
- _server.sendHeader("X-Backup-Files", String(scan.file_count));
- _server.sendHeader("X-Backup-Schema", String((unsigned)OTA_BACKUP_SCHEMA));
+ _server->sendHeader("Content-Disposition", dispo);
+ _server->sendHeader("X-Backup-Files", String(scan.file_count));
+ _server->sendHeader("X-Backup-Schema", String((unsigned)OTA_BACKUP_SCHEMA));
  /* /psz/pcrc in header so browser can verify download integrity
  * before OTA (without needing a separate /api/fs/manifest endpoint). */
- _server.sendHeader("X-Backup-PSize", String(scan.payload_size));
- _server.sendHeader("X-Backup-PCrc", String(scan.payload_crc32));
- _server.setContentLength(total);
- _server.send(200, "application/octet-stream", "");
+ _server->sendHeader("X-Backup-PSize", String(scan.payload_size));
+ _server->sendHeader("X-Backup-PCrc", String(scan.payload_crc32));
+ _server->setContentLength(total);
+ _server->send(200, "application/octet-stream", "");
 
  /* Pass 2: emit. */
  OtaBackupPrintAdapter adapter(this);
@@ -150,8 +155,8 @@ void WebManager::handleApiBackup( ) {
  * ========================================================================= */
 
 void WebManager::handleApiRestoreUploadData( ) {
- HTTPUpload& upload = _server.upload( );
- bool is_stage = (_server.arg("op") == "stage");
+ HTTPUpload& upload = _server->upload( );
+ bool is_stage = (_server->arg("op") == "stage");
  if (upload.status == UPLOAD_FILE_START) {
  _restoreRejected = false;
  if (is_stage) {
@@ -165,7 +170,7 @@ void WebManager::handleApiRestoreUploadData( ) {
  _restoreRejected = true;
  }
  } else {
- ota::RestoreMode mode = (_server.arg("op") == "apply")
+ ota::RestoreMode mode = (_server->arg("op") == "apply")
  ? ota::RestoreMode::APPLY : ota::RestoreMode::VALIDATE;
  /* The restore branch had no gate here at all — it was checked
   * only in the finish handler, which the framework calls AFTER
@@ -257,7 +262,7 @@ void WebManager::handleApiRestoreUploadData( ) {
 
 /* Emits restore state JSON. Numeric codes from BackupStatus enum
  * are interpreted by the client (maps status → message). */
-static void emit_restore_json(WebServer& srv, const ota::RestoreSession& s,
+static void emit_restore_json(HTTPServer& srv, const ota::RestoreSession& s,
  bool fs_modified) {
  char buf[224];
  int code = (s.status == ota::BackupStatus::OK) ? 200 :
@@ -285,18 +290,18 @@ static void emit_restore_json(WebServer& srv, const ota::RestoreSession& s,
 }
 
 void WebManager::handleApiRestoreFinish( ) {
- String op = _server.arg("op");
+ String op = _server->arg("op");
  bool is_stage = (op == "stage");
  bool is_apply = (op == "apply");
 
  if (is_stage) {
  /* OTA stage finish: ADMIN-ONLY. */
  if (getAuthPerms( ) != PERM_FULL_ADMIN) {
- _server.send(403, "text/plain", "Forbidden — admin only");
+ _server->send(403, "text/plain", "Forbidden — admin only");
  return;
  }
  bool ok_staged = (_stageSession.status == ota::StageStatus::STAGED);
- bool commit = (_server.arg("commit") == "1");
+ bool commit = (_server->arg("commit") == "1");
 
  /* Dry-run validate BEFORE remounting LFS — after
  * remount, LittleFS reformats the area and staging
@@ -368,7 +373,7 @@ void WebManager::handleApiRestoreFinish( ) {
  LOG_CODE(overall_ok ? LOG_INFO : LOG_WARN, "OTA", WEB_UPLOAD,
  (int)_stageSession.status,
  ok_staged ? (valid ? "stage+v_ok" : "stage_v_fail") : "stage_fail");
- _server.send(overall_ok ? 200 : 422, "application/json", buf);
+ _server->send(overall_ok ? 200 : 422, "application/json", buf);
  return;
  }
 
@@ -382,7 +387,7 @@ void WebManager::handleApiRestoreFinish( ) {
   * request path, and it costs nothing. */
  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId,
           String("restore rejected: op=") + op);
- _server.send(403, "text/plain", "Forbidden");
+ _server->send(403, "text/plain", "Forbidden");
  /* Same reason as handleApiBackup above, reached by a third path.
   * A refusal answers non-chunked and returns, so nothing in the
   * abort discipline covers its tail; the framework retires the
@@ -413,7 +418,7 @@ void WebManager::handleApiRestoreFinish( ) {
  }
  LOG_CODE(is_apply ? LOG_WARN : LOG_INFO, "OTA", WEB_UPLOAD,
  (int)_restoreSession.status, is_apply ? "rsta" : "rstv");
- emit_restore_json(_server, _restoreSession, fs_mod);
+ emit_restore_json(*_server, _restoreSession, fs_mod);
 
  /* Auto-reboot after apply OK. Without this, restore writes
  * files to LFS but runtime keeps stale caches — user needed
@@ -423,7 +428,7 @@ void WebManager::handleApiRestoreFinish( ) {
   * RAM belongs to the image that was just overwritten, so snapshotting it
   * would splice pre-restore records into the restored history. */
  LogManager::instance( ).suppressPreRebootHook( );
- _server.client( ).stop( );
+ _server->client( ).stop( );
  if (_displayRef) {
  _displayRef->setBootStatusKey(TR_BOOT_APPLYING_CFG);
  for (int i = 0; i < 10; i++) { delay(100); watchdog_update( ); }
@@ -448,14 +453,14 @@ void WebManager::handleApiRestoreFinish( ) {
 void WebManager::handleApiOtaStagingTest( ) {
  /* OTA staging selftest: DESTRUCTIVE (erases 1 MB) — ADMIN-ONLY. */
  if (getAuthPerms( ) != PERM_FULL_ADMIN) {
- _server.send(403, "text/plain", "Forbidden — admin only");
+ _server->send(403, "text/plain", "Forbidden — admin only");
  return;
  }
  if (rejectIfTouchPriority( )) return;
 
  HeavyTaskGuard htg(_storageRef);
  if (!htg.isLocked( )) {
- _server.send(503, "text/plain", "System Busy");
+ _server->send(503, "text/plain", "System Busy");
  return;
  }
 
@@ -484,7 +489,7 @@ void WebManager::handleApiOtaStagingTest( ) {
  (ok_begin && ok_test && ok_end) ? "true" : "false",
  ok_begin ? 1 : 0, ok_test ? 1 : 0, ok_end ? 1 : 0,
  diff, (unsigned long)dt);
- _server.send(200, "application/json", buf);
+ _server->send(200, "application/json", buf);
 }
 
 /* ===========================================================================
@@ -509,12 +514,12 @@ void WebManager::handleApiOtaStagingTest( ) {
 void WebManager::handleApiOtaApply( ) {
  /* OTA apply: DESTRUCTIVE IRREVERSIBLE — ADMIN-ONLY. */
  if (getAuthPerms( ) != PERM_FULL_ADMIN) {
- _server.send(403, "text/plain", "Forbidden — admin only");
+ _server->send(403, "text/plain", "Forbidden — admin only");
  return;
  }
  if (rejectIfTouchPriority( )) return;
 
- bool test_mode = (_server.arg("test") == "1");
+ bool test_mode = (_server->arg("test") == "1");
 
  if (test_mode) {
  /* Inject stub metadata. enterFlashSafeMode pauses Core 1
@@ -533,7 +538,7 @@ void WebManager::handleApiOtaApply( ) {
  _storageRef->exitFlashSafeMode( );
  }
  if (!ok) {
- _server.send(500, "application/json",
+ _server->send(500, "application/json",
  "{\"error\":\"metadata write failed\"}");
  return;
  }
@@ -541,7 +546,7 @@ void WebManager::handleApiOtaApply( ) {
  /* Real path: requires COMMITTED. */
  ota::UpdateMetadata m;
  if (!ota::ota_metadata_read(m) || m.state != ota::STATE_COMMITTED) {
- _server.send(409, "application/json",
+ _server->send(409, "application/json",
  "{\"error\":\"no committed update pending\"}");
  return;
  }
@@ -552,10 +557,10 @@ void WebManager::handleApiOtaApply( ) {
 
  /* Respond BEFORE tearing down Wi-Fi. Client will lose connection
  * immediately after reboot. */
- _server.send(202, "application/json",
+ _server->send(202, "application/json",
  test_mode ? "{\"accepted\":true,\"mode\":\"test\"}"
  : "{\"accepted\":true,\"mode\":\"apply\"}");
- _server.client( ).flush( );
+ _server->client( ).flush( );
  delay(500); /* TCP flush before WiFi.end. */
 
  /* Tear down + jump to SRAM applier — does not return on success. */

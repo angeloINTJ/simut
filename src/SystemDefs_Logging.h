@@ -77,6 +77,12 @@ enum LogCode {
  SYS_REBOOT_USER = 2,
  SYS_HEAP_LOW = 3,
  SYS_UPTIME_MARK = 4,
+ /* Hourly accounting for the edge-triggered filter (LogPolicy.h): context
+  * carries how many routine records were dropped since the last report. It
+  * exists so the filter can never remove information silently — a reader who
+  * sees a quiet log can tell "nothing happened" from "a lot happened and was
+  * summarised", and by how much. */
+ SYS_LOG_SUPPRESSED = 5,
 
  SYS_WIFI_CONNECT = 10,
  SYS_WIFI_DISCONNECT = 11,
@@ -218,6 +224,7 @@ enum LogCode {
  WEB_SCREENSHOT_ABORTED = 573,
  WEB_UPLOAD = 574,
  WEB_CLIENT_DISCONNECT = 575, /* client closed connection during safeSend — silent broken pipe now visible */
+ WEB_CERT_INVALID = 576, /* /config/web_cert.pem present but did not parse — HTTPS skipped, HTTP fallback (M-6) */
 
  /* ── Config (580–584) ── */
  CFG_THEME_APPLIED = 580,

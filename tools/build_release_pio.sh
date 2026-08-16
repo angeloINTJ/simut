@@ -6,6 +6,9 @@
 set -e
 cd "$(dirname "$0")/.."
 
+# Refuse to package anything while a secret is tracked. See scan_secrets.sh.
+./tools/scan_secrets.sh
+
 VERSION=$(grep -oP '(?<=SIMUT_VERSION ")[^"]*' src/SystemDefs_Limits.h)
 echo "=== Building SIMUT PlatformIO release v${VERSION} ==="
 
