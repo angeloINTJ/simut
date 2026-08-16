@@ -1087,6 +1087,90 @@ void test_scan_floor_reaches_back_across_midnight(void) {
     TEST_ASSERT_TRUE(h5ScanFloor(DAY_END + 6 * 3600u, 60) > DAY_END);
 }
 
+/* ---------------------------------------------------------------------------
+ * The day window a file name stands for — the 2026-08-16 hole.
+ *
+ * Every seed gate is judged against [dayStart, dayEnd), and until now the suite
+ * handed those in as literals, so the step that derives them was never run.
+ * That step calls mktime( ), which reads the process timezone; on the device
+ * the seed ran before any applyTimezone( ), so the window came out in UTC while
+ * the data it bounded was -03. Three hours early is enough to throw away the
+ * evening and the block that crossed midnight.
+ *
+ * Epochs below are the real ones from 20260815.h5 on the bench.
+ * ------------------------------------------------------------------------ */
+static void set_zone(const char* tz) {
+    setenv("TZ", tz, 1);
+    tzset( );
+}
+
+void test_day_window_from_name_needs_the_zone_applied(void) {
+    const uint32_t b2026 = 1786836368u;   /* 15/08 20:26:08 -03, sealed      */
+    const uint32_t b2126 = 1786839992u;   /* 15/08 21:26:32 -03, sealed      */
+    const uint32_t b2326 = 1786847214u;   /* 15/08 23:26:54 -03, sealed      */
+    const uint32_t wip   = 1786849201u;   /* 16/08 00:00:01 -03, .wip t0     */
+
+    char saved[64] = {0};
+    const char* prev = getenv("TZ");
+    if (prev) { strncpy(saved, prev, sizeof(saved) - 1); }
+
+    uint32_t ds = 0, de = 0;
+    /* The sealed-block scan in getLastRecordedTimestamp( ) keeps a block only
+     * while its t0 is inside the day itself; the .wip is judged one block-span
+     * wider, by h5SeedPlausible. Two different gates over the same window. */
+    #define IN_DAY(t) ((t) >= ds && (t) < de)
+
+    /* Zone in force: the window is the day the name means, the whole evening
+     * stays in its own file, and the block that crossed midnight is inside the
+     * ceiling h5SeedCeiling exists to allow. */
+    set_zone("UTC3");
+    TEST_ASSERT_TRUE(h5DayWindowFromName("20260815.h5", 11, ds, de));
+    TEST_ASSERT_EQUAL_UINT32(86400u, de - ds);
+    TEST_ASSERT_TRUE(IN_DAY(b2026));
+    TEST_ASSERT_TRUE(IN_DAY(b2126));
+    TEST_ASSERT_TRUE(IN_DAY(b2326));
+    TEST_ASSERT_FALSE(IN_DAY(wip));                    /* next day, by name   */
+    TEST_ASSERT_TRUE(h5SeedPlausible(wip, ds, de, 60));/* but seeds anyway    */
+
+    /* Unapplied zone — what the boot actually did. The window slides three
+     * hours early: everything after 21:00 falls out of its own day and the
+     * .wip clears the ceiling too. The seed drops to the 20:26 block, 15546 s
+     * behind the truth, which is the correction NTP then applied to the
+     * midnight block. This must stay visible; the failure is silent. */
+    set_zone("UTC");
+    TEST_ASSERT_TRUE(h5DayWindowFromName("20260815.h5", 11, ds, de));
+    TEST_ASSERT_TRUE(IN_DAY(b2026));                   /* 20:26 survives      */
+    TEST_ASSERT_FALSE(IN_DAY(b2126));
+    TEST_ASSERT_FALSE(IN_DAY(b2326));
+    TEST_ASSERT_FALSE(h5SeedPlausible(wip, ds, de, 60));
+
+    /* Size of the damage: the seed the device should have used is the .wip's
+     * newest record (46 of them, one a minute from 00:00:01); what it fell back
+     * to is the 20:26 block's t0. Over four hours apart — the bench measured
+     * 15546 s, the rest being the boot time between seeding and NTP. */
+    const uint32_t honest   = wip + 45u * 60u;   /* last record in the .wip */
+    const uint32_t degraded = b2026;
+    TEST_ASSERT_TRUE(honest - degraded > 4u * 3600u);
+
+    #undef IN_DAY
+    set_zone(saved[0] ? saved : "UTC3");
+}
+
+void test_day_window_from_name_rejects_junk(void) {
+    uint32_t ds = 1, de = 1;
+    TEST_ASSERT_FALSE(h5DayWindowFromName(nullptr, 11, ds, de));
+    TEST_ASSERT_EQUAL_UINT32(0, ds);
+    TEST_ASSERT_EQUAL_UINT32(0, de);
+    TEST_ASSERT_FALSE(h5DayWindowFromName("2026081", 7, ds, de));
+    TEST_ASSERT_FALSE(h5DayWindowFromName("2026xx15.h5", 11, ds, de));
+    TEST_ASSERT_FALSE(h5DayWindowFromName("20261315.h5", 11, ds, de));  /* month 13 */
+    TEST_ASSERT_FALSE(h5DayWindowFromName("20260800.h5", 11, ds, de));  /* day 0    */
+    /* A window of zero is what every gate reads as "nothing to judge against",
+     * so a name that cannot be parsed loosens the gates instead of jamming
+     * them shut — the caller's other guards stand alone. */
+    TEST_ASSERT_TRUE(h5SeedPlausible(12345u, ds, de, 60));
+}
+
 void test_scan_floor_is_one_block_span(void) {
     TEST_ASSERT_EQUAL_UINT32(DAY_END - 3600u, h5ScanFloor(DAY_END, 60));
     TEST_ASSERT_EQUAL_UINT32(DAY_END - 36000u, h5ScanFloor(DAY_END, 600));
@@ -1237,6 +1321,8 @@ int main(void) {
     RUN_TEST(test_seed_from_snapshot_refuses_junk_and_short_reads);
     RUN_TEST(test_seed_walk_stops_at_the_ceiling);
     RUN_TEST(test_scan_floor_reaches_back_across_midnight);
+    RUN_TEST(test_day_window_from_name_needs_the_zone_applied);
+    RUN_TEST(test_day_window_from_name_rejects_junk);
     RUN_TEST(test_scan_floor_is_one_block_span);
     RUN_TEST(test_nominal_seconds_clamps);
 
