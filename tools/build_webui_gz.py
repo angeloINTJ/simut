@@ -78,10 +78,24 @@ OUTPUT_FILE = os.path.join(PROJECT_DIR, "src", "WebUI_GZ.h")
 # CFG_PAGE broke bootstrap; HIST_PAGE would cost a flash read on the hottest
 # page there is. This one costs neither.
 #
-# Deploy: the release zips carry data/web/license.html.gz; upload it through
-# the Files page or POST to /api/upload. NOT `uploadfs` — that reformats the
-# partition and takes history, logs and calib.csv with it.
-FS_PAGES = {"LICENSE_PAGE": "license.html.gz"}
+# Deploy: these files must reach /web/ on the device, or the routes that were
+# moved out answer "Page asset missing". Upload through the Files page or POST
+# to /api/upload. NOT `uploadfs` — that reformats the partition and takes
+# history, logs and calib.csv with it.
+#
+# The pio zip carries them under data/web/ (build_release_pio.sh). The Arduino
+# zips carry no data/ at all, by design — that variant uploads the filesystem
+# separately. This comment used to claim "the release zips carry" them while
+# data/web/ was gitignored and no script copied it, so no zip had ever carried
+# one; a unit built from a zip had a broken /license from the day the page was
+# moved out.
+#
+# Picking what goes here: big AND rarely opened AND not needed to bring the
+# device up. All three, or the cure is worse. HIST_PAGE is the biggest at 32 KB
+# but is the hottest page there is; CFG_PAGE was tried in July 2026 and broke
+# the bootstrap; FILE_PAGE is circular, since it is how you upload these files
+# in the first place.
+FS_PAGES = {"LICENSE_PAGE": "license.html.gz", "ALARMS_PAGE": "alarms.html.gz"}
 FS_OUT_DIR = os.path.join(PROJECT_DIR, "data", "web")
 
 # Languages enabled in firmware.
