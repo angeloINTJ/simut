@@ -32,6 +32,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>       /* h5DayWindowFromName: mktime over a YYYYMMDD name */
 
 /* ===========================================================================
  *  FORMAT CONSTANTS (§3, §4)
@@ -161,6 +162,54 @@ static inline bool h5SeedPlausible(uint32_t epoch, uint32_t dayStart,
                                    uint32_t dayEnd, uint16_t nominalS) {
     if (dayStart == 0 || dayEnd == 0) return true;
     return epoch >= dayStart && epoch < h5SeedCeiling(dayEnd, nominalS);
+}
+
+/**
+ * @brief The [dayStart, dayEnd) a YYYYMMDD file name stands for.
+ *
+ * Every gate above judges timestamps against this window, so the window is
+ * where their correctness actually comes from — and it is derived, not given.
+ * It lived inline in getLastRecordedTimestamp( ), which is why the test suite
+ * could pass day bounds in as literals and never exercise the one step that
+ * can be wrong.
+ *
+ * mktime( ) reads the process timezone, and history timestamps are local, so
+ * the caller must have applied the zone before asking. It had not: the only
+ * applyTimezone( ) on the boot path sat inside NetworkManager::begin( ), which
+ * runs after the seed. The window came out in UTC against -03 data — three
+ * hours early — and on 2026-08-16 that discarded every block after 21:00,
+ * rejected the .wip that had crossed midnight, and seeded the clock 4 h 20 min
+ * behind. AppManager applies the zone before seeding now; this function is
+ * separate so a host test can pin the dependency instead of assuming it.
+ *
+ * @return false when the name is not a parseable day; @p dayStart/@p dayEnd
+ *         are then left at 0, which every gate reads as "no window".
+ */
+static inline bool h5DayWindowFromName(const char* name, size_t len,
+                                       uint32_t& dayStart, uint32_t& dayEnd) {
+    dayStart = 0;
+    dayEnd   = 0;
+    if (!name || len < 8) return false;
+    for (size_t i = 0; i < 8; i++) {
+        if (name[i] < '0' || name[i] > '9') return false;
+    }
+    const int y = (name[0] - '0') * 1000 + (name[1] - '0') * 100
+                + (name[2] - '0') * 10 + (name[3] - '0');
+    const int m = (name[4] - '0') * 10 + (name[5] - '0');
+    const int d = (name[6] - '0') * 10 + (name[7] - '0');
+    if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+
+    struct tm ftm;
+    memset(&ftm, 0, sizeof(ftm));
+    ftm.tm_year  = y - 1900;
+    ftm.tm_mon   = m - 1;
+    ftm.tm_mday  = d;
+    ftm.tm_isdst = -1;
+    const time_t midnight = mktime(&ftm);
+    if (midnight <= 0) return false;
+    dayStart = (uint32_t)midnight;
+    dayEnd   = dayStart + 86400u;
+    return true;
 }
 
 /** Physical quantities. Adding values is free; renumbering is forbidden. */
