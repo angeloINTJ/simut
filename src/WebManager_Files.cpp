@@ -44,10 +44,10 @@ static void jsonEscapeFilename(const char* src, char* dst, size_t dstSize) {
 
 void WebManager::handleDownload( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_FILE_READ)) { _server.send(403, "text/plain", "Forbidden"); return; }
- if (!_server.hasArg("file")) { _server.send(400, "text/plain", "Bad Request"); return; }
+ if (!(perms & PERM_FILE_READ)) { _server->send(403, "text/plain", "Forbidden"); return; }
+ if (!_server->hasArg("file")) { _server->send(400, "text/plain", "Bad Request"); return; }
 
- String path = _server.arg("file");
+ String path = _server->arg("file");
 
  /* PERM_FILE_READ downloads history, calib, themes and language packs — never
   * the credential store. Refuse /config/* (system.bin holds the secrets and
@@ -58,25 +58,25 @@ void WebManager::handleDownload( ) {
   * turn away. See isSecretFsPath (StorageManager.h) and finding A-4. */
  if (path.indexOf("..") >= 0 || path.indexOf('%') >= 0 || isSecretFsPath(path)) {
   LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, String("download refused: ") + path);
-  _server.send(403, "text/plain", "Forbidden");
+  _server->send(403, "text/plain", "Forbidden");
   return;
  }
 
  HeavyTaskGuard htg(_storageRef);
- if (!htg.isLocked( )) { _server.send(503, "text/plain", "System Busy"); return; }
+ if (!htg.isLocked( )) { _server->send(503, "text/plain", "System Busy"); return; }
 
 
  File f;
  {
  ReadGuard rg(_storageRef);
- if (!LittleFS.exists(path)) { _server.send(404, "text/plain", "File Not Found."); return; }
+ if (!LittleFS.exists(path)) { _server->send(404, "text/plain", "File Not Found."); return; }
  f = LittleFS.open(path, "r");
  }
 
- if (!f) { _server.send(500, "text/plain", "Error."); return; }
+ if (!f) { _server->send(500, "text/plain", "Error."); return; }
 
  String fileName = path.substring(path.lastIndexOf('/') + 1);
- _server.sendHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
+ _server->sendHeader("Content-Disposition", "attachment; filename=\"" + fileName + "\"");
  safeStreamFile(f, "application/octet-stream");
  f.close( );
  LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("User downloaded: ")) + fileName);
@@ -84,17 +84,17 @@ void WebManager::handleDownload( ) {
 
 void WebManager::handleDelete( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_FILE_DELETE)) { _server.send(403, "text/plain", "Forbidden"); return; }
- if (!_server.hasArg("file")) { _server.send(400, "text/plain", "Bad Request"); return; }
+ if (!(perms & PERM_FILE_DELETE)) { _server->send(403, "text/plain", "Forbidden"); return; }
+ if (!_server->hasArg("file")) { _server->send(400, "text/plain", "Bad Request"); return; }
  if (rejectIfTouchPriority( )) return;
 
- String path = _server.arg("file");
+ String path = _server->arg("file");
 
  /* Refused here, not only hidden in the page: /files omits the checkbox on
   * a protected row, but this handler is one POST away from anybody. */
  if (isProtectedFsPath(path)) {
  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, path);
- _server.send(403, "application/json",
+ _server->send(403, "application/json",
               "{\"error\":\"Protected file — the firmware rewrites it on boot\"}");
  return;
  }
@@ -111,7 +111,7 @@ void WebManager::handleDelete( ) {
  if (!existed) {
  /* Used to answer ok for nonexistent paths — silent no-ops cost a
   * whole forensic session ("ghost purge"). Be honest. */
- _server.send(404, "application/json", "{\"error\":\"Not found\"}");
+ _server->send(404, "application/json", "{\"error\":\"Not found\"}");
  return;
  }
  /* External mutation of the live history file: without invalidating,
@@ -125,17 +125,17 @@ void WebManager::handleDelete( ) {
  if (path.endsWith(".thm")) {
  scanCustomThemes( );
  }
- _server.send(200, "application/json", "{\"status\":\"ok\"}");
+ _server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void WebManager::handleApiLs( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_FILE_READ)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
- if (isRateLimited(200)) { _server.send(429, "application/json", "{\"error\":\"Too Fast\"}"); return; }
+ if (!(perms & PERM_FILE_READ)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+ if (isRateLimited(200)) { _server->send(429, "application/json", "{\"error\":\"Too Fast\"}"); return; }
 
  String dirPath = "/";
- if (_server.hasArg("dir")) {
- dirPath = _server.arg("dir");
+ if (_server->hasArg("dir")) {
+ dirPath = _server->arg("dir");
  dirPath.trim( );
  if (dirPath.length( ) == 0) dirPath = "/";
 
@@ -144,7 +144,7 @@ void WebManager::handleApiLs( ) {
  * replace iterations. Single-pass: if it contains ".." → immediate 400.
  * "//" collapsed in single-pass. */
  if (dirPath.indexOf("..") >= 0 || dirPath.indexOf('%') >= 0) {
- _server.send(400, "application/json", "{\"error\":\"invalid path\"}");
+ _server->send(400, "application/json", "{\"error\":\"invalid path\"}");
  return;
  }
  /* Collapse // → / in single-pass O(n). */
@@ -172,7 +172,7 @@ void WebManager::handleApiLs( ) {
 
 
  HeavyTaskGuard htg(_storageRef);
- if (!htg.isLocked( )) { _server.send(503, "application/json", "{\"error\":\"System Busy\"}"); return; }
+ if (!htg.isLocked( )) { _server->send(503, "application/json", "{\"error\":\"System Busy\"}"); return; }
 
  /* Listing a big directory belongs with the other long handlers: /history
   * holds one file per day, and every entry costs a flash read plus a chunked
@@ -181,8 +181,8 @@ void WebManager::handleApiLs( ) {
  const uint32_t savedDeadline = _handlerDeadline;
  _handlerDeadline = millis( ) + WEB_LONG_HANDLER_DEADLINE_MS;
 
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
- _server.send(200, "application/json", "");
+ _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server->send(200, "application/json", "");
 
  char buf[256];
  snprintf(buf, sizeof(buf), "{\"path\":\"%s\",\"entries\":[", dirPath.c_str( ));
@@ -289,11 +289,11 @@ void WebManager::handleApiLs( ) {
 
 void WebManager::handleApiMkdir( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_FILE_UPLOAD)) { _server.send(403, "text/plain", "Forbidden"); return; }
- if (!_server.hasArg("dir")) { _server.send(400, "text/plain", "Missing dir"); return; }
+ if (!(perms & PERM_FILE_UPLOAD)) { _server->send(403, "text/plain", "Forbidden"); return; }
+ if (!_server->hasArg("dir")) { _server->send(400, "text/plain", "Missing dir"); return; }
  if (rejectIfTouchPriority( )) return;
 
- String dirPath = _server.arg("dir");
+ String dirPath = _server->arg("dir");
  dirPath.trim( );
  /* Allowlist validation at the source (M-7): a folder name is echoed into the
   * /files listing, so a name like "<img src=x onerror=...>" would be stored
@@ -302,7 +302,7 @@ void WebManager::handleApiMkdir( ) {
   * documents as broken ("...." → ".."). */
  if (!isSafeDirPath(dirPath.c_str( ))) {
  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, String("mkdir rejected: ") + dirPath);
- _server.send(400, "text/plain", "Invalid path");
+ _server->send(400, "text/plain", "Invalid path");
  return;
  }
  if (!dirPath.startsWith("/")) dirPath = "/" + dirPath;
@@ -311,7 +311,7 @@ void WebManager::handleApiMkdir( ) {
  for (size_t i = 0; i < dirPath.length( ); i++) {
  if (dirPath[i] == '/') slashCount++;
  }
- if (slashCount > 2) { _server.send(400, "text/plain", "Max depth exceeded"); return; }
+ if (slashCount > 2) { _server->send(400, "text/plain", "Max depth exceeded"); return; }
 
  bool ok;
  bool alreadyExisted = LittleFS.exists(dirPath);
@@ -335,32 +335,32 @@ void WebManager::handleApiMkdir( ) {
  }
  LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Created folder: ")) + dirPath);
  }
- _server.send(200, "application/json", "{\"status\":\"ok\"}");
+ _server->send(200, "application/json", "{\"status\":\"ok\"}");
  } else {
- _server.send(500, "application/json", "{\"error\":\"Failed\"}");
+ _server->send(500, "application/json", "{\"error\":\"Failed\"}");
  }
 }
 
 void WebManager::handleUploadComplete( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_FILE_UPLOAD)) { _server.send(403, "text/plain", "Forbidden"); return; }
+ if (!(perms & PERM_FILE_UPLOAD)) { _server->send(403, "text/plain", "Forbidden"); return; }
  /* If START marked rejection (invalid name, bad uploadDir,
  * no space), respond 400 here — the response cannot be sent from inside
  * the Arduino WebServer upload handler. */
  if (_uploadRejected) {
  _uploadRejected = false;
- _server.send(400, "application/json", "{\"error\":\"Invalid upload\"}");
+ _server->send(400, "application/json", "{\"error\":\"Invalid upload\"}");
  return;
  }
  _storageRef->invalidateOldestFileCache( ); /* Restored file may be older */
- _server.send(200, "application/json", "{\"status\":\"ok\"}");
+ _server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 void WebManager::handleUploadData( ) {
  uint16_t perms = getAuthPerms( );
  if (!(perms & PERM_FILE_UPLOAD)) return;
 
- HTTPUpload& upload = _server.upload( );
+ HTTPUpload& upload = _server->upload( );
 
  if (upload.status == UPLOAD_FILE_START) {
  /* Reset rejection state (new upload). */
@@ -386,8 +386,8 @@ void WebManager::handleUploadData( ) {
  LittleFS.info(fsi);
  _storageRef->exitFlashReadLock( );
  uint32_t freeBytes = fsi.totalBytes - fsi.usedBytes;
- if (_server.hasHeader("Content-Length")) {
- uint32_t cl = _server.header("Content-Length").toInt( );
+ if (_server->hasHeader("Content-Length")) {
+ uint32_t cl = _server->header("Content-Length").toInt( );
  if (cl > freeBytes) {
  LOG_CODE(LOG_WARN, "WEB", WEB_UPLOAD, (int)cl, "Upload rejected: no space");
  /* Cannot send 413 from here (upload handler). Mark rejection
@@ -399,8 +399,8 @@ void WebManager::handleUploadData( ) {
  }
 
  String targetDir = "/";
- if (_server.hasArg("uploadDir")) {
- targetDir = _server.arg("uploadDir");
+ if (_server->hasArg("uploadDir")) {
+ targetDir = _server->arg("uploadDir");
  targetDir.trim( );
 
  /* Reject instead of trying to clean.

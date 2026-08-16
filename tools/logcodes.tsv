@@ -126,6 +126,7 @@
 573	WEB_SCREENSHOT_ABORTED	Screenshot aborted by client	Screenshot abortado pelo cliente	Screenshot abortado pelo cliente	Captura abortada por el cliente
 574	WEB_UPLOAD	File uploaded	Arquivo enviado	Arquivo enviado	Archivo subido
 575	WEB_CLIENT_DISCONNECT	Client disconnected (broken pipe)	Cliente desconectado (conexao encerrada)	Cliente desconectado (conexão encerrada)	Cliente desconectado (conexión cerrada)
+576	WEB_CERT_INVALID	Web cert invalid (HTTP fallback)	Cert web invalido (HTTP)	Certificado web inválido (HTTP)	Certificado web inválido (HTTP)
 580	CFG_THEME_APPLIED	Theme applied	Tema aplicado	Tema aplicado	Tema aplicado
 581	CFG_THEME_NOT_FOUND	Theme not found	Tema nao encontrado	Tema não encontrado	Tema no encontrado
 585	CLI_UNKNOWN_CMD	Unknown command	Comando desconhecido	Comando desconhecido	Comando desconocido

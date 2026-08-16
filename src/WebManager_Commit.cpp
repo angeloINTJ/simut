@@ -121,16 +121,16 @@ static bool jsonBoolValue(const String& src, const char* key, bool fallback) {
 
 void WebManager::handleSaveSystem( ) {
 	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
+	if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "text/plain", "Forbidden"); return; }
 	SystemConfig& cfg = _storageRef->getConfig( );
-	if (_server.hasArg("theme")) {
-		int t = _server.arg("theme").toInt( );
+	if (_server->hasArg("theme")) {
+		int t = _server->arg("theme").toInt( );
 		/* A theme index the build does not carry used to answer ok and change
 		 * nothing, so the page had no way to tell "applied" from "ignored" —
 		 * and neither did anyone driving this by hand. Nothing else happens in
 		 * this handler, so refusing here is atomic by construction. */
 		if (t < 0 || t >= getThemeCount( )) {
-			_server.send(400, "application/json",
+			_server->send(400, "application/json",
 			             "{\"status\":\"error\",\"error\":\"Theme index out of range\"}");
 			return;
 		}
@@ -141,7 +141,7 @@ void WebManager::handleSaveSystem( ) {
 			if (_displayRef) _displayRef->refreshTheme( );
 		}
 	}
-	_server.send(200, "application/json", "{\"status\":\"ok\"}");
+	_server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 
@@ -199,7 +199,7 @@ bool WebManager::authorizeCommitSections(const String& body, uint16_t perms,
 	if (verdict == COMMIT_AUTH_OK) return true;
 
 	if (verdict == COMMIT_AUTH_EMPTY) {
-		_server.send(400, "application/json", "{\"error\":\"No section\"}");
+		_server->send(400, "application/json", "{\"error\":\"No section\"}");
 		return false;
 	}
 
@@ -208,7 +208,7 @@ bool WebManager::authorizeCommitSections(const String& body, uint16_t perms,
 	         String("commit_all section refused: ") + section);
 	char buf[72];
 	snprintf(buf, sizeof(buf), "{\"error\":\"Forbidden\",\"section\":\"%s\"}", section);
-	_server.send(403, "application/json", buf);
+	_server->send(403, "application/json", buf);
 	return false;
 }
 
@@ -235,20 +235,20 @@ void WebManager::handleApiCommitAll( ) {
 	 * nothing else can open /users and stage an account, but its commit was
 	 * refused here, so the role could not actually manage users. */
 	if (!(perms & commitEntryPerms( ))) {
-		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
 	if (isPasswordChangeRequired( )) return;
 	if (rejectIfTouchPriority( )) return;
 
-	if (!_server.hasArg("_payload")) {
-		_server.send(400, "application/json", "{\"error\":\"Missing _payload\"}");
+	if (!_server->hasArg("_payload")) {
+		_server->send(400, "application/json", "{\"error\":\"Missing _payload\"}");
 		return;
 	}
 
-	String body = _server.arg("_payload");
+	String body = _server->arg("_payload");
 	if (body.length( ) == 0 || body.length( ) > 6144) {
-		_server.send(400, "application/json", "{\"error\":\"Bad payload\"}");
+		_server->send(400, "application/json", "{\"error\":\"Bad payload\"}");
 		return;
 	}
 
@@ -336,7 +336,7 @@ void WebManager::handleApiCommitAll( ) {
 					if (!limOk(c, lo) || !limOk(c, hi)) bad = true;
 				}
 				if (bad) {
-					_server.send(400, "application/json",
+					_server->send(400, "application/json",
 					             "{\"error\":\"Alarm limit outside channel range\"}");
 					return;
 				}
@@ -610,7 +610,7 @@ void WebManager::handleApiCommitAll( ) {
 			if (err[0]) {
 				char resp[160];
 				snprintf(resp, sizeof(resp), "{\"error\":\"%s\"}", err);
-				_server.send(400, "application/json", resp);
+				_server->send(400, "application/json", resp);
 				return; /* cfg untouched — nothing to roll back */
 			}
 
@@ -1248,7 +1248,7 @@ void WebManager::handleApiCommitAll( ) {
 		/* Save failed: undo the boot screen and return error to client.
 		 * System stays alive; user can try again. */
 		if (_displayRef) _displayRef->endBoot( );
-		_server.send(500, "application/json", "{\"error\":\"save failed\"}");
+		_server->send(500, "application/json", "{\"error\":\"save failed\"}");
 		return;
 	}
 
@@ -1263,9 +1263,9 @@ void WebManager::handleApiCommitAll( ) {
 	if (rejectedList[0])    { resp += ",\"rejected\":["; resp += rejectedList; resp += "]"; }
 	if (tempCreds.length( )) { resp += ",\"creds\":["; resp += tempCreds; resp += "]"; }
 	resp += "}";
-	_server.send(200, "application/json", resp);
+	_server->send(200, "application/json", resp);
 	tempCreds = "";   /* drop the plaintext copy the moment it is on the wire */
-	_server.client( ).stop( );
+	_server->client( ).stop( );
 
 	/*
 	 * Hard reboot via LogManager::safeReboot( ) — consolidated sequence:
@@ -1299,31 +1299,31 @@ void WebManager::handleApiCommitAll( ) {
  */
 void WebManager::handleApiSetTime( ) {
 	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
-	String body = _server.arg("plain");
+	String body = _server->arg("plain");
 	int p = body.indexOf("\"epoch\"");
-	if (p < 0) { _server.send(400, "application/json", "{\"error\":\"missing epoch\"}"); return; }
+	if (p < 0) { _server->send(400, "application/json", "{\"error\":\"missing epoch\"}"); return; }
 	int vs = body.indexOf(':', p);
-	if (vs < 0) { _server.send(400, "application/json", "{\"error\":\"bad format\"}"); return; }
+	if (vs < 0) { _server->send(400, "application/json", "{\"error\":\"bad format\"}"); return; }
 	vs++;
 	while (vs < (int)body.length( ) && (body.charAt(vs) == ' ' || body.charAt(vs) == '"')) vs++;
 	int ve = vs;
 	while (ve < (int)body.length( ) && isDigit(body.charAt(ve))) ve++;
-	if (ve == vs) { _server.send(400, "application/json", "{\"error\":\"bad epoch\"}"); return; }
+	if (ve == vs) { _server->send(400, "application/json", "{\"error\":\"bad epoch\"}"); return; }
 	uint32_t epoch = (uint32_t)body.substring(vs, ve).toInt( );
-	if (epoch <= 1600000000UL) { _server.send(400, "application/json", "{\"error\":\"epoch too low\"}"); return; }
+	if (epoch <= 1600000000UL) { _server->send(400, "application/json", "{\"error\":\"epoch too low\"}"); return; }
 
 	_netRef->setManualTime((time_t)epoch);
 
 	char json[64];
 	snprintf(json, sizeof(json), "{\"ok\":true,\"now\":%lu}", (unsigned long)time(nullptr));
-	_server.send(200, "application/json", json);
+	_server->send(200, "application/json", json);
 }
 
 void WebManager::handleResetTouchCal( ) {
 	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 	if (rejectIfTouchPriority( )) return;
 
 	SystemConfig& cfg = _storageRef->getConfig( );
@@ -1341,7 +1341,7 @@ void WebManager::handleResetTouchCal( ) {
 	if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_CONFIRM);
 	LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Touch calibration reset via web"));
 
-	_server.send(200, "application/json", "{\"status\":\"ok\",\"wizard\":true}");
+	_server->send(200, "application/json", "{\"status\":\"ok\",\"wizard\":true}");
 }
 
 /* Rebind the day's history to the slots as they are SAVED right now.
@@ -1370,10 +1370,10 @@ void WebManager::handleResetTouchCal( ) {
  * WDT window; the quiet mode here parks Core 1's rendering for the rewrite. */
 void WebManager::handleApiHistoryRebind( ) {
 	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 	if (rejectIfTouchPriority( )) return;
 
-	const bool force = _server.hasArg("force") && _server.arg("force") == "1";
+	const bool force = _server->hasArg("force") && _server->arg("force") == "1";
 
 	uint8_t mc = 0;
 	uint8_t carried = 0;
@@ -1388,7 +1388,7 @@ void WebManager::handleApiHistoryRebind( ) {
 	if (!ok) {
 		/* Distinct body for the migration case: the page turns this into the
 		 * offer to recreate the file instead, rather than a dead end. */
-		_server.send(500, "application/json",
+		_server->send(500, "application/json",
 		             force ? "{\"error\":\"rebind failed\"}"
 		                   : "{\"error\":\"migrate failed\",\"canForce\":true}");
 		return;
@@ -1404,8 +1404,8 @@ void WebManager::handleApiHistoryRebind( ) {
 	snprintf(json, sizeof(json),
 	         "{\"status\":\"ok\",\"meas\":%u,\"recs\":%lu,\"kept\":%u,\"forced\":%s,\"reboot\":true}",
 	         (unsigned)mc, (unsigned long)records, (unsigned)carried, force ? "true" : "false");
-	_server.send(200, "application/json", json);
-	_server.client( ).stop( );
+	_server->send(200, "application/json", json);
+	_server->client( ).stop( );
 
 	/* Same consolidated sequence as commit-all: marks the reboot clean so the
 	 * autopsy does not report a HW watchdog, flushes USB CDC, then resets. */

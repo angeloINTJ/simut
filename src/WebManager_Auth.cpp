@@ -32,8 +32,8 @@ void WebManager::clearStaleSessions( ) {
 uint16_t WebManager::getAuthPerms( ) {
 	clearStaleSessions( );
 
-	if (!_server.hasHeader("Cookie")) return 0;
-	String cookie = _server.header("Cookie");
+	if (!_server->hasHeader("Cookie")) return 0;
+	String cookie = _server->header("Cookie");
 
 	for (int i = 0; i < 3; i++) {
 		if (_activeSessions[i].token != "" && cookie.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
@@ -60,18 +60,18 @@ bool WebManager::isPasswordChangeRequired( ) {
 bool WebManager::checkPageAccess(uint16_t requiredPerm) {
 	uint16_t perms = getAuthPerms( );
 	if (perms == 0) {
-		_server.sendHeader("Location", "/login", true);
-		_server.send(302, "text/plain", "");
+		_server->sendHeader("Location", "/login", true);
+		_server->send(302, "text/plain", "");
 		return false;
 	}
 	if (isPasswordChangeRequired( )) {
-		_server.sendHeader("Location", "/force_chpass", true);
-		_server.send(302, "text/plain", "");
+		_server->sendHeader("Location", "/force_chpass", true);
+		_server->send(302, "text/plain", "");
 		return false;
 	}
 	if (!(perms & requiredPerm)) {
 		LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, _currentUserName);
-		_server.send(403, "text/html", "<h2>Access Denied</h2>");
+		_server->send(403, "text/html", "<h2>Access Denied</h2>");
 		return false;
 	}
 	return true;
@@ -112,11 +112,11 @@ bool WebManager::serveProtectedFsPage(uint16_t requiredPerm, const char* path) {
 		msg += path;
 		msg += "</code> to <code>/web/</code> on the device (Files page), then reload."
 		       "<br>Do not use <code>uploadfs</code> — it reformats the partition.</p>";
-		_server.send(200, "text/html", msg);
+		_server->send(200, "text/html", msg);
 		return false;
 	}
-	_server.sendHeader("Cache-Control", "no-store");
-	_server.sendHeader("Content-Encoding", "gzip");
+	_server->sendHeader("Cache-Control", "no-store");
+	_server->sendHeader("Content-Encoding", "gzip");
 	safeStreamFile(f, "text/html");
 	f.close( );
 	return true;
@@ -129,21 +129,21 @@ bool WebManager::serveProtectedPage(uint16_t requiredPerm, const uint8_t* gz_dat
 	 * Previously using "public, max-age=3600", returning from another page
 	 * would restore the JS state snapshot (selects with data-cd="1", old
 	 * wrappers, stale listeners), breaking dropdowns and controls. */
-	_server.sendHeader("Cache-Control", "no-store");
-	_server.sendHeader("Content-Encoding", "gzip");
-	_server.setContentLength(gz_len);
-	_server.send(200, "text/html", "");
+	_server->sendHeader("Cache-Control", "no-store");
+	_server->sendHeader("Content-Encoding", "gzip");
+	_server->setContentLength(gz_len);
+	_server->send(200, "text/html", "");
 	safeSend_GZ(gz_data, gz_len);
 	return true;
 }
 void WebManager::handleLogin( ) {
-	_server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-	_server.sendHeader("Pragma", "no-cache");
-	_server.sendHeader("Expires", "0");
+	_server->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+	_server->sendHeader("Pragma", "no-cache");
+	_server->sendHeader("Expires", "0");
 
-	_server.sendHeader("Content-Encoding", "gzip");
-	_server.setContentLength(WebUI_GZ::LOGIN_PAGE_GZ_LEN);
-	_server.send(200, "text/html", "");
+	_server->sendHeader("Content-Encoding", "gzip");
+	_server->setContentLength(WebUI_GZ::LOGIN_PAGE_GZ_LEN);
+	_server->send(200, "text/html", "");
 	safeSend_GZ(WebUI_GZ::LOGIN_PAGE_GZ, WebUI_GZ::LOGIN_PAGE_GZ_LEN);
 }
 
@@ -165,16 +165,16 @@ void WebManager::handleAlarms( ) { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ:
  * tools/build_webui_gz.py for why this page and not another. */
 void WebManager::handleLicense( ) { serveProtectedFsPage(PERM_DASHBOARD, "/web/license.html.gz"); }
 void WebManager::handleForceChpass( ) {
-	if (getAuthPerms( ) == 0) { _server.sendHeader("Location", "/login", true); _server.send(302, "text/plain", ""); return; }
-	if (!isPasswordChangeRequired( )) { _server.sendHeader("Location", "/", true); _server.send(302, "text/plain", ""); return; }
+	if (getAuthPerms( ) == 0) { _server->sendHeader("Location", "/login", true); _server->send(302, "text/plain", ""); return; }
+	if (!isPasswordChangeRequired( )) { _server->sendHeader("Location", "/", true); _server->send(302, "text/plain", ""); return; }
 
-	_server.sendHeader("Content-Encoding", "gzip");
-	_server.setContentLength(WebUI_GZ::FORCE_CHPASS_PAGE_GZ_LEN);
-	_server.send(200, "text/html", "");
+	_server->sendHeader("Content-Encoding", "gzip");
+	_server->setContentLength(WebUI_GZ::FORCE_CHPASS_PAGE_GZ_LEN);
+	_server->send(200, "text/html", "");
 	safeSend_GZ(WebUI_GZ::FORCE_CHPASS_PAGE_GZ, WebUI_GZ::FORCE_CHPASS_PAGE_GZ_LEN);
 }
 void WebManager::handleApiLoginInit( ) {
-	uint32_t clientIP = (uint32_t)_server.client( ).remoteIP( );
+	uint32_t clientIP = (uint32_t)_server->client( ).remoteIP( );
 
 	/* Looks for the client IP's own slot first; if not found, picks the LRU
 	 * among evictable slots (free OR without active lockout). A slot under
@@ -209,12 +209,12 @@ void WebManager::handleApiLoginInit( ) {
 			uint32_t retryAfterSec = (minRem + 999) / 1000;
 			LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
 			         "Login init rejected: all slots locked");
-			_server.sendHeader("Retry-After", String(retryAfterSec));
+			_server->sendHeader("Retry-After", String(retryAfterSec));
 			char buf[64];
 			snprintf(buf, sizeof(buf),
 			         "{\"ok\":false,\"err\":3,\"retryAfter\":%lu}",
 			         (unsigned long)retryAfterSec);
-			_server.send(429, "application/json", buf);
+			_server->send(429, "application/json", buf);
 			return;
 		}
 		slot = oldestEvictable;
@@ -242,8 +242,8 @@ void WebManager::handleApiLoginInit( ) {
 	snprintf(json, sizeof(json), "{\"nonce\":\"%s\",\"locked\":%s,\"lockSec\":%lu}",
 	         _loginStates[slot].nonce, locked ? "true" : "false", (unsigned long)lockSec);
 
-	_server.sendHeader("Cache-Control", "no-store");
-	_server.send(200, "application/json", json);
+	_server->sendHeader("Cache-Control", "no-store");
+	_server->send(200, "application/json", json);
 }
 
 /* ===========================================================================
@@ -277,7 +277,7 @@ bool WebManager::respondIfLockedOut(int ls, int httpCode) {
 	uint32_t rem = timeRemaining(_loginStates[ls].lockoutUntil) / 1000;
 	char buf[64];
 	snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)rem);
-	_server.send(httpCode, "application/json", buf);
+	_server->send(httpCode, "application/json", buf);
 	return true;
 }
 
@@ -288,8 +288,8 @@ bool WebManager::validateNonceAndRespond(int ls) {
 	bool nonceExpired = (ls >= 0) && (_loginStates[ls].nonceCreatedAt > 0) &&
 	                    timeSince(_loginStates[ls].nonceCreatedAt, NONCE_LIFETIME_MS);
 
-	bool ok = _server.hasArg("nonce") &&
-	          _server.arg("nonce") == expectedNonce &&
+	bool ok = _server->hasArg("nonce") &&
+	          _server->arg("nonce") == expectedNonce &&
 	          expectedNonce[0] != '\0' &&
 	          !nonceExpired;
 	if (ok) {
@@ -305,7 +305,7 @@ bool WebManager::validateNonceAndRespond(int ls) {
 	LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
 	         nonceExpired ? "Login Rejected: Nonce Expired" : "Login Rejected: Invalid Nonce");
 	if (!respondIfLockedOut(ls, 401)) {
-		_server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+		_server->send(401, "application/json", "{\"ok\":false,\"err\":1}");
 	}
 	return false;
 }
@@ -394,18 +394,23 @@ void WebManager::completeLogin(int slot, int foundId, int ls, const String& u) {
 
 	if (_displayRef) _displayRef->setWebNotification(u.c_str( ));
 
+	/* Secure keyed to the ACTUAL transport (a provisioned cert made the server
+	 * HTTPS), not the dead cfg.useHttps flag. Over HTTPS the session cookie must
+	 * carry Secure so a browser never replays it on a downgraded http:// origin;
+	 * over HTTP it must NOT, or the browser drops the cookie and login loops —
+	 * the very trap the old useHttps flag was stuck avoiding by staying false. */
 	String cookieFlags = "SIMUTSESS=" + newToken + "; Path=/; HttpOnly; SameSite=Strict";
-	if (cfg.useHttps) cookieFlags += "; Secure";
-	_server.sendHeader("Set-Cookie", cookieFlags);
+	if (_serverIsHttps) cookieFlags += "; Secure";
+	_server->sendHeader("Set-Cookie", cookieFlags);
 
 	const char* redirect = cfg.users[foundId].mustChangePassword ? "/force_chpass" : "/";
 	char resp[64];
 	snprintf(resp, sizeof(resp), "{\"ok\":true,\"redirect\":\"%s\"}", redirect);
-	_server.send(200, "application/json", resp);
+	_server->send(200, "application/json", resp);
 }
 
 void WebManager::handleApiLogin( ) {
-	uint32_t clientIP = (uint32_t)_server.client( ).remoteIP( );
+	uint32_t clientIP = (uint32_t)_server->client( ).remoteIP( );
 	int ls = findLoginStateForIp(clientIP);
 
 	/* Active lockout: immediate 403 (does not consume nonce). */
@@ -414,19 +419,19 @@ void WebManager::handleApiLogin( ) {
 	/* Nonce CSRF: validate + consume on success, penalize on expiry. */
 	if (!validateNonceAndRespond(ls)) return;
 
-	if (!_server.hasArg("user") || !_server.hasArg("pass")) {
-		_server.send(400, "application/json", "{\"ok\":false,\"err\":1}");
+	if (!_server->hasArg("user") || !_server->hasArg("pass")) {
+		_server->send(400, "application/json", "{\"ok\":false,\"err\":1}");
 		return;
 	}
 
-	String u = _server.arg("user");
-	String p = _server.arg("pass");
+	String u = _server->arg("user");
+	String p = _server->arg("pass");
 
 	/* Size sanity check before invoking hashPassword (PASSWORD_HMAC_ROUNDS). */
 	if (!isValidName(u.c_str( ), 31) || p.length( ) > 128) {
 		applyExponentialPenalty(ls);
 		LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Invalid Input Size"));
-		_server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+		_server->send(401, "application/json", "{\"ok\":false,\"err\":1}");
 		return;
 	}
 
@@ -438,9 +443,9 @@ void WebManager::handleApiLogin( ) {
 			if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_ERROR);
 			char buf[64];
 			snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)(penaltyMs/1000));
-			_server.send(401, "application/json", buf);
+			_server->send(401, "application/json", buf);
 		} else {
-			_server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+			_server->send(401, "application/json", "{\"ok\":false,\"err\":1}");
 		}
 		return;
 	}
@@ -448,7 +453,7 @@ void WebManager::handleApiLogin( ) {
 	int slot = allocSessionSlot(foundId);
 	if (slot < 0) {
 		LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Login Rejected: Max Sessions Reached"));
-		_server.send(403, "application/json", "{\"ok\":false,\"err\":3}");
+		_server->send(403, "application/json", "{\"ok\":false,\"err\":3}");
 		return;
 	}
 
@@ -456,8 +461,8 @@ void WebManager::handleApiLogin( ) {
 }
 
 void WebManager::handleLogout( ) {
-	if (_server.hasHeader("Cookie")) {
-		String cookie = _server.header("Cookie");
+	if (_server->hasHeader("Cookie")) {
+		String cookie = _server->header("Cookie");
 		for (int i = 0; i < 3; i++) {
 			if (_activeSessions[i].token != "" && cookie.indexOf("SIMUTSESS=" + _activeSessions[i].token) != -1) {
 				LOG_CODE(LOG_INFO, "SEC", SEC_LOGIN_SUCCESS, 0, String(TRL("Logout: ")) + _activeSessions[i].username);
@@ -473,15 +478,15 @@ void WebManager::handleLogout( ) {
 	_currentUserName = "";
 	_currentUserPerms = 0;
 
-	_server.sendHeader("Set-Cookie", "SIMUTSESS=0; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict");
-	_server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-	_server.sendHeader("Location", "/login", true);
-	_server.send(302, "text/plain", "");
+	_server->sendHeader("Set-Cookie", "SIMUTSESS=0; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Strict");
+	_server->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+	_server->sendHeader("Location", "/login", true);
+	_server->send(302, "text/plain", "");
 }
 
 void WebManager::handleApiSecStatus( ) {
 	if (!(getAuthPerms( ) & PERM_USER_MGR)) {
-		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
 
@@ -531,20 +536,20 @@ void WebManager::handleApiSecStatus( ) {
 
 	pos += snprintf(buf + pos, SEC_ROOM(), "]}");
 	#undef SEC_ROOM
-	_server.sendHeader("Cache-Control", "no-store");
-	_server.send(200, "application/json", buf);
+	_server->sendHeader("Cache-Control", "no-store");
+	_server->send(200, "application/json", buf);
 }
 
 void WebManager::handleApiForceChpass( ) {
-	if (getAuthPerms( ) == 0 || !isPasswordChangeRequired( )) { _server.send(403, "text/plain", "Forbidden"); return; }
+	if (getAuthPerms( ) == 0 || !isPasswordChangeRequired( )) { _server->send(403, "text/plain", "Forbidden"); return; }
 	if (rejectIfTouchPriority( )) return;
 
-	String p1 = _server.arg("p1");
-	String p2 = _server.arg("p2");
+	String p1 = _server->arg("p1");
+	String p2 = _server->arg("p2");
 
 	if (p1.length( ) < 8 || p1 != p2) {
 		if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_ERROR);
-		_server.send(400, "application/json", "{\"error\":\"Invalid payload\"}");
+		_server->send(400, "application/json", "{\"error\":\"Invalid payload\"}");
 		return;
 	}
 
@@ -561,40 +566,40 @@ void WebManager::handleApiForceChpass( ) {
 	if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_CONFIRM);
 	LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, _currentUserId, String(TRL("Password Reset Success: ")) + _currentUserName);
 
-	_server.send(200, "application/json", "{\"status\":\"ok\"}");
+	_server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 /* Self-service password change pre-auth (accessible from the login screen).
  * Reuses lockout/nonce/verifyPasswordFor from the normal login flow.
  * Does not create a session — user logs in fresh with the new password. */
 void WebManager::handleApiLoginChpass( ) {
-	uint32_t clientIP = (uint32_t)_server.client( ).remoteIP( );
+	uint32_t clientIP = (uint32_t)_server->client( ).remoteIP( );
 	int ls = findLoginStateForIp(clientIP);
 
 	if (respondIfLockedOut(ls, 403)) return;
 	if (!validateNonceAndRespond(ls)) return;
 
-	if (!_server.hasArg("user") || !_server.hasArg("oldpass") || !_server.hasArg("newpass")) {
-		_server.send(400, "application/json", "{\"ok\":false,\"err\":1}");
+	if (!_server->hasArg("user") || !_server->hasArg("oldpass") || !_server->hasArg("newpass")) {
+		_server->send(400, "application/json", "{\"ok\":false,\"err\":1}");
 		return;
 	}
 
-	String u = _server.arg("user");
-	String op = _server.arg("oldpass");
-	String np = _server.arg("newpass");
+	String u = _server->arg("user");
+	String op = _server->arg("oldpass");
+	String np = _server->arg("newpass");
 
 	/* Client sends sha256 (64 hex chars). Size/format sanity check. */
 	if (!isValidName(u.c_str( ), 31) || op.length( ) != 64 || np.length( ) != 64) {
 		applyExponentialPenalty(ls);
 		LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Chpass Rejected: Invalid Input"));
-		_server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+		_server->send(401, "application/json", "{\"ok\":false,\"err\":1}");
 		return;
 	}
 
 	/* Blocks no-op (same hash). Actual strength is validated client-side (UX);
 	 * server trusts the honest client to enforce complexity rules. */
 	if (np == op) {
-		_server.send(400, "application/json", "{\"ok\":false,\"err\":5}");
+		_server->send(400, "application/json", "{\"ok\":false,\"err\":5}");
 		return;
 	}
 
@@ -606,9 +611,9 @@ void WebManager::handleApiLoginChpass( ) {
 			if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_ERROR);
 			char buf[64];
 			snprintf(buf, sizeof(buf), "{\"ok\":false,\"err\":2,\"lockSec\":%lu}", (unsigned long)(penaltyMs/1000));
-			_server.send(401, "application/json", buf);
+			_server->send(401, "application/json", buf);
 		} else {
-			_server.send(401, "application/json", "{\"ok\":false,\"err\":1}");
+			_server->send(401, "application/json", "{\"ok\":false,\"err\":1}");
 		}
 		return;
 	}
@@ -626,5 +631,5 @@ void WebManager::handleApiLoginChpass( ) {
 	if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_CONFIRM);
 	LOG_CODE(LOG_INFO, "SEC", SEC_CONFIG_CHANGED, foundId, String(TRL("Login Chpass OK: ")) + u);
 
-	_server.send(200, "application/json", "{\"ok\":true}");
+	_server->send(200, "application/json", "{\"ok\":true}");
 }

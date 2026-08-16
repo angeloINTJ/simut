@@ -224,6 +224,7 @@ enum LogCode {
  WEB_SCREENSHOT_ABORTED = 573,
  WEB_UPLOAD = 574,
  WEB_CLIENT_DISCONNECT = 575, /* client closed connection during safeSend — silent broken pipe now visible */
+ WEB_CERT_INVALID = 576, /* /config/web_cert.pem present but did not parse — HTTPS skipped, HTTP fallback (M-6) */
 
  /* ── Config (580–584) ── */
  CFG_THEME_APPLIED = 580,

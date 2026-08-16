@@ -237,6 +237,7 @@ Luminosidad
 573 Captura abortada por el cliente
 574 Archivo subido
 575 Cliente desconectado (conexión cerrada)
+576 Certificado web inválido (HTTP)
 580 Tema aplicado
 581 Tema no encontrado
 585 Comando desconocido

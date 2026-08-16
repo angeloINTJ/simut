@@ -59,20 +59,20 @@ String WebManager::rgb565ToHex(uint16_t color) {
 }
 
 void WebManager::handleLangJs( ) {
- _server.sendHeader("Cache-Control", "public, max-age=604800");
- _server.sendHeader("Content-Encoding", "gzip");
- _server.setContentLength(WebUI_GZ::LANG_JS_GZ_LEN);
- _server.send(200, "application/javascript", "");
+ _server->sendHeader("Cache-Control", "public, max-age=604800");
+ _server->sendHeader("Content-Encoding", "gzip");
+ _server->setContentLength(WebUI_GZ::LANG_JS_GZ_LEN);
+ _server->send(200, "application/javascript", "");
  safeSend_GZ(WebUI_GZ::LANG_JS_GZ, WebUI_GZ::LANG_JS_GZ_LEN);
 }
 
 /* Common CSS (drawer/topbar/breadcrumb/toast) extracted from
  * the 8 authenticated pages into a single cacheable asset. */
 void WebManager::handleStyleCss( ) {
- _server.sendHeader("Cache-Control", "public, max-age=604800");
- _server.sendHeader("Content-Encoding", "gzip");
- _server.setContentLength(WebUI_GZ::STYLE_CSS_GZ_LEN);
- _server.send(200, "text/css", "");
+ _server->sendHeader("Cache-Control", "public, max-age=604800");
+ _server->sendHeader("Content-Encoding", "gzip");
+ _server->setContentLength(WebUI_GZ::STYLE_CSS_GZ_LEN);
+ _server->send(200, "text/css", "");
  safeSend_GZ(WebUI_GZ::STYLE_CSS_GZ, WebUI_GZ::STYLE_CSS_GZ_LEN);
 }
 
@@ -92,10 +92,10 @@ void WebManager::handleStyleCss( ) {
  * LEN 0 means the tree had no asset at build time: answer 204, which browsers
  * treat as "no icon" without drawing an error. */
 void WebManager::handleFavicon( ) {
- if (Favicon::LEN == 0) { _server.send(204, "image/x-icon", ""); return; }
- _server.sendHeader("Cache-Control", "public, max-age=604800");
- _server.setContentLength(Favicon::LEN);
- _server.send(200, "image/x-icon", "");
+ if (Favicon::LEN == 0) { _server->send(204, "image/x-icon", ""); return; }
+ _server->sendHeader("Cache-Control", "public, max-age=604800");
+ _server->setContentLength(Favicon::LEN);
+ _server->send(200, "image/x-icon", "");
  safeSend_GZ(Favicon::DATA, Favicon::LEN);
 }
 

@@ -1157,6 +1157,7 @@ static const char* translateCodeEn(uint16_t code) {
   * fell through to the default and rendered as "?" on every channel and
   * in every language — not just in the browser table. */
  case WEB_CLIENT_DISCONNECT: return "Client disconnected (broken pipe)";
+ case WEB_CERT_INVALID: return "Web cert invalid (HTTP fallback)";
 
  /* ── Config (580–581) ── */
  case CFG_THEME_APPLIED: return "Theme applied";
