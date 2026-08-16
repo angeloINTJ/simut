@@ -41,10 +41,20 @@ extern unsigned long __lwip_rand(void);
  * um servidor que responde 1 MB, o pool ia a 12/12 e o servidor web ficava
  * mudo, sem recuperar. Parte disso era um vazamento de _rx_buf no
  * ClientContext (corrigido em patches/clientcontext_rx_leak.patch, que sozinho
- * levou o aparelho de ~16 para ~144 conexões antes de saturar), mas resta uma
- * segunda fonte não localizada, e com 12 entradas a margem para ela é nenhuma.
+ * levou o aparelho de ~16 para ~144 conexões antes de saturar).
+ *
+ * RETRATAÇÃO (2026-08-10, D14): este comentário dizia "resta uma segunda fonte
+ * não localizada". NÃO resta — não há vazamento nenhum. Ninguém achava a
+ * segunda fonte porque não sobrara uma primeira. O que se media era o PICO do
+ * pool (marca d'água, que por definição nunca desce) e a contagem de falhas; o
+ * número que separa vazamento de pressão é o "em uso depois que a carga para",
+ * e ele volta ao basal em todos os níveis de concorrência — inclusive no que
+ * esgotou o pool e falhou 79 alocações. A causa era aritmética, e está no
+ * TCP_WND logo abaixo.
  *
  * Custo: ~18 KB de BSS. Com o firmware em ~30% de RAM, cabe.
+ * Aumentar o pool seria a saída errada: 24 entradas já são 35,5 KB de BSS e
+ * dobrar custa mais que o heap livre inteiro.
  * UDP/BT seguem em default (reduzir UDP_PCB quebra mDNS; mexer em BT quebra o
  * RSSI via chip cyw43 compartilhado). */
 #define PBUF_POOL_SIZE                (__LWIP_MEMMULT > 1 ? 32 : 24)
