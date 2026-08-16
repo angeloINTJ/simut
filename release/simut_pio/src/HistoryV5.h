@@ -47,6 +47,13 @@
 
 #define H5_FLAG_RAW             0x01                /* DATA payload is RAW   */
 #define H5_FLAG_PARTIAL         0x02                /* block sealed early    */
+/* The clock that stamped this block was synchronised, not the provisional one.
+ * Only the .wip writer sets it, and only the boot seed reads it: at boot the
+ * one thing that cannot be recovered about a t0 is where it came from, and
+ * that is exactly what decides whether it may be trusted. See
+ * h5SeedFromSnapshot. Blocks adopted from a .wip carry it into the day file,
+ * where it stays true and costs nothing; readers ignore unknown flag bits. */
+#define H5_FLAG_CLOCK_SYNCED    0x04
 
 #define H5_MAX_CHANNELS         16                  /* compile-time ceiling  */
 #define H5_BLOCK_MAX_RECORDS    60                  /* 1 rec/min -> 1 h      */
@@ -517,16 +524,41 @@ private:
  * it seeds the clock, and exactly why a bad one is dangerous: the seed decides
  * what every record written before NTP arrives is stamped with.
  *
- * Three gates, in order:
+ * Gates, in order:
  *   1. magic and version, so a foreign or truncated file is not read as one;
- *   2. h5SeedPlausible on t0, bounding how far past its own day a snapshot
- *      may reach (see h5SeedCeiling);
+ *   2. the day window — but ONLY for a snapshot whose clock was provisional;
+ *      see below;
  *   3. the CRC, via the decoder — nothing here trusts a field the integrity
- *      check has not covered. t0 sits inside the CRC's first span, so a
- *      forged one fails this gate rather than reaching the clock.
+ *      check has not covered. t0 and the flags sit inside the CRC's first
+ *      span, so neither a forged stamp nor a forged provenance bit reaches
+ *      the clock.
  *
  * Records are then walked to the newest plausible one, which tightens the seed
  * from "start of the open block" to "last measurement taken".
+ *
+ * WHY THE DAY WINDOW IS CONDITIONAL. The window is derived from the newest
+ * SEALED file's name, and the .wip is by definition newer than everything
+ * sealed — so the two only line up when the current day has already sealed a
+ * block. When it has not, the window is yesterday's (or older, if the device
+ * was off for a while) and a perfectly good snapshot is refused:
+ *
+ *   · device off overnight, powered at 03:00, restarted before its first 60
+ *     records seal. The .wip reads 03:00, the newest file is yesterday, and
+ *     dayEnd+span stops at 01:00. Refused.
+ *   · a block that crossed midnight starts in YESTERDAY. Once today's file
+ *     exists the window starts at today's midnight and the straddle fails the
+ *     floor instead.
+ *
+ * Both are indistinguishable, from t0 alone, from the 2026-08-14 snapshot that
+ * really was stamped into the future — because what separates them is not the
+ * value of t0 but WHERE IT CAME FROM, and that is knowable only while the
+ * snapshot is being written. So it is recorded there: the writer sets
+ * H5_FLAG_CLOCK_SYNCED when the clock stamping the block was synchronised
+ * rather than provisional. A snapshot carrying it needs no day window — its t0
+ * came from real time and may be believed. One without it is exactly the case
+ * the window exists for: written under a provisional clock, possibly seeded
+ * from an already-poisoned value, and still bounded to one block span past its
+ * own day.
  *
  * @return 0 when the snapshot fails any gate; the caller keeps whatever the
  *         sealed day file gave it.
@@ -539,18 +571,31 @@ static inline uint32_t h5SeedFromSnapshot(const uint8_t* chunk, size_t len,
     if (!chunk || len < sizeof(H5DataHeader) || !schema || nCh == 0) return 0;
     const H5DataHeader* h = (const H5DataHeader*)chunk;
     if (h->pre.magic != H5_MAGIC || h->pre.version != H5_VERSION) return 0;
-    if (!h5SeedPlausible(h->t0, dayStart, dayEnd, nominalS)) return 0;
+
+    const bool synced = (h->pre.flags & H5_FLAG_CLOCK_SYNCED) != 0;
+    /* A synced stamp still has to be a stamp: setProvisionalTime refuses
+     * anything below this anyway, and checking here keeps a zeroed header
+     * from being read as authority. */
+    if (synced ? (h->t0 <= 1600000000u)
+               : !h5SeedPlausible(h->t0, dayStart, dayEnd, nominalS)) return 0;
 
     HistoryV5Decoder dec;
     if (!dec.begin(chunk, len, schema, nCh, nominalS)) return 0;
 
+    /* No geometry bound on the walk. "60 records at the nominal interval" is
+     * not an invariant a block obeys: records are added when they are taken,
+     * and a block that lived through a sensor outage or a gated stretch spans
+     * far more wall time than its count suggests. Bounding by it would drop
+     * good records. The payload is inside the CRC, so a forged one has already
+     * failed dec.begin( ) above — the bound would have been redundant even
+     * where it was right. */
     uint32_t seed = h->t0;
     uint32_t epoch = 0;
     int16_t vals[H5_MAX_CHANNELS];
     while (dec.next(epoch, vals)) {
-        if (epoch > seed && h5SeedPlausible(epoch, dayStart, dayEnd, nominalS)) {
-            seed = epoch;
-        }
+        if (epoch <= seed) continue;
+        if (!synced && !h5SeedPlausible(epoch, dayStart, dayEnd, nominalS)) continue;
+        seed = epoch;
     }
     return seed;
 }

@@ -4,6 +4,48 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.4-beta (2026-08-16)
+
+### The snapshot says which clock stamped it
+
+The seed ceiling bounded a `.wip` to one block span past the day it belonged
+to, and that day came from the newest **sealed** file's name. But a `.wip` is
+by definition newer than everything sealed, so the two only agree once the
+current day has sealed a block. Until then the window is yesterday's — or
+older, if the device was off for a while — and a perfectly good snapshot was
+refused:
+
+- powered at 03:00 after a night off, restarted before its first 60 records
+  seal: the `.wip` reads 03:00 and the window stops at 01:00;
+- the block that crossed midnight starts in yesterday, so once today's file
+  exists it fails the window's floor instead.
+
+Neither is distinguishable, from `t0` alone, from the 2026-08-14 snapshot that
+really was stamped into the future — what separates them is not the value of
+`t0` but where it came from, and that is knowable only while the snapshot is
+being written. So it is recorded there. `H5_FLAG_CLOCK_SYNCED` (bit 2 of the
+chunk flags, previously unused) marks a block whose timestamps came from real
+time rather than the provisional clock. The seed skips the day window for a
+snapshot carrying it, and applies the old gate — unchanged — to one without.
+
+The bit is inside the CRC's first span, so it cannot be forged onto a block
+without invalidating it. Storage learns the answer through a callback instead
+of reaching for the network, and an unset callback reads as "provisional", so
+a build that forgets to wire it gets the strict gate rather than a free pass.
+Readers ignore flag bits they do not know, so `H5_VERSION` is unchanged.
+
+One bound went the other way and was removed: the record walk briefly rejected
+anything past `t0 + 60 × interval`. Blocks close by **count**, not by clock, so
+one that lived through a sensor outage spans far more wall time than its count
+suggests — the bound would have dropped good records, and the payload is
+already inside the CRC.
+
+Measured on the bench with the day file removed so the window is stale, a hard
+reset, and a `.wip` stamped 7 h 47 min past the old ceiling: with the bit the
+seed is accepted and NTP corrects −40 s at INFO; with the bit cleared and the
+CRC re-sealed, the seed is refused and NTP corrects 31757 s at WARN. Same
+stamp, same payload, same window — only the provenance differs.
+
 ## v2.2.3-beta (2026-08-16)
 
 ### The boot knows what a day is before it asks

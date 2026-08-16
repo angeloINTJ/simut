@@ -296,6 +296,14 @@ void AppManager::setup( ) {
  app.pauseDisplayForFlash(lock);
  });
 
+ /* Lets the .wip writer stamp each snapshot with the provenance of the clock
+	 * that produced its timestamps. Storage cannot ask the network directly and
+	 * should not learn how; the boot seed reads the answer back out of the
+	 * snapshot's flags. See H5_FLAG_CLOCK_SYNCED. */
+ _storageMgr->setClockTrustedCallback([]( ) -> bool {
+ return app._netMgr->isTimeTrusted( );
+ });
+
  /* Wire cooperative quiet mode for saveConfiguration.
 	 * Core 0 signals, Core 1 freezes in a RAM-only loop, Core 0 does
 	 * flash operations without cascading lockout IRQ stuck. Returns

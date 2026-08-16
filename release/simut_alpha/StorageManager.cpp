@@ -2194,6 +2194,15 @@ bool StorageManager::sealHourV5(bool partial) {
 	return ok;
 }
 
+uint8_t StorageManager::h5ClockFlag( ) const {
+	/* Records which clock stamped the open block. At the next boot the
+	 * snapshot's t0 is the newest time that exists, but whether it can be
+	 * believed depends on where it came from — and this is the last moment
+	 * that knows. No callback reads as "provisional", so a build that forgets
+	 * to wire it gets the strict seed gate rather than a free pass. */
+	return (_clockTrustedCb && _clockTrustedCb( )) ? H5_FLAG_CLOCK_SYNCED : 0u;
+}
+
 bool StorageManager::flushWipV5( ) {
 	if (!_isMounted || !_h5Valid) return true;
 	/* Nothing open to snapshot: the block was just sealed, and sealHourV5
@@ -2208,11 +2217,13 @@ bool StorageManager::flushWipV5( ) {
 	/* Written whole every time, never appended: the snapshot has to be
 	 * either the current block or nothing. A half-updated .wip that still
 	 * passed CRC would replay a block that never existed. */
+	const uint8_t clockFlag = h5ClockFlag( );
 	size_t written = 0;
 	FLASH_OP({
 		File f = LittleFS.open(FILE_H5_WIP, "w");
 		if (f) {
-			written = _h5Enc.sealStream(h5FileSink, &f, H5_FLAG_PARTIAL);
+			written = _h5Enc.sealStream(h5FileSink, &f,
+			                            (uint8_t)(H5_FLAG_PARTIAL | clockFlag));
 			f.close( );
 		}
 	});
@@ -2235,7 +2246,10 @@ size_t StorageManager::h5StreamOpenBlock(H5WriteFn sink, void* ctx) {
 	                                     _h5Schema, _h5NCh, _h5SchemaSeq);
 	if (sn == 0 || !sink(ctx, schemaBuf, sn)) return 0;
 
-	const size_t dn = _h5Enc.sealStream(sink, ctx, H5_FLAG_PARTIAL);
+	/* Same block, same provenance as the .wip on flash — the two renderings of
+	 * one open block must not disagree about where their timestamps came from. */
+	const size_t dn = _h5Enc.sealStream(sink, ctx,
+	                                    (uint8_t)(H5_FLAG_PARTIAL | h5ClockFlag( )));
 	return dn ? sn + dn : 0;
 }
 

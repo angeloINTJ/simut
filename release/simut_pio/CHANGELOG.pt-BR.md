@@ -4,6 +4,49 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.4-beta (2026-08-16)
+
+### O snapshot diz qual relógio o carimbou
+
+O teto da semente limitava o `.wip` a um vão de bloco além do dia a que ele
+pertencia, e esse dia vinha do nome do arquivo mais novo **selado**. Só que um
+`.wip` é, por definição, mais novo que tudo o que está selado — os dois só
+coincidem depois que o dia corrente selou algum bloco. Antes disso a janela é a
+de ontem (ou mais velha, se o equipamento ficou desligado) e um snapshot
+perfeitamente bom era recusado:
+
+- ligado às 03:00 depois de uma noite desligado e reiniciado antes de selar os
+  primeiros 60 registros: o `.wip` marca 03:00 e a janela para em 01:00;
+- o bloco que atravessou a meia-noite começa em ontem, então, assim que o
+  arquivo de hoje existe, ele falha no piso da janela.
+
+Nenhum dos dois é distinguível, só pelo valor do `t0`, do snapshot de
+14/08/2026 que de fato estava carimbado no futuro — o que os separa não é o
+valor do `t0` e sim a sua procedência, que só é conhecida enquanto o snapshot
+está sendo escrito. Então passa a ser registrada ali. O
+`H5_FLAG_CLOCK_SYNCED` (bit 2 das flags do chunk, até agora livre) marca o
+bloco cujos carimbos vieram do tempo real, e não do relógio provisório. A
+semeadura dispensa a janela do dia para um snapshot que o carregue, e aplica o
+gate antigo, inalterado, para um que não carregue.
+
+O bit está dentro da primeira faixa coberta pelo CRC, então não dá para forjá-lo
+num bloco sem invalidá-lo. O armazenamento descobre a resposta por callback, em
+vez de alcançar a rede, e um callback não instalado lê como "provisório" — uma
+build que esqueça de ligá-lo recebe o gate estrito, não passe livre. Leitores
+ignoram bits de flags que não conhecem, então o `H5_VERSION` não muda.
+
+Um limite foi na direção oposta e saiu: a varredura de registros passou
+brevemente a recusar qualquer coisa além de `t0 + 60 × intervalo`. Blocos fecham
+por **contagem**, não por relógio, e um que atravessou uma queda de sensor cobre
+muito mais tempo do que a contagem sugere — o limite descartaria dado bom, e o
+payload já está dentro do CRC.
+
+Medido na bancada com o arquivo do dia removido (para a janela ficar velha),
+reset duro e um `.wip` carimbado 7 h 47 min além do teto antigo: com o bit, a
+semente é aceita e o NTP corrige −40 s em INFO; com o bit limpo e o CRC
+refeito, a semente é recusada e o NTP corrige 31757 s em WARN. Mesmo carimbo,
+mesmo payload, mesma janela — só a procedência muda.
+
 ## v2.2.3-beta (2026-08-16)
 
 ### O boot sabe o que é um dia antes de perguntar
