@@ -568,6 +568,18 @@ public:
  /** Day file the open block belongs to; a change of day forces a seal. */
  String           _h5CurrentDay = "";
  uint16_t         _h5PurgedLegacy = 0;
+ /**
+  * t0 of the block recoverWipV5( ) adopted on this boot, 0 if none.
+  *
+  * That block is the only data from an EARLIER session that reaches a day
+  * file during this boot, and its timestamps came from that session's clock —
+  * they are already right. The NTP shift bounds itself with the provisional
+  * base, which is sound only while the seed that produced it is; when the
+  * seed came out low the bound sank below the adopted block and the
+  * correction rewrote it. Naming the block outright does not depend on the
+  * clock being trustworthy.
+  */
+ uint32_t         _h5AdoptedT0 = 0;
 
  /** Snapshot now unless a gate is holding the flash; leaves the flag set. */
  void flushWipUnlessBlocked( );

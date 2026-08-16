@@ -514,9 +514,22 @@ void AppManager::setup( ) {
  }
  }
 
- 
+ /* The zone has to be in force BEFORE the seed runs. getLastRecordedTimestamp( )
+	 * turns a file name into a day window with mktime( ), and judges local
+	 * timestamps against it; until now the only applyTimezone( ) on the boot path
+	 * was inside _netMgr->begin( ), ~130 lines below, so the window was built with
+	 * the libc default of UTC while the data it bounded was -03. The window landed
+	 * three hours early: on 2026-08-16 every block after 21:00 fell outside its own
+	 * day and was discarded (four STO_SCHEMA_MISMATCH/h5_t0_off_day, context pegged
+	 * at 32767), the .wip that had crossed midnight failed h5SeedPlausible, and the
+	 * clock started the boot 4 h 20 min behind. NTP then corrected +15546 s and the
+	 * shift carried the just-adopted midnight block into the future with it — 46
+	 * measurements filed as 04:19-05:04, a hole from 00:00 to 00:46 on the graph.
+	 * A tzset( ) here is the whole fix; _netMgr->begin( ) still applies it, harmlessly. */
+ NetworkManager::applyTimezone(_storageMgr->getConfig( ).timezoneOffset);
+
  uint32_t lastTs = _storageMgr->getLastRecordedTimestamp( );
- 
+
  _netMgr->setProvisionalTime(lastTs);
  _netMgr->setTimeSyncCallback([](uint32_t bootTs, int32_t delta) {
 

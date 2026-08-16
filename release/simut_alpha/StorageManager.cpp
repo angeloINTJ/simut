@@ -1280,19 +1280,7 @@ uint32_t StorageManager::getLastRecordedTimestamp( ) {
 	 * so one block stamped into the future starts the device ahead of real
 	 * time, and every record written before the sync inherits the error. */
 	uint32_t dayStart = 0, dayEnd = 0;
-	if (newestFile.length( ) >= 8) {
-		struct tm ftm;
-		memset(&ftm, 0, sizeof(ftm));
-		ftm.tm_year = newestFile.substring(0, 4).toInt( ) - 1900;
-		ftm.tm_mon  = newestFile.substring(4, 6).toInt( ) - 1;
-		ftm.tm_mday = newestFile.substring(6, 8).toInt( );
-		ftm.tm_isdst = -1;
-		const time_t midnight = mktime(&ftm);
-		if (midnight > 0) {
-			dayStart = (uint32_t)midnight;
-			dayEnd   = dayStart + 86400u;
-		}
-	}
+	h5DayWindowFromName(newestFile.c_str( ), newestFile.length( ), dayStart, dayEnd);
 
 	uint32_t lastTs = 0;
 	{
@@ -2320,7 +2308,12 @@ void StorageManager::recoverWipV5( ) {
 	LOG_CODE(adopted ? LOG_INFO : LOG_WARN, "STO", STO_H5_WIP,
 	         adopted ? (int)((const H5DataHeader*)_h5Chunk)->pre.a : -1,
 	         adopted ? "wip_adopted" : "wip_discarded");
-	if (adopted) _storageDirty = true;
+	if (adopted) {
+		_storageDirty = true;
+		/* Remember it so the NTP shift leaves it alone: its records were
+		 * stamped by the previous session's clock and are already correct. */
+		_h5AdoptedT0 = ((const H5DataHeader*)_h5Chunk)->t0;
+	}
 }
 
 void StorageManager::onSensorSetChangedV5( ) {
@@ -2401,7 +2394,12 @@ int32_t StorageManager::shiftHistoryTimeV5(int32_t deltaS, const String& path,
 				    && in.read(_h5Chunk + hdrLen, h->payloadLen) != (int)h->payloadLen) {
 					ok = false; break;
 				}
-				if (h->t0 >= fromEpoch) {
+				/* fromEpoch is the provisional base, which is only as good as
+				 * the seed behind it; _h5AdoptedT0 names the block this boot
+				 * inherited from the previous session outright, so a seed that
+				 * came out low cannot drag it. See recoverWipV5( ). */
+				const bool inherited = (_h5AdoptedT0 && h->t0 == _h5AdoptedT0);
+				if (h->t0 >= fromEpoch && !inherited) {
 					h->t0 = (uint32_t)((int32_t)h->t0 + deltaS);
 					h->crc16 = 0;
 					uint16_t crc = h5Crc16(_h5Chunk, 14);
