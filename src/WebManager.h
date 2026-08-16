@@ -284,6 +284,21 @@ private:
 
 	void handleSaveSystem( ); /**< Minimal save — used by dashboard theme switch. */
 	void handleApiCommitAll( ); /**< save-all + reboot */
+	/** Per-section authorization for /api/commit_all — the route multiplexes
+	 *  six sections under three different permission bits, so one gate on the
+	 *  route cannot express who may change what. Locates each section and
+	 *  refuses the whole commit before the first write to cfg.
+	 *  @param outStart receives one offset per section (-1 = absent); the
+	 *         parsers read it instead of searching again, so gate and parser
+	 *         cannot disagree about what the payload contains.
+	 *  @return false when it has already answered (403/400). */
+	bool authorizeCommitSections(const String& body, uint16_t perms, int* outStart);
+	/** Sets a random one-time temporary password on a user slot (add/reset in
+	 *  commit_all), stored as a normal V1 hash, and appends {"u":..,"p":..} to
+	 *  @p outCreds so the commit response shows it ONCE to the admin. Replaces
+	 *  the derivable Nome@DDMMYYYY scheme, whose secret was public by
+	 *  construction. Mirrors the CLI's admin-reset — the blessed serial path. */
+	void assignTempPassword(int slot, String& outCreds);
 	/* handleSaveNetwork replaced by handleApiCommitAll */
 	void handleResetTouchCal( );
 	void handleApiHistoryRebind( ); /**< POST — rebind today's .sim4 to the saved slots */
@@ -337,7 +352,8 @@ private:
 	void safeStreamFile(File& f, const String& contentType);
 	void handleApiScreenshot( );
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */
-	String getDynamicExpectedHash(String username);
+	/* getDynamicExpectedHash removed with the *PENDING* scheme — see
+	 * assignTempPassword and the note in verifyPasswordFor. */
 	String jsonEscape(const char* src);
 	void handleApiHistoryDays( );
 	void handleApiSecStatus( );

@@ -319,16 +319,17 @@ int WebManager::verifyPasswordFor(const String& u, const String& p) {
 		bool passValid = false;
 		bool needsMigration = false;
 
-		/* *PENDING*: time-based temporary password (first login after creation/reset).
-		 * Both sides compute fresh with the same algorithm — no migration needed. */
-		if (cfg.users[i].mustChangePassword && storedHash == "*PENDING*") {
-			String expectedFrontendHash = getDynamicExpectedHash(u);
-			String expectedFinalHash = _storageRef->hashPassword(u, expectedFrontendHash);
-			String inputHash = _storageRef->hashPassword(u, p);
-			if (secureCompare(inputHash, expectedFinalHash)) passValid = true;
-		}
+		/* The "*PENDING*" temporary-password branch is gone. It accepted
+		 * sha256(Capitalized(username)@DDMMYYYY) as the first password after an
+		 * add/reset — a value derivable by anyone who knew the username (which
+		 * /api/users lists) and the date. Accounts are now created with a
+		 * random one-time password (assignTempPassword, WebManager_Commit.cpp),
+		 * stored as an ordinary V1 hash, so they verify on the V1 path below
+		 * like any other account. A stale "*PENDING*" literal left on a device
+		 * from an older build simply never matches here — that account must be
+		 * reset by an admin, which is the intended outcome, not a lockout bug. */
 		/* Legacy: hashVersion==0, 30 chars (120 bits), username-salt, 2500 rounds. */
-		else if (cfg.users[i].hashVersion == 0 && storedHash.length( ) == 30) {
+		if (cfg.users[i].hashVersion == 0 && storedHash.length( ) == 30) {
 			String legacyHash = _storageRef->hashPasswordLegacy(u, p);
 			if (secureCompare(storedHash, legacyHash)) {
 				passValid = true;

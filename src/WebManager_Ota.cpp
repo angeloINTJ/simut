@@ -45,10 +45,15 @@ struct OtaBackupPrintAdapter : public Print {
 };
 
 void WebManager::handleApiBackup( ) {
- /* Permission: backup has the same risk level as reading all
- * LittleFS files, so it matches PERM_FILE_READ. */
+ /* PERM_FULL_ADMIN, matching /api/restore — the two are a pair. The backup is
+  * a whole-filesystem dump, /config/system.bin included, and that file carries
+  * every secret plus the password hashes. Gating it at PERM_FILE_READ (as it
+  * once was) let an account meant only to read history and calibration pull
+  * the entire credential store in one request — the bulk sibling of the
+  * /download leak fixed alongside this (finding A-4). Reading all files IS an
+  * admin operation once "all files" includes the secrets. */
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_FILE_READ)) {
+ if (perms != PERM_FULL_ADMIN) {
  _server.send(403, "text/plain", "Forbidden");
  return;
  }

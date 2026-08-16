@@ -14,36 +14,11 @@
 
 using ReadGuard = StorageManager::ReadGuard;
 
-String WebManager::getDynamicExpectedHash(String username) {
- String capUser = username;
- if (capUser.length( ) > 0) {
- capUser.toLowerCase( );
- capUser[0] = toupper(capUser[0]);
- }
-
- time_t now = _netRef->getEpoch( );
- struct tm timeinfo;
- localtime_r(&now, &timeinfo);
-
- char dateBuf[16];
- snprintf(dateBuf, sizeof(dateBuf), "%02d%02d%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
-
-
- String rawPass = capUser + "@" + String(dateBuf);
-
- br_sha256_context ctx;
- br_sha256_init(&ctx);
- br_sha256_update(&ctx, rawPass.c_str( ), rawPass.length( ));
- unsigned char hash[32];
- br_sha256_out(&ctx, hash);
-
- char hex[65];
- for (int i = 0; i < 32; i++) {
- snprintf(hex + i * 2, 3, "%02x", hash[i]);
- }
-
- return String(hex);
-}
+/* getDynamicExpectedHash was removed with the "*PENDING*" login branch: it
+ * derived the first-login password as sha256(Capitalized(username)@DDMMYYYY),
+ * which anyone knowing the username and the date could reproduce. New accounts
+ * get a random one-time password instead (assignTempPassword,
+ * WebManager_Commit.cpp). See the note in verifyPasswordFor. */
 
 String WebManager::generateSecureToken( ) {
 

@@ -47,10 +47,23 @@ void WebManager::handleDownload( ) {
  if (!(perms & PERM_FILE_READ)) { _server.send(403, "text/plain", "Forbidden"); return; }
  if (!_server.hasArg("file")) { _server.send(400, "text/plain", "Bad Request"); return; }
 
+ String path = _server.arg("file");
+
+ /* PERM_FILE_READ downloads history, calib, themes and language packs — never
+  * the credential store. Refuse /config/* (system.bin holds the secrets and
+  * the password hashes) and reject traversal / percent-encoding, the same
+  * guard handleApiLs and the upload path already apply. Without the '..'
+  * check, "/history/../config/system.bin" would walk straight past the
+  * prefix test. Checked before the heavy-task lock so a probe is cheap to
+  * turn away. See isSecretFsPath (StorageManager.h) and finding A-4. */
+ if (path.indexOf("..") >= 0 || path.indexOf('%') >= 0 || isSecretFsPath(path)) {
+  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, String("download refused: ") + path);
+  _server.send(403, "text/plain", "Forbidden");
+  return;
+ }
+
  HeavyTaskGuard htg(_storageRef);
  if (!htg.isLocked( )) { _server.send(503, "text/plain", "System Busy"); return; }
-
- String path = _server.arg("file");
 
 
  File f;
@@ -282,7 +295,16 @@ void WebManager::handleApiMkdir( ) {
 
  String dirPath = _server.arg("dir");
  dirPath.trim( );
- dirPath.replace("..", "");
+ /* Allowlist validation at the source (M-7): a folder name is echoed into the
+  * /files listing, so a name like "<img src=x onerror=...>" would be stored
+  * XSS. isSafeDirPath refuses the HTML/JS-hostile bytes and ".." outright —
+  * the old `replace("..","")` here was the non-recursive kind the upload path
+  * documents as broken ("...." → ".."). */
+ if (!isSafeDirPath(dirPath.c_str( ))) {
+ LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, String("mkdir rejected: ") + dirPath);
+ _server.send(400, "text/plain", "Invalid path");
+ return;
+ }
  if (!dirPath.startsWith("/")) dirPath = "/" + dirPath;
 
  int slashCount = 0;

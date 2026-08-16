@@ -4540,7 +4540,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 </div>
                 <button type="submit" id="btnUser" data-i18n="usr_btn">Create User</button>
                 <p style="font-size:0.8rem; color:var(--sub); margin-top:15px; text-align:center;" data-i18n="usr_warn">
-                    * The user will be created in PENDING state. They log in using: <b>Name@DDMMYYYY</b>.
+                    * A one-time password is shown after Save &amp; Restart. Copy it — it is displayed only once, and the user must change it on first login.
                 </p>
             </form>
         </div>
@@ -4586,11 +4586,13 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             : `<button class="btn-action" onclick="rstUsr(${u.id})" data-i18n="usr_rst">${window.t('usr_rst','Reset')}</button>`;
                         actions = `${rstBtn} <button class="btn-dang" onclick="delUsr(${u.id})" data-i18n="usr_del">${window.t('usr_del','Del')}</button>`;
                     }
-                    html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--txt)">${u.name}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
+                    html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--txt)">${escHtml(u.name)}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
                 });
-                /* Usuários pendentes de criação */
+                /* Usuários pendentes de criação. a.name é digitado pelo próprio
+                   admin, mas ainda vai para innerHTML — escapa por profundidade
+                   (M-7); o servidor já restringe o charset do username. */
                 pendingAdds.forEach((a, i) => {
-                    html += `<tr class="pending-add"><td>—</td><td style="font-weight:bold;color:var(--txt)">${a.name} <span class="badge pending">${window.t('usr_pend_add','Pending: New')}</span></td><td>${renderPermsBadges(a.perms, false)}</td><td style="text-align:center; white-space:nowrap;"><button class="btn-dang" onclick="undoLastAdd()">↶</button></td></tr>`;
+                    html += `<tr class="pending-add"><td>—</td><td style="font-weight:bold;color:var(--txt)">${escHtml(a.name)} <span class="badge pending">${window.t('usr_pend_add','Pending: New')}</span></td><td>${renderPermsBadges(a.perms, false)}</td><td style="text-align:center; white-space:nowrap;"><button class="btn-dang" onclick="undoLastAdd()">↶</button></td></tr>`;
                 });
                 tbody.innerHTML = html;
                 applyLang();
@@ -4762,7 +4764,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <h2 class="page-title" data-i18n="fil_title">Flash Filesystem</h2>
                 <div class="fm-actions">
                     <button class="btn-fm btn-fm-out" onclick="fmDownload()">&#x2B07;&#xFE0F; <span data-i18n="fil_down">Download</span></button>
-                    <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp">&#x1F4BE; <span data-i18n="fil_backup">Backup</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp" id="btnBackup" style="display:none">&#x1F4BE; <span data-i18n="fil_backup">Backup</span></button>
                     <button class="btn-fm btn-fm-out" onclick="fmRestore()" title="Upload a .bkp to restore" id="btnRestore" style="display:none">&#x267B;&#xFE0F; <span data-i18n="fil_restore">Restore</span></button>
                     <input type="file" id="restoreFile" accept=".bkp" style="display:none" onchange="doRestore()">
                     <button class="btn-fm btn-fm-out" onclick="fmFirmware()" title="Send new firmware (.bin) — OTA update" id="btnFw" style="display:none">&#x1F4BB; <span data-i18n="fil_fw">Firmware</span></button>
@@ -4798,18 +4800,33 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function fetchPerms() {
             try { let r = await fetchSafe('/api/perms'); let d = await r.json(); permsVal = d.perms; } catch(e) { }
             if (permsVal & 128) document.getElementById('btnDel').style.display = '';
-            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; document.getElementById('btnRestore').style.display = ''; }
-            /* v4.2.2: Firmware OTA é admin-only (perms == 0xFFFF) — destrutivo irreversível. */
-            if (permsVal === 65535) { document.getElementById('btnFw').style.display = ''; }
+            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; }
+            /* Backup, Restore and Firmware are admin-only (perms == 0xFFFF).
+             * Backup dumps the whole filesystem including /config/system.bin
+             * (secrets + password hashes) and the server now gates it at full
+             * admin (finding A-4); Restore always did server-side but the button
+             * used to appear for uploaders, so a non-admin saw it and hit a 403.
+             * All three destructive/sensitive whole-FS ops now match their gate. */
+            if (permsVal === 65535) {
+                document.getElementById('btnBackup').style.display = '';
+                document.getElementById('btnRestore').style.display = '';
+                document.getElementById('btnFw').style.display = '';
+            }
         }
 
         function fmFormatSize(bytes) { if (bytes === 0) return '—'; if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / 1048576).toFixed(2) + ' MB'; }
 
         function fmBuildBreadcrumb(path) {
-            let bc = document.getElementById('breadcrumb'); let parts = path.split('/').filter(p => p.length > 0); let html = '<a onclick="fmNavigate(\'/\')">&#x1F4BE;</a>'; let accum = '';
+            /* Segments come from server folder names, so both the link target
+               (data-nav, read via getAttribute — never executed) and the label
+               (escHtml) are escaped. Was inline onclick with the raw segment
+               interpolated into a JS string — a quote in a folder name broke
+               out (M-7). The href/data-nav navigation runs through the same
+               delegated [data-nav] handler as the file rows. */
+            let bc = document.getElementById('breadcrumb'); let parts = path.split('/').filter(p => p.length > 0); let html = '<a data-nav="/">&#x1F4BE;</a>'; let accum = '';
             for (let i = 0; i < parts.length; i++) {
                 accum += '/' + parts[i]; html += '<span class="sep">/</span>';
-                if (i === parts.length - 1) html += '<span class="current">' + parts[i] + '</span>'; else html += '<a onclick="fmNavigate(\'' + accum + '\')">' + parts[i] + '</a>';
+                if (i === parts.length - 1) html += '<span class="current">' + escHtml(parts[i]) + '</span>'; else html += '<a data-nav="' + escAttr(accum) + '">' + escHtml(parts[i]) + '</a>';
             }
             bc.innerHTML = html;
         }
@@ -4823,24 +4840,24 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let entries = data.entries || [];
                 entries.sort((a, b) => { if (a.t !== b.t) return a.t === 'd' ? -1 : 1; return a.n.localeCompare(b.n); });
                 let html = '';
-                if (dir !== '/') { let parent = dir.substring(0, dir.lastIndexOf('/')); if (parent === '') parent = '/'; html += `<tr class="fm-row fm-row-dir" onclick="fmNavigate('${parent}')"><td></td><td><span class="fm-icon">&#x2B06;&#xFE0F;</span><span class="fm-name-dir">..</span></td><td class="fm-size">${window.t('fil_parent','Parent')}</td></tr>`; }
+                if (dir !== '/') { let parent = dir.substring(0, dir.lastIndexOf('/')); if (parent === '') parent = '/'; html += `<tr class="fm-row fm-row-dir" data-nav="${escAttr(parent)}"><td></td><td><span class="fm-icon">&#x2B06;&#xFE0F;</span><span class="fm-name-dir">..</span></td><td class="fm-size">${window.t('fil_parent','Parent')}</td></tr>`; }
                 if (entries.length === 0 && dir === '/') { html += `<tr><td colspan="3" class="fm-empty">${window.t('fil_empty','Empty filesystem')}</td></tr>`; }
                 else {
                     for (let e of entries) {
-                        if (e.t === 'd') { let fullPath = (dir === '/' ? '/' : dir + '/') + e.n; html += `<tr class="fm-row fm-row-dir" onclick="fmNavigate('${fullPath}')"><td></td><td><span class="fm-icon">&#x1F4C1;</span><span class="fm-name-dir">${e.n}/</span></td><td class="fm-size">${window.t('fil_folder','Folder')}</td></tr>`; }
+                        if (e.t === 'd') { let fullPath = (dir === '/' ? '/' : dir + '/') + e.n; html += `<tr class="fm-row fm-row-dir" data-nav="${escAttr(fullPath)}"><td></td><td><span class="fm-icon">&#x1F4C1;</span><span class="fm-name-dir">${escHtml(e.n)}/</span></td><td class="fm-size">${window.t('fil_folder','Folder')}</td></tr>`; }
                         else {
                             let fullPath = (dir === '/' ? '/' : dir + '/') + e.n;
                             /* e.p = protected by the firmware. No checkbox at all, so it
                                cannot be selected and fmDelete never sees it. The server
                                refuses it too — this is the visible half. */
                             let cell = e.p ? `<span class="fm-icon" title="${window.t('fil_protected','Protected file')}">&#x1F512;</span>`
-                                           : `<input type="checkbox" class="f-chk item-chk" value="${fullPath}">`;
+                                           : `<input type="checkbox" class="f-chk item-chk" value="${escAttr(fullPath)}">`;
                             /* The name is a download link for EVERY file. Reading used to
                                require ticking the box and pressing Download, which left a
                                protected file — the one with no box — impossible to open at
                                all. Folders were already clickable; files now match. */
                             let href = '/download?file=' + encodeURIComponent(fullPath);
-                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon">&#x1F4C4;</span><a class="fm-name" href="${href}">${e.n}</a></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
+                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon">&#x1F4C4;</span><a class="fm-name" href="${href}">${escHtml(e.n)}</a></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
                         }
                     }
                 }
@@ -6063,6 +6080,67 @@ static const char LANG_JS[] PROGMEM = R"raw(
      * contenha valor controlável por user privilegiado. */
     window.escHtml = function(s){var d=document.createElement('div');d.textContent=(s===null||s===undefined)?'':String(s);return d.innerHTML;};
 
+    /* escHtml is safe for element TEXT (between tags) but not for attribute
+     * values: textContent to innerHTML leaves the quote bytes unescaped, so a
+     * name containing one breaks out of a double-quoted attribute. escAttr
+     * escapes the five bytes that matter inside one, for the few places a
+     * server-controlled string lands in an attribute (the file manager
+     * data-nav and checkbox value). Navigation no longer interpolates names
+     * into an inline onclick — those became data-nav plus delegation, read
+     * back with getAttribute and never parsed as JS (finding M-7).
+     *
+     * Written as a char loop with hex-escaped quote bytes (\x22 = doublequote,
+     * \x27 = quote) and no regex literal on purpose: the build minifier saves
+     * strings before stripping comments, so a raw quote here would desync its
+     * parser and drop the surrounding code. */
+    window.escAttr = function(s){s=String((s===null||s===undefined)?'':s);var o='',i,c;for(i=0;i<s.length;i++){c=s.charAt(i);o+=(c==='&')?'&amp;':(c==='<')?'&lt;':(c==='>')?'&gt;':(c==='\x22')?'&quot;':(c==='\x27')?'&#39;':c;}return o;};
+
+    /* One delegated navigation handler for the whole page: any element carrying
+     * data-nav (folder rows, the parent row, breadcrumb links) navigates to its
+     * value. The value is a plain DOM attribute string — never executed — which
+     * is why it is safe where an inline onclick with an interpolated path was
+     * not. Guarded so re-injected page fragments do not stack listeners. */
+    if (!window.__fmNavDelegated) {
+        window.__fmNavDelegated = true;
+        document.addEventListener('click', function(ev){
+            var el = ev.target.closest ? ev.target.closest('[data-nav]') : null;
+            if (el && typeof fmNavigate === 'function') { ev.preventDefault(); fmNavigate(el.getAttribute('data-nav')); }
+        });
+    }
+
+    /* One-time temporary passwords returned by commit_all (account add/reset).
+     * Shown ONCE: the device reboots seconds later and keeps only the hash, so
+     * this modal blocks the auto-reload until the admin dismisses it. The
+     * password is rendered as selectable monospace text rather than a
+     * copy-to-clipboard button on purpose — navigator.clipboard needs a secure
+     * context and the device serves plain HTTP, so a copy button would fail
+     * silently and cost the admin the credential. escHtml on both fields: the
+     * username is operator-controlled and the value goes into innerHTML. */
+    window.showCredsModal = function(creds, onClose) {
+        var rows = creds.map(function(c){
+            return '<tr><td style="padding:6px 12px 6px 0;color:var(--sub)">' + escHtml(c.u) +
+                   '</td><td style="padding:6px 0;font-family:monospace;font-weight:700;font-size:1.05rem;' +
+                   'color:var(--acc);user-select:all">' + escHtml(c.p) + '</td></tr>';
+        }).join('');
+        var ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);' +
+            'display:flex;align-items:center;justify-content:center;padding:16px';
+        ov.innerHTML =
+            '<div style="background:var(--card,#1b2330);border:1px solid var(--border,#334);' +
+            'border-radius:10px;max-width:440px;width:100%;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,.5)">' +
+            '<h3 style="margin:0 0 4px">' + escHtml(window.t ? window.t('creds_title','Temporary password') : 'Temporary password') + '</h3>' +
+            '<p style="margin:0 0 14px;color:var(--warn);font-size:.9rem">' +
+            escHtml(window.t ? window.t('creds_warn','Copy it now — it is shown only once. The user must change it on first login.') : 'Copy it now — shown only once. The user must change it on first login.') + '</p>' +
+            '<table style="margin:0 0 16px">' + rows + '</table>' +
+            '<button id="creds-ok" class="btn" style="width:100%">' +
+            escHtml(window.t ? window.t('creds_ok','I saved it — reload') : 'I saved it — reload') + '</button></div>';
+        document.body.appendChild(ov);
+        ov.querySelector('#creds-ok').addEventListener('click', function(){
+            document.body.removeChild(ov);
+            if (typeof onClose === 'function') onClose();
+        });
+    };
+
     /* v3.34.0: F-WEB-DEDUP — drawer HTML único injetado em runtime.
      * Cada página tem só <div id="drawer-host"></div> em vez do drawer
      * inteiro hardcoded (que ocupava ~2.4KB raw × 8 páginas).
@@ -6221,7 +6299,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
             if (r.ok) {
                 let j = {}; try { j = await r.json(); } catch(e) {}
                 Pending.clear();
-                if (!redirectPort(j.newPort || localNewPort)) {
+                /* One-time passwords for accounts added/reset in this commit.
+                 * The device reboots in ~3s and keeps only the hash, so hold
+                 * the reload behind the modal — an auto-reload would carry the
+                 * credential off-screen before the admin could read it. */
+                if (j.creds && j.creds.length) {
+                    showCredsModal(j.creds, () => {
+                        if (!redirectPort(j.newPort || localNewPort)) window.location.reload();
+                    });
+                } else if (!redirectPort(j.newPort || localNewPort)) {
                     showToast((window.t ? window.t('commit_saved', 'Saved! Restarting system...') : 'Saved! Restarting...'), 'ok', 20000);
                     setTimeout(() => { window.location.reload(); }, 12000);
                 }
@@ -6230,7 +6316,11 @@ static const char LANG_JS[] PROGMEM = R"raw(
                  * (e.g. "slot 4: GP2 already used by slot 2"). Showing a bare
                  * "Falha ao salvar." threw that away and left the user with a
                  * rejected commit and no idea what to change. */
-                let detail = ''; try { detail = (await r.json()).error || ''; } catch(e) {}
+                /* commit_all authorizes per section, so a 403 names the one it
+                 * refused ("Forbidden" + section:"users"). Dropping that field
+                 * left an operator staring at a bare "Forbidden" with four
+                 * staged sections and no way to tell which one it meant. */
+                let detail = ''; try { const j = await r.json(); detail = (j.error || '') + (j.section ? ' (' + j.section + ')' : ''); } catch(e) {}
                 showToast((window.t ? window.t('commit_err', 'Save failed.') : 'Save failed.') +
                           (detail ? ' — ' + detail : ''), 'err', 9000);
                 if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn', '💾 Save & Restart') : '💾 Save & Restart'); }

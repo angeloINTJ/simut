@@ -127,6 +127,37 @@ inline bool isSafeUploadFilename(const char* name) {
 }
 
 
+/**
+ * @brief Validates a directory path for /api/mkdir.
+ *
+ * Allowlist, not denylist: letters, digits, '/', '-', '_', '.' and space, with
+ * no ".." sequence. Everything else — the HTML/JS-hostile bytes '<' '>' '"'
+ * '\'' '&' '`' and the URL/LittleFS ones '%' '\\' ':' '|' '?' '*' plus control
+ * bytes — is refused. A folder name is echoed straight into the /files listing;
+ * an allowlist is the only way to be sure a name can never become a stored-XSS
+ * payload there (finding M-7). Replaces the old non-recursive
+ * `replace("..","")`, which "...." survived as "..".
+ *
+ * '/' is allowed because mkdir accepts one level of nesting; the caller bounds
+ * the depth separately. Length caps at 96 (the arg is later prefixed with '/'
+ * and used as a LittleFS path).
+ */
+inline bool isSafeDirPath(const char* path) {
+ if (!path) return false;
+ size_t len = strlen(path);
+ if (len == 0 || len > 96) return false;
+ if (strstr(path, "..") != nullptr) return false;
+ for (size_t i = 0; i < len; i++) {
+ const unsigned char c = (unsigned char)path[i];
+ const bool ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
+              || (c >= '0' && c <= '9')
+              || c == '/' || c == '-' || c == '_' || c == '.' || c == ' ';
+ if (!ok) return false;
+ }
+ return true;
+}
+
+
 /** Validate IPv4 address format (e.g., "192.168.1.100"). */
 inline bool isValidIpv4(const char* ip) {
  if (!ip || strlen(ip) < 7 || strlen(ip) > 15) return false;

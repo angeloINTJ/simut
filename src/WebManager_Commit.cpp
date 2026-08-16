@@ -9,6 +9,7 @@
 #include "WebManager.h"
 #include "ParseFloat.h"
 #include "WebJsonSlice.h"
+#include "WebCommitSections.h"
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "Themes.h"
@@ -144,6 +145,73 @@ void WebManager::handleSaveSystem( ) {
 }
 
 
+/* Sets a random one-time temporary password on a user slot and records it in
+ * outCreds for the commit response. Replaces the *PENDING* / Nome@DDMMYYYY
+ * scheme (getDynamicExpectedHash), whose "temporary password" was
+ * sha256(Capitalized@DDMMYYYY) — derivable by anyone who knew the username and
+ * the date, and /api/users lists the usernames. docs/..._vibecoding.md §1/§5.
+ *
+ * This is the CLI's admin-reset (AppManager_CmdHandlers.cpp) applied to the web
+ * path: 8 chars from a no-ambiguous-glyph alphabet (~40 bits), stored as a
+ * normal V1 hash with a random salt, mustChangePassword forcing a change on
+ * first login. The plaintext exists only long enough to reach the admin who
+ * created the account — over the network here rather than on the serial line,
+ * so it rides back in the commit response and nowhere else. */
+void WebManager::assignTempPassword(int slot, String& outCreds) {
+	SystemConfig& cfg = _storageRef->getConfig( );
+
+	char temp[9];
+	_storageRef->generateInitialAdminPassword(temp, sizeof(temp));   /* 8 chars, [A-HJ-NP-Z2-9] */
+	_storageRef->generateSalt(cfg.users[slot].salt);
+	/* Store the hash of sha256(temp): the browser sends sha256(typed) as the
+	 * password field, so the stored value must be hashPasswordV1 over that, the
+	 * same shape verifyPasswordFor recomputes on the ordinary V1 path. No
+	 * special login branch is needed — the temp logs in like any password and
+	 * mustChangePassword sends it straight to /force_chpass. */
+	String preHash = _storageRef->sha256Hex(String(temp));
+	String hashed = _storageRef->hashPasswordV1(String(cfg.users[slot].username),
+	                                            preHash, cfg.users[slot].salt);
+	safeCopy(cfg.users[slot].password, hashed.c_str( ), sizeof(cfg.users[slot].password));
+	cfg.users[slot].hashVersion = 1;
+	cfg.users[slot].mustChangePassword = true;
+
+	if (outCreds.length( )) outCreds += ",";
+	outCreds += "{\"u\":\"";
+	outCreds += jsonEscape(cfg.users[slot].username);
+	outCreds += "\",\"p\":\"";
+	outCreds += temp;   /* alphabet has no JSON-hostile byte */
+	outCreds += "\"}";
+
+	/* Zero the stack copy. The String in outCreds still holds it until the
+	 * response is sent and destroyed — that copy is the delivery, unavoidable;
+	 * this just keeps the plaintext from lingering on the stack afterward. */
+	volatile char* v = temp;
+	for (size_t i = 0; i < sizeof(temp); i++) v[i] = 0;
+}
+
+/* Answers the client for the two refusal paths of commitScanSections and
+ * returns false; on true, outStart[] is the parsers' map of the payload.
+ * The decision itself is pure and lives in WebCommitSections.h, where
+ * `pio test -e native` can reach it without a WebServer. */
+bool WebManager::authorizeCommitSections(const String& body, uint16_t perms,
+                                         int* outStart) {
+	const int verdict = commitScanSections(body, perms, outStart);
+	if (verdict == COMMIT_AUTH_OK) return true;
+
+	if (verdict == COMMIT_AUTH_EMPTY) {
+		_server.send(400, "application/json", "{\"error\":\"No section\"}");
+		return false;
+	}
+
+	const char* section = kCommitSectionRules[verdict].name;
+	LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId,
+	         String("commit_all section refused: ") + section);
+	char buf[72];
+	snprintf(buf, sizeof(buf), "{\"error\":\"Forbidden\",\"section\":\"%s\"}", section);
+	_server.send(403, "application/json", buf);
+	return false;
+}
+
 /*
  * Commit-all + reboot (save-and-restart pattern).
  *
@@ -158,7 +226,15 @@ void WebManager::handleSaveSystem( ) {
  */
 void WebManager::handleApiCommitAll( ) {
 	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) {
+	/* Entry only proves there is a session holding at least one of the bits
+	 * this route can act on. WHAT the payload may change is decided per
+	 * section in authorizeCommitSections, below — checking PERM_SYS_CONFIG
+	 * here and nothing after it is the bug this gate exists to close.
+	 *
+	 * It also widens the door on purpose: an account with PERM_USER_MGR and
+	 * nothing else can open /users and stage an account, but its commit was
+	 * refused here, so the role could not actually manage users. */
+	if (!(perms & commitEntryPerms( ))) {
 		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
@@ -175,6 +251,9 @@ void WebManager::handleApiCommitAll( ) {
 		_server.send(400, "application/json", "{\"error\":\"Bad payload\"}");
 		return;
 	}
+
+	int secStart[SEC_COUNT];
+	if (!authorizeCommitSections(body, perms, secStart)) return;
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 	bool themeChanged = false;
@@ -211,7 +290,7 @@ void WebManager::handleApiCommitAll( ) {
 	 * regardless of slot state — a bad number is bad even on a slot this same
 	 * payload is about to activate. */
 	{
-		int vAlm = body.indexOf("\"alarms\"");
+		int vAlm = secStart[SEC_ALARMS];
 		int vSens = (vAlm >= 0) ? body.indexOf("\"sensors\"", vAlm) : -1;
 		int vArr = (vSens >= 0) ? body.indexOf('[', vSens) : -1;
 		int vArrEnd = -1;
@@ -283,7 +362,7 @@ void WebManager::handleApiCommitAll( ) {
 	 * cannot leave half-applied sensor state behind and then reboot into it.
 	 * There is no shared pin validator in the firmware — the CLI open-codes
 	 * the same range and uniqueness rules in AppManager_CmdHandlers.cpp. */
-	int slotsStart = body.indexOf("\"slots\"");
+	int slotsStart = secStart[SEC_SLOTS];
 	if (slotsStart >= 0) {
 		/* Bound the search to this section first. An empty "slots":{} is a
 		 * normal payload (the user staged a slot and then discarded it), and an
@@ -604,7 +683,7 @@ void WebManager::handleApiCommitAll( ) {
 	 * Manual parser for simplicity. Expected format:
 	 * "sys":{"name":"...","tz":"-3","log":"1",...}
 	 * Each field may come as a quoted string or bare number. */
-	int sysStart = body.indexOf("\"sys\"");
+	int sysStart = secStart[SEC_SYS];
 	if (sysStart >= 0) {
 		int objStart = body.indexOf('{', sysStart);
 		int objEnd = -1;
@@ -751,7 +830,7 @@ void WebManager::handleApiCommitAll( ) {
 
 	/* ── alarms section: format {sensors:[{idx,active,tmin,tmax,hmin,hmax}],
 	 * sounds:{...}}. Same manual parsing used in handleApiSaveAlarms. */
-	int almStart = body.indexOf("\"alarms\"");
+	int almStart = secStart[SEC_ALARMS];
 	if (almStart >= 0) {
 		/* Sensors array */
 		int sensorsStart = body.indexOf("\"sensors\"", almStart);
@@ -911,8 +990,13 @@ void WebManager::handleApiCommitAll( ) {
 	/* ── users.actions section: processes add/del/reset in order ───────────
 	 * Format: {"users":{"actions":[{"type":"add","name":"x","perms":511},
 	 * {"type":"del","id":3},
-	 * {"type":"reset","id":5}]}} */
-	int usrStart = body.indexOf("\"users\"");
+	 * {"type":"reset","id":5}]}}
+	 *
+	 * Each add/reset mints a random one-time password (assignTempPassword) and
+	 * appends it here; the response returns them ONCE so the admin can hand
+	 * each new account its credential. */
+	String tempCreds;
+	int usrStart = secStart[SEC_USERS];
 	if (usrStart >= 0) {
 		int actionsPos = body.indexOf("\"actions\"", usrStart);
 		int arrStart = (actionsPos >= 0) ? body.indexOf('[', actionsPos) : -1;
@@ -966,10 +1050,12 @@ void WebManager::handleApiCommitAll( ) {
 					if (slot < 0) { rejectField("users.full"); objStart = objEnd + 1; continue; }
 
 					safeCopy(cfg.users[slot].username, name.c_str( ), sizeof(cfg.users[slot].username));
-					safeCopy(cfg.users[slot].password, "*PENDING*", sizeof(cfg.users[slot].password));
 					cfg.users[slot].permissions = (uint16_t)perms;
-					cfg.users[slot].mustChangePassword = true;
 					cfg.users[slot].active = true;
+					/* Username must be set first — assignTempPassword salts and
+					 * hashes over it. Sets password + salt + hashVersion +
+					 * mustChangePassword and records the plaintext for the reply. */
+					assignTempPassword(slot, tempCreds);
 				}
 				else if (type == "del" || type == "reset") {
 					int ip = obj.indexOf("\"id\":");
@@ -985,8 +1071,7 @@ void WebManager::handleApiCommitAll( ) {
 						memset(cfg.users[id].password, 0, sizeof(cfg.users[id].password));
 						cfg.users[id].permissions = 0;
 					} else { /* reset */
-						safeCopy(cfg.users[id].password, "*PENDING*", sizeof(cfg.users[id].password));
-						cfg.users[id].mustChangePassword = true;
+						assignTempPassword(id, tempCreds);
 					}
 				}
 				else {
@@ -1001,7 +1086,7 @@ void WebManager::handleApiCommitAll( ) {
 
 	/* ── net section: {ssid,pass,use_dhcp,ip,mask,gw,dns,ntp_server,web_port} ─ */
 	uint16_t commitNewPort = 0; /* 0 = no change; != 0 = inform client. */
-	int netStart = body.indexOf("\"net\"");
+	int netStart = secStart[SEC_NET];
 	if (netStart >= 0) {
 		int objStart = body.indexOf('{', netStart);
 		int objEnd = -1;
@@ -1073,7 +1158,7 @@ void WebManager::handleApiCommitAll( ) {
 
 	/* ── calib section: apply sensor hwId/name changes ──────────── */
  {
-  int calStart = body.indexOf("\"calib\"");
+  int calStart = secStart[SEC_CALIB];
   if (calStart >= 0) {
    int objStart = body.indexOf('{', calStart);
    int objEnd = -1;
@@ -1167,20 +1252,19 @@ void WebManager::handleApiCommitAll( ) {
 		return;
 	}
 
-	/* Response to client before reboot. Includes newPort if web port
-	 * changed — client uses it to redirect to the new host:port. */
-	char resp[224];
-	if (commitNewPort != 0 && rejectedList[0]) {
-		snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"newPort\":%u,\"rejected\":[%s]}",
-		         (unsigned)commitNewPort, rejectedList);
-	} else if (commitNewPort != 0) {
-		snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"newPort\":%u}", (unsigned)commitNewPort);
-	} else if (rejectedList[0]) {
-		snprintf(resp, sizeof(resp), "{\"status\":\"ok\",\"rejected\":[%s]}", rejectedList);
-	} else {
-		snprintf(resp, sizeof(resp), "{\"status\":\"ok\"}");
-	}
+	/* Response to client before reboot. Includes newPort if the web port
+	 * changed (client redirects to the new host:port) and creds if any account
+	 * was added or reset — the one-time passwords, delivered here and nowhere
+	 * else because the reboot is seconds away and the hash is all that survives
+	 * it. Built as a String: the creds array alone can reach ~5×30 B and would
+	 * not fit the old 224-byte buffer alongside the other fields. */
+	String resp = "{\"status\":\"ok\"";
+	if (commitNewPort != 0) { resp += ",\"newPort\":"; resp += (unsigned)commitNewPort; }
+	if (rejectedList[0])    { resp += ",\"rejected\":["; resp += rejectedList; resp += "]"; }
+	if (tempCreds.length( )) { resp += ",\"creds\":["; resp += tempCreds; resp += "]"; }
+	resp += "}";
 	_server.send(200, "application/json", resp);
+	tempCreds = "";   /* drop the plaintext copy the moment it is on the wire */
 	_server.client( ).stop( );
 
 	/*
