@@ -160,7 +160,13 @@ void WebManager::handleConfig( ) { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ:
 void WebManager::handleNetwork( ) { serveProtectedPage(PERM_NET_CONFIG, WebUI_GZ::NET_PAGE_GZ, WebUI_GZ::NET_PAGE_GZ_LEN); }
 void WebManager::handleUsers( ) { serveProtectedPage(PERM_USER_MGR, WebUI_GZ::USR_PAGE_GZ, WebUI_GZ::USR_PAGE_GZ_LEN); }
 void WebManager::handleFiles( ) { serveProtectedPage(PERM_FILE_READ, WebUI_GZ::FILE_PAGE_GZ, WebUI_GZ::FILE_PAGE_GZ_LEN); }
-void WebManager::handleAlarms( ) { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ::ALARMS_PAGE_GZ, WebUI_GZ::ALARMS_PAGE_GZ_LEN); }
+/* Alarms is in FS_PAGES: pico_w_test had 152 bytes of real headroom, and this
+ * page is the only large one that passes all three parts of the test — big,
+ * rarely opened, and not needed to bring the device up. A unit without the
+ * file still samples, logs and fires the alarms it already has; it just cannot
+ * edit them from the web. HIST_PAGE is bigger but is the hottest page there
+ * is, and CFG_PAGE broke the bootstrap when it was tried in July. */
+void WebManager::handleAlarms( ) { serveProtectedFsPage(PERM_SYS_CONFIG, "/web/alarms.html.gz"); }
 /* Served from LittleFS, not linked into the image — see FS_PAGES in
  * tools/build_webui_gz.py for why this page and not another. */
 void WebManager::handleLicense( ) { serveProtectedFsPage(PERM_DASHBOARD, "/web/license.html.gz"); }
