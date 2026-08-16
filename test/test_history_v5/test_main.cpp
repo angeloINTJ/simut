@@ -939,6 +939,112 @@ static size_t sealBlockAt(uint32_t t0, uint8_t n, uint16_t nominal,
     return enc.seal(out, cap, 0);
 }
 
+/* Same block, with the provenance of the clock that stamped it. */
+static size_t sealBlockFlagged(uint32_t t0, uint8_t n, uint16_t nominal,
+                               uint8_t flags, uint8_t* out, size_t cap) {
+    buildSchema(1);
+    HistoryV5Encoder enc;
+    enc.begin(g_schema, 1, nominal);
+    int16_t v = 2100;
+    enc.reset(t0, &v);
+    for (uint8_t i = 1; i < n; i++) {
+        v = (int16_t)(2100 + i);
+        enc.add(t0 + (uint32_t)i * nominal, &v);
+    }
+    return enc.seal(out, cap, flags);
+}
+
+/* ---------------------------------------------------------------------------
+ * The seed ceiling, and the provenance bit that makes it answerable.
+ *
+ * The day window comes from the newest SEALED file, and a .wip is by
+ * definition newer than everything sealed — so on a day that has not sealed
+ * anything yet the window is stale and refuses good snapshots. What separates
+ * those from the 2026-08-14 snapshot that really was stamped ahead is not the
+ * value of t0 but where it came from, so the writer records that.
+ * ------------------------------------------------------------------------ */
+
+void test_synced_snapshot_seeds_past_the_stale_window(void) {
+    /* Device off overnight, powered at 03:00, restarted before its first 60
+     * records seal. Nothing sealed today, so the window is yesterday's and
+     * dayEnd+span stops at 01:00 — this .wip is two hours past that and was
+     * refused before the provenance bit existed. */
+    const uint32_t t0 = DAY_END + 3u * 3600u;
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    const size_t len = sealBlockFlagged(t0, 10, 60, H5_FLAG_CLOCK_SYNCED,
+                                        buf, sizeof(buf));
+    TEST_ASSERT_TRUE(len > 0);
+    buildSchema(1);
+
+    /* The old gate on the same stamp: still refused, which is what made the
+     * bench log a 7353 s correction over a clock that was in fact right. */
+    TEST_ASSERT_FALSE(h5SeedPlausible(t0, DAY_START, DAY_END, 60));
+
+    const uint32_t seed = h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                             DAY_START, DAY_END, 60);
+    TEST_ASSERT_EQUAL_UINT32(t0 + 9u * 60u, seed);
+}
+
+void test_synced_snapshot_seeds_from_before_the_window(void) {
+    /* The straddle, seen from the other side: the block started at 23:59
+     * yesterday and today's file already exists, so the window starts at
+     * today's midnight and t0 sits below its floor. */
+    const uint32_t t0 = DAY_START - 60u;
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    const size_t len = sealBlockFlagged(t0, 10, 60, H5_FLAG_CLOCK_SYNCED,
+                                        buf, sizeof(buf));
+    TEST_ASSERT_TRUE(len > 0);
+    buildSchema(1);
+
+    TEST_ASSERT_FALSE(h5SeedPlausible(t0, DAY_START, DAY_END, 60));
+    const uint32_t seed = h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                             DAY_START, DAY_END, 60);
+    TEST_ASSERT_EQUAL_UINT32(t0 + 9u * 60u, seed);
+}
+
+void test_provisional_snapshot_still_obeys_the_ceiling(void) {
+    /* The regression that matters: without the bit, nothing changes. This is
+     * the 2026-08-14 shape — a snapshot written under a provisional clock,
+     * stamped past its own day, which is exactly what the ceiling is for. */
+    const uint32_t t0 = DAY_END + 3u * 3600u;
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    const size_t len = sealBlockFlagged(t0, 10, 60, 0, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(len > 0);
+    buildSchema(1);
+
+    TEST_ASSERT_EQUAL_UINT32(0, h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                                   DAY_START, DAY_END, 60));
+
+    /* And one inside the window still seeds, bit or no bit. */
+    const uint32_t ok0 = DAY_START + 12u * 3600u;
+    const size_t ok = sealBlockFlagged(ok0, 10, 60, 0, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(ok > 0);
+    TEST_ASSERT_EQUAL_UINT32(ok0 + 9u * 60u,
+                             h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                                DAY_START, DAY_END, 60));
+}
+
+void test_synced_snapshot_still_needs_a_real_stamp(void) {
+    /* The bit buys freedom from the day window, not from being a timestamp.
+     * A zeroed header must not be read as authority just because a flag byte
+     * happened to be set. */
+    uint8_t buf[H5_BLOCK_MAX_BYTES];
+    const size_t len = sealBlockFlagged(1000u, 10, 60, H5_FLAG_CLOCK_SYNCED,
+                                        buf, sizeof(buf));
+    TEST_ASSERT_TRUE(len > 0);
+    buildSchema(1);
+    TEST_ASSERT_EQUAL_UINT32(0, h5SeedFromSnapshot(buf, len, g_schema, 1,
+                                                   DAY_START, DAY_END, 60));
+    /* The bit is inside the CRC's first span, so it cannot be flipped on a
+     * block without invalidating it — flip it and the decoder refuses. */
+    const uint32_t good = DAY_END + 3u * 3600u;
+    const size_t n = sealBlockFlagged(good, 10, 60, 0, buf, sizeof(buf));
+    TEST_ASSERT_TRUE(n > 0);
+    buf[4] |= H5_FLAG_CLOCK_SYNCED;              /* forge the provenance */
+    TEST_ASSERT_EQUAL_UINT32(0, h5SeedFromSnapshot(buf, n, g_schema, 1,
+                                                   DAY_START, DAY_END, 60));
+}
+
 void test_seed_ceiling_is_one_block_span(void) {
     /* One minute apart, 60 to a block: an hour past midnight, not a day. */
     TEST_ASSERT_EQUAL_UINT32(DAY_END + 3600u, h5SeedCeiling(DAY_END, 60));
@@ -1321,6 +1427,10 @@ int main(void) {
     RUN_TEST(test_seed_from_snapshot_refuses_junk_and_short_reads);
     RUN_TEST(test_seed_walk_stops_at_the_ceiling);
     RUN_TEST(test_scan_floor_reaches_back_across_midnight);
+    RUN_TEST(test_synced_snapshot_seeds_past_the_stale_window);
+    RUN_TEST(test_synced_snapshot_seeds_from_before_the_window);
+    RUN_TEST(test_provisional_snapshot_still_obeys_the_ceiling);
+    RUN_TEST(test_synced_snapshot_still_needs_a_real_stamp);
     RUN_TEST(test_day_window_from_name_needs_the_zone_applied);
     RUN_TEST(test_day_window_from_name_rejects_junk);
     RUN_TEST(test_scan_floor_is_one_block_span);
