@@ -28,8 +28,9 @@ if [ -n "$bad" ]; then
   fail=1
 fi
 
-# 2. Private keys by content, whatever the file is called.
-bad=$(git grep -I -l -e '-----BEGIN .*PRIVATE KEY-----' -- . 2>/dev/null || true)
+# 2. Private keys by content, whatever the file is called. The [E] keeps this
+# pattern from matching the line that defines it once this file is tracked.
+bad=$(git grep -I -l -e '-----BEGIN .*PRIVAT[E] KEY-----' -- . 2>/dev/null || true)
 if [ -n "$bad" ]; then
   echo "SECRET GATE — private key material inside tracked files:"
   printf '%s\n' "$bad" | sed 's/^/    /'
