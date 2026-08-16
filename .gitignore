@@ -60,7 +60,13 @@ docs/screenshots_v4/
 # Device runtime data (generated on-device)
 data/history/
 data/config/
-data/web/
+# data/web holds the FS_PAGES output (build_webui_gz.py). Excluding the whole
+# directory kept those pages out of the release zips, so a unit built from a
+# zip answered "Page asset missing" on every page that had been moved out of
+# the firmware — the comment in build_webui_gz.py claimed the opposite. Same
+# shape as data/themes below: exclude the CONTENTS, then negate.
+data/web/*
+!data/web/*.html.gz
 # Contents, not the directory — git does not descend into an excluded
 # directory, so a negation inside one never matches.
 data/themes/*
