@@ -81,8 +81,10 @@ inteira — 1267 arquivos, incluindo uma chave privada TLS — saiu do índice; 
 
 O `tools/scan_secrets.sh` agora roda antes de qualquer script de release
 empacotar coisa alguma, e recusa as duas formas do vazamento: o tipo de arquivo
-e o literal no código. Credenciais publicadas conscientemente ficam em
-`tools/.secretscan-allow`.
+e o literal no código. Ele também audita os zips prontos, porque eles são
+montados a partir da working tree — um segredo não rastreado em `tools/`
+entraria num pacote que uma checagem só do git nunca olha. Credenciais
+publicadas conscientemente ficam em `tools/.secretscan-allow`.
 
 ### O log registra transições, não batimentos
 

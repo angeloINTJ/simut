@@ -80,6 +80,9 @@ rm -f "simut_pio_v${VERSION}.zip"
 zip -r "simut_pio_v${VERSION}.zip" simut_pio/
 cd ..
 
+# The zip is built from the working tree, so audit what actually shipped.
+./tools/scan_secrets.sh "release/simut_pio_v${VERSION}.zip"
+
 echo ""
 echo "=== Done: release/simut_pio_v${VERSION}.zip ==="
 ls -lh "release/simut_pio_v${VERSION}.zip"

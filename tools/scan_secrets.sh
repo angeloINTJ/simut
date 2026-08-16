@@ -18,6 +18,29 @@ cd "$(dirname "$0")/.."
 ALLOW="tools/.secretscan-allow"
 fail=0
 
+# Called with paths, it audits packaged archives instead of the index. The
+# release scripts copy from the WORKING TREE, so an untracked secret sitting
+# in tools/ rides into a zip that the git-based checks below never see.
+if [ "$#" -gt 0 ]; then
+  for z in "$@"; do
+    [ -f "$z" ] || continue
+    names=$(unzip -l "$z" 2>/dev/null \
+      | grep -iE '\.(bkp|pem|key|p12|pfx|jks)$|/system\.bin$|/id_(rsa|ed25519)$' || true)
+    if [ -n "$names" ]; then
+      echo "SECRET GATE — sensitive file packaged in $(basename "$z"):"
+      printf '%s\n' "$names" | sed 's/^/    /'
+      fail=1
+    fi
+    if unzip -p "$z" 2>/dev/null | grep -qa -- '-----BEGIN .*PRIVAT[E] KEY-----'; then
+      echo "SECRET GATE — private key material inside $(basename "$z")"
+      fail=1
+    fi
+  done
+  if [ "$fail" -ne 0 ]; then echo "SECRET GATE: FAILED"; exit 1; fi
+  echo "SECRET GATE: archives clean"
+  exit 0
+fi
+
 # 1. File types that must never be tracked, whatever they hold.
 bad=$(git ls-files \
   | grep -iE '\.(bkp|pem|key|p12|pfx|jks)$|(^|/)system\.bin$|(^|/)id_(rsa|ed25519)$' \

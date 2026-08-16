@@ -127,6 +127,9 @@ zip -r "simut_tft_v${VERSION}.zip" simut_tft/
 zip -r "simut_alpha_v${VERSION}.zip" simut_alpha/
 cd ..
 
+# The zips are built from the working tree, so audit what actually shipped.
+./tools/scan_secrets.sh "release/simut_tft_v${VERSION}.zip" "release/simut_alpha_v${VERSION}.zip"
+
 echo ""
 echo "=== Done ==="
 ls -lh release/simut_*_v${VERSION}.zip

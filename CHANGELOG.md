@@ -80,8 +80,10 @@ password are purged from the history, and the bench scripts read
 
 `tools/scan_secrets.sh` now runs before either release script packages
 anything, and refuses both shapes of the leak: the file type and the literal
-in the source. Credentials that are published knowingly live in
-`tools/.secretscan-allow`.
+in the source. It also audits the finished zips, because those are built from
+the working tree — an untracked secret in `tools/` would ride into an archive
+that a git-only check never looks at. Credentials that are published knowingly
+live in `tools/.secretscan-allow`.
 
 ### The log records transitions, not heartbeats
 
