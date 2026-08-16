@@ -193,6 +193,11 @@ void LogManager::begin(bool saveToFile, LogLevel minSerialLevel) {
  _saveToFile = saveToFile;
  _minSerialLevel = minSerialLevel;
 
+ /* Every family starts unknown, so the first routine event of each one after
+  * a boot reaches flash. That record is the proof the subsystem works at all,
+  * and it is the anchor the next transition is measured against. */
+ _policy.reset( );
+
  if (_saveToFile) {
  requestFsLock(true);
 
@@ -277,7 +282,19 @@ void LogManager::logCode(LogLevel level, const char* tag, LogCode code, int cont
  if (extraMsg.length( ) > 0) spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, ": %s", extraMsg.c_str( ));
  if (contextVal != 0) spos += snprintf(serialBuf + spos, sizeof(serialBuf) - spos, " (%d)", contextVal);
 
- if (_saveToFile) {
+ /* The console line above is emitted unconditionally; only the flash write is
+  * gated. Two gates, in order:
+  *
+  *  1. `level >= LOG_INFO` — the floor log( ) has always applied and logCode( )
+  *     never did. The asymmetry meant a LOG_CODE(LOG_DEBUG, ...) would still
+  *     burn a slot in the 1600-record window, which is why demoting a noisy
+  *     code to DEBUG was not actually a way to quiet it. It is now.
+  *
+  *  2. LogPolicy — routine events only reach flash on a transition. See
+  *     LogPolicy.h for why, and what the escape hatches are.
+  */
+ if (_saveToFile && level >= LOG_INFO &&
+     _policy.shouldPersist((uint16_t)code, (uint8_t)level, millis( ))) {
  CompactLogRecord rec;
  rec.epoch = (uint32_t)epoch;
  rec.setUptimeSec(millis( ) / 1000UL);
@@ -425,6 +442,53 @@ void LogManager::writeCompactToFlash(const CompactLogRecord& rec) {
  /* WdtWindow destructor auto-restores WDT ctx */
 }
 
+
+/* LogPolicy speaks in raw level numbers so it can compile on the host without
+ * pico/mutex.h. Lock the two definitions together here, where both are visible. */
+static_assert((int)LOG_WARN == LOGPOL_LEVEL_WARN, "LOGPOL_LEVEL_WARN drifted from LOG_WARN");
+static_assert((int)LOG_INFO == LOGPOL_LEVEL_INFO, "LOGPOL_LEVEL_INFO drifted from LOG_INFO");
+
+/**
+ * @brief Hourly accounting for the edge-triggered filter.
+ *
+ * Drains the counter under the mutex and emits the record OUTSIDE it —
+ * logCode( ) takes the same mutex, and mutex_enter_blocking is not recursive,
+ * so doing it in one critical section would deadlock the core.
+ */
+void LogManager::policyTick( ) {
+ if (!_saveToFile) return;
+
+ /* Called from every pass of the main loop — thousands per second. Taking the
+  * log mutex that often would contend with Core 1's own logging for nothing,
+  * since the report it guards fires once an hour. One unsigned compare gates
+  * it down to once a minute, which is still sixty times finer than needed. */
+ static uint32_t lastCheck = 0;
+ if (!timeSince(lastCheck, 60000)) return;
+ lastCheck = millis( );
+
+ mutex_enter_blocking(&_logMutex);
+ const uint16_t dropped = _policy.takeSuppressedReport(millis( ));
+
+ if (dropped != 0) {
+ /* Built here rather than through logCode( ), the same way the rotation
+  * marker is: this record has no message to format and no console line worth
+  * printing — the console already showed every one of the events being
+  * counted, verbosely, as they happened. Going through logCode( ) would cost
+  * a 192-byte format buffer, uptimeString( ), translateCode( ) and a String
+  * temporary to say what four fields already say.
+  *
+  * It also sidesteps the re-entrancy problem: logCode( ) takes the mutex this
+  * function is already holding, and mutex_enter_blocking is not recursive. */
+ CompactLogRecord rec;
+ rec.epoch = (uint32_t)getEpochNow( );
+ rec.setUptimeSec(millis( ) / 1000UL);
+ rec.code = SYS_LOG_SUPPRESSED;
+ rec.context = (int16_t)dropped;
+ rec.flags = CompactLogRecord::packFlags(LOG_INFO, get_core_num( ), TAG_SYS);
+ writeCompactToFlash(rec);
+ }
+ mutex_exit(&_logMutex);
+}
 
 /** @brief Public wrapper: flush pending logs on demand. */
 void LogManager::flushPendingIfAny( ) {
@@ -943,6 +1007,7 @@ static const char* translateCodeEn(uint16_t code) {
  case SYS_REBOOT_USER: return "User-requested reboot";
  case SYS_HEAP_LOW: return "Heap memory low";
  case SYS_UPTIME_MARK: return "Uptime milestone";
+ case SYS_LOG_SUPPRESSED: return "Routine log records suppressed";
 
  /* ── WiFi (10–15) ── */
  case SYS_WIFI_CONNECT: return "WiFi connecting";

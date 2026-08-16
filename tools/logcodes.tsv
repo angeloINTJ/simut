@@ -11,6 +11,7 @@
 2	SYS_REBOOT_USER	User-requested reboot	Reboot solicitado pelo usuario	Reboot solicitado pelo usuário	Reinicio solicitado por el usuario
 3	SYS_HEAP_LOW	Heap memory low	Heap baixa	Heap baixa	Memoria heap baja
 4	SYS_UPTIME_MARK	Uptime milestone	Marco de uptime	Marco de uptime	Marca de uptime
+5	SYS_LOG_SUPPRESSED	Routine log records suppressed	Registros de rotina suprimidos	Registros de rotina suprimidos	Registros de rutina suprimidos
 10	SYS_WIFI_CONNECT	WiFi connecting	Conectando WiFi	Conectando WiFi	Conectando WiFi
 11	SYS_WIFI_DISCONNECT	WiFi disconnected	WiFi desconectado	WiFi desconectado	WiFi desconectado
 12	SYS_WIFI_SCAN	WiFi scanning	Varredura WiFi	Varredura WiFi	Escaneo WiFi
