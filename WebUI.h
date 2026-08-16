@@ -180,12 +180,17 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         let opEl = document.getElementById('opInput'), np1El = document.getElementById('np1'), np2El = document.getElementById('np2');
         let op = opEl.value, np = np1El.value;
         if (!user || !op || !np) return;
-        let opH = sha256(op), npH = sha256(np);
-        if (opH === npH) { document.getElementById('chErr').textContent = t('log_chpass_same','New password must differ from current.'); return; }
+        /* Over HTTPS send the plaintext on the encrypted channel so the server
+           can enforce the password policy (A-5); over HTTP send the sha256 as
+           before, so nothing readable crosses a cleartext link. */
+        let secure = location.protocol === 'https:';
+        let opSend = secure ? op : sha256(op);
+        let npSend = secure ? np : sha256(np);
+        if (opSend === npSend) { document.getElementById('chErr').textContent = t('log_chpass_same','New password must differ from current.'); return; }
         btn.disabled = true; document.getElementById('chErr').textContent = '';
         try {
             let fd = new URLSearchParams();
-            fd.append('user', user); fd.append('oldpass', opH); fd.append('newpass', npH); fd.append('nonce', _nonce);
+            fd.append('user', user); fd.append('oldpass', opSend); fd.append('newpass', npSend); fd.append('nonce', _nonce);
             let r = await fetch('/api/login_chpass', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: fd.toString(), credentials: 'same-origin' });
             let j = await r.json();
             await fetchNonce();
@@ -321,9 +326,13 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         let val1 = p1El.value;
         let val2 = p2El.value;
 
-        // 2. Criptografa na RAM (sem tocar no visual do navegador)
-        if (val1.length !== 64) val1 = sha256(val1);
-        if (val2.length !== 64) val2 = sha256(val2);
+        // 2. Over HTTPS send the plaintext on the encrypted channel so the
+        //    server can enforce the password policy (A-5); over HTTP send the
+        //    sha256 as before (nothing readable on a cleartext link).
+        if (location.protocol !== 'https:') {
+            if (val1.length !== 64) val1 = sha256(val1);
+            if (val2.length !== 64) val2 = sha256(val2);
+        }
 
         try {
             let fd = new URLSearchParams();

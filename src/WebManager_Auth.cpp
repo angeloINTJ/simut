@@ -547,17 +547,40 @@ void WebManager::handleApiForceChpass( ) {
 	String p1 = _server->arg("p1");
 	String p2 = _server->arg("p2");
 
-	if (p1.length( ) < 8 || p1 != p2) {
-		if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_ERROR);
-		_server->send(400, "application/json", "{\"error\":\"Invalid payload\"}");
-		return;
+	/* preHash is the sha256(plaintext) that goes into hashPasswordV1, so the
+	 * stored format is identical either way. Over HTTPS the client sends the
+	 * PLAINTEXT (A-5): the server can finally judge strength — passwordPolicyOk
+	 * runs on it — and does the sha256 the browser used to do. Over HTTP the
+	 * client still sends the sha256 (no plaintext to leak on a cleartext link),
+	 * and the server cannot enforce the policy; the length check there is on the
+	 * 64-char digest and is kept only to reject an empty/garbage field. */
+	String preHash;
+#ifdef SIMUT_WEB_HTTPS
+	/* HTTPS-only, so it compiles out of the flash-tight HTTP-only builds where
+	 * _serverIsHttps can never be true anyway. */
+	if (_serverIsHttps) {
+		if (p1 != p2 || !passwordPolicyOk(p1.c_str( ))) {
+			if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_ERROR);
+			_server->send(400, "application/json", "{\"error\":\"Weak password: min 8 chars with a letter and a digit\"}");
+			return;
+		}
+		preHash = _storageRef->sha256Hex(p1);
+	} else
+#endif
+	{
+		if (p1.length( ) != 64 || p1 != p2) {
+			if (_soundRef->isWebSoundsEnabled( )) _soundRef->play(SND_ERROR);
+			_server->send(400, "application/json", "{\"error\":\"Invalid payload\"}");
+			return;
+		}
+		preHash = p1;
 	}
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
 	_storageRef->generateSalt(cfg.users[_currentUserId].salt);
 	String hashedNewPass = _storageRef->hashPasswordV1(
-	                           _currentUserName, p1, cfg.users[_currentUserId].salt);
+	                           _currentUserName, preHash, cfg.users[_currentUserId].salt);
 	safeCopy(cfg.users[_currentUserId].password, hashedNewPass.c_str( ), sizeof(cfg.users[_currentUserId].password));
 	cfg.users[_currentUserId].hashVersion = 1;
 	cfg.users[_currentUserId].mustChangePassword = false;
@@ -588,22 +611,41 @@ void WebManager::handleApiLoginChpass( ) {
 	String op = _server->arg("oldpass");
 	String np = _server->arg("newpass");
 
-	/* Client sends sha256 (64 hex chars). Size/format sanity check. */
-	if (!isValidName(u.c_str( ), 31) || op.length( ) != 64 || np.length( ) != 64) {
-		applyExponentialPenalty(ls);
-		LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Chpass Rejected: Invalid Input"));
-		_server->send(401, "application/json", "{\"ok\":false,\"err\":1}");
-		return;
+	/* opHash/npHash are the sha256(plaintext) the rest of the flow works in.
+	 * Over HTTPS the client sends the PLAINTEXT (A-5): the server enforces the
+	 * strength floor on the new one and does the sha256 itself. Over HTTP the
+	 * client sends the sha256 already and no policy can be enforced. */
+	String opHash, npHash;
+#ifdef SIMUT_WEB_HTTPS
+	if (_serverIsHttps) {
+		if (!isValidName(u.c_str( ), 31) || op.length( ) == 0 || !passwordPolicyOk(np.c_str( ))) {
+			applyExponentialPenalty(ls);
+			LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Chpass Rejected: Weak/Invalid Input"));
+			_server->send(401, "application/json", "{\"ok\":false,\"err\":1}");
+			return;
+		}
+		opHash = _storageRef->sha256Hex(op);
+		npHash = _storageRef->sha256Hex(np);
+	} else
+#endif
+	{
+		if (!isValidName(u.c_str( ), 31) || op.length( ) != 64 || np.length( ) != 64) {
+			applyExponentialPenalty(ls);
+			LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0, TRL("Chpass Rejected: Invalid Input"));
+			_server->send(401, "application/json", "{\"ok\":false,\"err\":1}");
+			return;
+		}
+		opHash = op;
+		npHash = np;
 	}
 
-	/* Blocks no-op (same hash). Actual strength is validated client-side (UX);
-	 * server trusts the honest client to enforce complexity rules. */
-	if (np == op) {
+	/* Blocks a no-op change (new == old). */
+	if (npHash == opHash) {
 		_server->send(400, "application/json", "{\"ok\":false,\"err\":5}");
 		return;
 	}
 
-	int foundId = verifyPasswordFor(u, op);
+	int foundId = verifyPasswordFor(u, opHash);
 	if (foundId < 0) {
 		if (ls >= 0) {
 			uint32_t penaltyMs = applyExponentialPenalty(ls);
@@ -620,7 +662,7 @@ void WebManager::handleApiLoginChpass( ) {
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 	_storageRef->generateSalt(cfg.users[foundId].salt);
-	String hashedNewPass = _storageRef->hashPasswordV1(u, np, cfg.users[foundId].salt);
+	String hashedNewPass = _storageRef->hashPasswordV1(u, npHash, cfg.users[foundId].salt);
 	safeCopy(cfg.users[foundId].password, hashedNewPass.c_str( ), sizeof(cfg.users[foundId].password));
 	cfg.users[foundId].hashVersion = 1;
 	cfg.users[foundId].mustChangePassword = false;

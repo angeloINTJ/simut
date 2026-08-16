@@ -1181,6 +1181,29 @@ void test_dirpath_blocks_empty_control_and_long(void) {
     TEST_ASSERT_FALSE(isSafeDirPath(longName));
 }
 
+/* ===========================================================================
+ * passwordPolicyOk — server-side strength floor (finding A-5)
+ * ===========================================================================
+ * Positive control: strong passwords must pass, or a floor that rejects
+ * everything would satisfy the "weak blocked" half alone and lock everyone out.
+ */
+void test_pwpolicy_accepts_strong(void) {
+    TEST_ASSERT_TRUE(passwordPolicyOk("simut2026"));
+    TEST_ASSERT_TRUE(passwordPolicyOk("Abc12345"));
+    TEST_ASSERT_TRUE(passwordPolicyOk("a1b2c3d4"));
+    TEST_ASSERT_TRUE(passwordPolicyOk("Longer P4ss with spaces"));
+}
+
+void test_pwpolicy_rejects_weak(void) {
+    TEST_ASSERT_FALSE(passwordPolicyOk(""));
+    TEST_ASSERT_FALSE(passwordPolicyOk(NULL));
+    TEST_ASSERT_FALSE(passwordPolicyOk("short1"));      /* < 8 */
+    TEST_ASSERT_FALSE(passwordPolicyOk("abcdefgh"));    /* no digit */
+    TEST_ASSERT_FALSE(passwordPolicyOk("12345678"));    /* no letter */
+    TEST_ASSERT_FALSE(passwordPolicyOk("!!!!!!!!"));    /* neither */
+    TEST_ASSERT_FALSE(passwordPolicyOk("a1b2c3"));      /* 6 chars */
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -1294,6 +1317,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_dirpath_blocks_xss_bytes);
     RUN_TEST(test_dirpath_blocks_path_and_url_bytes);
     RUN_TEST(test_dirpath_blocks_empty_control_and_long);
+
+    /* passwordPolicyOk — server-side strength floor (A-5) */
+    RUN_TEST(test_pwpolicy_accepts_strong);
+    RUN_TEST(test_pwpolicy_rejects_weak);
 
     return UNITY_END();
 }

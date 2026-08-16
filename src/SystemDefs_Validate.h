@@ -158,6 +158,36 @@ inline bool isSafeDirPath(const char* path) {
 }
 
 
+/**
+ * @brief Server-side password strength floor (finding A-5).
+ *
+ * The web UI hashes the password in the browser and sends only the sha256, so
+ * the firmware never saw the plaintext and could not judge its strength — the
+ * `p1.length() < 8` check on the change-password path was measuring a 64-char
+ * hex digest and never fired. Over HTTPS the client now sends the plaintext on
+ * the encrypted channel and this is the check that runs on it: at least 8
+ * characters, with at least one letter and one digit. It is a floor, not the
+ * whole policy — the UI may (and does) ask for more — but it is the part the
+ * server can now guarantee regardless of what a hand-made request claims.
+ *
+ * No upper-bound here (the caller size-caps before hashing). Deliberately does
+ * not require a symbol: a symbol rule rejects otherwise-fine passphrases and
+ * the letter+digit+length floor already rules out the weak cases that matter.
+ */
+inline bool passwordPolicyOk(const char* plain) {
+ if (!plain) return false;
+ size_t len = strlen(plain);
+ if (len < 8) return false;
+ bool hasLetter = false, hasDigit = false;
+ for (size_t i = 0; i < len; i++) {
+ const unsigned char c = (unsigned char)plain[i];
+ if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) hasLetter = true;
+ else if (c >= '0' && c <= '9') hasDigit = true;
+ }
+ return hasLetter && hasDigit;
+}
+
+
 /** Validate IPv4 address format (e.g., "192.168.1.100"). */
 inline bool isValidIpv4(const char* ip) {
  if (!ip || strlen(ip) < 7 || strlen(ip) > 15) return false;
