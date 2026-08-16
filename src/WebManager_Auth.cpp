@@ -105,7 +105,10 @@ bool WebManager::serveProtectedFsPage(uint16_t requiredPerm, const char* path) {
 		 * moved back into the firmware and FS_PAGES emptied. Whatever page is
 		 * moved out next (build_webui_gz.py nominates HIST_PAGE) gets a correct
 		 * message without anyone remembering to edit this string. */
-		String msg = "<h2>Page asset missing</h2><p>Upload <code>data/web";
+		/* `path` already starts with /web/, so the prefix here is just "data" —
+		 * it read "data/web" while the mechanism had no callers, which would
+		 * have printed data/web/web/... the moment one came back. */
+		String msg = "<h2>Page asset missing</h2><p>Upload <code>data";
 		msg += path;
 		msg += "</code> to <code>/web/</code> on the device (Files page), then reload."
 		       "<br>Do not use <code>uploadfs</code> — it reformats the partition.</p>";
@@ -158,7 +161,9 @@ void WebManager::handleNetwork( ) { serveProtectedPage(PERM_NET_CONFIG, WebUI_GZ
 void WebManager::handleUsers( ) { serveProtectedPage(PERM_USER_MGR, WebUI_GZ::USR_PAGE_GZ, WebUI_GZ::USR_PAGE_GZ_LEN); }
 void WebManager::handleFiles( ) { serveProtectedPage(PERM_FILE_READ, WebUI_GZ::FILE_PAGE_GZ, WebUI_GZ::FILE_PAGE_GZ_LEN); }
 void WebManager::handleAlarms( ) { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ::ALARMS_PAGE_GZ, WebUI_GZ::ALARMS_PAGE_GZ_LEN); }
-void WebManager::handleLicense( ) { serveProtectedPage(PERM_DASHBOARD, WebUI_GZ::LICENSE_PAGE_GZ, WebUI_GZ::LICENSE_PAGE_GZ_LEN); }
+/* Served from LittleFS, not linked into the image — see FS_PAGES in
+ * tools/build_webui_gz.py for why this page and not another. */
+void WebManager::handleLicense( ) { serveProtectedFsPage(PERM_DASHBOARD, "/web/license.html.gz"); }
 void WebManager::handleForceChpass( ) {
 	if (getAuthPerms( ) == 0) { _server.sendHeader("Location", "/login", true); _server.send(302, "text/plain", ""); return; }
 	if (!isPasswordChangeRequired( )) { _server.sendHeader("Location", "/", true); _server.send(302, "text/plain", ""); return; }
