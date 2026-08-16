@@ -4,6 +4,44 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.3-beta (2026-08-16)
+
+### O boot sabe o que é um dia antes de perguntar
+
+O gráfico ficou vazio entre 00:00 e 00:46 no dia 16 de agosto. As 46 medições
+nunca se perderam: estavam em `20260816.h5` carimbadas `04:19:07`, exatamente
+15546 s adiante de onde pertenciam — o tamanho de uma correção de NTP que foi
+aplicada sobre dados que já estavam certos.
+
+`getLastRecordedTimestamp( )` converte o nome do arquivo mais novo numa janela
+de dia com `mktime( )` e julga carimbos locais contra ela. `mktime( )` lê o
+fuso do processo, e o único `applyTimezone( )` do caminho de boot ficava dentro
+de `NetworkManager::begin( )`, cerca de 130 linhas depois da semeadura. A
+janela era montada em UTC contra dados em −03 e saía três horas adiantada.
+Tudo o que foi gravado depois das 21:00 caía fora do próprio dia: quatro blocos
+da noite foram descartados da semente, o `.wip` que atravessara a meia-noite
+passou do `h5SeedCeiling`, e o relógio provisório começou 4 h 20 min atrasado.
+O NTP então mediu a diferença e o `shiftHistoryTimeV5` levou o bloco da
+meia-noite junto com a correção.
+
+O fuso passa a ser aplicado antes da semeadura, e essa é a correção inteira.
+Qualquer reboot entre 21:00 e a meia-noite estava exposto a isso, não apenas um
+na virada do dia.
+
+Duas mudanças acompanham. A conversão nome→janela passa para
+`h5DayWindowFromName( )`, ao lado dos portões que a consomem — a suíte vinha
+recebendo `dayStart`/`dayEnd` como constantes, exercitando os portões e nunca o
+passo que os deriva, que era justamente o passo errado. E o bloco que um boot
+herda da sessão anterior passa a ser nomeado explicitamente: o
+`shiftHistoryTimeV5` se limita pela base provisória, que só vale enquanto valer
+a semente que a produziu, então `_h5AdoptedT0` o exclui sem consultar um
+relógio sob suspeita.
+
+Medido na bancada com o mesmo `.wip` e reset duro nas duas imagens: a antiga
+recusou a semente, alertou em 18545 s e reescreveu o `t0` do bloco adotado de
+`00:49:59` para `05:59:04`; esta aceita a semente, corrige 2047 s em INFO e não
+move bloco nenhum.
+
 ## v2.2.2-beta (2026-08-15)
 
 ### O bloco que atravessa a meia-noite volta a ser lido

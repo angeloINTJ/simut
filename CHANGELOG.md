@@ -4,6 +4,44 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.3-beta (2026-08-16)
+
+### The boot knows what a day is before it asks
+
+The graph showed nothing between 00:00 and 00:46 on 16 August. The 46
+measurements were never lost: they sat in `20260816.h5` stamped `04:19:07`,
+exactly 15546 s ahead of where they belonged — the size of an NTP correction
+that had been applied to data that was already right.
+
+`getLastRecordedTimestamp( )` turns the newest file's name into a day window
+with `mktime( )` and judges local timestamps against it. `mktime( )` reads the
+process timezone, and the only `applyTimezone( )` on the boot path sat inside
+`NetworkManager::begin( )`, about 130 lines after the seed ran. So the window
+was built in UTC against −03 data and came out three hours early. Everything
+recorded after 21:00 fell outside its own day: four evening blocks were
+discarded from the seed, the `.wip` that had crossed midnight cleared
+`h5SeedCeiling`, and the provisional clock started 4 h 20 min behind. NTP then
+measured the gap and `shiftHistoryTimeV5` carried the midnight block along with
+the correction.
+
+The zone is now applied before the seed runs, which is the whole fix. Any
+reboot between 21:00 and midnight was exposed to this, not only one at the day
+boundary.
+
+Two changes come with it. The name-to-window step moves into
+`h5DayWindowFromName( )`, beside the gates that consume it — the test suite had
+been passing `dayStart`/`dayEnd` in as literals, exercising the gates and never
+the step that derives them, which is the step that was wrong. And the block a
+boot inherits from the previous session is named outright: `shiftHistoryTimeV5`
+bounds itself with the provisional base, which is only as sound as the seed
+behind it, so `_h5AdoptedT0` excludes the just-adopted block without consulting
+a clock under suspicion.
+
+Measured on the bench with the same `.wip` and a hard reset on both images: the
+old one refused the seed, warned at 18545 s and rewrote the adopted block's
+`t0` from `00:49:59` to `05:59:04`; this one accepts the seed, corrects 2047 s
+at INFO, and moves no block at all.
+
 ## v2.2.2-beta (2026-08-15)
 
 ### The block that crosses midnight is read again
