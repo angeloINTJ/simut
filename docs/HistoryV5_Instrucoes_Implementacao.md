@@ -66,7 +66,7 @@ Arquivo diário: `/history/AAAAMMDD.h5` — sequência contígua de chunks, **li
 | 0 | 2 | `magic` | `0x4835` ("H5") |
 | 2 | 1 | `version` | `0x02` (versão do formato em disco) |
 | 3 | 1 | `type` | `0x01` SCHEMA · `0x02` DATA |
-| 4 | 1 | `flags` | DATA: bit0 `RAW`, bit1 `PARTIAL` · SCHEMA: 0 |
+| 4 | 1 | `flags` | DATA: bit0 `RAW`, bit1 `PARTIAL`, bit2 `CLOCK_SYNCED` · SCHEMA: 0 |
 | 5 | 1 | `a` | SCHEMA: `nCh` (1…16) · DATA: `count` (1…60) |
 | 6 | 1 | `b` | SCHEMA: `schemaSeq` (0,1,… no dia) · DATA: `nCh` |
 | 7 | 1 | `rsv` | `0xFF` |
@@ -86,7 +86,9 @@ Preâmbulo + `nCh` descritores de 4 B + `crc16`. O descritor:
 
 Parte fixa (16 B): preâmbulo (8 B) + `t0 u32` (epoch UTC, em segundos, do 1º registro do bloco) + `payloadLen u16` (bytes do bitstream, **após** as caudas) + `crc16 u16`. Caudas, nesta ordem, todas `int16` na ordem de canais do SCHEMA: `keyframe[nCh]` (registro nº 1, absoluto), `chMin[nCh]`, `chMax[nCh]` (envelope do bloco; canal 100% NAN no bloco ⇒ min = máx = `0x8000`). `count = 1` ⇒ `payloadLen = 0` é legal.
 
-Um bloco cobre no máximo `H5_BLOCK_MAX_RECORDS = 60` registros (1 h na cadência de 1/min). Bloco é a unidade de compressão, de CRC e de decimação: **decodifica sozinho**, sem depender de blocos vizinhos.
+Um bloco cobre no máximo `H5_BLOCK_MAX_RECORDS = 60` registros (1 h na cadência de 1/min). Bloco é a unidade de compressão, de CRC e de decimação: **decodifica sozinho**, sem depender de blocos vizinhos. Atenção: 60 registros **não** implicam 60 × intervalo de tempo — registros entram quando são tomados, e um bloco que atravessou queda de sensor ou trecho sob gate cobre muito mais tempo do que a contagem sugere. Nada deve derivar limite temporal da contagem.
+
+**`flags.CLOCK_SYNCED` (bit 2)** — o relógio que carimbou o bloco era real (NTP ou ajuste manual), não o provisório da semeadura de boot. Escrito apenas no snapshot `.wip` e lido apenas pela semeadura do relógio no boot seguinte: o que decide se um `t0` pode ser acreditado não é o seu valor, e sim a procedência, que só é conhecida no instante da escrita. Blocos adotados de um `.wip` levam o bit para o arquivo do dia, onde permanece verdadeiro e inofensivo. Leitores ignoram bits de `flags` que não conhecem, então o bit não quebra compatibilidade e não muda `H5_VERSION`. O bit está dentro da cobertura do CRC — forjá-lo invalida o bloco.
 
 ### 3.4 CRC — definição única para todo o formato
 

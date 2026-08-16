@@ -69,6 +69,8 @@ typedef void (*FlashLockCallback)(bool);
  * Returns true if Core 1 ACKed, false if Core 1 did not respond.
  * enable=false: releases Core 1 from quiet mode. Return value ignored. */
 typedef bool (*BigSaveQuietCallback)(bool);
+/** @return true when real time is in force, false under the provisional clock. */
+typedef bool (*ClockTrustedCallback)( );
 
 class StorageManager {
 public:
@@ -77,6 +79,17 @@ public:
  void update( );
 
  void setLockCallback(FlashLockCallback cb) { _lockCb = cb; }
+ /**
+  * @brief Asks whether the clock stamping records is real time or the seed.
+  *
+  * Answered by NetworkManager, reached through a callback so storage keeps
+  * knowing nothing about the network. The .wip writer records the answer in
+  * the snapshot's flags: at the next boot, whether a t0 may be believed
+  * depends on where it came from, and this is the only moment that knows.
+  * Unset reads as "not trusted", which is the safe default — a build that
+  * forgets to wire it gets the old, stricter gate rather than a free pass.
+  */
+ void setClockTrustedCallback(ClockTrustedCallback cb) { _clockTrustedCb = cb; }
  /** When set, saveConfiguration replaces the
  * IRQ-based multicore_lockout sequence with a single cooperative
  * quiet mode, avoiding cascading lockout stuck. */
@@ -526,6 +539,7 @@ public:
  bool _isMounted = false;
  FlashLockCallback _lockCb = nullptr;
  BigSaveQuietCallback _bigSaveQuietCb = nullptr;
+ ClockTrustedCallback _clockTrustedCb = nullptr;
  /* true during saveConfiguration with active quiet mode;
  * enterFlashSafeMode/exitFlashSafeMode skip lockCb when set. */
  bool _inBigSave = false;
@@ -583,6 +597,9 @@ public:
 
  /** Snapshot now unless a gate is holding the flash; leaves the flag set. */
  void flushWipUnlessBlocked( );
+
+ /** H5_FLAG_CLOCK_SYNCED, or 0 while the provisional clock is in force. */
+ uint8_t h5ClockFlag( ) const;
 
  File             _h5RdFile;
  HistoryV5Scan    _h5Scan;
