@@ -62,6 +62,12 @@ inline bool isProtectedFsPath(const String& path) {
      || path.equalsIgnoreCase(String(DIR_LANG)   + "/" + FS_DIR_NOTE_NAME);
 }
 
+/* isSecretFsPath (the /config download guard, finding A-4) lives in its own
+ * pure header so `pio test -e native` can exercise it — this file pulls
+ * LittleFS and pico/mutex and will not compile on the host. DIR_CONFIG is
+ * already defined above, so the include below reuses it. */
+#include "FsSecretPath.h"
+
 typedef void (*FlashLockCallback)(bool);
 
 /** Callback for cooperative "quiet mode" in large saves.

@@ -11,6 +11,7 @@
 2	SYS_REBOOT_USER	User-requested reboot	Reboot solicitado pelo usuario	Reboot solicitado pelo usuário	Reinicio solicitado por el usuario
 3	SYS_HEAP_LOW	Heap memory low	Heap baixa	Heap baixa	Memoria heap baja
 4	SYS_UPTIME_MARK	Uptime milestone	Marco de uptime	Marco de uptime	Marca de uptime
+5	SYS_LOG_SUPPRESSED	Routine log records suppressed	Registros de rotina suprimidos	Registros de rotina suprimidos	Registros de rutina suprimidos
 10	SYS_WIFI_CONNECT	WiFi connecting	Conectando WiFi	Conectando WiFi	Conectando WiFi
 11	SYS_WIFI_DISCONNECT	WiFi disconnected	WiFi desconectado	WiFi desconectado	WiFi desconectado
 12	SYS_WIFI_SCAN	WiFi scanning	Varredura WiFi	Varredura WiFi	Escaneo WiFi
@@ -125,6 +126,7 @@
 573	WEB_SCREENSHOT_ABORTED	Screenshot aborted by client	Screenshot abortado pelo cliente	Screenshot abortado pelo cliente	Captura abortada por el cliente
 574	WEB_UPLOAD	File uploaded	Arquivo enviado	Arquivo enviado	Archivo subido
 575	WEB_CLIENT_DISCONNECT	Client disconnected (broken pipe)	Cliente desconectado (conexao encerrada)	Cliente desconectado (conexão encerrada)	Cliente desconectado (conexión cerrada)
+576	WEB_CERT_INVALID	Web cert invalid (HTTP fallback)	Cert web invalido (HTTP)	Certificado web inválido (HTTP)	Certificado web inválido (HTTP)
 580	CFG_THEME_APPLIED	Theme applied	Tema aplicado	Tema aplicado	Tema aplicado
 581	CFG_THEME_NOT_FOUND	Theme not found	Tema nao encontrado	Tema não encontrado	Tema no encontrado
 585	CLI_UNKNOWN_CMD	Unknown command	Comando desconhecido	Comando desconhecido	Comando desconocido

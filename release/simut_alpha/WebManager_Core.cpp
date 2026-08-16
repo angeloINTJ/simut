@@ -11,11 +11,22 @@
 #include "WebUI_GZ.h"
 #include "LogManager.h"
 #include "TouchPriority.h"
+#include <LittleFS.h>
 #include <hardware/watchdog.h>
+
+/* Server TLS material (M-6). Under /config so A-4's isSecretFsPath refuses to
+ * serve the private key over /download, and so `system format` clears it with
+ * the rest of the config. PEM, provisioned by the operator via the Files page:
+ *   openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+ *     -keyout web_key.pem -out web_cert.pem -days 3650 -nodes -subj "/CN=simut"
+ * EC (P-256) over RSA on purpose — a P-256 handshake fits this heap far more
+ * comfortably than RSA-2048. */
+#define FILE_WEB_CERT "/config/web_cert.pem"
+#define FILE_WEB_KEY  "/config/web_key.pem"
 
 using ReadGuard = StorageManager::ReadGuard;
 
-WebManager::WebManager( ) : _server(80) {
+WebManager::WebManager( ) {
  _currentUserPerms = 0;
  _currentUserId = -1;
  _currentUserName = "";
@@ -40,120 +51,214 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _soundRef = sound;
 
  /*
- * Configurable port via WebConfigData (reserved[24..25]). Reconstructs
- * the server via placement new if !=80 — _server was default-initialized
- * with port 80 in the constructor but hasn't called .begin( ) or .on( ) yet,
- * so discard/recreation is safe.
+ * Configurable port via WebConfigData (reserved[24..25]). The concrete server
+ * (HTTP or HTTPS) is created here, once, by beginServer( ): HTTPS when a
+ * certificate is provisioned in /config, HTTP otherwise (M-6). Routes are then
+ * registered on _server through its HTTPServer base below, and the concrete
+ * begin( ) is called after the routes are in place.
  */
  WebConfigData* w = reinterpret_cast<WebConfigData*>(
  storage->getConfig( ).reserved + WEB_CONFIG_OFFSET);
  uint16_t webPort = (w->port > 0) ? w->port : WEB_DEFAULT_PORT;
- if (webPort != WEB_DEFAULT_PORT) {
- _server.~WebServer( );
- new (&_server) WebServer(webPort);
- }
+ beginServer(webPort);
 
  const char * headerkeys[] = {"Cookie", "Accept-Encoding"};
  size_t headerkeyssize = sizeof(headerkeys)/sizeof(char*);
- _server.collectHeaders(headerkeys, headerkeyssize);
+ _server->collectHeaders(headerkeys, headerkeyssize);
 
 
  initSendGuardTimer( );
 
 
- _server.on("/login", HTTP_GET, std::bind(&WebManager::handleLogin, this));
- _server.on("/logout", HTTP_GET, std::bind(&WebManager::handleLogout, this));
- _server.on("/force_chpass", HTTP_GET, std::bind(&WebManager::handleForceChpass, this));
- _server.on("/", HTTP_GET, std::bind(&WebManager::handleRoot, this));
- _server.on("/config", HTTP_GET, std::bind(&WebManager::handleConfig, this));
- _server.on("/network", HTTP_GET, std::bind(&WebManager::handleNetwork, this));
- _server.on("/users", HTTP_GET, std::bind(&WebManager::handleUsers, this));
- _server.on("/files", HTTP_GET, std::bind(&WebManager::handleFiles, this));
- _server.on("/alarms", HTTP_GET, std::bind(&WebManager::handleAlarms, this));
- _server.on("/license", HTTP_GET, std::bind(&WebManager::handleLicense, this));
- _server.on("/history", HTTP_GET, std::bind(&WebManager::handleHistory, this));
- _server.on("/lang.js", HTTP_GET, std::bind(&WebManager::handleLangJs, this));
- _server.on("/style.css", HTTP_GET, std::bind(&WebManager::handleStyleCss, this));
- _server.on("/favicon.ico", HTTP_GET, std::bind(&WebManager::handleFavicon, this));
+ _server->on("/login", HTTP_GET, std::bind(&WebManager::handleLogin, this));
+ _server->on("/logout", HTTP_GET, std::bind(&WebManager::handleLogout, this));
+ _server->on("/force_chpass", HTTP_GET, std::bind(&WebManager::handleForceChpass, this));
+ _server->on("/", HTTP_GET, std::bind(&WebManager::handleRoot, this));
+ _server->on("/config", HTTP_GET, std::bind(&WebManager::handleConfig, this));
+ _server->on("/network", HTTP_GET, std::bind(&WebManager::handleNetwork, this));
+ _server->on("/users", HTTP_GET, std::bind(&WebManager::handleUsers, this));
+ _server->on("/files", HTTP_GET, std::bind(&WebManager::handleFiles, this));
+ _server->on("/alarms", HTTP_GET, std::bind(&WebManager::handleAlarms, this));
+ _server->on("/license", HTTP_GET, std::bind(&WebManager::handleLicense, this));
+ _server->on("/history", HTTP_GET, std::bind(&WebManager::handleHistory, this));
+ _server->on("/lang.js", HTTP_GET, std::bind(&WebManager::handleLangJs, this));
+ _server->on("/style.css", HTTP_GET, std::bind(&WebManager::handleStyleCss, this));
+ _server->on("/favicon.ico", HTTP_GET, std::bind(&WebManager::handleFavicon, this));
 
 
- _server.on("/api/login_init", HTTP_GET, std::bind(&WebManager::handleApiLoginInit, this));
- _server.on("/api/login", HTTP_POST, std::bind(&WebManager::handleApiLogin, this));
- _server.on("/api/force_chpass", HTTP_POST, std::bind(&WebManager::handleApiForceChpass, this));
- _server.on("/api/login_chpass", HTTP_POST, std::bind(&WebManager::handleApiLoginChpass, this));
- _server.on("/api/status", HTTP_GET, std::bind(&WebManager::handleApiStatus, this));
- _server.on("/api/perms", HTTP_GET, std::bind(&WebManager::handleApiPerms, this));
- _server.on("/api/network", HTTP_GET, std::bind(&WebManager::handleApiNetwork, this));
- _server.on("/api/config", HTTP_GET, std::bind(&WebManager::handleApiConfig, this));
- _server.on("/api/users", HTTP_GET, std::bind(&WebManager::handleApiUsers, this));
- _server.on("/api/themes", HTTP_GET, std::bind(&WebManager::handleApiThemes, this));
- _server.on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));
- _server.on("/api/lang", HTTP_GET, std::bind(&WebManager::handleApiLang, this));
- _server.on("/api/sensors", HTTP_GET, std::bind(&WebManager::handleApiSensorsGet, this));
- _server.on("/api/calib", HTTP_GET, std::bind(&WebManager::handleApiCalibGet, this));
- _server.on("/api/calib", HTTP_POST, std::bind(&WebManager::handleApiCalibPost, this));
+ _server->on("/api/login_init", HTTP_GET, std::bind(&WebManager::handleApiLoginInit, this));
+ _server->on("/api/login", HTTP_POST, std::bind(&WebManager::handleApiLogin, this));
+ _server->on("/api/force_chpass", HTTP_POST, std::bind(&WebManager::handleApiForceChpass, this));
+ _server->on("/api/login_chpass", HTTP_POST, std::bind(&WebManager::handleApiLoginChpass, this));
+ _server->on("/api/status", HTTP_GET, std::bind(&WebManager::handleApiStatus, this));
+ _server->on("/api/perms", HTTP_GET, std::bind(&WebManager::handleApiPerms, this));
+ _server->on("/api/network", HTTP_GET, std::bind(&WebManager::handleApiNetwork, this));
+ _server->on("/api/config", HTTP_GET, std::bind(&WebManager::handleApiConfig, this));
+ _server->on("/api/users", HTTP_GET, std::bind(&WebManager::handleApiUsers, this));
+ _server->on("/api/themes", HTTP_GET, std::bind(&WebManager::handleApiThemes, this));
+ _server->on("/api/alarms", HTTP_GET, std::bind(&WebManager::handleApiAlarms, this));
+ _server->on("/api/lang", HTTP_GET, std::bind(&WebManager::handleApiLang, this));
+ _server->on("/api/sensors", HTTP_GET, std::bind(&WebManager::handleApiSensorsGet, this));
+ _server->on("/api/calib", HTTP_GET, std::bind(&WebManager::handleApiCalibGet, this));
+ _server->on("/api/calib", HTTP_POST, std::bind(&WebManager::handleApiCalibPost, this));
 
 
- _server.on("/api/save_sys", HTTP_POST, std::bind(&WebManager::handleSaveSystem, this));
- _server.on("/api/commit_all", HTTP_POST, std::bind(&WebManager::handleApiCommitAll, this));
+ _server->on("/api/save_sys", HTTP_POST, std::bind(&WebManager::handleSaveSystem, this));
+ _server->on("/api/commit_all", HTTP_POST, std::bind(&WebManager::handleApiCommitAll, this));
  /* /api/save_net replaced by /api/commit_all */
- _server.on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
- _server.on("/api/history_rebind", HTTP_POST, std::bind(&WebManager::handleApiHistoryRebind, this));
+ _server->on("/api/reset_touch_cal", HTTP_POST, std::bind(&WebManager::handleResetTouchCal, this));
+ _server->on("/api/history_rebind", HTTP_POST, std::bind(&WebManager::handleApiHistoryRebind, this));
  /* user_add/del/rst replaced by /api/commit_all */
- _server.on("/api/history_multi", HTTP_GET, std::bind(&WebManager::handleApiHistoryMulti, this)); /* Multi-sensor replacement for /api/history single-sensor */
- _server.on("/api/history_days", HTTP_GET, std::bind(&WebManager::handleApiHistoryDays, this));
- _server.on("/api/export/history.bin", HTTP_GET, std::bind(&WebManager::handleApiExportHistory, this));
- _server.on("/api/history/open", HTTP_GET, std::bind(&WebManager::handleApiHistoryOpen, this));
- _server.on("/api/export/logs.bin", HTTP_GET, std::bind(&WebManager::handleApiExportLogs, this));
- _server.on("/api/logs", HTTP_GET, std::bind(&WebManager::handleApiLogs, this));
- _server.on("/api/clear_logs", HTTP_POST, std::bind(&WebManager::handleApiClearLogs, this));
- _server.on("/api/screenshot", HTTP_GET, std::bind(&WebManager::handleApiScreenshot, this));
- _server.on("/api/screenshot_chunk", HTTP_GET, std::bind(&WebManager::handleApiScreenshotChunk, this));
- _server.on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));
- _server.on("/api/set_time", HTTP_POST, std::bind(&WebManager::handleApiSetTime, this));
+ _server->on("/api/history_multi", HTTP_GET, std::bind(&WebManager::handleApiHistoryMulti, this)); /* Multi-sensor replacement for /api/history single-sensor */
+ _server->on("/api/history_days", HTTP_GET, std::bind(&WebManager::handleApiHistoryDays, this));
+ _server->on("/api/export/history.bin", HTTP_GET, std::bind(&WebManager::handleApiExportHistory, this));
+ _server->on("/api/history/open", HTTP_GET, std::bind(&WebManager::handleApiHistoryOpen, this));
+ _server->on("/api/export/logs.bin", HTTP_GET, std::bind(&WebManager::handleApiExportLogs, this));
+ _server->on("/api/logs", HTTP_GET, std::bind(&WebManager::handleApiLogs, this));
+ _server->on("/api/clear_logs", HTTP_POST, std::bind(&WebManager::handleApiClearLogs, this));
+ _server->on("/api/screenshot", HTTP_GET, std::bind(&WebManager::handleApiScreenshot, this));
+ _server->on("/api/screenshot_chunk", HTTP_GET, std::bind(&WebManager::handleApiScreenshotChunk, this));
+ _server->on("/api/sec_status", HTTP_GET, std::bind(&WebManager::handleApiSecStatus, this));
+ _server->on("/api/set_time", HTTP_POST, std::bind(&WebManager::handleApiSetTime, this));
 
  /* Maintenance actions the serial CLI used to own (sensor scan/accept/wipe,
   * telemetry sync/reset). Six operations behind one route and an ?op=
   * selector, for the same reason /api/restore multiplexes validate/apply. */
- _server.on("/api/action", HTTP_POST, std::bind(&WebManager::handleApiAction, this));
+ _server->on("/api/action", HTTP_POST, std::bind(&WebManager::handleApiAction, this));
 
 
- _server.on("/download", HTTP_GET, std::bind(&WebManager::handleDownload, this));
- _server.on("/api/delete", HTTP_POST, std::bind(&WebManager::handleDelete, this));
- _server.on("/api/ls", HTTP_GET, std::bind(&WebManager::handleApiLs, this));
- _server.on("/api/mkdir", HTTP_POST, std::bind(&WebManager::handleApiMkdir, this));
- _server.on("/api/upload", HTTP_POST,
+ _server->on("/download", HTTP_GET, std::bind(&WebManager::handleDownload, this));
+ _server->on("/api/delete", HTTP_POST, std::bind(&WebManager::handleDelete, this));
+ _server->on("/api/ls", HTTP_GET, std::bind(&WebManager::handleApiLs, this));
+ _server->on("/api/mkdir", HTTP_POST, std::bind(&WebManager::handleApiMkdir, this));
+ _server->on("/api/upload", HTTP_POST,
  std::bind(&WebManager::handleUploadComplete, this),
  std::bind(&WebManager::handleUploadData, this));
 
  /* OTA: full LittleFS backup download.
  * Response also includes X-Backup-PSize/X-Backup-PCrc
  * for the browser to verify integrity before accepting OTA. */
- _server.on("/api/backup", HTTP_GET, std::bind(&WebManager::handleApiBackup, this));
+ _server->on("/api/backup", HTTP_GET, std::bind(&WebManager::handleApiBackup, this));
 
  /* OTA: single route for validate/apply (mode in ?op= query param).
  * Adding 2 POST routes with upload callback would cost ~16 KB of flash
  * (likely internal buffer of arduino-pico WebServer per route). */
- _server.on("/api/restore", HTTP_POST,
+ _server->on("/api/restore", HTTP_POST,
  std::bind(&WebManager::handleApiRestoreFinish, this),
  std::bind(&WebManager::handleApiRestoreUploadData, this));
 
  /* OTA: triggers apply of pending update (separate route from
  * /api/restore to distinguish restore of .bkp vs firmware apply). */
- _server.on("/api/ota/apply", HTTP_POST,
+ _server->on("/api/ota/apply", HTTP_POST,
  std::bind(&WebManager::handleApiOtaApply, this));
 
- _server.onNotFound(std::bind(&WebManager::handleNotFound, this));
+ _server->onNotFound(std::bind(&WebManager::handleNotFound, this));
 
 
- _server.on("/favicon.ico", HTTP_GET, [this]( ) { _server.send(204, "image/x-icon", ""); });
- _server.on("/apple-touch-icon.png", HTTP_GET, [this]( ) { _server.send(204, "image/png", ""); });
+ _server->on("/favicon.ico", HTTP_GET, [this]( ) { _server->send(204, "image/x-icon", ""); });
+ _server->on("/apple-touch-icon.png", HTTP_GET, [this]( ) { _server->send(204, "image/png", ""); });
 
- _server.begin( );
- LOG_CODE(LOG_INFO, "WEB", WEB_SERVER_STARTED, webPort, "");
+ /* Concrete begin( ) — not on the HTTPServer base (it binds the socket). */
+#ifdef SIMUT_WEB_HTTPS
+ if (_serverIsHttps) _serverHttps->begin( ); else
+#endif
+ _serverHttp->begin( );
+ LOG_CODE(LOG_INFO, "WEB", WEB_SERVER_STARTED, _serverIsHttps ? (webPort | 0x8000) : webPort, "");
+}
+
+/* Creates the concrete server — HTTPS when /config/web_cert.pem (+key) load,
+ * HTTP otherwise — and points _server at it for the request handlers. Does not
+ * start it: routes are registered by the caller first, then the concrete
+ * begin( ) runs. A cert that fails to load is not fatal: the device falls back
+ * to HTTP so a bad or missing cert can never lock the operator out of the UI. */
+void WebManager::beginServer(uint16_t port) {
+ /* HTTPS pulls ~20 KB of BearSSL server + cert-parsing code into the image, so
+  * it is a release-only feature (SIMUT_WEB_HTTPS): the flash-tight pico_w_test
+  * env, which the on-device suite flashes, cannot spare it and does not need
+  * it (the suite exercises the HTTP handlers, transport-agnostic). */
+#ifdef SIMUT_WEB_HTTPS
+ if (loadServerCert( )) {
+  /* Default the HTTPS listener to 443 so plain https://<ip> reaches it, but
+   * honour an explicitly configured port (anything other than the 80 default).
+   * Serving TLS on 80 works but surprises a browser, which speaks cleartext
+   * there. */
+  if (port == WEB_DEFAULT_PORT) port = 443;
+  _serverHttps = new WebServerSecure(port);
+  /* Buffers, redistributed for the SERVER role. The telemetry client uses
+   * (4096, 512) because a client SENDS little and RECEIVES the server's cert;
+   * a server is the mirror — it SENDS its cert flight, so the 512 transmit cap
+   * (below BearSSL's own 837 default) could not even hold the ServerHello +
+   * Certificate and the handshake returned zero bytes on the bench. Input 4096
+   * (the size telemetry proved fits this heap; holds the ClientHello and a
+   * browser's request headers); output 1024 (over the 837 default, room for the
+   * ~600 B EC cert flight). The default 16 KB input is the contiguous-block the
+   * fragmented heap rarely has, so it stays capped. */
+  /* EC keys go through setECCert (KEYX|SIGN usage), RSA through setRSACert —
+   * calling the wrong one leaves the handshake reading zero bytes back, which
+   * is exactly how the first EC cert failed on the bench. */
+  if (_serverKey->isEC( ))
+   _serverHttps->getServer( ).setECCert(_serverCert, BR_KEYTYPE_KEYX | BR_KEYTYPE_SIGN, _serverKey);
+  else
+   _serverHttps->getServer( ).setRSACert(_serverCert, _serverKey);
+  _serverHttps->getServer( ).setBufferSizes(4096, 1024);
+  _server = _serverHttps;
+  _serverIsHttps = true;
+  LOG_CODE(LOG_INFO, "WEB", SYS_TEL_SSL, port, "HTTPS server (provisioned cert)");
+  return;
+ }
+#endif
+ _serverHttp = new WebServer(port);
+ _server = _serverHttp;
+ _serverIsHttps = false;
+}
+
+void WebManager::pumpServer( ) {
+#ifdef SIMUT_WEB_HTTPS
+ if (_serverIsHttps) { _serverHttps->handleClient( ); return; }
+#endif
+ _serverHttp->handleClient( );
+}
+
+/* Reads /config/web_cert.pem + web_key.pem and parses them into the X509List /
+ * PrivateKey that beginServer( ) hands to WebServerSecure. Returns false —
+ * quietly, so beginServer falls back to HTTP — when the pair is absent; returns
+ * false and logs WEB_CERT_INVALID when a file is present but does not parse, so
+ * a botched cert reads as "why is it still HTTP?" in the log rather than as
+ * silence. Both files are size-capped (a legitimate EC cert+key is well under
+ * 4 KB); the parsed objects live for the whole boot (owned by the manager). */
+bool WebManager::loadServerCert( ) {
+#ifndef SIMUT_WEB_HTTPS
+ return false;   /* HTTPS compiled out (flash-tight envs) — always HTTP */
+#else
+ String certPem, keyPem;
+ {
+  ReadGuard rg(_storageRef);
+  if (!LittleFS.exists(FILE_WEB_CERT) || !LittleFS.exists(FILE_WEB_KEY)) return false;
+  File cf = LittleFS.open(FILE_WEB_CERT, "r");
+  if (cf) { if (cf.size( ) > 0 && cf.size( ) <= 8192) certPem = cf.readString( ); cf.close( ); }
+  File kf = LittleFS.open(FILE_WEB_KEY, "r");
+  if (kf) { if (kf.size( ) > 0 && kf.size( ) <= 8192) keyPem = kf.readString( ); kf.close( ); }
+ }
+ if (certPem.length( ) == 0 || keyPem.length( ) == 0) {
+  LOG_CODE(LOG_WARN, "WEB", WEB_CERT_INVALID, 1, "web cert/key empty or oversized");
+  return false;
+ }
+
+ _serverCert = new (std::nothrow) BearSSL::X509List(certPem.c_str( ));
+ _serverKey  = new (std::nothrow) BearSSL::PrivateKey(keyPem.c_str( ));
+ const bool ok = _serverCert && _serverCert->getCount( ) > 0
+              && _serverKey && (_serverKey->isRSA( ) || _serverKey->isEC( ));
+ if (!ok) {
+  delete _serverCert; _serverCert = nullptr;
+  delete _serverKey;  _serverKey  = nullptr;
+  LOG_CODE(LOG_WARN, "WEB", WEB_CERT_INVALID, 2, "web cert/key failed to parse");
+  return false;
+ }
+ return true;
+#endif /* SIMUT_WEB_HTTPS */
 }
 bool WebManager::isRateLimited(uint32_t minIntervalMs) {
- uint32_t clientIP = (uint32_t)_server.client( ).remoteIP( );
+ uint32_t clientIP = (uint32_t)_server->client( ).remoteIP( );
  uint32_t now = millis( );
  int slot = -1;
  int oldest = 0;
@@ -211,8 +316,8 @@ void WebManager::streamBreath( ) {
 
 bool WebManager::rejectIfTouchPriority( ) {
  if (TouchPriority::isActive( )) {
- _server.sendHeader("Retry-After", "5");
- _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
+ _server->sendHeader("Retry-After", "5");
+ _server->send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
  return true;
  }
  return false;
@@ -299,7 +404,7 @@ void WebManager::update( ) {
     * hp= sent one investigation down a stale trail already. */
    watchdog_hw->scratch[7] = 0;
    _chunkedResponse = false;
-   _server.handleClient( );
+   pumpServer( );
    /* 740: handleClient RETURNED. Together with 722 (end of safeSendN) this
     * splits the storm residual three ways instead of lumping it all under
     * 721 — ours, the framework's, or the drain's. */
@@ -331,13 +436,16 @@ void WebManager::update( ) {
 }
 
 void WebManager::handleNotFound( ) {
- String host = _server.hostHeader( );
+ String host = _server->hostHeader( );
  String myIP = _netRef->getIpAddress( );
 
  if (host != myIP && !host.endsWith(".local")) {
- _server.sendHeader("Location", "http://" + myIP + "/network", true);
- _server.send(302, "text/plain", "Redirecting...");
+ /* Match the redirect scheme to the transport: an https:// page that redirects
+  * to http:// trips mixed-content and downgrades the session. */
+ const char* scheme = _serverIsHttps ? "https://" : "http://";
+ _server->sendHeader("Location", String(scheme) + myIP + "/network", true);
+ _server->send(302, "text/plain", "Redirecting...");
  return;
  }
- _server.send(404, "text/plain", "404: Not Found");
+ _server->send(404, "text/plain", "404: Not Found");
 }

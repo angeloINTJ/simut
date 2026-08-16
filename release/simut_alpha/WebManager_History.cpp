@@ -74,20 +74,20 @@ void WebManager::handleApiHistoryMulti( ) {
  /* RAII so the early returns below (403/503) restore the caller's module. */
  LogManager::TraceScope _tHist(0, MOD_WEB_HIST);
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_HISTORY)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+ if (!(perms & PERM_HISTORY)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
  if (TouchPriority::isActive( )) {
- _server.sendHeader("Retry-After", "3");
- _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
+ _server->sendHeader("Retry-After", "3");
+ _server->send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
  return;
  }
  if (__atomic_exchange_n(&_inHistoryHandler, true, __ATOMIC_ACQ_REL)) {
- _server.send(503, "application/json", "{\"error\":\"Already processing\"}"); return;
+ _server->send(503, "application/json", "{\"error\":\"Already processing\"}"); return;
  }
  HeavyTaskGuard htg(_storageRef);
  if (!htg.isLocked( )) {
  __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
- _server.send(503, "application/json", "{\"error\":\"System Busy.\"}"); return;
+ _server->send(503, "application/json", "{\"error\":\"System Busy.\"}"); return;
  }
 
  uint32_t savedDeadline = _handlerDeadline;
@@ -126,7 +126,7 @@ void WebManager::handleApiHistoryMulti( ) {
  /* ── Parse sensors=... (CSV of IDs) ─────────────────────────────────── */
  int sensorIds[MAX_SENSORS]; /* up to 16 slots */
  int sensorCount = 0;
- String sArg = _server.arg("sensors"); /* empty = "pick a default below" */
+ String sArg = _server->arg("sensors"); /* empty = "pick a default below" */
  {
  int start = 0;
  while (start < (int)sArg.length( ) && sensorCount < MAX_SENSORS) {
@@ -162,8 +162,8 @@ void WebManager::handleApiHistoryMulti( ) {
  }
 
  /* ── Parse range/end ────────────────────────────────────────────────── */
- String reqRange = _server.arg("range");
- String reqEnd = _server.arg("end");
+ String reqRange = _server->arg("range");
+ String reqEnd = _server->arg("end");
 
  static const time_t rangeDuration[] = { 3600, 21600, 86400, 604800, 2592000, 31536000, 0 };
  /* Decimation is now ADAPTIVE (computed after the file list is built):
@@ -200,9 +200,9 @@ void WebManager::handleApiHistoryMulti( ) {
   * slice to redo rather than the whole graph. Both forms coexist; from/to
   * wins when present. */
  bool explicitWindow = false;
- if (_server.hasArg("from") && _server.hasArg("to")) {
- const time_t qFrom = (time_t)strtoul(_server.arg("from").c_str( ), nullptr, 10);
- const time_t qTo   = (time_t)strtoul(_server.arg("to").c_str( ), nullptr, 10);
+ if (_server->hasArg("from") && _server->hasArg("to")) {
+ const time_t qFrom = (time_t)strtoul(_server->arg("from").c_str( ), nullptr, 10);
+ const time_t qTo   = (time_t)strtoul(_server->arg("to").c_str( ), nullptr, 10);
  if (qTo > qFrom && qFrom > 0) {
  cutoffOverride = qFrom;
  effectiveEnd = (qTo > now) ? now : qTo;
@@ -309,7 +309,7 @@ void WebManager::handleApiHistoryMulti( ) {
   * file for it is pure cost — and it is the sliced client that sends
   * ?mode=, once per slice, which is exactly where it hurts. The probe
   * still needs the number, so it is not skipped there. */
- const bool needEstimate = (_server.arg("probe") == "1") || !_server.hasArg("mode");
+ const bool needEstimate = (_server->arg("probe") == "1") || !_server->hasArg("mode");
  if (histBytes == 0 && needEstimate) {
  ReadGuard rg(_storageRef);
  for (size_t fi = 0; fi < filesToRead.size( ); fi++) {
@@ -346,7 +346,7 @@ void WebManager::handleApiHistoryMulti( ) {
   * §10 — or to show that the envelope really keeps the peaks a decimated
   * decode drops. */
  {
-  const String mode = _server.hasArg("mode") ? _server.arg("mode") : String("");
+  const String mode = _server->hasArg("mode") ? _server->arg("mode") : String("");
   if (mode == "decode") { useEnvelope = false; decimation = 1; }
   else if (mode == "envelope") useEnvelope = true;
  }
@@ -377,13 +377,13 @@ void WebManager::handleApiHistoryMulti( ) {
   * told what it would have cost and asked to come back in slices, which is
   * a path it already has (?from=&to=) and already prefers. A slice is ~48 KB
   * and under a second, and any number of those queued is harmless. */
- const bool sliceRequired = !explicitWindow && (_server.arg("probe") != "1")
+ const bool sliceRequired = !explicitWindow && (_server->arg("probe") != "1")
                             && histBytes > 0
                             && (histBytes / WEB_HISTORY_BYTES_PER_RECORD
                                 / (decimation > 0 ? decimation : 1))
                                * WEB_HISTORY_BYTES_PER_POINT > WEB_HISTORY_SINGLE_MAX;
 
- if (_server.arg("probe") == "1" || sliceRequired) {
+ if (_server->arg("probe") == "1" || sliceRequired) {
   const size_t probeBytes = histBytes;
   /* MAX means "everything", and the handler expresses that as cutoff = 0.
    * That is fine for a single response — the record filter never fires —
@@ -424,9 +424,9 @@ void WebManager::handleApiHistoryMulti( ) {
    useEnvelope ? "envelope" : "decode",
    (unsigned long)probeCutoff, (unsigned long)effectiveEnd);
   /* Keep-alive: the previous response's unread tail can hold the buffer,
-   * and _server.send( ) writes headers straight into lwIP. */
+   * and _server->send( ) writes headers straight into lwIP. */
   if (waitSendRoom(sizeof(buf) + 256, "hist/probe"))
-   _server.send(200, "application/json", buf);
+   _server->send(200, "application/json", buf);
   return;                                /* ~HistUnwind does the unwind */
  }
 
@@ -457,9 +457,9 @@ void WebManager::handleApiHistoryMulti( ) {
  if (!waitSendRoom(1024, "hist/hdr")) {
   return;                                /* ~HistUnwind does the unwind */
  }
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
  HPOS(6);
- _server.send(200, "application/json", "");
+ _server->send(200, "application/json", "");
  HPOS(7);
 
  {
@@ -541,7 +541,7 @@ void WebManager::handleApiHistoryMulti( ) {
   * point. Same flash reads, same decodes, none of the JSON — which is how
   * you find out whether a record costs what it costs because of the decoder
   * or because of what runs between two decodes. */
- const bool emitPoints = _server.arg("emit") != "0";
+ const bool emitPoints = _server->arg("emit") != "0";
  unsigned rejected = 0;
  const char* pathUsed = "decode";
 
@@ -1025,21 +1025,21 @@ static_assert(sizeof(SimxHeader) == 32, "SimxHeader must be 32 bytes");
 /* =========================================================================== */
 void WebManager::handleApiHistoryOpen( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_HISTORY)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+ if (!(perms & PERM_HISTORY)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
  /* Nothing open is a normal answer, not an error — a device in the minute
   * after a seal has an empty encoder. 204 rather than an empty 200 body:
   * in HTTP chunked a zero-length chunk IS the terminator, and answering
   * "nothing" by starting a chunked response and sending no bytes is the
   * same trap that once truncated /api/config. */
- if (_storageRef->h5RamCount( ) == 0) { _server.send(204, "application/octet-stream", ""); return; }
+ if (_storageRef->h5RamCount( ) == 0) { _server->send(204, "application/octet-stream", ""); return; }
 
  /* At most H5_BLOCK_MAX_BYTES + a schema chunk — a couple of KiB, once per
   * export. No HeavyTaskGuard: this touches no flash and takes no lock, it
   * copies out of the encoder. */
- _server.sendHeader("Content-Disposition", "attachment; filename=\"open.h5\"");
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
- _server.send(200, "application/octet-stream", "");
+ _server->sendHeader("Content-Disposition", "attachment; filename=\"open.h5\"");
+ _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server->send(200, "application/octet-stream", "");
 
  /* sealStream hands the payload over in 64 B windows. Sending each one as
   * its own chunk would be ~34 tiny lwIP writes for 2 KiB, the same PBUF
@@ -1078,31 +1078,31 @@ void WebManager::handleApiHistoryOpen( ) {
 
 void WebManager::handleApiExportHistory( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_HISTORY)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+ if (!(perms & PERM_HISTORY)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
- if (!_server.hasArg("from") || !_server.hasArg("to")) {
- _server.send(400, "application/json", "{\"error\":\"Missing from/to params\"}"); return;
+ if (!_server->hasArg("from") || !_server->hasArg("to")) {
+ _server->send(400, "application/json", "{\"error\":\"Missing from/to params\"}"); return;
  }
- uint32_t rangeFrom = (uint32_t)strtoul(_server.arg("from").c_str( ), nullptr, 10);
- uint32_t rangeTo = (uint32_t)strtoul(_server.arg("to").c_str( ), nullptr, 10);
+ uint32_t rangeFrom = (uint32_t)strtoul(_server->arg("from").c_str( ), nullptr, 10);
+ uint32_t rangeTo = (uint32_t)strtoul(_server->arg("to").c_str( ), nullptr, 10);
  if (rangeFrom == 0 || rangeTo == 0 || rangeFrom >= rangeTo) {
- _server.send(400, "application/json", "{\"error\":\"Invalid range\"}"); return;
+ _server->send(400, "application/json", "{\"error\":\"Invalid range\"}"); return;
  }
  if (rangeTo - rangeFrom > SIMX_MAX_RANGE_SECS) {
- _server.send(400, "application/json", "{\"error\":\"Range exceeds 31 days\"}"); return;
+ _server->send(400, "application/json", "{\"error\":\"Range exceeds 31 days\"}"); return;
  }
 
  if (TouchPriority::isActive( )) {
- _server.sendHeader("Retry-After", "3");
- _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}"); return;
+ _server->sendHeader("Retry-After", "3");
+ _server->send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}"); return;
  }
  if (__atomic_exchange_n(&_inHistoryHandler, true, __ATOMIC_ACQ_REL)) {
- _server.send(503, "application/json", "{\"error\":\"Already processing\"}"); return;
+ _server->send(503, "application/json", "{\"error\":\"Already processing\"}"); return;
  }
  HeavyTaskGuard htg(_storageRef);
  if (!htg.isLocked( )) {
  __atomic_store_n(&_inHistoryHandler, false, __ATOMIC_RELEASE);
- _server.send(503, "application/json", "{\"error\":\"System Busy.\"}"); return;
+ _server->send(503, "application/json", "{\"error\":\"System Busy.\"}"); return;
  }
 
  uint32_t savedDeadline = _handlerDeadline;
@@ -1139,9 +1139,9 @@ void WebManager::handleApiExportHistory( ) {
  /* Streaming CRC32 accumulator (covers HEADER + TABLE + PAYLOAD; trailer is the CRC). */
  uint32_t crc = crc32_init( );
 
- _server.sendHeader("Content-Disposition", "attachment; filename=\"simut_history.simx\"");
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
- _server.send(200, "application/octet-stream", "");
+ _server->sendHeader("Content-Disposition", "attachment; filename=\"simut_history.simx\"");
+ _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server->send(200, "application/octet-stream", "");
 
  /* Emit HEADER */
  SimxHeader hdr = {};
@@ -1299,41 +1299,41 @@ void WebManager::handleApiExportHistory( ) {
  */
 void WebManager::handleApiExportLogs( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_LOGS)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+ if (!(perms & PERM_LOGS)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
- if (!_server.hasArg("from") || !_server.hasArg("to")) {
- _server.send(400, "application/json", "{\"error\":\"Missing from/to params\"}"); return;
+ if (!_server->hasArg("from") || !_server->hasArg("to")) {
+ _server->send(400, "application/json", "{\"error\":\"Missing from/to params\"}"); return;
  }
- uint32_t rangeFrom = (uint32_t)strtoul(_server.arg("from").c_str( ), nullptr, 10);
- uint32_t rangeTo = (uint32_t)strtoul(_server.arg("to").c_str( ), nullptr, 10);
+ uint32_t rangeFrom = (uint32_t)strtoul(_server->arg("from").c_str( ), nullptr, 10);
+ uint32_t rangeTo = (uint32_t)strtoul(_server->arg("to").c_str( ), nullptr, 10);
  if (rangeFrom == 0 || rangeTo == 0 || rangeFrom >= rangeTo) {
- _server.send(400, "application/json", "{\"error\":\"Invalid range\"}"); return;
+ _server->send(400, "application/json", "{\"error\":\"Invalid range\"}"); return;
  }
  if (rangeTo - rangeFrom > SIMX_MAX_RANGE_SECS) {
- _server.send(400, "application/json", "{\"error\":\"Range exceeds 31 days\"}"); return;
+ _server->send(400, "application/json", "{\"error\":\"Range exceeds 31 days\"}"); return;
  }
 
  /* Level filter: 0 = all, 1 = INFO only, 3 = ERROR only.
  * Keep numeric LogLevel code for direct comparison. */
- String levelArg = _server.hasArg("level") ? _server.arg("level") : "all";
+ String levelArg = _server->hasArg("level") ? _server->arg("level") : "all";
  uint8_t levelFilter = 0xFF; /* 0xFF = no filter */
  if (levelArg == "err") levelFilter = LOG_ERROR;
  else if (levelArg == "inf") levelFilter = LOG_INFO;
  else if (levelArg != "all") {
- _server.send(400, "application/json", "{\"error\":\"Invalid level (use err|inf|all)\"}"); return;
+ _server->send(400, "application/json", "{\"error\":\"Invalid level (use err|inf|all)\"}"); return;
  }
 
  if (TouchPriority::isActive( )) {
- _server.sendHeader("Retry-After", "3");
- _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}"); return;
+ _server->sendHeader("Retry-After", "3");
+ _server->send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}"); return;
  }
  if (__atomic_exchange_n(&_inExportLogsHandler, true, __ATOMIC_ACQ_REL)) {
- _server.send(503, "application/json", "{\"error\":\"Already processing\"}"); return;
+ _server->send(503, "application/json", "{\"error\":\"Already processing\"}"); return;
  }
  HeavyTaskGuard htg(_storageRef);
  if (!htg.isLocked( )) {
  __atomic_store_n(&_inExportLogsHandler, false, __ATOMIC_RELEASE);
- _server.send(503, "application/json", "{\"error\":\"System Busy.\"}"); return;
+ _server->send(503, "application/json", "{\"error\":\"System Busy.\"}"); return;
  }
 
  uint32_t savedDeadline = _handlerDeadline;
@@ -1343,9 +1343,9 @@ void WebManager::handleApiExportLogs( ) {
  /* Streaming CRC32 accumulator (covers HEADER + PAYLOAD; sensorTblSize = 0). */
  uint32_t crc = crc32_init( );
 
- _server.sendHeader("Content-Disposition", "attachment; filename=\"simut_logs.simx\"");
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
- _server.send(200, "application/octet-stream", "");
+ _server->sendHeader("Content-Disposition", "attachment; filename=\"simut_logs.simx\"");
+ _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server->send(200, "application/octet-stream", "");
 
  /* Emit HEADER */
  SimxHeader hdr = {};
@@ -1423,19 +1423,19 @@ void WebManager::handleApiExportLogs( ) {
 
 void WebManager::handleApiLogs( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_LOGS)) { _server.send(403, "text/plain", "Forbidden"); return; }
- if (isRateLimited(200)) { _server.send(429, "text/plain", "Too Fast"); return; }
+ if (!(perms & PERM_LOGS)) { _server->send(403, "text/plain", "Forbidden"); return; }
+ if (isRateLimited(200)) { _server->send(429, "text/plain", "Too Fast"); return; }
 
 
  if (TouchPriority::isActive( )) {
- _server.sendHeader("Retry-After", "3");
- _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
+ _server->sendHeader("Retry-After", "3");
+ _server->send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
  return;
  }
 
  HeavyTaskGuard htg(_storageRef);
  if (!htg.isLocked( )) {
- _server.send(503, "text/plain", "System Busy.");
+ _server->send(503, "text/plain", "System Busy.");
  return;
  }
 
@@ -1450,8 +1450,8 @@ void WebManager::handleApiLogs( ) {
  * Format: application/octet-stream, N × CompactLogRecord(12 bytes).
  * ~10x smaller than the previous translated CSV.
  */
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
- _server.send(200, "application/octet-stream", "");
+ _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server->send(200, "application/octet-stream", "");
 
  auto streamRawLog = [&](const char* path) -> bool {
  File f;
@@ -1485,7 +1485,7 @@ void WebManager::handleApiLogs( ) {
  }
 
  if (bytesRead > 0) {
- /* safeSend, not _server.sendContent. This was the only raw sendContent
+ /* safeSend, not _server->sendContent. This was the only raw sendContent
   * outside WebManager_Send.cpp, and the difference is the SendGuard: the 2 s
   * repeating timer in WebManager_Core feeds the watchdog ONLY while
   * _sendGuardActive, which only SendGuard sets. Without it nothing fed during
@@ -1517,7 +1517,7 @@ void WebManager::handleApiLogs( ) {
 
 void WebManager::handleApiClearLogs( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_LOGS) || !(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
+ if (!(perms & PERM_LOGS) || !(perms & PERM_SYS_CONFIG)) { _server->send(403, "text/plain", "Forbidden"); return; }
  if (isPasswordChangeRequired( )) return;
  if (rejectIfTouchPriority( )) return;
 
@@ -1532,7 +1532,7 @@ void WebManager::handleApiClearLogs( ) {
  }
 
  LOG_CODE(LOG_WARN, "SEC", SEC_CONFIG_CHANGED, _currentUserId, TRL("Admin erased System Logs"));
- _server.send(200, "application/json", "{\"status\":\"ok\"}");
+ _server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
 /* Shared helper for handleApiScreenshot + handleApiScreenshotChunk.
@@ -1562,12 +1562,12 @@ static void read_chunk_bgr(DisplayManager* d, int chunk_start_bmp_y,
 
 void WebManager::handleApiScreenshot( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
+ if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "text/plain", "Forbidden"); return; }
 
 
  if (TouchPriority::isActive( )) {
- _server.sendHeader("Retry-After", "3");
- _server.send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
+ _server->sendHeader("Retry-After", "3");
+ _server->send(503, "application/json", "{\"error\":\"Display in use. Retry shortly.\"}");
  return;
  }
 
@@ -1575,14 +1575,14 @@ void WebManager::handleApiScreenshot( ) {
  if (__atomic_exchange_n(&_isProcessingScreenshot, true, __ATOMIC_ACQ_REL)) {
  /* Screenshot in progress: signal cancellation and return 409 */
  _cancelScreenshot = true;
- _server.send(409, "application/json", "{\"error\":\"Screenshot in progress, cancelling.\"}");
+ _server->send(409, "application/json", "{\"error\":\"Screenshot in progress, cancelling.\"}");
  return;
  }
  _cancelScreenshot = false;
 
  if (!_displayRef) {
  __atomic_store_n(&_isProcessingScreenshot, false, __ATOMIC_RELEASE);
- _server.send(500, "text/plain", "Display offline");
+ _server->send(500, "text/plain", "Display offline");
  return;
  }
 
@@ -1607,8 +1607,8 @@ void WebManager::handleApiScreenshot( ) {
  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
  };
 
- _server.setContentLength(fileSize);
- _server.send(200, "image/bmp", "");
+ _server->setContentLength(fileSize);
+ _server->send(200, "image/bmp", "");
  safeSend((const char*)bmpHeader, 54);
 
  /* Uses the pattern from screenshot_chunk — pause 1x per 16 rows, read each
@@ -1623,7 +1623,7 @@ void WebManager::handleApiScreenshot( ) {
  bool clientDisconnected = false;
  for (int chunk_start = 0; chunk_start < (int)h; chunk_start += ROWS_PER_CHUNK) {
  int rows_this = ((int)h - chunk_start < ROWS_PER_CHUNK) ? ((int)h - chunk_start) : ROWS_PER_CHUNK;
- if (!_server.client( ).connected( ) || isHandlerOvertime( ) || _cancelScreenshot) {
+ if (!_server->client( ).connected( ) || isHandlerOvertime( ) || _cancelScreenshot) {
  clientDisconnected = true; break;
  }
  _displayRef->pauseRendering(true);
@@ -1662,19 +1662,19 @@ void WebManager::handleApiScreenshot( ) {
  * MIME response: application/octet-stream (pure binary). */
 void WebManager::handleApiScreenshotChunk( ) {
  uint16_t perms = getAuthPerms( );
- if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "text/plain", "Forbidden"); return; }
+ if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "text/plain", "Forbidden"); return; }
 
- if (!_displayRef) { _server.send(500, "text/plain", "Display offline"); return; }
+ if (!_displayRef) { _server->send(500, "text/plain", "Display offline"); return; }
 
  /* Parse ?n=N */
  int n = -1;
- if (_server.hasArg("n")) n = _server.arg("n").toInt( );
+ if (_server->hasArg("n")) n = _server->arg("n").toInt( );
  constexpr int W = 320;
  constexpr int H = 240;
  constexpr int ROWS_PER_CHUNK = 16;
  constexpr int TOTAL_CHUNKS = (H + ROWS_PER_CHUNK - 1) / ROWS_PER_CHUNK; /* 15 */
  if (n < 0 || n >= TOTAL_CHUNKS) {
- _server.send(416, "text/plain", "Invalid chunk index (use n=0..14)");
+ _server->send(416, "text/plain", "Invalid chunk index (use n=0..14)");
  return;
  }
 
@@ -1696,7 +1696,7 @@ void WebManager::handleApiScreenshotChunk( ) {
  uint8_t* payload = (uint8_t*)malloc(ROWS_PER_CHUNK * W * 3);
  if (!payload) {
  _handlerDeadline = savedDeadline;
- _server.send(503, "text/plain", "Out of memory");
+ _server->send(503, "text/plain", "Out of memory");
  return;
  }
  /* Multi-sample 3x + majority vote via shared helper
@@ -1719,8 +1719,8 @@ void WebManager::handleApiScreenshotChunk( ) {
  hdr[8] = (crc >> 24) & 0xFF; hdr[9] = (crc >> 16) & 0xFF;
  hdr[10] = (crc >> 8) & 0xFF; hdr[11] = crc & 0xFF;
 
- _server.setContentLength(12 + payload_size);
- _server.send(200, "application/octet-stream", "");
+ _server->setContentLength(12 + payload_size);
+ _server->send(200, "application/octet-stream", "");
  safeSend((const char*)hdr, 12);
  safeSend((const char*)payload, payload_size);
 
@@ -1729,11 +1729,11 @@ void WebManager::handleApiScreenshotChunk( ) {
 }
 
 void WebManager::handleApiHistoryDays( ) {
- if ((getAuthPerms( ) & PERM_HISTORY) == 0) { _server.send(403); return; }
+ if ((getAuthPerms( ) & PERM_HISTORY) == 0) { _server->send(403); return; }
 
 
  HeavyTaskGuard htg(_storageRef);
- if (!htg.isLocked( )) { _server.send(503, "application/json", "{\"error\":\"System Busy\"}"); return; }
+ if (!htg.isLocked( )) { _server->send(503, "application/json", "{\"error\":\"System Busy\"}"); return; }
 
  std::vector<String> files;
  {
@@ -1757,8 +1757,8 @@ void WebManager::handleApiHistoryDays( ) {
 
  sortStrings(files.data( ), (int)files.size( ), true); /* descending */
 
- _server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
- _server.send(200, "application/json", "");
+ _server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+ _server->send(200, "application/json", "");
  safeSend("[");
  for (size_t i = 0; i < files.size( ); i++) {
  /* Strip .sim4 BEFORE .sim: replace(".sim") on "20260722.sim4" left

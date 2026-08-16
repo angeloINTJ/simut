@@ -133,6 +133,19 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  } else {
  LOG_CODE(LOG_INFO, "TEL", TEL_CERT_MISSING, 0, "");
  }
+
+ /* M-8: one clear, once-per-boot record when encryption is ON but no valid
+  * cert was loaded — from here every transport calls setInsecure( ), so the
+  * TLS session is encrypted but NOT authenticated and a man in the middle can
+  * present any certificate, read the API key and payloads, and answer 200.
+  * The per-cause lines above (too large / empty / missing) name WHY; this one
+  * names the CONSEQUENCE, which the empty-message WARNs did not — an operator
+  * read "cert read error" as a file glitch, not "telemetry is unauthenticated".
+  * ctx=1 distinguishes it from the ctx=0 file-missing line. */
+ if (!_hasCert) {
+ LOG_CODE(LOG_WARN, "TEL", TEL_CERT_READ_ERR, 1,
+          "TLS on without cert validation: connection not authenticated (MITM possible) — upload /cert.pem");
+ }
  }
 
 

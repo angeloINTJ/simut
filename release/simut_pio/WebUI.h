@@ -180,12 +180,17 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         let opEl = document.getElementById('opInput'), np1El = document.getElementById('np1'), np2El = document.getElementById('np2');
         let op = opEl.value, np = np1El.value;
         if (!user || !op || !np) return;
-        let opH = sha256(op), npH = sha256(np);
-        if (opH === npH) { document.getElementById('chErr').textContent = t('log_chpass_same','New password must differ from current.'); return; }
+        /* Over HTTPS send the plaintext on the encrypted channel so the server
+           can enforce the password policy (A-5); over HTTP send the sha256 as
+           before, so nothing readable crosses a cleartext link. */
+        let secure = location.protocol === 'https:';
+        let opSend = secure ? op : sha256(op);
+        let npSend = secure ? np : sha256(np);
+        if (opSend === npSend) { document.getElementById('chErr').textContent = t('log_chpass_same','New password must differ from current.'); return; }
         btn.disabled = true; document.getElementById('chErr').textContent = '';
         try {
             let fd = new URLSearchParams();
-            fd.append('user', user); fd.append('oldpass', opH); fd.append('newpass', npH); fd.append('nonce', _nonce);
+            fd.append('user', user); fd.append('oldpass', opSend); fd.append('newpass', npSend); fd.append('nonce', _nonce);
             let r = await fetch('/api/login_chpass', { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded'}, body: fd.toString(), credentials: 'same-origin' });
             let j = await r.json();
             await fetchNonce();
@@ -321,9 +326,13 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         let val1 = p1El.value;
         let val2 = p2El.value;
 
-        // 2. Criptografa na RAM (sem tocar no visual do navegador)
-        if (val1.length !== 64) val1 = sha256(val1);
-        if (val2.length !== 64) val2 = sha256(val2);
+        // 2. Over HTTPS send the plaintext on the encrypted channel so the
+        //    server can enforce the password policy (A-5); over HTTP send the
+        //    sha256 as before (nothing readable on a cleartext link).
+        if (location.protocol !== 'https:') {
+            if (val1.length !== 64) val1 = sha256(val1);
+            if (val2.length !== 64) val2 = sha256(val2);
+        }
 
         try {
             let fd = new URLSearchParams();
@@ -1731,8 +1740,8 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         // Logs — binary parsing in browser. Tabelas sincronizadas com LogManager::translateCode (LogManager.cpp).
-        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
-        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao de flash ocupada', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
+        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
+        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao de flash ocupada', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
         function evtName(code) { let l = localStorage.getItem('simut_lang') || 'en'; let dict = (l === 'pt') ? EVT_NAMES_PT : EVT_NAMES_EN; let lbl = dict[code.toString()]; if (lbl) return lbl; return (l === 'pt' ? 'Evento #' : 'Event #') + code; }
         const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
         const LVL_LABELS = ['DBG','INF','WRN','ERR','FTL']; const LVL_CLASS = ['log-inf','log-inf','log-wrn','log-err','log-err'];
@@ -2823,9 +2832,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
                     </div>
                     <label class="cfg-tg" style="margin-top:5px;">
-                        <span class="toggle"><input type="checkbox" id="t_sec" name="t_sec" value="1"><span class="slider"></span></span>
+                        <span class="toggle"><input type="checkbox" id="t_sec" name="t_sec" value="1" onchange="updateTlsWarn()"><span class="slider"></span></span>
                         <span id="t_sec_lbl" data-i18n="cfg_sec">Use TLS / SSL</span>
                     </label>
+                    <!-- M-8: TLS on without /cert.pem = encrypted but NOT
+                         authenticated (setInsecure). Seal shown from t_sec+t_cert. -->
+                    <div id="tls_noverify_warn" style="display:none;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:rgba(245,158,11,.12);border:1px solid var(--warn);color:var(--warn);font-size:.82rem">
+                        <span data-i18n="cfg_tls_noverify">⚠ TLS without certificate validation — the connection is encrypted but not authenticated (MITM possible). Upload /cert.pem via Files to validate the server.</span>
+                    </div>
 
                     <!-- Campos exclusivos do transporte HTTP -->
                     <div id="http_fields" style="border-top:1px dashed #3f3f46; padding-top:15px; margin-top:5px;">
@@ -2969,6 +2983,10 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
     <script>
         function toggleTransport() { let tr = document.getElementById('t_transport').value; document.getElementById('http_fields').style.display = (tr == '0') ? 'block' : 'none'; document.getElementById('mqtt_fields').style.display = (tr == '1') ? 'block' : 'none'; let secSpan = document.getElementById('t_sec_lbl'); if (secSpan) secSpan.textContent = (tr == '1') ? window.t('cfg_sec_mqtt', 'Use MQTTS (TLS)') : window.t('cfg_sec', 'Use HTTPS (SSL)'); }
+        /* M-8: show the "no cert validation" seal when TLS is on but no cert was
+           loaded at boot (window.__tlsCert, from /api/config t_cert). Advisory —
+           the firmware still refuses nothing, it just makes setInsecure visible. */
+        function updateTlsWarn() { var w = document.getElementById('tls_noverify_warn'); if (!w) return; var on = document.getElementById('t_sec').checked; w.style.display = (on && !window.__tlsCert) ? 'block' : 'none'; }
         function toggleBuilder() { let mode = document.getElementById('t_mode').value; document.getElementById('custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderPreview(); }
 
         /* Device metadata populated by loadConfig (real serial + per-slot hwid/active).
@@ -3292,6 +3310,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('h_int').value = val('h_int', 1);
                 document.getElementById('t_transport').value = val('t_transport', 0);
                 document.getElementById('t_sec').checked = !!val('t_sec', false);
+                window.__tlsCert = !!val('t_cert', false);   /* M-8: cert loaded at boot? */
+                updateTlsWarn();
                 document.getElementById('t_srv').value = val('t_srv', '');
                 document.getElementById('t_port').value = val('t_port', 80);
                 document.getElementById('t_path').value = val('t_path', '');
@@ -4540,7 +4560,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 </div>
                 <button type="submit" id="btnUser" data-i18n="usr_btn">Create User</button>
                 <p style="font-size:0.8rem; color:var(--sub); margin-top:15px; text-align:center;" data-i18n="usr_warn">
-                    * The user will be created in PENDING state. They log in using: <b>Name@DDMMYYYY</b>.
+                    * A one-time password is shown after Save &amp; Restart. Copy it — it is displayed only once, and the user must change it on first login.
                 </p>
             </form>
         </div>
@@ -4586,11 +4606,13 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             : `<button class="btn-action" onclick="rstUsr(${u.id})" data-i18n="usr_rst">${window.t('usr_rst','Reset')}</button>`;
                         actions = `${rstBtn} <button class="btn-dang" onclick="delUsr(${u.id})" data-i18n="usr_del">${window.t('usr_del','Del')}</button>`;
                     }
-                    html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--txt)">${u.name}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
+                    html += `<tr class="${rowCls}"><td>${u.id}</td><td style="font-weight:bold;color:var(--txt)">${escHtml(u.name)}</td><td>${renderPermsBadges(u.perms, isSuper)}</td><td style="text-align:center; white-space:nowrap;">${actions}</td></tr>`;
                 });
-                /* Usuários pendentes de criação */
+                /* Usuários pendentes de criação. a.name é digitado pelo próprio
+                   admin, mas ainda vai para innerHTML — escapa por profundidade
+                   (M-7); o servidor já restringe o charset do username. */
                 pendingAdds.forEach((a, i) => {
-                    html += `<tr class="pending-add"><td>—</td><td style="font-weight:bold;color:var(--txt)">${a.name} <span class="badge pending">${window.t('usr_pend_add','Pending: New')}</span></td><td>${renderPermsBadges(a.perms, false)}</td><td style="text-align:center; white-space:nowrap;"><button class="btn-dang" onclick="undoLastAdd()">↶</button></td></tr>`;
+                    html += `<tr class="pending-add"><td>—</td><td style="font-weight:bold;color:var(--txt)">${escHtml(a.name)} <span class="badge pending">${window.t('usr_pend_add','Pending: New')}</span></td><td>${renderPermsBadges(a.perms, false)}</td><td style="text-align:center; white-space:nowrap;"><button class="btn-dang" onclick="undoLastAdd()">↶</button></td></tr>`;
                 });
                 tbody.innerHTML = html;
                 applyLang();
@@ -4762,7 +4784,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 <h2 class="page-title" data-i18n="fil_title">Flash Filesystem</h2>
                 <div class="fm-actions">
                     <button class="btn-fm btn-fm-out" onclick="fmDownload()">&#x2B07;&#xFE0F; <span data-i18n="fil_down">Download</span></button>
-                    <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp">&#x1F4BE; <span data-i18n="fil_backup">Backup</span></button>
+                    <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp" id="btnBackup" style="display:none">&#x1F4BE; <span data-i18n="fil_backup">Backup</span></button>
                     <button class="btn-fm btn-fm-out" onclick="fmRestore()" title="Upload a .bkp to restore" id="btnRestore" style="display:none">&#x267B;&#xFE0F; <span data-i18n="fil_restore">Restore</span></button>
                     <input type="file" id="restoreFile" accept=".bkp" style="display:none" onchange="doRestore()">
                     <button class="btn-fm btn-fm-out" onclick="fmFirmware()" title="Send new firmware (.bin) — OTA update" id="btnFw" style="display:none">&#x1F4BB; <span data-i18n="fil_fw">Firmware</span></button>
@@ -4798,18 +4820,33 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         async function fetchPerms() {
             try { let r = await fetchSafe('/api/perms'); let d = await r.json(); permsVal = d.perms; } catch(e) { }
             if (permsVal & 128) document.getElementById('btnDel').style.display = '';
-            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; document.getElementById('btnRestore').style.display = ''; }
-            /* v4.2.2: Firmware OTA é admin-only (perms == 0xFFFF) — destrutivo irreversível. */
-            if (permsVal === 65535) { document.getElementById('btnFw').style.display = ''; }
+            if (permsVal & 64) { document.getElementById('btnUpload').style.display = ''; }
+            /* Backup, Restore and Firmware are admin-only (perms == 0xFFFF).
+             * Backup dumps the whole filesystem including /config/system.bin
+             * (secrets + password hashes) and the server now gates it at full
+             * admin (finding A-4); Restore always did server-side but the button
+             * used to appear for uploaders, so a non-admin saw it and hit a 403.
+             * All three destructive/sensitive whole-FS ops now match their gate. */
+            if (permsVal === 65535) {
+                document.getElementById('btnBackup').style.display = '';
+                document.getElementById('btnRestore').style.display = '';
+                document.getElementById('btnFw').style.display = '';
+            }
         }
 
         function fmFormatSize(bytes) { if (bytes === 0) return '—'; if (bytes < 1024) return bytes + ' B'; if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB'; return (bytes / 1048576).toFixed(2) + ' MB'; }
 
         function fmBuildBreadcrumb(path) {
-            let bc = document.getElementById('breadcrumb'); let parts = path.split('/').filter(p => p.length > 0); let html = '<a onclick="fmNavigate(\'/\')">&#x1F4BE;</a>'; let accum = '';
+            /* Segments come from server folder names, so both the link target
+               (data-nav, read via getAttribute — never executed) and the label
+               (escHtml) are escaped. Was inline onclick with the raw segment
+               interpolated into a JS string — a quote in a folder name broke
+               out (M-7). The href/data-nav navigation runs through the same
+               delegated [data-nav] handler as the file rows. */
+            let bc = document.getElementById('breadcrumb'); let parts = path.split('/').filter(p => p.length > 0); let html = '<a data-nav="/">&#x1F4BE;</a>'; let accum = '';
             for (let i = 0; i < parts.length; i++) {
                 accum += '/' + parts[i]; html += '<span class="sep">/</span>';
-                if (i === parts.length - 1) html += '<span class="current">' + parts[i] + '</span>'; else html += '<a onclick="fmNavigate(\'' + accum + '\')">' + parts[i] + '</a>';
+                if (i === parts.length - 1) html += '<span class="current">' + escHtml(parts[i]) + '</span>'; else html += '<a data-nav="' + escAttr(accum) + '">' + escHtml(parts[i]) + '</a>';
             }
             bc.innerHTML = html;
         }
@@ -4823,24 +4860,24 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 let entries = data.entries || [];
                 entries.sort((a, b) => { if (a.t !== b.t) return a.t === 'd' ? -1 : 1; return a.n.localeCompare(b.n); });
                 let html = '';
-                if (dir !== '/') { let parent = dir.substring(0, dir.lastIndexOf('/')); if (parent === '') parent = '/'; html += `<tr class="fm-row fm-row-dir" onclick="fmNavigate('${parent}')"><td></td><td><span class="fm-icon">&#x2B06;&#xFE0F;</span><span class="fm-name-dir">..</span></td><td class="fm-size">${window.t('fil_parent','Parent')}</td></tr>`; }
+                if (dir !== '/') { let parent = dir.substring(0, dir.lastIndexOf('/')); if (parent === '') parent = '/'; html += `<tr class="fm-row fm-row-dir" data-nav="${escAttr(parent)}"><td></td><td><span class="fm-icon">&#x2B06;&#xFE0F;</span><span class="fm-name-dir">..</span></td><td class="fm-size">${window.t('fil_parent','Parent')}</td></tr>`; }
                 if (entries.length === 0 && dir === '/') { html += `<tr><td colspan="3" class="fm-empty">${window.t('fil_empty','Empty filesystem')}</td></tr>`; }
                 else {
                     for (let e of entries) {
-                        if (e.t === 'd') { let fullPath = (dir === '/' ? '/' : dir + '/') + e.n; html += `<tr class="fm-row fm-row-dir" onclick="fmNavigate('${fullPath}')"><td></td><td><span class="fm-icon">&#x1F4C1;</span><span class="fm-name-dir">${e.n}/</span></td><td class="fm-size">${window.t('fil_folder','Folder')}</td></tr>`; }
+                        if (e.t === 'd') { let fullPath = (dir === '/' ? '/' : dir + '/') + e.n; html += `<tr class="fm-row fm-row-dir" data-nav="${escAttr(fullPath)}"><td></td><td><span class="fm-icon">&#x1F4C1;</span><span class="fm-name-dir">${escHtml(e.n)}/</span></td><td class="fm-size">${window.t('fil_folder','Folder')}</td></tr>`; }
                         else {
                             let fullPath = (dir === '/' ? '/' : dir + '/') + e.n;
                             /* e.p = protected by the firmware. No checkbox at all, so it
                                cannot be selected and fmDelete never sees it. The server
                                refuses it too — this is the visible half. */
                             let cell = e.p ? `<span class="fm-icon" title="${window.t('fil_protected','Protected file')}">&#x1F512;</span>`
-                                           : `<input type="checkbox" class="f-chk item-chk" value="${fullPath}">`;
+                                           : `<input type="checkbox" class="f-chk item-chk" value="${escAttr(fullPath)}">`;
                             /* The name is a download link for EVERY file. Reading used to
                                require ticking the box and pressing Download, which left a
                                protected file — the one with no box — impossible to open at
                                all. Folders were already clickable; files now match. */
                             let href = '/download?file=' + encodeURIComponent(fullPath);
-                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon">&#x1F4C4;</span><a class="fm-name" href="${href}">${e.n}</a></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
+                            html += `<tr class="fm-row"><td>${cell}</td><td><span class="fm-icon">&#x1F4C4;</span><a class="fm-name" href="${href}">${escHtml(e.n)}</a></td><td class="fm-size">${fmFormatSize(e.s)}</td></tr>`;
                         }
                     }
                 }
@@ -6063,6 +6100,67 @@ static const char LANG_JS[] PROGMEM = R"raw(
      * contenha valor controlável por user privilegiado. */
     window.escHtml = function(s){var d=document.createElement('div');d.textContent=(s===null||s===undefined)?'':String(s);return d.innerHTML;};
 
+    /* escHtml is safe for element TEXT (between tags) but not for attribute
+     * values: textContent to innerHTML leaves the quote bytes unescaped, so a
+     * name containing one breaks out of a double-quoted attribute. escAttr
+     * escapes the five bytes that matter inside one, for the few places a
+     * server-controlled string lands in an attribute (the file manager
+     * data-nav and checkbox value). Navigation no longer interpolates names
+     * into an inline onclick — those became data-nav plus delegation, read
+     * back with getAttribute and never parsed as JS (finding M-7).
+     *
+     * Written as a char loop with hex-escaped quote bytes (\x22 = doublequote,
+     * \x27 = quote) and no regex literal on purpose: the build minifier saves
+     * strings before stripping comments, so a raw quote here would desync its
+     * parser and drop the surrounding code. */
+    window.escAttr = function(s){s=String((s===null||s===undefined)?'':s);var o='',i,c;for(i=0;i<s.length;i++){c=s.charAt(i);o+=(c==='&')?'&amp;':(c==='<')?'&lt;':(c==='>')?'&gt;':(c==='\x22')?'&quot;':(c==='\x27')?'&#39;':c;}return o;};
+
+    /* One delegated navigation handler for the whole page: any element carrying
+     * data-nav (folder rows, the parent row, breadcrumb links) navigates to its
+     * value. The value is a plain DOM attribute string — never executed — which
+     * is why it is safe where an inline onclick with an interpolated path was
+     * not. Guarded so re-injected page fragments do not stack listeners. */
+    if (!window.__fmNavDelegated) {
+        window.__fmNavDelegated = true;
+        document.addEventListener('click', function(ev){
+            var el = ev.target.closest ? ev.target.closest('[data-nav]') : null;
+            if (el && typeof fmNavigate === 'function') { ev.preventDefault(); fmNavigate(el.getAttribute('data-nav')); }
+        });
+    }
+
+    /* One-time temporary passwords returned by commit_all (account add/reset).
+     * Shown ONCE: the device reboots seconds later and keeps only the hash, so
+     * this modal blocks the auto-reload until the admin dismisses it. The
+     * password is rendered as selectable monospace text rather than a
+     * copy-to-clipboard button on purpose — navigator.clipboard needs a secure
+     * context and the device serves plain HTTP, so a copy button would fail
+     * silently and cost the admin the credential. escHtml on both fields: the
+     * username is operator-controlled and the value goes into innerHTML. */
+    window.showCredsModal = function(creds, onClose) {
+        var rows = creds.map(function(c){
+            return '<tr><td style="padding:6px 12px 6px 0;color:var(--sub)">' + escHtml(c.u) +
+                   '</td><td style="padding:6px 0;font-family:monospace;font-weight:700;font-size:1.05rem;' +
+                   'color:var(--acc);user-select:all">' + escHtml(c.p) + '</td></tr>';
+        }).join('');
+        var ov = document.createElement('div');
+        ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);' +
+            'display:flex;align-items:center;justify-content:center;padding:16px';
+        ov.innerHTML =
+            '<div style="background:var(--card,#1b2330);border:1px solid var(--border,#334);' +
+            'border-radius:10px;max-width:440px;width:100%;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,.5)">' +
+            '<h3 style="margin:0 0 4px">' + escHtml(window.t ? window.t('creds_title','Temporary password') : 'Temporary password') + '</h3>' +
+            '<p style="margin:0 0 14px;color:var(--warn);font-size:.9rem">' +
+            escHtml(window.t ? window.t('creds_warn','Copy it now — it is shown only once. The user must change it on first login.') : 'Copy it now — shown only once. The user must change it on first login.') + '</p>' +
+            '<table style="margin:0 0 16px">' + rows + '</table>' +
+            '<button id="creds-ok" class="btn" style="width:100%">' +
+            escHtml(window.t ? window.t('creds_ok','I saved it — reload') : 'I saved it — reload') + '</button></div>';
+        document.body.appendChild(ov);
+        ov.querySelector('#creds-ok').addEventListener('click', function(){
+            document.body.removeChild(ov);
+            if (typeof onClose === 'function') onClose();
+        });
+    };
+
     /* v3.34.0: F-WEB-DEDUP — drawer HTML único injetado em runtime.
      * Cada página tem só <div id="drawer-host"></div> em vez do drawer
      * inteiro hardcoded (que ocupava ~2.4KB raw × 8 páginas).
@@ -6221,7 +6319,15 @@ static const char LANG_JS[] PROGMEM = R"raw(
             if (r.ok) {
                 let j = {}; try { j = await r.json(); } catch(e) {}
                 Pending.clear();
-                if (!redirectPort(j.newPort || localNewPort)) {
+                /* One-time passwords for accounts added/reset in this commit.
+                 * The device reboots in ~3s and keeps only the hash, so hold
+                 * the reload behind the modal — an auto-reload would carry the
+                 * credential off-screen before the admin could read it. */
+                if (j.creds && j.creds.length) {
+                    showCredsModal(j.creds, () => {
+                        if (!redirectPort(j.newPort || localNewPort)) window.location.reload();
+                    });
+                } else if (!redirectPort(j.newPort || localNewPort)) {
                     showToast((window.t ? window.t('commit_saved', 'Saved! Restarting system...') : 'Saved! Restarting...'), 'ok', 20000);
                     setTimeout(() => { window.location.reload(); }, 12000);
                 }
@@ -6230,7 +6336,11 @@ static const char LANG_JS[] PROGMEM = R"raw(
                  * (e.g. "slot 4: GP2 already used by slot 2"). Showing a bare
                  * "Falha ao salvar." threw that away and left the user with a
                  * rejected commit and no idea what to change. */
-                let detail = ''; try { detail = (await r.json()).error || ''; } catch(e) {}
+                /* commit_all authorizes per section, so a 403 names the one it
+                 * refused ("Forbidden" + section:"users"). Dropping that field
+                 * left an operator staring at a bare "Forbidden" with four
+                 * staged sections and no way to tell which one it meant. */
+                let detail = ''; try { const j = await r.json(); detail = (j.error || '') + (j.section ? ' (' + j.section + ')' : ''); } catch(e) {}
                 showToast((window.t ? window.t('commit_err', 'Save failed.') : 'Save failed.') +
                           (detail ? ' — ' + detail : ''), 'err', 9000);
                 if (btn) { btn.disabled = false; btn.innerText = (window.t ? window.t('commit_btn', '💾 Save & Restart') : '💾 Save & Restart'); }

@@ -20,6 +20,7 @@
 #include <hardware/watchdog.h>
 #include "SystemDefs.h"
 #include "FlashIrqProbe.h"  /* core1StallSample( ), called from feedWdt( ) below */
+#include "LogPolicy.h"      /* edge-triggered filter applied before every flash write */
 
 #define LOG_FILE_CURRENT "/system.blog"
 #define LOG_FILE_OLD "/system.old.blog"
@@ -222,6 +223,15 @@ public:
  * if no pending logs. */
  void flushPendingIfAny( );
 
+ /** Periodic tick for the edge-triggered filter — emits the hourly
+  * SYS_LOG_SUPPRESSED accounting record. Called from AppManager::loop, next
+  * to checkCrossCoreHealth( ).
+  *
+  * It cannot live inside logCode( ): emitting a record from within the
+  * decision would re-enter logCode( ) while it holds _logMutex, which is not
+  * recursive. Hence a separate tick from the main loop. */
+ void policyTick( );
+
 private:
  LogManager( );
 
@@ -247,6 +257,11 @@ private:
  uint16_t _pendingOverflow = 0;
  bool _heavyTaskCheckEnabled = false;
  bool _forceBuffer = false; /**< Temporary forced buffer (ex: BT login) */
+
+ /** Decides which records earn a slot in the 1600-record flash window.
+  * Guarded by _logMutex: shouldPersist( ) runs inside logCode( )'s critical
+  * section, and policyTick( ) takes the same mutex to drain the counter. */
+ LogPolicy _policy;
 
 
  bool (*_isHeavyTaskFn)( ) = nullptr;

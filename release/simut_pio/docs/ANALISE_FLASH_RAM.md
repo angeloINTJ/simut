@@ -436,6 +436,26 @@ permite parar em qualquer ponto.
 > falha o critério "raramente aberta" documentado no próprio script — **medir a latência
 > extra antes de mover**.
 
+> **Revisão de 2026-08-16.** O `FS_PAGES` voltou a ter uma entrada, e não é a
+> `HIST_PAGE`: é a **`LICENSE_PAGE` (4.289 B)**. O gatilho foi o filtro de log por
+> transição (`src/LogPolicy.h`), que custou 536 B num `pico_w_test` que tinha **376 B de
+> folga real** — não os 12 KB que o PlatformIO reportava, porque a conta dele omite a
+> `.ota` e o alinhamento da `.rodata` (use `scratchpad/flashfree.sh`).
+>
+> A `LICENSE_PAGE` é a candidata certa justamente pelo critério que a `CFG_PAGE`
+> reprovou: é texto legal estático, numa rota que ninguém abre duas vezes, e um device
+> que nunca recebeu o arquivo continua **inteiramente utilizável** — perde só a
+> `/license`. A `CFG_PAGE` quebrava o bootstrap; a `HIST_PAGE` cobraria uma leitura de
+> flash na página mais quente que existe. Esta não cobra nenhum dos dois.
+>
+> Medido, `arm-none-eabi-size` sobre o ELF, antes → depois (já incluindo os 536 B do
+> filtro): `pico_w_test` **376 → 3.504 B**; `pico_w_release` **40.212 → 43.340 B**.
+> Na partição de dados o arquivo custa 4.289 B, dentro da folga da seção anterior.
+>
+> **Passo de deploy novo:** `data/web/license.html.gz` precisa ser enviado ao device
+> pela página de Arquivos ou por `POST /api/upload`. Nunca por `uploadfs` — ele
+> reformata a partição e leva histórico, logs e `calib.csv` junto.
+
 > **Não desligue o gzip para "economizar".** A `CFG_PAGE` crua tem 55.294 B contra
 > 10.637 B comprimida (5,2×). O ganho vem de mudar de partição, não de descomprimir.
 

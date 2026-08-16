@@ -41,6 +41,10 @@ void AppManager::loop( ) {
  _wasInteracting = isNow;
 
  LogManager::instance( ).checkCrossCoreHealth( );
+ /* Hourly accounting for the edge-triggered log filter. Cheap on every other
+  * pass (one wrap-safe compare); it only writes once an hour, and only when
+  * something was actually suppressed. */
+ LogManager::instance( ).policyTick( );
  watchdog_update( );
 
  /* Heap/HWM + largest contiguous block every 10s.

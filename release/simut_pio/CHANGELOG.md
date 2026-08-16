@@ -4,6 +4,94 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.5-beta (2026-08-16)
+
+### Every permission is checked where the payload is parsed
+
+An audit against `docs/diretrizes_seguranca_vibecoding.md` found a two-request
+path from a low-privilege account to full admin, needing no exploit at all.
+`/api/commit_all` asked for `PERM_SYS_CONFIG` once and then parsed whatever
+sections the body carried — `users.actions` and `net` among them — so an
+operator who could edit a threshold could also mint an administrator. On the
+bench a `sectest` account with `perms=8` created an admin with `perms=1023`
+and got HTTP 200 for it.
+
+Authorization now happens per section: `WebCommitSections.h` maps each section
+to the bit it requires, and every parser reads the offset the gate recorded
+rather than searching the body again, so a gate and a parser cannot drift
+apart. The scan is deliberately **flat** — `indexOf` over the whole body, the
+same shape the parser uses — because a nesting-aware gate in front of a parser
+that is not would wave `{"sys":{"users":{...}}}` straight through. Same
+account, same request, 200 became **403 section=users** and **403 section=net**
+while its own `sys` section still returns 200.
+
+The second half of that path was the temporary password. A new account was
+born `*PENDING*` and `getDynamicExpectedHash` made its password
+`Nome@DDMMYYYY` — public by construction. Accounts now get 8 random characters
+from an unambiguous alphabet (~40 bits) with a random salt and
+`mustChangePassword`, returned exactly once in the `commit_all` response for
+the admin to hand over. The `*PENDING*` login branch is gone, so accounts left
+behind by older builds simply stop logging in and must be reset — which is the
+intended outcome, not a regression.
+
+Two more findings from the same audit: `/download` served `/config/*` to any
+account holding `PERM_FILE_READ`, handing out `system.bin` — it now refuses
+secret paths through `FsSecretPath.h`, and `/api/backup` requires
+`PERM_FULL_ADMIN` to match `/api/restore`. And `/api/mkdir` filtered `..` by
+deleting the substring, which is not a filter; directory names go through an
+allowlist, while the file manager and user list escape what they render and
+navigate through a delegated `data-nav` handler instead of interpolating names
+into `onclick`.
+
+### The web UI can speak TLS, and the server judges the password
+
+With `/config/web_cert.pem` and its key present the web server runs HTTPS and
+the session cookie's `Secure` flag finally matches the real transport; without
+them it stays on HTTP rather than locking the operator out. This is
+release-only — BearSSL's server side costs about 20 KB and the test build has
+no room. Over TLS the browser sends the password itself and the server applies
+the policy (8 characters, letter and digit) before hashing, closing the gap
+where a client that skipped the JavaScript could set anything. The stored hash
+format is unchanged.
+
+### Telemetry admits when it is not authenticating anything
+
+A missing `/cert.pem` made the TLS client fall back to `setInsecure()` — still
+encrypted, authenticating nobody — behind a warning whose message was empty and
+read like a file error. It now logs `TEL_CERT_READ_ERR ctx=1` once per boot
+saying MITM is possible, exposes `t_cert` in `/api/config`, and the config page
+carries a badge when the transport is secure but unverified.
+
+The MQTTS client also never got the buffer cap the HTTPS path received back in
+v1.5.3-beta. BearSSL asks for 16 KB contiguous; the first connection took it
+and every reconnect afterwards found a 9.5 KB largest free block. Measured with
+the same backlog and TLS as the only variable, MQTTS froze at 39234 pending
+records with `telSent` stuck at 1 while plain MQTT drained to `telSent` 72. The
+broker completed every handshake it saw — it was never at fault.
+
+### Secrets leave the repository, and a gate keeps them out
+
+A device backup carrying the real Wi-Fi password had been committed and public
+since the bench toolkit landed. The password is rotated, the file and the
+password are purged from the history, and the bench scripts read
+`SIMUT_WIFI_SSID` / `SIMUT_WIFI_PASS` from the environment. The whole
+`scratchpad/` tree — 1267 files, including a TLS private key — is untracked;
+`.gitignore` never desugared what was already committed.
+
+`tools/scan_secrets.sh` now runs before either release script packages
+anything, and refuses both shapes of the leak: the file type and the literal
+in the source. It also audits the finished zips, because those are built from
+the working tree — an untracked secret in `tools/` would ride into an archive
+that a git-only check never looks at. Credentials that are published knowingly
+live in `tools/.secretscan-allow`.
+
+### The log records transitions, not heartbeats
+
+Routine events are persisted when the state actually changes rather than on
+every pass, so silence in the log now means "nothing changed" instead of
+"nothing was written". Reading it means reading transitions: the cadence of
+routine records is no longer the sampling rate.
+
 ## v2.2.4-beta (2026-08-16)
 
 ### The snapshot says which clock stamped it

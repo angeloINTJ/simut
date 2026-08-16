@@ -17,6 +17,7 @@
 #pragma once
 #include <Arduino.h>
 #include <WebServer.h>
+#include <WebServerSecure.h>
 #include <functional>
 #include "SystemDefs.h"
 
@@ -77,7 +78,27 @@ private:
 	 * @return true if 503 was sent (caller should early-return). */
 	bool rejectIfTouchPriority( );
 
-	WebServer _server;
+	/* The active server, used through its HTTPServer base for every request
+	 * handler (send/arg/on/sendHeader/...). It is one of the two concrete
+	 * objects below, chosen once at begin(): HTTPS when a server certificate is
+	 * provisioned in /config, HTTP otherwise (M-6). Only ONE is ever created —
+	 * the device does not serve both transports at once. begin()/handleClient()
+	 * are not on the HTTPServer base (they are template methods that touch the
+	 * socket), so they are dispatched via the concrete pointer in
+	 * beginServer()/pumpServer(). */
+	HTTPServer* _server = nullptr;
+	WebServer* _serverHttp = nullptr;
+	WebServerSecure* _serverHttps = nullptr;
+	BearSSL::X509List* _serverCert = nullptr;   /**< owned; lives for the boot */
+	BearSSL::PrivateKey* _serverKey = nullptr;  /**< owned; lives for the boot */
+	bool _serverIsHttps = false;                /**< true when _serverHttps is active */
+	/** Builds _server as HTTPS (if /config/web_cert.pem + key load) or HTTP,
+	 *  wires collectHeaders and the routes, and starts it. */
+	void beginServer(uint16_t port);
+	/** Drives the active concrete server's handleClient(). */
+	void pumpServer( );
+	/** Loads the web server cert+key from /config; false if absent/invalid. */
+	bool loadServerCert( );
 	YieldCallback _yieldCb = nullptr;
 	LightYieldCallback _lightYieldCb = nullptr;
 	/* Touch priority is now checked via TouchPriority::isActive( ). */
@@ -163,7 +184,7 @@ private:
 			_cgGuardHits++;
 			return true;
 		}
-		if (!_server.client( ).connected( )) {
+		if (!_server->client( ).connected( )) {
 			_cgDisconnHits++;
 			return true;
 		}
@@ -183,7 +204,7 @@ private:
 	 * watchdog fed, and only then hands lwIP a write it can complete without
 	 * parking. See WebManager_Send.cpp for the slow-reader reboot it ends. */
 	bool safeSendN(const char* data, size_t len, const char* origin);
-	/* Room-wait alone — REQUIRED before any direct _server.send( ) on a
+	/* Room-wait alone — REQUIRED before any direct _server->send( ) on a
 	 * streaming handler: on keep-alive the previous response's unread tail
 	 * makes even a header write park in lwIP. */
 	bool waitSendRoom(size_t need, const char* origin);
@@ -191,7 +212,7 @@ private:
 	 * stop(0) — so the framework's polite close never parks unfed. */
 	void drainOrDrop( );
 	/* Armed by a send that COMPLETED; cleared on gone/drop. The successful
-	 * send is what proves _server.client( ) is safe to touch after
+	 * send is what proves _server->client( ) is safe to touch after
 	 * handleClient returns: the framework keeps a connected client, and
 	 * client( ) is a bare `*_currentClient` — with no client that deref is
 	 * the crash-loop this flag exists to prevent. */
@@ -284,6 +305,21 @@ private:
 
 	void handleSaveSystem( ); /**< Minimal save — used by dashboard theme switch. */
 	void handleApiCommitAll( ); /**< save-all + reboot */
+	/** Per-section authorization for /api/commit_all — the route multiplexes
+	 *  six sections under three different permission bits, so one gate on the
+	 *  route cannot express who may change what. Locates each section and
+	 *  refuses the whole commit before the first write to cfg.
+	 *  @param outStart receives one offset per section (-1 = absent); the
+	 *         parsers read it instead of searching again, so gate and parser
+	 *         cannot disagree about what the payload contains.
+	 *  @return false when it has already answered (403/400). */
+	bool authorizeCommitSections(const String& body, uint16_t perms, int* outStart);
+	/** Sets a random one-time temporary password on a user slot (add/reset in
+	 *  commit_all), stored as a normal V1 hash, and appends {"u":..,"p":..} to
+	 *  @p outCreds so the commit response shows it ONCE to the admin. Replaces
+	 *  the derivable Nome@DDMMYYYY scheme, whose secret was public by
+	 *  construction. Mirrors the CLI's admin-reset — the blessed serial path. */
+	void assignTempPassword(int slot, String& outCreds);
 	/* handleSaveNetwork replaced by handleApiCommitAll */
 	void handleResetTouchCal( );
 	void handleApiHistoryRebind( ); /**< POST — rebind today's .sim4 to the saved slots */
@@ -337,7 +373,8 @@ private:
 	void safeStreamFile(File& f, const String& contentType);
 	void handleApiScreenshot( );
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */
-	String getDynamicExpectedHash(String username);
+	/* getDynamicExpectedHash removed with the *PENDING* scheme — see
+	 * assignTempPassword and the note in verifyPasswordFor. */
 	String jsonEscape(const char* src);
 	void handleApiHistoryDays( );
 	void handleApiSecStatus( );
@@ -357,7 +394,7 @@ private:
 	/** Maintenance actions that used to exist only on the serial CLI, selected
 	 * by ?op=: sensor_scan, scan_results, sensor_accept, sensor_wipe, tel_sync,
 	 * tel_reset. One route rather than six — see the note on /api/restore about
-	 * what each additional _server.on( ) costs in flash. */
+	 * what each additional _server->on( ) costs in flash. */
 	void handleApiAction( );
 
 	/* OTA: full backup of LittleFS tied to chip_id (.bkp).

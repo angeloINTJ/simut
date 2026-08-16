@@ -24,7 +24,7 @@ using ReadGuard = StorageManager::ReadGuard;
 
 void WebManager::handleApiPerms( ) {
 	uint16_t perms = getAuthPerms( );
-	if (perms == 0) { _server.send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
+	if (perms == 0) { _server->send(401, "application/json", "{\"error\":\"Unauthorized\"}"); return; }
 
 	bool ntpOk = _netRef->isTimeSynced( );
 	time_t now = time(nullptr);
@@ -39,12 +39,12 @@ void WebManager::handleApiPerms( ) {
 	         "\"langCode\":\"%s\",\"langName\":\"%s\"}",
 	         _currentUserName.c_str( ), perms, ntpOk ? 1 : 0, (unsigned long)now, SIMUT_VERSION,
 	         lc ? lc : "", ln ? ln : "");
-	_server.send(200, "application/json", json);
+	_server->send(200, "application/json", json);
 }
 
 void WebManager::handleApiNetwork( ) {
 	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_NET_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!(perms & PERM_NET_CONFIG)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
@@ -78,7 +78,7 @@ void WebManager::handleApiNetwork( ) {
 	         _storageRef->isNtpEnabled( ) ? "true" : "false",
 	         (unsigned)currentPort);
 
-	_server.send(200, "application/json", json);
+	_server->send(200, "application/json", json);
 }
 
 
@@ -100,23 +100,28 @@ String WebManager::jsonEscape(const char* src) {
 }
 void WebManager::handleApiConfig( ) {
 	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_SYS_CONFIG)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!(perms & PERM_SYS_CONFIG)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
-	_server.send(200, "application/json", "");
+	_server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+	_server->send(200, "application/json", "");
 
 	char buf[256];
 
+	/* t_cert: was a CA cert loaded at boot. With t_sec on and t_cert false, TLS
+	 * runs unauthenticated (setInsecure) — the UI shows a "no cert validation"
+	 * seal from this pair (M-8). */
+	bool tlsCertLoaded = _telemetryRef ? _telemetryRef->isTlsCertLoaded( ) : false;
 	snprintf(buf, sizeof(buf),
 	         "{\"name\":\"%s\",\"tz\":%d,\"log\":%s,\"res\":%d,\"s_int\":%lu,"
-	         "\"t_transport\":%d,\"t_sec\":%s,"
+	         "\"t_transport\":%d,\"t_sec\":%s,\"t_cert\":%s,"
 	         "\"ntp_enabled\":%s,\"now_epoch\":%lu,",
 	         jsonEscape(cfg.deviceName).c_str( ), cfg.timezoneOffset,
 	         cfg.loggingEnabled ? "true" : "false", cfg.ds18Resolution,
 	         (unsigned long)cfg.sampleIntervalMs, cfg.telTransport,
 	         cfg.telEncryption ? "true" : "false",
+	         tlsCertLoaded ? "true" : "false",
 	         _storageRef->isNtpEnabled( ) ? "true" : "false",
 	         (unsigned long)time(nullptr));
 	if (!safeSend(buf)) return;
@@ -185,7 +190,7 @@ void WebManager::handleApiConfig( ) {
 
 void WebManager::handleApiUsers( ) {
 	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_USER_MGR)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!(perms & PERM_USER_MGR)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
@@ -205,19 +210,19 @@ void WebManager::handleApiUsers( ) {
 	json[pos++] = ']';
 	json[pos] = '\0';
 
-	_server.send(200, "application/json", json);
+	_server->send(200, "application/json", json);
 }
 
 void WebManager::handleApiThemes( ) {
 	uint16_t perms = getAuthPerms( );
 	if (!(perms & PERM_DASHBOARD)) {
-		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
 
-	_server.sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
-	_server.send(200, "application/json", "");
+	_server->sendHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+	_server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+	_server->send(200, "application/json", "");
 
 	safeSend("[");
 	char entry[64];
@@ -247,15 +252,15 @@ void WebManager::handleApiThemes( ) {
 void WebManager::handleApiAlarms( ) {
 	uint16_t perms = getAuthPerms( );
 	if (!(perms & PERM_SYS_CONFIG)) {
-		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 
 
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
-	_server.send(200, "application/json", "");
+	_server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+	_server->send(200, "application/json", "");
 
 
 	if (!safeSend("{\"sensors\":[")) return;
@@ -412,12 +417,12 @@ static bool scanWebDictRange(File &f, uint32_t &outOffset, uint32_t &outLen) {
 void WebManager::handleApiLang( ) {
 	/* Short cache: translations only change when user swaps .lng, so 5 min is
 	 * enough without being too stale. */
-	_server.sendHeader("Cache-Control", "public, max-age=300");
+	_server->sendHeader("Cache-Control", "public, max-age=300");
 
 	const char* path = nullptr;
 	uint32_t offset = 0, len = 0;
 	if (!DisplayManager::getActiveWebDictSource(&path, &offset, &len)) {
-		_server.send(200, "application/json", "{}");
+		_server->send(200, "application/json", "{}");
 		return;
 	}
 
@@ -440,13 +445,13 @@ void WebManager::handleApiLang( ) {
 	if (!f) {
 		/* Pack vanished or shrank under us (upload/delete between boot and
 		 * now). An empty dict is honest here: the UI falls back to EN. */
-		_server.send(200, "application/json", "{}");
+		_server->send(200, "application/json", "{}");
 		return;
 	}
 
-	_server.setContentLength(len);
-	_server.send(200, "application/json", "");
-	_server.client( ).setTimeout(500);
+	_server->setContentLength(len);
+	_server->send(200, "application/json", "");
+	_server->client( ).setTimeout(500);
 
 	char buf[WEB_STREAM_CHUNK_SOFT];
 	uint32_t sent = 0;
@@ -473,9 +478,9 @@ void WebManager::handleApiLang( ) {
 
 void WebManager::handleApiStatus( ) {
 	uint16_t perms = getAuthPerms( );
-	if (!(perms & PERM_DASHBOARD)) { _server.send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
+	if (!(perms & PERM_DASHBOARD)) { _server->send(403, "application/json", "{\"error\":\"Forbidden\"}"); return; }
 
-	_server.sendHeader("Cache-Control", "no-cache");
+	_server->sendHeader("Cache-Control", "no-cache");
 
 	SystemConfig& cfg = _storageRef->getConfig( );
 	String ipStr = _netRef->getIpAddress( );
@@ -503,8 +508,8 @@ void WebManager::handleApiStatus( ) {
 	              ? static_cast<int>(_telemetryRef->getPendingEstimate( ))
 	              : -1;
 
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
-	_server.send(200, "application/json", "");
+	_server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+	_server->send(200, "application/json", "");
 
 	char buffer[1024];
 

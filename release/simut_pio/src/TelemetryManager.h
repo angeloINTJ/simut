@@ -41,6 +41,12 @@ public:
 
  bool isMqttConnected( );
 
+ /** True when a CA certificate was loaded at boot (/cert.pem). When
+  *  encryption is on and this is false, TLS runs via setInsecure( ) — encrypted
+  *  but not authenticated. The web UI derives a "no cert validation" seal from
+  *  it (M-8). */
+ bool isTlsCertLoaded( ) const { return _hasCert; }
+
  uint16_t getPendingEstimate( ) const;
  void refreshPendingCount( );
  void notifyNewRecord( );

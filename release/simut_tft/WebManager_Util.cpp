@@ -14,36 +14,11 @@
 
 using ReadGuard = StorageManager::ReadGuard;
 
-String WebManager::getDynamicExpectedHash(String username) {
- String capUser = username;
- if (capUser.length( ) > 0) {
- capUser.toLowerCase( );
- capUser[0] = toupper(capUser[0]);
- }
-
- time_t now = _netRef->getEpoch( );
- struct tm timeinfo;
- localtime_r(&now, &timeinfo);
-
- char dateBuf[16];
- snprintf(dateBuf, sizeof(dateBuf), "%02d%02d%04d", timeinfo.tm_mday, timeinfo.tm_mon + 1, timeinfo.tm_year + 1900);
-
-
- String rawPass = capUser + "@" + String(dateBuf);
-
- br_sha256_context ctx;
- br_sha256_init(&ctx);
- br_sha256_update(&ctx, rawPass.c_str( ), rawPass.length( ));
- unsigned char hash[32];
- br_sha256_out(&ctx, hash);
-
- char hex[65];
- for (int i = 0; i < 32; i++) {
- snprintf(hex + i * 2, 3, "%02x", hash[i]);
- }
-
- return String(hex);
-}
+/* getDynamicExpectedHash was removed with the "*PENDING*" login branch: it
+ * derived the first-login password as sha256(Capitalized(username)@DDMMYYYY),
+ * which anyone knowing the username and the date could reproduce. New accounts
+ * get a random one-time password instead (assignTempPassword,
+ * WebManager_Commit.cpp). See the note in verifyPasswordFor. */
 
 String WebManager::generateSecureToken( ) {
 
@@ -84,20 +59,20 @@ String WebManager::rgb565ToHex(uint16_t color) {
 }
 
 void WebManager::handleLangJs( ) {
- _server.sendHeader("Cache-Control", "public, max-age=604800");
- _server.sendHeader("Content-Encoding", "gzip");
- _server.setContentLength(WebUI_GZ::LANG_JS_GZ_LEN);
- _server.send(200, "application/javascript", "");
+ _server->sendHeader("Cache-Control", "public, max-age=604800");
+ _server->sendHeader("Content-Encoding", "gzip");
+ _server->setContentLength(WebUI_GZ::LANG_JS_GZ_LEN);
+ _server->send(200, "application/javascript", "");
  safeSend_GZ(WebUI_GZ::LANG_JS_GZ, WebUI_GZ::LANG_JS_GZ_LEN);
 }
 
 /* Common CSS (drawer/topbar/breadcrumb/toast) extracted from
  * the 8 authenticated pages into a single cacheable asset. */
 void WebManager::handleStyleCss( ) {
- _server.sendHeader("Cache-Control", "public, max-age=604800");
- _server.sendHeader("Content-Encoding", "gzip");
- _server.setContentLength(WebUI_GZ::STYLE_CSS_GZ_LEN);
- _server.send(200, "text/css", "");
+ _server->sendHeader("Cache-Control", "public, max-age=604800");
+ _server->sendHeader("Content-Encoding", "gzip");
+ _server->setContentLength(WebUI_GZ::STYLE_CSS_GZ_LEN);
+ _server->send(200, "text/css", "");
  safeSend_GZ(WebUI_GZ::STYLE_CSS_GZ, WebUI_GZ::STYLE_CSS_GZ_LEN);
 }
 
@@ -117,10 +92,10 @@ void WebManager::handleStyleCss( ) {
  * LEN 0 means the tree had no asset at build time: answer 204, which browsers
  * treat as "no icon" without drawing an error. */
 void WebManager::handleFavicon( ) {
- if (Favicon::LEN == 0) { _server.send(204, "image/x-icon", ""); return; }
- _server.sendHeader("Cache-Control", "public, max-age=604800");
- _server.setContentLength(Favicon::LEN);
- _server.send(200, "image/x-icon", "");
+ if (Favicon::LEN == 0) { _server->send(204, "image/x-icon", ""); return; }
+ _server->sendHeader("Cache-Control", "public, max-age=604800");
+ _server->setContentLength(Favicon::LEN);
+ _server->send(200, "image/x-icon", "");
  safeSend_GZ(Favicon::DATA, Favicon::LEN);
 }
 

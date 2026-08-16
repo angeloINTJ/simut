@@ -4,6 +4,95 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.5-beta (2026-08-16)
+
+### Toda permissão é conferida onde o payload é lido
+
+Uma auditoria contra `docs/diretrizes_seguranca_vibecoding.md` achou um caminho
+de duas requisições, sem exploit nenhum, de uma conta de baixo privilégio até
+admin pleno. O `/api/commit_all` exigia `PERM_SYS_CONFIG` uma vez e depois
+processava as seções que o corpo trouxesse — `users.actions` e `net` entre
+elas — então quem podia editar um limiar também podia criar um administrador.
+Na bancada, uma conta `sectest` com `perms=8` criou um admin com `perms=1023`
+e recebeu HTTP 200 por isso.
+
+A autorização passou a ser por seção: o `WebCommitSections.h` mapeia cada seção
+ao bit que ela exige, e cada parser lê o offset que o portão anotou em vez de
+procurar de novo no corpo, de modo que portão e parser não podem divergir. A
+varredura é **flat** de propósito — `indexOf` no corpo inteiro, o mesmo formato
+que o parser usa — porque um portão ciente de aninhamento na frente de um
+parser que não é deixaria `{"sys":{"users":{...}}}` passar direto. Mesma conta,
+mesma requisição: o 200 virou **403 section=users** e **403 section=net**,
+enquanto a própria seção `sys` segue devolvendo 200.
+
+A outra metade do caminho era a senha temporária. Conta nova nascia `*PENDING*`
+e o `getDynamicExpectedHash` fazia a senha ser `Nome@DDMMYYYY` — pública por
+construção. Agora a conta recebe 8 caracteres aleatórios de um alfabeto sem
+ambiguidade (~40 bits), com salt aleatório e `mustChangePassword`, devolvidos
+uma única vez na resposta do `commit_all` para o admin repassar. O ramo
+`*PENDING*` do login sumiu, então contas deixadas por builds antigos
+simplesmente não logam mais e precisam de reset — que é o resultado desejado,
+não uma regressão.
+
+Mais dois achados da mesma auditoria: o `/download` servia `/config/*` a
+qualquer conta com `PERM_FILE_READ`, entregando o `system.bin` — agora recusa
+caminhos secretos pelo `FsSecretPath.h`, e o `/api/backup` exige
+`PERM_FULL_ADMIN` para fazer par com o `/api/restore`. E o `/api/mkdir`
+filtrava `..` apagando a substring, o que não é filtro; nomes de diretório
+passam por allowlist, enquanto o gerenciador de arquivos e a lista de usuários
+escapam o que renderizam e navegam por um handler delegado `data-nav` em vez de
+interpolar nomes dentro de `onclick`.
+
+### A UI web fala TLS, e o servidor julga a senha
+
+Com `/config/web_cert.pem` e a chave presentes o servidor web sobe em HTTPS e o
+flag `Secure` do cookie de sessão finalmente casa com o transporte real; sem
+eles segue em HTTP, para nunca trancar o operador do lado de fora. É
+release-only — o lado servidor do BearSSL custa uns 20 KB e o build de teste não
+tem espaço. Sobre TLS o navegador manda a própria senha e o servidor aplica a
+política (8 caracteres, letra e dígito) antes de gerar o hash, fechando a
+brecha em que um cliente que pulasse o JavaScript podia definir qualquer coisa.
+O formato do hash armazenado não mudou.
+
+### A telemetria admite quando não está autenticando nada
+
+Um `/cert.pem` ausente fazia o cliente TLS cair para `setInsecure()` — ainda
+cifrado, sem autenticar ninguém — atrás de um aviso de mensagem vazia que lia
+como erro de arquivo. Agora registra `TEL_CERT_READ_ERR ctx=1` uma vez por boot
+dizendo que MITM é possível, expõe `t_cert` no `/api/config`, e a página de
+configuração ganha um selo quando o transporte é seguro mas não verificado.
+
+O cliente MQTTS também nunca recebeu o teto de buffer que o caminho HTTPS ganhou
+lá na v1.5.3-beta. O BearSSL pede 16 KB contíguos; a primeira conexão levava
+esse bloco e toda reconexão seguinte encontrava 9,5 KB de maior bloco livre.
+Medido com o mesmo backlog e o TLS como única variável, o MQTTS congelou em
+39.234 registros pendentes com `telSent` preso em 1, enquanto o MQTT puro
+drenou até `telSent` 72. O broker completou todos os handshakes que viu — nunca
+foi culpa dele.
+
+### Os segredos saem do repositório, e um portão os mantém fora
+
+Um backup do dispositivo carregando a senha real do Wi-Fi estava commitado e
+público desde que o kit de bancada entrou. A senha foi rotacionada, o arquivo e
+a senha foram expurgados do histórico, e os scripts de bancada leem
+`SIMUT_WIFI_SSID` / `SIMUT_WIFI_PASS` do ambiente. A árvore `scratchpad/`
+inteira — 1267 arquivos, incluindo uma chave privada TLS — saiu do índice; o
+`.gitignore` nunca desrastreou o que já tinha sido commitado.
+
+O `tools/scan_secrets.sh` agora roda antes de qualquer script de release
+empacotar coisa alguma, e recusa as duas formas do vazamento: o tipo de arquivo
+e o literal no código. Ele também audita os zips prontos, porque eles são
+montados a partir da working tree — um segredo não rastreado em `tools/`
+entraria num pacote que uma checagem só do git nunca olha. Credenciais
+publicadas conscientemente ficam em `tools/.secretscan-allow`.
+
+### O log registra transições, não batimentos
+
+Eventos de rotina são gravados quando o estado realmente muda, em vez de a cada
+passagem, então silêncio no log passa a significar "nada mudou" e não "nada foi
+escrito". Ler o log é ler transições: o ritmo dos registros de rotina não é mais
+a taxa de amostragem.
+
 ## v2.2.4-beta (2026-08-16)
 
 ### O snapshot diz qual relógio o carimbou

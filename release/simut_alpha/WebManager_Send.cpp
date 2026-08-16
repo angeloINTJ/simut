@@ -50,12 +50,26 @@ static constexpr size_t SEND_FRAMING_SLACK = 16;
  * race-free. isClientGone( ) folds in the handler deadline, the guard latch
  * and the disconnect check.
  *
- * Also the guard for DIRECT _server.send( ) call sites: on a keep-alive
+ * Also the guard for DIRECT _server->send( ) call sites: on a keep-alive
  * connection the unread tail of the PREVIOUS response holds the buffer, so
  * the next response's header write parks exactly like a body write — that
  * was the last face of the slow-reader reboot (C0=[WEB_HIST] with the body
  * path already funneled). */
 bool WebManager::waitSendRoom(size_t need, const char* origin) {
+ /* Over TLS this whole room-wait does not apply and actively breaks the send.
+  * availableForWrite( ) on a WiFiClientSecure reports free space in BearSSL's
+  * ~1 KB output buffer, not the lwIP send buffer, so it is always below
+  * TCP_SND_BUF/2 and the loop below spins until WEB_SEND_STALL_MS and aborts —
+  * which is exactly why a streamed page came back empty over HTTPS on the
+  * bench while a small non-chunked reply went through. BearSSL owns the
+  * batching into records, and the SendGuard around each sendContent( ) feeds
+  * the watchdog through the blocking encrypt-and-write, so the plain-TCP pbuf
+  * accounting the loop exists for has no role here. Feed once, honour a real
+  * abort latch, and let the write proceed. */
+ if (_serverIsHttps) {
+  feedWatchdog( );
+  return !isClientGone( );
+ }
  /* Byte room alone is not park-proof: with a slow reader the SEGMENT queue
   * and PBUF pool run out while tcp_sndbuf still reports space, and the
   * write parks inside lwIP anyway (measured: hp=720, death inside
@@ -65,11 +79,11 @@ bool WebManager::waitSendRoom(size_t need, const char* origin) {
  size_t target = need;
  if (target < (size_t)(TCP_SND_BUF / 2)) target = (size_t)(TCP_SND_BUF / 2);
  uint32_t waited0 = millis( );
- while (_server.client( ).availableForWrite( ) < (int)target) {
+ while (_server->client( ).availableForWrite( ) < (int)target) {
  if (isClientGone( )) {
  maybeLogClientDisconnect(origin);
  if (_chunkedResponse) { dropAbortedStream(origin); return false; }
- _drainPending = _server.client( ).connected( ); /* deadline abort: peer alive */
+ _drainPending = _server->client( ).connected( ); /* deadline abort: peer alive */
  return false;
  }
  if (millis( ) - waited0 > WEB_SEND_STALL_MS) {
@@ -83,7 +97,7 @@ bool WebManager::waitSendRoom(size_t need, const char* origin) {
   * reboot the device, sip-450 clients cannot, and 300 sits exactly
   * between. 1 ms is the smallest honest cap: one scheduler pass,
   * then tcp_close — and close( ) falls back to tcp_abort on error. */
- _server.client( ).stop(1);
+ _server->client( ).stop(1);
  _drainPending = false; /* pcb gone — nothing left to drain */
  return false;
  }
@@ -117,7 +131,7 @@ bool WebManager::safeSendN(const char* data, size_t len, const char* origin) {
  if (len == 0 || data == nullptr) return !isClientGone( );
  if (isClientGone( )) { maybeLogClientDisconnect(origin); return false; }
 
- _server.client( ).setTimeout(500);
+ _server->client( ).setTimeout(500);
  feedWatchdog( );
 
  size_t off = 0;
@@ -131,7 +145,7 @@ bool WebManager::safeSendN(const char* data, size_t len, const char* origin) {
  SendGuard sg;
  LogManager::TraceScope _tSend(0, MOD_WEB_SEND);
  HPOS(720);
- _server.sendContent(data + off, piece);
+ _server->sendContent(data + off, piece);
  HPOS(721);
  }
  off += piece;
@@ -148,7 +162,7 @@ bool WebManager::safeSendN(const char* data, size_t len, const char* origin) {
  /* connected( ), not !gone: a deadline/guard abort leaves the client
   * CONNECTED with an un-ACKed tail — precisely the case whose polite
   * close parks. Success or abort, a live peer still needs the drain. */
- _drainPending = _server.client( ).connected( );
+ _drainPending = _server->client( ).connected( );
  /* 722 says this funnel RETURNED. Without it, every park anywhere between
   * the last sendContent and the next stamp wore 721 alike, which is why the
   * storm residual could not be placed: 721 covers "inside the tail of
@@ -191,6 +205,13 @@ bool WebManager::safeSend_P(const char* content) {
  * the connection without the polite wait. With the tail either ACKed or the
  * pcb gone, the framework's later close exits instantly. */
 void WebManager::drainOrDrop( ) {
+ /* Over TLS this tail-drain does not apply: it waits on availableForWrite( )
+  * reaching TCP_SND_BUF, which a WiFiClientSecure (reporting BearSSL's ~1 KB
+  * out buffer) never reaches, so it would spin to WEB_SEND_STALL_MS and stop(1)
+  * the connection after every response — the same availableForWrite mismatch
+  * that broke waitSendRoom over TLS. BearSSL's own close/flush drains the
+  * record and the TCP tail; leave it to it. */
+ if (_serverIsHttps) { watchdog_update( ); return; }
  /* Drain the just-sent response's un-ACKed tail — but ONLY if the client that
   * sent it still exists.
   *
@@ -202,14 +223,14 @@ void WebManager::drainOrDrop( ) {
   * once, loading bar confused" the user saw) — so handleClient nulls
   * _currentClient. But _drainPending was latched true by that response's
   * completed send and is still set here. The old code then did
-  *   WiFiClient c = _server.client( );          // = *(ClientType*)nullptr
+  *   WiFiClient c = _server->client( );          // = *(ClientType*)nullptr
   * whose copy reads members through a null `this`, takes a garbage ClientContext*
   * out of ROM, and ref()'s it — a load to a wild address that parks the bus until
   * the watchdog fires. Autopsy: C0=[WEB_POLL] hp=6031 (the copy), C1=[DISPLAY],
   * only under overlapping requests. Reproduced by the user by switching sensors
   * while a graph loaded; not by any single-stream synthetic client.
   *
-  * Take the pointer, not a copy: &_server.client( ) is &*(ClientType*)_currentClient,
+  * Take the pointer, not a copy: &_server->client( ) is &*(ClientType*)_currentClient,
   * which folds to _currentClient with NO dereference (so a null is returned as
   * null, never read through), and bail if the client is gone. This also drops the
   * per-drain WiFiClient copy/SList churn entirely. _currentClient is only ever a
@@ -217,7 +238,7 @@ void WebManager::drainOrDrop( ) {
   * check is a complete guard. */
  HPOS(603);
  watchdog_update( );
- WiFiClient* c = &_server.client( );
+ WiFiClient* c = &_server->client( );
  if (!c || !c->connected( )) return;
  if (c->availableForWrite( ) >= (int)TCP_SND_BUF) return; /* nothing pending */
  uint32_t t0 = millis( );
@@ -255,12 +276,16 @@ void WebManager::drainOrDrop( ) {
  * the chance to flush. */
 void WebManager::dropAbortedStream(const char* origin) {
  (void)origin;
- /* Pointer, not a copy — same reason as drainOrDrop: &_server.client( ) folds to
+ /* Over TLS, the availableForWrite terminator-room test below is meaningless
+  * (BearSSL out buffer, not lwIP), so just stop the secure client — its close
+  * tears down the TLS session and the underlying pcb. See drainOrDrop. */
+ if (_serverIsHttps) { _server->client( ).stop(1); _drainPending = false; return; }
+ /* Pointer, not a copy — same reason as drainOrDrop: &_server->client( ) folds to
   * _currentClient with no dereference, so a client the framework already retired
   * (null) is caught by the guard instead of read through. This path runs inside
   * handleClient, where _currentClient is normally live, but the guard costs
   * nothing and closes the same class of null-deref for good. */
- WiFiClient* c = &_server.client( );
+ WiFiClient* c = &_server->client( );
  if (!c || !c->connected( )) { _drainPending = false; return; }
  /* Surgical, not blanket: a socket with room for the 5-byte terminator
   * (plus framing slack) lets _finalizeResponse complete instantly, and the
@@ -285,8 +310,8 @@ void WebManager::dropAbortedStream(const char* origin) {
 
 void WebManager::detectGzipSupport( ) {
  _clientAcceptsGzip = false;
- if (_server.hasHeader("Accept-Encoding")) {
- String ae = _server.header("Accept-Encoding");
+ if (_server->hasHeader("Accept-Encoding")) {
+ String ae = _server->header("Accept-Encoding");
  _clientAcceptsGzip = (ae.indexOf("gzip") >= 0);
  }
 }
@@ -321,10 +346,10 @@ bool WebManager::safeSend_GZ(const uint8_t* gz_data, size_t gz_len) {
 void WebManager::safeStreamFile(File& f, const String& contentType) {
  const size_t CHUNK = 1024;
  uint8_t buf[CHUNK];
- _server.setContentLength(f.size( ));
- _server.send(200, contentType, "");
+ _server->setContentLength(f.size( ));
+ _server->send(200, contentType, "");
 
- _server.client( ).setTimeout(500);
+ _server->client( ).setTimeout(500);
 
  bool hasMore = true;
  while (hasMore) {

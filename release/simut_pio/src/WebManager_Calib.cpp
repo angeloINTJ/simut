@@ -99,14 +99,14 @@ void sanitizeName(char* s) {
  * not calibration (PERM_CALIB, still served by /api/calib). */
 void WebManager::handleApiSensorsGet( ) {
 	if (!(getAuthPerms( ) & PERM_SYS_CONFIG)) {
-		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
 	SystemConfig& cfg = _storageRef->getConfig( );
 
-	_server.sendHeader("Cache-Control", "no-store");
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
-	_server.send(200, "application/json", "");
+	_server->sendHeader("Cache-Control", "no-store");
+	_server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+	_server->send(200, "application/json", "");
 
 	char buf[320];
 
@@ -206,7 +206,7 @@ void WebManager::handleApiSensorsGet( ) {
  * the special case and the coincidence it relied on. */
 void WebManager::handleApiCalibGet( ) {
 	if (!(getAuthPerms( ) & PERM_CALIB)) {
-		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
 
@@ -215,9 +215,9 @@ void WebManager::handleApiCalibGet( ) {
 	long calibVer = _storageRef->getCalibrationVersion("/calib.csv");
 	const auto& runtime = _sensorRef->getRuntimeSensors( );
 
-	_server.sendHeader("Cache-Control", "no-store");
-	_server.setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
-	_server.send(200, "application/json", "");
+	_server->sendHeader("Cache-Control", "no-store");
+	_server->setContentLength(CONTENT_LENGTH_UNKNOWN); _chunkedResponse = true;
+	_server->send(200, "application/json", "");
 
 	/* 480, not 400: the per-sensor object grew by hasPress/pressRead/
 	 * pressOffset, and a truncated object is invalid JSON for the whole page,
@@ -504,32 +504,32 @@ int findChangeMatch(CalibChange* arr, int n, const char* key, const char* id) {
 
 void WebManager::handleApiCalibPost( ) {
 	if (!(getAuthPerms( ) & PERM_CALIB)) {
-		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
 	/* Rate-limit 5s — flash-heavy operation (reads/rewrites calib.csv +
 	 * saveConfiguration + reload). Protects against UI loop bugs and
 	 * intentional flash-wear attacks by a user with PERM_CALIB. */
 	if (isRateLimited(5000)) {
-		_server.sendHeader("Retry-After", "5");
-		_server.send(429, "application/json", "{\"error\":\"rate limited\"}");
+		_server->sendHeader("Retry-After", "5");
+		_server->send(429, "application/json", "{\"error\":\"rate limited\"}");
 		return;
 	}
 	if (!_netRef->isTimeSynced( )) {
-		_server.send(503, "application/json", "{\"error\":\"NTP not synced\"}");
+		_server->send(503, "application/json", "{\"error\":\"NTP not synced\"}");
 		return;
 	}
 
-	String body = _server.hasArg("plain") ? _server.arg("plain") : "";
+	String body = _server->hasArg("plain") ? _server->arg("plain") : "";
 	if (body.length( ) == 0) {
-		_server.send(400, "application/json", "{\"error\":\"empty body\"}");
+		_server->send(400, "application/json", "{\"error\":\"empty body\"}");
 		return;
 	}
 	/* The page sends only edited slots, so a legitimate body is well under a
 	 * kilobyte. Anything bigger is a bug or an attack; bounce it before the
 	 * substring copies below double it on the heap. */
 	if (body.length( ) > 8192) {
-		_server.send(413, "application/json", "{\"error\":\"payload too large\"}");
+		_server->send(413, "application/json", "{\"error\":\"payload too large\"}");
 		return;
 	}
 
@@ -736,7 +736,7 @@ void WebManager::handleApiCalibPost( ) {
 	if (err[0]) {
 		char resp[160];
 		snprintf(resp, sizeof(resp), "{\"error\":\"%s\"}", err);
-		_server.send(400, "application/json", resp);
+		_server->send(400, "application/json", resp);
 		return; /* cfg and calib.csv untouched */
 	}
 
@@ -777,7 +777,7 @@ void WebManager::handleApiCalibPost( ) {
 
 	File fout = LittleFS.open("/calib.tmp", "w");
 	if (!fout) {
-		_server.send(500, "application/json", "{\"error\":\"calib write failed\"}");
+		_server->send(500, "application/json", "{\"error\":\"calib write failed\"}");
 		return;
 	}
 	fout.printf("VERSION,%lu\n", (unsigned long)version);
@@ -855,7 +855,7 @@ void WebManager::handleApiCalibPost( ) {
 
 	if (nChanges > 0) {
 	 if (!_storageRef->processCalibrationUpload( )) {
-	  _server.send(500, "application/json", "{\"error\":\"calib commit failed\"}");
+	  _server->send(500, "application/json", "{\"error\":\"calib commit failed\"}");
 	  return;
 	 }
 	 _displayRef->requestQuietMode( );
@@ -878,7 +878,7 @@ void WebManager::handleApiCalibPost( ) {
 
 	char resp[80];
 	snprintf(resp, sizeof(resp), "{\"ok\":true,\"version\":%lu}", (unsigned long)version);
-	_server.send(200, "application/json", resp);
+	_server->send(200, "application/json", resp);
 }
 
 /* ─────────────────────────────────────────────────────────────────
@@ -886,7 +886,7 @@ void WebManager::handleApiCalibPost( ) {
  *
  * The five maintenance operations that had no web equivalent when the serial
  * CLI was reduced to its emergency set. They are grouped behind one route and
- * an ?op= selector because each additional _server.on( ) costs flash for the
+ * an ?op= selector because each additional _server->on( ) costs flash for the
  * WebServer's per-route bookkeeping, and all six share the same preamble.
  *
  * The scan is driven straight through _sensorRef rather than through
@@ -899,40 +899,40 @@ void WebManager::handleApiCalibPost( ) {
 void WebManager::handleApiAction( ) {
 	uint16_t perms = getAuthPerms( );
 	if (!(perms & PERM_SYS_CONFIG)) {
-		_server.send(403, "application/json", "{\"error\":\"Forbidden\"}");
+		_server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
 		return;
 	}
-	String op = _server.arg("op");
+	String op = _server->arg("op");
 
 	/* ── Telemetry ── */
 	if (op == "tel_sync") {
-		if (!_telemetryRef) { _server.send(503, "application/json", "{\"error\":\"unavailable\"}"); return; }
+		if (!_telemetryRef) { _server->send(503, "application/json", "{\"error\":\"unavailable\"}"); return; }
 		_telemetryRef->forceSync( );
 		LOG_CODE(LOG_INFO, "WEB", TEL_FORCE_SYNC, _currentUserId, TRL("Forcing telemetry sync"));
-		_server.send(200, "application/json", "{\"ok\":true}");
+		_server->send(200, "application/json", "{\"ok\":true}");
 		return;
 	}
 	if (op == "tel_reset") {
 		_storageRef->resetTelemetryCursor( );
 		LOG_CODE(LOG_WARN, "WEB", SEC_CONFIG_CHANGED, _currentUserId,
 		         TRL("Telemetry cursor reset via web"));
-		_server.send(200, "application/json", "{\"ok\":true}");
+		_server->send(200, "application/json", "{\"ok\":true}");
 		return;
 	}
 
 	/* ── Sensor discovery ── */
 	if (op == "sensor_scan") {
-		if (!_sensorRef) { _server.send(503, "application/json", "{\"error\":\"unavailable\"}"); return; }
-		if (_sensorRef->isScanning( )) { _server.send(200, "application/json", "{\"busy\":true}"); return; }
+		if (!_sensorRef) { _server->send(503, "application/json", "{\"error\":\"unavailable\"}"); return; }
+		if (_sensorRef->isScanning( )) { _server->send(200, "application/json", "{\"busy\":true}"); return; }
 		_sensorRef->startScan( );
-		_server.send(202, "application/json", "{\"started\":true}");
+		_server->send(202, "application/json", "{\"started\":true}");
 		return;
 	}
 	if (op == "scan_results") {
-		if (!_sensorRef) { _server.send(503, "application/json", "{\"error\":\"unavailable\"}"); return; }
+		if (!_sensorRef) { _server->send(503, "application/json", "{\"error\":\"unavailable\"}"); return; }
 		std::vector<ScanResult> results;
 		if (!_sensorRef->getScanResults(results)) {
-			_server.send(200, "application/json", "{\"scanning\":true}");
+			_server->send(200, "application/json", "{\"scanning\":true}");
 			return;
 		}
 		String out = "{\"scanning\":false,\"found\":[";
@@ -947,7 +947,7 @@ void WebManager::handleApiAction( ) {
 			out += item;
 		}
 		out += "]}";
-		_server.send(200, "application/json", out);
+		_server->send(200, "application/json", out);
 		return;
 	}
 
@@ -957,12 +957,12 @@ void WebManager::handleApiAction( ) {
 	 * wrong parameter — it reads as "my slot is malformed" when the real
 	 * problem is a typo in the op name. */
 	if (op != "sensor_wipe" && op != "sensor_accept") {
-		_server.send(400, "application/json", "{\"error\":\"op\"}");
+		_server->send(400, "application/json", "{\"error\":\"op\"}");
 		return;
 	}
-	int slot = _server.hasArg("slot") ? _server.arg("slot").toInt( ) : -1;
+	int slot = _server->hasArg("slot") ? _server->arg("slot").toInt( ) : -1;
 	if (slot < 0 || slot >= MAX_SENSORS) {
-		_server.send(400, "application/json", "{\"error\":\"slot\"}");
+		_server->send(400, "application/json", "{\"error\":\"slot\"}");
 		return;
 	}
 	SystemConfig& cfg = _storageRef->getConfig( );
@@ -975,7 +975,7 @@ void WebManager::handleApiAction( ) {
 		_storageRef->saveConfiguration( );
 		LOG_CODE(LOG_WARN, "WEB", SEC_CONFIG_CHANGED, _currentUserId,
 		         TRL("Sensor history epoch reset via web"));
-		_server.send(200, "application/json", "{\"ok\":true}");
+		_server->send(200, "application/json", "{\"ok\":true}");
 		return;
 	}
 
@@ -983,11 +983,11 @@ void WebManager::handleApiAction( ) {
 #if SIMUT_SENSOR_DS18B20
 		uint8_t foundRom[8];
 		if (!_sensorRef || !_sensorRef->identifyPhysicalSensor((uint8_t)slot, foundRom)) {
-			_server.send(404, "application/json", "{\"error\":\"nosensor\"}");
+			_server->send(404, "application/json", "{\"error\":\"nosensor\"}");
 			return;
 		}
 		if (foundRom[0] == 0x00 || dallasCrc8(foundRom, 7) != foundRom[7]) {
-			_server.send(422, "application/json", "{\"error\":\"badrom\"}");
+			_server->send(422, "application/json", "{\"error\":\"badrom\"}");
 			return;
 		}
 		String dbId, dbName; CalibCurve dbCurve;
@@ -1016,9 +1016,9 @@ void WebManager::handleApiAction( ) {
 		char resp[64];
 		snprintf(resp, sizeof(resp), "{\"ok\":true,\"epoch_moved\":%s}",
 		         epochMoved ? "true" : "false");
-		_server.send(200, "application/json", resp);
+		_server->send(200, "application/json", resp);
 #else
-		_server.send(501, "application/json", "{\"error\":\"nods18b20\"}");
+		_server->send(501, "application/json", "{\"error\":\"nods18b20\"}");
 #endif
 		return;
 	}
@@ -1026,5 +1026,5 @@ void WebManager::handleApiAction( ) {
 	/* Unreachable: the op was whitelisted above. Kept as a belt-and-braces
 	 * answer so a future op added to that whitelist without a body here fails
 	 * loudly instead of returning an empty 200. */
-	_server.send(400, "application/json", "{\"error\":\"op\"}");
+	_server->send(400, "application/json", "{\"error\":\"op\"}");
 }
