@@ -109,14 +109,19 @@ void WebManager::handleApiConfig( ) {
 
 	char buf[256];
 
+	/* t_cert: was a CA cert loaded at boot. With t_sec on and t_cert false, TLS
+	 * runs unauthenticated (setInsecure) — the UI shows a "no cert validation"
+	 * seal from this pair (M-8). */
+	bool tlsCertLoaded = _telemetryRef ? _telemetryRef->isTlsCertLoaded( ) : false;
 	snprintf(buf, sizeof(buf),
 	         "{\"name\":\"%s\",\"tz\":%d,\"log\":%s,\"res\":%d,\"s_int\":%lu,"
-	         "\"t_transport\":%d,\"t_sec\":%s,"
+	         "\"t_transport\":%d,\"t_sec\":%s,\"t_cert\":%s,"
 	         "\"ntp_enabled\":%s,\"now_epoch\":%lu,",
 	         jsonEscape(cfg.deviceName).c_str( ), cfg.timezoneOffset,
 	         cfg.loggingEnabled ? "true" : "false", cfg.ds18Resolution,
 	         (unsigned long)cfg.sampleIntervalMs, cfg.telTransport,
 	         cfg.telEncryption ? "true" : "false",
+	         tlsCertLoaded ? "true" : "false",
 	         _storageRef->isNtpEnabled( ) ? "true" : "false",
 	         (unsigned long)time(nullptr));
 	if (!safeSend(buf)) return;

@@ -2823,9 +2823,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
                     </div>
                     <label class="cfg-tg" style="margin-top:5px;">
-                        <span class="toggle"><input type="checkbox" id="t_sec" name="t_sec" value="1"><span class="slider"></span></span>
+                        <span class="toggle"><input type="checkbox" id="t_sec" name="t_sec" value="1" onchange="updateTlsWarn()"><span class="slider"></span></span>
                         <span id="t_sec_lbl" data-i18n="cfg_sec">Use TLS / SSL</span>
                     </label>
+                    <!-- M-8: TLS on without /cert.pem = encrypted but NOT
+                         authenticated (setInsecure). Seal shown from t_sec+t_cert. -->
+                    <div id="tls_noverify_warn" style="display:none;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:rgba(245,158,11,.12);border:1px solid var(--warn);color:var(--warn);font-size:.82rem">
+                        <span data-i18n="cfg_tls_noverify">⚠ TLS without certificate validation — the connection is encrypted but not authenticated (MITM possible). Upload /cert.pem via Files to validate the server.</span>
+                    </div>
 
                     <!-- Campos exclusivos do transporte HTTP -->
                     <div id="http_fields" style="border-top:1px dashed #3f3f46; padding-top:15px; margin-top:5px;">
@@ -2969,6 +2974,10 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
     <script>
         function toggleTransport() { let tr = document.getElementById('t_transport').value; document.getElementById('http_fields').style.display = (tr == '0') ? 'block' : 'none'; document.getElementById('mqtt_fields').style.display = (tr == '1') ? 'block' : 'none'; let secSpan = document.getElementById('t_sec_lbl'); if (secSpan) secSpan.textContent = (tr == '1') ? window.t('cfg_sec_mqtt', 'Use MQTTS (TLS)') : window.t('cfg_sec', 'Use HTTPS (SSL)'); }
+        /* M-8: show the "no cert validation" seal when TLS is on but no cert was
+           loaded at boot (window.__tlsCert, from /api/config t_cert). Advisory —
+           the firmware still refuses nothing, it just makes setInsecure visible. */
+        function updateTlsWarn() { var w = document.getElementById('tls_noverify_warn'); if (!w) return; var on = document.getElementById('t_sec').checked; w.style.display = (on && !window.__tlsCert) ? 'block' : 'none'; }
         function toggleBuilder() { let mode = document.getElementById('t_mode').value; document.getElementById('custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderPreview(); }
 
         /* Device metadata populated by loadConfig (real serial + per-slot hwid/active).
@@ -3292,6 +3301,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('h_int').value = val('h_int', 1);
                 document.getElementById('t_transport').value = val('t_transport', 0);
                 document.getElementById('t_sec').checked = !!val('t_sec', false);
+                window.__tlsCert = !!val('t_cert', false);   /* M-8: cert loaded at boot? */
+                updateTlsWarn();
                 document.getElementById('t_srv').value = val('t_srv', '');
                 document.getElementById('t_port').value = val('t_port', 80);
                 document.getElementById('t_path').value = val('t_path', '');
