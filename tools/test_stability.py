@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Stability test - check if lockout and WDT fixes work."""
-import serial, time, sys, re
+import serial, time, sys, re, os
+
+WIFI_SSID = os.environ.get('SIMUT_WIFI_SSID', '')
+WIFI_PASS = os.environ.get('SIMUT_WIFI_PASS', '')
+if not WIFI_SSID or not WIFI_PASS:
+    sys.exit('defina SIMUT_WIFI_SSID e SIMUT_WIFI_PASS no ambiente')
 
 ser = serial.Serial('/dev/ttyACM0', 115200, timeout=5)
 ser.dtr = True  # critical for earlephilhower core
@@ -94,9 +99,9 @@ if errors:
 print('\n=== WIFI CONFIG ===')
 cmd('enable', 0.5)
 cmd('configure terminal', 0.5)
-r = cmd('wifi ssid ProcrastinationPLUS')
+r = cmd(f'wifi ssid {WIFI_SSID}')
 print(f'  SSID: {"OK" if "SIMUT" in r else "FAIL"}')
-r = cmd('wifi pass ***REMOVED***')
+r = cmd(f'wifi pass {WIFI_PASS}')
 print(f'  PASS: {"OK" if "SIMUT" in r else "FAIL"}')
 cmd('end', 0.5)
 r = cmd('write memory', 5)

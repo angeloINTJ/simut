@@ -6,8 +6,10 @@ Valida V4 fixes (stack, deadlock), CLI parser, WiFi, e APIs.
 import serial, time, socket, re, sys, os, glob
 
 BAUD = 115200
-WIFI_SSID = 'ProcrastinationPLUS'
-WIFI_PASS = '***REMOVED***'
+WIFI_SSID = os.environ.get('SIMUT_WIFI_SSID', '')
+WIFI_PASS = os.environ.get('SIMUT_WIFI_PASS', '')
+if not WIFI_SSID or not WIFI_PASS:
+    sys.exit('defina SIMUT_WIFI_SSID e SIMUT_WIFI_PASS no ambiente')
 
 class PicoTest:
     def __init__(self):
