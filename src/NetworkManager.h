@@ -97,6 +97,21 @@ public:
  */
  static void applyTimezone(int8_t offset);
 
+ /**
+ * @brief True when the clock in force came from real time, not the seed.
+ *
+ * The provisional clock is a guess extrapolated from the newest record on
+ * flash; NTP (or a manual set) replaces it with real time and clears the
+ * flag. Everything stamped while this returns false inherits whatever error
+ * the seed carried, which is why the history writer records the answer
+ * alongside the block it stamps — at the next boot it is the only way to
+ * tell a snapshot that may be believed from one that may not.
+ * See H5_FLAG_CLOCK_SYNCED.
+ */
+ bool isTimeTrusted( ) const {
+ return !_provisionalActive && time(nullptr) > 1600000000;
+ }
+
 private:
  enum NetState {
  NET_OFFLINE,
