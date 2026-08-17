@@ -67,7 +67,18 @@ enum TraceModule {
   * history scan, a payload build and a network POST, with different fixes. */
  MOD_TEL_COLLECT = 23, /**< inside collectBatch — the per-file history scan */
  MOD_TEL_BUILD = 24,   /**< inside buildPayload */
- MOD_TEL_SEND = 25     /**< inside attemptHttpUpload / attemptMqttPublish */
+ MOD_TEL_SEND = 25,    /**< inside attemptHttpUpload / attemptMqttPublish */
+ /* Splitting MOD_STORAGE_WRITE, which the loop set at TWO unrelated places —
+  * so an autopsy reading C0=[STORAGE_WRITE] named three candidates at once
+  * (maintenance, sampling, and the entry write, which had no scope of its
+  * own). A 2026-08-16 reboot under a dead telemetry collector landed exactly
+  * there and could not be pinned down; four repro attempts over ~50 min never
+  * brought it back, so the next occurrence has to be legible on the first
+  * try. MOD_STORAGE_WRITE stays in the enum: old logs still carry ctx=205. */
+ MOD_STO_MAINT = 26,   /**< StorageManager::update + flushCursorIfDirty */
+ MOD_HIST_SAMPLE = 27, /**< the sampling gate + processHistoryLogging */
+ MOD_HIST_WIP = 28,    /**< inside StorageManager::flushWipV5 (the .wip snapshot) */
+ MOD_HIST_SEAL = 29    /**< inside StorageManager::sealHourV5 (block seal + .wip erase) */
 };
 
 /** Structured log event codes for machine-parseable system logging. */

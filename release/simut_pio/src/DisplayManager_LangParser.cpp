@@ -578,6 +578,11 @@ void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
  out[o++] = repl;
  p += 2;
  } else if (c == 0xC2) {
+ /* Spanish opening marks have no 7-bit form worth printing. Dropping
+ * them reads right ("Sistema Listo!"); the default '?' below did not
+ * ("?Sistema Listo!"), and the closing mark already tells the reader
+ * whether the sentence is a question or an exclamation. */
+ if (c2 == 0xA1 || c2 == 0xBF) { p += 2; continue; }
  /* Latin-1 supplement (0x80..0xBF): symbols like degree, +-, squared, cubed, copyright.
  * Simple substitutions; remainder becomes '?'. */
  switch (c2) {

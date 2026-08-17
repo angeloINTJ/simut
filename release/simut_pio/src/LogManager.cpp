@@ -70,8 +70,9 @@ const char* MOD_NAMES[] = {"BOOT", "IDLE", "WIFI", "WEB_SERVER", "STORAGE_RD", "
  "SAVE_CFG", "LOG_FLASH", "HIST_FLASH", "CORE1_LOCK",
  "C1_ENDLOCK", "C1_RESET", "C1_LAUNCH", "C1_KILLED", "LOOP",
  "WEB_POLL", "WEB_HIST", "WEB_SEND", "WEB_HSCAN",
- "TEL_COLLECT", "TEL_BUILD", "TEL_SEND"};
-static constexpr uint8_t MOD_NAMES_MAX = 25; /* last valid index */
+ "TEL_COLLECT", "TEL_BUILD", "TEL_SEND",
+ "STO_MAINT", "HIST_SAMPLE", "HIST_WIP", "HIST_SEAL"};
+static constexpr uint8_t MOD_NAMES_MAX = 29; /* last valid index */
 static_assert(sizeof(MOD_NAMES) / sizeof(MOD_NAMES[0]) == MOD_NAMES_MAX + 1,
               "MOD_NAMES must cover every TraceModule — a missing entry prints as garbage, "
               "and an out-of-range index reads past the array in the autopsy");

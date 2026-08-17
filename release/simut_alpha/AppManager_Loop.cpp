@@ -208,7 +208,7 @@ void AppManager::loop( ) {
 
  bool menuActive = _displayMgr->isMenuActive( );
 
- TRACE_MOD(0, MOD_STORAGE_WRITE);
+ TRACE_MOD(0, MOD_STO_MAINT);
  _storageMgr->update( );
  _storageMgr->flushCursorIfDirty( );
 
@@ -250,7 +250,7 @@ void AppManager::loop( ) {
  handleTimeSync(_timeSyncBootTs, _timeSyncDelta);
  }
 
- TRACE_MOD(0, MOD_STORAGE_WRITE);
+ TRACE_MOD(0, MOD_HIST_SAMPLE);
 
  watchdog_update( );
 

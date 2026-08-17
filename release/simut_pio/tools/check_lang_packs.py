@@ -11,6 +11,7 @@ packs now breaks the build with the count named.
 Also refuses a key inserted anywhere but the end while packs are unchanged,
 since that shifts every string after it without changing any line count.
 """
+import json
 import os
 import re
 import sys
@@ -88,11 +89,150 @@ def dict_lines(path):
     return out, blanks
 
 
+def section(path, name):
+    """Body lines of @<name>, or [] when the section is absent."""
+    lines = path.read_text(encoding="utf-8").split("\n")
+    try:
+        start = next(i for i, ln in enumerate(lines)
+                     if ln.strip() == "@" + name) + 1
+    except StopIteration:
+        return []
+    out = []
+    for ln in lines[start:]:
+        if ln.startswith("@"):
+            break
+        out.append(ln)
+    return out
+
+
+def fnv1a32(s):
+    h = 0x811C9DC5
+    for b in s.encode("utf-8"):
+        h ^= b
+        h = (h * 0x01000193) & 0xFFFFFFFF
+    return h
+
+
+# A C++ string literal, plus the adjacent-literal concatenation the sources use.
+_STR = r'"(?:[^"\\]|\\.)*"'
+_TRL = re.compile(r'TRL\s*\(\s*((?:' + _STR + r')(?:\s*' + _STR + r')*)\s*\)', re.S)
+
+
+def _unescape(lit):
+    out = []
+    for p in re.findall(_STR, lit, re.S):
+        b = p[1:-1]
+        for a, z in (('\\"', '"'), ("\\n", "\n"), ("\\t", "\t"),
+                     ("\\r", "\r"), ("\\\\", "\\")):
+            b = b.replace(a, z)
+        out.append(b)
+    return "".join(out)
+
+
+def trl_literals():
+    """{english: first "file:line"} for every TRL("...") under src/."""
+    found = {}
+    for f in sorted((ROOT / "src").rglob("*")):
+        if f.suffix not in (".cpp", ".h", ".hpp", ".c"):
+            continue
+        text = f.read_text(encoding="utf-8", errors="replace")
+        for m in _TRL.finditer(text):
+            en = _unescape(m.group(1))
+            if en:
+                found.setdefault(en, f"{f.relative_to(ROOT)}:"
+                                     f"{text.count(chr(10), 0, m.start()) + 1}")
+    return found
+
+
+def web_keys():
+    """({key: where}, {runtime_prefix}) for every translation the browser asks for.
+
+    Two consumers, not one: the WebUI.h bundle in flash AND the pages that
+    moved to LittleFS (alarms/license) — they read the same @WEBDICT, so
+    scanning only WebUI.h reports their keys as dead.
+    """
+    import gzip
+    srcs = [("WebUI.h", (ROOT / "WebUI.h").read_text(encoding="utf-8",
+                                                     errors="replace"))]
+    for gz in sorted((ROOT / "data" / "web").glob("*.html.gz")):
+        srcs.append((gz.name, gzip.decompress(gz.read_bytes())
+                                  .decode("utf-8", "replace")))
+    keys, prefixes = {}, set()
+    for name, text in srcs:
+        for pat in (r'data-i18n[a-z-]*=\\?["\']([A-Za-z0-9_]+)\\?["\']',
+                    r'\bt\(\s*[\'"]([A-Za-z0-9_]+)[\'"]\s*[,)]'):
+            for m in re.finditer(pat, text):
+                keys.setdefault(m.group(1), name)
+        # t('ch_' + id): the key is assembled at runtime, so the prefix is
+        # all the check can know about it.
+        for m in re.finditer(r'\bt\(\s*[\'"]([A-Za-z0-9_]+_)[\'"]\s*\+', text):
+            prefixes.add(m.group(1))
+    return keys, prefixes
+
+
+def check_trl(pack, live):
+    """@TRL is keyed by a hash of the ENGLISH string, so editing the English
+    silently orphans the translation — the lookup misses and the line comes
+    out in English with nothing logged."""
+    have = {}
+    for ln in section(pack, "TRL"):
+        if not ln.strip():
+            continue
+        h, _, txt = ln.partition(" ")
+        try:
+            have[int(h, 16)] = txt
+        except ValueError:
+            print(f"[lang-packs] FAIL {pack.name}: malformed @TRL line {ln!r}",
+                  file=sys.stderr)
+            return False
+    if not have:
+        return True  # a pack may legitimately ship without @TRL
+    live_hashes = {fnv1a32(t) for t in live}
+    missing = [(t, w) for t, w in live.items() if fnv1a32(t) not in have]
+    orphan = [h for h in have if h not in live_hashes]
+    for t, where in sorted(missing):
+        print(f"[lang-packs] FAIL {pack.name}: @TRL has no {fnv1a32(t):08x} for "
+              f"{t[:60]!r} ({where}) — that line logs in English", file=sys.stderr)
+    for h in sorted(orphan):
+        print(f"[lang-packs] WARN {pack.name}: @TRL {h:08x} matches no live "
+              f"TRL() — the English changed and {have[h][:48]!r} is dead weight",
+              file=sys.stderr)
+    return not missing
+
+
+def check_webdict(pack, keys, prefixes):
+    body = "\n".join(section(pack, "WEBDICT")).strip()
+    if not body:
+        return True
+    try:
+        wd = json.loads(body)
+    except json.JSONDecodeError as e:
+        print(f"[lang-packs] FAIL {pack.name}: @WEBDICT is not valid JSON ({e}) "
+              f"— GET /api/lang serves it verbatim and the page keeps English",
+              file=sys.stderr)
+        return False
+    missing = sorted(k for k in keys if k not in wd)
+    dead = sorted(k for k in wd if k not in keys
+                  and not any(k.startswith(p) for p in prefixes))
+    for k in missing:
+        print(f"[lang-packs] FAIL {pack.name}: @WEBDICT has no {k!r} "
+              f"(asked for by {keys[k]}) — that label stays English",
+              file=sys.stderr)
+    if dead:
+        print(f"[lang-packs] WARN {pack.name}: {len(dead)} @WEBDICT key(s) no "
+              f"consumer asks for, spending bytes against the ceiling: "
+              f"{', '.join(dead[:12])}{' ...' if len(dead) > 12 else ''}",
+              file=sys.stderr)
+    return not missing
+
+
 def main():
     keys = enum_keys()
     want = len(keys)
     ceil = lang_file_max()
     warn_at = int(ceil * CEIL_WARN_FRAC)
+    trl_live = trl_literals()
+    wkeys, wprefixes = web_keys()
     failed = False
     for pack in PACKS:
         size = pack.stat().st_size
@@ -121,11 +261,19 @@ def main():
             failed = True
         else:
             print(f"[lang-packs] OK {pack.name}: {len(lines)} strings")
+        # @DICT is the only section the count check can see. @TRL and
+        # @WEBDICT rot differently — a key goes missing and just that one
+        # string falls back to English, which no count catches.
+        if not check_trl(pack, trl_live):
+            failed = True
+        if not check_webdict(pack, wkeys, wprefixes):
+            failed = True
     if failed:
-        print("[lang-packs] Neither failure is visible at runtime: a short pack is "
-              "rejected whole and the UI reverts to English, and a blank line makes "
-              "the keys after it draw the wrong string or nothing at all.",
-              file=sys.stderr)
+        print("[lang-packs] None of these failures is visible at runtime: a short "
+              "pack is rejected whole and the UI reverts to English, a blank line "
+              "makes the keys after it draw the wrong string or nothing at all, "
+              "and a missing @TRL/@WEBDICT entry silently leaves that one line "
+              "in English.", file=sys.stderr)
         raise SystemExit(1)
 
 

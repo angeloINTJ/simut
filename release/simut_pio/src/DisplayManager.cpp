@@ -1585,14 +1585,26 @@ void DisplayManager::render(const SystemState& state) {
 			_driver.tft->setCursor(20, boxY + 22 + (i*10));
 			/* T1.2: fixed buffer on the Core-1 render path (was 2-3 heap
 			 * allocations per changed line). Pad to 46 columns preserved
-			 * so shorter lines still overwrite older, longer ones. */
+			 * so shorter lines still overwrite older, longer ones.
+			 *
+			 * This box draws with setFont(NULL) — the built-in 5x7 font,
+			 * which is NOT Latin-1: byte 0xE7 is a math symbol there, not
+			 * 'c-cedilla'. tr() hands back Latin-1 (the TFT fonts carry it),
+			 * so every accented boot line rendered as tau/theta/pi. Fold to
+			 * ASCII the way the license screen already does.
+			 *
+			 * The fold has to come BEFORE the padding, too: an accent is 2
+			 * bytes in and 1 out, so padding measured on the pre-fold length
+			 * left the tail of a longer previous line on screen. */
+			char logRaw[96];
 			char logLine[48];
 			if (cur.key >= 0 && cur.key < (int16_t)TR_KEYS_COUNT) {
-				snprintf(logLine, sizeof(logLine), "%s%s",
+				snprintf(logRaw, sizeof(logRaw), "%s%s",
 				         tr((LangKey)cur.key), cur.suffix);
 			} else {
-				snprintf(logLine, sizeof(logLine), "%s", cur.suffix); /* raw legacy */
+				snprintf(logRaw, sizeof(logRaw), "%s", cur.suffix); /* raw legacy */
 			}
+			unaccent(logRaw, logLine, sizeof(logLine));
 			size_t llen = strlen(logLine);
 			while (llen < 46 && llen < sizeof(logLine) - 1) logLine[llen++] = ' ';
 			logLine[llen] = '\0';

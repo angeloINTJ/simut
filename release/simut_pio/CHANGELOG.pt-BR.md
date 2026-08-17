@@ -4,6 +4,78 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.7-beta (2026-08-17)
+
+### Uma tradução pode sumir sem que nada pareça quebrado
+
+As duas packs de idioma foram auditadas entrada por entrada contra as fontes
+que as definem: o enum `LangKey` para o `@DICT`, o `tools/logcodes.tsv` para o
+`@LOGCODES`, todo literal `TRL()` sob `src/` para o `@TRL`, e todo consumidor
+`data-i18n` / `t()` para o `@WEBDICT` — no bundle `WebUI.h` **e** nas duas
+páginas que foram para o LittleFS, que leem o mesmo dicionário.
+
+O `@TRL` é chaveado por um hash FNV-1a do texto em **inglês**. Editar esse
+inglês órfã a tradução: a busca erra, a linha sai em inglês e nada é registrado.
+Três entradas carregavam texto morto assim, e um literal vivo não tinha entrada
+nenhuma.
+
+Ao `@WEBDICT` faltavam cinco chaves que o navegador de fato pede, entre elas o
+aviso de TLS sem validação de certificado e o diálogo inteiro de senha
+temporária — texto de segurança que caía calado para o inglês. Outras dezoito
+chaves não tinham consumidor em lugar algum do repositório e gastavam bytes
+contra um teto do qual o `es-ES` está a 4%.
+
+Conteúdo, não só cobertura: o `es-ES` dizia *Histórico*, *Reter*, *resetada* —
+português vazando para dentro do espanhol, onde as mesmas packs usam
+*Historial*, *Retener*, *restablecida* em outros pontos. *Fallo la subida* e
+*Fallo la validación* pediam o verbo, *Falló*. Faltava o sinal de abertura nas
+exclamações em espanhol. No `pt-BR`: *indisponivel*, *conexao*, *Pre-carga*, um
+*Apply falhou* sem traduzir, e uma `Colisão de flash ocupada` cuja linha em
+espanhol já trazia a preposição certa. O `@LICENSE` do `pt-BR` ficou meio
+acentuado pelo gerador histórico, a ponto de trazer *E concedida* onde cabe o
+verbo *É concedida* — invisível no TFT, que dobra aquela tela para ASCII, mas é
+o texto que se distribui.
+
+    language_pt-BR.lng   30.405 B -> 30.000 B
+    language_es-ES.lng   31.770 B -> 31.382 B   (95% do teto de 32.768 B)
+
+Quatro posições do `@DICT` parecem sem tradução no `es-ES` e foram deixadas de
+propósito: nada desenha `TR_TEMP_MIN/MAX` nem `TR_HUM_MIN/MAX` desde que as
+linhas de alarme passaram a usar `channelLabel() + MIN/MAX`. Elas ficam porque
+o `@DICT` é posicional — remover uma linha desloca todas as chaves seguintes.
+
+### O terminal de boot desenhava Latin-1 através de uma fonte CP437
+
+A caixa de log do boot chama `setFont(NULL)` — a fonte embutida 5x7 do GFX —
+mas imprime `tr()`, que devolve Latin-1 desde que as fontes do TFT passaram a
+carregar acento. As duas não se encontram: no `glcdfont.c`, o byte `0xE7` é um
+tau, `0xE9` um teta, `0xE3` um pi. **Dezoito linhas de boot nas duas packs**
+saíam como símbolo matemático. A dobra para ASCII que a `drawSettingsLicense`
+sempre aplicou para essa mesma fonte agora é aplicada aqui também.
+
+A dobra também precisa vir antes do preenchimento. Um acento são dois bytes
+entrando e um saindo, então medir o preenchimento pelo comprimento anterior à
+dobra deixava a cauda de uma linha anterior mais longa na tela — um segundo
+defeito, mais quieto, nas mesmas cinco linhas.
+
+O `unaccent()` ganhou os sinais de abertura do espanhol de passagem. Eles caíam
+no `'?'` padrão, o que transformava *¡Sistema Listo!* em *?Sistema Listo!*;
+descartá-los lê certo, e o sinal de fechamento já diz o tipo da frase.
+
+### O build agora vigia as seções que uma contagem de linhas não enxerga
+
+O `check_lang_packs.py` contava linhas do `@DICT`, o que pega a falha que joga a
+UI inteira para o inglês. Ele não via nada do `@TRL` nem do `@WEBDICT`, e essas
+apodrecem uma string por vez — que foi exatamente como as lacunas acima se
+acumularam. Uma entrada faltando agora quebra o build nomeando o `file:line` da
+chamada `TRL()` ou o consumidor que pede a chave; uma órfã apenas avisa, já que
+custa bytes mas não renderiza nada errado.
+
+Atualizando: envie a `data/lang/language_pt-BR.lng` revisada (ou a `es-ES`) para
+`/lang/` pela página de Arquivos ou por `POST /api/upload` com
+`uploadDir=/lang`, e reinicie — uma pack só é lida no boot. Nunca use
+`uploadfs`; ele reformata a partição.
+
 ## v2.2.6-beta (2026-08-16)
 
 ### O build de teste tinha 152 bytes, e nenhum zip levava as páginas dele

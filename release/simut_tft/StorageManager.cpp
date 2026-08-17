@@ -2164,6 +2164,13 @@ bool StorageManager::h5AppendChunk(const String& path, uint8_t extraFlags) {
 bool StorageManager::sealHourV5(bool partial) {
 	if (!_isMounted || !_h5Valid || _h5Enc.count( ) == 0) return true;
 
+	/* No scope of its own until 2026-08-16, so a stall here traced as whatever
+	 * the caller had set. It matters: past the append (which h5AppendChunk
+	 * marks) this erases the .wip, and an erase is the slowest flash op there
+	 * is. h5AppendChunk's own scope still wins while it runs — RAII restores
+	 * this one after. */
+	LogManager::TraceScope _tr(0, MOD_HIST_SEAL);
+
 	const String path = _h5CurrentDay.length( ) ? _h5CurrentDay
 	                                            : getHistoryFileNameV5(_h5Enc.t0( ));
 	const uint8_t flags = partial ? H5_FLAG_PARTIAL : 0;
@@ -2210,7 +2217,11 @@ bool StorageManager::flushWipV5( ) {
 	 * from retrying a write with no content for the rest of the minute. */
 	if (_h5Enc.count( ) == 0) { _h5WipDirty = false; return true; }
 
-	LogManager::TraceScope _tr(0, MOD_HIST_FLASH);
+	/* Own module, not MOD_HIST_FLASH: that one belongs to the record write.
+	 * Sharing it meant the snapshot and the write were indistinguishable in
+	 * an autopsy, and they fail for different reasons — this one rewrites the
+	 * whole block every time, the other appends one record. */
+	LogManager::TraceScope _tr(0, MOD_HIST_WIP);
 	LogManager::WdtWindow _wdt(30000);
 	Core1FlashPause _c1(this);
 
