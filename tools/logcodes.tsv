@@ -79,14 +79,14 @@
 483	APP_CACHE_GRAPH_DONE	Graph cache refresh done	Refresh de cache concluido	Refresh de cache concluído	Refresco de caché completado
 484	APP_CACHE_GRAPH_AMBIENT	Graph cache: ambient	Cache de grafico: ambiente	Cache de gráfico: ambiente	Caché de gráfico: ambiente
 485	APP_CACHE_GRAPH_BOARD	Graph cache: board temp	Cache de grafico: placa	Cache de gráfico: placa	Caché de gráfico: placa
-486	APP_CACHE_PRELOAD_DONE	Graph cache preload done	Pre-carga de cache concluida	Pre-carga de cache concluída	Precarga de caché completada
+486	APP_CACHE_PRELOAD_DONE	Graph cache preload done	Pre-carga de cache concluida	Pré-carga de cache concluída	Precarga de caché completada
 487	APP_GRAPH_LOADING	Graph loading	Carregando grafico	Carregando gráfico	Cargando gráfico
 488	APP_GRAPH_BUDGET	Graph render budget exceeded	Budget de render excedido	Budget de render excedido	Presupuesto de render excedido
-489	APP_PRELOAD_BUDGET	Preload budget exceeded	Budget de pre-carga excedido	Budget de pre-carga excedido	Presupuesto de precarga excedido
+489	APP_PRELOAD_BUDGET	Preload budget exceeded	Budget de pre-carga excedido	Budget de pré-carga excedido	Presupuesto de precarga excedido
 500	APP_DISPLAY_PAUSE_STUCK	Display pause stuck >5s	Pause do display preso >5s	Pause do display preso >5s	Pausa de la pantalla colgada >5s
 501	APP_YIELD_STUCK	Yield stuck >10s	Yield preso >10s	Yield preso >10s	Yield colgado >10s
 502	APP_CORE1_DEAD	Core 1 dead >10s, restarting	Core 1 travado >10s, reiniciando	Core 1 travado >10s, reiniciando	Core 1 colgado >10s, reiniciando
-503	APP_FLASH_BUSY	Flash busy collision	Colisao de flash ocupada	Colisão de flash ocupada	Colisión por flash ocupada
+503	APP_FLASH_BUSY	Flash busy collision	Colisao por flash ocupado	Colisão por flash ocupado	Colisión por flash ocupada
 510	APP_HISTORY_SAVED	History record saved	Registro de historico salvo	Registro de histórico salvo	Registro de historial guardado
 511	APP_HEAP_REPORT	Heap status report	Relatorio de heap	Relatório de heap	Informe de heap
 512	APP_HIST_NO_TIME_REF	History skip: no time reference	Historico pulado: sem referencia de hora	Histórico pulado: sem referência de hora	Historial omitido: sin referencia de hora
@@ -98,7 +98,7 @@
 522	NET_STARTING	WiFi manager starting	Gerenciador WiFi iniciando	Gerenciador WiFi iniciando	Administrador WiFi iniciando
 523	NET_SSID_MISSING	WiFi SSID not configured	SSID WiFi nao configurado	SSID WiFi não configurado	SSID WiFi no configurado
 524	NET_PROVISIONAL_TIME	Provisional time set from flash	Hora provisoria do flash	Hora provisória do flash	Hora provisional desde el flash
-525	NET_CONNECT_TIMEOUT	WiFi connect timeout	Timeout na conexao WiFi	Timeout na conexao WiFi	Timeout de conexión WiFi
+525	NET_CONNECT_TIMEOUT	WiFi connect timeout	Timeout na conexao WiFi	Timeout na conexão WiFi	Timeout de conexión WiFi
 526	NET_DORMANT_MODE	WiFi dormant mode	WiFi em modo dormente	WiFi em modo dormente	WiFi en modo inactivo
 527	NET_SHOW_IP	Show IP	Mostrar IP	Mostrar IP	Mostrar IP
 528	NET_MDNS_FAIL	mDNS start failed	Falha ao iniciar mDNS	Falha ao iniciar mDNS	Fallo al iniciar mDNS
