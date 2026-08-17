@@ -4,6 +4,78 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.7-beta (2026-08-17)
+
+### A translation can go missing without anything looking broken
+
+Both language packs were audited entry by entry against the sources that
+define them: the `LangKey` enum for `@DICT`, `tools/logcodes.tsv` for
+`@LOGCODES`, every `TRL()` literal under `src/` for `@TRL`, and every
+`data-i18n` / `t()` consumer for `@WEBDICT` — in the `WebUI.h` bundle **and**
+in the two pages that moved to LittleFS, which read the same dictionary.
+
+`@TRL` is keyed by an FNV-1a hash of the **English** string. Editing that
+English orphans the translation: the lookup misses, the line comes out in
+English, and nothing is logged. Three entries were carrying dead text that way
+and one live literal had no entry at all.
+
+`@WEBDICT` was missing five keys the browser actually asks for, among them the
+TLS-without-certificate-validation warning and the whole one-time-password
+dialog — security-relevant text that silently fell back to English. Eighteen
+other keys had no consumer anywhere in the repository and were spending bytes
+against a ceiling `es-ES` sits 4% under.
+
+Content, not only coverage: `es-ES` said *Histórico*, *Reter*, *resetada* —
+Portuguese leaking into Spanish, where the same packs elsewhere use
+*Historial*, *Retener*, *restablecida*. *Fallo la subida* and *Fallo la
+validación* wanted the verb, *Falló*. Spanish exclamations were missing their
+opening mark. In `pt-BR`: *indisponivel*, *conexao*, *Pre-carga*, an untranslated
+*Apply falhou*, and a `Colisão de flash ocupada` whose Spanish row already had
+the right preposition. The `pt-BR` `@LICENSE` had been left half-accented by
+the historical generator, down to *E concedida* where the verb *É concedida*
+belongs — invisible on the TFT, which folds that screen to ASCII, but it is the
+text that ships.
+
+    language_pt-BR.lng   30 405 B -> 30 000 B
+    language_es-ES.lng   31 770 B -> 31 382 B   (95% of the 32 768 B ceiling)
+
+Four `@DICT` slots read as untranslated in `es-ES` and were left alone on
+purpose: nothing has drawn `TR_TEMP_MIN/MAX` or `TR_HUM_MIN/MAX` since alarm
+rows moved to `channelLabel() + MIN/MAX`. They stay because `@DICT` is
+positional — removing a line shifts every key after it.
+
+### The boot terminal drew Latin-1 through a CP437 font
+
+The boot log box calls `setFont(NULL)` — the built-in 5x7 GFX font — but prints
+`tr()`, which has returned Latin-1 ever since the TFT fonts started carrying
+accents. Those two do not meet: in `glcdfont.c`, byte `0xE7` is a tau, `0xE9` a
+theta, `0xE3` a pi. **Eighteen boot lines across the two packs** rendered as
+maths symbols. The fold to ASCII that `drawSettingsLicense` has always applied
+for this same font is now applied here too.
+
+The fold also has to precede the padding. An accent is two bytes in and one
+out, so measuring the pad on the pre-fold length left the tail of a longer
+previous line on screen — a second, quieter defect in the same five lines.
+
+`unaccent()` gained the Spanish opening marks while it was there. They used to
+fall through to the `'?'` default, turning *¡Sistema Listo!* into *?Sistema
+Listo!*; dropping them reads correctly, and the closing mark already carries the
+sentence type.
+
+### The build now gates the sections a line count cannot see
+
+`check_lang_packs.py` counted `@DICT` lines, which catches the failure that
+turns the whole UI English. It saw nothing of `@TRL` or `@WEBDICT`, and those
+rot one string at a time — which is exactly how the gaps above accumulated. A
+missing entry now fails the build naming the `file:line` of the `TRL()` call or
+the consumer asking for the key; an orphan only warns, since it costs bytes but
+renders nothing wrong.
+
+Upgrading: upload the revised `data/lang/language_pt-BR.lng` (or `es-ES`) to
+`/lang/` through the Files page or `POST /api/upload` with `uploadDir=/lang`,
+then reboot — a pack is only read at boot. Never `uploadfs`; it reformats the
+partition.
+
 ## v2.2.6-beta (2026-08-16)
 
 ### The test build had 152 bytes left, and no release zip carried its pages
