@@ -26,15 +26,16 @@ python3 tools/build_webui_gz.py
 cp src/WebUI_GZ.h "${DST}/src/WebUI_GZ.h"
 
 # ── Data (only what the pre-build hooks read: lang packs + favicon) ──
-echo "--- Copying data/ (lang packs + favicon + FS pages) ---"
+echo "--- Copying data/ (lang packs + favicon) ---"
 rm -rf "${DST}/data"
-mkdir -p "${DST}/data/lang" "${DST}/data/web"
+mkdir -p "${DST}/data/lang"
 cp data/favicon.ico "${DST}/data/"
 cp data/lang/language_*.lng "${DST}/data/lang/"
-# FS_PAGES output. Without these the routes that were moved out of the
-# firmware answer "Page asset missing" on a unit built from this zip — which
-# is what shipped from the moment LICENSE_PAGE was moved out.
-cp data/web/*.html.gz "${DST}/data/web/"
+# No data/web here, and nothing missing: a shipping image links every page of
+# the interface into the firmware, so a unit built from this zip has no route
+# that depends on a file being uploaded afterwards. This used to copy the
+# FS_PAGES output — added after the discovery that no zip had ever carried it
+# and /license was broken in every unit built from the v2.2.5-beta package.
 
 # ── Root files ──
 echo "--- Copying root files ---"

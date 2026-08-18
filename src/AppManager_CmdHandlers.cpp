@@ -43,8 +43,20 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
 
  /* ── sensor <slot> pin <index> <gpio> — GPIO resource assignment ── */
  if (strcmp(field, "pin") == 0) {
+  /* parseIntStrict, not sscanf. This was the last sscanf in the image, and it
+   * pulled __ssvfscanf_r and its integer sibling in for one line: 7524 B,
+   * measured by A/B build, all of it charged to pico_w_test because the whole
+   * handler is inside #if SIMUT_CLI_FULL. The same trade is already recorded
+   * further down this file for the date parser.
+   * Behaviour is unchanged for anything the tokenizer can produce — strVal2
+   * arrives as a single whitespace-free token — except that trailing junk
+   * ("1,5x"), which sscanf accepted, now gets the usage line. */
   int pinIdx=-1,gpio=-1;
-  if(sscanf(cmd.strVal2,"%d,%d",&pinIdx,&gpio)!=2||pinIdx<0||gpio<0||gpio>15){
+  String pinSpec(cmd.strVal2);
+  int pinComma=pinSpec.indexOf(',');
+  if(pinComma<0||!parseIntStrict(pinSpec.substring(0,pinComma),pinIdx)
+     ||!parseIntStrict(pinSpec.substring(pinComma+1),gpio)
+     ||pinIdx<0||gpio<0||gpio>15){
    _cmdMgr->printError(pt?"Uso: sensor <slot> pin <idx>,<gpio> (0-15)"
                          :"Usage: sensor <slot> pin <idx>,<gpio> (0-15)");
    return;
