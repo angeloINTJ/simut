@@ -4,6 +4,99 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.10-beta (2026-08-18)
+
+### `false` turned the setting on
+
+Four fields in the `sys` section of `POST /api/commit_all` and two in `net` read
+their booleans like this:
+
+    cfg.telEncryption = (getNum("t_sec") != "0");
+
+`getNum` extracts a *number*. Hand it the legitimate JSON boolean `false` and the
+comparison against the string `"0"` is true, so the field turns **on**. Only the
+literal `0` turned anything off, and no boolean spelling could turn any of the
+six off at all.
+
+What makes it more than a curiosity is where that payload comes from. `GET
+/api/config` emits `"log":false`, `"t_sec":false`, `"m_retain":false`,
+`"ntp_enabled":false`; `GET /api/network` emits `"use_dhcp":false` and
+`"dns_auto":false`. **The device's own output was the payload the parser read
+backwards.** Fetch the configuration, change one field, post it back — the most
+ordinary thing a script does with a configuration API — and all six came back on.
+The web interface never saw it, because its forms emit `1`/`0`.
+
+`t_sec` decides whether telemetry leaves the device encrypted, so a parser that
+stores the opposite of the request there is a security finding and not only a
+correctness one. `m_retain` forced on leaves the last reading sitting on the
+broker for any subscriber that connects later.
+
+### Three readers, three different wrong answers
+
+The file carried three separate ways to read a boolean out of JSON, and they had
+drifted apart. Sixteen fields, all silent, all under `200 OK`:
+
+    getNum/getN(k) != "0"   the literal `false` turned the field ON
+                            log, t_sec, m_retain, ntp_enabled,
+                            use_dhcp, dns_auto
+    startsWith("true")      the numeric `1` turned the slot OFF
+                            slot "a", slot "al"
+    jsonBoolValue           1/0 fell through to the stored value
+                            alarms.active and the seven sound flags
+
+`{"a":1}` deactivated the sensor slot it was asking to enable; the history keeps
+recording that channel as NaN and nothing in the log says why. `{"sounds":
+{"mute":1}}` answered 200 and changed nothing.
+
+### One reader, and a third state
+
+`jsonValuePos`, `jsonRawToken` and `jsonFlag` now live in `WebJsonSlice.h`, the
+header that already exists for the hand-rolled JSON walkers, over a
+`parseBoolStrict` that sits next to `parseIntStrict`. Both spellings are
+accepted — `true`/`false` and `1`/`0` — because both are in use and neither is
+going away.
+
+The third state is the part that was missing. `jsonFlag` distinguishes *absent*
+from *unreadable*, and both are negative so every caller keeps the stored value
+on either; only the unreadable one is reported, through the `"rejected":[...]`
+array the numeric fields already used. `{"log":2}` used to turn logging on
+without a word. Swapping to the existing `getBool` would not have worked: it
+answers 0 for `1` and would have broken the page.
+
+Unifying the readers killed two more defects. The `net` copy never learned to
+skip the whitespace a pretty-printed payload puts after the colon, so
+`{"use_dhcp": 0}` produced the token `" 0"` — that field was broken twice over.
+And the slot reader was the exact mirror of the reported bug, from the other
+side.
+
+### Proved against a device that still had the bug
+
+`tools/commit_bool_cases.py` writes every boolean in each spelling a real client
+uses and reads it back from the endpoint that publishes it. It was run as an A/B
+on the same board: **21/32 against the firmware that still carried the defect,
+32/32 after**. That first number is the point — a suite that passes on both
+images measures nothing. The numeric cases pass on both, which is the control in
+the other direction: the page's own spelling never stopped working.
+
+Eleven cases were added to `test/test_validators` (84 to 95), including
+transliterations of the three removed readers that assert the wrong answer each
+one gave. Putting the old semantics back inside `jsonFlag` fails 6 of the 11 —
+a test that passed on its first run has not yet shown it can fail.
+
+Hardware coverage is 5 of the 16 fields; the rest are covered natively.
+`use_dhcp:false` is deliberately not exercised on hardware, because committing it
+moves the device onto its static address.
+
+### Flash
+
+    release headroom ... 43 676 B -> 44 044 B
+    test headroom ...... 46 916 B -> 47 284 B
+
+The correction returns 368 bytes: sixty-two lines of hand-rolled scanning become
+five delegations and one shared implementation. It is affordable because it is
+subtraction — written as a fourth reader beside the other three, it would have
+cost.
+
 ## v2.2.9-beta (2026-08-18)
 
 ### The build was shipping its own comments
