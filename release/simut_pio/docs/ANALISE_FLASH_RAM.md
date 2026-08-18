@@ -456,6 +456,45 @@ permite parar em qualquer ponto.
 > pela página de Arquivos ou por `POST /api/upload`. Nunca por `uploadfs` — ele
 > reformata a partição e leva histórico, logs e `calib.csv` junto.
 
+> **Revisão de 2026-08-17 — F3 fechado na direção oposta: a imagem de produção
+> carrega a interface INTEIRA, e o mecanismo virou propriedade do ambiente.**
+>
+> O erro de desenho não era qual página mover: era `FS_PAGES` ser **uma constante
+> global**. Ela obrigava os dois ambientes ao mesmo layout, e quem estava sem
+> espaço era o `pico_w_test` (CLI completa) — então o release pagava a conta de um
+> problema que não era dele, e pagava duas vezes: perdia as páginas e ganhava um
+> passo de implantação que os zips não cumpriam (nenhum pacote jamais levou o
+> `license.html.gz`; a `/license` saía quebrada de todo device montado a partir do
+> zip da v2.2.5-beta).
+>
+> Medido em `e14170f`, `arm-none-eabi-size`, com as 12 páginas embutidas:
+>
+> | build | folga real |
+> |---|---|
+> | release, 10 embutidas + 2 no LittleFS (estado anterior) | 30.892 B |
+> | **release, 12 embutidas** | **18.740 B** — linka |
+> | test, 12 embutidas, sem alavanca | `overflowed by 856 bytes` |
+> | test, 12 embutidas + `parseIntStrict` (F6) | 6.604 B |
+> | **test, 12 embutidas + F6 + `SIMUT_MDNS=0` (F4)** | **21.980 B** |
+>
+> O release nunca precisou da dieta. O test terminou com **quase o dobro** da folga
+> que tinha (11.312 B) carregando **mais** páginas do que carregava.
+>
+> **O que mudou de mecanismo:** a dieta agora é declarada por ambiente
+> (`custom_fs_pages` no `platformio.ini`) e `tools/build_webui_gz.py` **falha o
+> build** se um ambiente de produção declarar uma. O gerador emite, junto de cada
+> asset, uma macro `<PAGE>_SERVE` ligada a `serveProtectedPage` ou a
+> `serveProtectedFsPage` conforme o layout — então mover uma página não exige mais
+> editar o handler, que era o segundo lugar que podia discordar em silêncio.
+> Verificado no ELF: nas quatro imagens de firmware o `serveProtectedFsPage` **não
+> é linkado** e a string *"Page asset missing"* **não existe** — o invariante não
+> depende de disciplina, depende do que está no binário.
+>
+> A válvula de escape continua provada: com `custom_fs_pages = HIST_PAGE,
+> ALARMS_PAGE`, o `pico_w_test` linka com **62.092 B** de folga, as macros passam
+> sozinhas para a rota de filesystem e os `.gz` aparecem em `data/web/`. Voltar
+> atrás poda os arquivos órfãos e devolve os mesmos 18.740 B no release.
+
 > **Não desligue o gzip para "economizar".** A `CFG_PAGE` crua tem 55.294 B contra
 > 10.637 B comprimida (5,2×). O ganho vem de mudar de partição, não de descomprimir.
 
@@ -482,6 +521,18 @@ responder está **ligado** por padrão e custa **15.036 B**, não 196 KB.
 
 **Correção:** trocar os quatro `#ifdef SIMUT_MDNS` por `#if SIMUT_MDNS` e corrigir o
 comentário. O knob passa a valer 15.036 B para quem não usa `SIMUT.local`.
+
+> **Revisão de 2026-08-17 — F4 fechado, e o knob foi gasto.** A correção já estava
+> aplicada (`NetworkManager.h` e `.cpp` testam com `#if`); o que faltava era alguém
+> usar. `-DSIMUT_MDNS=0` entrou no `pico_w_test` e vale **15.376 B medidos** no ELF
+> — perto dos 15.036 B previstos aqui. É o que dá margem para aquele ambiente
+> carregar a interface inteira (ver a revisão do F3).
+>
+> Só o ambiente instrumentado paga: o release mantém o `SIMUT.local`. Nenhuma das
+> suítes usa mDNS — elas acham a placa por `udevadm` no USB e falam com ela por IP
+> —, então o que se perde no test é uma função que os testes não exercitam.
+> `#ifdef SIMUT_MDNS` ainda sobrevive em `SystemDefs_Network.h:61`, mas ali guarda
+> só uma constante de intervalo e é inofensivo.
 
 ---
 
@@ -519,6 +570,21 @@ Ficou uma chamada para trás.
 `libFrameworkArduino.a(String.cpp.o)` — é `String::toFloat()`/`toDouble()` do core, não
 código do SIMUT. Não dá para remover sem patchar o framework. O `ParseFloat.h` do projeto
 já evita `atof` no código da aplicação; o custo restante é do core.
+
+> **Revisão de 2026-08-17 — F6 fechado.** A chamada saiu, e não por `strtol`: por
+> `parseIntStrict`, que é o helper do próprio projeto, coberto pelos testes nativos
+> e já usado para esse mesmo fim em `AppManager_Commands.cpp:916`. Medido no ELF:
+> **7.524 B**, praticamente o previsto aqui.
+>
+> Toda a economia é do `pico_w_test`, e só dele: o handler inteiro vive dentro de
+> `#if SIMUT_CLI_FULL`, então o release nunca linkou esse `sscanf`. Comportamento
+> inalterado para o que o tokenizador consegue produzir (`strVal2` chega como um
+> token único, sem espaços) — a diferença é que lixo no fim (`"1,5x"`), que o
+> `sscanf` aceitava, agora recebe a linha de uso.
+>
+> **O que sobra e não é nosso:** `__ssvfiscanf_r` (5.796 B + 172 B de wrappers)
+> continua linkado nos **dois** ambientes, puxado por
+> `CertStoreBearSSL.cpp` do framework. Sairia por patch, não por código do SIMUT.
 
 ---
 

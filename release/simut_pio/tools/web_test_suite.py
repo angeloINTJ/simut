@@ -394,6 +394,18 @@ def t_pages_authenticated(web, res, is_admin):
                 res.add('pages', f'{path} carrega', False, f'HTTP {r.status_code}')
                 continue
             html = r.text
+            # serveProtectedFsPage answers 200 with a "Page asset missing"
+            # notice when the .gz was never uploaded, so neither the status
+            # code nor the length below catches it — the notice is HTML and
+            # it is long enough to pass. A shipping image can never produce
+            # this: it links every page into the firmware, and
+            # build_webui_gz.py fails the build if a release env declares a
+            # diet. On a test image it means a page listed in custom_fs_pages
+            # has no file on the bench unit.
+            if 'Page asset missing' in html:
+                res.add('pages', f'{path} vem do firmware', False,
+                        'HTTP 200 com "Page asset missing" — o .gz nao esta em /web/')
+                continue
             res.add('pages', f'{path} carrega', len(html) > 200,
                     f'HTTP 200, {len(html)} B')
 

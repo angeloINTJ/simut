@@ -4,6 +4,80 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.8-beta (2026-08-17)
+
+### The whole web interface is back inside the firmware
+
+Two pages — `/license` and `/alarms` — had been streaming from LittleFS since
+August, which meant a device only served them if someone had uploaded the files
+first. They are linked into the image again, and so is every other page. A unit
+you flash now answers all twelve routes with nothing else deployed, and the
+"Page asset missing" notice cannot be produced at all: the function that emits
+it is not in any shipping binary.
+
+The pages left in the first place because `FS_PAGES` was a **global** constant
+in `tools/build_webui_gz.py`. One page layout for every environment. The
+environment out of flash was `pico_w_test`, which carries the full serial CLI —
+but a page listed there left every image, so the release paid for a problem
+that was not its own. It paid twice: the pages went, and `data/web/*.gz` became
+a deploy step no release package performed, which is the defect v2.2.6-beta had
+to fix after the fact.
+
+Measured with `arm-none-eabi-size` — the PlatformIO percentage omits `.ota` and
+`.partition` — with all twelve assets embedded:
+
+    release, 10 embedded + 2 on LittleFS (before) ...... 30 892 B free
+    release, all 12 embedded .......................... 18 740 B free
+    test, all 12, no lever ............................ overflowed by 856 B
+    test, all 12 + parseIntStrict ..................... 6 604 B free
+    test, all 12 + parseIntStrict + SIMUT_MDNS=0 ...... 21 980 B free
+
+The release never needed the diet. The instrumented image ends up with nearly
+twice the headroom it had while carrying more pages than before.
+
+### The page diet became a property of the environment
+
+`custom_fs_pages` in `platformio.ini` names the pages an environment serves
+from LittleFS. Declare one in a shipping environment and the build fails,
+naming it. Only the eight routes that go through `serveProtectedPage` are
+eligible: `/login` and `/force_chpass` lock the device out if their file is
+missing, and `/style.css` and `/lang.js` have no filesystem route at all.
+
+The generator now emits the route beside the asset — a `<PAGE>_SERVE` macro
+bound to `serveProtectedPage` or `serveProtectedFsPage` according to the
+layout — so a page changing partitions no longer needs an edit in the handler.
+Those were two places that could disagree in silence.
+
+### Two levers, both charged to the test image alone
+
+`SIMUT_MDNS=0` returns **15 376 B**. The knob had been repaired earlier and
+never spent; no test suite resolves `SIMUT.local`, they find the board over USB
+serial and talk to it by IP. The release keeps mDNS.
+
+The last `sscanf` in the tree returns **7 524 B**. It parsed one CLI argument
+and pulled in the whole scanf machinery for it; it now uses the project's own
+`parseIntStrict`, which the native suite already covers. The handler lives
+inside `#if SIMUT_CLI_FULL`, so the release never linked it. Behaviour is
+unchanged for every input the tokenizer can produce — trailing junk like
+`1,5x`, which `sscanf` accepted, now gets the usage line.
+
+### Also in this release
+
+The generator's "already up to date" shortcut read line 1 while the hash was
+written on line 2, so it had never once matched and every build regenerated the
+header. It works now, and the stamp covers the source, the generator and the
+page layout — without the last part, building two environments in a row would
+hand the second one the first one's header.
+
+`web_test_suite.py` now fails a route that answers "Page asset missing". That
+reply comes back as HTTP 200 with a body long enough to pass a length check, so
+neither of the existing assertions could see it.
+
+Upgrading: nothing to deploy. If your device has `/web/alarms.html.gz` or
+`/web/license.html.gz` from an earlier version, they are dead weight now —
+deleting them through the Files page frees 12.8 KB of the partition and is also
+the cleanest way to prove the pages are being served from flash.
+
 ## v2.2.7-beta (2026-08-17)
 
 ### A translation can go missing without anything looking broken

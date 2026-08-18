@@ -78,15 +78,14 @@ bool WebManager::checkPageAccess(uint16_t requiredPerm) {
 }
 
 
-/* Serves a gzipped page held on LittleFS (see FS_PAGES in
- * tools/build_webui_gz.py). Same contract as serveProtectedPage — the browser
- * cannot tell the two apart.
+/* Serves a gzipped page held on LittleFS. Same contract as serveProtectedPage
+ * — the browser cannot tell the two apart.
  *
- * NO CALLERS as of 2026-07-26 — /config, its only user, moved back into flash.
- * Kept on purpose: it is the runtime half of the FS_PAGES mechanism in
- * tools/build_webui_gz.py, and --gc-sections drops it from the image, so an
- * unused copy costs nothing. Listing any page in FS_PAGES puts it back to
- * work; deleting this would mean rewriting a tested helper to do that. */
+ * NO CALLERS in a shipping image, by design as of 2026-08-17: those carry the
+ * whole interface in flash. Kept on purpose — it is the runtime half of the
+ * per-env diet (custom_fs_pages in platformio.ini), it costs 416 B of .text
+ * that --gc-sections reclaims whenever nothing binds to it, and naming one
+ * page in a test env's diet puts it back to work with no code change here. */
 bool WebManager::serveProtectedFsPage(uint16_t requiredPerm, const char* path) {
 	if (!checkPageAccess(requiredPerm)) return false;
 
@@ -101,10 +100,15 @@ bool WebManager::serveProtectedFsPage(uint16_t requiredPerm, const char* path) {
 		 * where rather than answering a bare 404.
 		 *
 		 * The path is read from the argument rather than named literally: this
-		 * used to say config.html.gz, which stopped being true when /config
-		 * moved back into the firmware and FS_PAGES emptied. Whatever page is
-		 * moved out next (build_webui_gz.py nominates HIST_PAGE) gets a correct
-		 * message without anyone remembering to edit this string. */
+		 * used to say config.html.gz, which stopped being true the moment that
+		 * page went back into the firmware. Whichever page a test env lists in
+		 * custom_fs_pages gets a correct message without anyone remembering to
+		 * edit this string.
+		 *
+		 * A user's device cannot reach this line at all — a shipping image has
+		 * no caller for this function, so the linker drops it. Reaching it
+		 * means an instrumented build whose .gz was not uploaded to the bench
+		 * unit. web_test_suite.py fails on this text for that reason. */
 		/* `path` already starts with /web/, so the prefix here is just "data" —
 		 * it read "data/web" while the mechanism had no callers, which would
 		 * have printed data/web/web/... the moment one came back. */
@@ -147,29 +151,26 @@ void WebManager::handleLogin( ) {
 	safeSend_GZ(WebUI_GZ::LOGIN_PAGE_GZ, WebUI_GZ::LOGIN_PAGE_GZ_LEN);
 }
 
-void WebManager::handleRoot( ) { serveProtectedPage(PERM_DASHBOARD, WebUI_GZ::DASH_PAGE_GZ, WebUI_GZ::DASH_PAGE_GZ_LEN); }
-void WebManager::handleHistory( ) { serveProtectedPage(PERM_HISTORY | PERM_LOGS, WebUI_GZ::HIST_PAGE_GZ, WebUI_GZ::HIST_PAGE_GZ_LEN); }
-/* /config used to be the one page that did not live in the firmware image:
- * with 660 bytes of headroom it was gzipped into data/web/config.html.gz and
- * streamed from LittleFS. Dropping the unused Bluetooth stack (platformio.ini)
- * freed 64732 B, so it came back in on 2026-07-26 for 11544 B — which also
- * removed the bootstrap trap, where a freshly formatted device answered
- * /config with "Page asset missing" until someone uploaded the file by hand.
- * See FS_PAGES in tools/build_webui_gz.py and docs/ANALISE_FLASH_RAM.md. */
-void WebManager::handleConfig( ) { serveProtectedPage(PERM_SYS_CONFIG, WebUI_GZ::CFG_PAGE_GZ, WebUI_GZ::CFG_PAGE_GZ_LEN); }
-void WebManager::handleNetwork( ) { serveProtectedPage(PERM_NET_CONFIG, WebUI_GZ::NET_PAGE_GZ, WebUI_GZ::NET_PAGE_GZ_LEN); }
-void WebManager::handleUsers( ) { serveProtectedPage(PERM_USER_MGR, WebUI_GZ::USR_PAGE_GZ, WebUI_GZ::USR_PAGE_GZ_LEN); }
-void WebManager::handleFiles( ) { serveProtectedPage(PERM_FILE_READ, WebUI_GZ::FILE_PAGE_GZ, WebUI_GZ::FILE_PAGE_GZ_LEN); }
-/* Alarms is in FS_PAGES: pico_w_test had 152 bytes of real headroom, and this
- * page is the only large one that passes all three parts of the test — big,
- * rarely opened, and not needed to bring the device up. A unit without the
- * file still samples, logs and fires the alarms it already has; it just cannot
- * edit them from the web. HIST_PAGE is bigger but is the hottest page there
- * is, and CFG_PAGE broke the bootstrap when it was tried in July. */
-void WebManager::handleAlarms( ) { serveProtectedFsPage(PERM_SYS_CONFIG, "/web/alarms.html.gz"); }
-/* Served from LittleFS, not linked into the image — see FS_PAGES in
- * tools/build_webui_gz.py for why this page and not another. */
-void WebManager::handleLicense( ) { serveProtectedFsPage(PERM_DASHBOARD, "/web/license.html.gz"); }
+/* Which partition a page comes from is a property of the BUILD, not of this
+ * file. WebUI_GZ.h emits a <PAGE>_SERVE macro next to each asset — bound to
+ * serveProtectedPage for a page in the image, to serveProtectedFsPage for one
+ * on LittleFS — so these lines read the same either way and a page moving
+ * partitions never needs an edit here. That used to be two files that could
+ * disagree in silence.
+ *
+ * In a shipping image every one of these is the PROGMEM form: an image a user
+ * runs carries the complete interface, and tools/build_webui_gz.py fails the
+ * build if a release env tries to declare a diet. Only the instrumented test
+ * env may move pages out, via custom_fs_pages in platformio.ini — see the
+ * measurements and the picking criterion in that script. */
+void WebManager::handleRoot( )    { DASH_PAGE_SERVE(PERM_DASHBOARD); }
+void WebManager::handleHistory( ) { HIST_PAGE_SERVE(PERM_HISTORY | PERM_LOGS); }
+void WebManager::handleConfig( )  { CFG_PAGE_SERVE(PERM_SYS_CONFIG); }
+void WebManager::handleNetwork( ) { NET_PAGE_SERVE(PERM_NET_CONFIG); }
+void WebManager::handleUsers( )   { USR_PAGE_SERVE(PERM_USER_MGR); }
+void WebManager::handleFiles( )   { FILE_PAGE_SERVE(PERM_FILE_READ); }
+void WebManager::handleAlarms( )  { ALARMS_PAGE_SERVE(PERM_SYS_CONFIG); }
+void WebManager::handleLicense( ) { LICENSE_PAGE_SERVE(PERM_DASHBOARD); }
 void WebManager::handleForceChpass( ) {
 	if (getAuthPerms( ) == 0) { _server->sendHeader("Location", "/login", true); _server->send(302, "text/plain", ""); return; }
 	if (!isPasswordChangeRequired( )) { _server->sendHeader("Location", "/", true); _server->send(302, "text/plain", ""); return; }
