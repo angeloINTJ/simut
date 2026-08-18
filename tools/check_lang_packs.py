@@ -147,9 +147,12 @@ def trl_literals():
 def web_keys():
     """({key: where}, {runtime_prefix}) for every translation the browser asks for.
 
-    Two consumers, not one: the WebUI.h bundle in flash AND the pages that
-    moved to LittleFS (alarms/license) — they read the same @WEBDICT, so
-    scanning only WebUI.h reports their keys as dead.
+    WebUI.h is the source of every page, so it is normally the whole answer.
+    data/web/*.html.gz is scanned as well because a test env may hold a page
+    diet there (custom_fs_pages, see tools/build_webui_gz.py): those files are
+    generated from the same WebUI.h and read the same @WEBDICT, and scanning
+    them costs nothing when the directory is empty, which is what a shipping
+    layout leaves behind.
     """
     import gzip
     srcs = [("WebUI.h", (ROOT / "WebUI.h").read_text(encoding="utf-8",

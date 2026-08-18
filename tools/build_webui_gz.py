@@ -2,8 +2,12 @@
 PlatformIO pre-build script — regenerates WebUI_GZ.h from WebUI.h.
 
 Compresses PROGMEM blocks with gzip level 9 and writes the header consumed
-by WebManager_Core.cpp. Only regenerates if WebUI.h has changed (hash check)
-to avoid invalidating the build cache when the asset was not modified.
+by WebManager_Core.cpp, plus the <PAGE>_SERVE macro that binds each route to
+the partition its asset landed on.
+
+The output depends on three things — the source, this script, and the env's
+page layout — and the stamp on line 2 carries all three, so the "already up to
+date" shortcut cannot hand one environment another one's header.
 
 Project: SIMUT
 License: MIT
@@ -26,77 +30,129 @@ _HAS_MINIFY_HTML = False
 try:
     Import("env")
     PROJECT_DIR = env.subst("$PROJECT_DIR")
+    PIOENV      = env["PIOENV"]
+    DIET_RAW    = env.GetProjectOption("custom_fs_pages", "")
 except NameError:
-    # Running standalone (not inside PlatformIO) — use CWD.
+    # Running standalone (not inside PlatformIO) — use CWD. No env means no
+    # diet: the standalone path is what build_release_pio.sh calls, and a
+    # release package carries the complete interface by definition.
     import sys
 
     PROJECT_DIR = os.getcwd()
+    PIOENV      = ""
+    DIET_RAW    = ""
 INPUT_FILE  = os.path.join(PROJECT_DIR, "WebUI.h")
 OUTPUT_FILE = os.path.join(PROJECT_DIR, "src", "WebUI_GZ.h")
 
-# Pages served from LittleFS instead of being linked into the firmware image.
+# ── Where each page lives: firmware image, or LittleFS ──────────────────────
 #
-# A page listed here is still gzipped — un-gzipping would make it ~5x BIGGER,
-# not smaller — it just lives on the 1 MB filesystem partition instead of the
-# app slot, and WebManager::serveProtectedFsPage streams it from there.
+# A page moved to the filesystem is still gzipped — un-gzipping would make it
+# ~5x BIGGER, not smaller — it just lives on the 1 MB filesystem partition
+# instead of the app slot, and WebManager::serveProtectedFsPage streams it
+# from there. The trade is a flash read per request instead of a PROGMEM
+# pointer, plus a deploy step, in exchange for app-slot headroom.
 #
-# The trade is load time (a flash read per request instead of a PROGMEM
-# pointer) plus a deploy step, in exchange for app-slot headroom. Only worth
-# it for pages that are big AND rarely opened.
+# THE RULE, from 2026-08-17: a SHIPPING image carries the complete interface.
+# Every page, in flash, no deploy step, no route that can answer "Page asset
+# missing". The diet is declared PER ENVIRONMENT (custom_fs_pages in
+# platformio.ini) and _resolve_diet below refuses it outright for the envs in
+# SHIPPING_ENVS.
 #
-# Deploying one of these needs the file on the device. Do NOT use
-# `pio run -t uploadfs` on a device with data on it: that reformats the
-# partition and takes the history, logs and calib.csv with it. Upload the
-# single file through the /files page or POST it to /api/upload.
+# This used to be one global constant, and that is what made the two images
+# fight over one budget. pico_w_test carries the full serial CLI and had 152 B
+# of real headroom in August 2026, so LICENSE_PAGE and then ALARMS_PAGE were
+# moved out — out of BOTH images, because the constant could not tell them
+# apart. The release paid for the test image's problem, and paid twice: the
+# pages left the firmware, and data/web/*.gz became a deploy step that the zips
+# did not carry (units built from the v2.2.5-beta zip had a broken /license).
 #
-# --- Currently empty, and that is deliberate. ---
-# CFG_PAGE lived here from when the image had 660 bytes of headroom. Dropping
-# the never-used Bluetooth stack from platformio.ini freed 64732 B, so the page
-# went back into the firmware on 2026-07-26. Measured cost of bringing it in:
-# 11544 B (not the 12152 B of the array — serveProtectedFsPage had /config as
-# its only caller, so the helper and its error page get gc-sectioned out too).
-# Headroom after: 57928 B.
+# Measured on 2026-08-17, at e14170f, with arm-none-eabi-size:
 #
-# What that buys is a failure mode removed. On a freshly formatted or
-# freshly built device the file is not there yet, and /config — the page you
-# need to configure the device — answered with "Page asset missing". Bootstrap
-# no longer depends on a manual upload.
+#   release, 10 pages embedded + 2 on LittleFS ...... 30892 B free
+#   release, all 12 embedded ....................... 18740 B free   <- linked
+#   test,    all 12 embedded ....................... overflowed by 856 B
+#   test,    all 12 + SIMUT_MDNS=0 ................. 14520 B free
+#   test,    all 12 + SIMUT_MDNS=0 + strtol ........ 22044 B free   <- shipped
 #
-# HIST_PAGE (32216 B today) is the biggest candidate, but /history is opened
-# constantly, so it fails the "rarely opened" half of the criterion above —
-# measure the extra latency before ever committing to it.
+# So the release never needed the diet at all, and the test image ends up with
+# twice the headroom it had while carrying MORE pages than before. The
+# mechanism stays because the day instrumentation needs 30 KB again, it has to
+# come out of the test image and nowhere else.
 #
-# --- LICENSE_PAGE moved out on 2026-08-16. ---
-# The edge-triggered log filter needed 536 B and pico_w_test had 376 B of real
-# headroom left (the reported 12 KB omits .ota and the .rodata alignment
-# padding — see scratchpad/flashfree.sh and docs/ANALISE_FLASH_RAM.md).
+# PICKING A PAGE FOR A DIET (only ever for a test env): big AND rarely opened
+# AND not needed to bring the device up. All three, or the cure is worse.
+# CFG_PAGE was tried in July 2026 and broke the bootstrap — a freshly
+# formatted device answered /config, the page you need to configure it, with
+# "Page asset missing". FILE_PAGE is circular: it is how you upload the very
+# file that is missing. HIST_PAGE is the biggest at 32 KB and the hottest page
+# there is; moving it costs +12.5 ms per load (measured), because the mutex is
+# taken once per KB, not once per request. LOGIN_PAGE, FORCE_CHPASS_PAGE,
+# STYLE_CSS and LANG_JS are not in DIETABLE at all: the first two lock the
+# device out if the file is missing, and the other two are loaded by eight
+# pages each and have no FS route (they are served with their own cache
+# headers, not through serveProtectedFsPage).
 #
-# LICENSE_PAGE is the right page to move, for the reasons the criterion above
-# names and CFG_PAGE failed: it is static legal text on a route nobody visits
-# twice, and a device that never received the file is still fully usable — it
-# gets the "Page asset missing" notice on /license and nothing else changes.
-# CFG_PAGE broke bootstrap; HIST_PAGE would cost a flash read on the hottest
-# page there is. This one costs neither.
-#
-# Deploy: these files must reach /web/ on the device, or the routes that were
-# moved out answer "Page asset missing". Upload through the Files page or POST
-# to /api/upload. NOT `uploadfs` — that reformats the partition and takes
+# DEPLOYING a diet page: the file must reach /web/ on the device or the route
+# answers "Page asset missing". Upload it through the Files page or POST to
+# /api/upload. NOT `uploadfs` — that reformats the partition and takes the
 # history, logs and calib.csv with it.
-#
-# The pio zip carries them under data/web/ (build_release_pio.sh). The Arduino
-# zips carry no data/ at all, by design — that variant uploads the filesystem
-# separately. This comment used to claim "the release zips carry" them while
-# data/web/ was gitignored and no script copied it, so no zip had ever carried
-# one; a unit built from a zip had a broken /license from the day the page was
-# moved out.
-#
-# Picking what goes here: big AND rarely opened AND not needed to bring the
-# device up. All three, or the cure is worse. HIST_PAGE is the biggest at 32 KB
-# but is the hottest page there is; CFG_PAGE was tried in July 2026 and broke
-# the bootstrap; FILE_PAGE is circular, since it is how you upload these files
-# in the first place.
-FS_PAGES = {"LICENSE_PAGE": "license.html.gz", "ALARMS_PAGE": "alarms.html.gz"}
+
+# Envs that a user's device runs. These carry the whole interface, always.
+SHIPPING_ENVS = {"pico_w_release", "pico_w_alpha", "pico_w_asserts"}
+
+# The only pages a diet may name, and the file each becomes on the device.
+# The set is exactly the routes that go through serveProtectedPage, which is
+# the one server path that has a filesystem twin.
+DIETABLE = {
+    "DASH_PAGE":    "dash.html.gz",
+    "HIST_PAGE":    "history.html.gz",
+    "CFG_PAGE":     "config.html.gz",
+    "NET_PAGE":     "network.html.gz",
+    "USR_PAGE":     "users.html.gz",
+    "FILE_PAGE":    "files.html.gz",
+    "ALARMS_PAGE":  "alarms.html.gz",
+    "LICENSE_PAGE": "license.html.gz",
+}
+
 FS_OUT_DIR = os.path.join(PROJECT_DIR, "data", "web")
+
+
+def _resolve_diet() -> dict:
+    """Read custom_fs_pages for this env, and refuse it where it must not be.
+
+    Failing the build is the point. The invariant "a shipping image carries
+    the complete interface" is worth exactly as much as the thing that
+    enforces it, and the last enforcement was a comment.
+    """
+    names = [n for n in re.split(r"[,\s]+", DIET_RAW) if n]
+    if not names:
+        return {}
+    if PIOENV in SHIPPING_ENVS:
+        raise SystemExit(
+            f"build_webui_gz: {PIOENV} e um ambiente de producao e declarou "
+            f"custom_fs_pages = {', '.join(names)}.\n"
+            f"Imagem de producao carrega a interface INTEIRA no firmware: sem "
+            f"passo de implantacao e sem rota que responda 'Page asset "
+            f"missing'. A dieta existe so para os ambientes instrumentados."
+        )
+    unknown = [n for n in names if n not in DIETABLE]
+    if unknown:
+        raise SystemExit(
+            f"build_webui_gz: custom_fs_pages nomeia {', '.join(unknown)}, que "
+            f"nao pode sair do firmware.\n"
+            f"Elegiveis: {', '.join(sorted(DIETABLE))}.\n"
+            f"As demais ou trancam o aparelho se o arquivo faltar (login, "
+            f"force_chpass) ou nao tem rota de filesystem (style.css, lang.js)."
+        )
+    return {n: DIETABLE[n] for n in names}
+
+
+FS_PAGES = _resolve_diet()
+
+# The layout is part of the build identity, not just the source hash: two envs
+# generate different headers from the same WebUI.h, and without this the
+# idempotency check below would hand the second env the first one's header.
+LAYOUT_TAG = ",".join(sorted(FS_PAGES)) or "all-embedded"
 
 # Languages enabled in firmware.
 ENABLED_LANGS = {"en", "pt"}
@@ -322,26 +378,66 @@ def _syntax_check_scripts(name: str, html: str) -> None:
             os.unlink(path)
 
 
+def _prune_stale_fs_pages() -> None:
+    """Delete the data/web outputs this layout does not produce.
+
+    A page brought back into the firmware leaves its .gz behind, and a leftover
+    is worse than clutter: it still looks like a deploy artifact, so the next
+    reader takes it as evidence that the route is served from the filesystem.
+    Only names this script itself can emit are ever removed — nothing else in
+    data/web is touched.
+    """
+    if not os.path.isdir(FS_OUT_DIR):
+        return
+    for fn in DIETABLE.values():
+        if fn in FS_PAGES.values():
+            continue
+        path = os.path.join(FS_OUT_DIR, fn)
+        if os.path.isfile(path):
+            os.remove(path)
+            print(
+                f"build_webui_gz: removed stale data/web/{fn} — that page is in "
+                f"the firmware image now."
+            )
+
+
 def generate() -> None:
     if not os.path.isfile(INPUT_FILE):
         print("build_webui_gz: WebUI.h not found — skipping generation.")
         return
 
     # Idempotency: skip if nothing changed.
+    #
+    # The stamp covers all three things the output depends on: the source, the
+    # generator itself, and the layout. The generator half matters because the
+    # skip only became real today — the check read line 1 while the hash was
+    # written on line 2, so it never once matched and every build regenerated.
+    # Turning it on without hashing this file would mean editing the minifier
+    # and getting yesterday's pages.
     input_hash = _hash_file(INPUT_FILE)
+    gen_hash = _hash_file(os.path.join(PROJECT_DIR, "tools", "build_webui_gz.py"))
+    stamp = f"{input_hash} gen={gen_hash[:12]} layout={LAYOUT_TAG}"
     if os.path.isfile(OUTPUT_FILE):
-        output_hash = _hash_file(OUTPUT_FILE)
-        # The generated .h contains the input hash in the first comment line.
+        # The generated .h carries the input hash AND the layout in the first
+        # comment line. The layout half is not cosmetic: `pio run -e pico_w_test
+        # && pio run -e pico_w_release` compiles the same WebUI.h into two
+        # different headers, and matching on the hash alone would hand the
+        # second env whatever the first one left behind — a release image with
+        # pages missing, or a test image over the ceiling, from a build that
+        # printed "up to date".
         with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
-            first_line = f.readline()
+            head = f.readline() + f.readline()
         # The FS_PAGES outputs are not covered by the header hash: deleting one
         # would otherwise be invisible here and the build would quietly ship a
         # firmware whose /config has no page to serve.
         fs_ok = all(
             os.path.isfile(os.path.join(FS_OUT_DIR, fn)) for fn in FS_PAGES.values()
         )
-        if input_hash in first_line and fs_ok:
-            print("build_webui_gz: WebUI_GZ.h is up to date — skipping.")
+        if stamp in head and fs_ok:
+            print(
+                f"build_webui_gz: WebUI_GZ.h is up to date (layout={LAYOUT_TAG}) "
+                f"— skipping."
+            )
             return
 
     with open(INPUT_FILE, "r", encoding="utf-8") as f:
@@ -352,12 +448,22 @@ def generate() -> None:
 
     out_lines = [
         "// Auto-generated by tools/build_webui_gz.py — do not edit.",
-        f"// Source hash: {input_hash}",
+        f"// Source hash: {stamp}",
+        f"// Env: {PIOENV or '(standalone)'}",
         "#pragma once",
         "#include <Arduino.h>",
         "namespace WebUI_GZ {",
         "",
     ]
+
+    # One SERVE macro per dietable page, emitted next to the asset it serves.
+    # The handler in WebManager_Auth.cpp is then one line that reads the same
+    # whichever partition the page landed on. Before this, moving a page meant
+    # editing the diet here AND the handler there, two files that could
+    # disagree in silence: the header would stop emitting the array and the
+    # build would die, or worse, the handler kept streaming a filesystem path
+    # for a page that was back in flash.
+    serve_macros = []
 
     total_in = 0
     total_min = 0
@@ -394,6 +500,11 @@ def generate() -> None:
             fs_path = os.path.join(FS_OUT_DIR, FS_PAGES[name])
             with open(fs_path, "wb") as fo:
                 fo.write(compressed)
+            serve_macros.append(
+                f"// {name}: {length} bytes gz on LittleFS — NOT in this image.\n"
+                f"#define {name}_SERVE(perm) "
+                f'serveProtectedFsPage((perm), "/web/{FS_PAGES[name]}")'
+            )
             print(
                 f"build_webui_gz: {name} -> data/web/{FS_PAGES[name]} "
                 f"({length} bytes gz) — served from LittleFS, not linked."
@@ -408,14 +519,24 @@ def generate() -> None:
             f"static const uint8_t {gz_name}[] PROGMEM = {{\n{array_str}\n}};"
         )
         out_lines.append(f"static const size_t {gz_name}_LEN = {length};\n")
+        if name in DIETABLE:
+            serve_macros.append(
+                f"#define {name}_SERVE(perm) serveProtectedPage((perm), "
+                f"WebUI_GZ::{gz_name}, WebUI_GZ::{gz_name}_LEN)"
+            )
 
     out_lines.append("}")
+    out_lines.append("")
+    out_lines.append("// Route bindings — see the SERVE macro note in build_webui_gz.py.")
+    out_lines.extend(serve_macros)
 
     with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
         f.write("\n".join(out_lines) + "\n")
 
+    _prune_stale_fs_pages()
+
     print(
-        f"build_webui_gz: {len(matches)} arrays | "
+        f"build_webui_gz: {len(matches)} arrays | layout={LAYOUT_TAG} | "
         f"input {total_in} -> minified {total_min} ({100*total_min/max(total_in,1):.1f}%) "
         f"-> gzipped {total_gz} ({100*total_gz/max(total_in,1):.1f}%)"
     )

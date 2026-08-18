@@ -60,13 +60,17 @@ docs/screenshots_v4/
 # Device runtime data (generated on-device)
 data/history/
 data/config/
-# data/web holds the FS_PAGES output (build_webui_gz.py). Excluding the whole
-# directory kept those pages out of the release zips, so a unit built from a
-# zip answered "Page asset missing" on every page that had been moved out of
-# the firmware — the comment in build_webui_gz.py claimed the opposite. Same
-# shape as data/themes below: exclude the CONTENTS, then negate.
-data/web/*
-!data/web/*.html.gz
+# data/web holds the output of a per-env page diet (custom_fs_pages, see
+# tools/build_webui_gz.py). Nothing in it is tracked, and from 2026-08-17
+# nothing in it ships: a shipping image carries every page in flash, so these
+# are build artifacts of the instrumented env alone — written by the build that
+# asks for them, uploaded to the bench unit by hand.
+#
+# They were tracked for one release, while the release image depended on them.
+# That is also the release where no zip actually carried them and /license
+# shipped broken, which is the argument for not letting a user's image depend
+# on a file that has to be deployed separately.
+data/web/
 # Contents, not the directory — git does not descend into an excluded
 # directory, so a negation inside one never matches.
 data/themes/*
