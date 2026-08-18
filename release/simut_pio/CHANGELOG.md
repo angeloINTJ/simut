@@ -4,6 +4,100 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.9-beta (2026-08-18)
+
+### The build was shipping its own comments
+
+`tools/build_webui_gz.py` minifies every page before gzipping it. The minifier
+matched string literals with a single regular expression, saved what it matched,
+stripped comments from the rest, and put the literals back. A regular expression
+has no context: to it, every quote character opens or closes a string. A quote
+that is not a delimiter — inside a comment, or inside a regex literal such as
+`/[<>&"]/` — shifts the pairing by one, and from that byte onward the matcher
+believes it is inside a string while it is in code, and in code while it is
+inside a string.
+
+That defect had already cost a release in its loud form, where a run of code is
+taken for the inside of a string and **discarded**: `ALARMS_PAGE` once shipped
+at 9% of its source with every handler gone, and `node --check` saw nothing
+wrong, because what remained was still valid JavaScript.
+
+The quiet form had never been measured. Once the matcher desynchronises, the
+region that follows is treated as one long literal, so minification never
+reaches it, and comments and indentation travel into the firmware intact:
+
+    LANG_JS ......... 96.5% retained — 9 990 B of surviving comments
+    HIST_PAGE ....... 93.2% retained — a 92 432 B protected region, 84% of the page
+    ALARMS_PAGE ..... 97.7% retained
+    healthy pages ... 68-76% retained
+
+The cure is not a better regular expression. The minifier is now a stateful
+scanner: it knows whether it is in HTML, in a `<script>`, in a `<style>`, in a
+string, in a template literal, in a comment or in a regex literal, because it
+arrived there through every preceding byte. No new dependency — building from
+the release zip must work with the machine's Python and nothing else.
+
+    12 assets, gzipped ......... 103 418 B -> 83 861 B   (-19 557)
+
+### Three gates, so the silent failure cannot come back
+
+The old failure mode passed every check the build had. Code vanished, what
+remained parsed, and the build printed SUCCESS.
+
+`_assert_only_whitespace_removed` re-scans the **output** and requires that the
+literals, byte for byte, and the code with all whitespace removed, are identical
+to the input. Nothing but whitespace and comments may leave. It has a positive
+control in the test suite proving it fires on a renamed symbol, a deleted
+function, and an altered string — a gate that never fires is indistinguishable
+from one that works.
+
+`node --check` now reaches `LANG_JS`. It is the largest block of JavaScript in
+the project and it had been outside that gate for its whole life, because the
+search only looked inside a `<script>` tag and `/lang.js` is not HTML.
+
+The retention ratio stays as the blunt third check. It is also more meaningful
+now: the numbers across the twelve assets are consistent (56-97%) instead of
+spanning 60-97%, and that spread was itself the symptom.
+
+`tools/test_webui_minify.py` holds 49 cases — every trap the old minifier fell
+into, plus two the scanner had to learn.
+
+### The repeated page skeleton is paid once
+
+Eight authenticated pages each carried their own copy of the top bar and of
+`initSession`, and each page is gzipped on its own, so the same bytes were paid
+eight times. Measured by isolating each block:
+
+    initSession -> /lang.js .................... 3 766 B
+    top bar and breadcrumb HTML -> /lang.js .... 1 272 B
+    4 CSS rules -> /style.css .................. 1 109 B
+
+`/lang.js` and `/style.css` are served with `Cache-Control: max-age=604800`, so
+those bytes also stop being downloaded on every navigation.
+
+The top bar is installed during parsing, from a `<script>` right after `<body>`,
+not on `DOMContentLoaded` like the drawer: it sits above the fold, and installed
+from an event it would appear after the first frame and push the page down in
+front of the reader.
+
+### Fixed along the way
+
+The minifier used to collapse the blank lines inside `<pre>`, so the MIT licence
+text on `/license` rendered as one run-on paragraph. `<pre>` and `<textarea>`
+now pass through untouched, and the page is 43 B larger and correct.
+
+`/alarms` was the only one of the eight pages whose palette lacked
+`color-scheme: dark`, and it redefined `--ok` to the value `/style.css` already
+had. Drift, not intent; it now uses the shared palette.
+
+### Flash
+
+    release headroom ... 18 740 B -> 43 676 B   (2.33x)
+    test headroom ...... 22 044 B -> 46 916 B
+
+Measured with `arm-none-eabi-size`, both environments, before and after, by
+building each tree.
+
 ## v2.2.8-beta (2026-08-17)
 
 ### The whole web interface is back inside the firmware

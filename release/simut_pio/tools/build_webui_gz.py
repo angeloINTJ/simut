@@ -9,6 +9,16 @@ The output depends on three things — the source, this script, and the env's
 page layout — and the stamp on line 2 carries all three, so the "already up to
 date" shortcut cannot hand one environment another one's header.
 
+A minificacao roda antes do gzip e e feita por um escaner com estado, nao por
+regex — ver o bloco "Minificacao com contexto" abaixo para o porque. Tres
+portoes protegem o resultado, do mais exato ao mais grosseiro:
+`_assert_only_whitespace_removed` (o conteudo e byte a byte o mesmo),
+`_syntax_check_scripts` (ainda compila) e `_assert_not_gutted` (nao encolheu
+demais). Os testes do escaner estao em tools/test_webui_minify.py.
+
+Sem dependencia externa de proposito: quem compila a partir do zip da release
+precisa que isto funcione com o Python da maquina e mais nada.
+
 Project: SIMUT
 License: MIT
 """
@@ -17,15 +27,6 @@ import os
 import re
 import gzip
 import hashlib
-
-try:
-    import minify_html
-    _HAS_MINIFY_HTML = True
-except ImportError:
-    _HAS_MINIFY_HTML = False
-
-# gzip already compresses whitespace efficiently; minify_html kept OFF.
-_HAS_MINIFY_HTML = False
 
 try:
     Import("env")
@@ -201,98 +202,518 @@ def _hash_file(path: str) -> str:
     return h.hexdigest()
 
 
-# Conservative minification applied BEFORE gzip. Reduces ~10-20% before
-# compression, saving a few KB per page post-gzip (gzip already handles
-# whitespace but comments and structure still inflate).
-# Strategy: tokenize string literals first to avoid touching them, then
-# strip comments and collapse whitespace outside strings.
-_STR_PLACEHOLDER = "\x00STR{}\x00"
-_STRING_RE = re.compile(
-    r"""(`(?:\\.|[^`\\])*`        # template literal
-        |"(?:\\.|[^"\\])*"        # double-quoted
-        |'(?:\\.|[^'\\])*')       # single-quoted
-    """,
-    re.VERBOSE,
-)
+# ── Minificacao com contexto ────────────────────────────────────────────────
+#
+# O que existia aqui era UM regex que casava toda string do documento, guardava
+# os trechos casados, tirava os comentarios do resto e devolvia as strings ao
+# lugar. A ideia era proteger o conteudo literal; o defeito e que um regex nao
+# tem contexto. Para ele toda aspa abre ou fecha uma string, entao uma aspa que
+# nao seja delimitador — dentro de um comentario, ou dentro de um literal de
+# regex como /[<>&"]/ — desloca o pareamento em um. Dali em diante o casador
+# acredita estar dentro de uma string quando esta no codigo, e vice-versa.
+#
+# Os dois estragos, ambos vistos neste projeto:
+#
+#   1. Trecho de codigo tratado como "string" de um comentario e DESCARTADO.
+#      A ALARMS_PAGE saiu uma vez com 9% do tamanho, todos os handlers
+#      perdidos, e o `node --check` nao viu nada porque o que sobrou continuava
+#      sendo JavaScript valido.
+#   2. O inverso, silencioso e caro: regiao inteira tratada como literal e
+#      portanto NAO minificada. Em 2026-08-18 a HIST_PAGE retinha 93% do
+#      tamanho cru (92 KB protegidos, 84% da pagina) e a LANG_JS levava 9.990 B
+#      so de comentario para dentro do firmware.
+#
+# A cura nao e um regex melhor, e escanear com estado: quem le byte a byte sabe
+# se esta em HTML, em <script>, em <style>, numa string, num comentario ou num
+# literal de regex, porque chegou ali passando por tudo que veio antes.
+#
+# O portao `_assert_only_whitespace_removed` fecha o circulo: ele reescaneia a
+# SAIDA e exige que os literais e o codigo (sem espaco) sejam identicos aos da
+# entrada. Se algum dia o escaner errar, o build para em vez de embarcar.
+
+# Depois destes, uma barra abre um literal de regex. Depois de identificador,
+# numero, string, `)`, `]` ou `}`, ela e divisao.
+_JS_REGEX_OK_AFTER = {
+    "return", "typeof", "instanceof", "in", "of", "new", "delete", "void",
+    "throw", "case", "do", "else", "yield", "await",
+}
+_JS_IDENT_END = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*$")
+_SEP_KINDS = ("ws", "line_comment", "block_comment")
 
 
-def _minify_web_block(src: str) -> str:
-    """Minify mixed HTML+CSS+JS preserving string literals.
+def _scan_string(s: str, i: int, q: str) -> int:
+    """Fim (exclusivo) da string que abre em i. Barra invertida escapa."""
+    n = len(s)
+    j = i + 1
+    while j < n:
+        c = s[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == q:
+            return j + 1
+        if c == "\n":       # string sem fechar na linha: nao come o resto
+            return j
+        j += 1
+    return n
 
-    If the `minify_html` library (Rust-based, aggressive but correct) is
-    available, use it. Otherwise fall back to a conservative regex minifier.
 
-    Conservative: doesn't touch pre/textarea/code blocks and preserves
-    anything between quotes/backticks.
+def _scan_template(s: str, i: int) -> int:
+    """Fim do template a partir de i (que e ` ou }). Para no ${ (inclusive)."""
+    n = len(s)
+    j = i + 1
+    while j < n:
+        c = s[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == "`":
+            return j + 1
+        if c == "$" and j + 1 < n and s[j + 1] == "{":
+            return j + 2
+        j += 1
+    return n
+
+
+def _scan_regex(s: str, i: int) -> int:
+    """Fim do literal de regex, ou i se nao for um. `[...]` suspende o `/`."""
+    n = len(s)
+    j = i + 1
+    in_class = False
+    while j < n:
+        c = s[j]
+        if c == "\\":
+            j += 2
+            continue
+        if c == "\n":
+            return i                     # regex nao atravessa linha: era divisao
+        if c == "[":
+            in_class = True
+        elif c == "]":
+            in_class = False
+        elif c == "/" and not in_class:
+            j += 1
+            while j < n and s[j].isalpha():
+                j += 1
+            return j
+        j += 1
+    return i
+
+
+def _js_tokens(s: str):
+    """Gera (tipo, texto) cobrindo `s` inteiro, sem perder nem duplicar byte.
+
+    tipo: ws | line_comment | block_comment | string | template | regex | code
     """
-    if _HAS_MINIFY_HTML:
-        # minify_html applies HTML + JS + CSS minification with syntax
-        # awareness. Conservative flags:
-        #   keep_closing_tags: True — keeps </p> </li> etc (compat)
-        #   keep_html_and_head_opening_tags: True — keeps <html><head>
-        #   allow_removing_spaces_between_attributes: True — aggressive OK
-        #   minify_css/js: True — minify embedded blocks
-        try:
-            return minify_html.minify(
-                src,
-                minify_css=True,   # whitespace + shorthand only, preserves hex/numeric values
-                minify_js=False,   # kept OFF: template literals may break with mangling
-                keep_closing_tags=True,
-                keep_html_and_head_opening_tags=True,
-                allow_removing_spaces_between_attributes=True,
-                remove_bangs=True,
-                remove_processing_instructions=True,
+    i, n = 0, len(s)
+    prev = prev_txt = None
+    tpl_stack = []          # profundidade de chaves dentro de cada ${ } aberto
+    buf = []
+
+    def flush():
+        if buf:
+            t = "".join(buf)
+            del buf[:]
+            return ("code", t)
+        return None
+
+    while i < n:
+        c = s[i]
+
+        # um `}` que fecha o ${ devolve o texto ao template
+        if tpl_stack and c == "}" and tpl_stack[-1] == 0:
+            tpl_stack.pop()
+            tok = flush()
+            if tok:
+                yield tok
+            j = _scan_template(s, i)
+            yield ("template", s[i:j])
+            # o pedaco pode parar em OUTRO ${ — `a${x}b${y}c` tem dois. Sem
+            # empilhar de novo aqui, a pilha esvazia no primeiro, o } do segundo
+            # vira codigo comum, e a crase final e lida como ABERTURA de um
+            # template novo — que entao engole o resto do arquivo.
+            if s[j - 2:j] == "${":
+                tpl_stack.append(0)
+                prev, prev_txt = "code", "${"
+            else:
+                prev, prev_txt = "template", s[i:j]
+            i = j
+            continue
+        if tpl_stack and c == "{":
+            tpl_stack[-1] += 1
+        elif tpl_stack and c == "}":
+            tpl_stack[-1] -= 1
+
+        if c in " \t\r\n\f\v":
+            j = i
+            while j < n and s[j] in " \t\r\n\f\v":
+                j += 1
+            tok = flush()
+            if tok:
+                yield tok
+            yield ("ws", s[i:j])
+            i = j
+            continue
+
+        if c == "/" and i + 1 < n:
+            nxt = s[i + 1]
+            if nxt == "/":
+                j = s.find("\n", i)
+                j = n if j < 0 else j
+                tok = flush()
+                if tok:
+                    yield tok
+                yield ("line_comment", s[i:j])
+                i = j
+                continue
+            if nxt == "*":
+                j = s.find("*/", i + 2)
+                j = n if j < 0 else j + 2
+                tok = flush()
+                if tok:
+                    yield tok
+                yield ("block_comment", s[i:j])
+                i = j
+                continue
+            is_regex = True
+            if prev == "code":
+                last = prev_txt[-1:] if prev_txt else ""
+                if last in ")]}" or last.isalnum() or last in "_$":
+                    m = _JS_IDENT_END.search(prev_txt)
+                    is_regex = bool(m) and m.group(0) in _JS_REGEX_OK_AFTER
+            elif prev in ("string", "template", "regex"):
+                is_regex = False
+            if is_regex:
+                j = _scan_regex(s, i)
+                if j > i:
+                    tok = flush()
+                    if tok:
+                        yield tok
+                    yield ("regex", s[i:j])
+                    prev, prev_txt = "regex", s[i:j]
+                    i = j
+                    continue
+            buf.append(c)
+            prev, prev_txt = "code", "".join(buf)
+            i += 1
+            continue
+
+        if c in "'\"":
+            j = _scan_string(s, i, c)
+            tok = flush()
+            if tok:
+                yield tok
+            yield ("string", s[i:j])
+            prev, prev_txt = "string", s[i:j]
+            i = j
+            continue
+
+        if c == "`":
+            j = _scan_template(s, i)
+            tok = flush()
+            if tok:
+                yield tok
+            yield ("template", s[i:j])
+            if s[j - 2:j] == "${":
+                tpl_stack.append(0)
+                prev, prev_txt = "code", "${"
+            else:
+                prev, prev_txt = "template", s[i:j]
+            i = j
+            continue
+
+        buf.append(c)
+        prev, prev_txt = "code", "".join(buf)
+        i += 1
+
+    tok = flush()
+    if tok:
+        yield tok
+
+
+def _css_tokens(s: str):
+    """Gera (tipo, texto) para CSS: so strings e comentarios /* */ importam."""
+    i, n = 0, len(s)
+    buf = []
+
+    def flush():
+        if buf:
+            t = "".join(buf)
+            del buf[:]
+            return ("code", t)
+        return None
+
+    while i < n:
+        c = s[i]
+        if c == "/" and i + 1 < n and s[i + 1] == "*":
+            j = s.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            tok = flush()
+            if tok:
+                yield tok
+            yield ("block_comment", s[i:j])
+            i = j
+            continue
+        if c in "'\"":
+            j = _scan_string(s, i, c)
+            tok = flush()
+            if tok:
+                yield tok
+            yield ("string", s[i:j])
+            i = j
+            continue
+        if c in " \t\r\n\f":
+            j = i
+            while j < n and s[j] in " \t\r\n\f":
+                j += 1
+            tok = flush()
+            if tok:
+                yield tok
+            yield ("ws", s[i:j])
+            i = j
+            continue
+        buf.append(c)
+        i += 1
+    tok = flush()
+    if tok:
+        yield tok
+
+
+def _minify_js(src: str) -> str:
+    """Tira comentario e indentacao do JS. NAO junta linhas.
+
+    Juntar linhas mudaria semantica: o JS insere ponto e virgula sozinho no fim
+    de linha, entao `return\\nx` e `return x` sao programas diferentes. Um
+    comentario que continha quebra vira uma quebra, pelo mesmo motivo.
+
+    A normalizacao acontece TOKEN A TOKEN, nunca com um regex sobre o texto ja
+    montado. Um `re.sub(r'[ \\t]{2,}', ' ', ...)` no fim parece inofensivo e nao
+    e: ele nao distingue indentacao de conteudo e reescreve o interior das
+    strings — `'  <div>'` sai com um espaco so. Foi o portao abaixo que pegou.
+    """
+    out, pending = [], None
+    for kind, txt in _js_tokens(src):
+        if kind in _SEP_KINDS:
+            if pending != "\n":
+                pending = "\n" if "\n" in txt else " "
+            continue
+        if pending and out:
+            out.append(pending)
+        pending = None
+        out.append(txt)
+    return "".join(out)
+
+
+def _minify_css(src: str) -> str:
+    """CSS nao tem ponto e virgula automatico, entao linha pode ser juntada.
+
+    NAO se colapsa espaco em volta de `:` — em seletor ele e significativo:
+    `.a :hover` (descendente) e `.a:hover` (mesmo elemento) sao regras
+    diferentes, e distinguir uma da outra exigiria saber se o ponto do texto e
+    seletor ou declaracao. Medido: colapsar valeria 464 B nos 12 arrays, que o
+    gzip ja pega de graca. Pelo mesmo motivo o `;` antes de `}` fica: economiza
+    pouco e custaria o invariante que o portao verifica.
+    """
+    out, pending = [], False
+    for kind, txt in _css_tokens(src):
+        if kind in ("block_comment", "ws"):
+            pending = True
+            continue
+        if pending and out:
+            if txt[:1] not in "{};," and out[-1][-1:] not in "{};,":
+                out.append(" ")
+        pending = False
+        out.append(txt)
+    return "".join(out)
+
+
+_RAW_TEXT = ("script", "style", "pre", "textarea")
+_TAG_OPEN = re.compile(r"<(/?)([A-Za-z][A-Za-z0-9-]*)")
+
+
+def _scan_tag(s: str, i: int) -> int:
+    """Fim da tag que abre em i, respeitando aspas de atributo."""
+    n = len(s)
+    j = i + 1
+    while j < n:
+        c = s[j]
+        if c in "'\"":
+            j = _scan_string(s, j, c)
+            continue
+        if c == ">":
+            return j + 1
+        j += 1
+    return n
+
+
+def _squeeze_tag(tag: str) -> str:
+    """Colapsa espaco ENTRE atributos, nunca dentro de um valor."""
+    out, i, n = [], 0, len(tag)
+    while i < n:
+        c = tag[i]
+        if c in "'\"":
+            j = _scan_string(tag, i, c)
+            out.append(tag[i:j])
+            i = j
+            continue
+        if c in " \t\r\n":
+            j = i
+            while j < n and tag[j] in " \t\r\n":
+                j += 1
+            out.append("" if (j < n and tag[j] == ">") else " ")
+            i = j
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _minify_html(src: str) -> str:
+    """Colapsa espaco POR REGIAO, nunca com um regex sobre o documento pronto.
+
+    <pre> e <textarea> saem intactos: neles o espaco e o que aparece na tela. O
+    minificador anterior nao os conhecia e comia as linhas em branco do texto
+    da licenca MIT, que ia para a /license como um paragrafo corrido.
+    """
+    segs = []                                   # (tipo, texto)
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        if c == "<":
+            if src.startswith("<!--", i):
+                j = src.find("-->", i + 4)
+                i = n if j < 0 else j + 3
+                continue
+            m = _TAG_OPEN.match(src, i)
+            if m:
+                tag = m.group(2).lower()
+                j = _scan_tag(src, i)
+                raw_tag = src[i:j]
+                segs.append(("tag", _squeeze_tag(raw_tag)))
+                i = j
+                if not m.group(1) and tag in _RAW_TEXT and not raw_tag.endswith("/>"):
+                    end = re.compile(r"</%s\b" % tag, re.I).search(src, i)
+                    k = end.start() if end else n
+                    body = src[i:k]
+                    if body.strip():
+                        if tag == "script":
+                            body = _minify_js(body)
+                        elif tag == "style":
+                            body = _minify_css(body)
+                    segs.append(("raw", body))
+                    i = k
+                continue
+            segs.append(("text", c))
+            i += 1
+            continue
+        j = src.find("<", i)
+        j = n if j < 0 else j
+        segs.append(("text", src[i:j]))
+        i = j
+
+    out = []
+    for idx, (kind, txt) in enumerate(segs):
+        if kind != "text":
+            out.append(txt)
+            continue
+        if not txt.strip():
+            # espaco entre duas tags nao renderiza nada e some
+            prev_tag = idx > 0 and segs[idx - 1][0] == "tag"
+            next_tag = idx + 1 < len(segs) and segs[idx + 1][0] == "tag"
+            out.append("" if (prev_tag and next_tag) else " ")
+            continue
+        out.append(re.sub(r"\s+", " ", txt))
+    return "".join(out).strip()
+
+
+def _block_kind(name: str) -> str:
+    """Sufixo do simbolo decide a linguagem. _CSS -> css, _JS -> js, resto html."""
+    if name.endswith("_CSS"):
+        return "css"
+    if name.endswith("_JS"):
+        return "js"
+    return "html"
+
+
+def _minify_web_block(src: str, kind: str = "html") -> str:
+    return {"js": _minify_js, "css": _minify_css, "html": _minify_html}[kind](src)
+
+
+def _essence(src: str, kind: str):
+    """A essencia do texto: os literais em ordem, e o codigo sem espaco algum.
+
+    Os trechos de codigo entram concatenados e sem espaco de proposito — onde
+    cai a fronteira entre dois deles depende do espaco que foi removido, entao
+    comparar a LISTA daria falso positivo. Os literais entram inteiros, byte a
+    byte, porque dentro deles o espaco e conteudo.
+    """
+    toks = _js_tokens(src) if kind == "js" else _css_tokens(src)
+    lits, code = [], []
+    for k, t in toks:
+        if k in _SEP_KINDS:
+            continue
+        if k in ("string", "template", "regex"):
+            lits.append(t)
+            code.append("\x00")
+        else:
+            code.append(re.sub(r"\s+", "", t))
+    return lits, "".join(code)
+
+
+def _inline_regions(html: str, tag: str):
+    """Corpos de cada <script>/<style> embutido do documento."""
+    out = []
+    for m in re.finditer(r"<%s\b([^>]*)>(.*?)</%s>" % (tag, tag), html, re.S | re.I):
+        if tag == "script" and "src=" in m.group(1):
+            continue
+        out.append(m.group(2))
+    return out
+
+
+def _assert_only_whitespace_removed(name: str, raw: str, mini: str, kind: str) -> None:
+    """Exige que a minificacao so tenha tirado espaco e comentario.
+
+    Este e o portao que faltava. O modo de falha antigo era silencioso: codigo
+    sumia, o que restava continuava sendo JavaScript valido, o `node --check`
+    passava e o build dizia SUCCESS. Aqui a saida e reescaneada e comparada com
+    a entrada literal por literal; qualquer byte de conteudo que mude para o
+    build alto.
+    """
+    def cmp(a: str, b: str, label: str) -> None:
+        la, ca = _essence(a, "js" if label.startswith("script") or kind == "js" else "css")
+        lb, cb = _essence(b, "js" if label.startswith("script") or kind == "js" else "css")
+        if la == lb and ca == cb:
+            return
+        if ca != cb:
+            i = next((i for i in range(min(len(ca), len(cb))) if ca[i] != cb[i]),
+                     min(len(ca), len(cb)))
+            det = (f"codigo divergiu em {i}:\n"
+                   f"  antes : ...{ca[max(0, i-60):i+60]}...\n"
+                   f"  depois: ...{cb[max(0, i-60):i+60]}...")
+        else:
+            i = next((i for i in range(min(len(la), len(lb))) if la[i] != lb[i]),
+                     min(len(la), len(lb)))
+            det = (f"literal #{i} divergiu:\n"
+                   f"  antes : {la[i][:120] if i < len(la) else '(nao existe)'!r}\n"
+                   f"  depois: {lb[i][:120] if i < len(lb) else '(nao existe)'!r}")
+        raise SystemExit(
+            f"build_webui_gz: {name} / {label} — a minificacao mudou CONTEUDO, "
+            f"nao so espaco e comentario.\n{det}\n"
+            f"O escaner de tokens errou o contexto. NAO embarcar."
+        )
+
+    if kind in ("js", "css"):
+        cmp(raw, mini, kind)
+        return
+    for tag in ("script", "style"):
+        a, b = _inline_regions(raw, tag), _inline_regions(mini, tag)
+        if len(a) != len(b):
+            raise SystemExit(
+                f"build_webui_gz: {name} — {len(a)} blocos <{tag}> na entrada e "
+                f"{len(b)} na saida. A minificacao perdeu ou criou um bloco."
             )
-        except Exception as e:
-            print(f"build_webui_gz: minify_html failed ({e}), using regex fallback.")
-
-    # Fallback regex (without minify_html installed)
-    # 1. Save strings
-    saved = []
-
-    def _save(m):
-        saved.append(m.group(0))
-        return _STR_PLACEHOLDER.format(len(saved) - 1)
-
-    src = _STRING_RE.sub(_save, src)
-
-    # 2. HTML comments
-    src = re.sub(r"<!--.*?-->", "", src, flags=re.DOTALL)
-    # 3. CSS/JS block comments
-    src = re.sub(r"/\*.*?\*/", "", src, flags=re.DOTALL)
-    # 4. JS line comments — only inside <script>...</script> to avoid
-    #    confusing URLs (`http://`) in HTML href/src attributes.
-    def _strip_js_lines(m):
-        body = m.group(2)
-        body = re.sub(r"^[ \t]*//[^\n]*$", "", body, flags=re.MULTILINE)
-        return m.group(1) + body + m.group(3)
-
-    src = re.sub(
-        r"(<script\b[^>]*>)(.*?)(</script>)",
-        _strip_js_lines,
-        src,
-        flags=re.DOTALL,
-    )
-
-    # 5. Collapse whitespace
-    src = re.sub(r"[ \t]+", " ", src)
-    src = re.sub(r" *\n+ *", "\n", src)
-    src = re.sub(r"\n{2,}", "\n", src)
-
-    # 6. Tag adjacency: `> <` -> `><` (only when both are HTML tags;
-    #    conservative — only between literal `>` and `<` without other
-    #    chars between).
-    src = re.sub(r">[ \t]+<", "><", src)
-    src = re.sub(r">\n+<", "><", src)
-
-    # 7. Restore strings
-    def _restore(m):
-        idx = int(m.group(1))
-        return saved[idx]
-
-    src = re.sub(r"\x00STR(\d+)\x00", _restore, src)
-
-    return src
+        for i, (x, y) in enumerate(zip(a, b)):
+            cmp(x, y, f"{tag}[{i}]")
 
 
 # /style.css e /lang.js sao servidos com Cache-Control: public, max-age=604800
@@ -313,21 +734,26 @@ def _stamp_assets(src: str, tag: str) -> str:
     return src
 
 
-# Real ratios across the ten pages sit between 61% and 97%. A page that comes
-# out far below that has not been minified, it has been eaten.
+# Com o escaner com contexto, as taxas reais dos 12 arrays ficam entre 56% e
+# 97% e sao consistentes entre si. Antes iam de 60% a 97% — e essa dispersao ERA
+# o sintoma: a HIST_PAGE retinha 93% e a ALARMS 98% nao por serem densas, mas
+# porque o casador de strings dessincronizava e a minificacao nunca as
+# alcancava. Um numero perto do teto merece a mesma desconfianca que um perto
+# do piso.
 MIN_RETAINED_FRACTION = 0.40
 
 
 def _assert_not_gutted(name: str, original: int, minified: int) -> None:
     """Fail the build when minification silently drops most of a page.
 
-    The syntax check above cannot see this: what survives is valid JavaScript,
-    just missing the half of the page that mattered. ALARMS_PAGE shipped once
-    at 9% of its source — every handler gone, the page still parsing — because
-    a JS comment contained a double quote and an apostrophe, which is the same
-    trigger that cost a release before.
+    Terceiro portao, e o mais grosseiro dos tres. O
+    `_assert_only_whitespace_removed` ja provaria isto de forma exata para
+    JS e CSS; esta razao continua aqui porque tambem cobre o HTML, onde nao ha
+    invariante de token para comparar, e porque custa nada.
 
-    A ratio is a blunt instrument, but the failure it catches is not subtle.
+    O que ele pega: a ALARMS_PAGE saiu uma vez com 9% do fonte — todos os
+    handlers perdidos, a pagina ainda analisando — porque um comentario JS
+    continha uma aspa dupla e um apostrofo.
     """
     if original <= 0:
         return
@@ -343,13 +769,20 @@ def _assert_not_gutted(name: str, original: int, minified: int) -> None:
     )
 
 
-def _syntax_check_scripts(name: str, html: str) -> None:
-    """Valida a sintaxe dos <script> inline do HTML minificado via `node --check`.
+def _syntax_check_scripts(name: str, text: str, kind: str = "html") -> None:
+    """Valida a sintaxe do JS minificado via `node --check`.
 
-    O minificador preserva strings ANTES de remover comentarios: aspas dentro
-    de um comentario JS confundem essa ordem e ja produziram paginas com 13KB
-    de JS devorado (pagina /history quebrada em producao). Falha o BUILD alto
-    e claro em vez de embarcar JS invalido. No-op se node nao estiver no PATH.
+    Segunda linha de defesa depois do `_assert_only_whitespace_removed`: aquele
+    prova que o conteudo nao mudou, este prova que o resultado ainda compila.
+    Sao checagens diferentes — o modo de falha historico passava neste aqui,
+    porque o que sobrava depois de o minificador comer meia pagina continuava
+    sendo JavaScript sintaticamente valido.
+
+    A LANG_JS ficou anos FORA deste portao: ela nao e HTML, nao tem tag
+    <script>, e a busca so olhava para dentro de uma. E o maior bloco de JS do
+    projeto. Agora entra pelo parametro `kind`.
+
+    No-op se o node nao estiver no PATH.
     """
     import re as _re
     import shutil
@@ -359,7 +792,16 @@ def _syntax_check_scripts(name: str, html: str) -> None:
     node = shutil.which("node") or shutil.which("nodejs")
     if not node:
         return
-    for i, script in enumerate(_re.findall(r"<script>(.*?)</script>", html, _re.DOTALL)):
+    if kind == "css":
+        return
+    if kind == "js":
+        blocks = [(name, text)]
+    else:
+        blocks = [
+            (f"{name} <script>[{i}]", s)
+            for i, s in enumerate(_re.findall(r"<script>(.*?)</script>", text, _re.DOTALL))
+        ]
+    for label, script in blocks:
         if not script.strip():
             continue
         with tempfile.NamedTemporaryFile("w", suffix=".js", delete=False) as tf:
@@ -370,9 +812,7 @@ def _syntax_check_scripts(name: str, html: str) -> None:
             if r.returncode != 0:
                 raise SystemExit(
                     f"build_webui_gz: SINTAXE JS INVALIDA apos minificacao em "
-                    f"{name} <script>[{i}] — build abortado.\n"
-                    f"Causa comum: aspas dentro de comentarios JS no WebUI.h.\n"
-                    f"{r.stderr.strip()[:400]}"
+                    f"{label} — build abortado.\n{r.stderr.strip()[:400]}"
                 )
         finally:
             os.unlink(path)
@@ -471,8 +911,11 @@ def generate() -> None:
     asset_tag = input_hash[:8]
     for name, html_content in matches:
         original_len = len(html_content)
-        minified = _minify_web_block(_stamp_assets(html_content, asset_tag))
-        _syntax_check_scripts(name, minified)
+        kind = _block_kind(name)
+        stamped = _stamp_assets(html_content, asset_tag)
+        minified = _minify_web_block(stamped, kind)
+        _assert_only_whitespace_removed(name, stamped, minified, kind)
+        _syntax_check_scripts(name, minified, kind)
         _assert_not_gutted(name, original_len, len(minified))
         # mtime=0, or the gzip header carries the build clock and firmware.bin
         # differs on every build from identical sources. That makes a released

@@ -395,9 +395,6 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 
 
         /* Dashboard Styles */
@@ -442,19 +439,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </script>
 </head>
 <body>
-    <div id="net-toast"></div>
-    <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px">
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
-            <div class="brand">SIMUT<span> IoT</span></div>
-        </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
-            <span id="status-ip">--</span>
-        </div>
-    </div>
-    <div id="drawer-host"></div>
-<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_dash">Dashboard</span></div>
+    <script>installTopbar('nav_dash', 'Dashboard')</script>
 
     <div class="container">
         <div class="layout-grid">
@@ -651,43 +636,11 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         window.onLangChange = function() { fetchLoop(); };
 
-        async function initSession() {
-            try {
-                let r = await fetch('/api/perms', {credentials:'same-origin'});
-                let d = await r.json();
-                let p = d.perms || 0;
-                let user = d.user || '';
-                let ntp = d.ntp || 0;
-                let time = d.time || 0;
-                let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
-                document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
-                    let href = a.getAttribute('href');
-                    let bits = navMap[href];
-                    if (bits) { let has = bits.some(b => p & b); if (!has) a.style.display = 'none'; }
-                });
-                let greetEl = document.getElementById('greeting');
-                if (greetEl && user) {
-                    let greet = window.t('greet_hello', 'Hello');
-                    if (ntp === 1 && time > 1000000000) {
-                        let dt = new Date(time * 1000);
-                        let h = dt.getHours();
-                        if (h >= 5 && h < 12) greet = window.t('greet_morning', 'Good morning');
-                        else if (h >= 12 && h < 18) greet = window.t('greet_afternoon', 'Good afternoon');
-                        else greet = window.t('greet_evening', 'Good evening');
-                    }
-                    greetEl.textContent = greet + ', ' + user;
-                }
-                let dot = document.getElementById('conn-dot');
-                let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = 'var(--ok)';
-                if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
-        }
 
         /* Sensor provisioning and calibration moved to /config (slot editor).
          * The dashboard is status-only. */
 
-        document.addEventListener('DOMContentLoaded', () => { initSession(); loadThemes(); fetchLoop(); setInterval(fetchLoop, 3000); });
+        document.addEventListener('DOMContentLoaded', () => { loadThemes(); fetchLoop(); setInterval(fetchLoop, 3000); });
     </script>
 </body>
 </html>
@@ -705,10 +658,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <link rel="stylesheet" href="/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
 
         /* History Styles */
         .hist-layout { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start; margin-bottom: 25px; }
@@ -792,19 +741,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </script>
 </head>
 <body>
-    <div id="net-toast"></div>
-    <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px">
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
-            <div class="brand">SIMUT<span> IoT</span></div>
-        </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
-            <span id="status-ip">--</span>
-        </div>
-    </div>
-    <div id="drawer-host"></div>
-<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_hist">History &amp; Logs</span></div>
+    <script>installTopbar('nav_hist', 'History &amp; Logs')</script>
 
     <div class="container">
         <h2 class="page-title" data-i18n="hist_title">Sensor Telemetry</h2>
@@ -1877,38 +1814,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         window.onLangChange = function() { renderCalendar(); if(logsLoadedOnce) { loadLogs(); } else { let btn = document.getElementById('btnLoadLogs'); btn.innerText = window.t(btn.getAttribute('data-i18n'), 'Load'); } };
 
-        async function initSession() {
-            try {
-                let r = await fetch('/api/perms', {credentials:'same-origin'});
-                let d = await r.json();
-                let p = d.perms || 0;
-                let user = d.user || '';
-                let ntp = d.ntp || 0;
-                let time = d.time || 0;
-                let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
-                document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
-                    let href = a.getAttribute('href');
-                    let bits = navMap[href];
-                    if (bits) { let has = bits.some(b => p & b); if (!has) a.style.display = 'none'; }
-                });
-                let greetEl = document.getElementById('greeting');
-                if (greetEl && user) {
-                    let greet = window.t('greet_hello', 'Hello');
-                    if (ntp === 1 && time > 1000000000) {
-                        let dt = new Date(time * 1000);
-                        let h = dt.getHours();
-                        if (h >= 5 && h < 12) greet = window.t('greet_morning', 'Good morning');
-                        else if (h >= 12 && h < 18) greet = window.t('greet_afternoon', 'Good afternoon');
-                        else greet = window.t('greet_evening', 'Good evening');
-                    }
-                    greetEl.textContent = greet + ', ' + user;
-                }
-                let dot = document.getElementById('conn-dot');
-                let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = 'var(--ok)';
-                if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
-        }
 
         /* ============== F-CSV: export histórico + logs (UI simplificada) ============== */
         /* Mini CRC32-IEEE com tabela 256. Compat com firmware crc32_*. */
@@ -2569,7 +2474,7 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         /* Qualquer erro JS vira aviso visivel — nunca mais tela em branco muda. */
         window.addEventListener('error', e => { try { showOverlay('Erro JS: ' + e.message); } catch(_) {} });
-        document.addEventListener('DOMContentLoaded', () => { initSession(); loadAvailableDays(); populateSensorMsel().then(() => loadGraphRange(2)); });
+        document.addEventListener('DOMContentLoaded', () => { loadAvailableDays(); populateSensorMsel().then(() => loadGraphRange(2)); });
     </script>
 </body>
 </html>
@@ -2586,10 +2491,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
 
 
         /* Config Styles */
@@ -2687,19 +2588,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </script>
 </head>
 <body>
-    <div id="net-toast"></div>
-    <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px">
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
-            <div class="brand">SIMUT<span> IoT</span></div>
-        </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
-            <span id="status-ip">--</span>
-        </div>
-    </div>
-    <div id="drawer-host"></div>
-<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_cfg">System Config</span></div>
+    <script>installTopbar('nav_cfg', 'System Config')</script>
 
     <div class="container">
         <div class="card">
@@ -3376,40 +3265,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (j.status === 'ok') showToast(window.t('cfg_touch_done', 'Reset done — calibration wizard is now running on the display.'), 'ok');
                 else showToast('Error', 'err');
             } catch(e) { showToast('Error', 'err'); }
-        }
-
-
-        async function initSession() {
-            try {
-                let r = await fetch('/api/perms', {credentials:'same-origin'});
-                let d = await r.json();
-                let p = d.perms || 0;
-                let user = d.user || '';
-                let ntp = d.ntp || 0;
-                let time = d.time || 0;
-                let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
-                document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
-                    let href = a.getAttribute('href');
-                    let bits = navMap[href];
-                    if (bits) { let has = bits.some(b => p & b); if (!has) a.style.display = 'none'; }
-                });
-                let greetEl = document.getElementById('greeting');
-                if (greetEl && user) {
-                    let greet = window.t('greet_hello', 'Hello');
-                    if (ntp === 1 && time > 1000000000) {
-                        let dt = new Date(time * 1000);
-                        let h = dt.getHours();
-                        if (h >= 5 && h < 12) greet = window.t('greet_morning', 'Good morning');
-                        else if (h >= 12 && h < 18) greet = window.t('greet_afternoon', 'Good afternoon');
-                        else greet = window.t('greet_evening', 'Good evening');
-                    }
-                    greetEl.textContent = greet + ', ' + user;
-                }
-                let dot = document.getElementById('conn-dot');
-                let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = 'var(--ok)';
-                if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
         }
 
         /* Sensor slot editor.
@@ -4181,7 +4036,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && sensOpenSlot >= 0) sensClose(); });
-        document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); loadConfig(); loadSensors(); });
+        document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); loadConfig(); loadSensors(); });
     </script>
 </body>
 </html>
@@ -4198,10 +4053,6 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
 
 
         /* Network Styles */
@@ -4235,19 +4086,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </script>
 </head>
 <body>
-    <div id="net-toast"></div>
-    <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px">
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
-            <div class="brand">SIMUT<span> IoT</span></div>
-        </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
-            <span id="status-ip">--</span>
-        </div>
-    </div>
-    <div id="drawer-host"></div>
-<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_net">Network</span></div>
+    <script>installTopbar('nav_net', 'Network')</script>
 
     <div class="container">
         <div class="layout-grid">
@@ -4420,41 +4259,7 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             form.addEventListener('change', handler);
         }
 
-
-        async function initSession() {
-            try {
-                let r = await fetch('/api/perms', {credentials:'same-origin'});
-                let d = await r.json();
-                let p = d.perms || 0;
-                let user = d.user || '';
-                let ntp = d.ntp || 0;
-                let time = d.time || 0;
-                let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
-                document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
-                    let href = a.getAttribute('href');
-                    let bits = navMap[href];
-                    if (bits) { let has = bits.some(b => p & b); if (!has) a.style.display = 'none'; }
-                });
-                let greetEl = document.getElementById('greeting');
-                if (greetEl && user) {
-                    let greet = window.t('greet_hello', 'Hello');
-                    if (ntp === 1 && time > 1000000000) {
-                        let dt = new Date(time * 1000);
-                        let h = dt.getHours();
-                        if (h >= 5 && h < 12) greet = window.t('greet_morning', 'Good morning');
-                        else if (h >= 12 && h < 18) greet = window.t('greet_afternoon', 'Good afternoon');
-                        else greet = window.t('greet_evening', 'Good evening');
-                    }
-                    greetEl.textContent = greet + ', ' + user;
-                }
-                let dot = document.getElementById('conn-dot');
-                let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = 'var(--ok)';
-                if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); loadNet(); });
+        document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); loadNet(); });
     </script>
 </body>
 </html>
@@ -4471,10 +4276,6 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
 
 
         /* User Styles */
@@ -4510,19 +4311,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </script>
 </head>
 <body>
-    <div id="net-toast"></div>
-    <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px">
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
-            <div class="brand">SIMUT<span> IoT</span></div>
-        </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
-            <span id="status-ip">--</span>
-        </div>
-    </div>
-    <div id="drawer-host"></div>
-<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_usr">Users</span></div>
+    <script>installTopbar('nav_usr', 'Users')</script>
 
     <div class="container">
         <div class="card" style="padding: 30px;">
@@ -4654,41 +4443,7 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         window.onLangChange = function() { loadUsers(); };
 
-
-        async function initSession() {
-            try {
-                let r = await fetch('/api/perms', {credentials:'same-origin'});
-                let d = await r.json();
-                let p = d.perms || 0;
-                let user = d.user || '';
-                let ntp = d.ntp || 0;
-                let time = d.time || 0;
-                let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
-                document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
-                    let href = a.getAttribute('href');
-                    let bits = navMap[href];
-                    if (bits) { let has = bits.some(b => p & b); if (!has) a.style.display = 'none'; }
-                });
-                let greetEl = document.getElementById('greeting');
-                if (greetEl && user) {
-                    let greet = window.t('greet_hello', 'Hello');
-                    if (ntp === 1 && time > 1000000000) {
-                        let dt = new Date(time * 1000);
-                        let h = dt.getHours();
-                        if (h >= 5 && h < 12) greet = window.t('greet_morning', 'Good morning');
-                        else if (h >= 12 && h < 18) greet = window.t('greet_afternoon', 'Good afternoon');
-                        else greet = window.t('greet_evening', 'Good evening');
-                    }
-                    greetEl.textContent = greet + ', ' + user;
-                }
-                let dot = document.getElementById('conn-dot');
-                let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = 'var(--ok)';
-                if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); loadUsers(); });
+        document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); loadUsers(); });
     </script>
 </body>
 </html>
@@ -4705,10 +4460,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 0; }
+        h2.page-title { margin-bottom: 0; }
 
 
         /* Files Styles */
@@ -4764,19 +4516,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </script>
 </head>
 <body>
-    <div id="net-toast"></div>
-    <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px">
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
-            <div class="brand">SIMUT<span> IoT</span></div>
-        </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
-            <span id="status-ip">--</span>
-        </div>
-    </div>
-    <div id="drawer-host"></div>
-<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_file">Files</span></div>
+    <script>installTopbar('nav_file', 'Files')</script>
 
     <div class="container">
         <div class="card">
@@ -5012,41 +4752,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         window.onLangChange = function() { fmNavigate(currentDir); };
 
-
-        async function initSession() {
-            try {
-                let r = await fetch('/api/perms', {credentials:'same-origin'});
-                let d = await r.json();
-                let p = d.perms || 0;
-                let user = d.user || '';
-                let ntp = d.ntp || 0;
-                let time = d.time || 0;
-                let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
-                document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
-                    let href = a.getAttribute('href');
-                    let bits = navMap[href];
-                    if (bits) { let has = bits.some(b => p & b); if (!has) a.style.display = 'none'; }
-                });
-                let greetEl = document.getElementById('greeting');
-                if (greetEl && user) {
-                    let greet = window.t('greet_hello', 'Hello');
-                    if (ntp === 1 && time > 1000000000) {
-                        let dt = new Date(time * 1000);
-                        let h = dt.getHours();
-                        if (h >= 5 && h < 12) greet = window.t('greet_morning', 'Good morning');
-                        else if (h >= 12 && h < 18) greet = window.t('greet_afternoon', 'Good afternoon');
-                        else greet = window.t('greet_evening', 'Good evening');
-                    }
-                    greetEl.textContent = greet + ', ' + user;
-                }
-                let dot = document.getElementById('conn-dot');
-                let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = 'var(--ok)';
-                if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
-        }
-
-        document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); fetchPerms().then(() => fmNavigate('/')); });
+        document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); fetchPerms().then(() => fmNavigate('/')); });
     </script>
 </body>
 </html>
@@ -5063,10 +4769,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; }
-        .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 24px; }
-        h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
+        .card { margin-bottom: 24px; }
         h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px; font-size: 1.1rem; }
 
 
@@ -5138,19 +4841,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </script>
 </head>
 <body>
-    <div id="net-toast"></div>
-    <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px">
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
-            <div class="brand">SIMUT<span> IoT</span></div>
-        </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
-            <span id="status-ip">--</span>
-        </div>
-    </div>
-    <div id="drawer-host"></div>
-<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_alm">Alarms &amp; Sounds</span></div>
+    <script>installTopbar('nav_alm', 'Alarms &amp; Sounds')</script>
 
     <div class="container">
         <!-- ═══════════ SEÇÃO: LIMITES DE ALARME POR SENSOR ═══════════ -->
@@ -5270,38 +4961,6 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         // ═══════════════════════════════════════════════════════════════
         // INICIALIZAÇÃO DE SESSÃO E PERMISSÕES (padrão SPA do SIMUT)
         // ═══════════════════════════════════════════════════════════════
-        async function initSession() {
-            try {
-                let r = await fetch('/api/perms', {credentials:'same-origin'});
-                let d = await r.json();
-                let p = d.perms || 0;
-                let user = d.user || '';
-                let ntp = d.ntp || 0;
-                let time = d.time || 0;
-                let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
-                document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
-                    let href = a.getAttribute('href');
-                    let bits = navMap[href];
-                    if (bits) { let has = bits.some(b => p & b); if (!has) a.style.display = 'none'; }
-                });
-                let greetEl = document.getElementById('greeting');
-                if (greetEl && user) {
-                    let greet = window.t('greet_hello', 'Hello');
-                    if (ntp === 1 && time > 1000000000) {
-                        let dt = new Date(time * 1000);
-                        let h = dt.getHours();
-                        if (h >= 5 && h < 12) greet = window.t('greet_morning', 'Good morning');
-                        else if (h >= 12 && h < 18) greet = window.t('greet_afternoon', 'Good afternoon');
-                        else greet = window.t('greet_evening', 'Good evening');
-                    }
-                    greetEl.textContent = greet + ', ' + user;
-                }
-                let dot = document.getElementById('conn-dot');
-                let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = 'var(--ok)';
-                if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
-        }
 
         // ═══════════════════════════════════════════════════════════════
         // CARREGA DADOS DE ALARMES E SONS DO FIRMWARE
@@ -5643,7 +5302,6 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
         // ── Scroll automático para a aba ativa no nav ────────────────
         document.addEventListener('DOMContentLoaded', () => {
-            initSession();
             loadAlarms();
             setTimeout(applyLang, 50);
         });
@@ -5663,63 +5321,17 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
     <style>
-        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; color-scheme: dark; }
-        .container { max-width: 1200px; margin: 20px auto; padding: 0 20px 40px; }
-        .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
-        h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
+        .container { margin: 20px auto; padding: 0 20px 40px; }
+        .card { margin-bottom: 20px; }
         h3 { color: var(--acc); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; font-size: 1.05rem; }
         pre { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; color: var(--sub); font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace; font-size: 0.78rem; line-height: 1.6; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
     </style>
     <script>
         /* window.t/applyLang/setLang/showToast/fetchSafe vem de /lang.js */
-        async function initSession() {
-            try {
-                let r = await fetch('/api/perms', {credentials:'same-origin'});
-                let d = await r.json();
-                let p = d.perms || 0;
-                let user = d.user || '';
-                let ntp = d.ntp || 0;
-                let time = d.time || 0;
-                let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
-                document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
-                    let href = a.getAttribute('href');
-                    let bits = navMap[href];
-                    if (bits) { let has = bits.some(b => p & b); if (!has) a.style.display = 'none'; }
-                });
-                let greetEl = document.getElementById('greeting');
-                if (greetEl && user) {
-                    let greet = window.t('greet_hello', 'Hello');
-                    if (ntp === 1 && time > 1000000000) {
-                        let dt = new Date(time * 1000);
-                        let h = dt.getHours();
-                        if (h >= 5 && h < 12) greet = window.t('greet_morning', 'Good morning');
-                        else if (h >= 12 && h < 18) greet = window.t('greet_afternoon', 'Good afternoon');
-                        else greet = window.t('greet_evening', 'Good evening');
-                    }
-                    greetEl.textContent = greet + ', ' + user;
-                }
-                let dot = document.getElementById('conn-dot');
-                let ipEl = document.getElementById('status-ip');
-                if (dot) dot.style.background = 'var(--ok)';
-                if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
-            } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
-        }
     </script>
 </head>
 <body>
-    <div id="net-toast"></div>
-    <div class="topbar">
-        <div style="display:flex;align-items:center;gap:12px">
-            <button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>
-            <div class="brand">SIMUT<span> IoT</span></div>
-        </div>
-        <div class="status-pill">
-            <div class="dot" id="conn-dot" style="background:var(--track)"></div>
-            <span id="status-ip">--</span>
-        </div>
-    </div>
-    <div id="drawer-host"></div>
-<div class="bc"><span class="bc-root">SIMUT</span><span style="color:#3f3f46">›</span><span class="bc-page" data-i18n="nav_lic">License</span></div>
+    <script>installTopbar('nav_lic', 'License')</script>
 
     <div class="container">
         <div class="card">
@@ -5909,14 +5521,24 @@ END OF THIRD-PARTY NOTICES</pre>
         </div>
     </div>
     <script>
-        document.addEventListener('DOMContentLoaded', () => { initSession(); setTimeout(applyLang, 50); });
+        document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); });
     </script>
 </body>
 </html>)raw";
 
 /* v3.34.0: F-WEB-DEDUP — CSS comum extraído. Servido em /style.css
  * com Cache-Control max-age=86400 (browser cacheia entre páginas). */
-static const char STYLE_CSS[] PROGMEM = R"raw(:root { --ok: #22c55e; --warn: #f59e0b; --track: #262e39; }
+static const char STYLE_CSS[] PROGMEM = R"raw(/* Paleta e as tres caixas que toda pagina autenticada usa. Moravam no
+   <style> de cada uma das oito, que gzipam separado — a mesma regra era
+   paga oito vezes. Aqui sao pagas uma, e o navegador as guarda por sete
+   dias (Cache-Control em WebManager_Util.cpp) em vez de rebaixa-las a
+   cada navegacao. Quem diverge (license, alarms, files) mantem so a
+   propriedade que muda no proprio <style>, que vem DEPOIS deste arquivo
+   no <head> e por isso ainda ganha. */
+:root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+.container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
 :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
 /* Botao primario padrao: solido no accent, texto escuro no tema escuro
    (cyan claro pede tinta escura); o claro troca para branco via lang.js. */
@@ -6205,6 +5827,77 @@ static const char LANG_JS[] PROGMEM = R"raw(
             if(opts.length>=2)opts[1].textContent=langFlag(d.langCode)+' '+langShort(d.langCode);
         }).catch(function(){});};
     document.addEventListener('DOMContentLoaded',function(){if(typeof window.installDrawer==='function')window.installDrawer();});
+
+    /* REF-WEB-SKEL: barra de topo e initSession, uma cópia só — terceira rodada
+       do movimento que trouxe o drawer (F-WEB-DEDUP) e o Pending (U24 fase D).
+       NA HORA DA ANÁLISE, não no DOMContentLoaded como o drawer: esta barra fica
+       acima da dobra, e instalada num evento apareceria depois do primeiro
+       quadro, empurrando a página para baixo na cara do usuário. A página chama
+       installTopbar logo após o <body>; o /lang.js já rodou (a tag não tem
+       defer) e o markup entra antes de qualquer pintura. O drawer pode esperar o
+       evento porque nasce fechado. insertAdjacentHTML e não document.write:
+       escreve no mesmo ponto sem reentrar no analisador. */
+    var TOPBAR_HTML = '<div id="net-toast"></div>'
+        +'<div class="topbar">'
+        +'<div style="display:flex;align-items:center;gap:12px">'
+        +'<button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>'
+        +'<div class="brand">SIMUT<span> IoT</span></div></div>'
+        +'<div class="status-pill">'
+        +'<div class="dot" id="conn-dot" style="background:var(--track)"></div>'
+        +'<span id="status-ip">--</span></div></div>'
+        +'<div id="drawer-host"></div>';
+    /* key/label são a chave i18n e o texto inglês da trilha — o mesmo par que
+       estava no HTML. O applyLang lê o texto inglês do innerHTML na primeira
+       passada e guarda em data-en, então o contrato de tradução não muda. */
+    window.installTopbar = function(key, label) {
+        var html = TOPBAR_HTML
+            + '<div class="bc"><span class="bc-root">SIMUT</span>'
+            + '<span style="color:#3f3f46">›</span>'
+            + '<span class="bc-page" data-i18n="' + key + '">' + label + '</span></div>';
+        var s = document.currentScript;
+        if (s) s.insertAdjacentHTML('beforebegin', html);
+        else if (document.body) document.body.insertAdjacentHTML('afterbegin', html);
+    };
+
+    /* Esconde os itens de menu fora da permissão, monta a saudação e acende o
+       ponto de conexão. Era idêntica byte a byte nas oito páginas. O ouvinte
+       abaixo é registrado DEPOIS do installDrawer de propósito: eles disparam na
+       ordem em que entram, e esta função varre `.drawer nav a`, que só existe
+       depois que o drawer é instalado. As páginas não chamam mais initSession —
+       chamar de novo custa um segundo GET /api/perms, que no RP2040 não é troco. */
+    window.initSession = async function() {
+        try {
+            let r = await fetch('/api/perms', {credentials:'same-origin'});
+            let d = await r.json();
+            let p = d.perms || 0;
+            let user = d.user || '';
+            let ntp = d.ntp || 0;
+            let time = d.time || 0;
+            let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
+            document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
+                let href = a.getAttribute('href');
+                let bits = navMap[href];
+                if (bits) { let has = bits.some(b => p & b); if (!has) a.style.display = 'none'; }
+            });
+            let greetEl = document.getElementById('greeting');
+            if (greetEl && user) {
+                let greet = window.t('greet_hello', 'Hello');
+                if (ntp === 1 && time > 1000000000) {
+                    let dt = new Date(time * 1000);
+                    let h = dt.getHours();
+                    if (h >= 5 && h < 12) greet = window.t('greet_morning', 'Good morning');
+                    else if (h >= 12 && h < 18) greet = window.t('greet_afternoon', 'Good afternoon');
+                    else greet = window.t('greet_evening', 'Good evening');
+                }
+                greetEl.textContent = greet + ', ' + user;
+            }
+            let dot = document.getElementById('conn-dot');
+            let ipEl = document.getElementById('status-ip');
+            if (dot) dot.style.background = 'var(--ok)';
+            if (ipEl) { try { let sr = await fetch('/api/status'); let sd = await sr.json(); if(sd.sys) ipEl.textContent = sd.sys.ip || '--'; } catch(e){} }
+        } catch(e) { let dot = document.getElementById('conn-dot'); if(dot) dot.style.background = 'var(--dang)'; }
+    };
+    document.addEventListener('DOMContentLoaded',function(){window.initSession();});
 
     /* =========================================================================
      * U24 Phase D — Pending Changes Manager + commit-all (shared across pages)
