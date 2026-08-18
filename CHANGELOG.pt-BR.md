@@ -4,6 +4,101 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.9-beta (2026-08-18)
+
+### O build embarcava os próprios comentários
+
+O `tools/build_webui_gz.py` minifica cada página antes de comprimir. O
+minificador casava os literais de string com **um** regex, guardava o que casava,
+tirava os comentários do resto e devolvia os literais ao lugar. Um regex não tem
+contexto: para ele, toda aspa abre ou fecha uma string. Uma aspa que não é
+delimitador — dentro de um comentário, ou dentro de um literal de regex como
+`/[<>&"]/` — desloca o pareamento em um, e daquele byte em diante ele acredita
+estar dentro de uma string quando está no código, e no código quando está dentro
+de uma string.
+
+Esse defeito já havia custado uma release na forma barulhenta, em que um trecho
+de código é tomado pelo interior de uma string e **descartado**: a
+`ALARMS_PAGE` saiu uma vez com 9% do tamanho do fonte, todos os handlers
+perdidos, e o `node --check` não viu nada de errado — o que sobrou continuava
+sendo JavaScript válido.
+
+A forma silenciosa nunca tinha sido medida. Uma vez que o casador
+dessincroniza, a região seguinte é tratada como um literal só, a minificação
+nunca a alcança, e comentário e indentação viajam intactos para o firmware:
+
+    LANG_JS ......... reteve 96,5% — 9.990 B só de comentário sobrevivente
+    HIST_PAGE ....... reteve 93,2% — região protegida de 92.432 B, 84% da página
+    ALARMS_PAGE ..... reteve 97,7%
+    páginas sadias .. reteve 68-76%
+
+A cura não é um regex melhor. O minificador agora é um escâner com estado: ele
+sabe se está em HTML, num `<script>`, num `<style>`, numa string, num template,
+num comentário ou num literal de regex, porque chegou ali passando por cada byte
+anterior. Sem dependência nova — compilar a partir do zip da release precisa
+funcionar com o Python da máquina e mais nada.
+
+    12 assets, comprimidos ..... 103.418 B -> 83.861 B   (-19.557)
+
+### Três portões, para a falha silenciosa não voltar
+
+O modo de falha antigo passava por todas as checagens que o build tinha. Código
+sumia, o que restava compilava, e o build imprimia SUCCESS.
+
+O `_assert_only_whitespace_removed` reescaneia a **saída** e exige que os
+literais, byte a byte, e o código sem espaço algum, sejam idênticos aos da
+entrada. Nada além de espaço e comentário pode sair. Ele tem controle positivo
+na suíte, provando que dispara com um símbolo renomeado, uma função apagada e
+uma string alterada — um portão que nunca dispara é indistinguível de um que
+funciona.
+
+O `node --check` agora alcança a `LANG_JS`. É o maior bloco de JavaScript do
+projeto e ficou fora desse portão a vida inteira, porque a busca só olhava dentro
+de uma tag `<script>` e o `/lang.js` não é HTML.
+
+A razão de retenção fica como o terceiro teste, o mais grosseiro. Ela também
+ficou mais significativa: os números dos doze assets agora são consistentes
+(56-97%) em vez de irem de 60% a 97%, e essa dispersão era o próprio sintoma.
+
+O `tools/test_webui_minify.py` guarda 49 casos — cada armadilha em que o
+minificador antigo caiu, mais duas que o escâner teve de aprender.
+
+### O esqueleto repetido das páginas passou a ser pago uma vez
+
+Oito páginas autenticadas carregavam cada uma a sua cópia da barra de topo e da
+`initSession`, e cada página é comprimida sozinha, então os mesmos bytes eram
+pagos oito vezes. Medido isolando cada bloco:
+
+    initSession -> /lang.js .................... 3.766 B
+    HTML da barra de topo e da trilha -> /lang.js  1.272 B
+    4 regras de CSS -> /style.css .............. 1.109 B
+
+O `/lang.js` e o `/style.css` são servidos com `Cache-Control: max-age=604800`,
+então esses bytes também deixam de ser baixados a cada navegação.
+
+A barra de topo é instalada durante a análise do documento, por um `<script>`
+logo depois do `<body>`, e não no `DOMContentLoaded` como a gaveta: ela fica
+acima da dobra, e instalada por evento apareceria depois do primeiro quadro,
+empurrando a página para baixo na frente de quem lê.
+
+### Corrigido no caminho
+
+O minificador colapsava as linhas em branco dentro de `<pre>`, então o texto da
+licença MIT na `/license` era exibido como um parágrafo corrido. `<pre>` e
+`<textarea>` agora passam intactos, e a página ficou 43 B maior e correta.
+
+A `/alarms` era a única das oito páginas cuja paleta não tinha
+`color-scheme: dark`, e redefinia `--ok` para o valor que o `/style.css` já
+trazia. Deriva, não intenção; agora usa a paleta compartilhada.
+
+### Flash
+
+    folga do release ... 18.740 B -> 43.676 B   (2,33x)
+    folga do test ...... 22.044 B -> 46.916 B
+
+Medido com `arm-none-eabi-size`, nos dois ambientes, antes e depois,
+construindo cada árvore.
+
 ## v2.2.8-beta (2026-08-17)
 
 ### A interface web inteira voltou para dentro do firmware
