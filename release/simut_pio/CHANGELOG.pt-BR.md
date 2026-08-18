@@ -4,6 +4,96 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.10-beta (2026-08-18)
+
+### `false` ligava a configuração
+
+Quatro campos da seção `sys` do `POST /api/commit_all` e dois da `net` liam seus
+booleanos assim:
+
+    cfg.telEncryption = (getNum("t_sec") != "0");
+
+`getNum` extrai um *número*. Entregue a ele o booleano JSON legítimo `false` e a
+comparação com a string `"0"` dá verdadeiro: o campo **liga**. Só o literal `0`
+desligava alguma coisa, e não havia grafia booleana capaz de desligar nenhum dos
+seis.
+
+O que faz disso mais que uma curiosidade é de onde vem esse payload. O `GET
+/api/config` emite `"log":false`, `"t_sec":false`, `"m_retain":false`,
+`"ntp_enabled":false`; o `GET /api/network` emite `"use_dhcp":false` e
+`"dns_auto":false`. **A saída do próprio aparelho era o payload que o parser lia
+ao contrário.** Buscar a configuração, mudar um campo e devolvê-la — a coisa mais
+comum que um script faz com uma API de configuração — ligava os seis. A interface
+web nunca viu isso, porque os formulários dela emitem `1`/`0`.
+
+O `t_sec` decide se a telemetria sai cifrada do aparelho, então um parser que
+grava ali o oposto do pedido é achado de segurança, e não só de correção. O
+`m_retain` ligado à revelia deixa a última medição parada no broker para qualquer
+assinante que chegue depois.
+
+### Três leitores, três respostas erradas diferentes
+
+O arquivo carregava três maneiras distintas de ler um booleano de JSON, e elas
+tinham divergido. Dezesseis campos, todos calados, todos sob `200 OK`:
+
+    getNum/getN(k) != "0"   o literal `false` LIGAVA o campo
+                            log, t_sec, m_retain, ntp_enabled,
+                            use_dhcp, dns_auto
+    startsWith("true")      o numérico `1` DESLIGAVA o slot
+                            slot "a", slot "al"
+    jsonBoolValue           1/0 caíam no valor guardado, sem mudar nada
+                            alarms.active e os sete avisos sonoros
+
+`{"a":1}` desativava o slot de sensor que pedia para ativar; o histórico segue
+gravando aquele canal como NaN e nada no log diz por quê. `{"sounds":{"mute":1}}`
+respondia 200 e não mudava nada.
+
+### Um leitor só, e um terceiro estado
+
+`jsonValuePos`, `jsonRawToken` e `jsonFlag` passam a morar no `WebJsonSlice.h`, o
+cabeçalho que já existe para as varreduras manuais de JSON, sobre um
+`parseBoolStrict` ao lado do `parseIntStrict`. As duas grafias são aceitas —
+`true`/`false` e `1`/`0` — porque as duas estão em uso e nenhuma vai embora.
+
+O terceiro estado é o que faltava. O `jsonFlag` separa *ausente* de *ilegível*, e
+os dois são negativos, então todo chamador mantém o valor guardado nos dois
+casos; só o ilegível é reportado, pelo array `"rejected":[...]` que os campos
+numéricos já usavam. `{"log":2}` ligava o log sem dizer nada. Trocar pelo
+`getBool` que já existia não resolveria: ele devolve 0 para `1` e quebraria a
+página.
+
+Unificar os leitores matou outros dois defeitos. A cópia do `net` nunca aprendeu
+a pular o espaço que um payload formatado põe depois dos dois-pontos, então
+`{"use_dhcp": 0}` produzia o token `" 0"` — aquele campo estava quebrado duas
+vezes. E o leitor dos slots era o espelho exato do bug relatado, do outro lado.
+
+### Provado contra um aparelho que ainda tinha o bug
+
+O `tools/commit_bool_cases.py` escreve cada booleano em cada grafia que um
+cliente real usa e o lê de volta pelo endpoint que o publica. Rodou como A/B na
+mesma placa: **21/32 contra o firmware que ainda carregava o defeito, 32/32
+depois**. O primeiro número é o que importa — uma suíte que passa nos dois lados
+não mede nada. Os casos numéricos passam nos dois, que é o controle na outra
+direção: a grafia da própria página nunca deixou de funcionar.
+
+Onze casos entraram no `test/test_validators` (de 84 para 95), incluindo
+transliterações dos três leitores removidos que afirmam a resposta errada que
+cada um dava. Repor a semântica antiga dentro do `jsonFlag` derruba 6 dos 11 —
+um teste que passou de primeira ainda não mostrou que sabe reprovar.
+
+A cobertura no ferro é de 5 dos 16 campos; os demais ficam nos testes nativos. O
+`use_dhcp:false` de propósito não é exercitado no hardware, porque commitá-lo
+joga o aparelho no endereço estático.
+
+### Flash
+
+    folga do release ... 43 676 B -> 44 044 B
+    folga do test ...... 46 916 B -> 47 284 B
+
+A correção devolve 368 bytes: sessenta e duas linhas de varredura manual viram
+cinco delegações e uma implementação compartilhada. Ela é barata porque é
+subtração — escrita como um quarto leitor ao lado dos outros três, teria custado.
+
 ## v2.2.9-beta (2026-08-18)
 
 ### O build embarcava os próprios comentários

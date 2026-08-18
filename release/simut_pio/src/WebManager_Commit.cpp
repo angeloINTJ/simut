@@ -99,24 +99,17 @@ static bool getPair(const String& o, const char* key, float& lo, float& hi) {
 	return true;
 }
 
-/* "key": true|false with legal whitespace after the colon — the boolean
- * cousin of the extractFloat/jsonExtractStringValue scars above, found the
- * same way: a spaced payload (json.dumps' default) read every true as
- * false, and on the bench that silently disarmed a slot's alarms. Absent
- * or unrecognizable answers `fallback`, which at every call site is the
- * currently stored value — so absent means keep, matching the section
- * semantics the beta decided on. */
+/* "key": true|false — the boolean cousin of the extractFloat/
+ * jsonExtractStringValue scars above, found the same way: a spaced payload
+ * (json.dumps' default) read every true as false, and on the bench that
+ * silently disarmed a slot's alarms. It grew a second blind spot the same
+ * way, on the other side: it knew only the literals, so the `1`/`0` the rest
+ * of this very payload is written in fell through to `fallback` — no change,
+ * no complaint, 200 OK. jsonFlag knows both spellings; `fallback` is still
+ * the stored value at every call site, so absent still means keep. */
 static bool jsonBoolValue(const String& src, const char* key, bool fallback) {
-	String pat = String("\"") + key + "\":";
-	int p = src.indexOf(pat);
-	if (p < 0) return fallback;
-	int i = p + pat.length( );
-	const int n = src.length( );
-	while (i < n && (src.charAt(i) == ' ' || src.charAt(i) == '\t' ||
-	                 src.charAt(i) == '\r' || src.charAt(i) == '\n')) i++;
-	if (src.startsWith("true", i)) return true;
-	if (src.startsWith("false", i)) return false;
-	return fallback;
+	const int b = jsonFlag(src, key);
+	return (b < 0) ? fallback : (b == 1);
 }
 
 void WebManager::handleSaveSystem( ) {
@@ -404,12 +397,7 @@ void WebManager::handleApiCommitAll( ) {
 			 * A validation pass that can be turned off by adding a space is
 			 * not a validation pass. */
 			auto valuePos = [](const String& o, const char* key) -> int {
-				String pat = String("\"") + key + "\":";
-				int p = o.indexOf(pat);
-				if (p < 0) return -1;
-				int v = p + pat.length( );
-				while (v < (int)o.length( ) && (o[v] == ' ' || o[v] == '\t')) v++;
-				return v;
+				return jsonValuePos(o, key);
 			};
 			auto getInt = [&](const String& o, const char* key, long dflt) -> long {
 				int v = valuePos(o, key);
@@ -419,10 +407,14 @@ void WebManager::handleApiCommitAll( ) {
 				int v = valuePos(o, key);
 				return (v < 0) ? NAN : parseFloat(o.substring(v).c_str( ));
 			};
+			(void)getFloat; /* lambda kept for future fields, suppress -Wunused */
+			/* Tri-state: 1, 0, or negative for absent/unreadable — the caller
+			 * keeps the stored flag on both. It used to answer `startsWith
+			 * ("true") ? 1 : 0`, which made every spelling that is not the
+			 * literal `true` mean FALSE: `{"a":1}` deactivated the slot it
+			 * was asking to enable. */
 			auto getBool = [&](const String& o, const char* key) -> int {
-				int v = valuePos(o, key);
-				if (v < 0) return -1; /* absent */
-				return o.startsWith("true", v) ? 1 : 0;
+				return jsonFlag(o, key);
 			};
 			/* Whitespace-tolerant string reader. jsonExtractStringValue matches
 			 * a literal "key":" and would miss `"name": "x"`. */
@@ -704,34 +696,16 @@ void WebManager::handleApiCommitAll( ) {
 			auto getStr = [&](const char* key) -> String {
 				return jsonExtractStringValue(sys, key);
 			};
-			/* Helper: extracts bare number (not quoted) from "key":NNN. */
+			/* Helper: bare or quoted scalar from "key":NNN.
+			 *
+			 * The whitespace skip inside jsonRawToken is this section's scar:
+			 * JSON.stringify writes {"t_int":0} and a pretty-printing client
+			 * writes {"t_int": 0}, which used to hand parseIntStrict the
+			 * string " 0" — rejected, field skipped, still a 200. Cost an
+			 * hour to find with `tel_reset` running, and cost it again in the
+			 * `net` section below, which had its own copy without the fix. */
 			auto getNum = [&](const char* key) -> String {
-				String pat = String("\"") + key + "\":";
-				int p = sys.indexOf(pat);
-				if (p < 0) return String( );
-				int vStart = p + pat.length( );
-				/* Whitespace after the colon is legal JSON and the page never
-				 * emits it — JSON.stringify writes {"t_int":0}. A client that
-				 * pretty-prints writes {"t_int": 0}, and this used to hand
-				 * parseIntStrict the string " 0", which it rejects. The field
-				 * was then skipped while the commit still answered 200: the
-				 * setting silently did not change. Cost an hour to find with
-				 * `tel_reset` running. */
-				while (vStart < (int)sys.length( ) &&
-				       (sys.charAt(vStart) == ' ' || sys.charAt(vStart) == '\t')) vStart++;
-				if (vStart >= (int)sys.length( )) return String( );
-				/* Skip quotes if present. */
-				if (sys.charAt(vStart) == '"') {
-					int vEnd = sys.indexOf('"', vStart + 1);
-					if (vEnd < 0) return String( );
-					return sys.substring(vStart + 1, vEnd);
-				}
-				/* Read until comma or }. */
-				int vEnd = vStart;
-				while (vEnd < (int)sys.length( ) && sys.charAt(vEnd) != ',' && sys.charAt(vEnd) != '}') vEnd++;
-				String v = sys.substring(vStart, vEnd);
-				v.trim( );   /* trailing space before the comma is legal too */
-				return v;
+				return jsonRawToken(sys, key);
 			};
 			auto has = [&](const char* key) -> bool {
 				String pat = String("\"") + key + "\":";
@@ -774,8 +748,22 @@ void WebManager::handleApiCommitAll( ) {
 					NetworkManager::applyTimezone(cfg.timezoneOffset);
 				} else rejectField("tz");
 			}
-			if (has("log")) cfg.loggingEnabled = (getNum("log") != "0");
-			if (has("t_sec")) cfg.telEncryption = (getNum("t_sec") != "0");
+			/* Boolean fields. These read `getNum(k) != "0"`, which answered
+			 * TRUE for every spelling that is not the literal `0` — including
+			 * the `false` this device's own /api/config emits. GET the config,
+			 * flip one flag, POST it back, and all four booleans came back ON:
+			 * `t_sec:false` armed telemetry encryption and `log:false` had no
+			 * way at all to turn logging off. The page escaped because its
+			 * forms emit 1/0. jsonFlag reads both spellings and reports the
+			 * value it cannot read instead of guessing at it. */
+			auto readFlag = [&](const char* k) -> int {
+				const int b = jsonFlag(sys, k);
+				if (b == JSON_FLAG_BAD) rejectField(k);
+				return b;
+			};
+			int fl;
+			fl = readFlag("log");   if (fl >= 0) cfg.loggingEnabled = (fl == 1);
+			fl = readFlag("t_sec"); if (fl >= 0) cfg.telEncryption = (fl == 1);
 			if (has("t_key")) {
 				/* If value contains "***", it came from the masked GET
 				 * and the user did not edit — keep current cfg.telApiKey. Otherwise overwrite. */
@@ -816,13 +804,13 @@ void WebManager::handleApiCommitAll( ) {
 				if (mp.length( ) > 0) setStr("m_pass", cfg.mqttPass, sizeof(cfg.mqttPass));
 			}
 			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; else rejectField("m_qos"); }
-			if (has("m_retain")) cfg.mqttRetain = (getNum("m_retain") != "0");
+			fl = readFlag("m_retain"); if (fl >= 0) cfg.mqttRetain = (fl == 1);
 			if (has("m_ka")) { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 10, 300)) cfg.mqttKeepAlive = (uint16_t)v; else rejectField("m_ka"); }
 			if (has("t_glob")) setStr("t_glob", cfg.telGlobalTemplate, sizeof(cfg.telGlobalTemplate));
 			if (has("t_line")) setStr("t_line", cfg.telLineTemplate, sizeof(cfg.telLineTemplate));
 			if (has("t_sep")) setStr("t_sep", cfg.telLineSeparator, sizeof(cfg.telLineSeparator));
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
-			if (has("ntp_enabled")) _storageRef->setNtpEnabled(getNum("ntp_enabled") != "0");
+			fl = readFlag("ntp_enabled"); if (fl >= 0) _storageRef->setNtpEnabled(fl == 1);
 			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); else rejectField("h_int"); }
 			(void)getInt; /* lambda kept for future fields, suppress -Wunused */
 		}
@@ -1104,18 +1092,7 @@ void WebManager::handleApiCommitAll( ) {
 				return jsonExtractStringValue(net, key);
 			};
 			auto getN = [&](const char* key) -> String {
-				String pat = String("\"") + key + "\":";
-				int p = net.indexOf(pat);
-				if (p < 0) return String( );
-				int vs = p + pat.length( );
-				if (net.charAt(vs) == '"') {
-					int ve = net.indexOf('"', vs + 1);
-					if (ve < 0) return String( );
-					return net.substring(vs + 1, ve);
-				}
-				int ve = vs;
-				while (ve < (int)net.length( ) && net.charAt(ve) != ',' && net.charAt(ve) != '}') ve++;
-				return net.substring(vs, ve);
+				return jsonRawToken(net, key);
 			};
 			auto has = [&](const char* key) -> bool {
 				return net.indexOf(String("\"") + key + "\":") >= 0;
@@ -1123,7 +1100,18 @@ void WebManager::handleApiCommitAll( ) {
 
 			if (has("ssid")) { String s = getS("ssid"); s.trim( ); if (s.length( ) > 0) safeCopy(cfg.wifiSsid, s.c_str( ), sizeof(cfg.wifiSsid)); }
 			if (has("pass")) { String p = getS("pass"); p.trim( ); if (p.length( ) > 0) safeCopy(cfg.wifiPass, p.c_str( ), sizeof(cfg.wifiPass)); }
-			if (has("use_dhcp")) cfg.useDhcp = (getN("use_dhcp") != "0");
+			/* Same `!= "0"` inversion as the sys section, doubled: this copy of
+			 * the reader never learned to skip whitespace either, so a spaced
+			 * `{"use_dhcp": 0}` produced the token " 0" and forced DHCP on for
+			 * a payload asking for a static address. Both halves die with the
+			 * shared reader. */
+			auto readFlagN = [&](const char* k) -> int {
+				const int b = jsonFlag(net, k);
+				if (b == JSON_FLAG_BAD) rejectField(k);
+				return b;
+			};
+			int nf;
+			nf = readFlagN("use_dhcp"); if (nf >= 0) cfg.useDhcp = (nf == 1);
 			if (!cfg.useDhcp) {
 				if (has("ip")) { String s = getS("ip"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticIp, s.c_str( ), sizeof(cfg.staticIp)); }
 				if (has("mask")) { String s = getS("mask"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticMask, s.c_str( ), sizeof(cfg.staticMask)); }
@@ -1133,7 +1121,7 @@ void WebManager::handleApiCommitAll( ) {
 			/* dns_auto + dns2 (primary manual reuses cfg.staticDns).
 			 * Also accepts dns1 as shortcut for staticDns when user is in
 			 * manual mode with DHCP=true (without the other staticIp/mask/gw fields). */
-			if (has("dns_auto")) _storageRef->setDnsAuto(getN("dns_auto") != "0");
+			nf = readFlagN("dns_auto"); if (nf >= 0) _storageRef->setDnsAuto(nf == 1);
 			if (has("dns1")) { String s = getS("dns1"); if (isValidIpv4(s.c_str( ))) safeCopy(cfg.staticDns, s.c_str( ), sizeof(cfg.staticDns)); }
 			if (has("dns2")) {
 				String s = getS("dns2"); s.trim( );

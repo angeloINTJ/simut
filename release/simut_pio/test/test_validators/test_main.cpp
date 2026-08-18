@@ -1204,6 +1204,242 @@ void test_pwpolicy_rejects_weak(void) {
     TEST_ASSERT_FALSE(passwordPolicyOk("a1b2c3"));      /* 6 chars */
 }
 
+
+/* ===========================================================================
+ *  BOOLEANOS DO /api/commit_all — parseBoolStrict + jsonValuePos/RawToken/Flag
+ *
+ *  O achado: quatro campos do `sys` e dois do `net` liam booleano com
+ *  `getNum(k) != "0"`. Qualquer grafia que nao fosse o literal `0` valia
+ *  TRUE — inclusive o `false` que o proprio /api/config do aparelho emite.
+ *  Consequencia direta: GET /api/config -> editar -> POST /api/commit_all
+ *  ligava t_sec (cifra da telemetria), log, m_retain e ntp_enabled, e nao
+ *  havia grafia booleana capaz de desligar nenhum deles.
+ *
+ *  Os `test_legacy_*` abaixo sao a TESTEMUNHA DE REGRESSAO: transliteracoes
+ *  dos tres leitores removidos (mesma semantica, API disponivel no stub) que
+ *  provam, em codigo, a resposta errada que cada um dava. Sao controle
+ *  positivo do instrumento: se um dia passarem a concordar com o leitor novo,
+ *  o teste novo perdeu o poder de detectar o bug e alguem precisa olhar.
+ *  O controle forte e o A/B no ferro (tools/commit_bool_cases.py).
+ * =========================================================================== */
+
+/* --- transliteracoes do codigo REMOVIDO (nao chamar em producao) ---------- */
+
+/* WebManager_Commit.cpp: sys getNum, ate 2026-08-18. */
+static String legacy_getNum(const String& sys, const char* key) {
+    char pat[48];
+    snprintf(pat, sizeof(pat), "\"%s\":", key);
+    int p = sys.indexOf(pat);
+    if (p < 0) return String();
+    int vStart = p + (int)strlen(pat);
+    while (vStart < (int)sys.length() && (sys[vStart] == ' ' || sys[vStart] == '\t')) vStart++;
+    if (vStart >= (int)sys.length()) return String();
+    if (sys[vStart] == '"') {
+        int vEnd = sys.indexOf('"', vStart + 1);
+        if (vEnd < 0) return String();
+        return sys.substring(vStart + 1, vEnd);
+    }
+    int vEnd = vStart;
+    while (vEnd < (int)sys.length() && sys[vEnd] != ',' && sys[vEnd] != '}') vEnd++;
+    String v = sys.substring(vStart, vEnd);
+    v.trim();
+    return v;
+}
+
+/* WebManager_Commit.cpp: net getN, ate 2026-08-18 (sem o pulo de espaco). */
+static String legacy_getN(const String& net, const char* key) {
+    char pat[48];
+    snprintf(pat, sizeof(pat), "\"%s\":", key);
+    int p = net.indexOf(pat);
+    if (p < 0) return String();
+    int vs = p + (int)strlen(pat);
+    if (net[vs] == '"') {
+        int ve = net.indexOf('"', vs + 1);
+        if (ve < 0) return String();
+        return net.substring(vs + 1, ve);
+    }
+    int ve = vs;
+    while (ve < (int)net.length() && net[ve] != ',' && net[ve] != '}') ve++;
+    return net.substring(vs, ve);
+}
+
+/* WebManager_Commit.cpp: getBool dos slots, ate 2026-08-18. */
+static int legacy_getBool(const String& o, const char* key) {
+    const int v = jsonValuePos(o, key);      /* mesma busca; o defeito era o teste */
+    if (v < 0) return -1;
+    return o.substring(v).startsWith("true") ? 1 : 0;
+}
+
+/* --- parseBoolStrict ------------------------------------------------------ */
+
+void test_parseBool_accepts_both_spellings(void) {
+    bool b = false;
+    /* o que o /api/config emite e o que qualquer round-trip devolve */
+    TEST_ASSERT_TRUE(parseBoolStrict(String("true"), b));  TEST_ASSERT_TRUE(b);
+    TEST_ASSERT_TRUE(parseBoolStrict(String("false"), b)); TEST_ASSERT_FALSE(b);
+    /* o que os formularios da pagina emitem */
+    TEST_ASSERT_TRUE(parseBoolStrict(String("1"), b));     TEST_ASSERT_TRUE(b);
+    TEST_ASSERT_TRUE(parseBoolStrict(String("0"), b));     TEST_ASSERT_FALSE(b);
+    /* repl do Python escreve assim */
+    TEST_ASSERT_TRUE(parseBoolStrict(String("True"), b));  TEST_ASSERT_TRUE(b);
+    TEST_ASSERT_TRUE(parseBoolStrict(String("FALSE"), b)); TEST_ASSERT_FALSE(b);
+}
+
+void test_parseBool_rejects_and_keeps_out(void) {
+    /* Nao inventa valor: em tudo que nao entende, devolve false E deixa
+     * `out` intacto — e o que permite ao chamador manter o valor gravado
+     * em vez de gravar o oposto do pedido. */
+    const char* junk[] = { "", " ", "2", "-1", "01", "yes", "on", "tru",
+                           "truex", "falsey", "null", "0.0", "\"true\"" };
+    for (size_t i = 0; i < sizeof(junk) / sizeof(junk[0]); i++) {
+        bool sentinel = true;
+        TEST_ASSERT_FALSE_MESSAGE(parseBoolStrict(String(junk[i]), sentinel), junk[i]);
+        TEST_ASSERT_TRUE_MESSAGE(sentinel, junk[i]);
+        sentinel = false;
+        TEST_ASSERT_FALSE(parseBoolStrict(String(junk[i]), sentinel));
+        TEST_ASSERT_FALSE(sentinel);
+    }
+}
+
+/* --- jsonValuePos / jsonRawToken ------------------------------------------ */
+
+void test_jsonValuePos_skips_whitespace(void) {
+    /* JSON.stringify nunca poe espaco; json.dumps sempre poe. */
+    String tight("{\"t_int\":0}");
+    String spaced("{\"t_int\": 0}");
+    String tabbed("{\"t_int\":\t0}");
+    String wrapped("{\"t_int\":\n  0}");
+    TEST_ASSERT_EQUAL_STRING("0", jsonRawToken(tight, "t_int").c_str());
+    TEST_ASSERT_EQUAL_STRING("0", jsonRawToken(spaced, "t_int").c_str());
+    TEST_ASSERT_EQUAL_STRING("0", jsonRawToken(tabbed, "t_int").c_str());
+    TEST_ASSERT_EQUAL_STRING("0", jsonRawToken(wrapped, "t_int").c_str());
+}
+
+void test_jsonRawToken_shapes(void) {
+    String o("{\"a\":1,\"b\":\"-3\",\"c\":12 ,\"d\":true}");
+    TEST_ASSERT_EQUAL_STRING("1", jsonRawToken(o, "a").c_str());
+    TEST_ASSERT_EQUAL_STRING("-3", jsonRawToken(o, "b").c_str());   /* aspas somem */
+    TEST_ASSERT_EQUAL_STRING("12", jsonRawToken(o, "c").c_str());   /* espaco antes da virgula */
+    TEST_ASSERT_EQUAL_STRING("true", jsonRawToken(o, "d").c_str()); /* fecha em '}' */
+    TEST_ASSERT_EQUAL_STRING("", jsonRawToken(o, "zz").c_str());    /* ausente */
+    TEST_ASSERT_EQUAL_INT(-1, jsonValuePos(o, "zz"));
+}
+
+void test_jsonValuePos_no_prefix_overmatch(void) {
+    /* O needle carrega as aspas e os dois-pontos: "log": nao casa "logx":,
+     * e um valor de texto so poderia conter aspas escapadas — que quebram
+     * o needle. E por isso que a varredura PLANA (a mesma de
+     * WebCommitSections.h) nao inventa campo. */
+    String o("{\"logx\":1,\"t_glob\":\"x=\\\"log\\\":0\",\"log\":false}");
+    const int v = jsonValuePos(o, "log");
+    TEST_ASSERT_TRUE(v > 0);
+    TEST_ASSERT_EQUAL_STRING("false", jsonRawToken(o, "log").c_str());
+}
+
+/* --- jsonFlag: tri-estado -------------------------------------------------- */
+
+void test_jsonFlag_tristate(void) {
+    TEST_ASSERT_EQUAL_INT(1, jsonFlag(String("{\"log\":true}"), "log"));
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(String("{\"log\":false}"), "log"));
+    TEST_ASSERT_EQUAL_INT(1, jsonFlag(String("{\"log\":1}"), "log"));
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(String("{\"log\":0}"), "log"));
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(String("{\"log\": false}"), "log"));
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(String("{\"log\":\"0\"}"), "log"));
+    TEST_ASSERT_EQUAL_INT(JSON_FLAG_ABSENT, jsonFlag(String("{\"x\":1}"), "log"));
+    TEST_ASSERT_EQUAL_INT(JSON_FLAG_BAD, jsonFlag(String("{\"log\":2}"), "log"));
+    TEST_ASSERT_EQUAL_INT(JSON_FLAG_BAD, jsonFlag(String("{\"log\":yes}"), "log"));
+    TEST_ASSERT_EQUAL_INT(JSON_FLAG_BAD, jsonFlag(String("{\"log\":}"), "log"));
+    /* Ausente e ilegivel sao AMBOS negativos: o chamador testa `>= 0` e
+     * mantem o valor gravado nos dois casos. Sao distintos porque so o
+     * segundo entra em "rejected":[...] na resposta do commit. */
+    TEST_ASSERT_TRUE(jsonFlag(String("{\"x\":1}"), "log") < 0);
+    TEST_ASSERT_TRUE(jsonFlag(String("{\"log\":2}"), "log") < 0);
+}
+
+/* --- o round-trip que estava quebrado ------------------------------------- */
+
+/* Recorte literal do que /api/config emite (WebManager_Api.cpp): todos os
+ * booleanos vao como literais JSON. E este corpo, devolvido ao
+ * /api/commit_all, que o parser antigo lia ao contrario. */
+static const char* kConfigGetSys =
+    "{\"name\":\"SIMUT\",\"tz\":-3,\"log\":false,\"res\":12,\"s_int\":5000,"
+    "\"t_transport\":0,\"t_sec\":false,\"t_cert\":false,\"ntp_enabled\":false,"
+    "\"m_retain\":false}";
+
+void test_config_roundtrip_no_longer_inverts(void) {
+    for (const char* k : { "log", "t_sec", "ntp_enabled", "m_retain" }) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(0, jsonFlag(String(kConfigGetSys), k), k);
+    }
+    /* e o caminho antigo (formularios da pagina) segue valendo */
+    String numeric("{\"log\":1,\"t_sec\":0,\"ntp_enabled\":1,\"m_retain\":0}");
+    TEST_ASSERT_EQUAL_INT(1, jsonFlag(numeric, "log"));
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(numeric, "t_sec"));
+    TEST_ASSERT_EQUAL_INT(1, jsonFlag(numeric, "ntp_enabled"));
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(numeric, "m_retain"));
+}
+
+/* --- controle positivo: os leitores removidos erravam mesmo --------------- */
+
+void test_legacy_getNum_inverted_json_booleans(void) {
+    /* `cfg.telEncryption = (getNum("t_sec") != "0")` sobre o corpo que o
+     * proprio aparelho emite: LIGA a cifra quando o pedido era desligar. */
+    const String sys(kConfigGetSys);
+    TEST_ASSERT_FALSE(legacy_getNum(sys, "t_sec") == "0");   /* => ligava */
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(sys, "t_sec"));        /* agora desliga */
+
+    /* `log:false` nao tinha como desligar o log por booleano. */
+    TEST_ASSERT_FALSE(legacy_getNum(sys, "log") == "0");
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(sys, "log"));
+
+    /* A/A: com `0` numerico os dois concordam — o teste nao reprova tudo. */
+    String numeric("{\"t_sec\":0,\"log\":1}");
+    TEST_ASSERT_TRUE(legacy_getNum(numeric, "t_sec") == "0");
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(numeric, "t_sec"));
+    TEST_ASSERT_FALSE(legacy_getNum(numeric, "log") == "0");
+    TEST_ASSERT_EQUAL_INT(1, jsonFlag(numeric, "log"));
+}
+
+void test_legacy_getN_broke_twice_over(void) {
+    /* A copia do `net` nunca aprendeu a pular espaco: alem da inversao do
+     * booleano, o token vinha com o espaco colado. */
+    String spaced("{\"use_dhcp\": 0,\"dns_auto\": 0}");
+    TEST_ASSERT_EQUAL_STRING(" 0", legacy_getN(spaced, "use_dhcp").c_str());
+    TEST_ASSERT_FALSE(legacy_getN(spaced, "use_dhcp") == "0");  /* => forcava DHCP */
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(spaced, "use_dhcp"));
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(spaced, "dns_auto"));
+    /* e o literal JSON, igual ao que /api/network emite */
+    String literal("{\"use_dhcp\":false,\"dns_auto\":false}");
+    TEST_ASSERT_FALSE(legacy_getN(literal, "use_dhcp") == "0");
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(literal, "use_dhcp"));
+}
+
+void test_legacy_getBool_inverted_numeric_booleans(void) {
+    /* O espelho do mesmo defeito, do outro lado: os slots so entendiam o
+     * literal, entao `{"a":1}` DESATIVAVA o slot que pedia para ativar. */
+    String slot("{\"i\":0,\"a\":1,\"al\":1}");
+    TEST_ASSERT_EQUAL_INT(0, legacy_getBool(slot, "a"));    /* desativava */
+    TEST_ASSERT_EQUAL_INT(0, legacy_getBool(slot, "al"));
+    TEST_ASSERT_EQUAL_INT(1, jsonFlag(slot, "a"));          /* agora ativa */
+    TEST_ASSERT_EQUAL_INT(1, jsonFlag(slot, "al"));
+    /* A/A: com o literal os dois concordam. */
+    String lit("{\"i\":0,\"a\":true,\"al\":false}");
+    TEST_ASSERT_EQUAL_INT(1, legacy_getBool(lit, "a"));
+    TEST_ASSERT_EQUAL_INT(1, jsonFlag(lit, "a"));
+    TEST_ASSERT_EQUAL_INT(0, legacy_getBool(lit, "al"));
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(lit, "al"));
+}
+
+void test_sounds_section_now_reads_numeric(void) {
+    /* jsonBoolValue (secao `sounds` e alarms.active) conhecia so o literal e
+     * caia no `fallback` — nem mudava, nem reclamava, e respondia 200.
+     * jsonFlag le as duas grafias; ausente continua significando "manter". */
+    String snd("{\"touch\":0,\"confirm\":1,\"mute\":false}");
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(snd, "touch"));
+    TEST_ASSERT_EQUAL_INT(1, jsonFlag(snd, "confirm"));
+    TEST_ASSERT_EQUAL_INT(0, jsonFlag(snd, "mute"));
+    TEST_ASSERT_EQUAL_INT(JSON_FLAG_ABSENT, jsonFlag(snd, "web"));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -1291,6 +1527,19 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_jsonMatchEnd_brackets_inside_strings);
     RUN_TEST(test_jsonMatchEnd_escaped_quotes);
     RUN_TEST(test_jsonMatchEnd_invalid);
+
+    /* /api/commit_all — booleanos: `false` nao pode ligar, `1` nao pode desligar */
+    RUN_TEST(test_parseBool_accepts_both_spellings);
+    RUN_TEST(test_parseBool_rejects_and_keeps_out);
+    RUN_TEST(test_jsonValuePos_skips_whitespace);
+    RUN_TEST(test_jsonRawToken_shapes);
+    RUN_TEST(test_jsonValuePos_no_prefix_overmatch);
+    RUN_TEST(test_jsonFlag_tristate);
+    RUN_TEST(test_config_roundtrip_no_longer_inverts);
+    RUN_TEST(test_legacy_getNum_inverted_json_booleans);
+    RUN_TEST(test_legacy_getN_broke_twice_over);
+    RUN_TEST(test_legacy_getBool_inverted_numeric_booleans);
+    RUN_TEST(test_sounds_section_now_reads_numeric);
 
     /* /api/commit_all — one gate per section, not one per route */
     RUN_TEST(test_commit_sys_operator_cannot_add_users);

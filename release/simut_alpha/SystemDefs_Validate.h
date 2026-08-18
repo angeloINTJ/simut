@@ -1,8 +1,8 @@
 /**
  * @file SystemDefs_Validate.h
  * @brief Input validation helpers.
- * @details parseIntStrict, isValidCfgString, isValidName, isSafeUploadFilename,
- * isValidIpv4, isInRange. Pure inline helpers, no dependencies
+ * @details parseIntStrict, parseBoolStrict, isValidCfgString, isValidName,
+ * isSafeUploadFilename, isValidIpv4, isInRange. Pure inline helpers, no dependencies
  * outside Arduino String and <string.h>. Sub-header of SystemDefs.h
  * (facade).
  *
@@ -60,6 +60,40 @@ inline bool parseFloatStrict(const String& s, float& out) {
  if (!seenDigit) return false;
  out = s.toFloat( );
  return true;
+}
+
+/** ASCII case-insensitive compare against an already-lowercase literal. */
+inline bool asciiEqualsCi(const char* a, const char* lowerB) {
+ if (!a || !lowerB) return false;
+ while (*a && *lowerB) {
+ char ca = *a++;
+ if (ca >= 'A' && ca <= 'Z') ca = (char)(ca + 32);
+ if (ca != *lowerB++) return false;
+ }
+ return *a == '\0' && *lowerB == '\0';
+}
+
+/** Parse a boolean token in either of the two spellings this API is actually
+ * fed: the JSON literals `true`/`false` — which is what /api/config emits and
+ * what any client that round-trips it sends back — and the numerics `1`/`0`,
+ * which is what the web forms emit. Returns false and leaves `out` untouched
+ * for anything else.
+ *
+ * The point of the boolean return is the distinction `getNum(k) != "0"` could
+ * not make: "unreadable" is not "false", and guessing one for the other is how
+ * `{"t_sec":false}` used to turn telemetry encryption ON. A caller that cannot
+ * read a flag must keep the stored value and say so — never invent one.
+ *
+ * Case-insensitive on the literals: a payload hand-written from a Python repl
+ * says `True`, and a third meaning for a value the user clearly spelled out is
+ * worse than accepting it. Nothing else passes — not `yes`, not `2`, not "". */
+inline bool parseBoolStrict(const String& s, bool& out) {
+ const char* p = s.c_str( );
+ if (!p || !*p) return false;
+ if (p[1] == '\0' && (p[0] == '0' || p[0] == '1')) { out = (p[0] == '1'); return true; }
+ if (asciiEqualsCi(p, "true")) { out = true; return true; }
+ if (asciiEqualsCi(p, "false")) { out = false; return true; }
+ return false;
 }
 
 /** Validate generic config string: allows empty, rejects control chars (<32).
