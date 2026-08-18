@@ -4,6 +4,80 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.8-beta (2026-08-17)
+
+### A interface web inteira voltou para dentro do firmware
+
+Duas páginas — `/license` e `/alarms` — vinham do LittleFS desde agosto, o que
+significava que o aparelho só as servia se alguém tivesse subido os arquivos
+antes. Voltaram para dentro da imagem, junto com todas as outras. Uma unidade
+gravada agora responde as doze rotas sem mais nada implantado, e o aviso "Page
+asset missing" não pode sequer ser produzido: a função que o emite não está em
+nenhum binário de produção.
+
+As páginas saíram porque o `FS_PAGES` era uma constante **global** no
+`tools/build_webui_gz.py`. Um layout de página para todos os ambientes. Quem
+estava sem flash era o `pico_w_test`, que carrega a CLI serial completa — mas
+uma página listada ali saía de todas as imagens, então o release pagava a conta
+de um problema que não era dele. E pagava duas vezes: perdia as páginas e
+ganhava um passo de implantação que nenhum pacote de release cumpria, o defeito
+que a v2.2.6-beta teve que corrigir depois do fato.
+
+Medido com `arm-none-eabi-size` — o percentual do PlatformIO omite a `.ota` e a
+`.partition` — com os doze assets embutidos:
+
+    release, 10 embutidas + 2 no LittleFS (antes) ..... 30 892 B livres
+    release, as 12 embutidas ......................... 18 740 B livres
+    test, as 12, sem alavanca ........................ estourou por 856 B
+    test, as 12 + parseIntStrict ..................... 6 604 B livres
+    test, as 12 + parseIntStrict + SIMUT_MDNS=0 ...... 21 980 B livres
+
+O release nunca precisou da dieta. A imagem instrumentada terminou com quase o
+dobro da folga que tinha, carregando mais páginas do que carregava.
+
+### A dieta de páginas virou propriedade do ambiente
+
+O `custom_fs_pages`, no `platformio.ini`, nomeia as páginas que um ambiente
+serve do LittleFS. Declarar uma num ambiente de produção **falha o build**,
+dizendo qual. Só as oito rotas que passam pelo `serveProtectedPage` são
+elegíveis: `/login` e `/force_chpass` trancam o aparelho se o arquivo faltar, e
+`/style.css` e `/lang.js` não têm rota de filesystem.
+
+O gerador passou a emitir a rota junto do asset — uma macro `<PAGE>_SERVE`
+ligada ao `serveProtectedPage` ou ao `serveProtectedFsPage` conforme o layout —
+então uma página que troca de partição não exige mais edição no handler. Eram
+dois lugares que podiam discordar em silêncio.
+
+### Duas alavancas, ambas cobradas só da imagem de teste
+
+O `SIMUT_MDNS=0` devolve **15 376 B**. O knob já tinha sido consertado antes e
+nunca fora gasto; nenhuma suíte resolve `SIMUT.local`, elas acham a placa pelo
+USB serial e falam com ela por IP. O release mantém o mDNS.
+
+O último `sscanf` da árvore devolve **7 524 B**. Ele lia um argumento da CLI e
+puxava a maquinaria inteira de scanf para isso; agora usa o `parseIntStrict` do
+próprio projeto, que a suíte nativa já cobre. O handler vive dentro de
+`#if SIMUT_CLI_FULL`, então o release nunca o linkou. O comportamento é o mesmo
+para tudo que o tokenizador consegue produzir — lixo no fim, como `1,5x`, que o
+`sscanf` aceitava, agora recebe a linha de uso.
+
+### Também neste release
+
+O atalho de "já está atualizado" do gerador lia a linha 1 enquanto o hash era
+escrito na linha 2, então nunca casou uma vez sequer e todo build regerava o
+header. Agora funciona, e o carimbo cobre a fonte, o gerador e o layout de
+páginas — sem essa última parte, compilar dois ambientes em sequência entregaria
+ao segundo o header do primeiro.
+
+A `web_test_suite.py` passou a reprovar a rota que responde "Page asset
+missing". Essa resposta volta como HTTP 200, com corpo longo o bastante para
+passar numa checagem de tamanho, então nenhuma das asserções existentes a via.
+
+Atualização: nada a implantar. Se o seu aparelho tiver `/web/alarms.html.gz` ou
+`/web/license.html.gz` de uma versão anterior, agora são peso morto — apagá-los
+pela página de Arquivos libera 12,8 KB da partição e é também a forma mais
+limpa de provar que as páginas estão vindo do flash.
+
 ## v2.2.7-beta (2026-08-17)
 
 ### Uma tradução pode sumir sem que nada pareça quebrado
