@@ -33,6 +33,8 @@
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
 #include "HaDiscovery.h"                /* Home Assistant MQTT Discovery formatters */
+#include "B64Decode.h"                  /* Basic-auth base64 decoder (strict) */
+#include "PromMetrics.h"                /* Prometheus text exposition formatters */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -1551,6 +1553,58 @@ void test_ha_entity_config_truncation_detectable(void) {
     TEST_ASSERT_TRUE(n >= (int)sizeof(buf)); /* snprintf contract → caller must skip */
 }
 
+/* =========================================================================== */
+/*  B64Decode — strict base64 for HTTP Basic auth (B64Decode.h)                */
+/* =========================================================================== */
+
+void test_b64_decodes_credentials(void) {
+    char out[32];
+    TEST_ASSERT_EQUAL_INT(12, b64Decode("YWRtaW46c2VudGhh", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("admin:sentha", out);
+    TEST_ASSERT_EQUAL_INT(2, b64Decode("YWI=", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("ab", out);
+    TEST_ASSERT_EQUAL_INT(1, b64Decode("YQ==", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("a", out);
+}
+
+void test_b64_rejects_malformed(void) {
+    char out[32];
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("", out, sizeof(out)));           /* empty */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YWJjZ", out, sizeof(out)));      /* len % 4 */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YW!j", out, sizeof(out)));       /* alphabet */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YW=j", out, sizeof(out)));       /* '=' mid-group */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("====", out, sizeof(out)));       /* all pad */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YQ==YQ==", out, sizeof(out)));   /* pad then data */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("AA==", out, sizeof(out)));       /* embedded NUL */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YWRtaW46c2VudGhh", out, 8));     /* overflow */
+}
+
+/* =========================================================================== */
+/*  PromMetrics — Prometheus exposition formatters (PromMetrics.h)             */
+/* =========================================================================== */
+
+void test_prom_escape_label(void) {
+    char out[32];
+    PromMetrics::escapeLabel("a\"b\\c\nd", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("a\\\"b\\\\c\\nd", out);
+    PromMetrics::escapeLabel("SALA 2 T5", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("SALA 2 T5", out);
+}
+
+void test_prom_lines_golden(void) {
+    char out[96];
+    PromMetrics::typeLine(out, sizeof(out), "simut_heap_free_bytes", "gauge");
+    TEST_ASSERT_EQUAL_STRING("# TYPE simut_heap_free_bytes gauge\n", out);
+    PromMetrics::lineU32(out, sizeof(out), "simut_heap_free_bytes", "", 40796);
+    TEST_ASSERT_EQUAL_STRING("simut_heap_free_bytes 40796\n", out);
+    PromMetrics::lineF(out, sizeof(out), "simut_temperature_celsius",
+                       "slot=\"3\",hwid=\"STH0003\"", 25.5, 2);
+    TEST_ASSERT_EQUAL_STRING(
+        "simut_temperature_celsius{slot=\"3\",hwid=\"STH0003\"} 25.50\n", out);
+    PromMetrics::lineI32(out, sizeof(out), "simut_wifi_rssi_dbm", "", -49);
+    TEST_ASSERT_EQUAL_STRING("simut_wifi_rssi_dbm -49\n", out);
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -1690,6 +1744,12 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_ha_entity_config_golden);
     RUN_TEST(test_ha_entity_config_omissions);
     RUN_TEST(test_ha_entity_config_truncation_detectable);
+
+    /* B64Decode + PromMetrics — /metrics auth and exposition format */
+    RUN_TEST(test_b64_decodes_credentials);
+    RUN_TEST(test_b64_rejects_malformed);
+    RUN_TEST(test_prom_escape_label);
+    RUN_TEST(test_prom_lines_golden);
 
     return UNITY_END();
 }
