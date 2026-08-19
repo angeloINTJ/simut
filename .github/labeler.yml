@@ -1,0 +1,71 @@
+# .github/labeler.yml — path→label rules for actions/labeler@v5, applied by
+# .github/workflows/pr-labeler.yml on every PR open/sync/reopen.
+#
+# Every label named here must already exist in the repo inventory
+# (`gh label list`) — the action applies labels, it does not create them.
+# `code` was created together with this file (issue #53: there was no label
+# for plain firmware-source changes). A PR can and should collect several:
+# a validator fix with tests is `code` + `security` + `tests`.
+#
+# v5 syntax note: each rule needs the changed-files/any-glob-to-any-file
+# nesting — bare glob lists are the v4 format and v5 ignores them.
+
+documentation:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'docs/**'
+    - '**/*.md'
+
+tests:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'test/**'
+    - 'tools/run_fuzz.sh'
+
+ci:
+- changed-files:
+  - any-glob-to-any-file:
+    - '.github/**'
+
+i18n:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'data/lang/**'
+    - 'tools/build_lang_pack*.py'
+    - 'tools/check_lang_packs.py'
+    - 'src/DisplayManager_i18n.cpp'
+    - 'src/DisplayManager_LangParser.cpp'
+
+tools:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'tools/**'
+    - 'Dockerfile'
+    - 'docker-compose.yml'
+
+display:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'src/DisplayManager*'
+    - 'src/display/**'
+    - 'src/Themes*'
+    - 'src/TftWithOffset.h'
+    - 'data/themes/**'
+
+security:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'src/SystemDefs_Validate.h'
+    - 'src/WebManager_Auth*'
+    - 'src/FsSecretPath.h'
+    - 'src/B64Decode.h'
+    - 'tools/scan_secrets.sh'
+    - 'test/test_fuzz/**'
+    - 'SECURITY.md'
+
+code:
+- changed-files:
+  - any-glob-to-any-file:
+    - 'src/**'
+    - 'WebUI.h'
+    - 'platformio.ini'
