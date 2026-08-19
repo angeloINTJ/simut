@@ -180,14 +180,13 @@ void WebManager::handleForceChpass( ) {
 	_server->send(200, "text/html", "");
 	safeSend_GZ(WebUI_GZ::FORCE_CHPASS_PAGE_GZ, WebUI_GZ::FORCE_CHPASS_PAGE_GZ_LEN);
 }
-void WebManager::handleApiLoginInit( ) {
-	uint32_t clientIP = (uint32_t)_server->client( ).remoteIP( );
-
-	/* Looks for the client IP's own slot first; if not found, picks the LRU
-	 * among evictable slots (free OR without active lockout). A slot under
-	 * unexpired lockout CANNOT be overwritten — this prevents rate-limit
-	 * bypass by IP rotation (an attacker locked in slot X cannot evict X
-	 * by cycling through 8 new IPs). */
+/* Looks for the client IP's own slot first; if not found, picks the LRU
+ * among evictable slots (free OR without active lockout). A slot under
+ * unexpired lockout CANNOT be overwritten — this prevents rate-limit
+ * bypass by IP rotation (an attacker locked in slot X cannot evict X
+ * by cycling through 8 new IPs). Shared by login_init and the /metrics
+ * Basic auth so both fail-paths feed the same exponential lockout. */
+int WebManager::ensureLoginStateSlot(uint32_t clientIP) {
 	int slot = -1;
 	int oldestEvictable = -1;
 	for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
@@ -203,31 +202,39 @@ void WebManager::handleApiLoginInit( ) {
 		}
 	}
 	if (slot == -1) {
-		if (oldestEvictable == -1) {
-			/* All 8 slots under active lockout — extreme edge case (in
-			 * normal operation, max 5 min lockouts expire sequentially).
-			 * Refuse the request with 429 + suggested Retry-After. */
-			uint32_t minRem = UINT32_MAX;
-			for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
-				uint32_t rem = timeRemaining(_loginStates[i].lockoutUntil);
-				if (rem > 0 && rem < minRem) minRem = rem;
-			}
-			if (minRem == UINT32_MAX) minRem = 60000;
-			uint32_t retryAfterSec = (minRem + 999) / 1000;
-			LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
-			         "Login init rejected: all slots locked");
-			_server->sendHeader("Retry-After", String(retryAfterSec));
-			char buf[64];
-			snprintf(buf, sizeof(buf),
-			         "{\"ok\":false,\"err\":3,\"retryAfter\":%lu}",
-			         (unsigned long)retryAfterSec);
-			_server->send(429, "application/json", buf);
-			return;
-		}
+		if (oldestEvictable == -1) return -1; /* all 8 under active lockout */
 		slot = oldestEvictable;
 		_loginStates[slot].ip = clientIP;
 		_loginStates[slot].failCount = 0;
 		_loginStates[slot].lockoutUntil = 0;
+	}
+	return slot;
+}
+
+void WebManager::handleApiLoginInit( ) {
+	uint32_t clientIP = (uint32_t)_server->client( ).remoteIP( );
+
+	int slot = ensureLoginStateSlot(clientIP);
+	if (slot == -1) {
+		/* All 8 slots under active lockout — extreme edge case (in
+		 * normal operation, max 5 min lockouts expire sequentially).
+		 * Refuse the request with 429 + suggested Retry-After. */
+		uint32_t minRem = UINT32_MAX;
+		for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {
+			uint32_t rem = timeRemaining(_loginStates[i].lockoutUntil);
+			if (rem > 0 && rem < minRem) minRem = rem;
+		}
+		if (minRem == UINT32_MAX) minRem = 60000;
+		uint32_t retryAfterSec = (minRem + 999) / 1000;
+		LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,
+		         "Login init rejected: all slots locked");
+		_server->sendHeader("Retry-After", String(retryAfterSec));
+		char buf[64];
+		snprintf(buf, sizeof(buf),
+		         "{\"ok\":false,\"err\":3,\"retryAfter\":%lu}",
+		         (unsigned long)retryAfterSec);
+		_server->send(429, "application/json", buf);
+		return;
 	}
 
 

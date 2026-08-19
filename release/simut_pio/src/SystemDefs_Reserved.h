@@ -15,7 +15,15 @@
  * [24..25] WebConfigData ( 2 B) — web server TCP port
  * [26..27] SetupFlagsData ( 2 B) — must-change-pin
  * [28..47] NetworkTimeData (20 B) — DNS auto/manual + NTP
- * [48..63] free for future expansion
+ * [48..51] HistoryConfigData ( 4 B) — recording interval (SystemDefs_Records.h)
+ * [52..53] Dash slot selection ( 2 B) — top-pinned + selected idx, 0xFF = none
+ * [54..55] HaDiscoveryData ( 2 B) — HA MQTT Discovery (SystemDefs_Records.h)
+ * [56..63] free for future expansion
+ *
+ * [52..53] were claimed by AppManager_HistoryAlarm.cpp through raw literals
+ * while every map still said "free" — the HA overlay landed on them and its
+ * magic was eaten by the 0xFF sentinel. If you are adding an overlay, grep
+ * for `reserved[<offset>` before trusting this comment.
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  *          SIMUT — Integrated Universal Monitoring and Telemetry System
@@ -52,7 +60,18 @@ constexpr size_t RESERVED_SETUP_SIZE = 2;
 constexpr size_t RESERVED_NETTIME_OFFSET = RESERVED_SETUP_OFFSET + RESERVED_SETUP_SIZE; /* 28 */
 constexpr size_t RESERVED_NETTIME_SIZE = 20;
 
-constexpr size_t RESERVED_FREE_OFFSET = RESERVED_NETTIME_OFFSET + RESERVED_NETTIME_SIZE; /* 48 */
+/* HistoryConfigData [48..51] keeps its own constant (HISTORY_CONFIG_OFFSET,
+ * SystemDefs_Records.h) — mirrored here only by the arithmetic. */
+constexpr size_t RESERVED_HISTORY_SIZE = 4;
+
+/* TFT dashboard slot persistence — formerly raw literals 52/53 in
+ * AppManager_HistoryAlarm.cpp, registered nowhere, which is how the HA
+ * overlay got parked on top of them. 0xFF = no slot. */
+constexpr size_t RESERVED_DASH_TOP_IDX = RESERVED_NETTIME_OFFSET + RESERVED_NETTIME_SIZE
+                                       + RESERVED_HISTORY_SIZE; /* 52 */
+constexpr size_t RESERVED_DASH_CUR_IDX = RESERVED_DASH_TOP_IDX + 1; /* 53 */
+
+constexpr size_t RESERVED_FREE_OFFSET = RESERVED_DASH_CUR_IDX + 1 + 2; /* 56 (54..55 = HaDiscoveryData) */
 constexpr size_t RESERVED_TOTAL_SIZE = 64;
 
 /* Compile-time sanity checks: nothing overflows the 64 B buffer and

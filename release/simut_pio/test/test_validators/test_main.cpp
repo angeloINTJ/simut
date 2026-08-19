@@ -32,6 +32,9 @@
 #include "WebJsonSlice.h"               /* depth-aware JSON slicing */
 #include "WebCommitSections.h"          /* per-section authz for /api/commit_all */
 #include "FsSecretPath.h"               /* /config download guard (A-4) */
+#include "HaDiscovery.h"                /* Home Assistant MQTT Discovery formatters */
+#include "B64Decode.h"                  /* Basic-auth base64 decoder (strict) */
+#include "PromMetrics.h"                /* Prometheus text exposition formatters */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -1440,6 +1443,168 @@ void test_sounds_section_now_reads_numeric(void) {
     TEST_ASSERT_EQUAL_INT(JSON_FLAG_ABSENT, jsonFlag(snd, "web"));
 }
 
+/* =========================================================================== */
+/*  HaDiscovery — Home Assistant MQTT Discovery formatters (HaDiscovery.h)     */
+/* =========================================================================== */
+
+void test_ha_sanitize_id(void) {
+    char out[16];
+    HaDiscovery::sanitizeId("t28FF64", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("t28FF64", out);
+    HaDiscovery::sanitizeId("sala 1.b", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("sala_1_b", out);
+    HaDiscovery::sanitizeId("A-z_0", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("A-z_0", out);
+    /* truncates inside cap, always terminated */
+    HaDiscovery::sanitizeId("abcdefghijklmnopqr", out, 4);
+    TEST_ASSERT_EQUAL_STRING("abc", out);
+    HaDiscovery::sanitizeId(nullptr, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("", out);
+}
+
+void test_ha_key_templatable(void) {
+    TEST_ASSERT_TRUE(HaDiscovery::keyTemplatable("t28FF64"));
+    TEST_ASSERT_TRUE(HaDiscovery::keyTemplatable("tsensor sala")); /* space is fine in Jinja brackets */
+    TEST_ASSERT_FALSE(HaDiscovery::keyTemplatable("t'quote"));
+    TEST_ASSERT_FALSE(HaDiscovery::keyTemplatable("t\"dquote"));
+    TEST_ASSERT_FALSE(HaDiscovery::keyTemplatable("t\\back"));
+}
+
+void test_ha_json_escape(void) {
+    char out[32];
+    HaDiscovery::jsonEscapeInto("Lab \"Frio\" \\", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("Lab \\\"Frio\\\" \\\\", out);
+    char ctl[2] = {(char)7, 0};
+    HaDiscovery::jsonEscapeInto(ctl, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("\\u0007", out);
+    /* no partial escape sequence when the cap cuts mid-replacement */
+    HaDiscovery::jsonEscapeInto("ab\"cd", out, 4);
+    TEST_ASSERT_EQUAL_STRING("ab", out);
+}
+
+void test_ha_config_topic(void) {
+    char out[96];
+    int n = HaDiscovery::configTopic(out, sizeof(out), "simut_a1b2c3", "t28FF64");
+    TEST_ASSERT_EQUAL_STRING("homeassistant/sensor/simut_a1b2c3/t28FF64/config", out);
+    TEST_ASSERT_EQUAL_INT((int)strlen(out), n);
+}
+
+/* Golden payload: pins the exact wire bytes, abbreviations included. If this
+ * test moves, entities already registered in someone's HA move with it —
+ * treat a diff here as a compatibility decision, not a formatting one. */
+void test_ha_entity_config_golden(void) {
+    HaDiscovery::EntityCtx ctx;
+    ctx.nodeId = "simut_a1b2c3";
+    ctx.stateTopic = "simut/data";
+    ctx.availTopic = "simut/status";
+    ctx.deviceName = "Lab \"Frio\"";
+    ctx.swVersion = "9.9.9-test";
+    ctx.configUrl = "http://192.168.3.24";
+    char buf[768];
+    int n = HaDiscovery::entityConfigJson(buf, sizeof(buf), ctx,
+        "t28FF64", "t28FF64", "Sala Temperature", "temperature", "°C", 1);
+    TEST_ASSERT_TRUE(n > 0 && n < (int)sizeof(buf));
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"name\":\"Sala Temperature\","
+        "\"uniq_id\":\"simut_a1b2c3_t28FF64\","
+        "\"stat_t\":\"simut/data\","
+        "\"val_tpl\":\"{{ value_json['t28FF64'] }}\","
+        "\"unit_of_meas\":\"°C\","
+        "\"dev_cla\":\"temperature\","
+        "\"stat_cla\":\"measurement\","
+        "\"sug_dsp_prc\":1,"
+        "\"avty_t\":\"simut/status\","
+        "\"avty_tpl\":\"{{ value_json.status }}\","
+        "\"pl_avail\":\"online\","
+        "\"pl_not_avail\":\"offline\","
+        "\"dev\":{\"ids\":[\"simut_a1b2c3\"],\"name\":\"Lab \\\"Frio\\\"\","
+        "\"mf\":\"SIMUT\",\"mdl\":\"Raspberry Pi Pico W\","
+        "\"sw\":\"9.9.9-test\",\"cu\":\"http://192.168.3.24\"}}",
+        buf);
+}
+
+void test_ha_entity_config_omissions(void) {
+    HaDiscovery::EntityCtx ctx;
+    ctx.nodeId = "n";
+    ctx.stateTopic = "s/d";
+    ctx.availTopic = "s/st";
+    ctx.deviceName = "d";
+    ctx.swVersion = "1";
+    ctx.configUrl = "";   /* no IP yet → no cu */
+    char buf[512];
+    HaDiscovery::entityConfigJson(buf, sizeof(buf), ctx,
+        "uX", "uX", "X Humidity", "humidity", "%", -1);
+    TEST_ASSERT_NULL(strstr(buf, "sug_dsp_prc"));
+    TEST_ASSERT_NULL(strstr(buf, "\"cu\""));
+    TEST_ASSERT_NOT_NULL(strstr(buf, "\"dev_cla\":\"humidity\""));
+}
+
+void test_ha_entity_config_truncation_detectable(void) {
+    HaDiscovery::EntityCtx ctx;
+    ctx.nodeId = "simut_a1b2c3";
+    ctx.stateTopic = "simut/data";
+    ctx.availTopic = "simut/status";
+    ctx.deviceName = "Device";
+    ctx.swVersion = "9.9.9";
+    ctx.configUrl = "http://192.168.3.24";
+    char buf[64]; /* far too small on purpose */
+    int n = HaDiscovery::entityConfigJson(buf, sizeof(buf), ctx,
+        "t1", "t1", "Temp", "temperature", "°C", 1);
+    TEST_ASSERT_TRUE(n >= (int)sizeof(buf)); /* snprintf contract → caller must skip */
+}
+
+/* =========================================================================== */
+/*  B64Decode — strict base64 for HTTP Basic auth (B64Decode.h)                */
+/* =========================================================================== */
+
+void test_b64_decodes_credentials(void) {
+    char out[32];
+    TEST_ASSERT_EQUAL_INT(12, b64Decode("YWRtaW46c2VudGhh", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("admin:sentha", out);
+    TEST_ASSERT_EQUAL_INT(2, b64Decode("YWI=", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("ab", out);
+    TEST_ASSERT_EQUAL_INT(1, b64Decode("YQ==", out, sizeof(out)));
+    TEST_ASSERT_EQUAL_STRING("a", out);
+}
+
+void test_b64_rejects_malformed(void) {
+    char out[32];
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("", out, sizeof(out)));           /* empty */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YWJjZ", out, sizeof(out)));      /* len % 4 */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YW!j", out, sizeof(out)));       /* alphabet */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YW=j", out, sizeof(out)));       /* '=' mid-group */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("====", out, sizeof(out)));       /* all pad */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YQ==YQ==", out, sizeof(out)));   /* pad then data */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("AA==", out, sizeof(out)));       /* embedded NUL */
+    TEST_ASSERT_EQUAL_INT(-1, b64Decode("YWRtaW46c2VudGhh", out, 8));     /* overflow */
+}
+
+/* =========================================================================== */
+/*  PromMetrics — Prometheus exposition formatters (PromMetrics.h)             */
+/* =========================================================================== */
+
+void test_prom_escape_label(void) {
+    char out[32];
+    PromMetrics::escapeLabel("a\"b\\c\nd", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("a\\\"b\\\\c\\nd", out);
+    PromMetrics::escapeLabel("SALA 2 T5", out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("SALA 2 T5", out);
+}
+
+void test_prom_lines_golden(void) {
+    char out[96];
+    PromMetrics::typeLine(out, sizeof(out), "simut_heap_free_bytes", "gauge");
+    TEST_ASSERT_EQUAL_STRING("# TYPE simut_heap_free_bytes gauge\n", out);
+    PromMetrics::lineU32(out, sizeof(out), "simut_heap_free_bytes", "", 40796);
+    TEST_ASSERT_EQUAL_STRING("simut_heap_free_bytes 40796\n", out);
+    PromMetrics::lineF(out, sizeof(out), "simut_temperature_celsius",
+                       "slot=\"3\",hwid=\"STH0003\"", 25.5, 2);
+    TEST_ASSERT_EQUAL_STRING(
+        "simut_temperature_celsius{slot=\"3\",hwid=\"STH0003\"} 25.50\n", out);
+    PromMetrics::lineI32(out, sizeof(out), "simut_wifi_rssi_dbm", "", -49);
+    TEST_ASSERT_EQUAL_STRING("simut_wifi_rssi_dbm -49\n", out);
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -1570,6 +1735,21 @@ int main(int /*argc*/, char** /*argv*/) {
     /* passwordPolicyOk — server-side strength floor (A-5) */
     RUN_TEST(test_pwpolicy_accepts_strong);
     RUN_TEST(test_pwpolicy_rejects_weak);
+
+    /* HaDiscovery — Home Assistant MQTT Discovery formatters */
+    RUN_TEST(test_ha_sanitize_id);
+    RUN_TEST(test_ha_key_templatable);
+    RUN_TEST(test_ha_json_escape);
+    RUN_TEST(test_ha_config_topic);
+    RUN_TEST(test_ha_entity_config_golden);
+    RUN_TEST(test_ha_entity_config_omissions);
+    RUN_TEST(test_ha_entity_config_truncation_detectable);
+
+    /* B64Decode + PromMetrics — /metrics auth and exposition format */
+    RUN_TEST(test_b64_decodes_credentials);
+    RUN_TEST(test_b64_rejects_malformed);
+    RUN_TEST(test_prom_escape_label);
+    RUN_TEST(test_prom_lines_golden);
 
     return UNITY_END();
 }

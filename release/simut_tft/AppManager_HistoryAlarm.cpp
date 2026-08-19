@@ -42,10 +42,13 @@ void AppManager::refreshSelectedSlot( ) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  /* Restore persisted panel selection on first call */
  if (_lastSavedSlotIdx < 0) {
- _lastSavedSlotIdx = (int8_t)cfg.reserved[53];
- _lastSavedTopIdx = (int8_t)cfg.reserved[52];
- if (cfg.reserved[53] < MAX_SENSORS) _currentSensorIdx = cfg.reserved[53];
- if (cfg.reserved[52] < MAX_SENSORS) _displayMgr->setTopSlotFixedIdx(cfg.reserved[52]);
+ /* RESERVED_DASH_*: these two bytes went by raw 52/53 for a long time —
+  * registered in no map — until the HA discovery overlay was parked on
+  * top of them. Names now, so the next tenant greps into them. */
+ _lastSavedSlotIdx = (int8_t)cfg.reserved[RESERVED_DASH_CUR_IDX];
+ _lastSavedTopIdx = (int8_t)cfg.reserved[RESERVED_DASH_TOP_IDX];
+ if (cfg.reserved[RESERVED_DASH_CUR_IDX] < MAX_SENSORS) _currentSensorIdx = cfg.reserved[RESERVED_DASH_CUR_IDX];
+ if (cfg.reserved[RESERVED_DASH_TOP_IDX] < MAX_SENSORS) _displayMgr->setTopSlotFixedIdx(cfg.reserved[RESERVED_DASH_TOP_IDX]);
  _lastSlotChangeTime = millis( );
  }
  const auto& sensors = _sensorMgr->getRuntimeSensors( );
@@ -131,8 +134,8 @@ void AppManager::updateLiveDisplay( ) {
  _lastSavedTopIdx = ct;
  _lastSavedSlotIdx = cs;
  SystemConfig &cfg = _storageMgr->getConfig( );
- cfg.reserved[52] = (uint8_t)(ct >= 0 ? ct : 0xFF);
- cfg.reserved[53] = (uint8_t)cs;
+ cfg.reserved[RESERVED_DASH_TOP_IDX] = (uint8_t)(ct >= 0 ? ct : 0xFF);
+ cfg.reserved[RESERVED_DASH_CUR_IDX] = (uint8_t)cs;
  _storageMgr->saveConfiguration( );
  }
  }

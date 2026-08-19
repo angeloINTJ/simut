@@ -967,6 +967,40 @@ void StorageManager::setHistoryIntervalMin(uint16_t minutes) {
  hc->intervalMin = minutes;
 }
 
+bool StorageManager::isHaDiscoveryEnabled( ) const {
+ const HaDiscoveryData* ha = reinterpret_cast<const HaDiscoveryData*>(
+ _currentConfig.reserved + HA_DISCOVERY_OFFSET);
+ if (ha->magic != HA_DISCOVERY_MAGIC) return false; /* legacy = OFF */
+ return (ha->flags & FLAG_HA_DISCOVERY) != 0;
+}
+
+void StorageManager::setHaDiscoveryEnabled(bool enabled) {
+ HaDiscoveryData* ha = reinterpret_cast<HaDiscoveryData*>(
+ _currentConfig.reserved + HA_DISCOVERY_OFFSET);
+ if (ha->magic != HA_DISCOVERY_MAGIC) { ha->magic = HA_DISCOVERY_MAGIC; ha->flags = 0; }
+ if (enabled) ha->flags |= FLAG_HA_DISCOVERY;
+ else ha->flags &= ~FLAG_HA_DISCOVERY;
+}
+
+bool StorageManager::wasHaDiscoveryPublished( ) const {
+ const HaDiscoveryData* ha = reinterpret_cast<const HaDiscoveryData*>(
+ _currentConfig.reserved + HA_DISCOVERY_OFFSET);
+ if (ha->magic != HA_DISCOVERY_MAGIC) return false;
+ return (ha->flags & FLAG_HA_PUBLISHED) != 0;
+}
+
+void StorageManager::markHaDiscoveryPublished(bool published) {
+ if (wasHaDiscoveryPublished( ) == published) return; /* no flash churn */
+ HaDiscoveryData* ha = reinterpret_cast<HaDiscoveryData*>(
+ _currentConfig.reserved + HA_DISCOVERY_OFFSET);
+ if (ha->magic != HA_DISCOVERY_MAGIC) { ha->magic = HA_DISCOVERY_MAGIC; ha->flags = 0; }
+ if (published) ha->flags |= FLAG_HA_PUBLISHED;
+ else ha->flags &= ~FLAG_HA_PUBLISHED;
+ /* Persist now: this bit must survive the commit_all reboot, which is the
+  * ordinary path between "published" and "user turned it off". */
+ saveConfiguration( );
+}
+
 SensorRecord* StorageManager::getSensorByGpio(uint8_t gpio) {
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (_currentConfig.sensors[i].active && _currentConfig.sensors[i].pins[0] == gpio) {

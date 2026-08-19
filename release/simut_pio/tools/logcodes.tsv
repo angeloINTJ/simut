@@ -110,6 +110,7 @@
 545	TEL_CERT_MISSING	No cert.pem, insecure mode	Sem cert.pem, modo inseguro	Sem cert.pem, modo inseguro	Sin cert.pem, modo inseguro
 546	TEL_FORCE_SYNC	Forcing telemetry sync	Forcando sync de telemetria	Forçando sync de telemetria	Forzando sincronización de telemetría
 547	TEL_BACKOFF_SUPPRESSED	Retry logs suppressed	Logs de retry suprimidos	Logs de retry suprimidos	Logs de reintento suprimidos
+548	TEL_HA_DISCOVERY	HA discovery refreshed	Discovery HA atualizado	Discovery HA atualizado	Discovery HA actualizado
 560	STO_WRITE_FAILED	History write failed	Falha em escrever historico	Falha em escrever histórico	Fallo al escribir el historial
 561	STO_CORRECT_BUDGET	Timestamp correction budget exceeded	Budget de correcao de ts excedido	Budget de correção de ts excedido	Presupuesto de corrección de ts excedido
 562	STO_ENFORCE_BUDGET	Storage limit budget exceeded	Budget de limite de storage excedido	Budget de limite de storage excedido	Presupuesto de límite de almacenamiento excedido

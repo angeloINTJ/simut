@@ -283,6 +283,21 @@ private:
 	int allocSessionSlot(int foundId);
 	void completeLogin(int slot, int foundId, int ls, const String& u);
 	uint32_t applyExponentialPenalty(int ls);
+	/** Find-or-evict the login state slot for `clientIP` (the login_init
+	 * allocation, shared with /metrics Basic auth so a scraper hammering
+	 * wrong credentials meets the SAME exponential lockout as the login
+	 * form). @return slot index, or -1 when all slots sit under an active
+	 * lockout — callers answer 429. */
+	int ensureLoginStateSlot(uint32_t clientIP);
+
+	/* /metrics (Prometheus text exposition, WebManager_Metrics.cpp). */
+	void handleMetrics( );
+	/** Effective permissions for /metrics: the cookie session if one exists,
+	 * otherwise HTTP Basic credentials checked against the user table —
+	 * scrapers cannot run a login flow. >0 = permission mask, 0 = not
+	 * authenticated (caller answers 401), -1 = a lockout response was
+	 * already sent. */
+	int metricsAuthPerms( );
 
 	void handleForceChpass( );
 	void handleApiForceChpass( );

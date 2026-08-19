@@ -126,6 +126,19 @@ private:
  String buildMqttClientId( );
  uint8_t safeBatchLimit(uint8_t configured);
 
+ /* Resolved MQTT topics. Both live behind the same fallback ("simut/data"
+ * when cfg.mqttTopic is blank) so the LWT, the data publishes and the
+ * discovery messages can never drift apart. */
+ String mqttDataTopic( );
+ String mqttStatusTopic( );
+
+ /* Home Assistant discovery. Driven by two persisted bits (want = the user
+ * toggle && JSON mode; have = FLAG_HA_PUBLISHED) rather than by commit
+ * hooks, because commit_all reboots — the connect after that reboot is
+ * the only reliable place to publish the refresh or the removal. */
+ void haDiscoveryReconcile(bool forceRepublish);
+ bool publishHaDiscovery(bool enable);
+
  /** @brief Intentional no-op — freeing TLS clients would cause heap fragmentation. */
  void releaseIdleResources( );
 

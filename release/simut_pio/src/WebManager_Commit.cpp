@@ -806,6 +806,11 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; else rejectField("m_qos"); }
 			fl = readFlag("m_retain"); if (fl >= 0) cfg.mqttRetain = (fl == 1);
 			if (has("m_ka")) { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 10, 300)) cfg.mqttKeepAlive = (uint16_t)v; else rejectField("m_ka"); }
+			/* HA Discovery toggle (overlay HaDiscoveryData). No refresh hook:
+			 * commit_all reboots, and the MQTT connect after the reboot
+			 * reconciles — publish when freshly on, clear when freshly off
+			 * (FLAG_HA_PUBLISHED remembers there is something to clear). */
+			fl = readFlag("m_had"); if (fl >= 0) _storageRef->setHaDiscoveryEnabled(fl == 1);
 			if (has("t_glob")) setStr("t_glob", cfg.telGlobalTemplate, sizeof(cfg.telGlobalTemplate));
 			if (has("t_line")) setStr("t_line", cfg.telLineTemplate, sizeof(cfg.telLineTemplate));
 			if (has("t_sep")) setStr("t_sep", cfg.telLineSeparator, sizeof(cfg.telLineSeparator));

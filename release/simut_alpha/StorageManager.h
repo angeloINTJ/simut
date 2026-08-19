@@ -541,6 +541,19 @@ public:
 
  /** Set the history interval (clamped to [HISTORY_INTERVAL_MIN_MIN, HISTORY_INTERVAL_MAX_MIN]). */
  void setHistoryIntervalMin(uint16_t minutes);
+
+ /** @return true if Home Assistant MQTT Discovery is enabled (overlay; legacy = OFF). */
+ bool isHaDiscoveryEnabled( ) const;
+
+ /** Set the HA Discovery flag in overlay. Populates magic if not yet present. */
+ void setHaDiscoveryEnabled(bool enabled);
+
+ /** @return true if retained discovery configs are known to sit on the broker. */
+ bool wasHaDiscoveryPublished( ) const;
+
+ /** Record (and persist — must survive the commit_all reboot) whether the
+ * retained discovery configs are on the broker. No-op if unchanged. */
+ void markHaDiscoveryPublished(bool published);
  SystemConfig _currentConfig;
  bool _isMounted = false;
  FlashLockCallback _lockCb = nullptr;

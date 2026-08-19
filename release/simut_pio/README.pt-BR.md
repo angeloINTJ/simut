@@ -23,7 +23,7 @@
 
 ## Visão geral
 
-O SIMUT é um firmware IoT de nível profissional para o **Raspberry Pi Pico W** que fornece monitoramento de temperatura, umidade e pressão em tempo real com arquitetura dual-core. Traz dashboard local em TFT touchscreen, interface web embarcada com controle de acesso por papéis, histórico binário no dispositivo com gráficos decimados no navegador, telemetria (HTTP/MQTT), atualização OTA e CLI pela serial USB.
+O SIMUT é um firmware IoT de nível profissional para o **Raspberry Pi Pico W** que fornece monitoramento de temperatura, umidade e pressão em tempo real com arquitetura dual-core. Traz dashboard local em TFT touchscreen, interface web embarcada com controle de acesso por papéis, histórico binário no dispositivo com gráficos decimados no navegador, telemetria (HTTP/MQTT, com MQTT Discovery do Home Assistant), rota `/metrics` para Prometheus, atualização OTA e CLI pela serial USB.
 
 ## Por que SIMUT?
 
@@ -35,10 +35,12 @@ O SIMUT é um firmware IoT de nível profissional para o **Raspberry Pi Pico W**
 | Operação offline | ✅ Sim | ❌ Frequentemente depende de nuvem | ✅ Web local completa + display |
 | Atualização OTA | ❌ Regravação manual | ✅ OTA | ✅ OTA + backup/restore |
 | Segurança | ❌ Nenhuma | ⚠️ Básica | ✅ HMAC-SHA256, RBAC, rate limiting |
+| Home Assistant | ⚠️ Integração manual | ✅ Nativa | ✅ MQTT Discovery (opcional) |
+| Métricas Prometheus | ❌ Nenhuma | ✅ Embutido | ✅ Rota `/metrics` |
 
 **O SIMUT é para você se:** precisa de um sistema de monitoramento de temperatura autônomo, seguro e auditável, que funcione com ou sem internet — típico de laboratórios, farmácias, bancos de sangue, armazenamento de vacinas e cadeias frias de alimentos.
 
-**ESPHome/Tasmota podem ser melhores se:** você já usa Home Assistant, não precisa de display local e prefere configuração YAML a uma interface web embutida.
+**ESPHome/Tasmota podem ser melhores se:** você não precisa de display local e prefere configuração YAML a uma interface web embutida. (Se o que te prendia lá era o Home Assistant: o SIMUT agora fala MQTT Discovery.)
 
 ## Arquitetura
 

@@ -1135,6 +1135,7 @@ static const char* translateCodeEn(uint16_t code) {
  case TEL_CERT_MISSING: return "No cert.pem, insecure mode";
  case TEL_FORCE_SYNC: return "Forcing telemetry sync";
  case TEL_BACKOFF_SUPPRESSED: return "Retry logs suppressed";
+ case TEL_HA_DISCOVERY: return "HA discovery refreshed";
 
  /* ── Storage extended (560–565) ── */
  case STO_WRITE_FAILED: return "History write failed";

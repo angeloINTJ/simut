@@ -215,6 +215,7 @@ enum LogCode {
  TEL_CERT_MISSING = 545,
  TEL_FORCE_SYNC = 546,
  TEL_BACKOFF_SUPPRESSED = 547,
+ TEL_HA_DISCOVERY = 548,     /* HA discovery configs published/cleared; ctx = count */
 
  /* ── Storage extended (560–569) ── */
  STO_WRITE_FAILED = 560,

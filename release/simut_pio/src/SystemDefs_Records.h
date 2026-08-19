@@ -258,7 +258,13 @@ struct __attribute__((packed)) SystemConfig {
  * [24..25] WebConfigData (2 B — web server port)
  * [26..27] SetupFlagsData (2 B — mustChangePin)
  * [28..47] NetworkTimeData (20 B — DNS auto/manual + NTP toggle + secondary DNS)
- * [48..63] free for future expansion
+ * [48..51] HistoryConfigData (4 B — history recording interval)
+ * [52..53] TFT dashboard slot selection (2 B — top-pinned idx + selected idx;
+ *          raw writes in AppManager_HistoryAlarm.cpp, 0xFF = unpinned. Squatted
+ *          here unregistered since before the HA overlay — which first landed
+ *          on these bytes and had its magic eaten by the 0xFF sentinel)
+ * [54..55] HaDiscoveryData (2 B — Home Assistant MQTT Discovery toggle)
+ * [56..63] free for future expansion
  */
  uint8_t reserved[64];
 };
@@ -340,6 +346,36 @@ constexpr uint16_t HISTORY_INTERVAL_DEFAULT_MIN = 1;
 constexpr uint16_t HISTORY_INTERVAL_MIN_MIN = 1;
 constexpr uint16_t HISTORY_INTERVAL_MAX_MIN = 1440;
 static_assert(sizeof(HistoryConfigData) == 4, "HistoryConfigData must be 4 bytes");
+
+/**
+ * @brief Home Assistant MQTT Discovery overlay in reserved[54..55].
+ *
+ * One flag: publish retained discovery configs on MQTT connect so HA
+ * auto-creates the device and its entities. Legacy configs (magic absent)
+ * default OFF — identical to pre-feature behavior, same convention as the
+ * other overlays.
+ *
+ * At [54], NOT [52]: the map used to call [48..63] free, but the TFT
+ * dashboard has been persisting its slot selection at [52..53] through raw
+ * literals nothing registered (see RESERVED_DASH_* in SystemDefs_Reserved.h).
+ * This overlay first landed on [52] and its magic byte was eaten by the
+ * dashboard's 0xFF "unpinned" sentinel a few seconds after every boot —
+ * measured on the bench as "discovery toggle refuses to stay on".
+ */
+struct __attribute__((packed)) HaDiscoveryData {
+ uint8_t magic; /**< 0xAD = initialized; other = legacy (default OFF). */
+ uint8_t flags; /**< bitmask of FLAG_HA_DISCOVERY / FLAG_HA_PUBLISHED. */
+};
+constexpr size_t HA_DISCOVERY_OFFSET = 54;
+constexpr uint8_t HA_DISCOVERY_MAGIC = 0xAD;
+constexpr uint8_t FLAG_HA_DISCOVERY = 0x01;
+/** Retained configs are known to sit on the broker. Persisted because
+ *  commit_all reboots the device: with the flag freshly OFF, the connect
+ *  after the reboot is the only actor left that can publish the empty
+ *  payloads which remove the entities — and it needs to know there is
+ *  something to remove. */
+constexpr uint8_t FLAG_HA_PUBLISHED = 0x02;
+static_assert(sizeof(HaDiscoveryData) == 2, "HaDiscoveryData must be 2 bytes");
 
 /** Size of reserved[] field in v12 configs — used in migration. */
 #define CONFIG_V12_RESERVED_SIZE 24
