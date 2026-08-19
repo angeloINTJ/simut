@@ -4,6 +4,90 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.12-beta (2026-08-19)
+
+### An icon nobody looked at was holding 11 KB of flash
+
+`data/favicon.ico` is not a filesystem asset — a pre-build hook embeds its
+literal bytes into `src/Favicon.cpp`, so one byte in the icon is one byte of
+firmware. It was **11 047 B**, which was **22 % of all remaining headroom**,
+spent on a 32×32 image.
+
+The weight was never the drawing. The mark is three colours — cyan `#00DCFF`
+on navy `#0A172F` with a `#7ADFFF` ring — but it was stored with **982 unique
+RGBA values** in its 48 px frame. The rasteriser had left ±1 noise, so pixels
+that look identical differ numerically:
+
+    (10,23,48)  (10,23,47)  (10,22,47)  (10,23,49)  (11,25,49)
+
+all of them the same navy, none of them compressible as a pattern. On top of
+that the container carried four frames, the 48 px one alone costing 5 283 B.
+
+So this is a re-encode, not a redesign. Clear alpha below 32 — which also stops
+the quantiser promoting near-transparent pixels into opaque speckles around the
+disc — quantise to 16 colours, keep the two frames a browser tab actually uses,
+and assemble the ICO container by hand, because Pillow's ICO writer re-encodes
+the payloads and undoes the quantisation.
+
+    16×16   306 B  +  32×32   491 B  +  38 B header  =  835 B
+
+    release flash   994 212 → 983 996 B      headroom 50 268 → 60 484 B
+
+Chrome decodes the result and it is indistinguishable from the original at 16
+and 32 px. Dropping the 24 and 48 px frames means requests above 32 px now
+scale up from the 32 px frame.
+
+### A static-analysis gate, and the two real defects it found
+
+`tools/run_cppcheck.sh` runs cppcheck 2.11 — pinned, because the check set
+moves between versions and an unpinned gate fails on a day nobody changed any
+code. It runs in CI as its own job, so its minutes cost no wall clock against
+the build.
+
+Most of what it reported was already correct and is now answered in place with
+a documented suppression: the zigzag sign-smear the history codec is specified
+against, the Bresenham octant mirror, a member initialisation cppcheck parses
+as a call. Two findings were real, both in the dashboard's packet counter:
+
+    snprintf(pktBuf, sizeof(pktBuf), "%u", state.pendingPkts);
+
+`pendingPkts` is `uint32_t`, which on this target is `unsigned long`, not
+`unsigned int` — so `%u` was the wrong conversion for the argument's actual
+type. Both call sites now cast explicitly.
+
+### Every field of CliDemand now has an initialiser
+
+Three of its nine fields had none, and the one read without being written is a
+`bool` whose two values are "encrypt telemetry" and "do not". It is not
+reachable today — the only producer sets it on the same line it sets the type —
+but that is the same shape as the `/api/commit_all` defect closed in
+v2.2.10-beta, where a boolean read the wrong way round turned on a setting the
+user had turned off. No behaviour changes.
+
+### CI runs all five native environments
+
+It ran two. The other three — HistoryV4, the CLI parser, LogPolicy — existed
+and were green locally while nothing enforced them on a pull request. All five
+now run as separate steps, so a failure names itself instead of hiding behind
+whichever environment broke first, and `tools/scan_secrets.sh` runs as the very
+first step: a tracked secret is not a build failure to be discovered at the end.
+
+    252 cases   95 validators · 56 HistoryV4 · 54 HistoryV5 · 29 CLI · 18 LogPolicy
+
+### The project has a logo
+
+`docs/images/logo-mark.svg` (880 B) and `logo-wordmark.svg` (2 146 B) — the
+shipped icon re-drawn as vector, so the identity is one thing instead of an
+icon and an unrelated badge. The letterforms are DejaVu Sans Bold outlines,
+chosen by measured overlap against the original mark rather than by eye: 91.2 %
+IoU, against 85.3 % for the runner-up.
+
+The wordmark uses a fixed `#1a73e8` and no `prefers-color-scheme` switch. That
+switch was written first and removed: inside an `<img>` the media query follows
+the reader's OS theme, not the theme they picked on GitHub, so the two can
+disagree and the text lands white-on-white. One colour that holds on both is
+safer — measured 4.51:1 on `#ffffff` and 4.20:1 on `#0d1117`.
+
 ## v2.2.11-beta (2026-08-18)
 
 ### "Connection lost", with the device on the LAN

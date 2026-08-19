@@ -95,6 +95,9 @@ void DisplayManager::maskStripCorners(GFXcanvas16* canvas,
  cx++; ddF_x += 2; f += ddF_x;
 
 
+ /* col1 and row2 share an expression by construction: this is the
+  * octant mirror of the Bresenham circle, not a copy-paste slip. */
+ /* cppcheck-suppress duplicateAssignExpression */
  int16_t row1 = rr - cx, col1 = rr - cy;
  int16_t row2 = rr - cy, col2 = rr - cx;
 
@@ -648,9 +651,9 @@ void DisplayManager::drawTopBar(const SystemState& state) {
  char pktBuf[10];
  /* >=1000 abbreviates as "Nk" to fit in the top bar. */
  if (state.pendingPkts >= 1000) {
- snprintf(pktBuf, sizeof(pktBuf), "%uk", state.pendingPkts / 1000);
+ snprintf(pktBuf, sizeof(pktBuf), "%uk", (unsigned)(state.pendingPkts / 1000));
  } else {
- snprintf(pktBuf, sizeof(pktBuf), "%u", state.pendingPkts);
+ snprintf(pktBuf, sizeof(pktBuf), "%u", (unsigned)state.pendingPkts);
  }
 
  _driver.canvas->setFont(&simutFont9pt);

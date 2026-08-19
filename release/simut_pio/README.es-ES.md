@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/logo-wordmark.svg" alt="SIMUT" height="76">
+</p>
+
 # SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
 
 > Sistema Integrado de Monitoreo Universal y Telemetría

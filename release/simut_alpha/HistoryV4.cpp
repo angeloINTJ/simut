@@ -22,6 +22,12 @@
 
 size_t writeVarintZ(int32_t v, uint8_t* buf) {
     /* zigzag: maps signed (-1,+1,-2,+2,...) -> unsigned (1,2,3,4,...) */
+    /* The sign-smear `v >> 31` is the canonical zigzag idiom. It is
+     * implementation-defined in the standard and GCC defines it as an
+     * arithmetic shift, which is the behaviour this codec is specified
+     * against (bit-exact parity with tools/history_v5.py). */
+    /* cppcheck-suppress shiftNegativeLHS */
+    /* cppcheck-suppress shiftTooManyBitsSigned */
     uint32_t u = ((uint32_t)v << 1) ^ ((uint32_t)(v >> 31));
     size_t n = 0;
     while (u >= 0x80) {
@@ -109,7 +115,13 @@ void histV4BitInsert(uint8_t *buf, size_t bitOffset, uint8_t bitWidth, int64_t v
         uint8_t bitsInByte = 8 - shift;
         if (bitsInByte > bitWidth) bitsInByte = bitWidth;
 
+        /* bitsInByte is 8 - (bitOffset & 7), so 1..8, and the clamp above
+         * only ever lowers it. cppcheck reads `bitsInByte = bitWidth` without
+         * honouring the `bitsInByte > bitWidth` guard and reports a 32-bit
+         * shift that cannot occur. */
+        /* cppcheck-suppress shiftTooManyBits */
         uint8_t mask = ((1U << bitsInByte) - 1) << shift;
+        /* cppcheck-suppress shiftTooManyBits */
         uint8_t byteVal = (uint8_t)((uval & ((1U << bitsInByte) - 1)) << shift);
         buf[byteIdx] = (buf[byteIdx] & ~mask) | byteVal;
 
