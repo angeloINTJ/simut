@@ -291,6 +291,65 @@ void test_parseFloatStrict_invalid(void) {
     TEST_ASSERT_FALSE(parseFloatStrict(String("-."), out));     /* sinal + ponto, sem dígito */
 }
 
+/* Issue #44 (fuzz dos validadores): overflow deixava parseIntStrict responder
+ * true com out saturado — no ferro toInt() é atol(), e o strtol de 32 bits da
+ * newlib SATURA em ±2^31 em vez de falhar ("2147483648" respondia true com
+ * out=2147483647, um valor que o cliente nunca escreveu). O parser agora
+ * acumula os dígitos com guarda e overflow responde false. No float, ~40
+ * dígitos saturam atof em ±inf, e um inf que responde true envenena qualquer
+ * limiar comparado depois. */
+void test_parseIntStrict_int32_boundaries(void) {
+    int out;
+    TEST_ASSERT_TRUE(parseIntStrict(String("2147483647"), out));   TEST_ASSERT_EQUAL_INT(2147483647, out);
+    TEST_ASSERT_TRUE(parseIntStrict(String("+2147483647"), out));  TEST_ASSERT_EQUAL_INT(2147483647, out);
+    TEST_ASSERT_TRUE(parseIntStrict(String("-2147483648"), out));  TEST_ASSERT_EQUAL_INT(-2147483647 - 1, out);
+    /* zeros à esquerda não contam para o limite — o valor sim */
+    TEST_ASSERT_TRUE(parseIntStrict(String("0000000002147483647"), out)); TEST_ASSERT_EQUAL_INT(2147483647, out);
+}
+
+void test_parseIntStrict_overflow_rejected(void) {
+    int out = 77;
+    TEST_ASSERT_FALSE(parseIntStrict(String("2147483648"), out));           /* INT32_MAX+1 */
+    TEST_ASSERT_FALSE(parseIntStrict(String("-2147483649"), out));          /* INT32_MIN-1 */
+    TEST_ASSERT_FALSE(parseIntStrict(String("99999999999999999999"), out)); /* 20 dígitos */
+    TEST_ASSERT_FALSE(parseIntStrict(String("+99999999999999999999"), out));
+    TEST_ASSERT_EQUAL_INT(77, out); /* contrato: out intocado no false */
+}
+
+void test_parseFloatStrict_overflow_rejected(void) {
+    float out = 1.5f;
+    /* 39 noves ≈ 1e39 > FLT_MAX (3.40e38) → toFloat satura em ±inf */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("999999999999999999999999999999999999999"), out));
+    TEST_ASSERT_FALSE(parseFloatStrict(String("-999999999999999999999999999999999999999"), out));
+    TEST_ASSERT_EQUAL_FLOAT(1.5f, out); /* contrato: out intocado no false */
+}
+
+void test_parseFloatStrict_large_finite_ok(void) {
+    float out;
+    /* 38 noves ≈ 1e38 < FLT_MAX → finito, aceita */
+    TEST_ASSERT_TRUE(parseFloatStrict(String("99999999999999999999999999999999999999"), out));
+    TEST_ASSERT_TRUE(isfinite(out));
+}
+
+/* Contrato do stub (native_stubs/Arduino.h): toInt/toFloat têm de se comportar
+ * como o FERRO — atol satura (long de 32 bits na newlib), atof estoura para
+ * ±inf. O stub antigo usava std::stol/std::stof, que LANÇAM em overflow, e o
+ * catch respondia 0/0.0f: o host divergia do alvo exatamente no caso que um
+ * fuzzer encontraria. Golden vectors da semântica do ArduinoCore-API
+ * (String::toInt = atol; String::toFloat = float(atof)). */
+void test_stub_toInt_saturates_like_target(void) {
+    TEST_ASSERT_EQUAL_INT32(2147483647, (int32_t)String("99999999999999999999").toInt());
+    TEST_ASSERT_EQUAL_INT32(-2147483647 - 1, (int32_t)String("-99999999999999999999").toInt());
+    TEST_ASSERT_EQUAL_INT32(0, (int32_t)String("abc").toInt());
+}
+
+void test_stub_toFloat_overflows_to_inf_like_target(void) {
+    const float v = String("999999999999999999999999999999999999999").toFloat();
+    TEST_ASSERT_TRUE(isinf(v));
+    TEST_ASSERT_TRUE(v > 0.0f);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, String("xyz").toFloat());
+}
+
 
 /* =========================================================================== */
 /*  timeReached / timeSince (millis() stubado)                                */
@@ -1631,6 +1690,12 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_parseIntStrict_invalid);
     RUN_TEST(test_parseFloatStrict_valid);    /* v3.36.3 (M7) */
     RUN_TEST(test_parseFloatStrict_invalid);  /* v3.36.3 (M7) */
+    RUN_TEST(test_parseIntStrict_int32_boundaries);        /* issue #44 */
+    RUN_TEST(test_parseIntStrict_overflow_rejected);       /* issue #44 */
+    RUN_TEST(test_parseFloatStrict_overflow_rejected);     /* issue #44 */
+    RUN_TEST(test_parseFloatStrict_large_finite_ok);       /* issue #44 */
+    RUN_TEST(test_stub_toInt_saturates_like_target);       /* issue #44 */
+    RUN_TEST(test_stub_toFloat_overflows_to_inf_like_target); /* issue #44 */
 
     /* timeReached / timeSince */
     RUN_TEST(test_timeReached_basic);

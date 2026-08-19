@@ -3,8 +3,8 @@
  * @brief Input validation helpers.
  * @details parseIntStrict, parseBoolStrict, isValidCfgString, isValidName,
  * isSafeUploadFilename, isValidIpv4, isInRange. Pure inline helpers, no dependencies
- * outside Arduino String and <string.h>. Sub-header of SystemDefs.h
- * (facade).
+ * outside Arduino String, <string.h>, <stdint.h> and <math.h> (isfinite).
+ * Sub-header of SystemDefs.h (facade).
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  *          SIMUT — Integrated Universal Monitoring and Telemetry System
@@ -15,28 +15,47 @@
 #pragma once
 #include <Arduino.h>
 #include <string.h>
+#include <stdint.h>
+#include <math.h>
 
 /** Parse a String as strict int (optional '+' or '-' + digits only).
- * Returns true if well-formed; false if empty, contains spaces/letters, or sign-only.
+ * Returns true only if well-formed AND the value fits an int32 — `out` is then
+ * exactly the number written. False if empty, contains spaces/letters, is
+ * sign-only, or overflows: it used to answer true for "2147483648" with
+ * out=2147483647, because String::toInt() is atol() and newlib strtol
+ * saturates instead of failing — a value the client never wrote, handed to
+ * callers whose contract said "well-formed". The digits are accumulated here
+ * instead of delegated to toInt(), so the result cannot depend on the
+ * platform's long width.
  * Differentiates legitimate "0" from non-numeric input (which String::toInt() silently maps to 0). */
 inline bool parseIntStrict(const String& s, int& out) {
  if (s.length( ) == 0) return false;
  size_t start = 0;
+ bool neg = false;
  if (s[0] == '-' || s[0] == '+') {
  if (s.length( ) == 1) return false; /* sign only, invalid */
+ neg = (s[0] == '-');
  start = 1;
  }
+ const uint32_t limit = neg ? 2147483648u : 2147483647u; /* |INT32_MIN| / INT32_MAX */
+ uint32_t acc = 0;
  for (size_t i = start; i < s.length( ); i++) {
  if (s[i] < '0' || s[i] > '9') return false;
+ const uint32_t d = (uint32_t)(s[i] - '0');
+ if (acc > (limit - d) / 10u) return false; /* acc*10+d would leave int32 */
+ acc = acc * 10u + d;
  }
- out = s.toInt( );
+ out = neg ? (int)(-(int64_t)acc) : (int)acc;
  return true;
 }
 
 /** Strict float parse. Accepts optional '+'/'-' + digits with at most
  * 1 decimal point (no exponents). Differentiates legitimate "0"/"0.0"
  * from non-numeric input (which String::toFloat() silently maps to 0).
- * Does not accept spaces, decimal commas (locale), nor scientific notation. */
+ * Does not accept spaces, decimal commas (locale), nor scientific notation.
+ * Returns true only for a FINITE result: ~40 digits are enough to saturate
+ * atof (the target's toFloat) to ±inf, and an inf that reports true would
+ * poison any threshold it is compared against. On false, out is untouched. */
 inline bool parseFloatStrict(const String& s, float& out) {
  if (s.length( ) == 0) return false;
  size_t start = 0;
@@ -58,7 +77,9 @@ inline bool parseFloatStrict(const String& s, float& out) {
  }
  }
  if (!seenDigit) return false;
- out = s.toFloat( );
+ const float v = s.toFloat( );
+ if (!isfinite(v)) return false;
+ out = v;
  return true;
 }
 

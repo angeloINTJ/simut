@@ -58,6 +58,21 @@ jobs:
       - name: Run unit tests (LogPolicy)
         run: pio test -e native_logpolicy
 
+  # Same reasoning as static-analysis: its own job costs no wall clock next
+  # to the firmware build, and a finding names itself in the Actions UI.
+  # The harness checks contract oracles, not "didn't crash" — the validators
+  # are pure functions random bytes cannot crash, so a crash-only fuzz run
+  # would stay green while measuring nothing. See tools/run_fuzz.sh and the
+  # header of test/test_fuzz/fuzz_validators.cpp. libFuzzer ships inside the
+  # runner's clang; nothing to install.
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fuzz web-API validators (60 s, contract oracles)
+        run: ./tools/run_fuzz.sh
+
   # Separate job so the analysis runs alongside the firmware build instead of
   # after it: cppcheck takes minutes, and in its own job those minutes cost no
   # wall clock. It also fails on its own, without a red build to read through.

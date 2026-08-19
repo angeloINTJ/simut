@@ -103,3 +103,9 @@ release/simut_pio_v*.zip
 
 # local bench scratch
 scratchpad/
+
+# libFuzzer local findings (tools/run_fuzz.sh)
+crash-*
+leak-*
+slow-unit-*
+oom-*
