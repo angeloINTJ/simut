@@ -62,7 +62,9 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  uint16_t webPort = (w->port > 0) ? w->port : WEB_DEFAULT_PORT;
  beginServer(webPort);
 
- const char * headerkeys[] = {"Cookie", "Accept-Encoding"};
+ /* Authorization: /metrics Basic auth — a Prometheus scraper cannot run
+  * the login flow, so its credentials arrive as a header. */
+ const char * headerkeys[] = {"Cookie", "Accept-Encoding", "Authorization"};
  size_t headerkeyssize = sizeof(headerkeys)/sizeof(char*);
  _server->collectHeaders(headerkeys, headerkeyssize);
 
@@ -91,6 +93,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/api/force_chpass", HTTP_POST, std::bind(&WebManager::handleApiForceChpass, this));
  _server->on("/api/login_chpass", HTTP_POST, std::bind(&WebManager::handleApiLoginChpass, this));
  _server->on("/api/status", HTTP_GET, std::bind(&WebManager::handleApiStatus, this));
+ _server->on("/metrics", HTTP_GET, std::bind(&WebManager::handleMetrics, this));
  _server->on("/api/perms", HTTP_GET, std::bind(&WebManager::handleApiPerms, this));
  _server->on("/api/network", HTTP_GET, std::bind(&WebManager::handleApiNetwork, this));
  _server->on("/api/config", HTTP_GET, std::bind(&WebManager::handleApiConfig, this));
