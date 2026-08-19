@@ -36,7 +36,7 @@ SIMUT es un firmware IoT de nivel profesional para la **Raspberry Pi Pico W** qu
 | Cadena de frío (−55 °C y sondas bajo cero) | ⚠️ Lecturas básicas | ✅ Monitoreo básico | ✅ Multisensor calibrado |
 | Operación offline | ✅ Sí | ❌ A menudo depende de la nube | ✅ Web local completa + pantalla |
 | Actualización OTA | ❌ Reflasheo manual | ✅ OTA | ✅ OTA + backup/restore |
-| Seguridad | ❌ Ninguna | ⚠️ Básica | ✅ HMAC-SHA256, RBAC, rate limiting |
+| Seguridad | ❌ Ninguna | ⚠️ Básica | ✅ HMAC-SHA256, RBAC, rate limiting, HTTPS opcional |
 | Home Assistant | ⚠️ Integración manual | ✅ Nativa | ✅ MQTT Discovery (opcional) |
 | Métricas Prometheus | ❌ Ninguna | ✅ Integrado | ✅ Ruta `/metrics` |
 | Registro de auditoría remoto | ❌ Ninguno | ⚠️ Complemento | ✅ Syslog (RFC 5424 / UDP) |
