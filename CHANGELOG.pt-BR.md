@@ -4,6 +4,83 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.15-beta (2026-08-19)
+
+### A interface web aprende a ser operada sem mouse
+
+Primeira fatia de acessibilidade da interface web embarcada (o gap declarado
+da issue #60). O ponto de partida, contado na fonte: seis atributos `aria-*`
+na interface inteira, zero `tabindex`, uma chamada a `.focus()`, nenhum
+tratamento de reduced-motion. A fatia cobre a infraestrutura compartilhada,
+então toda página autenticada herda:
+
+- O diálogo de credenciais virou um diálogo de verdade: `role="dialog"`/
+  `aria-modal`, o foco entra, o Tab fica preso no único botão e o foco volta
+  para quem abriu ao fechar. Escape deliberadamente **não** fecha — a senha
+  aparece exatamente uma vez, e um Esc por reflexo antes de copiar custaria a
+  credencial.
+- O select customizado era só-mouse. As setas agora mudam o valor como um
+  select nativo fechado, Enter/Espaço abre e fecha o menu, Escape fecha e
+  mantém o foco; o botão carrega `aria-haspopup`/`aria-expanded` e o menu
+  papéis `listbox`/`option` com `aria-selected`.
+- A gaveta rastreia `aria-expanded`, move o foco para o primeiro link ao
+  abrir, devolve ao hambúrguer quando fechada pelo teclado, e fecha no
+  Escape. O toast virou live region educada. Nove botões só-ícone
+  (calendário, navegação do gráfico, testes de som) ganham nome acessível.
+- Login e troca forçada de senha, que não carregam o stylesheet
+  compartilhado, ganham `:focus-visible` e bloco de `prefers-reduced-motion`
+  próprios; o stylesheet compartilhado ganha o bloco de reduced-motion que
+  faltava.
+
+Zero strings traduzíveis novas — nomes acessíveis reutilizam texto visível
+(`aria-labelledby`) ou a convenção inglesa de `aria-label` já existente,
+porque o pack es-ES tinha 723 B de teto quando isto foi escrito (ver abaixo).
+O comportamento foi verificado com teclado real via CDP contra a bancada
+local, branch contra `main`: 30/30. Uma alegação morreu por medição no
+caminho: o `:focus-visible` compartilhado já alcançava o select customizado —
+o `outline:none` injetado perde o empate de cascata porque o `<style>`
+injetado entra antes do `<link>` do stylesheet. Verificado por computed
+style, e a regra redundante foi descartada em vez de publicada.
+
+Custo: **+847 B** de interface gzipada. Também corrigido: o único warning
+`-Wcomment` (um glob `/config/*` dentro de comentário de bloco, presente
+desde o commit do HTTPS) — o único que todo build incremental de rotina mostrava.
+
+### O teto do pack de idioma para de taxar RAM que as strings web nunca usam
+
+O teto de 32.768 B do pack era um número só guardando duas coisas diferentes.
+Cerca de 60% de um pack (`@WEBDICT`, 18,8 KB no es-ES) é JSON servido ao
+navegador pelo `GET /api/lang` direto do flash — mas o loader malocava o
+arquivo inteiro, parseava, e então excisava o blob para um segundo buffer,
+com pico perto de 45 KB de heap para ficar com 13 KB. Enquanto isso o es-ES
+estava em 32.045 B — **a 723 B do teto** — e toda string web nova era cobrada
+contra RAM que ela nunca usou.
+
+O `loadLangFile()` agora localiza o marcador `@WEBDICT` fazendo streaming do
+arquivo por um chunk de 256 B no stack e lê para a RAM **só o prefixo
+residente**. O range de bytes do blob é registrado para o handler web com uma
+fórmula byte a byte igual à que a excisão antiga servia; o passo de
+excisão-e-rebase foi deletado. Um contrato aparece: o `@WEBDICT` tem que ser
+o **sufixo** do arquivo (os dois packs distribuídos já são) — o dispositivo
+recusa violações e o `tools/check_lang_packs.py` se recusa a publicá-las,
+agora lendo os dois tetos da fonte do parser para o gate não derivar. O
+`tools/test_lang_gate.py` provoca cada modo de falha novo em packs
+sintéticos: 8/8.
+
+Dois tetos substituem o um: `LANG_RESIDENT_MAX` = 16.384 B para o malloc que
+vive o uptime inteiro, `LANG_FILE_MAX` = 49.152 B para o arquivo no flash. O
+es-ES sai de 97% de um teto para **residente 80% + arquivo 65%**: cerca de
+17 KB ficam disponíveis para traduções web. O pico de heap no carregamento
+cai de ~45 KB transitórios para 13,3 KB. Custo de flash: −8 B.
+
+Validado no hardware por OTA: com o pack inalterado, o `/api/lang` é
+byte-idêntico antes e depois da troca; um es-ES inflado a 36.545 B — que o
+loader antigo recusa inteiro, revertendo a interface para inglês em silêncio
+— carrega com o es-ES ativo e serve seu corpo de 23.285 B byte a byte.
+
+**Ordem de deploy**: um pack acima de 32.768 B exige este firmware antes. Os
+packs distribuídos estão inalterados e funcionam nos dois firmwares.
+
 ## v2.2.14-beta (2026-08-19)
 
 ### Syslog remoto — a trilha de auditoria sai da caixa

@@ -4,6 +4,81 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.15-beta (2026-08-19)
+
+### The web UI learns to be operated without a mouse
+
+First accessibility slice for the embedded web UI (issue #60's declared gap).
+The starting point, counted on the source: six `aria-*` attributes across the
+whole UI, zero `tabindex`, one `.focus()` call, no reduced-motion handling.
+The slice covers the shared UI chrome, so every authenticated page inherits
+it:
+
+- The credentials dialog is a real dialog: `role="dialog"`/`aria-modal`,
+  focus moves in, Tab is held on the single button, and focus returns to the
+  opener on close. Escape deliberately does **not** close it — the password
+  is shown exactly once, and a reflex Esc before copying would cost the
+  credential.
+- The custom select was mouse-only. Arrow keys now change the value like a
+  native closed select, Enter/Space toggles the menu, Escape closes and
+  keeps focus; the button carries `aria-haspopup`/`aria-expanded` and the
+  menu proper `listbox`/`option` roles with `aria-selected`.
+- The drawer tracks `aria-expanded`, moves focus to the first link on open,
+  returns it to the hamburger when closed from the keyboard, and closes on
+  Escape. The toast is a polite live region. Nine icon-only buttons
+  (calendar, graph navigation, sound tests) get accessible names.
+- The login and force-password pages, which do not load the shared
+  stylesheet, get their own `:focus-visible` outline and
+  `prefers-reduced-motion` block; the shared stylesheet gains the
+  reduced-motion block it lacked.
+
+Zero new translatable strings — accessible names reuse visible text
+(`aria-labelledby`) or the existing English `aria-label` convention, because
+the es-ES pack had 723 B of ceiling left when this was written (see below).
+Behaviour was verified with real keyboard input over CDP against the local
+bench, branch vs `main`: 30/30 checks. One claim died by measurement on the
+way: the shared `:focus-visible` outline already reached the custom select —
+the injected `outline:none` loses the cascade tie because the injected
+`<style>` lands before the stylesheet `<link>`. Verified by computed style,
+and the redundant rule was dropped instead of shipped.
+
+Cost: **+847 B** of gzipped UI. Also fixed: the one `-Wcomment` warning
+(a `/config/*` glob inside a block comment, shipped since the HTTPS commit)
+— the only warning a routine incremental build showed.
+
+### The language pack ceiling stops taxing RAM that web strings never use
+
+The 32,768 B pack ceiling was one number guarding two different things. About
+60% of a pack (`@WEBDICT`, 18.8 KB in es-ES) is JSON served to the browser by
+`GET /api/lang` straight from flash — yet the loader malloc'd the whole file,
+parsed it, then excised the blob into a second buffer, peaking near 45 KB of
+heap to keep 13 KB. Meanwhile es-ES sat at 32,045 B — **723 B from the
+ceiling** — and every new web string was priced against RAM it never used.
+
+`loadLangFile()` now locates the `@WEBDICT` marker by streaming the file
+through a 256 B stack chunk and reads **only the resident prefix** into RAM.
+The blob's byte range is recorded for the web handler with a formula that is
+byte-for-byte what the old excision served; the excise-and-rebase pass is
+deleted. One contract appears: `@WEBDICT` must be the file's **suffix** (both
+shipped packs already are) — the device rejects violations and
+`tools/check_lang_packs.py` refuses to ship them, now reading both ceilings
+from the parser source so the gate cannot drift. `tools/test_lang_gate.py`
+provokes every new failure mode on synthetic packs: 8/8.
+
+Two ceilings replace the one: `LANG_RESIDENT_MAX` = 16,384 B for the malloc
+that lives the whole uptime, `LANG_FILE_MAX` = 49,152 B for the file on
+flash. es-ES moves from 97% of one ceiling to **resident 80% + file 65%**:
+about 17 KB is now available for web translations. Peak load heap drops from
+~45 KB transient to 13.3 KB. Flash cost: −8 B.
+
+Validated on hardware over OTA: with the unchanged pack, `/api/lang` is
+byte-identical before and after the swap; a 36,545 B inflated es-ES — which
+the old loader rejects whole, silently reverting the UI to English — loads
+with es-ES active and serves its 23,285 B body byte-for-byte.
+
+**Deploy order**: a pack over 32,768 B needs this firmware first. The shipped
+packs are unchanged and work on both firmwares.
+
 ## v2.2.14-beta (2026-08-19)
 
 ### Remote syslog — the audit trail leaves the box
