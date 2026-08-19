@@ -16,6 +16,7 @@
 #include "NetworkManager.h"
 #include "SensorManager.h"
 #include "SoundManager.h"
+#include "SyslogManager.h"
 #include "StorageManager.h"
 #include "SystemDefs.h"
 #include "ota/metadata.h"
@@ -456,6 +457,10 @@ void AppManager::setup( ) {
   * outright: it knows the reboot is coming and has time to write. */
  LogManager::instance( ).setPreRebootHook([]( ) {
  app._storageMgr->flushWipV5( );
+ /* Push any pending WARN/FATAL out the door before the reset. A deliberate
+  * reboot has time for this; a hard dual-core hang does not, and nothing
+  * could have saved it. */
+ app._syslogMgr->flushBlocking( );
  });
 
  /* Single touch-priority provider shared by Log, Storage, and Web.
@@ -759,6 +764,14 @@ void AppManager::setup( ) {
  _telemetryMgr->begin(_storageMgr.get( ), _netMgr.get( ));
 
  LogManager::instance( ).setEpochSource([]( ) -> time_t { return time(nullptr); });
+
+ /* Syslog forwarder: read the overlay and install the log sink. The sink
+  * runs under the log mutex on either core and only enqueues; app.loop
+  * drains and sends on Core 0. Config changes reboot the device, so this
+  * one read at boot is the whole runtime configuration. */
+ _syslogMgr->configure(*_storageMgr);
+ LogManager::instance( ).setSyslogSink(
+ [](const SyslogEvent& ev) { app._syslogMgr->enqueue(ev); });
 
  BLOG("[BOOT step] 12: pre _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
