@@ -264,7 +264,7 @@ struct __attribute__((packed)) SystemConfig {
  *          here unregistered since before the HA overlay — which first landed
  *          on these bytes and had its magic eaten by the 0xFF sentinel)
  * [54..55] HaDiscoveryData (2 B — Home Assistant MQTT Discovery toggle)
- * [56..63] free for future expansion
+ * [56..63] SyslogConfigData (8 B — syslog RFC 5424/UDP; reserved[] now FULL)
  */
  uint8_t reserved[64];
 };
@@ -376,6 +376,42 @@ constexpr uint8_t FLAG_HA_DISCOVERY = 0x01;
  *  something to remove. */
 constexpr uint8_t FLAG_HA_PUBLISHED = 0x02;
 static_assert(sizeof(HaDiscoveryData) == 2, "HaDiscoveryData must be 2 bytes");
+
+/**
+ * @brief Syslog (RFC 5424 / UDP) overlay in reserved[56..63] — the LAST 8 free
+ * bytes of reserved[].
+ *
+ * Ships an append-only copy of the WARN+/config/security events off the box to
+ * a SIEM, the audit trail the comparison table already promises for regulated
+ * cold-chain use. UDP fire-and-forget by design — no handshake, no cursor, no
+ * reconnection machine (see SyslogManager); a third TelemetryTransport would
+ * have inherited all of that.
+ *
+ * The server is stored as a raw IPv4 (serverIp, 0 = disabled/unset), NOT a
+ * hostname: an 8-byte overlay has no room for a 64-char string, a LAN collector
+ * is addressed by IP in practice, and it spares the async-DNS failure mode.
+ * The dotted quad is validated with isValidIpv4 on the way in and rendered back
+ * via IPAddress on the way out. Legacy configs (magic absent) default OFF.
+ *
+ * This overlay FILLS reserved[]: RESERVED_FREE_OFFSET becomes 64. Any further
+ * config field needs a CONFIG_VERSION bump + migration.
+ */
+struct __attribute__((packed)) SyslogConfigData {
+ uint8_t magic;     /**< 0x57 = initialized; other = legacy (default OFF). */
+ uint8_t flags;     /**< bit0 = enabled; bits1..3 = min LogLevel (0..4). */
+ uint16_t port;     /**< UDP port; 0 → default 514. */
+ uint32_t serverIp; /**< IPv4 as IPAddress uint32; 0 = unset/disabled. */
+};
+constexpr size_t SYSLOG_CONFIG_OFFSET = 56;
+constexpr uint8_t SYSLOG_CONFIG_MAGIC = 0x57;
+constexpr uint8_t FLAG_SYSLOG_ENABLED = 0x01;
+constexpr uint16_t SYSLOG_DEFAULT_PORT = 514;
+/** Extract/insert the minimum LogLevel packed in flags bits 1..3 (0..4). */
+inline uint8_t syslogMinLevel(uint8_t flags) { return (uint8_t)((flags >> 1) & 0x07); }
+inline uint8_t syslogPackFlags(bool enabled, uint8_t minLevel) {
+ return (uint8_t)((enabled ? FLAG_SYSLOG_ENABLED : 0) | ((minLevel & 0x07) << 1));
+}
+static_assert(sizeof(SyslogConfigData) == 8, "SyslogConfigData must be 8 bytes");
 
 /** Size of reserved[] field in v12 configs — used in migration. */
 #define CONFIG_V12_RESERVED_SIZE 24

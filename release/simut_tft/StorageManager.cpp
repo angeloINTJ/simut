@@ -1001,6 +1001,54 @@ void StorageManager::markHaDiscoveryPublished(bool published) {
  saveConfiguration( );
 }
 
+/* ── Syslog overlay (reserved[56..63]) ───────────────────────────────────── */
+
+bool StorageManager::isSyslogEnabled( ) const {
+ const SyslogConfigData* sl = reinterpret_cast<const SyslogConfigData*>(
+ _currentConfig.reserved + SYSLOG_CONFIG_OFFSET);
+ if (sl->magic != SYSLOG_CONFIG_MAGIC) return false; /* legacy = OFF */
+ /* A forwarder with no destination is off, whatever the flag says. */
+ return (sl->flags & FLAG_SYSLOG_ENABLED) != 0 && sl->serverIp != 0;
+}
+
+bool StorageManager::getSyslogEnabledFlag( ) const {
+ const SyslogConfigData* sl = reinterpret_cast<const SyslogConfigData*>(
+ _currentConfig.reserved + SYSLOG_CONFIG_OFFSET);
+ if (sl->magic != SYSLOG_CONFIG_MAGIC) return false;
+ return (sl->flags & FLAG_SYSLOG_ENABLED) != 0;
+}
+
+uint32_t StorageManager::getSyslogServerIp( ) const {
+ const SyslogConfigData* sl = reinterpret_cast<const SyslogConfigData*>(
+ _currentConfig.reserved + SYSLOG_CONFIG_OFFSET);
+ if (sl->magic != SYSLOG_CONFIG_MAGIC) return 0;
+ return sl->serverIp;
+}
+
+uint16_t StorageManager::getSyslogPort( ) const {
+ const SyslogConfigData* sl = reinterpret_cast<const SyslogConfigData*>(
+ _currentConfig.reserved + SYSLOG_CONFIG_OFFSET);
+ if (sl->magic != SYSLOG_CONFIG_MAGIC || sl->port == 0) return SYSLOG_DEFAULT_PORT;
+ return sl->port;
+}
+
+uint8_t StorageManager::getSyslogMinLevel( ) const {
+ const SyslogConfigData* sl = reinterpret_cast<const SyslogConfigData*>(
+ _currentConfig.reserved + SYSLOG_CONFIG_OFFSET);
+ if (sl->magic != SYSLOG_CONFIG_MAGIC) return 1; /* LOG_INFO */
+ return syslogMinLevel(sl->flags);
+}
+
+void StorageManager::setSyslogConfig(bool enabled, uint32_t serverIp,
+                                     uint16_t port, uint8_t minLevel) {
+ SyslogConfigData* sl = reinterpret_cast<SyslogConfigData*>(
+ _currentConfig.reserved + SYSLOG_CONFIG_OFFSET);
+ sl->magic = SYSLOG_CONFIG_MAGIC;
+ sl->flags = syslogPackFlags(enabled, minLevel);
+ sl->port = port;
+ sl->serverIp = serverIp;
+}
+
 SensorRecord* StorageManager::getSensorByGpio(uint8_t gpio) {
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (_currentConfig.sensors[i].active && _currentConfig.sensors[i].pins[0] == gpio) {

@@ -4,6 +4,75 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.14-beta (2026-08-19)
+
+### Syslog remoto — a trilha de auditoria sai da caixa
+
+O log de eventos no aparelho vive num anel rotativo de no máximo ~1600
+registros; um ambiente regulado precisa de uma cópia que saia do dispositivo,
+append-only, e é isso que esta versão adiciona. Quando habilitado
+(Configurações do Sistema → *Syslog Remoto*), cada evento de log qualificado é
+encaminhado como uma mensagem [RFC 5424](https://www.rfc-editor.org/rfc/rfc5424)
+sobre UDP para um coletor ou SIEM.
+
+Deliberadamente **não** é um terceiro transporte de telemetria. UDP é
+fire-and-forget: sem handshake, sem cliente TLS, sem cursor em flash, sem
+máquina de reconexão — nada da maquinaria que o laço de envio da telemetria
+carrega. O threading é o desenho inteiro: `logCode()`/`log()` rodam em qualquer
+core, mas toda a rede neste chip é do Core 0, então o sink do log formata e
+enfileira sob o mutex do log (onde a tag e a descrição do código ainda são
+válidas para ler) e o laço principal drena e envia no Core 0. A ordem de lock é
+sempre mutex-do-log → anel, nunca invertida. Um `WARN`/`FATAL` levantado
+pouco antes de um reboot é despejado na saída; um travamento duro dos dois
+cores não salva nada, o que nada salvaria.
+
+Duas armadilhas em torno das quais o formato foi construído, ambas fixadas por
+golden vectors nativos: o relógio nunca lê 0 mas cai para o build epoch e
+viaja no tempo, então abaixo do limiar de sincronização o timestamp é o
+NILVALUE `-` do RFC 5424 em vez de uma linha carimbada no passado; e o
+cabeçalho delimitado por espaços cisalharia num nome de dispositivo com espaço,
+então todo campo estruturado é saneado para ASCII imprimível. O contexto, o
+core e o uptime viajam num elemento de structured-data; o código numérico do
+log é o MSGID (estável e independente de idioma).
+
+A config é um overlay de 8 bytes nos últimos bytes livres de `reserved[]` —
+que agora está cheio. O coletor é um IPv4 cru, não um hostname: não há espaço
+para um nome de 64 caracteres em 8 bytes, um coletor de LAN é endereçado por IP
+na prática, e evita um caminho de falha de resolução DNS no laço quente de log.
+O endereço reusa o mesmo validador de entrada endurecido abaixo.
+
+Custo: ~2 900 B de flash para a feature inteira (motor, config, UI web e seis
+chaves i18n novas). O pacote de idioma es-ES sobe para 97 % do seu teto de 32 KB.
+
+### Parsers estritos de inteiro/float agora rejeitam overflow
+
+O `parseIntStrict` conferia "só dígitos" mas não "cabe num int": respondia true
+para `"2147483648"` com o valor silenciosamente saturado em `2147483647`,
+porque `String::toInt()` é `atol()` e o `strtol` da newlib satura em vez de
+falhar — um valor que o cliente nunca escreveu, entregue a chamadores cujo
+contrato dizia "bem-formado". O parser agora acumula os dígitos ele mesmo com
+uma guarda de overflow, então o resultado é exatamente o número escrito e não
+depende da largura do `long` da plataforma. O `parseFloatStrict` tinha a versão
+float do mesmo buraco: ~40 dígitos saturam o `atof` em ±inf, o que envenenaria
+qualquer limiar comparado a ele — um resultado não-finito agora retorna false.
+Achado e fechado ao adicionar cobertura de fuzz para os validadores de entrada
+da API web.
+
+Custo: 112 B de flash.
+
+### Uma rota morta removida e uma matriz fixada para não apodrecer
+
+O `/favicon.ico` estava registrado duas vezes; o servidor web casa o primeiro
+handler de um caminho, então o segundo registro (um stub 204 depois do handler
+do ícone real) nunca chegava a um cliente — removido. Ao lado dele, a matriz de
+autorização — a permissão exigida por cada rota HTTP — agora é imposta no CI:
+um portão de build lê a tabela de rotas e falha se uma rota não checa permissão
+nem está numa allowlist pública documentada, então uma rota nova não pode ir ao
+ar sem gate como o caminho de restore já foi. A matriz está escrita por inteiro
+em `docs/AUTHORIZATION.md`, incluindo a fronteira de privilégio de dois níveis
+que mantém backup completo, OTA e stage de restore alcançáveis só pelo admin
+embutido, nunca por uma conta criada pela web.
+
 ## v2.2.13-beta (2026-08-19)
 
 ### O aparelho agora se apresenta ao Home Assistant

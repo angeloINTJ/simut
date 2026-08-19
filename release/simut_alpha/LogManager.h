@@ -31,6 +31,30 @@ typedef void (*FlashLockCallback)(bool);
 /** Console log output sink (USB+BT) — one line per call, no '\n'. */
 typedef std::function<void(const char*)> ConsoleSink;
 
+/**
+ * @brief One log record, in the raw fields a syslog forwarder needs.
+ *
+ * Handed to the SyslogSink from inside logCode()/log() while _logMutex is
+ * held, which is exactly why `tag` and `desc` (a pointer into the shared
+ * translateCode buffer) are valid to read: another core cannot be mid-log and
+ * cannot have reused that buffer yet. The sink must copy what it keeps and
+ * must NOT log (it runs under _logMutex — logging would deadlock).
+ */
+struct SyslogEvent {
+ uint8_t level;      /**< LogLevel 0..4 */
+ const char* tag;    /**< APP-NAME, e.g. "NET" */
+ uint16_t code;      /**< MSGID (numeric log code) */
+ int16_t context;    /**< ctx (already clamped to int16) */
+ uint8_t core;       /**< originating core 0/1 */
+ uint32_t uptimeSec; /**< seconds since boot */
+ long epoch;         /**< getEpochNow() at the record; <sync → NILVALUE ts */
+ const char* desc;   /**< translated code description (MSG) */
+ const char* extra;  /**< extra message text, "" if none */
+};
+
+/** Syslog forwarding sink — enqueues one RFC 5424 line. See SyslogEvent. */
+typedef std::function<void(const SyslogEvent&)> SyslogSink;
+
 enum LogLevel {
  LOG_DEBUG = 0,
  LOG_INFO = 1,
@@ -62,6 +86,10 @@ public:
   * snapshot from the pre-erase RAM block would resurrect it on next boot. */
  void suppressPreRebootHook( );
  void setConsoleSink(ConsoleSink sink);
+ /** Install the syslog forwarding sink. Called with each qualifying record
+  * (level >= LOG_INFO or WARN+) from inside the log mutex; see SyslogEvent
+  * for the contract. nullptr (default) = no forwarding. */
+ void setSyslogSink(SyslogSink sink);
  void setConsoleStream(bool enabled); /**< false = CONFIG mode (silent console) */
 
  /** Force RAM buffering for all log writes (writeCompactToFlash).
@@ -245,6 +273,7 @@ private:
 
  FlashLockCallback _lockCb = nullptr;
  ConsoleSink _consoleSink = nullptr;
+ SyslogSink _syslogSink = nullptr;
  bool _consoleStreamEnabled = true; /**< true during boot; AppManager applies user preference after load */
  uint8_t _language = LANG_EN; /**< language for log labels (translateCode) */
  void emitLine(const char* line);

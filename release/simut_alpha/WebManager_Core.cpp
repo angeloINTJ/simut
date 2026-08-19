@@ -158,7 +158,12 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->onNotFound(std::bind(&WebManager::handleNotFound, this));
 
 
- _server->on("/favicon.ico", HTTP_GET, [this]( ) { _server->send(204, "image/x-icon", ""); });
+ /* /favicon.ico is already served by handleFavicon above (the real 835 B
+  * icon). The WebServer matches the FIRST registered handler for a path
+  * (append-to-tail list, walked from the head), so a second /favicon.ico
+  * here would be dead — it was, returning 204 that never reached a client.
+  * Removed. /apple-touch-icon.png has no other handler, so the 204 stub
+  * that stops iOS from 404-spamming for it stays. */
  _server->on("/apple-touch-icon.png", HTTP_GET, [this]( ) { _server->send(204, "image/png", ""); });
 
  /* Concrete begin( ) — not on the HTTPServer base (it binds the socket). */

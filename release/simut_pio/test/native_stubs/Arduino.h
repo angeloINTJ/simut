@@ -37,14 +37,23 @@ public:
     String& operator+=(char c) { data_ += c; return *this; }
     String& operator+=(const char* s) { if (s) data_ += s; return *this; }
 
+    /* toInt/toFloat mirror the TARGET, not the host libc. On the ferro
+     * (ArduinoCore-API) toInt() is atol() — newlib strtol with a 32-bit
+     * long, which SATURATES at ±2^31-1/-2^31 on overflow — and toFloat() is
+     * float(atof()), which overflows to ±inf. The old std::stol/std::stof
+     * threw on overflow and the catch turned that into 0/0.0f, so the host
+     * diverged from the hardware on exactly the inputs a fuzzer finds. */
     long toInt() const {
-        if (data_.empty()) return 0;
-        try { return std::stol(data_); } catch (...) { return 0; }
+        char* end = nullptr;
+        const long long v = strtoll(data_.c_str(), &end, 10);
+        if (end == data_.c_str()) return 0;          /* no digits → atol gives 0 */
+        if (v > 2147483647LL) return 2147483647L;    /* 32-bit strtol saturation */
+        if (v < -2147483648LL) return (long)-2147483648LL;
+        return (long)v;
     }
 
     float toFloat() const {
-        if (data_.empty()) return 0.0f;
-        try { return std::stof(data_); } catch (...) { return 0.0f; }
+        return (float)strtod(data_.c_str(), nullptr); /* huge input → ±inf, like atof */
     }
 
     void trim() {

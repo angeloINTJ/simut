@@ -16,6 +16,7 @@
 #include "SensorManager.h"
 #include "SoundManager.h"
 #include "StorageManager.h"
+#include "SyslogManager.h"
 #include "SystemDefs.h"
 #include "TelemetryManager.h"
 #include "WebManager.h"
@@ -35,6 +36,7 @@ AppManager::AppManager( )
  , _webMgr(std::make_unique<WebManager>( ))
  , _telemetryMgr(std::make_unique<TelemetryManager>( ))
  , _soundMgr(std::make_unique<SoundManager>( ))
+ , _syslogMgr(std::make_unique<SyslogManager>( ))
 {
  for(int i = 0; i < MINMAX_SLOT_COUNT; i++) {
  _cachedMin[i] = 1000.0f;

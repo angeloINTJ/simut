@@ -35,6 +35,7 @@
 #include "HaDiscovery.h"                /* Home Assistant MQTT Discovery formatters */
 #include "B64Decode.h"                  /* Basic-auth base64 decoder (strict) */
 #include "PromMetrics.h"                /* Prometheus text exposition formatters */
+#include "Syslog5424.h"                 /* RFC 5424 syslog line formatter */
 
 /* ----- Define obrigatório de simut_native::fake_millis_value ----- */
 namespace simut_native {
@@ -289,6 +290,65 @@ void test_parseFloatStrict_invalid(void) {
     TEST_ASSERT_FALSE(parseFloatStrict(String("+"), out));      /* só sinal */
     TEST_ASSERT_FALSE(parseFloatStrict(String("."), out));      /* só ponto, sem dígito */
     TEST_ASSERT_FALSE(parseFloatStrict(String("-."), out));     /* sinal + ponto, sem dígito */
+}
+
+/* Issue #44 (fuzz dos validadores): overflow deixava parseIntStrict responder
+ * true com out saturado — no ferro toInt() é atol(), e o strtol de 32 bits da
+ * newlib SATURA em ±2^31 em vez de falhar ("2147483648" respondia true com
+ * out=2147483647, um valor que o cliente nunca escreveu). O parser agora
+ * acumula os dígitos com guarda e overflow responde false. No float, ~40
+ * dígitos saturam atof em ±inf, e um inf que responde true envenena qualquer
+ * limiar comparado depois. */
+void test_parseIntStrict_int32_boundaries(void) {
+    int out;
+    TEST_ASSERT_TRUE(parseIntStrict(String("2147483647"), out));   TEST_ASSERT_EQUAL_INT(2147483647, out);
+    TEST_ASSERT_TRUE(parseIntStrict(String("+2147483647"), out));  TEST_ASSERT_EQUAL_INT(2147483647, out);
+    TEST_ASSERT_TRUE(parseIntStrict(String("-2147483648"), out));  TEST_ASSERT_EQUAL_INT(-2147483647 - 1, out);
+    /* zeros à esquerda não contam para o limite — o valor sim */
+    TEST_ASSERT_TRUE(parseIntStrict(String("0000000002147483647"), out)); TEST_ASSERT_EQUAL_INT(2147483647, out);
+}
+
+void test_parseIntStrict_overflow_rejected(void) {
+    int out = 77;
+    TEST_ASSERT_FALSE(parseIntStrict(String("2147483648"), out));           /* INT32_MAX+1 */
+    TEST_ASSERT_FALSE(parseIntStrict(String("-2147483649"), out));          /* INT32_MIN-1 */
+    TEST_ASSERT_FALSE(parseIntStrict(String("99999999999999999999"), out)); /* 20 dígitos */
+    TEST_ASSERT_FALSE(parseIntStrict(String("+99999999999999999999"), out));
+    TEST_ASSERT_EQUAL_INT(77, out); /* contrato: out intocado no false */
+}
+
+void test_parseFloatStrict_overflow_rejected(void) {
+    float out = 1.5f;
+    /* 39 noves ≈ 1e39 > FLT_MAX (3.40e38) → toFloat satura em ±inf */
+    TEST_ASSERT_FALSE(parseFloatStrict(String("999999999999999999999999999999999999999"), out));
+    TEST_ASSERT_FALSE(parseFloatStrict(String("-999999999999999999999999999999999999999"), out));
+    TEST_ASSERT_EQUAL_FLOAT(1.5f, out); /* contrato: out intocado no false */
+}
+
+void test_parseFloatStrict_large_finite_ok(void) {
+    float out;
+    /* 38 noves ≈ 1e38 < FLT_MAX → finito, aceita */
+    TEST_ASSERT_TRUE(parseFloatStrict(String("99999999999999999999999999999999999999"), out));
+    TEST_ASSERT_TRUE(isfinite(out));
+}
+
+/* Contrato do stub (native_stubs/Arduino.h): toInt/toFloat têm de se comportar
+ * como o FERRO — atol satura (long de 32 bits na newlib), atof estoura para
+ * ±inf. O stub antigo usava std::stol/std::stof, que LANÇAM em overflow, e o
+ * catch respondia 0/0.0f: o host divergia do alvo exatamente no caso que um
+ * fuzzer encontraria. Golden vectors da semântica do ArduinoCore-API
+ * (String::toInt = atol; String::toFloat = float(atof)). */
+void test_stub_toInt_saturates_like_target(void) {
+    TEST_ASSERT_EQUAL_INT32(2147483647, (int32_t)String("99999999999999999999").toInt());
+    TEST_ASSERT_EQUAL_INT32(-2147483647 - 1, (int32_t)String("-99999999999999999999").toInt());
+    TEST_ASSERT_EQUAL_INT32(0, (int32_t)String("abc").toInt());
+}
+
+void test_stub_toFloat_overflows_to_inf_like_target(void) {
+    const float v = String("999999999999999999999999999999999999999").toFloat();
+    TEST_ASSERT_TRUE(isinf(v));
+    TEST_ASSERT_TRUE(v > 0.0f);
+    TEST_ASSERT_EQUAL_FLOAT(0.0f, String("xyz").toFloat());
 }
 
 
@@ -1605,6 +1665,92 @@ void test_prom_lines_golden(void) {
     TEST_ASSERT_EQUAL_STRING("simut_wifi_rssi_dbm -49\n", out);
 }
 
+/* =========================================================================== */
+/*  Syslog5424 — RFC 5424 line formatter (Syslog5424.h)                        */
+/* =========================================================================== */
+
+/* Fixed epoch for golden vectors: 2026-08-19T17:04:00Z. Native tests cannot
+ * call time(); the formatter takes epoch as a parameter precisely so the wire
+ * bytes are deterministic. */
+static const time_t SYSLOG_TEST_EPOCH = 1787159040; /* 2026-08-19T17:04:00Z */
+
+void test_syslog_priority(void) {
+    /* PRI = facility(16)*8 + severity. DEBUG..FATAL → 7/6/4/3/2. */
+    TEST_ASSERT_EQUAL_INT(128 + 7, Syslog5424::priority(0)); /* DEBUG */
+    TEST_ASSERT_EQUAL_INT(128 + 6, Syslog5424::priority(1)); /* INFO  */
+    TEST_ASSERT_EQUAL_INT(128 + 4, Syslog5424::priority(2)); /* WARN  */
+    TEST_ASSERT_EQUAL_INT(128 + 3, Syslog5424::priority(3)); /* ERROR */
+    TEST_ASSERT_EQUAL_INT(128 + 2, Syslog5424::priority(4)); /* FATAL */
+    TEST_ASSERT_EQUAL_INT(128 + 5, Syslog5424::priority(9)); /* unknown → Notice */
+}
+
+void test_syslog_line_golden(void) {
+    char out[256];
+    Syslog5424::format(out, sizeof(out),
+                       2 /*WARN*/, "picofridge", "NET", 524 /*NET_PROVISIONAL_TIME*/,
+                       -18, 0 /*core*/, 12345 /*uptime*/, SYSLOG_TEST_EPOCH,
+                       "Provisional time in use", "");
+    TEST_ASSERT_EQUAL_STRING(
+        "<132>1 2026-08-19T17:04:00Z picofridge NET - 524 "
+        "[simut@32473 ctx=\"-18\" core=\"0\" up=\"12345\"] Provisional time in use",
+        out);
+}
+
+void test_syslog_line_with_extra(void) {
+    char out[256];
+    Syslog5424::format(out, sizeof(out),
+                       4 /*FATAL*/, "picofridge", "SYS", 1 /*SYS_BOOT*/,
+                       -32767, 1 /*core*/, 7 /*uptime*/, SYSLOG_TEST_EPOCH,
+                       "Boot", "watchdog TIMER");
+    TEST_ASSERT_EQUAL_STRING(
+        "<130>1 2026-08-19T17:04:00Z picofridge SYS - 1 "
+        "[simut@32473 ctx=\"-32767\" core=\"1\" up=\"7\"] Boot: watchdog TIMER",
+        out);
+}
+
+void test_syslog_timestamp_nilvalue_before_sync(void) {
+    /* Below CLOCK_SYNCED_EPOCH the clock is provisional — TIMESTAMP must be
+     * NILVALUE '-', never the build-epoch lie that time-travels at the SIEM. */
+    char out[256];
+    Syslog5424::format(out, sizeof(out),
+                       1 /*INFO*/, "dev", "CLI", 42, 0, 0, 3 /*uptime*/,
+                       100 /*epoch: boot fallback*/, "hi", "");
+    TEST_ASSERT_EQUAL_STRING(
+        "<134>1 - dev CLI - 42 "
+        "[simut@32473 ctx=\"0\" core=\"0\" up=\"3\"] hi",
+        out);
+}
+
+void test_syslog_hostname_space_is_sheared(void) {
+    /* A device name with a space would break the space-delimited header;
+     * sanitizeToken maps it (and any non-PRINTUSASCII) to '-'. */
+    char out[256];
+    Syslog5424::format(out, sizeof(out),
+                       1, "sala 1", "NET", 5, 0, 0, 0, SYSLOG_TEST_EPOCH, "x", "");
+    /* "sala 1" → "sala-1", still one token. */
+    TEST_ASSERT_NOT_NULL(strstr(out, " sala-1 NET "));
+    TEST_ASSERT_NULL(strstr(out, "sala 1"));
+}
+
+void test_syslog_empty_hostname_is_nilvalue(void) {
+    char out[256];
+    Syslog5424::format(out, sizeof(out),
+                       1, "", "", 0, 0, 0, 0, SYSLOG_TEST_EPOCH, "", "");
+    /* Empty host and app both collapse to '-'; MSGID 0; empty MSG. */
+    TEST_ASSERT_NOT_NULL(strstr(out, "Z - - - 0 ["));
+}
+
+void test_syslog_msg_control_bytes_become_space(void) {
+    char out[256];
+    Syslog5424::format(out, sizeof(out),
+                       1, "dev", "SYS", 9, 0, 0, 0, SYSLOG_TEST_EPOCH,
+                       "line1\nline2\ttab", "");
+    /* No raw control byte survives into the datagram. */
+    TEST_ASSERT_NULL(strchr(out, '\n'));
+    TEST_ASSERT_NULL(strchr(out, '\t'));
+    TEST_ASSERT_NOT_NULL(strstr(out, "line1 line2 tab"));
+}
+
 int main(int /*argc*/, char** /*argv*/) {
     UNITY_BEGIN();
 
@@ -1631,6 +1777,12 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_parseIntStrict_invalid);
     RUN_TEST(test_parseFloatStrict_valid);    /* v3.36.3 (M7) */
     RUN_TEST(test_parseFloatStrict_invalid);  /* v3.36.3 (M7) */
+    RUN_TEST(test_parseIntStrict_int32_boundaries);        /* issue #44 */
+    RUN_TEST(test_parseIntStrict_overflow_rejected);       /* issue #44 */
+    RUN_TEST(test_parseFloatStrict_overflow_rejected);     /* issue #44 */
+    RUN_TEST(test_parseFloatStrict_large_finite_ok);       /* issue #44 */
+    RUN_TEST(test_stub_toInt_saturates_like_target);       /* issue #44 */
+    RUN_TEST(test_stub_toFloat_overflows_to_inf_like_target); /* issue #44 */
 
     /* timeReached / timeSince */
     RUN_TEST(test_timeReached_basic);
@@ -1750,6 +1902,15 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_b64_rejects_malformed);
     RUN_TEST(test_prom_escape_label);
     RUN_TEST(test_prom_lines_golden);
+
+    /* Syslog5424 — RFC 5424 line formatter */
+    RUN_TEST(test_syslog_priority);
+    RUN_TEST(test_syslog_line_golden);
+    RUN_TEST(test_syslog_line_with_extra);
+    RUN_TEST(test_syslog_timestamp_nilvalue_before_sync);
+    RUN_TEST(test_syslog_hostname_space_is_sheared);
+    RUN_TEST(test_syslog_empty_hostname_is_nilvalue);
+    RUN_TEST(test_syslog_msg_control_bytes_become_space);
 
     return UNITY_END();
 }

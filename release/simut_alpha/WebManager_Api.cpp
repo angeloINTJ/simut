@@ -160,6 +160,20 @@ void WebManager::handleApiConfig( ) {
 	         _storageRef->getHistoryIntervalMin( ));
 	if (!safeSend(buf)) return;
 
+	/* Syslog forwarder (overlay). Server rendered back to a dotted quad ("" if
+	 * unset); the enable is the RAW flag, matching what commit_all stores, so
+	 * the UI checkbox reflects the toggle even before a server is entered. */
+	{
+		uint32_t slIp = _storageRef->getSyslogServerIp( );
+		String slIpStr = slIp ? IPAddress(slIp).toString( ) : String("");
+		snprintf(buf, sizeof(buf),
+		         "\"slog_en\":%s,\"slog_srv\":\"%s\",\"slog_port\":%u,\"slog_lvl\":%u,",
+		         _storageRef->getSyslogEnabledFlag( ) ? "true" : "false",
+		         slIpStr.c_str( ), _storageRef->getSyslogPort( ),
+		         _storageRef->getSyslogMinLevel( ));
+		if (!safeSend(buf)) return;
+	}
+
 	safeSend("\"t_glob\":\"");
 	if (!safeSend(jsonEscape(cfg.telGlobalTemplate).c_str( ))) return;
 	safeSend("\",\"t_line\":\"");
