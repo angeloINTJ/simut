@@ -37,6 +37,12 @@ jobs:
       - name: Check log-code tables in sync
         run: python3 tools/gen_logcodes.py --check
 
+      # Every HTTP route must enforce authorization or be allowlisted as public
+      # with a reason — the matrix is documented in docs/AUTHORIZATION.md. This
+      # is what blocks a newly-added route from shipping without a gate.
+      - name: Check authorization matrix
+        run: python3 tools/check_authz.py
+
       - name: Build firmware
         run: pio run -e pico_w_release
 
