@@ -697,7 +697,7 @@ var PAD = 6;            /* respiro entre area do grafico e rotulos */
  * topo. Densidade nao e constante: e funcao do espaco. */
 var Y_PITCH = TICK_PX * 1.4;
 var TICK_LEN = 0;       /* a pagina nao desenha marcas para fora do eixo */
-var BAND_IN_RANGE = false;  /* ver fromData(): false reproduz o Chart.js */
+var BAND_IN_RANGE = true;   /* ver fromData() */
 
 /* Legenda: a marca e um RETANGULO com a cor e o tracejado da serie, nao um
  * segmento de reta — e assim que a referencia desenha, e e o tracejado dentro
@@ -716,6 +716,13 @@ var TIP_BG = 'rgba(0,0,0,0.8)', TIP_FG = '#fff', TIP_PX = 12, TIP_PAD = 6, TIP_R
  * diferenca e que aqui isso e decisao, e nao efeito colateral de uma
  * coordenada NaN. */
 var TIP_MAX_DIST = 20;
+
+/* Rotulos do eixo X: retos enquanto couberem, girados quando nao couberem.
+ * A alternativa era afinar os ticks, e ela custava a GRADE junto: numa tela de
+ * 375 px sobravam 3 linhas verticais em vez de 7, e localizar um evento no
+ * tempo virava estimar entre marcas de 12 horas. Girar custa ~17 px de altura
+ * (8% do grafico num celular) e devolve a referencia temporal inteira. */
+var X_ROT_DEG = 45, SIN45 = 0.70710678, XT_MAX = 99;
 
 /* ---- passo "bonito": 1, 2 ou 5 vezes uma potencia de 10. E o unico
  * algoritmo de verdade do renderizador. ---- */
@@ -779,15 +786,20 @@ Scale.prototype.fromData = function (datasets, visible) {
         var ds = datasets[i];
         if (!this.horizontal && ds.yAxisID !== this.id) continue;
         var arrs = [ds.data];
-        /* A banda fica FORA do intervalo do eixo, como no Chart.js: la ela e
-         * desenhada por um plugin, que a escala nao enxerga. O resultado e que
-         * o pico da banda pode sair cortado pela borda da area.
+        /* A banda ENTRA no intervalo do eixo. O Chart.js a deixava de fora —
+         * la ela e um plugin, que a escala nao enxerga — e o pico saia cortado
+         * pela borda da area. Numa cadeia fria o maximo da banda E a excursao:
+         * o instante em que a temperatura cruzou o limite. Corta-lo esconde
+         * justamente o dado que motiva o registrador.
          *
-         * Incluir lo/hi mostraria o extremo real — que num registrador de
-         * cadeia fria e justamente o dado que importa — mas ao custo de abrir
-         * o eixo e achatar a linha media, e de fazer a troca de motor MUDAR o
-         * desenho. A migracao tem de ser neutra; ligar isto e uma decisao
-         * separada, depois, com o A/B para mostrar o efeito. */
+         * O contra-argumento era que os badges MAX/MIN acima do grafico ja dao
+         * o numero. Mas eles so aparecem com UM sensor selecionado (veja
+         * `oneSensor` na montagem): com dois ou mais, os badges somem e a banda
+         * ficava cortada — o extremo desaparecia por completo. Esse e o caso
+         * que decidiu.
+         *
+         * O preco esta pago com consciencia: o eixo abre e a linha media perde
+         * cerca de um quarto da resolucao vertical. */
         if (BAND_IN_RANGE && ds._h5BandLo) { arrs.push(ds._h5BandLo); arrs.push(ds._h5BandHi); }
         for (var k = 0; k < arrs.length; k++) {
             var a = arrs[k];
@@ -992,20 +1004,40 @@ H5G.prototype.draw = function () {
     this._legend = this._layoutLegend(visible);
     top += this._legend ? this._legend.h : 0;
 
-    /* O primeiro e o ultimo rotulo do X sao centrados no tick, que fica na
-     * borda da area: metade do texto cai fora do canvas e sai cortado ("01:0").
-     * Reservar essa metade exige conhecer os ticks, que dependem da largura —
-     * dai a passada provisoria. Uma passada so nao fecha o circulo. */
+    /* Passada provisoria do X. Serve a duas contas que dependem uma da outra:
+     * quanto reservar nas bordas, e se os rotulos cabem retos. O primeiro e o
+     * ultimo ficam centrados num tick que mora na borda da area, entao metade
+     * do texto cai fora do canvas e sai cortado ("01:0"). */
     var xs0 = new Scale('x', so.x, true);
     xs0.fromData(this.data.datasets, visible);
-    xs0.buildTicks(Math.max(2, Math.floor((W - left - right) / 60)), xLabelFn);
-    var halfFirst = 0, halfLast = 0;
+    xs0.buildTicks(XT_MAX, xLabelFn);      /* sem afinar: so o maxTicksLimit vale */
+    var xw = 0, halfFirst = 0, halfLast = 0;
+    for (i = 0; i < xs0.labels.length; i++) {
+        xw = Math.max(xw, ctx.measureText(xs0.labels[i]).width);
+    }
     if (xs0.labels.length) {
         halfFirst = ctx.measureText(xs0.labels[0]).width / 2;
         halfLast = ctx.measureText(xs0.labels[xs0.labels.length - 1]).width / 2;
     }
-    left = Math.max(left, Math.ceil(PAD + halfFirst));
-    right = Math.max(right, Math.ceil(PAD + halfLast));
+    /* Cabem retos? UMA medida decide, e a mesma alimenta o limite de ticks la
+     * embaixo. Antes eram duas provas independentes — esta, que media o rotulo,
+     * e um divisor fixo de 60 px no limite de ticks — e elas discordavam: a
+     * primeira dizia "cabe reto" enquanto a segunda afinava de 7 ticks para 3.
+     * O eixo saia sem rotacao E sem grade, o pior dos dois mundos. */
+    var xPitch = xw + 8;                       /* vao minimo entre rotulos retos */
+    var xFit = Math.floor((W - left - right) / xPitch) + 1;
+    this._xRot = (xs0.ticks.length > xFit) ? X_ROT_DEG : 0;
+
+    if (this._xRot) {
+        /* Girado, o rotulo termina no tick e desce para a esquerda: come altura
+         * embaixo e transborda a esquerda do primeiro tick. */
+        bottom = PAD + Math.ceil((xw + TICK_PX) * SIN45) + PAD;
+        left = Math.max(left, Math.ceil(PAD + xw * SIN45));
+        right = Math.max(right, PAD);
+    } else {
+        left = Math.max(left, Math.ceil(PAD + halfFirst));
+        right = Math.max(right, Math.ceil(PAD + halfLast));
+    }
 
     var area = { left: left, top: top, right: W - right, bottom: H - bottom };
     if (area.right <= area.left) area.right = area.left + 1;
@@ -1013,7 +1045,11 @@ H5G.prototype.draw = function () {
     this.chartArea = area;
 
     /* 3. ticks definitivos, agora com o espaco real */
-    var maxX = Math.max(2, Math.floor((area.right - area.left) / 60));
+    /* Reto, o vao e a largura do rotulo. Girado, o que limita e a espessura do
+     * texto na perpendicular, nao a largura — cerca de 21 px. E por isso que
+     * girar preserva a grade que afinar destruia. */
+    var maxX = Math.max(2, Math.floor((area.right - area.left) /
+        (this._xRot ? (TICK_PX + 3) / SIN45 : xPitch)) + 1);
     xs.buildTicks(maxX, xLabelFn);
     xs.setRange(area.left, area.right);
     for (i = 0; i < ys.length; i++) {
@@ -1128,9 +1164,25 @@ H5G.prototype._drawAxes = function (ys) {
     ctx.textBaseline = 'top';
     ctx.textAlign = 'center';
     ctx.fillStyle = (xs.opt.ticks && xs.opt.ticks.color) || '#888';
-    for (i = 0; i < xs.ticks.length; i++) {
-        p = xs.getPixelForValue(xs.ticks[i]);
-        ctx.fillText(xs.labels[i], p, a.bottom + PAD);
+    if (this._xRot) {
+        /* Gira o contexto e ancora o FIM do texto no tick: assim o rotulo
+         * aponta para a sua propria marca, e nao para a vizinha. */
+        var rad = -this._xRot * Math.PI / 180;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (i = 0; i < xs.ticks.length; i++) {
+            p = xs.getPixelForValue(xs.ticks[i]);
+            ctx.save();
+            ctx.translate(p, a.bottom + PAD + TICK_PX * SIN45);
+            ctx.rotate(rad);
+            ctx.fillText(xs.labels[i], 0, 0);
+            ctx.restore();
+        }
+    } else {
+        for (i = 0; i < xs.ticks.length; i++) {
+            p = xs.getPixelForValue(xs.ticks[i]);
+            ctx.fillText(xs.labels[i], p, a.bottom + PAD);
+        }
     }
 
     for (var k = 0; k < ys.length; k++) {
