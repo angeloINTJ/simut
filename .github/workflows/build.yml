@@ -7,10 +7,16 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+
+      # First, and before anything is fetched or built: a tracked secret is
+      # not a build failure to be discovered at the end. Same gate the
+      # release scripts run (tools/build_release.sh).
+      - name: Secret gate
+        run: ./tools/scan_secrets.sh
 
       - name: Cache PlatformIO packages
         uses: actions/cache@v5
@@ -34,11 +40,47 @@ jobs:
       - name: Build firmware
         run: pio run -e pico_w_release
 
+      # All five native environments. They are separate steps rather than one
+      # `pio test -e a -e b ...` so a failure names itself in the Actions UI
+      # instead of hiding behind the first environment that broke.
       - name: Run unit tests (validators)
         run: pio test -e native
 
       - name: Run unit tests (HistoryV4)
         run: pio test -e native_history_v4
 
+      - name: Run unit tests (HistoryV5)
+        run: pio test -e native_history_v5
+
       - name: Run unit tests (CLI parser)
         run: pio test -e native_cli
+
+      - name: Run unit tests (LogPolicy)
+        run: pio test -e native_logpolicy
+
+  # Separate job so the analysis runs alongside the firmware build instead of
+  # after it: cppcheck takes minutes, and in its own job those minutes cost no
+  # wall clock. It also fails on its own, without a red build to read through.
+  static-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache cppcheck
+        uses: actions/cache@v5
+        with:
+          path: ~/.platformio/packages/tool-cppcheck
+          key: ${{ runner.os }}-cppcheck-${{ hashFiles('tools/run_cppcheck.sh') }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      # PlatformIO is how the pinned cppcheck is fetched — see the header of
+      # tools/run_cppcheck.sh for why the version is pinned at all.
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Static analysis (cppcheck)
+        run: ./tools/run_cppcheck.sh

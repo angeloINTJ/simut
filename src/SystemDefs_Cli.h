@@ -150,13 +150,13 @@ const char* getModeHelpLine(CLIMode mode, bool pt);
  * in safeCopy — same previous behavior when they landed in cfg.* also truncated.
  */
 struct CliDemand {
- DemandType type;
+ DemandType type = CMD_UNKNOWN;
  char strVal1[64] = {0};
  char strVal2[64] = {0};
  char strVal3[32] = {0};
  int intVal1 = 0; /**< Zero-initialized: handlers must still check intVal1Valid. */
- bool boolVal;
- uint8_t rom[8];
+ bool boolVal = false; /**< Zero-initialized: only 'tel crypto' sets it. */
+ uint8_t rom[8] = {0};
  bool confirmed = false; /**< true if suffix 'confirm' present — gate for destructive commands */
  bool intVal1Valid = true; /**< false if the numeric token was not a well-formed int */
 
