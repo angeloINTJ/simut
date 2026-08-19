@@ -4,6 +4,93 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.12-beta (2026-08-19)
+
+### Um ícone que ninguém olhava segurava 11 KB de flash
+
+`data/favicon.ico` não é um recurso do sistema de arquivos — um gancho de
+pré-build embute os bytes literais em `src/Favicon.cpp`, então um byte no ícone
+é um byte de firmware. Ele tinha **11 047 B**, ou seja, **22 % de toda a folga
+restante**, gastos numa imagem de 32×32.
+
+O peso nunca foi o desenho. A marca tem três cores — ciano `#00DCFF` sobre
+azul-marinho `#0A172F`, com um anel `#7ADFFF` — mas estava guardada com **982
+valores RGBA distintos** no quadro de 48 px. O rasterizador deixou ruído de ±1,
+então pixels que parecem idênticos diferem numericamente:
+
+    (10,23,48)  (10,23,47)  (10,22,47)  (10,23,49)  (11,25,49)
+
+todos o mesmo marinho, nenhum deles comprimível como padrão. Além disso, o
+contêiner carregava quatro quadros, e só o de 48 px custava 5 283 B.
+
+Então isto é recodificação, não redesenho. Zerar o alfa abaixo de 32 — o que
+também impede o quantizador de promover pixels quase transparentes a manchas
+opacas em volta do disco —, quantizar para 16 cores, manter os dois quadros que
+uma aba de navegador de fato usa, e montar o contêiner ICO à mão, porque o
+escritor de ICO do Pillow recodifica as cargas e desfaz a quantização.
+
+    16×16   306 B  +  32×32   491 B  +  38 B de cabeçalho  =  835 B
+
+    flash do release   994 212 → 983 996 B     folga 50 268 → 60 484 B
+
+O Chrome decodifica o resultado, e ele é indistinguível do original em 16 e
+32 px. Largar os quadros de 24 e 48 px significa que pedidos acima de 32 px
+passam a escalar a partir do quadro de 32.
+
+### Um portão de análise estática, e os dois defeitos reais que ele achou
+
+`tools/run_cppcheck.sh` roda o cppcheck 2.11 — fixado, porque o conjunto de
+verificações muda entre versões e um portão sem versão fixa quebra num dia em
+que ninguém mexeu em código. Roda na CI como job próprio, então seus minutos
+não custam tempo de parede contra a compilação.
+
+Quase tudo que ele apontou já estava correto e agora é respondido no lugar, com
+supressão documentada: o alastramento de sinal do zigzag contra o qual o codec
+do histórico é especificado, o espelho de octante do Bresenham, uma
+inicialização de membro que o cppcheck lê como chamada. Dois achados eram reais,
+ambos no contador de pacotes do painel:
+
+    snprintf(pktBuf, sizeof(pktBuf), "%u", state.pendingPkts);
+
+`pendingPkts` é `uint32_t`, que neste alvo é `unsigned long`, e não
+`unsigned int` — então `%u` era a conversão errada para o tipo real do
+argumento. Os dois pontos de chamada agora convertem explicitamente.
+
+### Todo campo de CliDemand tem inicializador
+
+Três dos seus nove campos não tinham, e o que é lido sem ser escrito é um
+`bool` cujos dois valores são "cifrar telemetria" e "não cifrar". Não é
+alcançável hoje — o único produtor o define na mesma linha em que define o tipo
+—, mas é o mesmo formato do defeito do `/api/commit_all` fechado na
+v2.2.10-beta, em que um booleano lido ao contrário ligava uma opção que o
+usuário havia desligado. Nenhuma mudança de comportamento.
+
+### A CI roda os cinco ambientes nativos
+
+Rodava dois. Os outros três — HistoryV4, o analisador da CLI, LogPolicy —
+existiam e passavam localmente, sem nada que os cobrasse num pull request.
+Os cinco agora rodam como passos separados, para que a falha se identifique em
+vez de se esconder atrás do primeiro ambiente que quebrou, e o
+`tools/scan_secrets.sh` roda como primeiro passo de todos: um segredo versionado
+não é uma falha de compilação para se descobrir no fim.
+
+    252 casos   95 validadores · 56 HistoryV4 · 54 HistoryV5 · 29 CLI · 18 LogPolicy
+
+### O projeto tem um logotipo
+
+`docs/images/logo-mark.svg` (880 B) e `logo-wordmark.svg` (2 146 B) — o ícone
+que já embarcava, redesenhado como vetor, para que a identidade seja uma coisa
+só em vez de um ícone e um selo sem relação. As letras são contornos do DejaVu
+Sans Bold, escolhido por sobreposição medida contra a marca original, e não a
+olho: 91,2 % de IoU, contra 85,3 % do segundo colocado.
+
+O logotipo com texto usa `#1a73e8` fixo, sem chave `prefers-color-scheme`. Essa
+chave foi escrita primeiro e removida: dentro de um `<img>`, a media query segue
+o tema do sistema operacional do leitor, não o tema que ele escolheu no GitHub,
+então os dois podem discordar e o texto cai branco sobre branco. Uma cor só que
+se sustenta nos dois é mais segura — medidos 4,51:1 sobre `#ffffff` e 4,20:1
+sobre `#0d1117`.
+
 ## v2.2.11-beta (2026-08-18)
 
 ### "Conexão perdida", com o aparelho na rede local
