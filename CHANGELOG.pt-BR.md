@@ -4,6 +4,95 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.11-beta (2026-08-18)
+
+### "Conexão perdida", com o aparelho na rede local
+
+A página de histórico carregava o Chart.js do `cdn.jsdelivr.net`. Sem internet, a
+chamada `new Chart(...)` lançava um ReferenceError, o `catch` do carregador
+engolia, e o usuário lia **Conexão perdida.** — com o aparelho na rede local e o
+`.h5` já baixado e decodificado. A falha culpava a rede por um script ausente,
+num produto cuja primeira promessa é funcionar offline.
+
+A mesma tag trazia mais dois defeitos. Não fixava versão: `npm/chart.js` resolve
+para a última major que o jsDelivr publicar, e a v3 para a v4 já quebrou a API de
+opções uma vez — uma versão futura pararia o gráfico em aparelhos já entregues,
+sem nada que se pudesse fazer. E não tinha `integrity`, num documento que carrega
+o cookie de sessão, servido sem CSP.
+
+### Podar a biblioteca foi medido, e não resolve
+
+Registrando só o que a página usa — `LineController`, `LineElement`,
+`PointElement`, `LinearScale`, `Legend`, `Tooltip` — o Chart.js 4.5.1 vai de
+70 592 para 56 818 B em gzip. Vinte por cento, porque o peso não está nos tipos
+de gráfico que ninguém usa:
+
+    núcleo só, nada registrado ......... 43 527 B   desenha zero pixels
+    + LinearScale ...................... 43 534 B   +7
+    + Line/Point ....................... 49 049 B   +5 515
+    + Legend + Tooltip ................. 56 818 B   +7 769
+    + todo o resto ..................... 70 719 B   +13 901
+
+Somar a escala linear a esse núcleo custa **sete bytes**, porque o motor de
+escala — ticks, autoSkip, rotação, medição de rótulo, layout dos eixos — já está
+nele. O que é irredutível é a generalidade: o resolvedor de opções em `Proxy`, o
+motor de animação embarcado mesmo com `animation: false`, seis modos de
+interação, um parser de cor CSS completo, matemática de spline. Nada disso é
+usado aqui.
+
+### h5g
+
+Um renderizador que já sabe que tem três eixos, um tipo de série e passos de tick
+fixos: 784 linhas, **4 721 B em gzip**, 15× menor que o pacote do CDN. Reproduz a
+página como ela estava — x linear em epoch ms com a janela igual ao período
+pedido mesmo quando vazio; três eixos Y independentes, porque a pressão perto de
+1000 hPa achataria %RH e °C em retas; linha quebrada em `null`, para que um
+período sem dado pareça um; tracejado por grandeza, para que a identidade nunca
+dependa só da cor; raio visível na amostra isolada entre duas lacunas; a banda
+mín/máx; legenda clicável que esconde a banda junto com a série; tooltip pelo
+ponto mais próximo em X; redimensionamento, densidade de pixel e toque.
+
+Dois comportamentos foram mudados de propósito, em vez de copiados:
+
+- **A banda entra no intervalo do eixo Y.** O Chart.js a desenha de um plugin que
+  a escala não enxerga, então o pico dela saía cortado pela borda. Numa cadeia
+  fria esse pico *é* a excursão. Os badges MAX/MIN acima do gráfico dão o número,
+  mas só com um sensor selecionado — com dois ou mais os badges somem e o extremo
+  desaparecia por completo. A linha média perde cerca de um quarto da resolução
+  vertical, com consciência.
+- **Os rótulos do X giram 45° quando não cabem**, em vez de afinar os ticks.
+  Afinar custava a grade junto: a 375 px o eixo ia de sete linhas verticais para
+  três, e localizar um evento no tempo virava estimar entre marcas de doze horas.
+  Girar custa ~17 px de altura. É reserva, não padrão: a 390 px com um sensor os
+  rótulos ficam retos, porque cabem.
+
+### Provado contra o motor que substitui
+
+`scratchpad/h5g_20260818/` desenha oito casos congelados e sete capturas de
+interação através do **`renderChart` da própria página**, extraído do `WebUI.h` em
+vez de copiado, com o Chart.js fixado no diretório e sem tocar a rede. O primeiro
+portão foi o controle: duas execuções do *mesmo* Chart.js, exigindo zero pixels
+de diferença — um A/B cujo A-contra-A não fecha mede o próprio ruído.
+
+Todos os eixos X batem com o Chart.js em intervalo, passo e número de ticks. Os
+dez eixos Y que diferem, diferem pela decisão da banda, e o portão diz isso em
+vez de acusar falha; o único caso sem banda ficou idêntico, que é o controle na
+outra direção. Trinta trocas de gráfico deixam os ouvintes em 5 → 5 e retêm
+0,36 KB cada, contra 3,91 do Chart.js — e o detector de vazamento foi ele próprio
+verificado removendo o `_unbind()` do `destroy()`, o que leva a contagem a 93.
+
+No ferro, entregue por OTA duas vezes: a página servida pelo aparelho deixou de
+trazer `cdn.jsdelivr` e passou a trazer o renderizador, e um navegador apontado
+para o aparelho com o DNS externo derrubado fez **33 requisições, nenhuma
+externa, sem erro de JS**, e desenhou o gráfico.
+
+### Flash
+
+    folga do release ... 44 044 B -> 38 604 B
+
+5 440 bytes, em troca de tirar um download externo de 70 592 B de toda visita à
+página.
+
 ## v2.2.10-beta (2026-08-18)
 
 ### `false` ligava a configuração
