@@ -315,6 +315,38 @@ Two details matter if you are scripting against it:
   a UTF-8 hash.
 - Repeated failures trigger an exponential lockout measured in seconds.
 
+### Serving the UI over HTTPS
+
+The web server runs HTTPS when a certificate pair is provisioned, and plain
+HTTP otherwise. Generate a per-device pair on your workstation (EC P-256 on
+purpose — its handshake fits this heap where RSA-2048 would not):
+
+```bash
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+  -keyout web_key.pem -out web_cert.pem -days 3650 -nodes -subj "/CN=simut"
+```
+
+Upload both through the Files page as `/config/web_cert.pem` and
+`/config/web_key.pem`, then reboot. With the web port at its default 80 the
+HTTPS listener moves to 443, so `https://<device-ip>` works; an explicitly
+configured port is honoured as-is. The private key can be uploaded but never
+downloaded, and `system format` clears it with the rest of `/config`.
+
+What to expect:
+
+- The certificate is self-signed, so the browser warns once — inspect and
+  accept. The session cookie gains the `Secure` flag.
+- Plain HTTP stops answering: there is one server and it now speaks TLS. A
+  handshake costs about 0.5–0.7 s on this chip, and **one TLS client is
+  served at a time** — a second simultaneous connection is dropped.
+- A missing or unparseable pair can never lock you out: the device falls
+  back to plain HTTP on the configured port. That is also how HTTPS is
+  turned off — overwrite `/config/web_key.pem` with any invalid file and
+  reboot.
+- Firmware updates are still best performed over plain HTTP (§12): staging
+  a ~1 MB image through TLS is slow on this chip and the documented
+  recovery paths assume HTTP.
+
 ### Display capture
 
 `GET /api/screenshot` returns a 320×240 24-bit BMP read back from the panel's
