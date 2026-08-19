@@ -4,6 +4,73 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.13-beta (2026-08-19)
+
+### O aparelho agora se apresenta ao Home Assistant
+
+Com o transporte MQTT e payload JSON selecionados, um novo checkbox opt-in
+faz o aparelho publicar mensagens retidas de [MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery)
+a cada conexão com o broker. O Home Assistant cria o dispositivo e uma
+entidade por medição automaticamente — temperatura e umidade por slot ativo,
+mais pressão — com disponibilidade guiada pelo tópico de status LWT que já
+existia. Zero YAML do lado do HA. No rig da bancada, seis sensores viraram
+oito entidades cujos templates `value_json` bateram com o payload vivo chave
+a chave.
+
+O desenho se curva a um fato: o `commit_all` reinicia o aparelho. Então não
+há ganchos de refresh ao vivo — quem reconcilia é a conexão após o reboot,
+guiada por um bit persistido `FLAG_HA_PUBLISHED` que lembra que há configs
+retidas no broker. É esse bit que permite ao checkbox recém-**des**marcado
+publicar os payloads vazios retidos que removem as entidades: verificado num
+mosquitto real, um subscriber novo vê zero configs retidas após desligar.
+
+Unificação de brinde: o tópico do LWT derivava do `cfg.mqttTopic` cru
+enquanto os publishes de dados usavam uma cópia com fallback `simut/data` —
+um tópico em branco punha o will no degenerado `/status`. Will, dados e
+discovery agora saem dos mesmos dois resolvedores e não podem divergir.
+
+Custo: 2.544 B de flash, 0 B de RAM.
+
+### O reserved[52..53] tinha posseiro, e ele comeu o magic byte da feature
+
+Todo mapa do `SystemConfig::reserved[]` dizia que `[48..63]` estava livre.
+Não estava: o dashboard do TFT persiste a seleção de slot em `[52..53]` por
+literais crus registrados em lugar nenhum. O overlay do discovery pousou
+nesses bytes e teve o magic sobrescrito pelo sentinela `0xFF` de "não
+fixado" três segundos depois de cada boot — na bancada isso lia como um
+toggle que não colava, e o que fechou o caso foi despejar os bytes crus pela
+API em vez de confiar nos acessores.
+
+Os dois bytes agora têm nome (`RESERVED_DASH_TOP_IDX` / `RESERVED_DASH_CUR_IDX`),
+os literais crus morreram, os dois mapas falam a verdade, e o overlay mora em
+`[54..55]`. Se for adicionar um overlay: grep por `reserved[<offset>` antes
+de acreditar em qualquer comentário.
+
+### GET /metrics — Prometheus sem escrever servidor
+
+O complemento pull da telemetria push. Tudo que a rota serve já existia na
+RAM para o `/api/status` ou o `show metrics`; ela só soletra no formato de
+exposição em texto — 37 famílias de métricas: build info, heap e sistema de
+arquivos, estado WiFi/MQTT, os contadores de telemetria, os contadores de
+flash-op e do ciclo de vida do Core 1 (a observabilidade da imagem de
+release que um soak longo precisa ler de fora), e um gauge por medição viva
+com labels `slot`/`hwid`/`name`. O corpo parseia limpo no parser oficial
+`prometheus_client`.
+
+Um scraper não executa o fluxo de login, então além do cookie de sessão a
+rota aceita HTTP Basic contra a tabela de usuários existente, exigindo a
+mesma permissão de dashboard do `/api/status`. Credencial errada alimenta o
+**mesmo lockout exponencial por IP do formulário de login** — a alocação de
+slot saiu do `login_init` para um helper compartilhado exatamente para esta
+rota não virar a porta barata em volta do rate-limit que o login já impõe.
+Travado, até credencial correta leva 429; verificado ao vivo. Cada scrape
+verifica a senha por inteiro (~0,7 s no aparelho), então mantenha o
+`scrape_interval` em 15 s ou mais — seis scrapes seguidos seguraram ~690 ms
+cada com o heap parado.
+
+Custo: 4.560 B de flash, 0 B de RAM, nenhuma config nova e nenhuma string de
+UI — o teto do pack es-ES segue intocado em 96%.
+
 ## v2.2.12-beta (2026-08-19)
 
 ### Um ícone que ninguém olhava segurava 11 KB de flash

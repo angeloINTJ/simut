@@ -4,6 +4,72 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.13-beta (2026-08-19)
+
+### The device now introduces itself to Home Assistant
+
+With the MQTT transport and JSON payload selected, a new opt-in checkbox makes
+the device publish retained [MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery)
+config messages on every broker connect. Home Assistant then creates the
+device and one sensor entity per measurement automatically — temperature and
+humidity per active slot, plus pressure — with availability driven by the LWT
+status topic that already existed. No YAML on the HA side. On the bench rig,
+six sensors became eight entities whose `value_json` templates matched the
+live payload key for key.
+
+The design bends around one fact: `commit_all` reboots. So there are no live
+refresh hooks — the connect after the reboot reconciles instead, guided by a
+persisted `FLAG_HA_PUBLISHED` bit that remembers retained configs sit on the
+broker. That bit is what lets a freshly **un**checked box publish the empty
+retained payloads that remove the entities: verified on a real mosquitto, a
+fresh subscriber sees zero retained configs after disabling.
+
+Side unification: the LWT topic used to derive from the raw `cfg.mqttTopic`
+while data publishes trimmed it with a `simut/data` fallback — a blank topic
+put the will on the degenerate `/status`. Will, data and discovery now come
+from the same two resolvers and cannot drift.
+
+Cost: 2 544 B of flash, 0 B of RAM.
+
+### reserved[52..53] had a squatter, and it ate the feature's magic byte
+
+Every map of `SystemConfig::reserved[]` said `[48..63]` was free. It was not:
+the TFT dashboard has been persisting its slot selection at `[52..53]`
+through raw literals registered nowhere. The discovery overlay first landed
+on those bytes and its magic was overwritten by the dashboard's `0xFF`
+"unpinned" sentinel three seconds after every boot — on the bench it read as
+a toggle that refused to stay on, and what closed the case was dumping the
+raw bytes over the API instead of trusting the accessors.
+
+The two bytes are now named (`RESERVED_DASH_TOP_IDX` / `RESERVED_DASH_CUR_IDX`),
+the raw literals are gone, both maps tell the truth, and the overlay lives at
+`[54..55]`. If you are adding an overlay: grep for `reserved[<offset>` before
+believing any comment.
+
+### GET /metrics — Prometheus without writing a server
+
+The pull complement to the push telemetry. Everything served already existed
+in RAM for `/api/status` or `show metrics`; the route spells it in the text
+exposition format — 37 metric families: build info, heap and filesystem,
+WiFi/MQTT state, the telemetry counters, the flash-op and Core-1 lifecycle
+counters (the release-image observability a long soak needs readable from
+outside), and one gauge per live measurement with `slot`/`hwid`/`name`
+labels. The body parses clean under the official `prometheus_client` parser.
+
+A scraper cannot run the login flow, so besides the session cookie the route
+accepts HTTP Basic against the existing user table, requiring the same
+dashboard permission as `/api/status`. Failed credentials feed the **same
+per-IP exponential lockout as the login form** — the slot allocation moved
+out of `login_init` into a shared helper precisely so this route cannot
+become the cheap door around a brute-force limit the login already enforces.
+While locked, even correct credentials get 429; verified live. Each scrape
+verifies the password in full (~0.7 s on the device), so keep
+`scrape_interval` at 15 s or more — six sustained scrapes held ~690 ms each
+with the heap flat.
+
+Cost: 4 560 B of flash, 0 B of RAM, no new config and no UI strings — the
+es-ES pack ceiling is untouched at 96 %.
+
 ## v2.2.12-beta (2026-08-19)
 
 ### An icon nobody looked at was holding 11 KB of flash
