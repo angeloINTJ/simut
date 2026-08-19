@@ -18,6 +18,7 @@
 #include "NetworkManager.h"
 #include "SensorManager.h"
 #include "SoundManager.h"
+#include "SyslogManager.h"
 #include "StorageManager.h"
 #include "TelemetryManager.h"
 #include "TouchPriority.h"
@@ -218,6 +219,11 @@ void AppManager::loop( ) {
  TRACE_MOD(0, MOD_IDLE);
  return;
  }
+
+ /* Syslog drain: Core 0, every loop, independent of menu/render state so a
+  * WARN raised during a menu still leaves the box. UDP fire-and-forget; a
+  * no-op when disabled or the link is down. */
+ _syslogMgr->pump( );
 
  if (!menuActive) {
  TRACE_MOD(0, MOD_TELEMETRY);

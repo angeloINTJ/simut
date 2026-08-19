@@ -554,6 +554,24 @@ public:
  /** Record (and persist — must survive the commit_all reboot) whether the
  * retained discovery configs are on the broker. No-op if unchanged. */
  void markHaDiscoveryPublished(bool published);
+
+ /** @return true if syslog forwarding is enabled AND a server IP is set
+  * (overlay reserved[56..63]; legacy = OFF). This is the EFFECTIVE state the
+  * runtime uses: a forwarder with no destination is off. */
+ bool isSyslogEnabled( ) const;
+ /** @return the raw enable bit, ignoring whether a server is set. The config
+  * write path reads intent with this so "enable now, set server next commit"
+  * does not silently clear the toggle. */
+ bool getSyslogEnabledFlag( ) const;
+ /** @return syslog collector IPv4 as an IPAddress uint32 (0 = unset). */
+ uint32_t getSyslogServerIp( ) const;
+ /** @return syslog UDP port (SYSLOG_DEFAULT_PORT if unset). */
+ uint16_t getSyslogPort( ) const;
+ /** @return minimum LogLevel to forward (0..4; default LOG_INFO=1). */
+ uint8_t getSyslogMinLevel( ) const;
+ /** Write the whole syslog overlay (populates magic). serverIp 0 disables. */
+ void setSyslogConfig(bool enabled, uint32_t serverIp, uint16_t port, uint8_t minLevel);
+
  SystemConfig _currentConfig;
  bool _isMounted = false;
  FlashLockCallback _lockCb = nullptr;

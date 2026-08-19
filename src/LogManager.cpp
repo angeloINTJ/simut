@@ -92,6 +92,8 @@ void LogManager::setLockCallback(FlashLockCallback cb) { _lockCb = cb; }
 
 void LogManager::setConsoleSink(ConsoleSink sink) { _consoleSink = sink; }
 
+void LogManager::setSyslogSink(SyslogSink sink) { _syslogSink = sink; }
+
 void LogManager::setConsoleStream(bool enabled) { _consoleStreamEnabled = enabled; }
 
 /* Emit a line to console.
@@ -304,6 +306,20 @@ void LogManager::logCode(LogLevel level, const char* tag, LogCode code, int cont
  rec.flags = CompactLogRecord::packFlags((uint8_t)level, (uint8_t)core, tagStringToId(tag));
   writeCompactToFlash(rec);
  }
+
+ /* Syslog forwarding. Under the mutex on purpose: `desc` points into the
+  * shared translateCode buffer and `tag` is the caller's literal — both are
+  * only guaranteed valid until the mutex is released and another core logs.
+  * The sink copies what it keeps and does not itself log. It gates on
+  * enabled/min-level internally, so the cost when off is a couple of
+  * comparisons. */
+ if (_syslogSink) {
+ SyslogEvent ev{ (uint8_t)level, tag, (uint16_t)code,
+                 (int16_t)constrain(contextVal, -32767, 32767),
+                 (uint8_t)core, (uint32_t)(millis( ) / 1000UL),
+                 (long)epoch, desc, extraMsg.c_str( ) };
+ _syslogSink(ev);
+ }
  mutex_exit(&_logMutex);
 
  emitLine(serialBuf);
@@ -338,6 +354,15 @@ void LogManager::log(LogLevel level, const char* tag, LogCode code, String msg) 
  rec.context = 0;
  rec.flags = CompactLogRecord::packFlags((uint8_t)level, (uint8_t)core, tagStringToId(tag));
   writeCompactToFlash(rec);
+ }
+
+ /* Same forwarding as logCode(); here the message is the MSG (no separate
+  * code description), so desc = msg and extra is empty. */
+ if (_syslogSink) {
+ SyslogEvent ev{ (uint8_t)level, tag, (uint16_t)code, 0,
+                 (uint8_t)core, (uint32_t)(millis( ) / 1000UL),
+                 (long)epoch, msg.c_str( ), "" };
+ _syslogSink(ev);
  }
  mutex_exit(&_logMutex);
 

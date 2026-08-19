@@ -25,7 +25,7 @@
 
 ## Descripción general
 
-SIMUT es un firmware IoT de nivel profesional para la **Raspberry Pi Pico W** que proporciona monitoreo de temperatura, humedad y presión en tiempo real con arquitectura de doble núcleo. Incluye dashboard local en TFT táctil, interfaz web embebida con control de acceso por roles, histórico binario en el dispositivo con gráficos decimados en el navegador, telemetría (HTTP/MQTT, con MQTT Discovery de Home Assistant), ruta `/metrics` para Prometheus, actualización OTA y CLI por serial USB.
+SIMUT es un firmware IoT de nivel profesional para la **Raspberry Pi Pico W** que proporciona monitoreo de temperatura, humedad y presión en tiempo real con arquitectura de doble núcleo. Incluye dashboard local en TFT táctil, interfaz web embebida con control de acceso por roles, histórico binario en el dispositivo con gráficos decimados en el navegador, telemetría (HTTP/MQTT, con MQTT Discovery de Home Assistant), ruta `/metrics` para Prometheus, reenvío remoto de syslog (RFC 5424), actualización OTA y CLI por serial USB.
 
 ## ¿Por qué SIMUT?
 
@@ -39,6 +39,7 @@ SIMUT es un firmware IoT de nivel profesional para la **Raspberry Pi Pico W** qu
 | Seguridad | ❌ Ninguna | ⚠️ Básica | ✅ HMAC-SHA256, RBAC, rate limiting |
 | Home Assistant | ⚠️ Integración manual | ✅ Nativa | ✅ MQTT Discovery (opcional) |
 | Métricas Prometheus | ❌ Ninguna | ✅ Integrado | ✅ Ruta `/metrics` |
+| Registro de auditoría remoto | ❌ Ninguno | ⚠️ Complemento | ✅ Syslog (RFC 5424 / UDP) |
 
 **SIMUT es para ti si:** necesitas un sistema de monitoreo de temperatura autónomo, seguro y auditable que funcione con o sin internet — típico de laboratorios, farmacias, bancos de sangre, almacenamiento de vacunas y cadenas de frío alimentarias.
 

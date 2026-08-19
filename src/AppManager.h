@@ -28,6 +28,7 @@ class NetworkManager;
 class WebManager;
 class TelemetryManager;
 class SoundManager;
+class SyslogManager;
 
 class AppManager {
 public:
@@ -59,6 +60,7 @@ private:
  std::unique_ptr<WebManager> _webMgr;
  std::unique_ptr<TelemetryManager> _telemetryMgr;
  std::unique_ptr<SoundManager> _soundMgr;
+ std::unique_ptr<SyslogManager> _syslogMgr;
 
  uint32_t _lastHistoryTime = 0;
  /** A record has been written since this boot (see the first-sample note in

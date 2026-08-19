@@ -423,6 +423,7 @@ specify.
 | Security | TLS supported |
 | Interval | Configurable, with a batch limit per upload |
 | Home Assistant Discovery | MQTT only, opt-in checkbox |
+| Remote syslog | RFC 5424 over UDP, opt-in (see below) |
 
 ### Home Assistant Discovery
 
@@ -467,6 +468,50 @@ scrape_configs:
     static_configs:
       - targets: ["<device-ip>"]
 ```
+
+### Remote syslog (audit trail)
+
+Off by default. When enabled (System Settings → *Remote Syslog*), the device
+forwards each log event as an [RFC 5424](https://www.rfc-editor.org/rfc/rfc5424)
+message over **UDP** to a syslog collector or SIEM. This is the audit trail a
+regulated deployment needs: the on-device event log lives in a rotating ring
+of at most ~1600 records, so a copy that leaves the box, append-only, is what
+an auditor actually accepts.
+
+| Setting | Meaning |
+|---|---|
+| Collector IP | The SIEM's **LAN IPv4** address — a hostname is not accepted (see below) |
+| UDP port | Default 514 |
+| Minimum level | Only records at or above this level are forwarded (Debug/Info/Warning/Error/Fatal) |
+
+It is **not** a second telemetry transport, on purpose. UDP is
+fire-and-forget: there is no handshake, no TLS client, no on-flash cursor and
+no reconnection state — none of the machinery (or the failure modes) the
+telemetry upload carries. The device never retries a datagram and never blocks
+a reading on one; a `WARN`/`FATAL` raised just before a reboot is flushed on
+the way out, but a hard hang of both cores saves nothing, and syslog promises
+no delivery by design.
+
+The collector is an **IPv4 address, not a hostname**: the setting lives in an
+8-byte slot with no room for a 64-character name, a collector on the same LAN
+is addressed by IP in practice, and it avoids a DNS-resolution failure path in
+the logging hot loop.
+
+Each line maps mechanically to RFC 5424: the SIMUT level becomes the syslog
+severity (facility `local0`), the tag (`NET`, `CLI`, …) becomes APP-NAME, the
+numeric log code becomes MSGID (stable and language-independent — map it back
+with the code table below), and the context/core/uptime ride a structured-data
+element. **Before the clock syncs**, the timestamp is the RFC 5424 NILVALUE
+`-` rather than the provisional build-epoch date, so a line never arrives at
+the SIEM stamped in the past. A record sanitised to fit one datagram:
+
+```
+<132>1 2026-08-19T17:04:00Z picofridge NET - 524 [simut@32473 ctx="-18" core="0" up="12345"] Provisional time in use
+```
+
+The structured-data ID uses enterprise number `32473` — the value IANA
+reserves for examples — because SIMUT has no registered PEN; a site that
+registers one swaps that single constant.
 
 ### Template tokens
 
