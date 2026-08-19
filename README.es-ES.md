@@ -25,7 +25,7 @@
 
 ## Descripción general
 
-SIMUT es un firmware IoT de nivel profesional para la **Raspberry Pi Pico W** que proporciona monitoreo de temperatura, humedad y presión en tiempo real con arquitectura de doble núcleo. Incluye dashboard local en TFT táctil, interfaz web embebida con control de acceso por roles, histórico binario en el dispositivo con gráficos decimados en el navegador, telemetría (HTTP/MQTT), actualización OTA y CLI por serial USB.
+SIMUT es un firmware IoT de nivel profesional para la **Raspberry Pi Pico W** que proporciona monitoreo de temperatura, humedad y presión en tiempo real con arquitectura de doble núcleo. Incluye dashboard local en TFT táctil, interfaz web embebida con control de acceso por roles, histórico binario en el dispositivo con gráficos decimados en el navegador, telemetría (HTTP/MQTT, con MQTT Discovery de Home Assistant), actualización OTA y CLI por serial USB.
 
 ## ¿Por qué SIMUT?
 
@@ -37,10 +37,11 @@ SIMUT es un firmware IoT de nivel profesional para la **Raspberry Pi Pico W** qu
 | Operación offline | ✅ Sí | ❌ A menudo depende de la nube | ✅ Web local completa + pantalla |
 | Actualización OTA | ❌ Reflasheo manual | ✅ OTA | ✅ OTA + backup/restore |
 | Seguridad | ❌ Ninguna | ⚠️ Básica | ✅ HMAC-SHA256, RBAC, rate limiting |
+| Home Assistant | ⚠️ Integración manual | ✅ Nativa | ✅ MQTT Discovery (opcional) |
 
 **SIMUT es para ti si:** necesitas un sistema de monitoreo de temperatura autónomo, seguro y auditable que funcione con o sin internet — típico de laboratorios, farmacias, bancos de sangre, almacenamiento de vacunas y cadenas de frío alimentarias.
 
-**ESPHome/Tasmota pueden ser mejores si:** ya usas Home Assistant, no necesitas pantalla local y prefieres configuración YAML a una interfaz web integrada.
+**ESPHome/Tasmota pueden ser mejores si:** no necesitas pantalla local y prefieres configuración YAML a una interfaz web integrada. (Si lo que te retenía allí era Home Assistant: SIMUT ahora habla MQTT Discovery.)
 
 ## Arquitectura
 

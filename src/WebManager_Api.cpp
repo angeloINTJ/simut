@@ -147,10 +147,11 @@ void WebManager::handleApiConfig( ) {
 
 	snprintf(buf, sizeof(buf),
 	         "\"m_topic\":\"%s\",\"m_cid\":\"%s\",\"m_user\":\"%s\","
-	         "\"m_qos\":%d,\"m_retain\":%s,\"m_ka\":%u,",
+	         "\"m_qos\":%d,\"m_retain\":%s,\"m_ka\":%u,\"m_had\":%s,",
 	         jsonEscape(cfg.mqttTopic).c_str( ), jsonEscape(cfg.mqttClientId).c_str( ),
 	         jsonEscape(cfg.mqttUser).c_str( ), cfg.mqttQos,
-	         cfg.mqttRetain ? "true" : "false", cfg.mqttKeepAlive);
+	         cfg.mqttRetain ? "true" : "false", cfg.mqttKeepAlive,
+	         _storageRef->isHaDiscoveryEnabled( ) ? "true" : "false");
 	if (!safeSend(buf)) return;
 
 	snprintf(buf, sizeof(buf),

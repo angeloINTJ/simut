@@ -422,6 +422,23 @@ specify.
 | Payload | JSON, CSV, or a custom template |
 | Security | TLS supported |
 | Interval | Configurable, with a batch limit per upload |
+| Home Assistant Discovery | MQTT only, opt-in checkbox |
+
+### Home Assistant Discovery
+
+With the MQTT transport and JSON payload selected, checking **Home Assistant
+Discovery** makes the device publish retained [MQTT Discovery](https://www.home-assistant.io/integrations/mqtt/#mqtt-discovery)
+config messages on every broker connect. Home Assistant then creates the
+device and one sensor entity per measurement automatically — temperature and
+humidity per active slot, plus pressure — with availability driven by the
+existing `<topic base>/status` will message. No YAML is needed on the HA side.
+
+Entities appear after the first upload following a save (saving reboots the
+device, and the configs ride the next broker connect). Unchecking the box
+publishes empty retained payloads on the same topics at the next connect,
+which removes the entities from Home Assistant. Renaming a sensor's hardware
+ID re-registers it under the new id; the old entity lingers until the broker
+retained topic is cleared or HA removes it manually.
 
 ### Template tokens
 

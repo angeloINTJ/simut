@@ -16,6 +16,8 @@
 
 #include "TelemetryManager.h"
 #include "MetricsManager.h"
+#include "HaDiscovery.h"
+#include "sensors/SensorChannelTable.h"
 #include <LittleFS.h>
 #include <algorithm>
 #include <string.h>
@@ -292,6 +294,21 @@ void TelemetryManager::update( ) {
  && _mqttClient.connected( )) {
  _mqttClient.loop( );
  watchdog_update( );
+
+ /* HA discovery safety net for config paths that do NOT reboot (commit_all
+  * does, and its post-reboot connect reconciles there): while connected,
+  * a mismatch between the toggle and the persisted published bit is
+  * settled here. Two RAM reads per pass when in sync; the CAS keeps the
+  * publish burst from interleaving with a send. */
+ bool haWant = _storageRef->isHaDiscoveryEnabled( ) && cfg.telMode == TEL_MODE_JSON;
+ if (haWant != _storageRef->wasHaDiscoveryPublished( )) {
+ bool expected = false;
+ if (__atomic_compare_exchange_n(&_isSending, &expected, true,
+ false, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
+ haDiscoveryReconcile(false);
+ __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
+ }
+ }
  }
 
  uint32_t now = millis( );
@@ -859,6 +876,173 @@ String TelemetryManager::buildMqttClientId( ) {
  return "simut_device";
 }
 
+String TelemetryManager::mqttDataTopic( ) {
+ SystemConfig &cfg = _storageRef->getConfig( );
+ String t = String(cfg.mqttTopic);
+ t.trim( );
+ if (t.length( ) == 0) t = "simut/data";
+ return t;
+}
+
+String TelemetryManager::mqttStatusTopic( ) {
+ String base = mqttDataTopic( );
+ int lastSlash = base.lastIndexOf('/');
+ if (lastSlash > 0) return base.substring(0, lastSlash) + "/status";
+ return base + "/status";
+}
+
+/**
+ * @brief Settle HA discovery against the persisted state.
+ *
+ * want = toggle && JSON mode; have = FLAG_HA_PUBLISHED. Publishes the
+ * retained configs when wanted (always on @p forceRepublish — the connect
+ * path uses it so broker restarts and sensor-table edits are covered),
+ * publishes the empty payloads that remove the entities when no longer
+ * wanted. The bit only moves when every message was accepted, so a failed
+ * burst is retried on the next reconcile instead of being lost.
+ */
+void TelemetryManager::haDiscoveryReconcile(bool forceRepublish) {
+ SystemConfig &cfg = _storageRef->getConfig( );
+ bool want = _storageRef->isHaDiscoveryEnabled( ) && cfg.telMode == TEL_MODE_JSON;
+ bool have = _storageRef->wasHaDiscoveryPublished( );
+
+ if (want) {
+ if (forceRepublish || !have) {
+ if (publishHaDiscovery(true)) _storageRef->markHaDiscoveryPublished(true);
+ }
+ } else if (have) {
+ if (publishHaDiscovery(false)) _storageRef->markHaDiscoveryPublished(false);
+ }
+}
+
+/**
+ * @brief Publish (or clear) the Home Assistant discovery config messages.
+ *
+ * One retained message per measurement the JSON formatter emits — the entity
+ * list must mirror formatLineJsonBuf, because each config message is a
+ * promise that `value_json['<key>']` exists in the state topic: per active
+ * slot a temperature and (channel mask allowing) a humidity entity, plus one
+ * pressure entity attributed exactly like the formatter attributes the `p`
+ * key. Lux stays out for the same reason: BinaryHistoryRecord does not carry
+ * it, so telemetry never publishes it.
+ *
+ * @param enable false publishes empty retained payloads to the same topics,
+ * which is how HA is told to remove the entities.
+ * @return true if every message was accepted by the client.
+ */
+bool TelemetryManager::publishHaDiscovery(bool enable) {
+ if (!_mqttClient.connected( )) return false;
+ SystemConfig &cfg = _storageRef->getConfig( );
+
+ char nodeId[32];
+ HaDiscovery::sanitizeId(buildMqttClientId( ).c_str( ), nodeId, sizeof(nodeId));
+
+ String stateT = mqttDataTopic( );
+ String availT = mqttStatusTopic( );
+
+ /* configuration_url: the device's own web UI. Port comes from the same
+  * overlay WebManager_Core reads at boot. */
+ char cu[48] = "";
+ if (enable) {
+ const WebConfigData* w = reinterpret_cast<const WebConfigData*>(
+ cfg.reserved + WEB_CONFIG_OFFSET);
+ uint16_t port = (w->port == 0) ? WEB_DEFAULT_PORT : w->port;
+ String ip = _netRef->getIpAddress( );
+ if (port == 80) snprintf(cu, sizeof(cu), "http://%s", ip.c_str( ));
+ else snprintf(cu, sizeof(cu), "http://%s:%u", ip.c_str( ), port);
+ }
+
+ HaDiscovery::EntityCtx ctx;
+ ctx.nodeId = nodeId;
+ ctx.stateTopic = stateT.c_str( );
+ ctx.availTopic = availT.c_str( );
+ ctx.deviceName = cfg.deviceName;
+ ctx.swVersion = SIMUT_VERSION;
+ ctx.configUrl = cu;
+
+ int published = 0, skipped = 0;
+ bool allOk = true;
+
+ auto pubEntity = [&](const char* key, const char* slotLabel, uint8_t ch) {
+ if (!HaDiscovery::keyTemplatable(key)) { skipped++; return; }
+ char objectId[24];
+ HaDiscovery::sanitizeId(key, objectId, sizeof(objectId));
+
+ char topic[96];
+ int tl = HaDiscovery::configTopic(topic, sizeof(topic), nodeId, objectId);
+ if (tl <= 0 || tl >= (int)sizeof(topic)) { skipped++; return; }
+
+ feedWdt( );
+ bool ok;
+ if (!enable) {
+ /* Empty retained payload = delete the retained config → HA removes
+  * the entity. */
+ ok = _mqttClient.publish(topic, (const uint8_t*)"", 0, true);
+ } else {
+ const ChannelInfo& ci = channelInfo(ch);
+ char name[64];
+ snprintf(name, sizeof(name), "%s %s", slotLabel, ci.name);
+ char payload[896];
+ int n = HaDiscovery::entityConfigJson(payload, sizeof(payload), ctx,
+ objectId, key, name, HaDiscovery::deviceClass(ch), ci.display.unit,
+ (int8_t)ci.display.decimals);
+ if (n <= 0 || n >= (int)sizeof(payload)) { skipped++; return; }
+ ok = _mqttClient.publish(topic, payload, true);
+ }
+ if (ok) published++; else allOk = false;
+ _mqttClient.loop( );
+ };
+
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (!cfg.sensors[i].active) continue;
+ SensorType type = (SensorType)cfg.sensors[i].sensorType;
+ const char* hwid = cfg.sensors[i].hwId;
+
+ char key[20];
+ const char* label = cfg.sensors[i].friendlyName[0] ? cfg.sensors[i].friendlyName
+                   : (hwid[0] ? hwid : "Slot");
+
+ if (sensorHasChannel(type, CH_TEMP)) {
+ if (hwid[0]) snprintf(key, sizeof(key), "t%s", hwid);
+ else snprintf(key, sizeof(key), "t%d", i);
+ pubEntity(key, label, CH_TEMP);
+ }
+ if (sensorHasChannel(type, CH_HUM)) {
+ if (hwid[0]) snprintf(key, sizeof(key), "u%s", hwid);
+ else snprintf(key, sizeof(key), "u%d", i);
+ pubEntity(key, label, CH_HUM);
+ }
+ }
+
+ /* Pressure: single entity, attributed like formatLineJsonBuf attributes
+  * the `p` key (first active pressure-capable slot with a hwId; "p"
+  * otherwise, yielding the same "pp" fallback key the formatter emits). */
+ bool anyPress = false;
+ const char* pHwid = "p";
+ const char* pLabel = "Slot";
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (!cfg.sensors[i].active) continue;
+ if (!sensorHasChannel((SensorType)cfg.sensors[i].sensorType, CH_PRESS)) continue;
+ anyPress = true;
+ if (cfg.sensors[i].hwId[0]) {
+ pHwid = cfg.sensors[i].hwId;
+ pLabel = cfg.sensors[i].friendlyName[0] ? cfg.sensors[i].friendlyName
+        : cfg.sensors[i].hwId;
+ break;
+ }
+ }
+ if (anyPress) {
+ char key[20];
+ snprintf(key, sizeof(key), "p%s", pHwid);
+ pubEntity(key, pLabel, CH_PRESS);
+ }
+
+ LOG_CODE(LOG_INFO, "TEL", TEL_HA_DISCOVERY, published,
+ String(enable ? "HA discovery published " : "HA discovery cleared ")
+ + String(published) + (skipped ? " (skipped " + String(skipped) + ")" : ""));
+ return allOk;
+}
+
 /**
  * @brief Ensure MQTT broker connection with LWT (Last Will & Testament).
  * Rate-limited to one reconnection attempt every 5 seconds.
@@ -875,16 +1059,10 @@ bool TelemetryManager::mqttEnsureConnected( ) {
  String clientId = buildMqttClientId( );
  String devName = String(cfg.deviceName);
 
-
- String willTopic = String(cfg.mqttTopic);
-
- int lastSlash = willTopic.lastIndexOf('/');
- String willTopicFull;
- if (lastSlash > 0) {
- willTopicFull = willTopic.substring(0, lastSlash) + "/status";
- } else {
- willTopicFull = willTopic + "/status";
- }
+ /* Was derived from the raw cfg.mqttTopic here while the data publish used
+  * a trimmed copy with a "simut/data" fallback — so a blank topic put the
+  * will on the degenerate "/status". Both now come from the same resolver. */
+ String willTopicFull = mqttStatusTopic( );
 
  String willPayload = "{\"device\":\"" + devName + "\",\"status\":\"offline\"}";
 
@@ -931,6 +1109,11 @@ bool TelemetryManager::mqttEnsureConnected( ) {
  String onlinePayload = "{\"device\":\"" + devName + "\",\"status\":\"online\",\"ip\":\"" + _netRef->getIpAddress( ) + "\"}";
  _mqttClient.publish(willTopicFull.c_str( ), onlinePayload.c_str( ), true);
 
+ /* HA discovery rides every (re)connect: republish covers broker restarts
+  * and sensor-table edits (commit_all reboots into exactly this path),
+  * and a fresh OFF-with-published-bit state clears the retained configs. */
+ haDiscoveryReconcile(true);
+
  return true;
  } else {
  int state = _mqttClient.state( );
@@ -973,9 +1156,7 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  if (!mqttEnsureConnected( )) { m.telFailed++; return false; }
 
  SystemConfig &cfg = _storageRef->getConfig( );
- String topic = String(cfg.mqttTopic);
- topic.trim( );
- if (topic.length( ) == 0) topic = "simut/data";
+ String topic = mqttDataTopic( );
 
 
  bool success = false;
