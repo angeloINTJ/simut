@@ -50,7 +50,7 @@ void WebManager::handleDownload( ) {
  String path = _server->arg("file");
 
  /* PERM_FILE_READ downloads history, calib, themes and language packs — never
-  * the credential store. Refuse /config/* (system.bin holds the secrets and
+  * the credential store. Refuse everything under /config (system.bin holds the secrets and
   * the password hashes) and reject traversal / percent-encoding, the same
   * guard handleApiLs and the upload path already apply. Without the '..'
   * check, "/history/../config/system.bin" would walk straight past the

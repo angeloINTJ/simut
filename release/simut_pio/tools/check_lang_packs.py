@@ -39,13 +39,44 @@ PACKS = sorted((ROOT / "data" / "lang").glob("*.lng"))
 CEIL_WARN_FRAC = 0.95
 
 
-def lang_file_max():
+def lang_limits():
+    """(LANG_FILE_MAX, LANG_RESIDENT_MAX) read from the parser source, so this
+    gate can never drift from what loadLangFile() actually enforces."""
     src = PARSER.read_text(encoding="utf-8")
-    m = re.search(r"LANG_FILE_MAX\s*=\s*(\d+)", src)
-    if not m:
-        raise SystemExit("check_lang_packs: LANG_FILE_MAX not found in "
-                         "DisplayManager_LangParser.cpp")
-    return int(m.group(1))
+    out = []
+    for name in ("LANG_FILE_MAX", "LANG_RESIDENT_MAX"):
+        m = re.search(name + r"\s*=\s*(\d+)", src)
+        if not m:
+            raise SystemExit(f"check_lang_packs: {name} not found in "
+                             "DisplayManager_LangParser.cpp")
+        out.append(int(m.group(1)))
+    return tuple(out)
+
+
+def resident_split(path):
+    """(resident_bytes, has_webdict, tail_directives).
+
+    resident_bytes is the byte offset of the @WEBDICT marker line — exactly
+    what loadLangFile() mallocs, since the blob is streamed from flash and
+    never read into RAM. tail_directives lists any @SECTION line found AFTER
+    the marker: the device rejects those packs because the blob must be the
+    file's suffix for the resident prefix to be contiguous."""
+    data = path.read_bytes()
+    off = 0
+    marker = -1
+    tail = []
+    for ln in data.split(b"\n"):
+        stripped = ln.rstrip(b"\r")
+        if marker < 0 and (stripped == b"@WEBDICT"
+                           or stripped.startswith(b"@WEBDICT ")
+                           or stripped.startswith(b"@WEBDICT\t")):
+            marker = off
+        elif marker >= 0 and off > marker and stripped.startswith(b"@"):
+            tail.append(stripped.decode("utf-8", "replace"))
+        off += len(ln) + 1
+    if marker < 0:
+        return len(data), False, []
+    return marker, True, tail
 
 
 def enum_keys():
@@ -232,13 +263,15 @@ def check_webdict(pack, keys, prefixes):
 def main():
     keys = enum_keys()
     want = len(keys)
-    ceil = lang_file_max()
+    ceil, res_ceil = lang_limits()
     warn_at = int(ceil * CEIL_WARN_FRAC)
+    res_warn_at = int(res_ceil * CEIL_WARN_FRAC)
     trl_live = trl_literals()
     wkeys, wprefixes = web_keys()
     failed = False
     for pack in PACKS:
         size = pack.stat().st_size
+        resident, has_wd, tail = resident_split(pack)
         if size > ceil:
             print(f"[lang-packs] FAIL {pack.name}: {size} B exceeds LANG_FILE_MAX "
                   f"({ceil}) — loadLangFile() rejects it and the UI silently "
@@ -246,9 +279,30 @@ def main():
             failed = True
         elif size >= warn_at:
             print(f"[lang-packs] WARN {pack.name}: {size} B is {size * 100 // ceil}% "
-                  f"of the {ceil} B ceiling ({ceil - size} B left) — the next "
+                  f"of the {ceil} B file ceiling ({ceil - size} B left) — the next "
                   f"addition may tip it over, and the failure is invisible at runtime",
                   file=sys.stderr)
+        if tail:
+            print(f"[lang-packs] FAIL {pack.name}: section(s) {tail} appear AFTER "
+                  f"@WEBDICT — the blob must be the file's suffix; the device "
+                  f"rejects such a pack and the UI silently reverts to English",
+                  file=sys.stderr)
+            failed = True
+        if resident > res_ceil:
+            print(f"[lang-packs] FAIL {pack.name}: resident sections total "
+                  f"{resident} B, over LANG_RESIDENT_MAX ({res_ceil}) — that is "
+                  f"the part that lives on the heap for the whole uptime; "
+                  f"loadLangFile() rejects it", file=sys.stderr)
+            failed = True
+        elif resident >= res_warn_at:
+            print(f"[lang-packs] WARN {pack.name}: resident sections are "
+                  f"{resident} B, {resident * 100 // res_ceil}% of the {res_ceil} B "
+                  f"RAM ceiling ({res_ceil - resident} B left)", file=sys.stderr)
+        else:
+            print(f"[lang-packs] OK {pack.name}: resident {resident} B "
+                  f"({resident * 100 // res_ceil}% of RAM ceiling), file {size} B "
+                  f"({size * 100 // ceil}% of file ceiling)"
+                  + ("" if has_wd else " — no @WEBDICT"))
         lines, blanks = dict_lines(pack)
         if blanks:
             print(f"[lang-packs] FAIL {pack.name}: blank line(s) inside @DICT at "
@@ -280,7 +334,10 @@ def main():
         raise SystemExit(1)
 
 
-main()
+if not os.environ.get("LANG_GATE_NO_RUN"):
+    main()
 
 # PlatformIO imports this as a pre: script; there is no Import("env") use here
-# because the check needs nothing from the build environment.
+# because the check needs nothing from the build environment. LANG_GATE_NO_RUN
+# exists for tools/test_lang_gate.py, which imports the functions above and
+# runs positive controls against synthetic packs without tripping the gate.
