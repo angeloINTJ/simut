@@ -440,6 +440,34 @@ which removes the entities from Home Assistant. Renaming a sensor's hardware
 ID re-registers it under the new id; the old entity lingers until the broker
 retained topic is cleared or HA removes it manually.
 
+### Prometheus metrics
+
+`GET /metrics` serves the Prometheus text exposition format: live readings
+per slot (temperature/humidity/pressure with `slot`/`hwid`/`name` labels),
+heap and filesystem gauges, WiFi/MQTT state, the telemetry counters, and the
+flash-op / Core-1 lifecycle counters. This is the **pull** complement to the
+push telemetry above: the device stores and retries nothing — Prometheus
+owns retention, graphing (Grafana) and alerting, and a failed scrape shows
+up on its side as `up == 0`.
+
+A scraper cannot run the login flow, so besides the normal session cookie
+the route accepts **HTTP Basic** with a username and the **raw** password of
+any account holding the dashboard permission. Failed credentials feed the
+same per-IP exponential lockout as the login form. Each scrape verifies the
+password in full (~0.7 s on the device), so keep `scrape_interval` at 15 s
+or more:
+
+```yaml
+scrape_configs:
+  - job_name: simut
+    scrape_interval: 30s
+    basic_auth:
+      username: admin
+      password: <your password>
+    static_configs:
+      - targets: ["<device-ip>"]
+```
+
 ### Template tokens
 
 | Token | Resolves to |
@@ -684,6 +712,7 @@ brackets.
 | Route | Method | Notes |
 |---|---|---|
 | `/api/status` | GET | Uptime, heap, flash usage, RSSI |
+| `/metrics` | GET | Prometheus text exposition [DASHBOARD]. Session cookie **or** HTTP Basic (username + raw password) — see §10 |
 | `/api/sensors` | GET | Live readings per slot |
 | `/api/config` | GET | Device configuration |
 | `/api/network` | GET | Network configuration |
