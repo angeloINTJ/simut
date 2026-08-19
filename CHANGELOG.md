@@ -4,6 +4,72 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.14-beta (2026-08-19)
+
+### Remote syslog — the audit trail leaves the box
+
+The on-device event log lives in a rotating ring of at most ~1600 records; a
+regulated deployment needs a copy that leaves the device, append-only, and
+that is what this adds. When enabled (System Settings → *Remote Syslog*), each
+qualifying log event is forwarded as an [RFC 5424](https://www.rfc-editor.org/rfc/rfc5424)
+message over UDP to a collector or SIEM.
+
+It is deliberately **not** a third telemetry transport. UDP is
+fire-and-forget: no handshake, no TLS client, no on-flash cursor, no
+reconnection state machine — none of the machinery the telemetry send loop
+carries. Threading is the whole design: `logCode()`/`log()` run on either
+core, but all network on this chip is Core 0, so the log sink formats and
+enqueues under the log mutex (where the tag and the code description are still
+valid to read) and the main loop drains and sends on Core 0. The lock order is
+always log-mutex → ring, never inverted. A `WARN`/`FATAL` raised just before a
+reboot is flushed on the way out; a hard dual-core hang saves nothing, which
+nothing could.
+
+Two traps the format was built around, both pinned by native golden vectors:
+the clock never reads 0 but falls back to the build epoch and time-travels, so
+below the sync threshold the timestamp is the RFC 5424 NILVALUE `-` rather than
+a line stamped in the past; and the space-delimited header would shear on a
+device name containing a space, so every structured field is sanitized to
+printable ASCII. The context, core and uptime ride a structured-data element;
+the numeric log code is the MSGID (stable and language-independent).
+
+Config is an 8-byte overlay in the last free bytes of `reserved[]` — which is
+now full. The collector is a raw IPv4, not a hostname: there is no room for a
+64-character name in 8 bytes, a LAN collector is addressed by IP in practice,
+and it avoids a DNS-resolution failure path in the logging hot loop. The
+address reuses the same input validator hardened below.
+
+Cost: ~2 900 B of flash for the whole feature (engine, config, web UI, and six
+new i18n keys). The es-ES language pack rises to 97 % of its 32 KB ceiling.
+
+### Strict integer/float parsers now reject overflow
+
+`parseIntStrict` checked "digits only" but not "fits an int": it answered true
+for `"2147483648"` with the value silently saturated to `2147483647`, because
+`String::toInt()` is `atol()` and newlib's `strtol` saturates instead of
+failing — a value the client never wrote, handed to callers whose contract
+said "well-formed". The parser now accumulates the digits itself with an
+overflow guard, so the result is exactly the number written and cannot depend
+on the platform's `long` width. `parseFloatStrict` had the float spelling of
+the same hole: ~40 digits saturate `atof` to ±inf, which would poison any
+threshold compared against it — a non-finite result now returns false. Found
+and closed while adding fuzz coverage for the web-API input validators.
+
+Cost: 112 B of flash.
+
+### A dead route removed, and a matrix pinned so it cannot rot
+
+`/favicon.ico` was registered twice; the web server matches the first handler
+for a path, so the second registration (a 204 stub after the real icon
+handler) never reached a client — removed. Alongside it, the authorization
+matrix — every HTTP route's required permission — is now enforced in CI: a
+build-time gate parses the route table and fails if a route neither checks a
+permission nor is on a documented public allowlist, so a new route cannot ship
+ungated the way the restore path once did. The matrix is written out in full
+in `docs/AUTHORIZATION.md`, including the two-tier privilege boundary that
+keeps full backup, OTA and restore-stage reachable only by the built-in admin,
+never by any web-created account.
+
 ## v2.2.13-beta (2026-08-19)
 
 ### The device now introduces itself to Home Assistant
