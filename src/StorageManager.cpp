@@ -759,6 +759,10 @@ bool StorageManager::saveConfiguration( ) {
  bool& inBigSaveRef;
  BigSaveQuietCallback cb;
  bool entered;
+ /* `cb(c)` is a member initialisation, not a call. cppcheck parses it as a
+  * call through the function pointer and then wants a null check it already
+  * has one line below. */
+ /* cppcheck-suppress nullPointerRedundantCheck */
  BigSaveGuard(bool& r, BigSaveQuietCallback c) : inBigSaveRef(r), cb(c), entered(false) {
  if (cb) {
  entered = cb(true);

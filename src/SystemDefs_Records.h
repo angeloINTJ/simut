@@ -647,6 +647,10 @@ struct __attribute__((packed)) BinaryHistoryRecord {
  if ((size_t)pos >= bufSize) return buf; /* Buffer exhausted */
 
  auto appendField = [&](bool valid, const char* fmt, float val) {
+ /* Not the same test as the one above: this one runs on every call, with
+  * `pos` already advanced by the previous field. cppcheck flattens the
+  * lambda body into the enclosing function and sees a duplicate. */
+ /* cppcheck-suppress identicalConditionAfterEarlyExit */
  if ((size_t)pos >= bufSize) return;
  if (valid) {
  pos += snprintf(buf + pos, bufSize - (size_t)pos, fmt, val);

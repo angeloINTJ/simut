@@ -291,6 +291,10 @@ uint16_t h5Crc16(const uint8_t* data, size_t len, uint16_t crc = 0xFFFF);
 
 /** int16 delta -> unsigned, small magnitudes first. */
 static inline uint16_t h5Zigzag(int16_t d) {
+    /* Same sign-smear idiom as writeVarintZ in HistoryV4.cpp: `d >> 15` is
+     * implementation-defined, and GCC defines it as an arithmetic shift.
+     * That is the behaviour §3.5 and the parity gate are written against. */
+    /* cppcheck-suppress shiftNegativeLHS */
     return (uint16_t)(((uint16_t)d << 1) ^ (uint16_t)(d >> 15));
 }
 
