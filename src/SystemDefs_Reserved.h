@@ -18,7 +18,8 @@
  * [48..51] HistoryConfigData ( 4 B) — recording interval (SystemDefs_Records.h)
  * [52..53] Dash slot selection ( 2 B) — top-pinned + selected idx, 0xFF = none
  * [54..55] HaDiscoveryData ( 2 B) — HA MQTT Discovery (SystemDefs_Records.h)
- * [56..63] free for future expansion
+ * [56..63] SyslogConfigData ( 8 B) — syslog RFC 5424/UDP (SystemDefs_Records.h)
+ *          — reserved[] is now FULL; further fields need a CONFIG_VERSION bump
  *
  * [52..53] were claimed by AppManager_HistoryAlarm.cpp through raw literals
  * while every map still said "free" — the HA overlay landed on them and its
@@ -71,7 +72,12 @@ constexpr size_t RESERVED_DASH_TOP_IDX = RESERVED_NETTIME_OFFSET + RESERVED_NETT
                                        + RESERVED_HISTORY_SIZE; /* 52 */
 constexpr size_t RESERVED_DASH_CUR_IDX = RESERVED_DASH_TOP_IDX + 1; /* 53 */
 
-constexpr size_t RESERVED_FREE_OFFSET = RESERVED_DASH_CUR_IDX + 1 + 2; /* 56 (54..55 = HaDiscoveryData) */
+/* SyslogConfigData [56..63] — SYSLOG_CONFIG_OFFSET in SystemDefs_Records.h.
+ * 54..55 = HaDiscoveryData, 56..63 = syslog: reserved[] is now full. */
+constexpr size_t RESERVED_SYSLOG_OFFSET = RESERVED_DASH_CUR_IDX + 1 + 2; /* 56 */
+constexpr size_t RESERVED_SYSLOG_SIZE = 8;
+
+constexpr size_t RESERVED_FREE_OFFSET = RESERVED_SYSLOG_OFFSET + RESERVED_SYSLOG_SIZE; /* 64 — full */
 constexpr size_t RESERVED_TOTAL_SIZE = 64;
 
 /* Compile-time sanity checks: nothing overflows the 64 B buffer and
