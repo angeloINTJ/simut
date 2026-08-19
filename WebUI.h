@@ -77,6 +77,8 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .tagline { font-size: 0.78rem; color: var(--sub); line-height: 1.45; margin-bottom: 28px; text-wrap: balance; }
         input[type="text"], input[type="password"] { width: 100%; padding: 14px; margin: 10px 0; background: #000; border: 1px solid #3f3f46; color: white; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: 0.2s; }
         input:focus { border-color: var(--acc); outline: none; }
+        :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
         button[type="submit"] { width: 100%; padding: 14px; background: var(--acc); color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; margin-top: 15px; font-size: 1.05rem; transition: 0.2s; }
         button[type="submit"]:hover { opacity: 0.9; transform: translateY(-1px); }
         button[type="submit"]:disabled { background: #3f3f46; color: #a1a1aa; cursor: not-allowed; }
@@ -283,6 +285,8 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         p { color: var(--sub); font-size: 0.9rem; margin-bottom: 20px; }
         input[type="password"], input[type="text"] { width: 100%; padding: 14px; margin: 10px 0; background: #000; border: 1px solid #3f3f46; color: #fff; border-radius: 8px; box-sizing: border-box; font-size: 1rem; transition: 0.2s; }
         input:focus { border-color: var(--acc); outline: none; }
+        :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+        @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
         button[type="submit"] { width: 100%; padding: 14px; background: var(--acc); color: #000; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; font-size: 1.05rem; transition: 0.2s; }
         button:disabled { background: #3f3f46; color: #a1a1aa; cursor: not-allowed; }
         .bar-bg { width: 100%; height: 8px; background: #3f3f46; border-radius: 4px; margin-top: 10px; overflow: hidden; }
@@ -358,7 +362,7 @@ static const char FORCE_CHPASS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </script>
 </head>
 <body>
-    <div id="net-toast"></div>
+    <div id="net-toast" role="status" aria-live="polite"></div>
     <div class="box">
         <h2 data-i18n="fcp_wel">Welcome!</h2>
         <p data-i18n="fcp_msg">Please set a strong new password to access the system.</p>
@@ -1549,9 +1553,9 @@ global.H5G = H5G;
                 <div class="grp" style="margin-bottom:0;">
                     <label data-i18n="hist_cal">Monthly Calendar</label>
                     <div class="cal-header-row">
-                        <button onclick="changeMonth(-1)">&#9664;</button>
+                        <button onclick="changeMonth(-1)" aria-label="Previous month">&#9664;</button>
                         <span id="calMonthYear" style="font-weight:bold; color:var(--txt); font-size: 0.9rem;"></span>
-                        <button onclick="changeMonth(1)">&#9654;</button>
+                        <button onclick="changeMonth(1)" aria-label="Next month">&#9654;</button>
                     </div>
                     <div class="cal-grid">
                         <div class="cal-dow" data-i18n="cal_su">Su</div><div class="cal-dow" data-i18n="cal_mo">Mo</div><div class="cal-dow" data-i18n="cal_tu">Tu</div>
@@ -1585,7 +1589,7 @@ global.H5G = H5G;
                         <canvas id="myChart"></canvas>
                     </div>
                     <div class="bottom-controls">
-                        <button onclick="navGraph(-1)" id="btnPrev" title="Anterior">◀</button>
+                        <button onclick="navGraph(-1)" id="btnPrev" title="Anterior" aria-label="Previous period">◀</button>
                         <select id="rangeSel" title="Intervalo" onchange="loadGraphRange(parseInt(this.value,10))">
                             <option value="0">1h</option>
                             <option value="1">6h</option>
@@ -1595,7 +1599,7 @@ global.H5G = H5G;
                             <option value="5">1A</option>
                             <option value="6">MAX</option>
                         </select>
-                        <button onclick="navGraph(+1)" id="btnNext" title="Próximo">▶</button>
+                        <button onclick="navGraph(+1)" id="btnNext" title="Próximo" aria-label="Next period">▶</button>
                         <button onclick="exportHistoryCsv()" id="btnExpHist" title="Export CSV">⤓ CSV</button>
                     </div>
                 </div>
@@ -5706,7 +5710,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Drop</option>
                             <option value="5">Chirp</option>
                         </select>
-                        <button type="button" class="btn-test" onclick="testSound('touch')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('touch')">&#9835;</button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_touch"><span class="slider"></span></label>
                 </div>
@@ -5721,7 +5725,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Sparkle</option>
                             <option value="5">Resolve</option>
                         </select>
-                        <button type="button" class="btn-test" onclick="testSound('confirm')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('confirm')">&#9835;</button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_confirm"><span class="slider"></span></label>
                 </div>
@@ -5736,7 +5740,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Decline</option>
                             <option value="5">Blip</option>
                         </select>
-                        <button type="button" class="btn-test" onclick="testSound('error')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('error')">&#9835;</button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_error"><span class="slider"></span></label>
                 </div>
@@ -5751,7 +5755,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Escalate</option>
                             <option value="5">Staccato</option>
                         </select>
-                        <button type="button" class="btn-test" onclick="testSound('alarm')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('alarm')">&#9835;</button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_alarm"><span class="slider"></span></label>
                 </div>
@@ -5770,7 +5774,7 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <option value="4">Rise</option>
                             <option value="5">Soft Ding</option>
                         </select>
-                        <button type="button" class="btn-test" onclick="testSound('attention')">&#9835;</button>
+                        <button type="button" class="btn-test" aria-label="Test sound" onclick="testSound('attention')">&#9835;</button>
                     </div>
                     <label class="toggle"><input type="checkbox" id="snd_attention"><span class="slider"></span></label>
                 </div>
@@ -6378,6 +6382,9 @@ static const char STYLE_CSS[] PROGMEM = R"raw(/* Paleta e as tres caixas que tod
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
 h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1.4rem; margin-bottom: 20px; }
 :focus-visible { outline: 2px solid var(--acc); outline-offset: 2px; }
+/* Movimento vira preferencia do sistema: gaveta, toast e barras ficam
+   instantaneos sem mudar nenhum estado final — so a viagem some. */
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
 /* Botao primario padrao: solido no accent, texto escuro no tema escuro
    (cyan claro pede tinta escura); o claro troca para branco via lang.js. */
 .b-pri { background: var(--acc); color: #001318; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.95em; font-weight: 700; transition: 0.2s; }
@@ -6606,17 +6613,26 @@ static const char LANG_JS[] PROGMEM = R"raw(
         ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.6);' +
             'display:flex;align-items:center;justify-content:center;padding:16px';
         ov.innerHTML =
-            '<div style="background:var(--card,#1b2330);border:1px solid var(--border,#334);' +
+            '<div role="dialog" aria-modal="true" aria-labelledby="creds-title" style="background:var(--card,#1b2330);border:1px solid var(--border,#334);' +
             'border-radius:10px;max-width:440px;width:100%;padding:20px;box-shadow:0 8px 40px rgba(0,0,0,.5)">' +
-            '<h3 style="margin:0 0 4px">' + escHtml(window.t ? window.t('creds_title','Temporary password') : 'Temporary password') + '</h3>' +
+            '<h3 id="creds-title" style="margin:0 0 4px">' + escHtml(window.t ? window.t('creds_title','Temporary password') : 'Temporary password') + '</h3>' +
             '<p style="margin:0 0 14px;color:var(--warn);font-size:.9rem">' +
             escHtml(window.t ? window.t('creds_warn','Copy it now — it is shown only once. The user must change it on first login.') : 'Copy it now — shown only once. The user must change it on first login.') + '</p>' +
             '<table style="margin:0 0 16px">' + rows + '</table>' +
             '<button id="creds-ok" class="btn" style="width:100%">' +
             escHtml(window.t ? window.t('creds_ok','I saved it — reload') : 'I saved it — reload') + '</button></div>';
         document.body.appendChild(ov);
-        ov.querySelector('#creds-ok').addEventListener('click', function(){
+        /* Dialogo de verdade para o teclado: foco entra no unico botao, TAB
+           fica preso nele, e volta para quem abriu no fechamento. Escape NAO
+           fecha de proposito — a senha aparece UMA vez, e um Esc por reflexo
+           antes de copiar custaria a credencial. */
+        var prev = document.activeElement;
+        var okBtn = ov.querySelector('#creds-ok');
+        okBtn.focus();
+        ov.addEventListener('keydown', function(e){ if (e.key === 'Tab') { e.preventDefault(); okBtn.focus(); } });
+        okBtn.addEventListener('click', function(){
             document.body.removeChild(ov);
+            if (prev && prev.focus) prev.focus();
             if (typeof onClose === 'function') onClose();
         });
     };
@@ -6632,11 +6648,14 @@ static const char LANG_JS[] PROGMEM = R"raw(
        roda depois deste arquivo e a declaracao sobrescreve esta — havia 8 copias
        identicas fazendo exatamente isso, e qualquer melhoria aqui virava codigo
        morto. As paginas so chamam, via onclick, resolvido no clique. */
-    window.toggleDrawer = function(){var d=document.getElementById('drawer'),b=document.getElementById('drawer-bg');if(d)d.classList.toggle('open');if(b)b.classList.toggle('open');document.body.style.overflow=(d&&d.classList.contains('open'))?'hidden':'';};
+    window.toggleDrawer = function(){var d=document.getElementById('drawer'),b=document.getElementById('drawer-bg');if(d)d.classList.toggle('open');if(b)b.classList.toggle('open');var open=d&&d.classList.contains('open');document.body.style.overflow=open?'hidden':'';var h=document.querySelector('.topbar .hamburger');if(h)h.setAttribute('aria-expanded',open?'true':'false');/* Teclado: o foco entra no 1o link ao abrir e volta ao botao ao fechar,
+       mas SO se estava dentro da gaveta — fechar por clique no fundo nao
+       rouba o foco do mouse. */
+    if(open){var f=d.querySelector('nav a');if(f)f.focus();}else if(h&&d&&d.contains(document.activeElement)){h.focus();}};
     var DRAWER_HTML = '<div class="drawer-bg" id="drawer-bg" onclick="toggleDrawer()"></div>'
         +'<div class="drawer" id="drawer">'
         +'<div class="drawer-head"><div class="brand">SIMUT<span> IoT</span></div><button class="hamburger" onclick="toggleDrawer()" aria-label="Close">✕</button></div>'
-        +'<nav>'
+        +'<nav aria-label="Main">'
         +'<a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>'
         +'<a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>'
         +'<a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>'
@@ -6675,10 +6694,10 @@ static const char LANG_JS[] PROGMEM = R"raw(
        defer) e o markup entra antes de qualquer pintura. O drawer pode esperar o
        evento porque nasce fechado. insertAdjacentHTML e não document.write:
        escreve no mesmo ponto sem reentrar no analisador. */
-    var TOPBAR_HTML = '<div id="net-toast"></div>'
+    var TOPBAR_HTML = '<div id="net-toast" role="status" aria-live="polite"></div>'
         +'<div class="topbar">'
         +'<div style="display:flex;align-items:center;gap:12px">'
-        +'<button class="hamburger" onclick="toggleDrawer()" aria-label="Menu">☰</button>'
+        +'<button class="hamburger" onclick="toggleDrawer()" aria-label="Menu" aria-expanded="false" aria-controls="drawer">☰</button>'
         +'<div class="brand">SIMUT<span> IoT</span></div></div>'
         +'<div class="status-pill">'
         +'<div class="dot" id="conn-dot" style="background:var(--track)"></div>'
@@ -7060,16 +7079,21 @@ static const char LANG_JS[] PROGMEM = R"raw(
     (function(){const c='.csel{position:relative;display:inline-block;vertical-align:middle}.csel-btn{background:var(--bg);color:var(--txt);border:1px solid var(--border);padding:8px 12px;border-radius:6px;cursor:pointer;font-size:0.9rem;outline:none;width:100%;text-align:left;box-sizing:border-box;font-weight:500}.csel-btn:hover{border-color:var(--acc)}.csel-btn .csel-arr{float:right;opacity:0.7}.csel-menu{position:fixed;background:var(--card);border:1px solid var(--border);border-radius:6px;max-height:260px;overflow-y:auto;z-index:9999;padding:4px;box-shadow:0 6px 16px rgba(0,0,0,0.5)}.csel-item{padding:8px 12px;color:var(--txt);cursor:pointer;font-size:0.85rem;border-radius:4px}.csel-item:hover{background:var(--bg)}.csel-item.active{background:var(--acc);color:#000;font-weight:700}'
       + '.toggle{position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0}.toggle input{opacity:0;width:0;height:0}.toggle .slider{position:absolute;cursor:pointer;inset:0;background:#3f3f46;border-radius:24px;transition:.3s}.toggle .slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}.toggle input:checked+.slider{background:var(--acc)}.toggle input:checked+.slider:before{transform:translateX(20px)}'
       + 'input[type=number]::-webkit-inner-spin-button,input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}input[type=number]{-moz-appearance:textfield;appearance:textfield}';const s=document.createElement('style');s.textContent=c;document.head.appendChild(s);})();
-    document.addEventListener('click',e=>{if(!e.target.closest('.csel'))document.querySelectorAll('.csel-menu').forEach(m=>m.style.display='none');});
+    window._cselCloseAll=function(ex){document.querySelectorAll('.csel-menu').forEach(function(m){if(m!==ex){m.style.display='none';var bb=m.parentNode.querySelector('.csel-btn');if(bb)bb.setAttribute('aria-expanded','false');}});};
+    document.addEventListener('click',e=>{if(!e.target.closest('.csel'))_cselCloseAll();});
+    /* Escape fecha o que estiver aberto, do mais proximo ao mais largo: menu
+       do select custom primeiro, depois a gaveta. Quem fecha por teclado
+       recebe o foco de volta no controle que abriu. */
+    document.addEventListener('keydown',function(e){if(e.key!=='Escape')return;var open=document.querySelector('.csel-menu[style*="block"]');if(open){open.style.display='none';var bb=open.parentNode.querySelector('.csel-btn');if(bb){bb.setAttribute('aria-expanded','false');bb.focus();}return;}var d=document.getElementById('drawer');if(d&&d.classList.contains('open')){toggleDrawer();var h=document.querySelector('.topbar .hamburger');if(h)h.focus();}});
     /* O menu e position:fixed com coordenadas congeladas no momento da abertura,
        e so `click` o fechava. No toque, rolar nao e clique: o menu ficava boiando
        sobre conteudo alheio enquanto o botao dele ia embora. Rolou, fecha.
        Sem captura de proposito — rolar DENTRO do menu nao dispara no window. */
-    window.addEventListener('scroll',function(){document.querySelectorAll('.csel-menu').forEach(m=>m.style.display='none');},{passive:true});
+    window.addEventListener('scroll',function(){_cselCloseAll();},{passive:true});
     /* Setter prototypal capturado UMA vez — bypass do override para uso interno */
     const _selProtoValSet=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;
-    window._cselSync=function(sel){const w=sel._cw;if(!w)return;const m=w.querySelector('.csel-menu'),b=w.querySelector('.csel-btn');m.innerHTML='';let lbl='';Array.from(sel.options).forEach(o=>{const i=document.createElement('div');i.className='csel-item'+(o.selected?' active':'');i.textContent=o.text;i.onclick=()=>{if(sel.disabled)return;/* bypass override: nao re-renderiza menu durante o handler (i nao vira orfao) */ _selProtoValSet.call(sel,o.value);m.querySelectorAll('.csel-item').forEach(x=>x.classList.remove('active'));i.classList.add('active');b.firstChild.textContent=o.text;m.style.display='none';sel.dispatchEvent(new Event('change',{bubbles:true}));};m.appendChild(i);if(o.selected)lbl=o.text;});if(!lbl&&sel.options.length)lbl=sel.options[0].text;b.firstChild.textContent=lbl;};
-    window._makeCustomSelect=function(sel){if(!sel||sel.dataset.cd==='1'||sel.multiple)return;sel.dataset.cd='1';const w=document.createElement('div');w.className='csel'+(sel.classList.contains('mel-sel')?' csel-mel':'');const b=document.createElement('button');b.type='button';b.className='csel-btn';const ln=document.createTextNode(''),an=document.createElement('span');an.className='csel-arr';an.textContent='▾';b.appendChild(ln);b.appendChild(an);const m=document.createElement('div');m.className='csel-menu';m.style.display='none';b.onclick=ev=>{ev.stopPropagation();if(sel.disabled||b.disabled)return;const op=m.style.display==='block';document.querySelectorAll('.csel-menu').forEach(x=>{if(x!==m)x.style.display='none';});if(op){m.style.display='none';return;}/* position:fixed: posiciona no viewport para escapar de overflow:hidden de cards parent */ const r=b.getBoundingClientRect();m.style.left=r.left+'px';m.style.minWidth=r.width+'px';const sb=window.innerHeight-r.bottom;if(sb>=200||sb>=r.top){m.style.top=(r.bottom+4)+'px';m.style.bottom='auto';}else{m.style.top='auto';m.style.bottom=(window.innerHeight-r.top+4)+'px';}m.style.display='block';};sel._cw=w;sel.parentNode.insertBefore(w,sel);w.appendChild(b);w.appendChild(m);w.appendChild(sel);sel.style.display='none';_cselSync(sel);const d=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value');if(d&&d.set)Object.defineProperty(sel,'value',{get(){return d.get.call(this);},set(v){d.set.call(this,v);_cselSync(this);}});};
+    window._cselSync=function(sel){const w=sel._cw;if(!w)return;const m=w.querySelector('.csel-menu'),b=w.querySelector('.csel-btn');m.innerHTML='';let lbl='';Array.from(sel.options).forEach(o=>{const i=document.createElement('div');i.className='csel-item'+(o.selected?' active':'');i.setAttribute('role','option');if(o.selected)i.setAttribute('aria-selected','true');i.textContent=o.text;i.onclick=()=>{if(sel.disabled)return;/* bypass override: nao re-renderiza menu durante o handler (i nao vira orfao) */ _selProtoValSet.call(sel,o.value);m.querySelectorAll('.csel-item').forEach(x=>x.classList.remove('active'));i.classList.add('active');m.querySelectorAll('.csel-item').forEach(x=>x.removeAttribute('aria-selected'));i.setAttribute('aria-selected','true');b.firstChild.textContent=o.text;m.style.display='none';b.setAttribute('aria-expanded','false');sel.dispatchEvent(new Event('change',{bubbles:true}));};m.appendChild(i);if(o.selected)lbl=o.text;});if(!lbl&&sel.options.length)lbl=sel.options[0].text;b.firstChild.textContent=lbl;};
+    window._makeCustomSelect=function(sel){if(!sel||sel.dataset.cd==='1'||sel.multiple)return;sel.dataset.cd='1';const w=document.createElement('div');w.className='csel'+(sel.classList.contains('mel-sel')?' csel-mel':'');const b=document.createElement('button');b.type='button';b.className='csel-btn';b.setAttribute('aria-haspopup','listbox');b.setAttribute('aria-expanded','false');if(sel.title)b.title=sel.title;b.addEventListener('keydown',function(ev){var k=ev.key;if(k!=='ArrowDown'&&k!=='ArrowUp')return;ev.preventDefault();if(sel.disabled||b.disabled)return;var i=sel.selectedIndex+(k==='ArrowDown'?1:-1);if(i<0||i>=sel.options.length)return;sel.value=sel.options[i].value;sel.dispatchEvent(new Event('change',{bubbles:true}));});const ln=document.createTextNode(''),an=document.createElement('span');an.className='csel-arr';an.textContent='▾';b.appendChild(ln);b.appendChild(an);const m=document.createElement('div');m.className='csel-menu';m.setAttribute('role','listbox');m.style.display='none';b.onclick=ev=>{ev.stopPropagation();if(sel.disabled||b.disabled)return;const op=m.style.display==='block';_cselCloseAll(m);if(op){m.style.display='none';b.setAttribute('aria-expanded','false');return;}/* position:fixed: posiciona no viewport para escapar de overflow:hidden de cards parent */ const r=b.getBoundingClientRect();m.style.left=r.left+'px';m.style.minWidth=r.width+'px';const sb=window.innerHeight-r.bottom;if(sb>=200||sb>=r.top){m.style.top=(r.bottom+4)+'px';m.style.bottom='auto';}else{m.style.top='auto';m.style.bottom=(window.innerHeight-r.top+4)+'px';}m.style.display='block';b.setAttribute('aria-expanded','true');};sel._cw=w;sel.parentNode.insertBefore(w,sel);w.appendChild(b);w.appendChild(m);w.appendChild(sel);sel.style.display='none';_cselSync(sel);const d=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value');if(d&&d.set)Object.defineProperty(sel,'value',{get(){return d.get.call(this);},set(v){d.set.call(this,v);_cselSync(this);}});};
 
     /* Ordem importa: install PRIMEIRO (cria botões), depois init
      * (Pending.refreshUI encontra o botão e mostra/esconde). */
