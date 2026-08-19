@@ -239,6 +239,14 @@ Provas cruzadas:
 - **Dependência de CDN** (pré-existente, fora do escopo): `chart.js` vem de
   `cdn.jsdelivr.net` — sem internet, a página de gráficos não desenha. Recomendo
   avaliar embarcar o Chart.js (ou um renderer próprio) num próximo ciclo.
+  > **RESOLVIDO na v2.2.11-beta (18/08/2026).** O caminho avaliado foi o segundo:
+  > embarcar o Chart.js foi medido e recusado — podá-lo ao que a página usa leva de
+  > 70.592 para 56.818 B em gzip, e o núcleo sozinho, sem nada registrado, já são
+  > 43.527 B que não desenham pixel nenhum. O renderizador próprio (`h5g`, embutido
+  > no `WebUI.h`) custa **4.721 B** e substitui a tag do CDN. Detalhe do sintoma que
+  > esta análise não tinha: sem internet o `catch` do carregador engolia o
+  > `ReferenceError` e a página dizia **"Connection lost."** — culpando a rede por um
+  > script ausente.
 - **Kinds genéricos** (CO2, VOC, GENERIC): a tabela `H5G_KIND` do cliente cobre
   t/u/p; grandeza nova = 1 linha ali (mesma filosofia da SensorChannelTable).
 - **Fuso**: nomes de arquivo usam o dia LOCAL do aparelho; a página assume navegador

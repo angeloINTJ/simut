@@ -4,6 +4,97 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.11-beta (2026-08-18)
+
+### "Connection lost", with the device on the LAN
+
+The history page loaded Chart.js from `cdn.jsdelivr.net`. With no internet the
+`new Chart(...)` call threw a ReferenceError, the loader's `catch` swallowed it,
+and the user read **Connection lost.** — while the device was on the local
+network and the `.h5` had already been downloaded and decoded. The failure blamed
+the network for a missing script, in a product whose first promise is
+offline-first.
+
+The same tag carried two more defects. It pinned no version: `npm/chart.js`
+resolves to whatever major jsDelivr publishes, and v3 to v4 already broke the
+options API once — a future release would stop the graph on devices already in
+the field, with nothing anyone could do. And it had no `integrity`, in a document
+that holds the session cookie, served without a CSP.
+
+### Trimming the library was measured, and does not solve it
+
+Registering only what the page uses — `LineController`, `LineElement`,
+`PointElement`, `LinearScale`, `Legend`, `Tooltip` — takes Chart.js 4.5.1 from
+70 592 to 56 818 B gzipped. Twenty percent, because the weight is not in the
+chart types nobody uses:
+
+    core alone, nothing registered ..... 43 527 B   draws zero pixels
+    + LinearScale ...................... 43 534 B   +7
+    + Line/Point ....................... 49 049 B   +5 515
+    + Legend + Tooltip ................. 56 818 B   +7 769
+    + everything else .................. 70 719 B   +13 901
+
+Adding the linear scale to that core costs **seven bytes**, because the scale
+engine — ticks, autoSkip, rotation, label measurement, axis layout — is already
+in it. What is irreducible is generality: the Proxy-based option cascade, the
+animation engine shipped even with `animation: false`, six interaction modes, a
+full CSS colour parser, spline maths. None of it is used here.
+
+### h5g
+
+A renderer that already knows it has three axes, one series type and fixed tick
+steps: 784 lines, **4 721 B gzipped**, 15× smaller than the CDN bundle. It
+reproduces the page as it stood — x linear in epoch ms with the window forced to
+the period asked for even when empty; three independent Y axes, because pressure
+near 1000 hPa would flatten %RH and °C into straight lines; line broken on
+`null`, so a period without data looks like one; per-quantity dash, so identity
+never rests on colour alone; visible radius on a sample isolated between two
+gaps; the min/max band; clickable legend that hides the band with its series;
+nearest-x tooltip; resize, device pixel ratio and touch.
+
+Two behaviours were changed deliberately rather than copied:
+
+- **The band is inside the Y range.** Chart.js draws it from a plugin the scale
+  cannot see, so its peak was clipped by the edge of the plot. In a cold chain
+  that peak *is* the excursion. The MAX/MIN badges above the chart give the
+  number, but only with a single sensor selected — with two or more the badges
+  are hidden and the extreme disappeared entirely. The mean line loses about a
+  quarter of its vertical resolution, knowingly.
+- **X labels rotate 45° when they no longer fit**, instead of thinning the ticks.
+  Thinning cost the grid along with the labels: at 375 px the axis went from
+  seven vertical lines to three, and locating an event in time meant estimating
+  between twelve-hour marks. Rotation costs ~17 px of height. It is a fallback,
+  not a default: at 390 px with one sensor the labels stay straight, because they
+  fit.
+
+### Proved against the engine it replaces
+
+`scratchpad/h5g_20260818/` renders eight frozen cases and seven interaction
+captures through **the page's own `renderChart`**, extracted from `WebUI.h`
+rather than copied, with Chart.js pinned in the directory and no network reached.
+The first gate was the control: two runs of the *same* Chart.js, requiring zero
+differing pixels — an A/B whose A-against-A does not close measures its own noise.
+
+Every X axis matches Chart.js exactly in range, step and tick count. The ten Y
+axes that differ all differ because of the band decision, and the gate says so
+instead of reporting them as failures; the one case without a band is unchanged,
+which is the control in the other direction. Thirty chart swaps leave listeners
+at 5 → 5 and retain 0,36 KB each, against 3,91 for Chart.js — the leak detector
+was itself verified by removing `destroy()`'s unbind, which takes the count to
+93.
+
+On hardware, delivered by OTA twice: the page served by the device went from
+carrying `cdn.jsdelivr` to carrying the renderer, and a browser pointed at the
+device with external DNS disabled made **33 requests, none external, no JS
+errors**, and drew the graph.
+
+### Flash
+
+    release headroom ... 44 044 B -> 38 604 B
+
+5 440 bytes, in exchange for removing a 70 592 B external download from every
+visit to the page.
+
 ## v2.2.10-beta (2026-08-18)
 
 ### `false` turned the setting on
