@@ -656,7 +656,799 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - History</title>
     <script src="/lang.js"></script>
     <link rel="stylesheet" href="/style.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- h5g: o renderizador do grafico. Vive AQUI, embutido, e nao num CDN.
+         A pagina prometia funcionar sem internet e nao funcionava: sem rede a
+         chamada `new Chart(...)` lancava ReferenceError, o catch do carregador
+         a engolia e o usuario lia "Connection lost." com o aparelho na LAN e o
+         .h5 ja baixado. A tag anterior tambem nao fixava versao (`npm/chart.js`
+         = ultima major) nem trazia integrity, num documento que carrega cookie
+         de sessao.
+         Bancada, casos congelados e portoes: scratchpad/h5g_20260818/. -->
+    <script>
+/* h5g — renderizador do grafico da /history do SIMUT.
+ *
+ * Substitui o Chart.js sob a MESMA assinatura: renderChart() monta a mesma
+ * configuracao e chama `new Chart(ctx, cfg)`. Trocar o motor nao muda a pagina.
+ *
+ * O que este arquivo NAO tem, de proposito: animacao, resolucao de opcoes em
+ * cascata, outros tipos de grafico, interpolacao spline, escala de tempo,
+ * plugins genericos, parser de cor. A pagina nao usa nada disso, e e ai que
+ * mora a maior parte dos 43,5 KB de nucleo do Chart.js.
+ *
+ * Superficie que a pagina e o plugin da banda consomem, e que portanto e
+ * contrato:
+ *     new Chart(ctx, cfg) · destroy()
+ *     chart.ctx · chart.chartArea · chart.data.datasets
+ *     chart.scales[id].getPixelForValue(v) · chart.isDatasetVisible(i)
+ */
+(function (global) {
+'use strict';
+
+/* ---- fonte: os mesmos padroes do Chart.js, para o desenho nao mudar de
+ * tamanho ao trocar de motor. ---- */
+var FONT = "'Helvetica Neue', Helvetica, Arial, sans-serif";
+var TICK_PX = 12, TITLE_PX = 10;
+var PAD = 6;            /* respiro entre area do grafico e rotulos */
+/* Passo minimo entre ticks do Y = 1,4x a altura do rotulo. Nao e numero
+ * escolhido a dedo: e a regra da referencia, e na pratica quem manda quase
+ * sempre e o teto de 11 ticks. Um passo fixo (28 px) casava com o grafico alto
+ * e errava no baixo — no caso de 280 px de altura ele dava 5 ticks onde a
+ * referencia da 9, e a regressao so apareceu quando a legenda comeu 21 px do
+ * topo. Densidade nao e constante: e funcao do espaco. */
+var Y_PITCH = TICK_PX * 1.4;
+var TICK_LEN = 0;       /* a pagina nao desenha marcas para fora do eixo */
+var BAND_IN_RANGE = true;   /* ver fromData() */
+
+/* Legenda: a marca e um RETANGULO com a cor e o tracejado da serie, nao um
+ * segmento de reta — e assim que a referencia desenha, e e o tracejado dentro
+ * dela que distingue umidade de pressao para quem nao separa as cores.
+ * 40x11 mais 10 de respiro reproduzem os 20,8 px que a referencia reserva. */
+var LEG_PX = 11, LEG_BOX_W = 40, LEG_BOX_H = 11, LEG_PAD = 10, LEG_GAP = 5;
+
+/* Tooltip: os padroes do Chart.js, que a pagina nao sobrescreve. */
+var TIP_BG = 'rgba(0,0,0,0.8)', TIP_FG = '#fff', TIP_PX = 12, TIP_PAD = 6, TIP_R = 6;
+/* Distancia maxima, em pixels, entre o cursor e a amostra lida. Os dados
+ * chegam decimados a ~1 ponto por pixel, entao sobre dado a amostra mais
+ * proxima esta sempre a menos de 1 px; 20 px so e ultrapassado dentro de uma
+ * LACUNA. Sem esse corte a caixa mostrava, com o cursor no meio do buraco, uma
+ * leitura de tres horas antes — e a linha vertical ia junto, o que se le como
+ * "existe dado aqui". A referencia tambem nao mostra nada na lacuna; a
+ * diferenca e que aqui isso e decisao, e nao efeito colateral de uma
+ * coordenada NaN. */
+var TIP_MAX_DIST = 20;
+
+/* Rotulos do eixo X: retos enquanto couberem, girados quando nao couberem.
+ * A alternativa era afinar os ticks, e ela custava a GRADE junto: numa tela de
+ * 375 px sobravam 3 linhas verticais em vez de 7, e localizar um evento no
+ * tempo virava estimar entre marcas de 12 horas. Girar custa ~17 px de altura
+ * (8% do grafico num celular) e devolve a referencia temporal inteira. */
+var X_ROT_DEG = 45, SIN45 = 0.70710678, XT_MAX = 99;
+
+/* ---- passo "bonito": 1, 2 ou 5 vezes uma potencia de 10. E o unico
+ * algoritmo de verdade do renderizador. ---- */
+function niceStep(raw) {
+    if (!(raw > 0) || !isFinite(raw)) return 1;
+    var mag = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10));
+    var f = raw / mag;
+    return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * mag;
+}
+
+/* Ticks dentro de [min,max]. Com `step` dado (eixo X das faixas fixas) o passo
+ * e imposto; sem ele, escolhido. Nunca devolve menos de 2. */
+function makeTicks(min, max, maxCount, step) {
+    if (!(max > min)) return [min];
+    var s = step || niceStep((max - min) / Math.max(1, maxCount - 1));
+    var out = [];
+    var first = Math.ceil(min / s) * s;
+    /* O laco anda por indice e nao por soma acumulada: somar `s` repetidas
+     * vezes acumula erro de ponto flutuante e o ultimo tick sai deslocado. */
+    for (var i = 0; ; i++) {
+        var v = first + i * s;
+        if (v > max + s * 1e-9) break;
+        out.push(v);
+        if (out.length > 1000) break;              /* trava de seguranca */
+    }
+    return out.length ? out : [min, max];
+}
+
+/* Quantas casas decimais o passo exige. Sem isto, 0.1+0.2 vira "0.30000000004"
+ * no rotulo. */
+function decimalsFor(step) {
+    if (!isFinite(step) || step <= 0) return 0;
+    var d = Math.ceil(-Math.log(step) / Math.LN10);
+    return d > 0 ? Math.min(d, 10) : 0;
+}
+
+function fmtNumber(v, dec) {
+    /* toLocaleString sem locale segue o idioma da pagina, que e o que o
+     * Chart.js tambem faz — os rotulos precisam combinar com o resto da UI. */
+    return v.toLocaleString(undefined, { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+/* ---- escala linear ---- */
+function Scale(id, opt, horizontal) {
+    this.id = id;
+    this.opt = opt || {};
+    this.horizontal = !!horizontal;
+    this.display = this.opt.display !== false;
+    this.min = 0; this.max = 1;
+    this.ticks = [];
+    this.labels = [];
+    this.a = 0; this.b = 0;        /* pixel = a * valor + b */
+}
+
+Scale.prototype.fromData = function (datasets, visible) {
+    /* Limites explicitos vencem os dados: a janela do X e o periodo pedido,
+     * mesmo quando nao ha registro nenhum nele. */
+    var lo = Infinity, hi = -Infinity;
+    for (var i = 0; i < datasets.length; i++) {
+        if (!visible[i]) continue;
+        var ds = datasets[i];
+        if (!this.horizontal && ds.yAxisID !== this.id) continue;
+        var arrs = [ds.data];
+        /* A banda ENTRA no intervalo do eixo. O Chart.js a deixava de fora —
+         * la ela e um plugin, que a escala nao enxerga — e o pico saia cortado
+         * pela borda da area. Numa cadeia fria o maximo da banda E a excursao:
+         * o instante em que a temperatura cruzou o limite. Corta-lo esconde
+         * justamente o dado que motiva o registrador.
+         *
+         * O contra-argumento era que os badges MAX/MIN acima do grafico ja dao
+         * o numero. Mas eles so aparecem com UM sensor selecionado (veja
+         * `oneSensor` na montagem): com dois ou mais, os badges somem e a banda
+         * ficava cortada — o extremo desaparecia por completo. Esse e o caso
+         * que decidiu.
+         *
+         * O preco esta pago com consciencia: o eixo abre e a linha media perde
+         * cerca de um quarto da resolucao vertical. */
+        if (BAND_IN_RANGE && ds._h5BandLo) { arrs.push(ds._h5BandLo); arrs.push(ds._h5BandHi); }
+        for (var k = 0; k < arrs.length; k++) {
+            var a = arrs[k];
+            for (var j = 0; j < a.length; j++) {
+                var p = a[j];
+                if (!p) continue;
+                var v = this.horizontal ? p.x : p.y;
+                if (v === null || v === undefined || !isFinite(v)) continue;
+                if (v < lo) lo = v;
+                if (v > hi) hi = v;
+            }
+        }
+    }
+    var omin = this.opt.min, omax = this.opt.max;
+    if (omin !== null && omin !== undefined) lo = omin;
+    if (omax !== null && omax !== undefined) hi = omax;
+    if (!isFinite(lo) || !isFinite(hi)) { lo = 0; hi = 1; }
+    if (lo === hi) { lo -= 0.5; hi += 0.5; }        /* serie constante */
+    /* dataMin/dataMax e a fonte da verdade para buildTicks; min/max sao o
+     * resultado ja esticado e mudam a cada passada do layout. */
+    this.dataMin = lo; this.dataMax = hi;
+    this.min = lo; this.max = hi;
+};
+
+/* Calcula ticks e rotulos. maxCount vem do espaco disponivel.
+ *
+ * Parte SEMPRE do intervalo dos dados, nunca do intervalo ja esticado pela
+ * chamada anterior. O layout obriga a chamar isto duas vezes — mede rotulo,
+ * decide a calha, remede — e realimentar o proprio resultado degradava o passo
+ * a cada passada: 0,2 virava 0,5 e depois 1,0, sem nada no desenho denunciando
+ * que o eixo tinha piorado sozinho. */
+Scale.prototype.buildTicks = function (maxCount, labelFn) {
+    var t = this.opt.ticks || {};
+    var limit = Math.min(t.maxTicksLimit || 11, Math.max(2, maxCount));
+    var lo = this.dataMin, hi = this.dataMax;
+    var step = t.stepSize || niceStep((hi - lo) / Math.max(1, limit - 1));
+
+    /* O eixo Y estica ate o tick cheio para que a grade case com a borda da
+     * area. O X nao: a janela dele e o periodo pedido, e esticar mentiria
+     * sobre o intervalo consultado. */
+    if (!this.horizontal) {
+        lo = Math.floor(lo / step) * step;
+        hi = Math.ceil(hi / step) * step;
+    }
+    this.min = lo; this.max = hi;
+
+    var vals = makeTicks(lo, hi, limit, step);
+
+    /* autoSkip so vale quando o passo foi IMPOSTO de fora (eixo X das faixas
+     * fixas), porque ai o numero de ticks nao passou por nenhum limite. Quando
+     * o passo foi escolhido aqui, ele ja foi escolhido para caber — e esticar
+     * o eixo ate o tick cheio acrescenta ate um tick de cada lado, o que
+     * bastava para estourar o limite por 1 e o autoSkip entao pulava de 2 em 2,
+     * dobrando o passo. O eixo saia com metade da resolucao pedida. */
+    if (t.stepSize && t.autoSkip !== false && vals.length > limit) {
+        var every = Math.ceil(vals.length / limit);
+        var kept = [];
+        for (var i = 0; i < vals.length; i += every) kept.push(vals[i]);
+        vals = kept;
+    }
+
+    this.ticks = vals;
+    var dec = decimalsFor(step);
+    this.labels = vals.map(function (v) {
+        return labelFn ? String(labelFn(v)) : fmtNumber(v, dec);
+    });
+};
+
+Scale.prototype.setRange = function (p0, p1) {
+    /* p0 = pixel do minimo, p1 = pixel do maximo. No Y vem invertido. */
+    var span = (this.max - this.min) || 1;
+    this.a = (p1 - p0) / span;
+    this.b = p0 - this.a * this.min;
+};
+
+Scale.prototype.getPixelForValue = function (v) { return this.a * v + this.b; };
+Scale.prototype.getValueForPixel = function (p) { return this.a ? (p - this.b) / this.a : this.min; };
+
+/* ---- o grafico ---- */
+function H5G(ctx, config) {
+    this.ctx = ctx.canvas ? ctx : ctx.getContext('2d');
+    this.canvas = this.ctx.canvas;
+    this.config = config || {};
+    this.data = this.config.data || { datasets: [] };
+    this.options = this.config.options || {};
+    this.plugins = this.config.plugins || [];
+    this.scales = {};
+    this.chartArea = null;
+    this._hidden = {};
+    this._hover = null;
+    this._legend = null;
+    this._destroyed = false;
+
+    var self = this;
+    this._onResize = function () { if (!self._destroyed) self.draw(); };
+    if (global.ResizeObserver) {
+        this._ro = new ResizeObserver(this._onResize);
+        this._ro.observe(this.canvas.parentNode || this.canvas);
+    }
+    this._bind();
+    this.draw();
+}
+
+H5G.prototype.isDatasetVisible = function (i) { return !this._hidden[i]; };
+
+H5G.prototype.destroy = function () {
+    this._destroyed = true;
+    this._unbind();
+    if (this._ro) { this._ro.disconnect(); this._ro = null; }
+    var c = this.canvas;
+    if (c) this.ctx.clearRect(0, 0, c.width, c.height);
+};
+
+/* Ajusta o buffer do canvas ao tamanho CSS do pai, com o fator da tela.
+ * Sem isto a linha sai borrada em tela retina e o grafico nao acompanha a
+ * caixa, que na pagina o usuario pode arrastar. */
+H5G.prototype._resize = function () {
+    var c = this.canvas, host = c.parentNode;
+    var dpr = global.devicePixelRatio || 1;
+    var w = Math.floor((host ? host.clientWidth : c.clientWidth) || c.width);
+    var h = Math.floor((host ? host.clientHeight : c.clientHeight) || c.height);
+    if (w <= 0 || h <= 0) { w = c.width || 300; h = c.height || 150; dpr = 1; }
+    c.style.width = w + 'px';
+    c.style.height = h + 'px';
+    var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+    if (c.width !== bw || c.height !== bh) { c.width = bw; c.height = bh; }
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    this.width = w; this.height = h;
+};
+
+H5G.prototype.draw = function () {
+    if (this._destroyed) return;
+    this._resize();
+    var ctx = this.ctx, W = this.width, H = this.height;
+    ctx.clearRect(0, 0, W, H);
+
+    var so = this.options.scales || {};
+    var visible = this.data.datasets.map(function (_, i) { return this.isDatasetVisible(i); }, this);
+
+    /* 1. escalas */
+    var xs = new Scale('x', so.x, true);
+    xs.fromData(this.data.datasets, visible);
+    this.scales = { x: xs };
+    var yIds = ['y', 'y1', 'y2'], ys = [];
+    for (var i = 0; i < yIds.length; i++) {
+        var s = new Scale(yIds[i], so[yIds[i]], false);
+        s.fromData(this.data.datasets, visible);
+        this.scales[yIds[i]] = s;
+        if (s.display) ys.push(s);
+    }
+
+    /* 2. ticks provisorios, para medir os rotulos e saber quanto de calha
+     *    cada eixo precisa. A largura do rotulo depende do tick, e a
+     *    quantidade de ticks depende do espaco: uma passada so nao fecha. */
+    var xLabelFn = (so.x && so.x.ticks && so.x.ticks.callback) || null;
+    ctx.font = TICK_PX + 'px ' + FONT;
+    for (i = 0; i < ys.length; i++) ys[i].buildTicks(Math.max(2, Math.floor(H / Y_PITCH)), null);
+
+    /* Cada eixo Y ocupa uma calha; a ordem de empilhamento e a de declaracao,
+     * e dentro dela o titulo fica por fora e os rotulos por dentro. Guardo em
+     * _edge onde o texto se alinha e em _titleX o centro do titulo girado,
+     * porque o desenho acontece depois, ja sem esta contabilidade a mao. */
+    function labelW(s) {
+        var w = 0;
+        for (var k = 0; k < s.labels.length; k++) w = Math.max(w, ctx.measureText(s.labels[k]).width);
+        return Math.ceil(w);
+    }
+    var lefts = [], rights = [], lw, tw, s2;
+    for (i = 0; i < ys.length; i++) {
+        s2 = ys[i];
+        var m = { s: s2,
+                  lw: labelW(s2),
+                  tw: (s2.opt.title && s2.opt.title.display) ? TITLE_PX + 8 : 0 };
+        if ((s2.opt.position || 'left') === 'left') lefts.push(m); else rights.push(m);
+    }
+
+    /* Esquerda: do canto para dentro, titulo por fora e rotulos por dentro. */
+    var lx = PAD;
+    for (i = 0; i < lefts.length; i++) {
+        lefts[i].s._titleX = lx + TITLE_PX * 0.75;
+        lefts[i].s._edge = lx + lefts[i].tw + lefts[i].lw;      /* textAlign right */
+        lx += lefts[i].tw + lefts[i].lw + PAD;
+    }
+
+    /* Direita: o PRIMEIRO eixo declarado fica junto do grafico e os seguintes
+     * se afastam. Empilhar a partir da borda do canvas invertia a ordem — %RH
+     * ia para fora e hPa para dentro — e trocava a leitura de quem so olha a
+     * distancia entre a serie e a sua regua. Isso exige somar a largura toda
+     * antes de posicionar o primeiro. */
+    var rightTotal = PAD;
+    for (i = 0; i < rights.length; i++) rightTotal += rights[i].lw + rights[i].tw + PAD;
+    var rx = W - rightTotal + PAD;
+    for (i = 0; i < rights.length; i++) {
+        rights[i].s._edge = rx;                                 /* textAlign left */
+        rights[i].s._titleX = rx + rights[i].lw + TITLE_PX * 0.75;
+        rx += rights[i].lw + rights[i].tw + PAD;
+    }
+
+    var left = lx, right = rightTotal;
+    var bottom = PAD + TICK_PX + PAD;
+    var top = PAD + TICK_PX * 0.5;   /* meia linha p/ o rotulo do topo do Y nao cortar */
+    this._legend = this._layoutLegend(visible);
+    top += this._legend ? this._legend.h : 0;
+
+    /* Passada provisoria do X. Serve a duas contas que dependem uma da outra:
+     * quanto reservar nas bordas, e se os rotulos cabem retos. O primeiro e o
+     * ultimo ficam centrados num tick que mora na borda da area, entao metade
+     * do texto cai fora do canvas e sai cortado ("01:0"). */
+    var xs0 = new Scale('x', so.x, true);
+    xs0.fromData(this.data.datasets, visible);
+    xs0.buildTicks(XT_MAX, xLabelFn);      /* sem afinar: so o maxTicksLimit vale */
+    var xw = 0, halfFirst = 0, halfLast = 0;
+    for (i = 0; i < xs0.labels.length; i++) {
+        xw = Math.max(xw, ctx.measureText(xs0.labels[i]).width);
+    }
+    if (xs0.labels.length) {
+        halfFirst = ctx.measureText(xs0.labels[0]).width / 2;
+        halfLast = ctx.measureText(xs0.labels[xs0.labels.length - 1]).width / 2;
+    }
+    /* Cabem retos? UMA medida decide, e a mesma alimenta o limite de ticks la
+     * embaixo. Antes eram duas provas independentes — esta, que media o rotulo,
+     * e um divisor fixo de 60 px no limite de ticks — e elas discordavam: a
+     * primeira dizia "cabe reto" enquanto a segunda afinava de 7 ticks para 3.
+     * O eixo saia sem rotacao E sem grade, o pior dos dois mundos. */
+    var xPitch = xw + 8;                       /* vao minimo entre rotulos retos */
+    var xFit = Math.floor((W - left - right) / xPitch) + 1;
+    this._xRot = (xs0.ticks.length > xFit) ? X_ROT_DEG : 0;
+
+    if (this._xRot) {
+        /* Girado, o rotulo termina no tick e desce para a esquerda: come altura
+         * embaixo e transborda a esquerda do primeiro tick. */
+        bottom = PAD + Math.ceil((xw + TICK_PX) * SIN45) + PAD;
+        left = Math.max(left, Math.ceil(PAD + xw * SIN45));
+        right = Math.max(right, PAD);
+    } else {
+        left = Math.max(left, Math.ceil(PAD + halfFirst));
+        right = Math.max(right, Math.ceil(PAD + halfLast));
+    }
+
+    var area = { left: left, top: top, right: W - right, bottom: H - bottom };
+    if (area.right <= area.left) area.right = area.left + 1;
+    if (area.bottom <= area.top) area.bottom = area.top + 1;
+    this.chartArea = area;
+
+    /* 3. ticks definitivos, agora com o espaco real */
+    /* Reto, o vao e a largura do rotulo. Girado, o que limita e a espessura do
+     * texto na perpendicular, nao a largura — cerca de 21 px. E por isso que
+     * girar preserva a grade que afinar destruia. */
+    var maxX = Math.max(2, Math.floor((area.right - area.left) /
+        (this._xRot ? (TICK_PX + 3) / SIN45 : xPitch)) + 1);
+    xs.buildTicks(maxX, xLabelFn);
+    xs.setRange(area.left, area.right);
+    for (i = 0; i < ys.length; i++) {
+        ys[i].buildTicks(Math.max(2, Math.floor((area.bottom - area.top) / Y_PITCH)), null);
+        ys[i].setRange(area.bottom, area.top);
+    }
+
+    /* 4. grade */
+    this._drawGrid(ys);
+
+    /* 5. plugins locais (a banda) antes das linhas */
+    for (i = 0; i < this.plugins.length; i++) {
+        if (this.plugins[i] && this.plugins[i].beforeDatasetsDraw) this.plugins[i].beforeDatasetsDraw(this);
+    }
+
+    /* 6. series */
+    this._drawSeries(visible);
+
+    /* 7. eixos por cima, para a linha nunca cobrir um rotulo */
+    this._drawAxes(ys);
+    if (this._legend) this._drawLegend();
+    if (this._hover) this._drawTooltip();
+};
+
+H5G.prototype._drawGrid = function (ys) {
+    var ctx = this.ctx, a = this.chartArea, xs = this.scales.x, i, p;
+    var xg = (xs.opt.grid && xs.opt.grid.color) || 'rgba(128,128,128,.2)';
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = xg;
+    ctx.beginPath();
+    for (i = 0; i < xs.ticks.length; i++) {
+        p = Math.round(xs.getPixelForValue(xs.ticks[i])) + 0.5;   /* linha nitida */
+        ctx.moveTo(p, a.top); ctx.lineTo(p, a.bottom);
+    }
+    ctx.stroke();
+
+    /* So o eixo principal desenha grade horizontal: y1 e y2 usam
+     * drawOnChartArea:false porque tres grades sobrepostas viram hachura. */
+    for (var k = 0; k < ys.length; k++) {
+        var s = ys[k];
+        if (s.opt.grid && s.opt.grid.drawOnChartArea === false) continue;
+        ctx.strokeStyle = (s.opt.grid && s.opt.grid.color) || xg;
+        ctx.beginPath();
+        for (i = 0; i < s.ticks.length; i++) {
+            p = Math.round(s.getPixelForValue(s.ticks[i])) + 0.5;
+            ctx.moveTo(a.left, p); ctx.lineTo(a.right, p);
+        }
+        ctx.stroke();
+    }
+    ctx.restore();
+};
+
+H5G.prototype._drawSeries = function (visible) {
+    var ctx = this.ctx, a = this.chartArea, xs = this.scales.x;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(a.left, a.top, a.right - a.left, a.bottom - a.top);
+    ctx.clip();
+
+    for (var i = 0; i < this.data.datasets.length; i++) {
+        if (!visible[i]) continue;
+        var ds = this.data.datasets[i];
+        var ysc = this.scales[ds.yAxisID || 'y'];
+        if (!ysc) continue;
+        var d = ds.data || [];
+
+        ctx.lineWidth = ds.borderWidth === undefined ? 1 : ds.borderWidth;
+        ctx.strokeStyle = ds.borderColor || '#888';
+        ctx.setLineDash(ds.borderDash || []);
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'butt';
+
+        /* spanGaps false: um null encerra o traco. Ligar por cima da lacuna
+         * inventaria medicao que nunca existiu. */
+        var open = false;
+        ctx.beginPath();
+        for (var j = 0; j < d.length; j++) {
+            var p = d[j];
+            var y = p ? p.y : null;
+            if (y === null || y === undefined) { open = false; continue; }
+            var px = xs.getPixelForValue(p.x), py = ysc.getPixelForValue(y);
+            if (!open) { ctx.moveTo(px, py); open = true; } else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        /* Pontos: raio 0 na maioria, e o ponto isolado ganha corpo. Sem isso
+         * uma amostra unica entre duas lacunas nao desenha nada e parece dado
+         * perdido. */
+        var pr = ds.pointRadius;
+        if (pr) {
+            ctx.fillStyle = ds.borderColor || '#888';
+            for (j = 0; j < d.length; j++) {
+                var q = d[j];
+                if (!q || q.y === null || q.y === undefined) continue;
+                var r = typeof pr === 'function' ? pr({ dataset: ds, dataIndex: j, datasetIndex: i }) : pr;
+                if (!(r > 0)) continue;
+                ctx.beginPath();
+                ctx.arc(xs.getPixelForValue(q.x), ysc.getPixelForValue(q.y), r, 0, 6.283185307179586);
+                ctx.fill();
+            }
+        }
+    }
+    ctx.restore();
+};
+
+H5G.prototype._drawAxes = function (ys) {
+    var ctx = this.ctx, a = this.chartArea, xs = this.scales.x, i, s, p;
+    ctx.save();
+    ctx.font = TICK_PX + 'px ' + FONT;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = (xs.opt.ticks && xs.opt.ticks.color) || '#888';
+    if (this._xRot) {
+        /* Gira o contexto e ancora o FIM do texto no tick: assim o rotulo
+         * aponta para a sua propria marca, e nao para a vizinha. */
+        var rad = -this._xRot * Math.PI / 180;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        for (i = 0; i < xs.ticks.length; i++) {
+            p = xs.getPixelForValue(xs.ticks[i]);
+            ctx.save();
+            ctx.translate(p, a.bottom + PAD + TICK_PX * SIN45);
+            ctx.rotate(rad);
+            ctx.fillText(xs.labels[i], 0, 0);
+            ctx.restore();
+        }
+    } else {
+        for (i = 0; i < xs.ticks.length; i++) {
+            p = xs.getPixelForValue(xs.ticks[i]);
+            ctx.fillText(xs.labels[i], p, a.bottom + PAD);
+        }
+    }
+
+    for (var k = 0; k < ys.length; k++) {
+        s = ys[k];
+        var isLeft = (s.opt.position || 'left') === 'left';
+        ctx.fillStyle = (s.opt.ticks && s.opt.ticks.color) || '#888';
+        ctx.textBaseline = 'middle';
+        ctx.textAlign = isLeft ? 'right' : 'left';
+        for (i = 0; i < s.ticks.length; i++) {
+            p = s.getPixelForValue(s.ticks[i]);
+            ctx.fillText(s.labels[i], s._edge, p);
+        }
+        var t = s.opt.title;
+        if (t && t.display) {
+            ctx.save();
+            ctx.font = 'bold ' + TITLE_PX + 'px ' + FONT;
+            ctx.fillStyle = t.color || ctx.fillStyle;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = isLeft ? 'top' : 'bottom';
+            ctx.translate(s._titleX, (a.top + a.bottom) / 2);
+            ctx.rotate(isLeft ? -Math.PI / 2 : Math.PI / 2);
+            ctx.fillText(t.text, 0, 0);
+            ctx.restore();
+        }
+    }
+    ctx.restore();
+};
+
+/* ---- legenda ----
+ *
+ * Sai da lista de datasets, nao de uma copia: esconder uma serie tem de
+ * esconder a banda dela junto, e quem le isso e o plugin, pelo
+ * isDatasetVisible(). Guardo as caixas de clique porque o desenho acontece
+ * antes de qualquer evento chegar. */
+H5G.prototype._layoutLegend = function (visible) {
+    var lo = (this.options.plugins && this.options.plugins.legend) || {};
+    if (lo.display === false || this.data.datasets.length < 2) return null;
+
+    var ctx = this.ctx, items = [], totalW = 0;
+    ctx.save();
+    ctx.font = LEG_PX + 'px ' + FONT;
+    for (var i = 0; i < this.data.datasets.length; i++) {
+        var ds = this.data.datasets[i];
+        var tw = ctx.measureText(ds.label || '').width;
+        var w = LEG_BOX_W + LEG_GAP + tw;
+        items.push({ i: i, w: w, tw: tw, label: ds.label || '', ds: ds, on: visible[i] });
+        totalW += w;
+    }
+    ctx.restore();
+    totalW += LEG_PAD * (items.length - 1);
+    return { items: items, w: totalW, h: LEG_BOX_H + LEG_PAD,
+             color: (lo.labels && lo.labels.color) || '#a1a1aa' };
+};
+
+H5G.prototype._drawLegend = function () {
+    var L = this._legend, ctx = this.ctx;
+    var x = Math.round((this.width - L.w) / 2), y = PAD;
+    ctx.save();
+    ctx.font = LEG_PX + 'px ' + FONT;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    for (var k = 0; k < L.items.length; k++) {
+        var it = L.items[k], ds = it.ds;
+        it.x = x; it.y = y; it.hitH = LEG_BOX_H;      /* area de clique */
+
+        ctx.globalAlpha = it.on ? 1 : 0.45;           /* serie oculta desbota */
+        ctx.strokeStyle = ds.borderColor || '#888';
+        ctx.lineWidth = ds.borderWidth === undefined ? 1 : ds.borderWidth;
+        ctx.setLineDash(ds.borderDash || []);
+        if (ds.backgroundColor && ds.backgroundColor !== 'transparent') {
+            ctx.fillStyle = ds.backgroundColor;
+            ctx.fillRect(x, y, LEG_BOX_W, LEG_BOX_H);
+        }
+        ctx.strokeRect(x + 0.5, y + 0.5, LEG_BOX_W - 1, LEG_BOX_H - 1);
+        ctx.setLineDash([]);
+
+        ctx.fillStyle = L.color;
+        var tx = x + LEG_BOX_W + LEG_GAP;
+        ctx.fillText(it.label, tx, y + LEG_BOX_H / 2);
+        if (!it.on) {
+            /* Risco no rotulo: sem ele, "desbotado" e ambiguo com "cor clara". */
+            ctx.beginPath();
+            ctx.moveTo(tx, y + LEG_BOX_H / 2);
+            ctx.lineTo(tx + it.tw, y + LEG_BOX_H / 2);
+            ctx.strokeStyle = L.color;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+        x += it.w + LEG_PAD;
+    }
+    ctx.restore();
+};
+
+/* ---- tooltip ----
+ *
+ * mode 'nearest' com axis 'x' e intersect false: a distancia so conta em X, e
+ * como as series compartilham as mesmas abscissas todas empatam — por isso a
+ * caixa lista TODAS as series naquele instante, e nao a mais proxima do
+ * cursor. Sem esse empate o tooltip mostraria uma serie so e o usuario
+ * perderia a comparacao, que e o motivo de haver tres eixos. */
+H5G.prototype._pick = function (mx) {
+    var xs = this.scales.x, best = Infinity, cand = [];
+    for (var i = 0; i < this.data.datasets.length; i++) {
+        if (!this.isDatasetVisible(i)) continue;
+        var ds = this.data.datasets[i], d = ds.data || [];
+        var bi = -1, bd = Infinity;
+        for (var j = 0; j < d.length; j++) {
+            var p = d[j];
+            if (!p || p.y === null || p.y === undefined) continue;
+            var dist = Math.abs(xs.getPixelForValue(p.x) - mx);
+            if (dist < bd) { bd = dist; bi = j; }
+        }
+        if (bi < 0) continue;
+        cand.push({ datasetIndex: i, dataIndex: bi, dist: bd, dataset: ds,
+                    parsed: { x: d[bi].x, y: d[bi].y } });
+        if (bd < best) best = bd;
+    }
+    if (best > TIP_MAX_DIST) return [];
+    return cand.filter(function (c) { return c.dist <= best + 1; });
+};
+
+H5G.prototype._drawTooltip = function () {
+    var items = this._pick(this._hover.x);
+    if (!items.length) return;
+
+    var cb = ((this.options.plugins && this.options.plugins.tooltip) || {}).callbacks || {};
+    var title = cb.title ? String(cb.title(items)) : '';
+    var lines = items.map(function (it) { return cb.label ? String(cb.label(it)) : ''; });
+
+    var ctx = this.ctx, a = this.chartArea;
+    ctx.save();
+    ctx.font = 'bold ' + TIP_PX + 'px ' + FONT;
+    var w = title ? ctx.measureText(title).width : 0;
+    ctx.font = TIP_PX + 'px ' + FONT;
+    var sq = TIP_PX;                       /* quadrado de cor por linha */
+    for (var i = 0; i < lines.length; i++) {
+        w = Math.max(w, sq + LEG_GAP + ctx.measureText(lines[i]).width);
+    }
+    var lineH = TIP_PX + 4;
+    var boxW = w + TIP_PAD * 2;
+    var boxH = TIP_PAD * 2 + (title ? lineH : 0) + lines.length * lineH;
+
+    /* Ancorado nos pontos lidos, nao no topo: a caixa presa no alto obriga o
+     * olho a subir e descer para ligar valor a ponto. Vira de lado ao encostar
+     * na borda direita, senao sairia do canvas. */
+    var px = this.scales.x.getPixelForValue(items[0].parsed.x);
+    var ysum = 0;
+    for (i = 0; i < items.length; i++) {
+        ysum += this.scales[items[i].dataset.yAxisID || 'y'].getPixelForValue(items[i].parsed.y);
+    }
+    var py = ysum / items.length;
+    var bx = px + 12, by = py - boxH / 2;
+    if (bx + boxW > this.width - 2) bx = px - 12 - boxW;
+    if (bx < 2) bx = 2;
+    if (by < 2) by = 2;
+    if (by + boxH > this.height - 2) by = Math.max(2, this.height - 2 - boxH);
+
+    /* Linha vertical no instante lido: sem ela a caixa flutua sem dizer a que
+     * ponto do eixo se refere. */
+    ctx.strokeStyle = 'rgba(128,128,128,0.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(Math.round(px) + 0.5, a.top);
+    ctx.lineTo(Math.round(px) + 0.5, a.bottom);
+    ctx.stroke();
+
+    /* Marca no ponto lido de cada serie: sem ela a linha vertical diz o
+     * instante mas nao qual amostra de cada serie foi lida. */
+    for (i = 0; i < items.length; i++) {
+        var ys = this.scales[items[i].dataset.yAxisID || 'y'];
+        ctx.beginPath();
+        ctx.arc(px, ys.getPixelForValue(items[i].parsed.y), 3, 0, 6.283185307179586);
+        ctx.strokeStyle = items[i].dataset.borderColor || '#888';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+
+    ctx.fillStyle = TIP_BG;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(bx, by, boxW, boxH, TIP_R);
+    else ctx.rect(bx, by, boxW, boxH);
+    ctx.fill();
+
+    var ty = by + TIP_PAD;
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    if (title) {
+        ctx.font = 'bold ' + TIP_PX + 'px ' + FONT;
+        ctx.fillStyle = TIP_FG;
+        ctx.fillText(title, bx + TIP_PAD, ty);
+        ty += lineH;
+    }
+    ctx.font = TIP_PX + 'px ' + FONT;
+    for (i = 0; i < lines.length; i++) {
+        ctx.fillStyle = items[i].dataset.borderColor || '#888';
+        ctx.fillRect(bx + TIP_PAD, ty + 1, sq, sq - 2);
+        ctx.fillStyle = TIP_FG;
+        ctx.fillText(lines[i], bx + TIP_PAD + sq + LEG_GAP, ty);
+        ty += lineH;
+    }
+    ctx.restore();
+};
+
+/* ---- eventos ----
+ * Registrados no construtor e soltos no destroy(): a pagina troca de grafico a
+ * cada consulta, e ouvinte esquecido em canvas destruido vaza por sessao. */
+H5G.prototype._bind = function () {
+    var self = this, c = this.canvas;
+    this._onMove = function (e) {
+        if (self._destroyed || !self.chartArea) return;
+        var a = self.chartArea, x = e.offsetX, y = e.offsetY;
+        var inside = x >= a.left && x <= a.right && y >= a.top && y <= a.bottom;
+        var was = self._hover;
+        self._hover = inside ? { x: x, y: y } : null;
+        /* Redesenha so quando a leitura muda de fato: mover o mouse dentro do
+         * mesmo pixel nao pode custar um redesenho. */
+        if (!!was !== !!self._hover || (self._hover && was && was.x !== self._hover.x)) self.draw();
+    };
+    this._onLeave = function () {
+        if (self._destroyed || !self._hover) return;
+        self._hover = null; self.draw();
+    };
+    this._onClick = function (e) {
+        if (self._destroyed || !self._legend) return;
+        var x = e.offsetX, y = e.offsetY, its = self._legend.items;
+        for (var k = 0; k < its.length; k++) {
+            var it = its[k];
+            if (x >= it.x && x <= it.x + it.w && y >= it.y && y <= it.y + it.hitH) {
+                self._hidden[it.i] = !self._hidden[it.i];
+                self.draw();
+                return;
+            }
+        }
+    };
+    /* Toque: a pagina e usada principalmente no celular, e ouvir so mouse
+     * deixava o tooltip inexistente ali. Traduzo o toque para a MESMA rotina de
+     * leitura — nao ha caminho separado que possa divergir. Sem preventDefault:
+     * bloquear o toque mataria a rolagem da pagina. */
+    this._onTouch = function (e) {
+        if (self._destroyed || !e.touches || !e.touches.length) return;
+        var r = c.getBoundingClientRect(), t = e.touches[0];
+        self._onMove({ offsetX: t.clientX - r.left, offsetY: t.clientY - r.top });
+    };
+    c.addEventListener('mousemove', this._onMove);
+    c.addEventListener('mouseleave', this._onLeave);
+    c.addEventListener('click', this._onClick);
+    c.addEventListener('touchstart', this._onTouch, { passive: true });
+    c.addEventListener('touchmove', this._onTouch, { passive: true });
+};
+
+H5G.prototype._unbind = function () {
+    var c = this.canvas;
+    if (!c) return;
+    c.removeEventListener('mousemove', this._onMove);
+    c.removeEventListener('mouseleave', this._onLeave);
+    c.removeEventListener('click', this._onClick);
+    c.removeEventListener('touchstart', this._onTouch);
+    c.removeEventListener('touchmove', this._onTouch);
+};
+
+global.Chart = H5G;
+global.H5G = H5G;
+
+})(window);
+    </script>
     <style>
 
         /* History Styles */
