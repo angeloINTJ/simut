@@ -3656,6 +3656,40 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </div>
                 </div>
 
+                <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
+                    <div style="width:100%">
+                        <h3 data-i18n="cfg_slog" style="margin-top:0;">Remote Syslog (Audit Trail)</h3>
+                        <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_slog_hint">Forwards log events to a syslog collector (RFC 5424 over UDP) so the audit trail survives outside this device. The server is a LAN IPv4 address — not a hostname. Fire-and-forget: no delivery guarantee.</div>
+                        <label class="chk">
+                            <input type="checkbox" id="slog_en" name="slog_en" value="1">
+                            <span data-i18n="cfg_slog_en">Enable syslog forwarding</span>
+                        </label>
+                        <div class="row" style="margin-top:10px;">
+                            <div class="col">
+                                <label data-i18n="cfg_slog_srv">Collector IP</label>
+                                <input type="text" id="slog_srv" name="slog_srv" placeholder="192.168.1.10" maxlength="15">
+                            </div>
+                            <div class="col">
+                                <label data-i18n="cfg_slog_port">UDP Port</label>
+                                <input type="number" id="slog_port" name="slog_port" min="1" max="65535" placeholder="514">
+                            </div>
+                        </div>
+                        <div class="row" style="margin-top:10px;">
+                            <div class="col">
+                                <label data-i18n="cfg_slog_lvl">Minimum Level</label>
+                                <select id="slog_lvl" name="slog_lvl">
+                                    <option value="0">Debug</option>
+                                    <option value="1">Info</option>
+                                    <option value="2">Warning</option>
+                                    <option value="3">Error</option>
+                                    <option value="4">Fatal</option>
+                                </select>
+                            </div>
+                            <div class="col"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- U24: save button removido. Use "Salvar e Reiniciar" no topbar. -->
             </form>
 
@@ -4009,6 +4043,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('m_retain').checked = !!val('m_retain', false);
                 document.getElementById('m_ka').value = val('m_ka', 60);
                 document.getElementById('m_had').checked = !!val('m_had', false);
+                /* Syslog forwarder (overlay). slog_en is the raw enable flag; the
+                 * server is a dotted quad ("" when unset). */
+                document.getElementById('slog_en').checked = boolVal('slog_en', false);
+                document.getElementById('slog_srv').value = val('slog_srv', '');
+                document.getElementById('slog_port').value = val('slog_port', 514);
+                document.getElementById('slog_lvl').value = val('slog_lvl', 1);
                 document.getElementById('t_int').value = val('t_int', 300000);
                 updateTelDisabledWarn();
                 document.getElementById('t_bat').value = val('t_bat', 10);

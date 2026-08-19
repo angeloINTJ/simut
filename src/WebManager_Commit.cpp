@@ -817,6 +817,33 @@ void WebManager::handleApiCommitAll( ) {
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
 			fl = readFlag("ntp_enabled"); if (fl >= 0) _storageRef->setNtpEnabled(fl == 1);
 			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); else rejectField("h_int"); }
+
+			/* Syslog forwarder (overlay SyslogConfigData). The four fields read
+			 * together so setSyslogConfig writes the overlay once; any absent
+			 * field keeps its stored value. The enable is read RAW (intent),
+			 * not effective, so "enable now, set server next commit" does not
+			 * clear the toggle. The server is a dotted quad validated by the
+			 * same isValidIpv4 as staticIp and stored as a 4-byte IPv4 — the
+			 * overlay has no room for a hostname and a LAN collector is
+			 * addressed by IP. Empty string clears it (disables). */
+			{
+				bool     slEn   = _storageRef->getSyslogEnabledFlag( );
+				uint32_t slIp   = _storageRef->getSyslogServerIp( );
+				uint16_t slPort = _storageRef->getSyslogPort( );
+				uint8_t  slLvl  = _storageRef->getSyslogMinLevel( );
+				bool touched = false;
+				fl = readFlag("slog_en"); if (fl >= 0) { slEn = (fl == 1); touched = true; }
+				if (has("slog_srv")) {
+					String s = getStr("slog_srv"); s.trim( );
+					if (s.length( ) == 0) { slIp = 0; touched = true; }
+					else if (isValidIpv4(s.c_str( ))) {
+						IPAddress a; a.fromString(s.c_str( )); slIp = (uint32_t)a; touched = true;
+					} else rejectField("slog_srv");
+				}
+				if (has("slog_port")) { int v; if (parseIntStrict(getNum("slog_port"), v) && isInRange(v, 1, 65535)) { slPort = (uint16_t)v; touched = true; } else rejectField("slog_port"); }
+				if (has("slog_lvl")) { int v; if (parseIntStrict(getNum("slog_lvl"), v) && isInRange(v, 0, 4)) { slLvl = (uint8_t)v; touched = true; } else rejectField("slog_lvl"); }
+				if (touched) _storageRef->setSyslogConfig(slEn, slIp, slPort, slLvl);
+			}
 			(void)getInt; /* lambda kept for future fields, suppress -Wunused */
 		}
 	}
