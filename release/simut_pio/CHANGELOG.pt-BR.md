@@ -4,6 +4,44 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.16-beta (2026-08-19)
+
+### Uploads via HTTPS param de morrer no quarto kilobyte
+
+O transporte HTTPS opcional saiu na v2.2.6-beta e ficou sem teste no
+hardware até hoje. A primeira bateria completa achou o buraco: todo upload
+acima de ~4 KB matava a conexão no meio do corpo (bisseção limpa: 3,5 KB
+passa, 5 KB morre em meio segundo) — um pack de idioma ou uma imagem de OTA
+não atravessava uma sessão cifrada, enquanto downloads funcionavam, porque
+os records de transmissão do próprio dispositivo são pequenos.
+
+A causa é o enquadramento de records do TLS, não o caminho de upload. Um
+record precisa caber **inteiro** no buffer de recepção; a extensão que
+limitaria o tamanho (max-fragment-length) é oferecida só por clientes, e
+OpenSSL e navegadores de fábrica nunca a oferecem — mandam records de 16 KB
+para qualquer corpo grande. O buffer de recepção do servidor era 4.096 B,
+um teto escolhido quando o heap não tinha mais para dar. Agora é 16.709 B
+(`BR_SSL_BUFSIZE_INPUT`, um record inteiro), alocado por conexão aceita e
+não no boot; o maior bloco livre pós-boot mede 33,6 KB, então um cliente
+TLS cabe com folga.
+
+Medido no hardware depois do conserto: o pack es-ES de 32 KB sobe via TLS
+em 1,9 s, 120 KB fazem ida e volta com checksums batendo, o `/api/lang`
+continua byte-idêntico ao baseline HTTP, e o handshake segura os 0,5–0,7 s
+(TLSv1.2, `ECDHE-ECDSA-AES256-GCM-SHA384`, cookie `Secure`). O preço é
+honesto e transitório: com uma conexão TLS viva o heap livre cai para
+~15 KB — que é também o motivo de o servidor manter a outra forma dele,
+**um cliente TLS por vez**; uma segunda conexão simultânea é derrubada sem
+resposta. Atualizações de firmware seguem recomendadas por HTTP puro.
+
+A feature também nunca tinha chegado à documentação. O manual ganha
+*Serving the UI over HTTPS* (§6) — o comando openssl, o provisionamento
+pela página de Arquivos, o padrão da porta 443 e o contrato de fallback:
+um par ausente ou ilegível nunca tranca o operador para fora, e sobrescrever
+a chave com lixo é o botão de desligar. A lista de superfície de ataque do
+`SECURITY.md` e a linha de comparação do README passam a mencionar o modo
+HTTPS nas três línguas.
+
 ## v2.2.15-beta (2026-08-19)
 
 ### A interface web aprende a ser operada sem mouse

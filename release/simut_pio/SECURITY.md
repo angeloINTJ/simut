@@ -355,8 +355,12 @@ Wipes 100% of flash: code, config, history, logs.
 
 ### Exposed Ports/Protocols
 
-- **HTTP**: port 80 (or value in `WebConfigData.port` — 1..65535).
-  Authenticated via session cookie after login.
+- **HTTP/HTTPS**: port 80 (or value in `WebConfigData.port` — 1..65535).
+  Authenticated via session cookie after login. With
+  `/config/web_cert.pem` + `web_key.pem` provisioned the server runs
+  HTTPS instead (TLS 1.2, EC P-256; defaults to port 443 when the
+  configured port is 80) and the cookie carries `Secure`; one TLS client
+  is served at a time, and an absent or invalid pair falls back to HTTP.
 - **mDNS**: `<deviceName>.local` (default `simut.local`) — for
   discovery only; does not expose additional endpoints.
 - **Bluetooth SPP**: `SIMUT_CLI`. Without PIN pairing (depends on the

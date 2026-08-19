@@ -4,6 +4,42 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.16-beta (2026-08-19)
+
+### HTTPS uploads stop dying at the fourth kilobyte
+
+The optional HTTPS transport shipped in v2.2.6-beta and went untested on
+hardware until today. The first full bench run found the hole: every upload
+past ~4 KB killed the connection mid-body (clean bisection: 3.5 KB passes,
+5 KB dies in half a second), so a language pack or an OTA image could not
+cross an encrypted session — while downloads worked fine, because the
+device's own transmit records are small.
+
+The cause is TLS record framing, not the upload path. A record must fit the
+receive buffer **whole**; the extension that would cap record size
+(max-fragment-length) is offered by clients only, and stock OpenSSL and
+browsers never offer it — they ship 16 KB records for any large body. The
+server's receive buffer was 4,096 B, a cap chosen when the heap could not
+spare more. It is now 16,709 B (`BR_SSL_BUFSIZE_INPUT`, one full record),
+allocated per accepted connection rather than at boot; the post-boot largest
+free block measures 33.6 KB, so one TLS client fits with room.
+
+Measured on hardware after the fix: the 32 KB es-ES language pack uploads
+over TLS in 1.9 s, 120 KB round-trips with matching checksums, `/api/lang`
+stays byte-identical to the HTTP baseline, and the handshake holds at
+0.5–0.7 s (TLSv1.2, `ECDHE-ECDSA-AES256-GCM-SHA384`, `Secure` cookie). The
+price is honest and transitory: while one TLS connection is alive the free
+heap drops to ~15 KB — which is also why the server keeps its other shape,
+**one TLS client at a time**; a second simultaneous connection is dropped
+without a response. Firmware updates remain recommended over plain HTTP.
+
+The feature also never reached the documentation. The manual gains *Serving
+the UI over HTTPS* (§6) — the openssl one-liner, Files-page provisioning,
+the port-443 default, and the fallback contract: an absent or unparseable
+pair can never lock the operator out, and overwriting the key with garbage
+is the off switch. `SECURITY.md`'s attack-surface list and the README
+comparison row now mention the HTTPS mode in all three languages.
+
 ## v2.2.15-beta (2026-08-19)
 
 ### The web UI learns to be operated without a mouse

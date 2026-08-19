@@ -192,15 +192,21 @@ void WebManager::beginServer(uint16_t port) {
    * there. */
   if (port == WEB_DEFAULT_PORT) port = 443;
   _serverHttps = new WebServerSecure(port);
-  /* Buffers, redistributed for the SERVER role. The telemetry client uses
-   * (4096, 512) because a client SENDS little and RECEIVES the server's cert;
-   * a server is the mirror — it SENDS its cert flight, so the 512 transmit cap
-   * (below BearSSL's own 837 default) could not even hold the ServerHello +
-   * Certificate and the handshake returned zero bytes on the bench. Input 4096
-   * (the size telemetry proved fits this heap; holds the ClientHello and a
-   * browser's request headers); output 1024 (over the 837 default, room for the
-   * ~600 B EC cert flight). The default 16 KB input is the contiguous-block the
-   * fragmented heap rarely has, so it stays capped. */
+  /* Buffers for the SERVER role, both numbers learned on hardware:
+   * — Transmit 1024: a server SENDS its cert flight; the client-style 512 cap
+   *   (below BearSSL's own 837 default) could not even hold the ServerHello +
+   *   Certificate and the handshake returned zero bytes on the bench.
+   * — Receive 16709 (BR_SSL_BUFSIZE_INPUT, one full TLS record): a record must
+   *   fit the receive buffer WHOLE, the max-fragment-length extension is
+   *   offered by CLIENTS only, and stock OpenSSL/browsers never offer it —
+   *   they ship 16 KB records for any large body. The earlier 4096 cap
+   *   therefore killed every upload past ~4 KB (2026-08-19, clean bisection:
+   *   3.5 KB passes, 5 KB dies mid-body) — language packs and OTA were
+   *   impossible over TLS while downloads worked, because our own transmit
+   *   records are small. The buffer is allocated per accepted connection, not
+   *   at boot (post-boot largest free block: 33.6 KB, one TLS client fits);
+   *   under long-uptime fragmentation the accept can fail and that connection
+   *   drops, while the listener itself keeps running. */
   /* EC keys go through setECCert (KEYX|SIGN usage), RSA through setRSACert —
    * calling the wrong one leaves the handshake reading zero bytes back, which
    * is exactly how the first EC cert failed on the bench. */
@@ -208,7 +214,7 @@ void WebManager::beginServer(uint16_t port) {
    _serverHttps->getServer( ).setECCert(_serverCert, BR_KEYTYPE_KEYX | BR_KEYTYPE_SIGN, _serverKey);
   else
    _serverHttps->getServer( ).setRSACert(_serverCert, _serverKey);
-  _serverHttps->getServer( ).setBufferSizes(4096, 1024);
+  _serverHttps->getServer( ).setBufferSizes(16709, 1024);
   _server = _serverHttps;
   _serverIsHttps = true;
   LOG_CODE(LOG_INFO, "WEB", SYS_TEL_SSL, port, "HTTPS server (provisioned cert)");
