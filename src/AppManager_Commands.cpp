@@ -527,6 +527,35 @@ void AppManager::executeCommand(CliDemand cmd) {
  LogManager::instance( ).safeReboot( );
  }
 
+ case CMD_HTTPS_OFF: {
+ /* The fourth web-locked recovery, alongside admin reset / factory /
+  * format: a TLS certificate and key that each parse but do not match
+  * start an HTTPS server whose every handshake fails, and the M-6
+  * fallback only covers a cert that fails to PARSE — so the web is
+  * unreachable on 443 and off on 80, from every channel except this one.
+  * Deleting the pair drops the next boot back to plain HTTP. */
+ const bool pt = _cmdMgr->isPt( );
+ if (!cmd.confirmed) {
+ _cmdMgr->printInfo(pt ? "ATENCAO: apaga o certificado HTTPS (volta a HTTP) + reboot."
+ : "WARN: deletes the HTTPS certificate (reverts to HTTP) + reboots.");
+ _cmdMgr->printInfo(pt ? "Use 'system https off confirm'."
+ : "Run 'system https off confirm'.");
+ break;
+ }
+ _storageMgr->enterFlashSafeMode( );
+ bool had = LittleFS.exists("/config/web_cert.pem");
+ LittleFS.remove("/config/web_cert.pem");
+ LittleFS.remove("/config/web_key.pem");
+ _storageMgr->exitFlashSafeMode( );
+ LOG_CODE(LOG_WARN, "WEB", SEC_CONFIG_CHANGED, had ? 1 : 0,
+ TRL("HTTPS disabled via serial (cert deleted)"));
+ _cmdMgr->printSuccess(had
+ ? (pt ? "HTTPS desligado. Reiniciando em HTTP..." : "HTTPS disabled. Rebooting to HTTP...")
+ : (pt ? "Nenhum certificado presente. Reiniciando..." : "No certificate present. Rebooting..."));
+ delay(100);
+ LogManager::instance( ).safeReboot( );
+ }
+
 #if SIMUT_CLI_FULL
  case CMD_SET_NTP_ENABLED: {
  const bool pt = _cmdMgr->isPt( );
