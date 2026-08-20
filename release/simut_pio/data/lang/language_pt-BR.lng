@@ -334,6 +334,7 @@ f914ca06 Sistema pronto (modo AP).
 fa87bdae Upload falhou (#
 fd0933a1 Calibração do touch resetada via web
 ff5e139d Erro HTTP: 
+326af5e8 HTTPS desligado via serial (cert apagado)
 @HELP
 ===========================================
     SIMUT - CONSOLE DE EMERGÊNCIA
@@ -362,6 +363,9 @@ system format [confirm]
   (recupera um sistema de arquivos corrompido)
 system factory [confirm]
   Apaga TODA a config + reinicia
+system https off [confirm]
+  Desliga o HTTPS (apaga o cert), volta a HTTP
+  (recupera uma web travada por um par TLS invalido)
 reload [confirm]
   Reinicia agora
 ===========================================

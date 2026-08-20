@@ -150,6 +150,15 @@ private:
 		 * from SHA-256 of generateSecureToken + terminator. */
 		char nonce[65] = {0};
 		uint32_t nonceCreatedAt = 0;
+		/* One-deep history of the nonce. A browser opening the login page fires
+		 * several parallel requests over a server that serves one TLS connection
+		 * at a time; the losers are retried, and each login_init retry used to
+		 * overwrite the single nonce, so the nonce the form captured was already
+		 * stale by the time it POSTed — a guaranteed 401. Keeping the previous
+		 * nonce valid for its lifetime absorbs that race; both are cleared on a
+		 * successful login, so replay protection is unchanged. */
+		char prevNonce[65] = {0};
+		uint32_t prevNonceCreatedAt = 0;
 		uint8_t failCount = 0;
 		uint32_t lockoutUntil = 0;
 		uint32_t lastActivity = 0;

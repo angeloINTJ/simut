@@ -244,6 +244,15 @@ bool WebManager::loadServerCert( ) {
 #ifndef SIMUT_WEB_HTTPS
  return false;   /* HTTPS compiled out (flash-tight envs) — always HTTP */
 #else
+ /* AP mode is the setup/recovery surface: a user who reached it did so because
+  * the normal path failed, often BECAUSE of the TLS material (a cert that no
+  * longer matches its key locks HTTPS with no way in). The Access Point serves
+  * HTTP unconditionally so that surface can always delete or replace the cert,
+  * no serial console required. Checked before the files are even read. */
+ if (_netRef && _netRef->isApConfig( )) {
+  LOG_CODE(LOG_INFO, "WEB", SYS_TEL_SSL, 0, "AP mode: HTTP only (recovery surface)");
+  return false;
+ }
  String certPem, keyPem;
  {
   ReadGuard rg(_storageRef);

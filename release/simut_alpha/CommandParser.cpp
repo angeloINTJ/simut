@@ -246,6 +246,7 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "admin" && t2 == "reset") { cmd.type = CMD_RESET_ADMIN;     return cmd; }
 		if (t1 == "factory")                { cmd.type = CMD_FACTORY_RESET;   return cmd; }
 		if (t1 == "format")                 { cmd.type = CMD_FORMAT_FS;      return cmd; }
+		if (t1 == "https" && t2 == "off")    { cmd.type = CMD_HTTPS_OFF;     return cmd; }
 #if SIMUT_CLI_FULL
 		if (t1 == "theme")    { cmd.type = CMD_SET_THEME;     cmd.setStrVal1(t2.c_str( )); return cmd; }
 		if (t1 == "name")     { cmd.type = CMD_SET_SYS_NAME;  cmd.setStrVal1(r2.c_str( )); return cmd; }

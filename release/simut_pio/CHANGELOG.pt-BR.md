@@ -4,6 +4,51 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.17-beta (2026-08-19)
+
+### O navegador consegue operar a interface web por HTTPS, e um certificado ruim não trava mais tudo
+
+O transporte HTTPS foi validado de ponta a ponta por um navegador real pela
+primeira vez, e isso expôs dois problemas que esta versão corrige — um que
+deixava a interface quase inutilizável sobre TLS, e outro que podia travar a web
+inteira.
+
+**O slot TLS único contra o navegador.** O lado servidor do BearSSL precisa de
+um buffer de 16 KB por conexão e este heap comporta exatamente um, então o
+servidor web atende **uma conexão TLS por vez**. Um navegador carrega uma página
+abrindo várias conexões de uma vez — a folha de estilo, o script compartilhado e
+as chamadas de API do painel — e as que não pegam o buffer único são
+descartadas. As chamadas `fetch` com retry acabavam vencendo; o `<link>` da
+folha de estilo, que o navegador nunca repete, não, então o painel subia sem
+estilo e pela metade. O login era pior: o nonce corria com os fetches paralelos
+do carregamento e chegava velho, um 401 garantido.
+
+A correção casa o cliente ao servidor. Sobre HTTPS, todo `fetch` passa por uma
+**fila de concorrência 1** — um request em voo por vez, cada um com um abort de
+8 segundos para uma conexão presa não travar o resto. A folha de estilo sai de
+um `<link>` paralelo em disputa para um fetch na fila e com retry; o script
+compartilhado continua um `<script>` bloqueante para o código da página manter
+seus globais em ordem. O login busca o nonce sequencialmente na hora do envio e
+repete o post. Sobre HTTP puro, onde o buffer não é o gargalo, nada disso
+instala — esse caminho fica byte a byte igual.
+
+Medido no hardware com o Chrome: o painel agora carrega 4 de 4 — estilizado, com
+dados ao vivo e sem erros de console — onde era 0–1 de 4 antes; config,
+history, network e alarms todos carregam; o login é 5 de 5. As cargas por HTTPS
+são seriais e portanto mais lentas que por HTTP (~9,6 s contra ~4 s), mas são
+confiáveis. Custo: cerca de 220 bytes de interface gzipada.
+
+**Um certificado incompatível não prende mais você.** Um certificado e uma chave
+que cada um parseia mas não pertencem um ao outro sobem um servidor HTTPS cujo
+handshake sempre falha — e o fallback existente só cobre um certificado que
+falha ao *parsear*, então a web ficava morta na 443 com a 80 já fechada,
+alcançável por nada além do console serial. Agora existem duas recuperações. O
+`system https off [confirm]` no console serial apaga o par e volta para HTTP,
+tomando lugar ao lado de admin-reset, factory e format como uma saída para a web
+travada. E o Access Point de setup (segurar o touch no boot) agora sempre serve
+HTTP, ignorando qualquer certificado, então a interface de recuperação também é
+alcançável pela rede.
+
 ## v2.2.16-beta (2026-08-19)
 
 ### Uploads via HTTPS param de morrer no quarto kilobyte

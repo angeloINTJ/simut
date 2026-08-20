@@ -238,6 +238,13 @@ void WebManager::handleApiLoginInit( ) {
 	}
 
 
+	/* Shift the current nonce into the one-deep history so a racing retry
+	 * does not strand the nonce a parallel request already handed the form. */
+	if (_loginStates[slot].nonce[0] != '\0') {
+		safeCopy(_loginStates[slot].prevNonce, _loginStates[slot].nonce,
+		         sizeof(_loginStates[slot].prevNonce));
+		_loginStates[slot].prevNonceCreatedAt = _loginStates[slot].nonceCreatedAt;
+	}
 	/* Temporary String destroyed after safeCopy — no residual heap. */
 	safeCopy(_loginStates[slot].nonce, generateSecureToken( ).c_str( ),
 	         sizeof(_loginStates[slot].nonce));
@@ -299,21 +306,32 @@ bool WebManager::validateNonceAndRespond(int ls) {
 	/* expectedNonce is a pointer to the slot's fixed buffer (or empty string
 	 * if no slot exists). Comparison via operator==(String, const char*). */
 	const char* expectedNonce = (ls >= 0) ? _loginStates[ls].nonce : "";
-	bool nonceExpired = (ls >= 0) && (_loginStates[ls].nonceCreatedAt > 0) &&
-	                    timeSince(_loginStates[ls].nonceCreatedAt, NONCE_LIFETIME_MS);
+	const char* prevNonce     = (ls >= 0) ? _loginStates[ls].prevNonce : "";
+	bool curExpired = (ls >= 0) && (_loginStates[ls].nonceCreatedAt > 0) &&
+	                  timeSince(_loginStates[ls].nonceCreatedAt, NONCE_LIFETIME_MS);
+	bool prevExpired = (ls >= 0) && (_loginStates[ls].prevNonceCreatedAt > 0) &&
+	                   timeSince(_loginStates[ls].prevNonceCreatedAt, NONCE_LIFETIME_MS);
 
-	bool ok = _server->hasArg("nonce") &&
-	          _server->arg("nonce") == expectedNonce &&
-	          expectedNonce[0] != '\0' &&
-	          !nonceExpired;
-	if (ok) {
-		if (ls >= 0) _loginStates[ls].nonce[0] = '\0';
+	bool hasArg   = _server->hasArg("nonce");
+	String got    = hasArg ? _server->arg("nonce") : String();
+	bool curMatch  = hasArg && expectedNonce[0] != '\0' && got == expectedNonce && !curExpired;
+	bool prevMatch = hasArg && prevNonce[0]     != '\0' && got == prevNonce     && !prevExpired;
+	/* Only an EXPIRED otherwise-correct nonce should draw the lockout penalty;
+	 * a nonce that matches neither slot is a plain invalid attempt. */
+	bool nonceExpired = hasArg && !curMatch && !prevMatch &&
+	                    ((got == expectedNonce && curExpired) ||
+	                     (got == prevNonce && prevExpired));
+
+	if (curMatch || prevMatch) {
+		if (ls >= 0) { _loginStates[ls].nonce[0] = '\0'; _loginStates[ls].prevNonce[0] = '\0'; }
 		return true;
 	}
 
-	/* Failure: invalidate nonce + penalize expired nonce (not invalid nonce). */
+	/* Failure: invalidate both nonces + penalize an expired one (not a plain
+	 * invalid nonce, which costs nothing beyond the failCount below). */
 	if (ls >= 0) {
 		_loginStates[ls].nonce[0] = '\0';
+		_loginStates[ls].prevNonce[0] = '\0';
 		if (nonceExpired) applyExponentialPenalty(ls);
 	}
 	LOG_CODE(LOG_WARN, "SEC", SEC_LOGIN_FAIL, 0,

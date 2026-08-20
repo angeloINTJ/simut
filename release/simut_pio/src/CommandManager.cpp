@@ -335,6 +335,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_RESET_TOUCH_CAL:   return CLI_VALID_PRIV | CLI_VALID_CONFIG;
  case CMD_FACTORY_RESET:     return CLI_VALID_PRIV | CLI_VALID_CONFIG;
  case CMD_FORMAT_FS:         return CLI_VALID_PRIV | CLI_VALID_CONFIG;
+ case CMD_HTTPS_OFF:         return CLI_VALID_PRIV | CLI_VALID_CONFIG;
  case CMD_RESET_ADMIN:       return CLI_VALID_PRIV | CLI_VALID_CONFIG;
  case CMD_WIPE_SENSOR:       return CLI_VALID_PRIV;
  case CMD_REMOVE_SENSOR:     return CLI_VALID_PRIV;
@@ -473,6 +474,8 @@ void CommandManager::printModeHelp( ) {
                                   : "  debug <on|off>        Stream logs to console");
   showIf(CMD_FORMAT_FS,        pt ? "  system format [confirm]  Formatar LittleFS + reboot"
                                   : "  system format [confirm]  Format LittleFS + reboot");
+  showIf(CMD_HTTPS_OFF,        pt ? "  system https off [confirm] Desliga o HTTPS (apaga o cert) + reboot"
+                                  : "  system https off [confirm] Disable HTTPS (delete cert) + reboot");
   showIf(CMD_FACTORY_RESET,    pt ? "  system factory [confirm]  Reset de fabrica"
                                   : "  system factory [confirm]  Factory reset");
   showIf(CMD_RESET_TOUCH_CAL,  pt ? "  system touch reset [confirm]  Resetar calib. do touch"
@@ -540,6 +543,8 @@ void CommandManager::printModeHelp( ) {
                                   : "  system factory [confirm]      Factory reset");
   showIf(CMD_FORMAT_FS,        pt ? "  system format [confirm]       Formatar LittleFS + reboot"
                                   : "  system format [confirm]       Format LittleFS + reboot");
+  showIf(CMD_HTTPS_OFF,        pt ? "  system https off [confirm]    Desliga o HTTPS (apaga o cert) + reboot"
+                                  : "  system https off [confirm]    Disable HTTPS (delete cert) + reboot");
   consolePrintln("");
   consolePrintln(pt ? "  sensor <slot>         Entrar configuracao do sensor"
                     : "  sensor <slot>         Enter sensor configuration");

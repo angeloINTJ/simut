@@ -59,6 +59,7 @@ public:
 
 
  bool isConnected( );
+ bool isApConfig( ) const { return _state == NET_AP_CONFIG; } /**< True while serving the setup Access Point — forces HTTP so a bad TLS cert cannot lock the recovery UI. */
  bool isTimeSynced( );
  int32_t getRssi( );
 

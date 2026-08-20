@@ -334,6 +334,7 @@ f914ca06 Sistema listo (modo AP).
 fa87bdae Falló la subida (#
 fd0933a1 Calibración táctil restablecida vía web
 ff5e139d Error HTTP: 
+326af5e8 HTTPS desactivado via serial (cert borrado)
 @HELP
 ===========================================
     SIMUT - CONSOLA DE EMERGENCIA
@@ -362,6 +363,9 @@ system format [confirm]
   (recupera un sistema de archivos corrupto)
 system factory [confirm]
   Borra TODA la configuración + reinicia
+system https off [confirm]
+  Desactiva el HTTPS (borra el cert), vuelve a HTTP
+  (recupera una web bloqueada por un par TLS invalido)
 reload [confirm]
   Reinicia ahora
 ===========================================
