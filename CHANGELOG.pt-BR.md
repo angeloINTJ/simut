@@ -4,6 +4,27 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.2.18-beta (2026-08-20)
+
+### O loop de login de HTTPS para HTTP agora se explica
+
+Entrar por HTTPS dá ao cookie de sessão o atributo `Secure`, e pela regra dos
+navegadores de "não mexer em cookies seguros" uma página `http://` comum não
+pode nem enviar esse cookie de volta nem sobrescrevê-lo. Então o primeiro login
+depois de o HTTPS ser desligado — o certificado apagado, o aparelho de volta em
+HTTP — pode aceitar as credenciais e então voltar direto para a tela de login,
+porque nenhum cookie de sessão chega ao aparelho. É uma regra do navegador e não
+uma falha do servidor (um login HTTP limpo, sem cookie residual, funciona), e o
+servidor não consegue apagar um cookie `Secure` por HTTP para sair do loop.
+
+A página de login agora transforma esse loop silencioso numa instrução. Um login
+com sucesso carimba o navegador; chegar a uma página autenticada limpa o carimbo;
+e se a página de login carrega com o carimbo ainda fresco — acabou de ser jogada
+de volta — mostra um aviso, no idioma do aparelho, dizendo ao operador para abrir
+uma janela anônima ou limpar os cookies deste site. O cookie de sessão é por
+sessão, então fechar e reabrir o navegador também o limpa. A seção de HTTPS do
+manual ganha a mesma nota.
+
 ## v2.2.17-beta (2026-08-19)
 
 ### O navegador consegue operar a interface web por HTTPS, e um certificado ruim não trava mais tudo
