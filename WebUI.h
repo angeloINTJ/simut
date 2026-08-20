@@ -149,6 +149,10 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 try {
                     sessionStorage.removeItem('simut_pending');
                     sessionStorage.removeItem('simut_pending_notified');
+                    /* Mark a just-succeeded login. If the browser bounces
+                       straight back here, initSession never cleared it and we
+                       show the stale-Secure-cookie hint below. */
+                    sessionStorage.setItem('simut_login_ok', Date.now());
                 } catch(e) {}
                 window.location.href = j.redirect || '/';
                 return;
@@ -221,7 +225,21 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
         } catch(ex) { document.getElementById('chErr').textContent = 'Connection error.'; btn.disabled = false; await fetchNonce(); }
     }
-    document.addEventListener('DOMContentLoaded', () => { applyLang(); fetchNonce(); });
+    document.addEventListener('DOMContentLoaded', () => {
+        applyLang(); fetchNonce();
+        /* Loop guard: a login POST set simut_login_ok and redirected to a
+           protected page; the server 302'd it back here because no session
+           cookie arrived. The usual cause is a Secure cookie left by an earlier
+           HTTPS visit that an http:// origin may neither send nor overwrite. */
+        try {
+            var lo = parseInt(sessionStorage.getItem('simut_login_ok') || '0', 10);
+            sessionStorage.removeItem('simut_login_ok');
+            if (lo && (Date.now() - lo) < 30000) {
+                var el = document.getElementById('loopMsg');
+                if (el) { el.style.display = 'block'; }
+            }
+        } catch(e) {}
+    });
     </script>
 </head>
 <body>
@@ -236,6 +254,7 @@ static const char LOGIN_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="chk-row"><input type="checkbox" id="chkPass" onchange="togglePass()"><label for="chkPass" data-i18n="log_show">Show password</label></div>
             <button type="submit" id="btnLogin" data-i18n="log_btn">Sign In</button>
             <div class="err" id="errMsg"></div>
+            <div id="loopMsg" data-i18n="log_cookie_loop" style="display:none;margin-top:10px;padding:10px 12px;border-radius:6px;background:#3a2d0a;color:#fde68a;border:1px solid #a16207;font-size:0.82rem;line-height:1.4;text-align:left">Signed in, but the browser is holding a secure session from an earlier HTTPS visit. Open a private window or clear this site&#39;s cookies, then sign in again.</div>
             <a class="toggle-link" id="lnkChpass" onclick="setMode('chpass')" data-i18n="log_chpass_link">Change password</a>
         </form>
         <form id="chpassForm" style="display:none;" onsubmit="doChpass(event)">
@@ -6743,6 +6762,9 @@ static const char LANG_JS[] PROGMEM = R"raw(
         try {
             let r = await fetch('/api/perms', {credentials:'same-origin'});
             let d = await r.json();
+            /* Reached an authenticated page — the login that set this flag stuck,
+               so the login page must not warn about a cookie loop next time. */
+            try { sessionStorage.removeItem('simut_login_ok'); } catch(e) {}
             let p = d.perms || 0;
             let user = d.user || '';
             let ntp = d.ntp || 0;
