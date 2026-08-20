@@ -4,6 +4,27 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.18-beta (2026-08-19)
+
+### The HTTPS-to-HTTP login loop now explains itself
+
+Signing in over HTTPS gives the session cookie its `Secure` flag, and by the
+browsers' "leave secure cookies alone" rule a plain `http://` page may neither
+send that cookie back nor overwrite it. So the first sign-in after HTTPS is
+turned off — the certificate deleted, the device back on HTTP — can accept the
+credentials and then bounce straight back to the login screen, because no
+session cookie ever reaches the device. It is a browser rule rather than a
+server fault (a fresh HTTP login, with no leftover cookie, works), and the
+server cannot clear a `Secure` cookie over HTTP to break out of it.
+
+The login page now turns that silent loop into an instruction. A successful
+login stamps the browser; reaching an authenticated page clears the stamp; and
+if the login page loads with the stamp still fresh — it was just bounced back —
+it shows a banner, in the device's language, telling the operator to open a
+private window or clear this site's cookies. The session cookie is per-session,
+so closing and reopening the browser clears it too. The manual's HTTPS section
+gains the same note.
+
 ## v2.2.17-beta (2026-08-19)
 
 ### The browser can drive the web UI over HTTPS, and a bad certificate can no longer lock it out
