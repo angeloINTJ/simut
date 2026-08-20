@@ -346,6 +346,14 @@ What to expect:
 - Firmware updates are still best performed over plain HTTP (§12): staging
   a ~1 MB image through TLS is slow on this chip and the documented
   recovery paths assume HTTP.
+- **Switching HTTPS off, in the same browser:** once you have signed in over
+  HTTPS the session cookie carries the `Secure` flag, and browsers refuse to
+  send or overwrite a `Secure` cookie from a plain `http://` page. So the first
+  sign-in after reverting to HTTP can bounce straight back to the login screen —
+  the login accepted, but no session cookie reached the device. The login page
+  detects this and says so; the fix is to open a private window, or clear this
+  site's cookies (the session cookie is per-session, so simply closing and
+  reopening the browser also clears it).
 
 ### Display capture
 
