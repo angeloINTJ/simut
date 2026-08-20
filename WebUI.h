@@ -409,7 +409,6 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Dashboard</title>
     <script src="/lang.js"></script>
-    <link rel="stylesheet" href="/style.css">
     <style>
 
 
@@ -671,7 +670,6 @@ static const char HIST_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - History</title>
     <script src="/lang.js"></script>
-    <link rel="stylesheet" href="/style.css">
     <!-- h5g: o renderizador do grafico. Vive AQUI, embutido, e nao num CDN.
          A pagina prometia funcionar sem internet e nao funcionava: sem rede a
          chamada `new Chart(...)` lancava ReferenceError, o catch do carregador
@@ -3297,7 +3295,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Config</title>
     <script src="/lang.js"></script>
-    <link rel="stylesheet" href="/style.css">
     <style>
 
 
@@ -4905,7 +4902,6 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Network</title>
     <script src="/lang.js"></script>
-    <link rel="stylesheet" href="/style.css">
     <style>
 
 
@@ -5128,7 +5124,6 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Users</title>
     <script src="/lang.js"></script>
-    <link rel="stylesheet" href="/style.css">
     <style>
 
 
@@ -5312,7 +5307,6 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Files</title>
     <script src="/lang.js"></script>
-    <link rel="stylesheet" href="/style.css">
     <style>
         h2.page-title { margin-bottom: 0; }
 
@@ -5621,7 +5615,6 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - Alarms & Sounds</title>
     <script src="/lang.js"></script>
-    <link rel="stylesheet" href="/style.css">
     <style>
         .card { margin-bottom: 24px; }
         h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px; font-size: 1.1rem; }
@@ -6173,7 +6166,6 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <title>SIMUT - License</title>
     <script src="/lang.js"></script>
-    <link rel="stylesheet" href="/style.css">
     <style>
         .container { margin: 20px auto; padding: 0 20px 40px; }
         .card { margin-bottom: 20px; }
@@ -6495,6 +6487,19 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 )raw";
 
 static const char LANG_JS[] PROGMEM = R"raw(
+    /* Queue treatment for the single TLS slot: the server serves ONE TLS
+       connection at a time, so a browser firing its dashboard fetches in
+       parallel saturates it and the losers abort. Over HTTPS every fetch()
+       is funnelled through a concurrency-1 queue (one request in flight),
+       each with an 8 s abort so a stuck connection cannot freeze the queue.
+       Over HTTP (many buffers) it does not install — that path is unchanged.
+       lang.js stays a blocking <script> so page code keeps its globals; only
+       the fetches are serialized. */
+    (function(){if(location.protocol!=="https:")return;var q=[],a=0,real=window.fetch.bind(window);function run(j){var o=j.o||{},done=false;var ac=("AbortController"in window)?new AbortController():null;if(ac&&!o.signal)o=Object.assign({},o,{signal:ac.signal});var tm=setTimeout(function(){if(!done&&ac)try{ac.abort();}catch(e){}},8000);function fin(){if(done)return;done=true;clearTimeout(tm);a--;pump();}real(j.u,o).then(function(r){fin();j.res(r);},function(e){fin();j.rej(e);});}function pump(){while(a<1&&q.length){a++;run(q.shift());}}window.fetch=function(u,o){return new Promise(function(res,rej){q.push({u:u,o:o,res:res,rej:rej});pump();});};})();
+    /* The shared stylesheet was a parallel <link> that raced the fetches and
+       aborted over HTTPS; it is fetched here instead (queued + retried), and
+       a page still shows its own inline <style> until this lands. */
+    (function(){var n=0;(function g(){n++;fetch("/style.css").then(function(r){if(!r.ok)throw 0;return r.text();}).then(function(t){var e=document.createElement("style");e.textContent=t;var h=document.head;h.insertBefore(e,h.firstChild);}).catch(function(){if(n<20)setTimeout(g,Math.min(400*n,1500));});})();})();
     /* F-LANGPACK β: dict.pt vem de GET /api/lang (servido do .lng).
      * EN inline acima cobre overrides; data-en attrs no HTML cobrem o resto. */
     const dict = {
