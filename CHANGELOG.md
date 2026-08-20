@@ -4,6 +4,49 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.2.17-beta (2026-08-19)
+
+### The browser can drive the web UI over HTTPS, and a bad certificate can no longer lock it out
+
+The HTTPS transport was validated end-to-end from a real browser for the first
+time, and it exposed two problems this release fixes — one that made the UI
+barely usable over TLS, and one that could brick the web entirely.
+
+**The single TLS slot vs. the browser.** BearSSL's server side needs a 16 KB
+buffer per connection and this heap fits exactly one, so the web server serves
+**one TLS connection at a time**. A browser loads a page by opening several
+connections at once — the stylesheet, the shared script, and the dashboard's
+API calls — and the ones that cannot get the single buffer are dropped. The
+retriable `fetch` calls eventually won; the stylesheet `<link>`, which a
+browser never re-requests, did not, so the dashboard came up unstyled and
+half-populated. Login was worse: its nonce raced the parallel page-load fetches
+and arrived stale, a guaranteed 401.
+
+The fix matches the client to the server. Over HTTPS every `fetch` is funnelled
+through a **concurrency-1 queue** — one request in flight at a time, each with
+an 8-second abort so a stalled connection cannot freeze the rest. The
+stylesheet moves from a racing parallel `<link>` to a queued, retried fetch; the
+shared script stays a blocking `<script>` so page code keeps its globals in
+order. Login fetches its nonce sequentially at submit time and retries the post.
+Over plain HTTP, where the buffer is not the bottleneck, none of this installs —
+that path is byte-for-byte unchanged.
+
+Measured on hardware over Chrome: the dashboard now loads 4 of 4 — styled, with
+live data and no console errors — where it was 0–1 of 4 before; config,
+history, network and alarms all load; login is 5 of 5. HTTPS page loads are
+serial and so slower than HTTP (~9.6 s vs ~4 s), but they are reliable. Cost:
+about 220 bytes of gzipped UI.
+
+**A mismatched certificate can no longer trap you.** A certificate and key that
+each parse but do not belong together start an HTTPS server whose every
+handshake fails — and the existing fallback only covers a cert that fails to
+*parse*, so the web went dark on 443 with 80 already closed, reachable from
+nothing but the serial console. Two recoveries now exist. `system https off
+[confirm]` on the serial console deletes the pair and reverts to HTTP, taking
+its place beside admin-reset, factory and format as a web-locked escape. And
+the setup Access Point (hold the touchscreen at boot) now always serves HTTP,
+ignoring any certificate, so the recovery UI is reachable over the network too.
+
 ## v2.2.16-beta (2026-08-19)
 
 ### HTTPS uploads stop dying at the fourth kilobyte
