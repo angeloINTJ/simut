@@ -4,6 +4,31 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.2-beta (2026-08-21)
+
+### A piscada branca entre páginas acabou
+
+Toda página autenticada guardava os tokens do tema só no `/style.css`, que
+chega por um fetch de JavaScript *depois* da primeira pintura (a fila de
+entrega que mantém vivo o servidor TLS de uma conexão), e o HTML das páginas é
+`no-store` de propósito — então todo clique pintava o branco default do
+navegador e "estalava" para o escuro quando o CSS chegava. As páginas de login
+e setup já carregavam o antídoto inline; as outras oito agora também: os
+tokens `:root` do tema escuro mais `html`/`body` pintados com as variáveis,
+inline em cada página. A primeira pintura já nasce escura; o CSS compartilhado
+que chega depois só acrescenta o acabamento. Usuários do tema claro nunca
+foram afetados — o `lang.js` é script síncrono no head e injeta os tokens
+claros com especificidade maior antes da pintura — então a paleta clara não
+precisou de cópia inline.
+
+Custo: +976 bytes de flash nas oito páginas (~122 B gzipados cada). Nada muda
+em como os assets carregam ou cacheiam (a invalidação por `?v=` de hash de
+build já existia).
+
+Também neste release: as mudanças da v2.3.1-beta abaixo são promovidas a
+Latest — ver aquela entrada para a devolução de RAM e o teto do lote de
+telemetria.
+
 ## v2.3.1-beta (2026-08-20)
 
 ### A RAM que o fix do stall fez refém foi devolvida, e a telemetria volta a respirar

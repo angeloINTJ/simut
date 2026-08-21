@@ -4,6 +4,29 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.2-beta (2026-08-21)
+
+### The white flash between pages is gone
+
+Every authenticated page kept its theme tokens only in `/style.css`, which
+arrives by a JavaScript fetch *after* the first paint (the delivery queue that
+keeps the one-connection TLS server alive), and page HTML is deliberately
+`no-store` — so every click painted the browser's default white and then
+snapped to dark when the CSS landed. The login and setup pages already carried
+the inline antidote; the other eight pages now do too: the dark `:root` tokens
+plus `html`/`body` painted with the theme variables, inline in each page. The
+first paint is born dark; the shared CSS that arrives later only adds the
+chrome. Light-theme users were never affected — `lang.js` is a synchronous
+head script and injects the light tokens with higher specificity before paint
+— so the light palette needed no inline copy.
+
+Cost: +976 bytes of flash across the eight pages (~122 B gzipped each).
+Nothing changes in how assets load or cache (`?v=` build-hash invalidation was
+already in place).
+
+Also in this release: the v2.3.1-beta changes below are promoted to Latest —
+see that entry for the RAM refund and the telemetry batch ceiling.
+
 ## v2.3.1-beta (2026-08-20)
 
 ### The RAM the accept-stall fix took hostage is returned, and telemetry breathes again
