@@ -198,6 +198,28 @@ else
     patch -p1 -d "$FW" < "$CTXH_PATCH"
 fi
 
+# 2d-bis (2g). wait_until_acked sem feed e com timeout POR-PROGRESSO
+#     (ClientContext.h) — medido na bancada de 2026-08-20.
+#
+#   O laço espera os ACKs do peer para esvaziar o buffer de saída do lwIP, mas
+#   o timeout (300 ms) REARMA a cada mudanca de sndbuf: um peer que ACKa um
+#   gotejo a cada <300 ms segura o busy-loop alem dos 8,388 s do watchdog de
+#   hardware — sem NENHUM feed dentro. Autopsia no ferro: C0=[WEB_POLL] hp=751
+#   (dentro do accept TLS, cujo handshake escreve o flight do servidor e espera
+#   os ACKs), 10-11 reboots por soak de 30 min de "pagina + pausa" — TAMBEM no
+#   firmware publicado sem patch nenhum. Fix: watchdog_update() no laco + teto
+#   ABSOLUTO de parede (10x o orcamento por-progresso); feed em volta do
+#   esp_delay do _write_from_source (mesma familia do httpclient_send_feed).
+#   ORDEM: este patch foi gerado contra o ClientContext.h JA com o 2d (rx_leak)
+#   aplicado — manter 2d antes de 2g.
+CTXG_PATCH="$OVR/patches/clientcontext_acked_feed.patch"
+if grep -q "SIMUT override — feed the watchdog and cap the wait by wall clock" "$CTXH"; then
+    echo "[patch] wait_until_acked já tem feed+teto — nada a fazer"
+else
+    echo "[patch] aplicando feed+teto no wait_until_acked do ClientContext"
+    patch -p1 -d "$FW" < "$CTXG_PATCH"
+fi
+
 # 2e. Parse do request sem prazo global (Parsing.cpp) — D-B8.
 #   readStringUntil espera o timeout do cliente POR BYTE e o reinicia a cada
 #   byte recebido, entao um cliente que goteja um byte logo abaixo do timeout
@@ -216,6 +238,58 @@ if grep -q "SIMUT override — bound the request parse as a whole" "$PARSING"; t
 else
     echo "[patch] aplicando prazo global no parse do request"
     patch -p1 -d "$FW" < "$PARSING_PATCH"
+fi
+
+# 2f. Keep-alive opt-in no WebServer (HTTPServer.h/.cpp, Parsing.cpp,
+#     WebServerTemplate.h) — medido na bancada de 2026-08-20.
+#
+#   O upstream manda "Connection: close" em TODA response (_prepareHeader,
+#   incondicional) e a máquina de estados espera a conexão MORRER após servir
+#   (HC_WAIT_CLOSE). Resultado medido no ferro: cada request de uma página
+#   HTTPS paga um handshake ECDHE completo (~510 ms) — 8 requests = 68% dos
+#   6,0 s da página. Este patch adiciona enableKeepAlive(bool) — DEFAULT OFF,
+#   comportamento idêntico ao upstream até o sketch ligar. Ligado: responde
+#   keep-alive a HTTP/1.1 (respeitando Connection: close do cliente), volta a
+#   HC_WAIT_READ após servir (o idle é limitado pelos timeouts que já existem:
+#   HTTP_MAX_DATA_WAIT de 5 s, e 30 ms quando outro cliente pende), e zera o
+#   estado por-request no parse — headers coletados (Cookie!) eram apenas
+#   sobrescritos, nunca limpos, e vazariam entre requests da mesma conexão.
+WSRV_DIR="$FW/libraries/WebServer/src"
+KA_PATCH="$OVR/patches/webserver_keepalive.patch"
+save_original "$WSRV_DIR/HTTPServer.h"        "HTTPServer.h"
+save_original "$WSRV_DIR/HTTPServer.cpp"      "HTTPServer.cpp"
+save_original "$WSRV_DIR/WebServerTemplate.h" "WebServerTemplate.h"
+# Parsing.cpp: o original desta versao ja foi salvo pelo bloco 2e acima.
+if grep -q "SIMUT override — opt-in HTTP keep-alive" "$WSRV_DIR/HTTPServer.h"; then
+    echo "[patch] WebServer já tem keep-alive opt-in — nada a fazer"
+else
+    echo "[patch] aplicando keep-alive opt-in no WebServer"
+    patch -p1 -d "$FW" < "$KA_PATCH"
+fi
+
+# 2h. Pool estático para ctx+iobufs do servidor TLS (WiFiClientSecureBearSSL.cpp)
+#     — medido na bancada de 2026-08-20 (noite, bancada por REDE).
+#
+#   Autópsia fina hp=792 (4 amostras independentes no ferro): o Core 0 morre
+#   DENTRO do malloc de 16.709 B do iobuf_in do accept TLS, com ~29 KB de heap
+#   livre e o cliente TLS da telemetria alocando/soltando ~10 KB por retry no
+#   mesmo heap (por isso o padrão morde nos primeiros minutos pós-boot, com o
+#   backoff curto — o "ciclo de morte": reboot → retries frequentes → stall no
+#   accept → reboot). O desenho "1 cliente TLS por vez" permite servir os
+#   ~22 KB (ctx 4,6 KB + iobuf_in 16.709 B + iobuf_out 1.024 B) de um pool
+#   fixo, tirando as alocações grandes do caminho do accept; fallback para o
+#   heap se o pool ainda estiver referenciado por uma conexão morrendo.
+#   Custo: +22 KB de BSS (RAM 46,8% → 55,0% no pico_w_release). A/B no rig:
+#   soak 30 min c/ tel_sync = 3 reboots (sem pool) → ver resultado do bench8
+#   na memória caca-stall-web-poll.
+BSSL_CPP="$FW/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp"
+POOL_PATCH="$OVR/patches/bearssl_server_static_pool.patch"
+save_original "$BSSL_CPP" "WiFiClientSecureBearSSL.cpp"
+if grep -q "SIMUT override — static pool for the TLS" "$BSSL_CPP"; then
+    echo "[patch] BearSSL server já tem pool estático — nada a fazer"
+else
+    echo "[patch] aplicando pool estático no servidor TLS BearSSL"
+    patch -p1 -d "$FW" < "$POOL_PATCH"
 fi
 
 # 3. Invalida cache PIO (lwip src + lib WiFi)
@@ -246,7 +320,9 @@ for httpobj in "$ROOT/.pio/build"/*/lib*/HTTPClient/HTTPClient.cpp.o; do
 done
 # WebServer tem cache proprio (lib*/WebServer): sem apagar Parsing.cpp.o o build
 # "passa" ainda com o parse sem prazo.
-for wsobj in "$ROOT/.pio/build"/*/lib*/WebServer/Parsing.cpp.o; do
+# TODOS os .o, nao so Parsing.cpp.o: o keep-alive (2f) muda HTTPServer.h e
+# WebServerTemplate.h, headers incluidos por todos os objetos da lib.
+for wsobj in "$ROOT/.pio/build"/*/lib*/WebServer/*.o; do
     if [ -f "$wsobj" ]; then
         rm -f "$wsobj"
         echo "[patch] cache invalidado: $wsobj"

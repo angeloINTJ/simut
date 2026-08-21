@@ -1,0 +1,53 @@
+--- a/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp	2026-08-20 19:39:08.217559499 -0300
++++ b/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp	2026-08-20 19:39:29.691243765 -0300
+@@ -1306,6 +1306,24 @@
+     return _wait_for_handshake();
+ }
+ 
++/* SIMUT override — static pool for the TLS *server* context + iobufs.
++   Measured on the rig (2026-08-20, autopsy hp=792, 4 independent samples):
++   Core 0 died inside the 16709-B iobuf malloc during the TLS accept, with
++   ~29 KB of free heap and the telemetry TLS *client* churning ~10 KB per
++   retry on the same heap. The web server serves one TLS client at a time by
++   design, so the ~22 KB (server ctx + iobuf_in + iobuf_out) come from a
++   fixed pool instead of the heap, keeping the accept path free of large
++   allocations. Falls back to the heap when the pool is still referenced by
++   a dying connection (overlapping teardown) or when setBufferSizes asked
++   for more than the pool holds. The busy flag is released by the iobuf_out
++   deleter — the last of the three _freeSSL( ) clears. Accepts only happen
++   on core 0, so the flag needs no atomics. Sizes: 16709 =
++   BR_SSL_BUFSIZE_INPUT (default server iobuf_in), 1024 = default server
++   iobuf_out. */
++static br_ssl_server_context s_srv_ctx_pool;
++static unsigned char s_srv_iobuf_pool[16709 + 1024];
++static volatile bool s_srv_pool_busy = false;
++
+ // Called by WiFiServerBearSSL when an elliptic curve cert/key is specified.
+ bool WiFiClientSecureCtx::_connectSSLServerEC(const X509List *chain,
+         unsigned cert_issuer_key_type, const PrivateKey *sk,
+@@ -1313,10 +1331,22 @@
+ #ifndef BEARSSL_SSL_BASIC
+     _freeSSL();
+     _oom_err = false;
+-    _sc_svr = std::make_shared<br_ssl_server_context>();
++    if (!s_srv_pool_busy &&
++            _iobuf_in_size + _iobuf_out_size <= (int)sizeof(s_srv_iobuf_pool)) {
++        s_srv_pool_busy = true;
++        _sc_svr = std::shared_ptr<br_ssl_server_context>(&s_srv_ctx_pool,
++                  [](br_ssl_server_context *) {});
++        _iobuf_in = std::shared_ptr<unsigned char>(s_srv_iobuf_pool,
++                    [](unsigned char *) {});
++        _iobuf_out = std::shared_ptr<unsigned char>(
++                     s_srv_iobuf_pool + _iobuf_in_size,
++                     [](unsigned char *) { s_srv_pool_busy = false; });
++    } else {
++        _sc_svr = std::make_shared<br_ssl_server_context>();
++        _iobuf_in = _alloc_iobuf(_iobuf_in_size);
++        _iobuf_out = _alloc_iobuf(_iobuf_out_size);
++    }
+     _eng = &_sc_svr->eng; // Allocation/deallocation taken care of by the _sc shared_ptr
+-    _iobuf_in = _alloc_iobuf(_iobuf_in_size);
+-    _iobuf_out = _alloc_iobuf(_iobuf_out_size);
+     //  DBG_MMU_PRINTF("\n_iobuf_in:       %p\n", _iobuf_in.get());
+     //  DBG_MMU_PRINTF(  "_iobuf_out:      %p\n", _iobuf_out.get());
+     //  DBG_MMU_PRINTF(  "_iobuf_in_size:  %u\n", _iobuf_in_size);

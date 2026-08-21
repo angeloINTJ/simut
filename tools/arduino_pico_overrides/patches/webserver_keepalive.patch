@@ -1,0 +1,131 @@
+--- a/libraries/WebServer/src/HTTPServer.h
++++ b/libraries/WebServer/src/HTTPServer.h
+@@ -177,6 +177,24 @@
+     void enableCORS(bool value = true);
+     void enableCrossOrigin(bool value = true);
+ 
++    /* SIMUT override — opt-in HTTP keep-alive.
++     * Upstream sends "Connection: close" on every response, so each request
++     * tears the connection down — over TLS that is a full ~510 ms handshake
++     * per request. With keep-alive enabled the server honours HTTP/1.1
++     * persistence and the WebServerTemplate state machine returns to
++     * HC_WAIT_READ to serve the next request on the same connection.
++     * Default off: behaviour is identical to upstream until the sketch
++     * calls enableKeepAlive(true). */
++    void enableKeepAlive(bool value = true) {
++        _keepAliveEnabled = value;
++    }
++    bool keepAliveEnabled() const {
++        return _keepAliveEnabled;
++    }
++    bool responseKeptAlive() const {
++        return _responseKeepAlive;
++    }
++
+     void setContentLength(const size_t contentLength);
+     void sendHeader(const String& name, const String& value, bool first = false);
+     void sendContent(const String& content);
+@@ -265,6 +283,12 @@
+ 
+     bool        _corsEnabled;
+ 
++    /* SIMUT override — keep-alive state (see enableKeepAlive above). */
++    bool        _keepAliveEnabled = false;
++    bool        _reqConnClose = false;      /* request carried Connection: close */
++    bool        _reqConnKeepAlive = false;  /* request carried Connection: keep-alive */
++    bool        _responseKeepAlive = false; /* decision taken by _prepareHeader */
++
+     WiFiClient  *_currentClient;
+     HTTPMethod  _currentMethod;
+     String      _currentUri;
+--- a/libraries/WebServer/src/HTTPServer.cpp
++++ b/libraries/WebServer/src/HTTPServer.cpp
+@@ -371,7 +371,16 @@
+         sendHeader(String(FPSTR("Access-Control-Allow-Methods")), String("*"));
+         sendHeader(String(FPSTR("Access-Control-Allow-Headers")), String("*"));
+     }
+-    sendHeader(String(F("Connection")), String(F("close")));
++    /* SIMUT override — honour HTTP/1.1 keep-alive when enabled.
++     * The unconditional "Connection: close" forced a new connection (and
++     * over TLS a full handshake) for every request. HTTP/1.1 defaults to
++     * persistent unless the client asked to close; HTTP/1.0 only keeps
++     * alive when the client asked for it. The decision is recorded for
++     * the WebServerTemplate state machine. */
++    _responseKeepAlive = _keepAliveEnabled && !_reqConnClose &&
++                         (_currentVersion >= 1 || _reqConnKeepAlive);
++    sendHeader(String(F("Connection")),
++               _responseKeepAlive ? String(F("keep-alive")) : String(F("close")));
+ 
+     response += _responseHeaders;
+     response += "\r\n";
+--- a/libraries/WebServer/src/Parsing.cpp
++++ b/libraries/WebServer/src/Parsing.cpp
+@@ -208,6 +208,18 @@
+     String url = req.substring(addr_start + 1, addr_end);
+     String versionEnd = req.substring(addr_end + 8);
+     _currentVersion = atoi(versionEnd.c_str());
++    /* SIMUT override — keep-alive: per-request state must not leak across
++     * requests reusing one connection. Collected headers are only ever
++     * OVERWRITTEN when the same key arrives again, so a request without
++     * e.g. Cookie would inherit the previous request's value — clear all. */
++    _reqConnClose = false;
++    _reqConnKeepAlive = false;
++    _responseKeepAlive = false;
++    _clientContentLength = 0;
++    _hostHeader = String();
++    for (int i = 0; i < _headerKeysCount; i++) {
++        _currentHeaders[i].value = String();
++    }
+     String searchStr = "";
+     int hasSearch = url.indexOf('?');
+     if (hasSearch != -1) {
+@@ -293,6 +305,15 @@
+                 _clientContentLength = headerValue.toInt();
+             } else if (headerName.equalsIgnoreCase(F("Host"))) {
+                 _hostHeader = headerValue;
++            } else if (headerName.equalsIgnoreCase(F("Connection"))) {
++                /* SIMUT override — keep-alive: record the client's wish. */
++                String hv = headerValue;
++                hv.toLowerCase();
++                if (hv.indexOf("close") >= 0) {
++                    _reqConnClose = true;
++                } else if (hv.indexOf("keep-alive") >= 0) {
++                    _reqConnKeepAlive = true;
++                }
+             }
+         }
+ 
+@@ -378,6 +399,15 @@
+ 
+             if (headerName.equalsIgnoreCase("Host")) {
+                 _hostHeader = headerValue;
++            } else if (headerName.equalsIgnoreCase(F("Connection"))) {
++                /* SIMUT override — keep-alive: record the client's wish. */
++                String hv = headerValue;
++                hv.toLowerCase();
++                if (hv.indexOf("close") >= 0) {
++                    _reqConnClose = true;
++                } else if (hv.indexOf("keep-alive") >= 0) {
++                    _reqConnKeepAlive = true;
++                }
+             }
+         }
+         _parseArguments(searchStr);
+--- a/libraries/WebServer/src/WebServerTemplate.h
++++ b/libraries/WebServer/src/WebServerTemplate.h
+@@ -119,7 +119,14 @@
+                 /* fallthrough */
+                 case CLIENT_REQUEST_IS_HANDLED:
+                     if (_currentClient->connected() || _currentClient->available()) {
+-                        _currentStatus = HC_WAIT_CLOSE;
++                        /* SIMUT override — keep-alive: when the response said
++                         * keep-alive, wait for the NEXT request on this same
++                         * connection instead of waiting for it to die. The
++                         * existing HC_WAIT_READ path already bounds the idle
++                         * wait (HTTP_MAX_DATA_WAIT, and the 30 ms fast drop
++                         * when another client is pending), so a parked client
++                         * cannot hold the accept slot for long. */
++                        _currentStatus = responseKeptAlive() ? HC_WAIT_READ : HC_WAIT_CLOSE;
+                         _statusChange = millis();
+                         keepCurrentClient = true;
+                     } else {

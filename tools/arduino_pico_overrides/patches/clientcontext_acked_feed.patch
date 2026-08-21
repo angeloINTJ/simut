@@ -1,0 +1,53 @@
+--- a/libraries/WiFi/src/include/ClientContext.h
++++ b/libraries/WiFi/src/include/ClientContext.h
+@@ -28,6 +28,7 @@
+ 
+ #include <assert.h>
+ #include "lwip/timeouts.h"
++#include <hardware/watchdog.h> /* SIMUT override: feed inside bounded waits */
+ 
+ //#include <esp_priv.h>
+ //#include <coredecls.h>
+@@ -344,7 +345,23 @@
+ 
+         // wait for peer's acks to flush lwIP's output buffer
+         uint32_t last_sent = millis();
++        /* SIMUT override — feed the watchdog and cap the wait by wall clock.
++         * The original timeout is PER-PROGRESS: every sndbuf change re-arms
++         * last_sent, so a peer acking one dribble under 300 ms forever keeps
++         * this busy-loop alive past the RP2040's 8.388 s hardware watchdog —
++         * with no feed inside, the device reboots instead of dropping the
++         * client. Measured on the bench 2026-08-20: TLS accept handshakes
++         * stalled exactly here (autopsy C0=[WEB_POLL] hp=751, 10-11 reboots
++         * per 30-min soak, on the published firmware too). The wall cap makes
++         * the wait strictly bounded — 10x the per-progress budget — and the
++         * feed is safe precisely because the loop now provably ends. */
++        const uint32_t wua_start = millis();
++        const uint32_t wua_cap = (uint32_t) max_wait_ms * 10u;
+         while (1) {
++            watchdog_update();
++            if (millis() - wua_start > wua_cap) {
++                return false; /* peer alive but dribbling: give up, caller closes */
++            }
+             if (millis() - last_sent > (uint32_t) max_wait_ms) {
+ #ifdef DEBUGV
+                 // wait until sent: timeout
+@@ -518,11 +535,18 @@
+             }
+ 
+             _send_waiting = true;
++            /* SIMUT override — feed on both sides of the wait: each esp_delay
++             * blocks up to _timeout_ms (5 s default) and consecutive waits with
++             * dribbling progress add up past the 8.388 s watchdog window with
++             * nothing feeding it (same family as the HTTPClient send-feed
++             * patch). The waits themselves stay bounded by _timeout_ms. */
++            watchdog_update();
+             // will resume on timeout or when _write_some_from_cb or _notify_error fires
+             // give scheduled functions a chance to run (e.g. Ethernet uses recurrent)
+             esp_delay(_timeout_ms, [this]() {
+                 return this->_send_waiting;
+             }, 1);
++            watchdog_update();
+             _send_waiting = false;
+         } while (true);
+ 

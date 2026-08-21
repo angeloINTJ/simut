@@ -166,6 +166,15 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
   * that stops iOS from 404-spamming for it stays. */
  _server->on("/apple-touch-icon.png", HTTP_GET, [this]( ) { _server->send(204, "image/png", ""); });
 
+ /* HTTP keep-alive (framework override 2f, opt-in API): ON by default since
+  * v2.3.0 — one TLS handshake per browser session instead of one per request
+  * (~60% faster HTTPS pages, measured). The opt-out lives in the config
+  * (SetupFlagsData) and is exposed on the network page when a TLS cert pair
+  * is present; commit_all reboots, so reading it here at boot is enough. */
+ if (_storageRef && _storageRef->isWebKeepAliveEnabled( )) {
+ _server->enableKeepAlive(true);
+ }
+
  /* Concrete begin( ) — not on the HTTPServer base (it binds the socket). */
 #ifdef SIMUT_WEB_HTTPS
  if (_serverIsHttps) _serverHttps->begin( ); else
@@ -231,6 +240,13 @@ void WebManager::pumpServer( ) {
  if (_serverIsHttps) { _serverHttps->handleClient( ); return; }
 #endif
  _serverHttp->handleClient( );
+}
+
+bool WebManager::tlsCertFilesPresent( ) {
+ _storageRef->enterFlashReadLock( );
+ bool present = LittleFS.exists(FILE_WEB_CERT) && LittleFS.exists(FILE_WEB_KEY);
+ _storageRef->exitFlashReadLock( );
+ return present;
 }
 
 /* Reads /config/web_cert.pem + web_key.pem and parses them into the X509List /

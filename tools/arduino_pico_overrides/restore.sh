@@ -60,12 +60,19 @@ cp -v "$ORIG/lwipopts.h" "$FW/include/"
     cp -v "$ORIG/ClientContext.h" "$FW/libraries/WiFi/src/include/"
 [ -f "$ORIG/Parsing.cpp" ] && \
     cp -v "$ORIG/Parsing.cpp" "$FW/libraries/WebServer/src/"
+# Keep-alive opt-in (patch 2f) vive nestes tres + Parsing.cpp acima.
+[ -f "$ORIG/HTTPServer.h" ] && \
+    cp -v "$ORIG/HTTPServer.h" "$FW/libraries/WebServer/src/"
+[ -f "$ORIG/HTTPServer.cpp" ] && \
+    cp -v "$ORIG/HTTPServer.cpp" "$FW/libraries/WebServer/src/"
+[ -f "$ORIG/WebServerTemplate.h" ] && \
+    cp -v "$ORIG/WebServerTemplate.h" "$FW/libraries/WebServer/src/"
 
 # Invalida cache PIO — FrameworkArduino (lwip) + os .o das libs patchadas, senao
 # o build "passa" religando os objetos antigos ainda patchados.
 for obj in "$ROOT/.pio/build"/*/lib*/WiFi/*.o \
            "$ROOT/.pio/build"/*/lib*/HTTPClient/HTTPClient.cpp.o \
-           "$ROOT/.pio/build"/*/lib*/WebServer/Parsing.cpp.o; do
+           "$ROOT/.pio/build"/*/lib*/WebServer/*.o; do
     [ -f "$obj" ] && { rm -f "$obj"; echo "[restore] cache invalidado: $obj"; }
 done
 for build in "$ROOT/.pio/build"/*/FrameworkArduino/lwip; do
