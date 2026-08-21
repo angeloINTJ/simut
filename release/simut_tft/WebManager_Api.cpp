@@ -62,7 +62,8 @@ void WebManager::handleApiNetwork( ) {
 	         "\"dns\":\"%s\",\"mac\":\"%s\",\"ssid\":\"%s\",\"use_dhcp\":%s,"
 	         "\"static_ip\":\"%s\",\"static_mask\":\"%s\",\"static_gw\":\"%s\","
 	         "\"static_dns\":\"%s\",\"dns_auto\":%s,\"dns2\":\"%s\","
-	         "\"ntp_server\":\"%s\",\"ntp_enabled\":%s,\"web_port\":%u}",
+	         "\"ntp_server\":\"%s\",\"ntp_enabled\":%s,\"web_port\":%u,"
+	         "\"web_ka\":%s,\"web_tls\":%s}",
 	         _netRef->isConnected( ) ? "true" : "false",
 	         ipBuf,
 	         _netRef->getSubnetMask( ).c_str( ),
@@ -76,7 +77,9 @@ void WebManager::handleApiNetwork( ) {
 	         _storageRef->getSecondaryDns( ),
 	         cfg.ntpServer,
 	         _storageRef->isNtpEnabled( ) ? "true" : "false",
-	         (unsigned)currentPort);
+	         (unsigned)currentPort,
+	         _storageRef->isWebKeepAliveEnabled( ) ? "true" : "false",
+	         tlsCertFilesPresent( ) ? "true" : "false");
 
 	_server->send(200, "application/json", json);
 }

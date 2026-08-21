@@ -5049,6 +5049,15 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <label data-i18n="net_web_port">HTTP Port</label>
                             <input type="text" id="web_port" name="web_port" maxlength="5" inputmode="numeric" placeholder="80">
                             <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_web_port_hint">Default: 80. After saving, browser auto-redirects to new port.</div>
+                            <!-- Only rendered when the TLS cert pair exists (web_tls from /api/network);
+                                 keep-alive itself defaults ON on every transport. -->
+                            <div id="web_ka_row" style="display:none;margin-top:10px">
+                                <label class="chk">
+                                    <input type="checkbox" id="web_ka" name="web_ka" value="1">
+                                    <span data-i18n="net_web_ka">Persistent connections (keep-alive)</span>
+                                </label>
+                                <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_web_ka_hint">Reuses the TLS connection between requests — pages load ~60% faster over HTTPS. Disable only if a proxy or client misbehaves with persistent connections.</div>
+                            </div>
                         </div>
 
                         <!-- U24 Phase C: save button removido. Use "Salvar e Reiniciar" no topbar. -->
@@ -5103,6 +5112,10 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('dns2').value = val('dns2', data.dns2 || '');
                 document.getElementById('ntp_server').value = val('ntp_server', data.ntp_server || '');
                 document.getElementById('web_port').value = val('web_port', data.web_port || 80);
+                /* Keep-alive switch: shown only when the TLS cert pair exists
+                 * on the device; default checked (the firmware default). */
+                document.getElementById('web_ka').checked = bool('web_ka', data.web_ka !== false);
+                document.getElementById('web_ka_row').style.display = data.web_tls ? '' : 'none';
                 /* Hint visível se NTP está off em /config. */
                 const hint = document.getElementById('ntp_disabled_hint');
                 if (hint) hint.style.display = (data.ntp_enabled === false) ? '' : 'none';

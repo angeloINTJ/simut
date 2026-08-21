@@ -893,6 +893,27 @@ void StorageManager::setMustChangePin( ) {
  sf->flags |= FLAG_MUST_CHANGE_PIN;
 }
 
+/* Web keep-alive opt-out in reserved[26..27] (SetupFlagsData). The stored bit
+ * is the OPT-OUT so every existing config (legacy overlay included) comes up
+ * with keep-alive enabled — the v2.3.0 default. */
+bool StorageManager::isWebKeepAliveEnabled( ) const {
+ const SetupFlagsData* sf = reinterpret_cast<const SetupFlagsData*>(
+ _currentConfig.reserved + SETUP_FLAGS_OFFSET);
+ if (sf->magic != SETUP_FLAGS_MAGIC) return true; /* legacy = default ON */
+ return (sf->flags & FLAG_WEB_KEEPALIVE_OFF) == 0;
+}
+
+void StorageManager::setWebKeepAliveEnabled(bool enabled) {
+ SetupFlagsData* sf = reinterpret_cast<SetupFlagsData*>(
+ _currentConfig.reserved + SETUP_FLAGS_OFFSET);
+ if (sf->magic != SETUP_FLAGS_MAGIC) {
+ sf->magic = SETUP_FLAGS_MAGIC;
+ sf->flags = 0;
+ }
+ if (enabled) sf->flags &= ~FLAG_WEB_KEEPALIVE_OFF;
+ else sf->flags |= FLAG_WEB_KEEPALIVE_OFF;
+}
+
 /* ===========================================================================
  * NetworkTimeData overlay in reserved[28..47]
  * =========================================================================== */

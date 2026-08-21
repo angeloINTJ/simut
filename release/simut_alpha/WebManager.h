@@ -78,6 +78,12 @@ private:
 	 * @return true if 503 was sent (caller should early-return). */
 	bool rejectIfTouchPriority( );
 
+	/** True when the TLS cert pair (/config/web_cert.pem + web_key.pem) is
+	 * present on the filesystem — the network page uses it to decide whether
+	 * to show the keep-alive switch. Presence only; validity is beginServer's
+	 * concern. */
+	bool tlsCertFilesPresent( );
+
 	/* The active server, used through its HTTPServer base for every request
 	 * handler (send/arg/on/sendHeader/...). It is one of the two concrete
 	 * objects below, chosen once at begin(): HTTPS when a server certificate is

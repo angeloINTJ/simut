@@ -1173,6 +1173,9 @@ void WebManager::handleApiCommitAll( ) {
 					w->port = (uint16_t)p;
 				}
 			}
+			/* Keep-alive opt-out (SetupFlagsData overlay). No live hook:
+			 * commit_all reboots and beginServer( ) reads the flag at boot. */
+			nf = readFlagN("web_ka"); if (nf >= 0) _storageRef->setWebKeepAliveEnabled(nf == 1);
 		}
 	}
 

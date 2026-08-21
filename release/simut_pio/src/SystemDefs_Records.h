@@ -298,6 +298,10 @@ struct __attribute__((packed)) SetupFlagsData {
 constexpr size_t SETUP_FLAGS_OFFSET = 26;
 constexpr uint8_t SETUP_FLAGS_MAGIC = 0xBE;
 constexpr uint8_t FLAG_MUST_CHANGE_PIN = 0x01;
+/** Web keep-alive is ON by default (v2.3.0); this bit stores the OPT-OUT so a
+ * legacy/zeroed overlay means "enabled". Toggled from the web UI (network
+ * page, visible only when the TLS cert pair is present in /config). */
+constexpr uint8_t FLAG_WEB_KEEPALIVE_OFF = 0x02;
 
 static_assert(sizeof(SetupFlagsData) == 2, "SetupFlagsData must be 2 bytes");
 

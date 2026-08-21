@@ -543,6 +543,12 @@ public:
  void setHistoryIntervalMin(uint16_t minutes);
 
  /** @return true if Home Assistant MQTT Discovery is enabled (overlay; legacy = OFF). */
+ /** Web server HTTP keep-alive (SetupFlagsData overlay). Default ON: a
+  * legacy overlay (no magic) or a clear FLAG_WEB_KEEPALIVE_OFF bit both
+  * mean enabled — the bit stores the opt-out. */
+ bool isWebKeepAliveEnabled( ) const;
+ void setWebKeepAliveEnabled(bool enabled);
+
  bool isHaDiscoveryEnabled( ) const;
 
  /** Set the HA Discovery flag in overlay. Populates magic if not yet present. */
