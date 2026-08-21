@@ -787,7 +787,7 @@ void WebManager::handleApiCommitAll( ) {
 			 * HARD_CAP=50 (TelemetryManager), and the page's input agrees since the
 			 * same commit — this was the field with four different ceilings, where
 			 * a user typing 100 silently got 50 with no one saying so. */
-			if (has("t_bat")) { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 50)) cfg.telBatchSize = (uint8_t)v; else rejectField("t_bat"); }
+			if (has("t_bat")) { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 250)) cfg.telBatchSize = (uint8_t)v; else rejectField("t_bat"); }
 			if (has("t_mode")) { int v; if (parseIntStrict(getNum("t_mode"), v) && isInRange(v, 0, 2)) cfg.telMode = (uint8_t)v; else rejectField("t_mode"); }
 			if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && isInRange(v, 0, 1)) cfg.telTransport = (uint8_t)v; else rejectField("t_transport"); }
 			if (has("m_topic")) setStr("m_topic", cfg.mqttTopic, sizeof(cfg.mqttTopic));

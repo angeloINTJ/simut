@@ -3623,7 +3623,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         </div>
                         <div class="col">
                             <label data-i18n="cfg_bat">Batch Limit</label>
-                            <input type="number" id="t_bat" name="t_bat" min="1" max="50">
+                            <input type="number" id="t_bat" name="t_bat" min="1" max="250">
                         </div>
                     </div>
                     <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (Upload Interval = 0). Set a value to enable.</div>

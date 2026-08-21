@@ -267,7 +267,7 @@ else
     patch -p1 -d "$FW" < "$KA_PATCH"
 fi
 
-# 2h. Pool estático para ctx+iobufs do servidor TLS (WiFiClientSecureBearSSL.cpp)
+# 2h. Pool para ctx+iobufs do servidor TLS (WiFiClientSecureBearSSL.cpp)
 #     — medido na bancada de 2026-08-20 (noite, bancada por REDE).
 #
 #   Autópsia fina hp=792 (4 amostras independentes no ferro): o Core 0 morre
@@ -279,9 +279,17 @@ fi
 #   ~22 KB (ctx 4,6 KB + iobuf_in 16.709 B + iobuf_out 1.024 B) de um pool
 #   fixo, tirando as alocações grandes do caminho do accept; fallback para o
 #   heap se o pool ainda estiver referenciado por uma conexão morrendo.
-#   Custo: +22 KB de BSS (RAM 46,8% → 55,0% no pico_w_release). A/B no rig:
-#   soak 30 min c/ tel_sync = 3 reboots (sem pool) → ver resultado do bench8
-#   na memória caca-stall-web-poll.
+#   A/B no rig: soak 30 min c/ tel_sync = 3 reboots (sem pool) → 0 (com).
+#
+#   v2 (2.3.1): o pool deixou de ser BSS. Como estático ele custava 21,5 KB
+#   em TODA config — inclusive web HTTP puro, onde nunca há accept TLS — e
+#   derrubou o heap livre ocioso de 38 KB para 16 KB, matando a telemetria de
+#   fome nos próprios gates dela. Agora o sketch chama
+#   simut_reserve_tls_server_pool() (uma vez, no boot, heap ainda íntegro)
+#   SOMENTE no branch em que o servidor HTTPS vai subir
+#   (WebManager::beginServer). Sem reserva, o accept cai no caminho de heap
+#   por-accept (o comportamento pré-pool). Custo: 0 em HTTP; em HTTPS os
+#   mesmos ~21,5 KB de antes, só que vindos do heap de boot.
 BSSL_CPP="$FW/libraries/WiFi/src/WiFiClientSecureBearSSL.cpp"
 POOL_PATCH="$OVR/patches/bearssl_server_static_pool.patch"
 save_original "$BSSL_CPP" "WiFiClientSecureBearSSL.cpp"
