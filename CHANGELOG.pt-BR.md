@@ -4,6 +4,38 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.0-beta (2026-08-20)
+
+### Páginas HTTPS carregam em um terço do tempo, e o reboot escondido embaixo delas se foi
+
+Toda resposta carregava `Connection: close`, então o navegador pagava um
+handshake TLS completo de ~510 ms por request — oito vezes por página. O
+servidor web agora mantém a conexão viva por padrão: um handshake por sessão,
+e o tempo de página medido caiu de ~6,1 s para ~2,4 s (−61%). A chave fica na
+página de rede, na seção Servidor Web, aparece apenas quando o par de
+certificados TLS está presente (onde o handshake de fato custa), e vem ligada
+por padrão; configurações existentes herdam o padrão. Páginas HTTP ganham um
+corte menor (~−20%) do mesmo reuso.
+
+Por baixo, um defeito anterior ao trabalho de keep-alive foi corrigido. Cada
+accept TLS alocava ~22 KB do heap (contexto do servidor + buffers de E/S)
+enquanto o cliente TLS da telemetria alocava e soltava ~10 KB por tentativa
+no mesmo heap; com ~29 KB livres e a free list fragmentada, a alocação de
+16,7 KB podia travar o Core 0 além da janela do watchdog. Quatro autópsias
+finas independentes puseram a morte na mesma linha, e a falha se concentrava
+nos primeiros minutos após cada boot — um ciclo de reboots que se
+auto-alimentava sob navegação comum ("abrir página, ler, clicar"). O contexto
+do servidor e os buffers agora vêm de um pool estático (+22 KB de BSS),
+tirando toda alocação grande do caminho do accept: um soak de 30 minutos que
+reproduzia 3 reboots por watchdog sem o pool rodou limpo com ele, e as falhas
+intermitentes de página (~10-20% sob navegação com pausas) zeraram com a
+mesma mudança.
+
+As correções seguem como overrides do framework em
+`tools/arduino_pico_overrides/` (`webserver_keepalive.patch`,
+`clientcontext_acked_feed.patch`, `bearssl_server_static_pool.patch`),
+aplicados pelo `patch.sh` como antes.
+
 ## v2.2.18-beta (2026-08-20)
 
 ### O loop de login de HTTPS para HTTP agora se explica

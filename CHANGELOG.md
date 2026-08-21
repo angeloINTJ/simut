@@ -4,6 +4,36 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.0-beta (2026-08-20)
+
+### HTTPS pages load in a third of the time, and the reboot hiding under them is gone
+
+Every response used to carry `Connection: close`, so a browser paid a full
+~510 ms TLS handshake for every single request — eight times per page. The
+web server now keeps the connection alive by default: one handshake per
+session, and the measured page time fell from ~6.1 s to ~2.4 s (−61%). The
+switch lives on the network page under Web Server, appears only when a TLS
+certificate pair is present (where the handshake actually costs), and is on
+by default; existing configurations inherit the default. HTTP pages gain a
+smaller cut (~−20%) from the same reuse.
+
+Underneath it, a defect that predates the keep-alive work is fixed. Every
+TLS accept allocated ~22 KB from the heap (server context + I/O buffers)
+while the telemetry TLS client churned ~10 KB per retry on the same heap;
+with ~29 KB free and a fragmented free list, the 16.7 KB allocation could
+stall Core 0 past the watchdog window. Four independent fine-grained
+autopsies put the death on the same line, and the failure clustered in the
+first minutes after every boot — a self-sustaining reboot cycle under plain
+"open a page, read, click" browsing. The server context and buffers now come
+from a static pool (+22 KB BSS), taking every large allocation out of the
+accept path: a 30-minute soak that reproduced 3 watchdog reboots without the
+pool ran clean with it, and the intermittent soft page failures (~10-20%
+under pause-heavy browsing) went to zero with the same change.
+
+The fixes ship as framework overrides in `tools/arduino_pico_overrides/`
+(`webserver_keepalive.patch`, `clientcontext_acked_feed.patch`,
+`bearssl_server_static_pool.patch`), applied by `patch.sh` as before.
+
 ## v2.2.18-beta (2026-08-20)
 
 ### The HTTPS-to-HTTP login loop now explains itself
