@@ -26,6 +26,17 @@
 
 using ReadGuard = StorageManager::ReadGuard;
 
+#ifdef SIMUT_WEB_HTTPS
+/* Framework override 2h (bearssl_server_static_pool.patch, v2): reserves the
+ * TLS-accept pool (~21,5 KB: server ctx + iobufs) from the boot heap, once,
+ * instead of the pool living in BSS. Called below ONLY when the HTTPS server
+ * is actually starting, so HTTP-only configs keep the RAM — measured on the
+ * rig: the BSS pool alone dropped idle free heap 38 KB → 16 KB and starved
+ * the telemetry heap gates. C linkage, defined inside the patched
+ * WiFiClientSecureBearSSL.cpp. */
+extern "C" bool simut_reserve_tls_server_pool(void);
+#endif
+
 WebManager::WebManager( ) {
  _currentUserPerms = 0;
  _currentUserId = -1;
@@ -195,6 +206,15 @@ void WebManager::beginServer(uint16_t port) {
   * it (the suite exercises the HTTP handlers, transport-agnostic). */
 #ifdef SIMUT_WEB_HTTPS
  if (loadServerCert( )) {
+  /* The TLS-accept pool (accept-stall fix, override 2h) is reserved HERE —
+   * once, from a heap the boot has not fragmented yet, and only on the branch
+   * where TLS accepts will actually exist. On failure the accept path falls
+   * back to per-accept heap allocations (the pre-pool behaviour, with its
+   * known stall risk under heap churn), so the server still comes up. */
+  if (!simut_reserve_tls_server_pool( )) {
+   LOG_CODE(LOG_WARN, "WEB", SYS_HEAP_LOW, (int)(rp2040.getFreeHeap( ) / 1024),
+            "TLS accept pool not reserved — accepts fall back to heap");
+  }
   /* Default the HTTPS listener to 443 so plain https://<ip> reaches it, but
    * honour an explicitly configured port (anything other than the 80 default).
    * Serving TLS on 80 works but surprises a browser, which speaks cleartext

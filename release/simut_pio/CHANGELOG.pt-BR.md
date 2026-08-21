@@ -4,6 +4,34 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.1-beta (2026-08-20)
+
+### A RAM que o fix do stall fez refém foi devolvida, e a telemetria volta a respirar
+
+O pool TLS estático da v2.3.0 corrigiu um stall real de watchdog, mas cobrou
+seus ~21,5 KB como BSS em **toda** configuração — inclusive nas só-HTTP, onde
+nunca existe accept TLS. Medido na bancada: o heap livre ocioso caiu de
+~38 KB para ~16 KB, abaixo do gate pré-voo da telemetria, então todo ciclo de
+envio abortava para o backoff antes de tocar a rede — em qualquer transporte,
+e sem como recuperar a RAM desligando features. O pool agora é reservado uma
+única vez no boot, de um heap ainda sem fragmentação, e **somente quando o
+servidor HTTPS vai realmente subir**: configs HTTPS mantêm exatamente o
+comportamento anti-stall (accepts continuam sem malloc), configs HTTP
+recuperam os 21,5 KB (`pico_w_release` RAM 55,0% → 46,8%).
+
+Com o espaço de volta, o teto do lote de telemetria sobe de 50 para **250
+registros por upload** (interface web, `/api/commit_all` e `tel batch`
+aceitam 1–250). O teto é o que se pode pedir; o que cada ciclo envia de fato
+continua dimensionado pelo heap livre — reserva de 32 KB sob TLS / 12 KB em
+claro, ~350 B por registro JSON, ~160 B por registro CSV (a estimativa única
+antiga cortava os lotes CSV pela metade sem proteger nada), mais o
+encolhimento sob pressão que já existia no construtor de payload. O gate
+pré-voo também ficou ciente do transporte: telemetria HTTP/MQTT em claro não
+fica mais muda abaixo de 24 KB livres — esse piso existe para o scratch do
+TLS, que os transportes em claro nunca alocam.
+
+Nada mudou no formato do payload, na lógica do cursor ou nos transportes.
+
 ## v2.3.0-beta (2026-08-20)
 
 ### Páginas HTTPS carregam em um terço do tempo, e o reboot escondido embaixo delas se foi

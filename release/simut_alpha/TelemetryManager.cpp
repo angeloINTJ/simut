@@ -358,8 +358,17 @@ void TelemetryManager::update( ) {
  extern char* __brkval; (void)__brkval;
  /* Largest block via arduino-pico API (no direct — use heuristic
  * approxBlock = freeH / 2 if fragmented (ESP-style heap), or freeH if
- * contiguous. Conservative: requires freeH >= 24K (covers TLS 16K + margin). */
- if (freeH < 24576) {
+ * contiguous. Conservative: requires freeH >= 24K (covers TLS 16K + margin).
+ *
+ * v2.3.1: the floor is now split by transport. The 24K figure exists for the
+ * BearSSL client scratch, which PLAIN HTTP/MQTT never allocates — yet the
+ * unconditional gate kept plain telemetry silent on any config idling below
+ * 24 KB (measured: HTTPS web UI resident leaves ~16 KB idle free; every cycle
+ * aborted right here and only escalated backoff). Plain floor = collectBatch's
+ * own reserve (12288) + 2 KB working margin; safeBatchLimit and buildPayload
+ * then size the batch to what actually fits. */
+ const uint32_t PREFLIGHT_FLOOR = cfg.telEncryption ? 24576 : 14336;
+ if (freeH < PREFLIGHT_FLOOR) {
  _storageRef->unlockHeavyTask( );
  __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
  escalateBackoff( );
@@ -454,7 +463,7 @@ void TelemetryManager::update( ) {
  * significantly larger batches when configured by user.
  *
  * Preserved safety layers:
- * - update() preflight: aborts if heap < 24 KB
+ * - update() preflight: aborts if heap < 24 KB (TLS) / < 14 KB (plain)
  * - buildPayload: dynamic resize if estimate exceeds available
  * - the TLS handshake is bounded by setTLSConnectTimeout, which only holds
  *   because of the framework patch in tools/arduino_pico_overrides
@@ -479,20 +488,30 @@ uint8_t TelemetryManager::safeBatchLimit(uint8_t configured) {
  * - HTTP/MQTT plain (cfg.telEncryption=false): 12 KB — no TLS,
  * only HTTPClient + lwIP + margin. Allows ~35% larger batches.
  *
- * BYTES_PER_ENTRY = 350: empirically measured — ~28 batch struct +
- * ~310 JSON payload (conservative vs real ~221 for long hwId sensors).
+ * BYTES_PER_ENTRY: empirically measured — ~28 batch struct + payload line.
+ * JSON ~310 B/line (conservative vs real ~221 for long hwId sensors), so
+ * 350 total; CSV lines are fixed-layout and cost ~120 B, so 160 total.
+ * The old flat 350 halved CSV batches for no protective reason.
  *
- * HARD_CAP = 50: payload 50 entries ~= 17.5 KB, fits + TLS scratch.
+ * HARD_CAP = 250 (v2.3.1, was 50): the cap is no longer the sizing mechanism
+ * — the heap formula below is. 50 dated from when the TLS client still took
+ * its scratch as one ~16 KB block; with the 4096-B iobuf cap (v1.5.3) and
+ * the 32K TLS reserve the formula already lands well under any dangerous
+ * payload before the cap is ever reached: reaching N records requires
+ * RESERVE + N×BYTES_PER_ENTRY free, so 250 only ever happens when ~100 KB
+ * (JSON, plain) is actually free. The cap now only backstops the config
+ * field (mirrors the 1..250 range the web/CLI validators accept, in case a
+ * corrupted config byte slips through). The stress test that burned batch=200
+ * (4 reboots/10 min, lbm=17564) ran with the old flat gates and no
+ * buildPayload shrink — both layers below now cover exactly that scenario.
  */
  /* HEAP_RESERVE HTTPS increased 24K → 32K. Stress test
  * showed lbm=17564 mid-POST (largest block fragmented below TLS
  * scratch ~16K) → 4 reboots in 10 min with batch=200. 32K reserve guarantees
- * margin even after accumulated fragmentation from consecutive batches.
- * HARD_CAP 100 → 50 for the same reason: smaller batch, smaller payload
- * (50 entries × 350 B = 17.5 KB vs 100 × 350 = 35 KB), reduces fragmentation. */
+ * margin even after accumulated fragmentation from consecutive batches. */
  const uint32_t HEAP_RESERVE = cfg.telEncryption ? 32768 : 12288;
- const uint32_t BYTES_PER_ENTRY = 350;
- const uint8_t HARD_CAP = 50;
+ const uint32_t BYTES_PER_ENTRY = (cfg.telMode == TEL_MODE_CSV) ? 160 : 350;
+ const uint8_t HARD_CAP = 250;
 
  if (freeHeap <= HEAP_RESERVE) return 1;
 

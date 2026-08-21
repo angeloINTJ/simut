@@ -224,7 +224,7 @@ executar qualquer comando do modo privilegiado sem sair do config.
 | `tel server <url>` | URL do servidor de telemetria | max 63 chars |
 | `tel port <porta>` | Porta do servidor | 1–65535 |
 | `tel path <caminho>` | Caminho do endpoint (ex: `/api/v1/data`) | max 31 chars |
-| `tel batch <n>` | Registros por upload | 1–50 |
+| `tel batch <n>` | Registros por upload | 1–250 (limitado pelo heap livre) |
 | `tel interval <ms>` | Intervalo entre uploads automáticos (0 = desligado) | ≥ 0 |
 | `tel crypto on` | Ativar SSL/HTTPS para telemetria | — |
 | `tel crypto off` | Desativar SSL/HTTPS | — |

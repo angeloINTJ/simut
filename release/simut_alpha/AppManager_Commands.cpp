@@ -385,9 +385,9 @@ void AppManager::executeCommand(CliDemand cmd) {
  : "Invalid number for batch");
  break;
  }
- if (cmd.intVal1 < 1 || cmd.intVal1 > 50) {
- _cmdMgr->printError(pt ? "Batch fora de range (1-50)"
- : "Batch out of range (1-50)");
+ if (cmd.intVal1 < 1 || cmd.intVal1 > 250) {
+ _cmdMgr->printError(pt ? "Batch fora de range (1-250)"
+ : "Batch out of range (1-250)");
  break;
  }
  cfg.telBatchSize = (uint8_t)cmd.intVal1;

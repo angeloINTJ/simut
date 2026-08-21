@@ -4,6 +4,33 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.1-beta (2026-08-20)
+
+### The RAM the accept-stall fix took hostage is returned, and telemetry breathes again
+
+The v2.3.0 static TLS pool fixed a real watchdog stall, but it charged its
+~21.5 KB as BSS on **every** configuration — including HTTP-only setups,
+where no TLS accept can ever happen. Measured on the bench: idle free heap
+fell from ~38 KB to ~16 KB, which is below the telemetry pre-flight gate, so
+every telemetry cycle aborted into backoff before touching the network — on
+every transport, with the missing RAM impossible to win back by turning
+features off. The pool is now reserved once at boot, from a still-unfragmented
+heap, and **only when the HTTPS server is actually starting**: HTTPS setups
+keep the exact anti-stall behaviour (accepts stay malloc-free), HTTP setups
+get the 21.5 KB back (`pico_w_release` RAM 55.0% → 46.8%).
+
+With the room back, the telemetry batch ceiling rises from 50 to **250
+records per upload** (web UI, `/api/commit_all` and `tel batch` all accept
+1–250). The ceiling is what you may ask for; what actually ships each cycle
+is still sized by free heap — reserve 32 KB under TLS / 12 KB plain, ~350 B
+per JSON record, ~160 B per CSV record (the old flat estimate halved CSV
+batches for no protective reason), plus the existing shrink-under-pressure in
+the payload builder. The pre-flight heap gate is now transport-aware too:
+plain HTTP/MQTT telemetry no longer sits silent below 24 KB free — that
+floor exists for the TLS scratch, which plain transports never allocate.
+
+Nothing in the payload format, the cursor logic or the transports changed.
+
 ## v2.3.0-beta (2026-08-20)
 
 ### HTTPS pages load in a third of the time, and the reboot hiding under them is gone
