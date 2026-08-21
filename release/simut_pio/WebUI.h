@@ -429,6 +429,16 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Dashboard</title>
     <script src="/lang.js"></script>
     <style>
+        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
+           default do navegador porque TODOS os tokens moram no /style.css, que
+           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
+           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
+           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
+           copia: lang.js e sincrono no head e injeta :root.theme-light com
+           especificidade maior antes do paint. */
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--txt); }
 
 
         /* Dashboard Styles */
@@ -1483,6 +1493,16 @@ global.H5G = H5G;
 })(window);
     </script>
     <style>
+        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
+           default do navegador porque TODOS os tokens moram no /style.css, que
+           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
+           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
+           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
+           copia: lang.js e sincrono no head e injeta :root.theme-light com
+           especificidade maior antes do paint. */
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--txt); }
 
         /* History Styles */
         .hist-layout { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: start; margin-bottom: 25px; }
@@ -3315,6 +3335,16 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Config</title>
     <script src="/lang.js"></script>
     <style>
+        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
+           default do navegador porque TODOS os tokens moram no /style.css, que
+           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
+           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
+           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
+           copia: lang.js e sincrono no head e injeta :root.theme-light com
+           especificidade maior antes do paint. */
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--txt); }
 
 
         /* Config Styles */
@@ -4922,6 +4952,16 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Network</title>
     <script src="/lang.js"></script>
     <style>
+        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
+           default do navegador porque TODOS os tokens moram no /style.css, que
+           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
+           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
+           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
+           copia: lang.js e sincrono no head e injeta :root.theme-light com
+           especificidade maior antes do paint. */
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--txt); }
 
 
         /* Network Styles */
@@ -5157,6 +5197,16 @@ static const char USR_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Users</title>
     <script src="/lang.js"></script>
     <style>
+        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
+           default do navegador porque TODOS os tokens moram no /style.css, que
+           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
+           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
+           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
+           copia: lang.js e sincrono no head e injeta :root.theme-light com
+           especificidade maior antes do paint. */
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--txt); }
 
 
         /* User Styles */
@@ -5340,6 +5390,16 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Files</title>
     <script src="/lang.js"></script>
     <style>
+        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
+           default do navegador porque TODOS os tokens moram no /style.css, que
+           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
+           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
+           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
+           copia: lang.js e sincrono no head e injeta :root.theme-light com
+           especificidade maior antes do paint. */
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--txt); }
         h2.page-title { margin-bottom: 0; }
 
 
@@ -5648,6 +5708,16 @@ static const char ALARMS_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - Alarms & Sounds</title>
     <script src="/lang.js"></script>
     <style>
+        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
+           default do navegador porque TODOS os tokens moram no /style.css, que
+           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
+           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
+           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
+           copia: lang.js e sincrono no head e injeta :root.theme-light com
+           especificidade maior antes do paint. */
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--txt); }
         .card { margin-bottom: 24px; }
         h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 30px; font-size: 1.1rem; }
 
@@ -6199,6 +6269,16 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <title>SIMUT - License</title>
     <script src="/lang.js"></script>
     <style>
+        /* M1 anti-piscada (fix da piscada branca): o 1o paint usava o branco
+           default do navegador porque TODOS os tokens moram no /style.css, que
+           chega por fetch pos-paint (ver o loader no LANG_JS). Copia dos tokens
+           DARK — fonte: o bloco :root do STYLE_CSS neste mesmo arquivo; mudou
+           la, mude aqui (grep "M1 anti-piscada"). O tema claro NAO precisa de
+           copia: lang.js e sincrono no head e injeta :root.theme-light com
+           especificidade maior antes do paint. */
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--txt); }
         .container { margin: 20px auto; padding: 0 20px 40px; }
         .card { margin-bottom: 20px; }
         h3 { color: var(--acc); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; font-size: 1.05rem; }
@@ -6413,6 +6493,11 @@ static const char STYLE_CSS[] PROGMEM = R"raw(/* Paleta e as tres caixas que tod
    cada navegacao. Quem diverge (license, alarms, files) mantem so a
    propriedade que muda no proprio <style>, que vem DEPOIS deste arquivo
    no <head> e por isso ainda ganha. */
+/* Os tokens :root abaixo tem COPIA inline no <style> das 8 paginas (M1
+   anti-piscada — este arquivo chega por fetch pos-paint, e sem tokens o 1o
+   paint era branco). Mudou um valor aqui, atualize as copias:
+   grep "M1 anti-piscada". As copias vem depois no <head> e por isso ganham
+   — manter identicas ou a mudanca daqui nem aparece. */
 :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
 .container { max-width: 1200px; margin: 30px auto; padding: 0 20px; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
