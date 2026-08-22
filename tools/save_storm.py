@@ -252,9 +252,18 @@ class Storm:
 
         for cycle in range(1, self.cycles + 1):
             # Mutate the config so the CRC differs and the save is real.
-            self.cmd('configure terminal', timeout=6)
-            self.cmd(f'system name {BASE_NAME}-{cycle % 2}', timeout=6)
-            self.cmd('end', timeout=6)
+            # A touch in flight makes the CLI refuse commands ("display em
+            # uso"); retry the flip after the handler settles instead of
+            # letting the cycle degrade into a CRC no-op save.
+            for _attempt in range(3):
+                out_cfg = self.cmd('configure terminal', timeout=6) or ''
+                out_name = self.cmd(f'system name {BASE_NAME}-{cycle % 2}',
+                                    timeout=6) or ''
+                out_end = self.cmd('end', timeout=6) or ''
+                if 'ocupada' not in out_cfg and 'ocupada' not in out_name \
+                        and 'ocupada' not in out_end:
+                    break
+                time.sleep(1.5)
 
             out = self.cmd('write memory', timeout=15)
             if out is None:

@@ -42,6 +42,20 @@ struct BME280Driver {
 
     BME280Driver( ) { }
 
+    /* D-232-STORM: initRuntimeSensors( ) recria os drivers a cada
+     * `write memory` (delete drv → novo em begin( )). Sem destrutor, o
+     * BMx280PIO_RP2040 heap-allocado nunca morria: cada instância reivindica
+     * um spin-lock do pool "unused" no critical_section_init( ) e só o
+     * devolveria em critical_section_deinit( ) — no destrutor. ~7 saves
+     * esgotavam o pool e o claim seguinte entrava em panic → _exit(1) →
+     * loop sem feed do watchdog → HW WDT (autópsia C0=[CLI] ctx=209). */
+    ~BME280Driver( ) {
+        if (_sensor) {
+            delete _sensor;   /* devolve o spin-lock + o WirePIO */
+            _sensor = nullptr;
+        }
+    }
+
     /** @return true if the detected chip is a BME280 (has humidity).
      *         false for BMP280 (temperature + pressure only). */
     bool isBME( ) const { return _sensor && _sensor->isBME280(); }
