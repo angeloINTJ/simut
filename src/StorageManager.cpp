@@ -1081,118 +1081,7 @@ SensorRecord* StorageManager::getSensorByGpio(uint8_t gpio) {
 
 bool StorageManager::canWriteHistory(size_t sizeToWrite) { return _isMounted; }
 
-/* ── V4 history file name ──────────────────────────────────── */
-
-String StorageManager::getHistoryFileNameV4( ) {
-	 return getHistoryFileNameV4((uint32_t)time(nullptr));
-}
-
-String StorageManager::getHistoryFileNameV4(uint32_t epoch) {
-	 time_t t = (time_t)epoch;
-	 struct tm timeinfo;
-	 localtime_r(&t, &timeinfo);
-	 char buff[42];
-	 snprintf(buff, sizeof(buff), "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY,
-	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-	 return String(buff);
-}
-
-void StorageManager::getHistoryFileNameV4(char* buf, size_t len) {
-	 time_t now = time(nullptr);
-	 struct tm timeinfo;
-	 localtime_r(&now, &timeinfo);
-	 snprintf(buf, len, "%s/%04d%02d%02d" HISTORY_FILE_EXT, DIR_HISTORY,
-	          timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday);
-}
-
 /* ── V4 Schema Builder ──────────────────────────────────────── */
-
-bool StorageManager::buildMeasureSchema(
-     HistV4SensorDef *sensors, uint8_t &sensorCount,
-     HistV4MeasureDef *measures, uint8_t &measureCount,
-     uint8_t *strPool, uint8_t &strPoolSize)
-{
-	 sensorCount   = 0;
-	 measureCount  = 0;
-	 strPoolSize   = 0;
-
-	 for (int slot = 0; slot < MAX_SENSORS; slot++) {
-	 if (!_currentConfig.sensors[slot].active) continue;
-
-	 const auto &sr = _currentConfig.sensors[slot];
-	 SensorFormat fmt = SensorFormat::forType((SensorType)sr.sensorType);
-
-	 /* ── Add sensor to sensor table ── */
-	 uint8_t hwIdOff = strPoolSize;
-	 uint8_t hwIdLen = (uint8_t)strlen(sr.hwId);
-	 if (hwIdLen > 0 && strPoolSize + hwIdLen <= HIST_V4_MAX_STRPOOL) {
-	 memcpy(strPool + strPoolSize, sr.hwId, hwIdLen);
-	 strPoolSize += hwIdLen;
-	 } else {
-	 continue;
-	 }
-
-	 uint8_t nameOff = strPoolSize;
-	 uint8_t nameLen = (uint8_t)strlen(sr.friendlyName);
-	 if (strPoolSize + nameLen <= HIST_V4_MAX_STRPOOL) {
-	 memcpy(strPool + strPoolSize, sr.friendlyName, nameLen);
-	 strPoolSize += nameLen;
-	 } else {
-	 nameLen = 0;
-	 }
-
-	 uint8_t chMask = 0;
-	 for (uint8_t ch = 0; ch < MAX_SENSOR_CHANNELS; ch++) {
-	 if (sensorHasChannel((SensorType)sr.sensorType, ch)) {
-	 chMask |= (1 << ch);
-	 }
-	 }
-
-	 sensors[sensorCount].hwIdOffset  = hwIdOff;
-	 sensors[sensorCount].hwIdLen     = hwIdLen;
-	 sensors[sensorCount].nameOffset  = nameOff;
-	 sensors[sensorCount].nameLen     = nameLen;
-	 sensors[sensorCount].sensorType  = sr.sensorType;
-	 sensors[sensorCount].channelMask = chMask;
-	 sensors[sensorCount].flags       = 0;
-	 memset(sensors[sensorCount].reserved, 0, 2);
-
-	 /* ── Add measurements (one per channel of this sensor) ── */
-	 for (uint8_t ch = 0; ch < MAX_SENSOR_CHANNELS; ch++) {
-	 if (!sensorHasChannel((SensorType)sr.sensorType, ch)) continue;
-
-	 const auto &vf = fmt.values[ch];
-
-	 uint8_t unitOff = strPoolSize;
-	 uint8_t unitLen = (uint8_t)strlen(vf.unit);
-	 if (strPoolSize + unitLen > HIST_V4_MAX_STRPOOL) break;
-	 memcpy(strPool + strPoolSize, vf.unit, unitLen);
-	 strPoolSize += unitLen;
-
-	 /* Use user-configured bit width if set, else default for channel */
-	 uint8_t bw = sr.channelBitWidth[ch];
-	 if (bw == 0) bw = histV4DefaultBitWidth(ch);
-
-	 measures[measureCount].sensorIdx  = sensorCount;
-	 measures[measureCount].channel    = ch;
-	 measures[measureCount].bitWidth   = bw;
-	 measures[measureCount].decimals   = vf.decimals;
-	 measures[measureCount].unitOffset = unitOff;
-	 measures[measureCount].unitLen    = unitLen;
-	 measures[measureCount].scale      = histV4DefaultScale(ch);
-	 measureCount++;
-	 if (measureCount >= HIST_V4_MAX_MEASUREMENTS) break;
-	 }
-
-	 sensorCount++;
-	 if (sensorCount >= HIST_V4_MAX_SENSORS) break;
-	 if (measureCount >= HIST_V4_MAX_MEASUREMENTS) break;
-	 }
-
-	 return sensorCount > 0 && measureCount > 0;
-}
-
-
 
 /**
  * @brief Delete oldest history files to keep flash usage below 86%.
@@ -1237,7 +1126,7 @@ void StorageManager::enforceStorageLimit( ) {
  if (oldestFile != "") {
  String fullPath = String(DIR_HISTORY) + "/" + oldestFile;
 
- if (fullPath == _currentLogFileName || fullPath == _v4CurrentLogFileName) {
+ if (fullPath == getHistoryFileNameV5( )) {
  LOG_CODE(LOG_WARN, "STO", STO_ENFORCE_SKIP_ACTIVE, 0, "");
  break;
  }
@@ -1357,7 +1246,7 @@ String StorageManager::getStatsReport( ) {
  * newest day file is walked in full. Once per boot, acceptable.
  *
  * Filenames are YYYYMMDD, so lexical order IS chronological order. Only
- * .sim4 is considered — this used to scan .bin, and once nothing wrote that
+ * .h5 is considered — nothing else lives in /history.
  * extension any more the function answered 0 on every board. */
 uint32_t StorageManager::getLastRecordedTimestamp( ) {
 	/* Under V4 this walked the newest day file record by record, because a
@@ -1501,7 +1390,7 @@ uint32_t StorageManager::getLastRecordedTimestamp( ) {
 /* getHistoryDaysMask( ) — bitmask of days with history file */
 /* ─────────────────────────────────────────────────────────────────────────── */
 /**
- * @brief Returns bitmask of days in a month that have a .sim4 file.
+ * @brief Returns bitmask of days in a month that have a .h5 file.
  *
  * Bit N set = day N has data (bit 1 = day 1, bit 31 = day 31).
  * Used by the calendar screen on the TFT display.
@@ -1524,7 +1413,7 @@ uint32_t StorageManager::getHistoryDaysMask(int year, int month) {
  String fn = dir.fileName( );
  if (!fn.endsWith(HISTORY_FILE_EXT)) continue;
 
- /* File: "YYYYMMDD.sim4" — check month prefix */
+ /* File: "YYYYMMDD.h5" — check month prefix */
  if (fn.length( ) >= 8 && fn.startsWith(prefix)) {
  int day = fn.substring(6, 8).toInt( );
  if (day >= 1 && day <= 31) {
@@ -1882,52 +1771,23 @@ void StorageManager::generateSalt(uint8_t* buf) {
  * V4 HISTORY — write, scan, build schema
  * ============================================================================ */
 
-/* ── V4 entry points, kept as the delegating shims §2 asks for ───────────
- * R7 is explicit: the firmware carries no reader for the legacy format. The
- * V4 codec is gone from the build, so these keep their signatures and do the
- * V5 thing instead. Callers — the CLI, the web rebind endpoint — did not have
- * to change, and what they get back is better than what they asked for. */
+/* ── Schema rebind/migrate — V5 semantics ──────────────────────────────
+ * A schema change writes a new SCHEMA chunk into the same .h5 file; blocks
+ * written before it stay readable under their own schema. Nothing is lost,
+ * so there is nothing to confirm and nothing to force. */
 
-void StorageManager::ensureV4Schema( ) {
-	ensureH5Schema( );
-}
-
-bool StorageManager::rebindV4Schema(uint8_t *outMeasures) {
-	/* Was DESTRUCTIVE: a .sim4 froze its schema in the file header, so
-	 * changing a sensor identity meant recreating the day's file and losing
-	 * every record already in it — which is why the CLI demanded `confirm`.
-	 *
-	 * V5 has no such trade. A schema change writes a new SCHEMA chunk into
-	 * the same file (§3.7-2) and the blocks before it stay readable under
-	 * the schema that was in force when they were written. Nothing is lost,
-	 * so there is nothing to confirm and nothing to force. */
+bool StorageManager::rebindSchema(uint8_t *outMeasures) {
 	onSensorSetChangedV5( );
 	if (outMeasures) *outMeasures = _h5NCh;
 	return _h5Valid;
 }
 
-bool StorageManager::migrateV4Schema(uint8_t *outMeasures, uint32_t *outRecords,
-                                     uint8_t *outCarried) {
-	/* The streaming rewrite this used to do — read the day, remap columns,
-	 * verify, swap — exists to carry records across a schema change the
-	 * format could not express. V5 expresses it, so the migration is the
-	 * schema change itself: every record is "carried" because none moves. */
-	const bool ok = rebindV4Schema(outMeasures);
+bool StorageManager::migrateSchema(uint8_t *outMeasures, uint32_t *outRecords,
+                                   uint8_t *outCarried) {
+	const bool ok = rebindSchema(outMeasures);
 	if (outRecords) *outRecords = 0;
 	if (outCarried) *outCarried = _h5NCh;
 	return ok;
-}
-
-bool StorageManager::writeHistoryEntryV4(const int64_t *values, uint8_t measureCount,
-                                        uint32_t epoch) {
-	/* Signature preserved, semantics moved: the V4 record was a measurement
-	 * vector of int64 scaled by each channel's own factor, and V5 wants the
-	 * int16 the schema declares. Nothing in the firmware calls this any
-	 * more — processHistoryLogging builds the V5 vector directly — so it
-	 * refuses rather than guessing a mapping between two schemas it cannot
-	 * see. Kept so no caller outside this tree stops compiling. */
-	(void)values; (void)measureCount; (void)epoch;
-	return false;
 }
 
 bool StorageManager::flushHistoryBatchIfDue( ) {
@@ -1942,12 +1802,6 @@ bool StorageManager::flushHistoryBatch( ) {
 	if (!_isMounted) return false;
 	if (!_h5Valid || _h5Enc.count( ) == 0) return true;
 	return flushWipV5( );
-}
-
-bool StorageManager::writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount,
-                                              uint32_t epoch) {
-	(void)values; (void)measureCount; (void)epoch;
-	return false;                       /* see writeHistoryEntryV4 */
 }
 
 String StorageManager::getHistoryFileNameV5( ) {

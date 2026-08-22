@@ -18,7 +18,6 @@
 #include <vector>
 #include "pico/mutex.h"
 #include "SystemDefs.h"
-#include "HistoryV4.h"
 #include "HistoryV5.h"
 #include "sensors/SensorHelpers.h"
 #include "sensors/CalibCurve.h"
@@ -159,102 +158,28 @@ public:
   * lived here until v2/v3 were removed. Nothing had called the writer for
   * releases; it kept a whole delta codec alive to serve no one. */
 
- /** Write one V4 record. Delegates touch-priority buffering and flash I/O. */
- bool writeHistoryEntryV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
- /** T2.1: drain the RAM history batch to flash (one Core-1 pause for
-  * the whole drain). Called on batch-full/age, before reboots and on
-  * write memory. Safe to call with an empty batch. */
- bool flushHistoryBatch( );
- /** Invalidate the reader after an EXTERNAL mutation of a history file
-  * (e.g. a web delete). Under V4 this mattered a great deal: the writer
-  * held codec state tied to a file that no longer existed and kept
-  * appending to a recreated HEADERLESS one until reboot. V5 re-reads the
-  * SCHEMA on every open, so this only has to drop the open reader. */
- void invalidateV4Codec( ) { h5CloseDay( ); }
+   /** T2.1: drain the RAM history batch to flash (one Core-1 pause for
+   * the whole drain). Called on batch-full/age, before reboots and on
+   * write memory. Safe to call with an empty batch. */
+  bool flushHistoryBatch( );
+  /** Invalidate the reader after an EXTERNAL mutation of a history file
+   * (e.g. a web delete). V5 re-reads the SCHEMA on every open, so this only
+   * has to drop the open reader. */
+  void invalidateHistoryCodec( ) { h5CloseDay( ); }
 
- /** @return today's history file path in the V4 naming (kept for callers; V5
-  *  writes .h5 — see getHistoryFileNameV5). */
- String getHistoryFileNameV4( );
- void getHistoryFileNameV4(char* buf, size_t len);
+  /** Rebind the history schema to the current sensor config (V5 semantics:
+   *  a SCHEMA chunk is appended to the day's .h5 — nothing is lost).
+   *  @param outMeasures receives the new measurement count (may be nullptr).
+   *  @return false if the schema would be empty. */
+  bool rebindSchema(uint8_t* outMeasures = nullptr);
 
- /**
-  * @brief Caminho do arquivo V4 do dia a que pertence @p epoch.
-  * @details A2: o dreno do batch grava entradas bufferizadas que podem ser
-  * de ONTEM. Resolver o caminho por "agora" as colocava no arquivo de hoje.
-  * A sobrecarga sem argumento continua existindo e é o caminho de "agora".
-  * @param epoch Timestamp Unix da amostra.
-  * @return Caminho absoluto (e.g. /history/20260721.sim4).
-  */
- String getHistoryFileNameV4(uint32_t epoch);
+  /** "Migrate" the schema (V5 semantics: same as rebindSchema — every record
+   *  is carried because none moves). Keeps the outRecords/outCarried shape
+   *  for the web rebind endpoint. */
+  bool migrateSchema(uint8_t* outMeasures = nullptr, uint32_t* outRecords = nullptr,
+                     uint8_t* outCarried = nullptr);
 
- /** @return nullptr — the firmware carries no V4 state (R7). Kept so an
-  *  out-of-tree caller still compiles; ask getH5Schema( ) instead. */
- const HistV4State* getV4Schema( ) const { return nullptr; }
-
- /** @return 0. See getV4Schema( ); getH5ChannelCount( ) is the live one. */
- uint8_t getV4MeasureCount( ) const { return 0; }
-
- /** @return whether a history schema is ready — now answered by V5. */
- bool isV4Active( ) const { return _h5Valid; }
-
- /** Bootstrap the V4 history codec on first use.
-  * If the codec is not yet valid (_histV4CodecValid=false), this
-  * creates today's .sim4 file with the schema header and populates
-  * _histV4State. Idempotent: safe to call multiple times.
-  * Must be called before the first writeHistoryEntryV4() if
-  * getV4Schema() returns nullptr (chicken-and-egg bootstrap). */
- void ensureV4Schema( );
-
- /** Rebuild the day's V4 schema from the CURRENT sensor config, in place.
-  *
-  * A .sim4 stores its measurement schema in the header, and ensureV4Schema
-  * restores that header from the existing file rather than rebuilding it. So
-  * once a sensor identity changes, every value stops matching
-  * (strcmp(schemaHwId, cfg hwId)) and the rest of the day records nothing —
-  * invalidating the codec alone does not help, it just re-reads the same
-  * stale header.
-  *
-  * DESTRUCTIVE: records are bit-packed against the header, so the schema
-  * cannot be swapped under them — the day's file is recreated and today's
-  * earlier records are lost. The CLI demands `confirm` because of it.
-  *
-  * PREFER migrateV4Schema( ), which carries the day's records over instead of
-  * discarding them. This one is the fallback for the case migration cannot
-  * handle — a source file too damaged to decode — and stays reachable from the
-  * CLI (`sensor reschema confirm`) and from the web with ?force=1.
-  *
-  * One file per day is preserved either way.
-  *
-  * @param outMeasures receives the new measurement count (may be nullptr).
-  * @return false if the schema would be empty or the file could not be
-  *         written; the codec is left invalid so the next tick re-bootstraps.
-  */
- bool rebindV4Schema(uint8_t* outMeasures = nullptr);
-
- /** Rewrite today's .sim4 against the current slots, KEEPING the day's
-  *  records. Streaming (constant ~5.6 KB of RAM), verified against the
-  *  source before the swap, original intact on any failure.
-  *  Returns false when the source is unreadable — rebindV4Schema is then
-  *  the destructive fallback. */
- bool migrateV4Schema(uint8_t* outMeasures = nullptr, uint32_t* outRecords = nullptr,
-                      uint8_t* outCarried = nullptr);
-
- /** Build a V4 schema (sensor + measurement table + string pool) from SystemConfig.
-  * Used when creating a new V4 history file. The schema is stored in the file header
-  * so any reader can interpret the data without external configuration.
-  *
-  * @param sensors     Output sensor definitions (caller-provided buffer).
-  * @param sensorCount Output count of active sensors.
-  * @param measures    Output measurement definitions.
-  * @param measureCount Output count of measurements (sum of channels across sensors).
-  * @param strPool     Output string pool bytes.
-  * @param strPoolSize Output pool size.
-  * @return true on success. */
- bool buildMeasureSchema(HistV4SensorDef *sensors, uint8_t &sensorCount,
-                         HistV4MeasureDef *measures, uint8_t &measureCount,
-                         uint8_t *strPool, uint8_t &strPoolSize);
-
- /* ── V5 history API — the format from 2.0.1-alpha on ───────────────────
+/* ── V5 history API — the format from 2.0.1-alpha on ───────────────────
   * Written in RAM by the minute, put on flash by the hour. See
   * docs/HistoryV5_Instrucoes_Implementacao.md and HistoryV5.h.
   *
@@ -668,27 +593,7 @@ public:
  bool h5FileHasSchema(const String& path, bool* outMatches,
                       uint8_t* outLastSeq = nullptr);
 
- bool writeHistoryEntryFlashV4(const int64_t *values, uint8_t measureCount, uint32_t epoch);
- /** Rebuild codec state from an existing file. If the file ends mid-record
-  * (torn tail after power loss), returns true and reports the last good
-  * byte offset in *tornAt so the caller can repair before appending. */
- /* outLastEpoch, when given, receives the epoch of the last record decoded
-  * (0 if the file holds none) — getLastRecordedTimestamp needs exactly that
-  * and there is no reason for a second full-file walk. */
- static bool scanHistoryFileV4(File &f, HistV4State &state, size_t *tornAt = nullptr,
-                               uint32_t *outLastEpoch = nullptr);
-
- /** Lockstep re-decode of source and replacement: every carried column must
-  *  come back bit-identical, epochs must match, and the record count must be
-  *  exactly what was written. Gate for the swap in migrateV4Schema. */
- bool verifyMigratedV4(const String &srcPath, const String &tmpPath,
-                       const int8_t *colMap, uint32_t expectRecords);
- /** Create/recreate a day file with a fresh schema header; returns true
-  * only if the header read back from flash parses with measureCount > 0. */
- bool createHistoryFileV4WithSchema(const String &path);
- /** Cut a torn tail: rewrite the file keeping only [0, goodPos) bytes. */
- bool repairHistoryTailV4(const String &path, size_t goodPos);
-
+ 
 
  /** Internal worker: writes ONE HIST record directly to flash (without checking touch
  * nor pending flush). Called by writeHistoryEntry on the non-deferred path. */
@@ -705,7 +610,6 @@ public:
 
  File _currentLogFile;
  String _currentLogFileName = "";
- String _v4CurrentLogFileName = ""; /**< V4: current .sim4 file path (separate from legacy). */
 
  /** Codec state v2 of the active file. Valid only for the file
  * whose path == _currentLogFileName. Reconstructed by scan on file

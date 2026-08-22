@@ -1,6 +1,0 @@
-Ponha aqui os arquivos .sim4 (historico V4) que voce quer converter.
-
-Depois rode o converter.py que esta na pasta de cima. Os arquivos
-convertidos (.h5) vao aparecer na pasta V5.
-
-Este arquivo de aviso e ignorado pelo conversor; pode deixar.

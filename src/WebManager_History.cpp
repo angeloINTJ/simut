@@ -67,9 +67,7 @@ static void sortStrings(String* arr, int n, bool descending) {
  * included and has a valid reading in the record.
  */
 
-/* V4 history multi handler — decodes .sim4 file and emits generic JSON.
- * Called from handleApiHistoryMulti when a V4 file is detected.
- * Static helper keeps the V4 logic self-contained without header changes. */
+/* History multi handler — decodes the day's .h5 file and emits generic JSON. */
 void WebManager::handleApiHistoryMulti( ) {
  /* RAII so the early returns below (403/503) restore the caller's module. */
  LogManager::TraceScope _tHist(0, MOD_WEB_HIST);
@@ -286,9 +284,7 @@ void WebManager::handleApiHistoryMulti( ) {
  time_t targetDay = effectiveEnd - (d * 86400);
  struct tm timeinfo; localtime_r(&targetDay, &timeinfo);
  char defPath[40];
- /* One extension. This used to push .bin AND .sim4 for every day
-  * because the writer had moved to V4 while this list still named the
-  * old one — ranges below 1M then read zero files. */
+ /* One extension: .h5. */
  snprintf(defPath, sizeof(defPath), "%s/%04d%02d%02d%s",
  DIR_HISTORY,
  timeinfo.tm_year + 1900, timeinfo.tm_mon + 1, timeinfo.tm_mday,
@@ -990,7 +986,7 @@ void WebManager::handleApiHistoryMulti( ) {
  * locally. Hard cap of 31 days. PAYLOAD = N x BinaryHistoryRecord (70 B
  * packed) raw, without reformatting. Sensor filtering is on the client.
  *
- * The record is built from the day's .sim4 — the bundle stays slot-indexed
+ * The record is built from the day's .h5 — the bundle stays slot-indexed
  * because SENSOR_TABLE names the slots and the browser expands by them.
  *
  * Format (all LE):

@@ -136,23 +136,6 @@ def main() -> int:
     ap.add_argument('--seed', type=int, default=20260731)
     args = ap.parse_args()
 
-    # The phone converter ships its own copy of the reference — Pydroid gives
-    # it no way to import from anywhere else. A copy left behind would turn
-    # V4 archives into whatever the format USED to be, silently, on the one
-    # tool that runs with nothing to compare against. So the parity gate also
-    # refuses to pass while the two files differ.
-    bundled = os.path.join(HERE, 'conversor_v4_v5', 'history_v5.py')
-    if os.path.exists(bundled):
-        with open(os.path.join(HERE, 'history_v5.py'), 'rb') as fh:
-            canon = fh.read()
-        with open(bundled, 'rb') as fh:
-            copy = fh.read()
-        if copy != canon:
-            print('tools/conversor_v4_v5/history_v5.py differs from '
-                  'tools/history_v5.py — refresh the copy (and the .zip).')
-            print('PARITY FAIL')
-            return 1
-
     rnd = random.Random(args.seed)
     cases = [make_case(rnd) for _ in range(args.cases)]
 

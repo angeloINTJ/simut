@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Pico W v1.5.2 — Test suite final de estabilidade.
-Valida V4 fixes (stack, deadlock), CLI parser, WiFi, e APIs.
+Valida CLI parser, WiFi e APIs (formato de histórico: V5).
 """
 import serial, time, socket, re, sys, os, glob
 
@@ -235,13 +235,13 @@ class PicoTest:
 
     def t10_history_check(self):
         """Verificar se historico esta sendo salvo."""
-        print('\n[10] Historico V4')
+        print('\n[10] Historico V5')
         r = self.cmd('show system log')
         hist_lines = [l.strip() for l in r.split('\n') if 'HISTORY_SAVED' in l or 'history' in l.lower() or 'APP_HIST' in l]
         print(f'  Eventos de historico: {len(hist_lines)}')
         for l in hist_lines[-3:]:
             print(f'  {l[:100]}')
-        # Check if V4 file exists
+        # Check if the V5 (.h5) file exists
         self.check('historico ativo', len(hist_lines) > 0 or True)  # non-blocking
 
     def _http(self, method, path, body=None, headers=None):
@@ -330,7 +330,7 @@ class PicoTest:
             eps = [
                 ('/api/status', 'Status'),
                 ('/api/themes', 'Themes'),
-                ('/api/history_multi?range=1', 'HistoryV4'),
+                ('/api/history_multi?range=1', 'HistoryV5'),
             ]
             all_ok = True
             for path, name in eps:
@@ -352,7 +352,7 @@ class PicoTest:
     def run(self):
         print('=' * 72)
         print('  SIMUT Pico W v1.5.2 - TESTE FINAL DE ESTABILIDADE')
-        print('  Correcoes: V4 stack overflow, deadlock, pending flush, CLI parser')
+        print('  Formato de historico: V5 (.h5)')
         print(f'  Data: {time.strftime("%Y-%m-%d %H:%M:%S")}')
         print('=' * 72)
 

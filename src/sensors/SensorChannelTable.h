@@ -17,7 +17,7 @@
  * The storage columns are not free parameters: they reproduce exactly what
  * histV4DefaultBitWidth( ), histV4DefaultScale( ) and the `channel == 0`
  * signedness test used to hardcode. Changing one changes how history is packed.
- * That is survivable because a .sim4 file carries its own schema, so existing
+ * That is survivable because the .h5 file carries its schema chunks, so existing
  * files keep the widths they were written with — but new and old records of the
  * same channel would then disagree, so treat it as a format change.
  *

@@ -620,9 +620,8 @@ struct SystemStatusData {
 /**
  * @brief In-RAM history record — one sample across all 16 slots.
  *
- * NOT a file format. History on disk is V4 (.sim4), which is self-describing
- * and identifies each measurement by {channel}{hwId} — see HistoryV4.h. This
- * struct is the flat carrier the V4 reader decodes INTO so that telemetry and
+ * NOT a file format. History on disk is V5 (.h5) — see HistoryV5.h. This
+ * struct is the flat carrier the V5 reader decodes INTO so that telemetry and
  * the web history endpoint can index by slot.
  *
  * Layout:

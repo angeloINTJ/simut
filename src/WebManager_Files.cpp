@@ -118,7 +118,7 @@ void WebManager::handleDelete( ) {
   * the writer appends to a recreated HEADERLESS file until reboot. */
  if (path.startsWith("/history/") &&
      path.endsWith(HISTORY_FILE_EXT)) {
- _storageRef->invalidateV4Codec( );
+ _storageRef->invalidateHistoryCodec( );
  }
  /* Hot-reload custom theme on delete (same pattern as upload) —
  * avoids residue in in-memory list after user removes a .thm. */

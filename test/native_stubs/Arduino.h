@@ -130,7 +130,7 @@ private:
 };
 
 /* ============================================================================
- *  Minimal File stub — enough for HistoryV4 header tests (host-side only).
+ *  Minimal File stub — host-side tests only.
  *  The encode/decode unit tests don't use File I/O; this stub exists so the
  *  header compiles. Real File I/O is tested on-device.
  * ============================================================================ */

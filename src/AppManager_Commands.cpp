@@ -685,7 +685,7 @@ void AppManager::executeCommand(CliDemand cmd) {
   *
   * Under V5 a schema change appends a new SCHEMA chunk into the same
   * /history/YYYYMMDD.h5 file — earlier blocks keep their old schema and
-  * nothing is lost (see StorageManager::rebindV4Schema). The confirm is
+  * nothing is lost (see StorageManager::rebindSchema). The confirm is
   * kept because the command still rewrites live storage state and resumes
   * recording under a different column set. */
  case CMD_RESCHEMA_SENSORS: {
@@ -699,7 +699,7 @@ void AppManager::executeCommand(CliDemand cmd) {
  }
  uint8_t mc = 0;
  _displayMgr->requestQuietMode( ); /* recreates the day file — park Core 1 */
- bool ok = _storageMgr->rebindV4Schema(&mc);
+ bool ok = _storageMgr->rebindSchema(&mc);
  _displayMgr->releaseQuietMode( );
  if (ok) {
  char msg[80];
