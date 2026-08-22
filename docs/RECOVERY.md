@@ -97,7 +97,7 @@ reload confirm
 ```
 
 The admin web password is regenerated automatically — find it in the
-serial boot output (line `SEC-003: FACTORY DEFAULTS ACTIVE` + one-time
+serial boot output (line `SEC-003: FACTORY DEFAULTS ATIVADO` + one-time
 password).
 
 ---

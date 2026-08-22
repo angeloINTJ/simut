@@ -1,3 +1,9 @@
 .git/
 .pio/
 docs/promotion/
+release/
+scratchpad/
+.venv/
+__pycache__/
+*.uf2
+docs/test_reports/

@@ -1,13 +1,13 @@
 # SIMUT — User Manual
 
-**Firmware:** v2.1.10 · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
+**Firmware:** v2.3.2-beta · **Hardware:** Raspberry Pi Pico W (RP2040 + CYW43439) · **License:** MIT
 **Repository:** https://github.com/angeloINTJ/simut
 
 > **This is beta software.** It is tested on real hardware, but it is not a
 > certified metrological instrument. Do not make it the only control on
 > regulated storage without validating it against your own reference.
 
-Everything below was checked against a running v2.1.10 device. Where a
+Everything below was checked against a running v2.3.2-beta device. Where a
 number is quoted it was measured rather than estimated; where behaviour is
 untested or known to be incomplete, the text says so rather than going quiet.
 
@@ -83,7 +83,7 @@ Full pinout and assembly notes: [WIRING.md](WIRING.md).
 ## 3. First boot
 
 1. **Flash the firmware.** Hold BOOTSEL while connecting the Pico over USB,
-   then copy `simut_v2.1.10.uf2` onto the `RPI-RP2` drive that appears. The
+   then copy `simut_v2.3.2-beta.uf2` onto the `RPI-RP2` drive that appears. The
    board reboots into SIMUT by itself.
 
 2. **Read the admin password.** On the first boot with no stored
@@ -261,7 +261,7 @@ It is a small web app that logs into the device, uploads a preview theme,
 applies it and deletes it again — so the panel in front of you repaints as you
 pick colours, rather than after an upload-and-reboot cycle.
 
-Fifty further themes exist as build packs in `src/simut_config.h`
+Forty-nine further themes exist as build packs in `src/simut_config.h`
 (`SIMUT_THEMES_HEALTH`, `_PRO`, `_MEDICAL`, `_SAFETY`, `_RETRO`, `_NATURE`,
 `_UTILITY`). All seven are commented out by default; uncommenting one compiles
 its palettes in at roughly 85 bytes each. Every built-in palette passes the
@@ -298,7 +298,7 @@ Served from the device itself. Log in at `http://simut.local` or the device IP.
 | `/network` | Wi-Fi, static addressing, mDNS, NTP |
 | `/alarms` | Per-sensor thresholds and actions |
 | `/users` | Accounts and permissions |
-| `/files` | Filesystem browser: upload, download, delete, create directories |
+| `/files` | Filesystem browser: upload, download, delete, create directories — plus full backup, restore and firmware update (OTA) |
 | `/history` | History graphs, CSV export, and the system event log viewer |
 | `/license` | License text |
 
@@ -446,8 +446,8 @@ Ten permission bits, granted independently:
 | `0x0200` | CALIB | Calibrate sensors |
 
 **Admin is all bits set.** Three operations demand full admin rather than a
-single bit, because each erases a large region of flash: staging a firmware
-image, applying an update, and the staging selftest.
+single bit: staging a firmware image (`/api/restore?op=stage`), applying it
+(`/api/ota/apply`), and downloading the full backup (`GET /api/backup`).
 
 ---
 
@@ -621,11 +621,12 @@ See [RECOVERY.md](RECOVERY.md).
 
 ### The procedure
 
-From the web interface: **System Config → Firmware**. Or directly:
+From the web interface: the firmware update panel on the **`/files`** page,
+next to Backup and Restore. Or directly:
 
 ```bash
 # 1. Stage — uploads and validates. ~29 s for a 957 KB image.
-curl -b cookies.txt -F "file=@simut_v2.1.10.bin" \
+curl -b cookies.txt -F "file=@simut_v2.3.2-beta.bin" \
      "http://simut.local/api/restore?op=stage&commit=1"
 # -> {"st":5,"bytes":957696,"crc32":"...","v":0,"dsize":957500,"dcrc":"...","committed":1}
 
@@ -682,7 +683,7 @@ the verdict read back as the version string — never inferred from timing.
 USB CDC at **115200 baud, 8N1**, DTR asserted. The console exists in two
 profiles, and which one you have depends on the firmware build.
 
-### Release firmware — nine commands
+### Release firmware — ten commands
 
 The image users run ships a recovery console, not a configuration interface.
 Configuration lives in the web UI.
@@ -695,6 +696,7 @@ Configuration lives in the web UI.
 | `debug on` / `debug off` | Verbose logging for this session |
 | `system admin reset` | Reset the admin password to a random one |
 | `system format` | Erase the filesystem |
+| `system https off` | Disable HTTPS (delete the certificate pair), fall back to HTTP |
 | `system factory` | Restore factory defaults |
 | `reload` | Reboot |
 | `help` | List these |
@@ -706,12 +708,12 @@ Destructive commands require `confirm` as a final word.
 > reboot. `system admin reset` in particular yields a password for *this boot
 > only* — long enough to log in and set a real one through the web UI.
 
-This console replaced a 55-command one in v1.5.6-beta. The commands that were
+This console replaced a 56-command one in v1.5.6-beta. The commands that were
 cut had web equivalents already, and removing them returned 44.5 KB of flash.
 
 ### Test firmware — the full console
 
-`pico_w_test` builds ship the 55 commands with Cisco-style modes
+`pico_w_test` builds ship the 56 commands with Cisco-style modes
 (`enable` → `configure terminal` → `write memory`), plus `touch sim` and
 `screen` for driving the display from a script. It is the build the automated
 suites under `tools/` require. It is not what belongs on a device someone uses.
@@ -770,9 +772,9 @@ the metadata sector instead.
 
 | | |
 |---|---|
-| Firmware size | 1,002,084 B — ~96% of the 1020 KB application slot |
+| Firmware size | 1,011,244 B — ~97% of the 1020 KB application slot |
 | RAM at link | 123,124 B of 262,144 B |
-| Free heap in service | ~46 KB (reference rig: five sensors, pt-BR language pack) |
+| Free heap in service | ~46 KB (reference rig: five sensors, pt-BR language pack; measured on v2.1.10 — not yet re-measured after the 2.3.x TLS pool changes) |
 | Radio firmware | ~232 KB of the application slot |
 
 ---
@@ -813,6 +815,7 @@ brackets.
 | Route | Method | Notes |
 |---|---|---|
 | `/api/history_multi` | GET | Records for a range [HISTORY] |
+| `/api/history/open` | GET | The still-open in-RAM hour as a single-block V5 stream [HISTORY] |
 | `/api/history_days` | GET | Which days hold data |
 | `/api/history_rebind` | POST | Re-point records at a new hardware ID |
 | `/api/export/history.bin` | GET | Raw binary export |
@@ -838,14 +841,14 @@ brackets.
 | `/api/commit_all` | POST | Apply a batch of changes |
 | `/api/set_time` | POST | Set the clock |
 | `/api/calib` | GET/POST | Calibration offsets [CALIB] |
-| `/api/action` | POST | Multiplexed actions — reboot, telemetry reset |
+| `/api/action` | POST | Multiplexed actions — `tel_sync`, `tel_reset`, `sensor_scan`, `scan_results`, `sensor_accept`, `sensor_wipe` |
 | `/api/reset_touch_cal` | POST | Clear touch calibration |
 
 ### Firmware and backup
 
 | Route | Method | Notes |
 |---|---|---|
-| `/api/backup` | GET | Download the filesystem as `.bkp` |
+| `/api/backup` | GET | Download the filesystem as `.bkp` — **admin only** |
 | `/api/restore` | POST | `op=validate` \| `op=apply` \| `op=stage&commit=1` — **stage is admin only** |
 | `/api/ota/apply` | POST | Apply a staged update — **admin only**, answers 202 |
 

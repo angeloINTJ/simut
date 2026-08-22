@@ -35,6 +35,13 @@ Este glosario decodifica el significado de cada etiqueta. Si encuentras una etiq
 | `F-NET-TIME.5b` | Cierre — regresión acumulada a lo largo de la ruta F-NET-TIME. |
 | `F-IP-FIX` | Corrección de firma de `WiFi.config`: arduino-pico usa `(ip, dns, gateway, subnet)`, diferente de ESP32. |
 | `F-BT-LOGIN` | Escritura flash diferida en inicio de sesión Bluetooth: `LOG_CODE` almacenado en RAM durante `_btMgr.update()`, eliminando bloqueo de Core 1 + riesgo de reinicio WDT. |
+| `F-OTA-*` | Familia de la actualización OTA: `-BOOTLOOP` (correcciones de watchdog/boot-loop alrededor del apply), `-RAM` (carga solo-RAW `.bin`, gzip dry-run eliminado), `-STAGE-NOBLOCK` (borrado bajo demanda sector a sector durante el stage), `-ADMIN-ONLY` (gate de full-admin en stage/apply). |
+| `F-LANGPACK` | Packs de idioma (`.lng`): generación de `data/lang/*.lng` por las herramientas, diccionario web servido desde `GET /api/lang`, despliegue por etapas (marcadores Etapa/β). |
+| `F-WEB-*` | Familia de la interfaz web; `F-WEB-DEDUP` = CSS común extraído a `/style.css` + drawer único inyectado en runtime en lugar de copias por página. |
+| `F-GRAPH-*` | Gráficos de histórico en la web: `.3` = overlay de progreso de la exportación por fragmentos, `-REVAMP` = dropdown multiselección de sensores + 7 niveles de ventana (1h…MAX). |
+| `F-RESTORE` | Flujo de backup/restore — ej.: alimentaciones del watchdog antes de cada operación de restore que puede bloquearse. |
+| `F-CSV` | Exportación CSV de histórico + logs (UI web simplificada). |
+| `F-CALIB-*` | Calibración de sensores; `F-CALIB-UI` = UI de calibración integrada en el dashboard. |
 
 ## Etiquetas de Error (BUG-*)
 
@@ -84,6 +91,7 @@ Este glosario decodifica el significado de cada etiqueta. Si encuentras una etiq
 |-----|-----------|
 | `REF-004` | Singleton `TouchPriority` con `setProvider`/`isActive` — reemplaza 3 setters + 3 miembros + 3 lambdas duplicadas en 5 managers. |
 | `REF-007` | Descomposición de `handleApiLogin` (~130 líneas) en 6 helpers: `findLoginStateForIp`, `checkLockout`, `validateNonce`, `verifyPasswordFor`, `allocSessionSlot`, `completeLogin`. |
+| `REF-WEB-*` | Familia de la refactorización de la capa web; `REF-WEB-SKEL` = barra superior + `initSession` reducidos a una sola copia (tercera ronda del movimiento iniciado por `F-WEB-DEDUP`). |
 
 ## Parches (Patch X)
 

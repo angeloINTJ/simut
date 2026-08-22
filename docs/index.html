@@ -485,7 +485,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <div>
         <p class="release-line">
           <span class="tag tag-beta" data-i18n="tag.beta">Beta</span>
-          <span class="tag">v2.1.10</span>
+          <span class="tag">v2.3.2-beta</span>
           <span class="tag">MIT</span>
           <span class="tag">RP2040</span>
         </p>
@@ -519,7 +519,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <div class="channel"><div class="val">16</div><div class="key" data-i18n="ro.slots">Sensor slots</div></div>
       <div class="channel"><div class="val">4</div><div class="key" data-i18n="ro.types">Sensor types</div></div>
       <div class="channel"><div class="val">2</div><div class="key" data-i18n="ro.cores">CPU cores used</div></div>
-      <div class="channel"><div class="val">21<span class="unit">/21</span></div><div class="key" data-i18n="ro.ota">OTA updates verified</div></div>
+      <div class="channel"><div class="val">24<span class="unit">/24</span></div><div class="key" data-i18n="ro.ota">OTA updates verified</div></div>
       <div class="channel"><div class="val">48.4<span class="unit">s</span></div><div class="key" data-i18n="ro.down">Downtime per update</div></div>
       <div class="channel"><div class="val">0</div><div class="key" data-i18n="ro.cloud">Cloud dependencies</div></div>
     </div>
@@ -560,45 +560,45 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <p class="eyebrow" data-i18n="new.eyebrow">This generation</p>
     <h2 data-i18n="new.h2">What changed recently</h2>
     <p class="lede" style="margin-bottom:2rem" data-i18n="new.lede">
-      Eleven releases in five days took the 2.1 line from its first beta to stable — every one gated by the same four release checks and verified on real hardware.
+      Twenty-two releases in six days took the line from 2.2.0 to 2.3.2 — the web server learned HTTPS, the device learned to speak Prometheus, Home Assistant and syslog, and every release was verified on real hardware.
     </p>
     <div class="releases">
       <article class="release">
-        <div><div class="ver">v2.1.10</div><div class="date" data-i18n="new.d1">14 Aug 2026</div></div>
+        <div><div class="ver">v2.3.0–v2.3.2</div><div class="date" data-i18n="new.d1">21 Aug 2026</div></div>
         <div>
-          <h3 data-i18n="new.t1">The 2.1 line goes stable</h3>
+          <h3 data-i18n="new.t1">HTTPS pages in a third of the time</h3>
           <p data-i18n="new.b1">
-            The same firmware that shipped as v2.1.10-beta, promoted to stable. The
-            closing change swept a 4 px safe area across every screen: the display's
-            alignment offset (±4 px per axis) can shift the image to its extremes
-            without cropping a single element, verified with 19 framebuffer captures
-            off the real panel. Where a screen and its touch handler kept separate
-            copies of the same geometry, the numbers became shared constants.
+            Keep-alive is now on by default — one TLS handshake per session instead
+            of one per request — and the accept path draws from a static pool that is
+            reserved only when HTTPS actually starts, returning the RAM it once cost
+            every configuration. The telemetry batch ceiling rose from 50 to 250
+            records per upload, and the white flash between dark-themed pages is gone.
           </p>
         </div>
       </article>
       <article class="release">
-        <div><div class="ver">v2.1.8-beta</div><div class="date" data-i18n="new.d2">13 Aug 2026</div></div>
+        <div><div class="ver">v2.2.16–v2.2.18</div><div class="date" data-i18n="new.d2">19–20 Aug 2026</div></div>
         <div>
-          <h3 data-i18n="new.t2">History graphs tell the truth</h3>
+          <h3 data-i18n="new.t2">The web UI works over HTTPS, end to end</h3>
           <p data-i18n="new.b2">
-            The web page now downloads the raw binary day files and does the
-            decimation itself, in the browser — time buckets with real min/max, so a
-            one-minute spike in a month of data cannot be sampled out of the picture.
-            The device only serves bytes. The display's graph got the same honesty:
-            buckets with a min/max band around the average line.
+            The receive buffer now holds a whole TLS record, so uploads stop dying at
+            the fourth kilobyte — language packs and firmware images stage over
+            HTTPS. The browser serialises its dashboard fetches to match the chip's
+            one-at-a-time TLS server, and the HTTPS-to-HTTP cookie trap is detected
+            and explained instead of failing silently.
           </p>
         </div>
       </article>
       <article class="release">
-        <div><div class="ver">v2.1.5–v2.1.7</div><div class="date" data-i18n="new.d3">12–13 Aug 2026</div></div>
+        <div><div class="ver">v2.2.13–v2.2.14</div><div class="date" data-i18n="new.d3">19 Aug 2026</div></div>
         <div>
-          <h3 data-i18n="new.t3">A redesigned display at wire speed</h3>
+          <h3 data-i18n="new.t3">The audit trail leaves the box</h3>
           <p data-i18n="new.b3">
-            The TFT interface was rebuilt — widgets, Latin-1 accents, DMA-composited
-            rendering that cut a full-screen pass from 254 to ~120 ms — and pressure
-            became a first-class series with its own hPa axis on the graphs, next to
-            an instrument-table metrics screen and resilient long uploads.
+            Three integrations that speak your infrastructure's language: a
+            Prometheus <code>/metrics</code> endpoint behind the same login lockout,
+            Home Assistant MQTT Discovery so sensors appear on their own, and the
+            event log shipped as RFC 5424 syslog over UDP — with a NIL timestamp
+            before NTP syncs rather than an invented one.
           </p>
         </div>
       </article>
@@ -657,10 +657,10 @@ footer > .shell { padding-block: 2.5rem 3rem; }
       <div class="cell"><h3 data-i18n="c10.t">Backup and restore</h3><p data-i18n="c10.b">
         Download the whole filesystem as a single <code>.bkp</code>, verified by CRC32
         and bound to the chip ID so an image cannot be restored onto the wrong board.</p></div>
-      <div class="cell"><h3 data-i18n="c11.t">Two languages on the panel</h3><p data-i18n="c11.b">
-        English and Portuguese on the display; the web interface adds Spanish. All of
-        it loads from language packs on the filesystem rather than being compiled in,
-        so a translation is edited without a rebuild.</p></div>
+      <div class="cell"><h3 data-i18n="c11.t">Three languages</h3><p data-i18n="c11.b">
+        English, Portuguese and Spanish — on the display, the web interface and the
+        CLI help. All of it loads from language packs on the filesystem rather than
+        being compiled in, so a translation is edited without a rebuild.</p></div>
       <div class="cell"><h3 data-i18n="c12.t">Network on your terms</h3><p data-i18n="c12.b">
         DHCP or a static address, your own DNS and NTP servers, and an mDNS name so
         you do not have to memorise an IP. That name costs 15,272 B of flash —
@@ -809,7 +809,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
           <tr><td data-i18n="hw.sens">Sensors</td><td data-i18n="hw.sensv">16 slots on GPIO0–GPIO15: DS18B20 (1-Wire), DHT22, BME280 and BMP280 (I²C)</td></tr>
           <tr><td data-i18n="hw.buz">Buzzer</td><td data-i18n="hw.buzv">Passive piezo, driven from PIO</td></tr>
           <tr><td data-i18n="hw.stor">Storage</td><td data-i18n="hw.storv">On-chip flash — 1 MB filesystem, 1020 KB application slot</td></tr>
-          <tr><td data-i18n="hw.fw">Firmware size</td><td data-i18n="hw.fwv">945,464 B — 90.5% of the application slot</td></tr>
+          <tr><td data-i18n="hw.fw">Firmware size</td><td data-i18n="hw.fwv">1,011,244 B — ~97% of the application slot</td></tr>
         </tbody>
       </table>
     </div>
@@ -823,10 +823,10 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <h2 data-i18n="st.h2">From parts to readings</h2>
     <div class="steps">
       <div class="step"><div><h3 data-i18n="st1.t">Build the hardware</h3><p data-i18n="st1.b">Wire the display, touch panel and sensors to the Pico W following the <a href="WIRING.html">wiring guide</a>. A breadboard is enough to start.</p></div></div>
-      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take <code>simut_v2.1.10.uf2</code> from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>. Arduino IDE and PlatformIO source trees are published alongside it.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st2.t">Download the firmware</h3><p data-i18n="st2.b">Take <code>simut_v2.3.2-beta.uf2</code> from the <a href="https://github.com/angeloINTJ/simut/releases/latest">latest release</a>. Arduino IDE and PlatformIO source trees are published alongside it.</p></div></div>
       <div class="step"><div><h3 data-i18n="st3.t">Flash over USB</h3><p data-i18n="st3.b">Hold BOOTSEL while connecting the Pico, then drop the <code>.uf2</code> onto the <code>RPI-RP2</code> drive that appears. The board reboots into SIMUT on its own.</p></div></div>
       <div class="step"><div><h3 data-i18n="st4.t">Join it to your network</h3><p data-i18n="st4.b">Configure Wi-Fi from the touch display. The admin password is printed once over USB serial on first boot — write it down, and change it at first web login.</p></div></div>
-      <div class="step"><div><h3 data-i18n="st5.t">Open the interface</h3><p data-i18n="st5.b">Browse to <code>http://simut.local</code>, add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p></div></div>
+      <div class="step"><div><h3 data-i18n="st5.t">Open the interface</h3><p data-i18n="st5.b">Browse to <code>http://simut.local</code> — or <code>https://</code> once you upload a certificate — add your sensors to slots, set alarm thresholds, and calibrate against a reference if the readings matter.</p></div></div>
     </div>
   </div>
 </section>
@@ -871,7 +871,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     <div class="foot-grid">
       <div class="colophon" data-i18n="ft.colophon">
         SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />
-        MIT licensed · built for the Raspberry Pi Pico W · v2.1.10
+        MIT licensed · built for the Raspberry Pi Pico W · v2.3.2-beta
       </div>
       <div class="foot-links">
         <a href="https://github.com/angeloINTJ/simut">GitHub</a>
@@ -911,14 +911,14 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'beta.3': 'Uma atualização <strong>reformata o sistema de arquivos</strong>. Credenciais de Wi-Fi, usuários e slots de sensor são preservados automaticamente; pacotes de idioma, <code>calib.csv</code> e o histórico gravado não. Baixe um backup antes.',
     'beta.4': '<strong>Não há um segundo slot de firmware para reverter</strong>. A imagem é checada antes de ser efetivada e verificada de novo no boot seguinte, mas a recuperação de uma gravação ruim é o botão BOOTSEL e um cabo USB.',
     'new.eyebrow': 'Esta geração', 'new.h2': 'O que mudou recentemente',
-    'new.lede': 'Onze releases em cinco dias levaram a linha 2.1 da primeira beta ao estável — cada uma passou pelos mesmos quatro portões de release e foi verificada em hardware real.',
-    'new.d1': '14 ago 2026', 'new.d2': '13 ago 2026', 'new.d3': '12–13 ago 2026',
-    'new.t1': 'A linha 2.1 fica estável',
-    'new.b1': 'O mesmo firmware publicado como v2.1.10-beta, promovido a estável. A mudança de fechamento varreu uma área segura de 4 px em todas as telas: o offset de alinhamento do display (±4 px por eixo) desloca a imagem até os extremos sem cortar um único elemento, verificado com 19 capturas do framebuffer do painel real. Onde uma tela e seu handler de toque mantinham cópias separadas da mesma geometria, os números viraram constantes compartilhadas.',
-    'new.t2': 'Os gráficos de histórico dizem a verdade',
-    'new.b2': 'A página web agora baixa os arquivos binários do dia crus e faz a decimação ela mesma, no navegador — baldes de tempo com mín/máx reais, então um pico de um minuto num mês de dados não pode ser amostrado para fora do gráfico. O aparelho só serve bytes. O gráfico do display ganhou a mesma honestidade: baldes com banda mín/máx em volta da linha média.',
-    'new.t3': 'Um display redesenhado na velocidade do fio',
-    'new.b3': 'A interface do TFT foi reconstruída — widgets, acentos Latin-1, composição com DMA que baixou a tela cheia de 254 para ~120 ms — e a pressão virou série de primeira classe com eixo próprio em hPa nos gráficos, ao lado de uma tela de métricas em linhas de instrumento e uploads longos resilientes.',
+    'new.lede': 'Vinte e duas releases em seis dias levaram a linha da 2.2.0 à 2.3.2 — o servidor web aprendeu HTTPS, o aparelho aprendeu a falar Prometheus, Home Assistant e syslog, e cada release foi verificada em hardware real.',
+    'new.d1': '21 ago 2026', 'new.d2': '19–20 ago 2026', 'new.d3': '19 ago 2026',
+    'new.t1': 'Páginas HTTPS em um terço do tempo',
+    'new.b1': 'O keep-alive agora vem ligado por padrão — um handshake TLS por sessão em vez de um por requisição — e o caminho de accept usa um pool estático reservado só quando o HTTPS realmente sobe, devolvendo a RAM que antes custava a toda configuração. O teto do lote de telemetria subiu de 50 para 250 registros por envio, e a piscada branca entre páginas no tema escuro acabou.',
+    'new.t2': 'A interface web funciona por HTTPS, de ponta a ponta',
+    'new.b2': 'O buffer de recepção agora comporta um registro TLS inteiro, então os uploads param de morrer no quarto kilobyte — pacotes de idioma e imagens de firmware sobem por HTTPS. O navegador serializa as buscas do painel para casar com o servidor TLS de um cliente por vez do chip, e a armadilha do cookie HTTPS→HTTP é detectada e explicada em vez de falhar em silêncio.',
+    'new.t3': 'A trilha de auditoria sai da caixa',
+    'new.b3': 'Três integrações que falam a língua da sua infraestrutura: um endpoint Prometheus <code>/metrics</code> atrás do mesmo bloqueio do login, MQTT Discovery do Home Assistant para os sensores aparecerem sozinhos, e o log de eventos enviado como syslog RFC 5424 por UDP — com timestamp NIL antes do NTP sincronizar, em vez de um inventado.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Recursos', 'cap.h2': 'O que o firmware faz',
     'cap.lede': 'Tudo abaixo roda no dispositivo. Nada liga para casa.',
@@ -937,8 +937,8 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'c9.b': 'Um log binário persistente com rotação e exportação CSV, registrando mudanças de configuração, eventos de segurança e a perícia de travamentos capturada pelo watchdog.',
     'c10.t': 'Backup e restauração',
     'c10.b': 'Baixe todo o sistema de arquivos como um único <code>.bkp</code>, verificado por CRC32 e vinculado ao ID do chip, de modo que uma imagem não possa ser restaurada na placa errada.',
-    'c11.t': 'Dois idiomas no painel',
-    'c11.b': 'Inglês e português no display; a interface web acrescenta o espanhol. Tudo isso carrega de pacotes de idioma no sistema de arquivos em vez de ser compilado, então uma tradução se edita sem recompilar.',
+    'c11.t': 'Três idiomas',
+    'c11.b': 'Inglês, português e espanhol — no display, na interface web e na ajuda do CLI. Tudo isso carrega de pacotes de idioma no sistema de arquivos em vez de ser compilado, então uma tradução se edita sem recompilar.',
     'c12.t': 'Rede nos seus termos',
     'c12.b': 'DHCP ou endereço fixo, seus próprios servidores DNS e NTP, e um nome mDNS para você não ter que decorar um IP. Esse nome custa 15.272 B de flash — medidos, e removíveis num flag.',
     'eng.eyebrow': 'Por dentro', 'eng.h2': 'Os sensores não rodam no processador',
@@ -987,19 +987,19 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'hw.sens': 'Sensores', 'hw.sensv': '16 slots em GPIO0–GPIO15: DS18B20 (1-Wire), DHT22, BME280 e BMP280 (I²C)',
     'hw.buz': 'Buzzer', 'hw.buzv': 'Piezo passivo, acionado por PIO',
     'hw.stor': 'Armazenamento', 'hw.storv': 'Flash interna — 1 MB de sistema de arquivos, 1020 KB de slot da aplicação',
-    'hw.fw': 'Tamanho do firmware', 'hw.fwv': '945.464 B — 90,5% do slot da aplicação',
+    'hw.fw': 'Tamanho do firmware', 'hw.fwv': '1.011.244 B — ~97% do slot da aplicação',
     'hw.wiring': 'Diagrama de ligação e pinagem →',
     'st.eyebrow': 'Começar', 'st.h2': 'Das peças às leituras',
     'st1.t': 'Monte o hardware',
     'st1.b': 'Ligue o display, o painel de toque e os sensores ao Pico W seguindo o <a href="WIRING.html">guia de ligação</a>. Uma protoboard basta para começar.',
     'st2.t': 'Baixe o firmware',
-    'st2.b': 'Pegue o <code>simut_v2.1.10.uf2</code> na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. As árvores de código para Arduino IDE e PlatformIO são publicadas junto.',
+    'st2.b': 'Pegue o <code>simut_v2.3.2-beta.uf2</code> na <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. As árvores de código para Arduino IDE e PlatformIO são publicadas junto.',
     'st3.t': 'Grave por USB',
     'st3.b': 'Segure o BOOTSEL enquanto conecta o Pico, depois solte o <code>.uf2</code> no drive <code>RPI-RP2</code> que aparecer. A placa reinicia no SIMUT sozinha.',
     'st4.t': 'Coloque na sua rede',
     'st4.b': 'Configure o Wi-Fi pelo display de toque. A senha de admin é impressa uma única vez na serial USB no primeiro boot — anote e troque no primeiro login web.',
     'st5.t': 'Abra a interface',
-    'st5.b': 'Acesse <code>http://simut.local</code>, adicione seus sensores aos slots, defina os limites de alarme e calibre contra uma referência se as leituras importarem.',
+    'st5.b': 'Acesse <code>http://simut.local</code> — ou <code>https://</code> depois de subir um certificado — adicione seus sensores aos slots, defina os limites de alarme e calibre contra uma referência se as leituras importarem.',
     'dc.eyebrow': 'Documentação', 'dc.h2': 'Leia mais',
     'd1.t': 'Manual do usuário', 'd1.b': 'Montagem do hardware, o display, a interface web, o console serial e solução de problemas.',
     'd2.t': 'Guia de ligação', 'd2.b': 'Pinagem, notas de montagem e o layout de protoboard de referência.',
@@ -1011,7 +1011,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'co.lede': 'O que é uma boa combinação se você gosta de achar coisas. Relatos de bug vindos de instalações reais são a coisa mais útil que você pode mandar — especialmente os que vêm com log anexado.',
     'co.bug': 'Relatar um bug', 'co.feat': 'Pedir um recurso',
     'co.guide': 'Guia de contribuição', 'co.vuln': 'Relatar vulnerabilidade',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W · v2.1.10',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria<br />Licença MIT · feito para o Raspberry Pi Pico W · v2.3.2-beta',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licença',
     'ft.edit': 'Editar esta página'
   },
@@ -1037,14 +1037,14 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'beta.3': 'Una actualización <strong>reformatea el sistema de archivos</strong>. Las credenciales de Wi-Fi, los usuarios y las ranuras de sensor se conservan automáticamente; los paquetes de idioma, <code>calib.csv</code> y el historial guardado no. Descarga una copia de seguridad antes.',
     'beta.4': '<strong>No hay una segunda ranura de firmware a la que volver</strong>. La imagen se comprueba antes de aplicarse y se verifica de nuevo en el siguiente arranque, pero la recuperación de una grabación defectuosa es el botón BOOTSEL y un cable USB.',
     'new.eyebrow': 'Esta generación', 'new.h2': 'Qué cambió recientemente',
-    'new.lede': 'Once releases en cinco días llevaron la línea 2.1 de su primera beta a estable — cada una pasó por las mismas cuatro puertas de release y fue verificada en hardware real.',
-    'new.d1': '14 ago 2026', 'new.d2': '13 ago 2026', 'new.d3': '12–13 ago 2026',
-    'new.t1': 'La línea 2.1 pasa a estable',
-    'new.b1': 'El mismo firmware publicado como v2.1.10-beta, promovido a estable. El cambio de cierre barrió un área segura de 4 px en todas las pantallas: el offset de alineación de la pantalla (±4 px por eje) desplaza la imagen hasta sus extremos sin recortar un solo elemento, verificado con 19 capturas del framebuffer del panel real. Donde una pantalla y su handler táctil mantenían copias separadas de la misma geometría, los números pasaron a constantes compartidas.',
-    'new.t2': 'Los gráficos de histórico dicen la verdad',
-    'new.b2': 'La página web ahora descarga los archivos binarios diarios crudos y hace la decimación ella misma, en el navegador — cubetas de tiempo con mín/máx reales, así que un pico de un minuto en un mes de datos no puede quedar fuera del gráfico por muestreo. El dispositivo solo sirve bytes. El gráfico de la pantalla ganó la misma honestidad: cubetas con banda mín/máx alrededor de la línea media.',
-    'new.t3': 'Una pantalla rediseñada a velocidad de bus',
-    'new.b3': 'La interfaz TFT fue reconstruida — widgets, acentos Latin-1, composición con DMA que bajó la pantalla completa de 254 a ~120 ms — y la presión pasó a ser una serie de primera clase con su propio eje en hPa en los gráficos, junto a una pantalla de métricas en filas de instrumento y subidas largas resilientes.',
+    'new.lede': 'Veintidós releases en seis días llevaron la línea de la 2.2.0 a la 2.3.2 — el servidor web aprendió HTTPS, el dispositivo aprendió a hablar Prometheus, Home Assistant y syslog, y cada release fue verificada en hardware real.',
+    'new.d1': '21 ago 2026', 'new.d2': '19–20 ago 2026', 'new.d3': '19 ago 2026',
+    'new.t1': 'Páginas HTTPS en un tercio del tiempo',
+    'new.b1': 'El keep-alive ahora viene activado por defecto — un handshake TLS por sesión en vez de uno por petición — y la ruta de accept usa un pool estático que se reserva solo cuando el HTTPS realmente arranca, devolviendo la RAM que antes costaba a toda configuración. El techo del lote de telemetría subió de 50 a 250 registros por envío, y el destello blanco entre páginas del tema oscuro desapareció.',
+    'new.t2': 'La interfaz web funciona por HTTPS, de extremo a extremo',
+    'new.b2': 'El búfer de recepción ahora aloja un registro TLS entero, así que las subidas dejan de morir en el cuarto kilobyte — paquetes de idioma e imágenes de firmware suben por HTTPS. El navegador serializa las peticiones del panel para ajustarse al servidor TLS de un cliente a la vez del chip, y la trampa de la cookie HTTPS→HTTP se detecta y se explica en vez de fallar en silencio.',
+    'new.t3': 'El registro de auditoría sale de la caja',
+    'new.b3': 'Tres integraciones que hablan la lengua de tu infraestructura: un endpoint Prometheus <code>/metrics</code> tras el mismo bloqueo del acceso, MQTT Discovery de Home Assistant para que los sensores aparezcan solos, y el log de eventos enviado como syslog RFC 5424 por UDP — con marca de tiempo NIL antes de sincronizar NTP, en vez de una inventada.',
     'new.changelog': 'Changelog completo',
     'cap.eyebrow': 'Funciones', 'cap.h2': 'Qué hace el firmware',
     'cap.lede': 'Todo lo de abajo corre en el dispositivo. Nada llama a casa.',
@@ -1063,8 +1063,8 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'c9.b': 'Un log binario persistente con rotación y exportación CSV, que registra cambios de configuración, eventos de seguridad y el análisis forense de caídas capturado por el watchdog.',
     'c10.t': 'Copia y restauración',
     'c10.b': 'Descarga todo el sistema de archivos como un único <code>.bkp</code>, verificado por CRC32 y ligado al ID del chip, de forma que una imagen no pueda restaurarse en la placa equivocada.',
-    'c11.t': 'Dos idiomas en el panel',
-    'c11.b': 'Inglés y portugués en la pantalla; la interfaz web añade el español. Todo ello se carga desde paquetes de idioma en el sistema de archivos en vez de compilarse, así que una traducción se edita sin recompilar.',
+    'c11.t': 'Tres idiomas',
+    'c11.b': 'Inglés, portugués y español — en la pantalla, la interfaz web y la ayuda de la CLI. Todo ello se carga desde paquetes de idioma en el sistema de archivos en vez de compilarse, así que una traducción se edita sin recompilar.',
     'c12.t': 'Red en tus términos',
     'c12.b': 'DHCP o dirección fija, tus propios servidores DNS y NTP, y un nombre mDNS para no tener que memorizar una IP. Ese nombre cuesta 15.272 B de flash — medidos, y eliminables con un flag.',
     'eng.eyebrow': 'Por dentro', 'eng.h2': 'Los sensores no corren en el procesador',
@@ -1113,19 +1113,19 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'hw.sens': 'Sensores', 'hw.sensv': '16 ranuras en GPIO0–GPIO15: DS18B20 (1-Wire), DHT22, BME280 y BMP280 (I²C)',
     'hw.buz': 'Zumbador', 'hw.buzv': 'Piezo pasivo, accionado por PIO',
     'hw.stor': 'Almacenamiento', 'hw.storv': 'Flash interna — 1 MB de sistema de archivos, 1020 KB de ranura de aplicación',
-    'hw.fw': 'Tamaño del firmware', 'hw.fwv': '945.464 B — 90,5% de la ranura de aplicación',
+    'hw.fw': 'Tamaño del firmware', 'hw.fwv': '1.011.244 B — ~97% de la ranura de aplicación',
     'hw.wiring': 'Diagrama de conexión y pines →',
     'st.eyebrow': 'Empezar', 'st.h2': 'De las piezas a las lecturas',
     'st1.t': 'Monta el hardware',
     'st1.b': 'Conecta la pantalla, el panel táctil y los sensores a la Pico W siguiendo la <a href="WIRING.html">guía de conexión</a>. Una protoboard basta para empezar.',
     'st2.t': 'Descarga el firmware',
-    'st2.b': 'Toma <code>simut_v2.1.10.uf2</code> de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. Los árboles de código para Arduino IDE y PlatformIO se publican junto a él.',
+    'st2.b': 'Toma <code>simut_v2.3.2-beta.uf2</code> de la <a href="https://github.com/angeloINTJ/simut/releases/latest">última release</a>. Los árboles de código para Arduino IDE y PlatformIO se publican junto a él.',
     'st3.t': 'Graba por USB',
     'st3.b': 'Mantén BOOTSEL mientras conectas la Pico, y suelta el <code>.uf2</code> en la unidad <code>RPI-RP2</code> que aparece. La placa arranca en SIMUT por sí sola.',
     'st4.t': 'Únela a tu red',
     'st4.b': 'Configura el Wi-Fi desde la pantalla táctil. La contraseña de admin se imprime una sola vez por el serie USB en el primer arranque — anótala y cámbiala en el primer acceso web.',
     'st5.t': 'Abre la interfaz',
-    'st5.b': 'Entra en <code>http://simut.local</code>, añade tus sensores a las ranuras, fija los límites de alarma y calibra contra una referencia si las lecturas importan.',
+    'st5.b': 'Entra en <code>http://simut.local</code> — o <code>https://</code> tras subir un certificado — añade tus sensores a las ranuras, fija los límites de alarma y calibra contra una referencia si las lecturas importan.',
     'dc.eyebrow': 'Documentación', 'dc.h2': 'Sigue leyendo',
     'd1.t': 'Manual de usuario', 'd1.b': 'Montaje del hardware, la pantalla, la interfaz web, la consola serie y resolución de problemas.',
     'd2.t': 'Guía de conexión', 'd2.b': 'Pines, notas de montaje y el esquema de protoboard de referencia.',
@@ -1137,7 +1137,7 @@ footer > .shell { padding-block: 2.5rem 3rem; }
     'co.lede': 'Lo cual es buena combinación si te gusta encontrar cosas. Los informes de error de instalaciones reales son lo más útil que puedes enviar — sobre todo los que vienen con un log adjunto.',
     'co.bug': 'Informar de un error', 'co.feat': 'Pedir una función',
     'co.guide': 'Guía de contribución', 'co.vuln': 'Informar de vulnerabilidad',
-    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W · v2.1.10',
+    'ft.colophon': 'SIMUT — Sistema Integrado de Monitorización Universal y Telemetría<br />Licencia MIT · hecho para la Raspberry Pi Pico W · v2.3.2-beta',
     'ft.releases': 'Releases', 'ft.changelog': 'Changelog', 'ft.license': 'Licencia',
     'ft.edit': 'Editar esta página'
   }

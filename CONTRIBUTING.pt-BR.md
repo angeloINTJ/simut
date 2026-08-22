@@ -4,8 +4,6 @@
 
 Obrigado pelo interesse em contribuir! O SIMUT é um firmware IoT open-source para Raspberry Pi Pico W. Veja como ajudar.
 
-[English](CONTRIBUTING.md) | **Português** | [Español](CONTRIBUTING.es-ES.md)
-
 ## Antes de Começar
 
 - **Abra uma issue primeiro** para discutir sua ideia antes de escrever código. Isso evita esforço desperdiçado se a mudança não se encaixar no roadmap do projeto.
@@ -19,7 +17,7 @@ Procure issues com a label [`good first issue`](https://github.com/angeloINTJ/si
 |------------|-------------------|
 | C/C++ embarcado | Testes do HistoryCodec, testes do CLI parser, fuzz testing |
 | Python / DevOps | Ambiente Docker, cppcheck CI, pre-commit hooks |
-| Documentação / i18n | Tradução para espanhol, badges de prova social |
+| Documentação / i18n | Melhorias de documentação, badges de prova social |
 | Design | Novo tema de cores integrado |
 
 Não sabe por onde começar? Comente em qualquer `good first issue` que o mantenedor ajudará a definir o escopo.
@@ -55,7 +53,7 @@ docker compose run test
 | Comando | Comando PlatformIO equivalente |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native && pio test -e native_history_v5` |
+| `docker compose run test` | `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy` |
 
 ---
 
@@ -102,9 +100,11 @@ pio run -e pico_w_release -t uploadfs
 - **NULL:** Use `nullptr` em código C++ (não `NULL`)
 - **Comentários:** Explique o *porquê*, não o *quê* — o código é o "quê"
 
+Vai adicionar um novo driver de sensor? Siga o guia passo a passo em [docs/adding-a-new-sensor.md](docs/adding-a-new-sensor.md).
+
 ## Orçamento de Flash
 
-A flash está criticamente apertada — ~95 % do slot de app de 1020 KB no env de release (o env `pico_w_test` roda a ~99 %). Antes de adicionar funcionalidades, considere:
+A flash está criticamente apertada — ~97 % do slot de app de 1020 KB no env de release (o env `pico_w_test` roda a ~99 %). Antes de adicionar funcionalidades, considere:
 
 1. Pode ser otimizada para usar menos espaço?
 2. Pode substituir algo de menor valor?
@@ -116,7 +116,7 @@ A flash está criticamente apertada — ~95 % do slot de app de 1020 KB no env d
 2. Faça um fork do repositório e crie um branch (`feature/minha-funcionalidade`)
 3. Escreva seu código e teste em hardware se possível
 4. Garanta que `pio run -e pico_w_release` compila com **zero warnings**
-5. Garanta que `pio test -e native` passa em todos os testes
+5. Garanta que todas as suítes passam: `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy`
 6. Atualize a documentação em `docs/` se sua mudança afetar o comportamento do usuário
 7. Envie o PR com uma descrição clara, referenciando o número da issue
 8. O checklist do template de PR guiará os passos restantes
@@ -124,15 +124,20 @@ A flash está criticamente apertada — ~95 % do slot de app de 1020 KB no env d
 ## Testes
 
 - Testes unitários usam o framework [Unity](http://www.throwtheswitch.org/unity)
-- Execute com `pio test -e native`
-- Adicione testes para nova lógica de validação, encoding/decoding e caminhos críticos de segurança
+- Cinco ambientes de teste estão disponíveis:
+  - `pio test -e native` — validadores (119 casos de teste: validação de IP, CRC8, codificação de float, etc.)
+  - `pio test -e native_history_v4` — testes do codec V4 de histórico (bit-packing, ida e volta âncora/delta)
+  - `pio test -e native_history_v5` — testes de ida e volta do HistoryCodec
+  - `pio test -e native_cli` — testes do parser da CLI (tokenização e roteamento de comandos)
+  - `pio test -e native_logpolicy` — testes do filtro de persistência de logs edge-triggered (18 casos)
+- Adicione testes para nova lógica de validação, encoding/decoding, mudanças de parser e caminhos críticos de segurança
 - Teste em hardware é obrigatório para mudanças em display, sensores, WiFi e OTA
 
 ## Comunidade
 
 - Reporte bugs via [GitHub Issues](https://github.com/angeloINTJ/simut/issues)
 - Tire dúvidas no [GitHub Discussions](https://github.com/angeloINTJ/simut/discussions)
-- Siga o [Código de Conduta](CODE_OF_CONDUCT.md)
+- Siga o [Código de Conduta](CODE_OF_CONDUCT.pt-BR.md)
 - Vulnerabilidades de segurança: siga a [Política de Segurança](SECURITY.md) — não abra uma issue pública
 
 ## Ferramentas de IA

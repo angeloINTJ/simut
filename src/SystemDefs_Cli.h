@@ -20,8 +20,9 @@
  *
  * Every configuration command has a web equivalent, so the serial CLI in a
  * release image exists for the cases where the web cannot be reached: find
- * the IP, read the log, reset the admin password, wipe, reboot. That is 9
- * commands; the other 46 plus the Cisco-style mode navigation compile out.
+ * the IP, read the log, reset the admin password, wipe, disable HTTPS,
+ * reboot. That is 10 commands; the other 46 plus the Cisco-style mode
+ * navigation compile out.
  *
  * The automated suites under tools/ drive the device through the full CLI
  * (enable / configure terminal / write memory / user add / touch sim), so
@@ -101,9 +102,8 @@ enum DemandType {
 
  /* 'screen <NAME>' — switches TFT screen directly via
  * show*Screen methods (bypasses handleTouch which has pressure gates).
- * NAMEs: dashboard, settings, themes, lang, password, license, status,
- * touchcal, sounds, alarms, alarmedit, graph, stats, calendar,
- * alarmaction, displayoffset, auth. strVal1=name. */
+ * NAMEs (the 12 the handler accepts): dash, set, thm, lng, pwd, lic,
+ * sts, alm, gra, touchcal, touchsens, offset. strVal1=name. */
  CMD_GOTO_SCREEN,
 
  /* ── Cisco IOS-style mode navigation ── */

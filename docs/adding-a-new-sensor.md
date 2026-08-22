@@ -7,7 +7,7 @@ and pushes them to a local dashboard, history log, and optional telemetry endpoi
 If you maintain a cold-chain logger, greenhouse node, or small lab instrument, this
 guide is the shortest path to wiring **your** sensor in without forking half the firmware.
 
-Flash is tight (~98% on a 2 MB part). New drivers must earn their KB.
+Flash is tight (~97% of the 1020 KB application slot). New drivers must earn their KB.
 
 ---
 
@@ -153,7 +153,7 @@ duplicated layout code costs flash *and* drifts from themes.
 
 1. Wire per `docs/WIRING.md` (GPIO 0–15 are universal slots).
 2. USB serial CLI (no auth): assign type and pins, e.g.  
-   `sensor 3 pin 10` or I2C pair via web `/config`.
+   `sensor 3 pin 0,10` or I2C pair via web `/config`.
 3. `sensor scan` — confirm the bus sees the chip.
 4. Set alarms: `conf sensor tmin 3 5.0` (field names depend on channels).
 5. Point telemetry: `conf tel server your-collector.local` then `tel sync`.
@@ -180,7 +180,7 @@ On hardware: watch `show metrics` and confirm readings move when you disturb the
 |-------|--------|
 | Build with only your sensor enabled | Saves max KB |
 | `pio run` flash % | Must stay < 100% |
-| `test/test_validators` | 49/49 pass |
+| `test/test_validators` | 119/119 pass |
 | No new `<Wire.h>` unless unavoidable | Wire pulls Arduino I2C stack |
 
 ---

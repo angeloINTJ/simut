@@ -35,6 +35,13 @@ Este glossário decodifica o significado de cada tag. Se você encontrar uma tag
 | `F-NET-TIME.5b` | Fechamento — regressão acumulada ao longo do path F-NET-TIME. |
 | `F-IP-FIX` | Correção de assinatura de `WiFi.config`: arduino-pico usa `(ip, dns, gateway, subnet)`, diferente do ESP32. |
 | `F-BT-LOGIN` | Defer flash no login Bluetooth: `LOG_CODE` bufferizado em RAM durante `_btMgr.update()`, eliminando lockout do Core 1 + risco de WDT reset. |
+| `F-OTA-*` | Família da atualização OTA: `-BOOTLOOP` (correções de watchdog/boot-loop em volta do apply), `-RAM` (upload só-RAW `.bin`, gzip dry-run removido), `-STAGE-NOBLOCK` (erase on-demand setor a setor durante o stage), `-ADMIN-ONLY` (gate de full-admin em stage/apply). |
+| `F-LANGPACK` | Packs de idioma (`.lng`): geração dos `data/lang/*.lng` pelas ferramentas, dicionário web servido de `GET /api/lang`, rollout em etapas (marcadores Etapa/β). |
+| `F-WEB-*` | Família da interface web; `F-WEB-DEDUP` = CSS comum extraído para `/style.css` + drawer único injetado em runtime no lugar de cópias por página. |
+| `F-GRAPH-*` | Gráficos de histórico na web: `.3` = overlay de progresso do export chunked, `-REVAMP` = dropdown multi-select de sensores + 7 níveis de janela (1h…MAX). |
+| `F-RESTORE` | Fluxo de backup/restore — ex.: feeds de watchdog antes de cada operação de restore que pode travar. |
+| `F-CSV` | Export CSV de histórico + logs (UI web simplificada). |
+| `F-CALIB-*` | Calibração de sensores; `F-CALIB-UI` = UI de calibração integrada no dashboard. |
 
 ## Tags de Bug (BUG-*)
 
@@ -84,6 +91,7 @@ Este glossário decodifica o significado de cada tag. Se você encontrar uma tag
 |-----|-----------|
 | `REF-004` | Singleton `TouchPriority` com `setProvider`/`isActive` — substitui 3 setters + 3 membros + 3 lambdas duplicadas em 5 managers. |
 | `REF-007` | Decomposição de `handleApiLogin` (~130 linhas) em 6 helpers: `findLoginStateForIp`, `checkLockout`, `validateNonce`, `verifyPasswordFor`, `allocSessionSlot`, `completeLogin`. |
+| `REF-WEB-*` | Família do refactor da camada web; `REF-WEB-SKEL` = barra de topo + `initSession` reduzidos a uma cópia só (terceira rodada do movimento iniciado pelo `F-WEB-DEDUP`). |
 
 ## Patches (Patch X)
 

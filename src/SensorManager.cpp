@@ -3,7 +3,7 @@
  * @brief Implementation of SensorManager — async sensor reads, scan, and data processing.
  * @details Implements parallel DS18B20 conversion with ROM verification,
  * fully asynchronous DHT22 reading via PIO state machine,
- * hardware scan across GPIO 0-16, error hysteresis (3 consecutive
+ * hardware scan across GPIO 0-15, error hysteresis (3 consecutive
  * failures to flag, 5 successes to recover), zero-trust hardware
  * mismatch blocking, and trimmed mean filtering.
  *

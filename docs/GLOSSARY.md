@@ -35,6 +35,13 @@ This glossary decodes the meaning of each tag. If you find a tag not listed here
 | `F-NET-TIME.5b` | Closure — cumulative regression along the F-NET-TIME path. |
 | `F-IP-FIX` | Fix for `WiFi.config` signature: arduino-pico uses `(ip, dns, gateway, subnet)`, different from ESP32. |
 | `F-BT-LOGIN` | Deferred flash on Bluetooth login: `LOG_CODE` buffered in RAM during `_btMgr.update()`, eliminating Core 1 lockout + WDT reset risk. |
+| `F-OTA-*` | Over-the-air update family: `-BOOTLOOP` (watchdog/boot-loop fixes around apply), `-RAM` (RAW-only `.bin` upload, gzip dry-run removed), `-STAGE-NOBLOCK` (on-demand sector-by-sector erase during stage), `-ADMIN-ONLY` (full-admin gate on stage/apply). |
+| `F-LANGPACK` | Language packs (`.lng`): generation of `data/lang/*.lng` by the tools, web dictionary served from `GET /api/lang`, staged rollout (Etapa/β markers). |
+| `F-WEB-*` | Web interface family; `F-WEB-DEDUP` = shared CSS extracted to `/style.css` + a single drawer injected at runtime instead of per-page copies. |
+| `F-GRAPH-*` | Web history graphs: `.3` = progress overlay for the chunked export, `-REVAMP` = multi-select sensor dropdown + 7 time ranges (1h…MAX). |
+| `F-RESTORE` | Backup/restore flow — e.g. watchdog feeds before each restore operation that can stall. |
+| `F-CSV` | CSV export of history + logs (simplified web UI). |
+| `F-CALIB-*` | Sensor calibration; `F-CALIB-UI` = calibration UI integrated into the dashboard. |
 
 ## Bug Tags (BUG-*)
 
@@ -84,6 +91,7 @@ This glossary decodes the meaning of each tag. If you find a tag not listed here
 |-----|-----------|
 | `REF-004` | `TouchPriority` singleton with `setProvider`/`isActive` — replaces 3 setters + 3 members + 3 duplicated lambdas across 5 managers. |
 | `REF-007` | Decomposition of `handleApiLogin` (~130 lines) into 6 helpers: `findLoginStateForIp`, `checkLockout`, `validateNonce`, `verifyPasswordFor`, `allocSessionSlot`, `completeLogin`. |
+| `REF-WEB-*` | Web-layer refactor family; `REF-WEB-SKEL` = top bar + `initSession` reduced to a single copy (third round of the movement started by `F-WEB-DEDUP`). |
 
 ## Patches (Patch X)
 

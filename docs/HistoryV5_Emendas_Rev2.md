@@ -3,8 +3,8 @@
 | Campo | Valor |
 |---|---|
 | Documento | Registro de emendas ao documento normativo `HistoryV5_Instrucoes_Implementacao.md` |
-| Aplicação | A Rev 2.0 (`HistoryV5_Instrucoes_Implementacao_Rev2.md`) já as incorpora — é substituição direta do arquivo em `docs/` |
-| Base | Ratificações das divergências 2.1–2.5 de `docs/HistoryV5_Implementacao.md` e medições de `docs/RELATORIO_V4_vs_V5.md` |
+| Aplicação | Aplicada ao `HistoryV5_Instrucoes_Implementacao.md` (rev. 2.1) — o documento normativo já as incorpora |
+| Base | Ratificações das divergências 2.1–2.5 de `docs/HistoryV5_Implementacao.md` e medições de `RELATORIO_V4_vs_V5.md` — este vive em `docs/test_reports/v5_20260731/RELATORIO_V4_vs_V5.md`, que fica fora do versionamento por política (`docs/test_reports/` é gitignored), então o caminho não resolve num clone |
 | Regra | Onde este registro e a Rev 2.0 divergirem, vale a Rev 2.0 |
 
 Princípio das emendas: **as cinco divergências registradas pela implementação foram ratificadas** — quatro corrigiam pressupostos desatualizados ou contradições do próprio documento; a quinta (leitor único) é ganho estrutural. Nenhuma emenda altera o formato em disco: bytes gravados pela 2.0.1-alpha permanecem válidos sob a Rev 2.0.

@@ -1,5 +1,7 @@
 # Análise de Compatibilidade PIO — SIMUT v1.5.0-beta
 
+> 📌 **Fotografia da v1.5.0-beta.** A recomendação final (BME280 via `beginGPIO`) foi SUPERADA: desde a v1.5.1 o driver prefere I2C de hardware (`SensorManager.cpp`) com PIO só como fallback. As tabelas de orçamento de PIO/DMA seguem sendo o único registro dessa alocação.
+
 ## Hardware do Usuário
 
 | Slot | Sensor | GPIOs | Biblioteca | PIO Block |

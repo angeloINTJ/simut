@@ -683,19 +683,18 @@ void AppManager::executeCommand(CliDemand cmd) {
 
  /* Rebind history to the sensors as they are configured RIGHT NOW.
   *
-  * A .sim4 carries its schema in the header and matches values by hwId, so
-  * changing a sensor identity silently stops every value from being recorded
-  * until the next day's file. This rewrites today's file against a schema
-  * built from the current slots — dropping the columns that no longer exist
-  * and carrying the rest over — which resumes both history and the telemetry
-  * that feeds from it, without splitting the day. */
+  * Under V5 a schema change appends a new SCHEMA chunk into the same
+  * /history/YYYYMMDD.h5 file — earlier blocks keep their old schema and
+  * nothing is lost (see StorageManager::rebindV4Schema). The confirm is
+  * kept because the command still rewrites live storage state and resumes
+  * recording under a different column set. */
  case CMD_RESCHEMA_SENSORS: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.confirmed) {
- _cmdMgr->printError(pt ? "Recria o historico de HOJE (perde os registros do dia). "
-                          "Use: sensor reschema confirm"
-                        : "Recreates TODAY's history (loses the day's records). "
-                          "Use: sensor reschema confirm");
+ _cmdMgr->printError(pt ? "Regrava o schema do historico de HOJE a partir dos slots atuais "
+                          "(nenhum registro e perdido). Use: sensor reschema confirm"
+                        : "Rewrites TODAY's history schema from the current slots "
+                          "(no records are lost). Use: sensor reschema confirm");
  break;
  }
  uint8_t mc = 0;

@@ -1,9 +1,0 @@
-[
- {
-  "name": "settings-sounds",
-  "description": "Alarm sound settings, third item of the menu",
-  "mode": "MODE_SETTINGS_SOUNDS",
-  "route": "screen set -> tap(105,215) -> tap(105,215) -> tap(250,215)",
-  "captured": true
- }
-]

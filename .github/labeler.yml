@@ -42,6 +42,7 @@ tools:
     - 'tools/**'
     - 'Dockerfile'
     - 'docker-compose.yml'
+    - '.dockerignore'
 
 display:
 - changed-files:
@@ -69,3 +70,4 @@ code:
     - 'src/**'
     - 'WebUI.h'
     - 'platformio.ini'
+    - 'platformio_memstudy.ini'

@@ -23,9 +23,9 @@ build/
 *.map
 
 # Device backups — a .bkp is a full LittleFS dump and carries /config/system.bin
-# (Wi-Fi/MQTT/API secrets + password hashes). Never commit one. See finding C-1:
-# scratchpad/backup_pre_ota/device.bkp was committed and leaked; purge it from
-# history with git filter-repo and rotate the exposed credentials.
+# (Wi-Fi/MQTT/API secrets + password hashes). Never commit one. Finding C-1
+# (2026-08-16): a device.bkp was once committed; history has since been purged
+# with git filter-repo and the exposed credentials rotated. The rule stays.
 *.bkp
 
 # OS files
@@ -83,15 +83,16 @@ data/system.blog
 data/system.old.blog
 data/*.blog
 
-# Claude Code (project config, may contain local paths)
-.claude/
+# Claude Code (local state may contain machine paths; the shared project
+# settings file stays tracked)
+.claude/*
+!.claude/settings.json
 
 # Changelogs (auto-generated or versioned)
 CHANGELOG_*.md
 
 # Promotion (local only, not for the repo)
 docs/promotion/
-scratchpad/soak_a6.log
 
 # Release zips are assets, not history: they go on the GitHub release, and the
 # `release: vX artifacts` commit versions only the release/simut_{tft,alpha,pio}

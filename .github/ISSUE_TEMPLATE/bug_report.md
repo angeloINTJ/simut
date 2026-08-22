@@ -20,7 +20,7 @@ What you expected to happen.
 
 **Hardware (please complete):**
 - Board: Raspberry Pi Pico W
-- Firmware version: [e.g., v1.0.0]
+- Firmware version: [e.g., v2.3.2-beta]
 - Display: [ILI9341 with XPT2046 touch]
 - Sensors connected: [list]
 

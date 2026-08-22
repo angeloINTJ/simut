@@ -6,12 +6,13 @@
 | Público | Agentes de implementação (IA ou humanos) com acesso ao repositório SIMUT |
 | Plataforma | RP2040 (Raspberry Pi Pico W) · Arduino framework (arduino-pico) · LittleFS 1 MB |
 | Status | **Este documento é a fonte de verdade do formato V5.** Divergência entre código e este documento é bug do código. |
+| Revisão | Rev. 2.1 — fusão da Rev2 (emendas E1–E10) com as adições posteriores (`H5_FLAG_CLOCK_SYNCED` §3.3). Ver `docs/HistoryV5_Emendas_Rev2.md` para o registro das emendas. |
 
 ---
 
 ## 1. Missão
 
-Substituir o formato de histórico legado do SIMUT (registros binários fixos de 28 B em arquivos `.bin` diários) pelo formato **V5**: um formato comprimido de série temporal, **genérico e autodescritivo**, baseado em delta encoding com códigos de prefixo em bitstream. O V5 grava os mesmos valores `int16` que o sistema produz hoje, **sem nenhuma perda** (`decode(encode(x)) == x`, bit a bit, incluindo o sentinela NAN), e reduz o consumo de flash de ~40 KiB/dia para ~12,5 KiB/dia na configuração atual (12 canais, 1 registro/min), elevando a autonomia de retenção para ≥ 62 dias na partição de 1 MB.
+Substituir o formato de histórico legado do SIMUT (`.sim4` — já um formato delta comprimido) pelo formato **V5**: comprimido, **genérico e autodescritivo**, em blocos horários autocontidos com códigos de prefixo em bitstream. O V5 grava os mesmos valores `int16` que o sistema produz hoje, **sem nenhuma perda** (`decode(encode(x)) == x`, bit a bit, incluindo o sentinela NAN), e muda o patamar operacional do histórico: escritas em flash caem de ~1.440 para ~168 por dia, gráficos longos passam a ser servidos por envelope min/máx lendo apenas cabeçalhos, corrupção fica contida em blocos de 1 h, e qualquer leitor que implemente este documento decodifica os arquivos. Na configuração de referência da bancada (11 canais, 1 registro/min), o consumo medido é ~7,6 KiB/dia — autonomia ≥ 100 dias na partição de 1 MB.
 
 Entregáveis:
 
@@ -26,13 +27,13 @@ Entregáveis:
 |---|---|
 | R1 | Funcionalidade preservada: gravação por minuto, arquivos diários, rotação a 86%, NAN explícito, correção retroativa de timestamps, leitura por web/telemetria/display, export CSV via web. |
 | R2 | Compressão **lossless**: reconstrução bit-exata de valores e timestamps para qualquer sequência válida. |
-| R3 | Fallback RAW por bloco: dado incompressível nunca ocupa mais que ~38 KiB/dia (12 canais). |
+| R3 | Fallback RAW por bloco: dado incompressível nunca ocupa mais que o RAW — `(16 + 6·nCh) + 59·(2 + 2·nCh)` B por hora (≈ 35 KiB/dia com 11 canais). |
 | R4 | **Autodescrição**: qualquer leitor que implemente este documento decodifica um `.h5` corretamente (canais, grandezas, escalas) sem conhecer o firmware que o gravou. |
 | R5 | Mudança do conjunto de canais no meio do dia sem perda nem ambiguidade (novo SCHEMA no mesmo arquivo). |
 | R6 | Gráficos: decimação por envelope min/máx por canal — picos nunca desaparecem; latências dentro dos orçamentos do §10. |
 | R7 | O firmware **não contém** leitor do formato legado. |
-| R8 | Power-loss: perda máxima de 10 min de dados; sistema de arquivos íntegro após corte em qualquer instante. |
-| R9 | Caminho quente sem heap e sem FPU; RAM adicional ≤ 2,2 KiB estáticos; toda escrita em flash sob a disciplina `flashOp` (§2). |
+| R8 | Power-loss e reboot: **perda máxima de zero registros**; sistema de arquivos íntegro após corte em qualquer instante. Vale para corte de energia, reinicialização voluntária e minuto sob contenção — ver E10. |
+| R9 | Caminho quente sem FPU e sem alocação de heap por amostra ou por requisição; a memória do V5 é alocada **uma única vez** na construção do `StorageManager` (custo líquido ≤ +0,5 KiB vs formato anterior; teto de 4,5 KiB no objeto); toda escrita em flash sob a disciplina `flashOp` (§2). |
 
 ---
 
@@ -88,7 +89,7 @@ Parte fixa (16 B): preâmbulo (8 B) + `t0 u32` (epoch UTC, em segundos, do 1º r
 
 Um bloco cobre no máximo `H5_BLOCK_MAX_RECORDS = 60` registros (1 h na cadência de 1/min). Bloco é a unidade de compressão, de CRC e de decimação: **decodifica sozinho**, sem depender de blocos vizinhos. Atenção: 60 registros **não** implicam 60 × intervalo de tempo — registros entram quando são tomados, e um bloco que atravessou queda de sensor ou trecho sob gate cobre muito mais tempo do que a contagem sugere. Nada deve derivar limite temporal da contagem.
 
-**`flags.CLOCK_SYNCED` (bit 2)** — o relógio que carimbou o bloco era real (NTP ou ajuste manual), não o provisório da semeadura de boot. Escrito apenas no snapshot `.wip` e lido apenas pela semeadura do relógio no boot seguinte: o que decide se um `t0` pode ser acreditado não é o seu valor, e sim a procedência, que só é conhecida no instante da escrita. Blocos adotados de um `.wip` levam o bit para o arquivo do dia, onde permanece verdadeiro e inofensivo. Leitores ignoram bits de `flags` que não conhecem, então o bit não quebra compatibilidade e não muda `H5_VERSION`. O bit está dentro da cobertura do CRC — forjá-lo invalida o bloco.
+**`flags.CLOCK_SYNCED` (bit 2 — `H5_FLAG_CLOCK_SYNCED` no firmware)** — o relógio que carimbou o bloco era real (NTP ou ajuste manual), não o provisório da semeadura de boot. Escrito apenas no snapshot `.wip` e lido apenas pela semeadura do relógio no boot seguinte: o que decide se um `t0` pode ser acreditado não é o seu valor, e sim a procedência, que só é conhecida no instante da escrita. Blocos adotados de um `.wip` levam o bit para o arquivo do dia, onde permanece verdadeiro e inofensivo. Leitores ignoram bits de `flags` que não conhecem, então o bit não quebra compatibilidade e não muda `H5_VERSION`. O bit está dentro da cobertura do CRC — forjá-lo invalida o bloco.
 
 ### 3.4 CRC — definição única para todo o formato
 
@@ -213,26 +214,28 @@ static inline int16_t* h5ChMax  (uint8_t* d, uint8_t n)
 static inline uint8_t* h5Payload(uint8_t* d, uint8_t n)
                        { return d + H5_DATA_HEADER_SIZE(n); }
 
-/** Schema compilado desta entrega (§8). A ordem É a ordem de emissão e
- *  coincide com a ordem dos campos do BinaryHistoryRecord em RAM.          */
-static const H5ChannelDesc kCompiledSchema[] = {
-    { 0, H5_KIND_TEMP_C, -2, 0 },  { 1, H5_KIND_TEMP_C, -2, 0 },
-    { 2, H5_KIND_TEMP_C, -2, 0 },  { 3, H5_KIND_TEMP_C, -2, 0 },
-    { 4, H5_KIND_TEMP_C, -2, 0 },  { 5, H5_KIND_TEMP_C, -2, 0 },
-    { 6, H5_KIND_TEMP_C, -2, 0 },  { 7, H5_KIND_TEMP_C, -2, 0 },
-    { 8, H5_KIND_TEMP_C, -2, 0 },  { 9, H5_KIND_TEMP_C, -2, 0 },
-    { 10, H5_KIND_TEMP_C, -2, 0 },              /* DHT22 — temperatura      */
-    { 11, H5_KIND_HUM_PCT, -2, 0 },             /* DHT22 — umidade          */
-};
-#define H5_COMPILED_NCH  (sizeof(kCompiledSchema) / sizeof(kCompiledSchema[0]))
-static_assert(H5_COMPILED_NCH <= H5_MAX_CHANNELS, "schema excede o teto");
+/* ---------------------------------------------------------------------------
+ *  Origem do schema: derivado da CONFIGURAÇÃO VIVA, nunca de tabela fixa.
+ *  StorageManager::buildH5Schema() percorre os slots provisionados e monta
+ *  os descritores na ordem slot→canal. Convenções normativas:
+ *    - id = slot * MAX_SENSOR_CHANNELS + canal   (MAX_SENSOR_CHANNELS = 8,
+ *      logo id ∈ 0..127); ids nunca são reciclados dentro de um schema.
+ *      No SIMUT o slot é o vínculo físico: reprovisionar dispara §3.7-2.
+ *    - kind e scaleExp vêm da SensorChannelTable do firmware. As escalas
+ *      citadas no enum acima são ORIENTAÇÃO, não norma — o arquivo é
+ *      autodescritivo e carrega a escala real por canal.
+ *    - Canal fora da faixa do int16 (ex.: lux, 24 bits na tabela) entra
+ *      como H5_KIND_GENERIC com scaleExp = 0 — degrada precisão, nunca
+ *      elimina o canal (R1).
+ * ------------------------------------------------------------------------ */
+const H5ChannelDesc* buildH5Schema(uint8_t& nChOut);    /* StorageManager   */
 ```
 
 ---
 
 ## 5. API a implementar (StorageManager)
 
-Contratos resumidos; parâmetros de schema sempre explícitos — **nada além de `kCompiledSchema` e da validação do §8 pode assumir 12 canais**.
+Contratos resumidos; parâmetros de schema sempre explícitos — **nada além de `buildH5Schema()` pode assumir um conjunto de canais**.
 
 ```cpp
 /* Assinaturas públicas preservadas (delegam ao núcleo V5) ------------------ */
@@ -247,18 +250,32 @@ class BitReader {   /* simétrico; eof()/underflow ⇒ flag pegajosa           *
 
 /**
  * @brief Comprime um bloco em RAM para o schema fornecido.
- * @details Sem heap. Estado ≈ 90 B + buffer estático H5_BLOCK_MAX_BYTES.
- *          seal() monta header+caudas+payload no buffer de saída, escolhe
- *          comprimido vs RAW (o menor), preenche payloadLen e crc16, e
- *          retorna o tamanho total do chunk (0 em erro).
+ * @details Sem alocação após begin(). O encoder guarda as AMOSTRAS
+ *          (`_epoch[59]` + `_v[59][16]` ≈ 2,1 KiB) em vez de bitstream
+ *          incremental: o caminho quente vira um memcpy e o seal() fica
+ *          livre para escolher entre comprimido e RAW (R3).
+ *          add() devolve false quando o bloco está cheio OU quando o
+ *          registro sai do alcance do RAW (`epoch < t0` ou
+ *          `epoch − t0 > 65535`) — o chamador sela PARTIAL e abre bloco
+ *          novo. Com isso vale a garantia de tamanho:
+ *          payLen ≤ rawLen e chunk ≤ H5_BLOCK_MAX_BYTES (testado no
+ *          pior caso exato).
  */
 class HistoryV5Encoder {
 public:
     void    begin(const H5ChannelDesc* schema, uint8_t nCh,
                   uint16_t nominalIntervalS);
     void    reset(uint32_t epoch, const int16_t* v);    /* v[nCh]            */
-    bool    add  (uint32_t epoch, const int16_t* v);    /* false = cheio     */
+    bool    add  (uint32_t epoch, const int16_t* v);    /* false = fechar    */
     size_t  seal (uint8_t* out, size_t cap, uint8_t extraFlags);
+    /**
+     * @brief Forma canônica de gravação: emite o chunk em 3 passagens
+     *        (dimensionar → CRC → emitir) com janela de 64 B, sem exigir
+     *        buffer de saída do tamanho do chunk.
+     * @note  seal() e sealStream() DEVEM produzir bytes idênticos — o
+     *        teste de equivalência é obrigatório em qualquer mudança.
+     */
+    size_t  sealStream(H5Sink sink, void* ctx, uint8_t extraFlags);
     uint8_t count() const;
 };
 
@@ -293,8 +310,8 @@ public:
 
 | Módulo | Tarefas |
 |---|---|
-| **StorageManager** | Dono do formato. `writeHistoryEntry()` alimenta o encoder (RAM, sem flash). Criar arquivo novo ⇒ gravar SCHEMA (do `kCompiledSchema`) antes do 1º DATA. Selagem horária e flush do `.wip` (§7). Rotação: apenas trocar o filtro para `.h5`. Correção retroativa: §7.3. |
-| **AppManager** | Agendar `sealHour()` na virada da hora e `flushWip()` a cada 10 min. Expor hook `onSensorSetChanged()` que executa a regra §3.7-2. |
+| **StorageManager** | Dono do formato. `writeHistoryEntry()` alimenta o encoder (RAM, sem flash). Criar arquivo novo ⇒ gravar SCHEMA (de `buildH5Schema()`) antes do 1º DATA. Selagem horária e flush do `.wip` (§7). Rotação: apenas trocar o filtro para `.h5`. Correção retroativa: §7.3. |
+| **AppManager** | Agendar `sealHour()` na virada da hora. O snapshot do `.wip` é por registro, inline na gravação (E10); quando a escrita cede a um gate, a varredura do laço grava o pendente (`h5WipPending()`) em ≤ 2 s. Expor hook `onSensorSetChanged()` que executa a regra §3.7-2. |
 | **WebManager** | Endpoint de gráfico com dois caminhos (§10): envelope (janelas ≥ 24 h — só headers via `HistoryV5Scan`) e decode (janelas < 24 h). Export CSV: gerar on-the-fly via decoder; **linha de cabeçalho derivada do SCHEMA** (`id`, unidade do `kind`, valores já escalados por `10^scaleExp`). |
 | **TelemetryManager** | Ler faixas via decoder-iterador. Payload de upload inalterado (envia valores, não bytes de arquivo). |
 | **DisplayManager** | Nenhuma mudança de API; gráficos locais usam os mesmos dois caminhos. |
@@ -314,34 +331,38 @@ SensorManager ──(BinaryHistoryRecord)──▶ writeHistoryEntry()
                                               │
         arquivo novo? ── sim ─▶ flashOp{ grava SCHEMA + append }
               │                               │
-        hora fechou ──────────────────────────┤────────── a cada 10 min
+        hora fechou ──────────────────────────┤──────── a cada registro
               │                               │                 │
               ▼                               │                 ▼
     seal() → flashOp{ append          (nada até lá)   flashOp{ regrava
     /history/AAAAMMDD.h5 }                             /history/.wip }
 ```
 
-O arquivo diário é **append-only** (regime em que o LittleFS é eficiente e previsível). Resultado esperado: ~24 appends + 144 regravações do `.wip` por dia, contra 1.440 escritas/dia do formato legado — ~8× menos janelas de lockout do Core 1.
+O arquivo diário é **append-only** (regime em que o LittleFS é eficiente e previsível). Resultado esperado: ~24 appends + uma regravação do `.wip` por registro — 1.440/dia no intervalo padrão de 1 min (E10; eram 144). O ganho de escrita sobre o formato legado passa a ser o **arquivo diário**, não o total: 24 appends contra 1.440. A regravação do `.wip` é um arquivo pequeno e isolado, não o histórico.
 
 ### 7.2 `.wip`, boot e recuperação (R8)
 
-`/history/.wip` contém **exatamente um** chunk DATA selado com `PARTIAL` (sem SCHEMA — o schema é o compilado, validado na recuperação). A cada 10 min: `seal()` do estado corrente para o buffer estático → regravar `.wip` inteiro sob `flashOp` → **o encoder continua acumulando o mesmo bloco** (o `.wip` é um snapshot, não um fechamento).
+`/history/.wip` contém **exatamente um** chunk DATA selado com `PARTIAL` (sem SCHEMA — o schema é o compilado, validado na recuperação). **A cada registro aceito** (E10; era a cada 10 min): `seal()` do estado corrente para o buffer estático → regravar `.wip` inteiro sob `flashOp` → **o encoder continua acumulando o mesmo bloco** (o `.wip` é um snapshot, não um fechamento).
 
-Boot: montar FS → se `.wip` existe e o CRC fecha → garantir que o arquivo diário do seu `t0` existe **começando por SCHEMA** (criar se necessário) → append do chunk como está → truncar `.wip`. `.wip` inválido ⇒ descartar com log (perda ≤ 10 min, nunca crash). Iniciar encoder novo (`PARTIAL` se no meio da hora).
+A regravação cede a vez à prioridade de toque e à trava de tarefa pesada — uma janela de flash ali congela o Core 1 no meio do gesto. Ceder **adia a escrita, nunca a amostra**: o registro já está no encoder (memcpy, seguro sob qualquer gate) e `h5WipPending( )` faz a varredura do laço gravá-lo em ≤ 2 s. A amostragem em si não é condicionada a gate nenhum.
+
+Toda reinicialização voluntária grava o `.wip` no caminho de saída (`LogManager::setPreRebootHook`). Duas exceções, que **precisam** suprimir o gancho porque o snapshot cairia sobre um sistema de arquivos que não é mais o mesmo: `system format confirm` e o *apply* de restore com `fs_mod`.
+
+Boot: montar FS → se `.wip` existe e o CRC fecha → garantir que o arquivo diário do seu `t0` existe **começando por SCHEMA** (criar se necessário) → append do chunk como está → truncar `.wip`. `.wip` inválido ⇒ descartar com log (perda ≤ 1 bloco, nunca crash). Iniciar encoder novo (`PARTIAL` se no meio da hora).
 
 ### 7.3 Correção retroativa de timestamps
 
-Apenas `t0` dos headers DATA muda (SCHEMA não tem tempo; o interior do bloco é relativo a `t0`). LittleFS não suporta overwrite parcial confiável ⇒ stream-rewrite: ler chunk a chunk, ajustar `t0` dos DATA, recalcular `crc16`, gravar em `.tmp`, `rename()` atômico (mesmo padrão do config). Custo ~12,5 KiB por dia afetado. O bloco corrente em RAM ajusta `t0` no estado do encoder.
+Apenas `t0` dos headers DATA muda (SCHEMA não tem tempo; o interior do bloco é relativo a `t0`). LittleFS não suporta overwrite parcial confiável ⇒ stream-rewrite: ler chunk a chunk, ajustar `t0` dos DATA, recalcular `crc16`, gravar em `.tmp`, `rename()` atômico (mesmo padrão do config). Custo: reescrever ~o arquivo do dia afetado (7–13 KiB conforme o schema). O bloco corrente em RAM ajusta `t0` no estado do encoder.
 
 ---
 
-## 8. Escopo desta entrega — schema compilado
+## 8. Escopo — schema derivado da configuração
 
-Nesta entrega o firmware **grava sempre `kCompiledSchema`** e, na leitura, valida cada SCHEMA encontrado byte a byte contra ele. SCHEMA divergente ⇒ `STO_SCHEMA_MISMATCH` + arquivo pulado (nunca crash, nunca leitura parcial). O núcleo (§5) permanece parametrizado por schema — é o que garante que a evolução futura para schema em runtime não exigirá mudança de formato nem reescrita do núcleo.
+O firmware **grava sempre** o schema montado por `StorageManager::buildH5Schema()` a partir dos slots provisionados (§4). A **leitura segue os chunks SCHEMA do próprio arquivo**: blocos antigos permanecem legíveis sob o schema que valia quando foram escritos (R4/R5). Reprovisionar sensores dispara a regra §3.7-2 (selar `PARTIAL` + novo SCHEMA no mesmo arquivo). Chunks estruturalmente inválidos seguem a §3.7-3/4 — rejeição com log, nunca crash.
 
-**Fora de escopo** (não implementar): schema fornecido em runtime pelo registry de sensores; UI/alarmes/calibração indexados dinamicamente por `id`; kinds não-lineares (0x80+).
+**Fora de escopo** (não implementar): kinds não-lineares (0x80+); UI nova além da existente.
 
-**Proibições:** heap no caminho de dados; leitor do formato legado no firmware; quantização/downsampling ("lossy"); reordenar/realinhar campos de qualquer struct `packed`; `count > 60` ou `nCh > 16`; escrita em flash fora de `flashOp`; remoção/renomeação de função pública.
+**Proibições:** alocação de heap por amostra ou por requisição de leitura (a alocação única na construção do `StorageManager` é o padrão); leitor do formato legado no firmware; quantização/downsampling ("lossy"); reordenar/realinhar campos de qualquer struct `packed`; `count > 60` ou `nCh > 16`; escrita em flash fora de `flashOp`; remoção/renomeação de função pública.
 
 ---
 
@@ -351,36 +372,41 @@ Python 3, sem dependências externas. É a **implementação de referência** (e
 
 | Comando | Função |
 |---|---|
-| `--convert entrada.bin saida.h5` | Converte arquivo do formato legado para V5 com o schema padrão (tabela §4). |
+| `--convert-v4 entrada.sim4 saida.h5` | Converte arquivo do formato legado para V5 preservando o schema declarado no próprio `.sim4`. |
 | `--dump-csv arquivo.h5` | Decodifica para CSV com cabeçalho derivado do SCHEMA e valores escalados. |
 | `--stats arquivo.h5 [...]` | Taxa de compressão, bits médios por canal, histograma de símbolos. |
 | `--selftest` | Vetores do §3 (CRC `0x29B1`, zigzag, limites de cada prefixo, NAN, resync). |
 
-Layout do formato legado, necessário apenas ao conversor (nunca ao firmware): registros consecutivos de **28 B** = `epoch u32` + `12 × int16` na ordem do schema padrão; NAN = `0x8000`; arquivos `.bin` diários; little-endian.
+Layout do formato legado `.sim4`, necessário apenas ao conversor (nunca ao firmware): formato **delta** com máscara de mudança e varint zigzag, empacotado **LSB-first** dentro de cada byte (o V5 é MSB-first — confundir os dois devolve lixo plausível, não erro); as tabelas de medida são serializadas por `memcpy` da RAM, logo `HistV4MeasureDef` ocupa **12 bytes com o padding do compilador**, não 10. Armadilhas completas: §7 de `docs/HistoryV5_Implementacao.md`.
 
 ---
 
 ## 10. Orçamentos — são requisitos, não metas
 
-| Operação (nCh = 12, RP2040 @ 133 MHz, display + web ativos) | Limite |
+Premissa registrada (medida em bancada): **o acesso salteado no LittleFS custa ~0,28 ms por bloco**, estável e insensível ao número de chamadas de `seek` — é o piso físico do caminho de envelope. Os orçamentos abaixo derivam dele; não tente "otimizar" contra o filesystem.
+
+Segunda premissa, medida em 01/08 e igualmente normativa: **o custo de um registro depende do que roda entre dois registros.** O mesmo `h5DecodeNext( )` custa 13,7 µs isolado e 27,9 µs entrelaçado com a formatação JSON do handler — recarga de código por XIP. Um orçamento por registro só é verificável se disser em qual dos dois regimes vale; os desta tabela valem **no handler, com emissão ligada**, que é o regime real. Medir exige `?emit=0` e os campos `blocks`/`loadMs`/`loopMs` da resposta (E9).
+
+E o enquadramento, antes da tabela: numa janela de 24 h o laço de registros custa **1 503 ms**, dos quais 44 ms são leitura e decodificação. **Os orçamentos abaixo governam 3% da resposta.** O que governa os outros 97% é o caminho de emissão, e a alavanca contra ele não é otimizar decode — é o envelope (mesma janela, 0,20 s contra 1,64 s).
+
+| Operação (RP2040 @ 133 MHz, display + web ativos) | Limite |
 |---|---|
 | `writeHistoryEntry()` (caminho quente) | ≤ 50 µs, zero flash |
-| `seal()` + append horário | ≤ 30 ms |
-| Decodificar 1 bloco (60 reg × 12 ch) | ≤ 1 ms |
+| `sealStream()` + append horário | ≤ 30 ms |
+| Decodificar 1 bloco (60 registros) | ≤ 1,5 ms — **condicionado a mutex adquirido por bloco**, não por registro, no handler |
 | Gráfico 24 h (decode de 24 blocos) | ≤ 60 ms |
-| Gráfico 7 d (envelope, 168 headers) | ≤ 25 ms |
-| Gráfico 30 d (envelope, 720 headers) | ≤ 80 ms |
-| RAM estática adicional total | ≤ 2,2 KiB |
-| Flash de **código** adicional (medida ao fim do WP2) | ≤ +2 KB |
-| Flash de **dados**: consumo diário (12 ch) | ~12,5 KiB (SCHEMA 58 B + 24 blocos ≈ 531 B) |
-| Autonomia projetada com dados reais | ≥ 62 dias |
-| Pior caso (blocos 100% RAW) | ≤ ~38 KiB/dia |
+| Envelope, qualquer janela | ≤ 0,30 ms/bloco ⇒ 24 h ≤ 10 ms · 7 d ≤ 55 ms · 30 d ≤ 220 ms |
+| Memória do V5 (heap do `StorageManager`, alocação única no boot) | custo líquido ≤ +0,5 KiB vs formato anterior; teto 4,5 KiB no objeto |
+| Flash de **código** adicional | ≤ +2 KB (medido: +1.024 B, já líquido da remoção do codec legado) |
+| Flash de **dados**: consumo diário | depende do schema; referência normativa (11 canais reais): ~7,6 KiB/dia |
+| Autonomia com dados reais (11 canais) | ≥ 100 dias (medido: 116) |
+| Pior caso (blocos 100% RAW) | `(16 + 6·nCh) + 59·(2 + 2·nCh)` B/h — ≈ 35 KiB/dia com 11 canais |
 
 ---
 
 ## 11. Migração
 
-Primeiro boot com V5: remover de `/history` todo arquivo que **não** comece com `magic 0x4835` (inclui os `.bin` legados e lixo), logando `STO_LEGACY_PURGED <n>` e emitindo um aviso único na web/UI. O histórico recomeça vazio. A preservação de dados antigos é responsabilidade do usuário **antes** do update: baixar os `.bin` pelo export web e converter no host com `--convert`. Nada é reimportado ao equipamento.
+Primeiro boot com V5: remover de `/history` todo arquivo que **não** comece com `magic 0x4835` (inclui os `.sim4` legados e lixo), logando `STO_LEGACY_PURGED <n>` e emitindo um aviso único na web/UI. O histórico recomeça vazio. A preservação de dados antigos é responsabilidade do usuário **antes** do update: baixar os `.sim4` pelo export web e converter no host com `--convert-v4`. Nada é reimportado ao equipamento.
 
 ---
 
@@ -390,34 +416,52 @@ Primeiro boot com V5: remover de `/history` todo arquivo que **não** comece com
 |---|---|---|
 | Unitário (host, C++) | BitWriter/Reader (roundtrip, fronteiras de byte, overflow/underflow), zigzag, limites exatos de cada prefixo (±4/±32/±512), NAN (entrar/sair/permanecer), resync, escolha RAW, CRC (vetor `0x29B1`), accessors de caudas para nCh ∈ {1, 3, 12, 16} | 100% dos símbolos e tamanhos exercitados |
 | Propriedade (host) | `decode(encode(s)) == s` — ≥ 10⁶ séries aleatórias + sintéticas (rampas, degraus, ruído, NAN intermitente), por nCh | Bit-exato vs `history_v5.py` |
-| Golden replay | Arquivos `.bin` reais → `--convert` → decodificados pelo firmware; séries idênticas valor a valor | Também **mede** a taxa real de compressão |
-| Autodescrição (R4) | Arquivos gravados pelo firmware lidos pela ferramenta **sem** `kCompiledSchema` (só este documento) | CSV do host ≡ CSV do firmware |
-| Rejeição | SCHEMA divergente, `nCh` corrompido, DATA antes de SCHEMA, CRC inválido, arquivo com troca de schema no meio do dia (gerado no host) | Log correto, chunk/arquivo pulado, zero crash/WDT |
-| Power-cut | Corte durante: append horário, regravação do `.wip`, `rename` da correção | FS monta; perda ≤ 10 min; nenhum chunk inválido aceito |
+| Golden replay | Arquivos `.sim4` reais → `--convert-v4` → decodificados pelo firmware; séries idênticas valor a valor | Também **mede** a taxa real de compressão |
+| Autodescrição (R4) | Arquivos gravados pelo firmware lidos pela ferramenta **sem nenhum conhecimento do firmware** (só este documento) | CSV do host ≡ CSV do firmware |
+| Rejeição | `nCh` inválido (0 ou > 16), DATA antes de SCHEMA, CRC inválido, arquivo truncado, arquivo com troca de schema no meio do dia (gerado no host) | Log correto, chunk/arquivo pulado, zero crash/WDT |
+| Power-cut | Corte durante: append horário, regravação do `.wip`, `rename` da correção | FS monta; **perda de 0 registros**; nenhum chunk inválido aceito |
+| Reboot voluntário | `commit_all` da web, restore, factory reset, recuperação de rede | Todo registro anterior ao reboot presente no arquivo do dia; `format` e restore com `fs_mod` **não** ressuscitam dado apagado |
+| Contenção | Toque sustentado e backup atravessando a virada do minuto | Nenhum minuto sem amostra; o `.wip` alcança em ≤ 2 s do gate abrir |
 | Desempenho no alvo | Tabela do §10 | Todos os limites, com margem de WDT ≥ 50% |
 | Soak | 72 h contínuas com Wi-Fi instável induzido | Heartbeat do Core 1 sem quedas; contadores de retry estáveis |
 
 ---
 
-## 13. Ordem de trabalho e gates
+## 13. Estado do plano e pendências
 
-| WP | Conteúdo | Gate de saída |
-|---|---|---|
-| **WP1** | `tools/history_v5.py` completo (+ `--selftest`) | Selftest verde; taxa medida nos `.bin` reais ≥ 3,0×; larguras dos prefixos congeladas a partir daqui |
-| **WP2** | Núcleo firmware (§5) + testes unitário/propriedade em build host nativo | Paridade bit-exata com WP1; flash de código medida ≤ +2 KB |
-| **WP3** | Integração (§6, §7) sob `#define HISTORY_V5_ENABLED` | Golden replay, autodescrição, rejeição e power-cut verdes; verificação automatizada de que nenhuma assinatura pública sumiu |
-| **WP4** | Finalização: flag removida, purge ativo (§11), soak, release notes com o passo de backup | Aceite A1–A7 abaixo |
+WP1–WP4 (referência host, núcleo, integração, finalização) foram **executados e medidos** — resultados em `docs/HistoryV5_Implementacao.md` e `docs/RELATORIO_V4_vs_V5.md` (este último fora do versionamento — a base medida vive fora do git). O portão de paridade bit-exata firmware × referência (`tools/check_history_v5_parity.py`, 200 000 casos) permanece **obrigatório em qualquer mudança do núcleo**, assim como o teste de equivalência `seal()` × `sealStream()`.
 
-**Aceite final:** A1 gráficos lado a lado idênticos ou melhores (picos preservados; sem regressão perceptível de latência) · A2 export CSV com os mesmos valores da build atual para a mesma série (cabeçalho novo, derivado do SCHEMA) · A3 correção retroativa validada com salto de relógio induzido · A4 perda ≤ 10 min em 20 cortes de energia aleatórios · A5 todos os limites do §10 cumpridos · A6 heartbeat/WDT sem regressão no soak de 72 h · A7 autodescrição provada (ferramenta decodifica os arquivos do campo apenas com este documento).
+Pendências desta frente, em ordem:
+
+1. ~~**Mutex por bloco no handler de decode**~~ — **feito em 01/08** (`h5LoadNextBlock( )` + `h5DecodeNext( )`; o handler tranca uma vez por bloco). Medido: 2,88 → 2,31 ms/bloco, −20% do caminho de leitura. O orçamento de 1,5 ms/bloco passa a ser cumprido em bloco parcial (1,36 ms com 33 registros e 6 canais) e **continua não sendo** em bloco cheio (~2,1 ms com 60 registros). Ver E9: a causa que este item nomeava não era a dominante.
+2. ~~**Histórico congelado no tempo sob reboots frequentes**~~ — **diagnosticado e corrigido em 01/08**, lendo os bytes do arquivo em vez da API. O dado nunca esteve perdido: as sete horas "que faltavam" estavam em flash o tempo todo. Dois defeitos compostos, e um terceiro que fica em aberto:
+
+   **A raiz.** `getLastRecordedTimestamp( )` devolvia o `t0` do **último bloco na ordem do arquivo**, não o maior. Esse valor vira o relógio provisório (`lastTs + 60`), que decide o delta do NTP, que decide quais blocos o `shiftHistoryTimeV5( )` empurra (`t0 >= base`). Com a base atrasada, o shift movia blocos de sessões anteriores que já estavam certos — um deles ficou carimbado 46 min no futuro, o que bate exatamente com o `APP 408 ctx=2751` daquele boot. E cada bloco fora de ordem atrasava mais a base do boot seguinte: um laço que se realimenta. Corrigido tomando o **máximo**, o que restaura a invariante que faltava: nenhum bloco já gravado tem `t0 ≥ max + 60`, logo **o shift não alcança o passado por construção**. Medido: `APP 409` caiu de 2 blocos deslocados por boot para 0.
+
+   **O sintoma visível.** Os leitores abandonavam o arquivo inteiro no primeiro bloco além da janela (`if (ts > effectiveEnd) break`), o que só é válido se o arquivo estiver em ordem. Um único bloco no futuro escondia tudo atrás dele. Agora pulam em vez de abandonar (decode, envelope e gráfico do TFT). Medido: último ponto voltou de 10:22 para 17:35, 1 027 → 1 221 pontos.
+
+   **Defeito C (espaço), também corrigido em 01/08.** `h5FileHasSchema( )` comparava o **primeiro** SCHEMA do arquivo com o vigente, não o último — e §3.7-2 diz que uma mudança de conjunto *acrescenta* um SCHEMA, não reescreve o de abertura. Como o arquivo do dia abriu com 6 canais e o equipamento foi a 11, a comparação nunca casava e **todo append regravava a tabela**, nos dois caminhos que anexam (`h5AppendChunk( )` e a adoção do `.wip`). Agora a função percorre o arquivo e responde sobre o SCHEMA **em vigor**, devolvendo também o `schemaSeq` dele — o `_h5SchemaSeq` zerava a cada boot, então um dia com dois reboots produzia três SCHEMAs distintos todos declarando `seq = 1`.
+
+   Medido nos arquivos da bancada, e o número **depende do dia**: em `20260731.h5` (6 canais o dia inteiro, sem reprovisionamento) o defeito **nunca disparou** — 1 SCHEMA, 34 B, 0,4% do arquivo, e os 7,57 KiB/dia publicados no relatório não estão contaminados. No arquivo de hoje, que mudou de 6 → 10 → 11 canais, eram **37 SCHEMAs somando 1 974 B: 23,8% do arquivo**. Ou seja: o custo só aparece em dia que teve mudança de conjunto de canais — e aí vale um quarto do arquivo, todo dia, até a virada. Confirmado no ferro: o primeiro append depois da correção entrou sem SCHEMA na frente (38 DATA para 37 SCHEMA) e o leitor decodifica com `rejected = 0`.
+
+   Cicatrizes que ficam no arquivo da bancada, úteis como caso de teste: 12 blocos idênticos de 10:14:28 (cada boot do travamento de hoje cedo adotava o mesmo `.wip` e travava antes de apagá-lo), 5 inversões de ordem e 1 bloco no futuro.
+3. **A4** — 20 cortes de energia aleatórios (a tempestade de resets dirigida não substitui o critério).
+4. **A6** — soak de 72 h com Wi-Fi instável induzido.
+5. **A3 pleno** — salto de relógio induzido isoladamente, cobrindo também o caminho `add()`-recusa → `PARTIAL` (§5). A pendência 2 é uma instância involuntária deste teste, e ele já falhou nela.
+
+OTA é **frente própria**, fora deste documento — nenhuma tarefa de OTA entra nesta fila.
+
+**Aceite final:** A1 gráficos lado a lado idênticos ou melhores (picos preservados; sem regressão perceptível de latência) · A2 export CSV com os mesmos valores da build atual para a mesma série (cabeçalho novo, derivado do SCHEMA) · A3 correção retroativa validada com salto de relógio induzido · A4 perda de **zero registros** em 20 cortes de energia aleatórios (E10 — o critério antigo de "≤ 10 min" saiu com o R8) · A5 todos os limites do §10 cumpridos · A6 heartbeat/WDT sem regressão no soak de 72 h · A7 autodescrição provada (ferramenta decodifica os arquivos do campo apenas com este documento).
 
 ---
 
 ## 14. Decisões prontas para dúvidas previsíveis
 
-1. **Bloco não coube no buffer?** Impossível por construção: `seal()` compara com RAW e o RAW cabe em `H5_BLOCK_MAX_BYTES` por definição. Se a comparação indicar RAW, use RAW — sem exceções.
-2. **Relógio saltou (NTP/correção)?** Símbolo de resync (`111` + epoch). Não abra bloco novo por causa de tempo.
+1. **Bloco não coube no buffer?** Com o limite temporal do `add()` (§5), vale a garantia por construção: `payLen ≤ rawLen ≤ 2006 B` e chunk ≤ `H5_BLOCK_MAX_BYTES` — verificada por teste no pior caso exato.
+2. **Relógio saltou (NTP/correção)?** O símbolo de resync (`111` + epoch) cobre jitter e correções normais **dentro do bloco**. Salto que tire o registro do alcance do `dt u16` (`epoch < t0` ou `epoch − t0 > 65535`) é recusado pelo `add()`: selar `PARTIAL` e abrir bloco novo.
 3. **Sensor sumiu no meio do bloco?** NAN (§3.5). Schema só muda por reconfiguração explícita (§3.7).
 4. **`.wip` corrompido no boot?** Descartar, logar, seguir. Nunca tentar "consertar" um chunk.
 5. **Intervalo de gravação ≠ 60 s?** Suportado: `nominalIntervalS` vem da config; bloco continua fechando por **contagem** (60 registros), não por relógio.
 6. **Virada de dia no meio de uma hora?** Selar `PARTIAL`, abrir o arquivo novo (com SCHEMA) e seguir — a virada de arquivo é a única fronteira que força selagem além da hora cheia e do shutdown.
 7. **Dois SCHEMAs idênticos consecutivos?** Não gravar o segundo; SCHEMA novo só quando o conteúdo difere.
+8. **Envelope e CRC?** O CRC único do bloco cobre header + caudas + payload; validá-lo exige ler o payload, que o caminho de envelope existe para **não** ler. Decisão aceita: o envelope serve as caudas sem validação de CRC — corrupção de min/máx pode ser plotada até a próxima leitura densa (o decode valida sempre). Não "corrigir" isso triplicando as leituras de flash.

@@ -1,7 +1,8 @@
 # Patch de correção — ecossistema V4 do SIMUT
 
-**Base:** `main` @ `416f2dc` · **Arquivo:** `simut-v4-diagnostico-fixes.patch`
-**Aplicação:** `git apply simut-v4-diagnostico-fixes.patch` (verificado em clone limpo)
+> 📌 **Este patch foi APLICADO na árvore** (as correções estão em `src/` desde então) e o arquivo `.patch` foi removido do repositório. Este relatório permanece como registro da evidência A/B.
+
+**Base:** `main` @ `416f2dc` · **Arquivo:** `simut-v4-diagnostico-fixes.patch` (removido — ver banner acima)
 **Validação:** 49/49 testes host da suíte `native_history_v4`, 0 falhas.
 
 ---

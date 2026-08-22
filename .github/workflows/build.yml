@@ -43,6 +43,13 @@ jobs:
       - name: Check authorization matrix
         run: python3 tools/check_authz.py
 
+      # OTA applies reformat the LittleFS, so benches restore /history from
+      # backup — and the current-day file can only be given back by MERGING
+      # with what the device wrote meanwhile. This is the tool that hole
+      # prevention rests on (docs/analysis/ANALISE_BURACO_HISTORICO_BANCADA_OTA.md).
+      - name: History V5 day-merge tests
+        run: python3 tools/test_h5_day_merge.py
+
       - name: Build firmware
         run: pio run -e pico_w_release
 

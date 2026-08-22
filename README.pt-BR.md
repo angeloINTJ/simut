@@ -14,7 +14,7 @@
 [![CI](https://github.com/angeloINTJ/simut/actions/workflows/build.yml/badge.svg)](https://github.com/angeloINTJ/simut/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/angeloINTJ/simut?label=Release&color=blue)](https://github.com/angeloINTJ/simut/releases/latest)
 [![Docs](https://img.shields.io/badge/Docs-GitHub_Pages-34D058.svg)](https://angelointj.github.io/simut/)
-[![Contributors](https://img.shields.io/badge/Contribuidores-5-orange.svg)](CONTRIBUTORS.md)
+[![Contributors](https://img.shields.io/badge/Contribuidores-5-orange.svg)](#contribuidores-)
 [![Contributions Welcome](https://img.shields.io/badge/Contribuições-Bem--vindas-brightgreen.svg)](CONTRIBUTING.pt-BR.md)
 
 <p align="center">
@@ -83,7 +83,7 @@ O SIMUT é um firmware IoT de nível profissional para o **Raspberry Pi Pico W**
 
 | Dashboard TFT | Gráfico de histórico no TFT | Dashboard web | Alpha inicial |
 |:---:|:---:|:---:|:---:|
-| ![Dashboard TFT](docs/images/tft-dashboard.png) | ![Gráfico TFT](docs/images/screens/graph.png) | ![Dashboard web](docs/images/web-dashboard.png) | [![Vídeo do alpha](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
+| ![Dashboard TFT](docs/images/screens/dashboard.png) | ![Gráfico TFT](docs/images/screens/graph.png) | ![Dashboard web](docs/images/web-dashboard.png) | [![Vídeo do alpha](https://img.youtube.com/vi/wLjghqId8nE/hqdefault.jpg)](https://youtu.be/wLjghqId8nE) |
 
 > 📸 Todas as telas do display, capturadas do framebuffer do painel real: [docs/images/screens/screens.md](docs/images/screens/screens.md).
 >
@@ -127,7 +127,7 @@ Veja o **[Guia de Fiação](docs/WIRING.md)** para a pinagem completa e os diagr
 
 ### Tempo e armazenamento
 - **Sincronização NTP** — backoff exponencial, fallback multisservidor, RTC virtual semeado do histórico entre reboots
-- **Histórico binário compacto (V5)** — codificação delta + âncora a ~5,4 bytes/registro ≈ 116 dias de registros de 1 minuto na flash
+- **Histórico binário compacto (V5)** — codificação delta + âncora a ~5,4 bytes/registro ≈ 116 dias de registros na flash (11 canais na cadência de 1 min)
 - **LittleFS** — config em banco duplo com CRC32, arquivos de histórico por dia, log compacto rotativo
 
 ### Segurança
@@ -155,6 +155,7 @@ Veja o **[Guia de Fiação](docs/WIRING.md)** para a pinagem completa e os diagr
 ### Pré-requisitos
 - [PlatformIO](https://platformio.org/) (Core 6.x ou superior)
 - Raspberry Pi Pico W
+- Sem toolchain local? `docker compose run build` compila num container — o caminho que o [CONTRIBUTING.pt-BR.md](CONTRIBUTING.pt-BR.md) recomenda para novos contribuidores
 
 ### Compilar e gravar
 
@@ -217,12 +218,13 @@ simut/
 | Ambiente | Propósito |
 |-------------|---------|
 | `pico_w_release` | Firmware de produção — **a imagem publicada nos releases** |
-| `pico_w_test` | Mesmo firmware + CLI completa de 55 comandos para as suítes de bancada |
+| `pico_w_test` | Mesmo firmware + CLI completa de 56 comandos para as suítes de bancada |
 | `pico_w_asserts` | Release + asserções de concorrência |
 | `pico_w_alpha` | Build headless (LCD 16×2, sem TFT) |
 | `native`, `native_history_v4/v5`, `native_cli` | Testes unitários no host |
+| `native_logpolicy` | Filtro de persistência de logs edge-triggered (18 testes) |
 
-> `pico_w_debug` existe mas não linka — em `-Og` a imagem estoura o slot de 1020 KB. A flash é apertada: a imagem release usa ~95 % do slot.
+> `pico_w_debug` existe mas não linka — em `-Og` a imagem estoura o slot de 1020 KB. A flash é apertada: a imagem release usa ~97 % do slot.
 
 ### Flags de build
 - `-Os` — otimização por tamanho
@@ -235,8 +237,8 @@ simut/
 ### CLI
 Uma interface de linha de comando está disponível pela serial USB (115200 baud).
 
-- A **imagem release** traz um console de emergência mínimo de 9 comandos: `show net status`, `show system info`, `show system log`, `debug on|off`, `system admin reset`, `system format`, `system factory`, `reload`, `help`.
-- A **imagem `pico_w_test`** traz a CLI completa estilo Cisco (55 comandos, modos `enable` / `configure terminal`) — veja o [Manual do CLI](docs/CLI-Manual.md).
+- A **imagem release** traz um console de emergência mínimo de 10 comandos: `show net status`, `show system info`, `show system log`, `debug on|off`, `system admin reset`, `system format`, `system factory`, `system https off`, `reload`, `help`.
+- A **imagem `pico_w_test`** traz a CLI completa estilo Cisco (56 comandos, modos `enable` / `configure terminal`) — veja o [Manual do CLI](docs/CLI-Manual.md).
 
 A configuração do dia a dia foi desenhada para acontecer no display touch e na interface web, que são sempre completos.
 
@@ -248,7 +250,7 @@ O dispositivo expõe uma API REST em `http://<ip-do-dispositivo>/api/`. A tabela
 ```bash
 # Testes unitários no host
 pio test -e native            # validadores, CRC, conversão float, lógica de tempo
-pio test -e native_history_v5 # codec V5 de histórico (34 testes)
+pio test -e native_history_v5 # codec V5 de histórico (54 testes)
 pio test -e native_cli        # parser da CLI
 
 # Checagens de referência do codec V5 (Python vs C++, 20 mil casos aleatórios)
@@ -272,7 +274,7 @@ python3 tools/history_v5.py --selftest --trials 200000
 
 Contribuições são bem-vindas! Leia o [CONTRIBUTING.pt-BR.md](CONTRIBUTING.pt-BR.md) para setup de desenvolvimento, convenções de código e o processo de pull request.
 
-Todos os contribuidores devem seguir o [Código de Conduta](CODE_OF_CONDUCT.md).
+Todos os contribuidores devem seguir o [Código de Conduta](CODE_OF_CONDUCT.pt-BR.md).
 
 ## Suporte
 

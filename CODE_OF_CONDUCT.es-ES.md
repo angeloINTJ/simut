@@ -1,6 +1,6 @@
 # Código de Conducta del Contributor Covenant
 
-[English](CODE_OF_CONDUCT.md) | **Español**
+[English](CODE_OF_CONDUCT.md) | [Português](CODE_OF_CONDUCT.pt-BR.md) | **Español**
 
 ## Nuestro compromiso
 

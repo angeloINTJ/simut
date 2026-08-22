@@ -94,6 +94,7 @@ handler checks.
 
 | Route | Requires |
 |-------|----------|
+| `POST /api/force_chpass` | authenticated (`perms != 0`) **and** password-change-required (`isPasswordChangeRequired`) — completes the forced password change |
 | `POST /api/calib` | `PERM_CALIB` |
 | `POST /api/save_sys` | `PERM_SYS_CONFIG` |
 | `POST /api/commit_all` | `PERM_SYS_CONFIG` **plus per-section authz** (`WebCommitSections.h`) |

@@ -2,12 +2,12 @@
 
 > **Leia isto antes do resto.** Desde a v1.5.6-beta existem **dois perfis de
 > CLI**, e esta referência cobre o perfil completo gravado pelo ambiente
-> `pico_w_test`; a imagem release traz só o console de emergência de 9 comandos.
+> `pico_w_test`; a imagem release traz só o console de emergência de 10 comandos.
 >
 > | Perfil | Como obter | O que tem |
 > |---|---|---|
-> | **Emergência** (padrão) | `pico_w_release` — é o que vem nos zips de release | 9 comandos, prompt único `SIMUT>` |
-> | **Completo** | `pico_w_test` — compilar da fonte | os 55 comandos e os 4 modos descritos abaixo |
+> | **Emergência** (padrão) | `pico_w_release` — é o que vem nos zips de release | 10 comandos, prompt único `SIMUT>` |
+> | **Completo** | `pico_w_test` — compilar da fonte | os 56 comandos e os 4 modos descritos abaixo |
 >
 > Toda configuração vive na **interface web**. O console serial da imagem de
 > release existe para o caso em que a web não pode ser alcançada: descobrir o
@@ -26,6 +26,7 @@
 > debug on | off               Transmite os logs neste console ao vivo
 > system admin reset [confirm] Nova senha de admin, mostrada uma vez
 > system format [confirm]      Reformata o LittleFS, mantém o firmware
+> system https off [confirm]   Apaga o par de certificados e volta p/ HTTP
 > system factory [confirm]     Apaga TODA a config + reinicia
 > reload [confirm]             Reinicia agora
 > help                         Esta lista
@@ -36,7 +37,7 @@
 ## Visão geral
 
 > Aplica-se ao perfil completo. Na imagem de release não há modos: o prompt é
-> sempre `SIMUT>` e os 9 comandos acima valem nele.
+> sempre `SIMUT>` e os 10 comandos acima valem nele.
 
 O SIMUT adota o modelo **Cisco IOS** com 4 modos hierárquicos. Cada modo tem seu
 próprio prompt e conjunto de comandos. O caractere `?` mostra os comandos
@@ -142,11 +143,12 @@ do modo User EXEC continuam disponíveis.**
 
 | Comando | Descrição |
 |---------|-----------|
-| `sensor scan` | Varredura de hardware nos GPIOs 0–16 (OneWire → DHT22) + I2C (BME280 nos pinos 4,5) |
+| `sensor scan` | Varredura de hardware nos GPIOs 0–15 (OneWire → DHT22) + I2C (BME280 nos pinos 4,5) |
 | `sensor accept <gpio>` | Autoriza sensor OneWire (DS18B20) detectado no pino. Lê ROM, aplica calibração do `calib.csv`, salva no Flash |
 | `sensor define <gpio> <rom> <hwid> <nome>` | Define manualmente um sensor (legado). ROM em hex (16 chars, `0000000000000000` p/ não-OneWire). Ex: `sensor define 4 28AA123456789ABC DS4 "Freezer 1"` |
 | `sensor wipe <gpio>` | Reseta o epoch do histórico do sensor (gráfico começa do zero). Requer confirmação: `sensor wipe <gpio> confirm` |
-| `sensor reschema confirm` | Religa o histórico aos slots como estão configurados **agora**. Use após trocar o `hwid` de um sensor: o schema fica gravado no cabeçalho do `.sim4` e o casamento é por `hwid`, então uma troca faz o histórico gravar registros vazios em silêncio até o arquivo do dia seguinte. **Destrutivo** — recria o arquivo de hoje e perde os registros anteriores do dia; por isso exige `confirm`. O aviso `code=515` no log indica que isso é necessário |
+| `sensor remove <gpio>` | Remove o slot de sensor ligado ao GPIO (desativa e limpa a configuração do slot). Requer confirmação: `sensor remove <gpio> confirm` |
+| `sensor reschema confirm` | Religa o histórico aos slots como estão configurados **agora**. Use após trocar o `hwid` de um sensor: o casamento dos registros é por `hwid`, então uma troca faz o histórico gravar registros vazios em silêncio até o reschema. Desde o V5, a mudança de schema grava um novo chunk SCHEMA no **mesmo** arquivo `/history/AAAAMMDD.h5` — nenhum registro é perdido. Continua exigindo `confirm`. O aviso `code=515` no log indica que isso é necessário |
 | `sensor <slot> <campo> <valor>` | Configura sensor diretamente do modo privilegiado (atalho). Campos: `type`, `create`, `name`, `hwid`, `pin`, `active`, `alarm`, `tmin`, `tmax`, `hmin`, `hmax`. Ver Seção 4 |
 
 ### Telemetria
@@ -162,6 +164,7 @@ do modo User EXEC continuam disponíveis.**
 | `conf system factory` | Factory reset — apaga TODA a config e reinicia. Requer confirmação: `conf system factory confirm` |
 | `conf system admin reset` | Reseta a senha do admin para o padrão. Requer confirmação: `conf system admin reset confirm` |
 | `conf system touch reset` | Reseta a calibração do touch para valores de fábrica. Requer confirmação: `conf system touch reset confirm` |
+| `system format` | Formata o LittleFS (também disponível no console de emergência). Requer confirmação: `system format confirm` |
 
 ### Tela TFT
 
@@ -239,6 +242,7 @@ executar qualquer comando do modo privilegiado sem sair do config.
 | `user add <nome> <senha>` | Criar novo usuário para a interface web |
 | `user del <nome>` | Remover usuário (admin não pode ser removido) |
 | `user pass <nome> <nova_senha>` | Alterar senha de um usuário |
+| `user perm <nome> <viewer\|operator\|admin\|0xHEX>` | Ajusta a máscara de permissões do usuário. É o **único** caminho (além do admin de fábrica) para conceder `PERM_FULL_ADMIN` (`0xFFFF`) — a interface web recusa esse valor por design |
 
 ### Sensor
 

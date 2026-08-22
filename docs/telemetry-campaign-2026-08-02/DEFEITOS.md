@@ -1,5 +1,7 @@
 # Defeitos encontrados — campanha de telemetria 2026-08-02
 
+> 📌 **Snapshot da campanha de 02/08/2026 (v2.0.1-alpha).** Os estados abaixo NÃO foram mantidos desde então — vários itens foram corrigidos em releases posteriores (ex.: D1, senha MQTT, corrigido em `WebManager_Commit`). Confira o CHANGELOG antes de tratar qualquer item como aberto.
+
 Cada item traz o mecanismo no código, a evidência que o provou e a correção
 proposta. Os que ainda dependem de medição em curso estão marcados
 **(a confirmar)** e serão fechados com o dado, não com a leitura do código.

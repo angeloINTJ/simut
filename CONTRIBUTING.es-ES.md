@@ -4,8 +4,6 @@
 
 ¡Gracias por tu interés en contribuir! SIMUT es un firmware IoT de código abierto para la Raspberry Pi Pico W. Así es como puedes ayudar.
 
-[English](CONTRIBUTING.md) | [Português](CONTRIBUTING.pt-BR.md) | **Español**
-
 ## Antes de empezar
 
 - **Abre un issue primero** para discutir tu idea antes de escribir código. Esto evita el esfuerzo en vano si el cambio no encaja en la hoja de ruta del proyecto.
@@ -19,7 +17,7 @@ Busca los issues etiquetados como [`good first issue`](https://github.com/angelo
 |-------|---------------|
 | C/C++ embedded | Pruebas de HistoryCodec, pruebas del analizador CLI, fuzz testing |
 | Python / DevOps | Entorno de desarrollo Docker, integración continua (CI) con cppcheck, pre-commit hooks |
-| Documentación / i18n | Traducción al español, insignias de validación social |
+| Documentación / i18n | Mejoras de documentación, insignias de validación social |
 | Diseño | Nuevo tema de color integrado |
 
 ¿No estás seguro de por dónde empezar? Deja un comentario en cualquier `good first issue` y el mantenedor te ayudará a definir su alcance.
@@ -54,7 +52,7 @@ docker compose run test
 | Comando | Comando equivalente en PlatformIO |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native && pio test -e native_history_v5` |
+| `docker compose run test` | `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy` |
 
 ---
 
@@ -101,9 +99,11 @@ pio run -e pico_w_release -t uploadfs
 - **NULL:** Usa `nullptr` en código C++ (no `NULL`).
 - **Comentarios:** Explica el *por qué*, no el *qué* — el código en sí mismo es el "qué".
 
+¿Vas a añadir un nuevo driver de sensor? Sigue la guía paso a paso en [docs/adding-a-new-sensor.md](docs/adding-a-new-sensor.md).
+
 ## Presupuesto de Memoria Flash
 
-El espacio en la memoria flash es críticamente ajustado — ~95 % del slot de app de 1020 KB en el env de release (el env `pico_w_test` llega a ~99 %). Antes de añadir nuevas características, considera:
+El espacio en la memoria flash es críticamente ajustado — ~97 % del slot de app de 1020 KB en el env de release (el env `pico_w_test` llega a ~99 %). Antes de añadir nuevas características, considera:
 
 1. ¿Se puede optimizar para usar menos espacio?
 2. ¿Puede reemplazar algo de menor valor?
@@ -115,7 +115,7 @@ El espacio en la memoria flash es críticamente ajustado — ~95 % del slot de a
 2. Haz un fork del repositorio y crea una rama (`feature/my-feature`).
 3. Escribe tu código y pruébalo en hardware si es posible.
 4. Asegúrate de que `pio run -e pico_w_release` se compile con **cero advertencias**.
-5. Asegúrate de que `pio test -e native` pase todas las pruebas.
+5. Asegúrate de que todas las suites pasen: `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy`.
 6. Actualiza la documentación en `docs/` si tu cambio afecta el comportamiento de cara al usuario.
 7. Envía el PR con una descripción clara, haciendo referencia al número de issue.
 8. La lista de verificación de la plantilla de PR te guiará en los pasos restantes.
@@ -123,15 +123,20 @@ El espacio en la memoria flash es críticamente ajustado — ~95 % del slot de a
 ## Pruebas
 
 - Las pruebas unitarias usan el framework [Unity](http://www.throwtheswitch.org/unity).
-- Ejecútalas con `pio test -e native`.
-- Añade pruebas para nueva lógica de validación, codificación/decodificación y rutas críticas de seguridad.
+- Hay cinco entornos de prueba disponibles:
+  - `pio test -e native` — validadores (119 casos de prueba: validación de IP, CRC8, codificación de float, etc.)
+  - `pio test -e native_history_v4` — pruebas del códec V4 de histórico (bit-packing, ida y vuelta ancla/delta)
+  - `pio test -e native_history_v5` — pruebas de ida y vuelta del HistoryCodec
+  - `pio test -e native_cli` — pruebas del analizador CLI (tokenización y enrutamiento de comandos)
+  - `pio test -e native_logpolicy` — pruebas del filtro de persistencia de logs edge-triggered (18 casos)
+- Añade pruebas para nueva lógica de validación, codificación/decodificación, cambios en el analizador y rutas críticas de seguridad.
 - Se requieren pruebas de hardware para cambios en la pantalla, sensores, WiFi y OTA.
 
 ## Comunidad
 
 - Reporta errores a través de [GitHub Issues](https://github.com/angeloINTJ/simut/issues).
 - Haz preguntas en [GitHub Discussions](https://github.com/angeloINTJ/simut/discussions).
-- Sigue el [Código de Conducta](CODE_OF_CONDUCT.md).
+- Sigue el [Código de Conducta](CODE_OF_CONDUCT.es-ES.md).
 - Vulnerabilidades de seguridad: sigue la [Política de Seguridad](SECURITY.md) — no abras un issue público.
 
 ## Herramientas de IA

@@ -1,5 +1,7 @@
 # Análise de Flash e RAM — SIMUT v1.5.4-beta
 
+> 📌 **Fotografia da v1.5.4-beta (26/07/2026).** Os achados F1 (Bluetooth), F4 (mDNS) e F5 (NDEBUG) já foram aplicados; o estado atual é ~33 KB livres (96,8% do slot). O §9 continua reprodutível via `platformio_memstudy.ini`.
+
 **Data:** 2026-07-26
 **Alvo:** Raspberry Pi Pico W (RP2040), framework arduino-pico (earlephilhower)
 **Commit analisado:** `fa56142` (`release: v1.5.4-beta`), árvore limpa

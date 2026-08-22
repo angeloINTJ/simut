@@ -4,8 +4,6 @@
 
 Thanks for your interest in contributing! SIMUT is an open-source IoT firmware for the Raspberry Pi Pico W. Here's how you can help.
 
-[English](CONTRIBUTING.md) | [Português](CONTRIBUTING.pt-BR.md) | [Español](CONTRIBUTING.es-ES.md)
-
 ## Before You Start
 
 - **Open an issue first** to discuss your idea before writing code. This avoids wasted effort if the change doesn't fit the project roadmap.
@@ -19,7 +17,7 @@ Look for issues labeled [`good first issue`](https://github.com/angeloINTJ/simut
 |-------|---------------|
 | C/C++ embedded | HistoryCodec tests, CLI parser tests, fuzz testing |
 | Python / DevOps | Docker dev environment, cppcheck CI, pre-commit hooks |
-| Documentation / i18n | Spanish translation, social proof badges |
+| Documentation / i18n | Documentation improvements, social proof badges |
 | Design | New built-in color theme |
 
 Not sure where to start? Comment on any `good first issue` and the maintainer will help you scope it.
@@ -54,7 +52,7 @@ docker compose run test
 | Command | Equivalent PlatformIO command |
 |---|---|
 | `docker compose run build` | `pio run -e pico_w_release` |
-| `docker compose run test` | `pio test -e native && pio test -e native_history_v5 && pio test -e native_cli` |
+| `docker compose run test` | `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy` |
 
 ---
 
@@ -101,9 +99,11 @@ pio run -e pico_w_release -t uploadfs
 - **NULL:** Use `nullptr` in C++ code (not `NULL`)
 - **Comments:** Explain *why*, not *what* — the code is the "what"
 
+Adding a new sensor driver? Follow the step-by-step guide in [docs/adding-a-new-sensor.md](docs/adding-a-new-sensor.md).
+
 ## Flash Budget
 
-Flash is critically tight — ~95 % of the 1020 KB app slot in the release env (the `pico_w_test` env runs ~99 %). Before adding features, consider:
+Flash is critically tight — ~97 % of the 1020 KB app slot in the release env (the `pico_w_test` env runs ~99 %). Before adding features, consider:
 
 1. Can it be optimized to use less space?
 2. Can it replace something of lower value?
@@ -115,7 +115,7 @@ Flash is critically tight — ~95 % of the 1020 KB app slot in the release env (
 2. Fork the repository and create a branch (`feature/my-feature`)
 3. Write your code and test on hardware if possible
 4. Ensure `pio run -e pico_w_release` builds with **zero warnings**
-5. Ensure all tests pass: `pio test -e native && pio test -e native_history_v5 && pio test -e native_cli`
+5. Ensure all tests pass: `pio test -e native && pio test -e native_history_v4 && pio test -e native_history_v5 && pio test -e native_cli && pio test -e native_logpolicy`
 6. Update documentation in `docs/` if your change affects user-facing behavior
 7. Submit the PR with a clear description, referencing the issue number
 8. The PR template checklist will guide you through remaining steps
@@ -123,10 +123,12 @@ Flash is critically tight — ~95 % of the 1020 KB app slot in the release env (
 ## Testing
 
 - Unit tests use the [Unity](http://www.throwtheswitch.org/unity) framework
-- Three test environments are available:
-  - `pio test -e native` — validators (62 test cases: IP validation, CRC8, float encoding, etc.)
+- Five test environments are available:
+  - `pio test -e native` — validators (119 test cases: IP validation, CRC8, float encoding, etc.)
+  - `pio test -e native_history_v4` — V4 history codec tests (bit-packing, anchor/delta roundtrip)
   - `pio test -e native_history_v5` — HistoryCodec roundtrip tests
   - `pio test -e native_cli` — CLI parser tests (command tokenizing and routing)
+  - `pio test -e native_logpolicy` — edge-triggered log-persistence filter tests (18 cases)
 - Add tests for new validation logic, encoding/decoding, parser changes, and security-critical paths
 - Hardware testing is required for display, sensor, WiFi, and OTA changes
 
