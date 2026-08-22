@@ -62,11 +62,14 @@ static bool ensure_parent_dirs(const char* path) {
  * backup.cpp/walk_dir e puxaria mais símbolos da lib).
  * ------------------------------------------------------------------------- */
 
-/* Pool global; tamanho dimensionado para ~32 arquivos de path médio.
- * Se estourar, restauração para com IO_ERROR — aceitável pra v1. */
-static constexpr size_t TMP_POOL_BYTES = 2048;
+/* Pool global; dimensionado para o estado estacionário do FS: com a poda
+ * em 86% o /history estabiliza em ~70-90 arquivos .h5 (~20 B de path cada).
+ * O dimensionamento original (~32 arquivos) fazia o restore do PRÓPRIO
+ * snapshot falhar com IO_ERROR assim que o histórico passava de 64 arquivos
+ * (D-232-RESTORE: 76 entradas, estouro do pool, st=9). */
+static constexpr size_t TMP_POOL_BYTES = 4096;
 static char     s_tmp_pool[TMP_POOL_BYTES];
-static uint16_t s_tmp_offsets[64];
+static uint16_t s_tmp_offsets[200];
 static uint16_t s_tmp_count;
 static uint16_t s_tmp_used;
 
