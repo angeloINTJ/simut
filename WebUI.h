@@ -3625,8 +3625,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <label data-i18n="cfg_mq_qos">QoS Level</label>
                                 <select id="m_qos" name="m_qos">
                                     <option value="0" data-i18n="cfg_mq_q0">0 - At Most Once</option>
-                                    <option value="1" data-i18n="cfg_mq_q1">1 - At Least Once</option>
-                                    <option value="2" data-i18n="cfg_mq_q2">2 - Exactly Once</option>
                                 </select>
                             </div>
                             <div class="col">

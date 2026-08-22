@@ -803,7 +803,12 @@ void WebManager::handleApiCommitAll( ) {
 				String mp = getStr("m_pass");
 				if (mp.length( ) > 0) setStr("m_pass", cfg.mqttPass, sizeof(cfg.mqttPass));
 			}
-			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && isInRange(v, 0, 2)) cfg.mqttQos = (uint8_t)v; else rejectField("m_qos"); }
+			/* QoS 1/2 não é entregável: PubSubClient 2.8 publica SÓ QoS 0
+			 * (publish( ) sem argumento de QoS, sem PUBACK). Aceitar 1/2 aqui
+			 * gravava um valor que nada lia — o knob prometia uma garantia de
+			 * entrega que o transporte não tem (D-232-QOS). Rejeitar em vez de
+			 * publicar silenciosamente em QoS 0. */
+			if (has("m_qos")) { int v; if (parseIntStrict(getNum("m_qos"), v) && v == 0) cfg.mqttQos = 0; else rejectField("m_qos"); }
 			fl = readFlag("m_retain"); if (fl >= 0) cfg.mqttRetain = (fl == 1);
 			if (has("m_ka")) { int v; if (parseIntStrict(getNum("m_ka"), v) && isInRange(v, 10, 300)) cfg.mqttKeepAlive = (uint16_t)v; else rejectField("m_ka"); }
 			/* HA Discovery toggle (overlay HaDiscoveryData). No refresh hook:
@@ -1369,19 +1374,19 @@ void WebManager::handleResetTouchCal( ) {
 
 /* Rebind the day's history to the slots as they are SAVED right now.
  *
- * A .sim4 freezes its schema at creation and matches values by hwId, so a slot
+ * A .h5 appends a SCHEMA chunk on identity change, so a slot
  * added or renamed after the day's file exists has no column to write into:
  * the record is still appended, its channel just stays NaN, and nothing in the
  * log says so. The caller must have committed first — rebinding on top of
  * staged-but-unsaved edits would freeze the old schema all over again. The page
  * guards that; this handler cannot see Pending.
  *
- * DEFAULT PATH IS NON-DESTRUCTIVE. migrateV4Schema streams the day's file into
+ * DEFAULT PATH IS NON-DESTRUCTIVE. migrateSchema streams the day's file into
  * a verified replacement, carrying every column that still exists and filling
  * the new ones with the NaN sentinel back to 00:00. It only fails when the
  * source itself is unreadable, and it leaves the original in place when it does.
  *
- * ?force=1 selects the old destructive rebindV4Schema, which recreates the file
+ * ?force=1 selects the old destructive rebindSchema, which recreates the file
  * empty. It exists for the case migration cannot handle — a corrupt source —
  * and is never chosen on the client's behalf: throwing the day away is the
  * user's call, so the page asks first.
@@ -1389,7 +1394,7 @@ void WebManager::handleResetTouchCal( ) {
  * On success the device reboots, which is what puts every sensor back on a
  * codec built from the file that is now live.
  *
- * rebindV4Schema and migrateV4Schema both carry their own Core1FlashPause and
+ * rebindSchema and migrateSchema both carry their own Core1FlashPause and
  * WDT window; the quiet mode here parks Core 1's rendering for the rewrite. */
 void WebManager::handleApiHistoryRebind( ) {
 	uint16_t perms = getAuthPerms( );
@@ -1404,8 +1409,8 @@ void WebManager::handleApiHistoryRebind( ) {
 	bool ok;
 
 	_displayRef->requestQuietMode( );
-	if (force) ok = _storageRef->rebindV4Schema(&mc);
-	else       ok = _storageRef->migrateV4Schema(&mc, &records, &carried);
+	if (force) ok = _storageRef->rebindSchema(&mc);
+	else       ok = _storageRef->migrateSchema(&mc, &records, &carried);
 	_displayRef->releaseQuietMode( );
 
 	if (!ok) {

@@ -1216,8 +1216,27 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  }
 
  if (published == (int)batch.size( )) {
+ /* G4 (sem perda silenciosa): publish() só confirma a ESCRITA no socket.
+  * Se a conexão morreu logo depois (broker drop-on-publish), os registros
+  * podem nunca ter chegado e QoS 0 não tem ACK — não avança o cursor; o
+  * próximo ciclo reenvia a partir daqui (duplicatas são o preço do QoS 0,
+  * perda não). A FIN/RST chega em ~ms numa LAN: espera limitada a ~60 ms
+  * antes de confirmar; além disso a decisão volta à semântica QoS-0. */
+ bool connAlive = true;
+ uint32_t finWait = millis( );
+ while (millis( ) - finWait < 60) {
+ _mqttClient.loop( );
+ if (!_mqttClient.connected( )) { connAlive = false; break; }
+ delay(5);
+ }
+ if (connAlive) {
  _storageRef->setLastSentTimestamp(newCursor);
  success = true;
+ } else {
+ LOG_CODE(LOG_WARN, "TEL", SYS_TEL_MQTT_DISC, _mqttClient.state( ),
+ "MQTT connection died during publish — cursor not advanced");
+ success = false;
+ }
  } else if (published > 0) {
  uint32_t partialCursor = batch[published - 1].epoch;
  _storageRef->setLastSentTimestamp(partialCursor);
@@ -1290,11 +1309,26 @@ bool TelemetryManager::attemptMqttPublish(String& payload, std::vector<BinaryHis
  }
 
  if (ok) {
+ /* G4 (sem perda silenciosa): mesmo pós-check do caminho de lotes pequenos
+  * — janela curta para a FIN/RST do broker chegar; se a conexão morreu na
+  * sequência, não avança o cursor e o próximo ciclo reenvia. */
+ bool connAlive = true;
+ uint32_t finWait = millis( );
+ while (millis( ) - finWait < 60) {
+ _mqttClient.loop( );
+ if (!_mqttClient.connected( )) { connAlive = false; break; }
+ delay(5);
+ }
+ if (connAlive) {
  LOG_CODE(LOG_INFO, "TEL", SYS_TEL_MQTT_PUB, batch.size( ),
  "MQTT batch OK: " + String(batch.size( )) + " items (" + String(payload.length( )) + " bytes)");
  _storageRef->setLastSentTimestamp(newCursor);
  sentBytes = (uint32_t)payload.length( );
  success = true;
+ } else {
+ LOG_CODE(LOG_WARN, "TEL", SYS_TEL_MQTT_DISC, _mqttClient.state( ),
+ "MQTT connection died during publish — cursor not advanced");
+ }
  } else {
  LOG_CODE(LOG_ERROR, "TEL", SYS_TEL_FAIL, _mqttClient.state( ),
  "MQTT publish failed (payload " + String(payload.length( )) + " bytes)");
