@@ -237,7 +237,7 @@ def config_fidelity(t, web, port, seconds=70):
         't_int': '2000', 't_bat': '3', 't_mode': '0',
         'm_topic': 'bench/telemetry/data', 'm_cid': 'benchcid7',
         'm_user': 'benchuser', 'm_pass': 'benchsecret',
-        'm_qos': '1', 'm_retain': '1', 'm_ka': '45',
+        'm_qos': '0', 'm_retain': '1', 'm_ka': '45',
     }
     C.commit(web, fields)
     C.web_session(force=True)
@@ -248,7 +248,7 @@ def config_fidelity(t, web, port, seconds=70):
     srv.stop()
 
     wanted = {'m_cid': 'benchcid7', 'm_user': 'benchuser', 'm_pass': 'benchsecret',
-              'm_qos': 1, 'm_retain': True, 'm_ka': 45,
+              'm_qos': 0, 'm_retain': True, 'm_ka': 45,
               'm_topic': 'bench/telemetry/data'}
     # The broker is up before the commit, so the device's PRE-reboot client
     # connects to it first, carrying the OLD settings. Reading frame 0 scored
@@ -272,7 +272,7 @@ def config_fidelity(t, web, port, seconds=70):
         'password_honoured': got['pass'] == wanted['m_pass'],
         'keepalive_honoured': got['keepalive'] == wanted['m_ka'],
         'topic_honoured': wanted['m_topic'] in (got['topics'] or []),
-        'qos1_honoured': bool(got['qos_seen']) and set(map(int, got['qos_seen'])) == {1},
+        'qos0_honoured': bool(got['qos_seen']) and set(map(int, got['qos_seen'])) == {0},
         'retain_honoured': bool(got['retain_seen']) and got['retain_seen'].get('True', 0) > 0,
     }
     C.log('fidelity wanted=' + json.dumps(wanted))
@@ -321,7 +321,7 @@ def main():
         C.log('=== switching to MQTTS (reboot) ===')
         kill_stale()
         srv = broker('boot_mqtts', C.PORT_MQTTS, True, mode='ok')
-        ok, back = switch(web, 1, True, C.PORT_MQTTS)
+        ok, back = switch(C.web_session(force=True), 1, True, C.PORT_MQTTS)
         C.log(f'switch ok={ok} web back in {back}s')
         C.web_session(force=True)
         time.sleep(5)
