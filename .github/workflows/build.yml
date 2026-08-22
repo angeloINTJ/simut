@@ -50,6 +50,18 @@ jobs:
       - name: History V5 day-merge tests
         run: python3 tools/test_h5_day_merge.py
 
+      # SIMUT builds against a patched arduino-pico (TLS handshake deadlines,
+      # the keep-alive API, the static TLS server pool — see
+      # tools/arduino_pico_overrides/). A factory framework has not compiled
+      # since v2.3.0 (enableKeepAlive), and patch.sh never ran here: the whole
+      # 2.3 line went out with build-and-test red on main. Install the platform
+      # packages first so the framework exists, then apply the overrides — the
+      # script is idempotent, so a warm cache that already carries them is fine.
+      - name: Apply framework overrides
+        run: |
+          pio pkg install -e pico_w_release
+          bash tools/arduino_pico_overrides/patch.sh
+
       - name: Build firmware
         run: pio run -e pico_w_release
 
