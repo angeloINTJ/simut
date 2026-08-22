@@ -12,7 +12,7 @@
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target  Raspberry Pi Pico W (RP2040) — Arduino Framework
- * @author  Angelo Moises Alves
+ * @author  Ângelo Moisés Alves
  * @license MIT License
  */
 

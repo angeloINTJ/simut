@@ -7,7 +7,7 @@
  *
  * @project SIMUT — Sistema Integrado de Monitoramento Universal e Telemetria
  *          SIMUT — Integrated Universal Monitoring and Telemetry System
- * @author Angelo Moises Alves
+ * @author Ângelo Moisés Alves
  * @license MIT License
  */
 

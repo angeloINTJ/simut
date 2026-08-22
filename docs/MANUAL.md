@@ -774,7 +774,7 @@ the metadata sector instead.
 |---|---|
 | Firmware size | 1,011,244 B — ~97% of the 1020 KB application slot |
 | RAM at link | 123,124 B of 262,144 B |
-| Free heap in service | ~46 KB (reference rig: five sensors, pt-BR language pack; measured on v2.1.10 — not yet re-measured after the 2.3.x TLS pool changes) |
+| Free heap in service | ~43.3 KB, of which ~26.6 KB is the largest contiguous block — the figure BearSSL actually needs. Reference rig on v2.3.2-beta over HTTP, five sensors and the pt-BR language pack, 16 h uptime: 44,364 B free against a 44,196 B low-water mark, so the heap is flat rather than merely large. Serving the UI over HTTPS reserves a further ~21.5 KB for the static TLS pool at startup. |
 | Radio firmware | ~232 KB of the application slot |
 
 ---

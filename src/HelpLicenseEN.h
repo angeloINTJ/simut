@@ -213,6 +213,11 @@ static const char LICENSE_TEXT_EN[] PROGMEM =
 "MIT License - full text ships in the release image\n"
 "and in the LICENSE file of the source repository.\n";
 #else
+/* ASCII only, deliberately: this string is drawn on the TFT with the classic
+ * CP437 GFX font, where the Latin-1 bytes of "Ângelo Moisés" are unrelated
+ * symbols (0xE7 is a math glyph, not c-cedilla). Every other copyright line in
+ * the tree carries the accents; this one cannot until the license screen moves
+ * to the Latin-1 faces. Do not "fix" the spelling here. */
 static const char LICENSE_TEXT_EN[] PROGMEM = R"raw(
 MIT License
 

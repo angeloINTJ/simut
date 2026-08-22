@@ -94,13 +94,15 @@ CHANGELOG_*.md
 # Promotion (local only, not for the repo)
 docs/promotion/
 
-# Release zips are assets, not history: they go on the GitHub release, and the
-# `release: vX artifacts` commit versions only the release/simut_{tft,alpha,pio}
-# trees. A stray `git add release/` swept 17 MB of them in once — hence the rule
-# rather than the convention alone. (The v1.6.x pair predates this and stays.)
-release/simut_tft_v*.zip
-release/simut_alpha_v*.zip
-release/simut_pio_v*.zip
+# Nothing under release/ is history — it is all output. The zips are the
+# GitHub release assets, and the simut_{tft,alpha,pio} trees are the staging
+# dirs those zips are built from: tools/build_release*.sh does `rm -rf` and
+# rsyncs them from source on every run, and nothing outside those scripts
+# reads them. Versioning them cost 26 MB and a second copy of every document
+# to keep in sync — a docs fix had to be applied twice or wait for the next
+# release. Untracked 2026-08-21; git history keeps the old copies, and the
+# build scripts still write here exactly as before.
+release/
 
 # local bench scratch
 scratchpad/
@@ -110,3 +112,8 @@ crash-*
 leak-*
 slow-unit-*
 oom-*
+
+# Bench-generated artifacts (telemetry bench + browser campaign tools)
+tools/telemetry_bench/certs/
+tools/telemetry_bench/results/
+tools/shots/
