@@ -564,7 +564,12 @@ void AppManager::checkAlarmConditions( ) {
 
  _soundMgr->startAlarm( );
  const int8_t navSlot = (firstSlot >= 0) ? firstSlot : firstErrSlot;
- if (navSlot >= 0) {
+ /* Regra do painel inferior: "o sensor em alarme aparece mesmo sem estar
+  * selecionado". EXCEÇÃO: quando esse sensor JÁ está fixado no painel
+  * superior, a regra não se aplica — forçá-lo também para o painel inferior
+  * duplicaria o mesmo slot nos dois painéis. O alarme já está visível no
+  * topo; o inferior mantém a seleção atual. */
+ if (navSlot >= 0 && navSlot != _displayMgr->getTopSlotIdx( )) {
  _currentSensorIdx = navSlot;
  refreshSelectedSlot( );
  }

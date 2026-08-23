@@ -1290,7 +1290,12 @@ void DisplayManager::loopCore1( ) {
 			if ((_alarmSlotMask != 0 || _alarmErrMask != 0) && !_alarmSilenced) {
 				uint16_t m = _alarmSlotMask | _alarmErrMask;
 				int alarmCount = 0;
-				while (m) { alarmCount += (m & 1); m >>= 1; }
+				/* Slot fixado no painel superior não conta para a rotação:
+				 * ele já está sempre visível no topo; rotacioná-lo também para
+				 * o painel inferior duplicaria o sensor nos dois painéis. */
+				for (int i = 0; i < 10; i++) {
+					if ((m & (1 << i)) && !(_topPanel.fixed && _topPanel.fixedIdx == i)) alarmCount++;
+				}
 
 				if (alarmCount >= 2 && timeSince(_alarmRotateTimer, ALARM_ROTATE_INTERVAL_MS)) {
 					_alarmRotateTimer = millis( );
@@ -1298,6 +1303,9 @@ void DisplayManager::loopCore1( ) {
 					for (int i = 1; i <= 10; i++) {
 						int idx = (current + i) % 10;
 						if ((_alarmSlotMask | _alarmErrMask) & (1 << idx)) {
+							/* Nunca rotacionar o slot fixado no topo para o
+							 * painel inferior (duplicação). */
+							if (_topPanel.fixed && _topPanel.fixedIdx == idx) continue;
 							if (idx < 4) _currentPage = 0;
 							else if (idx < 8) _currentPage = 1;
 							else _currentPage = 2;
