@@ -220,7 +220,7 @@ def main():
     dev.cmd("alarm set mode json")
     dev.cmd("alarm set qmax 16")
     # templates default (token único, sem espaços — limitação do CLI tokenizado)
-    dev.cmd('alarm set line {"ts":{TS},"id":"{ID}","val":{val},"err":"{err}","seq":{seq}}')
+    dev.cmd('alarm set line {"ts":{TS},"id":"{ID}","val":{val},"alarm":{alarm},"err":{err},"seq":{seq}}')
     dev.cmd(f"user del {TEST_USER}")
     dev.cmd(f"user add {TEST_USER} {TEST_PASS}")
     dev.cmd(f"user perm {TEST_USER} admin")

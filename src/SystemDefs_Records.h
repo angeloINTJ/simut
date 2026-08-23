@@ -212,7 +212,7 @@ constexpr uint8_t ALARM_QUEUE_MAX = 64;
  *
  * path vazio significa o derivado (telPath + "/alarm" no HTTP); um valor
  * não vazio é usado como está. O template de linha aceita os tokens
- * {TS} {ID} {HWID} {SLOT} {CH} {VAL} {ERR} {SEQ}; o template global aceita
+ * {TS} {ID} {HWID} {SLOT} {CH} {VAL} {ALARM} {ERR} {SEQ}; o template global aceita
  * {DEV} {MAC} {DATA} — ver TelemetryManager::formatLineAlarmBuf.
  */
 struct __attribute__((packed)) AlarmTelConfig {

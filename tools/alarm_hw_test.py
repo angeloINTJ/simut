@@ -332,7 +332,7 @@ def main():
     dev.cmd("alarm set qmax 16")
     dev.cmd("alarm set path /api.php/alarm")
     # templates default (token único, sem espaços — limitação do CLI tokenizado)
-    dev.cmd('alarm set line {"ts":{TS},"id":"{ID}","val":{val},"err":"{err}","seq":{seq}}')
+    dev.cmd('alarm set line {"ts":{TS},"id":"{ID}","val":{val},"alarm":{alarm},"err":{err},"seq":{seq}}')
     dev.cmd('alarm set glob {"dev":"{DEV}","mac":"{MAC}","alarms":[{DATA}]}')
     dev.cmd("exit")
     time.sleep(2)

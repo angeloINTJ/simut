@@ -35,21 +35,21 @@
 /** bit0: o sensor estava em falha quando o alarme foi gerado (valor = sentinela). */
 #define ALARM_FLAG_ERR 0x01
 
-/** Código de status do campo {err} — vocabulário documentado (ver
- * alarmErrCodeStr em AlarmPayload.h):
- *   ""        alarme de LIMITE ativo (sem ação)
- *   "err"     sensor em erro, ativo
- *   "sil"     alarme de limite SILENCIADO (ação do operador)
- *   "err_sil" erro de sensor SILENCIADO
- *   "off"     alarme de limite DESATIVADO
- *   "err_off" erro de sensor DESATIVADO */
+/** Código de status do registro — dois domínios (ver alarmCodeAlarmField /
+ * alarmCodeErrField em AlarmPayload.h):
+ *   campo "alarm" (domínio de LIMITE): "alarm" (disparado), "alarm_sil",
+ *   "alarm_off".
+ *   campo "err" (domínio de FALHA de hardware): "err", "err_sil", "err_off".
+ * Cada registro pertence a UM domínio (erro tem prioridade sobre limite);
+ * o campo do outro domínio fica vazio e é omitido pelo template composto. */
 enum AlarmErrCode : uint8_t {
 	ALARM_ERR_NONE = 0,
-	ALARM_ERR_ERROR,
-	ALARM_ERR_SIL,
-	ALARM_ERR_ERR_SIL,
-	ALARM_ERR_OFF,
-	ALARM_ERR_ERR_OFF
+	ALARM_ERR_ALARM,     /* "alarm" — limite disparado (único com valor) */
+	ALARM_ERR_ALARM_SIL, /* "alarm_sil" — limite silenciado */
+	ALARM_ERR_ALARM_OFF, /* "alarm_off" — limite desativado */
+	ALARM_ERR_ERROR,     /* "err" — falha de hardware */
+	ALARM_ERR_ERR_SIL,   /* "err_sil" — erro silenciado */
+	ALARM_ERR_ERR_OFF    /* "err_off" — erro desativado */
 };
 
 /** Um registro da fila de alarmes. Layout em ordem natural (sem pack):
@@ -142,16 +142,16 @@ inline uint16_t AlarmQueue::push(uint32_t epoch, uint8_t slot, uint8_t channel,
 	_nextSeq++;
 	if (_nextSeq == 0) _nextSeq = 1; /* 0 é reservado como inválido */
 
-	const bool failed = (errCode == ALARM_ERR_ERROR ||
-	                     errCode == ALARM_ERR_ERR_SIL ||
-	                     errCode == ALARM_ERR_ERR_OFF);
+	/* Único código com valor de leitura: ALARM (borda de limite). Todo o
+	 * resto (ações e falhas) é marcador sem valor. */
+	const bool hasValue = (errCode == ALARM_ERR_ALARM);
 	uint8_t idx = (uint8_t)((_head + _count) % _cap);
 	_buf[idx].epoch = epoch;
 	_buf[idx].seq = seq;
 	_buf[idx].value = value;
 	_buf[idx].slot = slot;
 	_buf[idx].channel = channel;
-	_buf[idx].flags = failed ? ALARM_FLAG_ERR : 0;
+	_buf[idx].flags = hasValue ? 0 : ALARM_FLAG_ERR;
 	_buf[idx].errCode = errCode;
 	_count++;
 	return seq;

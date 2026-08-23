@@ -2163,14 +2163,14 @@ static String alarmHttpPath(const SystemConfig& cfg) {
 uint16_t TelemetryManager::pushAlarm(uint8_t slot, uint8_t channel, float value, uint8_t errCode) {
 	if (!_alarmEnabled || slot >= MAX_SENSORS) return 0;
 
-	/* "Falha" (sem valor) = erro de sensor em qualquer estado (ativo,
-	 * silenciado, desativado). Marcadores de ação de limite (sil/off) também
-	 * não carregam valor — o {val} fica ausente e o {err} traz o código. */
+	/* Valor de leitura só na borda de limite ("alarm"); ações (sil/off) e
+	 * falhas (err*) são marcadores sem valor — o {val} fica ausente. */
 	const bool isErr = (errCode == ALARM_ERR_ERROR ||
 	                    errCode == ALARM_ERR_ERR_SIL ||
 	                    errCode == ALARM_ERR_ERR_OFF);
+	const bool hasValue = (errCode == ALARM_ERR_ALARM);
 	int16_t scaled;
-	if (isErr || !isfinite(value)) {
+	if (!hasValue || !isfinite(value)) {
 		scaled = HIST_NAN_SENTINEL;
 	} else {
 		const ChannelInfo& ci = channelInfo(channel);

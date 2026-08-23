@@ -275,7 +275,7 @@ void AppManager::core0Yield( ) {
  _displayMgr->setAlarmDeactivated(true);
  /* 2ª linha de telemetria: registra a AÇÃO de desativar — o {err} do
  * registro carrega "err_off" (erro) ou "off" (limite). */
- pushAlarmAction(_alarmDeactivateSlot, ALARM_ERR_ERR_OFF, ALARM_ERR_OFF);
+ pushAlarmAction(_alarmDeactivateSlot, ALARM_ERR_ERR_OFF, ALARM_ERR_ALARM_OFF);
  _alarmDeactivateSlot = -1;
  _displayMgr->forceDashboard( );
  LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, 0, "");
@@ -453,7 +453,7 @@ void AppManager::core0Yield( ) {
  _displayMgr->setAlarmSilenced(true, millis( ) + (silenceSec * 1000));
  /* 2ª linha de telemetria: registra a AÇÃO de silenciar — o {err} do
  * registro carrega "err_sil" (erro de sensor) ou "sil" (limite). */
- pushAlarmAction((int8_t)uiEv.id, ALARM_ERR_ERR_SIL, ALARM_ERR_SIL);
+ pushAlarmAction((int8_t)uiEv.id, ALARM_ERR_ERR_SIL, ALARM_ERR_ALARM_SIL);
  _displayMgr->forceDashboard( );
  LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_SILENCED, 120, "");
  }

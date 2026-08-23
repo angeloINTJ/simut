@@ -680,7 +680,7 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 					_alarmCandBits[i] &= (uint8_t)~bit;
 					if (!(_alarmTripBits[i] & bit)) {
 						_alarmTripBits[i] |= bit;
-						_telemetryMgr->pushAlarm((uint8_t)i, c, v, ALARM_ERR_NONE);
+						_telemetryMgr->pushAlarm((uint8_t)i, c, v, ALARM_ERR_ALARM);
 					}
 				} else {
 					_alarmCandBits[i] |= bit;

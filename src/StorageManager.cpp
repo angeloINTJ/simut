@@ -609,7 +609,7 @@ void StorageManager::applyAlarmTelDefaults(AlarmTelConfig& a) {
   * A forma composta "<chave>":{<token>} remove a chave inteira quando o
   * token está ausente — {val} some no registro de erro, {err} some no
   * registro normal — ver TelemetryManager::formatLineAlarmBuf. */
- safeCopy(a.lineTemplate, "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"err\":\"{err}\",\"seq\":{seq}}", sizeof(a.lineTemplate));
+ safeCopy(a.lineTemplate, "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"seq\":{seq}}", sizeof(a.lineTemplate));
  safeCopy(a.lineSeparator, ",", sizeof(a.lineSeparator));
 }
 

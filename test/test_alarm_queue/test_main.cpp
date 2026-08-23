@@ -23,8 +23,8 @@
 /* ── FIFO e push básico ─────────────────────────────────────────────────── */
 static void test_push_fifo_order(void) {
     AlarmQueue q(8);
-    uint16_t s0 = q.push(1000, 0, 0 /*CH_TEMP*/, 1234, ALARM_ERR_NONE);
-    uint16_t s1 = q.push(1001, 1, 1 /*CH_HUM*/, -999, ALARM_ERR_NONE);
+    uint16_t s0 = q.push(1000, 0, 0 /*CH_TEMP*/, 1234, ALARM_ERR_ALARM);
+    uint16_t s1 = q.push(1001, 1, 1 /*CH_HUM*/, -999, ALARM_ERR_ALARM);
     uint16_t s2 = q.push(1002, 2, 0, 567, ALARM_ERR_ERROR);
 
     TEST_ASSERT_EQUAL_UINT16(1, s0);
@@ -56,19 +56,19 @@ static void test_capacity_clamp(void) {
 
     AlarmQueue q(4);
     TEST_ASSERT_EQUAL_UINT8(4, q.capacity());
-    for (int i = 0; i < 4; i++) q.push(100 + i, i, 0, 1, ALARM_ERR_NONE);
+    for (int i = 0; i < 4; i++) q.push(100 + i, i, 0, 1, ALARM_ERR_ALARM);
     TEST_ASSERT_TRUE(q.full());
 }
 
 /* ── estouro: drop-newest ───────────────────────────────────────────────── */
 static void test_overflow_drop_newest(void) {
     AlarmQueue q(3);
-    q.push(100, 0, 0, 1, ALARM_ERR_NONE);
-    q.push(101, 1, 0, 2, ALARM_ERR_NONE);
-    q.push(102, 2, 0, 3, ALARM_ERR_NONE);
+    q.push(100, 0, 0, 1, ALARM_ERR_ALARM);
+    q.push(101, 1, 0, 2, ALARM_ERR_ALARM);
+    q.push(102, 2, 0, 3, ALARM_ERR_ALARM);
 
     /* cheio: novo registro recusado, seq 0, dropped incrementa */
-    uint16_t refused = q.push(103, 3, 0, 4, ALARM_ERR_NONE);
+    uint16_t refused = q.push(103, 3, 0, 4, ALARM_ERR_ALARM);
     TEST_ASSERT_EQUAL_UINT16(0, refused);
     TEST_ASSERT_EQUAL_UINT16(1, q.dropped());
     TEST_ASSERT_EQUAL_UINT8(3, q.size());
@@ -85,7 +85,7 @@ static void test_overflow_drop_newest(void) {
 static void test_seq_wrap_skips_zero(void) {
     AlarmQueue q(4);
     for (int i = 0; i < 4; i++) {
-        uint16_t s = q.push(i, 0, 0, 1, ALARM_ERR_NONE);
+        uint16_t s = q.push(i, 0, 0, 1, ALARM_ERR_ALARM);
         TEST_ASSERT_EQUAL_UINT16(i + 1, s);
     }
     q.ackOldest(4);
@@ -93,13 +93,13 @@ static void test_seq_wrap_skips_zero(void) {
     /* drena até perto do limite sem depender de estado interno: usa ackOldest */
     /* Como _nextSeq é privado, exercitamos o wrap via ack + push até 65535. */
     for (uint32_t i = 4; i < 65534; i++) {
-        q.push(i, 0, 0, 1, ALARM_ERR_NONE);
+        q.push(i, 0, 0, 1, ALARM_ERR_ALARM);
         q.ackOldest(1);
     }
-    uint16_t s = q.push(1, 0, 0, 1, ALARM_ERR_NONE);
+    uint16_t s = q.push(1, 0, 0, 1, ALARM_ERR_ALARM);
     TEST_ASSERT_EQUAL_UINT16(65535, s);
     q.ackOldest(1);
-    s = q.push(2, 0, 0, 1, ALARM_ERR_NONE);
+    s = q.push(2, 0, 0, 1, ALARM_ERR_ALARM);
     /* 65535 + 1 == 0 é reservado → pula para 1 */
     TEST_ASSERT_EQUAL_UINT16(1, s);
 }
@@ -107,10 +107,10 @@ static void test_seq_wrap_skips_zero(void) {
 /* ── ack por seq ────────────────────────────────────────────────────────── */
 static void test_ack_by_seq(void) {
     AlarmQueue q(8);
-    q.push(100, 0, 0, 1, ALARM_ERR_NONE);   /* seq 1 */
-    q.push(101, 1, 0, 2, ALARM_ERR_NONE);   /* seq 2 */
-    q.push(102, 2, 0, 3, ALARM_ERR_NONE);   /* seq 3 */
-    q.push(103, 3, 0, 4, ALARM_ERR_NONE);   /* seq 4 */
+    q.push(100, 0, 0, 1, ALARM_ERR_ALARM);   /* seq 1 */
+    q.push(101, 1, 0, 2, ALARM_ERR_ALARM);   /* seq 2 */
+    q.push(102, 2, 0, 3, ALARM_ERR_ALARM);   /* seq 3 */
+    q.push(103, 3, 0, 4, ALARM_ERR_ALARM);   /* seq 4 */
 
     /* confirma o do MEIO (2) e um inexistente (99) — não deve remover nada por 99 */
     uint16_t seqs[] = {2, 99};
@@ -135,7 +135,7 @@ static void test_ack_by_seq(void) {
 /* ── ackOldest / clear ──────────────────────────────────────────────────── */
 static void test_ack_oldest_and_clear(void) {
     AlarmQueue q(8);
-    for (int i = 0; i < 5; i++) q.push(100 + i, 0, 0, 1, ALARM_ERR_NONE);
+    for (int i = 0; i < 5; i++) q.push(100 + i, 0, 0, 1, ALARM_ERR_ALARM);
     q.ackOldest(2);
     TEST_ASSERT_EQUAL_UINT8(3, q.size());
     AlarmRecord out[8];
@@ -146,7 +146,7 @@ static void test_ack_oldest_and_clear(void) {
     q.ackOldest(10); /* além do tamanho → esvazia */
     TEST_ASSERT_TRUE(q.empty());
 
-    for (int i = 0; i < 3; i++) q.push(200 + i, 0, 0, 1, ALARM_ERR_NONE);
+    for (int i = 0; i < 3; i++) q.push(200 + i, 0, 0, 1, ALARM_ERR_ALARM);
     q.clear();
     TEST_ASSERT_TRUE(q.empty());
     TEST_ASSERT_EQUAL_UINT8(0, q.snapshot(out, 8));
@@ -202,13 +202,13 @@ static void test_ack_parser(void) {
 /* ── wrap do anel com ack parcial ───────────────────────────────────────── */
 static void test_ring_reuse_after_ack(void) {
     AlarmQueue q(4);
-    for (int i = 0; i < 4; i++) q.push(100 + i, i, 0, 1, ALARM_ERR_NONE);
+    for (int i = 0; i < 4; i++) q.push(100 + i, i, 0, 1, ALARM_ERR_ALARM);
     uint16_t seqs[] = {1, 2};
     q.ack(seqs, 2);
     /* capacidade 4 com 2 ocupados: só mais 2 cabem; o 3º é recusado */
-    q.push(200, 5, 0, 1, ALARM_ERR_NONE);
-    q.push(201, 5, 0, 1, ALARM_ERR_NONE);
-    uint16_t refused = q.push(202, 5, 0, 1, ALARM_ERR_NONE);
+    q.push(200, 5, 0, 1, ALARM_ERR_ALARM);
+    q.push(201, 5, 0, 1, ALARM_ERR_ALARM);
+    uint16_t refused = q.push(202, 5, 0, 1, ALARM_ERR_ALARM);
     TEST_ASSERT_EQUAL_UINT16(0, refused);
     TEST_ASSERT_EQUAL_UINT16(1, q.dropped());
     TEST_ASSERT_EQUAL_UINT8(4, q.size());
@@ -233,28 +233,27 @@ static void fillDemoCfg(SystemConfig& cfg) {
     memset(&cfg, 0, sizeof(cfg));
     strncpy(cfg.sensors[0].hwId, "SENSOR1", sizeof(cfg.sensors[0].hwId) - 1);
     strncpy(cfg.alarmTel.lineTemplate,
-            "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"err\":\"{err}\",\"seq\":{seq}}",
+            "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"seq\":{seq}}",
             sizeof(cfg.alarmTel.lineTemplate) - 1);
 }
 
 static void test_alarm_line_default_ok(void) {
     SystemConfig cfg;
     fillDemoCfg(cfg);
-    AlarmRecord rec = { 1756250000, 1, 2530, 0, 0 /*CH_TEMP*/, 0 };
+    /* borda de limite: val + alarm presente, err removido (dominio ausente) */
+    AlarmRecord rec = { 1756250000, 1, 2530, 0, 0 /*CH_TEMP*/, 0, ALARM_ERR_ALARM };
     char out[256];
     int n = alarmFormatLine(rec, cfg, out, sizeof(out));
     TEST_ASSERT_TRUE(n > 0);
-    /* template default: "err":"{err}" é forma ASPADA — a chave permanece
-     * (JSON sempre válido); a remoção composta é opt-in (chave == token,
-     * token sem aspas — ver test_alarm_line_uppercase_compound). */
     TEST_ASSERT_EQUAL_STRING(
-        "{\"ts\":1756250000,\"id\":\"tSENSOR1\",\"val\":25.30,\"err\":\"\",\"seq\":1}",
+        "{\"ts\":1756250000,\"id\":\"tSENSOR1\",\"val\":25.30,\"alarm\":\"alarm\",\"seq\":1}",
         out);
 }
 
 static void test_alarm_line_default_err(void) {
     SystemConfig cfg;
     fillDemoCfg(cfg);
+    /* falha de hardware: val e alarm ausentes, err presente */
     AlarmRecord rec = { 1756250100, 2, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERROR };
     char out[256];
     alarmFormatLine(rec, cfg, out, sizeof(out));
@@ -268,35 +267,35 @@ static void test_alarm_line_individual_tokens(void) {
     fillDemoCfg(cfg);
     strncpy(cfg.alarmTel.lineTemplate, "{CH};{SLOT};{HWID};{VAL};{ERR}",
             sizeof(cfg.alarmTel.lineTemplate) - 1);
-    AlarmRecord rec = { 1756250200, 7, 1013 /* CH_HUM: scale 10 → 101.3 */,
-                        0 /* slot 0 = hwId SENSOR1 */, 1 /*CH_HUM*/, 0 };
+    AlarmRecord rec = { 1756250200, 7, 1013 /* CH_HUM: scale 10 -> 101.3 */,
+                        0 /* slot 0 = hwId SENSOR1 */, 1 /*CH_HUM*/, 0, ALARM_ERR_ALARM };
     char out[128];
     alarmFormatLine(rec, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("u;0;SENSOR1;101.3;", out);
 
-    /* registro de erro: VAL vazio, ERR presente */
+    /* registro de falha: VAL vazio, ERR presente (com aspas JSON) */
     rec.flags = ALARM_FLAG_ERR;
     rec.errCode = ALARM_ERR_ERROR;
     rec.value = HIST_NAN_SENTINEL;
     alarmFormatLine(rec, cfg, out, sizeof(out));
-    TEST_ASSERT_EQUAL_STRING("u;0;SENSOR1;;err", out);
+    TEST_ASSERT_EQUAL_STRING("u;0;SENSOR1;;\"err\"", out);
 }
 
 static void test_alarm_line_uppercase_compound(void) {
     SystemConfig cfg;
     fillDemoCfg(cfg);
-    /* chave == nome do token, token SEM aspas: a chave é removida quando o
-     * token está ausente (forma composta). */
+    /* chave == nome do token, token SEM aspas: a chave e removida quando o
+     * token esta ausente (forma composta). */
     strncpy(cfg.alarmTel.lineTemplate, "{\"VAL\":{VAL},\"ERR\":{ERR}}",
             sizeof(cfg.alarmTel.lineTemplate) - 1);
-    AlarmRecord ok = { 1, 1, 2530, 0, 0, 0 };
+    AlarmRecord ok = { 1, 1, 2530, 0, 0, 0, ALARM_ERR_ALARM };
     AlarmRecord er = { 2, 2, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERROR };
     char out[128];
     alarmFormatLine(ok, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("{\"VAL\":25.30}", out);
     alarmFormatLine(er, cfg, out, sizeof(out));
-    /* {ERR} sem aspas emite o literal cru — remoção da chave VAL comprovada */
-    TEST_ASSERT_EQUAL_STRING("{\"ERR\":err}", out);
+    /* {ERR} emite o codigo COM aspas (JSON valido); chave VAL removida */
+    TEST_ASSERT_EQUAL_STRING("{\"ERR\":\"err\"}", out);
 }
 
 static void test_alarm_line_id_fallback_no_hwid(void) {
@@ -304,12 +303,12 @@ static void test_alarm_line_id_fallback_no_hwid(void) {
     fillDemoCfg(cfg);
     cfg.sensors[0].hwId[0] = '\0';
     strncpy(cfg.alarmTel.lineTemplate, "{ID}", sizeof(cfg.alarmTel.lineTemplate) - 1);
-    AlarmRecord rec = { 1, 1, 2530, 0, 0, 0 };
+    AlarmRecord rec = { 1, 1, 2530, 0, 0, 0, ALARM_ERR_ALARM };
     char out[32];
     alarmFormatLine(rec, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("t0", out);
 
-    /* pressão: letra p */
+    /* pressao: letra p */
     rec.channel = 2; /* CH_PRESS */
     alarmFormatLine(rec, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("p0", out);
@@ -318,7 +317,7 @@ static void test_alarm_line_id_fallback_no_hwid(void) {
 static void test_alarm_line_csv(void) {
     SystemConfig cfg;
     fillDemoCfg(cfg);
-    AlarmRecord ok = { 1756250300, 4, 2530, 0, 0, 0 };
+    AlarmRecord ok = { 1756250300, 4, 2530, 0, 0, 0, ALARM_ERR_ALARM };
     AlarmRecord er = { 1756250400, 5, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERROR };
     char out[64];
     alarmFormatCsvLine(ok, cfg, out, sizeof(out));
@@ -330,33 +329,30 @@ static void test_alarm_line_csv(void) {
 static void test_alarm_line_action_codes(void) {
     SystemConfig cfg;
     fillDemoCfg(cfg);
-    strncpy(cfg.alarmTel.lineTemplate,
-            "{\"ts\":{TS},\"id\":\"{ID}\",\"err\":\"{err}\",\"seq\":{seq}}",
-            sizeof(cfg.alarmTel.lineTemplate) - 1);
 
-    /* limite silenciado: valor sentinela (marcador), err = "sil" */
-    AlarmRecord sil = { 1756250500, 6, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_SIL };
+    /* limite silenciado: marcador, alarm = alarm_sil (err removido) */
+    AlarmRecord sil = { 1756250500, 6, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_ALARM_SIL };
     char out[256];
     alarmFormatLine(sil, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING(
-        "{\"ts\":1756250500,\"id\":\"tSENSOR1\",\"err\":\"sil\",\"seq\":6}",
+        "{\"ts\":1756250500,\"id\":\"tSENSOR1\",\"alarm\":\"alarm_sil\",\"seq\":6}",
         out);
 
-    /* erro silenciado: err = "err_sil" */
+    /* erro silenciado: err = err_sil (alarm removido) */
     AlarmRecord esil = { 1756250600, 7, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERR_SIL };
     alarmFormatLine(esil, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING(
         "{\"ts\":1756250600,\"id\":\"tSENSOR1\",\"err\":\"err_sil\",\"seq\":7}",
         out);
 
-    /* limite desativado: err = "off" */
-    AlarmRecord off = { 1756250700, 8, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_OFF };
+    /* limite desativado: alarm = alarm_off */
+    AlarmRecord off = { 1756250700, 8, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_ALARM_OFF };
     alarmFormatLine(off, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING(
-        "{\"ts\":1756250700,\"id\":\"tSENSOR1\",\"err\":\"off\",\"seq\":8}",
+        "{\"ts\":1756250700,\"id\":\"tSENSOR1\",\"alarm\":\"alarm_off\",\"seq\":8}",
         out);
 
-    /* erro desativado: err = "err_off" */
+    /* erro desativado: err = err_off */
     AlarmRecord eoff = { 1756250800, 9, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERR_OFF };
     alarmFormatLine(eoff, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING(
@@ -368,23 +364,22 @@ static void test_alarm_csv_action_codes(void) {
     SystemConfig cfg;
     fillDemoCfg(cfg);
     char out[64];
-    AlarmRecord sil = { 1756250500, 6, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_SIL };
+    AlarmRecord sil = { 1756250500, 6, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_ALARM_SIL };
     alarmFormatCsvLine(sil, cfg, out, sizeof(out));
-    TEST_ASSERT_EQUAL_STRING("6;1756250500;tSENSOR1;sil", out);
+    TEST_ASSERT_EQUAL_STRING("6;1756250500;tSENSOR1;alarm_sil", out);
 
     AlarmRecord esil = { 1756250600, 7, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERR_SIL };
     alarmFormatCsvLine(esil, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("7;1756250600;tSENSOR1;err_sil", out);
 
-    AlarmRecord off = { 1756250700, 8, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_OFF };
+    AlarmRecord off = { 1756250700, 8, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_ALARM_OFF };
     alarmFormatCsvLine(off, cfg, out, sizeof(out));
-    TEST_ASSERT_EQUAL_STRING("8;1756250700;tSENSOR1;off", out);
+    TEST_ASSERT_EQUAL_STRING("8;1756250700;tSENSOR1;alarm_off", out);
 
     AlarmRecord eoff = { 1756250800, 9, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERR_OFF };
     alarmFormatCsvLine(eoff, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("9;1756250800;tSENSOR1;err_off", out);
 }
-
 static void test_alarm_line_literal_braces_passthrough(void) {
     SystemConfig cfg;
     fillDemoCfg(cfg);

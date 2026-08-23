@@ -15,19 +15,21 @@
  *   {SLOT}  índice do slot (0..15)
  *   {CH}    letra do canal (t/u/p/l)
  *   {VAL}   valor formatado com os decimais do canal — VAZIO em falha
- *           (aliases minúsculos {val}/{err}/{seq} aceitos)
- *   {ERR}   código de status (alarmErrCodeStr): "" (limite ativo),
- *           "err" (erro ativo), "sil"/"err_sil" (silenciado),
- *           "off"/"err_off" (desativado) — VAZIO quando ok
+ *           (aliases minúsculos {val}/{seq} aceitos)
+ *   {ALARM} código do domínio LIMITE com aspas JSON: "alarm", "alarm_sil",
+ *           "alarm_off" — VAZIO em registros de falha (alias {alarm})
+ *   {ERR}   código do domínio FALHA de hardware com aspas JSON: "err",
+ *           "err_sil", "err_off" — VAZIO em registros de limite (alias {err})
  *   {SEQ}   sequência do boot (chave da confirmação de recebimento)
  *
- * Formas compostas: quando a chave tem o MESMO nome do token
- * ("val":{val}, "err":"{err}"), a chave inteira é removida se o token está
- * ausente — o template default produz JSON válido nos vários casos:
- *   ok:  {"ts":...,"id":"tX","val":25.30,"seq":1}
- *   err: {"ts":...,"id":"tX","err":"err","seq":2}
- *   sil: {"ts":...,"id":"tX","err":"sil","seq":3}
- *   off: {"ts":...,"id":"tX","err":"off","seq":4}
+ * Formas compostas: quando a chave tem o MESMO nome do token e o token está
+ * SEM aspas ("alarm":{alarm}, "err":{err}), a chave inteira é removida se o
+ * token está ausente — o template default produz JSON válido e só a chave
+ * do domínio relevante aparece:
+ *   limite:      {"ts":...,"id":"tX","val":25.30,"alarm":"alarm","seq":1}
+ *   lim. sil:    {"ts":...,"id":"tX","alarm":"alarm_sil","seq":2}
+ *   falha:       {"ts":...,"id":"tX","err":"err","seq":3}
+ *   err. desat:  {"ts":...,"id":"tX","err":"err_off","seq":4}
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
@@ -57,16 +59,32 @@ inline int alarmChannelDecimals(uint8_t channel) {
 	return (channel == CH_TEMP) ? 2 : 1;
 }
 
-/** Código de status do campo {err} (vocabulário em AlarmQueue.h). */
-inline const char* alarmErrCodeStr(uint8_t errCode) {
+/** Código do campo "alarm" (domínio de LIMITE) — "" quando o registro é
+ * de falha de hardware. */
+inline const char* alarmCodeAlarmField(uint8_t errCode) {
+	switch (errCode) {
+		case ALARM_ERR_ALARM:     return "alarm";
+		case ALARM_ERR_ALARM_SIL: return "alarm_sil";
+		case ALARM_ERR_ALARM_OFF: return "alarm_off";
+		default:                  return "";
+	}
+}
+
+/** Código do campo "err" (domínio de FALHA de hardware) — "" quando o
+ * registro é de limite. */
+inline const char* alarmCodeErrField(uint8_t errCode) {
 	switch (errCode) {
 		case ALARM_ERR_ERROR:   return "err";
-		case ALARM_ERR_SIL:     return "sil";
 		case ALARM_ERR_ERR_SIL: return "err_sil";
-		case ALARM_ERR_OFF:     return "off";
 		case ALARM_ERR_ERR_OFF: return "err_off";
 		default:                return "";
 	}
+}
+
+/** Único código que carrega valor de leitura: a borda de limite ("alarm").
+ * Ações (sil/off) e falhas (err*) são marcadores sem valor. */
+inline bool alarmCodeHasValue(uint8_t errCode) {
+	return errCode == ALARM_ERR_ALARM;
 }
 
 /** Linha CSV fixa: seq;ts;id;v — o valor vira o código de status quando o
@@ -76,14 +94,17 @@ inline int alarmFormatCsvLine(const AlarmRecord& rec, const SystemConfig& cfg, c
 	const ChannelInfo& ci = channelInfo(rec.channel);
 	char idBuf[24];
 	alarmBuildId(rec, cfg, idBuf, sizeof(idBuf));
-	if (rec.errCode != ALARM_ERR_NONE) {
-		return snprintf(dest, cap, "%u;%lu;%s;%s", (unsigned)rec.seq,
-		                (unsigned long)rec.epoch, idBuf, alarmErrCodeStr(rec.errCode));
+	if (alarmCodeHasValue(rec.errCode)) {
+		return snprintf(dest, cap, "%u;%lu;%s;%.*f", (unsigned)rec.seq,
+		                (unsigned long)rec.epoch, idBuf,
+		                alarmChannelDecimals(rec.channel),
+		                (double)((float)rec.value / ci.scale));
 	}
-	return snprintf(dest, cap, "%u;%lu;%s;%.*f", (unsigned)rec.seq,
-	                (unsigned long)rec.epoch, idBuf,
-	                alarmChannelDecimals(rec.channel),
-	                (double)((float)rec.value / ci.scale));
+	/* marcador: o código do domínio (alarm* ou err*) no lugar do valor */
+	const char* marker = alarmCodeAlarmField(rec.errCode);
+	if (marker[0] == '\0') marker = alarmCodeErrField(rec.errCode);
+	return snprintf(dest, cap, "%u;%lu;%s;%s", (unsigned)rec.seq,
+	                (unsigned long)rec.epoch, idBuf, marker);
 }
 
 /** Formata uma linha de alarme pelo template cfg.alarmTel.lineTemplate
@@ -108,13 +129,18 @@ inline int alarmFormatLine(const AlarmRecord& rec, const SystemConfig& cfg,
 	char chBuf[2];
 	chBuf[0] = ci.letter; chBuf[1] = '\0';
 
-	/* Código de status do {err} — "" para limite ativo; "err"/"sil"/"off"
-	 * com os sufixos de ação. O valor só existe quando NÃO é marcador. */
-	const bool isErr = (rec.flags & ALARM_FLAG_ERR) != 0;
+	/* Dois domínios: "alarm" (limite) e "err" (falha de hardware). Os
+	 * tokens emitem o valor COM ASPAS (JSON válido) — a forma composta
+	 * "chave":{token} sem aspas remove a chave quando o domínio está
+	 * ausente. O valor de leitura só existe na borda de limite. */
 	char valBuf[16] = "";
-	char errBuf[8] = "";
-	strlcpy(errBuf, alarmErrCodeStr(rec.errCode), sizeof(errBuf));
-	if (!isErr && rec.value != HIST_NAN_SENTINEL) {
+	char alarmTok[16] = "";
+	char errTok[16] = "";
+	const char* af = alarmCodeAlarmField(rec.errCode);
+	const char* ef = alarmCodeErrField(rec.errCode);
+	if (af[0] != '\0') snprintf(alarmTok, sizeof(alarmTok), "\"%s\"", af);
+	if (ef[0] != '\0') snprintf(errTok, sizeof(errTok), "\"%s\"", ef);
+	if (alarmCodeHasValue(rec.errCode) && rec.value != HIST_NAN_SENTINEL) {
 		snprintf(valBuf, sizeof(valBuf), "%.*f",
 		         alarmChannelDecimals(rec.channel), (double)((float)rec.value / ci.scale));
 	}
@@ -154,12 +180,20 @@ inline int alarmFormatLine(const AlarmRecord& rec, const SystemConfig& cfg,
 			val = valBuf;
 			compKeyLen = 3; memcpy(compKey, "val", 4);
 			tokenChars = 5;
+		} else if (remaining >= 7 && memcmp(tpl + ti, "{ALARM}", 7) == 0) {
+			val = alarmTok;
+			compKeyLen = 5; memcpy(compKey, "ALARM", 6);
+			tokenChars = 7;
+		} else if (remaining >= 7 && memcmp(tpl + ti, "{alarm}", 7) == 0) {
+			val = alarmTok;
+			compKeyLen = 5; memcpy(compKey, "alarm", 6);
+			tokenChars = 7;
 		} else if (remaining >= 5 && memcmp(tpl + ti, "{ERR}", 5) == 0) {
-			val = errBuf;
+			val = errTok;
 			compKeyLen = 3; memcpy(compKey, "ERR", 4);
 			tokenChars = 5;
 		} else if (remaining >= 5 && memcmp(tpl + ti, "{err}", 5) == 0) {
-			val = errBuf;
+			val = errTok;
 			compKeyLen = 3; memcpy(compKey, "err", 4);
 			tokenChars = 5;
 		} else if (remaining >= 5 && memcmp(tpl + ti, "{SEQ}", 5) == 0) {

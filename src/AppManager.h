@@ -153,7 +153,7 @@ private:
  /** Borda confirmada → enfileira em _telemetryMgr->pushAlarm( ). */
  void handleAlarmTelemetryEdges( );
  /** Registro de AÇÃO (silenciar/desativar) na 2ª linha de telemetria — o
- * {err} carrega o código com sufixo de estado (err_sil/sil/err_off/off),
+ * o registro carrega o código do domínio (alarm* ou err*) com sufixo
  * escolhido entre os dois códigos pelo estado de erro do slot. */
  void pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCodeLim);
 

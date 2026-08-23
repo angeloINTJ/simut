@@ -4777,22 +4777,23 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             </div>
                             <div class="col">
                                 <span class="highlight">{CH}</span> - Channel letter<br>
-                                <span class="highlight">{VAL}</span> - Value (empty on failure)<br>
-                                <span class="highlight">{ERR}</span> - Literal "err" (empty when OK)<br>
+                                <span class="highlight">{VAL}</span> - Value (only on limit edge)<br>
+                                <span class="highlight">{ALARM}</span> - Limit code: "alarm", "alarm_sil", "alarm_off"<br>
+                                <span class="highlight">{ERR}</span> - HW-error code: "err", "err_sil", "err_off"<br>
                                 <span class="highlight">{SEQ}</span> - Sequence (receipt-ack key)<br>
                             </div>
                         </div>
                         <div style="font-size:0.8rem; color:var(--txt); margin-bottom:15px; border-left:3px solid var(--acc); padding-left:10px;">
                             <b data-i18n="al_smart">Smart keys</b> <span data-i18n="al_smart2">(key name = token, lowercase or uppercase):</span><br>
                             <span class="highlight">"val":{val}</span> &rarr; <span data-i18n="al_smart_val">number, or the whole key is removed on failure</span><br>
-                            <span class="highlight">"err":"{err}"</span> &rarr; <span data-i18n="al_smart_err">"err", or the whole key is removed when OK</span>
+                            <span class="highlight">"alarm":{alarm}</span> &amp; <span class="highlight">"err":{err}</span> &rarr; <span data-i18n="al_smart_err">code, or the whole key is removed when the other domain is active</span>
                         </div>
 
                         <label data-i18n="cfg_tpl1">1. Global Template (The Envelope)</label>
                         <input type="text" id="a_glob" name="a_glob" maxlength="255" placeholder='{"dev":"{DEV}", "mac":"{MAC}", "alarms":[{DATA}]}' oninput="renderAlarmPreview()">
 
                         <label data-i18n="cfg_tpl2">2. Row Template (Single Alarm)</label>
-                        <input type="text" id="a_line" name="a_line" maxlength="511" placeholder='{"ts":{TS}, "id":"{ID}", "val":{val}, "err":"{err}", "seq":{seq}}' oninput="renderAlarmPreview()">
+                        <input type="text" id="a_line" name="a_line" maxlength="511" placeholder='{"ts":{TS}, "id":"{ID}", "val":{val}, "alarm":{alarm}, "err":{err}, "seq":{seq}}' oninput="renderAlarmPreview()">
 
                         <label data-i18n="cfg_tpl3">3. Separator</label>
                         <input type="text" id="a_sep" name="a_sep" maxlength="7" placeholder="," oninput="renderAlarmPreview()">
@@ -4893,8 +4894,10 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         function _previewCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _sensorTokenResolver); }
 
         /* Resolver da linha de alarmes — mirror do alarmFormatLine (firmware).
-           {VAL} ausente em falha; {ERR} = "err" ou ausente; compKey segue a
-           GRAFIA do token ("val"/"VAL", "err"/"ERR", "seq"/"SEQ"). */
+           Dois domínios: rec.alarm (limite) e rec.err (falha), strings ou
+           null. {VAL} só na borda de limite; {ALARM}/{ERR} emitem o código
+           COM aspas JSON (forma composta remove a chave do outro domínio);
+           compKey segue a GRAFIA do token. */
         function _alarmTokenResolver(rec, tpl, ti) {
             let val = null, compKey = '', tc = 0;
             const at = (s) => tpl.substr(ti, s.length) === s;
@@ -4903,8 +4906,9 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             else if (at('{HWID}')) { val = rec.hwid; tc = 6; }
             else if (at('{SLOT}')) { val = String(rec.slot); tc = 6; }
             else if (at('{CH}')) { val = rec.ch; tc = 4; }
-            else if (at('{VAL}') || at('{val}')) { compKey = tpl.substr(ti + 1, 3); val = rec.err ? null : rec.val; tc = 5; }
-            else if (at('{ERR}') || at('{err}')) { compKey = tpl.substr(ti + 1, 3); val = rec.err ? 'err' : null; tc = 5; }
+            else if (at('{VAL}') || at('{val}')) { compKey = tpl.substr(ti + 1, 3); val = (rec.alarm === 'alarm') ? rec.val : null; tc = 5; }
+            else if (at('{ALARM}') || at('{alarm}')) { compKey = tpl.substr(ti + 1, 5); val = rec.alarm ? '"' + rec.alarm + '"' : null; tc = 7; }
+            else if (at('{ERR}') || at('{err}')) { compKey = tpl.substr(ti + 1, 3); val = rec.err ? '"' + rec.err + '"' : null; tc = 5; }
             else if (at('{SEQ}') || at('{seq}')) { compKey = tpl.substr(ti + 1, 3); val = String(rec.seq); tc = 5; }
             return tc ? { val, hwid: null, compKey, tc } : null;
         }
@@ -4965,9 +4969,11 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         }
 
         function _alarmDemoBatch() {
+            const hw = (_devSensors[0] && _devSensors[0].hwid) || 'SENSOR1';
             return [
-                { ts: 1700000100, id: 't' + (_devSensors[0] && _devSensors[0].hwid || 'SENSOR1'), hwid: (_devSensors[0] && _devSensors[0].hwid) || 'SENSOR1', slot: 0, ch: 't', val: '25.30', err: false, seq: 1 },
-                { ts: 1700000200, id: 't' + (_devSensors[0] && _devSensors[0].hwid || 'SENSOR1'), hwid: (_devSensors[0] && _devSensors[0].hwid) || 'SENSOR1', slot: 0, ch: 't', val: '', err: true, seq: 2 }
+                { ts: 1700000100, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: '25.30', alarm: 'alarm', err: null, seq: 1 },
+                { ts: 1700000200, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: null, alarm: null, err: 'err', seq: 2 },
+                { ts: 1700000300, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: null, alarm: 'alarm_sil', err: null, seq: 3 }
             ];
         }
 
@@ -5001,8 +5007,10 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             return _alarmCustomLine(tpl, r);
         }
         function _alarmCsv(batch) {
-            return 'seq;ts;id;v\n' + batch.map(r =>
-                r.seq + ';' + r.ts + ';' + r.id + ';' + (r.err ? 'err' : r.val)).join('\n') + '\n';
+            return 'seq;ts;id;v\n' + batch.map(r => {
+                const v = (r.alarm === 'alarm') ? r.val : (r.alarm || r.err || '');
+                return r.seq + ';' + r.ts + ';' + r.id + ';' + v;
+            }).join('\n') + '\n';
         }
 
         function renderPreview() {
