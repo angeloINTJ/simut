@@ -96,10 +96,12 @@ void DisplayManager::drawAlarmAction( ) {
 		cv->setCursor((320 - bw) / 2, 32 + yOff);
 		cv->print(headerBuf);
 
-		/* Silence button (y_screen=60..105) — visible in strips 1 and 2 */
+		/* Silence button (y_screen=60..105) — visible in strips 1 and 2.
+		 * cautionBg é laranja-escuro: usa o branco do erro (C_ALARM_ERR_TEXT),
+		 * não o alarmText (que virou PRETO para o fundo amarelo). */
 		cv->fillRoundRect(btnX, 60 + yOff, btnW, btnH, btnR, C_CAUTION_BG);
 		cv->setFont(&simutFont12pt);
-		cv->setTextColor(C_ALARM_TEXT);
+		cv->setTextColor(C_ALARM_ERR_TEXT);
 		cv->getTextBounds(silTxt, 0, 0, &bx, &by, &bw, &bh);
 		cv->setCursor(btnX + (btnW - bw) / 2, 90 + yOff);
 		cv->print(silTxt);

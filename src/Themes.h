@@ -58,11 +58,14 @@ struct ThemePalette {
  /* State colors — alarm/caution/selection chrome and the graph stamp.
  * Historically hardcoded in the render code; themeable since the
  * blind-spot sweep. Every text/bg pair here must hold contrast on
- * its own: alarmText/alarmTextDim sit on alarmBg, cautionBg and
- * selBg; alarmBorder sits on bgMain and cardBg. */
+ * its own: alarmText/alarmTextDim sit on alarmBg (amarelo brilhante do
+ * alarme de LIMITE — preto p/ contraste); selBg e cautionBg desenham o
+ * próprio texto claro (C_TEXT_MAIN / C_ALARM_ERR_TEXT); alarmBorder
+ * (vermelho) senta em bgMain e cardBg e contorna o painel em alarme nas
+ * duas fases do flash. */
  uint16_t alarmBg; /**< Alarm fill: flashing panel/buttons, destructive confirm */
- uint16_t alarmText; /**< Primary text over alarmBg/cautionBg/selBg */
- uint16_t alarmTextDim; /**< Secondary text/icons over alarmBg/selBg */
+ uint16_t alarmText; /**< Primary text over alarmBg (preto no amarelo) */
+ uint16_t alarmTextDim; /**< Secondary text/icons over alarmBg */
  uint16_t alarmBorder; /**< Alarm outline: panel border, page-button ring */
  uint16_t cautionBg; /**< Caution action fill (silence button) */
  uint16_t selBg; /**< Top-panel background while selecting a slot */

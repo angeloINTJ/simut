@@ -739,22 +739,34 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  if (isSlotAlarming(slotIdx) || isSlotErrAlarming(slotIdx)) forceNameRedraw = true;
 
  /* Top panel in interactive (selection) mode: state-override chrome.
- * Reuses the alarm TEXT pair over its own selBg — themes must keep
- * alarmText readable on both alarmBg and selBg. */
+ * Usa o BRANCO FIXO (C_ALARM_ERR_TEXT = 0xFFFF) sobre selBg — o alarmText
+ * virou PRETO para o fundo amarelo do alarme de limite e preto sobre selBg
+ * escuro seria ilegível; C_TEXT_MAIN de temas claros também escurece sobre
+ * o mesmo selBg. O branco garante contraste em todos os temas (todos os
+ * selBg shipped são escuros). */
  bool isSelecting = (&panel == &_topPanel && !_topPanel.fixed);
  if (isSelecting) {
  panelBg = C_SEL_BG;
  isRedPhase = true;  /* mono text rendering like alarm mode */
- nameColor = C_ALARM_TEXT;
- unitColor = C_ALARM_TEXT;
+ alarmFg = C_ALARM_ERR_TEXT;
+ alarmFgDim = C_ALARM_ERR_TEXT;
+ nameColor = C_ALARM_ERR_TEXT;
+ unitColor = C_ALARM_ERR_TEXT;
  }
 
  /* Geometry lives at the top of this file: drawInterfaceFixed( ) fills the
   * complement of these rectangles, so the two must not drift apart. */
 
 
- bool slotAlarm = (isSlotAlarming(slotIdx) || isSlotErrAlarming(slotIdx)) && _alarmFlashPhase;
- uint16_t borderColor = slotAlarm ? (isErrPhase ? C_ALARM_ERR_TEXT : C_ALARM_BORDER) : C_ACCENT_HIGH;
+ /* Borda do alarme de LIMITE: vermelha nas DUAS fases do flash — com o
+ * painel amarelo (fase acesa) e com o painel normal (fase apagada), o
+ * alarme segue sinalizado na borda. Erro de sensor (âmbar) mantém a
+ * borda branca só na fase acesa. Silenciado não marca borda. */
+ bool limAlarmActive = isSlotAlarming(slotIdx) && !_alarmSilenced;
+ bool errAlarmActive = isSlotErrAlarming(slotIdx) && !_alarmSilenced;
+ uint16_t borderColor = C_ACCENT_HIGH;
+ if (errAlarmActive) borderColor = _alarmFlashPhase ? C_ALARM_ERR_TEXT : C_ACCENT_HIGH;
+ else if (limAlarmActive) borderColor = C_ALARM_BORDER;
  if (isSelecting) borderColor = C_TEXT_OFF;
 
  if (panel.showMinMax) {
