@@ -545,13 +545,10 @@ void AppManager::checkAlarmConditions( ) {
  int8_t firstErrSlot = -1;
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
- /* Desativado via tela de ação (bit set + alarmsActive=false): o erro
- * NÃO relatcha no display — o âmbar não volta. Reativar o slot limpa
- * o bit (self-heal abaixo) e os erros voltam. */
- if (cfg.sensors[i].alarmsActive) {
- _alarmDeactBits &= (uint16_t)~(1u << i);
- }
- if ((_alarmDeactBits & (1u << i)) != 0 && !cfg.sensors[i].alarmsActive) continue;
+ /* ERRO mutado por slot (desativar a falha via tela de ação): não
+ * relatcha no display — INDEPENDENTE do limite, que continua armado
+ * (alarmsActive intacto). Reativar o alarme do slot limpa o mute. */
+ if (_displayMgr->isAlarmErrMuted(i)) continue;
  for (const auto &s : sensors) {
  if (s.config.pins[0] != cfg.sensors[i].pins[0]) continue;
  if (s.inErrorState || s.hardwareMismatch) {
@@ -647,17 +644,13 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 		/* ERRO de sensor (sem comunicação OU trocado): independente de
 		 * alarmsActive — falha é sempre reportada na linha de alarmes, mesmo
 		 * com os limites de alarme desligados para o slot. EXCEÇÃO (por slot):
-		 * DESATIVADO via tela de ação → alarmsActive=false + bit _alarmDeactBits
-		 * — o erro não relatcha (o registro err_off já documentou a ação).
-		 * Reativar o slot (web/CLI) limpa o bit abaixo e os erros voltam.
-		 * Os demais slots não são afetados (sem estado global). */
-		if (cfg.sensors[i].alarmsActive) {
-			/* self-heal: slot reativado deixa de estar desativado */
-			_alarmDeactBits &= (uint16_t)~(1u << i);
-		}
+		 * ERRO MUTADO via tela de ação (isAlarmErrMuted) — o registro err_off
+		 * documentou a ação e o erro não relatcha. O LIMITE do mesmo slot é
+		 * INDEPENDENTE e continua armado (alarmsActive intacto). Reativar o
+		 * alarme do slot (web/CLI) limpa o mute. */
 		const bool errNow = (live->inErrorState || live->hardwareMismatch);
 		if (errNow) {
-			if ((_alarmDeactBits & (1u << i)) != 0) {
+			if (_displayMgr->isAlarmErrMuted(i)) {
 				_alarmErrBits &= (uint16_t)~(1u << i);
 				_alarmTripBits[i] = 0;
 				_alarmCandBits[i] = 0;

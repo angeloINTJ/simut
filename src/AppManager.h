@@ -150,11 +150,6 @@ private:
  uint8_t _alarmTripBits[MAX_SENSORS] = {0};
  uint8_t _alarmCandBits[MAX_SENSORS] = {0};
  uint16_t _alarmErrBits = 0;
- /** Bit por slot marcado pela DESATIVAÇÃO via tela de ação (RAM only):
- * com alarmsActive=false e o bit setado, o ERRO também não relatcha —
- * o sensor desativado fica mudo; os demais seguem com monitoramento.
- * Reativar (web/CLI) limpa o bit automaticamente em checkAlarmConditions. */
- uint16_t _alarmDeactBits = 0;
  /** Borda confirmada → enfileira em _telemetryMgr->pushAlarm( ). */
  void handleAlarmTelemetryEdges( );
  /** Registro de AÇÃO (silenciar/desativar) na 2ª linha de telemetria — o

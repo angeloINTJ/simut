@@ -300,9 +300,11 @@ public:
 
 
 	void setAlarmSilenced(bool silenced, uint32_t endTime = 0);
-	/* setAlarmDeactivated/isAlarmDeactivated removidos: o estado global
-	 * fazia a desativacao de um sensor suprimir erros de TODOS — a
-	 * desativacao agora e por slot (AppManager::_alarmDeactBits). */
+	/* Mute de ERRO por slot (desativar um erro não toca o limite do mesmo
+	 * slot — alarme de limite e falha são independentes). A web/CLI limpam
+	 * ao reativar o alarme do slot. */
+	void setAlarmErrMuted(int8_t slotIdx, bool muted);
+	bool isAlarmErrMuted(int8_t slotIdx) const;
 	bool isAlarmSilenced( ) const { return _alarmSilenced; }
 	uint32_t getAlarmSilenceEnd( ) const { return _alarmSilenceEnd; }
 	int8_t getAlarmActionSlot( ) const { return _alarmActionSlot; }
@@ -569,6 +571,7 @@ private:
 
 
 	volatile bool _alarmSilenced = false;
+	volatile uint16_t _alarmErrMuteMask = 0; /* bit por slot: erro mutado */
 	volatile uint32_t _alarmSilenceEnd = 0;
 	int8_t _alarmActionSlot = -1;
 

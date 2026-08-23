@@ -959,13 +959,14 @@ void WebManager::handleApiCommitAll( ) {
 						}
 					}
 					rec->alarmsActive = jsonBoolValue(obj, "active", rec->alarmsActive);
+					/* Reativar o alarme deste slot pelo web limpa o MUTE DE ERRO
+					 * do mesmo slot — erro e limite são independentes. */
+					if (rec->alarmsActive && _displayRef) {
+						_displayRef->setAlarmErrMuted(idx, false);
+					}
 				}
 				objStart = objEnd + 1;
 			}
-
-			/* Reativar alarmes pelo web: o self-heal em checkAlarmConditions
-			 * limpa o bit de desativação dos slots com alarmsActive=true — o
-			 * âmbar de erro volta a reportar sem estado global. */
 		}
 
 		/* Sounds: parsed and applied via SoundSettingsState + fillConfig. */

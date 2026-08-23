@@ -265,13 +265,22 @@ void AppManager::core0Yield( ) {
  _pendingAlarmDeactivate = false;
 
  SystemConfig &cfg = _storageMgr->getConfig( );
- /* Desativação POR SLOT, RAM only: só o sensor da tela de ação fica
- * desativado (alarmsActive=false + bit de erro mudo). Os demais sensores
- * continuam com o monitoramento de limite E de erro — antes isso zerava
- * todos os slots e o estado global suprimia erros de todo o painel. */
+ /* Desativação POR SLOT E POR DOMÍNIO (RAM only): o domínio ATIVO do slot
+ * da tela de ação é que é desligado — se o sensor está em ERRO, muta só o
+ * erro (o LIMITE permanece armado e dispara se o valor sair da faixa após
+ * o sensor se reestabelecer); se está em LIMITE, desliga só o limite (o
+ * erro continua reportando). Um domínio é independente do outro. */
  if (_alarmDeactivateSlot >= 0 && _alarmDeactivateSlot < MAX_SENSORS) {
+ const bool errNow = _displayMgr->isSlotErrAlarming(_alarmDeactivateSlot);
+ if (errNow) {
+ _displayMgr->setAlarmErrMuted(_alarmDeactivateSlot, true);
+ LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, _alarmDeactivateSlot,
+ "erro mutado (limite permanece)");
+ } else {
  cfg.sensors[_alarmDeactivateSlot].alarmsActive = false;
- _alarmDeactBits |= (uint16_t)(1u << _alarmDeactivateSlot);
+ LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, _alarmDeactivateSlot,
+ "limite desligado (erro permanece)");
+ }
  }
 
  _soundMgr->stopAlarm( );
