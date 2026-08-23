@@ -1235,7 +1235,9 @@ void DisplayManager::loopCore1( ) {
 
 				mutex_enter_blocking(&_stateMutex);
 				snap = _sharedState;
-				if (!snap.topSlotValid) {
+				/* Mesmo guarda do render(): espelha só se interativo — topo fixado
+				 * em sensor de erro (inválido) mantém o próprio painel. */
+				if (!_topPanel.fixed && !snap.topSlotValid) {
 				snap.topSlotTemp = snap.slotTemp; snap.topSlotHum = snap.slotHum;
 				snap.topSlotType = snap.slotType; snap.topSlotValid = snap.slotValid;
 				safeCopy(snap.topSlotName, snap.slotName, 31);
@@ -1530,7 +1532,13 @@ bool DisplayManager::pullSnapshot(SystemState& localSnapshot) {
 #if !SIMUT_DISPLAY_ALPHA
 void DisplayManager::render(const SystemState& state) {
  SystemState st = state;
- if (!st.topSlotValid) {
+ /* Espelho do painel inferior para o topo SÓ quando o topo é interativo
+ * (segue a seleção). O espelho por topSlotValid=false era o bug: um topo
+ * FIXADO num sensor em erro (sensor ausente → inválido) tem topSlotValid
+ * falso e o render substituía o painel do erro pelos dados do painel
+ * inferior — "trazendo o sensor de baixo para cima". Com o topo fixado,
+ * o painel superior mantém os próprios dados (mesmo inválidos). */
+ if (!_topPanel.fixed && !st.topSlotValid) {
  st.topSlotTemp = st.slotTemp; st.topSlotHum = st.slotHum;
  st.topSlotType = st.slotType; st.topSlotValid = st.slotValid;
  safeCopy(st.topSlotName, st.slotName, 31);

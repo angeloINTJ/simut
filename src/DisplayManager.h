@@ -621,8 +621,10 @@ private:
 	 		pushUiEvent(ev); /* single choke point — invariant 2. */
 	 	}
 	 }
-	 /* Mirror slot* data when interactive, uninitialized, or showing same sensor */
-	 if (!_topPanel.fixed || !_sharedState.topSlotValid ||
+	 /* Mirror slot* data when interactive or showing the same sensor.
+	  * NOT when fixed on a different slot: a pinned sensor in ERROR (missing
+	  * → topSlotValid=false) must keep its own panel, not mirror the bottom's. */
+	 if (!_topPanel.fixed ||
 	     _sharedState.topSlotIdx == _sharedState.selectedSlotIdx) {
 	 _sharedState.topSlotTemp = _sharedState.slotTemp;
 	 _sharedState.topSlotHum  = _sharedState.slotHum;
