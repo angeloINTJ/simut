@@ -545,18 +545,34 @@ void AppManager::checkAlarmConditions( ) {
  int8_t firstErrSlot = -1;
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
- /* ERRO mutado por slot (desativar a falha via tela de ação): não
- * relatcha no display — INDEPENDENTE do limite, que continua armado
- * (alarmsActive intacto). Reativar o alarme do slot limpa o mute. */
- if (_displayMgr->isAlarmErrMuted(i)) continue;
+
+ /* Restabelecimento (v21): sensor voltou do erro → REGENERA o alarme de
+ * erro do slot (limpa o mute). Se ele falhar de novo, o alarme de erro
+ * dispara de novo — display e telemetria — INDEPENDENTE do limite. O mute
+ * só segura a falha ATUAL; o próximo episódio volta a alarmar. */
+ const RuntimeSensor* rs = nullptr;
  for (const auto &s : sensors) {
- if (s.config.pins[0] != cfg.sensors[i].pins[0]) continue;
- if (s.inErrorState || s.hardwareMismatch) {
+ if (s.config.pins[0] == cfg.sensors[i].pins[0]) { rs = &s; break; }
+ }
+ const bool errNow = (rs != nullptr) && (rs->inErrorState || rs->hardwareMismatch);
+ if (!errNow) {
+ if (_displayMgr->isAlarmErrMuted(i)) {
+ _displayMgr->setAlarmErrMuted(i, false);
+ LOG_CODE(LOG_INFO, "APP", APP_ALARM_CLEARED, i,
+ "Error recovered - error alarm re-armed");
+ }
+ continue;
+ }
+
+ /* ERRO mutado por slot (desativar a falha via tela de ação): não
+ * relatcha no display ENQUANTO a falha persistir — INDEPENDENTE do
+ * limite, que continua armado (alarmsActive intacto). O mute é limpo
+ * pelo restabelecimento (acima) ou por reativar o alarme do slot
+ * (CLI/web). */
+ if (_displayMgr->isAlarmErrMuted(i)) continue;
+
  errMask |= (1 << i);
  if (firstErrSlot < 0) firstErrSlot = i;
- }
- break;
- }
  }
  const bool anyErr = (errMask != 0);
  const bool triggerAny = anyAlarm || anyErr;
