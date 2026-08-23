@@ -75,7 +75,7 @@ public:
   * pelo canal e atribui o seq. err=true grava HIST_NAN_SENTINEL no valor.
   * Arma o envio imediato (updateAlarms não espera o intervalo).
   * @return seq atribuído, ou 0 quando recusado (estouro) / linha desligada. */
- uint16_t pushAlarm(uint8_t slot, uint8_t channel, float value, bool err);
+ uint16_t pushAlarm(uint8_t slot, uint8_t channel, float value, uint8_t errCode);
 
  uint8_t alarmQueueSize( ) const { return _alarmQueue.size( ); }
  uint16_t alarmDropped( ) const { return _alarmQueue.dropped( ); }

@@ -16,14 +16,18 @@
  *   {CH}    letra do canal (t/u/p/l)
  *   {VAL}   valor formatado com os decimais do canal — VAZIO em falha
  *           (aliases minúsculos {val}/{err}/{seq} aceitos)
- *   {ERR}   literal "err" quando o sensor estava em falha — VAZIO quando ok
+ *   {ERR}   código de status (alarmErrCodeStr): "" (limite ativo),
+ *           "err" (erro ativo), "sil"/"err_sil" (silenciado),
+ *           "off"/"err_off" (desativado) — VAZIO quando ok
  *   {SEQ}   sequência do boot (chave da confirmação de recebimento)
  *
  * Formas compostas: quando a chave tem o MESMO nome do token
  * ("val":{val}, "err":"{err}"), a chave inteira é removida se o token está
- * ausente — o template default produz JSON válido nos dois casos:
+ * ausente — o template default produz JSON válido nos vários casos:
  *   ok:  {"ts":...,"id":"tX","val":25.30,"seq":1}
  *   err: {"ts":...,"id":"tX","err":"err","seq":2}
+ *   sil: {"ts":...,"id":"tX","err":"sil","seq":3}
+ *   off: {"ts":...,"id":"tX","err":"off","seq":4}
  *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
@@ -53,14 +57,28 @@ inline int alarmChannelDecimals(uint8_t channel) {
 	return (channel == CH_TEMP) ? 2 : 1;
 }
 
-/** Linha CSV fixa: seq;ts;id;v ("err" no valor quando falha). */
+/** Código de status do campo {err} (vocabulário em AlarmQueue.h). */
+inline const char* alarmErrCodeStr(uint8_t errCode) {
+	switch (errCode) {
+		case ALARM_ERR_ERROR:   return "err";
+		case ALARM_ERR_SIL:     return "sil";
+		case ALARM_ERR_ERR_SIL: return "err_sil";
+		case ALARM_ERR_OFF:     return "off";
+		case ALARM_ERR_ERR_OFF: return "err_off";
+		default:                return "";
+	}
+}
+
+/** Linha CSV fixa: seq;ts;id;v — o valor vira o código de status quando o
+ * registro é um marcador (erro ou ação de silenciar/desativar), mesmo padrão
+ * do "err" original. */
 inline int alarmFormatCsvLine(const AlarmRecord& rec, const SystemConfig& cfg, char* dest, size_t cap) {
 	const ChannelInfo& ci = channelInfo(rec.channel);
 	char idBuf[24];
 	alarmBuildId(rec, cfg, idBuf, sizeof(idBuf));
-	if (rec.flags & ALARM_FLAG_ERR) {
-		return snprintf(dest, cap, "%u;%lu;%s;err", (unsigned)rec.seq,
-		                (unsigned long)rec.epoch, idBuf);
+	if (rec.errCode != ALARM_ERR_NONE) {
+		return snprintf(dest, cap, "%u;%lu;%s;%s", (unsigned)rec.seq,
+		                (unsigned long)rec.epoch, idBuf, alarmErrCodeStr(rec.errCode));
 	}
 	return snprintf(dest, cap, "%u;%lu;%s;%.*f", (unsigned)rec.seq,
 	                (unsigned long)rec.epoch, idBuf,
@@ -90,12 +108,13 @@ inline int alarmFormatLine(const AlarmRecord& rec, const SystemConfig& cfg,
 	char chBuf[2];
 	chBuf[0] = ci.letter; chBuf[1] = '\0';
 
+	/* Código de status do {err} — "" para limite ativo; "err"/"sil"/"off"
+	 * com os sufixos de ação. O valor só existe quando NÃO é marcador. */
 	const bool isErr = (rec.flags & ALARM_FLAG_ERR) != 0;
 	char valBuf[16] = "";
 	char errBuf[8] = "";
-	if (isErr) {
-		strlcpy(errBuf, "err", sizeof(errBuf));
-	} else if (rec.value != HIST_NAN_SENTINEL) {
+	strlcpy(errBuf, alarmErrCodeStr(rec.errCode), sizeof(errBuf));
+	if (!isErr && rec.value != HIST_NAN_SENTINEL) {
 		snprintf(valBuf, sizeof(valBuf), "%.*f",
 		         alarmChannelDecimals(rec.channel), (double)((float)rec.value / ci.scale));
 	}

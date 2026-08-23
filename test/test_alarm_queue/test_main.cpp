@@ -23,9 +23,9 @@
 /* ── FIFO e push básico ─────────────────────────────────────────────────── */
 static void test_push_fifo_order(void) {
     AlarmQueue q(8);
-    uint16_t s0 = q.push(1000, 0, 0 /*CH_TEMP*/, 1234, false);
-    uint16_t s1 = q.push(1001, 1, 1 /*CH_HUM*/, -999, false);
-    uint16_t s2 = q.push(1002, 2, 0, 567, true);
+    uint16_t s0 = q.push(1000, 0, 0 /*CH_TEMP*/, 1234, ALARM_ERR_NONE);
+    uint16_t s1 = q.push(1001, 1, 1 /*CH_HUM*/, -999, ALARM_ERR_NONE);
+    uint16_t s2 = q.push(1002, 2, 0, 567, ALARM_ERR_ERROR);
 
     TEST_ASSERT_EQUAL_UINT16(1, s0);
     TEST_ASSERT_EQUAL_UINT16(2, s1);
@@ -56,19 +56,19 @@ static void test_capacity_clamp(void) {
 
     AlarmQueue q(4);
     TEST_ASSERT_EQUAL_UINT8(4, q.capacity());
-    for (int i = 0; i < 4; i++) q.push(100 + i, i, 0, 1, false);
+    for (int i = 0; i < 4; i++) q.push(100 + i, i, 0, 1, ALARM_ERR_NONE);
     TEST_ASSERT_TRUE(q.full());
 }
 
 /* ── estouro: drop-newest ───────────────────────────────────────────────── */
 static void test_overflow_drop_newest(void) {
     AlarmQueue q(3);
-    q.push(100, 0, 0, 1, false);
-    q.push(101, 1, 0, 2, false);
-    q.push(102, 2, 0, 3, false);
+    q.push(100, 0, 0, 1, ALARM_ERR_NONE);
+    q.push(101, 1, 0, 2, ALARM_ERR_NONE);
+    q.push(102, 2, 0, 3, ALARM_ERR_NONE);
 
     /* cheio: novo registro recusado, seq 0, dropped incrementa */
-    uint16_t refused = q.push(103, 3, 0, 4, false);
+    uint16_t refused = q.push(103, 3, 0, 4, ALARM_ERR_NONE);
     TEST_ASSERT_EQUAL_UINT16(0, refused);
     TEST_ASSERT_EQUAL_UINT16(1, q.dropped());
     TEST_ASSERT_EQUAL_UINT8(3, q.size());
@@ -85,7 +85,7 @@ static void test_overflow_drop_newest(void) {
 static void test_seq_wrap_skips_zero(void) {
     AlarmQueue q(4);
     for (int i = 0; i < 4; i++) {
-        uint16_t s = q.push(i, 0, 0, 1, false);
+        uint16_t s = q.push(i, 0, 0, 1, ALARM_ERR_NONE);
         TEST_ASSERT_EQUAL_UINT16(i + 1, s);
     }
     q.ackOldest(4);
@@ -93,13 +93,13 @@ static void test_seq_wrap_skips_zero(void) {
     /* drena até perto do limite sem depender de estado interno: usa ackOldest */
     /* Como _nextSeq é privado, exercitamos o wrap via ack + push até 65535. */
     for (uint32_t i = 4; i < 65534; i++) {
-        q.push(i, 0, 0, 1, false);
+        q.push(i, 0, 0, 1, ALARM_ERR_NONE);
         q.ackOldest(1);
     }
-    uint16_t s = q.push(1, 0, 0, 1, false);
+    uint16_t s = q.push(1, 0, 0, 1, ALARM_ERR_NONE);
     TEST_ASSERT_EQUAL_UINT16(65535, s);
     q.ackOldest(1);
-    s = q.push(2, 0, 0, 1, false);
+    s = q.push(2, 0, 0, 1, ALARM_ERR_NONE);
     /* 65535 + 1 == 0 é reservado → pula para 1 */
     TEST_ASSERT_EQUAL_UINT16(1, s);
 }
@@ -107,10 +107,10 @@ static void test_seq_wrap_skips_zero(void) {
 /* ── ack por seq ────────────────────────────────────────────────────────── */
 static void test_ack_by_seq(void) {
     AlarmQueue q(8);
-    q.push(100, 0, 0, 1, false);   /* seq 1 */
-    q.push(101, 1, 0, 2, false);   /* seq 2 */
-    q.push(102, 2, 0, 3, false);   /* seq 3 */
-    q.push(103, 3, 0, 4, false);   /* seq 4 */
+    q.push(100, 0, 0, 1, ALARM_ERR_NONE);   /* seq 1 */
+    q.push(101, 1, 0, 2, ALARM_ERR_NONE);   /* seq 2 */
+    q.push(102, 2, 0, 3, ALARM_ERR_NONE);   /* seq 3 */
+    q.push(103, 3, 0, 4, ALARM_ERR_NONE);   /* seq 4 */
 
     /* confirma o do MEIO (2) e um inexistente (99) — não deve remover nada por 99 */
     uint16_t seqs[] = {2, 99};
@@ -135,7 +135,7 @@ static void test_ack_by_seq(void) {
 /* ── ackOldest / clear ──────────────────────────────────────────────────── */
 static void test_ack_oldest_and_clear(void) {
     AlarmQueue q(8);
-    for (int i = 0; i < 5; i++) q.push(100 + i, 0, 0, 1, false);
+    for (int i = 0; i < 5; i++) q.push(100 + i, 0, 0, 1, ALARM_ERR_NONE);
     q.ackOldest(2);
     TEST_ASSERT_EQUAL_UINT8(3, q.size());
     AlarmRecord out[8];
@@ -146,14 +146,14 @@ static void test_ack_oldest_and_clear(void) {
     q.ackOldest(10); /* além do tamanho → esvazia */
     TEST_ASSERT_TRUE(q.empty());
 
-    for (int i = 0; i < 3; i++) q.push(200 + i, 0, 0, 1, false);
+    for (int i = 0; i < 3; i++) q.push(200 + i, 0, 0, 1, ALARM_ERR_NONE);
     q.clear();
     TEST_ASSERT_TRUE(q.empty());
     TEST_ASSERT_EQUAL_UINT8(0, q.snapshot(out, 8));
 
     /* a fila volta a funcionar depois do clear; seq continua monotônico
      * pelo boot (5 já usados + 3 do lote anterior = 9) */
-    uint16_t s = q.push(300, 1, 1, 5, true);
+    uint16_t s = q.push(300, 1, 1, 5, ALARM_ERR_ERROR);
     TEST_ASSERT_EQUAL_UINT16(9, s);
     TEST_ASSERT_EQUAL_UINT16(0, q.dropped()); /* capacidade 8: nada foi recusado */
 }
@@ -202,13 +202,13 @@ static void test_ack_parser(void) {
 /* ── wrap do anel com ack parcial ───────────────────────────────────────── */
 static void test_ring_reuse_after_ack(void) {
     AlarmQueue q(4);
-    for (int i = 0; i < 4; i++) q.push(100 + i, i, 0, 1, false);
+    for (int i = 0; i < 4; i++) q.push(100 + i, i, 0, 1, ALARM_ERR_NONE);
     uint16_t seqs[] = {1, 2};
     q.ack(seqs, 2);
     /* capacidade 4 com 2 ocupados: só mais 2 cabem; o 3º é recusado */
-    q.push(200, 5, 0, 1, false);
-    q.push(201, 5, 0, 1, false);
-    uint16_t refused = q.push(202, 5, 0, 1, false);
+    q.push(200, 5, 0, 1, ALARM_ERR_NONE);
+    q.push(201, 5, 0, 1, ALARM_ERR_NONE);
+    uint16_t refused = q.push(202, 5, 0, 1, ALARM_ERR_NONE);
     TEST_ASSERT_EQUAL_UINT16(0, refused);
     TEST_ASSERT_EQUAL_UINT16(1, q.dropped());
     TEST_ASSERT_EQUAL_UINT8(4, q.size());
@@ -255,7 +255,7 @@ static void test_alarm_line_default_ok(void) {
 static void test_alarm_line_default_err(void) {
     SystemConfig cfg;
     fillDemoCfg(cfg);
-    AlarmRecord rec = { 1756250100, 2, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR };
+    AlarmRecord rec = { 1756250100, 2, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERROR };
     char out[256];
     alarmFormatLine(rec, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING(
@@ -276,6 +276,7 @@ static void test_alarm_line_individual_tokens(void) {
 
     /* registro de erro: VAL vazio, ERR presente */
     rec.flags = ALARM_FLAG_ERR;
+    rec.errCode = ALARM_ERR_ERROR;
     rec.value = HIST_NAN_SENTINEL;
     alarmFormatLine(rec, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("u;0;SENSOR1;;err", out);
@@ -289,7 +290,7 @@ static void test_alarm_line_uppercase_compound(void) {
     strncpy(cfg.alarmTel.lineTemplate, "{\"VAL\":{VAL},\"ERR\":{ERR}}",
             sizeof(cfg.alarmTel.lineTemplate) - 1);
     AlarmRecord ok = { 1, 1, 2530, 0, 0, 0 };
-    AlarmRecord er = { 2, 2, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR };
+    AlarmRecord er = { 2, 2, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERROR };
     char out[128];
     alarmFormatLine(ok, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("{\"VAL\":25.30}", out);
@@ -318,12 +319,70 @@ static void test_alarm_line_csv(void) {
     SystemConfig cfg;
     fillDemoCfg(cfg);
     AlarmRecord ok = { 1756250300, 4, 2530, 0, 0, 0 };
-    AlarmRecord er = { 1756250400, 5, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR };
+    AlarmRecord er = { 1756250400, 5, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERROR };
     char out[64];
     alarmFormatCsvLine(ok, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("4;1756250300;tSENSOR1;25.30", out);
     alarmFormatCsvLine(er, cfg, out, sizeof(out));
     TEST_ASSERT_EQUAL_STRING("5;1756250400;tSENSOR1;err", out);
+}
+
+static void test_alarm_line_action_codes(void) {
+    SystemConfig cfg;
+    fillDemoCfg(cfg);
+    strncpy(cfg.alarmTel.lineTemplate,
+            "{\"ts\":{TS},\"id\":\"{ID}\",\"err\":\"{err}\",\"seq\":{seq}}",
+            sizeof(cfg.alarmTel.lineTemplate) - 1);
+
+    /* limite silenciado: valor sentinela (marcador), err = "sil" */
+    AlarmRecord sil = { 1756250500, 6, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_SIL };
+    char out[256];
+    alarmFormatLine(sil, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"ts\":1756250500,\"id\":\"tSENSOR1\",\"err\":\"sil\",\"seq\":6}",
+        out);
+
+    /* erro silenciado: err = "err_sil" */
+    AlarmRecord esil = { 1756250600, 7, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERR_SIL };
+    alarmFormatLine(esil, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"ts\":1756250600,\"id\":\"tSENSOR1\",\"err\":\"err_sil\",\"seq\":7}",
+        out);
+
+    /* limite desativado: err = "off" */
+    AlarmRecord off = { 1756250700, 8, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_OFF };
+    alarmFormatLine(off, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"ts\":1756250700,\"id\":\"tSENSOR1\",\"err\":\"off\",\"seq\":8}",
+        out);
+
+    /* erro desativado: err = "err_off" */
+    AlarmRecord eoff = { 1756250800, 9, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERR_OFF };
+    alarmFormatLine(eoff, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"ts\":1756250800,\"id\":\"tSENSOR1\",\"err\":\"err_off\",\"seq\":9}",
+        out);
+}
+
+static void test_alarm_csv_action_codes(void) {
+    SystemConfig cfg;
+    fillDemoCfg(cfg);
+    char out[64];
+    AlarmRecord sil = { 1756250500, 6, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_SIL };
+    alarmFormatCsvLine(sil, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("6;1756250500;tSENSOR1;sil", out);
+
+    AlarmRecord esil = { 1756250600, 7, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERR_SIL };
+    alarmFormatCsvLine(esil, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("7;1756250600;tSENSOR1;err_sil", out);
+
+    AlarmRecord off = { 1756250700, 8, HIST_NAN_SENTINEL, 0, 0, 0, ALARM_ERR_OFF };
+    alarmFormatCsvLine(off, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("8;1756250700;tSENSOR1;off", out);
+
+    AlarmRecord eoff = { 1756250800, 9, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR, ALARM_ERR_ERR_OFF };
+    alarmFormatCsvLine(eoff, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("9;1756250800;tSENSOR1;err_off", out);
 }
 
 static void test_alarm_line_literal_braces_passthrough(void) {
@@ -357,6 +416,8 @@ int main(int argc, char** argv) {
     RUN_TEST(test_alarm_line_uppercase_compound);
     RUN_TEST(test_alarm_line_id_fallback_no_hwid);
     RUN_TEST(test_alarm_line_csv);
+    RUN_TEST(test_alarm_line_action_codes);
+    RUN_TEST(test_alarm_csv_action_codes);
     RUN_TEST(test_alarm_line_literal_braces_passthrough);
     return UNITY_END();
 }

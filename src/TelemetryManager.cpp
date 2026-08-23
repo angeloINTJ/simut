@@ -2160,11 +2160,17 @@ static String alarmHttpPath(const SystemConfig& cfg) {
 	return String(cfg.telPath) + "/alarm";
 }
 
-uint16_t TelemetryManager::pushAlarm(uint8_t slot, uint8_t channel, float value, bool err) {
+uint16_t TelemetryManager::pushAlarm(uint8_t slot, uint8_t channel, float value, uint8_t errCode) {
 	if (!_alarmEnabled || slot >= MAX_SENSORS) return 0;
 
+	/* "Falha" (sem valor) = erro de sensor em qualquer estado (ativo,
+	 * silenciado, desativado). Marcadores de ação de limite (sil/off) também
+	 * não carregam valor — o {val} fica ausente e o {err} traz o código. */
+	const bool isErr = (errCode == ALARM_ERR_ERROR ||
+	                    errCode == ALARM_ERR_ERR_SIL ||
+	                    errCode == ALARM_ERR_ERR_OFF);
 	int16_t scaled;
-	if (err) {
+	if (isErr || !isfinite(value)) {
 		scaled = HIST_NAN_SENTINEL;
 	} else {
 		const ChannelInfo& ci = channelInfo(channel);
@@ -2174,11 +2180,11 @@ uint16_t TelemetryManager::pushAlarm(uint8_t slot, uint8_t channel, float value,
 		scaled = (int16_t)lroundf(s);
 	}
 
-	uint16_t seq = _alarmQueue.push((uint32_t)time(nullptr), slot, channel, scaled, err);
+	uint16_t seq = _alarmQueue.push((uint32_t)time(nullptr), slot, channel, scaled, errCode);
 	auto& m = MetricsManager::instance( ).data( );
 	if (seq != 0) {
 		m.alarmQueued++;
-		if (err) m.alarmErrRecords++;
+		if (isErr) m.alarmErrRecords++;
 		/* gatilho imediato: o próximo update( ) não espera o retry interval */
 		__atomic_store_n(&_alarmSendPending, true, __ATOMIC_RELEASE);
 	} else {

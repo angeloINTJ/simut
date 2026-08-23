@@ -35,8 +35,25 @@
 /** bit0: o sensor estava em falha quando o alarme foi gerado (valor = sentinela). */
 #define ALARM_FLAG_ERR 0x01
 
+/** Código de status do campo {err} — vocabulário documentado (ver
+ * alarmErrCodeStr em AlarmPayload.h):
+ *   ""        alarme de LIMITE ativo (sem ação)
+ *   "err"     sensor em erro, ativo
+ *   "sil"     alarme de limite SILENCIADO (ação do operador)
+ *   "err_sil" erro de sensor SILENCIADO
+ *   "off"     alarme de limite DESATIVADO
+ *   "err_off" erro de sensor DESATIVADO */
+enum AlarmErrCode : uint8_t {
+	ALARM_ERR_NONE = 0,
+	ALARM_ERR_ERROR,
+	ALARM_ERR_SIL,
+	ALARM_ERR_ERR_SIL,
+	ALARM_ERR_OFF,
+	ALARM_ERR_ERR_OFF
+};
+
 /** Um registro da fila de alarmes. Layout em ordem natural (sem pack):
- * epoch alinhado a 4 — 12 B por registro na prática. */
+ * epoch alinhado a 4 — 13 B por registro na prática. */
 struct AlarmRecord {
 	uint32_t epoch;   /**< timestamp do disparo (time(nullptr)) */
 	uint16_t seq;     /**< sequência do boot — chave da confirmação; 0 = inválido */
@@ -44,6 +61,7 @@ struct AlarmRecord {
 	uint8_t  slot;    /**< 0..15 */
 	uint8_t  channel; /**< CH_TEMP/CH_HUM/CH_PRESS/CH_LUX */
 	uint8_t  flags;   /**< bitmask ALARM_FLAG_* */
+	uint8_t  errCode; /**< AlarmErrCode — status do {err} */
 };
 
 class AlarmQueue {
@@ -59,8 +77,10 @@ public:
 	uint16_t dropped( ) const { return _dropped; }
 
 	/** Enfileira um alarme. Atribui o seq e o retorna; 0 quando recusado
-	 * (fila cheia — drop-newest, dropped( ) incrementa). */
-	uint16_t push(uint32_t epoch, uint8_t slot, uint8_t channel, int16_t value, bool err);
+	 * (fila cheia — drop-newest, dropped( ) incrementa).
+	 * errCode = AlarmErrCode (ALARM_ERR_ERROR/ERR_SIL/ERR_OFF ⇒ flag de
+	 * falha + valor sentinela; demais códigos não marcam falha). */
+	uint16_t push(uint32_t epoch, uint8_t slot, uint8_t channel, int16_t value, uint8_t errCode);
 
 	/** Copia até maxN registros em ordem de chegada para dst (sem remover).
 	 * @return quantidade copiada. */
@@ -112,7 +132,7 @@ inline bool AlarmQueue::seqInList(uint16_t seq, const uint16_t* seqs, uint8_t n)
 }
 
 inline uint16_t AlarmQueue::push(uint32_t epoch, uint8_t slot, uint8_t channel,
-                                 int16_t value, bool err) {
+                                 int16_t value, uint8_t errCode) {
 	if (_count >= _cap) {
 		/* drop-newest: recusa o registro novo. Ver doc do header. */
 		_dropped++;
@@ -122,13 +142,17 @@ inline uint16_t AlarmQueue::push(uint32_t epoch, uint8_t slot, uint8_t channel,
 	_nextSeq++;
 	if (_nextSeq == 0) _nextSeq = 1; /* 0 é reservado como inválido */
 
+	const bool failed = (errCode == ALARM_ERR_ERROR ||
+	                     errCode == ALARM_ERR_ERR_SIL ||
+	                     errCode == ALARM_ERR_ERR_OFF);
 	uint8_t idx = (uint8_t)((_head + _count) % _cap);
 	_buf[idx].epoch = epoch;
 	_buf[idx].seq = seq;
 	_buf[idx].value = value;
 	_buf[idx].slot = slot;
 	_buf[idx].channel = channel;
-	_buf[idx].flags = err ? ALARM_FLAG_ERR : 0;
+	_buf[idx].flags = failed ? ALARM_FLAG_ERR : 0;
+	_buf[idx].errCode = errCode;
 	_count++;
 	return seq;
 }

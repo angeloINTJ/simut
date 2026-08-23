@@ -651,7 +651,7 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 						break;
 					}
 				}
-				_telemetryMgr->pushAlarm((uint8_t)i, firstCh, NAN, true);
+				_telemetryMgr->pushAlarm((uint8_t)i, firstCh, NAN, ALARM_ERR_ERROR);
 			}
 			/* em falha não há valor a comparar com limites */
 			_alarmTripBits[i] = 0;
@@ -680,7 +680,7 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 					_alarmCandBits[i] &= (uint8_t)~bit;
 					if (!(_alarmTripBits[i] & bit)) {
 						_alarmTripBits[i] |= bit;
-						_telemetryMgr->pushAlarm((uint8_t)i, c, v, false);
+						_telemetryMgr->pushAlarm((uint8_t)i, c, v, ALARM_ERR_NONE);
 					}
 				} else {
 					_alarmCandBits[i] |= bit;
