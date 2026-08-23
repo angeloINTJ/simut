@@ -863,12 +863,19 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  _driver.canvas->fillScreen(panelBg);
 
  if (!isValid) {
- _driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextSize(1);
- _driver.canvas->setTextColor(isRedPhase ? alarmFg : C_TEMP_HOT);
+ /* Sensor em erro: "ERROR" no MESMO tamanho dos números de temperatura
+  * (24pt, baseline 35). Cor branca durante QUALQUER alarme ativo — limite
+  * (painel vermelho) ou erro (painel âmbar). Antes usava isRedPhase, que só
+  * cobre a máscara de LIMITE — no painel âmbar as letras ficavam vermelhas. */
+ _driver.canvas->setFont(&simutFont24pt); _driver.canvas->setTextSize(1);
+ _driver.canvas->setTextColor((isRedPhase || isErrPhase) ? alarmFg : C_TEMP_HOT);
  int16_t ex1, ey1; uint16_t ew, eh;
  _driver.canvas->getTextBounds(tr(TR_ERROR_LBL), 0, 0, &ex1, &ey1, &ew, &eh);
- _driver.canvas->setCursor((CARD_W - (int)ew) / 2, 28);
+ _driver.canvas->setCursor((CARD_W - (int)ew) / 2, 35);
  _driver.canvas->print(tr(TR_ERROR_LBL));
+ maskStripCorners(_driver.canvas, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
+ blitCanvas(_driver.canvas, CARD_X, cardY + 28, CARD_W, 40);
+ goto _slot_bottom_fill;
  } else {
  /* No fillScreen here: the one above already cleared the canvas to panelBg and
   * nothing has drawn into it since — this was a second identical 14,400-pixel
