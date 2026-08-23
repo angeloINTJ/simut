@@ -535,25 +535,51 @@ void AppManager::checkAlarmConditions( ) {
  }
  }
 
+ /* ── Erro de sensor (sem comunicação / sensor trocado): disparo PRÓPRIO ──
+  * Independente de alarmsActive — uma falha não é um limite desligável.
+  * hardwareMismatch (DS18B20 trocado) já força inErrorState no
+  * SensorManager, então a condição única cobre os dois. O painel pisca
+  * idêntico ao alarme de limite, mas em âmbar brilhante + branco
+  * (C_ALARM_ERR_*). */
+ uint16_t errMask = 0;
+ int8_t firstErrSlot = -1;
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (!cfg.sensors[i].active) continue;
+ for (const auto &s : sensors) {
+ if (s.config.pins[0] != cfg.sensors[i].pins[0]) continue;
+ if (s.inErrorState || s.hardwareMismatch) {
+ errMask |= (1 << i);
+ if (firstErrSlot < 0) firstErrSlot = i;
+ }
+ break;
+ }
+ }
+ const bool anyErr = (errMask != 0);
+ const bool triggerAny = anyAlarm || anyErr;
+
 
  bool silenced = _displayMgr->isAlarmSilenced( );
 
- if (anyAlarm && !_soundMgr->isAlarming( ) && !silenced) {
+ if (triggerAny && !_soundMgr->isAlarming( ) && !silenced) {
 
  _soundMgr->startAlarm( );
- if (firstSlot >= 0) {
- _currentSensorIdx = firstSlot;
+ const int8_t navSlot = (firstSlot >= 0) ? firstSlot : firstErrSlot;
+ if (navSlot >= 0) {
+ _currentSensorIdx = navSlot;
  refreshSelectedSlot( );
  }
- _displayMgr->setAlarmState(mask, firstSlot);
+ _displayMgr->setAlarmState(mask, navSlot);
+ _displayMgr->setAlarmErrState(errMask);
  LOG_CODE(LOG_WARN, "APP", APP_ALARM_TRIGGERED, 0, "");
- } else if (anyAlarm && (_soundMgr->isAlarming( ) || silenced)) {
+ } else if (triggerAny && (_soundMgr->isAlarming( ) || silenced)) {
 
  _displayMgr->setAlarmState(mask, -1);
- } else if (!anyAlarm && (_soundMgr->isAlarming( ) || silenced)) {
+ _displayMgr->setAlarmErrState(errMask);
+ } else if (!triggerAny && (_soundMgr->isAlarming( ) || silenced)) {
 
  _soundMgr->stopAlarm( );
  _displayMgr->setAlarmState(0, -1);
+ _displayMgr->setAlarmErrState(0);
 
  if (silenced) {
  _displayMgr->setAlarmSilenced(false, 0);
@@ -592,7 +618,7 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 	const auto& sensors = _sensorMgr->getRuntimeSensors( );
 
 	for (int i = 0; i < MAX_SENSORS; i++) {
-		if (!cfg.sensors[i].active || !cfg.sensors[i].alarmsActive) {
+		if (!cfg.sensors[i].active) {
 			_alarmTripBits[i] = 0;
 			_alarmCandBits[i] = 0;
 			_alarmErrBits &= (uint16_t)~(1u << i);
@@ -606,7 +632,10 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 		}
 		if (live == nullptr) continue; /* slot sem runtime — sem dados, sem borda */
 
-		const bool errNow = live->inErrorState;
+		/* ERRO de sensor (sem comunicação OU trocado): independente de
+		 * alarmsActive — falha é sempre reportada na linha de alarmes, mesmo
+		 * com os limites de alarme desligados para o slot. */
+		const bool errNow = (live->inErrorState || live->hardwareMismatch);
 		if (errNow) {
 			if (!(_alarmErrBits & (1u << i))) {
 				_alarmErrBits |= (1u << i);
@@ -625,6 +654,13 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 			continue;
 		}
 		_alarmErrBits &= (uint16_t)~(1u << i); /* voltou do erro */
+
+		/* Bordas de LIMITE: só com alarmes habilitados para o slot. */
+		if (!cfg.sensors[i].alarmsActive) {
+			_alarmTripBits[i] = 0;
+			_alarmCandBits[i] = 0;
+			continue;
+		}
 
 		for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
 			if (!sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) continue;

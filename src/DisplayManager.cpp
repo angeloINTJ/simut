@@ -1287,8 +1287,8 @@ void DisplayManager::loopCore1( ) {
 			}
 
 
-			if (_alarmSlotMask != 0 && !_alarmSilenced) {
-				uint16_t m = _alarmSlotMask;
+			if ((_alarmSlotMask != 0 || _alarmErrMask != 0) && !_alarmSilenced) {
+				uint16_t m = _alarmSlotMask | _alarmErrMask;
 				int alarmCount = 0;
 				while (m) { alarmCount += (m & 1); m >>= 1; }
 
@@ -1297,7 +1297,7 @@ void DisplayManager::loopCore1( ) {
 					int current = _lastRenderedState.selectedSlotIdx;
 					for (int i = 1; i <= 10; i++) {
 						int idx = (current + i) % 10;
-						if (_alarmSlotMask & (1 << idx)) {
+						if ((_alarmSlotMask | _alarmErrMask) & (1 << idx)) {
 							if (idx < 4) _currentPage = 0;
 							else if (idx < 8) _currentPage = 1;
 							else _currentPage = 2;

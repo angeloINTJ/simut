@@ -288,6 +288,11 @@ public:
 
 
 	void setAlarmState(uint16_t slotMask, int8_t navSlot = -1);
+	/** Máscara separada de ERRO de sensor (sem comunicação / trocado).
+	 * Painéis em erro piscam em âmbar+branco (C_ALARM_ERR_*), distintos do
+	 * alarme de limite (vermelho). Acompanha o estado vivo do sensor. */
+	void setAlarmErrState(uint16_t errMask);
+	bool isSlotErrAlarming(int slotIdx) const;
 
 
 	void setAlarmSilenced(bool silenced, uint32_t endTime = 0);
@@ -533,6 +538,7 @@ private:
 
 
 	volatile uint16_t _alarmSlotMask = 0;
+	volatile uint16_t _alarmErrMask = 0;   /**< slots em erro de sensor (âmbar) */
 	volatile int8_t _alarmNavPending = -1;
 
 	/* Panel mode: normal vs min/max */

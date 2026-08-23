@@ -111,6 +111,12 @@ void scanCustomThemes( );
 #define C_ALARM_TEXT_DIM currentTheme.alarmTextDim
 #define C_ALARM_BORDER currentTheme.alarmBorder
 #define C_CAUTION_BG currentTheme.cautionBg
+/* Alarme de ERRO de sensor (v21.1): cor FIXA, não é escolha de tema — um
+ * sensor em falha (sem comunicação / trocado) deve ser distinguível do
+ * alarme de limite à primeira vista. Fundo âmbar BRILHANTE + texto branco,
+ * como pedido ("aparelo brilhante e branco"). */
+#define C_ALARM_ERR_BG 0xFAE0   /* âmbar brilhante (#FFBF00) */
+#define C_ALARM_ERR_TEXT 0xFFFF /* branco */
 #define C_SEL_BG currentTheme.selBg
 #define C_STAMP_TEXT currentTheme.stampText
 

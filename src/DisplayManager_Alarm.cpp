@@ -21,6 +21,14 @@ void DisplayManager::setAlarmState(uint16_t slotMask, int8_t navSlot) {
 	if (navSlot >= 0) _alarmNavPending = navSlot;
 }
 
+void DisplayManager::setAlarmErrState(uint16_t errMask) {
+	_alarmErrMask = errMask;
+}
+
+bool DisplayManager::isSlotErrAlarming(int slotIdx) const {
+	return (slotIdx >= 0 && slotIdx < 16) && (_alarmErrMask & (1 << slotIdx));
+}
+
 
 void DisplayManager::setAlarmSilenced(bool silenced, uint32_t endTime) {
 	_alarmSilenced = silenced;
@@ -119,28 +127,35 @@ bool DisplayManager::isSlotAlarming(int slotIdx) const {
 }
 
 uint16_t DisplayManager::slotAlarmBg(int slotIdx) const {
-	if (!isSlotAlarming(slotIdx)) return C_CARD_BG;
-
 	if (_alarmSilenced) return C_CARD_BG;
+
+	/* Erro de sensor tem prioridade visual: âmbar brilhante no lugar do
+	 * vermelho de limite. Um slot não está nos dois ao mesmo tempo —
+	 * inErrorState sobrepõe os limites. */
+	if (isSlotErrAlarming(slotIdx)) {
+		return _alarmFlashPhase ? C_ALARM_ERR_BG : C_CARD_BG;
+	}
+	if (!isSlotAlarming(slotIdx)) return C_CARD_BG;
 	return _alarmFlashPhase ? C_ALARM_BG : C_CARD_BG;
 }
 
 bool DisplayManager::isAnyAlarmActive( ) const {
-	return (_alarmSlotMask != 0);
+	return (_alarmSlotMask != 0) || (_alarmErrMask != 0);
 }
 
 
 void DisplayManager::redrawAlarmFlash( ) {
 	if (!_driver.tft || !_driver.canvas) return;
 
-	if (isSlotAlarming(_lastRenderedState.topSlotIdx)) {
+	if (isSlotAlarming(_lastRenderedState.topSlotIdx) ||
+	    isSlotErrAlarming(_lastRenderedState.topSlotIdx)) {
 		drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
 		                 _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
 		                 _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel);
 	}
 
 	int sel = _lastRenderedState.selectedSlotIdx;
-	if (isSlotAlarming(sel)) {
+	if (isSlotAlarming(sel) || isSlotErrAlarming(sel)) {
 		drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotType, _lastRenderedState.slotValid,
 		              sel, _lastRenderedState.slotName, true, _bottomPanel);
 	}
@@ -149,7 +164,7 @@ void DisplayManager::redrawAlarmFlash( ) {
 	bool pageHasAlarm = false;
 	bool otherPageHasAlarm = false;
 	for (int i = 0; i < 10; i++) {
-		if (!isSlotAlarming(i)) continue;
+		if (!isSlotAlarming(i) && !isSlotErrAlarming(i)) continue;
 		int slotPage = (i < 4) ? 0 : (i < 8) ? 1 : 2;
 		if (slotPage == _currentPage) pageHasAlarm = true;
 		else otherPageHasAlarm = true;
