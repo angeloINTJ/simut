@@ -227,6 +227,13 @@ def check(name, cond, extra=""):
         print(f"  [FAIL] {name} {extra}")
 
 
+def clear_limit_edge(dev, gpio):
+    """Garante borda fresca: coloca o valor em faixa e espera 2 ciclos de
+    checkAlarmConditions (~12s) para os bits de trip/cand zerarem."""
+    dev.cmd(f"sensor {gpio} tmax 100")
+    time.sleep(12)
+
+
 def wait_for(pred, timeout, step=2.0, what="condição"):
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -337,6 +344,7 @@ def main():
     gpio, tmin0, tmax0 = first_active_sensor(dev)
     check("sensor real encontrado em GPIO", gpio is not None, str(gpio))
     if gpio is not None:
+        clear_limit_edge(dev, gpio)
         before = sum(len(b) for b in STATE.alarm_batches)
         dev.cmd(f"sensor {gpio} tmax -100")
         got = wait_for(
@@ -414,6 +422,7 @@ def main():
     dev.cmd("alarm set glob {DATA}")
     dev.cmd("exit")
     if gpio is not None:
+        clear_limit_edge(dev, gpio)
         before = sum(len(b) for b in STATE.alarm_batches)
         dev.cmd(f"sensor {gpio} tmax -100")
         got = wait_for(
@@ -436,6 +445,7 @@ def main():
     dev.cmd("alarm set mode csv")
     dev.cmd("exit")
     if gpio is not None:
+        clear_limit_edge(dev, gpio)
         before = sum(len(b) for b in STATE.alarm_batches)
         dev.cmd(f"sensor {gpio} tmax -100")
         got = wait_for(

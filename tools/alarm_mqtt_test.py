@@ -169,13 +169,31 @@ class Dev:
         return None
 
 
-def first_active_gpio(dev):
+def first_active_sensor(dev):
+    """Primeiro slot ATIVO com alarmes LIGADOS; retorna (gpio, tmin, tmax)."""
     r = dev.cmd("show sensors", 3)
+    cur = None
     for line in r.split("\n"):
-        m = re.search(r"GPIO\s*(\d+)", line)
-        if m and ("DS18" in line or "DHT" in line or "BME" in line or "BMP" in line):
-            return int(m.group(1))
-    return None
+        m = re.search(r"Slot\s+(\d+)\].*?GPIO=(\d+)", line)
+        if m:
+            cur = int(m.group(2))
+            continue
+        if cur is None:
+            continue
+        if re.search(r"ALARMES:\s*LIGADO|ALARMS:\s*ON", line):
+            lim = re.search(r"\[T:\s*([-\d.]+)\s*\.\.\s*([-\d.]+)\]", line)
+            if lim:
+                return cur, float(lim.group(1)), float(lim.group(2))
+    r2 = dev.cmd("show sensors", 3)
+    m = re.search(r"GPIO=(\d+)\s*\|\s*(DS18B20|DHT22|BME280|BMP280)", r2)
+    if m:
+        return int(m.group(1)), None, None
+    return None, None, None
+
+
+def clear_limit_edge(dev, gpio):
+    dev.cmd(f"sensor {gpio} tmax 100")
+    time.sleep(12)
 
 
 def main():
@@ -201,6 +219,8 @@ def main():
     dev.cmd("alarm set on")
     dev.cmd("alarm set mode json")
     dev.cmd("alarm set qmax 16")
+    # templates default (token único, sem espaços — limitação do CLI tokenizado)
+    dev.cmd('alarm set line {"ts":{TS},"id":"{ID}","val":{val},"err":"{err}","seq":{seq}}')
     dev.cmd(f"user del {TEST_USER}")
     dev.cmd(f"user add {TEST_USER} {TEST_PASS}")
     dev.cmd(f"user perm {TEST_USER} admin")
@@ -238,7 +258,7 @@ def main():
     print("\n[03] Broker: assinar simut/data/alarm e publicar ACK")
     got = {"payloads": [], "acked": 0}
 
-    def on_connect(client, userdata, flags, rc):
+    def on_connect(client, userdata, flags, reason_code, properties=None):
         client.subscribe("simut/data/alarm")
 
     def on_message(client, userdata, msg):
@@ -252,7 +272,7 @@ def main():
                 got["acked"] += len(seqs)
                 print(f"  [ACK] confirmados {seqs}")
         except Exception as e:
-            print(f"  [WARN] on_message: {e}")
+            print(f"  [WARN] on_message: {e} body={body[:160]!r}")
 
     cli = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
     cli.on_connect = on_connect
@@ -263,24 +283,23 @@ def main():
 
     # ── borda de limite ──
     print("\n[04] Borda de limite → payload no tópico /alarm")
-    gpio = first_active_gpio(dev)
+    gpio, tmin0, tmax0 = first_active_sensor(dev)
     check("sensor real em GPIO", gpio is not None, str(gpio))
     if gpio is not None:
+        clear_limit_edge(dev, gpio)
         before = len(got["payloads"])
-        dev.cmd("enable")
-        dev.cmd("configure terminal")
-        dev.cmd(f"sensor field {gpio} tmax -100")
-        dev.cmd("exit")
+        dev.cmd(f"sensor {gpio} tmax -100")
         deadline = time.time() + 120
         while time.time() < deadline and len(got["payloads"]) == before:
             cli.loop()
             time.sleep(2)
         check("payload MQTT chegou", len(got["payloads"]) > before,
               str(got["payloads"][-1:])[:200])
-        dev.cmd("enable")
-        dev.cmd("configure terminal")
-        dev.cmd(f"sensor field {gpio} tmax 100")
-        dev.cmd("exit")
+        if tmax0 is not None:
+            dev.cmd(f"sensor {gpio} tmin {tmin0}")
+            dev.cmd(f"sensor {gpio} tmax {tmax0}")
+        else:
+            dev.cmd(f"sensor {gpio} tmax 100")
 
     # ── confirmação esvazia a fila ──
     print("\n[05] Fila esvazia após o ACK")
