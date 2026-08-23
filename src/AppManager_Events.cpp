@@ -276,6 +276,10 @@ void AppManager::core0Yield( ) {
 
  _soundMgr->stopAlarm( );
  _displayMgr->setAlarmState(0, -1);
+ /* limpa também o mask de ERRO: sem isso o âmbar ficava preso — o stopAlarm
+ * derruba isAlarming() e o else do checkAlarmConditions (que limparia o
+ * display) só roda com o som ativo ou silenciado. */
+ _displayMgr->setAlarmErrState(0);
  _displayMgr->setAlarmSilenced(false, 0);
  /* 2ª linha de telemetria: registra a AÇÃO de desativar — o {err} do
  * registro carrega "err_off" (erro) ou "off" (limite). */

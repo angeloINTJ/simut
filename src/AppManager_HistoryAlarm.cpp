@@ -545,6 +545,13 @@ void AppManager::checkAlarmConditions( ) {
  int8_t firstErrSlot = -1;
  for (int i = 0; i < MAX_SENSORS; i++) {
  if (!cfg.sensors[i].active) continue;
+ /* Desativado via tela de ação (bit set + alarmsActive=false): o erro
+ * NÃO relatcha no display — o âmbar não volta. Reativar o slot limpa
+ * o bit (self-heal abaixo) e os erros voltam. */
+ if (cfg.sensors[i].alarmsActive) {
+ _alarmDeactBits &= (uint16_t)~(1u << i);
+ }
+ if ((_alarmDeactBits & (1u << i)) != 0 && !cfg.sensors[i].alarmsActive) continue;
  for (const auto &s : sensors) {
  if (s.config.pins[0] != cfg.sensors[i].pins[0]) continue;
  if (s.inErrorState || s.hardwareMismatch) {
