@@ -767,7 +767,8 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  uint16_t borderColor = C_ACCENT_HIGH;
  if (errAlarmActive) borderColor = _alarmFlashPhase ? C_ALARM_ERR_TEXT : C_ACCENT_HIGH;
  else if (limAlarmActive) borderColor = C_ALARM_BORDER;
- if (isSelecting) borderColor = C_TEXT_OFF;
+ /* Modo seleção: moldura BRANCA (todos os elementos brancos no cinza). */
+ if (isSelecting) borderColor = C_ALARM_ERR_TEXT;
 
  if (panel.showMinMax) {
  /* Track mode transition */
@@ -807,6 +808,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  sensorRenderMinMax(_driver.canvas, type,
      panel.minTemp, panel.maxTemp, panel.minHum, panel.maxHum,
      isValid, CARD_W, isRedPhase, panelBg,
+     alarmFg, alarmFgDim,
      simutFont9pt,
      txtSub, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF,
      C_ACCENT_HIGH, C_BTN_TEXT_ACTIVE,
@@ -894,6 +896,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
   * fill, ~0.8 ms per panel thrown away on every redraw. */
  sensorRenderPanel(_driver.canvas, type, t, h, p, isValid, CARD_W, true,
                    isRedPhase, panelBg,
+                   alarmFg, alarmFgDim,
                    simutFont24pt, simutFont12pt, simutFont9pt,
                    C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
  maskStripCorners(_driver.canvas, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);

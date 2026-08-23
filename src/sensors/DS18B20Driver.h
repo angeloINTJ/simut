@@ -91,19 +91,20 @@ struct DS18B20Driver {
 #if SIMUT_DISPLAY_TFT
 inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
                  int16_t cardW, bool isRedPhase, uint16_t panelBg,
+                 uint16_t alarmText, uint16_t alarmTextDim,
                  const GFXfont& font24, const GFXfont& font12,
                  const GFXfont& font9,
                  uint16_t txtSub, uint16_t tempOk,
                  uint16_t tempHot, uint16_t textOff) {
         /* Color aliases — exact match for original */
-        uint16_t tempCol = isRedPhase ? C_ALARM_TEXT : tempOk;
-        uint16_t unitCol = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
-        uint16_t icTherm = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
-        uint16_t mercCol = isRedPhase ? C_ALARM_TEXT : tempHot;
+        uint16_t tempCol = isRedPhase ? alarmText : tempOk;
+        uint16_t unitCol = isRedPhase ? alarmTextDim : txtSub;
+        uint16_t icTherm = isRedPhase ? alarmTextDim : txtSub;
+        uint16_t mercCol = isRedPhase ? alarmText : tempHot;
 
         if (!isValid || isnan(t)) {
             cv->setFont(&font12); cv->setTextSize(1);
-            cv->setTextColor(isRedPhase ? C_ALARM_TEXT : tempHot);
+            cv->setTextColor(isRedPhase ? alarmText : tempHot);
             cv->setCursor((cardW - 60) / 2, 28);
             cv->print("--.-");
             return;
@@ -149,12 +150,13 @@ inline void DS18B20_renderPanel(GFXcanvas16* cv, float t, bool isValid,
 inline void DS18B20_renderMinMax(GFXcanvas16* cv,
     float minT, float maxT, bool isValid,
     int16_t cardW, bool isRedPhase, uint16_t panelBg,
+    uint16_t alarmText, uint16_t alarmTextDim,
     const GFXfont& font9,
     uint16_t txtSub, uint16_t tempOk, uint16_t tempHot, uint16_t textOff,
     uint16_t accentHigh, uint16_t btnTextActive,
     const char* minLabel, const char* maxLabel) {
-    uint16_t icCol   = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
-    uint16_t mercCol = isRedPhase ? C_ALARM_TEXT : tempHot;
+    uint16_t icCol   = isRedPhase ? alarmTextDim : txtSub;
+    uint16_t mercCol = isRedPhase ? alarmText : tempHot;
 
     int16_t x1, y1; uint16_t minLblW, maxLblW, hb;
     cv->setFont(&font9);
@@ -171,11 +173,11 @@ inline void DS18B20_renderMinMax(GFXcanvas16* cv,
 
     drawMinMaxTempRow(cv, minLabel, LABEL_X, THERM_X, DOT_X,
         0, minT, isRedPhase,
-        txtSub, icCol, mercCol, tempOk, panelBg, font9);
+        txtSub, icCol, mercCol, tempOk, panelBg, alarmText, font9);
 
     drawMinMaxTempRow(cv, maxLabel, LABEL_X, THERM_X, DOT_X,
         22, maxT, isRedPhase,
-        txtSub, icCol, mercCol, tempOk, panelBg, font9);
+        txtSub, icCol, mercCol, tempOk, panelBg, alarmText, font9);
 
     drawMinMaxGraphBtn(cv, BTN_X, 2, BTN_W, 40, accentHigh, btnTextActive);
 }
