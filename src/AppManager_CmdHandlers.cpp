@@ -199,10 +199,9 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  return;
  }
  r.alarmsActive = (v == "on");
- /* Reativar o slot limpa o estado de desativação global — o operador que
- * desativou os alarmes (tela de ação) e depois liga de novo espera que o
- * âmbar de erro volte a reportar. */
- if (v == "on") _displayMgr->setAlarmDeactivated(false);
+ /* Reativar o slot limpa o bit de desativação daquele sensor — o âmbar
+ * de erro volta a reportar (só este slot; os demais não são tocados). */
+ if (v == "on") _alarmDeactBits &= (uint16_t)~(1u << cmd.intVal1);
  _cmdMgr->printSuccess((pt ? "Alarme slot " : "Alarm slot ") + String(cmd.intVal1) + ": " + v);
  changed = true;
  return;

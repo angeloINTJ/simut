@@ -36,11 +36,6 @@ void DisplayManager::setAlarmSilenced(bool silenced, uint32_t endTime) {
 }
 
 
-void DisplayManager::setAlarmDeactivated(bool deactivated) {
-	_alarmDeactivated = deactivated;
-}
-
-
 void DisplayManager::showAlarmAction(int8_t slotIdx) {
 	mutex_enter_blocking(&_stateMutex);
 	_alarmActionSlot = slotIdx;

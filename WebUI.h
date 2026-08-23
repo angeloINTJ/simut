@@ -3735,6 +3735,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('res').value = val('res', 9);
                 document.getElementById('s_int').value = val('s_int', 5000);
                 document.getElementById('h_int').value = val('h_int', 1);
+                /* Syslog forwarder: refletir o estado REAL da config — sem isso
+                 * o checkbox ficava sempre desmarcado (default HTML) e o usuário
+                 * via "syslog desligado" na interface enquanto ele transmitia. */
+                document.getElementById('slog_en').checked = boolVal('slog_en', false);
+                document.getElementById('slog_srv').value = val('slog_srv', '');
+                document.getElementById('slog_port').value = val('slog_port', 514);
+                const lvlSel = document.getElementById('slog_lvl');
+                if (lvlSel) lvlSel.value = String(val('slog_lvl', 1));
                 wirePendingListeners();
         }
 

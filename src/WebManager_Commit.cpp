@@ -963,15 +963,9 @@ void WebManager::handleApiCommitAll( ) {
 				objStart = objEnd + 1;
 			}
 
-			/* Reativar QUALQUER alarme pelo web limpa o estado global de
-			 * desativação (tela de ação) — o âmbar de erro volta a reportar. */
-			{
-				bool anyOn = false;
-				for (int i = 0; i < MAX_SENSORS; i++) {
-					if (cfg.sensors[i].active && cfg.sensors[i].alarmsActive) { anyOn = true; break; }
-				}
-				if (anyOn && _displayRef) _displayRef->setAlarmDeactivated(false);
-			}
+			/* Reativar alarmes pelo web: o self-heal em checkAlarmConditions
+			 * limpa o bit de desativação dos slots com alarmsActive=true — o
+			 * âmbar de erro volta a reportar sem estado global. */
 		}
 
 		/* Sounds: parsed and applied via SoundSettingsState + fillConfig. */

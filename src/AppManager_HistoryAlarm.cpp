@@ -639,13 +639,18 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 
 		/* ERRO de sensor (sem comunicação OU trocado): independente de
 		 * alarmsActive — falha é sempre reportada na linha de alarmes, mesmo
-		 * com os limites de alarme desligados para o slot. EXCEÇÃO: com o
-		 * alarme DESATIVADO (ação do operador), o erro não relatcha — o
-		 * registro err_off já documentou a desativação e o âmbar não volta.
-		 * Reativar alarmes (web/CLI) limpa o estado e os erros voltam. */
+		 * com os limites de alarme desligados para o slot. EXCEÇÃO (por slot):
+		 * DESATIVADO via tela de ação → alarmsActive=false + bit _alarmDeactBits
+		 * — o erro não relatcha (o registro err_off já documentou a ação).
+		 * Reativar o slot (web/CLI) limpa o bit abaixo e os erros voltam.
+		 * Os demais slots não são afetados (sem estado global). */
+		if (cfg.sensors[i].alarmsActive) {
+			/* self-heal: slot reativado deixa de estar desativado */
+			_alarmDeactBits &= (uint16_t)~(1u << i);
+		}
 		const bool errNow = (live->inErrorState || live->hardwareMismatch);
 		if (errNow) {
-			if (_displayMgr->isAlarmDeactivated( )) {
+			if ((_alarmDeactBits & (1u << i)) != 0) {
 				_alarmErrBits &= (uint16_t)~(1u << i);
 				_alarmTripBits[i] = 0;
 				_alarmCandBits[i] = 0;

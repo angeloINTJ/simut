@@ -265,14 +265,18 @@ void AppManager::core0Yield( ) {
  _pendingAlarmDeactivate = false;
 
  SystemConfig &cfg = _storageMgr->getConfig( );
- for (int i = 0; i < MAX_SENSORS; i++) {
- cfg.sensors[i].alarmsActive = false;
+ /* Desativação POR SLOT, RAM only: só o sensor da tela de ação fica
+ * desativado (alarmsActive=false + bit de erro mudo). Os demais sensores
+ * continuam com o monitoramento de limite E de erro — antes isso zerava
+ * todos os slots e o estado global suprimia erros de todo o painel. */
+ if (_alarmDeactivateSlot >= 0 && _alarmDeactivateSlot < MAX_SENSORS) {
+ cfg.sensors[_alarmDeactivateSlot].alarmsActive = false;
+ _alarmDeactBits |= (uint16_t)(1u << _alarmDeactivateSlot);
  }
 
  _soundMgr->stopAlarm( );
  _displayMgr->setAlarmState(0, -1);
  _displayMgr->setAlarmSilenced(false, 0);
- _displayMgr->setAlarmDeactivated(true);
  /* 2ª linha de telemetria: registra a AÇÃO de desativar — o {err} do
  * registro carrega "err_off" (erro) ou "off" (limite). */
  pushAlarmAction(_alarmDeactivateSlot, ALARM_ERR_ERR_OFF, ALARM_ERR_ALARM_OFF);

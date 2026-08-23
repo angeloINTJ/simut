@@ -300,10 +300,11 @@ public:
 
 
 	void setAlarmSilenced(bool silenced, uint32_t endTime = 0);
-	void setAlarmDeactivated(bool deactivated);
+	/* setAlarmDeactivated/isAlarmDeactivated removidos: o estado global
+	 * fazia a desativacao de um sensor suprimir erros de TODOS — a
+	 * desativacao agora e por slot (AppManager::_alarmDeactBits). */
 	bool isAlarmSilenced( ) const { return _alarmSilenced; }
 	uint32_t getAlarmSilenceEnd( ) const { return _alarmSilenceEnd; }
-	bool isAlarmDeactivated( ) const { return _alarmDeactivated; }
 	int8_t getAlarmActionSlot( ) const { return _alarmActionSlot; }
 
 	void showStats(const GraphDataPackage& data, float minHum, float maxHum);
@@ -569,7 +570,6 @@ private:
 
 	volatile bool _alarmSilenced = false;
 	volatile uint32_t _alarmSilenceEnd = 0;
-	volatile bool _alarmDeactivated = false;
 	int8_t _alarmActionSlot = -1;
 
 
