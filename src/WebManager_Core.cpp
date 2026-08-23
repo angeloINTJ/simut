@@ -88,6 +88,7 @@ void WebManager::begin(StorageManager* storage, SensorManager* sensors,
  _server->on("/force_chpass", HTTP_GET, std::bind(&WebManager::handleForceChpass, this));
  _server->on("/", HTTP_GET, std::bind(&WebManager::handleRoot, this));
  _server->on("/config", HTTP_GET, std::bind(&WebManager::handleConfig, this));
+ _server->on("/telemetry", HTTP_GET, std::bind(&WebManager::handleTelemetry, this));
  _server->on("/network", HTTP_GET, std::bind(&WebManager::handleNetwork, this));
  _server->on("/users", HTTP_GET, std::bind(&WebManager::handleUsers, this));
  _server->on("/files", HTTP_GET, std::bind(&WebManager::handleFiles, this));
