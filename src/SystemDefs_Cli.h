@@ -84,6 +84,10 @@ enum DemandType {
  CMD_TEL_SYNC,
  CMD_TEL_DUMP,
  CMD_TEL_RESET, /**< Reset telemetry cursor: RAM cache + flash file */
+ CMD_ALARM_SHOW, /**< 2ª linha de telemetria: estado da fila/config */
+ CMD_ALARM_SET,  /**< strVal1 = campo (on|off|mode|qmax|path|glob|line|sep); strVal2 = valor */
+ CMD_ALARM_DUMP, /**< dump do próximo payload de alarmes */
+ CMD_ALARM_FLUSH, /**< esvazia a fila de alarmes sem confirmar */
  CMD_DEBUG,
  CMD_LANGUAGE,
  /* CLI↔Web parity */

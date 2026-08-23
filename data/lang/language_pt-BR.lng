@@ -222,6 +222,11 @@ Luminosidade
 546 Forçando sync de telemetria
 547 Logs de retry suprimidos
 548 Discovery HA atualizado
+549 Linha de telemetria de alarmes ligada
+550 Payload de alarmes enviado
+551 Falha no envio de alarmes
+552 Recebimento de alarmes confirmado
+553 Estouro da fila de alarmes
 560 Falha em escrever histórico
 561 Budget de correção de ts excedido
 562 Budget de limite de storage excedido

@@ -20,11 +20,15 @@
 /* The snapshot is the only thing carrying config across a destructive apply, so
  * a SystemConfig that outgrows the region does not fail loudly — the device
  * simply comes up on defaults after an update, having lost WiFi, users and
- * every sensor slot. Nothing else in the build ties the two together, and the
- * margin is now 155 B: two more floats per sensor slot would spend it.
+ * every sensor slot. Nothing else in the build ties the two together.
+ *
+ * v20 cabia num setor (3921 B contra 4076 úteis, margem 155 B). A v21 anexou
+ * AlarmTelConfig (segunda linha de telemetria) e passou o orçamento; a região
+ * ganhou um SEGUNDO setor (8172 B úteis — margem atual ~3,4 KiB), e o buffer
+ * de scratch em applier.cpp cresceu junto.
  *
  * Fails at compile time instead. If this fires, either the config has to shrink
- * or the snapshot needs a second sector — do not just raise the constant. */
+ * or the snapshot needs a THIRD sector — do not just raise the constant. */
 static_assert(sizeof(SystemConfig) + sizeof(uint32_t) <= ota::CONFIG_SNAPSHOT_PAYLOAD_MAX,
               "SystemConfig + CRC no longer fits the OTA config snapshot: an "
               "update would silently factory-reset every device");
@@ -72,7 +76,7 @@ uint16_t ota_snapshot_serialize() {
      *   [0..15]                   ConfigSnapshotHeader
      *   [16..16+payload_size]     system.bin raw
      *   [tail 4 B]                CRC32 sobre [magic..last payload byte]
-     * Total <= CONFIG_SNAPSHOT_REGION_SIZE (3840 B). */
+     * Total <= CONFIG_SNAPSHOT_REGION_SIZE (8192 B). */
     uint8_t* region = s_applier_buf;
     ConfigSnapshotHeader& hdr = *reinterpret_cast<ConfigSnapshotHeader*>(region);
     hdr.magic          = CONFIG_SNAPSHOT_MAGIC;

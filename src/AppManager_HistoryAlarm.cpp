@@ -561,4 +561,93 @@ void AppManager::checkAlarmConditions( ) {
  }
  LOG_CODE(LOG_INFO, "APP", APP_ALARM_CLEARED, 0, "");
  }
+
+ /* Borda de alarme/erro para a 2ª linha de telemetria (v21) — sempre após o
+  * passe de display, para som/TFT seguirem o valor imediato. */
+ handleAlarmTelemetryEdges( );
+}
+
+/* ── 2ª linha de telemetria: detecção de borda (v21) ────────────────────────
+ * Roda no fim de checkAlarmConditions( ), depois do passe de display — o
+ * som/TFT continuam reagindo ao valor IMEDIATO, e a fila de alarmes reage à
+ * BORDA (ok→fora / ok→falha). Sem borda, um limite violado por 1 h enfileiraria
+ * o mesmo alarme a cada ~5 s até estourar a fila.
+ *
+ * Debounce de 2 ciclos (~10 s) para limite; erro não tem debounce — a
+ * histerese de 3 erros já aconteceu no SensorManager (inErrorState).
+ * Valor em falha vira "err" (HIST_NAN_SENTINEL + ALARM_FLAG_ERR); o canal do
+ * registro de erro é o PRIMEIRO canal que o tipo reporta (t{hwid} no
+ * DS18B20, por exemplo) — o "prefixo da grandeza" do ID. */
+void AppManager::handleAlarmTelemetryEdges( ) {
+	SystemConfig &cfg = _storageMgr->getConfig( );
+
+	if (!cfg.alarmTel.enabled) {
+		/* linha desligada: zera o estado para religar sem lixo */
+		memset(_alarmTripBits, 0, sizeof(_alarmTripBits));
+		memset(_alarmCandBits, 0, sizeof(_alarmCandBits));
+		_alarmErrBits = 0;
+		return;
+	}
+
+	const auto& sensors = _sensorMgr->getRuntimeSensors( );
+
+	for (int i = 0; i < MAX_SENSORS; i++) {
+		if (!cfg.sensors[i].active || !cfg.sensors[i].alarmsActive) {
+			_alarmTripBits[i] = 0;
+			_alarmCandBits[i] = 0;
+			_alarmErrBits &= (uint16_t)~(1u << i);
+			continue;
+		}
+
+		/* runtime sensor do slot, casado por GPIO como no resto do sistema */
+		const RuntimeSensor* live = nullptr;
+		for (const auto &s : sensors) {
+			if (s.config.pins[0] == cfg.sensors[i].pins[0]) { live = &s; break; }
+		}
+		if (live == nullptr) continue; /* slot sem runtime — sem dados, sem borda */
+
+		const bool errNow = live->inErrorState;
+		if (errNow) {
+			if (!(_alarmErrBits & (1u << i))) {
+				_alarmErrBits |= (1u << i);
+				uint8_t firstCh = CH_TEMP;
+				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+					if (sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) {
+						firstCh = c;
+						break;
+					}
+				}
+				_telemetryMgr->pushAlarm((uint8_t)i, firstCh, NAN, true);
+			}
+			/* em falha não há valor a comparar com limites */
+			_alarmTripBits[i] = 0;
+			_alarmCandBits[i] = 0;
+			continue;
+		}
+		_alarmErrBits &= (uint16_t)~(1u << i); /* voltou do erro */
+
+		for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+			if (!sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) continue;
+			const uint8_t bit = (uint8_t)(1u << c);
+			const float v = live->avgValue[c];
+			if (!isfinite(v)) continue; /* falha é o caminho do erro, não o do limite */
+
+			const bool trip = (v < cfg.sensors[i].chMin[c] || v > cfg.sensors[i].chMax[c]);
+			if (trip) {
+				if (_alarmCandBits[i] & bit) {
+					/* 2º ciclo consecutivo → borda confirmada */
+					_alarmCandBits[i] &= (uint8_t)~bit;
+					if (!(_alarmTripBits[i] & bit)) {
+						_alarmTripBits[i] |= bit;
+						_telemetryMgr->pushAlarm((uint8_t)i, c, v, false);
+					}
+				} else {
+					_alarmCandBits[i] |= bit;
+				}
+			} else {
+				_alarmCandBits[i] &= (uint8_t)~bit;
+				_alarmTripBits[i] &= (uint8_t)~bit;
+			}
+		}
+	}
 }

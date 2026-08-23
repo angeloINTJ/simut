@@ -22,6 +22,7 @@
 #include "StorageManager.h"
 #include "NetworkManager.h"
 #include "LogManager.h"
+#include "AlarmQueue.h" /* 2ª linha de telemetria (v21) */
 
 class TelemetryManager {
 public:
@@ -59,7 +60,68 @@ public:
  */
  bool consumeLastSendResult(bool& outSuccess);
 
+ /* ────────────────────────────────────────────────────────────────────────
+  * SEGUNDA LINHA DE TELEMETRIA — ALARMES (v21)
+  *
+  * Fila em RAM com confirmação de recebimento (R3 da proposta em
+  * docs/analysis/ANALISE_TELEMETRIA_ALARMES.md). O produtor é
+  * AppManager::checkAlarmConditions (detecção de borda); o consumidor é
+  * updateAlarms( ), chamado de update( ) a cada loop. Transporte, servidor
+  * e criptografia são herdados da telemetria convencional; só o formato do
+  * payload é próprio (cfg.alarmTel.*). */
+ /* ──────────────────────────────────────────────────────────────────────── */
+
+ /** Enfileira um alarme (borda detectada pelo AppManager). Escala o valor
+  * pelo canal e atribui o seq. err=true grava HIST_NAN_SENTINEL no valor.
+  * Arma o envio imediato (updateAlarms não espera o intervalo).
+  * @return seq atribuído, ou 0 quando recusado (estouro) / linha desligada. */
+ uint16_t pushAlarm(uint8_t slot, uint8_t channel, float value, bool err);
+
+ uint8_t alarmQueueSize( ) const { return _alarmQueue.size( ); }
+ uint16_t alarmDropped( ) const { return _alarmQueue.dropped( ); }
+ bool isAlarmLineEnabled( ) const { return _alarmEnabled; }
+
+ /** Esvazia a fila sem confirmar (comando manual do CLI). */
+ void flushAlarmQueue( ) { _alarmQueue.clear( ); }
+
+ /** 'alarm dump' (CLI): arma o dump + dispara o envio imediato. */
+ void forceAlarmSync( ) { _alarmDumpNext = true; _alarmSendPending = true; }
+
+ /** Dump one-shot do próximo payload de alarmes (CLI/BT, espelho do tel dump). */
+ void armAlarmPayloadDump( ) { _alarmDumpNext = true; }
+ bool isAlarmPayloadDumpArmed( ) const { return _alarmDumpNext; }
+
 private:
+ /* ── estado da 2ª linha ───────────────────────────────────────────────── */
+ AlarmQueue _alarmQueue;
+ bool _alarmEnabled = false;            /**< cfg.alarmTel.enabled no boot */
+ volatile bool _alarmSendPending = false; /**< gatilho imediato após push */
+ uint32_t _lastAlarmAttempt = 0;        /**< millis() do último ciclo de envio */
+ volatile bool _alarmSending = false;   /**< CAS do ciclo de alarmes */
+ volatile bool _alarmDumpNext = false;  /**< one-shot 'alarm dump' */
+ static TelemetryManager* s_alarmInstance; /**< para o callback MQTT de ACK */
+
+ static const uint32_t ALARM_RETRY_INTERVAL_MS = 15000;
+ static const uint8_t ALARM_BATCH_MAX = 64; /**< == ALARM_QUEUE_MAX */
+
+ void updateAlarms( );
+ /** Monta o payload da fila no formato cfg.alarmTel (JSON/CSV/custom). */
+ String buildAlarmPayload(std::vector<AlarmRecord>& batch);
+ int formatLineAlarmBuf(const AlarmRecord& rec, const SystemConfig& cfg, char* dest, size_t cap);
+ bool attemptAlarmHttpUpload(String& payload, std::vector<AlarmRecord>& batch);
+ bool attemptAlarmMqttPublish(String& payload, std::vector<AlarmRecord>& batch);
+ /** base + "/alarm" e base + "/alarm/ack" (mesma regra de fallback do tópico de dados). */
+ String mqttAlarmTopic( );
+ String mqttAlarmAckTopic( );
+ /** Assina o tópico de ACK após cada (re)conexão MQTT. */
+ void mqttSubscribeAlarmAck( );
+ /** Callback estático do PubSubClient — roteia para o instance único. */
+ static void mqttAlarmAckCallback(char* topic, uint8_t* payload, unsigned int length);
+ /** Processa {"seq":[...]}: remove os confirmados da fila + métricas. */
+ void handleAlarmAckPayload(const uint8_t* payload, unsigned int length);
+ /** Confirmou os seqs contidos no batch (HTTP 2xx / MQTT publish aceito). */
+ void ackAlarmBatch(const std::vector<AlarmRecord>& batch);
+ void _dumpAlarmPayload(const char* payload, size_t len, const char* label);
  StorageManager* _storageRef;
  NetworkManager* _netRef;
 

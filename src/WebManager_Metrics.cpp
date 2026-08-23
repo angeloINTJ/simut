@@ -183,6 +183,17 @@ void WebManager::handleMetrics( ) {
 	add(ln, PromMetrics::lineF(ln, sizeof(ln), "simut_telemetry_last_latency_seconds",
 	                           "", mt.telLastLatencyMs / 1000.0, 3));
 
+	/* ── 2ª linha (alarmes, v21) ── */
+	emitU32("simut_alarm_line_enabled", "gauge", cfg.alarmTel.enabled ? 1 : 0);
+	if (_telemetryRef)
+		emitU32("simut_alarm_pending_records", "gauge", _telemetryRef->alarmQueueSize( ));
+	emitU32("simut_alarm_queued_total", "counter", mt.alarmQueued);
+	emitU32("simut_alarm_sent_total", "counter", mt.alarmSent);
+	emitU32("simut_alarm_acked_total", "counter", mt.alarmAcked);
+	emitU32("simut_alarm_failed_total", "counter", mt.alarmFailed);
+	emitU32("simut_alarm_dropped_total", "counter", mt.alarmDropped);
+	emitU32("simut_alarm_error_records_total", "counter", mt.alarmErrRecords);
+
 	/* ── sensors aggregate / storage ── */
 	emitU32("simut_sensor_reads_ok_total", "counter", mt.sensorReadsOk);
 	emitU32("simut_sensor_reads_error_total", "counter", mt.sensorReadsErr);

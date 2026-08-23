@@ -607,6 +607,9 @@ public:
   *  user sees settings vanish with no stated reason. Read via
   *  takeRejectedConfigSize( ) once the logger is up. */
  size_t _rejectedConfigSize = 0;
+ /** v21: true when the config in RAM came from a v20 blob (migrated).
+  * loadConfiguration( ) saves it back once to persist the new schema. */
+ bool _migratedFromV20 = false;
 
  File _currentLogFile;
  String _currentLogFileName = "";
@@ -617,6 +620,15 @@ public:
 
  bool mountFS( );
  void loadDefaults( );
+ /** v21: preenche AlarmTelConfig com os defaults de fábrica (linha de
+  * alarmes DESLIGADA, JSON, fila 32, templates §3.3 da proposta).
+  * Usada por loadDefaults( ) e pela migração v20→v21. */
+ static void applyAlarmTelDefaults(AlarmTelConfig& a);
+ /** v21: lê um blob v20 (tamanho = offsetof(SystemConfig, alarmTel) + CRC)
+  * direto para a cabeça do struct, deofusca os campos sensíveis e preenche a
+  * cauda alarmTel com defaults. A cauda só pode ser anexada — travado por
+  * static_assert em SystemDefs_Records.h. */
+ bool loadMigrateV20Blob(File& f, SystemConfig& outCfg);
  void enforceStorageLimit( );
  /** T1.4: set when enforceStorageLimit( ) hits its per-call deletion cap
   * with usage still above the limit; drained by update( ) in slices. */

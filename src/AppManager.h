@@ -138,6 +138,18 @@ private:
 
  bool _pendingAlarmDeactivate = false;
 
+ /* ── 2ª linha de telemetria (v21): detecção de borda de alarme/erro ──────
+  * Estado por slot, em RAM (~20 B). trip = canal fora do limite (borda já
+  * confirmada e enfileirada); cand = candidato visto em 1 ciclo (debounce de
+  * 2 ciclos, ~10 s); err = sensor em falha (sem debounce — a histerese de
+  * 3 erros já acontece no SensorManager). Zerado no boot; consumido por
+  * checkAlarmConditions( ). */
+ uint8_t _alarmTripBits[MAX_SENSORS] = {0};
+ uint8_t _alarmCandBits[MAX_SENSORS] = {0};
+ uint16_t _alarmErrBits = 0;
+ /** Borda confirmada → enfileira em _telemetryMgr->pushAlarm( ). */
+ void handleAlarmTelemetryEdges( );
+
  /* Warn-once when processHistoryLogging skips saving due to missing
 	 * time reference (no NTP and no provisional). Resets automatically
 	 * when time reference returns. Prevents silent record loss after

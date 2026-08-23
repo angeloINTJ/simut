@@ -819,6 +819,15 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("t_glob")) setStr("t_glob", cfg.telGlobalTemplate, sizeof(cfg.telGlobalTemplate));
 			if (has("t_line")) setStr("t_line", cfg.telLineTemplate, sizeof(cfg.telLineTemplate));
 			if (has("t_sep")) setStr("t_sep", cfg.telLineSeparator, sizeof(cfg.telLineSeparator));
+			/* 2ª linha (alarmes, v21): mesmos validadores da linha convencional.
+			 * a_qmax usa as constantes do AlarmTelConfig (1..64). */
+			fl = readFlag("a_en"); if (fl >= 0) cfg.alarmTel.enabled = (fl == 1);
+			if (has("a_mode")) { int v; if (parseIntStrict(getNum("a_mode"), v) && isInRange(v, 0, 2)) cfg.alarmTel.mode = (uint8_t)v; else rejectField("a_mode"); }
+			if (has("a_qmax")) { int v; if (parseIntStrict(getNum("a_qmax"), v) && isInRange(v, ALARM_QUEUE_MIN, ALARM_QUEUE_MAX)) cfg.alarmTel.queueMax = (uint8_t)v; else rejectField("a_qmax"); }
+			if (has("a_path")) setStr("a_path", cfg.alarmTel.path, sizeof(cfg.alarmTel.path));
+			if (has("a_glob")) setStr("a_glob", cfg.alarmTel.globalTemplate, sizeof(cfg.alarmTel.globalTemplate));
+			if (has("a_line")) setStr("a_line", cfg.alarmTel.lineTemplate, sizeof(cfg.alarmTel.lineTemplate));
+			if (has("a_sep")) setStr("a_sep", cfg.alarmTel.lineSeparator, sizeof(cfg.alarmTel.lineSeparator));
 			/* NTP enable/disable flag (overlay NetworkTimeData). */
 			fl = readFlag("ntp_enabled"); if (fl >= 0) _storageRef->setNtpEnabled(fl == 1);
 			if (has("h_int")) { int v; if (parseIntStrict(getNum("h_int"), v) && isInRange(v, 1, 1440)) _storageRef->setHistoryIntervalMin((uint16_t)v); else rejectField("h_int"); }

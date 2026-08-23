@@ -86,7 +86,8 @@ static bool historyDayIsBefore(const String &fileName, const char *minDay) {
  */
 
 TelemetryManager::TelemetryManager( )
- : _mqttClient(_mqttWifiClient)
+ : _mqttClient(_mqttWifiClient),
+   _alarmQueue(ALARM_QUEUE_DEFAULT)
 {
  _lastCheckTime = 0;
  _hasCert = false;
@@ -95,6 +96,7 @@ TelemetryManager::TelemetryManager( )
  _consecutiveFails = 0;
  _mqttInitialized = false;
  _lastMqttReconnect = 0;
+ s_alarmInstance = this;
 }
 
 /**
@@ -151,6 +153,16 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  }
 
 
+ /* v21 — segunda linha (alarmes). Só o formato é próprio; transporte,
+  * servidor e criptografia vêm da config convencional. Desligada por
+  * padrão (migração/fábrica) — ligar via web ou CLI. */
+ _alarmEnabled = cfg.alarmTel.enabled;
+ _alarmQueue.setCapacity(cfg.alarmTel.queueMax);
+ if (_alarmEnabled) {
+ LOG_CODE(LOG_INFO, "TEL", TEL_ALARM_LINE_ON, (int)_alarmQueue.capacity( ),
+          "alarm telemetry line enabled (queue " + String(_alarmQueue.capacity( )) + ")");
+ }
+
  if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
  if (cfg.telEncryption) {
  _mqttSecurePtr = new WiFiClientSecure( );
@@ -196,6 +208,11 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
  _mqttClient.setSocketTimeout(NET_SOCKET_TIMEOUT_MS / 1000);
 
  _mqttClient.setBufferSize(2048);
+
+ /* Callback único do cliente: o ACK por aplicação da linha de alarmes
+  * ({"seq":[...]} no tópico {base}/alarm/ack) chega por aqui. A assinatura
+  * é (re)feita em cada conexão — ver mqttEnsureConnected. */
+ _mqttClient.setCallback(TelemetryManager::mqttAlarmAckCallback);
 
  _mqttInitialized = true;
  LOG_CODE(LOG_INFO, "TEL", TEL_MQTT_INIT, cfg.telPort, String(cfg.telServer));
@@ -282,6 +299,10 @@ static uint32_t deliveredCursor(const std::vector<BinaryHistoryRecord>& batch,
 }
 
 void TelemetryManager::update( ) {
+ /* Segunda linha (alarmes): ciclo próprio, independente do intervalo da
+  * telemetria convencional — um alarme não espera a cadência de massa. */
+ updateAlarms( );
+
  SystemConfig &cfg = _storageRef->getConfig( );
  if (cfg.telInterval == 0) return;
 
@@ -1132,6 +1153,11 @@ bool TelemetryManager::mqttEnsureConnected( ) {
   * and sensor-table edits (commit_all reboots into exactly this path),
   * and a fresh OFF-with-published-bit state clears the retained configs. */
  haDiscoveryReconcile(true);
+
+ /* Linha de alarmes: (re)assina o tópico de ACK. PubSubClient re-assina
+  * sozinho em reconexões, mas a assinatura explícita aqui cobre o broker
+  * que esquece sessões (clean session) — idempotente. */
+ mqttSubscribeAlarmAck( );
 
  return true;
  } else {
@@ -2096,4 +2122,566 @@ bool TelemetryManager::consumeLastSendResult(bool& outSuccess) {
  return true;
  }
  return false;
+}
+
+
+
+/* =========================================================================== */
+/* SECOND TELEMETRY LINE — ALARMS (v21)                                        */
+/* =========================================================================== */
+/* Fila em RAM + confirmação de recebimento, payload editável, criptografia
+ * herdada da linha convencional. Design: docs/analysis/ANALISE_TELEMETRIA_ALARMES.md */
+
+TelemetryManager* TelemetryManager::s_alarmInstance = nullptr;
+
+/** Header de auth do HTTP — mesma semântica da linha convencional
+ * (attemptHttpUpload), extraído para reuso sem tocar no caminho original. */
+static void addTelemetryAuthHeader(HTTPClient& http, const SystemConfig& cfg) {
+	String tokenStr = String(cfg.telApiKey);
+	tokenStr.trim( );
+	if (tokenStr.length( ) == 0) return;
+	int colonIdx = tokenStr.indexOf(':');
+	if (colonIdx > 0) {
+		String hName = tokenStr.substring(0, colonIdx);
+		String hVal = tokenStr.substring(colonIdx + 1);
+		hName.trim( ); hVal.trim( );
+		http.addHeader(hName, hVal);
+	} else {
+		http.addHeader("Authorization", "Bearer " + tokenStr);
+	}
+}
+
+/** URL de alarmes no HTTP: cfg.alarmTel.path verbatim; vazio = telPath + "/alarm". */
+static String alarmHttpPath(const SystemConfig& cfg) {
+	String p = String(cfg.alarmTel.path);
+	p.trim( );
+	if (p.length( ) > 0) return p;
+	return String(cfg.telPath) + "/alarm";
+}
+
+/** id com prefixo da grandeza: t{hwid} / u{hwid} / p{hwid} / l{hwid},
+ * fallback {letra}{slot} — a mesma convenção das chaves JSON da linha
+ * convencional (formatLineJsonBuf) e do HA discovery. */
+static void alarmBuildId(const AlarmRecord& rec, const SystemConfig& cfg, char* dst, size_t cap) {
+	const ChannelInfo& ci = channelInfo(rec.channel);
+	if (rec.slot < MAX_SENSORS && cfg.sensors[rec.slot].hwId[0]) {
+		snprintf(dst, cap, "%c%s", ci.letter, cfg.sensors[rec.slot].hwId);
+	} else {
+		snprintf(dst, cap, "%c%u", ci.letter, (unsigned)rec.slot);
+	}
+}
+
+/** Linha CSV fixa da 2ª linha: seq;ts;id;v ("err" no valor quando falha). */
+static int formatAlarmCsvLine(const AlarmRecord& rec, const SystemConfig& cfg, char* dest, size_t cap) {
+	const ChannelInfo& ci = channelInfo(rec.channel);
+	char idBuf[24];
+	alarmBuildId(rec, cfg, idBuf, sizeof(idBuf));
+	if (rec.flags & ALARM_FLAG_ERR) {
+		return snprintf(dest, cap, "%u;%lu;%s;err", (unsigned)rec.seq,
+		                (unsigned long)rec.epoch, idBuf);
+	}
+	return snprintf(dest, cap, "%u;%lu;%s;%.*f", (unsigned)rec.seq,
+	                (unsigned long)rec.epoch, idBuf,
+	                (int)ci.display.decimals, (double)((float)rec.value / ci.scale));
+}
+
+uint16_t TelemetryManager::pushAlarm(uint8_t slot, uint8_t channel, float value, bool err) {
+	if (!_alarmEnabled || slot >= MAX_SENSORS) return 0;
+
+	int16_t scaled;
+	if (err) {
+		scaled = HIST_NAN_SENTINEL;
+	} else {
+		const ChannelInfo& ci = channelInfo(channel);
+		float s = value * ci.scale;
+		if (s > 32767.0f) s = 32767.0f;
+		if (s < -32767.0f) s = -32767.0f;
+		scaled = (int16_t)lroundf(s);
+	}
+
+	uint16_t seq = _alarmQueue.push((uint32_t)time(nullptr), slot, channel, scaled, err);
+	auto& m = MetricsManager::instance( ).data( );
+	if (seq != 0) {
+		m.alarmQueued++;
+		if (err) m.alarmErrRecords++;
+		/* gatilho imediato: o próximo update( ) não espera o retry interval */
+		__atomic_store_n(&_alarmSendPending, true, __ATOMIC_RELEASE);
+	} else {
+		m.alarmDropped++;
+		/* string fixa sem TRL: os packs de idioma têm teto de RAM e esta
+		 * linha é operacional/de operador — mesmo padrão dos demais logs TEL */
+		LOG_CODE(LOG_WARN, "TEL", TEL_ALARM_DROP, (int)_alarmQueue.dropped( ),
+		         "Alarm queue full — record dropped");
+	}
+	return seq;
+}
+
+void TelemetryManager::updateAlarms( ) {
+	if (!_alarmEnabled) { _alarmSendPending = false; return; }
+
+	SystemConfig &cfg = _storageRef->getConfig( );
+	String server = String(cfg.telServer);
+	server.trim( );
+	if (server.length( ) == 0) { _alarmSendPending = false; return; }
+
+	const bool due = _alarmSendPending ||
+	                 (_alarmQueue.size( ) > 0 &&
+	                  timeSince(_lastAlarmAttempt, ALARM_RETRY_INTERVAL_MS));
+	if (!due) return;
+
+	_alarmSendPending = false; /* consumido — falha rearma pelo retry interval */
+	_lastAlarmAttempt = millis( );
+
+	bool expected = false;
+	if (!__atomic_compare_exchange_n(&_alarmSending, &expected, true,
+	                                 false, __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) return;
+	if (!_netRef->isNetworkHealthy( )) { __atomic_store_n(&_alarmSending, false, __ATOMIC_RELEASE); return; }
+	if (!_storageRef->lockHeavyTask( )) { __atomic_store_n(&_alarmSending, false, __ATOMIC_RELEASE); return; }
+
+	LogManager::WdtWindow _wdt(120000);
+
+	/* Mesmo preflight da linha convencional: TLS pede a reserva maior. */
+	uint32_t freeH = rp2040.getFreeHeap( );
+	const uint32_t PREFLIGHT_FLOOR = cfg.telEncryption ? 24576 : 14336;
+	if (freeH < PREFLIGHT_FLOOR) {
+		_storageRef->unlockHeavyTask( );
+		__atomic_store_n(&_alarmSending, false, __ATOMIC_RELEASE);
+		return; /* fila fica; retry no próximo intervalo */
+	}
+
+	std::vector<AlarmRecord> batch;
+	{
+		AlarmRecord tmp[ALARM_QUEUE_MAX];
+		uint8_t n = _alarmQueue.snapshot(tmp, ALARM_BATCH_MAX);
+		batch.reserve(n);
+		for (uint8_t i = 0; i < n; i++) batch.push_back(tmp[i]);
+	}
+	if (batch.empty( )) {
+		__atomic_store_n(&_alarmSending, false, __ATOMIC_RELEASE);
+		_storageRef->unlockHeavyTask( );
+		return;
+	}
+
+	String payload = buildAlarmPayload(batch);
+	if (_alarmDumpNext) {
+		_dumpAlarmPayload(payload.c_str( ), payload.length( ),
+		                  cfg.telTransport == TEL_TRANSPORT_MQTT ? "ALARM-MQTT" : "ALARM-HTTP");
+		_alarmDumpNext = false;
+	}
+
+	bool success;
+	if (cfg.telTransport == TEL_TRANSPORT_MQTT) {
+		success = attemptAlarmMqttPublish(payload, batch);
+	} else {
+		success = attemptAlarmHttpUpload(payload, batch);
+	}
+
+	__atomic_store_n(&_alarmSending, false, __ATOMIC_RELEASE);
+	_storageRef->unlockHeavyTask( );
+	if (!success) {
+		/* contagem única por ciclo — as funções de transporte não contam */
+		MetricsManager::instance( ).data( ).alarmFailed++;
+	}
+}
+
+String TelemetryManager::buildAlarmPayload(std::vector<AlarmRecord>& batch) {
+	LogManager::TraceScope _tA(0, MOD_TEL_BUILD);
+	SystemConfig &cfg = _storageRef->getConfig( );
+	const uint8_t mode = cfg.alarmTel.mode;
+
+	size_t perLine = (mode == TEL_MODE_CSV) ? 48 : 128;
+	size_t fixedPart = (mode == TEL_MODE_CSV) ? 16 : 128;
+	String s;
+	s.reserve(batch.size( ) * perLine + fixedPart);
+
+	if (mode == TEL_MODE_JSON) {
+		/* Mesma regra da linha convencional: JSON ignora o template global
+		 * e emite um array de linhas. */
+		s = "[";
+		char lineBuf[512];
+		for (size_t i = 0; i < batch.size( ); i++) {
+			if (i > 0) s.concat(',');
+			int len = formatLineAlarmBuf(batch[i], cfg, lineBuf, sizeof(lineBuf));
+			s.concat(lineBuf, len);
+			if (i % 10 == 9) { watchdog_update( ); yield( ); }
+		}
+		s.concat(']');
+	} else if (mode == TEL_MODE_CSV) {
+		s = "seq;ts;id;v";
+		s.concat('\n');
+		char csvBuf[64];
+		for (size_t i = 0; i < batch.size( ); i++) {
+			int len = formatAlarmCsvLine(batch[i], cfg, csvBuf, sizeof(csvBuf));
+			if (len > 0) s.concat(csvBuf, len);
+			s.concat('\n');
+			if (i % 10 == 9) { watchdog_update( ); yield( ); }
+		}
+	} else {
+		/* Custom: mesmo contrato da linha convencional — template global com
+		 * {DEV} {MAC} {DATA}; linhas unidas pelo separador configurado. */
+		char sep[16];
+		strlcpy(sep, cfg.alarmTel.lineSeparator, sizeof(sep));
+		if (sep[0] == '\\' && sep[1] == 'n' && sep[2] == '\0') { sep[0] = '\n'; sep[1] = '\0'; }
+		size_t sepLen = strlen(sep);
+
+		String macStr = _netRef->getMacAddress( );
+		const char* gt = cfg.alarmTel.globalTemplate;
+		const size_t gtLen = strnlen(gt, sizeof(cfg.alarmTel.globalTemplate));
+
+		char lineBuf[512];
+		size_t gi = 0;
+		size_t spanStart = 0;
+		while (gi < gtLen) {
+			if (gt[gi] != '{') { gi++; continue; }
+			const size_t remaining = gtLen - gi;
+			size_t tokLen = 0;
+			int tokKind = 0; /* 1=DEV, 2=MAC, 3=DATA */
+			if (remaining >= 5 && memcmp(gt + gi, "{DEV}", 5) == 0) { tokKind = 1; tokLen = 5; }
+			else if (remaining >= 5 && memcmp(gt + gi, "{MAC}", 5) == 0) { tokKind = 2; tokLen = 5; }
+			else if (remaining >= 6 && memcmp(gt + gi, "{DATA}", 6) == 0) { tokKind = 3; tokLen = 6; }
+			if (tokKind == 0) { gi++; continue; }
+			if (gi > spanStart) s.concat(gt + spanStart, gi - spanStart);
+			if (tokKind == 1) {
+				s.concat(cfg.deviceName);
+			} else if (tokKind == 2) {
+				s.concat(macStr);
+			} else {
+				for (size_t i = 0; i < batch.size( ); i++) {
+					if (i > 0 && sepLen > 0) s.concat(sep, sepLen);
+					int len = formatLineAlarmBuf(batch[i], cfg, lineBuf, sizeof(lineBuf));
+					if (len > 0) s.concat(lineBuf, len);
+					if (i % 10 == 9) { watchdog_update( ); yield( ); }
+				}
+			}
+			gi += tokLen;
+			spanStart = gi;
+		}
+		if (gtLen > spanStart) s.concat(gt + spanStart, gtLen - spanStart);
+	}
+	return s;
+}
+
+/** Formata uma linha de alarme pelo template cfg.alarmTel.lineTemplate.
+ * Tokens: {TS} {ID} {HWID} {SLOT} {CH} {VAL} {ERR} {SEQ} — com aliases
+ * minúsculos {val} {err} {seq}. {VAL} é o número (decimais do canal) ou VAZIO
+ * em falha; {ERR} é o literal "err" ou VAZIO. As formas compostas
+ * "<chave>":{VAL}/{ERR}/{SEQ} (chave == grafia do token) removem a chave
+ * inteira quando o token está ausente — a mesma máquina da linha convencional
+ * (formatLineCustomBuf) — que é o que deixa o template default produzir JSON
+ * válido nos dois casos:
+ *   ok:  {"ts":...,"id":"tX","val":25.30,"seq":1}
+ *   err: {"ts":...,"id":"tX","err":"err","seq":2}
+ */
+int TelemetryManager::formatLineAlarmBuf(const AlarmRecord& rec, const SystemConfig& cfg,
+                                         char* dest, size_t cap) {
+	if (cap == 0) return 0;
+	dest[0] = '\0';
+
+	char tsBuf[16];
+	snprintf(tsBuf, sizeof(tsBuf), "%lu", (unsigned long)rec.epoch);
+	char seqBuf[8];
+	snprintf(seqBuf, sizeof(seqBuf), "%u", (unsigned)rec.seq);
+	char slotBuf[4];
+	snprintf(slotBuf, sizeof(slotBuf), "%u", (unsigned)rec.slot);
+	const ChannelInfo& ci = channelInfo(rec.channel);
+
+	char idBuf[24];
+	alarmBuildId(rec, cfg, idBuf, sizeof(idBuf));
+	char hwidBuf[17] = {0};
+	if (rec.slot < MAX_SENSORS) strlcpy(hwidBuf, cfg.sensors[rec.slot].hwId, sizeof(hwidBuf));
+	char chBuf[2];
+	chBuf[0] = ci.letter; chBuf[1] = '\0';
+
+	const bool isErr = (rec.flags & ALARM_FLAG_ERR) != 0;
+	char valBuf[16] = "";
+	char errBuf[8] = "";
+	if (isErr) {
+		strlcpy(errBuf, "err", sizeof(errBuf));
+	} else if (rec.value != HIST_NAN_SENTINEL) {
+		snprintf(valBuf, sizeof(valBuf), "%.*f",
+		         (int)ci.display.decimals, (double)((float)rec.value / ci.scale));
+	}
+
+	const char* tpl = cfg.alarmTel.lineTemplate;
+	const size_t tplLen = strnlen(tpl, sizeof(cfg.alarmTel.lineTemplate));
+	size_t di = 0;
+	size_t ti = 0;
+
+	while (ti < tplLen && di + 1 < cap) {
+		char c = tpl[ti];
+		if (c != '{') { dest[di++] = c; ti++; continue; }
+
+		const size_t remaining = tplLen - ti;
+		const char* val = nullptr;
+		char compKey[8] = {0};
+		size_t compKeyLen = 0;
+		size_t tokenChars = 0;
+
+		if (remaining >= 4 && memcmp(tpl + ti, "{TS}", 4) == 0) {
+			val = tsBuf; tokenChars = 4;
+		} else if (remaining >= 4 && memcmp(tpl + ti, "{ID}", 4) == 0) {
+			val = idBuf; tokenChars = 4;
+		} else if (remaining >= 6 && memcmp(tpl + ti, "{HWID}", 6) == 0) {
+			val = hwidBuf; tokenChars = 6;
+		} else if (remaining >= 6 && memcmp(tpl + ti, "{SLOT}", 6) == 0) {
+			val = slotBuf; tokenChars = 6;
+		} else if (remaining >= 4 && memcmp(tpl + ti, "{CH}", 4) == 0) {
+			val = chBuf; tokenChars = 4;
+		} else if (remaining >= 5 && memcmp(tpl + ti, "{VAL}", 5) == 0) {
+			val = valBuf;
+			compKeyLen = 3; memcpy(compKey, "VAL", 4);
+			tokenChars = 5;
+		} else if (remaining >= 5 && memcmp(tpl + ti, "{val}", 5) == 0) {
+			/* alias minúsculo — o compKey segue a grafia do token, então a
+			 * forma composta "val":{val} remove a chave "val" */
+			val = valBuf;
+			compKeyLen = 3; memcpy(compKey, "val", 4);
+			tokenChars = 5;
+		} else if (remaining >= 5 && memcmp(tpl + ti, "{ERR}", 5) == 0) {
+			val = errBuf;
+			compKeyLen = 3; memcpy(compKey, "ERR", 4);
+			tokenChars = 5;
+		} else if (remaining >= 5 && memcmp(tpl + ti, "{err}", 5) == 0) {
+			val = errBuf;
+			compKeyLen = 3; memcpy(compKey, "err", 4);
+			tokenChars = 5;
+		} else if (remaining >= 5 && memcmp(tpl + ti, "{SEQ}", 5) == 0) {
+			val = seqBuf;
+			compKeyLen = 3; memcpy(compKey, "SEQ", 4);
+			tokenChars = 5;
+		} else if (remaining >= 5 && memcmp(tpl + ti, "{seq}", 5) == 0) {
+			val = seqBuf;
+			compKeyLen = 3; memcpy(compKey, "seq", 4);
+			tokenChars = 5;
+		}
+
+		if (tokenChars == 0) {
+			/* '{' sem token conhecido: emite literal, avança 1 */
+			dest[di++] = c;
+			ti++;
+			continue;
+		}
+
+		/* Forma composta "<compKey>":{<tok>} — só quando o token a suporta. */
+		bool matchedBare = false;
+		if (compKeyLen > 0) {
+			const size_t p2 = compKeyLen + 3; /* "<k>": */
+			if (ti >= p2) {
+				const char* p = tpl + ti - p2;
+				if (p[0] == '"' &&
+				    memcmp(p + 1, compKey, compKeyLen) == 0 &&
+				    memcmp(p + 1 + compKeyLen, "\":", 2) == 0) {
+					matchedBare = true;
+				}
+			}
+		}
+
+		if (matchedBare) {
+			if (val && val[0] != '\0') {
+				size_t vl = strlen(val);
+				if (di + vl >= cap) vl = cap - 1 - di;
+				memcpy(dest + di, val, vl);
+				di += vl;
+			} else {
+				/* valor ausente: desfaz a chave já emitida */
+				const size_t undo = compKeyLen + 3;
+				if (di >= undo) di -= undo;
+			}
+		} else {
+			const char* emit = (val && val[0] != '\0') ? val : "";
+			size_t el = strlen(emit);
+			if (di + el >= cap) el = cap - 1 - di;
+			memcpy(dest + di, emit, el);
+			di += el;
+		}
+
+		ti += tokenChars;
+	}
+
+	/* Limpeza in-place idêntica à linha convencional: ",," "{," ",}" etc. */
+	size_t r = 0, w = 0;
+	while (r < di) {
+		char c = dest[r++];
+		if (c == ',') {
+			if (w == 0) continue;
+			char prev = dest[w-1];
+			if (prev == ',' || prev == '{' || prev == '[') continue;
+		} else if ((c == '}' || c == ']') && w > 0 && dest[w-1] == ',') {
+			w--;
+		}
+		dest[w++] = c;
+	}
+	dest[w] = '\0';
+	return (int)w;
+}
+
+bool TelemetryManager::attemptAlarmHttpUpload(String& payload, std::vector<AlarmRecord>& batch) {
+	SystemConfig &cfg = _storageRef->getConfig( );
+	feedWdt( );
+
+	HTTPClient http;
+	WiFiClient client;
+	String protocol = cfg.telEncryption ? "https://" : "http://";
+	String url = protocol + String(cfg.telServer) + ":" + String(cfg.telPort) + alarmHttpPath(cfg);
+	bool connected = false;
+
+	if (cfg.telEncryption) {
+		if (!_httpSecurePtr) {
+			_httpSecurePtr = new WiFiClientSecure( );
+			if (!_httpSecurePtr) {
+				LOG_CODE(LOG_ERROR, "TEL", TEL_ALARM_FAIL, 0, TRL("OOM: WiFiClientSecure"));
+				return false;
+			}
+			_httpSecurePtr->setTimeout(NET_SOCKET_TIMEOUT_MS);
+		}
+		_httpSecureLastUse = millis( );
+		WiFiClientSecure::setTLSConnectTimeout(NET_TLS_HANDSHAKE_MS);
+		_httpSecurePtr->setBufferSizes(4096, 512);
+		if (_hasCert) _httpSecurePtr->setCACert(_cachedCert.c_str( ));
+		else _httpSecurePtr->setInsecure( );
+		connected = http.begin(*_httpSecurePtr, url);
+	} else {
+		connected = http.begin(client, url);
+	}
+
+	bool success = false;
+	int code = 0;
+
+	if (connected) {
+		if (cfg.alarmTel.mode == TEL_MODE_JSON) http.addHeader("Content-Type", "application/json");
+		else if (cfg.alarmTel.mode == TEL_MODE_CSV) http.addHeader("Content-Type", "text/csv");
+		else http.addHeader("Content-Type", "text/plain");
+		addTelemetryAuthHeader(http, cfg);
+
+		http.setTimeout(NET_SOCKET_TIMEOUT_MS);
+		feedWdt( );
+
+		uint32_t postStart = millis( );
+		{ code = http.POST(payload); }
+		uint32_t postLatency = millis( ) - postStart;
+		watchdog_update( );
+
+		if (code >= 200 && code < 300) {
+			/* 2xx = confirmação de recebimento (R3): a fila só esvazia aqui. */
+			ackAlarmBatch(batch);
+			MetricsManager::instance( ).data( ).alarmSent += (uint32_t)batch.size( );
+			LOG_CODE(LOG_INFO, "TEL", TEL_ALARM_SENT, (int)batch.size( ),
+			         "Alarm HTTP OK: " + String(payload.length( )) + " bytes, " +
+			         String(batch.size( )) + " records");
+			success = true;
+		} else if (code > 0) {
+			LOG_CODE(LOG_ERROR, "TEL", TEL_ALARM_FAIL, code,
+			         "Alarm HTTP rejected: code " + String(code));
+		} else {
+			LOG_CODE(LOG_ERROR, "TEL", TEL_ALARM_FAIL, code,
+			         String(TRL("HTTP error: ")) + http.errorToString(code));
+		}
+
+		if (cfg.telEncryption) { if (_httpSecurePtr) _httpSecurePtr->stop( ); }
+		else client.stop( );
+		http.end( );
+	}
+
+	return success;
+}
+
+String TelemetryManager::mqttAlarmTopic( ) {
+	return mqttDataTopic( ) + "/alarm";
+}
+
+String TelemetryManager::mqttAlarmAckTopic( ) {
+	return mqttDataTopic( ) + "/alarm/ack";
+}
+
+void TelemetryManager::mqttSubscribeAlarmAck( ) {
+	if (!_alarmEnabled || !_mqttInitialized || !_mqttClient.connected( )) return;
+	String ackTopic = mqttAlarmAckTopic( );
+	/* QoS 1 na ASSINATURA: o ACK em si merece entrega garantida. O publish
+	 * da linha continua QoS 0 (PubSubClient não publica QoS 1 — D-232-QOS);
+	 * a confirmação é por aplicação, e o retry do device cobre a perda. */
+	_mqttClient.subscribe(ackTopic.c_str( ), 1);
+	LOG_CODE(LOG_INFO, "TEL", TEL_ALARM_ACK, 0, "subscribed " + ackTopic);
+}
+
+bool TelemetryManager::attemptAlarmMqttPublish(String& payload, std::vector<AlarmRecord>& batch) {
+	if (!_mqttInitialized) return false;
+
+	if (!mqttEnsureConnected( )) return false;
+
+	String topic = mqttAlarmTopic( );
+	feedWdt( );
+	bool ok = _mqttClient.publish(topic.c_str( ), payload.c_str( ), false);
+	if (ok) {
+		/* QoS 0: publish aceito NÃO é confirmação. Os registros ficam na fila
+		 * e só saem quando o servidor publicar o ACK no tópico de ack —
+		 * mqttAlarmAckCallback → handleAlarmAckPayload. Reenvios duplicam;
+		 * o seq permite o servidor deduplicar. */
+		MetricsManager::instance( ).data( ).alarmSent += (uint32_t)batch.size( );
+		LOG_CODE(LOG_INFO, "TEL", TEL_ALARM_SENT, (int)batch.size( ),
+		         "Alarm MQTT published to " + topic + " (" +
+		         String(batch.size( )) + " records, awaiting ACK)");
+		return true;
+	}
+	LOG_CODE(LOG_ERROR, "TEL", TEL_ALARM_FAIL, _mqttClient.state( ),
+	         "Alarm MQTT publish failed");
+	return false;
+}
+
+void TelemetryManager::mqttAlarmAckCallback(char* topic, uint8_t* payload, unsigned int length) {
+	(void)topic;
+	if (s_alarmInstance) s_alarmInstance->handleAlarmAckPayload(payload, length);
+}
+
+void TelemetryManager::handleAlarmAckPayload(const uint8_t* payload, unsigned int length) {
+	uint16_t seqs[ALARM_BATCH_MAX];
+	uint8_t n = alarmParseSeqList(payload, length, seqs, ALARM_BATCH_MAX);
+	if (n == 0) return;
+	uint8_t removed = _alarmQueue.ack(seqs, n);
+	if (removed > 0) {
+		MetricsManager::instance( ).data( ).alarmAcked += removed;
+		LOG_CODE(LOG_INFO, "TEL", TEL_ALARM_ACK, removed,
+		         "Alarm receipt confirmed: " + String(removed) + " dequeued, " +
+		         String(_alarmQueue.size( )) + " pending");
+	}
+}
+
+void TelemetryManager::ackAlarmBatch(const std::vector<AlarmRecord>& batch) {
+	if (batch.empty( )) return;
+	uint16_t seqs[ALARM_BATCH_MAX];
+	uint8_t n = batch.size( ) > ALARM_BATCH_MAX ? ALARM_BATCH_MAX : (uint8_t)batch.size( );
+	for (uint8_t i = 0; i < n; i++) seqs[i] = batch[i].seq;
+	uint8_t removed = _alarmQueue.ack(seqs, n);
+	if (removed > 0) {
+		MetricsManager::instance( ).data( ).alarmAcked += removed;
+		LOG_CODE(LOG_INFO, "TEL", TEL_ALARM_ACK, removed,
+		         "Alarm batch confirmed: " + String(removed) + " dequeued, " +
+		         String(_alarmQueue.size( )) + " pending");
+	}
+}
+
+void TelemetryManager::_dumpAlarmPayload(const char* payload, size_t len, const char* label) {
+	char hdr[48];
+	snprintf(hdr, sizeof(hdr), "=== ALARM PAYLOAD %s (%u B) ===", label, (unsigned)len);
+	LogManager::instance( ).writeConsole(hdr);
+
+	char buf[256];
+	size_t start = 0;
+	for (size_t i = 0; i < len; i++) {
+		if (payload[i] == ',') {
+			size_t n = i - start + 1;
+			if (n >= sizeof(buf)) n = sizeof(buf) - 1;
+			memcpy(buf, payload + start, n);
+			buf[n] = '\0';
+			LogManager::instance( ).writeConsole(buf);
+			start = i + 1;
+		}
+	}
+	if (start < len) {
+		size_t n = len - start;
+		if (n >= sizeof(buf)) n = sizeof(buf) - 1;
+		memcpy(buf, payload + start, n);
+		buf[n] = '\0';
+		LogManager::instance( ).writeConsole(buf);
+	}
+	LogManager::instance( ).writeConsole("=== END ===");
 }

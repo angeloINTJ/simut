@@ -323,6 +323,35 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "reset") { cmd.type = CMD_TEL_RESET; return cmd; }
 	}
 
+	/* ── Alarm line (v21, segunda linha de telemetria) ── */
+	if (t0 == "alarm") {
+		if (t1 == "show")  { cmd.type = CMD_ALARM_SHOW;  return cmd; }
+		if (t1 == "dump")  { cmd.type = CMD_ALARM_DUMP;  return cmd; }
+		if (t1 == "flush") { cmd.type = CMD_ALARM_FLUSH; return cmd; }
+		if (t1 == "set") {
+			cmd.type = CMD_ALARM_SET;
+			cmd.setStrVal1(t2.c_str( ));
+			cmd.setStrVal2(r2.c_str( ));
+			if (t2 == "on" || t2 == "off") {
+				cmd.intVal1 = (t2 == "on") ? 1 : 0;
+				return cmd;
+			}
+			if (t2 == "mode") {
+				if      (r2 == "json")   cmd.intVal1 = TEL_MODE_JSON;
+				else if (r2 == "csv")    cmd.intVal1 = TEL_MODE_CSV;
+				else if (r2 == "custom") cmd.intVal1 = TEL_MODE_CUSTOM;
+				else cmd.intVal1 = -1;
+				return cmd;
+			}
+			if (t2 == "qmax") {
+				cmd.intVal1Valid = parseIntStrict(r2, cmd.intVal1);
+				return cmd;
+			}
+			/* path/glob/line/sep: strVal2 carrega o valor */
+			if (t2 == "path" || t2 == "glob" || t2 == "line" || t2 == "sep") return cmd;
+		}
+	}
+
 	/* ── Sensors ──
 	 * Order matters: named sub-commands (scan/define/wipe/accept) and the
 	 * legacy field-first form MUST precede the slot-first catch-all,

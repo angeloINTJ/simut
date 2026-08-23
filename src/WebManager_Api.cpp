@@ -183,6 +183,23 @@ void WebManager::handleApiConfig( ) {
 	if (!safeSend(jsonEscape(cfg.telLineTemplate).c_str( ))) return;
 	safeSend("\",\"t_sep\":\"");
 	if (!safeSend(jsonEscape(cfg.telLineSeparator).c_str( ))) return;
+
+	/* ── 2ª linha de telemetria (alarmes, v21) ── */
+	{
+		snprintf(buf, sizeof(buf),
+		         "\",\"a_en\":%s,\"a_mode\":%d,\"a_qmax\":%d,\"a_path\":\"%s\",\"a_pending\":%u,\"a_glob\":\"",
+		         cfg.alarmTel.enabled ? "true" : "false",
+		         cfg.alarmTel.mode, cfg.alarmTel.queueMax,
+		         jsonEscape(cfg.alarmTel.path).c_str( ),
+		         _telemetryRef ? (unsigned)_telemetryRef->alarmQueueSize( ) : 0);
+		if (!safeSend(buf)) return;
+		if (!safeSend(jsonEscape(cfg.alarmTel.globalTemplate).c_str( ))) return;
+		safeSend("\",\"a_line\":\"");
+		if (!safeSend(jsonEscape(cfg.alarmTel.lineTemplate).c_str( ))) return;
+		safeSend("\",\"a_sep\":\"");
+		if (!safeSend(jsonEscape(cfg.alarmTel.lineSeparator).c_str( ))) return;
+	}
+
 	safeSend("\",\"serial\":\"");
 	if (!safeSend(jsonEscape(_storageRef->getBoardSerialNumber( ).c_str( )).c_str( ))) return;
 	/* "ambHwId" (= cfg.sensors[10].hwId) is gone: the telemetry preview used

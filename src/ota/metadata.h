@@ -31,9 +31,10 @@
 namespace ota {
 
 /**
- * Scratch buffer SRAM de 4 KiB compartilhado pelas operações de flash
- * (apply sector copy + metadata read-erase-program-all preservando
- * snapshot). Definido em `applier.cpp` (BSS estática, 0-init no boot).
+ * Scratch buffer SRAM de 8 KiB compartilhado pelas operações de flash
+ * (apply sector copy + snapshot de config de 2 setores). Definido em
+ * `applier.cpp` (BSS estática, 0-init no boot). v21: cresceu de 4 KiB
+ * porque SystemConfig + AlarmTelConfig não cabe mais num setor.
  *
  * Usuários:
  *  - `applier.cpp::ota_applier_run` (durante apply, IRQ off — uso exclusivo).
@@ -45,7 +46,7 @@ namespace ota {
  * e callers 2/3/4 nunca rodam concorrentemente com apply (apply só termina
  * via reboot).
  */
-extern uint8_t s_applier_buf[OTA_FLASH_SECTOR_SIZE];
+extern uint8_t s_applier_buf[2u * OTA_FLASH_SECTOR_SIZE];
 
 constexpr uint32_t OTA_MAGIC_PENDING = 0xA5C3F00Du;
 

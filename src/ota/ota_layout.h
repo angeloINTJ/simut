@@ -50,17 +50,24 @@
 #define OTA_METADATA_OFFSET      (OTA_STAGING_OFFSET + OTA_STAGING_MAX_SIZE)  /* 0x1FF000 */
 #define OTA_METADATA_SIZE        (OTA_EEPROM_RESERVED)          /* 4 KB */
 
-/* Fase 9 (v3.43.16+): snapshot da config crítica no ÚLTIMO setor da
- * staging area. O firmware típico ocupa ~1.004 KiB → último setor de
- * 4 KiB intocado pelo apply. Persiste através do apply destrutivo;
- * só é apagado pelo staging_erase_all do PRÓXIMO ciclo OTA, momento em
- * que já não importa (snapshot da OTA atual já foi consumido no boot).
+/* Fase 9 (v3.43.16+): snapshot da config crítica no FIM da staging area.
+ * v21 (segunda linha de telemetria de alarmes) cresceu SystemConfig além
+ * dos 4076 B úteis de um setor, então o snapshot ganhou um SEGUNDO setor
+ * (8 KiB no total, setores 254..255 da staging).
+ *
+ * O firmware típico ocupa ~1.004 KiB; o apply copia setores completos
+ * ceil(raw_size / 4 KiB), e o primeiro setor do snapshot começa em
+ * exatamente 1.016 KiB — o mesmo "sketch máximo seguro" de antes.
+ * Persiste através do apply destrutivo; só é apagado pelo
+ * staging_erase_all do PRÓXIMO ciclo OTA, momento em que já não importa
+ * (snapshot da OTA atual já foi consumido no boot).
  *
  * Sketch máximo seguro mantendo snapshot intacto: 1.020 KiB - 4 KiB =
- * 1.016 KiB. Atualmente em ~1.004 KiB → margem 12 KiB. */
-#define OTA_SNAPSHOT_OFFSET      (OTA_STAGING_OFFSET + OTA_STAGING_MAX_SIZE - OTA_FLASH_SECTOR_SIZE)
-                                                                /* 0x1FE000 */
-#define OTA_SNAPSHOT_SIZE        (OTA_FLASH_SECTOR_SIZE)        /* 4 KiB */
+ * 1.016 KiB (INALTERADO — o apply nunca lê o setor 254 para
+ * raw_size <= 1.016 KiB). Atualmente em ~1.004 KiB → margem 12 KiB. */
+#define OTA_SNAPSHOT_OFFSET      (OTA_STAGING_OFFSET + OTA_STAGING_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE)
+                                                                /* 0x1FD000 */
+#define OTA_SNAPSHOT_SIZE        (2u * OTA_FLASH_SECTOR_SIZE)   /* 8 KiB */
 
 /* Sanity check em compile-time. */
 #ifdef __cplusplus

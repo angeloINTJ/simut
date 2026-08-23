@@ -2522,8 +2522,10 @@ global.H5G = H5G;
         }
 
         // Logs — binary parsing in browser. Tabelas sincronizadas com LogManager::translateCode (LogManager.cpp).
-        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '548':'HA discovery refreshed', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
-        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao por flash ocupado', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '548':'Discovery HA atualizado', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
+                const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '548':'HA discovery refreshed', '549':'Alarm telemetry line enabled', '550':'Alarm payload sent', '551':'Alarm send failed', '552':'Alarm receipt confirmed', '553':'Alarm queue overflow', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
+
+                const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao por flash ocupado', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '548':'Discovery HA atualizado', '549':'Linha de alarmes ligada', '550':'Payload de alarmes enviado', '551':'Falha no envio de alarmes', '552':'Recebimento de alarmes confirmado', '553':'Estouro da fila de alarmes', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
+
         function evtName(code) { let l = localStorage.getItem('simut_lang') || 'en'; let dict = (l === 'pt') ? EVT_NAMES_PT : EVT_NAMES_EN; let lbl = dict[code.toString()]; if (lbl) return lbl; return (l === 'pt' ? 'Evento #' : 'Event #') + code; }
         const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
         const LVL_LABELS = ['DBG','INF','WRN','ERR','FTL']; const LVL_CLASS = ['log-inf','log-inf','log-wrn','log-err','log-err'];
@@ -3718,6 +3720,73 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                 <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
                     <div style="width:100%">
+                        <h3 style="margin-top:0;">Alarm Payload — 2nd Telemetry Line</h3>
+                        <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--sub)">
+                            Separate stream for sensor alarms. Records queue in RAM and are removed only after the server confirms receipt (HTTP 2xx, or MQTT ack on &lt;data topic&gt;/alarm/ack). Transport, server, credentials and TLS follow the main telemetry settings. <span id="a_pending_span">0</span> record(s) pending.
+                        </div>
+                        <label class="chk">
+                            <input type="checkbox" id="a_en" name="a_en" value="1">
+                            <span>Enable alarm telemetry line</span>
+                        </label>
+                        <div class="row" style="margin-top:10px;">
+                            <div class="col">
+                                <label>Format</label>
+                                <select id="a_mode" name="a_mode" onchange="toggleAlarmBuilder()">
+                                    <option value="0">JSON Array (Standard)</option>
+                                    <option value="1">CSV Raw (Standard)</option>
+                                    <option value="2">Dynamic Builder (Advanced)</option>
+                                </select>
+                            </div>
+                            <div class="col">
+                                <label>Queue size (RAM)</label>
+                                <input type="number" id="a_qmax" name="a_qmax" min="1" max="64" placeholder="32">
+                            </div>
+                            <div class="col">
+                                <label>HTTP path</label>
+                                <input type="text" id="a_path" name="a_path" maxlength="31" placeholder="(telPath+/alarm)">
+                            </div>
+                        </div>
+                        <div id="alarm_custom_tools" class="builder-box">
+                            <div style="font-size:0.85rem; color:var(--sub); margin-bottom:15px;">Alarm row tags (one record per limit/error edge):</div>
+                            <div class="row tag-ref" style="margin-bottom:15px; font-size:0.8rem; padding:10px; border-radius:6px; border:1px solid var(--border);">
+                                <div class="col">
+                                    <span class="highlight">{TS}</span> - Unix Epoch<br>
+                                    <span class="highlight">{ID}</span> - Full id (t/u/p/l + hwid)<br>
+                                    <span class="highlight">{HWID}</span> - Sensor id<br>
+                                    <span class="highlight">{SLOT}</span> - Slot index (0-15)<br>
+                                </div>
+                                <div class="col">
+                                    <span class="highlight">{CH}</span> - Channel letter<br>
+                                    <span class="highlight">{VAL}</span> - Value (empty on failure)<br>
+                                    <span class="highlight">{ERR}</span> - Literal "err" (empty when OK)<br>
+                                    <span class="highlight">{SEQ}</span> - Sequence (receipt-ack key)<br>
+                                </div>
+                            </div>
+                            <div style="font-size:0.8rem; color:var(--txt); margin-bottom:15px; border-left:3px solid var(--acc); padding-left:10px;">
+                                <b>Smart keys</b> (key name = token, lowercase or uppercase):<br>
+                                <span class="highlight">"val":{val}</span> &rarr; number, or the whole key is removed on failure<br>
+                                <span class="highlight">"err":"{err}"</span> &rarr; "err", or the whole key is removed when OK
+                            </div>
+
+                            <label>1. Global Template (The Envelope)</label>
+                            <input type="text" id="a_glob" name="a_glob" maxlength="255" placeholder='{"dev":"{DEV}", "mac":"{MAC}", "alarms":[{DATA}]}' oninput="renderAlarmPreview()">
+
+                            <label>2. Row Template (Single Alarm)</label>
+                            <input type="text" id="a_line" name="a_line" maxlength="511" placeholder='{"ts":{TS}, "id":"{ID}", "val":{val}, "err":"{err}", "seq":{seq}}' oninput="renderAlarmPreview()">
+
+                            <label>3. Separator</label>
+                            <input type="text" id="a_sep" name="a_sep" maxlength="7" placeholder="," oninput="renderAlarmPreview()">
+                        </div>
+
+                        <div style="margin-top:15px;">
+                            <label>Live Preview:</label>
+                            <div id="apreview"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
+                    <div style="width:100%">
                         <h3 data-i18n="cfg_slog" style="margin-top:0;">Remote Syslog (Audit Trail)</h3>
                         <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_slog_hint">Forwards log events to a syslog collector (RFC 5424 over UDP) so the audit trail survives outside this device. The server is a LAN IPv4 address — not a hostname. Fire-and-forget: no delivery guarantee.</div>
                         <label class="chk">
@@ -3942,6 +4011,65 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             }
         }
 
+        /* ── 2ª linha de telemetria (alarmes, v21) ── */
+        function toggleAlarmBuilder() {
+            const mode = document.getElementById('a_mode').value;
+            document.getElementById('alarm_custom_tools').style.display = (mode == '2') ? 'block' : 'none';
+            renderAlarmPreview();
+        }
+
+        /* Mirror do TelemetryManager::formatLineAlarmBuf: {VAL} vazio em falha,
+         * {ERR} = "err" ou vazio; chave composta "val":{val} / "err":"{err}"
+         * é removida inteira quando o token está ausente. */
+        function _alarmPreviewLine(tpl, rec) {
+            const V = rec.err ? '' : rec.val;
+            const E = rec.err ? 'err' : '';
+            let s = tpl;
+            if (!V) s = s.split('"val":{val}').join('').split('"VAL":{VAL}').join('');
+            if (!E) s = s.split('"err":"{err}"').join('').split('"ERR":"{ERR}"').join('');
+            s = s.split('{TS}').join(String(rec.ts))
+                 .split('{ID}').join(rec.id)
+                 .split('{HWID}').join(rec.hwid)
+                 .split('{SLOT}').join(String(rec.slot))
+                 .split('{CH}').join(rec.ch)
+                 .split('{SEQ}').join(String(rec.seq))
+                 .split('{seq}').join(String(rec.seq))
+                 .split('{VAL}').join(V)
+                 .split('{val}').join(V)
+                 .split('{ERR}').join(E)
+                 .split('{err}').join(E);
+            s = s.replace(/,\s*,/g, ',').replace(/,\s*}/g, '}').replace(/,\s*]/g, ']')
+                 .replace(/[{\[]\s*,/g, (m) => m[0]);
+            return s;
+        }
+
+        function renderAlarmPreview() {
+            const mode = document.getElementById('a_mode').value;
+            const pre = document.getElementById('apreview');
+            if (!pre) return;
+            const demo = [
+                { ts: 1756250000, id: 'tSENSOR1', hwid: 'SENSOR1', slot: 0, ch: 't', val: '25.30', err: false, seq: 1 },
+                { ts: 1756250100, id: 'tSENSOR1', hwid: 'SENSOR1', slot: 0, ch: 't', val: '', err: true, seq: 2 }
+            ];
+            if (mode == '0') {
+                const tpl = document.getElementById('a_line').value ||
+                    '{"ts":{TS},"id":"{ID}","val":{val},"err":"{err}","seq":{seq}}';
+                pre.innerText = '[' + demo.map(r => _alarmPreviewLine(tpl, r)).join(',') + ']';
+            } else if (mode == '1') {
+                pre.innerText = 'seq;ts;id;v\n' + demo.map(r =>
+                    r.seq + ';' + r.ts + ';' + r.id + ';' + (r.err ? 'err' : r.val)).join('\n') + '\n';
+            } else {
+                const glob = document.getElementById('a_glob').value || '{"dev":"{DEV}","mac":"{MAC}","alarms":[{DATA}]}';
+                const line = document.getElementById('a_line').value || '{"ts":{TS},"id":"{ID}","val":{val},"err":"{err}","seq":{seq}}';
+                let sep = document.getElementById('a_sep').value || ',';
+                if (sep === '\\n') sep = '\n';
+                const data = demo.map(r => _alarmPreviewLine(line, r)).join(sep);
+                pre.innerText = glob.split('{DEV}').join('SIMUT_Demo')
+                                    .split('{MAC}').join('AA:BB:CC:DD:EE:FF')
+                                    .split('{DATA}').join(data);
+            }
+        }
+
         /* F-NET-TIME.5: banner de telemetria desabilitada quando t_int=0.
          * Chamado em loadConfig e a cada input no campo t_int. */
         function updateTelDisabledWarn() {
@@ -4116,6 +4244,16 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('t_glob').value = val('t_glob', '');
                 document.getElementById('t_line').value = val('t_line', '');
                 document.getElementById('t_sep').value = val('t_sep', '');
+                /* 2ª linha de telemetria (alarmes) */
+                document.getElementById('a_en').checked = !!val('a_en', false);
+                document.getElementById('a_mode').value = val('a_mode', 0);
+                document.getElementById('a_qmax').value = val('a_qmax', 32);
+                document.getElementById('a_path').value = val('a_path', '');
+                document.getElementById('a_glob').value = val('a_glob', '');
+                document.getElementById('a_line').value = val('a_line', '');
+                document.getElementById('a_sep').value = val('a_sep', '');
+                const _apSpan = document.getElementById('a_pending_span');
+                if (_apSpan) _apSpan.textContent = val('a_pending', 0);
                 if (d.serial) _devSerial = d.serial;
                 if (Array.isArray(d.sensors)) {
                     for (let i = 0; i < 10 && i < d.sensors.length; i++) {
@@ -4123,7 +4261,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                            hasHum: !!d.sensors[i].hum, hasPress: !!d.sensors[i].press };
                     }
                 }
-                toggleTransport(); toggleBuilder();
+                toggleTransport(); toggleBuilder(); toggleAlarmBuilder();
                 wirePendingListeners();
         }
 

@@ -1161,6 +1161,11 @@ static const char* translateCodeEn(uint16_t code) {
  case TEL_FORCE_SYNC: return "Forcing telemetry sync";
  case TEL_BACKOFF_SUPPRESSED: return "Retry logs suppressed";
  case TEL_HA_DISCOVERY: return "HA discovery refreshed";
+ case TEL_ALARM_LINE_ON: return "Alarm telemetry line enabled";
+ case TEL_ALARM_SENT: return "Alarm payload sent";
+ case TEL_ALARM_FAIL: return "Alarm send failed";
+ case TEL_ALARM_ACK: return "Alarm receipt confirmed";
+ case TEL_ALARM_DROP: return "Alarm queue overflow";
 
  /* ── Storage extended (560–565) ── */
  case STO_WRITE_FAILED: return "History write failed";

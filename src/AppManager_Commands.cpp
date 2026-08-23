@@ -804,6 +804,88 @@ void AppManager::executeCommand(CliDemand cmd) {
  : "Telemetry cursor reset. Next sends cover up to 30 days back.");
  break;
 
+ /* ── 2ª linha de telemetria: alarmes (v21) ── */
+ case CMD_ALARM_SHOW: {
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ const bool pt = _cmdMgr->isPt( );
+ const char* modeName = cfg.alarmTel.mode == TEL_MODE_JSON ? "json"
+                      : cfg.alarmTel.mode == TEL_MODE_CSV ? "csv" : "custom";
+ char line[120];
+ snprintf(line, sizeof(line), pt
+   ? "Alarmes: %s | modo %s | fila %u/%u | descartados %u"
+   : "Alarms: %s | mode %s | queue %u/%u | dropped %u",
+   cfg.alarmTel.enabled ? (pt ? "LIGADO" : "ON") : (pt ? "DESLIGADO" : "OFF"),
+   modeName, (unsigned)_telemetryMgr->alarmQueueSize( ),
+   (unsigned)cfg.alarmTel.queueMax, (unsigned)_telemetryMgr->alarmDropped( ));
+ _cmdMgr->printInfo(line);
+ snprintf(line, sizeof(line), "PATH: %s",
+          cfg.alarmTel.path[0] ? cfg.alarmTel.path : "(telPath+/alarm)");
+ _cmdMgr->printInfo(line);
+ snprintf(line, sizeof(line), "GLOB: %s", cfg.alarmTel.globalTemplate);
+ _cmdMgr->printInfo(line);
+ snprintf(line, sizeof(line), "LINE: %s", cfg.alarmTel.lineTemplate);
+ _cmdMgr->printInfo(line);
+ snprintf(line, sizeof(line), "SEP:  %s", cfg.alarmTel.lineSeparator);
+ _cmdMgr->printInfo(line);
+ break;
+ }
+
+ case CMD_ALARM_DUMP:
+ _telemetryMgr->forceAlarmSync( );
+ _cmdMgr->printSuccess(_cmdMgr->isPt( )
+   ? "Dump de alarmes armado; sera emitido no proximo envio."
+   : "Alarm dump armed; will be emitted on next send.");
+ break;
+
+ case CMD_ALARM_FLUSH:
+ _telemetryMgr->flushAlarmQueue( );
+ _cmdMgr->printSuccess(_cmdMgr->isPt( )
+   ? "Fila de alarmes esvaziada (sem confirmacao)."
+   : "Alarm queue cleared (unconfirmed).");
+ break;
+
+ case CMD_ALARM_SET: {
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ const bool pt = _cmdMgr->isPt( );
+ const char* field = cmd.strVal1;
+ if (strcmp(field, "on") == 0 || strcmp(field, "off") == 0) {
+  cfg.alarmTel.enabled = (cmd.intVal1 == 1);
+  changed = true;
+ } else if (strcmp(field, "mode") == 0) {
+  if (cmd.intVal1 < 0) {
+   _cmdMgr->printError(pt ? "Modo desconhecido (use json|csv|custom)"
+                          : "Unknown mode (use json|csv|custom)");
+   break;
+  }
+  cfg.alarmTel.mode = (uint8_t)cmd.intVal1;
+  changed = true;
+ } else if (strcmp(field, "qmax") == 0) {
+  if (!cmd.intVal1Valid || cmd.intVal1 < ALARM_QUEUE_MIN || cmd.intVal1 > ALARM_QUEUE_MAX) {
+   _cmdMgr->printError(pt ? "qmax deve estar entre 1 e 64"
+                          : "qmax must be between 1 and 64");
+   break;
+  }
+  cfg.alarmTel.queueMax = (uint8_t)cmd.intVal1;
+  changed = true;
+ } else if (strcmp(field, "path") == 0) {
+  safeCopy(cfg.alarmTel.path, cmd.strVal2, sizeof(cfg.alarmTel.path));
+  changed = true;
+ } else if (strcmp(field, "glob") == 0) {
+  safeCopy(cfg.alarmTel.globalTemplate, cmd.strVal2, sizeof(cfg.alarmTel.globalTemplate));
+  changed = true;
+ } else if (strcmp(field, "line") == 0) {
+  safeCopy(cfg.alarmTel.lineTemplate, cmd.strVal2, sizeof(cfg.alarmTel.lineTemplate));
+  changed = true;
+ } else if (strcmp(field, "sep") == 0) {
+  safeCopy(cfg.alarmTel.lineSeparator, cmd.strVal2, sizeof(cfg.alarmTel.lineSeparator));
+  changed = true;
+ } else {
+  _cmdMgr->printError(pt ? "Campo desconhecido (on|off|mode|qmax|path|glob|line|sep)"
+                         : "Unknown field (on|off|mode|qmax|path|glob|line|sep)");
+ }
+ break;
+ }
+
 #endif /* SIMUT_CLI_FULL */
 
  case CMD_DEBUG: {
