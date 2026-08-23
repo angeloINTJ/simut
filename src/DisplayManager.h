@@ -110,6 +110,10 @@ struct BootLogEntry {
 
 /* Long press on the top dash panel toggles pinned <-> interactive.
  *
+ * DASH_HOLD_MS = 3000 ms (3 s) desde o pedido do usuário: tempo do toque
+ * para colocar o painel superior no modo de seleção de slot, evitando
+ * entradas acidentais.
+ *
  * DASH_HOLD_GAP_MS is what makes it a HOLD rather than "two touches far apart
  * in wall-clock time". Core 1 samples touch every ~15 ms but stops entirely
  * while flash is being written, and a finger lifted inside one of those pauses
@@ -118,7 +122,7 @@ struct BootLogEntry {
  * mode on its own. Contact is only claimed for spans actually observed: a gap
  * wider than this restarts the hold. Erring toward restarting costs the user a
  * longer press; erring the other way is the mode changing when nobody asked. */
-constexpr uint32_t DASH_HOLD_MS     = 1000;
+constexpr uint32_t DASH_HOLD_MS     = 3000;
 constexpr uint32_t DASH_HOLD_GAP_MS = 120;
 
 /* Once the long press has fired, the panel stops listening for this long.
