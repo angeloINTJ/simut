@@ -22,6 +22,18 @@ namespace simut_native {
 inline uint32_t millis() { return simut_native::fake_millis_value; }
 inline void set_native_millis(uint32_t v) { simut_native::fake_millis_value = v; }
 
+/* strlcpy — BSD, ausente na glibc; o firmware tem via Arduino core.
+ * Mantida em sync com a semântica do alvo (dest sempre terminado em NUL). */
+inline size_t strlcpy(char* dst, const char* src, size_t cap) {
+    if (!dst || cap == 0) return src ? strlen(src) : 0;
+    if (!src) { dst[0] = '\0'; return 0; }
+    size_t slen = strlen(src);
+    size_t n = (slen < cap - 1) ? slen : (cap - 1);
+    memcpy(dst, src, n);
+    dst[n] = '\0';
+    return slen;
+}
+
 class String {
 public:
     String() : data_() {}

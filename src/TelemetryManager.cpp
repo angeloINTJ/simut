@@ -17,6 +17,7 @@
 #include "TelemetryManager.h"
 #include "MetricsManager.h"
 #include "HaDiscovery.h"
+#include "AlarmPayload.h" /* formatadores da 2ª linha (header-only, testáveis) */
 #include "sensors/SensorChannelTable.h"
 #include <LittleFS.h>
 #include <algorithm>
@@ -2159,32 +2160,6 @@ static String alarmHttpPath(const SystemConfig& cfg) {
 	return String(cfg.telPath) + "/alarm";
 }
 
-/** id com prefixo da grandeza: t{hwid} / u{hwid} / p{hwid} / l{hwid},
- * fallback {letra}{slot} — a mesma convenção das chaves JSON da linha
- * convencional (formatLineJsonBuf) e do HA discovery. */
-static void alarmBuildId(const AlarmRecord& rec, const SystemConfig& cfg, char* dst, size_t cap) {
-	const ChannelInfo& ci = channelInfo(rec.channel);
-	if (rec.slot < MAX_SENSORS && cfg.sensors[rec.slot].hwId[0]) {
-		snprintf(dst, cap, "%c%s", ci.letter, cfg.sensors[rec.slot].hwId);
-	} else {
-		snprintf(dst, cap, "%c%u", ci.letter, (unsigned)rec.slot);
-	}
-}
-
-/** Linha CSV fixa da 2ª linha: seq;ts;id;v ("err" no valor quando falha). */
-static int formatAlarmCsvLine(const AlarmRecord& rec, const SystemConfig& cfg, char* dest, size_t cap) {
-	const ChannelInfo& ci = channelInfo(rec.channel);
-	char idBuf[24];
-	alarmBuildId(rec, cfg, idBuf, sizeof(idBuf));
-	if (rec.flags & ALARM_FLAG_ERR) {
-		return snprintf(dest, cap, "%u;%lu;%s;err", (unsigned)rec.seq,
-		                (unsigned long)rec.epoch, idBuf);
-	}
-	return snprintf(dest, cap, "%u;%lu;%s;%.*f", (unsigned)rec.seq,
-	                (unsigned long)rec.epoch, idBuf,
-	                (int)ci.display.decimals, (double)((float)rec.value / ci.scale));
-}
-
 uint16_t TelemetryManager::pushAlarm(uint8_t slot, uint8_t channel, float value, bool err) {
 	if (!_alarmEnabled || slot >= MAX_SENSORS) return 0;
 
@@ -2301,7 +2276,7 @@ String TelemetryManager::buildAlarmPayload(std::vector<AlarmRecord>& batch) {
 		char lineBuf[512];
 		for (size_t i = 0; i < batch.size( ); i++) {
 			if (i > 0) s.concat(',');
-			int len = formatLineAlarmBuf(batch[i], cfg, lineBuf, sizeof(lineBuf));
+			int len = alarmFormatLine(batch[i], cfg, lineBuf, sizeof(lineBuf));
 			s.concat(lineBuf, len);
 			if (i % 10 == 9) { watchdog_update( ); yield( ); }
 		}
@@ -2311,7 +2286,7 @@ String TelemetryManager::buildAlarmPayload(std::vector<AlarmRecord>& batch) {
 		s.concat('\n');
 		char csvBuf[64];
 		for (size_t i = 0; i < batch.size( ); i++) {
-			int len = formatAlarmCsvLine(batch[i], cfg, csvBuf, sizeof(csvBuf));
+			int len = alarmFormatCsvLine(batch[i], cfg, csvBuf, sizeof(csvBuf));
 			if (len > 0) s.concat(csvBuf, len);
 			s.concat('\n');
 			if (i % 10 == 9) { watchdog_update( ); yield( ); }
@@ -2348,7 +2323,7 @@ String TelemetryManager::buildAlarmPayload(std::vector<AlarmRecord>& batch) {
 			} else {
 				for (size_t i = 0; i < batch.size( ); i++) {
 					if (i > 0 && sepLen > 0) s.concat(sep, sepLen);
-					int len = formatLineAlarmBuf(batch[i], cfg, lineBuf, sizeof(lineBuf));
+					int len = alarmFormatLine(batch[i], cfg, lineBuf, sizeof(lineBuf));
 					if (len > 0) s.concat(lineBuf, len);
 					if (i % 10 == 9) { watchdog_update( ); yield( ); }
 				}
@@ -2359,160 +2334,6 @@ String TelemetryManager::buildAlarmPayload(std::vector<AlarmRecord>& batch) {
 		if (gtLen > spanStart) s.concat(gt + spanStart, gtLen - spanStart);
 	}
 	return s;
-}
-
-/** Formata uma linha de alarme pelo template cfg.alarmTel.lineTemplate.
- * Tokens: {TS} {ID} {HWID} {SLOT} {CH} {VAL} {ERR} {SEQ} — com aliases
- * minúsculos {val} {err} {seq}. {VAL} é o número (decimais do canal) ou VAZIO
- * em falha; {ERR} é o literal "err" ou VAZIO. As formas compostas
- * "<chave>":{VAL}/{ERR}/{SEQ} (chave == grafia do token) removem a chave
- * inteira quando o token está ausente — a mesma máquina da linha convencional
- * (formatLineCustomBuf) — que é o que deixa o template default produzir JSON
- * válido nos dois casos:
- *   ok:  {"ts":...,"id":"tX","val":25.30,"seq":1}
- *   err: {"ts":...,"id":"tX","err":"err","seq":2}
- */
-int TelemetryManager::formatLineAlarmBuf(const AlarmRecord& rec, const SystemConfig& cfg,
-                                         char* dest, size_t cap) {
-	if (cap == 0) return 0;
-	dest[0] = '\0';
-
-	char tsBuf[16];
-	snprintf(tsBuf, sizeof(tsBuf), "%lu", (unsigned long)rec.epoch);
-	char seqBuf[8];
-	snprintf(seqBuf, sizeof(seqBuf), "%u", (unsigned)rec.seq);
-	char slotBuf[4];
-	snprintf(slotBuf, sizeof(slotBuf), "%u", (unsigned)rec.slot);
-	const ChannelInfo& ci = channelInfo(rec.channel);
-
-	char idBuf[24];
-	alarmBuildId(rec, cfg, idBuf, sizeof(idBuf));
-	char hwidBuf[17] = {0};
-	if (rec.slot < MAX_SENSORS) strlcpy(hwidBuf, cfg.sensors[rec.slot].hwId, sizeof(hwidBuf));
-	char chBuf[2];
-	chBuf[0] = ci.letter; chBuf[1] = '\0';
-
-	const bool isErr = (rec.flags & ALARM_FLAG_ERR) != 0;
-	char valBuf[16] = "";
-	char errBuf[8] = "";
-	if (isErr) {
-		strlcpy(errBuf, "err", sizeof(errBuf));
-	} else if (rec.value != HIST_NAN_SENTINEL) {
-		snprintf(valBuf, sizeof(valBuf), "%.*f",
-		         (int)ci.display.decimals, (double)((float)rec.value / ci.scale));
-	}
-
-	const char* tpl = cfg.alarmTel.lineTemplate;
-	const size_t tplLen = strnlen(tpl, sizeof(cfg.alarmTel.lineTemplate));
-	size_t di = 0;
-	size_t ti = 0;
-
-	while (ti < tplLen && di + 1 < cap) {
-		char c = tpl[ti];
-		if (c != '{') { dest[di++] = c; ti++; continue; }
-
-		const size_t remaining = tplLen - ti;
-		const char* val = nullptr;
-		char compKey[8] = {0};
-		size_t compKeyLen = 0;
-		size_t tokenChars = 0;
-
-		if (remaining >= 4 && memcmp(tpl + ti, "{TS}", 4) == 0) {
-			val = tsBuf; tokenChars = 4;
-		} else if (remaining >= 4 && memcmp(tpl + ti, "{ID}", 4) == 0) {
-			val = idBuf; tokenChars = 4;
-		} else if (remaining >= 6 && memcmp(tpl + ti, "{HWID}", 6) == 0) {
-			val = hwidBuf; tokenChars = 6;
-		} else if (remaining >= 6 && memcmp(tpl + ti, "{SLOT}", 6) == 0) {
-			val = slotBuf; tokenChars = 6;
-		} else if (remaining >= 4 && memcmp(tpl + ti, "{CH}", 4) == 0) {
-			val = chBuf; tokenChars = 4;
-		} else if (remaining >= 5 && memcmp(tpl + ti, "{VAL}", 5) == 0) {
-			val = valBuf;
-			compKeyLen = 3; memcpy(compKey, "VAL", 4);
-			tokenChars = 5;
-		} else if (remaining >= 5 && memcmp(tpl + ti, "{val}", 5) == 0) {
-			/* alias minúsculo — o compKey segue a grafia do token, então a
-			 * forma composta "val":{val} remove a chave "val" */
-			val = valBuf;
-			compKeyLen = 3; memcpy(compKey, "val", 4);
-			tokenChars = 5;
-		} else if (remaining >= 5 && memcmp(tpl + ti, "{ERR}", 5) == 0) {
-			val = errBuf;
-			compKeyLen = 3; memcpy(compKey, "ERR", 4);
-			tokenChars = 5;
-		} else if (remaining >= 5 && memcmp(tpl + ti, "{err}", 5) == 0) {
-			val = errBuf;
-			compKeyLen = 3; memcpy(compKey, "err", 4);
-			tokenChars = 5;
-		} else if (remaining >= 5 && memcmp(tpl + ti, "{SEQ}", 5) == 0) {
-			val = seqBuf;
-			compKeyLen = 3; memcpy(compKey, "SEQ", 4);
-			tokenChars = 5;
-		} else if (remaining >= 5 && memcmp(tpl + ti, "{seq}", 5) == 0) {
-			val = seqBuf;
-			compKeyLen = 3; memcpy(compKey, "seq", 4);
-			tokenChars = 5;
-		}
-
-		if (tokenChars == 0) {
-			/* '{' sem token conhecido: emite literal, avança 1 */
-			dest[di++] = c;
-			ti++;
-			continue;
-		}
-
-		/* Forma composta "<compKey>":{<tok>} — só quando o token a suporta. */
-		bool matchedBare = false;
-		if (compKeyLen > 0) {
-			const size_t p2 = compKeyLen + 3; /* "<k>": */
-			if (ti >= p2) {
-				const char* p = tpl + ti - p2;
-				if (p[0] == '"' &&
-				    memcmp(p + 1, compKey, compKeyLen) == 0 &&
-				    memcmp(p + 1 + compKeyLen, "\":", 2) == 0) {
-					matchedBare = true;
-				}
-			}
-		}
-
-		if (matchedBare) {
-			if (val && val[0] != '\0') {
-				size_t vl = strlen(val);
-				if (di + vl >= cap) vl = cap - 1 - di;
-				memcpy(dest + di, val, vl);
-				di += vl;
-			} else {
-				/* valor ausente: desfaz a chave já emitida */
-				const size_t undo = compKeyLen + 3;
-				if (di >= undo) di -= undo;
-			}
-		} else {
-			const char* emit = (val && val[0] != '\0') ? val : "";
-			size_t el = strlen(emit);
-			if (di + el >= cap) el = cap - 1 - di;
-			memcpy(dest + di, emit, el);
-			di += el;
-		}
-
-		ti += tokenChars;
-	}
-
-	/* Limpeza in-place idêntica à linha convencional: ",," "{," ",}" etc. */
-	size_t r = 0, w = 0;
-	while (r < di) {
-		char c = dest[r++];
-		if (c == ',') {
-			if (w == 0) continue;
-			char prev = dest[w-1];
-			if (prev == ',' || prev == '{' || prev == '[') continue;
-		} else if ((c == '}' || c == ']') && w > 0 && dest[w-1] == ',') {
-			w--;
-		}
-		dest[w++] = c;
-	}
-	dest[w] = '\0';
-	return (int)w;
 }
 
 bool TelemetryManager::attemptAlarmHttpUpload(String& payload, std::vector<AlarmRecord>& batch) {

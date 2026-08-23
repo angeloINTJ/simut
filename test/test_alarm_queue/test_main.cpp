@@ -18,6 +18,7 @@
 
 #include <unity.h>
 #include "AlarmQueue.h"
+#include "AlarmPayload.h"
 
 /* ── FIFO e push básico ─────────────────────────────────────────────────── */
 static void test_push_fifo_order(void) {
@@ -221,6 +222,123 @@ static void test_ring_reuse_after_ack(void) {
     TEST_ASSERT_EQUAL_UINT32(201, out[3].epoch);
 }
 
+
+/* ===========================================================================
+ * ALARM PAYLOAD — vetores dourados (AlarmPayload.h)
+ * Cobre EXATAMENTE o formatador que roda no ferro: template default (ok/err),
+ * remoção composta, tokens individuais, CSV e fallback de id sem hwId.
+ * ========================================================================= */
+
+static void fillDemoCfg(SystemConfig& cfg) {
+    memset(&cfg, 0, sizeof(cfg));
+    strncpy(cfg.sensors[0].hwId, "SENSOR1", sizeof(cfg.sensors[0].hwId) - 1);
+    strncpy(cfg.alarmTel.lineTemplate,
+            "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"err\":\"{err}\",\"seq\":{seq}}",
+            sizeof(cfg.alarmTel.lineTemplate) - 1);
+}
+
+static void test_alarm_line_default_ok(void) {
+    SystemConfig cfg;
+    fillDemoCfg(cfg);
+    AlarmRecord rec = { 1756250000, 1, 2530, 0, 0 /*CH_TEMP*/, 0 };
+    char out[256];
+    int n = alarmFormatLine(rec, cfg, out, sizeof(out));
+    TEST_ASSERT_TRUE(n > 0);
+    /* template default: "err":"{err}" é forma ASPADA — a chave permanece
+     * (JSON sempre válido); a remoção composta é opt-in (chave == token,
+     * token sem aspas — ver test_alarm_line_uppercase_compound). */
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"ts\":1756250000,\"id\":\"tSENSOR1\",\"val\":25.30,\"err\":\"\",\"seq\":1}",
+        out);
+}
+
+static void test_alarm_line_default_err(void) {
+    SystemConfig cfg;
+    fillDemoCfg(cfg);
+    AlarmRecord rec = { 1756250100, 2, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR };
+    char out[256];
+    alarmFormatLine(rec, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING(
+        "{\"ts\":1756250100,\"id\":\"tSENSOR1\",\"err\":\"err\",\"seq\":2}",
+        out);
+}
+
+static void test_alarm_line_individual_tokens(void) {
+    SystemConfig cfg;
+    fillDemoCfg(cfg);
+    strncpy(cfg.alarmTel.lineTemplate, "{CH};{SLOT};{HWID};{VAL};{ERR}",
+            sizeof(cfg.alarmTel.lineTemplate) - 1);
+    AlarmRecord rec = { 1756250200, 7, 1013 /* CH_HUM: scale 10 → 101.3 */,
+                        0 /* slot 0 = hwId SENSOR1 */, 1 /*CH_HUM*/, 0 };
+    char out[128];
+    alarmFormatLine(rec, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("u;0;SENSOR1;101.3;", out);
+
+    /* registro de erro: VAL vazio, ERR presente */
+    rec.flags = ALARM_FLAG_ERR;
+    rec.value = HIST_NAN_SENTINEL;
+    alarmFormatLine(rec, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("u;0;SENSOR1;;err", out);
+}
+
+static void test_alarm_line_uppercase_compound(void) {
+    SystemConfig cfg;
+    fillDemoCfg(cfg);
+    /* chave == nome do token, token SEM aspas: a chave é removida quando o
+     * token está ausente (forma composta). */
+    strncpy(cfg.alarmTel.lineTemplate, "{\"VAL\":{VAL},\"ERR\":{ERR}}",
+            sizeof(cfg.alarmTel.lineTemplate) - 1);
+    AlarmRecord ok = { 1, 1, 2530, 0, 0, 0 };
+    AlarmRecord er = { 2, 2, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR };
+    char out[128];
+    alarmFormatLine(ok, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("{\"VAL\":25.30}", out);
+    alarmFormatLine(er, cfg, out, sizeof(out));
+    /* {ERR} sem aspas emite o literal cru — remoção da chave VAL comprovada */
+    TEST_ASSERT_EQUAL_STRING("{\"ERR\":err}", out);
+}
+
+static void test_alarm_line_id_fallback_no_hwid(void) {
+    SystemConfig cfg;
+    fillDemoCfg(cfg);
+    cfg.sensors[0].hwId[0] = '\0';
+    strncpy(cfg.alarmTel.lineTemplate, "{ID}", sizeof(cfg.alarmTel.lineTemplate) - 1);
+    AlarmRecord rec = { 1, 1, 2530, 0, 0, 0 };
+    char out[32];
+    alarmFormatLine(rec, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("t0", out);
+
+    /* pressão: letra p */
+    rec.channel = 2; /* CH_PRESS */
+    alarmFormatLine(rec, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("p0", out);
+}
+
+static void test_alarm_line_csv(void) {
+    SystemConfig cfg;
+    fillDemoCfg(cfg);
+    AlarmRecord ok = { 1756250300, 4, 2530, 0, 0, 0 };
+    AlarmRecord er = { 1756250400, 5, HIST_NAN_SENTINEL, 0, 0, ALARM_FLAG_ERR };
+    char out[64];
+    alarmFormatCsvLine(ok, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("4;1756250300;tSENSOR1;25.30", out);
+    alarmFormatCsvLine(er, cfg, out, sizeof(out));
+    TEST_ASSERT_EQUAL_STRING("5;1756250400;tSENSOR1;err", out);
+}
+
+static void test_alarm_line_literal_braces_passthrough(void) {
+    SystemConfig cfg;
+    fillDemoCfg(cfg);
+    strncpy(cfg.alarmTel.lineTemplate, "{[notatoken]:1}",
+            sizeof(cfg.alarmTel.lineTemplate) - 1);
+    AlarmRecord rec = { 1, 1, 2530, 0, 0, 0 };
+    char out[64];
+    alarmFormatLine(rec, cfg, out, sizeof(out));
+    /* '{' sem token conhecido é emitido literalmente (mesmo contrato da
+     * linha convencional — JSON aninhado não quebra o walk) */
+    TEST_ASSERT_EQUAL_STRING("{[notatoken]:1}", out);
+}
+
 int main(int argc, char** argv) {
     (void)argc;
     (void)argv;
@@ -233,5 +351,12 @@ int main(int argc, char** argv) {
     RUN_TEST(test_ack_oldest_and_clear);
     RUN_TEST(test_ring_reuse_after_ack);
     RUN_TEST(test_ack_parser);
+    RUN_TEST(test_alarm_line_default_ok);
+    RUN_TEST(test_alarm_line_default_err);
+    RUN_TEST(test_alarm_line_individual_tokens);
+    RUN_TEST(test_alarm_line_uppercase_compound);
+    RUN_TEST(test_alarm_line_id_fallback_no_hwid);
+    RUN_TEST(test_alarm_line_csv);
+    RUN_TEST(test_alarm_line_literal_braces_passthrough);
     return UNITY_END();
 }

@@ -883,6 +883,9 @@ void AppManager::executeCommand(CliDemand cmd) {
   _cmdMgr->printError(pt ? "Campo desconhecido (on|off|mode|qmax|path|glob|line|sep)"
                          : "Unknown field (on|off|mode|qmax|path|glob|line|sep)");
  }
+ /* enabled/queueMax são cacheados no begin( ); o CLI não reinicia, então
+  * aplica em runtime para o 'alarm set on/off/qmax' valer sem reboot. */
+ _telemetryMgr->applyAlarmRuntimeConfig(cfg);
  break;
  }
 

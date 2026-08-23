@@ -87,6 +87,14 @@ public:
  /** 'alarm dump' (CLI): arma o dump + dispara o envio imediato. */
  void forceAlarmSync( ) { _alarmDumpNext = true; _alarmSendPending = true; }
 
+ /** Aplica enabled/queueMax em RUNTIME (CLI 'alarm set' sem reboot; o commit
+  * web reboots e passa pelo begin( ) mesmo). Demais campos são lidos vivos de
+  * cfg em cada ciclo. */
+ void applyAlarmRuntimeConfig(const SystemConfig& cfg) {
+ _alarmEnabled = cfg.alarmTel.enabled;
+ _alarmQueue.setCapacity(cfg.alarmTel.queueMax);
+ }
+
  /** Dump one-shot do próximo payload de alarmes (CLI/BT, espelho do tel dump). */
  void armAlarmPayloadDump( ) { _alarmDumpNext = true; }
  bool isAlarmPayloadDumpArmed( ) const { return _alarmDumpNext; }
@@ -105,9 +113,9 @@ private:
  static const uint8_t ALARM_BATCH_MAX = 64; /**< == ALARM_QUEUE_MAX */
 
  void updateAlarms( );
- /** Monta o payload da fila no formato cfg.alarmTel (JSON/CSV/custom). */
+ /** Monta o payload da fila no formato cfg.alarmTel (JSON/CSV/custom).
+  * A formatação de linha vive em AlarmPayload.h (alarmFormatLine). */
  String buildAlarmPayload(std::vector<AlarmRecord>& batch);
- int formatLineAlarmBuf(const AlarmRecord& rec, const SystemConfig& cfg, char* dest, size_t cap);
  bool attemptAlarmHttpUpload(String& payload, std::vector<AlarmRecord>& batch);
  bool attemptAlarmMqttPublish(String& payload, std::vector<AlarmRecord>& batch);
  /** base + "/alarm" e base + "/alarm/ack" (mesma regra de fallback do tópico de dados). */
