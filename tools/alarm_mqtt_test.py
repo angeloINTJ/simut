@@ -41,8 +41,7 @@ except ImportError:
 BAUD = 115200
 WIFI_SSID = os.environ.get("SIMUT_WIFI_SSID", "")
 WIFI_PASS = os.environ.get("SIMUT_WIFI_PASS", "")
-if not WIFI_SSID or not WIFI_PASS:
-    sys.exit("defina SIMUT_WIFI_SSID e SIMUT_WIFI_PASS no ambiente")
+# vazio = device já tem WiFi persistido (migração v20→v21 preserva).
 
 TEST_USER = "alarmtest"
 TEST_PASS = "Alarm!Test2026"
@@ -162,7 +161,7 @@ class Dev:
         while time.time() < deadline:
             if not self.ser or not self.ser.is_open:
                 self._connect()
-            r = self.cmd("show ip", 2)
+            r = self.cmd("show net status", 2)
             m = re.search(r"\d+\.\d+\.\d+\.\d+", r)
             if m:
                 return m.group(0)
@@ -193,8 +192,9 @@ def main():
     print("\n[01] Config CLI + conta throwaway")
     dev.cmd("enable")
     dev.cmd("configure terminal")
-    dev.cmd("wifi ssid " + WIFI_SSID)
-    dev.cmd("wifi pass " + WIFI_PASS)
+    if WIFI_SSID:
+        dev.cmd("wifi ssid " + WIFI_SSID)
+        dev.cmd("wifi pass " + WIFI_PASS)
     dev.cmd(f"tel server {broker_host}")
     dev.cmd(f"tel port {broker_port}")
     dev.cmd("tel crypto off")

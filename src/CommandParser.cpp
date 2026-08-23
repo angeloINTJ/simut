@@ -331,20 +331,23 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "set") {
 			cmd.type = CMD_ALARM_SET;
 			cmd.setStrVal1(t2.c_str( ));
-			cmd.setStrVal2(r2.c_str( ));
+			/* r2 = token 3 (o campo); o VALOR é r3 (token 4). Valores com
+			 * espaço não cabem no CLI tokenizado — para templates longos use
+			 * a web (mesma limitação do 'tel server/path'). */
+			cmd.setStrVal2(r3.c_str( ));
 			if (t2 == "on" || t2 == "off") {
 				cmd.intVal1 = (t2 == "on") ? 1 : 0;
 				return cmd;
 			}
 			if (t2 == "mode") {
-				if      (r2 == "json")   cmd.intVal1 = TEL_MODE_JSON;
-				else if (r2 == "csv")    cmd.intVal1 = TEL_MODE_CSV;
-				else if (r2 == "custom") cmd.intVal1 = TEL_MODE_CUSTOM;
+				if      (r3 == "json")   cmd.intVal1 = TEL_MODE_JSON;
+				else if (r3 == "csv")    cmd.intVal1 = TEL_MODE_CSV;
+				else if (r3 == "custom") cmd.intVal1 = TEL_MODE_CUSTOM;
 				else cmd.intVal1 = -1;
 				return cmd;
 			}
 			if (t2 == "qmax") {
-				cmd.intVal1Valid = parseIntStrict(r2, cmd.intVal1);
+				cmd.intVal1Valid = parseIntStrict(r3, cmd.intVal1);
 				return cmd;
 			}
 			/* path/glob/line/sep: strVal2 carrega o valor */

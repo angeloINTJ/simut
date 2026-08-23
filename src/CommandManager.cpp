@@ -321,8 +321,10 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_TEL_SYNC:          return CLI_VALID_USER | CLI_VALID_PRIV;
  case CMD_TEL_DUMP:          return CLI_VALID_USER | CLI_VALID_PRIV;
  case CMD_TEL_RESET:         return CLI_VALID_PRIV;
- /* Alarm line (v21) — segunda linha de telemetria */
- case CMD_ALARM_SHOW:        return CLI_VALID_USER;
+ /* Alarm line (v21) — segunda linha de telemetria.
+  * show é READONLY como show metrics: operador precisa ler a fila em
+  * qualquer modo EXEC (USER e PRIV). */
+ case CMD_ALARM_SHOW:        return CLI_VALID_READONLY;
  case CMD_ALARM_DUMP:        return CLI_VALID_USER | CLI_VALID_PRIV;
  case CMD_ALARM_SET:         return CLI_VALID_CONFIG;
  case CMD_ALARM_FLUSH:       return CLI_VALID_PRIV;

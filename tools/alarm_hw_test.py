@@ -44,8 +44,8 @@ import serial
 BAUD = 115200
 WIFI_SSID = os.environ.get("SIMUT_WIFI_SSID", "")
 WIFI_PASS = os.environ.get("SIMUT_WIFI_PASS", "")
-if not WIFI_SSID or not WIFI_PASS:
-    sys.exit("defina SIMUT_WIFI_SSID e SIMUT_WIFI_PASS no ambiente")
+# vazio = o device já tem WiFi persistido (migração v20→v21 preserva) — a
+# suíte apenas aponta o servidor/coletor.
 
 COLLECTOR_PORT = int(os.environ.get("SIMUT_ALARM_COLLECTOR_PORT", "18080"))
 
@@ -238,13 +238,28 @@ def wait_for(pred, timeout, step=2.0, what="condição"):
     return None
 
 
-def first_active_sensor_gpio(dev: Device):
+def first_active_sensor(dev: Device):
+    """Primeiro slot ATIVO com alarmes LIGADOS; retorna (gpio, tmin, tmax)."""
     r = dev.cmd("show sensors", 3)
+    cur = None
     for line in r.split("\n"):
-        m = re.search(r"GPIO\s*(\d+)", line)
-        if m and ("DS18" in line or "DHT" in line or "BME" in line or "BMP" in line):
-            return int(m.group(1))
-    return None
+        m = re.search(r"Slot\s+(\d+)\].*?GPIO=(\d+)", line)
+        if m:
+            cur = int(m.group(2))
+            continue
+        if cur is None:
+            continue
+        mm = re.search(r"ALARMES:\s*LIGADO|ALARMS:\s*ON", line)
+        if mm:
+            lim = re.search(r"\[T:\s*([-\d.]+)\s*\.\.\s*([-\d.]+)\]", line)
+            if lim:
+                return cur, float(lim.group(1)), float(lim.group(2))
+    # fallback: primeiro sensor ativo (mesmo sem alarmes — o teste liga)
+    r2 = dev.cmd("show sensors", 3)
+    m = re.search(r"GPIO=(\d+)\s*\|\s*(DS18B20|DHT22|BME280|BMP280)", r2)
+    if m:
+        return int(m.group(1)), None, None
+    return None, None, None
 
 
 def parse_alarm_show(dev: Device):
@@ -290,12 +305,16 @@ def main():
     col.start()
     time.sleep(0.3)
 
+    # Modos CLI: 'enable' → SIMUT# (priv); 'configure terminal' → config;
+    # sensores = priv (#); tel/alarm set = config; show/alarm show = exec.
+
     # ── 1. config CLI ──
     print("\n[01] Config da telemetria + linha de alarmes")
     dev.cmd("enable")
     dev.cmd("configure terminal")
-    dev.cmd("wifi ssid " + WIFI_SSID)
-    dev.cmd("wifi pass " + WIFI_PASS)
+    if WIFI_SSID:
+        dev.cmd("wifi ssid " + WIFI_SSID)
+        dev.cmd("wifi pass " + WIFI_PASS)
     dev.cmd(f"tel server {host_ip()}")
     dev.cmd(f"tel port {COLLECTOR_PORT}")
     dev.cmd("tel path /api.php")
@@ -305,21 +324,21 @@ def main():
     dev.cmd("alarm set mode json")
     dev.cmd("alarm set qmax 16")
     dev.cmd("alarm set path /api.php/alarm")
+    # templates default (token único, sem espaços — limitação do CLI tokenizado)
+    dev.cmd('alarm set line {"ts":{TS},"id":"{ID}","val":{val},"err":"{err}","seq":{seq}}')
+    dev.cmd('alarm set glob {"dev":"{DEV}","mac":"{MAC}","alarms":[{DATA}]}')
+    dev.cmd("exit")
     time.sleep(2)
     r = dev.cmd("alarm show", 2)
     check("alarm show ligado", "LIGADO" in r or "ON" in r, r[:120])
-    dev.cmd("exit")
 
-    # ── 2. borda de limite num sensor real ──
+    # ── 2. borda de limite num sensor real (priv mode) ──
     print("\n[02] Borda de limite (tmax apertado) → registro com valor")
-    gpio = first_active_sensor_gpio(dev)
+    gpio, tmin0, tmax0 = first_active_sensor(dev)
     check("sensor real encontrado em GPIO", gpio is not None, str(gpio))
     if gpio is not None:
         before = sum(len(b) for b in STATE.alarm_batches)
-        dev.cmd("enable")
-        dev.cmd("configure terminal")
-        dev.cmd(f"sensor field {gpio} tmax -100")
-        dev.cmd("exit")
+        dev.cmd(f"sensor {gpio} tmax -100")
         got = wait_for(
             lambda: sum(len(b) for b in STATE.alarm_batches) > before,
             timeout=90, what="registro de limite no coletor",
@@ -333,39 +352,43 @@ def main():
             ok_seq = isinstance(rec.get("seq"), int) and rec["seq"] >= 1
             check("registro tem id com prefixo da grandeza", ok_id, str(rec.get("id")))
             check("registro tem timestamp e seq", ok_ts and ok_seq, str(rec))
-        # devolve o limite
-        dev.cmd("enable")
-        dev.cmd("configure terminal")
-        dev.cmd(f"sensor field {gpio} tmax 100")
-        dev.cmd("exit")
+        # restaura o limite original (RAM-only; nada é gravado)
+        if tmin0 is not None:
+            dev.cmd(f"sensor {gpio} tmin {tmin0}")
+            dev.cmd(f"sensor {gpio} tmax {tmax0}")
+        else:
+            dev.cmd(f"sensor {gpio} tmax 100")
 
-    # ── 3. borda de erro ──
+    # ── 3. borda de erro (priv: define + alarm on; persiste e reinicia) ──
     print("\n[03] Borda de erro (sensor fantasma) → registro 'err'")
     err_gpio = 14 if gpio != 14 else 13
-    before = sum(len(b) for b in STATE.alarm_batches)
-    dev.cmd("enable")
-    dev.cmd("configure terminal")
-    # sensor define <gpio> <rom16hex> <hwid> "<nome>" [tipo] — ROM zero + tipo
-    # ds18b20 provisiona um slot SEM verificação física: as leituras falham e
-    # a histerese de 3 erros do SensorManager gera o inErrorState → registro err.
     dev.cmd(f'sensor define {err_gpio} 0000000000000000 GHOST "Ghost" ds18b20')
-    dev.cmd("exit")
+    dev.cmd(f"sensor {err_gpio} alarm on")
+    dev.cmd("write memory")
+    dev.cmd("reload confirm")
+    time.sleep(3)
+    dev.ser.close()
+    dev.ser = None
+    ok = False
+    for _ in range(20):
+        if dev._connect():
+            ok = True
+            break
+        time.sleep(3)
+    check("device voltou do reboot", ok)
     got = wait_for(
         lambda: any(r.get("err") == "err" for b in STATE.alarm_batches for r in b),
-        timeout=90, what="registro 'err' no coletor",
+        timeout=300, what="registro 'err' no coletor (histerese DS18 + boot)",
     )
     check("registro 'err' chegou (sensor em falha)", got is not None)
-    dev.cmd("enable")
-    dev.cmd("configure terminal")
     dev.cmd(f"sensor remove {err_gpio} confirm")
-    dev.cmd("exit")
+    dev.cmd("write memory")
 
     # ── 4. fila esvazia com a confirmação ──
     print("\n[04] Fila RAM esvazia conforme confirmação de recebimento")
     size, cap = parse_alarm_show(dev)
     ok_drain = size is not None and cap is not None and size == 0
     if not ok_drain:
-        # ainda pode haver um registro em voo; espera mais um ciclo
         time.sleep(20)
         size, cap = parse_alarm_show(dev)
         ok_drain = size is not None and size == 0
@@ -386,16 +409,13 @@ def main():
     print("\n[06] Payload custom (template editável)")
     dev.cmd("enable")
     dev.cmd("configure terminal")
-    dev.cmd(r"alarm set line {CH};{SLOT};{VAL};{ERR};{SEQ}")
+    dev.cmd("alarm set line {CH};{SLOT};{VAL};{ERR};{SEQ}")
     dev.cmd("alarm set mode custom")
     dev.cmd("alarm set glob {DATA}")
     dev.cmd("exit")
     if gpio is not None:
         before = sum(len(b) for b in STATE.alarm_batches)
-        dev.cmd("enable")
-        dev.cmd("configure terminal")
-        dev.cmd(f"sensor field {gpio} tmax -100")
-        dev.cmd("exit")
+        dev.cmd(f"sensor {gpio} tmax -100")
         got = wait_for(
             lambda: any(
                 re.search(r"[tup];\d+;[-\d.]+;;\d+", r.get("_raw", ""))
@@ -403,10 +423,11 @@ def main():
             timeout=90, what="linha custom no coletor",
         )
         check("linha custom chegou no formato editado", got is not None)
-        dev.cmd("enable")
-        dev.cmd("configure terminal")
-        dev.cmd(f"sensor field {gpio} tmax 100")
-        dev.cmd("exit")
+        if tmax0 is not None:
+            dev.cmd(f"sensor {gpio} tmin {tmin0}")
+            dev.cmd(f"sensor {gpio} tmax {tmax0}")
+        else:
+            dev.cmd(f"sensor {gpio} tmax 100")
 
     # ── 7. CSV ──
     print("\n[07] Modo CSV")
@@ -416,20 +437,19 @@ def main():
     dev.cmd("exit")
     if gpio is not None:
         before = sum(len(b) for b in STATE.alarm_batches)
-        dev.cmd("enable")
-        dev.cmd("configure terminal")
-        dev.cmd(f"sensor field {gpio} tmax -100")
-        dev.cmd("exit")
+        dev.cmd(f"sensor {gpio} tmax -100")
         got = wait_for(
-            lambda: any("seq;ts;id;v" in b.get("_header", "")
-                        for b in STATE.alarm_batches),
+            lambda: any("seq;ts;id;v" in r.get("_header", "")
+                        for b in STATE.alarm_batches for r in b
+                        if isinstance(r, dict)),
             timeout=90, what="payload CSV no coletor",
         )
         check("payload CSV (header seq;ts;id;v) chegou", got is not None)
-        dev.cmd("enable")
-        dev.cmd("configure terminal")
-        dev.cmd(f"sensor field {gpio} tmax 100")
-        dev.cmd("exit")
+        if tmax0 is not None:
+            dev.cmd(f"sensor {gpio} tmin {tmin0}")
+            dev.cmd(f"sensor {gpio} tmax {tmax0}")
+        else:
+            dev.cmd(f"sensor {gpio} tmax 100")
 
     # ── 8. TLS herdado ──
     if args.tls:
@@ -440,7 +460,6 @@ def main():
 
     print(f"\n== RESULTADO: {PASSED} passed, {FAILED} failed ==")
     sys.exit(0 if FAILED == 0 else 1)
-
 
 if __name__ == "__main__":
     main()
