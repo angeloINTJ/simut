@@ -325,7 +325,7 @@ c98bcdab Procurando SSID (backoff=
 cc0a0d40 PIN padrão detectado; forçando troca.
 d4183f73 Falha no PIO do DHT22 (pio1 cheio) — DHT22 desativado neste boot
 d62db850 Yield preso >10s, reset forçado.
-dabcafea Cursor de telemetria no futuro — reset para 0
+836dd19a Cursor de telemetria adiante dos dados — reset para 0
 db8ede8b Forçando sync de telemetria
 dd1b8771 Troca de senha rejeitada: senha fraca ou inválida
 dd2f5dae Usuário criado pela CLI: 

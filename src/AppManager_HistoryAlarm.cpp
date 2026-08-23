@@ -639,9 +639,18 @@ void AppManager::handleAlarmTelemetryEdges( ) {
 
 		/* ERRO de sensor (sem comunicação OU trocado): independente de
 		 * alarmsActive — falha é sempre reportada na linha de alarmes, mesmo
-		 * com os limites de alarme desligados para o slot. */
+		 * com os limites de alarme desligados para o slot. EXCEÇÃO: com o
+		 * alarme DESATIVADO (ação do operador), o erro não relatcha — o
+		 * registro err_off já documentou a desativação e o âmbar não volta.
+		 * Reativar alarmes (web/CLI) limpa o estado e os erros voltam. */
 		const bool errNow = (live->inErrorState || live->hardwareMismatch);
 		if (errNow) {
+			if (_displayMgr->isAlarmDeactivated( )) {
+				_alarmErrBits &= (uint16_t)~(1u << i);
+				_alarmTripBits[i] = 0;
+				_alarmCandBits[i] = 0;
+				continue;
+			}
 			if (!(_alarmErrBits & (1u << i))) {
 				_alarmErrBits |= (1u << i);
 				uint8_t firstCh = CH_TEMP;

@@ -553,10 +553,22 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  * always false) and telemetry goes silent without log clues. Resets the
  * cursor → falls to the 30d fallback below. 1-day threshold tolerates
  * small drift (timezone). */
+ /* Cursor-in-the-future detection. lastCursor > now + 1 day = artifact
+ * of manual future time set + return to NTP. The >1 day window alone
+ * misses SMALLER jumps: a clock that ran ahead (manual set / RTC drift)
+ * and then corrected back (NTP) leaves the cursor hours ahead of the new
+ * records — collectBatch rejects them silently (Enviadas=0, no retries)
+ * while the pending counter grows. Also flag a cursor >1h ahead of the
+ * NEWEST record (relative to the device's own clock, immune to tz). */
  uint32_t nowEpoch = (uint32_t)time(nullptr);
- if (nowEpoch > 1600000000UL && lastCursor > nowEpoch + 86400UL) {
+ const uint32_t lastRecorded = _storageRef->getLastRecordedTimestamp( );
+ const bool cursorAheadNow  = (nowEpoch > 1600000000UL) &&
+                              (lastCursor > nowEpoch + 3600UL);
+ const bool cursorAheadData = (lastRecorded > 1600000000UL) &&
+                              (lastCursor > lastRecorded + 3600UL);
+ if (cursorAheadNow || cursorAheadData) {
  LOG_CODE(LOG_WARN, "TEL", SYS_OK, 0,
- TRL("Telemetry cursor in future — reset to 0"));
+ TRL("Telemetry cursor ahead of data — reset to 0"));
  _storageRef->setLastSentTimestamp(0);
  lastCursor = 0;
  }
@@ -564,7 +576,6 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
  /* Fallback when cursor is 0 (no NTP / never sent) —
  * use last recorded timestamp - 30 days to limit scan. */
  if (lastCursor == 0) {
- uint32_t lastRecorded = _storageRef->getLastRecordedTimestamp( );
  if (lastRecorded > 86400UL * 30) lastCursor = lastRecorded - 86400UL * 30;
  }
 
