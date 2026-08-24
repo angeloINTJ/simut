@@ -15,6 +15,7 @@
 #include "SystemDefs.h"
 #include "sensors/SensorHelpers.h"
 #include <LittleFS.h>
+#include <stdlib.h>
 #include <time.h>
 
 static inline float readRecordValue(const BinaryHistoryRecord& rec,
@@ -52,50 +53,48 @@ struct GraphBucketAcc {
  float humMin, humMax;           /* displayed extremes of the V2 axis */
  float pressBase, pressSum, pressSumSq, pressLast; int pressCnt;
 };
-static GraphBucketAcc gAcc;
-
-static void __attribute__((noinline)) graphAccumRecord(GraphDataPackage& pkg,
+static void __attribute__((noinline)) graphAccumRecord(GraphBucketAcc* acc, GraphDataPackage& pkg,
  time_t ts, float vr, float hr, float pr)
 {
- int b = (int)((float)(ts - gAcc.cutoff) / gAcc.bucketW);
+ int b = (int)((float)(ts - acc->cutoff) / acc->bucketW);
  if (b < 0) b = 0;
- if (b >= gAcc.buckets) b = gAcc.buckets - 1;
- gAcc.bTsSum[b] += (uint32_t)(ts - gAcc.cutoff);
- gAcc.bCntT[b]++;
+ if (b >= acc->buckets) b = acc->buckets - 1;
+ acc->bTsSum[b] += (uint32_t)(ts - acc->cutoff);
+ acc->bCntT[b]++;
 
  if (!isnan(vr)) {
- if (vr < pkg.realMinVal) { pkg.realMinVal = vr; pkg.tsRealMin = ts; gAcc.idxMinBucket = b; }
- if (vr > pkg.realMaxVal) { pkg.realMaxVal = vr; pkg.tsRealMax = ts; gAcc.idxMaxBucket = b; }
- if (gAcc.bCnt1[b] == 0 || vr < gAcc.bMin1[b]) gAcc.bMin1[b] = vr;
- if (gAcc.bCnt1[b] == 0 || vr > gAcc.bMax1[b]) gAcc.bMax1[b] = vr;
- gAcc.bSum1[b] += vr; gAcc.bCnt1[b]++;
- gAcc.sumT += vr; gAcc.sqSumT += vr * vr; gAcc.cntT++;
- if (isnan(gAcc.firstT)) gAcc.firstT = vr;
- gAcc.lastT = vr;
+ if (vr < pkg.realMinVal) { pkg.realMinVal = vr; pkg.tsRealMin = ts; acc->idxMinBucket = b; }
+ if (vr > pkg.realMaxVal) { pkg.realMaxVal = vr; pkg.tsRealMax = ts; acc->idxMaxBucket = b; }
+ if (acc->bCnt1[b] == 0 || vr < acc->bMin1[b]) acc->bMin1[b] = vr;
+ if (acc->bCnt1[b] == 0 || vr > acc->bMax1[b]) acc->bMax1[b] = vr;
+ acc->bSum1[b] += vr; acc->bCnt1[b]++;
+ acc->sumT += vr; acc->sqSumT += vr * vr; acc->cntT++;
+ if (isnan(acc->firstT)) acc->firstT = vr;
+ acc->lastT = vr;
  }
 
  if (!isnan(pr)) {
  if (pr < pkg.realMinPress) { pkg.realMinPress = pr; pkg.tsRealMinPress = ts; }
  if (pr > pkg.realMaxPress) { pkg.realMaxPress = pr; pkg.tsRealMaxPress = ts; }
- if (gAcc.pressCnt == 0) gAcc.pressBase = pr;
- gAcc.pressLast = pr;
- float pd = pr - gAcc.pressBase;
- gAcc.pressSum += pd; gAcc.pressSumSq += pd * pd; gAcc.pressCnt++;
+ if (acc->pressCnt == 0) acc->pressBase = pr;
+ acc->pressLast = pr;
+ float pd = pr - acc->pressBase;
+ acc->pressSum += pd; acc->pressSumSq += pd * pd; acc->pressCnt++;
  }
 
  /* Secondary curve: humidity, or pressure standing in for it. */
  float v2 = pkg.hasHumidity ? hr : (pkg.v2IsPress ? pr : NAN);
  if (!isnan(v2)) {
- if (gAcc.bCnt2[b] == 0 || v2 < gAcc.bMin2[b]) gAcc.bMin2[b] = v2;
- if (gAcc.bCnt2[b] == 0 || v2 > gAcc.bMax2[b]) gAcc.bMax2[b] = v2;
- gAcc.bSum2[b] += v2; gAcc.bCnt2[b]++;
- if (v2 < gAcc.humMin) { gAcc.humMin = v2; if (pkg.hasHumidity) pkg.tsMinHum = ts; }
- if (v2 > gAcc.humMax) { gAcc.humMax = v2; if (pkg.hasHumidity) pkg.tsMaxHum = ts; }
+ if (acc->bCnt2[b] == 0 || v2 < acc->bMin2[b]) acc->bMin2[b] = v2;
+ if (acc->bCnt2[b] == 0 || v2 > acc->bMax2[b]) acc->bMax2[b] = v2;
+ acc->bSum2[b] += v2; acc->bCnt2[b]++;
+ if (v2 < acc->humMin) { acc->humMin = v2; if (pkg.hasHumidity) pkg.tsMinHum = ts; }
+ if (v2 > acc->humMax) { acc->humMax = v2; if (pkg.hasHumidity) pkg.tsMaxHum = ts; }
  }
  if (pkg.hasHumidity && !isnan(hr)) {
- gAcc.sumH += hr; gAcc.sqSumH += hr * hr; gAcc.cntH++;
- if (isnan(gAcc.firstH)) gAcc.firstH = hr;
- gAcc.lastH = hr;
+ acc->sumH += hr; acc->sqSumH += hr * hr; acc->cntH++;
+ if (isnan(acc->firstH)) acc->firstH = hr;
+ acc->lastH = hr;
  }
 }
 
@@ -126,18 +125,27 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  uint32_t _graphBudgetStart = millis( );
  const uint32_t GRAPH_BUDGET_MS = 6000;
 
- static GraphDataPackage pkg;
- memset(&pkg, 0, sizeof(GraphDataPackage));
- pkg.sensorIdx = sensorId;
- pkg.timeRange = range;
- pkg.count = 0;
+ GraphDataPackage* pkg = (GraphDataPackage*)malloc(sizeof(GraphDataPackage));
+ GraphBucketAcc* acc = (GraphBucketAcc*)malloc(sizeof(GraphBucketAcc));
+ if (!pkg || !acc) {
+  free(pkg);
+  free(acc);
+  _storageMgr->unlockHeavyTask( );
+  LOG_CODE(LOG_WARN, "APP", SYS_HEAP_LOW, 0, "graph scratch");
+  _displayMgr->forceDashboard( );
+  return;
+ }
+ memset(pkg, 0, sizeof(GraphDataPackage));
+ pkg->sensorIdx = sensorId;
+ pkg->timeRange = range;
+ pkg->count = 0;
 
- pkg.minVal = 1000.0f;
- pkg.maxVal = -1000.0f;
- pkg.idxMinTemp = -1;
- pkg.idxMaxTemp = -1;
- pkg.tsMaxHum = 0;
- pkg.tsMinHum = 0;
+ pkg->minVal = 1000.0f;
+ pkg->maxVal = -1000.0f;
+ pkg->idxMinTemp = -1;
+ pkg->idxMaxTemp = -1;
+ pkg->tsMaxHum = 0;
+ pkg->tsMinHum = 0;
  /* 1e9, not the 1000.0f the temperature sentinels use: this pair also
  * hosts the pressure axis when v2IsPress, and sea-level pressure
  * (~1013 hPa) sits ABOVE 1000 — with the old sentinel the minimum never
@@ -146,43 +154,43 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  float localHumMax = -1000.0f;
 
  /* Pressure real extremes. The avg/std accumulators live in gAcc and take
- * sums as deviations from the first sample (gAcc.pressBase): absolute hPa
+ * sums as deviations from the first sample (acc->pressBase): absolute hPa
  * values are ~1013 and their squares eat float precision, while deviations
  * stay in the units digit. Spans both the file walk and the RAM tail. */
- pkg.realMinPress = 1e9f; /* same reason as localHumMin above */
- pkg.realMaxPress = -1000.0f;
- pkg.tsRealMinPress = 0;
- pkg.tsRealMaxPress = 0;
+ pkg->realMinPress = 1e9f; /* same reason as localHumMin above */
+ pkg->realMaxPress = -1000.0f;
+ pkg->tsRealMinPress = 0;
+ pkg->tsRealMaxPress = 0;
 
  SystemConfig &cfg = _storageMgr->getConfig( );
  uint32_t epochLimit = 0;
 
  if (sensorId == (int)MINMAX_SLOT_BOARD_TEMP) {
- snprintf(pkg.title, sizeof(pkg.title), "Board Temp");
- snprintf(pkg.hwId, sizeof(pkg.hwId), "SYS");
- snprintf(pkg.rom, sizeof(pkg.rom), "RP2040-ADC");
- pkg.hasHumidity = false;
+ snprintf(pkg->title, sizeof(pkg->title), "Board Temp");
+ snprintf(pkg->hwId, sizeof(pkg->hwId), "SYS");
+ snprintf(pkg->rom, sizeof(pkg->rom), "RP2040-ADC");
+ pkg->hasHumidity = false;
  } else if (sensorId >= 0 && sensorId < MAX_SENSORS) {
- pkg.hasHumidity = sensorHasHumidity((SensorType)cfg.sensors[sensorId].sensorType);
- pkg.hasPressure = sensorHasChannel((SensorType)cfg.sensors[sensorId].sensorType, CH_PRESS);
+ pkg->hasHumidity = sensorHasHumidity((SensorType)cfg.sensors[sensorId].sensorType);
+ pkg->hasPressure = sensorHasChannel((SensorType)cfg.sensors[sensorId].sensorType, CH_PRESS);
  /* BMP280 (pressure, no humidity): pressure takes the plot's second curve. */
- pkg.v2IsPress = pkg.hasPressure && !pkg.hasHumidity;
+ pkg->v2IsPress = pkg->hasPressure && !pkg->hasHumidity;
  if (cfg.sensors[sensorId].active) {
- safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
- safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
+ safeCopy(pkg->title, cfg.sensors[sensorId].friendlyName, sizeof(pkg->title));
+ safeCopy(pkg->hwId, cfg.sensors[sensorId].hwId, sizeof(pkg->hwId));
  epochLimit = 0; /* 0 = accept all history regardless of provision date */
- snprintf(pkg.rom, sizeof(pkg.rom), "%02X%02X%02X%02X%02X%02X%02X%02X",
+ snprintf(pkg->rom, sizeof(pkg->rom), "%02X%02X%02X%02X%02X%02X%02X%02X",
  cfg.sensors[sensorId].rom[0], cfg.sensors[sensorId].rom[1],
  cfg.sensors[sensorId].rom[2], cfg.sensors[sensorId].rom[3],
  cfg.sensors[sensorId].rom[4], cfg.sensors[sensorId].rom[5],
  cfg.sensors[sensorId].rom[6], cfg.sensors[sensorId].rom[7]);
  } else {
- snprintf(pkg.title, sizeof(pkg.title), "Sensor %d", sensorId + 1);
- snprintf(pkg.hwId, sizeof(pkg.hwId), "--");
- snprintf(pkg.rom, sizeof(pkg.rom), "N/A");
+ snprintf(pkg->title, sizeof(pkg->title), "Sensor %d", sensorId + 1);
+ snprintf(pkg->hwId, sizeof(pkg->hwId), "--");
+ snprintf(pkg->rom, sizeof(pkg->rom), "N/A");
  }
  }
- pkg.title[31] = '\0'; pkg.hwId[15] = '\0'; pkg.rom[23] = '\0';
+ pkg->title[31] = '\0'; pkg->hwId[15] = '\0'; pkg->rom[23] = '\0';
 
  time_t now = time(nullptr);
  time_t cutoff = 0;
@@ -244,38 +252,38 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
   * avg/std/delta used to be computed from the decimated points, so they
   * carried the same sampling bias the plot did; now every record in the
   * window contributes. */
- gAcc.cutoff = cutoff; gAcc.bucketW = bucketW; gAcc.buckets = buckets;
+ acc->cutoff = cutoff; acc->bucketW = bucketW; acc->buckets = buckets;
  for (int b = 0; b < buckets; b++) {
- gAcc.bMin1[b] = NAN; gAcc.bMax1[b] = NAN; gAcc.bSum1[b] = 0.0f;
- gAcc.bMin2[b] = NAN; gAcc.bMax2[b] = NAN; gAcc.bSum2[b] = 0.0f;
- gAcc.bCnt1[b] = 0; gAcc.bCnt2[b] = 0; gAcc.bCntT[b] = 0; gAcc.bTsSum[b] = 0;
+ acc->bMin1[b] = NAN; acc->bMax1[b] = NAN; acc->bSum1[b] = 0.0f;
+ acc->bMin2[b] = NAN; acc->bMax2[b] = NAN; acc->bSum2[b] = 0.0f;
+ acc->bCnt1[b] = 0; acc->bCnt2[b] = 0; acc->bCntT[b] = 0; acc->bTsSum[b] = 0;
  }
- gAcc.sumT = 0.0f; gAcc.sqSumT = 0.0f; gAcc.cntT = 0;
- gAcc.sumH = 0.0f; gAcc.sqSumH = 0.0f; gAcc.cntH = 0;
- gAcc.firstT = NAN; gAcc.lastT = NAN; gAcc.firstH = NAN; gAcc.lastH = NAN;
- gAcc.idxMaxBucket = -1; gAcc.idxMinBucket = -1;
- gAcc.humMin = localHumMin; gAcc.humMax = localHumMax;
- gAcc.pressBase = 0.0f; gAcc.pressSum = 0.0f; gAcc.pressSumSq = 0.0f;
- gAcc.pressLast = NAN; gAcc.pressCnt = 0;
+ acc->sumT = 0.0f; acc->sqSumT = 0.0f; acc->cntT = 0;
+ acc->sumH = 0.0f; acc->sqSumH = 0.0f; acc->cntH = 0;
+ acc->firstT = NAN; acc->lastT = NAN; acc->firstH = NAN; acc->lastH = NAN;
+ acc->idxMaxBucket = -1; acc->idxMinBucket = -1;
+ acc->humMin = localHumMin; acc->humMax = localHumMax;
+ acc->pressBase = 0.0f; acc->pressSum = 0.0f; acc->pressSumSq = 0.0f;
+ acc->pressLast = NAN; acc->pressCnt = 0;
 
  /*
  * Stores the temporal window in the package so the renderer
  * positions points proportionally to time (uniform buckets make the
  * index axis time-true).
  */
- pkg.tsCutoff = cutoff;
- pkg.tsEnd = effectiveEnd;
+ pkg->tsCutoff = cutoff;
+ pkg->tsEnd = effectiveEnd;
 
  /* Pre-populate timestamps for header (shows period even without data) */
- pkg.tsFirst = cutoff;
- pkg.tsLast = effectiveEnd;
- pkg.tsMid = cutoff + (effectiveEnd - cutoff) / 2;
+ pkg->tsFirst = cutoff;
+ pkg->tsLast = effectiveEnd;
+ pkg->tsMid = cutoff + (effectiveEnd - cutoff) / 2;
 
  /* Real min/max: tracked from ALL records, not just displayed buckets */
- pkg.realMinVal = 1000.0f;
- pkg.realMaxVal = -1000.0f;
- pkg.tsRealMin = 0;
- pkg.tsRealMax = 0;
+ pkg->realMinVal = 1000.0f;
+ pkg->realMaxVal = -1000.0f;
+ pkg->tsRealMin = 0;
+ pkg->tsRealMax = 0;
 
 
  for (int d = daysToLoad - 1; d >= 0; d--) {
@@ -384,7 +392,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  if (pCi >= 0 && vals[pCi] != H5_NAN_SENTINEL) pr = (float)vals[pCi] * scaleP;
  if (ts < epochLimit) vr = NAN;
 
- graphAccumRecord(pkg, ts, vr, hr, pr);
+ graphAccumRecord(acc, *pkg, ts, vr, hr, pr);
  }
  { StorageManager::ReadGuard rg(_storageMgr.get( )); _storageMgr->h5CloseDay( ); }
  }
@@ -445,7 +453,7 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  /* Every tail record lands in its time bucket like any other — the
   * newest one included, so the right edge is as current as the RAM
   * itself, with no decimation special case to carry. */
- graphAccumRecord(pkg, ts, vr, hr, pr);
+ graphAccumRecord(acc, *pkg, ts, vr, hr, pr);
  }
  feedWdt( );
  }
@@ -453,83 +461,83 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
 
  /* Everything the scan learned now lives in gAcc; pull the axis extremes
  * back into the locals the clamp logic and showGraphPlot consume. */
- localHumMin = gAcc.humMin;
- localHumMax = gAcc.humMax;
+ localHumMin = acc->humMin;
+ localHumMax = acc->humMax;
 
  /* Pressure stats close out here, independent of the buckets: a window can
  * hold temperature yet no pressure (schema without the column). tsReal-
  * MaxPress == 0 means no finite pressure was ever seen. */
- if (pkg.tsRealMaxPress == 0) { pkg.realMinPress = NAN; pkg.realMaxPress = NAN; }
- pkg.avgPress = (gAcc.pressCnt > 0) ? (gAcc.pressBase + gAcc.pressSum / (float)gAcc.pressCnt) : NAN;
- if (gAcc.pressCnt > 2) {
- float pressMean = gAcc.pressSum / (float)gAcc.pressCnt;
- float pressVar = (gAcc.pressSumSq - gAcc.pressSum * pressMean) / (float)(gAcc.pressCnt - 1);
- pkg.stdPress = (pressVar > 0.0f) ? sqrtf(pressVar) : 0.0f;
+ if (pkg->tsRealMaxPress == 0) { pkg->realMinPress = NAN; pkg->realMaxPress = NAN; }
+ pkg->avgPress = (acc->pressCnt > 0) ? (acc->pressBase + acc->pressSum / (float)acc->pressCnt) : NAN;
+ if (acc->pressCnt > 2) {
+ float pressMean = acc->pressSum / (float)acc->pressCnt;
+ float pressVar = (acc->pressSumSq - acc->pressSum * pressMean) / (float)(acc->pressCnt - 1);
+ pkg->stdPress = (pressVar > 0.0f) ? sqrtf(pressVar) : 0.0f;
  } else {
- pkg.stdPress = NAN;
+ pkg->stdPress = NAN;
  }
- pkg.deltaPress = (gAcc.pressCnt > 0) ? (gAcc.pressLast - gAcc.pressBase) : NAN;
+ pkg->deltaPress = (acc->pressCnt > 0) ? (acc->pressLast - acc->pressBase) : NAN;
 
- if (gAcc.cntT > 0 || gAcc.cntH > 0) {
+ if (acc->cntT > 0 || acc->cntH > 0) {
  /* ── Emit the buckets. Empty bucket = NAN = a drawn gap; the point of
   * a bucket sits at the MEAN timestamp of its records, which pins the
   * curve where the data actually is inside partial buckets. ── */
- pkg.count = buckets;
- pkg.sampleCount = gAcc.cntT;
+ pkg->count = buckets;
+ pkg->sampleCount = acc->cntT;
  int firstData = -1, lastData = -1;
  for (int b = 0; b < buckets; b++) {
- if (gAcc.bCntT[b] > 0) {
- pkg.tsPoints[b] = (uint32_t)(cutoff + (time_t)(gAcc.bTsSum[b] / gAcc.bCntT[b]));
+ if (acc->bCntT[b] > 0) {
+ pkg->tsPoints[b] = (uint32_t)(cutoff + (time_t)(acc->bTsSum[b] / acc->bCntT[b]));
  if (firstData < 0) firstData = b;
  lastData = b;
  } else {
- pkg.tsPoints[b] = (uint32_t)(cutoff + (time_t)((b + 0.5f) * bucketW));
+ pkg->tsPoints[b] = (uint32_t)(cutoff + (time_t)((b + 0.5f) * bucketW));
  }
- pkg.pointsV1[b] = (gAcc.bCnt1[b] > 0) ? (gAcc.bSum1[b] / (float)gAcc.bCnt1[b]) : NAN;
- pkg.minV1[b]   = (gAcc.bCnt1[b] > 0) ? gAcc.bMin1[b] : NAN;
- pkg.maxV1[b]   = (gAcc.bCnt1[b] > 0) ? gAcc.bMax1[b] : NAN;
- pkg.pointsV2[b] = (gAcc.bCnt2[b] > 0) ? (gAcc.bSum2[b] / (float)gAcc.bCnt2[b]) : NAN;
- pkg.minV2[b]   = (gAcc.bCnt2[b] > 0) ? gAcc.bMin2[b] : NAN;
- pkg.maxV2[b]   = (gAcc.bCnt2[b] > 0) ? gAcc.bMax2[b] : NAN;
+ pkg->pointsV1[b] = (acc->bCnt1[b] > 0) ? (acc->bSum1[b] / (float)acc->bCnt1[b]) : NAN;
+ pkg->minV1[b]   = (acc->bCnt1[b] > 0) ? acc->bMin1[b] : NAN;
+ pkg->maxV1[b]   = (acc->bCnt1[b] > 0) ? acc->bMax1[b] : NAN;
+ pkg->pointsV2[b] = (acc->bCnt2[b] > 0) ? (acc->bSum2[b] / (float)acc->bCnt2[b]) : NAN;
+ pkg->minV2[b]   = (acc->bCnt2[b] > 0) ? acc->bMin2[b] : NAN;
+ pkg->maxV2[b]   = (acc->bCnt2[b] > 0) ? acc->bMax2[b] : NAN;
  }
  if (firstData >= 0) {
- pkg.tsFirst = (time_t)pkg.tsPoints[firstData];
- pkg.tsLast = (time_t)pkg.tsPoints[lastData];
- pkg.tsMid = pkg.tsFirst + (pkg.tsLast - pkg.tsFirst) / 2;
+ pkg->tsFirst = (time_t)pkg->tsPoints[firstData];
+ pkg->tsLast = (time_t)pkg->tsPoints[lastData];
+ pkg->tsMid = pkg->tsFirst + (pkg->tsLast - pkg->tsFirst) / 2;
  }
 
  /* Displayed extremes == real extremes, by construction: the marker
   * bucket carries the true peak on its envelope edge. */
- pkg.minVal = pkg.realMinVal;
- pkg.maxVal = pkg.realMaxVal;
- pkg.idxMinTemp = gAcc.idxMinBucket;
- pkg.idxMaxTemp = gAcc.idxMaxBucket;
- pkg.tsMinTemp = pkg.tsRealMin;
- pkg.tsMaxTemp = pkg.tsRealMax;
+ pkg->minVal = pkg->realMinVal;
+ pkg->maxVal = pkg->realMaxVal;
+ pkg->idxMinTemp = acc->idxMinBucket;
+ pkg->idxMaxTemp = acc->idxMaxBucket;
+ pkg->tsMinTemp = pkg->tsRealMin;
+ pkg->tsMaxTemp = pkg->tsRealMax;
 
  /* ── Stats over EVERY record in the window (not the drawn points) ── */
- pkg.avgTemp = (gAcc.cntT > 0) ? (gAcc.sumT / (float)gAcc.cntT) : NAN;
- if (gAcc.cntT > 1) {
- float varT = (gAcc.sqSumT - gAcc.sumT * (gAcc.sumT / (float)gAcc.cntT)) / (float)(gAcc.cntT - 1);
- pkg.stdTemp = (varT > 0.0f) ? sqrtf(varT) : 0.0f;
+ pkg->avgTemp = (acc->cntT > 0) ? (acc->sumT / (float)acc->cntT) : NAN;
+ if (acc->cntT > 1) {
+ float varT = (acc->sqSumT - acc->sumT * (acc->sumT / (float)acc->cntT)) / (float)(acc->cntT - 1);
+ pkg->stdTemp = (varT > 0.0f) ? sqrtf(varT) : 0.0f;
  } else {
- pkg.stdTemp = (gAcc.cntT > 0) ? 0.0f : NAN;
+ pkg->stdTemp = (acc->cntT > 0) ? 0.0f : NAN;
  }
- pkg.deltaTemp = (!isnan(gAcc.firstT) && !isnan(gAcc.lastT)) ? (gAcc.lastT - gAcc.firstT) : NAN;
+ pkg->deltaTemp = (!isnan(acc->firstT) && !isnan(acc->lastT)) ? (acc->lastT - acc->firstT) : NAN;
 
- pkg.avgHum = (gAcc.cntH > 0) ? (gAcc.sumH / (float)gAcc.cntH) : NAN;
- if (gAcc.cntH > 2) {
- float varH = (gAcc.sqSumH - gAcc.sumH * (gAcc.sumH / (float)gAcc.cntH)) / (float)(gAcc.cntH - 1);
- pkg.stdHum = (varH > 0.0f) ? sqrtf(varH) : 0.0f;
+ pkg->avgHum = (acc->cntH > 0) ? (acc->sumH / (float)acc->cntH) : NAN;
+ if (acc->cntH > 2) {
+ float varH = (acc->sqSumH - acc->sumH * (acc->sumH / (float)acc->cntH)) / (float)(acc->cntH - 1);
+ pkg->stdHum = (varH > 0.0f) ? sqrtf(varH) : 0.0f;
  } else {
- pkg.stdHum = NAN;
+ pkg->stdHum = NAN;
  }
- pkg.deltaHum = (!isnan(gAcc.firstH) && !isnan(gAcc.lastH)) ? (gAcc.lastH - gAcc.firstH) : NAN;
+ pkg->deltaHum = (!isnan(acc->firstH) && !isnan(acc->lastH)) ? (acc->lastH - acc->firstH) : NAN;
 
- if (pkg.hasHumidity && localHumMax > -1000.0f) {
+ if (pkg->hasHumidity && localHumMax > -1000.0f) {
  if (localHumMax > 100.0f) localHumMax = 100.0f;
  if (localHumMin < 0.0f) localHumMin = 0.0f;
- } else if (pkg.v2IsPress && localHumMax > -1000.0f) {
+ } else if (pkg->v2IsPress && localHumMax > -1000.0f) {
  /* Pressure on the second axis: keep its real hPa extremes — the
  * 0..100 clamp above is a humidity rule. */
  } else {
@@ -537,18 +545,18 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  localHumMax = 100.0f;
  }
  } else {
- pkg.count = 0;
- pkg.sampleCount = 0;
- pkg.minVal = 0.0f;
- pkg.maxVal = 40.0f;
- pkg.realMinVal = 0.0f;
- pkg.realMaxVal = 40.0f;
- pkg.avgTemp = NAN;
- pkg.stdTemp = NAN;
- pkg.deltaTemp = NAN;
- pkg.avgHum = NAN;
- pkg.stdHum = NAN;
- pkg.deltaHum = NAN;
+ pkg->count = 0;
+ pkg->sampleCount = 0;
+ pkg->minVal = 0.0f;
+ pkg->maxVal = 40.0f;
+ pkg->realMinVal = 0.0f;
+ pkg->realMaxVal = 40.0f;
+ pkg->avgTemp = NAN;
+ pkg->stdTemp = NAN;
+ pkg->deltaTemp = NAN;
+ pkg->avgHum = NAN;
+ pkg->stdHum = NAN;
+ pkg->deltaHum = NAN;
  localHumMin = 0.0f;
  localHumMax = 100.0f;
 
@@ -556,9 +564,9 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  * Even without data, fill tsFirst/tsLast with the requested time
  * window so the header displays the reference period.
  */
- pkg.tsFirst = cutoff;
- pkg.tsLast = effectiveEnd;
- pkg.tsMid = cutoff + (effectiveEnd - cutoff) / 2;
+ pkg->tsFirst = cutoff;
+ pkg->tsLast = effectiveEnd;
+ pkg->tsMid = cutoff + (effectiveEnd - cutoff) / 2;
  }
 
  /*
@@ -569,14 +577,17 @@ void AppManager::renderGraphOptimized(int sensorId, int range, bool showAfterLoa
  * showing "08/04 00:00" (midnight of the following day).
  */
  if (forceEndEpoch > 0) {
- pkg.tsFirst = cutoff;                 /* 00:00 of the day */
- pkg.tsLast = forceEndEpoch - 60;      /* 23:59 of the day */
- pkg.tsMid = cutoff + (forceEndEpoch - cutoff) / 2;  /* ~12:00 */
+ pkg->tsFirst = cutoff;                 /* 00:00 of the day */
+ pkg->tsLast = forceEndEpoch - 60;      /* 23:59 of the day */
+ pkg->tsMid = cutoff + (forceEndEpoch - cutoff) / 2;  /* ~12:00 */
  }
 
  _storageMgr->unlockHeavyTask( );
 
  if (showAfterLoad) {
- _displayMgr->showGraphPlot(pkg, localHumMin, localHumMax);
+ _displayMgr->showGraphPlot(*pkg, localHumMin, localHumMax);
  }
+
+ free(acc);
+ free(pkg);
 }

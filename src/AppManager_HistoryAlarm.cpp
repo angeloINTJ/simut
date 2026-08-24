@@ -19,6 +19,7 @@
 #include "TelemetryManager.h"
 #include <LittleFS.h>
 #include <time.h>
+#include <stdlib.h>
 
 void AppManager::pauseDisplayForFlash(bool lock) {
  /* During cooperative quiet mode, Core 1 is frozen in a RAM-only
@@ -437,34 +438,36 @@ void AppManager::processHistoryLogging( ) {
 }
 
 void AppManager::openStatsScreen(int sensorId) {
- /**
- * IMPORTANT: pkg must be static to avoid stack overflow.
- * GraphDataPackage is ~3.2KB — exceeds RP2040 stack (~4KB).
- * Same pattern used in renderGraphOptimized( ).
- */
- static GraphDataPackage pkg;
- memset(&pkg, 0, sizeof(GraphDataPackage));
- pkg.sensorIdx = sensorId;
- pkg.timeRange = 3;
- pkg.count = 0;
- pkg.idxMinTemp = -1;
- pkg.idxMaxTemp = -1;
- pkg.avgTemp = NAN;
- pkg.stdTemp = NAN;
- pkg.deltaTemp = NAN;
- pkg.avgHum = NAN;
- pkg.stdHum = NAN;
- pkg.deltaHum = NAN;
+ /* Heap-allocated: GraphDataPackage exceeds the RP2040 stack, so it cannot
+ * be a stack local — but it need not be resident either. malloc/free here
+ * keeps ~5.9 KB of .bss free at idle (same tradeoff as renderGraphOptimized). */
+ GraphDataPackage* pkg = (GraphDataPackage*)malloc(sizeof(GraphDataPackage));
+ if (!pkg) {
+  LOG_CODE(LOG_WARN, "APP", SYS_HEAP_LOW, 0, "stats scratch");
+  return;
+ }
+ memset(pkg, 0, sizeof(GraphDataPackage));
+ pkg->sensorIdx = sensorId;
+ pkg->timeRange = 3;
+ pkg->count = 0;
+ pkg->idxMinTemp = -1;
+ pkg->idxMaxTemp = -1;
+ pkg->avgTemp = NAN;
+ pkg->stdTemp = NAN;
+ pkg->deltaTemp = NAN;
+ pkg->avgHum = NAN;
+ pkg->stdHum = NAN;
+ pkg->deltaHum = NAN;
 
  int cacheIdx = sensorId;
  if (sensorId == (int)MINMAX_SLOT_BOARD_TEMP) cacheIdx = MINMAX_SLOT_BOARD_TEMP;
  else if (cacheIdx < 0 || cacheIdx >= MINMAX_SLOT_COUNT) cacheIdx = 0;
 
- pkg.minVal = _cachedMin[cacheIdx];
- pkg.maxVal = _cachedMax[cacheIdx];
+ pkg->minVal = _cachedMin[cacheIdx];
+ pkg->maxVal = _cachedMax[cacheIdx];
 
- if (pkg.minVal == 1000.0f) pkg.minVal = 0.0f;
- if (pkg.maxVal == -1000.0f) pkg.maxVal = 0.0f;
+ if (pkg->minVal == 1000.0f) pkg->minVal = 0.0f;
+ if (pkg->maxVal == -1000.0f) pkg->maxVal = 0.0f;
 
  float humMin = _cachedHumMin[cacheIdx];
  float humMax = _cachedHumMax[cacheIdx];
@@ -474,29 +477,30 @@ void AppManager::openStatsScreen(int sensorId) {
  SystemConfig &cfg = _storageMgr->getConfig( );
 
  if (sensorId == (int)MINMAX_SLOT_BOARD_TEMP) {
- snprintf(pkg.title, sizeof(pkg.title), "Board Temp");
- snprintf(pkg.hwId, sizeof(pkg.hwId), "SYS");
- snprintf(pkg.rom, sizeof(pkg.rom), "RP2040-ADC");
- pkg.hasHumidity = false;
+ snprintf(pkg->title, sizeof(pkg->title), "Board Temp");
+ snprintf(pkg->hwId, sizeof(pkg->hwId), "SYS");
+ snprintf(pkg->rom, sizeof(pkg->rom), "RP2040-ADC");
+ pkg->hasHumidity = false;
  } else if (sensorId >= 0 && sensorId < MAX_SENSORS) {
- pkg.hasHumidity = sensorHasHumidity((SensorType)cfg.sensors[sensorId].sensorType);
+ pkg->hasHumidity = sensorHasHumidity((SensorType)cfg.sensors[sensorId].sensorType);
  if (cfg.sensors[sensorId].active) {
- safeCopy(pkg.title, cfg.sensors[sensorId].friendlyName, sizeof(pkg.title));
- safeCopy(pkg.hwId, cfg.sensors[sensorId].hwId, sizeof(pkg.hwId));
- snprintf(pkg.rom, sizeof(pkg.rom), "%02X%02X%02X%02X%02X%02X%02X%02X",
+ safeCopy(pkg->title, cfg.sensors[sensorId].friendlyName, sizeof(pkg->title));
+ safeCopy(pkg->hwId, cfg.sensors[sensorId].hwId, sizeof(pkg->hwId));
+ snprintf(pkg->rom, sizeof(pkg->rom), "%02X%02X%02X%02X%02X%02X%02X%02X",
  cfg.sensors[sensorId].rom[0], cfg.sensors[sensorId].rom[1],
  cfg.sensors[sensorId].rom[2], cfg.sensors[sensorId].rom[3],
  cfg.sensors[sensorId].rom[4], cfg.sensors[sensorId].rom[5],
  cfg.sensors[sensorId].rom[6], cfg.sensors[sensorId].rom[7]);
  } else {
- snprintf(pkg.title, sizeof(pkg.title), "Slot %d", sensorId);
- snprintf(pkg.hwId, sizeof(pkg.hwId), "--");
- snprintf(pkg.rom, sizeof(pkg.rom), "N/A");
+ snprintf(pkg->title, sizeof(pkg->title), "Slot %d", sensorId);
+ snprintf(pkg->hwId, sizeof(pkg->hwId), "--");
+ snprintf(pkg->rom, sizeof(pkg->rom), "N/A");
  }
  }
- pkg.title[31] = '\0'; pkg.hwId[15] = '\0'; pkg.rom[23] = '\0';
+ pkg->title[31] = '\0'; pkg->hwId[15] = '\0'; pkg->rom[23] = '\0';
 
- _displayMgr->showStats(pkg, humMin, humMax);
+ _displayMgr->showStats(*pkg, humMin, humMax);
+ free(pkg);
 }
 void AppManager::checkAlarmConditions( ) {
  const auto& sensors = _sensorMgr->getRuntimeSensors( );

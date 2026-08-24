@@ -4,6 +4,25 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.4-beta (2026-08-24)
+
+### A RAM diet that keeps every feature
+
+The graph rendering path no longer holds its scratch buffers permanently. The
+bucket accumulator and the two `GraphDataPackage` work areas — together
+~18.6 KB of static `.bss` — are now allocated on demand from the heap and
+released when the graph closes. Because they are transient, the linker gives the
+space back to the heap: static RAM drops from 49.3% to 42.2% (129,256 → 110,616
+bytes) and the heap region grows by the same amount. On the dashboard this moves
+the RAM gauge from ~95% to ~83%, back above the telemetry guard that protects
+the TLS handshake.
+
+The language pack is now loaded only when a non-English language is selected, so
+an English device keeps its ~15 KB of translation heap free.
+
+Validated before shipping: a full release build, 237/237 native unit tests, and
+a bench A/B confirming the change is neutral to web serving.
+
 ## v2.3.3-beta (2026-08-23)
 
 ### Alarms get their own telemetry line, and sensor errors get their own voice
