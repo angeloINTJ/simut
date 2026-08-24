@@ -4,6 +4,39 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.3-beta (2026-08-23)
+
+### Alarms get their own telemetry line, and sensor errors get their own voice
+
+The firmware now ships a **second, independent telemetry line dedicated to
+alarms**, running alongside the measurement line that already exists. Each
+alarm key carries two domains — `alarm` (the limit threshold) and `err` (a
+hardware/communication failure) — so a sensor that trips a limit and a sensor
+that stops answering are told apart end to end, on screen, in syslog and in the
+uploaded payload. The `{err}` domain carries the full lifecycle: silencing and
+per-slot deactivation become codes in the payload, not just local UI state. The
+alarm queue is held in RAM with ACK, its payload is editable, and it inherits
+the transport already configured for the main telemetry line (CLI, Web and
+metrics all see it).
+
+Sensor errors are now first-class citizens. A sensor that loses communication —
+or is swapped on a live channel — fires a dedicated **ERROR alarm** with an
+amber-and-white panel that stays fixed at the top of the dashboard. Limit and
+error alarms are fully independent per slot: clearing one never clears the
+other, and a sensor re-established after a fault regenerates its own error
+alarm. Disabling a sensor that is in ERROR clears the amber display, and syslog
+now reflects the real state. Per-slot deactivation is **RAM-only** — it never
+touches the filesystem, so it survives neither a reboot nor a stray write.
+
+The web UI gains a dedicated **Telemetry page with a Live Preview of alarms**
+that mirrors the main builder, plus a visual standardization pass on buttons,
+text boxes and toggles. On the transport side, a telemetry cursor that ran
+ahead of the data could wedge the sender — it now self-resets instead of
+stalling the upload.
+
+Hardware validation completed on the bench before publishing: HTTP (14/14),
+TLS (15/15), MQTT+ACK (8/8) and CLI dump/flush (3/3) suites all pass.
+
 ## v2.3.2-beta (2026-08-21)
 
 ### The white flash between pages is gone

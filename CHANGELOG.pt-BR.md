@@ -4,6 +4,40 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.3-beta (2026-08-23)
+
+### Alarmes ganham a própria linha de telemetria, e erros de sensor ganham voz própria
+
+O firmware agora envia uma **segunda linha de telemetria, independente e
+dedicada a alarmes**, rodando ao lado da linha de medição que já existia. Cada
+chave de alarme carrega dois domínios — `alarm` (o limite) e `err` (uma falha
+de hardware/comunicação) — de modo que um sensor que estoura o limite e um
+sensor que para de responder são distinguidos de ponta a ponta, na tela, no
+syslog e no payload enviado. O domínio `{err}` carrega o ciclo de vida
+completo: silenciar e desativar por slot viram códigos no payload, e não apenas
+estado local da interface. A fila de alarmes fica em RAM com ACK, o payload é
+editável e herda o transporte já configurado para a linha principal de
+telemetria (CLI, Web e métricas enxergam tudo).
+
+Erros de sensor agora são cidadãos de primeira classe. Um sensor que perde
+comunicação — ou é trocado num canal vivo — dispara um **alarme de ERRO**
+dedicado, com painel âmbar e branco fixado no topo do dashboard. Alarme de
+limite e de erro são totalmente independentes por slot: limpar um nunca limpa o
+outro, e um sensor restabelecido após a falha regenera o próprio alarme de
+erro. Desativar um sensor que está em ERRO limpa o âmbar do display, e o syslog
+passa a refletir o estado real. A desativação por slot é **só em RAM** — nunca
+toca o sistema de arquivos, então não sobrevive a reboot nem a uma escrita
+perdida.
+
+A interface web ganha uma **página dedicada de Telemetria com Live Preview dos
+alarmes** espelhando o builder principal, além de uma padronização visual de
+botões, caixas de texto e toggles. No transporte, um cursor de telemetria que
+ficava à frente dos dados podia travar o envio — agora ele se auto-corrige em
+vez de travar o upload.
+
+Validação em hardware concluída na bancada antes de publicar: suítes HTTP
+(14/14), TLS (15/15), MQTT+ACK (8/8) e CLI dump/flush (3/3), todas passando.
+
 ## v2.3.2-beta (2026-08-21)
 
 ### A piscada branca entre páginas acabou
