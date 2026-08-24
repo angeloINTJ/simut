@@ -3357,9 +3357,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .card input:focus, .card select:focus { border-color: var(--acc); outline: none; }
         .card button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-top: 20px; transition: 0.2s; }
         .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
-        .chk { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
-        .chk input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--acc); cursor: pointer; }
-        .cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
@@ -3389,12 +3386,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #sens_tbl th, #sens_tbl td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
         #sens_tbl th { color: var(--sub); font-size: 0.85rem; text-transform: uppercase; font-weight: 600; }
         .sxm { font-family: monospace; }
-        .sxb { background: var(--track); color: var(--txt); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
-        .sxb:hover { background: #52525b; }
-        .sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
-        .sxb-dang:hover { background: var(--dang); color: #fff; }
-        .sxb-on { background: var(--acc); color: #000; }
-        .sxb-on:hover { background: var(--acc); }
         /* Mini grafico de correcao por canal: a linha tracejada e o padrao do
            sensor (delta zero), a curva e a correcao com suas ancoras. Cores em
            classes, nunca em atributos fill/stroke — var() nao resolve la. */
@@ -3456,7 +3447,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  looked editable and discarded every keystroke. -->
             <div id="cfg_load_err" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(239,68,68,0.12);border-left:3px solid #ef4444;border-radius:3px;font-size:0.92em">
                 <span id="cfg_load_err_msg" data-i18n="cfg_load_fail">Could not load the current settings. The fields are disabled to avoid saving blank values over your configuration.</span>
-                <button type="button" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;background:var(--acc);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold" data-i18n="cfg_retry">Retry</button>
+                <button type="button" class="b-pri" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;font-size:0.85rem" data-i18n="cfg_retry">Retry</button>
             </div>
             <form id="sysForm" onsubmit="event.preventDefault()">
                 <h3 data-i18n="cfg_gen" style="margin-top:0;">General Identity</h3>
@@ -3557,8 +3548,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <div style="width:100%">
                         <h3 data-i18n="cfg_slog" style="margin-top:0;">Remote Syslog (Audit Trail)</h3>
                         <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_slog_hint">Forwards log events to a syslog collector (RFC 5424 over UDP) so the audit trail survives outside this device. The server is a LAN IPv4 address — not a hostname. Fire-and-forget: no delivery guarantee.</div>
-                        <label class="chk">
-                            <input type="checkbox" id="slog_en" name="slog_en" value="1">
+                        <label class="cfg-tg">
+                            <span class="toggle"><input type="checkbox" id="slog_en" name="slog_en" value="1"><span class="slider"></span></span>
                             <span data-i18n="cfg_slog_en">Enable syslog forwarding</span>
                         </label>
                         <div class="row" style="margin-top:10px;">
@@ -3930,8 +3921,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  '<input id="se_id" type="text" oninput="sensStage(0)" maxlength="15" value="' + escHtml(s.hwId || '') + '">' +
                  '<div class="sxn">' + window.t('sens_hwid_hint', 'Key used by history and telemetry. Changing it starts a new series.') + '</div></div>' +
                  '<div class="col"><label>' + window.t('sens_state', 'State') + '</label>' +
-                 '<label class="cfg-tg"><input type="checkbox" id="se_a" onchange="sensStage(1)"' + (s.a ? ' checked' : '') + '> <span>' + window.t('sens_active', 'Active') + '</span></label>' +
-                 '<label class="cfg-tg"><input type="checkbox" id="se_al" onchange="sensStage(0)"' + (s.al ? ' checked' : '') + '> <span>' + window.t('sens_alarms', 'Alarms enabled') + '</span></label></div></div>';
+                 '<label class="cfg-tg"><span class="toggle"><input type="checkbox" id="se_a" onchange="sensStage(1)"' + (s.a ? ' checked' : '') + '><span class="slider"></span></span> <span>' + window.t('sens_active', 'Active') + '</span></label>' +
+                 '<label class="cfg-tg"><span class="toggle"><input type="checkbox" id="se_al" onchange="sensStage(0)"' + (s.al ? ' checked' : '') + '><span class="slider"></span></span> <span>' + window.t('sens_alarms', 'Alarms enabled') + '</span></label></div></div>';
             if (nP) {
                 h += '<label class="sxsec">' + window.t('sens_pins', 'GPIO assignment') + '</label><div class="row">';
                 for (let k = 0; k < nP; k++) {
@@ -4550,13 +4541,10 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         html { background: var(--bg); }
         body { background: var(--bg); color: var(--txt); }
         h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin: 22px 0 12px; }
-        .grp { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; margin-bottom: 18px; }
+        .grp { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
         label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.9rem; font-weight: 500; }
-        .card input[type=text], .card input[type=password], .card input[type=number], .card select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--txt); box-sizing: border-box; }
+        .card input[type=text], .card input[type=password], .card input[type=number], .card select { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
         .card input:focus, .card select:focus { border-color: var(--acc); outline: none; }
-        .chk { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
-        .chk input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--acc); cursor: pointer; }
-        .cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
@@ -4579,7 +4567,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             <div class="c-sub" style="margin-bottom:14px" data-i18n="tel_desc">Transport, payload formats and the second line (alarms). Save &amp; Restart applies staged changes; Send now / Reset cursor act on the running device.</div>
             <div id="cfg_load_err" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(239,68,68,0.12);border-left:3px solid #ef4444;border-radius:3px;font-size:0.92em">
                 <span id="cfg_load_err_msg" data-i18n="cfg_load_fail">Could not load the current settings. The fields are disabled to avoid saving blank values over your configuration.</span>
-                <button type="button" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;background:var(--acc);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold" data-i18n="cfg_retry">Retry</button>
+                <button type="button" class="b-pri" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;font-size:0.85rem" data-i18n="cfg_retry">Retry</button>
             </div>
             <form id="sysForm" onsubmit="event.preventDefault()">
                 <h3 data-i18n="cfg_tel">Telemetry Engine</h3>
@@ -4663,12 +4651,12 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                                 <input type="number" id="m_ka" name="m_ka" min="10" max="300">
                             </div>
                         </div>
-                        <label class="chk">
-                            <input type="checkbox" id="m_retain" name="m_retain" value="1">
+                        <label class="cfg-tg">
+                            <span class="toggle"><input type="checkbox" id="m_retain" name="m_retain" value="1"><span class="slider"></span></span>
                             <span data-i18n="cfg_mq_retain">Retain Message</span>
                         </label>
-                        <label class="chk">
-                            <input type="checkbox" id="m_had" name="m_had" value="1">
+                        <label class="cfg-tg">
+                            <span class="toggle"><input type="checkbox" id="m_had" name="m_had" value="1"><span class="slider"></span></span>
                             <span data-i18n="cfg_mq_had">Home Assistant Discovery</span>
                         </label>
                         <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_mq_had_hint">Publishes retained config messages so Home Assistant auto-creates this device and its sensors. Requires JSON payload mode; entities appear at the next upload.</div>
@@ -4691,7 +4679,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                          the question you ask while editing these fields. -->
                     <div style="margin-top:16px;border-top:1px solid #3f3f46;padding-top:14px">
                       <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <button type="button" class="sxb" id="tel_sync_btn" onclick="telSync()" data-i18n="tel_sync">Send now</button>
+                        <button type="button" class="b-pri" id="tel_sync_btn" onclick="telSync()" data-i18n="tel_sync">Send now</button>
                         <button type="button" class="sxb sxb-dang" id="tel_reset_btn" onclick="telReset()" data-i18n="tel_reset">Reset send cursor</button>
                       </div>
                       <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="tel_hint">Send now flushes whatever is pending without waiting for the interval. Reset send cursor makes the device re-send up to 30 days back — use it after a long server outage.</div>
@@ -4752,8 +4740,8 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--sub)">
                         <span data-i18n="al_hint">Separate stream for sensor alarms. Records queue in RAM and are removed only after the server confirms receipt (HTTP 2xx, or MQTT ack on &lt;data topic&gt;/alarm/ack). Transport, server, credentials and TLS follow the main telemetry settings.</span> <span data-i18n="al_pending">Pending:</span> <span id="a_pending_span">0</span>
                     </div>
-                    <label class="chk">
-                        <input type="checkbox" id="a_en" name="a_en" value="1">
+                    <label class="cfg-tg">
+                        <span class="toggle"><input type="checkbox" id="a_en" name="a_en" value="1"><span class="slider"></span></span>
                         <span data-i18n="al_en">Enable alarm telemetry line</span>
                     </label>
                     <div class="row" style="margin-top:10px;">
@@ -5214,9 +5202,6 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .card input:focus { border-color: var(--acc); outline: none; }
         .card button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-top: 10px; transition: 0.2s; }
         .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
-        .chk { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; background: rgba(6, 182, 212, 0.05); padding: 15px; border-radius: 6px; border: 1px solid var(--acc); }
-        .chk input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--acc); cursor: pointer; }
-        .cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
         /* Esconde campos estáticos quando DHCP/DNS auto está ON */
         .grp:has(#dhcp:checked) #static_fields { display: none; }
         .grp:has(#dns_auto:checked) #dns_fields { display: none; }
@@ -5332,8 +5317,8 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <!-- Only rendered when the TLS cert pair exists (web_tls from /api/network);
                                  keep-alive itself defaults ON on every transport. -->
                             <div id="web_ka_row" style="display:none;margin-top:10px">
-                                <label class="chk">
-                                    <input type="checkbox" id="web_ka" name="web_ka" value="1">
+                                <label class="cfg-tg">
+                                    <span class="toggle"><input type="checkbox" id="web_ka" name="web_ka" value="1"><span class="slider"></span></span>
                                     <span data-i18n="net_web_ka">Persistent connections (keep-alive)</span>
                                 </label>
                                 <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_web_ka_hint">Reuses the TLS connection between requests — pages load ~60% faster over HTTPS. Disable only if a proxy or client misbehaves with persistent connections.</div>
@@ -6750,6 +6735,16 @@ h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1
    (cyan claro pede tinta escura); o claro troca para branco via lang.js. */
 .b-pri { background: var(--acc); color: #001318; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.95em; font-weight: 700; transition: 0.2s; }
 .b-pri:hover { opacity: 0.9; }
+/* Botões secundários/pequenos (.sxb) e o toggle de linha (.cfg-tg): antes
+   moravam só no <style> da Config — por isso a Telemetry usava .sxb sem estilo.
+   Aqui viram compartilhados, como .b-pri. */
+.sxb { background: var(--track); color: var(--txt); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+.sxb:hover { background: #52525b; }
+.sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
+.sxb-dang:hover { background: var(--dang); color: #fff; }
+.sxb-on { background: var(--acc); color: #000; }
+.sxb-on:hover { background: var(--acc); }
+.cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
 /* ── Hamburger Nav ──────────────────────────────────────── */
 .topbar { background: #10151c; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; min-height: 48px; }
