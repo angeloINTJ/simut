@@ -758,15 +758,16 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
   * complement of these rectangles, so the two must not drift apart. */
 
 
- /* Borda do alarme de LIMITE: vermelha nas DUAS fases do flash — com o
- * painel amarelo (fase acesa) e com o painel normal (fase apagada), o
- * alarme segue sinalizado na borda. Erro de sensor (âmbar) mantém a
- * borda branca só na fase acesa. Silenciado não marca borda. */
- bool limAlarmActive = isSlotAlarming(slotIdx) && !_alarmSilenced;
- bool errAlarmActive = isSlotErrAlarming(slotIdx) && !_alarmSilenced;
+ /* Borda (moldura) do alarme: ALTERNA com o flash — NORMAL (accentHigh)
+ * ↔ cor do alarme na fase acesa (AMARELO no limite, branco no erro).
+ * Também vale silenciado (120 s): só moldura + botão do slot alternam —
+ * o fundo do painel fica normal (slotAlarmBg devolve C_CARD_BG) e o
+ * texto/idéia normais (isRedPhase/isErrPhase já são gateados). */
+ bool limAlarmActive = isSlotAlarming(slotIdx);
+ bool errAlarmActive = isSlotErrAlarming(slotIdx);
  uint16_t borderColor = C_ACCENT_HIGH;
  if (errAlarmActive) borderColor = _alarmFlashPhase ? C_ALARM_ERR_TEXT : C_ACCENT_HIGH;
- else if (limAlarmActive) borderColor = C_ALARM_BORDER;
+ else if (limAlarmActive) borderColor = _alarmFlashPhase ? C_ALARM_BG : C_ACCENT_HIGH;
  /* Modo seleção: moldura BRANCA (todos os elementos brancos no cinza). */
  if (isSelecting) borderColor = C_ALARM_ERR_TEXT;
 
@@ -1120,7 +1121,9 @@ void DisplayManager::drawBottomButtons(int selectedIdx) {
 
  } else { /* PAGE */
  uint16_t pagTxtCol = C_BTN_TEXT;
- if (hasAlarmsOnOtherPages && _alarmFlashPhase) {
+ /* Silenciado (120 s): SÓ a moldura do painel e o botão do slot alternam —
+ * o botão de página fica estático (anel vermelho, sem piscar). */
+ if (hasAlarmsOnOtherPages && _alarmFlashPhase && !_alarmSilenced) {
  _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, C_ALARM_BG);
  pagTxtCol = C_ALARM_TEXT;
  } else if (hasAlarmsOnOtherPages) {

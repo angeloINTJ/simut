@@ -61,8 +61,9 @@ struct ThemePalette {
  * its own: alarmText/alarmTextDim sit on alarmBg (amarelo brilhante do
  * alarme de LIMITE — preto p/ contraste); selBg e cautionBg desenham o
  * próprio texto claro (C_TEXT_MAIN / C_ALARM_ERR_TEXT); alarmBorder
- * (vermelho) senta em bgMain e cardBg e contorna o painel em alarme nas
- * duas fases do flash. */
+ * (vermelho) senta em bgMain e cardBg e anela o BOTÃO DE PÁGINA com
+ * alarmes em outras páginas — a moldura do painel em alarme alterna
+ * NORMAL ↔ amarelo (alarmBg) no limite / branco no erro. */
  uint16_t alarmBg; /**< Alarm fill: flashing panel/buttons, destructive confirm */
  uint16_t alarmText; /**< Primary text over alarmBg (preto no amarelo) */
  uint16_t alarmTextDim; /**< Secondary text/icons over alarmBg */
