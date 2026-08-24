@@ -4,6 +4,27 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.4-beta (2026-08-24)
+
+### Uma dieta de RAM que mantém todos os recursos
+
+O caminho de renderização de gráfico não segura mais seus buffers de trabalho
+permanentemente. O acumulador de buckets e as duas áreas `GraphDataPackage` —
+juntas ~18,6 KB de `.bss` estático — agora são alocadas sob demanda no heap e
+liberadas quando o gráfico fecha. Como são transitórias, o linker devolve o
+espaço ao heap: a RAM estática cai de 49,3% para 42,2% (129.256 → 110.616 bytes)
+e a região de heap cresce na mesma medida. No painel, o medidor de RAM cai de
+~95% para ~83%, voltando para cima do guarda de telemetria que protege o
+handshake TLS.
+
+O pacote de idioma agora só é carregado quando um idioma diferente do inglês é
+selecionado, mantendo os ~15 KB de heap de tradução livres em um dispositivo em
+inglês.
+
+Validado antes da publicação: build de release completo, 237/237 testes
+unitários nativos e um A/B de bancada confirmando a neutralidade da mudança no
+servidor web.
+
 ## v2.3.3-beta (2026-08-23)
 
 ### Alarmes ganham a própria linha de telemetria, e erros de sensor ganham voz própria
