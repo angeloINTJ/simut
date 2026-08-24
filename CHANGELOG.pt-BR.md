@@ -4,6 +4,15 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.4 (2026-08-24)
+
+### A linha 2.3 fica estável
+
+A v2.3.4 promove a dieta de RAM lançada na v2.3.4-beta — buffers de gráfico
+para heap sob demanda e pacote de idioma carregado apenas quando necessário —
+ao canal estável após a campanha de validação completa (237/237 testes nativos,
+todos os gates host verdes e o A/B dirigido de bancada).
+
 ## v2.3.4-beta (2026-08-24)
 
 ### Uma dieta de RAM que mantém todos os recursos

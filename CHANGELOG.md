@@ -4,6 +4,15 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.4 (2026-08-24)
+
+### The 2.3 line goes stable
+
+v2.3.4 promotes the RAM diet shipped in v2.3.4-beta — graph scratch buffers to
+heap on demand and the language pack loaded only when needed — to the stable
+channel after the full validation campaign (237/237 native tests, all host
+gates green, and the directed bench A/B).
+
 ## v2.3.4-beta (2026-08-24)
 
 ### A RAM diet that keeps every feature

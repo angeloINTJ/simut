@@ -23,7 +23,7 @@ reporting a vulnerability.
 
 | Version                                 | Supported          |
 | --------------------------------------- | ------------------ |
-| Latest release (currently v2.3.2-beta)  | ✅ receives fixes  |
+| Latest release (currently v2.3.4)       | ✅ receives fixes  |
 | All earlier versions                    | ❌ no backports    |
 
 ---
