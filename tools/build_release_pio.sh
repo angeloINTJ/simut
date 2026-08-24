@@ -65,6 +65,7 @@ rsync -a --delete tools/ "${DST}/tools/"
 rm -rf "${DST}/tools/PicoHand" "${DST}/tools/build_release.sh" "${DST}/tools/build_release_pio.sh"
 rm -rf "${DST}/tools/arduino_pico_overrides"
 rm -rf "${DST}/tools/test-server/certs"
+rm -rf "${DST}/tools/telemetry_bench/certs"
 rm -rf "${DST}/tools/stress_test"
 rm -rf "${DST}/tools/theme-editor"
 
