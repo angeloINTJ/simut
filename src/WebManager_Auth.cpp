@@ -166,6 +166,7 @@ void WebManager::handleLogin( ) {
 void WebManager::handleRoot( )    { DASH_PAGE_SERVE(PERM_DASHBOARD); }
 void WebManager::handleHistory( ) { HIST_PAGE_SERVE(PERM_HISTORY | PERM_LOGS); }
 void WebManager::handleConfig( )  { CFG_PAGE_SERVE(PERM_SYS_CONFIG); }
+void WebManager::handleTelemetry( ) { TEL_PAGE_SERVE(PERM_SYS_CONFIG); }
 void WebManager::handleNetwork( ) { NET_PAGE_SERVE(PERM_NET_CONFIG); }
 void WebManager::handleUsers( )   { USR_PAGE_SERVE(PERM_USER_MGR); }
 void WebManager::handleFiles( )   { FILE_PAGE_SERVE(PERM_FILE_READ); }

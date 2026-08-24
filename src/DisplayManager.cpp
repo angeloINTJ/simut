@@ -1235,7 +1235,9 @@ void DisplayManager::loopCore1( ) {
 
 				mutex_enter_blocking(&_stateMutex);
 				snap = _sharedState;
-				if (!snap.topSlotValid) {
+				/* Mesmo guarda do render(): espelha só se interativo — topo fixado
+				 * em sensor de erro (inválido) mantém o próprio painel. */
+				if (!_topPanel.fixed && !snap.topSlotValid) {
 				snap.topSlotTemp = snap.slotTemp; snap.topSlotHum = snap.slotHum;
 				snap.topSlotType = snap.slotType; snap.topSlotValid = snap.slotValid;
 				safeCopy(snap.topSlotName, snap.slotName, 31);
@@ -1287,17 +1289,25 @@ void DisplayManager::loopCore1( ) {
 			}
 
 
-			if (_alarmSlotMask != 0 && !_alarmSilenced) {
-				uint16_t m = _alarmSlotMask;
+			if ((_alarmSlotMask != 0 || _alarmErrMask != 0) && !_alarmSilenced) {
+				uint16_t m = _alarmSlotMask | _alarmErrMask;
 				int alarmCount = 0;
-				while (m) { alarmCount += (m & 1); m >>= 1; }
+				/* Slot fixado no painel superior não conta para a rotação:
+				 * ele já está sempre visível no topo; rotacioná-lo também para
+				 * o painel inferior duplicaria o sensor nos dois painéis. */
+				for (int i = 0; i < 10; i++) {
+					if ((m & (1 << i)) && !(_topPanel.fixed && _topPanel.fixedIdx == i)) alarmCount++;
+				}
 
 				if (alarmCount >= 2 && timeSince(_alarmRotateTimer, ALARM_ROTATE_INTERVAL_MS)) {
 					_alarmRotateTimer = millis( );
 					int current = _lastRenderedState.selectedSlotIdx;
 					for (int i = 1; i <= 10; i++) {
 						int idx = (current + i) % 10;
-						if (_alarmSlotMask & (1 << idx)) {
+						if ((_alarmSlotMask | _alarmErrMask) & (1 << idx)) {
+							/* Nunca rotacionar o slot fixado no topo para o
+							 * painel inferior (duplicação). */
+							if (_topPanel.fixed && _topPanel.fixedIdx == idx) continue;
 							if (idx < 4) _currentPage = 0;
 							else if (idx < 8) _currentPage = 1;
 							else _currentPage = 2;
@@ -1522,7 +1532,13 @@ bool DisplayManager::pullSnapshot(SystemState& localSnapshot) {
 #if !SIMUT_DISPLAY_ALPHA
 void DisplayManager::render(const SystemState& state) {
  SystemState st = state;
- if (!st.topSlotValid) {
+ /* Espelho do painel inferior para o topo SÓ quando o topo é interativo
+ * (segue a seleção). O espelho por topSlotValid=false era o bug: um topo
+ * FIXADO num sensor em erro (sensor ausente → inválido) tem topSlotValid
+ * falso e o render substituía o painel do erro pelos dados do painel
+ * inferior — "trazendo o sensor de baixo para cima". Com o topo fixado,
+ * o painel superior mantém os próprios dados (mesmo inválidos). */
+ if (!_topPanel.fixed && !st.topSlotValid) {
  st.topSlotTemp = st.slotTemp; st.topSlotHum = st.slotHum;
  st.topSlotType = st.slotType; st.topSlotValid = st.slotValid;
  safeCopy(st.topSlotName, st.slotName, 31);

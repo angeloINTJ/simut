@@ -110,6 +110,10 @@ struct BootLogEntry {
 
 /* Long press on the top dash panel toggles pinned <-> interactive.
  *
+ * DASH_HOLD_MS = 3000 ms (3 s) desde o pedido do usuário: tempo do toque
+ * para colocar o painel superior no modo de seleção de slot, evitando
+ * entradas acidentais.
+ *
  * DASH_HOLD_GAP_MS is what makes it a HOLD rather than "two touches far apart
  * in wall-clock time". Core 1 samples touch every ~15 ms but stops entirely
  * while flash is being written, and a finger lifted inside one of those pauses
@@ -118,7 +122,7 @@ struct BootLogEntry {
  * mode on its own. Contact is only claimed for spans actually observed: a gap
  * wider than this restarts the hold. Erring toward restarting costs the user a
  * longer press; erring the other way is the mode changing when nobody asked. */
-constexpr uint32_t DASH_HOLD_MS     = 1000;
+constexpr uint32_t DASH_HOLD_MS     = 3000;
 constexpr uint32_t DASH_HOLD_GAP_MS = 120;
 
 /* Once the long press has fired, the panel stops listening for this long.
@@ -288,13 +292,21 @@ public:
 
 
 	void setAlarmState(uint16_t slotMask, int8_t navSlot = -1);
+	/** Máscara separada de ERRO de sensor (sem comunicação / trocado).
+	 * Painéis em erro piscam em âmbar+branco (C_ALARM_ERR_*), distintos do
+	 * alarme de limite (vermelho). Acompanha o estado vivo do sensor. */
+	void setAlarmErrState(uint16_t errMask);
+	bool isSlotErrAlarming(int slotIdx) const;
 
 
 	void setAlarmSilenced(bool silenced, uint32_t endTime = 0);
-	void setAlarmDeactivated(bool deactivated);
+	/* Mute de ERRO por slot (desativar um erro não toca o limite do mesmo
+	 * slot — alarme de limite e falha são independentes). A web/CLI limpam
+	 * ao reativar o alarme do slot. */
+	void setAlarmErrMuted(int8_t slotIdx, bool muted);
+	bool isAlarmErrMuted(int8_t slotIdx) const;
 	bool isAlarmSilenced( ) const { return _alarmSilenced; }
 	uint32_t getAlarmSilenceEnd( ) const { return _alarmSilenceEnd; }
-	bool isAlarmDeactivated( ) const { return _alarmDeactivated; }
 	int8_t getAlarmActionSlot( ) const { return _alarmActionSlot; }
 
 	void showStats(const GraphDataPackage& data, float minHum, float maxHum);
@@ -533,6 +545,7 @@ private:
 
 
 	volatile uint16_t _alarmSlotMask = 0;
+	volatile uint16_t _alarmErrMask = 0;   /**< slots em erro de sensor (âmbar) */
 	volatile int8_t _alarmNavPending = -1;
 
 	/* Panel mode: normal vs min/max */
@@ -558,8 +571,8 @@ private:
 
 
 	volatile bool _alarmSilenced = false;
+	volatile uint16_t _alarmErrMuteMask = 0; /* bit por slot: erro mutado */
 	volatile uint32_t _alarmSilenceEnd = 0;
-	volatile bool _alarmDeactivated = false;
 	int8_t _alarmActionSlot = -1;
 
 
@@ -615,8 +628,10 @@ private:
 	 		pushUiEvent(ev); /* single choke point — invariant 2. */
 	 	}
 	 }
-	 /* Mirror slot* data when interactive, uninitialized, or showing same sensor */
-	 if (!_topPanel.fixed || !_sharedState.topSlotValid ||
+	 /* Mirror slot* data when interactive or showing the same sensor.
+	  * NOT when fixed on a different slot: a pinned sensor in ERROR (missing
+	  * → topSlotValid=false) must keep its own panel, not mirror the bottom's. */
+	 if (!_topPanel.fixed ||
 	     _sharedState.topSlotIdx == _sharedState.selectedSlotIdx) {
 	 _sharedState.topSlotTemp = _sharedState.slotTemp;
 	 _sharedState.topSlotHum  = _sharedState.slotHum;

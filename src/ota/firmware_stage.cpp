@@ -111,12 +111,13 @@ bool stage_session_end(StageSession& s) {
                OTA_FLASH_PAGE_SIZE - s.page_buf_filled);
         if (!flush_page(s)) return false;
     }
-    /* Snapshot commit no fim — apaga setor 255 (último, reservado pra
-     * snapshot) e escreve. Não-fatal: sem snapshot, device sobe em
-     * factory pós-apply e user restaura via .bkp. */
+    /* Snapshot commit no fim — apaga os DOIS últimos setores (254..255,
+     * reservados pro snapshot; v21) e escreve. Não-fatal: sem snapshot,
+     * device sobe em factory pós-apply e user restaura via .bkp. */
     if (s_snapshot_len > 0) {
-        const uint32_t snap_off = OTA_STAGING_MAX_SIZE - OTA_FLASH_SECTOR_SIZE;
-        if (ensure_sector_erased(snap_off)) {
+        const uint32_t snap_off = OTA_STAGING_MAX_SIZE - 2u * OTA_FLASH_SECTOR_SIZE;
+        if (ensure_sector_erased(snap_off) &&
+            ensure_sector_erased(snap_off + OTA_FLASH_SECTOR_SIZE)) {
             ota_snapshot_commit(s_snapshot_len);
         }
     }

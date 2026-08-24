@@ -216,6 +216,11 @@ enum LogCode {
  TEL_FORCE_SYNC = 546,
  TEL_BACKOFF_SUPPRESSED = 547,
  TEL_HA_DISCOVERY = 548,     /* HA discovery configs published/cleared; ctx = count */
+ TEL_ALARM_LINE_ON = 549,     /* 2ª linha de telemetria (alarmes) ligada; ctx = capacidade da fila */
+ TEL_ALARM_SENT = 550,        /* payload de alarmes aceito pelo transporte; ctx = registros */
+ TEL_ALARM_FAIL = 551,        /* ciclo de envio de alarmes falhou; ctx = motivo/código */
+ TEL_ALARM_ACK = 552,         /* confirmação de recebimento aplicada; ctx = registros */
+ TEL_ALARM_DROP = 553,        /* estouro da fila de alarmes (drop-newest); ctx = total descartado */
 
  /* ── Storage extended (560–569) ── */
  STO_WRITE_FAILED = 560,

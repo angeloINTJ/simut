@@ -113,6 +113,7 @@ DIETABLE = {
     "FILE_PAGE":    "files.html.gz",
     "ALARMS_PAGE":  "alarms.html.gz",
     "LICENSE_PAGE": "license.html.gz",
+    "TEL_PAGE":     "telemetry.html.gz",
 }
 
 FS_OUT_DIR = os.path.join(PROJECT_DIR, "data", "web")

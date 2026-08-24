@@ -322,6 +322,7 @@ private:
 	void handleHistory( );
 	void handleFiles( );
 	void handleConfig( );
+	void handleTelemetry( );   /* v21: página dedicada de telemetria */
 	void handleNetwork( );
 	void handleUsers( );
 

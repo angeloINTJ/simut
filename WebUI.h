@@ -2522,8 +2522,10 @@ global.H5G = H5G;
         }
 
         // Logs — binary parsing in browser. Tabelas sincronizadas com LogManager::translateCode (LogManager.cpp).
-        const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '548':'HA discovery refreshed', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
-        const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao por flash ocupado', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '548':'Discovery HA atualizado', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
+                const EVT_NAMES_EN = { '0':'OK', '1':'System boot', '2':'User-requested reboot', '3':'Heap memory low', '4':'Uptime milestone', '5':'Routine log records suppressed', '10':'WiFi connecting', '11':'WiFi disconnected', '12':'WiFi scanning', '13':'NTP synced', '14':'IP acquired', '15':'AP mode started', '20':'Storage failure', '21':'Config saved', '22':'Storage rotated', '23':'Flash formatting', '24':'Storage recovered', '25':'Config migrated', '30':'Telemetry sent', '31':'Telemetry failed', '32':'Telemetry retry', '33':'Telemetry queued', '34':'SSL cert loaded', '35':'MQTT connected', '36':'MQTT disconnected', '37':'MQTT published', '100':'Sensor recovered', '101':'Sensor timeout', '102':'Sensor checksum error', '103':'Sensor CRC error', '104':'Sensor out of range', '105':'Hardware mismatch', '106':'Sensor missing', '200':'Touch event', '201':'Display restarted', '202':'Graph rendered', '300':'Login success', '301':'Login failed', '302':'Unauthorized access', '303':'Config changed', '304':'Session expired', '305':'File uploaded', '306':'File deleted', '400':'Display launched on Core 1', '401':'Initial touch cal saved', '402':'Touch calibration required', '403':'AP mode triggered by user', '404':'System ready', '405':'System ready (AP mode)', '406':'Storage critical failure', '407':'Sensors calibrated', '408':'NTP correcting timestamps', '409':'Timestamps corrected', '410':'Graph caches invalidated', '440':'Theme changed via UI', '441':'Language changed via UI', '442':'Alarm limits saved via UI', '443':'Touch cal saved to flash', '444':'Touch sensitivity saved', '445':'Display PIN changed', '446':'Sound settings saved', '447':'Alarm silenced via UI', '448':'Alarm silence expired', '449':'All alarms deactivated (RAM)', '470':'Alarm triggered', '471':'Alarm cleared', '472':'Alarm silence cancelled', '480':'Min/Max cache loaded', '481':'Min/Max cache partial', '482':'Graph cache refresh started', '483':'Graph cache refresh done', '484':'Graph cache: ambient', '485':'Graph cache: board temp', '486':'Graph cache preload done', '487':'Graph loading', '488':'Graph render budget exceeded', '489':'Preload budget exceeded', '500':'Display pause stuck >5s', '501':'Yield stuck >10s', '502':'Core 1 dead >10s, restarting', '503':'Flash busy collision', '510':'History record saved', '511':'Heap status report', '512':'History skip: no time reference', '513':'History resumed: time reference acquired', '514':'History skip: V4 schema is empty', '515':'History skip: schema covers no active sensor', '520':'DHCP mode enabled', '521':'Static IP mode enabled', '522':'WiFi manager starting', '523':'WiFi SSID not configured', '524':'Provisional time set from flash', '525':'WiFi connect timeout', '526':'WiFi dormant mode', '527':'Show IP', '528':'mDNS start failed', '540':'HTTP transport initialized', '541':'MQTT transport initialized', '542':'MQTT connecting', '543':'cert.pem empty, insecure mode', '544':'cert.pem read error', '545':'No cert.pem, insecure mode', '546':'Forcing telemetry sync', '547':'Retry logs suppressed', '548':'HA discovery refreshed', '549':'Alarm telemetry line enabled', '550':'Alarm payload sent', '551':'Alarm send failed', '552':'Alarm receipt confirmed', '553':'Alarm queue overflow', '560':'History write failed', '561':'Timestamp correction budget exceeded', '562':'Storage limit budget exceeded', '563':'Skipping active log file', '564':'Storage stats report', '565':'Config report', '566':'History block sealed', '567':'History snapshot written', '568':'History schema mismatch', '569':'Legacy history purged', '570':'Web server started', '571':'Client disconnected (file)', '572':'Client disconnected (history)', '573':'Screenshot aborted by client', '574':'File uploaded', '575':'Client disconnected (broken pipe)', '576':'Web cert invalid (HTTP fallback)', '580':'Theme applied', '581':'Theme not found', '585':'Unknown command', '590':'Runtime sensors loaded', '600':'Force unpause', '999':'Unknown error' };
+
+                const EVT_NAMES_PT = { '0':'OK', '1':'Boot do sistema', '2':'Reboot solicitado pelo usuario', '3':'Heap baixa', '4':'Marco de uptime', '5':'Registros de rotina suprimidos', '10':'Conectando WiFi', '11':'WiFi desconectado', '12':'Varredura WiFi', '13':'NTP sincronizado', '14':'IP obtido', '15':'AP iniciado', '20':'Falha no storage', '21':'Config salva', '22':'Storage rotacionado', '23':'Formatando flash', '24':'Storage recuperado', '25':'Config migrada', '30':'Telemetria enviada', '31':'Falha de telemetria', '32':'Retry de telemetria', '33':'Telemetria enfileirada', '34':'Cert SSL carregado', '35':'MQTT conectado', '36':'MQTT desconectado', '37':'MQTT publicado', '100':'Sensor recuperado', '101':'Timeout de sensor', '102':'Erro de checksum', '103':'Erro de CRC', '104':'Sensor fora de range', '105':'Divergencia de hardware', '106':'Sensor ausente', '200':'Evento de toque', '201':'Display reiniciado', '202':'Grafico renderizado', '300':'Login bem-sucedido', '301':'Falha de login', '302':'Acesso nao autorizado', '303':'Config alterada', '304':'Sessao expirada', '305':'Arquivo enviado', '306':'Arquivo apagado', '400':'Display iniciado no Core 1', '401':'Calibracao inicial do touch salva', '402':'Calibracao do touch necessaria', '403':'AP ativado pelo usuario', '404':'Sistema pronto', '405':'Sistema pronto (modo AP)', '406':'Falha critica de storage', '407':'Sensores calibrados', '408':'NTP corrigindo timestamps', '409':'Timestamps corrigidos', '410':'Caches de grafico invalidados', '440':'Tema alterado via UI', '441':'Idioma alterado via UI', '442':'Limites de alarme salvos via UI', '443':'Calibracao do touch salva', '444':'Sensibilidade do touch salva', '445':'PIN do display alterado', '446':'Config de som salva', '447':'Alarme silenciado via UI', '448':'Silenciamento de alarme expirou', '449':'Todos alarmes desativados (RAM)', '470':'Alarme disparado', '471':'Alarme zerado', '472':'Silenciamento cancelado', '480':'Cache Min/Max carregado', '481':'Cache Min/Max parcial', '482':'Refresh de cache iniciado', '483':'Refresh de cache concluido', '484':'Cache de grafico: ambiente', '485':'Cache de grafico: placa', '486':'Pre-carga de cache concluida', '487':'Carregando grafico', '488':'Budget de render excedido', '489':'Budget de pre-carga excedido', '500':'Pause do display preso >5s', '501':'Yield preso >10s', '502':'Core 1 travado >10s, reiniciando', '503':'Colisao por flash ocupado', '510':'Registro de historico salvo', '511':'Relatorio de heap', '512':'Historico pulado: sem referencia de hora', '513':'Historico retomado: referencia de hora obtida', '514':'Historico pulado: schema V4 vazio', '515':'Historico pulado: schema nao cobre sensor ativo', '520':'Modo DHCP ativado', '521':'Modo IP estatico ativado', '522':'Gerenciador WiFi iniciando', '523':'SSID WiFi nao configurado', '524':'Hora provisoria do flash', '525':'Timeout na conexao WiFi', '526':'WiFi em modo dormente', '527':'Mostrar IP', '528':'Falha ao iniciar mDNS', '540':'Transporte HTTP inicializado', '541':'Transporte MQTT inicializado', '542':'MQTT conectando', '543':'cert.pem vazio, modo inseguro', '544':'Erro de leitura de cert.pem', '545':'Sem cert.pem, modo inseguro', '546':'Forcando sync de telemetria', '547':'Logs de retry suprimidos', '548':'Discovery HA atualizado', '549':'Linha de alarmes ligada', '550':'Payload de alarmes enviado', '551':'Falha no envio de alarmes', '552':'Recebimento de alarmes confirmado', '553':'Estouro da fila de alarmes', '560':'Falha em escrever historico', '561':'Budget de correcao de ts excedido', '562':'Budget de limite de storage excedido', '563':'Pulando arquivo de log ativo', '564':'Relatorio de estatisticas', '565':'Relatorio de config', '566':'Bloco de historico selado', '567':'Snapshot de historico gravado', '568':'Schema de historico divergente', '569':'Historico legado apagado', '570':'Servidor web iniciado', '571':'Cliente desconectado (arquivo)', '572':'Cliente desconectado (historico)', '573':'Screenshot abortado pelo cliente', '574':'Arquivo enviado', '575':'Cliente desconectado (conexao encerrada)', '576':'Cert web invalido (HTTP)', '580':'Tema aplicado', '581':'Tema nao encontrado', '585':'Comando desconhecido', '590':'Sensores em runtime carregados', '600':'Forcar despausar', '999':'Erro desconhecido' };
+
         function evtName(code) { let l = localStorage.getItem('simut_lang') || 'en'; let dict = (l === 'pt') ? EVT_NAMES_PT : EVT_NAMES_EN; let lbl = dict[code.toString()]; if (lbl) return lbl; return (l === 'pt' ? 'Evento #' : 'Event #') + code; }
         const TAG_NAMES = ['APP','NET','TEL','STO','WEB','CFG','CLI','SENSOR','HIST','SYS','DSP','SEC','OTA','?','?','?'];
         const LVL_LABELS = ['DBG','INF','WRN','ERR','FTL']; const LVL_CLASS = ['log-inf','log-inf','log-wrn','log-err','log-err'];
@@ -3355,9 +3357,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .card input:focus, .card select:focus { border-color: var(--acc); outline: none; }
         .card button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-top: 20px; transition: 0.2s; }
         .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
-        .chk { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; }
-        .chk input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--acc); cursor: pointer; }
-        .cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
         .row { display: flex; gap: 20px; }
         .col { flex: 1; }
         @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
@@ -3387,12 +3386,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         #sens_tbl th, #sens_tbl td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
         #sens_tbl th { color: var(--sub); font-size: 0.85rem; text-transform: uppercase; font-weight: 600; }
         .sxm { font-family: monospace; }
-        .sxb { background: var(--track); color: var(--txt); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
-        .sxb:hover { background: #52525b; }
-        .sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
-        .sxb-dang:hover { background: var(--dang); color: #fff; }
-        .sxb-on { background: var(--acc); color: #000; }
-        .sxb-on:hover { background: var(--acc); }
         /* Mini grafico de correcao por canal: a linha tracejada e o padrao do
            sensor (delta zero), a curva e a correcao com suas ancoras. Cores em
            classes, nunca em atributos fill/stroke — var() nao resolve la. */
@@ -3454,7 +3447,7 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  looked editable and discarded every keystroke. -->
             <div id="cfg_load_err" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(239,68,68,0.12);border-left:3px solid #ef4444;border-radius:3px;font-size:0.92em">
                 <span id="cfg_load_err_msg" data-i18n="cfg_load_fail">Could not load the current settings. The fields are disabled to avoid saving blank values over your configuration.</span>
-                <button type="button" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;background:var(--acc);color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold" data-i18n="cfg_retry">Retry</button>
+                <button type="button" class="b-pri" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;font-size:0.85rem" data-i18n="cfg_retry">Retry</button>
             </div>
             <form id="sysForm" onsubmit="event.preventDefault()">
                 <h3 data-i18n="cfg_gen" style="margin-top:0;">General Identity</h3>
@@ -3551,177 +3544,12 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     </div>
                 </div>
 
-                <h3 data-i18n="cfg_tel">Telemetry Engine</h3>
-                <div class="grp">
-                    <div class="row" style="margin-bottom:15px;">
-                        <div class="col">
-                            <label data-i18n="cfg_transport">Transport Protocol</label>
-                            <select id="t_transport" name="t_transport" onchange="toggleTransport()">
-                                <option value="0" data-i18n="cfg_tr_http">HTTP / HTTPS (POST)</option>
-                                <option value="1" data-i18n="cfg_tr_mqtt">MQTT / MQTTS</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Campos compartilhados: Server, Port e TLS (usados por HTTP e MQTT) -->
-                    <div class="row">
-                        <div class="col" style="flex:2;">
-                            <label data-i18n="cfg_srv">Server Domain / IP</label>
-                            <input type="text" id="t_srv" name="t_srv" maxlength="63">
-                        </div>
-                        <div class="col">
-                            <label data-i18n="cfg_port">Port</label>
-                            <input type="number" id="t_port" name="t_port" min="1" max="65535">
-                        </div>
-                    </div>
-                    <label class="cfg-tg" style="margin-top:5px;">
-                        <span class="toggle"><input type="checkbox" id="t_sec" name="t_sec" value="1" onchange="updateTlsWarn()"><span class="slider"></span></span>
-                        <span id="t_sec_lbl" data-i18n="cfg_sec">Use TLS / SSL</span>
-                    </label>
-                    <!-- M-8: TLS on without /cert.pem = encrypted but NOT
-                         authenticated (setInsecure). Seal shown from t_sec+t_cert. -->
-                    <div id="tls_noverify_warn" style="display:none;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:rgba(245,158,11,.12);border:1px solid var(--warn);color:var(--warn);font-size:.82rem">
-                        <span data-i18n="cfg_tls_noverify">⚠ TLS without certificate validation — the connection is encrypted but not authenticated (MITM possible). Upload /cert.pem via Files to validate the server.</span>
-                    </div>
-
-                    <!-- Campos exclusivos do transporte HTTP -->
-                    <div id="http_fields" style="border-top:1px dashed #3f3f46; padding-top:15px; margin-top:5px;">
-                        <div class="row">
-                            <div class="col">
-                                <label data-i18n="cfg_path">Endpoint Path (URL)</label>
-                                <input type="text" id="t_path" name="t_path" maxlength="31" placeholder="/api/v1/telemetry">
-                            </div>
-                            <div class="col">
-                                <label data-i18n="cfg_key">API Key / Token</label>
-                                <input type="password" id="t_key" name="t_key" maxlength="63">
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Campos exclusivos do transporte MQTT -->
-                    <div id="mqtt_fields" style="display:none; border-top:1px dashed #3f3f46; padding-top:15px; margin-top:5px;">
-                        <div class="row">
-                            <div class="col">
-                                <label data-i18n="cfg_mq_topic">MQTT Topic</label>
-                                <input type="text" id="m_topic" name="m_topic" maxlength="63" placeholder="telemetry/data">
-                            </div>
-                            <div class="col">
-                                <label data-i18n="cfg_mq_cid">Client ID</label>
-                                <input type="text" id="m_cid" name="m_cid" maxlength="23" placeholder="SIMUT_123">
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col">
-                                <label data-i18n="cfg_mq_user">MQTT User</label>
-                                <input type="text" id="m_user" name="m_user" maxlength="31">
-                            </div>
-                            <div class="col">
-                                <label data-i18n="cfg_mq_pass">MQTT Password</label>
-                                <input type="password" id="m_pass" name="m_pass" maxlength="31" placeholder="Leave empty to keep">
-                            </div>
-                        </div>
-                        <div class="row">
-                            <div class="col">
-                                <label data-i18n="cfg_mq_qos">QoS Level</label>
-                                <select id="m_qos" name="m_qos">
-                                    <option value="0" data-i18n="cfg_mq_q0">0 - At Most Once</option>
-                                </select>
-                            </div>
-                            <div class="col">
-                                <label data-i18n="cfg_mq_ka">Keep-Alive (s)</label>
-                                <input type="number" id="m_ka" name="m_ka" min="10" max="300">
-                            </div>
-                        </div>
-                        <label class="chk">
-                            <input type="checkbox" id="m_retain" name="m_retain" value="1">
-                            <span data-i18n="cfg_mq_retain">Retain Message</span>
-                        </label>
-                        <label class="chk">
-                            <input type="checkbox" id="m_had" name="m_had" value="1">
-                            <span data-i18n="cfg_mq_had">Home Assistant Discovery</span>
-                        </label>
-                        <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_mq_had_hint">Publishes retained config messages so Home Assistant auto-creates this device and its sensors. Requires JSON payload mode; entities appear at the next upload.</div>
-                    </div>
-
-                    <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
-                        <div class="col">
-                            <label data-i18n="cfg_tint">Upload Interval (ms)</label>
-                            <input type="number" id="t_int" name="t_int" min="0" max="86400000">
-                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_tint_hint">Set 0 to disable telemetry. Minimum recommended: 10000 (10s).</div>
-                        </div>
-                        <div class="col">
-                            <label data-i18n="cfg_bat">Batch Limit</label>
-                            <input type="number" id="t_bat" name="t_bat" min="1" max="250">
-                        </div>
-                    </div>
-                    <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (Upload Interval = 0). Set a value to enable.</div>
-                    <!-- Act on the running device, not on the staged form: both
-                         answer "is the endpoint reachable right now", which is
-                         the question you ask while editing these fields. -->
-                    <div style="margin-top:16px;border-top:1px solid #3f3f46;padding-top:14px">
-                      <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <button type="button" class="sxb" id="tel_sync_btn" onclick="telSync()" data-i18n="tel_sync">Send now</button>
-                        <button type="button" class="sxb sxb-dang" id="tel_reset_btn" onclick="telReset()" data-i18n="tel_reset">Reset send cursor</button>
-                      </div>
-                      <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="tel_hint">Send now flushes whatever is pending without waiting for the interval. Reset send cursor makes the device re-send up to 30 days back — use it after a long server outage.</div>
-                    </div>
-                </div>
-
-                <h3 data-i18n="cfg_vis">Payload Builder</h3>
-                <div class="grp">
-                    <label data-i18n="cfg_fmt">Format</label>
-                    <select id="t_mode" name="t_mode" onchange="toggleBuilder()">
-                        <option value="0" data-i18n="cfg_f0">JSON Array (Standard)</option>
-                        <option value="1" data-i18n="cfg_f1">CSV Raw (Standard)</option>
-                        <option value="2" data-i18n="cfg_f2">Dynamic Builder (Advanced)</option>
-                    </select>
-
-                    <div id="custom_tools" class="builder-box">
-                        <div style="font-size:0.85rem; color:var(--sub); margin-bottom:15px;" data-i18n="cfg_leg">Payload Tag Reference:</div>
-                        <div class="row tag-ref" style="margin-bottom:15px; font-size:0.8rem; padding:10px; border-radius:6px; border:1px solid var(--border);">
-                            <div class="col">
-                                <b style="color:var(--txt);" data-i18n="cfg_leg1">Global Tags:</b><br>
-                                <span class="highlight">{DEV}</span> - Device Name<br>
-                                <span class="highlight">{MAC}</span> - MAC Address<br>
-                                <span class="highlight">{DATA}</span> - Where the records go
-                            </div>
-                            <div class="col">
-                                <b style="color:var(--txt);" data-i18n="cfg_leg2">Data Row Tags:</b><br>
-                                <span class="highlight">{TS}</span> - Unix Epoch<br>
-                                <span class="highlight">{DHT_ID}</span> - Board Serial<br>
-                                <span class="highlight">{t0}</span> to <span class="highlight">{t15}</span> - Temperature<br>
-                                <span class="highlight">{u0}</span> to <span class="highlight">{u15}</span> - Humidity<br>
-                                <span class="highlight">{p0}</span> to <span class="highlight">{p15}</span> - Pressure<br>
-                            </div>
-                        </div>
-                        <div style="font-size:0.8rem; color:var(--txt); margin-bottom:15px; border-left:3px solid var(--acc); padding-left:10px;">
-                            <b data-i18n="cfg_leg3">Smart Keys:</b> <span data-i18n="cfg_leg4">Use exact formats to inject ID and omit off sensors:</span><br>
-                            <span class="highlight">"t0_ID":{t0}</span> &rarr; <span class="highlight">"t28FF31...":24.5</span><br>
-                            <span class="highlight">"u0_ID":{u0}</span> &rarr; <span class="highlight">"u28FF31...":55.2</span>
-                        </div>
-
-                        <label data-i18n="cfg_tpl1">1. Global Template (The Envelope)</label>
-                        <input type="text" id="t_glob" name="t_glob" maxlength="255" placeholder='{"device":"{DEV}", "payload":[{DATA}]}' oninput="renderPreview()">
-
-                        <label data-i18n="cfg_tpl2">2. Row Template (Single Reading)</label>
-                        <input type="text" id="t_line" name="t_line" maxlength="511" placeholder='{"time":{TS}, "t0_ID":{t0}, "u0_ID":{u0}, "t1_ID":{t1}}' oninput="renderPreview()">
-
-                        <label data-i18n="cfg_tpl3">3. Separator</label>
-                        <input type="text" id="t_sep" name="t_sep" maxlength="7" placeholder="," oninput="renderPreview()">
-                    </div>
-
-                    <div style="margin-top:15px;">
-                        <label data-i18n="cfg_prev">Live Preview:</label>
-                        <div id="preview"></div>
-                    </div>
-                </div>
-
                 <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
                     <div style="width:100%">
                         <h3 data-i18n="cfg_slog" style="margin-top:0;">Remote Syslog (Audit Trail)</h3>
                         <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_slog_hint">Forwards log events to a syslog collector (RFC 5424 over UDP) so the audit trail survives outside this device. The server is a LAN IPv4 address — not a hostname. Fire-and-forget: no delivery guarantee.</div>
-                        <label class="chk">
-                            <input type="checkbox" id="slog_en" name="slog_en" value="1">
+                        <label class="cfg-tg">
+                            <span class="toggle"><input type="checkbox" id="slog_en" name="slog_en" value="1"><span class="slider"></span></span>
                             <span data-i18n="cfg_slog_en">Enable syslog forwarding</span>
                         </label>
                         <div class="row" style="margin-top:10px;">
@@ -3762,196 +3590,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     </div>
 
     <script>
-        function toggleTransport() { let tr = document.getElementById('t_transport').value; document.getElementById('http_fields').style.display = (tr == '0') ? 'block' : 'none'; document.getElementById('mqtt_fields').style.display = (tr == '1') ? 'block' : 'none'; let secSpan = document.getElementById('t_sec_lbl'); if (secSpan) secSpan.textContent = (tr == '1') ? window.t('cfg_sec_mqtt', 'Use MQTTS (TLS)') : window.t('cfg_sec', 'Use HTTPS (SSL)'); }
-        /* M-8: show the "no cert validation" seal when TLS is on but no cert was
-           loaded at boot (window.__tlsCert, from /api/config t_cert). Advisory —
-           the firmware still refuses nothing, it just makes setInsecure visible. */
-        function updateTlsWarn() { var w = document.getElementById('tls_noverify_warn'); if (!w) return; var on = document.getElementById('t_sec').checked; w.style.display = (on && !window.__tlsCert) ? 'block' : 'none'; }
-        function toggleBuilder() { let mode = document.getElementById('t_mode').value; document.getElementById('custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderPreview(); }
-
-        /* Device metadata populated by loadConfig (real serial + per-slot hwid/active).
-         * Defaults used until /api/config resolves. */
-        let _devSerial = 'RP2040_A1B2';
-        let _devSensors = Array.from({length:10}, (_,i) => ({
-            hwid: 'STM' + String(i+1).padStart(4,'0'),
-            active: true, hasHum: false, hasPress: false
-        }));
-
-        /* Demo scenario: real serial + real per-slot hwid/active state, 2-record batch.
-         * Value formatting mirrors firmware (%.2f for temperature, %.1f for
-         * humidity and pressure). */
-        function _previewDemoBatch() {
-            /* hum is needed for {u..} to render as a number instead of null —
-             * without it the new humidity tokens would preview as missing even
-             * on a sensor that reports humidity. */
-            const mk = (tBase) => _devSensors.map((s, i) => ({
-                hwid: s.hwid,
-                val: (20 + i + tBase).toFixed(2),
-                hum: s.hasHum ? (55 + i + tBase).toFixed(1) : null,
-                hasPress: !!s.hasPress,
-                active: s.active
-            }));
-            /* {DHT_ID} is the one device-level key left: it resolves to the
-               board serial. The {tAMB}/{uAMB}/{pAMB} trio went with the ambient
-               slot — every value now belongs to the slot that measured it. */
-            return [
-                { ts: 1700000000, serial: _devSerial, press: '1013.2', slots: mk(0.1) },
-                { ts: 1700000005, serial: _devSerial, press: '1013.1', slots: mk(0.2) }
-            ];
-        }
-
-        /* Mirror of firmware formatLineCustomBuf: single-pass token matching
-         * with compound look-back `"<k>_ID":{<k>}` and `"<k>":{<k>}`. */
-        function _previewCustomLine(tpl, rec) {
-            let out = '', ti = 0;
-            while (ti < tpl.length) {
-                const c = tpl[ti];
-                if (c !== '{') { out += c; ti++; continue; }
-                let val = null, hwid = null, compKey = '', tc = 0;
-                if (tpl.substr(ti, 4) === '{TS}') { val = String(rec.ts); tc = 4; }
-                else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.serial; tc = 8; }
-                else {
-                    /* {t0}..{t15} and {u0}..{u15}. The preview used to know only
-                     * single-digit {t..}, so {u1} and {t12} fell through and were
-                     * echoed literally — the template looked broken here while the
-                     * firmware resolved it fine. One matcher for both channels
-                     * keeps the two sides from drifting apart again. */
-                    const ch = tpl[ti+1];
-                    if (ch === 't' || ch === 'u' || ch === 'p') {
-                        let digits = 0;
-                        if (tpl[ti+2] >= '0' && tpl[ti+2] <= '9') {
-                            if (tpl[ti+3] === '}') digits = 1;
-                            else if (tpl[ti+3] >= '0' && tpl[ti+3] <= '9' && tpl[ti+4] === '}') digits = 2;
-                        }
-                        if (digits) {
-                            const idx = parseInt(tpl.substr(ti + 2, digits), 10);
-                            if (idx < _devSensors.length || idx < 16) {
-                                const s = rec.slots[idx];
-                                /* {pN} only resolves on the slot that actually
-                                 * reports pressure — mirrors the firmware, which
-                                 * has one rec.pressure and must not lend it to a
-                                 * sensor that never measured it. */
-                                let raw = null;
-                                if (s && s.active) {
-                                    if (ch === 't') raw = s.val;
-                                    else if (ch === 'u') raw = s.hum;
-                                    else if (s.hasPress) raw = rec.press;
-                                }
-                                val = (raw === undefined) ? null : raw;
-                                hwid = s ? s.hwid : '';
-                                compKey = ch + idx; tc = 2 + digits + 1;
-                            }
-                        }
-                    }
-                }
-                if (tc === 0) { out += c; ti++; continue; }
-
-                let mFull = false, mBare = false;
-                if (compKey) {
-                    const p1 = compKey.length + 6;
-                    if (ti >= p1 && tpl.substr(ti - p1, p1) === '"' + compKey + '_ID":') mFull = true;
-                    else {
-                        const p2 = compKey.length + 3;
-                        if (ti >= p2 && tpl.substr(ti - p2, p2) === '"' + compKey + '":') mBare = true;
-                    }
-                }
-
-                if (mFull) {
-                    out = out.substr(0, out.length - (compKey.length + 6));
-                    if (val !== null) {
-                        /* Letter from the token (t/u/p), matching the firmware. */
-                        out += '"' + compKey[0] + (hwid || '').trim() + '":' + val;
-                    }
-                } else if (mBare) {
-                    if (val !== null) out += val;
-                    else out = out.substr(0, out.length - (compKey.length + 3));
-                } else {
-                    out += (val !== null ? val : 'null');
-                }
-                ti += tc;
-            }
-
-            /* In-place cleanup: collapse ",,", drop "{,", "[,", ",}", ",]" */
-            let w = '';
-            for (let i = 0; i < out.length; i++) {
-                const ch = out[i];
-                if (ch === ',') {
-                    if (!w) continue;
-                    const p = w[w.length-1];
-                    if (p === ',' || p === '{' || p === '[') continue;
-                } else if ((ch === '}' || ch === ']') && w && w[w.length-1] === ',') {
-                    w = w.slice(0, -1);
-                }
-                w += ch;
-            }
-            return w;
-        }
-
-        /* Mirror of firmware buildPayload global-template walker. */
-        function _previewGlobal(gt, dev, mac, data) {
-            let out = '', gi = 0;
-            while (gi < gt.length) {
-                if (gt[gi] !== '{') { out += gt[gi]; gi++; continue; }
-                if (gt.substr(gi, 5) === '{DEV}') { out += dev; gi += 5; }
-                else if (gt.substr(gi, 5) === '{MAC}') { out += mac; gi += 5; }
-                else if (gt.substr(gi, 6) === '{DATA}') { out += data; gi += 6; }
-                else { out += gt[gi]; gi++; }
-            }
-            return out;
-        }
-
-        function renderPreview() {
-            const mode = document.getElementById('t_mode').value;
-            const pre = document.getElementById('preview');
-            const batch = _previewDemoBatch();
-
-            if (mode == '0') {
-                /* JSON: [{"ts":T,"t<hwid|idx>":V,"u<hwid|idx>":H,...},{...}]
-                 * Empty hwid falls back to slot index (mirrors firmware formatLineJsonBuf). */
-                const lines = batch.map(r => {
-                    let s = '{"ts":' + r.ts;
-                    r.slots.forEach((sl, i) => {
-                        if (!sl.active) return;
-                        const id = sl.hwid ? sl.hwid : i;
-                        s += ',"t' + id + '":' + sl.val;
-                        if (sl.hum !== null) s += ',"u' + id + '":' + sl.hum;
-                    });
-                    const pSlot = r.slots.find(sl => sl.active && sl.hasPress && sl.hwid);
-                    if (pSlot) s += ',"p' + pSlot.hwid + '":' + r.press;
-                    return s + '}';
-                });
-                pre.innerText = '[' + lines.join(',') + ']';
-            } else if (mode == '1') {
-                /* CSV: header only active; each line emits all slot columns (empty if NaN).
-                   The ambT;ambH pair left the header with the ambient slot. */
-                let hdr = 'timestamp';
-                batch[0].slots.forEach((sl, i) => { if (sl.active) hdr += ';s' + i + '_' + sl.hwid; });
-                const lines = batch.map(r => {
-                    let s = String(r.ts);
-                    r.slots.forEach(sl => { s += ';' + (sl.active ? sl.val : ''); });
-                    return s;
-                });
-                pre.innerText = hdr + '\n' + lines.join('\n') + '\n';
-            } else if (mode == '2') {
-                const glob = document.getElementById('t_glob').value;
-                const line = document.getElementById('t_line').value;
-                let sep = document.getElementById('t_sep').value;
-                if (sep === '\\n') sep = '\n';
-                const data = batch.map(r => _previewCustomLine(line, r)).join(sep);
-                pre.innerText = _previewGlobal(glob, 'SIMUT_Demo', 'AA:BB:CC:DD:EE:FF', data);
-            }
-        }
-
-        /* F-NET-TIME.5: banner de telemetria desabilitada quando t_int=0.
-         * Chamado em loadConfig e a cada input no campo t_int. */
-        function updateTelDisabledWarn() {
-            const inp = document.getElementById('t_int');
-            const warn = document.getElementById('tel_disabled_warn');
-            if (!inp || !warn) return;
-            const v = parseInt(inp.value, 10);
-            warn.style.display = (!v || v === 0) ? '' : 'none';
-        }
-
         /* F-NET-TIME.3b: Date & Time helpers. */
         function toggleManualTime() {
             const ntpOn = document.getElementById('ntp_enabled').checked;
@@ -4088,42 +3726,14 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 document.getElementById('res').value = val('res', 9);
                 document.getElementById('s_int').value = val('s_int', 5000);
                 document.getElementById('h_int').value = val('h_int', 1);
-                document.getElementById('t_transport').value = val('t_transport', 0);
-                document.getElementById('t_sec').checked = !!val('t_sec', false);
-                window.__tlsCert = !!val('t_cert', false);   /* M-8: cert loaded at boot? */
-                updateTlsWarn();
-                document.getElementById('t_srv').value = val('t_srv', '');
-                document.getElementById('t_port').value = val('t_port', 80);
-                document.getElementById('t_path').value = val('t_path', '');
-                document.getElementById('t_key').value = val('t_key', '');
-                document.getElementById('m_topic').value = val('m_topic', '');
-                document.getElementById('m_cid').value = val('m_cid', '');
-                document.getElementById('m_user').value = val('m_user', '');
-                document.getElementById('m_qos').value = val('m_qos', 0);
-                document.getElementById('m_retain').checked = !!val('m_retain', false);
-                document.getElementById('m_ka').value = val('m_ka', 60);
-                document.getElementById('m_had').checked = !!val('m_had', false);
-                /* Syslog forwarder (overlay). slog_en is the raw enable flag; the
-                 * server is a dotted quad ("" when unset). */
+                /* Syslog forwarder: refletir o estado REAL da config — sem isso
+                 * o checkbox ficava sempre desmarcado (default HTML) e o usuário
+                 * via "syslog desligado" na interface enquanto ele transmitia. */
                 document.getElementById('slog_en').checked = boolVal('slog_en', false);
                 document.getElementById('slog_srv').value = val('slog_srv', '');
                 document.getElementById('slog_port').value = val('slog_port', 514);
-                document.getElementById('slog_lvl').value = val('slog_lvl', 1);
-                document.getElementById('t_int').value = val('t_int', 300000);
-                updateTelDisabledWarn();
-                document.getElementById('t_bat').value = val('t_bat', 10);
-                document.getElementById('t_mode').value = val('t_mode', 0);
-                document.getElementById('t_glob').value = val('t_glob', '');
-                document.getElementById('t_line').value = val('t_line', '');
-                document.getElementById('t_sep').value = val('t_sep', '');
-                if (d.serial) _devSerial = d.serial;
-                if (Array.isArray(d.sensors)) {
-                    for (let i = 0; i < 10 && i < d.sensors.length; i++) {
-                        _devSensors[i] = { hwid: d.sensors[i].hwid || '', active: !!d.sensors[i].active,
-                                           hasHum: !!d.sensors[i].hum, hasPress: !!d.sensors[i].press };
-                    }
-                }
-                toggleTransport(); toggleBuilder();
+                const lvlSel = document.getElementById('slog_lvl');
+                if (lvlSel) lvlSel.value = String(val('slog_lvl', 1));
                 wirePendingListeners();
         }
 
@@ -4146,8 +3756,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  * field also landed in Pending.sys as a junk key. */
                 if (el.closest && el.closest('#sens_ed')) return;
                 Pending.setField('sys', el.id, v);
-                /* F-NET-TIME.5: refresh hint quando user digita em t_int. */
-                if (el.id === 't_int') updateTelDisabledWarn();
             };
             form.addEventListener('input', handler);
             form.addEventListener('change', handler);
@@ -4313,8 +3921,8 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                  '<input id="se_id" type="text" oninput="sensStage(0)" maxlength="15" value="' + escHtml(s.hwId || '') + '">' +
                  '<div class="sxn">' + window.t('sens_hwid_hint', 'Key used by history and telemetry. Changing it starts a new series.') + '</div></div>' +
                  '<div class="col"><label>' + window.t('sens_state', 'State') + '</label>' +
-                 '<label class="cfg-tg"><input type="checkbox" id="se_a" onchange="sensStage(1)"' + (s.a ? ' checked' : '') + '> <span>' + window.t('sens_active', 'Active') + '</span></label>' +
-                 '<label class="cfg-tg"><input type="checkbox" id="se_al" onchange="sensStage(0)"' + (s.al ? ' checked' : '') + '> <span>' + window.t('sens_alarms', 'Alarms enabled') + '</span></label></div></div>';
+                 '<label class="cfg-tg"><span class="toggle"><input type="checkbox" id="se_a" onchange="sensStage(1)"' + (s.a ? ' checked' : '') + '><span class="slider"></span></span> <span>' + window.t('sens_active', 'Active') + '</span></label>' +
+                 '<label class="cfg-tg"><span class="toggle"><input type="checkbox" id="se_al" onchange="sensStage(0)"' + (s.al ? ' checked' : '') + '><span class="slider"></span></span> <span>' + window.t('sens_alarms', 'Alarms enabled') + '</span></label></div></div>';
             if (nP) {
                 h += '<label class="sxsec">' + window.t('sens_pins', 'GPIO assignment') + '</label><div class="row">';
                 for (let k = 0; k < nP; k++) {
@@ -4551,28 +4159,6 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 showToast(r.ok ? window.t('sens_wipe_ok', 'History epoch reset.')
                                : window.t('act_fail', 'Action failed.'), r.ok ? 'ok' : 'err');
             } finally { btn.disabled = false; }
-        }
-
-        async function telSync() {
-            const b = SE('tel_sync_btn');
-            if (b) b.disabled = true;
-            try {
-                const r = await sensAction('tel_sync');
-                showToast(r.ok ? window.t('tel_sync_ok', 'Upload triggered. Watch the log for the result.')
-                               : window.t('act_fail', 'Action failed.'), r.ok ? 'ok' : 'err');
-            } finally { if (b) b.disabled = false; }
-        }
-
-        async function telReset() {
-            if (!confirm(window.t('tel_reset_confirm',
-                'Reset the telemetry cursor?\n\nThe device will re-send up to 30 days of history on the next upload. Expect a burst of traffic.'))) return;
-            const b = SE('tel_reset_btn');
-            if (b) b.disabled = true;
-            try {
-                const r = await sensAction('tel_reset');
-                showToast(r.ok ? window.t('tel_reset_ok', 'Cursor reset. Next uploads cover up to 30 days back.')
-                               : window.t('act_fail', 'Action failed.'), r.ok ? 'ok' : 'err');
-            } finally { if (b) b.disabled = false; }
         }
 
         async function histRebind() {
@@ -4941,6 +4527,650 @@ static const char CFG_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 )raw";
 
 
+static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <title>SIMUT - Telemetry</title>
+    <script src="/lang.js"></script>
+    <style>
+        /* M1 anti-piscada: cópia dos tokens DARK (ver CFG_PAGE). */
+        :root { --bg: #0c0f13; --card: #161b22; --txt: #e9edf2; --sub: #98a6b3; --acc: #06b6d4; --dang: #ef4444; --border: #2a3340; --ok: #22c55e; --warn: #f59e0b; --track: #262e39; color-scheme: dark; }
+        html { background: var(--bg); }
+        body { background: var(--bg); color: var(--txt); }
+        h3 { color: var(--txt); border-bottom: 1px solid var(--border); padding-bottom: 10px; margin: 22px 0 12px; }
+        .grp { background: rgba(255,255,255,0.02); padding: 20px; border-radius: 8px; margin-bottom: 15px; border: 1px solid var(--border); }
+        label { display: block; color: var(--sub); margin-bottom: 6px; font-size: 0.9rem; font-weight: 500; }
+        .card input[type=text], .card input[type=password], .card input[type=number], .card select { width: 100%; padding: 12px; background: var(--bg); border: 1px solid var(--border); color: var(--txt); border-radius: 6px; box-sizing: border-box; margin-bottom: 15px; font-size: 1rem; transition: 0.2s; }
+        .card input:focus, .card select:focus { border-color: var(--acc); outline: none; }
+        .row { display: flex; gap: 20px; }
+        .col { flex: 1; }
+        @media(max-width: 600px) { .row { flex-direction: column; gap: 0; } }
+        .builder-box { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 15px; margin-top: 14px; }
+        .highlight { background: rgba(6,182,212,0.15); color: var(--acc); padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, monospace; font-size: 0.85em; }
+        .c-sub { color: var(--sub); font-size: 0.85em; line-height: 1.45; }
+        .page-title { margin: 0 0 8px; border: none; }
+        #preview, #apreview { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: ui-monospace, monospace; font-size: 0.8rem; white-space: pre-wrap; word-break: break-all; color: var(--txt); }
+    </style>
+    <script>
+        /* window.t/applyLang/setLang/showToast/fetchSafe/Pending/commitAll vem de /lang.js */
+    </script>
+</head>
+<body>
+    <script>installTopbar('nav_tel', 'Telemetry')</script>
+
+    <div class="container">
+        <div class="card">
+            <h2 class="page-title" data-i18n="tel_title">Telemetry</h2>
+            <div class="c-sub" style="margin-bottom:14px" data-i18n="tel_desc">Transport, payload formats and the second line (alarms). Save &amp; Restart applies staged changes; Send now / Reset cursor act on the running device.</div>
+            <div id="cfg_load_err" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(239,68,68,0.12);border-left:3px solid #ef4444;border-radius:3px;font-size:0.92em">
+                <span id="cfg_load_err_msg" data-i18n="cfg_load_fail">Could not load the current settings. The fields are disabled to avoid saving blank values over your configuration.</span>
+                <button type="button" class="b-pri" id="cfg_retry" onclick="loadConfig()" style="margin-left:10px;padding:4px 12px;font-size:0.85rem" data-i18n="cfg_retry">Retry</button>
+            </div>
+            <form id="sysForm" onsubmit="event.preventDefault()">
+                <h3 data-i18n="cfg_tel">Telemetry Engine</h3>
+                <div class="grp">
+                    <div class="row" style="margin-bottom:15px;">
+                        <div class="col">
+                            <label data-i18n="cfg_transport">Transport Protocol</label>
+                            <select id="t_transport" name="t_transport" onchange="toggleTransport()">
+                                <option value="0" data-i18n="cfg_tr_http">HTTP / HTTPS (POST)</option>
+                                <option value="1" data-i18n="cfg_tr_mqtt">MQTT / MQTTS</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Campos compartilhados: Server, Port e TLS (usados por HTTP e MQTT) -->
+                    <div class="row">
+                        <div class="col" style="flex:2;">
+                            <label data-i18n="cfg_srv">Server Domain / IP</label>
+                            <input type="text" id="t_srv" name="t_srv" maxlength="63">
+                        </div>
+                        <div class="col">
+                            <label data-i18n="cfg_port">Port</label>
+                            <input type="number" id="t_port" name="t_port" min="1" max="65535">
+                        </div>
+                    </div>
+                    <label class="cfg-tg" style="margin-top:5px;">
+                        <span class="toggle"><input type="checkbox" id="t_sec" name="t_sec" value="1" onchange="updateTlsWarn()"><span class="slider"></span></span>
+                        <span id="t_sec_lbl" data-i18n="cfg_sec">Use TLS / SSL</span>
+                    </label>
+                    <!-- M-8: TLS on without /cert.pem = encrypted but NOT
+                         authenticated (setInsecure). Seal shown from t_sec+t_cert. -->
+                    <div id="tls_noverify_warn" style="display:none;margin:6px 0 0;padding:8px 10px;border-radius:6px;background:rgba(245,158,11,.12);border:1px solid var(--warn);color:var(--warn);font-size:.82rem">
+                        <span data-i18n="cfg_tls_noverify">⚠ TLS without certificate validation — the connection is encrypted but not authenticated (MITM possible). Upload /cert.pem via Files to validate the server.</span>
+                    </div>
+
+                    <!-- Campos exclusivos do transporte HTTP -->
+                    <div id="http_fields" style="border-top:1px dashed #3f3f46; padding-top:15px; margin-top:5px;">
+                        <div class="row">
+                            <div class="col">
+                                <label data-i18n="cfg_path">Endpoint Path (URL)</label>
+                                <input type="text" id="t_path" name="t_path" maxlength="31" placeholder="/api/v1/telemetry">
+                            </div>
+                            <div class="col">
+                                <label data-i18n="cfg_key">API Key / Token</label>
+                                <input type="password" id="t_key" name="t_key" maxlength="63">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campos exclusivos do transporte MQTT -->
+                    <div id="mqtt_fields" style="display:none; border-top:1px dashed #3f3f46; padding-top:15px; margin-top:5px;">
+                        <div class="row">
+                            <div class="col">
+                                <label data-i18n="cfg_mq_topic">MQTT Topic</label>
+                                <input type="text" id="m_topic" name="m_topic" maxlength="63" placeholder="telemetry/data">
+                            </div>
+                            <div class="col">
+                                <label data-i18n="cfg_mq_cid">Client ID</label>
+                                <input type="text" id="m_cid" name="m_cid" maxlength="23" placeholder="SIMUT_123">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col">
+                                <label data-i18n="cfg_mq_user">MQTT User</label>
+                                <input type="text" id="m_user" name="m_user" maxlength="31">
+                            </div>
+                            <div class="col">
+                                <label data-i18n="cfg_mq_pass">MQTT Password</label>
+                                <input type="password" id="m_pass" name="m_pass" maxlength="31" placeholder="Leave empty to keep">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col">
+                                <label data-i18n="cfg_mq_qos">QoS Level</label>
+                                <select id="m_qos" name="m_qos">
+                                    <option value="0" data-i18n="cfg_mq_q0">0 - At Most Once</option>
+                                </select>
+                            </div>
+                            <div class="col">
+                                <label data-i18n="cfg_mq_ka">Keep-Alive (s)</label>
+                                <input type="number" id="m_ka" name="m_ka" min="10" max="300">
+                            </div>
+                        </div>
+                        <label class="cfg-tg">
+                            <span class="toggle"><input type="checkbox" id="m_retain" name="m_retain" value="1"><span class="slider"></span></span>
+                            <span data-i18n="cfg_mq_retain">Retain Message</span>
+                        </label>
+                        <label class="cfg-tg">
+                            <span class="toggle"><input type="checkbox" id="m_had" name="m_had" value="1"><span class="slider"></span></span>
+                            <span data-i18n="cfg_mq_had">Home Assistant Discovery</span>
+                        </label>
+                        <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_mq_had_hint">Publishes retained config messages so Home Assistant auto-creates this device and its sensors. Requires JSON payload mode; entities appear at the next upload.</div>
+                    </div>
+
+                    <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
+                        <div class="col">
+                            <label data-i18n="cfg_tint">Upload Interval (ms)</label>
+                            <input type="number" id="t_int" name="t_int" min="0" max="86400000">
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_tint_hint">Set 0 to disable telemetry. Minimum recommended: 10000 (10s).</div>
+                        </div>
+                        <div class="col">
+                            <label data-i18n="cfg_bat">Batch Limit</label>
+                            <input type="number" id="t_bat" name="t_bat" min="1" max="250">
+                        </div>
+                    </div>
+                    <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (Upload Interval = 0). Set a value to enable.</div>
+                    <!-- Act on the running device, not on the staged form: both
+                         answer "is the endpoint reachable right now", which is
+                         the question you ask while editing these fields. -->
+                    <div style="margin-top:16px;border-top:1px solid #3f3f46;padding-top:14px">
+                      <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button type="button" class="b-pri" id="tel_sync_btn" onclick="telSync()" data-i18n="tel_sync">Send now</button>
+                        <button type="button" class="sxb sxb-dang" id="tel_reset_btn" onclick="telReset()" data-i18n="tel_reset">Reset send cursor</button>
+                      </div>
+                      <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="tel_hint">Send now flushes whatever is pending without waiting for the interval. Reset send cursor makes the device re-send up to 30 days back — use it after a long server outage.</div>
+                    </div>
+                </div>
+
+                <h3 data-i18n="cfg_vis">Payload Builder</h3>
+                <div class="grp">
+                    <label data-i18n="cfg_fmt">Format</label>
+                    <select id="t_mode" name="t_mode" onchange="toggleBuilder()">
+                        <option value="0" data-i18n="cfg_f0">JSON Array (Standard)</option>
+                        <option value="1" data-i18n="cfg_f1">CSV Raw (Standard)</option>
+                        <option value="2" data-i18n="cfg_f2">Dynamic Builder (Advanced)</option>
+                    </select>
+
+                    <div id="custom_tools" class="builder-box">
+                        <div style="font-size:0.85rem; color:var(--sub); margin-bottom:15px;" data-i18n="cfg_leg">Payload Tag Reference:</div>
+                        <div class="row tag-ref" style="margin-bottom:15px; font-size:0.8rem; padding:10px; border-radius:6px; border:1px solid var(--border);">
+                            <div class="col">
+                                <b style="color:var(--txt);" data-i18n="cfg_leg1">Global Tags:</b><br>
+                                <span class="highlight">{DEV}</span> - Device Name<br>
+                                <span class="highlight">{MAC}</span> - MAC Address<br>
+                                <span class="highlight">{DATA}</span> - Where the records go
+                            </div>
+                            <div class="col">
+                                <b style="color:var(--txt);" data-i18n="cfg_leg2">Data Row Tags:</b><br>
+                                <span class="highlight">{TS}</span> - Unix Epoch<br>
+                                <span class="highlight">{DHT_ID}</span> - Board Serial<br>
+                                <span class="highlight">{t0}</span> to <span class="highlight">{t15}</span> - Temperature<br>
+                                <span class="highlight">{u0}</span> to <span class="highlight">{u15}</span> - Humidity<br>
+                                <span class="highlight">{p0}</span> to <span class="highlight">{p15}</span> - Pressure<br>
+                            </div>
+                        </div>
+                        <div style="font-size:0.8rem; color:var(--txt); margin-bottom:15px; border-left:3px solid var(--acc); padding-left:10px;">
+                            <b data-i18n="cfg_leg3">Smart Keys:</b> <span data-i18n="cfg_leg4">Use exact formats to inject ID and omit off sensors:</span><br>
+                            <span class="highlight">"t0_ID":{t0}</span> &rarr; <span class="highlight">"t28FF31...":24.5</span><br>
+                            <span class="highlight">"u0_ID":{u0}</span> &rarr; <span class="highlight">"u28FF31...":55.2</span>
+                        </div>
+
+                        <label data-i18n="cfg_tpl1">1. Global Template (The Envelope)</label>
+                        <input type="text" id="t_glob" name="t_glob" maxlength="255" placeholder='{"device":"{DEV}", "payload":[{DATA}]}' oninput="renderPreview()">
+
+                        <label data-i18n="cfg_tpl2">2. Row Template (Single Reading)</label>
+                        <input type="text" id="t_line" name="t_line" maxlength="511" placeholder='{"time":{TS}, "t0_ID":{t0}, "u0_ID":{u0}, "t1_ID":{t1}}' oninput="renderPreview()">
+
+                        <label data-i18n="cfg_tpl3">3. Separator</label>
+                        <input type="text" id="t_sep" name="t_sep" maxlength="7" placeholder="," oninput="renderPreview()">
+                    </div>
+
+                    <div style="margin-top:15px;">
+                        <label data-i18n="cfg_prev">Live Preview:</label>
+                        <div id="preview"></div>
+                    </div>
+                </div>
+
+                <h3 data-i18n="al_title">Alarm Payload — 2nd Telemetry Line</h3>
+                <div class="grp">
+                    <div class="c-sub" style="margin-bottom:10px;font-size:0.8em;color:var(--sub)">
+                        <span data-i18n="al_hint">Separate stream for sensor alarms. Records queue in RAM and are removed only after the server confirms receipt (HTTP 2xx, or MQTT ack on &lt;data topic&gt;/alarm/ack). Transport, server, credentials and TLS follow the main telemetry settings.</span> <span data-i18n="al_pending">Pending:</span> <span id="a_pending_span">0</span>
+                    </div>
+                    <label class="cfg-tg">
+                        <span class="toggle"><input type="checkbox" id="a_en" name="a_en" value="1"><span class="slider"></span></span>
+                        <span data-i18n="al_en">Enable alarm telemetry line</span>
+                    </label>
+                    <div class="row" style="margin-top:10px;">
+                        <div class="col">
+                            <label data-i18n="cfg_fmt">Format</label>
+                            <select id="a_mode" name="a_mode" onchange="toggleAlarmBuilder()">
+                                <option value="0" data-i18n="cfg_f0">JSON Array (Standard)</option>
+                                <option value="1" data-i18n="cfg_f1">CSV Raw (Standard)</option>
+                                <option value="2" data-i18n="cfg_f2">Dynamic Builder (Advanced)</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label data-i18n="al_qmax">Queue size (RAM)</label>
+                            <input type="number" id="a_qmax" name="a_qmax" min="1" max="64" placeholder="32">
+                        </div>
+                        <div class="col">
+                            <label data-i18n="al_path">HTTP path</label>
+                            <input type="text" id="a_path" name="a_path" maxlength="31" placeholder="(telPath+/alarm)">
+                        </div>
+                    </div>
+                    <div id="alarm_custom_tools" class="builder-box">
+                        <div style="font-size:0.85rem; color:var(--sub); margin-bottom:15px;" data-i18n="al_leg">Alarm row tags (one record per limit/error edge):</div>
+                        <div class="row tag-ref" style="margin-bottom:15px; font-size:0.8rem; padding:10px; border-radius:6px; border:1px solid var(--border);">
+                            <div class="col">
+                                <span class="highlight">{TS}</span> - Unix Epoch<br>
+                                <span class="highlight">{ID}</span> - Full id (t/u/p/l + hwid)<br>
+                                <span class="highlight">{HWID}</span> - Sensor id<br>
+                                <span class="highlight">{SLOT}</span> - Slot index (0-15)<br>
+                            </div>
+                            <div class="col">
+                                <span class="highlight">{CH}</span> - Channel letter<br>
+                                <span class="highlight">{VAL}</span> - Value (only on limit edge)<br>
+                                <span class="highlight">{ALARM}</span> - Limit code: "alarm", "alarm_sil", "alarm_off"<br>
+                                <span class="highlight">{ERR}</span> - HW-error code: "err", "err_sil", "err_off"<br>
+                                <span class="highlight">{SEQ}</span> - Sequence (receipt-ack key)<br>
+                            </div>
+                        </div>
+                        <div style="font-size:0.8rem; color:var(--txt); margin-bottom:15px; border-left:3px solid var(--acc); padding-left:10px;">
+                            <b data-i18n="al_smart">Smart keys</b> <span data-i18n="al_smart2">(key name = token, lowercase or uppercase):</span><br>
+                            <span class="highlight">"val":{val}</span> &rarr; <span data-i18n="al_smart_val">number, or the whole key is removed on failure</span><br>
+                            <span class="highlight">"alarm":{alarm}</span> &amp; <span class="highlight">"err":{err}</span> &rarr; <span data-i18n="al_smart_err">code, or the whole key is removed when the other domain is active</span>
+                        </div>
+
+                        <label data-i18n="cfg_tpl1">1. Global Template (The Envelope)</label>
+                        <input type="text" id="a_glob" name="a_glob" maxlength="255" placeholder='{"dev":"{DEV}", "mac":"{MAC}", "alarms":[{DATA}]}' oninput="renderAlarmPreview()">
+
+                        <label data-i18n="cfg_tpl2">2. Row Template (Single Alarm)</label>
+                        <input type="text" id="a_line" name="a_line" maxlength="511" placeholder='{"ts":{TS}, "id":"{ID}", "val":{val}, "alarm":{alarm}, "err":{err}, "seq":{seq}}' oninput="renderAlarmPreview()">
+
+                        <label data-i18n="cfg_tpl3">3. Separator</label>
+                        <input type="text" id="a_sep" name="a_sep" maxlength="7" placeholder="," oninput="renderAlarmPreview()">
+                    </div>
+
+                    <div style="margin-top:15px;">
+                        <label data-i18n="cfg_prev">Live Preview:</label>
+                        <div id="apreview"></div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        /* ═══ ENGINE ÚNICO DO LIVE PREVIEW — telemetria convencional E alarmes ═══
+           Mesma máquina, mesma forma: modos 0/1/2, resolver de tokens, formas
+           compostas "<chave>":{<token>}, limpeza de vírgulas órfãs e envelope
+           {DEV}{MAC}{DATA}. Cada linha (JSON/CSV/custom) é resolvida pelo
+           domínio; o esqueleto é compartilhado. */
+
+        function _resolveCustom(tpl, rec, resolver) {
+            let out = '', ti = 0;
+            while (ti < tpl.length) {
+                const c = tpl[ti];
+                if (c !== '{') { out += c; ti++; continue; }
+                const r = resolver(rec, tpl, ti);
+                if (!r) { out += c; ti++; continue; }
+                const val = r.val, hwid = r.hwid, compKey = r.compKey, tc = r.tc;
+                let mFull = false, mBare = false;
+                if (compKey) {
+                    const p1 = compKey.length + 6;
+                    if (ti >= p1 && tpl.substr(ti - p1, p1) === '"' + compKey + '_ID":') mFull = true;
+                    else {
+                        const p2 = compKey.length + 3;
+                        if (ti >= p2 && tpl.substr(ti - p2, p2) === '"' + compKey + '":') mBare = true;
+                    }
+                }
+                if (mFull) {
+                    out = out.substr(0, out.length - (compKey.length + 6));
+                    if (val !== null) out += '"' + compKey[0] + (hwid || '').trim() + '":' + val;
+                } else if (mBare) {
+                    if (val !== null) out += val;
+                    else out = out.substr(0, out.length - (compKey.length + 3));
+                } else {
+                    out += (val !== null ? val : 'null');
+                }
+                ti += tc;
+            }
+            /* Limpeza in-place: ",," "{," "[," ",}" ",]" */
+            let w = '';
+            for (let i = 0; i < out.length; i++) {
+                const ch = out[i];
+                if (ch === ',') {
+                    if (!w) continue;
+                    const p = w[w.length-1];
+                    if (p === ',' || p === '{' || p === '[') continue;
+                } else if ((ch === '}' || ch === ']') && w && w[w.length-1] === ',') {
+                    w = w.slice(0, -1);
+                }
+                w += ch;
+            }
+            return w;
+        }
+
+        /* Resolver da telemetria convencional — mirror do formatLineCustomBuf. */
+        function _sensorTokenResolver(rec, tpl, ti) {
+            let val = null, hwid = null, compKey = '', tc = 0;
+            if (tpl.substr(ti, 4) === '{TS}') { val = String(rec.ts); tc = 4; }
+            else if (tpl.substr(ti, 8) === '{DHT_ID}') { val = rec.serial; tc = 8; }
+            else {
+                const ch = tpl[ti+1];
+                if (ch === 't' || ch === 'u' || ch === 'p') {
+                    let digits = 0;
+                    if (tpl[ti+2] >= '0' && tpl[ti+2] <= '9') {
+                        if (tpl[ti+3] === '}') digits = 1;
+                        else if (tpl[ti+3] >= '0' && tpl[ti+3] <= '9' && tpl[ti+4] === '}') digits = 2;
+                    }
+                    if (digits) {
+                        const idx = parseInt(tpl.substr(ti + 2, digits), 10);
+                        if (idx < _devSensors.length || idx < 16) {
+                            const s = rec.slots[idx];
+                            let raw = null;
+                            if (s && s.active) {
+                                if (ch === 't') raw = s.val;
+                                else if (ch === 'u') raw = s.hum;
+                                else if (s.hasPress) raw = rec.press;
+                            }
+                            val = (raw === undefined) ? null : raw;
+                            hwid = s ? s.hwid : '';
+                            compKey = ch + idx; tc = 2 + digits + 1;
+                        }
+                    }
+                }
+            }
+            return tc ? { val, hwid, compKey, tc } : null;
+        }
+        function _previewCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _sensorTokenResolver); }
+
+        /* Resolver da linha de alarmes — mirror do alarmFormatLine (firmware).
+           Dois domínios: rec.alarm (limite) e rec.err (falha), strings ou
+           null. {VAL} só na borda de limite; {ALARM}/{ERR} emitem o código
+           COM aspas JSON (forma composta remove a chave do outro domínio);
+           compKey segue a GRAFIA do token. */
+        function _alarmTokenResolver(rec, tpl, ti) {
+            let val = null, compKey = '', tc = 0;
+            const at = (s) => tpl.substr(ti, s.length) === s;
+            if (at('{TS}')) { val = String(rec.ts); tc = 4; }
+            else if (at('{ID}')) { val = rec.id; tc = 4; }
+            else if (at('{HWID}')) { val = rec.hwid; tc = 6; }
+            else if (at('{SLOT}')) { val = String(rec.slot); tc = 6; }
+            else if (at('{CH}')) { val = rec.ch; tc = 4; }
+            else if (at('{VAL}') || at('{val}')) { compKey = tpl.substr(ti + 1, 3); val = (rec.alarm === 'alarm') ? rec.val : null; tc = 5; }
+            else if (at('{ALARM}') || at('{alarm}')) { compKey = tpl.substr(ti + 1, 5); val = rec.alarm ? '"' + rec.alarm + '"' : null; tc = 7; }
+            else if (at('{ERR}') || at('{err}')) { compKey = tpl.substr(ti + 1, 3); val = rec.err ? '"' + rec.err + '"' : null; tc = 5; }
+            else if (at('{SEQ}') || at('{seq}')) { compKey = tpl.substr(ti + 1, 3); val = String(rec.seq); tc = 5; }
+            return tc ? { val, hwid: null, compKey, tc } : null;
+        }
+        function _alarmCustomLine(tpl, rec) { return _resolveCustom(tpl, rec, _alarmTokenResolver); }
+
+        /* Mirror do firmware buildPayload global-template walker. */
+        function _previewGlobal(gt, dev, mac, data) {
+            let out = '', gi = 0;
+            while (gi < gt.length) {
+                if (gt[gi] !== '{') { out += gt[gi]; gi++; continue; }
+                if (gt.substr(gi, 5) === '{DEV}') { out += dev; gi += 5; }
+                else if (gt.substr(gi, 5) === '{MAC}') { out += mac; gi += 5; }
+                else if (gt.substr(gi, 6) === '{DATA}') { out += data; gi += 6; }
+                else { out += gt[gi]; gi++; }
+            }
+            return out;
+        }
+
+        /* Esqueleto compartilhado dos dois builders. */
+        function _renderPayloadPreview(o) {
+            const mode = document.getElementById(o.modeId).value;
+            const pre = document.getElementById(o.outId);
+            const batch = o.demo();
+            if (!batch || !batch.length) { pre.innerText = ''; return; }
+            if (mode == '0') {
+                pre.innerText = '[' + batch.map(o.jsonLine).join(',') + ']';
+            } else if (mode == '1') {
+                pre.innerText = o.csv(batch);
+            } else {
+                const glob = document.getElementById(o.globId).value;
+                const line = document.getElementById(o.lineId).value;
+                let sep = document.getElementById(o.sepId).value;
+                if (sep === '\\n') sep = '\n';
+                const data = batch.map(r => o.customLine(line, r)).join(sep);
+                pre.innerText = _previewGlobal(glob, o.dev || 'SIMUT_Demo', o.mac || 'AA:BB:CC:DD:EE:FF', data);
+            }
+        }
+
+        /* Device metadata (real serial + per-slot hwid/active) — populado por loadConfig. */
+        let _devSerial = 'RP2040_A1B2';
+        let _devSensors = Array.from({length:10}, (_,i) => ({
+            hwid: 'STM' + String(i+1).padStart(4,'0'),
+            active: true, hasHum: false, hasPress: false
+        }));
+
+        function _sensorDemoBatch() {
+            const mk = (tBase) => _devSensors.map((s, i) => ({
+                hwid: s.hwid,
+                val: (20 + i + tBase).toFixed(2),
+                hum: s.hasHum ? (55 + i + tBase).toFixed(1) : null,
+                hasPress: !!s.hasPress,
+                active: s.active
+            }));
+            return [
+                { ts: 1700000000, serial: _devSerial, press: '1013.2', slots: mk(0.1) },
+                { ts: 1700000005, serial: _devSerial, press: '1013.1', slots: mk(0.2) }
+            ];
+        }
+
+        function _alarmDemoBatch() {
+            const hw = (_devSensors[0] && _devSensors[0].hwid) || 'SENSOR1';
+            return [
+                { ts: 1700000100, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: '25.30', alarm: 'alarm', err: null, seq: 1 },
+                { ts: 1700000200, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: null, alarm: null, err: 'err', seq: 2 },
+                { ts: 1700000300, id: 't' + hw, hwid: hw, slot: 0, ch: 't', val: null, alarm: 'alarm_sil', err: null, seq: 3 }
+            ];
+        }
+
+        /* JSON da telemetria convencional ignora templates (formato fixo, mirror do firmware). */
+        function _sensorJsonLine(r) {
+            let s = '{"ts":' + r.ts;
+            r.slots.forEach((sl, i) => {
+                if (!sl.active) return;
+                const id = sl.hwid ? sl.hwid : i;
+                s += ',"t' + id + '":' + sl.val;
+                if (sl.hum !== null) s += ',"u' + id + '":' + sl.hum;
+            });
+            const pSlot = r.slots.find(sl => sl.active && sl.hasPress && sl.hwid);
+            if (pSlot) s += ',"p' + pSlot.hwid + '":' + r.press;
+            return s + '}';
+        }
+        function _sensorCsv(batch) {
+            let hdr = 'timestamp';
+            batch[0].slots.forEach((sl, i) => { if (sl.active) hdr += ';s' + i + '_' + sl.hwid; });
+            const lines = batch.map(r => {
+                let s = String(r.ts);
+                r.slots.forEach(sl => { s += ';' + (sl.active ? sl.val : ''); });
+                return s;
+            });
+            return hdr + '\n' + lines.join('\n') + '\n';
+        }
+        /* JSON da linha de alarmes USA o template de linha (mirror do firmware). */
+        function _alarmJsonLine(r) {
+            const tpl = document.getElementById('a_line').value ||
+                '{"ts":{TS},"id":"{ID}","val":{val},"err":"{err}","seq":{seq}}';
+            return _alarmCustomLine(tpl, r);
+        }
+        function _alarmCsv(batch) {
+            return 'seq;ts;id;v\n' + batch.map(r => {
+                const v = (r.alarm === 'alarm') ? r.val : (r.alarm || r.err || '');
+                return r.seq + ';' + r.ts + ';' + r.id + ';' + v;
+            }).join('\n') + '\n';
+        }
+
+        function renderPreview() {
+            _renderPayloadPreview({ outId:'preview', modeId:'t_mode', globId:'t_glob', lineId:'t_line', sepId:'t_sep',
+                demo:_sensorDemoBatch, jsonLine:_sensorJsonLine, csv:_sensorCsv, customLine:_previewCustomLine });
+        }
+        function renderAlarmPreview() {
+            _renderPayloadPreview({ outId:'apreview', modeId:'a_mode', globId:'a_glob', lineId:'a_line', sepId:'a_sep',
+                demo:_alarmDemoBatch, jsonLine:_alarmJsonLine, csv:_alarmCsv, customLine:_alarmCustomLine });
+        }
+        function toggleBuilder() { let mode = document.getElementById('t_mode').value; document.getElementById('custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderPreview(); }
+        function toggleAlarmBuilder() { let mode = document.getElementById('a_mode').value; document.getElementById('alarm_custom_tools').style.display = (mode == '2') ? 'block' : 'none'; renderAlarmPreview(); }
+
+        function toggleTransport() { let tr = document.getElementById('t_transport').value; document.getElementById('http_fields').style.display = (tr == '0') ? 'block' : 'none'; document.getElementById('mqtt_fields').style.display = (tr == '1') ? 'block' : 'none'; let secSpan = document.getElementById('t_sec_lbl'); if (secSpan) secSpan.textContent = (tr == '1') ? window.t('cfg_sec_mqtt', 'Use MQTTS (TLS)') : window.t('cfg_sec', 'Use HTTPS (SSL)'); }
+        /* M-8: selo "sem validação de cert" quando TLS on sem cert (window.__tlsCert). */
+        function updateTlsWarn() { var w = document.getElementById('tls_noverify_warn'); if (!w) return; var on = document.getElementById('t_sec').checked; w.style.display = (on && !window.__tlsCert) ? 'block' : 'none'; }
+
+        function updateTelDisabledWarn() {
+            const inp = document.getElementById('t_int');
+            const warn = document.getElementById('tel_disabled_warn');
+            if (!inp || !warn) return;
+            const v = parseInt(inp.value, 10);
+            warn.style.display = (!v || v === 0) ? '' : 'none';
+        }
+
+        const SE = id => document.getElementById(id);
+        async function sensAction(op, extra) {
+            const q = '/api/action?op=' + encodeURIComponent(op) + (extra || '');
+            const r = await fetch(q, { method: 'POST' });
+            let j = {};
+            try { j = await r.json(); } catch (e) { /* keep {} */ }
+            return { ok: r.ok, status: r.status, body: j };
+        }
+
+        async function telSync() {
+            const b = SE('tel_sync_btn');
+            if (b) b.disabled = true;
+            try {
+                const r = await sensAction('tel_sync');
+                showToast(r.ok ? window.t('tel_sync_ok', 'Upload triggered. Watch the log for the result.')
+                               : window.t('act_fail', 'Action failed.'), r.ok ? 'ok' : 'err');
+            } finally { if (b) b.disabled = false; }
+        }
+
+        async function telReset() {
+            if (!confirm(window.t('tel_reset_confirm',
+                'Reset the telemetry cursor?\n\nThe device will re-send up to 30 days of history on the next upload. Expect a burst of traffic.'))) return;
+            const b = SE('tel_reset_btn');
+            if (b) b.disabled = true;
+            try {
+                const r = await sensAction('tel_reset');
+                showToast(r.ok ? window.t('tel_reset_ok', 'Cursor reset. Next uploads cover up to 30 days back.')
+                               : window.t('act_fail', 'Action failed.'), r.ok ? 'ok' : 'err');
+            } finally { if (b) b.disabled = false; }
+        }
+
+        function showLoadError(msgKey, fallback) {
+            const box = document.getElementById('cfg_load_err');
+            const msg = document.getElementById('cfg_load_err_msg');
+            if (!box || !msg) return;
+            msg.textContent = window.t(msgKey, fallback);
+            box.style.display = 'block';
+            setFormEnabled(false);
+        }
+        function clearLoadError() {
+            const box = document.getElementById('cfg_load_err');
+            if (box) box.style.display = 'none';
+            setFormEnabled(true);
+        }
+        function setFormEnabled(on) {
+            const form = document.getElementById('sysForm');
+            if (!form) return;
+            form.querySelectorAll('input,select,textarea,button').forEach(el => { el.disabled = !on; });
+            form.style.opacity = on ? '1' : '0.55';
+        }
+
+        async function loadConfig() {
+            for (let attempt = 0; attempt < 3; attempt++) {
+                if (attempt > 0) await new Promise(r => setTimeout(r, 700 * attempt));
+                try {
+                    const r = await fetchSafe('/api/config');
+                    if (r.status === 403) { showLoadError('cfg_load_forbidden', 'Your user lacks permission to read the system settings.'); return; }
+                    if (r.status === 503) continue;
+                    if (!r.ok) continue;
+                    const d = await r.json();
+                    if (d.error) { showLoadError('cfg_load_forbidden', 'The device refused to return the settings: ' + d.error); return; }
+                    applyConfig(d);
+                    clearLoadError();
+                    return;
+                } catch (e) { console.error('loadConfig attempt ' + attempt + ' failed:', e); }
+            }
+            showLoadError('cfg_load_fail', 'Could not load the current settings. The fields are disabled to avoid saving blank values over your configuration.');
+        }
+
+        function applyConfig(d) {
+            const p = Pending.getSection('sys');
+            const val = (key, def) => (p[key] !== undefined ? p[key] : (d[key] !== undefined ? d[key] : def));
+            document.getElementById('t_transport').value = val('t_transport', 0);
+            document.getElementById('t_sec').checked = !!val('t_sec', false);
+            window.__tlsCert = !!val('t_cert', false);   /* M-8: cert loaded at boot? */
+            updateTlsWarn();
+            document.getElementById('t_srv').value = val('t_srv', '');
+            document.getElementById('t_port').value = val('t_port', 80);
+            document.getElementById('t_path').value = val('t_path', '');
+            document.getElementById('t_key').value = val('t_key', '');
+            document.getElementById('m_topic').value = val('m_topic', '');
+            document.getElementById('m_cid').value = val('m_cid', '');
+            document.getElementById('m_user').value = val('m_user', '');
+            document.getElementById('m_qos').value = val('m_qos', 0);
+            document.getElementById('m_retain').checked = !!val('m_retain', false);
+            document.getElementById('m_ka').value = val('m_ka', 60);
+            document.getElementById('m_had').checked = !!val('m_had', false);
+            document.getElementById('t_int').value = val('t_int', 300000);
+            updateTelDisabledWarn();
+            document.getElementById('t_bat').value = val('t_bat', 10);
+            document.getElementById('t_mode').value = val('t_mode', 0);
+            document.getElementById('t_glob').value = val('t_glob', '');
+            document.getElementById('t_line').value = val('t_line', '');
+            document.getElementById('t_sep').value = val('t_sep', '');
+            /* 2ª linha de telemetria (alarmes) */
+            document.getElementById('a_en').checked = !!val('a_en', false);
+            document.getElementById('a_mode').value = val('a_mode', 0);
+            document.getElementById('a_qmax').value = val('a_qmax', 32);
+            document.getElementById('a_path').value = val('a_path', '');
+            document.getElementById('a_glob').value = val('a_glob', '');
+            document.getElementById('a_line').value = val('a_line', '');
+            document.getElementById('a_sep').value = val('a_sep', '');
+            const _apSpan = document.getElementById('a_pending_span');
+            if (_apSpan) _apSpan.textContent = val('a_pending', 0);
+            if (d.serial) _devSerial = d.serial;
+            if (Array.isArray(d.sensors)) {
+                for (let i = 0; i < 10 && i < d.sensors.length; i++) {
+                    _devSensors[i] = { hwid: d.sensors[i].hwid || '', active: !!d.sensors[i].active,
+                                       hasHum: !!d.sensors[i].hum, hasPress: !!d.sensors[i].press };
+                }
+            }
+            toggleTransport(); toggleBuilder(); toggleAlarmBuilder();
+            wirePendingListeners();
+        }
+
+        /* U24: cada input/change acumula no sessionStorage via Pending. */
+        function wirePendingListeners() {
+            const form = document.getElementById('sysForm');
+            if (!form || form._pendingWired) return;
+            form._pendingWired = true;
+            const handler = (ev) => {
+                const el = ev.target;
+                if (!el.id) return;
+                let v;
+                if (el.type === 'checkbox') v = el.checked ? '1' : '0';
+                else v = el.value;
+                Pending.setField('sys', el.id, v);
+                if (el.id === 't_int') updateTelDisabledWarn();
+            };
+            form.addEventListener('input', handler);
+            form.addEventListener('change', handler);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { setTimeout(applyLang, 50); loadConfig(); });
+    </script>
+</body>
+</html>)raw";
+
+
 static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -4972,9 +5202,6 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
         .card input:focus { border-color: var(--acc); outline: none; }
         .card button[type=submit] { width: 100%; padding: 14px; background: var(--acc); color: black; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; margin-top: 10px; transition: 0.2s; }
         .card button[type=submit]:hover { opacity: 0.9; transform: translateY(-1px); }
-        .chk { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; background: rgba(6, 182, 212, 0.05); padding: 15px; border-radius: 6px; border: 1px solid var(--acc); }
-        .chk input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--acc); cursor: pointer; }
-        .cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
         /* Esconde campos estáticos quando DHCP/DNS auto está ON */
         .grp:has(#dhcp:checked) #static_fields { display: none; }
         .grp:has(#dns_auto:checked) #dns_fields { display: none; }
@@ -5090,8 +5317,8 @@ static const char NET_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                             <!-- Only rendered when the TLS cert pair exists (web_tls from /api/network);
                                  keep-alive itself defaults ON on every transport. -->
                             <div id="web_ka_row" style="display:none;margin-top:10px">
-                                <label class="chk">
-                                    <input type="checkbox" id="web_ka" name="web_ka" value="1">
+                                <label class="cfg-tg">
+                                    <span class="toggle"><input type="checkbox" id="web_ka" name="web_ka" value="1"><span class="slider"></span></span>
                                     <span data-i18n="net_web_ka">Persistent connections (keep-alive)</span>
                                 </label>
                                 <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="net_web_ka_hint">Reuses the TLS connection between requests — pages load ~60% faster over HTTPS. Disable only if a proxy or client misbehaves with persistent connections.</div>
@@ -6508,6 +6735,16 @@ h2.page-title { margin-top: 0; font-weight: 600; color: var(--txt); font-size: 1
    (cyan claro pede tinta escura); o claro troca para branco via lang.js. */
 .b-pri { background: var(--acc); color: #001318; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 0.95em; font-weight: 700; transition: 0.2s; }
 .b-pri:hover { opacity: 0.9; }
+/* Botões secundários/pequenos (.sxb) e o toggle de linha (.cfg-tg): antes
+   moravam só no <style> da Config — por isso a Telemetry usava .sxb sem estilo.
+   Aqui viram compartilhados, como .b-pri. */
+.sxb { background: var(--track); color: var(--txt); border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: 0.2s; }
+.sxb:hover { background: #52525b; }
+.sxb-dang { background: transparent; border: 1px solid var(--dang); color: var(--dang); padding: 5px 12px; }
+.sxb-dang:hover { background: var(--dang); color: #fff; }
+.sxb-on { background: var(--acc); color: #000; }
+.sxb-on:hover { background: var(--acc); }
+.cfg-tg { display: flex; align-items: center; gap: 12px; padding: 8px 0; cursor: pointer; }
 body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 0; }
 /* ── Hamburger Nav ──────────────────────────────────────── */
 .topbar { background: #10151c; border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 50; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; min-height: 48px; }
@@ -6791,6 +7028,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
         +'<a href="/" ><span class="ico">📊</span><span data-i18n="nav_dash">Dashboard</span></a>'
         +'<a href="/history" ><span class="ico">📈</span><span data-i18n="nav_hist">History &amp; Logs</span></a>'
         +'<a href="/alarms" ><span class="ico">🔔</span><span data-i18n="nav_alm">Alarms &amp; Sounds</span></a>'
+        +'<a href="/telemetry" ><span class="ico">📡</span><span data-i18n="nav_tel">Telemetry</span></a>'
         +'<a href="/config" ><span class="ico">⚙️</span><span data-i18n="nav_cfg">System Config</span></a>'
         +'<a href="/network" ><span class="ico">🌐</span><span data-i18n="nav_net">Network</span></a>'
         +'<a href="/users" ><span class="ico">👤</span><span data-i18n="nav_usr">Users</span></a>'
@@ -6865,7 +7103,7 @@ static const char LANG_JS[] PROGMEM = R"raw(
             let user = d.user || '';
             let ntp = d.ntp || 0;
             let time = d.time || 0;
-            let navMap = {'/':[1], '/history':[2,4], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
+            let navMap = {'/':[1], '/history':[2,4], '/telemetry':[8], '/config':[8], '/network':[16], '/users':[256], '/files':[32,64,128], '/alarms':[8], '/license':[1]};
             document.querySelectorAll('.drawer nav a, .drawer .lic-link').forEach(a => {
                 let href = a.getAttribute('href');
                 let bits = navMap[href];

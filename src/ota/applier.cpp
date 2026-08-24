@@ -130,7 +130,10 @@ namespace ota {
  * o setor inteiro durante read-erase-program-all. Race-free: applier só
  * roda após `state=APPLYING` persistido e termina via reboot, nunca
  * concorrente com os outros callers. Declarado em `metadata.h`. */
-uint8_t s_applier_buf[OTA_FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
+/* v21: 2 setores — o snapshot da config (SystemConfig v21 + CRC) não cabe
+ * mais em 4 KiB. O buffer cresce junto; o custo é 4 KiB de BSS (heap -4 KiB),
+ * documentado em docs/ANALISE_FLASH_RAM.md. */
+uint8_t s_applier_buf[2u * OTA_FLASH_SECTOR_SIZE] __attribute__((aligned(4)));
 
 /* CRC32 EDB88320 inline em SRAM (sem chamar tabelas em flash). */
 static inline uint32_t __not_in_flash_func(crc32_byte_sram)(uint32_t crc, uint8_t b) {

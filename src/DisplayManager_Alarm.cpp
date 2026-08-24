@@ -21,15 +21,31 @@ void DisplayManager::setAlarmState(uint16_t slotMask, int8_t navSlot) {
 	if (navSlot >= 0) _alarmNavPending = navSlot;
 }
 
+void DisplayManager::setAlarmErrState(uint16_t errMask) {
+	_alarmErrMask = errMask;
+}
+
+bool DisplayManager::isSlotErrAlarming(int slotIdx) const {
+	return (slotIdx >= 0 && slotIdx < 16) && (_alarmErrMask & (1 << slotIdx));
+}
+
+/* Mute de ERRO por slot: desativar a falha de um sensor não toca o alarme
+ * de LIMITE do mesmo slot — os dois domínios são independentes. */
+void DisplayManager::setAlarmErrMuted(int8_t slotIdx, bool muted) {
+	if (slotIdx < 0 || slotIdx >= 16) return;
+	if (muted) _alarmErrMuteMask |= (uint16_t)(1u << slotIdx);
+	else       _alarmErrMuteMask &= (uint16_t)~(1u << slotIdx);
+}
+
+bool DisplayManager::isAlarmErrMuted(int8_t slotIdx) const {
+	if (slotIdx < 0 || slotIdx >= 16) return false;
+	return (_alarmErrMuteMask & (1u << slotIdx)) != 0;
+}
+
 
 void DisplayManager::setAlarmSilenced(bool silenced, uint32_t endTime) {
 	_alarmSilenced = silenced;
 	_alarmSilenceEnd = endTime;
-}
-
-
-void DisplayManager::setAlarmDeactivated(bool deactivated) {
-	_alarmDeactivated = deactivated;
 }
 
 
@@ -88,10 +104,12 @@ void DisplayManager::drawAlarmAction( ) {
 		cv->setCursor((320 - bw) / 2, 32 + yOff);
 		cv->print(headerBuf);
 
-		/* Silence button (y_screen=60..105) — visible in strips 1 and 2 */
+		/* Silence button (y_screen=60..105) — visible in strips 1 and 2.
+		 * cautionBg é laranja-escuro: usa o branco do erro (C_ALARM_ERR_TEXT),
+		 * não o alarmText (que virou PRETO para o fundo amarelo). */
 		cv->fillRoundRect(btnX, 60 + yOff, btnW, btnH, btnR, C_CAUTION_BG);
 		cv->setFont(&simutFont12pt);
-		cv->setTextColor(C_ALARM_TEXT);
+		cv->setTextColor(C_ALARM_ERR_TEXT);
 		cv->getTextBounds(silTxt, 0, 0, &bx, &by, &bw, &bh);
 		cv->setCursor(btnX + (btnW - bw) / 2, 90 + yOff);
 		cv->print(silTxt);
@@ -119,28 +137,35 @@ bool DisplayManager::isSlotAlarming(int slotIdx) const {
 }
 
 uint16_t DisplayManager::slotAlarmBg(int slotIdx) const {
-	if (!isSlotAlarming(slotIdx)) return C_CARD_BG;
-
 	if (_alarmSilenced) return C_CARD_BG;
+
+	/* Erro de sensor tem prioridade visual: âmbar brilhante no lugar do
+	 * vermelho de limite. Um slot não está nos dois ao mesmo tempo —
+	 * inErrorState sobrepõe os limites. */
+	if (isSlotErrAlarming(slotIdx)) {
+		return _alarmFlashPhase ? C_ALARM_ERR_BG : C_CARD_BG;
+	}
+	if (!isSlotAlarming(slotIdx)) return C_CARD_BG;
 	return _alarmFlashPhase ? C_ALARM_BG : C_CARD_BG;
 }
 
 bool DisplayManager::isAnyAlarmActive( ) const {
-	return (_alarmSlotMask != 0);
+	return (_alarmSlotMask != 0) || (_alarmErrMask != 0);
 }
 
 
 void DisplayManager::redrawAlarmFlash( ) {
 	if (!_driver.tft || !_driver.canvas) return;
 
-	if (isSlotAlarming(_lastRenderedState.topSlotIdx)) {
+	if (isSlotAlarming(_lastRenderedState.topSlotIdx) ||
+	    isSlotErrAlarming(_lastRenderedState.topSlotIdx)) {
 		drawSlotPanel(_lastRenderedState.topSlotTemp, _lastRenderedState.topSlotHum,
 		                 _lastRenderedState.topSlotType, _lastRenderedState.topSlotValid,
 		                 _lastRenderedState.topSlotIdx, _lastRenderedState.topSlotName, true, _topPanel);
 	}
 
 	int sel = _lastRenderedState.selectedSlotIdx;
-	if (isSlotAlarming(sel)) {
+	if (isSlotAlarming(sel) || isSlotErrAlarming(sel)) {
 		drawSlotPanel(_lastRenderedState.slotTemp, _lastRenderedState.slotHum, _lastRenderedState.slotType, _lastRenderedState.slotValid,
 		              sel, _lastRenderedState.slotName, true, _bottomPanel);
 	}
@@ -149,7 +174,7 @@ void DisplayManager::redrawAlarmFlash( ) {
 	bool pageHasAlarm = false;
 	bool otherPageHasAlarm = false;
 	for (int i = 0; i < 10; i++) {
-		if (!isSlotAlarming(i)) continue;
+		if (!isSlotAlarming(i) && !isSlotErrAlarming(i)) continue;
 		int slotPage = (i < 4) ? 0 : (i < 8) ? 1 : 2;
 		if (slotPage == _currentPage) pageHasAlarm = true;
 		else otherPageHasAlarm = true;

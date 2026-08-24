@@ -411,17 +411,21 @@ void DisplayManager::handleTouch( ) {
  return;
  }
 
- /* Alarm action on touch-down — check slot mask for any alarming slot */
- if (firstTouch && _alarmSlotMask != 0) {
- /* Navigate to first alarming slot */
- for (int8_t s = 0; s < MAX_SENSORS; s++) {
- if (_alarmSlotMask & (1 << s)) { showAlarmAction(s); break; }
- }
+ /* Alarme (LIMITE ou ERRO) NÃO silenciado: toque → tela de silenciar.
+ * Ação por slot: abre a ação do sensor EXIBIDO no painel tocado (o topo
+ * fixado num sensor em erro não pode cair no min/max). Silenciado →
+ * comportamento normal (pin / min-max). */
+ if (firstTouch && !_alarmSilenced) {
+ int8_t tSlot = _sharedState.topSlotIdx;
+ if (tSlot >= 0 && tSlot < 16 &&
+ (isSlotAlarming(tSlot) || isSlotErrAlarming(tSlot))) {
+ showAlarmAction(tSlot);
  return;
+ }
  }
 
  if (firstTouch) {
- /* Start hold tracking — action deferred to release or 1s timeout */
+ /* Start hold tracking — action deferred to release or DASH_HOLD_MS (3s) */
  _topPanel.holdStart = millis();
  _topPanel.holdSeen = _topPanel.holdStart;
  _topPanel.holdFired = false;
@@ -460,22 +464,27 @@ void DisplayManager::handleTouch( ) {
  }
  if (y > 115 && y < 190) {
  if (!acceptTouch(1)) return;
- int sensorIdToGraph = -1;
- if (_sharedState.selectedSlotIdx >= 0 && _sharedState.selectedSlotIdx <= 10)
- sensorIdToGraph = _sharedState.selectedSlotIdx;
+ /* slot selecionado — sem limite 0..10 aqui: o gráfico (EVT_OPEN_GRAPH)
+ * só cobre slots 0..10, mas a AÇÃO DE ALARME vale para qualquer slot
+ * (erro de um sensor em slot > 10 também deve abrir a tela de silenciar). */
+ int sel = _sharedState.selectedSlotIdx;
+ bool selOk = (sel >= 0 && sel < 16);
 
  /* Right corner: graph button (priority over alarm) */
  if (_bottomPanel.showMinMax && x > 266) {
  _bottomPanel.showMinMax = false;
- if (sensorIdToGraph != -1) {
- UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = sensorIdToGraph; ev.param = 0;
+ if (sel >= 0 && sel <= 10) {
+ UiEvent ev; ev.type = UiEvent::EVT_OPEN_GRAPH; ev.id = sel; ev.param = 0;
  pushUiEvent(ev);
  }
  return;
  }
 
- if (sensorIdToGraph >= 0 && isSlotAlarming(sensorIdToGraph)) {
- showAlarmAction((int8_t)sensorIdToGraph);
+ /* Alarme (LIMITE ou ERRO) não silenciado: toque → tela de silenciar.
+ * Silenciado → min/max normal. */
+ if (selOk && !_alarmSilenced &&
+ (isSlotAlarming(sel) || isSlotErrAlarming(sel))) {
+ showAlarmAction((int8_t)sel);
  return;
  }
 

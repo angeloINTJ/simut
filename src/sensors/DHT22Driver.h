@@ -85,25 +85,26 @@ struct DHT22Driver {
 #if SIMUT_DISPLAY_TFT
 inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
                  int16_t cardW, bool leftAnchor, bool isRedPhase,
-                 uint16_t panelBg, const GFXfont& font24,
+                 uint16_t panelBg, uint16_t alarmText, uint16_t alarmTextDim,
+                 const GFXfont& font24,
                  const GFXfont& font12, const GFXfont& font9,
                  uint16_t txtSub, uint16_t tempOk,
                  uint16_t tempHot, uint16_t humidity,
                  uint16_t textOff,
                  const char* humSuffix) {
         /* Color aliases — exact match for original drawAmbientPanel normal mode */
-        uint16_t tempCol   = isRedPhase ? C_ALARM_TEXT : tempOk;
-        uint16_t unitCol   = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
-        uint16_t icTherm   = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
-        uint16_t mercCol   = isRedPhase ? C_ALARM_TEXT : tempHot;
-        uint16_t humCol    = isRedPhase ? C_ALARM_TEXT : humidity;
-        uint16_t dropCol   = isRedPhase ? C_ALARM_TEXT_DIM : humidity;
-        uint16_t dropShine = isRedPhase ? C_ALARM_TEXT : themeTint(humidity);
-        uint16_t pctCol    = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
+        uint16_t tempCol   = isRedPhase ? alarmText : tempOk;
+        uint16_t unitCol   = isRedPhase ? alarmTextDim : txtSub;
+        uint16_t icTherm   = isRedPhase ? alarmTextDim : txtSub;
+        uint16_t mercCol   = isRedPhase ? alarmText : tempHot;
+        uint16_t humCol    = isRedPhase ? alarmText : humidity;
+        uint16_t dropCol   = isRedPhase ? alarmTextDim : humidity;
+        uint16_t dropShine = isRedPhase ? alarmText : themeTint(humidity);
+        uint16_t pctCol    = isRedPhase ? alarmTextDim : txtSub;
 
         if (!isValid || isnan(t)) {
             cv->setFont(&font12); cv->setTextSize(1);
-            cv->setTextColor(isRedPhase ? C_ALARM_TEXT : tempHot);
+            cv->setTextColor(isRedPhase ? alarmText : tempHot);
             cv->setCursor(25, 28);
             cv->print("--.-");
             return;
@@ -185,17 +186,18 @@ inline void DHT22_renderPanel(GFXcanvas16* cv, float t, float h, bool isValid,
 inline void DHT22_renderMinMax(GFXcanvas16* cv,
     float minT, float maxT, float minH, float maxH, bool isValid,
     int16_t cardW, bool isRedPhase, uint16_t panelBg,
+    uint16_t alarmText, uint16_t alarmTextDim,
     const GFXfont& font9,
     uint16_t txtSub, uint16_t tempOk, uint16_t tempHot,
     uint16_t humidity, uint16_t textOff,
     uint16_t accentHigh, uint16_t btnTextActive,
     const char* minLabel, const char* maxLabel,
     const char* humSuffix) {
-    uint16_t icCol   = isRedPhase ? C_ALARM_TEXT_DIM : txtSub;
-    uint16_t mercCol = isRedPhase ? C_ALARM_TEXT : tempHot;
-    uint16_t dropCol = isRedPhase ? C_ALARM_TEXT_DIM : humidity;
-    uint16_t humCol  = isRedPhase ? C_ALARM_TEXT : humidity;
-    uint16_t shine   = isRedPhase ? C_ALARM_TEXT : themeTint(humidity);
+    uint16_t icCol   = isRedPhase ? alarmTextDim : txtSub;
+    uint16_t mercCol = isRedPhase ? alarmText : tempHot;
+    uint16_t dropCol = isRedPhase ? alarmTextDim : humidity;
+    uint16_t humCol  = isRedPhase ? alarmText : humidity;
+    uint16_t shine   = isRedPhase ? alarmText : themeTint(humidity);
 
     int16_t x1, y1; uint16_t minLblW, maxLblW, hb, sufW;
     cv->setFont(&font9);
@@ -220,7 +222,7 @@ inline void DHT22_renderMinMax(GFXcanvas16* cv,
     /* ── Min row ── */
     drawMinMaxTempRow(cv, minLabel, LABEL_X, THERM_X, DOT_X,
         0, minT, isRedPhase,
-        txtSub, icCol, mercCol, tempOk, panelBg, font9);
+        txtSub, icCol, mercCol, tempOk, panelBg, alarmText, font9);
 
     {
         char hnum[8];
@@ -233,7 +235,7 @@ inline void DHT22_renderMinMax(GFXcanvas16* cv,
         cv->setTextColor(humCol);
         cv->setCursor(numX, 15);
         cv->print(hnum);
-        cv->setTextColor(isRedPhase ? C_ALARM_TEXT : txtSub);
+        cv->setTextColor(isRedPhase ? alarmText : txtSub);
         cv->setCursor(sufX, 15);
         cv->print(humSuffix);
     }
@@ -242,7 +244,7 @@ inline void DHT22_renderMinMax(GFXcanvas16* cv,
     /* ── Max row ── */
     drawMinMaxTempRow(cv, maxLabel, LABEL_X, THERM_X, DOT_X,
         22, maxT, isRedPhase,
-        txtSub, icCol, mercCol, tempOk, panelBg, font9);
+        txtSub, icCol, mercCol, tempOk, panelBg, alarmText, font9);
 
     {
         char hnum[8];
@@ -255,7 +257,7 @@ inline void DHT22_renderMinMax(GFXcanvas16* cv,
         cv->setTextColor(humCol);
         cv->setCursor(numX, 37);
         cv->print(hnum);
-        cv->setTextColor(isRedPhase ? C_ALARM_TEXT : txtSub);
+        cv->setTextColor(isRedPhase ? alarmText : txtSub);
         cv->setCursor(sufX, 37);
         cv->print(humSuffix);
     }

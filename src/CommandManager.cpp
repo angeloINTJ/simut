@@ -321,6 +321,13 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_TEL_SYNC:          return CLI_VALID_USER | CLI_VALID_PRIV;
  case CMD_TEL_DUMP:          return CLI_VALID_USER | CLI_VALID_PRIV;
  case CMD_TEL_RESET:         return CLI_VALID_PRIV;
+ /* Alarm line (v21) — segunda linha de telemetria.
+  * show é READONLY como show metrics: operador precisa ler a fila em
+  * qualquer modo EXEC (USER e PRIV). */
+ case CMD_ALARM_SHOW:        return CLI_VALID_READONLY;
+ case CMD_ALARM_DUMP:        return CLI_VALID_USER | CLI_VALID_PRIV;
+ case CMD_ALARM_SET:         return CLI_VALID_CONFIG;
+ case CMD_ALARM_FLUSH:       return CLI_VALID_PRIV;
  /* Privileged EXEC only */
  case CMD_WRITE_MEMORY:      return CLI_VALID_PRIV;
  case CMD_CLEAR_LOGS:        return CLI_VALID_PRIV;
@@ -529,6 +536,7 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_SET_TEL_INTERVAL,  "  tel interval <ms>");
   showIf(CMD_SET_TEL_CRYPTO,    "  tel crypto <on|off>");
   showIf(CMD_SET_TEL_MODE,      "  tel mode <json|csv|custom>");
+  showIf(CMD_ALARM_SET,         "  alarm set <on|off|mode|qmax|path|glob|line|sep> <v>");
   consolePrintln(pt ? "  --- Usuarios ---" : "  --- Users ---");
   showIf(CMD_USER_ADD,          "  user add <nome> <senha>");
   showIf(CMD_USER_DEL,          "  user del <nome>");
@@ -589,6 +597,12 @@ void CommandManager::printModeHelp( ) {
                            : "  tel sync              Force telemetry upload");
   showIf(CMD_TEL_DUMP, pt ? "  tel dump              Dump do payload"
                            : "  tel dump              Dump next payload");
+  showIf(CMD_ALARM_SHOW, pt ? "  alarm show            Estado da linha de alarmes"
+                            : "  alarm show            Alarm line status");
+  showIf(CMD_ALARM_DUMP, pt ? "  alarm dump            Dump do payload de alarmes"
+                            : "  alarm dump            Dump next alarm payload");
+  showIf(CMD_ALARM_FLUSH, pt ? "  alarm flush           Esvaziar fila de alarmes"
+                             : "  alarm flush           Clear alarm queue");
   if (_cliMode == CLI_MODE_PRIV_EXEC) {
    showIf(CMD_TEL_RESET, pt ? "  tel reset             Resetar cursor telemetria"
                              : "  tel reset             Reset telemetry cursor");
@@ -867,6 +881,21 @@ void CommandManager::renderMetrics( ) {
  (unsigned long)m.telTotalBytes);
  consolePrintf (pt ? " Ult. lat: %lu ms\n" : " Last lat: %lu ms\n",
  (unsigned long)m.telLastLatencyMs);
+
+ /* 2ª linha de telemetria (alarmes, v21) */
+ consolePrintln(pt ? " [ALARMES]" : " [ALARMS]");
+ consolePrintf (pt ? " Enfileirados: %lu\n" : " Queued: %lu\n",
+ (unsigned long)m.alarmQueued);
+ consolePrintf (pt ? " Enviados: %lu\n" : " Sent: %lu\n",
+ (unsigned long)m.alarmSent);
+ consolePrintf (pt ? " Confirmados: %lu\n" : " Acked: %lu\n",
+ (unsigned long)m.alarmAcked);
+ consolePrintf (pt ? " Falhas: %lu\n" : " Failed: %lu\n",
+ (unsigned long)m.alarmFailed);
+ consolePrintf (pt ? " Descartados: %lu\n" : " Dropped: %lu\n",
+ (unsigned long)m.alarmDropped);
+ consolePrintf (pt ? " Registros 'err': %lu\n" : " 'err' records: %lu\n",
+ (unsigned long)m.alarmErrRecords);
 
  consolePrintln(pt ? " [SENSORES]" : " [SENSORS]");
  consolePrintf (pt ? " Leituras OK: %lu\n" : " Reads OK: %lu\n",

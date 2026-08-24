@@ -58,11 +58,15 @@ struct ThemePalette {
  /* State colors — alarm/caution/selection chrome and the graph stamp.
  * Historically hardcoded in the render code; themeable since the
  * blind-spot sweep. Every text/bg pair here must hold contrast on
- * its own: alarmText/alarmTextDim sit on alarmBg, cautionBg and
- * selBg; alarmBorder sits on bgMain and cardBg. */
+ * its own: alarmText/alarmTextDim sit on alarmBg (amarelo brilhante do
+ * alarme de LIMITE — preto p/ contraste); selBg e cautionBg desenham o
+ * próprio texto claro (C_TEXT_MAIN / C_ALARM_ERR_TEXT); alarmBorder
+ * (vermelho) senta em bgMain e cardBg e anela o BOTÃO DE PÁGINA com
+ * alarmes em outras páginas — a moldura do painel em alarme alterna
+ * NORMAL ↔ amarelo (alarmBg) no limite / branco no erro. */
  uint16_t alarmBg; /**< Alarm fill: flashing panel/buttons, destructive confirm */
- uint16_t alarmText; /**< Primary text over alarmBg/cautionBg/selBg */
- uint16_t alarmTextDim; /**< Secondary text/icons over alarmBg/selBg */
+ uint16_t alarmText; /**< Primary text over alarmBg (preto no amarelo) */
+ uint16_t alarmTextDim; /**< Secondary text/icons over alarmBg */
  uint16_t alarmBorder; /**< Alarm outline: panel border, page-button ring */
  uint16_t cautionBg; /**< Caution action fill (silence button) */
  uint16_t selBg; /**< Top-panel background while selecting a slot */
@@ -111,6 +115,12 @@ void scanCustomThemes( );
 #define C_ALARM_TEXT_DIM currentTheme.alarmTextDim
 #define C_ALARM_BORDER currentTheme.alarmBorder
 #define C_CAUTION_BG currentTheme.cautionBg
+/* Alarme de ERRO de sensor (v21.1): cor FIXA, não é escolha de tema — um
+ * sensor em falha (sem comunicação / trocado) deve ser distinguível do
+ * alarme de limite à primeira vista. Fundo âmbar BRILHANTE + texto branco,
+ * como pedido ("aparelo brilhante e branco"). */
+#define C_ALARM_ERR_BG 0xFAE0   /* âmbar brilhante (#FFBF00) */
+#define C_ALARM_ERR_TEXT 0xFFFF /* branco */
 #define C_SEL_BG currentTheme.selBg
 #define C_STAMP_TEXT currentTheme.stampText
 

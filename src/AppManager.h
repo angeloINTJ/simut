@@ -137,6 +137,25 @@ private:
 
 
  bool _pendingAlarmDeactivate = false;
+ /** Slot da tela de ação cujo Desativar foi pedido — usado para o registro
+ * de ação (err_off/off) após a confirmação do PIN. */
+ int8_t _alarmDeactivateSlot = -1;
+
+ /* ── 2ª linha de telemetria (v21): detecção de borda de alarme/erro ──────
+  * Estado por slot, em RAM (~20 B). trip = canal fora do limite (borda já
+  * confirmada e enfileirada); cand = candidato visto em 1 ciclo (debounce de
+  * 2 ciclos, ~10 s); err = sensor em falha (sem debounce — a histerese de
+  * 3 erros já acontece no SensorManager). Zerado no boot; consumido por
+  * checkAlarmConditions( ). */
+ uint8_t _alarmTripBits[MAX_SENSORS] = {0};
+ uint8_t _alarmCandBits[MAX_SENSORS] = {0};
+ uint16_t _alarmErrBits = 0;
+ /** Borda confirmada → enfileira em _telemetryMgr->pushAlarm( ). */
+ void handleAlarmTelemetryEdges( );
+ /** Registro de AÇÃO (silenciar/desativar) na 2ª linha de telemetria — o
+ * o registro carrega o código do domínio (alarm* ou err*) com sufixo
+ * escolhido entre os dois códigos pelo estado de erro do slot. */
+ void pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCodeLim);
 
  /* Warn-once when processHistoryLogging skips saving due to missing
 	 * time reference (no NTP and no provisional). Resets automatically

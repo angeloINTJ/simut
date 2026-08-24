@@ -730,28 +730,46 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
  uint16_t panelBg = slotAlarmBg(slotIdx);
  bool isRedPhase = _alarmFlashPhase && isSlotAlarming(slotIdx) && !_alarmSilenced;
- uint16_t nameColor = isRedPhase ? C_ALARM_TEXT : C_SENSOR_NAME;
- uint16_t unitColor = isRedPhase ? C_ALARM_TEXT_DIM : C_TEXT_MAIN;
- if (isSlotAlarming(slotIdx)) forceNameRedraw = true;
+ /* Erro de sensor: mesmo flash do limite, mas âmbar brilhante + branco. */
+ bool isErrPhase = _alarmFlashPhase && isSlotErrAlarming(slotIdx) && !_alarmSilenced;
+ uint16_t alarmFg = isErrPhase ? C_ALARM_ERR_TEXT : C_ALARM_TEXT;
+ uint16_t alarmFgDim = isErrPhase ? C_ALARM_ERR_TEXT : C_ALARM_TEXT_DIM;
+ uint16_t nameColor = isRedPhase ? alarmFg : C_SENSOR_NAME;
+ uint16_t unitColor = isRedPhase ? alarmFgDim : C_TEXT_MAIN;
+ if (isSlotAlarming(slotIdx) || isSlotErrAlarming(slotIdx)) forceNameRedraw = true;
 
  /* Top panel in interactive (selection) mode: state-override chrome.
- * Reuses the alarm TEXT pair over its own selBg — themes must keep
- * alarmText readable on both alarmBg and selBg. */
+ * Usa o BRANCO FIXO (C_ALARM_ERR_TEXT = 0xFFFF) sobre selBg — o alarmText
+ * virou PRETO para o fundo amarelo do alarme de limite e preto sobre selBg
+ * escuro seria ilegível; C_TEXT_MAIN de temas claros também escurece sobre
+ * o mesmo selBg. O branco garante contraste em todos os temas (todos os
+ * selBg shipped são escuros). */
  bool isSelecting = (&panel == &_topPanel && !_topPanel.fixed);
  if (isSelecting) {
  panelBg = C_SEL_BG;
  isRedPhase = true;  /* mono text rendering like alarm mode */
- nameColor = C_ALARM_TEXT;
- unitColor = C_ALARM_TEXT;
+ alarmFg = C_ALARM_ERR_TEXT;
+ alarmFgDim = C_ALARM_ERR_TEXT;
+ nameColor = C_ALARM_ERR_TEXT;
+ unitColor = C_ALARM_ERR_TEXT;
  }
 
  /* Geometry lives at the top of this file: drawInterfaceFixed( ) fills the
   * complement of these rectangles, so the two must not drift apart. */
 
 
- bool slotAlarm = isSlotAlarming(slotIdx) && _alarmFlashPhase;
- uint16_t borderColor = slotAlarm ? C_ALARM_BORDER : C_ACCENT_HIGH;
- if (isSelecting) borderColor = C_TEXT_OFF;
+ /* Borda (moldura) do alarme: ALTERNA com o flash — NORMAL (accentHigh)
+ * ↔ cor do alarme na fase acesa (AMARELO no limite, branco no erro).
+ * Também vale silenciado (120 s): só moldura + botão do slot alternam —
+ * o fundo do painel fica normal (slotAlarmBg devolve C_CARD_BG) e o
+ * texto/idéia normais (isRedPhase/isErrPhase já são gateados). */
+ bool limAlarmActive = isSlotAlarming(slotIdx);
+ bool errAlarmActive = isSlotErrAlarming(slotIdx);
+ uint16_t borderColor = C_ACCENT_HIGH;
+ if (errAlarmActive) borderColor = _alarmFlashPhase ? C_ALARM_ERR_TEXT : C_ACCENT_HIGH;
+ else if (limAlarmActive) borderColor = _alarmFlashPhase ? C_ALARM_BG : C_ACCENT_HIGH;
+ /* Modo seleção: moldura BRANCA (todos os elementos brancos no cinza). */
+ if (isSelecting) borderColor = C_ALARM_ERR_TEXT;
 
  if (panel.showMinMax) {
  /* Track mode transition */
@@ -762,7 +780,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  * Slot has no humidity.
  * ============================================================= */
 
- uint16_t txtSub = isRedPhase ? C_ALARM_TEXT_DIM : C_TEXT_MAIN;
+ uint16_t txtSub = isRedPhase ? alarmFgDim : C_TEXT_MAIN;
 
  /* Blit 1: Name (20px) */
  {
@@ -791,6 +809,7 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  sensorRenderMinMax(_driver.canvas, type,
      panel.minTemp, panel.maxTemp, panel.minHum, panel.maxHum,
      isValid, CARD_W, isRedPhase, panelBg,
+     alarmFg, alarmFgDim,
      simutFont9pt,
      txtSub, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF,
      C_ACCENT_HIGH, C_BTN_TEXT_ACTIVE,
@@ -859,18 +878,26 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
  _driver.canvas->fillScreen(panelBg);
 
  if (!isValid) {
- _driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextSize(1);
- _driver.canvas->setTextColor(isRedPhase ? C_ALARM_TEXT : C_TEMP_HOT);
+ /* Sensor em erro: "ERROR" no MESMO tamanho dos números de temperatura
+  * (24pt, baseline 35). Cor branca durante QUALQUER alarme ativo — limite
+  * (painel vermelho) ou erro (painel âmbar). Antes usava isRedPhase, que só
+  * cobre a máscara de LIMITE — no painel âmbar as letras ficavam vermelhas. */
+ _driver.canvas->setFont(&simutFont24pt); _driver.canvas->setTextSize(1);
+ _driver.canvas->setTextColor((isRedPhase || isErrPhase) ? alarmFg : C_TEMP_HOT);
  int16_t ex1, ey1; uint16_t ew, eh;
  _driver.canvas->getTextBounds(tr(TR_ERROR_LBL), 0, 0, &ex1, &ey1, &ew, &eh);
- _driver.canvas->setCursor((CARD_W - (int)ew) / 2, 28);
+ _driver.canvas->setCursor((CARD_W - (int)ew) / 2, 35);
  _driver.canvas->print(tr(TR_ERROR_LBL));
+ maskStripCorners(_driver.canvas, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
+ blitCanvas(_driver.canvas, CARD_X, cardY + 28, CARD_W, 40);
+ goto _slot_bottom_fill;
  } else {
  /* No fillScreen here: the one above already cleared the canvas to panelBg and
   * nothing has drawn into it since — this was a second identical 14,400-pixel
   * fill, ~0.8 ms per panel thrown away on every redraw. */
  sensorRenderPanel(_driver.canvas, type, t, h, p, isValid, CARD_W, true,
                    isRedPhase, panelBg,
+                   alarmFg, alarmFgDim,
                    simutFont24pt, simutFont12pt, simutFont9pt,
                    C_TEXT_SUB, C_TEMP_OK, C_TEMP_HOT, C_HUMIDITY, C_TEXT_OFF, tr(TR_HUM_SUFFIX));
  maskStripCorners(_driver.canvas, 28, 40, CARD_W, CARD_H, CARD_R, C_BG_MAIN, borderColor);
@@ -917,12 +944,12 @@ void DisplayManager::drawSlotPanel(float t, float h, SensorType type, bool isVal
 
  _driver.canvas->setFont(&simutFont24pt);
  if (isNan) {
- _driver.canvas->setTextColor(isRedPhase ? C_ALARM_TEXT_DIM : C_TEXT_OFF);
+ _driver.canvas->setTextColor(isRedPhase ? alarmFgDim : C_TEXT_OFF);
  _driver.canvas->setCursor(iconX + iconW + iconGap, 35);
  _driver.canvas->print("--.-");
  unitX = iconX + iconW + iconGap + (int)intW + unitGap;
  } else {
- _driver.canvas->setTextColor(isRedPhase ? C_ALARM_TEXT : C_TEMP_OK);
+ _driver.canvas->setTextColor(isRedPhase ? alarmFg : C_TEMP_OK);
  int numCursorX = numAnchorX - (int)intW;
  _driver.canvas->setCursor(numCursorX, 35);
  _driver.canvas->print(intPart);
@@ -1040,10 +1067,10 @@ void DisplayManager::drawBottomButtons(int selectedIdx) {
  if (!_sysConfigPtr) { blitCanvas(_driver.canvas, 0, BTNBAR_Y, DASH_W, BTNBAR_H); return; }
  SystemConfig &cfg = *_sysConfigPtr;
  bool hasAlarmsOnOtherPages = false;
- if (paging && _alarmSlotMask != 0) {
+ if (paging && (_alarmSlotMask != 0 || _alarmErrMask != 0)) {
  for (int s = 0; s < MAX_SENSORS; s++) {
  if (!cfg.sensors[s].active) continue;
- if (!isSlotAlarming(s)) continue;
+ if (!isSlotAlarming(s) && !isSlotErrAlarming(s)) continue;
  bool inThisPage = false;
  for (int i = 0; i < n; i++) {
  if (btns[i].kind == 0 && btns[i].slotId == s) { inThisPage = true; break; }
@@ -1060,9 +1087,13 @@ void DisplayManager::drawBottomButtons(int selectedIdx) {
  if (b.kind == 0) { /* SLOT */
  int realIdx = b.slotId;
  bool isActive = (realIdx == selectedIdx);
+ bool btnErr = _alarmFlashPhase && isSlotErrAlarming(realIdx);
  bool btnAlarm = _alarmFlashPhase && isSlotAlarming(realIdx);
  uint16_t bgColor, txtColor;
- if (btnAlarm) {
+ if (btnErr) {
+ bgColor = C_ALARM_ERR_BG;
+ txtColor = C_ALARM_ERR_TEXT;
+ } else if (btnAlarm) {
  bgColor = C_ALARM_BG;
  txtColor = C_ALARM_TEXT;
  } else if (isActive) {
@@ -1070,7 +1101,7 @@ void DisplayManager::drawBottomButtons(int selectedIdx) {
  txtColor = C_BTN_TEXT_ACTIVE;
  } else {
  bgColor = C_CARD_BG;
- txtColor = isSlotAlarming(realIdx) ? C_TEMP_HOT : C_BTN_TEXT;
+ txtColor = (isSlotAlarming(realIdx) || isSlotErrAlarming(realIdx)) ? C_TEMP_HOT : C_BTN_TEXT;
  }
  _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, bgColor);
  _driver.canvas->setFont(&simutFont12pt); _driver.canvas->setTextSize(1); _driver.canvas->setTextColor(txtColor);
@@ -1090,7 +1121,9 @@ void DisplayManager::drawBottomButtons(int selectedIdx) {
 
  } else { /* PAGE */
  uint16_t pagTxtCol = C_BTN_TEXT;
- if (hasAlarmsOnOtherPages && _alarmFlashPhase) {
+ /* Silenciado (120 s): SÓ a moldura do painel e o botão do slot alternam —
+ * o botão de página fica estático (anel vermelho, sem piscar). */
+ if (hasAlarmsOnOtherPages && _alarmFlashPhase && !_alarmSilenced) {
  _driver.canvas->fillRoundRect(x, 0, btnW, 40, 12, C_ALARM_BG);
  pagTxtCol = C_ALARM_TEXT;
  } else if (hasAlarmsOnOtherPages) {

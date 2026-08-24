@@ -34,6 +34,14 @@ struct SystemMetrics {
  uint32_t telTotalBytes = 0;
  uint32_t telLastLatencyMs = 0;
 
+ /* Telemetry — 2ª linha (alarmes, v21) */
+ uint32_t alarmQueued = 0;     /**< registros aceitos na fila desde o boot */
+ uint32_t alarmSent = 0;       /**< registros enviados (payload aceito) */
+ uint32_t alarmAcked = 0;      /**< confirmações de recebimento recebidas */
+ uint32_t alarmFailed = 0;     /**< ciclos de envio de alarme falhos */
+ uint32_t alarmDropped = 0;    /**< registros recusados por estouro de fila */
+ uint32_t alarmErrRecords = 0; /**< registros gerados com sensor em falha (err) */
+
  /* Sensors (aggregate, not per slot) */
  uint32_t sensorReadsOk = 0;
  uint32_t sensorReadsErr = 0;

@@ -196,6 +196,36 @@ static_assert(sizeof(CliConfigData) == 2, "CliConfigData must be 2 bytes!");
 #define CLI_CONFIG_MAGIC 0xDB
 #define CLI_CONFIG_OFFSET 22 /* sizeof(TouchCalData)+sizeof(SoundConfigData)+sizeof(DisplayOffsetData) */
 
+/* ────────────────────────────────────────────────────────────────────────
+ * Segunda linha de telemetria — alarmes (v21)
+ * ──────────────────────────────────────────────────────────────────────── */
+constexpr uint8_t ALARM_QUEUE_MIN = 1;
+constexpr uint8_t ALARM_QUEUE_DEFAULT = 32;
+constexpr uint8_t ALARM_QUEUE_MAX = 64;
+
+/**
+ * Configuração persistida da linha de telemetria de alarmes (segunda linha).
+ *
+ * @details Só o FORMATO do payload é próprio desta linha: transporte,
+ * servidor, credenciais e criptografia são herdados da telemetria
+ * convencional (telTransport/telServer/telPort/telApiKey/telEncryption).
+ *
+ * path vazio significa o derivado (telPath + "/alarm" no HTTP); um valor
+ * não vazio é usado como está. O template de linha aceita os tokens
+ * {TS} {ID} {HWID} {SLOT} {CH} {VAL} {ALARM} {ERR} {SEQ}; o template global aceita
+ * {DEV} {MAC} {DATA} — ver TelemetryManager::formatLineAlarmBuf.
+ */
+struct __attribute__((packed)) AlarmTelConfig {
+	bool enabled;                  /**< master switch da 2ª linha (default OFF) */
+	uint8_t mode;                  /**< TelemetryMode: 0 JSON / 1 CSV / 2 custom */
+	uint8_t queueMax;              /**< capacidade da fila em RAM, 1..64 (default 32) */
+	char path[32];                 /**< "" = telPath + "/alarm"; senão usado verbatim */
+	char globalTemplate[256];
+	char lineTemplate[512];
+	char lineSeparator[8];
+};
+static_assert(sizeof(AlarmTelConfig) == 811, "AlarmTelConfig v21 must be 811 bytes (packed)");
+
 /**
  * Master system configuration — persisted to Flash as a binary blob
  * with CRC32 integrity check and dual-bank backup.
@@ -267,12 +297,25 @@ struct __attribute__((packed)) SystemConfig {
  * [56..63] SyslogConfigData (8 B — syslog RFC 5424/UDP; reserved[] now FULL)
  */
  uint8_t reserved[64];
+
+ /* v21 — segunda linha de telemetria (alarmes). TAIL-ONLY: fica DEPOIS de
+  * reserved[] e é o último campo do struct, de propósito. O leitor de
+  * migração v20→v21 (StorageManager::attemptLoad) depende de
+  * offsetof(SystemConfig, alarmTel) == sizeof(SystemConfig) na v20 — todo
+  * byte anterior mantém o offset que tinha, então um blob v20 lido direto
+  * para a cabeça deste struct migra sem traduzir nada. */
+ AlarmTelConfig alarmTel;
 };
 /* Locks SystemConfig layout. Adding a field without
  * CONFIG_VERSION bump + migration = corrupts existing flash; the assert forces
  * the author to intentionally touch attemptLoad. */
 static_assert(sizeof(SystemConfig) > 0,
  "Empty SystemConfig? Revert — persistent flash schema needs stability");
+/* Tail-append invariant (v21): reserved[] encerra o layout v20; alarmTel só
+ * pode vir depois. Se isto quebrar, a migração v20→v21 lerá blobs antigos
+ * com offsets errados em silêncio. */
+static_assert(offsetof(SystemConfig, reserved) < offsetof(SystemConfig, alarmTel),
+ "alarmTel must stay AFTER reserved[] — the v20 migration depends on tail-append");
 
 /** Overlay in reserved[24..25]: web server configuration. */
 struct __attribute__((packed)) WebConfigData {

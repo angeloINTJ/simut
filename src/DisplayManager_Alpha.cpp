@@ -179,7 +179,8 @@ void DisplayManager::showAlarmAction(int8_t){}
 void DisplayManager::drawAlarmAction( ){}
 void DisplayManager::setAlarmState(uint16_t,int8_t){}
 void DisplayManager::setAlarmSilenced(bool,uint32_t){}
-void DisplayManager::setAlarmDeactivated(bool){}
+void DisplayManager::setAlarmErrMuted(int8_t,bool){}
+bool DisplayManager::isAlarmErrMuted(int8_t)const{return false;}
 GFXcanvas16* DisplayManager::beginScreenRender( ){return nullptr;}
 void DisplayManager::commitScreenStrip(int16_t){}
 void DisplayManager::endScreenRender( ){}

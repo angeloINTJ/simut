@@ -89,8 +89,13 @@ struct Core1FlashPause {
 /* 20, not 18: the jump is a marker. 17 was the last schema with a migration
  * path into it, and 2.0.0 accepts nothing older than itself, so a version in
  * 18..19 would look like a routine step that some future reader might try to
- * migrate from. There is no such path and there is not meant to be one. */
-const uint16_t CONFIG_VERSION = 20;
+ * migrate from. There is no such path and there is not meant to be one.
+ *
+ * 21 (v2.4): appends AlarmTelConfig — the second telemetry line (alarms).
+ * Tail-append only: every byte a v20 blob held keeps its offset, so the
+ * v20→v21 reader (attemptLoad) migrates without translating anything and
+ * without the 2.0.0-style schema break. See SystemDefs_Records.h. */
+const uint16_t CONFIG_VERSION = 21;
 
 /* -------------------------------------------------------------------------- */
 /* Legacy UserAccount layout (v14 and earlier) — used ONLY by the */
@@ -525,6 +530,12 @@ void StorageManager::loadDefaults( ) {
  safeCopy(_currentConfig.telLineTemplate, "{\"ts\":{TS},\"t0_ID\":{t0},\"u0_ID\":{u0}}", sizeof(_currentConfig.telLineTemplate));
  safeCopy(_currentConfig.telLineSeparator, ",", sizeof(_currentConfig.telLineSeparator));
 
+ /* v21 — segunda linha de telemetria (alarmes). Defaults de fábrica; a
+  * migração v20→v21 usa a mesma função (applyAlarmTelDefaults). Desligada
+  * por padrão: enviar para <telPath>/alarm num servidor que não conhece o
+  * endpoint só produziria 404s e estouro de fila. */
+ applyAlarmTelDefaults(_currentConfig.alarmTel);
+
  _currentConfig.telTransport = TEL_TRANSPORT_HTTP;
  safeCopy(_currentConfig.mqttTopic, "simut/data", sizeof(_currentConfig.mqttTopic));
  safeCopy(_currentConfig.mqttUser, "", sizeof(_currentConfig.mqttUser));
@@ -583,6 +594,25 @@ void StorageManager::loadDefaults( ) {
  }
 }
 
+/* v21 — defaults da segunda linha de telemetria (alarmes). Compartilhada por
+ * loadDefaults( ) e pela migração v20→v21 para que os dois caminhos nunca
+ * discordem. Desligada por padrão: um servidor que não conhece o endpoint de
+ * alarmes só geraria 404 e estouro de fila. */
+void StorageManager::applyAlarmTelDefaults(AlarmTelConfig& a) {
+ memset(&a, 0, sizeof(a));
+ a.enabled = false;
+ a.mode = TEL_MODE_JSON;
+ a.queueMax = ALARM_QUEUE_DEFAULT;
+ safeCopy(a.path, "", sizeof(a.path));
+ safeCopy(a.globalTemplate, "{\"dev\":\"{DEV}\",\"mac\":\"{MAC}\",\"alarms\":[{DATA}]}", sizeof(a.globalTemplate));
+ /* Tokens {VAL}/{ERR}/{SEQ} (aliases minúsculos {val}/{err}/{seq} idem).
+  * A forma composta "<chave>":{<token>} remove a chave inteira quando o
+  * token está ausente — {val} some no registro de erro, {err} some no
+  * registro normal — ver TelemetryManager::formatLineAlarmBuf. */
+ safeCopy(a.lineTemplate, "{\"ts\":{TS},\"id\":\"{ID}\",\"val\":{val},\"alarm\":{alarm},\"err\":{err},\"seq\":{seq}}", sizeof(a.lineTemplate));
+ safeCopy(a.lineSeparator, ",", sizeof(a.lineSeparator));
+}
+
 uint32_t StorageManager::calculateCRC32(const uint8_t *data, size_t length) {
  uint32_t crc = 0xFFFFFFFF;
  for (size_t i = 0; i < length; i++) {
@@ -617,6 +647,31 @@ bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg) {
  return true;
 }
 
+/* v20→v21. O blob v20 termina exatamente onde começa alarmTel — todo byte
+ * anterior mantém o offset que tinha na v20 (tail-append travado por
+ * static_assert), então ler o blob para a cabeça deste struct e preencher a
+ * cauda com defaults É a migração inteira. Nada é traduzido, nada é inferido;
+ * o CRC cobre só os bytes que existiam. Os campos sensíveis usam os mesmos
+ * offsets nas duas versões, então a mesma deofuscação serve. */
+bool StorageManager::loadMigrateV20Blob(File& f, SystemConfig& outCfg) {
+ memset(&outCfg, 0, sizeof(outCfg));
+ const size_t v20Struct = offsetof(SystemConfig, alarmTel);
+ if (f.read((uint8_t*)&outCfg, v20Struct) != v20Struct) return false;
+ uint32_t readCrc = 0;
+ size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
+ if (outCfg.magic != CONFIG_MAGIC) return false;
+ if (outCfg.version != 20) return false;
+ if (crcRead == sizeof(readCrc)) {
+ uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, v20Struct);
+ if (calcCrc != readCrc) return false;
+ }
+ obfuscateSensitiveFields(outCfg);
+ applyAlarmTelDefaults(outCfg.alarmTel);
+ outCfg.version = CONFIG_VERSION;
+ _migratedFromV20 = true;
+ return true;
+}
+
 bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  File f = LittleFS.open(path, "r");
  if (!f) return false;
@@ -641,6 +696,16 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
  const size_t expected = sizeof(SystemConfig) + sizeof(uint32_t);
  if (fileSize == expected) {
  bool ok = loadCurrentBlob(f, outCfg);
+ f.close( );
+ return ok;
+ }
+
+ /* v20→v21: tail-append migration. Only this ONE previous schema has a
+  * path; anything else (older or newer) is rejected exactly as before —
+  * the size mismatch is reported via takeRejectedConfigSize( ). */
+ const size_t v20File = offsetof(SystemConfig, alarmTel) + sizeof(uint32_t);
+ if (fileSize == v20File) {
+ bool ok = loadMigrateV20Blob(f, outCfg);
  f.close( );
  return ok;
  }
@@ -700,7 +765,11 @@ bool StorageManager::loadConfiguration( ) {
  LOG_CODE(LOG_WARN, "STO", SYS_STORAGE_RECOVER, 0, TRL("Primary config corrupt, recovered from backup"));
  }
 
- if (fromBackup) {
+ /* v20→v21: grava o schema novo (com os defaults de alarmTel) uma única vez,
+  * para que o próximo boot leia no formato atual. Mesma janela do fromBackup:
+  * o logger ainda não existe, então a razão fica para o caller reportar. */
+ if (fromBackup || _migratedFromV20) {
+ _migratedFromV20 = false;
  saveConfiguration( );
  }
  return true;

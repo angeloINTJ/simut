@@ -234,7 +234,7 @@ Cada byte tirado da `.bss` vira um byte de heap. Não há desperdício de arredo
 | 16.403 | `ram_heap` | lwIP — `MEM_SIZE` 16 KB |
 | 10.240 | `AppManager::preloadMinMax()::s_batchVals` | scratch de histórico, **só usado no boot** |
 | 7.400 | `hci_connection_storage` | **BTstack — nunca usado** |
-| 4.096 | `ota::s_applier_buf` | buffer do aplicador de OTA |
+| 8.192 | `ota::s_applier_buf` | buffer do aplicador de OTA — v21: 2 setores (snapshot da config com AlarmTelConfig) |
 | 2.624 | `AppManager::renderGraphOptimized(...)::pkg` | scratch de histórico |
 | 2.624 | `AppManager::openStatsScreen(int)::pkg` | scratch de histórico |
 | 2.504 | `cyw43_state` | driver do rádio |
@@ -248,7 +248,7 @@ Cada byte tirado da `.bss` vira um byte de heap. Não há desperdício de arredo
 | Pilha lwIP + WiFi (pools, `ram_heap`, `cyw43_state`, DNS, USB) | 43.290 B |
 | **Scratch de decodificação de histórico** | **43.392 B** |
 | **BTstack** | **15.617 B** |
-| OTA (`s_applier_buf` + `s_tmp_pool`) | 6.144 B |
+| OTA (`s_applier_buf` + `s_tmp_pool`) | 10.240 B |
 | `_licenseBuf` (duplica o @LICENSE do pack de idioma) | 2.048 B |
 | Restante (core, temas, display, sensores…) | ~13.000 B |
 
@@ -947,7 +947,7 @@ SRAM principal ................................ 262.144 B  (256 KB)
 │  ├─ scratch de histórico (.bss) .............. 43.392 B  ← 14.592 usados só no boot
 │  ├─ lwIP + WiFi (pools, ram_heap, cyw43) ..... 43.290 B
 │  ├─ BTstack .................................. 15.617 B  ← 100 % desperdício
-│  ├─ OTA (applier_buf + tmp_pool) .............. 6.144 B
+│  ├─ OTA (applier_buf + tmp_pool) ............. 10.240 B
 │  ├─ _licenseBuf (duplicado) ................... 2.048 B
 │  └─ demais (core, temas, display, sensores) .. ~21.000 B
 │

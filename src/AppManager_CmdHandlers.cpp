@@ -199,6 +199,10 @@ void AppManager::cmdHandleSensorField(const CliDemand& cmd, SystemConfig& cfg, b
  return;
  }
  r.alarmsActive = (v == "on");
+ /* Reativar o slot limpa o MUTE DE ERRO daquele sensor — o âmbar volta a
+ * reportar (só este slot; os demais não são tocados). O limite e o erro
+ * são independentes: desligar o alarme não mexe no mute de erro e vice-versa. */
+ if (v == "on") _displayMgr->setAlarmErrMuted(cmd.intVal1, false);
  _cmdMgr->printSuccess((pt ? "Alarme slot " : "Alarm slot ") + String(cmd.intVal1) + ": " + v);
  changed = true;
  return;

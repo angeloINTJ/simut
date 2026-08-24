@@ -26,12 +26,14 @@ ThemePalette currentTheme;
 /* Trailing state-color block (alarmBg, alarmText, alarmTextDim, alarmBorder,
  * cautionBg, selBg, stampText). Two stock variants: the only difference is
  * stampText, which needs a darker ochre to stay readable on light bgMain.
+ * Alarm de LIMITE: fundo amarelo brilhante + texto preto (contraste) e
+ * borda vermelha; erro de sensor mantém o âmbar próprio (C_ALARM_ERR_*).
  * Themes whose identity collides with the stock red (e.g. red/green fiction
  * palettes) spell the block out explicitly instead. */
 #define THM_STATE_DARK \
- RGB565(180, 30, 30), RGB565(255, 255, 255), RGB565(220, 200, 200), RGB565(255, 60, 60), RGB565(180, 90, 0), RGB565(50, 50, 55), RGB565(190, 170, 60)
+ RGB565(255, 230, 0), RGB565(0, 0, 0), RGB565(70, 70, 75), RGB565(255, 60, 60), RGB565(180, 90, 0), RGB565(50, 50, 55), RGB565(190, 170, 60)
 #define THM_STATE_LIGHT \
- RGB565(180, 30, 30), RGB565(255, 255, 255), RGB565(220, 200, 200), RGB565(255, 60, 60), RGB565(180, 90, 0), RGB565(50, 50, 55), RGB565(135, 100, 10)
+ RGB565(255, 230, 0), RGB565(0, 0, 0), RGB565(70, 70, 75), RGB565(255, 60, 60), RGB565(180, 90, 0), RGB565(50, 50, 55), RGB565(135, 100, 10)
 
 /**
  * Theme palette array. simut_def is always at index 0. Optional themes
@@ -342,9 +344,9 @@ static bool parseThm(const char* path, CustomTheme* dest) {
  dest->pal.humidity = RGB565(0, 150, 255);
  /* State colors: stock values = the literals the render code used
  * before these were themeable — old .thm files keep today's look. */
- dest->pal.alarmBg = RGB565(180, 30, 30);
- dest->pal.alarmText = RGB565(255, 255, 255);
- dest->pal.alarmTextDim = RGB565(220, 200, 200);
+ dest->pal.alarmBg = RGB565(255, 230, 0);
+ dest->pal.alarmText = RGB565(0, 0, 0);
+ dest->pal.alarmTextDim = RGB565(70, 70, 75);
  dest->pal.alarmBorder = RGB565(255, 60, 60);
  dest->pal.cautionBg = RGB565(180, 90, 0);
  dest->pal.selBg = RGB565(50, 50, 55);

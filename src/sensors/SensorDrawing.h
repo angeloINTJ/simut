@@ -171,14 +171,14 @@ inline void drawMinMaxTempRow(GFXcanvas16* cv,
     const char* label, int16_t labelX, int16_t thermX, int16_t dotX,
     int16_t baseY, float value, bool isRedPhase,
     uint16_t txtSub, uint16_t icCol, uint16_t mercCol,
-    uint16_t tempOk, uint16_t panelBg,
+    uint16_t tempOk, uint16_t panelBg, uint16_t alarmText,
     const GFXfont& font9) {
     cv->setFont(&font9); cv->setTextSize(1);
     cv->setTextColor(txtSub);
     cv->setCursor(labelX, baseY + 15);
     cv->print(label);
     drawThermometerMini(cv, thermX, baseY, icCol, panelBg, mercCol);
-    uint16_t tCol = isRedPhase ? C_ALARM_TEXT : tempOk;
+    uint16_t tCol = isRedPhase ? alarmText : tempOk;
     int16_t endX = drawTempValue1D(cv, dotX, baseY + 15, value, tCol, font9);
     drawUnitDegC_Mini(cv, endX, baseY, txtSub, font9);
 }

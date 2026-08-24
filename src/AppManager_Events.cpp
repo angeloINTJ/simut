@@ -16,8 +16,25 @@
 #include "SoundManager.h"
 #include "StorageManager.h"
 #include "SystemDefs.h"
+#include "TelemetryManager.h" /* pushAlarm + AlarmErrCode (AlarmQueue.h) */
 #include "Themes.h"
 #include <time.h>
+
+
+void AppManager::pushAlarmAction(int8_t slot, uint8_t errCodeErr, uint8_t errCodeLim) {
+	if (slot < 0 || slot >= MAX_SENSORS) return;
+	SystemConfig &cfg = _storageMgr->getConfig( );
+	if (!cfg.sensors[slot].active) return;
+	/* canal = primeiro que o tipo reporta (mesma convenção da borda de erro) */
+	uint8_t firstCh = CH_TEMP;
+	for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+		if (sensorHasChannel((SensorType)cfg.sensors[slot].sensorType, c)) { firstCh = c; break; }
+	}
+	/* erro de sensor tem prioridade sobre limite (mesma regra do display) */
+	const bool errState = _displayMgr->isSlotErrAlarming(slot);
+	_telemetryMgr->pushAlarm((uint8_t)slot, firstCh, NAN,
+	                         errState ? errCodeErr : errCodeLim);
+}
 
 
 void AppManager::core0Yield( ) {
@@ -248,14 +265,35 @@ void AppManager::core0Yield( ) {
  _pendingAlarmDeactivate = false;
 
  SystemConfig &cfg = _storageMgr->getConfig( );
- for (int i = 0; i < MAX_SENSORS; i++) {
- cfg.sensors[i].alarmsActive = false;
+ /* Desativação POR SLOT E POR DOMÍNIO (RAM only): o domínio ATIVO do slot
+ * da tela de ação é que é desligado — se o sensor está em ERRO, muta só o
+ * erro (o LIMITE permanece armado e dispara se o valor sair da faixa após
+ * o sensor se reestabelecer); se está em LIMITE, desliga só o limite (o
+ * erro continua reportando). Um domínio é independente do outro. */
+ if (_alarmDeactivateSlot >= 0 && _alarmDeactivateSlot < MAX_SENSORS) {
+ const bool errNow = _displayMgr->isSlotErrAlarming(_alarmDeactivateSlot);
+ if (errNow) {
+ _displayMgr->setAlarmErrMuted(_alarmDeactivateSlot, true);
+ LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, _alarmDeactivateSlot,
+ "erro mutado (limite permanece)");
+ } else {
+ cfg.sensors[_alarmDeactivateSlot].alarmsActive = false;
+ LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, _alarmDeactivateSlot,
+ "limite desligado (erro permanece)");
+ }
  }
 
  _soundMgr->stopAlarm( );
  _displayMgr->setAlarmState(0, -1);
+ /* limpa também o mask de ERRO: sem isso o âmbar ficava preso — o stopAlarm
+ * derruba isAlarming() e o else do checkAlarmConditions (que limparia o
+ * display) só roda com o som ativo ou silenciado. */
+ _displayMgr->setAlarmErrState(0);
  _displayMgr->setAlarmSilenced(false, 0);
- _displayMgr->setAlarmDeactivated(true);
+ /* 2ª linha de telemetria: registra a AÇÃO de desativar — o {err} do
+ * registro carrega "err_off" (erro) ou "off" (limite). */
+ pushAlarmAction(_alarmDeactivateSlot, ALARM_ERR_ERR_OFF, ALARM_ERR_ALARM_OFF);
+ _alarmDeactivateSlot = -1;
  _displayMgr->forceDashboard( );
  LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_DEACTIVATED, 0, "");
  } else if (_storageMgr->mustChangePin( )) {
@@ -430,6 +468,9 @@ void AppManager::core0Yield( ) {
  uint32_t silenceSec = (uiEv.param > 0) ? uiEv.param : 120;
  _soundMgr->stopAlarm( );
  _displayMgr->setAlarmSilenced(true, millis( ) + (silenceSec * 1000));
+ /* 2ª linha de telemetria: registra a AÇÃO de silenciar — o {err} do
+ * registro carrega "err_sil" (erro de sensor) ou "sil" (limite). */
+ pushAlarmAction((int8_t)uiEv.id, ALARM_ERR_ERR_SIL, ALARM_ERR_ALARM_SIL);
  _displayMgr->forceDashboard( );
  LOG_CODE(LOG_WARN, "APP", APP_UI_ALARM_SILENCED, 120, "");
  }
@@ -438,6 +479,7 @@ void AppManager::core0Yield( ) {
  else if (uiEv.type == UiEvent::EVT_ALARM_DEACTIVATE) {
 
  _pendingAlarmDeactivate = true;
+ _alarmDeactivateSlot = (int8_t)uiEv.id;
  SystemConfig &cfg = _storageMgr->getConfig( );
  _displayMgr->showAuthScreen(String(cfg.displayPin));
  }

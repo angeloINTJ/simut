@@ -535,25 +535,76 @@ void AppManager::checkAlarmConditions( ) {
  }
  }
 
+ /* ── Erro de sensor (sem comunicação / sensor trocado): disparo PRÓPRIO ──
+  * Independente de alarmsActive — uma falha não é um limite desligável.
+  * hardwareMismatch (DS18B20 trocado) já força inErrorState no
+  * SensorManager, então a condição única cobre os dois. O painel pisca
+  * idêntico ao alarme de limite, mas em âmbar brilhante + branco
+  * (C_ALARM_ERR_*). */
+ uint16_t errMask = 0;
+ int8_t firstErrSlot = -1;
+ for (int i = 0; i < MAX_SENSORS; i++) {
+ if (!cfg.sensors[i].active) continue;
+
+ /* Restabelecimento (v21): sensor voltou do erro → REGENERA o alarme de
+ * erro do slot (limpa o mute). Se ele falhar de novo, o alarme de erro
+ * dispara de novo — display e telemetria — INDEPENDENTE do limite. O mute
+ * só segura a falha ATUAL; o próximo episódio volta a alarmar. */
+ const RuntimeSensor* rs = nullptr;
+ for (const auto &s : sensors) {
+ if (s.config.pins[0] == cfg.sensors[i].pins[0]) { rs = &s; break; }
+ }
+ const bool errNow = (rs != nullptr) && (rs->inErrorState || rs->hardwareMismatch);
+ if (!errNow) {
+ if (_displayMgr->isAlarmErrMuted(i)) {
+ _displayMgr->setAlarmErrMuted(i, false);
+ LOG_CODE(LOG_INFO, "APP", APP_ALARM_CLEARED, i,
+ "Error recovered - error alarm re-armed");
+ }
+ continue;
+ }
+
+ /* ERRO mutado por slot (desativar a falha via tela de ação): não
+ * relatcha no display ENQUANTO a falha persistir — INDEPENDENTE do
+ * limite, que continua armado (alarmsActive intacto). O mute é limpo
+ * pelo restabelecimento (acima) ou por reativar o alarme do slot
+ * (CLI/web). */
+ if (_displayMgr->isAlarmErrMuted(i)) continue;
+
+ errMask |= (1 << i);
+ if (firstErrSlot < 0) firstErrSlot = i;
+ }
+ const bool anyErr = (errMask != 0);
+ const bool triggerAny = anyAlarm || anyErr;
+
 
  bool silenced = _displayMgr->isAlarmSilenced( );
 
- if (anyAlarm && !_soundMgr->isAlarming( ) && !silenced) {
+ if (triggerAny && !_soundMgr->isAlarming( ) && !silenced) {
 
  _soundMgr->startAlarm( );
- if (firstSlot >= 0) {
- _currentSensorIdx = firstSlot;
+ const int8_t navSlot = (firstSlot >= 0) ? firstSlot : firstErrSlot;
+ /* Regra do painel inferior: "o sensor em alarme aparece mesmo sem estar
+  * selecionado". EXCEÇÃO: quando esse sensor JÁ está fixado no painel
+  * superior, a regra não se aplica — forçá-lo também para o painel inferior
+  * duplicaria o mesmo slot nos dois painéis. O alarme já está visível no
+  * topo; o inferior mantém a seleção atual. */
+ if (navSlot >= 0 && navSlot != _displayMgr->getTopSlotIdx( )) {
+ _currentSensorIdx = navSlot;
  refreshSelectedSlot( );
  }
- _displayMgr->setAlarmState(mask, firstSlot);
+ _displayMgr->setAlarmState(mask, navSlot);
+ _displayMgr->setAlarmErrState(errMask);
  LOG_CODE(LOG_WARN, "APP", APP_ALARM_TRIGGERED, 0, "");
- } else if (anyAlarm && (_soundMgr->isAlarming( ) || silenced)) {
+ } else if (triggerAny && (_soundMgr->isAlarming( ) || silenced)) {
 
  _displayMgr->setAlarmState(mask, -1);
- } else if (!anyAlarm && (_soundMgr->isAlarming( ) || silenced)) {
+ _displayMgr->setAlarmErrState(errMask);
+ } else if (!triggerAny && (_soundMgr->isAlarming( ) || silenced)) {
 
  _soundMgr->stopAlarm( );
  _displayMgr->setAlarmState(0, -1);
+ _displayMgr->setAlarmErrState(0);
 
  if (silenced) {
  _displayMgr->setAlarmSilenced(false, 0);
@@ -561,4 +612,113 @@ void AppManager::checkAlarmConditions( ) {
  }
  LOG_CODE(LOG_INFO, "APP", APP_ALARM_CLEARED, 0, "");
  }
+
+ /* Borda de alarme/erro para a 2ª linha de telemetria (v21) — sempre após o
+  * passe de display, para som/TFT seguirem o valor imediato. */
+ handleAlarmTelemetryEdges( );
+}
+
+/* ── 2ª linha de telemetria: detecção de borda (v21) ────────────────────────
+ * Roda no fim de checkAlarmConditions( ), depois do passe de display — o
+ * som/TFT continuam reagindo ao valor IMEDIATO, e a fila de alarmes reage à
+ * BORDA (ok→fora / ok→falha). Sem borda, um limite violado por 1 h enfileiraria
+ * o mesmo alarme a cada ~5 s até estourar a fila.
+ *
+ * Debounce de 2 ciclos (~10 s) para limite; erro não tem debounce — a
+ * histerese de 3 erros já aconteceu no SensorManager (inErrorState).
+ * Valor em falha vira "err" (HIST_NAN_SENTINEL + ALARM_FLAG_ERR); o canal do
+ * registro de erro é o PRIMEIRO canal que o tipo reporta (t{hwid} no
+ * DS18B20, por exemplo) — o "prefixo da grandeza" do ID. */
+void AppManager::handleAlarmTelemetryEdges( ) {
+	SystemConfig &cfg = _storageMgr->getConfig( );
+
+	if (!cfg.alarmTel.enabled) {
+		/* linha desligada: zera o estado para religar sem lixo */
+		memset(_alarmTripBits, 0, sizeof(_alarmTripBits));
+		memset(_alarmCandBits, 0, sizeof(_alarmCandBits));
+		_alarmErrBits = 0;
+		return;
+	}
+
+	const auto& sensors = _sensorMgr->getRuntimeSensors( );
+
+	for (int i = 0; i < MAX_SENSORS; i++) {
+		if (!cfg.sensors[i].active) {
+			_alarmTripBits[i] = 0;
+			_alarmCandBits[i] = 0;
+			_alarmErrBits &= (uint16_t)~(1u << i);
+			continue;
+		}
+
+		/* runtime sensor do slot, casado por GPIO como no resto do sistema */
+		const RuntimeSensor* live = nullptr;
+		for (const auto &s : sensors) {
+			if (s.config.pins[0] == cfg.sensors[i].pins[0]) { live = &s; break; }
+		}
+		if (live == nullptr) continue; /* slot sem runtime — sem dados, sem borda */
+
+		/* ERRO de sensor (sem comunicação OU trocado): independente de
+		 * alarmsActive — falha é sempre reportada na linha de alarmes, mesmo
+		 * com os limites de alarme desligados para o slot. EXCEÇÃO (por slot):
+		 * ERRO MUTADO via tela de ação (isAlarmErrMuted) — o registro err_off
+		 * documentou a ação e o erro não relatcha. O LIMITE do mesmo slot é
+		 * INDEPENDENTE e continua armado (alarmsActive intacto). Reativar o
+		 * alarme do slot (web/CLI) limpa o mute. */
+		const bool errNow = (live->inErrorState || live->hardwareMismatch);
+		if (errNow) {
+			if (_displayMgr->isAlarmErrMuted(i)) {
+				_alarmErrBits &= (uint16_t)~(1u << i);
+				_alarmTripBits[i] = 0;
+				_alarmCandBits[i] = 0;
+				continue;
+			}
+			if (!(_alarmErrBits & (1u << i))) {
+				_alarmErrBits |= (1u << i);
+				uint8_t firstCh = CH_TEMP;
+				for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+					if (sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) {
+						firstCh = c;
+						break;
+					}
+				}
+				_telemetryMgr->pushAlarm((uint8_t)i, firstCh, NAN, ALARM_ERR_ERROR);
+			}
+			/* em falha não há valor a comparar com limites */
+			_alarmTripBits[i] = 0;
+			_alarmCandBits[i] = 0;
+			continue;
+		}
+		_alarmErrBits &= (uint16_t)~(1u << i); /* voltou do erro */
+
+		/* Bordas de LIMITE: só com alarmes habilitados para o slot. */
+		if (!cfg.sensors[i].alarmsActive) {
+			_alarmTripBits[i] = 0;
+			_alarmCandBits[i] = 0;
+			continue;
+		}
+
+		for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++) {
+			if (!sensorHasChannel((SensorType)cfg.sensors[i].sensorType, c)) continue;
+			const uint8_t bit = (uint8_t)(1u << c);
+			const float v = live->avgValue[c];
+			if (!isfinite(v)) continue; /* falha é o caminho do erro, não o do limite */
+
+			const bool trip = (v < cfg.sensors[i].chMin[c] || v > cfg.sensors[i].chMax[c]);
+			if (trip) {
+				if (_alarmCandBits[i] & bit) {
+					/* 2º ciclo consecutivo → borda confirmada */
+					_alarmCandBits[i] &= (uint8_t)~bit;
+					if (!(_alarmTripBits[i] & bit)) {
+						_alarmTripBits[i] |= bit;
+						_telemetryMgr->pushAlarm((uint8_t)i, c, v, ALARM_ERR_ALARM);
+					}
+				} else {
+					_alarmCandBits[i] |= bit;
+				}
+			} else {
+				_alarmCandBits[i] &= (uint8_t)~bit;
+				_alarmTripBits[i] &= (uint8_t)~bit;
+			}
+		}
+	}
 }
