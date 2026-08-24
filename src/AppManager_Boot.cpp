@@ -562,7 +562,12 @@ void AppManager::setup( ) {
  
  _displayMgr->refreshTheme( );
  
- DisplayManager::findAndLoadLangFile( );
+ /* Load the .lng pack only when a non-English language is in use:
+  * the EN path serves inline strings and does not need the ~15 KB of
+  * heap the pack occupies. */
+ if (cfg.displayLang != LANG_EN) {
+  DisplayManager::findAndLoadLangFile( );
+ }
  
  _displayMgr->setLanguage(cfg.displayLang);
  
