@@ -98,6 +98,7 @@ void AppManager::updateLiveDisplay( ) {
  dateStr.replace("/20", "/");
  String fullStatus = dateStr + " - " + _netMgr->getFormattedTime( );
  _displayMgr->setSystemStatus(_netMgr->getRssi( ), false, fullStatus);
+ _displayMgr->setApMode(_netMgr->isApConfig( ));
 
 
  static uint32_t lastPendingRefresh = 0;
@@ -188,6 +189,34 @@ void AppManager::updateLiveDisplay( ) {
  }
  }
 
+ }
+
+ /* Alpha LCD multi-slot snapshot — lets the HD44780 display cycle
+  * through every active sensor in slot order. */
+ {
+  SlotSnapshot snap[MAX_SENSORS];
+  const auto& sensors = _sensorMgr->getRuntimeSensors( );
+  SystemConfig &cfg = _storageMgr->getConfig( );
+  for (int i = 0; i < MAX_SENSORS; i++) {
+   snap[i].type  = TYPE_NONE;
+   snap[i].valid = false;
+   snap[i].temp  = NAN;
+   snap[i].hum   = NAN;
+   snap[i].pres  = NAN;
+   if (!cfg.sensors[i].active) continue;
+   uint8_t gpio = cfg.sensors[i].pins[0];
+   for (const auto &s : sensors) {
+    if (s.config.pins[0] == gpio) {
+     snap[i].type  = s.type;
+     snap[i].valid = !s.inErrorState;
+     snap[i].temp  = s.avgValue[0];
+     snap[i].hum   = s.avgValue[1];
+     snap[i].pres  = s.avgValue[2];
+     break;
+    }
+   }
+  }
+  _displayMgr->setSlotsSnapshot(snap, MAX_SENSORS);
  }
 
  /* Keep main slot data in sync so the alpha LCD sees sensor faults

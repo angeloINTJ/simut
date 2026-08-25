@@ -744,11 +744,6 @@ void AppManager::setup( ) {
  }
  }
 
-	/* Bluetooth: only start when WiFi connected successfully.
-	 * After a failed WiFi connection, the CYW43 chip is in a bad state
-	 * and SerialBT.begin() causes a hardfault. Power-cycling the chip
-	 * before BT also kills any live WiFi connection. Safest approach:
-	 * only enable BT when we know the chip is in a clean state (post-WiFi-success). */
 	/* Install console sink regardless of Bluetooth state so CLI output
 	 * always reaches USB Serial. Without this, offline boots have no
 	 * serial output because emitLine skips Serial when buffer is full. */
@@ -756,14 +751,15 @@ void AppManager::setup( ) {
 	 _cmdMgr->consolePrintln(String(line));
 	});
 
-	/* Bluetooth DISABLED: SerialBT.begin() hardfaults on CYW43 after
-	 * warm boot (picotool reset), regardless of WiFi state. The chip
-	 * can't reliably run both WiFi and BT without a full power-cycle
-	 * (cold boot). USB Serial + Web interface replace BT functionality.
-	 * To re-enable: uncomment the block below. */
-	// if (_netMgr->isConnected()) {
-	//  _cmdMgr->beginBluetooth(_storageMgr->getConfig().deviceName);
-	// }
+#if SIMUT_BLUETOOTH
+	/* Bluetooth Serial CLI — started after WiFi.begin()/beginAP() so
+	 * cyw43_arch_init has already run (required before SerialBT.begin()).
+	 * Started regardless of connection state: a device that cannot join
+	 * WiFi must still be reachable over BT to start AP mode. The
+	 * PIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH flag selects the combined
+	 * WiFi+BT radio blob, which is what lets the two coexist. */
+	_cmdMgr->beginBluetooth(_storageMgr->getConfig().deviceName);
+#endif
 
  _displayMgr->setBootStatusKey(TR_BOOT_START_TEL);
  _telemetryMgr->begin(_storageMgr.get( ), _netMgr.get( ));

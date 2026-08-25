@@ -2,12 +2,48 @@
 #include "LogManager.h"
 #include "display/HD44780_16x2.h"
 #include "display/BigFont_HD44780.h"
+#include "sensors/SensorHelpers.h"
 extern DisplayManager* _instance;  /* defined in DisplayManager.cpp */
 static Hd44780_16x2   _lcd;
 static BigFont_HD44780 _big;
 static SystemStatusData _netStatus;
 static uint32_t _lt = 0;
-static bool     _sh = false;
+
+/* ── Alpha multi-slot cycling state (Core 1) ─────────────────────── */
+static int8_t  _cycleSlot = -1;       /* slot currently on screen */
+static uint8_t _cycleCh   = CH_TEMP;  /* channel currently on screen */
+
+/* First channel a sensor type reports (every current type: CH_TEMP). */
+static uint8_t alphaFirstChannel(SensorType t) {
+	for (uint8_t c = 0; c < MAX_SENSOR_CHANNELS; c++)
+		if (sensorHasChannel(t, c)) return c;
+	return CH_TEMP;
+}
+
+/* Advance to the next (slot, channel) across active slots, in slot order. */
+static void alphaCycleNext(const SlotSnapshot* snap, const int8_t* active, uint8_t n,
+                           int8_t &slot, uint8_t &ch) {
+	if (n == 0) { slot = -1; ch = CH_TEMP; return; }
+	if (slot < 0) { slot = active[0]; ch = alphaFirstChannel(snap[slot].type); return; }
+	SensorType t = snap[slot].type;
+	for (uint8_t c = ch + 1; c < MAX_SENSOR_CHANNELS; c++) {
+		if (sensorHasChannel(t, c)) { ch = c; return; }
+	}
+	int pos = 0;
+	for (uint8_t i = 0; i < n; i++) if (active[i] == slot) { pos = i; break; }
+	slot = active[(pos + 1) % n];
+	ch = alphaFirstChannel(snap[slot].type);
+}
+
+/* Value of a snapshot for a given channel id. */
+static float alphaChannelValue(const SlotSnapshot& s, uint8_t ch) {
+	switch (ch) {
+		case CH_TEMP:  return s.temp;
+		case CH_HUM:   return s.hum;
+		case CH_PRESS: return s.pres;
+		default:       return NAN;
+	}
+}
 
 void DisplayManager::core1Entry( ){ if (_instance) _instance->loopCore1(); }
 void DisplayManager::loopCore1( ) {
@@ -124,40 +160,97 @@ void DisplayManager::loopCore1( ) {
 					bootDone = true;
 					_lcd.clear( );
 					_lt  = millis( );
-					_sh  = false;
+					_cycleSlot = -1;
 				}
 			}
 
 		} else {
-			/* ── SENSOR VALUES (big digits) ────────────────────── */
+			/* ── SENSOR VALUES (cycle active slots × channels) ───── */
+			SlotSnapshot snap[MAX_SENSORS];
+			int8_t active[MAX_SENSORS];
+			uint8_t n = 0;
+			{
+				mutex_enter_blocking(&_stateMutex);
+				for (int i = 0; i < MAX_SENSORS; i++) {
+					snap[i] = _slotSnapshots[i];
+					if (_slotSnapshots[i].type != TYPE_NONE) active[n++] = (int8_t)i;
+				}
+				mutex_exit(&_stateMutex);
+			}
+
+			/* Re-anchor if no slots, or if the current slot vanished. */
+			if (n == 0) {
+				_cycleSlot = -1; _cycleCh = CH_TEMP;
+			} else if (_cycleSlot < 0 || _cycleSlot >= MAX_SENSORS ||
+			           snap[_cycleSlot].type == TYPE_NONE) {
+				_cycleSlot = active[0];
+				_cycleCh = alphaFirstChannel(snap[_cycleSlot].type);
+			}
+
 			if (millis( ) - _lt >= 3000) {
 				_lt = millis( );
-				_sh = !_sh;
+				alphaCycleNext(snap, active, n, _cycleSlot, _cycleCh);
 			}
 
 			_lcd.clear( );
-			/* WiFi icon top-left */
+			/* Status top-left: "AP" in Access Point mode, else WiFi icon. */
 			_lcd.setCursor(0, 0);
-			_lcd.write('W');
-			_lcd.write(BFS_WIFI);
-
-			if (!_sharedState.slotValid) {
-				/* Sensor in error — show big ERRO.
-				   Checked first because avgValue may hold
-				   stale non-NaN values during fault. */
-				_big.showError(_lcd);
-			} else if (_sh && !isnan(_sharedState.slotHum)) {
-				int hum = (int)_sharedState.slotHum;
-				_big.showInteger(_lcd, hum, 13, '%');
-				_lcd.setCursor(14, 1); _lcd.print("UR");
-			} else if (!isnan(_sharedState.slotTemp)) {
-				int raw = (int)(_sharedState.slotTemp * 10.0f);
-				_big.showNumber(_lcd, raw);
-				_lcd.setCursor(14, 0); _lcd.write('o');
-				_lcd.setCursor(15, 1); _lcd.write('C');
+			if (_sharedState.apMode) {
+				_lcd.print("AP");
 			} else {
-				/* Both NaN — transitional (boot, sensor change) */
+				_lcd.write('W');
+				_lcd.write(BFS_WIFI);
+			}
+
+			if (n == 0) {
+				/* No active sensors — show big ERRO. */
 				_big.showError(_lcd);
+			} else {
+				/* Identification on line 1, col 0 when >1 slot is active. */
+				if (n > 1) {
+					char id[8];
+					snprintf(id, sizeof(id), "S%d", (int)_cycleSlot);
+					_lcd.setCursor(0, 1);
+					_lcd.print(id);
+				}
+
+				const SlotSnapshot &cs = snap[_cycleSlot];
+				float v = alphaChannelValue(cs, _cycleCh);
+
+				if (!cs.valid || isnan(v)) {
+					/* Sensor in error — big ERRO (avgValue may be stale). */
+					_big.showError(_lcd);
+				} else switch (_cycleCh) {
+				case CH_TEMP: {
+					int raw = (int)(v * 10.0f);
+					_big.showNumber(_lcd, raw);
+					_lcd.setCursor(14, 0); _lcd.write('o');
+					_lcd.setCursor(15, 1); _lcd.write('C');
+					break;
+				}
+				case CH_HUM: {
+					int hum = (int)v;
+					_big.showInteger(_lcd, hum, 13, '%');
+					_lcd.setCursor(14, 1); _lcd.print("UR");
+					break;
+				}
+				case CH_PRESS: {
+					/* Pressão em caracteres normais, montada com aritmética
+					 * inteira — o %f do printf corrompia o LCD no Core 1.
+					 * Dígitos grandes ficam para uma etapa futura. */
+					char b[16];
+					int tenths = (int)(v * 10.0f + 0.5f);
+					int ip = tenths / 10;
+					int dp = tenths % 10;
+					snprintf(b, sizeof(b), "%d.%d hPa", ip, dp);
+					_lcd.setCursor(3, 0);
+					_lcd.print(b);
+					break;
+				}
+				default:
+					_big.showError(_lcd);
+					break;
+				}
 			}
 		}
 
@@ -178,6 +271,12 @@ bool DisplayManager::isAnyAlarmActive( )const{return false;}
 void DisplayManager::showAlarmAction(int8_t){}
 void DisplayManager::drawAlarmAction( ){}
 void DisplayManager::setAlarmState(uint16_t,int8_t){}
+void DisplayManager::setAlarmErrState(uint16_t errMask) {
+	_alarmErrMask = errMask;
+}
+bool DisplayManager::isSlotErrAlarming(int slotIdx) const {
+	return (slotIdx >= 0 && slotIdx < 16) && (_alarmErrMask & (1 << slotIdx));
+}
 void DisplayManager::setAlarmSilenced(bool,uint32_t){}
 void DisplayManager::setAlarmErrMuted(int8_t,bool){}
 bool DisplayManager::isAlarmErrMuted(int8_t)const{return false;}

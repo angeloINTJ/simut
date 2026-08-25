@@ -173,8 +173,10 @@ private:
 	LoginState _loginStates[LOGIN_STATE_SLOTS];
 
 
+#if SIMUT_DISPLAY_TFT
 	volatile bool _isProcessingScreenshot = false;
 	volatile bool _cancelScreenshot = false;
+#endif
 	volatile bool _inHistoryHandler = false;
 public:
 	/* The light-yield asks before doing live work: a sensor sweep plus a
@@ -402,8 +404,10 @@ private:
 
 	uint32_t _handlerDeadline = 0;
 	void safeStreamFile(File& f, const String& contentType);
+#if SIMUT_DISPLAY_TFT
 	void handleApiScreenshot( );
 	void handleApiScreenshotChunk( ); /**< /chunked with CRC32 */
+#endif
 	/* getDynamicExpectedHash removed with the *PENDING* scheme — see
 	 * assignTempPassword and the note in verifyPasswordFor. */
 	String jsonEscape(const char* src);

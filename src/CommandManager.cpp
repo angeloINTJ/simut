@@ -332,6 +332,7 @@ uint8_t getCommandModeMask(DemandType t) {
  case CMD_WRITE_MEMORY:      return CLI_VALID_PRIV;
  case CMD_CLEAR_LOGS:        return CLI_VALID_PRIV;
  case CMD_RELOAD:            return CLI_VALID_PRIV;
+ case CMD_AP:                return CLI_VALID_PRIV;
  /* Also valid in config mode. These change persisted configuration
   * (they set changed=true and need 'write memory'), and their own help text
   * advertises the 'conf ...' form — which is only a stripped prefix, so it
@@ -475,6 +476,8 @@ void CommandManager::printModeHelp( ) {
                                   : "  write memory          Save config to Flash");
   showIf(CMD_RELOAD,           pt ? "  reload [confirm]      Reiniciar sistema"
                                   : "  reload [confirm]      Reboot system");
+  showIf(CMD_AP,               pt ? "  ap                    Iniciar modo AP (ponto de acesso)"
+                                  : "  ap                    Start AP mode (access point)");
   showIf(CMD_CLEAR_LOGS,       pt ? "  clear log [confirm]   Apagar logs"
                                   : "  clear log [confirm]   Clear system logs");
   showIf(CMD_DEBUG,            pt ? "  debug <on|off>        Stream logs no console"

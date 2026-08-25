@@ -113,6 +113,7 @@ CliDemand parseCliCommand(String input) {
 	/* ── Global shortcuts ── */
 	if (t0 == "help" || t0 == "ajuda" || t0 == "?") { cmd.type = CMD_HELP; return cmd; }
 	if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
+	if (t0 == "ap" || t0 == "apmode" || t0 == "ap-mode") { cmd.type = CMD_AP; return cmd; }
 #if SIMUT_CLI_FULL
 	if (t0 == "gpio") { cmd.type = CMD_SHOW_GPIO; return cmd; }
 

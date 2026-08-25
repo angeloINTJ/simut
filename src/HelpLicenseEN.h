@@ -52,6 +52,8 @@ system https off [confirm]
  (recovers a web locked by a bad TLS pair)
 reload [confirm]
  Reboot now
+ap
+ Start AP mode (access point) for setup
 ===========================================
 )raw";
 #else

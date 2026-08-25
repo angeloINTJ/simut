@@ -118,6 +118,7 @@ enum DemandType {
  CMD_END,           /**< end — return to privileged EXEC from any config mode */
  CMD_DO,            /**< do <cmd> — execute privileged EXEC command from config mode */
  CMD_SENSOR_ENTER,  /**< sensor <N> — enter sensor config mode (from global config) */
+ CMD_AP,            /**< ap — start Access Point mode (192.168.4.1) for setup */
 };
 
 /** Cisco IOS-style hierarchical CLI modes. */

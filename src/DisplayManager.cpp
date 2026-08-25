@@ -782,6 +782,33 @@ bool DisplayManager::isSkipPressed( ) {
 	return false;
 }
 
+/* Alpha-only snapshot of every slot; no-op for the TFT build. */
+void DisplayManager::setSlotsSnapshot(const SlotSnapshot* snap, uint8_t count) {
+#if SIMUT_DISPLAY_ALPHA
+	if (!snap) return;
+	mutex_enter_blocking(&_stateMutex);
+	uint8_t n = (count < MAX_SENSORS) ? count : (uint8_t)MAX_SENSORS;
+	uint8_t active = 0;
+	for (uint8_t i = 0; i < n; i++) {
+		_slotSnapshots[i] = snap[i];
+		if (snap[i].type != TYPE_NONE) active++;
+	}
+	for (uint8_t i = n; i < MAX_SENSORS; i++) {
+		_slotSnapshots[i].type = TYPE_NONE; /* clear stale entries */
+	}
+	_activeSlotCount = active;
+	mutex_exit(&_stateMutex);
+#else
+	(void)snap; (void)count;
+#endif
+}
+
+void DisplayManager::setApMode(bool ap) {
+	mutex_enter_blocking(&_stateMutex);
+	_sharedState.apMode = ap;
+	mutex_exit(&_stateMutex);
+}
+
 #if !SIMUT_DISPLAY_ALPHA
 bool DisplayManager::isScreenTouched( ) {
  /* Read PENIRQ directly: LOW = touched, HIGH = idle.

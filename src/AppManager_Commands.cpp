@@ -28,6 +28,16 @@
 #include "lwip/memp.h"
 #endif
 
+void AppManager::startApMode( ) {
+ SystemConfig &cfg = _storageMgr->getConfig( );
+ LOG_CODE(LOG_WARN, "APP", APP_AP_MODE_TRIGGERED, 0, TRL("User triggered AP mode."));
+ _netMgr->beginAP(cfg.deviceName);
+ _isApMode = true;
+ _cmdMgr->printSuccess(_cmdMgr->isPt( )
+  ? "Modo AP iniciado — conecte-se ao AP e acesse http://192.168.4.1"
+  : "AP mode started — join the AP and open http://192.168.4.1");
+}
+
 void AppManager::executeCommand(CliDemand cmd) {
  SystemConfig &cfg = _storageMgr->getConfig( );
  bool changed = false;
@@ -773,6 +783,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  _storageMgr->sealHourV5( );        /* V5: the open block is RAM-only */
  delay(100); /* Ensures log is flushed to flash */
  LogManager::instance( ).safeReboot( );
+ break;
+
+ case CMD_AP:
+ startApMode( );
  break;
 #if SIMUT_CLI_FULL
  case CMD_TEL_SYNC:

@@ -373,6 +373,8 @@ system https off [confirm]
   (recupera uma web travada por um par TLS invalido)
 reload [confirm]
   Reinicia agora
+ap
+  Inicia o modo AP (ponto de acesso)
 ===========================================
 @LICENSE
 Licença MIT

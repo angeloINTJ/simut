@@ -192,10 +192,21 @@ constexpr int GRAPH_PBTN_GAP = 3;   /**< Gap between buttons */
 struct SystemState {
 	float slotTemp; float slotHum; float slotPres; bool slotValid; SensorType slotType; int selectedSlotIdx; char slotName[32];
 	float topSlotTemp; float topSlotHum; float topSlotPres; bool topSlotValid; SensorType topSlotType; int topSlotIdx; char topSlotName[32];
-	int wifiRssi; bool btActive; char timeString[24];
+	int wifiRssi; bool btActive; bool apMode; char timeString[24];
 	uint16_t pendingPkts;
 	bool isBooting; BootLogEntry bootLogs[5]; bool showSkipButton; int apProgressPct;
 	uint16_t alarmSlotMask;
+};
+
+/* Alpha LCD multi-slot snapshot — pushed every loop by AppManager so the
+ * HD44780 16x2 display can cycle through every active sensor. Indexed by
+ * slot (0..MAX_SENSORS-1); type == TYPE_NONE marks an inactive slot. */
+struct SlotSnapshot {
+	SensorType type;   /**< TYPE_NONE = slot inactive */
+	bool       valid;  /**< sensor not in error state */
+	float      temp;   /**< CH_TEMP calibrated average */
+	float      hum;    /**< CH_HUM calibrated average */
+	float      pres;   /**< CH_PRESS calibrated average */
 };
 class DisplayManager {
 public:
@@ -250,6 +261,8 @@ public:
 	static bool stateMutexHeldByCurrentCore( );
 
 	void setSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name);
+	/** Pushes a full multi-slot snapshot for the alpha LCD cycling. */
+	void setSlotsSnapshot(const SlotSnapshot* snap, uint8_t count);
 	void setSlotMinMax(float minT, float maxT, float minH, float maxH);
  void setTopSlotData(float t, float h, float p, SensorType type, bool isValid, int slotIdx, String name);
  void setBottomSlotData(float t, float h, SensorType type, bool isValid, int slotIdx, String name);
@@ -259,6 +272,8 @@ public:
 	int getTopPanelFixedIdx( ) { int idx; mutex_enter_blocking(&_stateMutex); idx = (_topPanel.fixed && _topPanel.fixedIdx >= 0) ? _topPanel.fixedIdx : -1; mutex_exit(&_stateMutex); return idx; }
 	void setTopSlotFixedIdx(int8_t i) { mutex_enter_blocking(&_stateMutex); _topPanel.fixedIdx = i; _topPanel.fixed = true; mutex_exit(&_stateMutex); }
 	void setSystemStatus(int rssi, bool bt, String timeStr);
+	/** Tells the alpha LCD whether the device is serving the Access Point. */
+	void setApMode(bool ap);
 
 	/** Boot status: stores a TR key (resolved at render via tr()) plus
 	 * optional suffix. Use for messages that should follow the active language.
@@ -450,6 +465,10 @@ private:
 #endif
 
 	SystemState _sharedState;
+#if SIMUT_DISPLAY_ALPHA
+	SlotSnapshot _slotSnapshots[MAX_SENSORS];
+	uint8_t _activeSlotCount = 0;
+#endif
 	bool _isDirty;
 	mutex_t _stateMutex;
 	/* SPSC lock-free UI event ring (Core 1 produces, Core 0 consumes).

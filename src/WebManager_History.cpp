@@ -1531,6 +1531,7 @@ void WebManager::handleApiClearLogs( ) {
  _server->send(200, "application/json", "{\"status\":\"ok\"}");
 }
 
+#if SIMUT_DISPLAY_TFT
 /* Shared helper for handleApiScreenshot + handleApiScreenshotChunk.
  * Reads N rows from TFT (3x each with majority vote) and converts RGB565→BGR888 in
  * out_bgr. chunk_start_bmp_y is the offset IN THE BMP IMAGE (bottom-up), display_y
@@ -1723,6 +1724,7 @@ void WebManager::handleApiScreenshotChunk( ) {
  free(payload);
  _handlerDeadline = savedDeadline;
 }
+#endif /* SIMUT_DISPLAY_TFT */
 
 void WebManager::handleApiHistoryDays( ) {
  if ((getAuthPerms( ) & PERM_HISTORY) == 0) { _server->send(403); return; }
