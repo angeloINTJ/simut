@@ -497,7 +497,38 @@ void WebManager::update( ) {
  _handlerDeadline = 0;
 }
 
+bool WebManager::handleCaptiveProbe( ) {
+ if (!_netRef || !_netRef->isApConfig( )) return false;
+
+ String uri = _server->uri( );
+
+ /* Apple: http://captive.apple.com/hotspot-detect.html (and legacy variants). */
+ if (uri == "/hotspot-detect.html" || uri == "/library/test/success.html") {
+  _server->send(200, "text/html",
+   "<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>");
+  return true;
+ }
+ /* Google / Android / ChromeOS: .../generate_204 (expects HTTP 204). */
+ if (uri == "/generate_204") {
+  _server->send(204, "text/plain", "");
+  return true;
+ }
+ /* Microsoft NCSI: http://www.msftconnecttest.com/connecttest.txt (+ legacy). */
+ if (uri == "/connecttest.txt" || uri == "/ncsi.txt") {
+  _server->send(200, "text/plain", "Microsoft Connect Test");
+  return true;
+ }
+ /* Firefox: http://detectportal.firefox.com/success.txt */
+ if (uri == "/success.txt") {
+  _server->send(200, "text/plain", "success");
+  return true;
+ }
+ return false;
+}
+
 void WebManager::handleNotFound( ) {
+ if (handleCaptiveProbe( )) return;
+
  String host = _server->hostHeader( );
  String myIP = _netRef->getIpAddress( );
 
