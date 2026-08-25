@@ -570,7 +570,7 @@ void WebManager::handleApiStatus( ) {
 	 * Without it the dashboard cannot tell "nothing left to send" from "nothing
 	 * is ever sent", and pending==0 means both. */
 	int telOn = (cfg.telInterval > 0) ? 1 : 0;
-	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u},",
+	snprintf(buffer, sizeof(buffer), "{\"sys\":{\"name\":\"%s\",\"uptime\":%lu,\"rssi\":%d,\"ip\":\"%s\",\"theme\":%d,\"heap_f\":%lu,\"heap_t\":%lu,\"heap_lb\":%lu,\"fs_u\":%lu,\"fs_t\":%lu,\"time\":%lu,\"ntp\":%d,\"pending\":%d,\"tel\":%d,\"hi\":%u,\"cap\":%d},",
 	         devName.c_str( ), millis( ), liveRssi, ipStr.c_str( ), cfg.themeIndex,
 	         (unsigned long)heapFree, (unsigned long)heapTot, (unsigned long)heapLargest,
 	         (unsigned long)_cachedFsUsedBytes, (unsigned long)_cachedFsTotalBytes,
@@ -580,7 +580,7 @@ void WebManager::handleApiStatus( ) {
 	          * so a reader outside the device has to be told. Without it a
 	          * browser decoding .h5 would place every record after the first
 	          * at the wrong instant on any device not sampling once a minute. */
-	         (unsigned)_storageRef->getHistoryIntervalMin( ));
+	         (unsigned)_storageRef->getHistoryIntervalMin( ), SIMUT_DISPLAY_TFT);
 
 	if (!safeSend(buffer)) return;
 

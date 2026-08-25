@@ -561,6 +561,7 @@ static const char DASH_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                 if (!res.ok) throw new Error("HTTP " + res.status);
                 const text = await res.text();
                 sysData = JSON.parse(text); const d = sysData.sys;
+                if (d.cap === 0) { const sc = document.querySelector('.side-content'); if (sc) sc.style.display = 'none'; const lg = document.querySelector('.layout-grid'); if (lg) lg.style.gridTemplateColumns = '1fr'; }
 
                 if (d.theme !== undefined && document.activeElement.id !== "themeSel") document.getElementById('themeSel').value = d.theme;
 
@@ -5691,7 +5692,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                     <button class="btn-fm btn-fm-out" onclick="fmDownload()">&#x2B07;&#xFE0F; <span data-i18n="fil_down">Download</span></button>
                     <button class="btn-fm btn-fm-out" onclick="fmBackup()" title="Download all files as a single .bkp" id="btnBackup" style="display:none">&#x1F4BE; <span data-i18n="fil_backup">Backup</span></button>
                     <button class="btn-fm btn-fm-out" onclick="fmRestore()" title="Upload a .bkp to restore" id="btnRestore" style="display:none">&#x267B;&#xFE0F; <span data-i18n="fil_restore">Restore</span></button>
-                    <input type="file" id="restoreFile" accept=".bkp" style="display:none" onchange="doRestore()">
+                    <input type="file" id="restoreFile" accept=".bkp,application/octet-stream" style="position:absolute;left:-9999px;top:0;width:1px;height:1px;opacity:0" onchange="doRestore()">
                     <button class="btn-fm btn-fm-out" onclick="fmFirmware()" title="Send new firmware (.bin) — OTA update" id="btnFw" style="display:none">&#x1F4BB; <span data-i18n="fil_fw">Firmware</span></button>
                     <input type="file" id="fwFile" accept=".bin" style="display:none" onchange="doFirmware()">
                     <button class="btn-fm btn-fm-dang" id="btnDel" style="display:none" onclick="fmDelete()">&#x1F5D1;&#xFE0F; <span data-i18n="fil_del">Delete</span></button>
@@ -5827,6 +5828,7 @@ static const char FILE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             let inp = document.getElementById('restoreFile');
             if (!inp.files.length) return;
             let file = inp.files[0]; inp.value = '';
+            if (!/\.bkp$/i.test(file.name)) { showToast(window.t('fil_rst_need_bkp','Please select a .bkp backup file.'), 'err'); return; }
             try {
                 showToast(window.t('fil_rst_val','Step 1/3: Validating backup (CRC + chip ID)...'), 'ok');
                 let fd = new FormData(); fd.append('bkp', file);
