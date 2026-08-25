@@ -4,6 +4,26 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.5-beta (2026-08-24)
+
+### Alpha ganha Bluetooth e um display multi-sensor
+
+A build alfanumérica (HD44780) agora alterna por todos os sensores ativos no
+display 16x2, prefixando cada leitura com `S<n>` quando há mais de um slot ativo,
+e mostra `AP` em vez do ícone de Wi-Fi enquanto serve o ponto de acesso. A
+pressão é exibida em caracteres comuns (dígitos grandes para hPa de 4 dígitos
+ficam para depois).
+
+O Bluetooth é habilitado na build alpha: a CLI SerialBT inicia no boot mesmo sem
+conexão Wi-Fi, e um novo comando `ap` — tanto no USB quanto no Bluetooth —
+inicia o modo Ponto de Acesso para configuração.
+
+O código de screenshot ("Display Capture"), exclusivo do TFT, agora é excluído
+da build alpha para liberar flash, e o painel esconde a caixa Display Capture
+quando o firmware informa que não há captura disponível. O servidor web também
+responde às sondas de portal cativo do sistema em modo AP, permitindo que o
+seletor de arquivo de Restauração abra no iOS/Android.
+
 ## v2.3.4 (2026-08-24)
 
 ### A linha 2.3 fica estável

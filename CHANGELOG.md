@@ -4,6 +4,25 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.5-beta (2026-08-24)
+
+### Alpha gains Bluetooth and a multi-sensor display
+
+The alphanumeric (HD44780) build now cycles through every active sensor on its
+16x2 display, prefixing each reading with `S<n>` when more than one slot is
+active, and shows `AP` instead of the WiFi signal icon while serving the Access
+Point. Pressure renders in plain characters (big-font 4-digit hPa is deferred).
+
+Bluetooth is enabled in the alpha build: the SerialBT CLI starts at boot even
+without a WiFi connection, and a new `ap` command — on USB and Bluetooth alike —
+starts Access Point mode for setup.
+
+The TFT-only screenshot ("Display Capture") code is now excluded from the alpha
+build to reclaim flash, and the dashboard hides the Display Capture box when the
+firmware reports no capture capability. The web server also answers OS
+captive-portal probes in AP mode, so the Restore file picker can open on
+iOS/Android.
+
 ## v2.3.4 (2026-08-24)
 
 ### The 2.3 line goes stable
