@@ -4,6 +4,17 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.7-beta (2026-08-29)
+
+### Alpha CLI help speaks the device language
+
+The alphanumeric build's emergency CLI was printing its `help` in English even
+with a Portuguese or Spanish language pack loaded. Two stubs in the alpha
+variant were responsible: `getActiveHelpText()` returned nothing, and
+`unaccent()` was a no-op. The first now reads the `@HELP` section from the
+language pack on demand, and the second converts the UTF-8 text to ASCII for the
+serial terminal — so `help` matches the device language (PT/ES).
+
 ## v2.3.6-beta (2026-08-29)
 
 ### License page rewritten and translations fixed
