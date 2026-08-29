@@ -981,11 +981,10 @@ public:
 	/* Dynamic language pack support.
 	 * EN is hardcoded in firmware (DICTIONARY_EN, translateCodeEn, and
 	 * EN literals in TRL sites). Non-EN comes from .lng:
-	 * @DICT -> strings[TR_KEYS_COUNT] (TFT UI)
-	 * @LOGCODES -> logcodes (sorted by code) (LogCode messages)
-	 * @TRL -> trls (sorted by FNV-1a of EN) (TRL messages)
-	 * @HELP / @LICENSE -> free text
-	 * Lookup is binary search; fallback is inline EN.
+	 * @DICT -> strings[TR_KEYS_COUNT] (TFT UI, resident)
+	 * @HELP / @LICENSE -> byte ranges, lazy-read from LittleFS on demand
+	 * @LOGCODES / @TRL -> not resident (lookups fall back to inline EN)
+	 * @WEBDICT -> byte range, streamed to the browser via GET /api/lang
 	 * Defined in DisplayManager_LangParser.cpp. */
 	struct LogCodeEntry { uint16_t code; const char* text; };
 	struct TrlEntry { uint32_t hash; const char* text; };
@@ -1029,12 +1028,6 @@ private:
 		char name[16];
 		char code[8];
 		char* strings[TR_KEYS_COUNT];
-		char* helpText;
-		char* licenseText;
-		LogCodeEntry* logcodes;
-		uint16_t logcodesCount;
-		TrlEntry* trls;
-		uint16_t trlsCount;
 		char* buffer;
 		size_t bufferSize;
 		/* @WEBDICT stays on flash: path + byte range, not a pointer.
@@ -1042,6 +1035,14 @@ private:
 		char path[64];
 		uint32_t webDictOffset;
 		uint32_t webDictLen;
+		/* @HELP / @LICENSE are lazy-loaded from the file on demand; only
+		 * their byte ranges are kept (offsets are relative to the file).
+		 * @LOGCODES / @TRL are no longer resident: log/TRL lookups fall
+		 * back to inline English. */
+		uint32_t helpOffset;
+		uint32_t helpLen;
+		uint32_t licenseOffset;
+		uint32_t licenseLen;
 	};
 	static ActiveLang _activeLang;
 	static bool _activeLangLoaded;

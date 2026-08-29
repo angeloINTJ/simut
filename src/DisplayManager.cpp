@@ -286,10 +286,8 @@ void DisplayManager::restartCore1( ) {
 void DisplayManager::setLanguage(int langId) {
 	if (langId >= 0 && langId < LANG_COUNT) _currentLangIdx = langId;
 	else _currentLangIdx = 1;
-	/* Loads license from FS into _licenseBuf. Called only on
-	 * Core 0 (boot via setup, or EVT_APPLY_LANG via AppManager). LittleFS
-	 * access is safe in these contexts. */
-	loadLicenseFromFs(_currentLangIdx);
+	/* License is now loaded lazily from LittleFS when the license screen
+	 * opens (showSettingsLicense), not at language-change time. */
 	/* Forces boot screen re-render to retranslate bootLogs already
 	 * shown in EN before .lng loaded. Render() boot path detects
 	 * the flag and sets fullRedraw. */
@@ -1787,6 +1785,9 @@ void DisplayManager::setWebNotification(const char* username) {
 
 #if !SIMUT_DISPLAY_ALPHA
 void DisplayManager::showSettingsLicense( ) {
+	/* License text is loaded from LittleFS only now, when the screen is
+	 * actually opened — the @LICENSE section is no longer resident. */
+	loadLicenseFromFs(_currentLangIdx);
 	mutex_enter_blocking(&_stateMutex);
 	_uiMode = MODE_SETTINGS_LICENSE;
 	_licensePage = 0;

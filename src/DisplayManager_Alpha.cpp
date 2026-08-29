@@ -3,11 +3,20 @@
 #include "display/HD44780_16x2.h"
 #include "display/BigFont_HD44780.h"
 #include "sensors/SensorHelpers.h"
+#include <LittleFS.h>
+#include <string.h>
 extern DisplayManager* _instance;  /* defined in DisplayManager.cpp */
 static Hd44780_16x2   _lcd;
 static BigFont_HD44780 _big;
 static SystemStatusData _netStatus;
 static uint32_t _lt = 0;
+
+/* Alpha: lightweight .lng locator (web translations only). No TFT UI means
+ * @DICT/@HELP/@LICENSE/@LOGCODES/@TRL are never needed in RAM — only the file
+ * path (so GET /api/lang can stream @WEBDICT to the browser) and @NAME/@CODE. */
+static char _alphaLangPath[40] = {0};
+static char _alphaLangName[16] = {0};
+static char _alphaLangCode[8] = {0};
 
 /* ── Alpha multi-slot cycling state (Core 1) ─────────────────────── */
 static int8_t  _cycleSlot = -1;       /* slot currently on screen */
@@ -335,7 +344,15 @@ void DisplayManager::setSystemStatus(int rssi, bool bt, String timeStr) {
 	safeCopy(_sharedState.timeString, timeStr.c_str( ), sizeof(_sharedState.timeString));
 	mutex_exit(&_stateMutex);
 }
-bool DisplayManager::getActiveWebDictSource(const char**,uint32_t*,uint32_t*){return false;}
+bool DisplayManager::getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len) {
+	if (_alphaLangPath[0] == '\0') return false;
+	if (path) *path = _alphaLangPath;
+	/* The web handler re-scans the file for the exact @WEBDICT range, so
+	 * these are advisory: 0 tells it to locate the blob itself. */
+	if (offset) *offset = 0;
+	if (len) *len = 0;
+	return true;
+}
 void DisplayManager::releaseQuietMode( ){}
 bool DisplayManager::requestQuietMode(uint32_t){return true;}
 void DisplayManager::setTopSlotMinMax(float,float,float,float){}
@@ -344,8 +361,8 @@ void DisplayManager::showSystemStatus( ){}
 bool DisplayManager::consumeErrorSound( ){return false;}
 bool DisplayManager::consumeTouchSound( ){return false;}
 const char* DisplayManager::getActiveHelpText( ){return nullptr;}
-const char* DisplayManager::getActiveLangCode( ){return nullptr;}
-const char* DisplayManager::getActiveLangName( ){return nullptr;}
+const char* DisplayManager::getActiveLangCode( ){return _alphaLangCode;}
+const char* DisplayManager::getActiveLangName( ){return _alphaLangName;}
 void DisplayManager::setGraphNavOffset(int){}
 void DisplayManager::setWebNotification(const char*){}
 void DisplayManager::showSettingsAlarms(SystemConfig*){}
@@ -380,6 +397,55 @@ void DisplayManager::fillCalData(TouchCalData*)const{}
 void DisplayManager::getNewPassword(char*,unsigned)const{}
 const char* DisplayManager::logcodeLookup(uint16_t){return "";}
 bool DisplayManager::consumePreviewSound(SoundEvent&,uint8_t&){return false;}
-bool DisplayManager::findAndLoadLangFile( ){return false;}
+bool DisplayManager::findAndLoadLangFile( ) {
+	char firstName[40] = {0};
+	int count = 0;
+	Dir dir = LittleFS.openDir("/lang");
+	while (dir.next( )) {
+		String fn = dir.fileName( );
+		if (!fn.startsWith("language_") || !fn.endsWith(".lng")) continue;
+		count++;
+		if (count == 1 || strcmp(fn.c_str( ), firstName) < 0) {
+			strncpy(firstName, fn.c_str( ), sizeof(firstName) - 1);
+		}
+	}
+	if (count == 0) return false;
+
+	char path[48];
+	snprintf(path, sizeof(path), "/lang/%s", firstName);
+	strncpy(_alphaLangPath, path, sizeof(_alphaLangPath) - 1);
+	_alphaLangPath[sizeof(_alphaLangPath) - 1] = '\0';
+
+	/* Read only the leading bytes (header + @NAME + @CODE). The rest of the
+	 * pack (@DICT/@HELP/@LICENSE/@LOGCODES/@TRL/@WEBDICT) is never loaded. */
+	_alphaLangName[0] = '\0';
+	_alphaLangCode[0] = '\0';
+	File f = LittleFS.open(path, "r");
+	if (f) {
+		char head[256];
+		int n = f.readBytes(head, sizeof(head) - 1);
+		f.close( );
+		if (n > 0) {
+			head[n] = '\0';
+			char* p = strstr(head, "@NAME ");
+			if (p) {
+				p += 6;
+				char* e = strpbrk(p, "\r\n");
+				if (e) *e = '\0';
+				strncpy(_alphaLangName, p, sizeof(_alphaLangName) - 1);
+				_alphaLangName[sizeof(_alphaLangName) - 1] = '\0';
+			}
+			p = strstr(head, "@CODE ");
+			if (p) {
+				p += 6;
+				char* e = strpbrk(p, "\r\n");
+				if (e) *e = '\0';
+				strncpy(_alphaLangCode, p, sizeof(_alphaLangCode) - 1);
+				_alphaLangCode[sizeof(_alphaLangCode) - 1] = '\0';
+			}
+		}
+	}
+	return true;
+}
 bool DisplayManager::consumeVolumePreview(uint8_t&){return false;}
 bool DisplayManager::consumeAlarmVolumePreview(uint8_t&){return false;}

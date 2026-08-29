@@ -71,39 +71,8 @@ uint32_t DisplayManager::fnv1a32(const char* s) {
 
 void DisplayManager::unloadLang( ) {
  if (_activeLang.buffer) free(_activeLang.buffer);
- if (_activeLang.logcodes) free(_activeLang.logcodes);
- if (_activeLang.trls) free(_activeLang.trls);
  memset(&_activeLang, 0, sizeof(_activeLang));
  _activeLangLoaded = false;
-}
-
-/* qsort comparators */
-static int cmpLogcode(const void* a, const void* b) {
- uint16_t ca = ((const DisplayManager::LogCodeEntry*)a)->code;
- uint16_t cb = ((const DisplayManager::LogCodeEntry*)b)->code;
- return (ca < cb) ? -1 : (ca > cb);
-}
-static int cmpTrl(const void* a, const void* b) {
- uint32_t ha = ((const DisplayManager::TrlEntry*)a)->hash;
- uint32_t hb = ((const DisplayManager::TrlEntry*)b)->hash;
- return (ha < hb) ? -1 : (ha > hb);
-}
-
-/* Counts non-empty lines in [start, end) — for sizing arrays. */
-static uint16_t countNonEmptyLines(const char* buf, size_t start, size_t end) {
- uint16_t count = 0;
- bool inLine = false;
- for (size_t i = start; i < end; i++) {
- char c = buf[i];
- if (c == '\n') {
- if (inLine) count++;
- inLine = false;
- } else if (c != '\r') {
- inLine = true;
- }
- }
- if (inLine) count++;
- return count;
 }
 
 /* Locates the "@WEBDICT" marker by streaming the file through a small stack
@@ -296,21 +265,33 @@ bool DisplayManager::loadLangFile(const char* path) {
  * against a newer firmware filled the new slots with "" and drew blank labels
  * on the TFT — a worse failure than English, because nothing looks wrong,
  * there is just nothing there. */
+ size_t dictSize = secEnd[S_DICT] - secStart[S_DICT];
+ char* dictBuf = (char*)malloc(dictSize + 2);
+ if (!dictBuf) {
+ free(buf);
+ memset(&_activeLang, 0, sizeof(_activeLang));
+ return false;
+ }
+ memcpy(dictBuf, buf + secStart[S_DICT], dictSize);
+ dictBuf[dictSize] = '\n';
+ dictBuf[dictSize + 1] = '\0';
+ size_t dictN = dictSize + 1;
+
  int dictIdx = 0;
- size_t lineStart = secStart[S_DICT];
- size_t dictEnd = secEnd[S_DICT];
+ size_t lineStart = 0;
+ size_t dictEnd = dictN;
 
  for (size_t k = lineStart; k <= dictEnd; k++) {
- if (k == dictEnd || buf[k] == '\n') {
+ if (k == dictEnd || dictBuf[k] == '\n') {
  if (dictIdx < TR_KEYS_COUNT) {
- /* Mark end of line (if \n; \0 if k==dictEnd already guaranteed by buf[n]) */
- if (k < dictEnd) buf[k] = '\0';
+ /* Mark end of line (if \n; \0 if k==dictEnd already guaranteed) */
+ if (k < dictEnd) dictBuf[k] = '\0';
  /* Strip trailing \r */
  size_t lastChar = k;
- if (lastChar > lineStart && buf[lastChar-1] == '\r') {
- buf[lastChar-1] = '\0';
+ if (lastChar > lineStart && dictBuf[lastChar-1] == '\r') {
+ dictBuf[lastChar-1] = '\0';
  }
- char* line = buf + lineStart;
+ char* line = dictBuf + lineStart;
  _activeLang.strings[dictIdx++] = (line[0] == '\0') ? nullptr : line;
  }
  lineStart = k + 1;
@@ -320,6 +301,7 @@ bool DisplayManager::loadLangFile(const char* path) {
 
  /* A file with no usable dictionary at all is still a bad file. */
  if (dictIdx == 0) {
+ free(dictBuf);
  free(buf);
  memset(&_activeLang, 0, sizeof(_activeLang));
  return false;
@@ -330,18 +312,14 @@ bool DisplayManager::loadLangFile(const char* path) {
  TRL("Language pack is older than the firmware — missing strings show in English"));
  }
 
- /* HELP and LICENSE: preserve newlines, only null-terminate at end */
+ /* @HELP / @LICENSE: byte ranges into the file, lazy-read on demand. */
  if (secEnd[S_HELP] > secStart[S_HELP]) {
- _activeLang.helpText = buf + secStart[S_HELP];
- size_t e = secEnd[S_HELP];
- if (e > 0 && buf[e-1] == '\n') buf[e-1] = '\0';
- else if (e <= n) buf[e] = '\0';
+ _activeLang.helpOffset = (uint32_t)secStart[S_HELP];
+ _activeLang.helpLen = (uint32_t)(secEnd[S_HELP] - secStart[S_HELP]);
  }
  if (secEnd[S_LICENSE] > secStart[S_LICENSE]) {
- _activeLang.licenseText = buf + secStart[S_LICENSE];
- size_t e = secEnd[S_LICENSE];
- if (e > 0 && buf[e-1] == '\n') buf[e-1] = '\0';
- else if (e <= n) buf[e] = '\0';
+ _activeLang.licenseOffset = (uint32_t)secStart[S_LICENSE];
+ _activeLang.licenseLen = (uint32_t)(secEnd[S_LICENSE] - secStart[S_LICENSE]);
  }
  /* @WEBDICT: opaque JSON blob, served via GET /api/lang to browser.
   * Recorded as a byte range into the FILE — the suffix was never read into
@@ -352,130 +330,33 @@ bool DisplayManager::loadLangFile(const char* path) {
  _activeLang.webDictOffset = (uint32_t)wdBodyAt;
  _activeLang.webDictLen = (uint32_t)(fsize - wdBodyAt);
  }
-
- /* @LOGCODES: each line "<decimal_id> <text>", split at first space.
- * Empty lines or lines without a space are skipped. */
- if (secEnd[S_LOGCODES] > secStart[S_LOGCODES]) {
- size_t s = secStart[S_LOGCODES], e = secEnd[S_LOGCODES];
- uint16_t cap = countNonEmptyLines(buf, s, e);
- if (cap > 0) {
- LogCodeEntry* arr = (LogCodeEntry*)malloc(sizeof(LogCodeEntry) * cap);
- if (!arr) { free(buf); memset(&_activeLang, 0, sizeof(_activeLang)); return false; }
- uint16_t idx = 0;
- size_t lineStart2 = s;
- for (size_t k = s; k <= e; k++) {
- if (k == e || buf[k] == '\n') {
- if (k > lineStart2) {
- if (k < e) buf[k] = '\0';
- if (k > lineStart2 && buf[k-1] == '\r') buf[k-1] = '\0';
- char* line = buf + lineStart2;
- char* sp = strchr(line, ' ');
- if (sp && idx < cap) {
- *sp = '\0';
- long codeVal = strtol(line, nullptr, 10);
- const char* text = sp + 1;
- if (codeVal >= 0 && codeVal <= 65535 && *text) {
- arr[idx].code = (uint16_t)codeVal;
- arr[idx].text = text;
- idx++;
- }
- }
- }
- lineStart2 = k + 1;
- }
- }
- if (idx > 0) {
- qsort(arr, idx, sizeof(LogCodeEntry), cmpLogcode);
- _activeLang.logcodes = arr;
- _activeLang.logcodesCount = idx;
- } else {
- free(arr);
- }
- }
- }
-
- /* @TRL: each line "<hex_hash> <text>" (hash in ASCII hex without 0x).
- * Allows generation via Python tooling: hex(fnv1a32(en)). */
- if (secEnd[S_TRL] > secStart[S_TRL]) {
- size_t s = secStart[S_TRL], e = secEnd[S_TRL];
- uint16_t cap = countNonEmptyLines(buf, s, e);
- if (cap > 0) {
- TrlEntry* arr = (TrlEntry*)malloc(sizeof(TrlEntry) * cap);
- if (!arr) {
- if (_activeLang.logcodes) { free(_activeLang.logcodes); _activeLang.logcodes = nullptr; _activeLang.logcodesCount = 0; }
- free(buf); memset(&_activeLang, 0, sizeof(_activeLang)); return false;
- }
- uint16_t idx = 0;
- size_t lineStart2 = s;
- for (size_t k = s; k <= e; k++) {
- if (k == e || buf[k] == '\n') {
- if (k > lineStart2) {
- if (k < e) buf[k] = '\0';
- if (k > lineStart2 && buf[k-1] == '\r') buf[k-1] = '\0';
- char* line = buf + lineStart2;
- char* sp = strchr(line, ' ');
- if (sp && idx < cap) {
- *sp = '\0';
- uint32_t h = (uint32_t)strtoul(line, nullptr, 16);
- const char* text = sp + 1;
- if (h != 0 && *text) {
- arr[idx].hash = h;
- arr[idx].text = text;
- idx++;
- }
- }
- }
- lineStart2 = k + 1;
- }
- }
- if (idx > 0) {
- qsort(arr, idx, sizeof(TrlEntry), cmpTrl);
- _activeLang.trls = arr;
- _activeLang.trlsCount = idx;
- } else {
- free(arr);
- }
- }
- }
+ /* @LOGCODES / @TRL are intentionally not resident: their lookups fall
+  * back to inline English. Free the transient prefix now that @DICT has
+  * been copied out. */
+ free(buf);
 
  /* Path is kept so /api/lang can reopen the file to stream @WEBDICT. */
  strncpy(_activeLang.path, path, sizeof(_activeLang.path) - 1);
  _activeLang.path[sizeof(_activeLang.path) - 1] = '\0';
 
- _activeLang.buffer = buf;
- _activeLang.bufferSize = n;
+ _activeLang.buffer = dictBuf;
+ _activeLang.bufferSize = dictN;
  _activeLangLoaded = true;
  return true;
 }
 
 /* ─────────────────────────────────────────────────────────────────
- * Lookups: binary search on tables built by the parser.
- * Return nullptr when .lng is not loaded, when the caller
- * is in EN, or when the key has no entry. Caller should fallback
- * to EN inline.
+ * Lookups. @LOGCODES / @TRL are no longer resident — their tables
+ * were dropped from the pack loader to free heap, so both lookups
+ * always answer "absent" and the callers fall back to inline EN.
  * ───────────────────────────────────────────────────────────────── */
 const char* DisplayManager::logcodeLookup(uint16_t code) {
- if (!_activeLangLoaded || !_activeLang.logcodes) return nullptr;
- int lo = 0, hi = (int)_activeLang.logcodesCount - 1;
- while (lo <= hi) {
- int mid = (lo + hi) >> 1;
- uint16_t c = _activeLang.logcodes[mid].code;
- if (c == code) return _activeLang.logcodes[mid].text;
- if (c < code) lo = mid + 1; else hi = mid - 1;
- }
+ (void)code;
  return nullptr;
 }
 
 const char* DisplayManager::trlLookup(const char* en) {
- if (!_activeLangLoaded || !_activeLang.trls || !en) return nullptr;
- uint32_t h = fnv1a32(en);
- int lo = 0, hi = (int)_activeLang.trlsCount - 1;
- while (lo <= hi) {
- int mid = (lo + hi) >> 1;
- uint32_t mh = _activeLang.trls[mid].hash;
- if (mh == h) return _activeLang.trls[mid].text;
- if (mh < h) lo = mid + 1; else hi = mid - 1;
- }
+ (void)en;
  return nullptr;
 }
 
@@ -516,7 +397,7 @@ bool DisplayManager::findAndLoadLangFile( ) {
  snprintf(path, sizeof(path), "/lang/%s", firstName);
  bool ok = loadLangFile(path);
  if (ok) {
- LOG_CODE(LOG_INFO, "I18N", APP_UI_LANG_CHANGED, _activeLang.trlsCount,
+ LOG_CODE(LOG_INFO, "I18N", APP_UI_LANG_CHANGED, 0,
  String(TRL("Language pack loaded: ")) + _activeLang.name);
  } else {
  LOG_CODE(LOG_ERROR, "I18N", SYS_STORAGE_FAIL, 0,
@@ -525,11 +406,31 @@ bool DisplayManager::findAndLoadLangFile( ) {
  return ok;
 }
 
+/* Lazy-read scratch for @HELP / @LICENSE — these sections are no longer
+ * resident, so they are read from LittleFS only when a consumer asks. */
+static char _lazyReadBuf[2048];
+
+static const char* lazyRead(const char* path, uint32_t offset, uint32_t len) {
+ if (!path || len == 0) return nullptr;
+ char* out = _lazyReadBuf;
+ File f = LittleFS.open(path, "r");
+ if (!f) return nullptr;
+ f.seek(offset);
+ size_t want = (len < sizeof(_lazyReadBuf[0]) - 1) ? len : (sizeof(_lazyReadBuf[0]) - 1);
+ size_t n = f.readBytes(out, want);
+ f.close();
+ if (n == 0) return nullptr;
+ out[n] = '\0';
+ return out;
+}
+
 const char* DisplayManager::getActiveHelpText( ) {
- return _activeLangLoaded ? _activeLang.helpText : nullptr;
+ if (!_activeLangLoaded) return nullptr;
+ return lazyRead(_activeLang.path, _activeLang.helpOffset, _activeLang.helpLen);
 }
 const char* DisplayManager::getActiveLicenseText( ) {
- return _activeLangLoaded ? _activeLang.licenseText : nullptr;
+ if (!_activeLangLoaded) return nullptr;
+ return lazyRead(_activeLang.path, _activeLang.licenseOffset, _activeLang.licenseLen);
 }
 bool DisplayManager::getActiveWebDictSource(const char** path, uint32_t* offset, uint32_t* len) {
  if (!_activeLangLoaded || _activeLang.webDictLen == 0) return false;
