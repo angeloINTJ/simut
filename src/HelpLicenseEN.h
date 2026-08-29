@@ -269,5 +269,17 @@ DHT22PIO RP2040
 BuzzerPIO RP2040
  Angelo M. Alves - MIT
 
+TwoWirePIO RP2040
+ Angelo M. Alves - MIT
+
+BMx280PIO RP2040
+ Angelo M. Alves - MIT
+
+lwIP
+ Adam Dunkels et al. - BSD-3
+
+BTstack
+ BlueKitchen GmbH - BTstack license
+
 SIMUT v3 - Made in Brazil)raw";
 #endif /* SIMUT_LICENSE_STUB */

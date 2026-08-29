@@ -6521,7 +6521,20 @@ static const char LICENSE_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
     <div class="container">
         <div class="card">
             <h2 class="page-title" data-i18n="lic_title">Software License</h2>
+            <p class="lic-sub" style="margin:0;color:var(--sub)" data-i18n="lic_sub">Free software. Below, what that means in practice.</p>
+        </div>
+        <div class="card">
+            <h3 data-i18n="lic_summary_title">In short</h3>
+            <div class="lic-summary" style="white-space:pre-line;color:var(--txt);line-height:1.55" data-i18n="lic_summary">You may use, copy, modify, merge, publish, distribute, sublicense and sell copies of this software, free of charge and without restriction.
+
+The only obligation is to keep the copyright notice and the permission notice in every copy.
+
+The software is provided &quot;as is&quot;, without warranty of any kind. The author is not liable for any damage arising from its use.</div>
+            <p class="lic-note" style="margin:10px 0 0;color:var(--sub);font-style:italic" data-i18n="lic_summary_note">A plain-language summary, written to be understood. It does not replace the licence text.</p>
+        </div>
+        <div class="card">
             <h3 data-i18n="lic_mit">MIT License</h3>
+            <p class="lic-note" style="margin:0 0 10px;color:var(--sub);font-style:italic" data-i18n="lic_legal_note">The text below stays in English because it is the original — that is the version with legal force.</p>
             <pre>MIT License
 
 Copyright (c) 2025 Ângelo Moisés Alves
@@ -6699,6 +6712,46 @@ is provided for attribution and license compliance.
    License:      SIL Open Font License 1.1
    URL:          https://github.com/liberationfonts/liberation-fonts
    Components:   SVG path data in LOGIN_PAGE
+
+================================================================================
+14. TwoWirePIO_RP2040
+================================================================================
+   Description:  I2C master via RP2040 PIO (hardware-I2C fallback for the
+                 BMx280 sensors when the pins are not I2C-capable)
+   Author:       Ângelo Moisés Alves
+   License:      MIT
+   URL:          https://github.com/angeloINTJ/TwoWirePIO_RP2040
+   Components:   WirePIO.h
+
+================================================================================
+15. BMx280PIO_RP2040
+================================================================================
+   Description:  BME280/BMP280 I2C temperature/humidity/pressure driver
+   Author:       Ângelo Moisés Alves
+   License:      MIT
+   URL:          https://github.com/angeloINTJ/BMx280PIO_RP2040
+   Components:   BMx280PIO_RP2040.h
+
+================================================================================
+16. lwIP
+================================================================================
+   Description:  Lightweight TCP/IP stack, bundled inside the Arduino-Pico core
+                 (liblwip.a, or liblwip-bt.a in the Bluetooth build)
+   Author:       Adam Dunkels and the lwIP contributors
+   License:      BSD-style (3-clause)
+   URL:          https://savannah.nongnu.org/projects/lwip/
+   Components:   liblwip.a / liblwip-bt.a
+
+================================================================================
+17. BTstack
+================================================================================
+   Description:  Dual-mode Bluetooth stack, bundled for the alpha build that
+                 enables the SerialBT CLI (CYW43_ENABLE_BLUETOOTH)
+   Author:       BlueKitchen GmbH
+   License:      BTstack license (free for non-commercial use; commercial use
+                 requires a separate license from BlueKitchen GmbH)
+   URL:          https://github.com/bluekitchen/btstack
+   Components:   liblwip-bt.a (via the Arduino-Pico Bluetooth framework flag)
 
 ================================================================================
 
