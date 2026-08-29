@@ -416,7 +416,7 @@ static const char* lazyRead(const char* path, uint32_t offset, uint32_t len) {
  File f = LittleFS.open(path, "r");
  if (!f) return nullptr;
  f.seek(offset);
- size_t want = (len < sizeof(_lazyReadBuf[0]) - 1) ? len : (sizeof(_lazyReadBuf[0]) - 1);
+ size_t want = (len < sizeof(_lazyReadBuf) - 1) ? len : (sizeof(_lazyReadBuf) - 1);
  size_t n = f.readBytes(out, want);
  f.close();
  if (n == 0) return nullptr;
