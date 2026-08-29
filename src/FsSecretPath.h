@@ -53,3 +53,24 @@ inline bool isSecretFsPath(const String& path) {
 	 * prefix test needs no runtime String building. */
 	return l.startsWith(DIR_CONFIG "/");
 }
+
+/**
+ * @brief True for the /config directory itself or any path under it.
+ *
+ * isSecretFsPath matches only "/config/..." (files inside the store) and
+ * deliberately misses the bare "/config" — the download path never sees a
+ * directory. A directory listing (/api/ls) must refuse the bare directory too,
+ * or it enumerates the store's filenames (finding ACH-04). This sibling folds
+ * the two cases into one check, without changing isSecretFsPath's tested
+ * file-oriented contract.
+ */
+inline bool isSecretFsDir(const String& path) {
+	String l = path;
+	l.toLowerCase( );
+	if (!l.startsWith("/")) {          /* normalise "config" to "/config" */
+		String tmp = "/";
+		tmp += l.c_str( );
+		l = tmp;
+	}
+	return l == DIR_CONFIG || l.startsWith(DIR_CONFIG "/");
+}

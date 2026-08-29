@@ -90,6 +90,17 @@ void WebManager::handleDelete( ) {
 
  String path = _server->arg("file");
 
+ /* Same /config guard as handleDownload: deletion is a mutation, but the
+  * credential store must never be reachable by PERM_FILE_DELETE — removing
+  * system.bin forces factory-reset and removing web_key.pem silently
+  * downgrades TLS. Reject traversal/percent-encoding for the same reason as
+  * the read path. */
+ if (path.indexOf("..") >= 0 || path.indexOf('%') >= 0 || isSecretFsPath(path)) {
+  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId, String("delete refused: ") + path);
+  _server->send(403, "application/json", "{\"error\":\"Forbidden\"}");
+  return;
+ }
+
  /* Refused here, not only hidden in the page: /files omits the checkbox on
   * a protected row, but this handler is one POST away from anybody. */
  if (isProtectedFsPath(path)) {
@@ -162,6 +173,15 @@ void WebManager::handleApiLs( ) {
  if (!dirPath.startsWith("/")) dirPath = "/" + dirPath;
  while (dirPath.length( ) > 1 && dirPath.endsWith("/")) {
  dirPath = dirPath.substring(0, dirPath.length( ) - 1);
+ }
+
+ /* /config is the credential store. The strict allowlist was removed to let
+  * custom dirs be listed, but that must not re-open enumeration of the secret
+  * folder. Placed after normalisation so //config and /config/ collapse first;
+  * isSecretFsDir matches the bare dir and any nested path (finding ACH-04). */
+ if (isSecretFsDir(dirPath)) {
+  _server->send(403, "application/json", "{\"error\":\"forbidden\"}");
+  return;
  }
 
  /* Removed strict allowlist (/history,/config,/lang,/themes).
@@ -430,6 +450,17 @@ void WebManager::handleUploadData( ) {
  }
 
  if (finalPath == "/calib.csv") finalPath = "/calib.tmp";
+
+ /* Same /config guard as handleDownload: an upload must never land in the
+  * credential store. uploadDir=/config with filename system.bin would
+  * overwrite the config (factory-reset on next boot) or plant a forged
+  * web_cert.pem/web_key.pem (MITM the admin traffic after reboot). */
+ if (isSecretFsPath(finalPath)) {
+  LOG_CODE(LOG_WARN, "SEC", SEC_UNAUTHORIZED, _currentUserId,
+           String("upload refused: ") + finalPath);
+  _uploadRejected = true;
+  return;
+ }
 
  LOG_CODE(LOG_INFO, "WEB", WEB_UPLOAD, 0, finalPath);
  LOG_CODE(LOG_INFO, "SEC", SEC_FILE_UPLOAD, _currentUserId, finalPath);

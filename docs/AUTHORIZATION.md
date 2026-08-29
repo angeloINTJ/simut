@@ -36,19 +36,21 @@ only two ways: the factory seed sets it on user slot 0 (`StorageManager.cpp`),
 and the serial CLI `user perm <name> admin|0xFFFF` can assign it
 (`AppManager_CmdHandlers.cpp`).
 
-Three routes require **exactly** `perms == PERM_FULL_ADMIN`:
+Four routes require **exactly** `perms == PERM_FULL_ADMIN`:
 
 - `GET /api/backup` — downloads the entire LittleFS image, secrets included.
 - `POST /api/restore?op=stage` and `POST /api/ota/apply` — stage and apply a
   firmware image (erases 1 MB of flash).
+- `POST /api/restore?op=apply` — overwrites the whole LittleFS from a `.bkp`,
+  `/config/system.bin` included (the `.bkp` is the full-FS dump from
+  `/api/backup`).
 
 Therefore **no web-created account, however fully privileged, can read a full
 backup or flash firmware** — those stay with the physical/CLI admin. This is a
 deliberate boundary, not an accident of bit assignment; keep it when adding
-routes. Note the matching-but-weaker rung: restoring *individual files* via
-`/api/restore?op=apply` needs only `PERM_FILE_UPLOAD`, consistent with plain
-`/api/upload` — writing a file you were granted upload rights to is not the same
-capability as reading the whole image at once.
+routes. (`/api/restore?op=apply` used to sit at `PERM_FILE_UPLOAD`; it was
+raised to `== PERM_FULL_ADMIN` because a forged `.bkp` can name
+`/config/system.bin` as a destination — finding ACH-03.)
 
 ## The matrix
 
@@ -104,7 +106,7 @@ handler checks.
 | `POST /api/delete` | `PERM_FILE_DELETE` |
 | `POST /api/mkdir` | `PERM_FILE_UPLOAD` |
 | `POST /api/upload` | `PERM_FILE_UPLOAD` (enforced in the data callback **and** the completion handler) |
-| `POST /api/restore` | validate `PERM_FILE_READ` · apply `PERM_FILE_UPLOAD` · stage `== PERM_FULL_ADMIN` — checked at the **first byte** of the multipart feed, not only at finish |
+| `POST /api/restore` | validate `PERM_FILE_READ` · apply **`== PERM_FULL_ADMIN`** · stage `== PERM_FULL_ADMIN` — checked at the **first byte** of the multipart feed, not only at finish |
 | `POST /api/ota/apply` | **`== PERM_FULL_ADMIN`** |
 
 The `/api/restore` first-byte check is the fix for a real hole: the gate once

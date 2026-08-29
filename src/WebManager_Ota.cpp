@@ -182,9 +182,14 @@ void WebManager::handleApiRestoreUploadData( ) {
   * the same one the finish handler makes, moved to the first
   * byte, and it mirrors what the stage branch above and
   * handleUploadData have always done. */
- uint16_t need = (mode == ota::RestoreMode::APPLY) ? PERM_FILE_UPLOAD
-                                                   : PERM_FILE_READ;
- if (!(getAuthPerms( ) & need)) {
+ /* ACH-03: apply overwrites the whole filesystem — /config/system.bin included —
+  * so it is admin-only, matching /api/backup. Validate stays read-only at
+  * PERM_FILE_READ. PERM_FULL_ADMIN is all bits, so the single-bit "&" test used
+  * for the other permissions would pass for ANY non-zero mask — compare exact. */
+ bool denied = (mode == ota::RestoreMode::APPLY)
+     ? (getAuthPerms( ) != PERM_FULL_ADMIN)
+     : !(getAuthPerms( ) & PERM_FILE_READ);
+ if (denied) {
  _restoreRejected = true;
  /* Logged because the old hole left no trace at all: the write
   * happened in the feed and the only LOG_CODE on this route sits
@@ -377,8 +382,10 @@ void WebManager::handleApiRestoreFinish( ) {
  return;
  }
 
- uint16_t need = is_apply ? PERM_FILE_UPLOAD : PERM_FILE_READ;
- if (!(getAuthPerms( ) & need)) {
+ bool denied = is_apply
+     ? (getAuthPerms( ) != PERM_FULL_ADMIN)
+     : !(getAuthPerms( ) & PERM_FILE_READ);
+ if (denied) {
  /* The refusal is recorded here rather than at the callback that
   * enforces it, because the old hole left no trace at all and the
   * obvious place to fix that turned out to reboot the device: a

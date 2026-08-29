@@ -1196,6 +1196,31 @@ void test_secret_path_traversal_is_callers_job(void) {
 }
 
 /* ===========================================================================
+ * isSecretFsDir — the /api/ls directory guard (finding ACH-04)
+ * ===========================================================================
+ * isSecretFsPath matches only "/config/..." (files), so the bare "/config" a
+ * directory listing receives would slip past it. isSecretFsDir folds the dir
+ * and its contents into one check, and the ls handler calls it.
+ */
+void test_secret_dir_blocks_bare_and_nested(void) {
+    TEST_ASSERT_TRUE(isSecretFsDir("/config"));
+    TEST_ASSERT_TRUE(isSecretFsDir("config"));
+    TEST_ASSERT_TRUE(isSecretFsDir("/CONFIG"));
+    TEST_ASSERT_TRUE(isSecretFsDir("/config/system.bin"));
+    TEST_ASSERT_TRUE(isSecretFsDir("config/system.bin"));
+}
+
+void test_secret_dir_allows_legit_dirs(void) {
+    TEST_ASSERT_FALSE(isSecretFsDir("/"));
+    TEST_ASSERT_FALSE(isSecretFsDir("/history"));
+    TEST_ASSERT_FALSE(isSecretFsDir("/themes"));
+    TEST_ASSERT_FALSE(isSecretFsDir("/lang"));
+    TEST_ASSERT_FALSE(isSecretFsDir("/configuration"));
+    TEST_ASSERT_FALSE(isSecretFsDir("/config-backup"));
+    TEST_ASSERT_FALSE(isSecretFsDir(""));
+}
+
+/* ===========================================================================
  * isSafeDirPath — /api/mkdir folder-name guard (finding M-7)
  * ===========================================================================
  * Positive control included: the legitimate folder names must pass, or an
@@ -1877,6 +1902,10 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_secret_path_allows_legit_downloads);
     RUN_TEST(test_secret_path_no_sibling_overmatch);
     RUN_TEST(test_secret_path_traversal_is_callers_job);
+
+    /* isSecretFsDir — /api/ls directory guard (ACH-04) */
+    RUN_TEST(test_secret_dir_blocks_bare_and_nested);
+    RUN_TEST(test_secret_dir_allows_legit_dirs);
 
     /* isSafeDirPath — /api/mkdir folder-name guard (M-7) */
     RUN_TEST(test_dirpath_accepts_legit);

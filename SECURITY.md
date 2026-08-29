@@ -39,6 +39,13 @@ reporting a vulnerability.
   written to flash.
 - **Path traversal in uploads** (`handleApiUpload` validates filename and
   uploadDir — SEC-001/SEC-002).
+- **The `/config` credential store against file-manager mutation**: `POST
+  /api/delete`, `POST /api/upload` and `GET /api/ls` refuse any path under
+  `/config` (findings ACH-01/02/04) — the store is only reached by
+  `GET /api/backup` / `POST /api/restore?op=apply` (`PERM_FULL_ADMIN`).
+- **Stored XSS via the language pack**: `applyLang` escapes every value read
+  from `/api/lang` (the `@WEBDICT` of the active `.lng`, which is uploadable)
+  before writing it to `innerHTML` (finding ACH-07).
 - **Slow-request denial of service** on the HTTP parser, bounded by a
   wall-clock budget with the watchdog fed per byte (SEC-008 — fixed in
   v2.1.1-beta, see §6).
@@ -407,7 +414,8 @@ OTA endpoints (F-OTA):
   hashes — so reading it is a full-admin operation; no account created
   through the web UI reaches it.
 - `POST /api/restore?op=validate|apply` (`PERM_FILE_READ` for validate,
-  `PERM_FILE_UPLOAD` for apply) — **permission pre-checked at
+  **`PERM_FULL_ADMIN` exactly** for apply — the `.bkp` is the whole FS,
+  `/config/system.bin` included) — **permission pre-checked at
   `UPLOAD_FILE_START`, before the first byte is consumed** (see
   SEC-007 below for why this sentence had to be added). apply is
   destructive (overwrites restored `.bkp` files); chip_id must match.
@@ -448,8 +456,7 @@ requires `PERM_SYS_CONFIG`.
 - **OTA via web** (admin): a `PERM_FULL_ADMIN` account uploads the
   RAW `.bin` via `/files`, validates (boot2 CRC + size range), and
   applies via `/api/ota/apply` — both stage and apply are full-admin
-  only (`PERM_FILE_UPLOAD` covers only the restore of individual files,
-  `?op=apply` of a `.bkp`). Config snapshot is preserved through the
+  only (so is `POST /api/restore?op=apply`). Config snapshot is preserved through the
   apply. **Threat surface**: any compromised admin credential = ability to
   flash arbitrary firmware remotely. Mitigations: (1) rate-limit on
   `/api/login_init` + exponential lockout; (2) `mustChangePin` at
@@ -505,10 +512,13 @@ requires `PERM_SYS_CONFIG`.
 
 **Steps:**
 1. **Config backup**: `GET /api/backup` (`PERM_FULL_ADMIN`) — the
-   `.bkp` covers the whole FS, `/config/system.bin` included. It is the
-   only route that reaches `/config`: per-file download
-   (`GET /download?file=`, `PERM_FILE_READ`) refuses any path under
-   `/config` (FsSecretPath). Skip only if config-default is acceptable.
+   `.bkp` covers the whole FS, `/config/system.bin` included. Per-file
+   download (`GET /download?file=`, `PERM_FILE_READ`) refuses any path
+   under `/config` (FsSecretPath), and so do the mutation routes —
+   `POST /api/delete`, `POST /api/upload` and `GET /api/ls` refuse
+   `/config` (findings ACH-01/02/04). The sanctioned way to move config off
+   the device is `GET /api/backup`. Skip only if config-default is
+   acceptable.
 2. **FS backup** (recommended if LittleFS layout changed): the same
    `.bkp` from `GET /api/backup`; non-secret files can also be pulled
    one by one via `/api/ls` + `GET /download?file=` (`PERM_FILE_READ`).
@@ -520,9 +530,10 @@ requires `PERM_SYS_CONFIG`.
 4. **Copy UF2** to the mounted drive. Pico reboots automatically.
 5. **Verify version** after boot via `GET /api/perms` (`version`
    field) or Serial banner: must match the published release.
-6. **Restore config** if step 2 downloaded a backup: upload via
-   `POST /api/upload` to `/config/system.bin` (needs
-   `PERM_FILE_UPLOAD`).
+6. **Restore config** if step 1 downloaded a `.bkp`: apply it via
+   `POST /api/restore?op=apply` (**`PERM_FULL_ADMIN`**). Direct upload
+   to `/config/system.bin` via `/api/upload` is no longer allowed — that
+   path was the ACH-02 vulnerability, now closed.
 
 **Broken boot recovery:**
 - BOOTSEL force: hold the BOOTSEL button during power-up; always enters
