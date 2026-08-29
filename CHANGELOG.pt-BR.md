@@ -4,6 +4,26 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.6-beta (2026-08-29)
+
+### Página de licença reescrita e traduções corrigidas
+
+A página /license agora segue o padrão simut-rx: um resumo em linguagem simples
+(traduzido para PT/ES), uma nota legal curta e, em seguida, o texto original em
+inglês da MIT e os avisos de terceiros — o único texto com valor jurídico.
+
+Os avisos de terceiros foram completados com as quatro bibliotecas de firmware
+que faltavam — TwoWirePIO_RP2040, BMx280PIO_RP2040, lwIP e BTstack — tanto na
+página web quanto na tela de licença do dispositivo.
+
+A build alpha agora serve as traduções da web direto do pacote de idioma
+(GET /api/lang), e a build TFT mantém apenas o @DICT residente na RAM, lendo
+@HELP e @LICENSE do LittleFS sob demanda.
+
+Corrigida uma regressão em que o help da CLI e a tela de licença do dispositivo
+sempre caíam no inglês: o leitor sob demanda dimensionava o buffer como
+`sizeof(char)` em vez do buffer inteiro, então lia sempre zero bytes.
+
 ## v2.3.5-beta (2026-08-24)
 
 ### Alpha ganha Bluetooth e um display multi-sensor
