@@ -4,6 +4,15 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.8-beta (2026-08-29)
+
+### Web interface defaults to the installed language
+
+On first visit the web UI now opens in the language of the pack installed in
+/lang (PT or ES, when present and compatible) instead of always English. The
+language selector keeps working the same way, and the choice is remembered in
+the browser — only the first-visit default changed.
+
 ## v2.3.7-beta (2026-08-29)
 
 ### Alpha CLI help speaks the device language

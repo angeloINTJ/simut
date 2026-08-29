@@ -4,6 +4,15 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.8-beta (2026-08-29)
+
+### A interface web abre no idioma instalado
+
+Na primeira visita, a interface web agora abre no idioma do pacote instalado em
+/lang (PT ou ES, quando presente e compatível) em vez de sempre em inglês. O
+seletor de idioma continua funcionando da mesma forma, e a escolha é lembrada no
+navegador — só o padrão da primeira visita mudou.
+
 ## v2.3.7-beta (2026-08-29)
 
 ### O help da CLI alpha fala o idioma do dispositivo
