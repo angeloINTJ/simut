@@ -17,6 +17,8 @@ static uint32_t _lt = 0;
 static char _alphaLangPath[40] = {0};
 static char _alphaLangName[16] = {0};
 static char _alphaLangCode[8] = {0};
+/* @HELP body, read from LittleFS on demand (the pack is not resident). */
+static char _alphaHelpBuf[2048];
 
 /* ── Alpha multi-slot cycling state (Core 1) ─────────────────────── */
 static int8_t  _cycleSlot = -1;       /* slot currently on screen */
@@ -360,7 +362,58 @@ void DisplayManager::showSettingsLang(int){}
 void DisplayManager::showSystemStatus( ){}
 bool DisplayManager::consumeErrorSound( ){return false;}
 bool DisplayManager::consumeTouchSound( ){return false;}
-const char* DisplayManager::getActiveHelpText( ){return nullptr;}
+const char* DisplayManager::getActiveHelpText( ) {
+	if (_alphaLangPath[0] == '\0') return nullptr;
+	File f = LittleFS.open(_alphaLangPath, "r");
+	if (!f) return nullptr;
+
+	/* Locate @HELP at column 0, then its body (up to the next column-0 '@',
+	 * which is @LICENSE). Byte-wise walk mirrors scanWebDictRange. */
+	static const char kDir[] = "@HELP";
+	const size_t kDirLen = sizeof(kDir) - 1;
+	uint8_t scan[128];
+	uint32_t pos = 0;
+	size_t match = 0;
+	bool atLineStart = true;
+	bool skippingDirLine = false;
+	bool inBlock = false;
+	bool found = false;
+	uint32_t bodyStart = 0, bodyEnd = 0;
+
+	f.seek(0);
+	while (!found) {
+		int n = f.read(scan, sizeof(scan));
+		if (n <= 0) break;
+		for (int i = 0; i < n; i++, pos++) {
+			const char c = (char)scan[i];
+			if (skippingDirLine) {
+				if (c == '\n') { skippingDirLine = false; inBlock = true; bodyStart = pos + 1; }
+				continue;
+			}
+			if (inBlock) {
+				if (atLineStart && c == '@') { bodyEnd = pos; found = true; break; }
+				atLineStart = (c == '\n');
+				continue;
+			}
+			if (atLineStart && c == '@') match = 1;
+			else if (match > 0 && match < kDirLen && c == kDir[match]) match++;
+			else match = 0;
+			if (match == kDirLen) { skippingDirLine = true; match = 0; continue; }
+			atLineStart = (c == '\n');
+		}
+	}
+	if (inBlock && !found) bodyEnd = pos; /* @HELP runs to EOF (no @LICENSE) */
+
+	if (!inBlock || bodyEnd <= bodyStart) { f.close( ); return nullptr; }
+	size_t want = bodyEnd - bodyStart;
+	if (want > sizeof(_alphaHelpBuf) - 1) want = sizeof(_alphaHelpBuf) - 1;
+	f.seek(bodyStart);
+	size_t got = f.readBytes(_alphaHelpBuf, want);
+	f.close( );
+	if (got == 0) return nullptr;
+	_alphaHelpBuf[got] = '\0';
+	return _alphaHelpBuf;
+}
 const char* DisplayManager::getActiveLangCode( ){return _alphaLangCode;}
 const char* DisplayManager::getActiveLangName( ){return _alphaLangName;}
 void DisplayManager::setGraphNavOffset(int){}
@@ -390,7 +443,68 @@ void DisplayManager::showSettingsDisplayOffset( ){}
 const char* DisplayManager::tr(LangKey){return "";}
 const char* DisplayManager::channelLabel(uint8_t){return "";}
 void DisplayManager::readRow(int16_t,uint16_t*,int16_t){}
-void DisplayManager::unaccent(const char*,char*,unsigned){}
+void DisplayManager::unaccent(const char* utf8, char* out, size_t outSize) {
+	if (!out || outSize == 0) return;
+	if (!utf8) { out[0] = '\0'; return; }
+
+	size_t o = 0;
+	const unsigned char* p = (const unsigned char*)utf8;
+	while (*p && o + 1 < outSize) {
+		unsigned char c = *p;
+		if (c < 0x80) { out[o++] = (char)c; p++; continue; }
+		unsigned char c2 = p[1];
+		char repl = '?';
+		if (c == 0xC3) {
+			switch (c2) {
+			case 0x80: case 0x81: case 0x82: case 0x83:
+			case 0x84: case 0x85: repl = 'A'; break;
+			case 0x86: repl = 'A'; break;
+			case 0x87: repl = 'C'; break;
+			case 0x88: case 0x89: case 0x8A:
+			case 0x8B: repl = 'E'; break;
+			case 0x8C: case 0x8D: case 0x8E:
+			case 0x8F: repl = 'I'; break;
+			case 0x91: repl = 'N'; break;
+			case 0x92: case 0x93: case 0x94:
+			case 0x95: case 0x96: case 0x98: repl = 'O'; break;
+			case 0x99: case 0x9A: case 0x9B:
+			case 0x9C: repl = 'U'; break;
+			case 0x9D: repl = 'Y'; break;
+			case 0xA0: case 0xA1: case 0xA2: case 0xA3:
+			case 0xA4: case 0xA5: repl = 'a'; break;
+			case 0xA6: repl = 'a'; break;
+			case 0xA7: repl = 'c'; break;
+			case 0xA8: case 0xA9: case 0xAA:
+			case 0xAB: repl = 'e'; break;
+			case 0xAC: case 0xAD: case 0xAE:
+			case 0xAF: repl = 'i'; break;
+			case 0xB1: repl = 'n'; break;
+			case 0xB2: case 0xB3: case 0xB4:
+			case 0xB5: case 0xB6: case 0xB8: repl = 'o'; break;
+			case 0xB9: case 0xBA: case 0xBB:
+			case 0xBC: repl = 'u'; break;
+			case 0xBD: case 0xBF: repl = 'y'; break;
+			default: repl = '?'; break;
+			}
+			out[o++] = repl; p += 2;
+		} else if (c == 0xC2) {
+			if (c2 == 0xA1 || c2 == 0xBF) { p += 2; continue; }
+			switch (c2) {
+			case 0xA9: repl = 'C'; break;
+			case 0xAE: repl = 'R'; break;
+			case 0xB0: repl = 'o'; break;
+			case 0xB1: repl = '+'; break;
+			case 0xB2: repl = '2'; break;
+			case 0xB3: repl = '3'; break;
+			default: repl = '?'; break;
+			}
+			out[o++] = repl; p += 2;
+		} else {
+			out[o++] = '?'; p++;
+		}
+	}
+	out[o] = '\0';
+}
 void DisplayManager::showStats(const GraphDataPackage&,float,float){}
 const char* DisplayManager::trlLookup(const char*){return "";}
 void DisplayManager::fillCalData(TouchCalData*)const{}
