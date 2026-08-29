@@ -541,21 +541,26 @@ bool DisplayManager::findAndLoadLangFile( ) {
 		f.close( );
 		if (n > 0) {
 			head[n] = '\0';
-			char* p = strstr(head, "@NAME ");
+			/* Bounded copy, no in-place mutation of head: nulling the @NAME
+			 * newline would otherwise hide @CODE from strstr and leave the web
+			 * selector EN-only. */
+			const char* p = strstr(head, "@NAME ");
 			if (p) {
 				p += 6;
-				char* e = strpbrk(p, "\r\n");
-				if (e) *e = '\0';
-				strncpy(_alphaLangName, p, sizeof(_alphaLangName) - 1);
-				_alphaLangName[sizeof(_alphaLangName) - 1] = '\0';
+				const char* e = strpbrk(p, "\r\n");
+				size_t len = e ? (size_t)(e - p) : strlen(p);
+				if (len >= sizeof(_alphaLangName)) len = sizeof(_alphaLangName) - 1;
+				memcpy(_alphaLangName, p, len);
+				_alphaLangName[len] = '\0';
 			}
 			p = strstr(head, "@CODE ");
 			if (p) {
 				p += 6;
-				char* e = strpbrk(p, "\r\n");
-				if (e) *e = '\0';
-				strncpy(_alphaLangCode, p, sizeof(_alphaLangCode) - 1);
-				_alphaLangCode[sizeof(_alphaLangCode) - 1] = '\0';
+				const char* e = strpbrk(p, "\r\n");
+				size_t len = e ? (size_t)(e - p) : strlen(p);
+				if (len >= sizeof(_alphaLangCode)) len = sizeof(_alphaLangCode) - 1;
+				memcpy(_alphaLangCode, p, len);
+				_alphaLangCode[len] = '\0';
 			}
 		}
 	}
