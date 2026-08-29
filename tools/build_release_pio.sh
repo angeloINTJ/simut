@@ -76,7 +76,7 @@ rsync -a --delete test/ "${DST}/test/"
 # ── Docs ──
 echo "--- Copying docs/ ---"
 if [ -d "docs" ]; then
-  rsync -a --delete --exclude='screenshots*' --exclude='promotion' --exclude='test_reports' docs/ "${DST}/docs/"
+  rsync -a --delete --exclude='screenshots*' --exclude='promotion' --exclude='test_reports' --exclude='.venv' --exclude='__pycache__' --exclude='*.pyc' docs/ "${DST}/docs/"
 fi
 
 # ── Create zip ──
