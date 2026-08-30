@@ -4,6 +4,16 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## v2.3.9-beta (2026-08-29)
+
+### Seletor web da alpha corrigido (estava travado em inglês)
+
+O seletor de idioma e a interface da build alfanumérica caíam para o inglês nas
+páginas autenticadas: o localizador do pacote de idioma truncava o buffer do
+cabeçalho ao ler @NAME, então @CODE nunca era interpretado e /api/perms
+retornava o código de idioma vazio. O cabeçalho agora é interpretado sem mutar o
+buffer, então a interface web adota o pacote PT/ES instalado como padrão.
+
 ## v2.3.8-beta (2026-08-29)
 
 ### A interface web abre no idioma instalado

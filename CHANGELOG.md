@@ -4,6 +4,16 @@
 
 All notable changes to SIMUT firmware.
 
+## v2.3.9-beta (2026-08-29)
+
+### Alpha web selector fixed (was stuck in English)
+
+The alphanumeric build's language selector and interface were falling back to
+English on the authenticated pages: the language-pack locator truncated its
+header buffer while reading @NAME, so @CODE was never parsed and /api/perms
+returned an empty language code. The header is now parsed without mutating the
+buffer, so the web UI adopts the installed PT/ES pack as its default.
+
 ## v2.3.8-beta (2026-08-29)
 
 ### Web interface defaults to the installed language
