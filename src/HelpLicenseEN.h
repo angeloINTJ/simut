@@ -54,6 +54,14 @@ reload [confirm]
  Reboot now
 ap
  Start AP mode (access point) for setup
+air interval <min>
+ Set hibernation wake period (1..1440)
+air idle <sec>
+ Set auto-hibernate idle timeout
+air hibernate
+ Enter hibernation now (SIMUT Air)
+air status
+ Show Air config + current phase
 ===========================================
 )raw";
 #else

@@ -39,6 +39,9 @@ void AppManager::startApMode( ) {
 }
 
 void AppManager::executeCommand(CliDemand cmd) {
+#if SIMUT_AIR
+ airMarkActivity( ); /* any serial/BT command resets the M0 idle timer */
+#endif
  SystemConfig &cfg = _storageMgr->getConfig( );
  bool changed = false;
  const bool pt = _cmdMgr->isPt( );
@@ -788,6 +791,49 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_AP:
  startApMode( );
  break;
+
+#if SIMUT_AIR
+ case CMD_AIR_HIBERNATE:
+ _cmdMgr->printInfo(_cmdMgr->isPt( )
+  ? "Entrando em hibernacao (SIMUT Air)..."
+  : "Entering hibernation (SIMUT Air)...");
+ airStartHibernate( );
+ break;
+
+ case CMD_AIR_STATUS: {
+  char buf[96];
+  snprintf(buf, sizeof(buf), "Air: phase=%d wake=%lumin idle=%us",
+           (int)_airPhase, (unsigned long)_airCfg.wakeIntervalMin,
+           (unsigned)_airCfg.idleTimeoutSec);
+  _cmdMgr->printInfo(buf);
+  break;
+ }
+
+ case CMD_AIR_INTERVAL: {
+  int v = 0;
+  if (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && v >= 1 && v <= 1440) {
+   _airCfg.wakeIntervalMin = (uint32_t)v;
+   airSaveConfig(_airCfg);
+   _cmdMgr->printSuccess("air interval set");
+  } else {
+   _cmdMgr->printError("air interval <1..1440> (minutes)");
+  }
+  break;
+ }
+
+ case CMD_AIR_IDLE: {
+  int v = 0;
+  if (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && v >= 10 && v <= 86400) {
+   _airCfg.idleTimeoutSec = (uint16_t)v;
+   airSaveConfig(_airCfg);
+   _cmdMgr->printSuccess("air idle set");
+  } else {
+   _cmdMgr->printError("air idle <10..86400> (seconds)");
+  }
+  break;
+ }
+#endif /* SIMUT_AIR */
+
 #if SIMUT_CLI_FULL
  case CMD_TEL_SYNC:
  /* Silent by design: user sees the natural log

@@ -27,4 +27,10 @@
 
   struct DisplayDriver : public Ili9341_320x240, public Xpt2046_Touch {
   };
+#else
+  /* Headless (SIMUT Air): no display driver at all. DisplayManager keeps a
+   * default-constructed empty driver; every driver-touching code path is
+   * compiled out under #if SIMUT_DISPLAY_* guards. */
+  struct DisplayDriver {
+  };
 #endif

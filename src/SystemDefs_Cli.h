@@ -119,6 +119,14 @@ enum DemandType {
  CMD_DO,            /**< do <cmd> — execute privileged EXEC command from config mode */
  CMD_SENSOR_ENTER,  /**< sensor <N> — enter sensor config mode (from global config) */
  CMD_AP,            /**< ap — start Access Point mode (192.168.4.1) for setup */
+
+ /* ── SIMUT Air (headless hibernating build) — available in the emergency
+  * CLI too, so a headless device can be hibernated/configured over serial
+  * and Bluetooth without the full CLI surface. ── */
+ CMD_AIR_INTERVAL,  /**< air interval <min> — set wake period (1..1440) */
+ CMD_AIR_IDLE,      /**< air idle <sec> — set M0 auto-hibernate timeout */
+ CMD_AIR_HIBERNATE, /**< air hibernate — enter the dormant cycle now */
+ CMD_AIR_STATUS,    /**< air status — show Air config + current phase */
 };
 
 /** Cisco IOS-style hierarchical CLI modes. */

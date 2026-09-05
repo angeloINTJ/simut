@@ -109,6 +109,14 @@ void AppManager::setup( ) {
   * "C0=[BOOT] C1=[DISPLAY] sc3=0x80088000" for every reboot class alike. */
  LogManager::instance( ).captureBootSnapshot( );
 
+#if SIMUT_AIR
+ /* SIMUT Air: scratch[0] survives a dormant wake (always-on domain) but is
+  * zeroed on a power cycle — the M1-vs-M0 discriminator. Read it once, then
+  * clear it so a watchdog reset during the cycle does not re-enter M1. */
+ _airActive = (watchdog_hw->scratch[0] == AIR_DORMANT_MAGIC);
+ watchdog_hw->scratch[0] = 0;
+#endif
+
  /* Always power-cycle CYW43 during setup().
 	 *
 	 * Previously: only power-cycled if scratch[5] == POST_OTA_APPLY_MAGIC
@@ -316,6 +324,10 @@ void AppManager::setup( ) {
  BLOG("[BOOT step] 5: pre _storageMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_MOUNT_FS);
  bool fsOk = _storageMgr->begin( );
+#if SIMUT_AIR
+ airLoadConfig(_airCfg);
+ _airLastActivityMs = millis( ); /* idle timer starts at boot */
+#endif
  BLOG("[BOOT step] 6: pos _storageMgr->begin( ) fsOk="); BLOG_U(fsOk ? 1 : 0);
  BLOG(" @ "); BLOG_U(millis( )); BLOG_NL( );
 
@@ -687,6 +699,9 @@ void AppManager::setup( ) {
  int dotCount = 0;
  int waitState = 0;
 
+#if SIMUT_AIR
+ if (!_airActive)
+#endif
  while (!_netMgr->isConnected( ) || !_netMgr->isTimeSynced( )) {
  TRACE_BEAT(0);
  watchdog_update( );

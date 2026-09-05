@@ -18,6 +18,9 @@
 #include <Arduino.h>
 #include <memory>
 #include "SystemDefs.h"
+#if SIMUT_AIR
+#include "air/AirConfig.h"
+#endif
 
 /* Forward declarations for all manager subsystems — owned as unique_ptr on heap. */
 class SensorManager;
@@ -188,4 +191,41 @@ private:
 	 * The CLI queue drains 1-per-loop, so it needs no explicit call. */
  bool _wasInteracting = false;
  void onTouchReleased( );
+
+#if SIMUT_AIR
+ /* ────────────────────────────────────────────────────────────────────────
+  * SIMUT Air — headless hibernating build (M0 operacional / M1 dormant).
+  * M0 = Alpha-like headless boot (web + serial + BT config, sensors, telemetry).
+  * M1 = dormant cycle: wake on RTC -> read sensors until stable + check WiFi ->
+  *       no network: persist history; network: connect + flush telemetry ->
+  *       back to dormant. Led stays ON while awake, OFF while dormant.
+  * Air config lives in /config/air.bin (NOT SystemConfig -> CONFIG_VERSION frozen).
+  * ──────────────────────────────────────────────────────────────────────── */
+ enum AirPhase {
+  AIR_PHASE_OFF = 0,   /* M0 (operational, not hibernating) */
+  AIR_PHASE_WARMUP,    /* M1: power sensors, settle */
+  AIR_PHASE_SAMPLE,    /* M1: pump sensors until stable + scan WiFi */
+  AIR_PHASE_DECIDE,    /* M1: SSID present? */
+  AIR_PHASE_PERSIST,   /* M1: no network -> write history */
+  AIR_PHASE_CONNECT,   /* M1: network -> connect + NTP */
+  AIR_PHASE_FLUSH,     /* M1: network -> flush pending telemetry */
+  AIR_PHASE_SLEEP      /* M1: power down + dormant */
+ };
+ AirPhase _airPhase = AIR_PHASE_OFF;
+ uint32_t _airPhaseTimer = 0;
+ bool     _airActive = false;   /* true = this boot is a dormant wake (M1) */
+ bool     _airWifiPresent = false;
+ bool     _airScanDone = false;
+ uint32_t _airLastActivityMs = 0; /* M0 idle timer */
+ AirConfig _airCfg;                 /* loaded from /config/air.bin */
+
+ void airLoop( );             /* M1 pump, called from loop( ) */
+ void airBeginWake( );        /* M1 boot entry (scratch magic already read) */
+ void airStartHibernate( );   /* M0 -> M1 transition (command or idle timeout) */
+ void airEnterDormant( );     /* M1 final step: power off + dormant */
+ void airMarkActivity( );     /* reset M0 idle timer on any command/web hit */
+ void airSetLed(bool on);     /* onboard LED: on while awake, off while dormant */
+ bool airLoadConfig(struct AirConfig& out);   /* read /config/air.bin */
+ bool airSaveConfig(const struct AirConfig& c); /* write /config/air.bin (atomic) */
+#endif /* SIMUT_AIR */
 };

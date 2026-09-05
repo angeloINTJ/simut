@@ -277,3 +277,44 @@
 #ifndef PIN_UNUSED
 #define PIN_UNUSED 255           // Sentinel for unused GPIO pin slots
 #endif
+
+/* =========================================================================
+ * SECTION 10: SIMUT AIR — headless hibernating build
+ *
+ * SIMUT_AIR=1 builds the headless variant (no display, no buzzer) that runs
+ * as an Alpha-like device on cold boot and enters a dormant hibernation
+ * cycle on command or after an inactivity timeout. The default wake period
+ * is 5 minutes, editable at runtime via the 'air' CLI / web (stored in
+ * /config/air.bin — NOT in SystemConfig, so CONFIG_VERSION is untouched).
+ *
+ * Override any default here or via -D build_flags.
+ * ========================================================================= */
+
+#ifndef SIMUT_AIR
+#define SIMUT_AIR 0              // 1 = SIMUT Air (headless hibernating build)
+#endif
+
+#if SIMUT_AIR
+#ifndef AIR_WAKE_INTERVAL_MIN
+#define AIR_WAKE_INTERVAL_MIN 5  // Default wake period, minutes (D7)
+#endif
+#ifndef AIR_IDLE_TIMEOUT_SEC
+#define AIR_IDLE_TIMEOUT_SEC 300 // M0 inactivity -> auto-hibernate (5 min)
+#endif
+#ifndef AIR_STAB_TIMEOUT_MS
+#define AIR_STAB_TIMEOUT_MS 30000 // Sensor stabilization cap
+#endif
+#ifndef AIR_WIFI_SCAN_TIMEOUT_MS
+#define AIR_WIFI_SCAN_TIMEOUT_MS 4000
+#endif
+#ifndef AIR_CONNECT_TIMEOUT_MS
+#define AIR_CONNECT_TIMEOUT_MS 30000
+#endif
+#ifndef AIR_FLUSH_TIMEOUT_MS
+#define AIR_FLUSH_TIMEOUT_MS 30000
+#endif
+#ifndef AIR_SENSOR_POWER_PIN
+#define AIR_SENSOR_POWER_PIN 255 // GPIO power-gating for sensors; PIN_UNUSED = off
+#endif
+#endif /* SIMUT_AIR */
+

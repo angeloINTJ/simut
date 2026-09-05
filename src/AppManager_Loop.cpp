@@ -34,6 +34,21 @@ void AppManager::loop( ) {
  core1StallSample( );  /* covers the idle stretches between web handlers */
  watchdog_update( );
 
+#if SIMUT_AIR
+ /* ── SIMUT Air ─────────────────────────────────────────────────────── */
+ if (_airActive) {
+  airLoop( );
+  watchdog_update( );
+  return;
+ }
+ /* M0: LED on while awake (once); auto-hibernate after the idle timeout. */
+ static bool airLedOn = false;
+ if (!airLedOn) { airSetLed(true); airLedOn = true; }
+ if (timeSince(_airLastActivityMs, (uint32_t)_airCfg.idleTimeoutSec * 1000UL)) {
+  airStartHibernate( ); /* next iteration runs airLoop( ) */
+ }
+#endif
+
  /* edge detection touch-released → orchestrated flush. */
  bool isNow = isUserInteracting( );
  if (_wasInteracting && !isNow) {
@@ -41,7 +56,9 @@ void AppManager::loop( ) {
  }
  _wasInteracting = isNow;
 
- LogManager::instance( ).checkCrossCoreHealth( );
+#if !SIMUT_AIR
+ LogManager::instance( ).checkCrossCoreHealth( ); /* Air is single-core: no Core 1 display to monitor */
+#endif
  /* Hourly accounting for the edge-triggered log filter. Cheap on every other
   * pass (one wrap-safe compare); it only writes once an hour, and only when
   * something was actually suppressed. */
