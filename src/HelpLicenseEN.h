@@ -54,8 +54,8 @@ reload [confirm]
  Reboot now
 ap
  Start AP mode (access point) for setup
-air interval <min>
- Set hibernation wake period (1..1440)
+air stop
+ Cancel hibernation and return to M0
 air idle <sec>
  Set auto-hibernate idle timeout
 air hibernate

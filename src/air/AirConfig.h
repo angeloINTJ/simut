@@ -18,7 +18,7 @@
 #include "simut_config.h"
 
 #define AIR_CONFIG_MAGIC 0x41495231u  /* "AIR1" */
-#define AIR_CONFIG_VERSION 1
+#define AIR_CONFIG_VERSION 2
 #define AIR_CONFIG_PATH "/config/air.bin"
 #define AIR_CONFIG_TMP  "/config/air.tmp"
 
@@ -32,7 +32,6 @@
 struct __attribute__((packed)) AirConfig {
   uint32_t magic;
   uint16_t version;
-  uint32_t wakeIntervalMin;   /* period between wakes (minutes) */
   uint16_t idleTimeoutSec;    /* M0 inactivity -> auto-hibernate (seconds) */
   uint16_t stabTimeoutMs;     /* sensor stabilization cap */
   uint16_t wifiScanTimeoutMs; /* presence-scan cap */
@@ -49,7 +48,6 @@ inline AirConfig airDefaultConfig( ) {
   c.magic = AIR_CONFIG_MAGIC;
   c.version = AIR_CONFIG_VERSION;
 #if SIMUT_AIR
-  c.wakeIntervalMin = AIR_WAKE_INTERVAL_MIN;
   c.idleTimeoutSec  = AIR_IDLE_TIMEOUT_SEC;
   c.stabTimeoutMs   = AIR_STAB_TIMEOUT_MS;
   c.wifiScanTimeoutMs = AIR_WIFI_SCAN_TIMEOUT_MS;
@@ -80,6 +78,5 @@ inline uint32_t airComputeCrc(const AirConfig& c) {
 inline bool airConfigValid(const AirConfig& c) {
   if (c.magic != AIR_CONFIG_MAGIC) return false;
   if (c.version != AIR_CONFIG_VERSION) return false;
-  if (c.wakeIntervalMin == 0 || c.wakeIntervalMin > 1440) return false;
   return c.crc32 == airComputeCrc(c);
 }

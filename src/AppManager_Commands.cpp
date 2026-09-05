@@ -802,24 +802,23 @@ void AppManager::executeCommand(CliDemand cmd) {
 
  case CMD_AIR_STATUS: {
   char buf[96];
-  snprintf(buf, sizeof(buf), "Air: phase=%d wake=%lumin idle=%us",
-           (int)_airPhase, (unsigned long)_airCfg.wakeIntervalMin,
+  snprintf(buf, sizeof(buf), "Air: phase=%d wake=%lus idle=%us",
+           (int)_airPhase,
+           (unsigned long)(_storageMgr->getConfig( ).telInterval / 1000UL),
            (unsigned)_airCfg.idleTimeoutSec);
   _cmdMgr->printInfo(buf);
   break;
  }
 
- case CMD_AIR_INTERVAL: {
-  int v = 0;
-  if (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && v >= 1 && v <= 1440) {
-   _airCfg.wakeIntervalMin = (uint32_t)v;
-   airSaveConfig(_airCfg);
-   _cmdMgr->printSuccess("air interval set");
-  } else {
-   _cmdMgr->printError("air interval <1..1440> (minutes)");
-  }
+ case CMD_AIR_STOP:
+  _airActive = false;
+  _airPhase = AIR_PHASE_OFF;
+  _airLastActivityMs = millis( );
+  airSetLed(true);
+  _cmdMgr->printInfo(_cmdMgr->isPt( )
+   ? "Hibernacao cancelada. Voltando ao modo operacional (M0)..."
+   : "Hibernation cancelled. Returning to operational mode (M0)...");
   break;
- }
 
  case CMD_AIR_IDLE: {
   int v = 0;

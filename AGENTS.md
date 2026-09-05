@@ -43,9 +43,11 @@ Referência completa (comandos, armadilhas, analisador lógico):
 - Ciclo: cold boot = **M0** (Alpha headless: web + serial + BT + sensores);
   `air hibernate` ou 5 min de inatividade → **M1** (dormant, acorda no RTC,
   lê sensores até estabilizar, checa Wi-Fi, grava/envia telemetria, dorme).
-- Comandos CLI: `air interval <min>`, `air idle <sec>`, `air hibernate`,
-  `air status` (funcionam na CLI de emergência).
-- Config persistida em `/config/air.bin` (não toca em `CONFIG_VERSION`).
+- Comandos CLI: `air idle <sec>`, `air hibernate`, `air status`, `air stop`
+  (cancelam/consultam a hibernação — funcionam na CLI de emergência).
+- **Intervalo de wake = intervalo de telemetria** (`cfg.telInterval`, em ms,
+  configurado via web). Sem botão separado — `/config/air.bin` só guarda
+  idle/stab/timeouts/pin (não toca em `CONFIG_VERSION`).
 - `SIMUT_CLI_FULL=0` no Air: CLI completa + web + BT + mDNS **não cabem**
   juntos em flash (estourou ~35 KB). Mantido mDNS + BT + web; serial/BT ficam
   com CLI de emergência + comandos `air` + `ap`.

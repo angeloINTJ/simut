@@ -245,7 +245,14 @@ void AppManager::airEnterDormant( ) {
   tv.tv_usec = 0;
   settimeofday(&tv, nullptr);
 
-  const time_t wake = base + (time_t)_airCfg.wakeIntervalMin * 60UL;
+  /* The wake period follows the telemetry interval (cfg.telInterval, ms):
+   * one knob drives both how often telemetry is sent and how often the device
+   * wakes. 0 (telemetry off) falls back to the compile-time default. */
+  uint32_t telMs = _storageMgr->getConfig( ).telInterval;
+  if (telMs == 0) telMs = (uint32_t)AIR_WAKE_INTERVAL_MIN * 60UL * 1000UL;
+  uint32_t wakeSec = telMs / 1000UL;
+  if (wakeSec == 0) wakeSec = 1;
+  const time_t wake = base + (time_t)wakeSec;
   struct tm wt;
   gmtime_r(&wake, &wt);
   datetime_t t;

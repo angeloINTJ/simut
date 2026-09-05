@@ -37,9 +37,19 @@ void AppManager::loop( ) {
 #if SIMUT_AIR
  /* ── SIMUT Air ─────────────────────────────────────────────────────── */
  if (_airActive) {
-  airLoop( );
-  watchdog_update( );
-  return;
+  /* M1: still poll the serial/BT CLI so the user can cancel hibernation
+   * ('air stop') during the brief awake window. */
+  CliDemand cmd;
+  if (_cmdMgr->processInput(cmd)) {
+   executeCommand(cmd);
+   if (!_waitingScan) _cmdMgr->printPrompt( );
+  }
+  if (_airActive) {
+   airLoop( );
+   watchdog_update( );
+   return;
+  }
+  /* 'air stop' fell through -> run the normal M0 body below. */
  }
  /* M0: LED on while awake (once); auto-hibernate after the idle timeout. */
  static bool airLedOn = false;

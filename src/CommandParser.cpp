@@ -117,7 +117,7 @@ CliDemand parseCliCommand(String input) {
 	if (t0 == "air") {
 		if (t1 == "hibernate" || t1 == "sleep") { cmd.type = CMD_AIR_HIBERNATE; return cmd; }
 		if (t1 == "status") { cmd.type = CMD_AIR_STATUS; return cmd; }
-		if (t1 == "interval") { cmd.type = CMD_AIR_INTERVAL; cmd.setStrVal1(r2.c_str( )); return cmd; }
+		if (t1 == "stop" || t1 == "wake") { cmd.type = CMD_AIR_STOP; return cmd; }
 		if (t1 == "idle") { cmd.type = CMD_AIR_IDLE; cmd.setStrVal1(r2.c_str( )); return cmd; }
 	}
 #if SIMUT_CLI_FULL
