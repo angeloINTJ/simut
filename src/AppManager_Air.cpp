@@ -28,6 +28,7 @@
 #include "StorageManager.h"
 #include "TelemetryManager.h"
 #include "air/AirConfig.h"
+#include "air/pico_sleep.h"
 
 #include <LittleFS.h>
 #include <WiFi.h>
@@ -35,14 +36,10 @@
 #include <sys/time.h> /* settimeofday */
 
 #include <pico/cyw43_arch.h>
-#include <hardware/clocks.h>
 #include <hardware/gpio.h>
 #include <hardware/rtc.h>
-#include <hardware/structs/scb.h>
 #include <hardware/structs/watchdog.h>
 #include <hardware/watchdog.h>
-#include <hardware/xosc.h>
-#include <hardware/regs/m0plus.h>
 
 extern AppManager app;
 
@@ -224,16 +221,13 @@ void AppManager::airEnterDormant( ) {
  airSetLed(false);
  airSensorPower(_airCfg.sensorPowerPin, false);
 
- /* Stop WiFi and power the CYW43 down FIRST (this exact order was the one
-  * observed to reach dormant on the bench). */
+ /* Stop WiFi and power the CYW43 down. */
  WiFi.disconnect(true);
  WiFi.end( );
  cyw43_arch_deinit( );
 
  /* Anchor the RTC to a valid base and arm the wake alarm interval ahead of it.
-  * The RTC is only a wake timer here, so a fixed date is fine; rtc_set_datetime
-  * is the low-level primitive (settimeofday pulled libc/lwIP in and made the
-  * later clock switch hang). */
+  * The RTC is only a wake timer here, so a fixed date is fine. */
  {
   uint32_t telMs = _storageMgr->getConfig( ).telInterval;
   if (telMs == 0) telMs = (uint32_t)AIR_WAKE_INTERVAL_MIN * 60UL * 1000UL;
@@ -246,29 +240,17 @@ void AppManager::airEnterDormant( ) {
   t.sec  = (int8_t)(wakeSec % 60);
   t.min  = (int8_t)((wakeSec / 60) % 60);
   t.hour = (int8_t)((wakeSec / 3600) % 24);
-  rtc_set_alarm(&t, nullptr);
+
+  /* Disarm the watchdog (always-on domain; it would fire during dormant). */
+  hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
+
+  /* M1-vs-M0 discriminator: survives dormant wake, zeroed on power cycle. */
+  watchdog_hw->scratch[0] = AIR_DORMANT_MAGIC;
+
+  /* Vendored pico-sdk hardware_sleep: rtc_set_alarm -> xosc_init -> SLEEPDEEP
+   * -> clk_sys=XOSC -> xosc_dormant -> __wfi. Wake is a full reset. */
+  sleep_goto_dormant_until(&t, nullptr);
  }
-
- /* Run the system clock from the crystal and put the XOSC in dormant mode so
-  * the PLLs and everything else can power down. The RTC keeps running. */
- clock_configure(clk_ref, CLOCKS_CLK_REF_CTRL_SRC_VALUE_XOSC_CLKSRC, 0, 12 * MHZ, 12 * MHZ);
- clock_configure(clk_sys, CLOCKS_CLK_SYS_CTRL_SRC_VALUE_CLK_REF,
-                 CLOCKS_CLK_SYS_CTRL_AUXSRC_VALUE_CLKSRC_PLL_SYS,
-                 12 * MHZ, 12 * MHZ);
- clock_stop(clk_usb);
- clock_stop(clk_adc);
- clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 0, 0);
- clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, 12 * MHZ, 12 * MHZ);
-
- /* Disarm the watchdog (always-on domain; it would fire during dormant). */
- hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
-
- /* M1-vs-M0 discriminator: survives dormant wake, zeroed on power cycle. */
- watchdog_hw->scratch[0] = AIR_DORMANT_MAGIC;
-
- xosc_dormant( );
- scb_hw->scr |= M0PLUS_SCR_SLEEPDEEP_BITS;
- __wfi( );
 
  /* Not reached — dormant wake is a full reset. */
  while (true) { tight_loop_contents( ); }
