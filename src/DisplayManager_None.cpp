@@ -17,6 +17,8 @@
  * @license MIT License
  */
 
+#if SIMUT_AIR
+
 #include "DisplayManager.h"
 
 DisplayManager::DisplayManager( ) {
@@ -139,3 +141,5 @@ void DisplayManager::setTelemetrySendStatus(bool success) { (void)success; }
 GFXcanvas16* DisplayManager::beginScreenRender( ) { return nullptr; }
 void DisplayManager::commitScreenStrip(int16_t stripIdx) { (void)stripIdx; }
 void DisplayManager::endScreenRender( ) { }
+
+#endif /* SIMUT_AIR */

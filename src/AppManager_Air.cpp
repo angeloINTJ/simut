@@ -19,6 +19,8 @@
  * @license MIT License
  */
 
+#if SIMUT_AIR
+
 #include "AppManager.h"
 #include "LogManager.h"
 #include "NetworkManager.h"
@@ -30,6 +32,7 @@
 #include <LittleFS.h>
 #include <WiFi.h>
 #include <time.h>
+#include <sys/time.h> /* settimeofday */
 
 #include <pico/cyw43_arch.h>
 #include <hardware/clocks.h>
@@ -226,31 +229,35 @@ void AppManager::airEnterDormant( ) {
  WiFi.end( );
  cyw43_arch_deinit( );
 
- /* Program the RTC alarm for the next wake. Base it on the RTC's OWN time
-  * (rtc_get_datetime), not on time(nullptr): the provisional clock is a virtual
-  * offset and does not set the SDK RTC, so a libc-based alarm would land in the
-  * wrong year. The RTC lives in the always-on domain and keeps running across
-  * dormant, so "now + interval" always wakes interval minutes from now. */
- datetime_t t;
- rtc_get_datetime(&t);
+ /* Program the RTC alarm for the next wake.
+ *
+ * The provisional clock is VIRTUAL (NetworkManager::getEpoch keeps a base +
+ * millis offset and never calls settimeofday), so time(nullptr) and
+ * rtc_get_datetime() are still 0 on a device that never synced NTP -- arming
+ * the alarm against them lands it in year 0 and it fires immediately. Fix:
+ * settle the SDK RTC to the best-known epoch first, then arm the alarm
+ * interval minutes ahead of it. */
  {
-  static const uint8_t dim[] = {31,28,31,30,31,30,31,31,30,31,30,31};
-  uint32_t m = (uint32_t)t.min + _airCfg.wakeIntervalMin;
-  t.min = (int8_t)(m % 60);
-  uint32_t h = (uint32_t)t.hour + (m / 60);
-  t.hour = (int8_t)(h % 24);
-  t.day  = (int8_t)(t.day + (h / 24));
-  t.dotw = (int8_t)((t.dotw + (h / 24)) % 7);
-  for (;;) {
-   bool leap = (t.year % 4 == 0 && (t.year % 100 != 0 || t.year % 400 == 0));
-   uint8_t maxd = (t.month == 2) ? (leap ? 29 : 28) : dim[(t.month >= 1 ? t.month : 1) - 1];
-   if (t.day <= maxd) break;
-   t.day -= maxd;
-   t.month++;
-   if (t.month > 12) { t.month = 1; t.year++; }
-  }
+  time_t base = _netMgr->getEpoch( );
+  if (base < 1600000000) base = SIMUT_BUILD_EPOCH;
+  struct timeval tv;
+  tv.tv_sec = base;
+  tv.tv_usec = 0;
+  settimeofday(&tv, nullptr);
+
+  const time_t wake = base + (time_t)_airCfg.wakeIntervalMin * 60UL;
+  struct tm wt;
+  gmtime_r(&wake, &wt);
+  datetime_t t;
+  t.year  = (int16_t)(wt.tm_year + 1900);
+  t.month = (int8_t)(wt.tm_mon + 1);
+  t.day   = (int8_t)wt.tm_mday;
+  t.dotw  = (int8_t)wt.tm_wday;
+  t.hour  = (int8_t)wt.tm_hour;
+  t.min   = (int8_t)wt.tm_min;
+  t.sec   = (int8_t)wt.tm_sec;
+  rtc_set_alarm(&t, nullptr);
  }
- rtc_set_alarm(&t, nullptr);
 
  /* Run the system clock from the crystal and put the XOSC in dormant mode so
   * the PLLs and everything else can power down. The RTC keeps running. */
@@ -278,3 +285,5 @@ void AppManager::airEnterDormant( ) {
  /* Not reached — dormant wake is a full reset. */
  while (true) { tight_loop_contents( ); }
 }
+
+#endif /* SIMUT_AIR */
