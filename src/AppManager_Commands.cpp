@@ -802,9 +802,12 @@ void AppManager::executeCommand(CliDemand cmd) {
 
  case CMD_AIR_STATUS: {
   char buf[96];
+  uint32_t telMs = _storageMgr->getConfig( ).telInterval;
+  if (telMs == 0) telMs = (uint32_t)AIR_WAKE_INTERVAL_MIN * 60UL * 1000UL; /* fallback, same as airEnterDormant */
+  uint32_t wakeSec = telMs / 1000UL;
+  if (wakeSec == 0) wakeSec = 1;
   snprintf(buf, sizeof(buf), "Air: phase=%d wake=%lus idle=%us",
-           (int)_airPhase,
-           (unsigned long)(_storageMgr->getConfig( ).telInterval / 1000UL),
+           (int)_airPhase, (unsigned long)wakeSec,
            (unsigned)_airCfg.idleTimeoutSec);
   _cmdMgr->printInfo(buf);
   break;
