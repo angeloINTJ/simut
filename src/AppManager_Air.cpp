@@ -29,6 +29,7 @@
 #include "TelemetryManager.h"
 #include "air/AirConfig.h"
 #include "air/pico_sleep.h"
+#include <hardware/clocks.h>
 
 #include <LittleFS.h>
 #include <WiFi.h>
@@ -236,7 +237,23 @@ void AppManager::airEnterDormant( ) {
 
   datetime_t t;
   t.year  = 2026; t.month = 1; t.day = 1; t.dotw = 4; t.hour = 0; t.min = 0; t.sec = 0;
+  {
+   datetime_t dbg;
+   rtc_get_datetime(&dbg);
+   Serial.printf("[AIR] rtc before set: %04d-%02d-%02d %02d:%02d:%02d dotw=%d\n", dbg.year, dbg.month, dbg.day, dbg.hour, dbg.min, dbg.sec, dbg.dotw);
+  }
+  /* arduino-pico keeps time in software and leaves the SDK RTC in reset.
+   * Bring it up: clock it from the XOSC and set its 1-second divider, so
+   * rtc_set_datetime / rtc_set_alarm actually run and the dormant wake fires. */
+  clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12 * MHZ, 12 * MHZ);
+  rtc_init( );
+
   rtc_set_datetime(&t);
+  {
+   datetime_t dbg;
+   rtc_get_datetime(&dbg);
+   Serial.printf("[AIR] rtc after set:  %04d-%02d-%02d %02d:%02d:%02d dotw=%d\n", dbg.year, dbg.month, dbg.day, dbg.hour, dbg.min, dbg.sec, dbg.dotw);
+  }
   t.sec  = (int8_t)(wakeSec % 60);
   t.min  = (int8_t)((wakeSec / 60) % 60);
   t.hour = (int8_t)((wakeSec / 3600) % 24);
@@ -246,6 +263,8 @@ void AppManager::airEnterDormant( ) {
 
   /* M1-vs-M0 discriminator: survives dormant wake, zeroed on power cycle. */
   watchdog_hw->scratch[0] = AIR_DORMANT_MAGIC;
+
+  Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu\n", t.hour, t.min, t.sec, (unsigned long)wakeSec);
 
   /* Vendored pico-sdk hardware_sleep: rtc_set_alarm -> xosc_init -> SLEEPDEEP
    * -> clk_sys=XOSC -> xosc_dormant -> __wfi. Wake is a full reset. */
