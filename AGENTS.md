@@ -121,6 +121,20 @@ Referência completa (comandos, armadilhas, analisador lógico):
   `wfi`, antes do SYSRESETREQ, esperando `ROSC_STATUS_STABLE` (+32 B). Medição pós-fix, dois
   ciclos seguidos por `--watch`: **110,8 s e 120,8 s dormindo, 26,5 s e 26,3 s acordado** com
   alarme de 120 s — de volta aos 147 s de ciclo que a bancada tinha de manhã.
+- ✅ **F24 — o cursor de telemetria não avançava e o mesmo pacote era reenviado a cada wake.**
+  Causa: `flushCursorIfDirty( )` adia a escrita por 5 s (`CURSOR_COALESCE_MS`) para poupar a
+  flash, e no ciclo M1 a fase FLUSH sai **~150 ms** depois do envio — a janela nunca decorre, o
+  sono perde a SRAM e o boot relê o cursor velho. ⚠️ **Padrão a procurar em qualquer coisa nova
+  no caminho do sono:** todo mecanismo que "adia para depois" está errado no Air, porque não
+  existe depois. Fix: `flushCursorIfDirty(bool force)`, com `true` nos três caminhos para o sono
+  (inclusive `airEnterDormant( )`, o ponto único). Medido: `pending` era 8 e crescia 1 por
+  ciclo; virou 1→2 em três ciclos. `flushWipV5( )` foi conferido e **não** tem esse portão.
+- ⚠️ **E havia uma SEGUNDA causa para o mesmo sintoma, do lado do servidor.** O coletor
+  `192.168.3.206:8080/telemetry` **aceita a conexão e nunca responde** (`curl` daqui: conecta em
+  3,5 ms, 20 s sem um byte). O aparelho registra `code=31 ctx=-11` (read timeout) + `code=32`
+  (retry). **O firmware está certo**: envio sem resposta não é envio confirmado, então o cursor
+  não deve avançar. Prova cruzada, só trocando o destino: com um coletor que responde 200,
+  `pending` foi de **9 para 1 em 3 ciclos**. Antes de culpar o cursor, medir o endpoint por fora.
 - ✅ **F02 e F03 corrigidos na mesma rodada.** FLUSH ganhou saída imediata com
   `telInterval == 0`, gate por `isNetworkHealthy()` e **teto de parede** (`flushTimeoutMs`);
   a energia dos sensores passa a ser ligada no **início do `setup()`**, então vale em M0 e no

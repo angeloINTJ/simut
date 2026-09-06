@@ -548,6 +548,46 @@ alarme era ancorado no instante em que o aparelho **dorme**, não no instante em
 o período efetivo virava `h_int + janela acordada`, ~22% de amostras a menos por dia.
 ✅ **Corrigido em 06/09** — ver §6.4.
 
+### 6.5 O cursor de telemetria — duas causas, uma em cada lado
+
+Sintoma relatado pelo Ângelo: *"o cursor não está avançando e o mesmo pacote é reenviado quando o
+simut-air acorda"*. A investigação achou **duas causas independentes**, e as duas produzem
+exatamente esse sintoma.
+
+**Causa 1 — firmware (corrigida, F24).** `flushCursorIfDirty( )` adia a escrita por
+`CURSOR_COALESCE_MS` (5 s). No ciclo M1 o envio marca o cursor sujo e a fase FLUSH sai ~150 ms
+depois, com a fila drenada: a janela nunca decorre, o sono perde a SRAM e o boot relê o arquivo
+antigo. Medido antes: `pending=8`, subindo 1 por ciclo. Depois do fix: 12 ciclos renderam +5, ou
+seja, a subida 1:1 parou.
+
+**Causa 2 — o coletor, e ela é a dominante.** O endpoint `192.168.3.206:8080/telemetry` **aceita
+a conexão TCP e nunca responde**. Medido desta máquina, fora do aparelho:
+
+```
+$ curl -X POST --max-time 20 http://192.168.3.206:8080/telemetry
+http=000  conectou=0,0035s  primeiro_byte=0,000000s  total=20,002s   (rc=28, timeout)
+```
+
+O log do aparelho diz o mesmo pelo lado dele: `[ERR][TEL] code=31 ctx=-11` (SYS_TEL_FAIL com
+`HTTPC_ERROR_READ_TIMEOUT`) seguido de `[WRN][TEL] code=32` (retry), três vezes com backoff
+crescente. **O firmware está certo**: um envio sem resposta é um envio não confirmado, e o
+store-and-forward existe justamente para não avançar o cursor nesse caso. O resultado correto é
+reenviar o mesmo lote.
+
+**Prova cruzada.** Apontando o mesmo aparelho, sem tocar em mais nada, para um coletor que
+responde 200 na hora (`tools/air_test_suite.py` sobe um em `:8010`):
+
+| coletor | pending |
+|---|---|
+| `.206:8080` (não responde) | 8 → subindo |
+| local `:8010` (responde 200) | **9 → 1 em 3 ciclos** |
+
+A configuração original foi salva, restaurada e conferida ao fim do teste.
+
+**O que falta fazer, e é do lado do servidor:** o endpoint precisa devolver uma resposta HTTP
+completa (qualquer 2xx serve) e prontamente. Enquanto ele só aceitar a conexão e calar, o
+aparelho vai continuar reenviando o mesmo lote — por desenho.
+
 ### 6.4 Intervalo real: alarme ancorado no wake
 
 O alarme passa a ser `h_int − (tempo que este wake já passou acordado)`. Como um wake do M1 **é**
