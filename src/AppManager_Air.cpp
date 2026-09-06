@@ -165,6 +165,13 @@ void AppManager::airStartHibernate( ) {
  * M1 pump — called from AppManager::loop( ) when _airActive.
  * ──────────────────────────────────────────────────────────────────────────── */
 void AppManager::airLoop( ) {
+ /* Debug: log phase transitions so a hang in the M1 cycle is localisable. */
+ static AirPhase _lastLogged = AIR_PHASE_OFF;
+ if (_airPhase != _lastLogged) {
+  _lastLogged = _airPhase;
+  static const char* _names[] = {"OFF","WARMUP","SAMPLE","DECIDE","PERSIST","CONNECT","FLUSH","SLEEP"};
+  Serial.printf("[AIR] phase=%s @%lu\n", _names[(int)_airPhase], (unsigned long)millis());
+ }
  switch (_airPhase) {
  case AIR_PHASE_WARMUP: {
   airSensorPower(_airCfg.sensorPowerPin, true);
@@ -181,6 +188,10 @@ void AppManager::airLoop( ) {
   const bool stable = airAllStable(*_sensorMgr);
   const bool timedOut = timeSince(_airPhaseTimer, (uint32_t)_airCfg.stabTimeoutMs);
   if (stable || timedOut) {
+   /* The WiFi scan below blocks for up to ~10 s (scanNetworks timeout), which
+    * is longer than the 8.4 s watchdog. Feed the watchdog just before so the
+    * scan has a full window. */
+   watchdog_update( );
    _airWifiPresent = airSsidPresent(_storageMgr->getConfig( ));
    _airPhase = AIR_PHASE_DECIDE;
   }
@@ -243,6 +254,12 @@ void AppManager::airLoop( ) {
  * Air marker).
  * ──────────────────────────────────────────────────────────────────────────── */
 void AppManager::airEnterDormant( ) {
+ /* Disarm the watchdog FIRST: the CYW43 teardown + RTC setup below take several
+  * seconds without feeding it, and the watchdog would otherwise fire before we
+  * reach the sleep (a false 'Core 0 stalled' reset). Once we are here we are
+  * committed to hibernating, so there is nothing left for the watchdog to guard. */
+ hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
+
  airSetLed(false);
  airSensorPower(_airCfg.sensorPowerPin, false);
 
@@ -279,10 +296,7 @@ void AppManager::airEnterDormant( ) {
   t.min  = (int8_t)((wakeSec / 60) % 60);
   t.hour = (int8_t)((wakeSec / 3600) % 24);
 
-  /* Disarm the watchdog (always-on domain; it would fire during dormant). */
-  hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
-
-  /* M1-vs-M0 discriminator: survives dormant wake, zeroed on power cycle. */
+  /* M1-vs-M0 discriminator: survives the wake, zeroed on power cycle. */
   watchdog_hw->scratch[0] = AIR_DORMANT_MAGIC;
 
   Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu\n", t.hour, t.min, t.sec, (unsigned long)wakeSec);
