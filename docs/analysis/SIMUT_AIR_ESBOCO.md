@@ -121,8 +121,8 @@ Um `AirManager` (padrão de `TelemetryManager`) é dono da máquina de M1:
 | `AIR_DECIDE` | **Sempre** grava o histórico (`processHistoryLogging` + `flushWipV5`) e escolhe CONNECT vs SLEEP | imediato |
 | `AIR_PERSIST` | *(legado, no-op — o histórico agora é gravado no DECIDE)* | imediato |
 | `AIR_CONNECT` | `NetworkManager::update()` até time-sync/`NET_READY`/timeout | conectado ou timeout |
-| `AIR_FLUSH` | `TelemetryManager::update()` não-bloqueante (respeita backoff) | fila zerada **ou** `cfg.telInterval` |
-| `AIR_SLEEP` | Desliga sensores; `cyw43_arch_deinit()`; desarma WDT; grava scratch[0]=magia; agenda RTC; `sleep_goto_sleep_until()` | — (reset no próximo wake) |
+| `AIR_FLUSH` | `TelemetryManager::update()` não-bloqueante (respeita backoff) | fila zerada **ou** backoff ativo (envio falhou) **ou** Wi-Fi caiu |
+| `AIR_SLEEP` | Desliga sensores; `WiFi.end()` + `GPIO23 (WL_REG_ON) LOW`; desarma WDT; grava scratch[0]=magia; agenda RTC; `sleep_goto_sleep_until()` | — (reset no próximo wake) |
 
 `AIR_CONNECT`/`AIR_FLUSH` só rodam quando o Wi-Fi conectou durante o SAMPLE. O histórico é
 gravado **sempre**, independente de rede — os dados ficam pendentes no cursor de telemetria para
@@ -167,8 +167,10 @@ Diagrama do ciclo:
 
 ### Atenções obrigatórias (validação no bench)
 
-1. **CYW43 (Wi-Fi)**: desligar antes de dormir (`cyw43_arch_deinit()` / `WiFi.end()`) e
-   reinicializar no boot. Maior risco de integração — validar desligar/religar sem corromper o stack.
+1. **CYW43 (Wi-Fi)**: desligar antes de dormir por **hardware** (`WiFi.disconnect(true)` +
+   `WiFi.end()` + `GPIO23 (WL_REG_ON) LOW`). **Não** usar `cyw43_arch_deinit()` — trava no
+   2º ciclo (deixa o chip num estado que só power-cycle recupera; mesma conclusão do OTA
+   "Fix #2 REVERTIDO"). O boot seguinte faz o power-cycle do CYW43, então não exige teardown limpo.
 2. **Watchdog**: fica no domínio always-on; se armado, dispara durante o dormant e parece reset.
    Desarmar antes de dormir e re-armar no `setup()`. (Em M0 o WDT segue como hoje.)
 3. **Consumo real da placa Pico W**: em dormant ~1,3 mA (repouso do CYW43 + regulador). Para µA
@@ -198,8 +200,9 @@ Diagrama do ciclo:
   telemetria não avança;
 - `AIR_FLUSH`: `TelemetryManager::update()` não-bloqueante drena do cursor (HTTP 2xx / MQTT
   PUBACK) respeitando o backoff; **não** usar `forceSync()` (bloqueia no upload HTTP);
-- janela de envio = `cfg.telInterval` → volta a dormir e tenta no próximo wake; o cursor
-  garante sem duplicação/perda.
+- envia **persistente** (um lote por `cfg.telInterval`) até a fila zerar, o envio falhar
+  (backoff) ou o Wi-Fi cair → volta a dormir e tenta no próximo wake; o cursor garante sem
+  duplicação/perda.
 
 ---
 
@@ -343,7 +346,7 @@ docs/analysis/SIMUT_AIR_ESBOCO.md   // este documento
    **sem** tocar em `CONFIG_VERSION` (D6).
 3. **F3 — `AirManager` (M1)**: máquina WARMUP/SAMPLE/DECIDE/PERSIST/CONNECT/FLUSH/SLEEP
    integrada ao loop sob `#if SIMUT_AIR`.
-4. **F4 — SLEEP**: `cyw43_arch_deinit()`/`sleep_goto_sleep_until()`/WDT desarmar +
+4. **F4 — SLEEP**: `WiFi.end()` + `GPIO23 LOW`/`sleep_goto_sleep_until()`/WDT desarmar +
    `recover_from_sleep()` + scratch[0]=magia; power-gating dos sensores.
 5. **F5 — M0 e transição**: boot = Alpha headless; comando `air hibernate` (CLI/BT) + endpoint web;
    timer de 5 min de inatividade; desligar `PromMetrics`/`Syslog`/`HaDiscovery` na transição (D5).

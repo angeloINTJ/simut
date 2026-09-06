@@ -41,6 +41,7 @@
 #include <hardware/gpio.h>
 #include <hardware/rtc.h>
 #include <hardware/structs/scb.h>
+#include <hardware/structs/usb.h>
 #include <hardware/structs/watchdog.h>
 #include <hardware/watchdog.h>
 
@@ -194,10 +195,12 @@ void AppManager::airLoop( ) {
  case AIR_PHASE_DECIDE: {
   /* Always write this wake's sample into local history (the primary job of
    * the wake). The telemetry cursor is untouched; pending packets are sent in
-   * CONNECT/FLUSH when the WiFi came up during SAMPLE. */
+   * CONNECT/FLUSH when the WiFi came up during SAMPLE. Only a live STA link
+   * means "online" — isTimeSynced() is true even offline (provisional clock
+   * from flash), so it must NOT gate the send path. */
   processHistoryLogging( );
   _storageMgr->flushWipV5( );
-  const bool online = _netMgr->isConnected( ) || _netMgr->isTimeSynced( );
+  const bool online = _netMgr->isConnected( );
   _airPhase = online ? AIR_PHASE_CONNECT : AIR_PHASE_SLEEP;
   _airPhaseTimer = millis( );
   break;
@@ -211,7 +214,7 @@ void AppManager::airLoop( ) {
 
  case AIR_PHASE_CONNECT: {
   _netMgr->update( );
-  const bool ok = _netMgr->isTimeSynced( ) || _netMgr->isConnected( );
+  const bool ok = _netMgr->isConnected( );
   if (ok || timeSince(_airPhaseTimer, (uint32_t)_airCfg.connectTimeoutMs)) {
    _airPhase = ok ? AIR_PHASE_FLUSH : AIR_PHASE_SLEEP;
    _airPhaseTimer = millis( );
@@ -220,14 +223,20 @@ void AppManager::airLoop( ) {
  }
 
  case AIR_PHASE_FLUSH: {
-  /* Persistent NON-blocking send: update() honours the backoff and sends the
-   * pending packets; we loop until all are sent (done), the server is lost
-   * (update() escalates the backoff and stops trying), or cfg.telInterval
-   * (the telemetry window) elapses. forceSync() would block the whole loop
-   * on the HTTP upload and keep the device awake. */
+  /* Persistent NON-blocking send: update() honours the backoff and sends one
+   * batch per its internal cadence (= cfg.telInterval). We keep pumping until
+   * the queue drains (done), a send fails (update() escalates the backoff ->
+   * getBackoffRemainingMs()>0), or the WiFi drops. forceSync() would block
+   * the whole loop on the HTTP upload; update() does not, so the watchdog is
+   * fed between batches and a long backlog just keeps the device awake a
+   * little longer instead of hanging it. */
+  _netMgr->update( );
   _telemetryMgr->update( );
+  _telemetryMgr->refreshPendingCount( );
   const bool done = (_telemetryMgr->getPendingEstimate( ) == 0);
-  if (done || timeSince(_airPhaseTimer, (uint32_t)_storageMgr->getConfig( ).telInterval)) {
+  const bool serverLost = (_telemetryMgr->getBackoffRemainingMs( ) > 0);
+  const bool netLost = !_netMgr->isConnected( );
+  if (done || serverLost || netLost) {
    _storageMgr->flushCursorIfDirty( );
    _airPhase = AIR_PHASE_SLEEP;
   }
@@ -262,10 +271,17 @@ void AppManager::airEnterDormant( ) {
  airSetLed(false);
  airSensorPower(_airCfg.sensorPowerPin, false);
 
- /* Stop WiFi and power the CYW43 down. */
+ /* Stop WiFi and power the CYW43 down via WL_REG_ON (GPIO23).
+  * Do NOT call cyw43_arch_deinit(): it hangs on the second call and leaves the
+  * CYW43 in a state only a power cycle recovers (see ota/orchestrator.cpp
+  * "Fix #2 ... REVERTIDO"). The next boot power-cycles the CYW43 anyway, so the
+  * driver does not need a clean teardown — pulling WL_REG_ON LOW is the
+  * hardware power-down that actually saves the current. */
  WiFi.disconnect(true);
  WiFi.end( );
- cyw43_arch_deinit( );
+ gpio_init(23);
+ gpio_set_dir(23, GPIO_OUT);
+ gpio_put(23, 0); /* WL_REG_ON LOW -> CYW43 powered off */
 
  /* Anchor the RTC to a valid base and arm the wake alarm interval ahead of it.
   * The RTC is only a wake timer here, so a fixed date is fine. */
@@ -317,6 +333,17 @@ void AppManager::airEnterDormant( ) {
    rtc_get_datetime(&dbg);
    Serial.printf("[AIR] pre-sleep rtc=%02d:%02d:%02d irq0=0x%lx\n", dbg.hour, dbg.min, dbg.sec, (unsigned long)rtc_hw->irq_setup_0);
   }
+
+  /* Clean USB detach BEFORE sleep_run_from_xosc() stops clk_usb. Clearing the
+   * D+ pull-up makes the host see a proper disconnect (SE0) and remove the
+   * ttyACM device cleanly; without it, clock_stop(clk_usb) freezes the USB
+   * controller with the pull-up still asserted and the host sees an
+   * unresponsive device — the Linux cdc_acm driver then wedges and ttyACM
+   * stops re-enumerating after a wake until the hub is power-cycled. This is
+   * the same register write TinyUSB's dcd_disconnect() does. */
+  Serial.flush( );
+  hw_clear_bits(&usb_hw->sie_ctrl, USB_SIE_CTRL_PULLUP_EN_BITS);
+  delay(100); /* let the host process the disconnect before clk_usb stops */
 
   /* Vendored pico-sdk deep-sleep: clk_sys/clk_ref -> XOSC, stop PLLs,
    * rtc_set_alarm, then WFI. Waking is a RESUME (RP2040 datasheet 2.11.5.1),

@@ -43,8 +43,10 @@ Referência completa (comandos, armadilhas, analisador lógico):
 - Ciclo: cold boot = **M0** (Alpha headless: web + serial + BT + sensores);
   `air hibernate` ou 5 min de inatividade → **M1** (deep sleep via WFI, acorda
   no RTC, lê sensores até estabilizar enquanto o Wi-Fi conecta em paralelo,
-  **sempre grava** o histórico, e — se online — envia a telemetria pendente de
-  forma não-bloqueante (janela = `cfg.telInterval`), depois dorme de novo).
+  **sempre grava** o histórico, e — se **conectado** — drena a telemetria
+  pendente de forma não-bloqueante até acabar / perder o servidor / cair o
+  Wi-Fi, depois dorme de novo). "Online" = `isConnected()` (não
+  `isTimeSynced()`, que é sempre true pelo relógio provisório do flash).
 - Hibernação = **SLEEP (deep sleep)**, não DORMANT: `sleep_goto_sleep_until()`
   (clk_sys→XOSC, `sleep_en0`=RTC, `__wfi`) + alarme do RTC. DORMANT (escrita
   "coma" no ROSC) foi descartado por ser não-determinístico na bancada (corre
@@ -56,7 +58,17 @@ Referência completa (comandos, armadilhas, analisador lógico):
   `airEnterDormant()`, commit `966d5c9`); o boot M1 pós-wake travava por
   `sleep_en0` residual (commit `51d0eaf`) e por alarme de RTC velho
   (commit `a438a2a`). O FLUSH não pode usar `forceSync()` (bloqueia no HTTP);
-  usa `_telemetryMgr->update()` não-bloqueante com janela = `cfg.telInterval`.
+  usa `_telemetryMgr->update()` não-bloqueante + `refreshPendingCount()`
+  até fila zerada / backoff / Wi-Fi cair (sem timeout de `telInterval`).
+- ⚠️ CYW43: **não** chamar `cyw43_arch_deinit()` em `airEnterDormant()` —
+  trava no 2º ciclo e deixa o chip num estado que só power-cycle recupera
+  (mesma conclusão do OTA, "Fix #2 REVERTIDO"). O power-down é por hardware:
+  `WiFi.disconnect(true)` + `WiFi.end()` + `GPIO23 (WL_REG_ON) LOW`. O
+  boot seguinte faz o power-cycle do CYW43, então não precisa de teardown limpo.
+- USB: antes de dormir, `airEnterDormant()` limpa o pull-up D+ 
+  (`hw_clear_bits(&usb_hw->sie_ctrl, USB_SIE_CTRL_PULLUP_EN_BITS)`) para o
+  host ver um disconnect limpo; sem isso o `clock_stop(clk_usb)` congela o
+  pull-up e o cdc_acm empaca (ttyACM só volta com power-cycle do hub).
 - ⚠️ Autópsia falsa: o registrador `WATCHDOG_REASON` é **somente-leitura** e
   retém o bit TIMER de qualquer disparo antigo do watchdog através de soft
   resets (só power-cycle limpa). Sem marcação, todo wake M1 vira um FATAL
