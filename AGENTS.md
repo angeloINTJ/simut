@@ -42,8 +42,9 @@ Referência completa (comandos, armadilhas, analisador lógico):
 - Build: `pio run -e pico_w_air` (Flash ~97%, RAM ~45%).
 - Ciclo: cold boot = **M0** (Alpha headless: web + serial + BT + sensores);
   `air hibernate` ou 5 min de inatividade → **M1** (deep sleep via WFI, acorda
-  no RTC, lê sensores até estabilizar, checa Wi-Fi, grava/envia telemetria,
-  dorme de novo).
+  no RTC, lê sensores até estabilizar enquanto o Wi-Fi conecta em paralelo,
+  **sempre grava** o histórico, e — se online — envia a telemetria pendente de
+  forma não-bloqueante (janela = `cfg.telInterval`), depois dorme de novo).
 - Hibernação = **SLEEP (deep sleep)**, não DORMANT: `sleep_goto_sleep_until()`
   (clk_sys→XOSC, `sleep_en0`=RTC, `__wfi`) + alarme do RTC. DORMANT (escrita
   "coma" no ROSC) foi descartado por ser não-determinístico na bancada (corre
@@ -51,16 +52,26 @@ Referência completa (comandos, armadilhas, analisador lógico):
   `airRtcSetDatetime()` (segura o LOAD por 1 ms — o SDK perde o LOAD a
   46875 Hz); antes do WFI desabilita todas as IRQs exceto a do RTC (senão um
   IRQ pendente de USB/UART acorda imediatamente).
-- ⚠️ Em aberto: o wake (RTC) já funciona — o watchdog era a causa do "wake de
-  2 s" e foi desarmado no início de `airEnterDormant()` (commit `966d5c9`).
-  Resta: o **ciclo M1 trava após o wake** (2º ciclo, com o CYW43 recém ciclado
-  no boot M1); local exato não confirmado — suspeita em `_netMgr->update()` /
-  `_telemetryMgr->forceSync()` (bloqueantes sem timeout real) ou no scan WiFi.
-  Localizar com o log de fase `[AIR] phase=...` (já no firmware).
+- Wake/hang: o watchdog era a causa do "wake de 2 s" (desarmado no início de
+  `airEnterDormant()`, commit `966d5c9`); o boot M1 pós-wake travava por
+  `sleep_en0` residual (commit `51d0eaf`) e por alarme de RTC velho
+  (commit `a438a2a`). O FLUSH não pode usar `forceSync()` (bloqueia no HTTP);
+  usa `_telemetryMgr->update()` não-bloqueante com janela = `cfg.telInterval`.
+- ⚠️ Autópsia falsa: o registrador `WATCHDOG_REASON` é **somente-leitura** e
+  retém o bit TIMER de qualquer disparo antigo do watchdog através de soft
+  resets (só power-cycle limpa). Sem marcação, todo wake M1 vira um FATAL
+  "HW WATCHDOG: Core 0 loop stalled" espúrio. Fix: `airEnterDormant()` chama
+  `LogManager::instance().markCleanReboot()` (scratch[5]=0xC1EA8007) antes de
+  dormir, e o banner de boot pula o aviso quando `_airActive` (M1).
 - Comandos CLI: `air idle <sec>`, `air hibernate`, `air status`, `air stop`
   (cancelam/consultam a hibernação — funcionam na CLI de emergência).
-- **Intervalo de wake = intervalo de telemetria** (`cfg.telInterval`, em ms,
-  configurado via web). Sem botão separado — `/config/air.bin` só guarda
+  `air status` mostra `wake=` (max de histórico/backoff), `hist=`,
+  `backoff=` e `idle=`.
+- **Intervalo de wake = intervalo de salvamento do histórico** (o trabalho
+  principal do wake). Se o backoff de telemetria (punição por falha de envio)
+  for maior que esse intervalo, dorme pelo backoff — assim não acorda só para
+  ser mandado esperar de novo. A janela de envio de telemetria é
+  `cfg.telInterval` (configurado via web). `/config/air.bin` só guarda
   idle/stab/timeouts/pin (não toca em `CONFIG_VERSION`).
 - `SIMUT_CLI_FULL=0` no Air: CLI completa + web + BT + mDNS **não cabem**
   juntos em flash (estourou ~35 KB). Mantido mDNS + BT + web; serial/BT ficam

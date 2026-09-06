@@ -801,13 +801,17 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
 
  case CMD_AIR_STATUS: {
-  char buf[96];
-  uint32_t telMs = _storageMgr->getConfig( ).telInterval;
-  if (telMs == 0) telMs = (uint32_t)AIR_WAKE_INTERVAL_MIN * 60UL * 1000UL; /* fallback, same as airEnterDormant */
-  uint32_t wakeSec = telMs / 1000UL;
+  char buf[112];
+  /* Wake interval = history save interval (the primary job of the wake); if the
+   * telemetry backoff (punishment) is larger, the device sleeps for the backoff
+   * instead (see airEnterDormant). */
+  uint32_t histSec = (uint32_t)_storageMgr->getHistoryIntervalMin( ) * 60UL;
+  uint32_t backoffSec = _telemetryMgr->getBackoffRemainingMs( ) / 1000UL;
+  uint32_t wakeSec = (backoffSec > histSec) ? backoffSec : histSec;
   if (wakeSec == 0) wakeSec = 1;
-  snprintf(buf, sizeof(buf), "Air: phase=%d wake=%lus idle=%us",
+  snprintf(buf, sizeof(buf), "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us",
            (int)_airPhase, (unsigned long)wakeSec,
+           (unsigned long)histSec, (unsigned long)backoffSec,
            (unsigned)_airCfg.idleTimeoutSec);
   _cmdMgr->printInfo(buf);
   break;

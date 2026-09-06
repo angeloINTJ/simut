@@ -7,9 +7,10 @@
  * 5 min) or an explicit 'air hibernate' command transitions to M1.
  *
  * M1 (dormant cycle): on each RTC wake the firmware reads the sensors until
- * stable, checks whether the configured WiFi SSID is present, and then either
- * persists the sample (no network) or connects and flushes pending telemetry,
- * before powering down into dormant mode again.
+ * stable while the WiFi connects in parallel, always saves the sample into
+ * local history, and then (if online) flushes pending telemetry with a
+ * non-blocking send bounded by the telemetry interval. It then sleeps for
+ * max(history interval, telemetry backoff) before the next wake.
  *
  * Air settings live in /config/air.bin (see air/AirConfig.h) — never in
  * SystemConfig, so CONFIG_VERSION stays frozen.
@@ -97,14 +98,6 @@ void AppManager::airMarkActivity( ) {
 /* ────────────────────────────────────────────────────────────────────────────
  * M1 helpers
  * ──────────────────────────────────────────────────────────────────────────── */
-static bool airSsidPresent(const SystemConfig& cfg) {
- const int n = WiFi.scanNetworks( );
- for (int i = 0; i < n; i++) {
-  if (strcmp(WiFi.SSID(i), cfg.wifiSsid) == 0) return true;
- }
- return false;
-}
-
 static bool airAllStable(SensorManager& sm) {
  const auto& sensors = sm.getRuntimeSensors( );
  uint8_t active = 0, stable = 0;
@@ -185,31 +178,33 @@ void AppManager::airLoop( ) {
 
  case AIR_PHASE_SAMPLE: {
   _sensorMgr->update( );
+  /* Search for / connect to the configured WiFi IN PARALLEL with the sensor
+   * sampling, so the link is (usually) already up by the time the sensors
+   * stabilise. */
+  _netMgr->update( );
   const bool stable = airAllStable(*_sensorMgr);
   const bool timedOut = timeSince(_airPhaseTimer, (uint32_t)_airCfg.stabTimeoutMs);
   if (stable || timedOut) {
-   /* The WiFi scan below blocks for up to ~10 s (scanNetworks timeout), which
-    * is longer than the 8.4 s watchdog. Feed the watchdog just before so the
-    * scan has a full window. */
-   watchdog_update( );
-   _airWifiPresent = airSsidPresent(_storageMgr->getConfig( ));
    _airPhase = AIR_PHASE_DECIDE;
+   _airPhaseTimer = millis( );
   }
   break;
  }
 
  case AIR_PHASE_DECIDE: {
-  _airPhase = _airWifiPresent ? AIR_PHASE_CONNECT : AIR_PHASE_PERSIST;
+  /* Always write this wake's sample into local history (the primary job of
+   * the wake). The telemetry cursor is untouched; pending packets are sent in
+   * CONNECT/FLUSH when the WiFi came up during SAMPLE. */
+  processHistoryLogging( );
+  _storageMgr->flushWipV5( );
+  const bool online = _netMgr->isConnected( ) || _netMgr->isTimeSynced( );
+  _airPhase = online ? AIR_PHASE_CONNECT : AIR_PHASE_SLEEP;
   _airPhaseTimer = millis( );
   break;
  }
 
  case AIR_PHASE_PERSIST: {
-  /* No network: write this wake's sample into local history. The telemetry
-   * cursor does not advance, so it stays pending for the next online wake. */
-  processHistoryLogging( );
-  _storageMgr->flushWipV5( );
-  _storageMgr->flushCursorIfDirty( );
+  /* Legacy no-op: the history save now happens unconditionally in DECIDE. */
   _airPhase = AIR_PHASE_SLEEP;
   break;
  }
@@ -225,10 +220,14 @@ void AppManager::airLoop( ) {
  }
 
  case AIR_PHASE_FLUSH: {
-  _telemetryMgr->forceSync( );
+  /* Persistent NON-blocking send: update() honours the backoff and sends the
+   * pending packets; we loop until all are sent (done), the server is lost
+   * (update() escalates the backoff and stops trying), or cfg.telInterval
+   * (the telemetry window) elapses. forceSync() would block the whole loop
+   * on the HTTP upload and keep the device awake. */
   _telemetryMgr->update( );
   const bool done = (_telemetryMgr->getPendingEstimate( ) == 0);
-  if (done || timeSince(_airPhaseTimer, (uint32_t)_airCfg.flushTimeoutMs)) {
+  if (done || timeSince(_airPhaseTimer, (uint32_t)_storageMgr->getConfig( ).telInterval)) {
    _storageMgr->flushCursorIfDirty( );
    _airPhase = AIR_PHASE_SLEEP;
   }
@@ -271,9 +270,14 @@ void AppManager::airEnterDormant( ) {
  /* Anchor the RTC to a valid base and arm the wake alarm interval ahead of it.
   * The RTC is only a wake timer here, so a fixed date is fine. */
  {
-  uint32_t telMs = _storageMgr->getConfig( ).telInterval;
-  if (telMs == 0) telMs = (uint32_t)AIR_WAKE_INTERVAL_MIN * 60UL * 1000UL;
-  uint32_t wakeSec = telMs / 1000UL;
+  /* Wake interval = history save interval (the primary job of the wake).
+   * If the telemetry backoff (punishment) is larger, sleep for the backoff
+   * instead, so the device does not wake just to be told to wait again. */
+  uint32_t histMs = (uint32_t)_storageMgr->getHistoryIntervalMin( ) * 60000UL;
+  if (histMs == 0) histMs = (uint32_t)AIR_WAKE_INTERVAL_MIN * 60UL * 1000UL;
+  uint32_t backoffMs = _telemetryMgr->getBackoffRemainingMs( );
+  uint32_t sleepMs = (backoffMs > histMs) ? backoffMs : histMs;
+  uint32_t wakeSec = sleepMs / 1000UL;
   if (wakeSec == 0) wakeSec = 1;
 
   datetime_t t;
@@ -298,6 +302,14 @@ void AppManager::airEnterDormant( ) {
 
   /* M1-vs-M0 discriminator: survives the wake, zeroed on power cycle. */
   watchdog_hw->scratch[0] = AIR_DORMANT_MAGIC;
+
+  /* The wake is an INTENTIONAL SYSRESETREQ, but the watchdog REASON register is
+   * read-only and retains a TIMER bit set by any historical watchdog fire
+   * across soft resets (only a power cycle clears it). Without this mark, the
+   * next boot's autopsy would misreport every dormant wake as "HW WATCHDOG:
+   * Core 0 loop stalled" (a false FATAL polluting the persisted log). Mark the
+   * wake as a clean reboot so the autopsy stays silent (see markCleanReboot). */
+  LogManager::instance( ).markCleanReboot( );
 
   Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu\n", t.hour, t.min, t.sec, (unsigned long)wakeSec);
   {

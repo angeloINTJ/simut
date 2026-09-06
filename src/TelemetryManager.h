@@ -49,6 +49,10 @@ public:
  bool isTlsCertLoaded( ) const { return _hasCert; }
 
  uint16_t getPendingEstimate( ) const;
+ /** Milliseconds until the current backoff (punishment) expires; 0 when the
+  * uploader may send immediately. Used by the Air M1 cycle to sleep for the
+  * backoff when it exceeds the wake interval. */
+ uint32_t getBackoffRemainingMs( ) const;
  void refreshPendingCount( );
  void notifyNewRecord( );
 

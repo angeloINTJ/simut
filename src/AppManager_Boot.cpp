@@ -183,8 +183,14 @@ void AppManager::setup( ) {
  BLOG("\n==============================================\n");
  BLOG(" SIMUT firmware "); BLOG(SIMUT_VERSION); BLOG_NL( );
  BLOG("==============================================\n");
- /* Check if last reboot was WDT-triggered */
- if (watchdog_caused_reboot()) {
+ /* Check if last reboot was WDT-triggered. A dormant (M1) wake is an
+  * intentional SYSRESETREQ, not a watchdog timeout — skip the banner even
+  * though the read-only REASON register may still hold a stale TIMER bit. */
+ bool airWake = false;
+#if SIMUT_AIR
+ airWake = _airActive;
+#endif
+ if (watchdog_caused_reboot() && !airWake) {
   BLOG("[BOOT] *** Last reboot: WATCHDOG TIMEOUT ***\n");
  Serial.println("[BOOT] WATCHDOG_REBOOT detected");
  }

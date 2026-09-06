@@ -28,14 +28,15 @@
 ## 1. Objetivo
 
 **SIMUT Air** é a variante do SIMUT para Raspberry Pi Pico W **sem display**, com um
-**ciclo de hibernação em modo dormant**: o pico passa a maior parte do tempo dormindo e,
-em **períodos definidos**, acorda para:
+**ciclo de hibernação em deep sleep (SLEEP)**: o pico passa a maior parte do tempo dormindo e,
+em **períodos definidos** (o intervalo de salvamento do histórico), acorda para:
 
 1. **acordar** (alarme do RTC);
 2. **ler os sensores até a estabilização** (janela de média aparada completa);
-3. **em paralelo, verificar se a rede Wi-Fi configurada está presente**;
-4. **sem rede** → armazena os valores (histórico local) e volta a hibernar;
-5. **com rede** → conecta, envia a telemetria pendente, volta a hibernar.
+3. **em paralelo, conectar ao Wi-Fi configurado** (o link fica pronto durante a amostragem);
+4. **sempre gravar** a amostra no histórico local (o trabalho principal do wake);
+5. **se online** → enviar a telemetria pendente (não-bloqueante) e voltar a hibernar;
+6. **voltar a dormir** pelo máximo entre o intervalo de histórico e o backoff de telemetria.
 
 A diferença em relação à v1 do esboço: o Air **não nasce já hibernando**. Ele tem **dois
 modos** — um modo operacional (Alpha headless) para configuração/manutenção e um modo de
@@ -115,28 +116,31 @@ Um `AirManager` (padrão de `TelemetryManager`) é dono da máquina de M1:
 | Estado | Ação | Sai quando |
 |---|---|---|
 | `AIR_BOOT` | scratch[0] confirma wake-de-dormant; `recover_from_sleep()` | setup termina |
-| `AIR_WARMUP` | Liga VCC dos sensores (GPIO de power-gating) | timeout curto (~200–500 ms) |
-| `AIR_SAMPLE` | Bombeia `SensorManager::update()`; dispara 1º scan Wi-Fi do SSID alvo | canais ativos `bufferFull()` **ou** `STAB_TIMEOUT` |
-| `AIR_DECIDE` | Resultado do scan (SSID presente?) | imediato |
-| `AIR_PERSIST` | `writeHistoryEntryV5` + `flushWipV5` (sem rede) | snapshot confirmado |
-| `AIR_CONNECT` | `NetworkManager::update()` até `NET_READY`/timeout; NTP se possível | conectado ou timeout |
-| `AIR_FLUSH` | `TelemetryManager::forceSync()` (drena o cursor) | fila zerada ou timeout |
-| `AIR_SLEEP` | Desliga sensores; `cyw43_arch_deinit()`; desarma WDT; grava scratch[0]=magia; agenda RTC; `sleep_goto_dormant_until()` | — (reset no próximo wake) |
+| `AIR_WARMUP` | Liga VCC dos sensores (GPIO de power-gating) | timeout curto (~400 ms) |
+| `AIR_SAMPLE` | Bombeia `SensorManager::update()` **e** `NetworkManager::update()` (Wi-Fi conecta em paralelo) | canais ativos `bufferFull()` **ou** `STAB_TIMEOUT` |
+| `AIR_DECIDE` | **Sempre** grava o histórico (`processHistoryLogging` + `flushWipV5`) e escolhe CONNECT vs SLEEP | imediato |
+| `AIR_PERSIST` | *(legado, no-op — o histórico agora é gravado no DECIDE)* | imediato |
+| `AIR_CONNECT` | `NetworkManager::update()` até time-sync/`NET_READY`/timeout | conectado ou timeout |
+| `AIR_FLUSH` | `TelemetryManager::update()` não-bloqueante (respeita backoff) | fila zerada **ou** `cfg.telInterval` |
+| `AIR_SLEEP` | Desliga sensores; `cyw43_arch_deinit()`; desarma WDT; grava scratch[0]=magia; agenda RTC; `sleep_goto_sleep_until()` | — (reset no próximo wake) |
 
-`AIR_CONNECT`/`AIR_FLUSH` só rodam quando o scan encontrou o SSID. `AIR_PERSIST` é o caminho
-sem rede — os dados já ficam pendentes no cursor de telemetria. O intervalo de wake (D7) é lido
-do arquivo de config do Air no `AIR_SLEEP`, na hora de agendar o alarme do RTC.
+`AIR_CONNECT`/`AIR_FLUSH` só rodam quando o Wi-Fi conectou durante o SAMPLE. O histórico é
+gravado **sempre**, independente de rede — os dados ficam pendentes no cursor de telemetria para
+o próximo wake online. O intervalo de wake é lido do **intervalo de salvamento do histórico**
+(`StorageManager::getHistoryIntervalMin()`) no `AIR_SLEEP`; se o backoff de telemetria for maior,
+dorme pelo backoff.
 
-Diagrama do ciclo (idêntico ao da v1, agora rotulado como M1):
+Diagrama do ciclo:
 
 ```
-   BOOT (wake dormant) → WARMUP → [ AMOSTRAGEM ⇄ SCAN Wi-Fi ] → DECIDE
-                                     rede ausente │          │ rede presente
-                                                  ▼          ▼
-                                          PERSIST (hist)   CONNECT + FLUSH (tel)
-                                                  └─────┬────┘
-                                                        ▼
-                                              HIBERNA (dormant + RTC)
+   BOOT (wake) → WARMUP → [ AMOSTRAGEM ⇄ CONECTA Wi-Fi ] → DECIDE (sempre grava histórico)
+                                                            │
+                                        offline             │ online
+                                                            ▼
+                                        SLEEP            CONNECT + FLUSH (tel, não-bloqueante)
+                                                            │
+                                                            ▼
+                                                HIBERNA (SLEEP + RTC)
 ```
 
 ---
@@ -183,15 +187,19 @@ Diagrama do ciclo (idêntico ao da v1, agora rotulado como M1):
 - estável = `RuntimeSensor::bufferFull()` em todos os canais ativos **ou** `STAB_TIMEOUT` (ex. 15–30 s);
 - calibração já é aplicada pelo `SensorManager` — nada novo.
 
-### 6.2 Verificação de presença do Wi-Fi
-- `WiFi.scanNetworks()` e compara com `cfg.wifiSsid` (presença, sem conectar);
-- presente → `AIR_CONNECT`; ausente → `AIR_PERSIST`;
-- timeout do scan curto (~2–4 s); falha de scan = tratar como ausente.
+### 6.2 Conexão Wi-Fi em paralelo
+- `NetworkManager::update()` roda no mesmo laço do `SensorManager::update()` durante o
+  `AIR_SAMPLE`; o link fica (em geral) pronto quando os sensores estabilizam;
+- sem scan prévio — a conexão direta ao `cfg.wifiSsid` decide presença e conecta de uma vez;
+- offline → `AIR_DECIDE` grava o histórico e vai direto a `AIR_SLEEP`.
 
 ### 6.3 Store-and-forward (sem código novo de pendência)
-- `AIR_PERSIST`: `writeHistoryEntryV5` + `flushWipV5` — cursor de telemetria não avança;
-- `AIR_FLUSH`: `TelemetryManager::forceSync()` drena do cursor (HTTP 2xx / MQTT PUBACK) com backoff;
-- timeout de envio → volta a dormir e tenta no próximo wake; o cursor garante sem duplicação/perda.
+- `AIR_DECIDE`: `processHistoryLogging()` + `flushWipV5()` — grava **sempre**; o cursor de
+  telemetria não avança;
+- `AIR_FLUSH`: `TelemetryManager::update()` não-bloqueante drena do cursor (HTTP 2xx / MQTT
+  PUBACK) respeitando o backoff; **não** usar `forceSync()` (bloqueia no upload HTTP);
+- janela de envio = `cfg.telInterval` → volta a dormir e tenta no próximo wake; o cursor
+  garante sem duplicação/perda.
 
 ---
 
@@ -232,15 +240,17 @@ a config do Air vive num **arquivo separado** no LittleFS, com ciclo de vida pr�
 struct __attribute__((packed)) AirConfig {
   uint32_t magic;           // próprio, ex. AIR1
   uint16_t version;         // próprio, independente do CONFIG_VERSION
-  uint32_t wakeIntervalMin; // D7 — período entre wakes (default em simut_config.h)
   uint16_t idleTimeoutSec;  // D4 — inatividade p/ auto-hibernar (default 300 s)
   uint16_t stabTimeoutMs;   // teto de estabilização dos sensores
-  uint16_t wifiScanTimeoutMs;
+  uint16_t wifiScanTimeoutMs; // (obsoleto — sem scan; conexão direta em paralelo)
   uint16_t connectTimeoutMs;
-  uint16_t flushTimeoutMs;
+  uint16_t flushTimeoutMs;    // (obsoleto — FLUSH usa cfg.telInterval)
   uint8_t  sensorPowerPin;  // 255 = desligado
   uint8_t  flags;           // LED de status, etc.
+  uint32_t crc32;
 };
+// NOTA: não há campo wakeIntervalMin — o período entre wakes é o intervalo de
+// salvamento do histórico (StorageManager::getHistoryIntervalMin()).
 ```
 
 ### 8.1 Escrita (web)
@@ -251,15 +261,18 @@ struct __attribute__((packed)) AirConfig {
 ### 8.2 Escrita (serial / bluetooth)
 - Novos comandos no `CliCommand` (`SystemDefs_Cli.h`) — o `CommandParser` é compartilhado entre
   Serial e SerialBT, então funcionam nos dois canais sem código extra:
-  - `air interval <min>` — define o período entre wakes (D7);
   - `air idle <sec>` — define o timer de inatividade (default 300);
   - `air hibernate` — entra em M1 agora (D4, explícito);
-  - `air status` — mostra a config atual + motivo do próximo wake.
+  - `air status` — mostra a config atual + motivo do próximo wake
+    (`wake=` max de histórico/backoff, `hist=`, `backoff=`, `idle=`).
+  - *(não há `air interval` — o período entre wakes é o **intervalo de salvamento do
+    histórico**, configurável via `history interval` existente.)*
 
 ### 8.3 Leitura / defaults
 - `StorageManager` ganha `loadAirConfig()`/`saveAirConfig()`; arquivo ausente → defaults de
   `simut_config.h` (nova seção AIR), gravado na primeira escrita.
-- `AIR_SLEEP` lê `wakeIntervalMin` para agendar o alarme do RTC; M0 lê `idleTimeoutSec` para o timer.
+- `AIR_SLEEP` lê `getHistoryIntervalMin()` (e o backoff de telemetria) para agendar o alarme
+  do RTC; M0 lê `idleTimeoutSec` para o timer.
 
 ---
 
@@ -330,12 +343,12 @@ docs/analysis/SIMUT_AIR_ESBOCO.md   // este documento
    **sem** tocar em `CONFIG_VERSION` (D6).
 3. **F3 — `AirManager` (M1)**: máquina WARMUP/SAMPLE/DECIDE/PERSIST/CONNECT/FLUSH/SLEEP
    integrada ao loop sob `#if SIMUT_AIR`.
-4. **F4 — Dormant**: `cyw43_arch_deinit()`/`sleep_goto_dormant_until()`/WDT desarmar +
+4. **F4 — SLEEP**: `cyw43_arch_deinit()`/`sleep_goto_sleep_until()`/WDT desarmar +
    `recover_from_sleep()` + scratch[0]=magia; power-gating dos sensores.
 5. **F5 — M0 e transição**: boot = Alpha headless; comando `air hibernate` (CLI/BT) + endpoint web;
    timer de 5 min de inatividade; desligar `PromMetrics`/`Syslog`/`HaDiscovery` na transição (D5).
-6. **F6 — Store-and-forward**: `writeHistoryEntryV5` + `forceSync()` no ciclo; teste de queda de
-   rede no meio do envio (sem duplicação/perda).
+6. **F6 — Store-and-forward**: `processHistoryLogging()` (sempre) + `TelemetryManager::update()`
+   não-bloqueante no ciclo; teste de queda de rede no meio do envio (sem duplicação/perda).
 7. **F7 — Validação**: bench de corrente em dormant, tempo acordado, confiabilidade do reconnect,
    drift de relógio, desgaste de flash; documentar em `docs/`.
 

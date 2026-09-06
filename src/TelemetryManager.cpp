@@ -1405,6 +1405,11 @@ void TelemetryManager::resetBackoff( ) {
  _lastCheckTime = millis( ); /* interval measured from end of cycle, not start */
 }
 
+uint32_t TelemetryManager::getBackoffRemainingMs( ) const {
+ const uint32_t now = millis( );
+ return (_backoffUntil > now) ? (_backoffUntil - now) : 0u;
+}
+
 void TelemetryManager::escalateBackoff( ) {
  _consecutiveFails++;
  MetricsManager::instance( ).data( ).telRetries++;

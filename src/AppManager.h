@@ -196,26 +196,25 @@ private:
  /* ────────────────────────────────────────────────────────────────────────
   * SIMUT Air — headless hibernating build (M0 operacional / M1 dormant).
   * M0 = Alpha-like headless boot (web + serial + BT config, sensors, telemetry).
-  * M1 = dormant cycle: wake on RTC -> read sensors until stable + check WiFi ->
-  *       no network: persist history; network: connect + flush telemetry ->
-  *       back to dormant. Led stays ON while awake, OFF while dormant.
+  * M1 = dormant cycle: wake on RTC -> read sensors until stable while the WiFi
+  *       connects in parallel -> always save history -> if online, flush pending
+  *       telemetry (non-blocking) -> sleep for max(history interval, backoff).
+  *       Led stays ON while awake, OFF while dormant.
   * Air config lives in /config/air.bin (NOT SystemConfig -> CONFIG_VERSION frozen).
   * ──────────────────────────────────────────────────────────────────────── */
  enum AirPhase {
   AIR_PHASE_OFF = 0,   /* M0 (operational, not hibernating) */
   AIR_PHASE_WARMUP,    /* M1: power sensors, settle */
-  AIR_PHASE_SAMPLE,    /* M1: pump sensors until stable + scan WiFi */
-  AIR_PHASE_DECIDE,    /* M1: SSID present? */
-  AIR_PHASE_PERSIST,   /* M1: no network -> write history */
-  AIR_PHASE_CONNECT,   /* M1: network -> connect + NTP */
-  AIR_PHASE_FLUSH,     /* M1: network -> flush pending telemetry */
+  AIR_PHASE_SAMPLE,    /* M1: pump sensors until stable + connect WiFi (parallel) */
+  AIR_PHASE_DECIDE,    /* M1: always save history, pick CONNECT vs SLEEP */
+  AIR_PHASE_PERSIST,   /* M1: legacy no-op (history now saved in DECIDE) */
+  AIR_PHASE_CONNECT,   /* M1: wait for NTP/time sync */
+  AIR_PHASE_FLUSH,     /* M1: flush pending telemetry (non-blocking) */
   AIR_PHASE_SLEEP      /* M1: power down + dormant */
  };
  AirPhase _airPhase = AIR_PHASE_OFF;
  uint32_t _airPhaseTimer = 0;
  bool     _airActive = false;   /* true = this boot is a dormant wake (M1) */
- bool     _airWifiPresent = false;
- bool     _airScanDone = false;
  uint32_t _airLastActivityMs = 0; /* M0 idle timer */
  AirConfig _airCfg;                 /* loaded from /config/air.bin */
 
