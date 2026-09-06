@@ -166,6 +166,7 @@ hand() {
     # those as failures made STATUS, PINOUT and VERIFY unusable from scripts.
     case "$resp" in
         OK*|PONG*|STATUS*|PINOUT*|VFY*|DONE*) return 0 ;;
+        PROBE*|EDGE*)                         return 0 ;;
         ERR*)                                 return 1 ;;
         *)                                    return 1 ;;
     esac

@@ -68,6 +68,22 @@ static const uint8_t PIN_RESET   = 0;
 /** GPIO connected to the target Pico's BOOTSEL button. */
 static const uint8_t PIN_BOOTSEL = 1;
 
+/** Probe input: a plain GPIO on the target whose level the hand timestamps.
+ *
+ *  Wired to GP16 of a SIMUT Air target, which the firmware drives HIGH for the
+ *  whole time it is awake and LOW while it sleeps. That makes this channel an
+ *  independent stopwatch for the hibernation cycle — independent of USB
+ *  enumeration, which lags the boot by a second or so, and of the serial
+ *  console, whose every command resets the target's idle timer.
+ *
+ *  GP2 (physical pin 4) is deliberately NOT GP4/GP5: those are the UART1
+ *  transparent serial bridge, and the bridge stays available.
+ *
+ *  Input with a pull-down, so a target that is off, in reset or in BOOTSEL —
+ *  all of which leave the line high-impedance — reads as "asleep" rather than
+ *  floating. */
+static const uint8_t PIN_PROBE   = 2;
+
 /** On-board LED, used as heartbeat to indicate firmware is alive.
  *  GP25 is the standard Pico on-board LED. Using a literal value avoids
  *  collision with the `PIN_LED` macro defined in pins_arduino.h of the
@@ -112,6 +128,11 @@ static const uint32_t VERIFY_FAULT_US       = 5000;
 
 /** If Core 1 heartbeat is older than this, Core 0 considers it dead. */
 static const uint32_t VERIFY_HB_TIMEOUT_US  = 1000000;
+
+/** Edges the probe channel can hold between two PROBE READs.
+ *  A SIMUT Air cycle produces two (one falling at sleep, one rising at wake),
+ *  so 64 covers about thirty cycles — far more than any single measurement. */
+static const uint16_t PROBE_MAX_EDGES       = 64;
 
 /* =============================================================================
  *  Fault codes — written by Core 1, read by Core 0
@@ -167,6 +188,32 @@ struct VerifierState {
 
     /** Core 1 heartbeat: updated every sample loop iteration (~100µs). */
     volatile uint32_t last_heartbeat_us;
+
+    /* ---------- Probe channel ----------
+     *
+     * Same single-writer discipline as the rest of the struct, which is why
+     * arming uses a sequence number instead of a flag Core 0 would have to
+     * clear: Core 0 only ever increments probe_arm_seq, Core 1 only ever
+     * writes the buffers, the count and the acknowledgement. */
+
+    /** Core 0 increments this to arm (and clear) the capture. */
+    volatile uint32_t probe_arm_seq;
+
+    /** Core 1 echoes the sequence it has acted on. Equal = armed and cleared. */
+    volatile uint32_t probe_ack_seq;
+
+    /** Level last sampled on PIN_PROBE (true = HIGH = target awake). */
+    volatile bool     probe_level_high;
+
+    /** Edges captured since the last arm; stops growing at PROBE_MAX_EDGES. */
+    volatile uint16_t probe_count;
+
+    /** Edges dropped because the buffer was full (honesty about truncation). */
+    volatile uint16_t probe_dropped;
+
+    /** Level after each edge (true = HIGH) and its micros() timestamp. */
+    volatile bool     probe_edge_high[PROBE_MAX_EDGES];
+    volatile uint32_t probe_edge_us[PROBE_MAX_EDGES];
 };
 
 /** Single global instance of the verifier shared state. */
@@ -505,6 +552,7 @@ static void cmd_self_bootsel(const char *args);
 static void cmd_debug(const char *args);
 static void cmd_pulse_test(const char *args);
 static void cmd_verify(const char *args);
+static void cmd_probe(const char *args);
 static void cmd_help(const char *args);
 
 /* Dispatch table --------------------------------------------------------- */
@@ -520,6 +568,7 @@ static const command_t COMMANDS[] = {
     { "DEBUG",        "DEBUG <ON|OFF|STATUS>: toggle verbose logs",           cmd_debug        },
     { "PULSE_TEST",   "PULSE_TEST <BOOTSEL|RESET> <ms> <count>: timed pulses",cmd_pulse_test   },
     { "VERIFY",       "VERIFY [CLEAR]: shows/resets logic analyzer status",   cmd_verify       },
+    { "PROBE",        "PROBE <STATUS|START|READ>: timestamps edges on GP2",   cmd_probe        },
     { "HELP",         "lists all available commands",                         cmd_help         },
 };
 
@@ -705,10 +754,11 @@ static void cmd_status(const char *args)
 static void cmd_pinout(const char *args)
 {
     (void)args;
-    Serial.printf("PINOUT BOOTSEL=GP%u RESET=GP%u LED=GP%u\n",
+    Serial.printf("PINOUT BOOTSEL=GP%u RESET=GP%u LED=GP%u PROBE=GP%u\n",
                   (unsigned)PIN_BOOTSEL,
                   (unsigned)PIN_RESET,
-                  (unsigned)LED_GPIO);
+                  (unsigned)LED_GPIO,
+                  (unsigned)PIN_PROBE);
 }
 
 static void cmd_self_bootsel(const char *args)
@@ -882,6 +932,80 @@ static void cmd_verify(const char *args)
     Serial.println();
 }
 
+/**
+ * PROBE — timestamp the edges of PIN_PROBE.
+ *
+ * A stopwatch for a target that reboots on every wake. Wired to GP16 of a
+ * SIMUT Air, which is HIGH for the whole awake window and LOW while asleep, so
+ * the falling edge is the moment it enters sleep and the next rising edge is
+ * the moment the next boot reaches its GPIO setup. Both are sampled at 10 kHz
+ * by Core 1, which is far tighter than USB enumeration (a second or so behind
+ * the boot) and does not disturb the target at all, unlike the serial console
+ * whose every command resets the idle timer.
+ *
+ *   PROBE STATUS  -> PROBE pin=GP2 level=<HIGH|LOW> edges=<n>/<cap> dropped=<n> armed=<YES|NO>
+ *   PROBE START   -> OK PROBE START            (clears the buffer and arms)
+ *   PROBE READ    -> EDGE <i> <H|L> <us> ...   (one line each)
+ *                    DONE PROBE edges=<n> dropped=<n>
+ *
+ * Timestamps are raw micros(), which wraps every ~71 minutes: read differences,
+ * not absolutes, and keep a measurement window well inside that.
+ */
+static void cmd_probe(const char *args)
+{
+    char buf[ARG_BUFFER_SIZE];
+    if (args == NULL || *args == '\0') {
+        Serial.println("ERR: PROBE requires STATUS, START or READ");
+        return;
+    }
+    strncpy(buf, args, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    str_upper(buf);
+
+    if (strcmp(buf, "START") == 0) {
+        /* Arming is a request, not a write: Core 1 owns the buffer and clears
+         * it on the next sample, so no field ends up with two writers. */
+        const uint32_t want = g_vs.probe_arm_seq + 1;
+        g_vs.probe_arm_seq = want;
+        for (int i = 0; i < 200 && g_vs.probe_ack_seq != want; ++i) {
+            delay(1);
+        }
+        if (g_vs.probe_ack_seq != want) {
+            Serial.println("ERR PROBE START VFY:NO_VERIFIER");
+            return;
+        }
+        Serial.println("OK PROBE START");
+        return;
+    }
+
+    if (strcmp(buf, "STATUS") == 0) {
+        Serial.printf("PROBE pin=GP%u level=%s edges=%u/%u dropped=%u armed=%s\n",
+                      (unsigned)PIN_PROBE,
+                      g_vs.probe_level_high ? "HIGH" : "LOW",
+                      (unsigned)g_vs.probe_count,
+                      (unsigned)PROBE_MAX_EDGES,
+                      (unsigned)g_vs.probe_dropped,
+                      (g_vs.probe_ack_seq == g_vs.probe_arm_seq &&
+                       g_vs.probe_arm_seq != 0) ? "YES" : "NO");
+        return;
+    }
+
+    if (strcmp(buf, "READ") == 0) {
+        const uint16_t n = g_vs.probe_count;   /* snapshot: Core 1 may still add */
+        for (uint16_t i = 0; i < n && i < PROBE_MAX_EDGES; ++i) {
+            Serial.printf("EDGE %u %c %lu\n",
+                          (unsigned)i,
+                          g_vs.probe_edge_high[i] ? 'H' : 'L',
+                          (unsigned long)g_vs.probe_edge_us[i]);
+        }
+        Serial.printf("DONE PROBE edges=%u dropped=%u\n",
+                      (unsigned)n, (unsigned)g_vs.probe_dropped);
+        return;
+    }
+
+    Serial.printf("ERR: PROBE expects STATUS, START or READ (received '%s')\n", buf);
+}
+
 static void cmd_help(const char *args)
 {
     (void)args;
@@ -995,6 +1119,10 @@ void setup(void)
     pin_init_released(PIN_BOOTSEL);
     pin_init_released(PIN_RESET);
 
+    /* Probe input. Pull-down so an absent, reset or BOOTSEL target — all of
+     * which leave the line high-Z — reads LOW ("asleep") instead of floating. */
+    pinMode(PIN_PROBE, INPUT_PULLDOWN);
+
     /* Core 1 launches automatically via the arduino-pico framework.
      * setup1() and loop1() are defined below — the framework detects them
      * (weak symbol override), calls main1() which runs setup1() once
@@ -1059,6 +1187,12 @@ void setup1(void)
     g_vs.bootsel_fault_count  = 0;
     g_vs.reset_fault_count    = 0;
     g_vs.last_heartbeat_us    = micros();
+
+    /* Probe starts unarmed: it captures nothing until a PROBE START. */
+    g_vs.probe_level_high     = (digitalRead(PIN_PROBE) == HIGH);
+    g_vs.probe_count          = 0;
+    g_vs.probe_dropped        = 0;
+    g_vs.probe_ack_seq        = g_vs.probe_arm_seq;
 }
 
 void loop1(void)
@@ -1092,6 +1226,37 @@ void loop1(void)
         return;
     }
     last_sample_us = now_us;
+
+    /* ----- Probe channel -----
+     *
+     * Rides the same 10 kHz sample the verifier already pays for, so it costs
+     * one digitalRead and a compare. Only transitions are stored, which is what
+     * makes 64 slots enough for a long measurement: an idle line writes nothing.
+     *
+     * A pending arm request is serviced here, on the core that owns the buffer,
+     * so no field has two writers. */
+    {
+        const uint32_t want = g_vs.probe_arm_seq;
+        if (want != g_vs.probe_ack_seq) {
+            g_vs.probe_count      = 0;
+            g_vs.probe_dropped    = 0;
+            g_vs.probe_level_high = (digitalRead(PIN_PROBE) == HIGH);
+            g_vs.probe_ack_seq    = want;
+        } else {
+            const bool level_high = (digitalRead(PIN_PROBE) == HIGH);
+            if (level_high != g_vs.probe_level_high) {
+                g_vs.probe_level_high = level_high;
+                const uint16_t n = g_vs.probe_count;
+                if (n < PROBE_MAX_EDGES) {
+                    g_vs.probe_edge_high[n] = level_high;
+                    g_vs.probe_edge_us[n]   = now_us;
+                    g_vs.probe_count        = (uint16_t)(n + 1);
+                } else {
+                    g_vs.probe_dropped = (uint16_t)(g_vs.probe_dropped + 1);
+                }
+            }
+        }
+    }
 
     /* Read actual levels. digitalRead() returns HIGH (true) when the
        line is at logic high (released via pull-up). Convert to
