@@ -162,6 +162,7 @@ void AppManager::setup( ) {
 
 
  _uart_mark('%'); /* post Serial.begin */
+ Serial.println("[AIR] boot: serial ok");
 
  delay(1000);
  _uart_mark('&'); /* post delay(1000) */
@@ -330,6 +331,7 @@ void AppManager::setup( ) {
 
  BLOG("[BOOT step] 5: pre _storageMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_MOUNT_FS);
+ Serial.println("[AIR] boot: pre-storage");
  bool fsOk = _storageMgr->begin( );
 #if SIMUT_AIR
  airLoadConfig(_airCfg);
@@ -337,6 +339,7 @@ void AppManager::setup( ) {
 #endif
  BLOG("[BOOT step] 6: pos _storageMgr->begin( ) fsOk="); BLOG_U(fsOk ? 1 : 0);
  BLOG(" @ "); BLOG_U(millis( )); BLOG_NL( );
+ Serial.println("[AIR] boot: storage ok");
 
  /* Now it is safe to start Core 1 — mountFS, mkdirs, snapshot
 	 * restore, and loadConfiguration have completed with Core 1
@@ -697,6 +700,7 @@ void AppManager::setup( ) {
  _storageMgr->isDnsAuto( ),
  _storageMgr->isNtpEnabled( ),
  _storageMgr->getSecondaryDns( ));
+ Serial.println("[AIR] boot: net ok");
  BLOG("[BOOT step] 11: pos _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
 
  unsigned long netWait = millis( );
@@ -785,6 +789,7 @@ void AppManager::setup( ) {
 
  _displayMgr->setBootStatusKey(TR_BOOT_START_TEL);
  _telemetryMgr->begin(_storageMgr.get( ), _netMgr.get( ));
+ Serial.println("[AIR] boot: telemetry ok");
 
  LogManager::instance( ).setEpochSource([]( ) -> time_t { return time(nullptr); });
 
@@ -799,6 +804,7 @@ void AppManager::setup( ) {
  BLOG("[BOOT step] 12: pre _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
  _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ), _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
+ Serial.println("[AIR] boot: web ok");
  BLOG("[BOOT step] 13: pos _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  /* marker pre-callbacks */
 
@@ -935,6 +941,7 @@ void AppManager::setup( ) {
 	 */
  LogManager::instance( ).enableHealthCheck( );
 
+ Serial.println("[AIR] boot: done");
  TRACE_MOD(0, MOD_IDLE);
  _cmdMgr->printPrompt( );
 }
