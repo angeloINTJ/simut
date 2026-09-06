@@ -1265,13 +1265,23 @@ void StorageManager::resetTelemetryCursor( ) {
  * count with the zeroed cursor. */
 }
 
-void StorageManager::flushCursorIfDirty( ) {
+void StorageManager::flushCursorIfDirty(bool force) {
  if (!_cursorDirty) return;
- if (!timeSince(_cursorCoalesceTime, CURSOR_COALESCE_MS)) return;
 
- /* Touch priority: if user is interacting, cursor stays dirty and flush
- * happens on next call after interaction ends. */
- if (TouchPriority::isActive( )) return;
+ /* Both gates below defer the write to a later call — which only works when a
+  * later call is going to happen. On the way into deep sleep it is not: SRAM
+  * goes away, _cachedLastSent with it, and the next boot re-reads whatever is
+  * still on flash. That is how the SIMUT Air cycle re-sent the same batch on
+  * every wake: the send marked the cursor dirty, the flush ran ~150 ms later
+  * (the whole awake window after a drained queue), the 5 s coalescing window
+  * had not elapsed, and the write never happened. force=true is that path. */
+ if (!force) {
+  if (!timeSince(_cursorCoalesceTime, CURSOR_COALESCE_MS)) return;
+
+  /* Touch priority: if user is interacting, cursor stays dirty and flush
+  * happens on next call after interaction ends. */
+  if (TouchPriority::isActive( )) return;
+ }
 
 	_cursorDirty = false;
 	LogManager::WdtWindow _wdt(30000); /* context-aware */

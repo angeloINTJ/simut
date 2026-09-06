@@ -159,9 +159,10 @@ static void airRtcSetDatetime(const datetime_t* t) {
  * ──────────────────────────────────────────────────────────────────────────── */
 void AppManager::airStartHibernate( ) {
  /* Persist everything before the deepest sleep: the open history block and
-  * the telemetry cursor must be on flash because dormant loses SRAM. */
+  * the telemetry cursor must be on flash because dormant loses SRAM.
+  * force=true, or the cursor's coalescing window swallows the write. */
  _storageMgr->flushWipV5( );
- _storageMgr->flushCursorIfDirty( );
+ _storageMgr->flushCursorIfDirty(true);
  _airActive = true;
  _airPhase = AIR_PHASE_WARMUP;
  _airPhaseTimer = millis( );
@@ -268,7 +269,10 @@ void AppManager::airLoop( ) {
    * awake indefinitely. flushTimeoutMs lives in /config/air.bin. */
   const bool timedOut = timeSince(_airPhaseTimer, (uint32_t)_airCfg.flushTimeoutMs);
   if (done || serverLost || netLost || timedOut) {
-   _storageMgr->flushCursorIfDirty( );
+   /* force: the send that just advanced the cursor happened milliseconds ago,
+    * so the coalescing window has not elapsed and never will — the next stop
+    * is deep sleep, which loses the RAM copy. */
+   _storageMgr->flushCursorIfDirty(true);
    _airPhase = AIR_PHASE_SLEEP;
   }
   break;
@@ -298,6 +302,11 @@ void AppManager::airEnterDormant( ) {
   * reach the sleep (a false 'Core 0 stalled' reset). Once we are here we are
   * committed to hibernating, so there is nothing left for the watchdog to guard. */
  hw_clear_bits(&watchdog_hw->ctrl, WATCHDOG_CTRL_ENABLE_BITS);
+
+ /* Last chance to put the telemetry cursor on flash: this function is the one
+  * choke point every path into sleep goes through, and after it the RAM copy
+  * is gone. A no-op when nothing moved. */
+ _storageMgr->flushCursorIfDirty(true);
 
  airSetLed(false);
  airSensorPower(_airCfg.sensorPowerPin, false);

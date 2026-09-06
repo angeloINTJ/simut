@@ -377,7 +377,16 @@ public:
  void generateSalt(uint8_t* buf);
 
  String sha256Hex(const String& input);
- void flushCursorIfDirty( );
+ /** Write the telemetry cursor to flash if it moved.
+  *
+  * Normally the write is coalesced (CURSOR_COALESCE_MS) and deferred while the
+  * user is touching the screen, because a device that sends every few seconds
+  * would otherwise write the same file constantly.
+  *
+  * @param force  Skip both gates. For the path into deep sleep, where there is
+  *               no "later": SRAM is lost and the next boot re-reads the file,
+  *               so a deferred write is a lost one. */
+ void flushCursorIfDirty(bool force = false);
  void invalidateOldestFileCache( ) { _cachedOldestFile = ""; }
 
  /**
