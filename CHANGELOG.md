@@ -32,14 +32,45 @@ interval, against 147 to 151 seconds on the build that predates the change. The
 oscillator is now re-enabled right after the WFI, before the reset, and the same
 bench measured a 110.8 s sleep with a 26.5 s awake window. Cost: 32 bytes.
 
-Known issues before this ships: the review and bench session of 2026-09-06 left
-three items open. A FLUSH phase with no time cap, sensor power gating that is
-not asserted in the operational mode or during boot, and a history file that is
-not monotonic in 12 of 174 intervals, because a block's interior is
-reconstructed at the nominal step rather than at the times the samples were
-taken. The plan, the evidence and the acceptance tests are in
-`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` and
-`tools/check_air_consistency.py`.
+**The wake now lands on the configured interval, not one awake window late.**
+The alarm was anchored on the moment the device fell asleep, so the period was
+the interval plus however long the wake had taken: about 147 seconds for a
+configured 120. It is now anchored on the wake itself, which for this cycle is
+simply `millis()` at the moment of sleeping, because an M1 wake is a boot. The
+subtraction is floored at 5 seconds, and a wake that outlasts its own interval
+says `OVERRUN` in the log rather than degenerating into boot-sleep-boot. Only a
+boot that really was a wake compensates; a cold boot or an `air stop` has no
+previous wake to anchor to.
+
+The device also measures its own sleep now. After the WFI it reads the RTC, the
+one clock that crosses the sleep, and leaves the seconds in a watchdog scratch
+register for the next boot to print. That measurement is what settled the last
+second of error: the alarm was exact all along, and the loss was integer
+truncation in the alarm arithmetic, always in the same direction. With rounding,
+a 120-second interval measures 119.84 seconds end to end.
+
+**A missing Wi-Fi network no longer holds the wake open.** Connection attempts
+are capped per wake; past the cap the sampling phase stops pumping the network
+for the rest of that wake, the sensors still finish, the history is still
+written, and the device hibernates. The next wake is a fresh boot, so it tries
+again with a clean counter. Measured with a deliberately wrong SSID, the awake
+window was 26.7, 26.4 and 26.2 seconds, against 26.3 to 29.5 seconds with the
+right one.
+
+**The telemetry cursor is now persisted before sleeping.** Cursor writes are
+coalesced over a five-second window, which the M1 cycle never reached: the flush
+phase ends about 150 ms after the send, and the sleep loses SRAM, so the next
+boot re-read the old cursor and re-sent a batch that had already been accepted.
+The pre-sleep write is now forced past both the coalescing window and the
+touch-priority gate.
+
+The plan, the bench evidence and the acceptance tests are in
+`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (serial CLI,
+web API and the PicoHand fixture, including a 10 kHz probe that times the cycle
+without touching the target) and `tools/check_air_consistency.py`. Still open
+before this ships: the M1 boot starts services it does not need, offline wakes
+are stamped from the provisional clock rather than the measured sleep, and CI
+does not build `pico_w_air` or run `native_air`.
 
 ## v2.3.9-beta (2026-08-29)
 

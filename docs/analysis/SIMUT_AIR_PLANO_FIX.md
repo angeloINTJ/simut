@@ -1,6 +1,7 @@
 # SIMUT Air — Plano de correção e otimização
 
-> **Status:** plano aprovado para execução, nada implementado ainda.
+> **Status:** Fases 0, 1 e 3 executadas e medidas no ferro; Fases 2, 4 e 5 abertas. Registro de
+> execução na seção 6.
 > **Base:** branch `feature/simut-air`, commit `461a806` (06/09/2026), sobre `main` `6d2142c` (v2.3.9-beta).
 > **Origem:** revisão de código de 06/09/2026 (21 achados, F01–F21), sem validação no ferro.
 > **Esboço de projeto:** [`SIMUT_AIR_ESBOCO.md`](SIMUT_AIR_ESBOCO.md).
@@ -11,8 +12,8 @@
 
 ## 0. Sumário executivo
 
-A revisão de código mais a bancada de 06/09 acumularam **23 achados**. **Nenhum bloqueante
-segue aberto**: os quatro foram fechados no mesmo dia, com medição no ferro.
+A revisão de código mais a bancada de 06/09 acumularam **24 achados**. **Nenhum bloqueante
+segue aberto**: todos foram fechados no mesmo dia, com medição no ferro.
 
 > **O defeito que valia a saga era o tempo, e a causa era uma linha.** Com o intervalo
 > configurado em 2 minutos o aparelho acordava a cada **16 a 48 minutos**, de forma variável.
@@ -29,9 +30,16 @@ segue aberto**: os quatro foram fechados no mesmo dia, com medição no ferro.
    sensores). +200 B no Air, release e alpha intactos.
 3. **Fase 3 — consistência.** ✅ (menos o CI). `check_air_consistency.py` C1–C8 limpo e
    **−712 B no release / −272 B no alpha** — a limpeza se pagou em flash.
-4. **Fase 2 (ciclo M1), 4 (otimização) e 5 (release)** seguem abertas. O item mais concreto que
-   sobrou está medido: o período efetivo é `h_int + janela acordada` (~147 s para 120 s pedidos),
-   porque o alarme é ancorado no instante de dormir e não no de acordar (§6.3).
+4. **Fase 4 — intervalo real.** ✅ §6.4 e §3. O alarme passou a ancorar no wake e a conta passou
+   a arredondar; **ciclo medido de 119,84 s para 120 s pedidos**. A série do dia, para a mesma
+   configuração: 16–48 min → 147 s → 118,9 s → **119,84 s**.
+5. **F24 — cursor de telemetria.** ✅ §6.5. Duas causas: a coalescência de 5 s derrotava a escrita
+   pré-sono (corrigida) e o coletor da bancada aceita a conexão TCP e nunca responde (lado do
+   servidor, fora do firmware).
+6. **SSID indisponível.** ✅ §6.6. Teto de tentativas por wake; medido, a rede ausente **não
+   alarga** a janela acordada.
+7. **Resto da Fase 2 (ciclo M1), da Fase 4 (energia) e a Fase 5 (release)** seguem abertas, mais o
+   CI cobrindo `pico_w_air`/`native_air`.
 
 Ordem original de ataque, para referência:
 
@@ -53,6 +61,11 @@ byte-idênticos ao estado atual exceto pelas remoções de debug, e CI verde com
 
 Severidade: **B** = bloqueante, **F** = bug funcional, **I** = inconsistência.
 "Teste" refere-se aos casos de `tools/air_test_suite.py` (T-xx) e `tools/check_air_consistency.py` (C-x).
+
+Os três últimos achados **não** nasceram da revisão de código: vieram da bancada, e por isso moram
+no registro de execução em vez desta tabela. **F22** (período de sono errado) e **F23** (histórico
+não monotônico) estão em §6.1, com o desfecho em §6.2 e §6.3; **F24** (cursor de telemetria que não
+avança) está em §6.5.
 
 | ID | Sev | Onde | Sintoma | Correção | Teste |
 |---|---|---|---|---|---|
@@ -163,11 +176,24 @@ passa a cobrir a janela acordada inteira, em vez de começar só no WARMUP.
 
 ### Fase 2 — ciclo M1 correto
 
+Dois itens desta fase já saíram, fora de ordem, porque a bancada os cobrou:
+
+- ✅ **F24 — o cursor de telemetria é gravado antes de dormir** (`flushCursorIfDirty(true)`), com a
+  coalescência e a prioridade de toque puladas quando a escrita é forçada. §6.5.
+- ✅ **SSID indisponível não segura o wake** — `AIR_MAX_CONNECT_ATTEMPTS` limita as tentativas por
+  wake; passado o teto, SAMPLE para de bombear a rede e DECIDE trata o wake como offline. §6.6.
+
 **F04 + F10 — RTC como relógio de parede**
 
 - Antes de dormir: `epoch = getEpoch()`; RTC ← `gmtime(epoch)`; alarme ← `gmtime(epoch + wakeSec)` (sem limite de 24 h).
-- Após o `wfi`, antes do SYSRESETREQ: `rtc_get_datetime` → epoch → `watchdog_hw->scratch[1]`.
-- No boot M1: se `scratch[1] > HIST_EPOCH_MIN`, `setProvisionalTime(scratch[1] - 60)` (a função soma 60) e zerar o scratch.
+- ⚠️ **`scratch[1]` JÁ TEM DONO desde 06/09** (§3): guarda `AIR_SLEPT_MAGIC | segundos dormidos`,
+  medidos pelo próprio RTC depois do `wfi`. Não reivindicar o registrador sem `grep` — é a
+  armadilha de sempre. E não faz falta: **segundos dormidos é o dado melhor**, porque o boot
+  monta o epoch como `último epoch conhecido + dormidos + acordado`, sem depender de o RTC ter
+  sido semeado com hora real antes de dormir.
+- No boot M1: se o scratch trouxer o magic, `setProvisionalTime(epoch_antes + slept - 60)` (a
+  função soma 60) e zerar o scratch. O boot já lê e imprime esse valor (`[AIR] woke: slept=<n>s`);
+  o que falta é **usá-lo** para semear o relógio.
 - Manter a semântica de proveniência: continua "provisório" até o NTP; com F08 o registro só é escrito após o NTP quando há link.
 - Atualizar o mapa de scratch (F19).
 
@@ -256,7 +282,7 @@ Alavancas, por ganho estimado:
 2. **Janela de estabilização**: `MOVING_AVG_WINDOW=10` × `s_int` domina o wake (10 amostras × 2 s = 20 s). Novo campo `stabSamples` no `air.bin` (default 3) e critério "N amostras válidas" em vez de `bufferFull()`. Estimativa: −12 s.
 3. **Dreno com kick (F05)** e lote 250: o tempo de envio vira função do payload, não do `telInterval`.
 4. **NTP a cada N wakes** (RTC mantém a hora, F04): dispensa esperar o NTP em todo wake; estimativa −1 a −2 s e menos dependência da internet.
-5. **Alarme compensado**: agendar o próximo wake relativo ao instante do wake atual, não ao instante de dormir, para o período não derivar `awake_s` por ciclo.
+5. ✅ **Alarme compensado — FEITO em 06/09 (§6.4).** Agendar o próximo wake relativo ao instante do wake atual, não ao instante de dormir, para o período não derivar `awake_s` por ciclo. Medido: 119,84 s para 120 s pedidos. ⚠️ Junto veio a lição de que a conta tem de **arredondar**: `sleepMs / 1000` truncava até 1 s por ciclo, sempre no mesmo sentido (§3).
 6. **ROSC off** (já feito) só depois de F01 provado; ganho ~0,25 mA em sleep.
 7. **LED**: apagado durante SAMPLE/FLUSH, um pulso de 50 ms ao gravar e ao enviar (economia pequena; melhor sinalização).
 8. **USB em bateria**: se `VBUS` ausente, não esperar a enumeração nem imprimir marcadores (avaliar depois de medir).
@@ -569,35 +595,53 @@ alarme era ancorado no instante em que o aparelho **dorme**, não no instante em
 o período efetivo virava `h_int + janela acordada`, ~22% de amostras a menos por dia.
 ✅ **Corrigido em 06/09** — ver §6.4.
 
-### 6.6 SSID indisponível: tentativas limitadas e sono imediato
+### 6.4 Intervalo real: alarme ancorado no wake
 
-Pedido do Ângelo: com o SSID fora do ar, no máximo **2 tentativas**, e assim que a leitura e a
-gravação do histórico terminarem, hibernar — tentando de novo no wake seguinte.
+O alarme passa a ser `h_int − (tempo que este wake já passou acordado)`. Como um wake do M1 **é**
+um boot, esse tempo é exatamente `millis( )` no instante de dormir, e a subtração faz o período
+boot-a-boot valer o intervalo configurado.
 
-**Implementado:** `AIR_MAX_CONNECT_ATTEMPTS` (default 2). A fase SAMPLE só bombeia o
-`NetworkManager` enquanto `getConnectCycles( ) < AIR_MAX_CONNECT_ATTEMPTS`; estourado o limite,
-para de bombear pelo resto do wake, registra no console, e o DECIDE trata o wake como offline
-mesmo que o link apareça depois — os dados já estão na flash e o próximo wake envia. Como cada
-wake é um boot novo, o contador zera sozinho e a tentativa recomeça.
+Três detalhes que o desenho precisou tratar:
 
-**Medido no ferro com o SSID errado** (`ProcrastinationPLUS2`, posto pelo Ângelo justamente para
-isso), três wakes seguidos:
+- **Só quando o boot foi mesmo um wake.** Depois de um boot frio — ou de um `air stop` que
+  devolveu o aparelho ao operador — `millis( )` mede tempo de bancada, não de ciclo, e não há
+  wake anterior a que ancorar. Daí o `_airWokeFromSleep`, separado do `_airActive` (que o
+  `airStartHibernate( )` também liga).
+- **O backoff não é compensado.** `getBackoffRemainingMs( )` já conta a partir de agora, e
+  encurtar uma punição derrotaria o propósito dela. A compensação vale só para a cadência.
+- **Piso de `AIR_MIN_SLEEP_SEC` (5 s).** Se um wake durar mais que o próprio intervalo, a
+  subtração pediria zero e o aparelho entraria em boot-dorme-boot. Com o piso ele degrada para
+  "o mais rápido que dá" e a linha do log ganha o sufixo `OVERRUN`, que é o sinal de que a
+  cadência configurada não cabe no trabalho do wake.
 
-| wake | janela acordada |
-|---|---|
-| 1 | 26,7 s |
-| 2 | 26,4 s |
-| 3 | 26,2 s |
+A linha do alarme agora carrega a conta inteira, para a bancada não precisar inferi-la:
 
-Com o SSID **certo** a mesma janela é de 26,3 a 29,5 s. Ou seja: **a rede ausente não alarga o
-wake em nada** — o que fecha a fase é a estabilização dos sensores, o histórico é gravado e o
-aparelho dorme.
+```
+[AIR] alarm: 00:02:00 wakeSec=120 awake=39394ms target=120000ms
+```
 
-⚠️ **Honestidade sobre o limite:** o teto de 2 é um **teto**, não o caso comum. Cada tentativa
-custa até 20 s dentro do `NetworkManager`, e o wake inteiro dura ~28 s, então na prática **uma**
-tentativa começa por wake e o limite não chega a disparar (a linha `[AIR] wifi: no link after…`
-não apareceu em nenhum dos três wakes). Ele existe para o caso de uma janela acordada longa —
-sensores lentos, `stabTimeoutMs` grande — em que o segundo ciclo de reconexão caberia.
+**Medido no ferro logo em seguida** (`--watch 560`, `h_int=2`):
+
+| ciclo | dormindo | acordado | período |
+|---|---|---|---|
+| 1 — boot frio, **sem** compensar | 114,3 s | 26,8 s | 141,1 s |
+| 2 | **91,8 s** | 26,8 s | **118,6 s** |
+| 3 | **91,8 s** | 26,8 s | **118,6 s** |
+| 4 | **91,8 s** | 27,0 s | 118,8 s |
+
+O primeiro ciclo é o boot frio, que por desenho não compensa (não há wake anterior a que
+ancorar) — e ele serve de controle: 141 s, o comportamento antigo. Os três seguintes ficam em
+**118,6 s de período observado** contra 120 s configurados, com o tempo de sono repetindo
+**91,8 s nos três**. ⚠️ Os ~1,4 s que faltavam para 120 **não** eram o atraso da
+enumeração USB, como esta seção afirmou primeiro: eram truncamento na conta do alarme.
+Ver §3, onde o aparelho passa a medir o próprio sono e o ciclo fecha em **119,84 s**.
+
+**Série completa do dia, para a mesma configuração de 120 s:** 16–48 min (ROSC parado) → 147 s
+(ROSC corrigido) → **118,6 s** (alarme ancorado no wake).
+
+**Pendências desta bancada:** exercitar o caminho `telInterval == 0` do F02 (T06b); confirmar se
+o sensor da bancada está mesmo chaveado pelo GP16 (nesta bancada o DS18B20 está no GP0, sem
+chaveamento, então o F03 não é exercitado aqui); medir corrente.
 
 ### 6.5 O cursor de telemetria — duas causas, uma em cada lado
 
@@ -639,48 +683,32 @@ A configuração original foi salva, restaurada e conferida ao fim do teste.
 completa (qualquer 2xx serve) e prontamente. Enquanto ele só aceitar a conexão e calar, o
 aparelho vai continuar reenviando o mesmo lote — por desenho.
 
-### 6.4 Intervalo real: alarme ancorado no wake
+### 6.6 SSID indisponível: tentativas limitadas e sono imediato
 
-O alarme passa a ser `h_int − (tempo que este wake já passou acordado)`. Como um wake do M1 **é**
-um boot, esse tempo é exatamente `millis( )` no instante de dormir, e a subtração faz o período
-boot-a-boot valer o intervalo configurado.
+Pedido do Ângelo: com o SSID fora do ar, no máximo **2 tentativas**, e assim que a leitura e a
+gravação do histórico terminarem, hibernar — tentando de novo no wake seguinte.
 
-Três detalhes que o desenho precisou tratar:
+**Implementado:** `AIR_MAX_CONNECT_ATTEMPTS` (default 2). A fase SAMPLE só bombeia o
+`NetworkManager` enquanto `getConnectCycles( ) < AIR_MAX_CONNECT_ATTEMPTS`; estourado o limite,
+para de bombear pelo resto do wake, registra no console, e o DECIDE trata o wake como offline
+mesmo que o link apareça depois — os dados já estão na flash e o próximo wake envia. Como cada
+wake é um boot novo, o contador zera sozinho e a tentativa recomeça.
 
-- **Só quando o boot foi mesmo um wake.** Depois de um boot frio — ou de um `air stop` que
-  devolveu o aparelho ao operador — `millis( )` mede tempo de bancada, não de ciclo, e não há
-  wake anterior a que ancorar. Daí o `_airWokeFromSleep`, separado do `_airActive` (que o
-  `airStartHibernate( )` também liga).
-- **O backoff não é compensado.** `getBackoffRemainingMs( )` já conta a partir de agora, e
-  encurtar uma punição derrotaria o propósito dela. A compensação vale só para a cadência.
-- **Piso de `AIR_MIN_SLEEP_SEC` (5 s).** Se um wake durar mais que o próprio intervalo, a
-  subtração pediria zero e o aparelho entraria em boot-dorme-boot. Com o piso ele degrada para
-  "o mais rápido que dá" e a linha do log ganha o sufixo `OVERRUN`, que é o sinal de que a
-  cadência configurada não cabe no trabalho do wake.
+**Medido no ferro com o SSID errado** (`ProcrastinationPLUS2`, posto pelo Ângelo justamente para
+isso), três wakes seguidos:
 
-A linha do alarme agora carrega a conta inteira, para a bancada não precisar inferi-la:
+| wake | janela acordada |
+|---|---|
+| 1 | 26,7 s |
+| 2 | 26,4 s |
+| 3 | 26,2 s |
 
-```
-[AIR] alarm: 00:02:00 wakeSec=120 awake=39394ms target=120000ms
-```
+Com o SSID **certo** a mesma janela é de 26,3 a 29,5 s. Ou seja: **a rede ausente não alarga o
+wake em nada** — o que fecha a fase é a estabilização dos sensores, o histórico é gravado e o
+aparelho dorme.
 
-**Medido no ferro logo em seguida** (`--watch 560`, `h_int=2`):
-
-| ciclo | dormindo | acordado | período |
-|---|---|---|---|
-| 1 — boot frio, **sem** compensar | 114,3 s | 26,8 s | 141,1 s |
-| 2 | **91,8 s** | 26,8 s | **118,6 s** |
-| 3 | **91,8 s** | 26,8 s | **118,6 s** |
-| 4 | **91,8 s** | 27,0 s | 118,8 s |
-
-O primeiro ciclo é o boot frio, que por desenho não compensa (não há wake anterior a que
-ancorar) — e ele serve de controle: 141 s, o comportamento antigo. Os três seguintes ficam em
-**118,6 s de período observado** contra 120 s configurados, com o tempo de sono repetindo
-**91,8 s nos três**. Os ~1,4 s que faltam para 120 são o atraso entre o boot e a enumeração USB,
-que o instrumento não enxerga: de wake a wake pelo relógio da bancada dá 118 e 119 s.
-
-**Série completa do dia, para a mesma configuração de 120 s:** 16–48 min (ROSC parado) → 147 s
-(ROSC corrigido) → **118,6 s** (alarme ancorado no wake).
-
-**Pendências desta bancada:** exercitar o caminho `telInterval == 0` do F02 (T06b); confirmar se
-o sensor da bancada está mesmo chaveado pelo GP16; alarme compensado; medir corrente.
+⚠️ **Honestidade sobre o limite:** o teto de 2 é um **teto**, não o caso comum. Cada tentativa
+custa até 20 s dentro do `NetworkManager`, e o wake inteiro dura ~28 s, então na prática **uma**
+tentativa começa por wake e o limite não chega a disparar (a linha `[AIR] wifi: no link after…`
+não apareceu em nenhum dos três wakes). Ele existe para o caso de uma janela acordada longa —
+sensores lentos, `stabTimeoutMs` grande — em que o segundo ciclo de reconexão caberia.

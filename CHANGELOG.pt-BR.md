@@ -32,14 +32,46 @@ minutos, contra 147 a 151 segundos na build anterior à mudança. O oscilador
 passa a ser religado logo após o WFI, antes do reset, e a mesma bancada mediu
 110,8 s de sono com 26,5 s de janela acordada. Custo: 32 bytes.
 
-Pendências antes de publicar: a revisão e a bancada de 06/09/2026 deixaram três
-itens abertos. A fase FLUSH sem teto de tempo, a energia dos sensores não ligada
-no modo operacional nem durante o boot, e um histórico que não é monotônico em
-12 dos 174 intervalos, porque o interior de cada bloco é reconstruído pelo passo
-nominal em vez dos tempos em que as amostras foram tomadas. O plano, as
-evidências e os testes de aceite estão em
-`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` e
-`tools/check_air_consistency.py`.
+**O wake passou a cair no intervalo configurado, e não uma janela acordada
+depois.** O alarme era ancorado no instante em que o aparelho dormia, então o
+período valia o intervalo mais o tempo que aquele wake havia levado: cerca de
+147 segundos para 120 configurados. Agora ele é ancorado no próprio wake, que
+neste ciclo é simplesmente o `millis()` na hora de dormir, porque um wake do M1
+é um boot. A subtração tem piso de 5 segundos, e um wake que dure mais que o
+próprio intervalo escreve `OVERRUN` no log em vez de degenerar em
+boot-dorme-boot. Só compensa o boot que de fato foi um wake; um boot frio ou um
+`air stop` não têm wake anterior a que ancorar.
+
+O aparelho também passou a medir o próprio sono. Depois do WFI ele lê o RTC, o
+único relógio que atravessa o sono, e deixa os segundos num registrador de
+scratch do watchdog para o boot seguinte imprimir. Foi essa medição que fechou o
+último segundo de erro: o alarme sempre foi exato, e a perda estava no
+truncamento inteiro da conta do alarme, sempre no mesmo sentido. Com
+arredondamento, um intervalo de 120 segundos mede 119,84 segundos de ponta a
+ponta.
+
+**Uma rede Wi-Fi ausente não segura mais o wake aberto.** As tentativas de
+conexão têm teto por wake; passado o teto, a fase de amostragem para de bombear
+a rede pelo resto daquele wake, os sensores terminam mesmo assim, o histórico é
+gravado e o aparelho hiberna. O wake seguinte é um boot novo, então tenta de
+novo com o contador zerado. Medido com um SSID errado de propósito, a janela
+acordada foi de 26,7, 26,4 e 26,2 segundos, contra 26,3 a 29,5 segundos com o
+SSID certo.
+
+**O cursor da telemetria passou a ser gravado antes de dormir.** As escritas do
+cursor são agrupadas numa janela de cinco segundos que o ciclo M1 nunca
+alcançava: a fase de envio termina cerca de 150 ms depois do envio, e o sono
+perde a SRAM, então o boot seguinte relia o cursor antigo e reenviava um lote já
+aceito. A escrita pré-sono agora passa por cima tanto do agrupamento quanto do
+portão de prioridade de toque.
+
+O plano, as evidências da bancada e os testes de aceite estão em
+`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (CLI serial,
+API web e a PicoHand, incluindo uma sonda de 10 kHz que cronometra o ciclo sem
+tocar no alvo) e `tools/check_air_consistency.py`. Ainda em aberto antes de
+publicar: o boot M1 sobe serviços de que não precisa, os wakes offline são
+carimbados pelo relógio provisório em vez do sono medido, e o CI não compila o
+`pico_w_air` nem roda o `native_air`.
 
 ## v2.3.9-beta (2026-08-29)
 
