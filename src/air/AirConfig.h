@@ -29,6 +29,15 @@
  * we need. Mirrors the POST_OTA_APPLY_MAGIC pattern in AppManager_Boot.cpp. */
 #define AIR_DORMANT_MAGIC 0xA1B2C3D4u
 
+/* scratch[1]: how many seconds the last sleep really lasted, read from the RTC
+ * after the WFI returns and before the reset. Tagged so a garbage register is
+ * not mistaken for a measurement; the low 24 bits hold the seconds (194 days,
+ * far past any wake interval). Printed by the next boot beside the requested
+ * value, which is what turns the cycle period into a measured number instead of
+ * one inferred from USB enumeration. */
+#define AIR_SLEPT_MAGIC 0x5E000000u
+#define AIR_SLEPT_MASK  0xFF000000u
+
 struct __attribute__((packed)) AirConfig {
   uint32_t magic;
   uint16_t version;

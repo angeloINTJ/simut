@@ -615,7 +615,10 @@ void LogManager::setMinSerialLevel(LogLevel level) { _minSerialLevel = level; }
  * framework, so the slot is free. Survives the SYSRESETREQ the
  * wake performs; cleared by power cycle / physical reset, which
  * is exactly the discriminator the Air cycle needs.
- * scratch[1..2] — reserved by Pico SDK (boot/runtime). Do not touch.
+ * scratch[1] — SIMUT Air: seconds the last sleep really lasted, tagged with
+ *               AIR_SLEPT_MAGIC and read once by the next boot (see
+ *               AppManager_Boot.cpp). Same reasoning as scratch[0].
+ * scratch[2] — reserved by Pico SDK (boot/runtime). Do not touch.
  * scratch[3] — module trace (Core 0 + Core 1) via TRACE_MOD/setModule.
  * Packing:
  * bits 0..7 = Core 0 current mod

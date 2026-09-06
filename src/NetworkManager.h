@@ -74,6 +74,11 @@ public:
  */
  bool isNetworkHealthy( );
 
+ /** Consecutive failed connection attempts; reset to 0 on a full connection.
+  *  Exposed so the Air cycle can stop pumping the network after a bounded
+  *  number of tries instead of letting a missing SSID hold a wake open. */
+ uint8_t getConnectCycles( ) const { return _connectCycles; }
+
 
  String getIpAddress( );
  void getIpAddress(char* buf, size_t len); /**< Buffer version. */

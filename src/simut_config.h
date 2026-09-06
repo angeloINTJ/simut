@@ -318,6 +318,15 @@
 #ifndef AIR_SENSOR_POWER_PIN
 #define AIR_SENSOR_POWER_PIN 16 // GPIO power-gating for sensors (also the awake/sleep probe)
 #endif
+#ifndef AIR_MAX_CONNECT_ATTEMPTS
+// How many failed WiFi connection attempts a single wake may spend before it
+// stops trying. With the SSID out of range the wake still does its real job —
+// read the sensors, write the history — and then hibernates; the next wake
+// tries again from scratch, because every wake is a fresh boot. Each attempt
+// costs up to 20 s inside NetworkManager, so in practice one attempt fits in a
+// wake and this is the ceiling rather than the usual case.
+#define AIR_MAX_CONNECT_ATTEMPTS 2
+#endif
 #ifndef AIR_MIN_SLEEP_SEC
 // Floor for the compensated wake alarm. The alarm is set to
 // (history interval - time this wake spent awake) so the PERIOD equals the

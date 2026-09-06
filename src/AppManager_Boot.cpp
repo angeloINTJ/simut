@@ -153,6 +153,14 @@ void AppManager::setup( ) {
   clocks_hw->sleep_en1 = CLOCKS_SLEEP_EN1_RESET;
   watchdog_start_tick(12); /* 12 = XOSC 12 MHz / 1 MHz tick */
   _airPhaseTimer = millis( );
+  /* What the RTC measured across the sleep that just ended (see AIR_SLEPT_MAGIC).
+   * Kept in a member so the boot banner can print it next to the requested
+   * value once Serial is up — the pair is the only direct evidence of whether
+   * the alarm honoured the interval it was given. */
+  if ((watchdog_hw->scratch[1] & AIR_SLEPT_MASK) == AIR_SLEPT_MAGIC) {
+   _airSleptSec = watchdog_hw->scratch[1] & 0x00FFFFFFu;
+  }
+  watchdog_hw->scratch[1] = 0;
  }
 #endif
 
@@ -195,6 +203,11 @@ void AppManager::setup( ) {
 
  _uart_mark('%'); /* post Serial.begin */
  AIR_BOOT_MARK("serial ok");
+#if SIMUT_AIR
+ if (_airSleptSec) {
+  Serial.printf("[AIR] woke: slept=%lus\n", (unsigned long)_airSleptSec);
+ }
+#endif
 
  delay(1000);
  AIR_BOOT_MARK("delay ok");

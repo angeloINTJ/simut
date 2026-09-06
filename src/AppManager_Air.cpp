@@ -164,6 +164,7 @@ void AppManager::airStartHibernate( ) {
  _storageMgr->flushWipV5( );
  _storageMgr->flushCursorIfDirty(true);
  _airActive = true;
+ _airNetGaveUp = false;   /* fresh cycle, fresh allowance of WiFi attempts */
  _airPhase = AIR_PHASE_WARMUP;
  _airPhaseTimer = millis( );
  airMarkActivity( );
@@ -195,8 +196,22 @@ void AppManager::airLoop( ) {
   _sensorMgr->update( );
   /* Search for / connect to the configured WiFi IN PARALLEL with the sensor
    * sampling, so the link is (usually) already up by the time the sensors
-   * stabilise. */
-  _netMgr->update( );
+   * stabilise.
+   *
+   * Bounded, though: with the SSID out of range the network must not hold the
+   * wake open. After AIR_MAX_CONNECT_ATTEMPTS failed attempts the pump stops
+   * for the rest of this wake — the sensors still finish, the history is still
+   * written, and the device hibernates. The next wake is a fresh boot, so it
+   * starts over with a clean counter and tries again. */
+  if (!_airNetGaveUp) {
+   _netMgr->update( );
+   if (!_netMgr->isConnected( ) &&
+       _netMgr->getConnectCycles( ) >= AIR_MAX_CONNECT_ATTEMPTS) {
+    _airNetGaveUp = true;
+    Serial.printf("[AIR] wifi: no link after %u attempt(s) — sampling on, will retry next wake\n",
+                  (unsigned)_netMgr->getConnectCycles( ));
+   }
+  }
   const bool stable = airAllStable(*_sensorMgr);
   const bool timedOut = timeSince(_airPhaseTimer, (uint32_t)_airCfg.stabTimeoutMs);
   if (stable || timedOut) {
@@ -214,7 +229,10 @@ void AppManager::airLoop( ) {
    * from flash), so it must NOT gate the send path. */
   processHistoryLogging( );
   _storageMgr->flushWipV5( );
-  const bool online = _netMgr->isConnected( );
+  /* Giving up on the WiFi is final for this wake: even if the link came up in
+   * the meantime, chasing it now would spend awake time the reading no longer
+   * needs. The data is on flash and the next wake will send it. */
+  const bool online = !_airNetGaveUp && _netMgr->isConnected( );
   _airPhase = online ? AIR_PHASE_CONNECT : AIR_PHASE_SLEEP;
   _airPhaseTimer = millis( );
   break;
@@ -359,7 +377,14 @@ void AppManager::airEnterDormant( ) {
    * from now, and shortening a punishment would defeat it. */
   uint32_t backoffMs = _telemetryMgr->getBackoffRemainingMs( );
   uint32_t sleepMs = (backoffMs > histSleepMs) ? backoffMs : histSleepMs;
-  uint32_t wakeSec = sleepMs / 1000UL;
+  /* Round, do not truncate. The RTC alarm only has second granularity, so this
+   * division is where the period loses its last fraction — and truncating threw
+   * away up to a full second on EVERY cycle, always in the same direction.
+   * Measured 2026-09-06 with the device reporting its own slept time: asking for
+   * 91817 ms gave 91 s, a 0.817 s shortfall that showed up as a 118.9 s cycle
+   * for a 120 s interval. Rounding centres the error and bounds it at the half
+   * second the RTC's resolution costs. */
+  uint32_t wakeSec = (sleepMs + 500UL) / 1000UL;
   if (wakeSec == 0) wakeSec = 1;
 
   datetime_t t;
@@ -420,6 +445,23 @@ void AppManager::airEnterDormant( ) {
    * so this call returns with the system still on the XOSC and the
    * PLLs/USB/WiFi down. */
   sleep_goto_sleep_until(&t, nullptr);
+
+  /* How long the sleep ACTUALLY lasted, straight from the RTC that timed it.
+   *
+   * Everything else about the cycle is inferred: USB enumeration lags the boot,
+   * the probe line moves before the WiFi teardown, millis( ) restarts at every
+   * wake. The RTC is the one clock that ran across the sleep and it was set to
+   * 00:00:00 just above, so its reading now IS the sleep, to the second. Parked
+   * in scratch[1] (always-on, survives the SYSRESETREQ below) and printed by the
+   * next boot next to what was requested — the two together are what makes the
+   * period auditable instead of derived. */
+  {
+   datetime_t got;
+   rtc_get_datetime(&got);
+   const uint32_t sleptSec = (uint32_t)got.hour * 3600u +
+                             (uint32_t)got.min * 60u + (uint32_t)got.sec;
+   watchdog_hw->scratch[1] = AIR_SLEPT_MAGIC | (sleptSec & 0x00FFFFFFu);
+  }
  }
 
  /* Woke from DORMANT. Soft-reset so the boot ROM re-initialises the clocks

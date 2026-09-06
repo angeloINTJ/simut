@@ -221,6 +221,11 @@ private:
   * and that compensation is only meaningful when millis( ) measures this
   * cycle rather than however long an operator left the device in M0. */
  bool     _airWokeFromSleep = false;
+ /** Seconds the last sleep really lasted, as the RTC measured it (0 = unknown). */
+ uint32_t _airSleptSec = 0;
+ /** True once the wake gave up on the WiFi: stops pumping the network so a
+  *  missing SSID cannot keep the device awake past its sensor reading. */
+ bool     _airNetGaveUp = false;
  uint32_t _airLastActivityMs = 0; /* M0 idle timer */
  AirConfig _airCfg;                 /* loaded from /config/air.bin */
 
