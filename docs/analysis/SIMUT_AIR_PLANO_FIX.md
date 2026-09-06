@@ -12,8 +12,11 @@
 
 ## 0. Sumário executivo
 
-A revisão de código mais a bancada de 06/09 acumularam **24 achados**. **Nenhum bloqueante
-segue aberto**: todos foram fechados no mesmo dia, com medição no ferro.
+A revisão de código mais a bancada de 06/09 acumularam **25 achados**. Os quatro bloqueantes da
+revisão foram fechados no mesmo dia, com medição no ferro. **Sobrou um bloqueante novo, achado
+já no fim do dia: o F25** — um watchdog durante a janela acordada devolve o aparelho a M0, e na
+bancada ele nunca voltou a hibernar (§6.7). Num produto a bateria, isso é ficar acordado para
+sempre.
 
 > **O defeito que valia a saga era o tempo, e a causa era uma linha.** Com o intervalo
 > configurado em 2 minutos o aparelho acordava a cada **16 a 48 minutos**, de forma variável.
@@ -31,8 +34,10 @@ segue aberto**: todos foram fechados no mesmo dia, com medição no ferro.
 3. **Fase 3 — consistência.** ✅ (menos o CI). `check_air_consistency.py` C1–C8 limpo e
    **−712 B no release / −272 B no alpha** — a limpeza se pagou em flash.
 4. **Fase 4 — intervalo real.** ✅ §6.4 e §3. O alarme passou a ancorar no wake e a conta passou
-   a arredondar; **ciclo medido de 119,84 s para 120 s pedidos**. A série do dia, para a mesma
-   configuração: 16–48 min → 147 s → 118,9 s → **119,84 s**.
+   a arredondar, e o alarme passou a ser armado relativo ao valor que o RTC **lê** em vez do zero
+   que se escreve nele — o `load` já vale um tique, e era isso que fazia o aparelho acordar 1 s
+   cedo em todo ciclo. **Ciclo medido pela sonda: 120,23 s para 120 s pedidos.** A série do dia,
+   para a mesma configuração: 16–48 min → 147 s → 118,9 s → 119,3 s → **120,23 s**.
 5. **F24 — cursor de telemetria.** ✅ §6.5. Duas causas: a coalescência de 5 s derrotava a escrita
    pré-sono (corrigida) e o coletor da bancada aceita a conexão TCP e nunca responde (lado do
    servidor, fora do firmware).
@@ -62,10 +67,11 @@ byte-idênticos ao estado atual exceto pelas remoções de debug, e CI verde com
 Severidade: **B** = bloqueante, **F** = bug funcional, **I** = inconsistência.
 "Teste" refere-se aos casos de `tools/air_test_suite.py` (T-xx) e `tools/check_air_consistency.py` (C-x).
 
-Os três últimos achados **não** nasceram da revisão de código: vieram da bancada, e por isso moram
-no registro de execução em vez desta tabela. **F22** (período de sono errado) e **F23** (histórico
-não monotônico) estão em §6.1, com o desfecho em §6.2 e §6.3; **F24** (cursor de telemetria que não
-avança) está em §6.5.
+Os quatro últimos achados **não** nasceram da revisão de código: vieram da bancada, e por isso
+moram no registro de execução em vez desta tabela. **F22** (período de sono errado) e **F23**
+(histórico não monotônico) estão em §6.1, com o desfecho em §6.2 e §6.3; **F24** (cursor de
+telemetria que não avança) está em §6.5; **F25** (um reset durante o wake tira o aparelho do
+ciclo, e ele pode não voltar) está em §6.7 — o único bloqueante ainda aberto.
 
 | ID | Sev | Onde | Sintoma | Correção | Teste |
 |---|---|---|---|---|---|
@@ -282,7 +288,7 @@ Alavancas, por ganho estimado:
 2. **Janela de estabilização**: `MOVING_AVG_WINDOW=10` × `s_int` domina o wake (10 amostras × 2 s = 20 s). Novo campo `stabSamples` no `air.bin` (default 3) e critério "N amostras válidas" em vez de `bufferFull()`. Estimativa: −12 s.
 3. **Dreno com kick (F05)** e lote 250: o tempo de envio vira função do payload, não do `telInterval`.
 4. **NTP a cada N wakes** (RTC mantém a hora, F04): dispensa esperar o NTP em todo wake; estimativa −1 a −2 s e menos dependência da internet.
-5. ✅ **Alarme compensado — FEITO em 06/09 (§6.4).** Agendar o próximo wake relativo ao instante do wake atual, não ao instante de dormir, para o período não derivar `awake_s` por ciclo. Medido: 119,84 s para 120 s pedidos. ⚠️ Junto veio a lição de que a conta tem de **arredondar**: `sleepMs / 1000` truncava até 1 s por ciclo, sempre no mesmo sentido (§3).
+5. ✅ **Alarme compensado — FEITO em 06/09 (§6.4).** Agendar o próximo wake relativo ao instante do wake atual, não ao instante de dormir, para o período não derivar `awake_s` por ciclo. Medido pela sonda: **120,23 s** para 120 s pedidos. ⚠️ Vieram junto duas lições, ambas em §3: a conta tem de **arredondar** (`sleepMs / 1000` truncava até 1 s por ciclo, sempre no mesmo sentido) e o alarme tem de ser armado sobre o valor que o RTC **lê**, porque o `load` já vale um tique.
 6. **ROSC off** (já feito) só depois de F01 provado; ganho ~0,25 mA em sleep.
 7. **LED**: apagado durante SAMPLE/FLUSH, um pulso de 50 ms ao gravar e ao enviar (economia pequena; melhor sinalização).
 8. **USB em bateria**: se `VBUS` ausente, não esperar a enumeração nem imprimir marcadores (avaliar depois de medir).
@@ -335,20 +341,58 @@ seguinte imprime `[AIR] woke: slept=<n>s`. Com isso:
 | 91 s | **91 s** |
 | 92 s | **92 s** |
 
-**O alarme sempre foi exato.** O erro estava na conta: `wakeSec = sleepMs / 1000` **truncava**,
-jogando fora até um segundo inteiro por ciclo e sempre no mesmo sentido. Um caso real: pedir
-91817 ms virava 91 s, 0,817 s a menos — e é isso que aparecia como ciclo de 118,9 s para um
-intervalo de 120 s. Trocado por arredondamento (`(sleepMs + 500) / 1000`), o erro passa a ser
-centrado e limitado ao meio segundo que a resolução de 1 s do RTC custa.
+Isso revelou o **primeiro** dos dois erros: `wakeSec = sleepMs / 1000` **truncava**, jogando fora
+até um segundo inteiro por ciclo e sempre no mesmo sentido (pedir 91817 ms virava 91 s). Trocado
+por arredondamento (`(sleepMs + 500) / 1000`).
 
-Medido depois da correção, com o aparelho reportando o próprio sono:
+⚠️ **RETRATAÇÃO — eu escrevi aqui que "o alarme sempre foi exato", e não era.** O autorrelato do
+aparelho **também mentia**, pelo mesmo motivo que ele existia para corrigir. Quem pegou foi a
+sonda, que é passiva: enquanto o aparelho jurava um ciclo de 119,84 s, a PicoHand media
+**119,31 s e 118,69 s** de subida a subida. Instrumento contra instrumento, o passivo ganha.
+
+**A segunda causa, e a raiz de verdade: o `load` do RTC já vale um tique.** A linha de depuração
+que o próprio firmware imprime dizia isso o tempo todo, e ninguém tinha lido:
 
 ```
-wake 2: dormiu=92s  acordado=27,839s  CICLO=119,839s   (alvo 120 s → erro −0,161 s)
+[AIR] rtc after set:  2026-01-01 00:00:01 dotw=4
 ```
 
-Série completa do dia para os mesmos 120 s configurados: 16–48 min (ROSC parado) → 147 s (ROSC
-corrigido) → 118,9 s (ancorado no wake, com truncamento) → **119,84 s** (com arredondamento).
+O contador é escrito com 00:00:00 e, 3 ms depois, lê **00:00:01**. Um alarme armado em `wakeSec`
+estava portanto a `wakeSec − 1` tiques de distância, e o aparelho acordava **um segundo cedo em
+todo ciclo**. É por isso que ele reportava `slept=120s` (o valor do alarme) enquanto tinha dormido
+119. Com sonda e serial na mesma janela, a conta fechou em **−0,90 s por ciclo**, constante:
+
+| ciclo | `awake=` | `wakeSec=` | período pretendido | período medido | erro |
+|---|---|---|---|---|---|
+| 1 | 29218 ms | 91 s | 120,218 s | **119,314 s** | −0,904 s |
+| 2 | 30592 ms | 89 s | 119,592 s | **118,686 s** | −0,906 s |
+
+**Correção:** armar o alarme relativo ao que o RTC **lê**, não ao zero que se escreveu nele —
+`alarmSec = baseSec + wakeSec`. É imune ao mecanismo: se um SDK futuro parar de emitir aquele
+tique, `baseSec` vale 0 e o alarme volta a ser onde sempre foi. O autorrelato passou a descontar
+a base, então `slept=` virou tempo real de sono em vez do valor do alarme.
+
+**Medido depois, com os dois instrumentos na mesma janela:**
+
+| ciclo | `base=` | `awake=` | `wakeSec=` | período pretendido | período medido | erro |
+|---|---|---|---|---|---|---|
+| 1 | 1 s | 32120 ms | 88 s | 120,120 s | **120,229 s** | +0,109 s |
+| 2 | 1 s | 32240 ms | 88 s | 120,240 s | **120,346 s** | +0,106 s |
+
+O resíduo caiu de −0,90 s para **+0,106 s**, e agora ele é explicável inteiro: é o trabalho entre
+a leitura de `millis( )` e o `load` do RTC, mais o boot ROM até o GP16 subir. Contra os 120 s
+configurados o erro final é de **+0,23 a +0,35 s** (0,2 a 0,3%), e o que sobra dele é o
+arredondamento do meio segundo que a resolução de 1 s do RTC custa.
+
+**Série completa do dia para os mesmos 120 s configurados:** 16–48 min (ROSC parado) → 147 s (ROSC
+corrigido) → 118,9 s (ancorado no wake, com truncamento) → 119,3 s (com arredondamento, medido
+pela sonda) → **120,23 s** (alarme relativo à base do RTC).
+
+**A lição de método, que vale mais que o número:** o aparelho medindo a si mesmo é um instrumento
+como qualquer outro, e herda os vieses do relógio que usa. Foi preciso um instrumento **externo e
+passivo** — a sonda, que não toca no alvo — para pegar o viés. E a evidência estava impressa no
+console desde o começo: `rtc after set: 00:00:01`. Ler o que o próprio firmware já diz vem antes
+de construir instrumento novo.
 
 ⚠️ **Regravar a mão reinicia o alvo** (observado: uptime zerado e boot frio logo depois da cópia
 do `.uf2`). E pôr a mão em BOOTSEL exige `SELF_BOOTSEL` ou o botão físico — não é automatizável.
@@ -386,6 +430,7 @@ sleep, boot, sample, flush. Tabela na seção 6.
 - **D-3** `system ssid/pass` no console de emergência de todas as imagens: manter (recomendado, documentado) ou restringir ao Air?
 - **D-4** `air.bin` v3: aceitar perder a config Air existente nos aparelhos de bancada (defaults voltam)?
 - **D-5** RTC como relógio de parede (F04): aceita que registros offline fiquem "provisórios" com erro do drift do XOSC (~20 ppm ≈ 1,7 s/dia) até o próximo NTP?
+- **D-6** Volta ao ciclo após boot sujo (F25, §6.7): hoje um watchdog durante o wake devolve o aparelho a M0 acordado, e na bancada ele nunca voltou a dormir. Graça curta, intenção persistida no `air.bin`, contador de boots sujos — ou manter como está?
 
 ---
 
@@ -634,7 +679,8 @@ ancorar) — e ele serve de controle: 141 s, o comportamento antigo. Os três se
 **118,6 s de período observado** contra 120 s configurados, com o tempo de sono repetindo
 **91,8 s nos três**. ⚠️ Os ~1,4 s que faltavam para 120 **não** eram o atraso da
 enumeração USB, como esta seção afirmou primeiro: eram truncamento na conta do alarme.
-Ver §3, onde o aparelho passa a medir o próprio sono e o ciclo fecha em **119,84 s**.
+Ver §3, onde o aparelho passa a medir o próprio sono, a sonda pega o viés desse autorrelato e o
+ciclo fecha em **120,23 s**.
 
 **Série completa do dia, para a mesma configuração de 120 s:** 16–48 min (ROSC parado) → 147 s
 (ROSC corrigido) → **118,6 s** (alarme ancorado no wake).
@@ -712,3 +758,45 @@ custa até 20 s dentro do `NetworkManager`, e o wake inteiro dura ~28 s, então 
 tentativa começa por wake e o limite não chega a disparar (a linha `[AIR] wifi: no link after…`
 não apareceu em nenhum dos três wakes). Ele existe para o caso de uma janela acordada longa —
 sensores lentos, `stabTimeoutMs` grande — em que o segundo ciclo de reconexão caberia.
+
+### 6.7 F25 — um reset durante o wake tira o aparelho do ciclo, e ele pode não voltar
+
+**Achado novo, e é o pior modo de falha visto até agora nesta build.** Descoberto às 20h30 de
+06/09, com o SSID errado ainda configurado, quando uma medição encontrou o aparelho **em M0,
+acordado, varrendo a rede** — e não no ciclo em que ele estava meia hora antes.
+
+**O mecanismo é deliberado**, e está escrito em `src/AppManager_Boot.cpp:132`: o marcador de
+hibernação é lido e **zerado em todo boot**, "so a watchdog reset during the cycle does not
+re-enter M1". A válvula de segurança existe por um bom motivo — um aparelho que trava em M1 fica
+inalcançável, acordando e travando para sempre. O preço, porém, é este: **um watchdog durante a
+janela acordada devolve o aparelho a M0**, com rádio ligado e consumo cheio, e a única volta para
+o ciclo é o timeout de inatividade (`air idle`, 300 s por padrão).
+
+**Na bancada, essa volta nunca aconteceu.** Com o SSID inexistente, o Core 0 travava de novo antes
+dos 300 s. Do `show system log`: 72 boots, 6 FATAL, quatro deles no trecho final. As causas são
+`ctx=455` (= 200 + 0xFF, "HW WATCHDOG: Core 0 loop stalled, trace channel empty") e `ctx=209`
+(= 200 + módulo 9). Entre resets o aparelho ficou acordado 54, 58, 86 e 107 s — sempre menos que
+os 300 s de que precisava para voltar a dormir. **Resultado: acordado para sempre, que é
+exatamente o que a build Air existe para evitar.**
+
+⚠️ **Um boot que dura mais que o `air idle` não prova que a válvula funciona:** todo comando da
+CLI chama `airMarkActivity( )` e rearma o timer. O boot de 6m18s que apareceu aqui foi mantido
+acordado pelas MINHAS consultas, não pelo firmware.
+
+**Decisão para o Ângelo (D-6), porque muda comportamento de produto.** Três caminhos:
+
+1. **Graça curta após boot sujo:** se a autópsia disser watchdog e a config disser que o ciclo
+   estava ligado, voltar para M1 em ~30 s em vez de esperar o `air idle` inteiro.
+2. **Persistir a intenção no `air.bin`**, não só no scratch: o registrador passa a responder
+   apenas "acabei de acordar?", e "este aparelho é um registrador que hiberna" vira config de
+   flash. Recomendado, porque é onde a intenção do operador pertence.
+3. **Contar boots sujos consecutivos** e só cair para M0 de vez depois de N — preserva a
+   alcançabilidade sem entregar o aparelho ao consumo cheio no primeiro tropeço.
+
+O 2 com o 1 é a combinação que mantém as duas propriedades. O que **não** dá para deixar como
+está é o estado observado: o aparelho a bateria decide ficar acordado justamente quando a rede
+some, que é quando ele mais precisa economizar.
+
+**Pendente de investigação separada:** a travada do Core 0 em si, sob varredura de SSID
+inexistente. É parente do R1 histórico ("Core 0 na varredura"), e o `ctx=455` diz que nem o canal
+de rastreio de módulo sobreviveu.

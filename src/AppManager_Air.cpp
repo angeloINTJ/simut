@@ -397,15 +397,38 @@ void AppManager::airEnterDormant( ) {
   rtc_init( );
 
   airRtcSetDatetime(&t);
+
+  /* Arm the alarm relative to what the RTC ACTUALLY reads, not to the zero that
+   * was just written to it.
+   *
+   * Measured on the bench 2026-09-06: right after airRtcSetDatetime(00:00:00)
+   * the counter already reads 00:00:01 — the load lands a tick of its own, and
+   * it does so on every cycle, not now and then. An alarm armed at wakeSec was
+   * therefore only wakeSec-1 ticks away, and the device woke about a second
+   * early EVERY time. The PicoHand probe put a number on it: 119.31 s and
+   * 118.69 s of measured period against 120.22 s and 119.59 s of intended
+   * period, a flat 0.90 s lost per cycle that no amount of rounding in the
+   * millisecond arithmetic could recover, because the loss happens after the
+   * arithmetic.
+   *
+   * Reading the base back and adding to it is immune to whatever the load pulse
+   * does — if a future SDK stops landing that tick, baseSec is simply 0 and the
+   * alarm is where it always was. */
+  uint32_t baseSec = 0;
   {
    datetime_t dbg;
    delay(2); /* RTC write sync: up to 3 slow-domain cycles (~64us at 46875Hz) */
    rtc_get_datetime(&dbg);
-   Serial.printf("[AIR] rtc after set:  %04d-%02d-%02d %02d:%02d:%02d dotw=%d\n", dbg.year, dbg.month, dbg.day, dbg.hour, dbg.min, dbg.sec, dbg.dotw);
+   baseSec = (uint32_t)dbg.hour * 3600u + (uint32_t)dbg.min * 60u + (uint32_t)dbg.sec;
+   Serial.printf("[AIR] rtc after set:  %04d-%02d-%02d %02d:%02d:%02d dotw=%d base=%lus\n",
+                 dbg.year, dbg.month, dbg.day, dbg.hour, dbg.min, dbg.sec, dbg.dotw,
+                 (unsigned long)baseSec);
   }
-  t.sec  = (int8_t)(wakeSec % 60);
-  t.min  = (int8_t)((wakeSec / 60) % 60);
-  t.hour = (int8_t)((wakeSec / 3600) % 24);
+
+  const uint32_t alarmSec = baseSec + wakeSec;
+  t.sec  = (int8_t)(alarmSec % 60);
+  t.min  = (int8_t)((alarmSec / 60) % 60);
+  t.hour = (int8_t)((alarmSec / 3600) % 24);
 
   /* M1-vs-M0 discriminator: survives the wake, zeroed on power cycle. */
   watchdog_hw->scratch[0] = AIR_DORMANT_MAGIC;
@@ -450,16 +473,22 @@ void AppManager::airEnterDormant( ) {
    *
    * Everything else about the cycle is inferred: USB enumeration lags the boot,
    * the probe line moves before the WiFi teardown, millis( ) restarts at every
-   * wake. The RTC is the one clock that ran across the sleep and it was set to
-   * 00:00:00 just above, so its reading now IS the sleep, to the second. Parked
-   * in scratch[1] (always-on, survives the SYSRESETREQ below) and printed by the
-   * next boot next to what was requested — the two together are what makes the
-   * period auditable instead of derived. */
+   * wake. The RTC is the one clock that ran across the sleep, so the distance it
+   * covered IS the sleep, to the second. Parked in scratch[1] (always-on,
+   * survives the SYSRESETREQ below) and printed by the next boot next to what
+   * was requested — the two together are what makes the period auditable
+   * instead of derived.
+   *
+   * Measured from baseSec, not from zero: the load pulse lands a tick, so the
+   * counter starts at 1 and reporting its raw value overstated the sleep by a
+   * second. That overstatement is what made the alarm look exact while the
+   * probe was measuring a cycle a second short. */
   {
    datetime_t got;
    rtc_get_datetime(&got);
-   const uint32_t sleptSec = (uint32_t)got.hour * 3600u +
-                             (uint32_t)got.min * 60u + (uint32_t)got.sec;
+   const uint32_t nowSec = (uint32_t)got.hour * 3600u +
+                           (uint32_t)got.min * 60u + (uint32_t)got.sec;
+   const uint32_t sleptSec = (nowSec >= baseSec) ? (nowSec - baseSec) : nowSec;
    watchdog_hw->scratch[1] = AIR_SLEPT_MAGIC | (sleptSec & 0x00FFFFFFu);
   }
  }

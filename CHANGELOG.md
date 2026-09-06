@@ -47,7 +47,22 @@ one clock that crosses the sleep, and leaves the seconds in a watchdog scratch
 register for the next boot to print. That measurement is what settled the last
 second of error: the alarm was exact all along, and the loss was integer
 truncation in the alarm arithmetic, always in the same direction. With rounding,
-a 120-second interval measures 119.84 seconds end to end.
+a 120-second interval measured 119.3 seconds end to end.
+
+That was not the end of it, and the device's own account of the sleep was the
+thing hiding the rest. The passive probe on the PicoHand, which never touches
+the target, measured the period at 119.31 and 118.69 seconds while the device
+reported 119.84: a flat 0.90 seconds lost on every cycle. The cause was printed
+on the console the whole time. The RTC is written with zero and reads one three
+milliseconds later, because the load pulse lands a tick of its own, so an alarm
+armed at N seconds was only N-1 ticks away and the device woke a second early
+every cycle. The alarm is now armed relative to the value the RTC reads back
+rather than to the zero that was written, which is immune to whatever the load
+does, and the self-report subtracts that base so it states real sleep instead of
+the alarm value. Measured after the change, probe and console in the same
+window: 120.23 and 120.35 seconds for a 120-second interval, with the remaining
+0.11 second accounted for by the work between reading the millisecond clock and
+loading the RTC.
 
 **A missing Wi-Fi network no longer holds the wake open.** Connection attempts
 are capped per wake; past the cap the sampling phase stops pumping the network

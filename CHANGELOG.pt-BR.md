@@ -47,8 +47,22 @@ O aparelho também passou a medir o próprio sono. Depois do WFI ele lê o RTC, 
 scratch do watchdog para o boot seguinte imprimir. Foi essa medição que fechou o
 último segundo de erro: o alarme sempre foi exato, e a perda estava no
 truncamento inteiro da conta do alarme, sempre no mesmo sentido. Com
-arredondamento, um intervalo de 120 segundos mede 119,84 segundos de ponta a
+arredondamento, um intervalo de 120 segundos mediu 119,3 segundos de ponta a
 ponta.
+
+E não acabava aí: o que escondia o resto era justamente o relato que o aparelho
+faz de si mesmo. A sonda passiva da PicoHand, que não toca no alvo, mediu o
+período em 119,31 e 118,69 segundos enquanto o aparelho reportava 119,84 — 0,90
+segundo perdido em todo ciclo, sempre igual. A causa estava impressa no console
+desde o começo. O RTC é escrito com zero e lê um três milissegundos depois,
+porque o pulso de load já vale um tique, então um alarme armado em N segundos
+ficava a N-1 tiques e o aparelho acordava um segundo cedo em todo ciclo. O
+alarme passou a ser armado relativo ao valor que o RTC devolve, e não ao zero
+que se escreveu nele, o que é imune ao que o load faça; e o autorrelato desconta
+essa base, então passa a dizer sono real em vez do valor do alarme. Medido
+depois da mudança, sonda e console na mesma janela: 120,23 e 120,35 segundos
+para um intervalo de 120 segundos, com os 0,11 segundo restantes explicados pelo
+trabalho entre a leitura do relógio de milissegundos e o load do RTC.
 
 **Uma rede Wi-Fi ausente não segura mais o wake aberto.** As tentativas de
 conexão têm teto por wake; passado o teto, a fase de amostragem para de bombear

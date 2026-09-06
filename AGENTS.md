@@ -149,16 +149,29 @@ Referência completa (comandos, armadilhas, analisador lógico):
   sem ter handler. ⚠️ Resíduo consciente: um `.lng` é compartilhado, então os comandos `air`
   ficam fora do `@HELP` dos packs (confirmado no ferro: `help` de um Air pt-BR não os lista).
 - ✅ **O aparelho MEDE o próprio sono.** Depois do `wfi` ele lê o RTC (o único relógio que
-  atravessa o sono), guarda os segundos em `scratch[1]` e o boot seguinte imprime
-  `[AIR] woke: slept=<n>s`. **Use isso** em vez de inferir por USB ou pela sonda: foi o que
-  provou que o alarme é exato (120 pedidos → 120 dormidos) e que o erro de ~1 s estava na
-  aritmética — `wakeSec = sleepMs / 1000` **truncava**, perdendo até 1 s por ciclo sempre no
-  mesmo sentido. Com arredondamento o ciclo ficou em **119,84 s para 120 s**.
+  atravessa o sono), desconta a base, guarda os segundos em `scratch[1]` e o boot seguinte imprime
+  `[AIR] woke: slept=<n>s`. Foi assim que apareceu o truncamento do `wakeSec = sleepMs / 1000`.
+- 🧭 **O `load` do RTC já vale um tique — e o autorrelato mentiu por causa disso.** O firmware
+  imprime `[AIR] rtc after set: … 00:00:01 base=1s`: escreve-se 00:00:00 e 3 ms depois lê-se 1.
+  Um alarme armado em `wakeSec` ficava a `wakeSec − 1` tiques, e o aparelho acordava **1 s cedo
+  todo ciclo** enquanto reportava `slept=` igual ao alarme. Quem pegou foi a **sonda**, que é
+  passiva. Hoje o alarme é `baseSec + wakeSec`. Série do dia para 120 s: 16–48 min → 147 s →
+  118,9 s → 119,3 s → **120,23 s** (resíduo +0,11 s, explicado inteiro pelo trabalho entre o
+  `millis( )` e o `load`). ⚠️ **Regra:** o aparelho medindo a si mesmo é um instrumento como outro
+  qualquer — confira com um externo e passivo antes de crer.
 - ✅ **SSID ausente não alarga o wake.** `AIR_MAX_CONNECT_ATTEMPTS` (2) limita o que um wake gasta
   atrás de rede; passado o teto, SAMPLE para de bombear o `NetworkManager` e o DECIDE trata como
   offline. Medido com SSID errado: 26,7 / 26,4 / 26,2 s acordado, contra 26,3–29,5 s com o SSID
   certo. ⚠️ O teto é **teto**, não caso comum: uma tentativa custa até 20 s e o wake dura ~28 s,
   então só **uma** começa por wake e o limite não chega a disparar.
+- 🔴 **F25 — um watchdog durante o wake tira o aparelho do ciclo, e ele pode não voltar.** É
+  deliberado: `AppManager_Boot.cpp:132` zera o marcador de hibernação em TODO boot, para um
+  aparelho que trava em M1 não ficar inalcançável. O preço é que o boot seguinte cai em **M0,
+  acordado, com rádio ligado**, e a única volta é o `air idle` (300 s). Na bancada com SSID
+  inexistente o Core 0 travava a cada 54–107 s, antes dos 300 s — **acordado para sempre**.
+  Autópsia: `show system log`, `ctx=455` (= 200 + 0xFF, watchdog sem canal de rastreio) e
+  `ctx=209`. ⚠️ Não confunda: um boot que passa dos 300 s pode ser só a SUA CLI rearmando o
+  timer (todo comando chama `airMarkActivity( )`). Decisão D-6 no plano, §6.7.
 - ⚠️ **Gravar o alvo: use o toque de 1200 bps**, não `picotool -f`. Com dois RP2040 no barramento
   o picotool pega o primeiro que acha — a PicoHand, que não tem interface de reset ("Unable to
   locate reset interface") — e `--ser` não salva, porque em BOOTSEL a placa enumera com outro
