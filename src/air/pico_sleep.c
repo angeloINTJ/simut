@@ -35,17 +35,14 @@ void sleep_goto_dormant_until(datetime_t *t, dormant_wake_source_callback_t call
     /* Program the RTC alarm (wake source). */
     rtc_set_alarm(t, callback);
 
-    /* Ensure the crystal oscillator is running. */
-    xosc_init( );
-
     /* Deep sleep on WFI (dormant). */
     scb_hw->scr |= M0PLUS_SCR_SLEEPDEEP_BITS;
 
-    /* Run the system from the crystal so the PLLs can power down. */
+    /* Run the system from the crystal so the PLLs can power down. The XOSC is
+     * already running from boot; the hardware keeps it (and the RTC) alive in
+     * DORMANT. NOTE: xosc_dormant() must NOT be called here -- it BLOCKS until
+     * an interrupt wakes it (per hardware_xosc.h), so it would never reach WFI. */
     sleep_run_from_xosc( );
-
-    /* Put the XOSC in dormant mode (keeps running for the RTC). */
-    xosc_dormant( );
 
     /* Enter dormant; wake is a full reset. */
     __asm volatile("wfi");
