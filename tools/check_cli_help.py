@@ -53,6 +53,16 @@ def _cli_full():
 
 CLI_FULL = _cli_full()
 
+
+def _air():
+    """SIMUT_AIR from the build flags, same reading as _cli_full( )."""
+    flags = " ".join(str(f) for f in env.get("BUILD_FLAGS", []))
+    m = re.findall(r'-DSIMUT_AIR=(\d+)', flags)
+    return bool(m) and m[-1] != "0"
+
+
+AIR = _air()
+
 # Commands the emergency image is expected to reach. Keeping this list here —
 # rather than deriving it — is the point: gating or ungating a command in
 # CommandParser.cpp without updating the short HELP_TEXT_EN block trips this,
@@ -61,17 +71,28 @@ EMERGENCY_EXPECTED = {
     'CMD_HELP', 'CMD_RELOAD', 'CMD_SHOW_LOGS', 'CMD_SHOW_SYSINFO',
     'CMD_SHOW_NET', 'CMD_DEBUG', 'CMD_RESET_ADMIN', 'CMD_FACTORY_RESET',
     'CMD_FORMAT_FS', 'CMD_HTTPS_OFF', 'CMD_AP', 'CMD_UNKNOWN',
-    'CMD_AIR_STOP', 'CMD_AIR_IDLE', 'CMD_AIR_HIBERNATE', 'CMD_AIR_STATUS',
     'CMD_SET_WIFI_SSID', 'CMD_SET_WIFI_PASS',
 }
 
+# The `air` family exists only where SIMUT_AIR is set: both the parser block
+# and the help block are guarded, so expecting them everywhere would force the
+# release and alpha help to advertise commands their firmware cannot run.
+if AIR:
+    EMERGENCY_EXPECTED |= {'CMD_AIR_STOP', 'CMD_AIR_IDLE',
+                           'CMD_AIR_HIBERNATE', 'CMD_AIR_STATUS'}
+
 
 def strip_gated(src):
-    """Drop #if SIMUT_CLI_FULL blocks — what the emergency image compiles."""
+    """Drop the blocks the emergency image does not compile.
+
+    `#if SIMUT_CLI_FULL` always, and `#if SIMUT_AIR` when this is not an Air
+    build — otherwise the CMD_AIR_* the Air-only parser block produces would
+    read as reachable in every image.
+    """
     out, depth = [], 0
     for line in src.splitlines():
         s = line.lstrip()
-        if s.startswith('#if SIMUT_CLI_FULL'):
+        if s.startswith('#if SIMUT_CLI_FULL') or (not AIR and s.startswith('#if SIMUT_AIR')):
             depth += 1
             continue
         if depth:

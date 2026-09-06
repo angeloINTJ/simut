@@ -58,7 +58,13 @@ reload [confirm]
  Reboot now
 ap
  Start AP mode (access point) for setup
-air stop
+)raw"
+/* The `air` commands exist only in the Air build. Advertising them from the
+ * release and alpha images sent users after commands their firmware answers
+ * with "unknown". Two adjacent raw literals concatenate at compile time, so the
+ * block below costs those images nothing at all. */
+#if SIMUT_AIR
+R"raw(air stop
  Cancel hibernation and return to M0
 air idle <sec>
  Set auto-hibernate idle timeout
@@ -66,7 +72,9 @@ air hibernate
  Enter hibernation now (SIMUT Air)
 air status
  Show Air config + current phase
-===========================================
+)raw"
+#endif
+R"raw(===========================================
 )raw";
 #else
 static const char HELP_TEXT_EN[] PROGMEM = R"raw(

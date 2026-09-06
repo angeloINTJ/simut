@@ -608,7 +608,14 @@ void LogManager::setMinSerialLevel(LogLevel level) { _minSerialLevel = level; }
  * `watchdog_reboot( )`, but are zeroed on power cycle / physical reset. They are
  * the post-crash forensic channel of this firmware (see performCrashAutopsy).
  *
- * scratch[0..2] — reserved by Pico SDK (boot/runtime). Do not touch.
+ * scratch[0] — SIMUT Air hibernation marker (AIR_DORMANT_MAGIC), written by
+ * airEnterDormant( ) and read once by setup( ) to tell an M1
+ * wake from a cold boot. Nominally "reserved by Pico SDK",
+ * but hardware_sleep — its only user — is not linked by this
+ * framework, so the slot is free. Survives the SYSRESETREQ the
+ * wake performs; cleared by power cycle / physical reset, which
+ * is exactly the discriminator the Air cycle needs.
+ * scratch[1..2] — reserved by Pico SDK (boot/runtime). Do not touch.
  * scratch[3] — module trace (Core 0 + Core 1) via TRACE_MOD/setModule.
  * Packing:
  * bits 0..7 = Core 0 current mod

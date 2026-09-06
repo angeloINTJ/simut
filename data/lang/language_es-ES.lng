@@ -371,6 +371,10 @@ system factory [confirm]
 system https off [confirm]
   Desactiva el HTTPS (borra el cert), vuelve a HTTP
   (recupera una web bloqueada por un par TLS invalido)
+system ssid <nombre>
+  Nombre de la red Wi-Fi (SSID)
+system pass <clave>
+  Clave del Wi-Fi
 reload [confirm]
   Reinicia ahora
 ap

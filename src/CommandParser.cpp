@@ -114,12 +114,19 @@ CliDemand parseCliCommand(String input) {
 	if (t0 == "help" || t0 == "ajuda" || t0 == "?") { cmd.type = CMD_HELP; return cmd; }
 	if (t0 == "reload") { cmd.type = CMD_RELOAD; return cmd; }
 	if (t0 == "ap" || t0 == "apmode" || t0 == "ap-mode") { cmd.type = CMD_AP; return cmd; }
+#if SIMUT_AIR
+	/* Only the Air build has handlers for these. Parsing them everywhere meant
+	 * the release and alpha images recognised `air ...`, produced a CMD_AIR_*
+	 * the switch in executeCommand( ) does not implement, and fell through to
+	 * the "unknown command" default anyway — the same answer, paid for in
+	 * flash and in a help surface the guard in check_cli_help.py had to lie about. */
 	if (t0 == "air") {
 		if (t1 == "hibernate" || t1 == "sleep") { cmd.type = CMD_AIR_HIBERNATE; return cmd; }
 		if (t1 == "status") { cmd.type = CMD_AIR_STATUS; return cmd; }
 		if (t1 == "stop" || t1 == "wake") { cmd.type = CMD_AIR_STOP; return cmd; }
 		if (t1 == "idle") { cmd.type = CMD_AIR_IDLE; cmd.setStrVal1(r2.c_str( )); return cmd; }
 	}
+#endif
 #if SIMUT_CLI_FULL
 	if (t0 == "gpio") { cmd.type = CMD_SHOW_GPIO; return cmd; }
 
