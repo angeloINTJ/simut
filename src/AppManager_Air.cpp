@@ -125,6 +125,28 @@ static void airSensorPower(uint8_t pin, bool on) {
  gpio_put(pin, on ? 1 : 0);
 }
 
+/* Set the RTC time, holding the LOAD bit past the clk_rtc synchroniser.
+ * The SDK rtc_set_datetime() writes LOAD then immediately ENABLE (which clears
+ * LOAD). At 46875 Hz a register write takes 2 clk_rtc periods (~43 us) to cross
+ * into the RTC domain, so a LOAD held for a single clk_sys cycle (~7 ns) is
+ * usually dropped — the RTC keeps its previous (garbage) time and the alarm
+ * fires at the wrong instant. Hold LOAD for 1 ms instead (datasheet 4.8.4). */
+static void airRtcSetDatetime(const datetime_t* t) {
+ rtc_hw->ctrl = 0; /* disable */
+ while (rtc_running()) { tight_loop_contents(); }
+ rtc_hw->setup_0 = (((uint32_t)t->year)  << RTC_SETUP_0_YEAR_LSB ) |
+                   (((uint32_t)t->month) << RTC_SETUP_0_MONTH_LSB) |
+                   (((uint32_t)t->day)   << RTC_SETUP_0_DAY_LSB  );
+ rtc_hw->setup_1 = (((uint32_t)t->dotw)  << RTC_SETUP_1_DOTW_LSB) |
+                   (((uint32_t)t->hour)  << RTC_SETUP_1_HOUR_LSB) |
+                   (((uint32_t)t->min)   << RTC_SETUP_1_MIN_LSB  ) |
+                   (((uint32_t)t->sec)   << RTC_SETUP_1_SEC_LSB  );
+ rtc_hw->ctrl = RTC_CTRL_LOAD_BITS;      /* pulse LOAD */
+ delay(1);                               /* hold past the 43us synchroniser */
+ rtc_hw->ctrl = RTC_CTRL_RTC_ENABLE_BITS; /* enable (clears LOAD) */
+ while (!rtc_running()) { tight_loop_contents(); }
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * M0 -> M1 transition (command or idle timeout).
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -214,11 +236,11 @@ void AppManager::airLoop( ) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Dormant entry (RP2040 datasheet 2.11.3): clock the RTC from the XOSC, run
- * clk_sys/clk_ref from the ROSC, stop the PLLs, arm the RTC alarm, then write
- * the "coma" keyword to the ROSC DORMANT register. Wake is a RESUME; we
- * soft-reset so the boot ROM re-inits the clocks and the firmware boots back
- * into M1 (scratch[0], always-on domain, carries the Air marker).
+ * Sleep entry (RP2040 datasheet 2.11.5.1): clock the RTC from the XOSC, run
+ * clk_sys/clk_ref from the XOSC, stop the PLLs, arm the RTC alarm, then WFI.
+ * Wake is a RESUME; we soft-reset so the boot ROM re-inits the clocks and the
+ * firmware boots back into M1 (scratch[0], always-on domain, carries the
+ * Air marker).
  * ──────────────────────────────────────────────────────────────────────────── */
 void AppManager::airEnterDormant( ) {
  airSetLed(false);
@@ -239,11 +261,6 @@ void AppManager::airEnterDormant( ) {
 
   datetime_t t;
   t.year  = 2026; t.month = 1; t.day = 1; t.dotw = 4; t.hour = 0; t.min = 0; t.sec = 0;
-  {
-   datetime_t dbg;
-   rtc_get_datetime(&dbg);
-   Serial.printf("[AIR] rtc before set: %04d-%02d-%02d %02d:%02d:%02d dotw=%d\n", dbg.year, dbg.month, dbg.day, dbg.hour, dbg.min, dbg.sec, dbg.dotw);
-  }
   /* arduino-pico keeps time in software and leaves the SDK RTC in reset.
    * Bring it up: clock it from the XOSC and divide it to 46875 Hz
    * (12 MHz / 256) so rtc_init()'s 1-second divider (clkdiv_m1) stays within
@@ -251,9 +268,10 @@ void AppManager::airEnterDormant( ) {
   clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12 * MHZ, 46875u);
   rtc_init( );
 
-  rtc_set_datetime(&t);
+  airRtcSetDatetime(&t);
   {
    datetime_t dbg;
+   delay(2); /* RTC write sync: up to 3 slow-domain cycles (~64us at 46875Hz) */
    rtc_get_datetime(&dbg);
    Serial.printf("[AIR] rtc after set:  %04d-%02d-%02d %02d:%02d:%02d dotw=%d\n", dbg.year, dbg.month, dbg.day, dbg.hour, dbg.min, dbg.sec, dbg.dotw);
   }
@@ -269,11 +287,11 @@ void AppManager::airEnterDormant( ) {
 
   Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu\n", t.hour, t.min, t.sec, (unsigned long)wakeSec);
 
-  /* Vendored pico-sdk dormant sequence: clk_sys/clk_ref -> ROSC, stop PLLs,
-   * rtc_set_alarm, then the ROSC DORMANT register write. Waking is a RESUME
-   * (RP2040 datasheet 2.11.3), so this call returns with the system still on
-   * the ROSC and the PLLs/USB/WiFi down. */
-  sleep_goto_dormant_until(&t, nullptr);
+  /* Vendored pico-sdk deep-sleep: clk_sys/clk_ref -> XOSC, stop PLLs,
+   * rtc_set_alarm, then WFI. Waking is a RESUME (RP2040 datasheet 2.11.5.1),
+   * so this call returns with the system still on the XOSC and the
+   * PLLs/USB/WiFi down. */
+  sleep_goto_sleep_until(&t, nullptr);
  }
 
  /* Woke from DORMANT. Soft-reset so the boot ROM re-initialises the clocks
