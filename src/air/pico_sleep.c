@@ -72,6 +72,18 @@ void sleep_goto_sleep_until(datetime_t *t, dormant_wake_source_callback_t callba
     /* Deep-sleep request for the processor. */
     scb_hw->scr |= M0PLUS_SCR_SLEEPDEEP_BITS;
 
+    /* Clear any stale alarm/IRQ state left by the previous wake: we
+     * SYSRESETREQ right after the WFI resumes, so the RTC IRQ handler may not
+     * have run and the match/IRQ-enable bits from the prior alarm are still
+     * set. Reset them (bounded wait for MATCH_ACTIVE to deassert) so
+     * rtc_set_alarm() starts from a clean state on every cycle. */
+    rtc_hw->irq_setup_0 = 0;
+    rtc_hw->irq_setup_1 = 0;
+    rtc_hw->inte = 0;
+    for (uint32_t i = 0; i < 200000u && (rtc_hw->irq_setup_0 & RTC_IRQ_SETUP_0_MATCH_ACTIVE_BITS); i++) {
+        tight_loop_contents();
+    }
+
     /* Arm the RTC alarm as late as possible so a tiny interval cannot fire
      * during the clock switch above. */
     rtc_set_alarm(t, callback);

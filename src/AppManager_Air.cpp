@@ -300,6 +300,11 @@ void AppManager::airEnterDormant( ) {
   watchdog_hw->scratch[0] = AIR_DORMANT_MAGIC;
 
   Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu\n", t.hour, t.min, t.sec, (unsigned long)wakeSec);
+  {
+   datetime_t dbg;
+   rtc_get_datetime(&dbg);
+   Serial.printf("[AIR] pre-sleep rtc=%02d:%02d:%02d irq0=0x%lx\n", dbg.hour, dbg.min, dbg.sec, (unsigned long)rtc_hw->irq_setup_0);
+  }
 
   /* Vendored pico-sdk deep-sleep: clk_sys/clk_ref -> XOSC, stop PLLs,
    * rtc_set_alarm, then WFI. Waking is a RESUME (RP2040 datasheet 2.11.5.1),
