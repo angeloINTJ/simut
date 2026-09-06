@@ -29,6 +29,7 @@
 #include "hardware/regs/clocks.h"
 #include "hardware/regs/m0plus.h"
 #include "hardware/structs/clocks.h"
+#include "hardware/structs/rosc.h"
 #include "hardware/structs/scb.h"
 
 /* Run the system from the crystal and power down the PLLs. clk_rtc must
@@ -59,6 +60,17 @@ static void sleep_run_from_xosc(void) {
     /* Sleep keeps draining power from running PLLs; stop them. */
     pll_deinit(pll_sys);
     pll_deinit(pll_usb);
+
+    /* The system is now running entirely off the XOSC, so the ROSC (ring
+     * oscillator) is no longer needed. Disable it to save its quiescent current
+     * for the whole sleep. MUST happen after clk_sys has moved off the ROSC
+     * (done above), or the chip locks up (datasheet ROSC_CTRL.ENABLE). The boot
+     * ROM re-enables the ROSC on the next reset, so this is safe across the
+     * SYSRESETREQ wake. */
+    uint32_t rosc_tmp = rosc_hw->ctrl;
+    rosc_tmp &= ~ROSC_CTRL_ENABLE_BITS;
+    rosc_tmp |= (ROSC_CTRL_ENABLE_VALUE_DISABLE << ROSC_CTRL_ENABLE_LSB);
+    rosc_hw->ctrl = rosc_tmp;
 }
 
 void sleep_goto_sleep_until(datetime_t *t, dormant_wake_source_callback_t callback) {

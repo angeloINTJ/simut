@@ -314,7 +314,7 @@
 #define AIR_FLUSH_TIMEOUT_MS 30000
 #endif
 #ifndef AIR_SENSOR_POWER_PIN
-#define AIR_SENSOR_POWER_PIN 255 // GPIO power-gating for sensors; PIN_UNUSED = off
+#define AIR_SENSOR_POWER_PIN 16 // GPIO power-gating for sensors (also the awake/sleep probe)
 #endif
 #endif /* SIMUT_AIR */
 

@@ -300,28 +300,6 @@ void AppManager::executeCommand(CliDemand cmd) {
  changed = true;
  break;
  }
- case CMD_SET_WIFI_SSID: {
- const bool pt = _cmdMgr->isPt( );
- if (!isValidCfgString(cmd.strVal1, sizeof(cfg.wifiSsid) - 1)) {
- _cmdMgr->printError(pt ? "SSID invalido (max 31, sem ctrl chars)"
- : "Invalid SSID (max 31, no ctrl chars)");
- break;
- }
- safeCopy(cfg.wifiSsid, cmd.strVal1, sizeof(cfg.wifiSsid));
- changed = true;
- break;
- }
- case CMD_SET_WIFI_PASS: {
- const bool pt = _cmdMgr->isPt( );
- if (!isValidCfgString(cmd.strVal1, sizeof(cfg.wifiPass) - 1)) {
- _cmdMgr->printError(pt ? "Senha invalida (max 31, sem ctrl chars)"
- : "Invalid pass (max 31, no ctrl chars)");
- break;
- }
- safeCopy(cfg.wifiPass, cmd.strVal1, sizeof(cfg.wifiPass));
- changed = true;
- break;
- }
  case CMD_SET_TIMEZONE: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
@@ -463,6 +441,38 @@ void AppManager::executeCommand(CliDemand cmd) {
 
 #endif /* SIMUT_CLI_FULL */
 
+ /* WiFi SSID/pass live here (outside SIMUT_CLI_FULL) so the headless Air build
+  * can change the network from the emergency serial console. */
+ case CMD_SET_WIFI_SSID: {
+ const bool pt = _cmdMgr->isPt( );
+ if (cmd.strVal1[0] == '\0' || !isValidCfgString(cmd.strVal1, sizeof(cfg.wifiSsid) - 1)) {
+ _cmdMgr->printError(pt ? "SSID invalido (1-31 chars, sem ctrl chars)"
+ : "Invalid SSID (1-31 chars, no ctrl chars)");
+ break;
+ }
+ safeCopy(cfg.wifiSsid, cmd.strVal1, sizeof(cfg.wifiSsid));
+ /* Emergency console has no 'write memory' — persist right away so the
+  * network change survives, and hand off to 'reload' for the reconnect. */
+ _storageMgr->saveConfiguration( );
+ _cmdMgr->printSuccess(pt
+  ? "SSID salvo. Use 'reload confirm' para reconectar."
+  : "SSID saved. Run 'reload confirm' to reconnect.");
+ break;
+ }
+ case CMD_SET_WIFI_PASS: {
+ const bool pt = _cmdMgr->isPt( );
+ if (!isValidCfgString(cmd.strVal1, sizeof(cfg.wifiPass) - 1)) {
+ _cmdMgr->printError(pt ? "Senha invalida (max 31, sem ctrl chars)"
+ : "Invalid pass (max 31, no ctrl chars)");
+ break;
+ }
+ safeCopy(cfg.wifiPass, cmd.strVal1, sizeof(cfg.wifiPass));
+ _storageMgr->saveConfiguration( );
+ _cmdMgr->printSuccess(pt
+  ? "Senha salva. Use 'reload confirm' para reconectar."
+  : "Pass saved. Run 'reload confirm' to reconnect.");
+ break;
+ }
  case CMD_RESET_ADMIN:
  cmdHandleResetAdmin(cmd, cfg, changed); break;
 

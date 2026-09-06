@@ -50,6 +50,10 @@ system factory [confirm]
 system https off [confirm]
  Disable HTTPS (delete cert), back to HTTP
  (recovers a web locked by a bad TLS pair)
+system ssid <name>
+ WiFi network name (SSID)
+system pass <pass>
+ WiFi password
 reload [confirm]
  Reboot now
 ap
