@@ -240,6 +240,22 @@ def parse_edges(lines):
     return out
 
 
+def probe_windows(edges):
+    """Turn probe edges into (label, seconds) windows.
+
+    The probe line is HIGH while the target is awake, so an interval that
+    *starts* with a falling edge is a sleep and one that starts with a rising
+    edge is an awake window. Timestamps are the hand's micros(), which wraps
+    about every 71 minutes — differences are taken modulo 2**32 so a
+    measurement that straddles the wrap still reads correctly.
+    """
+    out = []
+    for (_i1, l1, u1), (_i2, _l2, u2) in zip(edges, edges[1:]):
+        out.append(('asleep' if l1 == 'L' else 'awake',
+                    ((u2 - u1) % (1 << 32)) / 1e6))
+    return out
+
+
 # --------------------------------------------------------------------------
 # target serial (emergency console)
 # --------------------------------------------------------------------------
@@ -604,7 +620,7 @@ class Suite:
             ('T06b', 'telemetry_off_sleeps', self.t06b_telemetry_off_sleeps, 'F02', {'target', 'web'}),
             ('T07', 'web_activity_resets_idle', self.t07_web_activity_resets_idle, 'F21', {'target', 'web'}),
             ('T08', 'offline_timestamps', self.t08_offline_timestamps, 'F04', {'target', 'web'}),
-            ('T09', 'gp16_probe', self.t09_gp16_probe, None, {'target', 'hand'}),
+            ('T09', 'probe_cycle', self.t09_probe_cycle, None, {'target', 'hand'}),
             ('T10', 'm1_services_off', self.t10_m1_services_off, 'F13', {'target', 'web'}),
             ('T11', 'history_integrity', self.t11_history_integrity, 'F23', {'target', 'web'}),
         ]
@@ -659,17 +675,49 @@ class Suite:
         self.hand.release_all()
         self.target.close()
 
-    def ensure_m0(self, timeout=90):
-        """Get the target into M0 with a prompt, cancelling M1 if needed."""
-        if not self.target.usb.present():
-            if self.target.usb.wait(True, timeout) is None:
-                raise TestFail('target absent — cannot reach M0')
-        self.target.open()
-        out = self.target.cmd('air stop', 4)
-        st = parse_air_status(self.target.cmd('air status'))
-        if not st or st['phase'] != 0:
-            raise TestFail(f'not in M0 after air stop: {out.strip()[-80:]!r}')
-        return st
+    def ensure_m0(self, timeout=420):
+        """Get the target into M0 with a live prompt, cancelling M1 if needed.
+
+        Two things make this harder than one command. An M1 wake spends most of
+        its short window booting, so the port can be open while the console is
+        still silent — asking once and believing the answer reported "not in M0"
+        for a device that was merely still booting. And if the window closes
+        first, the only option is to wait for the next wake and try again.
+
+        So: poll `air status` until it actually parses, then cancel M1 if that
+        is where it is, and re-check. Losing the port mid-way is not an error,
+        it is the device going back to sleep — wait for the next one.
+        """
+        deadline = time.time() + timeout
+        last = ''
+        while time.time() < deadline:
+            if not self.target.usb.present():
+                if self.target.usb.wait(True, max(5, deadline - time.time())) is None:
+                    break
+            try:
+                self.target.open(timeout=20)
+            except TestFail as exc:
+                last = str(exc)
+                continue
+            st = None
+            settle = time.time() + 45          # a wake boot takes ~25 s
+            while time.time() < settle and time.time() < deadline:
+                out = self.target.cmd('air status', 6)
+                st = parse_air_status(out)
+                if st:
+                    break
+                last = out.strip()[-80:]
+                if not self.target.usb.present():
+                    break                       # slept again: fall out and retry
+            if not st:
+                continue
+            if st['phase'] != 0:
+                self.target.cmd('air stop', 5)
+                st = parse_air_status(self.target.cmd('air status', 6))
+            if st and st['phase'] == 0:
+                return st
+            last = f'phase={st["phase"] if st else "?"} after air stop'
+        raise TestFail(f'could not reach M0 within {timeout}s (last: {last!r})')
 
     def need_web(self):
         if not self.web:
@@ -1007,18 +1055,44 @@ class Suite:
             raise TestFail(f'offline wakes not spaced by the real sleep (F04): {detail}')
         return detail
 
-    def t09_gp16_probe(self):
+    def t09_probe_cycle(self):
+        """Time the cycle through the PicoHand probe instead of USB.
+
+        The probe watches the power-gating line (HIGH awake, LOW asleep) at
+        10 kHz, which beats USB enumeration by a wide margin: enumeration lags
+        the boot by about a second and that second lands straight in the
+        measured sleep. It also detects the glitch F07 fixed, because a
+        gpio_init on every pump shows up as a pair of edges microseconds apart.
+        """
         if not (self.hand.available and self.hand.probe_supported()):
-            raise TestSkip('PicoHand without PROBE channel (plan §3)')
-        self.hand.probe_start()
+            raise TestSkip('PicoHand without the PROBE channel')
+        if not self.hand.probe_start():
+            raise TestFail('PROBE START refused')
         row = self.hibernate_and_observe(stop_on_wake=False)
-        aw = self.watch_awake_window(self.args.flush_cap + 60)
+        if self.target.usb.wait(True, row['wake_sec'] + self.args.wake_grace) is None:
+            raise TestFail('no wake while the probe was armed')
         self.ensure_m0()
         edges = self.hand.probe_read()
-        rising = [e for e in edges if e[1] == 'H']
-        if len(rising) != 2:            # one at power-on for this wake, one at the next
-            raise TestFail(f'expected a single rising edge per wake, got {len(rising)}: {edges} (F07 glitch)')
-        return f'edges={len(edges)} awake_s={aw} sleep_s={row["sleep_s"]}'
+        if len(edges) < 2:
+            raise TestFail(f'probe saw {len(edges)} edge(s) — is GP16 wired to the hand? {edges}')
+        wins = probe_windows(edges)
+
+        glitches = [(a, b) for (a, b) in zip(edges, edges[1:])
+                    if ((b[2] - a[2]) % (1 << 32)) < 5000]
+        if glitches:
+            raise TestFail(f'{len(glitches)} edge pair(s) less than 5 ms apart — the line is '
+                           f'glitching (F07): {glitches[:2]}')
+
+        asleep = [s for kind, s in wins if kind == 'asleep']
+        if not asleep:
+            raise TestFail(f'no sleep window in the capture: {wins}')
+        # The first sleep is the one this test asked for, so it is the one whose
+        # requested length we know from the alarm line.
+        want, got = row['wake_sec'], asleep[0]
+        if abs(got - want) > max(2.0, want * 0.02):
+            raise TestFail(f'slept {got:.3f} s against an alarm of {want} s; windows={wins}')
+        return (f'{len(edges)} edges; ' +
+                ', '.join(f'{k}={s:.3f}s' for k, s in wins))
 
     def t10_m1_services_off(self):
         if not self.host:
@@ -1182,6 +1256,13 @@ def selftest():
     check('VFY parse', v == {'bootsel': 'OK', 'reset': 'OK', 'hb_us': 2})
     e = parse_edges(['OK PROBE READ', 'EDGE 0 H 1000', 'EDGE 1 L 5000', 'DONE PROBE'])
     check('PROBE edges parse', e == [(0, 'H', 1000), (1, 'L', 5000)])
+    # the real 2026-09-06 capture: sleep, wake, sleep again
+    w = probe_windows([(0, 'L', 287679546), (1, 'H', 408394395),
+                       (2, 'L', 437849200), (3, 'H', 527262405)])
+    check('probe windows', [k for k, _ in w] == ['asleep', 'awake', 'asleep']
+          and abs(w[0][1] - 120.715) < 0.01 and abs(w[1][1] - 29.455) < 0.01)
+    wrapped = probe_windows([(0, 'L', (1 << 32) - 1_000_000), (1, 'H', 1_000_000)])
+    check('probe windows survive the micros() wrap', abs(wrapped[0][1] - 2.0) < 0.001)
     check('count_records json list', count_records(b'[{"a":1},{"a":2}]') == 2)
     check('count_records json dict', count_records(b'{"records":[1,2,3]}') == 3)
     check('count_records csv', count_records(b'a,b\n1,2\n3,4\n') == 3)
