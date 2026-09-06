@@ -263,6 +263,51 @@ write memory
 - Peak consumption: ~250 mA (telemetry burst + TFT render)
 - HD44780 consumption: ~20 mA (backlight off) to ~80 mA (backlight on)
 
+## SIMUT Air (headless, hibernating) — GP16: power gate and awake/sleep probe
+
+The `pico_w_air` build has no display and no buzzer, so GP16–GP19 (the TFT SPI
+pins) are free. The firmware drives **GP16 HIGH for the whole time it is awake
+and LOW while it sleeps** (`AIR_SENSOR_POWER_PIN`, stored in
+`/config/air.bin`). That one line serves two purposes, and a build may use
+either, both or neither:
+
+1. **Sensor power gating** — switch the sensors' VCC through it, so they draw
+   nothing during the sleep.
+2. **Awake/sleep probe** — feed it to a logic analyser (or the PicoHand) to time
+   the cycle without relying on USB enumeration.
+
+> 🔬 **Reference bench (2026-09-06):** GP16 goes to the **PicoHand** as a probe,
+> and the DS18B20 sits on **GP0 with no gating** — it is powered continuously.
+> So on that bench GP16 measures the cycle rather than switching anything, and
+> the power-gating path below is documented but not exercised.
+
+```
+   GP16 ──┬──► gate of a P-channel MOSFET (or the EN pin of a 3V3 LDO)
+          │    that switches the sensors' VCC (DS18B20 / DHT22 / BMx280)
+          └──► optional: PicoHand probe input, for awake/sleep timing
+```
+
+- Drive the sensor VCC through a **high-side switch**; never power sensors
+  straight from GP16 (a GPIO sources ~12 mA at most and the DHT22 draws more
+  during conversion).
+- The DHT22 needs ≥ 1 s after power-up before its first read; the DS18B20 and
+  the BMx280 are ready in a few ms. Keep the warm-up in `air.bin` above that.
+- The CYW43 is powered down by the firmware through **GPIO23 (WL_REG_ON)** —
+  nothing to wire, but do not use GPIO23/24/25/29 for anything else on a Pico W.
+- The onboard LED (driven through the CYW43) is on while awake and off while
+  asleep.
+- USB: the device **detaches from the host on purpose** when it sleeps and
+  re-enumerates on every wake. A `ttyACM` that disappears is normal in M1.
+
+✅ Fixed on 2026-09-06 (item F03 of
+[`docs/analysis/SIMUT_AIR_PLANO_FIX.md`](analysis/SIMUT_AIR_PLANO_FIX.md)):
+the line used to be asserted only inside the M1 warm-up phase, so in the
+operational mode and during the M1 boot it stayed LOW and anything gated by it
+read nothing. It is now driven at the very start of `setup()` and dropped only
+on the way into sleep — which also makes it a faithful probe of the awake
+window. The gating path itself has not been exercised on hardware, because the
+reference bench does not gate anything through it.
+
 ## Wiring Checklist — ILI9341 TFT
 
 - [ ] All DS18B20 sensors have **4.7 kΩ pull-up resistor** on data line to 3V3

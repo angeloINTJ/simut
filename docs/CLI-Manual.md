@@ -409,3 +409,42 @@ SIMUT> tel dump
 | `SIMUT#` | Privileged EXEC — manutenção | `disable` ou `exit` |
 | `SIMUT(config)#` | Global Config — config do sistema | `exit` ou `end` |
 | `SIMUT(config-sensor-N)#` | Sensor Config — config de 1 sensor | `exit` (p/ config) ou `end` (p/ #) |
+
+---
+
+## 9. Console de emergência (imagens `pico_w_release`, `pico_w_alpha` e `pico_w_air`)
+
+As imagens de produção não carregam a CLI hierárquica deste manual
+(`SIMUT_CLI_FULL=0`). Elas respondem no prompt único `SIMUT> `, sem `enable`
+nem `configure terminal`, com este conjunto:
+
+| Comando | Efeito |
+|---|---|
+| `show net status` | IP, SSID, RSSI, estado do NTP |
+| `show system info` | versão do firmware, uptime, heap, sensores |
+| `show system log` | últimas linhas do log binário |
+| `debug on` / `debug off` | console verboso |
+| `system admin reset` | regenera a senha do admin (mostrada uma vez) |
+| `system format [confirm]` | formata o LittleFS |
+| `system factory [confirm]` | restaura os defaults de fábrica |
+| `system https off [confirm]` | apaga o par TLS e volta para HTTP |
+| `system ssid <nome>` | grava o SSID **na hora** (sem `write memory`); `reload confirm` para reconectar |
+| `system pass <senha>` | grava a senha do Wi-Fi na hora; idem |
+| `reload [confirm]` | reinicia |
+| `ap` | sobe o ponto de acesso de configuração |
+| `help` | esta lista, no idioma do pack instalado |
+
+### 9.1 Comandos `air` (somente `pico_w_air`)
+
+| Comando | Efeito |
+|---|---|
+| `air status` | `Air: phase=<n> wake=<s>s hist=<s>s backoff=<s>s idle=<s>s` — `wake` é o máximo entre o intervalo do histórico e o backoff da telemetria |
+| `air hibernate` (ou `air sleep`) | entra no ciclo M1 agora; o USB some quando o aparelho dorme |
+| `air stop` (ou `air wake`) | cancela o ciclo e volta ao modo operacional M0 — só funciona na janela em que o aparelho está acordado |
+| `air idle <10..65535>` | segundos de inatividade da CLI antes de hibernar sozinho (persistido em `/config/air.bin`) |
+
+Fases reportadas por `phase=`: 0 OFF (M0), 1 WARMUP, 2 SAMPLE, 3 DECIDE, 4 PERSIST, 5 CONNECT, 6 FLUSH, 7 SLEEP.
+Com `debug on` o console mostra `[AIR] phase=…` a cada transição e `[AIR] alarm: HH:MM:SS wakeSec=N` antes de dormir.
+
+> Estado em 06/09/2026: `air idle` ainda aceita valores acima de 65535 e os guarda truncados
+> (item F09 do plano em `docs/analysis/SIMUT_AIR_PLANO_FIX.md`).

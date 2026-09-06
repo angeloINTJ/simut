@@ -4,6 +4,43 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado — branch `feature/simut-air`
+
+### SIMUT Air: build headless com ciclo de hibernação em deep sleep (experimental)
+
+Novo ambiente PlatformIO `pico_w_air`: sem display, sem buzzer, a pilha
+web/serial/Bluetooth da Alpha no boot frio (M0) e um ciclo de hibernação (M1)
+que entra por `air hibernate` ou após um tempo de inatividade. A cada wake do
+RTC o firmware lê os sensores até estabilizar enquanto o Wi-Fi conecta em
+paralelo, sempre grava a amostra no histórico local, drena a telemetria
+pendente quando está online e volta a dormir pelo intervalo do histórico (ou
+pelo backoff da telemetria, quando maior). A hibernação é o SLEEP do RP2040
+(WFI no XOSC com alarme do RTC); o DORMANT foi tentado e descartado por ser
+não-determinístico na bancada. O CYW43 é desligado pelo WL_REG_ON, o pull-up
+do USB é solto para o host ver uma desconexão limpa, o watchdog é desarmado e o
+wake é marcado como reboot limpo para a autópsia de boot ficar calada. A
+configuração do Air vive em `/config/air.bin`; `CONFIG_VERSION` não muda. O
+console de emergência ganha `system ssid` e `system pass` em todas as imagens,
+e `air status|hibernate|stop|idle` na Air. Testes de host: `pio test -e native_air`.
+
+**Corrigido antes de publicar: o wake nunca acontecia na hora.** Desligar o
+oscilador em anel antes do WFI economizava um pouco de corrente, mas o deixava
+parado através do wake, porque o reset seguinte não passa pelo domínio de reset
+do ROSC. O boot ROM subia sem oscilador em anel e o wake demorava um tempo longo
+e variável: medido na bancada entre 16 e 48 minutos para um intervalo de 2
+minutos, contra 147 a 151 segundos na build anterior à mudança. O oscilador
+passa a ser religado logo após o WFI, antes do reset, e a mesma bancada mediu
+110,8 s de sono com 26,5 s de janela acordada. Custo: 32 bytes.
+
+Pendências antes de publicar: a revisão e a bancada de 06/09/2026 deixaram três
+itens abertos. A fase FLUSH sem teto de tempo, a energia dos sensores não ligada
+no modo operacional nem durante o boot, e um histórico que não é monotônico em
+12 dos 174 intervalos, porque o interior de cada bloco é reconstruído pelo passo
+nominal em vez dos tempos em que as amostras foram tomadas. O plano, as
+evidências e os testes de aceite estão em
+`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` e
+`tools/check_air_consistency.py`.
+
 ## v2.3.9-beta (2026-08-29)
 
 ### Seletor web da alpha corrigido (estava travado em inglês)

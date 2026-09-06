@@ -4,6 +4,43 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased — branch `feature/simut-air`
+
+### SIMUT Air: headless build with a deep-sleep hibernation cycle (experimental)
+
+New PlatformIO environment `pico_w_air`: no display, no buzzer, the Alpha-like
+web/serial/Bluetooth stack on cold boot (M0), and a hibernation cycle (M1)
+entered by `air hibernate` or after an idle timeout. Each RTC wake reads the
+sensors until they stabilise while the Wi-Fi connects in parallel, always saves
+the sample to local history, drains pending telemetry when online, and sleeps
+again for the history interval (or the telemetry backoff when it is longer).
+Hibernation is RP2040 SLEEP (WFI on the XOSC with the RTC alarm) — DORMANT was
+tried and dropped as non-deterministic on the bench. The CYW43 is powered down
+through WL_REG_ON, the USB pull-up is released so the host sees a clean
+disconnect, the watchdog is disarmed and the wake is marked as a clean reboot so
+the boot autopsy stays silent. Air settings live in `/config/air.bin`;
+`CONFIG_VERSION` is untouched. The emergency console gains `system ssid` and
+`system pass` on every image, and `air status|hibernate|stop|idle` on Air.
+Host-side tests: `pio test -e native_air`.
+
+**Fixed before shipping: the wake never happened on time.** Disabling the ring
+oscillator before the WFI saved a little current but left it stopped across the
+wake, because the reset that follows does not pass through the ROSC reset
+domain. The boot ROM then came up with no ring oscillator and the wake took a
+long, variable time: measured on the bench at 16 to 48 minutes for a 2-minute
+interval, against 147 to 151 seconds on the build that predates the change. The
+oscillator is now re-enabled right after the WFI, before the reset, and the same
+bench measured a 110.8 s sleep with a 26.5 s awake window. Cost: 32 bytes.
+
+Known issues before this ships: the review and bench session of 2026-09-06 left
+three items open. A FLUSH phase with no time cap, sensor power gating that is
+not asserted in the operational mode or during boot, and a history file that is
+not monotonic in 12 of 174 intervals, because a block's interior is
+reconstructed at the nominal step rather than at the times the samples were
+taken. The plan, the evidence and the acceptance tests are in
+`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` and
+`tools/check_air_consistency.py`.
+
 ## v2.3.9-beta (2026-08-29)
 
 ### Alpha web selector fixed (was stuck in English)

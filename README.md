@@ -226,8 +226,10 @@ simut/
 | `pico_w_test` | Same firmware + full 56-command CLI for bench suites |
 | `pico_w_asserts` | Release + concurrency assertions |
 | `pico_w_alpha` | Headless build (16×2 char LCD, no TFT) |
+| `pico_w_air` | **Experimental** — SIMUT Air: headless, no buzzer, deep-sleep hibernation cycle (M0 operational / M1 wake-sample-send-sleep); see [`docs/analysis/SIMUT_AIR_ESBOCO.md`](docs/analysis/SIMUT_AIR_ESBOCO.md) and the fix plan [`SIMUT_AIR_PLANO_FIX.md`](docs/analysis/SIMUT_AIR_PLANO_FIX.md) |
 | `native`, `native_history_v4/v5`, `native_cli` | Host-side unit tests |
 | `native_logpolicy` | Edge-triggered log-persistence filter (18 tests) |
+| `native_air` | SIMUT Air persistent config (`air/AirConfig.h`, 7 tests) |
 
 > `pico_w_debug` exists but does not link — at `-Og` the image overflows the 1020 KB app slot. Flash is tight: the release image uses ~97 % of the slot.
 
@@ -242,7 +244,7 @@ simut/
 ### CLI
 A command-line interface is available via USB Serial (115200 baud).
 
-- The **release image** ships a minimal 10-command emergency console: `show net status`, `show system info`, `show system log`, `debug on|off`, `system admin reset`, `system format`, `system factory`, `system https off`, `reload`, `help`.
+- The **release image** ships a minimal 12-command emergency console: `show net status`, `show system info`, `show system log`, `debug on|off`, `system admin reset`, `system format`, `system factory`, `system https off`, `system ssid <name>`, `system pass <pass>`, `reload`, `help`. The Air image adds `air status|hibernate|stop|idle <sec>`.
 - The **`pico_w_test` image** ships the full Cisco-style CLI (56 commands, `enable` / `configure terminal` modes) — see the [CLI Manual](docs/CLI-Manual.md) (in Portuguese).
 
 Day-to-day configuration is designed to happen on the touch display and the web UI, which are always full-featured.

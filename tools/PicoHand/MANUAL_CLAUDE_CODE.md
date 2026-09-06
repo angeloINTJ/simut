@@ -415,3 +415,33 @@ prefixes rather than assume the next line is your answer.
    blaming the target — and with `hand VERIFY` before blaming the wiring.
 6. Remember that `VERIFY` cannot validate the BOOTSEL line while the target
    runs (§7.1). Use the hold test instead.
+
+---
+
+## 10. Working with SIMUT Air (the hibernating build) — 2026-09-06
+
+A target running `pico_w_air` **drops off the USB bus when it sleeps** (it
+releases the D+ pull-up on purpose) and re-enumerates on every wake. Three
+consequences for the hand:
+
+1. **An absent target is not a dead target.** Wait one history interval
+   (`air status` prints `wake=`) before reaching for the hand — the device
+   comes back by itself. `tools/air_test_suite.py` does that wait.
+2. **`hand RESET` gives a cold boot (M0).** The pulse drives RUN, a global chip
+   reset: the firmware's own scratch map (`src/LogManager.cpp:605`) records
+   that those registers are zeroed by "power cycle / physical reset", and the
+   Air hibernation marker lives in `scratch[0]`. So the target comes back in
+   operational mode, with no `air stop` needed. (An earlier revision of this
+   section claimed the opposite; `tools/air_test_suite.py` now measures the
+   post-reset mode in T02 instead of assuming it.)
+3. **RESET proves nothing about the wake path.** Because it restores the ROSC
+   and the default clocks, it recovers the target even if plan item F01 is real
+   (ROSC disabled before sleep and never re-enabled on wake). The only proof
+   that sleep/wake works is the target **re-enumerating on its own** within
+   `wakeSec` plus margin. If not even RESET brings it back, the problem is
+   power or cabling, not firmware.
+
+**Timing probe.** `VERIFY` only sees the RESET and BOOTSEL lines; the hand has
+no channel yet to read the target's GP16 (high awake, low asleep). The proposed
+extension (`PROBE START|READ|STATUS` on GP2) is in §3 of the plan; until then
+the suite measures awake/asleep from USB enumeration timestamps.

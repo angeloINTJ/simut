@@ -406,3 +406,32 @@ próxima linha é a sua resposta.
 6. Lembre que o `VERIFY` não valida a linha de BOOTSEL com o alvo rodando
    (§7.1), e que o teste de segurar também não vale enquanto houver resistor
    em série.
+
+---
+
+## 10. Uso com o SIMUT Air (build que hiberna) — 06/09/2026
+
+O alvo com a imagem `pico_w_air` **some do USB quando dorme** (solta o pull-up
+do D+ de propósito) e reenumera a cada wake. Três consequências para a mão:
+
+1. **Alvo ausente não é alvo morto.** Antes de acionar a mão, espere um
+   intervalo de histórico (`air status` mostra `wake=`) — o aparelho volta
+   sozinho. A suíte `tools/air_test_suite.py` faz essa espera.
+2. **`hand RESET` dá boot frio (M0).** O pulso é no pino RUN, que é reset
+   global do chip: o mapa de scratch do firmware (`src/LogManager.cpp:605`)
+   registra que esses registradores são zerados por "power cycle / physical
+   reset", e o marcador de hibernação do Air vive justamente em `scratch[0]`.
+   Ou seja, o alvo volta em modo operacional, sem precisar de `air stop`.
+   (Uma revisão anterior desta seção afirmava o contrário; a suíte
+   `tools/air_test_suite.py` agora mede o modo pós-reset em T02.)
+3. **O RESET não prova nada sobre o wake.** Como ele restaura o ROSC e os
+   clocks de fábrica, recupera o alvo mesmo que o item F01 do plano seja real
+   (ROSC desligado antes de dormir e não religado no wake). A única prova de
+   que o caminho do sono funciona é o alvo **reenumerar sozinho** dentro de
+   `wakeSec` + margem. Se nem o RESET trouxer o alvo de volta, o problema é
+   alimentação ou cabo, não firmware.
+
+**Sonda de tempo.** O `VERIFY` só enxerga as linhas RESET e BOOTSEL; a mão ainda
+não tem canal para ler o GP16 do alvo (alto acordado, baixo dormindo). A
+extensão proposta (`PROBE START|READ|STATUS` em GP2) está na §3 do plano; até
+lá, a suíte mede acordado/dormindo pelos carimbos de enumeração USB.

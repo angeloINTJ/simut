@@ -1,6 +1,9 @@
 # SIMUT Air — Esboço de Projeto (build headless com hibernação)
 
-> **Status:** Implementado na branch `feature/simut-air`.
+> **Status:** Implementado na branch `feature/simut-air` e **revisado em 06/09/2026**: 21 achados
+> (3 bloqueantes) com plano de correção e otimização em [`SIMUT_AIR_PLANO_FIX.md`](SIMUT_AIR_PLANO_FIX.md);
+> testes de aceite em `tools/air_test_suite.py` (CLI + web + PicoHand) e `tools/check_air_consistency.py`.
+> Não considerar pronto para release antes do plano fechar.
 > **Nota de implementação:** a hibernação usa **SLEEP (deep sleep via WFI)**, e não
 > DORMANT — o modo DORMANT (escrita `"coma"` no ROSC) mostrou-se não-determinístico
 > na bancada (corre contra o sincronizador lento do ROSC/clk_rtc e acorda na hora
@@ -121,7 +124,7 @@ Um `AirManager` (padrão de `TelemetryManager`) é dono da máquina de M1:
 | `AIR_DECIDE` | **Sempre** grava o histórico (`processHistoryLogging` + `flushWipV5`) e escolhe CONNECT vs SLEEP | imediato |
 | `AIR_PERSIST` | *(legado, no-op — o histórico agora é gravado no DECIDE)* | imediato |
 | `AIR_CONNECT` | `NetworkManager::update()` até time-sync/`NET_READY`/timeout | conectado ou timeout |
-| `AIR_FLUSH` | `TelemetryManager::update()` não-bloqueante (respeita backoff) | fila zerada **ou** backoff ativo (envio falhou) **ou** Wi-Fi caiu |
+| `AIR_FLUSH` | `TelemetryManager::update()` não-bloqueante (respeita backoff) | fila zerada **ou** backoff ativo (envio falhou) **ou** Wi-Fi caiu — ⚠️ hoje sem teto de tempo: telemetria desligada ou RSSI fraco deixam o aparelho acordado (F02 do plano; `flushTimeoutMs` passa a valer) |
 | `AIR_SLEEP` | Desliga sensores; `WiFi.end()` + `GPIO23 (WL_REG_ON) LOW`; desarma WDT; grava scratch[0]=magia; agenda RTC; `sleep_goto_sleep_until()` | — (reset no próximo wake) |
 
 `AIR_CONNECT`/`AIR_FLUSH` só rodam quando o Wi-Fi conectou durante o SAMPLE. O histórico é
@@ -161,6 +164,13 @@ Diagrama do ciclo:
   USB/UART acorda imediatamente);
 - o wake é um **resume**; o firmware faz `SYSRESETREQ` logo após o retorno para o boot
   ROM reinicializar os clocks, e `scratch[0]` (always-on) discrimina M1 vs M0;
+- ⚠️ **o `SYSRESETREQ` NÃO reinicializa o bloco de clocks.** É a mesma razão pela qual
+  `sleep_en0` e o alarme velho do RTC precisaram ser zerados à mão. Consequência achada na
+  bancada em 06/09: desligar o **ROSC** para economizar corrente durante o sono, sem religá-lo
+  antes do reset, faz o boot ROM subir sem oscilador em anel e o wake demorar um tempo **longo
+  e variável** (16 a 48 min medidos, contra 120 s pedidos). O `sleep_goto_sleep_until()` religa
+  o ROSC logo após o `wfi` e espera `ROSC_STATUS_STABLE`. Qualquer coisa nova que for desligada
+  antes do `wfi` tem que ser religada nesse mesmo ponto;
 - consumo do RP2040 na faixa de **~1,2 mA** em sleep (XOSC + RTC); como todo estado
   relevante (amostra, cursor de telemetria) já está em flash antes de dormir, a perda de
   SRAM não é custo — o boot reconstrói tudo a partir do flash.
@@ -309,18 +319,26 @@ docs/analysis/SIMUT_AIR_ESBOCO.md   // este documento
 
 ---
 
-## 11. Decisões em aberto (para você avaliar)
+## 11. Decisões em aberto (atualizado em 06/09/2026)
 
-1. **Volta M1 → M0**: só power-cycle? Ou adicionar um **botão** (wake por GPIO edge) para forçar
-   M0 / cancelar a hibernação durante o wake?
-2. **O que conta como comando** para resetar o timer de 5 min: só comandos CLI/BT + requests web
-   autenticados, ou qualquer request web (inclusive `/metrics` do Prometheus)?
-3. **Som (buzzer)** fica no Air? (status sonoro sem display) — ou dropa junto com a UI?
-4. **`SIMUT_MDNS`**: manter `.local` no modo operacional ou cortar para economizar flash?
-5. **LED de status** (GPIO onboard) no M1: pisca para amostrou, enviou, erro?
-6. **Wake por GPIO** além do RTC (botão de ciclo manual / emergência) já no M1?
-7. **Intervalo default** de wake e se a mudança via web exige reboot (como `commit_all`) ou vale na
-   hora (só M1 lê no `AIR_SLEEP`).
+Decididas na prática pela implementação:
+
+1. **Volta M1 → M0**: `air stop` pela serial USB durante a janela acordada (o laço M1 lê a CLI);
+   power-cycle e **reset físico** (pino RUN, `hand RESET`) dão boot frio — o reset físico zera os
+   scratch registers, incluindo o marcador em `scratch[0]` (`src/LogManager.cpp:605`), a medir em
+   T02 da suíte. Botão/wake por GPIO: não feito.
+2. **O que reseta o timer de inatividade**: hoje só comandos serial/BT (`executeCommand`). Requests
+   web **não** resetam — é o item F21 do plano (decisão: qualquer request autenticado conta).
+3. **Buzzer**: fora do Air (`SoundManager` vira no-op, `BuzzerPIO` fora do link).
+4. **`SIMUT_MDNS`**: mantido no modo operacional.
+5. **LED**: aceso acordado, apagado dormindo (política de piscar por evento ficou para a Fase 4).
+6. **Wake por GPIO**: não feito; só RTC.
+7. **Intervalo de wake**: é o intervalo de salvamento do histórico (`h_int`); mudar via web
+   reinicia (`commit_all`), o M1 lê no `AIR_SLEEP`.
+
+Ainda abertas (respostas pedidas na §5 do plano): Bluetooth em M1 (D-1), web em M1 (D-2),
+`system ssid/pass` em todas as imagens (D-3), bump do `air.bin` (D-4), RTC como relógio de
+parede (D-5).
 
 ---
 
@@ -354,7 +372,11 @@ docs/analysis/SIMUT_AIR_ESBOCO.md   // este documento
    não-bloqueante no ciclo; teste de queda de rede no meio do envio (sem duplicação/perda).
 7. **F7 — Validação**: bench de corrente em dormant, tempo acordado, confiabilidade do reconnect,
    drift de relógio, desgaste de flash; documentar em `docs/`.
+8. **F8 — Correções e otimização (06/09/2026)**: F1–F6 estão implementados; F7 ficou parcial
+   (3 ciclos na bancada, sem medição de corrente/tempo registrada). Os 21 achados da revisão e
+   as fases de correção estão em [`SIMUT_AIR_PLANO_FIX.md`](SIMUT_AIR_PLANO_FIX.md); a
+   validação passa a ser a suíte `tools/air_test_suite.py`.
 
 ---
 
-_Esboço (revisão 2) em `feature/simut-air` — pronto para a sua avaliação antes de abrirmos o plano detalhado._
+_Esboço (revisão 3, 06/09/2026) em `feature/simut-air` — implementado; correções pendentes no plano._
