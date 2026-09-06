@@ -51,9 +51,12 @@ Referência completa (comandos, armadilhas, analisador lógico):
   `airRtcSetDatetime()` (segura o LOAD por 1 ms — o SDK perde o LOAD a
   46875 Hz); antes do WFI desabilita todas as IRQs exceto a do RTC (senão um
   IRQ pendente de USB/UART acorda imediatamente).
-- ⚠️ Em aberto: o wake já funciona, mas o **ciclo M1 trava** após o 1º wake,
-  no `WiFi.scanNetworks()` bloqueante de `airSsidPresent()` (fase
-  SAMPLE→DECIDE). Falta timeout/guard no scan WiFi.
+- ⚠️ Em aberto: o wake (RTC) já funciona — o watchdog era a causa do "wake de
+  2 s" e foi desarmado no início de `airEnterDormant()` (commit `966d5c9`).
+  Resta: o **ciclo M1 trava após o wake** (2º ciclo, com o CYW43 recém ciclado
+  no boot M1); local exato não confirmado — suspeita em `_netMgr->update()` /
+  `_telemetryMgr->forceSync()` (bloqueantes sem timeout real) ou no scan WiFi.
+  Localizar com o log de fase `[AIR] phase=...` (já no firmware).
 - Comandos CLI: `air idle <sec>`, `air hibernate`, `air status`, `air stop`
   (cancelam/consultam a hibernação — funcionam na CLI de emergência).
 - **Intervalo de wake = intervalo de telemetria** (`cfg.telInterval`, em ms,
