@@ -1,6 +1,10 @@
 # SIMUT Air — Esboço de Projeto (build headless com hibernação)
 
-> **Status:** ESBOÇO (revisão 2) para avaliação. Nada implementado ainda.
+> **Status:** Implementado na branch `feature/simut-air`.
+> **Nota de implementação:** a hibernação usa **SLEEP (deep sleep via WFI)**, e não
+> DORMANT — o modo DORMANT (escrita `"coma"` no ROSC) mostrou-se não-determinístico
+> na bancada (corre contra o sincronizador lento do ROSC/clk_rtc e acorda na hora
+> errada). Ver §5.
 > **Branch:** `feature/simut-air`
 > **Base:** `main` (v2.3.9-beta — `SIMUT_VERSION` em `src/SystemDefs_Limits.h`).
 > **Idioma:** pt-BR (espelha `docs/analysis/ANALISE_*.md`).
@@ -11,7 +15,7 @@
 
 | # | Decisão | Impacto no desenho |
 |---|---|---|
-| D1 | Modo **dormant** (não `sleep`) | hibernação profunda, SRAM perdida no wake, estado todo em flash |
+| D1 | Modo **dormant** (não `sleep`) | ~~hibernação profunda, SRAM perdida~~ → na implementação virou **SLEEP (deep sleep)**; ver §5 |
 | D2 | Configuração via **serial + bluetooth + web** | o Air mantém os 3 canais de configuração ativos no modo inicial |
 | D3 | Ao ligar na alimentação = **SIMUT Alpha sem display** (modo operacional) | cold boot entra em M0 com stack completo |
 | D4 | Entra em hibernação **por comando** (serial/BT/web) ou **após 5 min sem comando** | M0 tem timer de inatividade + comando explícito |
@@ -137,13 +141,25 @@ Diagrama do ciclo (idêntico ao da v1, agora rotulado como M1):
 
 ---
 
-## 5. Hibernação no RP2040 — modo dormant (confirmado)
+## 5. Hibernação no RP2040 — SLEEP (deep sleep) na implementação
 
-- `sleep_run_from_xosc()` + `sleep_goto_dormant_until(datetime)` (SDK `pico/sleep.h`);
-- SRAM **não** é preservada: no wake o chip **reseta** (sobrevivem RTC + scratch/watchdog);
-- consumo do RP2040 na faixa de **µA**;
-- como todo estado relevante (amostra, cursor de telemetria) já está em flash antes de dormir,
-  a perda de SRAM não é custo — o boot reconstrói tudo a partir do flash.
+> **Mudança de D1:** o modo DORMANT (escrita `"coma"` no ROSC_DORMANT + clk_sys→ROSC)
+> foi substituído por **SLEEP (deep sleep via `__wfi`)**. DORMANT mostrou-se
+> não-determinístico na bancada: a escrita "coma" e a troca para o ROSC disputam o
+> sincronizador lento do ROSC/clk_rtc e acordam na hora errada. SLEEP usa o mesmo
+> alarme do RTC, é determinístico e custa só ~0,25 mA a mais (~1,2 mA vs ~0,95 mA).
+
+- `sleep_goto_sleep_until(datetime, cb)` vendado em `src/air/pico_sleep.c`
+  (clk_sys/clk_ref→XOSC, `sleep_en0`=RTC, `__wfi` + alarme do RTC);
+- o set do RTC usa `airRtcSetDatetime()` (segura o bit LOAD por 1 ms — o SDK escreve
+  LOAD+ENABLE back-to-back e perde o LOAD a 46875 Hz);
+- antes do `__wfi` desabilita todas as IRQs exceto a do RTC (senão um IRQ pendente de
+  USB/UART acorda imediatamente);
+- o wake é um **resume**; o firmware faz `SYSRESETREQ` logo após o retorno para o boot
+  ROM reinicializar os clocks, e `scratch[0]` (always-on) discrimina M1 vs M0;
+- consumo do RP2040 na faixa de **~1,2 mA** em sleep (XOSC + RTC); como todo estado
+  relevante (amostra, cursor de telemetria) já está em flash antes de dormir, a perda de
+  SRAM não é custo — o boot reconstrói tudo a partir do flash.
 
 ### Atenções obrigatórias (validação no bench)
 

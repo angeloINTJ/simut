@@ -41,8 +41,19 @@ Referência completa (comandos, armadilhas, analisador lógico):
 
 - Build: `pio run -e pico_w_air` (Flash ~97%, RAM ~45%).
 - Ciclo: cold boot = **M0** (Alpha headless: web + serial + BT + sensores);
-  `air hibernate` ou 5 min de inatividade → **M1** (dormant, acorda no RTC,
-  lê sensores até estabilizar, checa Wi-Fi, grava/envia telemetria, dorme).
+  `air hibernate` ou 5 min de inatividade → **M1** (deep sleep via WFI, acorda
+  no RTC, lê sensores até estabilizar, checa Wi-Fi, grava/envia telemetria,
+  dorme de novo).
+- Hibernação = **SLEEP (deep sleep)**, não DORMANT: `sleep_goto_sleep_until()`
+  (clk_sys→XOSC, `sleep_en0`=RTC, `__wfi`) + alarme do RTC. DORMANT (escrita
+  "coma" no ROSC) foi descartado por ser não-determinístico na bancada (corre
+  contra o sincronizador lento do ROSC/clk_rtc). O set do RTC usa
+  `airRtcSetDatetime()` (segura o LOAD por 1 ms — o SDK perde o LOAD a
+  46875 Hz); antes do WFI desabilita todas as IRQs exceto a do RTC (senão um
+  IRQ pendente de USB/UART acorda imediatamente).
+- ⚠️ Em aberto: o wake já funciona, mas o **ciclo M1 trava** após o 1º wake,
+  no `WiFi.scanNetworks()` bloqueante de `airSsidPresent()` (fase
+  SAMPLE→DECIDE). Falta timeout/guard no scan WiFi.
 - Comandos CLI: `air idle <sec>`, `air hibernate`, `air status`, `air stop`
   (cancelam/consultam a hibernação — funcionam na CLI de emergência).
 - **Intervalo de wake = intervalo de telemetria** (`cfg.telInterval`, em ms,
