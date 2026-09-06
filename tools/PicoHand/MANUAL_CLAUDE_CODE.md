@@ -441,7 +441,43 @@ consequences for the hand:
    `wakeSec` plus margin. If not even RESET brings it back, the problem is
    power or cabling, not firmware.
 
-**Timing probe.** `VERIFY` only sees the RESET and BOOTSEL lines; the hand has
-no channel yet to read the target's GP16 (high awake, low asleep). The proposed
-extension (`PROBE START|READ|STATUS` on GP2) is in §3 of the plan; until then
-the suite measures awake/asleep from USB enumeration timestamps.
+## 11. The PROBE channel — a stopwatch for the cycle (2026-09-06)
+
+The hand gained a third channel: **`PROBE`, an input on GP2** (physical pin 4),
+wired to the **target's GP16**, which the SIMUT Air firmware holds HIGH for the
+whole time it is awake and LOW while it sleeps. Core 1 already samples at 10 kHz
+for `VERIFY`, so the probe rides that same loop and stores only the
+**transitions**, timestamped with `micros()`, in a 64-edge ring.
+
+| Command | Reply |
+|---|---|
+| `PROBE STATUS` | `PROBE pin=GP2 level=HIGH edges=2/64 dropped=0 armed=YES` |
+| `PROBE START` | `OK PROBE START` — clears the ring and arms it |
+| `PROBE READ` | one `EDGE <i> <H\|L> <us>` line per edge, ending in `DONE PROBE edges=<n> dropped=<n>` |
+
+**Why it beats USB.** Enumeration lags the boot by about a second, and that
+second lands inside the window being measured; the serial console is worse,
+because every command resets the target's idle timer. The probe touches
+nothing. Measured on 2026-09-06, one full cycle: 120.715 s asleep, 29.455 s
+awake, 89.413 s asleep again.
+
+⚠️ **`micros()` wraps about every 71 minutes.** Read differences, never
+absolutes, and keep a measurement well inside that. The suite handles the wrap.
+
+⚠️ **GP4/GP5 are still the serial bridge.** The probe went to GP2 precisely so
+the bridge keeps working.
+
+⚠️ **Reflashing the hand resets the target.** Observed on 2026-09-06: after
+copying the `.uf2` to the `RPI-RP2` volume, the target came back with its uptime
+zeroed, in a cold boot (M0). Plan a bench run around that.
+
+### Reflashing the hand
+
+```bash
+arduino-cli compile --fqbn rp2040:rp2040:rpipico --build-path /tmp/picohand_build \
+    tools/PicoHand/pico_hand
+cp /tmp/picohand_build/pico_hand.ino.uf2 /media/angelo/RPI-RP2/   # hand in BOOTSEL
+```
+
+Putting the hand in BOOTSEL needs `SELF_BOOTSEL` (which makes its port vanish —
+never in automation) or the physical button.

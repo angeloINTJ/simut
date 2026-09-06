@@ -431,7 +431,44 @@ do D+ de propósito) e reenumera a cada wake. Três consequências para a mão:
    `wakeSec` + margem. Se nem o RESET trouxer o alvo de volta, o problema é
    alimentação ou cabo, não firmware.
 
-**Sonda de tempo.** O `VERIFY` só enxerga as linhas RESET e BOOTSEL; a mão ainda
-não tem canal para ler o GP16 do alvo (alto acordado, baixo dormindo). A
-extensão proposta (`PROBE START|READ|STATUS` em GP2) está na §3 do plano; até
-lá, a suíte mede acordado/dormindo pelos carimbos de enumeração USB.
+## 11. Canal PROBE — cronômetro do ciclo (06/09/2026)
+
+A mão ganhou um terceiro canal: **`PROBE`, entrada em GP2** (pino físico 4),
+ligada ao **GP16 do alvo**, que o firmware do SIMUT Air mantém em nível alto
+enquanto está acordado e baixo enquanto dorme. O Core 1 já amostrava a 10 kHz
+para o `VERIFY`, então a sonda pega carona nesse mesmo laço e guarda só as
+**transições**, com carimbo de `micros()`, num anel de 64 bordas.
+
+| Comando | Resposta |
+|---|---|
+| `PROBE STATUS` | `PROBE pin=GP2 level=HIGH edges=2/64 dropped=0 armed=YES` |
+| `PROBE START` | `OK PROBE START` — limpa o anel e arma |
+| `PROBE READ` | uma linha `EDGE <i> <H\|L> <us>` por borda, terminando em `DONE PROBE edges=<n> dropped=<n>` |
+
+**Por que ele vale mais que o USB.** A enumeração USB atrasa cerca de um segundo
+em relação ao boot, e esse segundo cai inteiro dentro da janela que se quer
+medir; a serial é pior ainda, porque todo comando reseta o timer de inatividade
+do alvo. A sonda não toca em nada. Medida de 06/09, ciclo completo:
+sono 120,715 s, acordado 29,455 s, sono seguinte 89,413 s.
+
+⚠️ **`micros()` dá a volta a cada ~71 minutos.** Leia diferenças, nunca valores
+absolutos, e mantenha a janela de medição bem dentro disso. A suíte já trata a
+volta.
+
+⚠️ **GP4/GP5 continuam sendo a ponte serial.** A sonda foi para GP2 justamente
+para não desativá-la.
+
+⚠️ **Regravar a mão reinicia o alvo.** Foi observado em 06/09: depois de copiar
+o `.uf2` para o volume `RPI-RP2`, o alvo apareceu com uptime zerado, em boot
+frio (M0). Contar com isso ao planejar uma bateria.
+
+### Como regravar a mão
+
+```bash
+arduino-cli compile --fqbn rp2040:rp2040:rpipico --build-path /tmp/picohand_build \
+    tools/PicoHand/pico_hand
+cp /tmp/picohand_build/pico_hand.ino.uf2 /media/angelo/RPI-RP2/   # com a mão em BOOTSEL
+```
+
+Colocar a mão em BOOTSEL exige `SELF_BOOTSEL` (que faz a porta sumir — nunca em
+automação) ou o botão físico. Em 06/09 o usuário fez isso à mão.

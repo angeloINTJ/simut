@@ -142,11 +142,17 @@ Referência completa (comandos, armadilhas, analisador lógico):
   `OVERRUN` no log quando o wake não cabe no intervalo. Série do dia, mesma config de 120 s:
   16–48 min → 147 s → **118,6 s**.
 - 🔌 **Fiação real da bancada (confirmada pelo Ângelo em 06/09):** **DS18B20 no GP0, sem
-  chaveamento**; **GP16 vai para a PicoHand como sonda** de acordado/dormindo. Ou seja, o
+  chaveamento**; **GP16 do alvo → GP2 da PicoHand** como sonda de acordado/dormindo. Ou seja, o
   caminho de power-gating do F03 **não é exercitado aqui** — o que a linha faz nesta bancada é
   medir. Como o firmware agora a levanta no início do `setup()`, ela cobre a janela acordada
-  inteira, o que melhora a sonda. A extensão `PROBE` da mão (§3 do plano) já tem fiação; falta
-  o firmware da mão, e gravá-lo exige `SELF_BOOTSEL`, proibido em automação.
+  inteira, o que melhora a sonda.
+- ✅ **Canal `PROBE` da mão IMPLEMENTADO e validado** (`PROBE STATUS|START|READ`, entrada GP2,
+  anel de 64 bordas no laço de 10 kHz que o Core 1 já roda). É o cronômetro a usar: a
+  enumeração USB atrasa ~1 s em relação ao boot e a serial reseta o timer de inatividade do
+  alvo. Medido: sono 120,715 s / acordado 29,455 s / sono 89,413 s → ciclo **118,868 s** para
+  120 s. Detalhes e receita de regravação no manual da PicoHand §11. ⚠️ `micros()` dá a volta
+  em ~71 min (ler diferenças); **regravar a mão reinicia o alvo**; BOOTSEL da mão exige
+  `SELF_BOOTSEL` ou botão — não é automatizável.
 - **F23 — RETRATAÇÃO PARCIAL.** A primeira medição decodificou o `.h5` com o nominal **errado**
   (60 s default do `history_v5.read_series` × 120 s do aparelho). O V5 guarda desvios do passo
   nominal, então o nominal errado **reescreve todos os tempos interiores** e fabrica "rajadas"

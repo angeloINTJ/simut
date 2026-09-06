@@ -277,15 +277,33 @@ Alavancas, por ganho estimado:
 acordar; a suíte carimba `absent`/`present` de `/dev/serial/by-id/…Pico_W…` com resolução de ~0,5 s.
 `awake_s` = presente→ausente; `sleep_s` = ausente→presente.
 
-**Sinal de tempo fino (GP16):** o pino fica alto durante toda a janela acordada e baixo dormindo.
-✅ **A fiação já existe**: na bancada de referência o GP16 do alvo está ligado à PicoHand
-(confirmado pelo Ângelo em 06/09), e o DS18B20 fica no GP0 sem chaveamento. O que falta é o
-**firmware da mão**: o `VERIFY` só lê as linhas RESET e BOOTSEL. Extensão proposta para o
-`pico_hand.ino`: entrada `PROBE`, amostrada pelo mesmo laço de 10 kHz do Core 1, com anel de 64
-bordas carimbadas em µs e comandos `PROBE START`, `PROBE READ` (linhas `EDGE <n> <H|L> <t_us>`
-terminadas em `DONE PROBE`) e `PROBE STATUS`. A suíte já detecta a extensão e cai para o sinal
-USB quando ela não existe. ⚠️ Gravar a mão exige `SELF_BOOTSEL`, que o manual proíbe em
-automação (a porta some) — é uma decisão do Ângelo, não um passo automatizável.
+**Sinal de tempo fino (GP16) — ✅ FEITO em 06/09.** O pino fica alto durante toda a janela
+acordada e baixo dormindo. O **GP2 da PicoHand** está ligado ao **GP16 do alvo**, e o firmware da
+mão ganhou o canal `PROBE`: pega carona no laço de 10 kHz que o Core 1 já roda para o `VERIFY`,
+guarda só as transições num anel de 64 bordas carimbadas com `micros()`, e responde a
+`PROBE STATUS`, `PROBE START` e `PROBE READ` (linhas `EDGE <n> <H|L> <t_us>` terminadas em
+`DONE PROBE`). GP4/GP5 seguem sendo a ponte serial — a sonda foi para GP2 para não desativá-la.
+
+Primeira medição, 06/09 ~18h15, ciclo completo:
+
+| janela | medida |
+|---|---|
+| sono (sem compensação, alarme de 120 s) | **120,715 s** |
+| acordado | **29,455 s** |
+| sono (compensado) | **89,413 s** |
+| **ciclo** | **118,868 s** para 120 s pedidos (−0,94%) |
+
+O caso **T09** da suíte automatiza isso: arma a sonda, hiberna, espera o wake, lê as bordas,
+recusa qualquer par de bordas a menos de 5 ms (que seria o glitch do F07) e compara o sono medido
+com o alarme. Rodou verde no ferro: `2 edges; asleep=120.705s`.
+
+⚠️ **Resíduo pequeno e medido:** o ciclo fecha ~1,1 s abaixo do alvo. A explicação provável é que
+a compensação lê `millis( )` **depois** do teardown do Wi-Fi, enquanto a linha da sonda cai
+**antes** dele — ou seja, subtrai-se um pouco a mais do que a janela que a sonda vê. Custa
+0,9% e tem conserto óbvio (calcular a compensação antes do teardown); não foi feito.
+
+⚠️ **Regravar a mão reinicia o alvo** (observado: uptime zerado e boot frio logo depois da cópia
+do `.uf2`). E pôr a mão em BOOTSEL exige `SELF_BOOTSEL` ou o botão físico — não é automatizável.
 
 **Corrente:** multímetro em série no VSYS (ou INA219 no VBUS) durante um ciclo completo; anotar
 sleep, boot, sample, flush. Tabela na seção 6.
