@@ -2,6 +2,8 @@
 
 > 📖 English · [Ver documentación en español](../README.es-ES.md) · [Ver documentação em português](../README.pt-BR.md)
 
+> 🛠️ **Board layout available** — the SIMUT carrier board was designed in KiCad. The layout (`.kicad_pcb`, `.kicad_sch`) is in [`PCB_test/`](../PCB_test/) and the ready-to-fab package (Gerbers + PTH/NPTH drills) is published for public download: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
+
 ## Pinout Diagram — ILI9341 TFT + XPT2046 Touch
 
 ```

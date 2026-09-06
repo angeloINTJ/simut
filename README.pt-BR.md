@@ -102,7 +102,7 @@ O SIMUT é um firmware IoT de nível profissional para o **Raspberry Pi Pico W**
 
 Veja o **[Guia de Fiação](docs/WIRING.md)** para a pinagem completa e os diagramas de ligação.
 
-> 🛠️ **PCB do SIMUT** — o projeto KiCad, os arquivos Gerber de fabricação e os arquivos de furação da PCB do SIMUT estão em [`PCB_test/`](PCB_test/) (`.kicad_pcb`, `.kicad_sch`, Gerber `.gbr` e `.drl` — prontos para enviar à fábrica).
+> 🛠️ **PCB do SIMUT — layout disponível para download** — o projeto da placa no KiCad (`.kicad_pcb`, `.kicad_sch`) está em [`PCB_test/`](PCB_test/), e o pacote de fabricação pronto para enviar à fábrica (Gerbers + furação PTH/NPTH, sem camadas de pasta) está publicado como release público: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
 
 ## Recursos principais
 
