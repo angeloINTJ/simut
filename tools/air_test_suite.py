@@ -169,6 +169,16 @@ class Hand:
     def cmd(self, text, timeout=2.0, multiline=False):
         if not self.available:
             raise TestSkip('PicoHand not present')
+        try:
+            return self._cmd(text, timeout, multiline)
+        except serial.SerialException as exc:
+            # Errno 16: something else holds the port — an IDE serial monitor is
+            # the usual culprit (the manual's §7.3). That is a bench condition,
+            # not a hand failure, so say which and skip rather than crash.
+            raise TestSkip(f'PicoHand port busy or unreadable ({exc.__class__.__name__}: '
+                           f'{exc}) — close any serial monitor on it')
+
+    def _cmd(self, text, timeout, multiline):
         with serial.Serial(self.path, BAUD, timeout=0.2) as s:
             time.sleep(0.05)
             s.reset_input_buffer()
@@ -187,7 +197,10 @@ class Hand:
             return lines if multiline else (lines[0] if lines else '')
 
     def ping(self):
-        return self.cmd('PING') == 'PONG'
+        try:
+            return self.cmd('PING') == 'PONG'
+        except TestSkip:
+            return False
 
     def reset(self):
         return self.cmd('RESET', timeout=4).startswith('OK')
@@ -342,8 +355,21 @@ class Target:
         return m.group(1) if m else None
 
     def ssid(self):
-        m = re.search(r'SSID:\s*(\S+)', self.cmd('show net status', 8))
-        return m.group(1) if m else None
+        """The configured SSID, from `show system info`.
+
+        Not from `show net status`, which does not print one, and the value sits
+        on the line AFTER the label — the emergency console wraps its fields.
+        """
+        out = self.cmd('show system info', 10)
+        lines = [l.strip() for l in out.splitlines()]
+        for i, l in enumerate(lines):
+            if 'SSID' in l:
+                tail = l.split(':', 1)[1].strip() if ':' in l else ''
+                if tail:
+                    return tail
+                if i + 1 < len(lines) and lines[i + 1]:
+                    return lines[i + 1]
+        return None
 
 
 def parse_air_status(text):
@@ -1213,18 +1239,59 @@ def watch_cycle(seconds, quiet=False):
     return 0
 
 
+def bootsel_touch(timeout=15):
+    """Put the target in BOOTSEL by opening its port at 1200 baud with DTR low.
+
+    The classic Arduino auto-reset, and on this bench the only picotool-free way
+    in. picotool's own force (-f) is not usable here: with two RP2040s on the bus
+    it takes the first it finds — the PicoHand, whose sketch has no reset
+    interface ("Unable to locate reset interface on the device") — and naming
+    the target with --ser does not help either, because after the reboot the
+    board enumerates in BOOTSEL under a different serial and the filter then
+    matches nothing.
+    """
+    port = by_id_path(TARGET_SERIAL, pico_w=True)
+    if not os.path.exists(port):
+        return False
+    try:
+        s = serial.Serial(port, 1200)
+        s.dtr = False
+        time.sleep(0.3)
+        s.close()
+    except Exception:
+        pass          # the port disappearing mid-touch is the expected outcome
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        out = subprocess.run(['lsusb'], capture_output=True, text=True).stdout
+        if '2e8a:0003' in out:      # RP2 Boot
+            return True
+        time.sleep(0.5)
+    return False
+
+
 def flash(uf2):
+    """Flash the target, in the order that costs least.
+
+    1. The 1200 bps touch on the target's own port, then picotool. Works
+       whenever the target still answers USB, and cannot pick the wrong board.
+    2. The PicoHand, for a target too wedged to answer USB at all.
+
+    Order matters because the hand is not always usable — an IDE serial monitor
+    holding its port is enough to take it away, and that must not block a flash
+    the first path can do on its own.
+    """
     if not os.path.exists(uf2):
         sys.exit(f'no such file: {uf2}')
-    hand = Hand()
-    if subprocess.call(['picotool', 'load', '-x', uf2]) == 0:
-        print('[flash] picotool load ok')
+    if bootsel_touch() and subprocess.call(['picotool', 'load', '-x', uf2]) == 0:
+        print('[flash] 1200 bps touch + picotool load ok', flush=True)
         return 0
-    print('[flash] picotool failed — forcing BOOTSEL through the PicoHand')
+    print('[flash] the touch path did not work — forcing BOOTSEL through the PicoHand', flush=True)
+    hand = Hand()
     if not (hand.available and hand.ping()):
-        sys.exit('[flash] hand unavailable — cannot recover')
+        sys.exit('[flash] the hand is unavailable too (port busy? close any serial monitor) '
+                 '— nothing left to try automatically')
     if not hand.bootsel():
-        sys.exit('[flash] hand BOOTSEL failed (check the wiring notes in the PicoHand manual §7.1)')
+        sys.exit('[flash] hand BOOTSEL failed (see the PicoHand manual §7.1 on the wiring)')
     time.sleep(2)
     rc = subprocess.call(['picotool', 'load', '-x', uf2])
     hand.release_all()

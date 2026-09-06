@@ -298,10 +298,31 @@ O caso **T09** da suíte automatiza isso: arma a sonda, hiberna, espera o wake, 
 recusa qualquer par de bordas a menos de 5 ms (que seria o glitch do F07) e compara o sono medido
 com o alarme. Rodou verde no ferro: `2 edges; asleep=120.705s`.
 
-⚠️ **Resíduo pequeno e medido:** o ciclo fecha ~1,1 s abaixo do alvo. A explicação provável é que
-a compensação lê `millis( )` **depois** do teardown do Wi-Fi, enquanto a linha da sonda cai
-**antes** dele — ou seja, subtrai-se um pouco a mais do que a janela que a sonda vê. Custa
-0,9% e tem conserto óbvio (calcular a compensação antes do teardown); não foi feito.
+✅ **O resíduo de ~1 s foi RESOLVIDO em 06/09, e a hipótese acima estava errada.** O que fechou a
+questão foi parar de inferir e mandar o **aparelho medir o próprio sono**: depois do `wfi` ele lê
+o RTC (que é o relógio que atravessou o sono), guarda os segundos em `scratch[1]` e o boot
+seguinte imprime `[AIR] woke: slept=<n>s`. Com isso:
+
+| pedido | dormiu de fato |
+|---|---|
+| 120 s | **120 s** |
+| 91 s | **91 s** |
+| 92 s | **92 s** |
+
+**O alarme sempre foi exato.** O erro estava na conta: `wakeSec = sleepMs / 1000` **truncava**,
+jogando fora até um segundo inteiro por ciclo e sempre no mesmo sentido. Um caso real: pedir
+91817 ms virava 91 s, 0,817 s a menos — e é isso que aparecia como ciclo de 118,9 s para um
+intervalo de 120 s. Trocado por arredondamento (`(sleepMs + 500) / 1000`), o erro passa a ser
+centrado e limitado ao meio segundo que a resolução de 1 s do RTC custa.
+
+Medido depois da correção, com o aparelho reportando o próprio sono:
+
+```
+wake 2: dormiu=92s  acordado=27,839s  CICLO=119,839s   (alvo 120 s → erro −0,161 s)
+```
+
+Série completa do dia para os mesmos 120 s configurados: 16–48 min (ROSC parado) → 147 s (ROSC
+corrigido) → 118,9 s (ancorado no wake, com truncamento) → **119,84 s** (com arredondamento).
 
 ⚠️ **Regravar a mão reinicia o alvo** (observado: uptime zerado e boot frio logo depois da cópia
 do `.uf2`). E pôr a mão em BOOTSEL exige `SELF_BOOTSEL` ou o botão físico — não é automatizável.
@@ -547,6 +568,36 @@ de o período voltar a escorregar, mas não segura mais nada.
 alarme era ancorado no instante em que o aparelho **dorme**, não no instante em que **acordou** —
 o período efetivo virava `h_int + janela acordada`, ~22% de amostras a menos por dia.
 ✅ **Corrigido em 06/09** — ver §6.4.
+
+### 6.6 SSID indisponível: tentativas limitadas e sono imediato
+
+Pedido do Ângelo: com o SSID fora do ar, no máximo **2 tentativas**, e assim que a leitura e a
+gravação do histórico terminarem, hibernar — tentando de novo no wake seguinte.
+
+**Implementado:** `AIR_MAX_CONNECT_ATTEMPTS` (default 2). A fase SAMPLE só bombeia o
+`NetworkManager` enquanto `getConnectCycles( ) < AIR_MAX_CONNECT_ATTEMPTS`; estourado o limite,
+para de bombear pelo resto do wake, registra no console, e o DECIDE trata o wake como offline
+mesmo que o link apareça depois — os dados já estão na flash e o próximo wake envia. Como cada
+wake é um boot novo, o contador zera sozinho e a tentativa recomeça.
+
+**Medido no ferro com o SSID errado** (`ProcrastinationPLUS2`, posto pelo Ângelo justamente para
+isso), três wakes seguidos:
+
+| wake | janela acordada |
+|---|---|
+| 1 | 26,7 s |
+| 2 | 26,4 s |
+| 3 | 26,2 s |
+
+Com o SSID **certo** a mesma janela é de 26,3 a 29,5 s. Ou seja: **a rede ausente não alarga o
+wake em nada** — o que fecha a fase é a estabilização dos sensores, o histórico é gravado e o
+aparelho dorme.
+
+⚠️ **Honestidade sobre o limite:** o teto de 2 é um **teto**, não o caso comum. Cada tentativa
+custa até 20 s dentro do `NetworkManager`, e o wake inteiro dura ~28 s, então na prática **uma**
+tentativa começa por wake e o limite não chega a disparar (a linha `[AIR] wifi: no link after…`
+não apareceu em nenhum dos três wakes). Ele existe para o caso de uma janela acordada longa —
+sensores lentos, `stabTimeoutMs` grande — em que o segundo ciclo de reconexão caberia.
 
 ### 6.5 O cursor de telemetria — duas causas, uma em cada lado
 

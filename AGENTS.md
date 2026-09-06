@@ -148,6 +148,25 @@ Referência completa (comandos, armadilhas, analisador lógico):
   marcadores de boot, o texto de ajuda dos comandos `air` e o bloco do parser que os reconhecia
   sem ter handler. ⚠️ Resíduo consciente: um `.lng` é compartilhado, então os comandos `air`
   ficam fora do `@HELP` dos packs (confirmado no ferro: `help` de um Air pt-BR não os lista).
+- ✅ **O aparelho MEDE o próprio sono.** Depois do `wfi` ele lê o RTC (o único relógio que
+  atravessa o sono), guarda os segundos em `scratch[1]` e o boot seguinte imprime
+  `[AIR] woke: slept=<n>s`. **Use isso** em vez de inferir por USB ou pela sonda: foi o que
+  provou que o alarme é exato (120 pedidos → 120 dormidos) e que o erro de ~1 s estava na
+  aritmética — `wakeSec = sleepMs / 1000` **truncava**, perdendo até 1 s por ciclo sempre no
+  mesmo sentido. Com arredondamento o ciclo ficou em **119,84 s para 120 s**.
+- ✅ **SSID ausente não alarga o wake.** `AIR_MAX_CONNECT_ATTEMPTS` (2) limita o que um wake gasta
+  atrás de rede; passado o teto, SAMPLE para de bombear o `NetworkManager` e o DECIDE trata como
+  offline. Medido com SSID errado: 26,7 / 26,4 / 26,2 s acordado, contra 26,3–29,5 s com o SSID
+  certo. ⚠️ O teto é **teto**, não caso comum: uma tentativa custa até 20 s e o wake dura ~28 s,
+  então só **uma** começa por wake e o limite não chega a disparar.
+- ⚠️ **Gravar o alvo: use o toque de 1200 bps**, não `picotool -f`. Com dois RP2040 no barramento
+  o picotool pega o primeiro que acha — a PicoHand, que não tem interface de reset ("Unable to
+  locate reset interface") — e `--ser` não salva, porque em BOOTSEL a placa enumera com outro
+  serial e o filtro não casa mais. `tools/air_test_suite.py --flash` já faz o toque primeiro e
+  só cai para a mão se ele falhar.
+- ⚠️ **O monitor serial do Arduino IDE rouba a porta da mão** (`.arduino15/.../serial-monitor`),
+  e com isso somem a sonda e o caminho de recuperação por BOOTSEL. `fuser -v /dev/ttyACM*`
+  mostra quem segura.
 - ✅ **Intervalo real corrigido**: o alarme passou a ser `h_int − tempo já acordado neste wake`
   (um wake do M1 **é** um boot, então esse tempo é o `millis( )` na hora de dormir). Medido:
   sono de **91,8 s nos três ciclos** e período de **118,6 s** contra 120 s configurados — antes
