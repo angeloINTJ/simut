@@ -283,9 +283,11 @@
  *
  * SIMUT_AIR=1 builds the headless variant (no display, no buzzer) that runs
  * as an Alpha-like device on cold boot and enters a dormant hibernation
- * cycle on command or after an inactivity timeout. The default wake period
- * is 5 minutes, editable at runtime via the 'air' CLI / web (stored in
- * /config/air.bin — NOT in SystemConfig, so CONFIG_VERSION is untouched).
+ * cycle on command or after an inactivity timeout. The wake period IS the
+ * history save interval (h_int, set from the web/CLI); AIR_WAKE_INTERVAL_MIN
+ * is only the fallback when that interval reads as zero. Air-only settings
+ * (idle timeout, sensor power pin, phase timeouts) live in /config/air.bin —
+ * NOT in SystemConfig, so CONFIG_VERSION is untouched.
  *
  * Override any default here or via -D build_flags.
  * ========================================================================= */
@@ -296,7 +298,7 @@
 
 #if SIMUT_AIR
 #ifndef AIR_WAKE_INTERVAL_MIN
-#define AIR_WAKE_INTERVAL_MIN 5  // Default wake period, minutes (D7)
+#define AIR_WAKE_INTERVAL_MIN 5  // Fallback wake period (min) when the history interval reads 0
 #endif
 #ifndef AIR_IDLE_TIMEOUT_SEC
 #define AIR_IDLE_TIMEOUT_SEC 300 // M0 inactivity -> auto-hibernate (5 min)
@@ -315,6 +317,14 @@
 #endif
 #ifndef AIR_SENSOR_POWER_PIN
 #define AIR_SENSOR_POWER_PIN 16 // GPIO power-gating for sensors (also the awake/sleep probe)
+#endif
+#ifndef AIR_MIN_SLEEP_SEC
+// Floor for the compensated wake alarm. The alarm is set to
+// (history interval - time this wake spent awake) so the PERIOD equals the
+// configured interval; if a wake ever outlasts the interval the subtraction
+// would ask for zero, and the device would spin boot-sleep-boot. Sleeping this
+// long instead degrades to "as fast as it can" and the log line says OVERRUN.
+#define AIR_MIN_SLEEP_SEC 5
 #endif
 #endif /* SIMUT_AIR */
 

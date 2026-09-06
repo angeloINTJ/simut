@@ -111,11 +111,24 @@ static bool airAllStable(SensorManager& sm) {
  return active > 0 && stable == active;
 }
 
-/* Power the sensor bus on/off via the configured power-gating GPIO. */
-static void airSensorPower(uint8_t pin, bool on) {
+/* Power the sensor bus on/off via the power-gating GPIO.
+ *
+ * gpio_init() is done ONCE per pin, not on every call: the SDK's gpio_init
+ * drives the pin to input and low before handing it back, so calling it on
+ * every pump of the WARMUP phase glitched the sensor supply (and the logic
+ * analyser probe on the same line) several times per wake.
+ *
+ * Not static: AppManager::setup( ) asserts the line before the sensors are
+ * probed, so the Air build powers its sensors for the whole time it is awake —
+ * including the operational mode M0, where nothing used to turn them on. */
+void AppManager::airSensorPower(uint8_t pin, bool on) {
  if (pin == PIN_UNUSED) return;
- gpio_init(pin);
- gpio_set_dir(pin, GPIO_OUT);
+ static uint32_t initialised = 0;   /* bitmask of pins already gpio_init'd */
+ if (pin < 32 && !(initialised & (1u << pin))) {
+  gpio_init(pin);
+  gpio_set_dir(pin, GPIO_OUT);
+  initialised |= (1u << pin);
+ }
  gpio_put(pin, on ? 1 : 0);
 }
 
@@ -230,13 +243,31 @@ void AppManager::airLoop( ) {
    * the whole loop on the HTTP upload; update() does not, so the watchdog is
    * fed between batches and a long backlog just keeps the device awake a
    * little longer instead of hanging it. */
+
+  /* Telemetry switched off is the factory default (telInterval == 0), and
+   * TelemetryManager::update( ) returns immediately in that state — it never
+   * sends, never fails, never escalates a backoff. Without this gate the three
+   * exit conditions below can none of them become true and the phase spins
+   * forever: the device stays awake, on battery, with nothing to do. */
+  if (_storageMgr->getConfig( ).telInterval == 0) {
+   _airPhase = AIR_PHASE_SLEEP;
+   break;
+  }
+
   _netMgr->update( );
   _telemetryMgr->update( );
   _telemetryMgr->refreshPendingCount( );
   const bool done = (_telemetryMgr->getPendingEstimate( ) == 0);
   const bool serverLost = (_telemetryMgr->getBackoffRemainingMs( ) > 0);
-  const bool netLost = !_netMgr->isConnected( );
-  if (done || serverLost || netLost) {
+  /* isNetworkHealthy( ), not isConnected( ): a link that is associated but too
+   * weak to carry an upload keeps isConnected( ) true, so the RSSI gate is what
+   * actually ends the phase in the field. */
+  const bool netLost = !_netMgr->isNetworkHealthy( );
+  /* Wall-clock cap. Everything above depends on the uploader reaching a verdict;
+   * this one does not, so no future stall in that path can hold the device
+   * awake indefinitely. flushTimeoutMs lives in /config/air.bin. */
+  const bool timedOut = timeSince(_airPhaseTimer, (uint32_t)_airCfg.flushTimeoutMs);
+  if (done || serverLost || netLost || timedOut) {
    _storageMgr->flushCursorIfDirty( );
    _airPhase = AIR_PHASE_SLEEP;
   }
@@ -291,8 +322,34 @@ void AppManager::airEnterDormant( ) {
    * instead, so the device does not wake just to be told to wait again. */
   uint32_t histMs = (uint32_t)_storageMgr->getHistoryIntervalMin( ) * 60000UL;
   if (histMs == 0) histMs = (uint32_t)AIR_WAKE_INTERVAL_MIN * 60UL * 1000UL;
+
+  /* Anchor the cadence on the WAKE, not on this moment.
+   *
+   * The history interval is a sampling cadence: "save a record every h_int".
+   * Sleeping h_int from here makes the real period h_int PLUS the time this
+   * wake spent awake, because the awake window sits between two sleeps. That
+   * was measured on 2026-09-06: 147 s of real period for 120 s configured —
+   * about 22% fewer samples per day than asked for, and growing with anything
+   * that lengthens the wake (slow sensors, a big telemetry backlog).
+   *
+   * millis( ) is exactly the elapsed time since this wake, because an M1 wake
+   * IS a boot. Subtracting it makes boot-to-boot equal h_int.
+   *
+   * Only when this boot really was a wake: after a cold boot (or an `air stop`
+   * that returned to M0) millis( ) counts operator time, not cycle time, and
+   * there is no previous wake to anchor to. */
+  uint32_t histSleepMs = histMs;
+  const uint32_t awakeMs = millis( );
+  if (_airWokeFromSleep) {
+   histSleepMs = (awakeMs + AIR_MIN_SLEEP_SEC * 1000UL < histMs)
+                     ? (histMs - awakeMs)
+                     : (AIR_MIN_SLEEP_SEC * 1000UL);
+  }
+
+  /* The backoff is NOT compensated: getBackoffRemainingMs( ) already counts
+   * from now, and shortening a punishment would defeat it. */
   uint32_t backoffMs = _telemetryMgr->getBackoffRemainingMs( );
-  uint32_t sleepMs = (backoffMs > histMs) ? backoffMs : histMs;
+  uint32_t sleepMs = (backoffMs > histSleepMs) ? backoffMs : histSleepMs;
   uint32_t wakeSec = sleepMs / 1000UL;
   if (wakeSec == 0) wakeSec = 1;
 
@@ -327,7 +384,11 @@ void AppManager::airEnterDormant( ) {
    * wake as a clean reboot so the autopsy stays silent (see markCleanReboot). */
   LogManager::instance( ).markCleanReboot( );
 
-  Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu\n", t.hour, t.min, t.sec, (unsigned long)wakeSec);
+  Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu awake=%lums target=%lums%s\n",
+                t.hour, t.min, t.sec, (unsigned long)wakeSec,
+                (unsigned long)awakeMs, (unsigned long)histMs,
+                (_airWokeFromSleep && awakeMs + AIR_MIN_SLEEP_SEC * 1000UL >= histMs)
+                    ? " OVERRUN" : "");
   {
    datetime_t dbg;
    rtc_get_datetime(&dbg);

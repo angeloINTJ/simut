@@ -215,15 +215,21 @@ private:
  AirPhase _airPhase = AIR_PHASE_OFF;
  uint32_t _airPhaseTimer = 0;
  bool     _airActive = false;   /* true = this boot is a dormant wake (M1) */
+ /* True only while this boot really began as an RTC wake. Separate from
+  * _airActive, which airStartHibernate( ) also sets: the wake alarm is
+  * compensated by the awake time (so the period equals the history interval),
+  * and that compensation is only meaningful when millis( ) measures this
+  * cycle rather than however long an operator left the device in M0. */
+ bool     _airWokeFromSleep = false;
  uint32_t _airLastActivityMs = 0; /* M0 idle timer */
  AirConfig _airCfg;                 /* loaded from /config/air.bin */
 
  void airLoop( );             /* M1 pump, called from loop( ) */
- void airBeginWake( );        /* M1 boot entry (scratch magic already read) */
  void airStartHibernate( );   /* M0 -> M1 transition (command or idle timeout) */
  void airEnterDormant( );     /* M1 final step: power off + dormant */
  void airMarkActivity( );     /* reset M0 idle timer on any command/web hit */
  void airSetLed(bool on);     /* onboard LED: on while awake, off while dormant */
+ void airSensorPower(uint8_t pin, bool on); /* sensor power-gating GPIO (high = awake) */
  bool airLoadConfig(struct AirConfig& out);   /* read /config/air.bin */
  bool airSaveConfig(const struct AirConfig& c); /* write /config/air.bin (atomic) */
 #endif /* SIMUT_AIR */

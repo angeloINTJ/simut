@@ -109,4 +109,26 @@ void sleep_goto_sleep_until(datetime_t *t, dormant_wake_source_callback_t callba
 
     /* SLEEP until the RTC alarm fires. Execution resumes here on wake. */
     __asm volatile("wfi");
+
+    /* Bring the ring oscillator back BEFORE the caller resets the chip.
+     *
+     * sleep_run_from_xosc() stopped it to save its quiescent current, and the
+     * reset that follows the wake does NOT pass through the ROSC reset domain —
+     * the same reason sleep_en0 and the stale RTC alarm state survive it (see
+     * the resets those two needed in AppManager_Boot.cpp and above). The boot
+     * ROM and runtime_init_clocks() then come up with the ROSC stopped and spin
+     * waiting for the glitchless mux to switch clk_ref onto it.
+     *
+     * Measured on the bench 2026-09-06 (docs/analysis/SIMUT_AIR_PLANO_FIX.md
+     * §6.1): with the ROSC left off, the wake took 16 to 30 minutes instead of
+     * the programmed interval, and the delay varied from cycle to cycle. The
+     * same hardware cycled at 147-151 s (120 s sleep + ~28 s awake) earlier the
+     * same day, on the build that predates the ROSC-off. Re-enabling it here
+     * keeps the sleep-time saving and hands the reset a running oscillator. */
+    hw_write_masked(&rosc_hw->ctrl,
+                    ROSC_CTRL_ENABLE_VALUE_ENABLE << ROSC_CTRL_ENABLE_LSB,
+                    ROSC_CTRL_ENABLE_BITS);
+    while (!(rosc_hw->status & ROSC_STATUS_STABLE_BITS)) {
+        tight_loop_contents();
+    }
 }

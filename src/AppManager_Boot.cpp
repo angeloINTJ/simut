@@ -74,6 +74,20 @@ static inline void _uart_mark(char c) { uart_putc_raw(uart1, c); }
 #define BLOG_NL( ) do { } while(0)
 #endif // SIMUT_DISPLAY_TFT
 
+/* Air boot progress markers.
+ *
+ * The Air build has no display and reboots on every wake, so a coarse trace of
+ * how far the boot got is the only way to localise a hang there. It goes to USB
+ * Serial because that is the channel the headless build actually has.
+ *
+ * Compiled out everywhere else: these ten lines were printing "[AIR] boot: ..."
+ * on every TFT and alpha boot, in images that have no Air code at all. */
+#if SIMUT_AIR
+#define AIR_BOOT_MARK(s) Serial.println(F("[AIR] boot: " s))
+#else
+#define AIR_BOOT_MARK(s) do { } while (0)
+#endif
+
 /* scratch[5] magic — the orchestrator sets this before applier_reboot
  * to signal "next boot is post-OTA-apply, power-cycle CYW43".
  * scratch[5] survives watchdog_reboot. setup() clears it immediately
@@ -114,7 +128,18 @@ void AppManager::setup( ) {
   * zeroed on a power cycle — the M1-vs-M0 discriminator. Read it once, then
   * clear it so a watchdog reset during the cycle does not re-enter M1. */
  _airActive = (watchdog_hw->scratch[0] == AIR_DORMANT_MAGIC);
+ _airWokeFromSleep = _airActive;  /* anchors the next alarm; see AppManager.h */
  watchdog_hw->scratch[0] = 0;
+
+ /* Power the sensors NOW, before anything probes them.
+  *
+  * The gating GPIO used to be asserted only inside the M1 warm-up phase, which
+  * left two holes: the operational mode M0 never turned it on at all, and the
+  * M1 boot ran its whole sensor init with the supply still down. Sensors wired
+  * through the gate read nothing in either case. Asserting it here also gives
+  * the slow parts (DHT22 needs ~1 s from power-up) the entire boot as warm-up.
+  * The configured pin is applied right after air.bin is read, below. */
+ airSensorPower(AIR_SENSOR_POWER_PIN, true);
  if (_airActive) {
   /* Woke from DORMANT (M1): begin a fresh read/send cycle. _airPhase was
    * reset to OFF by the cold boot, so it must be re-armed here (mirrors
@@ -169,10 +194,10 @@ void AppManager::setup( ) {
 
 
  _uart_mark('%'); /* post Serial.begin */
- Serial.println("[AIR] boot: serial ok");
+ AIR_BOOT_MARK("serial ok");
 
  delay(1000);
- Serial.println("[AIR] boot: delay ok");
+ AIR_BOOT_MARK("delay ok");
  _uart_mark('&'); /* post delay(1000) */
 
  /* Log the firmware version BEFORE any init that could hang — ensures
@@ -205,7 +230,7 @@ void AppManager::setup( ) {
 
  BLOG("[BOOT step] 2: _displayMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->begin( );
- Serial.println("[AIR] boot: display ok");
+ AIR_BOOT_MARK("display ok");
  /* startCore1 deferred until AFTER _storageMgr->begin().
 	 * Without Core 1 active, flash_safe_execute uses the single-core
 	 * path (local disable_interrupts only), avoiding the multicore_lockout
@@ -319,7 +344,7 @@ void AppManager::setup( ) {
  
 
  _displayMgr->setApProgress(-1);
- Serial.println("[AIR] boot: ap-detect ok");
+ AIR_BOOT_MARK("ap-detect ok");
 
  _storageMgr->setLockCallback([](bool lock) {
  app.pauseDisplayForFlash(lock);
@@ -347,15 +372,22 @@ void AppManager::setup( ) {
 
  BLOG("[BOOT step] 5: pre _storageMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_MOUNT_FS);
- Serial.println("[AIR] boot: pre-storage");
+ AIR_BOOT_MARK("pre-storage");
  bool fsOk = _storageMgr->begin( );
 #if SIMUT_AIR
  airLoadConfig(_airCfg);
+ /* air.bin may name a different gating pin than the compile-time default that
+  * setup( ) asserted above. Move the supply to the configured one and drop the
+  * default, so exactly one line is driven. */
+ if (_airCfg.sensorPowerPin != AIR_SENSOR_POWER_PIN) {
+  airSensorPower(_airCfg.sensorPowerPin, true);
+  airSensorPower(AIR_SENSOR_POWER_PIN, false);
+ }
  _airLastActivityMs = millis( ); /* idle timer starts at boot */
 #endif
  BLOG("[BOOT step] 6: pos _storageMgr->begin( ) fsOk="); BLOG_U(fsOk ? 1 : 0);
  BLOG(" @ "); BLOG_U(millis( )); BLOG_NL( );
- Serial.println("[AIR] boot: storage ok");
+ AIR_BOOT_MARK("storage ok");
 
  /* Now it is safe to start Core 1 — mountFS, mkdirs, snapshot
 	 * restore, and loadConfiguration have completed with Core 1
@@ -716,7 +748,7 @@ void AppManager::setup( ) {
  _storageMgr->isDnsAuto( ),
  _storageMgr->isNtpEnabled( ),
  _storageMgr->getSecondaryDns( ));
- Serial.println("[AIR] boot: net ok");
+ AIR_BOOT_MARK("net ok");
  BLOG("[BOOT step] 11: pos _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
 
  unsigned long netWait = millis( );
@@ -805,7 +837,7 @@ void AppManager::setup( ) {
 
  _displayMgr->setBootStatusKey(TR_BOOT_START_TEL);
  _telemetryMgr->begin(_storageMgr.get( ), _netMgr.get( ));
- Serial.println("[AIR] boot: telemetry ok");
+ AIR_BOOT_MARK("telemetry ok");
 
  LogManager::instance( ).setEpochSource([]( ) -> time_t { return time(nullptr); });
 
@@ -820,7 +852,7 @@ void AppManager::setup( ) {
  BLOG("[BOOT step] 12: pre _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
  _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ), _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
- Serial.println("[AIR] boot: web ok");
+ AIR_BOOT_MARK("web ok");
  BLOG("[BOOT step] 13: pos _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  /* marker pre-callbacks */
 
@@ -957,7 +989,7 @@ void AppManager::setup( ) {
 	 */
  LogManager::instance( ).enableHealthCheck( );
 
- Serial.println("[AIR] boot: done");
+ AIR_BOOT_MARK("done");
  TRACE_MOD(0, MOD_IDLE);
  _cmdMgr->printPrompt( );
 }

@@ -829,6 +829,10 @@ void AppManager::executeCommand(CliDemand cmd) {
 
  case CMD_AIR_STOP:
   _airActive = false;
+  /* Back in M0 under an operator: millis( ) stops measuring the cycle, so the
+   * next hibernation starts a fresh anchor instead of compensating for time
+   * that was never part of a wake. */
+  _airWokeFromSleep = false;
   _airPhase = AIR_PHASE_OFF;
   _airLastActivityMs = millis( );
   airSetLed(true);
