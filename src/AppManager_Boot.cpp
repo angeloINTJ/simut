@@ -120,6 +120,13 @@ void AppManager::setup( ) {
    * reset to OFF by the cold boot, so it must be re-armed here (mirrors
    * airStartHibernate(), minus the flushes already done before sleep). */
   _airPhase = AIR_PHASE_WARMUP;
+  /* The SLEEP left sleep_en0=clk_rtc-only. The clocks block is not reset by
+   * SYSRESETREQ, so a later WFE inside sleep_ms()/delay() would gate clk_ref
+   * and the timer alarm would never fire -> millis()/delay() hang. Restore
+   * all clocks, then re-arm the tick (the timer/SysTick source). */
+  clocks_hw->sleep_en0 = CLOCKS_SLEEP_EN0_RESET;
+  clocks_hw->sleep_en1 = CLOCKS_SLEEP_EN1_RESET;
+  watchdog_start_tick(12); /* 12 = XOSC 12 MHz / 1 MHz tick */
   _airPhaseTimer = millis( );
  }
 #endif
@@ -165,6 +172,7 @@ void AppManager::setup( ) {
  Serial.println("[AIR] boot: serial ok");
 
  delay(1000);
+ Serial.println("[AIR] boot: delay ok");
  _uart_mark('&'); /* post delay(1000) */
 
  /* Log the firmware version BEFORE any init that could hang — ensures
@@ -191,6 +199,7 @@ void AppManager::setup( ) {
 
  BLOG("[BOOT step] 2: _displayMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->begin( );
+ Serial.println("[AIR] boot: display ok");
  /* startCore1 deferred until AFTER _storageMgr->begin().
 	 * Without Core 1 active, flash_safe_execute uses the single-core
 	 * path (local disable_interrupts only), avoiding the multicore_lockout
@@ -304,6 +313,7 @@ void AppManager::setup( ) {
  
 
  _displayMgr->setApProgress(-1);
+ Serial.println("[AIR] boot: ap-detect ok");
 
  _storageMgr->setLockCallback([](bool lock) {
  app.pauseDisplayForFlash(lock);
