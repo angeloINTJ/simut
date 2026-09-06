@@ -39,6 +39,7 @@
 #include <pico/cyw43_arch.h>
 #include <hardware/gpio.h>
 #include <hardware/rtc.h>
+#include <hardware/structs/scb.h>
 #include <hardware/structs/watchdog.h>
 #include <hardware/watchdog.h>
 
@@ -213,10 +214,11 @@ void AppManager::airLoop( ) {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Dormant entry. RP2040 has no pico/sleep.h in this framework, so the sequence
- * is done by hand (same steps the SDK's sleep_goto_dormant_until performs):
- *   RTC alarm -> clocks to XOSC -> xosc_dormant -> SLEEPDEEP -> __wfi.
- * Wake is a full reset; scratch[0] (always-on domain) carries the Air marker.
+ * Dormant entry (RP2040 datasheet 2.11.3): clock the RTC from the XOSC, run
+ * clk_sys/clk_ref from the ROSC, stop the PLLs, arm the RTC alarm, then write
+ * the "coma" keyword to the ROSC DORMANT register. Wake is a RESUME; we
+ * soft-reset so the boot ROM re-inits the clocks and the firmware boots back
+ * into M1 (scratch[0], always-on domain, carries the Air marker).
  * ──────────────────────────────────────────────────────────────────────────── */
 void AppManager::airEnterDormant( ) {
  airSetLed(false);
@@ -243,9 +245,10 @@ void AppManager::airEnterDormant( ) {
    Serial.printf("[AIR] rtc before set: %04d-%02d-%02d %02d:%02d:%02d dotw=%d\n", dbg.year, dbg.month, dbg.day, dbg.hour, dbg.min, dbg.sec, dbg.dotw);
   }
   /* arduino-pico keeps time in software and leaves the SDK RTC in reset.
-   * Bring it up: clock it from the XOSC and set its 1-second divider, so
-   * rtc_set_datetime / rtc_set_alarm actually run and the dormant wake fires. */
-  clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12 * MHZ, 12 * MHZ);
+   * Bring it up: clock it from the XOSC and divide it to 46875 Hz
+   * (12 MHz / 256) so rtc_init()'s 1-second divider (clkdiv_m1) stays within
+   * its 16-bit range and rtc_set_alarm actually ticks at 1 s. */
+  clock_configure(clk_rtc, 0, CLOCKS_CLK_RTC_CTRL_AUXSRC_VALUE_XOSC_CLKSRC, 12 * MHZ, 46875u);
   rtc_init( );
 
   rtc_set_datetime(&t);
@@ -266,13 +269,18 @@ void AppManager::airEnterDormant( ) {
 
   Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu\n", t.hour, t.min, t.sec, (unsigned long)wakeSec);
 
-  /* Vendored pico-sdk hardware_sleep: rtc_set_alarm -> xosc_init -> SLEEPDEEP
-   * -> clk_sys=XOSC -> xosc_dormant -> __wfi. Wake is a full reset. */
+  /* Vendored pico-sdk dormant sequence: clk_sys/clk_ref -> ROSC, stop PLLs,
+   * rtc_set_alarm, then the ROSC DORMANT register write. Waking is a RESUME
+   * (RP2040 datasheet 2.11.3), so this call returns with the system still on
+   * the ROSC and the PLLs/USB/WiFi down. */
   sleep_goto_dormant_until(&t, nullptr);
  }
 
- /* Not reached — dormant wake is a full reset. */
- while (true) { tight_loop_contents( ); }
+ /* Woke from DORMANT. Soft-reset so the boot ROM re-initialises the clocks
+  * and the firmware boots back into M1 (watchdog scratch[0] still carries the
+  * Air marker; it is only cleared on a power cycle). */
+ scb_hw->aircr = 0x05FA0004u; /* VECTKEY | SYSRESETREQ (NVIC system reset) */
+ while (true) { tight_loop_contents( ); } /* reset is immediate; not reached */
 }
 
 #endif /* SIMUT_AIR */

@@ -22,7 +22,13 @@ extern "C" {
 
 typedef void (*dormant_wake_source_callback_t)(void);
 
-/** Enter dormant until the given RTC alarm fires. Wake is a full reset. */
+/** Enter DORMANT until the given RTC alarm fires.
+ *
+ * clk_rtc must already be running from the XOSC (the caller configures it).
+ * The RTC alarm is armed here; the chip then stops the ROSC and sleeps until
+ * the alarm restarts it. Waking is a RESUME — this function returns, with the
+ * system still running from the ROSC and the PLLs powered down. The caller is
+ * expected to re-initialise the clocks (or soft-reset). */
 void sleep_goto_dormant_until(datetime_t *t, dormant_wake_source_callback_t callback);
 
 #ifdef __cplusplus

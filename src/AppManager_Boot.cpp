@@ -115,6 +115,13 @@ void AppManager::setup( ) {
   * clear it so a watchdog reset during the cycle does not re-enter M1. */
  _airActive = (watchdog_hw->scratch[0] == AIR_DORMANT_MAGIC);
  watchdog_hw->scratch[0] = 0;
+ if (_airActive) {
+  /* Woke from DORMANT (M1): begin a fresh read/send cycle. _airPhase was
+   * reset to OFF by the cold boot, so it must be re-armed here (mirrors
+   * airStartHibernate(), minus the flushes already done before sleep). */
+  _airPhase = AIR_PHASE_WARMUP;
+  _airPhaseTimer = millis( );
+ }
 #endif
 
  /* Always power-cycle CYW43 during setup().
