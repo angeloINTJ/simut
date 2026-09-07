@@ -182,8 +182,8 @@ cronometra o ciclo sem tocar no alvo, e um `--selftest` que dispensa hardware) e
 
 ### Problemas conhecidos
 
-Esta é uma pré-versão, e a build Air nunca rodou fora de uma bancada. Nada do
-que segue é regressão; o plano tem o detalhe.
+A build Air nunca rodou fora de uma bancada. Nada do que segue é regressão; o
+plano tem o detalhe.
 
 * **F04** — um wake que não alcança o NTP carimba o histórico por um intervalo
   adivinhado (~80 s) em vez do sono medido, e a correção pós-NTP nunca roda em M1.

@@ -180,8 +180,8 @@ needs no hardware) and `tools/check_air_consistency.py`.
 
 ### Known issues
 
-This is a pre-release, and the Air build has only ever run on a bench. None of
-the following is a regression; the plan carries the detail.
+The Air build has only ever run on a bench. None of the following is a
+regression; the plan carries the detail.
 
 * **F04** — a wake that never reaches NTP stamps history from a guessed interval
   (about 80 s) instead of the measured sleep, and the post-NTP correction never
