@@ -79,6 +79,13 @@ perde a SRAM, então o boot seguinte relia o cursor antigo e reenviava um lote j
 aceito. A escrita pré-sono agora passa por cima tanto do agrupamento quanto do
 portão de prioridade de toque.
 
+**O `air idle` não aceita mais um número que faz o aparelho dormir.** O ajuste
+é guardado num campo de 16 bits, e o comando aceitava até 86400 e convertia:
+86400 virava 20864, e 65536 virava zero. O zero é o que doía, porque um tempo
+de inatividade de zero manda o aparelho dormir já na passada seguinte do laço,
+e a única volta é pegar uma janela de wake pelo console serial. O que o campo
+não guarda passou a ser recusado de saída.
+
 **Um wake sobe o que um wake precisa, e nada além.** O servidor web, a CLI por
 Bluetooth, o anúncio mDNS e o cache de mínimas e máximas do painel subiam todos
 num wake M1, que dura menos de um minuto e sai da rede ao terminar. Ninguém

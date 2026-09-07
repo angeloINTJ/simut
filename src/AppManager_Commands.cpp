@@ -895,13 +895,19 @@ void AppManager::executeCommand(CliDemand cmd) {
   break;
 
  case CMD_AIR_IDLE: {
+  /* The ceiling is what the field holds, not what the sentence reads well with
+   * (plan F09). It used to accept up to 86400 and cast to uint16: 86400 was
+   * stored as 20864, and 65536 as ZERO — and an idle timeout of zero sends the
+   * device to sleep on the very next loop pass, from which the only way back is
+   * to catch a wake window on the serial console. Measured on the bench
+   * 2026-09-07, where it took the rig out for several minutes. */
   int v = 0;
-  if (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && v >= 10 && v <= 86400) {
+  if (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && airIdleSecValid(v)) {
    _airCfg.idleTimeoutSec = (uint16_t)v;
    airSaveConfig(_airCfg);
    _cmdMgr->printSuccess("air idle set");
   } else {
-   _cmdMgr->printError("air idle <10..86400> (seconds)");
+   _cmdMgr->printError("air idle <10..65535> (seconds)");
   }
   break;
  }

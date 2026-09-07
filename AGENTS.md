@@ -75,7 +75,10 @@ Referência completa (comandos, armadilhas, analisador lógico):
   "HW WATCHDOG: Core 0 loop stalled" espúrio. Fix: `airEnterDormant()` chama
   `LogManager::instance().markCleanReboot()` (scratch[5]=0xC1EA8007) antes de
   dormir, e o banner de boot pula o aviso quando `_airActive` (M1).
-- Comandos CLI: `air idle <sec>`, `air hibernate`, `air status`, `air stop`
+- Comandos CLI: `air idle <10..65535>`, `air charger <0..29|off>`, `air hibernate`, `air status`,
+  `air stop`. ⚠️ O teto do `air idle` é o campo, não a frase: até 06/09 aceitava 86400 e convertia,
+  e **65536 virava 0** — ocioso zero manda dormir na passada seguinte do laço, e só se volta
+  pegando uma janela de wake pelo console (F09, fechado em 07/09).
   (cancelam/consultam a hibernação — funcionam na CLI de emergência).
   `air status` mostra `wake=` (max de histórico/backoff), `hist=`,
   `backoff=` e `idle=`.

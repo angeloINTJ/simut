@@ -79,6 +79,13 @@ boot re-read the old cursor and re-sent a batch that had already been accepted.
 The pre-sleep write is now forced past both the coalescing window and the
 touch-priority gate.
 
+**`air idle` no longer accepts a number that puts the device to sleep.** The
+setting is stored in a 16-bit field, and the command used to accept up to
+86400 and convert: 86400 became 20864, and 65536 became zero. Zero is the one
+that hurt, because an idle timeout of zero sends the device to sleep on the
+very next pass of its loop, and the only way back in is to catch a wake window
+on the serial console. Anything the field cannot hold is now refused outright.
+
 **A wake starts what a wake needs, and nothing else.** The web server, the
 Bluetooth CLI, the mDNS announcement and the dashboard's min/max cache all used
 to come up on an M1 wake, which lasts under a minute and drops off the network

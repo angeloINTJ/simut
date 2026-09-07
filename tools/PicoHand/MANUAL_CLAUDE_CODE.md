@@ -357,10 +357,24 @@ read -r -t 2 resp <&3
 exec 3>&-
 ```
 
-### 7.5 Never call `SELF_BOOTSEL` in automation
+### 7.5 `SELF_BOOTSEL` ends the session that calls it
 
-This puts the *hand itself* in BOOTSEL mode — the serial port disappears and
-the pipeline hangs. It exists exclusively for reflashing the hand's firmware.
+This puts the *hand itself* in BOOTSEL mode: the serial port disappears, so a
+script that expects to keep talking to the hand hangs. It exists exclusively
+for reflashing the hand's firmware — never as a step inside a bench run.
+
+Reflashing itself **is** scriptable, and on 2026-09-07 it was, end to end:
+
+```bash
+printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<hand>-if00
+# the hand appears as 2e8a:0003 in about half a second
+picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
+```
+
+⚠️ This works because **the target is running**, leaving exactly one RP2 Boot
+device on the bus. With the target also in BOOTSEL, `picotool` would take
+whichever it found first — which is how the target's own flash path ends up
+having to use the 1200 bps touch instead.
 
 ### 7.6 `HOLD` requires a paired `RELEASE`
 
@@ -410,7 +424,8 @@ prefixes rather than assume the next line is your answer.
 2. To flash, prefer `pio run -e <env> -t upload`. It performs its own 1200 bps
    touch reset and needs no fixture. Reach for the hand only when that fails.
 3. Between test cases needing a clean state, use `hand RESET` + `sleep 6`.
-4. **Never** call `SELF_BOOTSEL` in automation.
+4. **Never** call `SELF_BOOTSEL` inside a bench run — only in the reflash
+   sequence of §7.5, which ends with the hand back on its port.
 5. On any failure, confirm with `hand PING` that the hand is alive before
    blaming the target — and with `hand VERIFY` before blaming the wiring.
 6. Remember that `VERIFY` cannot validate the BOOTSEL line while the target
@@ -502,10 +517,11 @@ firmware's *decision*, never that the battery is actually charging.
 ### Reflashing the hand
 
 ```bash
-arduino-cli compile --fqbn rp2040:rp2040:rpipico --build-path /tmp/picohand_build \
-    tools/PicoHand/pico_hand
-cp /tmp/picohand_build/pico_hand.ino.uf2 /media/angelo/RPI-RP2/   # hand in BOOTSEL
+arduino-cli compile --fqbn rp2040:rp2040:rpipico \
+    --build-path tools/PicoHand/build tools/PicoHand/pico_hand
+printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<hand>-if00
+picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
 ```
 
-Putting the hand in BOOTSEL needs `SELF_BOOTSEL` (which makes its port vanish —
-never in automation) or the physical button.
+No physical button and no mounted `RPI-RP2` volume: see §7.5 for why `picotool`
+picks the right board, and the one condition that has to hold.

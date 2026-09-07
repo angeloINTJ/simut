@@ -377,14 +377,20 @@ class Target:
                     break
         return buf.decode('utf-8', 'replace')
 
-    def air_status(self, retry_s=0):
+    def air_status(self, retry_s=12):
         """Ask the device where it is.
 
-        `retry_s` is for callers that catch a device at the start of an M1 wake:
-        the port enumerates about ten seconds before the console answers, so the
-        first reply is boot chatter and parsing it fails on a device that is
-        perfectly healthy. Polling until it parses is the same trick ensure_m0
-        uses, and for the same reason.
+        The port enumerates about ten seconds before the console answers, so a
+        single ask right after any boot parses boot chatter and fails on a
+        device that is perfectly healthy. The default retry covers that lag for
+        every caller; `retry_s` goes higher for callers that catch a device at
+        the very start of an M1 wake, where the whole window is mostly boot.
+        Polling until it parses is the same trick ensure_m0 uses, and for the
+        same reason.
+
+        Measured on 2026-09-07: with no default, one reset in T02 left T03 and
+        T04 reading boot chatter and reporting their own xfail defects for a
+        reason that had nothing to do with them.
         """
         deadline = time.time() + retry_s
         while True:
@@ -446,6 +452,8 @@ class Web:
         self.base = f'{scheme}://{host}'
         self.s = requests.Session()
         self.timeout = timeout
+        self._cred = None       # set by login(), so a dead session can be revived
+        self._relogin = False   # re-entry guard: login() itself must not recurse
 
     def get(self, path, **kw):
         """GET with retries.
@@ -460,7 +468,7 @@ class Web:
         last = None
         for attempt in range(3):
             try:
-                return self.s.get(self.base + path, timeout=self.timeout, **kw)
+                return self._authed(self.s.get, path, **kw)
             except Exception as exc:      # connection reset, chunked truncation
                 last = exc
                 time.sleep(1.5 * (attempt + 1))
@@ -468,17 +476,49 @@ class Web:
 
     def post(self, path, **kw):
         kw.setdefault('allow_redirects', False)
-        return self.s.post(self.base + path, timeout=self.timeout, **kw)
+        return self._authed(self.s.post, path, **kw)
+
+    def _authed(self, fn, path, **kw):
+        """One request, logging back in if the session died under us.
+
+        The device keeps a single session and loses it on every reboot, and a
+        test that resets the target (T02, T12) or reboots it through
+        /api/commit_all kills the login for everything that follows. A stale
+        cookie answers **403, not 401**, so the whole rest of a run reads as a
+        permission bug against a perfectly healthy device — measured on
+        2026-09-07, where one hand RESET in T02 turned T05, T06, T06b and T07
+        into "/api/config HTTP 403".
+
+        Re-login is safe to do blind: it is a GET plus a POST to /api/login,
+        neither of which changes device state. Retrying the original request is
+        safe even when it is a POST — the rule above says POSTs are never
+        retried because /api/commit_all reboots, but a 403 means the handler
+        was refused before it ran, so there is nothing to do twice. Only a
+        403 is retried; any other status is returned untouched.
+        """
+        r = fn(self.base + path, timeout=self.timeout, **kw)
+        if r.status_code != 403 or not self._cred or self._relogin:
+            return r
+        try:
+            self.login(*self._cred)
+        except TestFail:
+            return r        # really unauthorized, or the device is not up: report the 403
+        return fn(self.base + path, timeout=self.timeout, **kw)
 
     def login(self, user, password):
-        r = self.get('/api/login_init')
-        if r.status_code != 200:
-            raise TestFail(f'login_init HTTP {r.status_code}')
-        nonce = r.json().get('nonce', '')
-        r = self.post('/api/login', data={'user': user, 'pass': sha256_frontend(password),
-                                          'nonce': nonce})
-        if 'SIMUTSESS' not in self.s.cookies.get_dict():
-            raise TestFail(f'login failed HTTP {r.status_code}: {r.text[:80]}')
+        self._relogin = True
+        try:
+            r = self.get('/api/login_init')
+            if r.status_code != 200:
+                raise TestFail(f'login_init HTTP {r.status_code}')
+            nonce = r.json().get('nonce', '')
+            r = self.post('/api/login', data={'user': user, 'pass': sha256_frontend(password),
+                                              'nonce': nonce})
+            if 'SIMUTSESS' not in self.s.cookies.get_dict():
+                raise TestFail(f'login failed HTTP {r.status_code}: {r.text[:80]}')
+        finally:
+            self._relogin = False
+        self._cred = (user, password)
 
     def status(self):
         r = self.get('/api/status')
@@ -689,11 +729,11 @@ class Suite:
             ('T01', 'hand_health', self.t01_hand_health, None, {'hand'}),
             ('T02', 'target_boot_m0', self.t02_target_boot_m0, None, {'target'}),
             ('T03', 'air_status_fields', self.t03_air_status_fields, 'F14', {'target'}),
-            ('T04', 'air_idle_bounds', self.t04_air_idle_bounds, 'F09', {'target'}),
-            ('T05', 'hibernate_cycles', self.t05_hibernate_cycles, 'F01', {'target'}),
-            ('T06', 'telemetry_drain', self.t06_telemetry_drain, 'F05', {'target', 'web'}),
-            ('T06b', 'telemetry_off_sleeps', self.t06b_telemetry_off_sleeps, 'F02', {'target', 'web'}),
-            ('T07', 'web_activity_resets_idle', self.t07_web_activity_resets_idle, 'F21', {'target', 'web'}),
+            ('T04', 'air_idle_bounds', self.t04_air_idle_bounds, None, {'target'}),
+            ('T05', 'hibernate_cycles', self.t05_hibernate_cycles, None, {'target'}),
+            ('T06', 'telemetry_drain', self.t06_telemetry_drain, None, {'target', 'web'}),
+            ('T06b', 'telemetry_off_sleeps', self.t06b_telemetry_off_sleeps, None, {'target', 'web'}),
+            ('T07', 'web_activity_resets_idle', self.t07_web_activity_resets_idle, None, {'target', 'web'}),
             ('T08', 'offline_timestamps', self.t08_offline_timestamps, 'F04', {'target', 'web'}),
             ('T09', 'probe_cycle', self.t09_probe_cycle, None, {'target', 'hand'}),
             ('T10', 'm1_services_off', self.t10_m1_services_off, None, {'target', 'web'}),
@@ -780,7 +820,17 @@ class Suite:
             st = None
             settle = time.time() + 45          # a wake boot takes ~25 s
             while time.time() < settle and time.time() < deadline:
-                out = self.target.cmd('air status', 6)
+                # The docstring's own rule, which the code did not follow: the
+                # port going away mid-command is the device sleeping, not a
+                # failure. It raises out of cmd(), and unhandled it aborted the
+                # whole run with "setup failed: serial write failed" — measured
+                # on 2026-09-07 against a device that was merely cycling.
+                try:
+                    out = self.target.cmd('air status', 6)
+                except TestFail as exc:
+                    last = str(exc)
+                    self.target.close()
+                    break                       # slept mid-command: wait for the next wake
                 st = parse_air_status(out)
                 if st:
                     break
@@ -789,9 +839,14 @@ class Suite:
                     break                       # slept again: fall out and retry
             if not st:
                 continue
-            if st['phase'] != 0:
-                self.target.cmd('air stop', 5)
-                st = parse_air_status(self.target.cmd('air status', 6))
+            try:
+                if st['phase'] != 0:
+                    self.target.cmd('air stop', 5)
+                    st = parse_air_status(self.target.cmd('air status', 6))
+            except TestFail as exc:
+                last = str(exc)
+                self.target.close()
+                continue
             if st and st['phase'] == 0:
                 return st
             last = f'phase={st["phase"] if st else "?"} after air stop'
@@ -813,6 +868,14 @@ class Suite:
     def commit_and_reboot(self, fields):
         """commit_all reboots the device: wait for USB + prompt + web."""
         self.need_web()
+        # A device left cycling by the previous test has no web server for most
+        # of every minute, so both the snapshot and the commit would hit a
+        # closed port. Measured on 2026-09-07: T06 failed as "No route to host"
+        # on /api/commit_all right after T05 handed the bench back mid-cycle.
+        # restore_config already did this; the write path needs it just as much.
+        self.ensure_m0()
+        if self.web.wait_up(120) is None:
+            raise TestFail('web did not come up before commit_all')
         self.snapshot_config()
         self.target.close()
         self.web.commit_sys(fields)
@@ -962,9 +1025,16 @@ class Suite:
             if self.target.usb.wait(True, 40) is None:
                 raise TestFail('no USB enumeration 40 s after hand RESET — target unpowered?')
             self.target.open(30)
-            st0 = parse_air_status(self.target.cmd('air status'))
-            if st0 is None:
-                raise TestFail('air status unparsable right after reset')
+            # USB enumerates about ten seconds before the console answers, so
+            # asking once catches boot chatter and fails a healthy device. Poll
+            # until it parses — the same trick ensure_m0 uses, for the same
+            # reason. Measured on 2026-09-07: this failed as "unparsable right
+            # after reset" against firmware that was simply still booting.
+            try:
+                st0 = self.target.air_status(retry_s=40)
+            except TestFail:
+                raise TestFail('air status still unparsable 40 s after reset — the console never '
+                               'came up, which is a boot failure, not a slow boot')
             reset_mode = 'M0 (scratch cleared, as documented)' if st0['phase'] == 0 \
                 else f'M1 phase={st0["phase"]} (scratch[0] SURVIVED a physical reset — fix the docs)'
         self.target.open(30)
@@ -990,27 +1060,72 @@ class Suite:
         return str(st)
 
     def t04_air_idle_bounds(self):
+        """`air idle` must refuse what its uint16 field cannot hold (F09).
+
+        ⚠️ An out-of-range value is not merely stored wrong: 65536 truncates to
+        **zero**, and an idle timeout of zero makes the device hibernate on the
+        very next loop pass. Measured on 2026-09-07: this test used to leave the
+        bench cycling, and T07 and T11 after it reported "target absent from
+        USB" and "no route to host" against a device that was simply asleep.
+
+        So every probe restores a safe value immediately, before any assertion
+        can leave the reactor running.
+        """
         before = self.target.air_status()['idle']
+        seen, slept = {}, []
+
+        def idle_set(v, safe):
+            """Try a value; report whether it was accepted and what stuck.
+
+            `safe` says the value cannot disable the timer, so the readback is
+            worth taking. For the out-of-range probes it is not: 65536 stores 0
+            and the device is already on its way to sleep by the time the reply
+            comes back, so asking anything else just loses the port.
+            """
+            out = self.target.cmd(f'air idle {v}', 4)
+            accepted = 'set' in out.lower() and 'error' not in out.lower() and '<' not in out
+            back = None
+            if accepted and safe:
+                back = self.target.air_status()['idle']
+            if accepted:
+                self.target.cmd(f'air idle {before}', 4)
+            return accepted, back
+
+        def probe(v, safe):
+            try:
+                return idle_set(v, safe)
+            except TestFail:
+                # The port vanished: the value disabled the idle timer and the
+                # device hibernated mid-command. That IS the answer — recover
+                # the bench and record it.
+                slept.append(v)
+                self.ensure_m0()
+                self.target.cmd(f'air idle {before}', 4)
+                return True, 0
+
         try:
-            def idle_set(v):
-                out = self.target.cmd(f'air idle {v}', 4)
-                return 'set' in out.lower() and 'error' not in out.lower() and '<' not in out
-            if idle_set(9):
+            for v, safe in ((9, True), (10, True), (65535, True), (65536, False), (86400, False)):
+                seen[v] = probe(v, safe)
+            if seen[9][0]:
                 raise TestFail('air idle 9 accepted (min is 10)')
-            if not idle_set(10):
+            if not seen[10][0]:
                 raise TestFail('air idle 10 rejected')
-            if not idle_set(65535):
+            if not seen[65535][0]:
                 raise TestFail('air idle 65535 rejected')
-            if idle_set(65536):
-                raise TestFail('air idle 65536 accepted (uint16 overflow, F09)')
-            if idle_set(86400):
-                raise TestFail('air idle 86400 accepted (stored as 20864, F09)')
-            st = self.target.air_status()
-            if st['idle'] != 65535:
-                raise TestFail(f'idle readback {st["idle"]} after 65535')
+            if seen[65535][1] != 65535:
+                raise TestFail(f'idle readback {seen[65535][1]} after setting 65535')
+            if seen[65536][0]:
+                raise TestFail(
+                    'air idle 65536 accepted — it truncates to 0 and an idle timeout of zero '
+                    'hibernates the device on the next loop pass' +
+                    (' (observed: it went to sleep mid-command)' if 65536 in slept else '') +
+                    ' (F09)')
+            if seen[86400][0]:
+                raise TestFail(f'air idle 86400 accepted (stored as 20864, F09)')
         finally:
+            self.ensure_m0()
             self.target.cmd(f'air idle {before}', 4)
-        return 'bounds 10..65535 enforced'
+        return f'bounds 10..65535 enforced, readback exact; idle back to {before}s'
 
     def t05_hibernate_cycles(self):
         if self.web and self.args.hist_interval:
@@ -1341,8 +1456,19 @@ class Suite:
         # of this test failed with "serial vanished before the alarm line".
         row = self.hibernate_and_observe(stop_on_wake=False)
 
-        radio_by_wake, awake_by_wake = [], []
-        for _ in range(every + 1):
+        # How many wakes until the radio is due, when the queue starts empty.
+        #
+        # One wake produces one reading, so reaching a minimum batch of N takes
+        # N wakes — plus two. The decision is taken at BOOT, before this wake's
+        # own reading exists, which costs one; and the first reading after a
+        # drain is not counted until the wake after it, which costs another.
+        # Measured on 2026-09-07 with min=5: tel= read 0,0,1,2,3,4,5 across
+        # seven wakes, radio up on the seventh. An earlier version of this loop
+        # ran `every + 1` wakes and reported "radio never came up", which reads
+        # exactly like the schedule being broken.
+        budget = every + 2
+        radio_by_wake, awake_by_wake, pending_by_wake = [], [], []
+        for _ in range(budget + 2):        # two spare wakes of margin
             t_up = self.target.usb.wait(True, row['wake_sec'] + self.args.wake_grace)
             if t_up is None:
                 raise TestFail('no wake while measuring the schedule')
@@ -1350,6 +1476,7 @@ class Suite:
             # The wake has just enumerated; the console needs a few more seconds.
             st = self.target.air_status(retry_s=25)
             radio_by_wake.append(st.get('radio'))
+            pending_by_wake.append(st.get('telnow'))
             self.target.close()
             t_down = self.target.usb.wait(False, 240)
             if t_down is None:
@@ -1358,6 +1485,10 @@ class Suite:
             # short — fine, because the verdict is a comparison between wakes
             # measured the same way.
             awake_by_wake.append(t_down - t_up)
+            # Both verdicts are in as soon as there is one of each kind; the
+            # remaining wakes would only cost a minute each.
+            if any(radio_by_wake) and not all(radio_by_wake):
+                break
 
         self.ensure_m0()
         if None in radio_by_wake:
@@ -1365,15 +1496,19 @@ class Suite:
         ups = sum(1 for r in radio_by_wake if r)
         if ups == 0:
             raise TestFail(f'radio never came up in {len(radio_by_wake)} wakes — telemetry '
-                           f'would never leave the device: {radio_by_wake}')
+                           f'would never leave the device: radio {radio_by_wake}, pending '
+                           f'{pending_by_wake} against a minimum batch of {every}. A pending '
+                           f'count that is not climbing is the trigger being broken; one that '
+                           f'climbs and never fires is the comparison')
         if ups == len(radio_by_wake):
             raise TestFail(f'radio came up on EVERY wake — the schedule is not being '
                            f'applied: {radio_by_wake}')
 
         quiet = [a for a, r in zip(awake_by_wake, radio_by_wake) if not r]
         loud = [a for a, r in zip(awake_by_wake, radio_by_wake) if r]
-        detail = (f'every {every} wakes; radio {radio_by_wake}; awake '
-                  f'quiet={[round(a, 1) for a in quiet]}s loud={[round(a, 1) for a in loud]}s')
+        detail = (f'minimum batch {every}; pending {pending_by_wake}; radio {radio_by_wake}; '
+                  f'awake quiet={[round(a, 1) for a in quiet]}s '
+                  f'loud={[round(a, 1) for a in loud]}s')
         # A reading-only wake that is not shorter means the network was started
         # anyway somewhere, which is the failure worth catching.
         if quiet and loud and min(loud) <= max(quiet):
@@ -1458,7 +1593,19 @@ class Suite:
     # ---- runner -----------------------------------------------------------
 
     def run(self):
-        for tid, name, fn, xfail, _needs in self.selected():
+        selected = self.selected()
+        # Every test that talks to the device assumes M0: a live console, a web
+        # server, and no wake window closing under it. A run that starts against
+        # a cycling target instead fails its early tests with "serial write
+        # failed" and "no route to host", which say nothing about the code under
+        # test. Measured on 2026-09-07, twice. Establishing the precondition is
+        # not reconfiguration — nothing here changes what the device is set to.
+        if any('target' in needs for *_, needs in selected):
+            try:
+                self.ensure_m0()
+            except TestFail as exc:
+                print(f'  could not reach M0 before starting: {exc}', flush=True)
+        for tid, name, fn, xfail, _needs in selected:
             t0 = time.time()
             try:
                 detail = fn() or ''
@@ -1474,6 +1621,18 @@ class Suite:
             except Exception as exc:  # instrument error, not a verdict
                 outcome, detail = 'FAIL', f'error: {type(exc).__name__}: {exc}'
             self.res.add(tid, name, outcome, detail, time.time() - t0)
+            # Put the device's configuration back before the NEXT test reads it.
+            # Restoring only at teardown means a test that reconfigures hands
+            # its settings to everything after it: measured on 2026-09-07, T06
+            # left the minimum batch at 1 and T13 skipped itself with "a wake is
+            # due as soon as it reads" — describing T06's configuration, not the
+            # bench's. Cheap, because only a test that actually committed
+            # something has anything to undo.
+            if self.saved:
+                try:
+                    self.restore_config()
+                except Exception as exc:
+                    print(f'  could not restore config after {tid}: {exc}', flush=True)
 
 
 # --------------------------------------------------------------------------

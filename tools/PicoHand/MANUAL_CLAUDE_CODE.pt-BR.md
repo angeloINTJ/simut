@@ -350,10 +350,25 @@ read -r -t 2 resp <&3
 exec 3>&-
 ```
 
-### 7.5 Nunca chame `SELF_BOOTSEL` em automação
+### 7.5 `SELF_BOOTSEL` encerra a sessão de quem o chama
 
-Isso coloca a *própria mão* em BOOTSEL — a porta serial some e o pipeline
-trava. Existe exclusivamente para regravar o firmware da mão.
+Isso coloca a *própria mão* em BOOTSEL: a porta serial some, então um script
+que espera continuar falando com a mão trava. Existe exclusivamente para
+regravar o firmware dela — nunca como passo dentro de uma bateria.
+
+Regravar, em si, **dá** para automatizar, e em 07/09/2026 foi feito assim de
+ponta a ponta:
+
+```bash
+printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<mao>-if00
+# a mão aparece como 2e8a:0003 em cerca de meio segundo
+picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
+```
+
+⚠️ Funciona porque **o alvo está rodando**, deixando exatamente um dispositivo
+RP2 Boot no barramento. Com o alvo também em BOOTSEL o `picotool` pegaria o
+primeiro que encontrasse — e é justamente por isso que o caminho de gravação do
+alvo precisa do toque a 1200 bps.
 
 ### 7.6 `HOLD` exige `RELEASE` pareado
 
@@ -400,7 +415,8 @@ próxima linha é a sua resposta.
 2. Para gravar, prefira `pio run -e <env> -t upload`. Ele faz o próprio reset por
    toque de 1200 bps e dispensa o dispositivo. Recorra à mão só quando isso falhar.
 3. Entre casos de teste que precisem de estado limpo, use `hand RESET` + `sleep 6`.
-4. **Nunca** chame `SELF_BOOTSEL` em automação.
+4. **Nunca** chame `SELF_BOOTSEL` dentro de uma bateria — só na sequência de
+   regravação da §7.5, que termina com a mão de volta na porta dela.
 5. Em qualquer falha, confirme com `hand PING` que a mão está viva antes de
    culpar o alvo — e com `hand VERIFY` antes de culpar a fiação.
 6. Lembre que o `VERIFY` não valida a linha de BOOTSEL com o alvo rodando
@@ -494,10 +510,12 @@ do firmware, nunca que a bateria está de fato carregando.
 ### Como regravar a mão
 
 ```bash
-arduino-cli compile --fqbn rp2040:rp2040:rpipico --build-path /tmp/picohand_build \
-    tools/PicoHand/pico_hand
-cp /tmp/picohand_build/pico_hand.ino.uf2 /media/angelo/RPI-RP2/   # com a mão em BOOTSEL
+arduino-cli compile --fqbn rp2040:rp2040:rpipico \
+    --build-path tools/PicoHand/build tools/PicoHand/pico_hand
+printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<mao>-if00
+picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
 ```
 
-Colocar a mão em BOOTSEL exige `SELF_BOOTSEL` (que faz a porta sumir — nunca em
-automação) ou o botão físico. Em 06/09 o usuário fez isso à mão.
+Sem botão físico e sem montar o volume `RPI-RP2`: a §7.5 explica por que o
+`picotool` acerta a placa, e a única condição que precisa valer. Em 06/09 isso
+foi feito à mão porque a receita acima ainda não existia.

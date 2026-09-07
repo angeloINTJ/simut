@@ -171,6 +171,17 @@ inline bool airPinValid(uint8_t pin) {
   return pin == PIN_UNUSED || pin <= 29;
 }
 
+/* An idle timeout the uint16 field can actually hold (plan F09).
+ *
+ * The upper bound is the field, not the wording: `air idle` used to accept up
+ * to 86400 and cast, so 86400 became 20864 and 65536 became ZERO. Zero is the
+ * one that hurts — it makes the M0 loop hibernate on its next pass, and the
+ * only way back in is catching a wake window on the console. The floor keeps
+ * the operator's window usable at all. */
+inline bool airIdleSecValid(long sec) {
+  return sec >= 10 && sec <= 65535;
+}
+
 /* Fix up what a file cannot be trusted to carry: a field whose meaning changed
  * under it (chargerPin, see the struct) reads as whatever the old field held. */
 inline void airSanitise(AirConfig& c) {

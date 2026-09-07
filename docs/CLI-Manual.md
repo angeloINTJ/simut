@@ -453,5 +453,7 @@ web. O ciclo continua armado, então basta desconectar e deixar o idle expirar p
 O divisor de tensão que traz os 5 V ao nível lógico é da placa; nada disso mede corrente de carga,
 só a presença da fonte.
 
-> Estado em 06/09/2026: `air idle` ainda aceita valores acima de 65535 e os guarda truncados
-> (item F09 do plano em `docs/analysis/SIMUT_AIR_PLANO_FIX.md`).
+> Desde 07/09/2026 o `air idle` recusa o que o campo não guarda (item F09, fechado). Antes ele
+> aceitava até 86400 e convertia: 86400 virava 20864 e **65536 virava 0**, e um ocioso de zero
+> manda o aparelho dormir na passada seguinte do laço — de onde só se volta pegando uma janela de
+> wake pelo console.

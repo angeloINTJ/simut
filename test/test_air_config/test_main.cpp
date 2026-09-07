@@ -107,6 +107,26 @@ static void test_charger_pin_bounds(void) {
     TEST_ASSERT_EQUAL_UINT8(PIN_UNUSED, c.chargerPin);
 }
 
+/* Plan F09. The value that matters is 65536: it used to be accepted and cast
+ * to zero, and an idle timeout of zero hibernates the device on the next loop
+ * pass — recoverable only by catching a wake window on the console. */
+static void test_idle_sec_bounds(void) {
+    TEST_ASSERT_FALSE(airIdleSecValid(0));
+    TEST_ASSERT_FALSE(airIdleSecValid(9));
+    TEST_ASSERT_TRUE(airIdleSecValid(10));
+    TEST_ASSERT_TRUE(airIdleSecValid(300));
+    TEST_ASSERT_TRUE(airIdleSecValid(65535));
+    TEST_ASSERT_FALSE(airIdleSecValid(65536));   /* casts to 0 */
+    TEST_ASSERT_FALSE(airIdleSecValid(86400));   /* casts to 20864 */
+    TEST_ASSERT_FALSE(airIdleSecValid(-1));
+    /* Every accepted value survives the cast the config field applies. */
+    for (long s = 10; s <= 65535; s += 4095) {
+        if (airIdleSecValid(s)) {
+            TEST_ASSERT_EQUAL_UINT16(s, (uint16_t)s);
+        }
+    }
+}
+
 int main(void) {
     UNITY_BEGIN( );
     RUN_TEST(test_default_config);
@@ -118,5 +138,6 @@ int main(void) {
     RUN_TEST(test_crc_detects_change);
     RUN_TEST(test_charger_pin_from_legacy_field);
     RUN_TEST(test_charger_pin_bounds);
+    RUN_TEST(test_idle_sec_bounds);
     return UNITY_END( );
 }
