@@ -4,6 +4,25 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased
+
+**A failure is written to the log once, not once per attempt.** The device
+already understood that repeating good news is not news: a successful upload
+reached the log the first time and then went quiet until something changed. Bad
+news had no such rule, so a collector that stopped answering wrote a pair of
+records on every retry and filled the whole forensic window with the same
+sentence. Now a failure is recorded when it starts, implied while it lasts, and
+the recovery is recorded when it arrives — with one reminder per hour, so a
+device that is still failing never looks like one that quietly got better, and
+an hourly count of what was left out. Measured against a dead collector: twelve
+records in six minutes before, none after the first.
+
+The same treatment now covers the alarm line, unusable certificates, the mDNS
+announcement and a missing network name, each of which used to repeat at the
+pace of its own retries. Sensors, security events, configuration changes and
+crash diagnostics are deliberately untouched, and nothing at all can filter a
+fatal.
+
 ## v2.4.0-beta (2026-09-07)
 
 **The history block survives a wake.** A block holds sixty readings so that its

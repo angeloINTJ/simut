@@ -4,6 +4,26 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado
+
+**Uma falha é gravada no registro uma vez, não uma vez por tentativa.** O
+aparelho já entendia que repetir boa notícia não é notícia: um envio bem
+sucedido chegava ao registro na primeira vez e depois se calava até algo mudar.
+A má notícia não tinha essa regra, então um coletor que parava de responder
+gravava um par de registros a cada nova tentativa e enchia toda a janela
+forense com a mesma frase. Agora a falha é registrada quando começa, fica
+subentendida enquanto dura, e a recuperação é registrada quando chega — com um
+lembrete por hora, para que um aparelho que continua falhando nunca pareça um
+que melhorou em silêncio, e uma contagem horária do que ficou de fora. Medido
+contra um coletor morto: doze registros em seis minutos antes, nenhum depois do
+primeiro.
+
+O mesmo tratamento passou a cobrir a linha de alarmes, certificados
+inutilizáveis, o anúncio mDNS e a ausência de nome de rede, cada um deles antes
+repetindo no ritmo das próprias tentativas. Sensores, eventos de segurança,
+mudanças de configuração e diagnósticos de travamento ficaram deliberadamente
+de fora, e nada é capaz de filtrar um erro fatal.
+
 ## v2.4.0-beta (2026-09-07)
 
 **O bloco do histórico sobrevive a um wake.** Um bloco guarda sessenta leituras
