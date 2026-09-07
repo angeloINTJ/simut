@@ -266,26 +266,114 @@ static void test_the_shape_of_a_real_hour(void) {
     }
     TEST_ASSERT_EQUAL_INT(1, written);   /* the boot record, nothing else */
 
-    /* The server starts rejecting: failure + retry both land. */
+    /* The server starts rejecting. The FAILURE is the transition and lands;
+     * the retry that comes with it is the same family already known to be
+     * failing, and does not. */
     t += 4000;
     if (pol.shouldPersist(SYS_TEL_FAIL,  LVL_ERROR, t)) written++;
     if (pol.shouldPersist(SYS_TEL_RETRY, LVL_WARN,  t)) written++;
-    TEST_ASSERT_EQUAL_INT(3, written);
+    TEST_ASSERT_EQUAL_INT(2, written);
+
+    /* It stays down for a hundred more attempts. This is the whole point of
+     * the change: the pair used to be written every time, and a collector
+     * that stopped answering filled the forensic window on its own. */
+    for (int i = 0; i < 100; i++) {
+        t += 4000;
+        if (pol.shouldPersist(SYS_TEL_FAIL,  LVL_ERROR, t)) written++;
+        if (pol.shouldPersist(SYS_TEL_RETRY, LVL_WARN,  t)) written++;
+    }
+    TEST_ASSERT_EQUAL_INT(2, written);
 
     /* It comes back: the recovery lands, the rest goes quiet again. */
     t += 60000;
     if (pol.shouldPersist(SYS_TEL_SENT, LVL_INFO, t)) written++;
-    TEST_ASSERT_EQUAL_INT(4, written);
+    TEST_ASSERT_EQUAL_INT(3, written);
 
     for (int i = 0; i < 300; i++) {
         t += 4000;
         if (pol.shouldPersist(SYS_TEL_SENT, LVL_INFO, t)) written++;
     }
-    TEST_ASSERT_EQUAL_INT(4, written);
+    TEST_ASSERT_EQUAL_INT(3, written);
 
-    /* 752 send cycles produced 2 records (boot + recovery); with the failure
-     * pair that is 4 records where the raw stream would have written 754. */
-    TEST_ASSERT_EQUAL_UINT32(750, pol.suppressedPending( ));
+    /* 752 send cycles and 101 failed attempts produced THREE records: the
+     * boot, the moment it broke, and the moment it came back. The raw stream
+     * would have written 954. */
+    TEST_ASSERT_EQUAL_UINT32(951, pol.suppressedPending( ));
+}
+
+/* ---------------------------------------------------------------------------
+ * Failures are edge-triggered (2026-09-07)
+ *
+ * Positive control, run once when these were written: reverting shouldPersist( )
+ * to the old "a fault always persists" behaviour fails five of them —
+ * the_shape_of_a_real_hour, a_sustained_outage, a_second_failure_mode,
+ * a_long_outage and the_alarm_line. The two that keep passing are the two that
+ * guard the OPPOSITE mistake: recovery_still_lands and a_fatal_is_never_filtered
+ * exist to catch over-suppression, and the old code did not over-suppress.
+ * ------------------------------------------------------------------------- */
+
+static void test_a_sustained_outage_writes_one_record(void) {
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 1000));
+    for (uint32_t t = 2000; t < 600000; t += 2000) {
+        TEST_ASSERT_FALSE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, t));
+    }
+}
+
+static void test_a_second_failure_mode_shares_the_latch(void) {
+    /* SYS_TEL_FAIL and SYS_TEL_RETRY alternate on a failing upload, which is
+     * exactly why the latch is per family: a per-code latch would let both
+     * through on every attempt and suppress nothing. */
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_FAIL,  LVL_ERROR, 1000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(SYS_TEL_RETRY, LVL_WARN, 1000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(SYS_TEL_FAIL,  LVL_ERROR, 2000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(SYS_TEL_RETRY, LVL_WARN, 2000));
+}
+
+static void test_a_long_outage_still_beats_once_an_hour(void) {
+    /* Silence has to stay distinguishable from recovery: a family that has
+     * been failing for an hour says so again. */
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 1000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 1000 + 3599000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 1000 + 3600000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 1000 + 3601000));
+}
+
+static void test_recovery_still_lands_after_a_suppressed_outage(void) {
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 1000));
+    for (uint32_t t = 2000; t < 100000; t += 2000) {
+        pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, t);
+    }
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_SENT, LVL_INFO, 100000));
+}
+
+static void test_a_fatal_is_never_filtered(void) {
+    const uint8_t LVL_FATAL = 4;
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 1000));
+    /* The family is latched now, and a fatal must still get through it. */
+    for (uint32_t t = 2000; t < 20000; t += 2000) {
+        TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_FAIL, LVL_FATAL, t));
+    }
+}
+
+static void test_the_alarm_line_has_its_own_latch(void) {
+    /* A stuck alarm line must not hide measurement telemetry recovering. */
+    TEST_ASSERT_TRUE(pol.shouldPersist(TEL_ALARM_FAIL, LVL_ERROR, 1000));
+    TEST_ASSERT_FALSE(pol.shouldPersist(TEL_ALARM_FAIL, LVL_ERROR, 2000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_FAIL, LVL_ERROR, 3000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(SYS_TEL_SENT, LVL_INFO, 4000));
+    /* ...and the alarm line is still latched, untouched by any of that. */
+    TEST_ASSERT_FALSE(pol.shouldPersist(TEL_ALARM_FAIL, LVL_ERROR, 5000));
+    TEST_ASSERT_TRUE(pol.shouldPersist(TEL_ALARM_SENT, LVL_INFO, 6000));
+}
+
+static void test_unrouted_warnings_are_still_unconditional(void) {
+    /* The safe default has not moved: only codes listed in the table can be
+     * filtered, so a new failure code stays visible until someone classifies
+     * it on purpose. */
+    for (uint32_t t = 1000; t < 10000; t += 1000) {
+        TEST_ASSERT_TRUE(pol.shouldPersist(ERR_SENSOR_TIMEOUT, LVL_ERROR, t));
+        TEST_ASSERT_TRUE(pol.shouldPersist(SEC_CONFIG_CHANGED, LVL_INFO, t));
+    }
 }
 
 int main(int, char**) {
@@ -314,6 +402,14 @@ int main(int, char**) {
 
     RUN_TEST(test_reset_reopens_every_family);
     RUN_TEST(test_the_shape_of_a_real_hour);
+
+    RUN_TEST(test_a_sustained_outage_writes_one_record);
+    RUN_TEST(test_a_second_failure_mode_shares_the_latch);
+    RUN_TEST(test_a_long_outage_still_beats_once_an_hour);
+    RUN_TEST(test_recovery_still_lands_after_a_suppressed_outage);
+    RUN_TEST(test_a_fatal_is_never_filtered);
+    RUN_TEST(test_the_alarm_line_has_its_own_latch);
+    RUN_TEST(test_unrouted_warnings_are_still_unconditional);
 
     return UNITY_END( );
 }

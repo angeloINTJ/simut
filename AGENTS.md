@@ -396,3 +396,27 @@ Armadilhas de bancada específicas do Air:
   `cmd()` de 2 s, porque o aparelho vai de `air hibernate` a dormindo em menos de 1 s quando
   os sensores já estão estáveis. Antes de culpar o firmware, provar o instrumento
   ([[validate-the-instrument]] da memória do projeto).
+
+## Log binário — o filtro por transição (LogPolicy)
+
+- **Os DOIS lados são por transição desde 07/09.** O sucesso já era; a falha não, e era o vazamento
+  maior. Regra atual: a primeira falha de uma família grava, as seguintes ficam subentendidas até a
+  recuperação, com um batimento de 1 h para "falhando em silêncio" não virar "recuperado".
+- ⚠️ **O travamento é por FAMÍLIA, não por código, e isso não é detalhe.** `SYS_TEL_FAIL` (31) e
+  `SYS_TEL_RETRY` (32) **se alternam** a cada tentativa; um latch por código deixaria os dois
+  passarem sempre e não suprimiria nada.
+- **FATAL nunca é filtrado**, checado antes da tabela. WARN/ERROR **não roteados** também passam
+  sempre — o padrão seguro é: código novo só fica quieto se alguém o listar de propósito.
+- **Medido no ferro (A/B alternado, 2 rodadas idênticas):** coletor morto, 6 min em M0 →
+  **12 registros antes (6 FAIL + 6 RETRY), 0 depois**. Controle contra excesso: após um reboot, uma
+  falha nova grava **+1 FAIL e +0 RETRY** em 5 min.
+- ⚠️ **`clear log confirm` não zera o que o `show system log` devolve** — ele costura o rotacionado
+  com o corrente. Só valem DELTAS entre duas leituras, nunca contagens absolutas.
+- 🔴 **ABERTO, e maior que a telemetria neste build: o log do Air é dominado por BOOTS.** Medido:
+  900 registros, **79 boots a 11,4 registros cada**, oito códigos rotineiros repetindo idênticos
+  (`567 H5_WIP`, `404 APP_READY`, `524 PROVISIONAL_TIME`, `441 LANG`, `590 SENSOR`,
+  `407 CALIBRATED`, `549 ALARM_LINE_ON`, `540 HTTP_INIT`). A janela forense enche em ~79 min.
+  **Causa: o `LogPolicy` mora na RAM e o `begin( )` o zera a cada boot** — num Air todo wake é um
+  boot, então o filtro se re-abre uma vez por minuto. Um filtro residente em RAM não pode resolver
+  isso; exigiria estado que sobreviva ao sono, e o `scratch[1]` já está cheio. NÃO corrigido: elevar
+  o piso num wake deixaria um Air saudável sem rastro nenhum, e essa é uma decisão de projeto.
