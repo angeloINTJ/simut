@@ -33,11 +33,28 @@ static const uint16_t EDGE_RULES[] = {
  LOGPOL_RULE(SYS_TEL_QUEUE,            LOGGRP_TEL,  1),
  LOGPOL_RULE(SYS_TEL_MQTT_DISC,        LOGGRP_TEL,  1),
  LOGPOL_RULE(TEL_BACKOFF_SUPPRESSED,   LOGGRP_TEL,  1),
+ /* A certificate the transport cannot use is re-read on every connect
+  * attempt, so it repeats at the pace of the retries — the same shape as a
+  * refused upload, and the same reason to say it once. TEL_CERT_MISSING is
+  * deliberately absent: it is INFO, fires once at init, and on a plain-HTTP
+  * device it is the normal state rather than a fault. */
+ LOGPOL_RULE(TEL_CERT_EMPTY,           LOGGRP_TEL,  1),
+ LOGPOL_RULE(TEL_CERT_READ_ERR,        LOGGRP_TEL,  1),
+
+ /* ── Telemetry, alarm line ───────────────────────────────────────────── */
+ LOGPOL_RULE(TEL_ALARM_SENT,           LOGGRP_TELALM, 0),
+ LOGPOL_RULE(TEL_ALARM_ACK,            LOGGRP_TELALM, 0),
+ LOGPOL_RULE(TEL_ALARM_FAIL,           LOGGRP_TELALM, 1),
+ LOGPOL_RULE(TEL_ALARM_DROP,           LOGGRP_TELALM, 1),
 
  /* ── History / storage ───────────────────────────────────────────────── */
  LOGPOL_RULE(APP_HISTORY_SAVED,        LOGGRP_HIST, 0),
  LOGPOL_RULE(STO_H5_SEALED,            LOGGRP_HIST, 0),
  LOGPOL_RULE(STO_H5_WIP,               LOGGRP_HIST, 0),
+ /* The recovery half of APP_HIST_NO_TIME_REF, which was routed as a fault
+  * with nothing to clear it by name. Without this the clock coming back was
+  * an ordinary INFO that happened to pass; now it is the transition. */
+ LOGPOL_RULE(APP_HIST_TIME_REF_RECOVERED, LOGGRP_HIST, 0),
  LOGPOL_RULE(SYS_STORAGE_FAIL,         LOGGRP_HIST, 1),
  LOGPOL_RULE(APP_HIST_NO_TIME_REF,     LOGGRP_HIST, 1),
  LOGPOL_RULE(APP_HIST_NO_SCHEMA,       LOGGRP_HIST, 1),
@@ -50,7 +67,35 @@ static const uint16_t EDGE_RULES[] = {
  LOGPOL_RULE(SYS_IP_ACQUIRED,          LOGGRP_NET,  0),
  LOGPOL_RULE(SYS_WIFI_DISCONNECT,      LOGGRP_NET,  1),
  LOGPOL_RULE(NET_CONNECT_TIMEOUT,      LOGGRP_NET,  1),
+ /* Both re-fire on every reconnect attempt: the announcement is retried each
+  * time the link comes up, and a device with no SSID keeps saying so. */
+ LOGPOL_RULE(NET_MDNS_FAIL,            LOGGRP_NET,  1),
+ LOGPOL_RULE(NET_SSID_MISSING,         LOGGRP_NET,  1),
 };
+
+/* ───────────────────────────────────────────────────────────────────────────
+ * WHAT IS DELIBERATELY NOT HERE, and why — the audit of 2026-09-07.
+ *
+ * Sensors (ERR_SENSOR_*). SensorManager already tracks health per instance,
+ * and one family latch across all of them would let a failing sensor hide
+ * another one recovering. That reasoning predates this file and still holds.
+ *
+ * Security (SEC_*) and configuration changes. Never filtered by policy: the
+ * log is the only account of who did what. SEC_CONFIG_CHANGED does arrive in
+ * bursts — three in one second while a commit writes three sections — but
+ * those three are three different facts, not one repeated.
+ *
+ * Web client disconnects (WEB_DISCONNECT_FILE, WEB_DISCONNECT_HISTORY,
+ * WEB_CLIENT_DISCONNECT). They repeat under a flaky browser, but a client
+ * hanging up is not the server entering a failed state, so there is no
+ * recovery event that would ever clear the latch — a family here would go
+ * quiet after the first one and stay quiet for the rest of the boot. If they
+ * ever need taming it should be by their own rule, not by this one.
+ *
+ * The stall codes (APP_YIELD_STUCK, APP_CORE1_DEAD, APP_FLASH_BUSY). Each one
+ * is a distinct incident with its own context, and they are exactly what an
+ * autopsy reads. Left unconditional.
+ * ─────────────────────────────────────────────────────────────────────────── */
 
 static const uint8_t EDGE_RULE_COUNT = sizeof(EDGE_RULES) / sizeof(EDGE_RULES[0]);
 
@@ -83,20 +128,52 @@ void LogPolicy::reset( ) {
 }
 
 bool LogPolicy::shouldPersist(uint16_t code, uint8_t level, uint32_t nowMs) {
+ /* Nothing filters a fatal. It is the record the forensic window exists for,
+  * and the latch below must never be able to swallow the line that explains a
+  * reset. Checked first so no table entry can ever outrank it. */
+ if (level >= LOGPOL_LEVEL_FATAL) return true;
+
  const uint16_t rule = lookup(code);
 
- /* Arm the latch BEFORE the level shortcut below. SYS_TEL_RETRY is a
-  * LOG_WARN, so a level-first order would return early and never mark the
-  * family as failed — and the recovery that follows would then look like just
-  * another routine success and be dropped, which is the one record that had
-  * to survive. */
+ /* Failures are edge-triggered too, and this branch stays BEFORE the level
+  * shortcut below for two reasons. SYS_TEL_RETRY is a LOG_WARN, so a
+  * level-first order would return early and never mark the family as failed —
+  * and the recovery that follows would then look like just another routine
+  * success and be dropped, which is the one record that had to survive. And
+  * SYS_TEL_FAIL is a LOG_ERROR, so the shortcut would also make the
+  * suppression below unreachable for the very code that motivated it. */
  if (rule && LOGPOL_RULE_FAULT(rule)) {
- _grp[LOGPOL_RULE_GROUP(rule)].faulty = true;
+ GroupState& gf = _grp[LOGPOL_RULE_GROUP(rule)];
+
+ /* Healthy -> failing is the transition, and it is written. */
+ if (!gf.faulty) {
+ gf.faulty = true;
+ gf.lastPersistMs = nowMs;
  return true;
  }
 
- /* Warnings, errors and fatals are never filtered. This also settles the
-  * three STO_H5_WIP call sites on its own: the routine LOG_INFO snapshot is
+ /* Already failing. Every attempt after the first says the same thing, and
+  * a collector that has been refusing connections for an hour used to fill
+  * the whole window saying so — the pair SYS_TEL_FAIL + SYS_TEL_RETRY,
+  * once per attempt, at whatever pace the backoff allows.
+  *
+  * The latch is per FAMILY, not per code, because those two codes
+  * ALTERNATE: a per-code latch would have let both through every time and
+  * suppressed nothing. The cost is that a second failure mode inside the
+  * same family stays off flash until the hour is up; the console line is
+  * still emitted for every one of them, and the hourly SYS_LOG_SUPPRESSED
+  * record says how many there were. */
+ if (elapsed(nowMs, gf.lastPersistMs, LOGPOL_HEARTBEAT_MS)) {
+ gf.lastPersistMs = nowMs;
+ return true;
+ }
+ countSuppressed(nowMs);
+ return false;
+ }
+
+ /* Warnings and errors that are NOT routed are never filtered — the safe
+  * default for a code nobody has classified. This also settles the three
+  * STO_H5_WIP call sites on its own: the routine LOG_INFO snapshot is
   * filtered, while the LOG_WARN paths around adopting a stale .wip keep
   * writing. */
  if (level >= LOGPOL_LEVEL_WARN) return true;
@@ -123,6 +200,11 @@ bool LogPolicy::shouldPersist(uint16_t code, uint8_t level, uint32_t nowMs) {
  return true;
  }
 
+ countSuppressed(nowMs);
+ return false;
+}
+
+void LogPolicy::countSuppressed(uint32_t nowMs) {
  if (_suppressed == 0) {
  /* The reporting window starts at the first suppression, not at boot, so a
   * quiet device never emits an accounting record saying zero. */
@@ -130,7 +212,6 @@ bool LogPolicy::shouldPersist(uint16_t code, uint8_t level, uint32_t nowMs) {
  _reportArmed = true;
  }
  _suppressed++;
- return false;
 }
 
 uint16_t LogPolicy::takeSuppressedReport(uint32_t nowMs) {

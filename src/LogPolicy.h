@@ -7,10 +7,21 @@
  * on SYS_TEL_SENT saying, over and over, that nothing changed; the
  * whole forensic window collapses to about one hour.
  *
- * The rule this class implements: a ROUTINE event is persisted only
- * when it is a state TRANSITION — the first one after boot, or the
- * first success after a failure. Failures, security events and
- * configuration changes are never filtered.
+ * The rule this class implements: an event is persisted only when it
+ * is a state TRANSITION. For a routine event that means the first
+ * one after boot, or the first success after a failure. For a
+ * FAILURE it means the first one after the family was healthy — a
+ * collector that stops answering writes one record, not one per
+ * attempt.
+ *
+ * Failures were exempt until 2026-09-07, and the exemption turned
+ * out to be the bigger leak: a dead collector produced SYS_TEL_FAIL
+ * and SYS_TEL_RETRY on EVERY attempt. Because those two alternate,
+ * latching per CODE would have suppressed nothing at all — which is
+ * why the latch is per FAMILY.
+ *
+ * Security events and configuration changes are still never
+ * filtered, and neither is anything at FATAL.
  *
  * Two things keep the channel honest under that rule. A per-family
  * heartbeat re-persists one routine record per hour, so "healthy and
@@ -44,6 +55,12 @@ enum LogHealthGroup : uint8_t {
  LOGGRP_TEL  = 1,  /**< telemetry upload / MQTT publish */
  LOGGRP_HIST = 2,  /**< history record, block seal, .wip snapshot */
  LOGGRP_NET  = 3,  /**< WiFi association and address */
+ /** The alarm line is its own family, not part of LOGGRP_TEL.
+  *
+  * It is a second transport with its own queue and its own failures, and one
+  * latch for both would let a stuck alarm line hide the moment measurement
+  * telemetry recovered — the record the whole filter exists to keep. */
+ LOGGRP_TELALM = 4,
  LOGGRP_COUNT
 };
 
@@ -69,12 +86,18 @@ enum LogHealthGroup : uint8_t {
 /** Cadence of the SYS_LOG_SUPPRESSED accounting record. */
 #define LOGPOL_REPORT_MS 3600000UL
 
-/** Records at this level or above are never filtered.
+/** Records at this level or above are never filtered — UNLESS the code is
+ * routed as a fault below, in which case the family latch decides.
  *
  * Numeric rather than `LOG_WARN` because LogLevel lives in LogManager.h, which
  * drags in pico/mutex.h and hardware/watchdog.h — and the point of this file is
  * that it compiles on the host. LogManager.cpp static_asserts the two agree. */
 #define LOGPOL_LEVEL_WARN 2
+
+/** A fatal is the record the whole forensic window exists for. It is never
+ * filtered, whatever the table says — the fault latch below must not be able
+ * to swallow the one line that explains a reset. */
+#define LOGPOL_LEVEL_FATAL 4
 
 /** Records below this level never reach flash at all — the floor logCode( )
  * applies, matching what log( ) has always done. Kept here so the filter and
@@ -93,7 +116,9 @@ public:
  /**
   * @brief Decide whether a record earns a slot in flash.
   * @param code  LogCode of the event.
-  * @param level LogLevel — LOG_WARN and above are never filtered.
+  * @param level LogLevel. LOG_WARN and above are never filtered UNLESS the
+  *              code is routed as a fault, in which case the family latch
+  *              decides; LOG_FATAL is never filtered at all.
   * @param nowMs Monotonic milliseconds (millis( )). NOT epoch: the epoch
   *              clock falls back to the build stamp and can regress, so it
   *              cannot carry a heartbeat deadline.
@@ -127,6 +152,9 @@ private:
  /** @return the packed rule for `code`, or 0 when it has none (0 is not a
   *  valid rule: SYS_OK is never routed). */
  static uint16_t lookup(uint16_t code);
+
+ /** Count one dropped record and arm the hourly accounting on the first. */
+ void countSuppressed(uint32_t nowMs);
 
  GroupState _grp[LOGGRP_COUNT];
  uint32_t _suppressed;
