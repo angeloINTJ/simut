@@ -226,6 +226,17 @@ private:
  /** True once the wake gave up on the WiFi: stops pumping the network so a
   *  missing SSID cannot keep the device awake past its sensor reading. */
  bool     _airNetGaveUp = false;
+ /** This wake is due to send telemetry, so it raises the radio. False on a
+  *  reading-only wake, which never initialises the CYW43 at all. Always true
+  *  in M0, where an operator is talking to the device. */
+ bool     _airRadioWake = true;
+ /** The CYW43 was actually brought up this boot. Guards everything that lives
+  *  on the wireless chip — the onboard LED included, since LED_BUILTIN on the
+  *  Pico W is one of its GPIOs and writing it would power the radio back up. */
+ bool     _airRadioUp = true;
+ /** Wakes since the last one that sent telemetry; the telemetry schedule.
+  *  Carried across the sleep in scratch[1]. */
+ uint8_t  _airWakesSinceRadio = 0;
  uint32_t _airLastActivityMs = 0; /* M0 idle timer */
  /** Short M0 window before a cycle that a reset interrupted resumes itself
   *  (plan F25). 0 = no interrupted cycle, or the crash-loop guard tripped, and
@@ -237,7 +248,11 @@ private:
  void airStartHibernate( );   /* M0 -> M1 transition (command or idle timeout) */
  void airEnterDormant( );     /* M1 final step: power off + dormant */
  void airMarkActivity( );     /* reset M0 idle timer on any command/web hit */
- void airSetLed(bool on);     /* onboard LED: on while awake, off while dormant */
+ void airSetLed(bool on);     /* onboard LED — only while the CYW43 is up */
+ /** Is this wake the one that sends? Compares the wakes accumulated since the
+  *  last send against the configured telemetry interval. Must be answered
+  *  before the network is started, because its answer is whether to start it. */
+ bool airTelemetryDue( ) const;
  void airSensorPower(uint8_t pin, bool on); /* sensor power-gating GPIO (high = awake) */
  bool airLoadConfig(struct AirConfig& out);   /* read /config/air.bin */
  bool airSaveConfig(const struct AirConfig& c); /* write /config/air.bin (atomic) */

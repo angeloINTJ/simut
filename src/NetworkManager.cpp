@@ -105,9 +105,9 @@ void NetworkManager::beginAP(const char* deviceName) {
  * @brief Set provisional time from the last Flash-stored timestamp.
  * Provides approximate timestamps until NTP sync completes (Virtual RTC).
  */
-void NetworkManager::setProvisionalTime(uint32_t lastTs) {
+void NetworkManager::setProvisionalTime(uint32_t lastTs, uint32_t elapsedSec) {
  if (lastTs > 1600000000) {
- _provisionalBase = lastTs + 60;
+ _provisionalBase = lastTs + elapsedSec;
  _provisionalBootMillis = millis( );
  _provisionalActive = true;
  LOG_CODE(LOG_INFO, "NET", NET_PROVISIONAL_TIME, 0, String(TRL("Provisional: ")) + getFormattedDate( ) + " " + getFormattedTime( ));

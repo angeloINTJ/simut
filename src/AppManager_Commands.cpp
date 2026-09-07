@@ -811,7 +811,10 @@ void AppManager::executeCommand(CliDemand cmd) {
  break;
 
  case CMD_AIR_STATUS: {
-  char buf[112];
+  /* 160, not 112: the line now carries both schedules and the two F25 flags,
+   * and at full width it needs ~118. snprintf would truncate silently, which on
+   * a status line means the field you came to read is the one that is missing. */
+  char buf[160];
   /* Wake interval = history save interval (the primary job of the wake); if the
    * telemetry backoff (punishment) is larger, the device sleeps for the backoff
    * instead (see airEnterDormant). */
@@ -823,12 +826,25 @@ void AppManager::executeCommand(CliDemand cmd) {
    * crash-loop guard is to holding the device in M0 (plan F25). Without them,
    * "phase=0" looks the same whether the operator stopped the cycle or a
    * watchdog knocked the device out of it. */
+  /* tel= is the second schedule: how many wakes of this cadence go by between
+   * sends, and how many have gone by already. radio= says whether THIS wake
+   * raised the CYW43 at all. */
+  const uint32_t telMs = _storageMgr->getConfig( ).telInterval;
+  uint32_t everyN = 0;
+  if (telMs > 0) {
+   const uint32_t hMs = (histSec > 0) ? (histSec * 1000UL)
+                                      : ((uint32_t)AIR_WAKE_INTERVAL_MIN * 60000UL);
+   everyN = (telMs <= hMs) ? 1UL : ((telMs + hMs - 1UL) / hMs);
+  }
   snprintf(buf, sizeof(buf),
-           "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us armed=%d dirty=%u",
+           "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us armed=%d dirty=%u "
+           "tel=%lu/%lu radio=%d",
            (int)_airPhase, (unsigned long)wakeSec,
            (unsigned long)histSec, (unsigned long)backoffSec,
            (unsigned)(_airResumeGraceSec ? _airResumeGraceSec : _airCfg.idleTimeoutSec),
-           airCycleArmed(_airCfg) ? 1 : 0, (unsigned)airDirtyBoots(_airCfg));
+           airCycleArmed(_airCfg) ? 1 : 0, (unsigned)airDirtyBoots(_airCfg),
+           (unsigned long)_airWakesSinceRadio, (unsigned long)everyN,
+           _airRadioUp ? 1 : 0);
   _cmdMgr->printInfo(buf);
   break;
  }
@@ -850,6 +866,19 @@ void AppManager::executeCommand(CliDemand cmd) {
    airSaveConfig(_airCfg);
   }
   _airResumeGraceSec = 0;
+  /* `air stop` hands the device back to an operator, and an operator expects to
+   * reach it. A reading-only wake never started the network, so stopping the
+   * cycle on one would leave M0 with no web, no NTP and no LED — reachable only
+   * from the serial cable the command happened to arrive on. Bring the radio up
+   * now; from here the device is in ordinary operational mode. */
+  if (!_airRadioUp) {
+   _netMgr->begin(_storageMgr->getConfig( ),
+                  _storageMgr->isDnsAuto( ),
+                  _storageMgr->isNtpEnabled( ),
+                  _storageMgr->getSecondaryDns( ));
+   _airRadioUp = true;
+   _airRadioWake = true;
+  }
   airSetLed(true);
   _cmdMgr->printInfo(_cmdMgr->isPt( )
    ? "Hibernacao cancelada. Voltando ao modo operacional (M0)..."

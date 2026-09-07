@@ -29,14 +29,48 @@
  * we need. Mirrors the POST_OTA_APPLY_MAGIC pattern in AppManager_Boot.cpp. */
 #define AIR_DORMANT_MAGIC 0xA1B2C3D4u
 
-/* scratch[1]: how many seconds the last sleep really lasted, read from the RTC
- * after the WFI returns and before the reset. Tagged so a garbage register is
- * not mistaken for a measurement; the low 24 bits hold the seconds (194 days,
- * far past any wake interval). Printed by the next boot beside the requested
- * value, which is what turns the cycle period into a measured number instead of
- * one inferred from USB enumeration. */
+/* scratch[1] — two facts the sleep has to carry to the next boot, tagged so a
+ * garbage register is not mistaken for a measurement:
+ *
+ *   bits 31..24  AIR_SLEPT_MAGIC
+ *   bits 23..17  wakes since the last one that raised the radio (0..127)
+ *   bits 16..0   seconds the last sleep really lasted (0..131071 = 36 h)
+ *
+ * The seconds come from the RTC read after the WFI returns and before the
+ * reset; they are what turned the cycle period into a measured number instead
+ * of one inferred from USB enumeration, and they now also seed the provisional
+ * clock on the wakes that never reach NTP.
+ *
+ * The wake count is the telemetry schedule. It lives here rather than in flash
+ * because it changes on EVERY wake, and a device reading once a minute would
+ * otherwise pay a flash write per minute for a counter. Losing it costs one
+ * delayed telemetry, and only on a power cycle or a physical reset — a watchdog
+ * reset keeps it, which is the case that actually matters.
+ *
+ * 17 bits for the seconds is not a squeeze: the alarm is armed from a datetime
+ * whose hour field wraps at 24, so no sleep this firmware can request comes
+ * close to 36 hours. */
 #define AIR_SLEPT_MAGIC 0x5E000000u
 #define AIR_SLEPT_MASK  0xFF000000u
+#define AIR_SLEPT_SEC_MASK 0x0001FFFFu
+#define AIR_WAKES_SHIFT 17
+#define AIR_WAKES_MAX   127u
+
+inline uint32_t airScratch1Pack(uint32_t sleptSec, uint8_t wakes) {
+  if (sleptSec > AIR_SLEPT_SEC_MASK) sleptSec = AIR_SLEPT_SEC_MASK;
+  if (wakes > AIR_WAKES_MAX) wakes = AIR_WAKES_MAX;
+  return AIR_SLEPT_MAGIC | ((uint32_t)wakes << AIR_WAKES_SHIFT) | sleptSec;
+}
+
+inline bool airScratch1Valid(uint32_t v) {
+  return (v & AIR_SLEPT_MASK) == AIR_SLEPT_MAGIC;
+}
+
+inline uint32_t airScratch1Slept(uint32_t v) { return v & AIR_SLEPT_SEC_MASK; }
+
+inline uint8_t airScratch1Wakes(uint32_t v) {
+  return (uint8_t)((v >> AIR_WAKES_SHIFT) & AIR_WAKES_MAX);
+}
 
 struct __attribute__((packed)) AirConfig {
   uint32_t magic;

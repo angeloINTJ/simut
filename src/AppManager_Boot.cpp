@@ -157,8 +157,12 @@ void AppManager::setup( ) {
    * Kept in a member so the boot banner can print it next to the requested
    * value once Serial is up — the pair is the only direct evidence of whether
    * the alarm honoured the interval it was given. */
-  if ((watchdog_hw->scratch[1] & AIR_SLEPT_MASK) == AIR_SLEPT_MAGIC) {
-   _airSleptSec = watchdog_hw->scratch[1] & 0x00FFFFFFu;
+  if (airScratch1Valid(watchdog_hw->scratch[1])) {
+   _airSleptSec = airScratch1Slept(watchdog_hw->scratch[1]);
+   /* Same register carries the telemetry schedule: how many wakes have gone by
+    * without a send. Zero here after a power cycle simply means the first
+    * telemetry waits a whole interval, which is the safe direction. */
+   _airWakesSinceRadio = airScratch1Wakes(watchdog_hw->scratch[1]);
   }
   watchdog_hw->scratch[1] = 0;
  }
@@ -440,6 +444,24 @@ void AppManager::setup( ) {
    AIR_BOOT_MARK("cycle armed, resuming after grace");
   }
  }
+
+ /* Does THIS wake raise the radio?
+  *
+  * Answered here because the answer is whether to start the network at all,
+  * and everything it needs is already loaded: the telemetry interval comes
+  * from the config that _storageMgr->begin( ) just read, and the wake count
+  * came across the sleep in scratch[1]. In M0 the radio is always up — an
+  * operator is talking to the device, over the web as often as over serial.
+  *
+  * This is the whole battery argument of the two schedules. A reading-only
+  * wake never initialises the CYW43: no association, no NTP, no web server,
+  * and no LED, since that one is a GPIO of the same chip. */
+ if (_airActive) {
+  _airRadioWake = airTelemetryDue( );
+  Serial.printf("[AIR] wake: radio=%s (wakes since send=%u)\n",
+                _airRadioWake ? "on" : "off", (unsigned)_airWakesSinceRadio);
+ }
+ _airRadioUp = _airRadioWake;
 #endif
  BLOG("[BOOT step] 6: pos _storageMgr->begin( ) fsOk="); BLOG_U(fsOk ? 1 : 0);
  BLOG(" @ "); BLOG_U(millis( )); BLOG_NL( );
@@ -669,6 +691,21 @@ void AppManager::setup( ) {
 
  uint32_t lastTs = _storageMgr->getLastRecordedTimestamp( );
 
+#if SIMUT_AIR
+ /* An Air wake knows exactly how long it was asleep — the RTC measured it and
+  * scratch[1] carried it across the reset — so the provisional clock is seeded
+  * with that instead of the historical 60-second guess.
+  *
+  * This stops being a refinement the moment the radio is raised only every Nth
+  * wake: the records in between never see NTP, so whatever this clock says is
+  * what the history keeps. A fixed 60 would file every reading at the interval
+  * it assumed rather than the one that actually elapsed. The millis( ) term is
+  * the boot time already spent before this line, which the provisional clock
+  * only starts counting from here. */
+ if (_airWokeFromSleep && _airSleptSec > 0) {
+  _netMgr->setProvisionalTime(lastTs, _airSleptSec + millis( ) / 1000UL);
+ } else
+#endif
  _netMgr->setProvisionalTime(lastTs);
  _netMgr->setTimeSyncCallback([](uint32_t bootTs, int32_t delta) {
 
@@ -796,7 +833,21 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_AP_IP);
  _netMgr->beginAP(cfg.deviceName);
  for (int i = 0; i < 35; i++) { delay(100); feedWdt( ); }
- } else {
+ }
+#if SIMUT_AIR
+ else if (!_airRadioWake) {
+  /* Reading-only wake: the network is not started at all. NetworkManager::begin
+   * would call WiFi.mode(WIFI_STA), and that alone powers and initialises the
+   * CYW43 — the single most expensive thing this wake could do, for a wake
+   * whose entire job is to read a sensor and write it down.
+   *
+   * Nothing further down needs it: the timezone was applied and the provisional
+   * clock seeded outside this call, the history is local, and the M1 pump skips
+   * every network phase when _airRadioWake is false. */
+  AIR_BOOT_MARK("net skipped (reading-only wake)");
+ }
+#endif
+ else {
  _displayMgr->setBootStatusKey(TR_BOOT_START_WIFI);
  BLOG("[BOOT step] 10: pre _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  watchdog_update();
@@ -907,8 +958,17 @@ void AppManager::setup( ) {
 
  BLOG("[BOOT step] 12: pre _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
+#if SIMUT_AIR
+ /* No radio, no listener: a web server with no network stack up cannot be
+  * reached by anyone, so starting it would only spend the wake's time. */
+ if (!_airRadioWake) {
+  AIR_BOOT_MARK("web skipped (reading-only wake)");
+ } else
+#endif
+ {
  _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ), _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
  AIR_BOOT_MARK("web ok");
+ }
  BLOG("[BOOT step] 13: pos _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  /* marker pre-callbacks */
 

@@ -49,7 +49,16 @@ public:
  void update( );
 
 
- void setProvisionalTime(uint32_t lastTs);
+ /** Seed the provisional clock from the last timestamp on flash.
+  *
+  * @param lastTs     epoch of the last record written.
+  * @param elapsedSec how much time is known to have passed since it. The 60 s
+  *        default is the historical guess, adequate only because a device that
+  *        boots normally reaches NTP within seconds. SIMUT Air passes the real
+  *        figure: with the radio raised once every N wakes, most records are
+  *        stamped by this clock and never corrected, so a fixed guess would
+  *        write the interval it assumed instead of the one that elapsed. */
+ void setProvisionalTime(uint32_t lastTs, uint32_t elapsedSec = 60);
  void setTimeSyncCallback(TimeSyncCallback cb);
 
  /* Manual RTC set (via settimeofday) for when NTP

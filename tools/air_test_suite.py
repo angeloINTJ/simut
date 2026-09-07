@@ -80,7 +80,10 @@ AIR_STATUS_RE = re.compile(
     # F25: armed says a reset would bring the cycle back, dirty how close the
     # crash-loop guard is to holding the device in M0. Optional so the suite
     # still parses a firmware from before they existed.
-    r'(?:\s+armed=(?P<armed>\d+))?(?:\s+dirty=(?P<dirty>\d+))?')
+    r'(?:\s+armed=(?P<armed>\d+))?(?:\s+dirty=(?P<dirty>\d+))?'
+    # Two schedules: tel=<wakes since send>/<wakes between sends>, and whether
+    # THIS wake raised the radio at all.
+    r'(?:\s+tel=(?P<telnow>\d+)/(?P<televery>\d+))?(?:\s+radio=(?P<radio>\d+))?')
 PHASE_RE = re.compile(r'\[AIR\] phase=(?P<name>[A-Z]+) @(?P<ms>\d+)')
 ALARM_RE = re.compile(r'\[AIR\] alarm: (?P<h>\d+):(?P<m>\d+):(?P<s>\d+) wakeSec=(?P<sec>\d+)')
 VFY_RE = re.compile(r'VFY BOOTSEL=(?P<b>\S+) RESET=(?P<r>\S+) HB=(?P<hb>\d+)us')
@@ -662,6 +665,7 @@ class Suite:
             ('T10', 'm1_services_off', self.t10_m1_services_off, 'F13', {'target', 'web'}),
             ('T11', 'history_integrity', self.t11_history_integrity, 'F23', {'target', 'web'}),
             ('T12', 'cycle_survives_reset', self.t12_cycle_survives_reset, None, {'target', 'hand'}),
+            ('T13', 'two_schedules', self.t13_two_schedules, None, {'target', 'web'}),
         ]
 
     def selected(self):
@@ -1227,6 +1231,74 @@ class Suite:
                 f'Check `air status` for armed=1; armed=0 means air.bin never recorded the intent')
         return (f'reset -> boot {t_boot - t_reset:.1f}s -> asleep again '
                 f'{t_gone - t_boot:.1f}s later, with no command sent')
+
+    def t13_two_schedules(self):
+        """Readings on every wake, telemetry only on every Nth — and the radio
+        only on those.
+
+        The saving this feature exists for is not the transmission, it is the
+        CYW43 never being powered on the wakes in between. So the verdict is not
+        "did it send", it is "was the wake visibly cheaper": a reading-only wake
+        skips the whole network bring-up, which the boot markers show and the
+        awake window measures.
+
+        Configured for the run: telemetry interval = 3x the history interval,
+        so one wake in three raises the radio and the pattern is visible in a
+        few minutes rather than in an hour.
+        """
+        self.need_web()
+        cfg = self.web.config()
+        hist_min = int(cfg.get(HIST_FIELD) or 0)
+        if hist_min <= 0:
+            raise TestSkip(f'{HIST_FIELD} not readable from /api/config')
+        saved_tel = int(cfg.get(TEL_FIELDS['interval_ms']) or 0)
+        if saved_tel == 0:
+            raise TestSkip('telemetry is off (t_int=0) — nothing to schedule')
+
+        every = 3
+        # commit_all reboots the device, so this is the helper that also waits
+        # for it to come back and re-logs in; snapshot_config inside it is what
+        # the suite's own restore_config uses on the way out.
+        self.commit_and_reboot({TEL_FIELDS['interval_ms']: hist_min * 60000 * every})
+        try:
+            st = self.target.air_status()
+            if st.get('televery') is None:
+                raise TestSkip('firmware without the tel= field — older than the two schedules')
+            if st['televery'] != every:
+                raise TestFail(f'device computed tel every {st["televery"]} wakes, expected {every}')
+
+            radio_by_wake, awake_by_wake = [], []
+            for _ in range(every + 1):
+                row = self.hibernate_and_observe(stop_on_wake=False)
+                if self.target.usb.wait(True, row['wake_sec'] + self.args.wake_grace) is None:
+                    raise TestFail('no wake while measuring the schedule')
+                self.target.open(30)
+                st = self.target.air_status()
+                radio_by_wake.append(st.get('radio'))
+                awake_by_wake.append(row['awake_before_sleep_s'])
+
+            if None in radio_by_wake:
+                raise TestSkip('firmware without the radio= field')
+            ups = sum(1 for r in radio_by_wake if r)
+            if ups == 0:
+                raise TestFail(f'radio never came up in {len(radio_by_wake)} wakes — '
+                               f'telemetry would never leave the device: {radio_by_wake}')
+            if ups == len(radio_by_wake):
+                raise TestFail(f'radio came up on EVERY wake — the schedule is not being '
+                               f'applied: {radio_by_wake}')
+
+            quiet = [a for a, r in zip(awake_by_wake, radio_by_wake) if not r]
+            loud = [a for a, r in zip(awake_by_wake, radio_by_wake) if r]
+            detail = (f'radio {radio_by_wake}, awake quiet={[round(a, 1) for a in quiet]}s '
+                      f'loud={[round(a, 1) for a in loud]}s')
+            # A reading-only wake that is not shorter means the network was
+            # started anyway somewhere, which is the failure worth catching.
+            if quiet and loud and min(loud) <= max(quiet):
+                raise TestFail(f'reading-only wakes are not cheaper than telemetry wakes — '
+                               f'something still brings the radio up. {detail}')
+            return detail
+        finally:
+            self.commit_and_reboot({TEL_FIELDS['interval_ms']: saved_tel})
 
     # ---- runner -----------------------------------------------------------
 

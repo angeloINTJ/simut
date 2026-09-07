@@ -80,13 +80,56 @@ bool AppManager::airSaveConfig(const AirConfig& c) {
 /* ────────────────────────────────────────────────────────────────────────────
  * Onboard LED (CYW43) — ON while awake, OFF while dormant.
  * ──────────────────────────────────────────────────────────────────────────── */
+/* The onboard LED is NOT the awake indicator on this build — the sensor power
+ * pin is (AIR_SENSOR_POWER_PIN, high the whole time the device is awake, low
+ * the whole time it sleeps, and the line the PicoHand probe times the cycle on).
+ *
+ * On the Pico W, LED_BUILTIN is PIN_LED = 64: a GPIO of the CYW43, not of the
+ * RP2040. Writing it needs the wireless chip powered and initialised, so on a
+ * reading-only wake — which exists precisely to keep that chip off — a single
+ * digitalWrite would bring the radio up and spend the entire saving on a light
+ * nobody is looking at. Hence the guard: the LED follows the radio, and the
+ * awake state is read off the sensor power pin. */
 void AppManager::airSetLed(bool on) {
 #if defined(LED_BUILTIN)
+ if (!_airRadioUp) return;
  pinMode(LED_BUILTIN, OUTPUT);
  digitalWrite(LED_BUILTIN, on ? HIGH : LOW);
 #else
  (void)on;
 #endif
+}
+
+/* Two schedules, one alarm.
+ *
+ * The device wakes on the history interval, always — that is the measurement
+ * cadence and nothing may stretch it. The telemetry interval is expressed in
+ * whole wakes of that cadence, which is what makes a send ALWAYS coincide with
+ * a reading: the expensive part of a transmission is not the transmission, it
+ * is being awake at all, and a wake that is already happening costs nothing
+ * extra to reuse.
+ *
+ * Counting wakes rather than comparing clocks is deliberate. The clock on a
+ * reading-only wake is provisional (no NTP without a radio), so a rule written
+ * against epochs would be measuring the very thing it cannot trust. A wake
+ * count is exact by construction.
+ *
+ * Rounding is up, and on purpose: 15 minutes of telemetry over a 2-minute
+ * reading interval sends every 8 wakes (16 min), not every 7 (14 min). Sending
+ * early would break the promise that the operator's interval is a floor. */
+bool AppManager::airTelemetryDue( ) const {
+ const uint32_t telMs = _storageMgr->getConfig( ).telInterval;
+ if (telMs == 0) return false;      /* telemetry off: the radio never comes up */
+
+ uint32_t histMs = (uint32_t)_storageMgr->getHistoryIntervalMin( ) * 60000UL;
+ if (histMs == 0) histMs = (uint32_t)AIR_WAKE_INTERVAL_MIN * 60UL * 1000UL;
+
+ /* Telemetry at or below the reading interval means every wake sends, which is
+  * the old behaviour and a legitimate configuration. */
+ if (telMs <= histMs) return true;
+
+ const uint32_t everyNWakes = (telMs + histMs - 1UL) / histMs;   /* ceil */
+ return ((uint32_t)_airWakesSinceRadio + 1UL) >= everyNWakes;
 }
 
 /* Reset the M0 inactivity timer. Any serial/BT command or web request lands
@@ -177,6 +220,11 @@ void AppManager::airStartHibernate( ) {
 
  _airActive = true;
  _airNetGaveUp = false;   /* fresh cycle, fresh allowance of WiFi attempts */
+ /* Entering the cycle from M0, the radio is whatever this boot brought up. If
+  * it is up, spend it: the association is already paid for, so this first cycle
+  * may as well flush before sleeping. From the next wake on, the schedule in
+  * airTelemetryDue( ) decides. */
+ _airRadioWake = _airRadioUp;
  _airPhase = AIR_PHASE_WARMUP;
  _airPhaseTimer = millis( );
  airMarkActivity( );
@@ -215,7 +263,7 @@ void AppManager::airLoop( ) {
    * for the rest of this wake — the sensors still finish, the history is still
    * written, and the device hibernates. The next wake is a fresh boot, so it
    * starts over with a clean counter and tries again. */
-  if (!_airNetGaveUp) {
+  if (_airRadioWake && !_airNetGaveUp) {
    _netMgr->update( );
    if (!_netMgr->isConnected( ) &&
        _netMgr->getConnectCycles( ) >= AIR_MAX_CONNECT_ATTEMPTS) {
@@ -241,10 +289,12 @@ void AppManager::airLoop( ) {
    * from flash), so it must NOT gate the send path. */
   processHistoryLogging( );
   _storageMgr->flushWipV5( );
-  /* Giving up on the WiFi is final for this wake: even if the link came up in
-   * the meantime, chasing it now would spend awake time the reading no longer
-   * needs. The data is on flash and the next wake will send it. */
-  const bool online = !_airNetGaveUp && _netMgr->isConnected( );
+  /* A reading-only wake is done here: the radio was never started, so there is
+   * nothing to connect and nothing to flush. Giving up on the WiFi is likewise
+   * final for this wake — even if the link came up in the meantime, chasing it
+   * now would spend awake time the reading no longer needs. The data is on
+   * flash and the next telemetry wake will send it. */
+  const bool online = _airRadioWake && !_airNetGaveUp && _netMgr->isConnected( );
   _airPhase = online ? AIR_PHASE_CONNECT : AIR_PHASE_SLEEP;
   _airPhaseTimer = millis( );
   break;
@@ -509,7 +559,17 @@ void AppManager::airEnterDormant( ) {
    const uint32_t nowSec = (uint32_t)got.hour * 3600u +
                            (uint32_t)got.min * 60u + (uint32_t)got.sec;
    const uint32_t sleptSec = (nowSec >= baseSec) ? (nowSec - baseSec) : nowSec;
-   watchdog_hw->scratch[1] = AIR_SLEPT_MAGIC | (sleptSec & 0x00FFFFFFu);
+   /* The telemetry schedule rides along in the same register. A wake that
+    * raised the radio restarts the count from zero whether the send succeeded
+    * or not: the punishment for a collector that will not answer is to wait
+    * one whole telemetry interval, not to retry on the next reading wake with
+    * the radio on. That is the difference between a device that sleeps through
+    * an outage and one that burns its battery on it. */
+   const uint8_t wakes = _airRadioWake
+                             ? 0
+                             : (uint8_t)((_airWakesSinceRadio < AIR_WAKES_MAX)
+                                             ? (_airWakesSinceRadio + 1) : AIR_WAKES_MAX);
+   watchdog_hw->scratch[1] = airScratch1Pack(sleptSec, wakes);
   }
  }
 

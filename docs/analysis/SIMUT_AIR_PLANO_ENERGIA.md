@@ -41,7 +41,8 @@ Marcadores de boot do capturador serial, um wake real com o SSID certo:
 | `delay(1000)` | **1,00 s** | **sim** |
 | janela de detecção de AP (`ap-detect`) | **4,50 s** | **sim — é desperdício puro no headless** |
 | montagem do FS (`storage`) | 0,04 s | não |
-| `_netMgr->begin( )` = CYW43 + `WiFi.begin` | **2,88 s** | **sim — é a proposta do Ângelo** |
+| `loadAndCalibrateSensors( )` + resolução do DS18 | 1,94 s | não |
+| `_netMgr->begin( )` = CYW43 + `WiFi.begin` | **1,03 s** | **sim — é a proposta do Ângelo** |
 | init de telemetria + servidor web | 0,55 s | **sim** (F13) |
 | preload de cache + `System ready` | **2,15 s** | **sim** (F13) |
 | **subtotal do boot** | **≈ 11,3 s** | **~10,6 s evitáveis** |
@@ -97,31 +98,39 @@ Acorde sempre em `h_int` (cadência de leitura). Em cada wake, decida se **esta*
 telemetria. Nada de segundo alarme: o RTC tem um só, e a coincidência exigida pelo Ângelo é
 consequência automática deste desenho, não uma restrição a fazer valer.
 
-### 3.2 O critério "hoje é dia de telemetria"
-
-O estado necessário **já está na flash** — o cursor de telemetria guarda o instante do último
-registro enviado:
+### 3.2 O critério "hoje é dia de telemetria" — IMPLEMENTADO como contagem de wakes
 
 ```
 telemetriaVence =  cfg.telInterval > 0
-                && (agora − ultimoEnviado) * 1000 ≥ cfg.telInterval
-                && agora ≥ proximaTentativa        /* backoff persistido */
+                && (wakesDesdeEnvio + 1) ≥ ceil(telInterval / histInterval)
 ```
 
-- Primeira linha: telemetria desligada mantém o rádio **desligado para sempre**, que já é hoje o
-  maior ganho de bateria disponível.
-- Segunda: é um critério de **tempo**, que é o que foi pedido, e não de contagem. Um só `read` do
-  cursor, sem varrer o diretório de histórico como faz `refreshPendingCount( )`.
-- Terceira: é o "não vale a pena ficar acordado" do pedido. **E exige trabalho novo:** hoje o
-  backoff mora na RAM e o sono o apaga, então todo wake tenta de novo como se nada tivesse
-  falhado. Ele precisa virar um `proximaTentativa` persistido, escrito **só quando um envio
-  falha** (escritas limitadas).
+- Primeira linha: telemetria desligada mantém o rádio **desligado para sempre**, que já é o maior
+  ganho de bateria disponível.
+- Segunda: o intervalo de telemetria é expresso em **wakes inteiros** da cadência de leitura, e é
+  isso que faz o envio sempre coincidir com uma medição. Arredonda para **cima**, de propósito:
+  15 min de telemetria sobre 2 min de leitura envia a cada 8 wakes (16 min), não a cada 7 (14) —
+  enviar cedo quebraria a promessa de que o intervalo do operador é um piso.
 
-### 3.3 O backoff não pode mais esticar a leitura
+⚠️ **Por que NÃO comparar relógios,** como esta seção propunha antes: num wake sem rádio não há
+NTP, então o relógio é provisório. Uma regra escrita contra epochs estaria medindo exatamente a
+grandeza em que ela não pode confiar. Contar wakes é exato por construção.
 
-Hoje `sleepMs = max(backoffMs, histSleepMs)`: a punição da telemetria **atrasa a medição**. No
-desenho novo isso está errado por construção — o alarme é sempre a cadência de leitura, e o
-backoff só decide se o rádio sobe. O histórico não pode pagar pelo pecado do coletor.
+**Onde mora o contador:** no `scratch[1]` do watchdog, dividindo o registrador com os segundos
+dormidos (bits 23..17 = wakes, 16..0 = segundos). Em flash, um aparelho que lê a cada minuto
+pagaria uma escrita por minuto só para manter um contador. Perdê-lo custa **uma** telemetria
+atrasada, e só em power cycle ou reset físico — reset de watchdog preserva, que é o caso que
+importa.
+
+### 3.3 A punição do coletor mudo, sem estado novo
+
+Um wake de telemetria **zera o contador mesmo se o envio falhar**. A punição por um coletor que
+não responde passa a ser esperar um intervalo inteiro de telemetria, e não tentar de novo no wake
+seguinte com o rádio ligado — que é precisamente o que se queria evitar. Isso dispensou o
+`proximaTentativa` persistido que a versão anterior deste plano previa.
+
+E o alarme continua sendo sempre a cadência de leitura: o backoff decide se o rádio sobe, nunca
+quando o aparelho acorda. O histórico não paga pelo pecado do coletor.
 
 ### 3.4 Regra de rede ausente
 
@@ -189,20 +198,29 @@ segmentado por fase sem adivinhação.
 **Resultado esperado: 27–31 s → 8–10 s**, com o rádio ainda ligado em todo wake. Mensurável pela
 sonda, sem mudar nenhuma decisão de produto. Aceite: T09 e o `--watch` da suíte.
 
-### Fase 2 — o wake sem rádio
+### Fase 2 — o wake sem rádio ✅ IMPLEMENTADA em 06/09
 
-| id | item |
-|---|---|
-| R1 | persistir `proximaTentativa` (backoff) em `air.bin`, escrito só em falha de envio |
-| R2 | decidir `radioNesteWake` **antes** de `_netMgr->begin( )` (FS já montado) |
-| R3 | pular `_netMgr->begin( )`, init de telemetria e NTP quando a decisão for "não" |
-| R4 | política de LED: intocado sem rádio (bit em `AirConfig.flags`) |
-| R5 | F04 — carimbar o registro com `epoch_anterior + slept + acordado` |
-| R6 | o alarme passa a ser sempre `h_int`; o backoff sai da conta do alarme |
+| id | item | como ficou |
+|---|---|---|
+| R1 | punição do coletor mudo | **Sem estado novo.** Um wake de telemetria zera o contador **mesmo se o envio falhar**, então a punição é esperar um intervalo inteiro de telemetria. Retentar no wake seguinte com o rádio ligado é o que se queria evitar. |
+| R2 | decidir `radioNesteWake` antes de `_netMgr->begin( )` | `airTelemetryDue( )` no boot, depois do `_storageMgr->begin( )` (config) e do `scratch[1]` (contador). |
+| R3 | pular a rede quando a decisão for "não" | `_netMgr->begin( )` e `_webMgr->begin( )` fora; marcadores `net skipped` / `web skipped`. |
+| R4 | política de LED | `airSetLed( )` só age com `_airRadioUp`. O indicador de acordado é o **GP16**, e sempre foi. |
+| R5 | F04 — carimbo do registro | `setProvisionalTime(lastTs, slept + millis()/1000)`: o sono **medido** substitui o palpite fixo de 60 s. |
+| R6 | o alarme é sempre `h_int` | Já era desde o commit do intervalo real; a telemetria não mexe no alarme, só no rádio. |
 
-**Resultado esperado: wake de leitura em 4–6 s, wake de telemetria em 10–25 s.**
-Aceite: T09 mede as duas janelas e prova que são diferentes; a corrente medida na Fase 0 se repete
-com o rádio desligado; T08 prova o carimbo offline.
+Extra que a bancada cobrou: **`air stop` sobe o rádio** se ele estiver desligado, senão o operador
+que para o ciclo num wake sem rádio fica com um M0 sem web e sem NTP.
+
+⚠️ **O contador de wakes divide o `scratch[1]` com os segundos dormidos** (bits 23..17 e 16..0).
+Em flash custaria uma escrita por minuto. Perdê-lo custa uma telemetria atrasada, e só em power
+cycle — reset de watchdog preserva.
+
+**Resultado esperado: wake de leitura em 4–6 s, wake de telemetria em 10–25 s** — mas isso só vale
+**depois da Fase 1**, que não foi feita: hoje o boot ainda gasta 4,5 s na janela de AP, 1 s no
+`delay(1000)` e ~2,7 s subindo cache. Sem ela, o ganho medido é só o `_netMgr->begin( )` (2,9 s) e
+o servidor web. Aceite: **T13** da suíte compara as janelas acordadas com e sem rádio; T08 prova o
+carimbo offline; a corrente da Fase 0 fecha a conta.
 
 ### Fase 3 — a cadência pedida
 
@@ -246,3 +264,42 @@ marcador de hibernação deixa de ser o discriminador.
   correto — é a alavanca L4 que resolve.
 - **Não medir consumo antes da Fase 1.** Medir o aparelho de hoje mede 4,5 s de janela de AP que
   vai deixar de existir.
+
+---
+
+## 8. Bancada de 06/09/2026 ~22h20 — a Fase 2 no ferro
+
+Configuração do teste: `h_int` = 1 min, `t_int` = 180000 ms → **rádio a cada 3 wakes**.
+Instrumentos: serial (marcadores de boot) e a sonda GP16 da PicoHand, na mesma janela.
+
+**A programação faz exatamente o que promete:**
+
+| wake | `[AIR] wake:` | boot | janela acordada (sonda) |
+|---|---|---|---|
+| 1 | `radio=off (wakes since send=0)` | `net skipped` · `web skipped` | **26,18 s** |
+| 2 | `radio=off (wakes since send=1)` | `net skipped` · `web skipped` | **26,04 s** |
+| 3 | `radio=on (wakes since send=2)` | `net ok` · `web ok` · CONNECT · FLUSH | **56,67 s** |
+| 4 | `radio=off (wakes since send=0)` | `net skipped` · `web skipped` | **26,07 s** |
+
+O contador zerou depois do envio (o wake 4 volta a 0), e o período de leitura se manteve:
+**59,95 s e 59,82 s** para 60 s configurados.
+
+⚠️ **HONESTIDADE SOBRE O GANHO: em tempo, é pequeno — cerca de 1 s em 26.** O `_netMgr->begin( )`
+custa **1,03 s**, e não os 2,88 s que a §1 dizia; a diferença era o `loadAndCalibrateSensors( )`,
+que eu havia atribuído à rede por ter lido o intervalo entre dois marcadores de boot sem olhar o
+que corria no meio. O servidor web custa mais 0,1 s. **O ganho que importa é o outro, e ele é
+invisível para um cronômetro:** nesses wakes o CYW43 **nunca é energizado**. Quanto isso vale em
+mA continua sendo a Fase 0 — sem ela, não dá para afirmar o resultado.
+
+🔴 **Achado novo: a 1 minuto de leitura, o wake de telemetria ESTOURA o intervalo.** Medido com o
+coletor mudo: a fase FLUSH rodou o teto inteiro de `flushTimeoutMs` (30 s), a janela acordada foi a
+**58,3 s** e o alarme caiu no piso — `wakeSec=5 … OVERRUN`. Ou seja, 27 s de amostragem mais 30 s de
+flush não cabem em 60 s. **`flushTimeoutMs` tem de ser dimensionado contra o intervalo de
+leitura**, e é a Fase 1 (que corta ~12 s da amostragem) que abre espaço para ele. Como está, um
+coletor fora do ar transforma um wake em cada três num wake que consome quase o dobro.
+
+⚠️ **A D-9 deixou de ser hipótese.** Durante o teste o aparelho ficou inalcançável pela web — o
+servidor só existe nos wakes de telemetria — e restaurar a configuração pelo `/api/commit_all`
+**falhou por timeout**. Foi preciso parar o ciclo pela serial primeiro. O `air stop` que sobe o
+rádio (extra da Fase 2) é o que torna isso recuperável, mas a decisão de fundo continua aberta: um
+aparelho com web em 1 minuto de cada 3 é operável?

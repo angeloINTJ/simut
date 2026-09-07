@@ -159,6 +159,30 @@ Referência completa (comandos, armadilhas, analisador lógico):
   118,9 s → 119,3 s → **120,23 s** (resíduo +0,11 s, explicado inteiro pelo trabalho entre o
   `millis( )` e o `load`). ⚠️ **Regra:** o aparelho medindo a si mesmo é um instrumento como outro
   qualquer — confira com um externo e passivo antes de crer.
+- ✅ **DUAS CADÊNCIAS, UM ALARME.** O aparelho acorda sempre no intervalo do histórico; a
+  telemetria é expressa em **wakes inteiros** dessa cadência (`airTelemetryDue( )`, arredondando
+  para cima). É isso que faz o envio **sempre coincidir** com uma medição — o caro não é
+  transmitir, é estar acordado, e um wake que já vai acontecer sai de graça. **Não existe segundo
+  alarme:** o RTC do RP2040 tem um só, e a coincidência exigida dispensa o outro.
+  - **Conta wakes, não relógio.** Num wake sem rádio não há NTP, então o relógio é provisório;
+    uma regra escrita contra epochs mediria justamente o que não pode confiar.
+  - **O contador mora no `scratch[1]`** junto com os segundos dormidos (bits 23..17 = wakes,
+    16..0 = segundos). Em flash custaria uma escrita por minuto. Perdê-lo custa **uma** telemetria
+    atrasada, e só em power cycle — reset de watchdog preserva.
+  - **Um wake de telemetria zera o contador mesmo se o envio falhar.** A punição por um coletor
+    mudo é esperar um intervalo inteiro, não tentar de novo no wake seguinte com o rádio ligado.
+- 🔴 **O LED NÃO é o indicador de acordado — o GP16 é.** No Pico W, `LED_BUILTIN` é `PIN_LED = 64`,
+  um GPIO **do CYW43**: um `digitalWrite` nele sobe o rádio e gasta a economia inteira do wake sem
+  rádio. `airSetLed( )` só age quando `_airRadioUp`. Quem mostra acordado/dormindo é o
+  `AIR_SENSOR_POWER_PIN` (GP16), alto a janela acordada toda, baixo o sono todo — é nele que a
+  sonda da PicoHand cronometra o ciclo.
+- ✅ **`air stop` sobe o rádio se ele estiver desligado.** Parar o ciclo num wake sem rádio
+  deixaria o M0 sem web, sem NTP e sem LED, alcançável só pelo cabo serial por onde o comando
+  chegou.
+- ✅ **O relógio provisório passou a ser semeado com o sono MEDIDO** (`setProvisionalTime(lastTs,
+  slept + millis()/1000)`), não com o palpite fixo de 60 s. Vira obrigatório quando o rádio sobe
+  uma vez a cada N wakes: os registros do meio nunca veem NTP, então o que esse relógio disser é o
+  que o histórico guarda.
 - ✅ **SSID ausente não alarga o wake.** `AIR_MAX_CONNECT_ATTEMPTS` (2) limita o que um wake gasta
   atrás de rede; passado o teto, SAMPLE para de bombear o `NetworkManager` e o DECIDE trata como
   offline. Medido com SSID errado: 26,7 / 26,4 / 26,2 s acordado, contra 26,3–29,5 s com o SSID
