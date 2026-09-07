@@ -1266,34 +1266,47 @@ class Suite:
         """
         if not (self.hand.available and self.hand.ping()):
             raise TestSkip('needs the PicoHand to reset the target')
-        # Arm the cycle and let it prove it is cycling.
-        row = self.hibernate_and_observe(stop_on_wake=False)
-        if self.target.usb.wait(True, row['wake_sec'] + self.args.wake_grace) is None:
-            raise TestFail('no wake — the cycle was not running, so the reset proves nothing')
+        # A hand RESET drives RUN, which is a CLEAN boot — and since 2026-09-06
+        # a clean boot is read as "a person is standing there" and gets the full
+        # configured idle timeout, not the short grace (only a watchdog keeps
+        # the grace). So the wait to measure is `air idle`, and on a bench idle
+        # of minutes that would be minutes of dead time: shorten it for the run.
+        # An earlier version of this test budgeted the grace and had been failing
+        # against healthy firmware ever since that change landed.
+        before = self.target.air_status()['idle']
+        idle = 30
+        self.target.cmd(f'air idle {idle}', 4)
+        try:
+            # Arm the cycle and let it prove it is cycling.
+            row = self.hibernate_and_observe(stop_on_wake=False)
+            if self.target.usb.wait(True, row['wake_sec'] + self.args.wake_grace) is None:
+                raise TestFail('no wake — the cycle was not running, so the reset proves nothing')
 
-        # Reset mid-wake, then do not touch the port again.
-        self.target.close()
-        self.hand.reset()
-        t_reset = time.time()
-        if self.target.usb.wait(True, 40) is None:
-            raise TestFail('no USB enumeration 40 s after the reset — target unpowered?')
-        t_boot = time.time()
+            # Reset mid-wake, then do not touch the port again.
+            self.target.close()
+            self.hand.reset()
+            t_reset = time.time()
+            if self.target.usb.wait(True, 40) is None:
+                raise TestFail('no USB enumeration 40 s after the reset — target unpowered?')
+            t_boot = time.time()
 
-        # It must now go back to sleep on its own: grace + the rest of a wake.
-        # Generous cap, because the point is "does it return at all", not how fast.
-        budget = AIR_RESUME_GRACE_SEC + row['awake_before_sleep_s'] + self.args.wake_grace + 30
-        t_gone = self.target.usb.wait(False, budget)
-        if t_gone is None:
-            raise TestFail(
-                f'still awake {budget:.0f}s after a reset — the cycle did not resume (F25). '
-                f'Check `air status` for armed=1; armed=0 means air.bin never recorded the intent')
-        # Verdict is in; hand the bench back in a known state. Leaving the device
-        # cycling makes the NEXT test start against a target that is asleep more
-        # often than not, with no web server to talk to.
-        self.target.open(60)
-        self.ensure_m0()
+            # Idle window + the rest of a wake. Generous cap, because the point
+            # is "does it return at all", not how fast.
+            budget = idle + row['awake_before_sleep_s'] + self.args.wake_grace + 30
+            t_gone = self.target.usb.wait(False, budget)
+            if t_gone is None:
+                raise TestFail(
+                    f'still awake {budget:.0f}s after a reset with idle={idle}s — the cycle did '
+                    f'not resume (F25). Check `air status` for armed=1; armed=0 means air.bin '
+                    f'never recorded the intent')
+        finally:
+            # Verdict is in; hand the bench back in a known state. Leaving the
+            # device cycling makes the NEXT test start against a target that is
+            # asleep more often than not, with no web server to talk to.
+            self.ensure_m0()
+            self.target.cmd(f'air idle {before}', 4)
         return (f'reset -> boot {t_boot - t_reset:.1f}s -> asleep again '
-                f'{t_gone - t_boot:.1f}s later, with no command sent')
+                f'{t_gone - t_boot:.1f}s later with idle={idle}s, no command sent')
 
     def t13_two_schedules(self):
         """Readings on every wake, telemetry only on every Nth — and the radio
@@ -1432,7 +1445,9 @@ class Suite:
             t_gone = self.target.usb.wait(False, watch)
             if t_gone is None:
                 raise TestFail(f'still awake {watch}s after the charger was removed — the first '
-                               f'half proves nothing, because this device never sleeps')
+                               f'half proves nothing, because this device never sleeps. Most '
+                               f'likely a browser is polling the dashboard: check with '
+                               f'`ss -tn | grep {self.host or "<device ip>"}`')
             slept_after = t_gone - t0
         finally:
             self.hand.charger(False)
