@@ -310,8 +310,13 @@ Armadilhas de bancada específicas do Air:
 - 💾 **Desgaste de flash: o `.wip` é reescrito INTEIRO a cada gravação, e é o maior custo do
   ciclo.** Desde 07/09 `flushWipV5( )` pula quando os bytes em flash já são idênticos (flag sujo
   **e** flag de relógio inalterado — a procedência pode mudar sem registro novo). Medido: 3–4
-  gravações do bloco inteiro por ciclo M0→M1, agora 1; **T15 é o portão**. O contador está em
-  `air status` (`wip=`) e na linha `[AIR] alarm:`. ⚠️ **Ler `wip=` por `air status` de dentro de um
+  gravações do bloco inteiro por ciclo M0→M1, agora 1; **T15 é o portão** (teto 2, não 1). O contador está em `air status` (`wip=`) e na linha
+  `[AIR] alarm:`. ⚠️ **A segunda gravação é legítima e apareceu com o F23**: o bloco em flash
+  carrega a procedência da sessão que o escreveu, e um wake carimba o registro ANTES de chegar
+  ao NTP — quando o relógio é confirmado, o flush seguinte reescreve o flag de provisório para
+  sincronizado, que é o que o portão de semente do próximo boot lê. Só acontece nos wakes que
+  alcançam o NTP (minoria, com lote mínimo > 1). Medido: 3–4 por ciclo antes de tudo, 1 com os
+  chamadores redundantes removidos, 2 depois que o boot passou a retomar. **3 ou mais é defeito.** ⚠️ **Ler `wip=` por `air status` de dentro de um
   wake devolve 0**: o console responde antes do DECIDE. Use a linha de alarme.
 - ✅ **O boot RETOMA o bloco aberto (F23, corrigido 07/09).** Antes ele adotava o `.wip` anexando-o
   ao arquivo do dia e apagando-o; como todo wake é um boot, cada leitura virava um bloco próprio
