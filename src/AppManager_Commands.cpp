@@ -856,6 +856,7 @@ void AppManager::executeCommand(CliDemand cmd) {
    * that was never part of a wake. */
   _airWokeFromSleep = false;
   _airPhase = AIR_PHASE_OFF;
+  _telemetryMgr->setDrainMode(false); /* a stop inside FLUSH must not leave M0 draining */
   _airLastActivityMs = millis( );
   /* Disarm in flash too, or the next boot would resume the cycle the operator
    * just cancelled (plan F25). The dirty-boot count goes with it: this is a

@@ -16,6 +16,7 @@
 #pragma once
 #include <Arduino.h>
 #include <HTTPClient.h>
+#include "simut_config.h"
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include "SystemDefs.h"
@@ -53,6 +54,9 @@ public:
   * uploader may send immediately. Used by the Air M1 cycle to sleep for the
   * backoff when it exceeds the wake interval. */
  uint32_t getBackoffRemainingMs( ) const;
+ /** Air FLUSH: send back-to-back while pending, ignoring telInterval (the
+  * backoff after a failure still applies). Off again when the phase ends. */
+ void setDrainMode(bool on) { _drainMode = on; }
  void refreshPendingCount( );
  void notifyNewRecord( );
 
@@ -138,6 +142,7 @@ private:
  NetworkManager* _netRef;
 
  uint32_t _lastCheckTime;
+ bool _drainMode = false; /**< update( ) ignores the interval; see the comment there. */
  volatile bool _isSending = false;
 
 
@@ -188,6 +193,13 @@ private:
  /* HTTP TLS — reusable client (avoids reallocating ~16KB each upload) */
  WiFiClientSecure* _httpSecurePtr = nullptr;
  uint32_t _httpSecureLastUse = 0;
+#if TEL_TLS_KEEPALIVE_EXPERIMENT
+ /* Session reuse is state of the HTTPClient INSTANCE (_canReuse starts false
+  * on every new one), so the kept TLS socket is only picked up again by the
+  * same instance: one lives here for the secure path, for as long as the
+  * experiment is on. */
+ HTTPClient* _httpKeepPtr = nullptr;
+#endif
 
  WiFiClient _mqttWifiClient;
  WiFiClientSecure* _mqttSecurePtr = nullptr; /**< Allocated on demand (MQTT+TLS only) ~16KB */

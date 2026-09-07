@@ -347,6 +347,18 @@
 // to get in.
 #define AIR_RESUME_GRACE_SEC 10
 #endif
+#ifndef TEL_TLS_KEEPALIVE_EXPERIMENT
+// Bench experiment (2026-09-07): keep the telemetry TLS session open between
+// consecutive successful batches instead of stopping it after every one. Every
+// HTTPS batch currently pays a full handshake because attemptHttpUpload( ) calls
+// _httpSecurePtr->stop( ) unconditionally on the way out — a defence measured
+// against the `drip` fault. This flag keeps the stop for every non-success and
+// adds an idle stop, so the defence stays for the failure path while the
+// success path amortises the handshake. Default 0. Measured 2026-09-07 (HTTPS,
+// 45 s windows): 5.2x at batch 25 and 3.4x at batch 100 against a server that
+// keeps the connection; identical to the default when the server closes it.
+#define TEL_TLS_KEEPALIVE_EXPERIMENT 0
+#endif
 #ifndef AIR_MAX_DIRTY_BOOTS
 // Consecutive resumes after an UNCLEAN reset before the device stops rushing
 // back into the cycle. Counted in air.bin (flags bits 4..7) and zeroed by the

@@ -312,6 +312,11 @@ void AppManager::airLoop( ) {
   if (ok || timeSince(_airPhaseTimer, (uint32_t)_airCfg.connectTimeoutMs)) {
    _airPhase = ok ? AIR_PHASE_FLUSH : AIR_PHASE_SLEEP;
    _airPhaseTimer = millis( );
+   /* The wake's job is to empty the queue as fast as the server takes it:
+    * telInterval already had its say in airTelemetryDue( ), and inside the
+    * wake it only ever held the radio on for nothing (see the comment on
+    * _drainMode in TelemetryManager::update). */
+   if (ok) _telemetryMgr->setDrainMode(true);
   }
   break;
  }
@@ -349,6 +354,7 @@ void AppManager::airLoop( ) {
    * awake indefinitely. flushTimeoutMs lives in /config/air.bin. */
   const bool timedOut = timeSince(_airPhaseTimer, (uint32_t)_airCfg.flushTimeoutMs);
   if (done || serverLost || netLost || timedOut) {
+   _telemetryMgr->setDrainMode(false);
    /* force: the send that just advanced the cursor happened milliseconds ago,
     * so the coalescing window has not elapsed and never will — the next stop
     * is deep sleep, which loses the RAM copy. */

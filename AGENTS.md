@@ -282,9 +282,28 @@ Armadilhas de bancada específicas do Air:
   physical reset"). ⚠️ Uma versão anterior desta nota afirmava o contrário;
   a suíte agora **mede** isso em T02 (lê `air status` antes de qualquer
   `air stop`) em vez de assumir. Confirmar na próxima bancada.
-- **A bancada esconde F05**: com `t_int=100 ms` o dreno parece rápido; com o
-  default de 60 s cada lote espera um intervalo inteiro. Testar com
-  `t_int=60000` (T06).
+- **A bancada esconde F05** — ✅ corrigido e medido 07/09: com `t_int=100 ms` o dreno parecia
+  rápido; com `t_int` ≥ o teto do FLUSH o wake **não mandava nada** (0 registros em 57 s
+  acordado, sonda GP16). Hoje o FLUSH liga o "modo dreno" (`setDrainMode`) e o mesmo wake
+  entregou 18.800. Continuar testando com `t_int=60000` (T06), não com 1 ms.
+- **O log do servidor de um wake tem DOIS trechos.** `air hibernate` de M0 roda um ciclo no lugar
+  (FLUSH até o teto, dorme) e só depois vem o wake que a sonda cronometra. Contar "registros do
+  wake" pelo total do servidor soma os dois; cortar pelo tempo (trechos separados pelo sono) é o
+  que `phase_cadence.py` faz agora.
+- **Contadores acumulados do servidor não são a janela.** A primeira matriz de cadência (07/09)
+  leu "22–35 % de reenvio" e taxas 1,5× maiores porque o servidor contava desde antes do reboot
+  do `commit_all` (o aparelho retoma o dreno do cursor persistido enquanto o harness faz login) e
+  o `tel_reset` recomeça do mais antigo. A janela sai do **log por request** por relógio de parede
+  (`window( )`), e o que veio antes fica em `pre_window_records`.
+- **Reuso de sessão TLS é estado da INSTÂNCIA do `HTTPClient`** (`_canReuse` nasce falso): um
+  objeto local nunca reaproveita o socket, mesmo com o `stop( )` condicionado. O experimento
+  `TEL_TLS_KEEPALIVE_EXPERIMENT` mantém a instância (`_httpKeepPtr`) e mede 5,2×/3,4× no HTTPS —
+  só quando o servidor também mantém a conexão (controle = base).
+- **Reboot silencioso ≠ watchdog.** Um boot sem `SYS_BOOT` nenhum (nem `[FTL]`, nem INFO) só sai
+  de reboot marcado limpo ou de reset físico/power-on; o watchdog deixa `[FTL] ctx=2xx` e o
+  picotool deixa INFO. Dois assim em 07/09, os dois colados numa falha de telemetria (célula de
+  6 s; 1º wake do modo dreno) — sem serial acampada não há como fechar. `serial_probe.py --delay`
+  é o instrumento.
 - **Telemetria desligada + Wi-Fi de pé = acordado para sempre** (F02). Se o
   aparelho "não dorme", conferir `t_int` antes de procurar outra causa;
   `air stop` pela serial tira dele.

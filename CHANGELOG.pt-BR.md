@@ -79,6 +79,18 @@ perde a SRAM, então o boot seguinte relia o cursor antigo e reenviava um lote j
 aceito. A escrita pré-sono agora passa por cima tanto do agrupamento quanto do
 portão de prioridade de toque.
 
+**O cursor também chega ao flash durante um dreno rápido.** A mesma janela de
+agrupamento era reiniciada a cada atualização do cursor, então numa cadência
+colada (um lote a cada 73 a 281 ms na bancada) os cinco segundos nunca passavam
+e nada era gravado durante o dreno inteiro: milhares de lotes, e uma queda de
+energia no meio reenviaria todos eles no boot seguinte. A janela agora ancora na
+primeira atualização suja, o que dá uma escrita a cada cinco segundos sob carga
+— a intenção original. Encontrado ao medir quanto custam de fato a cadência e o
+tamanho do lote da telemetria no build Air; as medições e o plano que sai delas
+(cadência e lote automáticos, hibernar-e-retomar) estão em
+`docs/analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md`, com a bancada em
+`tools/telemetry_bench/phase_cadence.py`.
+
 O plano, as evidências da bancada e os testes de aceite estão em
 `docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (CLI serial,
 API web e a PicoHand, incluindo uma sonda de 10 kHz que cronometra o ciclo sem

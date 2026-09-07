@@ -1219,7 +1219,6 @@ void StorageManager::enforceStorageLimit( ) {
 
 uint32_t StorageManager::getLastSentTimestamp( ) {
  if (_cachedLastSent > 0) return _cachedLastSent;
-
  enterFlashReadLock( );
  if (!LittleFS.exists(FILE_TCURSOR)) { exitFlashReadLock( ); return 0; }
  File f = LittleFS.open(FILE_TCURSOR, "r");
@@ -1232,8 +1231,15 @@ uint32_t StorageManager::getLastSentTimestamp( ) {
 
 void StorageManager::setLastSentTimestamp(uint32_t ts) {
  _cachedLastSent = ts;
+ /* The coalescing window starts at the FIRST dirty set, not the latest one.
+  * Restarting it on every set made the window slide: at a back-to-back cadence
+  * (one batch every 73–281 ms, measured 2026-09-07) the 5 s never elapsed and the
+  * cursor was not written to flash for the whole drain — thousands of batches
+  * with nothing persisted, so a power loss mid-drain would have re-sent all of
+  * it. Anchoring the window here keeps the write rate at one per 5 s under
+  * load, which was the original intent, instead of zero. */
+ if (!_cursorDirty) _cursorCoalesceTime = millis( );
  _cursorDirty = true;
- _cursorCoalesceTime = millis( );
 }
 
 /**

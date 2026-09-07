@@ -79,6 +79,18 @@ boot re-read the old cursor and re-sent a batch that had already been accepted.
 The pre-sleep write is now forced past both the coalescing window and the
 touch-priority gate.
 
+**The cursor also reaches flash during a fast drain now.** The same coalescing
+window was restarted on every cursor update, so at a back-to-back cadence (one
+batch every 73 to 281 ms on the bench) the five seconds never elapsed and
+nothing was written for the whole drain: thousands of batches, and a power loss
+in the middle would have re-sent all of them on the next boot. The window is
+now anchored on the first dirty update, which gives one write per five seconds
+under load — the original intent. Found while measuring what the telemetry
+cadence and batch size actually cost on the Air build; the measurements and the
+plan that follows from them (automatic cadence and batch, hibernate-and-resume)
+are in `docs/analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md`, with the bench in
+`tools/telemetry_bench/phase_cadence.py`.
+
 The plan, the bench evidence and the acceptance tests are in
 `docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (serial CLI,
 web API and the PicoHand fixture, including a 10 kHz probe that times the cycle

@@ -80,7 +80,7 @@ ciclo, e ele pode não voltar) está em §6.7 — o único bloqueante ainda aber
 | F02 | ✅ **CORRIGIDO 06/09** | `src/AppManager_Air.cpp` | FLUSH sem teto: telemetria desligada (`telInterval==0`, default de fábrica) ou RSSI abaixo do limiar com link de pé deixam `update()` retornar sem backoff e a fila nunca zera | Saída imediata quando `telInterval == 0`; `netLost` passa a usar `isNetworkHealthy()` (cobre RSSI); **teto de parede** por `flushTimeoutMs` — nenhuma trava futura no uploader segura o aparelho acordado | T06b, T05 |
 | F03 | ✅ **CORRIGIDO 06/09** | `src/AppManager_Boot.cpp`, `src/AppManager_Air.cpp` | GP16 só era ligado no WARMUP: em M0 ninguém ligava o pino; no boot M1 o `setup()` inteiro rodava com os sensores desligados | `airSensorPower()` deixou de ser estática e é chamada no início do `setup()`, antes de qualquer sondagem; o pino de `air.bin` substitui o default logo após a carga. Efeito colateral bom: o boot inteiro passa a ser o warm-up dos sensores lentos | T02, T05, T09 |
 | F04 | F | `src/NetworkManager.cpp:108`, `src/AppManager_Air.cpp:201` | Relógio provisório = último registro + 60 s + uptime; cada wake offline avança o histórico ~80 s em vez do intervalo real; a correção pós-NTP (`AppManager_Loop.cpp:282`) nunca roda em M1 | Usar o RTC como relógio de parede: setar o RTC com o epoch atual antes de dormir, ler após o `wfi`, guardar em `scratch[1]`, e no boot M1 semear `setProvisionalTime(scratch[1])`; escrever o registro depois do CONNECT quando houver link (ver F08) | T08 |
-| F05 | F | `src/TelemetryManager.cpp:245`, `:354` | `begin()` carimba `_lastCheckTime` e cada lote espera `telInterval`; com 60 s e 40 lotes são 40 min acordado (a bancada usa 100 ms e não vê) | `TelemetryManager::airKick()` zera a cadência; chamar antes do 1º lote e após cada lote bem-sucedido no FLUSH | T06 |
+| F05 | ✅ **CORRIGIDO E MEDIDO 07/09** | `src/TelemetryManager.cpp` (`_drainMode`), `src/AppManager_Air.cpp` (CONNECT→FLUSH, saída do FLUSH), `src/AppManager_Commands.cpp` (`air stop`) | `begin()` carimba `_lastCheckTime` e cada lote espera `telInterval`; **medido com a sonda**: `t_int` = 60 s → wake de 57 s com o rádio ligado e **0 registros**; `t_int` = 1 s → 28 lotes em 29 s de FLUSH | "Modo dreno": `setDrainMode(true)` ao entrar no FLUSH, `false` ao sair e no `air stop`; em modo dreno `update()` ignora o intervalo (backoff após falha continua valendo). Validado: mesmo wake, mesmo `t_int` = 60 s → **18.800 registros**, dormiu em seguida. Detalhes e tabelas em `SIMUT_TELEMETRIA_PLANO_CADENCIA.md` §2.4/§2.8 | T06 |
 | F06 | **sem objeto após o F03** | `src/AppManager_Boot.cpp` | WARMUP dura zero no boot M1: o timer é marcado no início do boot e já expirou quando o `airLoop` roda | Com o F03 os sensores passam a ser energizados no **início** do `setup()`, e o boot leva ~20 s — ou seja, o warm-up real hoje é o boot inteiro, muito acima do 1 s que o DHT22 pede. O caminho por comando (`air hibernate`) sempre teve os 400 ms corretos (medido: WARMUP→SAMPLE em 395 ms). Fica só a nota | T05, T09 |
 | F07 | ✅ **CORRIGIDO 06/09** | `src/AppManager_Air.cpp` | `gpio_init` a cada iteração do WARMUP: o SDK põe o pino em entrada e nível 0 antes de subir de novo (glitch na alimentação e na sonda) | `gpio_init` uma vez por pino, com máscara estática; depois só `gpio_put` | T09 |
 | F08 | F | `src/AppManager_Air.cpp:203`, `src/NetworkManager.cpp:223` | CONNECT é inalcançável: DECIDE só vai a CONNECT quando já `NET_READY`, que exige NTP sem fallback; um pacote NTP perdido (retry 20 s) ou rede sem internet = dorme sem enviar; `connectTimeoutMs` nunca atua | DECIDE→CONNECT quando `WiFi.status()==WL_CONNECTED`; CONNECT espera `NET_READY` até `connectTimeoutMs`; NTP em Air com 1º retry curto (5 s) | T05, T06 |
@@ -206,12 +206,18 @@ Dois itens desta fase já saíram, fora de ordem, porque a bancada os cobrou:
 
 Aceite: T08 (3 wakes offline com `h_int=2` → espaçamento 120 ± 25 s).
 
-**F05 — cadência do dreno**
+**F05 — cadência do dreno** ✅ 07/09
 
-- `TelemetryManager::airKick()` → `_lastCheckTime = millis() - _effectiveIntervalMs` (ou zero).
-- No FLUSH: kick ao entrar e após cada `consumeLastSendResult(true)`.
+- Feito como um estado, não como um "kick" por lote: `TelemetryManager::setDrainMode(bool)`.
+  Ligado na transição CONNECT→FLUSH, desligado na saída do FLUSH e no `air stop`. Em modo dreno
+  `update( )` pula só o portão do intervalo; o backoff após falha continua (é o `serverLost` que
+  encerra o wake com coletor mudo).
+- Medido antes/depois com a sonda GP16, `t_int` = 60 s, leitura a 1 min, HTTP lote 100: **0 →
+  18.800 registros** no mesmo wake de ~57 s (`SIMUT_TELEMETRIA_PLANO_CADENCIA.md` §2.4, §2.8).
 
-Aceite: T06 (com `t_int=60000`, janela acordada < 30 s e todos os registros entregues).
+Aceite: T06 revisto — "registros entregues > 0 e o wake dorme" passou; "todos os registros
+entregues" depende do teto do FLUSH derivado do intervalo de leitura (plano de cadência §3.4), que
+ainda não existe: o wake parou no teto de 30 s com ~16 mil na fila.
 
 **F06 + F07 — WARMUP real e pino sem glitch**: ver Fase 1; `AIR_WARMUP_MS` default 1000 ms; campo `warmupMs` no `air.bin` (reaproveitando `wifiScanTimeoutMs`).
 

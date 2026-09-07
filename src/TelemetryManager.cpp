@@ -335,6 +335,16 @@ void TelemetryManager::update( ) {
 
  uint32_t now = millis( );
 
+#if TEL_TLS_KEEPALIVE_EXPERIMENT
+ /* Idle guard for the kept session: a socket the server may have closed on
+  * its side is worth nothing, and holding it costs the pool. Three seconds is
+  * far longer than any back-to-back cadence and far shorter than any interval
+  * a server would keep an idle connection for. */
+ if (_httpSecurePtr && _httpSecurePtr->connected( ) && (now - _httpSecureLastUse) > 3000UL) {
+ _httpSecurePtr->stop( );
+ }
+#endif
+
  if (_consecutiveFails > 0 && now < _backoffUntil) return;
  /* Dynamic effective interval inline.
  * Floor: cfg.telInterval. Ceiling: smoothed_latency × 1.5 (avoids queue
@@ -351,7 +361,16 @@ void TelemetryManager::update( ) {
  if (effectiveInt > 60000) effectiveInt = 60000;
  if (effectiveInt < cfg.telInterval) effectiveInt = cfg.telInterval;
  _effectiveIntervalMs = effectiveInt;
- if (_consecutiveFails == 0 && (now - _lastCheckTime < effectiveInt)) return;
+ /* Drain mode (SIMUT Air FLUSH): the interval gates nothing, one batch per
+  * call for as long as there is something to send. begin( ) starts the timer
+  * at boot so that the first send waits a full interval, and an M1 wake IS a
+  * boot: with the 300 s of the field configuration and a 30 s flush cap, the
+  * telemetry wake brought the radio up, waited the whole cap and slept without
+  * sending a byte — measured on the bench 2026-09-07 (§2.4 of the cadence plan).
+  * Even at 1 s it was one batch per second against a cycle that costs 73–281 ms.
+  * The backoff above still holds in drain mode: a failing server ends the wake
+  * through getBackoffRemainingMs( ), as before. */
+ if (!_drainMode && _consecutiveFails == 0 && (now - _lastCheckTime < effectiveInt)) return;
 
 
  /* Atomic CAS: prevents race between periodic update() and forceSync() CLI */
@@ -404,6 +423,10 @@ void TelemetryManager::update( ) {
  __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
  _storageRef->unlockHeavyTask( );
  resetBackoff( );
+#if TEL_TLS_KEEPALIVE_EXPERIMENT
+ /* Drain over: nothing more to send, so the session has nothing to amortise. */
+ if (_httpSecurePtr) _httpSecurePtr->stop( );
+#endif
  return;
  }
 
@@ -770,7 +793,15 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
 
  feedWdt( );
 
+#if TEL_TLS_KEEPALIVE_EXPERIMENT
+ /* A local HTTPClient could never reuse the kept session — see _httpKeepPtr.
+  * The plain path keeps its per-call object: there is no handshake to save. */
+ HTTPClient httpLocal;
+ if (cfg.telEncryption && !_httpKeepPtr) _httpKeepPtr = new (std::nothrow) HTTPClient( );
+ HTTPClient& http = (cfg.telEncryption && _httpKeepPtr) ? *_httpKeepPtr : httpLocal;
+#else
  HTTPClient http;
+#endif
  WiFiClient client;
 
  String protocol = cfg.telEncryption ? "https://" : "http://";
@@ -903,7 +934,16 @@ bool TelemetryManager::attemptHttpUpload(String& payload, uint32_t newCursor) {
   * in BOTH builds (D14 — a separate defect the watchdog reboots used to hide),
   * and removing the stop( ) only brought the drip kill back. Put it back.
   */
+#if TEL_TLS_KEEPALIVE_EXPERIMENT
+ /* Experiment: a clean 2xx keeps the session for the next batch. HTTPClient's
+  * end( ) has already drained any unread body under its own deadline and
+  * cleared _canReuse if the server said Connection: close, so the socket is
+  * only left open when both sides agreed to it. Anything but success closes,
+  * exactly as before. */
+ if (cfg.telEncryption && _httpSecurePtr && !success) _httpSecurePtr->stop( );
+#else
  if (cfg.telEncryption) { if (_httpSecurePtr) _httpSecurePtr->stop( ); }
+#endif
  else client.stop( );
 
  http.end( );
