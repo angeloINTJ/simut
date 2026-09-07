@@ -252,6 +252,8 @@ public:
 
  /** Boot recovery: adopt a valid .wip into its day file, discard a bad one. */
  void recoverWipV5( );
+ /** Load a snapshot back into the open block instead of sealing it (F23). */
+ bool h5ResumeOpenBlock(const uint8_t* chunk, size_t len);
 
  /** §3.7-2: the sensor set changed — seal PARTIAL and start a new SCHEMA. */
  void onSensorSetChangedV5( );
@@ -589,6 +591,12 @@ public:
   * clock being trustworthy.
   */
  uint32_t         _h5AdoptedT0 = 0;
+ /** t0 of the block this boot RESUMED from a snapshot (F23), 0 if none.
+  *
+  * Holding the t0 rather than a count makes it self-invalidating: the moment
+  * that block is sealed and another opens, the encoder's t0 no longer matches
+  * and nothing has to remember to clear this. */
+ uint32_t         _h5ResumedT0 = 0;
 
  /** Snapshot now unless a gate is holding the flash; leaves the flag set. */
  void flushWipUnlessBlocked( );
