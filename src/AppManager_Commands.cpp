@@ -833,7 +833,7 @@ void AppManager::executeCommand(CliDemand cmd) {
    * batch size it settled on and the last full send cycle in ms. */
   snprintf(buf, sizeof(buf),
            "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us armed=%d dirty=%u "
-           "tel=%u/%lu skip=%u radio=%d chg=%d bat=%u cyc=%lums",
+           "tel=%u/%lu skip=%u radio=%d chg=%d bat=%u cyc=%lums wip=%u",
            (int)_airPhase, (unsigned long)wakeSec,
            (unsigned long)histSec, (unsigned long)backoffSec,
            (unsigned)(_airResumeGraceSec ? _airResumeGraceSec : _airCfg.idleTimeoutSec),
@@ -844,7 +844,8 @@ void AppManager::executeCommand(CliDemand cmd) {
            _airRadioUp ? 1 : 0,
            airOnCharger( ) ? 1 : 0,
            (unsigned)_telemetryMgr->getBatchAuto( ),
-           (unsigned long)_telemetryMgr->getLastCycleMs( ));
+           (unsigned long)_telemetryMgr->getLastCycleMs( ),
+           (unsigned)_storageMgr->h5WipWrites( ));
   _cmdMgr->printInfo(buf);
   break;
  }

@@ -238,6 +238,18 @@ public:
   */
  bool h5WipPending( ) const { return _h5WipDirty; }
 
+ /** Snapshots actually written to flash since boot.
+  *
+  * The only window this firmware has into how much it wears the flash. The
+  * .wip is rewritten WHOLE every time, so this counter times 4 KB is the
+  * upper bound on what one boot costs the metadata block — and on a SIMUT Air
+  * every wake is a boot, so it reads as "per wake" directly.
+  *
+  * It exists because the log cannot answer this: STO_H5_WIP carries the
+  * record count as its context, two snapshots inside one wake carry the same
+  * one, and the by-transition policy drops the second. */
+ uint16_t h5WipWrites( ) const { return _h5WipWrites; }
+
  /** Boot recovery: adopt a valid .wip into its day file, discard a bad one. */
  void recoverWipV5( );
 
@@ -554,6 +566,12 @@ public:
  bool             _h5Valid = false;
  /** Records held in RAM that the .wip on flash does not carry yet. */
  bool             _h5WipDirty = false;
+ /* Flags byte of the snapshot currently ON FLASH, or H5_WIP_FLAGS_NONE when
+  * there is no file. Paired with _h5WipDirty it says whether a rewrite would
+  * change a single byte — the clock provenance can move without the block
+  * doing so. See flushWipV5( ). */
+ uint8_t          _h5WipFlags = H5_WIP_FLAGS_NONE;
+ uint16_t         _h5WipWrites = 0;   /* snapshots written to flash since boot */
  /** Consecutive records refused because a seal keeps failing (§H5_SEAL_MAX_FAILS). */
  uint8_t          _h5SealFails = 0;
  /** Day file the open block belongs to; a change of day forces a seal. */

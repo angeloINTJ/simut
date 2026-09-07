@@ -438,7 +438,7 @@ nem `configure terminal`, com este conjunto:
 
 | Comando | Efeito |
 |---|---|
-| `air status` | `Air: phase=<n> wake=<s>s hist=<s>s backoff=<s>s idle=<s>s armed=<0\|1> dirty=<n> tel=<pendentes>/<lote mínimo> skip=<n> radio=<0\|1> chg=<0\|1> bat=<n> cyc=<ms>` |
+| `air status` | `Air: phase=<n> wake=<s>s hist=<s>s backoff=<s>s idle=<s>s armed=<0\|1> dirty=<n> tel=<pendentes>/<lote mínimo> skip=<n> radio=<0\|1> chg=<0\|1> bat=<n> cyc=<ms> wip=<n>` |
 | `air hibernate` (ou `air sleep`) | entra no ciclo M1 agora; o USB some quando o aparelho dorme |
 | `air stop` (ou `air wake`) | cancela o ciclo e volta ao modo operacional M0 — só funciona na janela em que o aparelho está acordado |
 | `air idle <10..65535>` | segundos de inatividade da CLI antes de hibernar sozinho (persistido em `/config/air.bin`) |
@@ -446,6 +446,13 @@ nem `configure terminal`, com este conjunto:
 
 Fases reportadas por `phase=`: 0 OFF (M0), 1 WARMUP, 2 SAMPLE, 3 DECIDE, 4 PERSIST, 5 CONNECT, 6 FLUSH, 7 SLEEP.
 Com `debug on` o console mostra `[AIR] phase=…` a cada transição e `[AIR] alarm: HH:MM:SS wakeSec=N` antes de dormir.
+
+Sobre `wip=`: quantas vezes o bloco de histórico aberto foi gravado inteiro em
+`/history/.wip` desde o boot. É a única janela que o firmware tem para o próprio desgaste de
+flash, porque a `.wip` é reescrita POR COMPLETO a cada vez. Num SIMUT Air todo wake é um boot,
+então o número se lê direto como "por wake", e o valor esperado é **1**. A linha `[AIR] alarm:`
+também o traz, e é onde ele serve: o console responde cedo no wake, antes mesmo de o registro ser
+gravado, então o `air status` de dentro de um wake devolve 0.
 
 Sobre `chg=`: com o carregador ligado o aparelho **não hiberna** — o `air idle` deixa de valer e um
 wake que encontre o carregador cancela o ciclo daquele boot e sobe como M0 completo, com servidor

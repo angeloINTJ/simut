@@ -79,6 +79,19 @@ boot re-read the old cursor and re-sent a batch that had already been accepted.
 The pre-sleep write is now forced past both the coalescing window and the
 touch-priority gate.
 
+**The open history block is written to flash once per cycle, not four times.**
+The snapshot file is rewritten whole every time, and on a device that reads
+once a minute that rewrite is the largest thing it does to its own flash.
+Three places asked for a snapshot unconditionally — the pre-reboot hook, the
+entry into hibernation, and the phase that saves the reading — each of them
+moments after the reading itself had already written one. Measured on the
+bench: three to four whole-block writes per cycle, now one. The write is
+skipped only when the bytes on flash are provably identical, which includes
+the clock-provenance flag that can change without a reading being added.
+
+`air status` and the pre-sleep log line now report how many snapshots this boot
+has written, which is the only window the firmware has into its own flash wear.
+
 **`air idle` no longer accepts a number that puts the device to sleep.** The
 setting is stored in a 16-bit field, and the command used to accept up to
 86400 and convert: 86400 became 20864, and 65536 became zero. Zero is the one

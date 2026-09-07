@@ -79,6 +79,21 @@ perde a SRAM, então o boot seguinte relia o cursor antigo e reenviava um lote j
 aceito. A escrita pré-sono agora passa por cima tanto do agrupamento quanto do
 portão de prioridade de toque.
 
+**O bloco de histórico aberto é gravado na flash uma vez por ciclo, não quatro.**
+O arquivo de snapshot é reescrito por inteiro a cada vez, e num aparelho que lê
+uma vez por minuto essa reescrita é a maior coisa que ele faz com a própria
+flash. Três pontos pediam um snapshot incondicionalmente — o gancho pré-reboot,
+a entrada em hibernação e a fase que salva a leitura — cada um deles instantes
+depois de a própria leitura já ter gravado um. Medido na bancada: de três a
+quatro gravações do bloco inteiro por ciclo, agora uma. A gravação só é pulada
+quando os bytes em flash são provadamente idênticos, o que inclui o flag de
+procedência do relógio, que pode mudar sem que uma leitura tenha sido
+acrescentada.
+
+O `air status` e a linha de log que antecede o sono passaram a informar quantos
+snapshots este boot gravou, que é a única janela que o firmware tem para o
+próprio desgaste de flash.
+
 **O `air idle` não aceita mais um número que faz o aparelho dormir.** O ajuste
 é guardado num campo de 16 bits, e o comando aceitava até 86400 e convertia:
 86400 virava 20864, e 65536 virava zero. O zero é o que doía, porque um tempo

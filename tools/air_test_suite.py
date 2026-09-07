@@ -90,9 +90,16 @@ AIR_STATUS_RE = re.compile(
     r'(?:\s+radio=(?P<radio>\d+))?(?:\s+chg=(?P<chg>\d+))?'
     # Automatic cadence: the batch size the AIMD controller settled on and the
     # last full send cycle in ms. Also optional — older builds have neither.
-    r'(?:\s+bat=(?P<bat>\d+))?(?:\s+cyc=(?P<cyc>\d+)ms)?')
+    r'(?:\s+bat=(?P<bat>\d+))?(?:\s+cyc=(?P<cyc>\d+)ms)?'
+    # History snapshots written to flash since boot. On an Air every wake is a
+    # boot, so this reads as "per wake" — the only window the firmware has into
+    # how much it wears the flash.
+    r'(?:\s+wip=(?P<wip>\d+))?')
 PHASE_RE = re.compile(r'\[AIR\] phase=(?P<name>[A-Z]+) @(?P<ms>\d+)')
 ALARM_RE = re.compile(r'\[AIR\] alarm: (?P<h>\d+):(?P<m>\d+):(?P<s>\d+) wakeSec=(?P<sec>\d+)')
+# The same line also carries the flash cost of the wake. Matched separately so
+# a firmware without the counter still satisfies ALARM_RE.
+ALARM_WIP_RE = re.compile(r'\[AIR\] alarm: .*\bwip=(?P<wip>\d+)')
 VFY_RE = re.compile(r'VFY BOOTSEL=(?P<b>\S+) RESET=(?P<r>\S+) HB=(?P<hb>\d+)us')
 EDGE_RE = re.compile(r'EDGE\s+(?P<n>\d+)\s+(?P<lvl>[HL])\s+(?P<us>\d+)')
 
@@ -741,6 +748,7 @@ class Suite:
             ('T12', 'cycle_survives_reset', self.t12_cycle_survives_reset, None, {'target', 'hand'}),
             ('T13', 'two_schedules', self.t13_two_schedules, None, {'target'}),
             ('T14', 'charger_holds_awake', self.t14_charger_holds_awake, None, {'target', 'hand'}),
+            ('T15', 'wip_writes_per_cycle', self.t15_wip_writes_per_cycle, None, {'target'}),
         ]
 
     def selected(self):
@@ -941,6 +949,10 @@ class Suite:
                            'line was missed (check the read path, not the firmware)')
         row['wake_sec'] = int(m.group('sec'))
         row['awake_before_sleep_s'] = round(time.time() - t_cmd, 1)
+        for line in lines:                       # last one wins: it is this cycle's
+            mw = ALARM_WIP_RE.search(line)
+            if mw:
+                row['wip'] = int(mw.group('wip'))
         self.target.close()
         t_absent = self.target.usb.wait(False, 60)
         if t_absent is None:
@@ -1589,6 +1601,44 @@ class Suite:
             self.ensure_m0()
             self.target.cmd(f'air idle {before}', 4)
         return f'awake through {watch}s on charger; slept {slept_after:.0f}s after removal'
+
+    def t15_wip_writes_per_cycle(self):
+        """One cycle must snapshot the open history block ONCE.
+
+        The .wip is rewritten WHOLE every time, and on a device reading once a
+        minute that rewrite is the dominant flash cost there is. Three callers
+        used to ask for it unconditionally — the pre-reboot hook,
+        airStartHibernate( ) and the DECIDE phase — right after the record
+        write had already done it. Measured on 2026-09-07: 3 to 4 whole-block
+        writes per M0 -> M1 cycle, now 1.
+
+        The count is read from the `[AIR] alarm:` line rather than `air status`
+        because the console answers EARLY in a wake: three wakes polled through
+        their whole window reported wip=0 from inside SAMPLE, before the record
+        was even written. The alarm line is the one thing every wake prints
+        last.
+        """
+        st = self.ensure_m0()
+        if st.get('wip') is None:
+            raise TestSkip('firmware without the wip= counter')
+        before = self.target.air_status()['wip']
+        time.sleep(5)
+        settled = self.target.air_status()['wip']
+        row = self.hibernate_and_observe(stop_on_wake=True)
+        after = row.get('wip')
+        if after is None:
+            raise TestSkip('alarm line without wip= — firmware older than the counter')
+        n = after - settled
+        # Zero would mean the snapshot stopped happening, which loses the open
+        # block on the next power cut. That failure looks identical to the fix
+        # working if only the upper bound is checked.
+        if n < 1:
+            raise TestFail(f'no snapshot written in a whole cycle (wip {settled} -> {after}) — '
+                           f'the open block would be lost on a power cut')
+        if n > 1:
+            raise TestFail(f'{n} whole-block snapshots in one cycle (wip {settled} -> {after}) — '
+                           f'an unconditional caller is rewriting what is already on flash')
+        return f'1 snapshot per cycle (wip {before} -> {settled} -> {after})'
 
     # ---- runner -----------------------------------------------------------
 

@@ -307,6 +307,17 @@ Armadilhas de bancada específicas do Air:
   única linha que a mão aciona em nível alto; as outras emulam botão em dreno aberto. T14 mede as
   duas metades: acordado durante a carga e dormindo depois de tirar. Detalhes no
   `tools/PicoHand/MANUAL_CLAUDE_CODE.pt-BR.md` §12.
+- 💾 **Desgaste de flash: o `.wip` é reescrito INTEIRO a cada gravação, e é o maior custo do
+  ciclo.** Desde 07/09 `flushWipV5( )` pula quando os bytes em flash já são idênticos (flag sujo
+  **e** flag de relógio inalterado — a procedência pode mudar sem registro novo). Medido: 3–4
+  gravações do bloco inteiro por ciclo M0→M1, agora 1; **T15 é o portão**. O contador está em
+  `air status` (`wip=`) e na linha `[AIR] alarm:`. ⚠️ **Ler `wip=` por `air status` de dentro de um
+  wake devolve 0**: o console responde antes do DECIDE. Use a linha de alarme.
+- 🔴 **Num Air o bloco de 60 registros NÃO existe.** O boot adota o `.wip` **anexando-o ao arquivo
+  do dia e apagando-o**; ele não volta para o encoder. Como todo wake é um boot, cada leitura vira
+  um bloco próprio. Medido em 07/09 no arquivo real: **1,42 registros/bloco** (253 dos 316 blocos
+  com UM registro) e **16,0 B por registro** contra os 5,38 B do projeto do V5 — ou seja, ~3× o
+  espaço e uma retenção de ~35 dias em vez de ~130. É a raiz da família F23; NÃO foi corrigido.
 - ⚠️ **Nenhuma medida do `air idle` vale com uma aba do painel aberta.** Cada acerto na web chama
   `airMarkActivity( )` (é o fix do F21, funcionando), então o aparelho fica acordado para sempre e
   as DUAS metades do teste do carregador dão "acordado" — o A/B não discrimina nada. Em 07/09 isso

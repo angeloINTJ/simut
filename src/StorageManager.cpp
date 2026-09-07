@@ -2029,6 +2029,7 @@ bool StorageManager::writeHistoryEntryV5(const int16_t* values, uint8_t nCh, uin
 			 * rather than inheriting yesterday's t0. */
 			_h5Enc.begin(_h5Schema, _h5NCh, h5NominalSeconds(getHistoryIntervalMin( )));
 			_h5WipDirty = false;
+			_h5WipFlags = H5_WIP_FLAGS_NONE;   /* new day: nothing of it on flash */
 		}
 		_h5SealFails = 0;
 	}
@@ -2277,6 +2278,12 @@ bool StorageManager::sealHourV5(bool partial) {
 		/* The records the .wip was covering are in the day file now, and the
 		 * block that replaces it is empty — nothing left to snapshot. */
 		_h5WipDirty = false;
+		/* The sentinel goes with the file: it is gone, so "what is on flash"
+		 * is nothing, and the skip in flushWipV5( ) must not be able to read a
+		 * stale match here. Adding a record raises the dirty flag and would
+		 * force a write anyway; this keeps the invariant local rather than
+		 * leaning on that. */
+		_h5WipFlags = H5_WIP_FLAGS_NONE;
 		/* Cleared here so every caller's patience resets on a seal that
 		 * worked, not just the two in writeHistoryEntryV5 that count. */
 		_h5SealFails = 0;
@@ -2298,7 +2305,32 @@ bool StorageManager::flushWipV5( ) {
 	/* Nothing open to snapshot: the block was just sealed, and sealHourV5
 	 * already removed the .wip. Clearing the flag here keeps the loop sweep
 	 * from retrying a write with no content for the rest of the minute. */
-	if (_h5Enc.count( ) == 0) { _h5WipDirty = false; return true; }
+	if (_h5Enc.count( ) == 0) {
+		_h5WipDirty = false;
+		_h5WipFlags = H5_WIP_FLAGS_NONE;   /* no file on flash any more */
+		return true;
+	}
+
+	/* Nothing changed since the last snapshot: the bytes on flash are already
+	 * the bytes this call would write.
+	 *
+	 * Three callers ask for a snapshot unconditionally, because each of them is
+	 * a point of no return — the pre-reboot hook, airStartHibernate( ), and the
+	 * Air cycle's DECIDE phase, which loses SRAM moments later. They are right
+	 * to insist, but insisting is not the same as rewriting: the record write
+	 * that precedes them has usually just done it. Measured on the bench
+	 * 2026-09-07 with the counter below: an M0 -> M1 cycle wrote the whole block
+	 * FOUR times, and the .wip is rewritten WHOLE every time, so on a device
+	 * reading once a minute that redundancy is the dominant flash cost there is.
+	 *
+	 * The dirty flag alone is not the whole condition. h5ClockFlag( ) can flip
+	 * from provisional to synced without a single record being added — NTP lands
+	 * mid-cycle — and that flag is the provenance the next boot's seed gate
+	 * reads. So the skip also requires that the flag has not moved since the
+	 * last write, which makes it provably content-equivalent rather than merely
+	 * probably so. */
+	const uint8_t clockFlag = h5ClockFlag( );
+	if (!_h5WipDirty && _h5WipFlags == clockFlag) return true;
 
 	/* Own module, not MOD_HIST_FLASH: that one belongs to the record write.
 	 * Sharing it meant the snapshot and the write were indistinguishable in
@@ -2311,7 +2343,6 @@ bool StorageManager::flushWipV5( ) {
 	/* Written whole every time, never appended: the snapshot has to be
 	 * either the current block or nothing. A half-updated .wip that still
 	 * passed CRC would replay a block that never existed. */
-	const uint8_t clockFlag = h5ClockFlag( );
 	size_t written = 0;
 	FLASH_OP({
 		File f = LittleFS.open(FILE_H5_WIP, "w");
@@ -2326,6 +2357,8 @@ bool StorageManager::flushWipV5( ) {
 		return false;                       /* stays dirty; the sweep retries */
 	}
 	_h5WipDirty = false;
+	_h5WipFlags = clockFlag;             /* what the bytes on flash now say */
+	if (_h5WipWrites < 0xFFFF) _h5WipWrites++;
 	LOG_CODE(LOG_INFO, "STO", STO_H5_WIP, (int)_h5Enc.count( ), "");
 	return true;
 }

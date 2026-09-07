@@ -55,6 +55,10 @@
  * where it stays true and costs nothing; readers ignore unknown flag bits. */
 #define H5_FLAG_CLOCK_SYNCED    0x04
 
+/* Not a flag: the sentinel StorageManager uses for "no snapshot on flash".
+ * Lives here so it cannot collide with a real flag bit as more are defined. */
+#define H5_WIP_FLAGS_NONE       0xFF
+
 #define H5_MAX_CHANNELS         16                  /* compile-time ceiling  */
 #define H5_BLOCK_MAX_RECORDS    60                  /* 1 rec/min -> 1 h      */
 #define H5_NAN_SENTINEL         ((int16_t)0x8000)

@@ -589,9 +589,16 @@ void AppManager::airEnterDormant( ) {
    * wake as a clean reboot so the autopsy stays silent (see markCleanReboot). */
   LogManager::instance( ).markCleanReboot( );
 
-  Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu awake=%lums target=%lums%s\n",
+  /* wip= is the flash cost of this wake: how many times the open history block
+   * was written WHOLE to /history/.wip. It goes on this line because this line
+   * is the one thing every wake prints last — the console answers early in the
+   * window, well before the record is even written, so `air status` cannot see
+   * it (measured 2026-09-07: three wakes polled, all reporting wip=0 from
+   * inside SAMPLE). */
+  Serial.printf("[AIR] alarm: %02d:%02d:%02d wakeSec=%lu awake=%lums target=%lums wip=%u%s\n",
                 t.hour, t.min, t.sec, (unsigned long)wakeSec,
                 (unsigned long)awakeMs, (unsigned long)histMs,
+                (unsigned)_storageMgr->h5WipWrites( ),
                 (_airWokeFromSleep && awakeMs + AIR_MIN_SLEEP_SEC * 1000UL >= histMs)
                     ? " OVERRUN" : "");
   {
