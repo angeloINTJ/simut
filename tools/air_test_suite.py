@@ -355,12 +355,24 @@ class Target:
                     break
         return buf.decode('utf-8', 'replace')
 
-    def air_status(self):
-        out = self.cmd('air status')
-        st = parse_air_status(out)
-        if not st:
-            raise TestFail(f'air status unparsable: {out.strip()[-120:]!r}')
-        return st
+    def air_status(self, retry_s=0):
+        """Ask the device where it is.
+
+        `retry_s` is for callers that catch a device at the start of an M1 wake:
+        the port enumerates about ten seconds before the console answers, so the
+        first reply is boot chatter and parsing it fails on a device that is
+        perfectly healthy. Polling until it parses is the same trick ensure_m0
+        uses, and for the same reason.
+        """
+        deadline = time.time() + retry_s
+        while True:
+            out = self.cmd('air status')
+            st = parse_air_status(out)
+            if st:
+                return st
+            if time.time() >= deadline:
+                raise TestFail(f'air status unparsable: {out.strip()[-120:]!r}')
+            time.sleep(1.0)
 
     def ip(self):
         m = re.search(r'IP:\s*(\d+\.\d+\.\d+\.\d+)', self.cmd('show net status', 8))
@@ -665,7 +677,7 @@ class Suite:
             ('T10', 'm1_services_off', self.t10_m1_services_off, 'F13', {'target', 'web'}),
             ('T11', 'history_integrity', self.t11_history_integrity, 'F23', {'target', 'web'}),
             ('T12', 'cycle_survives_reset', self.t12_cycle_survives_reset, None, {'target', 'hand'}),
-            ('T13', 'two_schedules', self.t13_two_schedules, None, {'target', 'web'}),
+            ('T13', 'two_schedules', self.t13_two_schedules, None, {'target'}),
         ]
 
     def selected(self):
@@ -793,6 +805,15 @@ class Suite:
         if self.saved and self.web:
             print('  restoring telemetry/history config …')
             try:
+                # Same reason as T13: a device left in the cycle has no web most
+                # of the time, so the restore has to bring it to M0 first or it
+                # fails and silently leaves the bench misconfigured. And the
+                # session may have died while the device was asleep — a stale
+                # cookie answers 403, not 401, which reads like a permission bug
+                # rather than an expired login.
+                self.ensure_m0()
+                self.web.wait_up(120)
+                self.web.login(os.environ['SIMUT_WEB_USER'], os.environ['SIMUT_WEB_PASS'])
                 self.commit_and_reboot(self.saved)
             finally:
                 self.saved = {}
@@ -1229,6 +1250,11 @@ class Suite:
             raise TestFail(
                 f'still awake {budget:.0f}s after a reset — the cycle did not resume (F25). '
                 f'Check `air status` for armed=1; armed=0 means air.bin never recorded the intent')
+        # Verdict is in; hand the bench back in a known state. Leaving the device
+        # cycling makes the NEXT test start against a target that is asleep more
+        # often than not, with no web server to talk to.
+        self.target.open(60)
+        self.ensure_m0()
         return (f'reset -> boot {t_boot - t_reset:.1f}s -> asleep again '
                 f'{t_gone - t_boot:.1f}s later, with no command sent')
 
@@ -1238,67 +1264,72 @@ class Suite:
 
         The saving this feature exists for is not the transmission, it is the
         CYW43 never being powered on the wakes in between. So the verdict is not
-        "did it send", it is "was the wake visibly cheaper": a reading-only wake
-        skips the whole network bring-up, which the boot markers show and the
-        awake window measures.
+        "did it send", it is "was the radio down on some wakes and up on others,
+        and were the quiet ones cheaper".
 
-        Configured for the run: telemetry interval = 3x the history interval,
-        so one wake in three raises the radio and the pattern is visible in a
-        few minutes rather than in an hour.
+        Deliberately does NOT reconfigure the device. Two earlier versions of
+        this test set the telemetry interval through /api/commit_all and both
+        failed the same way: commit_all reboots, the reboot lands the device
+        back in the cycle, and in the cycle the web server only exists on
+        telemetry wakes — so the restore could not reach it and left the bench
+        misconfigured. The measurement needs no configuration of its own; it
+        needs a bench that already has one.
         """
-        self.need_web()
-        cfg = self.web.config()
-        hist_min = int(cfg.get(HIST_FIELD) or 0)
-        if hist_min <= 0:
-            raise TestSkip(f'{HIST_FIELD} not readable from /api/config')
-        saved_tel = int(cfg.get(TEL_FIELDS['interval_ms']) or 0)
-        if saved_tel == 0:
-            raise TestSkip('telemetry is off (t_int=0) — nothing to schedule')
+        st = self.target.air_status()
+        every = st.get('televery')
+        if every is None:
+            raise TestSkip('firmware without the tel= field — older than the two schedules')
+        if every <= 1:
+            raise TestSkip(f'telemetry interval is at or below the reading interval '
+                           f'(tel every {every} wake), so every wake sends and there is no '
+                           f'schedule to observe — set t_int > h_int to exercise this')
 
-        every = 3
-        # commit_all reboots the device, so this is the helper that also waits
-        # for it to come back and re-logs in; snapshot_config inside it is what
-        # the suite's own restore_config uses on the way out.
-        self.commit_and_reboot({TEL_FIELDS['interval_ms']: hist_min * 60000 * every})
-        try:
-            st = self.target.air_status()
-            if st.get('televery') is None:
-                raise TestSkip('firmware without the tel= field — older than the two schedules')
-            if st['televery'] != every:
-                raise TestFail(f'device computed tel every {st["televery"]} wakes, expected {every}')
+        # Enter the cycle ONCE. Every wake after this one happens on its own, so
+        # driving each with `air hibernate` would be fighting the device: sent
+        # mid-wake the command adds nothing and the alarm line lands outside the
+        # window the helper is watching, which is exactly how an earlier version
+        # of this test failed with "serial vanished before the alarm line".
+        row = self.hibernate_and_observe(stop_on_wake=False)
 
-            radio_by_wake, awake_by_wake = [], []
-            for _ in range(every + 1):
-                row = self.hibernate_and_observe(stop_on_wake=False)
-                if self.target.usb.wait(True, row['wake_sec'] + self.args.wake_grace) is None:
-                    raise TestFail('no wake while measuring the schedule')
-                self.target.open(30)
-                st = self.target.air_status()
-                radio_by_wake.append(st.get('radio'))
-                awake_by_wake.append(row['awake_before_sleep_s'])
+        radio_by_wake, awake_by_wake = [], []
+        for _ in range(every + 1):
+            t_up = self.target.usb.wait(True, row['wake_sec'] + self.args.wake_grace)
+            if t_up is None:
+                raise TestFail('no wake while measuring the schedule')
+            self.target.open(30)
+            # The wake has just enumerated; the console needs a few more seconds.
+            st = self.target.air_status(retry_s=25)
+            radio_by_wake.append(st.get('radio'))
+            self.target.close()
+            t_down = self.target.usb.wait(False, 240)
+            if t_down is None:
+                raise TestFail('device stayed awake instead of going back to sleep')
+            # Enumeration lags the boot by about a second, so this reads slightly
+            # short — fine, because the verdict is a comparison between wakes
+            # measured the same way.
+            awake_by_wake.append(t_down - t_up)
 
-            if None in radio_by_wake:
-                raise TestSkip('firmware without the radio= field')
-            ups = sum(1 for r in radio_by_wake if r)
-            if ups == 0:
-                raise TestFail(f'radio never came up in {len(radio_by_wake)} wakes — '
-                               f'telemetry would never leave the device: {radio_by_wake}')
-            if ups == len(radio_by_wake):
-                raise TestFail(f'radio came up on EVERY wake — the schedule is not being '
-                               f'applied: {radio_by_wake}')
+        self.ensure_m0()
+        if None in radio_by_wake:
+            raise TestSkip('firmware without the radio= field')
+        ups = sum(1 for r in radio_by_wake if r)
+        if ups == 0:
+            raise TestFail(f'radio never came up in {len(radio_by_wake)} wakes — telemetry '
+                           f'would never leave the device: {radio_by_wake}')
+        if ups == len(radio_by_wake):
+            raise TestFail(f'radio came up on EVERY wake — the schedule is not being '
+                           f'applied: {radio_by_wake}')
 
-            quiet = [a for a, r in zip(awake_by_wake, radio_by_wake) if not r]
-            loud = [a for a, r in zip(awake_by_wake, radio_by_wake) if r]
-            detail = (f'radio {radio_by_wake}, awake quiet={[round(a, 1) for a in quiet]}s '
-                      f'loud={[round(a, 1) for a in loud]}s')
-            # A reading-only wake that is not shorter means the network was
-            # started anyway somewhere, which is the failure worth catching.
-            if quiet and loud and min(loud) <= max(quiet):
-                raise TestFail(f'reading-only wakes are not cheaper than telemetry wakes — '
-                               f'something still brings the radio up. {detail}')
-            return detail
-        finally:
-            self.commit_and_reboot({TEL_FIELDS['interval_ms']: saved_tel})
+        quiet = [a for a, r in zip(awake_by_wake, radio_by_wake) if not r]
+        loud = [a for a, r in zip(awake_by_wake, radio_by_wake) if r]
+        detail = (f'every {every} wakes; radio {radio_by_wake}; awake '
+                  f'quiet={[round(a, 1) for a in quiet]}s loud={[round(a, 1) for a in loud]}s')
+        # A reading-only wake that is not shorter means the network was started
+        # anyway somewhere, which is the failure worth catching.
+        if quiet and loud and min(loud) <= max(quiet):
+            raise TestFail(f'reading-only wakes are not cheaper than telemetry wakes — '
+                           f'something still brings the radio up. {detail}')
+        return detail
 
     # ---- runner -----------------------------------------------------------
 

@@ -867,15 +867,23 @@ void AppManager::executeCommand(CliDemand cmd) {
   }
   _airResumeGraceSec = 0;
   /* `air stop` hands the device back to an operator, and an operator expects to
-   * reach it. A reading-only wake never started the network, so stopping the
-   * cycle on one would leave M0 with no web, no NTP and no LED — reachable only
-   * from the serial cable the command happened to arrive on. Bring the radio up
-   * now; from here the device is in ordinary operational mode. */
+   * reach it. A reading-only wake started neither the network nor the web
+   * server, so stopping the cycle on one would leave M0 with no browser, no NTP
+   * and no LED — reachable only from the serial cable the command happened to
+   * arrive on. Both come up here.
+   *
+   * The radio alone is not enough, and the bench proved it: with only
+   * _netMgr->begin( ) the device answered pings and synced NTP while every
+   * /api/ call still failed, because nothing was listening on port 80. The
+   * web callbacks are registered outside the skipped block at boot, so
+   * begin( ) here finds them already in place. */
   if (!_airRadioUp) {
    _netMgr->begin(_storageMgr->getConfig( ),
                   _storageMgr->isDnsAuto( ),
                   _storageMgr->isNtpEnabled( ),
                   _storageMgr->getSecondaryDns( ));
+   _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ),
+                  _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
    _airRadioUp = true;
    _airRadioWake = true;
   }
