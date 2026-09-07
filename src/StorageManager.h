@@ -238,6 +238,18 @@ public:
   */
  bool h5WipPending( ) const { return _h5WipDirty; }
 
+ /** Snapshots actually written to flash since boot.
+  *
+  * The only window this firmware has into how much it wears the flash. The
+  * .wip is rewritten WHOLE every time, so this counter times 4 KB is the
+  * upper bound on what one boot costs the metadata block — and on a SIMUT Air
+  * every wake is a boot, so it reads as "per wake" directly.
+  *
+  * It exists because the log cannot answer this: STO_H5_WIP carries the
+  * record count as its context, two snapshots inside one wake carry the same
+  * one, and the by-transition policy drops the second. */
+ uint16_t h5WipWrites( ) const { return _h5WipWrites; }
+
  /** Boot recovery: adopt a valid .wip into its day file, discard a bad one. */
  void recoverWipV5( );
 
@@ -377,7 +389,16 @@ public:
  void generateSalt(uint8_t* buf);
 
  String sha256Hex(const String& input);
- void flushCursorIfDirty( );
+ /** Write the telemetry cursor to flash if it moved.
+  *
+  * Normally the write is coalesced (CURSOR_COALESCE_MS) and deferred while the
+  * user is touching the screen, because a device that sends every few seconds
+  * would otherwise write the same file constantly.
+  *
+  * @param force  Skip both gates. For the path into deep sleep, where there is
+  *               no "later": SRAM is lost and the next boot re-reads the file,
+  *               so a deferred write is a lost one. */
+ void flushCursorIfDirty(bool force = false);
  void invalidateOldestFileCache( ) { _cachedOldestFile = ""; }
 
  /**
@@ -545,6 +566,12 @@ public:
  bool             _h5Valid = false;
  /** Records held in RAM that the .wip on flash does not carry yet. */
  bool             _h5WipDirty = false;
+ /* Flags byte of the snapshot currently ON FLASH, or H5_WIP_FLAGS_NONE when
+  * there is no file. Paired with _h5WipDirty it says whether a rewrite would
+  * change a single byte — the clock provenance can move without the block
+  * doing so. See flushWipV5( ). */
+ uint8_t          _h5WipFlags = H5_WIP_FLAGS_NONE;
+ uint16_t         _h5WipWrites = 0;   /* snapshots written to flash since boot */
  /** Consecutive records refused because a seal keeps failing (§H5_SEAL_MAX_FAILS). */
  uint8_t          _h5SealFails = 0;
  /** Day file the open block belongs to; a change of day forces a seal. */
@@ -610,6 +637,7 @@ public:
  /** v21: true when the config in RAM came from a v20 blob (migrated).
   * loadConfiguration( ) saves it back once to persist the new schema. */
  bool _migratedFromV20 = false;
+ bool _migratedFromV21 = false;   /**< v21 blob read: telInterval converted from ms to a count. */
 
  File _currentLogFile;
  String _currentLogFileName = "";
@@ -629,6 +657,7 @@ public:
   * cauda alarmTel com defaults. A cauda só pode ser anexada — travado por
   * static_assert em SystemDefs_Records.h. */
  bool loadMigrateV20Blob(File& f, SystemConfig& outCfg);
+
  void enforceStorageLimit( );
  /** T1.4: set when enforceStorageLimit( ) hits its per-call deletion cap
   * with usage still above the limit; drained by update( ) in slices. */
@@ -648,7 +677,11 @@ public:
  * between chunks Core 1 renders. */
 
  static uint32_t calculateCRC32(const uint8_t *data, size_t length);
- static bool loadCurrentBlob(File& f, SystemConfig& outCfg);
+ /** @param migratedV21 set true when the blob was v21 and its telInterval was
+  *  converted from milliseconds to a count (v21->v22 semantics migration). */
+ static bool loadCurrentBlob(File& f, SystemConfig& outCfg, bool* migratedV21 = nullptr);
+ /** v21->v22: telInterval changes meaning, not layout. See the definition. */
+ static void migrateV21Semantics(SystemConfig& cfg);
  bool attemptLoad(const char* path, SystemConfig& outCfg);
 
  /** Obfuscate/deobfuscate the 3 sensitive config fields with keystream

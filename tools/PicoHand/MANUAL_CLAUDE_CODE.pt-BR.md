@@ -350,10 +350,25 @@ read -r -t 2 resp <&3
 exec 3>&-
 ```
 
-### 7.5 Nunca chame `SELF_BOOTSEL` em automação
+### 7.5 `SELF_BOOTSEL` encerra a sessão de quem o chama
 
-Isso coloca a *própria mão* em BOOTSEL — a porta serial some e o pipeline
-trava. Existe exclusivamente para regravar o firmware da mão.
+Isso coloca a *própria mão* em BOOTSEL: a porta serial some, então um script
+que espera continuar falando com a mão trava. Existe exclusivamente para
+regravar o firmware dela — nunca como passo dentro de uma bateria.
+
+Regravar, em si, **dá** para automatizar, e em 07/09/2026 foi feito assim de
+ponta a ponta:
+
+```bash
+printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<mao>-if00
+# a mão aparece como 2e8a:0003 em cerca de meio segundo
+picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
+```
+
+⚠️ Funciona porque **o alvo está rodando**, deixando exatamente um dispositivo
+RP2 Boot no barramento. Com o alvo também em BOOTSEL o `picotool` pegaria o
+primeiro que encontrasse — e é justamente por isso que o caminho de gravação do
+alvo precisa do toque a 1200 bps.
 
 ### 7.6 `HOLD` exige `RELEASE` pareado
 
@@ -400,9 +415,107 @@ próxima linha é a sua resposta.
 2. Para gravar, prefira `pio run -e <env> -t upload`. Ele faz o próprio reset por
    toque de 1200 bps e dispensa o dispositivo. Recorra à mão só quando isso falhar.
 3. Entre casos de teste que precisem de estado limpo, use `hand RESET` + `sleep 6`.
-4. **Nunca** chame `SELF_BOOTSEL` em automação.
+4. **Nunca** chame `SELF_BOOTSEL` dentro de uma bateria — só na sequência de
+   regravação da §7.5, que termina com a mão de volta na porta dela.
 5. Em qualquer falha, confirme com `hand PING` que a mão está viva antes de
    culpar o alvo — e com `hand VERIFY` antes de culpar a fiação.
 6. Lembre que o `VERIFY` não valida a linha de BOOTSEL com o alvo rodando
    (§7.1), e que o teste de segurar também não vale enquanto houver resistor
    em série.
+
+---
+
+## 10. Uso com o SIMUT Air (build que hiberna) — 06/09/2026
+
+O alvo com a imagem `pico_w_air` **some do USB quando dorme** (solta o pull-up
+do D+ de propósito) e reenumera a cada wake. Três consequências para a mão:
+
+1. **Alvo ausente não é alvo morto.** Antes de acionar a mão, espere um
+   intervalo de histórico (`air status` mostra `wake=`) — o aparelho volta
+   sozinho. A suíte `tools/air_test_suite.py` faz essa espera.
+2. **`hand RESET` dá boot frio (M0).** O pulso é no pino RUN, que é reset
+   global do chip: o mapa de scratch do firmware (`src/LogManager.cpp:605`)
+   registra que esses registradores são zerados por "power cycle / physical
+   reset", e o marcador de hibernação do Air vive justamente em `scratch[0]`.
+   Ou seja, o alvo volta em modo operacional, sem precisar de `air stop`.
+   (Uma revisão anterior desta seção afirmava o contrário; a suíte
+   `tools/air_test_suite.py` agora mede o modo pós-reset em T02.)
+3. **O RESET não prova nada sobre o wake.** Como ele restaura o ROSC e os
+   clocks de fábrica, recupera o alvo mesmo que o item F01 do plano seja real
+   (ROSC desligado antes de dormir e não religado no wake). A única prova de
+   que o caminho do sono funciona é o alvo **reenumerar sozinho** dentro de
+   `wakeSec` + margem. Se nem o RESET trouxer o alvo de volta, o problema é
+   alimentação ou cabo, não firmware.
+
+## 11. Canal PROBE — cronômetro do ciclo (06/09/2026)
+
+A mão ganhou um terceiro canal: **`PROBE`, entrada em GP2** (pino físico 4),
+ligada ao **GP16 do alvo**, que o firmware do SIMUT Air mantém em nível alto
+enquanto está acordado e baixo enquanto dorme. O Core 1 já amostrava a 10 kHz
+para o `VERIFY`, então a sonda pega carona nesse mesmo laço e guarda só as
+**transições**, com carimbo de `micros()`, num anel de 64 bordas.
+
+| Comando | Resposta |
+|---|---|
+| `PROBE STATUS` | `PROBE pin=GP2 level=HIGH edges=2/64 dropped=0 armed=YES` |
+| `PROBE START` | `OK PROBE START` — limpa o anel e arma |
+| `PROBE READ` | uma linha `EDGE <i> <H\|L> <us>` por borda, terminando em `DONE PROBE edges=<n> dropped=<n>` |
+
+**Por que ele vale mais que o USB.** A enumeração USB atrasa cerca de um segundo
+em relação ao boot, e esse segundo cai inteiro dentro da janela que se quer
+medir; a serial é pior ainda, porque todo comando reseta o timer de inatividade
+do alvo. A sonda não toca em nada. Medida de 06/09, ciclo completo:
+sono 120,715 s, acordado 29,455 s, sono seguinte 89,413 s.
+
+⚠️ **`micros()` dá a volta a cada ~71 minutos.** Leia diferenças, nunca valores
+absolutos, e mantenha a janela de medição bem dentro disso. A suíte já trata a
+volta.
+
+⚠️ **GP4/GP5 continuam sendo a ponte serial.** A sonda foi para GP2 justamente
+para não desativá-la.
+
+⚠️ **Regravar a mão reinicia o alvo.** Foi observado em 06/09: depois de copiar
+o `.uf2` para o volume `RPI-RP2`, o alvo apareceu com uptime zerado, em boot
+frio (M0). Contar com isso ao planejar uma bateria.
+
+## 12. Canal CHARGER — fingir a fonte de energia (07/09/2026)
+
+Um quarto canal: **`CHARGER`, saída em GP3** (pino físico 5), ligada ao **GP17
+do alvo**. O SIMUT Air lê esse pino para saber se está na tomada: nível alto
+significa carregador presente, e aí o aparelho fica acordado e não hiberna;
+nível baixo significa bateria, e o ciclo normal acontece.
+
+| Comando | Resposta |
+|---|---|
+| `CHARGER STATUS` | `CHARGER STATUS: OFF (GP3 level=L)` |
+| `CHARGER ON` | `OK CHARGER ON` — o alvo tem que parar de hibernar |
+| `CHARGER OFF` | `OK CHARGER OFF` — o alvo volta a hibernar |
+
+**Esse é acionado nos dois sentidos.** BOOTSEL e RESET emulam botões em dreno
+aberto e nunca fornecem corrente; o GP3 substitui um divisor de tensão
+pendurado no trilho de 5 V, que é uma fonte, então é saída push-pull comum.
+Ele nasce em nível baixo, de modo que um alvo deixado ligado à mão se comporta
+exatamente como se estivesse na bateria.
+
+⚠️ **Nada de divisor neste fio.** O divisor da placa real existe para trazer os
+5 V a um nível lógico seguro. O GP3 já entrega 3,3 V: vai direto no GP17, com
+o GND em comum (o pino 3 fica bem ao lado dos dois).
+
+⚠️ **Mão em reset ou BOOTSEL deixa o GP3 flutuando.** O alvo puxa o GP17 para
+baixo internamente, então a linha lê "na bateria" — que é a falha segura.
+
+⚠️ **O estímulo é o nível lógico, não a corrente.** A bancada prova a *decisão*
+do firmware, nunca que a bateria está de fato carregando.
+
+### Como regravar a mão
+
+```bash
+arduino-cli compile --fqbn rp2040:rp2040:rpipico \
+    --build-path tools/PicoHand/build tools/PicoHand/pico_hand
+printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<mao>-if00
+picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
+```
+
+Sem botão físico e sem montar o volume `RPI-RP2`: a §7.5 explica por que o
+`picotool` acerta a placa, e a única condição que precisa valer. Em 06/09 isso
+foi feito à mão porque a receita acima ainda não existia.

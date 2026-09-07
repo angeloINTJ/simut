@@ -357,10 +357,24 @@ read -r -t 2 resp <&3
 exec 3>&-
 ```
 
-### 7.5 Never call `SELF_BOOTSEL` in automation
+### 7.5 `SELF_BOOTSEL` ends the session that calls it
 
-This puts the *hand itself* in BOOTSEL mode — the serial port disappears and
-the pipeline hangs. It exists exclusively for reflashing the hand's firmware.
+This puts the *hand itself* in BOOTSEL mode: the serial port disappears, so a
+script that expects to keep talking to the hand hangs. It exists exclusively
+for reflashing the hand's firmware — never as a step inside a bench run.
+
+Reflashing itself **is** scriptable, and on 2026-09-07 it was, end to end:
+
+```bash
+printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<hand>-if00
+# the hand appears as 2e8a:0003 in about half a second
+picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
+```
+
+⚠️ This works because **the target is running**, leaving exactly one RP2 Boot
+device on the bus. With the target also in BOOTSEL, `picotool` would take
+whichever it found first — which is how the target's own flash path ends up
+having to use the 1200 bps touch instead.
 
 ### 7.6 `HOLD` requires a paired `RELEASE`
 
@@ -410,8 +424,104 @@ prefixes rather than assume the next line is your answer.
 2. To flash, prefer `pio run -e <env> -t upload`. It performs its own 1200 bps
    touch reset and needs no fixture. Reach for the hand only when that fails.
 3. Between test cases needing a clean state, use `hand RESET` + `sleep 6`.
-4. **Never** call `SELF_BOOTSEL` in automation.
+4. **Never** call `SELF_BOOTSEL` inside a bench run — only in the reflash
+   sequence of §7.5, which ends with the hand back on its port.
 5. On any failure, confirm with `hand PING` that the hand is alive before
    blaming the target — and with `hand VERIFY` before blaming the wiring.
 6. Remember that `VERIFY` cannot validate the BOOTSEL line while the target
    runs (§7.1). Use the hold test instead.
+
+---
+
+## 10. Working with SIMUT Air (the hibernating build) — 2026-09-06
+
+A target running `pico_w_air` **drops off the USB bus when it sleeps** (it
+releases the D+ pull-up on purpose) and re-enumerates on every wake. Three
+consequences for the hand:
+
+1. **An absent target is not a dead target.** Wait one history interval
+   (`air status` prints `wake=`) before reaching for the hand — the device
+   comes back by itself. `tools/air_test_suite.py` does that wait.
+2. **`hand RESET` gives a cold boot (M0).** The pulse drives RUN, a global chip
+   reset: the firmware's own scratch map (`src/LogManager.cpp:605`) records
+   that those registers are zeroed by "power cycle / physical reset", and the
+   Air hibernation marker lives in `scratch[0]`. So the target comes back in
+   operational mode, with no `air stop` needed. (An earlier revision of this
+   section claimed the opposite; `tools/air_test_suite.py` now measures the
+   post-reset mode in T02 instead of assuming it.)
+3. **RESET proves nothing about the wake path.** Because it restores the ROSC
+   and the default clocks, it recovers the target even if plan item F01 is real
+   (ROSC disabled before sleep and never re-enabled on wake). The only proof
+   that sleep/wake works is the target **re-enumerating on its own** within
+   `wakeSec` plus margin. If not even RESET brings it back, the problem is
+   power or cabling, not firmware.
+
+## 11. The PROBE channel — a stopwatch for the cycle (2026-09-06)
+
+The hand gained a third channel: **`PROBE`, an input on GP2** (physical pin 4),
+wired to the **target's GP16**, which the SIMUT Air firmware holds HIGH for the
+whole time it is awake and LOW while it sleeps. Core 1 already samples at 10 kHz
+for `VERIFY`, so the probe rides that same loop and stores only the
+**transitions**, timestamped with `micros()`, in a 64-edge ring.
+
+| Command | Reply |
+|---|---|
+| `PROBE STATUS` | `PROBE pin=GP2 level=HIGH edges=2/64 dropped=0 armed=YES` |
+| `PROBE START` | `OK PROBE START` — clears the ring and arms it |
+| `PROBE READ` | one `EDGE <i> <H\|L> <us>` line per edge, ending in `DONE PROBE edges=<n> dropped=<n>` |
+
+**Why it beats USB.** Enumeration lags the boot by about a second, and that
+second lands inside the window being measured; the serial console is worse,
+because every command resets the target's idle timer. The probe touches
+nothing. Measured on 2026-09-06, one full cycle: 120.715 s asleep, 29.455 s
+awake, 89.413 s asleep again.
+
+⚠️ **`micros()` wraps about every 71 minutes.** Read differences, never
+absolutes, and keep a measurement well inside that. The suite handles the wrap.
+
+⚠️ **GP4/GP5 are still the serial bridge.** The probe went to GP2 precisely so
+the bridge keeps working.
+
+⚠️ **Reflashing the hand resets the target.** Observed on 2026-09-06: after
+copying the `.uf2` to the `RPI-RP2` volume, the target came back with its uptime
+zeroed, in a cold boot (M0). Plan a bench run around that.
+
+## 12. The CHARGER channel — faking the power source (2026-09-07)
+
+A fourth channel: **`CHARGER`, an output on GP3** (physical pin 5), wired to the
+**target's GP17**. SIMUT Air reads that pin to decide whether it is plugged in:
+HIGH means a charger is present, so the device stays awake and skips
+hibernation entirely; LOW means battery, and the normal cycle runs.
+
+| Command | Reply |
+|---|---|
+| `CHARGER STATUS` | `CHARGER STATUS: OFF (GP3 level=L)` |
+| `CHARGER ON` | `OK CHARGER ON` — the target must stop hibernating |
+| `CHARGER OFF` | `OK CHARGER OFF` — the target hibernates again |
+
+**This one is driven both ways.** BOOTSEL and RESET emulate open-drain buttons
+and never source current; GP3 replaces a voltage divider hanging off the 5 V
+rail, which is a source, so it is a plain push-pull output. It boots LOW, so a
+target left wired to the hand behaves exactly as it does on battery.
+
+⚠️ **No divider on this wire.** The divider on the real board exists to bring
+5 V down to a safe logic level. GP3 already sits at 3.3 V: run it straight to
+GP17, and share GND (pin 3 is right beside both).
+
+⚠️ **A hand in reset or BOOTSEL floats GP3.** The target pulls GP17 down
+internally, so the line reads "on battery" — which is the safe failure.
+
+⚠️ **The stimulus is the logic level, not the current.** The bench proves the
+firmware's *decision*, never that the battery is actually charging.
+
+### Reflashing the hand
+
+```bash
+arduino-cli compile --fqbn rp2040:rp2040:rpipico \
+    --build-path tools/PicoHand/build tools/PicoHand/pico_hand
+printf 'SELF_BOOTSEL\n' > /dev/serial/by-id/usb-Raspberry_Pi_Pico_<hand>-if00
+picotool load -x tools/PicoHand/build/pico_hand.ino.uf2
+```
+
+No physical button and no mounted `RPI-RP2` volume: see §7.5 for why `picotool`
+picks the right board, and the one condition that has to hold.

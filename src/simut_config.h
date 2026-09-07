@@ -277,3 +277,169 @@
 #ifndef PIN_UNUSED
 #define PIN_UNUSED 255           // Sentinel for unused GPIO pin slots
 #endif
+
+/* =========================================================================
+ * SECTION 10: SIMUT AIR — headless hibernating build
+ *
+ * SIMUT_AIR=1 builds the headless variant (no display, no buzzer) that runs
+ * as an Alpha-like device on cold boot and enters a dormant hibernation
+ * cycle on command or after an inactivity timeout. The wake period IS the
+ * history save interval (h_int, set from the web/CLI); AIR_WAKE_INTERVAL_MIN
+ * is only the fallback when that interval reads as zero. Air-only settings
+ * (idle timeout, sensor power pin, phase timeouts) live in /config/air.bin —
+ * NOT in SystemConfig, so CONFIG_VERSION is untouched.
+ *
+ * Override any default here or via -D build_flags.
+ * ========================================================================= */
+
+#ifndef SIMUT_AIR
+#define SIMUT_AIR 0              // 1 = SIMUT Air (headless hibernating build)
+#endif
+
+#if SIMUT_AIR
+#ifndef AIR_WAKE_INTERVAL_MIN
+#define AIR_WAKE_INTERVAL_MIN 5  // Fallback wake period (min) when the history interval reads 0
+#endif
+#ifndef AIR_IDLE_TIMEOUT_SEC
+#define AIR_IDLE_TIMEOUT_SEC 300 // M0 inactivity -> auto-hibernate (5 min)
+#endif
+#ifndef AIR_STAB_TIMEOUT_MS
+#define AIR_STAB_TIMEOUT_MS 30000 // Sensor stabilization cap
+#endif
+#ifndef AIR_WIFI_SCAN_TIMEOUT_MS
+#define AIR_WIFI_SCAN_TIMEOUT_MS 4000
+#endif
+#ifndef AIR_CONNECT_TIMEOUT_MS
+#define AIR_CONNECT_TIMEOUT_MS 30000
+#endif
+#ifndef AIR_FLUSH_TIMEOUT_MS
+#define AIR_FLUSH_TIMEOUT_MS 30000
+#endif
+#ifndef AIR_FLUSH_TAIL_MS
+// What the wake still needs after the FLUSH ends: cursor to flash, air.bin if
+// the crash-loop count moved, CYW43 teardown, USB detach, RTC arm. The flush
+// budget is the configured cap OR whatever is left of the reading interval
+// minus this tail, whichever is smaller — so a telemetry wake can no longer
+// outlast the interval it is supposed to fit in (measured: a 1-minute reading
+// interval with the flat 30 s cap gave a 57 s wake and an OVERRUN).
+#define AIR_FLUSH_TAIL_MS 5000
+#endif
+#ifndef AIR_SENSOR_POWER_PIN
+#define AIR_SENSOR_POWER_PIN 16 // GPIO power-gating for sensors (also the awake/sleep probe)
+#endif
+#ifndef AIR_CHARGER_PIN
+// GPIO that reads HIGH while the charger is connected, through a divider off
+// the 5 V rail. On the charger the device is not on a battery budget, so it
+// stops hibernating and stays awake and reachable; unplug it and the cycle
+// resumes on the next idle timeout. PIN_UNUSED disables the whole behaviour.
+#define AIR_CHARGER_PIN 17
+#endif
+#ifndef AIR_CHARGER_ACTIVE_HIGH
+// 1 = charging reads HIGH (a divider off 5 V). 0 inverts it, for a board that
+// pulls the line down while charging.
+#define AIR_CHARGER_ACTIVE_HIGH 1
+#endif
+#ifndef AIR_MAX_CONNECT_ATTEMPTS
+// How many failed WiFi connection attempts a single wake may spend before it
+// stops trying. With the SSID out of range the wake still does its real job —
+// read the sensors, write the history — and then hibernates; the next wake
+// tries again from scratch, because every wake is a fresh boot. Each attempt
+// costs up to 20 s inside NetworkManager, so in practice one attempt fits in a
+// wake and this is the ceiling rather than the usual case.
+#define AIR_MAX_CONNECT_ATTEMPTS 2
+#endif
+#ifndef AIR_MIN_SLEEP_SEC
+// Floor for the compensated wake alarm. The alarm is set to
+// (history interval - time this wake spent awake) so the PERIOD equals the
+// configured interval; if a wake ever outlasts the interval the subtraction
+// would ask for zero, and the device would spin boot-sleep-boot. Sleeping this
+// long instead degrades to "as fast as it can" and the log line says OVERRUN.
+#define AIR_MIN_SLEEP_SEC 5
+#endif
+#ifndef AIR_RESUME_GRACE_SEC
+// How long M0 waits before resuming a cycle that a reset interrupted (plan
+// F25). The hibernation marker is cleared on every boot on purpose, so a device
+// that crashes inside the cycle stays reachable; the armed flag in air.bin is
+// what says the operator wanted the cycle, and this is the window they get to
+// countermand it with 'air stop'. Short, because the device is awake with the
+// radio on the whole time and that is the state the Air build exists to avoid.
+// The wide window is earned instead: after AIR_MAX_DIRTY_BOOTS unclean resumes
+// the grace becomes the full idle timeout, which is when a human actually needs
+// to get in.
+#define AIR_RESUME_GRACE_SEC 10
+#endif
+#ifndef AIR_TEL_FAIL_SKIP_WAKES
+// Reading wakes of silence after a telemetry wake whose send failed. Without
+// it, a collector that stops answering arms the "enough records are waiting"
+// trigger on every wake — the queue only grows — and the radio runs flat
+// answering nobody. Five wakes is one radio wake in six.
+#define AIR_TEL_FAIL_SKIP_WAKES 5
+#endif
+#ifndef AIR_MAX_DIRTY_BOOTS
+// Consecutive resumes after an UNCLEAN reset before the device stops rushing
+// back into the cycle. Counted in air.bin (flags bits 4..7) and zeroed by the
+// first healthy sleep, so an isolated glitch costs nothing and a real crash
+// loop still parks the device where an operator can reach it.
+#define AIR_MAX_DIRTY_BOOTS 3
+#endif
+#endif /* SIMUT_AIR */
+
+// ── Automatic cadence and batch size (measured 2026-09-07, see
+// docs/analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md) ────────────────────────
+// telInterval stopped being a floor between batches and became the period
+// between DRAINS. Inside a drain the pace comes from the server: a cycle that
+// finishes under TEL_FAST_MS earns the next batch at once, a slower one earns
+// a gap that doubles per slow batch up to TEL_GAP_MAX_MS, and any success
+// under the fast mark clears it.
+//
+// The fast mark is per transport because it is the device's own cost that
+// defines "fast": the slowest measured plain cycle was 281 ms (batch 250) and
+// the fastest with a TLS handshake was ~1.4 s. A server slower than that is
+// slower than the whole of the device's work, which is the criterion.
+#ifndef TEL_FAST_MS_PLAIN
+#define TEL_FAST_MS_PLAIN 400
+#endif
+#ifndef TEL_FAST_MS_TLS
+#define TEL_FAST_MS_TLS 2500
+#endif
+#ifndef TEL_GAP_MAX_MS
+#define TEL_GAP_MAX_MS 10000
+#endif
+// Batch AIMD, always inside safeBatchLimit( )'s heap ceiling: grow by half on
+// any success, halve on failure. It starts at the configured maximum, because
+// that is what the operator asked for — the controller exists to back away
+// from a server that cannot take it, not to make the device earn its own
+// setting back on every boot.
+// Ceiling for the minimum-batch trigger (SystemConfig::telInterval as a COUNT).
+// Above the 30-day floor collectBatch applies there is nothing left to send, so
+// a minimum larger than what fits inside it would simply never fire: 20,000
+// records is a fortnight at one reading a minute, well inside that floor.
+#ifndef TEL_MIN_BATCH_MAX
+#define TEL_MIN_BATCH_MAX 20000
+#endif
+#ifndef TEL_BATCH_MIN
+#define TEL_BATCH_MIN 10
+#endif
+// A drain that starts the instant the device boots competes with the rest of
+// setup( ), and a TLS handshake plus a POST in that window used to reach the
+// watchdog. Applies to the mains path only: an Air wake is a boot whose whole
+// purpose is to send, and it bypasses this through drain mode.
+#ifndef TEL_FIRST_SEND_DELAY_MS
+#define TEL_FIRST_SEND_DELAY_MS 8000
+#endif
+#ifndef TEL_BATCH_MAX
+#define TEL_BATCH_MAX 250
+#endif
+#ifndef TEL_TLS_KEEPALIVE_EXPERIMENT
+// Bench experiment (2026-09-07): keep the telemetry TLS session open between
+// consecutive successful batches instead of stopping it after every one. Every
+// HTTPS batch currently pays a full handshake because attemptHttpUpload( ) calls
+// _httpSecurePtr->stop( ) unconditionally on the way out — a defence measured
+// against the `drip` fault. This flag keeps the stop for every non-success and
+// adds an idle stop, so the defence stays for the failure path while the
+// success path amortises the handshake. Default 0. Measured 2026-09-07 (HTTPS,
+// 45 s windows): 5.2x at batch 25 and 3.4x at batch 100 against a server that
+// keeps the connection; identical to the default when the server closes it.
+#define TEL_TLS_KEEPALIVE_EXPERIMENT 0
+#endif
+

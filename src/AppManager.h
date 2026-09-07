@@ -18,6 +18,9 @@
 #include <Arduino.h>
 #include <memory>
 #include "SystemDefs.h"
+#if SIMUT_AIR
+#include "air/AirConfig.h"
+#endif
 
 /* Forward declarations for all manager subsystems — owned as unique_ptr on heap. */
 class SensorManager;
@@ -188,4 +191,72 @@ private:
 	 * The CLI queue drains 1-per-loop, so it needs no explicit call. */
  bool _wasInteracting = false;
  void onTouchReleased( );
+
+#if SIMUT_AIR
+ /* ────────────────────────────────────────────────────────────────────────
+  * SIMUT Air — headless hibernating build (M0 operacional / M1 dormant).
+  * M0 = Alpha-like headless boot (web + serial + BT config, sensors, telemetry).
+  * M1 = dormant cycle: wake on RTC -> read sensors until stable while the WiFi
+  *       connects in parallel -> always save history -> if online, flush pending
+  *       telemetry (non-blocking) -> sleep for max(history interval, backoff).
+  *       Led stays ON while awake, OFF while dormant.
+  * Air config lives in /config/air.bin (NOT SystemConfig -> CONFIG_VERSION frozen).
+  * ──────────────────────────────────────────────────────────────────────── */
+ enum AirPhase {
+  AIR_PHASE_OFF = 0,   /* M0 (operational, not hibernating) */
+  AIR_PHASE_WARMUP,    /* M1: power sensors, settle */
+  AIR_PHASE_SAMPLE,    /* M1: pump sensors until stable + connect WiFi (parallel) */
+  AIR_PHASE_DECIDE,    /* M1: always save history, pick CONNECT vs SLEEP */
+  AIR_PHASE_PERSIST,   /* M1: legacy no-op (history now saved in DECIDE) */
+  AIR_PHASE_CONNECT,   /* M1: wait for NTP/time sync */
+  AIR_PHASE_FLUSH,     /* M1: flush pending telemetry (non-blocking) */
+  AIR_PHASE_SLEEP      /* M1: power down + dormant */
+ };
+ AirPhase _airPhase = AIR_PHASE_OFF;
+ uint32_t _airPhaseTimer = 0;
+ bool     _airActive = false;   /* true = this boot is a dormant wake (M1) */
+ /* True only while this boot really began as an RTC wake. Separate from
+  * _airActive, which airStartHibernate( ) also sets: the wake alarm is
+  * compensated by the awake time (so the period equals the history interval),
+  * and that compensation is only meaningful when millis( ) measures this
+  * cycle rather than however long an operator left the device in M0. */
+ bool     _airWokeFromSleep = false;
+ /** Seconds the last sleep really lasted, as the RTC measured it (0 = unknown). */
+ uint32_t _airSleptSec = 0;
+ /** True once the wake gave up on the WiFi: stops pumping the network so a
+  *  missing SSID cannot keep the device awake past its sensor reading. */
+ bool     _airNetGaveUp = false;
+ /** This wake is due to send telemetry, so it raises the radio. False on a
+  *  reading-only wake, which never initialises the CYW43 at all. Always true
+  *  in M0, where an operator is talking to the device. */
+ bool     _airRadioWake = true;
+ /** The CYW43 was actually brought up this boot. Guards everything that lives
+  *  on the wireless chip — the onboard LED included, since LED_BUILTIN on the
+  *  Pico W is one of its GPIOs and writing it would power the radio back up. */
+ bool     _airRadioUp = true;
+ /** Wakes since the last one that sent telemetry; the telemetry schedule.
+  *  Carried across the sleep in scratch[1]. */
+ uint8_t  _airSkipWakes = 0;   /* wakes still to skip after a failed telemetry wake */
+ uint32_t _airLastActivityMs = 0; /* M0 idle timer */
+ /** Short M0 window before a cycle that a reset interrupted resumes itself
+  *  (plan F25). 0 = no interrupted cycle, or the crash-loop guard tripped, and
+  *  the configured idle timeout applies instead. */
+ uint16_t _airResumeGraceSec = 0;
+ AirConfig _airCfg;                 /* loaded from /config/air.bin */
+
+ void airLoop( );             /* M1 pump, called from loop( ) */
+ void airStartHibernate( );   /* M0 -> M1 transition (command or idle timeout) */
+ void airEnterDormant( );     /* M1 final step: power off + dormant */
+ void airMarkActivity( );     /* reset M0 idle timer on any command/web hit */
+ void airSetLed(bool on);     /* onboard LED — only while the CYW43 is up */
+ /** Is this wake the one that sends? Compares the wakes accumulated since the
+  *  last send against the configured telemetry interval. Must be answered
+  *  before the network is started, because its answer is whether to start it. */
+ bool airTelemetryDue( ) const;
+ bool airOnCharger( ) const;  /* charger line high = mains power, do not hibernate */
+ uint32_t airFlushBudgetMs( ) const;
+ void airSensorPower(uint8_t pin, bool on); /* sensor power-gating GPIO (high = awake) */
+ bool airLoadConfig(struct AirConfig& out);   /* read /config/air.bin */
+ bool airSaveConfig(const struct AirConfig& c); /* write /config/air.bin (atomic) */
+#endif /* SIMUT_AIR */
 };

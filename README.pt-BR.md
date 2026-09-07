@@ -102,7 +102,7 @@ O SIMUT é um firmware IoT de nível profissional para o **Raspberry Pi Pico W**
 
 Veja o **[Guia de Fiação](docs/WIRING.md)** para a pinagem completa e os diagramas de ligação.
 
-> 🛠️ **PCB do SIMUT** — o projeto KiCad, os arquivos Gerber de fabricação e os arquivos de furação da PCB do SIMUT estão em [`PCB_test/`](PCB_test/) (`.kicad_pcb`, `.kicad_sch`, Gerber `.gbr` e `.drl` — prontos para enviar à fábrica).
+> 🛠️ **PCB do SIMUT — layout disponível para download** — o projeto da placa no KiCad (`.kicad_pcb`, `.kicad_sch`) está em [`PCB_test/`](PCB_test/), e o pacote de fabricação pronto para enviar à fábrica (Gerbers + furação PTH/NPTH, sem camadas de pasta) está publicado como release público: **[simut-pcb-v1.0 — `simut_pcb_fabrication.zip`](https://github.com/angeloINTJ/simut/releases/tag/simut-pcb-v1.0)**.
 
 ## Recursos principais
 
@@ -224,8 +224,10 @@ simut/
 | `pico_w_test` | Mesmo firmware + CLI completa de 56 comandos para as suítes de bancada |
 | `pico_w_asserts` | Release + asserções de concorrência |
 | `pico_w_alpha` | Build headless (LCD 16×2, sem TFT) |
+| `pico_w_air` | **Experimental** — SIMUT Air: headless, sem buzzer, ciclo de hibernação em deep sleep (M0 operacional / M1 acorda-mede-envia-dorme); ver [`docs/analysis/SIMUT_AIR_ESBOCO.md`](docs/analysis/SIMUT_AIR_ESBOCO.md) e o plano de correção [`SIMUT_AIR_PLANO_FIX.md`](docs/analysis/SIMUT_AIR_PLANO_FIX.md) |
 | `native`, `native_history_v4/v5`, `native_cli` | Testes unitários no host |
 | `native_logpolicy` | Filtro de persistência de logs edge-triggered (18 testes) |
+| `native_air` | Config persistente do SIMUT Air (`air/AirConfig.h`, 7 testes) |
 
 > `pico_w_debug` existe mas não linka — em `-Og` a imagem estoura o slot de 1020 KB. A flash é apertada: a imagem release usa ~97 % do slot.
 
@@ -240,7 +242,7 @@ simut/
 ### CLI
 Uma interface de linha de comando está disponível pela serial USB (115200 baud).
 
-- A **imagem release** traz um console de emergência mínimo de 10 comandos: `show net status`, `show system info`, `show system log`, `debug on|off`, `system admin reset`, `system format`, `system factory`, `system https off`, `reload`, `help`.
+- A **imagem release** traz um console de emergência mínimo de 12 comandos: `show net status`, `show system info`, `show system log`, `debug on|off`, `system admin reset`, `system format`, `system factory`, `system https off`, `system ssid <nome>`, `system pass <senha>`, `reload`, `help`. A imagem Air acrescenta `air status|hibernate|stop|idle <seg>`.
 - A **imagem `pico_w_test`** traz a CLI completa estilo Cisco (56 comandos, modos `enable` / `configure terminal`) — veja o [Manual do CLI](docs/CLI-Manual.md).
 
 A configuração do dia a dia foi desenhada para acontecer no display touch e na interface web, que são sempre completos.

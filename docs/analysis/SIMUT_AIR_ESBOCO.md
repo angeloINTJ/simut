@@ -1,0 +1,382 @@
+# SIMUT Air — Esboço de Projeto (build headless com hibernação)
+
+> **Status:** Implementado na branch `feature/simut-air` e **revisado em 06/09/2026**: 21 achados
+> (3 bloqueantes) com plano de correção e otimização em [`SIMUT_AIR_PLANO_FIX.md`](SIMUT_AIR_PLANO_FIX.md);
+> testes de aceite em `tools/air_test_suite.py` (CLI + web + PicoHand) e `tools/check_air_consistency.py`.
+> Não considerar pronto para release antes do plano fechar.
+> **Nota de implementação:** a hibernação usa **SLEEP (deep sleep via WFI)**, e não
+> DORMANT — o modo DORMANT (escrita `"coma"` no ROSC) mostrou-se não-determinístico
+> na bancada (corre contra o sincronizador lento do ROSC/clk_rtc e acorda na hora
+> errada). Ver §5.
+> **Branch:** `feature/simut-air`
+> **Base:** `main` (v2.3.9-beta — `SIMUT_VERSION` em `src/SystemDefs_Limits.h`).
+> **Idioma:** pt-BR (espelha `docs/analysis/ANALISE_*.md`).
+
+---
+
+## 0. Decisões confirmadas (incorporadas nesta revisão)
+
+| # | Decisão | Impacto no desenho |
+|---|---|---|
+| D1 | Modo **dormant** (não `sleep`) | ~~hibernação profunda, SRAM perdida~~ → na implementação virou **SLEEP (deep sleep)**; ver §5 |
+| D2 | Configuração via **serial + bluetooth + web** | o Air mantém os 3 canais de configuração ativos no modo inicial |
+| D3 | Ao ligar na alimentação = **SIMUT Alpha sem display** (modo operacional) | cold boot entra em M0 com stack completo |
+| D4 | Entra em hibernação **por comando** (serial/BT/web) ou **após 5 min sem comando** | M0 tem timer de inatividade + comando explícito |
+| D5 | `PromMetrics`/`Syslog`/`HaDiscovery` **só no modo inicial** | no ciclo de hibernação ficam desligados |
+| D6 | **`CONFIG_VERSION` NÃO muda** (fica 21) | config do Air vai para arquivo separado no LittleFS |
+| D7 | **Intervalo de wake configurável** via web e serial | novo arquivo de config do Air + CLI `air` + seção web |
+
+---
+
+## 1. Objetivo
+
+**SIMUT Air** é a variante do SIMUT para Raspberry Pi Pico W **sem display**, com um
+**ciclo de hibernação em deep sleep (SLEEP)**: o pico passa a maior parte do tempo dormindo e,
+em **períodos definidos** (o intervalo de salvamento do histórico), acorda para:
+
+1. **acordar** (alarme do RTC);
+2. **ler os sensores até a estabilização** (janela de média aparada completa);
+3. **em paralelo, conectar ao Wi-Fi configurado** (o link fica pronto durante a amostragem);
+4. **sempre gravar** a amostra no histórico local (o trabalho principal do wake);
+5. **se online** → enviar a telemetria pendente (não-bloqueante) e voltar a hibernar;
+6. **voltar a dormir** pelo máximo entre o intervalo de histórico e o backoff de telemetria.
+
+A diferença em relação à v1 do esboço: o Air **não nasce já hibernando**. Ele tem **dois
+modos** — um modo operacional (Alpha headless) para configuração/manutenção e um modo de
+hibernação (ciclo dormant). Ver §3.
+
+---
+
+## 2. O que já existe e vamos REAPROVEITAR (sem reescrever)
+
+| Necessidade do Air | Onde já existe hoje |
+|---|---|
+| Ler sensores até estabilizar | `SensorManager` — média aparada (`MOVING_AVG_WINDOW=10`), `RuntimeSensor::bufferFull()` |
+| Armazenar valores localmente | `HistoryV5` (encoder RAM → `.wip` → `.h5`) + `writeHistoryEntryV5` |
+| Telemetria store-and-forward | `TelemetryManager` — cursor persistido (`/config/t_cursor.bin`) + `collectBatch()` + `forceSync()` |
+| Wi-Fi / conexão / NTP | `NetworkManager` (STA, backoff, NTP, relógio provisório) |
+| Config serial / bluetooth | `CommandManager` + `CommandParser` (mesmo parser no Serial e no SerialBT) |
+| Config web | `WebManager` + `/api/commit_all` |
+| Config persistida | `StorageManager` (`SystemConfig` binário, CRC, banco duplo) |
+| `PromMetrics` / `Syslog` / `HaDiscovery` | já existem e ficam **no modo inicial** (D5) |
+
+**Store-and-forward já é nativo**: o cursor de telemetria só avança quando o envio é
+confirmado; registros gravados sem Wi-Fi ficam pendentes e são despachados na próxima conexão.
+O Air só precisa orquestrar o ciclo dormir/acordar em volta disso.
+
+---
+
+## 3. Os dois modos do Air
+
+### 3.1 M0 — Modo Operacional (Alpha headless)
+
+Roda no **cold boot** (alimentação ligada / reset normal). Stack completo, igual ao SIMUT
+Alpha **menos o display**:
+
+- sensores lendo continuamente + telemetria ao vivo;
+- servidor web (config via UI);
+- CLI serial (completa, `SIMUT_CLI_FULL=1`);
+- CLI Bluetooth (mesmo parser);
+- `PromMetrics` + `Syslog` + `HaDiscovery` **ativos** (D5);
+- alarmes/limites operando normalmente.
+
+**Saídas de M0** (ambas levam a M1):
+- **comando explícito** `air hibernate` (serial/BT) ou ação web (`/api/air/hibernate`);
+- **timer de inatividade**: 5 min sem nenhum comando (serial/BT/web) → hiberna (D4).
+
+### 3.2 M1 — Ciclo de Hibernação (dormant)
+
+Máquina de estados mínima que executa, a cada wake do RTC, o ciclo de amostragem +
+store-and-forward (§4). Aqui **não** sobem web, `PromMetrics`, `Syslog` nem `HaDiscovery`
+(D5) — só o essencial para ler, decidir, gravar/enviar e voltar a dormir.
+
+### 3.3 Detecção M0 × M1 e transições
+
+```
+  ligar alimentação / reset          wake do RTC (dormant)
+        │                                    │
+        ▼                                    ▼
+   ┌─────────┐  comando air hibernate   ┌─────────┐
+   │   M0    │ ────────────────►          │   M1    │
+   │ Alpha   │   ou 5 min inativo         │ ciclo   │
+   │ headless│ ◄────────────────          │ dormant │
+   └─────────┘   (re)ligar alimentação    └─────────┘
+```
+
+- **Detecção**: marcador mágico em `watchdog scratch[0]` (mesma técnica do
+  `POST_OTA_APPLY_MAGIC` em `AppManager_Boot.cpp`) gravado antes de `sleep_goto_dormant_until()`;
+  no boot, scratch[0] == magia → M1 (wake de dormant); senão → M0 (cold boot). `recover_from_sleep()`
+  restaura o relógio nos dois casos.
+- **M1 → M0**: desligar e religar a alimentação (cold boot). *Open question*: um botão (wake por
+  GPIO edge) para forçar M0 sem tirar da tomada — ver §11.
+
+---
+
+## 4. Ciclo de hibernação (M1) — máquina de estados
+
+Um `AirManager` (padrão de `TelemetryManager`) é dono da máquina de M1:
+
+| Estado | Ação | Sai quando |
+|---|---|---|
+| `AIR_BOOT` | scratch[0] confirma wake-de-dormant; `recover_from_sleep()` | setup termina |
+| `AIR_WARMUP` | Liga VCC dos sensores (GPIO de power-gating) | timeout curto (~400 ms) |
+| `AIR_SAMPLE` | Bombeia `SensorManager::update()` **e** `NetworkManager::update()` (Wi-Fi conecta em paralelo) | canais ativos `bufferFull()` **ou** `STAB_TIMEOUT` |
+| `AIR_DECIDE` | **Sempre** grava o histórico (`processHistoryLogging` + `flushWipV5`) e escolhe CONNECT vs SLEEP | imediato |
+| `AIR_PERSIST` | *(legado, no-op — o histórico agora é gravado no DECIDE)* | imediato |
+| `AIR_CONNECT` | `NetworkManager::update()` até time-sync/`NET_READY`/timeout | conectado ou timeout |
+| `AIR_FLUSH` | `TelemetryManager::update()` não-bloqueante (respeita backoff) | fila zerada **ou** backoff ativo (envio falhou) **ou** Wi-Fi caiu — ⚠️ hoje sem teto de tempo: telemetria desligada ou RSSI fraco deixam o aparelho acordado (F02 do plano; `flushTimeoutMs` passa a valer) |
+| `AIR_SLEEP` | Desliga sensores; `WiFi.end()` + `GPIO23 (WL_REG_ON) LOW`; desarma WDT; grava scratch[0]=magia; agenda RTC; `sleep_goto_sleep_until()` | — (reset no próximo wake) |
+
+`AIR_CONNECT`/`AIR_FLUSH` só rodam quando o Wi-Fi conectou durante o SAMPLE. O histórico é
+gravado **sempre**, independente de rede — os dados ficam pendentes no cursor de telemetria para
+o próximo wake online. O intervalo de wake é lido do **intervalo de salvamento do histórico**
+(`StorageManager::getHistoryIntervalMin()`) no `AIR_SLEEP`; se o backoff de telemetria for maior,
+dorme pelo backoff.
+
+Diagrama do ciclo:
+
+```
+   BOOT (wake) → WARMUP → [ AMOSTRAGEM ⇄ CONECTA Wi-Fi ] → DECIDE (sempre grava histórico)
+                                                            │
+                                        offline             │ online
+                                                            ▼
+                                        SLEEP            CONNECT + FLUSH (tel, não-bloqueante)
+                                                            │
+                                                            ▼
+                                                HIBERNA (SLEEP + RTC)
+```
+
+---
+
+## 5. Hibernação no RP2040 — SLEEP (deep sleep) na implementação
+
+> **Mudança de D1:** o modo DORMANT (escrita `"coma"` no ROSC_DORMANT + clk_sys→ROSC)
+> foi substituído por **SLEEP (deep sleep via `__wfi`)**. DORMANT mostrou-se
+> não-determinístico na bancada: a escrita "coma" e a troca para o ROSC disputam o
+> sincronizador lento do ROSC/clk_rtc e acordam na hora errada. SLEEP usa o mesmo
+> alarme do RTC, é determinístico e custa só ~0,25 mA a mais (~1,2 mA vs ~0,95 mA).
+
+- `sleep_goto_sleep_until(datetime, cb)` vendado em `src/air/pico_sleep.c`
+  (clk_sys/clk_ref→XOSC, `sleep_en0`=RTC, `__wfi` + alarme do RTC);
+- o set do RTC usa `airRtcSetDatetime()` (segura o bit LOAD por 1 ms — o SDK escreve
+  LOAD+ENABLE back-to-back e perde o LOAD a 46875 Hz);
+- antes do `__wfi` desabilita todas as IRQs exceto a do RTC (senão um IRQ pendente de
+  USB/UART acorda imediatamente);
+- o wake é um **resume**; o firmware faz `SYSRESETREQ` logo após o retorno para o boot
+  ROM reinicializar os clocks, e `scratch[0]` (always-on) discrimina M1 vs M0;
+- ⚠️ **o `SYSRESETREQ` NÃO reinicializa o bloco de clocks.** É a mesma razão pela qual
+  `sleep_en0` e o alarme velho do RTC precisaram ser zerados à mão. Consequência achada na
+  bancada em 06/09: desligar o **ROSC** para economizar corrente durante o sono, sem religá-lo
+  antes do reset, faz o boot ROM subir sem oscilador em anel e o wake demorar um tempo **longo
+  e variável** (16 a 48 min medidos, contra 120 s pedidos). O `sleep_goto_sleep_until()` religa
+  o ROSC logo após o `wfi` e espera `ROSC_STATUS_STABLE`. Qualquer coisa nova que for desligada
+  antes do `wfi` tem que ser religada nesse mesmo ponto;
+- consumo do RP2040 na faixa de **~1,2 mA** em sleep (XOSC + RTC); como todo estado
+  relevante (amostra, cursor de telemetria) já está em flash antes de dormir, a perda de
+  SRAM não é custo — o boot reconstrói tudo a partir do flash.
+
+### Atenções obrigatórias (validação no bench)
+
+1. **CYW43 (Wi-Fi)**: desligar antes de dormir por **hardware** (`WiFi.disconnect(true)` +
+   `WiFi.end()` + `GPIO23 (WL_REG_ON) LOW`). **Não** usar `cyw43_arch_deinit()` — trava no
+   2º ciclo (deixa o chip num estado que só power-cycle recupera; mesma conclusão do OTA
+   "Fix #2 REVERTIDO"). O boot seguinte faz o power-cycle do CYW43, então não exige teardown limpo.
+2. **Watchdog**: fica no domínio always-on; se armado, dispara durante o dormant e parece reset.
+   Desarmar antes de dormir e re-armar no `setup()`. (Em M0 o WDT segue como hoje.)
+3. **Consumo real da placa Pico W**: em dormant ~1,3 mA (repouso do CYW43 + regulador). Para µA
+   reais, power-gating do chip wireless (hardware) — decisão fora do firmware.
+4. **Relógio entre ciclos**: RTC continua em dormant (XOSC); validar `recover_from_sleep` + relógio
+   provisório do `NetworkManager` mantendo `time()` coerente sem NTP (V5 já usa `H5_FLAG_CLOCK_SYNCED`).
+5. **Sensores**: desligar via GPIO de power-gating; conversão lenta (DS18B20 ~750 ms, DHT22 ~2 s)
+   domina o tempo acordado.
+
+---
+
+## 6. Detalhamento dos passos do ciclo (M1)
+
+### 6.1 Estabilização dos sensores
+- Reusa `SensorManager::update()` e a média aparada (10 amostras, descarta outliers);
+- estável = `RuntimeSensor::bufferFull()` em todos os canais ativos **ou** `STAB_TIMEOUT` (ex. 15–30 s);
+- calibração já é aplicada pelo `SensorManager` — nada novo.
+
+### 6.2 Conexão Wi-Fi em paralelo
+- `NetworkManager::update()` roda no mesmo laço do `SensorManager::update()` durante o
+  `AIR_SAMPLE`; o link fica (em geral) pronto quando os sensores estabilizam;
+- sem scan prévio — a conexão direta ao `cfg.wifiSsid` decide presença e conecta de uma vez;
+- offline → `AIR_DECIDE` grava o histórico e vai direto a `AIR_SLEEP`.
+
+### 6.3 Store-and-forward (sem código novo de pendência)
+- `AIR_DECIDE`: `processHistoryLogging()` + `flushWipV5()` — grava **sempre**; o cursor de
+  telemetria não avança;
+- `AIR_FLUSH`: `TelemetryManager::update()` não-bloqueante drena do cursor (HTTP 2xx / MQTT
+  PUBACK) respeitando o backoff; **não** usar `forceSync()` (bloqueia no upload HTTP);
+- envia **persistente** (um lote por `cfg.telInterval`) até a fila zerar, o envio falhar
+  (backoff) ou o Wi-Fi cair → volta a dormir e tenta no próximo wake; o cursor garante sem
+  duplicação/perda.
+
+---
+
+## 7. Variante de build (`[env:pico_w_air]`)
+
+Padrão de `[env:pico_w_alpha]`, mas mantendo os 3 canais de configuração (D2):
+
+- `extends = pico_base`;
+- flags: `-DSIMUT_DISPLAY_TFT=0 -DSIMUT_DISPLAY_ALPHA=0 -DSIMUT_AIR=1`
+  `-DSIMUT_CLI_FULL=1 -DSIMUT_BLUETOOTH=1 -DPIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH`
+  `-DSIMUT_MDNS=0` (reavaliar);
+- `build_src_filter` exclui o display e a UI gráfica: `DisplayManager_*.cpp`, `AppManager_Graph.cpp`,
+  `AppManager_HistoryAlarm.cpp` (telas), fontes, temas, touch;
+  **mantém**: `WebManager_*`, `CommandManager*`, `BluetoothManager.cpp`, `TelemetryManager*`,
+  `SyslogManager*`, `PromMetrics*`, `HaDiscovery*`;
+- `lib_ignore` repete a lista de `pico_w_alpha` (ILI9341, GFX, XPT2046) + buzzer, se for dropado;
+- **display compilado fora** via stub `DisplayManager_None.cpp` (alternativa (a)) — o `AppManager`
+  referencia `_displayMgr` incondicionalmente; Air roda **single-core** (sem Core 1 de display).
+
+**Orçamento de flash (a medir)**: Air ≈ Alpha sem o HD44780/display, porém com CLI completa e
+Bluetooth. Se apertar, os levers já documentados em `[env:pico_w_test]` estão disponíveis
+(`-DNDEBUG`, `-DSIMUT_LICENSE_STUB`, `-DSIMUT_MDNS=0`, páginas web em LittleFS via
+`custom_fs_pages`). Validar com `arm-none-eabi-size` antes de fechar os flags.
+
+---
+
+## 8. Configuração do Air SEM mudar `CONFIG_VERSION` (D6)
+
+O `reserved[]` do `SystemConfig` está cheio e **não** vamos bump o `CONFIG_VERSION` (21). Então
+a config do Air vive num **arquivo separado** no LittleFS, com ciclo de vida próprio:
+
+```
+/config/air.bin        // blob binário com magic + versão própria + CRC32
+                       // (mesmo padrão de banco duplo do system.bin, mas isolado)
+```
+
+```
+struct __attribute__((packed)) AirConfig {
+  uint32_t magic;           // próprio, ex. AIR1
+  uint16_t version;         // próprio, independente do CONFIG_VERSION
+  uint16_t idleTimeoutSec;  // D4 — inatividade p/ auto-hibernar (default 300 s)
+  uint16_t stabTimeoutMs;   // teto de estabilização dos sensores
+  uint16_t wifiScanTimeoutMs; // (obsoleto — sem scan; conexão direta em paralelo)
+  uint16_t connectTimeoutMs;
+  uint16_t flushTimeoutMs;    // (obsoleto — FLUSH usa cfg.telInterval)
+  uint8_t  sensorPowerPin;  // 255 = desligado
+  uint8_t  flags;           // LED de status, etc.
+  uint32_t crc32;
+};
+// NOTA: não há campo wakeIntervalMin — o período entre wakes é o intervalo de
+// salvamento do histórico (StorageManager::getHistoryIntervalMin()).
+```
+
+### 8.1 Escrita (web)
+- Nova seção Air na página de config + campos no handler de `/api/commit_all` (ou endpoint
+  dedicado `/api/air`) que gravam `air.bin` via `StorageManager` (write atômico `.tmp` + rename).
+- **Não** passa por `SystemConfig` → `CONFIG_VERSION` fica 21 e o `system.bin` existente não é tocado.
+
+### 8.2 Escrita (serial / bluetooth)
+- Novos comandos no `CliCommand` (`SystemDefs_Cli.h`) — o `CommandParser` é compartilhado entre
+  Serial e SerialBT, então funcionam nos dois canais sem código extra:
+  - `air idle <sec>` — define o timer de inatividade (default 300);
+  - `air hibernate` — entra em M1 agora (D4, explícito);
+  - `air status` — mostra a config atual + motivo do próximo wake
+    (`wake=` max de histórico/backoff, `hist=`, `backoff=`, `idle=`).
+  - *(não há `air interval` — o período entre wakes é o **intervalo de salvamento do
+    histórico**, configurável via `history interval` existente.)*
+
+### 8.3 Leitura / defaults
+- `StorageManager` ganha `loadAirConfig()`/`saveAirConfig()`; arquivo ausente → defaults de
+  `simut_config.h` (nova seção AIR), gravado na primeira escrita.
+- `AIR_SLEEP` lê `getHistoryIntervalMin()` (e o backoff de telemetria) para agendar o alarme
+  do RTC; M0 lê `idleTimeoutSec` para o timer.
+
+---
+
+## 9. Estrutura de arquivos proposta
+
+```
+src/AirManager.h                    // máquina de estados de M1 (ciclo dormant)
+src/AirManager.cpp
+src/AppManager_Air.cpp              // integração no loop: timer de inatividade (M0) + pump (M1)
+src/display/DisplayManager_None.cpp // stub headless (alternativa (a))
+src/SystemDefs_Cli.h                // + CMD_AIR_* (interval, idle, hibernate, status)
+src/SystemDefs_Network.h            // + constantes de timeout do Air
+src/simut_config.h                  // + seção AIR (defaults)
+src/StorageManager.*                // + loadAirConfig/saveAirConfig (arquivo air.bin)
+src/WebManager_Commit.cpp           // + seção Air no commit
+platformio.ini                      // + [env:pico_w_air]
+docs/analysis/SIMUT_AIR_ESBOCO.md   // este documento
+```
+
+---
+
+## 10. Estimativas (a validar no bench — cultura do repo)
+
+| Item | Estimativa | Base |
+|---|---|---|
+| Flash | Air ≈ Alpha menos display; com CLI full + BT, a medir; levers do `pico_w_test` disponíveis | `arm-none-eabi-size` |
+| RAM | sem Core 1 de display, folga de heap | idem |
+| Corrente em dormant | ~1,3 mA (placa Pico W sem mod) / µA (com power-gating) | bench |
+| Tempo acordado por ciclo | dominado pela estabilização (DS18B20 ~750 ms, DHT22 ~2 s) | drivers |
+| Desgaste de flash | 1 registro por wake + seal horário — irrelevante (wear-leveling) | V5 |
+
+---
+
+## 11. Decisões em aberto (atualizado em 06/09/2026)
+
+Decididas na prática pela implementação:
+
+1. **Volta M1 → M0**: `air stop` pela serial USB durante a janela acordada (o laço M1 lê a CLI);
+   power-cycle e **reset físico** (pino RUN, `hand RESET`) dão boot frio — o reset físico zera os
+   scratch registers, incluindo o marcador em `scratch[0]` (`src/LogManager.cpp:605`), a medir em
+   T02 da suíte. Botão/wake por GPIO: não feito.
+2. **O que reseta o timer de inatividade**: hoje só comandos serial/BT (`executeCommand`). Requests
+   web **não** resetam — é o item F21 do plano (decisão: qualquer request autenticado conta).
+3. **Buzzer**: fora do Air (`SoundManager` vira no-op, `BuzzerPIO` fora do link).
+4. **`SIMUT_MDNS`**: mantido no modo operacional.
+5. **LED**: aceso acordado, apagado dormindo (política de piscar por evento ficou para a Fase 4).
+6. **Wake por GPIO**: não feito; só RTC.
+7. **Intervalo de wake**: é o intervalo de salvamento do histórico (`h_int`); mudar via web
+   reinicia (`commit_all`), o M1 lê no `AIR_SLEEP`.
+
+Ainda abertas (respostas pedidas na §5 do plano): Bluetooth em M1 (D-1), web em M1 (D-2),
+`system ssid/pass` em todas as imagens (D-3), bump do `air.bin` (D-4), RTC como relógio de
+parede (D-5).
+
+---
+
+## 12. Riscos e plano de validação
+
+| Risco | Mitigação / validação |
+|---|---|
+| Desligar/religar CYW43 corrompe o Wi-Fi | teste: N ciclos dormant→connect, medir taxa de falha |
+| WDT dispara durante o dormant | desarmar antes / re-armar no boot; teste de ciclo longo |
+| Relógio drift entre wakes sem NTP | validar `recover_from_sleep` + relógio provisório |
+| Estabilização longa demais (bateria) | `STAB_TIMEOUT` + amostra parcial; medir tempo acordado |
+| Timer de 5 min dispara durante config demorada | resetar o timer a cada comando/request (definição em `11.2`) |
+| `air.bin` corrompido | magic + CRC + fallback para defaults (não afeta `system.bin`) |
+| Regressão do build principal | Air é env separado; `pico_w_release`/`pico_w_alpha` intactos |
+
+---
+
+## 13. Próximos passos (esqueleto do plano de implementação)
+
+1. **F1 — Build headless**: `[env:pico_w_air]` + `DisplayManager_None.cpp` + `SIMUT_AIR`;
+   compilar e garantir que `pico_w_release`/`pico_w_alpha` seguem intactos.
+2. **F2 — Config do Air**: `AirConfig` + `air.bin` (load/save) + defaults em `simut_config.h`;
+   **sem** tocar em `CONFIG_VERSION` (D6).
+3. **F3 — `AirManager` (M1)**: máquina WARMUP/SAMPLE/DECIDE/PERSIST/CONNECT/FLUSH/SLEEP
+   integrada ao loop sob `#if SIMUT_AIR`.
+4. **F4 — SLEEP**: `WiFi.end()` + `GPIO23 LOW`/`sleep_goto_sleep_until()`/WDT desarmar +
+   `recover_from_sleep()` + scratch[0]=magia; power-gating dos sensores.
+5. **F5 — M0 e transição**: boot = Alpha headless; comando `air hibernate` (CLI/BT) + endpoint web;
+   timer de 5 min de inatividade; desligar `PromMetrics`/`Syslog`/`HaDiscovery` na transição (D5).
+6. **F6 — Store-and-forward**: `processHistoryLogging()` (sempre) + `TelemetryManager::update()`
+   não-bloqueante no ciclo; teste de queda de rede no meio do envio (sem duplicação/perda).
+7. **F7 — Validação**: bench de corrente em dormant, tempo acordado, confiabilidade do reconnect,
+   drift de relógio, desgaste de flash; documentar em `docs/`.
+8. **F8 — Correções e otimização (06/09/2026)**: F1–F6 estão implementados; F7 ficou parcial
+   (3 ciclos na bancada, sem medição de corrente/tempo registrada). Os 21 achados da revisão e
+   as fases de correção estão em [`SIMUT_AIR_PLANO_FIX.md`](SIMUT_AIR_PLANO_FIX.md); a
+   validação passa a ser a suíte `tools/air_test_suite.py`.
+
+---
+
+_Esboço (revisão 3, 06/09/2026) em `feature/simut-air` — implementado; correções pendentes no plano._

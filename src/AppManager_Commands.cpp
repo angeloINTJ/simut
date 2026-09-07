@@ -39,6 +39,9 @@ void AppManager::startApMode( ) {
 }
 
 void AppManager::executeCommand(CliDemand cmd) {
+#if SIMUT_AIR
+ airMarkActivity( ); /* any serial/BT command resets the M0 idle timer */
+#endif
  SystemConfig &cfg = _storageMgr->getConfig( );
  bool changed = false;
  const bool pt = _cmdMgr->isPt( );
@@ -297,28 +300,6 @@ void AppManager::executeCommand(CliDemand cmd) {
  changed = true;
  break;
  }
- case CMD_SET_WIFI_SSID: {
- const bool pt = _cmdMgr->isPt( );
- if (!isValidCfgString(cmd.strVal1, sizeof(cfg.wifiSsid) - 1)) {
- _cmdMgr->printError(pt ? "SSID invalido (max 31, sem ctrl chars)"
- : "Invalid SSID (max 31, no ctrl chars)");
- break;
- }
- safeCopy(cfg.wifiSsid, cmd.strVal1, sizeof(cfg.wifiSsid));
- changed = true;
- break;
- }
- case CMD_SET_WIFI_PASS: {
- const bool pt = _cmdMgr->isPt( );
- if (!isValidCfgString(cmd.strVal1, sizeof(cfg.wifiPass) - 1)) {
- _cmdMgr->printError(pt ? "Senha invalida (max 31, sem ctrl chars)"
- : "Invalid pass (max 31, no ctrl chars)");
- break;
- }
- safeCopy(cfg.wifiPass, cmd.strVal1, sizeof(cfg.wifiPass));
- changed = true;
- break;
- }
  case CMD_SET_TIMEZONE: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
@@ -407,13 +388,13 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_SET_TEL_INTERVAL: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
- _cmdMgr->printError(pt ? "Numero invalido para intervalo"
- : "Invalid number for interval");
+ _cmdMgr->printError(pt ? "Numero invalido para lote minimo"
+ : "Invalid number for minimum batch");
  break;
  }
- if (cmd.intVal1 < 0) {
- _cmdMgr->printError(pt ? "Intervalo deve ser >= 0 (0 = off)"
- : "Interval must be >= 0 (0 = off)");
+ if (cmd.intVal1 < 0 || cmd.intVal1 > TEL_MIN_BATCH_MAX) {
+ _cmdMgr->printError(pt ? "Lote minimo fora de range (0-20000, 0 = off)"
+ : "Minimum batch out of range (0-20000, 0 = off)");
  break;
  }
  cfg.telInterval = (uint32_t)cmd.intVal1;
@@ -444,8 +425,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_SET_HISTORY_INTERVAL: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
- _cmdMgr->printError(pt ? "Numero invalido para intervalo"
- : "Invalid number for interval");
+ _cmdMgr->printError(pt ? "Numero invalido para lote minimo"
+ : "Invalid number for minimum batch");
  break;
  }
  if (cmd.intVal1 < HISTORY_INTERVAL_MIN_MIN || cmd.intVal1 > HISTORY_INTERVAL_MAX_MIN) {
@@ -460,6 +441,38 @@ void AppManager::executeCommand(CliDemand cmd) {
 
 #endif /* SIMUT_CLI_FULL */
 
+ /* WiFi SSID/pass live here (outside SIMUT_CLI_FULL) so the headless Air build
+  * can change the network from the emergency serial console. */
+ case CMD_SET_WIFI_SSID: {
+ const bool pt = _cmdMgr->isPt( );
+ if (cmd.strVal1[0] == '\0' || !isValidCfgString(cmd.strVal1, sizeof(cfg.wifiSsid) - 1)) {
+ _cmdMgr->printError(pt ? "SSID invalido (1-31 chars, sem ctrl chars)"
+ : "Invalid SSID (1-31 chars, no ctrl chars)");
+ break;
+ }
+ safeCopy(cfg.wifiSsid, cmd.strVal1, sizeof(cfg.wifiSsid));
+ /* Emergency console has no 'write memory' — persist right away so the
+  * network change survives, and hand off to 'reload' for the reconnect. */
+ _storageMgr->saveConfiguration( );
+ _cmdMgr->printSuccess(pt
+  ? "SSID salvo. Use 'reload confirm' para reconectar."
+  : "SSID saved. Run 'reload confirm' to reconnect.");
+ break;
+ }
+ case CMD_SET_WIFI_PASS: {
+ const bool pt = _cmdMgr->isPt( );
+ if (!isValidCfgString(cmd.strVal1, sizeof(cfg.wifiPass) - 1)) {
+ _cmdMgr->printError(pt ? "Senha invalida (max 31, sem ctrl chars)"
+ : "Invalid pass (max 31, no ctrl chars)");
+ break;
+ }
+ safeCopy(cfg.wifiPass, cmd.strVal1, sizeof(cfg.wifiPass));
+ _storageMgr->saveConfiguration( );
+ _cmdMgr->printSuccess(pt
+  ? "Senha salva. Use 'reload confirm' para reconectar."
+  : "Pass saved. Run 'reload confirm' to reconnect.");
+ break;
+ }
  case CMD_RESET_ADMIN:
  cmdHandleResetAdmin(cmd, cfg, changed); break;
 
@@ -788,6 +801,150 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_AP:
  startApMode( );
  break;
+
+#if SIMUT_AIR
+ case CMD_AIR_HIBERNATE:
+ _cmdMgr->printInfo(_cmdMgr->isPt( )
+  ? "Entrando em hibernacao (SIMUT Air)..."
+  : "Entering hibernation (SIMUT Air)...");
+ airStartHibernate( );
+ break;
+
+ case CMD_AIR_STATUS: {
+  /* 160, not 112: the line now carries both schedules and the two F25 flags,
+   * and at full width it needs ~118. snprintf would truncate silently, which on
+   * a status line means the field you came to read is the one that is missing. */
+  char buf[160];
+  /* Wake interval = history save interval (the primary job of the wake); if the
+   * telemetry backoff (punishment) is larger, the device sleeps for the backoff
+   * instead (see airEnterDormant). */
+  uint32_t histSec = (uint32_t)_storageMgr->getHistoryIntervalMin( ) * 60UL;
+  uint32_t backoffSec = _telemetryMgr->getBackoffRemainingMs( ) / 1000UL;
+  uint32_t wakeSec = (backoffSec > histSec) ? backoffSec : histSec;
+  if (wakeSec == 0) wakeSec = 1;
+  /* armed/dirty say whether a reset would bring the cycle back and how close the
+   * crash-loop guard is to holding the device in M0 (plan F25). Without them,
+   * "phase=0" looks the same whether the operator stopped the cycle or a
+   * watchdog knocked the device out of it. */
+  /* tel= is the telemetry trigger: how many records are waiting against the
+   * minimum that raises the radio (0 = telemetry off). skip= is the penalty a
+   * failed telemetry wake books, in reading wakes. radio= says whether THIS
+   * wake raised the CYW43 at all. bat=/cyc= are the cadence controller: the
+   * batch size it settled on and the last full send cycle in ms. */
+  snprintf(buf, sizeof(buf),
+           "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us armed=%d dirty=%u "
+           "tel=%u/%lu skip=%u radio=%d chg=%d bat=%u cyc=%lums wip=%u",
+           (int)_airPhase, (unsigned long)wakeSec,
+           (unsigned long)histSec, (unsigned long)backoffSec,
+           (unsigned)(_airResumeGraceSec ? _airResumeGraceSec : _airCfg.idleTimeoutSec),
+           airCycleArmed(_airCfg) ? 1 : 0, (unsigned)airDirtyBoots(_airCfg),
+           (unsigned)_telemetryMgr->getPendingEstimate( ),
+           (unsigned long)_storageMgr->getConfig( ).telInterval,
+           (unsigned)_airSkipWakes,
+           _airRadioUp ? 1 : 0,
+           airOnCharger( ) ? 1 : 0,
+           (unsigned)_telemetryMgr->getBatchAuto( ),
+           (unsigned long)_telemetryMgr->getLastCycleMs( ),
+           (unsigned)_storageMgr->h5WipWrites( ));
+  _cmdMgr->printInfo(buf);
+  break;
+ }
+
+ case CMD_AIR_STOP:
+  _airActive = false;
+  /* Back in M0 under an operator: millis( ) stops measuring the cycle, so the
+   * next hibernation starts a fresh anchor instead of compensating for time
+   * that was never part of a wake. */
+  _airWokeFromSleep = false;
+  _airPhase = AIR_PHASE_OFF;
+  _telemetryMgr->setDrainMode(false); /* a stop inside FLUSH must not leave M0 draining */
+  _airLastActivityMs = millis( );
+  /* Disarm in flash too, or the next boot would resume the cycle the operator
+   * just cancelled (plan F25). The dirty-boot count goes with it: this is a
+   * deliberate fresh start, not a recovery. */
+  if (airCycleArmed(_airCfg) || airDirtyBoots(_airCfg) != 0) {
+   _airCfg.flags &= (uint8_t)~AIR_FLAG_CYCLE_ARMED;
+   airSetDirtyBoots(_airCfg, 0);
+   airSaveConfig(_airCfg);
+  }
+  _airResumeGraceSec = 0;
+  /* `air stop` hands the device back to an operator, and an operator expects to
+   * reach it. A reading-only wake started neither the network nor the web
+   * server, so stopping the cycle on one would leave M0 with no browser, no NTP
+   * and no LED — reachable only from the serial cable the command happened to
+   * arrive on. Both come up here.
+   *
+   * The radio alone is not enough, and the bench proved it: with only
+   * _netMgr->begin( ) the device answered pings and synced NTP while every
+   * /api/ call still failed, because nothing was listening on port 80. The
+   * web callbacks are registered outside the skipped block at boot, so
+   * begin( ) here finds them already in place. */
+  if (!_airRadioUp) {
+   _netMgr->begin(_storageMgr->getConfig( ),
+                  _storageMgr->isDnsAuto( ),
+                  _storageMgr->isNtpEnabled( ),
+                  _storageMgr->getSecondaryDns( ));
+   _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ),
+                  _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
+   _airRadioUp = true;
+   _airRadioWake = true;
+  }
+  airSetLed(true);
+  _cmdMgr->printInfo(_cmdMgr->isPt( )
+   ? "Hibernacao cancelada. Voltando ao modo operacional (M0)..."
+   : "Hibernation cancelled. Returning to operational mode (M0)...");
+  break;
+
+ case CMD_AIR_IDLE: {
+  /* The ceiling is what the field holds, not what the sentence reads well with
+   * (plan F09). It used to accept up to 86400 and cast to uint16: 86400 was
+   * stored as 20864, and 65536 as ZERO — and an idle timeout of zero sends the
+   * device to sleep on the very next loop pass, from which the only way back is
+   * to catch a wake window on the serial console. Measured on the bench
+   * 2026-09-07, where it took the rig out for several minutes. */
+  int v = 0;
+  if (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && airIdleSecValid(v)) {
+   _airCfg.idleTimeoutSec = (uint16_t)v;
+   airSaveConfig(_airCfg);
+   _cmdMgr->printSuccess("air idle set");
+  } else {
+   _cmdMgr->printError("air idle <10..65535> (seconds)");
+  }
+  break;
+ }
+
+ case CMD_AIR_CHARGER: {
+  /* The line that says "mains, not battery". Configuring it here rather than
+   * only at compile time is what makes the behaviour testable and lets a board
+   * with different wiring use it: the pin is stored in air.bin, so it survives
+   * the reboot that any other configuration change would cost. */
+  int v = 0;
+  const bool off = (strcmp(cmd.strVal1, "off") == 0);
+  if (off || (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && v >= 0 && v <= 29)) {
+   _airCfg.chargerPin = off ? (uint8_t)PIN_UNUSED : (uint8_t)v;
+   if (!off) {
+    gpio_init((uint8_t)v);
+    gpio_set_dir((uint8_t)v, GPIO_IN);
+    gpio_pull_down((uint8_t)v);
+   }
+   airSaveConfig(_airCfg);
+   char buf[64];
+   if (off) {
+    snprintf(buf, sizeof(buf), "charger sense off");
+   } else {
+    /* Report the level as well as the pin: on a board wired the other way
+     * round this line is the difference between "configured" and "working". */
+    snprintf(buf, sizeof(buf), "charger sense on GP%d (now %s)",
+             v, airOnCharger( ) ? "charging" : "on battery");
+   }
+   _cmdMgr->printSuccess(buf);
+  } else {
+   _cmdMgr->printError("air charger <0..29|off>");
+  }
+  break;
+ }
+#endif /* SIMUT_AIR */
+
 #if SIMUT_CLI_FULL
  case CMD_TEL_SYNC:
  /* Silent by design: user sees the natural log

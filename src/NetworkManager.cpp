@@ -105,9 +105,9 @@ void NetworkManager::beginAP(const char* deviceName) {
  * @brief Set provisional time from the last Flash-stored timestamp.
  * Provides approximate timestamps until NTP sync completes (Virtual RTC).
  */
-void NetworkManager::setProvisionalTime(uint32_t lastTs) {
+void NetworkManager::setProvisionalTime(uint32_t lastTs, uint32_t elapsedSec) {
  if (lastTs > 1600000000) {
- _provisionalBase = lastTs + 60;
+ _provisionalBase = lastTs + elapsedSec;
  _provisionalBootMillis = millis( );
  _provisionalActive = true;
  LOG_CODE(LOG_INFO, "NET", NET_PROVISIONAL_TIME, 0, String(TRL("Provisional: ")) + getFormattedDate( ) + " " + getFormattedTime( ));
@@ -155,7 +155,7 @@ void NetworkManager::update( ) {
   * ON by default; set SIMUT_MDNS=0 in src/simut_config.h to drop it and
 	 * recover 15,272 B — not the ~196KB this comment used to claim. */
 #if SIMUT_MDNS
- if (_state == NET_READY) {
+ if (_mdnsEnabled && _state == NET_READY) {
  uint32_t now = millis( );
  if (now - _lastMdnsUpdate >= MDNS_UPDATE_INTERVAL_MS) {
  _lastMdnsUpdate = now;
@@ -203,7 +203,9 @@ void NetworkManager::update( ) {
  MetricsManager::instance( ).data( ).wifiReconnects++;
  applyManualDnsIfNeeded( ); /* Manual DNS post-DHCP */
 #if SIMUT_MDNS
+ if (_mdnsEnabled) {
  if (!MDNS.begin(_deviceName)) LOG_CODE(LOG_ERROR, "NET", NET_MDNS_FAIL, 0, TRL("mDNS failed to start"));
+ }
 #endif
  if (_ntpEnabled) {
  syncNtp( );

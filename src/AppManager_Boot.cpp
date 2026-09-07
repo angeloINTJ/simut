@@ -74,6 +74,20 @@ static inline void _uart_mark(char c) { uart_putc_raw(uart1, c); }
 #define BLOG_NL( ) do { } while(0)
 #endif // SIMUT_DISPLAY_TFT
 
+/* Air boot progress markers.
+ *
+ * The Air build has no display and reboots on every wake, so a coarse trace of
+ * how far the boot got is the only way to localise a hang there. It goes to USB
+ * Serial because that is the channel the headless build actually has.
+ *
+ * Compiled out everywhere else: these ten lines were printing "[AIR] boot: ..."
+ * on every TFT and alpha boot, in images that have no Air code at all. */
+#if SIMUT_AIR
+#define AIR_BOOT_MARK(s) Serial.println(F("[AIR] boot: " s))
+#else
+#define AIR_BOOT_MARK(s) do { } while (0)
+#endif
+
 /* scratch[5] magic — the orchestrator sets this before applier_reboot
  * to signal "next boot is post-OTA-apply, power-cycle CYW43".
  * scratch[5] survives watchdog_reboot. setup() clears it immediately
@@ -108,6 +122,64 @@ void AppManager::setup( ) {
   * exactly what the rc15 autopsy did, reporting a constant
   * "C0=[BOOT] C1=[DISPLAY] sc3=0x80088000" for every reboot class alike. */
  LogManager::instance( ).captureBootSnapshot( );
+
+#if SIMUT_AIR
+ /* SIMUT Air: scratch[0] survives a dormant wake (always-on domain) but is
+  * zeroed on a power cycle — the M1-vs-M0 discriminator. Read it once, then
+  * clear it so a watchdog reset during the cycle does not re-enter M1. */
+ _airActive = (watchdog_hw->scratch[0] == AIR_DORMANT_MAGIC);
+ _airWokeFromSleep = _airActive;  /* anchors the next alarm; see AppManager.h */
+ watchdog_hw->scratch[0] = 0;
+
+ /* Power the sensors NOW, before anything probes them.
+  *
+  * The gating GPIO used to be asserted only inside the M1 warm-up phase, which
+  * left two holes: the operational mode M0 never turned it on at all, and the
+  * M1 boot ran its whole sensor init with the supply still down. Sensors wired
+  * through the gate read nothing in either case. Asserting it here also gives
+  * the slow parts (DHT22 needs ~1 s from power-up) the entire boot as warm-up.
+  * The configured pin is applied right after air.bin is read, below. */
+ airSensorPower(AIR_SENSOR_POWER_PIN, true);
+
+ /* The charger line, read before anything decides what kind of boot this is.
+  *
+  * Input with a pull-down so an unconnected pin reads "not charging" instead of
+  * floating into whatever the last transient left. The configured pin replaces
+  * this one right after air.bin is read; the default is the common case and
+  * this way the answer is already available for the decision just below. */
+#if AIR_CHARGER_PIN != PIN_UNUSED
+ gpio_init(AIR_CHARGER_PIN);
+ gpio_set_dir(AIR_CHARGER_PIN, GPIO_IN);
+ gpio_pull_down(AIR_CHARGER_PIN);
+#endif
+
+ if (_airActive) {
+  /* Woke from DORMANT (M1): begin a fresh read/send cycle. _airPhase was
+   * reset to OFF by the cold boot, so it must be re-armed here (mirrors
+   * airStartHibernate(), minus the flushes already done before sleep). */
+  _airPhase = AIR_PHASE_WARMUP;
+  /* The SLEEP left sleep_en0=clk_rtc-only. The clocks block is not reset by
+   * SYSRESETREQ, so a later WFE inside sleep_ms()/delay() would gate clk_ref
+   * and the timer alarm would never fire -> millis()/delay() hang. Restore
+   * all clocks, then re-arm the tick (the timer/SysTick source). */
+  clocks_hw->sleep_en0 = CLOCKS_SLEEP_EN0_RESET;
+  clocks_hw->sleep_en1 = CLOCKS_SLEEP_EN1_RESET;
+  watchdog_start_tick(12); /* 12 = XOSC 12 MHz / 1 MHz tick */
+  _airPhaseTimer = millis( );
+  /* What the RTC measured across the sleep that just ended (see AIR_SLEPT_MAGIC).
+   * Kept in a member so the boot banner can print it next to the requested
+   * value once Serial is up — the pair is the only direct evidence of whether
+   * the alarm honoured the interval it was given. */
+  if (airScratch1Valid(watchdog_hw->scratch[1])) {
+   _airSleptSec = airScratch1Slept(watchdog_hw->scratch[1]);
+   /* Same register carries the telemetry schedule: how many wakes have gone by
+    * without a send. Zero here after a power cycle simply means the first
+    * telemetry waits a whole interval, which is the safe direction. */
+   _airSkipWakes = airScratch1Wakes(watchdog_hw->scratch[1]);
+  }
+  watchdog_hw->scratch[1] = 0;
+ }
+#endif
 
  /* Always power-cycle CYW43 during setup().
 	 *
@@ -147,8 +219,15 @@ void AppManager::setup( ) {
 
 
  _uart_mark('%'); /* post Serial.begin */
+ AIR_BOOT_MARK("serial ok");
+#if SIMUT_AIR
+ if (_airSleptSec) {
+  Serial.printf("[AIR] woke: slept=%lus\n", (unsigned long)_airSleptSec);
+ }
+#endif
 
  delay(1000);
+ AIR_BOOT_MARK("delay ok");
  _uart_mark('&'); /* post delay(1000) */
 
  /* Log the firmware version BEFORE any init that could hang — ensures
@@ -159,8 +238,14 @@ void AppManager::setup( ) {
  BLOG("\n==============================================\n");
  BLOG(" SIMUT firmware "); BLOG(SIMUT_VERSION); BLOG_NL( );
  BLOG("==============================================\n");
- /* Check if last reboot was WDT-triggered */
- if (watchdog_caused_reboot()) {
+ /* Check if last reboot was WDT-triggered. A dormant (M1) wake is an
+  * intentional SYSRESETREQ, not a watchdog timeout — skip the banner even
+  * though the read-only REASON register may still hold a stale TIMER bit. */
+ bool airWake = false;
+#if SIMUT_AIR
+ airWake = _airActive;
+#endif
+ if (watchdog_caused_reboot() && !airWake) {
   BLOG("[BOOT] *** Last reboot: WATCHDOG TIMEOUT ***\n");
  Serial.println("[BOOT] WATCHDOG_REBOOT detected");
  }
@@ -175,6 +260,7 @@ void AppManager::setup( ) {
 
  BLOG("[BOOT step] 2: _displayMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->begin( );
+ AIR_BOOT_MARK("display ok");
  /* startCore1 deferred until AFTER _storageMgr->begin().
 	 * Without Core 1 active, flash_safe_execute uses the single-core
 	 * path (local disable_interrupts only), avoiding the multicore_lockout
@@ -288,6 +374,7 @@ void AppManager::setup( ) {
  
 
  _displayMgr->setApProgress(-1);
+ AIR_BOOT_MARK("ap-detect ok");
 
  _storageMgr->setLockCallback([](bool lock) {
  app.pauseDisplayForFlash(lock);
@@ -315,9 +402,136 @@ void AppManager::setup( ) {
 
  BLOG("[BOOT step] 5: pre _storageMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_MOUNT_FS);
+ AIR_BOOT_MARK("pre-storage");
  bool fsOk = _storageMgr->begin( );
+#if SIMUT_AIR
+ airLoadConfig(_airCfg);
+ /* air.bin may name a different gating pin than the compile-time default that
+  * setup( ) asserted above. Move the supply to the configured one and drop the
+  * default, so exactly one line is driven. */
+ if (_airCfg.sensorPowerPin != AIR_SENSOR_POWER_PIN) {
+  airSensorPower(_airCfg.sensorPowerPin, true);
+  airSensorPower(AIR_SENSOR_POWER_PIN, false);
+ }
+ /* Same for the charger line: air.bin may name another pin than the one setup( )
+  * configured above. */
+ if (_airCfg.chargerPin != PIN_UNUSED && _airCfg.chargerPin != AIR_CHARGER_PIN) {
+  gpio_init(_airCfg.chargerPin);
+  gpio_set_dir(_airCfg.chargerPin, GPIO_IN);
+  gpio_pull_down(_airCfg.chargerPin);
+ }
+ _airLastActivityMs = millis( ); /* idle timer starts at boot */
+
+ /* On the charger, this boot is not a wake — it is a device on mains.
+  *
+  * Cancelling M1 here rather than at the sleep is what makes the rest of the
+  * boot behave: the services below are gated on _airActive, so an operator who
+  * plugs in the charger gets the web server, the full CLI and no hibernation,
+  * which is the whole point of plugging it in. The cycle stays ARMED in
+  * air.bin, so unplugging and letting the idle timeout run puts the device
+  * straight back to sleeping — nothing to re-enable by hand. */
+ if (_airActive && airOnCharger( )) {
+  _airActive = false;
+  _airPhase = AIR_PHASE_OFF;
+  _airWokeFromSleep = false;
+  AIR_BOOT_MARK("charger present: staying awake in M0");
+ }
+
+ /* An interrupted cycle gets itself back (plan F25).
+  *
+  * _airActive above is false here, so this boot is not a wake: either the
+  * device was never hibernating, or something reset it mid-cycle. The armed
+  * flag in air.bin is what separates the two, and it is the only state that
+  * survives a reset with its meaning intact — the scratch marker is cleared on
+  * every boot by design, to keep a device that dies inside the cycle reachable.
+  *
+  * Reachability is preserved by making the return conditional on health rather
+  * than unconditional: a clean reset (power cycle, 'reload', an OTA) goes back
+  * to sleeping after a short grace, while unclean resets are counted, and past
+  * AIR_MAX_DIRTY_BOOTS the device holds M0 for the full idle timeout. Before
+  * this, a watchdog inside the cycle left the device awake with the radio on
+  * until the idle timeout — and on the bench the fault always repeated first,
+  * so it never went back to sleep at all. */
+ if (!_airActive && airCycleArmed(_airCfg)) {
+  const bool clean = LogManager::instance( ).bootWasClean( );
+  uint8_t dirty = airDirtyBoots(_airCfg);
+  const uint8_t was = dirty;
+
+  if (clean) {
+   dirty = 0;
+  } else if (dirty < 15) {
+   dirty++;
+  }
+  /* Written only when it moved: normal operation never touches flash here, and
+   * a crash loop is bounded to one write per unclean boot up to the cap. */
+  if (dirty != was) {
+   airSetDirtyBoots(_airCfg, dirty);
+   airSaveConfig(_airCfg);
+  }
+
+  /* WHO caused this boot decides how long M0 lasts.
+   *
+   * A clean boot is a person: a power cycle, the RUN pin, `reload`, an OTA.
+   * They are standing at the device and they want in — very likely through the
+   * browser, which takes a login and a page or two. Rushing back to sleep in
+   * ten seconds makes the device unusable, and that is exactly what the first
+   * version of this did: with the cycle armed, every reset gave ten seconds and
+   * the operator could not finish logging in.
+   *
+   * An unclean boot is a watchdog, and nobody is there. That is the F25 case,
+   * and it keeps the short grace: the device must get back to sleeping before
+   * the fault repeats, or it stays awake on battery forever.
+   *
+   * Either way the cycle resumes on its own, which is the property F25 was
+   * about. Only the waiting differs. */
+  if (clean) {
+   _airResumeGraceSec = 0; /* the configured idle timeout — an operator's window */
+   AIR_BOOT_MARK("cycle armed, resuming after the idle timeout");
+  } else if (dirty >= AIR_MAX_DIRTY_BOOTS) {
+   _airResumeGraceSec = 0; /* crash loop: hold M0 so someone can get in */
+   LOG_CODE(LOG_WARN, "APP", APP_AIR_CYCLE_HELD, dirty,
+            String(TRL("Unclean boots in a row: ")) + dirty);
+   AIR_BOOT_MARK("cycle armed but HELD in M0 (unclean boots)");
+  } else {
+   _airResumeGraceSec = AIR_RESUME_GRACE_SEC;
+   AIR_BOOT_MARK("cycle armed, resuming after grace");
+  }
+ }
+
+ /* Does THIS wake raise the radio?
+  *
+  * Answered here because the answer is whether to start the network at all,
+  * and everything it needs is already loaded: the telemetry interval comes
+  * from the config that _storageMgr->begin( ) just read, and the wake count
+  * came across the sleep in scratch[1]. In M0 the radio is always up — an
+  * operator is talking to the device, over the web as often as over serial.
+  *
+  * This is the whole battery argument of the two schedules. A reading-only
+  * wake never initialises the CYW43: no association, no NTP, no web server,
+  * and no LED, since that one is a GPIO of the same chip. */
+ if (_airActive) {
+  /* A wake announces nothing: no listener is started on it (see the web server
+   * and Bluetooth below), so there is no name worth resolving. */
+  _netMgr->setMdnsEnabled(false);
+  /* Count what is actually on flash before deciding. The pending counter is a
+   * RAM value the history writer keeps, and every wake is a boot: without this
+   * the count is zero on arrival, the trigger is never true and the radio never
+   * comes up — measured on the bench, seven wakes in a row with radio=off and
+   * pending=0 while the queue was really growing. */
+  _telemetryMgr->attachStorage(_storageMgr.get( ));
+  _telemetryMgr->refreshPendingCount( );
+  _airRadioWake = airTelemetryDue( );
+  Serial.printf("[AIR] wake: radio=%s (pending=%u min=%lu skip=%u)\n",
+                _airRadioWake ? "on" : "off",
+                (unsigned)_telemetryMgr->getPendingEstimate( ),
+                (unsigned long)_storageMgr->getConfig( ).telInterval,
+                (unsigned)_airSkipWakes);
+ }
+ _airRadioUp = _airRadioWake;
+#endif
  BLOG("[BOOT step] 6: pos _storageMgr->begin( ) fsOk="); BLOG_U(fsOk ? 1 : 0);
  BLOG(" @ "); BLOG_U(millis( )); BLOG_NL( );
+ AIR_BOOT_MARK("storage ok");
 
  /* Now it is safe to start Core 1 — mountFS, mkdirs, snapshot
 	 * restore, and loadConfiguration have completed with Core 1
@@ -543,6 +757,21 @@ void AppManager::setup( ) {
 
  uint32_t lastTs = _storageMgr->getLastRecordedTimestamp( );
 
+#if SIMUT_AIR
+ /* An Air wake knows exactly how long it was asleep — the RTC measured it and
+  * scratch[1] carried it across the reset — so the provisional clock is seeded
+  * with that instead of the historical 60-second guess.
+  *
+  * This stops being a refinement the moment the radio is raised only every Nth
+  * wake: the records in between never see NTP, so whatever this clock says is
+  * what the history keeps. A fixed 60 would file every reading at the interval
+  * it assumed rather than the one that actually elapsed. The millis( ) term is
+  * the boot time already spent before this line, which the provisional clock
+  * only starts counting from here. */
+ if (_airWokeFromSleep && _airSleptSec > 0) {
+  _netMgr->setProvisionalTime(lastTs, _airSleptSec + millis( ) / 1000UL);
+ } else
+#endif
  _netMgr->setProvisionalTime(lastTs);
  _netMgr->setTimeSyncCallback([](uint32_t bootTs, int32_t delta) {
 
@@ -670,7 +899,21 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_AP_IP);
  _netMgr->beginAP(cfg.deviceName);
  for (int i = 0; i < 35; i++) { delay(100); feedWdt( ); }
- } else {
+ }
+#if SIMUT_AIR
+ else if (!_airRadioWake) {
+  /* Reading-only wake: the network is not started at all. NetworkManager::begin
+   * would call WiFi.mode(WIFI_STA), and that alone powers and initialises the
+   * CYW43 — the single most expensive thing this wake could do, for a wake
+   * whose entire job is to read a sensor and write it down.
+   *
+   * Nothing further down needs it: the timezone was applied and the provisional
+   * clock seeded outside this call, the history is local, and the M1 pump skips
+   * every network phase when _airRadioWake is false. */
+  AIR_BOOT_MARK("net skipped (reading-only wake)");
+ }
+#endif
+ else {
  _displayMgr->setBootStatusKey(TR_BOOT_START_WIFI);
  BLOG("[BOOT step] 10: pre _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  watchdog_update();
@@ -678,6 +921,7 @@ void AppManager::setup( ) {
  _storageMgr->isDnsAuto( ),
  _storageMgr->isNtpEnabled( ),
  _storageMgr->getSecondaryDns( ));
+ AIR_BOOT_MARK("net ok");
  BLOG("[BOOT step] 11: pos _netMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
 
  unsigned long netWait = millis( );
@@ -687,6 +931,9 @@ void AppManager::setup( ) {
  int dotCount = 0;
  int waitState = 0;
 
+#if SIMUT_AIR
+ if (!_airActive)
+#endif
  while (!_netMgr->isConnected( ) || !_netMgr->isTimeSynced( )) {
  TRACE_BEAT(0);
  watchdog_update( );
@@ -758,11 +1005,18 @@ void AppManager::setup( ) {
 	 * WiFi must still be reachable over BT to start AP mode. The
 	 * PIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH flag selects the combined
 	 * WiFi+BT radio blob, which is what lets the two coexist. */
+#if SIMUT_AIR
+	/* Same argument as the web server, and one more: the M1 loop only pumps the
+	 * USB CLI (plan F12), so a Bluetooth session opened during a wake would not
+	 * even be read. Starting the stack costs radio time on the battery. */
+	if (!_airActive)
+#endif
 	_cmdMgr->beginBluetooth(_storageMgr->getConfig().deviceName);
 #endif
 
  _displayMgr->setBootStatusKey(TR_BOOT_START_TEL);
  _telemetryMgr->begin(_storageMgr.get( ), _netMgr.get( ));
+ AIR_BOOT_MARK("telemetry ok");
 
  LogManager::instance( ).setEpochSource([]( ) -> time_t { return time(nullptr); });
 
@@ -776,13 +1030,38 @@ void AppManager::setup( ) {
 
  BLOG("[BOOT step] 12: pre _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
+#if SIMUT_AIR
+ /* The web server belongs to M0, not to a wake.
+  *
+  * Nobody browses a device that is awake for thirty seconds and then drops off
+  * the network: the listener would be started, never connected to, and torn
+  * down — on the battery. Configuration happens on the operator's window (a
+  * cold boot, or `air stop`), which is M0 and starts it below. A wake that
+  * raises the radio does so to send telemetry, and telemetry needs no listener.
+  *
+  * `air stop` during a wake starts the web server itself, so the escape hatch
+  * an operator needs is still there. */
+ if (_airActive) {
+  AIR_BOOT_MARK("web skipped (wake)");
+ } else
+#endif
+ {
  _webMgr->begin(_storageMgr.get( ), _sensorMgr.get( ), _netMgr.get( ), _displayMgr.get( ), _telemetryMgr.get( ), _soundMgr.get( ));
+ AIR_BOOT_MARK("web ok");
+ }
  BLOG("[BOOT step] 13: pos _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  /* marker pre-callbacks */
 
  _displayMgr->setBootStatusKey(TR_BOOT_REG_CALLBACKS);
  /* pos setBootStatusKey */
  _webMgr->setYieldCallback([this]( ) { this->core0Yield( ); });
+#if SIMUT_AIR
+ /* Every response the device sends counts as an operator being present. The
+  * serial CLI has reset the inactivity timer since the beginning; the web never
+  * did, so a browser session was hibernated out from under whoever was using
+  * it — including mid-login, which is how this was reported. */
+ _webMgr->setActivityCallback([this]( ) { this->airMarkActivity( ); });
+#endif
  _webMgr->setLightYieldCallback([this]( ) {
  feedWdt( );
 
@@ -833,8 +1112,16 @@ void AppManager::setup( ) {
  } else {
  /* pre preloadMinMax */
  _displayMgr->setBootStatusKey(TR_BOOT_LOAD_MINMAX);
+#if SIMUT_AIR
+ /* The min/max cache exists to fill a dashboard. A wake has no display, no web
+  * server (above) and no one watching — it reads a sensor and goes back to
+  * sleep, so this is a header walk over the day's history for nobody. */
+ if (!_airActive)
+#endif
+ {
  delay(80);
  preloadMinMax( );
+ }
  /* pos preloadMinMax */
 
  _displayMgr->setBootStatusKey(TR_BOOT_WARMUP);
@@ -859,8 +1146,13 @@ void AppManager::setup( ) {
  delay(80);
  handleTimeSync(_timeSyncBootTs, _timeSyncDelta);
 
- /* Reload min/max with corrected timestamps */
+ /* Reload min/max with corrected timestamps — again, only where something is
+  * going to read them. */
  _displayMgr->setBootStatusKey(TR_BOOT_RELOAD_MINMAX);
+#if SIMUT_AIR
+ if (!_airActive)
+#endif
+ {
  delay(80);
  for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
  _cachedMin[i] = 1000.0f; _cachedMax[i] = -1000.0f;
@@ -869,6 +1161,7 @@ void AppManager::setup( ) {
  _preloadHumMin[i] = 1000.0f; _preloadHumMax[i] = -1000.0f;
  }
  preloadMinMax( );
+ }
  }
 
  /* pre warmup-end + prep-dash */
@@ -913,6 +1206,7 @@ void AppManager::setup( ) {
 	 */
  LogManager::instance( ).enableHealthCheck( );
 
+ AIR_BOOT_MARK("done");
  TRACE_MOD(0, MOD_IDLE);
  _cmdMgr->printPrompt( );
 }

@@ -226,6 +226,31 @@ void test_isValidCfgString(void) {
 /* =========================================================================== */
 /*  isInRange                                                                  */
 /* =========================================================================== */
+/* Config v21 -> v22: the telemetry interval in milliseconds becomes a minimum
+ * batch in records. The field keeps its offset and its CRC, so nothing but this
+ * arithmetic stands between an upgraded device and silent telemetry — the old
+ * default of 300000 read as a count means "300,000 records pending", which
+ * never arrives. */
+void test_tel_min_batch_from_legacy_ms(void) {
+    /* the field default and the two the bench used, at one reading a minute */
+    TEST_ASSERT_EQUAL_UINT32(5, telMinBatchFromLegacyMs(300000, 1, 20000));
+    TEST_ASSERT_EQUAL_UINT32(1, telMinBatchFromLegacyMs(60000, 1, 20000));
+    TEST_ASSERT_EQUAL_UINT32(10, telMinBatchFromLegacyMs(600000, 1, 20000));
+    /* a slower reading interval means fewer records in the same wall time */
+    TEST_ASSERT_EQUAL_UINT32(1, telMinBatchFromLegacyMs(300000, 5, 20000));
+    TEST_ASSERT_EQUAL_UINT32(2, telMinBatchFromLegacyMs(600000, 5, 20000));
+    /* off stays off — the one value whose meaning did not change */
+    TEST_ASSERT_EQUAL_UINT32(0, telMinBatchFromLegacyMs(0, 1, 20000));
+    /* an interval shorter than one reading still has to send something */
+    TEST_ASSERT_EQUAL_UINT32(1, telMinBatchFromLegacyMs(1, 1, 20000));
+    TEST_ASSERT_EQUAL_UINT32(1, telMinBatchFromLegacyMs(59999, 1, 20000));
+    /* the ceiling, and the largest value v21 could hold (24 h) */
+    TEST_ASSERT_EQUAL_UINT32(1440, telMinBatchFromLegacyMs(86400000, 1, 20000));
+    TEST_ASSERT_EQUAL_UINT32(100, telMinBatchFromLegacyMs(86400000, 1, 100));
+    /* a history interval outside the valid range must not divide by zero */
+    TEST_ASSERT_EQUAL_UINT32(5, telMinBatchFromLegacyMs(300000, 0, 20000));
+}
+
 void test_isInRange(void) {
     TEST_ASSERT_TRUE(isInRange(5, 0, 10));
     TEST_ASSERT_TRUE(isInRange(0, 0, 10));             /* boundary baixa */
@@ -1796,6 +1821,7 @@ int main(int /*argc*/, char** /*argv*/) {
     RUN_TEST(test_isValidName_invalid);
     RUN_TEST(test_isValidCfgString);
     RUN_TEST(test_isInRange);
+    RUN_TEST(test_tel_min_batch_from_legacy_ms);
 
     /* parseIntStrict */
     RUN_TEST(test_parseIntStrict_valid);

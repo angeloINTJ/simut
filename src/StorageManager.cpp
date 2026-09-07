@@ -95,7 +95,7 @@ struct Core1FlashPause {
  * Tail-append only: every byte a v20 blob held keeps its offset, so the
  * v20→v21 reader (attemptLoad) migrates without translating anything and
  * without the 2.0.0-style schema break. See SystemDefs_Records.h. */
-const uint16_t CONFIG_VERSION = 21;
+const uint16_t CONFIG_VERSION = 22;
 
 /* -------------------------------------------------------------------------- */
 /* Legacy UserAccount layout (v14 and earlier) — used ONLY by the */
@@ -629,22 +629,58 @@ uint32_t StorageManager::calculateCRC32(const uint8_t *data, size_t length) {
  * encrypted via XOR+KDF). Decrypts in-place when v14.
  * The caller (attemptLoad) accepts only the current schema.
  * so it is re-saved as v14 encrypted. */
-bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg) {
+bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg, bool* migratedV21) {
  size_t bytesRead = f.read((uint8_t*)&outCfg, sizeof(SystemConfig));
  uint32_t readCrc = 0;
  size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
  if (bytesRead != sizeof(SystemConfig)) return false;
  if (outCfg.magic != CONFIG_MAGIC) return false;
- /* v15 is the only native format accepted here — v13/v14 fall to loadAndMigrateV14
- * (file size smaller due to UserAccount[52] instead of [62]). */
- if (outCfg.version != CONFIG_VERSION) return false;
+ /* v21 has the same layout as v22 and is accepted here, because the schema did
+  * not change — one field changed MEANING (see migrateV21Semantics). Every
+  * other version is rejected; v20 and older go by file size in attemptLoad. */
+ if (outCfg.version != CONFIG_VERSION && outCfg.version != 21) return false;
  if (crcRead == sizeof(readCrc)) {
  uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, sizeof(SystemConfig));
  if (calcCrc != readCrc) return false;
  }
  /* v16 always writes with sensitive fields obfuscated (XOR keystream). */
  obfuscateSensitiveFields(outCfg);
+ if (outCfg.version == 21) {
+ migrateV21Semantics(outCfg);
+ if (migratedV21) *migratedV21 = true;
+ }
  return true;
+}
+
+/* v21→v22: telInterval stopped being milliseconds and became a count.
+ *
+ * Same size, same offset, same type — nothing a size check or a CRC could
+ * catch. What changes is what the number means: the field used to say "send
+ * every N milliseconds" and now says "send once N records are waiting". Left
+ * alone, a device configured with the old default of 300000 would read it as
+ * 300,000 pending records and go quiet for good, with the web page happily
+ * showing the value it was set to. Telemetry would simply stop, and nothing
+ * would say why.
+ *
+ * The conversion keeps the operator's intent rather than the number: how many
+ * records would have piled up in that interval, at this device's reading rate.
+ * Five minutes with a one-minute reading interval becomes five records. It
+ * cannot be exact — a device whose reading interval changed since is converted
+ * against the current one — but it is the same order of magnitude, and it
+ * never turns a working telemetry configuration into a silent one. */
+void StorageManager::migrateV21Semantics(SystemConfig& cfg) {
+ /* Read the history interval straight from the blob being migrated: the member
+  * accessor reads _currentConfig, which is not this. The arithmetic lives in
+  * telMinBatchFromLegacyMs so a native test can pin it down. */
+ const HistoryConfigData* hc = reinterpret_cast<const HistoryConfigData*>(
+     cfg.reserved + HISTORY_CONFIG_OFFSET);
+ uint16_t histMin = (hc->magic == HISTORY_CONFIG_MAGIC)
+                        ? hc->intervalMin : HISTORY_INTERVAL_DEFAULT_MIN;
+ if (histMin < HISTORY_INTERVAL_MIN_MIN || histMin > HISTORY_INTERVAL_MAX_MIN) {
+  histMin = HISTORY_INTERVAL_DEFAULT_MIN;
+ }
+ cfg.telInterval = telMinBatchFromLegacyMs(cfg.telInterval, histMin, TEL_MIN_BATCH_MAX);
+ cfg.version = CONFIG_VERSION;
 }
 
 /* v20→v21. O blob v20 termina exatamente onde começa alarmTel — todo byte
@@ -695,7 +731,7 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
   * the reason. */
  const size_t expected = sizeof(SystemConfig) + sizeof(uint32_t);
  if (fileSize == expected) {
- bool ok = loadCurrentBlob(f, outCfg);
+ bool ok = loadCurrentBlob(f, outCfg, &_migratedFromV21);
  f.close( );
  return ok;
  }
@@ -768,8 +804,9 @@ bool StorageManager::loadConfiguration( ) {
  /* v20→v21: grava o schema novo (com os defaults de alarmTel) uma única vez,
   * para que o próximo boot leia no formato atual. Mesma janela do fromBackup:
   * o logger ainda não existe, então a razão fica para o caller reportar. */
- if (fromBackup || _migratedFromV20) {
+ if (fromBackup || _migratedFromV20 || _migratedFromV21) {
  _migratedFromV20 = false;
+ _migratedFromV21 = false;
  saveConfiguration( );
  }
  return true;
@@ -1219,7 +1256,6 @@ void StorageManager::enforceStorageLimit( ) {
 
 uint32_t StorageManager::getLastSentTimestamp( ) {
  if (_cachedLastSent > 0) return _cachedLastSent;
-
  enterFlashReadLock( );
  if (!LittleFS.exists(FILE_TCURSOR)) { exitFlashReadLock( ); return 0; }
  File f = LittleFS.open(FILE_TCURSOR, "r");
@@ -1232,8 +1268,15 @@ uint32_t StorageManager::getLastSentTimestamp( ) {
 
 void StorageManager::setLastSentTimestamp(uint32_t ts) {
  _cachedLastSent = ts;
+ /* The coalescing window starts at the FIRST dirty set, not the latest one.
+  * Restarting it on every set made the window slide: at a back-to-back cadence
+  * (one batch every 73–281 ms, measured 2026-09-07) the 5 s never elapsed and the
+  * cursor was not written to flash for the whole drain — thousands of batches
+  * with nothing persisted, so a power loss mid-drain would have re-sent all of
+  * it. Anchoring the window here keeps the write rate at one per 5 s under
+  * load, which was the original intent, instead of zero. */
+ if (!_cursorDirty) _cursorCoalesceTime = millis( );
  _cursorDirty = true;
- _cursorCoalesceTime = millis( );
 }
 
 /**
@@ -1265,13 +1308,23 @@ void StorageManager::resetTelemetryCursor( ) {
  * count with the zeroed cursor. */
 }
 
-void StorageManager::flushCursorIfDirty( ) {
+void StorageManager::flushCursorIfDirty(bool force) {
  if (!_cursorDirty) return;
- if (!timeSince(_cursorCoalesceTime, CURSOR_COALESCE_MS)) return;
 
- /* Touch priority: if user is interacting, cursor stays dirty and flush
- * happens on next call after interaction ends. */
- if (TouchPriority::isActive( )) return;
+ /* Both gates below defer the write to a later call — which only works when a
+  * later call is going to happen. On the way into deep sleep it is not: SRAM
+  * goes away, _cachedLastSent with it, and the next boot re-reads whatever is
+  * still on flash. That is how the SIMUT Air cycle re-sent the same batch on
+  * every wake: the send marked the cursor dirty, the flush ran ~150 ms later
+  * (the whole awake window after a drained queue), the 5 s coalescing window
+  * had not elapsed, and the write never happened. force=true is that path. */
+ if (!force) {
+  if (!timeSince(_cursorCoalesceTime, CURSOR_COALESCE_MS)) return;
+
+  /* Touch priority: if user is interacting, cursor stays dirty and flush
+  * happens on next call after interaction ends. */
+  if (TouchPriority::isActive( )) return;
+ }
 
 	_cursorDirty = false;
 	LogManager::WdtWindow _wdt(30000); /* context-aware */
@@ -1976,6 +2029,7 @@ bool StorageManager::writeHistoryEntryV5(const int16_t* values, uint8_t nCh, uin
 			 * rather than inheriting yesterday's t0. */
 			_h5Enc.begin(_h5Schema, _h5NCh, h5NominalSeconds(getHistoryIntervalMin( )));
 			_h5WipDirty = false;
+			_h5WipFlags = H5_WIP_FLAGS_NONE;   /* new day: nothing of it on flash */
 		}
 		_h5SealFails = 0;
 	}
@@ -2224,6 +2278,12 @@ bool StorageManager::sealHourV5(bool partial) {
 		/* The records the .wip was covering are in the day file now, and the
 		 * block that replaces it is empty — nothing left to snapshot. */
 		_h5WipDirty = false;
+		/* The sentinel goes with the file: it is gone, so "what is on flash"
+		 * is nothing, and the skip in flushWipV5( ) must not be able to read a
+		 * stale match here. Adding a record raises the dirty flag and would
+		 * force a write anyway; this keeps the invariant local rather than
+		 * leaning on that. */
+		_h5WipFlags = H5_WIP_FLAGS_NONE;
 		/* Cleared here so every caller's patience resets on a seal that
 		 * worked, not just the two in writeHistoryEntryV5 that count. */
 		_h5SealFails = 0;
@@ -2245,7 +2305,32 @@ bool StorageManager::flushWipV5( ) {
 	/* Nothing open to snapshot: the block was just sealed, and sealHourV5
 	 * already removed the .wip. Clearing the flag here keeps the loop sweep
 	 * from retrying a write with no content for the rest of the minute. */
-	if (_h5Enc.count( ) == 0) { _h5WipDirty = false; return true; }
+	if (_h5Enc.count( ) == 0) {
+		_h5WipDirty = false;
+		_h5WipFlags = H5_WIP_FLAGS_NONE;   /* no file on flash any more */
+		return true;
+	}
+
+	/* Nothing changed since the last snapshot: the bytes on flash are already
+	 * the bytes this call would write.
+	 *
+	 * Three callers ask for a snapshot unconditionally, because each of them is
+	 * a point of no return — the pre-reboot hook, airStartHibernate( ), and the
+	 * Air cycle's DECIDE phase, which loses SRAM moments later. They are right
+	 * to insist, but insisting is not the same as rewriting: the record write
+	 * that precedes them has usually just done it. Measured on the bench
+	 * 2026-09-07 with the counter below: an M0 -> M1 cycle wrote the whole block
+	 * FOUR times, and the .wip is rewritten WHOLE every time, so on a device
+	 * reading once a minute that redundancy is the dominant flash cost there is.
+	 *
+	 * The dirty flag alone is not the whole condition. h5ClockFlag( ) can flip
+	 * from provisional to synced without a single record being added — NTP lands
+	 * mid-cycle — and that flag is the provenance the next boot's seed gate
+	 * reads. So the skip also requires that the flag has not moved since the
+	 * last write, which makes it provably content-equivalent rather than merely
+	 * probably so. */
+	const uint8_t clockFlag = h5ClockFlag( );
+	if (!_h5WipDirty && _h5WipFlags == clockFlag) return true;
 
 	/* Own module, not MOD_HIST_FLASH: that one belongs to the record write.
 	 * Sharing it meant the snapshot and the write were indistinguishable in
@@ -2258,7 +2343,6 @@ bool StorageManager::flushWipV5( ) {
 	/* Written whole every time, never appended: the snapshot has to be
 	 * either the current block or nothing. A half-updated .wip that still
 	 * passed CRC would replay a block that never existed. */
-	const uint8_t clockFlag = h5ClockFlag( );
 	size_t written = 0;
 	FLASH_OP({
 		File f = LittleFS.open(FILE_H5_WIP, "w");
@@ -2273,6 +2357,8 @@ bool StorageManager::flushWipV5( ) {
 		return false;                       /* stays dirty; the sweep retries */
 	}
 	_h5WipDirty = false;
+	_h5WipFlags = clockFlag;             /* what the bytes on flash now say */
+	if (_h5WipWrites < 0xFFFF) _h5WipWrites++;
 	LOG_CODE(LOG_INFO, "STO", STO_H5_WIP, (int)_h5Enc.count( ), "");
 	return true;
 }

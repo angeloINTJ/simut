@@ -58,6 +58,11 @@ class WebManager {
 public:
 	typedef std::function<void( )> YieldCallback;
 	typedef std::function<void( )> LightYieldCallback;
+	/** Fired once per response the device sends. SIMUT Air uses it to reset the
+	 *  M0 inactivity timer, so an operator working through the browser is not
+	 *  hibernated out from under themselves — the serial CLI has had that since
+	 *  the beginning, the web never did. */
+	typedef std::function<void( )> ActivityCallback;
 
 	WebManager( );
 	void begin(StorageManager* storage, SensorManager* sensors,
@@ -67,6 +72,7 @@ public:
 	void update( );
 	void setYieldCallback(YieldCallback cb) { _yieldCb = cb; }
 	void setLightYieldCallback(LightYieldCallback cb) { _lightYieldCb = cb; }
+	void setActivityCallback(ActivityCallback cb) { _activityCb = cb; }
 	uint32_t getCachedFlashUsed( ) const { return _cachedFsUsedBytes; }
 	uint32_t getCachedFlashTotal( ) const { return _cachedFsTotalBytes; }
 
@@ -107,6 +113,7 @@ private:
 	bool loadServerCert( );
 	YieldCallback _yieldCb = nullptr;
 	LightYieldCallback _lightYieldCb = nullptr;
+	ActivityCallback _activityCb = nullptr;
 	/* Touch priority is now checked via TouchPriority::isActive( ). */
 
 	StorageManager* _storageRef;

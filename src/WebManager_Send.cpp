@@ -128,6 +128,13 @@ bool WebManager::waitSendRoom(size_t need, const char* origin) {
  * the top), preserving the terminator rule above. Extra chunk boundaries
  * are transparent to the client. */
 bool WebManager::safeSendN(const char* data, size_t len, const char* origin) {
+ /* One response served = the browser is being used. This is the funnel every
+  * text response passes through (safeSend, safeSend_P, the String overload all
+  * delegate here), so it is the cheapest honest place to say "someone is
+  * there". SIMUT Air resets its inactivity timer from this; without it the web
+  * operator was hibernated mid-login while the serial CLI, which has always
+  * called airMarkActivity( ), kept the device awake indefinitely. */
+ if (_activityCb) _activityCb( );
  if (len == 0 || data == nullptr) return !isClientGone( );
  if (isClientGone( )) { maybeLogClientDisconnect(origin); return false; }
 
@@ -317,6 +324,8 @@ void WebManager::detectGzipSupport( ) {
 }
 
 bool WebManager::safeSend_GZ(const uint8_t* gz_data, size_t gz_len) {
+ /* The other response funnel — the pre-compressed pages. See safeSendN. */
+ if (_activityCb) _activityCb( );
  /* The 512-byte copy loop this used to carry is the funnel's job now, and
   * PROGMEM needs no staging copy on the RP2040. */
  return safeSendN((const char*)gz_data, gz_len, "gz");

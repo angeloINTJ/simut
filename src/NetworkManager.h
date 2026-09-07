@@ -49,7 +49,23 @@ public:
  void update( );
 
 
- void setProvisionalTime(uint32_t lastTs);
+ /** Seed the provisional clock from the last timestamp on flash.
+  *
+  * @param lastTs     epoch of the last record written.
+  * @param elapsedSec how much time is known to have passed since it. The 60 s
+  *        default is the historical guess, adequate only because a device that
+  *        boots normally reaches NTP within seconds. SIMUT Air passes the real
+  *        figure: with the radio raised once every N wakes, most records are
+  *        stamped by this clock and never corrected, so a fixed guess would
+  *        write the interval it assumed instead of the one that elapsed. */
+ /** Announce the device over mDNS when the link comes up (default true).
+  *
+  * A SIMUT Air wake turns this off: nobody resolves a name for a device that is
+  * on the network for thirty seconds and then gone, and the announcement costs
+  * radio time and a multicast burst on the battery. */
+ void setMdnsEnabled(bool on) { _mdnsEnabled = on; }
+
+ void setProvisionalTime(uint32_t lastTs, uint32_t elapsedSec = 60);
  void setTimeSyncCallback(TimeSyncCallback cb);
 
  /* Manual RTC set (via settimeofday) for when NTP
@@ -73,6 +89,11 @@ public:
  * @return true if connected AND signal above RSSI_MIN_THRESHOLD.
  */
  bool isNetworkHealthy( );
+
+ /** Consecutive failed connection attempts; reset to 0 on a full connection.
+  *  Exposed so the Air cycle can stop pumping the network after a bounded
+  *  number of tries instead of letting a missing SSID hold a wake open. */
+ uint8_t getConnectCycles( ) const { return _connectCycles; }
 
 
  String getIpAddress( );
@@ -114,6 +135,7 @@ public:
  }
 
 private:
+ bool _mdnsEnabled = true;
  enum NetState {
  NET_OFFLINE,
  NET_CONNECTING,

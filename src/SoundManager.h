@@ -7,6 +7,11 @@
  * SystemConfig::reserved[10..15]. Uses dual-SM PIO architecture
  * (PWM amplitude + frequency gate) via the BuzzerPIO_RP2040 library.
  *
+ * SIMUT Air (SIMUT_AIR=1) drops the buzzer: the class compiles to a no-op and
+ * the BuzzerPIO dependency is not pulled in. The SoundEvent / SoundConfigData /
+ * SoundSettingsState types are kept so StorageManager and DisplayManager
+ * keep compiling unchanged.
+ *
  * @project SIMUT — Integrated Universal Monitoring and Telemetry System
  * @target Raspberry Pi Pico W (RP2040) — Arduino Framework
  * @author Ângelo Moisés Alves
@@ -15,20 +20,8 @@
 
 #pragma once
 
-
 #include <Arduino.h>
-#include <BuzzerPIO_RP2040.h>
 #include "SystemDefs.h"
-
-
-/* BUZZER_PIN → see src/simut_config.h */
-
-
-#define BUZZER_PIO_BLOCK pio1
-
-
-#define SND_MELODY_VARIANTS 6
-
 
 enum SoundEvent {
  SND_NONE = 0,
@@ -40,13 +33,6 @@ enum SoundEvent {
  SND_ATTENTION /**< Sound for attention/confirmation screens */
 };
 
-
-struct MelodyDef {
- const BuzzerNote* notes;
- uint8_t len;
-};
-
-
 struct __attribute__((packed)) SoundConfigData {
  uint8_t magic;
  uint8_t flags;
@@ -57,7 +43,6 @@ struct __attribute__((packed)) SoundConfigData {
 };
 static_assert(sizeof(SoundConfigData) <= 6, "SoundConfigData exceeds the 6 reserved bytes!");
 
-
 #define SND_FLAG_TOUCH 0x01
 #define SND_FLAG_CONFIRM 0x02
 #define SND_FLAG_ERROR 0x04
@@ -65,7 +50,6 @@ static_assert(sizeof(SoundConfigData) <= 6, "SoundConfigData exceeds the 6 reser
 #define SND_FLAG_MUTE 0x10
 #define SND_FLAG_WEB 0x20
 #define SND_FLAG_ATTENTION 0x40
-
 
 struct SoundSettingsState {
  bool touchEnabled;
@@ -84,35 +68,71 @@ struct SoundSettingsState {
  uint8_t attentionMelody;
 };
 
+#if SIMUT_AIR
+
+/* ── SIMUT Air: no buzzer. The whole class is a no-op so the rest of the
+ * firmware keeps calling it unchanged. ── */
+class SoundManager {
+public:
+ SoundManager( ) { }
+ void begin( ) { }
+ void update( ) { }
+ void play(SoundEvent event) { (void)event; }
+ void startAlarm( ) { }
+ void stopAlarm( ) { }
+ bool isAlarming( ) const { return false; }
+ void loadConfig(const SoundConfigData* data) { (void)data; }
+ void fillConfig(SoundConfigData* data) const { if (data) memset(data, 0, sizeof(*data)); }
+ SoundSettingsState getSettingsState( ) const { SoundSettingsState s; memset(&s, 0, sizeof(s)); return s; }
+ void applySettingsState(const SoundSettingsState& state) { (void)state; }
+ void setEnabled(SoundEvent event, bool enabled) { (void)event; (void)enabled; }
+ bool isEnabled(SoundEvent event) const { (void)event; return false; }
+ void setVolume(uint8_t vol) { (void)vol; }
+ uint8_t getVolume( ) const { return 0; }
+ void setAlarmVolume(uint8_t vol) { (void)vol; }
+ uint8_t getAlarmVolume( ) const { return 0; }
+ void setMuted(bool muted) { (void)muted; }
+ bool isMuted( ) const { return true; }
+ void setMelodyIndex(SoundEvent event, uint8_t idx) { (void)event; (void)idx; }
+ uint8_t getMelodyIndex(SoundEvent event) const { (void)event; return 0; }
+ void playPreview(SoundEvent event, uint8_t melodyIdx) { (void)event; (void)melodyIdx; }
+ bool isWebSoundsEnabled( ) const { return false; }
+};
+
+#else /* !SIMUT_AIR — full buzzer implementation */
+
+#include <BuzzerPIO_RP2040.h>
+
+#define BUZZER_PIO_BLOCK pio1
+
+#define SND_MELODY_VARIANTS 6
+
+struct MelodyDef {
+ const BuzzerNote* notes;
+ uint8_t len;
+};
 
 class SoundManager {
 public:
  SoundManager( );
 
-
  void begin( );
  void update( );
 
-
  void play(SoundEvent event);
-
 
  void startAlarm( );
  void stopAlarm( );
  bool isAlarming( ) const { return _alarming; }
 
-
  void loadConfig(const SoundConfigData* data);
  void fillConfig(SoundConfigData* data) const;
-
 
  SoundSettingsState getSettingsState( ) const;
  void applySettingsState(const SoundSettingsState& state);
 
-
  void setEnabled(SoundEvent event, bool enabled);
  bool isEnabled(SoundEvent event) const;
-
 
  void setVolume(uint8_t vol);
  uint8_t getVolume( ) const { return _volume; }
@@ -121,13 +141,10 @@ public:
  void setMuted(bool muted);
  bool isMuted( ) const { return _muted; }
 
-
  void setMelodyIndex(SoundEvent event, uint8_t idx);
  uint8_t getMelodyIndex(SoundEvent event) const;
 
-
  void playPreview(SoundEvent event, uint8_t melodyIdx);
-
 
  bool isWebSoundsEnabled( ) const { return _enableWeb; }
 
@@ -135,19 +152,14 @@ private:
 
  BuzzerPIO _buzzer;
 
-
  bool _alarming = false;
-
 
  bool _alarmSuspended = false;
  uint32_t _alarmResumeTime = 0;
 
-
  void playSystemSound(const MelodyDef& m);
 
-
  static uint16_t melodyDurationMs(const MelodyDef& m);
-
 
  static constexpr uint8_t QUEUE_SIZE = 4;
  SoundEvent _queue[QUEUE_SIZE];
@@ -157,9 +169,7 @@ private:
  bool enqueue(SoundEvent ev);
  bool dequeue(SoundEvent& ev);
 
-
  const MelodyDef& resolveMelody(SoundEvent event) const;
-
 
  uint8_t _volume = 70;
  uint8_t _alarmVolume = 70;
@@ -171,16 +181,13 @@ private:
  bool _enableWeb = true;
  bool _enableAttention = true;
 
-
  uint8_t _melTouch = 0;
  uint8_t _melConfirm = 0;
  uint8_t _melError = 0;
  uint8_t _melAlarm = 0;
  uint8_t _melAttention = 0;
 
-
  static const MelodyDef MELODIES[5][SND_MELODY_VARIANTS];
-
 
  static const BuzzerNote MEL_TOUCH_0[], MEL_TOUCH_1[], MEL_TOUCH_2[];
  static const BuzzerNote MEL_TOUCH_3[], MEL_TOUCH_4[], MEL_TOUCH_5[];
@@ -193,3 +200,5 @@ private:
  static const BuzzerNote MEL_ATTENTION_0[], MEL_ATTENTION_1[], MEL_ATTENTION_2[];
  static const BuzzerNote MEL_ATTENTION_3[], MEL_ATTENTION_4[], MEL_ATTENTION_5[];
 };
+
+#endif /* SIMUT_AIR */

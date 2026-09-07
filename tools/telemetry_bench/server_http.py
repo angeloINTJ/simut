@@ -53,6 +53,7 @@ import threading
 import time
 
 STATS_LOCK = threading.Lock()
+RECORDS_LOCK = threading.Lock()
 
 
 class Stats:
@@ -110,6 +111,8 @@ class Stats:
                 'epoch_max': max(self.epochs_seen) if self.epochs_seen else None,
                 'tls_ok': self.tls_ok,
                 'tls_failures': self.tls_failures,
+                # --keepalive: requests served on a connection after its first
+                'keepalive_reuses': getattr(self, 'keepalive_reuses', 0),
                 'errors': self.errors[-40:],
                 'raw_bodies': self.raw_bodies,
                 'server_ms_min': min(lat) if lat else None,
@@ -117,6 +120,13 @@ class Stats:
                 'server_ms_p90': pct(90),
                 'server_ms_max': max(lat) if lat else None,
                 'batches': self.batches[-400:],
+                # Every request as [t since start, records, bytes, ms]. The
+                # orchestrator cuts its measurement window out of this by wall
+                # clock, so what the device sent before the window opened (the
+                # drain that resumes on boot, the tel_reset restart) is not
+                # counted against it. The cumulative counters above cannot
+                # tell those apart; this can.
+                'req_log': [[b['t'], b.get('n'), b.get('bytes'), b.get('ms')] for b in self.batches],
             }
             tmp = self.path + '.tmp'
             with open(tmp, 'w') as fh:
@@ -186,6 +196,46 @@ def read_request(conn, stats, timeout):
     return head.decode('latin-1', 'replace'), body
 
 
+def _serve_more(conn, args, stats):
+    """Keep-alive tail of the ok mode: read request after request on the same
+    socket, count each one, answer 200, stop when the peer closes or goes quiet.
+    Records go through the same parser so the stats stay comparable."""
+    while True:
+        try:
+            head, body = read_request(conn, stats, args.read_timeout)
+        except Exception:
+            return
+        if not head:
+            return
+        # The clock starts once the request is in, so `ms` here is parse +
+        # answer; the wait for the next request on an idle socket is not server
+        # time. handle( ) starts its clock at accept, which for one request per
+        # connection is the same instant.
+        t0 = time.time()
+        recs = parse_records(body)
+        epochs = [r.get('ts') for r in recs if isinstance(r.get('ts'), int)]
+        entry = {
+            't': round(t0 - stats.started, 3),
+            'bytes': len(body),
+            'n': len(recs),
+            'first_epoch': min(epochs) if epochs else None,
+            'last_epoch': max(epochs) if epochs else None,
+            'ms': None,
+        }
+        with STATS_LOCK:
+            stats.bytes_in += len(body)
+            stats.keepalive_reuses = getattr(stats, 'keepalive_reuses', 0) + 1
+        resp = json.dumps({'status': 'ok', 'msg': 'Salvo', 'pts': len(recs)}).encode()
+        try:
+            conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n'
+                         b'Content-Length: ' + str(len(resp)).encode() +
+                         b'\r\nConnection: keep-alive\r\n\r\n' + resp)
+        except Exception:
+            return
+        entry['ms'] = int((time.time() - t0) * 1000)
+        stats.add_batch(entry, recs)
+
+
 def handle(conn, addr, args, stats):
     t0 = time.time()
     with STATS_LOCK:
@@ -231,9 +281,16 @@ def handle(conn, addr, args, stats):
 
         if mode == 'ok':
             resp = json.dumps({'status': 'ok', 'msg': 'Salvo', 'pts': len(recs)}).encode()
+            # --keepalive: the connection outlives the request, so a client that
+            # reuses it skips the TCP connect and, under TLS, the whole handshake
+            # on every batch after the first. Without the flag the historical
+            # behaviour stands: one request per connection, Connection: close.
+            conn_hdr = b'keep-alive' if args.keepalive else b'close'
             conn.sendall(b'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n'
                          b'Content-Length: ' + str(len(resp)).encode() +
-                         b'\r\nConnection: close\r\n\r\n' + resp)
+                         b'\r\nConnection: ' + conn_hdr + b'\r\n\r\n' + resp)
+            if args.keepalive:
+                _serve_more(conn, args, stats)
         elif mode == 'slow':
             time.sleep(args.delay)
             resp = json.dumps({'status': 'ok', 'pts': len(recs)}).encode()
@@ -322,6 +379,8 @@ def main():
     ap.add_argument('--cert', default='certs/cert.pem')
     ap.add_argument('--key', default='certs/key.pem')
     ap.add_argument('--mode', default='ok')
+    ap.add_argument('--keepalive', action='store_true',
+                    help='ok mode only: answer Connection: keep-alive and serve further requests on the same socket')
     ap.add_argument('--delay', type=float, default=30.0)
     ap.add_argument('--drip-ms', type=float, default=500.0)
     ap.add_argument('--huge-bytes', type=int, default=1 << 20)
@@ -372,7 +431,7 @@ def main():
 
     def dumper():
         while True:
-            time.sleep(2)
+            time.sleep(1)
             try:
                 stats.dump()
             except Exception:

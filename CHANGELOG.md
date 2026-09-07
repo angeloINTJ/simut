@@ -4,6 +4,182 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased — branch `feature/simut-air`
+
+### SIMUT Air: headless build with a deep-sleep hibernation cycle (experimental)
+
+New PlatformIO environment `pico_w_air`: no display, no buzzer, the Alpha-like
+web/serial/Bluetooth stack on cold boot (M0), and a hibernation cycle (M1)
+entered by `air hibernate` or after an idle timeout. Each RTC wake reads the
+sensors until they stabilise while the Wi-Fi connects in parallel, always saves
+the sample to local history, drains pending telemetry when online, and sleeps
+again for the history interval (or the telemetry backoff when it is longer).
+Hibernation is RP2040 SLEEP (WFI on the XOSC with the RTC alarm) — DORMANT was
+tried and dropped as non-deterministic on the bench. The CYW43 is powered down
+through WL_REG_ON, the USB pull-up is released so the host sees a clean
+disconnect, the watchdog is disarmed and the wake is marked as a clean reboot so
+the boot autopsy stays silent. Air settings live in `/config/air.bin`;
+`CONFIG_VERSION` is untouched. The emergency console gains `system ssid` and
+`system pass` on every image, and `air status|hibernate|stop|idle` on Air.
+Host-side tests: `pio test -e native_air`.
+
+**Fixed before shipping: the wake never happened on time.** Disabling the ring
+oscillator before the WFI saved a little current but left it stopped across the
+wake, because the reset that follows does not pass through the ROSC reset
+domain. The boot ROM then came up with no ring oscillator and the wake took a
+long, variable time: measured on the bench at 16 to 48 minutes for a 2-minute
+interval, against 147 to 151 seconds on the build that predates the change. The
+oscillator is now re-enabled right after the WFI, before the reset, and the same
+bench measured a 110.8 s sleep with a 26.5 s awake window. Cost: 32 bytes.
+
+**The wake now lands on the configured interval, not one awake window late.**
+The alarm was anchored on the moment the device fell asleep, so the period was
+the interval plus however long the wake had taken: about 147 seconds for a
+configured 120. It is now anchored on the wake itself, which for this cycle is
+simply `millis()` at the moment of sleeping, because an M1 wake is a boot. The
+subtraction is floored at 5 seconds, and a wake that outlasts its own interval
+says `OVERRUN` in the log rather than degenerating into boot-sleep-boot. Only a
+boot that really was a wake compensates; a cold boot or an `air stop` has no
+previous wake to anchor to.
+
+The device also measures its own sleep now. After the WFI it reads the RTC, the
+one clock that crosses the sleep, and leaves the seconds in a watchdog scratch
+register for the next boot to print. That measurement is what settled the last
+second of error: the alarm was exact all along, and the loss was integer
+truncation in the alarm arithmetic, always in the same direction. With rounding,
+a 120-second interval measured 119.3 seconds end to end.
+
+That was not the end of it, and the device's own account of the sleep was the
+thing hiding the rest. The passive probe on the PicoHand, which never touches
+the target, measured the period at 119.31 and 118.69 seconds while the device
+reported 119.84: a flat 0.90 seconds lost on every cycle. The cause was printed
+on the console the whole time. The RTC is written with zero and reads one three
+milliseconds later, because the load pulse lands a tick of its own, so an alarm
+armed at N seconds was only N-1 ticks away and the device woke a second early
+every cycle. The alarm is now armed relative to the value the RTC reads back
+rather than to the zero that was written, which is immune to whatever the load
+does, and the self-report subtracts that base so it states real sleep instead of
+the alarm value. Measured after the change, probe and console in the same
+window: 120.23 and 120.35 seconds for a 120-second interval, with the remaining
+0.11 second accounted for by the work between reading the millisecond clock and
+loading the RTC.
+
+**A missing Wi-Fi network no longer holds the wake open.** Connection attempts
+are capped per wake; past the cap the sampling phase stops pumping the network
+for the rest of that wake, the sensors still finish, the history is still
+written, and the device hibernates. The next wake is a fresh boot, so it tries
+again with a clean counter. Measured with a deliberately wrong SSID, the awake
+window was 26.7, 26.4 and 26.2 seconds, against 26.3 to 29.5 seconds with the
+right one.
+
+**The telemetry cursor is now persisted before sleeping.** Cursor writes are
+coalesced over a five-second window, which the M1 cycle never reached: the flush
+phase ends about 150 ms after the send, and the sleep loses SRAM, so the next
+boot re-read the old cursor and re-sent a batch that had already been accepted.
+The pre-sleep write is now forced past both the coalescing window and the
+touch-priority gate.
+
+**The open history block is written to flash once per cycle, not four times.**
+The snapshot file is rewritten whole every time, and on a device that reads
+once a minute that rewrite is the largest thing it does to its own flash.
+Three places asked for a snapshot unconditionally — the pre-reboot hook, the
+entry into hibernation, and the phase that saves the reading — each of them
+moments after the reading itself had already written one. Measured on the
+bench: three to four whole-block writes per cycle, now one. The write is
+skipped only when the bytes on flash are provably identical, which includes
+the clock-provenance flag that can change without a reading being added.
+
+`air status` and the pre-sleep log line now report how many snapshots this boot
+has written, which is the only window the firmware has into its own flash wear.
+
+**`air idle` no longer accepts a number that puts the device to sleep.** The
+setting is stored in a 16-bit field, and the command used to accept up to
+86400 and convert: 86400 became 20864, and 65536 became zero. Zero is the one
+that hurt, because an idle timeout of zero sends the device to sleep on the
+very next pass of its loop, and the only way back in is to catch a wake window
+on the serial console. Anything the field cannot hold is now refused outright.
+
+**A wake starts what a wake needs, and nothing else.** The web server, the
+Bluetooth CLI, the mDNS announcement and the dashboard's min/max cache all used
+to come up on an M1 wake, which lasts under a minute and drops off the network
+when it ends. Nobody browses a device like that, nobody resolves its name, and
+there is no dashboard to fill — so on the battery all four were spending the
+wake to be torn down again. They now belong to M0: a cold boot, or `air stop`,
+which is the operator's window for configuration. `air stop` during a wake
+still starts the web server itself, so the way in is unchanged.
+
+**The device stays awake while it is charging.** A GPIO reads high through a
+divider off the 5 V rail; the pin is configurable and defaults to GP17. With
+the charger connected there is no battery to protect, so the idle timeout does
+not apply, and a wake that finds the charger present cancels its own
+hibernation cycle for that boot and comes up as a normal M0 device — web server
+and all. The cycle stays armed in the Air configuration, so unplugging and
+letting the idle timeout run puts it straight back to sleeping, with nothing to
+re-enable by hand. `air status` reports the line. The pin took over a field that
+had been stored and never read since the beginning, so the configuration file
+keeps its size, its checksum and everything already in it.
+
+**Telemetry is triggered by how much is waiting, not by a clock.** The two
+settings are now a minimum and a maximum batch: the device transmits once the
+minimum number of records is pending, and sends them in batches of at most the
+maximum until the queue is empty. A minimum of zero disables telemetry, as the
+interval of zero did. On the battery build this is the whole point — a wake with
+nothing to say never powers the radio, and one that has enough sends and goes
+back to sleep. The fields keep their names and their places in the
+configuration (`t_int` and `t_bat` on the web and CLI), so a stored
+configuration still loads; what changed is what the numbers mean, and config
+version 22 converts the old millisecond interval into the number of records
+that would have accumulated in it. A wake whose send failed now books five
+reading wakes of silence, because a count-based trigger would otherwise be true
+on every wake while a collector is down, and the radio would run the battery
+flat answering nobody.
+
+**The telemetry cadence and the batch size are automatic now.** The configured
+interval used to be a floor between batches, which made it the throughput
+ceiling: at the five minutes a field device is set to, one batch every five
+minutes, so a backlog of 35,000 records needed 31 hours to clear. It is now the
+period between *drains*. A drain runs until there is nothing left, and the pace
+inside it comes from the server: a send cycle that finishes under the fast mark
+for its transport earns the next batch immediately, a slower one earns a gap
+that doubles per slow batch up to ten seconds, and one fast batch clears the
+escalation. The batch size follows the same signal, growing by half on a fast
+success and halving on a failure, always under the heap ceiling that was
+already there. Measured on the bench with the field configuration: 35,382
+records drained in 26.8 seconds over plain HTTP, and HTTPS went from 59 to 142
+records per second. The old floor was slowing things down even at its minimum
+setting — dropping it took the plain cost per request from 127 ms to 79 ms and
+the HTTPS one from 1,685 ms to 704 ms. An operator's touch now defers the next
+batch by a second, so a drain cannot make the screen feel dead; headless builds
+have no touch provider and are unaffected.
+
+**A telemetry wake now sizes itself against the reading interval.** The flush
+had a flat 30-second cap that knew nothing about how often the device reads its
+sensors, so with readings every minute the wake ran past its own next reading.
+The budget is now whichever is smaller: that cap, or what is left of the
+interval after the wake's tail. And when the uploader asks for a gap the rest
+of the wake cannot cover, the device sleeps instead of waiting with the radio
+on — the records stay on flash and the next telemetry wake continues the drain.
+
+**The cursor also reaches flash during a fast drain now.** The same coalescing
+window was restarted on every cursor update, so at a back-to-back cadence (one
+batch every 73 to 281 ms on the bench) the five seconds never elapsed and
+nothing was written for the whole drain: thousands of batches, and a power loss
+in the middle would have re-sent all of them on the next boot. The window is
+now anchored on the first dirty update, which gives one write per five seconds
+under load — the original intent. Found while measuring what the telemetry
+cadence and batch size actually cost on the Air build; the measurements and the
+plan that follows from them (automatic cadence and batch, hibernate-and-resume)
+are in `docs/analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md`, with the bench in
+`tools/telemetry_bench/phase_cadence.py`.
+
+The plan, the bench evidence and the acceptance tests are in
+`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (serial CLI,
+web API and the PicoHand fixture, including a 10 kHz probe that times the cycle
+without touching the target) and `tools/check_air_consistency.py`. Still open
+before this ships: the M1 boot starts services it does not need, offline wakes
+are stamped from the provisional clock rather than the measured sleep, and CI
+does not build `pico_w_air` or run `native_air`.
+
 ## v2.3.9-beta (2026-08-29)
 
 ### Alpha web selector fixed (was stuck in English)

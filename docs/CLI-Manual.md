@@ -227,8 +227,8 @@ executar qualquer comando do modo privilegiado sem sair do config.
 | `tel server <url>` | URL do servidor de telemetria | max 63 chars |
 | `tel port <porta>` | Porta do servidor | 1–65535 |
 | `tel path <caminho>` | Caminho do endpoint (ex: `/api/v1/data`) | max 31 chars |
-| `tel batch <n>` | Registros por upload | 1–250 (limitado pelo heap livre) |
-| `tel interval <ms>` | Intervalo entre uploads automáticos (0 = desligado) | ≥ 0 |
+| `tel batch <n>` | **Lote máximo**: registros por upload | 1–250 (limitado pelo heap livre) |
+| `tel interval <n>` | **Lote mínimo**: registros pendentes que disparam o envio (0 = desligado) | 0–20000 |
 | `tel crypto on` | Ativar SSL/HTTPS para telemetria | — |
 | `tel crypto off` | Desativar SSL/HTTPS | — |
 | `tel mode json` | Payload em formato JSON | — |
@@ -409,3 +409,58 @@ SIMUT> tel dump
 | `SIMUT#` | Privileged EXEC — manutenção | `disable` ou `exit` |
 | `SIMUT(config)#` | Global Config — config do sistema | `exit` ou `end` |
 | `SIMUT(config-sensor-N)#` | Sensor Config — config de 1 sensor | `exit` (p/ config) ou `end` (p/ #) |
+
+---
+
+## 9. Console de emergência (imagens `pico_w_release`, `pico_w_alpha` e `pico_w_air`)
+
+As imagens de produção não carregam a CLI hierárquica deste manual
+(`SIMUT_CLI_FULL=0`). Elas respondem no prompt único `SIMUT> `, sem `enable`
+nem `configure terminal`, com este conjunto:
+
+| Comando | Efeito |
+|---|---|
+| `show net status` | IP, SSID, RSSI, estado do NTP |
+| `show system info` | versão do firmware, uptime, heap, sensores |
+| `show system log` | últimas linhas do log binário |
+| `debug on` / `debug off` | console verboso |
+| `system admin reset` | regenera a senha do admin (mostrada uma vez) |
+| `system format [confirm]` | formata o LittleFS |
+| `system factory [confirm]` | restaura os defaults de fábrica |
+| `system https off [confirm]` | apaga o par TLS e volta para HTTP |
+| `system ssid <nome>` | grava o SSID **na hora** (sem `write memory`); `reload confirm` para reconectar |
+| `system pass <senha>` | grava a senha do Wi-Fi na hora; idem |
+| `reload [confirm]` | reinicia |
+| `ap` | sobe o ponto de acesso de configuração |
+| `help` | esta lista, no idioma do pack instalado |
+
+### 9.1 Comandos `air` (somente `pico_w_air`)
+
+| Comando | Efeito |
+|---|---|
+| `air status` | `Air: phase=<n> wake=<s>s hist=<s>s backoff=<s>s idle=<s>s armed=<0\|1> dirty=<n> tel=<pendentes>/<lote mínimo> skip=<n> radio=<0\|1> chg=<0\|1> bat=<n> cyc=<ms> wip=<n>` |
+| `air hibernate` (ou `air sleep`) | entra no ciclo M1 agora; o USB some quando o aparelho dorme |
+| `air stop` (ou `air wake`) | cancela o ciclo e volta ao modo operacional M0 — só funciona na janela em que o aparelho está acordado |
+| `air idle <10..65535>` | segundos de inatividade da CLI antes de hibernar sozinho (persistido em `/config/air.bin`) |
+| `air charger <0..29\|off>` | GPIO que lê nível alto enquanto o aparelho carrega (padrão GP17); `off` desliga a leitura. Persistido em `/config/air.bin` |
+
+Fases reportadas por `phase=`: 0 OFF (M0), 1 WARMUP, 2 SAMPLE, 3 DECIDE, 4 PERSIST, 5 CONNECT, 6 FLUSH, 7 SLEEP.
+Com `debug on` o console mostra `[AIR] phase=…` a cada transição e `[AIR] alarm: HH:MM:SS wakeSec=N` antes de dormir.
+
+Sobre `wip=`: quantas vezes o bloco de histórico aberto foi gravado inteiro em
+`/history/.wip` desde o boot. É a única janela que o firmware tem para o próprio desgaste de
+flash, porque a `.wip` é reescrita POR COMPLETO a cada vez. Num SIMUT Air todo wake é um boot,
+então o número se lê direto como "por wake", e o valor esperado é **1**. A linha `[AIR] alarm:`
+também o traz, e é onde ele serve: o console responde cedo no wake, antes mesmo de o registro ser
+gravado, então o `air status` de dentro de um wake devolve 0.
+
+Sobre `chg=`: com o carregador ligado o aparelho **não hiberna** — o `air idle` deixa de valer e um
+wake que encontre o carregador cancela o ciclo daquele boot e sobe como M0 completo, com servidor
+web. O ciclo continua armado, então basta desconectar e deixar o idle expirar para voltar a dormir.
+O divisor de tensão que traz os 5 V ao nível lógico é da placa; nada disso mede corrente de carga,
+só a presença da fonte.
+
+> Desde 07/09/2026 o `air idle` recusa o que o campo não guarda (item F09, fechado). Antes ele
+> aceitava até 86400 e convertia: 86400 virava 20864 e **65536 virava 0**, e um ocioso de zero
+> manda o aparelho dormir na passada seguinte do laço — de onde só se volta pegando uma janela de
+> wake pelo console.

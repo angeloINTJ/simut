@@ -187,6 +187,16 @@ void LogManager::captureBootSnapshot( ) {
  }
 }
 
+bool LogManager::bootWasClean( ) const {
+ /* A power-up or a RUN-pin reset never went through the watchdog at all. */
+ if (!watchdog_caused_reboot( )) return true;
+ /* It did — but every reboot this firmware performs on purpose stamps the mark
+  * first (markCleanReboot), including the Air wake's SYSRESETREQ. The REASON
+  * register cannot tell them apart on its own: its TIMER bit survives soft
+  * resets until a power cycle, which is the whole reason the mark exists. */
+ return _preBootScratch5 == 0xC1EA8007u;
+}
+
 void LogManager::begin(bool saveToFile, LogLevel minSerialLevel) {
  /* Safety net only. The real capture happens at the top of AppManager::setup( ):
  * by the time begin( ) runs, Core 1 is already up and the launch TraceScope has
@@ -608,7 +618,17 @@ void LogManager::setMinSerialLevel(LogLevel level) { _minSerialLevel = level; }
  * `watchdog_reboot( )`, but are zeroed on power cycle / physical reset. They are
  * the post-crash forensic channel of this firmware (see performCrashAutopsy).
  *
- * scratch[0..2] — reserved by Pico SDK (boot/runtime). Do not touch.
+ * scratch[0] — SIMUT Air hibernation marker (AIR_DORMANT_MAGIC), written by
+ * airEnterDormant( ) and read once by setup( ) to tell an M1
+ * wake from a cold boot. Nominally "reserved by Pico SDK",
+ * but hardware_sleep — its only user — is not linked by this
+ * framework, so the slot is free. Survives the SYSRESETREQ the
+ * wake performs; cleared by power cycle / physical reset, which
+ * is exactly the discriminator the Air cycle needs.
+ * scratch[1] — SIMUT Air: seconds the last sleep really lasted, tagged with
+ *               AIR_SLEPT_MAGIC and read once by the next boot (see
+ *               AppManager_Boot.cpp). Same reasoning as scratch[0].
+ * scratch[2] — reserved by Pico SDK (boot/runtime). Do not touch.
  * scratch[3] — module trace (Core 0 + Core 1) via TRACE_MOD/setModule.
  * Packing:
  * bits 0..7 = Core 0 current mod
@@ -1096,6 +1116,7 @@ static const char* translateCodeEn(uint16_t code) {
  case APP_NTP_CORRECTING: return "NTP correcting timestamps";
  case APP_NTP_CORRECTED: return "Timestamps corrected";
  case APP_CACHE_INVALIDATED: return "Graph caches invalidated";
+ case APP_AIR_CYCLE_HELD: return "Air cycle held in M0";
 
  /* ── App UI (440–449) ── */
  case APP_UI_THEME_CHANGED: return "Theme changed via UI";

@@ -16,6 +16,7 @@
 #pragma once
 #include <Arduino.h>
 #include <HTTPClient.h>
+#include "simut_config.h"
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
 #include "SystemDefs.h"
@@ -49,6 +50,38 @@ public:
  bool isTlsCertLoaded( ) const { return _hasCert; }
 
  uint16_t getPendingEstimate( ) const;
+ /** True when pending records have reached the configured minimum batch
+  *  (SystemConfig::telInterval, a COUNT since v22; 0 = telemetry off). The
+  *  Air cycle asks this to decide whether a wake raises the radio at all. */
+ bool telemetryDue( ) const;
+ /** Hand over the storage before begin( ) runs.
+  *
+  * The Air boot has to know whether this wake raises the radio, and it has to
+  * know it BEFORE the network comes up — which is long before begin( ) wires
+  * this class. The answer is a count of pending records, so the counter needs
+  * the filesystem that early. Idempotent, and begin( ) sets the same pointer. */
+ void attachStorage(StorageManager* storage) { if (!_storageRef) _storageRef = storage; }
+ /** Milliseconds until the current backoff (punishment) expires; 0 when the
+  * uploader may send immediately. Used by the Air M1 cycle to sleep for the
+  * backoff when it exceeds the wake interval. */
+ uint32_t getBackoffRemainingMs( ) const;
+ /** Air FLUSH: start a drain on this wake instead of waiting out the period
+  * (begin( ) stamps the timer at boot, and an M1 wake IS a boot). The gap
+  * between batches and the backoff after a failure still apply. */
+ void setDrainMode(bool on) { _drainMode = on; }
+ /** ms until the uploader would send the next batch of the drain under way,
+  * 0 if it would send now or has nothing left. The Air cycle compares it with
+  * what is left of the wake: waiting with the radio on costs more than
+  * sleeping, and the records keep on flash for the next telemetry wake. */
+ uint32_t getNextSendDelayMs( ) const {
+  if (!_drainActive) return 0;
+  const int32_t left = (int32_t)(_nextSendAt - millis( ));
+  return (left > 0) ? (uint32_t)left : 0u;
+ }
+ /** Batch size the AIMD controller settled on (before the heap ceiling). */
+ uint8_t getBatchAuto( ) const { return _batchAuto; }
+ /** Last full cycle in ms — collectBatch to the end of the HTTP/MQTT call. */
+ uint32_t getLastCycleMs( ) const { return _lastCycleMs; }
  void refreshPendingCount( );
  void notifyNewRecord( );
 
@@ -133,7 +166,13 @@ private:
  StorageManager* _storageRef;
  NetworkManager* _netRef;
 
- uint32_t _lastCheckTime;
+ bool _drainMode = false; /**< Air FLUSH: start a drain now, whatever the period says. */
+ bool _drainActive = false; /**< A drain is under way: the gap rules, not the period. */
+ uint32_t _gapMs = 0;      /**< Current inter-batch gap, before the RSSI penalty. */
+ uint32_t _nextSendAt = 0; /**< millis( ) deadline for the next batch of this drain. */
+ uint32_t _lastCycleMs = 0; /**< Last full cycle: collectBatch → end( ). */
+ uint32_t _cycleEmaMs = 0;  /**< EMA of the cycle — the reference for "getting worse". */
+ uint8_t _batchAuto = 0; /**< AIMD batch; 0 = "take the configured maximum", set on first use. */
  volatile bool _isSending = false;
 
 
@@ -168,8 +207,8 @@ private:
 
  /* Dynamic runtime interval (not persisted).
  * Logic inlined in update() to save flash. */
- uint32_t _smoothedLatencyMs = 0; /**< EMA of observed latency (alpha 0.3) */
- uint32_t _effectiveIntervalMs = 0; /**< Computed effective interval (vs cfg.telInterval) */
+ uint32_t _smoothedLatencyMs = 0; /**< EMA of the POST alone (alpha 0.3) — what metr.tl reports */
+ uint32_t _effectiveIntervalMs = 0; /**< Last gap actually applied, RSSI penalty included */
 
  void resetBackoff( );
  void escalateBackoff( );
@@ -184,6 +223,13 @@ private:
  /* HTTP TLS — reusable client (avoids reallocating ~16KB each upload) */
  WiFiClientSecure* _httpSecurePtr = nullptr;
  uint32_t _httpSecureLastUse = 0;
+#if TEL_TLS_KEEPALIVE_EXPERIMENT
+ /* Session reuse is state of the HTTPClient INSTANCE (_canReuse starts false
+  * on every new one), so the kept TLS socket is only picked up again by the
+  * same instance: one lives here for the secure path, for as long as the
+  * experiment is on. */
+ HTTPClient* _httpKeepPtr = nullptr;
+#endif
 
  WiFiClient _mqttWifiClient;
  WiFiClientSecure* _mqttSecurePtr = nullptr; /**< Allocated on demand (MQTT+TLS only) ~16KB */

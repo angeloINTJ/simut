@@ -782,11 +782,16 @@ void WebManager::handleApiCommitAll( ) {
 			if (has("t_srv")) setStr("t_srv", cfg.telServer, sizeof(cfg.telServer));
 			if (has("t_port")) { int v; if (parseIntStrict(getNum("t_port"), v) && isInRange(v, 1, 65535)) cfg.telPort = (uint16_t)v; else rejectField("t_port"); }
 			if (has("t_path")) setStr("t_path", cfg.telPath, sizeof(cfg.telPath));
-			if (has("t_int")) { int v; if (parseIntStrict(getNum("t_int"), v) && v >= 0 && v <= 86400000) cfg.telInterval = (uint32_t)v; else rejectField("t_int"); }
-			/* 1..50 everywhere now: the CLI always said 1-50, the runtime clamps at
-			 * HARD_CAP=50 (TelemetryManager), and the page's input agrees since the
-			 * same commit — this was the field with four different ceilings, where
-			 * a user typing 100 silently got 50 with no one saying so. */
+			/* t_int is the MINIMUM BATCH: how many records have to be waiting before
+			 * the device transmits (0 = telemetry off). It was an interval in
+			 * milliseconds up to config v21, which is why the key is named the way it
+			 * is; the ceiling moved with the meaning. */
+			if (has("t_int")) { int v; if (parseIntStrict(getNum("t_int"), v) && isInRange(v, 0, TEL_MIN_BATCH_MAX)) cfg.telInterval = (uint32_t)v; else rejectField("t_int"); }
+			/* 1..250: the CLI, the page's input and the runtime clamp (HARD_CAP in
+			 * TelemetryManager) all agree — this was the field with four different
+			 * ceilings, where a user typing 100 silently got 50 with no one saying so.
+			 * It is the MAXIMUM records per upload; the drain sends in batches of at
+			 * most this until the queue is empty. */
 			if (has("t_bat")) { int v; if (parseIntStrict(getNum("t_bat"), v) && isInRange(v, 1, 250)) cfg.telBatchSize = (uint8_t)v; else rejectField("t_bat"); }
 			if (has("t_mode")) { int v; if (parseIntStrict(getNum("t_mode"), v) && isInRange(v, 0, 2)) cfg.telMode = (uint8_t)v; else rejectField("t_mode"); }
 			if (has("t_transport")) { int v; if (parseIntStrict(getNum("t_transport"), v) && isInRange(v, 0, 1)) cfg.telTransport = (uint8_t)v; else rejectField("t_transport"); }

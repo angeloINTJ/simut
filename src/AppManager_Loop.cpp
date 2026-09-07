@@ -34,6 +34,43 @@ void AppManager::loop( ) {
  core1StallSample( );  /* covers the idle stretches between web handlers */
  watchdog_update( );
 
+#if SIMUT_AIR
+ /* ── SIMUT Air ─────────────────────────────────────────────────────── */
+ if (_airActive) {
+  /* M1: still poll the serial/BT CLI so the user can cancel hibernation
+   * ('air stop') during the brief awake window. */
+  CliDemand cmd;
+  if (_cmdMgr->processInput(cmd)) {
+   executeCommand(cmd);
+   if (!_waitingScan) _cmdMgr->printPrompt( );
+  }
+  if (_airActive) {
+   airLoop( );
+   watchdog_update( );
+   return;
+  }
+  /* 'air stop' fell through -> run the normal M0 body below. */
+ }
+ /* M0: LED on while awake (once); auto-hibernate after the idle timeout. */
+ static bool airLedOn = false;
+ if (!airLedOn) { airSetLed(true); airLedOn = true; }
+ /* A cycle that a reset interrupted comes back on the short grace instead of the
+  * operator's idle timeout (plan F25): the device is awake with the radio on the
+  * whole time, which is the state this build exists to avoid. */
+ const uint32_t idleSec = _airResumeGraceSec ? (uint32_t)_airResumeGraceSec
+                                             : (uint32_t)_airCfg.idleTimeoutSec;
+ /* On the charger there is no battery to protect, so the idle timeout does not
+  * apply: the device stays awake and reachable for as long as it is plugged in.
+  * Charging counts as activity rather than merely suspending the check, so
+  * unplugging grants a fresh idle window instead of dropping the device
+  * instantly into sleep in the operator's hands. */
+ if (airOnCharger( )) {
+  _airLastActivityMs = millis( );
+ } else if (timeSince(_airLastActivityMs, idleSec * 1000UL)) {
+  airStartHibernate( ); /* next iteration runs airLoop( ) */
+ }
+#endif
+
  /* edge detection touch-released → orchestrated flush. */
  bool isNow = isUserInteracting( );
  if (_wasInteracting && !isNow) {
@@ -41,7 +78,9 @@ void AppManager::loop( ) {
  }
  _wasInteracting = isNow;
 
- LogManager::instance( ).checkCrossCoreHealth( );
+#if !SIMUT_AIR
+ LogManager::instance( ).checkCrossCoreHealth( ); /* Air is single-core: no Core 1 display to monitor */
+#endif
  /* Hourly accounting for the edge-triggered log filter. Cheap on every other
   * pass (one wrap-safe compare); it only writes once an hour, and only when
   * something was actually suppressed. */

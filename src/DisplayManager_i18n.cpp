@@ -12,10 +12,12 @@
  */
 
 #include "DisplayManager.h"
+#if SIMUT_DISPLAY_TFT
 #include "DisplayManager_Fonts.h"
+#include "UiWidgets.h"
+#endif
 #include "LogManager.h"
 #include "sensors/SensorChannelTable.h"   /* CH_COUNT, channelInfo, channelValid */
-#include "UiWidgets.h"
 
 static const char* const DICTIONARY_EN[TR_KEYS_COUNT] = {
  "AMBIENT", "Settings > Main", "Settings > Themes", "Settings > Language", "EXIT",
@@ -94,6 +96,7 @@ const char* DisplayManager::tr(LangKey key) {
  return DICTIONARY_EN[key];
 }
 
+#if SIMUT_DISPLAY_TFT
 void DisplayManager::showSettingsLang(int currentLang) {
  mutex_enter_blocking(&_stateMutex);
  _uiMode = MODE_SETTINGS_LANG;
@@ -190,3 +193,4 @@ void DisplayManager::drawSettingsLang( ) {
  _lastLangPage = _langPage;
  _lastPreviewLangIdx = _previewLangIdx;
 }
+#endif /* SIMUT_DISPLAY_TFT */

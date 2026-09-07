@@ -4,6 +4,184 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado — branch `feature/simut-air`
+
+### SIMUT Air: build headless com ciclo de hibernação em deep sleep (experimental)
+
+Novo ambiente PlatformIO `pico_w_air`: sem display, sem buzzer, a pilha
+web/serial/Bluetooth da Alpha no boot frio (M0) e um ciclo de hibernação (M1)
+que entra por `air hibernate` ou após um tempo de inatividade. A cada wake do
+RTC o firmware lê os sensores até estabilizar enquanto o Wi-Fi conecta em
+paralelo, sempre grava a amostra no histórico local, drena a telemetria
+pendente quando está online e volta a dormir pelo intervalo do histórico (ou
+pelo backoff da telemetria, quando maior). A hibernação é o SLEEP do RP2040
+(WFI no XOSC com alarme do RTC); o DORMANT foi tentado e descartado por ser
+não-determinístico na bancada. O CYW43 é desligado pelo WL_REG_ON, o pull-up
+do USB é solto para o host ver uma desconexão limpa, o watchdog é desarmado e o
+wake é marcado como reboot limpo para a autópsia de boot ficar calada. A
+configuração do Air vive em `/config/air.bin`; `CONFIG_VERSION` não muda. O
+console de emergência ganha `system ssid` e `system pass` em todas as imagens,
+e `air status|hibernate|stop|idle` na Air. Testes de host: `pio test -e native_air`.
+
+**Corrigido antes de publicar: o wake nunca acontecia na hora.** Desligar o
+oscilador em anel antes do WFI economizava um pouco de corrente, mas o deixava
+parado através do wake, porque o reset seguinte não passa pelo domínio de reset
+do ROSC. O boot ROM subia sem oscilador em anel e o wake demorava um tempo longo
+e variável: medido na bancada entre 16 e 48 minutos para um intervalo de 2
+minutos, contra 147 a 151 segundos na build anterior à mudança. O oscilador
+passa a ser religado logo após o WFI, antes do reset, e a mesma bancada mediu
+110,8 s de sono com 26,5 s de janela acordada. Custo: 32 bytes.
+
+**O wake passou a cair no intervalo configurado, e não uma janela acordada
+depois.** O alarme era ancorado no instante em que o aparelho dormia, então o
+período valia o intervalo mais o tempo que aquele wake havia levado: cerca de
+147 segundos para 120 configurados. Agora ele é ancorado no próprio wake, que
+neste ciclo é simplesmente o `millis()` na hora de dormir, porque um wake do M1
+é um boot. A subtração tem piso de 5 segundos, e um wake que dure mais que o
+próprio intervalo escreve `OVERRUN` no log em vez de degenerar em
+boot-dorme-boot. Só compensa o boot que de fato foi um wake; um boot frio ou um
+`air stop` não têm wake anterior a que ancorar.
+
+O aparelho também passou a medir o próprio sono. Depois do WFI ele lê o RTC, o
+único relógio que atravessa o sono, e deixa os segundos num registrador de
+scratch do watchdog para o boot seguinte imprimir. Foi essa medição que fechou o
+último segundo de erro: o alarme sempre foi exato, e a perda estava no
+truncamento inteiro da conta do alarme, sempre no mesmo sentido. Com
+arredondamento, um intervalo de 120 segundos mediu 119,3 segundos de ponta a
+ponta.
+
+E não acabava aí: o que escondia o resto era justamente o relato que o aparelho
+faz de si mesmo. A sonda passiva da PicoHand, que não toca no alvo, mediu o
+período em 119,31 e 118,69 segundos enquanto o aparelho reportava 119,84 — 0,90
+segundo perdido em todo ciclo, sempre igual. A causa estava impressa no console
+desde o começo. O RTC é escrito com zero e lê um três milissegundos depois,
+porque o pulso de load já vale um tique, então um alarme armado em N segundos
+ficava a N-1 tiques e o aparelho acordava um segundo cedo em todo ciclo. O
+alarme passou a ser armado relativo ao valor que o RTC devolve, e não ao zero
+que se escreveu nele, o que é imune ao que o load faça; e o autorrelato desconta
+essa base, então passa a dizer sono real em vez do valor do alarme. Medido
+depois da mudança, sonda e console na mesma janela: 120,23 e 120,35 segundos
+para um intervalo de 120 segundos, com os 0,11 segundo restantes explicados pelo
+trabalho entre a leitura do relógio de milissegundos e o load do RTC.
+
+**Uma rede Wi-Fi ausente não segura mais o wake aberto.** As tentativas de
+conexão têm teto por wake; passado o teto, a fase de amostragem para de bombear
+a rede pelo resto daquele wake, os sensores terminam mesmo assim, o histórico é
+gravado e o aparelho hiberna. O wake seguinte é um boot novo, então tenta de
+novo com o contador zerado. Medido com um SSID errado de propósito, a janela
+acordada foi de 26,7, 26,4 e 26,2 segundos, contra 26,3 a 29,5 segundos com o
+SSID certo.
+
+**O cursor da telemetria passou a ser gravado antes de dormir.** As escritas do
+cursor são agrupadas numa janela de cinco segundos que o ciclo M1 nunca
+alcançava: a fase de envio termina cerca de 150 ms depois do envio, e o sono
+perde a SRAM, então o boot seguinte relia o cursor antigo e reenviava um lote já
+aceito. A escrita pré-sono agora passa por cima tanto do agrupamento quanto do
+portão de prioridade de toque.
+
+**O bloco de histórico aberto é gravado na flash uma vez por ciclo, não quatro.**
+O arquivo de snapshot é reescrito por inteiro a cada vez, e num aparelho que lê
+uma vez por minuto essa reescrita é a maior coisa que ele faz com a própria
+flash. Três pontos pediam um snapshot incondicionalmente — o gancho pré-reboot,
+a entrada em hibernação e a fase que salva a leitura — cada um deles instantes
+depois de a própria leitura já ter gravado um. Medido na bancada: de três a
+quatro gravações do bloco inteiro por ciclo, agora uma. A gravação só é pulada
+quando os bytes em flash são provadamente idênticos, o que inclui o flag de
+procedência do relógio, que pode mudar sem que uma leitura tenha sido
+acrescentada.
+
+O `air status` e a linha de log que antecede o sono passaram a informar quantos
+snapshots este boot gravou, que é a única janela que o firmware tem para o
+próprio desgaste de flash.
+
+**O `air idle` não aceita mais um número que faz o aparelho dormir.** O ajuste
+é guardado num campo de 16 bits, e o comando aceitava até 86400 e convertia:
+86400 virava 20864, e 65536 virava zero. O zero é o que doía, porque um tempo
+de inatividade de zero manda o aparelho dormir já na passada seguinte do laço,
+e a única volta é pegar uma janela de wake pelo console serial. O que o campo
+não guarda passou a ser recusado de saída.
+
+**Um wake sobe o que um wake precisa, e nada além.** O servidor web, a CLI por
+Bluetooth, o anúncio mDNS e o cache de mínimas e máximas do painel subiam todos
+num wake M1, que dura menos de um minuto e sai da rede ao terminar. Ninguém
+navega num aparelho assim, ninguém resolve o nome dele e não há painel para
+preencher — então, na bateria, os quatro gastavam o wake para serem desmontados
+em seguida. Agora pertencem ao M0: um boot a frio, ou `air stop`, que é a janela
+do operador para configurar. O `air stop` durante um wake continua subindo o
+servidor web por conta própria, então a porta de entrada não mudou.
+
+**O aparelho fica acordado enquanto está carregando.** Um GPIO lê nível alto por
+um divisor a partir do trilho de 5 V; o pino é configurável e o padrão é o GP17.
+Com o carregador conectado não há bateria a proteger, então o tempo de
+inatividade não se aplica, e um wake que encontra o carregador cancela o próprio
+ciclo de hibernação naquele boot e sobe como um aparelho M0 normal, com servidor
+web e tudo. O ciclo continua armado na configuração do Air, então basta
+desconectar e deixar o tempo de inatividade correr para ele voltar a dormir, sem
+nada para religar à mão. O `air status` mostra a linha. O pino ocupou um campo
+que era gravado e nunca lido desde o início, então o arquivo de configuração
+mantém o tamanho, a soma de verificação e tudo o que já estava nele.
+
+**A telemetria é disparada pela quantidade que está esperando, não por um
+relógio.** Os dois ajustes agora são um lote mínimo e um máximo: o aparelho
+transmite quando essa quantidade mínima de registros está pendente, e os envia
+em lotes de no máximo o segundo valor até a fila acabar. Um mínimo zero desliga
+a telemetria, como o intervalo zero fazia. Na build a bateria é esse o ponto —
+um wake sem nada a dizer nunca liga o rádio, e um que tem o suficiente envia e
+volta a dormir. Os campos mantêm os nomes e os lugares na configuração (`t_int`
+e `t_bat` na web e na CLI), então uma configuração salva continua carregando; o
+que mudou é o que os números significam, e a versão 22 da configuração converte
+o intervalo antigo em milissegundos para a quantidade de registros que teria se
+acumulado nele. Um wake cujo envio falhou passa a reservar cinco wakes de
+leitura em silêncio, porque um gatilho por quantidade seria verdadeiro em todo
+wake enquanto um coletor está fora, e o rádio esvaziaria a bateria falando
+sozinho.
+
+**A cadência da telemetria e o tamanho do lote agora são automáticos.** O
+intervalo configurado era um piso entre lotes, e por isso virava o teto de
+vazão: nos cinco minutos que um aparelho de campo usa, um lote a cada cinco
+minutos — um backlog de 35 mil registros levaria 31 horas para sair. Agora ele
+é o período entre *drenos*. Um dreno vai até não sobrar nada, e o ritmo dentro
+dele vem do servidor: um ciclo de envio que termina abaixo da marca rápida do
+seu transporte ganha o lote seguinte na hora; um mais lento ganha um intervalo
+que dobra a cada lote lento até dez segundos, e um único lote rápido zera a
+escalada. O tamanho do lote segue o mesmo sinal, crescendo metade a cada
+sucesso rápido e caindo pela metade a cada falha, sempre abaixo do teto de heap
+que já existia. Medido na bancada com a configuração de campo: 35.382 registros
+drenados em 26,8 segundos por HTTP puro, e o HTTPS foi de 59 para 142 registros
+por segundo. O piso antigo atrapalhava mesmo no ajuste mínimo — tirá-lo levou o
+custo por requisição de 127 ms para 79 ms no HTTP puro e de 1.685 ms para
+704 ms no HTTPS. Um toque do operador adia o próximo lote em um segundo, para
+um dreno não deixar a tela parecendo morta; as imagens sem display não têm
+provider de toque e não sentem nada.
+
+**Um wake de telemetria agora se dimensiona pelo intervalo de leitura.** O
+flush tinha um teto fixo de 30 segundos que nada sabia sobre a frequência das
+leituras, então com leitura a cada minuto o wake passava da própria leitura
+seguinte. O orçamento agora é o que for menor: aquele teto, ou o que resta do
+intervalo depois da cauda do wake. E quando o enviador pede um intervalo que
+não cabe no que sobrou, o aparelho dorme em vez de esperar com o rádio ligado —
+os registros ficam no flash e o próximo wake de telemetria continua o dreno.
+
+**O cursor também chega ao flash durante um dreno rápido.** A mesma janela de
+agrupamento era reiniciada a cada atualização do cursor, então numa cadência
+colada (um lote a cada 73 a 281 ms na bancada) os cinco segundos nunca passavam
+e nada era gravado durante o dreno inteiro: milhares de lotes, e uma queda de
+energia no meio reenviaria todos eles no boot seguinte. A janela agora ancora na
+primeira atualização suja, o que dá uma escrita a cada cinco segundos sob carga
+— a intenção original. Encontrado ao medir quanto custam de fato a cadência e o
+tamanho do lote da telemetria no build Air; as medições e o plano que sai delas
+(cadência e lote automáticos, hibernar-e-retomar) estão em
+`docs/analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md`, com a bancada em
+`tools/telemetry_bench/phase_cadence.py`.
+
+O plano, as evidências da bancada e os testes de aceite estão em
+`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (CLI serial,
+API web e a PicoHand, incluindo uma sonda de 10 kHz que cronometra o ciclo sem
+tocar no alvo) e `tools/check_air_consistency.py`. Ainda em aberto antes de
+publicar: o boot M1 sobe serviços de que não precisa, os wakes offline são
+carimbados pelo relógio provisório em vez do sono medido, e o CI não compila o
+`pico_w_air` nem roda o `native_air`.
+
 ## v2.3.9-beta (2026-08-29)
 
 ### Seletor web da alpha corrigido (estava travado em inglês)

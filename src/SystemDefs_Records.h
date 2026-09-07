@@ -394,6 +394,7 @@ constexpr uint16_t HISTORY_INTERVAL_MIN_MIN = 1;
 constexpr uint16_t HISTORY_INTERVAL_MAX_MIN = 1440;
 static_assert(sizeof(HistoryConfigData) == 4, "HistoryConfigData must be 4 bytes");
 
+
 /**
  * @brief Home Assistant MQTT Discovery overlay in reserved[54..55].
  *
