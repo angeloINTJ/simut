@@ -253,6 +253,7 @@ private:
   *  last send against the configured telemetry interval. Must be answered
   *  before the network is started, because its answer is whether to start it. */
  bool airTelemetryDue( ) const;
+ bool airOnCharger( ) const;  /* charger line high = mains power, do not hibernate */
  uint32_t airFlushBudgetMs( ) const;
  void airSensorPower(uint8_t pin, bool on); /* sensor power-gating GPIO (high = awake) */
  bool airLoadConfig(struct AirConfig& out);   /* read /config/air.bin */

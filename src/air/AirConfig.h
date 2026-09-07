@@ -77,7 +77,19 @@ struct __attribute__((packed)) AirConfig {
   uint16_t version;
   uint16_t idleTimeoutSec;    /* M0 inactivity -> auto-hibernate (seconds) */
   uint16_t stabTimeoutMs;     /* sensor stabilization cap */
-  uint16_t wifiScanTimeoutMs; /* presence-scan cap */
+  /* Was wifiScanTimeoutMs, a presence-scan cap that nothing ever read (plan
+   * F17 confirmed it dead). Taken over rather than appended, so the file keeps
+   * its size and its CRC: a v2 file loads with everything else intact —
+   * idleTimeoutSec, the armed flag, the crash-loop count — instead of falling
+   * back to defaults over one new byte.
+   *
+   * Nothing ever wrote it, so every file that can exist holds exactly the old
+   * default of 4000 ms: little-endian, its low byte lands here as 160, which is
+   * not a GPIO, so the range check in airSanitise turns it into the default.
+   * That is the whole migration, and test_charger_pin_from_legacy_field pins
+   * it — the version is deliberately NOT bumped, so nothing else would. */
+  uint8_t  chargerPin;        /* GPIO that reads high while charging; PIN_UNUSED = off */
+  uint8_t  chargerRsv;        /* was the high byte of wifiScanTimeoutMs */
   uint16_t connectTimeoutMs;  /* connect + NTP cap */
   uint16_t flushTimeoutMs;    /* telemetry flush cap */
   uint8_t  sensorPowerPin;    /* GPIO power-gating for sensors; PIN_UNUSED = off */
@@ -128,7 +140,8 @@ inline AirConfig airDefaultConfig( ) {
 #if SIMUT_AIR
   c.idleTimeoutSec  = AIR_IDLE_TIMEOUT_SEC;
   c.stabTimeoutMs   = AIR_STAB_TIMEOUT_MS;
-  c.wifiScanTimeoutMs = AIR_WIFI_SCAN_TIMEOUT_MS;
+  c.chargerPin      = AIR_CHARGER_PIN;
+  c.chargerRsv      = 0;
   c.connectTimeoutMs  = AIR_CONNECT_TIMEOUT_MS;
   c.flushTimeoutMs    = AIR_FLUSH_TIMEOUT_MS;
   c.sensorPowerPin    = AIR_SENSOR_POWER_PIN;
@@ -151,6 +164,24 @@ inline uint32_t airCrc32(const uint8_t* data, size_t len) {
 
 inline uint32_t airComputeCrc(const AirConfig& c) {
   return airCrc32(reinterpret_cast<const uint8_t*>(&c), offsetof(AirConfig, crc32));
+}
+
+/* A GPIO number this chip has, or the "off" sentinel. */
+inline bool airPinValid(uint8_t pin) {
+  return pin == PIN_UNUSED || pin <= 29;
+}
+
+/* Fix up what a file cannot be trusted to carry: a field whose meaning changed
+ * under it (chargerPin, see the struct) reads as whatever the old field held. */
+inline void airSanitise(AirConfig& c) {
+  if (!airPinValid(c.chargerPin)) {
+#if SIMUT_AIR
+    c.chargerPin = AIR_CHARGER_PIN;
+#else
+    c.chargerPin = PIN_UNUSED;
+#endif
+    c.chargerRsv = 0;
+  }
 }
 
 inline bool airConfigValid(const AirConfig& c) {

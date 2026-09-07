@@ -59,7 +59,14 @@ void AppManager::loop( ) {
   * whole time, which is the state this build exists to avoid. */
  const uint32_t idleSec = _airResumeGraceSec ? (uint32_t)_airResumeGraceSec
                                              : (uint32_t)_airCfg.idleTimeoutSec;
- if (timeSince(_airLastActivityMs, idleSec * 1000UL)) {
+ /* On the charger there is no battery to protect, so the idle timeout does not
+  * apply: the device stays awake and reachable for as long as it is plugged in.
+  * Charging counts as activity rather than merely suspending the check, so
+  * unplugging grants a fresh idle window instead of dropping the device
+  * instantly into sleep in the operator's hands. */
+ if (airOnCharger( )) {
+  _airLastActivityMs = millis( );
+ } else if (timeSince(_airLastActivityMs, idleSec * 1000UL)) {
   airStartHibernate( ); /* next iteration runs airLoop( ) */
  }
 #endif

@@ -79,6 +79,26 @@ perde a SRAM, então o boot seguinte relia o cursor antigo e reenviava um lote j
 aceito. A escrita pré-sono agora passa por cima tanto do agrupamento quanto do
 portão de prioridade de toque.
 
+**Um wake sobe o que um wake precisa, e nada além.** O servidor web, a CLI por
+Bluetooth, o anúncio mDNS e o cache de mínimas e máximas do painel subiam todos
+num wake M1, que dura menos de um minuto e sai da rede ao terminar. Ninguém
+navega num aparelho assim, ninguém resolve o nome dele e não há painel para
+preencher — então, na bateria, os quatro gastavam o wake para serem desmontados
+em seguida. Agora pertencem ao M0: um boot a frio, ou `air stop`, que é a janela
+do operador para configurar. O `air stop` durante um wake continua subindo o
+servidor web por conta própria, então a porta de entrada não mudou.
+
+**O aparelho fica acordado enquanto está carregando.** Um GPIO lê nível alto por
+um divisor a partir do trilho de 5 V; o pino é configurável e o padrão é o GP17.
+Com o carregador conectado não há bateria a proteger, então o tempo de
+inatividade não se aplica, e um wake que encontra o carregador cancela o próprio
+ciclo de hibernação naquele boot e sobe como um aparelho M0 normal, com servidor
+web e tudo. O ciclo continua armado na configuração do Air, então basta
+desconectar e deixar o tempo de inatividade correr para ele voltar a dormir, sem
+nada para religar à mão. O `air status` mostra a linha. O pino ocupou um campo
+que era gravado e nunca lido desde o início, então o arquivo de configuração
+mantém o tamanho, a soma de verificação e tudo o que já estava nele.
+
 **A telemetria é disparada pela quantidade que está esperando, não por um
 relógio.** Os dois ajustes agora são um lote mínimo e um máximo: o aparelho
 transmite quando essa quantidade mínima de registros está pendente, e os envia

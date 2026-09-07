@@ -327,6 +327,18 @@
 #ifndef AIR_SENSOR_POWER_PIN
 #define AIR_SENSOR_POWER_PIN 16 // GPIO power-gating for sensors (also the awake/sleep probe)
 #endif
+#ifndef AIR_CHARGER_PIN
+// GPIO that reads HIGH while the charger is connected, through a divider off
+// the 5 V rail. On the charger the device is not on a battery budget, so it
+// stops hibernating and stays awake and reachable; unplug it and the cycle
+// resumes on the next idle timeout. PIN_UNUSED disables the whole behaviour.
+#define AIR_CHARGER_PIN 17
+#endif
+#ifndef AIR_CHARGER_ACTIVE_HIGH
+// 1 = charging reads HIGH (a divider off 5 V). 0 inverts it, for a board that
+// pulls the line down while charging.
+#define AIR_CHARGER_ACTIVE_HIGH 1
+#endif
 #ifndef AIR_MAX_CONNECT_ATTEMPTS
 // How many failed WiFi connection attempts a single wake may spend before it
 // stops trying. With the SSID out of range the wake still does its real job —

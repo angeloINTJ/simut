@@ -833,7 +833,7 @@ void AppManager::executeCommand(CliDemand cmd) {
    * batch size it settled on and the last full send cycle in ms. */
   snprintf(buf, sizeof(buf),
            "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us armed=%d dirty=%u "
-           "tel=%u/%lu skip=%u radio=%d bat=%u cyc=%lums",
+           "tel=%u/%lu skip=%u radio=%d chg=%d bat=%u cyc=%lums",
            (int)_airPhase, (unsigned long)wakeSec,
            (unsigned long)histSec, (unsigned long)backoffSec,
            (unsigned)(_airResumeGraceSec ? _airResumeGraceSec : _airCfg.idleTimeoutSec),
@@ -842,6 +842,7 @@ void AppManager::executeCommand(CliDemand cmd) {
            (unsigned long)_storageMgr->getConfig( ).telInterval,
            (unsigned)_airSkipWakes,
            _airRadioUp ? 1 : 0,
+           airOnCharger( ) ? 1 : 0,
            (unsigned)_telemetryMgr->getBatchAuto( ),
            (unsigned long)_telemetryMgr->getLastCycleMs( ));
   _cmdMgr->printInfo(buf);
@@ -901,6 +902,37 @@ void AppManager::executeCommand(CliDemand cmd) {
    _cmdMgr->printSuccess("air idle set");
   } else {
    _cmdMgr->printError("air idle <10..86400> (seconds)");
+  }
+  break;
+ }
+
+ case CMD_AIR_CHARGER: {
+  /* The line that says "mains, not battery". Configuring it here rather than
+   * only at compile time is what makes the behaviour testable and lets a board
+   * with different wiring use it: the pin is stored in air.bin, so it survives
+   * the reboot that any other configuration change would cost. */
+  int v = 0;
+  const bool off = (strcmp(cmd.strVal1, "off") == 0);
+  if (off || (cmd.strVal1[0] && parseIntStrict(cmd.strVal1, v) && v >= 0 && v <= 29)) {
+   _airCfg.chargerPin = off ? (uint8_t)PIN_UNUSED : (uint8_t)v;
+   if (!off) {
+    gpio_init((uint8_t)v);
+    gpio_set_dir((uint8_t)v, GPIO_IN);
+    gpio_pull_down((uint8_t)v);
+   }
+   airSaveConfig(_airCfg);
+   char buf[64];
+   if (off) {
+    snprintf(buf, sizeof(buf), "charger sense off");
+   } else {
+    /* Report the level as well as the pin: on a board wired the other way
+     * round this line is the difference between "configured" and "working". */
+    snprintf(buf, sizeof(buf), "charger sense on GP%d (now %s)",
+             v, airOnCharger( ) ? "charging" : "on battery");
+   }
+   _cmdMgr->printSuccess(buf);
+  } else {
+   _cmdMgr->printError("air charger <0..29|off>");
   }
   break;
  }

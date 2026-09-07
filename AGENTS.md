@@ -283,6 +283,34 @@ Armadilhas de bancada específicas do Air:
   physical reset"). ⚠️ Uma versão anterior desta nota afirmava o contrário;
   a suíte agora **mede** isso em T02 (lê `air status` antes de qualquer
   `air stop`) em vez de assumir. Confirmar na próxima bancada.
+- 🔴 **Um wake M1 NÃO sobe web, Bluetooth, mDNS nem o cache do painel** — só o que ele precisa
+  para ler o sensor e, se for o caso, enviar. Tudo isso pertence ao M0 (boot a frio ou
+  `air stop`, que continua subindo a web sozinho). O portão é `_airActive`, não `_airRadioWake`:
+  nem o wake de telemetria sobe listener, porque enviar não precisa de ninguém escutando. T10 da
+  suíte mede isso (porta 80 fechada durante o wake).
+- 🔋 **Carregador no GP17 (`AIR_CHARGER_PIN`, configurável em `air.bin`).** Nível alto por um
+  divisor do trilho de 5 V = carregando. Enquanto carrega: o `air idle` não se aplica (fica
+  acordado) e um wake que encontra o carregador **cancela o M1 daquele boot** e sobe como M0
+  completo. O ciclo continua ARMADO, então desconectar + expirar o idle volta a dormir sozinho.
+  `air status` mostra `chg=`. ⚠️ O pino ocupou o `wifiScanTimeoutMs`, que era campo morto (F17) —
+  mesmo tamanho de arquivo, mesmo CRC, nada se perde; nenhum código jamais escreveu esse campo,
+  então todo `air.bin` que existe carrega os 4000 ms do default, cujo byte baixo cai aqui como
+  **160** — não é GPIO e vira o default via `airSanitise( )`. Preso por teste nativo
+  (`test_charger_pin_from_legacy_field`), que é o único portão: a versão do arquivo NÃO subiu.
+  **Medido em 07/09** (mesma firmware, mesma janela, sem rede): com `chg=1` ficou acordado 130 s
+  sob `idle=40`; com `chg=0` dormiu em 40,5 s.
+- 🔌 **Na bancada quem finge o carregador é a mão**: `CHARGER ON|OFF` no PicoHand, saída GP3 ligada
+  direto no GP17 do alvo (3,3 V, **sem divisor** — o divisor é da placa real, para os 5 V). É a
+  única linha que a mão aciona em nível alto; as outras emulam botão em dreno aberto. T14 mede as
+  duas metades: acordado durante a carga e dormindo depois de tirar. Detalhes no
+  `tools/PicoHand/MANUAL_CLAUDE_CODE.pt-BR.md` §12.
+- ⚠️ **Nenhuma medida do `air idle` vale com uma aba do painel aberta.** Cada acerto na web chama
+  `airMarkActivity( )` (é o fix do F21, funcionando), então o aparelho fica acordado para sempre e
+  as DUAS metades do teste do carregador dão "acordado" — o A/B não discrimina nada. Em 07/09 isso
+  se disfarçou de bug do firmware por meia hora. Diagnóstico em um comando:
+  `ss -tn | grep 192.168.3.24`. A janela limpa é tirar o aparelho da rede pelo próprio console
+  (`system ssid <ssid>_offline` + `reload confirm`, e restaurar depois) — nunca fechar o navegador
+  do Ângelo.
 - 🔴 **`t_int` NÃO é mais tempo (config v22).** É o **lote mínimo**: quantos registros pendentes
   disparam um envio; 0 desliga a telemetria. `t_bat` é o **lote máximo** por requisição. Quem ler
   "intervalo em ms" em qualquer lugar está lendo documentação velha. A migração v21→v22 converte

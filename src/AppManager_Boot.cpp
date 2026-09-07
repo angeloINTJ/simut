@@ -140,6 +140,19 @@ void AppManager::setup( ) {
   * the slow parts (DHT22 needs ~1 s from power-up) the entire boot as warm-up.
   * The configured pin is applied right after air.bin is read, below. */
  airSensorPower(AIR_SENSOR_POWER_PIN, true);
+
+ /* The charger line, read before anything decides what kind of boot this is.
+  *
+  * Input with a pull-down so an unconnected pin reads "not charging" instead of
+  * floating into whatever the last transient left. The configured pin replaces
+  * this one right after air.bin is read; the default is the common case and
+  * this way the answer is already available for the decision just below. */
+#if AIR_CHARGER_PIN != PIN_UNUSED
+ gpio_init(AIR_CHARGER_PIN);
+ gpio_set_dir(AIR_CHARGER_PIN, GPIO_IN);
+ gpio_pull_down(AIR_CHARGER_PIN);
+#endif
+
  if (_airActive) {
   /* Woke from DORMANT (M1): begin a fresh read/send cycle. _airPhase was
    * reset to OFF by the cold boot, so it must be re-armed here (mirrors
@@ -400,7 +413,29 @@ void AppManager::setup( ) {
   airSensorPower(_airCfg.sensorPowerPin, true);
   airSensorPower(AIR_SENSOR_POWER_PIN, false);
  }
+ /* Same for the charger line: air.bin may name another pin than the one setup( )
+  * configured above. */
+ if (_airCfg.chargerPin != PIN_UNUSED && _airCfg.chargerPin != AIR_CHARGER_PIN) {
+  gpio_init(_airCfg.chargerPin);
+  gpio_set_dir(_airCfg.chargerPin, GPIO_IN);
+  gpio_pull_down(_airCfg.chargerPin);
+ }
  _airLastActivityMs = millis( ); /* idle timer starts at boot */
+
+ /* On the charger, this boot is not a wake — it is a device on mains.
+  *
+  * Cancelling M1 here rather than at the sleep is what makes the rest of the
+  * boot behave: the services below are gated on _airActive, so an operator who
+  * plugs in the charger gets the web server, the full CLI and no hibernation,
+  * which is the whole point of plugging it in. The cycle stays ARMED in
+  * air.bin, so unplugging and letting the idle timeout run puts the device
+  * straight back to sleeping — nothing to re-enable by hand. */
+ if (_airActive && airOnCharger( )) {
+  _airActive = false;
+  _airPhase = AIR_PHASE_OFF;
+  _airWokeFromSleep = false;
+  AIR_BOOT_MARK("charger present: staying awake in M0");
+ }
 
  /* An interrupted cycle gets itself back (plan F25).
   *
@@ -475,6 +510,9 @@ void AppManager::setup( ) {
   * wake never initialises the CYW43: no association, no NTP, no web server,
   * and no LED, since that one is a GPIO of the same chip. */
  if (_airActive) {
+  /* A wake announces nothing: no listener is started on it (see the web server
+   * and Bluetooth below), so there is no name worth resolving. */
+  _netMgr->setMdnsEnabled(false);
   /* Count what is actually on flash before deciding. The pending counter is a
    * RAM value the history writer keeps, and every wake is a boot: without this
    * the count is zero on arrival, the trigger is never true and the radio never
@@ -967,6 +1005,12 @@ void AppManager::setup( ) {
 	 * WiFi must still be reachable over BT to start AP mode. The
 	 * PIO_FRAMEWORK_ARDUINO_ENABLE_BLUETOOTH flag selects the combined
 	 * WiFi+BT radio blob, which is what lets the two coexist. */
+#if SIMUT_AIR
+	/* Same argument as the web server, and one more: the M1 loop only pumps the
+	 * USB CLI (plan F12), so a Bluetooth session opened during a wake would not
+	 * even be read. Starting the stack costs radio time on the battery. */
+	if (!_airActive)
+#endif
 	_cmdMgr->beginBluetooth(_storageMgr->getConfig().deviceName);
 #endif
 
@@ -987,10 +1031,18 @@ void AppManager::setup( ) {
  BLOG("[BOOT step] 12: pre _webMgr->begin( ) @ "); BLOG_U(millis( )); BLOG_NL( );
  _displayMgr->setBootStatusKey(TR_BOOT_START_WEB);
 #if SIMUT_AIR
- /* No radio, no listener: a web server with no network stack up cannot be
-  * reached by anyone, so starting it would only spend the wake's time. */
- if (!_airRadioWake) {
-  AIR_BOOT_MARK("web skipped (reading-only wake)");
+ /* The web server belongs to M0, not to a wake.
+  *
+  * Nobody browses a device that is awake for thirty seconds and then drops off
+  * the network: the listener would be started, never connected to, and torn
+  * down — on the battery. Configuration happens on the operator's window (a
+  * cold boot, or `air stop`), which is M0 and starts it below. A wake that
+  * raises the radio does so to send telemetry, and telemetry needs no listener.
+  *
+  * `air stop` during a wake starts the web server itself, so the escape hatch
+  * an operator needs is still there. */
+ if (_airActive) {
+  AIR_BOOT_MARK("web skipped (wake)");
  } else
 #endif
  {
@@ -1060,8 +1112,16 @@ void AppManager::setup( ) {
  } else {
  /* pre preloadMinMax */
  _displayMgr->setBootStatusKey(TR_BOOT_LOAD_MINMAX);
+#if SIMUT_AIR
+ /* The min/max cache exists to fill a dashboard. A wake has no display, no web
+  * server (above) and no one watching — it reads a sensor and goes back to
+  * sleep, so this is a header walk over the day's history for nobody. */
+ if (!_airActive)
+#endif
+ {
  delay(80);
  preloadMinMax( );
+ }
  /* pos preloadMinMax */
 
  _displayMgr->setBootStatusKey(TR_BOOT_WARMUP);
@@ -1086,8 +1146,13 @@ void AppManager::setup( ) {
  delay(80);
  handleTimeSync(_timeSyncBootTs, _timeSyncDelta);
 
- /* Reload min/max with corrected timestamps */
+ /* Reload min/max with corrected timestamps — again, only where something is
+  * going to read them. */
  _displayMgr->setBootStatusKey(TR_BOOT_RELOAD_MINMAX);
+#if SIMUT_AIR
+ if (!_airActive)
+#endif
+ {
  delay(80);
  for (int i = 0; i < MINMAX_SLOT_COUNT; i++) {
  _cachedMin[i] = 1000.0f; _cachedMax[i] = -1000.0f;
@@ -1096,6 +1161,7 @@ void AppManager::setup( ) {
  _preloadHumMin[i] = 1000.0f; _preloadHumMax[i] = -1000.0f;
  }
  preloadMinMax( );
+ }
  }
 
  /* pre warmup-end + prep-dash */

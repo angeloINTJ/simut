@@ -125,6 +125,7 @@ CliDemand parseCliCommand(String input) {
 		if (t1 == "status") { cmd.type = CMD_AIR_STATUS; return cmd; }
 		if (t1 == "stop" || t1 == "wake") { cmd.type = CMD_AIR_STOP; return cmd; }
 		if (t1 == "idle") { cmd.type = CMD_AIR_IDLE; cmd.setStrVal1(r2.c_str( )); return cmd; }
+		if (t1 == "charger") { cmd.type = CMD_AIR_CHARGER; cmd.setStrVal1(r2.c_str( )); return cmd; }
 	}
 #endif
 #if SIMUT_CLI_FULL

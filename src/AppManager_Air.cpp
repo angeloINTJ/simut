@@ -59,6 +59,7 @@ bool AppManager::airLoadConfig(AirConfig& out) {
  f.close( );
  if (n != sizeof(c)) return false;
  if (!airConfigValid(c)) return false;
+ airSanitise(c);              /* chargerPin took over a dead field — see AirConfig.h */
  out = c;
  return true;
 }
@@ -170,6 +171,23 @@ uint32_t AppManager::airFlushBudgetMs( ) const {
  * wake books a number of wakes to skip, kept in the same scratch field that
  * used to hold the wake counter, and doubling per failure — the same escalation
  * the mains path does in milliseconds, expressed in wakes. */
+/* Is the charger plugged in?
+ *
+ * A divider off the 5 V rail drives the pin high while charging. On the charger
+ * there is no battery to protect, so the device stops hibernating and stays
+ * awake and reachable — which is what an operator wants from a bench device.
+ * Reading it costs one GPIO read; the pin is configured once in setup( ). */
+bool AppManager::airOnCharger( ) const {
+ const uint8_t pin = _airCfg.chargerPin;
+ if (pin == PIN_UNUSED) return false;
+ const bool high = gpio_get(pin);
+#if AIR_CHARGER_ACTIVE_HIGH
+ return high;
+#else
+ return !high;
+#endif
+}
+
 bool AppManager::airTelemetryDue( ) const {
  if (_airSkipWakes > 0) return false;          /* still serving a failed wake's penalty */
  return _telemetryMgr->telemetryDue( );        /* pending >= minimum batch (0 = off) */

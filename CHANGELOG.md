@@ -79,6 +79,26 @@ boot re-read the old cursor and re-sent a batch that had already been accepted.
 The pre-sleep write is now forced past both the coalescing window and the
 touch-priority gate.
 
+**A wake starts what a wake needs, and nothing else.** The web server, the
+Bluetooth CLI, the mDNS announcement and the dashboard's min/max cache all used
+to come up on an M1 wake, which lasts under a minute and drops off the network
+when it ends. Nobody browses a device like that, nobody resolves its name, and
+there is no dashboard to fill — so on the battery all four were spending the
+wake to be torn down again. They now belong to M0: a cold boot, or `air stop`,
+which is the operator's window for configuration. `air stop` during a wake
+still starts the web server itself, so the way in is unchanged.
+
+**The device stays awake while it is charging.** A GPIO reads high through a
+divider off the 5 V rail; the pin is configurable and defaults to GP17. With
+the charger connected there is no battery to protect, so the idle timeout does
+not apply, and a wake that finds the charger present cancels its own
+hibernation cycle for that boot and comes up as a normal M0 device — web server
+and all. The cycle stays armed in the Air configuration, so unplugging and
+letting the idle timeout run puts it straight back to sleeping, with nothing to
+re-enable by hand. `air status` reports the line. The pin took over a field that
+had been stored and never read since the beginning, so the configuration file
+keeps its size, its checksum and everything already in it.
+
 **Telemetry is triggered by how much is waiting, not by a clock.** The two
 settings are now a minimum and a maximum batch: the device transmits once the
 minimum number of records is pending, and sends them in batches of at most the

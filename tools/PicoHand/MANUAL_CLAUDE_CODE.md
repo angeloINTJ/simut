@@ -471,6 +471,34 @@ the bridge keeps working.
 copying the `.uf2` to the `RPI-RP2` volume, the target came back with its uptime
 zeroed, in a cold boot (M0). Plan a bench run around that.
 
+## 12. The CHARGER channel — faking the power source (2026-09-07)
+
+A fourth channel: **`CHARGER`, an output on GP3** (physical pin 5), wired to the
+**target's GP17**. SIMUT Air reads that pin to decide whether it is plugged in:
+HIGH means a charger is present, so the device stays awake and skips
+hibernation entirely; LOW means battery, and the normal cycle runs.
+
+| Command | Reply |
+|---|---|
+| `CHARGER STATUS` | `CHARGER STATUS: OFF (GP3 level=L)` |
+| `CHARGER ON` | `OK CHARGER ON` — the target must stop hibernating |
+| `CHARGER OFF` | `OK CHARGER OFF` — the target hibernates again |
+
+**This one is driven both ways.** BOOTSEL and RESET emulate open-drain buttons
+and never source current; GP3 replaces a voltage divider hanging off the 5 V
+rail, which is a source, so it is a plain push-pull output. It boots LOW, so a
+target left wired to the hand behaves exactly as it does on battery.
+
+⚠️ **No divider on this wire.** The divider on the real board exists to bring
+5 V down to a safe logic level. GP3 already sits at 3.3 V: run it straight to
+GP17, and share GND (pin 3 is right beside both).
+
+⚠️ **A hand in reset or BOOTSEL floats GP3.** The target pulls GP17 down
+internally, so the line reads "on battery" — which is the safe failure.
+
+⚠️ **The stimulus is the logic level, not the current.** The bench proves the
+firmware's *decision*, never that the battery is actually charging.
+
 ### Reflashing the hand
 
 ```bash

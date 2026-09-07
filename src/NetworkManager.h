@@ -58,6 +58,13 @@ public:
   *        figure: with the radio raised once every N wakes, most records are
   *        stamped by this clock and never corrected, so a fixed guess would
   *        write the interval it assumed instead of the one that elapsed. */
+ /** Announce the device over mDNS when the link comes up (default true).
+  *
+  * A SIMUT Air wake turns this off: nobody resolves a name for a device that is
+  * on the network for thirty seconds and then gone, and the announcement costs
+  * radio time and a multicast burst on the battery. */
+ void setMdnsEnabled(bool on) { _mdnsEnabled = on; }
+
  void setProvisionalTime(uint32_t lastTs, uint32_t elapsedSec = 60);
  void setTimeSyncCallback(TimeSyncCallback cb);
 
@@ -128,6 +135,7 @@ public:
  }
 
 private:
+ bool _mdnsEnabled = true;
  enum NetState {
  NET_OFFLINE,
  NET_CONNECTING,

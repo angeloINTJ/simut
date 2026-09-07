@@ -23,7 +23,9 @@ Three instruments, all optional except the target's USB CDC:
            for clean state between tests and to recover a target that does
            not come back from a wake. If the hand firmware has the optional
            PROBE channel (see the plan, §3) the suite reads GP16 edges from it;
-           otherwise timing comes from USB enumeration timestamps.
+           otherwise timing comes from USB enumeration timestamps. The optional
+           CHARGER channel (hand GP3 into target GP17) fakes the charger so T14
+           can check that a plugged-in device stops hibernating.
 
 Known defects are marked `xfail=` on the test: a failing xfail test counts as
 XFAIL (expected), a passing one as XPASS (remove the mark, the bug is fixed).
@@ -85,7 +87,7 @@ AIR_STATUS_RE = re.compile(
     # wakes still to be served after a failed send>, and whether THIS wake
     # raised the radio at all.
     r'(?:\s+tel=(?P<telnow>\d+)/(?P<televery>\d+))?(?:\s+skip=(?P<skip>\d+))?'
-    r'(?:\s+radio=(?P<radio>\d+))?'
+    r'(?:\s+radio=(?P<radio>\d+))?(?:\s+chg=(?P<chg>\d+))?'
     # Automatic cadence: the batch size the AIMD controller settled on and the
     # last full send cycle in ms. Also optional — older builds have neither.
     r'(?:\s+bat=(?P<bat>\d+))?(?:\s+cyc=(?P<cyc>\d+)ms)?')
@@ -182,6 +184,7 @@ class Hand:
         self.path = path or by_id_path(HAND_SERIAL, pico_w=False)
         self.available = os.path.exists(self.path) and serial is not None
         self._probe = None
+        self._charger = None
 
     def cmd(self, text, timeout=2.0, multiline=False):
         if not self.available:
@@ -251,6 +254,20 @@ class Hand:
 
     def probe_read(self):
         return parse_edges(self.cmd('PROBE READ', timeout=3, multiline=True))
+
+    def charger_supported(self):
+        """Optional CHARGER extension (GP3 → target GP17). ERR/timeout = not there."""
+        if self._charger is None:
+            try:
+                r = self.cmd('CHARGER STATUS')
+            except TestSkip:
+                r = ''
+            self._charger = r.startswith('CHARGER')
+        return self._charger
+
+    def charger(self, on):
+        """Drive the target's charger sense line. Returns True on OK."""
+        return self.cmd('CHARGER ON' if on else 'CHARGER OFF').startswith('OK')
 
 
 def parse_vfy(line):
@@ -679,10 +696,11 @@ class Suite:
             ('T07', 'web_activity_resets_idle', self.t07_web_activity_resets_idle, 'F21', {'target', 'web'}),
             ('T08', 'offline_timestamps', self.t08_offline_timestamps, 'F04', {'target', 'web'}),
             ('T09', 'probe_cycle', self.t09_probe_cycle, None, {'target', 'hand'}),
-            ('T10', 'm1_services_off', self.t10_m1_services_off, 'F13', {'target', 'web'}),
+            ('T10', 'm1_services_off', self.t10_m1_services_off, None, {'target', 'web'}),
             ('T11', 'history_integrity', self.t11_history_integrity, 'F23', {'target', 'web'}),
             ('T12', 'cycle_survives_reset', self.t12_cycle_survives_reset, None, {'target', 'hand'}),
             ('T13', 'two_schedules', self.t13_two_schedules, None, {'target'}),
+            ('T14', 'charger_holds_awake', self.t14_charger_holds_awake, None, {'target', 'hand'}),
         ]
 
     def selected(self):
@@ -1172,6 +1190,12 @@ class Suite:
                 ', '.join(f'{k}={s:.3f}s' for k, s in wins))
 
     def t10_m1_services_off(self):
+        """A wake must not start listeners nobody can reach.
+
+        Closed since 2026-09-07: the web server, the Bluetooth CLI, the mDNS
+        announcement and the dashboard cache all moved to M0. Port 80 is the
+        one an outsider can check, so it stands for the rest — it is also the
+        one that used to be open, which is how this was reported."""
         if not self.host:
             raise TestSkip('no host IP')
         state = {}
@@ -1182,7 +1206,7 @@ class Suite:
 
         row = self.hibernate_and_observe(stop_on_wake=True, on_wake=on_wake)
         if state.get('web80'):
-            raise TestFail('port 80 accepts connections during an M1 wake (F13: D5 not implemented)')
+            raise TestFail('port 80 accepts connections during an M1 wake — a listener no one can reach')
         return f'port 80 closed in M1; sleep_s={row["sleep_s"]}'
 
     def t11_history_integrity(self):
@@ -1344,6 +1368,78 @@ class Suite:
                            f'something still brings the radio up. {detail}')
         return detail
 
+    def t14_charger_holds_awake(self):
+        """On the charger the device must not hibernate; off it, it must.
+
+        Both halves are needed. A device that never sleeps passes the first
+        half for the wrong reason, so the same run has to show it sleeping
+        once the line drops — that is the control.
+
+        The stimulus is the PicoHand driving GP3 into the target's GP17
+        (manual §12). Without that wire the line floats and the target's
+        pull-down reads "battery" forever, which would make the first half
+        fail for a bench reason; so a hand without the CHARGER channel skips
+        rather than fails.
+
+        Hands-off like T12: every CLI command rearms the idle timer, so USB
+        enumeration is the only honest answer to "is it still awake".
+
+        ⚠️ A browser sitting on the device's dashboard invalidates this test
+        completely. Web hits rearm the idle timer too (that is F21 working), so
+        both halves report "awake" and the comparison discriminates nothing. On
+        2026-09-07 that cost half an hour and looked exactly like a firmware
+        bug. `ss -tn | grep <device ip>` names the culprit in one command; the
+        clean window is taking the device off the network from its own console.
+        """
+        if not (self.hand.available and self.hand.ping()):
+            raise TestSkip('needs the PicoHand to drive the charger line')
+        if not self.hand.charger_supported():
+            raise TestSkip('PicoHand without the CHARGER channel — reflash it (manual §12)')
+
+        self.ensure_m0()
+        st = self.target.air_status()
+        if st.get('chg') is None:
+            raise TestSkip('firmware without the chg= field — older than charger sense')
+
+        # The idle timeout is what the charger suppresses, so shorten it: the
+        # bench default is minutes and the verdict needs two of them.
+        before = st['idle']
+        idle, slept_after = 30, None
+        self.target.cmd(f'air idle {idle}', 4)
+        watch = idle + 45
+        try:
+            # Half 1: line HIGH, the idle timer must never fire.
+            self.hand.charger(True)
+            st = self.target.air_status(retry_s=15)
+            if not st.get('chg'):
+                raise TestFail('CHARGER ON but the device still reads chg=0 — check the '
+                               'GP3-to-GP17 wire and the common ground')
+            self.target.close()          # no serial traffic: it would rearm the timer
+            if self.target.usb.wait(False, watch) is not None:
+                raise TestFail(f'device hibernated within {watch}s while charging with '
+                               f'idle={idle}s — the charger must suppress the idle timeout '
+                               f'entirely')
+
+            # Half 2 (control): drop the line and the SAME device must now sleep.
+            self.target.open(30)
+            self.hand.charger(False)
+            st = self.target.air_status(retry_s=15)
+            if st.get('chg'):
+                raise TestFail('CHARGER OFF but the device still reads chg=1 — something other '
+                               'than the hand is holding the line high')
+            self.target.close()
+            t0 = time.time()
+            t_gone = self.target.usb.wait(False, watch)
+            if t_gone is None:
+                raise TestFail(f'still awake {watch}s after the charger was removed — the first '
+                               f'half proves nothing, because this device never sleeps')
+            slept_after = t_gone - t0
+        finally:
+            self.hand.charger(False)
+            self.ensure_m0()
+            self.target.cmd(f'air idle {before}', 4)
+        return f'awake through {watch}s on charger; slept {slept_after:.0f}s after removal'
+
     # ---- runner -----------------------------------------------------------
 
     def run(self):
@@ -1481,11 +1577,22 @@ def selftest():
         print(f'  [{"PASS" if cond else "FAIL"}] {name}')
         ok = ok and cond
 
+    # The oldest line the parser must still read: every field added since is
+    # optional and comes back None, so this case is also the regression guard
+    # for adding another one — compare the fields present, not the whole dict,
+    # or the check becomes a list of names nobody remembers to extend.
     st = parse_air_status('Air: phase=0 wake=300s hist=300s backoff=0s idle=300s')
-    check('air status parse', st == {'phase': 0, 'wake': 300, 'hist': 300, 'backoff': 0,
-                                     'idle': 300, 'pin': None})
+    check('air status parse', st is not None and
+          {k: v for k, v in st.items() if v is not None} ==
+          {'phase': 0, 'wake': 300, 'hist': 300, 'backoff': 0, 'idle': 300})
     st2 = parse_air_status('Air: phase=2 wake=900s hist=60s backoff=900s idle=60s pin=16')
     check('air status with pin', st2 and st2['pin'] == '16' and st2['wake'] == max(st2['hist'], st2['backoff']))
+    # A line from the current firmware, verbatim off the bench on 2026-09-07.
+    st3 = parse_air_status(
+        'Air: phase=0 wake=60s hist=60s backoff=0s idle=300s armed=0 dirty=0 '
+        'tel=9/5 skip=0 radio=1 chg=0 bat=100 cyc=3871ms')
+    check('air status full line', st3 is not None and st3['chg'] == 0 and st3['bat'] == 100
+          and st3['cyc'] == 3871 and st3['telnow'] == 9 and st3['televery'] == 5)
     m = ALARM_RE.search('[AIR] alarm: 00:05:00 wakeSec=300\r\n')
     check('alarm line parse', m is not None and int(m.group('sec')) == 300)
     pm = PHASE_RE.search('[AIR] phase=SAMPLE @1234')

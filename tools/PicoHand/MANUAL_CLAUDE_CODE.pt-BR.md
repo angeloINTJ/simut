@@ -462,6 +462,35 @@ para não desativá-la.
 o `.uf2` para o volume `RPI-RP2`, o alvo apareceu com uptime zerado, em boot
 frio (M0). Contar com isso ao planejar uma bateria.
 
+## 12. Canal CHARGER — fingir a fonte de energia (07/09/2026)
+
+Um quarto canal: **`CHARGER`, saída em GP3** (pino físico 5), ligada ao **GP17
+do alvo**. O SIMUT Air lê esse pino para saber se está na tomada: nível alto
+significa carregador presente, e aí o aparelho fica acordado e não hiberna;
+nível baixo significa bateria, e o ciclo normal acontece.
+
+| Comando | Resposta |
+|---|---|
+| `CHARGER STATUS` | `CHARGER STATUS: OFF (GP3 level=L)` |
+| `CHARGER ON` | `OK CHARGER ON` — o alvo tem que parar de hibernar |
+| `CHARGER OFF` | `OK CHARGER OFF` — o alvo volta a hibernar |
+
+**Esse é acionado nos dois sentidos.** BOOTSEL e RESET emulam botões em dreno
+aberto e nunca fornecem corrente; o GP3 substitui um divisor de tensão
+pendurado no trilho de 5 V, que é uma fonte, então é saída push-pull comum.
+Ele nasce em nível baixo, de modo que um alvo deixado ligado à mão se comporta
+exatamente como se estivesse na bateria.
+
+⚠️ **Nada de divisor neste fio.** O divisor da placa real existe para trazer os
+5 V a um nível lógico seguro. O GP3 já entrega 3,3 V: vai direto no GP17, com
+o GND em comum (o pino 3 fica bem ao lado dos dois).
+
+⚠️ **Mão em reset ou BOOTSEL deixa o GP3 flutuando.** O alvo puxa o GP17 para
+baixo internamente, então a linha lê "na bateria" — que é a falha segura.
+
+⚠️ **O estímulo é o nível lógico, não a corrente.** A bancada prova a *decisão*
+do firmware, nunca que a bateria está de fato carregando.
+
 ### Como regravar a mão
 
 ```bash

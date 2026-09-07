@@ -34,12 +34,13 @@
  *
  *  Electrical principle
  *  --------------------
- *  Both lines are active-LOW, emulated open-drain:
+ *  Both BUTTON lines are active-LOW, emulated open-drain:
  *      "Pressed":  GPIO as OUTPUT LOW    → pulls line to GND
  *      "Released": GPIO as INPUT_PULLUP  → high impedance, target pull-up wins
  *
- *  Neither line is ever driven HIGH — safe to stay wired while someone
- *  presses the physical buttons on the target.
+ *  Neither button line is ever driven HIGH — safe to stay wired while someone
+ *  presses the physical buttons on the target. PIN_CHARGER is the exception:
+ *  it replaces a voltage divider, not a button, so it is driven both ways.
  *
  *  Expected wiring
  *  ---------------
@@ -47,7 +48,13 @@
  *      ----------                 -----------
  *      GP0 (PIN_RESET)   -------- RUN/RESET button pad/pin (hot side)
  *      GP1 (PIN_BOOTSEL) -------- BOOTSEL button pad/pin (hot side)
+ *      GP2 (PIN_PROBE)   -------- GP16 (awake indicator, input to the hand)
+ *      GP3 (PIN_CHARGER) -------- GP17 (charger sense, driven by the hand)
  *      GND               -------- GND  (mandatory!)
+ *
+ *  PIN_CHARGER is the only line the hand drives HIGH. It replaces the board's
+ *  5 V divider on the bench, so no divider goes on this wire: 3.3 V straight
+ *  from GP3 to GP17.
  * ============================================================================= */
 
 #include <Arduino.h>
@@ -83,6 +90,21 @@ static const uint8_t PIN_BOOTSEL = 1;
  *  all of which leave the line high-impedance — reads as "asleep" rather than
  *  floating. */
 static const uint8_t PIN_PROBE   = 2;
+
+/** Charger-presence stimulus: an output that drives the target's charger
+ *  sense line (SIMUT Air reads it on GP17, see AIR_CHARGER_PIN).
+ *
+ *  On the real board that line comes from a voltage divider off the 5 V USB
+ *  rail: HIGH = charging, LOW = on battery. On the bench the hand replaces the
+ *  divider, so this pin is driven push-pull (a real source, not a button) at
+ *  3.3 V — safe for the target's GPIO and enough to override its pull-down.
+ *
+ *  GP3 (physical pin 5) sits next to PIN_PROBE (pin 4) with a GND on pin 3,
+ *  and stays clear of GP4/GP5 (the UART1 bridge). It boots LOW so a target
+ *  that is wired up but not under test behaves exactly as if on battery, and
+ *  a hand in reset or BOOTSEL leaves the line high-Z for the target's own
+ *  pull-down to win. */
+static const uint8_t PIN_CHARGER = 3;
 
 /** On-board LED, used as heartbeat to indicate firmware is alive.
  *  GP25 is the standard Pico on-board LED. Using a literal value avoids
@@ -348,6 +370,9 @@ static void pin_release(uint8_t gpio)
 static bool g_bootsel_pressed = false;
 static bool g_reset_pressed   = false;
 
+/** Level currently driven on PIN_CHARGER (true = HIGH = "charger plugged"). */
+static bool g_charger_on      = false;
+
 /* =============================================================================
  *  Verifier health check — Core 0
  * ============================================================================= */
@@ -553,6 +578,7 @@ static void cmd_debug(const char *args);
 static void cmd_pulse_test(const char *args);
 static void cmd_verify(const char *args);
 static void cmd_probe(const char *args);
+static void cmd_charger(const char *args);
 static void cmd_help(const char *args);
 
 /* Dispatch table --------------------------------------------------------- */
@@ -569,6 +595,7 @@ static const command_t COMMANDS[] = {
     { "PULSE_TEST",   "PULSE_TEST <BOOTSEL|RESET> <ms> <count>: timed pulses",cmd_pulse_test   },
     { "VERIFY",       "VERIFY [CLEAR]: shows/resets logic analyzer status",   cmd_verify       },
     { "PROBE",        "PROBE <STATUS|START|READ>: timestamps edges on GP2",   cmd_probe        },
+    { "CHARGER",      "CHARGER <ON|OFF|STATUS>: drives charger sense on GP3", cmd_charger      },
     { "HELP",         "lists all available commands",                         cmd_help         },
 };
 
@@ -744,21 +771,23 @@ static void cmd_status(const char *args)
     (void)args;
     /* Include verifier actual readings for richer status. */
     Serial.printf("STATUS BOOTSEL=%s RESET=%s "
-                  "VFY:BOOTSEL_ACT=%s VFY:RESET_ACT=%s\n",
+                  "VFY:BOOTSEL_ACT=%s VFY:RESET_ACT=%s CHARGER=%s\n",
                   g_bootsel_pressed ? "PRESSED" : "RELEASED",
                   g_reset_pressed   ? "PRESSED" : "RELEASED",
                   g_vs.bootsel_actual_low ? "LOW" : "HIGH",
-                  g_vs.reset_actual_low   ? "LOW" : "HIGH");
+                  g_vs.reset_actual_low   ? "LOW" : "HIGH",
+                  g_charger_on ? "ON" : "OFF");
 }
 
 static void cmd_pinout(const char *args)
 {
     (void)args;
-    Serial.printf("PINOUT BOOTSEL=GP%u RESET=GP%u LED=GP%u PROBE=GP%u\n",
+    Serial.printf("PINOUT BOOTSEL=GP%u RESET=GP%u LED=GP%u PROBE=GP%u CHARGER=GP%u\n",
                   (unsigned)PIN_BOOTSEL,
                   (unsigned)PIN_RESET,
                   (unsigned)LED_GPIO,
-                  (unsigned)PIN_PROBE);
+                  (unsigned)PIN_PROBE,
+                  (unsigned)PIN_CHARGER);
 }
 
 static void cmd_self_bootsel(const char *args)
@@ -1006,6 +1035,54 @@ static void cmd_probe(const char *args)
     Serial.printf("ERR: PROBE expects STATUS, START or READ (received '%s')\n", buf);
 }
 
+/**
+ * CHARGER <ON|OFF|STATUS> — drives the target's charger-presence sense line.
+ *
+ * ON  = HIGH: the target sees a charger and must stay awake (no hibernation).
+ * OFF = LOW : the target sees battery power and hibernates normally.
+ *
+ * Unlike BOOTSEL/RESET this is NOT an emulated open-drain button: the line it
+ * replaces is a voltage divider, i.e. a source, so both levels are driven.
+ */
+static void cmd_charger(const char *args)
+{
+    char buf[ARG_BUFFER_SIZE];
+    if (args == NULL || *args == '\0') {
+        Serial.printf("CHARGER STATUS: %s (GP%u)\n",
+                      g_charger_on ? "ON" : "OFF", (unsigned)PIN_CHARGER);
+        return;
+    }
+    strncpy(buf, args, sizeof(buf) - 1);
+    buf[sizeof(buf) - 1] = '\0';
+    str_upper(buf);
+
+    if (strcmp(buf, "ON") == 0 || strcmp(buf, "OFF") == 0) {
+        const bool on = (buf[1] == 'N');
+        digitalWrite(PIN_CHARGER, on ? HIGH : LOW);
+        g_charger_on = on;
+        /* Read back: catches a wire shorted to the other rail, which would
+         * otherwise look like a target bug rather than a bench fault. */
+        const int rb = digitalRead(PIN_CHARGER);
+        if ((rb == HIGH) != on) {
+            Serial.printf("ERR CHARGER %s readback=%c (line held by target?)\n",
+                          on ? "ON" : "OFF", rb ? 'H' : 'L');
+            return;
+        }
+        Serial.printf("OK CHARGER %s\n", on ? "ON" : "OFF");
+        return;
+    }
+
+    if (strcmp(buf, "STATUS") == 0) {
+        Serial.printf("CHARGER STATUS: %s (GP%u level=%c)\n",
+                      g_charger_on ? "ON" : "OFF",
+                      (unsigned)PIN_CHARGER,
+                      digitalRead(PIN_CHARGER) ? 'H' : 'L');
+        return;
+    }
+
+    Serial.printf("ERR: CHARGER expects ON, OFF or STATUS (received '%s')\n", buf);
+}
+
 static void cmd_help(const char *args)
 {
     (void)args;
@@ -1122,6 +1199,13 @@ void setup(void)
     /* Probe input. Pull-down so an absent, reset or BOOTSEL target — all of
      * which leave the line high-Z — reads LOW ("asleep") instead of floating. */
     pinMode(PIN_PROBE, INPUT_PULLDOWN);
+
+    /* Charger stimulus starts LOW ("on battery") so a wired-up target that is
+     * not being tested hibernates exactly as it does in the field. */
+    digitalWrite(PIN_CHARGER, LOW);
+    pinMode(PIN_CHARGER, OUTPUT);
+    digitalWrite(PIN_CHARGER, LOW);
+    g_charger_on = false;
 
     /* Core 1 launches automatically via the arduino-pico framework.
      * setup1() and loop1() are defined below — the framework detects them

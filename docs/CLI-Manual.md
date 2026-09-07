@@ -438,13 +438,20 @@ nem `configure terminal`, com este conjunto:
 
 | Comando | Efeito |
 |---|---|
-| `air status` | `Air: phase=<n> wake=<s>s hist=<s>s backoff=<s>s idle=<s>s` — `wake` é o máximo entre o intervalo do histórico e o backoff da telemetria |
+| `air status` | `Air: phase=<n> wake=<s>s hist=<s>s backoff=<s>s idle=<s>s armed=<0\|1> dirty=<n> tel=<pendentes>/<lote mínimo> skip=<n> radio=<0\|1> chg=<0\|1> bat=<n> cyc=<ms>` |
 | `air hibernate` (ou `air sleep`) | entra no ciclo M1 agora; o USB some quando o aparelho dorme |
 | `air stop` (ou `air wake`) | cancela o ciclo e volta ao modo operacional M0 — só funciona na janela em que o aparelho está acordado |
 | `air idle <10..65535>` | segundos de inatividade da CLI antes de hibernar sozinho (persistido em `/config/air.bin`) |
+| `air charger <0..29\|off>` | GPIO que lê nível alto enquanto o aparelho carrega (padrão GP17); `off` desliga a leitura. Persistido em `/config/air.bin` |
 
 Fases reportadas por `phase=`: 0 OFF (M0), 1 WARMUP, 2 SAMPLE, 3 DECIDE, 4 PERSIST, 5 CONNECT, 6 FLUSH, 7 SLEEP.
 Com `debug on` o console mostra `[AIR] phase=…` a cada transição e `[AIR] alarm: HH:MM:SS wakeSec=N` antes de dormir.
+
+Sobre `chg=`: com o carregador ligado o aparelho **não hiberna** — o `air idle` deixa de valer e um
+wake que encontre o carregador cancela o ciclo daquele boot e sobe como M0 completo, com servidor
+web. O ciclo continua armado, então basta desconectar e deixar o idle expirar para voltar a dormir.
+O divisor de tensão que traz os 5 V ao nível lógico é da placa; nada disso mede corrente de carga,
+só a presença da fonte.
 
 > Estado em 06/09/2026: `air idle` ainda aceita valores acima de 65535 e os guarda truncados
 > (item F09 do plano em `docs/analysis/SIMUT_AIR_PLANO_FIX.md`).

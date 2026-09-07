@@ -78,7 +78,7 @@ EMERGENCY_EXPECTED = {
 # and the help block are guarded, so expecting them everywhere would force the
 # release and alpha help to advertise commands their firmware cannot run.
 if AIR:
-    EMERGENCY_EXPECTED |= {'CMD_AIR_STOP', 'CMD_AIR_IDLE',
+    EMERGENCY_EXPECTED |= {'CMD_AIR_STOP', 'CMD_AIR_IDLE', 'CMD_AIR_CHARGER',
                            'CMD_AIR_HIBERNATE', 'CMD_AIR_STATUS'}
 
 

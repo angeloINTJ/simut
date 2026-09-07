@@ -68,6 +68,8 @@ R"raw(air stop
  Cancel hibernation and return to M0
 air idle <sec>
  Set auto-hibernate idle timeout
+air charger <gpio|off>
+ Line that reads high while charging (stays awake)
 air hibernate
  Enter hibernation now (SIMUT Air)
 air status
