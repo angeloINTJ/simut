@@ -1188,8 +1188,13 @@ void DisplayManager::drawSystemStatus( ) {
  addRow("Pending", buf, d.telPending > 50 ? C_TEMP_HOT : C_TEMP_OK);
  snprintf(buf, sizeof(buf), "%u", (unsigned)d.telFails);
  addRow("Fails", buf, d.telFails > 0 ? C_TEMP_HOT : C_TEMP_OK);
- snprintf(buf, sizeof(buf), "%lu ms", (unsigned long)d.telInterval);
- addRow("Interval", buf);
+ /* The trigger, not a clock: how many records have to pile up before the
+  * device transmits. Was an interval in ms until config v22. */
+ if (d.telInterval == 0) addRow("Min batch", "off");
+ else {
+ snprintf(buf, sizeof(buf), "%lu rec", (unsigned long)d.telInterval);
+ addRow("Min batch", buf);
+ }
  if (d.telTransport == 1) {
  addRow("MQTT", d.mqttConnected ? "Connected" : "Disconnected",
  d.mqttConnected ? C_TEMP_OK : C_TEMP_HOT);

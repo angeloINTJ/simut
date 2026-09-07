@@ -91,7 +91,12 @@ TelemetryManager::TelemetryManager( )
  : _mqttClient(_mqttWifiClient),
    _alarmQueue(ALARM_QUEUE_DEFAULT)
 {
- _lastDrainEnd = 0;
+ /* Both were left as indeterminate members until begin( ) ran, which is fine
+  * only while nothing touches them first — and the Air boot now does: it asks
+  * whether this wake is due before the managers are wired up. An uninitialised
+  * pointer read does not necessarily crash; it quietly answers something. */
+ _storageRef = nullptr;
+ _netRef = nullptr;
  _hasCert = false;
  _currentBackoff = BACKOFF_MIN_MS;
  _backoffUntil = 0;
@@ -237,13 +242,6 @@ void TelemetryManager::begin(StorageManager* storage, NetworkManager* network) {
 
  resetBackoff( );
 
- /*
- * Starts the period with current millis() so that the first drain waits a
- * full interval after boot. Without this, _lastDrainEnd=0 causes immediate
- * firing on the first loop iteration — the TLS handshake + POST can exceed
- * the watchdog. The Air FLUSH is the deliberate exception (setDrainMode).
- */
- _lastDrainEnd = millis( );
 }
 
 /**
@@ -348,25 +346,36 @@ void TelemetryManager::update( ) {
 
  if (_consecutiveFails > 0 && now < _backoffUntil) return;
 
- /* Two gates, and telInterval is only in the first one.
+ /* Two gates, and the configuration is only in the first one.
   *
-  * It used to be a floor between batches: `max(telInterval, 1.5 × EMA) ×
-  * RSSI`. That made the configured interval the throughput ceiling — at the
-  * 300 s of the field configuration, one batch every five minutes, so 35,000
-  * pending records needed 31 hours; and inside an Air wake, which is a boot,
-  * the first send was due after the whole interval and the wake slept having
-  * sent nothing at all (measured: 57 s awake with the radio on, 0 records).
+  * telMinBatch (the field the web still calls t_int) is a COUNT of pending
+  * records, not a time: telemetry happens when that many are waiting, and
+  * then the drain empties the queue in batches of at most telBatchSize. A
+  * clock never enters into it. Zero means telemetry is off, which is the
+  * gate at the top of this function.
   *
-  * Now:
-  *   telInterval  = how often a DRAIN starts (and, on Air, which wake raises
-  *                  the radio — airTelemetryDue( ) already worked that way).
-  *   the gap      = how long to wait between batches WITHIN a drain, and that
-  *                  comes from the server, not from the configuration.
+  * It used to be milliseconds, and a floor between batches at that, which
+  * made the configured value the throughput ceiling: at 300 s, one batch
+  * every five minutes, so 35,000 pending records needed 31 hours; and inside
+  * an Air wake, which is a boot, the first send was due after the whole
+  * interval and the wake slept having sent nothing (measured: 57 s awake with
+  * the radio on, 0 records).
   *
-  * So a drain keeps going until there is nothing left, at whatever pace the
-  * server can take, and then the device goes quiet for telInterval. */
+  * The second gate is the gap between batches WITHIN a drain, and that comes
+  * from the server — see the cadence block after the send.
+  *
+  * The pending count is a RAM counter that the history writer bumps on every
+  * new record (notifyNewRecord), so this gate costs one load. The drain does
+  * not consult it again: it runs until collectBatch finds nothing, which is
+  * the authority, and that is what clears the counter below. */
  if (!_drainActive) {
- if (!_drainMode && (now - _lastDrainEnd) < cfg.telInterval) return;
+ if (!_drainMode && !telemetryDue( )) return;
+ /* One breath after boot before the first send of a drain. The old code
+  * waited a whole interval here, for a real reason: a TLS handshake plus a
+  * POST while the rest of setup( ) is still settling used to reach the
+  * watchdog. The Air wake bypasses it (drain mode) because there the whole
+  * point is to send and go back to sleep. */
+ if (now < TEL_FIRST_SEND_DELAY_MS) return;
  _drainActive = true;
  _gapMs = 0;
  _nextSendAt = now;
@@ -437,10 +446,15 @@ void TelemetryManager::update( ) {
  if (!collectBatch(batch, newCursor)) {
  __atomic_store_n(&_isSending, false, __ATOMIC_RELEASE);
  _storageRef->unlockHeavyTask( );
- /* Nothing left: the drain is over and the period starts counting from here
-  * (resetBackoff stamps _lastDrainEnd). */
+ /* Nothing left: the drain is over. collectBatch is the authority on what is
+  * really sendable — it applies the 30-day floor and the cursor — so this is
+  * also the moment the pending counter is known to be zero. Saying so keeps
+  * a stale estimate from re-arming the trigger in a loop; the periodic
+  * refreshPendingCount confirms it from flash a few seconds later. */
  _drainActive = false;
  _gapMs = 0;
+ __atomic_store_n(&_pendingEstimate, 0, __ATOMIC_RELAXED);
+ _pendingDirty = true;
  resetBackoff( );
 #if TEL_TLS_KEEPALIVE_EXPERIMENT
  /* Drain over: nothing more to send, so the session has nothing to amortise. */
@@ -523,8 +537,10 @@ void TelemetryManager::update( ) {
   * half of what it could have (bench, 2026-09-07). The one signal that means
   * "too big" is a failure, and that halves it. The heap ceiling still
   * decides the real limit, in collectBatch, where the heap is read. */
+ const uint16_t ceiling = (cfg.telBatchSize > 0) ? (uint16_t)cfg.telBatchSize
+                                                 : (uint16_t)TEL_BATCH_MAX;
  const uint16_t grown = (uint16_t)_batchAuto + (uint16_t)(_batchAuto / 2);
- _batchAuto = (uint8_t)((grown > (uint16_t)TEL_BATCH_MAX) ? (uint16_t)TEL_BATCH_MAX : grown);
+ _batchAuto = (uint8_t)((grown > ceiling) ? ceiling : grown);
 
  if (_lastCycleMs <= fastMs) {
  _gapMs = 0;
@@ -728,8 +744,12 @@ bool TelemetryManager::collectBatch(std::vector<BinaryHistoryRecord>& batch, uin
   * this device could perfectly well have built. Measured on the bench, both
   * transports took the heap ceiling with zero failures, so on a healthy link
   * the controller sits at the top and this line is a no-op. */
- uint8_t limit = safeBatchLimit(
- (cfg.telBatchSize > 0) ? cfg.telBatchSize : 10);
+ const uint8_t configured = (cfg.telBatchSize > 0) ? cfg.telBatchSize : 10;
+ /* The controller starts AT the configured maximum. Anything lower would make
+  * the operator's setting a target to be re-earned after every boot; the AIMD
+  * exists to back away from a server that chokes, not to ration by default. */
+ if (_batchAuto == 0) _batchAuto = configured;
+ uint8_t limit = safeBatchLimit(configured);
  if (_batchAuto < limit) limit = _batchAuto;
  if (limit < 1) limit = 1;
 
@@ -1532,7 +1552,6 @@ void TelemetryManager::resetBackoff( ) {
  _currentBackoff = BACKOFF_MIN_MS;
  _consecutiveFails = 0;
  _backoffUntil = 0;
- _lastDrainEnd = millis( ); /* the period counts from the end of the work, not the start */
 }
 
 uint32_t TelemetryManager::getBackoffRemainingMs( ) const {
@@ -1544,7 +1563,6 @@ void TelemetryManager::escalateBackoff( ) {
  _consecutiveFails++;
  MetricsManager::instance( ).data( ).telRetries++;
  _backoffUntil = millis( ) + jitter(_currentBackoff);
- _lastDrainEnd = millis( ); /* avoids immediate re-fire when backoff expires */
 
  if (_consecutiveFails <= BACKOFF_MAX_STREAK) {
  LOG_CODE(LOG_WARN, "TEL", SYS_TEL_RETRY, _consecutiveFails,
@@ -2117,7 +2135,7 @@ void TelemetryManager::_dumpPayload(const char* payload, size_t len, const char*
  * Called periodically (~10s) by AppManager for dashboard display.
  */
 void TelemetryManager::refreshPendingCount( ) {
- if (!_pendingDirty) return;
+ if (!_storageRef || !_pendingDirty) return;
 
  uint32_t lastCursor = _storageRef->getLastSentTimestamp( );
 
@@ -2254,6 +2272,24 @@ void TelemetryManager::refreshPendingCount( ) {
 
 uint16_t TelemetryManager::getPendingEstimate( ) const {
  return _pendingEstimate;
+}
+
+/* The trigger: enough records waiting to be worth the radio.
+ *
+ * telMinBatch is the field the web and CLI still call t_int, and it used to be
+ * an interval in milliseconds. As a count it answers the question the operator
+ * actually has — "how much data is worth a transmission?" — and it answers it
+ * the same way on mains and on battery: an Air wake raises the CYW43 only when
+ * this is true, so a quiet device with nothing to say never powers the radio.
+ *
+ * The counter is the RAM one, bumped per record by notifyNewRecord and rebuilt
+ * from flash by refreshPendingCount; both are approximations of the same thing,
+ * and collectBatch remains the authority on what is really sendable. */
+bool TelemetryManager::telemetryDue( ) const {
+ if (!_storageRef) return false;               /* asked before begin( ): nothing to send yet */
+ const uint32_t minBatch = _storageRef->getConfig( ).telInterval;
+ if (minBatch == 0) return false;          /* telemetry off */
+ return (uint32_t)_pendingEstimate >= minBatch;
 }
 
 void TelemetryManager::notifyNewRecord( ) {

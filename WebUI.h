@@ -4667,16 +4667,17 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
 
                     <div class="row" style="margin-top: 15px; border-top:1px solid #3f3f46; padding-top:15px;">
                         <div class="col">
-                            <label data-i18n="cfg_tint">Upload Interval (ms)</label>
-                            <input type="number" id="t_int" name="t_int" min="0" max="86400000">
-                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_tint_hint">Set 0 to disable telemetry. Minimum recommended: 10000 (10s).</div>
+                            <label data-i18n="cfg_tint">Minimum batch (records)</label>
+                            <input type="number" id="t_int" name="t_int" min="0" max="20000">
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_tint_hint">Transmit once this many records are waiting. 0 disables telemetry.</div>
                         </div>
                         <div class="col">
-                            <label data-i18n="cfg_bat">Batch Limit</label>
+                            <label data-i18n="cfg_bat">Maximum batch (records)</label>
                             <input type="number" id="t_bat" name="t_bat" min="1" max="250">
+                            <div class="c-sub" style="margin-top:4px;font-size:0.8em;color:var(--sub)" data-i18n="cfg_bat_hint">Most records per upload. A bigger queue goes out in batches of this size until it is empty.</div>
                         </div>
                     </div>
-                    <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (Upload Interval = 0). Set a value to enable.</div>
+                    <div id="tel_disabled_warn" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,180,0,0.12);border-left:3px solid #f59e0b;border-radius:3px;font-size:0.9em" data-i18n="cfg_tel_disabled">⚠ Telemetry disabled (minimum batch = 0). Set a value to enable.</div>
                     <!-- Act on the running device, not on the staged form: both
                          answer "is the endpoint reachable right now", which is
                          the question you ask while editing these fields. -->
@@ -4685,7 +4686,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
                         <button type="button" class="b-pri" id="tel_sync_btn" onclick="telSync()" data-i18n="tel_sync">Send now</button>
                         <button type="button" class="sxb sxb-dang" id="tel_reset_btn" onclick="telReset()" data-i18n="tel_reset">Reset send cursor</button>
                       </div>
-                      <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="tel_hint">Send now flushes whatever is pending without waiting for the interval. Reset send cursor makes the device re-send up to 30 days back — use it after a long server outage.</div>
+                      <div class="c-sub" style="margin-top:8px;font-size:0.8em;color:var(--sub)" data-i18n="tel_hint">Send now flushes whatever is pending without waiting for the minimum batch. Reset send cursor makes the device re-send up to 30 days back — use it after a long server outage.</div>
                     </div>
                 </div>
 
@@ -5122,7 +5123,7 @@ static const char TEL_PAGE[] PROGMEM = R"raw(<!DOCTYPE html>
             document.getElementById('m_retain').checked = !!val('m_retain', false);
             document.getElementById('m_ka').value = val('m_ka', 60);
             document.getElementById('m_had').checked = !!val('m_had', false);
-            document.getElementById('t_int').value = val('t_int', 300000);
+            document.getElementById('t_int').value = val('t_int', 10);
             updateTelDisabledWarn();
             document.getElementById('t_bat').value = val('t_bat', 10);
             document.getElementById('t_mode').value = val('t_mode', 0);

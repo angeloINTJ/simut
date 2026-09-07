@@ -619,6 +619,7 @@ public:
  /** v21: true when the config in RAM came from a v20 blob (migrated).
   * loadConfiguration( ) saves it back once to persist the new schema. */
  bool _migratedFromV20 = false;
+ bool _migratedFromV21 = false;   /**< v21 blob read: telInterval converted from ms to a count. */
 
  File _currentLogFile;
  String _currentLogFileName = "";
@@ -638,6 +639,7 @@ public:
   * cauda alarmTel com defaults. A cauda só pode ser anexada — travado por
   * static_assert em SystemDefs_Records.h. */
  bool loadMigrateV20Blob(File& f, SystemConfig& outCfg);
+
  void enforceStorageLimit( );
  /** T1.4: set when enforceStorageLimit( ) hits its per-call deletion cap
   * with usage still above the limit; drained by update( ) in slices. */
@@ -657,7 +659,11 @@ public:
  * between chunks Core 1 renders. */
 
  static uint32_t calculateCRC32(const uint8_t *data, size_t length);
- static bool loadCurrentBlob(File& f, SystemConfig& outCfg);
+ /** @param migratedV21 set true when the blob was v21 and its telInterval was
+  *  converted from milliseconds to a count (v21->v22 semantics migration). */
+ static bool loadCurrentBlob(File& f, SystemConfig& outCfg, bool* migratedV21 = nullptr);
+ /** v21->v22: telInterval changes meaning, not layout. See the definition. */
+ static void migrateV21Semantics(SystemConfig& cfg);
  bool attemptLoad(const char* path, SystemConfig& outCfg);
 
  /** Obfuscate/deobfuscate the 3 sensitive config fields with keystream

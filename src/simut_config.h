@@ -356,6 +356,13 @@
 // to get in.
 #define AIR_RESUME_GRACE_SEC 10
 #endif
+#ifndef AIR_TEL_FAIL_SKIP_WAKES
+// Reading wakes of silence after a telemetry wake whose send failed. Without
+// it, a collector that stops answering arms the "enough records are waiting"
+// trigger on every wake — the queue only grows — and the radio runs flat
+// answering nobody. Five wakes is one radio wake in six.
+#define AIR_TEL_FAIL_SKIP_WAKES 5
+#endif
 #ifndef AIR_MAX_DIRTY_BOOTS
 // Consecutive resumes after an UNCLEAN reset before the device stops rushing
 // back into the cycle. Counted in air.bin (flags bits 4..7) and zeroed by the
@@ -387,14 +394,26 @@
 #define TEL_GAP_MAX_MS 10000
 #endif
 // Batch AIMD, always inside safeBatchLimit( )'s heap ceiling: grow by half on
-// a fast success, hold on a slow one, halve on failure. The start is a
-// compromise — two growth steps from 50 reach the ~110 the heap allows for
-// JSON over TLS, and a device that can only do 10 gets there in two failures.
-#ifndef TEL_BATCH_START
-#define TEL_BATCH_START 50
+// any success, halve on failure. It starts at the configured maximum, because
+// that is what the operator asked for — the controller exists to back away
+// from a server that cannot take it, not to make the device earn its own
+// setting back on every boot.
+// Ceiling for the minimum-batch trigger (SystemConfig::telInterval as a COUNT).
+// Above the 30-day floor collectBatch applies there is nothing left to send, so
+// a minimum larger than what fits inside it would simply never fire: 20,000
+// records is a fortnight at one reading a minute, well inside that floor.
+#ifndef TEL_MIN_BATCH_MAX
+#define TEL_MIN_BATCH_MAX 20000
 #endif
 #ifndef TEL_BATCH_MIN
 #define TEL_BATCH_MIN 10
+#endif
+// A drain that starts the instant the device boots competes with the rest of
+// setup( ), and a TLS handshake plus a POST in that window used to reach the
+// watchdog. Applies to the mains path only: an Air wake is a boot whose whole
+// purpose is to send, and it bypasses this through drain mode.
+#ifndef TEL_FIRST_SEND_DELAY_MS
+#define TEL_FIRST_SEND_DELAY_MS 8000
 #endif
 #ifndef TEL_BATCH_MAX
 #define TEL_BATCH_MAX 250

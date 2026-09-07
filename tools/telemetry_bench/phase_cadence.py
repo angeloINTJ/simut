@@ -111,11 +111,11 @@ class Dev:
                 time.sleep(2)
         raise RuntimeError('could not bring the device to M0')
 
-    def configure(self, tls, batch, interval_ms=1000, port=None, path='/ingest'):
+    def configure(self, tls, batch, min_batch=1, port=None, path='/ingest'):
         """commit_all reboots; come back in M0 with a fresh login."""
         fields = {'t_srv': HOST, 't_port': port or (PORT_HTTPS if tls else PORT_HTTP),
                   't_path': path, 't_transport': 0, 't_sec': bool(tls),
-                  't_int': int(interval_ms), 't_bat': int(batch), 't_mode': 0}
+                  't_int': int(min_batch), 't_bat': int(batch), 't_mode': 0}
         log('commit ' + json.dumps(fields))
         self.target.close()
         try:
@@ -305,20 +305,20 @@ def start_server(name, tls, port, mode='ok', delay=None):
 # matrices
 # ---------------------------------------------------------------------------
 
-def phase_capacity(dev, batches, seconds, out, interval_ms=1, which=('http', 'https')):
+def phase_capacity(dev, batches, seconds, out, min_batch=1, which=('http', 'https')):
     for tls in [w == 'https' for w in which]:
         port = PORT_HTTPS if tls else PORT_HTTP
         for b in batches:
-            label = f'{"https" if tls else "http"}_b{b}_d0_i{interval_ms}'
+            label = f'{"https" if tls else "http"}_b{b}_d0_i{min_batch}'
             log(f'--- {label}')
             srv = start_server('cad_' + label + (('_' + C.OUT_TAG) if getattr(C, 'OUT_TAG', '') else ''), tls, port)
             try:
-                dev.configure(tls, b, interval_ms=interval_ms, port=port)
+                dev.configure(tls, b, min_batch=min_batch, port=port)
                 dev.tel_reset()
                 dev.tel_sync()
                 time.sleep(3)
                 row, _ = window(dev, srv, seconds, label)
-                row.update(tls=tls, batch=b, delay=0.0, interval_ms=interval_ms, phase='capacity',
+                row.update(tls=tls, batch=b, delay=0.0, min_batch=min_batch, phase='capacity',
                            server_keepalive=SERVER_KEEPALIVE, tag=getattr(C, 'OUT_TAG', ''))
                 out['rows'].append(row)
                 log(json.dumps({k: row.get(k) for k in (
@@ -330,9 +330,9 @@ def phase_capacity(dev, batches, seconds, out, interval_ms=1, which=('http', 'ht
                 srv.stop()
 
 
-def phase_latency(dev, batch, delays, seconds, out, tls=False, interval_ms=1):
+def phase_latency(dev, batch, delays, seconds, out, tls=False, min_batch=1):
     port = PORT_HTTPS if tls else PORT_HTTP
-    dev.configure(tls, batch, interval_ms=interval_ms, port=port)
+    dev.configure(tls, batch, min_batch=min_batch, port=port)
     for delay in delays:
         label = f'{"https" if tls else "http"}_b{batch}_d{delay}'
         log(f'--- {label}')
@@ -344,7 +344,7 @@ def phase_latency(dev, batch, delays, seconds, out, tls=False, interval_ms=1):
             dev.tel_sync()
             time.sleep(3)
             row, _ = window(dev, srv, seconds, label)
-            row.update(tls=tls, batch=batch, delay=delay, interval_ms=interval_ms, phase='latency')
+            row.update(tls=tls, batch=batch, delay=delay, min_batch=min_batch, phase='latency')
             out['rows'].append(row)
             log(json.dumps({k: row.get(k) for k in (
                 'label', 'srv_requests', 'srv_records', 'records_per_s', 's_between_sends',
@@ -364,16 +364,16 @@ def phase_wake(dev, configs, out, reset=True, delay=0.0):
     if not (hand.available and hand.ping() and hand.probe_supported()):
         log('wake phase needs the PicoHand probe — skipped')
         return
-    for tls, batch, interval_ms in configs:
+    for tls, batch, min_batch in configs:
         port = PORT_HTTPS if tls else PORT_HTTP
-        label = (f'wake_{"https" if tls else "http"}_b{batch}_i{interval_ms}'
+        label = (f'wake_{"https" if tls else "http"}_b{batch}_i{min_batch}'
                  + (f'_d{delay}' if delay else '') + ('' if reset else '_noreset'))
         log(f'--- {label}')
         srv = start_server('cad_' + label + (('_' + C.OUT_TAG) if getattr(C, 'OUT_TAG', '') else ''),
                            tls, port, mode=('slow' if delay > 0 else 'ok'),
                            delay=(delay if delay > 0 else None))
         try:
-            dev.configure(tls, batch, interval_ms=interval_ms, port=port)
+            dev.configure(tls, batch, min_batch=min_batch, port=port)
             if reset:
                 dev.tel_reset()
             s0 = dev.status()
@@ -397,7 +397,7 @@ def phase_wake(dev, configs, out, reset=True, delay=0.0):
             after = [r for r in (st.get('req_log') or []) if started + r[0] >= wall_hib]
             recs = sum((r[1] or 0) for r in after)
             row = {'label': label, 'phase': 'wake', 'tls': tls, 'batch': batch,
-                   'interval_ms': interval_ms, 'delay': delay,
+                   'min_batch': min_batch, 'delay': delay,
                    'awake_windows_s': [round(a, 2) for a in awake],
                    'srv_records': recs, 'srv_requests': len(after),
                    'pending_before': s0.get('sys', {}).get('pending')}
@@ -421,7 +421,8 @@ def main():
     ap.add_argument('--lat-batch', type=int, default=50)
     ap.add_argument('--no-restore', action='store_true')
     ap.add_argument('--interval', type=int, default=1,
-                    help='t_int in ms for capacity/latency; 1 = back-to-back, the floor is then 1.5x latency')
+                    help='t_int for capacity/latency: since config v22 it is the MINIMUM BATCH in records '
+                         '(1 = send as soon as a record exists)')
     ap.add_argument('--tls-only', action='store_true')
     ap.add_argument('--server-keepalive', action='store_true',
                     help='bench server keeps the connection open between requests (TLS session A/B)')
@@ -432,7 +433,7 @@ def main():
     ap.add_argument('--wake-no-reset', action='store_true',
                     help='wake phase: do not tel_reset before the wake (steady-state backlog)')
     ap.add_argument('--wake-configs', default='',
-                    help='wake phase only: transport:batch:t_int_ms list, e.g. http:100:60000,https:100:1')
+                    help='wake phase only: transport:batch:t_int list, e.g. http:100:60000,https:100:1')
     args = ap.parse_args()
     batches = [int(x) for x in args.batches.split(',')]
     delays = [float(x) for x in args.delays.split(',')]
@@ -448,10 +449,10 @@ def main():
     out = {'started': time.time(), 'host': HOST, 'seconds': args.seconds, 'rows': []}
     try:
         if args.what in ('capacity', 'all'):
-            phase_capacity(dev, batches, args.seconds, out, interval_ms=args.interval,
+            phase_capacity(dev, batches, args.seconds, out, min_batch=args.interval,
                            which=('https',) if args.tls_only else (('http',) if args.http_only else ('http', 'https')))
         if args.what in ('latency', 'all'):
-            phase_latency(dev, args.lat_batch, delays, args.seconds, out, interval_ms=args.interval)
+            phase_latency(dev, args.lat_batch, delays, args.seconds, out, min_batch=args.interval)
         if args.what in ('wake', 'all'):
             # The reading interval on the bench is 1 min, and the radio only comes
             # up on a wake where telemetry is due (t_int <= reading interval, or

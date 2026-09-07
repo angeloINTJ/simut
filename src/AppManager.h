@@ -236,7 +236,7 @@ private:
  bool     _airRadioUp = true;
  /** Wakes since the last one that sent telemetry; the telemetry schedule.
   *  Carried across the sleep in scratch[1]. */
- uint8_t  _airWakesSinceRadio = 0;
+ uint8_t  _airSkipWakes = 0;   /* wakes still to skip after a failed telemetry wake */
  uint32_t _airLastActivityMs = 0; /* M0 idle timer */
  /** Short M0 window before a cycle that a reset interrupted resumes itself
   *  (plan F25). 0 = no interrupted cycle, or the crash-loop guard tripped, and

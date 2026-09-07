@@ -81,9 +81,11 @@ AIR_STATUS_RE = re.compile(
     # crash-loop guard is to holding the device in M0. Optional so the suite
     # still parses a firmware from before they existed.
     r'(?:\s+armed=(?P<armed>\d+))?(?:\s+dirty=(?P<dirty>\d+))?'
-    # Two schedules: tel=<wakes since send>/<wakes between sends>, and whether
-    # THIS wake raised the radio at all.
-    r'(?:\s+tel=(?P<telnow>\d+)/(?P<televery>\d+))?(?:\s+radio=(?P<radio>\d+))?'
+    # The telemetry trigger: tel=<records pending>/<minimum batch>, skip=<reading
+    # wakes still to be served after a failed send>, and whether THIS wake
+    # raised the radio at all.
+    r'(?:\s+tel=(?P<telnow>\d+)/(?P<televery>\d+))?(?:\s+skip=(?P<skip>\d+))?'
+    r'(?:\s+radio=(?P<radio>\d+))?'
     # Automatic cadence: the batch size the AIMD controller settled on and the
     # last full send cycle in ms. Also optional — older builds have neither.
     r'(?:\s+bat=(?P<bat>\d+))?(?:\s+cyc=(?P<cyc>\d+)ms)?')
@@ -101,7 +103,7 @@ BY_ID = '/dev/serial/by-id'
 # `rejected` list of the reply, which the suite prints.
 TEL_FIELDS = {
     'server': 't_srv', 'port': 't_port', 'path': 't_path', 'tls': 't_sec',
-    'interval_ms': 't_int', 'batch': 't_bat',
+    'min_batch': 't_int', 'batch': 't_bat',
 }
 HIST_FIELD = 'h_int'
 
@@ -821,12 +823,12 @@ class Suite:
             finally:
                 self.saved = {}
 
-    def point_telemetry_here(self, interval_ms, batch=50):
+    def point_telemetry_here(self, min_batch, batch=50):
         self.need_web()
         me = host_ip_toward(self.host)
         f = {TEL_FIELDS['server']: me, TEL_FIELDS['port']: self.args.collector_port,
              TEL_FIELDS['path']: '/telemetry', TEL_FIELDS['tls']: 0,
-             TEL_FIELDS['interval_ms']: interval_ms, TEL_FIELDS['batch']: batch}
+             TEL_FIELDS['min_batch']: min_batch, TEL_FIELDS['batch']: batch}
         if self.args.hist_interval:
             f[HIST_FIELD] = self.args.hist_interval
         self.commit_and_reboot(f)
@@ -994,7 +996,7 @@ class Suite:
 
     def t05_hibernate_cycles(self):
         if self.web and self.args.hist_interval:
-            self.point_telemetry_here(interval_ms=1000)
+            self.point_telemetry_here(min_batch=1)
         rows = []
         n = self.args.cycles
         for i in range(n):
@@ -1022,9 +1024,14 @@ class Suite:
         return detail
 
     def t06_telemetry_drain(self):
+        """A wake that is due must actually drain, and fit inside the interval.
+
+        The trigger is a COUNT since config v22: with a minimum batch of 1 the
+        very first wake carrying a reading is due, so this also covers what F05
+        was about — the first send of a boot used to wait a whole interval,
+        which no wake ever lasted, so the radio came up and sent nothing."""
         self.need_web()
-        # 60 s cadence: with F05 the first batch waits a whole interval after boot
-        self.point_telemetry_here(interval_ms=60000)
+        self.point_telemetry_here(min_batch=1)
         t0 = time.time()
         row = self.hibernate_and_observe(stop_on_wake=False)
         aw = self.watch_awake_window(self.args.flush_cap + 60)
@@ -1032,13 +1039,16 @@ class Suite:
         got = self.collector.records_since(t0)
         if got < 1:
             raise TestFail('collector received nothing during the wake')
-        if aw is None or aw > 30:
-            raise TestFail(f'awake window {aw}s with t_int=60s: drain is cadence-bound (F05); records={got}')
+        # The budget is derived from the reading interval, so the wake has to
+        # leave room for the sleep that follows it.
+        hist_s = (self.args.hist_interval or 1) * 60
+        if aw is None or aw >= hist_s:
+            raise TestFail(f'awake window {aw}s does not fit a {hist_s}s reading interval; records={got}')
         return f'records={got} awake_s={aw} sleep_s={row["sleep_s"]}'
 
     def t06b_telemetry_off_sleeps(self):
         self.need_web()
-        f = {TEL_FIELDS['interval_ms']: 0}
+        f = {TEL_FIELDS['min_batch']: 0}
         if self.args.hist_interval:
             f[HIST_FIELD] = self.args.hist_interval
         self.commit_and_reboot(f)
@@ -1283,9 +1293,9 @@ class Suite:
         if every is None:
             raise TestSkip('firmware without the tel= field — older than the two schedules')
         if every <= 1:
-            raise TestSkip(f'telemetry interval is at or below the reading interval '
-                           f'(tel every {every} wake), so every wake sends and there is no '
-                           f'schedule to observe — set t_int > h_int to exercise this')
+            raise TestSkip(f'minimum batch is {every} record(s), so a wake is due as soon as it '
+                           f'reads — there is no radio-off wake to observe. Set t_int above the '
+                           f'number of readings one wake produces to exercise this')
 
         # Enter the cycle ONCE. Every wake after this one happens on its own, so
         # driving each with `air hibernate` would be fighting the device: sent

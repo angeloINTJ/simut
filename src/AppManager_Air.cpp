@@ -155,19 +155,24 @@ uint32_t AppManager::airFlushBudgetMs( ) const {
  return (left < budget) ? left : budget;
 }
 
+/* Does THIS wake raise the radio?
+ *
+ * The rule is the amount of data waiting, not the clock: the CYW43 comes up
+ * when the pending count has reached the configured minimum batch. A device
+ * with nothing to say never powers the radio, and one that has been offline
+ * for a while sends as soon as it has enough — which is what the operator
+ * asked for when they set the minimum.
+ *
+ * The second term is the part a count alone cannot express. With a dead
+ * collector the queue only grows, so the trigger would be true on every single
+ * wake and the radio would burn the battery answering nobody. The M0 backoff
+ * cannot help: it lives in RAM and every wake is a boot. So a failed telemetry
+ * wake books a number of wakes to skip, kept in the same scratch field that
+ * used to hold the wake counter, and doubling per failure — the same escalation
+ * the mains path does in milliseconds, expressed in wakes. */
 bool AppManager::airTelemetryDue( ) const {
- const uint32_t telMs = _storageMgr->getConfig( ).telInterval;
- if (telMs == 0) return false;      /* telemetry off: the radio never comes up */
-
- uint32_t histMs = (uint32_t)_storageMgr->getHistoryIntervalMin( ) * 60000UL;
- if (histMs == 0) histMs = (uint32_t)AIR_WAKE_INTERVAL_MIN * 60UL * 1000UL;
-
- /* Telemetry at or below the reading interval means every wake sends, which is
-  * the old behaviour and a legitimate configuration. */
- if (telMs <= histMs) return true;
-
- const uint32_t everyNWakes = (telMs + histMs - 1UL) / histMs;   /* ceil */
- return ((uint32_t)_airWakesSinceRadio + 1UL) >= everyNWakes;
+ if (_airSkipWakes > 0) return false;          /* still serving a failed wake's penalty */
+ return _telemetryMgr->telemetryDue( );        /* pending >= minimum batch (0 = off) */
 }
 
 /* Reset the M0 inactivity timer. Any serial/BT command or web request lands
@@ -614,17 +619,29 @@ void AppManager::airEnterDormant( ) {
    const uint32_t nowSec = (uint32_t)got.hour * 3600u +
                            (uint32_t)got.min * 60u + (uint32_t)got.sec;
    const uint32_t sleptSec = (nowSec >= baseSec) ? (nowSec - baseSec) : nowSec;
-   /* The telemetry schedule rides along in the same register. A wake that
-    * raised the radio restarts the count from zero whether the send succeeded
-    * or not: the punishment for a collector that will not answer is to wait
-    * one whole telemetry interval, not to retry on the next reading wake with
-    * the radio on. That is the difference between a device that sleeps through
-    * an outage and one that burns its battery on it. */
-   const uint8_t wakes = _airRadioWake
-                             ? 0
-                             : (uint8_t)((_airWakesSinceRadio < AIR_WAKES_MAX)
-                                             ? (_airWakesSinceRadio + 1) : AIR_WAKES_MAX);
-   watchdog_hw->scratch[1] = airScratch1Pack(sleptSec, wakes);
+   /* The telemetry penalty rides along in the same register.
+    *
+    * With the trigger being "enough records are waiting", a collector that
+    * stops answering would arm it on every single wake — the queue only grows
+    * — and the radio would burn the battery talking to nobody. The mains
+    * backoff cannot help here: it lives in RAM and every wake is a boot. So a
+    * wake whose send failed books AIR_TEL_FAIL_SKIP_WAKES reading wakes of
+    * silence, counted down here, one per wake. A wake that succeeded (or had
+    * nothing to send) clears it.
+    *
+    * The penalty is flat, not doubling: the escalation would need a second
+    * counter to survive the sleep, and the only field left in this register is
+    * the sleep seconds, which has to keep its full range for the provisional
+    * clock. Flat still turns a dead collector from one radio wake per reading
+    * into one per six. */
+   uint8_t skip;
+   if (_airRadioWake) {
+    const bool sendFailed = _telemetryMgr->getBackoffRemainingMs( ) > 0;
+    skip = sendFailed ? (uint8_t)AIR_TEL_FAIL_SKIP_WAKES : 0;
+   } else {
+    skip = (_airSkipWakes > 0) ? (uint8_t)(_airSkipWakes - 1) : 0;
+   }
+   watchdog_hw->scratch[1] = airScratch1Pack(sleptSec, skip);
   }
  }
 

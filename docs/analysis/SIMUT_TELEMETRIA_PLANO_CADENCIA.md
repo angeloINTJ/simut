@@ -561,6 +561,87 @@ wake, cortado do log do servidor pelo instante do `air hibernate`:
 - O `notWorthWaiting` (dormir em vez de esperar) continua ativo: é ele que fecha o wake lento aos
   48,4 s em vez de deixá-lo esperando um gap que não caberia.
 
+## 3.11 Segunda mudança de semântica: o gatilho vira quantidade (07/09, pedido do Ângelo)
+
+> "Quero que o intervalo da telemetria seja definido pela quantidade de pacotes pendentes. Se eu
+> definir o lote mínimo de 10 (no campo que hoje é o intervalo) e o máximo de 100 (no campo de
+> batch), a telemetria aconteceria quando houvesse 10 pendentes e, havendo mais de 100, eles
+> seriam enviados em lotes de 100 até acabar. Com o mínimo em 0, a telemetria fica desabilitada."
+
+O relógio sai de cena por completo. Os dois campos que já existem passam a ser os dois extremos do
+lote:
+
+| campo | web/CLI | antes (v21) | **agora (v22)** |
+|---|---|---|---|
+| `telInterval` | `t_int` | intervalo entre envios, em ms | **lote mínimo**: registros pendentes que disparam um envio; 0 desliga |
+| `telBatchSize` | `t_bat` | máximo por requisição | **lote máximo**: igual, mas agora é o único botão de tamanho |
+
+**Por que é melhor no Air.** A pergunta que o operador tem é "quanto de dado vale uma
+transmissão?", e a resposta em registros vale igual na tomada e na bateria. Um wake que não tem o
+que dizer **não liga o CYW43**; um que tem, envia e volta a dormir. A regra antiga (a cada N wakes)
+ligava o rádio no relógio, mesmo sem dados novos, e um aparelho que passou o dia sem rede acordava
+para não enviar nada.
+
+**O que a mudança exigiu, além de trocar a comparação:**
+
+1. **Migração de config (v21→v22).** O campo não muda de tamanho, de tipo nem de posição — só de
+   significado, que é exatamente o que um CRC e um teste de tamanho não pegam. Sem migração, um
+   aparelho com o default antigo de 300000 leria "300 mil registros pendentes" e a telemetria
+   ficaria **muda para sempre**, com a página web mostrando o número que o operador configurou. A
+   conversão preserva a intenção: quantos registros teriam se acumulado naquele intervalo, na
+   cadência de leitura do aparelho (5 min com leitura de 1 min → 5 registros). A aritmética está em
+   `telMinBatchFromLegacyMs( )` com teste nativo, porque é o único ponto entre uma atualização e
+   uma telemetria silenciosa.
+2. **Freio para coletor morto.** Com o gatilho por quantidade a fila só cresce quando o servidor
+   não responde, então o gatilho seria verdadeiro em **todo** wake e o rádio esvaziaria a bateria
+   falando sozinho. O backoff do M0 não serve: vive na RAM e todo wake é um boot. Um wake cujo
+   envio falhou passa a reservar `AIR_TEL_FAIL_SKIP_WAKES` (5) wakes de silêncio, guardados no
+   mesmo campo do `scratch[1]` que era o contador de wakes. É plano, não exponencial: a escalada
+   precisaria de um segundo contador que sobrevivesse ao sono, e o único espaço que resta nesse
+   registrador são os segundos dormidos, que precisam da faixa inteira para o relógio provisório.
+3. **O lote automático passa a nascer no máximo configurado.** Começar em 50 e crescer fazia o
+   operador ter que reconquistar o próprio ajuste a cada boot; o AIMD existe para recuar de um
+   servidor que não aguenta, não para racionar por padrão.
+4. **`t_int` ganhou teto** (20.000 registros): acima do piso de 30 dias do `collectBatch( )` não
+   há o que enviar, então um mínimo maior que isso nunca dispararia. O campo aceitava 24 h em ms.
+
+**O que a primeira medição pegou, e era grave.** Com lote mínimo 5 e leitura a 1 min, sete wakes
+seguidos saíram assim:
+
+```
+[AIR] wake: radio=off (pending=0 min=5 skip=0)     ← sete vezes, com a fila crescendo de verdade
+```
+
+Duas causas, as duas do mesmo tipo — perguntar a alguém que ainda não sabe:
+
+- **O contador de pendentes vive na RAM**, mantido pelo escritor do histórico, e **todo wake é um
+  boot**: no instante da decisão ele vale zero, sempre. O gatilho nunca seria verdadeiro e a
+  telemetria do Air simplesmente não existiria. Agora o boot conta o que está no flash
+  (`refreshPendingCount( )`) antes de decidir. O registro deste wake ainda não foi gravado quando
+  a conta é feita, então ele entra na do wake seguinte — um wake de atraso, previsível.
+- **O `TelemetryManager` nem tinha o ponteiro do storage nesse ponto do boot** (`begin( )` roda
+  centenas de linhas depois), e os dois ponteiros da classe **não eram inicializados no
+  construtor**. A decisão desreferenciava lixo: não travou, respondeu alguma coisa. Ponteiros
+  zerados no construtor, `telemetryDue( )` e `refreshPendingCount( )` defensivos, e um
+  `attachStorage( )` que o boot chama antes de perguntar.
+
+É o padrão que a bancada já tinha registrado noutra forma: **no Air não existe "depois"** — nem
+para adiar uma escrita, nem para um contador que alguém vai preencher mais tarde.
+
+**Validação no ferro** (`phase_minbatch.py`, lote mínimo 5, máximo 100, leitura a 1 min, 9 min de
+ciclo, serial acampada através dos sonos):
+
+| wake | pendentes | rádio |
+|---|---|---|
+| 1, 2 | 0 | desligado |
+| 3, 4, 5, 6 | 1, 2, 3, 4 | desligado |
+| **7** | **5** | **ligado** — envia e a fila zera |
+| 8 | 0 | desligado |
+
+Oito wakes, **um** com o CYW43 energizado, oito registros entregues ao coletor. É o
+comportamento pedido, e o ganho de bateria é a razão de 7 para 8: o rádio ficou desligado em todo
+wake que não tinha o que dizer. Com o mínimo em 0 a telemetria não dispara nunca (T06b da suíte).
+
 ## 4. Testes que fecham cada parâmetro
 
 | parâmetro | teste | aceite | resultado 07/09 |

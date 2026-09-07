@@ -162,7 +162,7 @@ void AppManager::setup( ) {
    /* Same register carries the telemetry schedule: how many wakes have gone by
     * without a send. Zero here after a power cycle simply means the first
     * telemetry waits a whole interval, which is the safe direction. */
-   _airWakesSinceRadio = airScratch1Wakes(watchdog_hw->scratch[1]);
+   _airSkipWakes = airScratch1Wakes(watchdog_hw->scratch[1]);
   }
   watchdog_hw->scratch[1] = 0;
  }
@@ -475,9 +475,19 @@ void AppManager::setup( ) {
   * wake never initialises the CYW43: no association, no NTP, no web server,
   * and no LED, since that one is a GPIO of the same chip. */
  if (_airActive) {
+  /* Count what is actually on flash before deciding. The pending counter is a
+   * RAM value the history writer keeps, and every wake is a boot: without this
+   * the count is zero on arrival, the trigger is never true and the radio never
+   * comes up — measured on the bench, seven wakes in a row with radio=off and
+   * pending=0 while the queue was really growing. */
+  _telemetryMgr->attachStorage(_storageMgr.get( ));
+  _telemetryMgr->refreshPendingCount( );
   _airRadioWake = airTelemetryDue( );
-  Serial.printf("[AIR] wake: radio=%s (wakes since send=%u)\n",
-                _airRadioWake ? "on" : "off", (unsigned)_airWakesSinceRadio);
+  Serial.printf("[AIR] wake: radio=%s (pending=%u min=%lu skip=%u)\n",
+                _airRadioWake ? "on" : "off",
+                (unsigned)_telemetryMgr->getPendingEstimate( ),
+                (unsigned long)_storageMgr->getConfig( ).telInterval,
+                (unsigned)_airSkipWakes);
  }
  _airRadioUp = _airRadioWake;
 #endif

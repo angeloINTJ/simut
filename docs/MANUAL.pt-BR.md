@@ -486,7 +486,8 @@ um endpoint que você especifica.
 | Transporte | HTTP POST ou MQTT |
 | Payload | JSON, CSV ou um template customizado |
 | Segurança | TLS suportado |
-| Intervalo | Configurável, com um limite de lote por envio |
+| Disparo | Um lote mínimo: o aparelho transmite quando essa quantidade de registros está esperando (0 desliga a telemetria) |
+| Tamanho do envio | Um lote máximo: uma fila maior sai em lotes desse tamanho até acabar |
 | Home Assistant Discovery | Somente MQTT, checkbox opt-in |
 | Syslog remoto | RFC 5424 sobre UDP, opt-in (veja abaixo) |
 

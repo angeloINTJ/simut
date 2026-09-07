@@ -268,6 +268,37 @@ inline bool isValidIpv4(const char* ip) {
 }
 
 
+/**
+ * @brief Config v21 -> v22: a telemetry interval in ms becomes a minimum batch.
+ *
+ * The field kept its offset, its type and its name; only its meaning changed,
+ * which is exactly what a size check and a CRC cannot notice. Left alone, the
+ * old default of 300000 would be read as "300,000 records pending" and the
+ * device would go quiet for good while the web page still showed the number the
+ * operator had set.
+ *
+ * What carries over is the intent, not the number: how many records would have
+ * accumulated in that interval at this device's reading rate. It is inexact for
+ * a device whose reading interval changed since — it converts against the
+ * current one — but it never turns a working telemetry setup into a silent one,
+ * which is the property that matters.
+ *
+ * @param legacyMs telInterval as v21 wrote it (milliseconds; 0 = off).
+ * @param histMin  history interval in minutes, already range-checked by the
+ *                 caller (0 is treated as 1 so this cannot divide by zero).
+ * @param ceiling  TEL_MIN_BATCH_MAX, passed in so this header stays free of
+ *                 simut_config.h.
+ */
+inline uint32_t telMinBatchFromLegacyMs(uint32_t legacyMs, uint16_t histMin,
+                                        uint32_t ceiling) {
+    if (legacyMs == 0) return 0;                 /* off stays off */
+    if (histMin == 0) histMin = 1;
+    uint32_t count = legacyMs / ((uint32_t)histMin * 60000UL);
+    if (count == 0) count = 1;                   /* interval shorter than one reading */
+    if (count > ceiling) count = ceiling;
+    return count;
+}
+
 /** Check if a numeric value falls within [minVal, maxVal]. */
 inline bool isInRange(int value, int minVal, int maxVal) {
  return (value >= minVal && value <= maxVal);

@@ -388,13 +388,13 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_SET_TEL_INTERVAL: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
- _cmdMgr->printError(pt ? "Numero invalido para intervalo"
- : "Invalid number for interval");
+ _cmdMgr->printError(pt ? "Numero invalido para lote minimo"
+ : "Invalid number for minimum batch");
  break;
  }
- if (cmd.intVal1 < 0) {
- _cmdMgr->printError(pt ? "Intervalo deve ser >= 0 (0 = off)"
- : "Interval must be >= 0 (0 = off)");
+ if (cmd.intVal1 < 0 || cmd.intVal1 > TEL_MIN_BATCH_MAX) {
+ _cmdMgr->printError(pt ? "Lote minimo fora de range (0-20000, 0 = off)"
+ : "Minimum batch out of range (0-20000, 0 = off)");
  break;
  }
  cfg.telInterval = (uint32_t)cmd.intVal1;
@@ -425,8 +425,8 @@ void AppManager::executeCommand(CliDemand cmd) {
  case CMD_SET_HISTORY_INTERVAL: {
  const bool pt = _cmdMgr->isPt( );
  if (!cmd.intVal1Valid) {
- _cmdMgr->printError(pt ? "Numero invalido para intervalo"
- : "Invalid number for interval");
+ _cmdMgr->printError(pt ? "Numero invalido para lote minimo"
+ : "Invalid number for minimum batch");
  break;
  }
  if (cmd.intVal1 < HISTORY_INTERVAL_MIN_MIN || cmd.intVal1 > HISTORY_INTERVAL_MAX_MIN) {
@@ -826,27 +826,21 @@ void AppManager::executeCommand(CliDemand cmd) {
    * crash-loop guard is to holding the device in M0 (plan F25). Without them,
    * "phase=0" looks the same whether the operator stopped the cycle or a
    * watchdog knocked the device out of it. */
-  /* tel= is the second schedule: how many wakes of this cadence go by between
-   * sends, and how many have gone by already. radio= says whether THIS wake
-   * raised the CYW43 at all. */
-  const uint32_t telMs = _storageMgr->getConfig( ).telInterval;
-  uint32_t everyN = 0;
-  if (telMs > 0) {
-   const uint32_t hMs = (histSec > 0) ? (histSec * 1000UL)
-                                      : ((uint32_t)AIR_WAKE_INTERVAL_MIN * 60000UL);
-   everyN = (telMs <= hMs) ? 1UL : ((telMs + hMs - 1UL) / hMs);
-  }
-  /* bat=/cyc= are the cadence controller: the batch size it settled on and the
-   * last full send cycle in ms. Together they say whether the last drain was
-   * running at the device's own speed or at the server's. */
+  /* tel= is the telemetry trigger: how many records are waiting against the
+   * minimum that raises the radio (0 = telemetry off). skip= is the penalty a
+   * failed telemetry wake books, in reading wakes. radio= says whether THIS
+   * wake raised the CYW43 at all. bat=/cyc= are the cadence controller: the
+   * batch size it settled on and the last full send cycle in ms. */
   snprintf(buf, sizeof(buf),
            "Air: phase=%d wake=%lus hist=%lus backoff=%lus idle=%us armed=%d dirty=%u "
-           "tel=%lu/%lu radio=%d bat=%u cyc=%lums",
+           "tel=%u/%lu skip=%u radio=%d bat=%u cyc=%lums",
            (int)_airPhase, (unsigned long)wakeSec,
            (unsigned long)histSec, (unsigned long)backoffSec,
            (unsigned)(_airResumeGraceSec ? _airResumeGraceSec : _airCfg.idleTimeoutSec),
            airCycleArmed(_airCfg) ? 1 : 0, (unsigned)airDirtyBoots(_airCfg),
-           (unsigned long)_airWakesSinceRadio, (unsigned long)everyN,
+           (unsigned)_telemetryMgr->getPendingEstimate( ),
+           (unsigned long)_storageMgr->getConfig( ).telInterval,
+           (unsigned)_airSkipWakes,
            _airRadioUp ? 1 : 0,
            (unsigned)_telemetryMgr->getBatchAuto( ),
            (unsigned long)_telemetryMgr->getLastCycleMs( ));

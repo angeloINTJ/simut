@@ -461,7 +461,8 @@ specify.
 | Transport | HTTP POST, or MQTT |
 | Payload | JSON, CSV, or a custom template |
 | Security | TLS supported |
-| Interval | Configurable, with a batch limit per upload |
+| Trigger | A minimum batch: the device transmits once that many records are waiting (0 disables telemetry) |
+| Upload size | A maximum batch: a longer queue goes out in batches of that size until it is empty |
 | Home Assistant Discovery | MQTT only, opt-in checkbox |
 | Remote syslog | RFC 5424 over UDP, opt-in (see below) |
 

@@ -98,18 +98,26 @@ Acorde sempre em `h_int` (cadência de leitura). Em cada wake, decida se **esta*
 telemetria. Nada de segundo alarme: o RTC tem um só, e a coincidência exigida pelo Ângelo é
 consequência automática deste desenho, não uma restrição a fazer valer.
 
-### 3.2 O critério "hoje é dia de telemetria" — IMPLEMENTADO como contagem de wakes
+### 3.2 O critério "hoje é dia de telemetria" — SUPERADO em 07/09: agora é quantidade
+
+> ⚠️ **A contagem de wakes descrita abaixo foi substituída.** Desde a config v22 o gatilho é a
+> quantidade pendente (`cfg.telInterval` virou o **lote mínimo** em registros; 0 desliga), com uma
+> penalidade de wakes após uma falha de envio. Ver
+> [`SIMUT_TELEMETRIA_PLANO_CADENCIA.md`](SIMUT_TELEMETRIA_PLANO_CADENCIA.md) §3.11. O texto
+> original fica como registro do desenho anterior:
 
 ```
 telemetriaVence =  cfg.telInterval > 0
-                && (wakesDesdeEnvio + 1) ≥ ceil(telInterval / histInterval)
+                && (wakesDesdeEnvio + 1) ≥ ceil(telInterval / histInterval)   [SUPERADO]
 ```
 
 - Primeira linha: telemetria desligada mantém o rádio **desligado para sempre**, que já é o maior
-  ganho de bateria disponível.
-- Segunda: o intervalo de telemetria é expresso em **wakes inteiros** da cadência de leitura, e é
-  isso que faz o envio sempre coincidir com uma medição. Arredonda para **cima**, de propósito:
-  15 min de telemetria sobre 2 min de leitura envia a cada 8 wakes (16 min), não a cada 7 (14) —
+  ganho de bateria disponível — e essa parte continua valendo, só que "desligada" agora é lote
+  mínimo 0.
+- Segunda: o intervalo de telemetria era expresso em **wakes inteiros** da cadência de leitura, e
+  era isso que fazia o envio sempre coincidir com uma medição. Arredondava para **cima**, de
+  propósito: 15 min de telemetria sobre 2 min de leitura enviava a cada 8 wakes (16 min), não a
+  cada 7 (14) —
   enviar cedo quebraria a promessa de que o intervalo do operador é um piso.
 
 ⚠️ **Por que NÃO comparar relógios,** como esta seção propunha antes: num wake sem rádio não há
@@ -224,8 +232,9 @@ carimbo offline; a corrente da Fase 0 fecha a conta.
 
 ### Fase 3 — a cadência pedida
 
-Nada a construir: `h_int` já aceita **1..1440 minutos** e `telInterval` já é em ms. Só configurar
-e medir 1 min / 15 min por algumas horas, conferindo o histórico com `h5_block_anchors`.
+Nada a construir: `h_int` já aceita **1..1440 minutos** e `telInterval` é o lote mínimo em
+registros desde a v22 (15 min de telemetria com leitura de 1 min = 15 registros). Só configurar e
+medir por algumas horas, conferindo o histórico com `h5_block_anchors`.
 
 ### Fase 4 — a alavanca grande, e a arriscada: retomar em vez de reiniciar
 

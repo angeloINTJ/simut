@@ -535,8 +535,8 @@ void CommandManager::printModeHelp( ) {
   showIf(CMD_SET_TEL_SERVER,    "  tel server <url>");
   showIf(CMD_SET_TEL_PORT,      "  tel port <n>");
   showIf(CMD_SET_TEL_PATH,      "  tel path <path>");
-  showIf(CMD_SET_TEL_BATCH,     "  tel batch <n>");
-  showIf(CMD_SET_TEL_INTERVAL,  "  tel interval <ms>");
+  showIf(CMD_SET_TEL_BATCH,     "  tel batch <n>       max records per upload");
+  showIf(CMD_SET_TEL_INTERVAL,  "  tel interval <n>    min pending to send (0=off)");
   showIf(CMD_SET_TEL_CRYPTO,    "  tel crypto <on|off>");
   showIf(CMD_SET_TEL_MODE,      "  tel mode <json|csv|custom>");
   showIf(CMD_ALARM_SET,         "  alarm set <on|off|mode|qmax|path|glob|line|sep> <v>");

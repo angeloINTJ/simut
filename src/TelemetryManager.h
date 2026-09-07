@@ -50,6 +50,17 @@ public:
  bool isTlsCertLoaded( ) const { return _hasCert; }
 
  uint16_t getPendingEstimate( ) const;
+ /** True when pending records have reached the configured minimum batch
+  *  (SystemConfig::telInterval, a COUNT since v22; 0 = telemetry off). The
+  *  Air cycle asks this to decide whether a wake raises the radio at all. */
+ bool telemetryDue( ) const;
+ /** Hand over the storage before begin( ) runs.
+  *
+  * The Air boot has to know whether this wake raises the radio, and it has to
+  * know it BEFORE the network comes up — which is long before begin( ) wires
+  * this class. The answer is a count of pending records, so the counter needs
+  * the filesystem that early. Idempotent, and begin( ) sets the same pointer. */
+ void attachStorage(StorageManager* storage) { if (!_storageRef) _storageRef = storage; }
  /** Milliseconds until the current backoff (punishment) expires; 0 when the
   * uploader may send immediately. Used by the Air M1 cycle to sleep for the
   * backoff when it exceeds the wake interval. */
@@ -155,14 +166,13 @@ private:
  StorageManager* _storageRef;
  NetworkManager* _netRef;
 
- uint32_t _lastDrainEnd;  /**< millis( ) when the last drain ended — the period counts from here. */
  bool _drainMode = false; /**< Air FLUSH: start a drain now, whatever the period says. */
  bool _drainActive = false; /**< A drain is under way: the gap rules, not the period. */
  uint32_t _gapMs = 0;      /**< Current inter-batch gap, before the RSSI penalty. */
  uint32_t _nextSendAt = 0; /**< millis( ) deadline for the next batch of this drain. */
  uint32_t _lastCycleMs = 0; /**< Last full cycle: collectBatch → end( ). */
  uint32_t _cycleEmaMs = 0;  /**< EMA of the cycle — the reference for "getting worse". */
- uint8_t _batchAuto = TEL_BATCH_START; /**< AIMD batch, always under safeBatchLimit( ). */
+ uint8_t _batchAuto = 0; /**< AIMD batch; 0 = "take the configured maximum", set on first use. */
  volatile bool _isSending = false;
 
 

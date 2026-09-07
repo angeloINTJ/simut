@@ -79,6 +79,21 @@ perde a SRAM, então o boot seguinte relia o cursor antigo e reenviava um lote j
 aceito. A escrita pré-sono agora passa por cima tanto do agrupamento quanto do
 portão de prioridade de toque.
 
+**A telemetria é disparada pela quantidade que está esperando, não por um
+relógio.** Os dois ajustes agora são um lote mínimo e um máximo: o aparelho
+transmite quando essa quantidade mínima de registros está pendente, e os envia
+em lotes de no máximo o segundo valor até a fila acabar. Um mínimo zero desliga
+a telemetria, como o intervalo zero fazia. Na build a bateria é esse o ponto —
+um wake sem nada a dizer nunca liga o rádio, e um que tem o suficiente envia e
+volta a dormir. Os campos mantêm os nomes e os lugares na configuração (`t_int`
+e `t_bat` na web e na CLI), então uma configuração salva continua carregando; o
+que mudou é o que os números significam, e a versão 22 da configuração converte
+o intervalo antigo em milissegundos para a quantidade de registros que teria se
+acumulado nele. Um wake cujo envio falhou passa a reservar cinco wakes de
+leitura em silêncio, porque um gatilho por quantidade seria verdadeiro em todo
+wake enquanto um coletor está fora, e o rádio esvaziaria a bateria falando
+sozinho.
+
 **A cadência da telemetria e o tamanho do lote agora são automáticos.** O
 intervalo configurado era um piso entre lotes, e por isso virava o teto de
 vazão: nos cinco minutos que um aparelho de campo usa, um lote a cada cinco

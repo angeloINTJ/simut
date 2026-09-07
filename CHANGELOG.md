@@ -79,6 +79,21 @@ boot re-read the old cursor and re-sent a batch that had already been accepted.
 The pre-sleep write is now forced past both the coalescing window and the
 touch-priority gate.
 
+**Telemetry is triggered by how much is waiting, not by a clock.** The two
+settings are now a minimum and a maximum batch: the device transmits once the
+minimum number of records is pending, and sends them in batches of at most the
+maximum until the queue is empty. A minimum of zero disables telemetry, as the
+interval of zero did. On the battery build this is the whole point — a wake with
+nothing to say never powers the radio, and one that has enough sends and goes
+back to sleep. The fields keep their names and their places in the
+configuration (`t_int` and `t_bat` on the web and CLI), so a stored
+configuration still loads; what changed is what the numbers mean, and config
+version 22 converts the old millisecond interval into the number of records
+that would have accumulated in it. A wake whose send failed now books five
+reading wakes of silence, because a count-based trigger would otherwise be true
+on every wake while a collector is down, and the radio would run the battery
+flat answering nobody.
+
 **The telemetry cadence and the batch size are automatic now.** The configured
 interval used to be a floor between batches, which made it the throughput
 ceiling: at the five minutes a field device is set to, one batch every five

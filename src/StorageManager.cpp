@@ -95,7 +95,7 @@ struct Core1FlashPause {
  * Tail-append only: every byte a v20 blob held keeps its offset, so the
  * v20→v21 reader (attemptLoad) migrates without translating anything and
  * without the 2.0.0-style schema break. See SystemDefs_Records.h. */
-const uint16_t CONFIG_VERSION = 21;
+const uint16_t CONFIG_VERSION = 22;
 
 /* -------------------------------------------------------------------------- */
 /* Legacy UserAccount layout (v14 and earlier) — used ONLY by the */
@@ -629,22 +629,58 @@ uint32_t StorageManager::calculateCRC32(const uint8_t *data, size_t length) {
  * encrypted via XOR+KDF). Decrypts in-place when v14.
  * The caller (attemptLoad) accepts only the current schema.
  * so it is re-saved as v14 encrypted. */
-bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg) {
+bool StorageManager::loadCurrentBlob(File& f, SystemConfig& outCfg, bool* migratedV21) {
  size_t bytesRead = f.read((uint8_t*)&outCfg, sizeof(SystemConfig));
  uint32_t readCrc = 0;
  size_t crcRead = f.read((uint8_t*)&readCrc, sizeof(readCrc));
  if (bytesRead != sizeof(SystemConfig)) return false;
  if (outCfg.magic != CONFIG_MAGIC) return false;
- /* v15 is the only native format accepted here — v13/v14 fall to loadAndMigrateV14
- * (file size smaller due to UserAccount[52] instead of [62]). */
- if (outCfg.version != CONFIG_VERSION) return false;
+ /* v21 has the same layout as v22 and is accepted here, because the schema did
+  * not change — one field changed MEANING (see migrateV21Semantics). Every
+  * other version is rejected; v20 and older go by file size in attemptLoad. */
+ if (outCfg.version != CONFIG_VERSION && outCfg.version != 21) return false;
  if (crcRead == sizeof(readCrc)) {
  uint32_t calcCrc = calculateCRC32((uint8_t*)&outCfg, sizeof(SystemConfig));
  if (calcCrc != readCrc) return false;
  }
  /* v16 always writes with sensitive fields obfuscated (XOR keystream). */
  obfuscateSensitiveFields(outCfg);
+ if (outCfg.version == 21) {
+ migrateV21Semantics(outCfg);
+ if (migratedV21) *migratedV21 = true;
+ }
  return true;
+}
+
+/* v21→v22: telInterval stopped being milliseconds and became a count.
+ *
+ * Same size, same offset, same type — nothing a size check or a CRC could
+ * catch. What changes is what the number means: the field used to say "send
+ * every N milliseconds" and now says "send once N records are waiting". Left
+ * alone, a device configured with the old default of 300000 would read it as
+ * 300,000 pending records and go quiet for good, with the web page happily
+ * showing the value it was set to. Telemetry would simply stop, and nothing
+ * would say why.
+ *
+ * The conversion keeps the operator's intent rather than the number: how many
+ * records would have piled up in that interval, at this device's reading rate.
+ * Five minutes with a one-minute reading interval becomes five records. It
+ * cannot be exact — a device whose reading interval changed since is converted
+ * against the current one — but it is the same order of magnitude, and it
+ * never turns a working telemetry configuration into a silent one. */
+void StorageManager::migrateV21Semantics(SystemConfig& cfg) {
+ /* Read the history interval straight from the blob being migrated: the member
+  * accessor reads _currentConfig, which is not this. The arithmetic lives in
+  * telMinBatchFromLegacyMs so a native test can pin it down. */
+ const HistoryConfigData* hc = reinterpret_cast<const HistoryConfigData*>(
+     cfg.reserved + HISTORY_CONFIG_OFFSET);
+ uint16_t histMin = (hc->magic == HISTORY_CONFIG_MAGIC)
+                        ? hc->intervalMin : HISTORY_INTERVAL_DEFAULT_MIN;
+ if (histMin < HISTORY_INTERVAL_MIN_MIN || histMin > HISTORY_INTERVAL_MAX_MIN) {
+  histMin = HISTORY_INTERVAL_DEFAULT_MIN;
+ }
+ cfg.telInterval = telMinBatchFromLegacyMs(cfg.telInterval, histMin, TEL_MIN_BATCH_MAX);
+ cfg.version = CONFIG_VERSION;
 }
 
 /* v20→v21. O blob v20 termina exatamente onde começa alarmTel — todo byte
@@ -695,7 +731,7 @@ bool StorageManager::attemptLoad(const char* path, SystemConfig& outCfg) {
   * the reason. */
  const size_t expected = sizeof(SystemConfig) + sizeof(uint32_t);
  if (fileSize == expected) {
- bool ok = loadCurrentBlob(f, outCfg);
+ bool ok = loadCurrentBlob(f, outCfg, &_migratedFromV21);
  f.close( );
  return ok;
  }
@@ -768,8 +804,9 @@ bool StorageManager::loadConfiguration( ) {
  /* v20→v21: grava o schema novo (com os defaults de alarmTel) uma única vez,
   * para que o próximo boot leia no formato atual. Mesma janela do fromBackup:
   * o logger ainda não existe, então a razão fica para o caller reportar. */
- if (fromBackup || _migratedFromV20) {
+ if (fromBackup || _migratedFromV20 || _migratedFromV21) {
  _migratedFromV20 = false;
+ _migratedFromV21 = false;
  saveConfiguration( );
  }
  return true;

@@ -82,9 +82,10 @@ Referência completa (comandos, armadilhas, analisador lógico):
 - **Intervalo de wake = intervalo de salvamento do histórico** (o trabalho
   principal do wake). Se o backoff de telemetria (punição por falha de envio)
   for maior que esse intervalo, dorme pelo backoff — assim não acorda só para
-  ser mandado esperar de novo. A janela de envio de telemetria é
-  `cfg.telInterval` (configurado via web). `/config/air.bin` só guarda
-  idle/stab/timeouts/pin (não toca em `CONFIG_VERSION`).
+  ser mandado esperar de novo. **Quem decide se o wake liga o rádio é a
+  quantidade pendente** contra `cfg.telInterval`, que desde a config v22 é o
+  lote mínimo em registros (0 = telemetria desligada). `/config/air.bin` só
+  guarda idle/stab/timeouts/pin (não toca em `CONFIG_VERSION`).
 - `SIMUT_CLI_FULL=0` no Air: CLI completa + web + BT + mDNS **não cabem**
   juntos em flash (estourou ~35 KB). Mantido mDNS + BT + web; serial/BT ficam
   com CLI de emergência + comandos `air` + `ap`.
@@ -282,10 +283,17 @@ Armadilhas de bancada específicas do Air:
   physical reset"). ⚠️ Uma versão anterior desta nota afirmava o contrário;
   a suíte agora **mede** isso em T02 (lê `air status` antes de qualquer
   `air stop`) em vez de assumir. Confirmar na próxima bancada.
-- **A bancada esconde F05** — ✅ corrigido e medido 07/09: com `t_int=100 ms` o dreno parecia
-  rápido; com `t_int` ≥ o teto do FLUSH o wake **não mandava nada** (0 registros em 57 s
-  acordado, sonda GP16). Hoje o FLUSH liga o "modo dreno" (`setDrainMode`) e o mesmo wake
-  entregou 18.800. Continuar testando com `t_int=60000` (T06), não com 1 ms.
+- 🔴 **`t_int` NÃO é mais tempo (config v22).** É o **lote mínimo**: quantos registros pendentes
+  disparam um envio; 0 desliga a telemetria. `t_bat` é o **lote máximo** por requisição. Quem ler
+  "intervalo em ms" em qualquer lugar está lendo documentação velha. A migração v21→v22 converte
+  o valor antigo (`telMinBatchFromLegacyMs`, com teste nativo) — sem ela um `t_int=300000` viraria
+  "300 mil pendentes" e a telemetria ficaria muda em silêncio.
+- **No Air, um wake só liga o rádio se `pending >= t_int`** e se não houver penalidade pendente:
+  um wake cujo envio falhou reserva `AIR_TEL_FAIL_SKIP_WAKES` (5) wakes de silêncio, guardados no
+  mesmo campo do `scratch[1]` que era o contador de wakes. Sem isso, com coletor morto a fila só
+  cresce, o gatilho é verdadeiro em todo wake e o rádio drena a bateria.
+- **A bancada escondia o F05** — corrigido em 07/09 (modo dreno no FLUSH). O T06 hoje usa lote
+  mínimo 1 e cobre o mesmo caso.
 - **O log do servidor de um wake tem DOIS trechos.** `air hibernate` de M0 roda um ciclo no lugar
   (FLUSH até o teto, dorme) e só depois vem o wake que a sonda cronometra. Contar "registros do
   wake" pelo total do servidor soma os dois; cortar pelo tempo (trechos separados pelo sono) é o
@@ -305,8 +313,8 @@ Armadilhas de bancada específicas do Air:
   6 s; 1º wake do modo dreno) — sem serial acampada não há como fechar. `serial_probe.py --delay`
   é o instrumento.
 - **Telemetria desligada + Wi-Fi de pé = acordado para sempre** (F02). Se o
-  aparelho "não dorme", conferir `t_int` antes de procurar outra causa;
-  `air stop` pela serial tira dele.
+  aparelho "não dorme", conferir `t_int` (0 = desligada) antes de procurar
+  outra causa; `air stop` pela serial tira dele.
 - **GP16** é a linha de energia dos sensores (alto acordado). Hoje só liga no
   WARMUP do M1 (F03): sensores chaveados pelo GP16 não leem em M0.
 - **`air.bin` antigo mantém `sensorPowerPin=255`** (default mudou sem bump de
