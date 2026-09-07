@@ -4,7 +4,7 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## Não lançado
+## v2.4.0-beta (2026-09-07)
 
 **O bloco do histórico sobrevive a um wake.** Um bloco guarda sessenta leituras
 para que seu cabeçalho seja pago uma vez por hora, e não uma vez por leitura. Na
@@ -18,8 +18,6 @@ permanece onde está, de modo que o bloco aberto nunca fica só na memória. Med
 depois da mudança: um bloco de 27 leituras onde antes havia 27 blocos. O
 histórico voltou a custar aproximadamente o previsto, e o aparelho volta a
 guardar meses dele em vez de semanas.
-
-## v2.4.0-beta (2026-09-07)
 
 ### SIMUT Air: build headless com ciclo de hibernação em deep sleep (experimental)
 
@@ -210,11 +208,6 @@ plano tem o detalhe.
   descarrega logs adiados.
 * **F12** — `air stop` por Bluetooth não funciona em M1; só o console USB é bombeado.
 * **F14** — o pino de energia dos sensores não pode ser trocado nem é reportado.
-* **F23** — no Air o bloco de 60 registros nunca acontece: o boot anexa o bloco
-  aberto ao arquivo do dia em vez de retomá-lo, e todo wake é um boot. Medido num
-  arquivo real: 448 registros em 316 blocos, 253 deles com um único registro,
-  16,0 B por registro contra os 5,38 B do projeto do formato. A retenção cai de
-  ~130 para ~35 dias.
 * **Intermitente** — duas vezes numa sessão um ciclo entrou na sequência de sono,
   onde o watchdog já está desarmado, e nunca armou o alarme. Não reproduziu sob
   comando; seis execuções controladas nas duas versões de firmware não
