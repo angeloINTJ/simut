@@ -4,7 +4,7 @@
 
 All notable changes to SIMUT firmware.
 
-## Unreleased — branch `feature/simut-air`
+## v2.4.0-beta (2026-09-07)
 
 ### SIMUT Air: headless build with a deep-sleep hibernation cycle (experimental)
 
@@ -173,12 +173,45 @@ are in `docs/analysis/SIMUT_TELEMETRIA_PLANO_CADENCIA.md`, with the bench in
 `tools/telemetry_bench/phase_cadence.py`.
 
 The plan, the bench evidence and the acceptance tests are in
-`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (serial CLI,
-web API and the PicoHand fixture, including a 10 kHz probe that times the cycle
-without touching the target) and `tools/check_air_consistency.py`. Still open
-before this ships: the M1 boot starts services it does not need, offline wakes
-are stamped from the provisional clock rather than the measured sleep, and CI
-does not build `pico_w_air` or run `native_air`.
+`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (16 cases over
+the serial console, the web API and the PicoHand fixture, including a 10 kHz
+probe that times the cycle without touching the target, and a `--selftest` that
+needs no hardware) and `tools/check_air_consistency.py`.
+
+### Known issues
+
+This is a pre-release, and the Air build has only ever run on a bench. None of
+the following is a regression; the plan carries the detail.
+
+* **F04** — a wake that never reaches NTP stamps history from a guessed interval
+  (about 80 s) instead of the measured sleep, and the post-NTP correction never
+  runs in M1.
+* **F08** — the connect phase requires a fully ready stack, which requires NTP
+  with no fallback, so a lost packet or a network without internet sleeps
+  without transmitting.
+* **F10** — a reading interval of 1440 minutes arms an alarm that never fires.
+* **F11** — M1 never runs the filesystem budget sweep or flushes deferred logs.
+* **F12** — `air stop` over Bluetooth does not work in M1; only the USB console
+  is pumped.
+* **F14** — the sensor power pin cannot be changed and is not reported.
+* **F23** — on Air the 60-record history block never happens: a boot appends the
+  open block to the day file rather than resuming it, and every wake is a boot.
+  Measured on a real day file: 448 records in 316 blocks, 253 of them holding a
+  single record, 16.0 bytes per record against the 5.38 the format is designed
+  for. Retention drops from about 130 days to about 35.
+* **Intermittent** — twice in one session a cycle entered the sleep sequence,
+  where the watchdog is already disarmed, and never armed the alarm. Not
+  reproduced on demand; six controlled runs across the two firmware versions did
+  not discriminate.
+* **Silent reboots** — three boots with no autopsy record and no watchdog
+  signature, always near a failed send. Hypothesis is USB power.
+* **Current draw has never been measured.** Every energy claim here is about time
+  awake and about the radio not being powered.
+* **Security** — an external audit on 2026-09-07 left eight findings open
+  (`docs/security-audit/`). Two touch this build: an unauthenticated request
+  keeps an Air device awake, and `air charger` accepts the CYW43's own pins.
+* **CI does not build `pico_w_air` or run `native_air`.**
+* **`pico_w_debug` does not fit in flash**, and has not for some time.
 
 ## v2.3.9-beta (2026-08-29)
 

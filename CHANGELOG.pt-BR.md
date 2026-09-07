@@ -4,7 +4,7 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
-## Não lançado — branch `feature/simut-air`
+## v2.4.0-beta (2026-09-07)
 
 ### SIMUT Air: build headless com ciclo de hibernação em deep sleep (experimental)
 
@@ -175,12 +175,45 @@ tamanho do lote da telemetria no build Air; as medições e o plano que sai dela
 `tools/telemetry_bench/phase_cadence.py`.
 
 O plano, as evidências da bancada e os testes de aceite estão em
-`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (CLI serial,
-API web e a PicoHand, incluindo uma sonda de 10 kHz que cronometra o ciclo sem
-tocar no alvo) e `tools/check_air_consistency.py`. Ainda em aberto antes de
-publicar: o boot M1 sobe serviços de que não precisa, os wakes offline são
-carimbados pelo relógio provisório em vez do sono medido, e o CI não compila o
-`pico_w_air` nem roda o `native_air`.
+`docs/analysis/SIMUT_AIR_PLANO_FIX.md`, `tools/air_test_suite.py` (16 casos sobre
+o console serial, a API web e a PicoHand, incluindo uma sonda de 10 kHz que
+cronometra o ciclo sem tocar no alvo, e um `--selftest` que dispensa hardware) e
+`tools/check_air_consistency.py`.
+
+### Problemas conhecidos
+
+Esta é uma pré-versão, e a build Air nunca rodou fora de uma bancada. Nada do
+que segue é regressão; o plano tem o detalhe.
+
+* **F04** — um wake que não alcança o NTP carimba o histórico por um intervalo
+  adivinhado (~80 s) em vez do sono medido, e a correção pós-NTP nunca roda em M1.
+* **F08** — a fase de conexão exige a pilha inteiramente pronta, o que exige NTP
+  sem alternativa, então um pacote perdido ou uma rede sem internet dorme sem
+  transmitir.
+* **F10** — um intervalo de leitura de 1440 minutos arma um alarme que nunca dispara.
+* **F11** — o M1 nunca roda a limpeza de orçamento do sistema de arquivos nem
+  descarrega logs adiados.
+* **F12** — `air stop` por Bluetooth não funciona em M1; só o console USB é bombeado.
+* **F14** — o pino de energia dos sensores não pode ser trocado nem é reportado.
+* **F23** — no Air o bloco de 60 registros nunca acontece: o boot anexa o bloco
+  aberto ao arquivo do dia em vez de retomá-lo, e todo wake é um boot. Medido num
+  arquivo real: 448 registros em 316 blocos, 253 deles com um único registro,
+  16,0 B por registro contra os 5,38 B do projeto do formato. A retenção cai de
+  ~130 para ~35 dias.
+* **Intermitente** — duas vezes numa sessão um ciclo entrou na sequência de sono,
+  onde o watchdog já está desarmado, e nunca armou o alarme. Não reproduziu sob
+  comando; seis execuções controladas nas duas versões de firmware não
+  discriminaram.
+* **Reinícios silenciosos** — três boots sem registro de autópsia e sem assinatura
+  de watchdog, sempre perto de um envio falho. A hipótese é energia do USB.
+* **A corrente nunca foi medida.** Toda afirmação de energia aqui é sobre tempo
+  acordado e sobre o rádio não ser energizado.
+* **Segurança** — uma auditoria externa de 07/09/2026 deixou oito achados abertos
+  (`docs/security-audit/`). Dois tocam esta build: uma requisição sem
+  autenticação mantém um Air acordado, e o `air charger` aceita os pinos do
+  próprio CYW43.
+* **O CI não compila o `pico_w_air` nem roda o `native_air`.**
+* **O `pico_w_debug` não cabe na flash**, e não cabe há tempo.
 
 ## v2.3.9-beta (2026-08-29)
 
