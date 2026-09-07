@@ -30,6 +30,13 @@ void WebManager::clearStaleSessions( ) {
 }
 
 uint16_t WebManager::getAuthPerms( ) {
+	/* Every authenticated request passes here, whatever it answers with — and
+	 * "whatever it answers with" is the point: most handlers reply through the
+	 * framework's own _server->send( ), not through our send funnel, so hooking
+	 * the funnel alone missed them. Measured on the bench: with only the funnel
+	 * hooked, /api/login_init every 30 s did not hold the device and it
+	 * hibernated on schedule at 300 s. */
+	if (_activityCb) _activityCb( );
 	clearStaleSessions( );
 
 	if (!_server->hasHeader("Cookie")) return 0;
@@ -188,6 +195,11 @@ void WebManager::handleForceChpass( ) {
  * by cycling through 8 new IPs). Shared by login_init and the /metrics
  * Basic auth so both fail-paths feed the same exponential lockout. */
 int WebManager::ensureLoginStateSlot(uint32_t clientIP) {
+	/* The pre-login path: /api/login_init and /api/login both land here. This is
+	 * the window an operator is in when they cannot yet be recognised by a
+	 * session cookie, and it is exactly where the device was hibernating out
+	 * from under them. */
+	if (_activityCb) _activityCb( );
 	int slot = -1;
 	int oldestEvictable = -1;
 	for (int i = 0; i < LOGIN_STATE_SLOTS; i++) {

@@ -434,8 +434,26 @@ void AppManager::setup( ) {
    airSaveConfig(_airCfg);
   }
 
-  if (dirty >= AIR_MAX_DIRTY_BOOTS) {
-   _airResumeGraceSec = 0; /* full idle timeout: the operator needs the window */
+  /* WHO caused this boot decides how long M0 lasts.
+   *
+   * A clean boot is a person: a power cycle, the RUN pin, `reload`, an OTA.
+   * They are standing at the device and they want in — very likely through the
+   * browser, which takes a login and a page or two. Rushing back to sleep in
+   * ten seconds makes the device unusable, and that is exactly what the first
+   * version of this did: with the cycle armed, every reset gave ten seconds and
+   * the operator could not finish logging in.
+   *
+   * An unclean boot is a watchdog, and nobody is there. That is the F25 case,
+   * and it keeps the short grace: the device must get back to sleeping before
+   * the fault repeats, or it stays awake on battery forever.
+   *
+   * Either way the cycle resumes on its own, which is the property F25 was
+   * about. Only the waiting differs. */
+  if (clean) {
+   _airResumeGraceSec = 0; /* the configured idle timeout — an operator's window */
+   AIR_BOOT_MARK("cycle armed, resuming after the idle timeout");
+  } else if (dirty >= AIR_MAX_DIRTY_BOOTS) {
+   _airResumeGraceSec = 0; /* crash loop: hold M0 so someone can get in */
    LOG_CODE(LOG_WARN, "APP", APP_AIR_CYCLE_HELD, dirty,
             String(TRL("Unclean boots in a row: ")) + dirty);
    AIR_BOOT_MARK("cycle armed but HELD in M0 (unclean boots)");
@@ -975,6 +993,13 @@ void AppManager::setup( ) {
  _displayMgr->setBootStatusKey(TR_BOOT_REG_CALLBACKS);
  /* pos setBootStatusKey */
  _webMgr->setYieldCallback([this]( ) { this->core0Yield( ); });
+#if SIMUT_AIR
+ /* Every response the device sends counts as an operator being present. The
+  * serial CLI has reset the inactivity timer since the beginning; the web never
+  * did, so a browser session was hibernated out from under whoever was using
+  * it — including mid-login, which is how this was reported. */
+ _webMgr->setActivityCallback([this]( ) { this->airMarkActivity( ); });
+#endif
  _webMgr->setLightYieldCallback([this]( ) {
  feedWdt( );
 

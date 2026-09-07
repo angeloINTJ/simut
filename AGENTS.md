@@ -176,6 +176,15 @@ Referência completa (comandos, armadilhas, analisador lógico):
   rádio. `airSetLed( )` só age quando `_airRadioUp`. Quem mostra acordado/dormindo é o
   `AIR_SENSOR_POWER_PIN` (GP16), alto a janela acordada toda, baixo o sono todo — é nele que a
   sonda da PicoHand cronometra o ciclo.
+- 🔴 **QUEM causou o boot decide quanto tempo o M0 dura.** Boot **limpo** (power cycle, RUN,
+  `reload`, OTA) = tem gente ali querendo entrar, provavelmente pelo navegador → vale o `air idle`
+  inteiro. Boot **sujo** (watchdog) = não tem ninguém → graça curta do F25, para voltar a dormir
+  antes de a falha repetir. ⚠️ **A primeira versão do F25 dava 10 s para TODOS os boots** e deixou
+  o aparelho inutilizável pela web: o operador não conseguia terminar o login.
+- 🔴 **Toda resposta web rearma o timer de inatividade** (`WebManager::setActivityCallback` →
+  `airMarkActivity( )`, chamado no funil `safeSendN`/`safeSend_GZ`). A CLI serial fazia isso desde
+  sempre; a web não fazia, e por isso uma sessão de navegador era hibernada por baixo de quem
+  estava usando — inclusive no meio do login. Era o F21 do plano.
 - ✅ **`air stop` sobe o rádio se ele estiver desligado.** Parar o ciclo num wake sem rádio
   deixaria o M0 sem web, sem NTP e sem LED, alcançável só pelo cabo serial por onde o comando
   chegou.
