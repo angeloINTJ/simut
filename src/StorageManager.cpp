@@ -2380,6 +2380,79 @@ size_t StorageManager::h5StreamOpenBlock(H5WriteFn sink, void* ctx) {
 	return dn ? sn + dn : 0;
 }
 
+bool StorageManager::h5ResumeOpenBlock(const uint8_t* chunk, size_t len) {
+	/* Put the snapshot back in the encoder, so the block carries on filling
+	 * instead of being closed by the boot that found it (plan F23).
+	 *
+	 * A block holds 60 records because 60 amortises its 22-byte header down to
+	 * the 5.38 bytes per record the format is designed for. Sealing at boot is
+	 * right when a boot is exceptional — it is crash recovery, and it puts the
+	 * records somewhere a reader will find them. On a SIMUT Air a boot is not
+	 * exceptional: every wake is one. Measured on a real day file before this
+	 * change: 448 records in 316 blocks, 253 of them holding a SINGLE record,
+	 * at 16.0 bytes each. Three times the storage, and the hour-long block the
+	 * format is built around never happened once.
+	 *
+	 * Replaying is lossless because the format encodes every record's real
+	 * epoch — delta-of-delta against the nominal interval, with a 32-bit
+	 * resync escape. The nominal is only the predictor. A sleep between two
+	 * records costs the same one bit as any other on-time gap, and a clock
+	 * correction rides the resync symbol, which is exactly what §14-2 says a
+	 * block should absorb rather than close for.
+	 *
+	 * The caller keeps the .wip on flash when this succeeds: it stays the
+	 * on-flash copy of the block until the next snapshot overwrites it, so
+	 * there is no window where the open block exists only in RAM. That is
+	 * strictly safer than sealing, which removes the file and leaves the new
+	 * block unsnapshotted until the first record of the wake.
+	 */
+	const uint16_t nominal = h5NominalSeconds(getHistoryIntervalMin( ));
+	HistoryV5Decoder dec;
+	if (!dec.begin(chunk, len, _h5Schema, _h5NCh, nominal)) return false;
+
+	const H5DataHeader* h = (const H5DataHeader*)chunk;
+	_h5Enc.begin(_h5Schema, _h5NCh, nominal);
+
+	uint32_t epoch = 0;
+	int16_t  v[H5_MAX_CHANNELS];
+	uint8_t  n = 0;
+	while (dec.next(epoch, v)) {
+		if (n == 0) {
+			_h5Enc.reset(epoch, v);
+		} else if (!_h5Enc.add(epoch, v)) {
+			/* add( ) refuses a record the block cannot address, which is the
+			 * same bound it enforces live. Abandon rather than keep a partial
+			 * replay: half a block in RAM and a whole one on flash would seal
+			 * as a block that never existed. */
+			_h5Enc.begin(_h5Schema, _h5NCh, nominal);
+			return false;
+		}
+		n++;
+	}
+	if (n == 0 || n != h->pre.a) {
+		_h5Enc.begin(_h5Schema, _h5NCh, nominal);
+		return false;
+	}
+
+	/* The block belongs to the day its t0 falls in, and the rollover check in
+	 * writeHistoryEntryV5( ) compares against exactly this. Setting it here is
+	 * what makes a resumed block from yesterday seal into yesterday's file the
+	 * moment today's first record arrives. */
+	_h5CurrentDay = getHistoryFileNameV5(h->t0);
+
+	/* Flash already holds precisely this block, with this provenance. Saying
+	 * so keeps flushWipV5( ) from rewriting it for nothing. */
+	_h5WipDirty = false;
+	_h5WipFlags = (uint8_t)(h->pre.flags & H5_FLAG_CLOCK_SYNCED);
+
+	/* Names the block for shiftHistoryTimeV5( ): the records just replayed were
+	 * stamped by the PREVIOUS session's clock, and a correction that arrives
+	 * during this one must not drag them. Same rule the day-file pass already
+	 * applies through _h5AdoptedT0. */
+	_h5ResumedT0 = h->t0;
+	return true;
+}
+
 void StorageManager::recoverWipV5( ) {
 	if (!_isMounted) return;
 
@@ -2411,12 +2484,19 @@ void StorageManager::recoverWipV5( ) {
 		}
 	});
 
-	bool adopted = false;
+	bool adopted = false, resumed = false;
 	if (read && len >= sizeof(H5DataHeader)) {
 		ensureH5Schema( );
 		const H5DataHeader* h = (const H5DataHeader*)_h5Chunk;
 		HistoryV5Decoder dec;
 		if (_h5Valid && dec.begin(_h5Chunk, len, _h5Schema, _h5NCh)) {
+			/* Carry the block on rather than close it, whenever it can still
+			 * take a record (plan F23). A full block has nothing to resume
+			 * into, so it falls through to the seal below and lands in the day
+			 * file exactly as before. */
+			if (h->pre.a < H5_BLOCK_MAX_RECORDS) {
+				resumed = h5ResumeOpenBlock(_h5Chunk, len);
+			}
 			const String path = getHistoryFileNameV5(h->t0);
 			bool schemaOk = false, matches = false, fileExists = false;
 			uint8_t lastSeq = 0;
@@ -2425,7 +2505,8 @@ void StorageManager::recoverWipV5( ) {
 				FLASH_OP({ schemaOk = h5FileHasSchema(path, &matches, &lastSeq); });
 			}
 			bool ready = fileExists && schemaOk && matches;
-			if (!ready) {
+			if (resumed) ready = false;      /* nothing to append: it is in RAM */
+			if (!ready && !resumed) {
 				FLASH_OP({
 					File f = LittleFS.open(path, fileExists && schemaOk ? "a" : "w");
 					if (f) {
@@ -2445,10 +2526,17 @@ void StorageManager::recoverWipV5( ) {
 		}
 	}
 
-	FLASH_OP({ LittleFS.remove(FILE_H5_WIP); });
-	LOG_CODE(adopted ? LOG_INFO : LOG_WARN, "STO", STO_H5_WIP,
-	         adopted ? (int)((const H5DataHeader*)_h5Chunk)->pre.a : -1,
-	         adopted ? "wip_adopted" : "wip_discarded");
+	/* A resumed block is still open, and the file is still its only copy on
+	 * flash — removing it here would leave the block in RAM alone until the
+	 * first record of this boot. Every other path out of here is done with the
+	 * snapshot and must erase it, or the next boot would replay a block that
+	 * has already been sealed into the day file. */
+	if (!resumed) {
+		FLASH_OP({ LittleFS.remove(FILE_H5_WIP); });
+	}
+	LOG_CODE((adopted || resumed) ? LOG_INFO : LOG_WARN, "STO", STO_H5_WIP,
+	         (adopted || resumed) ? (int)((const H5DataHeader*)_h5Chunk)->pre.a : -1,
+	         resumed ? "wip_resumed" : (adopted ? "wip_adopted" : "wip_discarded"));
 	if (adopted) {
 		_storageDirty = true;
 		/* Remember it so the NTP shift leaves it alone: its records were
@@ -2483,6 +2571,29 @@ void StorageManager::onSensorSetChangedV5( ) {
 int32_t StorageManager::shiftHistoryTimeV5(int32_t deltaS, const String& path,
                                            uint32_t fromEpoch) {
 	if (!_isMounted || deltaS == 0) return 0;
+
+	/* Close a resumed block before correcting anything (F23).
+	 *
+	 * A block carried over from the previous session holds records stamped by
+	 * that session's clock, which this correction has no business moving — the
+	 * same reason _h5AdoptedT0 exists for the day-file pass below. Shifting
+	 * only the records added since the resume would need a partial shift, and
+	 * a partial shift can reorder a block: a negative correction would pull
+	 * later records behind earlier ones and produce exactly the non-monotonic
+	 * file this plan item is about. Sealing costs one extra block, and only on
+	 * the wakes where a correction actually lands.
+	 *
+	 * Done before the RAII scopes below on purpose: sealHourV5( ) takes its own
+	 * flash pause, and nesting it inside this one would widen the Core 1
+	 * lockout for no reason. */
+	if (_h5ResumedT0 && _h5Enc.count( ) && _h5Enc.t0( ) == _h5ResumedT0) {
+		const uint32_t heldT0 = _h5ResumedT0;
+		_h5ResumedT0 = 0;
+		if (sealHourV5(true)) {
+			_h5AdoptedT0 = heldT0;   /* the file pass below must skip it too */
+		}
+	}
+
 	const String src = path.length( ) ? path : getHistoryFileNameV5( );
 	const String tmp = src + ".tmp";
 

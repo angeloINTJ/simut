@@ -1368,6 +1368,136 @@ void test_property_random_series_roundtrip(void) {
 void setUp(void) {}
 void tearDown(void) {}
 
+/* ============================================================================
+ *  RESUMING AN OPEN BLOCK (plan F23)
+ * ============================================================================ */
+
+/**
+ * A snapshot decoded and replayed into a fresh encoder must be the same block.
+ *
+ * This is the property StorageManager::h5ResumeOpenBlock( ) rests on. On a
+ * SIMUT Air every wake is a boot, and the boot used to close the open block
+ * into the day file rather than carry it on — so a block designed to amortise
+ * its 22-byte header over 60 records held one. Carrying it on is only correct
+ * if a replay is lossless, and the interesting part is the TIME: the format
+ * predicts each epoch from the nominal interval and stores the difference, so
+ * a replay has to survive gaps that are nothing like the nominal.
+ *
+ * ⚠️ Only two of the four cases below actually discriminate. Sabotaging the
+ * replay to re-predict each epoch from the nominal instead of carrying the
+ * real one leaves the on-time and full-block cases PASSING — an on-time block
+ * IS the nominal step, so nothing distinguishes them — while the sleep and
+ * irregular cases fail on the payload length (29 vs 26 and 37 vs 27 bytes).
+ * The on-time pair is geometry smoke, not a guard; keep the other two.
+ */
+static void resume_roundtrip(const uint32_t* epochs, uint8_t n) {
+    buildSchema(1);
+    HistoryV5Encoder enc;
+    enc.begin(g_schema, 1, 60);
+    for (uint8_t i = 0; i < n; i++) {
+        int16_t v = (int16_t)(100 + i);
+        if (i == 0) enc.reset(epochs[i], &v);
+        else TEST_ASSERT_TRUE(enc.add(epochs[i], &v));
+    }
+    uint8_t first[H5_BLOCK_MAX_BYTES];
+    const size_t n1 = enc.seal(first, sizeof(first), H5_FLAG_PARTIAL);
+    TEST_ASSERT_TRUE(n1 > 0);
+
+    /* The replay, exactly as the firmware does it: decode the snapshot and
+     * feed every record back through reset( ) / add( ). */
+    HistoryV5Encoder again;
+    again.begin(g_schema, 1, 60);
+    HistoryV5Decoder dec;
+    TEST_ASSERT_TRUE(dec.begin(first, n1, g_schema, 1, 60));
+    uint32_t e = 0;
+    int16_t  v[H5_MAX_CHANNELS];
+    uint8_t  seen = 0;
+    while (dec.next(e, v)) {
+        if (seen == 0) again.reset(e, v);
+        else TEST_ASSERT_TRUE(again.add(e, v));
+        seen++;
+    }
+    TEST_ASSERT_EQUAL_UINT8(n, seen);
+    TEST_ASSERT_EQUAL_UINT8(n, again.count( ));
+
+    /* Sealing the replayed block must produce the same bytes. Comparing the
+     * chunk rather than the decoded records is deliberate: it also pins t0,
+     * the envelope and the payload, any of which a lossy replay could move
+     * while the records still read back correctly. */
+    uint8_t second[H5_BLOCK_MAX_BYTES];
+    const size_t n2 = again.seal(second, sizeof(second), H5_FLAG_PARTIAL);
+    TEST_ASSERT_EQUAL_UINT32((uint32_t)n1, (uint32_t)n2);
+    TEST_ASSERT_EQUAL_MEMORY(first, second, n1);
+}
+
+void test_resume_replays_an_on_time_block(void) {
+    const uint32_t e[] = { 1000, 1060, 1120, 1180, 1240 };
+    resume_roundtrip(e, 5);
+}
+
+void test_resume_replays_across_a_sleep(void) {
+    /* What an Air actually produces: each record lands one wake after the
+     * last, and the wake period is a second or two off the nominal. */
+    const uint32_t e[] = { 1000, 1062, 1124, 1185, 1247, 1309 };
+    resume_roundtrip(e, 6);
+}
+
+void test_resume_replays_an_irregular_block(void) {
+    /* Gaps far from the nominal, including one big enough to force the 32-bit
+     * resync symbol. A replay that quietly re-predicted from the nominal
+     * instead of carrying the real epochs would fail here and nowhere else. */
+    const uint32_t e[] = { 1000, 1001, 1400, 1460, 9000, 9060, 9061 };
+    resume_roundtrip(e, 7);
+}
+
+void test_resume_replays_a_full_block(void) {
+    uint32_t e[H5_BLOCK_MAX_RECORDS];
+    for (uint8_t i = 0; i < H5_BLOCK_MAX_RECORDS; i++) {
+        e[i] = 1000u + (uint32_t)i * 60u;
+    }
+    resume_roundtrip(e, H5_BLOCK_MAX_RECORDS);
+}
+
+void test_resume_then_fill_and_close(void) {
+    /* The seam the firmware actually walks: a block resumed one record short
+     * of full takes exactly one more and then refuses, which is what makes
+     * writeHistoryEntryV5( ) seal it into the day file. A replay that lost or
+     * duplicated a record would move that boundary and either close the block
+     * early or overflow the encoder's arrays. */
+    buildSchema(1);
+    HistoryV5Encoder enc;
+    enc.begin(g_schema, 1, 60);
+    const uint8_t held = H5_BLOCK_MAX_RECORDS - 1;
+    for (uint8_t i = 0; i < held; i++) {
+        int16_t v = (int16_t)i;
+        if (i == 0) enc.reset(1000, &v);
+        else TEST_ASSERT_TRUE(enc.add(1000u + (uint32_t)i * 60u, &v));
+    }
+    uint8_t chunk[H5_BLOCK_MAX_BYTES];
+    const size_t n1 = enc.seal(chunk, sizeof(chunk), H5_FLAG_PARTIAL);
+    TEST_ASSERT_TRUE(n1 > 0);
+
+    HistoryV5Encoder again;
+    again.begin(g_schema, 1, 60);
+    HistoryV5Decoder dec;
+    TEST_ASSERT_TRUE(dec.begin(chunk, n1, g_schema, 1, 60));
+    uint32_t e = 0;
+    int16_t  v[H5_MAX_CHANNELS];
+    uint8_t  seen = 0;
+    while (dec.next(e, v)) {
+        if (seen == 0) again.reset(e, v); else TEST_ASSERT_TRUE(again.add(e, v));
+        seen++;
+    }
+    TEST_ASSERT_EQUAL_UINT8(held, again.count( ));
+    TEST_ASSERT_FALSE(again.full( ));
+
+    int16_t last = 99;
+    TEST_ASSERT_TRUE(again.add(1000u + (uint32_t)held * 60u, &last));
+    TEST_ASSERT_EQUAL_UINT8(H5_BLOCK_MAX_RECORDS, again.count( ));
+    TEST_ASSERT_TRUE(again.full( ));
+    TEST_ASSERT_FALSE(again.add(1000u + (uint32_t)(held + 1) * 60u, &last));
+}
+
 int main(void) {
     UNITY_BEGIN( );
 
@@ -1437,6 +1567,12 @@ int main(void) {
     RUN_TEST(test_nominal_seconds_clamps);
 
     RUN_TEST(test_property_random_series_roundtrip);
+
+    RUN_TEST(test_resume_replays_an_on_time_block);
+    RUN_TEST(test_resume_replays_across_a_sleep);
+    RUN_TEST(test_resume_replays_an_irregular_block);
+    RUN_TEST(test_resume_replays_a_full_block);
+    RUN_TEST(test_resume_then_fill_and_close);
 
     return UNITY_END( );
 }

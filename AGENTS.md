@@ -313,11 +313,22 @@ Armadilhas de bancada específicas do Air:
   gravações do bloco inteiro por ciclo M0→M1, agora 1; **T15 é o portão**. O contador está em
   `air status` (`wip=`) e na linha `[AIR] alarm:`. ⚠️ **Ler `wip=` por `air status` de dentro de um
   wake devolve 0**: o console responde antes do DECIDE. Use a linha de alarme.
-- 🔴 **Num Air o bloco de 60 registros NÃO existe.** O boot adota o `.wip` **anexando-o ao arquivo
-  do dia e apagando-o**; ele não volta para o encoder. Como todo wake é um boot, cada leitura vira
-  um bloco próprio. Medido em 07/09 no arquivo real: **1,42 registros/bloco** (253 dos 316 blocos
-  com UM registro) e **16,0 B por registro** contra os 5,38 B do projeto do V5 — ou seja, ~3× o
-  espaço e uma retenção de ~35 dias em vez de ~130. É a raiz da família F23; NÃO foi corrigido.
+- ✅ **O boot RETOMA o bloco aberto (F23, corrigido 07/09).** Antes ele adotava o `.wip` anexando-o
+  ao arquivo do dia e apagando-o; como todo wake é um boot, cada leitura virava um bloco próprio
+  (**1,41 reg/bloco, 16,0 B/registro** contra os 5,38 do projeto). Agora `h5ResumeOpenBlock( )`
+  reinjeta o snapshot no encoder, e o `.wip` **não é apagado** — ele segue sendo a cópia em flash do
+  bloco aberto. Medido numa janela de 25 min sem interferência: **um bloco de 27 registros por 52 B** contra
+  blocos de UM registro minutos antes — **16,0 → 1,9 B/registro**. Sela só quando o bloco enche,
+  o dia vira, ou uma correção de relógio chega.
+  ⚠️ **Não meça isso pelo delta do arquivo do dia**: durante a janela o bloco está ABERTO no
+  `.wip`, então o arquivo não cresce e o delta dá **+0** — indistinguível de "parou de gravar".
+  Olhe os blocos SELADOS (`h5_block_anchors`) e o `tel=` de pendentes.
+  ⚠️ **Reinjetar é sem perda porque o formato guarda a ÉPOCA REAL de cada registro** (delta-de-delta,
+  escape de 32 bits); o nominal é só o preditor. Documentação antiga que diz "o interior é
+  reconstruído pelo passo nominal" está errada.
+  ⚠️ **Um bloco retomado carrega carimbos da sessão anterior.** O `shiftHistoryTimeV5` sela antes de
+  corrigir e marca `_h5AdoptedT0` — deslocamento parcial foi recusado de propósito, porque um delta
+  negativo reordenaria o bloco.
 - ⚠️ **Nenhuma medida do `air idle` vale com uma aba do painel aberta.** Cada acerto na web chama
   `airMarkActivity( )` (é o fix do F21, funcionando), então o aparelho fica acordado para sempre e
   as DUAS metades do teste do carregador dão "acordado" — o A/B não discrimina nada. Em 07/09 isso
