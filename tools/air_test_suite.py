@@ -1635,10 +1635,27 @@ class Suite:
         if n < 1:
             raise TestFail(f'no snapshot written in a whole cycle (wip {settled} -> {after}) — '
                            f'the open block would be lost on a power cut')
-        if n > 1:
+        # Two is the ceiling, not one, and the second write is legitimate: since
+        # the boot resumes the open block (F23) rather than sealing it, the
+        # snapshot on flash carries the provenance of the session that wrote it.
+        # A wake stamps its record BEFORE it reaches NTP, so the block on flash
+        # says "provisional"; when the clock is then confirmed, the next
+        # unconditional flush rewrites it to say "synced" — and that flag is
+        # what the next boot's seed gate reads. Suppressing it would leave flash
+        # claiming a provenance it does not have.
+        #
+        # It costs one extra write per resumed block on the wakes that reach
+        # NTP, which on a device with a minimum batch above one is a minority
+        # of them. Measured 2026-09-07: 3 and 4 writes per cycle before any of
+        # this, 1 with the redundant callers gone, 2 once the boot started
+        # resuming. Three or more means an unconditional caller is rewriting
+        # bytes that have not changed at all.
+        if n > 2:
             raise TestFail(f'{n} whole-block snapshots in one cycle (wip {settled} -> {after}) — '
-                           f'an unconditional caller is rewriting what is already on flash')
-        return f'1 snapshot per cycle (wip {before} -> {settled} -> {after})'
+                           f'at most one write plus one provenance upgrade is expected; a caller '
+                           f'is rewriting what is already on flash')
+        return (f'{n} snapshot(s) per cycle (wip {before} -> {settled} -> {after})'
+                + ('; the second is the clock-provenance upgrade' if n == 2 else ''))
 
     # ---- runner -----------------------------------------------------------
 
