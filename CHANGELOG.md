@@ -4,6 +4,20 @@
 
 All notable changes to SIMUT firmware.
 
+## Unreleased
+
+**The history block survives a wake.** A block holds sixty readings so that its
+header is paid once an hour instead of once a reading. On the hibernating build
+it never did: the boot found the open block's snapshot, closed it into the day
+file and started over, which is the right thing to do when a boot means
+something went wrong — and every wake is a boot. Measured on a real day file:
+448 readings spread across 316 blocks, 253 of them holding a single one, at 16
+bytes each against the five the format is designed for. The boot now carries the
+block on instead, and the snapshot file stays where it is, so the open block is
+never held only in memory. Measured after the change: one block of 27 readings
+where there had been 27 blocks. History now costs roughly what it was meant to,
+and a device keeps months of it again rather than weeks.
+
 ## v2.4.0-beta (2026-09-07)
 
 ### SIMUT Air: headless build with a deep-sleep hibernation cycle (experimental)

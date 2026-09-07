@@ -4,6 +4,21 @@
 
 Todas as mudanças notáveis do firmware SIMUT.
 
+## Não lançado
+
+**O bloco do histórico sobrevive a um wake.** Um bloco guarda sessenta leituras
+para que seu cabeçalho seja pago uma vez por hora, e não uma vez por leitura. Na
+build que hiberna isso nunca acontecia: o boot encontrava o instantâneo do bloco
+aberto, fechava-o no arquivo do dia e recomeçava — o que é o certo a fazer
+quando um boot significa que algo deu errado, e ali todo wake é um boot. Medido
+num arquivo real: 448 leituras espalhadas por 316 blocos, 253 deles com uma
+única leitura, a 16 bytes cada contra os cinco que o formato foi desenhado para
+custar. Agora o boot dá continuidade ao bloco, e o arquivo de instantâneo
+permanece onde está, de modo que o bloco aberto nunca fica só na memória. Medido
+depois da mudança: um bloco de 27 leituras onde antes havia 27 blocos. O
+histórico voltou a custar aproximadamente o previsto, e o aparelho volta a
+guardar meses dele em vez de semanas.
+
 ## v2.4.0-beta (2026-09-07)
 
 ### SIMUT Air: build headless com ciclo de hibernação em deep sleep (experimental)
